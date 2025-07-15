@@ -30,8 +30,8 @@ TChunkStripeKey::TChunkStripeKey(TBoundaryKeys boundaryKeys)
     : Key_(boundaryKeys)
 { }
 
-TChunkStripeKey::TChunkStripeKey(TOutputOrder::TEntry Entry)
-    : Key_(Entry)
+TChunkStripeKey::TChunkStripeKey(TOutputCookie cookie)
+    : Key_(cookie)
 { }
 
 TChunkStripeKey::TChunkStripeKey()
@@ -43,9 +43,9 @@ bool TChunkStripeKey::IsBoundaryKeys() const
     return std::holds_alternative<TBoundaryKeys>(Key_);
 }
 
-bool TChunkStripeKey::IsOutputOrderEntry() const
+bool TChunkStripeKey::IsOutputCookie() const
 {
-    return std::holds_alternative<TOutputOrder::TEntry>(Key_);
+    return std::holds_alternative<TOutputCookie>(Key_);
 }
 
 TChunkStripeKey::operator bool() const
@@ -63,47 +63,24 @@ const TBoundaryKeys& TChunkStripeKey::AsBoundaryKeys() const
     return std::get<TBoundaryKeys>(Key_);
 }
 
-TOutputOrder::TEntry& TChunkStripeKey::AsOutputOrderEntry()
+TOutputCookie TChunkStripeKey::AsOutputCookie() const
 {
-    return std::get<TOutputOrder::TEntry>(Key_);
-}
-
-const TOutputOrder::TEntry& TChunkStripeKey::AsOutputOrderEntry() const
-{
-    return std::get<TOutputOrder::TEntry>(Key_);
+    return std::get<TOutputCookie>(Key_);
 }
 
 void TChunkStripeKey::RegisterMetadata(auto&& registrar)
 {
-    // COMPAT(coteeq)
-    using TLegacyKeyType = std::variant<int, TBoundaryKeys, TOutputOrder::TEntry>;
-    registrar.template VirtualField<1>(
-        "LegacyKey_",
-        [] (TThis* this_, auto& context) {
-            auto legacyKey = Load<TLegacyKeyType>(context);
-            Visit(
-                legacyKey,
-                [&] (int index) {
-                    YT_VERIFY(index == 0 || index == -1);
-                    this_->Key_ = TUninitialized{};
-                },
-                [&] (TOutputOrder::TEntry entry) {
-                    this_->Key_ = entry;
-                },
-                [&] (TBoundaryKeys boundaryKeys) {
-                    this_->Key_ = boundaryKeys;
-                });
-        })
-        .BeforeVersion(ESnapshotVersion::ChunkStripeKeyNoIndex)();
-
-    PHOENIX_REGISTER_FIELD(2, Key_,
-        .SinceVersion(ESnapshotVersion::ChunkStripeKeyNoIndex));
+    PHOENIX_REGISTER_FIELD(1, Key_,
+        .SinceVersion(ESnapshotVersion::DropOutputOrder));
 }
 
 bool TChunkStripeKey::operator ==(const TChunkStripeKey& other) const
 {
     return Key_ == other.Key_;
 }
+
+void TChunkStripeKey::TUninitialized::Persist(const auto& /*context*/)
+{ }
 
 PHOENIX_DEFINE_TYPE(TChunkStripeKey);
 
@@ -120,8 +97,8 @@ void FormatValue(TStringBuilderBase* builder, const TChunkStripeKey& key, TStrin
         builder->AppendFormat("bnd_keys@{%v, %v}", boundaryKeys.MinKey, boundaryKeys.MaxKey);
         return;
     }
-    if (key.IsOutputOrderEntry()) {
-        builder->AppendFormat("%v" ,key.AsOutputOrderEntry());
+    if (key.IsOutputCookie()) {
+        builder->AppendFormat("%v", key.AsOutputCookie());
         return;
     }
 

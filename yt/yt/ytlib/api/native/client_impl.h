@@ -744,6 +744,14 @@ public: \
         NObjectClient::TCellId coordinatorCellId,
         const TResumeCoordinatorOptions& options),
         (coordinatorCellId, options))
+    IMPLEMENT_METHOD(IPrerequisitePtr, StartChaosLease, (
+        const TChaosLeaseStartOptions& options = {}),
+        (options))
+    IMPLEMENT_METHOD(IPrerequisitePtr, AttachChaosLease, (
+        NChaosClient::TChaosLeaseId chaosLeaseId,
+        const TChaosLeaseAttachOptions& options = {}),
+        (chaosLeaseId, options))
+
     IMPLEMENT_METHOD(void, MigrateReplicationCards, (
         NObjectClient::TCellId chaosCellId,
         const TMigrateReplicationCardsOptions& options),
@@ -1397,13 +1405,15 @@ private:
         NApi::EJobSpecSource specSource,
         NYTree::EPermissionSet requiredPermissions);
 
-    std::optional<TGetJobStderrResponse> DoGetJobStderrFromNode(
+    std::optional<TGetJobStderrResponse> DoGetUserJobStderrFromNode(
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId,
         const TGetJobStderrOptions& options);
     TSharedRef DoGetJobStderrFromArchive(
         NScheduler::TOperationId operationId,
-        NScheduler::TJobId jobId);
+        NScheduler::TJobId jobId,
+        TInstant deadline,
+        EJobStderrType stderrType);
 
     TSharedRef DoGetJobFailContextFromNode(
         NScheduler::TOperationId operationId,
@@ -1436,7 +1446,7 @@ private:
 
     TFuture<TListJobsFromControllerAgentResult> DoListJobsFromControllerAgentAsync(
         NScheduler::TOperationId operationId,
-        const std::optional<TString>& controllerAgentAddress,
+        const std::optional<std::string>& controllerAgentAddress,
         TInstant deadline,
         const TListJobsOptions& options,
         const THashSet<TString>& attributes);

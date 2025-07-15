@@ -3,6 +3,7 @@
 
 #include "error_helpers.h"
 #include "progress_merger.h"
+#include "provider_load.h"
 #include "secret_masker.h"
 
 #include <yt/yql/providers/yt/common/yql_names.h>
@@ -15,6 +16,9 @@
 #include <yt/yql/providers/yt/lib/skiff/yql_skiff_schema.h>
 #include <yt/yql/providers/yt/lib/yt_download/yt_download.h>
 #include <yt/yql/providers/yt/provider/yql_yt_provider.h>
+
+#include <yt/yql/providers/ytflow/gateway/yql_ytflow.h>
+#include <yt/yql/providers/ytflow/provider/yql_ytflow_provider.h>
 
 #include <yql/essentials/providers/common/codec/yql_codec_type_flags.h>
 #include <yql/essentials/providers/common/codec/yql_codec.h>
@@ -101,14 +105,15 @@ std::optional<TString> MaybeToOptional(const TMaybe<TString>& maybeStr)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TQueryPlan
+struct TQueryRepresentations
     : public TRefCounted
 {
     std::optional<TString> Plan;
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PlanSpinLock);
+    std::optional<TString> Ast;
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ReprSpinLock);
 };
-DECLARE_REFCOUNTED_TYPE(TQueryPlan)
-DEFINE_REFCOUNTED_TYPE(TQueryPlan)
+DECLARE_REFCOUNTED_TYPE(TQueryRepresentations)
+DEFINE_REFCOUNTED_TYPE(TQueryRepresentations)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -117,10 +122,10 @@ class TQueryPipelineConfigurator
     , public TRefCounted
 {
 public:
-    const TQueryPlanPtr Plan;
+    const TQueryRepresentationsPtr Repr;
 
     TQueryPipelineConfigurator(NYql::TProgramPtr program)
-        : Plan(New<TQueryPlan>())
+        : Repr(New<TQueryRepresentations>())
         , Program_(std::move(program))
     { }
 
@@ -135,13 +140,14 @@ public:
         auto transformer = [this](NYql::TExprNode::TPtr input, NYql::TExprNode::TPtr& output, NYql::TExprContext& /*ctx*/) {
             output = input;
 
-            auto guard = WriterGuard(Plan->PlanSpinLock);
-            Plan->Plan = MaybeToOptional(Program_->GetQueryPlan());
+            auto guard = WriterGuard(Repr->ReprSpinLock);
+            Repr->Plan = MaybeToOptional(Program_->GetQueryPlan());
+            Repr->Ast = MaybeToOptional(Program_->GetQueryAst());
 
             return NYql::IGraphTransformer::TStatus::Ok;
         };
 
-        pipeline->Add(NYql::CreateFunctorTransformer(transformer), "PlanOutput");
+        pipeline->Add(NYql::CreateFunctorTransformer(transformer), "PlanAndAstOutput");
     }
 
 private:
@@ -179,6 +185,7 @@ struct TActiveQuery
     TProgressMerger ProgressMerger;
     TQueryPipelineConfiguratorPtr PipelineConfigurator;
     std::optional<TString> Plan;
+    std::optional<TString> Ast;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -355,6 +362,12 @@ public:
                 NYson::ReflectProtobufMessageType<NYql::TYtGatewayConfig>(),
                 protobufWriterOptions));
 
+            auto* gatewayYtflowConfig = GatewaysConfigInitial_.MutableYtflow();
+            gatewayYtflowConfig->ParseFromStringOrThrow(NYson::YsonStringToProto(
+                options.YtflowGatewayConfig,
+                NYson::ReflectProtobufMessageType<NYql::TYtflowGatewayConfig>(),
+                protobufWriterOptions));
+
             NYql::TFileStorageConfig fileStorageConfig;
             fileStorageConfig.ParseFromStringOrThrow(NYson::YsonStringToProto(
                 options.FileStorageConfig,
@@ -432,6 +445,17 @@ public:
             UIOrigin_ = options.UIOrigin;
             // do not use token from .yt/token or env in queries
             NYT::TConfig::Get()->Token = {};
+
+            TLangVersionBuffer buf;
+            TStringBuf versionStringBuf;
+
+            ParseLangVersion(options.MaxYqlLangVersion, MaxYqlLangVersion_);
+            YQL_LOG(INFO) << Format("Maximum supported YQL version is set to '%v'", options.MaxYqlLangVersion);
+
+            DefaultYqlApiLangVersion_ = MinLangVersion;
+            FormatLangVersion(DefaultYqlApiLangVersion_, buf, versionStringBuf);
+            YQL_LOG(INFO) << Format("Deafult YQL version for API and CLI is set to '%v'", versionStringBuf);
+
         } catch (const std::exception& ex) {
             // NB: YQL_LOG may be not initialized yet (for example, during singletons config parse),
             // so we use std::cerr instead of it.
@@ -457,7 +481,11 @@ public:
         auto factory = CreateProgramFactory(*dynamicConfig);
         auto program = factory->Create("-memory-", queryText);
 
-        program->AddCredentials({{"default_yt", NYql::TCredential("yt", "", YqlAgentToken_)}});
+        program->AddCredentials({
+            {"default_yt", NYql::TCredential("yt", "", YqlAgentToken_)},
+            {"default_ytflow", NYql::TCredential("ytflow", "", YqlAgentToken_)}
+        });
+
         program->SetOperationAttrsYson(PatchQueryAttributes(OperationAttributes_, settings));
 
         auto defaultQueryCluster = dynamicConfig->DefaultCluster;
@@ -465,6 +493,8 @@ public:
         if (auto cluster = ysonSettings.FindPtr("cluster")) {
             defaultQueryCluster = cluster->AsString();
         }
+
+        SetProgramYqlVersion(program, ysonSettings);
 
         auto userDataTable = FilesToUserTable(files);
         program->AddUserDataTable(userDataTable);
@@ -556,15 +586,19 @@ public:
             defaultQueryCluster = cluster->AsString();
         }
 
+        SetProgramYqlVersion(program, settingsMap);
+
         auto userDataTable = FilesToUserTable(files);
         program->AddUserDataTable(userDataTable);
 
-        auto queryPlan = pipelineConfigurator->Plan;
-        program->SetProgressWriter([queryPlan, queryId, this] (const NYql::TOperationProgress& progress) {
+        auto queryRepr = pipelineConfigurator->Repr;
+        program->SetProgressWriter([queryRepr, queryId, this] (const NYql::TOperationProgress& progress) {
             std::optional<TString> plan;
+            std::optional<TString> ast;
             {
-                auto guard = ReaderGuard(queryPlan->PlanSpinLock);
-                plan.swap(queryPlan->Plan);
+                auto guard = ReaderGuard(queryRepr->ReprSpinLock);
+                plan.swap(queryRepr->Plan);
+                ast.swap(queryRepr->Ast);
             }
 
             auto guard = WriterGuard(ProgressSpinLock_);
@@ -572,6 +606,9 @@ public:
                 ActiveQueriesProgress_[queryId].ProgressMerger.MergeWith(progress);
                 if (plan) {
                     ActiveQueriesProgress_[queryId].Plan.swap(plan);
+                }
+                if (ast) {
+                    ActiveQueriesProgress_[queryId].Ast.swap(ast);
                 }
             }
         });
@@ -659,6 +696,7 @@ public:
             .Statistics = MaybeToOptional(program->GetStatistics()),
             .Progress = progress,
             .TaskInfo = MaybeToOptional(program->GetTasksInfo()),
+            .Ast = MaybeToOptional(program->GetQueryAst()),
         };
     }
 
@@ -713,6 +751,7 @@ public:
             if (ActiveQueriesProgress_[queryId].ProgressMerger.HasChangesSinceLastFlush()) {
                 result.Plan = ActiveQueriesProgress_[queryId].Plan;
                 result.Progress = ActiveQueriesProgress_[queryId].ProgressMerger.ToYsonString();
+                result.Ast = ActiveQueriesProgress_[queryId].Ast;
             }
             return result;
         } else {
@@ -800,6 +839,9 @@ private:
     TYsonString OperationAttributes_;
     TString YqlAgentToken_;
     TString UIOrigin_;
+
+    TLangVersion MaxYqlLangVersion_;
+    TLangVersion DefaultYqlApiLangVersion_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ProgressSpinLock_);
     THashMap<TQueryId, TActiveQuery> ActiveQueriesProgress_;
@@ -934,6 +976,13 @@ private:
 
         auto ytNativeGateway = CreateYtNativeGateway(ytServices);
         dataProvidersInit.push_back(GetYtNativeDataProviderInitializer(ytNativeGateway, NDq::MakeCBOOptimizerFactory(), MakeDqHelper()));
+
+        ExtProviderSpecific(
+            dynamicConfig.GatewaysConfig,
+            FuncRegistry_.Get(),
+            dataProvidersInit,
+            FileStorage_);
+
         YQL_LOG(DEBUG) << __FUNCTION__ << ": dataProvidersInit ready";
 
         auto factory = MakeIntrusive<NYql::TProgramFactory>(
@@ -948,6 +997,20 @@ private:
 
         YQL_LOG(DEBUG) << __FUNCTION__ << ": done";
         return std::move(factory);
+    }
+
+    void SetProgramYqlVersion(TProgramPtr program, TNode::TMapType& settingsMap) {
+        program->SetMaxLanguageVersion(MaxYqlLangVersion_);
+        if (auto version = settingsMap.FindPtr("yql_version")) {
+            TLangVersion parsedVersion;
+            if (ParseLangVersion(version->AsString(), parsedVersion)) {
+                program->SetLanguageVersion(parsedVersion);
+            } else {
+                ythrow yexception() << Format("Invalid YQL language version: '%v'", version->AsString());
+            }
+        } else {
+            program->SetLanguageVersion(DefaultYqlApiLangVersion_);
+        }
     }
 };
 

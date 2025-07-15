@@ -96,6 +96,7 @@ target_link_libraries(clickhouse-src-Common PUBLIC
   contrib-libs-snappy
   contrib-libs-sparsehash
   contrib-libs-zstd
+  contrib-restricted-abseil-cpp
   restricted-aws-aws-c-auth
   restricted-aws-aws-c-common
   restricted-aws-aws-c-io

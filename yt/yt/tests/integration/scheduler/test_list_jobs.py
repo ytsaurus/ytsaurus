@@ -1035,7 +1035,7 @@ class TestListJobs(TestListJobsCommon):
         check_sorted_list_jobs_with_attr([])
         check_sorted_list_jobs_with_attr(["task_name"])
 
-    @authors("omgronny")
+    @authors("bystrovserg")
     def test_list_jobs_continuation_token(self):
         op = run_sleeping_vanilla(job_count=3)
 
@@ -1050,6 +1050,15 @@ class TestListJobs(TestListJobsCommon):
         jobs = list_jobs(op.id, continuation_token=jobs["continuation_token"], state="completed")["jobs"]
         assert len(jobs) == 2
         assert "continuation_token" not in jobs
+
+        print_debug("Check continuation_token with attributes")
+        jobs_with_attr = list_jobs(op.id, attributes=["start_time"], limit=1, sort_field="start_time")
+        assert len(jobs_with_attr["jobs"]) == 1
+        assert jobs_with_attr["jobs"][0].keys() == {"id", "start_time"}
+
+        jobs_with_attr = list_jobs(op.id, continuation_token=jobs_with_attr["continuation_token"])
+        assert len(jobs_with_attr["jobs"]) == 2
+        assert jobs_with_attr["jobs"][0].keys() == {"id", "start_time"}
 
     @authors("eshcherbin", "pogorelov")
     def test_operation_incarnation(self):
@@ -1091,13 +1100,13 @@ class TestListJobs(TestListJobsCommon):
 
         abort_job(first_job_id)
 
-        job_orchid_addresses = [op.get_job_node_orchid_path(job_id) + f"/exec_node/job_controller/active_jobs/{job_id}" for job_id in job_ids]
+        job_orchid_addresses = {job_id: op.get_job_node_orchid_path(job_id) + f"/exec_node/job_controller/active_jobs/{job_id}" for job_id in job_ids}
 
         release_breakpoint(job_id=job_ids[0])
-        release_breakpoint(job_id=job_ids[1])
+        wait(lambda: not exists(job_orchid_addresses[job_ids[0]]))
 
-        for job_orchid_address in job_orchid_addresses:
-            wait(lambda: not exists(job_orchid_address))
+        release_breakpoint(job_id=job_ids[1])
+        wait(lambda: not exists(job_orchid_addresses[job_ids[1]]))
 
         new_job_ids = wait_breakpoint(job_count=2)
 
@@ -1351,9 +1360,11 @@ class TestListJobs(TestListJobsCommon):
 
         wait_for_cells()
 
-        wait(lambda: len(list_jobs(op.id)["state_counts"]) == 2)
-        state_counts = list_jobs(op.id)["state_counts"]
-        assert frozenset(state_counts.keys()) == frozenset(["aborted", "completed"])
+        @wait_no_assert
+        def check_state_counts():
+            assert len(list_jobs(op.id)["state_counts"]) == 2
+            state_counts = list_jobs(op.id)["state_counts"]
+            assert frozenset(state_counts.keys()) == frozenset(["aborted", "completed"])
 
     @authors("bystrovserg")
     def test_brief_statistics_without_full_statistics(self):
@@ -1408,6 +1419,41 @@ class TestListJobs(TestListJobsCommon):
 
         release_breakpoint()
         op.track()
+
+    # TODO(bystrovserg): Do smth with copypaste of similar tests for get_job and list_jobs.
+    @authors("bystrovserg")
+    def test_gang_rank(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=3,
+            task_patch={
+                "gang_options": {},
+            },
+        )
+
+        wait_breakpoint(job_count=3)
+
+        wait(lambda: len(op.get_running_jobs()) == 3)
+        running_jobs = op.get_running_jobs()
+
+        job_ranks = {job_id: info["gang_rank"] for job_id, info in running_jobs.items()}
+        print_debug("Acquired job ranks from controller: {}".format(job_ranks))
+
+        def check_job_ranks():
+            jobs = list_jobs(op.id, attributes=["gang_rank"])["jobs"]
+            wait(lambda: len(list_jobs(op.id, attributes=["gang_rank"])["jobs"]) == 3)
+            wait(lambda: all(job.get("gang_rank") is not None for job in list_jobs(op.id, attributes=["gang_rank"])["jobs"]))
+            jobs = list_jobs(op.id, attributes=["gang_rank"])["jobs"]
+
+            job_ranks_api = {job["id"]: job["gang_rank"] for job in jobs}
+            assert job_ranks_api == job_ranks
+
+        check_job_ranks()
+
+        release_breakpoint()
+        op.track()
+
+        check_job_ranks()
 
 
 class TestListJobsAllocation(TestListJobsBase):

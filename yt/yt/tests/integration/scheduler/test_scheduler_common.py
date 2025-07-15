@@ -6,7 +6,7 @@ from yt_env_setup import (
 )
 from yt_commands import (
     authors, create_test_tables, extract_statistic_v2, extract_deprecated_statistic,
-    print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint,
+    print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, wait_no_assert,
     create, ls, get, set, copy, move, remove, exists,
     create_user, create_pool,
     start_transaction, abort_transaction,
@@ -1624,26 +1624,24 @@ class TestJobStatisticsPorto(YTEnvSetup):
         op = map(
             in_="//tmp/t1",
             out="//tmp/t2",
-            command='cat; bash -c "for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done; sleep 2" >/dev/null && sleep 2',
+            command='cat; bash -c "for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done; sleep 2" >/dev/null && python3 -c "import time; x = [i for i in range(10**7)]; time.sleep(2)"',
         )
 
         def check_statistics(statistics, statistic_extractor):
-            result = True
             for component in ["user_job", "job_proxy"]:
                 print_debug(component)
-                result = result and statistic_extractor(statistics, component + ".cpu.user") > 0
-                result = result and statistic_extractor(statistics, component + ".cpu.system") > 0
-                result = result and statistic_extractor(statistics, component + ".cpu.context_switches") is not None
-                result = result and statistic_extractor(statistics, component + ".cpu.peak_thread_count", summary_type="max") is not None
-                result = result and statistic_extractor(statistics, component + ".cpu.wait") is not None
-                result = result and statistic_extractor(statistics, component + ".cpu.throttled") is not None
-                result = result and statistic_extractor(statistics, component + ".block_io.bytes_read") is not None
-                result = result and statistic_extractor(statistics, component + ".max_memory") > 0
-            result = result and statistic_extractor(statistics, "user_job.cumulative_memory_mb_sec") > 0
-            return result
+                assert statistic_extractor(statistics, component + ".cpu.user") > 0
+                assert statistic_extractor(statistics, component + ".cpu.system") > 0
+                assert statistic_extractor(statistics, component + ".cpu.context_switches") is not None
+                assert statistic_extractor(statistics, component + ".cpu.peak_thread_count", summary_type="max") is not None
+                assert statistic_extractor(statistics, component + ".cpu.wait") is not None
+                assert statistic_extractor(statistics, component + ".cpu.throttled") is not None
+                assert statistic_extractor(statistics, component + ".block_io.bytes_read") is not None
+                assert statistic_extractor(statistics, component + ".max_memory") > 0
+            assert statistic_extractor(statistics, "user_job.cumulative_memory_mb_sec") > 0
 
-        wait(lambda: check_statistics(get(op.get_path() + "/@progress/job_statistics_v2"), extract_statistic_v2))
-        wait(lambda: check_statistics(get(op.get_path() + "/@progress/job_statistics"), extract_deprecated_statistic))
+        wait_no_assert(lambda: check_statistics(get(op.get_path() + "/@progress/job_statistics_v2"), extract_statistic_v2))
+        wait_no_assert(lambda: check_statistics(get(op.get_path() + "/@progress/job_statistics"), extract_deprecated_statistic))
 
     @authors("max42")
     def test_statistics_truncation(self):

@@ -65,7 +65,6 @@
 #include <yt/yt/server/lib/hydra/entity_map.h>
 
 #include <yt/yt/server/lib/security_server/helpers.h>
-#include <yt/yt/server/lib/security_server/permission_checker.h>
 
 #include <yt/yt/ytlib/security_client/group_ypath_proxy.h>
 
@@ -548,10 +547,10 @@ public:
         auto perCellPermissionValidationProfiler = SecurityProfiler()
             .WithSparse()
             .WithDefaultDisabled();
-        CheckPermissionGauge_ = perCellPermissionValidationProfiler
-            .TimeGauge("/check_permission_cumulative_time");
-        AclIterationGauge_ = perCellPermissionValidationProfiler
-            .TimeGauge("/acl_iteration_cumulative_time");
+        CheckPermissionTimeCounter_ = perCellPermissionValidationProfiler
+            .TimeCounter("/check_permission_cumulative_time");
+        AclIterationTimeCounter_ = perCellPermissionValidationProfiler
+            .TimeCounter("/acl_iteration_cumulative_time");
     }
 
     void RefreshAccountsForProfiling()
@@ -2278,7 +2277,7 @@ public:
                 break;
             }
         }
-        AclIterationGauge_.Update(aclIterationTimer.GetElapsedTime());
+        AclIterationTimeCounter_.Add(aclIterationTimer.GetElapsedTime());
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
 
@@ -2297,7 +2296,7 @@ public:
                 currentDepth);
         }
 
-        CheckPermissionGauge_.Update(checkPermissionTimer.GetElapsedTime());
+        CheckPermissionTimeCounter_.Add(checkPermissionTimer.GetElapsedTime());
         return checker.GetResponse();
     }
 
@@ -2414,7 +2413,7 @@ public:
         EPermission permission,
         const TPermissionCheckResult& result) override
     {
-        YT_ASSERT(result.Action == ESecurityAction::Deny);
+        YT_VERIFY(result.Action == ESecurityAction::Deny);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->GetObject(target.ObjectId);
@@ -2929,8 +2928,8 @@ private:
 
     bool GroupNameMapInitialized_ = false;
 
-    TTimeGauge CheckPermissionGauge_;
-    TTimeGauge AclIterationGauge_;
+    TTimeCounter CheckPermissionTimeCounter_;
+    TTimeCounter AclIterationTimeCounter_;
 
     // COMPAT(cherepashka)
     bool FixAdminBuiltinGroup_ = false;
@@ -3936,6 +3935,16 @@ private:
 
         if (auto* user = FindUserByName(name, /*activeLifeStageOnly*/ false)) {
             // User could have been created manually.
+            if (!IsWellKnownId(user->GetId())) {
+                YT_LOG_ALERT("User is builtin, but doesn't have well known id, will fix it (User: %Qv, Id: %v -> %v)",
+                    name,
+                    user->GetId(),
+                    id);
+
+                auto userHolder = UserMap_.Release(user->GetId());
+                userHolder->SetId(id);
+                UserMap_.Insert(id, std::move(userHolder));
+            }
             return user;
         }
 
@@ -4037,13 +4046,13 @@ private:
     void MaybeToggleAccountsProfiling()
     {
         if (NeedsAccountProfiling()) {
-            StartAccountsProfiling();
+            StartAccountProfiling();
         } else {
-            StopAccountsProfiling();
+            StopAccountProfiling();
         }
     }
 
-    void StartAccountsProfiling()
+    void StartAccountProfiling()
     {
         if (!AccountsProfilingExecutor_) {
             AccountsProfilingExecutor_ = New<TPeriodicExecutor>(
@@ -4058,9 +4067,21 @@ private:
         }
 
         RefreshAccountsForProfiling();
+
+        YT_LOG_DEBUG("Account profiling started (SampleAccounts: %v, Count: %v)",
+            MakeShrunkFormattableView(
+                AccountsForProfiling_,
+                [] (
+                    TStringBuilderBase* builder,
+                    TAccount* account
+                ) {
+                    builder->AppendFormat("%v", account->GetName());
+                },
+                /*limit*/ 10),
+            AccountsForProfiling_.size());
     }
 
-    void StopAccountsProfiling()
+    void StopAccountProfiling()
     {
         if (AccountsProfilingExecutor_) {
             YT_UNUSED_FUTURE(AccountsProfilingExecutor_->Stop());
@@ -4072,6 +4093,8 @@ private:
         }
 
         AccountsForProfiling_.clear();
+
+        YT_LOG_DEBUG("Account profiling stopped");
     }
 
     void OnStopLeading() override

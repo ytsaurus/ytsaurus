@@ -245,13 +245,25 @@ private:
             return;
         }
 
-        if (slot->GetAutomatonState() != EPeerState::Leading) {
-            return;
+        bool isLeader = false;
+        switch (slot->GetAutomatonState()) {
+            case EPeerState::Leading:
+                isLeader = true;
+                break;
+
+            case EPeerState::LeaderRecovery:
+            case EPeerState::Following:
+            case EPeerState::FollowerRecovery:
+                isLeader = false;
+                break;
+
+            default:
+                return;
         }
 
         const auto& tabletManager = slot->GetTabletManager();
         for (auto [tabletId, tablet] : tabletManager->Tablets()) {
-            ScanTablet(slot, tablet);
+            ScanTablet(slot, tablet, isLeader);
         }
     }
 
@@ -267,11 +279,14 @@ private:
         DynamicMemoryUsageOtherCounter_.Update(otherUsage);
     }
 
-    void ScanTablet(const ITabletSlotPtr& slot, TTablet* tablet)
+    void ScanTablet(const ITabletSlotPtr& slot, TTablet* tablet, bool isLeader)
     {
-        ScanTabletForRotationErrors(tablet);
-        ScanTabletForFlush(slot, tablet);
-        ScanTabletForLookupCacheReallocation(tablet);
+        if (isLeader) {
+            ScanTabletForRotationErrors(tablet);
+            ScanTabletForFlush(slot, tablet);
+            ScanTabletForLookupCacheReallocation(tablet);
+        }
+
         ScanTabletForMemoryUsage(tablet);
     }
 

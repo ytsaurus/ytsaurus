@@ -20,15 +20,28 @@ MonitoringTag = BackendTag.make_new("MonitoringTag")
 ##################################################################
 
 
-class MonitoringLabelDashboardParameter:
-    def __init__(self, project_id, label_key, default_value):
+class MonitoringProjectDashboardParameter:
+    def __init__(self, projects=None):
         self.dict = {
-            "labelValues": {
-                "projectId": project_id,
-                "labelKey": label_key,
-                "defaultValues": [default_value],
-            }
+            "projectParameter": {
+                "values": projects if projects else [],
+            },
         }
+
+
+##################################################################
+
+
+class MonitoringLabelDashboardParameter:
+    def __init__(self, project_id, label_key, default_value, selectors=None):
+        values = {
+            "projectId": project_id,
+            "labelKey": label_key,
+            "defaultValues": [default_value],
+        }
+        if selectors:
+            values["selectors"] = selectors
+        self.dict = {"labelValues": values}
 
 
 ##################################################################
@@ -169,13 +182,13 @@ class MonitoringSerializerBase(SerializerBase):
 
         query = "{" + ", ".join(_format_kv_pair(k, v) for k, v in string_tags) + "}"
 
+        if SystemFields.NanAsZero in other_tags:
+            query = "replace_nan({}, 0)".format(query)
+
         if SystemFields.Top in other_tags:
             limit, aggregation = other_tags[SystemFields.Top]
             if limit:
                 query = "top({}, '{}', {})".format(limit, aggregation, query)
-
-        if SystemFields.NanAsZero in other_tags:
-            query = "replace_nan({}, 0)".format(query)
 
         if SystemFields.QueryTransformation in other_tags:
             query = other_tags[SystemFields.QueryTransformation].format(query=query)
@@ -428,7 +441,11 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
                 "title": parameter["title"],
             }
             for arg in parameter.get("args", []):
-                if type(arg) in [MonitoringLabelDashboardParameter, MonitoringTextDashboardParameter]:
+                if type(arg) in [
+                    MonitoringProjectDashboardParameter,
+                    MonitoringLabelDashboardParameter,
+                    MonitoringTextDashboardParameter,
+                ]:
                     dct.update(arg.dict)
             result.append(dct)
         return result

@@ -9,6 +9,8 @@
 
 #include <yt/yt/core/concurrency/thread_pool.h>
 
+#include <yt/yt/core/misc/finally.h>
+
 namespace NYT::NCellMaster {
 
 using namespace NHydra;
@@ -26,29 +28,29 @@ TMasterAutomaton::TMasterAutomaton(TBootstrap* bootstrap)
 void TMasterAutomaton::ApplyMutation(NHydra::TMutationContext* context)
 {
     NObjectServer::BeginMutation();
+    auto guard = Finally(NObjectServer::EndMutation);
     TCompositeAutomaton::ApplyMutation(context);
-    NObjectServer::EndMutation();
 }
 
 void TMasterAutomaton::PrepareState()
 {
     NObjectServer::BeginMutation();
+    auto guard = Finally(NObjectServer::EndMutation);
     TCompositeAutomaton::PrepareState();
-    NObjectServer::EndMutation();
 }
 
 void TMasterAutomaton::Clear()
 {
     NObjectServer::BeginTeardown();
+    auto guard = Finally(NObjectServer::EndTeardown);
     TCompositeAutomaton::Clear();
-    NObjectServer::EndTeardown();
 }
 
 void TMasterAutomaton::SetZeroState()
 {
     NObjectServer::BeginMutation();
+    auto guard = Finally(NObjectServer::EndMutation);
     TCompositeAutomaton::SetZeroState();
-    NObjectServer::EndMutation();
 }
 
 std::unique_ptr<NHydra::TSaveContext> TMasterAutomaton::CreateSaveContext(

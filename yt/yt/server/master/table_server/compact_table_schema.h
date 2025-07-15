@@ -11,7 +11,8 @@ namespace NYT::NTableServer {
 //! TCompactTableSchema is a light version of NTableClient::TTableSchema.
 //! It stores minimum lightweighted and most-used fields of TTableSchema and compactified wire protobuf representation of schema itself.
 //! This class is not formattable intentionally, since for formatting heavy TTableSchema should be parsed.
-class TCompactTableSchema final
+class TCompactTableSchema
+    : public TRefCounted
 {
 public:
     DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(Empty, true);
@@ -26,7 +27,7 @@ public:
     explicit TCompactTableSchema(const NTableClient::TTableSchema& schema);
     explicit TCompactTableSchema(const NTableClient::TTableSchemaPtr& schema);
 
-    bool operator==(const TCompactTableSchema& other) const = default;
+    bool operator==(const TCompactTableSchema& other) const;
 
     const std::string& AsWireProto() const;
 
@@ -73,7 +74,6 @@ DEFINE_REFCOUNTED_TYPE(TCompactTableSchema)
 
 void ToProto(NTableClient::NProto::TTableSchemaExt* protoSchema, const TCompactTableSchema& schema);
 void ToProto(NTableClient::NProto::TTableSchemaExt* protoSchema, const TCompactTableSchemaPtr& schema);
-void FromProto(TCompactTableSchema* schema, const NTableClient::NProto::TTableSchemaExt& protoSchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 

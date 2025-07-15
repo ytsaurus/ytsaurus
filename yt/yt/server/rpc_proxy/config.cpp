@@ -2,7 +2,7 @@
 
 #include <yt/yt/server/lib/cypress_registrar/config.h>
 
-#include <yt/yt/server/lib/signature/instance_config.h>
+#include <yt/yt/server/lib/signature/config.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
 
@@ -69,6 +69,12 @@ void TAccessCheckerDynamicConfig::Register(TRegistrar registrar)
 
 void TProxyBootstrapConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("public_rpc_port", &TThis::PublicRpcPort)
+        .Default(0)
+        .GreaterThanOrEqual(0)
+        .LessThan(65536);
+    registrar.Parameter("public_bus_server", &TThis::PublicBusServer)
+        .Default();
     registrar.Parameter("grpc_server", &TThis::GrpcServer)
         .Default();
     registrar.Parameter("tvm_only_auth", &TThis::TvmOnlyAuth)
@@ -118,13 +124,23 @@ void TProxyBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("heap_profiler", &TThis::HeapProfiler)
         .DefaultNew();
 
-    registrar.Parameter("signature_generation", &TThis::SignatureGeneration)
-        .Default();
-    registrar.Parameter("signature_validation", &TThis::SignatureValidation)
-        .Default();
+    registrar.Parameter("signature_components", &TThis::SignatureComponents)
+        .DefaultNew();
 
     registrar.Preprocessor([] (TThis* config) {
         config->DynamicConfigManager->IgnoreConfigAbsence = true;
+    });
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->PublicRpcPort > 0) {
+            if (!config->PublicBusServer) {
+                THROW_ERROR_EXCEPTION("No configuration for public bus server");
+            }
+            if (config->PublicBusServer->Port || config->PublicBusServer->UnixDomainSocketPath) {
+                THROW_ERROR_EXCEPTION("Explicit socket configuration for bus server is forbidden");
+            }
+            config->PublicBusServer->Port = config->PublicRpcPort;
+        }
     });
 
     registrar.Postprocessor([] (TThis* config) {

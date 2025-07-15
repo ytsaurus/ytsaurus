@@ -14,12 +14,13 @@ namespace NYT::NSequoiaClient {
 
 template <class TRecordKey>
 TFuture<std::vector<std::optional<typename TRecordKey::TRecordDescriptor::TRecord>>> ISequoiaTransaction::LookupRows(
-    const std::vector<TRecordKey>& keys,
+    const std::vector<TRecordKey>& recordKeys,
     const NTableClient::TColumnFilter& columnFilter)
 {
+    auto keys = FromRecordKeys<TRecordKey>(recordKeys, GetGuardedRowBuffer().Get());
     auto rowsetFuture = LookupRows(
         TRecordKey::Table,
-        FromRecordKeys<TRecordKey>(keys, GetRowBuffer()),
+        keys,
         columnFilter);
     return rowsetFuture.Apply(BIND([] (const NApi::TUnversionedLookupRowsResult& result) {
         return NTableClient::ToOptionalRecords<typename TRecordKey::TRecordDescriptor::TRecord>(result.Rowset);
@@ -42,10 +43,11 @@ void ISequoiaTransaction::DatalessLockRow(
     const TRecord& record,
     NTableClient::ELockType lockType)
 {
+    auto key = record.ToKey(GetGuardedRowBuffer().Get());
     DatalessLockRow(
         masterCellTag,
         TRecord::Table,
-        record.ToKey(GetRowBuffer()),
+        key,
         lockType);
 }
 
@@ -54,9 +56,10 @@ void ISequoiaTransaction::LockRow(
     const TRecord& record,
     NTableClient::ELockType lockType)
 {
+    auto key = record.ToKey(GetGuardedRowBuffer().Get());
     LockRow(
         TRecord::Table,
-        record.ToKey(GetRowBuffer()),
+        key,
         lockType);
 }
 
@@ -66,13 +69,14 @@ void ISequoiaTransaction::WriteRow(
     NTableClient::ELockType lockType,
     NTableClient::EValueFlags flags)
 {
+    auto row = NTableClient::FromRecord(
+        record,
+        GetGuardedRowBuffer().Get(),
+        TRecord::TRecordDescriptor::Get()->GetIdMapping(),
+        flags);
     WriteRow(
         TRecord::Table,
-        NTableClient::FromRecord(
-            record,
-            GetRowBuffer(),
-            TRecord::TRecordDescriptor::Get()->GetIdMapping(),
-            flags),
+        row,
         lockType);
 }
 
@@ -87,22 +91,22 @@ void ISequoiaTransaction::WriteRow(
         .Table = TRecord::Table,
         .MasterCellTag = masterCellTag,
     };
+    auto row = NTableClient::FromRecord(
+        record,
+        GetGuardedRowBuffer().Get(),
+        TRecord::TRecordDescriptor::Get()->GetIdMapping(),
+        flags);
     WriteRow(
         descriptor,
-        NTableClient::FromRecord(
-            record,
-            GetRowBuffer(),
-            TRecord::TRecordDescriptor::Get()->GetIdMapping(),
-            flags),
+        row,
         lockType);
 }
 
 template <class TRecordKey>
-void ISequoiaTransaction::DeleteRow(const TRecordKey& key)
+void ISequoiaTransaction::DeleteRow(const TRecordKey& recordKey)
 {
-    DeleteRow(
-        TRecordKey::Table,
-        NTableClient::FromRecordKey(key, GetRowBuffer()));
+    auto key = NTableClient::FromRecordKey(recordKey, GetGuardedRowBuffer().Get());
+    DeleteRow(TRecordKey::Table, key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -6,8 +6,6 @@
 
 #include <yt/yt/ytlib/api/native/transaction.h>
 
-#include <library/cpp/yt/logging/logger.h>
-
 #include <library/cpp/yt/memory/shared_range.h>
 
 namespace NYT::NSequoiaClient {
@@ -17,6 +15,20 @@ namespace NYT::NSequoiaClient {
 struct ISequoiaTransaction
     : public TRefCounted
 {
+    class TThreadSafeRowBuffer
+    {
+    public:
+        TThreadSafeRowBuffer(
+            NThreading::TSpinLock* lock,
+            NTableClient::TRowBufferPtr rowBuffer);
+
+        const NTableClient::TRowBufferPtr& Get() const;
+
+    private:
+        const TGuard<NThreading::TSpinLock> Guard_;
+        const NTableClient::TRowBufferPtr RowBuffer_;
+    };
+
     virtual TFuture<void> Commit(const NApi::TTransactionCommitOptions& options = {}) = 0;
 
     virtual TFuture<NApi::TUnversionedLookupRowsResult> LookupRows(
@@ -97,7 +109,7 @@ struct ISequoiaTransaction
 
     virtual NObjectClient::TCellTag GetRandomSequoiaNodeHostCellTag() const = 0;
 
-    virtual const NTableClient::TRowBufferPtr& GetRowBuffer() const = 0;
+    virtual TThreadSafeRowBuffer GetGuardedRowBuffer() = 0;
     virtual const ISequoiaClientPtr& GetClient() const = 0;
 
     virtual NObjectClient::TTransactionId GetId() const = 0;

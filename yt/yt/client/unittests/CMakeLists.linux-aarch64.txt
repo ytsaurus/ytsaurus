@@ -52,7 +52,8 @@ target_link_libraries(unittester-client PUBLIC
 )
 
 target_allocator(unittester-client
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-client PRIVATE
@@ -85,6 +86,7 @@ target_sources(unittester-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/time_text_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/node_directory_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/query_builder_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/queue_static_export_config_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/read_limit_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/replication_card_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/replication_progress_ut.cpp

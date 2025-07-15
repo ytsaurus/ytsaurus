@@ -1,11 +1,14 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, skip_if_rpc_driver_backend, Restarter, NODES_SERVICE
+
+from yt_sequoia_helpers import (
+    not_implemented_for_mirrored_tx)
 
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, remove, exists, create_user,
     create_group, add_member, remove_member, start_transaction, abort_transaction,
     commit_transaction, ping_transaction, lock, write_file, write_table,
     get_transactions, get_topmost_transactions, gc_collect, get_driver,
-    raises_yt_error, read_table)
+    raises_yt_error, read_table, generate_uuid)
 
 from yt_sequoia_helpers import select_cypress_transaction_replicas
 
@@ -480,6 +483,23 @@ class TestMasterTransactions(YTEnvSetup):
         tx = start_transaction(authenticated_user="u")
         assert get("#{0}/@owner".format(tx)) == "u"
 
+    @authors("faucct")
+    @not_implemented_for_mirrored_tx
+    def test_not_owner(self):
+        create_user("u")
+        tx = start_transaction(attributes={"acl": [{
+            "action": "deny",
+            "subjects": ["u"],
+            "permissions": ["write"],
+            "inheritance_mode": "object_and_descendants",
+        }]})
+        create("map_node", "//tmp/wut", tx=tx)
+        with pytest.raises(YtError):
+            abort_transaction(tx, authenticated_user="u")
+        with pytest.raises(YtError):
+            commit_transaction(tx, authenticated_user="u")
+        commit_transaction(tx)
+
     @authors("ignat")
     def test_prerequisite_transactions(self):
         tx_a = start_transaction()
@@ -498,6 +518,27 @@ class TestMasterTransactions(YTEnvSetup):
 
         assert not exists("//sys/transactions/" + tx_a)
         assert not exists("//sys/transactions/" + tx_b)
+
+    @authors("kvk1920")
+    def test_prerequisite_transaction_expiration(self):
+        tx_a = start_transaction(timeout=6000)
+        start_time = datetime.now()
+        tx_b = start_transaction()
+        commit_transaction(tx_b, prerequisite_transaction_ids=[tx_a])
+
+        # NB: if transaction commit is failed it's aborted. Mirrored
+        # transactions are aborted asynchronously.
+        if self.ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA:
+            wait(lambda: not exists(f"#{tx_b}"))
+        else:
+            gc_collect()
+            assert not exists(f"#{tx_b}")
+
+        assert exists(f"#{tx_a}")
+        elapsed_time = (datetime.now() - start_time).total_seconds()
+        sleep(7 - elapsed_time)
+        gc_collect()
+        assert not exists(f"#{tx_a}")
 
     @authors("shakurov")
     def test_prerequisite_tx_read_requests(self):
@@ -618,6 +659,18 @@ class TestMasterTransactions(YTEnvSetup):
             get("#a-b-c-d")
         with pytest.raises(YtError):
             get("#a-b-c-d/@")
+
+    @authors("kvk1920")
+    # RPC driver doesn't support setting request's mutation ID.
+    @skip_if_rpc_driver_backend
+    def test_response_keeper(self):
+        tx = start_transaction()
+        mutation_id = generate_uuid()
+        rsp1 = commit_transaction(tx, mutation_id=mutation_id)
+        with raises_yt_error("Duplicate request is not marked"):
+            commit_transaction(tx, mutation_id=mutation_id)
+        rsp2 = commit_transaction(tx, mutation_id=mutation_id, retry=True)
+        assert rsp1 == rsp2
 
 
 @pytest.mark.enabled_multidaemon
@@ -910,6 +963,15 @@ class TestMasterTransactionsMirroredTx(TestMasterTransactionsShardedTx):
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     NUM_TEST_PARTITIONS = 6
+
+    @authors("kvk1920")
+    def test_expiration_during_ground_unavailability(self):
+        tx = start_transaction(timeout=10000)
+        start_time = datetime.now()
+        with Restarter(self.ground_envs[0], NODES_SERVICE):
+            sleep(12 - (datetime.now() - start_time).total_seconds())
+            assert exists(f"#{tx}")
+        wait(lambda: not exists(f"#{tx}"))
 
 
 @pytest.mark.enabled_multidaemon

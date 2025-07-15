@@ -3,6 +3,7 @@
 #include "fwd.h"
 
 #include "attributes.h"
+#include "tags.h"
 #include "../type_tag.h"
 
 #include <util/generic/hash_set.h>
@@ -45,6 +46,9 @@ template <typename K, typename S>
 const TRawPipelinePtr& GetRawPipeline(const TPState<K, S>& pState);
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_ROREN_TAG(KeyColumns, NRoren::NPrivate::TPCollectionNode, std::vector<TString>);
+DECLARE_ROREN_TAG(EventTimestampColumn, NRoren::NPrivate::TPCollectionNode, TString);
 
 class TPCollectionNode
     : public virtual NYT::TRefCounted

@@ -1395,6 +1395,24 @@ def get_allocation_id_from_job_id(job_id):
 ##################################################################
 
 
+def are_job_resources_are_zero(resources):
+    EPSILON = 1e-6
+    if abs(resources["cpu"]) > EPSILON:
+        return False
+    if abs(resources["vcpu"]) > EPSILON:
+        return False
+    if resources["user_memory"] != 0:
+        return False
+    if resources["gpu"] != 0:
+        return False
+    if resources["user_slots"] != 0:
+        return False
+    return True
+
+
+##################################################################
+
+
 class Operation(object):
     def __init__(self, driver=None):
         self.id = None
@@ -3376,7 +3394,7 @@ def create_table(path, force=None, dynamic=None, schema=None):
     return create("table", path, **kwargs)
 
 
-def create_dynamic_table(path, schema=None, driver=None, **attributes):
+def create_dynamic_table(path, schema=None, driver=None, return_response=False, **attributes):
     if "dynamic" not in attributes:
         attributes.update({"dynamic": True})
 
@@ -3386,7 +3404,7 @@ def create_dynamic_table(path, schema=None, driver=None, **attributes):
         del attributes["enable_dynamic_store_read"]
 
     attributes.update({"schema": schema})
-    return create("table", path, attributes=attributes, driver=driver)
+    return create("table", path, attributes=attributes, driver=driver, return_response=return_response)
 
 
 def create_area(name, **kwargs):
@@ -3696,7 +3714,7 @@ def get_pipeline_spec(pipeline_path, spec_path=None, **kwargs):
     if spec_path is not None:
         kwargs["spec_path"] = spec_path
 
-    return execute_command("get_pipeline_spec", kwargs, parse_yson=True)
+    return execute_command("get_pipeline_spec", kwargs, parse_yson=True, unwrap_v4_result=False)
 
 
 def set_pipeline_spec(pipeline_path, spec, is_raw=False, spec_path=None, expected_version=None, force=None, **kwargs):
@@ -3711,7 +3729,7 @@ def set_pipeline_spec(pipeline_path, spec, is_raw=False, spec_path=None, expecte
     if force is not None:
         kwargs["force"] = force
 
-    return execute_command("set_pipeline_spec", kwargs, input_stream=BytesIO(spec), parse_yson=not is_raw)
+    return execute_command("set_pipeline_spec", kwargs, input_stream=BytesIO(spec), parse_yson=not is_raw, unwrap_v4_result=False)
 
 
 def remove_pipeline_spec(pipeline_path, spec_path=None, expected_version=None, force=None, **kwargs):
@@ -3723,7 +3741,7 @@ def remove_pipeline_spec(pipeline_path, spec_path=None, expected_version=None, f
     if force is not None:
         kwargs["force"] = force
 
-    return execute_command("remove_pipeline_spec", kwargs, parse_yson=True)
+    return execute_command("remove_pipeline_spec", kwargs, parse_yson=True, unwrap_v4_result=False)
 
 
 def get_pipeline_dynamic_spec(pipeline_path, spec_path=None, **kwargs):
@@ -3731,7 +3749,7 @@ def get_pipeline_dynamic_spec(pipeline_path, spec_path=None, **kwargs):
     if spec_path is not None:
         kwargs["spec_path"] = spec_path
 
-    return execute_command("get_pipeline_dynamic_spec", kwargs, parse_yson=True)
+    return execute_command("get_pipeline_dynamic_spec", kwargs, parse_yson=True, unwrap_v4_result=False)
 
 
 def set_pipeline_dynamic_spec(pipeline_path, spec, is_raw=False, spec_path=None, expected_version=None, **kwargs):
@@ -3744,7 +3762,7 @@ def set_pipeline_dynamic_spec(pipeline_path, spec, is_raw=False, spec_path=None,
     if expected_version is not None:
         kwargs["expected_version"] = expected_version
 
-    return execute_command("set_pipeline_dynamic_spec", kwargs, input_stream=BytesIO(spec), parse_yson=not is_raw)
+    return execute_command("set_pipeline_dynamic_spec", kwargs, input_stream=BytesIO(spec), parse_yson=not is_raw, unwrap_v4_result=False)
 
 
 def remove_pipeline_dynamic_spec(pipeline_path, spec_path=None, expected_version=None, **kwargs):
@@ -3754,28 +3772,28 @@ def remove_pipeline_dynamic_spec(pipeline_path, spec_path=None, expected_version
     if expected_version is not None:
         kwargs["expected_version"] = expected_version
 
-    return execute_command("remove_pipeline_dynamic_spec", kwargs, parse_yson=True)
+    return execute_command("remove_pipeline_dynamic_spec", kwargs, parse_yson=True, unwrap_v4_result=False)
 
 
 def start_pipeline(pipeline_path, **kwargs):
     kwargs["pipeline_path"] = pipeline_path
-    return execute_command("start_pipeline", kwargs)
+    return execute_command("start_pipeline", kwargs, unwrap_v4_result=False)
 
 
 def stop_pipeline(pipeline_path, **kwargs):
     kwargs["pipeline_path"] = pipeline_path
-    return execute_command("stop_pipeline", kwargs)
+    return execute_command("stop_pipeline", kwargs, unwrap_v4_result=False)
 
 
 def pause_pipeline(pipeline_path, **kwargs):
     kwargs["pipeline_path"] = pipeline_path
-    return execute_command("pause_pipeline", kwargs)
+    return execute_command("pause_pipeline", kwargs, unwrap_v4_result=False)
 
 
 def get_pipeline_state(pipeline_path, **kwargs):
     kwargs["pipeline_path"] = pipeline_path
     try:
-        return execute_command("get_pipeline_state", kwargs, parse_yson=True).lower()
+        return execute_command("get_pipeline_state", kwargs, parse_yson=True, unwrap_v4_result=False).lower()
     except YtResponseError:
         return "unknown"
 
@@ -3787,7 +3805,7 @@ def get_flow_view(pipeline_path, view_path=None, cache=None, **kwargs):
     if cache is not None:
         kwargs["cache"] = cache
 
-    return execute_command("get_flow_view", kwargs, parse_yson=True)
+    return execute_command("get_flow_view", kwargs, parse_yson=True, unwrap_v4_result=False)
 
 
 def flow_execute(pipeline_path: str, flow_command: str, flow_argument=None, is_raw=False, **kwargs):
@@ -3853,3 +3871,8 @@ def finish_distributed_write_session(session: yson.YsonType, results: list[yson.
     kwargs["session"] = session
     kwargs["results"] = results
     execute_command("finish_distributed_write_session", kwargs)
+
+
+def ping_chaos_lease(chaos_lease_id, **kwargs):
+    kwargs["chaos_lease_id"] = chaos_lease_id
+    execute_command("ping_chaos_lease", kwargs)

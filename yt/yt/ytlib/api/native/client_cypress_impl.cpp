@@ -582,7 +582,8 @@ protected:
             // It will allow to throw an error from there and remove this weird if statement here.
             SrcNodeId_ = subtreeRootId;
         } else {
-            YT_VERIFY(SrcNodeId_ == subtreeRootId);
+            THROW_ERROR_EXCEPTION_IF(SrcNodeId_ != subtreeRootId,
+                "Failed to lock source node since it was modified concurrently");
         }
 
         NodeIdToChildrenMapping_.reserve(rsp->node_id_to_children_size());

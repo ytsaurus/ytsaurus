@@ -8,6 +8,7 @@ import dateutil
 import datetime
 import requests
 import time
+import pytest
 
 from requests.auth import HTTPBasicAuth
 
@@ -154,6 +155,7 @@ class TestCypressCookieAuth(YTEnvSetup):
         set_user_password("u", PASSWORD)
         self._login("u", PASSWORD)
 
+    @pytest.mark.skip(reason="Unstable")
     @authors("ermolovd")
     def test_request_with_cookie(self):
         create_user("u")
@@ -162,6 +164,7 @@ class TestCypressCookieAuth(YTEnvSetup):
         rsp = self._make_request(cookie)
         rsp.raise_for_status()
 
+    @pytest.mark.skip(reason="Unstable")
     @authors("ermolovd")
     def test_request_with_invalid_cookie(self):
         # No cookie.

@@ -38,7 +38,8 @@ target_link_libraries(cpp-integration-test-sequoia PUBLIC
 )
 
 target_allocator(cpp-integration-test-sequoia
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(cpp-integration-test-sequoia PRIVATE

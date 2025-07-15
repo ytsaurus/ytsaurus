@@ -53,6 +53,9 @@ dynamic memory almost always means that write throughput is too large.
             .cell("Container (cgroup) memory usage", MultiSensor(
                 TabNodeMemory("yt.memory.cgroup.rss"),
                 MonitoringExpr(TabNodeMemory("yt.memory.cgroup.memory_limit")).series_max().alias("limit")))
+        .row()
+            .cell("Row cache size", memory_usage("lookup_rows_cache"))
+            .cell("", EmptyCell())
         ).owner
 
 

@@ -496,6 +496,17 @@ public:
         NodeDirectory_ = std::move(nodeDirectory);
     }
 
+    void Traverse(IDataFlowGraphVisitor& visitor) const
+    {
+        for (const auto& [vertexDescriptor, vertex] : *Vertices_) {
+            visitor.VisitVertex(vertexDescriptor, *vertex->JobCounter(), vertex->GetJobType());
+
+            for (const auto& [to, edge] : *vertex->Edges()) {
+                visitor.VisitEdge(vertexDescriptor, to, edge->JobDataStatistics(), edge->TeleportDataStatistics());
+            }
+        }
+    }
+
 private:
     using TVertexMap = THashMap<TVertexDescriptor, TVertexPtr>;
     const std::shared_ptr<TVertexMap> Vertices_ = std::make_shared<TVertexMap>();
@@ -628,6 +639,26 @@ void TDataFlowGraph::SetNodeDirectory(TNodeDirectoryPtr nodeDirectory)
 {
     Impl_->SetNodeDirectory(std::move(nodeDirectory));
 }
+
+void TDataFlowGraph::Traverse(IDataFlowGraphVisitor& visitor) const
+{
+    Impl_->Traverse(visitor);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void IDataFlowGraphVisitor::VisitEdge(
+    const TDataFlowGraph::TVertexDescriptor& /*from*/,
+    const TDataFlowGraph::TVertexDescriptor& /*to*/,
+    const NChunkClient::NProto::TDataStatistics& /*jobDataStatistics*/,
+    const NChunkClient::NProto::TDataStatistics& /*teleportDataStatistics*/)
+{ }
+
+void IDataFlowGraphVisitor::VisitVertex(
+    const TDataFlowGraph::TVertexDescriptor& /*vertex*/,
+    const TProgressCounter& /*jobCounter*/,
+    EJobType /*jobType*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -50,8 +50,9 @@ void TMasterHeartbeatReporterBase::StartNodeHeartbeats()
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     YT_LOG_INFO(
-        "Starting node heartbeats (NodeId: %v)",
-        Bootstrap_->GetNodeId());
+        "Starting node heartbeats (NodeId: %v, MasterCellTags: %v)",
+        Bootstrap_->GetNodeId(),
+        MasterCellTags_);
 
     for (auto cellTag : MasterCellTags_) {
         StartNodeHeartbeatsToCell(cellTag);

@@ -300,11 +300,14 @@ private:
 
         mutationRequest.set_last_batch(!ChunkScanner_.HasUnscannedChunk());
 
-        YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), mutationRequest)
+        auto error = WaitFor(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), mutationRequest)
             ->CommitAndLog(Logger()));
-
-        YT_LOG_DEBUG("Master cell chunk statistics updated (GlobalScanFinished: %v)",
-            !ChunkScanner_.HasUnscannedChunk());
+        if (error.IsOK()) {
+            YT_LOG_DEBUG("Master cell chunk statistics updated successfully (GlobalScanFinished: %v)",
+                !ChunkScanner_.HasUnscannedChunk());
+        } else {
+            YT_LOG_ERROR(error, "Failed to update master cell chunk statistics");
+        }
     }
 
     void HydraRecalculateMasterCellChunkStatistics(TReqRecalculateMasterCellChunkStatistics* /*request*/)

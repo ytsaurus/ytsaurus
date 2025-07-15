@@ -41,17 +41,18 @@ class TestShuffleService(YTEnvSetup):
 
     DELTA_RPC_PROXY_CONFIG = {
         "enable_shuffle_service": True,
-        "signature_generation": {
-            "generator": {},
-            "cypress_key_writer": {
-                "owner_id": "test"
+        "signature_components": {
+            "generation": {
+                "generator": {},
+                "cypress_key_writer": {
+                    "owner_id": "test"
+                },
+                "key_rotator": {},
             },
-            "key_rotator": {},
+            "validation": {
+                "cypress_key_reader": {},
+            },
         },
-        "signature_validation": {
-            "validator": {},
-            "cypress_key_reader": {},
-        }
     }
 
     STORE_LOCATION_COUNT = 2
@@ -315,7 +316,7 @@ class TestShuffleService(YTEnvSetup):
             write_shuffle_data(shuffle_handle, "partition_id", rows[0], overwrite_existing_writer_data=True)
 
     @authors("pavook")
-    def test_shuffle_read_with_modified_handle(self):
+    def test_shuffle_with_modified_handle(self):
         account = "intermediate"
         modified_account = "pwnedmediate"  # same length
 
@@ -364,8 +365,19 @@ class TestShuffleServiceInJobProxy(YTEnvSetup):
                         "secure": True,
                     },
                 },
-            }
-        }
+            },
+            "signature_generation": {
+                "generator": {},
+                "cypress_key_writer": {
+                    "owner_id": "test-exec-node"
+                },
+                "key_rotator": {},
+            },
+            "signature_validation": {
+                "validator": {},
+                "cypress_key_reader": {},
+            },
+        },
     }
 
     def setup_method(self, method):
@@ -497,6 +509,52 @@ class TestShuffleServiceInJobProxy(YTEnvSetup):
             allocation_info = get(f"{allocations_path}/{allocations[0]}")
             job_info = get(f"{allocations_path}/{allocations[0]}/job")
             assert job_info["job_proxy_rpc_server_port"] == job_id_to_coordinator_port[allocation_info["last_job_id"]]
+
+        release_breakpoint()
+        op.track()
+
+    @authors("pavook")
+    def test_shuffle_with_modified_handle(self):
+        account = "intermediate"
+        modified_account = "pwnedmediate"
+        assert len(account) == len(modified_account)
+
+        op = run_test_vanilla(
+            with_breakpoint("echo $YT_JOB_PROXY_SOCKET_PATH >&2; BREAKPOINT;"),
+            task_patch={
+                "enable_rpc_proxy_in_job_proxy": True,
+                "enable_shuffle_service_in_job_proxy": True,
+            },
+            job_count=1)
+
+        os.chdir(self.path_to_test)
+
+        job_ids = wait_breakpoint()
+        socket_file = os.path.relpath(op.read_stderr(job_ids[0]).decode("ascii").strip())
+        driver = self.create_driver_from_uds(socket_file)
+
+        parent_transaction = start_transaction(timeout=60000, driver=driver, token="tester_token")
+        shuffle_handle = start_shuffle(
+            account,
+            partition_count=1,
+            parent_transaction_id=parent_transaction,
+            driver=driver,
+            parse_yson=False,
+            token="tester_token")
+
+        assert account in shuffle_handle["payload"]
+        modified_handle = deepcopy(shuffle_handle)
+        modified_handle["payload"] = shuffle_handle["payload"].replace(account, modified_account)
+
+        rows = [{"key": 0, "value": 1}]
+        write_shuffle_data(shuffle_handle, "key", rows, driver=driver, token="tester_token")
+
+        with raises_yt_error("Signature validation failed"):
+            write_shuffle_data(modified_handle, "key", rows, driver=driver, token="tester_token")
+
+        assert read_shuffle_data(shuffle_handle, 0, driver=driver, token="tester_token") == rows
+        with raises_yt_error("Signature validation failed"):
+            read_shuffle_data(modified_handle, 0, driver=driver, token="tester_token")
 
         release_breakpoint()
         op.track()

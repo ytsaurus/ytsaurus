@@ -80,11 +80,11 @@ class TBannedReplicaTracker
 public:
     struct TBanInfo
     {
-        size_t Counter;
+        int Counter;
         TError LastError;
     };
 
-    explicit TBannedReplicaTracker(NLogging::TLogger logger, std::optional<size_t> replicaBanDuration)
+    explicit TBannedReplicaTracker(NLogging::TLogger logger, std::optional<int> replicaBanDuration)
         : Logger(std::move(logger))
         , ReplicaBanDuration_(replicaBanDuration)
     { }
@@ -138,7 +138,7 @@ public:
 
 private:
     const NLogging::TLogger Logger;
-    const std::optional<size_t> ReplicaBanDuration_;
+    const std::optional<int> ReplicaBanDuration_;
 
     THashMap<TReplicaId, TBanInfo> BannedReplicas_;
 
@@ -236,7 +236,7 @@ public:
         , MemoryTracker_(std::move(memoryTracker))
         , ErrorManager_(std::move(errorManager))
         , ChaosAgent_(tablet->GetChaosAgent())
-        , BannedReplicaTracker_(Logger, MountConfig_->Testing.TablePullerReplicaBanIterationsCount)
+        , BannedReplicaTracker_(Logger, MountConfig_->Testing.TablePullerReplicaBanIterationCount)
         , LastReplicationProgressAdvance_(*tablet->RuntimeData()->ReplicationProgress.Acquire())
         , ReplicatorClientCache_(std::move(replicatorClientCache))
     { }
@@ -303,7 +303,7 @@ private:
     TReplicationProgress LastReplicationProgressAdvance_;
     TInstant NextPermittedTimeForProgressBehindAlert_ = Now();
     TPerFiberClusterClientCache ReplicatorClientCache_;
-    TReplicaId LastPulledFromReplicaId_ = NullObjectId;
+    TReplicaId LastPulledFromReplicaId_;
 
     TFuture<void> FiberFuture_;
 
@@ -329,7 +329,7 @@ private:
                 EPullerErrorKind::Default);
 
             if (kind == EPullerErrorKind::UnableToPickQueueReplica) {
-                TError aggregatedError = TError("Some queue replicas are banned");
+                auto aggregatedError = TError("Some queue replicas are banned");
 
                 for (const auto& [replicaId, banInfo] : BannedReplicaTracker_.GetBannedReplicas()) {
                     if (banInfo.Counter > 0) {

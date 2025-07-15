@@ -286,14 +286,14 @@ TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
         attributeDictionary->Set("runtime_parameters", PatchNode(runtimeParameters, heavyRuntimeParameters));
     }
 
-    auto controllerAgentAddress = attributeDictionary->Find<TString>("controller_agent_address");
+    auto controllerAgentAddress = attributeDictionary->Find<std::string>("controller_agent_address");
     if (controllerAgentAddress) {
         if (options.Attributes && !options.Attributes->contains("controller_agent_address")) {
             attributeDictionary->Remove("controller_agent_address");
         }
     }
 
-    static const std::vector<std::pair<TString, bool>> RuntimeAttributes ={
+    static const std::vector<std::pair<std::string, bool>> RuntimeAttributes ={
         /* {Name, ShouldRequestFromScheduler} */
         {"progress", true},
         {"brief_progress", false},
@@ -303,7 +303,7 @@ TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
     if (options.IncludeRuntime) {
         auto batchReq = proxy.ExecuteBatch();
 
-        auto addProgressAttributeRequest = [&] (const TString& attribute, bool shouldRequestFromScheduler) {
+        auto addProgressAttributeRequest = [&] (const std::string& attribute, bool shouldRequestFromScheduler) {
             if (shouldRequestFromScheduler) {
                 auto req = TYPathProxy::Get(GetSchedulerOrchidOperationPath(operationId) + "/" + attribute);
                 batchReq->AddRequest(req, "get_operation_" + attribute);
@@ -325,7 +325,7 @@ TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
             auto batchRsp = WaitFor(batchReq->Invoke())
                 .ValueOrThrow();
 
-            auto handleProgressAttributeRequest = [&] (const TString& attribute) {
+            auto handleProgressAttributeRequest = [&] (const std::string& attribute) {
                 INodePtr progressAttributeNode;
 
                 auto responses = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_operation_" + attribute);
@@ -971,8 +971,8 @@ std::vector<TOperationEvent> TClient::DoListOperationEvents(
 
     if (options.EventType) {
         builder.AddWhereConjunct(Format(
-            "event_type = %Qv",
-            FormatEnum(*options.EventType)));
+            "event_type = %Qlv",
+            *options.EventType));
     }
 
     builder.AddOrderByAscendingExpression("timestamp");

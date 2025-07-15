@@ -4,6 +4,8 @@
 
 #include <yt/yt/library/profiling/solomon/config.h>
 
+#include <yt/yt/server/lib/signature/config.h>
+
 #include <yt/yt/core/misc/config.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -422,6 +424,11 @@ void TSchedulerConnectorDynamicConfig::Register(TRegistrar registrar)
         "request_new_agent_delay",
         &TThis::RequestNewAgentDelay)
         .Default(TDuration::Minutes(10));
+
+    registrar.Parameter(
+        "consider_user_job_free_memory_watermark",
+        &TThis::ConsiderUserJobFreeMemoryWatermark)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -581,6 +588,9 @@ void TJobCommonConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(3));
 
     registrar.Parameter("waiting_for_job_cleanup_timeout", &TThis::WaitingForJobCleanupTimeout)
+        .Default(TDuration::Minutes(15));
+
+    registrar.Parameter("job_cleanup_timeout", &TThis::JobCleanupTimeout)
         .Default(TDuration::Minutes(15));
 
     registrar.Parameter("job_prepare_time_limit", &TThis::JobPrepareTimeLimit)
@@ -855,6 +865,12 @@ void TExecNodeConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("job_proxy_log_manager", &TThis::JobProxyLogManager);
+
+    registrar.Parameter("signature_generation", &TThis::SignatureGeneration)
+        .Optional();
+
+    registrar.Parameter("signature_validation", &TThis::SignatureValidation)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

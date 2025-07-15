@@ -30,6 +30,10 @@
 
 #include <yt/yt/client/rpc/helpers.h>
 
+#include <yt/yt/client/signature/generator.h>
+#include <yt/yt/client/signature/signature.h>
+#include <yt/yt/client/signature/validator.h>
+
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
@@ -46,6 +50,7 @@ using namespace NCoreDump;
 using namespace NObjectClient;
 using NChunkClient::NProto::TDataStatistics;
 using namespace NScheduler;
+using namespace NSignature;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,6 +89,10 @@ public:
             .SetQueueSizeLimit(5000)
             .SetConcurrencyLimit(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobMemoryThrashing));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateSignature)
+            .SetInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ValidateSignature)
+            .SetInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
     }
 
 private:
@@ -423,6 +432,37 @@ private:
 
         Bootstrap_->GetJobController()->OnJobMemoryThrashing(jobId);
 
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, GenerateSignature)
+    {
+        auto jobId = FromProto<TJobId>(request->job_id());
+        auto payload = FromProto<std::string>(request->payload());
+
+        context->SetRequestInfo("JobId: %v, PayloadSize: %v", jobId, payload.size());
+
+        auto signature = Bootstrap_->GetSignatureGenerator()->Sign(std::move(payload));
+
+        context->SetResponseInfo("JobId: %v", jobId);
+
+        ToProto(response->mutable_signature(), signature);
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, ValidateSignature)
+    {
+        auto jobId = FromProto<TJobId>(request->job_id());
+        auto signature = FromProto<TSignaturePtr>(request->signature());
+
+        context->SetRequestInfo("JobId: %v, PayloadSize: %v", jobId, signature->Payload().size());
+
+        bool isValid = WaitFor(Bootstrap_->GetSignatureValidator()->Validate(signature))
+            .ValueOrThrow();
+
+        response->set_valid(isValid);
+
+        context->SetResponseInfo("JobId: %v, Valid: %v", jobId, isValid);
         context->Reply();
     }
 };

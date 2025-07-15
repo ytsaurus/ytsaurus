@@ -16,6 +16,7 @@ SRCS(
     api/native/bundle_controller_client_impl.cpp
     api/native/cell_commit_session.cpp
     api/native/chaos_helpers.cpp
+    api/native/chaos_lease.cpp
     api/native/chaos_lease_type_handler.cpp
     api/native/chaos_replicated_table_type_handler.cpp
     api/native/chaos_table_replica_type_handler.cpp
@@ -115,6 +116,8 @@ SRCS(
     chaos_client/master_cache_channel.cpp
     chaos_client/native_replication_card_cache_detail.cpp
     chaos_client/replication_card_channel_factory.cpp
+    chaos_client/replication_card_updates_batcher.cpp
+    chaos_client/replication_card_updates_batcher_serialization.cpp
     chaos_client/replication_cards_watcher.cpp
     chaos_client/replication_cards_watcher_client.cpp
 
@@ -210,7 +213,6 @@ SRCS(
     chunk_pools/chunk_pool_factory.cpp
     chunk_pools/chunk_stripe_key.cpp
     chunk_pools/chunk_stripe.cpp
-    chunk_pools/output_order.cpp
 
     controller_agent/helpers.cpp
     controller_agent/persistence.cpp

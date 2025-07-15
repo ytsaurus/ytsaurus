@@ -1,23 +1,7 @@
 from __future__ import annotations
 
-import warnings
-
 import numpy as np
 import pyarrow
-
-from pandas.errors import PerformanceWarning
-from pandas.util._exceptions import find_stack_level
-
-
-def fallback_performancewarning(version: str | None = None) -> None:
-    """
-    Raise a PerformanceWarning for falling back to ExtensionArray's
-    non-pyarrow method
-    """
-    msg = "Falling back on a non-pyarrow code path which may decrease performance."
-    if version is not None:
-        msg += f" Upgrade to pyarrow >={version} to possibly suppress this warning."
-    warnings.warn(msg, PerformanceWarning, stacklevel=find_stack_level())
 
 
 def pyarrow_array_to_numpy_and_mask(
@@ -42,6 +26,11 @@ def pyarrow_array_to_numpy_and_mask(
     """
     dtype = np.dtype(dtype)
 
+    if pyarrow.types.is_null(arr.type):
+        # No initialization of data is needed since everything is null
+        data = np.empty(len(arr), dtype=dtype)
+        mask = np.zeros(len(arr), dtype=bool)
+        return data, mask
     buflist = arr.buffers()
     # Since Arrow buffers might contain padding and the data might be offset,
     # the buffer gets sliced here before handing it to numpy.

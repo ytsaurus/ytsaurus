@@ -12,16 +12,18 @@ message TChunkReaderStatistics
     optional int64 wasted_data_bytes_read_from_disk = 22;
     optional int64 wasted_data_blocks_read_from_disk = 23;
     required int64 meta_bytes_read_from_disk = 3;
+    optional int64 meta_bytes_transmitted = 15;
     optional int64 meta_io_requests = 14;
     optional int64 omitted_suspicious_node_count = 10;
+
+    optional int64 p2p_activation_count = 12;
+    optional int64 remote_cpu_time = 13;
+
     optional int64 data_wait_time = 4 [default = 0];
     optional int64 meta_wait_time = 5 [default = 0];
     optional int64 meta_read_from_disk_time = 9 [default = 0];
     optional int64 pick_peer_wait_time = 6 [default = 0];
-    optional int64 p2p_activation_count = 12;
-    optional int64 remote_cpu_time = 13;
 
-    optional int64 meta_bytes_transmitted = 15;
     optional int64 session_count = 16;
     optional int64 retry_count = 17;
     optional int64 pass_count = 18;

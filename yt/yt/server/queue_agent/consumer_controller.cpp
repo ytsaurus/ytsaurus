@@ -59,7 +59,8 @@ public:
         std::vector<TConsumerRegistrationTableRow> registrations,
         TLogger logger,
         TQueueAgentClientDirectoryPtr clientDirectory,
-        const IObjectStore* store)
+        const IObjectStore* store,
+        std::vector<bool> isVerboseLoggingQueue)
         : Row_(std::move(row))
         , ReplicatedTableMappingRow_(std::move(replicatedTableMappingRow))
         , PreviousConsumerSnapshot_(std::move(previousConsumerSnapshot))
@@ -67,6 +68,7 @@ public:
         , Logger(logger)
         , ClientDirectory_(std::move(clientDirectory))
         , Store_(store)
+        , IsVerboseLoggingQueue_(std::move(isVerboseLoggingQueue))
     { }
 
     TConsumerSnapshotPtr Build()
@@ -112,6 +114,7 @@ private:
     const TLogger Logger;
     const TQueueAgentClientDirectoryPtr ClientDirectory_;
     const IObjectStore* Store_;
+    const std::vector<bool> IsVerboseLoggingQueue_;
 
     IClientPtr Client_;
     IConsumerClientPtr ConsumerClient_;
@@ -151,7 +154,7 @@ private:
         ConsumerClient_ = CreateConsumerClient(Client_, clientContext.Path, *ConsumerSnapshot_->Row.Schema);
 
         THashMap<TCrossClusterReference, TFuture<TSubConsumerSnapshotPtr>> subSnapshotFutures;
-        for (const auto& registration : Registrations_) {
+        for (const auto& [registrationIndex, registration] : Enumerate(Registrations_)) {
             auto queueRef = registration.Queue;
             auto queueSnapshot = DynamicPointerCast<const TQueueSnapshot>(Store_->FindSnapshot(queueRef));
             if (!queueSnapshot) {
@@ -164,7 +167,8 @@ private:
                 &TConsumerSnapshotBuildSession::BuildSubConsumerSnapshot,
                 MakeStrong(this),
                 queueRef,
-                Passed(std::move(queueSnapshot)))
+                Passed(std::move(queueSnapshot)),
+                IsVerboseLoggingQueue_[registrationIndex])
                 .AsyncVia(GetCurrentInvoker())
                 .Run();
         }
@@ -194,7 +198,8 @@ private:
 
     TSubConsumerSnapshotPtr BuildSubConsumerSnapshot(
         TCrossClusterReference queueRef,
-        TQueueSnapshotConstPtr queueSnapshot)
+        TQueueSnapshotConstPtr queueSnapshot,
+        bool enableVerboseLogging)
     {
         auto Logger = this->Logger().WithTag("Queue: %v", queueRef);
 
@@ -207,6 +212,10 @@ private:
 
         if (!queueSnapshot->Error.IsOK()) {
             subSnapshot->Error = queueSnapshot->Error;
+
+            if (enableVerboseLogging) {
+                YT_LOG_DEBUG("Queue snapshot has an error (Error: %v)", subSnapshot->Error);
+            }
             return subSnapshot;
         }
 
@@ -223,6 +232,9 @@ private:
         }
 
         // Collect partition infos from the consumer table.
+        if (enableVerboseLogging) {
+            YT_LOG_DEBUG("Collecting partition infos from consumer table");
+        }
 
         {
             auto subConsumerClient = ConsumerClient_->GetSubConsumerClient(/*queueClient*/ nullptr, queueRef);
@@ -293,10 +305,18 @@ private:
 
         std::vector<TFuture<void>> futures;
 
+        if (enableVerboseLogging) {
+            YT_LOG_DEBUG("Start to collect timestamps (HasTimestampColumn: %v)", queueSnapshot->HasTimestampColumn);
+        }
+
         if (queueSnapshot->HasTimestampColumn) {
-            futures.emplace_back(BIND(&TConsumerSnapshotBuildSession::CollectTimestamps, MakeStrong(this), Logger, queueSnapshot, subSnapshot)
+            futures.emplace_back(BIND(&TConsumerSnapshotBuildSession::CollectTimestamps, MakeStrong(this), Logger, queueSnapshot, subSnapshot, enableVerboseLogging)
                 .AsyncVia(GetCurrentInvoker())
                 .Run());
+        }
+
+        if (enableVerboseLogging) {
+            YT_LOG_DEBUG("Start to collect cumulative data weight (HasCumulativeDataWeightColumn: %v)", queueSnapshot->HasCumulativeDataWeightColumn);
         }
 
         if (queueSnapshot->HasCumulativeDataWeightColumn) {
@@ -307,6 +327,10 @@ private:
 
         WaitFor(AllSucceeded(futures))
             .ThrowOnError();
+
+        if (enableVerboseLogging) {
+            YT_LOG_DEBUG("Start to calculate processing lags and read rates (PartitionCount: %v)", subSnapshot->PartitionSnapshots.size());
+        }
 
         for (const auto& [partitionIndex, subConsumerPartitionSnapshot] : Enumerate(subSnapshot->PartitionSnapshots)) {
             if (subConsumerPartitionSnapshot->CumulativeDataWeight) {
@@ -327,6 +351,19 @@ private:
                 ? TInstant::Now() - *subConsumerPartitionSnapshot->NextRowCommitTime
                 : TDuration::Zero();
             subSnapshot->ReadRate += subConsumerPartitionSnapshot->ReadRate;
+
+            if (enableVerboseLogging) {
+                YT_LOG_DEBUG("New subconsumer snapshot (PassIndex: %v, PartitionIndex: %v, UnreadRowCount: %v, NextRowIndex: %v, Disposition: %v, CumulativeDataWeight: %v, UnreadDataWeight: %v, NextRowCommitTime: %v, ProcessingLag: %v)",
+                    ConsumerSnapshot_->PassIndex,
+                    partitionIndex,
+                    subConsumerPartitionSnapshot->UnreadRowCount,
+                    subConsumerPartitionSnapshot->NextRowIndex,
+                    subConsumerPartitionSnapshot->Disposition,
+                    subConsumerPartitionSnapshot->CumulativeDataWeight.value_or(-1),
+                    subConsumerPartitionSnapshot->UnreadDataWeight.value_or(-1),
+                    subConsumerPartitionSnapshot->NextRowCommitTime.value_or(TInstant()),
+                    subConsumerPartitionSnapshot->ProcessingLag);
+            }
         }
 
         return subSnapshot;
@@ -335,7 +372,8 @@ private:
     void CollectTimestamps(
         const TLogger& logger,
         const TQueueSnapshotConstPtr& queueSnapshot,
-        const TSubConsumerSnapshotPtr& subSnapshot)
+        const TSubConsumerSnapshotPtr& subSnapshot,
+        bool enableVerboseLogging)
     {
         const auto& Logger = logger;
 
@@ -369,7 +407,11 @@ private:
         auto query = queryBuilder.Flush();
         TSelectRowsOptions options;
         options.ReplicaConsistency = EReplicaConsistency::Sync;
-        YT_LOG_TRACE("Executing query for next row commit times (Query: %v)", query);
+        if (enableVerboseLogging) {
+            YT_LOG_DEBUG("Executing query for next row commit times (Query: %v)", query);
+        } else {
+            YT_LOG_TRACE("Executing query for next row commit times (Query: %v)", query);
+        }
         auto result = WaitFor(clientContext.Client->SelectRows(query))
             .ValueOrThrow();
 
@@ -570,8 +612,12 @@ private:
 
         YT_LOG_INFO("Consumer controller pass started");
 
+        bool enableVerboseLogging = false;
         {
             auto config = DynamicConfig_.Acquire();
+
+            enableVerboseLogging = config->EnableVerboseLogging;
+
             auto it = std::find(config->DelayedObjects.begin(), config->DelayedObjects.end(), static_cast<TRichYPath>(ConsumerRow_.Load().Ref));
             if (it != config->DelayedObjects.end()) {
                 // NB(apachee): Since this should only be used for debug, it is a warning in case "delayed_objects" field is left non-empty accidentally.
@@ -590,6 +636,21 @@ private:
                 registration.Vital);
         }
 
+        std::vector<bool> isVerboseLoggingQueue(registrations.size());
+        if (enableVerboseLogging) {
+            auto config = DynamicConfig_.Acquire();
+
+            auto consumerIt = std::find(config->VerboseLoggingObjects.begin(), config->VerboseLoggingObjects.end(), static_cast<TRichYPath>(ConsumerRef_));
+            auto isVerboseLoggingConsumer = consumerIt != config->VerboseLoggingObjects.end();
+
+            if (isVerboseLoggingConsumer) {
+                for (const auto& [registrationIndex, registration] : Enumerate(registrations)) {
+                    auto queueIt = std::find(config->VerboseLoggingObjects.begin(), config->VerboseLoggingObjects.end(), static_cast<TRichYPath>(registration.Queue));
+                    isVerboseLoggingQueue[registrationIndex] = queueIt != config->VerboseLoggingObjects.end();
+                }
+            }
+        }
+
         auto nextConsumerSnapshot = New<TConsumerSnapshotBuildSession>(
             ConsumerRow_.Load(),
             ReplicatedTableMappingRow_.Load(),
@@ -597,7 +658,8 @@ private:
             std::move(registrations),
             Logger,
             ClientDirectory_,
-            ObjectStore_)
+            ObjectStore_,
+            std::move(isVerboseLoggingQueue))
             ->Build();
         auto previousConsumerSnapshot = ConsumerSnapshot_.Exchange(nextConsumerSnapshot);
 

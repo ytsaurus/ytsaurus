@@ -47,12 +47,18 @@ public:
         NDataNode::IChunkStoreHostPtr chunkStoreHost,
         TChunkCachePtr chunkCache);
 
-    const NConcurrency::IThroughputThrottlerPtr& GetInThrottler() const;
+    const NDataNode::TCacheLocationConfigPtr& GetStaticConfig() const;
+
+    //! Updates the runtime configuration.
+    void Reconfigure(NDataNode::TCacheLocationConfigPtr config);
+
+    NConcurrency::IThroughputThrottlerPtr GetInThrottler() const;
 
     bool ScheduleDisable(const TError& reason) override;
 
 private:
-    const NConcurrency::IThroughputThrottlerPtr InThrottler_;
+    const NDataNode::TCacheLocationConfigPtr StaticConfig_;
+    const NConcurrency::IReconfigurableThroughputThrottlerPtr InThrottler_;
     const TChunkCachePtr ChunkCache_;
 
     TFuture<void> RemoveChunks();

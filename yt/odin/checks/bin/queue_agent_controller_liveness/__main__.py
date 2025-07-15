@@ -86,6 +86,7 @@ def run_check(secrets, yt_client: YtClient, logger: Logger, options, states):
             # NB(apachee): Check type to match the behavior of queue agent sharding manager (it ignores anything except bool).
             if isinstance(attribute_value, yson.YsonBoolean) and attribute_value:
                 logger.info(f"Skipping check for instance {instance}, since it is banned by {BANNED_QUEUE_AGENT_INSTANCE_ATTRIBUTE_NAME!r} attribute")
+                continue
 
         try:
             controller_info = ControllerInfo(client.get(f"//sys/queue_agents/instances/{instance}/orchid/queue_agent/controller_info"))

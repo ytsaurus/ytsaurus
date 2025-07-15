@@ -43,6 +43,7 @@ struct TLookupCounters
     TLookupCounters(
         const NProfiling::TProfiler& tabletProfiler,
         const NProfiling::TProfiler& mediumProfiler,
+        const NProfiling::TProfiler& mediumHistogramProfiler,
         const NTableClient::TTableSchemaPtr& schema);
 
     NProfiling::TCounter CacheHits;
@@ -91,6 +92,7 @@ struct TSelectRowsCounters
     TSelectRowsCounters(
         const NProfiling::TProfiler& tabletProfiler,
         const NProfiling::TProfiler& mediumProfiler,
+        const NProfiling::TProfiler& mediumHistogramProfiler,
         const NTableClient::TTableSchemaPtr& schema);
 
     NProfiling::TCounter RowCount;
@@ -420,6 +422,21 @@ private:
         TEnumIndexedArray<EHunkCompactionReason, i64> hunkChunkCountByReason);
 };
 
+struct TSmoothMovementCounters
+{
+    TSmoothMovementCounters() = default;
+
+    explicit TSmoothMovementCounters(const NProfiling::TProfiler& profiler);
+
+    // Stage times are profiled at smooth movement source and denote the time
+    // of the corresponding stage.
+    // Switch time is profiled at target and denotes the time between the moment
+    // when TReqSwitchServant mutation is sent by source and the moment when
+    // it arrives at target.
+    TEnumIndexedArray<ESmoothMovementStage, NProfiling::TEventTimer> StageTime;
+    NProfiling::TEventTimer SwitchTime;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableProfilerPtr CreateTableProfiler(
@@ -460,6 +477,7 @@ public:
         const NProfiling::TProfiler& tableProfiler,
         const NProfiling::TProfiler& diskProfiler,
         const NProfiling::TProfiler& mediumProfiler,
+        const NProfiling::TProfiler& mediumHistogramProfiler,
         NTableClient::TTableSchemaPtr schema);
 
     static TTableProfilerPtr GetDisabled();
@@ -485,6 +503,7 @@ public:
     NProfiling::TEventTimer* GetThrottlerTimer(ETabletDistributedThrottlerKind kind);
     NProfiling::TCounter* GetThrottlerCounter(ETabletDistributedThrottlerKind kind);
     TLsmCounters* GetLsmCounters();
+    TSmoothMovementCounters* GetSmoothMovementCounters();
 
     const NProfiling::TProfiler& GetProfiler() const;
 
@@ -492,6 +511,7 @@ private:
     const bool Disabled_ = true;
     const NProfiling::TProfiler Profiler_ = {};
     const NProfiling::TProfiler MediumProfiler_ = {};
+    const NProfiling::TProfiler MediumHistogramProfiler_ = {};
     const NTableClient::TTableSchemaPtr Schema_;
 
     template <class TCounter>
@@ -508,6 +528,7 @@ private:
             const std::optional<std::string>& userTag,
             const NProfiling::TProfiler& tableProfiler,
             const NProfiling::TProfiler& mediumProfiler,
+            const NProfiling::TProfiler& mediumHistogramProfiler,
             const NTableClient::TTableSchemaPtr& schema);
     };
 
@@ -528,6 +549,7 @@ private:
     TTabletDistributedThrottlerTimersVector ThrottlerWaitTimers_;
     TTabletDistributedThrottlerCounters ThrottlerCounters_;
     TLsmCounters LsmCounters_;
+    std::optional<TSmoothMovementCounters> SmoothMovementCounters_;
 
     template <class TCounter>
     TCounter* GetCounterUnlessDisabled(TCounter* counter);

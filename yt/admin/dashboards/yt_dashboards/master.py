@@ -413,6 +413,7 @@ def build_cpu_rowsets():
 
     user_requests = (Master("yt.security.user_{}_{}.rate")
         .all("cell_tag")
+        .nan_as_zero()
         .top())
     user_write_time = build_segmented_user_sensors(user_requests("write", "time").unit("UNIT_PERCENT_UNIT"))
     user_write_request_rate = build_segmented_user_sensors(user_requests("write", "request_count").unit("UNIT_WRITES_PER_SECOND"))
@@ -590,7 +591,6 @@ def build_master_merge_jobs():
     return dashboard
 
 def build_accounts_rowsets():
-
     def _build_disk_usage(parameter_tag):
         return (MultiSensor(
             MonitoringExpr(Accounts("disk_space_limit_in_gb"))

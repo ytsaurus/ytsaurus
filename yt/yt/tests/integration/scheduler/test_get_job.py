@@ -7,7 +7,7 @@ from yt_commands import (
     create_pool, run_sleeping_vanilla, print_debug,
     update_controller_agent_config, get_allocation_id_from_job_id,
     lookup_rows, write_table, map, vanilla, run_test_vanilla,
-    abort_job, get_job, set, get, sync_create_cells, raises_yt_error, exists)
+    abort_job, get_job, set, get, sync_create_cells, raises_yt_error, exists, wait_for_cells)
 
 import yt_error_codes
 
@@ -541,7 +541,51 @@ class TestGetJob(_TestGetJobCommon):
         wait(lambda: exists(orchid_path))
         wait(lambda: len(get(orchid_path + "/retained_finished_jobs")) == 0)
 
+        wait_for_cells()
         wait(lambda: self._compare_time_from_archive_with_api(op.id, job_id, "finish_time"), ignore_exceptions=True)
+
+    @authors("bystrovserg")
+    def test_gang_rank(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=3,
+            task_patch={
+                "gang_options": {"size": 2},
+            },
+        )
+
+        wait_breakpoint(job_count=3)
+
+        jobs_with_rank = {}
+        jobs_without_rank = []
+
+        @wait_no_assert
+        def get_job_ranks():
+            wait(lambda: len(op.get_running_jobs()) == 3)
+            running_jobs = op.get_running_jobs()
+            nonlocal jobs_with_rank, jobs_without_rank
+            jobs_with_rank = {job_id: info["gang_rank"] for job_id, info in running_jobs.items() if info.get("gang_rank") is not None}
+            jobs_without_rank = [job_id for job_id, info in running_jobs.items() if info.get("gang_rank") is None]
+            assert len(jobs_with_rank) == 2
+            assert len(jobs_without_rank) == 1
+
+        print_debug("Jobs with rank: {}".format(jobs_with_rank))
+        print_debug("Jobs without rank: {}".format(jobs_without_rank))
+
+        def check_job_ranks():
+            for job_id, rank in jobs_with_rank.items():
+                job = get_job(op.id, job_id, attributes=["gang_rank"])
+                assert job["gang_rank"] == rank
+            for job_id in jobs_without_rank:
+                job = get_job(op.id, job_id)
+                assert job.get("gang_rank") is None
+
+        wait_no_assert(lambda: check_job_ranks())
+
+        release_breakpoint()
+        op.track()
+
+        wait_no_assert(lambda: check_job_ranks())
 
 
 @pytest.mark.enabled_multidaemon

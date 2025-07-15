@@ -26,6 +26,9 @@ struct TBridgeYqlPluginOptions
     const char* DqGatewayConfig = nullptr;
     size_t DqGatewayConfigLength = 0;
 
+    const char* YtflowGatewayConfig = nullptr;
+    size_t YtflowGatewayConfigLength = 0;
+
     const char* DqManagerConfig = nullptr;
     size_t DqManagerConfigLength = 0;
 
@@ -46,6 +49,8 @@ struct TBridgeYqlPluginOptions
 
     const char* Libraries = nullptr;
     size_t LibrariesLength = 0;
+
+    const char* MaxYqlLangVersion = nullptr;
 };
 
 // Opaque type representing a YQL plugin.
@@ -75,6 +80,8 @@ struct TBridgeQueryResult
 
     const char* YsonError = nullptr;
     ssize_t YsonErrorLength = 0;
+    const char* Ast = nullptr;
+    ssize_t AstLength = 0;
 };
 
 #define FOR_EACH_QUERY_RESULT_STRING_FIELD(XX) \
@@ -83,6 +90,7 @@ struct TBridgeQueryResult
     XX(Statistics) \
     XX(Progress) \
     XX(TaskInfo) \
+    XX(Ast) \
     XX(YsonError)
 
 struct TBridgeClustersResult

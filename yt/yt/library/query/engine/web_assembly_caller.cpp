@@ -70,10 +70,10 @@ void TCGWebAssemblyCaller<TCGExpressionSignature, TCGPIExpressionSignature>::Run
     auto opaqueDataGuard = CopyOpaqueDataIntoCompartment(opaqueData, opaqueDataSizes, compartment);
 
     auto* resultOffset = std::bit_cast<TPIValue*>(context.AllocateAligned(sizeof(TPIValue), EAddressSpace::WebAssembly));
-    MakePositionIndependentFromUnversioned(ConvertPointerFromWasmToHost(resultOffset), *result);
-    CapturePIValue(&context, resultOffset, EAddressSpace::WebAssembly, EAddressSpace::WebAssembly);
+    MakePositionIndependentFromUnversioned(PtrFromVM(compartment, resultOffset), *result);
+    CapturePIValue(compartment, &context, resultOffset);
     auto finallySaveResult = Finally([&] {
-        MakeUnversionedFromPositionIndependent(result, *ConvertPointerFromWasmToHost(resultOffset));
+        MakeUnversionedFromPositionIndependent(result, *PtrFromVM(compartment, resultOffset));
         buffer->CaptureValue(result);
     });
 
@@ -145,9 +145,9 @@ void TCGWebAssemblyCaller<TCGAggregateInitSignature, TCGPIAggregateInitSignature
     });
 
     auto* resultOffset = std::bit_cast<TPIValue*>(context.AllocateAligned(sizeof(TPIValue), EAddressSpace::WebAssembly));
-    MakePositionIndependentFromUnversioned(ConvertPointerFromWasmToHost(resultOffset), *result);
+    MakePositionIndependentFromUnversioned(PtrFromVM(compartment, resultOffset), *result);
     auto finallySaveResult = Finally([&] {
-        MakeUnversionedFromPositionIndependent(result, *ConvertPointerFromWasmToHost(resultOffset));
+        MakeUnversionedFromPositionIndependent(result, *PtrFromVM(compartment, resultOffset));
         buffer->CaptureValue(result);
     });
 
@@ -182,10 +182,10 @@ void TCGWebAssemblyCaller<TCGAggregateUpdateSignature, TCGPIAggregateUpdateSigna
     });
 
     auto* resultOffset = std::bit_cast<TPIValue*>(context.AllocateAligned(sizeof(TPIValue), EAddressSpace::WebAssembly));
-    MakePositionIndependentFromUnversioned(ConvertPointerFromWasmToHost(resultOffset), *result);
-    CapturePIValue(&context, resultOffset, EAddressSpace::WebAssembly, EAddressSpace::WebAssembly);
+    MakePositionIndependentFromUnversioned(PtrFromVM(compartment, resultOffset), *result);
+    CapturePIValue(compartment, &context, resultOffset);
     auto finallySaveResult = Finally([&] {
-        MakeUnversionedFromPositionIndependent(result, *ConvertPointerFromWasmToHost(resultOffset));
+        MakeUnversionedFromPositionIndependent(result, *PtrFromVM(compartment, resultOffset));
         buffer->CaptureValue(result);
     });
 
@@ -226,19 +226,19 @@ void TCGWebAssemblyCaller<TCGAggregateMergeSignature, TCGPIAggregateMergeSignatu
     });
 
     auto* resultOffset = std::bit_cast<TPIValue*>(context.AllocateAligned(sizeof(TPIValue), EAddressSpace::WebAssembly));
-    MakePositionIndependentFromUnversioned(ConvertPointerFromWasmToHost(resultOffset), *result);
-    CapturePIValue(&context, resultOffset, EAddressSpace::WebAssembly, EAddressSpace::WebAssembly);
+    MakePositionIndependentFromUnversioned(PtrFromVM(compartment, resultOffset), *result);
+    CapturePIValue(compartment, &context, resultOffset);
     auto finallySaveResult = Finally([&] {
-        MakeUnversionedFromPositionIndependent(result, *ConvertPointerFromWasmToHost(resultOffset));
+        MakeUnversionedFromPositionIndependent(result, *PtrFromVM(compartment, resultOffset));
         buffer->CaptureValue(result);
     });
 
     auto* stateOffset = std::bit_cast<TPIValue*>(context.AllocateAligned(sizeof(TPIValue), EAddressSpace::WebAssembly));
-    MakePositionIndependentFromUnversioned(ConvertPointerFromWasmToHost(stateOffset), *state);
+    MakePositionIndependentFromUnversioned(PtrFromVM(compartment, stateOffset), *state);
     if (IsStringLikeType(state->Type)) {
         auto* offset = std::bit_cast<char*>(context.AllocateAligned(state->Length, EAddressSpace::WebAssembly));
-        ::memcpy(ConvertPointerFromWasmToHost(offset), state->AsStringBuf().data(), state->Length);
-        ConvertPointerFromWasmToHost(stateOffset)->SetStringPosition(ConvertPointerFromWasmToHost(offset));
+        ::memcpy(PtrFromVM(compartment, offset), state->AsStringBuf().data(), state->Length);
+        PtrFromVM(compartment, stateOffset)->SetStringPosition(PtrFromVM(compartment, offset));
     }
 
     auto arguments = std::array<WAVM::IR::UntaggedValue, 3>{

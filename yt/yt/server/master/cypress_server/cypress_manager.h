@@ -10,8 +10,6 @@
 
 #include <yt/yt/server/master/cell_master/automaton.h>
 
-#include <yt/yt/server/master/cypress_server/proto/cypress_manager.pb.h>
-
 #include <yt/yt/server/lib/hydra/entity_map.h>
 #include <yt/yt/server/lib/hydra/mutation.h>
 
@@ -144,6 +142,14 @@ public:
         NTransactionServer::TTransaction* transaction = nullptr) = 0;
 
     virtual ICypressNodeProxyPtr ResolvePathToNodeProxy(
+        const NYPath::TYPath& path,
+        NTransactionServer::TTransaction* transaction = nullptr) = 0;
+
+    //! Resolves a path.
+    //! If the path resolves to a local node, returns a proxy for it.
+    //! If the path leads to another cell (including Sequoia), returns null.
+    //! Throws if the path leads to a missing object.
+    virtual ICypressNodeProxyPtr TryResolvePathToNodeProxy(
         const NYPath::TYPath& path,
         NTransactionServer::TTransaction* transaction = nullptr) = 0;
 

@@ -1,10 +1,9 @@
 #include "schemeshard__operation_common.h"
-
-#include <contrib/ydb/core/persqueue/writer/source_id_encoding.h>
-
 #include "schemeshard_private.h"
+
 #include <contrib/ydb/core/base/hive.h>
 #include <contrib/ydb/core/persqueue/events/global.h>
+#include <contrib/ydb/core/persqueue/writer/source_id_encoding.h>
 
 
 namespace NKikimr::NSchemeShard::NPQState {

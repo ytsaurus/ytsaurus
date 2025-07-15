@@ -1722,6 +1722,26 @@ private:
         return result;
     }
 
+    static bool IsSubtabletInTabletChunkTree(const TChunkList* tabletChunkList, TChunkTreeRawPtr subtablet)
+    {
+        YT_VERIFY(subtablet->GetType() == EObjectType::ChunkList);
+
+        auto* chunkList = subtablet->AsChunkList();
+        if (chunkList->GetKind() != EChunkListKind::SortedDynamicSubtablet) {
+            return false;
+        }
+        if (tabletChunkList->ChildToIndex().contains(chunkList)) {
+            return true;
+        }
+        for (auto subtabletParent : chunkList->Parents()) {
+            if (IsSubtabletInTabletChunkTree(tabletChunkList, subtabletParent)) {
+                return true;
+            }
+        }
+
+        return false;
+    };
+
     void ValidateTabletContainsStore(const TTablet* tablet, TChunkTree* const store)
     {
         const auto* tabletChunkList = tablet->GetChunkList();
@@ -1731,37 +1751,11 @@ private:
             return;
         }
 
-        auto onParent = [&] (TChunkTree* parent) {
-            if (parent->GetType() != EObjectType::ChunkList) {
-                return false;
-            }
-            auto* chunkList = parent->AsChunkList();
-            if (chunkList->GetKind() != EChunkListKind::SortedDynamicSubtablet) {
-                return false;
-            }
-            if (tabletChunkList->ChildToIndex().contains(chunkList)) {
-                return true;
-            }
-            return false;
-        };
-
-        // NB: Tablet chunk list has rank of at most 2, so it suffices to check only
-        // one intermediate chunk list between store and tablet.
-        if (IsChunkTabletStoreType(store->GetType())) {
-            for (auto& [parent, multiplicity] : store->AsChunk()->Parents()) {
-                if (onParent(parent)) {
-                    return;
-                }
-            }
-        } else if (store->GetType() == EObjectType::ChunkView) {
+        // NB(dave11ar): Subtrees from bulk insert can have any rank.
+        // Subtrees contain only chunks, chunk views and sorted dynamic subtablets.
+        if (store->GetType() == EObjectType::ChunkView) {
             for (auto parent : store->AsChunkView()->Parents()) {
-                if (onParent(parent)) {
-                    return;
-                }
-            }
-        } else if (IsDynamicTabletStoreType(store->GetType())) {
-            for (auto parent : store->AsDynamicStore()->Parents()) {
-                if (onParent(parent)) {
+                if (IsSubtabletInTabletChunkTree(tabletChunkList, parent)) {
                     return;
                 }
             }

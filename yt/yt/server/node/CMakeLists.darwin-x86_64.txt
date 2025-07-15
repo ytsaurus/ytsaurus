@@ -214,6 +214,7 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/lookup.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/lsm_interop.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/master_connector.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/medium_throttler_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/mutation_forwarder.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/mutation_forwarder_thunk.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/object_detail.cpp
@@ -225,6 +226,7 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/relative_replication_throttler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/replicated_store_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/replication_log.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/revision_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/row_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/row_digest_fetcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/security_manager.cpp
@@ -263,8 +265,6 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/transaction.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/transaction_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/versioned_chunk_meta_manager.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/overload_controller.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/overload_controlling_service_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/write_commands.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/write_log.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/server/node/data_node/artifact.pb.h

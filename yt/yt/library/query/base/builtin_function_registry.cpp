@@ -394,7 +394,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         "format_guid",
         ECallingConvention::Simple);
 
-    std::vector<std::pair<TString, EValueType>> ypathGetFunctions = {
+    std::vector<std::pair<std::string, EValueType>> ypathGetFunctions = {
         {"try_get_int64", EValueType::Int64},
         {"get_int64", EValueType::Int64},
         {"try_get_uint64", EValueType::Uint64},

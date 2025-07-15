@@ -19,6 +19,8 @@ namespace NRoren::NPrivate {
 
 enum class ERawTransformType
 {
+    Invalid,
+    Meta,
     Read,
     Write,
     ParDo,
@@ -28,7 +30,7 @@ enum class ERawTransformType
     CombinePerKey,
     CombineGlobally,
     CoGroupByKey,
-    Flatten,
+    Flatten
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,6 +67,40 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(IRawTransform);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRawBaseTransform
+    : public IRawTransform
+    , public ISerializable<TRawBaseTransform>
+{
+public:
+    TRawBaseTransform(const ERawTransformType type, std::vector<TDynamicTypeTag> inputs = {}, std::vector<TDynamicTypeTag> outputs = {});
+    TRawBaseTransform(const ERawTransformType type, const std::vector<TRowVtable>& inputs, const std::vector<TRowVtable>& outputs);
+
+    [[nodiscard]] ERawTransformType GetType() const final;
+
+    TDefaultFactoryFunc GetDefaultFactory() const override;
+    std::vector<TDynamicTypeTag> GetInputTags() const override;
+    std::vector<TDynamicTypeTag> GetOutputTags() const override;
+
+    Y_SAVELOAD_DEFINE_OVERRIDE(Type_, Inputs_, Outputs_);
+
+private:
+    ERawTransformType Type_;
+    std::vector<TDynamicTypeTag> Inputs_;
+    std::vector<TDynamicTypeTag> Outputs_;
+};  // TRawBaseTransform
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRawMetaTransform
+    : public TRawBaseTransform
+{
+public:
+    TRawMetaTransform(const ERawTransformType type, std::vector<TDynamicTypeTag> inputs = {}, std::vector<TDynamicTypeTag> outputs = {});
+    TRawMetaTransform(const ERawTransformType type, const std::vector<TRowVtable>& inputs, const std::vector<TRowVtable>& outputs);
+};  // TRawMetaTransform
 
 ////////////////////////////////////////////////////////////////////////////////
 

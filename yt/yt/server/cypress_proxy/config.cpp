@@ -11,7 +11,7 @@ void TTestConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_ground_update_queues_sync", &TThis::EnableGroundUpdateQueuesSync)
         .Default(false);
 
-        registrar.Parameter("enable_user_directory_sync", &TThis::EnableUserDirectorySync)
+    registrar.Parameter("enable_user_directory_sync", &TThis::EnableUserDirectorySync)
         .Default(false);
 
     registrar.Parameter("ground_update_queues_sync_request_timeout", &TThis::GroundUpdateQueuesSyncRequestTimeout)
@@ -47,8 +47,6 @@ void TCypressProxyProgramConfig::Register(TRegistrar /*registrar*/)
 
 void TObjectServiceDynamicConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("thread_pool_size", &TThis::ThreadPoolSize)
-        .Default(1);
     registrar.Parameter("allow_bypass_master_resolve", &TThis::AllowBypassMasterResolve)
         .Default(false);
     registrar.Parameter("alert_on_mixed_read_write_batch", &TThis::AlertOnMixedReadWriteBatch)
@@ -104,6 +102,8 @@ void TCypressProxyDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("response_keeper", &TThis::ResponseKeeper)
         .DefaultNew();
+    registrar.Parameter("thread_pool_size", &TThis::ThreadPoolSize)
+        .Default(DefaultThreadPoolSize);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

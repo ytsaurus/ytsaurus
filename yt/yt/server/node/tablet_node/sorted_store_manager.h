@@ -58,7 +58,7 @@ public:
     void ConfirmRow(TWriteContext* context, const TSortedDynamicRowRef& rowRef);
     void PrepareRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef);
 
-    void CommitLockGroup(
+    void CommitPerRowsSerializedLockGroup(
         TTransaction* transaction,
         const TWireWriteCommand& command,
         const TSortedDynamicRowRef& rowRef,
@@ -187,7 +187,7 @@ private:
         TLegacyOwningKey,
         TSerializationStateByLockMap,
         TSortedDynamicRowKeyHash,
-        TSortedDynamicRowKeyEq> SerializationStateByKey_;
+        TSortedDynamicRowKeyEqualTo> SerializationStateByKey_;
 
     IDynamicStore* GetActiveStore() const override;
     void ResetActiveStore() override;
@@ -233,6 +233,8 @@ private:
     TSerializationStateByLockMap* FindKeySerializationState(TSortedDynamicRow row);
     TSerializationStateByLockMap& GetKeySerializationState(TSortedDynamicRow row);
     TSerializationStateByLockMap& GetOrCreateKeySerializationState(TSortedDynamicRow row);
+
+    bool SortedStoreSerializationStateProbabilisticVerificationNeeded() const;
 
     void OnRowBlocked(
         IStore* store,

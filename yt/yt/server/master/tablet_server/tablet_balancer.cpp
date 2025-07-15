@@ -33,6 +33,7 @@
 namespace NYT::NTabletServer {
 
 using namespace NConcurrency;
+using namespace NCellMaster;
 using namespace NCypressClient;
 using namespace NTableClient;
 using namespace NTableServer;
@@ -71,23 +72,23 @@ static constexpr TDuration MinBalanceFrequency = TDuration::Minutes(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletBalancer::TImpl
-    : public TRefCounted
+class TTabletBalancer
+    : public ITabletBalancer
 {
 public:
-    explicit TImpl(NCellMaster::TBootstrap* bootstrap)
+    explicit TTabletBalancer(TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
         , BalanceExecutor_(New<TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletBalancer),
-            BIND(&TImpl::Balance, MakeWeak(this))))
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::TabletBalancer),
+            BIND(&TTabletBalancer::Balance, MakeWeak(this))))
         , ConfigCheckExecutor_(New<TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
-            BIND(&TImpl::OnCheckConfig, MakeWeak(this))))
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
+            BIND(&TTabletBalancer::OnCheckConfig, MakeWeak(this))))
         , QueueSizeGauge_(TabletServerProfiler().Gauge("/tablet_balancer/queue_size"))
         , LastBalancingTime_(TruncatedNow())
     { }
 
-    void Start()
+    void Start() override
     {
         DoReconfigure();
         OnCheckConfig();
@@ -96,20 +97,20 @@ public:
         Started_ = true;
     }
 
-    void Stop()
+    void Stop() override
     {
         YT_UNUSED_FUTURE(ConfigCheckExecutor_->Stop());
         YT_UNUSED_FUTURE(BalanceExecutor_->Stop());
         Started_ = false;
     }
 
-    void Reconfigure(TTabletBalancerMasterConfigPtr config)
+    void Reconfigure(TTabletBalancerMasterConfigPtr config) override
     {
         Config_ = std::move(config);
         DoReconfigure();
     }
 
-    void OnTabletHeartbeat(TTablet* tablet)
+    void OnTabletHeartbeat(TTablet* tablet) override
     {
         if (!Enabled_ || !Started_) {
             return;
@@ -135,7 +136,7 @@ public:
     }
 
 private:
-    const NCellMaster::TBootstrap* Bootstrap_;
+    const TBootstrap* Bootstrap_;
 
     TTabletBalancerMasterConfigPtr Config_ = New<TTabletBalancerMasterConfig>();
     NConcurrency::TPeriodicExecutorPtr BalanceExecutor_;
@@ -777,30 +778,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletBalancer::TTabletBalancer(NCellMaster::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(bootstrap))
-{ }
-
-TTabletBalancer::~TTabletBalancer() = default;
-
-void TTabletBalancer::Start()
+ITabletBalancerPtr CreateTabletBalancer(TBootstrap* bootstrap)
 {
-    Impl_->Start();
-}
-
-void TTabletBalancer::Stop()
-{
-    Impl_->Stop();
-}
-
-void TTabletBalancer::Reconfigure(TTabletBalancerMasterConfigPtr config)
-{
-    Impl_->Reconfigure(std::move(config));
-}
-
-void TTabletBalancer::OnTabletHeartbeat(TTablet* tablet)
-{
-    Impl_->OnTabletHeartbeat(tablet);
+    return New<TTabletBalancer>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

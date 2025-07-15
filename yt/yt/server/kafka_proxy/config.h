@@ -30,7 +30,7 @@ struct TStringTransformationConfig
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_STRUCT(TStringTransformationConfig)
+DEFINE_REFCOUNTED_TYPE(TStringTransformationConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

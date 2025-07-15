@@ -50,10 +50,7 @@ struct IJobEnvironment
 
     virtual i64 GetMajorPageFaultCount() const = 0;
 
-    //! Set job environment implementation-specific fields of the config.
-    virtual void EnrichJobEnvironmentConfig(int slotIndex, NJobProxy::TJobProxyInternalConfigPtr& jobProxyConfig) const = 0;
-
-    virtual TFuture<std::vector<TShellCommandOutput>> RunCommands(
+    virtual TFuture<std::vector<TShellCommandResult>> RunCommands(
         int slotIndex,
         ESlotType slotType,
         TJobId jobId,
@@ -63,7 +60,8 @@ struct IJobEnvironment
         const std::optional<std::vector<NContainers::TDevice>>& devices,
         const std::optional<TString>& hostName,
         const std::vector<NNet::TIP6Address>& ipAddresses,
-        std::string tag) = 0;
+        std::string tag,
+        bool throwOnFailedCommand) = 0;
 
     virtual TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
         IInvokerPtr invoker,

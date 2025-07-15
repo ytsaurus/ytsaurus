@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, parametrize_external
 
 from yt_commands import (
-    authors, extract_statistic_v2, remount_table, wait, create, ls, get, set, copy,
+    authors, extract_statistic_v2, wait, create, ls, get, set, copy,
     remove, exists, sorted_dicts,
     start_transaction, abort_transaction, insert_rows, trim_rows, read_table, write_table, merge, sort, interrupt_job,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_unfreeze_table, sync_flush_table,
@@ -12,17 +12,17 @@ from yt_type_helpers import (
     make_schema, normalize_schema, normalize_schema_v3, optional_type, list_type,
     struct_type, tuple_type, dict_type, variant_struct_type, tagged_type)
 
-from yt_helpers import skip_if_component_old, skip_if_old
+from yt_helpers import skip_if_component_old
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
 import yt.yson as yson
 
-from copy import deepcopy
 import pytest
 import string
 import random
 
+from copy import deepcopy
 from time import sleep
 from math import ceil
 import itertools
@@ -2637,8 +2637,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @authors("achulkov2")
     @pytest.mark.parametrize("merge_mode", ["unordered", "ordered", "sorted"])
     def test_chunk_slice_statistics(self, merge_mode):
-        skip_if_old(self.Env, (24, 2), "use_chunk_slice_statistics is not supported in older versions")
-
         create("table", "//tmp/t", attributes={
             "optimize_for": "lookup",
             "schema": [
@@ -2679,8 +2677,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @authors("achulkov2")
     @pytest.mark.parametrize("merge_mode", ["unordered", "ordered", "sorted"])
     def test_chunk_slice_statistics_underestimation(self, merge_mode):
-        skip_if_old(self.Env, (24, 2), "use_chunk_slice_statistics is not supported in older versions")
-
         create("table", "//tmp/t", attributes={
             "optimize_for": "lookup",
             "schema": [
@@ -2722,8 +2718,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     # TODO(achulkov2): Add sorted mode to check once columns are supported by TChunkSliceFetcher.
     @pytest.mark.parametrize("merge_mode", ["unordered", "ordered"])
     def test_chunk_slice_statistics_work_as_columnar_statistics(self, merge_mode):
-        skip_if_old(self.Env, (24, 2), "use_chunk_slice_statistics is not supported in older versions")
-
         create("table", "//tmp/t", attributes={
             "optimize_for": "scan",
             "schema": [
@@ -2769,8 +2763,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         if "24_2" in getattr(self, "ARTIFACT_COMPONENTS", {}):
             pytest.skip()
 
-        skip_if_old(self.Env, (24, 2), "throwing error is not supported in older versions")
-
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
@@ -2781,72 +2773,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 out="//tmp/t_out",
                 spec={"input_query": "key where key > 1"},
             )
-
-    @authors("coteeq")
-    @pytest.mark.xfail(reason="YTADMINREQ-46112")
-    def test_hunks_with_compression(self):
-        sync_create_cells(1)
-
-        schema = [
-            {"name": "key", "type": "int64", "sort_order": "ascending"},
-            {"name": "value1", "type": "string", "max_inline_hunk_size": 10},
-            {"name": "value2", "type": "string", "max_inline_hunk_size": 10},
-        ]
-
-        create_dynamic_table(
-            "//tmp/t_dynamic",
-            schema=schema,
-            optimize_for="lookup",
-            enable_dynamic_store_read=False
-        )
-        set(
-            "//tmp/t_dynamic/@mount_config/value_dictionary_compression",
-            {
-                "enable": True,
-                "column_dictionary_size": 256,
-                "desired_processed_chunk_count": 1,
-                "max_processed_chunk_count": 2,
-            },
-        )
-        sync_mount_table("//tmp/t_dynamic")
-        dynamic_table_rows = [
-            {"key": i, "value1": "i am huuuunk" * 30, "value2": "i am hunk too" * 30}
-            for i in range(100)
-        ]
-        insert_rows("//tmp/t_dynamic", dynamic_table_rows)
-        sync_flush_table("//tmp/t_dynamic")
-
-        # One regular + one hunk + two compression
-        wait(lambda: len(get("//tmp/t_dynamic/@chunk_ids")) >= 4)
-
-        # NB: Compaction is essential for bug to trigger.
-        def get_stores():
-            return {
-                chunk_id
-                for chunk_id
-                in get("//tmp/t_dynamic/@chunk_ids")
-                if get(f"#{chunk_id}/@chunk_type") == "table"
-            }
-        stores = get_stores()
-        set("//tmp/t_dynamic/@forced_compaction_revision", 1)
-        remount_table("//tmp/t_dynamic")
-        wait(lambda: get_stores().isdisjoint(stores))
-
-        merge(
-            in_="<columns=[key; value1]>//tmp/t_dynamic",
-            out="<create=%true>//tmp/t_static",
-            mode="unordered",
-            spec={
-                "force_transform": True,
-            },
-        )
-
-        def drop_value2(row):
-            row = deepcopy(row)
-            row.pop("value2")
-            return row
-
-        assert read_table("//tmp/t_static") == [drop_value2(row) for row in dynamic_table_rows]
 
     @authors("coteeq")
     @pytest.mark.parametrize("mode", ["query", "passthrough"])
@@ -2887,6 +2813,18 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         first_written = extract_statistic_v2(statistics, "latency.output.0.time_to_first_read_batch", job_type="unordered_merge")
 
         assert 0 < first_read <= first_written
+
+
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
+class TestSchedulerMergeCommandsWithOldSlicing(TestSchedulerMergeCommands):
+    DELTA_CONTROLLER_AGENT_CONFIG = deepcopy(getattr(TestSchedulerMergeCommands, "DELTA_CONTROLLER_AGENT_CONFIG", {}))
+    DELTA_CONTROLLER_AGENT_CONFIG \
+        .setdefault("controller_agent", {}) \
+        .setdefault("operation_options", {}) \
+        .setdefault("spec_template", {})["use_new_slicing_implementation_in_unordered_pool"] = False
 
 
 ##################################################################
@@ -3532,6 +3470,18 @@ class TestInferSchemaInMerge(TestSchedulerMergeCommands):
         ]
         assert expected == read_table("//tmp/table0")
 
+
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
+class TestInferSchemaInMergeWithOldSlicing(TestInferSchemaInMerge):
+    DELTA_CONTROLLER_AGENT_CONFIG = deepcopy(getattr(TestInferSchemaInMerge, "DELTA_CONTROLLER_AGENT_CONFIG", {}))
+    DELTA_CONTROLLER_AGENT_CONFIG \
+        .setdefault("controller_agent", {}) \
+        .setdefault("operation_options", {}) \
+        .setdefault("spec_template", {})["use_new_slicing_implementation_in_unordered_pool"] = False
+
 ##################################################################
 
 
@@ -3595,6 +3545,18 @@ class TestSchedulerMergeCommandsSliceSize(YTEnvSetup):
         op.track()
         for chunk_id in get("//tmp/out/@chunk_ids"):
             assert 5 <= get("#" + chunk_id + "/@row_count") <= 15
+
+
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
+class TestSchedulerMergeCommandsSliceSizeWithOldSlicing(TestSchedulerMergeCommandsSliceSize):
+    DELTA_CONTROLLER_AGENT_CONFIG = deepcopy(getattr(TestSchedulerMergeCommandsSliceSize, "DELTA_CONTROLLER_AGENT_CONFIG", {}))
+    DELTA_CONTROLLER_AGENT_CONFIG \
+        .setdefault("controller_agent", {}) \
+        .setdefault("operation_options", {}) \
+        .setdefault("spec_template", {})["use_new_slicing_implementation_in_unordered_pool"] = False
 
 
 ##################################################################
@@ -4106,3 +4068,15 @@ class TestMergeJobSizeAdjuster(YTEnvSetup):
 
         flat_data = list(itertools.chain.from_iterable(data))
         assert flat_data == read_table("//tmp/out")
+
+
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
+class TestMergeJobSizeAdjusterWithOldSlicing(TestMergeJobSizeAdjuster):
+    DELTA_CONTROLLER_AGENT_CONFIG = deepcopy(getattr(TestMergeJobSizeAdjuster, "DELTA_CONTROLLER_AGENT_CONFIG", {}))
+    DELTA_CONTROLLER_AGENT_CONFIG \
+        .setdefault("controller_agent", {}) \
+        .setdefault("operation_options", {}) \
+        .setdefault("spec_template", {})["use_new_slicing_implementation_in_unordered_pool"] = False

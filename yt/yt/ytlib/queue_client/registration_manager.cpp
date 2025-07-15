@@ -140,6 +140,7 @@ public:
         ConfigurationRefreshExecutor_->Start();
         CacheRefreshExecutor_->Start();
     }
+    
     void StopSync() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();

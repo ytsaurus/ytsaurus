@@ -1,5 +1,6 @@
 #include "client_impl.h"
 #include "backup_session.h"
+#include "chaos_lease.h"
 #include "chaos_helpers.h"
 #include "config.h"
 #include "connection.h"
@@ -310,15 +311,16 @@ TSchemaUpdateEnabledFeatures GetSchemaUpdateEnabledFeatures()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<i64> TryReserveMemory(
+i64 ReserveMemory(
     IReservingMemoryUsageTrackerPtr& reservingTracker,
     i64 initialAmount,
     int requestCount)
 {
     i64 reservedBytes = initialAmount;
     bool memoryReserved = false;
+    i64 minReservedBytes = MinPullDataSize * requestCount;
 
-    while (reservedBytes >= MinPullDataSize * requestCount) {
+    while (reservedBytes >= minReservedBytes) {
         if (reservingTracker->TryReserve(reservedBytes).IsOK()) {
             memoryReserved = true;
             break;
@@ -328,7 +330,9 @@ std::optional<i64> TryReserveMemory(
     }
 
     if (!memoryReserved) {
-        return std::nullopt;
+        // Acquire the bare minimum amount of memory unconditionally.
+        reservingTracker->Acquire(minReservedBytes);
+        return minReservedBytes;
     }
 
     return reservedBytes;
@@ -441,11 +445,11 @@ public:
             .Run(path);
     }
 
-    void FetchFunctions(TRange<TString> names, const TTypeInferrerMapPtr& typeInferrers) override
+    void FetchFunctions(TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers) override
     {
         MergeFrom(typeInferrers.Get(), *GetBuiltinTypeInferrers());
 
-        std::vector<TString> externalNames;
+        std::vector<std::string> externalNames;
         for (const auto& name : names) {
             auto found = typeInferrers->find(name);
             if (found == typeInferrers->end()) {
@@ -988,7 +992,9 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
     tableInfo->ValidateDynamic();
     tableInfo->ValidateSorted();
 
-    auto schema = options.VersionedReadOptions.ReadMode == NTableClient::EVersionedIOMode::LatestTimestamp
+    bool isTimestampedLookup = options.VersionedReadOptions.ReadMode == NTableClient::EVersionedIOMode::LatestTimestamp;
+
+    auto schema = isTimestampedLookup
         ? ToLatestTimestampSchema(tableInfo->Schemas[ETableSchemaKind::Primary])
         : tableInfo->Schemas[ETableSchemaKind::Primary];
 
@@ -1004,8 +1010,10 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
             *options.FallbackTableSchema,
             *schema,
             GetSchemaUpdateEnabledFeatures(),
-            true,
-            false);
+            /*isTableDynamic*/ true,
+            /*isTableEmpty*/ false,
+            /*allowAlterKeyColumnToAny*/ false,
+            {.AllowTimestampColumns = isTimestampedLookup});
     }
 
     auto idMapping = BuildColumnIdMapping(*schema, nameTable);
@@ -1620,6 +1628,8 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         options.PlaceholderValues,
         options.SyntaxVersion);
 
+    auto dynamicConfig = GetNativeConnection()->GetConfig();
+
     auto* astQuery = &std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
 
     auto mainTable = NAst::GetMainTablePath(*astQuery);
@@ -1627,9 +1637,8 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     auto mountCache = CreateStickyCache(Connection_->GetTableMountCache());
     PreheatCache(astQuery, mountCache);
 
-    TransformWithIndexStatement(astQuery, mountCache, &parsedQuery->AstHead);
+    TransformWithIndexStatement(astQuery, mountCache, &parsedQuery->AstHead, dynamicConfig->AllowUnaliasedSecondaryIndex);
 
-    auto dynamicConfig = GetNativeConnection()->GetConfig();
     auto replicaStatusCache = GetNativeConnection()->GetTableReplicaSynchronicityCache();
     auto pickReplicaSession = CreatePickReplicaSession(
         astQuery,
@@ -1776,9 +1785,10 @@ NYson::TYsonString TClient::DoExplainQuery(
 
     auto mountCache = CreateStickyCache(Connection_->GetTableMountCache());
 
-    TransformWithIndexStatement(astQuery, cache, &parsedQuery->AstHead);
-
     auto dynamicConfig = GetNativeConnection()->GetConfig();
+
+    TransformWithIndexStatement(astQuery, cache, &parsedQuery->AstHead, dynamicConfig->AllowUnaliasedSecondaryIndex);
+
     auto replicaStatusCache = Connection_->GetTableReplicaSynchronicityCache();
     auto pickReplicaSession = CreatePickReplicaSession(
         astQuery,
@@ -3442,12 +3452,7 @@ TPullRowsResult TClient::DoPullRows(
 
     i64 dataWeight = options.MaxDataWeight;
     if (auto reservingTracker = options.MemoryTracker) {
-        auto reserveResult = TryReserveMemory(reservingTracker, dataWeight, requests.size());
-        if (!reserveResult) {
-            THROW_ERROR_EXCEPTION("Failed to reserve memory for pull rows request");
-        }
-
-        dataWeight = *reserveResult;
+        dataWeight = ReserveMemory(reservingTracker, dataWeight, requests.size());
     }
 
     // Raw response + parsed rows for each session.
@@ -3764,6 +3769,45 @@ void TClient::DoAlterReplicationCard(
     } else {
         result.ThrowOnError();
     }
+}
+
+IPrerequisitePtr TClient::DoAttachChaosLease(
+    TChaosLeaseId chaosLeaseId,
+    const TChaosLeaseAttachOptions& options)
+{
+    auto channel = GetChaosChannelByCellTag(CellTagFromId(chaosLeaseId));
+    auto proxy = TChaosNodeServiceProxy(channel);
+    proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
+
+    auto req = proxy.GetChaosLease();
+    auto timeoutPath = Format("#%v/@timeout", chaosLeaseId);
+
+    auto timeoutNode = WaitFor(GetNode(timeoutPath, {}))
+        .ValueOrThrow();
+
+    auto timeoutValue = ConvertTo<i64>(timeoutNode);
+    auto timeout = TDuration::MilliSeconds(timeoutValue);
+
+    auto chaosLease = CreateChaosLease(
+        this,
+        std::move(channel),
+        chaosLeaseId,
+        timeout,
+        options.PingAncestors,
+        Logger);
+
+    if (options.Ping) {
+        WaitFor(chaosLease->Ping({}))
+            .ThrowOnError();
+    }
+
+    return chaosLease;
+}
+
+IPrerequisitePtr TClient::DoStartChaosLease(
+    const TChaosLeaseStartOptions& /*options*/)
+{
+    THROW_ERROR_EXCEPTION("Use CreateNode to start chaos leases.");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

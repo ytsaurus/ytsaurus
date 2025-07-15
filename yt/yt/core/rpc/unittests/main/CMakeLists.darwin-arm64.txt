@@ -48,6 +48,7 @@ target_link_options(unittester-core-rpc PRIVATE
 )
 
 target_sources(unittester-core-rpc PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/overload_controller_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/handle_channel_failure_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/roaming_channel_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/rpc_ut.cpp

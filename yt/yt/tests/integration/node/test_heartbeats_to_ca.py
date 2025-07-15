@@ -144,6 +144,7 @@ class TestOrphanedJob(YTEnvSetup):
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             update_controller_agent_config("job_tracker/node_disconnection_timeout", 1, wait_for_orchid=False)
+            update_controller_agent_config("job_tracker/revival_node_disconnection_timeout", 1, wait_for_orchid=False)
 
         agent_addresses = ls("//sys/controller_agents/instances")
         assert len(agent_addresses) == 1
@@ -176,6 +177,7 @@ class TestOrphanedJob(YTEnvSetup):
         wait(lambda: not exists(orchid_path))
 
         update_controller_agent_config("job_tracker/node_disconnection_timeout", 1000)
+        update_controller_agent_config("job_tracker/revival_node_disconnection_timeout", 1000)
 
         release_breakpoint()
 

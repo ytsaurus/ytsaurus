@@ -3,5 +3,18 @@ items:
     href: preinstalled.md
   - name: Developing in Python
     href: python.md
+  - name: JavaScript powered
+    href: javascript.md
+    when: audience == "internal"
   - name: Developing in C++
     href: cpp.md
+    items:
+     - name: Briefly about C++ UDF
+       href: cpp_about_udf.md
+     - name: Type-aware UDFs
+       href: cpp_type_aware_udf.md
+     - name: YQL-Stream in C++ UDF
+       href: cpp_stream.md
+     - name: Data processing in C++ UDF
+       href: cpp_data_processing.md
+

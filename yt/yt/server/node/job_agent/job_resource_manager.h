@@ -49,7 +49,7 @@ public:
     virtual void Start() = 0;
 
     //! Returns the maximum allowed resource usage.
-    virtual NClusterNode::TJobResources GetResourceLimits() const = 0;
+    virtual NClusterNode::TJobResources GetResourceLimits(bool considerUserJobFreeMemoryWatermark) const = 0;
 
     virtual NNodeTrackerClient::NProto::TDiskResources GetDiskResources() const = 0;
 
@@ -177,9 +177,9 @@ public:
 
     std::pair<NClusterNode::TJobResources, NClusterNode::TJobResources> GetDetailedResourceUsage() const noexcept;
 
-    NClusterNode::TJobResources GetResourceLimits() const noexcept;
+    NClusterNode::TJobResources GetResourceLimits(bool considerUserJobFreeMemoryWatermark) const noexcept;
 
-    NClusterNode::TJobResources GetFreeResources() const noexcept;
+    NClusterNode::TJobResources GetFreeResources(bool considerUserJobFreeMemoryWatermark) const noexcept;
 
     NClusterNode::TJobResources GetInitialResourceDemand() const noexcept;
 

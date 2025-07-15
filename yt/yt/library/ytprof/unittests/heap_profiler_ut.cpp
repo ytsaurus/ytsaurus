@@ -51,7 +51,7 @@ Y_NO_INLINE auto BlowHeap()
 TEST(THeapProfilerTest, ReadProfile)
 {
     NBacktrace::SetAbslStackUnwinder();
-    tcmalloc::MallocExtension::SetProfileSamplingRate(256_KB);
+    tcmalloc::MallocExtension::SetProfileSamplingInterval(256_KB);
 
     auto token = tcmalloc::MallocExtension::StartAllocationProfiling();
 

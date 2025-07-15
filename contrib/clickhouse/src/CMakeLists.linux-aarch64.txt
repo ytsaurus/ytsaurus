@@ -132,6 +132,7 @@ target_link_libraries(contrib-clickhouse-src PUBLIC
   contrib-libs-wyhash
   contrib-libs-xxhash
   contrib-libs-zstd
+  contrib-restricted-abseil-cpp
   restricted-aws-aws-c-auth
   restricted-aws-aws-c-common
   restricted-aws-aws-c-io
@@ -2028,6 +2029,7 @@ target_link_libraries(contrib-clickhouse-src.global PUBLIC
   contrib-libs-wyhash
   contrib-libs-xxhash
   contrib-libs-zstd
+  contrib-restricted-abseil-cpp
   restricted-aws-aws-c-auth
   restricted-aws-aws-c-common
   restricted-aws-aws-c-io

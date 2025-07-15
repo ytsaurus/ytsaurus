@@ -257,6 +257,8 @@ public:
             }
             case ERawTransformType::StatefulTimerParDo:
             case ERawTransformType::CombineGlobally:
+            case ERawTransformType::Meta:
+            case ERawTransformType::Invalid:
                 Y_ABORT("Not implemented yet");
         }
     }

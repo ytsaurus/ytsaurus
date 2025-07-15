@@ -5,8 +5,6 @@ from yt_commands import (
     get, insert_rows, write_file, read_table, write_table, join_reduce, reduce, sync_create_cells, sync_mount_table,
     sync_unmount_table, raises_yt_error, assert_statistics, sorted_dicts)
 
-from yt_helpers import skip_if_old
-
 import yt_error_codes
 
 import yt.yson as yson
@@ -1112,6 +1110,7 @@ echo {v = 2} >&7
             spec={
                 "reducer": {"format": yson.loads(b"<enable_table_index=true>dsv")},
                 "job_count": 2,
+                "consider_only_primary_size": True,
             },
         )
 
@@ -1720,8 +1719,6 @@ echo {v = 2} >&7
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     @pytest.mark.parametrize("operation", ["reduce", "join_reduce"])
     def test_join_reduce_multiple_ranges(self, sort_order, operation):
-        skip_if_old(self.Env, (24, 2), "older versions do not support foreign tables with multiple ranges")
-
         if sort_order == "descending":
             self.skip_if_legacy_sorted_pool()
 

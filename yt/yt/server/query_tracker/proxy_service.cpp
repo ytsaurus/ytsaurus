@@ -2,7 +2,7 @@
 #include "proxy_service.h"
 #include "query_tracker_proxy.h"
 
-#include <yt/yt/server/lib/state_checker/state_checker.h>
+#include <yt/yt/server/lib/component_state_checker/state_checker.h>
 
 #include <yt/yt/client/api/rpc_proxy/helpers.h>
 

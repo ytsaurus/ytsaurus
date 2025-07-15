@@ -71,6 +71,7 @@ target_link_libraries(clickhouse-src-Parsers PUBLIC
   contrib-libs-miniselect
   contrib-libs-re2
   contrib-libs-sparsehash
+  contrib-restricted-abseil-cpp
   restricted-boost-circular_buffer
   restricted-boost-container_hash
   restricted-boost-context

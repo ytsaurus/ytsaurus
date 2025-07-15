@@ -247,8 +247,8 @@ void TChunkLocationDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStoreLocationConfigPtr TStoreLocationConfig::ApplyDynamic
-    (const TStoreLocationDynamicConfigPtr& dynamicConfig) const
+TStoreLocationConfigPtr TStoreLocationConfig::ApplyDynamic(
+    const TStoreLocationDynamicConfigPtr& dynamicConfig) const
 {
     auto config = CloneYsonStruct(MakeStrong(this));
     config->ApplyDynamicInplace(*dynamicConfig);
@@ -338,6 +338,23 @@ void TStoreLocationDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCacheLocationConfigPtr TCacheLocationConfig::ApplyDynamic(
+    const TCacheLocationDynamicConfigPtr& dynamicConfig) const
+{
+    auto config = CloneYsonStruct(MakeStrong(this));
+    config->ApplyDynamicInplace(*dynamicConfig);
+    config->Postprocess();
+    return config;
+}
+
+void TCacheLocationConfig::ApplyDynamicInplace(
+    const TCacheLocationDynamicConfig& dynamicConfig)
+{
+    TChunkLocationConfig::ApplyDynamicInplace(dynamicConfig);
+
+    UpdateYsonStructField(InThrottler, dynamicConfig.InThrottler);
+}
+
 void TCacheLocationConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("in_throttler", &TThis::InThrottler)
@@ -345,6 +362,14 @@ void TCacheLocationConfig::Register(TRegistrar registrar)
 
     registrar.BaseClassParameter("medium_name", &TThis::MediumName)
         .Default(NChunkClient::DefaultCacheMediumName);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCacheLocationDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("in_throttler", &TThis::InThrottler)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -528,12 +553,8 @@ void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
         .Default(1000000);
     registrar.Parameter("enable_profiling", &TThis::EnableProfiling)
         .Default(false);
-    registrar.Parameter("location_uuid_to_disable_during_full_heartbeat", &TThis::LocationUuidToDisableDuringFullHeartbeat)
-        .Default();
     registrar.Parameter("full_heartbeat_session_retrying_channel", &TThis::FullHeartbeatSessionRetryingChannel)
         .DefaultNew();
-    registrar.Parameter("full_heartbeat_session_sleep_duration", &TThis::FullHeartbeatSessionSleepDuration)
-        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -577,6 +598,12 @@ void TDataNodeTestingOptions::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("always_throttle_net_on_send_blocks", &TThis::AlwaysThrottleNetOnSendBlocks)
+        .Default();
+
+    registrar.Parameter("location_uuid_to_disable_during_full_heartbeat", &TThis::LocationUuidToDisableDuringFullHeartbeat)
+        .Default();
+
+    registrar.Parameter("full_heartbeat_session_sleep_duration", &TThis::FullHeartbeatSessionSleepDuration)
         .Default();
 }
 
@@ -1012,8 +1039,8 @@ void TDataNodeConfig::Register(TRegistrar registrar)
             config->MasterConnector->JobHeartbeatPeriod = config->IncrementalHeartbeatPeriod;
         }
 
-        THROW_ERROR_EXCEPTION_IF(config->LeaseTransactionPingPeriod >= config->LeaseTransactionTimeout,
-            "Lease transaction ping period cannot be greater or equal to lease transaction timeout");
+        THROW_ERROR_EXCEPTION_UNLESS(config->LeaseTransactionPingPeriod < config->LeaseTransactionTimeout,
+            "Lease transaction ping period must be less than lease transaction timeout");
     });
 }
 
@@ -1140,6 +1167,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("store_location_config_per_medium", &TThis::StoreLocationConfigPerMedium)
         .Default();
+
+    registrar.Parameter("cache_location", &TThis::CacheLocation)
+        .DefaultNew();
 
     registrar.Parameter("net_out_throttling_limit", &TThis::NetOutThrottlingLimit)
         .Default();

@@ -2,6 +2,10 @@ LIBRARY()
 
 SRCS(
     actor.cpp
+    fetcher.cpp
+    fetching_executor.cpp
+    fetching_steps.cpp
+    contexts.cpp
 )
 
 PEERDIR(
@@ -11,5 +15,7 @@ PEERDIR(
     contrib/ydb/core/tx/columnshard/export/events
     contrib/ydb/core/kqp/compute_actor
 )
+
+GENERATE_ENUM_SERIALIZATION(contexts.h)
 
 END()

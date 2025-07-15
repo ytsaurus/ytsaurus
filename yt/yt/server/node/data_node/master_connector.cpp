@@ -1165,7 +1165,7 @@ private:
 
     void BeforeFullHeartbeatInvoke()
     {
-        if (auto locationUuidToDisable = GetDynamicConfig()->LocationUuidToDisableDuringFullHeartbeat) {
+        if (auto locationUuidToDisable = GetNodeDynamicConfig()->TestingOptions->LocationUuidToDisableDuringFullHeartbeat) {
             const auto& chunkStore = Bootstrap_->GetChunkStore();
             for (const auto& location : chunkStore->Locations()) {
                 if (location->GetUuid() == locationUuidToDisable) {
@@ -1214,7 +1214,7 @@ private:
         auto masterChannel = CreateRetryingChannel(
             GetDynamicConfig()->FullHeartbeatSessionRetryingChannel,
             Bootstrap_->GetMasterChannel(cellTag),
-            BIND([&] (const TError& error) -> bool {
+            BIND([cellTag, Logger = this->Logger] (const TError& error) -> bool {
                 if (IsRetriableError(error) || error.FindMatching(HeartbeatRetriableErrors)) {
                     YT_LOG_DEBUG(
                         error,
@@ -1266,7 +1266,7 @@ private:
             futures.push_back(request->Invoke());
 
             // For testing purposes.
-            if (auto duration = GetDynamicConfig()->FullHeartbeatSessionSleepDuration) {
+            if (auto duration = GetNodeDynamicConfig()->TestingOptions->FullHeartbeatSessionSleepDuration) {
                 TDelayedExecutor::WaitForDuration(*duration);
             }
         }

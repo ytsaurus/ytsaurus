@@ -17,6 +17,7 @@ DEPENDS(
     yql/essentials/udfs/common/re2
     yql/essentials/udfs/common/file
     yql/essentials/udfs/common/python/python3_small
+    yql/essentials/udfs/common/string
 )
 
 PEERDIR(
@@ -24,11 +25,15 @@ PEERDIR(
     yt/python/yt/environment/components/yql_agent
 )
 
+IF (NOT OPENSOURCE)
+    INCLUDE(ya_non_opensource.inc)
+ENDIF()
+
 IF (SANITIZER_TYPE == "address" OR SANITIZER_TYPE == "memory")
     TAG(ya:not_autocheck)
 ENDIF()
 
 FORK_SUBTESTS()
-SPLIT_FACTOR(8)
+SPLIT_FACTOR(16)
 
 END()

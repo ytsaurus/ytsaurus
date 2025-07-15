@@ -62,12 +62,7 @@ void TNewJobStub::Finalize()
         for (const auto& dataSlice : stripe->DataSlices) {
             YT_VERIFY(!dataSlice->IsLegacy);
         }
-        const auto& statistics = stripe->GetStatistics();
-        StripeList_->TotalDataWeight += statistics.DataWeight;
-        StripeList_->TotalRowCount += statistics.RowCount;
-        StripeList_->TotalChunkCount += statistics.ChunkCount;
-        StripeList_->TotalCompressedDataSize += statistics.CompressedDataSize;
-        StripeList_->Stripes.emplace_back(std::move(stripe));
+        StripeList_->AddStripe(stripe);
     }
     StripeMap_.clear();
 
@@ -822,8 +817,7 @@ void TNewJobManager::InvalidateAllJobs()
 void TNewJobManager::Enlarge(
     i64 dataWeightPerJob,
     i64 primaryDataWeightPerJob,
-    const IJobSizeConstraintsPtr& jobSizeConstraints,
-    const TOutputOrderPtr& outputOrder)
+    const IJobSizeConstraintsPtr& jobSizeConstraints)
 {
     YT_LOG_DEBUG("Enlarging jobs (DataWeightPerJob: %v, PrimaryDataWeightPerJob: %v)",
         dataWeightPerJob,
@@ -872,7 +866,7 @@ void TNewJobManager::Enlarge(
         return false;
     };
 
-    auto isJobJoinable = [&] (int index) -> bool {
+    auto isJobJoinable = [&] (int index) {
         const auto& job = Jobs_[index];
         // NB(coteeq): We do not want to join running or completed jobs.
         return job.GetIsBarrier() || job.GetState() != EJobState::Pending;
@@ -952,12 +946,7 @@ void TNewJobManager::Enlarge(
 
             currentJobStub->Finalize();
             JobOrder_->Seek(joinedJobCookies.back());
-            auto newCookie = AddJob(std::move(currentJobStub));
-            if (outputOrder) {
-                // xxx(coteeq): Is it okay to leave some cookies just.. never finished?
-                outputOrder->SeekCookie(joinedJobCookies.back());
-                outputOrder->Push(newCookie);
-            }
+            AddJob(std::move(currentJobStub));
 
             JobOrder_->Seek(*startIndex);
             for (int index : joinedJobCookies) {
@@ -974,6 +963,19 @@ void TNewJobManager::Enlarge(
 void TNewJobManager::SeekOrder(TOutputCookie cookie)
 {
     JobOrder_->Seek(cookie);
+}
+
+std::vector<int> TNewJobManager::GetCookieToPosition() const
+{
+    int position = 0;
+    std::vector<int> cookieToPosition;
+    cookieToPosition.resize(Jobs_.size(), -1);
+    for (auto cookie = JobOrder_->GetFirstCookie(); cookie; cookie = JobOrder_->Next(*cookie)) {
+        YT_VERIFY(cookieToPosition[*cookie] == -1);
+        cookieToPosition[*cookie] = position++;
+    }
+
+    return cookieToPosition;
 }
 
 std::pair<TKeyBound, TKeyBound> TNewJobManager::GetBounds(IChunkPoolOutput::TCookie cookie) const

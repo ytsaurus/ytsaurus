@@ -131,6 +131,7 @@ static const THashSet<TString> SupportedJobsAttributes = {
     "exec_attributes",
     "events",
     "is_stale",
+    "gang_rank",
 };
 
 // Some attributes are required for 'list_jobs' command regardless of user's demand.
@@ -182,6 +183,7 @@ static const THashSet<TString> DefaultListJobsAttributes = {
     "pool",
     "progress",
     "is_stale",
+    "gang_rank",
 };
 
 static const THashSet<TString> DefaultGetJobAttributes = [] {
@@ -226,6 +228,7 @@ static const THashMap<std::string, std::optional<int>> JobAttributeToMinArchiveV
     {"addresses", 57},
     {"controller_start_time", 58},
     {"controller_finish_time", 58},
+    {"gang_rank", 60},
 };
 
 static bool DoesArchiveContainAttribute(const TString& attribute, int archiveVersion)
@@ -412,7 +415,7 @@ TErrorOr<IChannelPtr> TClient::TryCreateChannelToJobNode(
                 *addresses);
             return ChannelFactory_->CreateChannel(*addresses);
         } else {
-            auto address = ConvertToNode(jobYsonString)->AsMap()->GetChildValueOrThrow<TString>("address");
+            auto address = ConvertToNode(jobYsonString)->AsMap()->GetChildValueOrThrow<std::string>("address");
             YT_LOG_DEBUG(
                 jobNodeDescriptorOrError,
                 "Creating channel using job's address field from archive (OperationId: %v, JobId: %v, Address: %v)",
@@ -812,85 +815,6 @@ void TClient::DoDumpJobContext(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// COMPAT(levysotsky): This function is to be removed after both CA and nodes are updated.
-// See YT-16507
-static NTableClient::TTableSchemaPtr SetStableNames(
-    const NTableClient::TTableSchemaPtr& schema,
-    const NTableClient::TColumnRenameDescriptors& renameDescriptors)
-{
-    THashMap<TString, TString> nameToStableName;
-    for (const auto& renameDescriptor : renameDescriptors) {
-        nameToStableName.emplace(renameDescriptor.NewName, renameDescriptor.OriginalName);
-    }
-
-    std::vector<NTableClient::TColumnSchema> columns;
-    for (const auto& originalColumn : schema->Columns()) {
-        auto& column = columns.emplace_back(originalColumn);
-        YT_VERIFY(!column.IsRenamed());
-        if (auto it = nameToStableName.find(column.Name())) {
-            column.SetStableName(NTableClient::TColumnStableName(it->second));
-        }
-    }
-    return New<NTableClient::TTableSchema>(
-        std::move(columns),
-        schema->IsStrict(),
-        schema->IsUniqueKeys(),
-        schema->GetSchemaModification(),
-        schema->DeletedColumns());
-}
-
-// COMPAT(levysotsky): We need to distinguish between two cases:
-// 1) New CA has sent already renamed schema, we check it and do nothing
-// 2) Old CA has sent not-renamed schema, we need to perform the renaming
-//    according to rename descriptors.
-// This function is to be removed after both CA and nodes are updated. See YT-16507
-static NJobProxy::IJobSpecHelperPtr MaybePatchDataSourceDirectory(
-    const TJobSpec& jobSpecProto)
-{
-    auto jobSpecExt = jobSpecProto.GetExtension(TJobSpecExt::job_spec_ext);
-
-    if (jobSpecExt.disable_rename_columns_compatibility_code()) {
-        return NJobProxy::CreateJobSpecHelper(jobSpecProto);
-    }
-
-    if (!HasProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(jobSpecExt.extensions())) {
-        return NJobProxy::CreateJobSpecHelper(jobSpecProto);
-    }
-    const auto dataSourceDirectoryExt = GetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
-        jobSpecExt.extensions());
-
-    auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
-
-    for (auto& dataSource : dataSourceDirectory->DataSources()) {
-        if (dataSource.Schema() && dataSource.Schema()->HasRenamedColumns()) {
-            return NJobProxy::CreateJobSpecHelper(jobSpecProto);
-        }
-    }
-
-    for (auto& dataSource : dataSourceDirectory->DataSources()) {
-        if (!dataSource.Schema()) {
-            dataSource.Schema() = New<NTableClient::TTableSchema>();
-        } else {
-            dataSource.Schema() = SetStableNames(
-                dataSource.Schema(),
-                dataSource.ColumnRenameDescriptors());
-        }
-    }
-
-    NChunkClient::NProto::TDataSourceDirectoryExt newExt;
-    ToProto(&newExt, dataSourceDirectory);
-    SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
-        jobSpecExt.mutable_extensions(),
-        std::move(newExt));
-
-    auto jobSpecProtoCopy = jobSpecProto;
-    auto* mutableExt = jobSpecProtoCopy.MutableExtension(TJobSpecExt::job_spec_ext);
-    *mutableExt = std::move(jobSpecExt);
-    return NJobProxy::CreateJobSpecHelper(jobSpecProtoCopy);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
     TJobId jobId,
     const TGetJobInputOptions& options)
@@ -932,7 +856,7 @@ IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
             << locateChunksResult;
     }
 
-    auto jobSpecHelper = MaybePatchDataSourceDirectory(jobSpec);
+    auto jobSpecHelper = NJobProxy::CreateJobSpecHelper(jobSpec);
     GetNativeConnection()->GetNodeDirectory()->MergeFrom(
         jobSpecHelper->GetJobSpecExt().input_node_directory());
 
@@ -1072,7 +996,7 @@ auto RetryJobIsNotRunning(
     return rspOrError;
 }
 
-std::optional<TGetJobStderrResponse> TClient::DoGetJobStderrFromNode(
+std::optional<TGetJobStderrResponse> TClient::DoGetUserJobStderrFromNode(
     TOperationId operationId,
     TJobId jobId,
     const TGetJobStderrOptions& options)
@@ -1124,35 +1048,50 @@ std::optional<TGetJobStderrResponse> TClient::DoGetJobStderrFromNode(
 
 TSharedRef TClient::DoGetJobStderrFromArchive(
     TOperationId operationId,
-    TJobId jobId)
+    TJobId jobId,
+    TInstant deadline,
+    EJobStderrType type)
 {
     try {
+        NQueryClient::TQueryBuilder builder;
         auto operationIdAsGuid = operationId.Underlying();
         auto jobIdAsGuid = jobId.Underlying();
-        NRecords::TJobStderrKey recordKey{
-            .OperationIdHi = operationIdAsGuid.Parts64[0],
-            .OperationIdLo = operationIdAsGuid.Parts64[1],
-            .JobIdHi = jobIdAsGuid.Parts64[0],
-            .JobIdLo = jobIdAsGuid.Parts64[1]
-        };
-        auto keys = FromRecordKeys(TRange(std::array{recordKey}));
+        builder.SetSource(GetOperationsArchiveJobStderrsPath());
 
-        auto rowset = WaitFor(GetOperationsArchiveClient()->LookupRows(
-            GetOperationsArchiveJobStderrsPath(),
-            NRecords::TJobStderrDescriptor::Get()->GetNameTable(),
-            keys,
-            /*options*/ {}))
+        switch (type) {
+            case EJobStderrType::UserJobStderr:
+                builder.AddSelectExpression("stderr");
+                break;
+            case EJobStderrType::GpuCheckStderr:
+                builder.AddSelectExpression("gpu_check_stderr AS stderr");
+                break;
+        }
+
+        builder.AddWhereConjunct(Format(
+            "(operation_id_hi, operation_id_lo) = (%vu, %vu)",
+            operationIdAsGuid.Parts64[0],
+            operationIdAsGuid.Parts64[1]));
+
+        builder.AddWhereConjunct(Format(
+            "(job_id_hi, job_id_lo) = (%vu, %vu)",
+            jobIdAsGuid.Parts64[0],
+            jobIdAsGuid.Parts64[1]));
+
+        auto selectRowsOptions = GetDefaultSelectRowsOptions(deadline, AsyncLastCommittedTimestamp);
+        auto rowset = WaitFor(GetOperationsArchiveClient()->SelectRows(
+            builder.Build(),
+            selectRowsOptions))
             .ValueOrThrow()
             .Rowset;
 
-        auto records = ToRecords<NRecords::TJobStderr>(rowset);
+        auto records = ToRecords<NRecords::TJobStderrPartial>(rowset);
         YT_VERIFY(records.size() <= 1);
-        if (records.empty()) {
+        if (records.empty() || !records[0].Stderr) {
             return {};
         }
 
         const auto& record = records[0];
-        return TSharedRef::FromString(record.Stderr);
+        return TSharedRef::FromString(*record.Stderr);
     } catch (const TErrorException& ex) {
         auto matchedError = ex.Error().FindMatching(NYTree::EErrorCode::ResolveError);
         if (!matchedError) {
@@ -1184,11 +1123,29 @@ TGetJobStderrResponse TClient::DoGetJobStderr(
 
     ValidateOperationAccess(operationId, jobId, EPermissionSet(EPermission::Read));
 
-    if (auto jobStderr = DoGetJobStderrFromNode(operationId, jobId, options)) {
-        return *jobStderr;
+    auto stderrType = options.Type.value_or(EJobStderrType::UserJobStderr);
+
+    if (stderrType == EJobStderrType::UserJobStderr) {
+        if (auto jobStderr = DoGetUserJobStderrFromNode(operationId, jobId, options)) {
+            return *jobStderr;
+        }
     }
 
-    if (auto stderrRef = DoGetJobStderrFromArchive(operationId, jobId)) {
+    auto maybeArchiveVersion = TryGetOperationsArchiveVersion();
+    if (!maybeArchiveVersion) {
+        THROW_ERROR_EXCEPTION(EErrorCode::JobArchiveUnavailable,
+            "Job archive is unavailable");
+    }
+    auto archiveVersion = *maybeArchiveVersion;
+
+    // COMPAT(bystrovserg)
+    if (stderrType == EJobStderrType::GpuCheckStderr && archiveVersion < 61) {
+        THROW_ERROR_EXCEPTION(EErrorCode::UnsupportedArchiveVersion, "GPU checker stderr is not supported in current archive version")
+            << TErrorAttribute("current_archive_version", archiveVersion)
+            << TErrorAttribute("required_archive_version", 61);
+    }
+
+    if (auto stderrRef = DoGetJobStderrFromArchive(operationId, jobId, deadline, stderrType)) {
         return {
             .Data = stderrRef,
             .TotalSize = std::ssize(stderrRef),
@@ -1196,7 +1153,7 @@ TGetJobStderrResponse TClient::DoGetJobStderr(
         };
     }
 
-    THROW_ERROR_EXCEPTION(NControllerAgent::EErrorCode::NoSuchJob, "Job stderr is not found")
+    THROW_ERROR_EXCEPTION(NControllerAgent::EErrorCode::NoSuchJob, "Stderr is not found")
         << TErrorAttribute("operation_id", operationId)
         << TErrorAttribute("job_id", jobId);
 }
@@ -1546,8 +1503,7 @@ static void AddWhereExpressions(TQueryBuilder* builder, const TListJobsOptions& 
         builder->AddWhereConjunct(Format("task_name = %Qv", *options.TaskName));
     }
 
-    if (options.OperationIncarnation && DoesArchiveContainAttribute("operation_incarnation", archiveVersion))
-    {
+    if (options.OperationIncarnation && DoesArchiveContainAttribute("operation_incarnation", archiveVersion)) {
         builder->AddWhereConjunct(Format("operation_incarnation = %Qv", *options.OperationIncarnation));
     }
 }
@@ -1603,7 +1559,7 @@ TFuture<TListJobsStatistics> TClient::ListJobsStatisticsFromArchiveAsync(
             bool failTypeFilter = options.Type && *options.Type != jobType;
             bool failStateFilter = options.State && *options.State != jobState;
 
-            // NB(bystrovserg): list_jobs and list_operation have similar logic for calculating counters:
+            // NB(bystrovserg): list_jobs and list_operations have similar logic for calculating counters:
             // for given counter we assume its filter is empty and all other filters are applied.
             if (!failStateFilter) {
                 statistics.TypeCounts[jobType] += count;
@@ -1658,6 +1614,7 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             .JobCookie = record.JobCookie,
             .ArchiveFeatures = record.ArchiveFeatures.value_or(TYsonString()),
             .OperationIncarnation = record.OperationIncarnation,
+            .GangRank = record.GangRank,
         };
 
         if (responseIdMapping.OperationIdHi) {
@@ -1933,6 +1890,7 @@ static void ParseJobsFromControllerAgentResponse(
     auto needMonitoringDescriptor = attributes.contains("monitoring_descriptor");
     auto needOperationIncarnation = attributes.contains("operation_incarnation");
     auto needAllocationId = attributes.contains("allocation_id");
+    auto needGangRank = attributes.contains("gang_rank");
 
     for (const auto& [jobIdString, jobNode] : jobNodes) {
         if (!filter(jobNode)) {
@@ -1962,7 +1920,7 @@ static void ParseJobsFromControllerAgentResponse(
             }
         }
         if (needAddress) {
-            job.Address = jobMapNode->GetChildValueOrThrow<TString>("address");
+            job.Address = jobMapNode->GetChildValueOrThrow<std::string>("address");
         }
         if (needAddresses) {
             if (auto childNode = jobMapNode->FindChild("addresses")) {
@@ -2018,6 +1976,9 @@ static void ParseJobsFromControllerAgentResponse(
         if (needAllocationId) {
             job.AllocationId = jobMapNode->FindChildValue<TAllocationId>("allocation_id");
         }
+        if (needGangRank) {
+            job.GangRank = jobMapNode->FindChildValue<i64>("gang_rank");
+        }
         job.PresentInControllerAgent = true;
     }
 }
@@ -2054,7 +2015,7 @@ static void ParseJobsFromControllerAgentResponse(
 
     auto filter = [&] (const INodePtr& jobNode) -> bool {
         const auto& jobMap = jobNode->AsMap();
-        auto address = jobMap->GetChildValueOrThrow<TString>("address");
+        auto address = jobMap->GetChildValueOrThrow<std::string>("address");
         auto type = ConvertTo<EJobType>(jobMap->GetChildOrThrow("job_type"));
         auto state = ConvertTo<EJobState>(jobMap->GetChildOrThrow("state"));
         auto stderrSize = jobMap->GetChildValueOrThrow<i64>("stderr_size");
@@ -2092,7 +2053,7 @@ static void ParseJobsFromControllerAgentResponse(
 
 TFuture<TListJobsFromControllerAgentResult> TClient::DoListJobsFromControllerAgentAsync(
     TOperationId operationId,
-    const std::optional<TString>& controllerAgentAddress,
+    const std::optional<std::string>& controllerAgentAddress,
     TInstant deadline,
     const TListJobsOptions& options,
     const THashSet<TString>& attributes)
@@ -2273,6 +2234,7 @@ static void MergeJobs(TJob&& controllerAgentJob, TJob* archiveJob)
     mergeNullableField(&TJob::JobCookie);
     mergeNullableField(&TJob::OperationIncarnation);
     mergeNullableField(&TJob::AllocationId);
+    mergeNullableField(&TJob::GangRank);
     if (controllerAgentJob.StderrSize && archiveJob->StderrSize.value_or(0) < controllerAgentJob.StderrSize) {
         archiveJob->StderrSize = controllerAgentJob.StderrSize;
     }
@@ -2408,12 +2370,12 @@ TListJobsResult TClient::DoListJobs(
     }
 
     auto attributesToReturn = DeduceActualAttributes(
-        options.Attributes,
+        optionsResult.Attributes,
         RequiredListJobsAttributes,
         DefaultListJobsAttributes);
 
     auto attributesToRequest = DeduceActualAttributes(
-        options.Attributes,
+        optionsResult.Attributes,
         LightAttributes,
         DefaultListJobsAttributes);
 

@@ -67,7 +67,7 @@ NYPath::TYPath GetSchedulerOrchidAliasPath(const TString& alias);
 NYPath::TYPath GetControllerAgentOrchidOperationPath(
     TStringBuf controllerAgentAddress,
     TOperationId operationId);
-std::optional<TString> FindControllerAgentAddressFromCypress(
+std::optional<std::string> FindControllerAgentAddressFromCypress(
     TOperationId operationId,
     const NApi::NNative::IClientPtr& client);
 

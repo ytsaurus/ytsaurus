@@ -127,6 +127,10 @@ struct TProxyBootstrapConfig
 
     TAccessCheckerConfigPtr AccessChecker;
 
+    int PublicRpcPort;
+
+    NBus::TBusServerConfigPtr PublicBusServer;
+
     //! GRPC server configuration.
     NRpc::NGrpc::TServerConfigPtr GrpcServer;
 
@@ -152,8 +156,7 @@ struct TProxyBootstrapConfig
 
     THeapProfilerConfigPtr HeapProfiler;
 
-    NSignature::TSignatureGenerationConfigPtr SignatureGeneration;
-    NSignature::TSignatureValidationConfigPtr SignatureValidation;
+    NSignature::TSignatureComponentsConfigPtr SignatureComponents;
 
     REGISTER_YSON_STRUCT(TProxyBootstrapConfig);
 

@@ -101,7 +101,7 @@ private:
 
     std::atomic<NProfiling::TCpuDuration> ScheduleAllocationControllerThrottlingBackoff_;
     std::atomic<NProfiling::TCpuInstant> ScheduleAllocationBackoffDeadline_ = ::Min<NProfiling::TCpuInstant>();
-    std::atomic<bool> ScheduleAllocationBackoffObserved_ = {false};
+    std::atomic<bool> ScheduleAllocationBackoffObserved_ = false;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SaturatedTentativeTreesLock_);
     THashMap<TString, NProfiling::TCpuInstant> TentativeTreeIdToSaturationTime_;

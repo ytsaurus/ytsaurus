@@ -11,12 +11,7 @@
 #include <yt/yt/server/lib/rpc_proxy/profilers.h>
 #include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
 
-#include <yt/yt/server/lib/signature/instance_config.h>
-#include <yt/yt/server/lib/signature/key_rotator.h>
-#include <yt/yt/server/lib/signature/signature_generator.h>
-#include <yt/yt/server/lib/signature/signature_validator.h>
-
-#include <yt/yt/server/lib/signature/cypress_key_store.h>
+#include <yt/yt/server/lib/signature/components.h>
 
 #include <yt/yt/server/lib/shuffle_server/shuffle_service.h>
 
@@ -163,6 +158,7 @@ void TBootstrap::DoInitialize()
 
     MemoryUsageTracker_ = CreateNodeMemoryTracker(
         Config_->MemoryLimits->Total.value_or(std::numeric_limits<i64>::max()),
+        New<TNodeMemoryTrackerConfig>(),
         /*limits*/ {},
         Logger(),
         RpcProxyProfiler().WithPrefix("/memory_usage"));
@@ -201,28 +197,16 @@ void TBootstrap::DoInitialize()
             RootClient_);
     }
 
-    if (Config_->SignatureValidation) {
-        CypressKeyReader_ = CreateCypressKeyReader(
-            Config_->SignatureValidation->CypressKeyReader,
-            RootClient_);
-        SignatureValidator_ = New<TSignatureValidator>(
-            Config_->SignatureValidation->Validator,
-            CypressKeyReader_);
-    }
+    SignatureComponents_ = New<TSignatureComponents>(
+        Config_->SignatureComponents,
+        RootClient_,
+        GetControlInvoker());
 
-    if (Config_->SignatureGeneration) {
-        CypressKeyWriter_ = WaitFor(CreateCypressKeyWriter(
-            Config_->SignatureGeneration->CypressKeyWriter,
-            RootClient_))
-            .ValueOrThrow();
-        auto signatureGenerator = New<TSignatureGenerator>(Config_->SignatureGeneration->Generator);
-        SignatureKeyRotator_ = New<TKeyRotator>(
-            Config_->SignatureGeneration->KeyRotator,
-            GetControlInvoker(),
-            CypressKeyWriter_,
-            signatureGenerator);
-        Connection_->SetSignatureGenerator(std::move(signatureGenerator));
-    }
+    // NB(pavook):
+    // We can't wait for initialization anywhere in bootstrap, because proxy bootstrap
+    // should be possible even in master read-only mode.
+    YT_UNUSED_FUTURE(SignatureComponents_->Initialize());
+    Connection_->SetSignatureGenerator(SignatureComponents_->GetSignatureGenerator());
 
     ProxyCoordinator_ = CreateProxyCoordinator();
     TraceSampler_ = New<NTracing::TSampler>();
@@ -247,6 +231,14 @@ void TBootstrap::DoInitialize()
         Config_->BusServer,
         GetYTPacketTranscoderFactory(),
         MemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc));
+
+    if (Config_->PublicRpcPort) {
+        PublicBusServer_ = CreateBusServer(
+            Config_->PublicBusServer,
+            GetYTPacketTranscoderFactory(),
+            MemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc));
+    }
+
     if (Config_->TvmOnlyRpcPort) {
         auto busConfigCopy = CloneYsonStruct(Config_->BusServer);
         busConfigCopy->Port = Config_->TvmOnlyRpcPort;
@@ -255,6 +247,10 @@ void TBootstrap::DoInitialize()
 
     RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
     RpcServer_->Configure(Config_->RpcServer);
+
+    if (PublicBusServer_) {
+        PublicRpcServer_ = NRpc::NBus::CreateBusServer(PublicBusServer_);
+    }
 
     if (TvmOnlyBusServer_) {
         TvmOnlyRpcServer_ = NRpc::NBus::CreateBusServer(TvmOnlyBusServer_);
@@ -316,13 +312,11 @@ void TBootstrap::DoStart()
 
     QueryCorpusReporter_ = MakeQueryCorpusReporter(RootClient_);
 
-    if (SignatureKeyRotator_) {
-        // NB(pavook):
-        // We don't wait for key rotation completion anywhere in bootstrap, because proxy bootstrap
-        // should be possible even in master read-only mode.
-        // So, we just throw on all signature-requiring operations until the key rotation actually happens.
-        YT_UNUSED_FUTURE(SignatureKeyRotator_->Start());
-    }
+    // NB(pavook):
+    // We don't wait for key rotation completion anywhere in bootstrap, because proxy bootstrap
+    // should be possible even in master read-only mode.
+    // So, we just throw on all signature-requiring operations until the key rotation actually happens.
+    YT_UNUSED_FUTURE(SignatureComponents_->StartRotation());
 
     auto createApiService = [&] (const NAuth::IAuthenticationManagerPtr& authenticationManager) {
         return CreateApiService(
@@ -336,7 +330,7 @@ void TBootstrap::DoStart()
             TraceSampler_,
             RpcProxyLogger(),
             RpcProxyProfiler(),
-            (SignatureValidator_ ? SignatureValidator_ : CreateAlwaysThrowingSignatureValidator()),
+            SignatureComponents_->GetSignatureValidator(),
             MemoryUsageTracker_,
             /*stickyTransactionPool*/ {},
             QueryCorpusReporter_);
@@ -348,6 +342,9 @@ void TBootstrap::DoStart()
     }
 
     RpcServer_->RegisterService(ApiService_);
+    if (PublicRpcServer_) {
+        PublicRpcServer_->RegisterService(ApiService_);
+    }
     if (TvmOnlyRpcServer_ && TvmOnlyApiService_) {
         TvmOnlyRpcServer_->RegisterService(TvmOnlyApiService_);
     }
@@ -392,6 +389,9 @@ void TBootstrap::DoStart()
             GetWorkerInvoker(),
             LocalAddresses_);
         RpcServer_->RegisterService(DiscoveryService_);
+        if (PublicRpcServer_) {
+            PublicRpcServer_->RegisterService(DiscoveryService_);
+        }
         if (TvmOnlyRpcServer_) {
             TvmOnlyRpcServer_->RegisterService(DiscoveryService_);
         }
@@ -428,6 +428,13 @@ void TBootstrap::DoStart()
 
     YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
     RpcServer_->Start();
+
+    if (PublicRpcServer_) {
+        YT_LOG_INFO("Listening for public RPC requests on port %v", Config_->PublicRpcPort);
+        auto rpcServerConfigCopy = CloneYsonStruct(Config_->RpcServer);
+        PublicRpcServer_->Configure(rpcServerConfigCopy);
+        PublicRpcServer_->Start();
+    }
 
     if (TvmOnlyRpcServer_) {
         YT_LOG_INFO("Listening for TVM-only RPC requests on port %v", Config_->TvmOnlyRpcPort);

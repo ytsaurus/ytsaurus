@@ -1,7 +1,6 @@
 #include "kv_state.h"
 
-namespace NRoren::NPrivate::NKvState
-{
+namespace NRoren::NPrivate::NKvState {
 
 ////////////////////////////////////////////////////////////////////////////////
 

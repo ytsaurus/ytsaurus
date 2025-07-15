@@ -23,7 +23,7 @@ public:
         TSchedulerOperationElement* operationElement,
         TAllocationId allocationId,
         const TJobResources& resources,
-        bool ResetAllocationPreemptibleProgress);
+        bool resetAllocationPreemptibleProgress);
 
     TDiskQuota GetTotalDiskQuota() const;
 
@@ -98,12 +98,12 @@ private:
     // and keep it updated, instead of using fair share from current snapshot.
     NThreading::TAtomicObject<TResourceVector> FairShare_;
 
-    std::atomic<bool> Preemptible_ = {true};
+    std::atomic<bool> Preemptible_ = true;
 
-    std::atomic<int> RunningAllocationCount_ = {0};
+    std::atomic<int> RunningAllocationCount_ = 0;
     TEnumIndexedArray<EAllocationPreemptionStatus, TJobResources> ResourceUsagePerPreemptionStatus_;
 
-    std::atomic<int> UpdatePreemptibleAllocationsListCount_ = {0};
+    std::atomic<int> UpdatePreemptibleAllocationsListCount_ = 0;
     const int UpdatePreemptibleAllocationsListLoggingPeriod_;
 
     // TODO(ignat): make it configurable.

@@ -2,8 +2,8 @@ from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
 from yt_commands import (
     authors, wait, create, exists, get, set, ls, insert_rows, remove, select_rows, trim_rows,
-    lookup_rows, delete_rows, remount_table, build_master_snapshots,
-    write_table, alter_table, read_table, map, sync_reshard_table, sync_create_cells,
+    lookup_rows, delete_rows, remount_table, build_master_snapshots, get_tablet_leader_address,
+    write_table, alter_table, read_table, map, merge, sync_reshard_table, sync_create_cells,
     sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect,
     start_transaction, commit_transaction, get_singular_chunk_id, write_file, read_hunks,
     write_journal, create_domestic_medium, update_nodes_dynamic_config, raises_yt_error, copy,
@@ -27,6 +27,7 @@ import yt_error_codes
 import pytest
 import yt.yson as yson
 
+from copy import deepcopy
 import time
 
 import builtins
@@ -3530,6 +3531,137 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         remount_table("//tmp/t")
 
         self._perform_forced_compaction("//tmp/t", "compaction")
+
+    @authors("akozhikhov")
+    def test_value_compression_partitioning(self):
+        sync_create_cells(1)
+        self._create_table()
+        self._setup_for_dictionary_compression("//tmp/t")
+        set("//tmp/t/@mount_config/value_dictionary_compression/elect_random_policy", True)
+        set("//tmp/t/@chunk_writer", {"block_size": 64, "tesing_delay_before_chunk_close": 1000})
+        set("//tmp/t/@compression_codec", "none")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": "x" * 100} for i in range(50)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        self._wait_dictionaries_built("//tmp/t", 1)
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        address = get_tablet_leader_address(tablet_id)
+        assert len(self._find_tablet_orchid(address, tablet_id)["partitions"]) == 1
+
+        def _get_eden_chunk_ids():
+            chunk_ids = get("//tmp/t/@chunk_ids")
+            eden_chunk_ids = []
+            for chunk_id in chunk_ids:
+                try:
+                    if get("#{}/@eden".format(chunk_id)):
+                        eden_chunk_ids.append(chunk_id)
+                except YtError as err:
+                    if err.contains_code(yt_error_codes.ResolveErrorCode):
+                        continue
+                    raise
+            return eden_chunk_ids
+
+        assert len(_get_eden_chunk_ids()) == 1
+
+        set("//tmp/t/@max_partition_data_size", 640)
+        set("//tmp/t/@desired_partition_data_size", 512)
+        set("//tmp/t/@min_partition_data_size", 256)
+        remount_table("//tmp/t")
+
+        wait(lambda: len(self._find_tablet_orchid(address, tablet_id)["partitions"]) > 1)
+
+        self._perform_forced_compaction("//tmp/t", "compaction")
+
+        assert len(_get_eden_chunk_ids()) == 0
+
+    @authors("coteeq", "akozhikhov")
+    def test_value_compression_merge_with_filter(self):
+        sync_create_cells(1)
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value1", "type": "string", "max_inline_hunk_size": 10},
+            {"name": "value2", "type": "string", "max_inline_hunk_size": 10},
+        ]
+        self._create_table(schema=schema)
+        self._setup_for_dictionary_compression("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value1": "i am huuuunk" * 5, "value2": "i am hunk too" * 5} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        self._wait_dictionaries_built("//tmp/t", 1)
+        self._perform_forced_compaction("//tmp/t", "compaction")
+
+        merge(
+            in_="//tmp/t",
+            out="<create=%true>//tmp/t_static",
+            mode="unordered",
+            spec={
+                "force_transform": True,
+            },
+        )
+
+        assert read_table("//tmp/t_static") == rows
+
+        def _run_merge_with_column_subset(columns):
+            merge(
+                in_="<columns=[{}]>//tmp/t".format("; ".join(columns)),
+                out="<create=%true>//tmp/t_static",
+                mode="unordered",
+                spec={
+                    "force_transform": True,
+                },
+            )
+
+            def drop_value(row):
+                row = deepcopy(row)
+                for column in schema:
+                    if column["name"] in columns:
+                        continue
+                    row[column["name"]] = yson.YsonEntity()
+                return row
+
+            assert read_table("//tmp/t_static") == [drop_value(row) for row in rows]
+
+        _run_merge_with_column_subset(["key", "value1"])
+        _run_merge_with_column_subset(["value1", "value2"])
+        _run_merge_with_column_subset(["key", "value2"])
+        _run_merge_with_column_subset(["value2"])
+
+    @authors("akozhikhov")
+    def test_value_compression_select_with_key_filter(self):
+        sync_create_cells(1)
+        self._create_table(schema=[
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value1", "type": "string", "max_inline_hunk_size": 10},
+            {"name": "value2", "type": "string", "max_inline_hunk_size": 10},
+        ])
+        self._setup_for_dictionary_compression("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value1": "i am huuuunk" * 30, "value2": "i am hunk too" * 30} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        self._wait_dictionaries_built("//tmp/t", 1)
+        self._perform_forced_compaction("//tmp/t", "compaction")
+
+        def _filter_rows(rows, keys):
+            new_rows = []
+            for row in rows:
+                new_rows.append(dict([(key, row[key]) for key in keys]))
+            return new_rows
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+        assert_items_equal(select_rows("key, value1 from [//tmp/t]"),  _filter_rows(rows, ["key", "value1"]))
+        assert_items_equal(select_rows("value1, value2 from [//tmp/t]"),  _filter_rows(rows, ["value1", "value2"]))
+        assert_items_equal(select_rows("key, value2 from [//tmp/t]"),  _filter_rows(rows, ["key", "value2"]))
+        assert_items_equal(select_rows("value2 from [//tmp/t]"),  _filter_rows(rows, ["value2"]))
 
 
 ################################################################################

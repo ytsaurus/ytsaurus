@@ -3,10 +3,9 @@
 #include "schemeshard__operation_part.h"
 #include "schemeshard_impl.h"
 
-#include <contrib/ydb/core/tx/schemeshard/backup/constants.h>
-
 #include <contrib/ydb/core/engine/mkql_proto.h>
 #include <contrib/ydb/core/scheme/scheme_types_proto.h>
+#include <contrib/ydb/core/tx/schemeshard/backup/constants.h>
 
 namespace NKikimr::NSchemeShard {
 

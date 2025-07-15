@@ -980,9 +980,6 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("enable_codegen_comparator", &TThis::EnableCodegenComparator)
         .Default(true);
 
-    registrar.Parameter("disable_rename_columns_compatibility_code", &TThis::DisableRenameColumnsCompatibilityCode)
-        .Default(false);
-
     registrar.Parameter("enable_virtual_sandbox", &TThis::EnableVirtualSandbox)
         .Default(false);
 
@@ -1042,7 +1039,7 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("use_new_slicing_implementation_in_unordered_pool", &TThis::UseNewSlicingImplementationInUnorderedPool)
-        .Default(true);
+        .Default(false);
 
     registrar.Postprocessor([] (TOperationSpecBase* spec) {
         if (spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
@@ -1640,9 +1637,11 @@ void TSimpleOperationSpecBase::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(5));
     registrar.Parameter("job_io", &TThis::JobIO)
         .DefaultNew();
+    registrar.Parameter("strict_data_weight_per_job_verification", &TThis::StrictDataWeightPerJobVerification)
+        .Default(false);
 
     registrar.Postprocessor([] (TSimpleOperationSpecBase* spec) {
-        if (spec->DataWeightPerJob > spec->MaxDataWeightPerJob) {
+        if (spec->StrictDataWeightPerJobVerification && spec->DataWeightPerJob > spec->MaxDataWeightPerJob) {
             THROW_ERROR_EXCEPTION("\"data_weight_per_job\" cannot be greater than \"max_data_weight_per_job\"")
                 << TErrorAttribute("data_weight_per_job", spec->DataWeightPerJob)
                 << TErrorAttribute("max_data_weight_per_job", spec->MaxDataWeightPerJob);
@@ -1895,6 +1894,9 @@ void TSortOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("samples_per_partition", &TThis::SamplesPerPartition)
         .Default(1000)
         .GreaterThan(1);
+
+    registrar.Parameter("force_job_size_adjuster", &TThis::ForceJobSizeAdjuster)
+        .Default(false);
 
     registrar.Postprocessor([] (TSortOperationSpecBase* spec) {
         NTableClient::ValidateSortColumns(spec->SortBy);

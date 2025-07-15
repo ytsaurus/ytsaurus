@@ -24,6 +24,16 @@ TScheduleJobProfilerPtr ScheduleJobProfilerInstance;
 
 void InitCommonState(const NProfiling::TProfiler& profiler)
 {
+    static TSpinLock lock;
+    // This lock should protect initialization of profilers in case of multidaemon.
+    // No need to acquire lock in code that uses profilers, since there is a happens before relation between
+    // initialization of profilers and usage of it.
+    auto guard = Guard(lock);
+
+    if (ProfilerQueue) {
+        return;
+    }
+
     InitVanillaProfilers(profiler);
 
     ProfilerQueue = New<NConcurrency::TActionQueue>("ControllerProfilers");

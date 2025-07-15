@@ -5,6 +5,8 @@
 
 #include <library/cpp/yt/logging/backends/arcadia/backend.h>
 
+#include <yql/essentials/public/langver/yql_langver.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/yql_client/public.h>
@@ -14,6 +16,8 @@
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <yt/yt/core/actions/bind.h>
+#include <yt/yt/core/concurrency/coroutine.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/logging/config.h>
@@ -198,6 +202,14 @@ public:
 
         auto clustersConfig = Config_->GatewayConfig->AsMap()->GetChildOrThrow("cluster_mapping")->AsList();
 
+        NYTree::IListNodePtr ytflowClustersConfig;
+        if (auto clusterMapping = Config_->YtflowGatewayConfig->AsMap()->FindChild("cluster_mapping")) {
+            ytflowClustersConfig = clusterMapping->AsList();
+        } else {
+            ytflowClustersConfig = GetEphemeralNodeFactory()->CreateList();
+            Config_->YtflowGatewayConfig->AsMap()->AddChild("cluster_mapping", ytflowClustersConfig);
+        }
+
         auto singletonsConfigDefaultLogging = CloneYsonStruct(SingletonsConfig_);
         // Compressed logs are broken if plugin tries to open and write to them.
         singletonsConfigDefaultLogging->SetSingletonConfig(TLogManagerConfig::CreateDefault());
@@ -215,25 +227,56 @@ public:
             presentClusters.insert(cluster->AsMap()->GetChildOrThrow("name")->GetValue<TString>());
         }
 
+        THashSet<TString> ytflowPresentClusters;
+        for (const auto& cluster : ytflowClustersConfig->GetChildren()) {
+            ytflowPresentClusters.insert(cluster->AsMap()->GetChildOrThrow("name")->GetValue<TString>());
+        }
+
         for (const auto& clusterName : ClusterDirectory_->GetClusterNames()) {
-            if (presentClusters.contains(clusterName)) {
-                continue;
+            if (!presentClusters.contains(clusterName)) {
+                auto cluster = NYTree::BuildYsonNodeFluently()
+                    .BeginMap()
+                        .Item("name").Value(clusterName)
+                        .Item("cluster").Value(clusterName)
+                    .EndMap();
+                auto settings = TYqlPluginConfig::MergeClusterDefaultSettings(GetEphemeralNodeFactory()->CreateList());
+                cluster->AsMap()->AddChild("settings", std::move(settings));
+                clustersConfig->AddChild(std::move(cluster));
             }
 
-            auto cluster = NYTree::BuildYsonNodeFluently()
-                .BeginMap()
-                    .Item("name").Value(clusterName)
-                    .Item("cluster").Value(clusterName)
-                .EndMap();
-            auto settings = TYqlPluginConfig::MergeClusterDefaultSettings(GetEphemeralNodeFactory()->CreateList());
-            cluster->AsMap()->AddChild("settings", std::move(settings));
-            clustersConfig->AddChild(std::move(cluster));
+            if (!ytflowPresentClusters.contains(clusterName)) {
+                auto cluster = NYTree::BuildYsonNodeFluently()
+                    .BeginMap()
+                        .Item("name").Value(clusterName)
+                        .Item("real_name").Value(clusterName)
+                        .Item("proxy_url").Value(clusterName)
+                    .EndMap();
+                auto settings = TYqlPluginConfig::MergeClusterDefaultSettings(GetEphemeralNodeFactory()->CreateList());
+                cluster->AsMap()->AddChild("settings", std::move(settings));
+                ytflowClustersConfig->AddChild(std::move(cluster));
+            }
         }
+
+        NYql::TLangVersionBuffer buf;
+        TStringBuf maxVersionStringBuf;
+        NYql::TLangVersion maxYqlLangVersion;
+        if (!NYql::ParseLangVersion(Config_->MaxSupportedYqlVersion, maxYqlLangVersion) || !NYql::IsValidLangVersion(maxYqlLangVersion)) {
+            maxYqlLangVersion = NYql::GetMaxLangVersion();
+            NYql::FormatLangVersion(maxYqlLangVersion, buf, maxVersionStringBuf);
+            if (!Config_->MaxSupportedYqlVersion.empty()) {
+                YT_LOG_ERROR("Max YQL version '%v' set via config or flag is not valid. Setting '%v' as maximum available version.", Config_->MaxSupportedYqlVersion, maxVersionStringBuf);
+            }
+        } else {
+            NYql::FormatLangVersion(maxYqlLangVersion, buf, maxVersionStringBuf);
+        }
+
+        YT_LOG_INFO("Maximum supported YQL version is set to '%v'", maxVersionStringBuf);
 
         NYqlPlugin::TYqlPluginOptions options{
             .SingletonsConfig = singletonsConfigString,
             .GatewayConfig = ConvertToYsonString(Config_->GatewayConfig),
             .DqGatewayConfig = Config_->EnableDQ ? ConvertToYsonString(Config_->DQGatewayConfig) : TYsonString(),
+            .YtflowGatewayConfig = ConvertToYsonString(Config_->YtflowGatewayConfig),
             .DqManagerConfig = Config_->EnableDQ ? ConvertToYsonString(Config_->DQManagerConfig) : TYsonString(),
             .FileStorageConfig = ConvertToYsonString(Config_->FileStorageConfig),
             .OperationAttributes = ConvertToYsonString(Config_->OperationAttributes),
@@ -242,8 +285,23 @@ public:
             .UIOrigin = Config_->UIOrigin,
             .LogBackend = NYT::NLogging::CreateArcadiaLogBackend(TLogger("YqlPlugin")),
             .YqlPluginSharedLibrary = Config_->YqlPluginSharedLibrary,
+            .MaxYqlLangVersion = TString(maxVersionStringBuf),
         };
-        YqlPlugin_ = NYqlPlugin::CreateYqlPlugin(std::move(options));
+
+        // NB: under debug build this method does not fit in regular fiber stack
+        // due to python udf loading
+        using TSignature = void(NYqlPlugin::TYqlPluginOptions);
+        auto coroutine = TCoroutine<TSignature>(
+            BIND([this](
+                TCoroutine<TSignature>& /*self*/,
+                NYqlPlugin::TYqlPluginOptions options
+            ) {
+                YqlPlugin_ = NYqlPlugin::CreateYqlPlugin(std::move(options));
+            }),
+            EExecutionStackKind::Large);
+
+        coroutine.Run(std::move(options));
+        YT_VERIFY(coroutine.IsCompleted());
     }
 
     void Start() override
@@ -318,6 +376,7 @@ public:
                 TYqlResponse yqlResponse;
                 ValidateAndFillYqlResponseField(yqlResponse, result.Plan, &TYqlResponse::mutable_plan);
                 ValidateAndFillYqlResponseField(yqlResponse, result.Progress, &TYqlResponse::mutable_progress);
+                ValidateAndFillYqlResponseField(yqlResponse, result.Ast, &TYqlResponse::mutable_ast);
                 response.mutable_yql_response()->Swap(&yqlResponse);
             }
             return response;
@@ -398,7 +457,12 @@ private:
             refreshTokenExecutor->Start();
 
             const auto defaultCluster = clustersResult.Clusters.front();
-            THashMap<TString, THashMap<TString, TString>> credentials = {{"default_yt", {{"category", "yt"}, {"content", token}}}};
+            // TODO(ngc224): revise after proper auth support in UI
+            THashMap<TString, THashMap<TString, TString>> credentials = {
+                {"default_yt", {{"category", "yt"}, {"content", token}}},
+                {"default_ytflow", {{"category", "ytflow"}, {"content", token}}}
+            };
+
             for (const auto& src : yqlRequest.secrets()) {
                 auto& dst = credentials[src.id()];
                 dst["content"] = ConvertTo<TString>(WaitFor(queryClients[defaultCluster]->GetNode(src.ypath())).ValueOrThrow());
@@ -427,6 +491,7 @@ private:
             ValidateAndFillYqlResponseField(yqlResponse, result.Statistics, &TYqlResponse::mutable_statistics);
             ValidateAndFillYqlResponseField(yqlResponse, result.Progress, &TYqlResponse::mutable_progress);
             ValidateAndFillYqlResponseField(yqlResponse, result.TaskInfo, &TYqlResponse::mutable_task_info);
+            ValidateAndFillYqlResponseField(yqlResponse, result.Ast, &TYqlResponse::mutable_ast);
             if (request.build_rowsets() && result.YsonResult) {
                 auto rowsets = BuildRowsets(ClientDirectory_, *result.YsonResult, request.row_count_limit());
 

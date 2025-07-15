@@ -13,13 +13,19 @@ namespace NSQLComplete {
 
     bool IsLikelyFunctionStack(const TParserCallStack& stack);
 
+    bool IsLikelyTableFunctionStack(const TParserCallStack& stack);
+
     bool IsLikelyHintStack(const TParserCallStack& stack);
 
     bool IsLikelyObjectRefStack(const TParserCallStack& stack);
 
     bool IsLikelyExistingTableStack(const TParserCallStack& stack);
 
+    bool IsLikelyTableArgStack(const TParserCallStack& stack);
+
     bool IsLikelyClusterStack(const TParserCallStack& stack);
+
+    bool IsLikelyColumnStack(const TParserCallStack& stack);
 
     bool IsLikelyBindingStack(const TParserCallStack& stack);
 

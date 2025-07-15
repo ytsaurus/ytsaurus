@@ -39,7 +39,8 @@ target_link_libraries(cpp-integration-test-cypress-election PUBLIC
 )
 
 target_allocator(cpp-integration-test-cypress-election
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(cpp-integration-test-cypress-election PRIVATE

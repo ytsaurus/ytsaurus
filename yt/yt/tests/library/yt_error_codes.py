@@ -24,6 +24,7 @@ InvalidObjectType = 1006
 TmpfsOverflow = 1124
 JobProxyUnavailable = 1127
 UserJobProducedCoreFiles = 1206
+TransactionLockConflict = 1700
 TabletNotMounted = 1702
 AllWritesDisabled = 1703
 InvalidTabletState = 1706
@@ -61,6 +62,7 @@ InvalidEpoch = 3101
 ZombieEpoch = 3102
 InvalidRowSequenceNumbers = 3103
 QueueAgentRetriableError = 3104
+ChaosLeaseNotKnown = 3205
 
 
 class Scheduler(object):

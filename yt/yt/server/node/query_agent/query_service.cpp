@@ -19,7 +19,6 @@
 #include <yt/yt/server/node/tablet_node/error_reporting_service_base.h>
 #include <yt/yt/server/node/tablet_node/lookup.h>
 #include <yt/yt/server/node/tablet_node/master_connector.h>
-#include <yt/yt/server/node/tablet_node/overload_controlling_service_base.h>
 #include <yt/yt/server/node/tablet_node/security_manager.h>
 #include <yt/yt/server/node/tablet_node/store.h>
 #include <yt/yt/server/node/tablet_node/replication_log.h>
@@ -85,6 +84,7 @@
 
 #include <yt/yt/core/misc/tls_cache.h>
 
+#include <yt/yt/core/rpc/overload_controlling_service_base.h>
 #include <yt/yt/core/rpc/service_detail.h>
 
 #include <yt/yt/core/ytree/ypath_proxy.h>
@@ -180,7 +180,9 @@ public:
         NTabletNode::IBootstrap* bootstrap)
         : TErrorReportingServiceBase(
             bootstrap,
-            bootstrap,
+            // TOverloadControllingServiceBase:
+            bootstrap->GetOverloadController(),
+            // TServiceBase:
             bootstrap->GetQueryPoolInvoker(
                 DefaultQLExecutionPoolName,
                 DefaultQLExecutionTag),

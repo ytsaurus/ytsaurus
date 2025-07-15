@@ -74,20 +74,24 @@ public:
         , OnNetworkRelease_(std::move(onNetworkRelease))
         , IOStartTime_(ioStartTime)
         , UdfDirectory_(std::move(udfDirectory))
+        , MaxRowsPerRead_(JobSpecHelper_->GetJobIOConfig()->UseAdaptiveRowCount.value_or(false)
+            ? std::min<i64>(adaptiveRowCountUpperBound, JobSpecHelper_->GetJobIOConfig()->AdaptiveRowCountUpperBound)
+            : JobSpecHelper_->GetJobIOConfig()->BufferRowCount)
         , Guesser_(
             JobSpecHelper_->GetJobIOConfig()->UseAdaptiveRowCount.value_or(false)
                 ? threshold
                 : TDuration::Zero(),
             JobSpecHelper_->GetJobIOConfig()->BufferRowCount,
-            std::min<i64>(adaptiveRowCountUpperBound, JobSpecHelper_->GetJobIOConfig()->AdaptiveRowCountUpperBound))
+            MaxRowsPerRead_)
     { }
 
     //! Returns closure that launches data transfer to given async output.
     TCallback<TFuture<void>()> PrepareJobInputTransfer(const IAsyncOutputStreamPtr& asyncOutput) override
     {
         YT_LOG_DEBUG(
-            "Preparing job input transfer (GuesserEnabled: %v)",
-            Guesser_.IsEnabled());
+            "Preparing job input transfer (GuesserEnabled: %v, MaxRowsPerRead: %v)",
+            Guesser_.IsEnabled(),
+            MaxRowsPerRead_);
 
         const auto& jobSpecExt = JobSpecHelper_->GetJobSpecExt();
 
@@ -248,9 +252,11 @@ private:
     std::optional<NChunkClient::NProto::TDataStatistics> PreparationDataStatistics_;
     std::vector<IProfilingSchemalessFormatWriterPtr> FormatWriters_;
     std::optional<TString> UdfDirectory_;
-    std::atomic<bool> ReaderInitialized_ = {false};
-    std::atomic<bool> WriterInitialized_ = {false};
-    std::atomic<bool> Interrupted_ = {false};
+    std::atomic<bool> ReaderInitialized_ = false;
+    std::atomic<bool> WriterInitialized_ = false;
+    std::atomic<bool> Interrupted_ = false;
+
+    const i64 MaxRowsPerRead_;
 
     // Jobs have interruption timeout
     // known here as |Threshold_|.
@@ -264,7 +270,13 @@ private:
             : Threshold_(threshold)
             , UpperBound_(upperBound)
             , CurrentGuess_(currentGuess)
-        { }
+        {
+            YT_LOG_DEBUG(
+                "Initializing optimal row count guesser (Threshold: %v, CurrentGuess: %v, UpperBound: %v)",
+                Threshold_,
+                CurrentGuess_,
+                UpperBound_);
+        }
 
         bool IsEnabled() const noexcept
         {
@@ -293,10 +305,11 @@ private:
             auto nextGuess = std::max<i64>(CurrentGuess_ * scaling, 1);
 
             YT_LOG_DEBUG(
-                "Updating guess for batch row count (CurrentGuess: %v, ProcessTime: %v, NextGuess: %v)",
+                "Updating guess for batch row count (CurrentGuess: %v, ProcessTime: %v, NextGuess: %v, UpperBound: %v)",
                 CurrentGuess_,
                 processTime,
-                nextGuess);
+                nextGuess,
+                UpperBound_);
 
             CurrentGuess_ = std::min<i64>(nextGuess, UpperBound_);
 
@@ -400,7 +413,7 @@ private:
 
         NTableClient::TRowBatchReadOptions options;
         options.Columnar = format.GetType() == EFormatType::Arrow;
-        options.MaxRowsPerRead = JobSpecHelper_->GetJobIOConfig()->BufferRowCount;
+        options.MaxRowsPerRead = std::min<i64>(MaxRowsPerRead_, JobSpecHelper_->GetJobIOConfig()->BufferRowCount);
         // NB(arkady-e1ppa): BIND catches job_proxy trace context
         // for logs in adapters.
         return BIND([=, this, this_ = MakeStrong(this)] {

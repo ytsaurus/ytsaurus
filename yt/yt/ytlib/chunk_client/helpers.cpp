@@ -420,7 +420,7 @@ std::vector<NProto::TChunkSpec> FetchTabletStores(
 
     // Visit all tablets and group tablet subrequests by nodes.
     using TSubrequest = NQueryClient::NProto::TReqFetchTabletStores::TSubrequest;
-    THashMap<TString, std::vector<TSubrequest>> addressToSubrequests;
+    THashMap<std::string, std::vector<TSubrequest>> addressToSubrequests;
 
     const auto& connection = client->GetNativeConnection();
     const auto& cellDirectory = connection->GetCellDirectory();

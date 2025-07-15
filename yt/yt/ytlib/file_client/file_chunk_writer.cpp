@@ -15,7 +15,7 @@
 
 #include <yt/yt/ytlib/table_client/helpers.h>
 
-#include <yt/yt/core/misc/blob.h>
+#include <library/cpp/yt/memory/blob.h>
 
 namespace NYT::NFileClient {
 

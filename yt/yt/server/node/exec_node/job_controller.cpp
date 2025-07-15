@@ -678,7 +678,7 @@ private:
             auto operationId = FromProto<TOperationId>(startInfoProto.operation_id());
             auto allocationId = FromProto<TAllocationId>(startInfoProto.allocation_id());
 
-            std::optional<TNetworkPriority> networkPriority = YT_OPTIONAL_FROM_PROTO(startInfoProto, network_priority);
+            auto networkPriority = YT_OPTIONAL_FROM_PROTO(startInfoProto, network_priority);
 
             auto incarnationId = FromProto<NScheduler::TIncarnationId>(
                 startInfoProto.controller_agent_descriptor().incarnation_id());
@@ -1810,7 +1810,7 @@ private:
             NJobAgent::EResourcesState::Acquired,
             NJobAgent::EResourcesState::Releasing,
         });
-        const auto limits = JobResourceManager_->GetResourceLimits();
+        const auto limits = JobResourceManager_->GetResourceLimits(/*considerUserJobFreeMemoryWatermark*/ false);
         auto schedulerJobs = GetRunningJobsSortedByStartTime();
 
         while (usage.UserMemory + mappedMemory > limits.UserMemory &&
@@ -1832,7 +1832,7 @@ private:
             NJobAgent::EResourcesState::Acquired,
             NJobAgent::EResourcesState::Releasing,
         });
-        auto limits = JobResourceManager_->GetResourceLimits() + NClusterNode::TJobResources::Epsilon();
+        auto limits = JobResourceManager_->GetResourceLimits(/*considerUserJobFreeMemoryWatermark*/ false) + NClusterNode::TJobResources::Epsilon();
 
         bool preemptMemoryOverdraft = false;
         bool preemptCpuOverdraft = false;

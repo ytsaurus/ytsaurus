@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/master/object_server/proto/object_manager.pb.h>
-
 #include <yt/yt/server/master/cell_master/public.h>
 
 #include <yt/yt/server/master/cypress_server/public.h>
@@ -18,7 +16,7 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
-#include <yt/yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/rpc/public.h>
 
 #include <yt/yt/core/test_framework/testing_tag.h>
 
@@ -205,6 +203,15 @@ struct IObjectManager
 
     //! Handles paths to versioned and most unversioned local objects.
     virtual TObject* ResolvePathToLocalObject(
+        const NYPath::TYPath& path,
+        NTransactionServer::TTransaction* transaction,
+        const TResolvePathOptions& options) = 0;
+
+    //! Resolves path to either local or remote object.
+    //! If the path resolves locally, returns a pointer to the local target object.
+    //! If the path leads to another cell (including Sequoia), returns nullptr.
+    //! If the path fails to resolve (i.e. leads to a missing object), throws.
+    virtual TObject* ResolvePathToObject(
         const NYPath::TYPath& path,
         NTransactionServer::TTransaction* transaction,
         const TResolvePathOptions& options) = 0;

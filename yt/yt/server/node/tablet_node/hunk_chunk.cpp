@@ -98,11 +98,6 @@ int THunkChunk::GetLockCount() const
 
 void THunkChunk::PopulateAddHunkChunkDescriptor(NProto::TAddHunkChunkDescriptor* descriptor) const
 {
-    if (IsAttachedCompressionDictionary()) {
-        THROW_ERROR_EXCEPTION("Cannot replicate hunk chunk %v which is an attached compression dictionary",
-            Id_);
-    }
-
     if (PreparedStoreRefCount_ > 0) {
         YT_LOG_ALERT("Hunk chunk has nonzero ref count during replication "
             "(HunkChunkId: %v, PreparedStoreRefCount: %v)",

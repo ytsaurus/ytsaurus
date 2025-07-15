@@ -21,7 +21,7 @@ from yt_commands import (
     create_table_replica, sync_enable_table_replica, get_tablet_infos, get_table_mount_info, set_node_banned,
     suspend_chaos_cells, resume_chaos_cells, merge, add_maintenance, remove_maintenance,
     sync_freeze_table, lock, get_tablet_errors, create_tablet_cell_bundle, create_area, link,
-    execute_batch, make_batch_request)
+    execute_batch, make_batch_request, ping_chaos_lease)
 
 from yt_type_helpers import make_schema
 
@@ -1298,6 +1298,8 @@ class TestChaos(ChaosTestBase):
         rows = [{"key": 0, "value": "0"}]
         insert_rows("//tmp/crt", rows)
 
+        timestamp = generate_timestamp()
+
         sync_unmount_table("//tmp/t")
         alter_table_replica(replica_ids[0], enabled=True)
 
@@ -1305,6 +1307,9 @@ class TestChaos(ChaosTestBase):
         assert len(_get_in_sync_replicas("//tmp/crt")) == 0
 
         sync_mount_table("//tmp/t")
+        # Wait for updated replica progress is reported back to chaos node.
+        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[0]}/replication_lag_timestamp") > timestamp)
+
         # Trigger era switch so chaos caches get updated
         alter_table_replica(replica_ids[0], enabled=False)
         self._sync_alter_replica(card_id, replicas, replica_ids, 0, enabled=True)
@@ -2528,7 +2533,7 @@ class TestChaos(ChaosTestBase):
         })
 
         set("//tmp/catchup_queue-1/@mount_config/testing", {
-            "table_puller_replica_ban_iterations_count": 1000,
+            "table_puller_replica_ban_iteration_count": 1000,
         })
 
         remount_table("//tmp/catchup_queue-1")
@@ -3325,7 +3330,12 @@ class TestChaos(ChaosTestBase):
             {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
             {"cluster_name": "remote_0", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/r"},
         ]
-        self._create_chaos_tables(cell_id, replicas, ordered=True)
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, ordered=True)
+        create("chaos_replicated_table", "//tmp/crt", attributes={
+            "chaos_cell_bundle": "c",
+            "replication_card_id": card_id
+        })
+
         remote_driver0 = self._get_drivers()[1]
 
         data_values = [{"key": i, "value": f"{i}"} for i in range(rows_to_insert)]
@@ -3339,6 +3349,15 @@ class TestChaos(ChaosTestBase):
 
             sync_flush_table("//tmp/t")
             sync_flush_table("//tmp/r", driver=remote_driver0)
+
+        # wait until replication card is updated on chaos nodes
+        timestamp = generate_timestamp()
+        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[0]}/replication_lag_timestamp") > timestamp)
+        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[1]}/replication_lag_timestamp") > timestamp)
+
+        # Trigger era change and wait this exact replication card to reach all nodes
+        alter_table_replica(replica_ids[1], enabled=False)
+        self._sync_alter_replica(card_id, replicas, replica_ids, 1, enabled=True)
 
         trim_rows("//tmp/t", 0, 1)
         trim_rows("//tmp/r", 0, 1, driver=remote_driver0)
@@ -4687,7 +4706,11 @@ class TestChaos(ChaosTestBase):
 
         # Prevent trimmig errors due to replication lag
         self._sync_alter_replica(card_id, replicas, replica_ids, 0, mode="sync")
+        sync_flush_table("//tmp/q0")
+        sync_flush_table("//tmp/q1")
+        sync_flush_table("//tmp/q2")
 
+        # TODO(osidorkin) Uss safe trim row count
         trim_rows("//tmp/q0", 0, 1)
         trim_rows("//tmp/q1", 0, 1)
         trim_rows("//tmp/q2", 0, 1)
@@ -4834,6 +4857,8 @@ class TestChaos(ChaosTestBase):
 
         self._sync_alter_replica(card_id, replicas, replica_ids, 1, enabled=True)
 
+        wait(lambda: get(f"{path}/@replicas/{replica_ids[0]}/replication_lag_timestamp") > 1)
+
         hint = "\"{require_sync_replica=%false;}\""
         assert select_rows(f"T.value AS v from [{path}] AS T with hint {hint}") == [{"v": 0}]
 
@@ -4937,6 +4962,45 @@ class TestChaos(ChaosTestBase):
         assert lookup_rows("//tmp/t", [{"key": 0}]) == values
         wait(lambda: lookup_rows("//tmp/r", [{"key": 0}], driver=remote_driver0) == values)
 
+    @authors("gryzlov-ad")
+    def test_chaos_lease_pings(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        lease_id = create_chaos_lease(cell_id, attributes={"timeout": 10000})
+
+        first_ping_time = get(f"#{lease_id}/@last_ping_time")
+        ping_chaos_lease(lease_id)
+        last_ping_time = get(f"#{lease_id}/@last_ping_time")
+
+        assert first_ping_time < last_ping_time
+
+    @authors("gryzlov-ad")
+    def test_chaos_lease_expiration(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        lease_id = create_chaos_lease(cell_id, attributes={"timeout": 1000})
+
+        wait(lambda: not self._chaos_lease_exists(lease_id))
+
+    @authors("gryzlov-ad")
+    def test_chaos_lease_errors(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        invalid_cell_id = generate_chaos_cell_id()
+        while cell_id == invalid_cell_id:
+            invalid_cell_id = generate_chaos_cell_id()
+
+        with raises_yt_error("No cell with tag"):
+            create_chaos_lease(invalid_cell_id)
+
+        lease_id = create_chaos_lease(cell_id)
+
+        def corrupt_id(original_id):
+            return original_id[:-1] + "a" if original_id[-1] != "a" else original_id[:-1] + "b"
+
+        with raises_yt_error(yt_error_codes.ChaosLeaseNotKnown):
+            ping_chaos_lease(corrupt_id(lease_id))
+
+        with raises_yt_error(yt_error_codes.ChaosLeaseNotKnown):
+            remove(f"#{corrupt_id(lease_id)}")
 
 ##################################################################
 

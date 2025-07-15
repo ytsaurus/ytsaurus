@@ -245,7 +245,7 @@ TFuture<THashMap<TString, TQueueExportProgressPtr>> GetQueueExportProgressFromOb
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TrimProfilingTagValue(const TString& value)
+std::string TrimProfilingTagValue(const std::string& value)
 {
     static constexpr int MaxProfilingTagValueLength = 200;
 
@@ -269,6 +269,56 @@ std::string EnumValueToPluralForm(EObjectKind value, bool lowercase)
     } else {
         return Format("%vs", value);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAggregatedQueueExportsProgress TAggregatedQueueExportsProgress::FromQueueExportProrgess(const TQueueExportProgressPtr& queueExportProgress)
+{
+    TAggregatedQueueExportsProgress result{};
+    if (!queueExportProgress) {
+        return result;
+    }
+
+    result.HasExports = true;
+    for (const auto& [tabletIndex, tabletExportProgress] : queueExportProgress->Tablets) {
+        result.TabletIndexToRowCount[tabletIndex] = tabletExportProgress->RowCount;
+    }
+    return result;
+}
+
+void TAggregatedQueueExportsProgress::MergeWith(const TAggregatedQueueExportsProgress& rhs)
+{
+    if (!HasExports) {
+        *this = rhs;
+        return;
+    }
+    if (!rhs.HasExports) {
+        return;
+    }
+
+    std::vector<i64> tabletIndexes;
+    tabletIndexes.reserve(TabletIndexToRowCount.size() + rhs.TabletIndexToRowCount.size());
+    for (const auto& [tabletIndex, _] : TabletIndexToRowCount) {
+        tabletIndexes.push_back(tabletIndex);
+    }
+    for (const auto& [tabletIndex, _] : rhs.TabletIndexToRowCount) {
+        tabletIndexes.push_back(tabletIndex);
+    }
+    SortUnique(tabletIndexes);
+
+    for (const auto& tabletIndex : tabletIndexes) {
+        TabletIndexToRowCount[tabletIndex] = std::min(GetOrDefault(TabletIndexToRowCount, tabletIndex, 0), GetOrDefault(rhs.TabletIndexToRowCount, tabletIndex, 0));
+    }
+}
+
+TAggregatedQueueExportsProgress AggregateQueueExports(const THashMap<TString, TQueueExportProgressPtr>& queueExportsProgress)
+{
+    TAggregatedQueueExportsProgress result{};
+    for (const auto& [_, exportProgress] : queueExportsProgress) {
+        result.MergeWith(TAggregatedQueueExportsProgress::FromQueueExportProrgess(exportProgress));
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

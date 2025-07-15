@@ -469,7 +469,6 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("infer_weight_from_guarantees_share_multiplier", &TThis::InferWeightFromGuaranteesShareMultiplier)
         .Alias("infer_weight_from_strong_guarantee_share_multiplier")
-        .Alias("infer_weight_from_min_share_ratio_multiplier")
         .Default()
         .GreaterThanOrEqual(1.0);
 
@@ -638,10 +637,6 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_guarantee_priority_scheduling", &TThis::EnableGuaranteePriorityScheduling)
         .Default(false);
 
-    // COMPAT(eshcherbin): drop in future major versions.
-    registrar.Parameter("enable_fast_child_function_summation_in_fifo_pools", &TThis::EnableFastChildFunctionSummationInFifoPools)
-        .Default(true);
-
     registrar.Parameter("min_job_resource_limits", &TThis::MinJobResourceLimits)
         .DefaultNew();
 
@@ -653,6 +648,9 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("allow_single_job_large_gpu_operations_in_multiple_trees", &TThis::AllowSingleJobLargeGpuOperationsInMultipleTrees)
         .Default(true);
+
+    registrar.Parameter("min_spare_allocation_resources_on_node", &TThis::MinSpareAllocationResourcesOnNode)
+        .Default();
 
     registrar.Postprocessor([&] (TFairShareStrategyTreeConfig* config) {
         if (config->AggressivePreemptionSatisfactionThreshold > config->PreemptionSatisfactionThreshold) {
@@ -803,10 +801,15 @@ void TFairShareStrategyConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("ephemeral_pool_name_regex", &TThis::EphemeralPoolNameRegex)
-        .Default("[-_a-z0-9:A-Z]+");
+        .Default("[-_\\.a-z0-9:A-Z]+");
 
     registrar.Parameter("require_specified_operation_pools_existence", &TThis::RequireSpecifiedOperationPoolsExistence)
         .Default(false);
+
+    registrar.Parameter("min_spare_allocation_resources_on_node", &TThis::MinSpareAllocationResourcesOnNode)
+        .Alias("min_spare_job_resources_on_node")
+        .DefaultCtor(&GetDefaultMinSpareAllocationResourcesOnNode)
+        .ResetOnLoad();
 
     registrar.Postprocessor([&] (TFairShareStrategyConfig* config) {
         THashMap<int, TStringBuf> priorityToName;
@@ -1253,11 +1256,6 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("experiment_assignment_alert_duration", &TThis::ExperimentAssignmentAlertDuration)
         .Default(TDuration::Seconds(30));
 
-    registrar.Parameter("min_spare_allocation_resources_on_node", &TThis::MinSpareAllocationResourcesOnNode)
-        .Alias("min_spare_job_resources_on_node")
-        .DefaultCtor(&GetDefaultMinSpareAllocationResourcesOnNode)
-        .ResetOnLoad();
-
     registrar.Parameter("schedule_allocation_duration_logging_threshold", &TThis::ScheduleAllocationDurationLoggingThreshold)
         .Alias("schedule_job_duration_logging_threshold")
         .Default(TDuration::MilliSeconds(500));
@@ -1293,7 +1291,7 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("min_required_archive_version", &TThis::MinRequiredArchiveVersion)
-        .Default(59);
+        .Default(61);
 
     registrar.Parameter("rpc_server", &TThis::RpcServer)
         .DefaultNew();

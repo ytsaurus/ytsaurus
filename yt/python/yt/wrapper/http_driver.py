@@ -16,6 +16,7 @@ import yt.json_wrapper as json
 from yt.packages.requests.auth import AuthBase
 
 import collections
+import importlib
 import random
 from copy import deepcopy
 from datetime import datetime
@@ -318,10 +319,35 @@ def make_request(command_name,
     if use_framing:
         headers["X-YT-Accept-Framing"] = "1"
 
-    auth = TokenAuth(get_token(client=client))
+    result_auth = TokenAuth(get_token(client=client))
+
     tvm_auth = get_config(client)["tvm_auth"]
-    if tvm_auth is not None:
-        auth = tvm_auth
+    auth = get_config(client)["auth"]
+    auth_class = get_config(client)["auth_class"]
+
+    if auth and tvm_auth:
+        raise YtError("Only one of `auth` and `tvm_auth` should be specified in the config, use `auth`")
+
+    if auth_class and auth_class["module_name"] and auth_class["class_name"]:
+        module = None
+        module_name = auth_class["module_name"]
+        class_name = auth_class["class_name"]
+        auth_config = auth_class.get("config", None)
+        try:
+            module = importlib.import_module(module_name)
+        except ImportError:
+            raise YtError(f"Failed to import {module_name}, install it if you want to use it as auth class")
+
+        if auth_config:
+            result_auth = getattr(module, class_name)(auth_config)
+        else:
+            result_auth = getattr(module, class_name)()
+
+    if tvm_auth:
+        result_auth = tvm_auth
+
+    if auth:
+        result_auth = auth
 
     if command.input_type in ["binary", "tabular"]:
         content_encoding = get_config(client)["proxy"]["content_encoding"]
@@ -358,7 +384,7 @@ def make_request(command_name,
         stream=stream,
         response_format=response_format,
         timeout=timeout,
-        auth=auth,
+        auth=result_auth,
         # TODO(ignat): Refactor retrying logic to avoid this hack.
         is_ping=(command_name in ("ping_tx", "ping_transaction")),
         proxy_provider=proxy_provider,

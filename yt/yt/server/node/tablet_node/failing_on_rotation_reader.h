@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+
 #include <yt/yt/server/node/tablet_node/tablet.h>
 
 namespace NYT::NTableClient {
@@ -11,7 +12,7 @@ namespace NYT::NTableClient {
 //! by comparing OrderedDynamicStoreRotateEpoch before/after calling Read() on actual reader
 ISchemafulUnversionedReaderPtr CreateFailingOnRotationReader(
     ISchemafulUnversionedReaderPtr reader,
-    const NTabletNode::TTabletSnapshotPtr& tabletSnapshot);
+    NTabletNode::TTabletSnapshotPtr tabletSnapshot);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -344,6 +344,11 @@ class YTEnvSetup(object):
     _DEFAULT_DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "enable_table_column_renaming": True,
+            "operation_options": {
+                "spec_template": {
+                    "use_new_slicing_implementation_in_unordered_pool": True,
+                },
+            },
         },
     }
     DELTA_PROXY_CONFIG = {}
@@ -426,11 +431,7 @@ class YTEnvSetup(object):
 
     # To be redefined in successors
     @classmethod
-    def modify_multi_config(cls, config):
-        pass
-
-    @classmethod
-    def modify_master_config(cls, multidaemon_config, config, tag, peer_index, cluster_index):
+    def modify_master_config(cls, config, multidaemon_config, cell_index, cell_tag, peer_index, cluster_index):
         pass
 
     @classmethod
@@ -462,11 +463,11 @@ class YTEnvSetup(object):
         pass
 
     @classmethod
-    def modify_proxy_config(cls, multidaemon_config, configs):
+    def modify_http_proxy_config(cls, config, multidaemon_config, proxy_index):
         pass
 
     @classmethod
-    def modify_rpc_proxy_config(cls, multidaemon_config, config):
+    def modify_rpc_proxy_config(cls, config, multidaemon_config, proxy_index):
         pass
 
     @classmethod
@@ -478,7 +479,7 @@ class YTEnvSetup(object):
         pass
 
     @classmethod
-    def modify_tablet_balancer_config(cls, multidaemon_config, config):
+    def modify_tablet_balancer_config(cls, config, multidaemon_config):
         pass
 
     @classmethod
@@ -561,6 +562,25 @@ class YTEnvSetup(object):
         update_inplace(config, cls.DELTA_DRIVER_LOGGING_CONFIG)
 
     @classmethod
+    def master_cell_tag_from_cell_index(cls, cell_index, cluster_index=0):
+        return (cluster_index + 1) * 10 + cell_index
+
+    @classmethod
+    def master_cell_index_from_cell_tag(cls, cell_tag, cluster_index=0):
+        return cell_tag - (cluster_index + 1) * 10
+
+    @classmethod
+    def has_ground(cls, cluster_index=0):
+        return cls.get_param("USE_SEQUOIA", cluster_index) and not cls._is_ground_cluster(cluster_index)
+
+    @classmethod
+    def clock_cluster_tag(cls, cluster_index=0):
+        if cls.has_ground(cluster_index):
+            return (cluster_index + cls.get_ground_index_offset() + 1) * 10
+        else:
+            return cls.master_cell_tag_from_cell_index(0, cluster_index)
+
+    @classmethod
     def create_yt_cluster_instance(cls, index, path):
         modify_configs_func = functools.partial(cls.apply_config_patches, cluster_index=index, cluster_path=path)
         modify_dynamic_configs_func = functools.partial(cls.apply_node_dynamic_config_patches, cluster_index=index)
@@ -585,9 +605,8 @@ class YTEnvSetup(object):
         elif index == 0 or not cls.get_param("USE_PRIMARY_CLOCKS", index):
             clock_count = cls.get_param("NUM_CLOCKS", index)
 
-        has_ground = cls.get_param("USE_SEQUOIA", index) and not cls._is_ground_cluster(index)
-        primary_cell_tag = (index + 1) * 10
-        clock_cluster_tag = (index + cls.get_ground_index_offset() + 1) * 10 if has_ground else primary_cell_tag
+        primary_cell_tag = cls.master_cell_tag_from_cell_index(0, index)
+        clock_cluster_tag = cls.clock_cluster_tag(index)
 
         if cls.USE_SLOT_USER_ID is None:
             use_slot_user_id = cls.USE_PORTO
@@ -613,10 +632,8 @@ class YTEnvSetup(object):
             if delta_global_cluster_connection_config is None:
                 delta_global_cluster_connection_config = {}
             update_inplace(delta_global_cluster_connection_config, {
-                "sequoia_connection": {
-                    "retries": {
-                        "enable": True,
-                    },
+                "sequoia_retries": {
+                    "enable": True,
                 },
             })
         if cls._is_ground_cluster(index):
@@ -675,7 +692,7 @@ class YTEnvSetup(object):
             enable_master_cache=cls.get_param("USE_MASTER_CACHE", index),
             enable_permission_cache=cls.get_param("USE_PERMISSION_CACHE", index),
             primary_cell_tag=primary_cell_tag,
-            has_ground=has_ground,
+            has_ground=cls.has_ground(index),
             clock_cluster_tag=clock_cluster_tag,
             enable_structured_logging=True,
             enable_log_compression=cls.ENABLE_LOG_COMPRESSION,
@@ -1122,88 +1139,88 @@ class YTEnvSetup(object):
 
     @classmethod
     def apply_config_patches(cls, configs, ytserver_version, cluster_index, cluster_path):
-        cls.modify_multi_config(configs["multi"])
+        multidaemon_config = configs["multi"]
+
         for cell_index, cell_tag in enumerate([configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]):
             for peer_index, config in enumerate(configs["master"][cell_tag]):
-                config = update_inplace(config, cls.get_param("DELTA_MASTER_CONFIG", cluster_index))
-                configs["master"][cell_tag][peer_index] = cls.update_timestamp_provider_config(cluster_index, config)
-                configs["master"][cell_tag][peer_index] = cls.update_sequoia_connection_config(cluster_index, config)
-                configs["master"][cell_tag][peer_index] = cls.update_transaction_supervisor_config(cluster_index, config)
-                cls.modify_master_config(configs["multi"], configs["master"][cell_tag][peer_index], cell_tag, peer_index, cluster_index)
-
-                configs["multi"]["daemons"][f"master_{cell_index}_{peer_index}"]["config"] = configs["master"][cell_tag][peer_index]
+                update_inplace(config, cls.get_param("DELTA_MASTER_CONFIG", cluster_index))
+                cls.update_timestamp_provider_config(config, cluster_index)
+                cls.update_sequoia_connection_config(config, cluster_index)
+                cls.update_transaction_supervisor_config(config, cluster_index)
+                cls.modify_master_config(config, multidaemon_config, cell_index, cell_tag, peer_index, cluster_index)
+                multidaemon_config["daemons"][f"master_{cell_index}_{peer_index}"]["config"] = config
 
         for index, config in enumerate(configs["scheduler"]):
-            config = update_inplace(config, cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index))
+            update_inplace(config, cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index))
 
             if cls.get_param("ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA", cluster_index):
                 # TODO(kvk1920): wait_for_ground_sync().
                 # NB: default backoff is 15 seconds, but primary cluster's
                 # cluster directory syncs in about 1 second.
-                config = update_inplace(config, {
+                update_inplace(config, {
                     "connect_retry_backoff_time": 1000,
                 })
 
-            configs["scheduler"][index] = cls.update_timestamp_provider_config(cluster_index, config)
-            cls.modify_scheduler_config(configs["scheduler"][index], cluster_index)
-            configs["multi"]["daemons"][f"scheduler_{index}"]["config"] = configs["scheduler"][index]
+            cls.update_timestamp_provider_config(config, cluster_index)
+            cls.modify_scheduler_config(config, cluster_index)
+            multidaemon_config["daemons"][f"scheduler_{index}"]["config"] = config
 
         for index, config in enumerate(configs["clock"][configs["clock"]["cell_tag"]]):
             cls.modify_clock_config(config, cluster_index, configs["master"]["primary_cell_tag"])
-            configs["multi"]["daemons"][f"clock_{index}"]["config"] = config
+            multidaemon_config["daemons"][f"clock_{index}"]["config"] = config
 
         for index, config in enumerate(configs["queue_agent"]):
-            config = update_inplace(config, cls.get_param("DELTA_QUEUE_AGENT_CONFIG", cluster_index))
-            configs["queue_agent"][index] = cls.update_timestamp_provider_config(cluster_index, config)
-            cls.modify_queue_agent_config(configs["queue_agent"][index])
-            configs["multi"]["daemons"][f"queue_agent_{index}"]["config"] = configs["queue_agent"][index]
+            update_inplace(config, cls.get_param("DELTA_QUEUE_AGENT_CONFIG", cluster_index))
+            cls.update_timestamp_provider_config(config, cluster_index)
+            cls.modify_queue_agent_config(config)
+            multidaemon_config["daemons"][f"queue_agent_{index}"]["config"] = config
 
         for index, config in enumerate(configs["kafka_proxy"]):
-            config = update_inplace(config, cls.get_param("DELTA_KAFKA_PROXY_CONFIG", cluster_index))
-            configs["kafka_proxy"][index] = cls.update_timestamp_provider_config(cluster_index, config)
-            cls.modify_kafka_proxy_config(configs["kafka_proxy"][index])
-            configs["multi"]["daemons"][f"kafka_proxy_{index}"]["config"] = configs["kafka_proxy"][index]
+            update_inplace(config, cls.get_param("DELTA_KAFKA_PROXY_CONFIG", cluster_index))
+            cls.update_timestamp_provider_config(config, cluster_index)
+            cls.modify_kafka_proxy_config(config)
+            multidaemon_config["daemons"][f"kafka_proxy_{index}"]["config"] = config
 
         for index, config in enumerate(configs["cell_balancer"]):
-            config = update_inplace(config, cls.get_param("DELTA_CELL_BALANCER_CONFIG", cluster_index))
-            configs["cell_balancer"][index] = cls.update_timestamp_provider_config(cluster_index, config)
-            cls.modify_cell_balancer_config(configs["cell_balancer"][index])
-            configs["multi"]["daemons"][f"cell_balancer_{index}"]["config"] = configs["cell_balancer"][index]
+            update_inplace(config, cls.get_param("DELTA_CELL_BALANCER_CONFIG", cluster_index))
+            cls.update_timestamp_provider_config(config, cluster_index)
+            cls.modify_cell_balancer_config(config)
+            multidaemon_config["daemons"][f"cell_balancer_{index}"]["config"] = config
 
         for index, config in enumerate(configs["tablet_balancer"]):
-            config = update_inplace(config, cls.get_param("DELTA_TABLET_BALANCER_CONFIG", cluster_index))
-            configs["tablet_balancer"][index] = cls.update_timestamp_provider_config(cluster_index, config)
-            cls.modify_tablet_balancer_config(configs["multi"], configs["tablet_balancer"][index])
-            configs["multi"]["daemons"][f"tablet_balancer_{index}"]["config"] = configs["tablet_balancer"][index]
+            update_inplace(config, cls.get_param("DELTA_TABLET_BALANCER_CONFIG", cluster_index))
+            cls.update_timestamp_provider_config(config, cluster_index)
+            cls.modify_tablet_balancer_config(config, multidaemon_config)
+            multidaemon_config["daemons"][f"tablet_balancer_{index}"]["config"] = config
 
         for index, config in enumerate(configs["master_cache"]):
-            config = update_inplace(config, cls.get_param("DELTA_MASTER_CACHE_CONFIG", cluster_index))
-            configs["master_cache"][index] = cls.update_timestamp_provider_config(cluster_index, config)
-            cls.modify_master_cache_config(configs["master_cache"][index])
-            configs["multi"]["daemons"][f"master_cache_{index}"]["config"] = configs["master_cache"][index]
+            update_inplace(config, cls.get_param("DELTA_MASTER_CACHE_CONFIG", cluster_index))
+            cls.update_timestamp_provider_config(config, cluster_index)
+            cls.modify_master_cache_config(config)
+            multidaemon_config["daemons"][f"master_cache_{index}"]["config"] = config
 
         for index, config in enumerate(configs["controller_agent"]):
-            config = update_inplace(config, YTEnvSetup._DEFAULT_DELTA_CONTROLLER_AGENT_CONFIG)
+            update_inplace(config, YTEnvSetup._DEFAULT_DELTA_CONTROLLER_AGENT_CONFIG)
             if not cls._is_ground_cluster(index) and \
                     (cls.get_param("ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA", index) or
                      cls.get_param("ENABLE_SYS_OPERATIONS_ROOTSTOCK", index)):
                 assert cls.get_param("ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA", index)
-                config = update_inplace(config, {
+                update_inplace(config, {
                     "set_committed_attribute_via_transaction_action": False,
                     "commit_operation_cypress_node_changes_via_system_transaction": True,
                 })
-            config = update_inplace(config, cls.get_param("DELTA_CONTROLLER_AGENT_CONFIG", cluster_index))
-            configs["controller_agent"][index] = cls.update_timestamp_provider_config(cluster_index, config)
-            cls.modify_controller_agent_config(configs["controller_agent"][index], cluster_index)
-            configs["multi"]["daemons"][f"controller_agent_{index}"]["config"] = configs["controller_agent"][index]
+            update_inplace(config, cls.get_param("DELTA_CONTROLLER_AGENT_CONFIG", cluster_index))
+            cls.update_timestamp_provider_config(config, cluster_index)
+            cls.modify_controller_agent_config(config, cluster_index)
+            multidaemon_config["daemons"][f"controller_agent_{index}"]["config"] = config
 
         node_flavors_length = len(cls.DELTA_NODE_FLAVORS)
         assert node_flavors_length == 0 or cls.NUM_NODES == node_flavors_length
 
         for index, config in enumerate(configs["node"]):
-            config = update_inplace(config, cls.get_param("DELTA_NODE_CONFIG", cluster_index))
+            update_inplace(config, cls.get_param("DELTA_NODE_CONFIG", cluster_index))
             if cls.USE_CUSTOM_ROOTFS:
-                config = update_inplace(config, get_custom_rootfs_delta_node_config())
+                update_inplace(config, get_custom_rootfs_delta_node_config())
 
             config["ref_counted_tracker_dump_period"] = 5000
 
@@ -1217,71 +1234,64 @@ class YTEnvSetup(object):
                 "read_only": False,
             })
 
-            config = cls.update_timestamp_provider_config(cluster_index, config)
-
             if node_flavors_length != 0:
                 config["flavors"] = cls.DELTA_NODE_FLAVORS[index]
 
-            configs["node"][index] = config
-            cls.modify_node_config(configs["node"][index], cluster_index)
+            cls.update_timestamp_provider_config(config, cluster_index)
+            cls.modify_node_config(config, cluster_index)
 
         for index, config in enumerate(configs["chaos_node"]):
-            config = update_inplace(config, cls.get_param("DELTA_CHAOS_NODE_CONFIG", cluster_index))
-            configs["chaos_node"][index] = cls.update_timestamp_provider_config(cluster_index, config)
-            cls.modify_chaos_node_config(configs["chaos_node"][index], cluster_index)
-            configs["multi"]["daemons"][f"chaos_node_{index}"]["config"] = configs["chaos_node"][index]
+            update_inplace(config, cls.get_param("DELTA_CHAOS_NODE_CONFIG", cluster_index))
+            cls.update_timestamp_provider_config(config, cluster_index)
+            cls.modify_chaos_node_config(config, cluster_index)
+            multidaemon_config["daemons"][f"chaos_node_{index}"]["config"] = config
 
         for index, config in enumerate(configs["http_proxy"]):
             # COMPAT(pogorelov)
             config["cluster_connection"]["scheduler"]["use_scheduler_job_prober_service"] = False
 
-            delta_config = cls.get_param("DELTA_PROXY_CONFIG", cluster_index)
-
-            config = update_inplace(config, delta_config)
-            configs["http_proxy"][index] = cls.update_timestamp_provider_config(cluster_index, config)
-            cls.modify_proxy_config(configs["multi"], configs["http_proxy"])
-            configs["multi"]["daemons"][f"http_proxy_{index}"]["config"] = configs["http_proxy"][index]
+            update_inplace(config, cls.get_param("DELTA_PROXY_CONFIG", cluster_index))
+            cls.update_timestamp_provider_config(config, cluster_index)
+            cls.modify_http_proxy_config(config, multidaemon_config, index)
+            multidaemon_config["daemons"][f"http_proxy_{index}"]["config"] = config
 
         for index, config in enumerate(configs["rpc_proxy"]):
             # COMPAT(pogorelov)
             config["cluster_connection"]["scheduler"]["use_scheduler_job_prober_service"] = False
 
-            config = update_inplace(config, cls.get_param("DELTA_RPC_PROXY_CONFIG", cluster_index))
-
-            configs["rpc_proxy"][index] = cls.update_timestamp_provider_config(cluster_index, config)
-            cls.modify_rpc_proxy_config(configs["multi"], configs["rpc_proxy"])
-            configs["multi"]["daemons"][f"rpc_proxy_{index}"]["config"] = configs["rpc_proxy"][index]
+            update_inplace(config, cls.get_param("DELTA_RPC_PROXY_CONFIG", cluster_index))
+            cls.update_timestamp_provider_config(config, cluster_index)
+            cls.modify_rpc_proxy_config(config, multidaemon_config, index)
+            multidaemon_config["daemons"][f"rpc_proxy_{index}"]["config"] = config
 
         for index, config in enumerate(configs["cypress_proxy"]):
-            config = update_inplace(config, cls.get_param("DELTA_CYPRESS_PROXY_CONFIG", cluster_index))
-            configs["cypress_proxy"][index] = cls.update_timestamp_provider_config(cluster_index, config)
-            configs["cypress_proxy"][index] = cls.update_sequoia_connection_config(cluster_index, config)
-            cls.modify_cypress_proxy_config(configs["cypress_proxy"][index], cluster_index)
-            configs["multi"]["daemons"][f"cypress_proxy_{index}"]["config"] = configs["cypress_proxy"][index]
+            update_inplace(config, cls.get_param("DELTA_CYPRESS_PROXY_CONFIG", cluster_index))
+            cls.update_timestamp_provider_config(config, cluster_index)
+            cls.update_sequoia_connection_config(config, cluster_index)
+            cls.modify_cypress_proxy_config(config, cluster_index)
+            multidaemon_config["daemons"][f"cypress_proxy_{index}"]["config"] = config
 
         for key, config in configs["driver"].items():
-            config = update_inplace(config, cls.get_param("DELTA_DRIVER_CONFIG", cluster_index))
+            update_inplace(config, cls.get_param("DELTA_DRIVER_CONFIG", cluster_index))
+            cls.update_timestamp_provider_config(config, cluster_index)
+            cls.modify_driver_config(config)
 
-            configs["driver"][key] = cls.update_timestamp_provider_config(cluster_index, config)
-            cls.modify_driver_config(configs["driver"][key])
-
-        configs["rpc_driver"] = update_inplace(
+        update_inplace(
             configs["rpc_driver"],
             cls.get_param("DELTA_RPC_DRIVER_CONFIG", cluster_index),
         )
 
     @classmethod
-    def update_transaction_supervisor_config(cls, cluster_index, config):
+    def update_transaction_supervisor_config(cls, config, cluster_index):
         if not cls.get_param("USE_SEQUOIA", cluster_index) or cls._is_ground_cluster(cluster_index):
-            return config
+            return
         config.setdefault("transaction_supervisor", {})
         config["transaction_supervisor"]["enable_wait_until_prepared_transactions_finished"] = True
-        return config
 
     @classmethod
-    def update_sequoia_connection_config(cls, cluster_index, config):
+    def update_sequoia_connection_config(cls, config, cluster_index):
         if not cls.get_param("USE_SEQUOIA", cluster_index) or cls._is_ground_cluster(cluster_index):
-            return config
+            return
 
         ground_cluster_name = cls.get_cluster_name(cluster_index + cls.get_ground_index_offset())
         update_inplace(config["cluster_connection"], {
@@ -1290,29 +1300,28 @@ class YTEnvSetup(object):
                 "ground_cluster_connection_update_period": 500,
             },
         })
-        return config
 
     @classmethod
-    def update_timestamp_provider_config(cls, cluster_index, config):
+    def update_timestamp_provider_config(cls, config, cluster_index):
         if cls.get_param("USE_SEQUOIA", cluster_index):
             if cls._is_ground_cluster(cluster_index):
-                return config
+                return
 
             ground_timestamp_provider = cls.ground_envs[cluster_index].configs["master"][0]["cluster_connection"]["timestamp_provider"]
             if "timestamp_provider" in config:
                 config["timestamp_provider"] = ground_timestamp_provider
             if "cluster_connection" in config:
                 config["cluster_connection"]["timestamp_provider"] = ground_timestamp_provider
-            return config
+            return
 
         if cls.get_param("NUM_CLOCKS", cluster_index) == 0 or cluster_index == 0 or not cls.get_param("USE_PRIMARY_CLOCKS", cluster_index):
-            return config
+            return
+
         primary_timestamp_provider = cls.Env.configs["chaos_node"][0]["cluster_connection"]["timestamp_provider"]
         if "timestamp_provider" in config:
             config["timestamp_provider"] = primary_timestamp_provider
         if "cluster_connection" in config:
             config["cluster_connection"]["timestamp_provider"] = primary_timestamp_provider
-        return config
 
     @classmethod
     def teardown_class(cls):
@@ -1342,7 +1351,7 @@ class YTEnvSetup(object):
     def _has_bundle_controller_transaction(self):
         for tx in yt_commands.ls("//sys/transactions", attributes=["title"]):
             title = tx.attributes.get("title", "")
-            if "Bundle Controller bundles scan" in title:
+            if "Bundle controller bundles scan" in title:
                 return True
         return False
 
@@ -1584,8 +1593,7 @@ class YTEnvSetup(object):
             yt_commands.create("map_node", "//sys/bundle_controller/controller/zones", recursive=True, force=True)
             yt_commands.create("map_node", "//sys/bundle_controller/controller/bundles_state", recursive=True, force=True)
 
-            while not self._has_bundle_controller_transaction():
-                sleep(0.1)
+            wait(self._has_bundle_controller_transaction)
 
     def teardown_method(self, method, wait_for_nodes=True):
         self._maybe_cleanup_additional_threads()
@@ -1702,8 +1710,7 @@ class YTEnvSetup(object):
         )
 
         if self.ENABLE_BUNDLE_CONTROLLER:
-            while self._has_bundle_controller_transaction():
-                sleep(0.1)
+            wait(self._has_bundle_controller_transaction)
 
         yt_commands.gc_collect(driver=driver)
         yt_commands.clear_metadata_caches(driver=driver)
@@ -2140,6 +2147,11 @@ class YTEnvSetup(object):
                 ),
                 yt_commands.make_batch_request(
                     "set",
+                    path="//sys/@config/tablet_manager/enable_smooth_tablet_movement",
+                    input=use_avenues,
+                ),
+                yt_commands.make_batch_request(
+                    "set",
                     path="//sys/@config/tablet_manager/replicated_table_tracker/use_new_replicated_table_tracker",
                     input=self.ENABLE_STANDALONE_REPLICATED_TABLE_TRACKER,
                 ),
@@ -2301,6 +2313,28 @@ class YTEnvSetup(object):
 
             for node, response in zip(exec_nodes, responses):
                 print("Node {}: {}".format(node, response), file=sys.stderr)
+
+        def check_resources_are_zero(resource_types):
+            requests = [
+                yt_commands.make_batch_request(
+                    "get",
+                    path="//sys/cluster_nodes/{0}/orchid/exec_node/job_resource_manager".format(node),
+                    return_only_value=True,
+                )
+                for node in exec_nodes
+            ]
+
+            responses = yt_commands.execute_batch(requests, driver=driver)
+            for node, response in zip(exec_nodes, responses):
+                response = yt_commands.get_batch_output(response)
+
+                def verify_resources_are_zero(type):
+                    assert yt_commands.are_job_resources_are_zero(response[type]), f"Node {node} has non-zero {type}: {response[type]}"
+
+                for type in resource_types:
+                    verify_resources_are_zero(type)
+
+        check_resources_are_zero(["pending_resources", "acquired_resources"])
 
     def spawn_additional_thread(self, target, name=None):
         assert \

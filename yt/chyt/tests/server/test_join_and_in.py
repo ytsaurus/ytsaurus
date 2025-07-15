@@ -301,8 +301,8 @@ class TestJoinAndIn(ClickHouseTestBase):
                 == 0
             )
 
-    @authors("max42")
-    def test_forbidden_non_primitive_join(self):
+    @authors("max42", "buyval01")
+    def test_non_primitive_key_expression_join(self):
         # CHYT-323.
         create(
             "table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]}
@@ -313,8 +313,9 @@ class TestJoinAndIn(ClickHouseTestBase):
         write_table("//tmp/t1", [{"key": 42}])
         write_table("//tmp/t2", [{"key": 43}])
         with Clique(1) as clique:
-            with raises_yt_error(QueryFailedError):
-                clique.make_query('select * from "//tmp/t1" A inner join "//tmp/t2" B on A.key + 1 = B.key')
+            assert clique.make_query('select A.key as A_key, B.key as B_key from "//tmp/t1" A inner join "//tmp/t2" B on A.key + 1 = B.key') == [
+                {"A_key": 42, "B_key": 43}
+            ]
 
     @authors("max42")
     def test_cross_join(self):
@@ -484,14 +485,8 @@ class TestJoinAndIn(ClickHouseTestBase):
             assert clique.make_query(query) == [{"key": 0}, {"key": 5}]
 
             # Not a key prefix.
+            # TODO(buyval01): add checks that distribution goes according to the first table.
             query = 'select key from "//tmp/t1" join "//tmp/t2" using subkey, subkey2 order by key'
-            with raises_yt_error(QueryFailedError):
-                clique.make_query(query)
-
-            # Same subkey twice, but not a key prefix.
-            query = 'select key from "//tmp/t1" join "//tmp/t2" using subkey, subkey order by key'
-            with raises_yt_error(QueryFailedError):
-                clique.make_query(query)
 
             # Expressions.
             query = '''select key from "//tmp/t1" a join "//tmp/t2" b
@@ -500,15 +495,13 @@ class TestJoinAndIn(ClickHouseTestBase):
             assert clique.make_query(query) == [{"key": 0}, {"key": 5}]
 
             query = 'select key from "//tmp/t1" a join "//tmp/t2" b on a.key=b.subkey and a.subkey=b.key'
-            with raises_yt_error(QueryFailedError):
-                clique.make_query(query)
+            assert clique.make_query(query) == [{"key": 0}, {"key": 5}]
 
             query = '''select key from "//tmp/t1" a
                        full join "//tmp/t2" b
                        on a.key = (intDiv(b.subkey, 5) * 5)
                        order by key'''
-            with raises_yt_error(QueryFailedError):
-                clique.make_query(query)
+            assert clique.make_query(query) == [{"key": 0}, {"key": 5}]
 
             query = '''select key from "//tmp/t1" a
                        full join (select * from "//tmp/t2") b
@@ -834,7 +827,6 @@ class TestJoinAndIn(ClickHouseTestBase):
 
     # CHYT-1300
     @authors("buyval01")
-    @pytest.mark.timeout(0)
     def test_global_join_missing_aliases(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]})
         write_table("//tmp/t1", [{"a": 1}, {"a": 2}])
@@ -960,7 +952,6 @@ class TestJoinAndInStress(ClickHouseTestBase):
         index = 0
         for instance_count in range(1, 5):
             with Clique(instance_count) as clique:
-                # TODO(max42): CHYT-390.
                 for lhs_arg in ('"//tmp/t1"', '(select * from "//tmp/t1")'):
                     for rhs_arg in ('"//tmp/t2"', '(select * from "//tmp/t2")'):
                         for globalness in ("", "global"):

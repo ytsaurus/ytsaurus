@@ -191,6 +191,12 @@ TEST_SRCS(
     test_yt_cli.py
 )
 
+IF (NOT OPENSOURCE)
+    TEST_SRCS(
+        test_ml_helpers.py
+    )
+ENDIF()
+
 END()
 
 RECURSE_FOR_TESTS(
@@ -199,6 +205,7 @@ RECURSE_FOR_TESTS(
 )
 
 IF (NOT OPENSOURCE)
+
     RECURSE(
         yt_python
         yt_ipython

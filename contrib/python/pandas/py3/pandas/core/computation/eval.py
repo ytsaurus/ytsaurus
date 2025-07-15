@@ -10,7 +10,10 @@ import warnings
 from pandas.util._exceptions import find_stack_level
 from pandas.util._validators import validate_bool_kwarg
 
-from pandas.core.dtypes.common import is_extension_array_dtype
+from pandas.core.dtypes.common import (
+    is_extension_array_dtype,
+    is_string_dtype,
+)
 
 from pandas.core.computation.engines import ENGINES
 from pandas.core.computation.expr import (
@@ -336,10 +339,13 @@ def eval(
         parsed_expr = Expr(expr, engine=engine, parser=parser, env=env)
 
         if engine == "numexpr" and (
-            is_extension_array_dtype(parsed_expr.terms.return_type)
+            (
+                is_extension_array_dtype(parsed_expr.terms.return_type)
+                and not is_string_dtype(parsed_expr.terms.return_type)
+            )
             or getattr(parsed_expr.terms, "operand_types", None) is not None
             and any(
-                is_extension_array_dtype(elem)
+                (is_extension_array_dtype(elem) and not is_string_dtype(elem))
                 for elem in parsed_expr.terms.operand_types
             )
         ):
@@ -373,7 +379,11 @@ def eval(
             # if returning a copy, copy only on the first assignment
             if not inplace and first_expr:
                 try:
-                    target = env.target.copy()
+                    target = env.target
+                    if isinstance(target, NDFrame):
+                        target = target.copy(deep=None)
+                    else:
+                        target = target.copy()
                 except AttributeError as err:
                     raise ValueError("Cannot return a copy of the target") from err
             else:
@@ -384,12 +394,10 @@ def eval(
             # we will ignore numpy warnings here; e.g. if trying
             # to use a non-numeric indexer
             try:
-                with warnings.catch_warnings(record=True):
-                    # TODO: Filter the warnings we actually care about here.
-                    if inplace and isinstance(target, NDFrame):
-                        target.loc[:, assigner] = ret
-                    else:
-                        target[assigner] = ret
+                if inplace and isinstance(target, NDFrame):
+                    target.loc[:, assigner] = ret
+                else:
+                    target[assigner] = ret  # pyright: ignore[reportGeneralTypeIssues]
             except (TypeError, IndexError) as err:
                 raise ValueError("Cannot assign expression output to target") from err
 

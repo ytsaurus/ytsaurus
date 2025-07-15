@@ -140,10 +140,15 @@ public:
     void Enlarge(
         i64 dataWeightPerJob,
         i64 primaryDataWeightPerJob,
-        const NControllerAgent::IJobSizeConstraintsPtr& jobSizeConstraints,
-        const TOutputOrderPtr& outputOrder = {});
+        const NControllerAgent::IJobSizeConstraintsPtr& jobSizeConstraints);
 
     void SeekOrder(TOutputCookie cookie);
+
+    //! For each non-removed, non-invalid cookie, get its position in JobOrder
+    //! and store it in result[cookie]. Positions are integers in the range
+    //! [0; Jobs_.size()) with a value of -1 acting as a sentinel, marking
+    //! removed/invalid jobs.
+    std::vector<int> GetCookieToPosition() const;
 
     std::pair<NTableClient::TKeyBound, NTableClient::TKeyBound>
         GetBounds(IChunkPoolOutput::TCookie cookie) const;
@@ -202,7 +207,7 @@ private:
         //! Used only for persistence.
         TJob() = default;
 
-        TJob(TNewJobManager* owner, std::unique_ptr<TNewJobStub> jobBuilder, IChunkPoolOutput::TCookie cookie);
+        TJob(TNewJobManager* owner, std::unique_ptr<TNewJobStub> jobStub, IChunkPoolOutput::TCookie cookie);
 
         void SetState(EJobState state);
 

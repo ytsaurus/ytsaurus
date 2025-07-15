@@ -40,7 +40,7 @@ public:
     static TCGModulePtr Create(
         TRoutineRegistry* routineRegistry,
         EExecutionBackend backend = EExecutionBackend::Native,
-        const TString& moduleName = "module");
+        const std::string& moduleName = "module");
 
     ~TCGModule();
 
@@ -48,17 +48,17 @@ public:
 
     llvm::Module* GetModule() const;
 
-    llvm::FunctionCallee GetRoutine(const TString& symbol) const;
+    llvm::FunctionCallee GetRoutine(const std::string& symbol) const;
 
-    void ExportSymbol(const TString& name);
+    void ExportSymbol(const std::string& name);
 
     template <class TSignature>
-    TCallback<TSignature> GetCompiledFunction(const TString& name);
+    TCallback<TSignature> GetCompiledFunction(const std::string& name);
 
     void AddObjectFile(std::unique_ptr<llvm::object::ObjectFile> sharedObject);
 
-    bool IsSymbolLoaded(const TString& symbol) const;
-    void AddLoadedSymbol(const TString& symbol);
+    bool IsSymbolLoaded(const std::string& symbol) const;
+    void AddLoadedSymbol(const std::string& symbol);
 
     bool IsFunctionLoaded(const std::string& function) const;
     void AddLoadedFunction(const std::string& function);

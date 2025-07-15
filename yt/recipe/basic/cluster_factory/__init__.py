@@ -40,6 +40,9 @@ class _YtLocalCluster(object):
 
     def start_local_yt(self):
         self._yt_instance.start()
+        if "components" in self._yt_config:
+            yt_local.run_components(self._yt_instance, self._yt_config["components"])
+
         self.yt_proxy_port = int(self._yt_instance.get_http_proxy_address().split(":")[1])
         self.yt_local_exec = [arcadia_interop.search_binary_path("yt_local")]
         self._yt_client = self._yt_instance.create_client()

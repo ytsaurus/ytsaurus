@@ -192,6 +192,8 @@ using namespace NQueryClient;
 using namespace NRpc;
 using namespace NScheduler;
 using namespace NSecurityClient;
+using namespace NServer;
+using namespace NStatisticPath;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
@@ -200,17 +202,16 @@ using namespace NYPath;
 using namespace NYTProf;
 using namespace NYTree;
 using namespace NYson;
-using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;
 
+using NControllerAgent::NProto::TJobResultExt;
 using NControllerAgent::NProto::TJobSpec;
+using NControllerAgent::NProto::TJobSpecExt;
 using NJobTrackerClient::EJobState;
 using NNodeTrackerClient::TNodeId;
 using NProfiling::TCpuInstant;
-using NControllerAgent::NProto::TJobResultExt;
-using NControllerAgent::NProto::TJobSpecExt;
 using NTableClient::NProto::TBoundaryKeysExt;
 using NTableClient::NProto::THeavyColumnStatisticsExt;
 using NTabletNode::DefaultMaxOverlappingStoreCount;
@@ -1294,6 +1295,18 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         InitializeJobExperiment();
 
         AlertManager_->StartPeriodicActivity();
+
+        if (auto spec = DynamicPointerCast<TSimpleOperationSpecBase>(Spec_)) {
+            if (spec->DataWeightPerJob > spec->MaxDataWeightPerJob) {
+                SetOperationAlert(
+                    EOperationAlertType::InvalidDataWeightPerJob,
+                    TError("\"data_weight_per_job\"  cannot be greater than \"max_data_weight_per_job\". "
+                       "Please specify a \"data_weight_per_job\" value less than or equal to \"max_data_weight_per_job\". "
+                       "This constraint will be strictly enforced in future releases.")
+                        << TErrorAttribute("data_weight_per_job", spec->DataWeightPerJob)
+                        << TErrorAttribute("max_data_weight_per_job", spec->MaxDataWeightPerJob));
+            }
+        }
 
         CustomMaterialize();
 
@@ -2907,17 +2920,12 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                     }
                 }
             }
-        } else if (auto outputOrder = GetOutputOrder()) {
+        } else if (IsOrderedOutputRequired()) {
             YT_LOG_DEBUG("Sorting output chunk tree ids according to a given output order (ChunkTreeCount: %v, Table: %v)",
                 table->OutputChunkTreeIds.size(),
                 path);
-            std::vector<std::pair<TOutputOrder::TEntry, TChunkTreeId>> chunkTreeIds;
-            for (const auto& [key, chunkTreeId] : table->OutputChunkTreeIds) {
-                chunkTreeIds.emplace_back(std::move(key.AsOutputOrderEntry()), chunkTreeId);
-            }
 
-            auto outputChunkTreeIds = outputOrder->ArrangeOutputChunkTrees(std::move(chunkTreeIds));
-            for (const auto& chunkTreeId : outputChunkTreeIds) {
+            for (const auto& chunkTreeId : GetOutputChunkTreesInOrder(table)) {
                 addChunkTree(chunkTreeId);
             }
         } else {
@@ -4803,8 +4811,6 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
 
     jobSpecExt->set_enable_root_volume_disk_quota(Spec_->EnableRootVolumeDiskQuota);
 
-    jobSpecExt->set_disable_rename_columns_compatibility_code(Spec_->DisableRenameColumnsCompatibilityCode);
-
     jobSpecExt->set_use_cluster_throttlers(Spec_->UseClusterThrottlers);
 
     for (auto& [clusterName, protoRemoteCluster] : *(jobSpecExt->mutable_remote_input_clusters())) {
@@ -4980,7 +4986,9 @@ void TOperationControllerBase::TryScheduleFirstJob(
             GetScheduleJobProfiler()->ProfileScheduleJobSuccess(
                 allocation.TreeId,
                 task->GetJobType(),
-                /*isJobFirst*/ true);
+                /*isJobFirst*/ true,
+                /*isLocal*/ scheduleLocalJob
+            );
 
             auto startDescriptor = task->CreateAllocationStartDescriptor(
                 allocation,
@@ -5014,7 +5022,8 @@ std::optional<EScheduleFailReason> TOperationControllerBase::TryScheduleNextJob(
 
     YT_VERIFY(allocation.Task);
 
-    if (auto failReason = TryScheduleJob(allocation, *allocation.Task, context, /*scheduleLocalJob*/ true, lastJobId)) {
+    bool scheduleLocalJob = true;
+    if (auto failReason = TryScheduleJob(allocation, *allocation.Task, context, scheduleLocalJob, lastJobId)) {
         GetScheduleJobProfiler()->ProfileScheduleJobFailure(
             allocation.TreeId,
             allocation.Task->GetJobType(),
@@ -5032,7 +5041,8 @@ std::optional<EScheduleFailReason> TOperationControllerBase::TryScheduleNextJob(
             logSettlementFailed(*failReason);
             return failReason;
         }
-        if (auto failReason = TryScheduleJob(allocation, *allocation.Task, context, /*scheduleLocalJob*/ false, lastJobId)) {
+        scheduleLocalJob = false;
+        if (auto failReason = TryScheduleJob(allocation, *allocation.Task, context, scheduleLocalJob, lastJobId)) {
             GetScheduleJobProfiler()->ProfileScheduleJobFailure(
                 allocation.TreeId,
                 allocation.Task->GetJobType(),
@@ -5051,7 +5061,9 @@ std::optional<EScheduleFailReason> TOperationControllerBase::TryScheduleNextJob(
     GetScheduleJobProfiler()->ProfileScheduleJobSuccess(
         allocation.TreeId,
         allocation.Task->GetJobType(),
-        /*isJobFirst*/ false);
+        /*isJobFirst*/ false,
+        /*isLocal*/ scheduleLocalJob
+    );
 
     return std::nullopt;
 }
@@ -5429,7 +5441,7 @@ void TOperationControllerBase::FlushOperationNode(bool checkFlushResult)
     YT_LOG_DEBUG("Operation node flushed");
 }
 
-void TOperationControllerBase::OnOperationCompleted(bool /* interrupted */)
+void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 {
     // This can happen if operation failed during completion in derived class (e.g. SortController).
     if (IsFinished()) {
@@ -5437,6 +5449,48 @@ void TOperationControllerBase::OnOperationCompleted(bool /* interrupted */)
     }
 
     State_ = EControllerState::Completed;
+
+    // XXX(namorniradnug): is this a right place for this alert?
+    if (auto simpleSpec = DynamicPointerCast<TSimpleOperationSpecBase>(Spec_);
+        !interrupted && simpleSpec && simpleSpec->CompressedDataSizePerJob)
+    {
+        constexpr int EstimationInaccuracyThreshold = 2;
+
+        i64 actualCompressedData = [&] {
+            struct TInputCompressedDataSizeCollector
+                : public IDataFlowGraphVisitor
+            {
+                i64 InputCompressedDataSize = 0;
+
+                void VisitEdge(
+                    const TDataFlowGraph::TVertexDescriptor& from,
+                    const TDataFlowGraph::TVertexDescriptor& /*to*/,
+                    const NChunkClient::NProto::TDataStatistics& /*jobDataStatistics*/,
+                    const NChunkClient::NProto::TDataStatistics& teleportDataStatistics) override
+                {
+                    if (from == TDataFlowGraph::SourceDescriptor) {
+                        InputCompressedDataSize += teleportDataStatistics.compressed_data_size();
+                    }
+                }
+            };
+
+            TInputCompressedDataSizeCollector collector;
+            DataFlowGraph_->Traverse(collector);
+            return collector.InputCompressedDataSize;
+        }();
+
+
+        if (EstimatedInputStatistics_->CompressedDataSize > EstimationInaccuracyThreshold * actualCompressedData ||
+            EstimatedInputStatistics_->CompressedDataSize * EstimationInaccuracyThreshold < actualCompressedData)
+        {
+            SetOperationAlert(
+                EOperationAlertType::InaccuratelyEstimatedCompressedDataSize,
+                TError("Compressed data size estimation is not accurate; "
+                    "use fetcher with \"mode=from_nodes\" to get more accurate job slicing")
+                    << TErrorAttribute("estimated_compressed_data_size", EstimatedInputStatistics_->CompressedDataSize)
+                    << TErrorAttribute("actual_compressed_data_size", actualCompressedData));
+        }
+    }
 
     GetCancelableInvoker()->Invoke(
         BIND([this, this_ = MakeStrong(this)] {
@@ -6890,7 +6944,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                         backupState);
                 }
 
-                if (UserTransactionId_) {
+                if (UserTransactionId_ && !Config_->AllowBulkInsertUnderUserTransaction) {
                     THROW_ERROR_EXCEPTION(
                         "Operations with output to dynamic tables cannot be run under user transaction")
                         << TErrorAttribute("user_transaction_id", UserTransactionId_);
@@ -7710,10 +7764,10 @@ void TOperationControllerBase::ParseInputQuery(
     }
 
     auto externalCGInfo = New<TExternalCGInfo>();
-    auto fetchFunctions = [&] (TRange<TString> names, const TTypeInferrerMapPtr& typeInferrers) {
+    auto fetchFunctions = [&] (TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers) {
         MergeFrom(typeInferrers.Get(), *GetBuiltinTypeInferrers());
 
-        std::vector<TString> externalNames;
+        std::vector<std::string> externalNames;
         for (const auto& name : names) {
             auto found = typeInferrers->find(name);
             if (found == typeInferrers->end()) {
@@ -7730,7 +7784,7 @@ void TOperationControllerBase::ParseInputQuery(
                 << TErrorAttribute("external_names", externalNames);
         }
 
-        std::vector<std::pair<TString, TString>> keys;
+        std::vector<std::pair<TYPath, std::string>> keys;
         for (const auto& name : externalNames) {
             keys.emplace_back(*Config_->UdfRegistryPath, name);
         }
@@ -8291,7 +8345,9 @@ bool TOperationControllerBase::InputHasDynamicStores() const
 bool TOperationControllerBase::IsLocalityEnabled() const
 {
     YT_VERIFY(EstimatedInputStatistics_);
-    return Config_->EnableLocality && EstimatedInputStatistics_->DataWeight > Spec_->MinLocalityInputDataWeight;
+    return Config_->EnableLocality
+        && EstimatedInputStatistics_->DataWeight > Spec_->MinLocalityInputDataWeight
+        && Options_->AllowLocality;
 }
 
 TString TOperationControllerBase::GetLoggingProgress() const
@@ -8490,9 +8546,15 @@ bool TOperationControllerBase::ShouldVerifySortedOutput() const
     return true;
 }
 
-TOutputOrderPtr TOperationControllerBase::GetOutputOrder() const
+
+bool TOperationControllerBase::IsOrderedOutputRequired() const
 {
-    return nullptr;
+    return false;
+}
+
+std::vector<TChunkTreeId> TOperationControllerBase::GetOutputChunkTreesInOrder(const TOutputTablePtr& /*table*/) const
+{
+    YT_UNIMPLEMENTED();
 }
 
 EChunkAvailabilityPolicy TOperationControllerBase::GetChunkAvailabilityPolicy() const
@@ -9432,7 +9494,11 @@ void TOperationControllerBase::BuildBriefProgress(TFluentMap fluent) const
             }))
             .Item("build_time").Value(TInstant::Now())
             .Item("registered_monitoring_descriptor_count").Value(GetRegisteredMonitoringDescriptorCount())
-            .Item("input_transaction_id").Value(InputTransactions_->GetLocalInputTransactionId())
+            .OptionalItem(
+                "input_transaction_id",
+                InputTransactions_
+                    ? std::make_optional(InputTransactions_->GetLocalInputTransactionId())
+                    : std::nullopt)
             .Item("output_transaction_id").Value(OutputTransaction_ ? OutputTransaction_->GetId() : NullTransactionId);
     }
 }

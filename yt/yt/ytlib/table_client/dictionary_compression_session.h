@@ -138,6 +138,7 @@ TFuture<TRowDigestedDictionary> ReadDigestedDictionary(
     NChunkClient::TClientChunkReadOptions chunkReadOptions,
     TNameTablePtr nameTable,
     NChunkClient::IChunkFragmentReaderPtr chunkFragmentReader,
+    bool suitableForCaching,
     NLogging::TLogger logger);
 
 TRowDictionaryDecompressor CreateRowDictionaryDecompressor(

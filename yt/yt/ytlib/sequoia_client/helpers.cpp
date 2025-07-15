@@ -12,12 +12,12 @@ using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMangledSequoiaPath MangleSequoiaPath(NYPath::TYPathBuf path)
+TMangledSequoiaPath MangleSequoiaPath(const TRealPath& path)
 {
     TString mangledPath;
-    mangledPath.reserve(path.size());
+    mangledPath.reserve(path.Underlying().size());
 
-    TTokenizer tokenizer(path);
+    TTokenizer tokenizer(path.Underlying());
     tokenizer.Advance();
 
     tokenizer.Expect(ETokenType::Slash);
@@ -37,7 +37,7 @@ TMangledSequoiaPath MangleSequoiaPath(NYPath::TYPathBuf path)
     return TMangledSequoiaPath(std::move(mangledPath));
 }
 
-NYPath::TYPath DemangleSequoiaPath(const TMangledSequoiaPath& mangledPath)
+TRealPath DemangleSequoiaPath(const TMangledSequoiaPath& mangledPath)
 {
     const auto& rawMangledPath = mangledPath.Underlying();
     YT_VERIFY(rawMangledPath.StartsWith("/"));
@@ -63,19 +63,38 @@ NYPath::TYPath DemangleSequoiaPath(const TMangledSequoiaPath& mangledPath)
         from = to + 1;
     }
 
-    return path;
+    return TRealPath(std::move(path));
 }
 
-TString ToStringLiteral(TStringBuf key)
+TString ToStringLiteral(TYPathBuf key)
 {
-    TStringBuilder builder;
+    if (key.empty()) {
+        return {};
+    }
+
     TTokenizer tokenizer(key);
     tokenizer.Advance();
     tokenizer.Expect(ETokenType::Literal);
     auto literal = tokenizer.GetLiteralValue();
     tokenizer.Advance();
     tokenizer.Expect(ETokenType::EndOfStream);
+
     return literal;
+}
+
+inline bool IsForbiddenYPathSymbol(char ch)
+{
+    return ch == MangledPathSeparator;
+}
+
+TYPath ValidateAndMakeYPath(TRawYPath&& path)
+{
+    for (auto ch : path.Underlying()) {
+        if (IsForbiddenYPathSymbol(ch)) {
+            THROW_ERROR_EXCEPTION("Path contains a forbidden symbol %x", ch);
+        }
+    }
+    return std::move(path.Underlying());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,6 +105,13 @@ bool IsRetriableSequoiaError(const TError& error)
         return false;
     }
 
+    if (error.FindMatching(EErrorCode::TransactionActionFailedOnMasterCell)) {
+        return false;
+    }
+
+    // TODO(shakurov): don't treat dynamic table error as retriable if error is
+    // not related to ground cluster.
+
     if (error.FindMatching([] (const TError& error) {
             return std::ranges::find(RetriableSequoiaErrorCodes, error.GetCode()) != std::end(RetriableSequoiaErrorCodes);
         }))
@@ -93,9 +119,9 @@ bool IsRetriableSequoiaError(const TError& error)
         return true;
     }
 
-    return
-        error.FindMatching(NTransactionClient::EErrorCode::ParticipantFailedToPrepare) &&
-        !error.FindMatching(EErrorCode::TransactionActionFailedOnMasterCell);
+    return error
+        .FindMatching(NTransactionClient::EErrorCode::ParticipantFailedToPrepare)
+        .has_value();
 }
 
 bool IsRetriableSequoiaReplicasError(
@@ -122,7 +148,7 @@ void ThrowOnSequoiaReplicasError(
     error.ThrowOnError();
 }
 
-bool IsMethodShouldBeHandledByMaster(const std::string& method)
+bool IsMethodHandledByMaster(const std::string& method)
 {
     return
         method == "Fetch" ||

@@ -84,7 +84,7 @@ private:
     TIntrusivePtr<TPingableDistributedSessionContext> Context_;
 
     YT_DECLARE_SPIN_LOCK(TSpinLock, PropagateSpinLock_);
-    THashSet<TString> PropagatedAddresses_;
+    THashSet<std::string> PropagatedAddresses_;
 
     void SendPing()
     {
@@ -109,8 +109,7 @@ private:
 
         if (rspOrError.IsOK()) {
             auto rsp = rspOrError.Value();
-
-            auto addresses = FromProto<std::vector<TString>>(rsp->nodes_to_propagate_session_onto());
+            auto addresses = FromProto<std::vector<std::string>>(rsp->nodes_to_propagate_session_onto());
 
             for (const auto& address : addresses) {
                 coordinator->BindToRemoteSession(address);
@@ -122,23 +121,23 @@ private:
         }
     }
 
-    std::vector<TString> GrabPropagatedAddresses()
+    std::vector<std::string> GrabPropagatedAddresses()
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        THashSet<TString> addressesSet;
+        THashSet<std::string> addressesSet;
         {
             auto guard = Guard(PropagateSpinLock_);
             std::swap(PropagatedAddresses_, addressesSet);
         }
 
-        std::vector<TString> addresses;
+        std::vector<std::string> addresses;
         addresses.reserve(addressesSet.size());
         std::move(addressesSet.begin(), addressesSet.end(), std::back_inserter(addresses));
         return addresses;
     }
 
-    void RegisterPropagatedAddresses(std::vector<TString> addresses)
+    void RegisterPropagatedAddresses(std::vector<std::string> addresses)
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
@@ -176,7 +175,7 @@ public:
         return Context_->SessionId;
     }
 
-    void BindToRemoteSession(TString address) override
+    void BindToRemoteSession(std::string address) override
     {
         {
             auto guard = Guard(SessionCoordinatorLock_);
@@ -218,10 +217,10 @@ private:
     TIntrusivePtr<TPingableDistributedSessionContext> Context_;
 
     YT_DECLARE_SPIN_LOCK(TSpinLock, SessionCoordinatorLock_);
-    THashSet<TString> SessionMembers_;
+    THashSet<std::string> SessionMembers_;
     std::vector<TNodePingerPtr> Pingers_;
 
-    TFuture<void> CreateSessionInstanceIfNecessary(TQueryServiceProxy proxy, TString address)
+    TFuture<void> CreateSessionInstanceIfNecessary(TQueryServiceProxy proxy, std::string address)
     {
         THROW_ERROR_EXCEPTION_IF(AbortByPingFailPromise_.IsSet(),
             "Cannot bind to a closed distributed query session coordinator");
@@ -250,7 +249,7 @@ private:
                 std::move(address)));
     }
 
-    void DoBindToRemoteSession(TString address)
+    void DoBindToRemoteSession(std::string address)
     {
         auto pinger = New<TNodePinger>(
             Invoker_,

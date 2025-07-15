@@ -1,10 +1,10 @@
 ### Type-aware UDF-функции
 
-Type awareness реализована с помощью аргумента ```TType* userType``` методов ```DeclareSignature(...)``` и ```buildReturnSignature(...)```. Этот аргумент позволяет посмотреть, с какими аргументами была вызвана UDF-функция из YQL, и построить нужную сигнатуру. Пользовательский тип можно распарсить с помощью ```ITypeInfoHelper::TPtr```, который принимает в конструкторе ```builder.TypeInfoHelper()``` , из которого в свою очередь конструируются TypeInspector'ы: ```TTupleTypeInspector```, ```TCallableTypeInspector```, ```TOptionalTypeInspector``` и др.
+Type awareness реализована с помощью аргумента `TType* userType` методов `DeclareSignature(...)` и `buildReturnSignature(...)`. Этот аргумент позволяет посмотреть, с какими аргументами была вызвана UDF-функция из YQL, и построить нужную сигнатуру. Пользовательский тип можно распарсить с помощью `ITypeInfoHelper::TPtr`, который принимает в конструкторе `builder.TypeInfoHelper()` , из которого в свою очередь конструируются TypeInspector'ы: `TTupleTypeInspector`, `TCallableTypeInspector`, `TOptionalTypeInspector` и др.
 
 {% note warning %}
 
-Для того чтобы движок YQL передавал на вход ```DeclareSignature()``` не пустой userType, класс вашей UDF должен содержать определение подтипа:
+Для того чтобы движок YQL передавал на вход `DeclareSignature()` не пустой userType, класс вашей UDF должен содержать определение подтипа:
 
 ```
 typedef bool TTypeAwareMarker;
@@ -15,9 +15,9 @@ typedef bool TTypeAwareMarker;
 С помощью таких функций можно:
 * Поддержать опциональные или дефолтные аргументы:
 
-  ```SomeTypeAwareUdfFunc(Double, Double) -> Bool```
+  `SomeTypeAwareUdfFunc(Double, Double) -> Bool`
 
-  ```SomeTypeAwareUdfFunc(Double, Double, Double) -> Bool```
+  `SomeTypeAwareUdfFunc(Double, Double, Double) -> Bool`
 
   ```cpp
   TMemberIndices TSomeTypeAwareUdfFunc::buildReturnSignature(IFunctionTypeInfoBuilder& builder, TType* userType) {
@@ -51,9 +51,9 @@ typedef bool TTypeAwareMarker;
 
 * Поддержать перегрузку:
 
-  ```SomeTypeAwareUdfFunc(List<Int>) -> String```
+  `SomeTypeAwareUdfFunc(List<Int>) -> String`
 
-  ```SomeTypeAwareUdfFunc(Stream<Int>) -> String```
+  `SomeTypeAwareUdfFunc(Stream<Int>) -> String`
 
   ```cpp
   TMemberIndices buildReturnSignature(IFunctionTypeInfoBuilder& builder, TType* userType) {
@@ -76,11 +76,11 @@ typedef bool TTypeAwareMarker;
 
 * Поддержать изменение типа ответа по возвращаемому типу пользовательского колбэка:
 
-  ```SomeTypeAwareUdfFunc(Callable<...>->Int)->List<Int>```
+  `SomeTypeAwareUdfFunc(Callable<...>->Int)->List<Int>`
 
-  ```SomeTypeAwareUdfFunc(Callable<...>->Double)->List<Double>```
+  `SomeTypeAwareUdfFunc(Callable<...>->Double)->List<Double>`
 
-  ```SomeTypeAwareUdfFunc(Callable<...>->CallbackReturnType)->List<CallbackReturnType>```
+  `SomeTypeAwareUdfFunc(Callable<...>->CallbackReturnType)->List<CallbackReturnType>`
 
   ```cpp
   TMemberIndices buildReturnSignature(IFunctionTypeInfoBuilder& builder, TType* userType) {

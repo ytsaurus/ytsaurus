@@ -31,6 +31,14 @@ constexpr int ReferenceAddressExpectedAlignmentLog = 4;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TNodeMemoryTrackerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("check_per_category_limit_overcommit", &TThis::CheckPerCategoryLimitOvercommit)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TNodeMemoryTracker)
 
 class TNodeMemoryTracker
@@ -39,6 +47,7 @@ class TNodeMemoryTracker
 public:
     TNodeMemoryTracker(
         i64 totalLimit,
+        const TNodeMemoryTrackerConfigPtr& config,
         const std::vector<std::pair<ECategory, i64>>& limits,
         const TLogger& logger,
         const TProfiler& profiler);
@@ -81,6 +90,8 @@ public:
         EMemoryCategory category,
         std::optional<TPoolTag> poolTag,
         bool keepExistingTracking) override;
+
+    void Reconfigure(const TNodeMemoryTrackerConfigPtr& config) override;
 
 private:
     class TTrackedReferenceHolder
@@ -128,6 +139,8 @@ private:
     const TProfiler Profiler_;
 
     YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
+
+    bool CheckPerCategoryLimitOvercommit_ = false;
 
     std::atomic<i64> TotalLimit_;
 
@@ -300,11 +313,13 @@ private:
 
 TNodeMemoryTracker::TNodeMemoryTracker(
     i64 totalLimit,
+    const TNodeMemoryTrackerConfigPtr& config,
     const std::vector<std::pair<ECategory, i64>>& limits,
     const TLogger& logger,
     const TProfiler& profiler)
     : Logger(logger)
     , Profiler_(profiler.WithSparse())
+    , CheckPerCategoryLimitOvercommit_(config->CheckPerCategoryLimitOvercommit)
     , TotalLimit_(totalLimit)
     , TotalFree_(totalLimit)
     , ReferenceAddressToState_(ReferenceAddressMapShardCount)
@@ -365,7 +380,7 @@ i64 TNodeMemoryTracker::GetTotalLimit() const
 
 i64 TNodeMemoryTracker::GetTotalUsed() const
 {
-    return TotalUsed_.load();
+    return TotalUsed_.load() - Categories_[EMemoryCategory::AllocFragmentation].Used.load();
 }
 
 i64 TNodeMemoryTracker::GetTotalFree() const
@@ -417,7 +432,7 @@ i64 TNodeMemoryTracker::CalculatePoolLimit(i64 limit, const TPool* pool) const
 
     YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);
 
-    auto saturatedCastToInteger = [] (double value) {
+    auto saturatingCastToInteger = [] (double value) {
         return value >= std::numeric_limits<i64>::max() ? std::numeric_limits<i64>::max() : static_cast<i64>(value);
     };
 
@@ -434,11 +449,11 @@ i64 TNodeMemoryTracker::CalculatePoolLimit(i64 limit, const TPool* pool) const
         }
 
         auto fpResult = 1.0 * limit / totalPoolWeight * (*poolWeight);
-        result = std::min(saturatedCastToInteger(fpResult), result);
+        result = std::min(saturatingCastToInteger(fpResult), result);
     }
 
     if (poolRatio) {
-        result = std::min(saturatedCastToInteger(limit * (*poolRatio)), result);
+        result = std::min(saturatingCastToInteger(limit * (*poolRatio)), result);
     }
 
     return result;
@@ -663,16 +678,18 @@ bool TNodeMemoryTracker::Acquire(ECategory category, i64 size, const std::option
         }
     }
 
-    auto categoryUsed = DoGetUsed(category);
-    auto categoryLimit = DoGetLimit(category);
-    if (categoryUsed > categoryLimit) {
-        overcommitted = true;
+    if (CheckPerCategoryLimitOvercommit_) {
+        auto categoryUsed = DoGetUsed(category);
+        auto categoryLimit = DoGetLimit(category);
+        if (categoryUsed > categoryLimit) {
+            overcommitted = true;
 
-        YT_LOG_WARNING(
-            "Per-category memory overcommit detected (Debt: %v, RequestCategory: %v, RequestSize: %v)",
-            categoryUsed - categoryLimit,
-            category,
-            size);
+            YT_LOG_WARNING(
+                "Per-category memory overcommit detected (Debt: %v, RequestCategory: %v, RequestSize: %v)",
+                categoryUsed - categoryLimit,
+                category,
+                size);
+        }
     }
 
     return !overcommitted;
@@ -886,6 +903,13 @@ TErrorOr<TSharedRef> TNodeMemoryTracker::TryTrack(
         std::move(poolTag),
         keepExistingTracking,
         /*allowOvercommit*/ false);
+}
+
+void TNodeMemoryTracker::Reconfigure(const TNodeMemoryTrackerConfigPtr& config)
+{
+    auto guard = Guard(SpinLock_);
+
+    CheckPerCategoryLimitOvercommit_ = config->CheckPerCategoryLimitOvercommit;
 }
 
 TErrorOr<TSharedRef> TNodeMemoryTracker::DoTryTrackMemory(
@@ -1158,12 +1182,14 @@ IMemoryUsageTrackerPtr WithCategory(
 
 INodeMemoryTrackerPtr CreateNodeMemoryTracker(
     i64 totalLimit,
+    const TNodeMemoryTrackerConfigPtr& config,
     const std::vector<std::pair<ECategory, i64>>& limits,
     const NLogging::TLogger& logger,
     const NProfiling::TProfiler& profiler)
 {
     return New<TNodeMemoryTracker>(
         totalLimit,
+        config,
         limits,
         logger,
         profiler);

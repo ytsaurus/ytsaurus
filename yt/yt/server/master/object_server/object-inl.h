@@ -178,12 +178,16 @@ inline bool TObject::IsNative() const
 template <class TDerived>
 TDerived* TObject::As()
 {
+    // See YT-25444.
+    YT_ASSERT(this);
     return static_cast<TDerived*>(this);
 }
 
 template <class TDerived>
 const TDerived* TObject::As() const
 {
+    // See YT-25444.
+    YT_ASSERT(this);
     return static_cast<const TDerived*>(this);
 }
 

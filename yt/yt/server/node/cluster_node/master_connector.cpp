@@ -23,8 +23,6 @@
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
-#include <yt/yt/server/lib/tablet_node/config.h>
-
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -192,7 +190,8 @@ public:
         WaitFor(BIND(
             [this, &heartbeat, this_ = MakeStrong(this)] {
                 const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
-                *heartbeat->mutable_resource_limits() = ToNodeResources(jobResourceManager->GetResourceLimits());
+                // NB(pogorelov): Master should not care about user job free memory watermark.
+                *heartbeat->mutable_resource_limits() = ToNodeResources(jobResourceManager->GetResourceLimits(/*considerUserJobFreeMemoryWatermark*/ false));
                 *heartbeat->mutable_resource_usage() = ToNodeResources(jobResourceManager->GetResourceUsage({
                     NJobAgent::EResourcesState::Pending,
                     NJobAgent::EResourcesState::Acquired,
@@ -510,7 +509,13 @@ private:
             return;
         }
 
-        MasterConnected_.Fire(GetNodeId());
+        if (Bootstrap_->GetConfig()->DelayMasterCellDirectoryStart) {
+            auto syncResultOrError = WaitFor(Bootstrap_->GetConnection()->GetMasterCellDirectorySynchronizer()->NextSync());
+            YT_LOG_WARNING_UNLESS(
+                syncResultOrError.IsOK(),
+                syncResultOrError,
+                "Failed to sync master cell directory");
+        }
         RegisteredAtPrimary_.store(true);
 
         YT_LOG_INFO("Successfully registered at primary master (NodeId: %v, KnownMasterCellTags: %v)",
@@ -518,6 +523,7 @@ private:
             GetMasterCellTags());
 
         StartNodeHeartbeats();
+        MasterConnected_.Fire(GetNodeId());
     }
 
     void InitMedia()
@@ -624,9 +630,6 @@ private:
             // COMPAT(kvk1920)
             req->set_location_directory_supported(true);
         }
-
-        auto tableMountConfig = New<NTabletNode::TTableMountConfig>();
-        ToProto(req->mutable_table_mount_config_keys(), tableMountConfig->GetRegisteredKeys());
 
         YT_LOG_INFO("Registering at primary master");
 

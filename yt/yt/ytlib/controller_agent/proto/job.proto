@@ -411,7 +411,6 @@ message TTableOutputSpec
 
 message TRemoteInputCluster
 {
-    required string name = 1;
     required NNodeTrackerClient.NProto.TNodeDirectory node_directory = 2;
     repeated string networks = 3;
 }
@@ -519,8 +518,6 @@ message TJobSpecExt
     optional bool ignore_yt_variables_in_shell_environment = 42 [default = false];
 
     optional bool enable_root_volume_disk_quota = 43 [default = false];
-
-    optional bool disable_rename_columns_compatibility_code = 44;
 
     optional bool use_cluster_throttlers = 46;
 

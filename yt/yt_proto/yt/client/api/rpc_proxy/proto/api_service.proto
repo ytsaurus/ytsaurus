@@ -321,6 +321,12 @@ enum EQueryState
     QS_FAILED = 8;
 }
 
+enum EJobStderrType
+{
+    JST_USER_JOB_STDERR = 0;
+    JST_GPU_CHECK_STDERR = 1;
+}
+
 // COMPAT(max42).
 // A legacy analog of NYT.NYTree.NProto.TAttributeFilter.
 // It is different in that universal filter is encoded via all = true
@@ -2051,6 +2057,17 @@ message TRspAlterReplicationCard
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqPingChaosLease
+{
+    required NYT.NProto.TGuid chaos_lease_id = 1; // NChaosClient::TChaosLeaseId
+    optional bool ping_ancestors = 2 [default = true];
+}
+
+message TRspPingChaosLease
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TFetchChunkSpecConfig
 {
     optional int32 max_chunk_per_fetch = 1;
@@ -2587,6 +2604,7 @@ message TReqGetJobStderr
     required NYT.NProto.TGuid job_id = 2;
     optional int64 limit = 4;
     optional int64 offset = 5;
+    optional EJobStderrType type = 6;
 }
 
 message TRspGetJobStderr
@@ -3289,6 +3307,7 @@ message TJob
     optional NNodeTrackerClient.NProto.TAddressMap addresses = 33;
     optional bytes events = 34; // YSON
     optional bytes statistics = 35; // YSON
+    optional int64 gang_rank = 36;
 }
 
 message TListJobsStatistics

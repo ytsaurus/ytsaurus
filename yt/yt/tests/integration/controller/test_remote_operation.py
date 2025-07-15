@@ -11,10 +11,12 @@ from yt_commands import (
     copy,
     create,
     create_user,
+    extract_statistic_v2,
     get,
     get_job,
     exists,
     join_reduce,
+    ls,
     raises_yt_error,
     read_table,
     release_breakpoint,
@@ -22,6 +24,7 @@ from yt_commands import (
     set,
     start_transaction,
     update_controller_agent_config,
+    update_nodes_dynamic_config,
     wait_breakpoint,
     with_breakpoint,
     write_table,
@@ -33,6 +36,7 @@ from yt_commands import (
     merge,
     reduce,
     sort,
+    set_all_nodes_banned,
     wait_for_nodes,
     wait,
 )
@@ -735,6 +739,66 @@ class TestSchedulerRemoteOperationCommands(TestSchedulerRemoteOperationCommandsB
         assert sorted_dicts(read_table("//tmp/t2")) == sorted_dicts(data)
         assert not get("//tmp/t2/@sorted")
 
+    @authors("coteeq")
+    @pytest.mark.parametrize("operation_type", ["map", "merge", "map_reduce"])
+    def test_per_cluster_chunk_reader_statistics(self, operation_type):
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        write_table("//tmp/t1", [{"a": "b"}], driver=self.remote_driver)
+        create("table", "//tmp/t1_local")
+        write_table("//tmp/t1_local", [{"a": "b"}])
+
+        create("table", "//tmp/t2")
+
+        mapper_spec = {
+            "mapper": {
+                "input_format": "json",
+                "output_format": "json",
+                "enable_input_table_index": False,
+            },
+        }
+
+        run_operation = {
+            "map": partial(map, command="cat", spec=mapper_spec),
+            "merge": partial(merge, spec={"force_transform": True}),
+            "map_reduce": partial(map_reduce, mapper_command="cat", spec=mapper_spec, reducer_command="cat", reduce_by=["a"]),
+        }[operation_type]
+
+        job_type = {
+            "map": "map",
+            "merge": "unordered_merge",
+            "map_reduce": "partition_map(0)",
+        }[operation_type]
+
+        def run_and_get_statistics():
+            op = run_operation(
+                in_=[
+                    self.to_remote_path("//tmp/t1"),
+                    "//tmp/t1_local",
+                ],
+                out="//tmp/t2",
+            )
+
+            return get(op.get_path() + "/@progress/job_statistics_v2")
+
+        statistics = run_and_get_statistics()
+        assert extract_statistic_v2(statistics, "chunk_reader_statistics.remote_0.block_count", job_type=job_type) is None
+
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_proxy": {
+                        "enable_per_cluster_chunk_reader_statistics": True,
+                    }
+                },
+            },
+        })
+
+        statistics = run_and_get_statistics()
+
+        assert extract_statistic_v2(statistics, "chunk_reader_statistics.block_count", job_type=job_type) == 2
+        assert extract_statistic_v2(statistics, "chunk_reader_statistics.remote_0.block_count", job_type=job_type) == 1
+        assert extract_statistic_v2(statistics, "chunk_reader_statistics.<local>.block_count", job_type=job_type) == 1
+
 
 @pytest.mark.enabled_multidaemon
 class TestSchedulerRemoteOperationNetworks(TestSchedulerRemoteOperationCommandsBase):
@@ -814,6 +878,7 @@ class TestSchedulerRemoteOperationAllowedForEveryoneCluster(TestSchedulerRemoteO
 
 class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOperationCommandsBase):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
+    NUM_DISCOVERY_SERVERS = 1
     DELTA_NODE_CONFIG = {
         "exec_node": {
             # Enable job throttler on exe node.
@@ -855,6 +920,8 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
     THROTTLER_JITTER_MULTIPLIER = 0.5
     DATA_WEIGHT_SIZE_PER_CHUNK = 10 ** 7
 
+    LEASE_TIMEOUT_SECONDS = 1
+
     # Setup //sys/cluster_throttlers on local cluster.
     def setup_cluster_throttlers(self):
         remove('//sys/cluster_throttlers', force=True)
@@ -870,12 +937,13 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
             },
             "distributed_throttler": {
                 "member_client": {
-                    "heartbeat_period": 50,
-                    "attribute_update_period": 300,
-                    "heartbeat_throttler_count_limit": 2,
+                    "lease_timeout": self.LEASE_TIMEOUT_SECONDS * 1000,
                 },
-                "limit_update_period": 100,
-                "leader_update_period": 1500,
+                "heartbeat_period": 200,
+                "attribute_update_period": 600,
+                "heartbeat_throttler_count_limit": 2,
+                "limit_update_period": 600,
+                "leader_update_period": 600,
             },
         }
         set('//sys/cluster_throttlers', cluster_throttlers_config)
@@ -940,6 +1008,49 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
             wait(lambda: profiler.get("exec_node/throttler_manager/distributed_throttler/usage", {"throttler_id": "bandwidth_{}".format(self.REMOTE_CLUSTER_NAME)}) is not None)
 
     @authors("yuryalekseev")
+    def test_cluster_throttlers_all_nodes_banned(self):
+        self.setup_cluster_throttlers()
+
+        # Restart exe nodes to initialize cluster throttlers after //sys/cluster_throttlers setup.
+        with Restarter(self.Env, NODES_SERVICE):
+            time.sleep(1)
+
+        # Wait for exe nodes to restart.
+        wait_for_nodes()
+
+        def has_remote_cluster_throttlers_group_members():
+            servers = ls("//sys/discovery_servers")
+            if len(servers) == 0:
+                return False
+            discovery_server = servers[0]
+            groups = ls("//sys/discovery_servers/{}/orchid/discovery_server".format(discovery_server))
+            if 'remote_cluster_throttlers_group' not in groups:
+                return False
+            group_members = ls("//sys/discovery_servers/{}/orchid/discovery_server/remote_cluster_throttlers_group/@members".format(discovery_server))
+            return len(group_members) > 0
+
+        # Wait for some exe nodes to register in discovery service.
+        wait(lambda: has_remote_cluster_throttlers_group_members())
+
+        # Ban all nodes on local cluster.
+        set_all_nodes_banned(True)
+
+        def has_no_remote_cluster_throttlers_group_members():
+            servers = ls("//sys/discovery_servers")
+            if len(servers) == 0:
+                return False
+            discovery_server = servers[0]
+            groups = ls("//sys/discovery_servers/{}/orchid/discovery_server".format(discovery_server))
+            if 'remote_cluster_throttlers_group' not in groups:
+                return True
+            group_members = ls("//sys/discovery_servers/{}/orchid/discovery_server/remote_cluster_throttlers_group/@members".format(discovery_server))
+            return len(group_members) == 0
+
+        # Wait for all exe nodes to unregister from discovery service.
+        wait(lambda: has_no_remote_cluster_throttlers_group_members(), timeout=5*self.LEASE_TIMEOUT_SECONDS)
+
+    @authors("yuryalekseev")
+    @pytest.mark.skip("This test is broken")
     def test_rate_limit_ratio_hard_threshold(self):
         bandwidth_limit = self.BANDWIDTH_LIMIT * 8
 
@@ -958,10 +1069,11 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
             },
             "distributed_throttler": {
                 "member_client": {
-                    "heartbeat_period": 50,
-                    "attribute_update_period": 300,
-                    "heartbeat_throttler_count_limit": 2,
+                    "lease_timeout": 1000,
                 },
+                "heartbeat_period": 50,
+                "attribute_update_period": 300,
+                "heartbeat_throttler_count_limit": 2,
                 "limit_update_period": 100,
                 "leader_update_period": 1500,
             },

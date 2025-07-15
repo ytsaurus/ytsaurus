@@ -28,7 +28,7 @@ IAllocationTagProfilerPtr CreateAllocationTagProfiler(
     std::vector<TAllocationTagKey> tagKeys,
     IInvokerPtr invoker,
     std::optional<TDuration> updatePeriod,
-    std::optional<i64> samplingRate,
+    std::optional<i64> samplingInterval,
     NProfiling::TProfiler profiler = NProfiling::TProfiler{"/memory/heap_usage"});
 
 ////////////////////////////////////////////////////////////////////////////////

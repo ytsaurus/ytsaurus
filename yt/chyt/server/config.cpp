@@ -477,6 +477,9 @@ void TSystemLogTableExporterConfig::Register(TRegistrar registrar)
                 .EndMap()->AsMap();
         });
 
+    registrar.Parameter("startup_retry_backoff", &TThis::StartupRetryBackoff)
+        .Default(TDuration::Seconds(1));
+
     registrar.Preprocessor([] (TThis* config) {
         config->Enabled = false;
     });

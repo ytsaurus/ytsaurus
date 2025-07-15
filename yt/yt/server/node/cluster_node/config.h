@@ -20,9 +20,13 @@
 
 #include <yt/yt/server/node/tablet_node/public.h>
 
+#include <yt/yt/client/chaos_client/public.h>
+
 #include <yt/yt/ytlib/hive/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
+
+#include <yt/yt/ytlib/cell_master_client/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
@@ -413,6 +417,9 @@ struct TClusterNodeBootstrapConfig
 
     THeapProfilerConfigPtr HeapProfiler;
 
+    //! Only for testing purposes.
+    bool DelayMasterCellDirectoryStart;
+
     NHttp::TServerConfigPtr CreateSkynetHttpServerConfig();
 
     REGISTER_YSON_STRUCT(TClusterNodeBootstrapConfig);
@@ -500,8 +507,15 @@ struct TClusterNodeDynamicConfig
     //! Chaos residency cache config overrides.
     TChaosResidencyCacheDynamicConfigPtr ChaosResidencyCache;
 
+    //! Chaos replication card cache config overrides.
+    NChaosClient::TReplicationCardCacheDynamicConfigPtr ReplicationCardCache;
+
+    NCellMasterClient::TCellDirectorySynchronizerConfigPtr MasterCellDirectorySynchronizer;
+
     //! Configuration for huge page manager.
     NIO::THugePageManagerDynamicConfigPtr HugePageManager;
+
+    TFairShareHierarchicalSchedulerDynamicConfigPtr FairShareHierarchicalScheduler;
 
     bool UsePortoNetworkLimitInThrottler;
 
@@ -510,6 +524,8 @@ struct TClusterNodeDynamicConfig
     double TotalMemoryLimitExceededThreshold;
 
     double MemoryLimitExceededForCategoryThreshold;
+
+    TNodeMemoryTrackerConfigPtr NodeMemoryTracker;
 
     REGISTER_YSON_STRUCT(TClusterNodeDynamicConfig);
 

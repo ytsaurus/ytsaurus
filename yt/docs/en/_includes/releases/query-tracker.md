@@ -8,6 +8,21 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**0.0.10**" %}
+
+**Release date:** 2025-06-23
+
+
+**Features:**
+- Added clickhouse UDF.
+- Added the "assigned_tracker" meta for queries that are in the "finished" state.
+
+**Internal:**
+- Switched the internal YQL results format. It should not be visible to users.
+
+{% endcut %}
+
+
 {% cut "**0.0.9**" %}
 
 **Release date:** 2025-04-08
@@ -17,7 +32,6 @@ Is released as a docker image.
 - Added possibility to ban QT\YQLA
 - Added QT\YQLA custom metrics
 - Added YQLA dynamic configuration
-- Added clickhouse UDF
 - Added possibility to specify extra credentials for YQL queries
 - Added possibility to configure YQL default cluster per query
 - Added full result table in YQL queries results (available from 25.1 proxies)
@@ -65,7 +79,7 @@ https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release%2F0.23.1
 
 - **Important fix.** Fixed YQL queries results corruption. Issue: https://github.com/ytsaurus/ytsaurus/issues/707
 - Fixed YQL DQ launching
-- Fixed bug caused UTF-8 errors in yql-agent logs 
+- Fixed bug caused UTF-8 errors in yql-agent logs
 - Fixed multiple deadlocks in yql-agent
 - Added support for SPYT discovery groups
 - Added support for SPYT queries parameters
@@ -171,7 +185,7 @@ https://github.com/ytsaurus/yt-k8s-operator/releases/tag/release%2F0.5.0
 **Release date:** 2023-11-14
 
 
-- Fixed a bug that caused the user transaction to expire before the completion of the yql query on IPv4 only networks. 
+- Fixed a bug that caused the user transaction to expire before the completion of the yql query on IPv4 only networks.
 - System query_tracker tables have been moved to sys bundle
 
 

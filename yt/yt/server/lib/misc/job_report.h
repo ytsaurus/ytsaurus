@@ -94,6 +94,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Events);
     DEFINE_BYREF_RO_PROPERTY(std::optional<ui64>, StderrSize);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Stderr);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<std::string>, GpuCheckStderr);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, FailContext);
     DEFINE_BYREF_RO_PROPERTY(std::optional<NJobAgent::TJobProfile>, Profile);
     DEFINE_BYREF_RO_PROPERTY(std::optional<NControllerAgent::TCoreInfos>, CoreInfos);
@@ -115,6 +116,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NScheduler::TAllocationId, AllocationId);
     DEFINE_BYREF_RO_PROPERTY(std::optional<i64>, ControllerStartTime);
     DEFINE_BYREF_RO_PROPERTY(std::optional<i64>, ControllerFinishTime);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<i64>, GangRank);
 
 protected:
     TJobReport() = default;

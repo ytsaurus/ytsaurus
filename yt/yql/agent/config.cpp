@@ -115,6 +115,20 @@ constexpr auto DefaultClusterSettings = std::to_array<std::pair<TStringBuf, TStr
     {"_UseKeyBoundApi", "true"},
 });
 
+constexpr auto DefaultYtflowGatewaySettings = std::to_array<std::pair<TStringBuf, TStringBuf>>({
+    {"GatewayThreads", "16"},
+    {"GracefulUpdate", "1"},
+    {"ControllerCount", "1"},
+    {"ControllerMemoryLimit", "1G"},
+    {"ControllerRpcPort", "10080"},
+    {"ControllerMonitoringPort", "10081"},
+    {"WorkerCount", "10"},
+    {"WorkerMemoryLimit", "1G"},
+    {"WorkerRpcPort", "10082"},
+    {"WorkerMonitoringPort", "10083"},
+    {"YtPartitionCount", "10"}
+});
+
 ////////////////////////////////////////////////////////////////////////////////
 
 IListNodePtr MergeDefaultSettings(const IListNodePtr& settings, const auto& defaults)
@@ -200,6 +214,8 @@ void TDQYTBackend::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("use_local_l_d_library_path", &TThis::UseLocalLDLibraryPath)
         .Default(false);
+    registrar.Parameter("scheduling_tag_filter", &TThis::SchedulingTagFilter)
+        .Default({});
 }
 
 void TDQYTCoordinator::Register(TRegistrar registrar)
@@ -267,6 +283,10 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
         .ResetOnLoad();
     registrar.Parameter("dq_gateway", &TThis::DQGatewayConfig)
         .Alias("dq_gateway_config")
+        .Default(GetEphemeralNodeFactory()->CreateMap())
+        .ResetOnLoad();
+    registrar.Parameter("ytflow_gateway", &TThis::YtflowGatewayConfig)
+        .Alias("ytflow_gateway_config")
         .Default(GetEphemeralNodeFactory()->CreateMap())
         .ResetOnLoad();
     registrar.Parameter("file_storage", &TThis::FileStorageConfig)
@@ -363,6 +383,16 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
 
         dqGatewayConfig->AddChild("default_auto_percentage", BuildYsonNodeFluently().Value(100));
 
+        auto ytflowGatewayConfig = config->YtflowGatewayConfig->AsMap();
+        auto ytflowGatewaySettings = ytflowGatewayConfig->FindChild("default_settings");
+        if (ytflowGatewaySettings) {
+            ytflowGatewayConfig->RemoveChild(ytflowGatewaySettings);
+        } else {
+            ytflowGatewaySettings = GetEphemeralNodeFactory()->CreateList();
+        }
+        ytflowGatewaySettings = MergeDefaultSettings(ytflowGatewaySettings->AsList(), DefaultYtflowGatewaySettings);
+        YT_VERIFY(ytflowGatewayConfig->AddChild("default_settings", std::move(ytflowGatewaySettings)));
+
         auto icSettingsConfig = config->DQManagerConfig->ICSettings->AsMap();
         auto closeOnIdleMs = icSettingsConfig->FindChild("close_on_idle_ms");
         if (!closeOnIdleMs) {
@@ -383,6 +413,8 @@ void TYqlAgentConfig::Register(TRegistrar registrar)
         .Default(10);
     registrar.Parameter("yql_thread_count", &TThis::YqlThreadCount)
         .Default(256);
+    registrar.Parameter("max_supported_yql_version", &TThis::MaxSupportedYqlVersion)
+        .Default("");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -47,7 +47,7 @@ class TestChunkCache(YTEnvSetup):
             trim(file_loc)
             assert os.path.getsize(file_loc) == 0
 
-    def get_online_nodes_count(self):
+    def get_online_node_count(self):
         count = 0
         nodes = get("//sys/scheduler/orchid/scheduler/nodes")
         for node in nodes.values():
@@ -58,13 +58,13 @@ class TestChunkCache(YTEnvSetup):
     def restart(self):
         with Restarter(self.Env, NODES_SERVICE):
             wait(
-                lambda: self.get_online_nodes_count() == 0,
+                lambda: self.get_online_node_count() == 0,
                 "Scheduler doesn't know that nodes are dead",
                 sleep_backoff=1,
             )
 
         wait(
-            lambda: self.get_online_nodes_count() == self.NUM_NODES,
+            lambda: self.get_online_node_count() == self.NUM_NODES,
             "Scheduler doesn't know that nodes are alive",
             sleep_backoff=1,
         )

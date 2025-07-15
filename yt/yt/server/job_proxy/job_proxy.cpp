@@ -8,6 +8,7 @@
 #include "partition_sort_job.h"
 #include "remote_copy_job.h"
 #include "shallow_merge_job.h"
+#include "signature_proxy.h"
 #include "simple_sort_job.h"
 #include "sorted_merge_job.h"
 #include "user_job.h"
@@ -113,6 +114,8 @@
 #include <yt/yt/library/profiling/sensor.h>
 
 #include <yt/yt/core/yson/protobuf_helpers.h>
+
+#include <tcmalloc/malloc_extension.h>
 
 #include <util/system/fs.h>
 
@@ -405,83 +408,6 @@ void TJobProxy::LogJobSpec(TJobSpec jobSpec)
     YT_LOG_DEBUG("Job spec:\n%v", jobSpec.DebugString());
 }
 
-// COMPAT(levysotsky): This function is to be removed after both CA and nodes are updated.
-// See YT-16507
-static NTableClient::TTableSchemaPtr SetStableNames(
-    const NTableClient::TTableSchemaPtr& schema,
-    const NTableClient::TColumnRenameDescriptors& renameDescriptors)
-{
-    THashMap<TString, TString> nameToStableName;
-    for (const auto& renameDescriptor : renameDescriptors) {
-        nameToStableName.emplace(renameDescriptor.NewName, renameDescriptor.OriginalName);
-    }
-
-    std::vector<NTableClient::TColumnSchema> columns;
-    for (const auto& originalColumn : schema->Columns()) {
-        auto& column = columns.emplace_back(originalColumn);
-        YT_VERIFY(!column.IsRenamed());
-        if (auto it = nameToStableName.find(column.Name())) {
-            column.SetStableName(NTableClient::TColumnStableName(it->second));
-        }
-    }
-    return New<NTableClient::TTableSchema>(
-        std::move(columns),
-        schema->IsStrict(),
-        schema->IsUniqueKeys(),
-        schema->GetSchemaModification(),
-        schema->DeletedColumns());
-}
-
-// COMPAT(levysotsky): We need to distinguish between two cases:
-// 1) New CA has sent already renamed schema, we check it and do nothing
-// 2) Old CA has sent not-renamed schema, we need to perform the renaming
-//    according to rename descriptors.
-// This function is to be removed after both CA and nodes are updated. See YT-16507
-static IJobSpecHelperPtr MaybePatchDataSourceDirectory(
-    const TJobSpec& jobSpecProto)
-{
-    auto jobSpecExt = jobSpecProto.GetExtension(TJobSpecExt::job_spec_ext);
-
-    if (jobSpecExt.disable_rename_columns_compatibility_code()) {
-        return CreateJobSpecHelper(jobSpecProto);
-    }
-
-    if (!HasProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(jobSpecExt.extensions())) {
-        return CreateJobSpecHelper(jobSpecProto);
-    }
-    const auto dataSourceDirectoryExt = GetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
-        jobSpecExt.extensions());
-
-    auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
-
-    for (auto& dataSource : dataSourceDirectory->DataSources()) {
-        if (dataSource.Schema() && dataSource.Schema()->HasRenamedColumns()) {
-            return CreateJobSpecHelper(jobSpecProto);
-        }
-    }
-
-    for (auto& dataSource : dataSourceDirectory->DataSources()) {
-        if (!dataSource.Schema()) {
-            dataSource.Schema() = New<NTableClient::TTableSchema>();
-        } else {
-            dataSource.Schema() = SetStableNames(
-                dataSource.Schema(),
-                dataSource.ColumnRenameDescriptors());
-        }
-    }
-
-    NChunkClient::NProto::TDataSourceDirectoryExt newExt;
-    ToProto(&newExt, dataSourceDirectory);
-    SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
-        jobSpecExt.mutable_extensions(),
-        std::move(newExt));
-
-    auto jobSpecProtoCopy = jobSpecProto;
-    auto* mutableExt = jobSpecProtoCopy.MutableExtension(TJobSpecExt::job_spec_ext);
-    *mutableExt = std::move(jobSpecExt);
-    return CreateJobSpecHelper(jobSpecProtoCopy);
-}
-
 void TJobProxy::RetrieveJobSpec()
 {
     YT_LOG_INFO("Requesting job spec");
@@ -506,7 +432,7 @@ void TJobProxy::RetrieveJobSpec()
 
     auto jobSpec = rsp->job_spec();
     ChunkIdToOriginalSpec_ = PatchProxiedChunkSpecs(&jobSpec);
-    JobSpecHelper_ = MaybePatchDataSourceDirectory(std::move(jobSpec));
+    JobSpecHelper_ = CreateJobSpecHelper(jobSpec);
 
     const auto& resourceUsage = rsp->resource_usage();
 
@@ -767,6 +693,11 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
 
     ApiServiceThreadPool_ = CreateThreadPool(rpcProxyWorkerThreadPoolSize, "RpcProxy");
 
+    auto signatureGenerator = Config_->EnableSignatureGeneration
+        ? New<TProxySignatureGenerator>(*SupervisorProxy_, JobId_)
+        : NSignature::CreateAlwaysThrowingSignatureGenerator();
+    connection->SetSignatureGenerator(std::move(signatureGenerator));
+
     auto rootClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
 
     if (enableShuffleService) {
@@ -797,6 +728,10 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
         NYT::NBus::TTcpDispatcher::Get()->GetXferPoller(),
         rootClient);
 
+    auto signatureValidator = Config_->EnableSignatureValidation
+        ? New<TProxySignatureValidator>(*SupervisorProxy_, JobId_)
+        : NSignature::CreateAlwaysThrowingSignatureValidator();
+
     auto apiService = CreateApiService(
         Config_->JobProxyApiServiceStatic,
         GetControlInvoker(),
@@ -808,9 +743,8 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
         New<TSampler>(),
         RpcProxyLogger(),
         TProfiler(),
-        CreateDummySignatureValidator());
+        std::move(signatureValidator));
     apiService->OnDynamicConfigChanged(Config_->JobProxyApiService);
-    // TODO(pavook) do signature generation and validation in job proxies.
 
     GetRpcServer()->RegisterService(std::move(apiService));
     YT_LOG_INFO("RPC proxy API service registered (ThreadCount: %v)", rpcProxyWorkerThreadPoolSize);
@@ -1025,6 +959,14 @@ TJobResult TJobProxy::RunJob()
             job = CreateBuiltinJob();
         }
 
+        if (GetJobSpecHelper()->GetJobSpecExt().remote_input_clusters_size() > 0) {
+            // NB(coteeq): Do not sync cluster directory if data is local only.
+            auto connection = GetClient()->GetNativeConnection();
+            WaitFor(connection->GetClusterDirectorySynchronizer()->Sync())
+                .ThrowOnError();
+        }
+
+        InitializeChunkReaderHost();
         SetJob(job);
         job->Initialize();
 
@@ -1148,6 +1090,68 @@ void TJobProxy::ReportResult(
     YT_LOG_INFO("Job result reported");
 }
 
+void TJobProxy::InitializeChunkReaderHost()
+{
+    auto bandwidthThrottlerFactory = BIND([this, weakThis = MakeWeak(this)] (const TClusterName& clusterName) {
+        auto thisLocked = weakThis.Lock();
+        if (!thisLocked) {
+            return IThroughputThrottlerPtr();
+        }
+
+        if (JobSpecHelper_->GetJobSpecExt().use_cluster_throttlers()) {
+            return GetInBandwidthThrottler(clusterName);
+        }
+
+        return GetInBandwidthThrottler(LocalClusterName);
+    });
+
+    std::vector<TMultiChunkReaderHost::TClusterContext> clusterContextList{
+        {
+            .Name = LocalClusterName,
+            .Client = Client_,
+            .ChunkReaderStatistics = New<TChunkReaderStatistics>(),
+        },
+    };
+    for (const auto& [clusterName, protoRemoteCluster] : GetJobSpecHelper()->GetJobSpecExt().remote_input_clusters()) {
+        auto remoteConnection = Client_
+            ->GetNativeConnection()
+            ->GetClusterDirectory()
+            ->GetConnectionOrThrow(clusterName);
+
+        if (!protoRemoteCluster.networks().empty()) {
+            auto connectionConfig = remoteConnection
+                ->GetCompoundConfig()
+                ->Clone();
+            connectionConfig->Static->Networks = FromProto<NNodeTrackerClient::TNetworkPreferenceList>(
+                protoRemoteCluster.networks());
+            remoteConnection = CreateNativeConnection(std::move(connectionConfig));
+        }
+
+        remoteConnection->GetNodeDirectory()->MergeFrom(protoRemoteCluster.node_directory());
+
+        clusterContextList.push_back(
+            TMultiChunkReaderHost::TClusterContext{
+                .Name = TClusterName(clusterName),
+                .Client = remoteConnection->CreateNativeClient(Client_->GetOptions()),
+                .ChunkReaderStatistics = New<TChunkReaderStatistics>(),
+            });
+    }
+
+    MultiChunkReaderHost_ = CreateMultiChunkReaderHost(
+        New<TChunkReaderHost>(
+            Client_,
+            LocalDescriptor_,
+            ReaderBlockCache_,
+            /*chunkMetaCache*/ nullptr,
+            /*nodeStatusDirectory*/ nullptr,
+            bandwidthThrottlerFactory(LocalClusterName),
+            GetOutRpsThrottler(),
+            /*mediumThrottler*/ GetUnlimitedThrottler(),
+            GetTrafficMeter()),
+        std::move(bandwidthThrottlerFactory),
+        clusterContextList);
+}
+
 TStatistics TJobProxy::GetEnrichedStatistics() const
 {
     TStatistics statistics;
@@ -1169,7 +1173,19 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
             DumpCodecStatistics(extendedStatistics.OutputStatistics[index].CodecStatistics, "/codec/cpu/encode"_SP / ypathIndex, &statistics);
         }
 
-        DumpChunkReaderStatistics(&statistics, "/chunk_reader_statistics"_SP, extendedStatistics.ChunkReaderStatistics);
+        auto totalChunkReaderStatistics = New<TChunkReaderStatistics>();
+
+        for (const auto& [clusterName, chunkReaderStatistics] : MultiChunkReaderHost_->GetChunkReaderStatistics()) {
+            if (Config_->EnablePerClusterChunkReaderStatistics) {
+                DumpChunkReaderStatistics(
+                    &statistics,
+                    "/chunk_reader_statistics"_SP / TStatisticPathLiteral(ToStringViaBuilder(clusterName)),
+                    chunkReaderStatistics);
+            }
+            totalChunkReaderStatistics->AddFrom(chunkReaderStatistics);
+        }
+
+        DumpChunkReaderStatistics(&statistics, "/chunk_reader_statistics"_SP, totalChunkReaderStatistics);
         DumpTimingStatistics(&statistics, "/chunk_reader_statistics"_SP, extendedStatistics.TimingStatistics);
 
         for (int index = 0; index < std::min<int>(statisticsOutputTableCountLimit, extendedStatistics.ChunkWriterStatistics.size()); ++index) {
@@ -1357,23 +1373,6 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
             rootFS.Binds.push_back(TBind{
                 .SourcePath = GetPreparationPath(),
                 .TargetPath = GetSlotPath(),
-                .ReadOnly = false,
-            });
-
-            // Temporary workaround for nirvana - make tmp directories writable.
-            auto tmpPath = NFS::CombinePaths(
-                NFs::CurrentWorkingDirectory(),
-                GetSandboxRelPath(ESandboxKind::Tmp));
-
-            rootFS.Binds.push_back(TBind{
-                .SourcePath = tmpPath,
-                .TargetPath = "/tmp",
-                .ReadOnly = false,
-            });
-
-            rootFS.Binds.push_back(TBind{
-                .SourcePath = tmpPath,
-                .TargetPath = "/var/tmp",
                 .ReadOnly = false,
             });
         }
@@ -1606,64 +1605,9 @@ NApi::NNative::IClientPtr TJobProxy::GetClient() const
     return Client_;
 }
 
-TMultiChunkReaderHostPtr TJobProxy::GetChunkReaderHost() const
+const TMultiChunkReaderHostPtr& TJobProxy::GetChunkReaderHost() const
 {
-    auto bandwidthThrottlerFactory = BIND([this, weakThis = MakeWeak(this)] (const TClusterName& clusterName) {
-        auto thisLocked = weakThis.Lock();
-        if (!thisLocked) {
-            return IThroughputThrottlerPtr();
-        }
-
-        if (JobSpecHelper_->GetJobSpecExt().use_cluster_throttlers()) {
-            return GetInBandwidthThrottler(clusterName);
-        }
-
-        return GetInBandwidthThrottler(LocalClusterName);
-    });
-
-    std::vector<TMultiChunkReaderHost::TClusterOptions> clusterOptionsList {
-        {
-            .Name = LocalClusterName,
-            .Client = Client_,
-        },
-    };
-    for (const auto& [clusterName, protoRemoteCluster] : GetJobSpecHelper()->GetJobSpecExt().remote_input_clusters()) {
-        auto remoteConnection = Client_
-            ->GetNativeConnection()
-            ->GetClusterDirectory()
-            ->GetConnectionOrThrow(clusterName);
-
-        if (!protoRemoteCluster.networks().empty()) {
-            auto connectionConfig = remoteConnection
-                ->GetCompoundConfig()
-                ->Clone();
-            connectionConfig->Static->Networks = FromProto<NNodeTrackerClient::TNetworkPreferenceList>(
-                protoRemoteCluster.networks());
-            remoteConnection = CreateNativeConnection(std::move(connectionConfig));
-        }
-
-        remoteConnection->GetNodeDirectory()->MergeFrom(protoRemoteCluster.node_directory());
-
-        clusterOptionsList.emplace_back(
-            TMultiChunkReaderHost::TClusterOptions{
-                .Name = TClusterName(clusterName),
-                .Client = remoteConnection->CreateNativeClient(Client_->GetOptions()),
-            });
-    }
-
-    return CreateMultiChunkReaderHost(
-        New<TChunkReaderHost>(
-            Client_,
-            LocalDescriptor_,
-            ReaderBlockCache_,
-            /*chunkMetaCache*/ nullptr,
-            /*nodeStatusDirectory*/ nullptr,
-            bandwidthThrottlerFactory(LocalClusterName),
-            GetOutRpsThrottler(),
-            /*mediumThrottler*/ GetUnlimitedThrottler(),
-            GetTrafficMeter()),
-        std::move(bandwidthThrottlerFactory),
-        clusterOptionsList);
+    return MultiChunkReaderHost_;
 }
 
 IBlockCachePtr TJobProxy::GetReaderBlockCache() const
@@ -1718,6 +1662,14 @@ void TJobProxy::CheckMemoryUsage()
                 usage,
                 JobProxyMemoryReserve_,
                 TRefCountedTracker::Get()->GetDebugInfo(2 /*sortByColumn*/));
+            // NB(coteeq): Refcount dump and TCMalloc stats are quite huge, so we will exceed
+            // logging's message length limit. So let's duplicate the warning to reliably see at least
+            // a prefix of both blobs.
+            YT_LOG_WARNING("Job proxy used more memory than estimated "
+                "(JobProxyMaxMemoryUsage: %v, JobProxyMemoryReserve: %v, TCMallocStats: %v)",
+                usage,
+                JobProxyMemoryReserve_,
+                tcmalloc::MallocExtension::GetStats());
             LastRefCountedTrackerLogTime_ = TInstant::Now();
             LastLoggedJobProxyMaxMemoryUsage_ = usage;
         }

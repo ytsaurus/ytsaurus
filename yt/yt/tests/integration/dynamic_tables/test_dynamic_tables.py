@@ -11,7 +11,7 @@ from yt_helpers import profiler_factory
 
 from yt_commands import (
     authors, wait, create, ls, get, set, copy,
-    move, remove,
+    move, remove, link,
     exists, create_account, create_user, make_ace, make_batch_request,
     create_tablet_cell_bundle, remove_tablet_cell_bundle,
     create_area, remove_area, create_tablet_cell, remove_tablet_cell,
@@ -262,6 +262,9 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
                 }
             }
         })
+        for node in ls("//sys/cluster_nodes"):
+            wait(
+                lambda: get(f"//sys/cluster_nodes/{node}/orchid/node_resource_manager/memory_limit_per_category/tablet_static") == 0)
 
         leader_address = get("//tmp/t/@tablets/0/cell_leader_address")
         set_node_decommissioned(leader_address, True)
@@ -790,7 +793,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
     @authors("cherepashka")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    def test_non_materializied_computed_columns(self, optimize_for):
+    def test_non_materialized_computed_columns(self, optimize_for):
         sync_create_cells(1)
         self._create_sorted_table(
             "//tmp/t",
@@ -2771,7 +2774,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             "//tmp/t",
             "tablet/throttled_write_count")
 
-        def _insert(overdraft_expected, max_attempts=10):
+        def _insert(overdraft_expected, max_attempts=20):
             overdrafted = False
             for i in range(max_attempts):
                 try:
@@ -3351,6 +3354,72 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         sync_mount_table("//tmp/t")
 
+    @authors("atalmenev")
+    def test_max_chunk_size(self):
+        sync_create_cells(1)
+        KB = 1024
+
+        self._create_sorted_table("//tmp/t", dynamic=False)
+        set("//tmp/t/@compression_codec", "none")
+
+        rows = [{"key": key, "value": self._get_random_string(KB)} for key in range(1, 100)]
+        write_table(
+            "//tmp/t",
+            rows,
+            table_writer={"block_size": 10 * KB, "desired_chunk_size": 100 * KB},
+        )
+
+        set("//tmp/t/@max_unversioned_block_size", 1 * KB)
+        set("//sys/@config/tablet_manager/max_unversioned_chunk_size", 1000 * KB)
+
+        alter_table("//tmp/t", dynamic=True)
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        sync_mount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
+
+        set("//sys/@config/tablet_manager/enable_unversioned_chunk_constraint_validation", True)
+
+        with raises_yt_error(f"Cannot mount tablet {tablet_id} since it has chunks with too large block size"):
+            sync_mount_table("//tmp/t")
+
+        set("//tmp/t/@max_unversioned_block_size", 100 * KB)
+        set("//sys/@config/tablet_manager/max_unversioned_chunk_size", 1 * KB)
+
+        with raises_yt_error(f"Cannot mount tablet {tablet_id} since it has too large chunks"):
+            sync_mount_table("//tmp/t")
+
+        set("//sys/@config/tablet_manager/max_unversioned_chunk_size", 1000 * KB)
+        sync_mount_table("//tmp/t")
+
+    @authors("atalmenev")
+    def test_max_chunk_size_validation_ordered_table(self):
+        sync_create_cells(1)
+        KB = 1024
+
+        self._create_ordered_table("//tmp/t", dynamic=False)
+        set("//tmp/t/@compression_codec", "none")
+
+        rows = [{"key": key, "value": self._get_random_string(KB)} for key in range(1, 100)]
+        write_table(
+            "//tmp/t",
+            rows,
+            table_writer={"block_size": 10 * KB, "desired_chunk_size": 100 * KB},
+        )
+
+        set("//tmp/t/@max_unversioned_block_size", 1 * KB)
+        set("//sys/@config/tablet_manager/max_unversioned_chunk_size", 5 * KB)
+
+        alter_table("//tmp/t", dynamic=True)
+
+        sync_mount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
+
+        set("//sys/@config/tablet_manager/enable_unversioned_chunk_constraint_validation", True)
+
+        sync_mount_table("//tmp/t")
+
     @authors("dave11ar")
     def test_errors_expiration(self):
         sync_create_cells(1)
@@ -3449,6 +3518,34 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert mount_time < new_mount_time
         assert new_mount_revision == get("//tmp/t/@tablets/0/mount_revision")
         assert new_mount_time >= get("//tmp/t/@tablets/0/mount_time")
+
+    @authors("ifsmirnov")
+    def test_link_to_tablet(self):
+        cell_id = sync_create_cells(1)[0]
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        leader_address = get(f"#{cell_id}/@peers/0/address")
+
+        # YT-25500.
+        if self.ENABLE_TMP_PORTAL:
+            return
+
+        link(f"#{tablet_id}", "//tmp/tablet")
+        assert get("//tmp/tablet/orchid/state") == "mounted"
+
+        if self.NUM_SECONDARY_MASTER_CELLS == 1:
+            link(f"//sys/tablets/{tablet_id}", "//tmp/tablet", force=True)
+            assert get("//tmp/tablet/orchid/state") == "mounted"
+
+        link(f"#{tablet_id}/orchid", "//tmp/tablet_orchid")
+        assert get("//tmp/tablet_orchid/state") == "mounted"
+
+        link(f"#{cell_id}/orchid/tablets/{tablet_id}", "//tmp/tablet_orchid", force=True)
+        assert get("//tmp/tablet_orchid/state") == "mounted"
+
+        link(f"//sys/cluster_nodes/{leader_address}/orchid/tablet_cells/{cell_id}/tablets/{tablet_id}", "//tmp/tablet", force=True)
+        assert get("//tmp/tablet/state") == "mounted"
 
 
 ##################################################################

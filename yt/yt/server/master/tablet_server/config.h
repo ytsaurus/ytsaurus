@@ -158,6 +158,10 @@ DEFINE_REFCOUNTED_TYPE(TDynamicTabletNodeTrackerConfig)
 struct TDynamicCellHydraPersistenceSynchronizerConfig
     : public NYTree::TYsonStruct
 {
+    //! Allows safe deletion of the old storage at Cypress without it affecting cell instances.
+    //! Reconfigures master in a way that the old storage is no longer being accessed.
+    bool MigrateToVirtualCellMaps;
+
     TDuration SynchronizationPeriod;
 
     int MaxCellsToRegisterInCypressPerIteration;
@@ -323,11 +327,18 @@ struct TDynamicTabletManagerConfig
 
     int MaxChunksPerMountedTablet;
 
+    i64 MaxUnversionedChunkSize;
+
+    //! If set, block and chunk sizes will be validated upon each mount request.
+    bool EnableUnversionedChunkConstraintValidation;
+
     // COMPAT(shakurov)
     bool EnableHunkSpecificMedia;
 
     // COMPAT(danilalexeev)
     bool SafeCheckSecondaryCellStorage;
+
+    bool EnableSmoothTabletMovement;
 
     REGISTER_YSON_STRUCT(TDynamicTabletManagerConfig);
 

@@ -134,6 +134,7 @@ void TChunkStripeList::AddStripe(TChunkStripePtr stripe)
     TotalRowCount += statistics.RowCount;
     TotalValueCount += statistics.ValueCount;
     TotalCompressedDataSize += statistics.CompressedDataSize;
+    TotalSliceCount += std::ssize(stripe->DataSlices);
     Stripes.emplace_back(std::move(stripe));
 }
 
@@ -153,6 +154,13 @@ void TChunkStripeList::RegisterMetadata(auto&& registrar)
         .WhenMissing([] (TThis* this_, auto& /*context*/) {
             for (const auto& stripe : this_->Stripes) {
                 this_->TotalCompressedDataSize += stripe->GetStatistics().CompressedDataSize;
+            }
+        }));
+    PHOENIX_REGISTER_FIELD(11, TotalSliceCount,
+        .SinceVersion(ESnapshotVersion::AddSliceCountStatistics)
+        .WhenMissing([] (TThis* this_, auto& /*context*/) {
+            for (const auto& stripe : this_->Stripes) {
+                this_->TotalSliceCount += std::ssize(stripe->DataSlices);
             }
         }));
 }

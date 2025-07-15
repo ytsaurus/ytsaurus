@@ -8,6 +8,30 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 
 **Releases:**
 
+{% cut "**0.13.31**" %}
+
+**Release date:** 2025-06-20
+
+
+## Features
+ * Minor improvements
+ * Bump py-dependencies 2f5dc26abd27401d7c775b4e7406b4c85c1c4105
+
+{% endcut %}
+
+
+{% cut "**0.13.30**" %}
+
+**Release date:** 2025-06-16
+
+
+## Features
+  * Introduce `list_operation_events` command
+
+
+{% endcut %}
+
+
 {% cut "**0.13.29**" %}
 
 **Release date:** 2025-06-02
@@ -100,7 +124,7 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 * Drop python2 related code in `_py_runner.py`
 * Add `python_requires=">=3.8"` to package setup
 * Do not request all attributes in operation exists check
-* Fix handling request timeout of `start_operation` command 
+* Fix handling request timeout of `start_operation` command
 
 {% endcut %}
 
@@ -220,7 +244,7 @@ Thanks to multiple outside contributors for the active participation in Python S
 **Release date:** 2024-06-26
 
 
-Features: 
+Features:
   - Support profiles in configuration file
   - Add versioned select
   - Add enum.StrEnum and enum.IntEnum support for yt_dataclasses

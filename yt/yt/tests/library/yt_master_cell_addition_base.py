@@ -1,3 +1,4 @@
+from yt.common import YtError
 from yt_env_setup import (
     YTEnvSetup,
     Restarter,
@@ -41,7 +42,36 @@ class MasterCellAdditionBase(YTEnvSetup):
 
     REMOVE_LAST_MASTER_BEFORE_START = True
 
-    @classmethod
+    DELTA_NODE_CONFIG = {
+        "delay_master_cell_directory_start": True,
+        # NB: In real clusters this flag is disabled.
+        "data_node": {
+            "sync_directories_on_connect": False,
+        },
+        "sync_directories_on_connect": False,
+    }
+
+    NUM_SECONDARY_MASTER_CELLS = 3
+
+    DELTA_MASTER_CONFIG = {
+        "world_initializer": {
+            "update_period": 500,
+            "init_retry_period": 500,
+        },
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "multicell_manager": {
+            "testing": {
+                "allow_master_cell_with_empty_role": True,
+            },
+        },
+    }
+
+    MASTER_CELL_DESCRIPTORS = {
+        "13": {"roles": []},
+    }
+
     def setup_class(cls):
         super(MasterCellAdditionBase, cls).setup_class()
         remove_master_before_start = cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cls.PRIMARY_CLUSTER_INDEX)
@@ -72,8 +102,36 @@ class MasterCellAdditionBase(YTEnvSetup):
             if cls.get_param("NUM_CHAOS_NODES", cluster_index) != 0:
                 env.start_chaos_nodes()
 
+    def teardown_method(self, method):
+        def check_reliability_status(node, dynamically_discovered_master=None):
+            reliabilities = get(f"//sys/cluster_nodes/{node}/@master_cells_reliabilities")
+            for master in reliabilities.keys():
+                if dynamically_discovered_master is not None and master == dynamically_discovered_master:
+                    if reliabilities[master] != "dynamically_discovered":
+                        return False
+                elif reliabilities[master] != "statically_known":
+                    return False
+            return True
+
+        nodes = ls("//sys/cluster_nodes")
+        for node in nodes:
+            wait(lambda:  check_reliability_status(node, "13"))
+
+        super(MasterCellAdditionBase, self).teardown_method(method)
+
     @classmethod
-    def modify_master_config(cls, multidaemon_config, config, tag, peer_index, cluster_index):
+    def do_with_retries(self, action):
+        try:
+            action()
+        except YtError as error:
+            if error.contains_text("Unknown master cell tag"):
+                return False
+            else:
+                raise
+        return True
+
+    @classmethod
+    def modify_master_config(cls, config, multidaemon_config, cell_index, cell_tag, peer_index, cluster_index):
         cls.proceed_master_config(config, cluster_index, cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cluster_index))
 
     @classmethod
@@ -179,7 +237,8 @@ class MasterCellAdditionBase(YTEnvSetup):
         for tx in ls("//sys/transactions", attributes=["title"]):
             title = tx.attributes.get("title", "")
             if "World initialization" in title:
-                abort_transaction(str(tx))
+                # Proxy need time to discover new master cell, if it already started world initializer transaction.
+                wait(lambda: cls.do_with_retries(lambda: abort_transaction(str(tx))))
 
     @classmethod
     def _build_readonly_snapshot(cls):
@@ -196,8 +255,8 @@ class MasterCellAdditionBase(YTEnvSetup):
         return drivers
 
     @classmethod
-    def _wait_for_nodes_state(cls, expected_state):
-        def check():
+    def _wait_for_nodes_state(cls, expected_state, aggregate_state):
+        def check_multicell_states():
             nodes = ls("//sys/cluster_nodes", attributes=["multicell_states"])
             return all(
                 all(
@@ -207,8 +266,15 @@ class MasterCellAdditionBase(YTEnvSetup):
                 for node in nodes
             )
 
+        def check_aggregated():
+            nodes = ls("//sys/cluster_nodes", attributes=["state"])
+            return all(
+                node.attributes["state"] == expected_state
+                for node in nodes
+            )
+
         wait(
-            check,
+            check_aggregated if aggregate_state else check_multicell_states,
             ignore_exceptions=True,
             error_message=f"Nodes were not {expected_state} for 30 seconds",
             timeout=30)
@@ -266,6 +332,7 @@ class MasterCellAdditionBase(YTEnvSetup):
 
         cls.Env.synchronize()
         cls._abort_world_initializer_transactions()
+        cls._wait_for_nodes_state("online", aggregate_state=True)
 
         def _move_files(directory):
             files = os.listdir(directory)
@@ -311,7 +378,7 @@ class MasterCellAdditionBase(YTEnvSetup):
 
         cls._abort_world_initializer_transactions()
         if wait_for_nodes:
-            cls._wait_for_nodes_state("online")
+            cls._wait_for_nodes_state("online", aggregate_state=False)
 
         cls.PATCHED_CONFIGS = []
         cls.STASHED_CELL_CONFIGS = []
@@ -362,14 +429,14 @@ class MasterCellAdditionBase(YTEnvSetup):
 
 
 class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
-    NUM_SECONDARY_MASTER_CELLS = 3
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 1
 
     DELTA_MASTER_CONFIG = {
         "world_initializer": {
-            "update_period": 1000,
+            "update_period": 500,
+            "init_retry_period": 500,
         },
     }
 
@@ -674,7 +741,6 @@ class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
 
 
 class MasterCellAdditionChaosMultiClusterBaseChecks(MasterCellAdditionBase):
-    NUM_SECONDARY_MASTER_CELLS = 3
     NUM_NODES = 3
     NUM_CHAOS_NODES = 1
 
@@ -684,7 +750,8 @@ class MasterCellAdditionChaosMultiClusterBaseChecks(MasterCellAdditionBase):
 
     DELTA_MASTER_CONFIG = {
         "world_initializer": {
-            "update_period": 1000,
+            "update_period": 500,
+            "init_retry_period": 500,
         },
     }
 

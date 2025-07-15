@@ -908,7 +908,7 @@ TQueryContext* GetQueryContext(DB::ContextPtr context)
 
 void InvalidateCache(
     TQueryContext* queryContext,
-    std::vector<TYPath> paths,
+    std::vector<std::pair<TYPath, NHydra::TRevision>> paths,
     std::optional<EInvalidateCacheMode> invalidateMode)
 {
     if (!invalidateMode) {

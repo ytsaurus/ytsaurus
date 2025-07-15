@@ -144,10 +144,11 @@ private:
 
     const TAllocationConfigPtr& GetConfig() const noexcept;
 
-    void SettleJob();
+    void SettleJob(bool isJobFirst);
 
     void OnSettledJobReceived(
         const NProfiling::TWallTimer& timer,
+        bool isJobFirst,
         TErrorOr<TControllerAgentConnectorPool::TControllerAgentConnector::TJobStartInfo>&& jobInfoOrError);
 
     void CreateAndSettleJob(

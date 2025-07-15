@@ -115,6 +115,8 @@
 #include <yt/yt/core/rpc/dispatcher.h>
 #include <yt/yt/core/rpc/helpers.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/virtual.h>
 
@@ -308,6 +310,8 @@ public:
 
         const auto& configManager = Bootstrap_->GetDynamicConfigManager();
         configManager->SubscribeConfigChanged(DynamicConfigChangedCallback_);
+
+        OnDynamicConfigChanged(configManager->GetConfig(), configManager->GetConfig());
     }
 
     void Finalize() override
@@ -1324,6 +1328,11 @@ private:
         // Stores.
         tablet->GetStoreManager()->PopulateReplicateTabletContentRequest(&request);
 
+        // Settings.
+        SerializeTableSettings(
+            request.mutable_replicatable_content()->mutable_table_settings(),
+            tablet->RawSettings());
+
         return request;
     }
 
@@ -1358,6 +1367,12 @@ private:
 
         // Stores.
         tablet->GetStoreManager()->LoadReplicatedContent(request);
+
+        // Settings.
+        auto rawSettings = DeserializeTableSettings(&request->replicatable_content(), tabletId);
+        auto descriptor = GetTableConfigExperimentDescriptor(tablet);
+        rawSettings.DropIrrelevantExperiments(descriptor);
+        ReconfigureTablet(tablet, std::move(rawSettings));
 
         StartTabletEpoch(tablet);
 
@@ -4339,7 +4354,8 @@ private:
             tablet,
             Slot_,
             replicationCardId,
-            Bootstrap_->GetReplicatorClientCache()->GetLocalClient()));
+            Bootstrap_->GetReplicatorClientCache()->GetLocalClient(),
+            Bootstrap_->GetReplicationCardUpdatesBatcher()));
         tablet->SetTablePuller(CreateTablePuller(
             Config_,
             tablet,
@@ -4473,6 +4489,24 @@ private:
         }
 
         return settings;
+    }
+
+    void SerializeTableSettings(NProto::TTableSettings* request, const TRawTableSettings& settings)
+    {
+        const auto& provided = settings.Provided;
+
+        ToProto(request->mutable_mount_config(), ConvertToYsonString(provided.MountConfigNode));
+        if (provided.ExtraMountConfig) {
+            ToProto(request->mutable_extra_mount_config_attributes(), ConvertToYsonString(provided.ExtraMountConfig));
+        }
+        ToProto(request->mutable_store_reader_config(), ConvertToYsonString(provided.StoreReaderConfig));
+        ToProto(request->mutable_hunk_reader_config(), ConvertToYsonString(provided.HunkReaderConfig));
+        ToProto(request->mutable_store_writer_config(), ConvertToYsonString(provided.StoreWriterConfig));
+        ToProto(request->mutable_store_writer_options(), ConvertToYsonString(provided.StoreWriterOptions));
+        ToProto(request->mutable_hunk_writer_config(), ConvertToYsonString(provided.HunkWriterConfig));
+        ToProto(request->mutable_hunk_writer_options(), ConvertToYsonString(provided.HunkWriterOptions));
+        ToProto(request->mutable_global_patch(), ConvertToYsonString(settings.GlobalPatch));
+        ToProto(request->mutable_experiments(), ConvertToYsonString(settings.Experiments));
     }
 
     TTableMountConfigPtr DeserializeTableMountConfig(
@@ -5127,6 +5161,10 @@ private:
             req.set_experiments(experimentsYson);
             Slot_->CommitTabletMutation(req);
         };
+
+        if (!tablet->IsActiveServant()) {
+            return;
+        }
 
         const auto& currentSettings = tablet->RawSettings();
 

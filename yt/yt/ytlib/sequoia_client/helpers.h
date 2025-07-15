@@ -23,12 +23,16 @@ inline const char MangledPathSeparator = '\0';
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMangledSequoiaPath MangleSequoiaPath(NYPath::TYPathBuf rawPath);
+TMangledSequoiaPath MangleSequoiaPath(const TRealPath& realPath);
 
-NYPath::TYPath DemangleSequoiaPath(const TMangledSequoiaPath& mangledPath);
+TRealPath DemangleSequoiaPath(const TMangledSequoiaPath& mangledPath);
 
 //! Unescapes special characters.
-TString ToStringLiteral(TStringBuf key);
+TString ToStringLiteral(NYPath::TYPathBuf key);
+
+// TODO(danilalexeev): YT-20675. This method is for the time being until the validation
+// is global across all components.
+NYPath::TYPath ValidateAndMakeYPath(TRawYPath&& path);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,13 +41,14 @@ inline constexpr TErrorCode RetriableSequoiaErrorCodes[] = {
     NTabletClient::EErrorCode::BlockedRowWaitTimeout,
     NTabletClient::EErrorCode::NoSuchTablet,
     NTabletClient::EErrorCode::ChunkIsNotPreloaded,
+    NTabletClient::EErrorCode::TabletNotMounted,
 };
 
 bool IsRetriableSequoiaError(const TError& error);
 
 void ThrowOnSequoiaReplicasError(const TError& error, const std::vector<TErrorCode>& retriableErrorCodes);
 
-bool IsMethodShouldBeHandledByMaster(const std::string& method);
+bool IsMethodHandledByMaster(const std::string& method);
 
 ////////////////////////////////////////////////////////////////////////////////
 

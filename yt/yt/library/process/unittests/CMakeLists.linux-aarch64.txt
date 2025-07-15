@@ -40,7 +40,8 @@ target_link_libraries(unittester-library-process PUBLIC
 )
 
 target_allocator(unittester-library-process
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-library-process PRIVATE

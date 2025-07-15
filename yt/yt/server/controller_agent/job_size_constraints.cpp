@@ -409,6 +409,10 @@ public:
         auto maxDataSlicesPerJob = std::min(
             Spec_->MaxDataSlicesPerJob.value_or(Options_->MaxDataSlicesPerJob),
             Options_->MaxDataSlicesPerJobLimit);
+        // XXX(apollo1321): Why do we use DivCeil(InputChunkCount_, *Spec_->JobCount) here?
+        // In the unordered chunk pool, when job count guarantee is enabled, this estimation does not
+        // serve much purpose, since there are typically around 2 slices per chunk. Thus, it does not
+        // help prevent jobs from finishing prematurely.
         return std::max<i64>(maxDataSlicesPerJob, Spec_->JobCount && *Spec_->JobCount > 0
             ? DivCeil<i64>(InputChunkCount_, *Spec_->JobCount)
             : 1);
@@ -865,7 +869,14 @@ public:
 
     bool CanAdjustDataWeightPerJob() const override
     {
-        return !Spec_->DataWeightPerPartitionJob && !Spec_->PartitionJobCount;
+        if (Spec_->PartitionJobCount) {
+            return false;
+        }
+        if (Spec_->DataWeightPerPartitionJob) {
+            return Spec_->ForceJobSizeAdjuster;
+        }
+
+        return true;
     }
 
     bool IsExplicitJobCount() const override
@@ -1053,7 +1064,7 @@ IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
     i64 dataWeightPerJob = std::max(minDataWeightPerJob, spec->DataWeightPerSortedJob.value_or(spec->DataWeightPerShuffleJob));
 
     return CreateExplicitJobSizeConstraints(
-        /*canAdjustDataSizePerJob*/ true,
+        /*canAdjustDataSizePerJob*/ spec->ForceJobSizeAdjuster,
         /*isExplicitJobCount*/ false,
         /*jobCount*/ 0,
         /*dataWeightPerJob*/ dataWeightPerJob,

@@ -16,7 +16,8 @@ void TEngineConfigBase::Register(TRegistrar registrar)
 {
     registrar.Parameter("query_state_write_backoff", &TThis::QueryStateWriteBackoff)
         .Default(TDuration::Seconds(1));
-    registrar.Parameter("query_progress_write_backoff", &TThis::QueryProgressWritePeriod)
+    registrar.Parameter("query_progress_write_period", &TThis::QueryProgressWritePeriod)
+        .Alias("query_progress_write_backoff")
         .Default(TDuration::Seconds(1));
     registrar.Parameter("row_count_limit", &TThis::RowCountLimit)
         .Default(10'000);
@@ -123,7 +124,7 @@ void TQueryTrackerDynamicConfig::Register(TRegistrar registrar)
 void TQueryTrackerBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("min_required_state_version", &TThis::MinRequiredStateVersion)
-        .Default(15);
+        .Default(16);
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
     registrar.Parameter("proxy_thread_pool_size", &TThis::ProxyThreadPoolSize)

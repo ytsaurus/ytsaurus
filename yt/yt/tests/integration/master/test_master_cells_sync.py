@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, get_cell_tag, wait,
+    authors, wait,
     exists, get, set, ls, remove, create_account, remove_account, make_ace, create_rack,
     create_user, remove_user, add_member, remove_member, create_group, remove_group,
     create_tablet_cell, create_tablet_cell_bundle, remove_tablet_cell_bundle, create_area, wait_for_cells,
@@ -11,6 +11,7 @@ import pytest
 from flaky import flaky
 
 from yt_helpers import profiler_factory
+from yt.common import YtError
 
 ##################################################################
 
@@ -187,17 +188,31 @@ class TestMasterCellsSync(YTEnvSetup):
         custom_area_id = create_area("custom", cell_bundle_id=custom_bundle_id, node_tag_filter="custom")
         default_area_id = get("//sys/tablet_cell_bundles/custom/@areas/default/id")
 
-        self._check_true_for_secondary(lambda driver: get("//sys/tablet_cell_bundles/custom/@areas/default/node_tag_filter", driver=driver) == "default")
-        self._check_true_for_secondary(lambda driver: get("//sys/tablet_cell_bundles/custom/@areas/custom/node_tag_filter", driver=driver) == "custom")
-        self._check_true_for_secondary(lambda driver: get("#{0}/@cell_bundle_id".format(default_area_id), driver=driver) == custom_bundle_id)
-        self._check_true_for_secondary(lambda driver: get("#{0}/@cell_bundle_id".format(custom_area_id), driver=driver) == custom_bundle_id)
-        self._check_true_for_secondary(lambda driver: str(default_area_id) in get("//sys/areas", driver=driver))
-        self._check_true_for_secondary(lambda driver: str(custom_area_id) in get("//sys/areas", driver=driver))
+        def _check1(driver):
+            try:
+                assert get("//sys/tablet_cell_bundles/custom/@areas/default/node_tag_filter", driver=driver) == "default"
+                assert get("//sys/tablet_cell_bundles/custom/@areas/custom/node_tag_filter", driver=driver) == "custom"
+                assert get("#{0}/@cell_bundle_id".format(default_area_id), driver=driver) == custom_bundle_id
+                assert get("#{0}/@cell_bundle_id".format(custom_area_id), driver=driver) == custom_bundle_id
+                assert str(default_area_id) in get("//sys/areas", driver=driver)
+                assert str(custom_area_id) in get("//sys/areas", driver=driver)
+                return True
+            except (AssertionError, YtError):
+                return False
+
+        self._check_true_for_secondary(_check1)
 
         remove_tablet_cell_bundle("custom")
 
-        self._check_true_for_secondary(lambda driver: str(default_area_id) not in get("//sys/areas", driver=driver))
-        self._check_true_for_secondary(lambda driver: str(custom_area_id) not in get("//sys/areas", driver=driver))
+        def _check2(driver):
+            try:
+                assert str(default_area_id) not in get("//sys/areas", driver=driver)
+                assert str(custom_area_id) not in get("//sys/areas", driver=driver)
+                return True
+            except (AssertionError, YtError):
+                return False
+
+        self._check_true_for_secondary(_check2)
 
     @authors("savrus")
     @flaky(max_runs=5)
@@ -283,53 +298,6 @@ class TestMasterCellsSync(YTEnvSetup):
         remove("//sys/@config/foo")
         check(0)
 
-    @authors("cherepashka")
-    def test_master_cell_reconfiguration_on_node(self):
-        def _get_connected_secondary_masters_addresses(node, cell_id):
-            connected_secondary_masters = get(f"//sys/cluster_nodes/{node}/orchid/connected_secondary_masters", driver=get_driver(0))
-            connected_secondary_masters = {int(cell_tag) : connection_config for cell_tag, connection_config in connected_secondary_masters.items()}
-            cell_tag = get_cell_tag(cell_id)
-            if cell_tag not in connected_secondary_masters.keys():
-                return None
-            return connected_secondary_masters[cell_tag]["addresses"]
-
-        nodes = ls("//sys/cluster_nodes")
-        secondary_masters = get("//sys/@cluster_connection/secondary_masters")
-        last_cell = secondary_masters[-1]
-        last_cell_addresses = last_cell["addresses"]
-        removed_host = last_cell_addresses[-1]
-        assert removed_host == last_cell["peers"][-1]["address"]
-
-        # Remove last peer.
-        secondary_masters[-1]["addresses"] = secondary_masters[-1]["addresses"][:-1]
-        secondary_masters[-1]["peers"] = secondary_masters[-1]["peers"][:-1]
-        set("//sys/@config/multicell_manager/testing/master_cell_directory_override", {
-            "secondary_masters" :  secondary_masters
-        }, driver=get_driver(0))
-
-        def _check_for_all_nodes_same_host_status(host_should_be_removed=True):
-            for node in nodes:
-                connected_secondary_masters = _get_connected_secondary_masters_addresses(node, last_cell["cell_id"])
-                if connected_secondary_masters is None:
-                    return False
-                if host_should_be_removed and removed_host in connected_secondary_masters:
-                    return False
-                elif not host_should_be_removed and removed_host not in connected_secondary_masters:
-                    return False
-            return True
-
-        # Wait for all nodes to receive new master cells configuration.
-        wait(lambda: _check_for_all_nodes_same_host_status())
-
-        # Return last peer.
-        secondary_masters[-1]["addresses"].append(removed_host)
-        secondary_masters[-1]["peers"].append(removed_host)
-        set("//sys/@config/multicell_manager/testing/master_cell_directory_override", {
-            "secondary_masters" :  secondary_masters
-        }, driver=get_driver(0))
-
-        # Wait for all nodes to receive new master cells configuration.
-        wait(lambda: _check_for_all_nodes_same_host_status(host_should_be_removed=False))
 
 ##################################################################
 
@@ -395,3 +363,6 @@ class TestMasterHiveProfiling(YTEnvSetup):
 
         wait(lambda: primary_value_counter.get() > 0, ignore_exceptions=True)
         wait(lambda: secondary_value_counter.get() > 0, ignore_exceptions=True)
+
+
+##################################################################

@@ -33,6 +33,8 @@
 
 #include <yt/yt/ytlib/sequoia_client/transaction_service_proxy.h>
 
+#include <yt/yt/ytlib/transaction_client/helpers.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/concurrency/thread_pool.h>
@@ -50,6 +52,7 @@ using namespace NCypressClient::NProto;
 using namespace NDistributedThrottler;
 using namespace NObjectClient;
 using namespace NSequoiaClient;
+using namespace NTransactionClient;
 using namespace NRpc;
 using namespace NYTree;
 
@@ -64,17 +67,16 @@ class TObjectService
     , public TCypressProxyServiceBase
 {
 public:
-    explicit TObjectService(IBootstrap* bootstrap, IThreadPoolPtr threadPool)
+    explicit TObjectService(IBootstrap* bootstrap)
         : TCypressProxyServiceBase(
             bootstrap,
-            threadPool->GetInvoker(),
+            bootstrap->GetInvoker("ObjectService"),
             TObjectServiceProxy::GetDescriptor(),
             CypressProxyLogger(),
             TServiceOptions{
                 .Authenticator = bootstrap->GetNativeAuthenticator(),
             })
         , Connection_(bootstrap->GetNativeConnection())
-        , ThreadPool_(std::move(threadPool))
         , ThrottlerFactory_(bootstrap->CreateDistributedThrottlerFactory(
             GetDynamicConfig()->DistributedThrottler,
             bootstrap->GetControlInvoker(),
@@ -104,11 +106,6 @@ public:
         configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TObjectService::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
-    void Reconfigure(const TObjectServiceDynamicConfigPtr& config) override
-    {
-        ThreadPool_->SetThreadCount(config->ThreadPoolSize);
-    }
-
     IServicePtr GetService() override
     {
         return MakeStrong(this);
@@ -128,8 +125,6 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, Execute);
 
     const NNative::IConnectionPtr Connection_;
-
-    const IThreadPoolPtr ThreadPool_;
 
     const IDistributedThrottlerFactoryPtr ThrottlerFactory_;
     const TPerUserAndWorkloadRequestQueueProviderPtr RequestQueueProvider_;
@@ -444,7 +439,7 @@ private:
             const auto& method = subrequest.RequestHeader->method();
             // Such requests already contain information about target cell
             // inside the TReqExecute message.
-            if (IsMethodShouldBeHandledByMaster(method)) {
+            if (IsMethodHandledByMaster(method)) {
                 subrequest.Target = ERequestTarget::Master;
             }
         }
@@ -526,8 +521,8 @@ private:
         TCellTag cellTag)
     {
         const auto& masterCellDirectory = Owner_->Connection_->GetMasterCellDirectory();
-        const auto& nakedMasterChannel = masterCellDirectory->GetNakedMasterChannelOrThrow(MasterChannelKind_, cellTag);
-        auto proxy = TObjectServiceProxy::FromDirectMasterChannel(nakedMasterChannel);
+        auto nakedMasterChannel = masterCellDirectory->GetNakedMasterChannelOrThrow(MasterChannelKind_, cellTag);
+        auto proxy = TObjectServiceProxy::FromDirectMasterChannel(std::move(nakedMasterChannel));
         // TODO(nadya02): Set the correct timeout here.
         proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
 
@@ -796,7 +791,7 @@ private:
 
         Visit(resolveResult,
             [&] (const TCypressResolveResult& cypressResolveResult) {
-                newPath = cypressResolveResult.Path.Underlying();
+                newPath = cypressResolveResult.Path;
             },
             [&] (const TMasterResolveResult& /*masterResolveResult*/) {
                 // NB: Path is currently unused in master requests.
@@ -804,7 +799,7 @@ private:
             [&] (const TSequoiaResolveResult& sequoiaResolveResult) {
                 subrequest->ResolvedNodeId = sequoiaResolveResult.Id;
 
-                newPath = sequoiaResolveResult.UnresolvedSuffix.Underlying();
+                newPath = sequoiaResolveResult.UnresolvedSuffix;
             });
 
         auto& header = *subrequest->RequestHeader;
@@ -837,7 +832,7 @@ private:
         // Replace "<unresolved-suffix>"" with "#<object-id>/<unresolved-suffix>".
         if (const auto* sequoiaResolveResult = std::get_if<TSequoiaResolveResult>(&resolveResult)) {
             ypathExt->set_target_path(
-                FromObjectId(sequoiaResolveResult->Id) + sequoiaResolveResult->UnresolvedSuffix.Underlying());
+                FromObjectId(sequoiaResolveResult->Id) + sequoiaResolveResult->UnresolvedSuffix);
         }
 
         subrequest->RequestMessage = SetRequestHeader(subrequest->RequestMessage, header);
@@ -856,9 +851,11 @@ private:
             subrequest->Target == ERequestTarget::Undetermined ||
             subrequest->Target == ERequestTarget::Sequoia);
 
-        auto originalTargetPath = TRawYPath(GetRequestTargetYPath(*subrequest->RequestHeader));
+        auto originalTargetPath = ValidateAndMakeYPath(
+            TRawYPath(GetRequestTargetYPath(*subrequest->RequestHeader))
+        );
         auto cypressTransactionId = GetTransactionId(*subrequest->RequestHeader);
-        auto prerequisiteTransactionIds = ParsePrerequisiteTransactionIds(*subrequest->RequestHeader);
+        auto prerequisiteTransactionIds = GetPrerequisiteTransactionIds(*subrequest->RequestHeader);
 
         if (cypressTransactionId && !IsCypressTransactionType(TypeFromId(cypressTransactionId))) {
             // Requests with system transactions cannot be handled in Sequoia.
@@ -872,7 +869,8 @@ private:
             session = TSequoiaSession::Start(Owner_->Bootstrap_, cypressTransactionId, prerequisiteTransactionIds);
             resolveResult = ResolvePath(
                 session,
-                originalTargetPath,
+                std::move(originalTargetPath),
+                /*pathIsAdditional*/ false,
                 subrequest->RequestHeader->service(),
                 subrequest->RequestHeader->method());
         } catch (const std::exception& ex) {
@@ -1007,7 +1005,7 @@ private:
         const auto& config = Owner_->Bootstrap_->GetConfig()->Testing;
 
         auto syncWithCell = [&] (TCellTag cellTag) {
-            const auto& nakedMasterChannel = masterCellDirectory->GetNakedMasterChannelOrThrow(
+            auto nakedMasterChannel = masterCellDirectory->GetNakedMasterChannelOrThrow(
                 EMasterChannelKind::Follower,
                 cellTag);
             auto proxy = TSequoiaTransactionServiceProxy(std::move(nakedMasterChannel));
@@ -1056,9 +1054,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
 
 IObjectServicePtr CreateObjectService(IBootstrap* bootstrap)
 {
-    return New<TObjectService>(
-        bootstrap,
-        CreateThreadPool(/*threadCount*/ 1, "ObjectService"));
+    return New<TObjectService>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

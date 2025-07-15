@@ -23,72 +23,66 @@
 #include <yt/yt/ytlib/table_client/public.h>
 #include <yt/yt/ytlib/table_client/proto/table_ypath.pb.h>
 
-#include <library/cpp/yt/compact_containers/compact_vector.h>
-
 namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletManager
-    : public TRefCounted
+struct ITabletManager
+    : public virtual TRefCounted
 {
-public:
-    explicit TTabletManager(NCellMaster::TBootstrap* bootstrap);
-    ~TTabletManager();
+    virtual void Initialize() = 0;
 
-    void Initialize();
+    virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 
-    NYTree::IYPathServicePtr GetOrchidService();
+    virtual const ITabletChunkManagerPtr& GetTabletChunkManager() const = 0;
 
-    const ITabletChunkManagerPtr& GetTabletChunkManager() const;
-
-    void PrepareMount(
+    virtual void PrepareMount(
         TTabletOwnerBase* table,
         int firstTabletIndex,
         int lastTabletIndex,
         TTabletCellId hintCellId,
         const std::vector<TTabletCellId>& targetCellIds,
-        bool freeze);
-    void PrepareUnmount(
+        bool freeze) = 0;
+    virtual void PrepareUnmount(
         TTabletOwnerBase* owner,
         bool force,
         int firstTabletIndex = -1,
-        int lastTabletIndex = -1);
-    void PrepareRemount(
+        int lastTabletIndex = -1) = 0;
+    virtual void PrepareRemount(
         TTabletOwnerBase* owner,
         int firstTabletIndex = -1,
-        int lastTabletIndex = -1);
-    void PrepareFreeze(
+        int lastTabletIndex = -1) = 0;
+    virtual void PrepareFreeze(
         TTabletOwnerBase* owner,
         int firstTabletIndex,
-        int lastTabletIndex);
-    void PrepareUnfreeze(
+        int lastTabletIndex) = 0;
+    virtual void PrepareUnfreeze(
         TTabletOwnerBase* owner,
         int firstTabletIndex = -1,
-        int lastTabletIndex = -1);
-    void PrepareReshard(
+        int lastTabletIndex = -1) = 0;
+    virtual void PrepareReshard(
         TTabletOwnerBase* owner,
         int firstTabletIndex,
         int lastTabletIndex,
         int newTabletCount,
         const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
         const std::vector<i64>& trimmedRowCounts,
-        bool create = false);
+        bool create = false) = 0;
 
-    void CancelTabletTransition(TTablet* tablet);
+    virtual void CancelTabletTransition(TTablet* tablet) = 0;
 
-    void ValidateMakeTableDynamic(NTableServer::TTableNode* table);
-    void ValidateMakeTableStatic(NTableServer::TTableNode* table);
+    virtual void ValidateMakeTableDynamic(NTableServer::TTableNode* table) = 0;
+    virtual void ValidateMakeTableStatic(NTableServer::TTableNode* table) = 0;
 
-    void ValidateCloneTabletOwner(
+    virtual void ValidateCloneTabletOwner(
         TTabletOwnerBase* sourceNode,
         NCypressServer::ENodeCloneMode mode,
-        NSecurityServer::TAccount* account);
-    void ValidateSerializeTabletOwner(
+        NSecurityServer::TAccount* account) = 0;
+    virtual void ValidateSerializeTabletOwner(
         TTabletOwnerBase* sourceNode,
-        NCypressServer::ENodeCloneMode mode);
+        NCypressServer::ENodeCloneMode mode) = 0;
 
-    void Mount(
+    virtual void Mount(
         TTabletOwnerBase* table,
         const NYPath::TYPath& path,
         int firstTabletIndex,
@@ -96,117 +90,109 @@ public:
         TTabletCellId hintCellId,
         const std::vector<TTabletCellId>& targetCellIds,
         bool freeze,
-        NTransactionClient::TTimestamp mountTimestamp);
-    void Unmount(
+        NTransactionClient::TTimestamp mountTimestamp) = 0;
+    virtual void Unmount(
         TTabletOwnerBase* table,
         bool force,
         int firstTabletIndex = -1,
-        int lastTabletIndex = -1);
-    void Remount(
+        int lastTabletIndex = -1) = 0;
+    virtual void Remount(
         TTabletOwnerBase* table,
         int firstTabletIndex = -1,
-        int lastTabletIndex = -1);
-    void Freeze(
+        int lastTabletIndex = -1) = 0;
+    virtual void Freeze(
         TTabletOwnerBase* table,
         int firstTabletIndex,
-        int lastTabletIndex);
-    void Unfreeze(
+        int lastTabletIndex) = 0;
+    virtual void Unfreeze(
         TTabletOwnerBase* table,
         int firstTabletIndex = -1,
-        int lastTabletIndex = -1);
-    void Reshard(
+        int lastTabletIndex = -1) = 0;
+    virtual void Reshard(
         TTabletOwnerBase* table,
         int firstTabletIndex,
         int lastTabletIndex,
         int newTabletCount,
         const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
-        const std::vector<i64>& trimmedRowCounts);
+        const std::vector<i64>& trimmedRowCounts) = 0;
 
-    void SetCustomRuntimeData(
+    virtual void SetCustomRuntimeData(
         NTableServer::TTableNode* table,
-        NYson::TYsonString data);
+        NYson::TYsonString data) = 0;
 
-    void CloneTabletOwner(
+    virtual void CloneTabletOwner(
         TTabletOwnerBase* sourceNode,
         TTabletOwnerBase* clonedNode,
-        NCypressServer::ENodeCloneMode mode);
+        NCypressServer::ENodeCloneMode mode) = 0;
 
-    void MakeTableDynamic(NTableServer::TTableNode* table, i64 trimmedRowCount = 0);
-    void MakeTableStatic(NTableServer::TTableNode* table);
+    virtual void MakeTableDynamic(NTableServer::TTableNode* table, i64 trimmedRowCount = 0) = 0;
+    virtual void MakeTableStatic(NTableServer::TTableNode* table) = 0;
 
-    void AlterTableReplica(
+    virtual void AlterTableReplica(
         TTableReplica* replica,
         std::optional<bool> enabled,
         std::optional<ETableReplicaMode> mode,
         std::optional<NTransactionClient::EAtomicity> atomicity,
         std::optional<bool> preserveTimestamps,
-        std::optional<bool> enableReplicatedTableTracker);
+        std::optional<bool> enableReplicatedTableTracker) = 0;
 
-    void LockDynamicTable(
+    virtual void LockDynamicTable(
         NTableServer::TTableNode* table,
         NTransactionServer::TTransaction* transaction,
-        NTransactionClient::TTimestamp timestamp);
-    void CheckDynamicTableLock(
+        NTransactionClient::TTimestamp timestamp) = 0;
+    virtual void CheckDynamicTableLock(
         NTableServer::TTableNode* table,
         NTransactionServer::TTransaction* transaction,
-        NTableClient::NProto::TRspCheckDynamicTableLock* response);
+        NTableClient::NProto::TRspCheckDynamicTableLock* response) = 0;
 
-    std::vector<TTabletActionId> SyncBalanceCells(
+    virtual std::vector<TTabletActionId> SyncBalanceCells(
         TTabletCellBundle* bundle,
         const std::optional<std::vector<NTableServer::TTableNode*>>& tables,
-        bool keepActions);
-    std::vector<TTabletActionId> SyncBalanceTablets(
+        bool keepActions) = 0;
+    virtual std::vector<TTabletActionId> SyncBalanceTablets(
         NTableServer::TTableNode* table,
-        bool keepActions);
+        bool keepActions) = 0;
 
-    void MergeTable(
+    virtual void MergeTable(
         NTableServer::TTableNode* originatingNode,
-        NTableServer::TTableNode* branchedNode);
+        NTableServer::TTableNode* branchedNode) = 0;
 
-    void OnNodeStorageParametersUpdated(NChunkServer::TChunkOwnerBase* node);
+    virtual void OnNodeStorageParametersUpdated(NChunkServer::TChunkOwnerBase* node) = 0;
 
-    TTabletCellBundle* FindTabletCellBundle(TTabletCellBundleId id);
-    TTabletCellBundle* GetTabletCellBundleOrThrow(TTabletCellBundleId id, bool activeLifeStageOnly);
-    TTabletCellBundle* GetTabletCellBundleByNameOrThrow(const std::string& name, bool activeLifeStageOnly);
-    TTabletCellBundle* GetDefaultTabletCellBundle();
-    void SetTabletCellBundle(TTabletOwnerBase* table, TTabletCellBundle* cellBundle);
+    virtual TTabletCellBundle* FindTabletCellBundle(TTabletCellBundleId id) = 0;
+    virtual TTabletCellBundle* GetTabletCellBundleOrThrow(TTabletCellBundleId id, bool activeLifeStageOnly) = 0;
+    virtual TTabletCellBundle* GetTabletCellBundleByNameOrThrow(const std::string& name, bool activeLifeStageOnly) = 0;
+    virtual TTabletCellBundle* GetDefaultTabletCellBundle() = 0;
+    virtual void SetTabletCellBundle(TTabletOwnerBase* table, TTabletCellBundle* cellBundle) = 0;
 
-    TTabletCell* GetTabletCellOrThrow(TTabletCellId id);
-    void ZombifyTabletCell(TTabletCell* cell);
+    virtual TTabletCell* GetTabletCellOrThrow(TTabletCellId id) = 0;
+    virtual void ZombifyTabletCell(TTabletCell* cell) = 0;
 
-    void DestroyTablet(TTabletBase* tablet);
+    virtual void DestroyTablet(TTabletBase* tablet) = 0;
 
-    void DestroyTabletOwner(TTabletOwnerBase* table);
+    virtual void DestroyTabletOwner(TTabletOwnerBase* table) = 0;
 
-    NNodeTrackerServer::TNode* FindTabletLeaderNode(const TTabletBase* tablet) const;
+    virtual NNodeTrackerServer::TNode* FindTabletLeaderNode(const TTabletBase* tablet) const = 0;
 
-    void UpdateExtraMountConfigKeys(std::vector<std::string> keys);
-    void MaterizlizeExtraMountConfigKeys(NObjectClient::TCellTag cellTag) const;
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Tablet, TTabletBase);
+    virtual TTabletBase* GetTabletOrThrow(TTabletId id) = 0;
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTabletBase);
-    TTabletBase* GetTabletOrThrow(TTabletId id);
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(TableReplica, TTableReplica);
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(TabletAction, TTabletAction);
 
-    DECLARE_ENTITY_MAP_ACCESSORS(TableReplica, TTableReplica);
-    DECLARE_ENTITY_MAP_ACCESSORS(TabletAction, TTabletAction);
+    virtual void RecomputeTabletCellStatistics(NCellServer::TCellBase* cellBase) = 0;
 
-    void RecomputeTabletCellStatistics(NCellServer::TCellBase* cellBase);
+    virtual void OnHunkJournalChunkSealed(NChunkServer::TChunk* chunk) = 0;
 
-    void OnHunkJournalChunkSealed(NChunkServer::TChunk* chunk);
+    virtual void AttachDynamicStoreToTablet(TTablet* tablet, NChunkServer::TDynamicStore* dynamicStore) = 0;
 
-    void AttachDynamicStoreToTablet(TTablet* tablet, NChunkServer::TDynamicStore* dynamicStore);
+    virtual void FireUponTableReplicaUpdate(TTableReplica* replica) = 0;
 
-    // Backup stuff. Used internally by TBackupManager.
-    void WrapWithBackupChunkViews(TTablet* tablet, NTransactionClient::TTimestamp maxClipTimestamp);
-    TError PromoteFlushedDynamicStores(TTablet* tablet);
-    TError ApplyBackupCutoff(TTablet* tablet);
+    DECLARE_INTERFACE_SIGNAL_WITH_ACCESSOR(void(TReplicatedTableData), ReplicatedTableCreated);
+    DECLARE_INTERFACE_SIGNAL_WITH_ACCESSOR(void(NTableClient::TTableId), ReplicatedTableDestroyed);
 
-    void FireUponTableReplicaUpdate(TTableReplica* replica);
-
-    DECLARE_SIGNAL_WITH_ACCESSOR(void(TReplicatedTableData), ReplicatedTableCreated);
-    DECLARE_SIGNAL_WITH_ACCESSOR(void(NTableClient::TTableId), ReplicatedTableDestroyed);
-
-    DECLARE_SIGNAL(void(TReplicaData), ReplicaCreated);
-    DECLARE_SIGNAL(void(NTabletClient::TTableReplicaId), ReplicaDestroyed);
+    DECLARE_INTERFACE_SIGNAL(void(TReplicaData), ReplicaCreated);
+    DECLARE_INTERFACE_SIGNAL(void(NTabletClient::TTableReplicaId), ReplicaDestroyed);
 
 private:
     template <class TImpl>
@@ -217,18 +203,8 @@ private:
     friend class TTableReplicaTypeHandler;
     friend class TTabletActionTypeHandler;
     friend class TTabletBalancer;
-    class TImpl;
 
-    TTabletCell* CreateTabletCell(TTabletCellBundle* cellBundle, NObjectClient::TObjectId hintId);
-    void DestroyTabletCell(TTabletCell* cell);
-
-    TTabletCellBundle* CreateTabletCellBundle(
-        const std::string& name,
-        NObjectClient::TObjectId hintId,
-        TTabletCellOptionsPtr options);
-    void DestroyTabletCellBundle(TTabletCellBundle* cellBundle);
-
-    TTableReplica* CreateTableReplica(
+    virtual TTableReplica* CreateTableReplica(
         NTableServer::TReplicatedTableNode* table,
         const std::string& clusterName,
         const NYPath::TYPath& replicaPath,
@@ -238,10 +214,10 @@ private:
         bool enabled,
         NTransactionClient::TTimestamp startReplicationTimestamp,
         const std::optional<std::vector<i64>>& startReplicationRowIndexes,
-        bool enableReplicatedTableTracker);
-    void ZombifyTableReplica(TTableReplica* replica);
+        bool enableReplicatedTableTracker) = 0;
+    virtual void ZombifyTableReplica(TTableReplica* replica) = 0;
 
-    TTabletAction* CreateTabletAction(
+    virtual TTabletAction* CreateTabletAction(
         NObjectClient::TObjectId hintId,
         ETabletActionKind kind,
         const std::vector<TTabletBaseRawPtr>& tablets,
@@ -251,14 +227,15 @@ private:
         bool skipFreezing,
         TGuid correlationId,
         TInstant expirationTime,
-        std::optional<TDuration> expirationTimeout);
-
-    void ZombifyTabletAction(TTabletAction* action);
-
-    const TIntrusivePtr<TImpl> Impl_;
+        std::optional<TDuration> expirationTimeout) = 0;
+    virtual void ZombifyTabletAction(TTabletAction* action) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TTabletManager)
+DEFINE_REFCOUNTED_TYPE(ITabletManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+ITabletManagerPtr CreateTabletManager(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

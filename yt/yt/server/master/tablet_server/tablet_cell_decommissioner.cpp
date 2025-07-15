@@ -21,6 +21,7 @@
 
 namespace NYT::NTabletServer {
 
+using namespace NCellMaster;
 using namespace NCellServer;
 using namespace NConcurrency;
 using namespace NObjectServer;
@@ -37,21 +38,21 @@ const auto static& Logger = TabletServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletCellDecommissioner::TImpl
-    : public TRefCounted
+class TTabletCellDecommissioner
+    : public ITabletCellDecommissioner
 {
 public:
-    TImpl(
-        NCellMaster::TBootstrap* bootstrap,
+    TTabletCellDecommissioner(
+        TBootstrap* bootstrap,
         TTabletCellDecommissionerConfigPtr config)
         : Bootstrap_(bootstrap)
         , Profiler(TabletServerProfiler().WithPrefix("/tablet_cell_decommissioner"))
         , DecommissionExecutor_(New<TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletDecommissioner),
-            BIND(&TImpl::CheckDecommission, MakeWeak(this))))
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::TabletDecommissioner),
+            BIND(&TTabletCellDecommissioner::CheckDecommission, MakeWeak(this))))
         , KickOrphansExecutor_ (New<TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletDecommissioner),
-            BIND(&TImpl::CheckOrphans, MakeWeak(this))))
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::TabletDecommissioner),
+            BIND(&TTabletCellDecommissioner::CheckOrphans, MakeWeak(this))))
         , DecommissionThrottler_(CreateNamedReconfigurableThroughputThrottler(
             config->DecommissionThrottler,
             "Decommission",
@@ -67,27 +68,27 @@ public:
         , Config_(std::move(config))
     { }
 
-    void Start() const
+    void Start() const override
     {
         DoReconfigure();
         DecommissionExecutor_->Start();
         KickOrphansExecutor_->Start();
     }
 
-    void Stop() const
+    void Stop() const override
     {
         YT_UNUSED_FUTURE(DecommissionExecutor_->Stop());
         YT_UNUSED_FUTURE(KickOrphansExecutor_->Stop());
     }
 
-    void Reconfigure(TTabletCellDecommissionerConfigPtr config)
+    void Reconfigure(TTabletCellDecommissionerConfigPtr config) override
     {
         Config_ = std::move(config);
         DoReconfigure();
     }
 
 private:
-    const NCellMaster::TBootstrap* Bootstrap_;
+    const TBootstrap* Bootstrap_;
     const NProfiling::TProfiler Profiler;
     const TPeriodicExecutorPtr DecommissionExecutor_;
     const TPeriodicExecutorPtr KickOrphansExecutor_;
@@ -286,27 +287,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletCellDecommissioner::TTabletCellDecommissioner(NCellMaster::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(
+ITabletCellDecommissionerPtr CreateTabletCellDecommissioner(TBootstrap* bootstrap)
+{
+    return New<TTabletCellDecommissioner>(
         bootstrap,
-        New<TTabletCellDecommissionerConfig>()))
-{ }
-
-TTabletCellDecommissioner::~TTabletCellDecommissioner() = default;
-
-void TTabletCellDecommissioner::Start() const
-{
-    Impl_->Start();
-}
-
-void TTabletCellDecommissioner::Stop() const
-{
-    Impl_->Stop();
-}
-
-void TTabletCellDecommissioner::Reconfigure(TTabletCellDecommissionerConfigPtr config) const
-{
-    Impl_->Reconfigure(std::move(config));
+        New<TTabletCellDecommissionerConfig>());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

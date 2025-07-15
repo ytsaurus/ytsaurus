@@ -2094,3 +2094,44 @@ class TestCustomSettings(ClickHouseTestBase):
             ])
             assert get_schema_from_description(clique.make_query("describe `//tmp/t2`")) == \
                    [{"name": "b", "type": "Bool"}]
+
+
+class TestClickHouseWithMasterCache(ClickHouseTestBase):
+    USE_MASTER_CACHE = True
+
+    @authors("a-dyu")
+    def test_create_and_drop_with_read_from_cache(self):
+        patch = {
+            "yt": {
+                "table_attribute_cache": {
+                    "master_read_options": {
+                        "read_from": "cache",
+                    }
+                },
+            },
+        }
+        with Clique(2, config_patch=patch) as clique:
+            instances = clique.get_active_instances()
+            assert len(instances) == 2
+
+            clique.make_query("create table `//tmp/t0`(a Int64) engine=YtTable()")
+            for instance in instances:
+                assert clique.make_direct_query(instance, 'exists "//tmp/t0"') == [{"result": 1}]
+
+            clique.make_query('drop table "//tmp/t0"')
+            for instance in instances:
+                assert clique.make_direct_query(instance, 'exists "//tmp/t0"') == [{"result": 0}]
+
+            clique.make_query("create table `//tmp/t0`(a Int64) engine=YtTable()")
+            for instance in instances:
+                assert clique.make_direct_query(instance, 'exists "//tmp/t0"') == [{"result": 1}]
+
+            clique.make_query("create table `//tmp/t1` engine=YtTable() as select * from `//tmp/t0`")
+            for instance in instances:
+                assert clique.make_direct_query(instance, 'exists "//tmp/t1"') == [{"result": 1}]
+
+            settings = {"parallel_distributed_insert_select": 1}
+            clique.make_query("create table `//tmp/t2` engine=YtTable() as select * from `//tmp/t0`",
+                              settings=settings)
+            for instance in instances:
+                assert clique.make_direct_query(instance, 'exists "//tmp/t2"') == [{"result": 1}]

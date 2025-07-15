@@ -9,18 +9,17 @@
 
 #include <yt/yt/server/master/maintenance_tracker_server/maintenance_target.h>
 
-#include <yt/yt/server/master/node_tracker_server/proto/node_tracker.pb.h>
-
 #include <yt/yt/server/master/transaction_server/public.h>
 
 #include <yt/yt/server/lib/cellar_agent/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/node_statistics.h>
-#include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 
 #include <yt/yt/core/misc/property.h>
 
@@ -272,6 +271,10 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TMediumMap<i64>, MediumToWriteSessionCountLimit);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<int>, WriteSessionLimit);
 
+    // Transient update times used for alerts only.
+    DEFINE_BYVAL_RW_PROPERTY(TCpuInstant, LastDataHeartbeatTime);
+    DEFINE_BYVAL_RW_PROPERTY(TCpuInstant, LastJobHeartbeatTime);
+    DEFINE_BYVAL_RW_PROPERTY(TCpuInstant, LastStateChangeTime);
 
 public:
     explicit TNode(NObjectServer::TObjectId objectId);

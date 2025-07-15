@@ -75,7 +75,7 @@ TEST_F(TCypressKeyReaderTest, FindKey)
         Field("ReadFrom", &TGetNodeOptions::ReadFrom, EMasterChannelKind::ClientSideCache)))
         .WillOnce(Return(MakeFuture(ConvertToYsonString(simpleKeyInfo))));
 
-    auto reader = CreateCypressKeyReader(Config, Client);
+    auto reader = New<TCypressKeyReader>(Config, Client);
 
     auto keyInfo = WaitFor(reader->FindKey(OwnerId, KeyId));
     EXPECT_THAT(keyInfo.ValueOrThrow(), Pointee(*simpleKeyInfo));
@@ -88,7 +88,7 @@ TEST_F(TCypressKeyReaderTest, FindKeyNotFound)
     EXPECT_CALL(*Client, GetNode(_, _))
         .WillOnce(Return(MakeFuture<TYsonString>(TError("Key not found"))));
 
-    auto reader = CreateCypressKeyReader(Config, Client);
+    auto reader = New<TCypressKeyReader>(Config, Client);
 
     auto keyInfo = WaitFor(reader->FindKey(OwnerId, KeyId));
     EXPECT_FALSE(keyInfo.IsOK());
@@ -102,7 +102,7 @@ TEST_F(TCypressKeyReaderTest, FindKeyInvalidString)
     EXPECT_CALL(*Client, GetNode(_, _))
         .WillOnce(Return(MakeFuture<TYsonString>(ConvertToYsonString("abacaba"))));
 
-    auto reader = CreateCypressKeyReader(Config, Client);
+    auto reader = New<TCypressKeyReader>(Config, Client);
 
     auto keyInfo = WaitFor(reader->FindKey(OwnerId, KeyId));
     EXPECT_FALSE(keyInfo.IsOK());

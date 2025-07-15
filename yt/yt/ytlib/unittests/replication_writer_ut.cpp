@@ -426,7 +426,7 @@ public:
         ActionQueue = New<TActionQueue>();
         Invoker = CreateSerializedInvoker(ActionQueue->GetInvoker());
         NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
-        MemoryTracker = CreateNodeMemoryTracker(32_MB, {});
+        MemoryTracker = CreateNodeMemoryTracker(32_MB, New<TNodeMemoryTrackerConfig>(), {});
 
         NodeDescriptors.reserve(nodeCount);
 

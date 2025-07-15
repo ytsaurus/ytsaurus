@@ -6,6 +6,8 @@ from yt_commands import (
     create_tablet_cell, wait_for_cells, mount_table, wait_for_tablet_state,
     sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id, migrate_replication_cards)
 
+import yt_error_codes
+
 from yt.common import YtError
 import yt.yson as yson
 
@@ -21,6 +23,16 @@ class ChaosTestBase(DynamicTablesBase):
     NUM_MASTER_CACHES = 1
     NUM_NODES = 4
     NUM_CHAOS_NODES = 1
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "tablet_node": {
+                "replication_card_updates_batcher": {
+                    "enable": True,
+                }
+            }
+        }
+    }
 
     def _get_drivers(self):
         return [get_driver(cluster=cluster_name) for cluster_name in self.get_cluster_names()]
@@ -486,3 +498,11 @@ class ChaosTestBase(DynamicTablesBase):
                 check_func(error)
                 for error in errors[0]["inner_errors"]
             )
+
+    def _chaos_lease_exists(self, lease_id):
+        try:
+            return exists(f"#{lease_id}")
+        except YtError as err:
+            if err.contains_code(yt_error_codes.ChaosLeaseNotKnown):
+                return False
+            raise err

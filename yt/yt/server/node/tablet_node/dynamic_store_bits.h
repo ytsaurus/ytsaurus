@@ -27,7 +27,6 @@ namespace NYT::NTabletNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 const int TypicalSharedWriteTransactionCount = 2;
-const int LastWriteTimestampCount = 2;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,7 +41,7 @@ struct TEditListHeader;
 template <class T>
 class TEditList;
 using TValueList = TEditList<TDynamicValue>;
-using TRevisionList = TEditList<ui32>;
+using TRevisionList = TEditList<TSortedDynamicStoreRevision>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,9 +78,6 @@ struct TLockDescriptor
     std::atomic<TTimestamp> PrepareTimestamp;
 
     std::atomic<TEditListHeader*> WriteRevisionList;
-
-    // Allows to
-    std::array<std::atomic<TTimestamp>, LastWriteTimestampCount> LastWriteTimestamps;
 
     // Edit list of revision of committed transactions that were holding this read lock.
     // Actually only maximum timestamp in this list is important for conflicts check, edit list
@@ -595,7 +591,7 @@ DEFINE_ENUM(EWritePhase,
     (Commit)
 );
 
-using TTimestampToRevisionMap = THashMap<TTimestamp, ui32>;
+using TTimestampToRevisionMap = THashMap<TTimestamp, TSortedDynamicStoreRevision>;
 
 struct TWriteContext
 {
@@ -681,10 +677,10 @@ struct TSortedDynamicRowKeyHash
     }
 };
 
-class TSortedDynamicRowKeyEq
+class TSortedDynamicRowKeyEqualTo
 {
 public:
-    TSortedDynamicRowKeyEq(const TSortedDynamicRowKeyComparer* rowKeyComparer);
+    TSortedDynamicRowKeyEqualTo(const TSortedDynamicRowKeyComparer* rowKeyComparer);
 
     using is_transparent = void;
 

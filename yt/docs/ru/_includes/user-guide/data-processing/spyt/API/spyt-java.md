@@ -2,7 +2,7 @@
 
 ## Настройка проекта, зависимости, сборка { #prepare }
 
-Все примеры в данном разделе собраны с помощью `maven`. См. [POM файл](https://github.com/ytsaurus/ytsaurus/tree/main/yt/spark/spark-over-yt/java-examples/src/main/java/tech/ytsaurus/spyt/example).
+Все примеры в данном разделе собраны с помощью `maven`. См. [POM файл](https://github.com/ytsaurus/ytsaurus/tree/main/yt/spark/spark-over-yt/examples/java/src/main/java/tech/ytsaurus/spyt/example).
 
 - Все зависимости, которые нужны для запуска джобов в кластере, указываются в Vanilla-операции при старте кластера. Поэтому в приведённом примере все зависимости добавлены в `scope` – `Provided`. Зависимости будут использоваться только для компиляции и не будут включены в `.jar` для запуска.
 - с момента выхода Spark 3.0 проект использует 11 версию Java;
@@ -34,9 +34,9 @@ class MySparkApplication {
 
 ## Чтение данных из {{product-name}} { #read-data }
 
-{% code '/yt/spark/spark-over-yt/java-examples/src/main/java/tech/ytsaurus/spyt/example/SmokeTest.java' lang='java' %}
+{% code '/yt/spark/spark-over-yt/examples/java/src/main/java/tech/ytsaurus/spyt/example/SmokeTest.java' lang='java' %}
 
-<!--  Just in case: См. [примеры](https://github.com/ytsaurus/ytsaurus/tree/main/yt/spark/spark-over-yt/java-examples/src/main/java/tech/ytsaurus/spyt/example).-->
+<!--  Just in case: См. [примеры](https://github.com/ytsaurus/ytsaurus/tree/main/yt/spark/spark-over-yt/examples/java/src/main/java/tech/ytsaurus/spyt/example).-->
 
 1. Класс джоба унаследован от `SparkAppJava`. Вспомогательный метод метод `run` инициализирует `SparkSession` и вызывает абстрактный метод `doRun`. В методе `main` данный метод вызывается у инстанса.
 
@@ -79,7 +79,7 @@ spark-submit-yt \
 
 ## Использование UDF { #use-udf }
 
-{% code '/yt/spark/spark-over-yt/java-examples/src/main/java/tech/ytsaurus/spyt/example/UdfExample.java' lang='java' %}
+{% code '/yt/spark/spark-over-yt/examples/java/src/main/java/tech/ytsaurus/spyt/example/UdfExample.java' lang='java' %}
 
 1. Класс джоба унаследован от `SparkAppJava`,  как в предыдущем примере.
 2. Чтение датафрейма из `//sys/spark/examples/example_1`.
@@ -110,7 +110,7 @@ spark-submit-yt \
 
 ## Агрегации { #agg }
 
-{% code '/yt/spark/spark-over-yt/java-examples/src/main/java/tech/ytsaurus/spyt/example/GroupingExample.java' lang='java' %}
+{% code '/yt/spark/spark-over-yt/examples/java/src/main/java/tech/ytsaurus/spyt/example/GroupingExample.java' lang='java' %}
 
 1. Класс джоба унаследован от `SparkAppJava`, как в предыдущем примере.
 2. Чтение датафрейма из `//sys/spark/examples/example_1`.

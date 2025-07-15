@@ -27,7 +27,8 @@ target_link_libraries(benchmark_formats PUBLIC
 )
 
 target_allocator(benchmark_formats
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(benchmark_formats PRIVATE

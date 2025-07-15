@@ -43,6 +43,7 @@ class TestJobTracker(YTEnvSetup):
         "controller_agent": {
             "job_tracker": {
                 "node_disconnection_timeout": 500,
+                "revival_node_disconnection_timeout": 500,
                 "job_confirmation_timeout": 500,
             },
             "snapshot_period": 3000,
@@ -256,6 +257,7 @@ class TestJobTracker(YTEnvSetup):
         assert not job_orchid["stored"]
 
         update_controller_agent_config("job_tracker/node_disconnection_timeout", 30000)
+        update_controller_agent_config("job_tracker/revival_node_disconnection_timeout", 30000)
 
         update_nodes_dynamic_config({
             "exec_node": {
@@ -312,6 +314,7 @@ class TestJobTracker(YTEnvSetup):
         update_controller_agent_config("job_tracker/job_confirmation_timeout", 30000)
 
         update_controller_agent_config("job_tracker/node_disconnection_timeout", 30000)
+        update_controller_agent_config("job_tracker/revival_node_disconnection_timeout", 30000)
 
         update_nodes_dynamic_config({
             "exec_node": {
@@ -341,6 +344,57 @@ class TestJobTracker(YTEnvSetup):
 
         op.track()
 
+    @authors("krasovav")
+    def test_revival_node_disconnection_timeout(self):
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
+
+        op.ensure_running()
+
+        (job_id, ) = wait_breakpoint()
+
+        op.wait_for_fresh_snapshot()
+
+        update_controller_agent_config("job_tracker/node_disconnection_timeout", 60000)
+        update_controller_agent_config("job_tracker/revival_node_disconnection_timeout", 1)
+
+        controller_agent_address = get(op.get_path() + "/@controller_agent_address")
+
+        job_info = self._get_job_info(op, job_id)
+
+        node_address = job_info["node_address"]
+        assert op.get_node(job_id) == node_address
+
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "controller_agent_connector": {
+                    "test_heartbeat_delay": 5000,
+                },
+            },
+        })
+
+        time.sleep(1)
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        wait(
+            lambda: not exists(
+                self._get_job_tracker_orchid_path(controller_agent_address) + "/nodes/{}".format(
+                    node_address)
+            )
+        )
+
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "controller_agent_connector": {
+                    "test_heartbeat_delay": 0,
+                },
+            },
+        })
+
+        release_breakpoint()
+
+        op.track()
+
     @authors("pogorelov")
     @pytest.mark.parametrize("mode", ["unconfirmed", "confirmation_timeout"])
     def test_unconfirmed_jobs(self, mode):
@@ -349,6 +403,7 @@ class TestJobTracker(YTEnvSetup):
         aborted_job_profiler = JobCountProfiler("aborted", tags={"tree": "default", "job_type": "vanilla", "abort_reason": job_abort_reason})
 
         update_controller_agent_config("job_tracker/node_disconnection_timeout", 30000)
+        update_controller_agent_config("job_tracker/revival_node_disconnection_timeout", 30000)
         update_controller_agent_config("job_tracker/job_confirmation_timeout", job_confirmation_timeout)
 
         update_scheduler_config("nodes_attributes_update_period", 1000000)
@@ -404,6 +459,7 @@ class TestJobTracker(YTEnvSetup):
     @authors("pogorelov")
     def test_abort_disappeared_from_node_job(self):
         update_controller_agent_config("job_tracker/node_disconnection_timeout", 100000)
+        update_controller_agent_config("job_tracker/revival_node_disconnection_timeout", 100000)
         update_controller_agent_config("job_tracker/duration_before_job_considered_disappeared_from_node", 100)
 
         update_scheduler_config("nodes_attributes_update_period", 1000000)
@@ -461,6 +517,7 @@ class TestJobTrackerRaces(YTEnvSetup):
         "controller_agent": {
             "job_tracker": {
                 "node_disconnection_timeout": 500,
+                "revival_node_disconnection_timeout": 500,
             },
             "snapshot_period": 3000,
         },
@@ -473,7 +530,7 @@ class TestJobTrackerRaces(YTEnvSetup):
             tags={"tree": "default", "job_type": "vanilla", "abort_reason": "allocation_finished"})
 
         total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
-        create_pool("test_pool", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
+        create_pool("test_pool", attributes={"strong_guarantee_resources": {"cpu": total_cpu_limit}})
 
         (node_address, ) = ls("//sys/cluster_nodes")
 

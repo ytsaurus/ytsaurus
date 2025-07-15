@@ -143,6 +143,7 @@ public:
                 meta.random_seed(),
                 meta.state_hash(),
                 FromProto<TInstant>(meta.timestamp()),
+                FromProto<TInstant>(meta.logical_time()),
                 std::move(reader),
                 prepareState);
         WaitFor(loadSnapshotFuture)
@@ -381,6 +382,11 @@ public:
     }
 
     bool GetReadOnly() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    TInstant GetLogicalTime() const override
     {
         YT_UNIMPLEMENTED();
     }

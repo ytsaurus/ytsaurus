@@ -32,6 +32,8 @@ void TDistributedThrottlerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("mode", &TThis::Mode)
         .Default(EDistributedThrottlerMode::Adaptive);
+    registrar.Parameter("member_priority", &TThis::MemberPriority)
+        .Default(EDistributedThrottlerMemberPriority::StartTime);
     registrar.Parameter("extra_limit_ratio", &TThis::ExtraLimitRatio)
         .Default(0.1)
         .LessThanOrEqual(1.0)
@@ -44,6 +46,12 @@ void TDistributedThrottlerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("skip_unused_throttlers_count_limit", &TThis::SkipUnusedThrottlersCountLimit)
         .Default(50);
+
+    registrar.Parameter("initialize_throttlers_on_creation", &TThis::InitializeThrottlersOnCreation)
+        .Default(false);
+
+    registrar.Parameter("update_limits_for_zero_rate_throttlers", &TThis::UpdateLimitsForZeroRateThrottlers)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

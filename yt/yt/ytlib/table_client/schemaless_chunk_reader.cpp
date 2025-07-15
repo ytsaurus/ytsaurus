@@ -428,25 +428,33 @@ protected:
                 ToProto(chunkLowerLimit->mutable_key_bound_prefix(), firstUnreadKey.AsOwningRow());
                 chunkLowerLimit->set_key_bound_is_inclusive(true);
             }
-            i64 rowCount = std::max(1l, chunk.row_count_override() - RowCount_ + std::ssize(unreadRows));
-            rowCount = std::min(rowCount, upperRowIndex - rowIndex);
-            chunk.set_row_count_override(rowCount);
-            i64 chunkDataWeight = misc.has_data_weight() ? misc.data_weight() : misc.uncompressed_data_size();
+            i64 unreadRowCount = std::max(1l, chunk.row_count_override() - RowCount_ + std::ssize(unreadRows));
+            unreadRowCount = std::min(unreadRowCount, upperRowIndex - rowIndex);
+            chunk.set_row_count_override(unreadRowCount);
+
+            double rowSelectivityFactor = static_cast<double>(unreadRowCount) / misc.row_count();
+
+            auto estimateSize = [&] (i64 size, std::optional<i64> sizeOverride) {
+                i64 result = SignedSaturationConversion(size * rowSelectivityFactor);
+                result = std::max(result, 1l);
+                if (sizeOverride.has_value()) {
+                    result = std::min(result, *sizeOverride);
+                }
+                return result;
+            };
+
             // NB(gritukan): Some old chunks might have zero data weight.
-            chunkDataWeight = std::max<i64>(chunkDataWeight, 1);
-            i64 dataWeight = DivCeil(
-                chunkDataWeight,
-                misc.row_count()) * rowCount;
-            YT_VERIFY(dataWeight > 0);
-            chunk.set_data_weight_override(dataWeight);
-            i64 compressedDataSize = DivCeil(
+            chunk.set_data_weight_override(estimateSize(
+                std::max<i64>(misc.has_data_weight() ? misc.data_weight() : misc.uncompressed_data_size(), 1),
+                YT_OPTIONAL_FROM_PROTO(chunk, data_weight_override)));
+
+            chunk.set_compressed_data_size_override(estimateSize(
                 misc.compressed_data_size(),
-                misc.row_count()) * rowCount;
-            chunk.set_compressed_data_size_override(compressedDataSize);
-            i64 uncompressedDataSize = DivCeil(
+                YT_OPTIONAL_FROM_PROTO(chunk, compressed_data_size_override)));
+
+            chunk.set_uncompressed_data_size_override(estimateSize(
                 misc.uncompressed_data_size(),
-                misc.row_count()) * rowCount;
-            chunk.set_uncompressed_data_size_override(uncompressedDataSize);
+                YT_OPTIONAL_FROM_PROTO(chunk, uncompressed_data_size_override)));
         }
 
         // Sometimes scheduler sends us empty slices (when both, row index and key limits are present).
@@ -455,23 +463,33 @@ protected:
             readDescriptors.emplace_back(chunkSpec);
             auto& chunk = readDescriptors[0].ChunkSpecs[0];
             chunk.mutable_upper_limit()->set_row_index(rowIndex);
-            i64 rowCount = RowCount_ - unreadRows.Size();
-            YT_VERIFY(rowCount >= 0);
-            chunk.set_row_count_override(rowCount);
-            YT_VERIFY(rowIndex >= rowCount);
-            chunk.mutable_lower_limit()->set_row_index(rowIndex - rowCount);
-            i64 dataWeight = DivCeil(
+            i64 readRowCount = RowCount_ - unreadRows.Size();
+            YT_VERIFY(readRowCount >= 0);
+            chunk.set_row_count_override(readRowCount);
+            YT_VERIFY(rowIndex >= readRowCount);
+            chunk.mutable_lower_limit()->set_row_index(rowIndex - readRowCount);
+
+            double rowSelectivityFactor = static_cast<double>(readRowCount) / misc.row_count();
+
+            auto estimateSize = [&] (i64 size, std::optional<i64> sizeOverride) {
+                i64 result = SignedSaturationConversion(size * rowSelectivityFactor);
+                if (sizeOverride.has_value()) {
+                    result = std::min(result, *sizeOverride);
+                }
+                return result;
+            };
+
+            chunk.set_data_weight_override(estimateSize(
                 misc.has_data_weight() ? misc.data_weight() : misc.uncompressed_data_size(),
-                misc.row_count()) * rowCount;
-            chunk.set_data_weight_override(dataWeight);
-            i64 compressedDataSize = DivCeil(
+                YT_OPTIONAL_FROM_PROTO(chunk, data_weight_override)));
+
+            chunk.set_compressed_data_size_override(estimateSize(
                 misc.compressed_data_size(),
-                misc.row_count()) * rowCount;
-            chunk.set_compressed_data_size_override(compressedDataSize);
-            i64 uncompressedDataSize = DivCeil(
+                YT_OPTIONAL_FROM_PROTO(chunk, compressed_data_size_override)));
+
+            chunk.set_uncompressed_data_size_override(estimateSize(
                 misc.uncompressed_data_size(),
-                misc.row_count()) * rowCount;
-            chunk.set_uncompressed_data_size_override(uncompressedDataSize);
+                YT_OPTIONAL_FROM_PROTO(chunk, uncompressed_data_size_override)));
         }
         return {std::move(unreadDescriptors), std::move(readDescriptors)};
     }
@@ -1808,7 +1826,7 @@ public:
         Pool_.Clear();
         MemoryGuard_.SetSize(Pool_.GetCapacity());
 
-        if (!ReadyEvent().IsSet() || !ReadyEvent().Get().IsOK()) {
+        if (!IsReadyEventSetAndOK()) {
             return CreateEmptyUnversionedRowBatch();
         }
 
@@ -2360,7 +2378,7 @@ public:
         Pool_.Clear();
         MemoryGuard_.SetSize(Pool_.GetCapacity());
 
-        if (!ReadyEvent().IsSet() || !ReadyEvent().Get().IsOK()) {
+        if (!IsReadyEventSetAndOK()) {
             return CreateEmptyUnversionedRowBatch();
         }
 

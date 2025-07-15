@@ -17,6 +17,11 @@ def run_check(yt_client, logger, options, states):
             final_state = state
         messages.append(message.format(attr_path))
 
+    sequoia_replicas_config = yt_client.get("//sys/@config/chunk_manager/sequoia_chunk_replicas")
+    if sequoia_replicas_config["enable"] and not sequoia_replicas_config["enable_chunk_purgatory"]:
+        messages.append("Chunk purgatory is disabled for a cluster with Sequoia replicas")
+        final_state = states.UNAVAILABLE_STATE
+
     if final_state == states.UNAVAILABLE_STATE:
         logger.info("Check failed (messages: %s)", str(messages))
     else:

@@ -10,6 +10,8 @@
 
 #include <yt/yt/server/lib/nbd/config.h>
 
+#include <yt/yt/server/lib/signature/public.h>
+
 #include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/library/dns_over_rpc/client/config.h>
@@ -340,6 +342,8 @@ struct TSchedulerConnectorDynamicConfig
 
     TDuration RequestNewAgentDelay;
 
+    bool ConsiderUserJobFreeMemoryWatermark;
+
     REGISTER_YSON_STRUCT(TSchedulerConnectorDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -536,6 +540,8 @@ struct TJobCommonConfig
     TJobProbeConfigPtr JobProbe;
 
     TTestingConfigPtr Testing;
+
+    TDuration JobCleanupTimeout;
 
     REGISTER_YSON_STRUCT(TJobCommonConfig);
 
@@ -805,6 +811,10 @@ struct TExecNodeConfig
     TJobProxyConfigPtr JobProxy;
 
     TJobProxyLogManagerConfigPtr JobProxyLogManager;
+
+    NSignature::TSignatureGenerationConfigPtr SignatureGeneration;
+
+    NSignature::TSignatureValidationConfigPtr SignatureValidation;
 
     REGISTER_YSON_STRUCT(TExecNodeConfig);
 

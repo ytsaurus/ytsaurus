@@ -25,6 +25,8 @@
 
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
 
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/yt/ytlib/table_client/table_columnar_statistics_cache.h>
 
 #include <yt/yt/client/table_client/logical_type.h>
@@ -287,15 +289,13 @@ public:
         if (ProcessingStage_ == DB::QueryProcessingStage::FetchColumns) {
             // See getQueryProcessingStage for more details about FetchColumns stage.
             std::vector<std::string> requiredColumns;
-            requiredColumns.reserve(RealColumnNames_.size() + VirtualColumnNames_.size());
-            requiredColumns.insert(requiredColumns.end(), RealColumnNames_.begin(), RealColumnNames_.end());
-            requiredColumns.insert(requiredColumns.end(), VirtualColumnNames_.begin(), VirtualColumnNames_.end());
+            auto& tableExpressionData = QueryInfo_.planner_context->getTableExpressionDataOrThrow(QueryInfo_.table_expression);
             auto modifiedQuery = DB::replaceTableExpressionAndRemoveJoin(
                 QueryInfo_.query_tree,
                 QueryInfo_.table_expression,
                 QueryInfo_.table_expression,
                 Context_,
-                requiredColumns);
+                tableExpressionData.getSelectedColumnsNames());
 
             // The initial query node may be a subquery with an alias.
             // For example: (SELECT * FROM t1 JOIN t2 USING (a)) AS t
@@ -531,6 +531,9 @@ private:
 
         QueryContext_->SetRuntimeVariable("pool_kind", QueryAnalysisResult_->PoolKind);
         QueryContext_->SetRuntimeVariable("read_in_order_mode", QueryAnalysisResult_->ReadInOrderMode);
+        if (QueryAnalysisResult_->JoinedByKeyColumns) {
+            QueryContext_->SetRuntimeVariable("joined_by_key_columns", QueryAnalysisResult_->JoinedByKeyColumns);
+        }
 
         QueryInput_ = FetchInput(
             StorageContext_,
@@ -919,6 +922,14 @@ public:
             }
         }
 
+        analyzer.Prepare();
+
+        // Distributed right or full join can only be performed using the functionality of the filtering joined subquery,
+        // which is based on joining by key columns.
+        if (analyzer.HasRightOrFullJoin() && !analyzer.IsJoinedByKeyColumns()) {
+            return DB::QueryProcessingStage::FetchColumns;
+        }
+
         // Handle some CH-native options.
         // We do not really need them, but it's not difficult to mimic the original behaviour.
         if (chSettings.distributed_group_by_no_merge) {
@@ -933,8 +944,6 @@ public:
                 return DB::QueryProcessingStage::Complete;
             }
         }
-
-        analyzer.Prepare();
 
         auto nodes = GetNodesToDistribute(queryContext, DistributionSeed_, isDistributedJoin);
         // If there is only one node, then its result is final, since
@@ -1070,8 +1079,13 @@ public:
                     // In this case we should only invalidate local cache to avoid quadratic number of rpc requests.
                     invalidateMode = std::min(invalidateMode, EInvalidateCacheMode::Local);
                 }
+                auto refreshRevision = NHydra::NullRevision;
+                if (queryContext->QueryKind == EQueryKind::InitialQuery && queryContext->CreatedTablePath.has_value()) {
+                    YT_VERIFY(*queryContext->CreatedTablePath == path);
+                    refreshRevision = GetRefreshRevision(queryContext->Client(), path);
+                }
 
-                InvalidateCache(queryContext, {path}, invalidateMode);
+                InvalidateCache(queryContext, {{path, refreshRevision}}, invalidateMode);
             }
         };
 
@@ -1140,6 +1154,9 @@ public:
         YT_VERIFY(select);
 
         DB::JoinedTables joinedTables(DB::Context::createCopy(context), *select);
+        if (joinedTables.isLeftTableFunction()) {
+            return std::nullopt;
+        }
         auto sourceStorage = std::dynamic_pointer_cast<TStorageDistributor>(joinedTables.getLeftTableStorage());
         if (!sourceStorage) {
             // Source storage is not a distributor; no distributed INSERT for today, sorry.
@@ -1221,7 +1238,12 @@ public:
         auto finalCallback = [context, path = table->GetPath()] {
             auto* queryContext = GetQueryContext(context);
             queryContext->CommitWriteTransaction();
-            InvalidateCache(queryContext, {path}, std::nullopt);
+            auto refreshRevision = NHydra::NullRevision;
+            if (queryContext->CreatedTablePath.has_value()) {
+                YT_VERIFY(*queryContext->CreatedTablePath == path);
+                refreshRevision = GetRefreshRevision(queryContext->Client(), path);
+            }
+            InvalidateCache(queryContext, {{path, refreshRevision}});
         };
 
         // Finally, build pipeline of all those pipes.
@@ -1251,7 +1273,8 @@ public:
         EraseTable(context);
 
         auto* queryContext = GetQueryContext(context);
-        InvalidateCache(queryContext, {table->GetPath()});
+        auto refreshRevision = GetRefreshRevision(queryContext->Client(), table->GetPath());
+        InvalidateCache(queryContext, {{table->GetPath(), refreshRevision}});
     }
 
     std::unordered_map<std::string, DB::ColumnSize> getColumnSizes() const override
@@ -1520,6 +1543,12 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
     options.TransactionId = queryContext->WriteTransactionId;
     auto id = WaitFor(client->CreateNode(path.GetPath(), NObjectClient::EObjectType::Table, options))
         .ValueOrThrow();
+
+    if (!queryContext->WriteTransactionId) {
+        auto refreshRevision = GetRefreshRevision(queryContext->Client(), path.GetPath());
+        InvalidateCache(queryContext, {{path.GetPath(), refreshRevision}});
+    }
+
     YT_LOG_DEBUG("Table created (ObjectId: %v)", id);
 
     // There may be obsolete entry about missing table in ObjectAttributeSnapshot.

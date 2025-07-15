@@ -36,7 +36,8 @@ target_link_libraries(unittester-library-decimal PUBLIC
 )
 
 target_allocator(unittester-library-decimal
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-library-decimal PRIVATE

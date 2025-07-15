@@ -874,7 +874,7 @@ class TestTentativePoolTrees(YTEnvSetup):
             "pool_trees": ["default"],
             "tentative_pool_trees": ["other"],
             "scheduling_options_per_pool_tree": {
-                "default": {"min_share_resources": {"cpu": 1}},
+                "default": {"strong_guarantee_resources": {"cpu": 1}},
                 "other": {"pool": "superpool"},
             },
             "tentative_tree_eligibility": {
@@ -1396,19 +1396,19 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
             other_op.wait_for_state("aborted")
 
     @authors("eshcherbin")
-    def test_two_trees_with_unequal_min_share_resources(self):
+    def test_two_trees_with_unequal_strong_guarantee_resources(self):
         for other_tree, expected_tree in [
             ("default", "nirvana"),
             ("nirvana", "default"),
         ]:
             set(
-                "//sys/pool_trees/{}/research/@min_share_resources".format(expected_tree),
+                "//sys/pool_trees/{}/research/@strong_guarantee_resources".format(expected_tree),
                 {"cpu": 1},
             )
             wait(
                 lambda: get_from_tree_orchid(
                     expected_tree,
-                    "fair_share_info/pools/research/min_share_resources/cpu",
+                    "fair_share_info/pools/research/strong_guarantee_resources/cpu",
                 )
                 == 1.0
             )
@@ -1422,7 +1422,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
             self._run_vanilla_and_check_tree(spec, possible_trees)
 
             set(
-                "//sys/pool_trees/{}/research/@min_share_resources".format(expected_tree),
+                "//sys/pool_trees/{}/research/@strong_guarantee_resources".format(expected_tree),
                 {"cpu": 0},
             )
 
@@ -1453,9 +1453,9 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
             set("//sys/cluster_nodes/{}/@user_tags".format(spare_node), [])
 
     @authors("eshcherbin")
-    def test_prefer_tree_with_min_share_resources(self):
-        set("//sys/pool_trees/nirvana/research/@min_share_resources", {"cpu": 3})
-        wait(lambda: get_from_tree_orchid("nirvana", "fair_share_info/pools/research/min_share_resources/cpu") == 3.0)
+    def test_prefer_tree_with_strong_guarantee_resources(self):
+        set("//sys/pool_trees/nirvana/research/@strong_guarantee_resources", {"cpu": 3})
+        wait(lambda: get_from_tree_orchid("nirvana", "fair_share_info/pools/research/strong_guarantee_resources/cpu") == 3.0)
         other_op = run_sleeping_vanilla(spec={"pool_trees": ["nirvana"], "pool": "research"}, job_count=2)
         wait(lambda: other_op.get_job_count(state="running") == 2)
 
@@ -1469,7 +1469,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
 
         other_op.abort()
         other_op.wait_for_state("aborted")
-        set("//sys/pool_trees/nirvana/research/@min_share_resources", {"cpu": 0})
+        set("//sys/pool_trees/nirvana/research/@strong_guarantee_resources", {"cpu": 0})
 
     @authors("eshcherbin")
     def test_revive_scheduler(self):
@@ -1524,11 +1524,11 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
             assert len(possible_trees) == len(erased_trees) + 1
             for tree in erased_trees:
                 set(
-                    "//sys/pool_trees/{}/research/@min_share_resources".format(tree),
+                    "//sys/pool_trees/{}/research/@strong_guarantee_resources".format(tree),
                     {"cpu": 3},
                 )
                 wait(
-                    lambda: get_from_tree_orchid(tree, "fair_share_info/pools/research/min_share_resources/cpu") == 3.0
+                    lambda: get_from_tree_orchid(tree, "fair_share_info/pools/research/strong_guarantee_resources/cpu") == 3.0
                 )
 
         wait(
@@ -1550,7 +1550,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
 
         for tree in erased_trees:
             set(
-                "//sys/pool_trees/{}/research/@min_share_resources".format(tree),
+                "//sys/pool_trees/{}/research/@strong_guarantee_resources".format(tree),
                 {"cpu": 0},
             )
 
@@ -1574,11 +1574,11 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
             wait(lambda: get_from_tree_orchid(busy_tree, "fair_share_info/pools/research/resource_demand/cpu") > 0.0)
 
             set(
-                "//sys/pool_trees/{}/research/@min_share_resources".format(busy_tree),
+                "//sys/pool_trees/{}/research/@strong_guarantee_resources".format(busy_tree),
                 {"cpu": 3},
             )
             wait(
-                lambda: get_from_tree_orchid(busy_tree, "fair_share_info/pools/research/min_share_resources/cpu") == 3.0
+                lambda: get_from_tree_orchid(busy_tree, "fair_share_info/pools/research/strong_guarantee_resources/cpu") == 3.0
             )
 
             spec = {
@@ -1592,7 +1592,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
             other_op.abort()
             other_op.wait_for_state("aborted")
             set(
-                "//sys/pool_trees/{}/research/@min_share_resources".format(busy_tree),
+                "//sys/pool_trees/{}/research/@strong_guarantee_resources".format(busy_tree),
                 {"cpu": 0},
             )
 

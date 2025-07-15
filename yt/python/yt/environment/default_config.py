@@ -179,8 +179,11 @@ def get_dynamic_master_config():
             "forbid_arbitrary_data_versions_in_retention_config": True,
 
             "cell_hydra_persistence_synchronizer": {
+                "migrate_to_virtual_cell_maps": True,
                 "synchronization_period": 100,
             },
+
+            "enable_smooth_tablet_movement": True,
         },
 
         "sequoia_manager": {},
@@ -241,7 +244,6 @@ def get_scheduler_config():
                     "filter": ".*",
                     "priority": -117,
                     "config": {
-                        "enable_fast_child_function_summation_in_fifo_pools": True,
                     },
                 },
             },
@@ -768,6 +770,12 @@ def get_dynamic_node_config():
                     "abort_on_jobs_disabled": True,
                 },
             },
+            "master_cell_directory_synchronizer": {
+                "sync_period": 500,
+                "retry_period": 500,
+                "expire_after_successful_update_time": 500,
+                "expire_after_failed_update_time": 500,
+            },
             "master_connector": {
                 "heartbeat_executor": {
                     "period": 100,
@@ -783,6 +791,12 @@ def get_dynamic_node_config():
                         "jitter": 0.3,
                     },
                 },
+            },
+            "job_resource_manager": {
+                "check_user_jobs_category_limit_on_resources_updating": True,
+            },
+            "node_memory_tracker": {
+                "check_per_category_limit_overcommit": True,
             },
         },
     }

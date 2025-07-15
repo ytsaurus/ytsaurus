@@ -202,8 +202,7 @@ struct TCompressionDictionaryInfo
     TInstant RebuildBackoffTime;
     bool BuildingInProgress = false;
 
-    void Save(TSaveContext& context) const;
-    void Load(TLoadContext& context);
+    void Persist(const TPersistenceContext& context);
 };
 
 using TCompressionDictionaryInfos = TEnumIndexedArray<
@@ -258,7 +257,7 @@ struct TTabletSnapshot
     int PreloadCompletedStoreCount = 0;
     int PreloadFailedStoreCount = 0;
 
-    int64_t OrderedDynamicStoreRotateEpoch = 0;
+    i64 OrderedDynamicStoreRotateEpoch = 0;
 
     NTransactionClient::ECommitOrdering CommitOrdering;
 
@@ -882,6 +881,8 @@ public:
     void SetCompressionDictionaryRebuildBackoffTime(
         NTableClient::EDictionaryCompressionPolicy policy,
         TInstant backoffTime);
+    NChunkClient::TChunkId GetCompressionDictionaryId(
+        NTableClient::EDictionaryCompressionPolicy policy) const;
 
     void InitializeTargetServantActivationFuture();
 

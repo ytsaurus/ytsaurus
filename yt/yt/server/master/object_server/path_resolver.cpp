@@ -98,6 +98,7 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
     static const auto SlashYPath = TYPath("/");
     static const auto AmpersandYPath = TYPath("&");
 
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     const auto& resolveCache = cypressManager->GetResolveCache();
 
@@ -114,20 +115,17 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
 
     for (int resolveDepth = options.InitialResolveDepth; resolveDepth <= MaxYPathResolveIterations; ++resolveDepth) {
         if (!currentObject) {
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            bool treatCypressRootAsRemoteOnSecondaryMaster = !multicellManager->IsPrimaryMaster() && isLink;
-
             auto resolveOptions = options;
             resolveOptions.InitialResolveDepth = resolveDepth;
 
-            auto rootPayload = ResolveRoot(resolveOptions, treatCypressRootAsRemoteOnSecondaryMaster);
+            auto rootPayload = ResolveRoot(resolveOptions, /*afterTraversingLink*/ isLink);
 
             if (!std::holds_alternative<TLocalObjectPayload>(rootPayload)) {
-                return {
-                    TYPath(Tokenizer_.GetInput()),
-                    std::move(rootPayload),
-                    canCacheResolve && treatCypressRootAsRemoteOnSecondaryMaster,
-                    resolveDepth
+                return TResolveResult{
+                    .UnresolvedPathSuffix = TYPath(Tokenizer_.GetInput()),
+                    .Payload = std::move(rootPayload),
+                    .CanCacheResolve = canCacheResolve && multicellManager->IsSecondaryMaster() && isLink,
+                    .ResolveDepth = resolveDepth
                 };
             }
             currentObject = std::get<TLocalObjectPayload>(rootPayload).Object;
@@ -320,8 +318,11 @@ bool TPathResolver::IsBackupMethod() noexcept
 }
 
 TPathResolver::TResolvePayload TPathResolver::ResolveRoot(
-    const TPathResolverOptions& options, bool treatCypressRootAsRemoteOnSecondaryMaster)
+    const TPathResolverOptions& options, bool afterTraversingLink)
 {
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+
     Tokenizer_.Advance();
     auto ampersandSkipped = Tokenizer_.Skip(NYPath::ETokenType::Ampersand);
 
@@ -332,9 +333,7 @@ TPathResolver::TResolvePayload TPathResolver::ResolveRoot(
         case ETokenType::Slash: {
             Tokenizer_.Advance();
 
-            if (treatCypressRootAsRemoteOnSecondaryMaster) {
-                const auto& multicellManager = Bootstrap_->GetMulticellManager();
-
+            if (multicellManager->IsSecondaryMaster() && afterTraversingLink) {
                 return TRemoteObjectRedirectPayload{
                     .ObjectId = MakeWellKnownId(EObjectType::MapNode, multicellManager->GetPrimaryCellTag()),
                     .ResolveDepth = options.InitialResolveDepth,
@@ -342,7 +341,7 @@ TPathResolver::TResolvePayload TPathResolver::ResolveRoot(
             }
 
             return TLocalObjectPayload{
-                Bootstrap_->GetCypressManager()->GetRootNode(),
+                cypressManager->GetRootNode(),
                 GetTransaction(),
             };
         }
@@ -388,16 +387,15 @@ TPathResolver::TResolvePayload TPathResolver::ResolveRoot(
             if (IsSequoiaId(objectId) &&
                 IsVersionedType(TypeFromId(objectId)) &&
                 !options.AllowResolveFromSequoiaObject &&
-                !NSequoiaClient::IsMethodShouldBeHandledByMaster(Method_) && // TODO(kvk1920): drop IsMethodShouldBeHandledByMaster().
+                !NSequoiaClient::IsMethodHandledByMaster(Method_) && // TODO(kvk1920): drop IsMethodHandledByMaster().
                 CellTagFromId(objectId) == Bootstrap_->GetCellTag() &&
                 (!TransactionId_ || IsCypressTransactionType(TypeFromId(TransactionId_))))
             {
                 return TSequoiaRedirectPayload{};
             }
 
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
             if (CellTagFromId(objectId) != multicellManager->GetCellTag() &&
-                multicellManager->IsPrimaryMaster() &&
+                (multicellManager->IsPrimaryMaster() || (multicellManager->IsSecondaryMaster() && afterTraversingLink)) &&
                 !ampersandSkipped &&
                 !IsAlienType(TypeFromId(objectId)))
             {

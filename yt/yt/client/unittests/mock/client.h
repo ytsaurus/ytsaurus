@@ -8,6 +8,8 @@
 #include <yt/yt/client/api/journal_writer.h>
 #include <yt/yt/client/api/transaction.h>
 
+#include <yt/yt/client/bundle_controller_client/bundle_controller_settings.h>
+
 #include <yt/yt/client/chaos_client/replication_card_cache.h>
 
 #include <yt/yt/client/scheduler/spec_patch.h>
@@ -911,6 +913,15 @@ public:
         const std::string& partitionColumn,
         std::optional<int> writerIndex,
         const TShuffleWriterOptions& options),
+        (override));
+
+    MOCK_METHOD(TFuture<IPrerequisitePtr>, StartChaosLease, (
+        const TChaosLeaseStartOptions& options),
+        (override));
+
+    MOCK_METHOD(TFuture<IPrerequisitePtr>, AttachChaosLease, (
+        NChaosClient::TChaosLeaseId chaosLeaseId,
+        const TChaosLeaseAttachOptions& options),
         (override));
 
 private:

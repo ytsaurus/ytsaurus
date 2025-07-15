@@ -19,6 +19,8 @@
 namespace NYT::NTableClient::NProto {
 
 class TRspCheckBackup;
+class TTabletStatistics;
+class TTableReplicaStatistics;
 
 } // namespace NYT::NTableClient::NProto
 
@@ -32,6 +34,7 @@ namespace NProto {
 
 class TTabletCellStatistics;
 class TTabletResources;
+class TBackupCutoffDescriptor;
 
 } // namespace NProto
 
@@ -69,18 +72,19 @@ using NTabletClient::ETabletBackupState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TTabletManager)
-DECLARE_REFCOUNTED_CLASS(TTabletService)
-DECLARE_REFCOUNTED_CLASS(TTabletBalancer)
-DECLARE_REFCOUNTED_CLASS(TTabletCellDecommissioner)
-DECLARE_REFCOUNTED_CLASS(TTabletActionManager)
-DECLARE_REFCOUNTED_CLASS(TReplicatedTableTracker)
+DECLARE_REFCOUNTED_STRUCT(ITabletManager)
+DECLARE_REFCOUNTED_STRUCT(ITabletService)
+DECLARE_REFCOUNTED_STRUCT(ITabletBalancer)
+DECLARE_REFCOUNTED_STRUCT(ITabletCellDecommissioner)
+DECLARE_REFCOUNTED_STRUCT(ITabletActionManager)
+DECLARE_REFCOUNTED_STRUCT(IMasterReplicatedTableTracker)
 DECLARE_REFCOUNTED_STRUCT(IReplicatedTableTrackerStateProvider)
 DECLARE_REFCOUNTED_STRUCT(ITabletCellBalancerProvider)
 DECLARE_REFCOUNTED_STRUCT(ITabletNodeTracker)
 DECLARE_REFCOUNTED_STRUCT(IBackupManager)
-DECLARE_REFCOUNTED_CLASS(TMountConfigStorage)
 DECLARE_REFCOUNTED_STRUCT(ITabletChunkManager)
+
+DECLARE_REFCOUNTED_CLASS(TMountConfigStorage)
 
 struct ITabletCellBalancer;
 

@@ -89,10 +89,16 @@ struct TGetJobSpecOptions
     bool OmitOutputTableSpecs = false;
 };
 
+DEFINE_ENUM(EJobStderrType,
+    ((UserJobStderr)    (0))
+    ((GpuCheckStderr)   (1))
+);
+
 struct TGetJobStderrOptions
     : public TTimeoutOptions
     , public TMasterReadOptions
 {
+    std::optional<EJobStderrType> Type;
     std::optional<i64> Limit;
     std::optional<i64> Offset;
 };
@@ -225,10 +231,11 @@ struct TListJobsOptions
     : public TTimeoutOptions
     , public TMasterReadOptions
 {
+    // NB(bystrovserg): Do not forget to add new options to continuation token serializer!
     NJobTrackerClient::TJobId JobCompetitionId;
     std::optional<NJobTrackerClient::EJobType> Type;
     std::optional<NJobTrackerClient::EJobState> State;
-    std::optional<TString> Address;
+    std::optional<std::string> Address;
     std::optional<bool> WithStderr;
     std::optional<bool> WithFailContext;
     std::optional<bool> WithSpec;
@@ -420,6 +427,7 @@ struct TJob
     NYson::TYsonString ArchiveFeatures;
     std::optional<std::string> OperationIncarnation;
     std::optional<NScheduler::TAllocationId> AllocationId;
+    std::optional<i64> GangRank;
     std::optional<bool> IsStale;
 
     // Service flags which are used to compute "is_stale" attribute in "list_jobs".

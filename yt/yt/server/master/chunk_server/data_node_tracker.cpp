@@ -924,6 +924,7 @@ private:
                 node->GetLocalState());
 
             nodeTracker->UpdateLastSeenTime(node);
+            nodeTracker->UpdateLastDataHeartbeatTime(node);
 
             ProcessIncrementalHeartbeat(node, request, response);
         }
@@ -960,6 +961,7 @@ private:
                 node->GetLocalState());
 
             nodeTracker->UpdateLastSeenTime(node);
+            nodeTracker->UpdateLastDataHeartbeatTime(node);
 
             ProcessFullHeartbeat(node, request, response);
         }
@@ -998,6 +1000,7 @@ private:
                 node->GetLocalState());
 
             nodeTracker->UpdateLastSeenTime(node);
+            nodeTracker->UpdateLastDataHeartbeatTime(node);
 
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             PopulateChunkLocationStatistics(node, request->statistics());
@@ -1029,6 +1032,7 @@ private:
             node->GetDefaultAddress());
 
         nodeTracker->UpdateLastSeenTime(node);
+        nodeTracker->UpdateLastDataHeartbeatTime(node);
 
         auto& statistics = *request->mutable_statistics();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -1049,11 +1053,11 @@ private:
         auto now = GetCurrentMutationContext()->GetTimestamp();
         auto expirationTimeout = GetDynamicConfig()->DanglingLocationCleaner->ExpirationTimeout;
 
-        auto danglingLocationUuids = FromProto<std::vector<TChunkLocationUuid>>(request->chunk_location_uuids());
+        auto danglingLocationIds = FromProto<std::vector<TObjectId>>(request->chunk_location_ids());
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        for (auto uuid : danglingLocationUuids) {
-            auto* location = ChunkLocationMap_.Find(uuid);
+        for (auto id : danglingLocationIds) {
+            auto* location = ChunkLocationMap_.Find(id);
             if (!IsObjectAlive(location) || location->GetState() != EChunkLocationState::Dangling) {
                 continue;
             }
@@ -1208,7 +1212,7 @@ private:
             YT_LOG_INFO("Removing dangling chunk locations (ChunkLocationIds: %v)", expiredDanglingLocations);
 
             NProto::TReqRemoveDanglingChunkLocations request;
-            ToProto(request.mutable_chunk_location_uuids(), expiredDanglingLocations);
+            ToProto(request.mutable_chunk_location_ids(), expiredDanglingLocations);
 
             YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
                 ->CommitAndLog(Logger()));

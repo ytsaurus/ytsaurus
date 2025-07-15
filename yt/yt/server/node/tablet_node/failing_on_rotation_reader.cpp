@@ -12,7 +12,7 @@ class TFailingOnRotationReader
     : public ISchemafulUnversionedReader
 {
 public:
-    explicit TFailingOnRotationReader(
+    TFailingOnRotationReader(
         ISchemafulUnversionedReaderPtr reader,
         NTabletNode::TTabletSnapshotPtr tabletSnapshot)
         : UnderlyingReader_(std::move(reader))
@@ -22,14 +22,17 @@ public:
 
     IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        auto epochBeforeRead = TabletSnapshot_->OrderedDynamicStoreRotateEpoch;
         auto result = UnderlyingReader_->Read(options);
+
+        auto epochBeforeRead = TabletSnapshot_->OrderedDynamicStoreRotateEpoch;
         auto epochAfterRead = TabletSnapshot_->TabletRuntimeData->OrderedDynamicStoreRotateEpoch.load();
 
         if (epochBeforeRead != epochAfterRead) {
             ConcurrentStoreRotateErrors_.Increment(1);
-            THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::SetOfDynamicStoresHasChanged,
-                "Set of stores has changed. Can't guarantee consistent read");
+            THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::OrderedDynamicStoreRotateEpochMismatch,
+                "Ordered dynamic store rotate epoch mismatch: expected %v, got %v",
+                epochBeforeRead,
+                epochAfterRead);
         }
         return result;
     }
@@ -62,12 +65,13 @@ public:
 private:
     const ISchemafulUnversionedReaderPtr UnderlyingReader_;
     const NTabletNode::TTabletSnapshotPtr TabletSnapshot_;
+
     NProfiling::TCounter ConcurrentStoreRotateErrors_;
 };
 
 ISchemafulUnversionedReaderPtr CreateFailingOnRotationReader(
     ISchemafulUnversionedReaderPtr reader,
-    const NTabletNode::TTabletSnapshotPtr& tabletSnapshot)
+    NTabletNode::TTabletSnapshotPtr tabletSnapshot)
 {
     return New<TFailingOnRotationReader>(std::move(reader), tabletSnapshot);
 }

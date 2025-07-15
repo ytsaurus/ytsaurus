@@ -180,9 +180,9 @@ bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TPIValue* va
 
     batch.push_back(
         CopyAndConvertFromPI(
+            GetCurrentCompartment(),
             &outputContext,
-            TRange(values, closure->RowSize),
-            EAddressSpace::WebAssembly));
+            TRange(values, closure->RowSize)));
 
     // NB: Flags are neither set from TCG value nor cleared during row allocation.
     // XXX(babenko): fix this
@@ -361,14 +361,16 @@ TPIValue* AllocateJoinKeys(
     TMultiJoinClosure* closure,
     TPIValue** keyPtrs)
 {
+    auto* compartment = GetCurrentCompartment();
+
     for (size_t joinId = 0; joinId < closure->Items.size(); ++joinId) {
         auto& joinItem = closure->Items[joinId];
         i64 length = GetUnversionedRowByteSize(joinItem.KeySize) + sizeof(TSlot);
         auto* offset = AllocateAlignedBytes(&joinItem.Context, length);
-        auto* data = ConvertPointerFromWasmToHost(offset, length);
+        auto* data = PtrFromVM(compartment, offset, length);
         auto row = TMutableRow::Create(data, joinItem.KeySize);
-        auto* rowBeginOffset = ConvertPointerFromHostToWasm(row.Begin(), row.GetCount());
-        ConvertPointerFromWasmToHost(keyPtrs)[joinId] = std::bit_cast<TPIValue*>(rowBeginOffset);
+        auto* rowBeginOffset = PtrToVM(compartment, row.Begin(), row.GetCount());
+        PtrFromVM(compartment, keyPtrs)[joinId] = std::bit_cast<TPIValue*>(rowBeginOffset);
     }
 
     size_t primaryRowSize = closure->PrimaryRowSize * sizeof(TPIValue) + sizeof(TSlot*) * closure->Items.size();
@@ -382,23 +384,24 @@ bool StorePrimaryRow(
     TPIValue** primaryValues,
     TPIValue** keysPtr)
 {
+    auto* compartment = GetCurrentCompartment();
+
     if (std::ssize(closure->PrimaryRows) >= context->JoinRowLimit) {
         throw TInterruptedIncompleteException();
     }
 
-    closure->PrimaryRows.emplace_back(*ConvertPointerFromWasmToHost(primaryValues));
+    closure->PrimaryRows.emplace_back(*PtrFromVM(compartment, primaryValues));
 
     for (size_t columnIndex = 0; columnIndex < closure->PrimaryRowSize; ++columnIndex) {
         CapturePIValue(
+            compartment,
             &closure->Context,
-            *ConvertPointerFromWasmToHost(primaryValues) + columnIndex,
-            EAddressSpace::WebAssembly,
-            EAddressSpace::WebAssembly);
+            *PtrFromVM(compartment, primaryValues) + columnIndex);
     }
 
     for (size_t joinId = 0; joinId < closure->Items.size(); ++joinId) {
         auto& item = closure->Items[joinId];
-        auto* key = ConvertPointerFromWasmToHost(keysPtr, closure->Items.size())[joinId];
+        auto* key = PtrFromVM(compartment, keysPtr, closure->Items.size())[joinId];
 
         if (!item.LastKey || !item.PrefixEqComparer(key, item.LastKey)) {
             closure->ProcessSegment(joinId);
@@ -407,29 +410,28 @@ bool StorePrimaryRow(
             // Key will be reallocated further.
         }
 
-        *std::bit_cast<TSlot*>(ConvertPointerFromWasmToHost(key) + item.KeySize) = TSlot{0, 0};
+        *std::bit_cast<TSlot*>(PtrFromVM(compartment, key) + item.KeySize) = TSlot{0, 0};
 
         auto inserted = item.Lookup.insert(key);
         if (inserted.second) {
             for (size_t columnIndex = 0; columnIndex < item.KeySize; ++columnIndex) {
                 CapturePIValue(
+                    compartment,
                     &closure->Items[joinId].Context,
-                    &key[columnIndex],
-                    EAddressSpace::WebAssembly,
-                    EAddressSpace::WebAssembly);
+                    &key[columnIndex]);
             }
 
             i64 length = GetUnversionedRowByteSize(item.KeySize) + sizeof(TSlot);
             auto* offset = AllocateAlignedBytes(&item.Context, length);
-            auto* data = ConvertPointerFromWasmToHost(offset, length);
+            auto* data = PtrFromVM(compartment, offset, length);
             auto row = TMutableRow::Create(data, item.KeySize);
-            auto* rowBeginOffset = ConvertPointerFromHostToWasm(row.Begin(), row.GetCount());
-            ConvertPointerFromWasmToHost(keysPtr, closure->Items.size())[joinId] = std::bit_cast<TPIValue*>(rowBeginOffset);
+            auto* rowBeginOffset = PtrToVM(compartment, row.Begin(), row.GetCount());
+            PtrFromVM(compartment, keysPtr, closure->Items.size())[joinId] = std::bit_cast<TPIValue*>(rowBeginOffset);
         }
 
         auto* insertedOffset = std::bit_cast<TSlot*>(*inserted.first + item.KeySize);
-        auto** arrayOffset = std::bit_cast<TSlot**>(*ConvertPointerFromWasmToHost(primaryValues) + closure->PrimaryRowSize);
-        auto** array = ConvertPointerFromWasmToHost(arrayOffset, closure->Items.size());
+        auto** arrayOffset = std::bit_cast<TSlot**>(*PtrFromVM(compartment, primaryValues) + closure->PrimaryRowSize);
+        auto** array = PtrFromVM(compartment, arrayOffset, closure->Items.size());
         array[joinId] = insertedOffset;
     }
 
@@ -446,16 +448,16 @@ bool StorePrimaryRow(
             char* data = AllocateAlignedBytes(
                 &item.Context,
                 GetUnversionedRowByteSize(item.KeySize) + sizeof(TSlot));
-            auto* dataAtHost = ConvertPointerFromWasmToHost(data, GetUnversionedRowByteSize(item.KeySize) + sizeof(TSlot));
+            auto* dataAtHost = PtrFromVM(compartment, data, GetUnversionedRowByteSize(item.KeySize) + sizeof(TSlot));
             auto row = TMutableRow::Create(dataAtHost, item.KeySize);
-            auto* rowBeginOffset = ConvertPointerFromHostToWasm(row.Begin(), row.GetCount());
-            ConvertPointerFromWasmToHost(keysPtr)[joinId] = std::bit_cast<TPIValue*>(rowBeginOffset);
+            auto* rowBeginOffset = PtrToVM(compartment, row.Begin(), row.GetCount());
+            PtrFromVM(compartment, keysPtr)[joinId] = std::bit_cast<TPIValue*>(rowBeginOffset);
         }
     }
 
     size_t primaryRowSize = closure->PrimaryRowSize * sizeof(TValue) + sizeof(TSlot*) * closure->Items.size();
 
-    *ConvertPointerFromWasmToHost(primaryValues) = std::bit_cast<TPIValue*>(AllocateAlignedBytes(&closure->Context, primaryRowSize));
+    *PtrFromVM(compartment, primaryValues) = std::bit_cast<TPIValue*>(AllocateAlignedBytes(&closure->Context, primaryRowSize));
 
     return false;
 }
@@ -506,9 +508,11 @@ void MultiJoinOpHelper(
     void** consumeRowsClosure,
     TRowsConsumer consumeRowsFunction)
 {
+    auto* compartment = GetCurrentCompartment();
+
     auto comparers = NDetail::MakeJoinComparersCallbacks(
         TRange(
-            ConvertPointerFromWasmToHost(comparersOffsets, parameters->Items.size()),
+            PtrFromVM(compartment, comparersOffsets, parameters->Items.size()),
             parameters->Items.size()));
     auto collectRows = PrepareFunction(collectRowsFunction);
     auto consumeRows = PrepareFunction(consumeRowsFunction);
@@ -570,19 +574,19 @@ void MultiJoinOpHelper(
             for (auto* key : closure.Items[joinId].OrderedKeys) {
                 // NB: Flags are neither set from TCG value nor cleared during row allocation.
                 size_t id = 0;
-                auto* items = ConvertPointerFromWasmToHost(key, closure.Items[joinId].KeySize);
+                auto* items = PtrFromVM(compartment, key, closure.Items[joinId].KeySize);
                 for (size_t index = 0; index < closure.Items[joinId].KeySize; ++index) {
                     auto& value = items[index];
                     value.Flags = {};
                     value.Id = id++;
                 }
-                auto row = TRow(ConvertPointerFromWasmToHost(std::bit_cast<const TUnversionedRowHeader*>(key) - 1));
+                auto row = TRow(PtrFromVM(compartment, std::bit_cast<const TUnversionedRowHeader*>(key) - 1));
                 orderedKeys.emplace_back(key, row.GetCount());
             }
 
             yielder.Checkpoint(closure.Items[joinId].OrderedKeys.size());
 
-            auto foreignExecutorCopy = CopyAndConvertFromPI(&foreignContext, orderedKeys, EAddressSpace::WebAssembly);
+            auto foreignExecutorCopy = CopyAndConvertFromPI(compartment, &foreignContext, orderedKeys);
             SaveAndRestoreCurrentCompartment([&] {
                 auto reader = parameters->Items[joinId].JoinRowsProducer->FetchJoinedRows(
                     foreignExecutorCopy,
@@ -634,7 +638,7 @@ void MultiJoinOpHelper(
                 while (index != sortedForeignSequence.size() && currentKey != orderedKeys.end()) {
                     int cmpResult = fullTernaryComparer(*currentKey, sortedForeignSequence[index]);
                     if (cmpResult == 0) {
-                        auto* slot = std::bit_cast<TSlot*>(ConvertPointerFromWasmToHost(*currentKey + keySize));
+                        auto* slot = std::bit_cast<TSlot*>(PtrFromVM(compartment, *currentKey + keySize));
                         if (slot->Count == 0) {
                             slot->Offset = index;
                         }
@@ -777,16 +781,17 @@ void MultiJoinOpHelper(
 
                 for (size_t index = 0; index < closure.PrimaryRowSize; ++index) {
                     CopyPositionIndependent(
-                        &ConvertPointerFromWasmToHost(joinedRow.Begin())[index],
-                        ConvertPointerFromWasmToHost(rowValues)[index]);
+                        &PtrFromVM(compartment, joinedRow.Begin())[index],
+                        PtrFromVM(compartment, rowValues)[index]);
                 }
 
                 size_t offset = closure.PrimaryRowSize;
                 for (size_t joinId = 0; joinId < closure.Items.size(); ++joinId) {
-                    auto** arrayAtHost = ConvertPointerFromWasmToHost(
+                    auto** arrayAtHost = PtrFromVM(
+                        compartment,
                         std::bit_cast<TSlot**>(rowValues + closure.PrimaryRowSize),
                         closure.Items.size());
-                    auto* slotPointer = ConvertPointerFromWasmToHost(arrayAtHost[joinId]);
+                    auto* slotPointer = PtrFromVM(compartment, arrayAtHost[joinId]);
                     auto slot = *slotPointer;
 
                     const auto& foreignIndexes = parameters->Items[joinId].ForeignColumns;
@@ -807,8 +812,8 @@ void MultiJoinOpHelper(
 
                         for (size_t columnIndex : foreignIndexes) {
                             CopyPositionIndependent(
-                                &ConvertPointerFromWasmToHost(joinedRow.Begin())[offset++],
-                                *ConvertPointerFromWasmToHost(&foreignRow[columnIndex]));
+                                &PtrFromVM(compartment, joinedRow.Begin())[offset++],
+                                *PtrFromVM(compartment, &foreignRow[columnIndex]));
                         }
                     } else {
                         if (incrementIndex == joinId) {
@@ -822,7 +827,7 @@ void MultiJoinOpHelper(
                         }
                         for (size_t count = foreignIndexes.size(); count > 0; --count) {
                             MakePositionIndependentSentinelValue(
-                                &ConvertPointerFromWasmToHost(joinedRow.Begin())[offset++],
+                                &PtrFromVM(compartment, joinedRow.Begin())[offset++],
                                 EValueType::Null);
                         }
                     }
@@ -873,11 +878,13 @@ void MultiJoinOpHelper(
 
 std::vector<TPIValue*> UnpackRows(TExpressionContext* context, std::vector<EValueType> types, TPIValue* lists)
 {
+    auto* compartment = GetCurrentCompartment();
+
     int arrayCount = types.size();
     std::vector<TPIValue*> nestedRows;
 
     for (int index = 0; index < arrayCount; ++index) {
-        auto* arrayAtHost = ConvertPointerFromWasmToHost(&lists[index]);
+        auto* arrayAtHost = PtrFromVM(compartment, &lists[index]);
 
         if (arrayAtHost->Type == EValueType::Null) {
             continue;
@@ -885,7 +892,7 @@ std::vector<TPIValue*> UnpackRows(TExpressionContext* context, std::vector<EValu
 
         TMemoryInput memoryInput;
         TString buffer;
-        if (HasCurrentCompartment()) {
+        if (compartment) {
             buffer = arrayAtHost->AsStringBuf();
             memoryInput = TMemoryInput(TStringBuf(buffer));
         } else {
@@ -950,20 +957,20 @@ std::vector<TPIValue*> UnpackRows(TExpressionContext* context, std::vector<EValu
                 int nestedRowSize = arrayCount;
                 auto mutableRange = AllocatePIValueRange(context, nestedRowSize, EAddressSpace::WebAssembly);
                 for (int leadingRowIndex = 0; leadingRowIndex < index; ++leadingRowIndex) {
-                    MakePositionIndependentNullValue(ConvertPointerFromWasmToHost(&mutableRange[leadingRowIndex]));
+                    MakePositionIndependentNullValue(PtrFromVM(compartment, &mutableRange[leadingRowIndex]));
                 }
                 nestedRows.push_back(mutableRange.Begin());
             }
 
             CopyPositionIndependent(
-                ConvertPointerFromWasmToHost(&nestedRows[currentArrayIndex][index]),
+                PtrFromVM(compartment, &nestedRows[currentArrayIndex][index]),
                 parsedValue);
             currentArrayIndex++;
             cursor->Next();
         });
 
         for (int trailingIndex = currentArrayIndex; trailingIndex < std::ssize(nestedRows); ++trailingIndex) {
-            MakePositionIndependentNullValue(ConvertPointerFromWasmToHost(&nestedRows[trailingIndex][index]));
+            MakePositionIndependentNullValue(PtrFromVM(compartment, &nestedRows[trailingIndex][index]));
         }
     }
 
@@ -982,6 +989,8 @@ bool ArrayJoinOpHelper(
     void** predicateClosure,
     TArrayJoinPredicate predicateFunction)
 {
+    auto* compartment = GetCurrentCompartment();
+
     auto consumeRows = PrepareFunction(consumeRowsFunction);
     auto predicate = PrepareFunction(predicateFunction);
     auto nestedRows = UnpackRows(context, parameters->FlattenedTypes, arrays);
@@ -996,14 +1005,14 @@ bool ArrayJoinOpHelper(
 
             for (int index : parameters->SelfJoinedColumns) {
                 CopyPositionIndependent(
-                    ConvertPointerFromWasmToHost(&joinedRow[joinedRowIndex++]),
-                    *ConvertPointerFromWasmToHost(&row[index]));
+                    PtrFromVM(compartment, &joinedRow[joinedRowIndex++]),
+                    *PtrFromVM(compartment, &row[index]));
             }
 
             for (int index : parameters->ArrayJoinedColumns) {
                 CopyPositionIndependent(
-                    ConvertPointerFromWasmToHost(&joinedRow[joinedRowIndex++]),
-                    *ConvertPointerFromWasmToHost(&nestedRow[index]));
+                    PtrFromVM(compartment, &joinedRow[joinedRowIndex++]),
+                    *PtrFromVM(compartment, &nestedRow[index]));
             }
 
             filteredRows.push_back(joinedRow.Begin());
@@ -1016,19 +1025,19 @@ bool ArrayJoinOpHelper(
 
         for (int index : parameters->SelfJoinedColumns) {
             CopyPositionIndependent(
-                ConvertPointerFromWasmToHost(&joinedRow[joinedRowIndex++]),
-                *ConvertPointerFromWasmToHost(&row[index]));
+                PtrFromVM(compartment, &joinedRow[joinedRowIndex++]),
+                *PtrFromVM(compartment, &row[index]));
         }
 
         for (int index : parameters->ArrayJoinedColumns) {
             Y_UNUSED(index);
-            MakePositionIndependentNullValue(ConvertPointerFromWasmToHost(&joinedRow[joinedRowIndex++]));
+            MakePositionIndependentNullValue(PtrFromVM(compartment, &joinedRow[joinedRowIndex++]));
         }
 
         filteredRows.push_back(joinedRow.Begin());
     }
 
-    if (auto* compartment = GetCurrentCompartment()) {
+    if (compartment) {
         auto guard = CopyIntoCompartment(
             TRange(std::bit_cast<uintptr_t*>(filteredRows.data()), std::ssize(filteredRows)),
             compartment);
@@ -1276,7 +1285,7 @@ void TGroupByClosure::ValidateGroupKeyIsNotNull(TPIValue* row) const
         return;
     }
 
-    row = ConvertPointerFromWasmToHost(row, GroupKeySize_);
+    row = PtrFromVM(GetCurrentCompartment(), row, GroupKeySize_);
 
     if (std::all_of(
         &row[0],
@@ -1340,8 +1349,10 @@ const TPIValue* TGroupByClosure::InsertIntermediate(const TExecutionContext* con
         ++GroupedRowCount_;
         YT_VERIFY(std::ssize(Intermediate_) <= context->GroupRowLimit);
 
+        auto* compartment = GetCurrentCompartment();
+
         for (int index = 0; index < GroupKeySize_; ++index) {
-            CapturePIValue(&Context_, &row[index], EAddressSpace::WebAssembly, EAddressSpace::WebAssembly);
+            CapturePIValue(compartment, &Context_, &row[index]);
         }
     }
 
@@ -1355,8 +1366,10 @@ const TPIValue* TGroupByClosure::InsertAggregated(const TExecutionContext* /*con
     Aggregated_.push_back(row);
     ++GroupedRowCount_;
 
+    auto* compartment = GetCurrentCompartment();
+
     for (int index = 0; index < GroupKeySize_ + GroupStateSize_; ++index) {
-        CapturePIValue(&AggregatedContext_, &row[index], EAddressSpace::WebAssembly, EAddressSpace::WebAssembly);
+        CapturePIValue(compartment, &AggregatedContext_, &row[index]);
     }
 
     return row;
@@ -1368,8 +1381,10 @@ const TPIValue* TGroupByClosure::InsertTotals(const TExecutionContext* /*context
 
     Totals_.push_back(row);
 
+    auto* compartment = GetCurrentCompartment();
+
     for (int index = 0; index < GroupKeySize_ + GroupStateSize_; ++index) { // FIXME: first values are null btw.
-        CapturePIValue(&TotalsContext_, &row[index], EAddressSpace::WebAssembly, EAddressSpace::WebAssembly);
+        CapturePIValue(compartment, &TotalsContext_, &row[index]);
     }
 
     return row;
@@ -1764,7 +1779,7 @@ void AllocatePermanentRow(
 {
     // TODO(dtorilov): Use AllocateUnversioned.
     auto* offset = expressionContext->AllocateAligned(valueCount * sizeof(TPIValue), EAddressSpace::WebAssembly);
-    *ConvertPointerFromWasmToHost(row) = std::bit_cast<TValue*>(offset);
+    *PtrFromVM(GetCurrentCompartment(), row) = std::bit_cast<TValue*>(offset);
 }
 
 void AddRowToCollector(TTopCollector* topCollector, TPIValue* row)
@@ -1904,7 +1919,7 @@ TPIValue* LookupInRowset(
     }
 
     if (rowset->Size() < 32) {
-        if (HasCurrentCompartment()) {
+        if (GetCurrentCompartment()) {
             auto& searchRange = (*lookupContext)->RowsInsideCompartment;
             auto it = std::lower_bound(
                 searchRange.begin(),
@@ -1941,7 +1956,7 @@ TPIValue* LookupInRowset(
         lookupTable = std::make_unique<TLookupRows>(rowset->Size(), hasher, eqComparer);
         lookupTable->set_empty_key(nullptr);
 
-        if (HasCurrentCompartment()) {
+        if (GetCurrentCompartment()) {
             auto& searchRange = (*lookupContext)->RowsInsideCompartment;
             for (auto* row : searchRange) {
                 lookupTable->insert(row);
@@ -1977,7 +1992,7 @@ char IsRowInRanges(
     TPIValue* values,
     TSharedRange<TPIRowRange>* ranges)
 {
-    values = ConvertPointerFromWasmToHost(values);
+    values = PtrFromVM(GetCurrentCompartment(), values);
 
     auto it = std::lower_bound(
         ranges->Begin(),
@@ -2015,12 +2030,12 @@ size_t StringHash(
     const char* data,
     ui32 length)
 {
-    return FarmFingerprint(ConvertPointerFromWasmToHost(data, length), length);
+    return FarmFingerprint(PtrFromVM(GetCurrentCompartment(), data, length), length);
 }
 
 ui64 StringXxHash64(const char* data, ui32 length)
 {
-    return XXH_INLINE_XXH64(ConvertPointerFromWasmToHost(data, length), length, 0);
+    return XXH_INLINE_XXH64(PtrFromVM(GetCurrentCompartment(), data, length), length, 0);
 }
 
 // FarmHash and MurmurHash hybrid to hash TRow.
@@ -2114,13 +2129,13 @@ void ThrowException(const char* error)
 {
     // TODO(dtorilov): Infer length of error description.
     THROW_ERROR_EXCEPTION("Error while executing UDF")
-        << TError(TRuntimeFormat(ConvertPointerFromWasmToHost(error)));
+        << TError(TRuntimeFormat(PtrFromVM(GetCurrentCompartment(), error)));
 }
 
 void ThrowQueryException(const char* error)
 {
     THROW_ERROR_EXCEPTION("Error while executing query")
-        << TError(TRuntimeFormat(ConvertPointerFromWasmToHost(error)));
+        << TError(TRuntimeFormat(PtrFromVM(GetCurrentCompartment(), error)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2130,38 +2145,42 @@ namespace NDetail {
 template <typename TStringType>
 void CopyString(TExpressionContext* context, TValue* result, const TStringType& str)
 {
+    auto* compartment = GetCurrentCompartment();
     auto* offset = AllocateBytes(context, str.size());
-    ::memcpy(ConvertPointerFromWasmToHost(offset, str.size()), str.data(), str.size());
-    *ConvertPointerFromWasmToHost(result) = MakeUnversionedStringValue(TStringBuf(offset, str.size()));
+    ::memcpy(PtrFromVM(compartment, offset, str.size()), str.data(), str.size());
+    *PtrFromVM(compartment, result) = MakeUnversionedStringValue(TStringBuf(offset, str.size()));
 }
 
 template <typename TStringType>
 void CopyString(TExpressionContext* context, TPIValue* result, const TStringType& str)
 {
+    auto* compartment = GetCurrentCompartment();
     auto* offset = AllocateBytes(context, str.size());
-    auto* offsetAtHost = ConvertPointerFromWasmToHost(offset, str.size());
+    auto* offsetAtHost = PtrFromVM(compartment, offset, str.size());
     ::memcpy(offsetAtHost, str.data(), str.size());
     MakePositionIndependentStringValue(
-        ConvertPointerFromWasmToHost(result),
+        PtrFromVM(compartment, result),
         TStringBuf(offsetAtHost, str.size()));
 }
 
 template <typename TStringType>
 void CopyAny(TExpressionContext* context, TValue* result, const TStringType& str)
 {
+    auto* compartment = GetCurrentCompartment();
     auto* offset = AllocateBytes(context, str.size());
-    ::memcpy(ConvertPointerFromWasmToHost(offset, str.size()), str.data(), str.size());
-    *ConvertPointerFromWasmToHost(result) = MakeUnversionedAnyValue(TStringBuf(offset, str.size()));
+    ::memcpy(PtrFromVM(compartment, offset, str.size()), str.data(), str.size());
+    *PtrFromVM(compartment, result) = MakeUnversionedAnyValue(TStringBuf(offset, str.size()));
 }
 
 template <typename TStringType>
 void CopyAny(TExpressionContext* context, TPIValue* result, const TStringType& str)
 {
+    auto* compartment = GetCurrentCompartment();
     auto* offset = AllocateBytes(context, str.size());
-    auto* offsetAtHost = ConvertPointerFromWasmToHost(offset, str.size());
+    auto* offsetAtHost = PtrFromVM(compartment, offset, str.size());
     ::memcpy(offsetAtHost, str.data(), str.size());
     MakePositionIndependentAnyValue(
-        ConvertPointerFromWasmToHost(result),
+        PtrFromVM(compartment, result),
         TStringBuf(offsetAtHost, str.size()));
 }
 
@@ -2171,9 +2190,10 @@ void CopyAny(TExpressionContext* context, TPIValue* result, const TStringType& s
 
 re2::RE2* RegexCreate(TValue* regexp)
 {
-    auto* regexAtHost = ConvertPointerFromWasmToHost(regexp);
+    auto* compartment = GetCurrentCompartment();
+    auto* regexAtHost = PtrFromVM(compartment, regexp);
     auto regexString = TStringBuf(
-        ConvertPointerFromWasmToHost(regexAtHost->Data.String),
+        PtrFromVM(compartment, regexAtHost->Data.String),
         regexAtHost->Length);
 
     re2::RE2::Options options;
@@ -2197,11 +2217,12 @@ void RegexDestroy(re2::RE2* re2)
 
 bool RegexFullMatch(re2::RE2* re2, TValue* string)
 {
-    auto* stringAtHost = ConvertPointerFromWasmToHost(string);
+    auto* compartment = GetCurrentCompartment();
+    auto* stringAtHost = PtrFromVM(compartment, string);
     YT_VERIFY(stringAtHost->Type == EValueType::String);
 
     auto stringBuf = TStringBuf(
-        ConvertPointerFromWasmToHost(stringAtHost->Data.String),
+        PtrFromVM(compartment, stringAtHost->Data.String),
         stringAtHost->Length);
 
     return re2::RE2::FullMatch(
@@ -2211,10 +2232,11 @@ bool RegexFullMatch(re2::RE2* re2, TValue* string)
 
 bool RegexPartialMatch(re2::RE2* re2, TValue* string)
 {
-    auto* stringAtHost = ConvertPointerFromWasmToHost(string);
+    auto* compartment = GetCurrentCompartment();
+    auto* stringAtHost = PtrFromVM(compartment, string);
     YT_VERIFY(stringAtHost->Type == EValueType::String);
     auto stringBuf = TStringBuf(
-        ConvertPointerFromWasmToHost(stringAtHost->Data.String),
+        PtrFromVM(compartment, stringAtHost->Data.String),
         stringAtHost->Length);
 
     return re2::RE2::PartialMatch(
@@ -2229,16 +2251,17 @@ void RegexReplaceFirst(
     TValue* rewrite,
     TValue* result)
 {
-    auto* stringAtHost = ConvertPointerFromWasmToHost(string);
+    auto* compartment = GetCurrentCompartment();
+    auto* stringAtHost = PtrFromVM(compartment, string);
     YT_VERIFY(stringAtHost->Type == EValueType::String);
     auto stringBuf = TStringBuf(
-        ConvertPointerFromWasmToHost(stringAtHost->Data.String),
+        PtrFromVM(compartment, stringAtHost->Data.String),
         stringAtHost->Length);
 
-    auto* rewriteAtHost = ConvertPointerFromWasmToHost(rewrite);
+    auto* rewriteAtHost = PtrFromVM(compartment, rewrite);
     YT_VERIFY(rewriteAtHost->Type == EValueType::String);
     auto rewriteAtHostStringBuf = TStringBuf(
-        ConvertPointerFromWasmToHost(rewriteAtHost->Data.String),
+        PtrFromVM(compartment, rewriteAtHost->Data.String),
         rewriteAtHost->Length);
 
     auto rewritten = std::string(stringBuf);
@@ -2257,16 +2280,17 @@ void RegexReplaceAll(
     TValue* rewrite,
     TValue* result)
 {
-    auto* stringAtHost = ConvertPointerFromWasmToHost(string);
+    auto* compartment = GetCurrentCompartment();
+    auto* stringAtHost = PtrFromVM(compartment, string);
     YT_VERIFY(stringAtHost->Type == EValueType::String);
     auto stringBuf = TStringBuf(
-        ConvertPointerFromWasmToHost(stringAtHost->Data.String),
+        PtrFromVM(compartment, stringAtHost->Data.String),
         stringAtHost->Length);
 
-    auto* rewriteAtHost = ConvertPointerFromWasmToHost(rewrite);
+    auto* rewriteAtHost = PtrFromVM(compartment, rewrite);
     YT_VERIFY(rewriteAtHost->Type == EValueType::String);
     auto rewriteAtHostStringBuf = TStringBuf(
-        ConvertPointerFromWasmToHost(rewriteAtHost->Data.String),
+        PtrFromVM(compartment, rewriteAtHost->Data.String),
         rewriteAtHost->Length);
 
     auto rewritten = std::string(stringBuf);
@@ -2285,16 +2309,17 @@ void RegexExtract(
     TValue* rewrite,
     TValue* result)
 {
-    auto* stringAtHost = ConvertPointerFromWasmToHost(string);
+    auto* compartment = GetCurrentCompartment();
+    auto* stringAtHost = PtrFromVM(compartment, string);
     YT_VERIFY(stringAtHost->Type == EValueType::String);
     auto stringBuf = TStringBuf(
-        ConvertPointerFromWasmToHost(stringAtHost->Data.String),
+        PtrFromVM(compartment, stringAtHost->Data.String),
         stringAtHost->Length);
 
-    auto* rewriteAtHost = ConvertPointerFromWasmToHost(rewrite);
+    auto* rewriteAtHost = PtrFromVM(compartment, rewrite);
     YT_VERIFY(rewriteAtHost->Type == EValueType::String);
     auto rewriteAtHostStringBuf = TStringBuf(
-        ConvertPointerFromWasmToHost(rewriteAtHost->Data.String),
+        PtrFromVM(compartment, rewriteAtHost->Data.String),
         rewriteAtHost->Length);
 
     auto extracted = std::string(stringBuf);
@@ -2312,10 +2337,11 @@ void RegexEscape(
     TValue* string,
     TValue* result)
 {
-    auto* stringAtHost = ConvertPointerFromWasmToHost(string);
+    auto* compartment = GetCurrentCompartment();
+    auto* stringAtHost = PtrFromVM(compartment, string);
     YT_VERIFY(stringAtHost->Type == EValueType::String);
     auto stringBuf = TStringBuf(
-        ConvertPointerFromWasmToHost(stringAtHost->Data.String),
+        PtrFromVM(compartment, stringAtHost->Data.String),
         stringAtHost->Length);
 
     auto escaped = re2::RE2::QuoteMeta(
@@ -2326,9 +2352,10 @@ void RegexEscape(
 
 static void* XdeltaAllocate(void* opaque, size_t size)
 {
+    auto* compartment = GetCurrentCompartment();
     if (opaque) {
         return std::bit_cast<uint8_t*>(
-            ConvertPointerFromWasmToHost(
+            PtrFromVM(compartment,
                 AllocateBytes(static_cast<TExpressionContext*>(opaque), size),
                 size));
     }
@@ -2353,8 +2380,9 @@ int XdeltaMerge(
     size_t* resultOffset,
     size_t* resultSize)
 {
-    lhsData = ConvertPointerFromWasmToHost(lhsData);
-    rhsData = ConvertPointerFromWasmToHost(rhsData);
+    auto* compartment = GetCurrentCompartment();
+    lhsData = PtrFromVM(compartment, lhsData);
+    rhsData = PtrFromVM(compartment, rhsData);
 
     NXdeltaAggregateColumn::TSpan result;
     XDeltaContext ctx{
@@ -2366,9 +2394,9 @@ int XdeltaMerge(
     if (code == 0) {
         ThrowException("Failed to merge xdelta states");
     }
-    *ConvertPointerFromWasmToHost(resultData) = ConvertPointerFromHostToWasm(result.Data);
-    *ConvertPointerFromWasmToHost(resultOffset) = result.Offset;
-    *ConvertPointerFromWasmToHost(resultSize) = result.Size;
+    *PtrFromVM(compartment, resultData) = PtrToVM(compartment, result.Data);
+    *PtrFromVM(compartment, resultOffset) = result.Offset;
+    *PtrFromVM(compartment, resultSize) = result.Size;
 
     return code;
 }
@@ -2382,13 +2410,14 @@ int XdeltaMerge(
         TValue* anyValue, \
         TValue* ypath) \
     { \
-        TValue* anyValueAtHost = ConvertPointerFromWasmToHost(anyValue); \
+        auto* compartment = GetCurrentCompartment(); \
+        TValue* anyValueAtHost = PtrFromVM(compartment, anyValue); \
         const char* anyValueDataOffset = anyValueAtHost->Data.String; \
-        const char* anyValueDataAtHost = ConvertPointerFromWasmToHost(anyValueDataOffset, anyValueAtHost->Length); \
+        const char* anyValueDataAtHost = PtrFromVM(compartment, anyValueDataOffset, anyValueAtHost->Length); \
         \
-        TValue* ypathAtHost = ConvertPointerFromWasmToHost(ypath); \
+        TValue* ypathAtHost = PtrFromVM(compartment, ypath); \
         const char* ypathDataOffset = ypathAtHost->Data.String; \
-        const char* ypathDataAtHost = ConvertPointerFromWasmToHost(ypathDataOffset, ypathAtHost->Length); \
+        const char* ypathDataAtHost = PtrFromVM(compartment, ypathDataOffset, ypathAtHost->Length); \
         \
         auto value = NYTree::TryGet ## TYPE( \
             TStringBuf(anyValueDataAtHost, anyValueAtHost->Length), \
@@ -2402,7 +2431,7 @@ int XdeltaMerge(
 
 #define DEFINE_YPATH_GET_IMPL(TYPE, STATEMENT_OK) \
     DEFINE_YPATH_GET_IMPL2(Try, TYPE, STATEMENT_OK, \
-        TValue* resultAtHost = ConvertPointerFromWasmToHost(result); \
+        TValue* resultAtHost = PtrFromVM(GetCurrentCompartment(), result); \
         *resultAtHost = MakeUnversionedNullValue();) \
     DEFINE_YPATH_GET_IMPL2(, TYPE, STATEMENT_OK, \
         THROW_ERROR_EXCEPTION("Value of type %Qlv is not found at YPath %Qv", \
@@ -2411,7 +2440,7 @@ int XdeltaMerge(
 
 #define DEFINE_YPATH_GET(TYPE) \
     DEFINE_YPATH_GET_IMPL(TYPE, \
-        TValue* resultAtHost = ConvertPointerFromWasmToHost(result); \
+        TValue* resultAtHost = PtrFromVM(GetCurrentCompartment(), result); \
         *resultAtHost = MakeUnversioned ## TYPE ## Value(*value);)
 
 #define DEFINE_YPATH_GET_STRING \
@@ -2434,9 +2463,10 @@ DEFINE_YPATH_GET_ANY
 #define DEFINE_CONVERT_ANY(TYPE, STATEMENT_OK) \
     void AnyTo ## TYPE([[maybe_unused]] TExpressionContext* context, TPIValue* result, TPIValue* anyValue) \
     { \
-        anyValue = ConvertPointerFromWasmToHost(anyValue); \
+        auto* compartment = GetCurrentCompartment(); \
+        anyValue = PtrFromVM(compartment, anyValue); \
         if (anyValue->Type == EValueType::Null) { \
-            MakePositionIndependentNullValue(ConvertPointerFromWasmToHost(result)); \
+            MakePositionIndependentNullValue(PtrFromVM(compartment, result)); \
             return; \
         } \
         NYson::TToken token; \
@@ -2455,9 +2485,10 @@ DEFINE_YPATH_GET_ANY
 #define DEFINE_CONVERT_ANY_NUMERIC_IMPL(TYPE) \
     void AnyTo ## TYPE(TExpressionContext* /*context*/, TPIValue* result, TPIValue* anyValue) \
     { \
-        anyValue = ConvertPointerFromWasmToHost(anyValue); \
+        auto* compartment = GetCurrentCompartment(); \
+        anyValue = PtrFromVM(compartment, anyValue); \
         if (anyValue->Type == EValueType::Null) { \
-            MakePositionIndependentNullValue(ConvertPointerFromWasmToHost(result)); \
+            MakePositionIndependentNullValue(PtrFromVM(compartment, result)); \
             return; \
         } \
         NYson::TStatelessLexer lexer; \
@@ -2465,11 +2496,11 @@ DEFINE_YPATH_GET_ANY
         auto anyString = anyValue->AsStringBuf(); \
         lexer.ParseToken(anyString, &token); \
         if (token.GetType() == NYson::ETokenType::Int64) { \
-            MakePositionIndependent ## TYPE ## Value(ConvertPointerFromWasmToHost(result), token.GetInt64Value()); \
+            MakePositionIndependent ## TYPE ## Value(PtrFromVM(compartment, result), token.GetInt64Value()); \
         } else if (token.GetType() == NYson::ETokenType::Uint64) { \
-            MakePositionIndependent ## TYPE ## Value(ConvertPointerFromWasmToHost(result), token.GetUint64Value()); \
+            MakePositionIndependent ## TYPE ## Value(PtrFromVM(compartment, result), token.GetUint64Value()); \
         } else if (token.GetType() == NYson::ETokenType::Double) { \
-            MakePositionIndependent ## TYPE ## Value(ConvertPointerFromWasmToHost(result), token.GetDoubleValue()); \
+            MakePositionIndependent ## TYPE ## Value(PtrFromVM(compartment, result), token.GetDoubleValue()); \
         } else { \
             THROW_ERROR_EXCEPTION("Cannot convert value %Qv of type \"any\" to %Qlv", \
                 anyString, \
@@ -2482,7 +2513,7 @@ DEFINE_CONVERT_ANY_NUMERIC_IMPL(Uint64)
 DEFINE_CONVERT_ANY_NUMERIC_IMPL(Double)
 DEFINE_CONVERT_ANY(
     Boolean,
-    MakePositionIndependentBooleanValue(ConvertPointerFromWasmToHost(result), token.GetBooleanValue());)
+    MakePositionIndependentBooleanValue(PtrFromVM(GetCurrentCompartment(), result), token.GetBooleanValue());)
 DEFINE_CONVERT_ANY(String, NDetail::CopyString(context, result, token.GetStringValue());)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2497,7 +2528,7 @@ void ThrowCannotCompareTypes(NYson::ETokenType lhsType, NYson::ETokenType rhsTyp
 #define DEFINE_COMPARE_ANY(TYPE, TOKEN_TYPE) \
 int CompareAny##TOKEN_TYPE(char* lhsData, i32 lhsLength, TYPE rhsValue) \
 { \
-    lhsData = ConvertPointerFromWasmToHost(lhsData); \
+    lhsData = PtrFromVM(GetCurrentCompartment(), lhsData); \
     TStringBuf lhsInput(lhsData, lhsLength); \
     NYson::TStatelessLexer lexer; \
     NYson::TToken lhsToken; \
@@ -2522,8 +2553,9 @@ DEFINE_COMPARE_ANY(double, Double)
 
 int CompareAnyString(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
 {
-    lhsData = ConvertPointerFromWasmToHost(lhsData);
-    rhsData = ConvertPointerFromWasmToHost(rhsData);
+    auto* compartment = GetCurrentCompartment();
+    lhsData = PtrFromVM(compartment, lhsData);
+    rhsData = PtrFromVM(compartment, rhsData);
 
     TStringBuf lhsInput(lhsData, lhsLength);
     NYson::TStatelessLexer lexer;
@@ -2545,12 +2577,13 @@ int CompareAnyString(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
 
 void ToAny(TExpressionContext* context, TValue* result, TValue* value)
 {
-    auto* valueAtHost = ConvertPointerFromWasmToHost(value);
-    auto* resultAtHost = ConvertPointerFromWasmToHost(result);
+    auto* compartment = GetCurrentCompartment();
+    auto* valueAtHost = PtrFromVM(compartment, value);
+    auto* resultAtHost = PtrFromVM(compartment, result);
 
     auto valueCopy = *valueAtHost;
     if (IsStringLikeType(valueAtHost->Type)) {
-        valueCopy.Data.String = ConvertPointerFromWasmToHost(valueAtHost->Data.String);
+        valueCopy.Data.String = PtrFromVM(compartment, valueAtHost->Data.String);
     }
 
     // TODO(babenko): for some reason, flags are garbage here.
@@ -2565,19 +2598,20 @@ void ToAny(TExpressionContext* context, TValue* result, TValue* value)
     TValue buffer = EncodeUnversionedAnyValue(valueCopy, context->GetRowBuffer().Get()->GetPool());
 
     *resultAtHost = buffer;
-    if (HasCurrentCompartment()) {
+    if (compartment) {
         auto* data = AllocateBytes(context, buffer.Length);
-        ::memcpy(ConvertPointerFromWasmToHost(data, buffer.Length), buffer.Data.String, buffer.Length);
+        ::memcpy(PtrFromVM(compartment, data, buffer.Length), buffer.Data.String, buffer.Length);
         resultAtHost->Data.String = data;
     }
 }
 
 void CastToV3TypeWithValidation(TPIValue* result, TPIValue* value, TLogicalTypePtr* type)
 {
-    auto* valueAtHost = ConvertPointerFromWasmToHost(value);
-    auto* resultAtHost = ConvertPointerFromWasmToHost(result);
+    auto* compartment = GetCurrentCompartment();
+    auto* valueAtHost = PtrFromVM(compartment, value);
+    auto* resultAtHost = PtrFromVM(compartment, result);
 
-    CopyPositionIndependent(resultAtHost, *value);
+    CopyPositionIndependent(resultAtHost, *valueAtHost);
 
     if (valueAtHost->Type == EValueType::Null) {
         THROW_ERROR_EXCEPTION_UNLESS((*type)->IsNullable(),
@@ -2590,7 +2624,7 @@ void CastToV3TypeWithValidation(TPIValue* result, TPIValue* value, TLogicalTypeP
 
     resultAtHost->Type = GetWireType(*type);
 
-    auto ysonView = TStringBuf(GetStringPosition(*value), valueAtHost->Length);
+    auto ysonView = TStringBuf(GetStringPosition(*valueAtHost), valueAtHost->Length);
     ValidateComplexLogicalType(ysonView, *type);
 }
 
@@ -2598,29 +2632,31 @@ void CastToV3TypeWithValidation(TPIValue* result, TPIValue* value, TLogicalTypeP
 
 void ToLowerUTF8(TExpressionContext* context, char** result, int* resultLength, char* source, int sourceLength)
 {
-    auto lowered = ToLowerUTF8(TStringBuf(ConvertPointerFromWasmToHost(source), sourceLength));
+    auto* compartment = GetCurrentCompartment();
+    auto lowered = ToLowerUTF8(TStringBuf(PtrFromVM(compartment, source), sourceLength));
     auto* offset = AllocateBytes(context, lowered.size());
-    *ConvertPointerFromWasmToHost(result) = offset;
-    *ConvertPointerFromWasmToHost(resultLength) = lowered.size();
-    ::memcpy(ConvertPointerFromWasmToHost(offset, lowered.size()), lowered.data(), lowered.size());
+    *PtrFromVM(compartment, result) = offset;
+    *PtrFromVM(compartment, resultLength) = lowered.size();
+    ::memcpy(PtrFromVM(compartment, offset, lowered.size()), lowered.data(), lowered.size());
 }
 
 TFingerprint GetFarmFingerprint(const TValue* begin, const TValue* end)
 {
+    auto* compartment = GetCurrentCompartment();
     auto asRange = TMutableRange<TValue>(
-        ConvertPointerFromWasmToHost(begin, end - begin),
+        PtrFromVM(compartment, const_cast<TValue*>(begin), end - begin),
         static_cast<size_t>(end - begin));
 
     for (auto& item : asRange) {
         if (IsStringLikeType(item.Type)) {
-            item.Data.String = ConvertPointerFromWasmToHost(item.Data.String);
+            item.Data.String = PtrFromVM(compartment, item.Data.String);
         }
     }
 
     auto finally = Finally([&] {
         for (auto& item : asRange) {
             if (IsStringLikeType(item.Type)) {
-                item.Data.String = ConvertPointerFromHostToWasm(item.Data.String);
+                item.Data.String = PtrToVM(compartment, item.Data.String);
             }
         }
     });
@@ -2639,11 +2675,13 @@ extern "C" void MakeMap(
     TValue* args,
     int argCount)
 {
+    auto* compartment = GetCurrentCompartment();
+
     if (argCount % 2 != 0) {
         THROW_ERROR_EXCEPTION("\"make_map\" takes a even number of arguments");
     }
 
-    auto arguments = TRange(ConvertPointerFromWasmToHost(args, argCount), argCount);
+    auto arguments = TRange(PtrFromVM(compartment, args, argCount), argCount);
 
     TString resultYson;
     TStringOutput output(resultYson);
@@ -2662,7 +2700,7 @@ extern "C" void MakeMap(
         }
 
         writer.OnKeyedItem(TStringBuf(
-            ConvertPointerFromWasmToHost(nameArg.Data.String, nameArg.Length),
+            PtrFromVM(compartment, nameArg.Data.String, nameArg.Length),
             nameArg.Length));
 
         switch (valueArg.Type) {
@@ -2680,13 +2718,13 @@ extern "C" void MakeMap(
                 break;
             case EValueType::String:
                 writer.OnStringScalar(TStringBuf(
-                    ConvertPointerFromWasmToHost(valueArg.Data.String, valueArg.Length),
+                    PtrFromVM(compartment, valueArg.Data.String, valueArg.Length),
                     valueArg.Length));
                 break;
             case EValueType::Any:
             case EValueType::Composite:
                 writer.OnRaw(TStringBuf(
-                    ConvertPointerFromWasmToHost(valueArg.Data.String, valueArg.Length),
+                    PtrFromVM(compartment, valueArg.Data.String, valueArg.Length),
                     valueArg.Length));
                 break;
             case EValueType::Null:
@@ -2709,7 +2747,9 @@ extern "C" void MakeList(
     TValue* args,
     int argCount)
 {
-    auto arguments = TRange(ConvertPointerFromWasmToHost(args, argCount), argCount);
+    auto* compartment = GetCurrentCompartment();
+
+    auto arguments = TRange(PtrFromVM(compartment, args, argCount), argCount);
 
     TString resultYson;
     TStringOutput output(resultYson);
@@ -2736,13 +2776,13 @@ extern "C" void MakeList(
                 break;
             case EValueType::String:
                 writer.OnStringScalar(TStringBuf(
-                    ConvertPointerFromWasmToHost(valueArg.Data.String, valueArg.Length),
+                    PtrFromVM(compartment, valueArg.Data.String, valueArg.Length),
                     valueArg.Length));
                 break;
             case EValueType::Any:
             case EValueType::Composite:
                 writer.OnRaw(TStringBuf(
-                    ConvertPointerFromWasmToHost(valueArg.Data.String, valueArg.Length),
+                    PtrFromVM(compartment, valueArg.Data.String, valueArg.Length),
                     valueArg.Length));
                 break;
             case EValueType::Null:
@@ -2784,14 +2824,16 @@ void ListContains(
     TValue* ysonList,
     TValue* what)
 {
-    auto whatAtHost = *ConvertPointerFromWasmToHost(what);
+    auto* compartment = GetCurrentCompartment();
+
+    auto whatAtHost = *PtrFromVM(compartment, what);
     if (IsStringLikeType(whatAtHost.Type)) {
-        whatAtHost.Data.String = ConvertPointerFromWasmToHost(whatAtHost.Data.String, whatAtHost.Length);
+        whatAtHost.Data.String = PtrFromVM(compartment, whatAtHost.Data.String, whatAtHost.Length);
     }
 
-    auto ysonListAtHost = *ConvertPointerFromWasmToHost(ysonList);
+    auto ysonListAtHost = *PtrFromVM(compartment, ysonList);
     YT_VERIFY(IsStringLikeType(ysonListAtHost.Type));
-    ysonListAtHost.Data.String = ConvertPointerFromWasmToHost(ysonListAtHost.Data.String, ysonListAtHost.Length);
+    ysonListAtHost.Data.String = PtrFromVM(compartment, ysonListAtHost.Data.String, ysonListAtHost.Length);
 
     auto node = NYTree::ConvertToNode(
         FromUnversionedValue<NYson::TYsonStringBuf>(ysonListAtHost));
@@ -2821,7 +2863,7 @@ void ListContains(
                 whatAtHost.Type);
     }
 
-    *ConvertPointerFromWasmToHost(result) = MakeUnversionedBooleanValue(found);
+    *PtrFromVM(compartment, result) = MakeUnversionedBooleanValue(found);
 }
 
 template <ENodeType NodeType, typename TValue>
@@ -2853,12 +2895,14 @@ void ListHasIntersection(
     TValue* lhsYsonList,
     TValue* rhsYsonList)
 {
-    auto lhsAtHost = *ConvertPointerFromWasmToHost(lhsYsonList);
+    auto* compartment = GetCurrentCompartment();
+
+    auto lhsAtHost = *PtrFromVM(compartment, lhsYsonList);
     YT_VERIFY(IsStringLikeType(lhsAtHost.Type));
-    lhsAtHost.Data.String = ConvertPointerFromWasmToHost(lhsAtHost.Data.String, lhsAtHost.Length);
-    auto rhsAtHost = *ConvertPointerFromWasmToHost(rhsYsonList);
+    lhsAtHost.Data.String = PtrFromVM(compartment, lhsAtHost.Data.String, lhsAtHost.Length);
+    auto rhsAtHost = *PtrFromVM(compartment, rhsYsonList);
     YT_VERIFY(IsStringLikeType(rhsAtHost.Type));
-    rhsAtHost.Data.String = ConvertPointerFromWasmToHost(rhsAtHost.Data.String, rhsAtHost.Length);
+    rhsAtHost.Data.String = PtrFromVM(compartment, rhsAtHost.Data.String, rhsAtHost.Length);
 
     auto lhsNode = NYTree::ConvertToNode(
         FromUnversionedValue<NYson::TYsonStringBuf>(lhsAtHost));
@@ -2895,7 +2939,7 @@ void ListHasIntersection(
         }
     }
 
-    *ConvertPointerFromWasmToHost(result) = MakeUnversionedBooleanValue(found);
+    *PtrFromVM(compartment, result) = MakeUnversionedBooleanValue(found);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2907,6 +2951,8 @@ void AnyToYsonString(
     char* any,
     int anyLength)
 {
+    auto* compartment = GetCurrentCompartment();
+
     YT_VERIFY(anyLength >= 0);
     auto textYsonLengthEstimate = static_cast<size_t>(anyLength) * 3;
 
@@ -2914,21 +2960,21 @@ void AnyToYsonString(
     auto output = TChunkedMemoryPoolOutput(context->GetRowBuffer()->GetPool(), textYsonLengthEstimate);
     {
         TYsonWriter writer(&output, EYsonFormat::Text);
-        TMemoryInput input(ConvertPointerFromWasmToHost(any), anyLength);
+        TMemoryInput input(PtrFromVM(compartment, any), anyLength);
         TYsonPullParser parser(&input, EYsonType::Node);
         TYsonPullParserCursor cursor(&parser);
         cursor.TransferComplexValue(&writer);
     }
     auto refs = output.Finish();
-    if (!HasCurrentCompartment() && refs.size() == 1) {
-        *ConvertPointerFromWasmToHost(result) = refs.front().Begin();
-        *ConvertPointerFromWasmToHost(resultLength) = refs.front().Size();
+    if (!compartment && refs.size() == 1) {
+        *PtrFromVM(compartment, result) = refs.front().Begin();
+        *PtrFromVM(compartment, resultLength) = refs.front().Size();
     } else {
-        *ConvertPointerFromWasmToHost(resultLength) = GetByteSize(refs);
-        *ConvertPointerFromWasmToHost(result) = AllocateBytes(context, *ConvertPointerFromWasmToHost(resultLength));
+        *PtrFromVM(compartment, resultLength) = GetByteSize(refs);
+        *PtrFromVM(compartment, result) = AllocateBytes(context, *PtrFromVM(compartment, resultLength));
         size_t offset = 0;
         for (const auto& ref : refs) {
-            ::memcpy(ConvertPointerFromWasmToHost(*ConvertPointerFromWasmToHost(result) + offset, ref.Size()), ref.Begin(), ref.Size());
+            ::memcpy(PtrFromVM(compartment, *PtrFromVM(compartment, result) + offset, ref.Size()), ref.Begin(), ref.Size());
             offset += ref.Size();
         }
     }
@@ -2936,18 +2982,8 @@ void AnyToYsonString(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern "C" void NumericToString(
-    TExpressionContext* context,
-    TValue* result,
-    TValue* value)
+TString NumericToStringImpl(TValue* valueAtHost)
 {
-    auto* valueAtHost = ConvertPointerFromWasmToHost(value);
-
-    if (valueAtHost->Type == EValueType::Null) {
-        ConvertPointerFromWasmToHost(result)->Type = EValueType::Null;
-        return;
-    }
-
     auto resultYson = TString();
     auto output = TStringOutput(resultYson);
     auto writer = TYsonWriter(&output, EYsonFormat::Text);
@@ -2966,6 +3002,25 @@ extern "C" void NumericToString(
             YT_ABORT();
     }
 
+    return resultYson;
+}
+
+extern "C" void NumericToString(
+    TExpressionContext* context,
+    TValue* result,
+    TValue* value)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto* resultAtHost = PtrFromVM(compartment, result);
+    auto* valueAtHost = PtrFromVM(compartment, value);
+
+    if (valueAtHost->Type == EValueType::Null) {
+        resultAtHost->Type = EValueType::Null;
+        return;
+    }
+
+    auto resultYson = NumericToStringImpl(valueAtHost);
+
     NDetail::CopyString(context, result, resultYson);
 }
 
@@ -2974,13 +3029,17 @@ extern "C" void NumericToStringPI(
     TPIValue* positionIndependentResult,
     TPIValue* positionIndependentValue)
 {
-    TValue value;
-    MakeUnversionedFromPositionIndependent(&value, *ConvertPointerFromWasmToHost(positionIndependentValue));
+    auto* compartment = GetCurrentCompartment();
+    auto valueAtHost = TValue{};
+    MakeUnversionedFromPositionIndependent(&valueAtHost, *PtrFromVM(compartment, positionIndependentValue));
 
-    TValue result;
-    NumericToString(context, &result, &value);
+    if (valueAtHost.Type == EValueType::Null) {
+        PtrFromVM(compartment, positionIndependentResult)->Type = EValueType::Null;
+        return;
+    }
 
-    MakePositionIndependentFromUnversioned(positionIndependentResult, result);
+    auto resultYson = NumericToStringImpl(&valueAtHost);
+    NDetail::CopyString(context, positionIndependentResult, resultYson);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2988,15 +3047,16 @@ extern "C" void NumericToStringPI(
 #define DEFINE_CONVERT_STRING(TYPE) \
     extern "C" void StringTo ## TYPE(TExpressionContext* /*context*/, TValue* result, TValue* value) \
     { \
-        auto* resultAtHost = ConvertPointerFromWasmToHost(result); \
-        auto* valueAtHost = ConvertPointerFromWasmToHost(value); \
+        auto* compartment = GetCurrentCompartment(); \
+        auto* resultAtHost = PtrFromVM(compartment, result); \
+        auto* valueAtHost = PtrFromVM(compartment, value); \
         if (valueAtHost->Type == EValueType::Null) { \
             *resultAtHost = MakeUnversionedNullValue(); \
             return; \
         } \
         NYson::TToken token; \
         NYson::TStatelessLexer lexer; \
-        auto valueString = TStringBuf(ConvertPointerFromWasmToHost(valueAtHost->Data.String, valueAtHost->Length), valueAtHost->Length); \
+        auto valueString = TStringBuf(PtrFromVM(compartment, valueAtHost->Data.String, valueAtHost->Length), valueAtHost->Length); \
         lexer.ParseToken(valueString, &token); \
         if (token.GetType() == NYson::ETokenType::Int64) { \
             *resultAtHost = MakeUnversioned ## TYPE ## Value(token.GetInt64Value()); \
@@ -3016,13 +3076,30 @@ DEFINE_CONVERT_STRING(Uint64)
 DEFINE_CONVERT_STRING(Double)
 
 #define DEFINE_CONVERT_STRING_PI(TYPE) \
-    extern "C" void StringTo ## TYPE ## PI(TExpressionContext* context, TPIValue* pIResult, TPIValue* pIValue) \
+    extern "C" void StringTo ## TYPE ## PI(TExpressionContext* /*context*/, TPIValue* pIResult, TPIValue* pIValue) \
     { \
-        TValue value; \
-        MakeUnversionedFromPositionIndependent(&value, *ConvertPointerFromWasmToHost(pIValue)); \
-        TValue result; \
-        StringTo ## TYPE(context, &result, &value); \
-        MakePositionIndependentFromUnversioned(pIResult, result); \
+        auto* compartment = GetCurrentCompartment(); \
+        auto* resultAtHost = PtrFromVM(compartment, pIResult); \
+        auto* valueAtHost = PtrFromVM(compartment, pIValue); \
+        if (valueAtHost->Type == EValueType::Null) { \
+            MakePositionIndependentNullValue(resultAtHost); \
+            return; \
+        } \
+        NYson::TToken token; \
+        NYson::TStatelessLexer lexer; \
+        auto valueString = valueAtHost->AsStringBuf(); \
+        lexer.ParseToken(valueString, &token); \
+        if (token.GetType() == NYson::ETokenType::Int64) { \
+            MakePositionIndependent ## TYPE ## Value(resultAtHost, token.GetInt64Value()); \
+        } else if (token.GetType() == NYson::ETokenType::Uint64) { \
+            MakePositionIndependent ## TYPE ## Value(resultAtHost, token.GetUint64Value()); \
+        } else if (token.GetType() == NYson::ETokenType::Double) { \
+            MakePositionIndependent ## TYPE ## Value(resultAtHost, token.GetDoubleValue()); \
+        } else { \
+            THROW_ERROR_EXCEPTION("Cannot convert value %Qv of type %Qlv to \"string\"", \
+                valueString, \
+                EValueType::TYPE); \
+        } \
     }
 
 DEFINE_CONVERT_STRING_PI(Int64)
@@ -3033,32 +3110,34 @@ DEFINE_CONVERT_STRING_PI(Double)
 
 void HyperLogLogAllocate(TExpressionContext* context, TValue* result)
 {
+    auto* compartment = GetCurrentCompartment();
     auto* hllOffset = AllocateBytes(context, sizeof(THLL));
-    auto* hll = ConvertPointerFromWasmToHost(hllOffset, sizeof(THLL));
+    auto* hll = PtrFromVM(compartment, hllOffset, sizeof(THLL));
     new (hll) THLL();
 
-    auto* resultAtHost = ConvertPointerFromWasmToHost(result);
+    auto* resultAtHost = PtrFromVM(compartment, result);
     *resultAtHost = MakeUnversionedStringValue(TStringBuf(hllOffset, sizeof(THLL)));
 }
 
 void HyperLogLogAdd(void* hll, uint64_t value)
 {
-    auto* hllAtHost = ConvertPointerFromWasmToHost(static_cast<THLL*>(hll));
+    auto* hllAtHost = PtrFromVM(GetCurrentCompartment(), static_cast<THLL*>(hll));
     hllAtHost->Add(value);
 }
 
 void HyperLogLogMerge(void* hll1, void* hll2)
 {
-    auto* hll1AtHost = ConvertPointerFromWasmToHost(static_cast<THLL*>(hll1));
-    auto* hll2AtHost = ConvertPointerFromWasmToHost(static_cast<THLL*>(hll2));
+    auto* compartment = GetCurrentCompartment();
+    auto* hll1AtHost = PtrFromVM(compartment, static_cast<THLL*>(hll1));
+    auto* hll2AtHost = PtrFromVM(compartment, static_cast<THLL*>(hll2));
     hll1AtHost->Merge(*hll2AtHost);
 }
 
 void HyperLogLogMergeWithValidation(void* hll1, void* hll2, uint64_t incomingStateLength)
 {
     THROW_ERROR_EXCEPTION_IF(incomingStateLength != sizeof(THLL),
-        "State size mismatch in hyperloglog, expected: %v, got: %v."
-        "This error potentially signals a misuse of cardinality_merge function",
+        "State size mismatch in hyperloglog: expected %v, got %v; "
+        "this potentially signals a misuse of function \"cardinality_merge\"",
         sizeof(THLL),
         incomingStateLength);
     HyperLogLogMerge(hll1, hll2);
@@ -3066,15 +3145,16 @@ void HyperLogLogMergeWithValidation(void* hll1, void* hll2, uint64_t incomingSta
 
 ui64 HyperLogLogEstimateCardinality(void* hll)
 {
-    auto* hllAtHost = ConvertPointerFromWasmToHost(static_cast<THLL*>(hll));
+    auto* hllAtHost = PtrFromVM(GetCurrentCompartment(), static_cast<THLL*>(hll));
     return hllAtHost->EstimateCardinality();
 }
 
 ui64 HyperLogLogGetFingerprint(TValue* value)
 {
-    auto valueAtHost = *ConvertPointerFromWasmToHost(value);
+    auto* compartment = GetCurrentCompartment();
+    auto valueAtHost = *PtrFromVM(compartment, value);
     if (IsStringLikeType(valueAtHost.Type)) {
-        valueAtHost.Data.String = ConvertPointerFromWasmToHost(valueAtHost.Data.String);
+        valueAtHost.Data.String = PtrFromVM(compartment, valueAtHost.Data.String);
     }
     return NTableClient::GetFarmFingerprint(valueAtHost);
 }
@@ -3365,7 +3445,7 @@ void NodeToWasmUnversionedValue(TExpressionContext* context, TUnversionedValue& 
     unversionedValue.Length = ysonString.AsStringBuf().size();
     char* data = AllocateBytes(context, unversionedValue.Length);
     std::memcpy(data, ysonString.AsStringBuf().data(), unversionedValue.Length);
-    unversionedValue.Data.String = ConvertPointerFromHostToWasm(data, unversionedValue.Length);
+    unversionedValue.Data.String = PtrToVM(GetCurrentCompartment(), data, unversionedValue.Length);
 }
 
 INodePtr NodeFromWasmUnversionedValue(const TUnversionedValue& unversionedValue)
@@ -3373,7 +3453,7 @@ INodePtr NodeFromWasmUnversionedValue(const TUnversionedValue& unversionedValue)
     if (unversionedValue.Type == EValueType::Null) {
         return nullptr;
     }
-    auto data = ConvertPointerFromWasmToHost(unversionedValue.Data.String, unversionedValue.Length);
+    auto data = PtrFromVM(GetCurrentCompartment(), unversionedValue.Data.String, unversionedValue.Length);
     auto stringBuf = TStringBuf(data, unversionedValue.Length);
     auto ysonString = NYson::TYsonString(stringBuf);
     return ConvertToNode(ysonString);
@@ -3459,8 +3539,10 @@ void DictSumIteration(
 
 void ArrayAggFinalize(TExpressionContext* context, TUnversionedValue* result, TUnversionedValue* state)
 {
-    auto* resultAtHost = ConvertPointerFromWasmToHost(result);
-    auto* stateAtHost = ConvertPointerFromWasmToHost(state);
+    auto* compartment = GetCurrentCompartment();
+
+    auto* resultAtHost = PtrFromVM(compartment, result);
+    auto* stateAtHost = PtrFromVM(compartment, state);
 
     TString resultYson;
     TStringOutput output(resultYson);
@@ -3469,7 +3551,7 @@ void ArrayAggFinalize(TExpressionContext* context, TUnversionedValue* result, TU
     writer.OnBeginList();
 
     if (stateAtHost->Length != 0) {
-        const auto* start = ConvertPointerFromWasmToHost(stateAtHost->Data.String);
+        const auto* start = PtrFromVM(compartment, stateAtHost->Data.String);
         const auto* end = start + *reinterpret_cast<const i64*>(stateAtHost->Data.String);
         const auto* cursor = start + sizeof(i64);
 
@@ -3691,7 +3773,7 @@ private:
 
 i64 YsonLength(char* data, int length)
 {
-    data = ConvertPointerFromWasmToHost(data, length);
+    data = PtrFromVM(GetCurrentCompartment(), data, length);
 
     TMemoryInput input(data, length);
     TYsonPullParser ysonParser(&input, EYsonType::Node);
@@ -3714,10 +3796,12 @@ void LikeOpHelper(
     TPIValue* escapeCharacter,
     TLikeExpressionContext* context)
 {
-    result = ConvertPointerFromWasmToHost(result);
-    text = ConvertPointerFromWasmToHost(text);
-    pattern = ConvertPointerFromWasmToHost(pattern);
-    escapeCharacter = ConvertPointerFromWasmToHost(escapeCharacter);
+    auto* compartment = GetCurrentCompartment();
+
+    result = PtrFromVM(compartment, result);
+    text = PtrFromVM(compartment, text);
+    pattern = PtrFromVM(compartment, pattern);
+    escapeCharacter = PtrFromVM(compartment, escapeCharacter);
 
     if (text->Type == EValueType::Null ||
         pattern->Type == EValueType::Null ||
@@ -3773,10 +3857,12 @@ void CompositeMemberAccessorHelper(
     using NYTree::ParseListUntilIndex;
     using NYTree::ParseAnyValue;
 
-    MakePositionIndependentNullValue(ConvertPointerFromWasmToHost(result));
+    auto* compartment = GetCurrentCompartment();
 
-    composite = ConvertPointerFromWasmToHost(composite);
-    dictOrListItemAccessor = ConvertPointerFromWasmToHost(dictOrListItemAccessor);
+    MakePositionIndependentNullValue(PtrFromVM(compartment, result));
+
+    composite = PtrFromVM(compartment, composite);
+    dictOrListItemAccessor = PtrFromVM(compartment, dictOrListItemAccessor);
 
     if (composite->Type == EValueType::Null || composite->Length == 0) {
         return;
@@ -3834,25 +3920,25 @@ void CompositeMemberAccessorHelper(
 
         case EValueType::Int64:
             if (auto parsed = TryParseValue<i64>(&cursor)) {
-                MakePositionIndependentInt64Value(ConvertPointerFromWasmToHost(result), *parsed);
+                MakePositionIndependentInt64Value(PtrFromVM(compartment, result), *parsed);
             }
             break;
 
         case EValueType::Uint64:
             if (auto parsed = TryParseValue<ui64>(&cursor)) {
-                MakePositionIndependentUint64Value(ConvertPointerFromWasmToHost(result), *parsed);
+                MakePositionIndependentUint64Value(PtrFromVM(compartment, result), *parsed);
             }
             break;
 
         case EValueType::Double:
             if (auto parsed = TryParseValue<double>(&cursor)) {
-                MakePositionIndependentDoubleValue(ConvertPointerFromWasmToHost(result), *parsed);
+                MakePositionIndependentDoubleValue(PtrFromVM(compartment, result), *parsed);
             }
             break;
 
         case EValueType::Boolean:
             if (auto parsed = TryParseValue<bool>(&cursor)) {
-                MakePositionIndependentBooleanValue(ConvertPointerFromWasmToHost(result), *parsed);
+                MakePositionIndependentBooleanValue(PtrFromVM(compartment, result), *parsed);
             }
             break;
 
@@ -3866,7 +3952,7 @@ void CompositeMemberAccessorHelper(
         case EValueType::Composite: {
             auto parsed = ParseAnyValue(&cursor);
             NDetail::CopyAny(context, result, parsed);
-            ConvertPointerFromWasmToHost(result)->Type = resultType;
+            PtrFromVM(compartment, result)->Type = resultType;
             break;
         }
 
@@ -3895,7 +3981,11 @@ bool SubqueryExprHelper(
 
 bool SubqueryWriteRow(TNestedExecutionContext* context, TSubqueryWriteOpClosure* closure, TPIValue* values)
 {
-    closure->OutputRowsBatch.push_back(CopyAndConvertFromPI(context->ExpressionContext, TRange(values, values + closure->RowSize), EAddressSpace::WebAssembly).Begin());
+    auto mutableRow = CopyAndConvertFromPI(
+        GetCurrentCompartment(),
+        context->ExpressionContext,
+        TRange(values, values + closure->RowSize));
+    closure->OutputRowsBatch.push_back(mutableRow.Begin());
 
     return false;
 }
@@ -4015,8 +4105,10 @@ void SubqueryGroupOpHelper(
 
 int CompareYsonValuesHelper(const char* lhsOffset, ui32 lhsLength, const char* rhsOffset, ui32 rhsLength)
 {
-    auto* lhs = ConvertPointerFromWasmToHost(lhsOffset, lhsLength);
-    auto* rhs = ConvertPointerFromWasmToHost(rhsOffset, rhsLength);
+    auto* compartment = GetCurrentCompartment();
+
+    auto* lhs = PtrFromVM(compartment, lhsOffset, lhsLength);
+    auto* rhs = PtrFromVM(compartment, rhsOffset, rhsLength);
     return NYT::NTableClient::CompareYsonValues(
         TYsonStringBuf(TStringBuf(lhs, lhsLength)),
         TYsonStringBuf(TStringBuf(rhs, rhsLength)));
@@ -4024,7 +4116,7 @@ int CompareYsonValuesHelper(const char* lhsOffset, ui32 lhsLength, const char* r
 
 ui64 HashYsonValueHelper(const char* dataOffset, ui32 length)
 {
-    auto* data = ConvertPointerFromWasmToHost(dataOffset, length);
+    auto* data = PtrFromVM(GetCurrentCompartment(), dataOffset, length);
     return NYT::NTableClient::CompositeFarmHash(TYsonStringBuf(TStringBuf(data, length)));
 }
 
@@ -4035,7 +4127,7 @@ int CompareAny(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
 
 void ValidateYsonHelper(const char* offset, ui32 length)
 {
-    auto* data = ConvertPointerFromWasmToHost(offset, length);
+    auto* data = PtrFromVM(GetCurrentCompartment(), offset, length);
     ValidateYson(TYsonStringBuf(TStringBuf(data, length)), /*nestingLevelLimit*/ 256);
 }
 
@@ -4043,22 +4135,26 @@ void ValidateYsonHelper(const char* offset, ui32 length)
 
 int memcmp(const void* firstOffset, const void* secondOffset, std::size_t count) // NOLINT
 {
-    auto* first = ConvertPointerFromWasmToHost(std::bit_cast<char*>(firstOffset), count);
-    auto* second = ConvertPointerFromWasmToHost(std::bit_cast<char*>(secondOffset), count);
+    auto* compartment = GetCurrentCompartment();
+
+    auto* first = PtrFromVM(compartment, std::bit_cast<char*>(firstOffset), count);
+    auto* second = PtrFromVM(compartment, std::bit_cast<char*>(secondOffset), count);
     return ::memcmp(first, second, count);
 }
 
 struct tm* gmtime_r(const time_t* time, struct tm* result) // NOLINT
 {
-    auto* gmtime = GmTimeR(ConvertPointerFromWasmToHost(time), ConvertPointerFromWasmToHost(result));
-    return ConvertPointerFromHostToWasm(gmtime);
+    auto* compartment = GetCurrentCompartment();
+
+    auto* gmtime = GmTimeR(PtrFromVM(compartment, time), PtrFromVM(compartment, result));
+    return PtrToVM(compartment, gmtime);
 }
 
 // This code is borrowed from bigb_hash.cpp.
 // It will be removed after full cross-compilation support.
 uint64_t BigBHashImpl(char* s, int len)
 {
-    s = ConvertPointerFromWasmToHost(s);
+    s = PtrFromVM(GetCurrentCompartment(), s);
 
     TStringBuf uid{s, static_cast<size_t>(len)};
     if (uid.length() == 0) {

@@ -20,6 +20,8 @@ from yt_helpers import write_log_barrier, read_structured_log, read_structured_l
 from yt_type_helpers import make_schema
 
 from yt.wrapper import JsonFormat, YtClient
+from yt.wrapper.driver import make_formatted_request
+
 from yt.common import YtError, YtResponseError, update_inplace
 import yt.yson as yson
 
@@ -228,9 +230,9 @@ class TestRpcProxyStructuredLogging(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
 
     @classmethod
-    def modify_rpc_proxy_config(cls, multidaemon_config, config):
-        if "logging" in config[0]:
-            config[0]["logging"]["rules"].append(
+    def modify_rpc_proxy_config(cls, config, multidaemon_config, proxy_index):
+        if "logging" in config:
+            config["logging"]["rules"].append(
                 {
                     "min_level": "debug",
                     "writers": ["main"],
@@ -238,9 +240,9 @@ class TestRpcProxyStructuredLogging(YTEnvSetup):
                     "message_format": "structured",
                 }
             )
-            config[0]["logging"]["writers"]["main"] = {
+            config["logging"]["writers"]["main"] = {
                 "type": "file",
-                "file_name": os.path.join(cls.path_to_run, "logs/rpc-proxy-0.main.yson.log"),
+                "file_name": os.path.join(cls.path_to_run, f"logs/rpc-proxy-{proxy_index}.main.yson.log"),
                 "format": "yson",
             }
         multidaemon_config["logging"]["rules"].append(
@@ -253,7 +255,7 @@ class TestRpcProxyStructuredLogging(YTEnvSetup):
         )
         multidaemon_config["logging"]["writers"]["main-rpc-proxy"] = {
             "type": "file",
-            "file_name": os.path.join(cls.path_to_run, "logs/rpc-proxy-0.main.yson.log"),
+            "file_name": os.path.join(cls.path_to_run, f"logs/rpc-proxy-{proxy_index}.main.yson.log"),
             "format": "yson",
         }
 
@@ -694,6 +696,68 @@ class TestRpcProxyDiscoveryViaHttp(YTEnvSetup):
             yc.get("//tmp/@")
 
         assert excinfo.value.contains_text("Proxy list is empty")
+
+
+class TestRpcProxyTls(YTEnvSetup):
+    ENABLE_HTTP_PROXY = True
+    ENABLE_RPC_PROXY = True
+    ENABLE_TLS = True
+
+    NUM_RPC_PROXIES = 2
+
+    @authors("khlebnikov")
+    def test_addresses(self):
+        rpc_proxies = ls("//sys/rpc_proxies")
+        assert len(rpc_proxies) > 0
+        for proxy in rpc_proxies:
+            get("//sys/rpc_proxies/" + proxy + "/orchid/rpc_proxy")
+            addresses = get("//sys/rpc_proxies/" + proxy + "/@addresses")
+            assert "internal_rpc" in addresses
+            assert "public_rpc" in addresses
+            assert "default" in addresses["internal_rpc"]
+            assert "default" in addresses["public_rpc"]
+            assert proxy == addresses["internal_rpc"]["default"]
+            assert proxy != addresses["public_rpc"]["default"]
+
+    @authors("khlebnikov")
+    def test_discovery(self):
+        http_client = self.Env.create_client()
+
+        internal_proxy_addresses = sorted(self.Env.get_rpc_proxy_addresses())
+        public_proxy_addresses = sorted(self.Env.get_rpc_proxy_addresses(address_type="public_rpc"))
+        configured_monitoring_addresses = sorted(self.Env.get_rpc_proxy_addresses(address_type="monitoring_http"))
+
+        for test_name, params, expected_addresses in [
+            (
+                "defaults",
+                {"type": "rpc"},
+                public_proxy_addresses,
+            ),
+            (
+                "public_rpc",
+                {"type": "rpc", "address_type": "public_rpc"},
+                public_proxy_addresses,
+            ),
+            (
+                "internal_rpc",
+                {"type": "rpc", "address_type": "internal_rpc"},
+                internal_proxy_addresses,
+            ),
+            (
+                "monitoring_http",
+                {"type": "rpc", "address_type": "monitoring_http", "network_name": "default"},
+                configured_monitoring_addresses,
+            ),
+        ]:
+            proxies = discover_proxies(type_=params["type"], **params)
+            assert sorted(proxies) == expected_addresses, test_name
+            proxies = make_formatted_request("discover_proxies", params, format=None, client=http_client).get("proxies")
+            assert sorted(proxies) == expected_addresses, test_name
+
+    @authors("khlebnikov")
+    def test_rpc_client(self):
+        yc = self.Env.create_rpc_client()
+        yc.get("//tmp/@")
 
 
 @pytest.mark.enabled_multidaemon
@@ -1526,15 +1590,16 @@ class TestRpcProxyNullApiTestingOptions(TestRpcProxyHeapUsageStatisticsBase):
 class TestRpcProxySignaturesBase(TestRpcProxyBase):
     ENABLE_MULTIDAEMON = True
     DELTA_RPC_PROXY_CONFIG = {
-        "signature_validation": {
-            "cypress_key_reader": dict(),
-            "validator": dict(),
-        },
-        "signature_generation": {
-            "cypress_key_writer": {
-                "owner_id": "test-rpc-proxy",
+        "signature_components": {
+            "validation": {
+                "cypress_key_reader": dict(),
             },
-            "generator": dict(),
+            "generation": {
+                "cypress_key_writer": {
+                    "owner_id": "test-rpc-proxy",
+                },
+                "generator": dict(),
+            },
         },
     }
 
@@ -1563,9 +1628,11 @@ def deep_update(source: dict[Any, Any], overrides: dict[Any, Any]) -> dict[Any, 
 class TestRpcProxySignaturesKeyCreation(TestRpcProxySignaturesBase):
     ENABLE_MULTIDAEMON = True
     DELTA_RPC_PROXY_CONFIG = deep_update(TestRpcProxySignaturesBase.DELTA_RPC_PROXY_CONFIG, {
-        "signature_generation": {
-            "key_rotator": {
-                "key_rotation_interval": "2h",
+        "signature_components": {
+            "generation": {
+                "key_rotator": {
+                    "key_rotation_interval": "2h",
+                },
             },
         },
     })
@@ -1580,9 +1647,11 @@ class TestRpcProxySignaturesKeyCreation(TestRpcProxySignaturesBase):
 class TestRpcProxySignaturesKeyRotation(TestRpcProxySignaturesBase):
     ENABLE_MULTIDAEMON = True
     DELTA_RPC_PROXY_CONFIG = deep_update(TestRpcProxySignaturesBase.DELTA_RPC_PROXY_CONFIG, {
-        "signature_generation": {
-            "key_rotator": {
-                "key_rotation_interval": "200ms",
+        "signature_components": {
+            "generation": {
+                "key_rotator": {
+                    "key_rotation_interval": "200ms",
+                },
             },
         },
     })

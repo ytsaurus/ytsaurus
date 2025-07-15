@@ -116,6 +116,7 @@ public:
     const NRpc::IChannelPtr& GetLocalRpcChannel() const;
     const NApi::NNative::IConnectionPtr& GetClusterConnection() const;
     const NApi::NNative::IClientPtr& GetRootClient() const;
+    bool IsSequoiaConfigured() const;
     NSequoiaClient::ISequoiaClientPtr GetSequoiaClient() const;
     const NElection::TCellManagerPtr& GetCellManager() const;
     const NHydra::IChangelogStoreFactoryPtr& GetChangelogStoreFactory() const;
@@ -149,7 +150,7 @@ public:
     const NSchedulerPoolServer::ISchedulerPoolManagerPtr& GetSchedulerPoolManager() const;
     const NCellServer::ITamedCellManagerPtr& GetTamedCellManager() const;
     const NTableServer::ITableManagerPtr& GetTableManager() const;
-    const NTabletServer::TTabletManagerPtr& GetTabletManager() const;
+    const NTabletServer::ITabletManagerPtr& GetTabletManager() const;
     const NTabletServer::IBackupManagerPtr& GetBackupManager() const;
     const NChaosServer::IChaosManagerPtr& GetChaosManager() const;
     const NSequoiaServer::ISequoiaManagerPtr& GetSequoiaManager() const;
@@ -250,10 +251,10 @@ protected:
     NCellServer::ITamedCellManagerPtr TamedCellManager_;
     NCellServer::ICellHydraJanitorPtr CellHydraJanitor_;
     NTableServer::ITableManagerPtr TableManager_;
-    NTabletServer::TTabletManagerPtr TabletManager_;
+    NTabletServer::ITabletManagerPtr TabletManager_;
     NTabletServer::IBackupManagerPtr BackupManager_;
     NSchedulerPoolServer::ISchedulerPoolManagerPtr SchedulerPoolManager_;
-    NTabletServer::TReplicatedTableTrackerPtr ReplicatedTableTracker_;
+    NTabletServer::IMasterReplicatedTableTrackerPtr ReplicatedTableTracker_;
     NConcurrency::TActionQueuePtr ReplicatedTableTrackerActionQueue_;
     NTabletServer::IReplicatedTableTrackerStateProviderPtr ReplicatedTableTrackerStateProvider_;
     NChaosServer::IChaosManagerPtr ChaosManager_;

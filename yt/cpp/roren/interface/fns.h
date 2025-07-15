@@ -35,7 +35,7 @@ public:
 
     const IExecutionContextPtr& GetExecutionContext() const
     {
-        Y_ABORT_UNLESS(Context_);
+        Y_ABORT_IF(!Context_);
         return Context_;
     }
 
@@ -88,7 +88,7 @@ private:
     friend NPrivate::TFnAttributesOps;
 
 public:
-    Y_SAVELOAD_DEFINE(IsPure_, IsMove_, TimerIds_, ResourceFileList_);
+    Y_SAVELOAD_DEFINE(IsPure_, IsMove_, ResourceFileList_);
 };
 
 template <typename T>

@@ -2,18 +2,15 @@
 
 PY3_LIBRARY()
 
-VERSION(2.9.0)
+VERSION(2.10.0)
 
 LICENSE(Apache-2.0)
-
-PEERDIR(
-    contrib/python/six
-)
 
 NO_LINT()
 
 NO_CHECK_IMPORTS(
     kazoo.handlers.*
+    kazoo.testing.*
 )
 
 PY_SRCS(
@@ -34,7 +31,6 @@ PY_SRCS(
     kazoo/protocol/paths.py
     kazoo/protocol/serialization.py
     kazoo/protocol/states.py
-    kazoo/python2atexit.py
     kazoo/recipe/__init__.py
     kazoo/recipe/barrier.py
     kazoo/recipe/cache.py

@@ -216,7 +216,7 @@ private:
             StartProgressWriter();
         }
 
-        OnQueryStarted();
+        OnQueryStarted(yqlServiceChannel->GetEndpointDescription());
     }
 
     void GetProgress()
@@ -240,11 +240,13 @@ private:
 
         auto optionalPlan = YT_PROTO_YSON_OPTIONAL(rsp->yql_response(), plan);
         auto optionalProgress = YT_PROTO_YSON_OPTIONAL(rsp->yql_response(), progress);
+        auto optionalAst = ((rsp->yql_response().has_ast()) ? std::optional(rsp->yql_response().ast()) : std::nullopt);
 
         auto progress = BuildYsonStringFluently()
             .BeginMap()
                 .OptionalItem("yql_plan", optionalPlan)
                 .OptionalItem("yql_progress", optionalProgress)
+                .OptionalItem("yql_ast", optionalAst)
             .EndMap();
         OnProgress(std::move(progress));
     }
@@ -286,12 +288,14 @@ private:
         auto optionalStatistics = YT_PROTO_YSON_OPTIONAL(rsp->yql_response(), statistics);
         auto optionalProgress = YT_PROTO_YSON_OPTIONAL(rsp->yql_response(), progress);
         auto optionalTaskInfo = YT_PROTO_YSON_OPTIONAL(rsp->yql_response(), task_info);
+        auto optionalAst = ((rsp->yql_response().has_ast()) ? std::optional(rsp->yql_response().ast()) : std::nullopt);
         auto progress = BuildYsonStringFluently()
             .BeginMap()
                 .OptionalItem("yql_plan", optionalPlan)
                 .OptionalItem("yql_statistics", optionalStatistics)
                 .OptionalItem("yql_progress", optionalProgress)
                 .OptionalItem("yql_task_info", optionalTaskInfo)
+                .OptionalItem("yql_ast", optionalAst)
             .EndMap();
         OnProgress(std::move(progress));
 

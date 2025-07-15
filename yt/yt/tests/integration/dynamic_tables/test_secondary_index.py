@@ -497,11 +497,18 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
 
         self._create_table("//tmp/index_table", index_schema)
         self._create_table("//tmp/table", table_schema)
-        self._create_secondary_index(attributes={
-            "evaluated_columns_schema": [
-                {"name": "eva01", "type": "int64", "expression": "try_get_int64(value, \"/inner_field\")"}
-            ]
+
+        evaluated_columns_schema = [
+            {"name": "eva01", "type": "int64", "expression": "try_get_int64(value, \"/inner_field\")"}
+        ]
+        secondary_index_id, _ = self._create_secondary_index(attributes={
+            "evaluated_columns_schema": evaluated_columns_schema
         })
+
+        assert get(f"#{secondary_index_id}/@evaluated_columns_schema")[0]["expression"] \
+            == evaluated_columns_schema[0]["expression"]
+        assert get("//tmp/table/@secondary_indices")[secondary_index_id]["evaluated_columns_schema"][0]["expression"] \
+            == evaluated_columns_schema[0]["expression"]
 
         self._create_table("//tmp/index_table_2", index_schema)
         if self.NUM_REMOTE_CLUSTERS:
@@ -637,7 +644,7 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "value", "type": "any"},
         ]
-        self._create_basic_tables(
+        _, _, secondary_index_id, _ = self._create_basic_tables(
             table_schema=table_schema,
             index_schema=UNFOLDING_INDEX_SCHEMA,
             kind="unfolding",
@@ -646,6 +653,8 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
                 "unfolded_column": "value"
             },
         )
+
+        assert get("//tmp/table/@secondary_indices")[secondary_index_id]["unfolded_column"] == "value"
 
         # Avoid "twin nulls" problem.
         format = yson.YsonString(b"yson")
@@ -811,6 +820,7 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
 @pytest.mark.enabled_multidaemon
 class TestSecondaryIndexModifications(TestSecondaryIndexBase):
     ENABLE_MULTIDAEMON = True
+    NUM_TEST_PARTITIONS = 2
 
     def _insert_rows(self, rows, table="//tmp/table", **kwargs):
         insert_rows(table, rows, **kwargs)

@@ -9,14 +9,14 @@ namespace NYT::NCypressProxy {
 struct TSequoiaResolveIterationResult
 {
     NCypressClient::TNodeId Id;
-    NSequoiaClient::TAbsoluteYPath Path;
+    NSequoiaClient::TAbsolutePath Path;
 };
 
 struct TSequoiaResolveResult
 {
     NCypressClient::TNodeId Id;
-    NSequoiaClient::TAbsoluteYPath Path;
-    NSequoiaClient::TYPath UnresolvedSuffix;
+    NSequoiaClient::TAbsolutePath Path;
+    NYPath::TYPath UnresolvedSuffix;
     //! May be null for resolved scion or snapshot branch.
     NCypressClient::TNodeId ParentId;
 
@@ -24,12 +24,12 @@ struct TSequoiaResolveResult
 };
 
 struct TMasterResolveResult
-{};
+{ };
 
 struct TCypressResolveResult
 {
     //! Cypress path which should be resolved by master.
-    NSequoiaClient::TRawYPath Path;
+    NYPath::TYPath Path;
 };
 
 //! Resolves path via Sequoia tables. If path is not resolved returns
@@ -37,7 +37,8 @@ struct TCypressResolveResult
 //! consists of encountered links.
 TResolveResult ResolvePath(
     const TSequoiaSessionPtr& session,
-    NSequoiaClient::TRawYPath rawPath,
+    NYPath::TYPath path,
+    bool pathIsAdditional,
     TStringBuf service,
     TStringBuf method,
     std::vector<TSequoiaResolveIterationResult>* history = nullptr);

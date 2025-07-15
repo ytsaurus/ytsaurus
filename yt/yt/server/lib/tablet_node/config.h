@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/hydra/public.h>
 
+#include <yt/yt/ytlib/chaos_client/public.h>
+
 #include <yt/yt/ytlib/chunk_client/config.h>
 
 #include <yt/yt/ytlib/journal_client/config.h>
@@ -141,7 +143,7 @@ struct TTestingTableMountConfig
 
     double SortedStoreManagerRowHashCheckProbability;
 
-    std::optional<size_t> TablePullerReplicaBanIterationsCount;
+    std::optional<int> TablePullerReplicaBanIterationCount;
 
     TDuration WriteResponseDelay;
 
@@ -160,7 +162,7 @@ struct TCustomTableMountConfig
 {
     i64 MaxDynamicStoreRowCount;
     i64 MaxDynamicStoreValueCount;
-    i64 MaxDynamicStoreTimestampCount;
+    TMaxDynamicStoreTimestampCount MaxDynamicStoreTimestampCount;
     i64 MaxDynamicStorePoolSize;
     i64 MaxDynamicStoreRowDataWeight;
 
@@ -277,6 +279,7 @@ struct TCustomTableMountConfig
     bool EnableNarrowChunkViewCompaction;
     double MaxChunkViewSizeRatio;
 
+    // COMPAT(shamteev)
     // YT-24851: Protects from stale reads in ordered tables
     bool RetryReadOnOrderedStoreRotation;
 

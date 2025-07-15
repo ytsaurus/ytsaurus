@@ -262,6 +262,26 @@ public:
         };
     }
 
+    void Initialize(std::optional<double> limit = std::nullopt)
+    {
+        if (Initialized_) {
+            return;
+        }
+
+        YT_ASSERT_SPINLOCK_AFFINITY(HistoricUsageAggregatorLock_);
+
+        Initialized_ = true;
+
+        Limit_ = Profiler_.Gauge("/limit");
+        Usage_ = Profiler_.Gauge("/usage");
+        QueueTotalAmount_ = Profiler_.Gauge("/queue_total_amount");
+        EstimatedOverdraftDuration_ = Profiler_.TimeGauge("/estimated_overdraft_duration");
+
+        Limit_.Update(limit.value_or(ThrottlerConfig_.Acquire()->Limit.value_or(-1)));
+        QueueTotalAmount_.Update(0);
+        EstimatedOverdraftDuration_.Update(TDuration::Zero());
+    }
+
 private:
     const IReconfigurableThroughputThrottlerPtr Underlying_;
     const TThrottlerId ThrottlerId_;
@@ -282,26 +302,6 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, HistoricUsageAggregatorLock_);
     TAverageAdjustedExponentialMovingAverage HistoricUsageAggregator_;
-
-    void Initialize()
-    {
-        if (Initialized_) {
-            return;
-        }
-
-        YT_ASSERT_SPINLOCK_AFFINITY(HistoricUsageAggregatorLock_);
-
-        Initialized_ = true;
-
-        Limit_ = Profiler_.Gauge("/limit");
-        Usage_ = Profiler_.Gauge("/usage");
-        QueueTotalAmount_ = Profiler_.Gauge("/queue_total_amount");
-        EstimatedOverdraftDuration_ = Profiler_.TimeGauge("/estimated_overdraft_duration");
-
-        Limit_.Update(ThrottlerConfig_.Acquire()->Limit.value_or(-1));
-        QueueTotalAmount_.Update(0);
-        EstimatedOverdraftDuration_.Update(TDuration::Zero());
-    }
 
     void UpdateHistoricUsage(i64 amount)
     {
@@ -378,8 +378,8 @@ public:
             BIND(&TDistributedThrottlerService::UpdateLimits, MakeWeak(this)),
             config->LimitUpdatePeriod))
         , Throttlers_(std::move(throttlers))
-        , Logger(std::move(logger))
         , ShardCount_(shardCount)
+        , Logger(logger.WithTag("GroupId: %v, ShardCount: %v", GroupId_, ShardCount_))
         , Config_(std::move(config))
         , MemberShards_(ShardCount_)
         , ThrottlerShards_(ShardCount_)
@@ -425,6 +425,32 @@ public:
         }
     }
 
+    void UpdateTotalLimits(THashMap<TThrottlerId, std::optional<double>> throttlerIdToTotalLimit)
+    {
+        UpdateTotalLimitsExplicitlySet_ = true;
+
+        std::vector<std::vector<TThrottlerId>> throttlerIdsByShard(ShardCount_);
+        for (const auto& [throttlerId, _] : throttlerIdToTotalLimit) {
+            throttlerIdsByShard[GetShardIndex(throttlerId)].push_back(throttlerId);
+        }
+
+        for (int i = 0; i < ShardCount_; ++i) {
+            auto& shard = ThrottlerShards_[i];
+            auto guard = WriterGuard(shard.TotalLimitsLock);
+            // Clear old total limits.
+            shard.ThrottlerIdToTotalLimit.clear();
+
+            // Set new total limits.
+            for (const auto& throttlerId : throttlerIdsByShard[i]) {
+                auto& limit = shard.ThrottlerIdToTotalLimit[throttlerId];
+                limit = throttlerIdToTotalLimit[throttlerId];
+                YT_LOG_DEBUG("Setting throttler total limit (ThrottlerId: %v, Limit: %v)",
+                    throttlerId,
+                    limit);
+            }
+        }
+    }
+
     void SetTotalLimit(const TThrottlerId& throttlerId, std::optional<double> newLimit)
     {
         auto* shard = GetThrottlerShard(throttlerId);
@@ -442,8 +468,13 @@ public:
 
     void UpdateMemberThrottlersLocalUsage(const TMemberId& memberId, THashMap<TThrottlerId, TThrottlerLocalUsage> throttlerIdToLocalUsage)
     {
+        if (throttlerIdToLocalUsage.empty()) {
+            return;
+        }
+
         auto config = Config_.Acquire();
 
+        // Update throttlers last update time.
         std::vector<std::vector<TThrottlerId>> throttlerIdsByShard(ShardCount_);
         for (const auto& [throttlerId, _] : throttlerIdToLocalUsage) {
             throttlerIdsByShard[GetShardIndex(throttlerId)].push_back(throttlerId);
@@ -462,6 +493,7 @@ public:
             }
         }
 
+        // Update throttlers local usage.
         {
             auto* shard = GetMemberShard(memberId);
 
@@ -494,7 +526,7 @@ public:
             for (const auto& throttlerId : throttlerIdsByShard[i]) {
                 auto totalLimitIt = throttlerShard.ThrottlerIdToTotalLimit.find(throttlerId);
                 if (totalLimitIt == throttlerShard.ThrottlerIdToTotalLimit.end()) {
-                    YT_LOG_DEBUG("There is no total limit for throttler (ThrottlerId: %v)", throttlerId);
+                    YT_LOG_WARNING("There is no total limit for throttler (ThrottlerId: %v)", throttlerId);
                     continue;
                 }
 
@@ -511,7 +543,9 @@ public:
                     }
                     auto limitIt = throttlerIdToLimits.find(throttlerId);
                     if (limitIt == throttlerIdToLimits.end()) {
-                        YT_LOG_DEBUG("There is no total limit for throttler (ThrottlerId: %v)", throttlerId);
+                        YT_LOG_DEBUG("There is no limit for throttler (ThrottlerId: %v, MemberId: %v)",
+                            throttlerId,
+                            memberId);
                     } else {
                         YT_VERIFY(result.emplace(throttlerId, limitIt->second).second);
                     }
@@ -546,8 +580,8 @@ private:
     const TGroupId GroupId_;
     const TPeriodicExecutorPtr UpdatePeriodicExecutor_;
     const TThrottlersPtr Throttlers_;
-    const NLogging::TLogger Logger;
     const int ShardCount_;
+    const NLogging::TLogger Logger;
 
     TAtomicIntrusivePtr<const TThrottlerToGlobalUsage> ThrottlerToGlobalUsage_;
     bool Active_ = false;
@@ -578,6 +612,8 @@ private:
     };
     std::vector<TThrottlerShard> ThrottlerShards_;
 
+    std::atomic<bool> UpdateTotalLimitsExplicitlySet_ = false;
+
     DECLARE_RPC_SERVICE_METHOD(NDistributedThrottler::NProto, Heartbeat)
     {
         auto config = Config_.Acquire();
@@ -595,23 +631,33 @@ private:
             memberId,
             request->throttlers().size());
 
-        THashMap<TThrottlerId, TThrottlerLocalUsage> throttlerIdToLocalUsage;
-        throttlerIdToLocalUsage.reserve(request->throttlers().size());
-        for (const auto& throttler : request->throttlers()) {
-            const auto& throttlerId = throttler.id();
-            auto localUsage = FromProto<TThrottlerLocalUsage>(throttler);
-            EmplaceOrCrash(throttlerIdToLocalUsage, throttlerId, std::move(localUsage));
+        if (!request->throttlers().empty()) {
+            // Get usages of member's throttlers.
+            THashMap<TThrottlerId, TThrottlerLocalUsage> throttlerIdToLocalUsage;
+            throttlerIdToLocalUsage.reserve(request->throttlers().size());
+            for (const auto& throttler : request->throttlers()) {
+                const auto& throttlerId = throttler.id();
+                auto localUsage = FromProto<TThrottlerLocalUsage>(throttler);
+                EmplaceOrCrash(throttlerIdToLocalUsage, throttlerId, std::move(localUsage));
+            }
+
+            // Get fresh limits for member's throttlers.
+            auto limits = GetMemberLimits(memberId, GetKeys(throttlerIdToLocalUsage));
+            for (const auto& [throttlerId, limit] : limits) {
+                auto* result = response->add_throttlers();
+                result->set_id(throttlerId);
+                if (limit) {
+                    result->set_limit(*limit);
+                }
+            }
+
+            // Update usages of member's throttlers.
+            UpdateMemberThrottlersLocalUsage(memberId, std::move(throttlerIdToLocalUsage));
         }
 
-        auto limits = GetMemberLimits(memberId, GetKeys(throttlerIdToLocalUsage));
-        for (const auto& [throttlerId, limit] : limits) {
-            auto* result = response->add_throttlers();
-            result->set_id(throttlerId);
-            if (limit) {
-                result->set_limit(*limit);
-            }
-        }
-        UpdateMemberThrottlersLocalUsage(memberId, std::move(throttlerIdToLocalUsage));
+        context->SetResponseInfo("MemberId: %v, ThrottlerCount: %v",
+            memberId,
+            response->throttlers().size());
 
         context->Reply();
     }
@@ -728,105 +774,20 @@ private:
             return;
         }
 
-        // Reserve space for new throttler global data.
-        int throttlerCount = 0;
-        for (const auto& throttlerShard : ThrottlerShards_) {
-            auto guard = ReaderGuard(throttlerShard.TotalLimitsLock);
-            throttlerCount += throttlerShard.ThrottlerIdToTotalLimit.size();
-        }
-        auto newThrottlerToGlobalUsage = New<TThrottlerToGlobalUsage>();
-        newThrottlerToGlobalUsage->reserve(throttlerCount);
-
-        // Calculate new member limits.
-        std::vector<THashMap<TMemberId, THashMap<TThrottlerId, double>>> memberIdToLimit(ShardCount_);
-        for (auto& throttlerShard : ThrottlerShards_) {
-            THashMap<TThrottlerId, std::optional<double>> throttlerIdToTotalLimit;
-            {
-                auto guard = ReaderGuard(throttlerShard.TotalLimitsLock);
-                throttlerIdToTotalLimit = throttlerShard.ThrottlerIdToTotalLimit;
-            }
-
-            THashMap<TThrottlerId, double> throttlerIdToTotalUsageRate;
-            THashMap<TThrottlerId, THashMap<TMemberId, double>> throttlerIdToUsageRates;
-            int memberCount = 0;
-
-            for (auto& shard : MemberShards_) {
-                auto guard = ReaderGuard(shard.UsageRatesLock);
-                memberCount += shard.MemberIdToThrottlersLocalUsage.size();
-                for (const auto& [memberId, throttlers] : shard.MemberIdToThrottlersLocalUsage) {
-                    for (const auto& [throttlerId, totalLimit] : throttlerIdToTotalLimit) {
-                        auto throttlerIt = throttlers.find(throttlerId);
-                        if (throttlerIt == throttlers.end()) {
-                            YT_LOG_DEBUG("Member does not know about throttler (MemberId: %v, ThrottlerId: %v)",
-                                memberId,
-                                throttlerId);
-                            continue;
-                        }
-
-                        const auto& throttlerLocalUsage = throttlerIt->second;
-                        throttlerIdToTotalUsageRate[throttlerId] += throttlerLocalUsage.Rate;
-                        throttlerIdToUsageRates[throttlerId].emplace(memberId, throttlerLocalUsage.Rate);
-
-                        auto& throttlerGlobalUsage = (*newThrottlerToGlobalUsage)[throttlerId];
-                        throttlerGlobalUsage.Rate += throttlerLocalUsage.Rate;
-                        throttlerGlobalUsage.QueueTotalAmount += throttlerLocalUsage.QueueTotalAmount;
-                        throttlerGlobalUsage.MaxEstimatedOverdraftDuration = std::max(
-                            throttlerGlobalUsage.MaxEstimatedOverdraftDuration,
-                            throttlerLocalUsage.EstimatedOverdraftDuration);
-                        throttlerGlobalUsage.MinEstimatedOverdraftDuration = std::min(
-                            throttlerGlobalUsage.MinEstimatedOverdraftDuration,
-                            throttlerLocalUsage.EstimatedOverdraftDuration);
-                    }
-                }
-            }
-
-            for (const auto& [throttlerId, totalUsageRate] : throttlerIdToTotalUsageRate) {
-                auto optionalTotalLimit = GetOrCrash(throttlerIdToTotalLimit, throttlerId);
-                if (!optionalTotalLimit) {
-                    continue;
-                }
-                auto totalLimit = *optionalTotalLimit;
-
-                auto defaultLimit = FloatingPointInverseLowerBound(0, totalLimit, [&, &throttlerId = throttlerId] (double value) {
-                    double total = 0;
-                    for (const auto& [memberId, usageRate] : throttlerIdToUsageRates[throttlerId]) {
-                        total += Min(value, usageRate);
-                    }
-                    return total <= totalLimit;
-                });
-
-                double newTotalLimit = 0;
-                for (const auto& [memberId, usageRate] : GetOrCrash(throttlerIdToUsageRates, throttlerId)) {
-                    newTotalLimit += Min(usageRate, defaultLimit);
-                }
-                auto extraLimit = (config->ExtraLimitRatio * totalLimit + Max<double>(0, totalLimit - newTotalLimit)) / memberCount;
-
-                for (const auto& [memberId, usageRate] : GetOrCrash(throttlerIdToUsageRates, throttlerId)) {
-                    auto newLimit = Min(usageRate, defaultLimit) + extraLimit;
-                    YT_LOG_TRACE(
-                        "Updating throttler limit (MemberId: %v, ThrottlerId: %v, UsageRate: %v, NewLimit: %v, ExtraLimit: %v)",
-                        memberId,
-                        throttlerId,
-                        usageRate,
-                        newLimit,
-                        extraLimit);
-                    YT_VERIFY(memberIdToLimit[GetShardIndex(memberId)][memberId].emplace(throttlerId, newLimit).second);
-                    (*newThrottlerToGlobalUsage)[throttlerId].Limit += newLimit;
-                }
-            }
-        }
+        // Calculate new member limits and throttlers global usage.
+        auto [memberLimits, globalUsage] = CalculateMemberLimitsAndThrottlersGlobalUsage();
 
         // Update member limits.
         {
-            for (int i = 0; i < ShardCount_; ++i) {
+            for (int i = 0; i < std::ssize(MemberShards_); ++i) {
                 auto& shard = MemberShards_[i];
                 auto guard = WriterGuard(shard.LimitsLock);
-                shard.MemberIdToLimit.swap(memberIdToLimit[i]);
+                shard.MemberIdToLimit.swap(memberLimits[i]);
             }
         }
 
         // Update throttlers global data.
-        ThrottlerToGlobalUsage_.Store(newThrottlerToGlobalUsage.Get());
+        ThrottlerToGlobalUsage_.Store(ConstPointerCast<const TThrottlerToGlobalUsage>(std::move(globalUsage)));
     }
 
     void ForgetDeadThrottlers()
@@ -850,7 +811,7 @@ private:
                 continue;
             }
 
-            {
+            if (!UpdateTotalLimitsExplicitlySet_) {
                 auto guard = WriterGuard(throttlerShard.TotalLimitsLock);
                 for (const auto& deadThrottlerId : deadThrottlersIds) {
                     throttlerShard.ThrottlerIdToTotalLimit.erase(deadThrottlerId);
@@ -889,6 +850,92 @@ private:
                 }
             }
         }
+    }
+
+    std::pair<std::vector<THashMap<TMemberId, THashMap<TThrottlerId, double>>>, TIntrusivePtr<TThrottlerToGlobalUsage>> CalculateMemberLimitsAndThrottlersGlobalUsage()
+    {
+        auto config = Config_.Acquire();
+
+        // Collect total limits from shards.
+        THashMap<TThrottlerId, std::optional<double>> throttlerIdToTotalLimit;
+        for (const auto& throttlerShard : ThrottlerShards_) {
+            auto guard = ReaderGuard(throttlerShard.TotalLimitsLock);
+            throttlerIdToTotalLimit.insert(throttlerShard.ThrottlerIdToTotalLimit.begin(), throttlerShard.ThrottlerIdToTotalLimit.end());
+        }
+
+        // Reserve space for new throttler global usage.
+        auto throttlerToGlobalUsage = New<TThrottlerToGlobalUsage>();
+        throttlerToGlobalUsage->reserve(throttlerIdToTotalLimit.size());
+
+        // Calculate throttlerIdToMemberUsageRates.
+        int memberCount = 0;
+        THashMap<TThrottlerId, THashMap<TMemberId, double>> throttlerIdToMemberUsageRates;
+        for (auto& shard : MemberShards_) {
+            auto guard = ReaderGuard(shard.UsageRatesLock);
+            memberCount += shard.MemberIdToThrottlersLocalUsage.size();
+            for (const auto& [memberId, throttlerIdToLocalUsage] : shard.MemberIdToThrottlersLocalUsage) {
+                for (const auto& [throttlerId, throttlerLocalUsage] : throttlerIdToLocalUsage) {
+                    if (!throttlerIdToTotalLimit.contains(throttlerId)) {
+                        YT_LOG_DEBUG("Unknown throttler (MemberId: %v, ThrottlerId: %v)",
+                            memberId,
+                            throttlerId);
+                        continue;
+                    }
+
+                    throttlerIdToMemberUsageRates[throttlerId].emplace(memberId, throttlerLocalUsage.Rate);
+
+                    auto& throttlerGlobalUsage = (*throttlerToGlobalUsage)[throttlerId];
+                    throttlerGlobalUsage.Rate += throttlerLocalUsage.Rate;
+                    throttlerGlobalUsage.QueueTotalAmount += throttlerLocalUsage.QueueTotalAmount;
+                    throttlerGlobalUsage.MaxEstimatedOverdraftDuration = std::max(
+                        throttlerGlobalUsage.MaxEstimatedOverdraftDuration,
+                        throttlerLocalUsage.EstimatedOverdraftDuration);
+                    throttlerGlobalUsage.MinEstimatedOverdraftDuration = std::min(
+                        throttlerGlobalUsage.MinEstimatedOverdraftDuration,
+                        throttlerLocalUsage.EstimatedOverdraftDuration);
+                }
+            }
+        }
+
+        // Calculate new member limits.
+        std::vector<THashMap<TMemberId, THashMap<TThrottlerId, double>>> memberIdToLimit(ShardCount_);
+        for (const auto& [throttlerId, membersUsageRates] : throttlerIdToMemberUsageRates) {
+            auto optionalTotalLimit = GetOrCrash(throttlerIdToTotalLimit, throttlerId);
+            if (!optionalTotalLimit) {
+                // Skip throttlers without total limit.
+                continue;
+            }
+            auto totalLimit = *optionalTotalLimit;
+
+            auto defaultLimit = FloatingPointInverseLowerBound(0, totalLimit, [&] (double value) {
+                double total = 0;
+                for (const auto& [memberId, usageRate] : membersUsageRates) {
+                    total += Min(value, usageRate);
+                }
+                return total <= totalLimit;
+            });
+
+            double newTotalLimit = 0;
+            for (const auto& [memberId, usageRate] : membersUsageRates) {
+                newTotalLimit += Min(usageRate, defaultLimit);
+            }
+            auto extraLimit = (config->ExtraLimitRatio * totalLimit + Max<double>(0, totalLimit - newTotalLimit)) / memberCount;
+
+            for (const auto& [memberId, usageRate] : membersUsageRates) {
+                auto newLimit = Min(usageRate, defaultLimit) + extraLimit;
+                YT_LOG_TRACE(
+                    "Updating throttler limit (MemberId: %v, ThrottlerId: %v, UsageRate: %v, NewLimit: %v, ExtraLimit: %v)",
+                    memberId,
+                    throttlerId,
+                    usageRate,
+                    newLimit,
+                    extraLimit);
+                YT_VERIFY(memberIdToLimit[GetShardIndex(memberId)][memberId].emplace(throttlerId, newLimit).second);
+                (*throttlerToGlobalUsage)[throttlerId].Limit += newLimit;
+            }
+        }
+
+        return std::make_pair(std::move(memberIdToLimit), std::move(throttlerToGlobalUsage));
     }
 };
 
@@ -955,11 +1002,26 @@ public:
             Logger,
             std::move(authenticator)))
     {
+        YT_LOG_INFO("Starting distributed throttler factory");
+
         auto* attributes = MemberClient_->GetAttributes();
         attributes->Set(RealmIdAttributeKey, RealmId_);
         attributes->Set(AddressAttributeKey, address);
 
-        MemberClient_->SetPriority(TInstant::Now().Seconds());
+        auto conf = Config_.Acquire();
+        switch (conf->MemberPriority) {
+            case EDistributedThrottlerMemberPriority::StartTime:
+                MemberClient_->SetPriority(TInstant::Now().Seconds());
+                break;
+            case EDistributedThrottlerMemberPriority::Random:
+                MemberClient_->SetPriority(RandomNumber<ui64>());
+                break;
+            default:
+                THROW_ERROR_EXCEPTION("Unsupported priority: %v",
+                    conf->MemberPriority);
+                break;
+        }
+
         UpdateLimitsExecutor_->Start();
         UpdateLeaderExecutor_->Start();
         UpdateThrottlersAttributesExecutor_->Start();
@@ -967,8 +1029,14 @@ public:
 
     ~TDistributedThrottlerFactory()
     {
-        YT_UNUSED_FUTURE(MemberClient_->Stop());
+        YT_LOG_INFO("Stopping distributed throttler factory");
+
         DistributedThrottlerService_->Finalize();
+        YT_UNUSED_FUTURE(MemberClient_->Stop());
+
+        YT_UNUSED_FUTURE(UpdateThrottlersAttributesExecutor_->Stop());
+        YT_UNUSED_FUTURE(UpdateLeaderExecutor_->Stop());
+        YT_UNUSED_FUTURE(UpdateLimitsExecutor_->Stop());
     }
 
     IReconfigurableThroughputThrottlerPtr GetOrCreateThrottler(
@@ -1031,17 +1099,23 @@ public:
                 return wrappedThrottler;
             }
 
+            auto config = Config_.Acquire();
+
             DistributedThrottlerService_->SetTotalLimit(throttlerId, throttlerConfig->Limit);
             wrappedThrottler = New<TWrappedThrottler>(
                 throttlerId,
-                Config_.Acquire(),
+                config,
                 std::move(throttlerConfig),
                 throttleRpcTimeout,
                 Profiler_);
             wrappedThrottler->SetLeaderChannel(leaderChannel);
 
+            if (config->InitializeThrottlersOnCreation) {
+                wrappedThrottler->Initialize(/*limit*/ 0);
+            }
+
             auto wasEmpty = Throttlers_->Throttlers.empty();
-            Throttlers_->Throttlers[throttlerId] = std::move(wrappedThrottler);
+            Throttlers_->Throttlers[throttlerId] = MakeWeak(wrappedThrottler);
 
             if (wasEmpty) {
                 Start();
@@ -1095,6 +1169,15 @@ public:
         }
 
         return nullptr;
+    }
+
+    void UpdateTotalLimits(THashMap<TThrottlerId, std::optional<double>> throttlerIdToTotalLimit) override
+    {
+        YT_LOG_DEBUG("Update total limits (Throttlers: %v)",
+            throttlerIdToTotalLimit);
+
+        DistributedThrottlerService_->UpdateTotalLimits(
+            std::move(throttlerIdToTotalLimit));
     }
 
 private:
@@ -1187,7 +1270,7 @@ private:
                 UpdateQueue_.pop();
 
                 if (auto throttler = weakThrottler.Lock()) {
-                    if (throttler->GetUsageRate() > 0 || UnreportedThrottlers_.contains(throttlerId)) {
+                    if (config->UpdateLimitsForZeroRateThrottlers || throttler->GetUsageRate() > 0 || UnreportedThrottlers_.contains(throttlerId)) {
                         UnreportedThrottlers_.erase(throttlerId);
                         throttlers.emplace(std::move(throttlerId), std::move(throttler));
                     } else {

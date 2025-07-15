@@ -114,7 +114,7 @@ struct IUserSlot
 
     virtual TString GetJobProxyUnixDomainSocketPath() const = 0;
 
-    virtual TFuture<std::vector<TShellCommandOutput>> RunPreparationCommands(
+    virtual TFuture<std::vector<TShellCommandResult>> RunPreparationCommands(
         TJobId jobId,
         const std::vector<TShellCommandConfigPtr>& commands,
         const NContainers::TRootFS& rootFS,
@@ -122,7 +122,8 @@ struct IUserSlot
         const std::optional<std::vector<NContainers::TDevice>>& devices,
         const std::optional<TString>& hostName,
         const std::vector<NNet::TIP6Address>& ipAddresses,
-        std::string tag) = 0;
+        std::string tag,
+        bool throwOnFailedCommand) = 0;
 
     virtual void OnArtifactPreparationFailed(
         TJobId jobId,

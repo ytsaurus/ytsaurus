@@ -128,16 +128,16 @@ void TAccessTracker::Reset()
 
     for (auto& shard : Shards_) {
         for (auto nodeId : shard.NodesWithAccessStatisticsUpdate) {
-            auto* node = objectManager->FindObject(nodeId)->As<TCypressNode>();
-            if (IsObjectAlive(node)) {
-                node->SetAccessStatisticsUpdateIndex(-1);
+            auto* object = objectManager->FindObject(nodeId);
+            if (IsObjectAlive(object)) {
+                object->As<TCypressNode>()->SetAccessStatisticsUpdateIndex(-1);
             }
         }
 
         for (auto nodeId : shard.TouchedNodes) {
-            auto* node = objectManager->FindObject(nodeId)->As<TCypressNode>();
-            if (IsObjectAlive(node)) {
-                node->SetTouchNodesIndex(-1);
+            auto* object = objectManager->FindObject(nodeId);
+            if (IsObjectAlive(object)) {
+                object->As<TCypressNode>()->SetTouchNodesIndex(-1);
             }
         }
 

@@ -527,6 +527,12 @@ void TStoreManagerBase::PopulateReplicateTabletContentRequest(
     if (const auto& activeStore = Tablet_->GetActiveStore()) {
         ToProto(request->mutable_active_store_id(), activeStore->GetId());
     }
+
+    for (const auto& policy : TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues()) {
+        ToProto(
+            request->add_compression_dictionaries_by_policy(),
+            Tablet_->GetCompressionDictionaryId(policy));
+    }
 }
 
 void TStoreManagerBase::LoadReplicatedContent(
@@ -570,6 +576,22 @@ void TStoreManagerBase::LoadReplicatedContent(
                     Tablet_->UpdateHunkChunkRef(ref, +1);
                 }
             }
+        }
+    }
+
+    // TODO(ifsmirnov): reign promotion is a nuisance for smooth movement, YT-25347.
+    // This may be technically incorrect with respect to the persistent state
+    // if the size of the enum changes, but still, this is not very important part
+    // of the state and snapshot validation alerts should be the worst consequence.
+    {
+        const auto& policies = TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues();
+        int policyCount = std::min<int>(
+            request->compression_dictionaries_by_policy().size(),
+            ssize(policies));
+        for (int index = 0; index < policyCount; ++index) {
+            Tablet_->AttachCompressionDictionary(
+                policies[index],
+                FromProto<TChunkId>(request->compression_dictionaries_by_policy()[index]));
         }
     }
 
@@ -661,7 +683,7 @@ bool TStoreManagerBase::IsOverflowRotationNeeded() const
     return
         activeStore->GetRowCount() >= threshold * mountConfig->MaxDynamicStoreRowCount ||
         activeStore->GetValueCount() >= threshold * mountConfig->MaxDynamicStoreValueCount ||
-        activeStore->GetTimestampCount() >= threshold * mountConfig->MaxDynamicStoreTimestampCount ||
+        activeStore->GetTimestampCount() >= threshold * activeStore->ClampMaxDynamicStoreTimestampCount(mountConfig->MaxDynamicStoreTimestampCount) ||
         activeStore->GetPoolSize() >= threshold * mountConfig->MaxDynamicStorePoolSize;
 }
 
@@ -687,11 +709,14 @@ TError TStoreManagerBase::CheckOverflow() const
             << TErrorAttribute("value_count_limit", mountConfig->MaxDynamicStoreValueCount);
     }
 
-    if (activeStore->GetTimestampCount() >= mountConfig->MaxDynamicStoreTimestampCount) {
+    auto clampedMaxDynamicStoreTimestampCount = activeStore->ClampMaxDynamicStoreTimestampCount(mountConfig->MaxDynamicStoreTimestampCount);
+
+    if (activeStore->GetTimestampCount() >= clampedMaxDynamicStoreTimestampCount) {
         return TError("Dynamic store timestamp count limit reached")
             << TErrorAttribute("store_id", activeStore->GetId())
             << TErrorAttribute("timestamp_count", activeStore->GetTimestampCount())
-            << TErrorAttribute("timestamp_count_limit", mountConfig->MaxDynamicStoreTimestampCount);
+            << TErrorAttribute("timestamp_count_limit", clampedMaxDynamicStoreTimestampCount)
+            << TErrorAttribute("config_timestamp_count_limit", mountConfig->MaxDynamicStoreTimestampCount);
     }
 
     if (activeStore->GetPoolSize() >= mountConfig->MaxDynamicStorePoolSize) {
@@ -854,4 +879,3 @@ void TStoreManagerBase::ResetLastPeriodicRotationTime()
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode
-

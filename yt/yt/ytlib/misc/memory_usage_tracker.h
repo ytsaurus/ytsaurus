@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/ytlib/node_tracker_client/public.h>
+
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/error.h>
@@ -12,9 +14,24 @@
 
 #include <yt/yt/core/misc/memory_usage_tracker.h>
 
-#include <yt/yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TNodeMemoryTrackerConfig
+    : public NYTree::TYsonStruct
+{
+    // COMPAT(pogorelov): Should be enabled by default.
+    bool CheckPerCategoryLimitOvercommit;
+
+    REGISTER_YSON_STRUCT(TNodeMemoryTrackerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TNodeMemoryTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,6 +85,8 @@ struct INodeMemoryTracker
         std::optional<TPoolTag> poolTag = {}) = 0;
 
     virtual void ClearTrackers() = 0;
+
+    virtual void Reconfigure(const TNodeMemoryTrackerConfigPtr& config) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(INodeMemoryTracker)
@@ -88,6 +107,7 @@ IMemoryUsageTrackerPtr WithCategory(
 
 INodeMemoryTrackerPtr CreateNodeMemoryTracker(
     i64 totalLimit,
+    const TNodeMemoryTrackerConfigPtr& config,
     const std::vector<std::pair<EMemoryCategory, i64>>& limits = {},
     const NLogging::TLogger& logger = {},
     const NProfiling::TProfiler& profiler = {});

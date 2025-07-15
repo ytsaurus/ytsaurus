@@ -8,6 +8,8 @@
 
 #include <yt/yt/client/object_client/public.h>
 
+#include <yt/yt/client/tablet_client/config.h>
+
 #include <library/cpp/yt/memory/ref_tracked.h>
 
 namespace NYT::NTableServer {

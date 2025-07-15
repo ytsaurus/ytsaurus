@@ -19,7 +19,7 @@ struct IMasterConnector
 
     // Throws iff proxy is not registered.
     virtual NHydra::TReign GetMasterReign() const = 0;
-    virtual int MaxCopiableSubtreeSize() const = 0;
+    virtual int GetMaxCopiableSubtreeSize() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMasterConnector)

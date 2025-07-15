@@ -16,7 +16,7 @@ bool IsRetriableQueryError(const TError& error)
         error.FindMatching(NDataNode::EErrorCode::LocalChunkReaderFailed) ||
         error.FindMatching(NChunkClient::EErrorCode::NoSuchChunk) ||
         error.FindMatching(NTabletClient::EErrorCode::TabletSnapshotExpired) ||
-        error.FindMatching(NTabletClient::EErrorCode::SetOfDynamicStoresHasChanged);
+        error.FindMatching(NTabletClient::EErrorCode::OrderedDynamicStoreRotateEpochMismatch);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

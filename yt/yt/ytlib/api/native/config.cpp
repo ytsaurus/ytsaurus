@@ -121,18 +121,14 @@ TReqExecuteBatchRetriesConfigPtr TSequoiaRetriesConfig::ToRetriesConfig() const
 void TSequoiaConnectionConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("ground_cluster_name", &TThis::GroundClusterName)
-        .Default();
+        // COMPAT(babenko): drop once trunk_vs_25_1 and trunk_vs_25_2 are no more.
+        .Default("<invalid>");
     registrar.Parameter("ground_cluster_connection_update_period", &TThis::GroundClusterConnectionUpdatePeriod)
         .Default(TDuration::Seconds(5));
-
-        registrar.Parameter("sequoia_root_path", &TThis::SequoiaRootPath)
+    registrar.Parameter("sequoia_root_path", &TThis::SequoiaRootPath)
         .Default("//sys/sequoia");
-
     registrar.Parameter("sequoia_transaction_timeout", &TThis::SequoiaTransactionTimeout)
         .Default(TDuration::Minutes(1));
-
-    registrar.Parameter("retries", &TThis::Retries)
-        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -342,6 +338,8 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(60));
     registrar.Parameter("default_chaos_node_service_timeout", &TThis::DefaultChaosNodeServiceTimeout)
         .Default(TDuration::Seconds(15));
+    registrar.Parameter("default_chaos_lease_timeout", &TThis::DefaultChaosLeaseTimeout)
+        .Default(TDuration::Seconds(30));
     registrar.Parameter("default_chaos_watcher_client_request_timeout",
         &TThis::DefaultChaosWatcherClientRequestTimeout)
         .Default(TDuration::Minutes(30));
@@ -425,6 +423,8 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("sequoia_connection", &TThis::SequoiaConnection)
+        .Default();
+    registrar.Parameter("sequoia_retries", &TThis::SequoiaRetries)
         .DefaultNew();
 
     registrar.Parameter("use_followers_for_write_targets_allocation", &TThis::UseFollowersForWriteTargetsAllocation)
@@ -483,6 +483,9 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("group_by_with_limit_is_unordered", &TThis::GroupByWithLimitIsUnordered)
+        .Default(true);
+
+    registrar.Parameter("allow_unaliased_secondary_index", &TThis::AllowUnaliasedSecondaryIndex)
         .Default(true);
 
     registrar.Parameter("flow_pipeline_controller_rpc_timeout", &TThis::FlowPipelineControllerRpcTimeout)

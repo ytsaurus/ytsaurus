@@ -1,6 +1,6 @@
 #include "schemeshard__operation_common.h"
-
 #include "schemeshard_private.h"
+
 #include <contrib/ydb/core/base/hive.h>
 #include <contrib/ydb/core/tx/datashard/datashard.h>
 

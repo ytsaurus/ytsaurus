@@ -9,9 +9,9 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TFunctionsFetcher = std::function<void(TRange<TString> names, const TTypeInferrerMapPtr& typeInferrers)>;
+using TFunctionsFetcher = std::function<void(TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers)>;
 
-void DefaultFetchFunctions(TRange<TString> names, const TTypeInferrerMapPtr& typeInferrers);
+void DefaultFetchFunctions(TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers);
 
 ////////////////////////////////////////////////////////////////////////////////
 

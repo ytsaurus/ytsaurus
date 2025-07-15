@@ -12,7 +12,8 @@ namespace NYT::NQueryClient {
 void TransformWithIndexStatement(
     NAst::TQuery* query,
     const NTabletClient::ITableMountCachePtr& cache,
-    TObjectsHolder* holder);
+    TObjectsHolder* holder,
+    bool allowUnaliasedSecondaryIndex);
 
 ////////////////////////////////////////////////////////////////////////////////
 

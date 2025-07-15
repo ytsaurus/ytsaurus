@@ -1095,7 +1095,7 @@ class TestLookup(TestSortedDynamicTablesBase):
 @pytest.mark.enabled_multidaemon
 class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
-    NUM_TEST_PARTITIONS = 2
+    NUM_TEST_PARTITIONS = 4
 
     DELTA_NODE_CONFIG = {
         "resource_limits": {
@@ -1690,7 +1690,17 @@ class TestLookupCache(TestSortedDynamicTablesBase):
 
         node = get_tablet_leader_address(get("//tmp/t/@tablets/0/tablet_id"))
         sync_unmount_table("//tmp/t")
-        wait(lambda: get(f"//sys/cluster_nodes/{node}/@statistics/memory/lookup_rows_cache/used") == 0)
+
+        self._create_simple_table("//tmp/dummy", False)
+        sync_mount_table("//tmp/dummy")
+
+        def _check():
+            # Wake up some threads and trigger maintenance actions when they go to sleep.
+            insert_rows("//tmp/dummy", [{"key": 1}])
+            self._read("//tmp/dummy", [1])
+
+            return get(f"//sys/cluster_nodes/{node}/@statistics/memory/lookup_rows_cache/used") == 0
+        wait(_check)
 
     @authors("lukyan")
     @pytest.mark.parametrize("hunks", [False, True])
@@ -2184,7 +2194,7 @@ class TestLookupSequoia(TestLookup):
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
     NUM_SECONDARY_MASTER_CELLS = 2
-    NUM_TEST_PARTITIONS = 3
+    NUM_TEST_PARTITIONS = 4
 
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},

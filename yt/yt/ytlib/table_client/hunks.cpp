@@ -2388,6 +2388,8 @@ public:
 
     std::optional<TChunkId> GetCompressionDictionaryId() const override
     {
+        auto guard = Guard(Lock_);
+
         return CompressionDictionaryId_;
     }
 

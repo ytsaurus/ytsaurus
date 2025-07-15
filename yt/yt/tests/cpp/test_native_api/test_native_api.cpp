@@ -276,6 +276,7 @@ TEST_F(TBatchRequestTest, TestInvalidObjectIdError)
 
     auto unexistingObjectResponse = batchResponse->GetResponse<TYPathProxy::TRspGet>(0);
     EXPECT_FALSE(unexistingObjectResponse.IsOK());
+    EXPECT_FALSE(unexistingObjectResponse.InnerErrors().empty());
     EXPECT_EQ(unexistingObjectResponse.InnerErrors().front().GetMessage(), Format("No such object %v", unexistingObject));
 
     auto invalidCellTagResponse = batchResponse->GetResponse<TYPathProxy::TRspGet>(1);

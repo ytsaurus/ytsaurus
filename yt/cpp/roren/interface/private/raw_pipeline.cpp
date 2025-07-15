@@ -16,6 +16,8 @@ namespace NRoren::NPrivate {
 ////////////////////////////////////////////////////////////////////////////////
 
 static const TTypeTag<TBackTrace> TransformBacktraceTag{"transform-backtrace"};
+DEFINE_ROREN_TAG(KeyColumns, NRoren::NPrivate::TPCollectionNode, std::vector<TString>, object);
+DEFINE_ROREN_TAG(EventTimestampColumn, NRoren::NPrivate::TPCollectionNode, TString, object);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -198,8 +200,8 @@ std::shared_ptr<TRawPipeline::TStartTransformGuard> TRawPipeline::StartTransform
 
 TTransformNodePtr TRawPipeline::AddTransform(IRawTransformPtr transform, const std::vector<TPCollectionNode*>& inputs, const TRawPStateNodePtr& pState)
 {
-    Y_ABORT_UNLESS(inputs.size() == transform->GetInputTags().size(),
-        "inputs.size() == %d; transform->GetInputTags().size() == %d",
+    Y_ABORT_IF(inputs.size() != transform->GetInputTags().size(),
+        "inputs.size() != %d; transform->GetInputTags().size() == %d",
         static_cast<int>(inputs.size()),
         static_cast<int>(transform->GetInputTags().size()));
 

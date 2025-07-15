@@ -30,6 +30,7 @@ PY_SRCS(
     yt_error_codes.py
     yt_commands.py
     yt_env_setup.py
+    yt_gpu_layers_helpers.py
     yt_helpers.py
     yt_sequoia_helpers.py
     yt_type_helpers.py

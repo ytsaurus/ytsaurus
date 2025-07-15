@@ -158,7 +158,7 @@ public:
         if (!syncPromise) {
             syncPromise = NewPromise<void>();
         }
-        return syncPromise.ToFuture();
+        return syncPromise.ToFuture().ToUncancelable();
     }
 
 private:
@@ -274,15 +274,17 @@ private:
     {
         TMasterAutomatonPart::OnLeaderActive();
 
-        const auto& config = GetDynamicConfig();
-        for (auto queue : TEnumTraits<EGroundUpdateQueue>::GetDomainValues()) {
-            const auto& queueConfig = config->GetQueueConfig(queue);
-            auto executor = New<TPeriodicExecutor>(
-                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::GroundUpdateQueueManager),
-                BIND(&TGroundUpdateQueueManager::OnQueueFlush, MakeWeak(this), queue),
-                queueConfig->FlushPeriod);
-            executor->Start();
-            FlushExecutors_[queue] = std::move(executor);
+        if (Bootstrap_->IsSequoiaConfigured()) {
+            const auto& config = GetDynamicConfig();
+            for (auto queue : TEnumTraits<EGroundUpdateQueue>::GetDomainValues()) {
+                const auto& queueConfig = config->GetQueueConfig(queue);
+                auto executor = New<TPeriodicExecutor>(
+                    Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::GroundUpdateQueueManager),
+                    BIND(&TGroundUpdateQueueManager::OnQueueFlush, MakeWeak(this), queue),
+                    queueConfig->FlushPeriod);
+                executor->Start();
+                FlushExecutors_[queue] = std::move(executor);
+            }
         }
     }
 

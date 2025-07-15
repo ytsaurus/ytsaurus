@@ -77,13 +77,6 @@ TJob::TJob(IJobHostPtr host)
 
 void TJob::Initialize()
 {
-    if (Host_->GetJobSpecHelper()->GetJobSpecExt().remote_input_clusters_size() > 0) {
-        // NB(coteeq): Do not sync cluster directory if data is local only.
-        auto connection = Host_->GetClient()->GetNativeConnection();
-        WaitFor(connection->GetClusterDirectorySynchronizer()->Sync())
-            .ThrowOnError();
-    }
-
     PopulateInputNodeDirectory();
 
     const auto& schedulerJobSpecExt = Host_->GetJobSpecHelper()->GetJobSpecExt();
@@ -314,8 +307,8 @@ IJob::TStatistics TSimpleJobBase::GetStatistics() const
         result.TotalInputStatistics = {
             .DataStatistics = {Reader_->GetDataStatistics()},
             .CodecStatistics = Reader_->GetDecompressionStatistics(),
-        },
-        result.ChunkReaderStatistics = ChunkReadOptions_.ChunkReaderStatistics;
+        };
+
         result.TimingStatistics = Reader_->GetTimingStatistics();
 
         result.LatencyStatistics.InputTimeToFirstReadBatch = Reader_->GetTimeToFirstBatch();

@@ -19,9 +19,8 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSignatureValidator::TSignatureValidator(TSignatureValidatorConfigPtr config, IKeyStoreReaderPtr keyReader)
-    : Config_(std::move(config))
-    , KeyReader_(std::move(keyReader))
+TSignatureValidator::TSignatureValidator(IKeyStoreReaderPtr keyReader)
+    : KeyReader_(std::move(keyReader))
 {
     InitializeCryptography();
     YT_LOG_INFO("Signature validator initialized");
@@ -68,6 +67,8 @@ TFuture<bool> TSignatureValidator::Validate(const TSignaturePtr& signature) cons
     auto [keyIssuer, keyId] = std::visit(
         [] (auto&& header_) { return std::pair{TOwnerId(header_.Issuer), TKeyId(header_.KeypairId)}; },
         header);
+
+    YT_LOG_DEBUG("Validating signature (SignatureId: %v)", signatureId);
 
     return KeyReader_->FindKey(keyIssuer, keyId).Apply(
         BIND([

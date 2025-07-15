@@ -3,7 +3,6 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/yt/core/misc/blob.h>
 #include <yt/yt/core/misc/proc.h>
 
 #include <yt/yt/core/net/connection.h>
@@ -15,6 +14,8 @@
 #include <yt/yt/library/program/program.h>
 
 #include <yt/yt/library/signals/signal_blocking.h>
+
+#include <library/cpp/yt/memory/blob.h>
 
 #include <util/string/split.h>
 
@@ -457,7 +458,7 @@ YT_TRY_BLOCK_SIGNAL_FOR_PROCESS(SIGRTMIN, [] (bool ok, int threadCount) {
 });
 
 #define EXPECT_ERROR_IS_OK(...) do { \
-        const auto& error = __VA_ARGS__; \
+        auto error = __VA_ARGS__; \
         if (!error.IsOK()) { \
             Cerr << "Error: " << ToString(error) << Endl; \
         } \

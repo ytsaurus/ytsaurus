@@ -50,10 +50,12 @@ const static THashSet<int> KnownExtensionTags = {
     TProtoExtensionTag<TLargeColumnarStatisticsExt>::Value,
 };
 
-// These extensions are set at a different level of writers, so the discrepancies in them should be ignored in chunk meta validation.
 const static THashSet<int> ExtensionTagsToIgnoreInValidation = {
+    // These two extensions are set at a different level of writers, so the discrepancies in them should be ignored in chunk meta validation.
     TProtoExtensionTag<NProto::TBlocksExt>::Value,
     TProtoExtensionTag<NProto::TErasurePlacementExt>::Value,
+    // This extension is recomputed and set for every output chunk even if input chunks don't have it.
+    TProtoExtensionTag<THeavyColumnStatisticsExt>::Value,
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -353,11 +355,12 @@ public:
             FinalizeMeta();
         }
 
+        auto outputChunkMetaExtensions = GetExtensionTagSet(ChunkMeta_->extensions());
         for (auto tag : ExtensionTagsToIgnoreInValidation) {
             InputChunkMetaExtensions_.erase(tag);
+            outputChunkMetaExtensions.erase(tag);
         }
 
-        auto outputChunkMetaExtensions = GetExtensionTagSet(ChunkMeta_->extensions());
         if (InputChunkMetaExtensions_ == outputChunkMetaExtensions) {
             return TError();
         }

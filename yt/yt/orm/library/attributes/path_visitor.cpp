@@ -71,8 +71,11 @@ void TPathVisitorMixin::TCheckpoint::Defer(std::function<void()> defer)
     }
 }
 
-TPathVisitorMixin::TCheckpoint TPathVisitorMixin::CheckpointBranchedTraversal(TToken token)
+TPathVisitorMixin::TCheckpoint TPathVisitorMixin::CheckpointBranchedTraversal(
+    TToken token,
+    int size)
 {
+    Y_UNUSED(size);
     TCheckpoint result(Tokenizer_);
     Push(token);
     result.Defer([this] () { CurrentPath_.Pop(); });

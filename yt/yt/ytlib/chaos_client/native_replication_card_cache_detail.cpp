@@ -182,9 +182,10 @@ public:
         SetChaosCacheStickyGroupBalancingHint(Key_.CardId,
             req->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext));
 
+        auto refreshTime = Owner_->Config_->RefreshTime.value_or(TDuration::Max());
         SetChaosCacheCachingHeader(
-            Owner_->Config_->ExpireAfterSuccessfulUpdateTime,
-            Owner_->Config_->ExpireAfterFailedUpdateTime,
+            std::min(Owner_->Config_->ExpireAfterSuccessfulUpdateTime, refreshTime),
+            std::min(Owner_->Config_->ExpireAfterFailedUpdateTime, refreshTime),
             Key_.RefreshEra,
             req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext));
 
@@ -237,6 +238,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(osidorkin) Use better cache that is aware of era.
 TReplicationCardCache::TReplicationCardCache(
     TReplicationCardCacheConfigPtr config,
     NNative::IConnectionPtr connection,
@@ -332,6 +334,8 @@ void TReplicationCardCache::Reconfigure(const TReplicationCardCacheDynamicConfig
     if (config->EnableWatching) {
         EnableWatching_.store(*config->EnableWatching);
     }
+
+    TAsyncExpiringCache<TReplicationCardCacheKey, TReplicationCardPtr>::Reconfigure(Config_->ApplyDynamic(config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

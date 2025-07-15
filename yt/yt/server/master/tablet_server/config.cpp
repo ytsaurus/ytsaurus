@@ -109,6 +109,8 @@ void TDynamicTabletNodeTrackerConfig::Register(TRegistrar registrar)
 
 void TDynamicCellHydraPersistenceSynchronizerConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("migrate_to_virtual_cell_maps", &TThis::MigrateToVirtualCellMaps)
+        .Default(false);
     registrar.Parameter("synchronization_period", &TThis::SynchronizationPeriod)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("max_cells_to_register_in_cypress_per_iteration", &TThis::MaxCellsToRegisterInCypressPerIteration)
@@ -253,6 +255,16 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("safe_check_secondary_cell_storage", &TThis::SafeCheckSecondaryCellStorage)
         .Default(false)
         .DontSerializeDefault();
+
+    registrar.Parameter("enable_smooth_tablet_movement", &TThis::EnableSmoothTabletMovement)
+        .Default(false);
+
+    registrar.Parameter("max_unversioned_chunk_size", &TThis::MaxUnversionedChunkSize)
+        .GreaterThan(0)
+        .Default(320_MB);
+
+    registrar.Parameter("enable_unversioned_chunk_constraint_validation", &TThis::EnableUnversionedChunkConstraintValidation)
+        .Default(false);
 
     registrar.Preprocessor([] (TThis* config) {
         config->StoreChunkReader->SuspiciousNodeGracePeriod = TDuration::Minutes(5);

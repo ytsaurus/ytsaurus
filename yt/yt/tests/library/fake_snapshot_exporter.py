@@ -67,6 +67,7 @@ SCHEMA_COLUMNS = [
     ("nightly_compression_user_time",           "string",       False,      True),
     ("tablet_state",                            "string",       False,      True),
     ("expiration_time",                         "string",       False,      True),
+    ("expiration_timeout",                      "int64",        False,      True),
 ]
 
 DEFAULT_VALUES = {

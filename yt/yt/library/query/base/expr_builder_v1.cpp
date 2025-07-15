@@ -906,8 +906,7 @@ TUntypedExpression TExprBuilderV1::OnReference(const NAst::TReference& reference
 
 TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* functionExpr)
 {
-    auto functionName = functionExpr->FunctionName;
-    functionName.to_lower();
+    auto functionName = to_lower(TString(functionExpr->FunctionName));
 
     const auto& descriptor = Functions_->GetFunction(functionName);
 

@@ -9,11 +9,12 @@
 
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/core/misc/blob.h>
 #include <yt/yt/core/misc/checksum.h>
 #include <yt/yt/core/misc/fs.h>
 
 #include <yt/yt/core/profiling/timing.h>
+
+#include <library/cpp/yt/memory/blob.h>
 
 #include <util/random/random.h>
 

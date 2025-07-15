@@ -33,7 +33,6 @@ RECURSE(
     queue_agent_controller_liveness
     queue_api
     quorum_health
-    quorum_health
     register_watcher
     scheduler
     scheduler_alerts
@@ -48,8 +47,8 @@ RECURSE(
     tablet_cell_gossip
     tablet_cell_snapshots
     tablet_cells
+    tmp_node_count
     unaware_nodes
-    wrapper_node_count
 )
 
 IF (NOT OPENSOURCE)

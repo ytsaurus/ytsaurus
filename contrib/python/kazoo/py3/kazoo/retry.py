@@ -32,19 +32,23 @@ class InterruptedError(RetryFailedError):
 class KazooRetry(object):
     """Helper for retrying a method in the face of retry-able
     exceptions"""
-    RETRY_EXCEPTIONS = (
-        ConnectionLoss,
-        OperationTimeoutError,
-        ForceRetryError
-    )
 
-    EXPIRED_EXCEPTIONS = (
-        SessionExpiredError,
-    )
+    RETRY_EXCEPTIONS = (ConnectionLoss, OperationTimeoutError, ForceRetryError)
 
-    def __init__(self, max_tries=1, delay=0.1, backoff=2, max_jitter=0.4,
-                 max_delay=60.0, ignore_expire=True, sleep_func=time.sleep,
-                 deadline=None, interrupt=None):
+    EXPIRED_EXCEPTIONS = (SessionExpiredError,)
+
+    def __init__(
+        self,
+        max_tries=1,
+        delay=0.1,
+        backoff=2,
+        max_jitter=0.4,
+        max_delay=60.0,
+        ignore_expire=True,
+        sleep_func=time.sleep,
+        deadline=None,
+        interrupt=None,
+    ):
         """Create a :class:`KazooRetry` instance for retrying function
         calls.
 
@@ -92,14 +96,16 @@ class KazooRetry(object):
 
     def copy(self):
         """Return a clone of this retry manager"""
-        obj = KazooRetry(max_tries=self.max_tries,
-                         delay=self.delay,
-                         backoff=self.backoff,
-                         max_jitter=self.max_jitter,
-                         max_delay=self.max_delay,
-                         sleep_func=self.sleep_func,
-                         deadline=self.deadline,
-                         interrupt=self.interrupt)
+        obj = KazooRetry(
+            max_tries=self.max_tries,
+            delay=self.delay,
+            backoff=self.backoff,
+            max_jitter=self.max_jitter,
+            max_delay=self.max_delay,
+            sleep_func=self.sleep_func,
+            deadline=self.deadline,
+            interrupt=self.interrupt,
+        )
         obj.retry_exceptions = self.retry_exceptions
         return obj
 
@@ -131,12 +137,15 @@ class KazooRetry(object):
                 if self._attempts == self.max_tries:
                     raise RetryFailedError("Too many retry attempts")
                 self._attempts += 1
-                jitter = random.uniform(1.0-self.max_jitter,
-                                        1.0+self.max_jitter)
+                jitter = random.uniform(
+                    1.0 - self.max_jitter, 1.0 + self.max_jitter
+                )
                 sleeptime = self._cur_delay * jitter
 
-                if self._cur_stoptime is not None and \
-                   time.time() + sleeptime >= self._cur_stoptime:
+                if (
+                    self._cur_stoptime is not None
+                    and time.time() + sleeptime >= self._cur_stoptime
+                ):
                     raise RetryFailedError("Exceeded retry deadline")
 
                 if self.interrupt:
@@ -150,5 +159,4 @@ class KazooRetry(object):
                             raise InterruptedError()
                 else:
                     self.sleep_func(sleeptime)
-                self._cur_delay = min(sleeptime * self.backoff,
-                                      self.max_delay)
+                self._cur_delay = min(sleeptime * self.backoff, self.max_delay)

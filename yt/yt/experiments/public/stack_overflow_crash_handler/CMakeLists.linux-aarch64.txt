@@ -34,7 +34,8 @@ target_link_libraries(stack_overflow_crash_handler PUBLIC
 )
 
 target_allocator(stack_overflow_crash_handler
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(stack_overflow_crash_handler PRIVATE

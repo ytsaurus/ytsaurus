@@ -395,6 +395,8 @@ struct TOperationOptions
 
     TGpuCheckOptionsPtr GpuCheck;
 
+    bool AllowLocality;
+
     REGISTER_YSON_STRUCT(TOperationOptions);
 
     static void Register(TRegistrar registrar);
@@ -597,6 +599,9 @@ DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationOptions)
 struct TGangManagerConfig
     : public NYTree::TYsonStruct
 {
+
+    TDuration JobReincarnationTimeout;
+
     REGISTER_YSON_STRUCT(TGangManagerConfig);
 
     static void Register(TRegistrar registrar);
@@ -751,6 +756,8 @@ struct TJobTrackerConfig
 {
     TDuration NodeDisconnectionTimeout;
 
+    TDuration RevivalNodeDisconnectionTimeout;
+
     TDuration JobConfirmationTimeout;
 
     int LoggingJobSampleSize;
@@ -780,6 +787,9 @@ struct TDockerRegistryConfig
 
     //! Alternative addresses for internal docker registry.
     std::vector<std::string> InternalRegistryAlternativeAddresses;
+
+    //! Regex of trusted docker registries which accept cluster yt token for authentication.
+    NRe2::TRe2Ptr InternalRegistryRegex;
 
     bool UseYtTokenForInternalRegistry = false;
 
@@ -1306,6 +1316,10 @@ struct TControllerAgentConfig
 
     // COMPAT(dave11ar): Remove when all masters will be 25.2.
     bool RegisterLockableDynamicTables;
+
+    // COMPAT(dave11ar): Remove when RegisterLockableDynamicTables will be true everywhere
+    // and all masters will be 25.2.
+    bool AllowBulkInsertUnderUserTransaction;
 
     NServer::TOperationEventReporterConfigPtr OperationEventsReporter;
 

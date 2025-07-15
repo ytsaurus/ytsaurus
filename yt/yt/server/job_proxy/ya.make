@@ -21,6 +21,7 @@ SRCS(
     public.cpp
     remote_copy_job.cpp
     shallow_merge_job.cpp
+    signature_proxy.cpp
     simple_sort_job.cpp
     sorted_merge_job.cpp
     stderr_writer.cpp

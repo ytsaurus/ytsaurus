@@ -37,6 +37,7 @@ PEERDIR(
     contrib/libs/snappy
     contrib/libs/sparsehash
     contrib/libs/zstd
+    contrib/restricted/abseil-cpp
     contrib/restricted/aws/aws-c-auth
     contrib/restricted/aws/aws-c-common
     contrib/restricted/aws/aws-c-io

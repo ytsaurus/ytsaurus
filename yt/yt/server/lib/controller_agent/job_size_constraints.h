@@ -61,6 +61,8 @@ struct IJobSizeConstraints
 
     //! A sampling rate if it was specified in a job spec, otherwise null.
     virtual std::optional<double> GetSamplingRate() const = 0;
+
+    //! NB(apollo1321): Using compressed data size here is likely more semantically correct.
     //! When sampling is on, we initially create jobs of this data weight, sample them according to a given rate
     //! and join them together to fulfill data weight per job of `GetDataWeightPerJob()`.
     virtual i64 GetSamplingDataWeightPerJob() const = 0;

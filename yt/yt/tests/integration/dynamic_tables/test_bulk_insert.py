@@ -4,10 +4,10 @@ from yt_env_setup import parametrize_external
 
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, remove, generate_uuid,
-    exists, create_account,
+    exists, create_account, freeze_table, mount_table, reshard_table, unfreeze_table,
     create_user, start_transaction, abort_transaction, commit_transaction, lock,
-    insert_rows, select_rows, lookup_rows, alter_table, read_table, write_table,
-    map, merge, sort, generate_timestamp, get_tablet_leader_address, sync_create_cells,
+    insert_rows, select_rows, lookup_rows, alter_table, read_table, wait_for_tablet_state, write_table,
+    map, reduce, map_reduce, merge, sort, generate_timestamp, get_tablet_leader_address, sync_create_cells,
     sync_mount_table, sync_unmount_table, sync_freeze_table,
     sync_reshard_table, sync_flush_table, sync_compact_table, get_account_disk_space,
     create_dynamic_table, raises_yt_error, sorted_dicts, print_debug,
@@ -34,6 +34,15 @@ from io import BytesIO
 ##################################################################
 
 
+# Mostly used to avoid race conditions between compaction and non-transactional read.
+def read_table_under_transaction(path, **kwargs):
+    tx = start_transaction(timeout=60000)
+    lock(path, tx=tx, mode="snapshot")
+    return read_table(path, tx=tx, **kwargs)
+
+##################################################################
+
+
 @authors("ifsmirnov")
 @pytest.mark.enabled_multidaemon
 class TestBulkInsert(DynamicTablesBase):
@@ -55,7 +64,7 @@ class TestBulkInsert(DynamicTablesBase):
                     ]
                 }
             )
-        create_dynamic_table(path, **attributes)
+        return create_dynamic_table(path, **attributes)
 
     def _ypath_with_update_mode(self, path, update_mode):
         ypath = parse_ypath(path)
@@ -326,7 +335,7 @@ class TestBulkInsert(DynamicTablesBase):
             op = map(in_="//tmp/t_input", out="<append=%true>//tmp/t_output", command=command)
             operations.append(op)
 
-        assert read_table("//tmp/t_output") == [{"key": i, "value": str(i)} for i in range(len(operations))]
+        assert read_table_under_transaction("//tmp/t_output") == [{"key": i, "value": str(i)} for i in range(len(operations))]
         assert_items_equal(
             select_rows("* from [//tmp/t_output]"),
             [{"key": i, "value": str(i)} for i in range(len(operations))],
@@ -356,7 +365,7 @@ class TestBulkInsert(DynamicTablesBase):
         for op in operations:
             op.wait_for_state("completed")
 
-        assert read_table("//tmp/t_output") == [{"key": i, "value": str(i)} for i in range(len(operations))]
+        assert read_table_under_transaction("//tmp/t_output") == [{"key": i, "value": str(i)} for i in range(len(operations))]
         assert_items_equal(
             select_rows("* from [//tmp/t_output]"),
             [{"key": i, "value": str(i)} for i in range(len(operations))],
@@ -408,7 +417,7 @@ class TestBulkInsert(DynamicTablesBase):
         for op in operations:
             op.wait_for_state("completed")
 
-        assert read_table("//tmp/t_output") == rows
+        assert read_table_under_transaction("//tmp/t_output") == rows
         assert_items_equal(select_rows("* from [//tmp/t_output]"), rows)
 
     def test_no_simultaneous_bulk_inserts_overwrite_mode(self):
@@ -892,23 +901,6 @@ class TestBulkInsert(DynamicTablesBase):
 
         chunk_id = get_singular_chunk_id("//tmp/t_output")
         assert block_size - 50 < get("#{}/@max_block_size".format(chunk_id)) < block_size + 50
-
-    def test_no_user_transaction(self):
-        sync_create_cells(1)
-        create("table", "//tmp/t_input")
-        self._create_simple_dynamic_table("//tmp/t_output")
-        sync_mount_table("//tmp/t_output")
-
-        write_table("//tmp/t_input", [{"key": 1, "value": "1"}])
-
-        tx = start_transaction(timeout=60000)
-        with pytest.raises(YtError):
-            map(
-                in_="//tmp/t_input",
-                out="<append=%true>//tmp/t_output",
-                command="cat",
-                tx=tx,
-            )
 
     @pytest.mark.parametrize("atomicity", ["none", "full"])
     def test_atomicity_should_match(self, atomicity):
@@ -2300,13 +2292,468 @@ class TestDynamicTablesLockingProtocol(DynamicTablesBase):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "register_lockable_dynamic_tables": True,
+            "allow_bulk_insert_under_user_transaction": True,
         }
     }
 
 
 @pytest.mark.enabled_multidaemon
 class TestBulkInsertDynamicTablesLockingProtocol(TestDynamicTablesLockingProtocol, TestBulkInsert):
-    pass
+    class TransactionTest:
+        READ_STEP_COUNT = 2
+        INITIAL_KEY_BOUND = 100000000
+
+        def __init__(self, parent_tx, table_to_rows, output):
+            if parent_tx:
+                parent_tx.child_txs.append(self)
+
+            self.parent_tx = parent_tx
+            self.child_txs = []
+            self.tx = start_transaction(timeout=600000) if parent_tx is None else start_transaction(timeout=600000, tx=parent_tx.tx)
+
+            self.finished = False
+
+            self.table_to_rows = deepcopy(table_to_rows)
+            self.read_table_to_rows = {}
+
+            self.output_streams = {}
+            self.read_responses = {}
+
+            self.nested_outputs = [output]
+            self.output = output
+
+        def _push_down_rows_to_child_txs(self, initiator_tx):
+            for child_tx in self.child_txs:
+                child_tx._push_down_rows(initiator_tx)
+
+        def _push_down_rows(self, initiator_tx):
+            if self.finished:
+                return
+
+            for table in initiator_tx.nested_outputs:
+                self.table_to_rows[table] = initiator_tx.table_to_rows[table]
+
+            self._push_down_rows_to_child_txs(initiator_tx)
+
+        def write(self, rows, append):
+            input = f"//tmp/t_input{generate_uuid()}"
+            create("table", input)
+            write_table(input, rows)
+
+            ts_before = generate_timestamp()
+            map(in_=input, out=f"<append=%{str(append).lower()}>{self.output}", command="cat", tx=self.tx)
+            ts_after = generate_timestamp()
+
+            enriched_rows = [
+                {
+                    "key": row["key"],
+                    "value": row["value"],
+                    "ts_before": ts_before,
+                    "ts_after": ts_after,
+                } for row in rows
+            ]
+
+            if append:
+                self.table_to_rows[self.output] += enriched_rows
+            else:
+                self.table_to_rows[self.output] = enriched_rows
+
+            self._push_down_rows_to_child_txs(self)
+
+        def abort(self):
+            assert self.parent_tx
+            self.finished = True
+            abort_transaction(self.tx)
+
+        def commit(self):
+            self.finished = True
+
+            ts_before = generate_timestamp()
+            commit_transaction(self.tx)
+            ts_after = generate_timestamp()
+
+            for table in self.nested_outputs:
+                rows = self.table_to_rows[table]
+                for row in rows:
+                    if row["key"] < self.INITIAL_KEY_BOUND:
+                        row["ts_before"] = ts_before
+                        row["ts_after"] = ts_after
+
+                if self.parent_tx:
+                    self.parent_tx.table_to_rows[table] = rows
+                    self.parent_tx.nested_outputs.append(table)
+
+            if self.parent_tx:
+                self.parent_tx._push_down_rows(self.parent_tx)
+
+        def read_all_tables(self, step):
+            if self.finished and self.parent_tx:
+                return
+
+            for table, _ in self.table_to_rows.items():
+                if step == 0:
+                    self.output_streams[table] = BytesIO()
+
+                    if self.finished:
+                        self.read_responses[table] = select_rows(
+                            f"* from [{table}]",
+                            with_timestamps=True,
+                            output_stream=self.output_streams[table],
+                            return_response=True,
+                        )
+                    else:
+                        self.read_responses[table] = read_table(
+                            f"<versioned_read_options={{read_mode=latest_timestamp}}>{table}",
+                            tx=self.tx,
+                            output_stream=self.output_streams[table],
+                            return_response=True,
+                        )
+                elif step == 1:
+                    self.read_responses[table].wait()
+                    assert self.read_responses[table].is_ok()
+
+                    self.read_table_to_rows[table] = list(yson.loads(
+                        self.output_streams[table].getvalue(),
+                        yson_type="list_fragment"
+                    ))
+
+        def check(self):
+            if self.finished and self.parent_tx:
+                return
+
+            self.check_versioned_rows(self.table_to_rows, self.read_table_to_rows)
+
+        @staticmethod
+        def check_versioned_rows(table_to_rows, table_to_readed_rows):
+            for table, expected_rows in table_to_rows.items():
+                rows = table_to_readed_rows[table]
+                row_by_key = {row["key"]: row for row in rows}
+
+                assert len(rows) == len(expected_rows)
+
+                for expected_row in expected_rows:
+                    row = row_by_key[expected_row["key"]]
+                    assert row["value"] == expected_row["value"]
+                    assert expected_row["ts_before"] < row["$timestamp:value"] < expected_row["ts_after"]
+
+    def _create_output_tables(self, table_count, max_tablet_count, external):
+        table_to_rows = {}
+        output_tables = []
+        for _ in range(table_count):
+            output_tables.append(f"//tmp/t_output{generate_uuid()}")
+
+        responses = {}
+
+        def _get_tablet_state_waiter(tablet_state):
+            return lambda table: wait_for_tablet_state(table, tablet_state)
+
+        def _make_requests(func, *args, table_converter=lambda x: x, additional_waiter=None, **kwargs):
+            for output in output_tables:
+                responses[output] = func(table_converter(output), *args, return_response=True, **kwargs)
+
+            for _, response in responses.items():
+                response.wait()
+                if not response.is_ok():
+                    assert response.error() == "as"
+                assert response.is_ok()
+
+            if additional_waiter:
+                for output in output_tables:
+                    additional_waiter(output)
+
+        # Create
+        _make_requests(self._create_simple_dynamic_table, external=external, enable_compaction_and_partitioning=False)
+
+        # Reshard
+        _make_requests(
+            reshard_table,
+            [[]] + [[(i + 1) * 100] for i in range(max_tablet_count)] + [[self.TransactionTest.INITIAL_KEY_BOUND]],
+            additional_waiter=lambda table: wait(lambda: get(f"{table}/@tablet_state") != "transient"),
+        )
+
+        # Mount
+        _make_requests(mount_table, additional_waiter=_get_tablet_state_waiter("mounted"))
+
+        # Sequentially add to have disjoint timestamp ranges
+        for output in output_tables:
+            id = len(table_to_rows) + self.TransactionTest.INITIAL_KEY_BOUND
+            rows = [{"key": id, "value": str(id)}]
+
+            ts_before = generate_timestamp()
+            insert_rows(output, rows)
+            ts_after = generate_timestamp()
+
+            table_to_rows[output] = [
+                {
+                    "key": row["key"],
+                    "value": row["value"],
+                    "ts_before": ts_before,
+                    "ts_after": ts_after,
+                } for row in rows
+            ]
+
+        # Freeze
+        _make_requests(freeze_table, additional_waiter=_get_tablet_state_waiter("frozen"))
+
+        # Unfreeze
+        _make_requests(unfreeze_table, additional_waiter=_get_tablet_state_waiter("mounted"))
+
+        return table_to_rows, output_tables
+
+    # TODO(dave11ar): Parametrize with various transaction configurations
+    @authors("dave11ar")
+    @parametrize_external
+    def test_nested_transactions_successful(self, external):
+        sync_create_cells(1)
+
+        tx_count = 10
+        max_tablet_count = 5
+
+        tx_infos = []
+
+        table_to_rows, output_tables = self._create_output_tables(
+            table_count=tx_count,
+            max_tablet_count=max_tablet_count,
+            external=external,
+        )
+
+        def _create_tx(parent_tx_num, append, chunk_count, commit):
+            nonlocal tx_infos
+
+            tx_infos.append((
+                self.TransactionTest(
+                    parent_tx=None if parent_tx_num is None else tx_infos[parent_tx_num][0],
+                    table_to_rows=table_to_rows,
+                    output=output_tables[len(tx_infos)],
+                ),
+                append,
+                chunk_count,
+                commit,
+            ))
+
+        _create_tx(None, append=False, chunk_count=2, commit=True)
+
+        _create_tx(0, append=True, chunk_count=3, commit=True)
+        _create_tx(0, append=True, chunk_count=1, commit=True)
+        _create_tx(0, append=False, chunk_count=2, commit=True)
+
+        _create_tx(1, append=False, chunk_count=1, commit=True)
+        _create_tx(1, append=True, chunk_count=4, commit=True)
+        _create_tx(1, append=False, chunk_count=1, commit=False)
+        _create_tx(1, append=True, chunk_count=1, commit=False)
+
+        _create_tx(3, append=True, chunk_count=2, commit=True)
+        _create_tx(3, append=False, chunk_count=1, commit=False)
+
+        assert len(tx_infos) == tx_count
+
+        def _read_all_tables():
+            table_to_readed_rows = {}
+            read_responses = {}
+            output_streams = {}
+
+            for output in output_tables:
+                output_streams[output] = BytesIO()
+
+                read_responses[output] = select_rows(
+                    f"* from [{output}]",
+                    with_timestamps=True,
+                    output_stream=output_streams[output],
+                    return_response=True,
+                )
+
+            for output in output_tables:
+                read_responses[output].wait()
+                assert read_responses[output].is_ok()
+
+                table_to_readed_rows[output] = list(yson.loads(
+                    output_streams[output].getvalue(),
+                    yson_type="list_fragment"
+                ))
+
+            return table_to_readed_rows
+
+        def _read_under_all_txs():
+            for step in range(self.TransactionTest.READ_STEP_COUNT):
+                for tx_info in tx_infos:
+                    tx_info[0].read_all_tables(step)
+
+        def _check_all(topmost_committed=False):
+            _read_under_all_txs()
+
+            for tx_info in tx_infos:
+                tx_info[0].check()
+
+            if not topmost_committed:
+                self.TransactionTest.check_versioned_rows(table_to_rows, _read_all_tables())
+
+        def _generate_rows(tx_id, row_count):
+            return [{"key": tx_id + i * 100, "value": str(i + tx_id)} for i in range(row_count)]
+
+        _check_all()
+
+        for i in range(len(tx_infos) - 1, -1, -1):
+            tx, append, chunk_count, _ = tx_infos[i]
+            tx.write(_generate_rows(i, chunk_count), append)
+
+            _check_all()
+
+        for i in range(len(tx_infos) - 1, -1, -1):
+            tx, _, _, commit = tx_infos[i]
+
+            if commit:
+                tx.commit()
+            else:
+                tx.abort()
+
+            _check_all(i == 0)
+
+    @authors("dave11ar")
+    @parametrize_external
+    def test_nested_transactions_abort_topmost(self, external):
+        sync_create_cells(1)
+
+        output = "//tmp/t_output"
+
+        self._create_simple_dynamic_table(output, external=external)
+        sync_mount_table(output)
+
+        input = "//tmp/t_input"
+        create("table", input)
+        write_table(input, [{"key": 42, "value": "42"}])
+
+        tx = start_transaction(timeout=60000)
+        tx_nested = start_transaction(timeout=60000, tx=tx)
+
+        map(in_=input, out=f"<append=%true>{output}", command="cat", tx=tx_nested)
+
+        commit_transaction(tx_nested)
+        abort_transaction(tx)
+
+        assert len(read_table(output)) == 0
+
+    @authors("dave11ar")
+    @parametrize_external
+    def test_nested_transactions_forbid_multiple_txs(self, external):
+        sync_create_cells(1)
+
+        def _create_output():
+            output = f"//tmp/t_output{generate_uuid()}"
+
+            self._create_simple_dynamic_table(output, external=external)
+            sync_mount_table(output)
+
+            return output
+
+        input = "//tmp/t_input"
+        create("table", input)
+        write_table(input, [{"key": 42, "value": "42"}])
+
+        tx0 = start_transaction(timeout=60000)
+        tx1 = start_transaction(timeout=60000, tx=tx0)
+        tx2 = start_transaction(timeout=60000, tx=tx0)
+
+        output = _create_output()
+
+        map(in_=input, out=f"<append=%true>{output}", command="cat", tx=tx1)
+
+        with raises_yt_error("Duplicate lockable dynamic table"):
+            map(in_=input, out=f"<append=%true>{output}", command="cat", tx=tx2)
+
+        tx = start_transaction(timeout=60000)
+        output = _create_output()
+
+        map(in_=input, out=f"<append=%true>{output}", command="cat", tx=tx)
+
+        with raises_yt_error("Duplicate lockable dynamic table"):
+            map(in_=input, out=f"<append=%true>{output}", command="cat", tx=tx)
+
+        tx = start_transaction(timeout=60000)
+        tx_nested = start_transaction(timeout=60000, tx=tx)
+        output = _create_output()
+
+        map(in_=input, out=f"<append=%true>{output}", command="cat", tx=tx_nested)
+
+        with raises_yt_error("Duplicate lockable dynamic table"):
+            map(in_=input, out=f"<append=%true>{output}", command="cat", tx=tx_nested)
+
+    @authors("dave11ar")
+    @parametrize_external
+    @pytest.mark.parametrize(
+        "append, expected_rows",
+        [
+            [True, [{"key": 42, "value": "42"}, {"key": 1337, "value": "1337"}]],
+            [False, [{"key": 42, "value": "42"}]],
+        ]
+    )
+    def test_nested_transactions_all_operations(self, external, append, expected_rows):
+        sync_create_cells(1)
+
+        def _create_output():
+            output = f"//tmp/t_output{generate_uuid()}"
+
+            self._create_simple_dynamic_table(output, external=external)
+            sync_mount_table(output)
+
+            insert_rows(output, [{"key": 1337, "value": "1337"}])
+            sync_flush_table(output)
+
+            return output
+
+        input_table = "//tmp/t_input"
+        create(
+            "table",
+            input_table,
+            attributes={
+                "schema": make_schema(
+                    [
+                        {"name": "key", "type": "int64", "sort_order": "ascending"},
+                        {"name": "value", "type": "string"},
+                    ],
+                    unique_keys=True,
+                ),
+            },
+        )
+        write_table(input_table, [{"key": 42, "value": "42"}])
+
+        tx = start_transaction(timeout=60000)
+
+        def _create_nested_tx():
+            return start_transaction(timeout=60000, tx=tx)
+
+        output_tables = []
+        nested_txs = []
+
+        for _ in range(5):
+            output_tables.append(_create_output())
+            nested_txs.append(_create_nested_tx())
+
+        params = f"<append=%{str(append).lower()}>"
+
+        map(in_=input_table, out=f"{params}{output_tables[0]}", command="cat", tx=nested_txs[0])
+        merge(in_=input_table, out=f"{params}{output_tables[1]}", mode="ordered", tx=nested_txs[1])
+        reduce(in_=input_table, out=f"{params}{output_tables[2]}", reduce_by="key", command="cat", tx=nested_txs[2])
+        map_reduce(
+            in_=input_table,
+            out=f"{params}{output_tables[3]}",
+            reduce_by="key",
+            mapper_command="cat",
+            reducer_command="cat",
+            tx=nested_txs[3],
+        )
+        sort(in_=input_table, out=f"{params}{output_tables[4]}", sort_by="key", tx=nested_txs[4])
+
+        for output_table, nested_tx in zip(output_tables, nested_txs):
+            assert_items_equal(read_table(output_table, tx=nested_tx), expected_rows)
+
+        for output_table, nested_tx in zip(output_tables, nested_txs):
+            commit_transaction(nested_tx)
+            assert_items_equal(read_table(output_table, tx=tx), expected_rows)
+
+        commit_transaction(tx)
+
+        for output_table, nested_tx in zip(output_tables, nested_txs):
+            assert_items_equal(read_table(output_table), expected_rows)
 
 
 @pytest.mark.enabled_multidaemon
@@ -2343,6 +2790,7 @@ class TestBulkInsertMirroredTxDynamicTablesLockingProtocol(TestDynamicTablesLock
         "commit_operation_cypress_node_changes_via_system_transaction": True,
         "controller_agent": {
             "register_lockable_dynamic_tables": True,
+            "allow_bulk_insert_under_user_transaction": True,
         }
     }
 

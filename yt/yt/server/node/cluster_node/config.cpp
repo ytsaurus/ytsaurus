@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/lib/chaos_node/config.h>
 
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
 #include <yt/yt/ytlib/object_client/config.h>
 
 #include <yt/yt/client/transaction_client/config.h>
@@ -333,7 +335,7 @@ void TClusterNodeBootstrapConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("exec_node_is_not_data_node", &TThis::ExecNodeIsNotDataNode)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("flavors", &TThis::Flavors)
         .Default({
@@ -371,6 +373,9 @@ void TClusterNodeBootstrapConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("heap_profiler", &TThis::HeapProfiler)
         .DefaultNew();
+
+    registrar.Parameter("delay_master_cell_directory_start", &TThis::DelayMasterCellDirectoryStart)
+        .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
         NNodeTrackerClient::ValidateNodeTags(config->Tags);
@@ -450,8 +455,8 @@ void TClusterNodeBootstrapConfig::Register(TRegistrar registrar)
         }
 
         //! NB: LeaseTransactionPingPeriod and LeaseTransactionTimeout should be ensured to be initialized by compat above.
-        THROW_ERROR_EXCEPTION_IF(*config->MasterConnector->LeaseTransactionPingPeriod >= *config->MasterConnector->LeaseTransactionTimeout,
-            "Lease transaction ping period cannot be greater or equal to lease transaction timeout");
+        THROW_ERROR_EXCEPTION_UNLESS(*config->MasterConnector->LeaseTransactionPingPeriod < *config->MasterConnector->LeaseTransactionTimeout,
+            "Lease transaction ping period must be less than lease transaction timeout");
     });
 }
 
@@ -534,10 +539,25 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
         .Default(1.0);
     registrar.Parameter("memory_limit_exceeded_for_category_threshold", &TThis::MemoryLimitExceededForCategoryThreshold)
         .Default(1.1);
+    registrar.Parameter("node_memory_tracker", &TThis::NodeMemoryTracker)
+        .DefaultNew();
+
     registrar.Parameter("chaos_residency_cache", &TThis::ChaosResidencyCache)
+        .DefaultNew();
+    registrar.Parameter("replication_card_cache", &TThis::ReplicationCardCache)
+        .DefaultNew();
+    registrar.Parameter("master_cell_directory_synchronizer", &TThis::MasterCellDirectorySynchronizer)
         .DefaultNew();
     registrar.Parameter("huge_page_manager", &TThis::HugePageManager)
         .DefaultNew();
+    registrar.Parameter("fair_share_hierarchical_scheduler", &TThis::FairShareHierarchicalScheduler)
+        .DefaultNew();
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (!config->JobResourceManager->CheckUserJobsCtegoryLimitOnResourcesUpdating) {
+            config->NodeMemoryTracker->CheckPerCategoryLimitOvercommit = false;
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

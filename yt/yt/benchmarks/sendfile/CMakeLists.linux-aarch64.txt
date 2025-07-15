@@ -32,7 +32,8 @@ target_link_libraries(sendfile PUBLIC
 )
 
 target_allocator(sendfile
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(sendfile PRIVATE

@@ -1,9 +1,0 @@
-{"_yql_row_spec"={
-	"Type"=["StructType";[
-		["a";["DataType";"String"]];
-		["b";["OptionalType";["DataType";"String"]]];
-		["c";["TupleType";[["DataType";"Int32"];["OptionalType";["DataType";"Double"]]]]];
-		["d";["TupleType";[["DataType";"Int32"];["OptionalType";["DataType";"String"]]]]];
-		["e";["TupleType";[["TupleType";[["DataType";"Int32"];["OptionalType";["DataType";"String"]]]];["DataType";"Int32"]]]];
-	]];
-}}

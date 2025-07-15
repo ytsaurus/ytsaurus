@@ -1,10 +1,9 @@
 #pragma once
 
-#include "defs.h"
-#include <contrib/ydb/core/scheme/scheme_pathid.h>
-
+#include <contrib/ydb/core/base/statestorage.h>
 #include <contrib/ydb/core/protos/flat_tx_scheme.pb.h>
 #include <contrib/ydb/core/protos/scheme_board.pb.h>
+#include <contrib/ydb/core/scheme/scheme_pathid.h>
 
 #include <contrib/ydb/library/actors/core/log.h>
 
@@ -63,6 +62,8 @@ TString SerializeDescribeSchemeResult(const TString& preSerializedPart, const NK
 NKikimrScheme::TEvDescribeSchemeResult DeserializeDescribeSchemeResult(const TString& serialized);
 NKikimrScheme::TEvDescribeSchemeResult* DeserializeDescribeSchemeResult(const TString& serialized, google::protobuf::Arena* arena);
 TString JsonFromDescribeSchemeResult(const TString& serialized);
+
+bool ShouldIgnore(const TStateStorageInfo::TRingGroup& ringGroup);
 
 } // NSchemeBoard
 } // NKikimr

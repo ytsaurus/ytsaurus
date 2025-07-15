@@ -63,6 +63,34 @@ using NNative::IClientPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+const auto& Logger = SequoiaClientLogger;
+
+void ValidateSequoiaTableSchema(ESequoiaTable table, const TTableSchemaPtr& actualSchema)
+{
+    const auto& expectedSchema = ITableDescriptor::Get(table)->GetPrimarySchema();
+    if (*expectedSchema == *actualSchema) {
+        return;
+    }
+
+    YT_LOG_ALERT("Unexpected schema of Sequoia table (SequoiaTable: %v, Schema: %v, ExpectedSchema: %v)",
+        table,
+        *actualSchema,
+        *expectedSchema);
+
+    THROW_ERROR_EXCEPTION(
+        NTableClient::EErrorCode::SchemaViolation,
+        "Sequoia table %Qlv has unexpected schema",
+        table)
+        << TErrorAttribute("expected_schema", *expectedSchema)
+        << TErrorAttribute("actual_schema", *actualSchema);
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TDatalessLockRowRequest
 {
     TCellTag MasterCellTag;
@@ -107,6 +135,20 @@ TPerTransactionTypeCounters* GetPerTransactionTypeCounters(ESequoiaTransactionTy
         return counters;
     }();
     return &GetOrCrash(counters, type);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISequoiaTransaction::TThreadSafeRowBuffer::TThreadSafeRowBuffer(
+    NThreading::TSpinLock* lock,
+    TRowBufferPtr rowBuffer)
+    : Guard_(Guard(*lock))
+    , RowBuffer_(std::move(rowBuffer))
+{ }
+
+const TRowBufferPtr& ISequoiaTransaction::TThreadSafeRowBuffer::Get() const
+{
+    return RowBuffer_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -267,6 +309,12 @@ public:
         };
         auto commitSession = GetOrCreateTableCommitSession(descriptor);
         commitSession->Requests.push_back(request);
+
+        YT_LOG_DEBUG_IF(SequoiaTransactionOptions_.EnableVerboseLogging,
+            "Row locked (SequoiaTable: %v, Key: %v, LockType: %v)",
+            table,
+            key,
+            lockType);
     }
 
     void WriteRow(
@@ -280,6 +328,12 @@ public:
             .Table = table,
         };
         WriteRow(descriptor, row, lockType);
+
+        YT_LOG_DEBUG_IF(SequoiaTransactionOptions_.EnableVerboseLogging,
+            "Row written (SequoiaTable: %v, Row: %v, LockType: %v)",
+            table,
+            row,
+            lockType);
     }
 
     void WriteRow(
@@ -298,6 +352,12 @@ public:
 
         auto commitSession = GetOrCreateTableCommitSession(tableDescriptor);
         commitSession->Requests.push_back(request);
+
+        YT_LOG_DEBUG_IF(SequoiaTransactionOptions_.EnableVerboseLogging,
+            "Row written (SequoiaTable: %v, Row: %v, LockType: %v)",
+            tableDescriptor.Table,
+            row,
+            lockType);
     }
 
     void DeleteRow(
@@ -316,6 +376,11 @@ public:
         descriptor.Table = table;
         auto commitSession = GetOrCreateTableCommitSession(descriptor);
         commitSession->Requests.push_back(request);
+
+        YT_LOG_DEBUG_IF(SequoiaTransactionOptions_.EnableVerboseLogging,
+            "Row deleted (SequoiaTable: %v, Key: %v)",
+            table,
+            key);
     }
 
     void AddTransactionAction(
@@ -376,9 +441,9 @@ public:
             NCellMasterClient::EMasterCellRole::SequoiaNodeHost);
     }
 
-    const TRowBufferPtr& GetRowBuffer() const override
+    TThreadSafeRowBuffer GetGuardedRowBuffer() override
     {
-        return RowBuffer_;
+        return TThreadSafeRowBuffer(&Lock_, RowBuffer_);
     }
 
     const ISequoiaClientPtr& GetClient() const override
@@ -443,7 +508,6 @@ private:
 
         TSequoiaTablePathDescriptor SequoiaTableDescriptor;
         std::vector<TRequest> Requests;
-        TEnumIndexedArray<ETableSchemaKind, TNameTableToSchemaIdMapping> ColumnIdMappings;
     };
     using TTableCommitSessionPtr = TIntrusivePtr<TTableCommitSession>;
 
@@ -590,21 +654,18 @@ private:
     }
 
     TLegacyKey PrepareRow(
-        const TTableCommitSessionPtr& session,
-        const TTableMountInfoPtr& tableMountInfo,
-        const TColumnEvaluatorPtr& evaluator,
+        const ITableDescriptor* tableDescriptor,
         TUnversionedRow row)
     {
-        const auto& primarySchema = tableMountInfo->Schemas[ETableSchemaKind::Primary];
-        const auto& modificationIdMapping = session->ColumnIdMappings[ETableSchemaKind::Primary];
+        const auto& primarySchema = tableDescriptor->GetPrimarySchema();
         auto capturedRow = RowBuffer_->CaptureAndPermuteRow(
             row,
             *primarySchema,
             primarySchema->GetKeyColumnCount(),
-            modificationIdMapping,
-            /*validateDuplicateAndRequiredValueColumns*/ false);
-        if (evaluator) {
-            evaluator->EvaluateKeys(capturedRow, RowBuffer_, /*preserveColumnsIds*/ false);
+            tableDescriptor->GetNameTableToPrimarySchemaIdMapping(),
+            /*validateDuplicateAndRequiredValueColumns*/ true);
+        if (const auto& evaluator = tableDescriptor->GetColumnEvaluator()) {
+            evaluator->EvaluateKeys(capturedRow, RowBuffer_, /*preserveColumnsIds*/ true);
         }
         return capturedRow;
     }
@@ -615,41 +676,25 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
-        const auto& primarySchema = tableMountInfo->Schemas[ETableSchemaKind::Primary];
-        const auto& writeSchema = tableMountInfo->Schemas[ETableSchemaKind::Write];
-        const auto& deleteSchema = tableMountInfo->Schemas[ETableSchemaKind::Delete];
-        const auto& lockSchema = tableMountInfo->Schemas[ETableSchemaKind::Lock];
+        ValidateSequoiaTableSchema(session->SequoiaTableDescriptor.Table, tableMountInfo->Schemas[ETableSchemaKind::Primary]);
+
+        const auto* tableDescriptor = ITableDescriptor::Get(session->SequoiaTableDescriptor.Table);
+        const auto& primarySchema = tableDescriptor->GetPrimarySchema();
+        const auto& writeSchema = tableDescriptor->GetWriteSchema();
+        const auto& deleteSchema = tableDescriptor->GetDeleteSchema();
+        const auto& lockSchema = tableDescriptor->GetLockSchema();
 
         const auto& recordDescriptor = ITableDescriptor::Get(session->SequoiaTableDescriptor.Table)->GetRecordDescriptor();
         auto nameTable = recordDescriptor->GetNameTable();
         std::optional<int> tabletIndexColumnId;
-        if (!tableMountInfo->IsSorted()) {
+        if (!tableDescriptor->IsSorted()) {
             tabletIndexColumnId = nameTable->GetIdOrRegisterName(TabletIndexColumnName);
         }
 
-        for (auto schemaKind : {ETableSchemaKind::Primary, ETableSchemaKind::Write, ETableSchemaKind::Delete, ETableSchemaKind::Lock})
-        {
-            session->ColumnIdMappings[schemaKind] = BuildColumnIdMapping(
-                *tableMountInfo->Schemas[schemaKind],
-                // nameTable here can differ from
-                // ITableDescriptor::Get(session->Table)->GetRecordDescriptor()->GetNameTable(),
-                // as nameTable is enriched with tablet index.
-                // It is not the case now as I decided to give up and just add $tablet_index to
-                // yaml schema, which resulted in it being in all name tables, but it seems like enriching
-                // nameTable with tablet index here is a proper way, as it is the way it is done in native transaction.
-                // Let's leave it like that so that whoever tries to make it right doesn't have to
-                // go through some parts of this pain again.
-                nameTable,
-                /*allowMissingKeyColumns*/ false);
-        }
-
-        const auto& primaryIdMapping = session->ColumnIdMappings[ETableSchemaKind::Primary];
-        const auto& writeIdMapping = session->ColumnIdMappings[ETableSchemaKind::Write];
-        const auto& deleteIdMapping = session->ColumnIdMappings[ETableSchemaKind::Delete];
-        const auto& lockIdMapping = session->ColumnIdMappings[ETableSchemaKind::Lock];
-
-        auto evaluatorCache = GroundClient_->GetNativeConnection()->GetColumnEvaluatorCache();
-        auto evaluator = tableMountInfo->NeedKeyEvaluation ? evaluatorCache->Find(primarySchema) : nullptr;
+        const auto& primaryIdMapping = tableDescriptor->GetNameTableToPrimarySchemaIdMapping();
+        const auto& writeIdMapping = tableDescriptor->GetNameTableToWriteSchemaIdMapping();
+        const auto& deleteIdMapping = tableDescriptor->GetNameTableToDeleteSchemaIdMapping();
+        const auto& lockIdMapping = tableDescriptor->GetNameTableToLockSchemaIdMapping();
 
         std::vector<int> columnIndexToLockIndex;
         GetLocksMapping(
@@ -666,11 +711,7 @@ private:
                         lockIdMapping,
                         nameTable);
 
-                    auto preparedKey = PrepareRow(
-                        session,
-                        tableMountInfo,
-                        evaluator,
-                        request.Key);
+                    auto preparedKey = PrepareRow(tableDescriptor, request.Key);
 
                     YT_VERIFY(tableMountInfo->IsSorted());
                     auto tabletInfo = GetSortedTabletForRow(
@@ -711,11 +752,7 @@ private:
                         lockIdMapping,
                         nameTable);
 
-                    auto preparedKey = PrepareRow(
-                        session,
-                        tableMountInfo,
-                        evaluator,
-                        request.Key);
+                    auto preparedKey = PrepareRow(tableDescriptor, request.Key);
 
                     YT_VERIFY(tableMountInfo->IsSorted());
                     auto tabletInfo = GetSortedTabletForRow(
@@ -744,11 +781,7 @@ private:
                         nameTable,
                         tabletIndexColumnId);
 
-                    auto preparedRow = PrepareRow(
-                        session,
-                        tableMountInfo,
-                        evaluator,
-                        request.Row);
+                    auto preparedRow = PrepareRow(tableDescriptor, request.Row);
 
                     TLockMask lockMask;
                     TTabletInfoPtr tabletInfo;
@@ -791,11 +824,7 @@ private:
                         deleteIdMapping,
                         nameTable);
 
-                    auto preparedKey = PrepareRow(
-                        session,
-                        tableMountInfo,
-                        evaluator,
-                        request.Key);
+                    auto preparedKey = PrepareRow(tableDescriptor, request.Key);
 
                     TTabletInfoPtr tabletInfo;
                     if (tableMountInfo->IsSorted()) {

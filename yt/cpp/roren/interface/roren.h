@@ -27,6 +27,7 @@
 #include "key_value.h"
 #include "transforms.h"
 
+#include "private/tags.h"
 #include "private/raw_pipeline.h"
 #include "private/attributes.h"
 
@@ -76,20 +77,25 @@ public:
     ///   - TMultiPCollection
     ///
     /// @see transforms.h
-    template <CApplicableTo<TPCollection<T>> TTransform>
-    auto operator|(const TTransform& transform) const
+    TPCollection<T> SetKeyColumns(std::vector<TString> keyColumns)
     {
-        auto guard = RawPipeline_->StartTransformGuard(transform.GetName());
-        return transform.ApplyTo(*this);
+        NRoren::NPrivate::SetKeyColumns(*RawDataNode_, std::move(keyColumns));
+        return *this;
     }
 
-private:
+    TPCollection<T> SetEventTimestampColumn(TString name)
+    {
+        NRoren::NPrivate::SetEventTimestampColumn(*RawDataNode_, std::move(name));
+        return *this;
+    }
+
+protected:
     TPCollection(NPrivate::TPCollectionNodePtr dataNode, NPrivate::TRawPipelinePtr pipeline)
         : RawDataNode_(std::move(dataNode))
         , RawPipeline_(std::move(pipeline))
     { }
 
-private:
+protected:
     NPrivate::TPCollectionNodePtr RawDataNode_;
     NPrivate::TRawPipelinePtr RawPipeline_;
 
@@ -180,6 +186,7 @@ private:
 ///
 /// Users create pipelines using one of factory functions provided by one of executor libraries.
 class TPipeline
+    : public TPCollection<void>
 {
 public:
     TPipeline(const TPipeline& pipeline);
@@ -188,12 +195,15 @@ public:
 
     void Run();
 
+    //using TPCollection<void>::operator|;
+    #if 0
     template <CApplicableTo<TPipeline> TTransform>
     auto operator|(const TTransform& transform) const
     {
         auto guard = RawPipeline_->StartTransformGuard(transform.GetName());
         return transform.ApplyTo(*this);
     }
+    #endif
 
     TString DumpDot() const;
     void Dump(NYT::NYson::IYsonConsumer* consumer) const;
@@ -203,7 +213,7 @@ private:
     void Optimize();
 
 private:
-    NPrivate::TRawPipelinePtr RawPipeline_ = NYT::New<NPrivate::TRawPipeline>();
+    using TPCollection<void>::RawPipeline_;
     IExecutorPtr Executor_;
 
 private:
@@ -362,12 +372,19 @@ template <typename TRow, typename TTransform>
     requires CApplicableTo<TTransform, std::vector<TPCollection<TRow>>>
 TPCollection<TRow> operator|(const std::vector<TPCollection<TRow>>& pCollectionList, const TTransform& transform)
 {
-    if (pCollectionList.empty()) {
-        Y_ABORT("Cannot apply transform to an empty list of PCollections");
-    }
+    Y_ABORT_IF(pCollectionList.empty(), "Cannot apply transform to an empty list of PCollections");
     const auto& rawPipeline = NPrivate::GetRawPipeline(pCollectionList[0]);
     auto guard = rawPipeline->StartTransformGuard(transform.GetName());
     return transform.ApplyTo(pCollectionList);
+}
+
+template <CRow TInputRow, class TTransformApplicator>
+    requires CApplicableTo<TTransformApplicator, TPCollection<TInputRow>>
+auto operator|(const TPCollection<TInputRow>& pCollection, const TTransformApplicator& transformApplicator)
+{
+    const auto& rawPipeline = NPrivate::GetRawPipeline(pCollection);
+    auto guard = rawPipeline->StartTransformGuard(transformApplicator.GetName());
+    return transformApplicator.ApplyTo(pCollection);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

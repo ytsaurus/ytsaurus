@@ -1,6 +1,7 @@
 #pragma once
 
 #include <contrib/ydb/library/actors/core/actor.h>
+
 #include <queue>
 
 namespace NKikimr::NSchemeShard {

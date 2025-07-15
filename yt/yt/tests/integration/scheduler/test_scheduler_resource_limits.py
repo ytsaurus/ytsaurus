@@ -977,10 +977,10 @@ class TestSchedulerGpu(YTEnvSetup):
         assert next(iter(jobs.values()))["address"] == gpu_node
 
     @authors("ignat")
-    def test_min_share_resources(self):
-        create_pool("gpu_pool", attributes={"min_share_resources": {"gpu": 1}})
-        wait(lambda: get(scheduler_orchid_pool_path("gpu_pool") + "/min_share_resources/gpu") == 1)
-        wait(lambda: get(scheduler_orchid_pool_path("gpu_pool") + "/min_share_ratio") == 0.25)
+    def test_strong_guarantee_resources(self):
+        create_pool("gpu_pool", attributes={"strong_guarantee_resources": {"gpu": 1}})
+        wait(lambda: get(scheduler_orchid_pool_path("gpu_pool") + "/strong_guarantee_resources/gpu") == 1)
+        wait(lambda: get(scheduler_orchid_pool_path("gpu_pool") + "/strong_guarantee_share/gpu") == 0.25)
 
     @authors("ignat")
     def test_packing(self):

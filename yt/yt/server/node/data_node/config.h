@@ -275,12 +275,29 @@ struct TCacheLocationConfig
     //! Controls incoming location bandwidth used by cache.
     NConcurrency::TThroughputThrottlerConfigPtr InThrottler;
 
+    TCacheLocationConfigPtr ApplyDynamic(const TCacheLocationDynamicConfigPtr& dynamicConfig) const;
+    void ApplyDynamicInplace(const TCacheLocationDynamicConfig& dynamicConfig);
+
     REGISTER_YSON_STRUCT(TCacheLocationConfig);
 
     static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCacheLocationConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCacheLocationDynamicConfig
+    : public TChunkLocationDynamicConfig
+{
+    NConcurrency::TThroughputThrottlerConfigPtr InThrottler;
+
+    REGISTER_YSON_STRUCT(TCacheLocationDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCacheLocationDynamicConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -496,15 +513,9 @@ struct TMasterConnectorDynamicConfig
     //! Enable detailed incremental heartbeat statistics profiling.
     bool EnableProfiling;
 
-    //! Test location disable during full heartbeat, contains location uuid.
-    std::optional<TChunkLocationUuid> LocationUuidToDisableDuringFullHeartbeat;
-
     // COMPAT(danilalexeev): YT-23781.
     //! Retrying channel for location full heartbeats.
     NRpc::TRetryingChannelConfigPtr FullHeartbeatSessionRetryingChannel;
-
-    //! Test data node intermediate state at master during full hearbteat session.
-    std::optional<TDuration> FullHeartbeatSessionSleepDuration;
 
     REGISTER_YSON_STRUCT(TMasterConnectorDynamicConfig);
 
@@ -569,6 +580,12 @@ struct TDataNodeTestingOptions
 
     // Always return on SendBlocks that network is throttling.
     std::optional<bool> AlwaysThrottleNetOnSendBlocks;
+
+    //! Test location disable during full heartbeat, contains location uuid.
+    std::optional<TChunkLocationUuid> LocationUuidToDisableDuringFullHeartbeat;
+
+    //! Test data node intermediate state at master during full hearbteat session.
+    std::optional<TDuration> FullHeartbeatSessionSleepDuration;
 
     REGISTER_YSON_STRUCT(TDataNodeTestingOptions);
 
@@ -1131,6 +1148,7 @@ struct TDataNodeDynamicConfig
     TLocationHealthCheckerDynamicConfigPtr LocationHealthChecker;
 
     THashMap<std::string, TStoreLocationDynamicConfigPtr> StoreLocationConfigPerMedium;
+    TCacheLocationDynamicConfigPtr CacheLocation;
 
     std::optional<i64> NetOutThrottlingLimit;
 

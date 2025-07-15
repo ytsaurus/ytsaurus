@@ -706,9 +706,6 @@ void TCompositeElement::PrepareFairShareByFitFactorFifo(TFairShareUpdateContext*
 
     double rightFunctionBound = GetChildCount();
     std::vector<TVectorPiecewiseLinearFunction> childrenFunctions;
-    if (!context->Options.EnableFastChildFunctionSummationInFifoPools) {
-        FairShareByFitFactor_ = TVectorPiecewiseLinearFunction::Constant(0.0, rightFunctionBound, TResourceVector::Zero());
-    }
 
     double currentRightBound = 0.0;
     for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
@@ -722,19 +719,13 @@ void TCompositeElement::PrepareFairShareByFitFactorFifo(TFairShareUpdateContext*
         auto childFunction = childFSBS
             .Shift(/*deltaArgument*/ currentRightBound)
             .Extend(/*newLeftBound*/ 0.0, /*newRightBound*/ rightFunctionBound);
-        if (context->Options.EnableFastChildFunctionSummationInFifoPools) {
-            childrenFunctions.push_back(std::move(childFunction));
-        } else {
-            *FairShareByFitFactor_ += childFunction;
-        }
+        childrenFunctions.push_back(std::move(childFunction));
         currentRightBound += 1.0;
     }
 
     YT_VERIFY(currentRightBound == rightFunctionBound);
 
-    if (context->Options.EnableFastChildFunctionSummationInFifoPools) {
-        FairShareByFitFactor_ = TVectorPiecewiseLinearFunction::Sum(childrenFunctions);
-    }
+    FairShareByFitFactor_ = TVectorPiecewiseLinearFunction::Sum(childrenFunctions);
 }
 
 void TCompositeElement::PrepareFairShareByFitFactorNormal(TFairShareUpdateContext* context)
@@ -1509,7 +1500,13 @@ void TFairShareUpdateExecutor::Run()
     UpdateRelaxedPoolIntegralShares();
 
     RootElement_->PrepareFairShareFunctions(Context_);
-    RootElement_->ComputeAndSetFairShare(/*suggestion*/ 1.0, EFairShareType::Regular, Context_);
+
+    {
+        TWallTimer timer;
+        RootElement_->ComputeAndSetFairShare(/*suggestion*/ 1.0, EFairShareType::Regular, Context_);
+        Context_->ComputeAndSetFairShareTotalTime = timer.GetElapsedCpuTime();
+    }
+
     RootElement_->TruncateFairShareInFifoPools(EFairShareType::Regular);
 
     RootElement_->ComputePromisedGuaranteeFairShare(Context_);
@@ -1528,7 +1525,8 @@ void TFairShareUpdateExecutor::Run()
         "PrepareMaxFitFactorBySuggestion/TotalTime: %v, "
         "PrepareMaxFitFactorBySuggestion/PointwiseMin/TotalTime: %v, "
         "Compose/TotalTime: %v., "
-        "CompressFunction/TotalTime: %v)",
+        "CompressFunction/TotalTime: %v, "
+        "ComputeAndSetFairShare/TotalTime: %v)",
         CpuDurationToDuration(totalDuration).MicroSeconds(),
         CpuDurationToDuration(Context_->PrepareFairShareByFitFactorTotalTime).MicroSeconds(),
         CpuDurationToDuration(Context_->PrepareFairShareByFitFactorOperationsTotalTime).MicroSeconds(),
@@ -1537,7 +1535,8 @@ void TFairShareUpdateExecutor::Run()
         CpuDurationToDuration(Context_->PrepareMaxFitFactorBySuggestionTotalTime).MicroSeconds(),
         CpuDurationToDuration(Context_->PointwiseMinTotalTime).MicroSeconds(),
         CpuDurationToDuration(Context_->ComposeTotalTime).MicroSeconds(),
-        CpuDurationToDuration(Context_->CompressFunctionTotalTime).MicroSeconds());
+        CpuDurationToDuration(Context_->CompressFunctionTotalTime).MicroSeconds(),
+        CpuDurationToDuration(Context_->ComputeAndSetFairShareTotalTime).MicroSeconds());
 }
 
 void TFairShareUpdateExecutor::UpdateBurstPoolIntegralShares()

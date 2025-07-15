@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(2.0.3)
+VERSION(2.3.0)
 
 LICENSE(BSD-3-Clause)
 
@@ -14,11 +14,11 @@ PEERDIR(
 )
 
 ADDINCL(
+    FOR cython contrib/python/numpy/py3
     FOR cython contrib/python/pandas/py3
+    contrib/python/pandas/py3/pandas/_libs/include
     contrib/python/pandas/py3/pandas/_libs
     contrib/python/pandas/py3/pandas/_libs/src
-    contrib/python/pandas/py3/pandas/_libs/src/klib
-    contrib/python/pandas/py3/pandas/_libs/src/ujson/lib
     contrib/python/pandas/py3/pandas/_libs/tslibs
 )
 
@@ -36,27 +36,27 @@ NO_CHECK_IMPORTS(
     pandas.util.*
 )
 
-CFLAGS(
-    -DNPY_NO_DEPRECATED_API=0
-)
-
 INCLUDE(symbols.cmake)
 
 SRCS(
+    pandas/_libs/src/datetime/date_conversions.c
+    pandas/_libs/src/datetime/pd_datetime.c
     pandas/_libs/src/parser/io.c
+    pandas/_libs/src/parser/pd_parser.c
     pandas/_libs/src/parser/tokenizer.c
-    pandas/_libs/src/ujson/lib/ultrajsondec.c
-    pandas/_libs/src/ujson/lib/ultrajsonenc.c
-    pandas/_libs/src/ujson/python/JSONtoObj.c
-    pandas/_libs/src/ujson/python/date_conversions.c
-    pandas/_libs/src/ujson/python/objToJSON.c
-    pandas/_libs/src/ujson/python/ujson.c
-    pandas/_libs/tslibs/src/datetime/np_datetime.c
-    pandas/_libs/tslibs/src/datetime/np_datetime_strings.c
+    pandas/_libs/src/vendored/numpy/datetime/np_datetime.c
+    pandas/_libs/src/vendored/numpy/datetime/np_datetime_strings.c
+    pandas/_libs/src/vendored/ujson/lib/ultrajsondec.c
+    pandas/_libs/src/vendored/ujson/lib/ultrajsonenc.c
+    pandas/_libs/src/vendored/ujson/python/JSONtoObj.c
+    pandas/_libs/src/vendored/ujson/python/objToJSON.c
+    pandas/_libs/src/vendored/ujson/python/ujson.c
 )
 
 PY_REGISTER(
     pandas._libs.json
+    pandas._libs.pandas_datetime
+    pandas._libs.pandas_parser
 )
 
 PY_SRCS(
@@ -70,6 +70,7 @@ PY_SRCS(
     pandas/_libs/__init__.py
     pandas/_libs/algos.pyi
     pandas/_libs/arrays.pyi
+    pandas/_libs/byteswap.pyi
     pandas/_libs/groupby.pyi
     pandas/_libs/hashing.pyi
     pandas/_libs/hashtable.pyi
@@ -85,8 +86,8 @@ PY_SRCS(
     pandas/_libs/ops_dispatch.pyi
     pandas/_libs/parsers.pyi
     pandas/_libs/properties.pyi
-    pandas/_libs/reduction.pyi
     pandas/_libs/reshape.pyi
+    pandas/_libs/sas.pyi
     pandas/_libs/sparse.pyi
     pandas/_libs/testing.pyi
     pandas/_libs/tslib.pyi
@@ -113,18 +114,19 @@ PY_SRCS(
     pandas/_testing/__init__.py
     pandas/_testing/_hypothesis.py
     pandas/_testing/_io.py
-    pandas/_testing/_random.py
     pandas/_testing/_warnings.py
     pandas/_testing/asserters.py
     pandas/_testing/compat.py
     pandas/_testing/contexts.py
     pandas/_typing.py
     pandas/_version.py
+    pandas/_version_meson.py
     pandas/api/__init__.py
     pandas/api/extensions/__init__.py
     pandas/api/indexers/__init__.py
     pandas/api/interchange/__init__.py
     pandas/api/types/__init__.py
+    pandas/api/typing/__init__.py
     pandas/arrays/__init__.py
     pandas/compat/__init__.py
     pandas/compat/_constants.py
@@ -137,6 +139,7 @@ PY_SRCS(
     pandas/core/__init__.py
     pandas/core/_numba/__init__.py
     pandas/core/_numba/executor.py
+    pandas/core/_numba/extensions.py
     pandas/core/_numba/kernels/__init__.py
     pandas/core/_numba/kernels/mean_.py
     pandas/core/_numba/kernels/min_max_.py
@@ -158,12 +161,14 @@ PY_SRCS(
     pandas/core/array_algos/transforms.py
     pandas/core/arraylike.py
     pandas/core/arrays/__init__.py
+    pandas/core/arrays/_arrow_string_mixins.py
     pandas/core/arrays/_mixins.py
     pandas/core/arrays/_ranges.py
+    pandas/core/arrays/_utils.py
     pandas/core/arrays/arrow/__init__.py
     pandas/core/arrays/arrow/_arrow_utils.py
+    pandas/core/arrays/arrow/accessors.py
     pandas/core/arrays/arrow/array.py
-    pandas/core/arrays/arrow/dtype.py
     pandas/core/arrays/arrow/extension_types.py
     pandas/core/arrays/base.py
     pandas/core/arrays/boolean.py
@@ -180,7 +185,6 @@ PY_SRCS(
     pandas/core/arrays/sparse/__init__.py
     pandas/core/arrays/sparse/accessor.py
     pandas/core/arrays/sparse/array.py
-    pandas/core/arrays/sparse/dtype.py
     pandas/core/arrays/sparse/scipy_sparse.py
     pandas/core/arrays/string_.py
     pandas/core/arrays/string_arrow.py
@@ -272,7 +276,6 @@ PY_SRCS(
     pandas/core/ops/docstrings.py
     pandas/core/ops/invalid.py
     pandas/core/ops/mask_ops.py
-    pandas/core/ops/methods.py
     pandas/core/ops/missing.py
     pandas/core/resample.py
     pandas/core/reshape/__init__.py
@@ -321,6 +324,7 @@ PY_SRCS(
     pandas/io/common.py
     pandas/io/excel/__init__.py
     pandas/io/excel/_base.py
+    pandas/io/excel/_calamine.py
     pandas/io/excel/_odfreader.py
     pandas/io/excel/_odswriter.py
     pandas/io/excel/_openpyxl.py
@@ -338,7 +342,6 @@ PY_SRCS(
     pandas/io/formats/format.py
     pandas/io/formats/html.py
     pandas/io/formats/info.py
-    pandas/io/formats/latex.py
     pandas/io/formats/printing.py
     pandas/io/formats/string.py
     pandas/io/formats/style.py
@@ -361,8 +364,6 @@ PY_SRCS(
     pandas/io/pickle.py
     pandas/io/pytables.py
     pandas/io/sas/__init__.py
-    pandas/io/sas/_byteswap.pyi
-    pandas/io/sas/_sas.pyi
     pandas/io/sas/sas7bdat.py
     pandas/io/sas/sas_constants.py
     pandas/io/sas/sas_xport.py
@@ -395,16 +396,18 @@ PY_SRCS(
     pandas/util/_doctools.py
     pandas/util/_exceptions.py
     pandas/util/_print_versions.py
-    pandas/util/_str_methods.py
     pandas/util/_test_decorators.py
     pandas/util/_tester.py
     pandas/util/_validators.py
     pandas/util/version/__init__.py
     CYTHON_DIRECTIVE
+    always_allow_keywords=true
+    CYTHON_DIRECTIVE
     language_level=3
     CYTHON_C
     pandas/_libs/algos.pyx
     pandas/_libs/arrays.pyx
+    pandas/_libs/byteswap.pyx
     pandas/_libs/groupby.pyx
     pandas/_libs/hashing.pyx
     pandas/_libs/hashtable.pyx
@@ -419,8 +422,8 @@ PY_SRCS(
     pandas/_libs/ops_dispatch.pyx
     pandas/_libs/parsers.pyx
     pandas/_libs/properties.pyx
-    pandas/_libs/reduction.pyx
     pandas/_libs/reshape.pyx
+    pandas/_libs/sas.pyx
     pandas/_libs/sparse.pyx
     pandas/_libs/testing.pyx
     pandas/_libs/tslib.pyx
@@ -442,10 +445,8 @@ PY_SRCS(
     pandas/_libs/tslibs/vectorized.pyx
     pandas/_libs/window/indexers.pyx
     pandas/_libs/writers.pyx
-    pandas/io/sas/sas.pyx
     CYTHON_CPP
     pandas/_libs/window/aggregations.pyx
-    pandas/io/sas/byteswap.pyx
 )
 
 RESOURCE_FILES(

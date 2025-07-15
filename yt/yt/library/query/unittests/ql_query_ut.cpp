@@ -147,6 +147,13 @@ TEST_F(TQueryPrepareTest, BadSyntax)
         HasSubstr("syntax error"));
 }
 
+TEST_F(TQueryPrepareTest, UnmatchedQuote)
+{
+    ExpectPrepareThrowsWithDiagnostics(
+        "a FROM [//t]\" limit 1",
+        HasSubstr("Unexpected end of query text"));
+}
+
 TEST_F(TQueryPrepareTest, BadWhere)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
@@ -394,21 +401,21 @@ TEST_F(TQueryPrepareTest, MisuseAggregateFunction)
 
     ExpectPrepareThrowsWithDiagnostics(
         "sum(sum(a)) from [//t] group by k",
-        ContainsRegex("Misuse of aggregate .*"));
+        ContainsRegex("Misuse of aggregate function"));
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
 
     ExpectPrepareThrowsWithDiagnostics(
         "sum(a) from [//t]",
-        ContainsRegex("Misuse of aggregate .*"));
+        ContainsRegex("Misuse of aggregate function"));
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
 
     ExpectPrepareThrowsWithDiagnostics(
         "argmin(a, a) from [//t]",
-        ContainsRegex("Misuse of aggregate .*"));
+        ContainsRegex("Misuse of aggregate function"));
 }
 
 TEST_F(TQueryPrepareTest, NullTypeInference)
@@ -1224,6 +1231,44 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
     }
 }
 
+TEST_F(TQueryPrepareTest, OmitOrderByUsingFixedInferredPrefix)
+{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
+
+    auto config = New<TColumnEvaluatorCacheConfig>();
+    auto columnEvaluatorCache = CreateColumnEvaluatorCache(config);
+
+    TRangeExtractorMapPtr rangeExtractorMap = New<TRangeExtractorMap>();
+    MergeFrom(rangeExtractorMap.Get(), *GetBuiltinRangeExtractors());
+
+    auto source = std::string(R"(select * from [//t] where k = 1 and l = 1 order by m limit 10)");
+
+    auto fragment = ParseAndPreparePlanFragment(&PrepareMock_, source);
+
+    auto options = TQueryOptions{
+        .RangeExpansionLimit = 1000,
+        .VerboseLogging = true,
+    };
+
+    EXPECT_NE(fragment->Query->OrderClause, nullptr);
+    EXPECT_FALSE(fragment->Query->IsOrdered(false));
+
+    auto [dataSource, query] = InferRanges(
+        columnEvaluatorCache,
+        fragment->Query,
+        TDataSource{
+            .Ranges = MakeSharedRange(TRowRanges()),
+        },
+        options,
+        New<TRowBuffer>(),
+        GetDefaultMemoryChunkProvider(),
+        Logger());
+
+    EXPECT_EQ(query->OrderClause, nullptr);
+    EXPECT_TRUE(query->IsOrdered(false));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobQueryPrepareTest
@@ -1643,6 +1688,22 @@ protected:
             resultMatcher,
             evaluateOptions);
 
+        evaluateOptions.ExecutionBackend = EExecutionBackend::Native;
+        return EvaluateWithQueryStatistics(
+            query,
+            dataSplits,
+            owningSources,
+            resultMatcher,
+            std::move(evaluateOptions)).first;
+    }
+
+    TQueryPtr EvaluateOnlyViaNativeExecutionBackend(
+        TStringBuf query,
+        const TSplitMap& dataSplits,
+        const std::vector<TSource>& owningSources,
+        const TResultMatcher& resultMatcher,
+        TEvaluateOptions evaluateOptions = {})
+    {
         evaluateOptions.ExecutionBackend = EExecutionBackend::Native;
         return EvaluateWithQueryStatistics(
             query,
@@ -3076,29 +3137,31 @@ TEST_F(TQueryEvaluateTest, GroupByBool)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, GroupByString)
+TEST_F(TQueryEvaluateTest, GroupByKeyTypes)
 {
     auto split = MakeSplit({
-        {"a", EValueType::Int64, ESortOrder::Ascending},
-        {"s", EValueType::String}
+        {"i", EValueType::Int64, ESortOrder::Ascending},
+        {"s", EValueType::String},
+        {"l", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
+        {"a", EValueType::Any},
     });
 
     auto source = TSource{
-        R"(a=42;s="d")",
+        R"(i=42;s="d";l=[4;];a="d")",
 
-        R"(a=1;s="a")",
-        R"(a=2;s="b")",
-        R"(a=3;s="c")",
+        R"(i=1;s="a";l=[1;];a="a")",
+        R"(i=2;s="b";l=[2;];a="b")",
+        R"(i=3;s="c";l=[3;];a="c")",
 
-        R"(a=42;s="d")",
+        R"(i=42;s="d";l=[4;];a="d")",
 
-        R"(a=4;s="a")",
-        R"(a=5;s="b")",
-        R"(a=6;s="c")",
+        R"(i=4;s="a";l=[1;];a="a")",
+        R"(i=5;s="b";l=[2;];a="b")",
+        R"(i=6;s="c";l=[3;];a="c")",
 
-        R"(a=7;s="a")",
-        R"(a=8;s="b")",
-        R"(a=9;s="c")",
+        R"(i=7;s="a";l=[1;];a="a")",
+        R"(i=8;s="b";l=[2;];a="b")",
+        R"(i=9;s="c";l=[3;];a="c")",
     };
 
     auto resultSplit = MakeSplit({
@@ -3113,7 +3176,7 @@ TEST_F(TQueryEvaluateTest, GroupByString)
     }, resultSplit);
 
     Evaluate(
-        "sum(a) as t, s FROM [//t] group by s order by s limit 3",
+        "sum(i) as t, s FROM [//t] group by s, l, a order by s, l, a limit 3",
         split,
         source,
         ResultMatcher(result));
@@ -8579,7 +8642,7 @@ TEST_F(TQueryEvaluateTest, NestedSubquery)
         "a=5;nested=[[1;6;x]]"
     }, resultSplit);
 
-    Evaluate("select t.k + 1 as a, (select li * sum(t.s) as x, li + a as y, ls as z from (array_agg(t.a, true) as li, array_agg(t.b, true) as ls) where li < 4) as nested from `//t` as t group by a",
+    EvaluateOnlyViaNativeExecutionBackend("select t.k + 1 as a, (select li * sum(t.s) as x, li + a as y, ls as z from (array_agg(t.a, true) as li, array_agg(t.b, true) as ls) where li < 4) as nested from `//t` as t group by a",
         splits,
         sources,
         ResultMatcher(result, resultSplit.TableSchema),
@@ -8697,7 +8760,7 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
         }, resultSplit);
 
         // Test checks that sum(t.s) aggregation level is properly determined as outer by its substitution level.
-        Evaluate("select t.k % 2 as a, (select ls, sum(t.s) as x, sum(li) as y, sum(1) as z from (array_agg(t.a, true) as li, array_agg(t.b, true) as ls) group by ls) as nested from `//t` as t group by a",
+        EvaluateOnlyViaNativeExecutionBackend("select t.k % 2 as a, (select ls, sum(t.s) as x, sum(li) as y, sum(1) as z from (array_agg(t.a, true) as li, array_agg(t.b, true) as ls) group by ls) as nested from `//t` as t group by a",
             splits,
             sources,
             ResultMatcher(result, resultSplit.TableSchema),
@@ -8719,7 +8782,7 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
         }, resultSplit);
 
         // Test inner group key `ls + sum(t.s) as x` contains outer aggregate expression.
-        Evaluate("select t.k % 2 as a, (select li + sum(t.s) as x, sum(1) as z from (array_agg(t.a, true) as li) group by x) as nested from `//t` as t group by a",
+        EvaluateOnlyViaNativeExecutionBackend("select t.k % 2 as a, (select li + sum(t.s) as x, sum(1) as z from (array_agg(t.a, true) as li) group by x) as nested from `//t` as t group by a",
             splits,
             sources,
             ResultMatcher(result, resultSplit.TableSchema),
@@ -8742,7 +8805,7 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
         }, resultSplit);
 
         // Test checks that sum(b) aggregation level is properly determined as outer while it has no substitution level.
-        Evaluate("select t.k % 2 as a, sum(2) as b, (select b, sum(1) as z from (array_agg(t.a, true) as li) group by li) as nested from `//t` as t group by a",
+        EvaluateOnlyViaNativeExecutionBackend("select t.k % 2 as a, sum(2) as b, (select b, sum(1) as z from (array_agg(t.a, true) as li) group by li) as nested from `//t` as t group by a",
             splits,
             sources,
             ResultMatcher(result, resultSplit.TableSchema),
@@ -8765,7 +8828,7 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
         }, resultSplit);
 
          // Test checks that sum(b) aggregation level is properly determined as outer while it has no substitution level.
-        Evaluate("select t.k % 2 as a, sum(2) as b, (select li + b as x, sum(1) as z from (array_agg(t.a, true) as li) group by x) as nested from `//t` as t group by a",
+        EvaluateOnlyViaNativeExecutionBackend("select t.k % 2 as a, sum(2) as b, (select li + b as x, sum(1) as z from (array_agg(t.a, true) as li) group by x) as nested from `//t` as t group by a",
             splits,
             sources,
             ResultMatcher(result, resultSplit.TableSchema),
@@ -10287,11 +10350,11 @@ INSTANTIATE_TEST_SUITE_P(
         std::tuple(
             "a from [//t] where a = {}",
             "{}",
-            "a =  >>>>> { <<<<< }"),
+            "Unexpected end of query text"),
         std::tuple(
             "a from [//t] where a = {{a}}",
             "{}",
-            "a =  >>>>> { <<<<< {a}}"),
+            "Unexpected end of query text"),
         std::tuple(
             "a from {t} where a = {a}",
             "{t=table_name;a=42}",

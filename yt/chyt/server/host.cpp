@@ -6,6 +6,7 @@
 #include "custom_data_types.h"
 #include "dictionary_source.h"
 #include "health_checker.h"
+#include "helpers.h"
 #include "invoker_liveness_checker.h"
 #include "memory_watchdog.h"
 #include "query_context.h"
@@ -362,16 +363,19 @@ public:
         return attributes;
     }
 
-    void InvalidateCachedObjectAttributes(const std::vector<TYPath>& paths)
+    void InvalidateCachedObjectAttributes(const std::vector<std::pair<TYPath, NHydra::TRevision>>& paths)
     {
         YT_LOG_DEBUG("Invalidating locally cached table attributes (PathCount: %v)", paths.size());
 
-        for (const auto& path : paths) {
-            TableAttributeCache_->InvalidateActive(path);
+        for (const auto& [path, refreshRevision] : paths) {
+            TableAttributeCache_->InvalidateActiveAndSetRefreshRevision(path, refreshRevision);
         }
     }
 
-    void InvalidateCachedObjectAttributesGlobally(const std::vector<TYPath>& paths, EInvalidateCacheMode mode, TDuration timeout)
+    void InvalidateCachedObjectAttributesGlobally(
+        const std::vector<std::pair<TYPath, NHydra::TRevision>>& paths,
+        EInvalidateCacheMode mode,
+        TDuration timeout)
     {
         YT_LOG_DEBUG("Invalidating cached table attributes in clique (PathCount: %v, Mode: %v, Timeout: %v)",
             paths.size(),
@@ -406,8 +410,7 @@ public:
 
             auto req = proxy.InvalidateCachedObjectAttributes();
             req->SetTimeout(timeout);
-            NYT::ToProto(req->mutable_table_paths(), paths);
-
+            ToProto(req->mutable_table_paths(), paths);
             futures.push_back(req->Invoke());
         }
 
@@ -1026,20 +1029,20 @@ std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> THost::GetObjectAttribute
     return Impl_->GetObjectAttributes(paths, client);
 }
 
-void THost::InvalidateCachedObjectAttributes(const std::vector<NYPath::TYPath>& paths)
+void THost::InvalidateCachedObjectAttributes(const std::vector<std::pair<NYPath::TYPath, NHydra::TRevision>>& paths)
 {
     Impl_->InvalidateCachedObjectAttributes(paths);
 }
 
 void THost::InvalidateCachedObjectAttributesGlobally(
-    const std::vector<NYPath::TYPath>& paths,
+    const std::vector<std::pair<NYPath::TYPath, NHydra::TRevision>>& paths,
     EInvalidateCacheMode mode,
     TDuration timeout)
 {
     Impl_->InvalidateCachedObjectAttributesGlobally(paths, mode, timeout);
 }
 
-const TObjectAttributeCachePtr&     THost::GetObjectAttributeCache() const
+const TObjectAttributeCachePtr& THost::GetObjectAttributeCache() const
 {
     return Impl_->GetObjectAttributeCache();
 }

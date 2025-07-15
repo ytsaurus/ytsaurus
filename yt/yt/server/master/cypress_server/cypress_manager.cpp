@@ -153,8 +153,6 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NServer;
 
-using TYPath = NYPath::TYPath;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 constinit const auto Logger = CypressServerLogger;
@@ -1619,6 +1617,11 @@ public:
             path,
             transaction,
             IObjectManager::TResolvePathOptions{});
+        return CastObjectToCypressNodeOrThrow(object, path);
+    }
+
+    TCypressNode* CastObjectToCypressNodeOrThrow(TObject* object, const TYPath& path)
+    {
         if (!IsVersionedType(object->GetType())) {
             THROW_ERROR_EXCEPTION("Path %v points to a nonversioned %Qlv object instead of a node",
                 path,
@@ -1631,6 +1634,18 @@ public:
     {
         auto* trunkNode = ResolvePathToTrunkNode(path, transaction);
         return GetNodeProxy(trunkNode, transaction);
+    }
+
+    ICypressNodeProxyPtr TryResolvePathToNodeProxy(const TYPath& path, TTransaction* transaction) override
+    {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto* object = objectManager->ResolvePathToObject(
+            path,
+            transaction,
+            IObjectManager::TResolvePathOptions{});
+        return object
+            ? GetNodeProxy(CastObjectToCypressNodeOrThrow(object, path), transaction)
+            : nullptr;
     }
 
     TCypressNode* FindNode(
@@ -2722,7 +2737,7 @@ private:
     bool NeedResetHunkSpecificMediaOnBranchedNodes_ = false;
 
     // COMPAT(danilalexeev): YT-21862.
-    bool DropLegacyCellMapsOnSnapshotLoaded_ = false;
+    bool ValidateLegacyCellMapsEmptyOnSnapshotLoaded_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -2797,7 +2812,7 @@ private:
 
         // COMPAT(danilalexeev): YT-21862.
         if (context.GetVersion() < EMasterReign::AutomaticCellMapMigration) {
-            DropLegacyCellMapsOnSnapshotLoaded_ = true;
+            ValidateLegacyCellMapsEmptyOnSnapshotLoaded_ = true;
         }
     }
 
@@ -2826,7 +2841,7 @@ private:
         RecomputeNodeReachability_ = false;
         NeedResetHunkSpecificMediaOnTrunkNodes_ = false;
         NeedResetHunkSpecificMediaOnBranchedNodes_ = false;
-        DropLegacyCellMapsOnSnapshotLoaded_ = false;
+        ValidateLegacyCellMapsEmptyOnSnapshotLoaded_ = false;
     }
 
     void SetZeroState() override
@@ -2985,7 +3000,7 @@ private:
         }
 
         // COMPAT(danilalexeev): YT-21862.
-        if (DropLegacyCellMapsOnSnapshotLoaded_) {
+        if (ValidateLegacyCellMapsEmptyOnSnapshotLoaded_) {
             for (auto cellarType : TEnumTraits<ECellarType>::GetDomainValues()) {
                 auto cellMapNodeProxy = ResolvePathToNodeProxy(
                     NCellarAgent::GetCellarTypeCypressPathPrefix(cellarType),
@@ -3009,9 +3024,6 @@ private:
                         node->GetId(),
                         GetNodePath(node, /*transaction*/ nullptr));
                 }
-
-                cellMapNodeProxy->GetParent()->RemoveChild(cellMapNodeProxy);
-                // Virtual Cell Map creation is delegated to World Initializer.
             }
         }
     }

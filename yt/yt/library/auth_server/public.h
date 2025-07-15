@@ -33,7 +33,7 @@ DECLARE_REFCOUNTED_STRUCT(TOAuthCookieAuthenticatorConfig)
 DECLARE_REFCOUNTED_STRUCT(TOAuthTokenAuthenticatorConfig)
 DECLARE_REFCOUNTED_STRUCT(TCachingOAuthCookieAuthenticatorConfig)
 DECLARE_REFCOUNTED_STRUCT(TCachingOAuthTokenAuthenticatorConfig)
-DECLARE_REFCOUNTED_STRUCT(TYCIAMTokenAuthenticatorConfig)
+DECLARE_REFCOUNTED_STRUCT(TYCIamTokenAuthenticatorConfig)
 DECLARE_REFCOUNTED_STRUCT(TStringReplacementConfig)
 DECLARE_REFCOUNTED_STRUCT(TOAuthServiceConfig)
 DECLARE_REFCOUNTED_STRUCT(TCypressUserManagerConfig)
@@ -118,14 +118,14 @@ constexpr TStringBuf OAuthAccessTokenCookieName = "access_token";
 
 YT_DEFINE_ERROR_ENUM(
     // User error.
-    ((InvalidUserCredentials)     (30000))
-    // YT communication error with YC IAM service.
-    ((YCIAMProtocolError)           (30001))
+    ((InvalidUserCredentials)       (30000))
+    // YT communication error with YC Iam service.
+    ((YCIamProtocolError)           (30001))
     // Server error.
-    ((YCIAMRetryableServerError)    (30002))
+    ((YCIamRetryableServerError)    (30002))
     // Unexpected errors.
-    ((UnexpectedClientYCIAMError)   (30003))
-    ((UnexpectedServerYCIAMError)   (30004))
+    ((UnexpectedClientYCIamError)   (30003))
+    ((UnexpectedServerYCIamError)   (30004))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

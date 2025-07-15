@@ -51,10 +51,13 @@ namespace NSQLComplete {
 
     public:
         TSpecializedLocalSyntaxAnalysis(
-            TLexerSupplier lexer, const THashSet<TString>& IgnoredRules)
+            TLexerSupplier lexer,
+            const THashSet<TString>& ignoredRules,
+            const THashMap<TString, THashSet<TString>>& disabledPreviousByToken,
+            const THashMap<TString, THashSet<TString>>& forcedPreviousByToken)
             : Grammar_(&GetSqlGrammar())
             , Lexer_(lexer(/* ansi = */ IsAnsiLexer))
-            , C3_(ComputeC3Config(IgnoredRules))
+            , C3_(ComputeC3Config(ignoredRules, disabledPreviousByToken, forcedPreviousByToken))
         {
         }
 
@@ -83,6 +86,7 @@ namespace NSQLComplete {
 
             TLocalSyntaxContext result;
 
+            result.IsQuoted = Quotation(input, context);
             result.EditRange = EditRange(context);
             result.EditRange.Begin += statement_position;
 
@@ -104,17 +108,23 @@ namespace NSQLComplete {
             result.Hint = HintMatch(candidates);
             result.Object = ObjectMatch(context, candidates);
             result.Cluster = ClusterMatch(context, candidates);
+            result.Column = ColumnMatch(context, candidates);
             result.Binding = BindingMatch(candidates);
 
             return result;
         }
 
     private:
-        IC3Engine::TConfig ComputeC3Config(const THashSet<TString>& IgnoredRules) const {
+        IC3Engine::TConfig ComputeC3Config(
+            const THashSet<TString>& ignoredRules,
+            const THashMap<TString, THashSet<TString>>& disabledPreviousByToken,
+            const THashMap<TString, THashSet<TString>>& forcedPreviousByToken) const {
             return {
                 .IgnoredTokens = ComputeIgnoredTokens(),
                 .PreferredRules = ComputePreferredRules(),
-                .IgnoredRules = ComputeIgnoredRules(IgnoredRules),
+                .IgnoredRules = ComputeIgnoredRules(ignoredRules),
+                .DisabledPreviousByToken = Resolved(disabledPreviousByToken),
+                .ForcedPreviousByToken = Resolved(forcedPreviousByToken),
             };
         }
 
@@ -140,6 +150,23 @@ namespace NSQLComplete {
                 ignored.emplace(Grammar_->GetRuleId(ruleName));
             }
             return ignored;
+        }
+
+        std::unordered_map<TTokenId, std::unordered_set<TTokenId>>
+        Resolved(const THashMap<TString, THashSet<TString>>& tokens) const {
+            std::unordered_map<TTokenId, std::unordered_set<TTokenId>> resolved;
+            for (const auto& [name, set] : tokens) {
+                resolved[Grammar_->GetTokenId(name)] = Resolved(set);
+            }
+            return resolved;
+        }
+
+        std::unordered_set<TTokenId> Resolved(const THashSet<TString>& tokens) const {
+            std::unordered_set<TTokenId> resolved;
+            for (const TString& name : tokens) {
+                resolved.emplace(Grammar_->GetTokenId(name));
+            }
+            return resolved;
         }
 
         TC3Candidates C3Complete(TCompletionInput statement, const TCursorTokenContext& context) {
@@ -197,16 +224,25 @@ namespace NSQLComplete {
 
         TMaybe<TLocalSyntaxContext::TFunction> FunctionMatch(
             const TCursorTokenContext& context, const TC3Candidates& candidates) const {
-            if (!AnyOf(candidates.Rules, RuleAdapted(IsLikelyFunctionStack))) {
+            const bool isAnyFunction = AnyOf(candidates.Rules, RuleAdapted(IsLikelyFunctionStack));
+            const bool isTableFunction = AnyOf(candidates.Rules, RuleAdapted(IsLikelyTableFunctionStack));
+            if (!isAnyFunction && !isTableFunction) {
                 return Nothing();
             }
 
             TLocalSyntaxContext::TFunction function;
+
             if (TMaybe<TRichParsedToken> begin;
                 (begin = context.MatchCursorPrefix({"ID_PLAIN", "NAMESPACE"})) ||
                 (begin = context.MatchCursorPrefix({"ID_PLAIN", "NAMESPACE", ""}))) {
                 function.Namespace = begin->Base->Content;
             }
+
+            function.ReturnType = ENodeKind::Any;
+            if (isTableFunction) {
+                function.ReturnType = ENodeKind::Table;
+            }
+
             return function;
         }
 
@@ -240,7 +276,7 @@ namespace NSQLComplete {
                 object.Kinds.emplace(EObjectKind::Table);
             }
 
-            if (object.Kinds.empty()) {
+            if (object.Kinds.empty() && !AnyOf(candidates.Rules, RuleAdapted(IsLikelyTableArgStack))) {
                 return Nothing();
             }
 
@@ -258,11 +294,6 @@ namespace NSQLComplete {
 
             if (auto path = ObjectPath(context)) {
                 object.Path = *path;
-            }
-
-            if (auto enclosing = context.Enclosing();
-                enclosing.Defined() && enclosing->Base->Name == "ID_QUOTED") {
-                object.IsQuoted = true;
             }
 
             return object;
@@ -296,8 +327,33 @@ namespace NSQLComplete {
             return cluster;
         }
 
+        TMaybe<TLocalSyntaxContext::TColumn> ColumnMatch(
+            const TCursorTokenContext& context, const TC3Candidates& candidates) const {
+            if (!AnyOf(candidates.Rules, RuleAdapted(IsLikelyColumnStack))) {
+                return Nothing();
+            }
+
+            TLocalSyntaxContext::TColumn column;
+            if (TMaybe<TRichParsedToken> begin;
+                (begin = context.MatchCursorPrefix({"ID_PLAIN", "DOT"})) ||
+                (begin = context.MatchCursorPrefix({"ID_PLAIN", "DOT", ""}))) {
+                column.Table = begin->Base->Content;
+            }
+            return column;
+        }
+
         bool BindingMatch(const TC3Candidates& candidates) const {
             return AnyOf(candidates.Rules, RuleAdapted(IsLikelyBindingStack));
+        }
+
+        TLocalSyntaxContext::TQuotation Quotation(TCompletionInput input, const TCursorTokenContext& context) const {
+            TLocalSyntaxContext::TQuotation isQuoted;
+            if (auto enclosing = context.Enclosing();
+                enclosing.Defined() && enclosing->Base->Name == "ID_QUOTED") {
+                isQuoted.AtLhs = true;
+                isQuoted.AtRhs = enclosing->End() <= input.Text.size();
+            }
+            return isQuoted;
         }
 
         TEditRange EditRange(const TCursorTokenContext& context) const {
@@ -313,7 +369,8 @@ namespace NSQLComplete {
 
         TEditRange EditRange(const TRichParsedToken& token, const TCursor& cursor) const {
             size_t begin = token.Position;
-            if (token.Base->Name == "NOT_EQUALS2") {
+            if (token.Base->Name == "NOT_EQUALS2" ||
+                token.Base->Name == "ID_QUOTED") {
                 begin += 1;
             }
 
@@ -331,9 +388,12 @@ namespace NSQLComplete {
     class TLocalSyntaxAnalysis: public ILocalSyntaxAnalysis {
     public:
         TLocalSyntaxAnalysis(
-            TLexerSupplier lexer, const THashSet<TString>& IgnoredRules)
-            : DefaultEngine_(lexer, IgnoredRules)
-            , AnsiEngine_(lexer, IgnoredRules)
+            TLexerSupplier lexer,
+            const THashSet<TString>& ignoredRules,
+            const THashMap<TString, THashSet<TString>>& disabledPreviousByToken,
+            const THashMap<TString, THashSet<TString>>& forcedPreviousByToken)
+            : DefaultEngine_(lexer, ignoredRules, disabledPreviousByToken, forcedPreviousByToken)
+            , AnsiEngine_(lexer, ignoredRules, disabledPreviousByToken, forcedPreviousByToken)
         {
         }
 
@@ -356,8 +416,11 @@ namespace NSQLComplete {
     };
 
     ILocalSyntaxAnalysis::TPtr MakeLocalSyntaxAnalysis(
-        TLexerSupplier lexer, const THashSet<TString>& IgnoredRules) {
-        return MakeHolder<TLocalSyntaxAnalysis>(lexer, IgnoredRules);
+        TLexerSupplier lexer,
+        const THashSet<TString>& ignoredRules,
+        const THashMap<TString, THashSet<TString>>& disabledPreviousByToken,
+        const THashMap<TString, THashSet<TString>>& forcedPreviousByToken) {
+        return MakeHolder<TLocalSyntaxAnalysis>(lexer, ignoredRules, disabledPreviousByToken, forcedPreviousByToken);
     }
 
 } // namespace NSQLComplete

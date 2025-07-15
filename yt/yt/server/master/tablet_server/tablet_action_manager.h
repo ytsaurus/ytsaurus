@@ -3,32 +3,25 @@
 #include "public.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
-#include <yt/yt/server/master/table_server/public.h>
-
-#include <yt/yt/core/actions/future.h>
 
 namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletActionManager
+struct ITabletActionManager
     : public TRefCounted
 {
-public:
-    explicit TTabletActionManager(NCellMaster::TBootstrap* bootstrap);
-    ~TTabletActionManager();
+    virtual void Start() = 0;
+    virtual void Stop() = 0;
 
-    void Start();
-    void Stop();
-
-    void Reconfigure(TTabletActionManagerMasterConfigPtr config);
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    virtual void Reconfigure(TTabletActionManagerMasterConfigPtr config) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TTabletActionManager)
+DEFINE_REFCOUNTED_TYPE(ITabletActionManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+ITabletActionManagerPtr CreateTabletActionManager(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

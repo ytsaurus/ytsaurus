@@ -31,16 +31,15 @@ class TCypressTransactionService
     : public TCypressProxyServiceBase
 {
 public:
-    explicit TCypressTransactionService(IBootstrap* bootstrap, IThreadPoolPtr threadPool)
+    explicit TCypressTransactionService(IBootstrap* bootstrap)
         : TCypressProxyServiceBase(
             bootstrap,
-            threadPool->GetInvoker(),
+            bootstrap->GetInvoker("CypressTransactionService"),
             TCypressTransactionServiceProxy::GetDescriptor(),
             CypressProxyLogger(),
             TServiceOptions{
                 .Authenticator = bootstrap->GetNativeAuthenticator(),
             })
-        , ThreadPool_(std::move(threadPool))
         , Connection_(bootstrap->GetNativeConnection())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction)
@@ -56,7 +55,6 @@ public:
     }
 
 private:
-    const IThreadPoolPtr ThreadPool_;
     const NNative::IConnectionPtr Connection_;
 
     template <class F>
@@ -134,9 +132,7 @@ private:
 
 IServicePtr CreateCypressTransactionService(IBootstrap* bootstrap)
 {
-    return New<TCypressTransactionService>(
-        bootstrap,
-        CreateThreadPool(/*threadCount*/ 1, "CypressTransactionService"));
+    return New<TCypressTransactionService>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

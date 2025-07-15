@@ -129,7 +129,7 @@ struct ICriExecutor
     //! Returns status of the pod.
     //! @param verbose fill field "info" with runtime-specific debug.
     virtual TFuture<TCriRuntimeApi::TRspPodSandboxStatusPtr> GetPodSandboxStatus(
-        TCriPodDescriptorPtr pod, bool verbose = false) = 0;
+        const TCriPodDescriptorPtr& pod, bool verbose = false) = 0;
 
     //! Returns status of the container.
     //! @param verbose fill "info" with runtime-specific debug information.
@@ -137,21 +137,21 @@ struct ICriExecutor
         const TCriDescriptor& ct, bool verbose = false) = 0;
 
     virtual TFuture<TCriPodDescriptorPtr> RunPodSandbox(TCriPodSpecPtr podSpec) = 0;
-    virtual TFuture<void> StopPodSandbox(TCriPodDescriptorPtr pod) = 0;
-    virtual TFuture<void> RemovePodSandbox(TCriPodDescriptorPtr pod) = 0;
+    virtual TFuture<void> StopPodSandbox(const TCriPodDescriptorPtr& pod) = 0;
+    virtual TFuture<void> RemovePodSandbox(const TCriPodDescriptorPtr& pod) = 0;
     virtual TFuture<void> UpdatePodResources(
-        TCriPodDescriptorPtr pod,
-        TCriContainerResourcesPtr resources) = 0;
+        const TCriPodDescriptorPtr& pod,
+        const TCriContainerResources& resources) = 0;
 
     //! Remove all pods and containers in namespace managed by executor.
     virtual void CleanNamespace() = 0;
 
     //! Remove all containers in one pod.
-    virtual void CleanPodSandbox(TCriPodDescriptorPtr pod) = 0;
+    virtual void CleanPodSandbox(const TCriPodDescriptorPtr& pod) = 0;
 
     virtual TFuture<TCriDescriptor> CreateContainer(
         TCriContainerSpecPtr containerSpec,
-        TCriPodDescriptorPtr pod,
+        const TCriPodDescriptorPtr& pod,
         TCriPodSpecPtr podSpec) = 0;
 
     virtual TFuture<void> StartContainer(const TCriDescriptor& ct) = 0;

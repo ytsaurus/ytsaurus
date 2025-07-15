@@ -9,7 +9,7 @@
 #include "mock_engine.h"
 #include "spyt_engine.h"
 
-#include <yt/yt/server/lib/state_checker/state_checker.h>
+#include <yt/yt/server/lib/component_state_checker/state_checker.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -613,7 +613,7 @@ private:
                 // We must copy all fields of active query except for incarnation, ping time, assigned query and abort request
                 // (which do not matter for finished query) and filter factors field (which goes to finished_queries_by_start_time,
                 // finished_queries_by_user_and_start_time, finished_queries_by_aco_and_start_time tables).
-                static_assert(TActiveQueryDescriptor::FieldCount == 21 && TFinishedQueryDescriptor::FieldCount == 15);
+                static_assert(TActiveQueryDescriptor::FieldCount == 21 && TFinishedQueryDescriptor::FieldCount == 16);
                 TFinishedQuery newRecord{
                     .Key = TFinishedQueryKey{.QueryId = queryId},
                     .Engine = activeQueryRecord->Engine,
@@ -630,6 +630,7 @@ private:
                     .FinishTime = activeQueryRecord->FinishTime,
                     .Annotations = activeQueryRecord->Annotations,
                     .Secrets = activeQueryRecord->Secrets.value_or(TYsonString(TString("[]"))),
+                    .AssignedTracker = activeQueryRecord->AssignedTracker,
                 };
                 std::vector newRows = {
                     newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryDescriptor::Get()->GetIdMapping()),

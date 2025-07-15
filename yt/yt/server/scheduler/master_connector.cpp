@@ -696,8 +696,8 @@ private:
     TCancelableContextPtr CancelableContext_;
     TEnumIndexedArray<EControlQueue, IInvokerPtr> CancelableControlInvokers_;
 
-    std::atomic<EMasterConnectorState> State_ = {EMasterConnectorState::Disconnected};
-    std::atomic<TInstant> ConnectionTime_ = {};
+    std::atomic<EMasterConnectorState> State_ = EMasterConnectorState::Disconnected;
+    std::atomic<TInstant> ConnectionTime_;
 
     ITransactionPtr LockTransaction_;
 

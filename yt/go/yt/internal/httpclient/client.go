@@ -378,10 +378,20 @@ func (c *httpClient) do(ctx context.Context, call *internal.Call) (res *internal
 }
 
 func (c *httpClient) doInTx(ctx context.Context, call *internal.Call) (res *internal.CallResult, err error) {
+	params, ok := call.Params.(internal.TransactionParams)
+	if !ok {
+		panic("doInTx: params has no TransactionOptions()")
+	}
+
+	var txOpts yt.TransactionOptions
+	if *params.TransactionOptions() != nil {
+		txOpts = **params.TransactionOptions()
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	tx, err := c.BeginTx(ctx, nil)
+	tx, err := c.BeginTx(ctx, &yt.StartTxOptions{TransactionOptions: &txOpts})
 	if err != nil {
 		return nil, err
 	}

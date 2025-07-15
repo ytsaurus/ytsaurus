@@ -49,14 +49,14 @@
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
-#include <yt/yt/client/object_client/helpers.h>
-
 #include <yt/yt/ytlib/table_client/hunks.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_writer.h>
 
 #include <yt/yt/ytlib/tablet_client/config.h>
 
 #include <yt/yt/ytlib/transaction_client/action.h>
+
+#include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/table_client/versioned_reader.h>
 #include <yt/yt/client/table_client/versioned_row.h>
@@ -67,9 +67,10 @@
 
 #include <yt/yt/core/actions/cancelable_context.h>
 
-#include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/async_semaphore.h>
 #include <yt/yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/periodic_yielder.h>
 
 #include <yt/yt/core/logging/log.h>
 
@@ -108,8 +109,11 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t MaxRowsPerRead = 65536;
-static const size_t MaxRowsPerWrite = 65536;
+static const i64 MaxRowsPerRead = 8 * 1024;
+static const i64 MaxRowsPerWrite = 8 * 1024;
+
+static const std::string CompactionPoolName = "$StoreCompact";
+static const std::string PartitionPoolName = "$StorePartition";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -293,6 +297,20 @@ struct TCompactionSessionFinalizeResult
     std::vector<NChunkClient::NProto::TDataStatistics> WriterStatistics;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+void MaybeYieldFiber(const TPeriodicYielder& yielder, const NLogging::TLogger& Logger)
+{
+    if (yielder.NeedYield()) {
+        YT_LOG_DEBUG("Yielding fiber (SyncTime: %v)",
+            yielder.GetElapsedTime());
+
+        Yield();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -423,7 +441,13 @@ protected:
 
     void CloseWriter(const IVersionedMultiChunkWriterPtr& writer)
     {
-        CloseFutures_.push_back(writer->Close());
+        auto closeFuture = writer->Close();
+        if (TabletSnapshot_->Settings.MountConfig->ValueDictionaryCompression->Enable) {
+            WaitFor(std::move(closeFuture))
+                .ThrowOnError();
+        } else {
+            CloseFutures_.push_back(std::move(closeFuture));
+        }
     }
 
     virtual ETabletBackgroundActivity GetActivityKind() const = 0;
@@ -652,6 +676,8 @@ public:
         TCompactionTask* task)
     {
         return DoRun([&] {
+            TPeriodicYielder yielder(TDuration::MilliSeconds(30));
+
             int currentPartitionIndex = 0;
             TLegacyOwningKey currentPivotKey;
             TLegacyOwningKey nextPivotKey;
@@ -704,6 +730,8 @@ public:
                 if (!currentWriter->Write(outputRows)) {
                     WaitFor(currentWriter->GetReadyEvent())
                         .ThrowOnError();
+                } else {
+                    MaybeYieldFiber(yielder, Logger);
                 }
 
                 outputRows.clear();
@@ -750,6 +778,9 @@ public:
                 if (currentRowIndex >= std::ssize(inputRows)) {
                     flushOutputRows();
                     inputBatch = ReadRowBatch(reader, readOptions);
+
+                    MaybeYieldFiber(yielder, Logger);
+
                     if (inputBatch) {
                         readRowCount += inputBatch->GetRowCount();
                         inputRows = inputBatch->MaterializeRows();
@@ -859,17 +890,28 @@ public:
                 .MaxRowsPerRead = MaxRowsPerRead
             };
 
+            TPeriodicYielder yielder(TDuration::MilliSeconds(30));
+
             while (auto batch = ReadRowBatch(reader, readOptions)) {
                 rowCount += batch->GetRowCount();
                 auto rows = batch->MaterializeRows();
+
+                MaybeYieldFiber(yielder, Logger);
+
                 if (!writer->Write(rows)) {
                     WaitFor(writer->GetReadyEvent())
                         .ThrowOnError();
+                } else {
+                    MaybeYieldFiber(yielder, Logger);
                 }
 
-                auto guard = Guard(task->Info->RuntimeData.SpinLock);
-                task->Info->RuntimeData.ProcessedReaderStatistics = TBackgroundActivityTaskInfoBase::TReaderStatistics(reader->GetDataStatistics());
-                task->Info->RuntimeData.ProcessedWriterStatistics = TBackgroundActivityTaskInfoBase::TWriterStatistics(writer->GetDataStatistics());
+                {
+                    auto guard = Guard(task->Info->RuntimeData.SpinLock);
+                    task->Info->RuntimeData.ProcessedReaderStatistics =
+                        TBackgroundActivityTaskInfoBase::TReaderStatistics(reader->GetDataStatistics());
+                    task->Info->RuntimeData.ProcessedWriterStatistics =
+                        TBackgroundActivityTaskInfoBase::TWriterStatistics(writer->GetDataStatistics());
+                }
             }
 
             CloseWriter(writer);
@@ -1073,6 +1115,8 @@ private:
     const TCompactionOrchidPtr PartitioningOrchid_;
     const IYPathServicePtr OrchidService_;
 
+    std::atomic<bool> UseQueryPool_ = false;
+
 
     IYPathServicePtr CreateOrchidService()
     {
@@ -1098,6 +1142,8 @@ private:
         CompactionSemaphore_->SetTotal(config->MaxConcurrentCompactions.value_or(Config_->MaxConcurrentCompactions));
         PartitioningOrchid_->Reconfigure(config->Orchid);
         CompactionOrchid_->Reconfigure(config->Orchid);
+
+        UseQueryPool_.store(config->UseQueryPool);
     }
 
     std::unique_ptr<TCompactionTask> MakeTask(
@@ -1627,7 +1673,7 @@ private:
                     pivotKeys,
                     tablet->GetNextPivotKey(),
                     task)
-                .AsyncVia(ThreadPool_->GetInvoker())
+                .AsyncVia(GetInvoker(chunkReadOptions.ReadSessionId, /*partition*/ true))
                 .Run();
 
             std::tie(partitioningResult, finalizeResult) = WaitFor(partitioningResultFuture)
@@ -2040,7 +2086,7 @@ private:
                     compactionSession,
                     reader,
                     task)
-                .AsyncVia(ThreadPool_->GetInvoker())
+                .AsyncVia(GetInvoker(chunkReadOptions.ReadSessionId, /*partition*/ false))
                 .Run();
 
             std::tie(compactionResult, finalizeResult) = WaitFor(compactionResultFuture)
@@ -2352,6 +2398,17 @@ private:
                 logger),
             chunkReadOptions,
             tabletSnapshot->PerformanceCounters);
+    }
+
+    IInvokerPtr GetInvoker(TReadSessionId readSessionId, bool partition) const
+    {
+        if (UseQueryPool_.load()) {
+            return Bootstrap_->GetQueryPoolInvoker(
+                partition ? PartitionPoolName : CompactionPoolName,
+                ToString(readSessionId));
+        } else {
+            return ThreadPool_->GetInvoker();
+        }
     }
 
     static int GetOverlappingStoreLimit(const TTableMountConfigPtr& config)

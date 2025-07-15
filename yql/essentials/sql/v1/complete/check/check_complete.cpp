@@ -49,7 +49,7 @@ namespace NSQLComplete {
                 }
             }
 
-            return MakeSchemaNameService(MakeSimpleSchema(MakeStaticSimpleSchema(std::move(fs))));
+            return MakeSchemaNameService(MakeSimpleSchema(MakeStaticSimpleSchema({.Folders = std::move(fs)})));
         }
 
     } // namespace
@@ -83,7 +83,7 @@ namespace NSQLComplete {
                 .CursorPosition = pos,
             };
 
-            auto output = engine->CompleteAsync(input).ExtractValueSync();
+            auto output = engine->Complete(input).ExtractValueSync();
             Y_DO_NOT_OPTIMIZE_AWAY(output);
 
             i += 1;
@@ -100,10 +100,7 @@ namespace NSQLComplete {
     }
 
     bool CheckComplete(TStringBuf query, NYql::TAstNode& root, NYql::TIssues& issues) try {
-        return MakeYqlAnalysis()
-            ->Analyze(root, issues)
-            .Transform([&](auto&& ctx) { return CheckComplete(query, std::move(ctx)); })
-            .GetOrElse(false);
+        return CheckComplete(query, MakeYqlAnalysis()->Analyze(root, issues).GetOrElse({}));
     } catch (...) {
         issues.AddIssue(FormatCurrentException());
         return false;

@@ -3,13 +3,17 @@
 from .cypress_commands import _KwargSentinelClass, _MapOrderSorted
 from .client_helpers import initialize_client
 from .client_state import ClientState
+from .default_config import DefaultConfigType
+from .mappings import VerifiedDict
 from . import client_api
+
+from typing import Union, Dict, Any
 
 
 class YtClient(ClientState):
     """Implements YT client."""
 
-    def __init__(self, proxy=None, token=None, config=None):
+    def __init__(self, proxy: str = None, token: str = None, config: Union[DefaultConfigType, VerifiedDict, Dict[str, Any]] = None):
         super(YtClient, self).__init__()
         initialize_client(self, proxy, token, config)
 
@@ -2041,15 +2045,15 @@ class YtClient(ClientState):
 
     def read_table_structured(
             self,
-            table, row_type,
-            table_reader=None, unordered=None, response_parameters=None, enable_read_parallel=None):
+            table,
+            row_type=None, table_reader=None, unordered=None, response_parameters=None, enable_read_parallel=None):
         """
         Reads rows from table in structured format. Cf. docstring for read_table
         """
         return client_api.read_table_structured(
-            table, row_type,
+            table,
             client=self,
-            table_reader=table_reader, unordered=unordered, response_parameters=response_parameters,
+            row_type=row_type, table_reader=table_reader, unordered=unordered, response_parameters=response_parameters,
             enable_read_parallel=enable_read_parallel)
 
     def register_queue_consumer(

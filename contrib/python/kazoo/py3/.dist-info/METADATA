@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: kazoo
-Version: 2.9.0
+Version: 2.10.0
 Summary: "Higher Level Zookeeper Client"
 Home-page: https://kazoo.readthedocs.io
 Author: Kazoo team
@@ -18,10 +18,11 @@ Classifier: Intended Audience :: Developers
 Classifier: Operating System :: OS Independent
 Classifier: Programming Language :: Python
 Classifier: Programming Language :: Python :: 3
-Classifier: Programming Language :: Python :: 3.7
 Classifier: Programming Language :: Python :: 3.8
 Classifier: Programming Language :: Python :: 3.9
 Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
 Classifier: Programming Language :: Python :: Implementation :: CPython
 Classifier: Programming Language :: Python :: Implementation :: PyPy
 Classifier: Topic :: Communications
@@ -29,36 +30,40 @@ Classifier: Topic :: System :: Distributed Computing
 Classifier: Topic :: System :: Networking
 Description-Content-Type: text/markdown
 License-File: LICENSE
-Requires-Dist: six
-Requires-Dist: selectors2 (>=2.0.2) ; python_version < "3.4.0"
 Provides-Extra: alldeps
 Requires-Dist: flake8 ; extra == 'alldeps'
-Requires-Dist: eventlet (>=0.17.1) ; extra == 'alldeps'
-Requires-Dist: gevent (>=1.2) ; extra == 'alldeps'
-Requires-Dist: pure-sasl (>=0.5.1) ; extra == 'alldeps'
-Requires-Dist: Sphinx (>=1.2.2) ; extra == 'alldeps'
+Requires-Dist: eventlet >=0.17.1 ; extra == 'alldeps'
+Requires-Dist: gevent >=1.2 ; extra == 'alldeps'
+Requires-Dist: pure-sasl >=0.5.1 ; extra == 'alldeps'
+Requires-Dist: Sphinx >=1.2.2 ; extra == 'alldeps'
+Requires-Dist: sphinx-autodoc-typehints >=1 ; extra == 'alldeps'
+Requires-Dist: mypy >=0.991 ; extra == 'alldeps'
 Provides-Extra: dev
 Requires-Dist: flake8 ; extra == 'dev'
 Provides-Extra: docs
-Requires-Dist: Sphinx (>=1.2.2) ; extra == 'docs'
+Requires-Dist: Sphinx >=1.2.2 ; extra == 'docs'
+Requires-Dist: sphinx-autodoc-typehints >=1 ; extra == 'docs'
 Provides-Extra: eventlet
-Requires-Dist: eventlet (>=0.17.1) ; extra == 'eventlet'
+Requires-Dist: eventlet >=0.17.1 ; extra == 'eventlet'
 Provides-Extra: gevent
-Requires-Dist: gevent (>=1.2) ; extra == 'gevent'
+Requires-Dist: gevent >=1.2 ; extra == 'gevent'
 Provides-Extra: sasl
-Requires-Dist: pure-sasl (>=0.5.1) ; extra == 'sasl'
+Requires-Dist: pure-sasl >=0.5.1 ; extra == 'sasl'
 Provides-Extra: test
-Requires-Dist: mock ; extra == 'test'
 Requires-Dist: objgraph ; extra == 'test'
 Requires-Dist: pytest ; extra == 'test'
 Requires-Dist: pytest-cov ; extra == 'test'
-Requires-Dist: gevent (>=1.2) ; (implementation_name != "pypy") and extra == 'test'
-Requires-Dist: eventlet (>=0.17.1) ; (implementation_name != "pypy") and extra == 'test'
+Requires-Dist: pyjks ; extra == 'test'
+Requires-Dist: pyopenssl ; extra == 'test'
+Requires-Dist: gevent >=1.2 ; (implementation_name != "pypy") and extra == 'test'
+Requires-Dist: eventlet >=0.17.1 ; (implementation_name != "pypy") and extra == 'test'
+Provides-Extra: typing
+Requires-Dist: mypy >=0.991 ; extra == 'typing'
 
 Kazoo
 =====
 
-[![Build Status](https://travis-ci.org/python-zk/kazoo.svg?branch=master)](https://travis-ci.org/python-zk/kazoo)
+[![Kazoo Awesome Testing](https://github.com/python-zk/kazoo/actions/workflows/testing.yml/badge.svg?branch=master)](https://github.com/python-zk/kazoo/actions/workflows/testing.yml?query=branch%3Amaster)
 [![Latest Version](https://img.shields.io/pypi/v/kazoo.svg)](https://pypi.org/project/kazoo/)
 [![Reviewed by Hound](https://img.shields.io/badge/Reviewed_by-Hound-8E64B0.svg)](https://houndci.com)
 
@@ -80,7 +85,72 @@ Project](http://www.nimbusproject.org/) and through collaboration with
 the open-source community has been merged with code from
 [Mozilla](http://www.mozilla.org/) and the [Zope
 Corporation](http://zope.com/). It has since gathered an active
-community of over fifty contributors.
+community of over one hundred contributors.
+
+<a name="2.10.0"></a>
+## 2.10.0  (2024-01-28)
+
+
+#### Features
+
+* **ci:**  remove `codecov` step from `tox` since performed in GA (#719) ([ffa0ae9a](https://github.com/python-zk/kazoo/commit/ffa0ae9a06932166f088846584e9b675988e0f23))
+* **testing:**
+  *  add test for Windows platform ([31fdca6b](https://github.com/python-zk/kazoo/commit/31fdca6b4a1d817523b303ccb12396228a5c9ed6))
+  *  add more logging during test suite ([2c36d699](https://github.com/python-zk/kazoo/commit/2c36d699fbf0569f490d5bfa66fa85fbdc68dea3))
+
+#### Test
+
+*   update tested ZK versions ([1a23100a](https://github.com/python-zk/kazoo/commit/1a23100a45f15bee95f72f4efde5bec00c994fcc))
+*   remove Python 3.7, add Python 3.11 and Python 3.12 ([e33a6e17](https://github.com/python-zk/kazoo/commit/e33a6e17ef93302c5c07328b249e5126c4079c8c))
+*   bump pypy to latest available ([383cdf8c](https://github.com/python-zk/kazoo/commit/383cdf8cc689c2aa92c5fb1cd4831e0e2e5e7b35))
+*   add SSL test ([be1b7723](https://github.com/python-zk/kazoo/commit/be1b77233b0da87e10b972ddc84327103b2bc45e))
+*   Don't throw when test fail while cluster is down ([5851e406](https://github.com/python-zk/kazoo/commit/5851e406f578cfb4dc08cf7cdd66d6575cb41ef8))
+
+#### Doc
+
+*   Include type hints in docs ([e24e1200](https://github.com/python-zk/kazoo/commit/e24e1200351bac10c0fb9f23608bc385b35afb49))
+*   Use `.readthedocs.yaml` to configure the build ([693cd487](https://github.com/python-zk/kazoo/commit/693cd487ae61ef1e935b495a45d46f4de9ac2772))
+*   there are more than 50 contributors now (#703) ([d7c44cd1](https://github.com/python-zk/kazoo/commit/d7c44cd14b63f08a6ac5be866831b631766427d4))
+*   Replace build badge from Travis to Actions (#675) ([a43ef2bf](https://github.com/python-zk/kazoo/commit/a43ef2bfb11691ae3f490c3a2eb3319e7c4f6222))
+
+#### Chore
+
+*   add mypy to the build (#689) ([8f608f84](https://github.com/python-zk/kazoo/commit/8f608f8477a2a1058bd8be071f5cbeabb540fc23))
+*   migrate to tox 4.x ([0c564419](https://github.com/python-zk/kazoo/commit/0c56441917eb4657a1892a1b459dffab9fc5f468))
+*   Integrate flake8 & black in gh actions ([644eeb74](https://github.com/python-zk/kazoo/commit/644eeb7426f149672ae1a68b2bfa12e6efea302a))
+*   bump pyflake, fix new warnings ([f3b7ff71](https://github.com/python-zk/kazoo/commit/f3b7ff712d1d7b51180265674cb1e939432c7570))
+*   add black dependencies to the build ([951f7442](https://github.com/python-zk/kazoo/commit/951f744272ad69875827689b3f15ca43c79aae11))
+*   backport changes from release/2.9 (#674) ([cb2fe857](https://github.com/python-zk/kazoo/commit/cb2fe8575924a548b07f29210a058091a017c4fc))
+* **deps:**
+  *  bump actions/cache from 3 to 4 ([a440c91d](https://github.com/python-zk/kazoo/commit/a440c91db0212313e7ec44d11784eeeba88c2c54))
+  *  bump actions/setup-java from 3 to 4 ([aa219898](https://github.com/python-zk/kazoo/commit/aa219898c0a62f10b66d0a981c23b3f1d4601283))
+  *  bump actions/setup-python from 4 to 5 ([1a5205c8](https://github.com/python-zk/kazoo/commit/1a5205c86db9e9aca72e823f984ba0e02067a82c))
+  *  bump actions/checkout from 3 to 4 ([d9830661](https://github.com/python-zk/kazoo/commit/d9830661459a3ee8b286fe3418ebccd8b242ebb6))
+  *  bump actions/setup-python from 2 to 4 (#695) ([491cab3f](https://github.com/python-zk/kazoo/commit/491cab3f2f882b1612eae808fd718d41c93e0f5d))
+  *  bump actions/cache from 2 to 3 ([1c0c4535](https://github.com/python-zk/kazoo/commit/1c0c4535c9c82092d94ce36fb7a0be4c43483bb4))
+  *  bump codecov/codecov-action from 2 to 3 ([b3dcad2d](https://github.com/python-zk/kazoo/commit/b3dcad2d790d2f9c3c2f800d27e147bf2ec86fdd))
+  *  bump actions/checkout from 2 to 3 ([d2a08d48](https://github.com/python-zk/kazoo/commit/d2a08d48c01bb54ccdc9dbfdfb3a061f50e24198))
+* **packaging:**  Remove redundant wheel dep from pyproject.toml (#671) ([161c6877](https://github.com/python-zk/kazoo/commit/161c68770aa1366056322cf5f095f4ca36150f0c))
+
+#### Refactor
+
+*   no need to specify `mock` (#702) ([92b071d3](https://github.com/python-zk/kazoo/commit/92b071d3f5ee52096a56fc8d77c23e70f01bb4bd))
+*   delete back of travis config (#705) ([d224a520](https://github.com/python-zk/kazoo/commit/d224a52062dfe7e126796781763d191b19e40025))
+*   remove unecessary import guard for gevent.lock ([74ecc0f2](https://github.com/python-zk/kazoo/commit/74ecc0f2fd9d17e942de3c1f1cdcbc2c48b2bb1f))
+*   remove string interpolation in favour of exception chaining ([e38b5c5f](https://github.com/python-zk/kazoo/commit/e38b5c5f894432aa21316ba670eba874ba573bbb))
+*   remove backport of 'atexit.unregister' ([7ade392d](https://github.com/python-zk/kazoo/commit/7ade392d22cd37195f52da469ee233d339b20a01))
+*   Replace usage of six for their py3 implementations ([e05b50a1](https://github.com/python-zk/kazoo/commit/e05b50a1d6c04f7e6cf0c82c43e79cfd8520ee2a))
+
+#### Bug Fixes
+
+* **core:**  no need to alway perform an `os.stat(fd)` ([b06ffd71](https://github.com/python-zk/kazoo/commit/b06ffd71bc82ce61fcacf8f5589f9312c4472db8))
+* **exceptions:**  Register exception for server-side QUOTAEXCEEDED(-125) ([6054d822](https://github.com/python-zk/kazoo/commit/6054d82281360efa2f95d8cbf311499a28c4a9c6))
+* **testing:**
+  *  cleanup ZK cluster between test cases ([d218dc97](https://github.com/python-zk/kazoo/commit/d218dc970575f5d6042c14060d36e118a8c92e57))
+  *  add `.coveragerc` (#718) ([6dbf6062](https://github.com/python-zk/kazoo/commit/6dbf606212b891254b948ddaf6a14a678303e8cd))
+* **tests:**  `test_read_only` is not flaky anymore. ([6b40a437](https://github.com/python-zk/kazoo/commit/6b40a43761f456efafa48a262be145fb6fc74fc9))
+
+
 
 <a name="2.9.0"></a>
 ## 2.9.0 (2022-10-08)

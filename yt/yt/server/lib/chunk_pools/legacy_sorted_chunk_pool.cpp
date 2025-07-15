@@ -575,11 +575,6 @@ private:
         }
     }
 
-    TOutputOrderPtr GetOutputOrder() const override
-    {
-        return nullptr;
-    }
-
     void DoFinish()
     {
         // NB(max42): this method may be run several times (in particular, when

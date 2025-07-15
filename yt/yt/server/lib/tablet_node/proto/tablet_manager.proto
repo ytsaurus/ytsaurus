@@ -183,6 +183,7 @@ message TReqReplicateTabletContent
     repeated NYT.NProto.TGuid store_partition_ids = 8;
     optional NYT.NProto.TGuid active_store_id = 9;
     repeated NYT.NProto.TGuid allocated_dynamic_store_ids = 12;
+    repeated NYT.NProto.TGuid compression_dictionaries_by_policy = 13;
 
     required uint64 last_commit_timestamp = 10;
     required uint64 last_write_timestamp = 11;
@@ -534,6 +535,8 @@ message TReqSwitchServant
     required uint64 mount_revision = 2;
     required NYT.NProto.TGuid master_avenue_endpoint_id = 3;
     required NYT.NHiveServer.NProto.TPersistentMailboxStateCookie master_mailbox_cookie = 4;
+    // The moment when the mutation sending this message was scheduled.
+    optional int64 sending_time = 5;
 }
 
 message TReqAbortSmoothMovement

@@ -64,6 +64,7 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Config)
             .SetWritable(true)
             .SetOpaque(true));
+        descriptors->push_back(EInternedAttributeKey::HydraLogicalTime);
         descriptors->push_back(EInternedAttributeKey::HydraReadOnly);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ClusterName)
             .SetWritable(true)
@@ -203,6 +204,13 @@ private:
             case EInternedAttributeKey::Config:
                 BuildYsonFluently(consumer)
                     .Value(configManager->GetConfig());
+                return true;
+
+            case EInternedAttributeKey::HydraLogicalTime:
+                BuildYsonFluently(consumer)
+                    // Converting TInstatnt to TDuration because seeing that cluster was able to
+                    // accept mutations for 1 year is better than seeing 1971-01-01:00-00-00.
+                    .Value(hydraManager->GetLogicalTime() - TInstant());
                 return true;
 
             case EInternedAttributeKey::HydraReadOnly:

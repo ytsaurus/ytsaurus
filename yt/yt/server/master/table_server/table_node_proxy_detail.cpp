@@ -897,7 +897,6 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 .Value(table->GetEnableDetailedProfiling());
             return true;
 
-
         case EInternedAttributeKey::SerializationType:
             if (!isDynamic) {
                 break;
@@ -906,7 +905,6 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             BuildYsonFluently(consumer)
                 .Value(table->GetSerializationType());
             return true;
-
 
         case EInternedAttributeKey::ReplicationCollocationTablePaths: {
             if (!isDynamic || !table->IsReplicated() || !trunkTable->GetReplicationCollocation()) {
@@ -1104,6 +1102,12 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                                 .Item("table_to_index_correspondence").Value(secondaryIndex->GetTableToIndexCorrespondence())
                                 .DoIf(secondaryIndex->Predicate().has_value(), [&] (TFluentMap fluent) {
                                     fluent.Item("predicate").Value(*secondaryIndex->Predicate());
+                                })
+                                .DoIf(secondaryIndex->UnfoldedColumn().has_value(), [&] (TFluentMap fluent) {
+                                    fluent.Item("unfolded_column").Value(*secondaryIndex->UnfoldedColumn());
+                                })
+                                .DoIf(secondaryIndex->EvaluatedColumnsSchema().operator bool(), [&] (TFluentMap fluent) {
+                                    fluent.Item("evaluated_columns_schema").Value(*secondaryIndex->EvaluatedColumnsSchema());
                                 })
                             .EndMap();
                     });
@@ -1645,18 +1649,20 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
                 break;
             }
 
+            ValidateNoTransaction();
+
             auto serializationType = ConvertTo<ETabletTransactionSerializationType>(value);
 
             if (serializationType == ETabletTransactionSerializationType::PerRow &&
                 !table->IsSorted())
             {
-                THROW_ERROR_EXCEPTION("Serialization type %qlv is supported only for sorted dynamic tables",
+                THROW_ERROR_EXCEPTION("Serialization type %Qlv is supported only for sorted dynamic tables",
                     serializationType);
             }
 
             auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
             auto* lockedTable = LockThisImpl(lockRequest);
-            lockedTable->ValidateAllTabletsUnmounted(Format("Cannot change sequencer type to %v",
+            lockedTable->ValidateAllTabletsUnmounted(Format("Cannot change serialization type to %Qlv",
                 serializationType));
             lockedTable->SetSerializationType(serializationType);
             return true;
@@ -2334,7 +2340,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             const auto& tableManager)
         {
             if (table->IsNative()) {
-                return tableManager->GetOrCreateNativeMasterTableSchema(*schema, table);
+                return tableManager->GetOrCreateNativeMasterTableSchema(schema, table);
             }
 
             YT_VERIFY(!options.Schema);

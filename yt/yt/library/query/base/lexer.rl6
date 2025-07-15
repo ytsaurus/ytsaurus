@@ -283,6 +283,11 @@ TParser::token_type TBaseLexer::GetNextToken(
     %% write exec;
     location->second = p - s;
 
+    if (type == TToken::End && location->first != location->second) {
+        THROW_ERROR_EXCEPTION("Unexpected end of query text")
+            << TErrorAttribute("end", TStringBuf(s + location->first, s + location->second));
+    }
+
     if (cs == %%{ write error; }%%) {
         // TODO(sandello): Handle lexer failures.
         return TToken::Failure;

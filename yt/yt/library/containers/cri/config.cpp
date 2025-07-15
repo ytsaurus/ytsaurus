@@ -100,7 +100,7 @@ void TCriImageCacheConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCriPodDescriptorPtr TCriPodDescriptor::Create(TString name, TString id)
+TCriPodDescriptorPtr TCriPodDescriptor::Create(std::string name, std::string id)
 {
     auto descriptor = New<TCriPodDescriptor>();
     descriptor->Name = std::move(name);
@@ -148,7 +148,7 @@ void TCriPodSpec::Register(TRegistrar registrar)
         .NonEmpty();
 
     registrar.Parameter("resources", &TThis::Resources)
-        .DefaultNew();
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

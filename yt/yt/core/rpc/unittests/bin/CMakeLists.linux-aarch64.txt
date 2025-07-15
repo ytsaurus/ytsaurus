@@ -33,7 +33,8 @@ target_link_libraries(rpc-test-service PUBLIC
 )
 
 target_allocator(rpc-test-service
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(rpc-test-service PRIVATE

@@ -74,7 +74,7 @@ protected:
     // Called when visiting a path that can branch (asterisks and "after path" traversals).
     // Pushes the token onto the current path.
     // Checkpoint destructor restores the tokenizer and current path.
-    TCheckpoint CheckpointBranchedTraversal(TToken token);
+    TCheckpoint CheckpointBranchedTraversal(TToken token, int size);
 
     // Methods for examining the tokenizer and the stack.
     NYPath::ETokenType GetTokenizerType() const;

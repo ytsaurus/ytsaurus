@@ -68,7 +68,7 @@ TQuery PartialRecordToQuery(const auto& partialRecord)
 {
     static_assert(pfr::tuple_size<TQuery>::value == 17);
     static_assert(TActiveQueryDescriptor::FieldCount == 21);
-    static_assert(TFinishedQueryDescriptor::FieldCount == 15);
+    static_assert(TFinishedQueryDescriptor::FieldCount == 16);
 
     TQuery query;
     // Note that some of the fields are twice optional.
@@ -105,8 +105,8 @@ TQuery PartialRecordToQuery(const auto& partialRecord)
         fillIfPresent("abort_request", partialRecord.AbortRequest.value_or(std::nullopt));
         fillIfPresent("incarnation", partialRecord.Incarnation);
         fillIfPresent("lease_transaction_id", partialRecord.LeaseTransactionId);
-        fillIfPresent("assigned_tracker", partialRecord.AssignedTracker);
     }
+    fillIfPresent("assigned_tracker", partialRecord.AssignedTracker);
 
     query.OtherAttributes = std::move(otherAttributes);
 
@@ -698,7 +698,7 @@ void TQueryTrackerProxy::StartQuery(
         TString filterFactors;
         auto startTime = TInstant::Now();
         {
-            static_assert(TFinishedQueryDescriptor::FieldCount == 15);
+            static_assert(TFinishedQueryDescriptor::FieldCount == 16);
             TFinishedQuery newRecord{
                 .Key = {.QueryId = queryId},
                 .Engine = engine,
@@ -1089,13 +1089,17 @@ TListQueriesResult TQueryTrackerProxy::ListQueries(
         options.Limit,
         options.Attributes);
 
-    auto attributes = options.Attributes;
+    auto keys = options.Attributes.Keys();
+    TAttributeFilter attributes;
 
-    attributes.ValidateKeysOnly();
+    options.Attributes.ValidateKeysOnly();
 
-    if (!attributes.AdmitsKeySlow("start_time")) {
-        YT_VERIFY(attributes);
-        attributes.AddKey("start_time");
+    if (!options.Attributes.AdmitsKeySlow("start_time")) {
+        YT_VERIFY(options.Attributes);
+        keys.push_back("start_time");
+    }
+    if (options.Attributes) {
+        attributes = TAttributeFilter(std::move(keys));
     }
 
     auto userSubjects = GetUserSubjects(user, StateClient_);

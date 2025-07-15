@@ -836,18 +836,17 @@ llvm::GlobalVariable* TComparerManager::GetLabelsArray(
                 labels.push_back(valueTypeLabels.OnDouble);
                 break;
 
-            case EValueType::String: {
+            case EValueType::String:
                 labels.push_back(valueTypeLabels.OnString);
                 break;
-            }
 
-            case EValueType::Any: {
+            case EValueType::Composite:
+            case EValueType::Any:
                 labels.push_back(valueTypeLabels.OnAny);
                 break;
-            }
 
             default:
-                YT_ABORT();
+                THROW_ERROR_EXCEPTION("Unexpected type %Qlv encountered in comparer manager", type);
         }
         id.AddPointer(labels.back());
     }
@@ -4268,7 +4267,10 @@ void MakeCodegenWriteOp(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TSignature, typename TPISignature>
-TCallback<TSignature> BuildCGEntrypoint(TCGModulePtr cgModule, const TString& entryFunctionName, EExecutionBackend executionBackend)
+TCallback<TSignature> BuildCGEntrypoint(
+    TCGModulePtr cgModule,
+    const std::string& entryFunctionName,
+    EExecutionBackend executionBackend)
 {
     if (executionBackend == EExecutionBackend::WebAssembly) {
         auto caller = New<TCGWebAssemblyCaller<TSignature, TPISignature>>(

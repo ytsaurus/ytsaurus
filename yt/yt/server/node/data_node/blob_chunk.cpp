@@ -503,6 +503,14 @@ void TBlobChunkBase::DoReadSession(
     if (!memoryGuardOrError.IsOK()) {
         YT_LOG_DEBUG("Read session aborted due to memory pressure");
         Location_->ReportThrottledRead();
+        auto error = TError("Read session aborted due to memory pressure");
+
+        for (auto i = 0; i < session->EntryCount; ++i) {
+            if (!session->Entries[i].Cached && session->Entries[i].Cookie) {
+                session->Entries[i].Cookie->SetBlock(error);
+            }
+        }
+
         session->DiskFetchPromise.TrySet();
         return;
     }

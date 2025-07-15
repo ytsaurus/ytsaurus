@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
+#include <yt/yt/core/misc/arithmetic_formula.h>
+
 #include <yt/yt/core/net/config.h>
 
 #include <yt/yt/library/dynamic_config/config.h>
@@ -60,6 +62,7 @@ public:
     bool CanUseComputeActor;
     bool EnforceJobUtc;
     bool UseLocalLDLibraryPath;
+    TBooleanFormula SchedulingTagFilter;
 
     REGISTER_YSON_STRUCT(TDQYTBackend);
 
@@ -134,6 +137,9 @@ struct TYqlPluginConfig
     //! Fields from NYql::TDQGatewayConfig with snake case keys.
     NYTree::INodePtr DQGatewayConfig;
 
+    //! Fields from NYql::TYtflowGatewayConfig with snake case keys.
+    NYTree::INodePtr YtflowGatewayConfig;
+
     //! Fields from NYT::NYqlPlugin::TDQManagerConfig with snake case keys.
     TDQManagerConfigPtr DQManagerConfig;
 
@@ -172,6 +178,7 @@ struct TYqlAgentConfig
     int IssueTokenAttempts;
 
     int YqlThreadCount;
+    TString MaxSupportedYqlVersion;
 
     REGISTER_YSON_STRUCT(TYqlAgentConfig);
 

@@ -26,7 +26,8 @@ target_link_libraries(05_co_group_by_key PUBLIC
 )
 
 target_allocator(05_co_group_by_key
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(05_co_group_by_key PRIVATE

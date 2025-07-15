@@ -57,6 +57,8 @@ private:
             .SetPresent(secondaryIndex->UnfoldedColumn().has_value()));
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::Predicate)
             .SetPresent(secondaryIndex->Predicate().has_value()));
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::EvaluatedColumnsSchema)
+            .SetPresent(secondaryIndex->EvaluatedColumnsSchema().operator bool()));
 
         TBase::ListSystemAttributes(attributes);
     }
@@ -114,6 +116,14 @@ private:
                 BuildYsonFluently(consumer)
                     .Value(secondaryIndex->GetTableToIndexCorrespondence());
                 return true;
+
+            case EInternedAttributeKey::EvaluatedColumnsSchema:
+                if (secondaryIndex->EvaluatedColumnsSchema()) {
+                    BuildYsonFluently(consumer)
+                        .Value(*secondaryIndex->EvaluatedColumnsSchema());
+                    return true;
+                }
+                return false;
 
             default:
                 break;

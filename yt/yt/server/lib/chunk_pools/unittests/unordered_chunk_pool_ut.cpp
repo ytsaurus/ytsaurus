@@ -17,6 +17,9 @@
 
 #include <yt/yt/client/table_client/row_buffer.h>
 
+#include <yt/yt/core/logging/config.h>
+#include <yt/yt/core/logging/log_manager.h>
+
 #include <yt/yt/core/misc/blob_output.h>
 
 #include <util/generic/xrange.h>
@@ -31,6 +34,7 @@ namespace {
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NControllerAgent;
+using namespace NLogging;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NTableClient;
@@ -51,6 +55,10 @@ class TUnorderedChunkPoolTest
 protected:
     void SetUp() override
     {
+        auto config = TLogManagerConfig::CreateDefault();
+        config->AbortOnAlert = true;
+        TLogManager::Get()->Configure(config, /*sync*/ true);
+
         Options_.MinTeleportChunkSize = Inf64;
         Options_.RowBuffer = RowBuffer_;
         Options_.Logger = GetTestLogger();
@@ -93,7 +101,11 @@ protected:
             compressedSize = weight;
         }
         auto inputChunk = New<TInputChunk>();
-        inputChunk->SetChunkId(MakeRandomId(EObjectType::Chunk, TCellTag(0x42)));
+        inputChunk->SetChunkId(MakeId(
+            EObjectType::Chunk,
+            TCellTag(0x42),
+            std::uniform_int_distribution<ui64>()(Gen_),
+            std::uniform_int_distribution<ui32>()(Gen_)));
         inputChunk->SetCompressedDataSize(compressedSize);
         inputChunk->SetTotalUncompressedDataSize(weight);
         inputChunk->SetTotalDataWeight(weight);
@@ -174,7 +186,7 @@ protected:
         }
     }
 
-    IChunkPoolOutput::TCookie ExtractCookie(TNodeId nodeId)
+    IChunkPoolOutput::TCookie ExtractCookie(TNodeId nodeId = TNodeId(0))
     {
         auto cookie = ChunkPool_->Extract(nodeId);
         if (cookie != IChunkPoolOutput::NullCookie) {
@@ -348,8 +360,15 @@ protected:
 
     IPersistentChunkPoolPtr ChunkPool_;
 
+    // Make tests deterministic.
+    struct TInputChunkHash {
+        ui64 operator()(const TInputChunkPtr& chunk) const {
+            return THash<TChunkId>()(chunk->GetChunkId());
+        }
+    };
+
     //! Set containing all unversioned input chunks that have ever been created.
-    THashSet<TInputChunkPtr> CreatedUnversionedChunks_;
+    THashSet<TInputChunkPtr, TInputChunkHash> CreatedUnversionedChunks_;
     //! Set containing all chunks that are added to the pool without being suspended.
     THashSet<TChunkId> ActiveChunks_;
 
@@ -902,6 +921,9 @@ TEST_F(TUnorderedChunkPoolTest, BuildJobsInputByCompressedDataSize)
 
 TEST_F(TUnorderedChunkPoolTest, DataWeightPerJobDoesNotAffectCompressedDataSizePerJob)
 {
+    // This test checks that chunk pool handles slicing by compressed data size and
+    // by data weight independently. Chunk pool could use single job counter otherwise.
+    //
     // +-------+---------------+
     // |       |               |
     // | Data  |               |
@@ -916,7 +938,7 @@ TEST_F(TUnorderedChunkPoolTest, DataWeightPerJobDoesNotAffectCompressedDataSizeP
     // | Chunk | 1  2  3  4  5 |
     // +-------+---------------+
     //
-    // Job counts:
+    // Job count estimation:
     //  - By compressed_data_size ~ ceil(5_GB / 6_GB)   = 1
     //  - By data_weight          ~ ceil(250_MB / 1_MB) = 250
     //
@@ -988,7 +1010,7 @@ TEST_F(TUnorderedChunkPoolTest, CompressedDataSizePerJobDoesNotAffectDataWeightP
     // | Chunk | 1  2  3  4  5 |
     // +-------+---------------+
     //
-    // Job counts:
+    // Job count estimation:
     //  - By compressed_data_size ~ ceil(250_MB / 1_MB) = 250
     //  - By data_weight          ~ ceil(5_GB / 6_GB) j = 1
     //
@@ -1046,6 +1068,374 @@ TEST_F(TUnorderedChunkPoolTest, CompressedDataSizePerJobDoesNotAffectDataWeightP
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TUnorderedChunkPoolTestCounters
+    : public TUnorderedChunkPoolTest
+{
+protected:
+    THashMap<TInputChunkPtr, IChunkPoolInput::TCookie> FreeChunksToCookie_;
+    THashMap<TInputChunkPtr, IChunkPoolInput::TCookie> ExtractedChunksToCookie_;
+
+    IChunkPoolOutput::TCookie ExtractCookie()
+    {
+        auto cookie = TUnorderedChunkPoolTest::ExtractCookie();
+        if (cookie == IChunkPoolOutput::NullCookie) {
+            return cookie;
+        }
+        auto stripes = ChunkPool_->GetStripeList(cookie)->Stripes;
+        YT_VERIFY(std::ssize(stripes) == 1);
+        auto dataSlices = stripes.front()->DataSlices;
+        YT_VERIFY(std::ssize(dataSlices) == 1);
+        auto chunk = dataSlices.front()->GetSingleUnversionedChunk();
+        ExtractedChunksToCookie_[chunk] = FreeChunksToCookie_[chunk];
+        FreeChunksToCookie_.erase(dataSlices.front()->GetSingleUnversionedChunk());
+        return cookie;
+    }
+
+};
+
+TEST_F(TUnorderedChunkPoolTestCounters, BlockedJobCount)
+{
+    InitTables(
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+
+    DataWeightPerJob_ = 950_MB;
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    auto addChunk = [&] (i64 weight) {
+        auto chunk = CreateChunk(
+            /*tableIndex*/ 0,
+            /*weight*/ weight,
+            /*rowCount*/ 1);
+        auto cookie = AddChunk(chunk);
+        FreeChunksToCookie_.insert(std::pair(std::move(chunk), cookie));
+    };
+
+    auto& jobCounter = ChunkPool_->GetJobCounter();
+
+    ASSERT_EQ(jobCounter->GetTotal(), 0);
+
+    addChunk(500_MB);
+
+    ASSERT_EQ(jobCounter->GetBlocked(), 1);
+    ASSERT_EQ(jobCounter->GetTotal(), 1);
+
+    addChunk(400_MB);
+
+    ASSERT_EQ(jobCounter->GetBlocked(), 1);
+    ASSERT_EQ(jobCounter->GetTotal(), 1);
+
+    TUnorderedChunkPoolTest::ExtractCookie();
+
+    ASSERT_EQ(jobCounter->GetRunning(), 1);
+    ASSERT_EQ(jobCounter->GetTotal(), 1);
+
+    addChunk(900_MB);
+
+    ASSERT_EQ(jobCounter->GetBlocked(), 1);
+    ASSERT_EQ(jobCounter->GetRunning(), 1);
+    ASSERT_EQ(jobCounter->GetTotal(), 2);
+
+    TUnorderedChunkPoolTest::ExtractCookie();
+
+    ASSERT_EQ(jobCounter->GetRunning(), 2);
+    ASSERT_EQ(jobCounter->GetTotal(), 2);
+
+    addChunk(900_MB);
+
+    ASSERT_EQ(jobCounter->GetBlocked(), 1);
+    ASSERT_EQ(jobCounter->GetRunning(), 2);
+    ASSERT_EQ(jobCounter->GetTotal(), 3);
+
+    addChunk(400_MB);
+
+    ASSERT_EQ(jobCounter->GetPending(), 1);
+    ASSERT_EQ(jobCounter->GetBlocked(), 1);
+    ASSERT_EQ(jobCounter->GetRunning(), 2);
+    ASSERT_EQ(jobCounter->GetTotal(), 4);
+
+    addChunk(400_MB);
+
+    ASSERT_EQ(jobCounter->GetPending(), 1);
+    ASSERT_EQ(jobCounter->GetBlocked(), 1);
+    ASSERT_EQ(jobCounter->GetRunning(), 2);
+    ASSERT_EQ(jobCounter->GetTotal(), 4);
+
+    TUnorderedChunkPoolTest::ExtractCookie();
+
+    ASSERT_EQ(jobCounter->GetBlocked(), 1);
+    ASSERT_EQ(jobCounter->GetRunning(), 3);
+    ASSERT_EQ(jobCounter->GetTotal(), 4);
+
+    ChunkPool_->Finish();
+
+    ASSERT_EQ(jobCounter->GetPending(), 1);
+    ASSERT_EQ(jobCounter->GetRunning(), 3);
+    ASSERT_EQ(jobCounter->GetTotal(), 4);
+
+    TUnorderedChunkPoolTest::ExtractCookie();
+
+    ASSERT_EQ(jobCounter->GetRunning(), 4);
+    ASSERT_EQ(jobCounter->GetTotal(), 4);
+}
+
+TEST_F(TUnorderedChunkPoolTestCounters, SuspendedChunks)
+{
+    InitTables(
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+
+    DataWeightPerJob_ = 950_MB;
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    auto addChunk = [&] {
+        auto chunk = CreateChunk(
+            /*tableIndex*/ 0,
+            /*weight*/ 1_GB,
+            /*rowCount*/ 1);
+        auto cookie = AddChunk(chunk);
+        FreeChunksToCookie_.insert(std::pair(std::move(chunk), cookie));
+    };
+
+    auto& jobCounter = ChunkPool_->GetJobCounter();
+
+    ASSERT_EQ(jobCounter->GetTotal(), 0);
+
+    addChunk();
+
+    ASSERT_EQ(jobCounter->GetPending(), 1);
+    ASSERT_EQ(jobCounter->GetBlocked(), 1);
+    ASSERT_EQ(jobCounter->GetTotal(), 2);
+
+    for (int i = 0; i < 4; ++i) {
+        addChunk();
+    }
+
+    ASSERT_EQ(jobCounter->GetPending(), 5);
+    ASSERT_EQ(jobCounter->GetBlocked(), 1);
+    ASSERT_EQ(jobCounter->GetTotal(), 6);
+
+    ChunkPool_->Finish();
+    ASSERT_EQ(jobCounter->GetPending(), 6);
+    ASSERT_EQ(jobCounter->GetTotal(), 6);
+
+    ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
+
+    ASSERT_EQ(jobCounter->GetPending(), 5);
+    ASSERT_EQ(jobCounter->GetRunning(), 1);
+    ASSERT_EQ(jobCounter->GetTotal(), 6);
+
+    ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
+
+    ASSERT_EQ(jobCounter->GetPending(), 4);
+    ASSERT_EQ(jobCounter->GetRunning(), 2);
+    ASSERT_EQ(jobCounter->GetTotal(), 6);
+
+    auto cookie1 = FreeChunksToCookie_.begin()->second;
+    ChunkPool_->Suspend(cookie1);
+
+    ASSERT_EQ(jobCounter->GetPending(), 2);
+    ASSERT_EQ(jobCounter->GetBlocked(), 1);
+    ASSERT_EQ(jobCounter->GetRunning(), 2);
+    ASSERT_EQ(jobCounter->GetSuspended(), 1);
+    ASSERT_EQ(jobCounter->GetTotal(), 6);
+
+    ChunkPool_->Resume(cookie1);
+
+    ASSERT_EQ(jobCounter->GetPending(), 4);
+    ASSERT_EQ(jobCounter->GetRunning(), 2);
+    ASSERT_EQ(jobCounter->GetTotal(), 6);
+
+    ChunkPool_->Suspend(cookie1);
+
+    auto cookie2 = std::next(FreeChunksToCookie_.begin())->second;
+    ChunkPool_->Suspend(cookie2);
+
+    ASSERT_EQ(jobCounter->GetPending(), 1);
+    ASSERT_EQ(jobCounter->GetBlocked(), 1);
+    ASSERT_EQ(jobCounter->GetRunning(), 2);
+    ASSERT_EQ(jobCounter->GetSuspended(), 2);
+    ASSERT_EQ(jobCounter->GetTotal(), 6);
+
+    auto cookie3 = std::next(std::next(FreeChunksToCookie_.begin()))->second;
+    ChunkPool_->Suspend(cookie3);
+
+    ASSERT_EQ(jobCounter->GetRunning(), 2);
+    ASSERT_EQ(jobCounter->GetSuspended(), 4);
+    ASSERT_EQ(jobCounter->GetTotal(), 6);
+
+    ASSERT_EQ(ExtractCookie(), IChunkPoolOutput::NullCookie);
+
+    ChunkPool_->Resume(cookie3);
+
+    ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
+
+    ASSERT_EQ(jobCounter->GetRunning(), 3);
+    ASSERT_EQ(jobCounter->GetSuspended(), 3);
+    ASSERT_EQ(jobCounter->GetTotal(), 6);
+
+    ASSERT_EQ(ExtractCookie(), IChunkPoolOutput::NullCookie);
+
+    ChunkPool_->Resume(cookie2);
+
+    ASSERT_EQ(jobCounter->GetPending(), 1);
+    ASSERT_EQ(jobCounter->GetBlocked(), 1);
+    ASSERT_EQ(jobCounter->GetRunning(), 3);
+    ASSERT_EQ(jobCounter->GetSuspended(), 1);
+    ASSERT_EQ(jobCounter->GetTotal(), 6);
+
+    ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
+
+    ASSERT_EQ(jobCounter->GetRunning(), 4);
+    ASSERT_EQ(jobCounter->GetSuspended(), 2);
+    ASSERT_EQ(jobCounter->GetTotal(), 6);
+
+    ChunkPool_->Resume(cookie1);
+
+    ASSERT_EQ(jobCounter->GetPending(), 2);
+    ASSERT_EQ(jobCounter->GetRunning(), 4);
+    ASSERT_EQ(jobCounter->GetTotal(), 6);
+
+    ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
+
+    ASSERT_EQ(jobCounter->GetRunning(), 5);
+    ASSERT_EQ(jobCounter->GetTotal(), 5);
+
+    auto stripeLists = GetAllStripeLists();
+
+    EXPECT_EQ(std::ssize(stripeLists), 5);
+
+    CheckEverything(stripeLists);
+}
+
+TEST_F(TUnorderedChunkPoolTestCounters, CountersWithSuspendedChunksExplicitJobCount)
+{
+    InitTables(
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+
+    DataWeightPerJob_ = 950_MB;
+    IsExplicitJobCount_ = true;
+    JobCount_ = 5;
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    for (int i = 0; i < 5; ++i) {
+        auto chunk = CreateChunk(
+            /*tableIndex*/ 0,
+            /*weight*/ 1_GB,
+            /*rowCount*/ 1);
+        auto cookie = AddChunk(chunk);
+        FreeChunksToCookie_.insert(std::pair(std::move(chunk), cookie));
+    }
+
+    auto& jobCounter = ChunkPool_->GetJobCounter();
+
+    ASSERT_EQ(jobCounter->GetPending(), 4);
+    ASSERT_EQ(jobCounter->GetSuspended(), 1);
+    ASSERT_EQ(jobCounter->GetTotal(), 5);
+
+    ChunkPool_->Finish();
+    ASSERT_EQ(jobCounter->GetPending(), 5);
+    ASSERT_EQ(jobCounter->GetTotal(), 5);
+
+    ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
+
+    ASSERT_EQ(jobCounter->GetPending(), 4);
+    ASSERT_EQ(jobCounter->GetRunning(), 1);
+    ASSERT_EQ(jobCounter->GetTotal(), 5);
+
+    ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
+
+    ASSERT_EQ(jobCounter->GetPending(), 3);
+    ASSERT_EQ(jobCounter->GetRunning(), 2);
+    ASSERT_EQ(jobCounter->GetTotal(), 5);
+
+    auto cookie1 = FreeChunksToCookie_.begin()->second;
+    ChunkPool_->Suspend(cookie1);
+
+    ASSERT_EQ(jobCounter->GetPending(), 2);
+    ASSERT_EQ(jobCounter->GetRunning(), 2);
+    ASSERT_EQ(jobCounter->GetSuspended(), 1);
+    ASSERT_EQ(jobCounter->GetTotal(), 5);
+
+    ChunkPool_->Resume(cookie1);
+
+    ASSERT_EQ(jobCounter->GetPending(), 3);
+    ASSERT_EQ(jobCounter->GetRunning(), 2);
+    ASSERT_EQ(jobCounter->GetTotal(), 5);
+
+    ChunkPool_->Suspend(cookie1);
+
+    auto cookie2 = std::next(FreeChunksToCookie_.begin())->second;
+    ChunkPool_->Suspend(cookie2);
+
+    ASSERT_EQ(jobCounter->GetPending(), 1);
+    ASSERT_EQ(jobCounter->GetRunning(), 2);
+    ASSERT_EQ(jobCounter->GetSuspended(), 2);
+    ASSERT_EQ(jobCounter->GetTotal(), 5);
+
+    auto cookie3 = std::next(std::next(FreeChunksToCookie_.begin()))->second;
+    ChunkPool_->Suspend(cookie3);
+
+    ASSERT_EQ(jobCounter->GetRunning(), 2);
+    ASSERT_EQ(jobCounter->GetSuspended(), 3);
+    ASSERT_EQ(jobCounter->GetTotal(), 5);
+
+    ASSERT_EQ(ExtractCookie(), IChunkPoolOutput::NullCookie);
+
+    ChunkPool_->Resume(cookie3);
+
+    ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
+
+    ASSERT_EQ(jobCounter->GetRunning(), 3);
+    ASSERT_EQ(jobCounter->GetSuspended(), 2);
+    ASSERT_EQ(jobCounter->GetTotal(), 5);
+
+    ASSERT_EQ(ExtractCookie(), IChunkPoolOutput::NullCookie);
+
+    ChunkPool_->Resume(cookie2);
+
+    ASSERT_EQ(jobCounter->GetPending(), 1);
+    ASSERT_EQ(jobCounter->GetRunning(), 3);
+    ASSERT_EQ(jobCounter->GetSuspended(), 1);
+    ASSERT_EQ(jobCounter->GetTotal(), 5);
+
+    ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
+
+    ASSERT_EQ(jobCounter->GetRunning(), 4);
+    ASSERT_EQ(jobCounter->GetSuspended(), 1);
+    ASSERT_EQ(jobCounter->GetTotal(), 5);
+
+    ASSERT_EQ(ExtractCookie(), IChunkPoolOutput::NullCookie);
+
+    ChunkPool_->Resume(cookie1);
+
+    ASSERT_EQ(jobCounter->GetPending(), 1);
+    ASSERT_EQ(jobCounter->GetRunning(), 4);
+    ASSERT_EQ(jobCounter->GetTotal(), 5);
+
+    ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
+
+    ASSERT_EQ(jobCounter->GetRunning(), 5);
+    ASSERT_EQ(jobCounter->GetTotal(), 5);
+
+    ASSERT_EQ(ExtractCookie(), IChunkPoolOutput::NullCookie);
+
+    auto stripeLists = GetAllStripeLists();
+
+    EXPECT_EQ(std::ssize(stripeLists), 5);
+
+    CheckEverything(stripeLists);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TUnorderedChunkPoolTestRandomized
     : public WithParamInterface<int>
     , public TUnorderedChunkPoolTest
@@ -1060,24 +1450,68 @@ public:
     }
 };
 
-static constexpr int NumberOfRepeats = 15;
-
 TEST_P(TUnorderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
 {
     InitTables(
         {false} /*isTeleportable*/,
         {false} /*isVersioned*/);
 
-    constexpr int chunkCount = 25;
-    constexpr int maxJobLosts = 50;
-    DataWeightPerJob_ = 1_KB;
-    IsExplicitJobCount_ = true;
-    JobCount_ = chunkCount;
-    InitJobConstraints();
+    auto generateSize = [&] () -> i64 {
+        auto baseSizes = std::to_array({1_KB, 1_MB, 100_MB, 1_GB, 512_GB, 1_TB, 10_TB});
+        i64 baseSize = baseSizes[std::uniform_int_distribution<i64>(0, std::ssize(baseSizes) - 1)(Gen_)];
+        return std::lognormal_distribution<double>()(Gen_) * baseSize;
+    };
 
-    for (int index = 0; index < chunkCount; ++index) {
-        auto chunk = CreateChunk(0);
+    auto generateRowCount = [&] () -> i64 {
+        auto baseCounts = std::to_array<i64>({100, 1'000, 1'000'000, 1'000'000'000, 1'000'000'000'000});
+        i64 baseCount = baseCounts[std::uniform_int_distribution<i64>(0, std::ssize(baseCounts) - 1)(Gen_)];
+        return std::max<i64>(std::lognormal_distribution<double>()(Gen_) * baseCount, 1);
+    };
+
+    constexpr int approximateMaxJobCount = 50;
+    constexpr int approximateMaxSlicesCount = 100;
+
+    int chunkCount = std::uniform_int_distribution(0, 50)(Gen_);
+    if (std::uniform_int_distribution(0, 10)(Gen_) == 0) {
+        chunkCount = 0;
     }
+    int maxJobLosts = std::uniform_int_distribution(0, chunkCount)(Gen_);
+    i64 totalDataWeight = 0;
+    i64 totalCompressedDataSize = 0;
+    i64 totalRowCount = 0;
+    for (int index = 0; index < chunkCount; ++index) {
+        auto chunk = CreateChunk(
+            /*tableIndex*/ 0,
+            /*dataWeight*/ generateSize(),
+            /*tableIndex*/ generateRowCount());
+        totalDataWeight += chunk->GetDataWeight();
+        totalCompressedDataSize += chunk->GetCompressedDataSize();
+        totalRowCount += chunk->GetRowCount();
+    };
+
+    // Don't build too many jobs.
+    auto normalizeValue = [&] (i64 value, i64 nominator, i64 maxValue) {
+        while (nominator / value > maxValue) {
+            value *= 10;
+            value += std::uniform_int_distribution<int>(0, 9)(Gen_);
+        }
+        return value;
+    };
+
+    DataWeightPerJob_ = normalizeValue(generateSize(), totalDataWeight, approximateMaxJobCount);
+    CompressedDataSizePerJob_ = normalizeValue(generateSize(), totalCompressedDataSize, approximateMaxJobCount);
+    MaxCompressedDataSizePerJob_ = normalizeValue(generateSize(), totalCompressedDataSize, approximateMaxJobCount);
+    InputSliceRowCount_ = normalizeValue(generateRowCount(), totalRowCount, approximateMaxSlicesCount);
+    InputSliceDataWeight_ = normalizeValue(generateSize(), totalDataWeight, approximateMaxSlicesCount);
+
+    IsExplicitJobCount_ = std::uniform_int_distribution<int>(0, 1)(Gen_);
+    if (IsExplicitJobCount_ && std::uniform_int_distribution<int>(0, 1)(Gen_) || chunkCount == 0) {
+        JobCount_ = chunkCount;
+    } else {
+        JobCount_ = std::uniform_int_distribution(1, 3 * chunkCount)(Gen_);
+    }
+
+    InitJobConstraints();
 
     CreateChunkPool();
 
@@ -1098,11 +1532,11 @@ TEST_P(TUnorderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
     THashSet<TChunkId> suspendedChunks;
     THashSet<TChunkId> resumedChunks;
     // All chunks from the IPersistentChunkPoolOutput point of view.
-    THashMap<TChunkId, IChunkPoolOutput::TCookie> chunkIdToOutputCookie;
-    THashSet<TChunkId> pendingChunks;
-    THashSet<TChunkId> startedChunks;
-    THashSet<TChunkId> completedChunks;
-    THashSet<TChunkId> lostChunks;
+    THashMap<IChunkPoolOutput::TCookie, THashSet<TChunkId>> outputCookiesToChunkIds;
+    THashSet<IChunkPoolOutput::TCookie> pendingCookies;
+    THashSet<IChunkPoolOutput::TCookie> startedCookies;
+    THashSet<IChunkPoolOutput::TCookie> completedCookies;
+    THashSet<IChunkPoolOutput::TCookie> lostCookies;
     THashMap<TChunkId, TInputChunkPtr> chunkIdToChunk;
 
     for (const auto& chunk : CreatedUnversionedChunks_) {
@@ -1110,12 +1544,13 @@ TEST_P(TUnorderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
         chunkIdToInputCookie[chunkId] = AddChunk(chunk);
         chunkIdToChunk[chunkId] = chunk;
         resumedChunks.insert(chunkId);
-        pendingChunks.insert(chunkId);
     }
 
     ChunkPool_->Finish();
 
-    ASSERT_EQ(ChunkPool_->GetJobCounter()->GetPending(), chunkCount);
+    if (IsExplicitJobCount_) {
+        ASSERT_EQ(ChunkPool_->GetJobCounter()->GetPending(), JobCount_);
+    }
 
     // Set this to true when debugging locally. It helps a lot to understand what happens.
     constexpr bool EnableDebugOutput = false;
@@ -1123,9 +1558,7 @@ TEST_P(TUnorderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
 
     int jobLosts = 0;
 
-    while (completedChunks.size() < chunkCount) {
-        YT_VERIFY(!ChunkPool_->IsCompleted());
-
+    while (!ChunkPool_->IsCompleted()) {
         // 0..0 - pool is persisted and restored;
         // 1..29 - chunk is suspended;
         // 30..54 - chunk is resumed;
@@ -1148,6 +1581,8 @@ TEST_P(TUnorderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 auto chunk = chunkIdToChunk.at(chunkId);
                 Cdebug << Format("Suspend cookie %v", inputCookie) << Endl;
                 SuspendChunk(inputCookie, chunk);
+
+                ChunkPool_->GetJobCounter()->GetSuspended();
             }
         } else if (eventType <= 54) {
             if (auto randomElement = chooseRandomElement(suspendedChunks)) {
@@ -1161,83 +1596,104 @@ TEST_P(TUnorderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 ResumeChunk(inputCookie, chunk);
             }
         } else if (eventType <= 59) {
-            if (ChunkPool_->GetJobCounter()->GetPending()) {
+            if (ChunkPool_->GetJobCounter()->GetPending() + ChunkPool_->GetJobCounter()->GetBlocked()) {
                 auto outputCookie = ExtractCookie(TNodeId(0));
                 Cdebug << Format("Extracted cookie %v...", outputCookie);
                 // TODO(max42): why the following line leads to the linkage error?
                 // ASSERT_NE(outputCookie, IChunkPoolOutput::NullCookie);
                 // error: undefined reference to 'NYT::NScheduler::IChunkPoolOutput::NullCookie'
                 auto stripeList = ChunkPool_->GetStripeList(outputCookie);
-                ASSERT_TRUE(stripeList->Stripes[0]);
+                ASSERT_EQ(std::ssize(stripeList->Stripes), 1);
                 const auto& stripe = stripeList->Stripes[0];
-                const auto& dataSlice = stripe->DataSlices.front();
-                const auto& chunk = dataSlice->GetSingleUnversionedChunk();
-                auto chunkId = chunk->GetChunkId();
-                Cdebug << Format(" that corresponds to a chunk %v", chunkId) << Endl;
-                ASSERT_TRUE(resumedChunks.contains(chunkId));
-                ASSERT_TRUE(!suspendedChunks.contains(chunkId));
-                if (chunkIdToOutputCookie.contains(chunkId)) {
-                    ASSERT_EQ(chunkIdToOutputCookie.at(chunkId), outputCookie);
-                } else {
-                    ASSERT_TRUE(chunkIdToOutputCookie.emplace(chunkId, outputCookie).second);
+                ASSERT_TRUE(stripe);
+
+                THashSet<TChunkId> inputChunks;
+                for (const auto& dataSlice : stripe->DataSlices) {
+                    const auto& chunk = dataSlice->GetSingleUnversionedChunk();
+                    inputChunks.insert(chunk->GetChunkId());
                 }
-                if (lostChunks.contains(chunkId)) {
-                    ASSERT_TRUE(lostChunks.erase(chunkId));
+
+                Cdebug << Format(" that corresponds to chunks %v", inputChunks) << Endl;
+
+                if (outputCookiesToChunkIds.contains(outputCookie)) {
+                    ASSERT_EQ(outputCookiesToChunkIds[outputCookie], inputChunks);
                 } else {
-                    ASSERT_TRUE(pendingChunks.erase(chunkId));
+                    outputCookiesToChunkIds[outputCookie] = inputChunks;
                 }
-                ASSERT_TRUE(startedChunks.insert(chunkId).second);
+
+                for (const auto& chunkId : inputChunks) {
+                    ASSERT_TRUE(resumedChunks.contains(chunkId));
+                    ASSERT_TRUE(!suspendedChunks.contains(chunkId));
+                }
+                if (lostCookies.contains(outputCookie)) {
+                    ASSERT_TRUE(lostCookies.erase(outputCookie));
+                } else {
+                    pendingCookies.erase(outputCookie);
+                }
+                ASSERT_TRUE(startedCookies.insert(outputCookie).second);
             }
         } else if (eventType <= 69) {
-            if (auto randomElement = chooseRandomElement(startedChunks)) {
-                auto chunkId = *randomElement;
-                Cdebug << Format("Completed chunk %v", chunkId) << Endl;
-                auto outputCookie = chunkIdToOutputCookie.at(chunkId);
-                ASSERT_TRUE(startedChunks.erase(chunkId));
-                ASSERT_TRUE(completedChunks.insert(chunkId).second);
+            if (auto randomElement = chooseRandomElement(startedCookies)) {
+                auto outputCookie = *randomElement;
+                Cdebug << Format("Completed job with output cookie %v", outputCookie) << Endl;
+                ASSERT_TRUE(startedCookies.erase(outputCookie));
+                ASSERT_TRUE(completedCookies.insert(outputCookie).second);
                 ChunkPool_->Completed(outputCookie, TCompletedJobSummary());
             }
         } else if (eventType <= 79) {
-            if (auto randomElement = chooseRandomElement(startedChunks)) {
-                auto chunkId = *randomElement;
-                Cdebug << Format("Aborted chunk %v", chunkId) << Endl;
-                auto outputCookie = chunkIdToOutputCookie.at(chunkId);
-                ASSERT_TRUE(startedChunks.erase(chunkId));
-                ASSERT_TRUE(pendingChunks.insert(chunkId).second);
+            if (auto randomElement = chooseRandomElement(startedCookies)) {
+                auto outputCookie = *randomElement;
+                Cdebug << Format("Aborted job with output cookie %v", outputCookie) << Endl;
+                ASSERT_TRUE(startedCookies.erase(outputCookie));
+                ASSERT_TRUE(pendingCookies.insert(outputCookie).second);
                 ChunkPool_->Aborted(outputCookie, EAbortReason::Unknown);
             }
         } else if (eventType <= 89) {
             if (jobLosts >= maxJobLosts) {
                 continue;
             }
-            if (auto randomElement = chooseRandomElement(completedChunks)) {
-                auto chunkId = *randomElement;
-                Cdebug << Format("Lost chunk %v", chunkId) << Endl;
-                auto outputCookie = chunkIdToOutputCookie.at(chunkId);
-                ASSERT_TRUE(completedChunks.erase(chunkId));
-                ASSERT_TRUE(lostChunks.insert(chunkId).second);
+            if (auto randomElement = chooseRandomElement(completedCookies)) {
+                auto outputCookie = *randomElement;
+                Cdebug << Format("Lost job with output cookie %v", outputCookie) << Endl;
+                ASSERT_TRUE(completedCookies.erase(outputCookie));
+                ASSERT_TRUE(lostCookies.insert(outputCookie).second);
                 ChunkPool_->Lost(outputCookie);
                 ++jobLosts;
             }
         } else { // if (eventType <= 99)
-            if (auto randomElement = chooseRandomElement(startedChunks)) {
+            if (auto randomElement = chooseRandomElement(startedCookies)) {
                 auto chunkId = *randomElement;
-                Cdebug << Format("Failed chunk %v", chunkId) << Endl;
-                auto outputCookie = chunkIdToOutputCookie.at(chunkId);
-                ASSERT_TRUE(startedChunks.erase(chunkId));
-                ASSERT_TRUE(pendingChunks.insert(chunkId).second);
+                auto outputCookie = *randomElement;
+                Cdebug << Format("Failed job with output cookie %v", chunkId) << Endl;
+                ASSERT_TRUE(startedCookies.erase(outputCookie));
+                ASSERT_TRUE(pendingCookies.insert(outputCookie).second);
                 ChunkPool_->Failed(outputCookie);
             }
         }
     }
     ASSERT_TRUE(ChunkPool_->IsCompleted());
     ASSERT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 0);
-    ASSERT_EQ(std::ssize(completedChunks), chunkCount);
-    ASSERT_EQ(std::ssize(pendingChunks), 0);
-    ASSERT_EQ(std::ssize(startedChunks), 0);
-    ASSERT_EQ(std::ssize(lostChunks), 0);
+    if (IsExplicitJobCount_) {
+        if (JobCount_ <= chunkCount) {
+            ASSERT_EQ(std::ssize(completedCookies), JobCount_);
+        } else {
+            ASSERT_LE(std::ssize(completedCookies), JobCount_);
+        }
+    }
+    ASSERT_EQ(std::ssize(pendingCookies), 0);
+    ASSERT_EQ(std::ssize(startedCookies), 0);
+    ASSERT_EQ(std::ssize(lostCookies), 0);
     ASSERT_EQ(std::ssize(resumedChunks) + std::ssize(suspendedChunks), chunkCount);
+
+    i64 actualTotalRowCount = 0;
+    for (auto outputCookie : completedCookies) {
+        auto stripeList = ChunkPool_->GetStripeList(outputCookie);
+        actualTotalRowCount += stripeList->GetAggregateStatistics().RowCount;
+    }
+    ASSERT_EQ(actualTotalRowCount, totalRowCount);
 }
+
+static constexpr int NumberOfRepeats = 100;
 
 INSTANTIATE_TEST_SUITE_P(VariousOperationsWithPoolInstantiation,
     TUnorderedChunkPoolTestRandomized,

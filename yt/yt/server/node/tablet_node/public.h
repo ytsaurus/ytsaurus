@@ -215,15 +215,13 @@ DECLARE_REFCOUNTED_STRUCT(IBackendChunkReadersHolder)
 
 DECLARE_REFCOUNTED_STRUCT(IErrorManager)
 
-DECLARE_REFCOUNTED_CLASS(TOverloadController)
-DECLARE_REFCOUNTED_CLASS(TOverloadTracker)
 DECLARE_REFCOUNTED_CLASS(TMeanWaitTimeTracker)
 DECLARE_REFCOUNTED_CLASS(TContainerCpuThrottlingTracker)
 DECLARE_REFCOUNTED_CLASS(TLogDropTracker)
-DECLARE_REFCOUNTED_CLASS(TCongestionController)
 DECLARE_REFCOUNTED_CLASS(TCompactionHintFetcher)
 
-DECLARE_REFCOUNTED_CLASS(TMediumThrottlerManager)
+DECLARE_REFCOUNTED_STRUCT(IMediumThrottlerManager)
+DECLARE_REFCOUNTED_STRUCT(IMediumThrottlerManagerFactory)
 
 DECLARE_REFCOUNTED_STRUCT(TTabletHydraManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TTransactionManagerConfig)
@@ -246,11 +244,6 @@ DECLARE_REFCOUNTED_STRUCT(TMasterConnectorConfig)
 DECLARE_REFCOUNTED_STRUCT(TMasterConnectorDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TResourceLimitsConfig)
 DECLARE_REFCOUNTED_STRUCT(TBackupManagerDynamicConfig)
-DECLARE_REFCOUNTED_STRUCT(TServiceMethod)
-DECLARE_REFCOUNTED_STRUCT(TServiceMethodConfig)
-DECLARE_REFCOUNTED_STRUCT(TOverloadTrackerMeanWaitTimeConfig)
-DECLARE_REFCOUNTED_STRUCT(TOverloadTrackerBacklogQueueFillFractionConfig)
-DECLARE_REFCOUNTED_STRUCT(TOverloadControllerConfig)
 DECLARE_REFCOUNTED_STRUCT(TStatisticsReporterConfig)
 DECLARE_REFCOUNTED_STRUCT(TErrorManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TMediumThrottlersConfig)
@@ -264,6 +257,8 @@ DECLARE_REFCOUNTED_STRUCT(TTabletNodeConfig)
 
 struct TSortedDynamicRowHeader;
 class TSortedDynamicRow;
+
+DECLARE_REFCOUNTED_STRUCT(IRevisionProvider);
 
 struct ITabletContext;
 

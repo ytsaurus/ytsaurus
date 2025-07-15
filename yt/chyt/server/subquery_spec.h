@@ -27,9 +27,8 @@ void FillDataSliceDescriptors(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSubquerySpec
+struct TSubquerySpec
 {
-public:
     NChunkClient::TDataSourceDirectoryPtr DataSourceDirectory;
     std::vector<TSecondaryQueryReadDescriptors> DataSliceDescriptors;
     TString InitialQuery;

@@ -165,3 +165,35 @@ class TestQueryLog(ClickHouseTestBase):
         assert get_headers(query_headers, "Authentication") is None
         assert get_headers(query_headers, "X-Clickhouse-User") is None
         assert get_headers(query_headers, "Allowed-Header") == "some value"
+
+    @authors("buyval01")
+    def test_multiple_instances(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("//tmp/t", [{"a": 1}])
+        write_table("<append=%true>//tmp/t", [{"a": 2}])
+
+        root_dir = "//tmp/exporter"
+        create("map_node", root_dir)
+
+        with Clique(2, config_patch=self._get_query_log_patch(root_dir)) as clique:
+            table_path = root_dir + "/query_log/0"
+            wait(lambda: exists(table_path))
+
+            result = clique.make_query('select a from "//tmp/t" order by a', full_response=True)
+            assert result.json()["data"] == [{"a": 1}, {"a": 2}]
+
+            query_id = result.headers["X-ClickHouse-Query-Id"]
+
+            def match(row, fields, is_initial):
+                fields["is_initial_query"] = is_initial
+                for key, value in fields.items():
+                    if key not in row or row[key] != value:
+                        return False
+                return True
+            filter = {"initial_query_id": query_id, "type": "QueryFinish"}
+
+            wait(lambda: len(read_table(table_path)) > 0)
+
+            query_log_rows = read_table(table_path)
+            assert len([r for r in query_log_rows if match(r, filter, 1)]) == 1
+            assert len([r for r in query_log_rows if match(r, filter, 0)]) == 2

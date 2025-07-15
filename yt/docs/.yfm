@@ -3,6 +3,7 @@ apply-presets: true
 varsPreset: public
 langs: ['ru', 'en']
 allow-custom-resources: true
+#mtimes: true
 
 docs-viewer:
   project-name: YTsaurus
@@ -42,3 +43,4 @@ resources:
 # This configuration parameter is used to directly control the Edit button behaviour.
 vcs:
   remoteBase: https://github.com/ytsaurus/ytsaurus/tree/main/yt/docs
+  enabled: true

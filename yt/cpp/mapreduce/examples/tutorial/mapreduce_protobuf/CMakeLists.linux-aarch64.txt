@@ -48,7 +48,8 @@ target_link_libraries(mapreduce_protobuf PUBLIC
 )
 
 target_allocator(mapreduce_protobuf
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(mapreduce_protobuf PRIVATE

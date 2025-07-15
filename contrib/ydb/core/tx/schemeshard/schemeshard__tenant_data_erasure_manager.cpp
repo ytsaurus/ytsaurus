@@ -1,7 +1,7 @@
 #include "schemeshard__data_erasure_manager.h"
 
-#include <contrib/ydb/core/tx/schemeshard/schemeshard_impl.h>
 #include <contrib/ydb/core/keyvalue/keyvalue_events.h>
+#include <contrib/ydb/core/tx/schemeshard/schemeshard_impl.h>
 
 namespace NKikimr::NSchemeShard {
 

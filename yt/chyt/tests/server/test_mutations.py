@@ -259,6 +259,36 @@ class TestMutations(ClickHouseTestBase):
                 {"i64": 4, "ui64": 5, "str": None, "dbl": None, "bool": None},
             ])
 
+    @authors("buyval01")
+    def test_insert_select_table_func_without_schema(self):
+        schema = [
+            {"name": "i64", "type": "int64"},
+            {"name": "ui64", "type": "uint64"},
+            {"name": "str", "type": "string"},
+            {"name": "dbl", "type": "double"},
+            {"name": "bool", "type": "boolean"},
+        ]
+        column_name_to_type = {}
+        for schema_type in schema:
+            column_name_to_type[schema_type['name']] = schema_type['type']
+
+        create("table", "//tmp/t", attributes={"schema": schema})
+        with Clique(1) as clique:
+            clique.make_query('insert into "//tmp/t" select * from generateRandom() limit 10')
+            assert get("//tmp/t/@chunk_count") == 1
+            assert len(read_table("//tmp/t")) == 10
+
+            result_schema = get("//tmp/t/@schema")
+            assert len(result_schema) == len(schema)
+            for result_type in schema:
+                assert result_type['type'] == column_name_to_type.get(result_type['name'], '')
+
+            with raises_yt_error(QueryFailedError):
+                clique.make_query(
+                    'insert into "//tmp/t" select * from generateRandom() limit 10',
+                    settings={"use_structure_from_insertion_table_in_table_functions": 0}
+                )
+
     @authors("max42")
     def test_distributed_insert_select(self):
         create("table", "//tmp/t_in", attributes={"schema": [{"name": "a", "type": "int64"}]})

@@ -22,11 +22,14 @@ from yt.test_helpers import assert_items_equal
 from yt.common import YtError
 
 from flaky import flaky
+from copy import deepcopy
 
+import base64
+from datetime import datetime
 import pytest
 import random
 import string
-import base64
+import time
 
 ##################################################################
 
@@ -60,6 +63,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                     "max_jobs_per_split": 3,
                     "max_input_table_count": 5,
                 },
+                "min_slice_data_weight": 1024,
             },
         }
     }
@@ -1655,7 +1659,7 @@ print(json.dumps(input))
             track=False,
             in_=input_table,
             out=output,
-            command=with_breakpoint("""read row; echo $row; BREAKPOINT; cat"""),
+            command=with_breakpoint("""read row; echo $row; read row; echo $row; BREAKPOINT; cat"""),
             spec={
                 "mapper": {"format": "json"},
                 "job_count": 1,
@@ -1691,8 +1695,6 @@ print(json.dumps(input))
     @pytest.mark.parametrize("ordered", [False, True])
     @pytest.mark.ignore_in_opensource_ci
     def test_force_allow_job_interruption(self, job_count, ordered):
-        skip_if_old(self.Env, (24, 1), "Operations with explicit job count are not interruptible in old controller agents")
-
         input_table = "//tmp/in"
         output_table = "//tmp/out"
 
@@ -1711,13 +1713,14 @@ print(json.dumps(input))
             track=False,
             in_=input_table,
             out=output,
-            command=with_breakpoint("""read row; echo $row; BREAKPOINT; sleep 5; cat"""),
+            command=with_breakpoint("""read row; echo $row; BREAKPOINT; while read row; do echo $row; sleep 1; done"""),
             spec={
                 "force_allow_job_interruption": True,
                 "job_count": job_count,
                 "job_io": {
                     "buffer_row_count": 1,
                 },
+                "mapper": {"format": "json"},
             },
         )
 
@@ -2365,6 +2368,47 @@ print(json.dumps(input))
 
             assert op.get_job_count("completed") == job_count
 
+    @authors("apollo1321")
+    def test_job_count_with_small_max_data_slices_per_job(self):
+        skip_if_component_old(self.Env, (25, 3), "controller-agent")
+        create("table", "//tmp/t_in")
+
+        for _ in range(5):
+            write_table("<append=%true>//tmp/t_in", [
+                {"col": "a" * 1024},
+                {"col": "a" * 1024},
+                {"col": "a" * 1024},
+                {"col": "a" * 1024},
+            ])
+
+        op = map(
+            in_="//tmp/t_in",
+            out="<create=true>//tmp/t_out",
+            command="cat > /dev/null",
+            spec={
+                "job_count": 5,
+                "max_data_slices_per_job": 1,
+            },
+        )
+
+        assert op.get_job_count("completed") == 5
+        max_data_weight = extract_statistic_v2(op.get_statistics(), "data.input.data_weight", summary_type="max")
+
+        assert 4_000 <= max_data_weight <= 4_200
+        assert "too_many_slices_in_jobs" in op.get_alerts()
+
+
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
+class TestSchedulerMapCommandsWithOldSlicing(TestSchedulerMapCommands):
+    DELTA_CONTROLLER_AGENT_CONFIG = deepcopy(getattr(TestSchedulerMapCommands, "DELTA_CONTROLLER_AGENT_CONFIG", {}))
+    DELTA_CONTROLLER_AGENT_CONFIG \
+        .setdefault("controller_agent", {}) \
+        .setdefault("operation_options", {}) \
+        .setdefault("spec_template", {})["use_new_slicing_implementation_in_unordered_pool"] = False
+
 
 ##################################################################
 
@@ -2562,6 +2606,18 @@ class TestWriteBufferEstimation(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
+class TestWriteBufferEstimationWithOldSlicing(TestWriteBufferEstimation):
+    DELTA_CONTROLLER_AGENT_CONFIG = deepcopy(getattr(TestWriteBufferEstimation, "DELTA_CONTROLLER_AGENT_CONFIG", {}))
+    DELTA_CONTROLLER_AGENT_CONFIG \
+        .setdefault("controller_agent", {}) \
+        .setdefault("operation_options", {}) \
+        .setdefault("spec_template", {})["use_new_slicing_implementation_in_unordered_pool"] = False
+
+
+##################################################################
+
+
 class TestJobSizeAdjuster(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -2722,6 +2778,18 @@ class TestJobSizeAdjuster(YTEnvSetup):
 
         op.track()
         assert op.get_state() == "completed"
+
+
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
+class TestJobSizeAdjusterWithOldSlicing(TestJobSizeAdjuster):
+    DELTA_CONTROLLER_AGENT_CONFIG = deepcopy(getattr(TestJobSizeAdjuster, "DELTA_CONTROLLER_AGENT_CONFIG", {}))
+    DELTA_CONTROLLER_AGENT_CONFIG \
+        .setdefault("controller_agent", {}) \
+        .setdefault("operation_options", {}) \
+        .setdefault("spec_template", {})["use_new_slicing_implementation_in_unordered_pool"] = False
 
 
 ##################################################################
@@ -3033,6 +3101,18 @@ print('{hello=world}')
 
 
 @pytest.mark.enabled_multidaemon
+class TestInputOutputFormatsWithOldSlicing(TestInputOutputFormats):
+    DELTA_CONTROLLER_AGENT_CONFIG = deepcopy(getattr(TestInputOutputFormats, "DELTA_CONTROLLER_AGENT_CONFIG", {}))
+    DELTA_CONTROLLER_AGENT_CONFIG \
+        .setdefault("controller_agent", {}) \
+        .setdefault("operation_options", {}) \
+        .setdefault("spec_template", {})["use_new_slicing_implementation_in_unordered_pool"] = False
+
+
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
 class TestInputOutputFormatsMulticell(TestInputOutputFormats):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -3098,6 +3178,66 @@ class TestNestingLevelLimitOperations(YTEnvSetup):
 
 
 ##################################################################
+
+
+@pytest.mark.enabled_multidaemon
+class TestSchedulerMapCommands(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 3
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "operations_update_period": 10,
+            "running_allocations_update_period": 10,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period": 10,
+        }
+    }
+
+    @authors("renadeen")
+    def test_disabling_locality(self):
+        create_test_tables(row_count=3, replication_factor=1)
+
+        op = map(
+            track=False,
+            command=with_breakpoint("BREAKPOINT; cat"),
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={
+                "job_count": 3,
+                "min_locality_input_data_weight": 0
+            },
+        )
+        wait_breakpoint()
+
+        now = datetime.now()
+        wait(lambda: get(op.get_path() + "/@progress/schedule_job_statistics/failed/task_delayed") > 0)
+        elapsed = (datetime.now() - now).total_seconds()
+        print_debug("Waited {} seconds".format(elapsed))
+        op.abort()
+
+        update_controller_agent_config("operation_options/allow_locality", False)
+
+        op = map(
+            track=False,
+            command=with_breakpoint("BREAKPOINT; cat"),
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={
+                "job_count": 3,
+                "min_locality_input_data_weight": 0
+            },
+        )
+        wait_breakpoint()
+        time.sleep(elapsed)
+        wait(lambda: exists(op.get_path() + "/@progress/schedule_job_statistics/failed/task_delayed"))
+        assert get(op.get_path() + "/@progress/schedule_job_statistics/failed/task_delayed") == 0
 
 
 @pytest.mark.enabled_multidaemon

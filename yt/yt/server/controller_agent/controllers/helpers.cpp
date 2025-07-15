@@ -25,6 +25,8 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/timestamped_schema_helpers.h>
 
+#include <yt/yt/library/re2/re2.h>
+
 #include <util/string/builder.h>
 #include <util/string/split.h>
 
@@ -311,6 +313,8 @@ TDockerImageSpec::TDockerImageSpec(const TString& dockerImage, const TDockerRegi
         imageRef = dockerImage;
     } else if (std::ranges::find(internalRegistries, Registry) != internalRegistries.end()) {
         IsInternal = true;
+    } else if (config->InternalRegistryRegex && NRe2::TRe2::FullMatch(Registry, *config->InternalRegistryRegex)) {
+        IsInternal = true;
     }
 
     if (!StringSplitter(imageRef).Split('@').Limit(2).TryCollectInto(&imageTag, &Digest)) {
@@ -397,6 +401,9 @@ void GenerateDockerAuthFromToken(
     const std::string& authenticatedUser,
     NControllerAgent::NProto::TUserJobSpec* jobSpec)
 {
+    if (!secureVault) {
+        return;
+    }
     auto findEnv = [&] (const TStringBuf& key) -> std::optional<TString> {
         auto child = secureVault->FindChild(std::string(key));
         return child && child->GetType() == ENodeType::String ? std::optional(child->AsString()->GetValue()) : std::nullopt;

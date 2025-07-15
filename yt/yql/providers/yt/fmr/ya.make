@@ -4,6 +4,7 @@ RECURSE(
     gc_service
     job
     job_factory
+    process
     proto
     request_options
     table_data_service

@@ -442,7 +442,6 @@ void ToProto(
     }
 }
 
-
 void FromProto(
     NApi::TOperationEvent* result,
     const NProto::TOperationEvent& proto)
@@ -928,6 +927,7 @@ void ToProto(NProto::TJob* protoJob, const NApi::TJob& job)
     if (job.Statistics) {
         protoJob->set_statistics(ToProto(job.Statistics));
     }
+    YT_OPTIONAL_SET_PROTO(protoJob, gang_rank, job.GangRank);
 }
 
 void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
@@ -1030,6 +1030,7 @@ void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
     } else {
         job->Statistics = TYsonString();
     }
+    job->GangRank = YT_OPTIONAL_FROM_PROTO(protoJob, gang_rank);
 }
 
 void ToProto(
@@ -1820,6 +1821,28 @@ NQueryTrackerClient::EQueryState ConvertQueryStateFromProto(
     YT_ABORT();
 }
 
+NApi::EJobStderrType ConvertJobStderrTypeFromProto(
+    NProto::EJobStderrType proto)
+{
+    switch (proto) {
+        case NProto::EJobStderrType::JST_USER_JOB_STDERR:
+            return NApi::EJobStderrType::UserJobStderr;
+        case NProto::EJobStderrType::JST_GPU_CHECK_STDERR:
+            return NApi::EJobStderrType::GpuCheckStderr;
+    }
+}
+
+NProto::EJobStderrType ConvertJobStderrTypeToProto(
+    NApi::EJobStderrType jobStderrType)
+{
+    switch (jobStderrType) {
+        case NApi::EJobStderrType::UserJobStderr:
+            return NProto::EJobStderrType::JST_USER_JOB_STDERR;
+        case NApi::EJobStderrType::GpuCheckStderr:
+            return NProto::EJobStderrType::JST_GPU_CHECK_STDERR;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void FillRequest(
@@ -1922,7 +1945,8 @@ bool IsDynamicTableRetriableError(const TError& error)
         error.FindMatching(NTabletClient::EErrorCode::NoInSyncReplicas) ||
         error.FindMatching(NTabletClient::EErrorCode::TabletNotMounted) ||
         error.FindMatching(NTabletClient::EErrorCode::NoSuchTablet) ||
-        error.FindMatching(NTabletClient::EErrorCode::TabletReplicationEraMismatch);
+        error.FindMatching(NTabletClient::EErrorCode::TabletReplicationEraMismatch) ||
+        error.FindMatching(NTableClient::EErrorCode::UnableToSynchronizeReplicationCard);
 }
 
 bool IsRetriableError(const TError& error, bool retryProxyBanned)

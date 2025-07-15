@@ -173,16 +173,25 @@ void TResourceTree::DoIncreaseHierarchicalResourceUsage(const TResourceTreeEleme
 
     YT_VERIFY(element->Initialized_);
 
-    TResourceTreeElement* current = element.Get();
-    if (!current->IncreaseLocalResourceUsage(delta)) {
-        YT_LOG_DEBUG("Local increase of usage failed (Id: %v)", element->GetId());
+    auto increaseLocalResourceUsage = [element] (auto* current, const TJobResources& delta) {
+        bool success = current->IncreaseLocalResourceUsage(delta);
+        YT_LOG_DEBUG_UNLESS(
+            success,
+            "Local increase of usage failed (Delta: %v, CurrentElement: %v, SourceElement: %v)",
+            delta,
+            current->GetId(),
+            element->GetId());
+        return success;
+    };
+
+    if (!increaseLocalResourceUsage(element.Get(), delta)) {
         return;
     }
-    current = current->Parent_.Get();
 
-    while (current != nullptr) {
-        auto result = current->IncreaseLocalResourceUsage(delta);
-        YT_ASSERT(result);
+    auto* current = element->Parent_.Get();
+    while (current) {
+        bool success = increaseLocalResourceUsage(current, delta);
+        YT_ASSERT(success);
         current = current->Parent_.Get();
     }
 }
@@ -212,16 +221,25 @@ void TResourceTree::DoIncreaseHierarchicalResourceUsagePrecommit(
 
     YT_VERIFY(element->Initialized_);
 
-    TResourceTreeElement* current = element.Get();
-    if (!current->IncreaseLocalResourceUsagePrecommit(delta)) {
-        YT_LOG_DEBUG("Local increase of usage precommit failed (Id: %v)", element->GetId());
+    auto increaseLocalResourceUsagePrecommit = [element] (auto* current, const TJobResources& delta) {
+        bool success = current->IncreaseLocalResourceUsagePrecommit(delta);
+        YT_LOG_DEBUG_UNLESS(
+            success,
+            "Local increase of usage precommit failed (Delta: %v, CurrentElement: %v, SourceElement: %v)",
+            delta,
+            current->GetId(),
+            element->GetId());
+        return success;
+    };
+
+    if (!increaseLocalResourceUsagePrecommit(element.Get(), delta)) {
         return;
     }
-    current = current->Parent_.Get();
 
-    while (current != nullptr) {
-        auto result = current->IncreaseLocalResourceUsagePrecommit(delta);
-        YT_ASSERT(result);
+    auto* current = element->Parent_.Get();
+    while (current) {
+        bool success = increaseLocalResourceUsagePrecommit(current, delta);
+        YT_ASSERT(success);
         current = current->Parent_.Get();
     }
 }
@@ -288,16 +306,26 @@ void TResourceTree::CommitHierarchicalResourceUsage(
 
     YT_VERIFY(element->Initialized_);
 
-    TResourceTreeElement* current = element.Get();
-    if (!current->CommitLocalResourceUsage(resourceUsageDelta, precommittedResources)) {
-        YT_LOG_DEBUG("Local commit of resource usage failed (Id: %v)", current->GetId());
+    auto commitLocalResourceUsage = [element] (auto* current, const TJobResources& resourceUsageDelta, const TJobResources& precommittedResources) {
+        bool success = current->CommitLocalResourceUsage(resourceUsageDelta, precommittedResources);
+        YT_LOG_DEBUG_UNLESS(
+            success,
+            "Local commit of usage failed (ResourceUsageDelta: %v, PrecommittedResources: %v, CurrentElement: %v, SourceElement: %v)",
+            resourceUsageDelta,
+            precommittedResources,
+            current->GetId(),
+            element->GetId());
+        return success;
+    };
+
+    if (!commitLocalResourceUsage(element.Get(), resourceUsageDelta, precommittedResources)) {
         return;
     }
-    current = current->Parent_.Get();
 
-    while (current != nullptr) {
-        auto result = current->CommitLocalResourceUsage(resourceUsageDelta, precommittedResources);
-        YT_ASSERT(result);
+    auto* current = element->Parent_.Get();
+    while (current) {
+        bool success = commitLocalResourceUsage(current, resourceUsageDelta, precommittedResources);
+        YT_ASSERT(success);
         current = current->Parent_.Get();
     }
 }
@@ -313,7 +341,7 @@ void TResourceTree::PerformPostponedActions()
     auto elementsToDetach = ElementsToDetachQueue_.DequeueAll();
     for (const auto& element : elementsToDetach) {
         YT_VERIFY(element->Parent_);
-        YT_LOG_DEBUG_UNLESS(
+        YT_LOG_FATAL_UNLESS(
             element->GetResourceUsageWithPrecommit() == TJobResources(),
             "Resource tree element has non-zero resources (Id: %v, ResourceUsage: %v, ResourceUsageWithPrecommit: %v, ResourceLimitsSpecified: %v)",
             element->GetId(),
@@ -321,7 +349,6 @@ void TResourceTree::PerformPostponedActions()
             FormatResources(element->GetResourceUsageWithPrecommit()),
             element->AreResourceLimitsSpecified());
 
-        YT_VERIFY(element->GetResourceUsageWithPrecommit() == TJobResources());
         element->Parent_ = nullptr;
         EraseOrCrash(AliveElements_, element);
     }

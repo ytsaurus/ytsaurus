@@ -1,5 +1,6 @@
 #include "tablet_proxy.h"
 
+#include "config.h"
 #include "private.h"
 #include "tablet.h"
 #include "tablet_cell.h"

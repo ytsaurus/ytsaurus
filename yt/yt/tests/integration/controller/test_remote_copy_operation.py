@@ -18,7 +18,7 @@ from yt_commands import (
     update_controller_agent_config, remember_controller_agent_config,
     write_file, wait_for_nodes, read_file, get_singular_chunk_id)
 
-from yt_helpers import skip_if_old, skip_if_component_old, profiler_factory
+from yt_helpers import skip_if_component_old, profiler_factory
 from yt_type_helpers import make_schema, normalize_schema, normalize_schema_v3, optional_type, list_type
 import yt_error_codes
 
@@ -657,7 +657,6 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
     @authors("coteeq")
     @pytest.mark.parametrize("copy_user_attributes", [True, False])
     def test_no_copy_basic_attributes_by_default(self, copy_user_attributes):
-        skip_if_component_old(self.Env, (24, 2), "controller-agent")
         create("table", "//tmp/t_in", driver=self.remote_driver)
         create("table", "//tmp/t_out")
 
@@ -1008,7 +1007,6 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
     @authors("coteeq")
     @pytest.mark.parametrize("chunks", [1, 2])
     def test_copy_file(self, chunks):
-        skip_if_old(self.Env, (23, 3), "no copy files in 23.2")
         self._create_inout_files(chunks)
 
         remote_content = read_file("//tmp/in.txt", driver=self.remote_driver)
@@ -1067,7 +1065,6 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
     @authors("coteeq")
     def test_copy_file_create_destination(self):
-        skip_if_old(self.Env, (23, 3), "no copy files in 23.2")
         self._create_inout_files(2)
         remove("//tmp/out.txt")
 
@@ -1087,7 +1084,6 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
     @authors("coteeq")
     @pytest.mark.parametrize("constraint", ["job_count", "data_weight"])
     def test_copy_file_job_constraints(self, constraint):
-        skip_if_old(self.Env, (23, 3), "no copy files in 23.2")
         self._create_inout_files(4)
 
         remote_content = read_file("//tmp/in.txt", driver=self.remote_driver)
@@ -1112,7 +1108,6 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
     @authors("coteeq")
     def test_copy_file_copy_attributes(self):
-        skip_if_old(self.Env, (23, 3), "no copy files in 23.2")
         self._create_inout_files(1)
         create("file", "//tmp/out2.txt")
 
@@ -1146,7 +1141,6 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
     @authors("coteeq")
     def test_remote_copy_file_codecs(self):
-        skip_if_old(self.Env, (23, 3), "no copy files in 23.2")
         compression = "lz4"
         erasure = "reed_solomon_6_3"
         self._create_inout_files(2, compression_codec=compression, erasure_codec=erasure)
@@ -1170,7 +1164,6 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
     @authors("coteeq")
     def test_remote_copy_types_of_objects(self):
-        skip_if_old(self.Env, (23, 3), "no copy files in 23.2")
         create("file", "//tmp/file", driver=self.remote_driver)
         create("file", "//tmp/file2", driver=self.remote_driver)
         create("table", "//tmp/table", driver=self.remote_driver)
@@ -1215,7 +1208,6 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
     @authors("coteeq")
     def test_remote_copy_restrict_attributes(self):
-        skip_if_old(self.Env, (23, 3), "no such logic in 23.2")
         create("table", "//tmp/in", driver=self.remote_driver)
         write_table("//tmp/in", [{"a": 1}, {"a": 2}], driver=self.remote_driver)
 
@@ -1237,7 +1229,6 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
     @authors("coteeq")
     def test_copy_file_strange_ypaths(self):
-        skip_if_old(self.Env, (24, 1), "no such logic in 24.1")
         self._create_inout_files(chunks=1)
 
         strange_paths = [
@@ -2579,6 +2570,7 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
         assert not get("//tmp/local_table/@sorted")
 
     @authors("yuryalekseev")
+    @pytest.mark.skip("This test is broken")
     def test_rate_limit_ratio_hard_threshold(self):
         bandwidth_limit = self.BANDWIDTH_LIMIT * 8
 

@@ -223,11 +223,7 @@ TFuture<TDistributedWriteSessionWithCookies> TClient::StartDistributedWriteSessi
 {
     const auto& path = richPath.GetPath();
 
-    // NB(arkady-e1ppa): Started transaction is discarded in this scope
-    // and is expected to be attached by the user, thus we must not abort it.
-    TTransactionStartOptions transactionStartOptions{
-        .AutoAbort = false,
-    };
+    TTransactionStartOptions transactionStartOptions;
     if (options.TransactionId) {
         transactionStartOptions.ParentId = options.TransactionId;
         transactionStartOptions.Ping = true;
@@ -342,6 +338,10 @@ TFuture<TDistributedWriteSessionWithCookies> TClient::StartDistributedWriteSessi
     TDistributedWriteSessionWithCookies result;
     result.Session = TSignedDistributedWriteSessionPtr(signatureGenerator->Sign(ConvertToYsonString(session).ToString()));
     result.Cookies = std::move(cookies);
+
+    // NB(pavook): we pass the transaction to the user here, and expect it to be attached,
+    // so it shouldn't be auto-aborted anymore.
+    transaction->Detach();
 
     return MakeFuture(std::move(result));
 }

@@ -439,6 +439,9 @@ void TOperationOptions::Register(TRegistrar registrar)
     registrar.Parameter("gpu_check", &TThis::GpuCheck)
         .DefaultNew();
 
+    registrar.Parameter("allow_locality", &TThis::AllowLocality)
+        .Default(true);
+
     registrar.Postprocessor([&] (TOperationOptions* options) {
         if (options->MaxSliceDataWeight < options->MinSliceDataWeight) {
             THROW_ERROR_EXCEPTION("Minimum slice data weight must be less than or equal to maximum slice data size")
@@ -608,8 +611,12 @@ void TRemoteCopyOperationOptions::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TGangManagerConfig::Register(TRegistrar /*registrar*/)
-{ }
+void TGangManagerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("job_reincarnation_timeout", &TThis::JobReincarnationTimeout)
+        .Default(TDuration::Minutes(1))
+        .GreaterThan(TDuration::Zero());
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -717,6 +724,9 @@ void TJobTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("node_disconnection_timeout", &TThis::NodeDisconnectionTimeout)
         .Default(TDuration::Seconds(120))
         .GreaterThan(TDuration::Zero());
+    registrar.Parameter("revival_node_disconnection_timeout", &TThis::RevivalNodeDisconnectionTimeout)
+        .Default(TDuration::Seconds(240))
+        .GreaterThan(TDuration::Zero());
     registrar.Parameter("job_confirmation_timeout", &TThis::JobConfirmationTimeout)
         .Default(TDuration::Seconds(240))
         .GreaterThan(TDuration::Zero());
@@ -743,6 +753,8 @@ void TDockerRegistryConfig::Register(TRegistrar registrar)
     registrar.Parameter("internal_registry_address", &TThis::InternalRegistryAddress)
         .Default();
     registrar.Parameter("internal_registry_alternative_addresses", &TThis::InternalRegistryAlternativeAddresses)
+        .Default();
+    registrar.Parameter("internal_registry_regex", &TThis::InternalRegistryRegex)
         .Default();
     registrar.Parameter("use_yt_token_for_internal_registry", &TThis::UseYtTokenForInternalRegistry)
         .Default(false);
@@ -1394,6 +1406,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .GreaterThan(0);
 
     registrar.Parameter("register_lockable_dynamic_tables", &TThis::RegisterLockableDynamicTables)
+        .Default(false);
+
+    registrar.Parameter("allow_bulk_insert_under_user_transaction", &TThis::AllowBulkInsertUnderUserTransaction)
         .Default(false);
 
     registrar.Parameter("operation_events_reporter", &TThis::OperationEventsReporter)

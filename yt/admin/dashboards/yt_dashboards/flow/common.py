@@ -7,7 +7,11 @@
 
 from ..common.sensors import FlowController, FlowWorker
 
-from yt_dashboard_generator.backends.monitoring import MonitoringTextDashboardParameter
+from yt_dashboard_generator.backends.monitoring import (
+    MonitoringProjectDashboardParameter,
+    MonitoringLabelDashboardParameter,
+    MonitoringTextDashboardParameter,
+)
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 from yt_dashboard_generator.dashboard import Rowset
 from yt_dashboard_generator.sensor import EmptyCell, MultiSensor, Text
@@ -200,52 +204,6 @@ def build_yt_rpc(component: str):
     )
 
 
-def add_partitions_by_current_job_status_cell(row):
-
-    def job_status(status, alias):
-        return (FlowController(f"yt.flow.controller.job_status.{status}")
-            .aggr("computation_id")
-            .aggr("previous_job_finish_reason")
-            .aggr("job_finish_reason")  # Temporary code.
-            .query_transformation(f'alias({{query}}, "{alias}")'))
-
-    job_status_description = dedent("""\
-        Statuses of jobs of not finished partitions.
-        If partition has no current job, consider it as `Unknown` job.
-        So sum of lines on graph must be equal to total partition count.
-
-        **Unknown/Recovering/Has_retryable_errors** are bad statuses.
-        If you constantly have jobs in these statuses, your pipeline degrades significantly.
-
-        **Warming up** is semi-good status. These jobs are working, but not for a long time.
-
-        **Working** is good status. If all jobs are `Working` pipeline has no problems with job deaths.
-    """)
-
-    return (row
-            .cell("Partitions by current job status",
-                MultiSensor(
-                    job_status("ok", "Working"),
-                    job_status("working_old", "Stably working (≥ 5 min after recovering)"),
-                    job_status("working_young", "Warming up (working ≤ 5 min after recovering)"),
-                    job_status("working_with_retryable_error", "Has retryable errors"),
-                    job_status("preparing", "Recovering (new job is preparing)"),
-                    job_status("unknown", "Unknown"))
-                    .min(0.8)
-                    .unit("UNIT_COUNT")
-                    .axis_type("YAXIS_TYPE_LOGARITHMIC"),
-                colors={
-                    "Working": "#00b200",
-                    "Stably working (≥ 5 min after recovering)": "#00b200",
-                    "Warming up (working ≤ 5 min after recovering)": "#b7e500",
-                    "Has retryable errors": "#cc0000",
-                    "Recovering (new job is preparing)": "#ffa500",
-                    "Unknown": "#11114e",
-                },
-                description=job_status_description)
-    )
-
-
 def build_text_row(text: str):
     return (Rowset()
         .row()
@@ -254,7 +212,11 @@ def build_text_row(text: str):
 
 
 def add_common_dashboard_parameters(dashboard):
-    dashboard.add_parameter("project", "Pipeline project", MonitoringTextDashboardParameter())
-    dashboard.add_parameter("cluster", "Cluster", MonitoringTextDashboardParameter())
+    dashboard.add_parameter("project", "Pipeline project", MonitoringProjectDashboardParameter())
+    dashboard.add_parameter(
+        "cluster",
+        "Cluster",
+        MonitoringLabelDashboardParameter("", "cluster", "-", selectors='{sensor="yt.build.version"}'),
+    )
     dashboard.add_parameter("proxy", "YT proxy", MonitoringTextDashboardParameter(default_value="-"))
     dashboard.add_parameter("pipeline_path", "Pipeline path", MonitoringTextDashboardParameter(default_value="-"))

@@ -1,8 +1,11 @@
 from yt_env_setup import YTEnvSetup
 
+
 from yt_commands import (
-    authors, wait, create, get, write_table, map, merge, raises_yt_error,
-    get_table_columnar_statistics
+    authors, create, extract_statistic_v2, get, get_table_columnar_statistics, interrupt_job,
+    make_random_string, map, merge, raises_yt_error, read_table, release_breakpoint,
+    set_node_banned, set_nodes_banned, sorted_dicts, wait, wait_breakpoint,
+    with_breakpoint, write_table,
 )
 
 from yt_type_helpers import (
@@ -10,17 +13,28 @@ from yt_type_helpers import (
 )
 
 import pytest
-import random
-import string
+import time
 
 
-@pytest.mark.enabled_multidaemon
-class TestCompressedDataSizePerJob(YTEnvSetup):
-    ENABLE_MULTIDAEMON = True
-
+class TestJobSlicingBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
+
+    @staticmethod
+    def _get_completed_summary(summaries):
+        result = None
+        for summary in summaries:
+            if summary["tags"]["job_state"] == "completed":
+                assert not result
+                result = summary
+        assert result
+        return result["summary"]
+
+
+@pytest.mark.enabled_multidaemon
+class TestCompressedDataSizePerJob(TestJobSlicingBase):
+    ENABLE_MULTIDAEMON = True
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
@@ -43,48 +57,6 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
         },
     }
 
-    MAX_COMPRESSED_DATA_SIZE_PER_JOB = 9000
-    DATA_WEIGHT_PER_JOB = 700
-
-    @staticmethod
-    def _make_random_string(size) -> str:
-        return ''.join(random.choice(string.ascii_letters) for _ in range(size))
-
-    @staticmethod
-    def get_completed_summary(summaries):
-        result = None
-        for summary in summaries:
-            if summary["tags"]["job_state"] == "completed":
-                assert not result
-                result = summary
-        assert result
-        return result["summary"]
-
-    def _setup_tables(self):
-        create("table", "//tmp/t_in", attributes={
-            "schema": make_schema([
-                {"name": "small", "type": "string", "group": "custom"},
-                {"name": "large_1", "type": "string"},
-                {"name": "large_2", "type": "string", "group": "custom"},
-            ]),
-            "optimize_for": "scan",
-        })
-
-        for _ in range(5):
-            write_table(
-                "<append=%true>//tmp/t_in",
-                [
-                    {
-                        "small": self._make_random_string(100),
-                        "large_1": self._make_random_string(8000),
-                        "large_2": self._make_random_string(2000),
-                    }
-                    for _ in range(2)
-                ]
-            )
-
-        assert get("//tmp/t_in/@chunk_count") == 5
-
     def _check_initial_job_estimation_and_track(self, op, expected_job_count, abs_error=0):
         wait(lambda: get(op.get_path() + "/@suspended"))
         wait(lambda: get(op.get_path() + "/@progress", default=False))
@@ -103,7 +75,29 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
         if not use_data_weight and not use_compressed_data_size:
             pytest.skip()
 
-        self._setup_tables()
+        create("table", "//tmp/t_in", attributes={
+            "schema": make_schema([
+                {"name": "small", "type": "string", "group": "custom"},
+                {"name": "large_1", "type": "string"},
+                {"name": "large_2", "type": "string", "group": "custom"},
+            ]),
+            "optimize_for": "scan",
+        })
+
+        for _ in range(5):
+            write_table(
+                "<append=%true>//tmp/t_in",
+                [
+                    {
+                        "small": make_random_string(100),
+                        "large_1": make_random_string(8000),
+                        "large_2": make_random_string(2000),
+                    }
+                    for _ in range(2)
+                ]
+            )
+
+        assert get("//tmp/t_in/@chunk_count") == 5
 
         op_function = merge if operation == "merge" else map
 
@@ -119,11 +113,9 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
                 "ordered": True,
                 "mapper": {"command": "cat > /dev/null"},
             } if operation == "map" else {}) | ({
-                "data_weight_per_job": self.DATA_WEIGHT_PER_JOB,
+                "data_weight_per_job": 700,
             } if use_data_weight else {}) | ({
-                "max_compressed_data_size_per_job": self.MAX_COMPRESSED_DATA_SIZE_PER_JOB,
-                # XXX(apollo1321): Remove after compressed_data_size_per_job will be supported for ordered pool.
-                "compressed_data_size_per_job": 1,
+                "compressed_data_size_per_job": 9000,
             } if use_compressed_data_size else {}),
             track=False,
         )
@@ -135,28 +127,31 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
         input_statistics = progress["job_statistics_v2"]["data"]["input"]
 
         if use_compressed_data_size:
-            assert self.get_completed_summary(input_statistics["compressed_data_size"])["max"] <= self.MAX_COMPRESSED_DATA_SIZE_PER_JOB
+            assert self._get_completed_summary(input_statistics["compressed_data_size"])["max"] <= 9000
 
-        assert self.get_completed_summary(input_statistics["data_weight"])["max"] <= self.DATA_WEIGHT_PER_JOB
+        assert self._get_completed_summary(input_statistics["data_weight"])["max"] <= 700
         assert progress["jobs"]["completed"]["total"] == 3 if use_compressed_data_size else 2
 
     @authors("apollo1321")
-    @pytest.mark.skip(reason="Rewrite to compressed data size per job")
-    @pytest.mark.parametrize("mode", ["ordered"])
-    def test_map_operation_explicit_job_count(self, mode):
+    def test_map_operation_explicit_job_count_ordered(self):
         # NB(apollo1321): Merge operation does not takes into account excplicitly set job_count.
         # NB(apollo1321): Ordered map operation provides job count guarantee only for job_count == 1.
-        self._setup_tables()
+        create("table", "//tmp/t_in")
+        for i in range(5):
+            write_table(
+                "<append=true>//tmp/t_in",
+                [{"col1": i, "col2": make_random_string(1000)} for _ in range(30)]
+            )
 
         op = map(
-            in_="//tmp/t_in{small}",
-            out="//tmp/t_out",
+            in_="//tmp/t_in",
+            out="<create=true>//tmp/t_out",
             command="cat > /dev/null",
             spec={
                 "suspend_operation_after_materialization": True,
-                "ordered": mode == "ordered",
-                "max_compressed_data_size_per_job": self.MAX_COMPRESSED_DATA_SIZE_PER_JOB,
-                "data_weight_per_job": self.DATA_WEIGHT_PER_JOB,
+                "ordered": False,
+                "compressed_data_size_per_job": 1,
+                "data_weight_per_job": 1,
                 "job_count": 1,
             },
             track=False,
@@ -167,7 +162,6 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
         progress = get(op.get_path() + "/@progress")
 
         assert len(progress["tasks"]) == 1
-        assert progress["tasks"][0]["task_name"] == "map" if mode == "unordered" else "ordered_map"
 
         # Ensure that max_compressed_data_size does not affect the explicitly set job_count.
         assert progress["jobs"]["completed"]["total"] == 1
@@ -190,7 +184,7 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
             if i % 2 == 0:
                 row = {
                     "col1": "a",
-                    "col2": self._make_random_string(2000),
+                    "col2": make_random_string(2000),
                 }
             else:
                 row = {
@@ -220,7 +214,8 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
 
     @authors("apollo1321")
     @pytest.mark.parametrize("operation", ["map", "merge"])
-    def test_operation_with_skewed_input_data_ordered(self, operation):
+    @pytest.mark.parametrize("use_max_constraints", [True, False])
+    def test_operation_with_skewed_input_data_ordered(self, operation, use_max_constraints):
         """
         Test the scenario when chunk sizes are distributed like this
         (w.r.t. read size selectivity):
@@ -232,7 +227,7 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
         |        | #  #  ...  # | _  _  _  _ |
         +--------+--------------+------------+
         | Compr. |              |            |
-        | Data   |              |            | <~ max_compressed_data_size_per_job = 2200
+        | Data   |              |            | <~ [max_]compressed_data_size_per_job = 2200
         | Size   | _  _  ...  _ | #  #  #  # |
         +--------+--------------+------------+
         | Chunk  | 1  2  ...  10| 11 12 13 14|
@@ -240,7 +235,7 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
         |  Jobs  | 1| 2| ...| 10| 11   | 12  |
         +--------+--------------+------------+
 
-        Height of a column of # defines the size of chunk.
+        Height of a column of # defines the size of data read from the chunk.
 
         # - 1000 bytes
         _ - negligible small size
@@ -284,7 +279,7 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
         for _ in range(4):
             write_table("<append=%true>//tmp/t_in", {
                 "col1": "a",
-                "col2": self._make_random_string(1000),
+                "col2": make_random_string(1000),
             })
 
         assert get("//tmp/t_in/@compressed_data_size") > 5000
@@ -297,8 +292,11 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
             out="<create=true>//tmp/t_out",
             spec={
                 "data_weight_per_job": 3900,
-                "max_compressed_data_size_per_job": 2200,
             } | ({
+                "max_compressed_data_size_per_job": 2200,
+            } if use_max_constraints else {
+                "compressed_data_size_per_job": 2200,
+            }) | ({
                 "force_transform": True,
                 "mode": "ordered",
             } if operation == "merge" else {}) | ({
@@ -309,7 +307,7 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
 
         progress = get(op.get_path() + "/@progress")
         input_statistics = progress["job_statistics_v2"]["data"]["input"]
-        assert self.get_completed_summary(input_statistics["compressed_data_size"])["max"] <= 2200
+        assert self._get_completed_summary(input_statistics["compressed_data_size"])["max"] <= 2200
         assert progress["jobs"]["completed"]["total"] == 12
 
     @authors("apollo1321")
@@ -336,7 +334,7 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
         | Chunk | 1  2  3  4  5 |
         +-------+---------------+
 
-        Height of a column of # defines the size of chunk.
+        Height of a column of # defines the size of data read from the chunk.
 
         # - 1000 bytes
         _ - negligible small size
@@ -371,7 +369,7 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
 
         write_table("<append=%true>//tmp/t_in", {
             "col1": "a" * 4000,
-            "col2": self._make_random_string(4000),
+            "col2": make_random_string(4000),
         })
 
         # Ensure that compression and rle took place and compressed data size is small.
@@ -381,7 +379,7 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
         for _ in range(4):
             write_table("<append=%true>//tmp/t_in", {
                 "col1": "a",
-                "col2": self._make_random_string(4000),
+                "col2": make_random_string(4000),
             })
 
         data_weight_col1 = get_table_columnar_statistics("[\"//tmp/t_in{col1}\"]")[0]["column_data_weights"]["col1"]
@@ -425,7 +423,7 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
         create("table", "//tmp/t_in")
 
         write_table("<append=%true>//tmp/t_in", {
-            "col": self._make_random_string(4000),
+            "col": make_random_string(4000),
         })
 
         op_function = merge if operation == "merge" else map
@@ -448,8 +446,9 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
 
     @authors("apollo1321")
     @pytest.mark.parametrize("operation", ["map", "merge"])
+    @pytest.mark.parametrize("mode", ["ordered", "unordered"])
     @pytest.mark.parametrize("use_max_constraints", [True, False])
-    def test_slice_by_compressed_data_size_and_data_weight_unordered(self, operation, use_max_constraints):
+    def test_slice_by_compressed_data_size_and_data_weight_alternately(self, operation, mode, use_max_constraints):
         """
         Test that input can be sliced by both [max_]compressed_data_size_per_job
         and [max_]data_weight_per_job. The distribution of chunk sizes is as
@@ -469,11 +468,11 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
         | Chunk | 1  2  3  4  5 |
         +-------+---------------+
 
-        Height of a column of # defines the size of chunk.
+        Height of a column of # defines the size of data read from the chunk.
         # - 1000 bytes
 
-        NB: Chunk indexes are just for convenience, they do not guarantee
-        ordering in unordered pools.
+        NB: In unordered mode chunk indexes are just for convenience, they do
+        not guarantee ordering in unordered pools.
         """
 
         create("table", "//tmp/t_in", attributes={
@@ -488,12 +487,12 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
             if i % 2 == 0:
                 write_table("<append=%true>//tmp/t_in", {
                     "col1": "a" * 4000,
-                    "col2": self._make_random_string(900),
+                    "col2": make_random_string(900),
                 })
             else:
                 write_table("<append=%true>//tmp/t_in", {
                     "col1": "a" * 1000,
-                    "col2": self._make_random_string(3900),
+                    "col2": make_random_string(3900),
                 })
 
         data_weight_col1 = get_table_columnar_statistics("[\"//tmp/t_in{col1}\"]")[0]["column_data_weights"]["col1"]
@@ -516,9 +515,9 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
                 "compressed_data_size_per_job": 3500,
             }) | ({
                 "force_transform": True,
-                "mode": "unordered",
+                "mode": mode,
             } if operation == "merge" else {}) | ({
-                "ordered": False,
+                "ordered": mode == "ordered",
                 "mapper": {"command": "cat > /dev/null"},
             } if operation == "map" else {}),
             track=False,
@@ -531,8 +530,8 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
 
         input_statistics = progress["job_statistics_v2"]["data"]["input"]
 
-        assert self.get_completed_summary(input_statistics["compressed_data_size"])["max"] <= 7000
-        assert self.get_completed_summary(input_statistics["data_weight"])["max"] <= 7000
+        assert self._get_completed_summary(input_statistics["compressed_data_size"])["max"] <= 7000
+        assert self._get_completed_summary(input_statistics["data_weight"])["max"] <= 7000
 
     @authors("apollo1321")
     @pytest.mark.parametrize("operation", ["map", "merge"])
@@ -575,22 +574,22 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
 
         write_table("<append=%true>//tmp/t_in", {
             "col1": "a" * 1,
-            "col2": self._make_random_string(40000),
+            "col2": make_random_string(40000),
         })
 
         write_table("<append=%true>//tmp/t_in", {
             "col1": "a" * 50_000,
-            "col2": self._make_random_string(40000),
+            "col2": make_random_string(40000),
         })
 
         write_table("<append=%true>//tmp/t_in", {
             "col1": "a" * 250_000,
-            "col2": self._make_random_string(20000),
+            "col2": make_random_string(20000),
         })
 
         write_table("<append=%true>//tmp/t_in", {
             "col1": "a" * 500_000,
-            "col2": self._make_random_string(20000),
+            "col2": make_random_string(20000),
         })
 
         assert 120000 <= get("//tmp/t_in/@compressed_data_size") <= 130000
@@ -622,3 +621,311 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
 
         progress = get(op.get_path() + "/@progress")
         assert 2 <= progress["jobs"]["completed"]["total"] <= 3
+
+
+class TestJobSlicing(TestJobSlicingBase):
+    @authors("apollo1321")
+    @pytest.mark.parametrize("strict_data_weight_per_job_verification", [False, True])
+    def test_invalid_data_weight_per_job_alert(self, strict_data_weight_per_job_verification):
+        create("table", "//tmp/t_in")
+
+        write_table("<append=%true>//tmp/t_in", {
+            "col1": "a" * 100
+        })
+
+        op = map(
+            in_="//tmp/t_in",
+            out="<create=true>//tmp/t_out",
+            spec={
+                "max_data_weight_per_job": 1000,
+                "data_weight_per_job": 100000,
+                "mapper": {"command": "cat > /dev/null"},
+                "strict_data_weight_per_job_verification": strict_data_weight_per_job_verification,
+            },
+            track=False,
+        )
+
+        if strict_data_weight_per_job_verification:
+            with raises_yt_error('\"data_weight_per_job\" cannot be greater than \"max_data_weight_per_job\"'):
+                op.track()
+        else:
+            op.track()
+            assert "invalid_data_weight_per_job" in op.get_alerts()
+
+    @authors("apollo1321")
+    def test_unordered_map_with_job_interruptions(self):
+        # The purpose of this test is to check that
+
+        create("table", "//tmp/t_in", attributes={
+            "schema": make_schema([
+                {"name": "col1", "type": "string"},
+            ]),
+            "optimize_for": "scan",
+        })
+
+        chunk_count = 10
+
+        for _ in range(chunk_count):
+            write_table(
+                "<append=true>//tmp/t_in",
+                [{"col1": "a"}],
+                table_writer={"block_size": 1}
+            )
+
+        user_slots = self.NUM_NODES
+
+        command = with_breakpoint(f"""
+if [ "$YT_JOB_INDEX" -lt {user_slots} ]; then
+    i=0
+    while read ROW && [ "$i" -lt 100 ]; do
+        ((i++))
+        echo "$ROW"
+    done
+    BREAKPOINT
+    while read ROW; do
+        echo "$ROW"
+    done
+else
+    cat
+fi
+""")
+        op = map(
+            track=False,
+            in_="//tmp/t_in{col1}",
+            out="<create=true>//tmp/t_out",
+            command=command,
+            spec={
+                "mapper": {
+                    "format": "dsv",
+                },
+                "max_failed_job_count": 1,
+                "job_io": {
+                    "buffer_row_count": 1,
+                    "pipe_capacity": 1,
+                },
+                "max_compressed_data_size_per_job": int(get("//tmp/t_in/@compressed_data_size") / (chunk_count * 0.8)),
+                "max_job_count": 1,
+                "resource_limits": {"user_slots": user_slots},
+            },
+        )
+
+        jobs = wait_breakpoint(job_count=user_slots)
+        for job_id in jobs:
+            interrupt_job(job_id, interrupt_timeout=10000)
+
+        release_breakpoint()
+
+        op.track()
+
+        progress = get(op.get_path() + "/@progress")
+        actual_compressed_data_size = self._get_completed_summary(progress["job_statistics_v2"]["data"]["input"]["compressed_data_size"])["sum"]
+        estimated_compressed_data_size = progress["estimated_input_statistics"]["compressed_data_size"]
+
+        # Actual size may be up to 2x estimated size due to job restarts.
+        assert estimated_compressed_data_size * 0.9 <= actual_compressed_data_size <= estimated_compressed_data_size * 2.1
+
+    @authors("namorniradnug")
+    @pytest.mark.parametrize(
+        "inaccurately_estimated,input_data", [
+            (True, {
+                "a": make_random_string(3000),
+                "b": "y" * 3000,
+            }),
+            (True, {
+                "a": "x" * 6000,
+                "b": make_random_string(3000),
+            }),
+            (False, {
+                "a": "x" * 100,
+                "b": "y" * 100,
+            }),
+        ], ids=["overestimation", "underestimation", "accurate_estimation"]
+    )
+    @pytest.mark.parametrize("compressed_data_size_per_job", [100, None])
+    def test_alert_overestimated_compressed_data_size(
+        self, inaccurately_estimated, input_data, compressed_data_size_per_job
+    ):
+        # In `from_master` mode, the compressed data size is estimated proportionally to the data weight of the entire chunk
+        # because master only provides per-chunk statistics. In the examples above, such estimation is very inaccurate.
+        create(
+            "table",
+            "//tmp/t_in",
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "string"},
+                    {"name": "b", "type": "string"},
+                ],
+                "optimize_for": "scan",
+            }
+        )
+
+        write_table("<append=%true>//tmp/t_in", input_data)
+
+        op = map(
+            in_="//tmp/t_in{b}",
+            out="<create=true>//tmp/t_out",
+            spec={
+                "compressed_data_size_per_job": compressed_data_size_per_job,
+                "input_table_columnar_statistics": {
+                    "enabled": True,
+                    "mode": "from_master",
+                },
+            },
+            command="cat",
+        )
+
+        estimated_compressed_data_size = get(
+            op.get_path() + "/@progress/estimated_input_statistics/compressed_data_size"
+        )
+
+        actual_compressed_data_size = extract_statistic_v2(op.get_statistics(), "data.input.compressed_data_size")
+        assert (0.5 < estimated_compressed_data_size / actual_compressed_data_size < 2) != inaccurately_estimated
+
+        should_alert = inaccurately_estimated and compressed_data_size_per_job is not None
+        assert ("inaccurately_estimated_compressed_data_size" in op.get_alerts()) == should_alert
+        if should_alert:
+            alert_attributes = op.get_alerts()["inaccurately_estimated_compressed_data_size"]["attributes"]
+            assert alert_attributes["estimated_compressed_data_size"] == estimated_compressed_data_size
+            assert alert_attributes["actual_compressed_data_size"] == actual_compressed_data_size
+
+    @authors("namorniradnug")
+    def test_no_estimation_inaccuracy_alert_if_interrupted(self):
+        create(
+            "table",
+            "//tmp/t_in",
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "string"},
+                    {"name": "b", "type": "string"},
+                ],
+                "optimize_for": "scan",
+            }
+        )
+
+        write_table("<append=true>//tmp/t_in", {
+            "a": make_random_string(3000),
+            "b": "x" * 3000,
+        })
+
+        op = map(
+            in_="//tmp/t_in{b}",
+            out="<create=true>//tmp/t_out",
+            spec={
+                "compressed_data_size_per_job": 100,
+                "input_table_columnar_statistics": {
+                    "enabled": True,
+                    "mode": "from_master",
+                },
+            },
+            command=with_breakpoint("cat && BREAKPOINT"),
+            track=False,
+        )
+
+        wait_breakpoint()
+        op.abort()
+        release_breakpoint()
+        with raises_yt_error():
+            op.track()
+
+        assert "inaccurately_estimated_compressed_data_size" not in op.get_alerts()
+
+
+@pytest.mark.enabled_multidaemon
+class TestJobSlicingWithLostInput(TestJobSlicingBase):
+    ENABLE_MULTIDAEMON = True
+
+    NUM_NODES = 5
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period": 5,
+        }
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "operations_update_period": 5,
+            "running_allocations_update_period": 5,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 5,
+                "cpu": 5,
+                "memory": 5 * 1024 ** 3,
+            }
+        },
+    }
+
+    @authors("apollo1321")
+    @pytest.mark.parametrize("use_new_slicing_implementation", [False, True])
+    def test_lost_input_chunks_with_explicit_job_count(self, use_new_slicing_implementation):
+        create("table", "//tmp/t_in", attributes={
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+            "replication_factor": 1,
+        })
+
+        data = []
+        chunk_count = 30
+        for i in range(chunk_count):
+            row = [
+                {"key": i, "value": str(i) * 1000},
+            ]
+            data += row
+            write_table("<append=true>//tmp/t_in", row)
+
+        assert len(get("//tmp/t_in/@chunk_ids")) == chunk_count
+        all_nodes = list(get("//sys/cluster_nodes"))
+        assert len(all_nodes) == self.NUM_NODES
+        alive_node = all_nodes[0]
+        job_count = 10
+        data_weight_per_job = (get("//tmp/t_in/@data_weight") + job_count - 1) // job_count
+
+        op = map(
+            track=False,
+            command="cat",
+            in_="//tmp/t_in",
+            out="<create=%true>//tmp/t_out",
+            spec={
+                "scheduling_tag_filter": alive_node,
+                "suspend_operation_after_materialization": True,
+                "resource_limits": {"user_slots": 4},
+                "job_count": job_count,
+                "job_io": {
+                    "table_reader": {
+                        # Fail fast
+                        "retry_count": 1,
+                    }
+                },
+                "use_new_slicing_implementation_in_unordered_pool": use_new_slicing_implementation,
+            }
+        )
+
+        wait(lambda: get(op.get_path() + "/@suspended"))
+        set_nodes_banned(all_nodes[1:], True)
+
+        # Chunk pool output cookies will be extracted after resume.
+        op.resume()
+
+        wait(lambda: op.get_job_count("aborted") > 0)
+        wait(lambda: op.get_job_count("suspended") > 0)
+
+        for i in range(1, self.NUM_NODES):
+            set_node_banned(all_nodes[i], False)
+            time.sleep(1)
+
+        op.track()
+
+        assert sorted_dicts(read_table("//tmp/t_out")) == sorted_dicts(data)
+
+        progress = get(op.get_path() + "/@progress")
+        assert progress["jobs"]["completed"]["total"] == job_count
+
+        if use_new_slicing_implementation:
+            # Check that data weight is distributed evenly.
+            assert self._get_completed_summary(progress["job_statistics_v2"]["data"]["input"]["data_weight"])["max"] <= data_weight_per_job * 1.5

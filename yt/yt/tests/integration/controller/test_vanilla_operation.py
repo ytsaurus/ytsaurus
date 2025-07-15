@@ -1,14 +1,14 @@
 from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE
 
 from yt_commands import (
-    authors, execute_command, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
+    authors, execute_command, extract_statistic_v2, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
     raises_yt_error, update_controller_agent_config, update_nodes_dynamic_config, update_scheduler_config,
     create, ls, exists, sorted_dicts, create_pool,
     get, write_file, read_table, write_table, vanilla, run_test_vanilla, abort_job, abandon_job,
     interrupt_job, dump_job_context, run_sleeping_vanilla, get_allocation_id_from_job_id,
     patch_op_spec, create_tmpdir)
 
-from yt_helpers import profiler_factory, read_structured_log, write_log_barrier, JobCountProfiler
+from yt_helpers import profiler_factory, read_structured_log, skip_if_component_old, write_log_barrier, JobCountProfiler
 
 from yt import yson
 from yt.yson import to_yson_type
@@ -646,6 +646,41 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                 }
             )
 
+    @authors("coteeq")
+    def test_job_proxy_memory(self):
+        skip_if_component_old(self.Env, (25, 2), "controller-agent")
+        update_controller_agent_config("footprint_memory", 42 * 1024 ** 2)
+        create("table", "//tmp/out")
+
+        op = vanilla(
+            spec={
+                "tasks": {
+                    "echo": {
+                        "job_count": 1,
+                        "command": "echo '{a=b}'",
+                        "output_table_paths": [
+                            "//tmp/out",
+                        ],
+                        "job_io": {
+                            "table_writer": {
+                                "max_buffer_size": 100 * 1024 ** 2
+                            }
+                        }
+                    }
+                },
+            }
+        )
+
+        statistics = get(op.get_path() + "/@progress/job_statistics_v2")
+
+        memory_reserve = extract_statistic_v2(
+            statistics,
+            key="job_proxy.memory_reserve",
+            job_type="echo",
+            summary_type="sum")
+
+        assert memory_reserve >= (100 + 42) * 1024 ** 2
+
 
 @pytest.mark.enabled_multidaemon
 class TestYTDiscoveryServiceInVanilla(YTEnvSetup):
@@ -759,7 +794,7 @@ class TestVanillaOperationRevival(YTEnvSetup):
         )
 
         total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
-        create_pool("test_pool", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
+        create_pool("test_pool", attributes={"strong_guarantee_resources": {"cpu": total_cpu_limit}})
 
         sleeping_op = run_sleeping_vanilla(spec={"pool": "test_pool"}, job_count=(3 - jobs_were_scheduled))
         wait(lambda: len(get(_get_job_tracker_orchid_path(sleeping_op) + f"/operations/{sleeping_op.id}/allocations")) == 3 - jobs_were_scheduled)
@@ -1324,7 +1359,7 @@ class TestGangOperations(YTEnvSetup):
             "controller_agent/gang_operations/incarnation_switch_count")
 
         total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
-        create_pool("test_pool", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
+        create_pool("test_pool", attributes={"strong_guarantee_resources": {"cpu": total_cpu_limit}})
 
         sleeping_op = run_sleeping_vanilla(spec={"pool": "test_pool"}, job_count=(3 - jobs_were_scheduled))
         wait(lambda: len(get(_get_job_tracker_orchid_path(sleeping_op) + f"/operations/{sleeping_op.id}/allocations")) == 3 - jobs_were_scheduled)
@@ -1664,6 +1699,7 @@ class TestGangOperations(YTEnvSetup):
     @authors("pogorelov")
     def test_gang_operation_controller_in_failing_state(self):
         update_controller_agent_config("job_tracker/node_disconnection_timeout", 50000)
+        update_controller_agent_config("job_tracker/revival_node_disconnection_timeout", 50000)
         update_nodes_dynamic_config(
             path="exec_node/controller_agent_connector/heartbeat_executor",
             value={
@@ -1792,6 +1828,7 @@ class TestGangOperations(YTEnvSetup):
         update_scheduler_config("node_registration_timeout", 500)
 
         update_controller_agent_config("job_tracker/node_disconnection_timeout", 30000)
+        update_controller_agent_config("job_tracker/revival_node_disconnection_timeout", 30000)
 
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
@@ -1852,6 +1889,44 @@ class TestGangOperations(YTEnvSetup):
         release_breakpoint(job_id=first_job_ids[2])
 
         wait_breakpoint(job_count=3)
+
+        release_breakpoint()
+
+        op.track()
+
+    @authors("krasovav")
+    def test_waiting_for_job_reincarnation_timed_out(self):
+        update_controller_agent_config("vanilla_operation_options/gang_manager/job_reincarnation_timeout", 1)
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=2,
+            task_patch={
+                "gang_options": {},
+            },
+            spec={
+                "job_testing_options": {
+                    "delay_in_cleanup": 1000,
+                },
+            },
+        )
+
+        first_job_ids = wait_breakpoint(job_count=2)
+        assert len(first_job_ids) == 2
+
+        incarnation_switch_counter = _get_controller_profiler().counter(
+            "controller_agent/gang_operations/incarnation_switch_count")
+        abort_job(first_job_ids[0])
+
+        # After abort controller try to start job, but delay in cleanup greater then reincarnation timeout.
+        # ">= 2" because scheduler can schedule job before abort by reincarnation timeout and after abort_job
+        wait(lambda: incarnation_switch_counter.get() >= 2)
+
+        # Resolve life lock from comment above.
+        update_controller_agent_config("vanilla_operation_options/gang_manager/job_reincarnation_timeout", 1000000)
+
+        release_breakpoint(job_id=first_job_ids[0])
+        release_breakpoint(job_id=first_job_ids[1])
 
         release_breakpoint()
 
@@ -2332,7 +2407,7 @@ class TestGangOperations(YTEnvSetup):
     @authors("pogorelov")
     def test_jobs_with_ranks_scheduled_first(self):
         total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
-        create_pool("test_pool", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
+        create_pool("test_pool", attributes={"strong_guarantee_resources": {"cpu": total_cpu_limit}})
 
         sleeping_op = run_sleeping_vanilla(spec={"pool": "test_pool"}, job_count=1)
         wait(lambda: len(get(_get_job_tracker_orchid_path(sleeping_op) + f"/operations/{sleeping_op.id}/allocations")) == 1)
@@ -2365,7 +2440,7 @@ class TestGangOperations(YTEnvSetup):
             "controller_agent/gang_operations/incarnation_switch_count")
 
         total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
-        create_pool("test_pool", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
+        create_pool("test_pool", attributes={"strong_guarantee_resources": {"cpu": total_cpu_limit}})
 
         sleeping_op = run_sleeping_vanilla(spec={"pool": "test_pool"}, job_count=1)
         wait(lambda: len(get(_get_job_tracker_orchid_path(sleeping_op) + f"/operations/{sleeping_op.id}/allocations")) == 1)

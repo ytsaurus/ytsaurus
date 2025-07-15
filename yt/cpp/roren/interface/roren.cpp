@@ -17,7 +17,9 @@ NPrivate::TAttributeSetter Name(TString trnasformName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPipeline::TPipeline(IExecutorPtr executor) : Executor_(std::move(executor))
+TPipeline::TPipeline(IExecutorPtr executor)
+    : TPCollection<void>({}, NYT::New<NPrivate::TRawPipeline>())
+    , Executor_(std::move(executor))
 {
     if (!Executor_) {
         ythrow yexception() << "Pipeline executor is not specified";

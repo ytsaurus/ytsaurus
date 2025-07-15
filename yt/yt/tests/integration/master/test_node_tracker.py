@@ -399,7 +399,7 @@ class TestRemoveClusterNodes(YTEnvSetup):
 
     @authors("babenko")
     def test_remove_nodes(self):
-        for _ in range(10):
+        for _ in range(5):
             with Restarter(self.Env, NODES_SERVICE):
                 for node in ls("//sys/cluster_nodes"):
                     wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")
@@ -540,7 +540,7 @@ class TestNodesThrottling(YTEnvSetup):
     NUM_NODES = 3
 
     @classmethod
-    def get_nodes_count(self, state="online"):
+    def get_node_count(self, state="online"):
         node_count = 0
         for node in ls("//sys/cluster_nodes", attributes=["state"]):
             if node.attributes["state"] == state:
@@ -563,17 +563,17 @@ class TestNodesThrottling(YTEnvSetup):
         self.Env.start_nodes(sync=False)
 
         # Need to wait until nodes start registering at master.
-        wait(lambda: TestNodesThrottling.get_nodes_count() == 1)
+        wait(lambda: TestNodesThrottling.get_node_count() == 1)
 
         # Now nodes have registered and have sent full heartbeats to master.
         # Heartbeat mutations will be scheduled sequentially due to throttling.
         # Since flush of mutations occurs with 1 second period, we need to wait a while before the next heartbeat mutation is scheduled and applied.
 
         time.sleep(2)
-        assert TestNodesThrottling.get_nodes_count() == 2
+        assert TestNodesThrottling.get_node_count() == 2
 
         time.sleep(2)
-        assert TestNodesThrottling.get_nodes_count() == 3
+        assert TestNodesThrottling.get_node_count() == 3
 
     @authors("cherepashka")
     def test_registration_lease_reuse(self):
@@ -603,8 +603,8 @@ class TestNodesThrottling(YTEnvSetup):
             pass
 
         # Wait for nodes to start registration process.
-        wait(lambda: self.get_nodes_count("registered") > 0)
-        assert TestNodesThrottling.get_nodes_count() != self.NUM_NODES
+        wait(lambda: self.get_node_count("registered") > 0)
+        assert TestNodesThrottling.get_node_count() != self.NUM_NODES
 
         # Gather leases issued during throttled registration.
         lease_txs = builtins.set()
@@ -615,11 +615,11 @@ class TestNodesThrottling(YTEnvSetup):
                     lease_txs.add(str(tx))
 
         # Nodes are still reregistering.
-        assert self.get_nodes_count("registered") > 0
-        assert TestNodesThrottling.get_nodes_count() != self.NUM_NODES
+        assert self.get_node_count("registered") > 0
+        assert TestNodesThrottling.get_node_count() != self.NUM_NODES
 
         # Wait for nodes to become online.
-        wait(lambda: self.get_nodes_count() == self.NUM_NODES)
+        wait(lambda: self.get_node_count() == self.NUM_NODES)
 
         active_lease_txs = gather_active_lease_transaction_ids()
         for tx in lease_txs:
@@ -647,8 +647,8 @@ class TestNodesThrottling(YTEnvSetup):
             pass
 
         # Wait for nodes to start registration process.
-        wait(lambda: self.get_nodes_count("registered") > 0)
-        assert TestNodesThrottling.get_nodes_count() != self.NUM_NODES
+        wait(lambda: self.get_node_count("registered") > 0)
+        assert TestNodesThrottling.get_node_count() != self.NUM_NODES
 
         # Gather leases issued during throttled registration.
         lease_txs = builtins.set()
@@ -662,4 +662,71 @@ class TestNodesThrottling(YTEnvSetup):
             abort_transaction(lease_tx)
 
         # Wait for nodes to become online, nothing should crash.
-        wait(lambda: self.get_nodes_count() == self.NUM_NODES)
+        wait(lambda: self.get_node_count() == self.NUM_NODES)
+
+##################################################################
+
+
+class TestNodeTrackerPeriodicAlertChecks(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts and alerts.
+    DELTA_MASTER_CONFIG = {
+        "logging": {
+            "abort_on_alert": False,
+        },
+    }
+
+    def _has_alert(self, message):
+        for alert in get("//sys/@master_alerts"):
+            if alert["message"] == message:
+                return True
+        return False
+
+    @authors("grphil")
+    def test_no_alerts_by_default(self):
+        set("//sys/@config/node_tracker/node_alerts_check_period", 100)
+
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        sleep(5)
+
+        assert not self._has_alert("Node had no data heartbeat for too long")
+        assert not self._has_alert("Node had no job heartbeat for too long")
+        assert not self._has_alert("Node had no state change for too long")
+
+    @authors("grphil")
+    def test_outdated_data_heartbeat_alert(self):
+        set("//sys/@config/node_tracker/node_data_heartbeat_outdate_duration", 1)
+        set("//sys/@config/node_tracker/node_alerts_check_period", 100)
+
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        wait(lambda: self._has_alert("Node had no data heartbeat for too long"))
+
+    @authors("grphil")
+    def test_outdated_job_heartbeat_alert(self):
+        set("//sys/@config/node_tracker/node_job_heartbeat_outdate_duration", 1)
+        set("//sys/@config/node_tracker/node_alerts_check_period", 100)
+
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        wait(lambda: self._has_alert("Node had no job heartbeat for too long"))
+
+    @authors("grphil")
+    def test_incomplete_state_alert(self):
+        set("//sys/@config/node_tracker/max_node_incomplete_state_duration", 1)
+        set("//sys/@config/node_tracker/node_alerts_check_period", 100)
+
+        set("//sys/@config/node_tracker/max_nodes_being_disposed", 0)
+        set("//sys/@config/node_tracker/testing/disable_disposal_finishing", True)
+
+        with Restarter(self.Env, NODES_SERVICE, wait_offline=False):
+            wait(lambda: self._has_alert("Node had no state change for too long"))
+
+            set("//sys/@config/node_tracker/testing/disable_disposal_finishing", False)
+            set("//sys/@config/node_tracker/max_nodes_being_disposed", 10)
+
+            for node in ls("//sys/cluster_nodes"):
+                wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")

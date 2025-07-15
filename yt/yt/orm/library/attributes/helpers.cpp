@@ -44,6 +44,17 @@ constexpr int ProtobufMapValueFieldNumber = 2;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::string RandomString(int length, TStringBuf charset)
+{
+    TStringBuilder builder;
+    for (int index = 0; index < length; ++index) {
+        builder.AppendChar(charset[RandomNumber(charset.size())]);
+    }
+    return builder.Flush();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 const TProtobufMessageType* GetMessageTypeByYPath(
     const TProtobufMessageType* rootType,
     const NYPath::TYPath& path,

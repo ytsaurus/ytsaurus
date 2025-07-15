@@ -32,9 +32,9 @@ struct TSortedDynamicRowRef;
 
 class TSortedDynamicRowKeyComparer;
 
-static constexpr ui32 NullRevision = 0;
-static constexpr ui32 InvalidRevision = std::numeric_limits<ui32>::max();
-static constexpr ui32 MaxRevision = std::numeric_limits<ui32>::max() - 1;
+static constexpr TSortedDynamicStoreRevision NullRevision = TSortedDynamicStoreRevision(0);
+static constexpr TSortedDynamicStoreRevision InvalidRevision = TSortedDynamicStoreRevision(std::numeric_limits<ui32>::max());
+static constexpr TSortedDynamicStoreRevision MaxRevision = TSortedDynamicStoreRevision(std::numeric_limits<ui32>::max() - 1);
 
 static constexpr int InitialEditListCapacity = 2;
 static constexpr int EditListCapacityMultiplier = 2;
@@ -68,6 +68,13 @@ struct TOpaqueWriteLogIndex
 
     auto operator<=>(const TOpaqueWriteLogIndex& other) const = default;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(ESortedDynamicStoreCommand,
+    ((Write)  (0))
+    ((Delete) (1))
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

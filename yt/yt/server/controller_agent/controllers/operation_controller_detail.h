@@ -545,7 +545,7 @@ protected:
 
     NChunkPools::TInputStreamDirectory InputStreamDirectory_;
 
-    std::atomic<EControllerState> State_ = {EControllerState::Preparing};
+    std::atomic<EControllerState> State_ = EControllerState::Preparing;
 
     i64 TeleportedOutputRowCount_ = 0;
 
@@ -620,8 +620,8 @@ protected:
     // NB: These values are accessed from BuildJobSpecProto invoker queue, ScheduleAllocation invoker queue and from control invoker.
     // Slight discrepancy in their values due to concurrent modification and access is OK.
     // These values are transient.
-    std::atomic<int> BuildingJobSpecCount_ = {0};
-    std::atomic<i64> TotalBuildingJobSpecSliceCount_ = {0};
+    std::atomic<int> BuildingJobSpecCount_ = 0;
+    std::atomic<i64> TotalBuildingJobSpecSliceCount_ = 0;
 
     int RegisteredMonitoringDescriptorCount_ = 0;
     std::atomic<int> MonitoredUserJobCount_ = 0;
@@ -918,7 +918,8 @@ protected:
     //! Enables verification that the output is sorted.
     virtual bool ShouldVerifySortedOutput() const;
 
-    virtual NChunkPools::TOutputOrderPtr GetOutputOrder() const;
+    virtual bool IsOrderedOutputRequired() const;
+    virtual std::vector<NChunkClient::TChunkTreeId> GetOutputChunkTreesInOrder(const TOutputTablePtr& table) const;
 
     NChunkClient::EChunkAvailabilityPolicy GetChunkAvailabilityPolicy() const override;
 

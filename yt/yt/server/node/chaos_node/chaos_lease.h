@@ -18,7 +18,8 @@ class TChaosLease
     , public TRefTracked<TChaosLease>
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, LastPingTimestamp);
+    DEFINE_BYVAL_RW_PROPERTY(TChaosLeaseId, ParentId);
+    DEFINE_BYVAL_RW_PROPERTY(TDuration, Timeout);
 
 public:
     using TChaosObjectBase::TChaosObjectBase;

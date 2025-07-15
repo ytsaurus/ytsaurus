@@ -351,7 +351,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
         create_pool("logfeller", pool_tree="my_tree", wait_for_orchid=False)
 
-        set("//sys/pool_trees/my_tree/logfeller/@min_share_resources", {"cpu": 10})
+        set("//sys/pool_trees/my_tree/logfeller/@strong_guarantee_resources", {"cpu": 10})
 
         with pytest.raises(YtError):
             set("//sys/pool_trees/my_tree/logfeller/@parent_name", "nirvana")
@@ -363,7 +363,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
         create_pool("logfeller", pool_tree="my_tree", wait_for_orchid=False)
 
-        set("//sys/pool_trees/my_tree/logfeller/@min_share_resources", {"cpu": 10})
+        set("//sys/pool_trees/my_tree/logfeller/@strong_guarantee_resources", {"cpu": 10})
 
         with pytest.raises(YtError):
             move(
@@ -575,20 +575,20 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         create_pool_tree("my_tree", wait_for_orchid=False)
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
 
-        set("//sys/pool_trees/my_tree/nirvana/@min_share_resources", {"cpu": 10})
-        remove("//sys/pool_trees/my_tree/nirvana/@min_share_resources/cpu")
-        assert get("//sys/pool_trees/my_tree/nirvana/@min_share_resources") == {}
+        set("//sys/pool_trees/my_tree/nirvana/@strong_guarantee_resources", {"cpu": 10})
+        remove("//sys/pool_trees/my_tree/nirvana/@strong_guarantee_resources/cpu")
+        assert get("//sys/pool_trees/my_tree/nirvana/@strong_guarantee_resources") == {}
 
     def test_if_remove_attribute_breaks_validation_value_is_preserved(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
         create_pool("prod", pool_tree="my_tree", parent_name="nirvana", wait_for_orchid=False)
 
-        set("//sys/pool_trees/my_tree/nirvana/@min_share_resources", {"cpu": 10})
-        set("//sys/pool_trees/my_tree/nirvana/prod/@min_share_resources", {"cpu": 10})
+        set("//sys/pool_trees/my_tree/nirvana/@strong_guarantee_resources", {"cpu": 10})
+        set("//sys/pool_trees/my_tree/nirvana/prod/@strong_guarantee_resources", {"cpu": 10})
         with pytest.raises(YtError):
-            remove("//sys/pool_trees/my_tree/nirvana/@min_share_resources")
-        assert get("//sys/pool_trees/my_tree/nirvana/@min_share_resources") == {"cpu": 10}
+            remove("//sys/pool_trees/my_tree/nirvana/@strong_guarantee_resources")
+        assert get("//sys/pool_trees/my_tree/nirvana/@strong_guarantee_resources") == {"cpu": 10}
 
     def test_max_running_operation_count_validation(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
@@ -626,19 +626,19 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
 
         with pytest.raises(YtError):
             set(
-                "//sys/pool_trees/my_tree/nirvana/prod/@min_share_resources",
+                "//sys/pool_trees/my_tree/nirvana/prod/@strong_guarantee_resources",
                 {"cpu": 100.0},
             )
 
-        set("//sys/pool_trees/my_tree/nirvana/@min_share_resources", {"cpu": 10.0})
+        set("//sys/pool_trees/my_tree/nirvana/@strong_guarantee_resources", {"cpu": 10.0})
         with pytest.raises(YtError):
             set(
-                "//sys/pool_trees/my_tree/nirvana/prod/@min_share_resources",
+                "//sys/pool_trees/my_tree/nirvana/prod/@strong_guarantee_resources",
                 {"cpu": 100.0},
             )
 
-        set("//sys/pool_trees/my_tree/nirvana/@min_share_resources/cpu", 100.0)
-        set("//sys/pool_trees/my_tree/nirvana/prod/@min_share_resources", {"cpu": 100.0})
+        set("//sys/pool_trees/my_tree/nirvana/@strong_guarantee_resources/cpu", 100.0)
+        set("//sys/pool_trees/my_tree/nirvana/prod/@strong_guarantee_resources", {"cpu": 100.0})
 
     def test_cant_give_child_burst_guarantee_without_parent_guarantee(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
@@ -739,21 +739,21 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
         create_pool("prod", pool_tree="my_tree", parent_name="nirvana", wait_for_orchid=False)
 
-        set("//sys/pool_trees/my_tree/nirvana/@min_share_resources", {"cpu": 10})
-        set("//sys/pool_trees/my_tree/nirvana/@min_share_resources/cpu", 100)
+        set("//sys/pool_trees/my_tree/nirvana/@strong_guarantee_resources", {"cpu": 10})
+        set("//sys/pool_trees/my_tree/nirvana/@strong_guarantee_resources/cpu", 100)
 
     def test_set_and_get_composite_attribute(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
 
         with pytest.raises(YtError):
-            get("//sys/pool_trees/my_tree/nirvana/@min_share_resources")
+            get("//sys/pool_trees/my_tree/nirvana/@strong_guarantee_resources")
 
-        set("//sys/pool_trees/my_tree/nirvana/@min_share_resources", {"cpu": 100})
-        assert get("//sys/pool_trees/my_tree/nirvana/@min_share_resources") == {"cpu": 100}
+        set("//sys/pool_trees/my_tree/nirvana/@strong_guarantee_resources", {"cpu": 100})
+        assert get("//sys/pool_trees/my_tree/nirvana/@strong_guarantee_resources") == {"cpu": 100}
 
-        set("//sys/pool_trees/my_tree/nirvana/@min_share_resources", {})
-        assert get("//sys/pool_trees/my_tree/nirvana/@min_share_resources") == {}
+        set("//sys/pool_trees/my_tree/nirvana/@strong_guarantee_resources", {})
+        assert get("//sys/pool_trees/my_tree/nirvana/@strong_guarantee_resources") == {}
 
     def test_set_and_get_nested_attribute(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
@@ -1237,14 +1237,14 @@ class TestSchedulerPoolAcls(YTEnvSetup):
 
         with raises_yt_error("must match regular expression"):
             create_pool(
-                "a.b",
+                "a+b",
                 pool_tree="my_tree",
                 wait_for_orchid=False,
                 authenticated_user="u")
 
-        set("//sys/@config/scheduler_pool_manager", {"pool_name_regex_for_users": "[a-z.]+"})
+        set("//sys/@config/scheduler_pool_manager", {"pool_name_regex_for_users": "[a-z\\+]+"})
         create_pool(
-            "a.b",
+            "a+b",
             authenticated_user="u",
             pool_tree="my_tree",
             wait_for_orchid=False)

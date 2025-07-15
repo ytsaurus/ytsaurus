@@ -192,6 +192,8 @@ public:
         const std::vector<NChunkPools::TOutputCookie>& cookies,
         EAbortReason abortReason);
 
+    i64 GetJobProxyMemoryIOSize(const TJobIOConfigPtr& jobIO, bool useEstimatedBufferSize) const;
+
 protected:
     std::vector<TVanillaTaskPtr> Tasks_;
     TVanillaOperationOptionsPtr Options_;
@@ -298,9 +300,16 @@ TExtendedJobResources TVanillaTask::GetMinNeededResourcesHeavy() const
     result.SetUserSlots(1);
     result.SetCpu(Spec_->CpuLimit);
     result.SetCpu(std::max(Spec_->CpuLimit, TaskHost_->GetOptions()->MinCpuLimit));
-    // NB: JobProxyMemory is the only memory that is related to IO. Footprint is accounted below.
-    result.SetJobProxyMemory(0);
-    result.SetJobProxyMemoryWithFixedWriteBufferSize(0);
+
+    auto jobProxyMemory = VanillaController_->GetJobProxyMemoryIOSize(
+        Spec_->JobIO,
+        /*useEstimatedBufferSize*/ true);
+    auto jobProxyMemoryWithFixedWriteBufferSize = VanillaController_->GetJobProxyMemoryIOSize(
+        Spec_->JobIO,
+        /*useEstimatedBufferSize*/ false);
+
+    result.SetJobProxyMemory(jobProxyMemory);
+    result.SetJobProxyMemoryWithFixedWriteBufferSize(jobProxyMemoryWithFixedWriteBufferSize);
     AddFootprintAndUserJobResources(result);
     return result;
 }
@@ -755,6 +764,11 @@ void TVanillaController::AbortJobsByCookies(
     YT_VERIFY(cookies.empty());
 }
 
+i64 TVanillaController::GetJobProxyMemoryIOSize(const TJobIOConfigPtr& jobIO, bool useEstimatedBufferSize) const
+{
+    return GetFinalIOMemorySize(jobIO, useEstimatedBufferSize, TChunkStripeStatisticsVector());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -961,6 +975,8 @@ private:
     void ReportOperationIncarnationStartedEventToArchive(TIncarnationSwitchData data) const;
 
     const TOperationEventReporterPtr& GetOperationEventReporter() const;
+
+    void ReportGangRankToArchive(const TGangJobletPtr& joblet) const;
 
     void OnJobStarted(const TJobletPtr& joblet) final;
 
@@ -1442,7 +1458,7 @@ void TGangOperationController::TrySwitchToNewOperationIncarnation(
             .IncarnationSwitchReason = reason,
             .IncarnationSwitchInfo{
                 .TriggerJobId = joblet->JobId,
-            }
+            },
         };
         SwitchToNewOperationIncarnation(operationIsReviving, std::move(data));
     }
@@ -1516,6 +1532,9 @@ void TGangOperationController::RestartAllRunningJobsPreservingAllocations(bool o
         return;
     }
 
+    std::vector<TJobId> restartedJobIds;
+    restartedJobIds.reserve(allocationsToRestartJobs.size());
+
     // We want to restart jobs with ranks first.
     std::partition(
         begin(allocationsToRestartJobs),
@@ -1536,8 +1555,37 @@ void TGangOperationController::RestartAllRunningJobsPreservingAllocations(bool o
                 failReason);
 
             allocation->NewJobsForbiddenReason = failReason;
+        } else {
+            restartedJobIds.push_back(allocation->Joblet->JobId);
         }
     }
+
+    TDelayedExecutor::Submit(
+        BIND([weakThis = MakeWeak(this), restartedJobIds = std::move(restartedJobIds), this] {
+            auto strongThis = weakThis.Lock();
+            if (!strongThis) {
+                return;
+            }
+
+            for (auto jobId : restartedJobIds) {
+                auto allocationId = AllocationIdFromJobId(jobId);
+                if (auto allocation = FindAllocation(allocationId); allocation && allocation->Joblet && allocation->Joblet->JobId == jobId) {
+                    if (allocation->Joblet->JobState && allocation->Joblet->JobState != EJobState::None) {
+                        continue;
+                    }
+
+                    YT_LOG_WARNING("Waiting for node to settle new job timed out; aborting job (JobId: %v, Timeout: %d)", jobId, Options_->GangManager->JobReincarnationTimeout);
+
+                    allocation->NewJobsForbiddenReason = EScheduleFailReason::Timeout;
+                    AbortJob(jobId, EAbortReason::WaitingTimeout);
+
+                    UpdateAllTasks();
+                    return;
+                }
+            }
+       }),
+       Options_->GangManager->JobReincarnationTimeout,
+       GetCancelableInvoker(Config_->JobEventsControllerQueue));
 
     UpdateAllTasks();
 }
@@ -1586,11 +1634,18 @@ const TOperationEventReporterPtr& TGangOperationController::GetOperationEventRep
     return Host_->GetOperationEventReporter();
 }
 
+void TGangOperationController::ReportGangRankToArchive(const TGangJobletPtr& joblet) const
+{
+    HandleJobReport(joblet, TControllerJobReport()
+        .GangRank(joblet->Rank));
+}
+
 void TGangOperationController::OnJobStarted(const TJobletPtr& joblet)
 {
     YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool_);
 
     TOperationControllerBase::OnJobStarted(joblet);
+    ReportGangRankToArchive(StaticPointerCast<TGangJoblet>(joblet));
     ReportOperationIncarnationToArchive(StaticPointerCast<TGangJoblet>(joblet));
 }
 
@@ -1634,7 +1689,7 @@ void TGangOperationController::EnrichJobInfo(NYTree::TFluentMap fluent, const TJ
     const auto& gangJoblet = static_cast<const TGangJoblet&>(*joblet);
 
     fluent
-        .Item("operation_incarnation").Value(static_cast<const TGangJoblet&>(*joblet).OperationIncarnation)
+        .Item("operation_incarnation").Value(gangJoblet.OperationIncarnation)
         .OptionalItem("gang_rank", gangJoblet.Rank);
 }
 

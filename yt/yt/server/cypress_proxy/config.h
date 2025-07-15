@@ -94,9 +94,6 @@ DEFINE_REFCOUNTED_TYPE(TUserDirectorySynchronizerConfig)
 struct TObjectServiceDynamicConfig
     : public NYTree::TYsonStruct
 {
-    //! Size of the thread pool used for object service requests execution.
-    int ThreadPoolSize;
-
     //! Skip the first phase in the two-phase request execution at master.
     //! When set to |true|, all requests are resolved at Sequoia first.
     bool AllowBypassMasterResolve;
@@ -146,6 +143,10 @@ struct TCypressProxyDynamicConfig
     TObjectServiceDynamicConfigPtr ObjectService;
 
     TSequoiaResponseKeeperDynamicConfigPtr ResponseKeeper;
+
+    int ThreadPoolSize;
+
+    constexpr static int DefaultThreadPoolSize = 2;
 
     REGISTER_YSON_STRUCT(TCypressProxyDynamicConfig);
 

@@ -43,7 +43,8 @@ target_link_libraries(yt-cpp-mapreduce-tests-native-operations PUBLIC
 )
 
 target_allocator(yt-cpp-mapreduce-tests-native-operations
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(yt-cpp-mapreduce-tests-native-operations PRIVATE

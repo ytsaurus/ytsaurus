@@ -3376,7 +3376,7 @@ private:
 
         InitPartitionPool(
             RootPartitionPoolJobSizeConstraints_,
-            nullptr,
+            /*jobSizeAdjusterConfig*/ nullptr,
             /*ordered*/ false);
 
         PartitionTasks_.resize(PartitionTreeDepth_);
@@ -4321,9 +4321,9 @@ private:
 
     void PreparePartitionTasks(const IJobSizeConstraintsPtr& partitionJobSizeConstraints)
     {
-        bool useJobSizeAdjuster =
-            (!Spec_->Ordered && Config_->EnablePartitionMapJobSizeAdjustment) ||
-            (Spec_->Ordered && Config_->EnableOrderedPartitionMapJobSizeAdjustment);
+        bool useJobSizeAdjuster = Spec_->Ordered
+            ? Config_->EnableOrderedPartitionMapJobSizeAdjustment
+            : Config_->EnablePartitionMapJobSizeAdjustment;
 
         InitPartitionPool(
             partitionJobSizeConstraints,

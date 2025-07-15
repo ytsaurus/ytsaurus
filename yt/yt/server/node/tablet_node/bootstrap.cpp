@@ -13,7 +13,6 @@
 #include "in_memory_service.h"
 #include "lsm_interop.h"
 #include "master_connector.h"
-#include "overload_controller.h"
 #include "partition_balancer.h"
 #include "security_manager.h"
 #include "serialize.h"
@@ -45,6 +44,11 @@
 #include <yt/yt/server/lib/cellar_agent/cellar.h>
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
 
+#include <yt/yt/server/node/tablet_node/distributed_throttler_manager.h>
+#include <yt/yt/server/node/tablet_node/medium_throttler_manager.h>
+#include <yt/yt/ytlib/chaos_client/config.h>
+#include <yt/yt/ytlib/chaos_client/replication_card_updates_batcher.h>
+
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
@@ -62,13 +66,17 @@
 
 #include <yt/yt/core/misc/async_expiring_cache.h>
 
+#include <yt/yt/core/net/address.h>
+
 #include <yt/yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/overload_controller.h>
 
 namespace NYT::NTabletNode {
 
 using namespace NCellarAgent;
 using namespace NCellarClient;
 using namespace NCellarNode;
+using namespace NChaosClient;
 using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NDataNode;
@@ -193,6 +201,8 @@ public:
         GetBundleDynamicConfigManager()
             ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, MakeStrong(this)));
 
+        OverloadController_ = NRpc::CreateOverloadController(New<NRpc::TOverloadControllerConfig>(), TabletNodeProfiler());
+
         MasterConnector_ = CreateMasterConnector(this);
 
         TabletSnapshotStore_ = CreateTabletSnapshotStore(GetConfig()->TabletNode, this);
@@ -301,6 +311,14 @@ public:
             }
         }
 
+        auto selfAddress = NNet::BuildServiceAddress(GetLocalHostName(), GetConfig()->RpcPort);
+        DistributedThrottlerManager_ = CreateDistributedThrottlerManager(
+            this,
+            NDiscoveryClient::TMemberId(selfAddress));
+        MediumThrottlerManagerFactory_ = CreateMediumThrottlerManagerFactory(
+            GetBundleDynamicConfigManager(),
+            DistributedThrottlerManager_);
+
         ColumnEvaluatorCache_ = NQueryClient::CreateColumnEvaluatorCache(GetConfig()->TabletNode->ColumnEvaluatorCache);
 
         RowComparerProvider_ = NQueryClient::CreateRowComparerProvider(GetConfig()->TabletNode->ColumnEvaluatorCache->CGCache);
@@ -325,6 +343,13 @@ public:
             GetConnection(),
             NApi::TClientOptions::FromUser(NSecurityClient::ReplicatorUserName),
             GetConfig()->TabletNode->AlienClusterClientCacheEvictionPeriod);
+        ReplicationCardUpdatesBatcher_ = CreateClientReplicationCardUpdatesBatcher(
+            GetConfig()->TabletNode->ChaosReplicationCardUpdatesBatcher,
+            GetConnection(),
+            Logger());
+        if (ReplicationCardUpdatesBatcher_) {
+            ReplicationCardUpdatesBatcher_->Start();
+        }
 
         InitializeOverloadController();
 
@@ -346,7 +371,6 @@ public:
 
     void InitializeOverloadController()
     {
-        OverloadController_ = New<TOverloadController>(New<TOverloadControllerConfig>());
         OverloadController_->TrackInvoker(BusXferThreadPoolName, NBus::TTcpDispatcher::Get()->GetXferPoller()->GetInvoker());
         OverloadController_->TrackInvoker(CompressionThreadPoolName, NRpc::TDispatcher::Get()->GetCompressionPoolInvoker());
         OverloadController_->TrackInvoker(LookupThreadPoolName, TabletLookupThreadPool_->GetInvoker());
@@ -547,6 +571,16 @@ public:
             : Throttlers_[it->second];
     }
 
+    const IDistributedThrottlerManagerPtr& GetDistributedThrottlerManager() const override
+    {
+        return DistributedThrottlerManager_;
+    }
+
+    IMediumThrottlerManagerFactoryPtr& GetMediumThrottlerManagerFactory() override
+    {
+        return MediumThrottlerManagerFactory_;
+    }
+
     const IColumnEvaluatorCachePtr& GetColumnEvaluatorCache() const override
     {
         return ColumnEvaluatorCache_;
@@ -589,6 +623,11 @@ public:
         return ReplicatorClientCache_;
     }
 
+    const IReplicationCardUpdatesBatcherPtr& GetReplicationCardUpdatesBatcher() const override
+    {
+        return ReplicationCardUpdatesBatcher_;
+    }
+
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 
@@ -612,6 +651,8 @@ private:
 
     TEnumIndexedArray<ETabletNodeThrottlerKind, IReconfigurableThroughputThrottlerPtr> LegacyRawThrottlers_;
     TEnumIndexedArray<ETabletNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;
+    IDistributedThrottlerManagerPtr DistributedThrottlerManager_;
+    IMediumThrottlerManagerFactoryPtr MediumThrottlerManagerFactory_;
 
     NQueryClient::IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
     NQueryClient::IRowComparerProviderPtr RowComparerProvider_;
@@ -629,17 +670,20 @@ private:
     ICompressionDictionaryBuilderPtr CompressionDictionaryBuilder_;
     IErrorManagerPtr ErrorManager_;
     ICompressionDictionaryManagerPtr CompressionDictionaryManager_;
-    TOverloadControllerPtr OverloadController_;
+    NRpc::IOverloadControllerPtr OverloadController_;
     IAlienClusterClientCachePtr ReplicatorClientCache_;
+    IReplicationCardUpdatesBatcherPtr ReplicationCardUpdatesBatcher_;
 
     void OnDynamicConfigChanged(
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
+        const auto& tabletNodeConfig = newConfig->TabletNode;
+
         if (!GetConfig()->EnableFairThrottler) {
             for (auto kind : TEnumTraits<NTabletNode::ETabletNodeThrottlerKind>::GetDomainValues()) {
-                const auto& initialThrottlerConfig = newConfig->TabletNode->Throttlers[kind]
-                    ? newConfig->TabletNode->Throttlers[kind]
+                const auto& initialThrottlerConfig = tabletNodeConfig->Throttlers[kind]
+                    ? tabletNodeConfig->Throttlers[kind]
                     : GetConfig()->TabletNode->Throttlers[kind];
                 auto throttlerConfig = ClusterNodeBootstrap_->PatchRelativeNetworkThrottlerConfig(initialThrottlerConfig);
                 LegacyRawThrottlers_[kind]->Reconfigure(std::move(throttlerConfig));
@@ -647,20 +691,24 @@ private:
         }
 
         TableReplicatorThreadPool_->SetThreadCount(
-            newConfig->TabletNode->TabletManager->ReplicatorThreadPoolSize.value_or(
+            tabletNodeConfig->TabletManager->ReplicatorThreadPoolSize.value_or(
                 GetConfig()->TabletNode->TabletManager->ReplicatorThreadPoolSize));
-        ColumnEvaluatorCache_->Configure(newConfig->TabletNode->ColumnEvaluatorCache);
+        ColumnEvaluatorCache_->Configure(tabletNodeConfig->ColumnEvaluatorCache);
 
         auto bundleConfig = GetBundleDynamicConfigManager()->GetConfig();
         ReconfigureQueryAgent(bundleConfig, newConfig);
 
-        OverloadController_->Reconfigure(newConfig->TabletNode->OverloadController);
+        OverloadController_->Reconfigure(tabletNodeConfig->OverloadController);
 
         StatisticsReporter_->Reconfigure(newConfig);
 
-        CompressionDictionaryManager_->OnDynamicConfigChanged(newConfig->TabletNode->CompressionDictionaryCache);
+        CompressionDictionaryManager_->OnDynamicConfigChanged(tabletNodeConfig->CompressionDictionaryCache);
 
         ErrorManager_->Reconfigure(newConfig);
+
+        if (ReplicationCardUpdatesBatcher_) {
+            ReplicationCardUpdatesBatcher_->Reconfigure(tabletNodeConfig->ChaosReplicationCardUpdatesBatcher);
+        }
     }
 
     void OnBundleDynamicConfigChanged(
@@ -702,7 +750,7 @@ private:
         }
     }
 
-    const TOverloadControllerPtr& GetOverloadController() const override
+    const NRpc::IOverloadControllerPtr& GetOverloadController() const override
     {
         return OverloadController_;
     }

@@ -15,6 +15,8 @@
 /// where `INPUT` is either `TPCollection` or `TPipeline<...>` and RESULT` is either `TPCollection<...>` or `void`.
 
 #include "fwd.h"
+#include "private/fwd.h"
+
 #include "fns.h"
 #include "key_value.h"
 #include "co_gbk_result.h"
@@ -22,7 +24,6 @@
 #include "private/combine.h"
 #include "private/flatten.h"
 #include "private/fn_attributes_ops.h"
-#include "private/fwd.h"
 #include "private/group_by_key.h"
 #include "private/raw_par_do.h"
 #include "private/raw_pipeline.h"
@@ -122,6 +123,108 @@ TNullWriteTransform NullWrite();
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBaseApplicator
+    : public NPrivate::IWithAttributes
+{
+public:
+    TBaseApplicator(NPrivate::IRawTransformPtr rawTransform)
+        : RawTransform_(std::move(rawTransform))
+    { }
+
+    TString GetName() const
+    {
+        return "TTransformApplicator";
+    }
+
+protected:
+    template <class TInput>
+    auto ApplyTo(const TPCollection<TInput>& pCollection) const
+    {
+        const auto& rawPipeline = NPrivate::GetRawPipeline(pCollection);
+        auto* rawInputNode = NPrivate::GetRawDataNode(pCollection).Get();
+        std::vector<NPrivate::TPCollectionNode*> inputNodes;
+        if (rawInputNode) {
+            inputNodes.push_back(rawInputNode);
+        }
+        auto transformNode = rawPipeline->AddTransform(RawTransform_, inputNodes);
+        auto taggedSinkNodeList = transformNode->GetTaggedSinkNodeList();
+        return taggedSinkNodeList;
+    }
+
+    void SetAttribute(const TString& key, const std::any& value) override
+    {
+        RawTransform_->SetAttribute(key, value);
+    }
+
+    const std::any* GetAttribute(const TString& key) const override
+    {
+        return RawTransform_->GetAttribute(key);
+    }
+
+private:
+    const NPrivate::IRawTransformPtr RawTransform_;
+};
+
+template <class TInput, class TOutput>
+class TTransformApplicator
+    : public TBaseApplicator
+{
+public:
+    TTransformApplicator(NPrivate::IRawTransformPtr rawTransform)
+        : TBaseApplicator(std::move(rawTransform))
+    { }
+
+    auto ApplyTo(const TPCollection<TInput>& pCollection) const
+    {
+        auto taggedSinkNodeList = TBaseApplicator::template ApplyTo(pCollection);
+        if constexpr (std::is_same_v<TOutput, TMultiRow>) {
+            const auto& rawPipeline = NPrivate::GetRawPipeline(pCollection);
+            return NPrivate::MakeMultiPCollection(taggedSinkNodeList, rawPipeline);
+        } else if constexpr (std::is_same_v<TOutput, void>) {
+            return;
+        } else {
+            Y_ABORT_IF(taggedSinkNodeList.size() != 1);
+            auto rawNode = taggedSinkNodeList[0].second;
+            const auto& rawPipeline = NPrivate::GetRawPipeline(pCollection);
+            return NPrivate::MakePCollection<TOutput>(rawNode, rawPipeline);
+        }
+    }
+};
+
+namespace NPrivate {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TInputType, class TOutputType, class TTransform, class... Ts>
+TTransformApplicator<TInputType, TOutputType> MakeTransformApplicator(Ts&&... args)
+{
+    return {NYT::New<TTransform>(std::forward<decltype(args)>(args)...)};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+}  // namespace NPrivate
+
+class TWriteApplicator
+    : public NRoren::NPrivate::TAttributes
+{
+public:
+    inline TString GetName() const
+    {
+        return "TWriteApplicator";
+    }
+
+    template <class T>
+    void ApplyTo(const TPCollection<T>& pCollection) const
+    {
+        auto writeApplicator = ::NRoren::NPrivate::MakeTransformApplicator<T, void, NRoren::NPrivate::TRawMetaTransform>(::NRoren::NPrivate::ERawTransformType::Meta, std::vector<TDynamicTypeTag>{TTypeTag<T>("input-0")}, std::vector<TDynamicTypeTag>{});
+        ::NRoren::NPrivate::MergeAttributes(writeApplicator, *this);
+        pCollection | writeApplicator;
+    }
+};  // class TWriteApplicator
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <typename TOutputRow>
 class TReadTransform
     : public NPrivate::IWithAttributes
@@ -137,7 +240,7 @@ public:
         return Name_;
     }
 
-    TPCollection<TOutputRow> ApplyTo(const TPipeline& pipeline) const
+    TPCollection<TOutputRow> ApplyTo(const TPCollection<void>& pipeline) const
     {
         const auto& rawPipeline = NPrivate::GetRawPipeline(pipeline);
         auto transformNode = rawPipeline->AddTransform(RawRead_, {});
@@ -254,7 +357,7 @@ public:
         }
     }
 
-    auto ApplyTo(const TPipeline& pipeline) const
+    auto ApplyTo(const TPCollection<void>& pipeline) const
     {
         static_assert(std::is_same_v<TInput, void>);
         const auto& rawPipeline = NPrivate::GetRawPipeline(pipeline);
@@ -681,12 +784,12 @@ public:
     template <typename TRow>
     TPCollection<TRow> ApplyTo(const std::vector<TPCollection<TRow>>& pCollectionList) const
     {
-        Y_ABORT_UNLESS(pCollectionList.size() > 0, "Cannot flatten empty list of pCollection");
+        Y_ABORT_IF(pCollectionList.empty(), "Cannot flatten empty list of pCollection");
         const auto& rawPipeline = NPrivate::GetRawPipeline(pCollectionList.front());
         std::vector<NPrivate::TPCollectionNode*> pCollectionNodeList;
         for (const auto& pCollection : pCollectionList) {
             const auto& curRawPipeline = NPrivate::GetRawPipeline(pCollection);
-            Y_ABORT_UNLESS(curRawPipeline.Get() == rawPipeline.Get(), "Cannot flatten pCollections belonging to different pipelines");
+            Y_ABORT_IF(curRawPipeline.Get() != rawPipeline.Get(), "Cannot flatten pCollections belonging to different pipelines");
 
             auto* rawInputNode = NPrivate::GetRawDataNode(pCollection).Get();
             pCollectionNodeList.push_back(rawInputNode);
@@ -696,7 +799,7 @@ public:
         auto transformNode = rawPipeline->AddTransform(rawFlatten, pCollectionNodeList);
         const auto& taggedSinkNodeList = transformNode->GetTaggedSinkNodeList();
 
-        Y_ABORT_UNLESS(taggedSinkNodeList.size() == 1);
+        Y_ABORT_IF(taggedSinkNodeList.size() != 1);
         const auto& rawOutputNode = taggedSinkNodeList[0].second;
 
         NPrivate::MergeAttributes(*transformNode->GetRawTransform(), Attributes_);
@@ -731,7 +834,7 @@ TFlattenTransform Flatten();
 template <typename TRow>
 TPCollection<TRow> Flatten(const std::vector<TPCollection<TRow>>& pCollectionList)
 {
-    return pCollectionList | Flatten();
+    return Flatten().ApplyTo(pCollectionList);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -769,7 +872,7 @@ class TTransform
         using TFirst = TFirst_;
     };
 public:
-    using TArgument = std::conditional_t<std::is_same_v<TInputRow, void>, TPipeline, TPCollection<TInputRow>>;
+    using TArgument = TPCollection<TInputRow>;
     using TResult = std::conditional_t<
         std::is_same_v<TTypesHolder<TOutputRows...>, TTypesHolder<void>>,
         void,

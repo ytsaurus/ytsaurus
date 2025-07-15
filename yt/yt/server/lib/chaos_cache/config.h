@@ -16,6 +16,7 @@ struct TChaosCacheConfig
     NChaosClient::TReplicationCardsWatcherConfigPtr ReplicationCardsWatcher;
     TDuration UnwatchedCardExpirationDelay;
     int WorkerThreadCount;
+    NChaosClient::TChaosReplicationCardUpdatesBatcherConfigPtr ReplicationCardUpdateBatcher;
 
     REGISTER_YSON_STRUCT(TChaosCacheConfig);
 

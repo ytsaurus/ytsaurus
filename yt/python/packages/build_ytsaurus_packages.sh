@@ -56,6 +56,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 set -u
+ytsaurus_source_path=$(realpath $ytsaurus_source_path)
+ytsaurus_build_path=$(realpath $ytsaurus_build_path)
 
 ytsaurus_python=$(realpath "${ytsaurus_build_path}/ytsaurus_python")
 

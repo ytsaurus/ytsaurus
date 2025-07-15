@@ -119,7 +119,6 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: cmake
-      publish-ytsaurus: true
       publish-chyt: ${{ github.ref_name == 'main' }}
       publish-strawberry: ${{ github.ref_name == 'main' }}
       image-tag: ${{ needs.tag.outputs.image-tag }}
@@ -140,7 +139,7 @@ jobs:
       cpp-build-system: ya-make
       build-ytsaurus: true
       build-ytsaurus-tests: true
-      build-query-tracker: ${{ github.ref_name == 'main' }}
+      build-query-tracker: true
       build-python: true
       update-remote-cache: true
     secrets:
@@ -158,6 +157,7 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
       publish-query-tracker: ${{ github.ref_name == 'main' }}
+      publish-ytsaurus: true
       publish-local: true
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
@@ -195,24 +195,19 @@ jobs:
           label: ${{ needs.start-vm.outputs.label }}
           instance-id: ${{ needs.start-vm.outputs.instance-id }}
 
-  send-notifications:
-    name: Send notifications
+  send-alert:
     needs:
-      - stop-vm
-    runs-on: ubuntu-latest
-    if: ${{ failure() }}
-    steps:
-      - name: Send telegram message
-        uses: appleboy/telegram-action@master
-        with:
-          to: ${{ secrets.TELEGRAM_CHAT_ID }}
-          token: ${{ secrets.TELEGRAM_TOKEN }}
-          disable_web_page_preview: true
-          format: markdown
-          message: |
-            Workflow *${{github.workflow}}* failed: ${{github.server_url}}/${{github.repository}}/actions/runs/${{github.run_id}}.
-            Git ${{github.ref_type}}: *${{github.ref_name}}*.
-            Commit:
-            ```
-            ${{github.event.head_commit.message}}
-            ```
+      - check
+      - build-cmake
+      - build-ya-make
+      - docker-ya-make
+      - docker-cmake
+      - build-strawberry
+    if: always()
+    uses: ./.github/workflows/check-status-and-send-alert.yaml
+    with:
+      is_failure: ${{ contains(join(needs.*.result, ','), 'failure') }}
+    secrets:
+      GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

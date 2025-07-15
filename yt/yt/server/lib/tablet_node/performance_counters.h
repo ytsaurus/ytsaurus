@@ -8,6 +8,8 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! This list is frozen because this aggregation method is deprecated.
+//! New counters must be added to the ITERATE_NODE_TABLET_PERFORMANCE_COUNTERS list instead.
 #define ITERATE_TABLET_PERFORMANCE_COUNTERS(XX) \
     XX(dynamic_row_read,                            DynamicRowRead) \
     XX(dynamic_row_read_data_weight,                DynamicRowReadDataWeight) \

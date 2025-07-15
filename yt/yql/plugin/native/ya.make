@@ -5,6 +5,7 @@ SRCS(
     error_helpers.cpp
     progress_merger.cpp
     dq_manager.cpp
+    provider_load.cpp
 )
 
 PEERDIR(
@@ -32,6 +33,7 @@ PEERDIR(
     yql/essentials/minikql/invoke_builtins/llvm16
     yql/essentials/minikql/comp_nodes/llvm16
     yql/essentials/protos
+    yql/essentials/public/langver
     yql/essentials/public/udf/service/exception_policy
     yql/essentials/utils/backtrace
     yql/essentials/utils/log
@@ -82,6 +84,7 @@ IF (NOT OPENSOURCE)
 ELSE()
     SRCS(
         dummy_secret_masker.cpp
+        no_ytflow_load.cpp
     )
 
     PEERDIR(

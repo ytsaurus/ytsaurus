@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/misc/async_expiring_cache.h>
 
+#include <util/generic/set.h>
+
 namespace NYT::NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -38,6 +40,9 @@ protected:
 
     //! Should return a list of attribute names to fetch.
     virtual const std::vector<std::string>& GetAttributeNames() const = 0;
+
+    //! Should return a list of minimum revisions to fetch, or an empty list.
+    virtual std::vector<NHydra::TRevision> GetRefreshRevisions(const std::vector<TKey>& keys) const = 0;
 
 private:
     const TObjectAttributeCacheConfigPtr Config_;
@@ -80,6 +85,8 @@ private:
     //! TObjectAttributeCacheBase<TKey, TValue> implementation.
     TValue ParseValue(const NYTree::IAttributeDictionaryPtr& attributes) const override;
     const std::vector<std::string>& GetAttributeNames() const override;
+
+    std::vector<NHydra::TRevision> GetRefreshRevisions(const std::vector<TKey>& keys) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -96,12 +103,40 @@ public:
         const NLogging::TLogger& logger = {},
         NProfiling::TProfiler profiler = {});
 
+    void InvalidateActiveAndSetRefreshRevision(const NYPath::TYPath& key, NHydra::TRevision revision);
+
 private:
     const std::vector<std::string> AttributeNames_;
+
+    class TRevisionStorage
+    {
+    public:
+        explicit TRevisionStorage(ui64 maxPathsSize);
+
+        void Add(const NYPath::TYPath& path, NHydra::TRevision revision);
+
+        NHydra::TRevision Get(const NYPath::TYPath& path) const;
+
+        NHydra::TRevision GetDefault() const;
+
+    private:
+        const ui64 MaxPathsSize_;
+
+        THashMap<NYPath::TYPath, NHydra::TRevision> RevisionMap_;
+        TSet<std::pair<NHydra::TRevision, NYPath::TYPath>> Paths_;
+
+        NHydra::TRevision DefaultRevision_ = NHydra::NullRevision;
+
+        void Remove(const NYPath::TYPath& path, bool updateDefault = false);
+    };
+
+    TRevisionStorage RefreshRevisionStorage_;
 
     NYPath::TYPath GetPath(const NYPath::TYPath& key) const override;
     NYTree::IAttributeDictionaryPtr ParseValue(const NYTree::IAttributeDictionaryPtr& attributes) const override;
     const std::vector<std::string>& GetAttributeNames() const override;
+
+    std::vector<NHydra::TRevision> GetRefreshRevisions(const std::vector<NYPath::TYPath>& keys) const override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TObjectAttributeCache)

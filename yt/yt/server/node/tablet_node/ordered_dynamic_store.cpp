@@ -625,6 +625,11 @@ i64 TOrderedDynamicStore::GetTimestampCount() const
     return GetRowCount();
 }
 
+i64 TOrderedDynamicStore::ClampMaxDynamicStoreTimestampCount(TMaxDynamicStoreTimestampCount configLimit) const
+{
+    return configLimit.Underlying();
+}
+
 ISchemafulUnversionedReaderPtr TOrderedDynamicStore::CreateReader(
     const TTabletSnapshotPtr& /*tabletSnapshot*/,
     int tabletIndex,

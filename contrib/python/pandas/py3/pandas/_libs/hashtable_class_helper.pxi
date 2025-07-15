@@ -4,71 +4,71 @@ Template for each `dtype` helper function for hashtable
 WARNING: DO NOT edit .pxi FILE directly, .pxi is generated from .pxi.in
 """
 
-cdef khcomplex64_t to_khcomplex64_t(complex64_t val) nogil:
+cdef khcomplex64_t to_khcomplex64_t(complex64_t val) noexcept nogil:
     cdef khcomplex64_t res
     res.real = val.real
     res.imag = val.imag
     return res
-cdef khcomplex128_t to_khcomplex128_t(complex128_t val) nogil:
+cdef khcomplex128_t to_khcomplex128_t(complex128_t val) noexcept nogil:
     cdef khcomplex128_t res
     res.real = val.real
     res.imag = val.imag
     return res
 
-cdef bint is_nan_khcomplex128_t(khcomplex128_t val) nogil:
+cdef bint is_nan_khcomplex128_t(khcomplex128_t val) noexcept nogil:
     return val.real != val.real or val.imag != val.imag
 # are_equivalent_khcomplex128_t is cimported via khash.pxd
 
-cdef bint is_nan_khcomplex64_t(khcomplex64_t val) nogil:
+cdef bint is_nan_khcomplex64_t(khcomplex64_t val) noexcept nogil:
     return val.real != val.real or val.imag != val.imag
 # are_equivalent_khcomplex64_t is cimported via khash.pxd
 
-cdef bint is_nan_float64_t(float64_t val) nogil:
+cdef bint is_nan_float64_t(float64_t val) noexcept nogil:
     return val != val
 # are_equivalent_float64_t is cimported via khash.pxd
 
-cdef bint is_nan_float32_t(float32_t val) nogil:
+cdef bint is_nan_float32_t(float32_t val) noexcept nogil:
     return val != val
 # are_equivalent_float32_t is cimported via khash.pxd
 
-cdef bint is_nan_int64_t(int64_t val) nogil:
+cdef bint is_nan_int64_t(int64_t val) noexcept nogil:
     return False
-cdef bint are_equivalent_int64_t(int64_t val1, int64_t val2) nogil:
+cdef bint are_equivalent_int64_t(int64_t val1, int64_t val2) noexcept nogil:
     return val1 == val2
 
-cdef bint is_nan_int32_t(int32_t val) nogil:
+cdef bint is_nan_int32_t(int32_t val) noexcept nogil:
     return False
-cdef bint are_equivalent_int32_t(int32_t val1, int32_t val2) nogil:
+cdef bint are_equivalent_int32_t(int32_t val1, int32_t val2) noexcept nogil:
     return val1 == val2
 
-cdef bint is_nan_int16_t(int16_t val) nogil:
+cdef bint is_nan_int16_t(int16_t val) noexcept nogil:
     return False
-cdef bint are_equivalent_int16_t(int16_t val1, int16_t val2) nogil:
+cdef bint are_equivalent_int16_t(int16_t val1, int16_t val2) noexcept nogil:
     return val1 == val2
 
-cdef bint is_nan_int8_t(int8_t val) nogil:
+cdef bint is_nan_int8_t(int8_t val) noexcept nogil:
     return False
-cdef bint are_equivalent_int8_t(int8_t val1, int8_t val2) nogil:
+cdef bint are_equivalent_int8_t(int8_t val1, int8_t val2) noexcept nogil:
     return val1 == val2
 
-cdef bint is_nan_uint64_t(uint64_t val) nogil:
+cdef bint is_nan_uint64_t(uint64_t val) noexcept nogil:
     return False
-cdef bint are_equivalent_uint64_t(uint64_t val1, uint64_t val2) nogil:
+cdef bint are_equivalent_uint64_t(uint64_t val1, uint64_t val2) noexcept nogil:
     return val1 == val2
 
-cdef bint is_nan_uint32_t(uint32_t val) nogil:
+cdef bint is_nan_uint32_t(uint32_t val) noexcept nogil:
     return False
-cdef bint are_equivalent_uint32_t(uint32_t val1, uint32_t val2) nogil:
+cdef bint are_equivalent_uint32_t(uint32_t val1, uint32_t val2) noexcept nogil:
     return val1 == val2
 
-cdef bint is_nan_uint16_t(uint16_t val) nogil:
+cdef bint is_nan_uint16_t(uint16_t val) noexcept nogil:
     return False
-cdef bint are_equivalent_uint16_t(uint16_t val1, uint16_t val2) nogil:
+cdef bint are_equivalent_uint16_t(uint16_t val1, uint16_t val2) noexcept nogil:
     return val1 == val2
 
-cdef bint is_nan_uint8_t(uint8_t val) nogil:
+cdef bint is_nan_uint8_t(uint8_t val) noexcept nogil:
     return False
-cdef bint are_equivalent_uint8_t(uint8_t val1, uint8_t val2) nogil:
+cdef bint are_equivalent_uint8_t(uint8_t val1, uint8_t val2) noexcept nogil:
     return val1 == val2
 from pandas._libs.khash cimport (
     kh_destroy_complex64,
@@ -209,7 +209,7 @@ ctypedef struct Complex128VectorData:
 @cython.wraparound(False)
 @cython.boundscheck(False)
 cdef void append_data_complex128(Complex128VectorData *data,
-                                       khcomplex128_t x) nogil:
+                                       khcomplex128_t x) noexcept nogil:
 
     data.data[data.n] = x
     data.n += 1
@@ -224,7 +224,7 @@ ctypedef struct Complex64VectorData:
 @cython.wraparound(False)
 @cython.boundscheck(False)
 cdef void append_data_complex64(Complex64VectorData *data,
-                                       khcomplex64_t x) nogil:
+                                       khcomplex64_t x) noexcept nogil:
 
     data.data[data.n] = x
     data.n += 1
@@ -239,7 +239,7 @@ ctypedef struct Float64VectorData:
 @cython.wraparound(False)
 @cython.boundscheck(False)
 cdef void append_data_float64(Float64VectorData *data,
-                                       float64_t x) nogil:
+                                       float64_t x) noexcept nogil:
 
     data.data[data.n] = x
     data.n += 1
@@ -254,7 +254,7 @@ ctypedef struct Float32VectorData:
 @cython.wraparound(False)
 @cython.boundscheck(False)
 cdef void append_data_float32(Float32VectorData *data,
-                                       float32_t x) nogil:
+                                       float32_t x) noexcept nogil:
 
     data.data[data.n] = x
     data.n += 1
@@ -263,7 +263,7 @@ cdef void append_data_float32(Float32VectorData *data,
 @cython.wraparound(False)
 @cython.boundscheck(False)
 cdef void append_data_int64(Int64VectorData *data,
-                                       int64_t x) nogil:
+                                       int64_t x) noexcept nogil:
 
     data.data[data.n] = x
     data.n += 1
@@ -278,7 +278,7 @@ ctypedef struct Int32VectorData:
 @cython.wraparound(False)
 @cython.boundscheck(False)
 cdef void append_data_int32(Int32VectorData *data,
-                                       int32_t x) nogil:
+                                       int32_t x) noexcept nogil:
 
     data.data[data.n] = x
     data.n += 1
@@ -293,7 +293,7 @@ ctypedef struct Int16VectorData:
 @cython.wraparound(False)
 @cython.boundscheck(False)
 cdef void append_data_int16(Int16VectorData *data,
-                                       int16_t x) nogil:
+                                       int16_t x) noexcept nogil:
 
     data.data[data.n] = x
     data.n += 1
@@ -308,7 +308,7 @@ ctypedef struct Int8VectorData:
 @cython.wraparound(False)
 @cython.boundscheck(False)
 cdef void append_data_int8(Int8VectorData *data,
-                                       int8_t x) nogil:
+                                       int8_t x) noexcept nogil:
 
     data.data[data.n] = x
     data.n += 1
@@ -323,7 +323,7 @@ ctypedef struct StringVectorData:
 @cython.wraparound(False)
 @cython.boundscheck(False)
 cdef void append_data_string(StringVectorData *data,
-                                       char * x) nogil:
+                                       char * x) noexcept nogil:
 
     data.data[data.n] = x
     data.n += 1
@@ -338,7 +338,7 @@ ctypedef struct UInt64VectorData:
 @cython.wraparound(False)
 @cython.boundscheck(False)
 cdef void append_data_uint64(UInt64VectorData *data,
-                                       uint64_t x) nogil:
+                                       uint64_t x) noexcept nogil:
 
     data.data[data.n] = x
     data.n += 1
@@ -353,7 +353,7 @@ ctypedef struct UInt32VectorData:
 @cython.wraparound(False)
 @cython.boundscheck(False)
 cdef void append_data_uint32(UInt32VectorData *data,
-                                       uint32_t x) nogil:
+                                       uint32_t x) noexcept nogil:
 
     data.data[data.n] = x
     data.n += 1
@@ -368,7 +368,7 @@ ctypedef struct UInt16VectorData:
 @cython.wraparound(False)
 @cython.boundscheck(False)
 cdef void append_data_uint16(UInt16VectorData *data,
-                                       uint16_t x) nogil:
+                                       uint16_t x) noexcept nogil:
 
     data.data[data.n] = x
     data.n += 1
@@ -383,7 +383,7 @@ ctypedef struct UInt8VectorData:
 @cython.wraparound(False)
 @cython.boundscheck(False)
 cdef void append_data_uint8(UInt8VectorData *data,
-                                       uint8_t x) nogil:
+                                       uint8_t x) noexcept nogil:
 
     data.data[data.n] = x
     data.n += 1
@@ -403,7 +403,7 @@ ctypedef fused vector_data:
     Complex64VectorData
     StringVectorData
 
-cdef bint needs_resize(vector_data *data) nogil:
+cdef bint needs_resize(vector_data *data) noexcept nogil:
     return data.n == data.m
 
 # ----------------------------------------------------------------------
@@ -459,7 +459,7 @@ cdef class Complex128Vector(Vector):
         self.external_view_exists = True
         return self.ao
 
-    cdef void append(self, khcomplex128_t x):
+    cdef void append(self, khcomplex128_t x) noexcept:
 
         if needs_resize(self.data):
             if self.external_view_exists:
@@ -514,7 +514,7 @@ cdef class Complex64Vector(Vector):
         self.external_view_exists = True
         return self.ao
 
-    cdef void append(self, khcomplex64_t x):
+    cdef void append(self, khcomplex64_t x) noexcept:
 
         if needs_resize(self.data):
             if self.external_view_exists:
@@ -569,7 +569,7 @@ cdef class Float64Vector(Vector):
         self.external_view_exists = True
         return self.ao
 
-    cdef void append(self, float64_t x):
+    cdef void append(self, float64_t x) noexcept:
 
         if needs_resize(self.data):
             if self.external_view_exists:
@@ -624,7 +624,7 @@ cdef class UInt64Vector(Vector):
         self.external_view_exists = True
         return self.ao
 
-    cdef void append(self, uint64_t x):
+    cdef void append(self, uint64_t x) noexcept:
 
         if needs_resize(self.data):
             if self.external_view_exists:
@@ -676,7 +676,7 @@ cdef class Int64Vector(Vector):
         self.external_view_exists = True
         return self.ao
 
-    cdef void append(self, int64_t x):
+    cdef void append(self, int64_t x) noexcept:
 
         if needs_resize(self.data):
             if self.external_view_exists:
@@ -731,7 +731,7 @@ cdef class Float32Vector(Vector):
         self.external_view_exists = True
         return self.ao
 
-    cdef void append(self, float32_t x):
+    cdef void append(self, float32_t x) noexcept:
 
         if needs_resize(self.data):
             if self.external_view_exists:
@@ -786,7 +786,7 @@ cdef class UInt32Vector(Vector):
         self.external_view_exists = True
         return self.ao
 
-    cdef void append(self, uint32_t x):
+    cdef void append(self, uint32_t x) noexcept:
 
         if needs_resize(self.data):
             if self.external_view_exists:
@@ -841,7 +841,7 @@ cdef class Int32Vector(Vector):
         self.external_view_exists = True
         return self.ao
 
-    cdef void append(self, int32_t x):
+    cdef void append(self, int32_t x) noexcept:
 
         if needs_resize(self.data):
             if self.external_view_exists:
@@ -896,7 +896,7 @@ cdef class UInt16Vector(Vector):
         self.external_view_exists = True
         return self.ao
 
-    cdef void append(self, uint16_t x):
+    cdef void append(self, uint16_t x) noexcept:
 
         if needs_resize(self.data):
             if self.external_view_exists:
@@ -951,7 +951,7 @@ cdef class Int16Vector(Vector):
         self.external_view_exists = True
         return self.ao
 
-    cdef void append(self, int16_t x):
+    cdef void append(self, int16_t x) noexcept:
 
         if needs_resize(self.data):
             if self.external_view_exists:
@@ -1006,7 +1006,7 @@ cdef class UInt8Vector(Vector):
         self.external_view_exists = True
         return self.ao
 
-    cdef void append(self, uint8_t x):
+    cdef void append(self, uint8_t x) noexcept:
 
         if needs_resize(self.data):
             if self.external_view_exists:
@@ -1061,7 +1061,7 @@ cdef class Int8Vector(Vector):
         self.external_view_exists = True
         return self.ao
 
-    cdef void append(self, int8_t x):
+    cdef void append(self, int8_t x) noexcept:
 
         if needs_resize(self.data):
             if self.external_view_exists:
@@ -1129,7 +1129,7 @@ cdef class StringVector(Vector):
         self.data.m = self.data.n
         return ao
 
-    cdef void append(self, char *x):
+    cdef void append(self, char *x) noexcept:
 
         if needs_resize(self.data):
             self.resize()
@@ -1426,7 +1426,7 @@ cdef class Complex128HashTable(HashTable):
             UInt8Vector result_mask
             UInt8VectorData *rmd
             bint use_na_value, use_mask, seen_na = False
-            uint8_t[:] mask_values
+            const uint8_t[:] mask_values
 
         if return_inverse:
             labels = np.empty(n, dtype=np.intp)
@@ -1880,7 +1880,7 @@ cdef class Float64HashTable(HashTable):
             UInt8Vector result_mask
             UInt8VectorData *rmd
             bint use_na_value, use_mask, seen_na = False
-            uint8_t[:] mask_values
+            const uint8_t[:] mask_values
 
         if return_inverse:
             labels = np.empty(n, dtype=np.intp)
@@ -2334,7 +2334,7 @@ cdef class UInt64HashTable(HashTable):
             UInt8Vector result_mask
             UInt8VectorData *rmd
             bint use_na_value, use_mask, seen_na = False
-            uint8_t[:] mask_values
+            const uint8_t[:] mask_values
 
         if return_inverse:
             labels = np.empty(n, dtype=np.intp)
@@ -2805,7 +2805,7 @@ cdef class Int64HashTable(HashTable):
             UInt8Vector result_mask
             UInt8VectorData *rmd
             bint use_na_value, use_mask, seen_na = False
-            uint8_t[:] mask_values
+            const uint8_t[:] mask_values
 
         if return_inverse:
             labels = np.empty(n, dtype=np.intp)
@@ -3304,7 +3304,7 @@ cdef class Complex64HashTable(HashTable):
             UInt8Vector result_mask
             UInt8VectorData *rmd
             bint use_na_value, use_mask, seen_na = False
-            uint8_t[:] mask_values
+            const uint8_t[:] mask_values
 
         if return_inverse:
             labels = np.empty(n, dtype=np.intp)
@@ -3758,7 +3758,7 @@ cdef class Float32HashTable(HashTable):
             UInt8Vector result_mask
             UInt8VectorData *rmd
             bint use_na_value, use_mask, seen_na = False
-            uint8_t[:] mask_values
+            const uint8_t[:] mask_values
 
         if return_inverse:
             labels = np.empty(n, dtype=np.intp)
@@ -4212,7 +4212,7 @@ cdef class UInt32HashTable(HashTable):
             UInt8Vector result_mask
             UInt8VectorData *rmd
             bint use_na_value, use_mask, seen_na = False
-            uint8_t[:] mask_values
+            const uint8_t[:] mask_values
 
         if return_inverse:
             labels = np.empty(n, dtype=np.intp)
@@ -4666,7 +4666,7 @@ cdef class Int32HashTable(HashTable):
             UInt8Vector result_mask
             UInt8VectorData *rmd
             bint use_na_value, use_mask, seen_na = False
-            uint8_t[:] mask_values
+            const uint8_t[:] mask_values
 
         if return_inverse:
             labels = np.empty(n, dtype=np.intp)
@@ -5120,7 +5120,7 @@ cdef class UInt16HashTable(HashTable):
             UInt8Vector result_mask
             UInt8VectorData *rmd
             bint use_na_value, use_mask, seen_na = False
-            uint8_t[:] mask_values
+            const uint8_t[:] mask_values
 
         if return_inverse:
             labels = np.empty(n, dtype=np.intp)
@@ -5574,7 +5574,7 @@ cdef class Int16HashTable(HashTable):
             UInt8Vector result_mask
             UInt8VectorData *rmd
             bint use_na_value, use_mask, seen_na = False
-            uint8_t[:] mask_values
+            const uint8_t[:] mask_values
 
         if return_inverse:
             labels = np.empty(n, dtype=np.intp)
@@ -6028,7 +6028,7 @@ cdef class UInt8HashTable(HashTable):
             UInt8Vector result_mask
             UInt8VectorData *rmd
             bint use_na_value, use_mask, seen_na = False
-            uint8_t[:] mask_values
+            const uint8_t[:] mask_values
 
         if return_inverse:
             labels = np.empty(n, dtype=np.intp)
@@ -6482,7 +6482,7 @@ cdef class Int8HashTable(HashTable):
             UInt8Vector result_mask
             UInt8VectorData *rmd
             bint use_na_value, use_mask, seen_na = False
-            uint8_t[:] mask_values
+            const uint8_t[:] mask_values
 
         if return_inverse:
             labels = np.empty(n, dtype=np.intp)
@@ -6906,11 +6906,13 @@ cdef class StringHashTable(HashTable):
             const char **vecs
             khiter_t k
             bint use_na_value
+            bint non_null_na_value
 
         if return_inverse:
             labels = np.zeros(n, dtype=np.intp)
         uindexer = np.empty(n, dtype=np.int64)
         use_na_value = na_value is not None
+        non_null_na_value = not checknull(na_value)
 
         # assign pointers and pre-filter out missing (if ignore_na)
         vecs = <const char **>malloc(n * sizeof(char *))
@@ -6919,7 +6921,12 @@ cdef class StringHashTable(HashTable):
 
             if (ignore_na
                 and (not isinstance(val, str)
-                     or (use_na_value and val == na_value))):
+                     or (use_na_value and (
+                        (non_null_na_value and val == na_value) or
+                        (not non_null_na_value and is_matching_na(val, na_value)))
+                        )
+                    )
+                ):
                 # if missing values do not count as unique values (i.e. if
                 # ignore_na is True), we can skip the actual value, and
                 # replace the label with na_sentinel directly
@@ -7024,9 +7031,10 @@ cdef class StringHashTable(HashTable):
                             na_value=na_value, ignore_na=ignore_na,
                             return_inverse=True)
 
+    # Add unused mask parameter for compat with other signatures
     def get_labels(self, ndarray[object] values, ObjectVector uniques,
                    Py_ssize_t count_prior=0, Py_ssize_t na_sentinel=-1,
-                   object na_value=None):
+                   object na_value=None, object mask=None):
         # -> np.ndarray[np.intp]
         _, labels = self._unique(values, uniques, count_prior=count_prior,
                                  na_sentinel=na_sentinel, na_value=na_value,
@@ -7184,10 +7192,11 @@ cdef class PyObjectHashTable(HashTable):
             object val
             khiter_t k
             bint use_na_value
-
+            bint non_null_na_value
         if return_inverse:
             labels = np.empty(n, dtype=np.intp)
         use_na_value = na_value is not None
+        non_null_na_value = not checknull(na_value)
 
         for i in range(n):
             val = values[i]
@@ -7195,7 +7204,11 @@ cdef class PyObjectHashTable(HashTable):
 
             if ignore_na and (
                 checknull(val)
-                or (use_na_value and val == na_value)
+                or (use_na_value and (
+                    (non_null_na_value and val == na_value) or
+                    (not non_null_na_value and is_matching_na(val, na_value))
+                    )
+                )
             ):
                 # if missing values do not count as unique values (i.e. if
                 # ignore_na is True), skip the hashtable entry for them, and
@@ -7281,9 +7294,10 @@ cdef class PyObjectHashTable(HashTable):
                             na_value=na_value, ignore_na=ignore_na,
                             return_inverse=True)
 
+    # Add unused mask parameter for compat with other signatures
     def get_labels(self, ndarray[object] values, ObjectVector uniques,
                    Py_ssize_t count_prior=0, Py_ssize_t na_sentinel=-1,
-                   object na_value=None):
+                   object na_value=None, object mask=None):
         # -> np.ndarray[np.intp]
         _, labels = self._unique(values, uniques, count_prior=count_prior,
                                  na_sentinel=na_sentinel, na_value=na_value,

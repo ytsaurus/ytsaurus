@@ -10,6 +10,7 @@ IF (
         tar2squash
         ytprof
         ytrecipe
+        yttransfer
     )
 ENDIF()
 

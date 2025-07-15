@@ -2,7 +2,11 @@
 
 #include "public.h"
 
+#include <yt/yt/server/node/cluster_node/public.h>
+
 #include <yt/yt/client/chaos_client/public.h>
+
+#include <yt/yt/ytlib/chaos_client/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -32,7 +36,8 @@ IChaosAgentPtr CreateChaosAgent(
     TTablet* tablet,
     ITabletSlotPtr slot,
     NChaosClient::TReplicationCardId replicationCardId,
-    NApi::NNative::IClientPtr localClient);
+    NApi::NNative::IClientPtr localClient,
+    NChaosClient::IReplicationCardUpdatesBatcherPtr replicationCardUpdatesBatcher);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1230,8 +1230,6 @@ struct TOperationSpecBase
     //! Currently used by simple sort job and partition sort job.
     bool EnableCodegenComparator;
 
-    bool DisableRenameColumnsCompatibilityCode;
-
     //! Enable virtual sandbox.
     //! Allow access to all immutable files via NBD.
     bool EnableVirtualSandbox;
@@ -1691,6 +1689,9 @@ struct TSimpleOperationSpecBase
     TDuration LocalityTimeout;
     TJobIOConfigPtr JobIO;
 
+    //! COMPAT(apollo1321): remove in 25.3.
+    bool StrictDataWeightPerJobVerification;
+
     REGISTER_YSON_STRUCT(TSimpleOperationSpecBase);
 
     static void Register(TRegistrar registrar);
@@ -1998,6 +1999,9 @@ struct TSortOperationSpecBase
 
     // Desired number of samples per partition.
     int SamplesPerPartition;
+
+    // This option is used for partition/partition_map and sorted_reduce/sorted_merge jobs.
+    bool ForceJobSizeAdjuster;
 
     REGISTER_YSON_STRUCT(TSortOperationSpecBase);
 

@@ -35,6 +35,7 @@ SET(SRCS
     __init__.py
     test_common.py
     test_formats.py
+    test_misc.py
     test_schema.py
     test_thread_pool.py
     test_typed.py

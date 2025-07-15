@@ -1,8 +1,12 @@
 // Code generated via scripts/generate.sh. DO NOT EDIT.
 
+// Copyright (c) The Test Authors
+// SPDX-License-Identifier: MPL-2.0
+
 package must
 
 import (
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -506,8 +510,9 @@ func FileExistsFS(t T, system fs.FS, file string, settings ...Setting) {
 // FileExists asserts file exists on the OS filesystem.
 func FileExists(t T, file string, settings ...Setting) {
 	t.Helper()
-	file = strings.TrimPrefix(file, "/")
-	invoke(t, assertions.FileExistsFS(os.DirFS(brokenfs.Root), file), settings...)
+	dir := filepath.Dir(file)
+	file = filepath.Base(file)
+	invoke(t, assertions.FileExistsFS(os.DirFS(dir), file), settings...)
 }
 
 // FileNotExistsFS asserts file does not exist on the fs.FS filesystem.
@@ -597,6 +602,12 @@ func FileContains(t T, file, content string, settings ...Setting) {
 func FilePathValid(t T, path string, settings ...Setting) {
 	t.Helper()
 	invoke(t, assertions.FilePathValid(path), settings...)
+}
+
+// Close asserts c.Close does not cause an error.
+func Close(t T, c io.Closer) {
+	t.Helper()
+	invoke(t, assertions.Close(c))
 }
 
 // StrEqFold asserts exp and val are equivalent, ignoring case.

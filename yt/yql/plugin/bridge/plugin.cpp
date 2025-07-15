@@ -40,10 +40,11 @@ DEFINE_ENUM(EYqlPluginAbiVersion,
     ((TemporaryTokens)     (4)) // mpereskokova: Added GetUsedClusters step; Changed Run options.
     ((Credentials)         (5)) // a-romanov: 'credentials' parameter instead of 'token'.
     ((DynamicConfig)       (6)) // lucius: Added OnDynamicConfigChanged.
+    ((YtflowProvider)      (7)) // ngc224: Added ytflow provider support.
 );
 
-constexpr auto MinSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::DynamicConfig;
-constexpr auto MaxSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::DynamicConfig;
+constexpr auto MinSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::YtflowProvider;
+constexpr auto MaxSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::YtflowProvider;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,6 +109,7 @@ public:
     {
         TString singletonsConfig = options.SingletonsConfig ? options.SingletonsConfig.ToString() : "{}";
         TString dqGatewayConfig = options.DqGatewayConfig ? options.DqGatewayConfig.ToString() : "";
+        TString ytflowGatewayConfig = options.YtflowGatewayConfig ? options.YtflowGatewayConfig.ToString() : "";
         TString dqManagerConfig = options.DqManagerConfig ? options.DqManagerConfig.ToString() : "";
 
         TBridgeYqlPluginOptions bridgeOptions {
@@ -117,6 +119,8 @@ public:
             .GatewayConfigLength = options.GatewayConfig.AsStringBuf().size(),
             .DqGatewayConfig = dqGatewayConfig.data(),
             .DqGatewayConfigLength = dqGatewayConfig.size(),
+            .YtflowGatewayConfig = ytflowGatewayConfig.data(),
+            .YtflowGatewayConfigLength = ytflowGatewayConfig.size(),
             .DqManagerConfig = dqManagerConfig.data(),
             .DqManagerConfigLength = dqManagerConfig.size(),
             .FileStorageConfig = options.FileStorageConfig.AsStringBuf().data(),
@@ -128,6 +132,7 @@ public:
             .LogBackend = &options.LogBackend,
             .Libraries = options.Libraries.AsStringBuf().data(),
             .LibrariesLength = options.Libraries.AsStringBuf().size(),
+            .MaxYqlLangVersion = options.MaxYqlLangVersion.data(),
         };
 
         BridgePlugin_ = BridgeCreateYqlPlugin(&bridgeOptions);
@@ -176,6 +181,7 @@ public:
             .Statistics = ToString(bridgeQueryResult->Statistics, bridgeQueryResult->StatisticsLength),
             .Progress = ToString(bridgeQueryResult->Progress, bridgeQueryResult->ProgressLength),
             .TaskInfo = ToString(bridgeQueryResult->TaskInfo, bridgeQueryResult->TaskInfoLength),
+            .Ast = ToString(bridgeQueryResult->Ast, bridgeQueryResult->AstLength),
             .YsonError = ToString(bridgeQueryResult->YsonError, bridgeQueryResult->YsonErrorLength),
         };
         BridgeFreeQueryResult(bridgeQueryResult);
@@ -234,6 +240,7 @@ public:
         TQueryResult queryResult{
             .Plan = ToString(bridgeQueryResult->Plan, bridgeQueryResult->PlanLength),
             .Progress = ToString(bridgeQueryResult->Progress, bridgeQueryResult->ProgressLength),
+            .Ast = ToString(bridgeQueryResult->Ast, bridgeQueryResult->AstLength),
         };
         BridgeFreeQueryResult(bridgeQueryResult);
         return queryResult;

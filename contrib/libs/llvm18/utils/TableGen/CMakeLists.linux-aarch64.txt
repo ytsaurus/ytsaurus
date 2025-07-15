@@ -40,7 +40,8 @@ target_link_libraries(llvm-tblgen PUBLIC
 )
 
 target_allocator(llvm-tblgen
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(llvm-tblgen PRIVATE

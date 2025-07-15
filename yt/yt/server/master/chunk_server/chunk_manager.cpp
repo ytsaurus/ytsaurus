@@ -978,7 +978,7 @@ public:
         chunk->Confirm(chunkInfo, chunkMeta);
 
         if (temporarySchema) {
-            tableManager->GetOrCreateNativeMasterTableSchema(*temporarySchema->AsCompactTableSchema(), chunk);
+            tableManager->GetOrCreateNativeMasterTableSchema(temporarySchema->AsCompactTableSchema(), chunk);
         }
 
         UpdateChunkWeightStatisticsHistogram(chunk, /*add*/ true);
@@ -1935,6 +1935,9 @@ public:
             response->Attachments().push_back(serializedJobSpec);
         }
 
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        nodeTracker->UpdateLastJobHeartbeatTime(node);
+
         // If node resource usage or limits have changed, we commit mutation with new values.
         // It is sufficient to report these values from leaders only and forwarding these mutations from
         // followers may end up with strange reorderings.
@@ -1944,7 +1947,6 @@ public:
             request.mutable_resource_usage()->CopyFrom(resourceUsage);
             request.mutable_resource_limits()->CopyFrom(resourceLimits);
 
-            const auto& nodeTracker = Bootstrap_->GetNodeTracker();
             YT_UNUSED_FUTURE(nodeTracker->CreateUpdateNodeResourcesMutation(request)
                 ->CommitAndLog(Logger()));
         }

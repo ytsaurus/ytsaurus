@@ -9,6 +9,7 @@
 #include "table_traverser.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/client/api/transaction.h>
 
@@ -100,10 +101,14 @@ void TYtDatabaseBase::dropTable(DB::ContextPtr context, const String& name, bool
 
     TYPath path = getTableDataPath(name);
 
-    WaitFor(queryContext->Client()->RemoveNode(path))
-        .ThrowOnError();
+    // We can't use Client->RemoveNode() because we need to get the revision of the removed node.
+    auto proxy = NObjectClient::CreateObjectServiceWriteProxy(queryContext->Client());
+    auto batchReq = proxy.ExecuteBatch();
+    batchReq->AddRequest(TYPathProxy::Remove(path));
+    auto batchRsp = WaitFor(batchReq->Invoke()).ValueOrThrow();
+    auto refreshRevision = NHydra::TRevision(batchRsp->GetRevision(0).Underlying() + 1);
 
-    InvalidateCache(queryContext, {path});
+    InvalidateCache(queryContext, {{path, refreshRevision}});
 }
 
 void TYtDatabaseBase::renameTable(
@@ -130,6 +135,8 @@ void TYtDatabaseBase::renameTable(
     const auto& Logger = ClickHouseYtLogger;
     YT_LOG_DEBUG("Renaming table (SrcPath: %v, DstPath: %v, Exchange: %v)", srcPath, dstPath, exchange);
 
+    auto srcRefreshRevision = NHydra::NullRevision;
+    auto dstRefreshRevision = NHydra::NullRevision;
     if (exchange) {
         auto transaction = WaitFor(client->StartTransaction(NTransactionClient::ETransactionType::Master))
             .ValueOrThrow();
@@ -144,12 +151,15 @@ void TYtDatabaseBase::renameTable(
 
         WaitFor(transaction->Commit())
             .ThrowOnError();
+
+        srcRefreshRevision = GetRefreshRevision(client, srcPath);
     } else {
         WaitFor(client->MoveNode(srcPath, dstPath))
             .ThrowOnError();
     }
+    dstRefreshRevision = GetRefreshRevision(client, dstPath);
 
-    InvalidateCache(queryContext, {srcPath, dstPath});
+    InvalidateCache(queryContext, {{srcPath, srcRefreshRevision}, {dstPath, dstRefreshRevision}});
 }
 
 DB::ASTPtr TYtDatabaseBase::getCreateTableQueryImpl(const String& name, DB::ContextPtr context, bool throwOnError) const

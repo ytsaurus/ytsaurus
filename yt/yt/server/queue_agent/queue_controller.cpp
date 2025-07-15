@@ -76,55 +76,6 @@ DEFINE_REFCOUNTED_TYPE(IQueueController)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TAggregatedQueueExportsProgress
-{
-    bool HasExports = false;
-    THashMap<i64, i64> TabletIndexToRowCount;
-
-    void MergeWith(const TAggregatedQueueExportsProgress& rhs)
-    {
-        if (!HasExports) {
-            *this = rhs;
-            return;
-        }
-        if (!rhs.HasExports) {
-            return;
-        }
-        for (auto& [tabletIndex, rowCount] : TabletIndexToRowCount) {
-            if (auto it = rhs.TabletIndexToRowCount.find(tabletIndex); it != rhs.TabletIndexToRowCount.end()) {
-                rowCount = std::min(rowCount, it->second);
-            } else {
-                rowCount = 0;
-            }
-        }
-    }
-};
-
-TAggregatedQueueExportsProgress AggregateQueueExports(const THashMap<TString, TQueueExportProgressPtr>& queueExportsProgress)
-{
-    if (queueExportsProgress.empty()) {
-        return {
-            .HasExports = false,
-        };
-    }
-
-    TAggregatedQueueExportsProgress progress{
-        .HasExports = true,
-    };
-    for (const auto& [_, exportProgress] : queueExportsProgress) {
-        for (const auto& [tabletIndex, tabletExportProgress] : exportProgress->Tablets) {
-            if (auto tabletIt = progress.TabletIndexToRowCount.find(tabletIndex); tabletIt != progress.TabletIndexToRowCount.end()) {
-                tabletIt->second = std::min(tabletIt->second, tabletExportProgress->RowCount);
-            } else {
-                progress.TabletIndexToRowCount[tabletIndex] = tabletExportProgress->RowCount;
-            }
-        }
-    }
-    return progress;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TQueueSnapshotBuildSession final
 {
 public:
@@ -134,13 +85,15 @@ public:
         TQueueSnapshotPtr previousQueueSnapshot,
         std::vector<TConsumerRegistrationTableRow> registrations,
         TLogger logger,
-        TQueueAgentClientDirectoryPtr clientDirectory)
+        TQueueAgentClientDirectoryPtr clientDirectory,
+        bool enableVerboseLogging)
         : Row_(std::move(row))
         , ReplicatedTableMappingRow_(std::move(replicatedTableMappingRow))
         , PreviousQueueSnapshot_(std::move(previousQueueSnapshot))
         , Registrations_(std::move(registrations))
         , ClientDirectory_(std::move(clientDirectory))
         , Logger(logger)
+        , EnableVerboseLogging_(enableVerboseLogging)
     { }
 
     TQueueSnapshotPtr Build()
@@ -185,6 +138,7 @@ private:
     const std::vector<TConsumerRegistrationTableRow> Registrations_;
     const TQueueAgentClientDirectoryPtr ClientDirectory_;
     const TLogger Logger;
+    const bool EnableVerboseLogging_;
 
     TQueueSnapshotPtr QueueSnapshot_ = New<TQueueSnapshot>();
 
@@ -279,6 +233,15 @@ private:
             }
 
             partitionSnapshot->WriteRate.RowCount.Update(tabletInfo.TotalRowCount);
+
+            if (EnableVerboseLogging_) {
+                YT_LOG_DEBUG("New partition snapshot (PartitionIndex: %v, UpperRowIndex: %v, LowerRowIndex: %v, LastRowCommitTime: %v, CommitIdleTime: %v)",
+                    tabletIndexes[index],
+                    partitionSnapshot->UpperRowIndex,
+                    partitionSnapshot->LowerRowIndex,
+                    partitionSnapshot->LastRowCommitTime,
+                    partitionSnapshot->CommitIdleTime);
+            }
         }
 
         if (QueueSnapshot_->HasCumulativeDataWeightColumn) {
@@ -550,14 +513,26 @@ private:
 
         YT_LOG_INFO("Queue controller pass started");
 
+        bool enableVerboseLogging = false;
         {
             auto config = DynamicConfig_.Acquire();
+
+            enableVerboseLogging = config->EnableVerboseLogging;
+
             auto it = std::find(config->DelayedObjects.begin(), config->DelayedObjects.end(), static_cast<TRichYPath>(QueueRow_.Load().Ref));
             if (it != config->DelayedObjects.end()) {
                 // NB(apachee): Since this should only be used for debug, it is a warning in case "delayed_objects" field is left non-empty accidentally.
                 YT_LOG_WARNING("This pass is delayed since queue is present in \"delayed_objects\" field of dynamic config (Delay: %v)", config->ControllerDelay);
                 TDelayedExecutor::WaitForDuration(config->ControllerDelay);
             }
+        }
+
+        if (enableVerboseLogging) {
+            auto config = DynamicConfig_.Acquire();
+
+            auto it = std::find(config->VerboseLoggingObjects.begin(), config->VerboseLoggingObjects.end(), static_cast<TRichYPath>(QueueRef_));
+            auto isVerboseLoggingObject = it != config->VerboseLoggingObjects.end();
+            enableVerboseLogging = enableVerboseLogging && isVerboseLoggingObject;
         }
 
         auto registrations = ObjectStore_->GetRegistrations(QueueRef_, EObjectKind::Queue);
@@ -576,7 +551,8 @@ private:
             QueueSnapshot_.Acquire(),
             std::move(registrations),
             Logger,
-            ClientDirectory_)
+            ClientDirectory_,
+            enableVerboseLogging)
             ->Build();
         auto previousQueueSnapshot = QueueSnapshot_.Exchange(nextQueueSnapshot);
 
@@ -667,7 +643,12 @@ private:
             QueueExports_ = TQueueExportsMappingOrError();
             return;
         }
-        if (auto staticExportConfigError = CheckStaticExportConfig(*staticExportConfig, nextQueueSnapshot->Row.ObjectType); !staticExportConfigError.IsOK()) {
+
+        auto staticExportConfigError = CheckStaticExportConfig(
+            *staticExportConfig,
+            nextQueueSnapshot->Row.ObjectType,
+            queueExporterConfig.Implementation);
+        if (!staticExportConfigError.IsOK()) {
             QueueExports_ = staticExportConfigError;
             QueueExportsAlertCollector_->StageAlert(CreateAlert(
                 NAlerts::EErrorCode::QueueAgentQueueControllerStaticExportMisconfiguration,
@@ -718,7 +699,10 @@ private:
         }
     }
 
-    TError CheckStaticExportConfig(const THashMap<TString, TQueueStaticExportConfigPtr>& configs, std::optional<EObjectType> objectType) const
+    TError CheckStaticExportConfig(
+        const THashMap<TString, TQueueStaticExportConfigPtr>& configs,
+        std::optional<EObjectType> objectType,
+        EQueueExporterImplementation queueExporterImplementation) const
     {
         if (!objectType) {
             return TError("Cannot check \"static_export_config\", because object type is not known");
@@ -730,6 +714,11 @@ private:
         THashSet<TYPath> directories;
         THashSet<TYPath> duplicateDirectories;
         for (const auto& [_, config] : configs) {
+            if (queueExporterImplementation == EQueueExporterImplementation::Old && !config->ExportPeriod) {
+                YT_LOG_DEBUG("Old queue exporter implementation is being constructed with no export period set");
+                return TError("Queue exporter configuration requires an \"export_period\" parameter");
+            }
+
             if (auto [_, inserted] = directories.insert(config->ExportDirectory); !inserted) {
                 YT_LOG_DEBUG("There are duplicate export directories in queue static export config (Value: %v)", config->ExportDirectory);
                 duplicateDirectories.insert(config->ExportDirectory);

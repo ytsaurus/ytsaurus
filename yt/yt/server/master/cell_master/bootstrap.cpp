@@ -380,6 +380,11 @@ const NNative::IClientPtr& TBootstrap::GetRootClient() const
     return RootClient_;
 }
 
+bool TBootstrap::IsSequoiaConfigured() const
+{
+    return ClusterConnection_->IsSequoiaConfigured();
+}
+
 ISequoiaClientPtr TBootstrap::GetSequoiaClient() const
 {
     return ClusterConnection_->GetSequoiaClient();
@@ -550,7 +555,7 @@ const ITamedCellManagerPtr& TBootstrap::GetTamedCellManager() const
     return TamedCellManager_;
 }
 
-const TTabletManagerPtr& TBootstrap::GetTabletManager() const
+const ITabletManagerPtr& TBootstrap::GetTabletManager() const
 {
     return TabletManager_;
 }
@@ -707,6 +712,8 @@ void TBootstrap::DoRun()
 
 void TBootstrap::DoInitialize()
 {
+    ITableDescriptor::ScheduleInitialization();
+
     Config_->PrimaryMaster->ValidateAllPeersPresent();
     for (auto cellConfig : Config_->SecondaryMasters) {
         cellConfig->ValidateAllPeersPresent();
@@ -935,7 +942,7 @@ void TBootstrap::DoInitialize()
 
     TableManager_ = CreateTableManager(this);
 
-    TabletManager_ = New<TTabletManager>(this);
+    TabletManager_ = CreateTabletManager(this);
 
     BackupManager_ = CreateBackupManager(this);
 
@@ -945,7 +952,7 @@ void TBootstrap::DoInitialize()
 
     CypressProxyTracker_ = CreateCypressProxyTracker(this, ChannelFactory_);
 
-    ReplicatedTableTracker_ = New<TReplicatedTableTracker>(Config_->ReplicatedTableTracker, this);
+    ReplicatedTableTracker_ = CreateMasterReplicatedTableTracker(Config_->ReplicatedTableTracker, this);
 
     SchedulerPoolManager_ = CreateSchedulerPoolManager(this);
 

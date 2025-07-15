@@ -2,6 +2,8 @@ syntax = "proto2";
 
 option go_package = "go.ytsaurus.tech/library/cpp/porto/proto;myapi";
 
+import "library/cpp/porto/proto/error_codes.proto";
+
 /*
    Portod daemon listens on /run/portod.socket unix socket.
 
@@ -21,147 +23,6 @@ option go_package = "go.ytsaurus.tech/library/cpp/porto/proto;myapi";
 */
 
 package Porto;
-
-// List of error codes
-enum EError {
-    // No errors occured.
-    Success = 0;
-
-    // Unclassified error, usually unexpected syscall fail.
-    Unknown = 1;
-
-    // Unknown method or bad request.
-    InvalidMethod = 2;
-
-    // Container with specified name already exists.
-    ContainerAlreadyExists = 3;
-
-    // Container with specified name doesn't exist.
-    ContainerDoesNotExist = 4;
-
-    // Unknown property specified.
-    InvalidProperty = 5;
-
-    // Unknown data specified.
-    InvalidData = 6;
-
-    // Invalid value of property or data.
-    InvalidValue = 7;
-
-    // Can't perform specified operation in current container state.
-    InvalidState = 8;
-
-    // Permanent faulure: old kernel version, missing feature, configuration, etc.
-    NotSupported = 9;
-
-    // Temporary failure: too much objects, not enough memory, etc.
-    ResourceNotAvailable = 10;
-
-    // Insufficient rights for performing requested operation.
-    Permission = 11;
-
-    // Can't create new volume with specified name, because there is already one.
-    VolumeAlreadyExists = 12;
-
-    // Volume with specified name doesn't exist.
-    VolumeNotFound = 13;
-
-    // Not enough disk space.
-    NoSpace = 14;
-
-    // Object in use.
-    Busy = 15;
-
-    // Volume already linked with container.
-    VolumeAlreadyLinked = 16;
-
-    // Volume not linked with container.
-    VolumeNotLinked = 17;
-
-    // Layer with this name already exists.
-    LayerAlreadyExists = 18;
-
-    // Layer with this name not found.
-    LayerNotFound = 19;
-
-    // Property has no value, data source permanently not available.
-    NoValue = 20;
-
-    // Volume under construction or destruction.
-    VolumeNotReady = 21;
-
-    // Cannot parse or execute command.
-    InvalidCommand = 22;
-
-    // Error code is lost or came from future.
-    LostError = 23;
-
-    // Device node not found.
-    DeviceNotFound = 24;
-
-    // Path does not match restricitons or does not exist.
-    InvalidPath = 25;
-
-    // Wrong or unuseable ip address.
-    InvalidNetworkAddress = 26;
-
-    // Porto in system maintenance state.
-    PortoFrozen = 27;
-
-    // Label with this name is not set.
-    LabelNotFound = 28;
-
-    // Label name does not meet restrictions.
-    InvalidLabel = 29;
-
-    // Errors in tar, on archive extraction
-    HelperError = 30;
-    HelperFatalError = 31;
-
-    // Block device does not contain valid filesystem
-    InvalidFilesystem = 32;
-
-    // Negotiation with nbd server timed out
-    NbdSocketTimeout = 33;
-
-    // Failed connect to nbd server
-    NbdSocketUnavaliable = 34;
-
-    // Other nbd connection error
-    NbdSocketError = 35;
-
-    // Unkown nbd export
-    NbdUnkownExport = 36;
-
-    // Invalid message from nbd server
-    NbdProtoError = 37;
-
-    // Generic object not found.
-    NotFound = 404;
-
-    // Reserved error code for client library.
-    SocketError = 502;
-
-    // Reserved error code for client library.
-    SocketUnavailable = 503;
-
-    // Reserved error code for client library.
-    SocketTimeout = 504;
-
-    // Portod close client connections on reload
-    PortodReloaded = 505;
-
-    // Reserved error code for taints.
-    Taint = 666;
-
-    // Reserved error codes 700-800 to docker
-    Docker = 700;
-    DockerImageNotFound = 701;
-
-    // Internal error code, not for users.
-    Queued = 1000;
-}
-
 
 message TPortoRequest {
 
@@ -1616,6 +1477,7 @@ message TDockerImagePullRequest {
     optional string auth_token = 3;
     optional string auth_path = 4;
     optional string auth_service = 5;
+    optional string platform = 6;
 }
 
 message TDockerImagePullResponse {

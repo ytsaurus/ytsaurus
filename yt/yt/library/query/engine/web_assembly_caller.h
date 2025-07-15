@@ -24,7 +24,7 @@ public:
        const NYT::TSourceLocation& location,
 #endif
         NCodegen::TCGModulePtr cgModule,
-        const TString& function)
+        const std::string& function)
         : NYT::NDetail::TBindStateBase(
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
             location
@@ -44,9 +44,9 @@ public:
     }
 
 private:
-    NCodegen::TCGModulePtr Module_;
-    TString FunctionName_;
-    NWebAssembly::TWebAssemblyRuntimeType RuntimeType_;
+    const NCodegen::TCGModulePtr Module_;
+    const std::string FunctionName_;
+    const NWebAssembly::TWebAssemblyRuntimeType RuntimeType_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

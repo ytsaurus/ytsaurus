@@ -15,6 +15,7 @@
 #include "node_tracker_cache.h"
 #include "helpers.h"
 
+#include <yt/yt/server/master/cell_master/alert_manager.h>
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
@@ -43,7 +44,6 @@
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
 #include <yt/yt/server/master/tablet_server/tablet_node_tracker.h>
-#include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
@@ -215,6 +215,9 @@ public:
         ProfilingExecutor_->Start();
 
         NodeDisposalManager_->Initialize();
+
+        const auto& alertManager = Bootstrap_->GetAlertManager();
+        alertManager->RegisterAlertSource(BIND(&TNodeTracker::GetAlerts, MakeStrong(this)));
     }
 
     void ProcessRegisterNode(const std::string& address, TCtxRegisterNodePtr context) override
@@ -520,6 +523,16 @@ public:
     {
         const auto* mutationContext = GetCurrentMutationContext();
         node->SetLastSeenTime(mutationContext->GetTimestamp());
+    }
+
+    void UpdateLastDataHeartbeatTime(TNode* node) override
+    {
+        node->SetLastDataHeartbeatTime(GetCpuInstant());
+    }
+
+    void UpdateLastJobHeartbeatTime(TNode* node) override
+    {
+        node->SetLastJobHeartbeatTime(GetCpuInstant());
     }
 
     void OnNodeMaintenanceUpdated(TNode* node, EMaintenanceType type) override
@@ -1054,6 +1067,10 @@ private:
     // COMPAT(kvk1920): remove after 24.2.
     std::vector<TObjectId> NodesWithImaginaryLocations_;
 
+    TPeriodicExecutorPtr NodeAlertsCheckExecutor_;
+
+    std::vector<TError> Alerts_;
+
     struct TNodeObjectCreationOptions
     {
         std::optional<TNodeId> NodeId;
@@ -1076,6 +1093,8 @@ private:
     void OnAggregatedNodeStateChanged(TNode* node)
     {
         LogNodeState(Bootstrap_, node);
+
+        node->SetLastStateChangeTime(GetCpuInstant());
     }
 
     TNodeId GenerateNodeId()
@@ -1367,10 +1386,6 @@ private:
             const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
             dataNodeTracker->ProcessRegisterNode(node, request, response);
         }
-
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        auto tableMountConfigKeys = FromProto<std::vector<std::string>>(request->table_mount_config_keys());
-        tabletManager->UpdateExtraMountConfigKeys(std::move(tableMountConfigKeys));
 
         UpdateLastSeenTime(node);
         UpdateRegisterTime(node);
@@ -2017,6 +2032,20 @@ private:
         TMasterAutomatonPart::OnRecoveryComplete();
 
         BufferedProducer_->SetEnabled(true);
+
+        OnNodesRecoveryComplete();
+    }
+
+    void OnNodesRecoveryComplete() {
+        auto now = GetCpuInstant();
+        for (auto [nodeId, node] : NodeMap_) {
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+            node->LastDataHeartbeatTime_ = now;
+            node->LastJobHeartbeatTime_ = now;
+            node->LastStateChangeTime_ = now;
+        }
     }
 
     void OnLeaderActive() override
@@ -2049,6 +2078,12 @@ private:
                 NodeDisposalManager_->DisposeNodeWithSemaphore(node);
             }
         }
+
+        NodeAlertsCheckExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
+            BIND(&TNodeTracker::OnNodeAlertsCheck, MakeWeak(this)),
+            GetDynamicConfig()->NodeAlertsCheckPeriod);
+        NodeAlertsCheckExecutor_->Start();
     }
 
     void OnStopLeading() override
@@ -2068,6 +2103,11 @@ private:
         PendingRegisterNodeAddresses_.clear();
         for (auto& addresses : FlavorToThrottledRegisterNodeAddresses_) {
             addresses.Clear();
+        }
+
+        if (NodeAlertsCheckExecutor_) {
+            YT_UNUSED_FUTURE(NodeAlertsCheckExecutor_->Stop());
+            NodeAlertsCheckExecutor_.Reset();
         }
     }
 
@@ -2389,8 +2429,6 @@ private:
 
         request.set_host_name(node->GetHost()->GetName());
 
-        request.mutable_table_mount_config_keys()->CopyFrom(originalRequest->table_mount_config_keys());
-
         request.set_exec_node_is_not_data_node(originalRequest->exec_node_is_not_data_node());
 
         request.set_chunk_locations_supported(originalRequest->chunk_locations_supported());
@@ -2452,8 +2490,6 @@ private:
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-
         auto replicateValues = [&] (const auto& objectMap) {
             for (auto* object : GetValuesSortedByKey(objectMap)) {
                 objectManager->ReplicateObjectAttributesToSecondaryMaster(object, cellTag);
@@ -2483,7 +2519,6 @@ private:
         }
 
         replicateValues(NodeMap_);
-        tabletManager->MaterizlizeExtraMountConfigKeys(cellTag);
     }
 
     void ReplicateNode(const TNode* node, TCellTag cellTag)
@@ -2657,6 +2692,57 @@ private:
         BufferedProducer_->Update(buffer);
     }
 
+    void OnNodeAlertsCheck()
+    {
+        auto now = GetCpuInstant();
+        auto minLastDataHeartbeatTime = now - DurationToCpuDuration(GetDynamicConfig()->NodeDataHeartbeatOutdateDuration);
+        auto minLastJobHeartbeatTime = now - DurationToCpuDuration(GetDynamicConfig()->NodeJobHeartbeatOutdateDuration);
+        auto minLastIncompleteStateChangeTime = now - DurationToCpuDuration(GetDynamicConfig()->MaxNodeIncompleteStateDuration);
+
+        std::vector<TError> alerts;
+        for (auto [nodeId, node] : NodeMap_) {
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+
+            if (node->GetAggregatedState() == ENodeState::Offline) {
+                continue;
+            }
+
+            if (node->GetAggregatedState() == ENodeState::Online) {
+                if (node->IsDataNode()) {
+                    if (node->GetLastDataHeartbeatTime() < minLastDataHeartbeatTime) {
+                        YT_LOG_ALERT("Node had no data heartbeat for too long (NodeId: %v, LastDataHeartbeatTime: %v)",
+                            nodeId,
+                            CpuInstantToInstant(node->GetLastDataHeartbeatTime()));
+                        alerts.emplace_back(TError("Node had no data heartbeat for too long")
+                            << TErrorAttribute("node_id", nodeId)
+                            << TErrorAttribute("last_data_heartbeat_time", CpuInstantToInstant(node->GetLastDataHeartbeatTime())));
+                    }
+
+                    if (std::max(node->GetLastJobHeartbeatTime(), node->GetLastStateChangeTime()) < minLastJobHeartbeatTime) {
+                        YT_LOG_ALERT("Node had no job heartbeat for too long (NodeId: %v, LastJobHeartbeatTime: %v)",
+                            nodeId,
+                            CpuInstantToInstant(node->GetLastJobHeartbeatTime()));
+                        alerts.emplace_back(TError("Node had no job heartbeat for too long")
+                            << TErrorAttribute("node_id", nodeId)
+                            << TErrorAttribute("last_data_heartbeat_time", CpuInstantToInstant(node->GetLastDataHeartbeatTime())));
+                    }
+                }
+            } else {
+                if (node->GetLastStateChangeTime() < minLastIncompleteStateChangeTime) {
+                    YT_LOG_ALERT("Node had no state change for too long (NodeId: %v, State: %v, LastStateChangeTime: %v)",
+                        nodeId,
+                        node->GetAggregatedState(), CpuInstantToInstant(node->GetLastStateChangeTime()));
+                    alerts.emplace_back(TError("Node had no state change for too long")
+                        << TErrorAttribute("node_id", nodeId)
+                        << TErrorAttribute("last_state_change_time", CpuInstantToInstant(node->GetLastStateChangeTime()))
+                        << TErrorAttribute("current_state", node->GetAggregatedState()));
+                }
+            }
+        }
+        Alerts_ = std::move(alerts);
+    }
 
     TNodeGroupList GetGroupsForNode(TNode* node)
     {
@@ -2881,6 +2967,10 @@ private:
             ResetNodePendingRestartMaintenanceExecutor_->SetPeriod(
                 GetDynamicConfig()->ResetNodePendingRestartMaintenancePeriod);
         }
+
+        if (NodeAlertsCheckExecutor_) {
+            NodeAlertsCheckExecutor_->SetPeriod(GetDynamicConfig()->NodeAlertsCheckPeriod);
+        }
     }
 
     void OnNodeBanUpdated(TNode* node)
@@ -3011,6 +3101,11 @@ private:
             node->GetDefaultAddress());
 
         NodePendingRestartChanged_.Fire(node);
+    }
+
+    std::vector<TError> GetAlerts() const
+    {
+        return Alerts_;
     }
 };
 

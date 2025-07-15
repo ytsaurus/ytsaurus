@@ -6,7 +6,8 @@ Construct an empty list. The only argument specifies a string describing the dat
 
 [Type description format documentation](../types/type_string.md).
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT ListCreate(Tuple<String,Double?>);
 ```
@@ -15,8 +16,9 @@ SELECT ListCreate(Tuple<String,Double?>);
 SELECT ListCreate(OptionalType(DataType("String")));
 ```
 
-**Signature**
-```
+#### Signature
+
+```yql
 ListCreate(T)->List<T>
 ```
 
@@ -24,13 +26,15 @@ ListCreate(T)->List<T>
 
 Construct a list based on one or more arguments. The argument types must be compatible in the case of `AsList` and strictly match in the case of `AsListStrict`.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT AsList(1, 2, 3, 4, 5);
 ```
 
-**Signature**
-```
+#### Signature
+
+```yql
 AsList(T..)->List<T>
 ```
 
@@ -38,13 +42,15 @@ AsList(T..)->List<T>
 
 The count of items in the list.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT ListLength(list_column) FROM my_table;
 ```
 
-**Signature**
-```
+#### Signature
+
+```yql
 ListLength(List<T>)->Uint64
 ListLength(List<T>?)->Uint64?
 ```
@@ -53,13 +59,15 @@ ListLength(List<T>?)->Uint64?
 
 Check that the list contains at least one item.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT ListHasItems(list_column) FROM my_table;
 ```
 
-**Signature**
-```
+#### Signature
+
+```yql
 ListHasItems(List<T>)->Bool
 ListHasItems(List<T>?)->Bool?
 ```
@@ -68,18 +76,20 @@ ListHasItems(List<T>?)->Bool?
 
 Convert a lazy list (which can be built by such functions as  [ListFilter](#listmap), [ListMap](#listmap), [ListFlatMap](#listmap)) to an eager list. In contrast to a lazy list, where each new pass re-calculates the list contents, in an eager list the content is built at once by consuming more memory.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT ListCollect(list_column) FROM my_table;
 ```
 
-**Signature**
-```
+#### Signature
+
+```yql
 ListCollect(LazyList<T>)->List<T>
 ListCollect(LazyList<T>?)->List<T>?
 ```
 
-## ListSort, ListSortAsc и ListSortDesc {#listsort}
+## ListSort, ListSortAsc and ListSortDesc {#listsort}
 
 Sort the list. By default, the ascending sorting order is applied (`ListSort` is an alias for `ListSortAsc`).
 
@@ -88,11 +98,12 @@ Arguments:
 1. List.
 2. An optional expression to get the sort key from a list element (it's the element itself by default).
 
-**Examples**
+#### Examples
 
 ```yql
 SELECT ListSortDesc(list_column) FROM my_table;
 ```
+
 ```yql
 $list = AsList(
     AsTuple("x", 3),
@@ -111,8 +122,9 @@ The [lambda function](../syntax/expressions.md#lambda) was used in the example.
 
 {% endnote %}
 
-**Signature**
-```
+#### Signature
+
+```yql
 ListSort(List<T>)->List<T>
 ListSort(List<T>?)->List<T>?
 
@@ -127,7 +139,8 @@ The types of list elements must be compatible in the case of `ListExtend` and st
 If at least one of the lists is optional, then the result is also optional.
 If at least one argument is `NULL`, then the result type is `NULL`.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT ListExtend(
     list_column_1,
@@ -144,8 +157,9 @@ $l3 = AsList("d", "e");
 SELECT ListExtend($l1, $l2, $l3);  -- ["a","b","b","c","d","e"]
 ```
 
-**Signature**
-```
+#### Signature
+
+```yql
 ListExtend(List<T>..)->List<T>
 ListExtend(List<T>?..)->List<T>?
 ```
@@ -156,7 +170,8 @@ Sequentially join lists of structures (concatenation of lists). A field is added
 
 If at least one of the lists is optional, then the result is also optional.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT ListUnionAll(
     list_column_1,
@@ -178,8 +193,9 @@ SELECT ListUnionAll($l1, $l2);  -- result: [("value":1),("value":2),("key":"a"),
                                 -- schema: List<Struct<key : String?, value : Int32?>>
 ```
 
-**Signature**
-```
+#### Signature
+
+```yql
 ListUnionAll(List<Struct<..>>, List<Struct<..>>..)->List<Struct<..>>
 ListUnionAll(List<Struct<..>>?, List<Struct<..>>?..)->List<Struct<..>>?
 ```
@@ -189,10 +205,10 @@ ListUnionAll(List<Struct<..>>?, List<Struct<..>>?..)->List<Struct<..>>?
 Based on the input lists, build a list of pairs containing the list elements with corresponding indexes (`List<Tuple<first_list_element_type,second_list_element_type>>`).
 
 The length of the returned list is determined by the shortest list for ListZip and the longest list for ListZipAll.
-
 When the shorter list is exhausted, a `NULL` value of a relevant [optional type](../types/optional.md).
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT
     ListZip(list_column_1, list_column_2, list_column_3),
@@ -208,8 +224,9 @@ SELECT ListZip($l1, $l2);  -- [("a",1),("b",2)]
 SELECT ListZipAll($l1, $l2);  -- [("a",1),("b",2),(null,3)]
 ```
 
-**Signature**
-```
+#### Signature
+
+```yql
 ListZip(List<T1>, List<T2>)->List<Tuple<T1, T2>>
 ListZip(List<T1>?, List<T2>?)->List<Tuple<T1, T2>>?
 
@@ -221,13 +238,15 @@ ListZipAll(List<T1>?, List<T2>?)->List<Tuple<T1?, T2?>>?
 
 Build a list of pairs (Tuple) containing the element number and the element itself (`List<Tuple<Uint64,list_element_type>>`).
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT ListEnumerate(list_column) FROM my_table;
 ```
 
-**Signature**
-```
+#### Signature
+
+```yql
 ListEnumerate(List<T>)->List<Tuple<Uint64, T>>
 ListEnumerate(List<T>?)->List<Tuple<Uint64, T>>?
 ```
@@ -236,13 +255,15 @@ ListEnumerate(List<T>?)->List<Tuple<Uint64, T>>?
 
 Reverse the list.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT ListReverse(list_column) FROM my_table;
 ```
 
-**Signature**
-```
+#### Signature
+
+```yql
 ListReverse(List<T>)->List<T>
 ListReverse(List<T>?)->List<T>?
 ```
@@ -253,7 +274,8 @@ Returns a copy of the list, skipping the specified number of its first elements.
 
 The first argument specifies the source list and the second argument specifies how many elements to skip.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT
     ListSkip(list_column, 3)
@@ -266,8 +288,9 @@ $l1 = AsList(1, 2, 3, 4, 5);
 SELECT ListSkip($l1, 2);  -- [3,4,5]
 ```
 
-**Signature**
-```
+#### Signature
+
+```yql
 ListSkip(List<T>, Uint64)->List<T>
 ListSkip(List<T>?, Uint64)->List<T>?
 ```
@@ -278,7 +301,8 @@ Returns a copy of the list containing a limited number of elements from the seco
 
 The first argument specifies the source list and the second argument specifies the maximum number of elements to be taken from the beginning of the list.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT ListTake(list_column, 3) FROM my_table;
 ```
@@ -289,17 +313,69 @@ $l1 = AsList(1, 2, 3, 4, 5);
 SELECT ListTake($l1, 2);  -- [1,2]
 ```
 
-**Signature**
-```
+#### Signature
+
+```yql
 ListTake(List<T>, Uint64)->List<T>
 ListTake(List<T>?, Uint64)->List<T>?
+```
+
+## ListSample and ListSampleN {#listsample}
+
+Returns a sample of elements from the list without duplicates.
+
+- `ListSample` selects each element independently with a specified probability.
+
+- `ListSampleN` selects a fixed number of elements (if the list is smaller than the sample size, the original list is returned).
+
+If the probability or sample size is NULL, the original list is returned.
+
+An additional argument is used to control randomness. For more information, see the [documentation for `Random`](basic.md#random).
+
+#### Examples
+
+```yql
+$list = AsList(1, 2, 3, 4, 5);
+
+SELECT ListSample($list, 0.5);  -- [1, 2, 5]
+SELECT ListSampleN($list, 2);  -- [4, 2]
+```
+
+#### Signature
+
+```yql
+ListSample(List<T>, Double?[, U])->List<T>
+ListSample(List<T>?, Double?[, U])->List<T>?
+
+ListSampleN(List<T>, Uint64?[, U])->List<T>
+ListSampleN(List<T>?, Uint64?[, U])->List<T>?
+```
+
+## ListShuffle {#listshuffle}
+
+Returns a copy of the list with the elements rearranged in random order. An additional argument is used to control randomness. For more information, see the [documentation for `Random`](basic.md#random).
+
+#### Examples
+
+```yql
+$list = AsList(1, 2, 3, 4, 5);
+
+SELECT ListShuffle($list);  -- [1, 3, 5, 2, 4]
+```
+
+#### Signature
+
+```yql
+ListShuffle(List<T>[, U])->List<T>
+ListShuffle(List<T>?[, U])->List<T>?
 ```
 
 ## ListIndexOf {#listindexof}
 
 Searches the list for an element with the specified value and returns its index at the first occurrence. Indexes count from 0. If such element is missing, it returns `NULL`.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT
     ListIndexOf(list_column, 123)
@@ -312,8 +388,9 @@ $l1 = AsList(1, 2, 3, 4, 5);
 SELECT ListIndexOf($l1, 2);  -- 1
 ```
 
-**Signature**
-```
+#### Signature
+
+```yql
 ListIndexOf(List<T>, T)->Uint64?
 ListIndexOf(List<T>?, T)->Uint64?
 ```
@@ -336,14 +413,14 @@ Arguments:
 
 1. Source list.
 2. Functions for processing list elements, such as:
-   * [Lambda function](../syntax/expressions.md#lambda).
-   * `Module::Function` - С++ UDF;
 
-   <!-- * [Python UDF](../udf/python.md), [JavaScript UDF](../udf/javascript.md), or any other called value. -->
+    * [Lambda function](../syntax/expressions.md#lambda).
+    * `Module::Function` - С++ UDF;
 
 If the source list is optional, then the output list is also optional.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT
     ListMap(list_column, ($x) -> { RETURN $x > 2; }),
@@ -367,8 +444,9 @@ $callable = Python::test(Callable<(Int64)->Bool>, "def test(i): return i % 2");
 SELECT ListFilter($list, $callable);  -- [1,3]
 ```
 
-**Signature**
-```
+#### Signature
+
+```yql
 ListMap(List<T>, (T)->U)->List<U>
 ListMap(List<T>?, (T)->U)->List<U>?
 
@@ -387,14 +465,16 @@ Applies transformation to the source list, skipping empty optional items and str
 
 If the source list is optional, then the output list is also optional.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT ListNotNull([1,2]),   -- [1,2]
     ListNotNull([3,null,4]); -- [3,4]
 ```
 
-**Signature**
-```
+#### Signature
+
+```yql
 ListNotNull(List<T?>)->List<T>
 ListNotNull(List<T?>?)->List<T>?
 ```
@@ -405,33 +485,40 @@ Expands the list of lists into a flat list, preserving the order of items. As th
 
 If the source list is optional, then the output list is also optional.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT ListFlatten([[1,2],[3,4]]),   -- [1,2,3,4]
     ListFlatten([null,[3,4],[5,6]]); -- [3,4,5,6]
 ```
 
-**Signature**
-```
+#### Signature
+
+```yql
 ListFlatten(List<List<T>?>)->List<T>
 ListFlatten(List<List<T>?>?)->List<T>?
 ```
 
-## ListUniq {#listuniq}
+## ListUniq and ListUniqStable {#listuniq}
 
-Returns a copy of the list containing only distinct elements.
+Returns a copy of the list containing only distinct elements. For ListUniq, the order of elements in the resulting list is undefined. For ListUniqStable, elements appear in the same order as in the source list.
 
-**Examples**
+#### Examples
+
 ```yql
-SELECT
-    ListUniq(list_column)
-FROM my_table;
+SELECT ListUniq([1, 2, 3, 2, 4, 5, 1]) -- [5, 4, 2, 1, 3]
+SELECT ListUniqStable([1, 2, 3, 2, 4, 5, 1]) -- [1, 2, 3, 4, 5]
+SELECT ListUniqStable([1, 2, null, 7, 2, 8, null]) -- [1, 2, null, 7, 8]
 ```
 
-**Signature**
-```
+#### Signature
+
+```yql
 ListUniq(List<T>)->List<T>
 ListUniq(List<T>?)->List<T>?
+
+ListUniqStable(List<T>)->List<T>
+ListUniqStable(List<T>?)->List<T>?
 ```
 
 ## ListAny and ListAll {#listany}
@@ -441,9 +528,15 @@ Returns `true` for a list of Boolean values if:
 * `ListAny`: At least one element is `true`.
 * `ListAll`: All elements are `true`.
 
-Otherwise, it returns false.
+Otherwise, it returns `false`.
 
-**Examples**
+Behavior with empty lists:
+
+* `ListAny` returns `false`.
+* `ListAll` returns `true`.
+
+#### Examples
+
 ```yql
 SELECT
     ListAll(bool_column),
@@ -451,8 +544,9 @@ SELECT
 FROM my_table;
 ```
 
-**Signature**
-```
+#### Signature
+
+```yql
 ListAny(List<Bool>)->Bool
 ListAny(List<Bool>?)->Bool?
 ListAll(List<Bool>)->Bool
@@ -461,9 +555,10 @@ ListAll(List<Bool>?)->Bool?
 
 ## ListHas {#listhas}
 
-Show whether the list contains the specified element.
+Show whether the list contains the specified element. In this case, `NULL` values are considered equal to each other. If the input list is `NULL`, the result is always `false`.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT
     ListHas(list_column, "my_needle")
@@ -477,17 +572,19 @@ SELECT ListHas($l1, 2);  -- true
 SELECT ListHas($l1, 6);  -- false
 ```
 
-**Signature**
-```
-ListHas(List<T>, T)->Bool
-ListHas(List<T>?, T)->Bool?
+#### Signature
+
+```yql
+ListHas(List<T>, U)->Bool
+ListHas(List<T>?, U)->Bool
 ```
 
 ## ListHead, ListLast {#listheadlast}
 
 Returns the first and last item of the list.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT
     ListHead(numeric_list_column) AS head,
@@ -495,8 +592,9 @@ SELECT
 FROM my_table;
 ```
 
-**Signature**
-```
+#### Signature
+
+```yql
 ListHead(List<T>)->T?
 ListHead(List<T>?)->T?
 ListLast(List<T>)->T?
@@ -507,7 +605,8 @@ ListLast(List<T>?)->T?
 
 Apply the appropriate aggregate function to all elements of the numeric list.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT
     ListMax(numeric_list_column) AS max,
@@ -517,8 +616,9 @@ SELECT
 FROM my_table;
 ```
 
-**Signature**
-```
+#### Signature
+
+```yql
 ListMin(List<T>)->T?
 ListMin(List<T>?)->T?
 ```
@@ -536,7 +636,7 @@ Arguments:
 Return type:
 U for ListFold, optional U for ListFold1.
 
-**Examples**
+#### Examples
 
 ```yql
 $l = [1, 4, 7, 2];
@@ -550,8 +650,9 @@ SELECT
     ListFold1([], $z, $y) AS fold1_empty;              -- Null
 ```
 
-**Signature**
-```
+#### Signature
+
+```yql
 ListFold(List<T>, U, (T, U)->U)->U
 ListFold(List<T>?, U, (T, U)->U)->U?
 
@@ -572,7 +673,7 @@ Arguments:
 Return type:
 List of elements U.
 
-**Examples**
+#### Examples
 
 ```yql
 $l = [1, 4, 7, 2];
@@ -586,8 +687,9 @@ SELECT
     ListFold1Map($l, $t, $x);              -- [2, 12, 49, 28]
 ```
 
-**Signature**
-```
+#### Signature
+
+```yql
 ListFoldMap(List<T>, S, (T, S)->Tuple<U,S>)->List<U>
 ListFoldMap(List<T>?, S, (T, S)->Tuple<U,S>)->List<U>?
 
@@ -617,7 +719,8 @@ Features:
 * If one of the parameters is optional, the result will be an optional list.
 * If one of the parameters is `NULL`, the result is `NULL`.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT
     ListFromRange(-2, 2), -- [-2, -1, 0, 1]
@@ -628,9 +731,11 @@ SELECT
 SELECT ListFromRange(Datetime("2022-05-23T15:30:00Z"), Datetime("2022-05-30T15:30:00Z"), DateTime::IntervalFromDays(1));
 ```
 
-**Signature**
-```
-ListFromRange(T, T)->LazyList<T> -- T  is a numeric or a date/time type
+#### Signature
+
+```yql
+ListFromRange(T{Flags:AutoMap}, T{Flags:AutoMap}, T?)->LazyList<T> -- T is a numeric type
+ListFromRange(T{Flags:AutoMap}, T{Flags:AutoMap}, I?)->LazyList<T> -- T is a date/time type; I is an interval
 ```
 
 ## ListReplicate {#listreplicate}
@@ -642,13 +747,15 @@ Mandatory arguments:
 1. Value.
 2. Number of copies.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT ListReplicate(true, 3); -- [true, true, true]
 ```
 
-**Signature**
-```
+#### Signature
+
+```yql
 ListReplicate(T, Uint64)->List<T>
 ```
 
@@ -657,7 +764,8 @@ ListReplicate(T, Uint64)->List<T>
 Concatenates a list of strings into a single string.
 You can set a separator as the second parameter.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT
     ListConcat(string_list_column),
@@ -672,8 +780,9 @@ SELECT ListConcat($l1);  -- "hello"
 SELECT ListConcat($l1, " ");  -- "h e l l o"
 ```
 
-**Signature**
-```
+#### Signature
+
+```yql
 ListConcat(List<String>)->String?
 ListConcat(List<String>?)->String?
 
@@ -685,14 +794,15 @@ ListConcat(List<String>?, String)->String?
 
 For a list of structures, it returns a list of contained fields having the specified name.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT
     ListExtract(struct_list_column, "MyMember")
 FROM my_table;
 ```
 
-```sql
+```yql
 $l = AsList(
     <|key:"a", value:1|>,
     <|key:"b", value:2|>
@@ -700,8 +810,9 @@ $l = AsList(
 SELECT ListExtract($l, "key");  -- ["a", "b"]
 ```
 
-**Signature**
-```
+#### Signature
+
+```yql
 ListExtract(List<Struct<..>>, String)->List<T>
 ListExtract(List<Struct<..>>?, String)->List<T>?
 ```
@@ -721,7 +832,8 @@ Mandatory arguments:
 
 If the input list is optional, then the result is also optional.
 
-**Examples**
+#### Examples
+
 ```yql
 $data = AsList(1, 2, 5, 1, 2, 7);
 
@@ -732,8 +844,9 @@ SELECT
     ListSkipWhileInclusive($data, ($x) -> {return $x <= 3}); -- [1, 2, 7]
 ```
 
-**Signature**
-```
+#### Signature
+
+```yql
 ListTakeWhile(List<T>, (T)->Bool)->List<T>
 ListTakeWhile(List<T>?, (T)->Bool)->List<T>?
 ```
@@ -741,7 +854,6 @@ ListTakeWhile(List<T>?, (T)->Bool)->List<T>?
 ## ListAggregate {#listaggregate}
 
 Apply the [aggregation factory](basic.md#aggregationfactory) to the passed list.
-
 If the passed list is empty, the aggregation result is the same as for an empty table: 0 for the `COUNT` function and `NULL` for other functions.
 If the passed list is optional and `NULL`, the result is also `NULL`.
 
@@ -750,13 +862,15 @@ Arguments:
 1. List.
 2. [Aggregate function factory](basic.md#aggregationfactory).
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT ListAggregate(AsList(1, 2, 3), AggregationFactory("Sum")); -- 6
 ```
 
-**Signature**
-```
+#### Signature
+
+```yql
 ListAggregate(List<T>, AggregationFactory)->T
 ListAggregate(List<T>?, AggregationFactory)->T?
 ```
@@ -772,7 +886,8 @@ It means that:
 
 Optional lists are also supported, resulting in an optional dictionary.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT
     ToDict(tuple_list_column)
@@ -784,19 +899,22 @@ $l = AsList(("a",1), ("b", 2), ("a", 3));
 SELECT ToDict($l);  -- {"a": 1,"b": 2}
 ```
 
-**Signature**
-```
+#### Signature
+
+```yql
 ToDict(List<Tuple<K,V>>)->Dict<K,V>
 ToDict(List<Tuple<K,V>>?)->Dict<K,V>?
 ```
 
 ## ToSet {#toset}
+
 Converts a list to a dictionary where the keys are unique elements of this list, and values are omitted and have the type `Void`. For the `List<T>` list, the result type is `Dict<T, Void>`.
 An optional list is also supported, resulting in an optional dictionary.
 
 Inverse function: get a list of keys for the [DictKeys](dict.md#dictkeys) dictionary.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT
     ToSet(list_column)
@@ -808,9 +926,70 @@ $l = AsList(1,1,2,2,3);
 SELECT ToSet($l);  -- {1,2,3}
 ```
 
-**Signature**
-```
+#### Signature
+
+```yql
 ToSet(List<T>)->Set<T>
 ToSet(List<T>?)->Set<T>?
 ```
 
+## ListFromTuple
+
+Creates a list from a tuple with compatible element types. For an optional tuple, returns an optional list. For a NULL argument, returns NULL. For an empty tuple, returns EmptyList.
+
+#### Examples
+
+```yql
+$t = (1,2,3);
+SELECT ListFromTuple($t);  -- [1,2,3]
+```
+
+#### Signature
+
+```yql
+ListFromTuple(Null)->Null
+ListFromTuple(Tuple<>)->EmptyList
+ListFromTuple(Tuple<T1,T2,...>)->List<T>
+ListFromTuple(Tuple<T1,T2,...>?)->List<T>?
+```
+
+## ListToTuple
+
+Creates a tuple from a list and an explicitly specified tuple width. All elements in the resulting tuple will have the same type as the list elements. If the list length doesn't match the specified tuple width, returns an error. For an optional list, returns an optional tuple. For a NULL argument, returns NULL.
+
+#### Examples
+
+```yql
+$l = [1,2,3];
+SELECT ListToTuple($l, 3);  -- (1,2,3)
+```
+
+#### Signature
+
+```yql
+ListToTuple(Null,N)->Null
+ListToTuple(EmptyList,N)->()) -- N must be 0
+ListToTuple(List<T>, N)->Tuple<T,T,...T> -- tuple width is N
+ListToTuple(List<T>?, N)->Tuple<T,T,...T>? -- tuple width is N
+```
+
+## ListTop, ListTopAsc, ListTopDesc, ListTopSort, ListTopSortAsc, and ListTopSortDesc {#listtop}
+
+Select the top values from the list. `ListTopSort*` additionally sorts the list of the returned values. By default, the lowest values are selected. Functions without a suffix are aliases for `*Asc` functions. `*Desc` functions select the highest values.
+
+`ListTopSort` is more efficient than calling `ListTop` followed by `ListSort`, because `ListTop` may partially pre-sort the list when looking for the desired values. However, `ListTop` is more efficient than `ListTopSort` if you don't need to sort the output.
+
+Arguments:
+
+1. List.
+2. Sample size.
+3. An optional expression to get the sort key from a list element (it's the element itself by default).
+
+#### Signature
+
+```yql
+ListTop(List<T>{Flags:AutoMap}, N)->List<T>
+ListTop(List<T>{Flags:AutoMap}, N, (T)->U)->List<T>
+```
+
+The signatures of other functions match those of `ListTop`.

@@ -193,6 +193,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/bundle_controller_client_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/cell_commit_session.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/chaos_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/chaos_lease.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/chaos_lease_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/chaos_replicated_table_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/chaos_table_replica_type_handler.cpp
@@ -276,6 +277,8 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/master_cache_channel.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/native_replication_card_cache_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/replication_card_channel_factory.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/replication_card_updates_batcher.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/replication_card_updates_batcher_serialization.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/replication_cards_watcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/replication_cards_watcher_client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/block_cache.cpp
@@ -346,7 +349,6 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_pools/chunk_pool_factory.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_pools/chunk_stripe_key.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_pools/chunk_stripe.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_pools/output_order.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/persistence.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/public.cpp

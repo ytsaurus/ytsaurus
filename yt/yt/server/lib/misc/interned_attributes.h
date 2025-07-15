@@ -253,6 +253,7 @@
     XX(HunkStatistics, hunk_statistics) \
     XX(HunkStorageId, hunk_storage_id) \
     XX(HunkStoreWriter, hunk_store_writer) \
+    XX(HydraLogicalTime, hydra_logical_time) \
     XX(HydraReadOnly, hydra_read_only) \
     XX(Id, id) \
     XX(Implicit, implicit) \

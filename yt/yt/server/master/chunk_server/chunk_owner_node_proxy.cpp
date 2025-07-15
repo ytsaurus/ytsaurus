@@ -1647,7 +1647,7 @@ TMasterTableSchema* TChunkOwnerNodeProxy::CalculateEffectiveMasterTableSchema(
     const auto& tableManager = Bootstrap_->GetTableManager();
     if (node->IsNative()) {
         if (schema) {
-            return tableManager->GetOrCreateNativeMasterTableSchema(*schema, schemaHolder);
+            return tableManager->GetOrCreateNativeMasterTableSchema(schema, schemaHolder);
         }
 
         if (schemaId) {
@@ -1660,7 +1660,7 @@ TMasterTableSchema* TChunkOwnerNodeProxy::CalculateEffectiveMasterTableSchema(
     YT_VERIFY(schemaId);
 
     if (schema) {
-        return tableManager->CreateImportedTemporaryMasterTableSchema(*schema, schemaHolder, schemaId);
+        return tableManager->CreateImportedTemporaryMasterTableSchema(schema, schemaHolder, schemaId);
     }
 
     return tableManager->GetMasterTableSchema(schemaId);
@@ -1888,14 +1888,21 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                     case EChunkListKind::SortedDynamicRoot: {
                         auto* newChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicRoot);
                         newChunkList->AddOwningNode(lockedNode);
+                        snapshotChunkList->RemoveOwningNode(lockedNode);
                         lockedNode->SetChunkList(newChunkList);
 
-                        for (int index = 0; index < std::ssize(snapshotChunkList->Children()); ++index) {
-                            auto* appendChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicSubtablet);
-                            chunkManager->AttachToChunkList(newChunkList, {appendChunkList});
-                        }
+                        for (int tabletIndex = 0; tabletIndex < ssize(snapshotChunkList->Children()); ++tabletIndex) {
+                            auto* newTabletChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicTablet);
+                            auto* deltaChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicSubtablet);
 
-                        snapshotChunkList->RemoveOwningNode(lockedNode);
+                            chunkManager->AttachToChunkList(
+                                newTabletChunkList,
+                                {snapshotChunkList->Children()[tabletIndex], deltaChunkList});
+
+                            chunkManager->AttachToChunkList(newChunkList, {newTabletChunkList});
+
+                            newTabletChunkList->SetPivotKey(snapshotChunkList->Children()[tabletIndex]->AsChunkList()->GetPivotKey());
+                        }
 
                         context->SetIncrementalResponseInfo("NewChunkListId: %v, SnapshotChunkListId: %v",
                             newChunkList->GetId(),
@@ -1932,9 +1939,11 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                             lockedNode->SetChunkList(contentType, newChunkList);
 
                             if (oldMainChunkList->GetKind() == EChunkListKind::SortedDynamicRoot) {
-                                for (int index = 0; index < std::ssize(oldMainChunkList->Children()); ++index) {
-                                    auto* appendChunkList = chunkManager->CreateChunkList(appendChunkListKind);
-                                    chunkManager->AttachToChunkList(newChunkList, {appendChunkList});
+                                for (int tabletIndex = 0; tabletIndex < ssize(oldMainChunkList->Children()); ++tabletIndex) {
+                                    auto* newTabletChunkList = chunkManager->CreateChunkList(appendChunkListKind);
+                                    newTabletChunkList->SetPivotKey(oldMainChunkList->Children()[tabletIndex]->AsChunkList()->GetPivotKey());
+
+                                    chunkManager->AttachToChunkList(newChunkList, {newTabletChunkList});
                                 }
                             }
 
@@ -2049,23 +2058,36 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
         }
 
         case EChunkListKind::SortedDynamicRoot: {
+            auto updateMode = node->GetUpdateMode();
+
             auto* trunkChunkList = node->GetTrunkNode()->As<TChunkOwnerBase>()->GetChunkList();
 
-            for (auto tabletList : trunkChunkList->Children()) {
-                ToProto(response->add_pivot_keys(), tabletList->AsChunkList()->GetPivotKey());
-            }
+            // COMPAT(dave11ar): Remove when all branched append chunk lists will be in new format.
+            bool isOldAppendChunkList = updateMode == EUpdateMode::Append && !chunkList->IsNewAppendTabletChunkList();
 
-            for (auto tabletList : chunkList->Children()) {
-                auto chunkListKind = tabletList->AsChunkList()->GetKind();
-                if (chunkListKind != EChunkListKind::SortedDynamicSubtablet &&
-                    chunkListKind != EChunkListKind::SortedDynamicTablet)
+            for (int tabletIndex = 0; tabletIndex < ssize(trunkChunkList->Children()); ++tabletIndex) {
+                auto* tabletChunkList = chunkList->Children()[tabletIndex]->AsChunkList();
+
+                auto chunkListKind = tabletChunkList->GetKind();
+                if (chunkListKind != EChunkListKind::SortedDynamicTablet &&
+                    (!isOldAppendChunkList || chunkListKind != EChunkListKind::SortedDynamicSubtablet))
                 {
                     THROW_ERROR_EXCEPTION("Chunk list %v has unexpected kind %Qlv",
-                        tabletList->GetId(),
+                        tabletChunkList->GetId(),
                         chunkListKind);
                 }
-                ToProto(response->add_tablet_chunk_list_ids(), tabletList->GetId());
+
+                // COMPAT(dave11ar): Remove when all branched append chunk lists will be in new format.
+                if (updateMode == EUpdateMode::Overwrite || !tabletChunkList->IsNewAppendTabletChunkList()) {
+                    ToProto(response->add_tablet_chunk_list_ids(), tabletChunkList->GetId());
+                } else {
+                    auto appendTabletChunkLists = tabletChunkList->GetAppendTabletChunkLists();
+                    ToProto(response->add_tablet_chunk_list_ids(), appendTabletChunkLists.DeltaChunkList->GetId());
+                }
+
+                ToProto(response->add_pivot_keys(), tabletChunkList->GetPivotKey());
             }
+
             break;
         }
 

@@ -1,18 +1,20 @@
 from __future__ import annotations
 
 import abc
-import re
 from typing import (
     TYPE_CHECKING,
     Callable,
     Literal,
 )
 
-import numpy as np
-
-from pandas._typing import Scalar
+from pandas._libs import lib
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+    import re
+
+    from pandas._typing import Scalar
+
     from pandas import Series
 
 
@@ -45,7 +47,7 @@ class BaseStringArrayMethods(abc.ABC):
     @abc.abstractmethod
     def _str_pad(
         self,
-        width,
+        width: int,
         side: Literal["left", "right", "both"] = "left",
         fillchar: str = " ",
     ):
@@ -78,12 +80,16 @@ class BaseStringArrayMethods(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def _str_repeat(self, repeats):
+    def _str_repeat(self, repeats: int | Sequence[int]):
         pass
 
     @abc.abstractmethod
     def _str_match(
-        self, pat: str, case: bool = True, flags: int = 0, na: Scalar = np.nan
+        self,
+        pat: str,
+        case: bool = True,
+        flags: int = 0,
+        na: Scalar | lib.NoDefault = lib.no_default,
     ):
         pass
 
@@ -93,7 +99,7 @@ class BaseStringArrayMethods(abc.ABC):
         pat: str | re.Pattern,
         case: bool = True,
         flags: int = 0,
-        na: Scalar = np.nan,
+        na: Scalar | lib.NoDefault = lib.no_default,
     ):
         pass
 
@@ -126,15 +132,15 @@ class BaseStringArrayMethods(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def _str_join(self, sep):
+    def _str_join(self, sep: str):
         pass
 
     @abc.abstractmethod
-    def _str_partition(self, sep, expand):
+    def _str_partition(self, sep: str, expand):
         pass
 
     @abc.abstractmethod
-    def _str_rpartition(self, sep, expand):
+    def _str_rpartition(self, sep: str, expand):
         pass
 
     @abc.abstractmethod
@@ -154,7 +160,7 @@ class BaseStringArrayMethods(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def _str_wrap(self, width, **kwargs):
+    def _str_wrap(self, width: int, **kwargs):
         pass
 
     @abc.abstractmethod

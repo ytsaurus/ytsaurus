@@ -9,6 +9,7 @@
 #include <yt/yt/client/object_client/public.h>
 
 #include <yt/yt/core/ypath/helpers.h>
+#include <yt/yt/core/ypath/tokenizer.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -19,51 +20,16 @@ namespace NYT::NSequoiaClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <bool Absolute, class TUnderlying>
-TYPathBase<Absolute, TUnderlying>::TYPathBase(TStringBuf path)
-    : Path_(path)
-{
-    Validate();
-}
-
-template <bool Absolute, class TUnderlying>
-TYPathBase<Absolute, TUnderlying>::TYPathBase(const char* path)
-    : Path_(path)
-{
-    Validate();
-}
-
-template <bool Absolute, class TUnderlying>
-TYPathBase<Absolute, TUnderlying>::TYPathBase(const TString& path)
-    : Path_(path)
-{
-    Validate();
-}
-
-template <bool Absolute, class TUnderlying>
-TYPathBase<Absolute, TUnderlying>::TYPathBase(const TRawYPath& path)
-    : Path_(path.Underlying())
-{
-    Validate();
-}
-
-template <bool Absolute, class TUnderlying>
-TString TYPathBase<Absolute, TUnderlying>::GetBaseName() const
-{
-    if constexpr (!Absolute) {
-        if (Path_.empty()) {
-            return TString{};
-        }
-    }
-
-    auto offset = FindLastSegment();
-    return NSequoiaClient::ToStringLiteral(TString(Path_.begin() + offset + 1, Path_.end()));
-}
-
-template <bool Absolute, class TUnderlying>
-void TYPathBase<Absolute, TUnderlying>::RemoveLastSegment()
+TString TPathBase<Absolute, TUnderlying>::GetBaseName() const
 {
     auto offset = FindLastSegment();
+    return NSequoiaClient::ToStringLiteral(TStringBuf(Path_.begin() + offset + 1, Path_.end()));
+}
 
+template <bool Absolute, class TUnderlying>
+void TPathBase<Absolute, TUnderlying>::RemoveLastSegment()
+{
+    auto offset = FindLastSegment();
     if constexpr (Absolute) {
         if (offset == 0) {
             return;
@@ -74,80 +40,43 @@ void TYPathBase<Absolute, TUnderlying>::RemoveLastSegment()
 }
 
 template <bool Absolute, class TUnderlying>
-TRawYPath TYPathBase<Absolute, TUnderlying>::ToRawYPath() const &
-{
-    return TRawYPath(TString(Underlying()));
-}
-
-template <bool Absolute, class TUnderlying>
-TRawYPath TYPathBase<Absolute, TUnderlying>::ToRawYPath() &&
-{
-    return TRawYPath(TString(std::move(*this).Underlying()));
-}
-
-template <bool Absolute, class TUnderlying>
 template <class T>
-std::strong_ordering TYPathBase<Absolute, TUnderlying>::operator<=>(const TYPathBase<Absolute, T>& rhs) const noexcept
+std::strong_ordering TPathBase<Absolute, TUnderlying>::operator<=>(const TPathBase<Absolute, T>& rhs) const noexcept
 {
     return Path_.compare(rhs.Underlying()) <=> 0;
 }
 
 template <bool Absolute, class TUnderlying>
 template <class T>
-bool TYPathBase<Absolute, TUnderlying>::operator==(const TYPathBase<Absolute, T>& rhs) const noexcept
+bool TPathBase<Absolute, TUnderlying>::operator==(const TPathBase<Absolute, T>& rhs) const noexcept
 {
     return Path_ == rhs.Underlying();
 }
 
 template <bool Absolute, class TUnderlying>
-const TUnderlying& TYPathBase<Absolute, TUnderlying>::Underlying() const &
+const TUnderlying& TPathBase<Absolute, TUnderlying>::Underlying() const &
 {
     return Path_;
 }
 
 template <bool Absolute, class TUnderlying>
-TUnderlying&& TYPathBase<Absolute, TUnderlying>::Underlying() &&
+TUnderlying&& TPathBase<Absolute, TUnderlying>::Underlying() &&
 {
     return std::move(Path_);
 }
 
-inline bool IsForbiddenYPathSymbol(char ch)
-{
-    return ch == MangledPathSeparator;
-}
+template <bool Absolute, class TUnderlying>
+TPathBase<Absolute, TUnderlying>::TPathBase(const TUnderlying& path)
+    : Path_(path)
+{ }
 
 template <bool Absolute, class TUnderlying>
-void TYPathBase<Absolute, TUnderlying>::Validate() const
-{
-    for (auto ch : Path_) {
-        if (IsForbiddenYPathSymbol(ch)) {
-            THROW_ERROR_EXCEPTION("Path contains forbidden symbol %Qv", ch);
-        }
-    }
-
-    if constexpr (Absolute) {
-        if (Path_.empty()) {
-            THROW_ERROR_EXCEPTION("YPath cannot be empty");
-        }
-
-        if (!(Path_.StartsWith("//") ||
-            Path_.StartsWith(NObjectClient::ObjectIdPathPrefix) ||
-            Path_ == "/"))
-        {
-            THROW_ERROR_EXCEPTION("Path %v does not start with a valid root-designator", Path_);
-        }
-    } else if (!Path_.empty()) {
-        auto tokenizer = NYPath::TTokenizer(Path_);
-        tokenizer.Advance();
-        tokenizer.Skip(NYPath::ETokenType::Ampersand);
-        if (tokenizer.GetType() != NYPath::ETokenType::EndOfStream) {
-            tokenizer.Expect(NYPath::ETokenType::Slash);
-        }
-    }
-}
+TPathBase<Absolute, TUnderlying>::TPathBase(TUnderlying&& path) noexcept
+    : Path_(std::move(path))
+{ }
 
 template <bool Absolute, class TUnderlying>
-ptrdiff_t TYPathBase<Absolute, TUnderlying>::FindLastSegment() const
+ptrdiff_t TPathBase<Absolute, TUnderlying>::FindLastSegment() const
 {
     auto it = Path_.rbegin();
     bool checkUnescaped = false;
@@ -162,7 +91,7 @@ ptrdiff_t TYPathBase<Absolute, TUnderlying>::FindLastSegment() const
 }
 
 template <bool Absolute, class TUnderlying>
-TUnderlying* TYPathBase<Absolute, TUnderlying>::UnsafeMutableUnderlying() noexcept
+TUnderlying* TPathBase<Absolute, TUnderlying>::UnsafeMutableUnderlying() noexcept
 {
     return &Path_;
 }
@@ -170,240 +99,100 @@ TUnderlying* TYPathBase<Absolute, TUnderlying>::UnsafeMutableUnderlying() noexce
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TUnderlying>
-TYPathBaseImpl<false, TUnderlying>::TYPathBaseImpl()
-    : TBase(TStringBuf{})
+TPathBaseImpl<false, TUnderlying>::TPathBaseImpl()
 { }
 
 template <class TUnderlying>
-    bool TYPathBaseImpl<false, TUnderlying>::IsEmpty() const
+    bool TPathBaseImpl<false, TUnderlying>::IsEmpty() const
 {
     return TBase::Path_.empty();
 }
 
 template <class TUnderlying>
-TYPathBuf TYPathBaseImpl<false, TUnderlying>::GetDirPath() const &
+TRelativePathBuf TPathBaseImpl<false, TUnderlying>::GetDirPath() const
 {
-    return TYPathBuf(TStringBuf(TBase::Path_, 0, TBase::FindLastSegment()));
-}
-
-template <class TUnderlying>
-typename TYPathBaseImpl<false, TUnderlying>::TSegmentView TYPathBaseImpl<false, TUnderlying>::AsSegments() const &
-{
-    return TSegmentView(this);
-}
-
-template <class TUnderlying>
-TStringBuf TYPathBaseImpl<false, TUnderlying>::GetFirstSegment() const &
-{
-    if (TBase::Path_.size() < 2) {
-        return TStringBuf{};
-    }
-
-    NYPath::TTokenizer tokenizer(TBase::Path_);
-    tokenizer.Advance();
-    tokenizer.Expect(NYPath::ETokenType::Slash);
-    tokenizer.Advance();
-    tokenizer.Expect(NYPath::ETokenType::Literal);
-    return tokenizer.GetToken();
+    return TRelativePathBuf::UnsafeMakeCanonicalPath(
+        TStringBuf(TBase::Path_, 0, TBase::FindLastSegment()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TUnderlying>
-TAbsoluteYPathBuf TYPathBaseImpl<true, TUnderlying>::GetDirPath() const &
+TAbsolutePathBuf TPathBaseImpl<true, TUnderlying>::GetDirPath() const
 {
-    return TAbsoluteYPathBuf(TStringBuf(TBase::Path_, 0, TBase::FindLastSegment()));
+    return TAbsolutePathBuf::UnsafeMakeCanonicalPath(
+        TStringBuf(TBase::Path_, 0, TBase::FindLastSegment()));
 }
 
 template <class TUnderlying>
-std::pair<TRootDesignator, TYPathBuf>
-TYPathBaseImpl<true, TUnderlying>::GetRootDesignator() const &
+TMangledSequoiaPath TPathBaseImpl<true, TUnderlying>::ToMangledSequoiaPath() const
 {
-    NYPath::TTokenizer tokenizer(TBase::Path_);
-    tokenizer.Advance();
-    switch (tokenizer.GetType()) {
-        case NYPath::ETokenType::Slash:
-            return {TSlashRootDesignatorTag{}, TYPathBuf(tokenizer.GetSuffix())};
-        case NYPath::ETokenType::Literal: {
-            auto token = tokenizer.GetToken();
-            if (!token.StartsWith(NObjectClient::ObjectIdPathPrefix)) {
-                tokenizer.ThrowUnexpected();
-            }
-
-            TStringBuf objectIdString(token.begin() + 1, token.end());
-            NCypressClient::TObjectId objectId;
-            if (!NCypressClient::TObjectId::FromString(objectIdString, &objectId)) {
-                THROW_ERROR_EXCEPTION(
-                    NYTree::EErrorCode::ResolveError,
-                    "Error parsing object id %v",
-                    objectIdString);
-            }
-            return {objectId, TYPathBuf(tokenizer.GetSuffix())};
-        }
-        default:
-            tokenizer.ThrowUnexpected();
-    }
-    Y_UNREACHABLE();
+    return MangleSequoiaPath(ToRealPath());
 }
 
 template <class TUnderlying>
-TMangledSequoiaPath TYPathBaseImpl<true, TUnderlying>::ToMangledSequoiaPath() const
+TRealPath TPathBaseImpl<true, TUnderlying>::ToRealPath() const &
 {
-    return MangleSequoiaPath(TBase::Path_);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TUnderlying>
-typename TYPathBaseImpl<false, TUnderlying>::TSegmentView::const_iterator TYPathBaseImpl<false, TUnderlying>::TSegmentView::begin() const
-{
-    return TIterator(Owner_, 0);
+    return TRealPath(TString(TBase::Underlying()));
 }
 
 template <class TUnderlying>
-typename TYPathBaseImpl<false, TUnderlying>::TSegmentView::const_iterator TYPathBaseImpl<false, TUnderlying>::TSegmentView::end() const
+TRealPath TPathBaseImpl<true, TUnderlying>::ToRealPath() &&
 {
-    return TIterator(Owner_, Owner_->Path_.size());
-}
-
-template <class TUnderlying>
-TYPathBaseImpl<false, TUnderlying>::TSegmentView::TSegmentView(const TYPathBaseImpl* owner)
-    : Owner_(owner)
-{ }
-
-template <class TUnderlying>
-bool TYPathBaseImpl<false, TUnderlying>::TSegmentView::TIterator::operator==(const TIterator& rhs) const
-{
-    return Owner_ == rhs.Owner_ && Offset_ == rhs.Offset_;
-}
-
-template <class TUnderlying>
-const TYPathBuf& TYPathBaseImpl<false, TUnderlying>::TSegmentView::TIterator::operator*() const
-{
-    return Current_;
-}
-
-template <class TUnderlying>
-const TYPathBuf* TYPathBaseImpl<false, TUnderlying>::TSegmentView::TIterator::operator->() const
-{
-    return &Current_;
-}
-
-template <class TUnderlying>
-typename TYPathBaseImpl<false, TUnderlying>::TSegmentView::TIterator& TYPathBaseImpl<false, TUnderlying>::TSegmentView::TIterator::operator++()
-{
-    Increment();
-    UpdateCurrent();
-    return *this;
-}
-
-template <class TUnderlying>
-typename TYPathBaseImpl<false, TUnderlying>::TSegmentView::TIterator TYPathBaseImpl<false, TUnderlying>::TSegmentView::TIterator::operator++(int)
-{
-    auto result = *this;
-    ++(*this);
-    return result;
-}
-
-template <class TUnderlying>
-TYPathBaseImpl<false, TUnderlying>::TSegmentView::TIterator::TIterator(const TYPathBaseImpl* owner, ptrdiff_t offset)
-    : Owner_(owner), Offset_(offset)
-{
-    UpdateCurrent();
-}
-
-template <class TUnderlying>
-NYPath::TTokenizer TYPathBaseImpl<false, TUnderlying>::TSegmentView::TIterator::GetTokenizer() const
-{
-    auto suffix = TStringBuf(Owner_->Underlying(), Offset_);
-    auto tokenizer = NYPath::TTokenizer(suffix);
-    tokenizer.Advance();
-    return tokenizer;
-}
-
-template <class TUnderlying>
-void TYPathBaseImpl<false, TUnderlying>::TSegmentView::TIterator::Increment()
-{
-    Offset_ += Current_.Underlying().size();
-}
-
-template <class TUnderlying>
-void TYPathBaseImpl<false, TUnderlying>::TSegmentView::TIterator::UpdateCurrent()
-{
-    auto tokenizer = GetTokenizer();
-    switch (tokenizer.GetType()) {
-        case NYPath::ETokenType::Ampersand:
-            Current_ = TYPathBuf(tokenizer.GetToken());
-            break;
-        case NYPath::ETokenType::EndOfStream:
-            break;
-        case NYPath::ETokenType::Slash: {
-            size_t currentSize = 1;
-            tokenizer.Skip(NYPath::ETokenType::Slash);
-            while (tokenizer.GetType() != NYPath::ETokenType::Slash &&
-                tokenizer.GetType() != NYPath::ETokenType::Ampersand &&
-                tokenizer.GetType() != NYPath::ETokenType::EndOfStream)
-            {
-                currentSize += tokenizer.GetToken().size();
-                tokenizer.Advance();
-            }
-            Current_ = TYPathBuf(TStringBuf(Owner_->Path_, Offset_, currentSize));
-            break;
-        }
-        default:
-            tokenizer.ThrowUnexpected();
-    }
-
+    return TRealPath(TString(std::move(*this).Underlying()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <bool Absolute>
 template <class T>
-TBasicYPathBuf<Absolute>::TBasicYPathBuf(const TYPathBase<Absolute, T>& other)
-    : TBase(other.Underlying())
+TBasicPathBuf<Absolute>::TBasicPathBuf(const TPathBase<Absolute, T>& other)
+    : TBase(TStringBuf(other.Underlying()))
 { }
 
 template <bool Absolute>
 template <class T>
-TBasicYPathBuf<Absolute>& TBasicYPathBuf<Absolute>::operator=(const TYPathBase<Absolute, T>& rhs)
+TBasicPathBuf<Absolute>& TBasicPathBuf<Absolute>::operator=(const TPathBase<Absolute, T>& rhs)
 {
     TBase::Path_ = rhs.Underlying();
     return *this;
 }
 
+template <bool Absolute>
+TBasicPathBuf<Absolute> TBasicPathBuf<Absolute>::UnsafeMakeCanonicalPath(NYPath::TYPathBuf path)
+{
+    return TBasicPathBuf(path);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <bool Absolute>
 template <class T>
-TBasicYPath<Absolute>::TBasicYPath(const TYPathBase<Absolute, T>& other)
-    : TBase(other.Underlying())
+TBasicPath<Absolute>::TBasicPath(const TPathBase<Absolute, T>& other)
+    : TBase(TString(other.Underlying()))
 { }
 
 template <bool Absolute>
 template <class T>
-void TBasicYPath<Absolute>::Join(const TYPathBase<false, T>& other)
+void TBasicPath<Absolute>::Join(const TPathBase<false, T>& other)
 {
     TBase::Path_ += other.Underlying();
 }
 
 template <bool Absolute>
-void TBasicYPath<Absolute>::Append(TStringBuf literal)
+void TBasicPath<Absolute>::Append(TStringBuf literal)
 {
-    // TODO(h0pless): Think about adding some kind of literal validation here to avoid allocations.
-    auto parsedLiteral = NYPath::ToYPathLiteral(literal);
-    TBase::Path_.reserve(TBase::Path_.size() + 1 + parsedLiteral.size());
+    auto key = NYPath::ToYPathLiteral(literal);
 
-    if (!Absolute || TBase::Path_.size() != 2) {
-        TBase::Path_ += '/';
-    }
+    TBase::Path_.reserve(TBase::Path_.size() + 1 + key.size());
 
-    TBase::Path_ += parsedLiteral;
+    TBase::Path_ += TBase::Separator;
+    TBase::Path_ += key;
 }
 
 template <bool Absolute>
 template <class T>
-void TBasicYPath<Absolute>::operator+=(const TYPathBase<false, T>& rhs)
+void TBasicPath<Absolute>::operator+=(const TPathBase<false, T>& rhs)
 {
     Join(rhs);
 }
@@ -411,42 +200,35 @@ void TBasicYPath<Absolute>::operator+=(const TYPathBase<false, T>& rhs)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <bool Absolute, class T, class U>
-TBasicYPath<Absolute> YPathJoin(const TYPathBase<Absolute, T>& lhs, const TYPathBase<false, U>& rhs)
+TBasicPath<Absolute> PathJoin(const TPathBase<Absolute, T>& lhs, const TPathBase<false, U>& rhs)
 {
-    TBasicYPath<Absolute> result(lhs);
+    TBasicPath<Absolute> result(lhs);
     result.Join(rhs);
     return result;
 }
 
 template <bool Absolute, class T, class U>
-TBasicYPath<Absolute> operator+(const TYPathBase<Absolute, T>& lhs, const TYPathBase<false, U>& rhs)
+TBasicPath<Absolute> operator+(const TPathBase<Absolute, T>& lhs, const TPathBase<false, U>& rhs)
 {
-    return YPathJoin(lhs, rhs);
-}
-
-template <bool Absolute, class T, typename ...TArgs>
-TBasicYPath<Absolute> YPathJoin(const TYPathBase<Absolute, T>& path, TArgs&&... literals)
-{
-    auto joinedPath = NYPath::YPathJoin(path.Underlying(), literals...);
-    return TBasicYPath<Absolute>(joinedPath);
+    return PathJoin(lhs, rhs);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <bool Absolute>
-void FormatValue(TStringBuilderBase* builder, const TBasicYPath<Absolute>& path, TStringBuf spec)
+void FormatValue(TStringBuilderBase* builder, const TBasicPath<Absolute>& path, TStringBuf spec)
 {
     FormatValue(builder, path.Underlying(), spec);
 }
 
 template <bool Absolute>
-void FormatValue(TStringBuilderBase* builder, const TBasicYPathBuf<Absolute>& path, TStringBuf spec)
+void FormatValue(TStringBuilderBase* builder, const TBasicPathBuf<Absolute>& path, TStringBuf spec)
 {
     FormatValue(builder, path.Underlying(), spec);
 }
 
 template <bool Absolute, class TUnderlying>
-void Serialize(const TYPathBase<Absolute, TUnderlying>& path, NYson::IYsonConsumer* consumer)
+void Serialize(const TPathBase<Absolute, TUnderlying>& path, NYson::IYsonConsumer* consumer)
 {
     NYTree::BuildYsonFluently(consumer)
         .Value(path.Underlying());
@@ -457,15 +239,15 @@ void Serialize(const TYPathBase<Absolute, TUnderlying>& path, NYson::IYsonConsum
 } // namespace NYT::NSequoiaClient
 
 template <bool Absolute>
-size_t THash<NYT::NSequoiaClient::TBasicYPath<Absolute>>::operator()(
-    const NYT::NSequoiaClient::TBasicYPath<Absolute>& path) const
+size_t THash<NYT::NSequoiaClient::TBasicPath<Absolute>>::operator()(
+    const NYT::NSequoiaClient::TBasicPath<Absolute>& path) const
 {
     return ComputeHash(path.Underlying());
 }
 
 template <bool Absolute>
-size_t THash<NYT::NSequoiaClient::TBasicYPathBuf<Absolute>>::operator()(
-    const NYT::NSequoiaClient::TBasicYPathBuf<Absolute>& path) const
+size_t THash<NYT::NSequoiaClient::TBasicPathBuf<Absolute>>::operator()(
+    const NYT::NSequoiaClient::TBasicPathBuf<Absolute>& path) const
 {
     return ComputeHash(path.Underlying());
 }

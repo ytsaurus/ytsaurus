@@ -18,6 +18,11 @@ DEFINE_ENUM(EDistributedThrottlerMode,
     (Precise)
 );
 
+DEFINE_ENUM(EDistributedThrottlerMemberPriority,
+    (StartTime)
+    (Random)
+);
+
 struct TDistributedThrottlerConfig
     : public NYTree::TYsonStruct
 {
@@ -35,10 +40,14 @@ struct TDistributedThrottlerConfig
     TDuration AdjustedEmaHalflife;
 
     EDistributedThrottlerMode Mode;
+    EDistributedThrottlerMemberPriority MemberPriority;
     double ExtraLimitRatio;
 
     int HeartbeatThrottlerCountLimit;
     int SkipUnusedThrottlersCountLimit;
+
+    bool InitializeThrottlersOnCreation;
+    bool UpdateLimitsForZeroRateThrottlers;
 
     REGISTER_YSON_STRUCT(TDistributedThrottlerConfig);
 

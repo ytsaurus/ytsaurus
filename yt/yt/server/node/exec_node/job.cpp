@@ -121,6 +121,7 @@
 namespace NYT::NExecNode {
 
 using namespace NRpc;
+using namespace NGpu;
 using namespace NJobProxy;
 using namespace NYTree;
 using namespace NYson;
@@ -198,10 +199,7 @@ static const TString GpuRdmaRxBytesSensorName = "gpu/rdma/rx_bytes";
 static const TString GpuRdmaTxBytesSensorName = "gpu/rdma/tx_bytes";
 static const TString GpuTensorActivitySensorName = "gpu/tensor_activity";
 static const TString GpuDramActivitySensorName = "gpu/dram_activity";
-static const TString GpuSwThermalSlowdownSensorName = "gpu/sw_thermal_slowdown";
-static const TString GpuHwThermalSlowdownSensorName = "gpu/hw_thermal_slowdown";
-static const TString GpuHwPowerBrakeSlowdownSensorName = "gpu/hw_power_brake_slowdown";
-static const TString GpuHwSlowdownSensorName = "gpu/hw_slowdown";
+static const TString GpuSlowdownSensorName = "gpu/slowdown";
 
 const THashMap<TString, TUserJobSensorPtr>& GetSupportedGpuMonitoringSensors()
 {
@@ -275,22 +273,10 @@ const THashMap<TString, TUserJobSensorPtr>& GetSupportedGpuMonitoringSensors()
                 .Item("type").Value("gauge")
                 .Item("profiling_name").Value("/user_job/gpu/dram_activity")
             .EndMap()
-            .Item(GpuSwThermalSlowdownSensorName).BeginMap()
+            .Item(GpuSlowdownSensorName).BeginMap()
                 .Item("type").Value("gauge")
-                .Item("profiling_name").Value("/user_job/gpu/sw_thermal_slowdown")
+                .Item("profiling_name").Value("/user_job/gpu/slowdown")
             .EndMap()
-            .Item(GpuHwThermalSlowdownSensorName).BeginMap()
-                .Item("type").Value("gauge")
-                .Item("profiling_name").Value("/user_job/gpu/hw_thermal_slowdown")
-            .EndMap()
-            .Item(GpuHwPowerBrakeSlowdownSensorName).BeginMap()
-                .Item("type").Value("gauge")
-                .Item("profiling_name").Value("/user_job/gpu/hw_power_brake_slowdown")
-            .EndMap()
-            .Item(GpuHwSlowdownSensorName).BeginMap()
-                .Item("type").Value("gauge")
-                .Item("profiling_name").Value("/user_job/gpu/hw_slowdown")
-                .EndMap()
 
             // COMPAT(eshcherbin): These sensors are no longer produced, however we cannot remove them
             // because user jobs will fail otherwise.
@@ -2597,12 +2583,26 @@ void TJob::OnWaitingForCleanupTimeout()
     if (JobPhase_ == EJobPhase::WaitingForCleanup) {
         auto timeout = CommonConfig_->WaitingForJobCleanupTimeout;
 
-        auto error = TError(NExecNode::EErrorCode::JobCleanupTimeout, "Failed to wait for job cleanup within timeout")
+        auto error = TError(NExecNode::EErrorCode::WaitingForJobCleanupTimeout, "Failed to wait for job cleanup within timeout")
             << TErrorAttribute("job_id", Id_)
             << TErrorAttribute("operation_id", OperationId_)
             << TErrorAttribute("waiting_for_job_cleanup_timeout", timeout);
         Bootstrap_->GetSlotManager()->OnWaitingForJobCleanupTimeout(std::move(error));
     }
+}
+
+void TJob::OnCleanupTimeout()
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    auto timeout = CommonConfig_->JobCleanupTimeout;
+
+    auto error = TError(NExecNode::EErrorCode::JobCleanupTimeout, "Failed to process job cleanup within timeout")
+        << TErrorAttribute("job_id", Id_)
+        << TErrorAttribute("operation_id", OperationId_)
+        << TErrorAttribute("job_cleanup_timeout", timeout);
+
+    Bootstrap_->GetSlotManager()->OnJobCleanupTimeout(std::move(error));
 }
 
 IUserSlotPtr TJob::GetUserSlot() const
@@ -2745,6 +2745,11 @@ void TJob::Cleanup()
         JobPhase_ == EJobPhase::Cleanup || JobPhase_ == EJobPhase::Finished,
         "Job cleanup should be called only once");
 
+    auto cleanupTimeoutCookie = TDelayedExecutor::Submit(
+        BIND(&TJob::OnCleanupTimeout, MakeStrong(this))
+            .Via(Invoker_),
+        CommonConfig_->JobCleanupTimeout);
+
     if (auto delay = JobTestingOptions_->DelayInCleanup) {
         YT_LOG_DEBUG("Simulate delay in cleanup");
 
@@ -2771,6 +2776,8 @@ void TJob::Cleanup()
             YT_LOG_ERROR(ex, "Failed to clean processes (SlotIndex: %v)", slot->GetSlotIndex());
         }
     }
+
+    TDelayedExecutor::CancelAndClear(cleanupTimeoutCookie);
 
     // NodeDirectory can be really huge, we better offload its cleanup.
     // NB: Do this after slot cleanup.
@@ -3205,6 +3212,10 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         }
     }
 
+    // TODO(pavook): configure this dynamically (YT-25354).
+    proxyInternalConfig->EnableSignatureGeneration = static_cast<bool>(Bootstrap_->GetConfig()->ExecNode->SignatureGeneration);
+    proxyInternalConfig->EnableSignatureValidation = static_cast<bool>(Bootstrap_->GetConfig()->ExecNode->SignatureValidation);
+
     if (auto proxyDynamicConfig = Bootstrap_->GetJobController()->GetJobProxyDynamicConfig()) {
         if (auto jaegerConfig = proxyInternalConfig->TryGetSingletonConfig<NTracing::TJaegerTracerConfig>()) {
             proxyInternalConfig->SetSingletonConfig(jaegerConfig->ApplyDynamic(proxyDynamicConfig->Jaeger));
@@ -3226,6 +3237,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         proxyInternalConfig->PipeReaderTimeoutThreshold = proxyDynamicConfig->PipeReaderTimeoutThreshold;
         proxyInternalConfig->AdaptiveRowCountUpperBound = proxyDynamicConfig->AdaptiveRowCountUpperBound;
         proxyInternalConfig->UseNewDeliveryFencedConnection = proxyDynamicConfig->UseNewDeliveryFencedConnection;
+        proxyInternalConfig->EnablePerClusterChunkReaderStatistics = proxyDynamicConfig->EnablePerClusterChunkReaderStatistics;
 
         proxyInternalConfig->EnableCudaProfileEventStreaming = proxyDynamicConfig->EnableCudaProfileEventStreaming;
         proxyInternalConfig->JobTraceEventProcessor = proxyDynamicConfig->JobTraceEventProcessor;
@@ -3881,7 +3893,7 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics, const std::vecto
 
         auto& [slotStatistics, slotStatisticsLastUpdateTime] = GpuStatistics_[index];
 
-        NGpu::TGpuInfo gpuInfo;
+        TGpuInfo gpuInfo;
         {
             auto it = gpuInfoMap.find(slot->GetDeviceIndex());
             if (it == gpuInfoMap.end()) {
@@ -3928,10 +3940,9 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics, const std::vecto
         }
         slotStatistics.CumulativeTensorActivity += period.MilliSeconds() * gpuInfo.TensorActivityRate;
         slotStatistics.CumulativeDramActivity += period.MilliSeconds() * gpuInfo.DramActivityRate;
-        slotStatistics.CumulativeSwThermalSlowdown += gpuInfo.IsSWThermalSlowdown ? period.MilliSeconds() : 0;
-        slotStatistics.CumulativeHwThermalSlowdown += gpuInfo.IsHWThermalSlowdown ? period.MilliSeconds() : 0;
-        slotStatistics.CumulativeHwPowerBrakeSlowdown += gpuInfo.IsHWPowerBrakeSlowdown ? period.MilliSeconds() : 0;
-        slotStatistics.CumulativeHwSlowdown += gpuInfo.IsHWSlowdown ? period.MilliSeconds() : 0;
+        for (auto slowdownType : TEnumTraits<ESlowdownType>::GetDomainValues()) {
+            slotStatistics.CumulativeSlowdowns[slowdownType] += gpuInfo.Slowdowns[slowdownType] ? period.MilliSeconds() : 0;
+        }
 
         YT_LOG_DEBUG(
             "Updated job GPU slot statistics "
@@ -3961,10 +3972,9 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics, const std::vecto
         aggregatedGpuStatistics.MaxStuckDuration = std::max(aggregatedGpuStatistics.MaxStuckDuration, slotStatistics.MaxStuckDuration);
         aggregatedGpuStatistics.CumulativeTensorActivity += slotStatistics.CumulativeTensorActivity;
         aggregatedGpuStatistics.CumulativeDramActivity += slotStatistics.CumulativeDramActivity;
-        aggregatedGpuStatistics.CumulativeSwThermalSlowdown += slotStatistics.CumulativeSwThermalSlowdown;
-        aggregatedGpuStatistics.CumulativeHwThermalSlowdown += slotStatistics.CumulativeHwThermalSlowdown;
-        aggregatedGpuStatistics.CumulativeHwPowerBrakeSlowdown += slotStatistics.CumulativeHwPowerBrakeSlowdown;
-        aggregatedGpuStatistics.CumulativeHwSlowdown += slotStatistics.CumulativeHwSlowdown;
+        for (auto slowdownType : TEnumTraits<ESlowdownType>::GetDomainValues()) {
+            aggregatedGpuStatistics.CumulativeSlowdowns[slowdownType] += slotStatistics.CumulativeSlowdowns[slowdownType];
+        }
         totalGpuMemory += gpuInfo.MemoryTotal;
     }
 
@@ -3990,10 +4000,10 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics, const std::vecto
     statistics->AddSample("/user_job/gpu/max_stuck_duration"_SP, aggregatedGpuStatistics.MaxStuckDuration);
     statistics->AddSample("/user_job/gpu/cumulative_tensor_activity"_SP, aggregatedGpuStatistics.CumulativeTensorActivity);
     statistics->AddSample("/user_job/gpu/cumulative_dram_activity"_SP, aggregatedGpuStatistics.CumulativeDramActivity);
-    statistics->AddSample("/user_job/gpu/cumulative_sw_thermal_slowdown"_SP, aggregatedGpuStatistics.CumulativeSwThermalSlowdown);
-    statistics->AddSample("/user_job/gpu/cumulative_hw_thermal_slowdown"_SP, aggregatedGpuStatistics.CumulativeHwThermalSlowdown);
-    statistics->AddSample("/user_job/gpu/cumulative_hw_power_brake_slowdown"_SP, aggregatedGpuStatistics.CumulativeHwPowerBrakeSlowdown);
-    statistics->AddSample("/user_job/gpu/cumulative_hw_slowdown"_SP, aggregatedGpuStatistics.CumulativeHwSlowdown);
+    statistics->AddSample("/user_job/gpu/cumulative_slowdown/hw"_SP, aggregatedGpuStatistics.CumulativeSlowdowns[ESlowdownType::HW]);
+    statistics->AddSample("/user_job/gpu/cumulative_slowdown/hw_power_brake"_SP, aggregatedGpuStatistics.CumulativeSlowdowns[ESlowdownType::HWPowerBrake]);
+    statistics->AddSample("/user_job/gpu/cumulative_slowdown/hw_thermal"_SP, aggregatedGpuStatistics.CumulativeSlowdowns[ESlowdownType::HWThermal]);
+    statistics->AddSample("/user_job/gpu/cumulative_slowdown/sw_thermal"_SP, aggregatedGpuStatistics.CumulativeSlowdowns[ESlowdownType::SWThermal]);
     statistics->AddSample("/user_job/gpu/memory_total"_SP, totalGpuMemory);
 }
 
@@ -4323,7 +4333,7 @@ void TJob::CollectSensorsFromGpuAndRdmaDeviceInfo(ISensorWriter* writer)
     for (int index = 0; index < std::ssize(gpuSlots); ++index) {
         auto slot = gpuSlots[index];
 
-        auto gpuInfo = GetOrDefault(gpuInfoMap, slot->GetDeviceIndex(), NGpu::TGpuInfo{});
+        auto gpuInfo = GetOrDefault(gpuInfoMap, slot->GetDeviceIndex(), TGpuInfo{});
 
         TWithTagGuard tagGuard(writer, "gpu_slot", ToString(index));
 
@@ -4346,12 +4356,12 @@ void TJob::CollectSensorsFromGpuAndRdmaDeviceInfo(ISensorWriter* writer)
         profileSensorIfNeeded(GpuStuckSensorName, static_cast<double>(gpuInfo.Stuck.Status));
         profileSensorIfNeeded(GpuTensorActivitySensorName, gpuInfo.TensorActivityRate);
         profileSensorIfNeeded(GpuDramActivitySensorName, gpuInfo.DramActivityRate);
-        profileSensorIfNeeded(GpuSwThermalSlowdownSensorName, gpuInfo.IsSWThermalSlowdown);
-        profileSensorIfNeeded(GpuHwThermalSlowdownSensorName, gpuInfo.IsHWThermalSlowdown);
-        profileSensorIfNeeded(GpuHwPowerBrakeSlowdownSensorName, gpuInfo.IsHWPowerBrakeSlowdown);
-        profileSensorIfNeeded(GpuHwSlowdownSensorName, gpuInfo.IsHWSlowdown);
-    }
 
+        for (auto slowdownType : TEnumTraits<ESlowdownType>::GetDomainValues()) {
+            TWithTagGuard tagGuard(writer, "slowdown_type", ToString(slowdownType));
+            profileSensorIfNeeded(GpuSlowdownSensorName, gpuInfo.Slowdowns[slowdownType]);
+        }
+    }
 
     if (IsFullHostGpuJob()) {
         auto rdmaDevices = Bootstrap_->GetGpuManager()->GetRdmaDevices();

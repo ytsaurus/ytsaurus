@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/security_server/public.h>
 
+#include <yt/yt/ytlib/chaos_client/public.h>
+
 #include <yt/yt/library/query/row_comparer_api/row_comparer_generator.h>
 
 namespace NYT::NTabletNode {
@@ -58,6 +60,8 @@ struct IBootstrap
     virtual const NConcurrency::IThroughputThrottlerPtr& GetThrottler(NTabletNode::ETabletNodeThrottlerKind kind) const = 0;
     virtual const NConcurrency::IThroughputThrottlerPtr& GetInThrottler(EWorkloadCategory category) const = 0;
     virtual const NConcurrency::IThroughputThrottlerPtr& GetOutThrottler(EWorkloadCategory category) const = 0;
+    virtual const IDistributedThrottlerManagerPtr& GetDistributedThrottlerManager() const = 0;
+    virtual IMediumThrottlerManagerFactoryPtr& GetMediumThrottlerManagerFactory() = 0;
 
     // QL stuff.
     virtual const NQueryClient::IColumnEvaluatorCachePtr& GetColumnEvaluatorCache() const = 0;
@@ -72,10 +76,11 @@ struct IBootstrap
     // TODO(gritukan): Remove it after node split.
     const NDataNode::IChunkRegistryPtr& GetChunkRegistry() const override = 0;
 
-    virtual const TOverloadControllerPtr& GetOverloadController() const = 0;
+    virtual const NRpc::IOverloadControllerPtr& GetOverloadController() const = 0;
 
     virtual const ICompressionDictionaryManagerPtr& GetCompressionDictionaryManager() const = 0;
     virtual const IAlienClusterClientCachePtr& GetReplicatorClientCache() const = 0;
+    virtual const NChaosClient::IReplicationCardUpdatesBatcherPtr& GetReplicationCardUpdatesBatcher() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBootstrap)

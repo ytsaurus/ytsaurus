@@ -23,6 +23,9 @@ void TObjectAttributeCacheConfig::Register(TRegistrar registrar)
     registrar.Parameter("master_cache_cache_sticky_group_size", &TThis::MasterCacheStickyGroupSize_)
         .Optional();
 
+    registrar.Parameter("refresh_revision_storage_size", &TThis::RefreshRevisionStorageSize)
+        .Default(100000);
+
     registrar.Postprocessor([] (TThis* config) {
         if (config->ReadFrom_) {
             config->MasterReadOptions->ReadFrom = *config->ReadFrom_;

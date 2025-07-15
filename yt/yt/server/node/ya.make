@@ -141,6 +141,7 @@ SRCS(
     tablet_node/lookup.cpp
     tablet_node/lsm_interop.cpp
     tablet_node/master_connector.cpp
+    tablet_node/medium_throttler_manager.cpp
     tablet_node/mutation_forwarder.cpp
     tablet_node/mutation_forwarder_thunk.cpp
     tablet_node/object_detail.cpp
@@ -152,6 +153,7 @@ SRCS(
     tablet_node/relative_replication_throttler.cpp
     tablet_node/replicated_store_manager.cpp
     tablet_node/replication_log.cpp
+    tablet_node/revision_provider.cpp
     tablet_node/row_cache.cpp
     tablet_node/row_digest_fetcher.cpp
     tablet_node/security_manager.cpp
@@ -191,8 +193,6 @@ SRCS(
     tablet_node/transaction_manager.cpp
     tablet_node/transaction_manager.proto
     tablet_node/versioned_chunk_meta_manager.cpp
-    tablet_node/overload_controller.cpp
-    tablet_node/overload_controlling_service_base.cpp
     tablet_node/write_commands.cpp
     tablet_node/write_log.cpp
 )

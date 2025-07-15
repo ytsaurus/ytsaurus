@@ -5,6 +5,8 @@
 #include <yt/yt/client/table_client/comparator.h>
 #include <yt/yt/client/table_client/schema.h>
 
+#include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
+
 namespace NYT::NTableServer {
 
 using namespace NConcurrency;
@@ -50,6 +52,11 @@ TCompactTableSchema::TCompactTableSchema(const TTableSchema& schema)
 TCompactTableSchema::TCompactTableSchema(const NTableClient::TTableSchemaPtr& schema)
     : TCompactTableSchema(*schema)
 { }
+
+bool TCompactTableSchema::operator==(const TCompactTableSchema& other) const
+{
+    return TableSchema_ == other.TableSchema_;
+}
 
 const std::string& TCompactTableSchema::AsWireProto() const
 {
@@ -175,11 +182,6 @@ void ToProto(NTableClient::NProto::TTableSchemaExt* protoSchema, const TCompactT
     } else {
         protoSchema->Clear();
     }
-}
-
-void FromProto(TCompactTableSchema* schema, const NTableClient::NProto::TTableSchemaExt& protoSchema)
-{
-    *schema = TCompactTableSchema(protoSchema);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

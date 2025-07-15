@@ -25,6 +25,8 @@
 
 #include <yt/yt/client/queue_client/config.h>
 
+#include <library/cpp/cron_expression/cron_expression.h>
+
 #include <util/generic/map.h>
 
 namespace NYT::NQueueAgent {
@@ -78,25 +80,68 @@ namespace {
 // Unix timestamp T corresponds to TInstant::Seconds(T).
 // Most of calculations are done with unix time, since we chose our granularity to be in seconds.
 
-//! Find export unix ts range containing #unixTs for a given #exportPeriod.
+//! Find export unix ts range containing #now for a given #exportConfig.
 //!
 //! Returns [#beginTs; endTs), where endTs is also export unix ts describing the range.
 //! Alternatively, beginTs is export unix ts that comes before endTs.
-std::pair<ui64, ui64> GetExportUnixTsRange(ui64 unixTs, TDuration exportPeriod)
+std::pair<ui64, ui64> GetExportUnixTsRange(
+    TInstant now,
+    const TQueueStaticExportConfigPtr exportConfig)
 {
-    auto period = exportPeriod.Seconds();
-    YT_VERIFY(period > 0);
+    if (exportConfig->ExportPeriod) {
+        auto period = exportConfig->ExportPeriod->Seconds();
+        YT_VERIFY(period > 0);
 
-    std::pair<ui64, ui64> result;
-    result.first = (unixTs / period) * period;
-    result.second = result.first + period;
-    return result;
+        std::pair<ui64, ui64> result;
+        result.first = (now.Seconds() / period) * period;
+        result.second = result.first + period;
+        return result;
+    }
+
+    static const auto UTCTimezone = NDatetime::TTimeZone{};
+
+    TCronExpression cronExpression{*exportConfig->ExportCronSchedule};
+    auto nowCivilSecond = NDatetime::Convert(now, UTCTimezone);
+    auto endCivilSecond = cronExpression.CronNext(nowCivilSecond);
+    return std::pair<ui64, ui64>{
+        NDatetime::Convert(cronExpression.CronPrev(endCivilSecond), UTCTimezone).Seconds(),
+        NDatetime::Convert(endCivilSecond, UTCTimezone).Seconds()};
+}
+
+std::pair<ui64, ui64> GetExportUnixTsRange(
+    ui64 unixTs,
+    const TQueueStaticExportConfigPtr exportConfig)
+{
+    return GetExportUnixTsRange(TInstant::Seconds(unixTs), exportConfig);
 }
 
 //! The greatest export unix ts lower than #now according to #exportPeriod.
-ui64 GetExportUnixTsUpperBound(TInstant now, TDuration exportPeriod)
+ui64 GetExportUnixTsUpperBound(
+    TInstant now,
+    const TQueueStaticExportConfigPtr exportConfig)
 {
-    return GetExportUnixTsRange(now.Seconds(), exportPeriod).first;
+    return GetExportUnixTsRange(now, exportConfig).first;
+}
+
+//! Calculate how long the export period before timestamp #exportUnixTs was, according to the provided #exportConfig.
+//!
+//! \note Function throws if #exportUnixTs is not a valid export timestamp.
+ui64 GetLastExportPeriod(ui64 exportUnixTs, const TQueueStaticExportConfigPtr exportConfig)
+{
+    if (exportConfig->ExportPeriod) {
+        return exportConfig->ExportPeriod->Seconds();
+    }
+
+    static const auto UTCTimezone = NDatetime::TTimeZone{};
+
+    TCronExpression cronExpression{*exportConfig->ExportCronSchedule};
+    auto exportUnixTsCivilSecond = NDatetime::Convert(TInstant::Seconds(exportUnixTs), UTCTimezone);
+    if (cronExpression.CronPrev(cronExpression.CronNext(exportUnixTsCivilSecond)) != exportUnixTsCivilSecond) {
+        THROW_ERROR_EXCEPTION("Value of exportUnixTs is not a valid export timestamp")
+            << TErrorAttribute("exportUnixTs", exportUnixTs)
+            << TErrorAttribute("cronExpression", *exportConfig->ExportCronSchedule);
+    }
+    return exportUnixTs - NDatetime::Convert(cronExpression.CronPrev(exportUnixTsCivilSecond), UTCTimezone).Seconds();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -190,9 +235,10 @@ public:
         , DynamicConfig_(std::move(dynamicConfig))
         , IsInitialInvocation_(isInitialInvocation)
         , Logger(logger.WithTag(
-            "ExportDirectory: %v, ExportPeriod: %v, IsInitialInvocation: %v",
+            "ExportDirectory: %v, ExportPeriod: %v, ExportCronSchedule: %v, IsInitialInvocation: %v",
             ExportConfig_->ExportDirectory,
             ExportConfig_->ExportPeriod,
+            ExportConfig_->ExportCronSchedule,
             IsInitialInvocation_))
     { }
 
@@ -320,7 +366,7 @@ private:
             transactionId);
 
         TaskInstant_ = TInstant::Now();
-        ExportUnixTsUpperBound_ = GetExportUnixTsUpperBound(TaskInstant_, ExportConfig_->ExportPeriod);
+        ExportUnixTsUpperBound_ = GetExportUnixTsUpperBound(TaskInstant_, ExportConfig_);
 
         QueueObject_ = TUserObject(FromObjectId(queueObjectId), transactionId);
 
@@ -488,7 +534,7 @@ private:
     {
         // NB: The timestamp is in range [unixTs, unixTs + 1). Since our granularity is in seconds, we can compute the
         // next export unix ts as the strict next tick for the lower bound.
-        return GetExportUnixTsRange(UnixTimeFromTimestamp(timestamp), ExportConfig_->ExportPeriod).second;
+        return GetExportUnixTsRange(UnixTimeFromTimestamp(timestamp), ExportConfig_).second;
     }
 
     static void GetAndFillBasicAttributes(
@@ -625,7 +671,9 @@ private:
         }
 
         // NB(apachee): It is possible that rows corresponding to the last exported table were flushed late, in which case we export those rows to the next exported table.
-        auto initialAccumulatedMinExportUnixTs = GetExportUnixTsRange(currentExportProgress->LastExportUnixTs, ExportConfig_->ExportPeriod).second;
+        auto initialAccumulatedMinExportUnixTs = GetExportUnixTsRange(
+            currentExportProgress->LastExportUnixTs,
+            ExportConfig_).second;
 
         for (const auto& [tabletIndex, chunkSpecs] : tabletToChunkSpecs) {
             auto lastExportedSpecIt = std::find_if(chunkSpecs.begin(), chunkSpecs.end(), [&, tabletIndex = tabletIndex] (auto* chunkSpec) {
@@ -698,7 +746,7 @@ private:
 
     TString GetOutputTableName(ui64 unixTs)
     {
-        auto periodInSeconds = ExportConfig_->ExportPeriod.Seconds();
+        auto periodInSeconds = GetLastExportPeriod(unixTs, ExportConfig_);
 
         if (!ExportConfig_->UseUpperBoundForTableNames) {
             unixTs -= periodInSeconds;
@@ -1144,7 +1192,7 @@ private:
         auto now = TInstant::Now();
 
         auto exportConfig = GetExportConfig();
-        auto exportUnixTs = GetExportUnixTsRange(now.Seconds(), exportConfig->ExportPeriod).first;
+        auto exportUnixTs = GetExportUnixTsRange(now, exportConfig).first;
 
         if (exportUnixTs <= LastSuccessfulExportUnixTs_.load()) {
             // Too early to run new export task.
@@ -1253,7 +1301,7 @@ private:
     void ProfileExport(const TQueueStaticExportConfigPtr& exportConfig, bool hasError)
     {
         auto now = TInstant::Now();
-        auto exportUnixTsUpperBound = GetExportUnixTsUpperBound(now, exportConfig->ExportPeriod);
+        auto exportUnixTsUpperBound = GetExportUnixTsUpperBound(now, exportConfig);
 
         ui64 timeLagSeconds = 0;
         auto exportProgress = GetExportProgress();
@@ -1264,7 +1312,8 @@ private:
         }
 
         // NB(apachee): Table lag is rounded up, since export period could've changed after the last successful export task.
-        auto exportPeriodSeconds = exportConfig->ExportPeriod.Seconds();
+        // In general case, for CRON schedules the table lag is an approximation.
+        auto exportPeriodSeconds = GetLastExportPeriod(exportUnixTsUpperBound, exportConfig);
         ui64 tableLag = (timeLagSeconds + exportPeriodSeconds - 1) / exportPeriodSeconds;
 
         if (hasError) {

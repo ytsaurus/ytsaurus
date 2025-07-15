@@ -129,6 +129,42 @@ text_logs:
       queue_path: //path/to/queue_table
       producer_path: //path/to/producer_table
       rpc_proxy_role: default
+
+# OPTIONAL
+# Configuration for verification file uploader component.
+verification_file_uploader:
+  # REQUIRED
+  # YT cluster to upload log files to.
+  yt_cluster: "hahn"
+  
+  # REQUIRED
+  # Directory path in YT where log files will be stored.
+  yt_log_files_dir: "//home/logs/uploaded"
+  
+  # OPTIONAL
+  # Minimum time since last modification a log file must have before it can be uploaded.
+  # Files modified more recently than this will be skipped.
+  # Default: 5h
+  min_log_file_age: 5h
+  
+  # OPTIONAL
+  # Maximum time since last modification a log file can have to be eligible for upload.
+  # Files modified longer ago than this will be skipped.
+  # Default: 10h
+  max_log_file_age: 10h
+  
+  # OPTIONAL
+  # How often the uploader scans for new log files to upload.
+  # Default: 6h
+  scan_log_files_interval: 6h
+  
+  # REQUIRED
+  # List of log file stream configurations to monitor and upload.
+  streams:
+    - file_pattern: "/yt/disk2/freud-data/master-logs/master-sas5-9603.debug.log*"
+      log_format: "text"
+    - file_pattern: "/yt/disk2/freud-data/master-logs/master-sas5-9603.access.json*"
+      log_format: "json"
 ```
 
 

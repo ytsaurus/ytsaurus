@@ -125,7 +125,7 @@ cdef class IntervalTree(IntervalMixin):
         sort_order = self.left_sorter
         return is_monotonic(sort_order, False)[0]
 
-    def get_indexer(self, scalar_t[:] target) -> np.ndarray:
+    def get_indexer(self, ndarray[scalar_t, ndim=1] target) -> np.ndarray:
         """Return the positions corresponding to unique intervals that overlap
         with the given array of scalar targets.
         """
@@ -153,7 +153,7 @@ cdef class IntervalTree(IntervalMixin):
             old_len = result.data.n
         return result.to_array().astype('intp')
 
-    def get_indexer_non_unique(self, scalar_t[:] target):
+    def get_indexer_non_unique(self, ndarray[scalar_t, ndim=1] target):
         """Return the positions corresponding to intervals that overlap with
         the given array of scalar targets. Non-unique positions are repeated.
         """
@@ -361,6 +361,11 @@ cdef class Float64ClosedLeftIntervalNode(IntervalNode):
         """Recursively query this node and its sub-nodes for intervals that
         overlap with the query point.
         """
+
+        # GH 51826: ensures nan is handled properly during reindexing
+        if np.isnan(point):
+            return
+
         cdef:
             int64_t[:] indices
             float64_t[:] values
@@ -513,6 +518,11 @@ cdef class Float64ClosedRightIntervalNode(IntervalNode):
         """Recursively query this node and its sub-nodes for intervals that
         overlap with the query point.
         """
+
+        # GH 51826: ensures nan is handled properly during reindexing
+        if np.isnan(point):
+            return
+
         cdef:
             int64_t[:] indices
             float64_t[:] values
@@ -665,6 +675,11 @@ cdef class Float64ClosedBothIntervalNode(IntervalNode):
         """Recursively query this node and its sub-nodes for intervals that
         overlap with the query point.
         """
+
+        # GH 51826: ensures nan is handled properly during reindexing
+        if np.isnan(point):
+            return
+
         cdef:
             int64_t[:] indices
             float64_t[:] values
@@ -817,6 +832,11 @@ cdef class Float64ClosedNeitherIntervalNode(IntervalNode):
         """Recursively query this node and its sub-nodes for intervals that
         overlap with the query point.
         """
+
+        # GH 51826: ensures nan is handled properly during reindexing
+        if np.isnan(point):
+            return
+
         cdef:
             int64_t[:] indices
             float64_t[:] values
@@ -969,6 +989,11 @@ cdef class Int64ClosedLeftIntervalNode(IntervalNode):
         """Recursively query this node and its sub-nodes for intervals that
         overlap with the query point.
         """
+
+        # GH 51826: ensures nan is handled properly during reindexing
+        if np.isnan(point):
+            return
+
         cdef:
             int64_t[:] indices
             int64_t[:] values
@@ -1121,6 +1146,11 @@ cdef class Int64ClosedRightIntervalNode(IntervalNode):
         """Recursively query this node and its sub-nodes for intervals that
         overlap with the query point.
         """
+
+        # GH 51826: ensures nan is handled properly during reindexing
+        if np.isnan(point):
+            return
+
         cdef:
             int64_t[:] indices
             int64_t[:] values
@@ -1273,6 +1303,11 @@ cdef class Int64ClosedBothIntervalNode(IntervalNode):
         """Recursively query this node and its sub-nodes for intervals that
         overlap with the query point.
         """
+
+        # GH 51826: ensures nan is handled properly during reindexing
+        if np.isnan(point):
+            return
+
         cdef:
             int64_t[:] indices
             int64_t[:] values
@@ -1425,6 +1460,11 @@ cdef class Int64ClosedNeitherIntervalNode(IntervalNode):
         """Recursively query this node and its sub-nodes for intervals that
         overlap with the query point.
         """
+
+        # GH 51826: ensures nan is handled properly during reindexing
+        if np.isnan(point):
+            return
+
         cdef:
             int64_t[:] indices
             int64_t[:] values
@@ -1577,6 +1617,11 @@ cdef class Uint64ClosedLeftIntervalNode(IntervalNode):
         """Recursively query this node and its sub-nodes for intervals that
         overlap with the query point.
         """
+
+        # GH 51826: ensures nan is handled properly during reindexing
+        if np.isnan(point):
+            return
+
         cdef:
             int64_t[:] indices
             uint64_t[:] values
@@ -1729,6 +1774,11 @@ cdef class Uint64ClosedRightIntervalNode(IntervalNode):
         """Recursively query this node and its sub-nodes for intervals that
         overlap with the query point.
         """
+
+        # GH 51826: ensures nan is handled properly during reindexing
+        if np.isnan(point):
+            return
+
         cdef:
             int64_t[:] indices
             uint64_t[:] values
@@ -1881,6 +1931,11 @@ cdef class Uint64ClosedBothIntervalNode(IntervalNode):
         """Recursively query this node and its sub-nodes for intervals that
         overlap with the query point.
         """
+
+        # GH 51826: ensures nan is handled properly during reindexing
+        if np.isnan(point):
+            return
+
         cdef:
             int64_t[:] indices
             uint64_t[:] values
@@ -2033,6 +2088,11 @@ cdef class Uint64ClosedNeitherIntervalNode(IntervalNode):
         """Recursively query this node and its sub-nodes for intervals that
         overlap with the query point.
         """
+
+        # GH 51826: ensures nan is handled properly during reindexing
+        if np.isnan(point):
+            return
+
         cdef:
             int64_t[:] indices
             uint64_t[:] values

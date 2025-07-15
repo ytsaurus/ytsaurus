@@ -493,6 +493,11 @@ struct TJobProxyInternalConfig
 
     bool StartQueueConsumerRegistrationManager;
 
+    bool EnableSignatureGeneration;
+    bool EnableSignatureValidation;
+
+    bool EnablePerClusterChunkReaderStatistics;
+
     REGISTER_YSON_STRUCT(TJobProxyInternalConfig);
 
     static void Register(TRegistrar registrar);
@@ -540,6 +545,8 @@ struct TJobProxyDynamicConfig
     std::optional<TString> MemoryProfileDumpPath;
 
     NRpcProxy::TApiServiceDynamicConfigPtr JobProxyApiService;
+
+    bool EnablePerClusterChunkReaderStatistics;
 
     REGISTER_YSON_STRUCT(TJobProxyDynamicConfig);
 

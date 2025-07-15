@@ -31,6 +31,8 @@ extern "C" {
 #include "platform/switch_ppc_unix.h" /* gcc on NetBSD/powerpc */
 #elif defined(__GNUC__) && defined(sparc)
 # include "platform/switch_sparc_sun_gcc.h" /* SunOS sparc with gcc */
+#elif defined(__GNUC__) && defined(__sparc__)
+# include "platform/switch_sparc_sun_gcc.h" /* NetBSD sparc with gcc */
 #elif defined(__SUNPRO_C) && defined(sparc) && defined(sun)
 # include "platform/switch_sparc_sun_gcc.h" /* SunStudio on amd64 */
 #elif defined(__SUNPRO_C) && defined(__amd64__) && defined(sun)

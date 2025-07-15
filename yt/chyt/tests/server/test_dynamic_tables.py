@@ -1,8 +1,8 @@
 from base import ClickHouseTestBase, Clique
 
-from yt_commands import (create_dynamic_table, set, get, read_table, write_table, authors, sync_mount_table,
-                         insert_rows, create, sync_unmount_table, raises_yt_error, generate_timestamp,
-                         sync_flush_table, sync_compact_table, sync_freeze_table)
+from yt_commands import (create_dynamic_table, set, get, read_table, write_table, authors, sync_create_cells,
+                         sync_mount_table, insert_rows, create, sync_unmount_table, raises_yt_error,
+                         generate_timestamp, sync_flush_table, sync_compact_table, sync_freeze_table)
 
 from yt.common import YtError
 
@@ -15,7 +15,7 @@ import time
 
 
 class TestClickHouseDynamicTables(ClickHouseTestBase):
-    NUM_TEST_PARTITIONS = 2
+    NUM_TEST_PARTITIONS = 4
 
     def _get_config_patch(self):
         return {
@@ -291,8 +291,10 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
     # Tests below are obtained from similar already existing tests on dynamic tables.
 
     @authors("max42")
+    @pytest.mark.timeout(240)
     @pytest.mark.parametrize("instance_count", [1, 2])
     def test_map_on_dynamic_table(self, instance_count):
+        sync_create_cells(1)
         self._create_simple_dynamic_table("//tmp/t", sort_order="ascending")
         set("//tmp/t/@min_compaction_store_count", 5)
 

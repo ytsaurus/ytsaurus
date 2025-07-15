@@ -95,8 +95,8 @@ class HttpProxyTestBase(YTEnvSetup):
     def _get_https_proxy_address(self):
         return self.Env.get_http_proxy_address(https=True)
 
-    def _get_ca_cert(self):
-        return self.Env.yt_config.ca_cert
+    def _get_https_ca_cert(self):
+        return self.Env.yt_config.public_ca_cert
 
     def _get_proxy_cert_path(self, index=0):
         proxy_config = self.Env.configs["http_proxy"][index]
@@ -1286,23 +1286,22 @@ class TestHttpProxyJobShellAudit(HttpProxyTestBase):
     ENABLE_MULTIDAEMON = True
 
     @classmethod
-    def modify_proxy_config(cls, multidaemon_config, configs):
-        for i in range(len(configs)):
-            if "logging" in configs[i]:
-                configs[i]["logging"]["flush_period"] = 100
-                configs[i]["logging"]["rules"].append(
-                    {
-                        "min_level": "info",
-                        "writers": ["job_shell"],
-                        "include_categories": ["JobShell"],
-                        "message_format": "structured",
-                    }
-                )
-                configs[i]["logging"]["writers"]["job_shell"] = {
-                    "type": "file",
-                    "file_name": os.path.join(cls.path_to_run, "logs/job-shell-{}.json.log".format(i)),
-                    "accepted_message_format": "structured",
+    def modify_http_proxy_config(cls, config, multidaemon_config, proxy_index):
+        if "logging" in config:
+            config["logging"]["flush_period"] = 100
+            config["logging"]["rules"].append(
+                {
+                    "min_level": "info",
+                    "writers": ["job_shell"],
+                    "include_categories": ["JobShell"],
+                    "message_format": "structured",
                 }
+            )
+            config["logging"]["writers"]["job_shell"] = {
+                "type": "file",
+                "file_name": os.path.join(cls.path_to_run, f"logs/job-shell-{proxy_index}.json.log"),
+                "accepted_message_format": "structured",
+            }
 
         multidaemon_config["logging"]["flush_period"] = 100
         multidaemon_config["logging"]["rules"].append(
@@ -1787,18 +1786,20 @@ class TestHttpProxyNullApiTestingOptions(TestHttpProxyHeapUsageStatisticsBase):
 
 class TestHttpProxySignaturesBase(HttpProxyTestBase):
     DELTA_PROXY_CONFIG = {
-        "signature_validation": {
-            "cypress_key_reader": dict(),
-            "validator": dict(),
-        },
-        "signature_generation": {
-            "cypress_key_writer": {
-                "owner_id": "test-http-proxy",
+        "signature_components": {
+            "validation": {
+                "cypress_key_reader": dict(),
+                "validator": dict(),
             },
-            "key_rotator": {
-                "key_rotation_interval": "2h",
+            "generation": {
+                "cypress_key_writer": {
+                    "owner_id": "test-http-proxy",
+                },
+                "key_rotator": {
+                    "key_rotation_interval": "2h",
+                },
+                "generator": dict(),
             },
-            "generator": dict(),
         },
     }
 
@@ -1907,9 +1908,11 @@ class TestHttpProxySignatures(TestHttpProxySignaturesBase):
 
 class TestHttpProxySignaturesKeyRotation(TestHttpProxySignaturesBase):
     DELTA_PROXY_CONFIG = deep_update(TestHttpProxySignaturesBase.DELTA_PROXY_CONFIG, {
-        "signature_generation": {
-            "key_rotator": {
-                "key_rotation_interval": "200ms",
+        "signature_components": {
+            "generation": {
+                "key_rotator": {
+                    "key_rotation_interval": "200ms",
+                },
             },
         },
     })
@@ -1947,7 +1950,7 @@ class TestHttpsProxy(HttpProxyTestBase):
 
     @authors("khlebnikov")
     def test_ping_verify_ca(self):
-        rsp = requests.get(self._get_https_proxy_url() + "/ping", verify=self._get_ca_cert())
+        rsp = requests.get(self._get_https_proxy_url() + "/ping", verify=self._get_https_ca_cert())
         rsp.raise_for_status()
 
     @authors("khlebnikov")
@@ -1963,8 +1966,8 @@ class TestHttpsProxy(HttpProxyTestBase):
         assert current_fingerprint() == old_fingerprint
 
         create_certificate(
-            ca_cert=self._get_ca_cert(),
-            ca_cert_key=self.Env.yt_config.ca_cert_key,
+            ca_cert=self.Env.yt_config.public_ca_cert,
+            ca_cert_key=self.Env.yt_config.public_ca_cert_key,
             cert=proxy_cert,
             cert_key=proxy_cert_key,
             names=[self.Env.yt_config.fqdn, self.Env.yt_config.cluster_name],
@@ -1977,7 +1980,7 @@ class TestHttpsProxy(HttpProxyTestBase):
 
         wait(lambda: current_fingerprint() == new_fingerprint)
 
-        rsp = requests.get(self._get_https_proxy_url() + "/ping", verify=self._get_ca_cert())
+        rsp = requests.get(self._get_https_proxy_url() + "/ping", verify=self._get_https_ca_cert())
         rsp.raise_for_status()
 
 
@@ -1998,10 +2001,8 @@ class TestHttpProxyDiscovery(YTEnvSetup):
         self.driver = Driver(driver_config)
 
     @classmethod
-    def modify_proxy_config(cls, multidaemon_config, configs):
-        for config in configs:
-            addresses = [["default", "localhost"], ["fastbone", "fb-localhost"]]
-            config["addresses"] = addresses
+    def modify_http_proxy_config(cls, config, multidaemon_config, proxy_index):
+        config["addresses"] = [["default", "localhost"], ["fastbone", "fb-localhost"]]
 
     @authors("nadya73")
     def test_addresses(self):

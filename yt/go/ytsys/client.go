@@ -27,6 +27,7 @@ const (
 	RPCProxiesPath        = ypath.Path("//sys/rpc_proxies")
 	SchedulersPath        = ypath.Path("//sys/scheduler/instances")
 	ControllerAgentsPath  = ypath.Path("//sys/controller_agents/instances")
+	QueueAgentsPath       = ypath.Path("//sys/queue_agents/instances")
 
 	PoolTreesPath         = ypath.Path("//sys/pool_trees")
 	TabletCellsPath       = ypath.Path("//sys/tablet_cells")
@@ -46,8 +47,9 @@ const (
 	DefaultRPCProxyRole  = "default"
 	DefaultHTTPProxyRole = "default"
 
-	bannedAttr     = "banned"
-	banMessageAttr = "ban_message"
+	bannedAttr           = "banned"
+	banMessageAttr       = "ban_message"
+	bannedQueueAgentAttr = "banned_queue_agent_instance"
 
 	maintenanceAttr            = "maintenance"
 	maintenanceMessageAttr     = "maintenance_message"
@@ -97,6 +99,7 @@ type HTTPProxyMap map[Addr]*HTTPProxy
 type RPCProxyMap map[Addr]*RPCProxy
 type SchedulerMap map[Addr]*Scheduler
 type ControllerAgentMap map[Addr]*ControllerAgent
+type QueueAgentMap map[Addr]*QueueAgent
 
 type PoolTrees map[string]*PoolTree
 type NodePoolTrees map[Addr]string
@@ -596,6 +599,38 @@ func (c *Client) GetControllerAgents(ctx context.Context) (ControllerAgentMap, e
 	return grouped, nil
 }
 
+// GetQueueAgents loads queue agents from cypress.
+func (c *Client) GetQueueAgents(ctx context.Context) (QueueAgentMap, error) {
+	options := &yt.ListNodeOptions{
+		Attributes: []string{
+			"id", "path", "annotations",
+			bannedQueueAgentAttr, banMessageAttr,
+			maintenanceAttr, maintenanceMessageAttr,
+		},
+		MaxSize: ptr.Int64(listResultMaxSize),
+		TransactionOptions: &yt.TransactionOptions{
+			SuppressTransactionCoordinatorSync: true,
+			SuppressUpstreamSync:               true,
+		},
+	}
+
+	var agents []*QueueAgent
+	if err := c.yc.ListNode(ctx, QueueAgentsPath, &agents, options); err != nil {
+		// if there are no queue agents (yterrors.CodeResolveError), it is not error
+		if yterrors.ContainsErrorCode(err, yterrors.CodeResolveError) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	grouped := make(QueueAgentMap)
+	for _, a := range agents {
+		grouped[*a.Addr] = a
+	}
+
+	return grouped, nil
+}
+
 func (c *Client) DisableChunkLocations(ctx context.Context, addr *Addr, uuids []guid.GUID) ([]guid.GUID, error) {
 	res, err := c.yc.DisableChunkLocations(ctx, addr.String(), uuids, nil)
 	if err != nil {
@@ -961,6 +996,15 @@ func (c *Client) Ban(ctx context.Context, component Component, msg string) error
 	}
 	defer func() { _ = tx.Abort() }()
 
+	// For queue agents, banned attr is bannedQueueAgentAttr
+	// TODO: After YT-25647 remove and leave only simple "banned" attr.
+	if component.GetRole() == RoleQueueAgent {
+		err = tx.SetNode(ctx, p.Attr(bannedQueueAgentAttr), true, nil)
+		if err != nil {
+			return err
+		}
+	}
+
 	err = tx.SetNode(ctx, p.Attr(bannedAttr), true, nil)
 	if err != nil {
 		return err
@@ -983,7 +1027,13 @@ func (c *Client) Unban(ctx context.Context, component Component) error {
 	}
 	defer func() { _ = tx.Abort() }()
 
-	err = tx.SetNode(ctx, p.Attr(bannedAttr), false, nil)
+	// For queue agents, banned attr is bannedQueueAgentAttr
+	banned := bannedAttr
+	if component.GetRole() == RoleQueueAgent {
+		banned = bannedQueueAgentAttr
+	}
+
+	err = tx.SetNode(ctx, p.Attr(banned), false, nil)
 	if err != nil {
 		return err
 	}

@@ -36,6 +36,8 @@ class YqlAgent(YTServerComponentBase, YTComponent):
                 or "yql_plugin_shared_library" not in config:
             raise YtError("Artifacts path is not specified in yql agent config")
 
+        self.max_supported_yql_version = config["max_supported_yql_version"] if "max_supported_yql_version" in config else None
+
         super(YqlAgent, self).prepare(env, config)
 
         if config.get("native_client_supported", False):
@@ -78,6 +80,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         }
 
         self.client.set(f"//sys/clusters/{self.env.id}/yql_agent", yql_agent_config)
+        self.client.set("//sys/@cluster_connection/yql_agent", yql_agent_config)
 
         def check_query():
             query_id = self.client.start_query("yql", "select 1")
@@ -113,7 +116,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
             mr_job_udfs_dir = self.config["mr_job_udfs_dir"]
             yql_plugin_shared_library = self.config["yql_plugin_shared_library"]
 
-        return {
+        config = {
             "user": self.USER_NAME,
             "yql_agent": {
                 "gateway_config": {
@@ -136,6 +139,15 @@ class YqlAgent(YTServerComponentBase, YTComponent):
                 "libraries": self.libraries,
             },
         }
+
+        modify_yql_agent_config = self.config.get('modify_yql_agent_config')
+        if modify_yql_agent_config is not None:
+            modify_yql_agent_config(config)
+
+        if self.max_supported_yql_version:
+            config["yql_agent"]["max_supported_yql_version"] = self.max_supported_yql_version
+
+        return config
 
     def wait_for_readiness(self, address):
         wait(lambda: self.client.get(f"//sys/yql_agent/instances/{address}/orchid/service/version"),

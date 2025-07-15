@@ -149,6 +149,8 @@
 
 #include <yt/yt/library/stockpile/config.h>
 
+#include <yt/yt/client/chaos_client/replication_card_cache.h>
+
 #include <yt/yt/client/misc/workload.h>
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
@@ -846,6 +848,7 @@ private:
 
         NodeMemoryUsageTracker_ = CreateNodeMemoryTracker(
             Config_->ResourceLimits->TotalMemory,
+            New<TNodeMemoryTrackerConfig>(),
             /*limits*/ {},
             Logger(),
             ClusterNodeProfiler().WithPrefix("/memory_usage"));
@@ -1237,7 +1240,9 @@ private:
 
         Connection_->GetClusterDirectorySynchronizer()->Start();
 
-        Connection_->GetMasterCellDirectorySynchronizer()->Start();
+        if (!Config_->DelayMasterCellDirectoryStart) {
+            Connection_->GetMasterCellDirectorySynchronizer()->Start();
+        }
 
         if (Config_->ExposeConfigInOrchid) {
             SetNodeByYPath(
@@ -1490,6 +1495,8 @@ private:
         }
         TSingletonManager::Reconfigure(newConfig);
 
+        NodeMemoryUsageTracker_->Reconfigure(newConfig->NodeMemoryTracker);
+
         StorageHeavyThreadPool_->SetThreadCount(
             newConfig->DataNode->StorageHeavyThreadCount.value_or(Config_->DataNode->StorageHeavyThreadCount));
         StorageLightThreadPool_->SetThreadCount(
@@ -1506,6 +1513,10 @@ private:
             ? newConfig->DataNode->AnnounceChunkReplicaRpsOutThrottler
             : Config_->DataNode->AnnounceChunkReplicaRpsOutThrottler);
         RawUserJobContainerCreationThrottler_->Reconfigure(newConfig->ExecNode->UserJobContainerCreationThrottler);
+
+        if (auto fairShareScheduler = FairShareHierarchicalScheduler_) {
+            fairShareScheduler->Reconfigure(newConfig->FairShareHierarchicalScheduler);
+        }
 
         BusServer_->OnDynamicConfigChanged(newConfig->BusServer);
         RpcServer_->OnDynamicConfigChanged(newConfig->RpcServer);
@@ -1566,6 +1577,16 @@ private:
             newChaosResidencyCacheConfig->EnableClientMode,
             newConfig->ChaosResidencyCache->EnableClientMode);
         Connection_->GetChaosResidencyCache()->Reconfigure(std::move(newChaosResidencyCacheConfig));
+
+        if (Connection_->GetStaticConfig()->ReplicationCardCache) {
+            auto newReplicationCardCacheConfig = CloneYsonStruct(Config_->ClusterConnection->Dynamic->ReplicationCardCache);
+            UpdateYsonStructField(
+                newReplicationCardCacheConfig,
+                newConfig->ReplicationCardCache);
+            Connection_->GetReplicationCardCache()->Reconfigure(std::move(newReplicationCardCacheConfig));
+        }
+
+        Connection_->GetMasterCellDirectorySynchronizer()->Reconfigure(newConfig->MasterCellDirectorySynchronizer);
     }
 
     void PopulateAlerts(std::vector<TError>* alerts)

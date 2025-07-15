@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/lib/transaction_supervisor/config.h>
 
+#include <yt/yt/ytlib/chaos_client/config.h>
+
 #include <yt/yt/library/dynamic_config/config.h>
 
 #include <yt/yt/library/query/engine_api/config.h>
@@ -211,6 +213,9 @@ void TStoreCompactorDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("orchid", &TThis::Orchid)
         .DefaultNew();
+
+    registrar.Parameter("use_query_pool", &TThis::UseQueryPool)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -416,68 +421,6 @@ void TBackupManagerDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TServiceMethod::Register(TRegistrar registrar)
-{
-    registrar.Parameter("service", &TThis::Service)
-        .Default();
-    registrar.Parameter("method", &TThis::Method)
-        .Default();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TServiceMethodConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("service", &TThis::Service)
-        .Default();
-    registrar.Parameter("method", &TThis::Method)
-        .Default();
-    registrar.Parameter("max_window", &TThis::MaxWindow)
-        .Default(1'024);
-    registrar.Parameter("waiting_timeout_fraction", &TThis::WaitingTimeoutFraction)
-        .Default(0.5);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TOverloadTrackerConfigBase::Register(TRegistrar registrar)
-{
-    registrar.Parameter("methods_to_throttle", &TThis::MethodsToThrottle)
-        .Default();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TOverloadTrackerMeanWaitTimeConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("mean_wait_time_threshold", &TThis::MeanWaitTimeThreshold)
-        .Default(TDuration::MilliSeconds(20));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TOverloadTrackerBacklogQueueFillFractionConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("backlog_queue_fill_fraction_threshold", &TThis::BacklogQueueFillFractionThreshold)
-        .Default(0.9);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TOverloadControllerConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("enabled", &TThis::Enabled)
-        .Default();
-    registrar.Parameter("trackers", &TThis::Trackers)
-        .Default();
-    registrar.Parameter("methods", &TThis::Methods)
-        .Default();
-    registrar.Parameter("load_adjusting_period", &TThis::LoadAdjustingPeriod)
-        .Default(TDuration::MilliSeconds(100));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TStatisticsReporterConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)
@@ -567,6 +510,8 @@ void TErrorManagerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(1));
     registrar.Parameter("error_expiration_timeout", &TThis::ErrorExpirationTimeout)
         .Default(TDuration::Minutes(30));
+    registrar.Parameter("log_no_context_interval", &TThis::LogNoContextInterval)
+        .Default(TDuration::Seconds(5));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -654,6 +599,9 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_snapshot_network_throttling", &TThis::EnableSnapshotNetworkThrottling)
         .Default(false);
+
+    registrar.Parameter("replication_card_updates_batcher", &TThis::ChaosReplicationCardUpdatesBatcher)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -731,6 +679,9 @@ void TTabletNodeConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("compression_dictionary_cache", &TThis::CompressionDictionaryCache)
+        .DefaultNew();
+
+    registrar.Parameter("replication_card_updates_batcher", &TThis::ChaosReplicationCardUpdatesBatcher)
         .DefaultNew();
 
     registrar.Parameter("allow_reign_change", &TThis::AllowReignChange)

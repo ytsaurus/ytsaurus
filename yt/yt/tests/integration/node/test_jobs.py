@@ -1,4 +1,4 @@
-from yt_env_setup import (YTEnvSetup, is_asan_build)
+from yt_env_setup import (YTEnvSetup, is_asan_build, Restarter, NODES_SERVICE)
 
 from yt_commands import (
     authors, ls, get, set, create, write_table, wait, run_test_vanilla,
@@ -7,9 +7,12 @@ from yt_commands import (
     interrupt_job, update_nodes_dynamic_config, set_nodes_banned,
     abort_job, run_sleeping_vanilla, set_node_banned, extract_statistic_v2,
     get_allocation_id_from_job_id, alter_table, write_file, print_debug,
+    wait_no_assert,
 )
 
 from yt_helpers import JobCountProfiler, profiler_factory, is_uring_supported, is_uring_disabled
+
+from yt.common import YtError
 
 import pytest
 import builtins
@@ -117,6 +120,13 @@ class TestJobsDisabled(YTEnvSetup):
         assert len(job_ids) == 1
         return job_ids[0]
 
+    def teardown_method(self, method):
+        node_address = ls("//sys/cluster_nodes")[0]
+        if (get("//sys/cluster_nodes/{}/@alerts".format(node_address))):
+            with Restarter(self.Env, NODES_SERVICE):
+                pass
+        super(TestJobsDisabled, self).teardown_method(method)
+
     @authors("pogorelov")
     def test_job_abort_on_fatal_alert(self):
         node_address = ls("//sys/cluster_nodes")[0]
@@ -150,6 +160,37 @@ class TestJobsDisabled(YTEnvSetup):
 
         op1.abort()
         op2.abort()
+
+    @authors("krasovav")
+    def test_job_abort_on_cleanup_timeout(self):
+        node_address = ls("//sys/cluster_nodes")[0]
+        assert not get("//sys/cluster_nodes/{}/@alerts".format(node_address))
+
+        aborted_job_profiler = JobCountProfiler(
+            "aborted", tags={"tree": "default", "job_type": "vanilla", "abort_reason": "node_with_disabled_jobs"})
+
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_common": {
+                        "job_cleanup_timeout": 500,
+                    }
+                }
+
+            },
+        })
+
+        op = run_sleeping_vanilla(
+            spec={"job_testing_options": {"delay_in_cleanup": 1000}, "sanity_check_delay": 60 * 1000},
+        )
+
+        job_id = self._get_op_job(op)
+
+        abort_job(job_id)
+
+        wait(lambda: aborted_job_profiler.get_job_count_delta() >= 1)
+
+        op.abort()
 
 
 class TestNodeBanned(YTEnvSetup):
@@ -884,6 +925,137 @@ breakpoint()
         wait(lambda: node_resource_overdraft_job_profiler.get_job_count_delta() == 1)
 
         set_nodes_banned([node_to_kill], False, wait_for_scheduler=True)
+
+
+@pytest.mark.skipif(is_asan_build(), reason="This test does not work under ASAN")
+class TestFreeUserJobsMemoryWatermark(YTEnvSetup):
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "resource_limits": {
+            # Each job proxy occupies about 100MB.
+            "user_jobs": {
+                "type": "static",
+                "value": 500 * 10 ** 6,
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 1,
+                "user_slots": 1,
+            },
+        },
+        "exec_node": {
+            "job_proxy": {
+                "check_user_job_memory_limit": False,
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "job_resource_manager": {
+                "free_user_job_memory_watermark_multiplier": 0.9,
+            },
+        },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "available_exec_nodes_check_period": 100,
+            "footprint_memory": 10 * 10 ** 6,
+        },
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "min_spare_allocation_resources_on_node": {
+                "cpu": 0.5,
+                "user_slots": 1,
+            },
+        },
+    }
+
+    @authors("pogorelov")
+    def test_node_send_limits_to_scheduler_considering_watermark(self):
+        with pytest.raises(YtError):
+            run_test_vanilla("sleep 0.1", track=True, job_count=1, task_patch={
+                "memory_limit": 300 * 10 ** 6,
+                "user_job_memory_digest_lower_bound": 1.0,
+                "user_job_memory_digest_default_value": 1.0,
+            })
+
+    @authors("pogorelov")
+    def test_node_does_not_considering_watermark_in_resource_overdraft_check(self):
+        aborted_job_profiler = JobCountProfiler(
+            "aborted", tags={"tree": "default", "job_type": "vanilla", "abort_reason": "resource_overdraft"})
+        completed_job_profiler = JobCountProfiler(
+            "completed", tags={"tree": "default", "job_type": "vanilla"})
+
+        memory = 300 * 10 ** 6
+
+        script = with_breakpoint(
+f"""
+import os
+import subprocess
+import time
+
+from random import randint
+
+def rndstr(n):
+    s = ''
+    for i in range(100):
+        s += chr(randint(ord('a'), ord('z')))
+    return s * (n // 100)
+
+cmd = '''BREAKPOINT'''
+
+def breakpoint():
+    subprocess.call(cmd, shell=True)
+
+a = list()
+while len(a) * 100000 < {memory}:
+    a.append(rndstr(100000))
+
+breakpoint()
+""" # noqa
+        ).encode("ascii")
+
+        print_debug("Script is ", script)
+
+        create("file", "//tmp/script.py", attributes={"replication_factor": 1})
+
+        write_file("//tmp/script.py", script, attributes={"executable": True})
+
+        op = run_test_vanilla("python3 script.py", job_count=1, task_patch={
+            "memory_limit": 30 * 10 ** 6,
+            "user_job_memory_digest_lower_bound": 1.0,
+            "user_job_memory_digest_default_value": 1.0,
+            "sanity_check_delay": 600 * 1000,
+            "job_proxy_memory_digest": {
+                "lower_bound": 0.1,
+                "upper_bound": 0.1,
+                "default_value": 0.1,
+            },
+            "file_paths": ["//tmp/script.py"],
+        })
+
+        job_id, = wait_breakpoint(job_count=1)
+
+        # op.track()
+
+        def check_memory_usage():
+            orchid = op.get_job_node_orchid(job_id)
+            assert orchid["base_resource_usage"]["user_memory"] > 250000000
+
+        wait_no_assert(check_memory_usage)
+
+        release_breakpoint()
+        op.track()
+
+        wait(lambda: completed_job_profiler.get_job_count_delta() == 1)
+        assert aborted_job_profiler.get_job_count_delta() == 0
 
 
 class TestNodeAddressResolveFailed(YTEnvSetup):

@@ -51,7 +51,7 @@ class SASLException(KazooException):
 
 
 def _invalid_error_code():
-    raise RuntimeError('Invalid error code')
+    raise RuntimeError("Invalid error code")
 
 
 EXCEPTIONS = defaultdict(_invalid_error_code)
@@ -185,6 +185,11 @@ class SessionMovedError(ZookeeperError):
 class NotReadOnlyCallError(ZookeeperError):
     """An API call that is not read-only was used while connected to
     a read-only server"""
+
+
+@_zookeeper_exception(-125)
+class QuotaExceededError(ZookeeperError):
+    """Exceeded the quota that was set on the path"""
 
 
 class ConnectionClosedError(SessionExpiredError):

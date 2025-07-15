@@ -23,6 +23,7 @@ from yt.environment.helpers import assert_items_equal
 
 import pytest
 
+from copy import deepcopy
 from collections import defaultdict
 from random import shuffle
 import datetime
@@ -1236,9 +1237,11 @@ print("x={0}\ty={1}".format(x, y))
                 "mapper": {"format": "dsv"},
                 "reducer": {"format": "dsv"},
                 "resource_limits": {"user_slots": 1},
-                "data_size_per_map_job": 1,
+                # Explicit map_job_count disables job_size_adjuster for map jobs.
+                "map_job_count": 15,
                 "data_size_per_sort_job": 36000,
                 "partition_count": 1,
+                "force_job_size_adjuster": True,
                 "job_testing_options": {
                     "fake_prepare_duration": 10000,
                 },
@@ -1312,8 +1315,6 @@ print("x={0}\ty={1}".format(x, y))
 
     @authors("max42", "galtsev")
     def test_data_balancing(self):
-        skip_if_old(self.Env, (24, 1), "Data balancing is broken in older versions")
-
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         job_count = 20
@@ -3868,6 +3869,18 @@ for line in sys.stdin:
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
+class TestSchedulerMapReduceCommandsWithOldSlicing(TestSchedulerMapReduceCommands):
+    DELTA_CONTROLLER_AGENT_CONFIG = deepcopy(getattr(TestSchedulerMapReduceCommands, "DELTA_CONTROLLER_AGENT_CONFIG", {}))
+    DELTA_CONTROLLER_AGENT_CONFIG \
+        .setdefault("controller_agent", {}) \
+        .setdefault("operation_options", {}) \
+        .setdefault("spec_template", {})["use_new_slicing_implementation_in_unordered_pool"] = False
+
+
+##################################################################
+
+
 class TestSchedulerMapReduceCommandsMulticell(TestSchedulerMapReduceCommands):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -4518,6 +4531,18 @@ fi
         # NB: There is a race condition between the completion of the sorted_reduce task
         # and node unregistering. The number of aborted jobs can be either 1 or 2.
         assert get(op.get_path() + "/@progress/sorted_reduce/aborted/total") >= 1
+
+
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
+class TestSchedulerMapReduceDeterminismWithOldSlicing(TestSchedulerMapReduceDeterminism):
+    DELTA_CONTROLLER_AGENT_CONFIG = deepcopy(getattr(TestSchedulerMapReduceDeterminism, "DELTA_CONTROLLER_AGENT_CONFIG", {}))
+    DELTA_CONTROLLER_AGENT_CONFIG \
+        .setdefault("controller_agent", {}) \
+        .setdefault("operation_options", {}) \
+        .setdefault("spec_template", {})["use_new_slicing_implementation_in_unordered_pool"] = False
 
 
 ##################################################################

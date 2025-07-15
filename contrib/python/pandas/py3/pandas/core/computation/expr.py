@@ -12,13 +12,15 @@ from keyword import iskeyword
 import tokenize
 from typing import (
     Callable,
+    ClassVar,
     TypeVar,
 )
 
 import numpy as np
 
-from pandas.compat import PY39
 from pandas.errors import UndefinedVariableError
+
+from pandas.core.dtypes.common import is_string_dtype
 
 import pandas.core.common as com
 from pandas.core.computation.ops import (
@@ -31,7 +33,6 @@ from pandas.core.computation.ops import (
     UNARY_OPS_SYMS,
     BinOp,
     Constant,
-    Div,
     FuncNode,
     Op,
     Term,
@@ -193,7 +194,7 @@ def _filter_nodes(superclass, all_nodes=_all_nodes):
     return frozenset(node_names)
 
 
-_all_node_names = frozenset(map(lambda x: x.__name__, _all_nodes))
+_all_node_names = frozenset(x.__name__ for x in _all_nodes)
 _mod_nodes = _filter_nodes(ast.mod)
 _stmt_nodes = _filter_nodes(ast.stmt)
 _expr_nodes = _filter_nodes(ast.expr)
@@ -207,9 +208,6 @@ _handler_nodes = _filter_nodes(ast.excepthandler)
 _arguments_nodes = _filter_nodes(ast.arguments)
 _keyword_nodes = _filter_nodes(ast.keyword)
 _alias_nodes = _filter_nodes(ast.alias)
-
-if not PY39:
-    _slice_nodes = _filter_nodes(ast.slice)
 
 
 # nodes that we don't support directly but are needed for parsing
@@ -353,8 +351,8 @@ class BaseExprVisitor(ast.NodeVisitor):
     preparser : callable
     """
 
-    const_type: type[Term] = Constant
-    term_type = Term
+    const_type: ClassVar[type[Term]] = Constant
+    term_type: ClassVar[type[Term]] = Term
 
     binary_ops = CMP_OPS_SYMS + BOOL_OPS_SYMS + ARITH_OPS_SYMS
     binary_op_nodes = (
@@ -373,7 +371,7 @@ class BaseExprVisitor(ast.NodeVisitor):
         "Add",
         "Sub",
         "Mult",
-        None,
+        "Div",
         "Pow",
         "FloorDiv",
         "Mod",
@@ -524,10 +522,12 @@ class BaseExprVisitor(ast.NodeVisitor):
         elif self.engine != "pytables":
             if (
                 getattr(lhs, "return_type", None) == object
+                or is_string_dtype(getattr(lhs, "return_type", None))
                 or getattr(rhs, "return_type", None) == object
+                or is_string_dtype(getattr(rhs, "return_type", None))
             ):
                 # evaluate "==" and "!=" in python if either of our operands
-                # has an object return type
+                # has an object or string return type
                 return self._maybe_eval(res, eval_in_python + maybe_eval_in_python)
         return res
 
@@ -536,31 +536,31 @@ class BaseExprVisitor(ast.NodeVisitor):
         left, right = self._maybe_downcast_constants(left, right)
         return self._maybe_evaluate_binop(op, op_class, left, right)
 
-    def visit_Div(self, node, **kwargs):
-        return lambda lhs, rhs: Div(lhs, rhs)
-
     def visit_UnaryOp(self, node, **kwargs):
         op = self.visit(node.op)
         operand = self.visit(node.operand)
         return op(operand)
 
-    def visit_Name(self, node, **kwargs):
+    def visit_Name(self, node, **kwargs) -> Term:
         return self.term_type(node.id, self.env, **kwargs)
 
+    # TODO(py314): deprecated since Python 3.8. Remove after Python 3.14 is min
     def visit_NameConstant(self, node, **kwargs) -> Term:
         return self.const_type(node.value, self.env)
 
+    # TODO(py314): deprecated since Python 3.8. Remove after Python 3.14 is min
     def visit_Num(self, node, **kwargs) -> Term:
-        return self.const_type(node.n, self.env)
+        return self.const_type(node.value, self.env)
 
     def visit_Constant(self, node, **kwargs) -> Term:
-        return self.const_type(node.n, self.env)
+        return self.const_type(node.value, self.env)
 
-    def visit_Str(self, node, **kwargs):
+    # TODO(py314): deprecated since Python 3.8. Remove after Python 3.14 is min
+    def visit_Str(self, node, **kwargs) -> Term:
         name = self.env.add_tmp(node.s)
         return self.term_type(name, self.env)
 
-    def visit_List(self, node, **kwargs):
+    def visit_List(self, node, **kwargs) -> Term:
         name = self.env.add_tmp([self.visit(e)(self.env) for e in node.elts])
         return self.term_type(name, self.env)
 
@@ -570,7 +570,7 @@ class BaseExprVisitor(ast.NodeVisitor):
         """df.index[4]"""
         return self.visit(node.value)
 
-    def visit_Subscript(self, node, **kwargs):
+    def visit_Subscript(self, node, **kwargs) -> Term:
         from pandas import eval as pd_eval
 
         value = self.visit(node.value)
@@ -590,7 +590,7 @@ class BaseExprVisitor(ast.NodeVisitor):
         name = self.env.add_tmp(v)
         return self.term_type(name, env=self.env)
 
-    def visit_Slice(self, node, **kwargs):
+    def visit_Slice(self, node, **kwargs) -> slice:
         """df.index[slice(4,6)]"""
         lower = node.lower
         if lower is not None:
@@ -695,8 +695,8 @@ class BaseExprVisitor(ast.NodeVisitor):
                 if not isinstance(key, ast.keyword):
                     # error: "expr" has no attribute "id"
                     raise ValueError(
-                        "keyword error in function call "  # type: ignore[attr-defined]
-                        f"'{node.func.id}'"
+                        "keyword error in function call "
+                        f"'{node.func.id}'"  # type: ignore[attr-defined]
                     )
 
                 if key.arg:

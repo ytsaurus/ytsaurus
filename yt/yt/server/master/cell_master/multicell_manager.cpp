@@ -21,6 +21,8 @@
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/yt/server/master/cypress_server/portal_manager.h>
 
+#include <yt/yt/server/master/object_server/proto/object_manager.pb.h>
+
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/user.h>
 
@@ -662,7 +664,9 @@ private:
         for (auto& [cellTag, entry] : RegisteredMasterMap_) {
             YT_LOG_FATAL_IF(
                 entry.Index >= std::ssize(RegisteredMasterCellTags_),
-                "Master cell from the middle of master entry map was removed");
+                "Master cell from the middle of master entry map was removed (CurrentEntryIndex: %v, RegisteredMasterCellTagsSize: %v)",
+                entry.Index,
+                RegisteredMasterCellTags_.size());
 
             RegisteredMasterCellTags_[entry.Index] = cellTag;
 

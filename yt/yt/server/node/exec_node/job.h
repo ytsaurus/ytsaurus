@@ -533,6 +533,8 @@ private:
 
     void OnWaitingForCleanupTimeout();
 
+    void OnCleanupTimeout();
+
     void OnJobProxyFinished(const TError& error);
 
     template <class TSourceTag, class TCallback>

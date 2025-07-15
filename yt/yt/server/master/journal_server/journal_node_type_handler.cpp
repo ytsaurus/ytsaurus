@@ -265,13 +265,13 @@ protected:
         }
 
         auto* chunkList = trunkNode->GetChunkList();
-        if (auto* unsealedChunk = chunkList ? FindFirstUnsealedChild(chunkList)->As<TChunk>() : nullptr) {
+        if (auto* unsealedChild = chunkList ? FindFirstUnsealedChild(chunkList) : nullptr) {
             YT_LOG_DEBUG(
                 "Waiting for first unsealed journal chunk to become sealed (NodeId: %v, ChunkId: %v)",
                 trunkNode->GetId(),
-                unsealedChunk->GetId());
+                unsealedChild->GetId());
             const auto& chunkManager = GetBootstrap()->GetChunkManager();
-            chunkManager->ScheduleChunkSeal(unsealedChunk);
+            chunkManager->ScheduleChunkSeal(unsealedChild->As<TChunk>());
         } else {
             const auto& journalManager = GetBootstrap()->GetJournalManager();
             journalManager->SealJournal(trunkNode);

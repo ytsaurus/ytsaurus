@@ -161,11 +161,17 @@ void TDqManager::Start()
     auto startNodeId = static_cast<ui32>(NDqs::ENodeIdLimits::MinWorkerNodeId);
 
     for (const auto& ytBackendConfig : Config_->YtBackends) {
+        // TODO(ngc224): remove after https://github.com/ydb-platform/ydb/commit/2c38699650329947c596c3426aed1fbc8e5f3457 sync into Arcadia
+        auto patchedProtobufWriterOptions = protobufWriterOptions;
+        patchedProtobufWriterOptions.UnknownYsonFieldModeResolver =
+            NYson::TProtobufWriterOptions::CreateConstantUnknownYsonFieldModeResolver(
+                NYson::EUnknownYsonFieldsMode::Skip);
+
         TResourceManagerOptions rmOptions;
         rmOptions.YtBackend.ParseFromStringOrThrow(NYson::YsonStringToProto(
             ConvertToYsonString(ytBackendConfig),
             NYson::ReflectProtobufMessageType<NYql::NProto::TDqConfig::TYtBackend>(),
-            protobufWriterOptions));
+            patchedProtobufWriterOptions));
 
         if (!rmOptions.YtBackend.HasICSettings()) {
             *rmOptions.YtBackend.MutableICSettings() = iCSettings;

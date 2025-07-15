@@ -389,16 +389,20 @@ void AttachChildToSequoiaNodeOrThrow(
     auto type = parent->GetType();
     YT_VERIFY(type == EObjectType::Scion || type == EObjectType::SequoiaMapNode);
     auto* sequoiaNode = parent->As<TSequoiaMapNode>();
-    auto* originator = sequoiaNode;
+    auto* currentSequoiaNode = sequoiaNode;
     auto isReplacement = false;
-    while (originator) {
-        auto& children = originator->MutableChildren();
+    while (true) {
+        auto& children = currentSequoiaNode->MutableChildren();
         if (auto it = children.KeyToChild().find(childKey); it != children.KeyToChild().end()) {
             isReplacement = (it->second).operator bool();
             break;
         }
 
-        originator = originator->GetOriginator()->As<TSequoiaMapNode>();
+        auto* originator = currentSequoiaNode->GetOriginator();
+        if (!originator) {
+            break;
+        }
+        currentSequoiaNode = originator->As<TSequoiaMapNode>();
     }
 
     auto& children = sequoiaNode->MutableChildren();
@@ -428,6 +432,8 @@ bool NodeHasKey(const TCypressNode* node)
 {
     if (node->GetType() == EObjectType::PortalExit) {
         return node->As<TPortalExitNode>()->GetKey().has_value();
+    } else if (node->IsSequoia() && node->GetTrunkNode()->ImmutableSequoiaProperties()) {
+        return true;
     } else {
         auto* parent = node->GetParent();
         return parent && parent->GetNodeType() == ENodeType::Map;

@@ -92,7 +92,7 @@ class TestStandaloneTabletBalancerBase:
         wait(lambda: first_iteration_start_time < self._get_last_iteration_start_time(instances))
 
     @classmethod
-    def modify_tablet_balancer_config(cls, multidaemon_config, config):
+    def modify_tablet_balancer_config(cls, config, multidaemon_config):
         update_inplace(config, {
             "tablet_balancer": {
                 "period" : 100,
@@ -270,8 +270,8 @@ class TestStandaloneTabletBalancerSlow(TestStandaloneTabletBalancerBase, TabletA
     ENABLE_MULTIDAEMON = True
 
     @classmethod
-    def modify_tablet_balancer_config(cls, multidaemon_config, config):
-        super(TestStandaloneTabletBalancerSlow, cls).modify_tablet_balancer_config(multidaemon_config, config)
+    def modify_tablet_balancer_config(cls, config, multidaemon_config):
+        super(TestStandaloneTabletBalancerSlow, cls).modify_tablet_balancer_config(config, multidaemon_config)
         update_inplace(config, {
             "tablet_balancer": {
                 "period" : 5000,
@@ -330,8 +330,8 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
     ENABLE_MULTIDAEMON = True
 
     @classmethod
-    def modify_tablet_balancer_config(cls, multidaemon_config, config):
-        super(TestParameterizedBalancing, cls).modify_tablet_balancer_config(multidaemon_config, config)
+    def modify_tablet_balancer_config(cls, config, multidaemon_config):
+        super(TestParameterizedBalancing, cls).modify_tablet_balancer_config(config, multidaemon_config)
         update_inplace(config, {
             "tablet_balancer": {
                 "period" : 5000,
@@ -732,8 +732,8 @@ class TestReplicaBalancing(TestStandaloneTabletBalancerBase, TestStatisticsRepor
     REMOTE_CLUSTER_NAME = "remote_0"
 
     @classmethod
-    def modify_tablet_balancer_config(cls, multidaemon_config, config):
-        super(TestReplicaBalancing, cls).modify_tablet_balancer_config(multidaemon_config, config)
+    def modify_tablet_balancer_config(cls, config, multidaemon_config):
+        super(TestReplicaBalancing, cls).modify_tablet_balancer_config(config, multidaemon_config)
         update_inplace(config, {
             "tablet_balancer": {
                 "period" : 1000,

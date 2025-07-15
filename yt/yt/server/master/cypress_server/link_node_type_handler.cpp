@@ -197,7 +197,13 @@ private:
                     // 4th resolve: //tmp/node1/symlink1/node2/symlink2/symlink3/node3
                     // 5th resolve: //tmp/node1/symlink1/node2/symlink2/symlink3/node3
                     // Resolve 4 and 5 returned the same object -> stop the resolve loop.
-                    TPathResolver pathResolver(GetBootstrap(), nullService, nullMethod, currentResolvePath, context.Transaction);
+
+                    // NB: "Exists" instead of nullMethod is used here because it produces a missing object payload
+                    // when the path starts with a foreign #object-id (while other methods throw "no such object").
+                    // TODO(shakurov): consider respecting TPathResolverOptions.EnablePartialResolve and producing
+                    // a missing object payload for other methods. This will require patching TNonexistingService
+                    // to support these methods.
+                    TPathResolver pathResolver(GetBootstrap(), nullService, "Exists", currentResolvePath, context.Transaction);
                     auto pathResolveResult = pathResolver.Resolve(options);
                     auto pathObject = getPayloadObject(pathResolveResult);
                     // Patching resolve depth to make sure we don't go into an infinite loop.
@@ -259,8 +265,11 @@ private:
 
         const auto& cypressManager = GetBootstrap()->GetCypressManager();
         auto pathRootType = EPathRootType::Other;
+        // TODO(danilalexeev): YT-20675. Forbid the usage of '\0' in YPath.
         auto linkPath = cypressManager->GetNodePath(
-            node->GetTrunkNode(), node->GetTransaction(), &pathRootType);
+            node->GetTrunkNode(),
+            node->GetTransaction(),
+            &pathRootType);
         if (pathRootType == EPathRootType::Other) [[unlikely]] {
             YT_LOG_ALERT("Attempted to set a dangling link node reachable (NodeId: %v)",
                 node->GetVersionedId());
@@ -268,8 +277,8 @@ private:
         }
 
         YT_VERIFY(!node->ImmutableSequoiaProperties());
-        // NB: This |ParentId| shouldn't be used for non-Sequoia nodes so
-        // it's OK (I hope).
+        // NB (kvk1920): This |ParentId| shouldn't be used for non-Sequoia
+        // nodes so it's OK (I hope).
         node->ImmutableSequoiaProperties() = std::make_unique<TCypressNode::TImmutableSequoiaProperties>(
             NYPath::DirNameAndBaseName(linkPath).second,
             linkPath,
@@ -279,7 +288,7 @@ private:
 
         const auto& queueManager = GetBootstrap()->GetGroundUpdateQueueManager();
         queueManager->EnqueueWrite(NRecords::TPathToNodeId{
-            .Key = {.Path = MangleSequoiaPath(linkPath), .TransactionId = transactionId},
+            .Key = {.Path = MangleSequoiaPath(TRealPath(linkPath)), .TransactionId = transactionId},
             .NodeId = node->GetId(),
         });
         queueManager->EnqueueWrite(NRecords::TNodeIdToPath{
@@ -306,7 +315,7 @@ private:
 
         const auto& queueManager = GetBootstrap()->GetGroundUpdateQueueManager();
         queueManager->EnqueueDelete(NRecords::TPathToNodeIdKey{
-            .Path = MangleSequoiaPath(path),
+            .Path = MangleSequoiaPath(TRealPath(path)),
             .TransactionId = transactionId,
         });
         queueManager->EnqueueDelete(NRecords::TNodeIdToPathKey{
