@@ -35,6 +35,9 @@ struct TAuthenticationOptions
 
     //! Controls whether authentication commands (SetUserPassword, IssueToken, ListUserTokens, etc.) require a correct password to be used.
     bool RequirePasswordInAuthenticationCommands = true;
+
+    //! If true, forces the `administer` permission requirement for setting a user’s password.
+    bool RequireAdministerForPasswordSet = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
