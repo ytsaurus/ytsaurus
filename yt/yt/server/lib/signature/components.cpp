@@ -43,12 +43,20 @@ TSignatureComponents::TSignatureComponents(
 
 TFuture<void> TSignatureComponents::Initialize()
 {
-    return CypressKeyWriter_ ? CypressKeyWriter_->Initialize() : VoidFuture;
+    CypressKeyWriterInitialization_ = CypressKeyWriter_ ? CypressKeyWriter_->Initialize() : VoidFuture;
+    return CypressKeyWriterInitialization_;
 }
 
 TFuture<void> TSignatureComponents::StartRotation()
 {
-    return KeyRotator_ ? KeyRotator_->Start() : VoidFuture;
+    YT_VERIFY(CypressKeyWriterInitialization_);
+    return CypressKeyWriterInitialization_
+        .Apply(BIND([this_ = MakeWeak(this)] {
+            if (auto self = this_.Lock(); self && self->KeyRotator_) {
+                return self->KeyRotator_->Start();
+            }
+            return VoidFuture;
+        }));
 }
 
 TFuture<void> TSignatureComponents::StopRotation()
