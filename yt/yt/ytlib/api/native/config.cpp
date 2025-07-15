@@ -151,6 +151,8 @@ void TConnectionStaticConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("sync_replica_cache", &TThis::SyncReplicaCache)
         .DefaultNew();
+    registrar.Parameter("chunk_replica_cache", &TThis::ChunkReplicaCache)
+        .DefaultNew();
     registrar.Parameter("connection_name", &TThis::ConnectionName)
         .Alias("name")
         .Default("default");
