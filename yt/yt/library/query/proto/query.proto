@@ -303,6 +303,9 @@ message TQueryOptions
     optional int64 min_row_count_per_subquery = 20;
     optional bool allow_unordered_group_by_with_limit = 21; // COMPAT(sabdenovch)
     optional bool adaptive_ordered_schemaful_reader = 22; // COMPAT(dtorilov)
+    optional int64 rowset_processing_batch_size = 23;
+    optional int64 write_rowset_size = 24;
+    optional int64 max_join_batch_size = 25;
 }
 
 message TFeatureFlags

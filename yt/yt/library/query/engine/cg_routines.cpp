@@ -176,7 +176,7 @@ bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TPIValue* va
 
     auto& outputContext = closure->OutputContext;
 
-    YT_ASSERT(batch.size() < WriteRowsetSize);
+    YT_ASSERT(std::ssize(batch) < context->WriteRowsetSize);
 
     batch.push_back(
         CopyAndConvertFromPI(
@@ -196,7 +196,7 @@ bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TPIValue* va
         }
     }
 
-    if (batch.size() == WriteRowsetSize) {
+    if (std::ssize(batch) == context->WriteRowsetSize) {
         const auto& writer = context->Writer;
         bool shouldNotWait;
         {
@@ -239,8 +239,8 @@ void ScanOpHelper(
 
     TRowBatchReadOptions readOptions{
         .MaxRowsPerRead = context->Ordered
-            ? std::min(startBatchSize, RowsetProcessingBatchSize)
-            : RowsetProcessingBatchSize
+            ? std::min(startBatchSize, context->RowsetProcessingBatchSize)
+            : context->RowsetProcessingBatchSize
     };
 
     std::vector<const TValue*> values;
@@ -340,7 +340,7 @@ void ScanOpHelper(
         scanContext.Clear();
 
         if (!context->IsMerge) {
-            readOptions.MaxRowsPerRead = std::min(2 * readOptions.MaxRowsPerRead, RowsetProcessingBatchSize);
+            readOptions.MaxRowsPerRead = std::min(2 * readOptions.MaxRowsPerRead, context->RowsetProcessingBatchSize);
         }
     }
 }
@@ -436,7 +436,7 @@ bool StorePrimaryRow(
     }
 
     if (closure->PrimaryRows.size() >= closure->BatchSize) {
-        closure->BatchSize = std::min<size_t>(2 * closure->BatchSize, MaxJoinBatchSize);
+        closure->BatchSize = std::min<size_t>(2 * closure->BatchSize, context->MaxJoinBatchSize);
 
         if (closure->ProcessJoinBatch()) {
             return true;
@@ -624,7 +624,7 @@ void MultiJoinOpHelper(
             TPIValue* lastForeignKey = nullptr;
 
             TRowBatchReadOptions readOptions{
-                .MaxRowsPerRead = RowsetProcessingBatchSize
+                .MaxRowsPerRead = context->RowsetProcessingBatchSize
             };
 
             std::vector<TPIValue*> foreignValues;
@@ -835,7 +835,7 @@ void MultiJoinOpHelper(
 
                 joinedRows.push_back(joinedRow.Begin());
 
-                if (joinedRows.size() >= RowsetProcessingBatchSize) {
+                if (std::ssize(joinedRows) >= context->RowsetProcessingBatchSize) {
                     if (consumeJoinedRows()) {
                         return true;
                     }
@@ -1442,7 +1442,7 @@ void TGroupByClosure::Flush(const TExecutionContext* context, EStreamTag incomin
             if (Y_UNLIKELY(CurrentSegment_ == EGroupOpProcessingStage::LeftBorder)) {
                 FlushIntermediate(context, Intermediate_.data(), Intermediate_.data() + Intermediate_.size());
                 Intermediate_.clear();
-            } else if (Y_UNLIKELY(Intermediate_.size() >= RowsetProcessingBatchSize)) {
+            } else if (Y_UNLIKELY(std::ssize(Intermediate_) >= context->RowsetProcessingBatchSize)) {
                 // When group key contains full primary key (used with joins), flush will be called on each grouped row.
                 // Thus, we batch calls to Flusher.
                 FlushDelta(context, Intermediate_.data(), Intermediate_.data() + Intermediate_.size());
@@ -1527,7 +1527,7 @@ i64 TGroupByClosure::GetGroupedRowCount() const
 
 template <typename TFlushFunction>
 void TGroupByClosure::FlushWithBatching(
-    const TExecutionContext* /*context*/,
+    const TExecutionContext* context,
     const TPIValue** begin,
     const TPIValue** end,
     const TFlushFunction& flush)
@@ -1548,7 +1548,7 @@ void TGroupByClosure::FlushWithBatching(
     // can be grouped with rows of the previous range.
 
     while (!finished && begin < end) {
-        i64 size = std::min(begin + RowsetProcessingBatchSize, end) - begin;
+        i64 size = std::min(begin + context->RowsetProcessingBatchSize, end) - begin;
         ProcessedRows_ += size;
         finished = flush(&FlushContext_, begin, size);
         FlushContext_.Clear();
@@ -1825,8 +1825,8 @@ void OrderOpHelper(
     }
 
     auto rowCount = std::ssize(rows);
-    for (i64 index = context->Offset; index < rowCount; index += RowsetProcessingBatchSize) {
-        auto size = std::min(RowsetProcessingBatchSize, rowCount - index);
+    for (i64 index = context->Offset; index < rowCount; index += context->RowsetProcessingBatchSize) {
+        auto size = std::min(context->RowsetProcessingBatchSize, rowCount - index);
         processedRows += size;
 
         bool finished = consumeRows(consumeRowsClosure, &consumerContext, begin + index, size);

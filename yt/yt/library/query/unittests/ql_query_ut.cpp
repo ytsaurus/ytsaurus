@@ -1401,7 +1401,7 @@ TQueryStatistics DoExecuteQuery(
     TAggregateProfilerMapPtr aggregateProfilers,
     TConstQueryPtr query,
     IUnversionedRowsetWriterPtr writer,
-    const TQueryBaseOptions& options,
+    const TQueryOptions& options,
     const std::vector<IJoinProfilerPtr>& joinProfilers = {})
 {
     std::vector<TOwningRow> owningSourceRows;
@@ -1436,7 +1436,7 @@ TQueryStatistics DoExecuteQuery(
         }
 
         if (isFirstRead && query->IsOrdered(/*allowUnorderedGroupByWithLimit*/ true)) {
-            EXPECT_EQ(options.MaxRowsPerRead, std::min(RowsetProcessingBatchSize, query->Offset + query->Limit));
+            EXPECT_EQ(options.MaxRowsPerRead, std::min(DefaultRowsetProcessingBatchSize, query->Offset + query->Limit));
             isFirstRead = false;
         }
 
@@ -2060,7 +2060,7 @@ protected:
                 FunctionProfilers_,
                 AggregateProfilers_,
                 GetDefaultMemoryChunkProvider(),
-                TQueryBaseOptions{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true},
+                TQueryOptions{{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true}},
                 MostFreshFeatureFlags(),
                 MakeFuture(MostFreshFeatureFlags()));
 
@@ -2083,7 +2083,7 @@ protected:
             FunctionProfilers_,
             AggregateProfilers_,
             GetDefaultMemoryChunkProvider(),
-            TQueryBaseOptions{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true},
+            TQueryOptions{{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true}},
             MostFreshFeatureFlags(),
             MakeFuture(MostFreshFeatureFlags()));
 
@@ -2153,7 +2153,7 @@ protected:
             FunctionProfilers_,
             AggregateProfilers_,
             GetDefaultMemoryChunkProvider(),
-            TQueryBaseOptions{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true},
+            TQueryOptions{{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true}},
             MostFreshFeatureFlags(),
             MakeFuture(MostFreshFeatureFlags()));
 
@@ -2200,7 +2200,7 @@ protected:
             FunctionProfilers_,
             AggregateProfilers_,
             GetDefaultMemoryChunkProvider(),
-            TQueryBaseOptions{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true},
+            TQueryOptions{{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true}},
             MostFreshFeatureFlags(),
             MakeFuture(MostFreshFeatureFlags()));
 
@@ -2244,7 +2244,7 @@ protected:
             FunctionProfilers_,
             AggregateProfilers_,
             GetDefaultMemoryChunkProvider(),
-            TQueryBaseOptions{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true},
+            TQueryOptions{{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true}},
             MostFreshFeatureFlags(),
             MakeFuture(MostFreshFeatureFlags()));
 
