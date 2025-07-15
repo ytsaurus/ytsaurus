@@ -1,29 +1,29 @@
-#### **Q: Where do I get the simplest client and a step-by-step procedure for running MapReduce?**
+#### **Q: Where do I get the simplest client and a step-by-step procedure for running MapReduce?** {#simple-client-mapreduce}
 
 **A:** We recommend reviewing the Trial section as well as reading about working with {{product-name}} from the console.
 
 ------
-#### **Q: Are table numbers/names always available in transactions?**
+#### **Q: Are table numbers/names always available in transactions?** {#table-numbers-availability}
 
 **A:** Table numbers are available at all stages except the [MapReduce](../../user-guide/data-processing/operations/mapreduce.md) reduce phase. Table numbers are also available in the native C++ wrapper.
 
 ------
-#### **Q: If a cluster is running several tasks concurrently, how do they get assigned slots?**
+#### **Q: If a cluster is running several tasks concurrently, how do they get assigned slots?** {#slot-distribution-parallel-tasks}
 
 **A:** {{product-name}} assigns slots based on the fair share algorithm with the number of slots recomputed dynamically while the task is running. For more information, see [Scheduler and pools](../../user-guide/data-processing/scheduler/scheduler-and-pools.md).
 
 ------
-#### **Q: What are the factors that go into the overhead of merging a table with a small delta of the same table?**
+#### **Q: What are the factors that go into the overhead of merging a table with a small delta of the same table?** {#merge-overhead-small-delta}
 
 **A:** Overhead depends on the number of affected chunks that rows from the delta will be written to.
 
 ------
-#### **Q: Can I start mappers from the python interactive shell?**
+#### **Q: Can I start mappers from the python interactive shell?** {#mappers-interactive-shell}
 
 **A:** No, this functionality is not supported.
 
 ------
-#### **Q: Reading a table or a file produces the following message: "Chunk ... is unavailable." What should I do?**
+#### **Q: Reading a table or a file produces the following message: "Chunk ... is unavailable." What should I do?** {#unavailable-chunk-error}
 
 See the answer to this question [below](#lostintermediatechunks).
 
@@ -48,7 +48,7 @@ To change the system behavior when chunks are unavailable, set the `unavailable_
 If erasure chunks are unavailable, you can configure the system behavior using the `chunk_availability_policy` option. For more information, see [Operation types](../../user-guide/data-processing/operations/overview.md#chunk_erasure_strategy).
 
 ------
-#### **Q: I am getting the following error: "Table row is too large: current weight ..., max weight ... or Row weight is too large." What is this and what do I do about it?**
+#### **Q: I am getting the following error: "Table row is too large: current weight ..., max weight ... or Row weight is too large." What is this and what do I do about it?** {#large-table-row-error}
 
 **A:** A table row weight is computed as the sum of the lengths of all the row's column values. The system has a limitation on row weight which helps control the size of the buffers used for table writes. The default limit is 16 MB. To increase this value, you need to set the `max_row_weight` option in the table_writer configuration.
 
@@ -71,7 +71,7 @@ The name of the `JOB_IO` section is selected as follows:
 The maximum value is `max_row_weight` equal to 128 MB.
 
 ------
-#### **Q: I am getting error "Key weight is too large." What is this and what do I do about it?**
+#### **Q: I am getting error "Key weight is too large." What is this and what do I do about it?** {#key-weight-too-large}
 
 **A:** A row key weight is computed as the sum of the lengths of all the row's key columns. There are limits of row key weights. The default limit is 16 K. You can increase the limit via the `max_key_weight` option.
 
@@ -104,24 +104,24 @@ Chunk boundary keys are stored on master servers; therefore, raising limits is p
 {% endnote %}
 
 ------
-#### **Q: Why is reduce_combiner taking a long time? What should I do?**
+#### **Q: Why is reduce_combiner taking a long time? What should I do?** {#reduce-combiner-slow}
 
 **A:** Possibly, the job code is fairly slow, and it would make sense to reduce job size. `reduce_combiner` is triggered if partition size exceeds `data_weight_per_sort_job`. The amount of data in `reduce_combiner` equals `data_weight_per_sort_job`. The default value for `data_weight_per_sort_job` is specified in the {{product-name}} scheduler configuration, but can be overridden in the operation specification (in bytes).
 `yt map_reduce ... --spec '{data_weight_per_sort_job = N}'`
 
 ------
-#### **Q: I feed several input tables to MapReduce without specifying a mapper. At the same time, I am unable to get input table indexes in the reducer. What seems to be the problem?**
+#### **Q: I feed several input tables to MapReduce without specifying a mapper. At the same time, I am unable to get input table indexes in the reducer. What seems to be the problem?** {#missing-input-table-indexes}
 
 **A:** Input table indexes are available to mappers only. If you fail to specify a mapper, it will automatically be replaced with a trivial one. Since a table index is an input row attribute rather than part of the data, a trivial mapper will not retain table index information. To resolve the problem, you need to write a custom mapper where you would save the table index in some field.
 
 ------
-#### **Q: How do I terminate pending jobs without crashing the operation?**
+#### **Q: How do I terminate pending jobs without crashing the operation?** {#abort-jobs-without-failure}
 
 **A:** You can terminate jobs individually via the web interface.
 You can terminate the entire operation using the CLI's `yt complete-op <id>`
 
 ------
-#### **Q: What do I do if am unable to start operations from IPython Notebook?**
+#### **Q: What do I do if am unable to start operations from IPython Notebook?** {#ipython-operations-failure}
 
 **A:** If your error message looks like this:
 
@@ -151,18 +151,18 @@ yt.wrapper.file_commands.md5sum = custom_md5sum
 ```
 
 ------
-#### **Q: Which account will own stored intermediate data for MapReduce and Sort?**
+#### **Q: Which account will own stored intermediate data for MapReduce and Sort?** {#intermediate-data-account}
 
 **A:** The default account used is `intermediate` but you can change this behavior by overriding the `intermediate_data_account` parameter in the operation spec. For more information, see [Operation settings.](../../user-guide/data-processing/operations/operations-options.md)
 
 ------
-#### **Q: Which account will own stored operation output?**
+#### **Q: Which account will own stored operation output?** {#operations-input-save}
 
 **A:** The account the output tables happen to belong to. If the output tables did not exist prior to operation start, they will be created automatically with the account inherited from the parent directory. To override these settings, you can create the output tables in advance and configure their attributes any way you want.
 
 ------
 
-#### **Q: How do I increase the number of Reduce jobs? The job_count option is not working.**
+#### **Q: How do I increase the number of Reduce jobs? The job_count option is not working.** {#reduce-jobs-max}
 
 **A:** Most likely, the output table is too small, and the scheduler does not have enough key samples to spawn a larger number of jobs.  To get more jobs out of a small table, you will have to forcibly move the table creating more chunks. You can do this with `merge` using the `desired_chunk_size` option. To create 5-MB chunks, for instance, you need to run the command below:
 
@@ -172,17 +172,17 @@ yt merge --src _table --dst _table --spec '{job_io = {table_writer = {desired_ch
 An alternative way of solving the problem is by using the `pivot_keys` option explicitly to define the boundary keys between which jobs must be started.
 
 ------
-#### **Q: I am attempting to use sorted MapReduce output. And using input keys for the output. The jobs are crashing and returning "Output table ... is not sorted: job outputs have overlapping key ranges" or "Sort order violation". What seems to be the problem?**
+#### **Q: I am attempting to use sorted MapReduce output. And using input keys for the output. The jobs are crashing and returning "Output table ... is not sorted: job outputs have overlapping key ranges" or "Sort order violation". What seems to be the problem?** {#table-not-sorted}
 
 **A:** Sorted operation output is only possible if jobs produce collections of rows in non-intersecting ranges. In [MapReduce](../../user-guide/data-processing/operations/mapreduce.md), input rows are grouped based on a hash of the key. Therefore, in the scenario described, job ranges will intersect. To work around the issue, you need to use [Sort](../../user-guide/data-processing/operations/sort.md) and [Reduce](../../user-guide/data-processing/operations/reduce.md) in combination.
 
 ------
-#### **Q: When I start an operation, I get "Maximum allowed data weight ... exceeded». What do I do about it?**
+#### **Q: When I start an operation, I get "Maximum allowed data weight ... exceeded». What do I do about it?** {#max-data-exceeded}
 
 **A:** The error means that the system has spawned a job with an input that is too big: over 200 GB of input data. This job would take too long to process, so the {{product-name}} system is preemptively protecting users from this type of error.
 
 ------
-#### **Q: When I launch a Reduce or a MapReduce, I can see that the amount of data coming in to the reduce jobs varies greatly. What is the reason, and how do I make the split more uniform?**
+#### **Q: When I launch a Reduce or a MapReduce, I can see that the amount of data coming in to the reduce jobs varies greatly. What is the reason, and how do I make the split more uniform?** {#different-data-volume}
 
 The large amounts of data may be the result of skewed input meaning that some keys have noticeably more data corresponding to them than others. In this case, you might want to come up with a different solution for the problem being worked, such as try using [combiners](../../user-guide/data-processing/operations/reduce.md#rabota-s-bolshimi-klyuchami-—-reduce_combiner).
 
@@ -196,7 +196,7 @@ If the error arises in a [Reduce](../../user-guide/data-processing/operations/re
 This is also possible for a [Sort](../../user-guide/data-processing/operations/sort.md) and is related to the nature of the data and the sampling method. There is no simple solution for this issue as far as [Sort](../../user-guide/data-processing/operations/sort.md) is concerned. We recommend contacting the system administrator.
 
 ------
-#### **Q: How do I reduce the limit on job crashes that causes the entire operation to end in an error?**
+#### **Q: How do I reduce the limit on job crashes that causes the entire operation to end in an error?** {#make-limit-low}
 
 **A:** The limit is controlled by the `max_failed_job_count` setting. For more information, see [Operation settings.](../../user-guide/data-processing/operations/operations-options.md)
 
@@ -226,7 +226,7 @@ The default values are listed in the [sections](../../user-guide/data-processing
 **A:** The message means that the jobs spent significant amounts of time (on the order tenths of the total job runtime) waiting for data from {{product-name}} or were hung up reading data from local disk/over the network. In the general case, it means that you are not utilizing the CPU efficiently. If there is waiting for data from {{product-name}}, you can look to reducing your jobs' `cpu_limit` or try moving your data to SSD for faster reading. If this is a feature of your process because it reads something large from the job's local disk or accesses something online, you should either consider optimizing your process or also reducing the `cpu_limit`. Optimization implies the restructuring of the user process in a job to prevent disk reads or network requests from becoming a bottleneck.
 
 ------
-#### **Q: What is the easiest method of sampling a table?**
+#### **Q: What is the easiest method of sampling a table?** {#simple-sample-table}
 
 **A:** In the {{product-name}} system, you can request input sampling for any operation.
 In particular, you can start a trivial map and get what you need as follows:
@@ -277,7 +277,7 @@ Or simply read the data:
 **A:** You request a tmpfs for jobs in the specification (you can view the warning attributes to find out which specific jobs) but are not utilizing the entire file system (apart from certain thresholds). tmpfs size is included into the memory limit, which means that a job requests a lot of memory but does not use it in the end. First, this reduces actual memory utilization in your cluster. Second, large tmpfs requests may slow down job scheduling since it is much more likely that the cluster will have a slot with 1 GB of memory than one with 15 GB. You should order as much tmpfs as your jobs actually need. You can review warning attributes or look at the [statistic](../../user-guide/problems/jobstatistics.md) for `user_job/tmpfs_size` to find out about actual use of tmpfs by jobs.
 
 ------
-#### **Q: When I lunch an operation, I get error "No online node can satisfy the resource demand". What do I do?**
+#### **Q: When I lunch an operation, I get error "No online node can satisfy the resource demand". What do I do?** {#no-node-satisfy-demand}
 
 **A:** The message is an indication that the cluster does not have a single suitable node to start the operation job. This normally happens in the following situations, for instance:
 
@@ -285,7 +285,7 @@ Or simply read the data:
 * This specifies a `scheduling_tag_filter` that none of the cluster nodes match.
 
 ------
-#### **Q: When I start a Merge, Reduce operation, I get the error "Maximum allowed data weight per sorted job exceeds the limit: xxx > yyy"**
+#### **Q: When I start a Merge, Reduce operation, I get the error "Maximum allowed data weight per sorted job exceeds the limit: xxx > yyy"** {#allowed-data-limit}
 
 **A:** When jobs are being built, the scheduler estimates that one job is getting too much data (hundreds of gigabytes), and the scheduler is unable to make a smaller job. The following options are available:
 
@@ -310,13 +310,13 @@ If you wish to force activate live preview, use the `enable_legacy_live_preview 
 If you wish to disable this warning, use the `enable_legacy_live_preview = %false` option in the operation spec.
 
 ------
-#### **Q: When running jobs written using the ytsaurus-client package, I get "Unicode symbols above 255 are not supported". What should I do?**
+#### **Q: When running jobs written using the ytsaurus-client package, I get "Unicode symbols above 255 are not supported". What should I do?** {#unicode-above-255}
 
 **A:** We recommend reading about the JSON format in the [Formats](../../user-guide/storage/formats.md#json) section. You can either forego using JSON and use [YSON](../../user-guide/storage/formats.md#yson) instead or set `encode_utf8=false`.
 
 
 
 ------
-#### **Q: What causes the error "Too many dynamic store locate retries failed"?**
+#### **Q: What causes the error "Too many dynamic store locate retries failed"?** {#over-dynamic-store-retries}
 
 **A:** If the operation contains a dynamic table with the set `enable_dynamic_store_read` attribute as input, jobs will read data directly from tablet nodes that host the dynamic table. For more information about this option, see [Running operations on dynamic tables](../../user-guide/dynamic-tables/mapreduce.md). If tablet nodes are unavailable for a long time, the above error occurs. Check if the cluster undergoes any maintenance works that affect dynamic tables. Besides that, check that the bundle the table refers to is in a healthy state (the **Good** bar in the interface).

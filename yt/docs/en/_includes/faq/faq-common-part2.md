@@ -1,26 +1,26 @@
-#### **Q: What do I do if I get error "Account "..." is over disk space limit (node count limit, etc)"?**
+#### **Q: What do I do if I get error "Account "..." is over disk space limit (node count limit, etc)"?** {#account-disk-space-limit}
 
 **A:** This message is an indication that the account is out of one of its quotas. The system has quotas for all kinds of resources. For more information on the types of quotas and for forms to change quotas, see the [Quotas](../../user-guide/storage/quotas.md) section.
 
 ------
-#### **Q: How do I discover who is taking up space in an account or all the nodes with a specific account?**
+#### **Q: How do I discover who is taking up space in an account or all the nodes with a specific account?** {#find-account-usage}
 
 **A:** Try using one of the following methods to find the relevant data:
 1. Look in the recycle bin (`//tmp/trash/by-account/<account_name>`). To do this, follow the specified path in the web interface's **Navigation** section.
 2. Use `yt find <path> --name "*" --account <account_name>` to look for your account's tables in `//tmp` and in your associated project directories. Please note that `yt find` does not look in directories to which you do not have access.
 
 ------
-#### **Q: How do I change a table's account?**
+#### **Q: How do I change a table's account?** {#change-table-account}
 
 **A:** `yt set //path/to/table/@account my-account`
 
 ------
-#### **Q: How do I find out the total resource usage of a directory, including  all contained tables, files, and so on?**
+#### **Q: How do I find out the total resource usage of a directory, including  all contained tables, files, and so on?** {#directory-resource-usage}
 
 **A:** `yt get //path/to/dir/@recursive_resource_usage` or select **Show all resources** in the **Navigation** tab in the web interface.
 
 ------
-#### **Q: While working with the system, I am getting "Transaction has expired or was aborted". What does it mean and how should I deal with it?**
+#### **Q: While working with the system, I am getting "Transaction has expired or was aborted". What does it mean and how should I deal with it?** {#transaction-expired-aborted}
 
 **A:** When you create a master transaction, you specify a **timeout**, and a user undertakes to ping the transaction at least once during the specified time interval. If the interval between the moment of creation or the most recent ping is greater than the timeout, the system will terminate the transaction.  There may be several things causing this behavior:
 
@@ -38,12 +38,12 @@ Otherwise, client debug logs are required for a review of the issue. The server 
 **A:** This message means that the operation spec includes both the deprecated "owners" field and the "acl" field with preference given to the latter, which means that "owners" was ignored.
 
 ------
-#### **Q: How do I automatically rotate nodes deleting those that are older than a certain age?**
+#### **Q: How do I automatically rotate nodes deleting those that are older than a certain age?** {#rotate-nodes-expiration}
 
 **A:** You should use the `expiration_time` attribute. For more information, see [Metainformation tree.](../../user-guide/storage/cypress.md#TTL)
 
 ------
-#### **Q: How do I automatically delete nodes that have not been in use longer than a specified period of time?**
+#### **Q: How do I automatically delete nodes that have not been in use longer than a specified period of time?** {#delete-unused-nodes}
 
 **A:** You should use the `expiration_timeout` attribute. For more information, see [Metainformation tree.](../../user-guide/storage/cypress.md#TTL)
 
@@ -81,12 +81,12 @@ For instance, a path looking like `//home/user/tables/` is always invalid. When 
 ```
 
 ------
-#### **Q: You are attempting locally to run a program that communicates via RPC in {{product-name}} and get back "Domain name not found»**
+#### **Q: You are attempting locally to run a program that communicates via RPC in {{product-name}} and get back "Domain name not found»** {#domain-name-not-found}
 
 **A:** In a log, you may also encounter `W Dns DNS resolve failed (HostName: your-local-host-name)`. The error occurs when resolving the name of the local host that is not listed in global DNS. The thing is that the {{product-name}} RPC client uses IPv6 by default and disables IPv4. That is why the line  `127.0.1.1  your-local-host-name` in the local `/etc/hosts` file does not work. If you add `::1  your-local-host-name` to the above file, it should solve your problem.
 
 ------
-#### **Q: How do I copy a specified range of rows rather than the entire table?**
+#### **Q: How do I copy a specified range of rows rather than the entire table?** {#copy-table-range}
 
 **A:** In the current implementation, the `Copy` operation does not support the copying of ranges but you can use the [Merge](../../user-guide/data-processing/operations/merge.md) command which will run quickly. Using the `ordered` mode will keep the data sorted in simple situations (when there is a single range, for instance). Example command:
 
@@ -95,18 +95,18 @@ yt merge --src '_path/to/src/table[#100:#500]' --dst _path/to/dst/table --mode o
 ```
 
 ------
-#### **Q: How do I find out who is processing my tables?**
+#### **Q: How do I find out who is processing my tables?** {#who-access-tables}
 
 **A:** To accomplish this, you can analyze the master server access log.
 
 ------
-#### **Q: How do I recover deleted data?**
+#### **Q: How do I recover deleted data?** {#restore-deleted-data}
 
 **A:** If the delete used the UI, and the `Delete permanently` option was not selected, you can look for the tables in the recycle bin under the relevant account folder.
 If the delete used `yt remove` or similar API calls, recovery is **not possible**.
 
 ------
-#### **Q: Error "Operations of type "remote-copy" must have small enough specified resource limits in some of ancestor pools"**
+#### **Q: Error "Operations of type "remote-copy" must have small enough specified resource limits in some of ancestor pools"** {#remote-copy-resource-limits}
 
 **A:** [RemoteCopy](../../user-guide/data-processing/operations/remote-copy.md) operations create load in the cross DC network.
 To limit the load, we introduced artificial load limiting: RemoteCopy operations must run within a pool that enforces a `user_slots` limit. This limit is indicated in the error message and is typically set to `2000`.
@@ -115,7 +115,7 @@ If the plan is only to run RemoteCopy in the pool, it is sufficient to set this 
 `yt set //sys/pools/..../your_pool/@resource_limits '{user_slots=2000}'`.
 
 ------
-#### **Q: When attempting to read or copy a table, I get the error 'Access denied for user "some_user": "full_read" permission for node //home/some_table is not allowed by any matching ACE'**
-
+#### **Q: When attempting to read or copy a table, I get the error 'Access denied for user "some_user": "full_read" permission for node //home/some_table is not allowed by any matching ACE'** {#access-denied-full-read}
+ 
 **A:** One or more table columns are locked by the ACL, and you do not have access to them. To accomplish whatever you need to, you first need to obtain the necessary access. For more information, see [Managing access to table columns](../../user-guide/storage/columnar-acl.md).
 
