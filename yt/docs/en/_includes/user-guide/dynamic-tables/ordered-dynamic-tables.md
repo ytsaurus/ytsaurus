@@ -14,7 +14,7 @@ As with [sorted dynamic tables](../../../user-guide/dynamic-tables/sorted-dynami
 
 Dividing data into tablets is random. Each tablet contains an ordered sequence of table rows. When the rows are written to the tablet, they get to the end of this sequence. That way, orderliness is only guaranteed within the tablet.
 
-An ordered dynamic table initially consists of one tablet. Multiple tablets can be changed using the `reshard_table` command. It enables you to change the structure for a set of consecutive tablets. When [resharding](#reshard) an ordered dynamic table, you need to specify a new number of tablets for replacing the original ones. Specifying `pivot_keys` is not required. Existing data is redistributed between the new tablets in an unspecified way.
+ An ordered dynamic table initially consists of one tablet. Multiple tablets can be changed using the `reshard_table` command. It enables you to change the structure for a set of consecutive tablets. When [resharding](#reshard) an ordered dynamic table, you need to specify a new number of tablets for replacing the original ones. Specifying `pivot_keys` is not required. Existing data is redistributed between the new tablets in an unspecified way.
 
 ## Supported operations { #methods }
 
@@ -25,6 +25,15 @@ To create an ordered dynamic table, run the `create table` command and specify t
 ```bash
 yt create table //path/to/table --attributes \
 '{dynamic=%true;schema=[{name=first_name;type=string};{name=last_name;type=string}]}'
+```
+
+When creating a table, you can specify the starting row index for each tablet. For example, this is useful when recreating a queue if consumers rely on `row_index` values. To do this, use the `trimmed_row_counts` attribute. When passing this attribute, you also need to specify `tablet_count`, which must match the length of the `trimmed_row_counts` list.
+
+```bash
+yt create table //path/to/table --attributes \
+'{dynamic=%true;schema=[{name=first_name;type=string};{name=last_name;type=string}]}; \
+tablet_count=5; \
+trimmed_row_counts=[10;20;30;40;50]}'
 ```
 
 ### Writing rows
@@ -79,6 +88,14 @@ The system tries to maintain the invariant “what is deleted is no longer avail
 
 In real world scenarios, this limitation is difficult to observe, so if a tablet you want deleted contains deleted rows, you may as well consider it impossible to perform a resharding where the number of tablets will be reduced. To bypass this limitation, you can use two `alter_table` calls, first making the table static and then dynamic. But do remember that some of the deleted rows re-appear in the table when you use this method.
 
+If resharding causes the number of tablets to increase, you can specify the starting row index for each created tablet. To do this, pass the `trimmed_row_counts` list as a command argument. Its length must match the number of created tablets: `tablet_count - (last_tablet_index - first_tablet_index + 1)`.
+
+```bash
+yt reshard-table //path/to/table --tablet-count 5 --first-tablet-index 1 --last-tablet-index 3 --trimmed-row-counts 10 20
+# Resulting offsets, assuming table had 5 tablets:
+# (old tablet #0) (old tablet #1) (old tablet #2) (old tablet #3) 10 20 (old tablet #4)
+```
+
 ### Automatic deletion of old rows (TTL) { #remove_old_data }
 
 The same old data deletion settings apply to ordered tables as to sorted tables. For more information, see [Deleting old data](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#remove_old_data). The significant difference is that a row always has only one version in ordered tables. The cleanup settings can then be interpreted as follows:
@@ -93,6 +110,10 @@ The same old data deletion settings apply to ordered tables as to sorted tables.
 Automatic deletion (trimming) applies to the entire chunk. As long as there are rows in the chunk that cannot be deleted, all rows from the chunk will be available.
 
 {% endnote %}
+
+### Data size limit { #max_data_weight }
+
+You can limit the amount of data in an ordered table by setting the maximum allowed tablet size. To do this, specify a limit in bytes in the table's `@mount_config/max_ordered_tablet_data_weight` attribute.
 
 ## $timestamp column
 
