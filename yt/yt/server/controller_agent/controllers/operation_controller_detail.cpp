@@ -852,6 +852,10 @@ void TOperationControllerBase::InitializeStructures()
 
         // Add regular files.
         for (const auto& path : userJobSpec->FilePaths) {
+            if (auto filename = path.GetFileName(); filename && filename->Contains('\0')) {
+                THROW_ERROR_EXCEPTION("File name must not contain NUL byte")
+                    << TErrorAttribute("file_name", *filename);
+            }
             files.push_back(TUserFile(
                 path,
                 InputTransactions_->GetTransactionIdForObject(path),
