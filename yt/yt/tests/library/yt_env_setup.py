@@ -1331,7 +1331,8 @@ class YTEnvSetup(object):
     @classmethod
     def teardown_class(cls):
         if cls.liveness_checkers:
-            map(lambda c: c.stop(), cls.liveness_checkers)
+            for checker in cls.liveness_checkers:
+                checker.stop()
 
         for env in cls.ground_envs + [cls.Env] + cls.remote_envs:
             if env is None:
