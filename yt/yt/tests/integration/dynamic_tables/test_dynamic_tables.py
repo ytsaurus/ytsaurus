@@ -3855,6 +3855,38 @@ class TestDynamicTablesRpcProxy(TestDynamicTablesSingleCell):
         # Tablet cell suspension via RPC proxies is not supported.
         pass
 
+    @authors("atalmenev")
+    def test_table_path_in_max_value_error(self):
+        sync_create_cells(1)
+
+        self._create_sorted_table("//tmp/t_1")
+        sync_mount_table("//tmp/t_1")
+        set("//tmp/t_1/@compression_codec", "none")
+
+        self._create_sorted_table("//tmp/t_2")
+        sync_mount_table("//tmp/t_2")
+        set("//tmp/t_2/@compression_codec", "none")
+
+        MB = 1024 ** 2
+        large_rows = [{"key": 0, "value": "F" * (17 * MB)}]
+        small_rows = [{"key": 0, "value": "f" * (1 * MB)}]
+
+        with raises_yt_error() as err:
+            insert_rows("//tmp/t_1", large_rows, table_writer={"max_row_weight": 20 * MB})
+
+        assert f'Value of type "string" is too long: length {17 * MB}, limit {16 * MB}' in str(err)
+        assert "//tmp/t_1" in str(err)
+
+        tx = start_transaction(type="tablet")
+        insert_rows("//tmp/t_1", small_rows, table_writer={"max_row_weight": 20 * MB}, transaction_id=tx)
+        insert_rows("//tmp/t_2", large_rows, table_writer={"max_row_weight": 20 * MB}, transaction_id=tx)
+
+        with raises_yt_error() as err:
+            commit_transaction(tx)
+
+        assert f'Value of type "string" is too long: length {17 * MB}, limit {16 * MB}' in str(err)
+        assert "//tmp/t_2" in str(err)
+
 
 @pytest.mark.enabled_multidaemon
 class TestDynamicTablesWithAbandoningLeaderLeaseDuringRecovery(DynamicTablesSingleCellBase):
