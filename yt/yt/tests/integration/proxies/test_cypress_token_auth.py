@@ -239,3 +239,45 @@ class TestAuthenticationCommandsWithNoPassword(TestCypressTokenAuthBase):
         self._make_request(f"/api/v4/issue_token?user=u&password_sha256={p2_sha256}", t).raise_for_status()
         self._make_request(f"/api/v4/revoke_token?user=u&token_sha256={t3_sha256}&password_sha256={p2_sha256}", t).raise_for_status()
         self._make_request(f"/api/v4/list_user_tokens?user=u&password_sha256={p2_sha256}", t).raise_for_status()
+
+
+@pytest.mark.enabled_multidaemon
+class TestAuthenticationCommandsWithRequireAdministerForPasswordSet(TestCypressTokenAuthBase):
+    DELTA_PROXY_CONFIG = {
+        "driver": {
+            "require_password_in_authentication_commands": False,
+            "require_administer_for_password_set": True,
+        },
+        "auth": {
+            "enable_authentication": True,
+        },
+    }
+    ENABLE_MULTIDAEMON = True
+
+    @authors("achulkov2")
+    def test_require_administer_for_password_set(self):
+        create_user("u")
+        t, _ = issue_token("u")
+        _, t2_sha256 = issue_token("u")
+        p1_sha256 = self._compute_sha256("p1")
+        p2_sha256 = self._compute_sha256("p2")
+
+        # Passwordless user should not be able to set password without administer permission.
+        assert not self._make_request(f"/api/v4/set_user_password?user=u&new_password_sha256={p1_sha256}", t).ok
+
+        set_user_password("u", "p1")
+
+        # Even when a password exists, changing it is still not possible without administer permission.
+        assert not self._make_request(f"/api/v4/set_user_password?user=u&new_password_sha256={p2_sha256}", t).ok
+        # Even with the correct password!
+        assert not self._make_request(f"/api/v4/set_user_password?user=u&current_password_sha256={p1_sha256}&new_password_sha256={p2_sha256}", t).ok
+
+        # Token commands still work without a password.
+        self._make_request("/api/v4/issue_token?user=u", t).raise_for_status()
+        self._make_request(f"/api/v4/revoke_token?user=u&token_sha256={t2_sha256}", t).raise_for_status()
+        self._make_request("/api/v4/list_user_tokens?user=u", t).raise_for_status()
+
+        set("//sys/users/u/@acl/end", {"subjects": ["u"], "permissions": ["administer"], "action": "allow"})
+
+        # Now the user can set password without providing anything.
+        self._make_request(f"/api/v4/set_user_password?user=u&new_password_sha256={p2_sha256}", t).raise_for_status()

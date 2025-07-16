@@ -455,6 +455,7 @@ public:
 
         auto options = TClientOptions::FromAuthenticationIdentity(identity);
         options.RequirePasswordInAuthenticationCommands = Config_->RequirePasswordInAuthenticationCommands;
+        options.RequireAdministerForPasswordSet = Config_->RequireAdministerForPasswordSet;
         options.Token = request.UserToken;
         options.ServiceTicketAuth = request.ServiceTicket
             ? std::make_optional(New<NAuth::TServiceTicketFixedAuth>(*request.ServiceTicket))
