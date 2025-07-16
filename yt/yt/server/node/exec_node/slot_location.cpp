@@ -76,8 +76,10 @@ TSlotLocation::TSlotLocation(
     , SlotIndexToUserId_(slotIndexToUserId)
     , HeavyLocationQueue_(New<TActionQueue>(Format("HeavyIO:%v", id)))
     , LightLocationQueue_(New<TActionQueue>(Format("LightIO:%v", id)))
+    , ToolLocationQueue_(New<TActionQueue>(Format("Tool:%v", id)))
     , HeavyInvoker_(HeavyLocationQueue_->GetInvoker())
     , LightInvoker_(LightLocationQueue_->GetInvoker())
+    , ToolInvoker_(ToolLocationQueue_->GetInvoker())
     , HealthChecker_(New<TDiskHealthChecker>(
         Config_->DiskHealthChecker,
         Config_->Path,
@@ -734,7 +736,13 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
                 if (Bootstrap_->IsSimpleEnvironment()) {
                     RemoveRecursive(sandboxPath);
                 } else {
-                    RunTool<TRemoveDirAsRootTool>(sandboxPath);
+                    auto future = BIND([=, this_ = MakeStrong(this)] {
+                            RunTool<TRemoveDirAsRootTool>(sandboxPath);
+                        })
+                        .AsyncVia(ToolInvoker_)
+                        .Run();
+                    WaitFor(future)
+                        .ThrowOnError();
                 }
 
                 {
@@ -1040,7 +1048,14 @@ void TSlotLocation::UpdateDiskResources()
                 // We have to calculate user directory sizes as root,
                 // because user job could have set restricted permissions for files and
                 // directories inside sandbox.
-                auto sizes = RunTool<TGetDirectorySizesAsRootTool>(std::move(config));
+
+                auto future = BIND([=, this_ = MakeStrong(this)] {
+                        return RunTool<TGetDirectorySizesAsRootTool>(std::move(config));
+                    })
+                    .AsyncVia(ToolInvoker_)
+                    .Run();
+                auto sizes = WaitFor(future)
+                    .ValueOrThrow();
                 slotDiskUsage = std::accumulate(sizes.begin(), sizes.end(), 0ll);
             }
 
@@ -1219,7 +1234,13 @@ void TSlotLocation::BuildSlotRootDirectory(int slotIndex)
     directoryBuilderConfig->NeedRoot = uid.has_value();
     directoryBuilderConfig->RootDirectoryConfigs.push_back(CreateDefaultRootDirectoryConfig(slotIndex, uid, nodeUid));
 
-    RunTool<TRootDirectoryBuilderTool>(directoryBuilderConfig);
+    auto future = BIND([=, this_ = MakeStrong(this)] {
+            RunTool<TRootDirectoryBuilderTool>(directoryBuilderConfig);
+        })
+        .AsyncVia(ToolInvoker_)
+        .Run();
+    WaitFor(future)
+        .ThrowOnError();
 }
 
 TRootDirectoryConfigPtr TSlotLocation::CreateDefaultRootDirectoryConfig(
