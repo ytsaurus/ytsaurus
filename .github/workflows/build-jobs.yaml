@@ -258,10 +258,18 @@ jobs:
           if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
             ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
             ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/chyt/server/bin
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/chyt/trampoline
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_operations_archive
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_queue_agent_state
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_query_tracker_state
           fi
 
           ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
           ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/chyt/server/bin
+          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/chyt/trampoline
+          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_operations_archive
+          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_queue_agent_state
+          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_query_tracker_state
 
       - name: Build ytsaurus tests dependencies (ya-make, ${{ matrix.build-type }})
         if: ${{ (inputs.build-ytsaurus || inputs.build-query-tracker) && inputs.build-ytsaurus-tests && (matrix.build-type == 'release') }}

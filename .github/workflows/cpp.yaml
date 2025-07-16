@@ -5,7 +5,7 @@ on:
     branches:
       - main
       - stable/[0-9]+\.[0-9]+
-
+      - members/epsilond1/chyt/2.17.3-rebase
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
 
@@ -119,7 +119,6 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: cmake
-      publish-chyt: ${{ github.ref_name == 'main' }}
       publish-strawberry: ${{ github.ref_name == 'main' }}
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
@@ -159,6 +158,7 @@ jobs:
       publish-query-tracker: ${{ github.ref_name == 'main' }}
       publish-ytsaurus: true
       publish-local: true
+      publish-chyt: ${{ github.ref_name == 'main' }}
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
     secrets:
