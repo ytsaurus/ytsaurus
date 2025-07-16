@@ -1961,7 +1961,38 @@ print(json.dumps(input))
         assert op.get_job_count("aborted") == 0
 
     @authors("faucct")
-    def test_distributed_with_job_fail_and_operation_completion(self):
+    def test_distributed_with_secondary_job_abort(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"a": "b"})
+        op = map(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint(
+                """
+                BREAKPOINT
+                if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; fi
+                """
+            ),
+            spec={"mapper": {"cookie_group_size": 2}},
+            track=False,
+        )
+        job_ids = wait_breakpoint(job_count=2)
+        main_job_id = get_job(op.id, job_ids[0], attributes=["main_job_id"])["main_job_id"]
+        release_breakpoint(job_id=main_job_id)
+        try:
+            wait(lambda: get_job(op.id, main_job_id)["state"] == "completed")
+        except Exception as e:
+            assert "not found neither in archive nor in controller agent" in str(e)
+        assert read_table("//tmp/t2") == []
+        abort_job(({*job_ids} - {main_job_id}).pop())
+        wait_breakpoint(job_count=2)
+        release_breakpoint()
+        op.track()
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+
+    @authors("faucct")
+    def test_distributed_with_secondary_job_fail_and_operation_completion(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
