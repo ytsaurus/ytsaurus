@@ -94,6 +94,9 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("reshard_slicing_accuracy", &TThis::ReshardSlicingAccuracy)
         .Default();
 
+    registrar.Parameter("allowed_replica_clusters", &TThis::AllowedReplicaClusters)
+        .Default();
+
     registrar.Parameter("min_desired_tablet_size", &TThis::MinDesiredTabletSize)
         .Default(5_MB);
 
@@ -130,6 +133,9 @@ void TActionManagerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(5));
     registrar.Parameter("tablet_action_expiration_timeout", &TThis::TabletActionExpirationTimeout)
         .Default(TDuration::Minutes(20));
+    registrar.Parameter("max_tablet_count_per_action", &TThis::MaxTabletCountPerAction)
+        .Default(200)
+        .GreaterThan(0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

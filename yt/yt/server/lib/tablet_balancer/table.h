@@ -16,13 +16,17 @@ struct TTableBase
     const NYPath::TYPath Path;
     const TTableId Id;
     const NObjectClient::TCellTag ExternalCellTag;
+
     std::vector<TTabletPtr> Tablets;
     std::vector<NTableClient::TLegacyOwningKey> PivotKeys;
+    NTabletClient::TTableReplicaId UpstreamReplicaId;
+    std::optional<NTabletClient::ETableReplicaMode> ReplicaMode;
 
     TTableBase(
         NYPath::TYPath path,
         TTableId tableId,
-        NObjectClient::TCellTag cellTag);
+        NObjectClient::TCellTag cellTag,
+        NTabletClient::TTableReplicaId upstreamReplicaId = NObjectClient::NullObjectId);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableBase)
@@ -55,7 +59,13 @@ struct TTable
     bool IsLegacyMoveBalancingEnabled() const;
 
     bool IsParameterizedMoveBalancingEnabled() const;
-    bool IsParameterizedReshardBalancingEnabled(bool enableParameterizedByDefault) const;
+    bool IsParameterizedReshardBalancingEnabled(
+        bool enableParameterizedByDefault,
+        bool desiredTabletCountRequired = true) const;
+
+    bool IsReplicaBalancingEnabled() const;
+    bool IsReplicaMoveBalancingEnabled() const;
+    bool IsReplicaReshardBalancingEnabled() const;
 
     THashMap<TClusterName, std::vector<NYPath::TYPath>> GetReplicaBalancingMinorTables(
         const std::string& selfClusterName) const;
@@ -69,7 +79,8 @@ struct TAlienTable
     TAlienTable(
         NYPath::TYPath path,
         TTableId tableId,
-        NObjectClient::TCellTag cellTag);
+        NObjectClient::TCellTag cellTag,
+        NTabletClient::TTableReplicaId upstreamReplicaId);
 };
 
 DEFINE_REFCOUNTED_TYPE(TAlienTable)
