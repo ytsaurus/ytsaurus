@@ -23,13 +23,13 @@ using TPocoXmlDocumentPtr = Poco::XML::AutoPtr<Poco::XML::Document>;
 
 Poco::XML::Node* GetRootNode(TPocoXmlDocumentPtr document)
 {
-    for (auto* child = document->firstChild(); child != nullptr; child = child->nextSibling()) {
+    for (auto* child = document->firstChild(); child; child = child->nextSibling()) {
         // Skip the comment nodes.
         if (child->nodeType() == Poco::XML::Node::ELEMENT_NODE) {
             return child;
         }
     }
-    THROW_ERROR_EXCEPTION("The document does not have a non-comment root node");
+    THROW_ERROR_EXCEPTION("Failed to find non-comment root node in XML document");
 }
 
 struct TXmlNodeHolder
@@ -71,9 +71,9 @@ TXmlNodeHolder ParseXmlDocument(TSharedRef responseBody)
     };
 }
 
-Poco::XML::Node* GetChildByName(const Poco::XML::Node& node, const std::string& childName)
+Poco::XML::Node* FindChildByNameOrThrow(const Poco::XML::Node& node, const std::string& childName)
 {
-    for (auto* child = node.firstChild(); child != nullptr; child = child->nextSibling()) {
+    for (auto* child = node.firstChild(); child; child = child->nextSibling()) {
         if (child->nodeName() == childName) {
             return child;
         }
@@ -81,10 +81,10 @@ Poco::XML::Node* GetChildByName(const Poco::XML::Node& node, const std::string& 
     THROW_ERROR_EXCEPTION("Child with name %Qv not found in node %Qv", childName, node.nodeName());
 }
 
-Poco::XML::Node* TryGetChildByName(const Poco::XML::Node& node, const std::string& childName)
+Poco::XML::Node* TryFindChildByName(const Poco::XML::Node& node, const std::string& childName)
 {
     try {
-        return GetChildByName(node, childName);
+        return FindChildByNameOrThrow(node, childName);
     } catch (const TErrorException&) {
         return nullptr;
     }
@@ -94,22 +94,22 @@ Poco::XML::Node* TryGetChildByName(const Poco::XML::Node& node, const std::strin
 
 void TBucket::Deserialize(const Poco::XML::Node& node)
 {
-    CreationDate = TInstant::ParseIso8601(GetChildByName(node, "CreationDate")->innerText());
-    Name = GetChildByName(node, "Name")->innerText();
+    CreationDate = TInstant::ParseIso8601(FindChildByNameOrThrow(node, "CreationDate")->innerText());
+    Name = FindChildByNameOrThrow(node, "Name")->innerText();
 }
 
 void TObject::Deserialize(const Poco::XML::Node& node)
 {
-    Key = GetChildByName(node, "Key")->innerText();
-    LastModified = TInstant::ParseIso8601(GetChildByName(node, "LastModified")->innerText());
-    ETag = GetChildByName(node, "ETag")->innerText();
-    Size = FromString<ui64>(GetChildByName(node, "Size")->innerText());
+    Key = FindChildByNameOrThrow(node, "Key")->innerText();
+    LastModified = TInstant::ParseIso8601(FindChildByNameOrThrow(node, "LastModified")->innerText());
+    ETag = FindChildByNameOrThrow(node, "ETag")->innerText();
+    Size = FromString<ui64>(FindChildByNameOrThrow(node, "Size")->innerText());
 }
 
 void TOwner::Deserialize(const Poco::XML::Node& node)
 {
-    DisplayName = GetChildByName(node, "DisplayName")->innerText();
-    Id = GetChildByName(node, "ID")->innerText();
+    DisplayName = FindChildByNameOrThrow(node, "DisplayName")->innerText();
+    Id = FindChildByNameOrThrow(node, "ID")->innerText();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -123,11 +123,11 @@ void TListBucketsRequest::Serialize(THttpRequest* request) const
 void TListBucketsResponse::Deserialize(const NHttp::IResponsePtr& response)
 {
     auto parsedDocument = ParseXmlDocument(response->ReadAll());
-    auto bucketsNode = GetChildByName(*parsedDocument, "Buckets");
-    for (auto* child = bucketsNode->firstChild(); child != nullptr; child = child->nextSibling()) {
+    auto bucketsNode = FindChildByNameOrThrow(*parsedDocument, "Buckets");
+    for (auto* child = bucketsNode->firstChild(); child; child = child->nextSibling()) {
         Buckets.emplace_back().Deserialize(*child);
     }
-    Owner.Deserialize(*GetChildByName(*parsedDocument, "Owner"));
+    Owner.Deserialize(*FindChildByNameOrThrow(*parsedDocument, "Owner"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -148,13 +148,13 @@ void TListObjectsRequest::Serialize(THttpRequest* request) const
 void TListObjectsResponse::Deserialize(const NHttp::IResponsePtr& response)
 {
     auto parsedDocument = ParseXmlDocument(response->ReadAll());
-    for (auto* child = parsedDocument->firstChild(); child != nullptr; child = child->nextSibling()) {
+    for (auto* child = parsedDocument->firstChild(); child; child = child->nextSibling()) {
         if (child->nodeName() != "Contents") {
             continue;
         }
         Objects.emplace_back().Deserialize(*child);
     }
-    if (auto nextToken = TryGetChildByName(*parsedDocument, "NextContinuationToken")) {
+    if (auto nextToken = TryFindChildByName(*parsedDocument, "NextContinuationToken")) {
         NextContinuationToken = nextToken->innerText();
     }
 }
@@ -286,14 +286,14 @@ void TDeleteObjectsRequest::Serialize(THttpRequest* request) const
 void TDeleteObjectsResponse::Deserialize(const NHttp::IResponsePtr& response)
 {
     auto parsedDocument = ParseXmlDocument(response->ReadAll());
-    for (auto* errorNode = TryGetChildByName(*parsedDocument, "Error");
-        errorNode != nullptr;
+    for (auto* errorNode = TryFindChildByName(*parsedDocument, "Error");
+        errorNode;
         errorNode = errorNode->nextSibling())
     {
         Errors.emplace_back(TDeleteError{
-            .Key = TString(GetChildByName(*errorNode, "Key")->innerText()),
-            .Code = TString(GetChildByName(*errorNode, "Code")->innerText()),
-            .Message = TString(GetChildByName(*errorNode, "Message")->innerText()),
+            .Key = TString(FindChildByNameOrThrow(*errorNode, "Key")->innerText()),
+            .Code = TString(FindChildByNameOrThrow(*errorNode, "Code")->innerText()),
+            .Message = TString(FindChildByNameOrThrow(*errorNode, "Message")->innerText()),
         });
     }
 }
@@ -310,9 +310,9 @@ void TCreateMultipartUploadRequest::Serialize(THttpRequest* request) const
 void TCreateMultipartUploadResponse::Deserialize(const NHttp::IResponsePtr& response)
 {
     auto parsedDocument = ParseXmlDocument(response->ReadAll());
-    Bucket = GetChildByName(*parsedDocument, "Bucket")->innerText();
-    Key = GetChildByName(*parsedDocument, "Key")->innerText();
-    UploadId = GetChildByName(*parsedDocument, "UploadId")->innerText();
+    Bucket = FindChildByNameOrThrow(*parsedDocument, "Bucket")->innerText();
+    Key = FindChildByNameOrThrow(*parsedDocument, "Key")->innerText();
+    UploadId = FindChildByNameOrThrow(*parsedDocument, "UploadId")->innerText();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -351,7 +351,7 @@ void TCompleteMultipartUploadResponse::Deserialize(const NHttp::IResponsePtr& re
 {
     auto parsedDocument = ParseXmlDocument(response->ReadAll());
 
-    ETag = GetChildByName(*parsedDocument, "ETag")->innerText();
+    ETag = FindChildByNameOrThrow(*parsedDocument, "ETag")->innerText();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -454,7 +454,7 @@ private:
         auto responseBody = response->ReadAll();
         try {
             auto parsedDocument = ParseXmlDocument(responseBody);
-            for (auto* child = parsedDocument->firstChild(); child != nullptr; child = child->nextSibling()) {
+            for (auto* child = parsedDocument->firstChild(); child; child = child->nextSibling()) {
                 error <<= TErrorAttribute(child->nodeName(), child->innerText());
             }
         } catch (const std::exception&) {
