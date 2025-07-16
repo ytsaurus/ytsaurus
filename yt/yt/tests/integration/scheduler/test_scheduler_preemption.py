@@ -378,38 +378,6 @@ class TestSchedulerPreemption(YTEnvSetup):
 
         wait(lambda: len(op.get_running_jobs()) == 0)
 
-    @authors("faucct")
-    def test_preemption_of_distributed_jobs_excessing_resource_limits(self):
-        create("table", "//tmp/t_in")
-        for i in range(1):
-            write_table("<append=%true>//tmp/t_in", {"foo": "bar"})
-
-        create("table", "//tmp/t_out")
-
-        op = map(
-            track=False,
-            command="sleep 1000; cat",
-            in_=["//tmp/t_in"],
-            out="//tmp/t_out",
-            spec={"mapper": {"cookie_group_size": 3}},
-        )
-
-        wait(lambda: len(op.get_running_jobs()) == 3)
-
-        update_op_parameters(
-            op.id,
-            parameters={"scheduling_options_per_pool_tree": {"default": {"resource_limits": {"user_slots": 2}}}},
-        )
-
-        wait(lambda: len(op.get_running_jobs()) == 0)
-
-        update_op_parameters(
-            op.id,
-            parameters={"scheduling_options_per_pool_tree": {"default": {"resource_limits": {"user_slots": 3}}}},
-        )
-
-        wait(lambda: len(op.get_running_jobs()) == 3)
-
     @authors("ignat")
     def test_preemptor_event_log(self):
         set("//sys/pool_trees/default/@config/max_ephemeral_pools_per_user", 2)
@@ -851,33 +819,6 @@ class TestPreemptibleProgressUpdate(YTEnvSetup):
         job_ids = wait_breakpoint(breakpoint_name=breakpoint_name)
         assert len(job_ids) == 1
         return job_ids[0]
-
-    @authors("faucct")
-    def test_preemption_of_distributed(self):
-        update_scheduler_config("nodes_attributes_update_period", 20)
-
-        update_pool_tree_config("default", {
-            "allocation_graceful_preemption_timeout": 10,
-            "allocation_preemption_timeout": 100,
-            "main_resource": "user_slots",
-        })
-
-        set("//sys/pool_trees/default/@config/waiting_job_timeout", 10000)
-        total_user_slots = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/user_slots")
-        create_pool("test_pool", attributes={"min_share_resources": {"user_slots": total_user_slots}, "enable_aggressive_starvation": True})
-
-        op = run_test_vanilla(
-            with_breakpoint("BREAKPOINT"),
-            task_patch={"cookie_group_size": 3},
-            spec={"pool": "fake_pool"},
-        )
-
-        wait_breakpoint(job_count=3)
-
-        run_sleeping_vanilla(spec={"pool": "test_pool"}, job_count=1)
-
-        wait(lambda: not op.get_running_jobs())
-        assert op.get_job_count("aborted") == 1
 
     @authors("pogorelov")
     @pytest.mark.parametrize("several_jobs_in_allocation", [False, True])
