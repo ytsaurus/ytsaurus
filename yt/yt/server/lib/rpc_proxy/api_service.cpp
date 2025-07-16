@@ -4839,9 +4839,16 @@ private:
     {
         const auto& path = request.path();
 
-        auto rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
-            request.rowset_descriptor(),
-            MergeRefsToRef<TApiServiceBufferTag>(attachments));
+        IUnversionedRowsetPtr rowset;
+        try {
+            rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
+                request.rowset_descriptor(),
+                MergeRefsToRef<TApiServiceBufferTag>(attachments));
+        } catch (const TErrorException& ex) {
+            THROW_ERROR_EXCEPTION("Error sending rows for table %v",
+                path)
+                << TError(ex);
+        }
 
         auto rowsetRows = rowset->GetRows();
         auto rowsetSize = std::ssize(rowset->GetRows());
