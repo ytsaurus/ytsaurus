@@ -20,6 +20,7 @@
 namespace NYT::NClickHouseServer {
 
 using namespace NChunkClient;
+using namespace NChunkPools;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
 using namespace NYTree;
@@ -28,27 +29,35 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 void FillDataSliceDescriptors(
+    TSecondaryQueryReadDescriptors& dataSliceDescriptors,
+    const THashMap<TChunkId, TRefCountedMiscExtPtr>& miscExtMap,
+    const TChunkStripePtr& chunkStripe)
+{
+    for (const auto& dataSlice : chunkStripe->DataSlices) {
+        auto& inputDataSliceDescriptor = dataSliceDescriptors.emplace_back();
+        for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+            auto& chunkSpec = inputDataSliceDescriptor.ChunkSpecs.emplace_back();
+            ToProto(&chunkSpec, chunkSlice, /*comparator*/ TComparator(), EDataSourceType::UnversionedTable);
+            auto it = miscExtMap.find(chunkSlice->GetInputChunk()->GetChunkId());
+            YT_VERIFY(it != miscExtMap.end());
+            if (it->second) {
+                SetProtoExtension(
+                    chunkSpec.mutable_chunk_meta()->mutable_extensions(),
+                    static_cast<const NChunkClient::NProto::TMiscExt&>(*it->second));
+            }
+        }
+        inputDataSliceDescriptor.VirtualRowIndex = dataSlice->VirtualRowIndex;
+    }
+}
+
+void FillDataSliceDescriptors(
     std::vector<TSecondaryQueryReadDescriptors>& dataSliceDescriptors,
     const THashMap<NChunkClient::TChunkId, NChunkClient::TRefCountedMiscExtPtr>& miscExtMap,
     const TRange<NChunkPools::TChunkStripePtr>& chunkStripes)
 {
     for (const auto& chunkStripe : chunkStripes) {
         auto& inputDataSliceDescriptors = dataSliceDescriptors.emplace_back();
-        for (const auto& dataSlice : chunkStripe->DataSlices) {
-            auto& inputDataSliceDescriptor = inputDataSliceDescriptors.emplace_back();
-            for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-                auto& chunkSpec = inputDataSliceDescriptor.ChunkSpecs.emplace_back();
-                ToProto(&chunkSpec, chunkSlice, /*comparator*/ TComparator(), EDataSourceType::UnversionedTable);
-                auto it = miscExtMap.find(chunkSlice->GetInputChunk()->GetChunkId());
-                YT_VERIFY(it != miscExtMap.end());
-                if (it->second) {
-                    SetProtoExtension(
-                        chunkSpec.mutable_chunk_meta()->mutable_extensions(),
-                        static_cast<const NChunkClient::NProto::TMiscExt&>(*it->second));
-                }
-            }
-            inputDataSliceDescriptor.VirtualRowIndex = dataSlice->VirtualRowIndex;
-        }
+        FillDataSliceDescriptors(inputDataSliceDescriptors, miscExtMap, chunkStripe);
     }
 }
 
@@ -102,6 +111,36 @@ void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec)
     spec->TableReaderConfig = ConvertTo<TTableReaderConfigPtr>(tableReaderConfigYson);
     auto querySettingsYson = TYsonString(protoSpec.query_settings());
     spec->QuerySettings = ConvertTo<TQuerySettingsPtr>(querySettingsYson);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NProto::TSecondaryQueryReadTask* protoTask, const TSecondaryQueryReadTask& task)
+{
+    using NYT::ToProto;
+
+    for (const auto& operandInput : task.OperandInputs) {
+        auto* protoOperandInput = protoTask->add_operand_inputs();
+        ToProto(
+            protoOperandInput->mutable_chunk_specs(),
+            protoOperandInput->mutable_chunk_spec_count_per_data_slice(),
+            protoOperandInput->mutable_virtual_row_index_per_data_slice(),
+            operandInput);
+    }
+}
+
+void FromProto(TSecondaryQueryReadTask* task, const NProto::TSecondaryQueryReadTask& protoTask)
+{
+    using NYT::FromProto;
+
+    for (const auto& protoOperandInput : protoTask.operand_inputs()) {
+        auto& operandInput = task->OperandInputs.emplace_back();
+        FromProto(
+            &operandInput,
+            protoOperandInput.chunk_specs(),
+            protoOperandInput.chunk_spec_count_per_data_slice(),
+            protoOperandInput.virtual_row_index_per_data_slice());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

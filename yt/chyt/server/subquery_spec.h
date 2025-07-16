@@ -21,6 +21,11 @@ namespace NYT::NClickHouseServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 void FillDataSliceDescriptors(
+    TSecondaryQueryReadDescriptors& dataSliceDescriptors,
+    const THashMap<NChunkClient::TChunkId, NChunkClient::TRefCountedMiscExtPtr>& miscExtMap,
+    const NChunkPools::TChunkStripePtr& chunkStripes);
+
+void FillDataSliceDescriptors(
     std::vector<TSecondaryQueryReadDescriptors>& dataSliceDescriptors,
     const THashMap<NChunkClient::TChunkId, NChunkClient::TRefCountedMiscExtPtr>& miscExtMap,
     const TRange<NChunkPools::TChunkStripePtr>& chunkStripes);
@@ -44,6 +49,17 @@ struct TSubquerySpec
 
 void ToProto(NProto::TSubquerySpec* protoSpec, const TSubquerySpec& spec);
 void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSecondaryQueryReadTask
+{
+public:
+    std::vector<TSecondaryQueryReadDescriptors> OperandInputs;
+};
+
+void ToProto(NProto::TSecondaryQueryReadTask* protoTask, const TSecondaryQueryReadTask& task);
+void FromProto(TSecondaryQueryReadTask* task, const NProto::TSecondaryQueryReadTask& protoTask);
 
 ////////////////////////////////////////////////////////////////////////////////
 

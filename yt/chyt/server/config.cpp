@@ -153,6 +153,12 @@ void TExecutionSettings::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("assume_no_nan_keys", &TThis::AssumeNoNanKeys)
         .Default(false);
+
+    registrar.Parameter("task_count_increase_factor", &TThis::TaskCountIncreaseFactor)
+        .GreaterThanOrEqual(1)
+        .Default(1.5);
+    registrar.Parameter("enable_input_specs_pulling", &TThis::EnableInputSpecsPulling)
+        .Default(false);
 }
 ////////////////////////////////////////////////////////////////////////////////
 

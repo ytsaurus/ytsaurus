@@ -223,6 +223,21 @@ public:
     //! Used for optimizing read in order if the corresponding option is enabled, see NB clause above.
     bool AssumeNoNanKeys;
 
+    //! The approximate number of jobs for secondary queries is calculated based on the number of clique instances
+    //! and the InputStreamsPerSecondaryQuery parameter.
+    //! When operating in pull mode, it may be necessary to increase the number of jobs to allow for more effective dynamic load distribution.
+    double TaskCountIncreaseFactor;
+
+    //! By default, the coordinator distributes queries using a push model: it encodes input specifications for the secondary queries,
+    //! embeds them into the modified query, and sends this information to the secondary instances.
+    //! In this mode, the total query execution time is constrained by the slowest input specification to be processed.
+    //!
+    //! Enabling this option switches to a pull model, in which secondary instances "pull" the next input specifications
+    //! (descriptors) for reading from the coordinator after completing previous task.
+    //! With this pull model enabled, the reading workload is dynamically balanced across all clique instances.
+    //! Count of input specifications for the pull model is generated based on the TaskCountIncreaseFactor parameter.
+    bool EnableInputSpecsPulling;
+
     REGISTER_YSON_STRUCT(TExecutionSettings);
 
     static void Register(TRegistrar registrar);

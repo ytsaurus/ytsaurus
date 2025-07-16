@@ -131,7 +131,8 @@ DB::Pipe CreateRemoteSource(
     const DB::Tables& externalTables,
     DB::QueryProcessingStage::Enum processingStage,
     const DB::Block& blockHeader,
-    TLogger logger)
+    TLogger logger,
+    TSecondaryQueryReadTaskIteratorPtr taskIterator)
 {
     const auto& queryAst = secondaryQuery.Query;
     const auto& Logger = logger;
@@ -161,6 +162,11 @@ DB::Pipe CreateRemoteSource(
 
     bool isInsert = queryAst->as<DB::ASTInsertQuery>();
 
+    DB::RemoteQueryExecutor::Extension extension;
+    extension.task_iterator = std::make_shared<std::function<std::string()>>(
+        [taskIterator = std::move(taskIterator)]() {
+                return taskIterator->NextTask();});
+
     auto remoteQueryExecutor = std::make_shared<DB::RemoteQueryExecutor>(
         remoteNode->GetConnection(),
         query,
@@ -169,7 +175,8 @@ DB::Pipe CreateRemoteSource(
         throttler,
         scalars,
         externalTables,
-        processingStage);
+        processingStage,
+        std::move(extension));
     remoteQueryExecutor->setPoolMode(DB::PoolMode::GET_MANY);
 
     auto* traceContext = TryGetCurrentTraceContext();
