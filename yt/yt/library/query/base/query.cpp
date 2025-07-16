@@ -942,8 +942,7 @@ std::vector<size_t> GetJoinGroups(
                 }
             }
 
-            if (extraColumnsChecker.HasExtraColumns) {
-                YT_VERIFY(counter > 0);
+            if (extraColumnsChecker.HasExtraColumns && counter > 0) {
                 joinGroups.push_back(counter);
                 counter = 0;
                 collectColumnNames(*schema);

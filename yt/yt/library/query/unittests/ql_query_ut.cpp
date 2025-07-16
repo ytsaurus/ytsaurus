@@ -708,6 +708,10 @@ TEST_F(TQueryPrepareTest, ArrayJoin)
 
     EXPECT_ANY_THROW(ParseAndPreparePlanFragment(
         &PrepareMock_, "key, nested, N FROM [//t] ARRAY JOIN nested AS N, nested AS N"));
+
+    ParseAndPreparePlanFragment(
+        &PrepareMock_,
+        "* FROM [//t] AS T ARRAY JOIN T.nested AS N JOIN [//t] AS D ON N = D.key");
 }
 
 TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
