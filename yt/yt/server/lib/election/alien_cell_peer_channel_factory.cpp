@@ -44,14 +44,12 @@ public:
         TCellId cellId,
         int peerId,
         ICellDirectoryPtr cellDirectory,
-        TClusterDirectoryPtr clusterDirectory,
-        ITvmServicePtr tvmService)
+        TClusterDirectoryPtr clusterDirectory)
         : Cluster_(cluster)
         , CellId_(cellId)
         , PeerId_(peerId)
         , CellDirectory_(std::move(cellDirectory))
         , ClusterDirectory_(std::move(clusterDirectory))
-        , TvmService_(std::move(tvmService))
         , EndpointDescription_(Format("%v:%v:%v",
             Cluster_,
             CellId_,
@@ -117,7 +115,6 @@ private:
     const int PeerId_;
     const ICellDirectoryPtr CellDirectory_;
     const TClusterDirectoryPtr ClusterDirectory_;
-    const ITvmServicePtr TvmService_;
 
     const std::string EndpointDescription_;
     const IAttributeDictionaryPtr EndpointAttributes_;
@@ -136,7 +133,6 @@ public:
         TClusterDirectoryPtr clusterDirectory)
         : CellDirectory_(std::move(cellDirectory))
         , ClusterDirectory_(std::move(clusterDirectory))
-        , TvmService_(TNativeAuthenticationManager::Get()->GetTvmService())
     { }
 
     NRpc::IChannelPtr CreateChannel(
@@ -149,8 +145,7 @@ public:
             cellId,
             peerId,
             CellDirectory_,
-            ClusterDirectory_,
-            TvmService_);
+            ClusterDirectory_);
 
         return CreateRealmChannel(
             CreateRoamingChannel(std::move(provider)),
@@ -160,7 +155,6 @@ public:
 private:
     const ICellDirectoryPtr CellDirectory_;
     const TClusterDirectoryPtr ClusterDirectory_;
-    const ITvmServicePtr TvmService_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
