@@ -18,9 +18,13 @@
 
 Для работы с модулем `yt.wrapper.schema` установите пакеты:
 
+{% if audience == "internal" %}
+  * `yandex-yt-yson-bindings`
+{% else %}
   * `typing_extensions`
   * `ytsaurus-yson`
   * `six`
+{% endif %}
 
 ## Введение { #introduction }
 
@@ -49,6 +53,17 @@ class Row:
   1. Создать таблицу с соответствующей схемой (можно просто начать писать в пустую или несуществующую таблицу или использовать функцию `TableSchema.from_row_type()`).
   2. Писать и читать [таблицы](../../../api/python/userdoc.md#table_commands), [пример](../../../api/python/examples.md#read_write).
   3. Запускать [операции](../../../api/python/userdoc.md#python_operations), [пример](../../../api/python/examples.md#simple_map).
+
+Также можно создавать датаклассы на основе схемы таблицы явно или автоматически, читая структурированные данные
+
+```python
+yt_table_schema = client.get(f"{table_path}/@schema")
+dataclass_type = yt.schema.make_dataclass_from_table_schema(yt.schema.TableSchema.from_yson_type(yt_table_schema))
+
+# or
+
+typed_table_data = list(client.read_table_structured(table=table_path, row_type=None))
+```
 
 
 ## Специальные типы { #types }
