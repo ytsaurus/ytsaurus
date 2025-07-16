@@ -1106,6 +1106,19 @@ public:
         auto maxChunkSize = dynamicConfig->MaxUnversionedChunkSize;
         auto maxBlockSize = tableSettings.EffectiveMountConfig->MaxUnversionedBlockSize;
 
+        auto enableConstraintValidation = dynamicConfig->EnableUnversionedChunkConstraintValidation;
+        const auto* authenticatedUser = Bootstrap_->GetSecurityManager()->GetAuthenticatedUser();
+        if (auto* yson = authenticatedUser->FindAttribute("suppress_dynamic_table_chunk_size_validation")) {
+            try {
+                enableConstraintValidation &= !ConvertTo<bool>(*yson);
+            } catch (const std::exception& ex) {
+                YT_LOG_WARNING(ex,
+                    "Failed to parse \"suppress_dynamic_table_chunk_size_validation\" attribute of an authenticated user "
+                    "(User: %v)",
+                    authenticatedUser->GetName());
+            }
+        }
+
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index]->As<TTablet>();
             auto* chunkList = tablet->GetChunkList();
@@ -1118,7 +1131,7 @@ public:
                     << TErrorAttribute("max_chunks_per_mounted_tablet", maxChunkCount);
             }
 
-            if (!dynamicConfig->EnableUnversionedChunkConstraintValidation || !table->IsPhysicallySorted()) {
+            if (!enableConstraintValidation || !table->IsPhysicallySorted()) {
                 continue;
             }
 
