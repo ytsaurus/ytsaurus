@@ -25,6 +25,7 @@ struct IBootstrap
     virtual const NCypressElection::ICypressElectionManagerPtr& GetElectionManager() const = 0;
     virtual const TDynamicConfigManagerPtr& GetDynamicConfigManager() const = 0;
     virtual std::string GetClusterName() const = 0;
+    virtual NHiveClient::TClusterDirectoryPtr GetClusterDirectory() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBootstrap)

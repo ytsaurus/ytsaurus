@@ -42,6 +42,7 @@ TEST_F(TTestCommonPivotKeyIndices, TestEqual)
         {0, 0},
         {1, 1},
         {2, 2},
+        {3, 3}
     };
     ASSERT_EQ(expectedCommonIndices, commonIndices);
 }
@@ -61,7 +62,7 @@ TEST_F(TTestCommonPivotKeyIndices, TestUnequal)
     rightKeys.push_back(MakeSimpleKey(5000, "sad test"));
 
     auto commonIndices = GetCommonKeyIndices(leftKeys, rightKeys, Logger(), /*enableVerboseLogging*/ true);
-    std::vector<std::pair<int, int>> expectedCommonIndices = {{0, 0}};
+    std::vector<std::pair<int, int>> expectedCommonIndices = {{0, 0}, {4, 5}};
     ASSERT_EQ(expectedCommonIndices, commonIndices);
 }
 
@@ -80,7 +81,7 @@ TEST_F(TTestCommonPivotKeyIndices, TestMixed)
     rightKeys.push_back(MakeSimpleKey(5000, "sad test"));
 
     auto commonIndices = GetCommonKeyIndices(leftKeys, rightKeys, Logger(), /*enableVerboseLogging*/ true);
-    std::vector<std::pair<int, int>> expectedCommonIndices = {{0, 0}, {2, 3}};
+    std::vector<std::pair<int, int>> expectedCommonIndices = {{0, 0}, {2, 3}, {4, 5}};
     ASSERT_EQ(expectedCommonIndices, commonIndices);
 }
 
@@ -313,6 +314,103 @@ INSTANTIATE_TEST_SUITE_P(
             std::vector<int>{1, 4, 6, 8, 10},
             std::vector<double>{1600, 160, 760, 680, 160, 2100}
         )));
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTestReshardByReferencePivots
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<std::tuple<
+        /*leftPivotKeys*/ std::vector<int>,
+        /*rightPivotKeys*/ std::vector<int>,
+        /*maxTabletCount*/ int,
+        /*expectedActions*/ std::vector<std::pair<int, std::vector<int>>>>>
+{ };
+
+int VerifyActions(
+    const std::vector<std::pair<int, std::vector<int>>>& expectedActions,
+    const std::vector<std::pair<int, std::vector<TLegacyOwningKey>>>& actualActions)
+{
+    EXPECT_EQ(std::ssize(expectedActions), std::ssize(actualActions));
+    int tabletCount = 0;
+    for (int index = 0; index < std::ssize(expectedActions); ++index) {
+        EXPECT_EQ(expectedActions[index].first, actualActions[index].first);
+        EXPECT_EQ(expectedActions[index].second.size(), actualActions[index].second.size());
+        tabletCount += actualActions[index].first;
+        for (int pivotIndex = 0; pivotIndex < std::ssize(expectedActions[index].second); ++pivotIndex) {
+            EXPECT_EQ(
+                MakeSimpleKey(expectedActions[index].second[pivotIndex], "value"),
+                actualActions[index].second[pivotIndex]);
+        }
+    }
+    return tabletCount;
+}
+
+TEST_P(TTestReshardByReferencePivots, Simple)
+{
+    const auto& params = GetParam();
+    auto leftPivotKeys = MakePivotKeys(std::get<0>(params));
+    auto rightPivotKeys = MakePivotKeys(std::get<1>(params));
+    auto expectedActions = std::get<3>(params);
+
+    auto actualActions = ReshardByReferencePivots(
+        TRange(leftPivotKeys),
+        TRange(rightPivotKeys),
+        std::get<2>(params),
+        Logger(),
+        /*enableVerboseLogging*/ true);
+
+    auto usedTabletCount = VerifyActions(expectedActions, actualActions);
+    ASSERT_EQ(usedTabletCount, std::ssize(leftPivotKeys))
+        << "actualActions: " << Format("%v", actualActions)
+        << "; expectedActions: " << Format("%v", expectedActions)
+        << "; usetTabletCount: " << usedTabletCount
+        << "; tabletCount: " << leftPivotKeys.size();
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TTestReshardByReferencePivots,
+    TTestReshardByReferencePivots,
+    ::testing::Values(
+        std::tuple(
+            std::vector<int>{0, 1},
+            std::vector<int>{0},
+            /*maxTabletCount*/ 3,
+            std::vector{
+                std::pair(2, std::vector{0}),        // [0, [1 -> [0
+            }),
+        std::tuple(
+            std::vector<int>{0, 1, 2, 3, 6},
+            std::vector<int>{0, 4},
+            /*maxTabletCount*/ 3,
+            std::vector{
+                std::pair(3, std::vector{0}),        // [0, [1, [2 -> [0
+                std::pair(2, std::vector{3, 4}),     // [3, [6 -> [3, [4
+            }),
+        std::tuple(
+            std::vector<int>{0, 4, 7},
+            std::vector<int>{0, 1, 2, 3, 8},
+            /*maxTabletCount*/ 3,
+            std::vector{
+                std::pair(1, std::vector{0, 1, 2}),  // [0 -> [0, [1, [2
+                std::pair(2, std::vector{4, 8}),     // [4, [7 -> [4, [8
+            }),
+        std::tuple(
+            std::vector<int>{0, 1, 3, 5},
+            std::vector<int>{0, 2, 4, 6},
+            /*maxTabletCount*/ 3,
+            std::vector{
+                std::pair(3, std::vector{0, 2}),     // [0, [1, [3 -> [0, [2
+                std::pair(1, std::vector{5, 6}),     // [5 -> [5, [6
+            }),
+        std::tuple(
+            std::vector<int>{0, 1, 2, 3, 6, 9},
+            std::vector<int>{0, 4, 8},
+            /*maxTabletCount*/ 3,
+            std::vector{
+                std::pair(3, std::vector{0}),        // [0, [1, [2 -> [0
+                std::pair(2, std::vector{3, 4, 8}),  // [3, [6 -> [3, [4, [8
+                std::pair(1, std::vector{9}),        // [9 -> [9
+            })));
 
 ////////////////////////////////////////////////////////////////////////////////
 
