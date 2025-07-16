@@ -3357,6 +3357,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     @authors("atalmenev")
     def test_max_chunk_size(self):
         sync_create_cells(1)
+        create_user("user")
         KB = 1024
 
         self._create_sorted_table("//tmp/t", dynamic=False)
@@ -3369,6 +3370,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             table_writer={"block_size": 10 * KB, "desired_chunk_size": 100 * KB},
         )
 
+        set("//tmp/t/@acl/end", make_ace("allow", "user", "mount"))
         set("//tmp/t/@max_unversioned_block_size", 1 * KB)
         set("//sys/@config/tablet_manager/max_unversioned_chunk_size", 1000 * KB)
 
@@ -3376,22 +3378,40 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
 
-        sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t", authenticated_user="user")
         sync_unmount_table("//tmp/t")
 
         set("//sys/@config/tablet_manager/enable_unversioned_chunk_constraint_validation", True)
 
         with raises_yt_error(f"Cannot mount tablet {tablet_id} since it has chunks with too large block size"):
+            sync_mount_table("//tmp/t", authenticated_user="user")
+
+        set("//sys/users/user/@suppress_dynamic_table_chunk_size_validation", True)
+        sync_mount_table("//tmp/t", authenticated_user="user")
+        sync_unmount_table("//tmp/t")
+
+        with raises_yt_error(f"Cannot mount tablet {tablet_id} since it has chunks with too large block size"):
             sync_mount_table("//tmp/t")
+
+        set("//sys/users/user/@suppress_dynamic_table_chunk_size_validation", False)
 
         set("//tmp/t/@max_unversioned_block_size", 100 * KB)
         set("//sys/@config/tablet_manager/max_unversioned_chunk_size", 1 * KB)
 
         with raises_yt_error(f"Cannot mount tablet {tablet_id} since it has too large chunks"):
+            sync_mount_table("//tmp/t", authenticated_user="user")
+
+        set("//sys/users/user/@suppress_dynamic_table_chunk_size_validation", True)
+        sync_mount_table("//tmp/t", authenticated_user="user")
+        sync_unmount_table("//tmp/t")
+
+        with raises_yt_error(f"Cannot mount tablet {tablet_id} since it has too large chunks"):
             sync_mount_table("//tmp/t")
 
+        set("//sys/users/user/@suppress_dynamic_table_chunk_size_validation", False)
+
         set("//sys/@config/tablet_manager/max_unversioned_chunk_size", 1000 * KB)
-        sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t", authenticated_user="user")
 
     @authors("atalmenev")
     def test_max_chunk_size_validation_ordered_table(self):
