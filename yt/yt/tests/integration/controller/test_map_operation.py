@@ -1951,7 +1951,11 @@ print(json.dumps(input))
             command=with_breakpoint("""read row; echo $row; BREAKPOINT; cat"""),
             spec={"mapper": {"cookie_group_size": 2}},
         )
-        interrupt_job(get_job(op.id, wait_breakpoint(job_count=2)[0], attributes=["main_job_id"])["main_job_id"])
+        job_ids = wait_breakpoint(job_count=2)
+        main_job_id = get_job(op.id, job_ids[0], attributes=["main_job_id"])["main_job_id"]
+        with pytest.raises(YtError, match="Error interrupting job"):
+            interrupt_job(({*job_ids} - {main_job_id}).pop())
+        interrupt_job(main_job_id)
         release_breakpoint()
         op.track()
         assert op.get_job_count("aborted") == 0
