@@ -57,8 +57,10 @@ public:
         DB::ContextPtr context,
         const NLogging::TLogger& logger,
         DB::QueryTreeNodePtr query,
-        const std::vector<TSubquerySpec>& specs,
+        const std::vector<TSubquerySpec>& operandSpecs,
         TBoundJoinOptions boundJoinOptions = {});
+
+    TSecondaryQuery CreateSecondaryQuery(int inputStreamsPerSecondaryQuery);
 
     TSecondaryQuery CreateSecondaryQuery(
         const TRange<TSubquery>& subqueries,
@@ -70,7 +72,7 @@ private:
     NLogging::TLogger Logger;
     const DB::ContextPtr Context_;
     const DB::QueryTreeNodePtr Query_;
-    const std::vector<TSubquerySpec> TableSpecs_;
+    const std::vector<TSubquerySpec> OperandSpecs_;
     const TBoundJoinOptions BoundJoinOptions_;
 
     NTableClient::TOwningKeyBound PreviousUpperBound_;

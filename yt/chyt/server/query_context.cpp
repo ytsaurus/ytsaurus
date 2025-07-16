@@ -11,6 +11,8 @@
 #include <yt/yt/ytlib/api/native/rpc_helpers.h>
 #include <yt/yt/ytlib/api/native/transaction.h>
 
+#include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
+
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -780,6 +782,23 @@ void TQueryContext::OnSecondaryFinish(TQueryId queryId)
 TQueryProgressValues TQueryContext::GetQueryProgress() const
 {
     return Progress_.GetValues();
+}
+
+void TQueryContext::SetReadTaskCallback(DB::ReadTaskCallback readTaskCallback)
+{
+    YT_VERIFY(QueryKind == EQueryKind::SecondaryQuery);
+    if (ReadTaskPuller_) {
+        return;
+    }
+    ReadTaskPuller_ = New<TSecondaryQueryReadTaskPuller>(this, std::move(readTaskCallback));
+}
+
+TCallback<TFuture<TSecondaryQueryReadDescriptors>()> TQueryContext::GetOperandReadTaskCallback(int operandIndex) const
+{
+    if (!ReadTaskPuller_) {
+        return {};
+    }
+    return BIND(&TSecondaryQueryReadTaskPuller::PullTask, ReadTaskPuller_, operandIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -119,6 +119,8 @@ DECLARE_REFCOUNTED_CLASS(TCachingSettings)
 DECLARE_REFCOUNTED_CLASS(TListDirSettings)
 DECLARE_REFCOUNTED_CLASS(TPrewhereSettings)
 DECLARE_REFCOUNTED_STRUCT(TReadPlanWithFilter)
+DECLARE_REFCOUNTED_CLASS(TSecondaryQueryReadTaskPuller)
+DECLARE_REFCOUNTED_CLASS(TSecondaryQueryReadTaskIterator)
 
 struct TValue;
 struct TSubquerySpec;

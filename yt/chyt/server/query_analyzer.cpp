@@ -379,14 +379,46 @@ TSecondaryQueryBuilder::TSecondaryQueryBuilder(
     DB::ContextPtr context,
     const NLogging::TLogger& logger,
     DB::QueryTreeNodePtr query,
-    const std::vector<TSubquerySpec>& specs,
+    const std::vector<TSubquerySpec>& operandSpecs,
     TBoundJoinOptions boundJoinOptions)
     : Logger(logger)
     , Context_(std::move(context))
     , Query_(std::move(query))
-    , TableSpecs_(specs)
+    , OperandSpecs_(operandSpecs)
     , BoundJoinOptions_(std::move(boundJoinOptions))
 { }
+
+TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(int inputStreamsPerSecondaryQuery)
+{
+    YT_LOG_DEBUG("Creating secondary query for pull distribution mode");
+
+    DB::Scalars scalars;
+    for (int index = 0; index < std::ssize(OperandSpecs_); ++index) {
+        auto spec = OperandSpecs_[index];
+        spec.DataSliceDescriptors.resize(inputStreamsPerSecondaryQuery);
+
+        auto protoSpec = NYT::ToProto<NProto::TSubquerySpec>(spec);
+        auto encodedSpec = protoSpec.SerializeAsString();
+
+        YT_LOG_DEBUG("Serializing subquery spec (TableIndex: %v, SpecLength: %v)", index, encodedSpec.size());
+
+        std::string scalarName = Format("yt_table_%d", index);
+        scalars[scalarName] = DB::Block{{
+            DB::DataTypeString().createColumnConst(1, std::string(encodedSpec)),
+            std::make_shared<DB::DataTypeString>(),
+            "scalarName"}};
+    }
+
+    auto secondaryQueryAst = DB::queryNodeToSelectQuery(Query_);
+
+    YT_LOG_DEBUG("Query was created (NewQuery: %v)", *secondaryQueryAst);
+
+    return {
+        std::move(secondaryQueryAst),
+        std::move(scalars),
+        /*TotalRowsToRead*/ 0,
+        /*TotalBytesToRead*/0};
+}
 
 TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(
     const TRange<TSubquery>& threadSubqueries,
@@ -414,13 +446,13 @@ TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(
         totalChunkCount);
 
     DB::Scalars scalars;
-    for (int index = 0; index < std::ssize(TableSpecs_); ++index) {
+    for (int index = 0; index < std::ssize(OperandSpecs_); ++index) {
         std::vector<TChunkStripePtr> stripes;
         for (const auto& subquery : threadSubqueries) {
             stripes.emplace_back(subquery.StripeList->Stripes[index]);
         }
 
-        auto spec = TableSpecs_[index];
+        auto spec = OperandSpecs_[index];
         spec.SubqueryIndex = subqueryIndex;
 
         FillDataSliceDescriptors(spec.DataSliceDescriptors, miscExtMap, TRange(stripes));
@@ -433,8 +465,11 @@ TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(
             index,
             encodedSpec.size());
 
-        std::string scalarName = "yt_table_" + std::to_string(index);
-        scalars[scalarName] = DB::Block{{DB::DataTypeString().createColumnConst(1, std::string(encodedSpec)), std::make_shared<DB::DataTypeString>(), "scalarName"}};
+        std::string scalarName = Format("yt_table_%d", index);
+        scalars[scalarName] = DB::Block{{
+            DB::DataTypeString().createColumnConst(1, std::string(encodedSpec)),
+            std::make_shared<DB::DataTypeString>(),
+            "scalarName"}};
     }
 
     auto secondaryQuery = Query_;
@@ -1286,7 +1321,7 @@ std::shared_ptr<TSecondaryQueryBuilder> TQueryAnalyzer::GetSecondaryQueryBuilder
     TSubquerySpec specTemplate)
 {
     if (!Prepared_) {
-        THROW_ERROR_EXCEPTION("Query analyzer is not prepared but CreateSecondaryQuery method is already called; "
+        THROW_ERROR_EXCEPTION("Query analyzer is not prepared but GetSecondaryQueryBuilder method is already called; "
             "this is a bug; please, file an issue in CHYT queue");
     }
 
@@ -1327,7 +1362,9 @@ std::shared_ptr<TSecondaryQueryBuilder> TQueryAnalyzer::GetSecondaryQueryBuilder
 
     TBoundJoinOptions boundJoinOptions{};
     const auto& executionSettings = StorageContext_->Settings->Execution;
-    if (!TwoYTTableJoin_ && (executionSettings->FilterJoinedSubqueryBySortKey || RightOrFullJoin_) && JoinedByKeyColumns_) {
+    if (!TwoYTTableJoin_
+            && (executionSettings->FilterJoinedSubqueryBySortKey || RightOrFullJoin_)
+            && JoinedByKeyColumns_) {
         auto newTableExpressions = extractTableExpressionSequentially(queryTreeToDistribute->as<DB::QueryNode>()->getJoinTree());
 
         boundJoinOptions.FilterJoinedSubqueryBySortKey = true;
