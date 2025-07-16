@@ -128,8 +128,6 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: cmake
-      publish-ytsaurus: true
-      publish-chyt: true
       publish-strawberry: ${{ github.ref_name == 'main' }}
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
@@ -168,6 +166,8 @@ jobs:
       cpp-build-system: ya-make
       publish-query-tracker: ${{ github.ref_name == 'main' }}
       publish-local: true
+      publish-chyt: true
+      publish-ytsaurus: true
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
     secrets:
