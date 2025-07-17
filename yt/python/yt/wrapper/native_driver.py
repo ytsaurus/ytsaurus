@@ -107,16 +107,25 @@ def configure_logging(logging_config_from_file, client):
                 {
                     "min_level": min_level,
                     "writers": [
-                        "stderr",
+                        "log_stream",
                     ],
                 },
             ],
             "writers": {
-                "stderr": {
-                    "type": "stderr",
-                },
+                "log_stream": None,
             },
         }
+
+        if logger_config.LOG_PATH:
+            logging_config["writers"]["log_stream"] = {
+                "type": "file",
+                "file_name": logger_config.LOG_PATH,
+            }
+        else:
+            logging_config["writers"]["log_stream"] = {
+                "type": "stderr",
+            }
+
         driver_bindings.configure_logging(logging_config)
 
     logging_configured = True

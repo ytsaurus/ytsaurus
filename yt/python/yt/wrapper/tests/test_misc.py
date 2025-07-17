@@ -221,10 +221,12 @@ class TestYtBinary(object):
 class TestDriverLogging(object):
     @authors("ignat")
     def test_driver_logging(self, yt_env_with_rpc):
-        def get_stderr_from_cli(log_level=None):
+        def get_stderr_from_cli(log_level=None, log_path=None):
             env = get_environment_for_binary_test(yt_env_with_rpc, enable_request_logging=False)
             if log_level:
                 env["YT_LOG_LEVEL"] = log_level
+            if log_path:
+                env["YT_LOG_PATH"] = log_path
             proc = Popen([env["PYTHON_BINARY"], env["YT_CLI_PATH"], "get", TEST_DIR], stderr=PIPE, stdout=PIPE, env=env)
             _, p_stderr = proc.communicate()
             return p_stderr
@@ -235,6 +237,8 @@ class TestDriverLogging(object):
         driver_log_default = get_stderr_from_cli()
         driver_log_info = get_stderr_from_cli(log_level="INFO")
         driver_log_warning = get_stderr_from_cli(log_level="WARNING")
+        _, driver_log_path = tempfile.mkstemp()
+        driver_log_debug_with_path = get_stderr_from_cli(log_level="DEBUG", log_path=driver_log_path)
 
         print("Default log output", driver_log_default, file=sys.stderr)
         print("Info log output", driver_log_info, file=sys.stderr)
@@ -242,6 +246,8 @@ class TestDriverLogging(object):
 
         assert len(driver_log_default) < len(driver_log_info)
         assert len(driver_log_warning) == 0
+        assert b"\tD\tRpcClient\tRequest sent " not in driver_log_debug_with_path
+        assert "\tD\tRpcClient\tRequest sent " in open(driver_log_path).read()
 
     @authors("denvr")
     def test_yp_discovery_enabled(self, yt_env_with_rpc):
