@@ -6,6 +6,7 @@
 namespace NYT::NTabletBalancer {
 
 using namespace NObjectClient;
+using namespace NTabletClient;
 using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -13,10 +14,12 @@ using namespace NYPath;
 TTableBase::TTableBase(
     TYPath path,
     TTableId tableId,
-    TCellTag cellTag)
+    TCellTag cellTag,
+    TTableReplicaId upstreamReplicaId)
     : Path(std::move(path))
     , Id(tableId)
     , ExternalCellTag(cellTag)
+    , UpstreamReplicaId(upstreamReplicaId)
 { }
 
 TTable::TTable(
@@ -60,7 +63,9 @@ bool TTable::IsParameterizedMoveBalancingEnabled() const
     return TableConfig->EnableParameterized.value_or(true);
 }
 
-bool TTable::IsParameterizedReshardBalancingEnabled(bool enableParameterizedByDefault) const
+bool TTable::IsParameterizedReshardBalancingEnabled(
+    bool enableParameterizedByDefault,
+    bool desiredTabletCountRequired) const
 {
     if (!TableConfig->EnableAutoReshard) {
         return false;
@@ -83,7 +88,7 @@ bool TTable::IsParameterizedReshardBalancingEnabled(bool enableParameterizedByDe
     }
 
     // So far, balancing via reshard only works if the desired tablet count is known.
-    if (!TableConfig->DesiredTabletCount) {
+    if (desiredTabletCountRequired && !TableConfig->DesiredTabletCount) {
         return false;
     }
 
@@ -92,6 +97,39 @@ bool TTable::IsParameterizedReshardBalancingEnabled(bool enableParameterizedByDe
     }
 
     return TableConfig->EnableParameterized.value_or(true);
+}
+
+bool TTable::IsReplicaBalancingEnabled() const
+{
+    const auto& groupName = GetBalancingGroup();
+    if (!groupName) {
+        return false;
+    }
+
+    const auto& bundleConfig = Bundle->Config;
+    const auto& groupConfig = GetOrCrash(bundleConfig->Groups, *groupName);
+
+    return groupConfig->EnableReshard &&
+        groupConfig->Type == EBalancingType::Parameterized &&
+        !groupConfig->Parameterized->ReplicaClusters.empty();
+}
+
+bool TTable::IsReplicaReshardBalancingEnabled() const
+{
+    if (!TableConfig->EnableAutoReshard) {
+        return false;
+    }
+
+    return IsReplicaBalancingEnabled();
+}
+
+bool TTable::IsReplicaMoveBalancingEnabled() const
+{
+    if (!TableConfig->EnableAutoTabletMove) {
+        return false;
+    }
+
+    return IsReplicaBalancingEnabled();
 }
 
 bool TTable::IsLegacyMoveBalancingEnabled() const
@@ -112,7 +150,11 @@ bool TTable::IsLegacyMoveBalancingEnabled() const
 THashMap<TClusterName, std::vector<NYPath::TYPath>> TTable::GetReplicaBalancingMinorTables(
     const std::string& selfClusterName) const
 {
-    if (!IsParameterizedMoveBalancingEnabled()) {
+    if (!IsParameterizedMoveBalancingEnabled() &&
+        !IsParameterizedReshardBalancingEnabled(
+            /*enableParameterizedByDefault*/ true,
+            /*desiredTabletCountRequired*/ false))
+    {
         return {};
     }
 
@@ -155,11 +197,13 @@ THashMap<TClusterName, std::vector<NYPath::TYPath>> TTable::GetReplicaBalancingM
 TAlienTable::TAlienTable(
     TYPath path,
     TTableId tableId,
-    TCellTag cellTag)
+    TCellTag cellTag,
+    NTabletClient::TTableReplicaId upstreamReplicaId)
     : TTableBase(
         std::move(path),
         tableId,
-        cellTag)
+        cellTag,
+        upstreamReplicaId)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

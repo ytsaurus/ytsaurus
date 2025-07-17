@@ -33,7 +33,7 @@ target_link_libraries(crc64_reference_test PUBLIC
 )
 
 target_allocator(crc64_reference_test
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(crc64_reference_test PRIVATE

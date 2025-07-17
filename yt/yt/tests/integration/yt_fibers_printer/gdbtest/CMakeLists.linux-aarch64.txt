@@ -34,7 +34,7 @@ target_link_libraries(gdbtest PUBLIC
 )
 
 target_allocator(gdbtest
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(gdbtest PRIVATE

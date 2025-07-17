@@ -33,7 +33,7 @@ target_link_libraries(proxy-example PUBLIC
 )
 
 target_allocator(proxy-example
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(proxy-example PRIVATE

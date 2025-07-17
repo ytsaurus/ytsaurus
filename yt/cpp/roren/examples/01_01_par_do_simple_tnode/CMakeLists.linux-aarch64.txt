@@ -26,7 +26,7 @@ target_link_libraries(01_01_par_do_simple_tnode PUBLIC
 )
 
 target_allocator(01_01_par_do_simple_tnode
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(01_01_par_do_simple_tnode PRIVATE

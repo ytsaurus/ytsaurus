@@ -36,7 +36,7 @@ target_link_libraries(unittester-core-json PUBLIC
 )
 
 target_allocator(unittester-core-json
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(unittester-core-json PRIVATE

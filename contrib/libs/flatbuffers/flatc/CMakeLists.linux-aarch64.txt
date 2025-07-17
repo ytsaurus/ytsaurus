@@ -33,7 +33,7 @@ target_link_libraries(flatc PUBLIC
 )
 
 target_allocator(flatc
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(flatc PRIVATE

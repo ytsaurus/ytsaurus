@@ -33,7 +33,7 @@ target_link_libraries(map_tnode_with_file PUBLIC
 )
 
 target_allocator(map_tnode_with_file
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(map_tnode_with_file PRIVATE

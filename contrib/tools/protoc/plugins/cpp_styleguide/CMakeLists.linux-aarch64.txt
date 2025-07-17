@@ -29,7 +29,7 @@ target_link_libraries(cpp_styleguide PUBLIC
 )
 
 target_allocator(cpp_styleguide
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(cpp_styleguide PRIVATE

@@ -48,7 +48,7 @@ target_link_libraries(simple_map_protobuf PUBLIC
 )
 
 target_allocator(simple_map_protobuf
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(simple_map_protobuf PRIVATE

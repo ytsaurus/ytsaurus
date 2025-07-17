@@ -36,7 +36,7 @@ target_link_libraries(unittester-ytlib-memory-trackers PUBLIC
 )
 
 target_allocator(unittester-ytlib-memory-trackers
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(unittester-ytlib-memory-trackers PRIVATE

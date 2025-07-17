@@ -681,6 +681,16 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
         assert memory_reserve >= (100 + 42) * 1024 ** 2
 
+    @authors("coteeq")
+    def test_no_nul_in_file_name(self):
+        skip_if_component_old(self.Env, (25, 2), "controller-agent")
+
+        with raises_yt_error("must not contain"):
+            run_sleeping_vanilla(
+                track=True,
+                task_patch={"file_paths": ['<file_name="with_\0_byte">//some/path']}
+            )
+
 
 @pytest.mark.enabled_multidaemon
 class TestYTDiscoveryServiceInVanilla(YTEnvSetup):
@@ -705,6 +715,11 @@ class TestYTDiscoveryServiceInVanilla(YTEnvSetup):
 class TestSchedulerVanillaCommandsMulticell(TestSchedulerVanillaCommands):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
 
 
 ##################################################################

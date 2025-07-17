@@ -457,7 +457,6 @@ public:
         context->Reply();
     }
 
-
     TChaosLease* GetChaosLeaseOrThrow(TChaosLeaseId chaosLeaseId) override
     {
         auto* chaosLease = FindChaosLease(chaosLeaseId);
@@ -658,13 +657,13 @@ private:
         ChaosLeaseTracker_->Start();
 
         // Recreate chaos leases.
-        for (auto [chaosLeaseId, chaosLease] : ChaosLeaseMap_) {
+        for (const auto& [chaosLeaseId, chaosLease] : ChaosLeaseMap_) {
             ChaosLeaseTracker_->RegisterTransaction(
                 chaosLeaseId,
                 chaosLease->GetParentId(),
                 chaosLease->GetTimeout(),
                 std::nullopt,
-                BIND(&TChaosManager::OnLeaseExpired, MakeStrong(this))
+                BIND(&TChaosManager::OnLeaseExpired, MakeWeak(this))
                     .Via(Slot_->GetAutomatonInvoker()));
         }
     }
@@ -2724,16 +2723,14 @@ private:
     {
         auto chaosLeaseId = GenerateNewChaosLeaseId();
         auto timeout = FromProto<TDuration>(request->timeout());
-        auto parentId = request->has_parent_id()
-            ? FromProto<TChaosLeaseId>(request->parent_id())
-            : TChaosLeaseId{};
+        auto parentId = FromProto<TChaosLeaseId>(request->parent_id());
 
         ChaosLeaseTracker_->RegisterTransaction(
             chaosLeaseId,
             parentId,
             timeout,
             std::nullopt,
-            BIND(&TChaosManager::OnLeaseExpired, MakeStrong(this))
+            BIND(&TChaosManager::OnLeaseExpired, MakeWeak(this))
                 .Via(Slot_->GetAutomatonInvoker()));
 
         auto chaosLease = std::make_unique<TChaosLease>(chaosLeaseId);
@@ -2777,8 +2774,7 @@ private:
         // TODO(gryzlov-ad): Handle lease migration.
         ChaosLeaseMap_.Remove(chaosLeaseId);
 
-        ChaosLeaseTracker_->UnregisterTransaction(
-            chaosLeaseId);
+        ChaosLeaseTracker_->UnregisterTransaction(chaosLeaseId);
 
         YT_LOG_DEBUG("Chaos lease removed (ChaosLeaseId: %v)",
             chaosLeaseId);

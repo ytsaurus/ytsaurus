@@ -33,7 +33,7 @@ target_link_libraries(lsm-sim PUBLIC
 )
 
 target_allocator(lsm-sim
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(lsm-sim PRIVATE

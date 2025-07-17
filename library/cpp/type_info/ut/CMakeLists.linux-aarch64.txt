@@ -36,7 +36,7 @@ target_link_libraries(library-cpp-type_info-ut PUBLIC
 )
 
 target_allocator(library-cpp-type_info-ut
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(library-cpp-type_info-ut PRIVATE

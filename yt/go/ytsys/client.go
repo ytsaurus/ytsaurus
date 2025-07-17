@@ -997,12 +997,15 @@ func (c *Client) Ban(ctx context.Context, component Component, msg string) error
 	defer func() { _ = tx.Abort() }()
 
 	// For queue agents, banned attr is bannedQueueAgentAttr
-	banned := bannedAttr
+	// TODO: After YT-25647 remove and leave only simple "banned" attr.
 	if component.GetRole() == RoleQueueAgent {
-		banned = bannedQueueAgentAttr
+		err = tx.SetNode(ctx, p.Attr(bannedQueueAgentAttr), true, nil)
+		if err != nil {
+			return err
+		}
 	}
 
-	err = tx.SetNode(ctx, p.Attr(banned), true, nil)
+	err = tx.SetNode(ctx, p.Attr(bannedAttr), true, nil)
 	if err != nil {
 		return err
 	}
@@ -1025,12 +1028,15 @@ func (c *Client) Unban(ctx context.Context, component Component) error {
 	defer func() { _ = tx.Abort() }()
 
 	// For queue agents, banned attr is bannedQueueAgentAttr
-	banned := bannedAttr
+	// TODO: After YT-25647 remove and leave only simple "banned" attr.
 	if component.GetRole() == RoleQueueAgent {
-		banned = bannedQueueAgentAttr
+		err = tx.SetNode(ctx, p.Attr(bannedQueueAgentAttr), false, nil)
+		if err != nil {
+			return err
+		}
 	}
 
-	err = tx.SetNode(ctx, p.Attr(banned), false, nil)
+	err = tx.SetNode(ctx, p.Attr(bannedAttr), false, nil)
 	if err != nil {
 		return err
 	}

@@ -373,7 +373,9 @@ private:
     {
         auto guard = Guard(PeersSpinLock_);
 
-        if (FreshSeedsRevision_ >= seedReplicas.Revision) {
+        // NB: Sequoia replicas always use TAllyReplicasInfo::SequoiaRevision;
+        // in case of a tie, consider these to be fresh replicas.
+        if (FreshSeedsRevision_ > seedReplicas.Revision) {
             return;
         }
 

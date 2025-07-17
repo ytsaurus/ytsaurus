@@ -35,7 +35,7 @@ target_link_libraries(grpc_cpp PUBLIC
 )
 
 target_allocator(grpc_cpp
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(grpc_cpp PRIVATE

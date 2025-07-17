@@ -33,7 +33,7 @@ target_link_libraries(import_table PUBLIC
 )
 
 target_allocator(import_table
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(import_table PRIVATE

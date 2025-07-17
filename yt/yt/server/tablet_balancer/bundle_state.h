@@ -31,6 +31,9 @@ struct TTableProfilingCounters
     NProfiling::TCounter ReplicaMoves;
     NProfiling::TCounter ParameterizedReshardMerges;
     NProfiling::TCounter ParameterizedReshardSplits;
+    NProfiling::TCounter ReplicaMerges;
+    NProfiling::TCounter ReplicaSplits;
+    NProfiling::TCounter ReplicaNonTrivialReshards;
 };
 
 struct TBundleProfilingCounters
@@ -62,7 +65,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TTableProfilingCounterMap, ProfilingCounters);
     DEFINE_BYVAL_RW_PROPERTY(bool, HasUntrackedUnfinishedActions, false);
     DEFINE_BYREF_RO_PROPERTY(std::vector<std::string>, PerformanceCountersKeys);
-    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(LastReplicaMoveBalancingFetchFailed, false);
+    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(LastReplicaBalancingFetchFailed, false);
 
 public:
     TBundleState(
@@ -70,21 +73,26 @@ public:
         TTableRegistryPtr tableRegistry,
         NApi::NNative::IClientPtr client,
         NHiveClient::TClientDirectoryPtr clientDirectory,
+        NHiveClient::TClusterDirectoryPtr clusterDirectory,
         IInvokerPtr invoker,
         std::string clusterName);
 
-    void UpdateBundleAttributes(
-        const NYTree::IAttributeDictionary* attributes);
+    void UpdateBundleAttributes(const NYTree::IAttributeDictionary* attributes);
 
     bool IsParameterizedBalancingEnabled() const;
-    bool IsReplicaBalancingEnabled() const;
+    bool IsReplicaBalancingEnabled(
+        const THashSet<TGroupName>& groupNames,
+        std::function<bool(const TTableTabletBalancerConfigPtr&)> isBalancingEnabled) const;
 
     TFuture<void> UpdateState(bool fetchTabletCellsFromSecondaryMasters, int iterationIndex);
     TFuture<void> FetchStatistics(
         const NYTree::IListNodePtr& nodeStatistics,
         bool useStatisticsReporter,
         const NYPath::TYPath& statisticsTablePath);
-    TFuture<void> FetchReplicaStatistics();
+    TFuture<void> FetchReplicaStatistics(
+        const THashSet<std::string>& allowedReplicaClusters,
+        bool fetchReshard,
+        bool fetchMove);
 
     TTableProfilingCounters& GetProfilingCounters(
         const TTable* table,
@@ -102,6 +110,7 @@ private:
         TTableTabletBalancerConfigPtr Config;
         EInMemoryMode InMemoryMode;
         bool Dynamic;
+        NTabletClient::TTableReplicaId UpstreamReplicaId;
     };
 
     struct TTabletStatisticsResponse
@@ -129,6 +138,7 @@ private:
 
     const NApi::NNative::IClientPtr Client_;
     const NHiveClient::TClientDirectoryPtr ClientDirectory_;
+    const NHiveClient::TClusterDirectoryPtr ClusterDirectory_;
     const IInvokerPtr Invoker_;
     const TTableRegistryPtr TableRegistry_;
     const std::string SelfClusterName_;
@@ -156,7 +166,10 @@ private:
         bool useStatisticsReporter,
         const NYPath::TYPath& statisticsTablePath);
 
-    void DoFetchReplicaStatistics();
+    void DoFetchReplicaStatistics(
+        const THashSet<std::string>& allowedReplicaClusters,
+        bool fetchReshard,
+        bool fetchMove);
 
     THashMap<TTableId, TTableSettings> FetchActualTableSettings() const;
 
@@ -168,9 +181,17 @@ private:
         bool fetchPerformanceCounters,
         bool parameterizedBalancingEnabledDefault = false) const;
 
+    void FetchReplicaModes(const THashSet<TTableId>& majorTableIds, const THashSet<std::string>& allowedReplicaClusters);
+
     void FetchPerformanceCountersFromTable(
         THashMap<TTableId, TTableStatisticsResponse>* tableIdToStatistics,
         const NYPath::TYPath& statisticsTablePath);
+
+    void FetchPerformanceCountersFromAlienTable(
+        const NApi::NNative::IClientPtr& client,
+        THashMap<TTableId, TTableStatisticsResponse>* tableIdToStatistics,
+        const std::string& cluster);
+
     void FillPerformanceCounters(
         THashMap<TTableId, TTableStatisticsResponse>* tableIdToStatistics,
         const THashMap<TTableId, THashMap<TTabletId, NTableClient::TUnversionedOwningRow>>& tableToPerformanceCounters) const;

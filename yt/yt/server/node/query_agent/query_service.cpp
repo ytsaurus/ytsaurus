@@ -423,7 +423,9 @@ private:
 
         YT_LOG_DEBUG("Query deserialized (FragmentId: %v, InputRowLimit: %v, OutputRowLimit: %v, "
             "RangeExpansionLimit: %v, MaxSubqueries: %v, EnableCodeCache: %v, WorkloadDescriptor: %v, "
-            "ReadSessionId: %v, MemoryLimitPerNode: %v, DataRangeCount: %v, TableId: %v)",
+            "ReadSessionId: %v, MemoryLimitPerNode: %v, "
+            "RowsetProcessingBatchSize: %v, WriteRowsetSize: %v, MaxJoinBatchSize: %v, "
+            "DataRangeCount: %v, RandomTabletId: %v)",
             query->Id,
             queryOptions.InputRowLimit,
             queryOptions.OutputRowLimit,
@@ -433,6 +435,9 @@ private:
             queryOptions.WorkloadDescriptor,
             queryOptions.ReadSessionId,
             queryOptions.MemoryLimitPerNode,
+            queryOptions.RowsetProcessingBatchSize,
+            queryOptions.WriteRowsetSize,
+            queryOptions.MaxJoinBatchSize,
             dataSources.size(),
             dataSources.begin()->ObjectId);
 

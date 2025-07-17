@@ -34,7 +34,7 @@ target_link_libraries(profile_cpu PUBLIC
 )
 
 target_allocator(profile_cpu
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(profile_cpu PRIVATE

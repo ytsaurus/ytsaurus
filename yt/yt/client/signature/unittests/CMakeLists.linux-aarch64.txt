@@ -36,7 +36,7 @@ target_link_libraries(unittester-client-signature PUBLIC
 )
 
 target_allocator(unittester-client-signature
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(unittester-client-signature PRIVATE

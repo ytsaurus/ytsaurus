@@ -33,7 +33,7 @@ target_link_libraries(batch_request PUBLIC
 )
 
 target_allocator(batch_request
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(batch_request PRIVATE

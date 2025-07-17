@@ -21,8 +21,15 @@ public:
         NScheduler::TSchedulerConfigPtr schedulerConfig,
         NScheduler::TExecNodePtr node,
         const std::vector<NScheduler::TAllocationPtr>& runningAllocations,
-        const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
-        : TSchedulingContextBase(shardId, schedulerConfig, node, runningAllocations, mediumDirectory)
+        const NChunkClient::TMediumDirectoryPtr& mediumDirectory,
+        const NScheduler::TJobResources& defaultMinSpareAllocationResources)
+        : TSchedulingContextBase(
+            shardId,
+            schedulerConfig,
+            node,
+            runningAllocations,
+            mediumDirectory,
+            defaultMinSpareAllocationResources)
     { }
 
     void SetDurationForStartedAllocation(NScheduler::TAllocationId allocationId, const TDuration& duration)

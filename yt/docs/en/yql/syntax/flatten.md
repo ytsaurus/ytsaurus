@@ -1,27 +1,28 @@
+# FLATTEN
 
-# FLATTEN {#flatten-by}
+## FLATTEN BY {#flatten-by}
 
-Converts the rows in the source table using vertical unpacking of [containers](../types/containers.md) of variable length (lists or dictionaries).
+Converts rows in the source table using vertical unpacking of [containers](../types/containers.md) of variable length (lists or dictionaries).
 
 For example:
 
-* Original table:
+* Source table:
 
-   |[a, b, c]|1|
-   | --- | --- |
-   |[d]|2|
-   |[]|3|
+  |[a, b, c]|1|
+  | --- | --- |
+  |[d]|2|
+  |[]|3|
 
 * The table resulting from `FLATTEN BY` on the left column:
 
-   |a|1|
-   | --- | --- |
-   |b|1|
-   |c|1|
-   |d|2|
+  |a|1|
+  | --- | --- |
+  |b|1|
+  |c|1|
+  |d|2|
 
 
-## Example
+#### Example
 
 ```yql
 $sample = AsList(
@@ -35,15 +36,16 @@ SELECT value, id FROM as_table($sample) FLATTEN BY (value);
 
 This conversion can be convenient in the following cases:
 
-* When you need to display statistics (e.g. via [`GROUP BY`](group_by.md)) based on the container column cells.
-* When the container column cells store identifiers from another table that must be joined via [`JOIN`](join.md).
+* When it is necessary to output statistics by cells from a container column (for example, via [`GROUP BY`](group_by.md)).
 
-## Syntax
+* When the cells in a container column store IDs from another table that you want to join with [`JOIN`](join.md).
+
+#### Syntax
 
 * `FLATTEN BY` is specified after `FROM`, but before `GROUP BY`, if `GROUP BY` is present in the query.
 * The type of the result column depends on the type of the source column:
 
-| Container type | Result type | Comment |
+| Container type | Result type | Comments |
 | --- | --- | --- |
 | `List<X>` | `X` | List cell type |
 | `Dict<X,Y>` | `Tuple<X,Y>` | Tuple of two elements containing key-value pairs |
@@ -53,13 +55,13 @@ This conversion can be convenient in the following cases:
 * To build a Cartesian product of multiple container columns, use the clause `FLATTEN BY (a, b, c)`. Parentheses are mandatory to avoid grammar conflicts.
 * Inside `FLATTEN BY`, you can only use column names from the input table. To apply `FLATTEN BY` to the calculation result, use a subquery.
 * In `FLATTEN BY` you can use both columns and arbitrary named expressions (unlike columns, `AS` is required in this case). To avoid grammatical ambiguities of the expression after `FLATTEN BY`, make sure to use parentheses with the following: `... FLATTEN BY (ListSkip(col, 1) AS col) ...`
-* If the source column had nested containers, for example, `List<Dict<X,Y>>`, `FLATTEN BY` unpacks only the outer level. To completely unpack the nested containers, use a subquery.
+* If the source column had nested containers, for example, `List<DictX,Y>`, `FLATTEN BY` unpacks only the outer level. To completely unpack the nested containers, use a subquery.
 
 {% note info %}
 
-`FLATTEN BY` interprets [optional data types](../types/optional.md) as lists with a length of 0 or 1. The table rows with `NULL` are skipped, and the column type changes to a similar non-optional type.
+`FLATTEN BY` interprets [optional data types](../types/optional.md) as lists of length 0 or 1. The table rows with `NULL` are skipped, and the column type changes to a similar non-optional type.
 
-`FLATTEN BY` performs only one conversion at a time. This is why you should use `FLATTEN LIST BY` or `FLATTEN OPTIONAL BY` on optional containers, e.g. `Optional<List<String>>`.
+`FLATTEN BY` makes only one conversion at a time, so use `FLATTEN LIST BY` or `FLATTEN OPTIONAL BY` on optional containers, for example, `Optional<List<String>>`.
 
 {% endnote %}
 
@@ -68,16 +70,18 @@ This conversion can be convenient in the following cases:
 To apply `FLATTEN BY` to YSON, you first need to transform it into one of the container types discussed above. For instance, you can do this using the [UDF module of the same name](../udf/list/yson.md) from the list of presets.
 
 
-## Specifying the container type {#flatten-by-specific-type}
+### Specifying the container type {#flatten-by-specific-type}
 
 To specify the type of container to convert to, you can use:
 
 * `FLATTEN LIST BY`
 
-   For `Optional<List<T>>`, the `FLATTEN LIST BY` operation will deploy the list and interpret `NULL` values as an empty list.
+   For `Optional<List<T>>`, `FLATTEN LIST BY` will unpack the list, treating `NULL` as an empty list.
+
 * `FLATTEN DICT BY`
 
-   For `Optional<Dict<T>>`, the `FLATTEN DICT BY` operation will deploy a dictionary and interpret `NULL` values as an empty dictionary.
+   For `Optional<Dict<T>>`, `FLATTEN DICT BY` will unpack the dictionary, interpreting `NULL` as an empty dictionary.
+
 * `FLATTEN OPTIONAL BY`
 
    To filter the `NULL` values without serialization, specify the operation by using `FLATTEN OPTIONAL BY`.
@@ -112,31 +116,37 @@ SELECT * FROM (
 
 
 
-## Analogs of FLATTEN BY in other DBMS {#flatten-other-dmb}
+### Analogues of FLATTEN BY in other DBMS {#flatten-other-dmb}
 
-* PostgreSQL: `unnest`;
-* Hive: `LATERAL VIEW`;
-* MongoDB: `unwind`;
-* Google BigQuery: `FLATTEN`;
-* ClickHouse: `ARRAY JOIN / arrayJoin`;
+* PostgreSQL: `unnest`
+* Hive: `LATERAL VIEW`
+* MongoDB: `unwind`
+* Google BigQuery: `FLATTEN`
+* ClickHouse: `ARRAY JOIN / arrayJoin`
+
 
 
 ## FLATTEN COLUMNS {#flatten-columns}
 
-Converts a table where all columns must be structures to a table with columns corresponding to each element of each structure from the source columns.
 
-The names of the source column structures are not used and not returned in the result. Be sure that the structure element names aren't repeated in the source columns.
+
+Transforms each column of type `Struct` into individual columns, one for each field within the struct. The names of the new columns are the names of the fields from the original struct columns. Columns that are not structs remain unchanged.
+
+- Only one level of the struct is flattened.
+- The original struct columns are not included in the result; their names are not used anywhere.
+- All column names in the resulting table (including names from struct fields in the original columns and names of non-struct columns) must be unique; name conflicts result in an error.
 
 #### Example
 
-```sql
-SELECT x, y, z
+```yql
+SELECT x, y, z, not_struct
 FROM (
   SELECT
     AsStruct(
         1 AS x,
         "foo" AS y),
     AsStruct(
-        false AS z)
+        false AS z),
+    1 as not_struct,
 ) FLATTEN COLUMNS;
 ```

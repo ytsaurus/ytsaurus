@@ -25,7 +25,7 @@ target_link_libraries(in_memory_nbd_server PUBLIC
 )
 
 target_allocator(in_memory_nbd_server
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(in_memory_nbd_server PRIVATE

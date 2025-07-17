@@ -39,7 +39,7 @@ target_link_libraries(unittester-yt-library-numeric PUBLIC
 )
 
 target_allocator(unittester-yt-library-numeric
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(unittester-yt-library-numeric PRIVATE

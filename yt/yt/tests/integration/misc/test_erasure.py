@@ -637,6 +637,12 @@ class TestErasureMulticell(TestErasure):
     NUM_TEST_PARTITIONS = 5
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
+
 ##################################################################
 
 

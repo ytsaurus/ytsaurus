@@ -37,7 +37,7 @@ target_link_libraries(upload_chunk PUBLIC
 )
 
 target_allocator(upload_chunk
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(upload_chunk PRIVATE

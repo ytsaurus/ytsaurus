@@ -420,12 +420,13 @@ private:
         const TScheduler::TCtxNodeHeartbeat::TTypedRequest* request,
         TScheduler::TCtxNodeHeartbeat::TTypedResponse* response);
 
-    void UpdateUnscheduledNodeCounters(const ISchedulingContextPtr& schedulingContext, const TExecNodePtr& node);
+    void UpdateUnscheduledNodeCounters(
+        const ISchedulingContextPtr& schedulingContext,
+        const TExecNodePtr& node,
+        const TJobResources& minSpareResources);
 
     bool ShouldSendRegisteredControllerAgents(TScheduler::TCtxNodeHeartbeat::TTypedRequest* request);
     void AddRegisteredControllerAgentsToResponse(auto* response);
-
-    TJobResources GetMinSpareResources() const;
 
     void UpdateAllocationPreemptibleProgressStartTime(const TAllocationPtr& allocation, TInstant newPreemptibleProgressStartTime);
 

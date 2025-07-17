@@ -14,7 +14,8 @@ struct IReshardIteration
     virtual void StartIteration() const = 0;
     virtual void Prepare(
         const TBundleStatePtr& bundleState,
-        const TTabletBalancingGroupConfigPtr& groupConfig) = 0;
+        const TTabletBalancingGroupConfigPtr& groupConfig,
+        const TTableRegistryPtr& tableRegistry) = 0;
     virtual void FinishIteration(int actionCount) const = 0;
 
     virtual std::vector<TTablePtr> GetTablesToReshard(const TTabletCellBundlePtr& bundle) const = 0;
@@ -51,6 +52,12 @@ IReshardIterationPtr CreateParameterizedReshardIteration(
     std::string bundleName,
     TString groupName,
     TTabletBalancerDynamicConfigPtr dynamicConfig);
+
+IReshardIterationPtr CreateReplicaReshardIteration(
+    std::string bundleName,
+    TString groupName,
+    TTabletBalancerDynamicConfigPtr dynamicConfig,
+    std::string clusterName);
 
 ////////////////////////////////////////////////////////////////////////////////
 

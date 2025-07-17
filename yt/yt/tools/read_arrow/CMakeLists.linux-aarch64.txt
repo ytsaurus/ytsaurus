@@ -35,7 +35,7 @@ target_link_libraries(read_arrow PUBLIC
 )
 
 target_allocator(read_arrow
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(read_arrow PRIVATE

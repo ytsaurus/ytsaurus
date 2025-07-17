@@ -36,7 +36,7 @@ target_link_libraries(unittester-core-ypath PUBLIC
 )
 
 target_allocator(unittester-core-ypath
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(unittester-core-ypath PRIVATE

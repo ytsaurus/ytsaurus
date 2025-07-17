@@ -48,7 +48,7 @@ target_link_libraries(protobuf_complex_types PUBLIC
 )
 
 target_allocator(protobuf_complex_types
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(protobuf_complex_types PRIVATE

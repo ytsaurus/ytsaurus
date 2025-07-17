@@ -226,8 +226,9 @@ private:
         const TBundleStatePtr& bundleState,
         const TGroupName& groupName,
         const TTabletBalancingGroupConfigPtr& groupConfig);
-    void TryBalanceViaReshardParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName);
+    bool TryBalanceViaReshardParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName);
     void BalanceViaReshardParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName);
+    void BalanceReplicasViaReshard(const TBundleStatePtr& bundleState, const TGroupName& groupName);
 
     void ExecuteReshardIteration(
         const IReshardIterationPtr& reshardIteration,
@@ -248,7 +249,10 @@ private:
         const TTabletCellBundlePtr& bundle,
         const TGlobalGroupTag& groupTag,
         const TTimeFormula& groupSchedule) const;
-    bool CouldAnyBalancingHappen(const TTabletCellBundlePtr& bundle) const;
+    bool IsEligibleForBalancing(const TTabletCellBundlePtr& bundle) const;
+    bool IsMoveReplicaBalancingRequired(const TBundleStatePtr& bundleState) const;
+    bool IsReshardReplicaBalancingRequired(const TBundleStatePtr& bundleState) const;
+
     TTimeFormula GetBundleSchedule(const TTabletCellBundlePtr& bundle, const TTimeFormula& groupSchedule) const;
 
     void BuildOrchid(IYsonConsumer* consumer) const;
@@ -395,6 +399,9 @@ void TTabletBalancer::BalancerIteration()
         .GroupLimit = dynamicConfig->MaxActionsPerGroup};
     TableRegistry_->DropAllAlienTables();
 
+    auto allowedReplicaClusters = dynamicConfig->AllowedReplicaClusters;
+    allowedReplicaClusters.insert(Bootstrap_->GetClusterName());
+
     if (!AreBundlesHealthy(dynamicConfig->ClustersForBundleHealthCheck, dynamicConfig->MaxUnhealthyBundlesOnReplicaCluster)) {
         YT_LOG_INFO("Skipping balancer iteration because many unhealthy bundles have been found");
         CancelledIterationDueToUnhealthyState_.Increment(1);
@@ -427,7 +434,7 @@ void TTabletBalancer::BalancerIteration()
             continue;
         }
 
-        if (!CouldAnyBalancingHappen(bundle->GetBundle())) {
+        if (!IsEligibleForBalancing(bundle->GetBundle())) {
             YT_LOG_INFO("Skip fetching for bundle since balancing is not planned "
                 "at this iteration according to the schedule (BundleName: %v)",
                 bundleName);
@@ -468,22 +475,36 @@ void TTabletBalancer::BalancerIteration()
 
         RemoveRetryableErrorsOnSuccessfulIteration(bundleName);
 
-        bundle->SetLastReplicaMoveBalancingFetchFailed(false);
-        if (bundle->IsReplicaBalancingEnabled()) {
+        bundle->SetLastReplicaBalancingFetchFailed(false);
+
+        auto isdReshardReplicaBalancingRequired = IsReshardReplicaBalancingRequired(bundle);
+        auto idMoveReplicaBalancingRequired = IsMoveReplicaBalancingRequired(bundle);
+
+        YT_LOG_INFO("REPLICA isdReshardReplicaBalancingRequired: %v, idMoveReplicaBalancingRequired: %v",
+            isdReshardReplicaBalancingRequired, idMoveReplicaBalancingRequired);
+
+        if (isdReshardReplicaBalancingRequired || idMoveReplicaBalancingRequired) {
             if (!dynamicConfig->UseStatisticsReporter) {
-                YT_LOG_ERROR("Cannot balance replicas when statistics reporter is not enabled");
+                YT_LOG_ERROR("Cannot balance replicas when statistics reporter is not enabled (BundleName: %v)", bundleName);
 
                 SaveRetryableBundleError(bundleName, TError(
                     NTabletBalancer::EErrorCode::StatisticsFetchFailed,
                     "Replica statistics fetch failed. Please enable statistics reporter"));
-            } else if (auto result = WaitFor(bundle->FetchReplicaStatistics()); !result.IsOK()) {
-                bundle->SetLastReplicaMoveBalancingFetchFailed(true);
-                YT_LOG_ERROR(result, "Replica statistics fetch failed (BundleName: %v)", bundleName);
+            } else {
+                auto result = WaitFor(bundle->FetchReplicaStatistics(
+                    allowedReplicaClusters,
+                    isdReshardReplicaBalancingRequired,
+                    idMoveReplicaBalancingRequired));
 
-                SaveRetryableBundleError(bundleName, TError(
-                    NTabletBalancer::EErrorCode::StatisticsFetchFailed,
-                    "Replica statistics fetch failed")
-                    << result);
+                if (!result.IsOK()) {
+                    bundle->SetLastReplicaBalancingFetchFailed(true);
+                    YT_LOG_ERROR(result, "Replica statistics fetch failed (BundleName: %v)", bundleName);
+
+                    SaveRetryableBundleError(bundleName, TError(
+                        NTabletBalancer::EErrorCode::StatisticsFetchFailed,
+                        "Replica statistics fetch failed")
+                        << result);
+                }
             }
         }
 
@@ -553,10 +574,14 @@ void TTabletBalancer::BalanceBundle(const TBundleStatePtr& bundle)
                     break;
             }
         } else if (DidBundleBalancingTimeHappen(bundle->GetBundle(), groupTag, groupConfig->Schedule)) {
-            GroupsToMoveOnNextIteration_.insert(std::move(groupTag));
             if (groupConfig->Type == EBalancingType::Parameterized) {
-                TryBalanceViaReshardParameterized(bundle, groupName);
+                auto finishedWithoutRetryableError = TryBalanceViaReshardParameterized(bundle, groupName);
+                if (!finishedWithoutRetryableError) {
+                    continue;
+                }
             }
+
+            GroupsToMoveOnNextIteration_.insert(std::move(groupTag));
             BalanceViaReshard(bundle, groupName);
         } else {
             YT_LOG_INFO("Skip balancing iteration because the time has not yet come (BundleName: %v, Group: %v)",
@@ -810,6 +835,7 @@ std::vector<std::string> TTabletBalancer::UpdateBundleList()
                 TableRegistry_,
                 Bootstrap_->GetClient(),
                 Bootstrap_->GetClientDirectory(),
+                Bootstrap_->GetClusterDirectory(),
                 WorkerPool_->GetInvoker(),
                 Bootstrap_->GetClusterName()));
         it->second->UpdateBundleAttributes(&bundle->Attributes());
@@ -927,7 +953,7 @@ TTimeFormula TTabletBalancer::GetBundleSchedule(
     return formula;
 }
 
-bool TTabletBalancer::CouldAnyBalancingHappen(const TTabletCellBundlePtr& bundle) const
+bool TTabletBalancer::IsEligibleForBalancing(const TTabletCellBundlePtr& bundle) const
 {
     for (const auto& [bundleName, _] : GroupsToMoveOnNextIteration_) {
         if (bundle->Name == bundleName) {
@@ -941,6 +967,47 @@ bool TTabletBalancer::CouldAnyBalancingHappen(const TTabletCellBundlePtr& bundle
         }
     }
     return false;
+}
+
+bool TTabletBalancer::IsMoveReplicaBalancingRequired(const TBundleStatePtr& bundleState) const
+{
+    THashSet<TGroupName> groupNames;
+    for (const auto& [bundleName, groupName] : GroupsToMoveOnNextIteration_) {
+        if (bundleState->GetBundle()->Name == bundleName) {
+            EmplaceOrCrash(groupNames, groupName);
+        }
+    }
+
+    if (groupNames.empty()) {
+        return false;
+    }
+
+    return bundleState->IsReplicaBalancingEnabled(
+        groupNames,
+        [] (const TTableTabletBalancerConfigPtr& config) {
+            return config->EnableAutoTabletMove;
+        });
+}
+
+bool TTabletBalancer::IsReshardReplicaBalancingRequired(const TBundleStatePtr& bundleState) const
+{
+    const auto& bundle = bundleState->GetBundle();
+    THashSet<TGroupName> groupNames;
+    for (const auto& [groupName, config] : bundle->Config->Groups) {
+        if (DidBundleBalancingTimeHappen(bundle, {bundle->Name, groupName}, config->Schedule)) {
+            EmplaceOrCrash(groupNames, groupName);
+        }
+    }
+
+    if (groupNames.empty()) {
+        return false;
+    }
+
+    return bundleState->IsReplicaBalancingEnabled(
+        groupNames,
+        [] (const TTableTabletBalancerConfigPtr& config) {
+            return config->EnableAutoReshard;
+        });
 }
 
 void TTabletBalancer::BalanceViaMoveInMemory(const TBundleStatePtr& bundleState)
@@ -970,6 +1037,15 @@ void TTabletBalancer::BalanceViaMoveParameterized(
         GetParameterizedMetricTracker({bundleState->GetBundle()->Name, groupName}),
         groupConfig,
         DynamicConfig_.Acquire()));
+}
+
+void TTabletBalancer::BalanceReplicasViaReshard(const TBundleStatePtr& bundleState, const TGroupName& groupName)
+{
+    ExecuteReshardIteration(CreateReplicaReshardIteration(
+        bundleState->GetBundle()->Name,
+        groupName,
+        DynamicConfig_.Acquire(),
+        Bootstrap_->GetClusterName()), bundleState);
 }
 
 void TTabletBalancer::BalanceReplicasViaMoveParameterized(
@@ -1033,7 +1109,7 @@ bool TTabletBalancer::TryBalanceViaMoveParameterized(const TBundleStatePtr& bund
     return true;
 }
 
-void TTabletBalancer::TryBalanceViaReshardParameterized(
+bool TTabletBalancer::TryBalanceViaReshardParameterized(
     const TBundleStatePtr& bundleState,
     const TGroupName& groupName)
 {
@@ -1042,9 +1118,14 @@ void TTabletBalancer::TryBalanceViaReshardParameterized(
         {bundle->Name, groupName},
         EBalancingMode::ParameterizedReshard));
 
+    const auto& groupConfig = GetOrCrash(bundle->Config->Groups, groupName);
     try {
-        BalanceViaReshardParameterized(bundleState, groupName);
-    } catch (const std::exception& ex) {
+        if (!groupConfig->Parameterized->ReplicaClusters.empty()) {
+            BalanceReplicasViaReshard(bundleState, groupName);
+        } else {
+            BalanceViaReshardParameterized(bundleState, groupName);
+        }
+    } catch (const TErrorException& ex) {
         const auto& groupConfig = GetOrCrash(bundle->Config->Groups, groupName);
         YT_LOG_ERROR(ex,
             "Parameterized balancing via reshard failed with an exception "
@@ -1054,12 +1135,23 @@ void TTabletBalancer::TryBalanceViaReshardParameterized(
             groupConfig->Type,
             groupConfig->Parameterized->Metric);
 
+        if (ex.Error().FindMatching(NTabletBalancer::EErrorCode::StatisticsFetchFailed)) {
+            SaveRetryableBundleError(bundle->Name, TError(
+                NTabletBalancer::EErrorCode::StatisticsFetchFailed,
+                "Parameterized move balancing for group %Qv failed",
+                groupName)
+                << ex);
+            return false;
+        }
+
         SaveFatalBundleError(bundle->Name, TError(
             NTabletBalancer::EErrorCode::ParameterizedBalancingFailed,
             "Parameterized reshard balancing for group %Qv failed",
             groupName)
             << ex);
     }
+
+    return true;
 }
 
 void TTabletBalancer::BalanceViaMove(const TBundleStatePtr& bundleState, const TGroupName& groupName)
@@ -1094,7 +1186,7 @@ void TTabletBalancer::ExecuteReshardIteration(
         return;
     }
 
-    reshardIteration->Prepare(bundleState, groupConfig);
+    reshardIteration->Prepare(bundleState, groupConfig, TableRegistry_);
 
     auto tables = reshardIteration->GetTablesToReshard(bundleState->GetBundle());
     Shuffle(tables.begin(), tables.end());

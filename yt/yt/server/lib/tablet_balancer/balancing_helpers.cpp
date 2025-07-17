@@ -2,6 +2,7 @@
 #include "config.h"
 #include "parameterized_balancing_helpers.h"
 #include "public.h"
+#include "replica_balancing_helpers.h"
 #include "table.h"
 #include "tablet.h"
 #include "tablet_cell.h"
@@ -456,6 +457,55 @@ std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
             descriptors.push_back(*descriptor);
         }
     }
+    return descriptors;
+}
+
+std::vector<TReshardDescriptor> MergeSplitReplicaTable(
+    const TTablePtr& minorTable,
+    const TAlienTablePtr& majorTable,
+    int maxTabletCountPerAction,
+    NLogging::TLogger Logger)
+{
+    YT_VERIFY(majorTable);
+
+    auto enableVerboseLogging = minorTable->TableConfig->EnableVerboseLogging ||
+        minorTable->Bundle->Config->EnableVerboseLogging;
+    auto commonPivotKeys = GetCommonKeyIndices(
+        majorTable->PivotKeys,
+        minorTable->PivotKeys,
+        Logger,
+        enableVerboseLogging);
+
+    std::vector<TReshardDescriptor> descriptors;
+    for (auto rightCommonPivotIndex = 1; rightCommonPivotIndex < std::ssize(commonPivotKeys); ++rightCommonPivotIndex) {
+        auto [majorLeftPivotIndex, minorLeftPivotIndex] = commonPivotKeys[rightCommonPivotIndex - 1];
+        auto [majorRightPivotIndex, minorRightPivotIndex] = commonPivotKeys[rightCommonPivotIndex];
+
+        auto actions = ReshardByReferencePivots(
+            TRange<TLegacyOwningKey>(minorTable->PivotKeys.begin() + minorLeftPivotIndex, minorTable->PivotKeys.begin() + minorRightPivotIndex),
+            TRange<TLegacyOwningKey>(majorTable->PivotKeys.begin() + majorLeftPivotIndex, majorTable->PivotKeys.begin() + majorRightPivotIndex),
+            maxTabletCountPerAction,
+            Logger,
+            enableVerboseLogging);
+
+        for (auto& [tabletCount, pivotKeys] : actions) {
+            if (tabletCount == 1 && std::ssize(pivotKeys) == 1) {
+                const auto& tablet = minorTable->Tablets[minorLeftPivotIndex];
+                YT_LOG_DEBUG_IF(enableVerboseLogging,
+                    "Skipping reshard action because it's a trivial one (TabletId: %v, TabletIndex: %v)",
+                    tablet->Id,
+                    tablet->Index);
+                continue;
+            }
+
+            descriptors.push_back(TReshardDescriptor{.PivotKeys = std::move(pivotKeys)});
+            for (int index = minorLeftPivotIndex; index < minorLeftPivotIndex + tabletCount; ++index) {
+                descriptors.back().Tablets.push_back(minorTable->Tablets[index]->Id);
+            }
+            minorLeftPivotIndex += tabletCount;
+        }
+    }
+
     return descriptors;
 }
 

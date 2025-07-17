@@ -643,11 +643,20 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_job_resource_limits", &TThis::MaxJobResourceLimits)
         .DefaultNew();
 
+    registrar.Parameter("min_node_resource_limits", &TThis::MinNodeResourceLimits)
+        .DefaultNew();
+
+    registrar.Parameter("min_node_resource_limits_check_period", &TThis::MinNodeResourceLimitsCheckPeriod)
+        .Default(TDuration::Minutes(1));
+
     registrar.Parameter("allow_gang_operations_only_in_fifo_pools", &TThis::AllowGangOperationsOnlyInFifoPools)
         .Default(false);
 
     registrar.Parameter("allow_single_job_large_gpu_operations_in_multiple_trees", &TThis::AllowSingleJobLargeGpuOperationsInMultipleTrees)
         .Default(true);
+
+    registrar.Parameter("min_spare_allocation_resources_on_node", &TThis::MinSpareAllocationResourcesOnNode)
+        .Default();
 
     registrar.Postprocessor([&] (TFairShareStrategyTreeConfig* config) {
         if (config->AggressivePreemptionSatisfactionThreshold > config->PreemptionSatisfactionThreshold) {
@@ -802,6 +811,11 @@ void TFairShareStrategyConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("require_specified_operation_pools_existence", &TThis::RequireSpecifiedOperationPoolsExistence)
         .Default(false);
+
+    registrar.Parameter("min_spare_allocation_resources_on_node", &TThis::MinSpareAllocationResourcesOnNode)
+        .Alias("min_spare_job_resources_on_node")
+        .DefaultCtor(&GetDefaultMinSpareAllocationResourcesOnNode)
+        .ResetOnLoad();
 
     registrar.Postprocessor([&] (TFairShareStrategyConfig* config) {
         THashMap<int, TStringBuf> priorityToName;
@@ -1247,11 +1261,6 @@ void TSchedulerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("experiment_assignment_alert_duration", &TThis::ExperimentAssignmentAlertDuration)
         .Default(TDuration::Seconds(30));
-
-    registrar.Parameter("min_spare_allocation_resources_on_node", &TThis::MinSpareAllocationResourcesOnNode)
-        .Alias("min_spare_job_resources_on_node")
-        .DefaultCtor(&GetDefaultMinSpareAllocationResourcesOnNode)
-        .ResetOnLoad();
 
     registrar.Parameter("schedule_allocation_duration_logging_threshold", &TThis::ScheduleAllocationDurationLoggingThreshold)
         .Alias("schedule_job_duration_logging_threshold")

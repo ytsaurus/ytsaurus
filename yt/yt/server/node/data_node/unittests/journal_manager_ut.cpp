@@ -86,7 +86,7 @@ public:
     }
 
 private:
-    const INodeMemoryTrackerPtr MemoryUsageTracker_ = CreateNodeMemoryTracker(1_GBs);
+    const INodeMemoryTrackerPtr MemoryUsageTracker_ = CreateNodeMemoryTracker(1_GBs, New<TNodeMemoryTrackerConfig>());
     const TFairShareHierarchicalSchedulerPtr<std::string> FairShareHierarchicalScheduler_ = nullptr;
     const NIO::IHugePageManagerPtr HugePageManager_ = nullptr;
 };
@@ -106,7 +106,7 @@ protected:
     const TClusterNodeDynamicConfigPtr DynamicConfig_ = New<TClusterNodeDynamicConfig>();
     const TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_ = New<TClusterNodeDynamicConfigManager>(DynamicConfig_);
 
-    const INodeMemoryTrackerPtr MemoryTracker_ = CreateNodeMemoryTracker(1_GBs);
+    const INodeMemoryTrackerPtr MemoryTracker_ = CreateNodeMemoryTracker(1_GBs, New<TNodeMemoryTrackerConfig>());
     const IChunkMetaManagerPtr ChunkMetaManager_ = CreateChunkMetaManager(
         Config_,
         DynamicConfigManager_,

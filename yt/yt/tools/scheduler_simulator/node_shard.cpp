@@ -112,19 +112,26 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
         node->DiskResources(),
         node->Allocations().size());
 
-    // Prepare scheduling context.
-    const auto& allocationsSet = node->Allocations();
-    std::vector<TAllocationPtr> nodeAllocations(allocationsSet.begin(), allocationsSet.end());
-    // NB(eshcherbin): We usually create a lot of simulator node shards running over a small thread pool to
-    // introduce artificial contention. Thus we need to reduce the shard id to the range [0, MaxNodeShardCount).
-    auto schedulingContext = New<TSchedulingContext>(Id_, SchedulerConfig_, node, nodeAllocations, MediumDirectory_);
-    schedulingContext->SetNow(NProfiling::InstantToCpuInstant(event.Time));
-
     auto strategyProxy = SchedulingStrategy_->CreateNodeHeartbeatStrategyProxy(
         node->GetId(),
         node->GetDefaultAddress(),
         node->Tags(),
         node->GetMatchingTreeCookie());
+
+    // Prepare scheduling context.
+    const auto& allocationsSet = node->Allocations();
+    std::vector<TAllocationPtr> nodeAllocations(allocationsSet.begin(), allocationsSet.end());
+    // NB(eshcherbin): We usually create a lot of simulator node shards running over a small thread pool to
+    // introduce artificial contention. Thus we need to reduce the shard id to the range [0, MaxNodeShardCount).
+    auto minSpareResources = strategyProxy->GetMinSpareResourcesForScheduling();
+    auto schedulingContext = New<TSchedulingContext>(
+        Id_,
+        SchedulerConfig_,
+        node,
+        nodeAllocations,
+        MediumDirectory_,
+        minSpareResources);
+    schedulingContext->SetNow(NProfiling::InstantToCpuInstant(event.Time));
 
     WaitFor(strategyProxy->ProcessSchedulingHeartbeat(schedulingContext, /*skipScheduleJobs*/ false))
         .ThrowOnError();

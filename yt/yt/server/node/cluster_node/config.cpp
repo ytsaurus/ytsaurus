@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/lib/chaos_node/config.h>
 
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
 #include <yt/yt/ytlib/object_client/config.h>
 
 #include <yt/yt/client/transaction_client/config.h>
@@ -537,6 +539,9 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
         .Default(1.0);
     registrar.Parameter("memory_limit_exceeded_for_category_threshold", &TThis::MemoryLimitExceededForCategoryThreshold)
         .Default(1.1);
+    registrar.Parameter("node_memory_tracker", &TThis::NodeMemoryTracker)
+        .DefaultNew();
+
     registrar.Parameter("chaos_residency_cache", &TThis::ChaosResidencyCache)
         .DefaultNew();
     registrar.Parameter("replication_card_cache", &TThis::ReplicationCardCache)
@@ -547,15 +552,12 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("fair_share_hierarchical_scheduler", &TThis::FairShareHierarchicalScheduler)
         .DefaultNew();
-}
 
-////////////////////////////////////////////////////////////////////////////////
-
-void TChunkReplicaCacheDynamicConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("expiration_time", &TThis::ExpirationTime)
-        .GreaterThanOrEqual(TDuration::Zero())
-        .Optional();
+    registrar.Postprocessor([] (TThis* config) {
+        if (!config->JobResourceManager->CheckUserJobsCtegoryLimitOnResourcesUpdating) {
+            config->NodeMemoryTracker->CheckPerCategoryLimitOvercommit = false;
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

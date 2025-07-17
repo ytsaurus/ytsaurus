@@ -128,7 +128,7 @@ class TestAccessLog(YTEnvSetup):
         wait(check_lines, iter=30, sleep_backoff=1.0, timeout=30)
 
     @classmethod
-    def modify_master_config(cls, multidaemon_config, config, cell_index, cell_tag, peer_index, cluster_index):
+    def modify_master_config(cls, config, multidaemon_config, cell_index, cell_tag, peer_index, cluster_index):
         if "logging" in config:
             config["logging"]["flush_period"] = 100
             config["logging"]["rules"].append(
@@ -628,6 +628,12 @@ class TestAccessLogPortal(TestAccessLog):
     ENABLE_TMP_PORTAL = True
 
     CELL_TAG_TO_LOG_FILTER = {11: {"prefix_path": "//tmp/access_log", "tx_methods": False}}
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["cypress_node_host"]},
+        "12": {"roles": ["chunk_host", "cypress_node_host"]},
+        "13": {"roles": ["chunk_host"]},
+    }
 
     @authors("kvk1920")
     def test_transaction_actions_log(self):

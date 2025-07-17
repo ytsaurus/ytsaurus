@@ -26,7 +26,7 @@ target_link_libraries(03_combine_by_key PUBLIC
 )
 
 target_allocator(03_combine_by_key
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(03_combine_by_key PRIVATE

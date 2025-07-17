@@ -70,6 +70,10 @@ class TestSchedulerRemoteCopyCommandsBase(YTEnvSetup):
         },
     }
 
+    MASTER_CELL_DESCRIPTORS_REMOTE_0 = {
+        "21": {"roles": ["chunk_host", "cypress_node_host"]},
+    }
+
     @classmethod
     def setup_class(cls):
         super(TestSchedulerRemoteCopyCommandsBase, cls).setup_class()
@@ -1542,6 +1546,11 @@ class TestSchedulerRemoteCopyCommandsMulticell(TestSchedulerRemoteCopyCommands):
     NUM_TEST_PARTITIONS = 6
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
 
 ##################################################################
 
@@ -2344,6 +2353,11 @@ class TestSchedulerRemoteCopyDynamicTablesMulticell(TestSchedulerRemoteCopyDynam
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
     @authors("ifsmirnov")
     def test_remote_copy_from_primary_cell_to_secondary(self):
         sync_create_cells(1)
@@ -2376,6 +2390,11 @@ class TestSchedulerRemoteCopyDynamicTablesMulticell(TestSchedulerRemoteCopyDynam
 class TestSchedulerRemoteCopyDynamicTablesWithHunksMulticell(TestSchedulerRemoteCopyDynamicTablesWithHunks):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
 
 
 ##################################################################

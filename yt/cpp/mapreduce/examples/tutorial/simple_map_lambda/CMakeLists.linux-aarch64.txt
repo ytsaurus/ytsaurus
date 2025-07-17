@@ -49,7 +49,7 @@ target_link_libraries(simple_map_lambda PUBLIC
 )
 
 target_allocator(simple_map_lambda
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(simple_map_lambda PRIVATE

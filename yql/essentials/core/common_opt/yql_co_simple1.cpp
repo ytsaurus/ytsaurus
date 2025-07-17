@@ -3833,6 +3833,10 @@ TExprNode::TPtr MemberOverRenamingFlatMap(const TExprNode::TPtr& node, TExprCont
     }
 
     auto arg = maybeFlatMap.Cast().Lambda().Args().Arg(0);
+    if (arg.Ref().GetTypeAnn()->GetKind() != ETypeAnnotationKind::Struct) {
+        return node;
+    }
+
     auto asStruct  = maybeFlatMap.Cast().Lambda().Body().Maybe<TCoJust>().Input().Maybe<TCoAsStruct>();
     if (!asStruct) {
         return node;
@@ -7181,6 +7185,11 @@ void RegisterCoSimpleCallables1(TCallableOptimizerMap& map) {
         }
 
         throw yexception() << "Unknown failure kind: " << failureKind;
+    };
+
+    map["Unessential"] = [](const TExprNode::TPtr& node, TExprContext& /*ctx*/, TOptimizeContext& /*optCtx*/) {
+        YQL_ENSURE(node->Child(TCoUnessential::idx_AssumeAs)->IsComplete(), "AssumeAs argument of Unessential is expected to be complete expression");
+        return node;
     };
 
     // will be applied to any callable after all above

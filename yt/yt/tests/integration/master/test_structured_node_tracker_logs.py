@@ -18,7 +18,7 @@ class TestNodeTrackerLog(YTEnvSetup):
     LOG_WRITE_WAIT_TIME = 0.2
 
     @classmethod
-    def modify_master_config(cls, multidaemon_config, config, cell_index, cell_tag, peer_index, cluster_index):
+    def modify_master_config(cls, config, multidaemon_config, cell_index, cell_tag, peer_index, cluster_index):
         if "logging" in config:
             config["logging"]["flush_period"] = 50
             config["logging"]["rules"].append(

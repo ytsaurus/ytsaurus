@@ -553,6 +553,7 @@ public:
         minSpareAllocationResources->Memory = 1;
 
         SchedulerConfig_->MinSpareAllocationResourcesOnNode = minSpareAllocationResources;
+        DefaultMinSpareResources = ToJobResources(minSpareAllocationResources, TJobResources());
 
         TreeConfig_->AggressivePreemptionSatisfactionThreshold = 0.5;
         TreeConfig_->MinChildHeapSize = 3;
@@ -575,6 +576,8 @@ protected:
 
     int SlotIndex_ = 0;
     NNodeTrackerClient::TNodeId ExecNodeId_ = NNodeTrackerClient::TNodeId(0);
+
+    TJobResources DefaultMinSpareResources;
 
     void TearDown() override
     {
@@ -869,7 +872,8 @@ protected:
             SchedulerConfig_,
             execNode,
             /*runningAllocations*/ {},
-            strategyHost->GetMediumDirectory());
+            strategyHost->GetMediumDirectory(),
+            DefaultMinSpareResources);
 
         auto scheduleAllocationsContext = New<TScheduleAllocationsContext>(
             schedulingContext,

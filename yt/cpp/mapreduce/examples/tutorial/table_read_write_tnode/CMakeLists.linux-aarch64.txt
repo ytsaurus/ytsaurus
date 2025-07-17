@@ -33,7 +33,7 @@ target_link_libraries(table_read_write_tnode PUBLIC
 )
 
 target_allocator(table_read_write_tnode
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(table_read_write_tnode PRIVATE

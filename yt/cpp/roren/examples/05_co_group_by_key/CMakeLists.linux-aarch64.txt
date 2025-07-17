@@ -26,7 +26,7 @@ target_link_libraries(05_co_group_by_key PUBLIC
 )
 
 target_allocator(05_co_group_by_key
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(05_co_group_by_key PRIVATE

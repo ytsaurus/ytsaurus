@@ -29,7 +29,7 @@ target_link_libraries(value_dictionary_compression PUBLIC
 )
 
 target_allocator(value_dictionary_compression
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(value_dictionary_compression PRIVATE

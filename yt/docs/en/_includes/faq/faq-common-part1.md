@@ -1,6 +1,6 @@
 # FAQ
 
-#### **Q: How do I add a column to a {{product-name}} table?**
+#### **Q: How do I add a column to a {{product-name}} table?** {#add-column-to-table}
 
 **A:** You need to retrieve the current table schema:
 
@@ -12,22 +12,22 @@ yt alter-table //home/maps-nmaps/testing/pedestrian/address_tasks --schema '<"un
 ```
 
 ------
-#### **Q: I get the following error when I attempt to change a table schema: Changing "strict" from "false" to "true" is not allowed. What should I do?**
+#### **Q: I get the following error when I attempt to change a table schema: Changing "strict" from "false" to "true" is not allowed. What should I do?** {#change-schema-strict-error}
 
 **A:** You cannot change the schema of a non-empty table from weak to strict since the entire table must be read to validate this action to make sure that the data match the new schema. It is easiest to create a new table and copy data from the old one via a read+write or by launching a [Merge](../../user-guide/data-processing/operations/merge.md) transaction.
 
 ------
-#### **Q: How do I authorize when communicating with YT through the console?**
+#### **Q: How do I authorize when communicating with YT through the console?** {#yt-console-authorization}
 
 **A:** You have to save the required user's token to a file called `~/.yt/token`.
 
 ------
-#### **Q: Can I reduce the replication factor for temporary tables in the native C++ wrapper?**
+#### **Q: Can I reduce the replication factor for temporary tables in the native C++ wrapper?** {#reduce-replication-factor}
 
 **A:** No, the wrapper does not include this capability.
 
 ------
-#### **Q: The python wrapper produces error "ImportError: Bad magic number in ./modules/yt/__init__.pyc". What should I do?**
+#### **Q: The python wrapper produces error "ImportError: Bad magic number in ./modules/yt/__init__.pyc". What should I do?** {#bad-magic-number}
 
 **A:** This error results from a python version mismatch between the client running the script and your cluster. To run, use the same python version as on the cluster. You can retrieve the current version as follows:
 
@@ -39,17 +39,17 @@ Python 2.7.3
 Python versions on different cluster nodes may differ. It is better to use your own proto layer to run jobs.
 
 ------
-#### **Q: What is the overhead for reading small table ranges and small tables?**
+#### **Q: What is the overhead for reading small table ranges and small tables?** {#reading-small-ranges-overhead}
 
 **A:** Small ranges do not create overhead since only the relevant blocks are read from disk. At the same time, all static table reads require requests for metadata to the master server. In this case, communication with the master server is the bottleneck. Therefore, we recommend using a smaller number of queries (larger parts) to read static tables minimizing master server load. Or restructuring your process to read from dynamic tables.
 
 ------
-#### **Q: Can hex numbers be stored efficiently in keys instead of strings?**
+#### **Q: Can hex numbers be stored efficiently in keys instead of strings?** {#store-hex-numbers-keys}
 
 **A:** They can using the [YSON](../../user-guide/storage/formats.md#yson) or the [JSON](../../user-guide/storage/formats.md#json) format.
 
 ------
-#### **Q: What are the logging levels in the console client and how can I select them?**
+#### **Q: What are the logging levels in the console client and how can I select them?** {#logging-levels-console-client}
 
 **A:** You can select logging levels via the `YT_LOG_LEVEL` environment variable with `INFO` being the default. You can change the logging level using the `export YT_LOG_LEVEL=WARNING` command. The following logging levels are available:
 
@@ -60,34 +60,34 @@ Python versions on different cluster nodes may differ. It is better to use your 
 {% if audience == "internal" %}
 
 ------
-#### **Q: How does the clearing of temporary data work on clusters?**
+#### **Q: How does the clearing of temporary data work on clusters?** {#temporary-data-cleanup}
 
 **A:** Most {{product-name}} clusters regularly (twice or more a day) run the `//tmp` cleaning script that finds and deletes tmp data that have not been used in a long time or use up a certain portion of the account's quota. For a detailed description of the cleaning process, please see the System processes section. When writing data to `//tmp`, users have to keep this regular cleaning in mind.
 {% endif %}
 
 ------
-#### **Q: When reading a small table using the read command, the client freezes up in a repeat query. What could be the reason?**
+#### **Q: When reading a small table using the read command, the client freezes up in a repeat query. What could be the reason?** {#client-hangs-requeries}
 
 **A:** One of the possible common reasons is too many (small) chunks in a table. We recommend running the [Merge](../../user-guide/data-processing/operations/merge.md) operation with the `--spec '{force_transform=true}'` option. When such tables come up in operation output, the console client issues a warning containing, among other things, the command you can run to increase the size of the table's chunks. You can also specify the `auto_merge_output={action=merge}` option to have a merge occur automatically.
 
 ------
-#### **Q: An operation returns error "Account "tmp" is over disk space (or chunk) limit". What is going on?**
+#### **Q: An operation returns error "Account "tmp" is over disk space (or chunk) limit". What is going on?** {#account-tmp-over-limit}
 
 **A:** Your cluster has run out of storage space for temporary data (tmp account), or the account has too many chunks. This account is accessed by all the cluster users which may cause it to become full. You have to keep this in mind, and if using up the tmp quota is critical to your processes, we recommend using a different directory in your own account for temporary data. Some APIs use `//tmp` as the default path for storing temporary data. If that is the case, you must reconfigure these to use subdirectories in your project's directory tree.
 
 ------
-#### **Q: An operation fails with error "Account "intermediate" is over disk space (or chunk) limit". What is going on?**
+#### **Q: An operation fails with error "Account "intermediate" is over disk space (or chunk) limit". What is going on?** {#account-intermediate-over-limit}
 
 **A**: Your cluster has run out of storage space for intermediate data (`intermediate` account), or the account has too many chunks.
 Unless you specified `intermediate_data_account` (see [Operation settings](../../user-guide/data-processing/operations/operations-options.md), [Sort](../../user-guide/data-processing/operations/sort.md), [MapReduce](../../user-guide/data-processing/operations/mapreduce.md)), you are sharing this account with everybody else. To preempt this problem, set `intermediate_data_account`.
 
 ------
-#### **Q: Is reading a table (or file) a consistent operation in {{product-name}}? What will happen if I am reading a table while deleting it at the same time?**
+#### **Q: Is reading a table (or file) a consistent operation in {{product-name}}? What will happen if I am reading a table while deleting it at the same time?** {#consistent-read-operation}
 
 **A:** On the one hand it is. That is to say that if a read successfully completes, the read will return exactly the data contained in the table or file at the start of the operation. On the other hand, the read may terminate if you delete the table at that time. To avoid this, you need to create a transaction and have it take out a snapshot lock on the table or file. When you are using the python API, including the python CLI, with retry activated for reads, this lock is taken out automatically.
 
 ------
-#### **Q: When I start a client, I get "Cannot determine backend type: either driver config or proxy url should be specified". What should I do?**
+#### **Q: When I start a client, I get "Cannot determine backend type: either driver config or proxy url should be specified". What should I do?** {#backend-type-determination}
 
 **A:** Check to see whether the `YT_PROXY=<cluster-name>` environment variable is set.
 
@@ -95,7 +95,7 @@ Unless you specified `intermediate_data_account` (see [Operation settings](../..
 
 {% if audience == public %}
 
-#### **Q: What do I do if a query from the python wrapper fails with "gaierror(-2, 'Name or service not known')"?**
+#### **Q: What do I do if a query from the python wrapper fails with "gaierror(-2, 'Name or service not known')"?** {#name-service-unknown}
 
 **A:** If you are getting an error that looks like
 `has failed with error <class 'yt.packages.requests.exceptions.ConnectionError'>, message: '('Connection aborted.', gaierror(-2, 'Name or service not known'))'`, or

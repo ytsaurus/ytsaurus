@@ -101,6 +101,7 @@ SRCS(
     storages_yt_nodes.cpp
     subquery_spec.cpp
     subquery.cpp
+    secondary_query_input_puller.cpp
     table_function_yt_list_log_tables.cpp
     table_function_yt_node_attributes.cpp
     table_function_yt_secondary_query.cpp

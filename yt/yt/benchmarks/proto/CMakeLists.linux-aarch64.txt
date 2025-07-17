@@ -39,7 +39,7 @@ target_link_libraries(proto PUBLIC
 )
 
 target_allocator(proto
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(proto PRIVATE

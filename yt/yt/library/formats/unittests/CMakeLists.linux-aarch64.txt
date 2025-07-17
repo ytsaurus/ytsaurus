@@ -65,7 +65,7 @@ target_link_libraries(unittester-formats PUBLIC
 )
 
 target_allocator(unittester-formats
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(unittester-formats PRIVATE

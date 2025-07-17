@@ -29,7 +29,7 @@ target_link_libraries(protoc PUBLIC
 )
 
 target_allocator(protoc
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(protoc PRIVATE

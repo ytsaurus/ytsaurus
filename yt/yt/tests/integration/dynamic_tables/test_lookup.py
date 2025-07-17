@@ -2090,6 +2090,11 @@ class TestLookupMulticell(TestLookup):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
 
 @pytest.mark.enabled_multidaemon
 class TestLookupRpcProxy(TestLookup):
@@ -2200,6 +2205,26 @@ class TestLookupSequoia(TestLookup):
         "10": {"roles": ["cypress_node_host"]},
         "11": {"roles": ["cypress_node_host", "sequoia_node_host"]},
         "12": {"roles": ["chunk_host"]},
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "chunk_manager": {
+            "sequoia_chunk_replicas": {
+                "enable": True,
+                "replicas_percentage": 100,
+                "fetch_replicas_from_sequoia": True,
+            }
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "cluster_connection": {
+            "chunk_replica_cache": {
+                "enable_sequoia_replicas_locate": True,
+                "enable_sequoia_replicas_refresh": True,
+                "sequoia_replicas_refresh_period": 1000,
+            },
+        },
     }
 
 

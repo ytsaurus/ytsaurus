@@ -1602,6 +1602,9 @@ TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnecti
     queryOptions.UseCanonicalNullRelations = options.UseCanonicalNullRelations;
     queryOptions.MergeVersionedRows = options.MergeVersionedRows;
     queryOptions.UseLookupCache = options.UseLookupCache;
+    queryOptions.RowsetProcessingBatchSize = options.RowsetProcessingBatchSize.value_or(DefaultRowsetProcessingBatchSize);
+    queryOptions.WriteRowsetSize = options.WriteRowsetSize.value_or(DefaultWriteRowsetSize);
+    queryOptions.MaxJoinBatchSize = options.MaxJoinBatchSize.value_or(DefaultMaxJoinBatchSize);
 
     return queryOptions;
 }
@@ -3780,13 +3783,10 @@ IPrerequisitePtr TClient::DoAttachChaosLease(
     proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
 
     auto req = proxy.GetChaosLease();
-    auto timeoutPath = Format("#%v/@timeout", chaosLeaseId);
-
+    auto timeoutPath = Format("%v/@timeout", FromObjectId(chaosLeaseId));
     auto timeoutNode = WaitFor(GetNode(timeoutPath, {}))
         .ValueOrThrow();
-
-    auto timeoutValue = ConvertTo<i64>(timeoutNode);
-    auto timeout = TDuration::MilliSeconds(timeoutValue);
+    auto timeout = ConvertTo<TDuration>(timeoutNode);
 
     auto chaosLease = CreateChaosLease(
         this,
@@ -3807,7 +3807,7 @@ IPrerequisitePtr TClient::DoAttachChaosLease(
 IPrerequisitePtr TClient::DoStartChaosLease(
     const TChaosLeaseStartOptions& /*options*/)
 {
-    THROW_ERROR_EXCEPTION("Use CreateNode to start chaos leases.");
+    THROW_ERROR_EXCEPTION("Use CreateNode to start chaos leases");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

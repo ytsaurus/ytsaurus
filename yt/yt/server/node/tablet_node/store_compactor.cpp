@@ -68,9 +68,9 @@
 #include <yt/yt/core/actions/cancelable_context.h>
 
 #include <yt/yt/core/concurrency/async_semaphore.h>
-#include <yt/yt/core/concurrency/context_switch_aware_periodic_yielder.h>
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/periodic_yielder.h>
 
 #include <yt/yt/core/logging/log.h>
 
@@ -296,6 +296,18 @@ struct TCompactionSessionFinalizeResult
 {
     std::vector<NChunkClient::NProto::TDataStatistics> WriterStatistics;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+void MaybeYieldFiber(const TPeriodicYielder& yielder, const NLogging::TLogger& Logger)
+{
+    if (yielder.NeedYield()) {
+        YT_LOG_DEBUG("Yielding fiber (SyncTime: %v)",
+            yielder.GetElapsedTime());
+
+        Yield();
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -664,7 +676,7 @@ public:
         TCompactionTask* task)
     {
         return DoRun([&] {
-            TContextSwitchAwarePeriodicYielder yielder(TDuration::MilliSeconds(30));
+            TPeriodicYielder yielder(TDuration::MilliSeconds(30));
 
             int currentPartitionIndex = 0;
             TLegacyOwningKey currentPivotKey;
@@ -719,7 +731,7 @@ public:
                     WaitFor(currentWriter->GetReadyEvent())
                         .ThrowOnError();
                 } else {
-                    yielder.Checkpoint(Logger);
+                    MaybeYieldFiber(yielder, Logger);
                 }
 
                 outputRows.clear();
@@ -767,7 +779,7 @@ public:
                     flushOutputRows();
                     inputBatch = ReadRowBatch(reader, readOptions);
 
-                    yielder.Checkpoint(Logger);
+                    MaybeYieldFiber(yielder, Logger);
 
                     if (inputBatch) {
                         readRowCount += inputBatch->GetRowCount();
@@ -878,19 +890,19 @@ public:
                 .MaxRowsPerRead = MaxRowsPerRead
             };
 
-            TContextSwitchAwarePeriodicYielder yielder(TDuration::MilliSeconds(30));
+            TPeriodicYielder yielder(TDuration::MilliSeconds(30));
 
             while (auto batch = ReadRowBatch(reader, readOptions)) {
                 rowCount += batch->GetRowCount();
                 auto rows = batch->MaterializeRows();
 
-                yielder.Checkpoint(Logger);
+                MaybeYieldFiber(yielder, Logger);
 
                 if (!writer->Write(rows)) {
                     WaitFor(writer->GetReadyEvent())
                         .ThrowOnError();
                 } else {
-                    yielder.Checkpoint(Logger);
+                    MaybeYieldFiber(yielder, Logger);
                 }
 
                 {

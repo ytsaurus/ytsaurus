@@ -30,7 +30,7 @@ target_link_libraries(yql-essentials-udfs-common-math-lib-ut PUBLIC
 )
 
 target_allocator(yql-essentials-udfs-common-math-lib-ut
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(yql-essentials-udfs-common-math-lib-ut PRIVATE

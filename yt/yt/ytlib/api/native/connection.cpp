@@ -954,7 +954,7 @@ public:
         SyncReplicaCache_->Reconfigure(StaticConfig_->SyncReplicaCache->ApplyDynamic(dynamicConfig->SyncReplicaCache));
         TableMountCache_->Reconfigure(StaticConfig_->TableMountCache->ApplyDynamic(dynamicConfig->TableMountCache));
         ClockManager_->Reconfigure(StaticConfig_->ClockManager->ApplyDynamic(dynamicConfig->ClockManager));
-        ChunkReplicaCache_->Reconfigure(dynamicConfig->ChunkReplicaCache);
+        ChunkReplicaCache_->Reconfigure(StaticConfig_->ChunkReplicaCache->ApplyDynamic(dynamicConfig->ChunkReplicaCache));
         ChaosResidencyCache_->Reconfigure(dynamicConfig->ChaosResidencyCache);
         if (ReplicationCardCache_ && dynamicConfig->ReplicationCardCache) {
             ReplicationCardCache_->Reconfigure(dynamicConfig->ReplicationCardCache);

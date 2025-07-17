@@ -48,7 +48,7 @@ target_link_libraries(prepare_operation PUBLIC
 )
 
 target_allocator(prepare_operation
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(prepare_operation PRIVATE

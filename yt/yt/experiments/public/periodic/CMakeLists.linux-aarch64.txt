@@ -33,7 +33,7 @@ target_link_libraries(periodic PUBLIC
 )
 
 target_allocator(periodic
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(periodic PRIVATE

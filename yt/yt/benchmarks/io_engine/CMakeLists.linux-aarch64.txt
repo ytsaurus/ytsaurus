@@ -39,7 +39,7 @@ target_link_libraries(io_engine PUBLIC
 )
 
 target_allocator(io_engine
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(io_engine PRIVATE

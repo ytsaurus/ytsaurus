@@ -848,6 +848,7 @@ private:
 
         NodeMemoryUsageTracker_ = CreateNodeMemoryTracker(
             Config_->ResourceLimits->TotalMemory,
+            New<TNodeMemoryTrackerConfig>(),
             /*limits*/ {},
             Logger(),
             ClusterNodeProfiler().WithPrefix("/memory_usage"));
@@ -1494,6 +1495,8 @@ private:
         }
         TSingletonManager::Reconfigure(newConfig);
 
+        NodeMemoryUsageTracker_->Reconfigure(newConfig->NodeMemoryTracker);
+
         StorageHeavyThreadPool_->SetThreadCount(
             newConfig->DataNode->StorageHeavyThreadCount.value_or(Config_->DataNode->StorageHeavyThreadCount));
         StorageLightThreadPool_->SetThreadCount(
@@ -1563,10 +1566,8 @@ private:
             oldConfig,
             newConfig);
 
-        auto newChunkReplicaCacheConfig = CloneYsonStruct(Config_->ClusterConnection->Dynamic->ChunkReplicaCache);
-        UpdateYsonStructField(
-            newChunkReplicaCacheConfig->ExpirationTime,
-            newConfig->ChunkReplicaCache->ExpirationTime);
+        auto newChunkReplicaCacheConfig = Config_->ClusterConnection->Static->ChunkReplicaCache->ApplyDynamic(
+            newConfig->ChunkReplicaCache);
         Connection_->GetChunkReplicaCache()->Reconfigure(std::move(newChunkReplicaCacheConfig));
 
         auto newChaosResidencyCacheConfig = CloneYsonStruct(Config_->ClusterConnection->Dynamic->ChaosResidencyCache);

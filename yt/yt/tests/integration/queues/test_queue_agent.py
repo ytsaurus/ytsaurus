@@ -3,7 +3,7 @@ from yt_queue_agent_test_base import (OrchidWithRegularPasses, QueueStaticExport
                                       CypressSynchronizerOrchid, AlertManagerOrchid, QueueAgentShardingManagerOrchid,
                                       ObjectAlertHelper)
 
-from yt.environment.init_queue_agent_state import get_latest_version, run_migration, prepare_migration
+from yt.environment.init_queue_agent_state import run_migration, prepare_migration
 
 from yt_commands import (authors, commit_transaction, get, get_batch_output, get_driver, set, ls, wait, assert_yt_error, create, sync_mount_table, insert_rows,
                          delete_rows, remove, raises_yt_error, exists, start_transaction, select_rows,
@@ -3031,6 +3031,11 @@ class TestQueueStaticExportBase(TestQueueAgentBase, QueueStaticExportHelpers):
         },
     }
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
     QUEUE_AGENT_DO_WAIT_FOR_GLOBAL_SYNC_ON_SETUP = True
 
     # NB: We rely on manual flushing in almost all of the static export tests. Override if necessary.
@@ -5019,6 +5024,11 @@ class TestQueueStaticExportPortals(TestQueueStaticExport):
 
     ENABLE_MULTIDAEMON = True
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
     @authors("achulkov2", "nadya73")
     def test_different_native_cells(self):
         _, queue_id = self._create_queue("//portals/q")
@@ -5857,15 +5867,69 @@ class TestControllerInfo(TestQueueAgentBase):
 class TestMigration(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
 
+    QUEUE_AGENT_STATE_ROOT = "//sys/queue_agents"
+
+    def _check_table_schema(self, table_path, expected_schema):
+        actual_schema = get(f"{table_path}/@schema")
+
+        expected_schema_by_column_name = {
+            i["name"]: i
+            for i in expected_schema
+        }
+        actual_schema_by_column_name = {
+            i["name"]: i
+            for i in actual_schema
+        }
+
+        assert builtins.set(actual_schema_by_column_name.keys()) == builtins.set(expected_schema_by_column_name.keys())
+
+        fields = ["name", "type"]
+        fields_with_default = [("required", False), ("sort_order", None)]
+
+        for column_name in expected_schema_by_column_name.keys():
+            expected_column = expected_schema_by_column_name[column_name]
+            actual_column = actual_schema_by_column_name[column_name]
+            for field in fields:
+                assert actual_column[field] == expected_column[field]
+            for field, field_default in fields_with_default:
+                assert actual_column.get(field, field_default) == expected_column.get(field, field_default)
+
+    def _check_table_schemas(self, root, migration):
+        for table_name, table_schema in migration.get_schemas().items():
+            self._check_table_schema(f"{root}/{table_name}", expected_schema=table_schema)
+
+    @classmethod
+    def setup_class(cls):
+        super(cls, TestMigration).setup_class()
+
+        sync_create_cells(1)
+
+    # XXX(apachee): Maybe just use //tmp/queue_agents as root for automatic cleanup?
+    def teardown_method(self, method):
+        remove(self.QUEUE_AGENT_STATE_ROOT, force=True)
+
     @authors("nadya73")
     def test_run_migration(self):
-        sync_create_cells(1)
         client = self.Env.create_native_client()
         migration = prepare_migration(client)
         run_migration(
-            migration, client,
-            tables_path="//sys/queue_agent",
-            target_version=get_latest_version(),
-            shard_count=1,
-            force=False,
+            client=client,
+            root=self.QUEUE_AGENT_STATE_ROOT,
+            migration=migration
         )
+
+        self._check_table_schemas(self.QUEUE_AGENT_STATE_ROOT, migration)
+
+    @authors("apachee")
+    def test_run_migration_on_existing_directory(self):
+        create("map_node", self.QUEUE_AGENT_STATE_ROOT)
+
+        client = self.Env.create_native_client()
+        migration = prepare_migration(client)
+        run_migration(
+            client=client,
+            root=self.QUEUE_AGENT_STATE_ROOT,
+            migration=migration
+        )
+
+        self._check_table_schemas(self.QUEUE_AGENT_STATE_ROOT, migration)

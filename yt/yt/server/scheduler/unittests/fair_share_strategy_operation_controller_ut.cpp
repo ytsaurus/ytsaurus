@@ -301,7 +301,8 @@ protected:
             SchedulerConfig_,
             std::move(execNode),
             /*runningJobs*/ {},
-            MediumDirectory_);
+            MediumDirectory_,
+            /*defaultMinSpareAllocationResources*/ TJobResources());
     }
 };
 

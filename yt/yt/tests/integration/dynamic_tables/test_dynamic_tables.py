@@ -2774,7 +2774,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             "//tmp/t",
             "tablet/throttled_write_count")
 
-        def _insert(overdraft_expected, max_attempts=10):
+        def _insert(overdraft_expected, max_attempts=20):
             overdrafted = False
             for i in range(max_attempts):
                 try:
@@ -3357,6 +3357,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     @authors("atalmenev")
     def test_max_chunk_size(self):
         sync_create_cells(1)
+        create_user("user")
         KB = 1024
 
         self._create_sorted_table("//tmp/t", dynamic=False)
@@ -3369,6 +3370,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             table_writer={"block_size": 10 * KB, "desired_chunk_size": 100 * KB},
         )
 
+        set("//tmp/t/@acl/end", make_ace("allow", "user", "mount"))
         set("//tmp/t/@max_unversioned_block_size", 1 * KB)
         set("//sys/@config/tablet_manager/max_unversioned_chunk_size", 1000 * KB)
 
@@ -3376,22 +3378,40 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
 
-        sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t", authenticated_user="user")
         sync_unmount_table("//tmp/t")
 
         set("//sys/@config/tablet_manager/enable_unversioned_chunk_constraint_validation", True)
 
         with raises_yt_error(f"Cannot mount tablet {tablet_id} since it has chunks with too large block size"):
+            sync_mount_table("//tmp/t", authenticated_user="user")
+
+        set("//sys/users/user/@suppress_dynamic_table_chunk_size_validation", True)
+        sync_mount_table("//tmp/t", authenticated_user="user")
+        sync_unmount_table("//tmp/t")
+
+        with raises_yt_error(f"Cannot mount tablet {tablet_id} since it has chunks with too large block size"):
             sync_mount_table("//tmp/t")
+
+        set("//sys/users/user/@suppress_dynamic_table_chunk_size_validation", False)
 
         set("//tmp/t/@max_unversioned_block_size", 100 * KB)
         set("//sys/@config/tablet_manager/max_unversioned_chunk_size", 1 * KB)
 
         with raises_yt_error(f"Cannot mount tablet {tablet_id} since it has too large chunks"):
+            sync_mount_table("//tmp/t", authenticated_user="user")
+
+        set("//sys/users/user/@suppress_dynamic_table_chunk_size_validation", True)
+        sync_mount_table("//tmp/t", authenticated_user="user")
+        sync_unmount_table("//tmp/t")
+
+        with raises_yt_error(f"Cannot mount tablet {tablet_id} since it has too large chunks"):
             sync_mount_table("//tmp/t")
 
+        set("//sys/users/user/@suppress_dynamic_table_chunk_size_validation", False)
+
         set("//sys/@config/tablet_manager/max_unversioned_chunk_size", 1000 * KB)
-        sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t", authenticated_user="user")
 
     @authors("atalmenev")
     def test_max_chunk_size_validation_ordered_table(self):
@@ -3609,6 +3629,11 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
     @authors("savrus")
     def test_external_dynamic(self):
         cells = sync_create_cells(1)
@@ -3766,6 +3791,11 @@ class TestDynamicTablesDecommissionStall(DynamicTablesBase):
         },
     }
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
     @authors("savrus")
     def test_decommission_stall(self):
         cells = sync_create_cells(1)
@@ -3787,12 +3817,20 @@ class TestDynamicTablesPortal(TestDynamicTablesMulticell):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     ENABLE_TMP_PORTAL = True
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["cypress_node_host", "chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
 
 class TestDynamicTablesShardedTx(TestDynamicTablesPortal):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SECONDARY_MASTER_CELLS = 3
+
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
         "13": {"roles": ["transaction_coordinator"]},
     }
 
@@ -3816,6 +3854,38 @@ class TestDynamicTablesRpcProxy(TestDynamicTablesSingleCell):
     def test_suspend_tablet_cell(self):
         # Tablet cell suspension via RPC proxies is not supported.
         pass
+
+    @authors("atalmenev")
+    def test_table_path_in_max_value_error(self):
+        sync_create_cells(1)
+
+        self._create_sorted_table("//tmp/t_1")
+        sync_mount_table("//tmp/t_1")
+        set("//tmp/t_1/@compression_codec", "none")
+
+        self._create_sorted_table("//tmp/t_2")
+        sync_mount_table("//tmp/t_2")
+        set("//tmp/t_2/@compression_codec", "none")
+
+        MB = 1024 ** 2
+        large_rows = [{"key": 0, "value": "F" * (17 * MB)}]
+        small_rows = [{"key": 0, "value": "f" * (1 * MB)}]
+
+        with raises_yt_error() as err:
+            insert_rows("//tmp/t_1", large_rows, table_writer={"max_row_weight": 20 * MB})
+
+        assert f'Value of type "string" is too long: length {17 * MB}, limit {16 * MB}' in str(err)
+        assert "//tmp/t_1" in str(err)
+
+        tx = start_transaction(type="tablet")
+        insert_rows("//tmp/t_1", small_rows, table_writer={"max_row_weight": 20 * MB}, transaction_id=tx)
+        insert_rows("//tmp/t_2", large_rows, table_writer={"max_row_weight": 20 * MB}, transaction_id=tx)
+
+        with raises_yt_error() as err:
+            commit_transaction(tx)
+
+        assert f'Value of type "string" is too long: length {17 * MB}, limit {16 * MB}' in str(err)
+        assert "//tmp/t_2" in str(err)
 
 
 @pytest.mark.enabled_multidaemon
@@ -3960,6 +4030,11 @@ class TestTabletCellJanitor(DynamicTablesBase):
         }
     }
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
     @authors("babenko")
     def test_cleanup(self):
         CELL_COUNT = 5
@@ -3991,6 +4066,8 @@ class TestDynamicTablesHydraPersistenceMigrationPortal(TestDynamicTablesMulticel
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
         "13": {"roles": ["transaction_coordinator"]},
     }
 

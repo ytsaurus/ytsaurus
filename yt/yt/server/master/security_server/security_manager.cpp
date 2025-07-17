@@ -547,10 +547,10 @@ public:
         auto perCellPermissionValidationProfiler = SecurityProfiler()
             .WithSparse()
             .WithDefaultDisabled();
-        CheckPermissionGauge_ = perCellPermissionValidationProfiler
-            .TimeGauge("/check_permission_cumulative_time");
-        AclIterationGauge_ = perCellPermissionValidationProfiler
-            .TimeGauge("/acl_iteration_cumulative_time");
+        CheckPermissionTimeCounter_ = perCellPermissionValidationProfiler
+            .TimeCounter("/check_permission_cumulative_time");
+        AclIterationTimeCounter_ = perCellPermissionValidationProfiler
+            .TimeCounter("/acl_iteration_cumulative_time");
     }
 
     void RefreshAccountsForProfiling()
@@ -2277,7 +2277,7 @@ public:
                 break;
             }
         }
-        AclIterationGauge_.Update(aclIterationTimer.GetElapsedTime());
+        AclIterationTimeCounter_.Add(aclIterationTimer.GetElapsedTime());
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
 
@@ -2296,7 +2296,7 @@ public:
                 currentDepth);
         }
 
-        CheckPermissionGauge_.Update(checkPermissionTimer.GetElapsedTime());
+        CheckPermissionTimeCounter_.Add(checkPermissionTimer.GetElapsedTime());
         return checker.GetResponse();
     }
 
@@ -2928,8 +2928,8 @@ private:
 
     bool GroupNameMapInitialized_ = false;
 
-    TTimeGauge CheckPermissionGauge_;
-    TTimeGauge AclIterationGauge_;
+    TTimeCounter CheckPermissionTimeCounter_;
+    TTimeCounter AclIterationTimeCounter_;
 
     // COMPAT(cherepashka)
     bool FixAdminBuiltinGroup_ = false;

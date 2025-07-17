@@ -39,7 +39,7 @@ target_link_libraries(cpp-integration-test-cypress-election PUBLIC
 )
 
 target_allocator(cpp-integration-test-cypress-election
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(cpp-integration-test-cypress-election PRIVATE

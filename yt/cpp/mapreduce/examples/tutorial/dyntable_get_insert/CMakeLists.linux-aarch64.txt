@@ -34,7 +34,7 @@ target_link_libraries(dyntable_get_insert PUBLIC
 )
 
 target_allocator(dyntable_get_insert
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(dyntable_get_insert PRIVATE

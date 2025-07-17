@@ -35,7 +35,7 @@ target_link_libraries(cell-balancer-unittests PUBLIC
 )
 
 target_allocator(cell-balancer-unittests
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(cell-balancer-unittests PRIVATE

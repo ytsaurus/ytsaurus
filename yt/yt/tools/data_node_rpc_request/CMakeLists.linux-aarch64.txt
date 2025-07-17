@@ -37,7 +37,7 @@ target_link_libraries(data_node_rpc_request PUBLIC
 )
 
 target_allocator(data_node_rpc_request
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(data_node_rpc_request PRIVATE

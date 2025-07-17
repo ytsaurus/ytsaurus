@@ -33,7 +33,7 @@ target_link_libraries(moody_camel_skew PUBLIC
 )
 
 target_allocator(moody_camel_skew
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(moody_camel_skew PRIVATE

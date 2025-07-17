@@ -29,7 +29,7 @@ target_link_libraries(distributed_throttler PUBLIC
 )
 
 target_allocator(distributed_throttler
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(distributed_throttler PRIVATE

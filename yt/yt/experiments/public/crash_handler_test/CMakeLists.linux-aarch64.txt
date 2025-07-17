@@ -26,7 +26,7 @@ target_link_libraries(crash_handler_tests PUBLIC
 )
 
 target_allocator(crash_handler_tests
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(crash_handler_tests PRIVATE

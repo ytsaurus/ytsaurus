@@ -5,6 +5,7 @@
 #include "cluster_nodes.h"
 #include "object_lock.h"
 #include "query_progress.h"
+#include "secondary_query_input_puller.h"
 
 #include <yt/yt/ytlib/api/native/client_cache.h>
 
@@ -182,6 +183,9 @@ public:
 
     TQueryProgressValues GetQueryProgress() const;
 
+    void SetReadTaskCallback(DB::ReadTaskCallback readTaskCallback);
+    TCallback<TFuture<TSecondaryQueryReadDescriptors>()> GetOperandReadTaskCallback(int tableIndex) const;
+
 public:
     //! A guard that automatically adds elapsed time to query statistics in destructor.
     class TStatisticsTimerGuard
@@ -248,6 +252,8 @@ private:
         NTransactionClient::TTimestamp Timestamp;
     };
     TFuture<TTransactionWithTimestamp> ReadTransactionFuture_;
+
+    TSecondaryQueryReadTaskPullerPtr ReadTaskPuller_;
 
     void InitializeQueryReadTransactionFuture();
 

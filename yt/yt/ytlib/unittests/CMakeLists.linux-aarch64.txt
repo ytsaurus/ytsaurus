@@ -47,7 +47,7 @@ target_link_libraries(unittester-ytlib PUBLIC
 )
 
 target_allocator(unittester-ytlib
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(unittester-ytlib PRIVATE

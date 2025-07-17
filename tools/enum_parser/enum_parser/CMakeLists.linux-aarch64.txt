@@ -26,7 +26,7 @@ target_link_libraries(enum_parser PUBLIC
 )
 
 target_allocator(enum_parser
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(enum_parser PRIVATE

@@ -35,6 +35,7 @@ private:
     ISignatureValidatorPtr SignatureValidator_;
 
     TCypressKeyWriterPtr CypressKeyWriter_;
+    TFuture<void> CypressKeyWriterInitialization_;
     TSignatureGeneratorPtr UnderlyingGenerator_;
     TKeyRotatorPtr KeyRotator_;
     ISignatureGeneratorPtr SignatureGenerator_;

@@ -1318,6 +1318,11 @@ class TestSchedulerErrorTruncate(YTEnvSetup):
         }
     }
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
     @classmethod
     def modify_node_config(cls, config, cluster_index):
         config["cluster_connection"]["primary_master"]["rpc_timeout"] = 50000

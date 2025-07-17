@@ -34,7 +34,7 @@ target_link_libraries(http_server PUBLIC
 )
 
 target_allocator(http_server
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(http_server PRIVATE

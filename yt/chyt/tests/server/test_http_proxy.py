@@ -768,10 +768,8 @@ class TestClickHouseProxyStructuredLog(ClickHouseTestBase):
         self.proxy_log_file = self.path_to_run + "/logs/http-proxy-0.chyt.yson.log"
 
     @classmethod
-    def modify_proxy_config(cls, multidaemon_config, configs):
-        assert len(configs) == 1
-
-        configs[0]["logging"]["rules"].append(
+    def modify_http_proxy_config(cls, config, multidaemon_config, proxy_index):
+        config["logging"]["rules"].append(
             {
                 "min_level": "info",
                 "writers": ["chyt"],
@@ -779,9 +777,9 @@ class TestClickHouseProxyStructuredLog(ClickHouseTestBase):
                 "message_format": "structured",
             }
         )
-        configs[0]["logging"]["writers"]["chyt"] = {
+        config["logging"]["writers"]["chyt"] = {
             "type": "file",
-            "file_name": os.path.join(cls.path_to_run, "logs/http-proxy-0.chyt.yson.log"),
+            "file_name": os.path.join(cls.path_to_run, f"logs/http-proxy-{proxy_index}.chyt.yson.log"),
             "format": "yson",
         }
 

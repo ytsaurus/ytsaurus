@@ -36,7 +36,7 @@ target_link_libraries(unittester-library-error-skeleton PUBLIC
 )
 
 target_allocator(unittester-library-error-skeleton
-  cpp-malloc-jemalloc
+  system_allocator
 )
 
 target_link_options(unittester-library-error-skeleton PRIVATE

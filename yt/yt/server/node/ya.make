@@ -141,6 +141,7 @@ SRCS(
     tablet_node/lookup.cpp
     tablet_node/lsm_interop.cpp
     tablet_node/master_connector.cpp
+    tablet_node/medium_throttler_manager.cpp
     tablet_node/mutation_forwarder.cpp
     tablet_node/mutation_forwarder_thunk.cpp
     tablet_node/object_detail.cpp

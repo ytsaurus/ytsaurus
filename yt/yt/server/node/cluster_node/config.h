@@ -140,20 +140,6 @@ DEFINE_REFCOUNTED_TYPE(TResourceLimitsOverrides)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChunkReplicaCacheDynamicConfig
-    : public NYTree::TYsonStruct
-{
-    std::optional<TDuration> ExpirationTime;
-
-    REGISTER_YSON_STRUCT(TChunkReplicaCacheDynamicConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TChunkReplicaCacheDynamicConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TChaosResidencyCacheDynamicConfig
     : public NYTree::TYsonStruct
 {
@@ -502,7 +488,7 @@ struct TClusterNodeDynamicConfig
     std::optional<double> ThrottlerFreeBandwidthRatio;
 
     //! Chunk replica cache config overrides.
-    TChunkReplicaCacheDynamicConfigPtr ChunkReplicaCache;
+    NChunkClient::TChunkReplicaCacheDynamicConfigPtr ChunkReplicaCache;
 
     //! Chaos residency cache config overrides.
     TChaosResidencyCacheDynamicConfigPtr ChaosResidencyCache;
@@ -524,6 +510,8 @@ struct TClusterNodeDynamicConfig
     double TotalMemoryLimitExceededThreshold;
 
     double MemoryLimitExceededForCategoryThreshold;
+
+    TNodeMemoryTrackerConfigPtr NodeMemoryTracker;
 
     REGISTER_YSON_STRUCT(TClusterNodeDynamicConfig);
 
