@@ -629,6 +629,13 @@ void TPingNodeCommand::Register(TRegistrar registrar)
             return command->Options.ChainAddresses;
         })
         .Optional(/*init*/ false);
+
+    registrar.ParameterWithUniversalAccessor<NRpc::EMultiplexingBand>(
+        "multiplexing_band",
+        [] (TThis* command) -> auto& {
+            return command->Options.MultiplexingBand;
+        })
+        .Optional(/*init*/ false);
 }
 
 void TPingNodeCommand::DoExecute(ICommandContextPtr context)
