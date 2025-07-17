@@ -59,16 +59,22 @@ constinit const auto Logger = YqlAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ReorderAndSaveRows(
+bool ReorderAndSaveRows(
     TRowBufferPtr rowBuffer,
     TNameTablePtr sourceNameTable,
     TNameTablePtr targetNameTable,
     TRange<TUnversionedRow> rows,
-    std::vector<TUnversionedRow>& resultRows)
+    std::vector<TUnversionedRow>& resultRows,
+    std::optional<i64> rowCountLimit)
 {
     std::vector<int> sourceIdToTargetId;
+    bool truncated = false;
 
     for (const auto row : rows) {
+        if (rowCountLimit && resultRows.size() >= rowCountLimit) {
+            truncated = true;
+            break;
+        }
         if (!row) {
             resultRows.push_back(row);
             continue;
@@ -96,6 +102,8 @@ void ReorderAndSaveRows(
         }
         resultRows.push_back(reorderedRow);
     }
+
+    return truncated;
 };
 
 void TYqlRef::Register(TRegistrar registrar)
@@ -199,7 +207,12 @@ TTableSchemaPtr BuildSchema(const TLogicalType& type)
     return New<TTableSchema>(columns);
 }
 
-TYqlRowset BuildRowset(const TBuildingValueConsumer& consumer, int resultIndex, bool incomplete, THashMap<TString, ui32> columns = {})
+TYqlRowset BuildRowset(
+    const TBuildingValueConsumer& consumer,
+    int resultIndex,
+    bool incomplete,
+    THashMap<TString, ui32> columns = {},
+    std::optional<i64> rowCountLimit = std::nullopt)
 {
     std::vector<TUnversionedRow> resultRows;
     const auto sourceSchema = consumer.GetSchema();
@@ -227,7 +240,7 @@ TYqlRowset BuildRowset(const TBuildingValueConsumer& consumer, int resultIndex, 
     auto targetSchema = reorderSchema(sourceSchema);
     const auto targetNameTable = TNameTable::FromSchema(*targetSchema);
 
-    ReorderAndSaveRows(rowBuffer, sourceNameTable, targetNameTable, consumer.GetRows(), resultRows);
+    incomplete |= ReorderAndSaveRows(rowBuffer, sourceNameTable, targetNameTable, consumer.GetRows(), resultRows, rowCountLimit);
 
     YT_LOG_DEBUG("Result read (RowCount: %v, Incomplete: %v, ResultIndex: %v)", resultRows.size(), incomplete, resultIndex);
 
@@ -264,7 +277,7 @@ TYqlRowset BuildRowsetFromYson(
     TBuildingValueConsumer consumer(schema, YqlAgentLogger(), true);
     TDataBuilder dataBuilder(&consumer);
     NYql::NResult::ParseData(*write.Type, *write.Data, dataBuilder);
-    return BuildRowset(consumer, resultIndex, write.IsTruncated);
+    return BuildRowset(consumer, resultIndex, write.IsTruncated, {}, rowCountLimit);
 }
 
 TYqlRowset BuildRowsetFromSkiff(
@@ -307,7 +320,7 @@ TYqlRowset BuildRowsetFromSkiff(
     const auto incompleteNode = writeNode->FindChild("Incomplete");
     const bool incomplete = incompleteNode ? incompleteNode->AsBoolean()->GetValue() : false;
 
-    return BuildRowset(consumer, resultIndex, incomplete, std::move(columns));
+    return BuildRowset(consumer, resultIndex, incomplete, std::move(columns), rowCountLimit);
 }
 
 TWireYqlRowset MakeWireYqlRowset(const TYqlRowset& rowset)

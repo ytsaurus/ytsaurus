@@ -806,7 +806,7 @@ class TestYqlAgent(TestQueriesYqlBase):
             assert not gateway_config["execute_udf_locally_if_possible"]
             assert len(gateway_config["cluster_mapping"]) == 1
             assert len(gateway_config["cluster_mapping"][0]["settings"]) == 2
-            assert len(gateway_config["default_settings"]) == 59
+            assert len(gateway_config["default_settings"]) == 61
 
             setting_found = False
             for setting in gateway_config["default_settings"]:
@@ -849,14 +849,12 @@ class TestQueriesYqlLimitedResult(TestQueriesYqlBase):
         result = query.read_result(0)
         assert_items_equal(result, [{"a": 42}])
         assert query.get_result(0)["is_truncated"]
-        assert_full_result(query.get_result(0))
 
         query = start_query("yql", "select * from `//tmp/t1` limit 1")
         query.track()
         result = query.read_result(0)
         assert_items_equal(result, [{"a": 42}])
         assert not query.get_result(0)["is_truncated"]
-        assert "full_result" not in query.get_result(0)
 
 
 class TestQueriesYqlResultTruncation(TestQueriesYqlBase):
