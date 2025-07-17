@@ -16,7 +16,7 @@ auto Sum()
     return NYT::New<TFunctorCombineFn<std::decay_t<decltype(f)>, T>>(f);
 }
 
-class TSumPerKeyTransform
+class TSumPerKeyApplicator
 {
 public:
     TString GetName() const
@@ -31,7 +31,7 @@ public:
     }
 };
 
-TSumPerKeyTransform SumPerKey();
+TSumPerKeyApplicator SumPerKey();
 
 ////////////////////////////////////////////////////////////////////////////////
 
