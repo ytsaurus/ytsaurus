@@ -742,6 +742,10 @@ TEST_F(TQueryPrepareTest, ArrayJoin)
         const auto* aliased = schema->FindColumn("N");
         EXPECT_FALSE(aliased);
     }
+
+    PreparePlanFragment(
+        &PrepareMock_,
+        "* FROM [//t] AS T ARRAY JOIN T.nested AS N JOIN [//t] AS D ON N = D.key");
 }
 
 TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
