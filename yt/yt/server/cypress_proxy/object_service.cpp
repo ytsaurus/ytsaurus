@@ -2,6 +2,7 @@
 
 #include "private.h"
 
+#include "actions.h"
 #include "bootstrap.h"
 #include "config.h"
 #include "cypress_proxy_service_base.h"
@@ -31,6 +32,7 @@
 
 #include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
 
+#include <yt/yt/ytlib/sequoia_client/prerequisite_revision.h>
 #include <yt/yt/ytlib/sequoia_client/transaction_service_proxy.h>
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
@@ -846,11 +848,27 @@ private:
             subrequest->Target == ERequestTarget::Undetermined ||
             subrequest->Target == ERequestTarget::Sequoia);
 
+        auto& header = *subrequest->RequestHeader;
+
         auto originalTargetPath = ValidateAndMakeYPath(
-            TRawYPath(GetRequestTargetYPath(*subrequest->RequestHeader))
+            TRawYPath(GetRequestTargetYPath(header))
         );
-        auto cypressTransactionId = GetTransactionId(*subrequest->RequestHeader);
-        auto prerequisiteTransactionIds = GetPrerequisiteTransactionIds(*subrequest->RequestHeader);
+        auto cypressTransactionId = GetTransactionId(header);
+        auto prerequisiteTransactionIds = GetPrerequisiteTransactionIds(header);
+        auto prerequisiteRevisions = GetPrerequisiteRevisions(header);
+
+        auto error = ValidatePrerequisiteRevisionsPaths(header, originalTargetPath, prerequisiteRevisions);
+        if (!error.IsOK()) {
+            return CreateErrorResponseMessage(error);
+        }
+
+        // TODO(cherepashka): YT-25409.
+        auto isMutating = IsRequestMutating(header);
+        YT_LOG_ALERT_IF(
+            !isMutating && !prerequisiteRevisions.empty(),
+            "Received read requests with prerequisite revisions in Sequoia (TargetPath: %v, PrerequisiteRevisions: %v)",
+            originalTargetPath,
+            prerequisiteRevisions);
 
         if (cypressTransactionId && !IsCypressTransactionType(TypeFromId(cypressTransactionId))) {
             // Requests with system transactions cannot be handled in Sequoia.
@@ -861,19 +879,35 @@ private:
         TSequoiaSessionPtr session;
         TResolveResult resolveResult;
         try {
-            session = TSequoiaSession::Start(Owner_->Bootstrap_, cypressTransactionId, prerequisiteTransactionIds);
+            session = TSequoiaSession::Start(
+                Owner_->Bootstrap_,
+                cypressTransactionId,
+                prerequisiteTransactionIds);
+            // TODO(cherepashka): add resolve cache YT-25661.
             resolveResult = ResolvePath(
                 session,
-                std::move(originalTargetPath),
+                originalTargetPath,
                 /*pathIsAdditional*/ false,
-                subrequest->RequestHeader->service(),
-                subrequest->RequestHeader->method());
+                header.service(),
+                header.method());
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(ex, "Subrequest resolve failed (SubrequestIndex: %v)",
                 subrequest->Index);
             return CreateErrorResponseMessage(ex);
         }
 
+        std::vector<TResolvedPrerequisiteRevision> resolvedPrerequisiteRevisions;
+        // Otherwise request will be forwarded to master,
+        // where prerequisite revisions will be validated before invokation.
+        if (std::holds_alternative<TSequoiaResolveResult>(resolveResult)) {
+            auto resolvedPrerequisiteRevisionsOrError = ResolvePrerequisiteRevisions(header, session, originalTargetPath, prerequisiteRevisions);
+            if (!resolvedPrerequisiteRevisionsOrError.IsOK()) {
+                return CreateErrorResponseMessage(resolvedPrerequisiteRevisionsOrError);
+            }
+
+            resolvedPrerequisiteRevisions = resolvedPrerequisiteRevisionsOrError.Value();
+            AddValidatePrerequisiteRevisionsTransactionActions(resolvedPrerequisiteRevisions, session->SequoiaTransaction());
+        }
         PatchRequestAfterResolve(subrequest, resolveResult);
 
         // NB: This can crash on invalid request header but it has been already
@@ -888,7 +922,7 @@ private:
         }
 
         auto invokeResult = CreateSequoiaService(Owner_->Bootstrap_)
-            ->TryInvoke(context, session, resolveResult);
+            ->TryInvoke(context, session, resolveResult, resolvedPrerequisiteRevisions);
         // TODO(kvk1920): check prerequisite transaction liveness after read
         // request.
         switch (invokeResult) {

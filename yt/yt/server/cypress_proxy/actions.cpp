@@ -7,6 +7,7 @@
 #include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
 
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
+#include <yt/yt/ytlib/sequoia_client/prerequisite_revision.h>
 #include <yt/yt/ytlib/sequoia_client/record_helpers.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 #include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
@@ -314,7 +315,7 @@ void MaterializeNodeOnMaster(
 
 void MaterializeNodeInSequoia(
     TVersionedNodeId nodeId,
-    NCypressClient::TNodeId parentId,
+    TNodeId parentId,
     TAbsolutePathBuf path,
     bool preserveAcl,
     bool preserveModificationTime,
@@ -382,10 +383,10 @@ void RemoveNode(
 }
 
 void RemoveNodeAttribute(
-    NCypressClient::TVersionedNodeId nodeId,
-    NYPath::TYPathBuf attributePath,
+    TVersionedNodeId nodeId,
+    TYPathBuf attributePath,
     bool force,
-    const NSequoiaClient::ISequoiaTransactionPtr& transaction)
+    const ISequoiaTransactionPtr& transaction)
 {
     NCypressServer::NProto::TReqRemoveNodeAttribute reqRemoveNodeAttribute;
     ToProto(reqRemoveNodeAttribute.mutable_node_id(), nodeId.ObjectId);
@@ -604,6 +605,23 @@ void RemoveSnapshotLockFromSequoia(
         .TransactionId = nodeId.TransactionId,
         .NodeId = nodeId.ObjectId,
     });
+}
+
+void AddValidatePrerequisiteRevisionsTransactionActions(
+    const std::vector<NSequoiaClient::TResolvedPrerequisiteRevision>& resolvedPrerequisiteRevisions,
+    const ISequoiaTransactionPtr& sequoiaTransaction)
+{
+    THashMap<TCellTag, std::vector<NSequoiaClient::TResolvedPrerequisiteRevision>> masterCellTagToResolvedPrerequisiteRevisions;
+    for (const auto& revision : resolvedPrerequisiteRevisions) {
+        masterCellTagToResolvedPrerequisiteRevisions[CellTagFromId(revision.NodeId)].push_back(revision);
+    }
+    for (const auto& [cellTag, prerequisiteRevisions] : masterCellTagToResolvedPrerequisiteRevisions) {
+        NCypressServer::NProto::TReqValidatePrerequisiteRevisions reqValidatePrerequisiteRevisions;
+        ToProto(reqValidatePrerequisiteRevisions.mutable_prerequisite_revisions(), prerequisiteRevisions);
+        sequoiaTransaction->AddTransactionAction(
+            cellTag,
+            MakeTransactionActionData(reqValidatePrerequisiteRevisions));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

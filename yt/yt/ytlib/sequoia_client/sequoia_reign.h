@@ -9,6 +9,7 @@ namespace NYT::NSequoiaClient {
 DEFINE_ENUM(ESequoiaReign,
     ((InitialReign)                         (1))
     ((TransientCypressProxyRegistration)    (2))
+    ((PrerequisiteRevisions)                (3))
 );
 
 static_assert(TEnumTraits<ESequoiaReign>::IsMonotonic, "Sequoia reign enum is not monotonic");

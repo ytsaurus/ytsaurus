@@ -18,6 +18,7 @@
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/ytlib/sequoia_client/client.h>
+#include <yt/yt/ytlib/sequoia_client/prerequisite_revision.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -195,7 +196,8 @@ public:
     EInvokeResult TryInvoke(
         const ISequoiaServiceContextPtr& context,
         const TSequoiaSessionPtr& session,
-        const TResolveResult& resolveResult) override
+        const TResolveResult& resolveResult,
+        const std::vector<TResolvedPrerequisiteRevision>& resolvedPrerequisiteRevisions) override
     {
         static_assert(std::variant_size<std::decay_t<decltype(resolveResult)>>() == 3);
 
@@ -259,7 +261,7 @@ public:
             proxy = CreateMasterProxy(Bootstrap_, session);
         } else {
             const auto& sequoiaResolveResult = std::get<TSequoiaResolveResult>(resolveResult);
-            proxy = CreateNodeProxy(Bootstrap_, session, sequoiaResolveResult);
+            proxy = CreateNodeProxy(Bootstrap_, session, sequoiaResolveResult, resolvedPrerequisiteRevisions);
         }
 
         return proxy->Invoke(context);

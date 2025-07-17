@@ -127,6 +127,7 @@ public:
         const TSubtree& sourceSubtree,
         NSequoiaClient::TAbsolutePathBuf destinationRoot,
         NCypressClient::TNodeId destinationParentId,
+        const std::vector<NSequoiaClient::TResolvedPrerequisiteRevision>& prerequisiteRevisions,
         const TCopyOptions& options);
 
     //! Removes only the content of map-node.

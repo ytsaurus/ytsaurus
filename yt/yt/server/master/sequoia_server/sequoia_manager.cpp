@@ -139,7 +139,7 @@ private:
         auto identity = ParseAuthenticationIdentityFromProto(request->identity());
         TAuthenticatedUserGuard userGuard(Bootstrap_->GetSecurityManager(), identity);
 
-        auto transactionId = FromProto<TGuid>(request->id());
+        auto transactionId = FromProto<TTransactionId>(request->id());
         auto timeout = FromProto<TDuration>(request->timeout());
         auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
 

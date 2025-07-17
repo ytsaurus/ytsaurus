@@ -37,15 +37,16 @@ struct TSequoiaTransactionActionSequencer
                 return priority; \
             }
 
-        HANDLE_ACTION_TYPE(TReqCloneNode, 100)
-        HANDLE_ACTION_TYPE(TReqDetachChild, 200)
-        HANDLE_ACTION_TYPE(TReqRemoveNode, 300)
-        HANDLE_ACTION_TYPE(TReqCreateNode, 400)
-        HANDLE_ACTION_TYPE(TReqFinishNodeMaterialization, 500)
-        HANDLE_ACTION_TYPE(TReqAttachChild, 600)
-        HANDLE_ACTION_TYPE(TReqSetNode, 700)
-        HANDLE_ACTION_TYPE(TReqMultisetAttributes, 800)
-        HANDLE_ACTION_TYPE(TReqImplicitlyLockNode, 900)
+        HANDLE_ACTION_TYPE(TReqValidatePrerequisiteRevisions, 100)
+        HANDLE_ACTION_TYPE(TReqCloneNode, 200)
+        HANDLE_ACTION_TYPE(TReqDetachChild, 300)
+        HANDLE_ACTION_TYPE(TReqRemoveNode, 400)
+        HANDLE_ACTION_TYPE(TReqCreateNode, 500)
+        HANDLE_ACTION_TYPE(TReqFinishNodeMaterialization, 600)
+        HANDLE_ACTION_TYPE(TReqAttachChild, 700)
+        HANDLE_ACTION_TYPE(TReqSetNode, 800)
+        HANDLE_ACTION_TYPE(TReqMultisetAttributes, 900)
+        HANDLE_ACTION_TYPE(TReqImplicitlyLockNode, 1000)
 
         #undef HANDLE_ACTION_TYPE
 

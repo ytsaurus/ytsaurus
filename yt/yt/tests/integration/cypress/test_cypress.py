@@ -2764,39 +2764,50 @@ class TestCypress(YTEnvSetup):
         set("//tmp/test_node", {}, prerequisite_transaction_ids=[tx])
         remove("//tmp/test_node", prerequisite_transaction_ids=[tx])
 
-    @authors("ignat")
-    @not_implemented_in_sequoia
+    @authors("ignat", "cherepashka")
     def test_prerequisite_revisions(self):
         set("//tmp/test_node/inner_node", "value", recursive=True)
         revision = get("//tmp/test_node/inner_node/@revision")
 
-        with raises_yt_error("Prerequisite check failed"):
+        with raises_yt_error("revision mismatch"):
             set(
                 "//tmp/test_node/inner_node",
-                "another value",
+                "another value 1",
                 prerequisite_revisions=[
                     {
                         "path": "//tmp/test_node/inner_node",
-                        "transaction_id": "0-0-0-0",
                         "revision": revision + 1,
+                    }
+                ],
+            )
+
+        with raises_yt_error("Prerequisite check failed: failed to resolve path"):
+            copy(
+                "//tmp/test_node/inner_node",
+                "//tmp/unexisting_node",
+                prerequisite_revisions=[
+                    {
+                        "path": "//tmp/unexisting_node",
+                        "revision": 0,
                     }
                 ],
             )
 
         set(
             "//tmp/test_node/inner_node",
-            "another value",
+            "another value 3",
             prerequisite_revisions=[
                 {
                     "path": "//tmp/test_node/inner_node",
-                    "transaction_id": "0-0-0-0",
                     "revision": revision,
                 }
             ],
         )
 
+        assert get("//tmp/test_node/inner_node") == "another value 3"
+        assert revision < get("//tmp/test_node/inner_node/@revision")
+
     @authors("cherepashka")
-    @not_implemented_in_sequoia
     @pytest.mark.parametrize("make_link", [False, True])
     def test_prerequisite_revisions_restriction(self, make_link):
         set("//sys/@config/object_manager/prohibit_prerequisite_revisions_differ_from_execution_paths", True)
@@ -2858,9 +2869,8 @@ class TestCypress(YTEnvSetup):
             # Shouldn't throw.
             get(path, prerequisite_revisions=prerequisite_revisions)
 
-        # Cross-cell copy-move with prerequisite revision is prohibited.
-        if make_link and get("//home/@native_cell_tag") == get("//tmp/@native_cell_tag"):
-            # There is bug in resolve of prerequisite path now.
+        # There is bug in resolve on masters of prerequisite path now. Cross-cell copy-move with prerequisite revision is prohibited.
+        if make_link and get("//home/@native_cell_tag") == get("//tmp/@native_cell_tag") and not self.ENABLE_TMP_ROOTSTOCK:
             with raises_yt_error("Requests with prerequisite paths different from target paths are prohibited in Cypress"):
                 copy(
                     "//home/revision_node",

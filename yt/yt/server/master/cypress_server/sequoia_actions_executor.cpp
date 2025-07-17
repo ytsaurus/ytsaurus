@@ -15,6 +15,8 @@
 
 #include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
 
+#include <yt/yt/ytlib/sequoia_client/prerequisite_revision.h>
+
 #include <yt/yt/core/ypath/helpers.h>
 
 #include <yt/yt/core/ytree/ypath_detail.h>
@@ -97,6 +99,9 @@ public:
         });
         transactionManager->RegisterTransactionActionHandlers<TReqFinishNodeMaterialization>({
             .Commit = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareAndCommitFinishNodeMaterialization, Unretained(this)),
+        });
+        transactionManager->RegisterTransactionActionHandlers<TReqValidatePrerequisiteRevisions>({
+            .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareAndCommitValidatePrerequisites, Unretained(this)),
         });
     }
 
@@ -1029,6 +1034,37 @@ private:
         }
 
         FinishSequoiaNodeMaterialization(node, parentId, path);
+    }
+
+    //! NB: Cypress proxy acquires locks in dynamic tables for request target and additional paths,
+    // and we do not support prerequisite revisions different from those paths.
+    void HydraPrepareAndCommitValidatePrerequisites(
+        TTransaction* /*transaction*/,
+        NProto::TReqValidatePrerequisiteRevisions* request,
+        const TTransactionPrepareOptions& /*options*/)
+    {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+        auto revisions = FromProto<std::vector<NSequoiaClient::TResolvedPrerequisiteRevision>>(request->prerequisite_revisions());
+
+        for (const auto& revision : revisions) {
+            YT_LOG_ALERT_IF(
+                CellTagFromId(revision.NodeId) != multicellManager->GetCellTag(),
+                "Node from foreign cell occured in prerequisite revisions (NodeId: %v, CellTag: %v)",
+                revision.NodeId,
+                multicellManager->GetCellTag());
+
+            auto* trunkNode = cypressManager->GetNodeOrThrow(TVersionedObjectId(revision.NodeId));
+            if (trunkNode->GetRevision() != revision.Revision) {
+                THROW_ERROR_EXCEPTION(
+                    NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+                    "Prerequisite check failed: node %v revision mismatch: expected %x, found %x",
+                    revision.NodePath,
+                    revision.Revision,
+                    trunkNode->GetRevision());
+            }
+        }
     }
 };
 
