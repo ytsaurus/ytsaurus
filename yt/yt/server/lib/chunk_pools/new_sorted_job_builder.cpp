@@ -224,40 +224,42 @@ public:
 
     void ValidateJob(const TNewJobStub* job)
     {
-        // These are user-facing checks.
-        if (job->GetDataWeight() > JobSizeConstraints_->GetMaxDataWeightPerJob()) {
-            YT_LOG_DEBUG("Maximum allowed data weight per sorted job exceeds the limit (DataWeight: %v, MaxDataWeightPerJob: %v, "
+        auto validateConstraint = [&] (i64 size, i64 maxSize, EErrorCode errorCode, TStringBuf message) {
+            if (size <= maxSize) {
+                return;
+            }
+
+            YT_LOG_DEBUG(
+                "Maximum allowed size per sorted job exceeds the limit (ErrorCode: %v, Size: %v, MaxSize: %v, "
                 "PrimaryLowerBound: %v, PrimaryUpperBound: %v, JobDebugString: %v)",
-                job->GetDataWeight(),
-                JobSizeConstraints_->GetMaxDataWeightPerJob(),
+                errorCode,
+                size,
+                maxSize,
                 job->GetPrimaryLowerBound(),
                 job->GetPrimaryUpperBound(),
                 job->GetDebugString());
 
             THROW_ERROR_EXCEPTION(
-                EErrorCode::MaxDataWeightPerJobExceeded, "Maximum allowed data weight per sorted job exceeds the limit: %v > %v",
-                job->GetDataWeight(),
-                JobSizeConstraints_->GetMaxDataWeightPerJob())
+                errorCode,
+                "%v: %v > %v",
+                message,
+                size,
+                maxSize)
                 << TErrorAttribute("lower_bound", job->GetPrimaryLowerBound())
                 << TErrorAttribute("upper_bound", job->GetPrimaryUpperBound());
-        }
+        };
 
-        if (job->GetPrimaryDataWeight() > JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob()) {
-            YT_LOG_DEBUG("Maximum allowed primary data weight per sorted job exceeds the limit (PrimaryDataWeight: %v, MaxPrimaryDataWeightPerJob: %v, "
-                "PrimaryLowerBound: %v, PrimaryUpperBound: %v, JobDebugString: %v)",
-                job->GetPrimaryDataWeight(),
-                JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob(),
-                job->GetPrimaryLowerBound(),
-                job->GetPrimaryUpperBound(),
-                job->GetDebugString());
+        validateConstraint(
+            job->GetDataWeight(),
+            JobSizeConstraints_->GetMaxDataWeightPerJob(),
+            EErrorCode::MaxDataWeightPerJobExceeded,
+            "Maximum allowed data weight per sorted job exceeds the limit");
 
-            THROW_ERROR_EXCEPTION(
-                EErrorCode::MaxPrimaryDataWeightPerJobExceeded, "Maximum allowed primary data weight per sorted job exceeds the limit: %v > %v",
-                job->GetPrimaryDataWeight(),
-                JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob())
-                << TErrorAttribute("lower_bound", job->GetPrimaryLowerBound())
-                << TErrorAttribute("upper_bound", job->GetPrimaryUpperBound());
-        }
+        validateConstraint(
+            job->GetPrimaryDataWeight(),
+            JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob(),
+            EErrorCode::MaxPrimaryDataWeightPerJobExceeded,
+            "Maximum allowed primary data weight per sorted job exceeds the limit");
 
         // These are internal assertions.
         if (Options_.ValidateOrder) {
