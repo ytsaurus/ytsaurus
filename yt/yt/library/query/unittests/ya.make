@@ -20,7 +20,6 @@ IF (OPENSOURCE)
     )
 ELSE()
     SRCS(
-        # disable_web_assembly.cpp
         enable_web_assembly.cpp
     )
 ENDIF()
