@@ -12,11 +12,11 @@ namespace NRoren {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYtWriteTransform
+class TYtWriteApplicator
     : public NPrivate::TAttributes
 {
 public:
-    TYtWriteTransform(
+    TYtWriteApplicator(
         const NYT::TRichYPath& path,
         const NYT::TTableSchema& schema)
         : Path_(path)
@@ -57,11 +57,11 @@ private:
     const NYT::TTableSchema Schema_;
 };
 
-class TYtSortedWriteTransform
+class TYtSortedWriteApplicator
     : public NPrivate::TAttributes
 {
 public:
-    TYtSortedWriteTransform(NYT::TRichYPath path, NYT::TTableSchema schema)
+    TYtSortedWriteApplicator(NYT::TRichYPath path, NYT::TTableSchema schema)
         : Path_(std::move(path))
         , Schema_(std::move(schema))
     { }
@@ -100,11 +100,11 @@ private:
     const NYT::TTableSchema Schema_;
 };
 
-class TYtAutoSchemaWriteTransform
+class TYtAutoSchemaWriteApplicator
     : public NPrivate::TAttributes
 {
 public:
-    TYtAutoSchemaWriteTransform(NYT::TRichYPath path)
+    TYtAutoSchemaWriteApplicator(NYT::TRichYPath path)
         : Path_(path)
     { }
 
@@ -118,20 +118,20 @@ public:
     void ApplyTo(const TPCollection<TInputRow>& pCollection) const
     {
         auto schema = NYT::CreateTableSchema<TInputRow>();
-        auto transform = TYtWriteTransform(Path_, schema);
-        NPrivate::MergeAttributes(transform, *this);
-        pCollection | transform;
+        auto applicator = TYtWriteApplicator(Path_, schema);
+        NPrivate::MergeAttributes(applicator, *this);
+        pCollection | applicator;
     }
 
 private:
     const NYT::TRichYPath Path_;
 };
 
-class TYtAutoSchemaSortedWriteTransform
+class TYtAutoSchemaSortedWriteApplicator
     : public NPrivate::TAttributes
 {
 public:
-    TYtAutoSchemaSortedWriteTransform(NYT::TRichYPath path, NYT::TSortColumns sortColumns)
+    TYtAutoSchemaSortedWriteApplicator(NYT::TRichYPath path, NYT::TSortColumns sortColumns)
         : Path_(std::move(path))
         , SortColumns_(std::move(sortColumns))
     { }
@@ -146,9 +146,9 @@ public:
     void ApplyTo(const TPCollection<TInputRow>& pCollection) const
     {
         auto schema = NYT::CreateTableSchema<TInputRow>(SortColumns_);
-        auto transform = TYtSortedWriteTransform(Path_, schema);
-        NPrivate::MergeAttributes(transform, *this);
-        pCollection | transform;
+        auto applicator = TYtSortedWriteApplicator(Path_, schema);
+        NPrivate::MergeAttributes(applicator, *this);
+        pCollection | applicator;
     }
 
 private:

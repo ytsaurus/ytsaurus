@@ -43,22 +43,26 @@ template <typename I, typename A, typename O>
 using ICombineFnPtr = ICombineFn<I, A, O>;
 
 template <typename T>
-class TWriteTransform;
+class TWriteApplicator;
 
 template <typename T>
-class TReadTransform;
+class TReadApplicator;
 
 template <typename I, typename O>
-class TParDoTransform;
+class TParDoApplicator;
 
 template <typename T>
 class TTypeTag;
 
+///
+/// @brief Set name for given Transform
+extern TTypeTag<TString> TransformNameTag;
+
 template <typename I, typename... O>
-class TTransform;
+class TApplicator;
 
 template <typename T>
-class TRenamedTransform;
+class TRenamedApplicator;
 
 class TDynamicTypeTag;
 
@@ -83,7 +87,7 @@ class TPState;
 template <typename, typename>
 class TStateStore;
 
-class TNullWriteTransform;
+class TNullWriteApplicator;
 
 class TFnAttributes;
 

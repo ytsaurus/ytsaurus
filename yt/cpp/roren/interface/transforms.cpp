@@ -8,19 +8,19 @@ namespace NRoren {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGroupByKeyTransform GroupByKey()
+TGroupByKeyApplicator GroupByKey()
 {
     return {};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TCoGroupByKeyTransform::GetName() const
+TString TCoGroupByKeyApplicator::GetName() const
 {
     return "CoGroupByKey";
 }
 
-TPCollection<TCoGbkResult> TCoGroupByKeyTransform::ApplyTo(const TMultiPCollection& multiPCollection) const
+TPCollection<TCoGbkResult> TCoGroupByKeyApplicator::ApplyTo(const TMultiPCollection& multiPCollection) const
 {
     // 1. Нужно убедиться, что все ключи имеют один тип.
     TString keyTypeName;
@@ -54,21 +54,21 @@ TPCollection<TCoGbkResult> TCoGroupByKeyTransform::ApplyTo(const TMultiPCollecti
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCoGroupByKeyTransform CoGroupByKey()
+TCoGroupByKeyApplicator CoGroupByKey()
 {
-    return TCoGroupByKeyTransform{};
+    return TCoGroupByKeyApplicator{};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFlattenTransform Flatten()
+TFlattenApplicator Flatten()
 {
     return {};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNullWriteTransform NullWrite()
+TNullWriteApplicator NullWrite()
 {
     return {};
 }
