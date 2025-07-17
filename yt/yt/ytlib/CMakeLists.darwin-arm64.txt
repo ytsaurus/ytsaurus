@@ -452,6 +452,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/security_client/user_attribute_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/prerequisite_revision.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/record_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/sequoia_reign.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/table_descriptor.cpp

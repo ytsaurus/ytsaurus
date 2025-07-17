@@ -12,6 +12,7 @@
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/sequoia_client/prerequisite_revision.h>
 #include <yt/yt/ytlib/sequoia_client/record_helpers.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 
@@ -413,7 +414,7 @@ void TraverseSelectedSubtree(
 
 DEFINE_REFCOUNTED_TYPE(TSequoiaSession)
 
-NCypressClient::TTransactionId TSequoiaSession::GetCurrentCypressTransactionId() const
+TTransactionId TSequoiaSession::GetCurrentCypressTransactionId() const
 {
     return CypressTransactionAncestry_.back();
 }
@@ -432,7 +433,11 @@ TSequoiaSessionPtr TSequoiaSession::Start(
         ValidatePrerequisiteTransactions(sequoiaClient, cypressPrerequisiteTransactionIds);
     }
 
-    auto sequoiaTransaction = WaitFor(StartCypressProxyTransaction(sequoiaClient, ESequoiaTransactionType::CypressModification, cypressPrerequisiteTransactionIds))
+    auto sequoiaTransaction = WaitFor(
+        StartCypressProxyTransaction(
+            sequoiaClient,
+            ESequoiaTransactionType::CypressModification,
+            cypressPrerequisiteTransactionIds))
         .ValueOrThrow();
 
     std::vector<TTransactionId> cypressTransactions;
@@ -924,6 +929,7 @@ TNodeId TSequoiaSession::CopySubtree(
     const TSubtree& subtree,
     TAbsolutePathBuf destinationRoot,
     TNodeId destinationParentId,
+    const std::vector<TResolvedPrerequisiteRevision>& prerequisiteRevisions,
     const TCopyOptions& options)
 {
     // To copy simlinks properly we have to fetch their target paths.
@@ -933,6 +939,9 @@ TNodeId TSequoiaSession::CopySubtree(
         if (IsLinkType(TypeFromId(node.Id))) {
             linkIds.push_back(node.Id);
         }
+    }
+    for (const auto& revision : prerequisiteRevisions) {
+        AcquireCypressLockInSequoia(revision.NodeId, ELockMode::Exclusive);
     }
 
     auto links = GetLinkTargetPaths(linkIds);
@@ -1204,6 +1213,8 @@ TNodeId TSequoiaSession::CreateNode(
     const TSuppressableAccessTrackingOptions& options)
 {
     auto createdNodeId = SequoiaTransaction_->GenerateObjectId(type);
+
+    AcquireCypressLockInSequoia(createdNodeId, ELockMode::Exclusive);
 
     NCypressProxy::CreateNode(
         {createdNodeId, GetCurrentCypressTransactionId()},

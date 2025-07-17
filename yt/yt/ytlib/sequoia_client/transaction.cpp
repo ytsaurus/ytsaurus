@@ -963,7 +963,6 @@ namespace NDetail {
 TFuture<ISequoiaTransactionPtr> StartSequoiaTransaction(
     ISequoiaClientPtr sequoiaClient,
     ESequoiaTransactionType type,
-
     IClientPtr localClient,
     IClientPtr groundClient,
     const TTransactionStartOptions& transactionStartOptions,

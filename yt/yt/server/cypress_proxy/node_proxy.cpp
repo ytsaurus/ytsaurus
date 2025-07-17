@@ -30,6 +30,7 @@
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
+#include <yt/yt/ytlib/sequoia_client/prerequisite_revision.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
@@ -161,12 +162,14 @@ public:
     TNodeProxy(
         IBootstrap* bootstrap,
         TSequoiaSessionPtr session,
-        TSequoiaResolveResult resolveResult)
+        TSequoiaResolveResult resolveResult,
+        std::vector<TResolvedPrerequisiteRevision> resolvedPrerequisiteRevisions)
         : TNodeProxyBase(bootstrap, std::move(session))
         , Id_(resolveResult.Id)
         , Path_(resolveResult.Path)
         , ParentId_(resolveResult.ParentId)
         , ResolveResult_(std::move(resolveResult))
+        , ResolvedPrerequisiteRevisions_(std::move(resolvedPrerequisiteRevisions))
     {
         auto nodeType = TypeFromId(Id_);
         YT_VERIFY(
@@ -182,6 +185,7 @@ protected:
     // Can be null only if |Id_| is a scion, Cypress link or snapshot branch.
     const TNodeId ParentId_;
     const TSequoiaResolveResult ResolveResult_;
+    const std::vector<TResolvedPrerequisiteRevision> ResolvedPrerequisiteRevisions_;
 
     TSuppressableAccessTrackingOptions AccessTrackingOptions_;
 
@@ -939,6 +943,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
         nodesToCopy,
         destinationRootPath,
         destinationParentId,
+        ResolvedPrerequisiteRevisions_,
         options);
 
     ToProto(response->mutable_node_id(), destinationId);
@@ -2034,20 +2039,26 @@ private:
 INodeProxyPtr CreateNodeProxy(
     IBootstrap* bootstrap,
     TSequoiaSessionPtr session,
-    TSequoiaResolveResult resolveResult)
+    TSequoiaResolveResult resolveResult,
+    std::vector<TResolvedPrerequisiteRevision> resolvedPrerequisiteRevisions)
 {
     auto type = TypeFromId(resolveResult.Id);
     ValidateSupportedSequoiaType(type);
 
     if (type == EObjectType::Document || type == EObjectType::Orchid) {
-        return New<TOpaqueNodeProxy>(bootstrap, std::move(session), std::move(resolveResult));
+        return New<TOpaqueNodeProxy>(
+            bootstrap,
+            std::move(session),
+            std::move(resolveResult),
+            std::move(resolvedPrerequisiteRevisions));
     } else if (IsSequoiaCompositeNodeType(type)) {
-        return New<TMapLikeNodeProxy>(bootstrap, std::move(session), std::move(resolveResult));
+        return New<TMapLikeNodeProxy>(bootstrap, std::move(session), std::move(resolveResult), std::move(resolvedPrerequisiteRevisions));
     } else {
         return New<TNodeProxy>(
             bootstrap,
             std::move(session),
-            std::move(resolveResult));
+            std::move(resolveResult),
+            std::move(resolvedPrerequisiteRevisions));
     }
 }
 

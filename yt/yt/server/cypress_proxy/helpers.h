@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
 
+#include <yt/yt/ytlib/sequoia_client/public.h>
+
 #include <yt/yt/client/object_client/public.h>
 
 namespace NYT::NCypressProxy {
@@ -28,6 +30,18 @@ void ValidateLinkNodeCreation(
     const TResolveResult& resolveResult);
 
 ////////////////////////////////////////////////////////////////////////////////
+
+std::vector<NSequoiaClient::TPrerequisiteRevision> GetPrerequisiteRevisions(const NRpc::NProto::TRequestHeader& header);
+TErrorOr<std::vector<NSequoiaClient::TResolvedPrerequisiteRevision>> ResolvePrerequisiteRevisions(
+    const NRpc::NProto::TRequestHeader& header,
+    const TSequoiaSessionPtr& session,
+    const NYPath::TYPath& originalTargetPath,
+    const std::vector<NSequoiaClient::TPrerequisiteRevision>& prerequisiteRevisions);
+
+TError ValidatePrerequisiteRevisionsPaths(
+    const NRpc::NProto::TRequestHeader& header,
+    const NYPath::TYPath& originalTargetPath,
+    const std::vector<NSequoiaClient::TPrerequisiteRevision>& prerequisiteRevisions);
 
 void ValidatePrerequisiteTransactions(
     const NSequoiaClient::ISequoiaClientPtr& sequoiaClient,

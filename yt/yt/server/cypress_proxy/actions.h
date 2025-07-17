@@ -6,6 +6,7 @@
 
 #include <yt/yt/ytlib/object_client/proto/master_ypath.pb.h>
 
+#include <yt/yt/ytlib/sequoia_client/public.h>
 #include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
 
 #include <yt/yt/core/ytree/public.h>
@@ -132,6 +133,10 @@ void CreateSnapshotLockInSequoia(
 
 void RemoveSnapshotLockFromSequoia(
     NCypressClient::TVersionedNodeId nodeId,
+    const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
+
+void AddValidatePrerequisiteRevisionsTransactionActions(
+    const std::vector<NSequoiaClient::TResolvedPrerequisiteRevision>& resolvedPrerequisiteRevisions,
     const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
 
 ////////////////////////////////////////////////////////////////////////////////

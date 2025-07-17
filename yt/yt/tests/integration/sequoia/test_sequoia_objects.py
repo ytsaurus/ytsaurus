@@ -19,7 +19,7 @@ from yt_commands import (
     start_transaction, abort_transaction, sync_mount_table, sync_unmount_table,
     sync_compact_table, set_nodes_banned, set_node_banned,
     get_account_disk_space_limit, set_account_disk_space_limit,
-    get_active_primary_master_leader_address, gc_collect,
+    get_active_primary_master_leader_address, gc_collect, copy,
 )
 
 from yt.wrapper import yson
@@ -653,7 +653,7 @@ class TestSequoiaObjects(YTEnvSetup):
 
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
-        # Master cell with tag 11 is reserved for portals.
+        "11": {"roles": ["chunk_host"]},
         "12": {"roles": ["sequoia_node_host", "chunk_host", "transaction_coordinator"]},
         "13": {"roles": ["sequoia_node_host", "chunk_host", "transaction_coordinator"]},
     }
@@ -672,7 +672,7 @@ class TestSequoiaObjects(YTEnvSetup):
 
     @authors("kvk1920")
     @pytest.mark.parametrize("finish_tx", [commit_transaction, abort_transaction])
-    def test_read_with_prerequisites(self, finish_tx):
+    def test_read_with_prerequisite_tx(self, finish_tx):
         tx = start_transaction()
         t = create("table", "//tmp/t")
 
@@ -687,7 +687,7 @@ class TestSequoiaObjects(YTEnvSetup):
 
     @authors("cherepashka", "kvk1920")
     @pytest.mark.parametrize("finish_tx", [commit_transaction, abort_transaction])
-    def test_write_with_prerequisites(self, finish_tx):
+    def test_write_with_prerequisite_tx(self, finish_tx):
         tx = start_transaction()
         create("table", "//tmp/t", prerequisite_transaction_ids=[tx])
         tx2 = start_transaction(prerequisite_transaction_ids=[tx])
@@ -737,3 +737,45 @@ class TestSequoiaObjects(YTEnvSetup):
         assert get_cell_tag(tx1) == 11 and get_cell_tag(tx2) == 12
         with raises_yt_error("Multiple prerequisite transactions from different cells specified"):
             start_transaction(prerequisite_transaction_ids=[tx1, tx2])
+
+    @authors("cherepashka")
+    def test_copy_with_prerequisite_revision(self):
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 11})
+        set("//tmp/t2", "aba", attributes={"external_cell_tag": 12})
+        revision = get("//tmp/t1/@revision")
+        copy(
+            "//tmp/t1",
+            "//tmp/t2",
+            force=True,
+            prerequisite_revisions=[
+                {
+                    "path": "//tmp/t1",
+                    "revision": revision,
+                }
+            ])
+        write_table("<append=%true>//tmp/t1", {"foo": "bar"})
+        new_revision = get("//tmp/t1/@revision")
+        assert new_revision > revision
+
+        with raises_yt_error("revision mismatch"):
+            copy(
+                "//tmp/t1",
+                "//tmp/t2",
+                force=True,
+                prerequisite_revisions=[
+                    {
+                        "path": "//tmp/t1",
+                        "revision": revision,
+                    }
+                ])
+
+        copy(
+            "//tmp/t1",
+            "//tmp/t2",
+            force=True,
+            prerequisite_revisions=[
+                {
+                    "path": "//tmp/t1",
+                    "revision": new_revision,
+                }
+            ])

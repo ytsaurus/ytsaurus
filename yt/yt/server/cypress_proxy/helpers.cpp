@@ -11,6 +11,7 @@
 #include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
 
 #include <yt/yt/ytlib/sequoia_client/client.h>
+#include <yt/yt/ytlib/sequoia_client/prerequisite_revision.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 #include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
 
@@ -134,6 +135,91 @@ void ValidateLinkNodeCreation(
             << TErrorAttribute("target_path", targetPath)
             << TErrorAttribute("path", linkPath);
     }
+}
+
+std::vector<TPrerequisiteRevision> GetPrerequisiteRevisions(const NRpc::NProto::TRequestHeader& header)
+{
+    const auto prerequisitesExt = NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext;
+    if (!header.HasExtension(prerequisitesExt)) {
+        return {};
+    }
+
+    auto prerequisites = header.GetExtension(prerequisitesExt);
+    return FromProto<std::vector<TPrerequisiteRevision>>(prerequisites.revisions());
+}
+
+TErrorOr<std::vector<TResolvedPrerequisiteRevision>> ResolvePrerequisiteRevisions(
+    const NRpc::NProto::TRequestHeader& header,
+    const TSequoiaSessionPtr& session,
+    const TYPath& originalTargetPath,
+    const std::vector<TPrerequisiteRevision>& prerequisiteRevisions)
+{
+    std::vector<TResolvedPrerequisiteRevision> resolvedPrerequisiteRevisions;
+    resolvedPrerequisiteRevisions.reserve(prerequisiteRevisions.size());
+    for (const auto& revision : prerequisiteRevisions) {
+        // Prerequisite revision paths are prohibited to differ from target and additional paths.
+        auto pathIsAdditional = revision.Path != originalTargetPath;
+        auto prerequisiteRevisionResolveResult = ResolvePath(
+            session,
+            revision.Path,
+            pathIsAdditional,
+            header.service(),
+            header.method());
+
+        auto* resolvedPrerequisiteRevision = std::get_if<TSequoiaResolveResult>(&prerequisiteRevisionResolveResult);
+        if (resolvedPrerequisiteRevision) {
+            // YT_LOG_DEBUG("KEK: resolved %v")
+            if (resolvedPrerequisiteRevision->UnresolvedSuffix.empty() || resolvedPrerequisiteRevision->UnresolvedSuffix == AmpersandYPath) {
+                resolvedPrerequisiteRevisions.push_back(
+                TResolvedPrerequisiteRevision{
+                    .NodeId = resolvedPrerequisiteRevision->Id,
+                    .Revision = revision.Revision,
+                    .NodePath = revision.Path,
+                });
+                continue;
+            }
+        }
+
+        return TError(
+            NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+            "Prerequisite check failed: failed to resolve path %v",
+            revision.Path);
+    }
+    return resolvedPrerequisiteRevisions;
+}
+
+TError ValidatePrerequisiteRevisionsPaths(
+    const NRpc::NProto::TRequestHeader& header,
+    const NYPath::TYPath& originalTargetPath,
+    const std::vector<TPrerequisiteRevision>& prerequisiteRevisions)
+{
+    if (prerequisiteRevisions.empty()) {
+        return TError();
+    }
+
+    auto ypathExt = header.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+    std::optional<TYPath> originalSourcePath;
+    if (ypathExt.additional_paths_size() > 0) {
+        if (ypathExt.additional_paths_size() != 1) {
+            return TError("Invalid number of additional paths");
+        }
+        originalSourcePath = ValidateAndMakeYPath(TRawYPath(ypathExt.additional_paths(0)));
+    }
+    for (const auto& revision : prerequisiteRevisions) {
+        if (revision.Path == originalTargetPath || (originalSourcePath && revision.Path == *originalSourcePath)) {
+            continue;
+        }
+
+        return TError(
+            NObjectClient::EErrorCode::PrerequisitePathDifferFromExecutionPaths,
+            "Requests with prerequisite paths different from target paths are prohibited in Cypress "
+            "(PrerequisitePath: %v, TargetPath: %v, AdditionalPath: %v)",
+            revision.Path,
+            originalTargetPath,
+            originalSourcePath);
+    }
+
+    return TError();
 }
 
 void ValidatePrerequisiteTransactions(

@@ -50,6 +50,8 @@ DEFINE_ENUM(EGroundUpdateQueue,
     ((Sequoia)            (0))
 );
 
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NRecords {
 
 struct TPathToNodeId;
@@ -98,6 +100,11 @@ using TRelativePathBuf = TBasicPathBuf<false>;
 //! An absolute path is a canonical path that starts with a slash root designator.
 class TAbsolutePath;
 using TAbsolutePathBuf = TBasicPathBuf<true>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TPrerequisiteRevision;
+struct TResolvedPrerequisiteRevision;
 
 ////////////////////////////////////////////////////////////////////////////////
 

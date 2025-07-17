@@ -37,7 +37,8 @@ struct ISequoiaService
     virtual EInvokeResult TryInvoke(
         const ISequoiaServiceContextPtr& context,
         const TSequoiaSessionPtr& sequoiaSession,
-        const TResolveResult& resolveResult) = 0;
+        const TResolveResult& resolveResult,
+        const std::vector<NSequoiaClient::TResolvedPrerequisiteRevision>& resolvedPrerequisiteRevisions) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISequoiaService);

@@ -21,7 +21,8 @@ DEFINE_REFCOUNTED_TYPE(INodeProxy)
 INodeProxyPtr CreateNodeProxy(
     IBootstrap* bootstrap,
     TSequoiaSessionPtr session,
-    TSequoiaResolveResult resolveResult);
+    TSequoiaResolveResult resolveResult,
+    std::vector<NSequoiaClient::TResolvedPrerequisiteRevision> resolvedPrerequisiteRevisions);
 
 ////////////////////////////////////////////////////////////////////////////////
 
