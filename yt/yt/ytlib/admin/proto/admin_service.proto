@@ -16,6 +16,7 @@ message TRspDie
 message TReqPingNode
 {
     repeated string chain_addresses = 1;
+    optional int32 multiplexing_band = 2; // EMultiplexingBand
 }
 
 message TRspPingNode
