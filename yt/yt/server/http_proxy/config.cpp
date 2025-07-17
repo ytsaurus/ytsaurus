@@ -132,16 +132,22 @@ void TMemoryLimitsConfig::Register(TRegistrar registrar)
     registrar.Parameter("total", &TThis::Total)
         .Optional()
         .GreaterThanOrEqual(0);
-    registrar.Parameter("heavy_request", &TThis::HeavyRequest)
-        .Optional()
-        .GreaterThanOrEqual(0);
 }
 
 void TMemoryLimitRatiosConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("total_memory_limit_ratio", &TThis::TotalMemoryLimitRatio)
+        .Default(0.9)
+        .InRange(0.0, 1.0);
+
+    registrar.Parameter("heavy_request_memory_limit_ratio", &TThis::HeavyRequestMemoryLimitRatio)
+        .Default(0.9)
+        .InRange(0.0, 1.0);
+
     registrar.Parameter("default_user_memory_limit_ratio", &TThis::DefaultUserMemoryLimitRatio)
         .Optional()
         .InRange(0.0, 1.0);
+
     registrar.Parameter("user_to_memory_limit_ratio", &TThis::UserToMemoryLimitRatio)
         .Default();
 
@@ -200,9 +206,8 @@ void TApiDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_compression_thread_pool", &TThis::UseCompressionThreadPool)
         .Default(true);
 
-    registrar.Parameter("default_user_memory_limit_ratio", &TThis::DefaultUserMemoryLimitRatio)
-        .Optional()
-        .InRange(0.0, 1.0);
+    registrar.Parameter("default_memory_limit_ratios", &TThis::DefaultMemoryLimitRatios)
+        .DefaultNew();
 
     registrar.Parameter("role_to_memory_limit_ratios", &TThis::RoleToMemoryLimitRatios)
         .Default();

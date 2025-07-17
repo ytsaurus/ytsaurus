@@ -169,8 +169,21 @@ DEFINE_REFCOUNTED_TYPE(TFramingConfig)
 struct TMemoryLimitRatiosConfig
     : public NYTree::TYsonStruct
 {
-    //! Represents the ratio of total available memory that can be utilized by each user (if user is not specified in "DefaultUserMemoryLimitRatio"),
-    //! expressed as a value between 0 and 1.
+    //! Fraction of total memory the proxy may use.
+    //! If memory usage is higher then new requests will be rejected.
+    //!
+    //! Expressed as a value between 0 and 1.
+    double TotalMemoryLimitRatio;
+
+    //! Fraction of total memory for heavy requests.
+    //! If heavy requests use more then new heavy requests will be rejected.
+    //!
+    //! Expressed as a value between 0 and 1.
+    double HeavyRequestMemoryLimitRatio;
+
+    //! Represents the ratio of total available memory that can be utilized by each user (if user is not specified in "UserToMemoryLimitRatio").
+    //!
+    //! Expressed as a value between 0 and 1.
     std::optional<double> DefaultUserMemoryLimitRatio;
     THashMap<std::string, double> UserToMemoryLimitRatio;
 
@@ -185,7 +198,6 @@ struct TMemoryLimitsConfig
     : public NYTree::TYsonStruct
 {
     std::optional<i64> Total;
-    std::optional<i64> HeavyRequest;
 
     REGISTER_YSON_STRUCT(TMemoryLimitsConfig);
 
@@ -231,7 +243,7 @@ struct TApiDynamicConfig
 
     NSecurityServer::TUserAccessValidatorDynamicConfigPtr UserAccessValidator;
 
-    std::optional<double> DefaultUserMemoryLimitRatio;
+    TMemoryLimitRatiosConfigPtr DefaultMemoryLimitRatios;
     THashMap<std::string, TMemoryLimitRatiosConfigPtr> RoleToMemoryLimitRatios;
 
     // COMPAT(ignat): drop the option after 25.2.

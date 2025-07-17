@@ -371,35 +371,54 @@ class TestHttpProxy(HttpProxyTestBase):
 class TestHttpProxyMemoryDrop(HttpProxyTestBase):
     ENABLE_MULTIDAEMON = True
 
+    DELTA_PROXY_CONFIG = {
+        "memory_limits": {
+            "total": 1000000000,
+        }
+    }
+
     @authors("nadya73")
     def test_basic(self):
         monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
         config_url = "http://localhost:{}/orchid/dynamic_config_manager/effective_config".format(monitoring_port)
 
-        def config_updated(expected_total_memory_limit):
+        def config_updated(expected_total_memory_limit_ratio):
             config = requests.get(config_url).json()
-            return config.get("memory_limits", {}).get("total", 0) == expected_total_memory_limit
+            return config.get("api", {}).get("default_memory_limit_ratios", {}).get("total_memory_limit_ratio", 0.0) == expected_total_memory_limit_ratio
 
         create("table", "//tmp/test")
 
         wait(lambda: requests.get(f"{self._get_proxy_address()}/api/v4/get?path=//@").ok)
 
-        # No memory limits.
+        # Total memory limit was not reached.
         self._execute_command("GET", "get", {"path": "//@"})
         self._execute_command("GET", "read_table", {"path": "//tmp/test"})
 
-        total_memory_limit = 1000000
-        set("//sys/http_proxies/@config", {"memory_limits": {"total": total_memory_limit}})
-        wait(lambda: config_updated(total_memory_limit))
+        total_memory_limit_ratio = 0.001
+        set("//sys/http_proxies/@config", {
+            "api": {
+                "default_memory_limit_ratios": {
+                    "total_memory_limit_ratio": total_memory_limit_ratio
+                }
+            }
+        })
+        wait(lambda: config_updated(total_memory_limit_ratio))
 
         # Total memory limit was not reached.
         self._execute_command("GET", "get", {"path": "//@"})
         self._execute_command("GET", "read_table", {"path": "//tmp/test"})
 
-        total_memory_limit = 2000000
-        heavy_request_memory_limit = 0
-        set("//sys/http_proxies/@config", {"memory_limits": {"total": total_memory_limit, "heavy_request": heavy_request_memory_limit}})
-        wait(lambda: config_updated(total_memory_limit))
+        total_memory_limit_ratio = 0.0005
+        heavy_request_memory_limit_ratio = 0.0
+        set("//sys/http_proxies/@config", {
+            "api": {
+                "default_memory_limit_ratios": {
+                    "total_memory_limit_ratio": total_memory_limit_ratio,
+                    "heavy_request_memory_limit_ratio": heavy_request_memory_limit_ratio,
+                }
+            }
+        })
+        wait(lambda: config_updated(total_memory_limit_ratio))
 
         # Heavy request limit does not affect get request.
         self._execute_command("GET", "get", {"path": "//@"})
@@ -409,9 +428,15 @@ class TestHttpProxyMemoryDrop(HttpProxyTestBase):
             self._execute_command("GET", "read_table", {"path": "//tmp/test"})
         assert err[0].is_rpc_unavailable()
 
-        total_memory_limit = 100
-        set("//sys/http_proxies/@config", {"memory_limits": {"total": total_memory_limit}})
-        wait(lambda: config_updated(total_memory_limit))
+        total_memory_limit_ratio = 0.0000001
+        set("//sys/http_proxies/@config", {
+            "api": {
+                "default_memory_limit_ratios": {
+                    "total_memory_limit_ratio": total_memory_limit_ratio
+                }
+            }
+        })
+        wait(lambda: config_updated(total_memory_limit_ratio))
 
         with raises_yt_error("Request is dropped due to high memory pressure") as err:
             self._execute_command("GET", "get", {"path": "//@"})
@@ -420,6 +445,31 @@ class TestHttpProxyMemoryDrop(HttpProxyTestBase):
         with raises_yt_error("Request is dropped due to high memory pressure") as err:
             self._execute_command("GET", "read_table", {"path": "//tmp/test"})
         assert err[0].is_rpc_unavailable()
+
+        def role_config_updated(expected_total_memory_limit_ratio):
+            config = requests.get(config_url).json()
+            return config.get("api", {}).get("role_to_memory_limit_ratios", {}).get("data", {}).get("total_memory_limit_ratio", 0.0) == expected_total_memory_limit_ratio
+
+        total_memory_limit_ratio = 0.001
+        heavy_request_memory_limit_ratio = 0.001
+        set("//sys/http_proxies/@config", {
+            "api": {
+                "default_memory_limit_ratios": {
+                    "total_memory_limit_ratio": 0.0000001
+                },
+                "role_to_memory_limit_ratios": {
+                    "data": {
+                        "total_memory_limit_ratio": total_memory_limit_ratio,
+                        "heavy_request_memory_limit_ratio": heavy_request_memory_limit_ratio,
+                    }
+                }
+            }
+        })
+        wait(lambda: role_config_updated(total_memory_limit_ratio))
+
+        # Total memory limit for data role was not reached.
+        self._execute_command("GET", "get", {"path": "//@"})
+        self._execute_command("GET", "read_table", {"path": "//tmp/test"})
 
 
 @pytest.mark.enabled_multidaemon
@@ -455,19 +505,91 @@ class TestHttpProxyUserMemoryDrop(HttpProxyTestBase):
 
         set("//sys/http_proxies/@config", {
             "api": {
-                "role_to_memory_limit_ratios" : {
-                    "ml" : {
-                        "user_to_memory_limit_ratio": {"nadya" : 0.0}
-                    }
+                "default_memory_limit_ratios": {
+                    "total_memory_limit_ratio": 0.98
                 }
             }
         })
 
-        def config_updated():
+        def empty_config_updated():
             config = get("//sys/http_proxies/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
-            return config.get("api", {}).get("role_to_memory_limit_ratios") != {}
+            # Default value - 0.9.
+            return config.get("api", {}).get("default_memory_limit_ratios", {}).get("total_memory_limit_ratio", None) == 0.98
 
-        wait(config_updated)
+        wait(empty_config_updated)
+
+        # No limits.
+        self._execute_command("GET", "read_table", {"path": "//tmp/test"}, user="nadya")
+
+        set("//sys/http_proxies/@config", {
+            "api": {
+                "role_to_memory_limit_ratios" : {
+                    "ml" : {
+                        "user_to_memory_limit_ratio": {
+                            "nadya": 0.0,
+                        }
+                    },
+                },
+            }
+        })
+
+        def role_config_updated(expected):
+            config = get("//sys/http_proxies/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
+            return config.get("api", {}).get("role_to_memory_limit_ratios") == expected
+
+        wait(lambda: role_config_updated({
+            "ml": {
+                "user_to_memory_limit_ratio": {
+                    "nadya": 0.0,
+                },
+                "total_memory_limit_ratio": 0.9,
+                "heavy_request_memory_limit_ratio": 0.9,
+            }
+        }))
+
+        with raises_yt_error("Request is dropped due to high memory pressure"):
+            self._execute_command("GET", "read_table", {"path": "//tmp/test"}, user="nadya")
+
+        set("//sys/http_proxies/@config", {
+            "api": {
+                "default_memory_limit_ratios": {
+                    "user_to_memory_limit_ratio": {
+                        "nadya": 1.0,
+                    },
+                },
+                "role_to_memory_limit_ratios" : {
+                },
+            }
+        })
+
+        wait(lambda: role_config_updated({}))
+
+        # No limits.
+        self._execute_command("GET", "read_table", {"path": "//tmp/test"}, user="nadya")
+
+        set("//sys/http_proxies/@config", {
+            "api": {
+                "default_memory_limit_ratios": {
+                    "user_to_memory_limit_ratio": {
+                        "nadya": 0.0,
+                    },
+                },
+                "role_to_memory_limit_ratios": {
+                },
+            }
+        })
+
+        def default_config_updated(expected):
+            config = get("//sys/http_proxies/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
+            return config.get("api", {}).get("default_memory_limit_ratios") == expected
+
+        wait(lambda: default_config_updated({
+            "user_to_memory_limit_ratio": {
+                "nadya": 0.0,
+            },
+            "total_memory_limit_ratio": 0.9,
+            "heavy_request_memory_limit_ratio": 0.9,
+        }))
 
         with raises_yt_error("Request is dropped due to high memory pressure"):
             self._execute_command("GET", "read_table", {"path": "//tmp/test"}, user="nadya")
@@ -524,13 +646,15 @@ class TestHttpProxyUserMemoryDrop(HttpProxyTestBase):
 
         set("//sys/http_proxies/@config", {
             "api": {
-                "default_user_memory_limit_ratio": 0.0,
+                "default_memory_limit_ratios": {
+                    "default_user_memory_limit_ratio": 0.0,
+                },
             },
         })
 
         def config_updated():
             config = get("//sys/http_proxies/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
-            return config.get("api", {}).get("default_user_memory_limit_ratio", None) == 0.0
+            return config.get("api", {}).get("default_memory_limit_ratios", {}).get("default_user_memory_limit_ratio", None) == 0.0
 
         wait(config_updated)
 
