@@ -1569,6 +1569,13 @@ type QueryTrackerOptions struct {
 	Stage *string `http:"stage,omitnil"`
 }
 
+type Secret struct {
+	Id          string      `yson:"id"`
+	Category    string      `yson:"category"`
+	Subcategory string      `yson:"subcategory"`
+	YPath       ypath.YPath `yson:"ypath"`
+}
+
 type StartQueryOptions struct {
 	Settings             any       `http:"settings,omitnil"`
 	Draft                *bool     `http:"draft,omitnil"`
@@ -1577,6 +1584,8 @@ type StartQueryOptions struct {
 
 	// COMPAT(mpereskokova)
 	AccessControlObject *string `http:"access_control_object,omitnil"`
+
+	Secrets []Secret `http:"secrets,omitnil"`
 
 	*QueryTrackerOptions
 }
