@@ -51,7 +51,7 @@ public:
 
 private:
     const TWeakPtr<ITableManager> WeakTableManager_;
-    bool EnableTableSchemaCache_;
+    std::atomic<bool> EnableTableSchemaCache_;
 
     TFuture<NYson::TYsonString> DoGet(
         const TCompactTableSchemaPtr& schema,

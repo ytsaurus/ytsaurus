@@ -94,16 +94,16 @@ TYsonTableSchemaCache::TYsonTableSchemaCache(const TWeakPtr<ITableManager>& weak
 
 void TYsonTableSchemaCache::Reconfigure(const TYsonTableSchemaCacheConfigPtr& config)
 {
-    EnableTableSchemaCache_ = config->CacheTableSchemaAfterConvertionToYson;
-
     TAsyncExpiringCache::Reconfigure(config);
+
+    EnableTableSchemaCache_.store(config->CacheTableSchemaAfterConvertionToYson);
 }
 
 TFuture<TYsonString> TYsonTableSchemaCache::DoGet(
     const TCompactTableSchemaPtr& schema,
     bool /*isPeriodicUpdate*/) noexcept
 {
-    if (auto tableManager = WeakTableManager_.Lock(); EnableTableSchemaCache_ && tableManager) {
+    if (auto tableManager = WeakTableManager_.Lock(); EnableTableSchemaCache_.load() && tableManager) {
         return tableManager->GetHeavyTableSchemaAsync(schema)
             .Apply(BIND([] (const TTableSchemaPtr& heavySchema) {
                 return ConvertHeavySchemaToYsonString(heavySchema).ValueOrThrow();
