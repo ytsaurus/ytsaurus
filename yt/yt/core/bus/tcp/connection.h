@@ -98,6 +98,7 @@ public:
     void RunPeriodicCheck();
 
     TConnectionId GetId() const;
+    EMultiplexingBand GetMultiplexingBand() const;
     TBusNetworkStatistics GetBusStatistics() const;
 
     // IPollable implementation.
