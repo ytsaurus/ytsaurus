@@ -48,8 +48,6 @@ bool IsRetriableSequoiaError(const TError& error);
 
 void ThrowOnSequoiaReplicasError(const TError& error, const std::vector<TErrorCode>& retriableErrorCodes);
 
-bool IsMethodHandledByMaster(const std::string& method);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 // NB: We want to use ApplyUnique() almost everywhere but TFuture<void> doesn't

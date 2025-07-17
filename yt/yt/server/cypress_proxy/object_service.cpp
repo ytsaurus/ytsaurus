@@ -329,9 +329,7 @@ private:
     {
         ParseSubrequests();
 
-        if (Owner_->GetDynamicConfig()->AllowBypassMasterResolve) {
-            PredictNonSequoia();
-        } else {
+        if (!Owner_->GetDynamicConfig()->AllowBypassMasterResolve) {
             PredictNonMaster();
             InvokeMasterRequests(/*beforeSequoiaResolve*/ true);
         }
@@ -407,6 +405,20 @@ private:
             YT_VERIFY(subrequest.RequestHeader);
             YT_VERIFY(subrequest.Target == ERequestTarget::Undetermined);
 
+            // '&' at the begin of YPath means suppression of redirect to
+            // object's native cell.
+            if (auto path = GetRequestTargetYPath(*subrequest.RequestHeader); path && !path.StartsWith("&")) {
+                auto rootDesignator = GetRootDesignator(GetRequestTargetYPath(*subrequest.RequestHeader)).first;
+                // Don't bother master server with Sequoia object IDs, check IDs
+                // in Sequoia tables first.
+                if (const auto* objectId = std::get_if<TObjectId>(&rootDesignator)) {
+                    if (*objectId && IsSequoiaId(*objectId) && IsVersionedType(TypeFromId(*objectId))) {
+                        subrequest.Target = ERequestTarget::Sequoia;
+                        continue;
+                    }
+                }
+            }
+
             // If this is a rootstock creation request then don't bother master
             // with it.
             if (subrequest.RequestHeader->method() != "Create") {
@@ -424,23 +436,6 @@ private:
 
             if (reqCreate->Type == EObjectType::Rootstock) {
                 subrequest.Target = ERequestTarget::Sequoia;
-            }
-        }
-    }
-
-    void PredictNonSequoia()
-    {
-        for (int index = 0; index < std::ssize(Subrequests_); ++index) {
-            auto& subrequest = Subrequests_[index];
-
-            YT_VERIFY(subrequest.RequestHeader.has_value());
-            YT_VERIFY(subrequest.Target == ERequestTarget::Undetermined);
-
-            const auto& method = subrequest.RequestHeader->method();
-            // Such requests already contain information about target cell
-            // inside the TReqExecute message.
-            if (IsMethodHandledByMaster(method)) {
-                subrequest.Target = ERequestTarget::Master;
             }
         }
     }
