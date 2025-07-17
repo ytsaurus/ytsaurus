@@ -170,10 +170,10 @@ public:
 
     void AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChunkId chunkId) override
     {
-        InputChunkMetaExtensions_ = GetExtensionTagSet(meta->extensions());
+        auto chunkExtensions = GetExtensionTagSet(meta->extensions());
 
         if (!Options_->AllowUnknownExtensions) {
-            for (auto tag : InputChunkMetaExtensions_) {
+            for (auto tag : chunkExtensions) {
                 if (!KnownExtensionTags.contains(tag)) {
                     THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::IncompatibleChunkMetas,
                         "Chunk %v has unknown extension %v with tag %v",
@@ -184,6 +184,10 @@ public:
             }
         }
 
+        YT_LOG_DEBUG("Absorbing meta (ChunkId: %v, ChunkMetaExtensions: %v)",
+            chunkId,
+            chunkExtensions);
+
         if (!MetaInitialized_) {
             AbsorbFirstMeta(meta, chunkId);
             MetaInitialized_ = true;
@@ -191,6 +195,8 @@ public:
         } else {
             AbsorbAnotherMeta(meta, chunkId);
         }
+
+        InputChunkMetaExtensions_.insert(chunkExtensions.begin(), chunkExtensions.end());
 
         if (FindProtoExtension<TPartitionsExt>(meta->extensions())) {
             THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::IncompatibleChunkMetas,
@@ -423,6 +429,8 @@ private:
 
         ColumnMeta_ = ParseOptionalProto<TColumnMetaExtension>(FindProtoExtension<TColumnMetaExt>(meta->extensions()));
         KeyColumns_ = ParseOptionalProto<TKeyColumnsExtension>(FindProtoExtension<TKeyColumnsExt>(meta->extensions()));
+
+        InputChunkMetaExtensions_.clear();
     }
 
     void AbsorbAnotherMeta(const TDeferredChunkMetaPtr& meta, TChunkId chunkId)
