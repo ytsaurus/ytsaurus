@@ -23,9 +23,10 @@ type AgentInfo struct {
 	// RobotUsername is needed for a temporary workaround to add the robot to the operation acl.
 	//
 	// TODO(dakovalkov): remove after YT-17557
-	RobotUsername         string
-	DefaultNetworkProject *string
-	ClusterURL            string
+	RobotUsername            string
+	DefaultNetworkProject    *string
+	ClusterURL               string
+	UseFamilyPrefixInOpAlias bool
 }
 
 func DescribeOptions(a AgentInfo, speclet Speclet) []OptionGroupDescriptor {
@@ -906,7 +907,13 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 	// TODO(gudqeit): move speclet patching to a separate method.
 	spec["annotations"] = annotations
 	spec["description"] = description
-	spec["alias"] = "*" + oplet.alias
+
+	if oplet.agentInfo.UseFamilyPrefixInOpAlias {
+		spec["alias"] = "*" + oplet.c.Family() + OpAliasFamilyDelimiter + oplet.alias
+	} else {
+		spec["alias"] = "*" + oplet.alias
+	}
+
 	if oplet.strawberrySpeclet.Pool != nil {
 		spec["pool"] = *oplet.strawberrySpeclet.Pool
 	}

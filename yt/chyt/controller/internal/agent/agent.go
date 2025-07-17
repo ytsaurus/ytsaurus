@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -127,6 +128,9 @@ func (a *Agent) processRunningOperations(runningOps []yt.OperationStatus) error 
 			continue
 		}
 		alias := opAlias.(string)[1:]
+
+		// So that oplets are found even after switching use_family_prefix_in_op_alias -> false.
+		alias = strings.TrimPrefix(alias, family+strawberry.OpAliasFamilyDelimiter)
 
 		oplet, ok := a.aliasToOp[alias]
 		if !ok {
@@ -466,15 +470,16 @@ func (a *Agent) GetAgentInfo() strawberry.AgentInfo {
 	}
 
 	return strawberry.AgentInfo{
-		StrawberryRoot:        a.root,
-		Hostname:              a.hostname,
-		Stage:                 a.config.Stage,
-		Proxy:                 a.proxy,
-		Family:                a.family,
-		OperationNamespace:    a.OperationNamespace(),
-		RobotUsername:         a.config.RobotUsername,
-		DefaultNetworkProject: a.config.DefaultNetworkProject,
-		ClusterURL:            strawberry.ExecuteTemplate(a.config.ClusterURLTemplate, clusterURLTemplateData),
+		StrawberryRoot:           a.root,
+		Hostname:                 a.hostname,
+		Stage:                    a.config.Stage,
+		Proxy:                    a.proxy,
+		Family:                   a.family,
+		OperationNamespace:       a.OperationNamespace(),
+		RobotUsername:            a.config.RobotUsername,
+		DefaultNetworkProject:    a.config.DefaultNetworkProject,
+		ClusterURL:               strawberry.ExecuteTemplate(a.config.ClusterURLTemplate, clusterURLTemplateData),
+		UseFamilyPrefixInOpAlias: a.config.UseFamilyPrefixInOpAlias,
 	}
 }
 
