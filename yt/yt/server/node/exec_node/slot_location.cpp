@@ -76,7 +76,10 @@ TSlotLocation::TSlotLocation(
     , SlotIndexToUserId_(slotIndexToUserId)
     , HeavyLocationQueue_(New<TActionQueue>(Format("HeavyIO:%v", id)))
     , LightLocationQueue_(New<TActionQueue>(Format("LightIO:%v", id)))
-    , HeavyInvoker_(HeavyLocationQueue_->GetInvoker())
+    , HeavyInvoker_(CreateWatchdogInvoker(
+        HeavyLocationQueue_->GetInvoker(),
+        ExecNodeLogger(),
+        Config_->HeavyLocationQueueWatchdogThreshold))
     , LightInvoker_(LightLocationQueue_->GetInvoker())
     , HealthChecker_(New<TDiskHealthChecker>(
         Config_->DiskHealthChecker,

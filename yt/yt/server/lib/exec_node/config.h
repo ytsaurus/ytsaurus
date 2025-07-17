@@ -44,6 +44,9 @@ struct TSlotLocationConfig
     //! Enforce disk space limits using disk quota.
     bool EnableDiskQuota;
 
+    //! Watchdog threshold for heavy location queue.
+    TDuration HeavyLocationQueueWatchdogThreshold;
+
     NServer::TDiskHealthCheckerConfigPtr DiskHealthChecker;
 
     REGISTER_YSON_STRUCT(TSlotLocationConfig);
