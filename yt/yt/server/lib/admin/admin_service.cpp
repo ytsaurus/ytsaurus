@@ -102,7 +102,11 @@ private:
             TAdminServiceProxy proxy(channel);
 
             auto req = proxy.PingNode();
-            // TODO(khlebnikov): Forward other parameters like multiplexing band.
+            // TODO(khlebnikov): Forward other parameters.
+            if (request->has_multiplexing_band()) {
+                req->SetMultiplexingBand(FromProto<EMultiplexingBand>(request->multiplexing_band()));
+                req->set_multiplexing_band(request->multiplexing_band());
+            }
             req->SetTimeout(context->GetTimeout());
             req->mutable_chain_addresses()->Add(addresses.cbegin()+1, addresses.cend());
 

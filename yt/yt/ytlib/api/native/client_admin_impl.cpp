@@ -494,6 +494,7 @@ TPingNodeResult TClient::DoPingNode(const std::string& nodeAddress, const TPingN
 
     auto req = proxy.PingNode();
     req->SetMultiplexingBand(options.MultiplexingBand);
+    req->set_multiplexing_band(ToProto(options.MultiplexingBand));
     req->SetTimeout(options.Timeout.value_or(PingNodeDefaultTimeout));
     req->mutable_chain_addresses()->Add(options.ChainAddresses.begin(), options.ChainAddresses.end());
 
