@@ -161,8 +161,6 @@ void TBootstrap::DoInitialize()
         Logger(),
         HttpProxyProfiler().WithPrefix("/memory_usage"));
 
-    ReconfigureMemoryLimits(Config_->MemoryLimits);
-
     Connection_ = CreateConnection(
         Config_->ClusterConnection,
         connectionOptions,
@@ -394,18 +392,15 @@ void TBootstrap::SetupClients()
     NLogging::GetDynamicTableLogWriterFactory()->SetClient(RootClient_);
 }
 
-void TBootstrap::ReconfigureMemoryLimits(const TMemoryLimitsConfigPtr& memoryLimits)
+void TBootstrap::ReconfigureMemoryUsageTracker(i64 memoryLimit, const TMemoryLimitRatiosConfigPtr& memoryLimitRatios)
 {
-    if (memoryLimits->Total) {
-        MemoryUsageTracker_->SetTotalLimit(*memoryLimits->Total);
-    }
+    auto totalMemoryLimit = static_cast<i64>(memoryLimit * memoryLimitRatios->TotalMemoryLimitRatio);
+    MemoryUsageTracker_->SetTotalLimit(totalMemoryLimit);
 
-    const auto& staticLimits = Config_->MemoryLimits;
-    auto totalLimit = MemoryUsageTracker_->GetTotalLimit();
-
+    auto heavyRequestMemoryLimit = static_cast<i64>(memoryLimit * memoryLimitRatios->HeavyRequestMemoryLimitRatio);
     MemoryUsageTracker_->SetCategoryLimit(
         EMemoryCategory::HeavyRequest,
-        memoryLimits->HeavyRequest.value_or(staticLimits->HeavyRequest.value_or(totalLimit)));
+        heavyRequestMemoryLimit);
 }
 
 void TBootstrap::OnDynamicConfigChanged(
@@ -413,7 +408,19 @@ void TBootstrap::OnDynamicConfigChanged(
     const TProxyDynamicConfigPtr& newConfig)
 {
     TSingletonManager::Reconfigure(newConfig);
-    ReconfigureMemoryLimits(newConfig->MemoryLimits);
+
+    i64 memoryLimit = Config_->MemoryLimits->Total.value_or(std::numeric_limits<i64>::max());
+    if (newConfig->MemoryLimits->Total) {
+        memoryLimit = *newConfig->MemoryLimits->Total;
+    }
+
+    auto role = Coordinator_->GetSelf()->Role;
+    const auto& roleToMemoryLimitRatiosIt = newConfig->Api->RoleToMemoryLimitRatios.find(role);
+    if (roleToMemoryLimitRatiosIt != newConfig->Api->RoleToMemoryLimitRatios.end()) {
+        ReconfigureMemoryUsageTracker(memoryLimit, roleToMemoryLimitRatiosIt->second);
+    } else {
+        ReconfigureMemoryUsageTracker(memoryLimit, newConfig->Api->DefaultMemoryLimitRatios);
+    }
 
     DynamicConfig_.Store(newConfig);
 
