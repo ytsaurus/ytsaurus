@@ -1570,10 +1570,10 @@ type QueryTrackerOptions struct {
 }
 
 type Secret struct {
-	Id          string
-	Category    string
-	Subcategory string
-	Ypath       ypath.YPath
+	Id          string      `yson:"id"`
+	Category    string      `yson:"category"`
+	Subcategory string      `yson:"subcategory"`
+	Ypath       ypath.YPath `yson:"ypath"`
 }
 
 type StartQueryOptions struct {
