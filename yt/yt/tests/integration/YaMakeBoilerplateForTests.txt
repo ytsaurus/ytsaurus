@@ -64,6 +64,7 @@ ENDIF()
 DEPENDS(
     yt/yt/packages/tests_package
     yt/yt/tools/yt_sudo_fixup
+    contrib/libs/openssl/apps
 )
 
 IF (NOT OPENSOURCE)

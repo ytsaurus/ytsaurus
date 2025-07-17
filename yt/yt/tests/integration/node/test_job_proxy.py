@@ -553,3 +553,23 @@ class TestJobProxySignatures(YTEnvSetup):
     @authors("pavook")
     def test_key_rotates(self):
         wait(lambda: len(ls("//sys/public_keys/by_owner/test-job-proxy")) > 1)
+
+
+##################################################################
+
+
+@authors("khlebnikov")
+class TestJobProxyTls(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    ENABLE_TLS = True
+
+    def test_smoke(self):
+        run_test_vanilla("true", track=True)
+
+
+@authors("khlebnikov")
+class TestJobProxyTlsCri(TestJobProxyTls):
+    JOB_ENVIRONMENT_TYPE = "cri"
