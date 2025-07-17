@@ -408,6 +408,7 @@ void TBootstrap::DoStart()
     auto adminService = CreateAdminService(
         GetControlInvoker(),
         ServiceLocator_->FindService<NCoreDump::ICoreDumperPtr>(),
+        Connection_->GetChannelFactory(),
         NativeAuthenticator_);
     RpcServer_->RegisterService(adminService);
     if (TvmOnlyRpcServer_) {

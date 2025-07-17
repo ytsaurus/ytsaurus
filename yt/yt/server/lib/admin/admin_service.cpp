@@ -30,6 +30,7 @@ public:
     TAdminService(
         IInvokerPtr invoker,
         ICoreDumperPtr coreDumper,
+        IChannelFactoryPtr channelFactory,
         IAuthenticatorPtr authenticator)
         : TServiceBase(
             std::move(invoker),
@@ -39,6 +40,7 @@ public:
                 .Authenticator = std::move(authenticator),
             })
         , CoreDumper_(std::move(coreDumper))
+        , ChannelFactory_(std::move(channelFactory))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Die));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteCoreDump));
@@ -47,6 +49,7 @@ public:
 
 private:
     const NCoreDump::ICoreDumperPtr CoreDumper_;
+    const IChannelFactoryPtr ChannelFactory_;
 
 
     void BeforeInvoke(NRpc::IServiceContext* context) override
@@ -108,11 +111,13 @@ private:
 IServicePtr CreateAdminService(
     IInvokerPtr invoker,
     ICoreDumperPtr coreDumper,
+    IChannelFactoryPtr channelFactory,
     IAuthenticatorPtr authenticator)
 {
     return New<TAdminService>(
         std::move(invoker),
         std::move(coreDumper),
+        std::move(channelFactory),
         std::move(authenticator));
 }
 

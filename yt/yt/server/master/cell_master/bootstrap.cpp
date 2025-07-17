@@ -1105,6 +1105,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateAdminService(
         GetControlInvoker(),
         ServiceLocator_->FindService<NCoreDump::ICoreDumperPtr>(),
+        ClusterConnection_->GetChannelFactory(),
         NativeAuthenticator_));
     RpcServer_->RegisterService(CreateTransactionService(this));
     RpcServer_->RegisterService(CreateCypressTransactionService(this));

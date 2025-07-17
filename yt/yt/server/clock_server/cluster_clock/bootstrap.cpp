@@ -260,6 +260,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateAdminService(
         GetControlInvoker(),
         ServiceLocator_->FindService<NCoreDump::ICoreDumperPtr>(),
+        channelFactory,
         /*authenticator*/ nullptr));
 
     RpcServer_->Configure(Config_->RpcServer);
