@@ -148,16 +148,6 @@ void ThrowOnSequoiaReplicasError(
     error.ThrowOnError();
 }
 
-bool IsMethodHandledByMaster(const std::string& method)
-{
-    return
-        method == "Fetch" ||
-        method == "BeginUpload" ||
-        method == "GetUploadParams" ||
-        method == "EndUpload" ||
-        method == "GetMountInfo";
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSequoiaClient

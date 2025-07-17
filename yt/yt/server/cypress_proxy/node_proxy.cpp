@@ -103,6 +103,7 @@ IMPLEMENT_SUPPORTS_METHOD(List)
 IMPLEMENT_SUPPORTS_METHOD_RESOLVE(
     Exists,
     {
+        // TODO(kvk1920): it would be great to log target object ID here.
         context->SetRequestInfo();
         Reply(context, /*exists*/ false);
     })
@@ -113,6 +114,7 @@ void TSupportsExists::ExistsAttribute(
     TRspExists* /*response*/,
     const TCtxExistsPtr& context)
 {
+    // TODO(kvk1920): it would be great to log target object ID here.
     context->SetRequestInfo();
 
     Reply(context, /*exists*/ false);
@@ -123,6 +125,7 @@ void TSupportsExists::ExistsSelf(
     TRspExists* /*response*/,
     const TCtxExistsPtr& context)
 {
+    // TODO(kvk1920): it would be great to log target object ID here.
     context->SetRequestInfo();
 
     Reply(context, /*exists*/ true);
@@ -134,6 +137,7 @@ void TSupportsExists::ExistsRecursive(
     TRspExists* /*response*/,
     const TCtxExistsPtr& context)
 {
+    // TODO(kvk1920): it would be great to log target object ID here.
     context->SetRequestInfo();
 
     Reply(context, /*exists*/ false);
@@ -190,6 +194,10 @@ protected:
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Lock);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Unlock);
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Fetch);
+    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, BeginUpload);
+    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, GetUploadParams);
+    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, EndUpload);
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, GetMountInfo);
 
     // Used for cross-cell copy.
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, LockCopyDestination);
@@ -234,6 +242,10 @@ protected:
         DISPATCH_YPATH_SERVICE_METHOD(LockCopySource);
         DISPATCH_YPATH_SERVICE_METHOD(CalculateInheritedAttributes);
         DISPATCH_YPATH_SERVICE_METHOD(AssembleTreeCopy);
+        DISPATCH_YPATH_SERVICE_METHOD(BeginUpload);
+        DISPATCH_YPATH_SERVICE_METHOD(GetUploadParams);
+        DISPATCH_YPATH_SERVICE_METHOD(EndUpload);
+        DISPATCH_YPATH_SERVICE_METHOD(GetMountInfo);
 
         DISPATCH_YPATH_SERVICE_METHOD(BeginCopy);
 
@@ -470,7 +482,7 @@ protected:
         TRspExists* /*response*/,
         const TCtxExistsPtr& context) override
     {
-        context->SetRequestInfo();
+        context->SetRequestInfo("TargetObjectId: %v", Id_);
         AbortSequoiaSessionForLaterForwardingToMaster();
     }
 
@@ -480,7 +492,7 @@ protected:
         TRspExists* /*response*/,
         const TCtxExistsPtr& context) override
     {
-        context->SetRequestInfo();
+        context->SetRequestInfo("TargetObjectId: %v", Id_);
         AbortSequoiaSessionForLaterForwardingToMaster();
     }
 
@@ -490,7 +502,7 @@ protected:
         TRspGet* /*response*/,
         const TCtxGetPtr& context) override
     {
-        context->SetRequestInfo();
+        context->SetRequestInfo("TargetObjectId: %v", Id_);
         AbortSequoiaSessionForLaterForwardingToMaster();
     }
 
@@ -577,7 +589,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, MultisetAttributes)
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetBasicAttributes)
 {
-    context->SetRequestInfo();
+    context->SetRequestInfo("TargetObjectId: %v", Id_);
 
     auto unresolvedSuffix = TYPath(GetRequestTargetYPath(context->GetRequestHeader()));
     auto unresolvedSuffixTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
@@ -614,7 +626,31 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, CheckPermission)
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Fetch)
 {
-    context->SetRequestInfo();
+    context->SetRequestInfo("TargetObjectId: %v", Id_);
+    AbortSequoiaSessionForLaterForwardingToMaster();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, BeginUpload)
+{
+    context->SetRequestInfo("TargetObjectId: %v", Id_);
+    AbortSequoiaSessionForLaterForwardingToMaster();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetUploadParams)
+{
+    context->SetRequestInfo("TargetObjectId: %v", Id_);
+    AbortSequoiaSessionForLaterForwardingToMaster();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, EndUpload)
+{
+    context->SetRequestInfo("TargetObjectId: %v", Id_);
+    AbortSequoiaSessionForLaterForwardingToMaster();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetMountInfo)
+{
+    context->SetRequestInfo("TargetObjectId: %v", Id_);
     AbortSequoiaSessionForLaterForwardingToMaster();
 }
 
@@ -914,7 +950,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Unlock)
 {
-    context->SetRequestInfo();
+    context->SetRequestInfo("TargetObjectId: %v", Id_);
 
     SequoiaSession_->ValidateTransactionPresence();
 

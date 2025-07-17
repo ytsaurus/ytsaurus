@@ -387,7 +387,6 @@ TPathResolver::TResolvePayload TPathResolver::ResolveRoot(
             if (IsSequoiaId(objectId) &&
                 IsVersionedType(TypeFromId(objectId)) &&
                 !options.AllowResolveFromSequoiaObject &&
-                !NSequoiaClient::IsMethodHandledByMaster(Method_) && // TODO(kvk1920): drop IsMethodHandledByMaster().
                 CellTagFromId(objectId) == Bootstrap_->GetCellTag() &&
                 (!TransactionId_ || IsCypressTransactionType(TypeFromId(TransactionId_))))
             {
