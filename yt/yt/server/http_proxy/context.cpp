@@ -750,20 +750,27 @@ void TContext::SetupTracing()
 void TContext::SetupUserMemoryLimits()
 {
     const auto& config = Api_->GetDynamicConfig();
-    auto userMemoryRatio = config->DefaultUserMemoryLimitRatio;
-    const auto& proxyRole = Api_->GetCoordinator()->GetSelf()->Role;
-    const auto& memoryLimitRatiosIt = config->RoleToMemoryLimitRatios.find(proxyRole);
 
-    if (memoryLimitRatiosIt != config->RoleToMemoryLimitRatios.end()) {
-        const auto& memoryLimitRatios = memoryLimitRatiosIt->second;
+    std::optional<double> userMemoryRatio;
+
+    auto updateUserMemoryRatio = [this, &userMemoryRatio] (const TMemoryLimitRatiosConfigPtr& memoryLimitRatios) {
         if (memoryLimitRatios->DefaultUserMemoryLimitRatio) {
-            userMemoryRatio = memoryLimitRatios->DefaultUserMemoryLimitRatio;
+            userMemoryRatio = *memoryLimitRatios->DefaultUserMemoryLimitRatio;
         }
         const auto& userToMemoryLimitRatio = memoryLimitRatios->UserToMemoryLimitRatio;
-        const auto& userRatioIt = userToMemoryLimitRatio.find(DriverRequest_.AuthenticatedUser);
-        if (userRatioIt != userToMemoryLimitRatio.end()) {
-            userMemoryRatio = userRatioIt->second;
+        const auto& userToMemoryLimitRatioIt = userToMemoryLimitRatio.find(DriverRequest_.AuthenticatedUser);
+
+        if (userToMemoryLimitRatioIt != userToMemoryLimitRatio.end()) {
+            userMemoryRatio = userToMemoryLimitRatioIt->second;
         }
+    };
+
+    updateUserMemoryRatio(config->DefaultMemoryLimitRatios);
+
+    const auto& role = Api_->GetCoordinator()->GetSelf()->Role;
+    const auto& roleMemoryLimitRatiosIt = config->RoleToMemoryLimitRatios.find(role);
+    if (roleMemoryLimitRatiosIt != config->RoleToMemoryLimitRatios.end()) {
+        updateUserMemoryRatio(roleMemoryLimitRatiosIt->second);
     }
 
     Api_->GetMemoryUsageTracker()->SetPoolRatio(TString(DriverRequest_.AuthenticatedUser), userMemoryRatio);
