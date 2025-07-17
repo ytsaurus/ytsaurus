@@ -1254,7 +1254,7 @@ class TestLocalSquashFSLayers(YTEnvSetup):
         # Check solomon counters.
         job = get_job(op.id, job_id)
         profiler = profiler_factory().at_node(job["address"])
-        tags = {'type': 'squashfs', 'file_path': '//tmp/squashfs.img'}
+        tags = {'type': 'squashfs', 'file_path': 'n/a'}
 
         wait(lambda: profiler.get("volumes/created", tags) is not None)
         wait(lambda: profiler.get("volumes/create_time", tags) is not None)
@@ -1297,7 +1297,7 @@ class TestLocalSquashFSLayers(YTEnvSetup):
 
         job = get_job(op.id, job_ids[0])
         profiler = profiler_factory().at_node(job["address"])
-        tags = {'type': 'squashfs', 'file_path': '//tmp/corrupted_squashfs.img'}
+        tags = {'type': 'squashfs', 'file_path': 'n/a'}
         wait(lambda: profiler.get("volumes/created", tags) is not None)
         wait(lambda: profiler.get("volumes/create_errors", tags) is not None)
 
