@@ -139,6 +139,13 @@ public:
         return Config_->ClusterConnection->Static->ClusterName.value();
     }
 
+    TClusterDirectoryPtr GetClusterDirectory() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return Connection_->GetClusterDirectory();
+    }
+
 private:
     const TTabletBalancerBootstrapConfigPtr Config_;
     const INodePtr ConfigNode_;

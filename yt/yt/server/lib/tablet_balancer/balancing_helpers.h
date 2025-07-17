@@ -48,6 +48,14 @@ std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
     bool pickPivotKeys = true,
     const NLogging::TLogger& logger = {});
 
+// Reshard minor table tablets as close as possible to the major table's pivot keys,
+// respecting the per-action tablet limit.
+std::vector<TReshardDescriptor> MergeSplitReplicaTable(
+    const TTablePtr& minorTable,
+    const TAlienTablePtr& majorTable,
+    int maxTabletCountPerAction,
+    NLogging::TLogger logger = {});
+
 std::vector<TMoveDescriptor> ReassignInMemoryTablets(
     const TTabletCellBundlePtr& bundle,
     const std::optional<THashSet<TTableId>>& movableTables,

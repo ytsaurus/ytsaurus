@@ -1,6 +1,7 @@
 #include "bundle_state.h"
 #include "config.h"
 #include "private.h"
+#include "table_registry.h"
 #include "reshard_iteration.h"
 
 #include <yt/yt/server/lib/tablet_balancer/balancing_helpers.h>
@@ -18,6 +19,7 @@ namespace NYT::NTabletBalancer {
 
 using namespace NConcurrency;
 using namespace NObjectClient;
+using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -99,7 +101,8 @@ public:
 
     void Prepare(
         const TBundleStatePtr& /*bundleState*/,
-        const TTabletBalancingGroupConfigPtr& /*groupConfig*/) override
+        const TTabletBalancingGroupConfigPtr& /*groupConfig*/,
+        const TTableRegistryPtr& /*tableRegistry*/) override
     { }
 
     std::vector<TTablePtr> GetTablesToReshard(const TTabletCellBundlePtr& bundle) const override
@@ -115,7 +118,7 @@ public:
             }
 
             if (!table->Sorted) {
-                YT_LOG_WARNING("Ordered table cannot be parameterized resharded (TableId: %v, TablePath: %v)",
+                YT_LOG_WARNING("Ordered table cannot be resharded (TableId: %v, TablePath: %v)",
                     id,
                     table->Path);
                 continue;
@@ -124,6 +127,18 @@ public:
             tables.push_back(table);
         }
         return tables;
+    }
+
+    bool IsGroupBalancingEnabled(const TTabletBalancingGroupConfigPtr& groupConfig) const override
+    {
+        auto enableReplicaBalancing = !groupConfig->Parameterized->ReplicaClusters.empty();
+        if (enableReplicaBalancing) {
+            YT_LOG_DEBUG("Balancing tablets via reshard by size is disabled, "
+                "the group will be replica balanced (BundleName: %v, Group: %v)",
+                BundleName_,
+                GroupName_);
+        }
+        return !enableReplicaBalancing;
     }
 
     bool IsTableBalancingEnabled(const TTablePtr& table) const override
@@ -156,11 +171,11 @@ public:
         }
 
         return BIND(
-                MergeSplitTabletsOfTable,
-                Passed(std::move(tablets)),
-                DynamicConfig_->MinDesiredTabletSize,
-                IsPickPivotKeysEnabled(table->Bundle->Config),
-                Logger())
+            MergeSplitTabletsOfTable,
+            Passed(std::move(tablets)),
+            DynamicConfig_->MinDesiredTabletSize,
+            IsPickPivotKeysEnabled(table->Bundle->Config),
+            Logger())
             .AsyncVia(invoker)
             .Run();
     }
@@ -213,7 +228,8 @@ public:
 
     void Prepare(
         const TBundleStatePtr& bundleState,
-        const TTabletBalancingGroupConfigPtr& groupConfig) override
+        const TTabletBalancingGroupConfigPtr& groupConfig,
+        const TTableRegistryPtr& /*tableRegistry*/) override
     {
         Resharder_ = CreateParameterizedResharder(
             bundleState->GetBundle(),
@@ -237,6 +253,13 @@ public:
 
     bool IsGroupBalancingEnabled(const TTabletBalancingGroupConfigPtr& groupConfig) const override
     {
+        if (!groupConfig->Parameterized->ReplicaClusters.empty()) {
+            YT_LOG_DEBUG("Balancing tablets via parameterized reshard is disabled, "
+                "the group will be replica balanced (BundleName: %v, Group: %v)",
+                BundleName_,
+                GroupName_);
+        }
+
         auto enable = groupConfig->Parameterized->EnableReshard.value_or(
             DynamicConfig_->EnableParameterizedReshardByDefault);
         if (!enable) {
@@ -294,6 +317,234 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TReplicaReshardIteration
+    : public TSizeReshardIteration
+{
+public:
+    TReplicaReshardIteration(
+        std::string bundleName,
+        TString groupName,
+        TTabletBalancerDynamicConfigPtr dynamicConfig,
+        std::string clusterName)
+        : TSizeReshardIteration(
+            std::move(bundleName),
+            std::move(groupName),
+            std::move(dynamicConfig))
+        , SelfClusterName_(std::move(clusterName))
+    { }
+
+    void StartIteration() const override
+    {
+        YT_LOG_DEBUG("Balancing tablets via replica reshard started (BundleName: %v, Group: %v)",
+            BundleName_,
+            GroupName_);
+    }
+
+    void Prepare(
+        const TBundleStatePtr& bundleState,
+        const TTabletBalancingGroupConfigPtr& groupConfig,
+        const TTableRegistryPtr& tableRegistry) override
+    {
+        YT_VERIFY(TableToReferenceTable_.empty());
+        YT_VERIFY(SelfReferenceTableIds_.empty());
+        YT_VERIFY(!groupConfig->Parameterized->ReplicaClusters.empty());
+
+        if (bundleState->IsLastReplicaBalancingFetchFailed()) {
+            YT_LOG_DEBUG("Balancing tablets via replica reshard is not possible because "
+                "last statistics fetch failed (BundleName: %v, Group: %v)",
+                BundleName_,
+                GroupName_);
+            THROW_ERROR_EXCEPTION(
+                NTabletBalancer::EErrorCode::StatisticsFetchFailed,
+                "Not all statistics for replica reshard balancing were fetched");
+        }
+
+        for (const auto& [id, table] : bundleState->GetBundle()->Tables) {
+            if (TypeFromId(id) != EObjectType::Table) {
+                continue;
+            }
+
+            auto groupName = table->GetBalancingGroup();
+            if (groupName != GroupName_) {
+                continue;
+            }
+
+            if (!table->Sorted) {
+                YT_LOG_WARNING("Ordered table cannot be resharded (TableId: %v, TablePath: %v)",
+                    id,
+                    table->Path);
+                continue;
+            }
+
+            if (!table->IsReplicaReshardBalancingEnabled()) {
+                continue;
+            }
+
+            if (!table->ReplicaMode) {
+                YT_LOG_DEBUG("Cannot reshard table because replica mode was not fetched (TableId: %v)", id);
+                continue;
+            }
+
+            if (auto response = FindReferenceTable(tableRegistry, table); response.AreAllReplicasValid) {
+                if (response.AlienReferenceTable) {
+                    EmplaceOrCrash(TableToReferenceTable_, id, response.AlienReferenceTable);
+                } else {
+                    SelfReferenceTableIds_.insert(id);
+                }
+            }
+        }
+    }
+
+    std::vector<TTablePtr> GetTablesToReshard(const TTabletCellBundlePtr& bundle) const override
+    {
+        std::vector<TTablePtr> tables;
+        for (const auto& [id, table] : bundle->Tables) {
+            if (SelfReferenceTableIds_.contains(id) || TableToReferenceTable_.contains(id)) {
+                tables.push_back(table);
+            }
+        }
+        return tables;
+    }
+
+    bool IsGroupBalancingEnabled(const TTabletBalancingGroupConfigPtr& groupConfig) const override
+    {
+        return !groupConfig->Parameterized->ReplicaClusters.empty();
+    }
+
+    bool IsTableBalancingEnabled(const TTablePtr& /*table*/) const override
+    {
+        return true;
+    }
+
+    TFuture<std::vector<TReshardDescriptor>> MergeSplitTable(
+        const TTablePtr& table,
+        const IInvokerPtr& invoker) override
+    {
+        auto referenceTablePtr = TableToReferenceTable_.find(table->Id);
+        if (referenceTablePtr == TableToReferenceTable_.end()) {
+            // The table is reference itself, so balance it as usual.
+            YT_VERIFY(SelfReferenceTableIds_.contains(table->Id));
+            return TSizeReshardIteration::MergeSplitTable(table, invoker);
+        }
+
+        return BIND(
+            MergeSplitReplicaTable,
+            table,
+            referenceTablePtr->second,
+            DynamicConfig_->ActionManager->MaxTabletCountPerAction,
+            Logger()
+                .WithTag("BundleName: %v", BundleName_)
+                .WithTag("TableId: %v", table->Id))
+            .AsyncVia(invoker)
+            .Run();
+    }
+
+    void UpdateProfilingCounters(
+        const TTable* /*table*/,
+        TTableProfilingCounters& profilingCounters,
+        const TReshardDescriptor& descriptor) override
+    {
+        if (descriptor.TabletCount == 1) {
+            profilingCounters.ReplicaMerges.Increment(1);
+        } else if (std::ssize(descriptor.Tablets) == 1) {
+            profilingCounters.ReplicaSplits.Increment(1);
+        } else {
+            profilingCounters.ReplicaNonTrivialReshards.Increment(1);
+        }
+    }
+
+    void FinishIteration(int actionCount) const override
+    {
+        YT_LOG_DEBUG("Balancing tablets via replica reshard finished (BundleName: %v, Group: %v, ActionCount: %v)",
+            BundleName_,
+            GroupName_,
+            actionCount);
+    }
+
+private:
+    THashMap<TTableId, TAlienTablePtr> TableToReferenceTable_;
+    THashSet<TTableId> SelfReferenceTableIds_;
+    std::string SelfClusterName_;
+
+    struct TReferenceTableSearchResponse
+    {
+        TAlienTablePtr AlienReferenceTable;
+        bool AreAllReplicasValid;
+    };
+
+    //! Returns nullptr if table is reference itself.
+    TReferenceTableSearchResponse FindReferenceTable(const TTableRegistryPtr& tableRegistry, const TTablePtr& table) const
+    {
+        struct TTableKey
+        {
+            NTabletClient::ETableReplicaMode Mode;
+            std::string Cluster;
+            TTableId Id;
+        };
+
+        std::vector<TTableKey> replicas;
+        replicas.emplace_back(TTableKey{
+            .Mode = *table->ReplicaMode,
+            .Cluster = SelfClusterName_,
+            .Id = table->Id
+        });
+
+        THashMap<TTableId, TAlienTablePtr> alienTables;
+        for (const auto& [cluster, minorTablePaths] : table->GetReplicaBalancingMinorTables(SelfClusterName_)) {
+            for (const auto& minorTablePath : minorTablePaths) {
+                auto it = tableRegistry->AlienTablePaths().find(TTableRegistry::TAlienTableTag(cluster, minorTablePath));
+                THROW_ERROR_EXCEPTION_IF(it == tableRegistry->AlienTablePaths().end(),
+                    "Not all tables was resolved. Table id for table %v was not found. Check that table path is correct",
+                    minorTablePath);
+
+                auto minorTable = GetOrCrash(tableRegistry->AlienTables(), it->second);
+                EmplaceOrCrash(alienTables, minorTable->Id, minorTable);
+
+                if (!minorTable->ReplicaMode) {
+                    YT_LOG_DEBUG("Cannot find replica mode for minor table (MajorTableId: %v, MinorTableId: %v)",
+                        table->Id,
+                        minorTable->Id);
+                    return TReferenceTableSearchResponse{.AreAllReplicasValid = false};
+                }
+
+                replicas.emplace_back(TTableKey{
+                    .Mode = *minorTable->ReplicaMode,
+                    .Cluster = cluster,
+                    .Id = minorTable->Id
+                });
+            }
+        }
+
+        //! Sorting by sync mode, then by cluster name, then by table id to determine major table.
+        auto referenceTableId = std::min_element(replicas.begin(), replicas.end(), [](auto lhs, auto rhs) {
+            if (lhs.Mode != rhs.Mode) {
+                return (lhs.Mode == NTabletClient::ETableReplicaMode::Sync) > (rhs.Mode == NTabletClient::ETableReplicaMode::Sync);
+            } else if (lhs.Cluster != rhs.Cluster) {
+                return lhs.Cluster < rhs.Cluster;
+            }
+            return lhs.Id < rhs.Id;
+        })->Id;
+
+        TReferenceTableSearchResponse response{.AreAllReplicasValid = true};
+        if (referenceTableId != table->Id) {
+            response.AlienReferenceTable = GetOrCrash(alienTables, referenceTableId);
+
+            THROW_ERROR_EXCEPTION_IF(table->PivotKeys.empty(),
+                NTabletBalancer::EErrorCode::StatisticsFetchFailed,
+                "Pivot keys for table %v were not fetched successfully",
+                table->Id);
+
+            THROW_ERROR_EXCEPTION_IF(response.AlienReferenceTable->PivotKeys.empty(),
+                NTabletBalancer::EErrorCode::StatisticsFetchFailed,
+                "Pivot keys for reference table %v were not fetched successfully",
+                referenceTableId);
+        }
+        return response;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 IReshardIterationPtr CreateSizeReshardIteration(
     std::string bundleName,
     TString groupName,
@@ -314,6 +565,19 @@ IReshardIterationPtr CreateParameterizedReshardIteration(
         std::move(bundleName),
         std::move(groupName),
         std::move(dynamicConfig));
+}
+
+IReshardIterationPtr CreateReplicaReshardIteration(
+    std::string bundleName,
+    TString groupName,
+    TTabletBalancerDynamicConfigPtr dynamicConfig,
+    std::string selfClusterName)
+{
+    return New<TReplicaReshardIteration>(
+        std::move(bundleName),
+        std::move(groupName),
+        std::move(dynamicConfig),
+        std::move(selfClusterName));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

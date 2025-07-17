@@ -76,6 +76,8 @@ struct TTabletBalancerDynamicConfig
     bool EnableReshardVerboseLogging;
     std::optional<double> ReshardSlicingAccuracy;
 
+    THashSet<std::string> AllowedReplicaClusters;
+
     i64 MinDesiredTabletSize;
 
     int MaxActionsPerGroup;
@@ -102,6 +104,7 @@ struct TActionManagerConfig
     TDuration TabletActionPollingPeriod;
     TDuration TabletActionCreationTimeout;
     TDuration TabletActionExpirationTimeout;
+    int MaxTabletCountPerAction;
 
     REGISTER_YSON_STRUCT(TActionManagerConfig);
 

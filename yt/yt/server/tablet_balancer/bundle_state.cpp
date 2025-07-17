@@ -30,6 +30,7 @@ using namespace NApi;
 using namespace NConcurrency;
 using namespace NHiveClient;
 using namespace NHydra;
+using namespace NLogging;
 using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NTabletClient;
@@ -131,7 +132,14 @@ TTabletBalancerDynamicConfigPtr FetchTabletBalancerConfig(
     return ConvertTo<TTabletBalancerDynamicConfigPtr>(TYsonString(rsp->value()));
 }
 
-std::vector<std::pair<TTableId, std::optional<TCellTag>>> ResolveTablePaths(
+struct TTableResolveResponse
+{
+    TTableId Id;
+    std::optional<NObjectClient::TCellTag> CellTag;
+    NTabletClient::TTableReplicaId UpstreamReplicaId;
+};
+
+std::vector<TTableResolveResponse> ResolveTablePaths(
     const NNative::IClientPtr& client,
     const std::vector<TYPath>& paths)
 {
@@ -142,7 +150,13 @@ std::vector<std::pair<TTableId, std::optional<TCellTag>>> ResolveTablePaths(
 
     auto Logger = TabletBalancerLogger();
     for (auto path : paths) {
-        static const std::vector<TString> attributeKeys{"id", "external", "external_cell_tag", "dynamic"};
+        static const std::vector<TString> attributeKeys{
+            "id",
+            "external",
+            "external_cell_tag",
+            "dynamic",
+            "upstream_replica_id"
+        };
         auto req = TYPathProxy::Get(path + "/@");
         ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
         batchRequest->AddRequest(req);
@@ -151,11 +165,11 @@ std::vector<std::pair<TTableId, std::optional<TCellTag>>> ResolveTablePaths(
     auto batchResponse = WaitFor(batchRequest->Invoke())
         .ValueOrThrow();
 
-    std::vector<std::pair<TTableId, std::optional<TCellTag>>> tableIdsWithCellTags;
+    std::vector<TTableResolveResponse> tableResolveResponses;
     for (int index = 0; index < std::ssize(paths); ++index) {
         const auto& rspOrError = batchResponse->GetResponse<TYPathProxy::TRspGet>(index);
         if (!rspOrError.IsOK()) {
-            tableIdsWithCellTags.emplace_back(NullObjectId, std::nullopt);
+            tableResolveResponses.emplace_back();
             YT_LOG_WARNING(rspOrError,
                 "Failed to resolve table id for table %v", paths[index]);
             continue;
@@ -176,16 +190,25 @@ std::vector<std::pair<TTableId, std::optional<TCellTag>>> ResolveTablePaths(
             cellTag = attributes->Get<TCellTag>("external_cell_tag");
         }
 
-        tableIdsWithCellTags.emplace_back(tableId, cellTag);
+        auto upstreamReplicaId = attributes->Find<TTableReplicaId>("upstream_replica_id");
+        THROW_ERROR_EXCEPTION_IF(!upstreamReplicaId,
+            "Replica table %v has no upstream replica id",
+            tableId);
+
+        tableResolveResponses.push_back(TTableResolveResponse{
+            .Id = tableId,
+            .CellTag = cellTag,
+            .UpstreamReplicaId = *upstreamReplicaId
+        });
     }
-    return tableIdsWithCellTags;
+    return tableResolveResponses;
 }
 
 THashMap<TClusterName, std::vector<TYPath>> GetReplicaBalancingMinorTables(
     const THashSet<TTableId>& majorTableIds,
     const THashMap<TTableId, TTablePtr>& tables,
     const std::string& selfClusterName,
-    const NLogging::TLogger& Logger,
+    const TLogger& Logger,
     bool enableVerboseLogging)
 {
     THashMap<TClusterName, THashSet<TYPath>> clusterToMinorTables;
@@ -256,6 +279,7 @@ TBundleState::TBundleState(
     TTableRegistryPtr tableRegistry,
     NApi::NNative::IClientPtr client,
     TClientDirectoryPtr clientDirectory,
+    TClusterDirectoryPtr clusterDirectory,
     IInvokerPtr invoker,
     std::string clusterName)
     : Bundle_(New<TTabletCellBundle>(name))
@@ -263,14 +287,14 @@ TBundleState::TBundleState(
     , Profiler_(TabletBalancerProfiler().WithTag("tablet_cell_bundle", name))
     , Client_(client)
     , ClientDirectory_(clientDirectory)
+    , ClusterDirectory_(clusterDirectory)
     , Invoker_(invoker)
     , TableRegistry_(std::move(tableRegistry))
     , SelfClusterName_(std::move(clusterName))
     , Counters_(New<TBundleProfilingCounters>(Profiler_))
 { }
 
-void TBundleState::UpdateBundleAttributes(
-    const IAttributeDictionary* attributes)
+void TBundleState::UpdateBundleAttributes(const IAttributeDictionary* attributes)
 {
     Health_ = attributes->Get<ETabletCellHealth>("health");
     CellIds_ = attributes->Get<std::vector<TTabletCellId>>("tablet_cell_ids");
@@ -310,11 +334,17 @@ TFuture<void> TBundleState::FetchStatistics(
         .Run();
 }
 
-TFuture<void> TBundleState::FetchReplicaStatistics()
+TFuture<void> TBundleState::FetchReplicaStatistics(
+    const THashSet<std::string>& allowedReplicaClusters,
+    bool fetchReshard,
+    bool fetchMove)
 {
     return BIND(
         &TBundleState::DoFetchReplicaStatistics,
-        MakeStrong(this))
+        MakeStrong(this),
+        allowedReplicaClusters,
+        fetchReshard,
+        fetchMove)
         .AsyncVia(Invoker_)
         .Run();
 }
@@ -458,19 +488,25 @@ bool TBundleState::HasReplicaBalancingGroups() const
     return false;
 }
 
-bool TBundleState::IsReplicaBalancingEnabled() const
+bool TBundleState::IsReplicaBalancingEnabled(
+    const THashSet<TGroupName>& groupNames,
+    std::function<bool(const TTableTabletBalancerConfigPtr&)> isBalancingEnabled) const
 {
     if (!HasReplicaBalancingGroups()) {
         return false;
     }
 
     for (const auto& [id, table] : Bundle_->Tables) {
-        if (!table->TableConfig->EnableAutoTabletMove) {
+        if (!isBalancingEnabled(table->TableConfig)) {
             continue;
         }
 
         auto groupName = table->GetBalancingGroup();
         if (!groupName) {
+            continue;
+        }
+
+        if (!groupNames.contains(*groupName)) {
             continue;
         }
 
@@ -516,6 +552,7 @@ void TBundleState::DoFetchStatistics(
         table->Dynamic = tableSettings.Dynamic;
         table->TableConfig = tableSettings.Config;
         table->InMemoryMode = tableSettings.InMemoryMode;
+        table->UpstreamReplicaId = tableSettings.UpstreamReplicaId;
 
         // Remove all tablets and write again (with statistics and other parameters).
         // This allows you to overwrite indexes correctly (Tablets[index].Index == index) and remove old tablets.
@@ -659,7 +696,10 @@ void TBundleState::FillTabletWithStatistics(const TTabletPtr& tablet, TTabletSta
         });
 }
 
-void TBundleState::DoFetchReplicaStatistics()
+void TBundleState::DoFetchReplicaStatistics(
+    const THashSet<std::string>& allowedReplicaClusters,
+    bool fetchReshard,
+    bool fetchMove)
 {
     YT_LOG_DEBUG("Collecting replica balancing major and minor tables");
 
@@ -682,24 +722,23 @@ void TBundleState::DoFetchReplicaStatistics()
         YT_LOG_DEBUG("Started resolving alien table paths (ClusterName: %v, TableCount: %v)",
             cluster,
             std::ssize(tablePaths));
-        auto tableIdsWithCellTags = ResolveTablePaths(client, tablePaths);
+        auto tableResponses = ResolveTablePaths(client, tablePaths);
         YT_LOG_DEBUG("Finished resolving alien table paths (ClusterName: %v)", cluster);
 
         THashMap<TTableId, TAlienTablePtr> alienTables;
         THashMap<TTableId, TCellTag> tableIdToCellTag;
-        YT_VERIFY(std::ssize(tableIdsWithCellTags) == std::ssize(tablePaths));
-        for (int index = 0; index < std::ssize(tableIdsWithCellTags); ++index) {
-            if (tableIdsWithCellTags[index].first) {
-                YT_VERIFY(tableIdsWithCellTags[index].second);
-                TableRegistry_->AddAlienTablePath(cluster, tablePaths[index], tableIdsWithCellTags[index].first);
-                EmplaceOrCrash(alienTables, tableIdsWithCellTags[index].first, New<TAlienTable>(
+        YT_VERIFY(std::ssize(tableResponses) == std::ssize(tablePaths));
+        for (int index = 0; index < std::ssize(tableResponses); ++index) {
+            const auto& table = tableResponses[index];
+            if (table.Id) {
+                YT_VERIFY(table.CellTag);
+                TableRegistry_->AddAlienTablePath(cluster, tablePaths[index], table.Id);
+                EmplaceOrCrash(alienTables, table.Id, New<TAlienTable>(
                     tablePaths[index],
-                    tableIdsWithCellTags[index].first,
-                    tableIdsWithCellTags[index].second.value()));
-                EmplaceOrCrash(
-                    tableIdToCellTag,
-                    tableIdsWithCellTags[index].first,
-                    tableIdsWithCellTags[index].second.value());
+                    table.Id,
+                    table.CellTag.value(),
+                    table.UpstreamReplicaId));
+                EmplaceOrCrash(tableIdToCellTag, table.Id, table.CellTag.value());
             }
         }
 
@@ -726,38 +765,9 @@ void TBundleState::DoFetchReplicaStatistics()
             cluster,
             tableIdToStatistics.size());
 
-        YT_LOG_DEBUG("Started fetching tablet balancer config (ClusterName: %v)", cluster);
-        auto config = FetchTabletBalancerConfig(client);
-        YT_LOG_DEBUG("Finished fetching tablet balancer config (ClusterName: %v)", cluster);
-
-        THROW_ERROR_EXCEPTION_IF(!config->UseStatisticsReporter || config->StatisticsTablePath.empty(),
-            "Cannot fetch table performance counters from another cluster without statistics table");
-
-        auto tableIdsToFetchCounters = GetKeySet(tableIdToStatistics);
-
-        YT_LOG_DEBUG("Started fetching alien table performance counters from archive (Cluster: %v, TableCount: %v)",
-            cluster,
-            tableIdsToFetchCounters.size());
-
-        auto [tableToPerformanceCounters, tableSchema] = FetchPerformanceCountersAndSchemaFromTable(
-            client,
-            tableIdsToFetchCounters,
-            config->StatisticsTablePath);
-
-        YT_LOG_DEBUG("Finished fetching alien table performance counters from archive (Cluster: %v, TableCount: %v)",
-            cluster,
-            tableToPerformanceCounters.size());
-
-        Bundle_->PerClusterPerformanceCountersTableSchemas[cluster] = std::move(tableSchema);
-
-        YT_LOG_DEBUG("Started filling alien table statistics and performance counters (Cluster: %v, TableCount: %v)",
-            cluster,
-            tableToPerformanceCounters.size());
-
-        FillPerformanceCounters(&tableIdToStatistics, tableToPerformanceCounters);
-
-        auto aliveTables = GetKeySet(tableToPerformanceCounters);
-        DropMissingKeys(tableIdToStatistics, aliveTables);
+        if (fetchMove) {
+            FetchPerformanceCountersFromAlienTable(client, &tableIdToStatistics, cluster);
+        }
 
         const auto& minorToMajorTables = GetOrCrash(perClusterMinorToMajorTables, cluster);
         for (auto& [tableId, statistics] : tableIdToStatistics) {
@@ -790,6 +800,12 @@ void TBundleState::DoFetchReplicaStatistics()
         YT_LOG_DEBUG("Finished filling alien table statistics and performance counters (Cluster: %v, TableCount: %v)",
             cluster,
             tableIdToStatistics.size());
+    }
+
+    if (fetchReshard) {
+        YT_LOG_DEBUG("Started fetching replica table modes (MajorTableCount: %v)", std::ssize(majorTableIds));
+        FetchReplicaModes(majorTableIds, allowedReplicaClusters);
+        YT_LOG_DEBUG("Finished fetching replica table modes");
     }
 }
 
@@ -977,6 +993,7 @@ THashMap<TTableId, TBundleState::TTableSettings> TBundleState::FetchActualTableS
                     TYsonStringBuf(attributes.tablet_balancer_config())),
                 .InMemoryMode = FromProto<EInMemoryMode>(attributes.in_memory_mode()),
                 .Dynamic = attributes.dynamic(),
+                .UpstreamReplicaId = FromProto<TTableReplicaId>(attributes.upstream_replica_id())
             });
         }
     }
@@ -1066,6 +1083,104 @@ THashMap<TTableId, TBundleState::TTableStatisticsResponse> TBundleState::FetchTa
     return tableToStatistics;
 }
 
+void TBundleState::FetchReplicaModes(
+    const THashSet<TTableId>& majorTableIds,
+    const THashSet<std::string>& allowedReplicaClusters)
+{
+    THashMap<TCellTag, THashSet<TTableReplicaId>> cellTagToReplicaIds;
+    THashMap<TTableReplicaId, TTableBase*> replicaIdToTable;
+
+    auto getCellTag = [&] (const auto& table) {
+        switch (TypeFromId(table->UpstreamReplicaId)) {
+            case EObjectType::ChaosTableReplica:
+                return CellTagFromId(table->Id);
+
+            case EObjectType::TableReplica:
+                return CellTagFromId(table->UpstreamReplicaId);
+
+            default:
+                YT_LOG_WARNING(
+                    "Upstream replica mode cannot be fetched since it has unexpected type (TableId: %v, UpstreamReplicaId: %v, Type: %v)",
+                    table->Id,
+                    table->UpstreamReplicaId,
+                    TypeFromId(table->UpstreamReplicaId));
+                return InvalidCellTag;
+        }
+    };
+
+    for (const auto& tableId : majorTableIds) {
+        const auto& table = GetOrCrash(Bundle_->Tables, tableId);
+        YT_LOG_INFO("REPLICA table %v has upstreamReplicaId %v with cellTag %v",
+            tableId,
+            table->UpstreamReplicaId,
+            CellTagFromId(table->UpstreamReplicaId));
+
+        TCellTag cellTag = getCellTag(table);
+        if (cellTag == InvalidCellTag) {
+            continue;
+        }
+
+        EmplaceOrCrash(replicaIdToTable, table->UpstreamReplicaId, table.Get());
+        auto it = cellTagToReplicaIds.emplace(cellTag, THashSet<TTableReplicaId>{}).first;
+        InsertOrCrash(it->second, table->UpstreamReplicaId);
+
+        for (const auto& [cluster, tables] : table->GetReplicaBalancingMinorTables(SelfClusterName_)) {
+            for (const auto& minorTablePath : tables) {
+                auto minorTableIdIt = TableRegistry_->AlienTablePaths().find(TTableRegistry::TAlienTableTag(cluster, minorTablePath));
+                if (minorTableIdIt == TableRegistry_->AlienTablePaths().end()) {
+                    continue;
+                }
+
+                auto minorTable = GetOrCrash(TableRegistry_->AlienTables(), minorTableIdIt->second);
+                TCellTag cellTag = getCellTag(minorTable);
+                if (cellTag == InvalidCellTag) {
+                    continue;
+                }
+
+                EmplaceOrCrash(replicaIdToTable, minorTable->UpstreamReplicaId, minorTable.Get());
+                auto replicaIdsIt = cellTagToReplicaIds.emplace(
+                    cellTag,
+                    THashSet<TTableReplicaId>{}).first;
+                InsertOrCrash(replicaIdsIt->second, minorTable->UpstreamReplicaId);
+            }
+        }
+    }
+
+    for (const auto& [cellTag, replicaIds] : cellTagToReplicaIds) {
+        auto connection = ClusterDirectory_->GetConnectionOrThrow(cellTag);
+        auto clusterName = connection->GetClusterName();
+        YT_LOG_INFO("REPLICA going to fetch replica modes from cluster %v", clusterName);
+        THROW_ERROR_EXCEPTION_IF(!clusterName,
+            "Cluster name for cell tag %v not found",
+            cellTag);
+        if (!allowedReplicaClusters.contains(*clusterName)) {
+            THROW_ERROR_EXCEPTION("Table replicas from cluster %Qv are not allowed",
+                clusterName)
+                << TErrorAttribute("allowed_replica_clusters", allowedReplicaClusters);
+        }
+
+        auto client = ClientDirectory_->GetClientOrThrow(*clusterName);
+
+        YT_LOG_DEBUG("Started fetching replica table modes (Cluster: %v, TableCount: %v)",
+            clusterName,
+            replicaIds.size());
+
+        static const std::vector<TString> attributeKeys{"mode"};
+        auto tableToAttributes = FetchAttributes(client, replicaIds, attributeKeys);
+
+        YT_LOG_DEBUG("Finished fetching replica table modes (Cluster: %v, TableCount: %v)",
+            clusterName,
+            tableToAttributes.size());
+
+        for (const auto& [replicaId, attributes] : tableToAttributes) {
+            auto mode = attributes->Get<ETableReplicaMode>("mode");
+            auto table = GetOrCrash(replicaIdToTable, replicaId);
+            table->ReplicaMode = mode;
+            YT_LOG_INFO("REPLICA table %v has mode: %v", replicaId, mode);
+        }
+    }
+}
+
 void TBundleState::FetchPerformanceCountersFromTable(
     THashMap<TTableId, TTableStatisticsResponse>* tableIdToStatistics,
     const NYPath::TYPath& statisticsTablePath)
@@ -1076,7 +1191,8 @@ void TBundleState::FetchPerformanceCountersFromTable(
     for (const auto& [tableId, statistics] : *tableIdToStatistics) {
         const auto& table = GetOrCrash(Bundle_->Tables, tableId);
         if (table->IsParameterizedMoveBalancingEnabled() ||
-            table->IsParameterizedReshardBalancingEnabled(/*enableParameterizedReshardByDefault*/ true))
+            table->IsParameterizedReshardBalancingEnabled(
+                /*enableParameterizedReshardByDefault*/ true))
         {
             tableIdsToFetch.insert(tableId);
         }
@@ -1107,6 +1223,49 @@ void TBundleState::FetchPerformanceCountersFromTable(
     DropMissingKeys(*tableIdToStatistics, aliveTables);
 
     YT_LOG_DEBUG("Finished fetching table performance counters from archive (TableCount: %v)",
+        tableToPerformanceCounters.size());
+}
+
+void TBundleState::FetchPerformanceCountersFromAlienTable(
+    const NApi::NNative::IClientPtr& client,
+    THashMap<TTableId, TTableStatisticsResponse>* tableIdToStatistics,
+    const std::string& cluster)
+{
+    YT_LOG_DEBUG("Started fetching tablet balancer config (ClusterName: %v)", cluster);
+    auto config = FetchTabletBalancerConfig(client);
+    YT_LOG_DEBUG("Finished fetching tablet balancer config (ClusterName: %v)", cluster);
+
+    THROW_ERROR_EXCEPTION_IF(!config->UseStatisticsReporter || config->StatisticsTablePath.empty(),
+        "Cannot fetch table performance counters from another cluster without statistics table");
+
+    auto tableIdsToFetchCounters = GetKeySet(*tableIdToStatistics);
+
+    YT_LOG_DEBUG("Started fetching alien table performance counters from archive (Cluster: %v, TableCount: %v)",
+        cluster,
+        tableIdsToFetchCounters.size());
+
+    auto [tableToPerformanceCounters, tableSchema] = FetchPerformanceCountersAndSchemaFromTable(
+        client,
+        tableIdsToFetchCounters,
+        config->StatisticsTablePath);
+
+    YT_LOG_DEBUG("Finished fetching alien table performance counters from archive (Cluster: %v, TableCount: %v)",
+        cluster,
+        tableToPerformanceCounters.size());
+
+    Bundle_->PerClusterPerformanceCountersTableSchemas[cluster] = std::move(tableSchema);
+
+    YT_LOG_DEBUG("Started filling alien table statistics and performance counters (Cluster: %v, TableCount: %v)",
+        cluster,
+        tableToPerformanceCounters.size());
+
+    FillPerformanceCounters(tableIdToStatistics, tableToPerformanceCounters);
+
+    auto aliveTables = GetKeySet(tableToPerformanceCounters);
+    DropMissingKeys(*tableIdToStatistics, aliveTables);
+
+    YT_LOG_DEBUG("Finished filling alien table statistics and performance counters (Cluster: %v, TableCount: %v)",
+        cluster,
         tableToPerformanceCounters.size());
 }
 
@@ -1204,7 +1363,9 @@ THashSet<TTableId> TBundleState::GetReplicaBalancingMajorTables() const
     THashSet<TTableId> majorTableIds;
     for (const auto& [id, table] : Bundle_->Tables) {
         if (table->IsParameterizedMoveBalancingEnabled() ||
-            table->IsParameterizedReshardBalancingEnabled(/*enableParameterizedReshardByDefault*/ true))
+            table->IsParameterizedReshardBalancingEnabled(
+                /*enableParameterizedReshardByDefault*/ true,
+                /*desiredTabletCountRequired*/ false))
         {
             const auto& groupConfig = GetOrCrash(Bundle_->Config->Groups, *table->GetBalancingGroup());
             const auto& replicaClusters = groupConfig->Parameterized->ReplicaClusters;

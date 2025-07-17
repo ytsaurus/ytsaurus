@@ -334,7 +334,7 @@ public:
 
     void Prepare(const TTableRegistryPtr& tableRegistry) override
     {
-        if (Bundle_->IsLastReplicaMoveBalancingFetchFailed()) {
+        if (Bundle_->IsLastReplicaBalancingFetchFailed()) {
             YT_LOG_DEBUG("Balancing tablets via replica move is not possible because "
                 "last statistics fetch failed (BundleName: %v, Group: %v)",
                 BundleName_,
@@ -346,6 +346,10 @@ public:
 
         for (const auto& [id, table] : Bundle_->GetBundle()->Tables) {
             if (table->GetBalancingGroup() != GroupName_) {
+                continue;
+            }
+
+            if (!table->IsReplicaMoveBalancingEnabled()) {
                 continue;
             }
 
