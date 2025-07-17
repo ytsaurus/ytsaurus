@@ -139,6 +139,7 @@ using namespace NScheduler;
 using namespace NSecurityClient;
 using namespace NSignature;
 using namespace NTabletClient;
+using namespace NThreading;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NYson;
@@ -789,7 +790,7 @@ public:
 
     NHiveClient::TClusterDirectoryPtr GetClusterDirectory() const override
     {
-        if (auto strongOverride = ClusterDirectoryOverride_.Lock()) {
+        if (auto strongOverride = ClusterDirectoryOverride_.Load().Lock()) {
             return strongOverride;
         }
         return ClusterDirectory_;
@@ -893,7 +894,7 @@ public:
         QueueConsumerRegistrationManager_->StopSync();
 
         ClusterDirectory_->Clear();
-        ClusterDirectoryOverride_.Reset();
+        ClusterDirectoryOverride_.Store(nullptr);
         ClusterDirectorySynchronizer_->Stop();
 
         CellDirectory_->Clear();
@@ -1083,7 +1084,7 @@ private:
     const INodeMemoryTrackerPtr MemoryTracker_;
 
     TClusterDirectoryPtr ClusterDirectory_;
-    TWeakPtr<TClusterDirectory> ClusterDirectoryOverride_;
+    TAtomicObject<TWeakPtr<TClusterDirectory>> ClusterDirectoryOverride_;
     IClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer_;
 
     TMediumDirectoryPtr MediumDirectory_;
