@@ -339,7 +339,9 @@ public:
                 "last statistics fetch failed (BundleName: %v, Group: %v)",
                 BundleName_,
                 GroupName_);
-            THROW_ERROR_EXCEPTION("Not all statistics for replica move balancing were fetched");
+            THROW_ERROR_EXCEPTION(
+                NTabletBalancer::EErrorCode::StatisticsFetchFailed,
+                "Not all statistics for replica move balancing were fetched");
         }
 
         for (const auto& [id, table] : Bundle_->GetBundle()->Tables) {
@@ -348,6 +350,7 @@ public:
             }
 
             THROW_ERROR_EXCEPTION_IF(table->PivotKeys.empty(),
+                NTabletBalancer::EErrorCode::StatisticsFetchFailed,
                 "Pivot keys for table %v were not fetched successfully",
                 id);
 

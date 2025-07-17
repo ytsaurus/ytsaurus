@@ -217,7 +217,7 @@ private:
     void BalanceViaMove(const TBundleStatePtr& bundleState, const TGroupName& groupName);
     void BalanceViaMoveInMemory(const TBundleStatePtr& bundleState);
     void BalanceViaMoveOrdinary(const TBundleStatePtr& bundleState);
-    void TryBalanceViaMoveParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName);
+    bool TryBalanceViaMoveParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName);
     void BalanceViaMoveParameterized(
         const TBundleStatePtr& bundleState,
         const TGroupName& groupName,
@@ -540,8 +540,10 @@ void TTabletBalancer::BalanceBundle(const TBundleStatePtr& bundle)
 
                 case EBalancingType::Parameterized:
                     if (ParameterizedBalancingScheduler_.IsBalancingAllowed(groupTag)) {
-                        GroupsToMoveOnNextIteration_.erase(it);
-                        TryBalanceViaMoveParameterized(bundle, groupName);
+                        auto finishedWithoutRetryableError = TryBalanceViaMoveParameterized(bundle, groupName);
+                        if (finishedWithoutRetryableError) {
+                            GroupsToMoveOnNextIteration_.erase(it);
+                        }
                     } else {
                         YT_LOG_INFO("Skip parameterized balancing iteration due to "
                             "recalculation of performance counters (BundleName: %v, Group: %v)",
@@ -992,7 +994,7 @@ void TTabletBalancer::BalanceViaReshardParameterized(const TBundleStatePtr& bund
         DynamicConfig_.Acquire()), bundleState);
 }
 
-void TTabletBalancer::TryBalanceViaMoveParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName)
+bool TTabletBalancer::TryBalanceViaMoveParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName)
 {
     const auto bundle = bundleState->GetBundle();
     const auto& groupConfig = GetOrCrash(bundle->Config->Groups, groupName);
@@ -1003,7 +1005,7 @@ void TTabletBalancer::TryBalanceViaMoveParameterized(const TBundleStatePtr& bund
         } else {
             BalanceViaMoveParameterized(bundleState, groupName, groupConfig);
         }
-    } catch (const std::exception& ex) {
+    } catch (const TErrorException& ex) {
         YT_LOG_ERROR(ex,
             "Parameterized balancing via move failed with an exception "
             "(BundleName: %v, Group: %v, GroupType: %v, GroupMetric: %v)",
@@ -1012,12 +1014,23 @@ void TTabletBalancer::TryBalanceViaMoveParameterized(const TBundleStatePtr& bund
             groupConfig->Type,
             groupConfig->Parameterized->Metric);
 
+        if (ex.Error().FindMatching(NTabletBalancer::EErrorCode::StatisticsFetchFailed)) {
+            SaveRetryableBundleError(bundle->Name, TError(
+                NTabletBalancer::EErrorCode::StatisticsFetchFailed,
+                "Parameterized move balancing for group %Qv failed",
+                groupName)
+                << ex);
+            return false;
+        }
+
         SaveFatalBundleError(bundle->Name, TError(
             NTabletBalancer::EErrorCode::ParameterizedBalancingFailed,
             "Parameterized move balancing for group %Qv failed",
             groupName)
             << ex);
     }
+
+    return true;
 }
 
 void TTabletBalancer::TryBalanceViaReshardParameterized(
