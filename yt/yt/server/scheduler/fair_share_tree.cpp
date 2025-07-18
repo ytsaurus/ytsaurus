@@ -3351,6 +3351,7 @@ private:
                 ? std::optional(element->GetLastNonStarvingTime())
                 : std::nullopt)
             .Item("lightweight").Value(element->IsLightweight())
+            .Item("is_gang").Value(element->IsGang())
             .Item("disk_request_media").DoListFor(element->DiskRequestMedia(), [&] (TFluentList fluent, int mediumIndex) {
                 fluent.Item().Value(strategyHost->GetMediumNameByIndex(mediumIndex));
             })
