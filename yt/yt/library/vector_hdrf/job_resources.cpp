@@ -263,9 +263,6 @@ void Serialize(const TJobResources& resources, IYsonConsumer* consumer)
 
 void Deserialize(TJobResources& resources, INodePtr node)
 {
-    TCpuResource x{};
-    Deserialize(x, node);
-
     auto mapNode = node->AsMap();
     #define XX(name, Name) \
         if (auto child = mapNode->FindChild(#name)) { \
