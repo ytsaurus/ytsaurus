@@ -8,21 +8,9 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**2.17.2**" %}
 
-
-{% cut "**2.17.1**" %}
-
-**Release date:** 2025-07-01
-
-
-No description
-
-{% endcut %}
-
-
-{% cut "**2.17.0**" %}
-
-**Release date:** 2025-06-25
+**Release date:** 2025-07-04
 
 
 No description
