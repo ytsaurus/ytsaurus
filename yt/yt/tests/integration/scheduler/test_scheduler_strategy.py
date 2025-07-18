@@ -4496,6 +4496,9 @@ class TestFifoPools(YTEnvSetup):
         create_pool("fifo", attributes={"mode": "fifo"})
         create_pool("normal")
 
+        # COMPAT: Intentilonally test old logic for gang operations.
+        update_pool_tree_config_option("default", "enable_step_function_for_gang_operations", False)
+
         blocking_op1 = run_sleeping_vanilla(task_patch={"cpu_limit": 3.0}, spec={"pool": "fifo"})
         blocking_op1.wait_for_state("running")
         wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(blocking_op1.id) + "/detailed_fair_share/total/cpu"), 0.3))

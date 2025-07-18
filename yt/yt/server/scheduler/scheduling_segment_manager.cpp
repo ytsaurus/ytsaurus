@@ -1142,7 +1142,7 @@ void TSchedulingSegmentManager::GetMovableNodes(
             const auto& schedulingSegmentModule = GetNodeModule(*node);
             auto resourceAmountOnNode = GetNodeResourceLimit(*node, keyResource);
             currentResourceAmount -= resourceAmountOnNode;
-            if (currentResourceAmount >= fairResourceAmount) {
+            if (currentResourceAmount + ResourceAmountPrecision > fairResourceAmount) {
                 (*movableNodesPerModule)[schedulingSegmentModule].push_back(nodeWithMovePenalty);
             } else if (!IsModuleAwareSchedulingSegment(node->SchedulingSegment)) {
                 (*aggressivelyMovableNodesPerModule)[schedulingSegmentModule].push_back(nodeWithMovePenalty);

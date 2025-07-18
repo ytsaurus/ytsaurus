@@ -480,6 +480,10 @@ struct TFairShareStrategyTreeConfig
 
     bool EnableGuaranteePriorityScheduling;
 
+    bool EnableStepFunctionForGangOperations;
+    bool EnableImprovedFairShareByFitFactorComputation;
+    bool EnableImprovedFairShareByFitFactorComputationDistributionGap;
+
     TJobResourcesConfigPtr MinJobResourceLimits;
     TJobResourcesConfigPtr MaxJobResourceLimits;
     TJobResourcesConfigPtr MinNodeResourceLimits;

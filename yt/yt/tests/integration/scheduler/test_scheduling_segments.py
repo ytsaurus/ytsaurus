@@ -155,6 +155,7 @@ class TestSchedulingSegments(YTEnvSetup):
             "preemptive_scheduling_backoff": 0,
             "fair_share_starvation_timeout": 100,
             "fair_share_starvation_tolerance": 0.95,
+            "preemption_satisfaction_threshold": 0.99,
             "non_preemptible_resource_usage_threshold": {"user_slots": 0},
         })
 
@@ -1152,6 +1153,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             "preemptive_scheduling_backoff": 0,
             "fair_share_starvation_timeout": 100,
             "fair_share_starvation_tolerance": 0.95,
+            "preemption_satisfaction_threshold": 0.99,
             "non_preemptible_resource_usage_threshold": {"user_slots": 0},
         })
 
@@ -1806,6 +1808,9 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
         update_pool_tree_config_option("default", "enable_fair_share_truncation_in_fifo_pool", True)
         update_pool_tree_config_option("default", "scheduling_segments/force_incompatible_segment_preemption", True)
 
+        # COMPAT: Intentilonally test old logic for gang operations.
+        update_pool_tree_config_option("default", "enable_step_function_for_gang_operations", False)
+
         set("//sys/pool_trees/default/small_gpu/@strong_guarantee_resources", {"gpu": 8})
         set("//sys/pool_trees/default/large_gpu/@strong_guarantee_resources", {"gpu": 72})
         set("//sys/pool_trees/default/large_gpu/@mode", "fifo")
@@ -2128,6 +2133,7 @@ class TestRunningJobStatistics(YTEnvSetup):
             "preemptive_scheduling_backoff": 0,
             "fair_share_starvation_timeout": 100,
             "fair_share_starvation_tolerance": 0.95,
+            "preemption_satisfaction_threshold": 0.99,
             "non_preemptible_resource_usage_threshold": {"user_slots": 0},
         })
 
@@ -2278,6 +2284,7 @@ class TestNetworkPriority(YTEnvSetup):
             "preemptive_scheduling_backoff": 0,
             "fair_share_starvation_timeout": 100,
             "fair_share_starvation_tolerance": 0.95,
+            "preemption_satisfaction_threshold": 0.99,
             "non_preemptible_resource_usage_threshold": {"user_slots": 0},
         })
 

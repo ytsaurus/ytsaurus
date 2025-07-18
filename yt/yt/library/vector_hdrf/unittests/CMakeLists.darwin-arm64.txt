@@ -12,6 +12,13 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+get_built_tool_path(
+  TOOL_rescompiler_bin
+  TOOL_rescompiler_dependency
+  tools/rescompiler/bin
+  rescompiler
+)
+
 add_executable(unittester-fair-share-update)
 
 
@@ -28,6 +35,7 @@ target_link_libraries(unittester-fair-share-update PUBLIC
   yutil
   cpp-testing-gtest
   cpp-testing-gtest_main
+  library-cpp-resource
   yt-library-vector_hdrf
   yt-core-test_framework
 )
@@ -46,6 +54,7 @@ target_link_options(unittester-fair-share-update PRIVATE
 
 target_sources(unittester-fair-share-update PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/vector_hdrf/unittests/fair_share_update_ut.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/vector_hdrf/unittests/d630381fc6e0125d8980fd3b6c50ca39.cpp
 )
 
 
@@ -69,6 +78,15 @@ set_property(
   unittester-fair-share-update
   PROPERTY
   ENVIRONMENT
+)
+
+resources(unittester-fair-share-update
+  ${PROJECT_BINARY_DIR}/yt/yt/library/vector_hdrf/unittests/d630381fc6e0125d8980fd3b6c50ca39.cpp
+  INPUTS
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/vector_hdrf/unittests/data/gpu_tree_elements.yson
+  KEYS
+  /data/gpu_tree_elements.yson
+  OPTS
 )
 
 vcs_info(unittester-fair-share-update)

@@ -871,6 +871,7 @@ public:
     //! Fair share update methods that implements NVectorHdrf::TOperationElement interface.
     TResourceVector GetBestAllocationShare() const override;
     bool IsFairShareTruncationInFifoPoolAllowed() const override;
+    bool IsGang() const override;
 
     //! Post fair share update methods.
     TInstant GetLastNonStarvingTime() const;
@@ -929,7 +930,6 @@ public:
     //! Other methods.
     std::optional<TString> GetCustomProfilingTag() const;
 
-    bool IsGang() const;
     bool IsLimitingAncestorCheckEnabled() const;
 
     bool IsIdleCpuPolicyAllowed() const;

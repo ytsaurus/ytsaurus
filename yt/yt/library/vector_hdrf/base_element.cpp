@@ -88,6 +88,11 @@ bool TBaseOperationElement::IsFairShareTruncationInFifoPoolAllowed() const
     return false;
 }
 
+bool TBaseOperationElement::IsGang() const
+{
+    return false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 }  // namespace NYT::NVectorHdrf

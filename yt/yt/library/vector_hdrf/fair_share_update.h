@@ -165,6 +165,8 @@ private:
     virtual void ComputeAndSetFairShare(double suggestion, EFairShareType fairShareType, TFairShareUpdateContext* context) = 0;
     virtual void TruncateFairShareInFifoPools(EFairShareType fairShareType) = 0;
 
+    virtual void ComputeAndSetFairShare(TResourceVector suggestedFairShare, EFairShareType fairShareType, TFairShareUpdateContext* context) = 0;
+
     virtual void ComputePromisedGuaranteeFairShare(TFairShareUpdateContext* context) = 0;
 
     void CheckFairShareFeasibility(EFairShareType fairShareType) const;
@@ -222,8 +224,11 @@ public:
 
 private:
     using TChildSuggestions = std::vector<double>;
+    using TChildSuggestionShares = std::vector<TResourceVector>;
 
     std::vector<TElement*> SortedChildren_;
+
+    std::optional<std::vector<TVectorPiecewiseLinearFunction>> ChildFairSharesByFitFactor_;
 
     void PrepareFairShareFunctions(TFairShareUpdateContext* context) override;
     void PrepareFairShareByFitFactor(TFairShareUpdateContext* context) override;
@@ -246,6 +251,7 @@ private:
     void DistributeFreeVolume() override;
 
     void ComputeAndSetFairShare(double suggestion, EFairShareType fairShareType, TFairShareUpdateContext* context) override;
+    void ComputeAndSetFairShare(TResourceVector suggestedFairShare, EFairShareType fairShareType, TFairShareUpdateContext* context) override;
 
     void TruncateFairShareInFifoPools(EFairShareType fairShareType) override;
     void DoTruncateFairShareInFifoPool(EFairShareType fairShareType);
@@ -268,6 +274,11 @@ private:
 
     TChildSuggestions GetChildSuggestionsFifo(double fitFactor);
     TChildSuggestions GetChildSuggestionsNormal(double fitFactor);
+
+    TChildSuggestionShares GetChildSuggestionSharesFifo(double fitFactor);
+    TChildSuggestionShares GetChildSuggestionSharesNormal(double fitFactor);
+
+    void ComputeImprovedFairShareByFitFactor(const std::vector<TVectorPiecewiseLinearFunction>& childrenFunctions);
 
     friend class TPool;
     friend class TRootElement;
@@ -340,10 +351,13 @@ public:
 
     virtual bool IsFairShareTruncationInFifoPoolAllowed() const = 0;
 
+    virtual bool IsGang() const = 0;
+
 private:
     void PrepareFairShareByFitFactor(TFairShareUpdateContext* context) override;
 
     void ComputeAndSetFairShare(double suggestion, EFairShareType fairShareType, TFairShareUpdateContext* context) override;
+    void ComputeAndSetFairShare(TResourceVector suggestedFairShare, EFairShareType fairShareType, TFairShareUpdateContext* context) override;
     void TruncateFairShareInFifoPools(EFairShareType fairShareType) override;
 
     void ComputePromisedGuaranteeFairShare(TFairShareUpdateContext* context) override;
@@ -366,6 +380,10 @@ struct TFairShareUpdateOptions
 
     TDuration IntegralPoolCapacitySaturationPeriod;
     TDuration IntegralSmoothPeriod;
+
+    bool EnableStepFunctionForGangOperations = false;
+    bool EnableImprovedFairShareByFitFactorComputation = false;
+    bool EnableImprovedFairShareByFitFactorComputationDistributionGap = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

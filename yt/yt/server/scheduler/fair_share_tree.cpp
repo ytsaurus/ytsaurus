@@ -1771,6 +1771,10 @@ private:
                             .MainResource = config->MainResource,
                             .IntegralPoolCapacitySaturationPeriod = config->IntegralGuarantees->PoolCapacitySaturationPeriod,
                             .IntegralSmoothPeriod = config->IntegralGuarantees->SmoothPeriod,
+                            .EnableStepFunctionForGangOperations = config->EnableStepFunctionForGangOperations,
+                            .EnableImprovedFairShareByFitFactorComputation = config->EnableImprovedFairShareByFitFactorComputation,
+                            .EnableImprovedFairShareByFitFactorComputationDistributionGap =
+                                config->EnableImprovedFairShareByFitFactorComputationDistributionGap,
                         },
                         fairShareUpdateResult.ResourceLimits,
                         now,
