@@ -562,15 +562,6 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TChunkReplicaCacheDynamicConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("expiration_time", &TThis::ExpirationTime)
-        .GreaterThanOrEqual(TDuration::Zero())
-        .Optional();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TChaosResidencyCacheDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable_client_mode", &TThis::EnableClientMode)

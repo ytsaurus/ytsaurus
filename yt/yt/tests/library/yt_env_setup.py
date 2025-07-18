@@ -1225,8 +1225,8 @@ class YTEnvSetup(object):
             if node_flavors_length != 0:
                 config["flavors"] = cls.DELTA_NODE_FLAVORS[index]
 
-            configs["node"][index] = config
             cls.modify_node_config(configs["node"][index], cluster_index)
+            cls.update_sequoia_connection_config(cluster_index, config)
 
         for index, config in enumerate(configs["chaos_node"]):
             config = update_inplace(config, cls.get_param("DELTA_CHAOS_NODE_CONFIG", cluster_index))

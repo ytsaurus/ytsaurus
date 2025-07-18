@@ -303,7 +303,9 @@ struct TChunkWriterCounters
 struct TAllyReplicasInfo
 {
     NChunkClient::TChunkReplicaWithMediumSlimList Replicas;
+
     NHydra::TRevision Revision = NHydra::NullRevision;
+    static constexpr NHydra::TRevision SequoiaRevision = std::numeric_limits<NHydra::TRevision>::max();
 
     Y_FORCE_INLINE explicit operator bool() const;
 

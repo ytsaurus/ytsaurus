@@ -188,6 +188,8 @@ struct TConnectionStaticConfig
 
     TAsyncExpiringCacheConfigPtr SyncReplicaCache;
 
+    NChunkClient::TChunkReplicaCacheConfigPtr ChunkReplicaCache;
+
     //! Visible in profiling as tag `connection_name`.
     TString ConnectionName;
 
@@ -235,7 +237,7 @@ struct TConnectionDynamicConfig
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NChunkClient::TBlockCacheConfigPtr BlockCache;
     NChunkClient::TClientChunkMetaCacheConfigPtr ChunkMetaCache;
-    NChunkClient::TChunkReplicaCacheConfigPtr ChunkReplicaCache;
+    NChunkClient::TChunkReplicaCacheDynamicConfigPtr ChunkReplicaCache;
     NChaosClient::TReplicationCardCacheDynamicConfigPtr ReplicationCardCache;
     NHiveClient::TClusterDirectorySynchronizerConfigPtr ClusterDirectorySynchronizer;
     NChunkClient::TMediumDirectorySynchronizerConfigPtr MediumDirectorySynchronizer;
