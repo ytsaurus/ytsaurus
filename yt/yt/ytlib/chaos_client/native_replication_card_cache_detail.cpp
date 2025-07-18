@@ -125,8 +125,6 @@ public:
     void ForceRefresh(const TReplicationCardCacheKey& key, const TReplicationCardPtr& replicationCard) override;
     void Clear() override;
 
-    IChannelPtr GetChaosCacheChannel();
-
     void Reconfigure(const TReplicationCardCacheDynamicConfigPtr& config) override;
 
 protected:
@@ -139,6 +137,8 @@ protected:
     const NLogging::TLogger Logger;
 
     void OnRemoved(const TReplicationCardCacheKey& key) noexcept override;
+
+    IChannelPtr GetChaosCacheChannel();
 
 private:
     std::atomic<bool> EnableWatching_ = false;
