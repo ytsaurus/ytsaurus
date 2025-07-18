@@ -12,7 +12,7 @@ require (
 	go.ytsaurus.tech/library/go/core/log v0.0.4
 	go.ytsaurus.tech/library/go/httputil/headers v0.0.3
 	go.ytsaurus.tech/library/go/ptr v0.0.2
-	go.ytsaurus.tech/yt/go v0.0.22
+	go.ytsaurus.tech/yt/go v0.0.27
 	golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028
 )
