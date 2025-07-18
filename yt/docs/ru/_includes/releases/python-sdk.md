@@ -124,7 +124,7 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 * Drop python2 related code in `_py_runner.py`
 * Add `python_requires=">=3.8"` to package setup
 * Do not request all attributes in operation exists check
-* Fix handling request timeout of `start_operation` command
+* Fix handling request timeout of `start_operation` command 
 
 {% endcut %}
 
