@@ -27,7 +27,7 @@ public:
 
     virtual void Initialize();
     virtual void StartNodeHeartbeats();
-    virtual void StartNodeHeartbeatsToCell(NObjectClient::TCellTag cellTag);
+    virtual void StartNodeHeartbeatsToCells(const THashSet<NObjectClient::TCellTag>& masterCellTags);
     virtual void Reconfigure(const NConcurrency::TRetryingPeriodicExecutorOptions& options);
 
 protected:
@@ -49,10 +49,11 @@ protected:
     virtual void OnHeartbeatSucceeded(NObjectClient::TCellTag cellTag) = 0;
     virtual void OnHeartbeatFailed(NObjectClient::TCellTag cellTag) = 0;
 
-    virtual void ResetState(NObjectClient::TCellTag cellTag) = 0;
+    virtual void ResetStates(const THashSet<NObjectClient::TCellTag>& masterCellTags) = 0;
 
 private:
-    void DoStartNodeHeartbeatsToCell(NObjectClient::TCellTag cellTag);
+    void DoStopNodeHeartbeatsToCells(const THashSet<NObjectClient::TCellTag>& masterCellTags);
+    void DoStartNodeHeartbeatsToCells(const THashSet<NObjectClient::TCellTag>& masterCellTags);
 
     TError ReportHeartbeat(NObjectClient::TCellTag cellTag);
 

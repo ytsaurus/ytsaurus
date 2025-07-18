@@ -145,11 +145,13 @@ protected:
         YT_VERIFY(!rspOrError.IsOK());
     }
 
-    void ResetState(TCellTag cellTag) override
+    void ResetStates(const THashSet<TCellTag>& masterCellTags) override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        CellTagToHeartbeatRspFuture_.erase(cellTag);
+        for (auto cellTag : masterCellTags) {
+            CellTagToHeartbeatRspFuture_.erase(cellTag);
+        }
     }
 
 private:
