@@ -78,6 +78,21 @@ public:
     {
         YT_VERIFY(ForeignInputDataWeight_ >= 0);
 
+        YT_LOG_DEBUG(
+            "Base job size constraints initialized (InputDataWeight: %v, InputCompressedDataSize: %v, "
+            "PrimaryInputDataWeight: %v, PrimaryInputCompressedDataSize: %v, InputRowCount: %v, "
+            "InputChunkCount: %v, MergeInputTableCount: %v, MergePrimaryInputTableCount: %v, "
+            "SamplingRate: %v)",
+            InputDataWeight_,
+            InputCompressedDataSize_,
+            PrimaryInputDataWeight_,
+            PrimaryInputCompressedDataSize_,
+            InputRowCount_,
+            InputChunkCount_,
+            MergeInputTableCount_,
+            MergePrimaryInputTableCount_,
+            GetSamplingRate());
+
         if (GetSamplingRate()) {
             InitializeSampling();
         }
@@ -335,7 +350,7 @@ public:
         , Spec_(spec)
         , Options_(options)
     {
-        i64 dataWeightPerJob = [&] {
+        i64 initialDataWeightPerJob = [&] {
             if (Spec_->DataWeightPerJob.has_value() || !Spec_->CompressedDataSizePerJob.has_value()) {
                 i64 dataWeightPerJob = Spec_->DataWeightPerJob.value_or(Options_->DataWeightPerJob);
                 if (dataWeightRatio < 1) {
@@ -349,7 +364,7 @@ public:
         }();
 
         JobCountByDataWeight_ = ComputeJobCount(
-            dataWeightPerJob,
+            initialDataWeightPerJob,
             Spec_->MaxDataWeightPerJob,
             PrimaryInputDataWeight_,
             InputDataWeight_,
@@ -361,6 +376,25 @@ public:
             PrimaryInputCompressedDataSize_,
             InputCompressedDataSize_,
             outputTableCount);
+
+        YT_LOG_DEBUG(
+            "User job size constraints initialized (JobCountByDataWeight: %v, JobCountByCompressedDataSize: %v, "
+            "DataWeightPerJob: %v, PrimaryDataWeightPerJob: %v, CompressedDataSizePerJob: %v, PrimaryCompressedDataSizePerJob: %v, "
+            "InitialDataWeightPerJob: %v, DataWeightPerJobFromSpec: %v, CompressedDataSizePerJobFromSpec: %v, DataWeightPerJobFromOptions: %v, "
+            "MaxDataWeightPerJob: %v, MaxCompressedDataSizePerJob: %v, DataWeightRatio: %v)",
+            JobCountByDataWeight_,
+            JobCountByCompressedDataSize_,
+            GetDataWeightPerJob(),
+            GetPrimaryDataWeightPerJob(),
+            GetCompressedDataSizePerJob(),
+            GetPrimaryCompressedDataSizePerJob(),
+            initialDataWeightPerJob,
+            Spec_->DataWeightPerJob,
+            Spec_->CompressedDataSizePerJob,
+            Options_->DataWeightPerJob,
+            Spec_->MaxDataWeightPerJob,
+            Spec_->MaxCompressedDataSizePerJob,
+            dataWeightRatio);
     }
 
     bool CanAdjustDataWeightPerJob() const override
@@ -564,8 +598,26 @@ public:
         , Spec_(spec)
         , Options_(options)
     {
-        JobCountByDataWeight_ = ComputeJobCount(ComputeDataWeightPerJob(dataWeightRatio, compressionRatio, dataSizeHint), InputDataWeight_);
+        i64 initialDataWeightPerJob = ComputeDataWeightPerJob(dataWeightRatio, compressionRatio, dataSizeHint);
+        JobCountByDataWeight_ = ComputeJobCount(initialDataWeightPerJob, InputDataWeight_);
         JobCountByCompressedDataSize_ = ComputeJobCount(Spec_->CompressedDataSizePerJob.value_or(InfiniteSize), InputCompressedDataSize_);
+
+        YT_LOG_DEBUG(
+            "Merge job size constraints initialized (JobCountByDataWeight: %v, JobCountByCompressedDataSize: %v, "
+            "DataWeightPerJob: %v, CompressedDataSizePerJob: %v, InitialDataWeightPerJob: %v, DataWeightPerJobFromSpec: %v, "
+            "CompressedDataSizePerJobFromSpec: %v, DataWeightPerJobFromOptions: %v, MaxDataWeightPerJob: %v, "
+            "MaxCompressedDataSizePerJob: %v, DataWeightRatio: %v)",
+            JobCountByDataWeight_,
+            JobCountByCompressedDataSize_,
+            GetDataWeightPerJob(),
+            GetCompressedDataSizePerJob(),
+            initialDataWeightPerJob,
+            Spec_->DataWeightPerJob,
+            Spec_->CompressedDataSizePerJob,
+            Options_->DataWeightPerJob,
+            Spec_->MaxDataWeightPerJob,
+            Spec_->MaxCompressedDataSizePerJob,
+            dataWeightRatio);
     }
 
     bool CanAdjustDataWeightPerJob() const override
@@ -734,6 +786,17 @@ public:
         YT_VERIFY(JobCountByDataWeight_ != 0 || InputDataWeight_ == 0);
 
         JobCountByCompressedDataSize_ = 0;
+
+        YT_LOG_DEBUG(
+            "Simple sort job size constraints initialized (JobCountByDataWeight: %v, JobCountByCompressedDataSize: %v, "
+            "DataWeightPerJob: %v, CompressedDataSizePerJob: %v, DataWeightPerShuffleJobFromSpec: %v, "
+            "MaxDataSlicesPerJob: %v)",
+            JobCountByDataWeight_,
+            JobCountByCompressedDataSize_,
+            GetDataWeightPerJob(),
+            GetCompressedDataSizePerJob(),
+            Spec_->DataWeightPerShuffleJob,
+            GetMaxDataSlicesPerJob());
     }
 
     bool CanAdjustDataWeightPerJob() const override
@@ -865,6 +928,20 @@ public:
 
         JobCountByDataWeight_ = std::min({JobCountByDataWeight_, static_cast<i64>(Options_->MaxPartitionJobCount), InputRowCount_});
         JobCountByCompressedDataSize_ = 0;
+
+        YT_LOG_DEBUG(
+            "Partition job size constraints initialized (JobCountByDataWeight: %v, JobCountByCompressedDataSize: %v, "
+            "DataWeightPerJob: %v, CompressedDataSizePerJob: %v, PartitionJobCountFromSpec: %v, DataWeightPerPartitionJobFromSpec: %v, "
+            "CompressedBlockSize: %v, TableWriterBlockSize: %v, CompressionRatio: %v)",
+            JobCountByDataWeight_,
+            JobCountByCompressedDataSize_,
+            GetDataWeightPerJob(),
+            GetCompressedDataSizePerJob(),
+            Spec_->PartitionJobCount,
+            Spec_->DataWeightPerPartitionJob,
+            Options_->CompressedBlockSize,
+            Spec_->PartitionJobIO->TableWriter->BlockSize,
+            compressionRatio);
     }
 
     bool CanAdjustDataWeightPerJob() const override
