@@ -8,6 +8,18 @@ Is released as packages in [maven](https://central.sonatype.com/artifact/tech.yt
 
 **Releases:**
 
+{% cut "**1.2.10**" %}
+
+**Release date:** 2025-07-17
+
+
+* Add `range` to `CreateShuffleReader`.
+* Add `writerIndex`, `overwriteExistingWriterData` to `CreateShuffleWriter`.
+* Minor fixes and improvements to error messages.
+
+{% endcut %}
+
+
 {% cut "**1.2.9**" %}
 
 **Release date:** 2025-04-08
