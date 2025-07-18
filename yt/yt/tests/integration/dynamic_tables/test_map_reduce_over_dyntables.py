@@ -939,21 +939,11 @@ class TestMapOnDynamicTablesMulticell(TestMapOnDynamicTables):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }
-
 
 @pytest.mark.enabled_multidaemon
 class TestMapOnDynamicTablesPortal(TestMapOnDynamicTablesMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
-
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host", "cypress_node_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }
 
 
 ##################################################################
@@ -1387,21 +1377,11 @@ class TestInputOutputForOrderedWithTabletIndexMulticell(TestInputOutputForOrdere
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }
-
 
 @pytest.mark.enabled_multidaemon
 class TestInputOutputForOrderedWithTabletIndexPortal(TestInputOutputForOrderedWithTabletIndexMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
-
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host", "cypress_node_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }
 
 
 ##################################################################
@@ -1595,18 +1575,8 @@ class TestSchedulerMapReduceDynamicMulticell(TestSchedulerMapReduceDynamic):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }
-
 
 @pytest.mark.enabled_multidaemon
 class TestSchedulerMapReduceDynamicPortal(TestSchedulerMapReduceDynamicMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
-
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host", "cypress_node_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }

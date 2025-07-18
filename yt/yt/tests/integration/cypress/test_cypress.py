@@ -4365,11 +4365,6 @@ class TestCypressMulticell(TestCypress):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }
-
     @authors("kvk1920")
     def test_invalid_external_cell_bias(self):
         with raises_yt_error("\"external_cell_bias\" must be in range"):
@@ -4444,12 +4439,6 @@ class TestCypressPortal(TestCypressMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
     NUM_SECONDARY_MASTER_CELLS = 3
-
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["cypress_node_host"]},
-        "12": {"roles": ["chunk_host", "cypress_node_host"]},
-        "13": {"roles": ["chunk_host"]},
-    }
 
     @authors("h0pless")
     def test_cyclic_link_through_portal(self):
@@ -4613,8 +4602,6 @@ class TestCypressShardedTx(TestCypressPortal):
     NUM_SECONDARY_MASTER_CELLS = 4
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
-        "11": {"roles": ["cypress_node_host"]},
-        "12": {"roles": ["chunk_host", "cypress_node_host"]},
         "13": {"roles": ["transaction_coordinator", "chunk_host"]},
         "14": {"roles": ["transaction_coordinator"]},
     }
@@ -4641,11 +4628,7 @@ class TestCypressRpcProxy(TestCypress):
 @pytest.mark.enabled_multidaemon
 class TestCypressMulticellRpcProxy(TestCypressMulticell, TestCypressRpcProxy):
     ENABLE_MULTIDAEMON = True
-
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }
+    pass
 
 
 ##################################################################

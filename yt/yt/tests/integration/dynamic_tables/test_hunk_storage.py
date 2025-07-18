@@ -526,10 +526,6 @@ class TestHunkStorageMulticell(TestHunkStorage):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 1
 
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-    }
-
     @authors("akozhikhov")
     def test_different_external_cells(self):
         self._create_ordered_table("//tmp/t1", external=False)
@@ -567,13 +563,6 @@ class TestHunkStoragePortal(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
     ENABLE_TMP_PORTAL = True
     NUM_SECONDARY_MASTER_CELLS = 4
-
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["cypress_node_host"]},
-        "12": {"roles": ["chunk_host", "cypress_node_host"]},
-        "13": {"roles": ["chunk_host"]},
-        "14": {"roles": ["chunk_host"]},
-    }
 
     def _create_hunk_storage(self, name, **attributes):
         if "store_rotation_period" not in attributes:

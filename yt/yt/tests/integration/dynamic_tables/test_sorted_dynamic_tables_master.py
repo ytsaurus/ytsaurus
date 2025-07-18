@@ -434,11 +434,6 @@ class TestSortedDynamicTablesMountUnmountFreezeMulticell(TestSortedDynamicTables
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }
-
 
 @pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMountUnmountFreezeRpcProxy(TestSortedDynamicTablesMountUnmountFreeze):
@@ -451,11 +446,6 @@ class TestSortedDynamicTablesMountUnmountFreezeRpcProxy(TestSortedDynamicTablesM
 class TestSortedDynamicTablesMountUnmountFreezePortal(TestSortedDynamicTablesMountUnmountFreezeMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
-
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host", "cypress_node_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }
 
 
 ################################################################################
@@ -1063,11 +1053,6 @@ class TestSortedDynamicTablesCopyReshardMulticell(TestSortedDynamicTablesCopyRes
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }
-
 
 @pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesCopyReshardRpcProxy(TestSortedDynamicTablesCopyReshard):
@@ -1080,8 +1065,3 @@ class TestSortedDynamicTablesCopyReshardRpcProxy(TestSortedDynamicTablesCopyResh
 class TestSortedDynamicTablesCopyReshardPortal(TestSortedDynamicTablesCopyReshardMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
-
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host", "cypress_node_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }

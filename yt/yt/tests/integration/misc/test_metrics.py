@@ -51,11 +51,6 @@ class MetricsTestBase(YTEnvSetup):
         },
     }
 
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }
-
     def _get_proxy_address(self):
         return "http://" + self.Env.get_proxy_address()
 

@@ -1505,12 +1505,6 @@ class TestChunkMergerMulticell(TestChunkMerger):
 
     NUM_SECONDARY_MASTER_CELLS = 3
 
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
-        "13": {"roles": ["chunk_host"]},
-    }
-
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
     def test_teleportation(self, merge_mode):
@@ -1549,6 +1543,7 @@ class TestChunkMergerPortal(TestChunkMergerMulticell):
     NUM_SECONDARY_MASTER_CELLS = 3
 
     MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host", "transaction_coordinator"]},
         "11": {"roles": ["cypress_node_host"]},
         "12": {"roles": ["chunk_host"]},
         "13": {"roles": ["chunk_host"]},
@@ -1582,10 +1577,6 @@ class TestTableDataStatisticsConsistency(YTEnvSetup):
                 "enable": True,
             }
         }
-    }
-
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
     }
 
     @authors("danilalexeev")

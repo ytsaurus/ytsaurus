@@ -1081,11 +1081,6 @@ class TestLivePreview(YTEnvSetup):
         }
     }
 
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }
-
     @authors("galtsev")
     @pytest.mark.parametrize("clean_start", [False, True])
     def test_do_not_crash_on_disabling_legacy_live_preview_in_config(self, clean_start):

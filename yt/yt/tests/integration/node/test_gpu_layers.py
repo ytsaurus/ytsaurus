@@ -317,10 +317,6 @@ class TestGpuLayer(YTEnvSetup):
 
     USE_PORTO = True
 
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-    }
-
     def setup_files(self):
         tx = start_transaction()
 
@@ -435,10 +431,6 @@ class TestGpuLayerUpdate(YTEnvSetup):
     }
 
     USE_PORTO = True
-
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-    }
 
     def _write_driver_layer(self, name):
         path = "layers/{}.tar.gz".format(name)
@@ -566,10 +558,6 @@ class TestCudaLayer(YTEnvSetup):
     DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"cuda_toolkit_layer_directory_path": "//tmp/cuda"}}
 
     USE_PORTO = True
-
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-    }
 
     def setup_files(self, cuda_version="0"):
         create("map_node", "//tmp/cuda")
@@ -719,10 +707,6 @@ class TestForceCudaLayer(YTEnvSetup):
 
     USE_PORTO = True
 
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-    }
-
     def setup_files(self):
         create("map_node", "//tmp/cuda")
         create("map_node", "//tmp/drivers")
@@ -817,10 +801,6 @@ class TestCudaProfilerLayer(YTEnvSetup):
     DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"cuda_profiler_layer_path": "//tmp/cuda-profiler"}}
 
     USE_PORTO = True
-
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-    }
 
     def setup_files(self):
         create("file", "//tmp/cuda-profiler", attributes={"replication_factor": 1})

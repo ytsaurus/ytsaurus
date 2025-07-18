@@ -797,11 +797,6 @@ class TestConcatenateMulticell(TestConcatenate):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }
-
     @authors("gritukan")
     def test_concatenate_imported_chunks(self):
         create("table", "//tmp/t1", attributes={"external_cell_tag": 11})
@@ -851,12 +846,6 @@ class TestConcatenatePortal(TestConcatenateMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
     NUM_SECONDARY_MASTER_CELLS = 3
-
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host", "cypress_node_host"]},
-        "12": {"roles": ["chunk_host", "cypress_node_host"]},
-        "13": {"roles": ["chunk_host"]},
-    }
 
     @authors("shakurov")
     def test_concatenate_between_primary_and_secondary_shards(self):

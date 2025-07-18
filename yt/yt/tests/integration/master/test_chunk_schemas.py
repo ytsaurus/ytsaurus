@@ -150,11 +150,6 @@ class ChunkSchemasMulticellBase(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 2
     NUM_SCHEDULERS = 1
 
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }
-
     @authors("h0pless")
     def test_multicell_static_alter(self):
         create("table", "//tmp/table", attributes={
@@ -434,11 +429,6 @@ class TestChunkSchemasMulticell(ChunkSchemasMulticellBase):
 class TestChunkSchemasMulticellPortal(ChunkSchemasMulticellBase):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
-
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host", "cypress_node_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }
 
 
 ##################################################################

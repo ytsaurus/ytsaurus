@@ -95,11 +95,6 @@ class TestStderrTable(YTEnvSetup):
         }
     }
 
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }
-
     @authors("ermolovd")
     def test_map(self):
         create("table", "//tmp/t_input")

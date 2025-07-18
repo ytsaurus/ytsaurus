@@ -4368,11 +4368,6 @@ class TestAccountsMulticell(TestAccounts):
     NUM_SECONDARY_MASTER_CELLS = 2
     NUM_SCHEDULERS = 1
 
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }
-
     @authors("babenko", "kiselyovp")
     def test_requisitions2(self):
         create_account("a1")
@@ -4636,11 +4631,6 @@ class TestAccountTreeMulticell(TestAccountTree):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
     NUM_SCHEDULERS = 1
-
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }
 
     @authors("cookiedoth")
     def test_master_memory_usage_per_cell3(self):

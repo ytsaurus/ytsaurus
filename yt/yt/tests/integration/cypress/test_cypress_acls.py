@@ -1949,11 +1949,6 @@ class TestCypressAclsMulticell(TestCypressAcls):
     NUM_TEST_PARTITIONS = 3
     NUM_SECONDARY_MASTER_CELLS = 2
 
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }
-
 
 @pytest.mark.enabled_multidaemon
 class TestCheckPermissionRpcProxy(CheckPermissionBase):
@@ -1969,12 +1964,6 @@ class TestCypressAclsPortal(TestCypressAclsMulticell):
     NUM_TEST_PARTITIONS = 3
     NUM_SECONDARY_MASTER_CELLS = 3
     ENABLE_TMP_PORTAL = True
-
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["cypress_node_host"]},
-        "12": {"roles": ["chunk_host", "cypress_node_host"]},
-        "13": {"roles": ["chunk_host"]},
-    }
 
     @authors("shakurov")
     def test_columnar_acl_copy_yt_12749(self):

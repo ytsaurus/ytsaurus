@@ -1367,21 +1367,14 @@ class TestBackupsMulticell(TestBackups):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }
-
 
 @authors("ifsmirnov")
 @pytest.mark.enabled_multidaemon
 class TestBackupsShardedTx(TestBackups):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
-
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
-        "11": {"roles": ["chunk_host"]},
         "12": {"roles": ["transaction_coordinator"]},
     }
 
@@ -1418,21 +1411,14 @@ class TestReplicatedTableBackupsMulticell(TestReplicatedTableBackups):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }
-
 
 @authors("ifsmirnov")
 @pytest.mark.enabled_multidaemon
 class TestReplicatedTableBackupsShardedTx(TestReplicatedTableBackups):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
-
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
-        "11": {"roles": ["chunk_host"]},
         "12": {"roles": ["transaction_coordinator"]},
     }
 
