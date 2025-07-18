@@ -45,6 +45,15 @@ void Serialize(const TResourceVector& resourceVector, IYsonConsumer* consumer)
     fluent.EndMap();
 }
 
+void Deserialize(TResourceVector& resourceVector, NYTree::INodePtr node)
+{
+    auto mapNode = node->AsMap();
+    for (int index = 0; index < ResourceCount; ++index) {
+        auto resourceName = FormatEnum(TResourceVector::GetResourceTypeById(index));
+        resourceVector[index] = mapNode->GetChildValueOrThrow<double>(resourceName);
+    }
+}
+
 void FormatValue(TStringBuilderBase* builder, const TResourceVector& resourceVector, TStringBuf spec)
 {
     auto getResourceSuffix = [] (EJobResourceType resourceType) {
