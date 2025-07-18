@@ -79,7 +79,7 @@ https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release%2F0.23.1
 
 - **Important fix.** Fixed YQL queries results corruption. Issue: https://github.com/ytsaurus/ytsaurus/issues/707
 - Fixed YQL DQ launching
-- Fixed bug caused UTF-8 errors in yql-agent logs
+- Fixed bug caused UTF-8 errors in yql-agent logs 
 - Fixed multiple deadlocks in yql-agent
 - Added support for SPYT discovery groups
 - Added support for SPYT queries parameters
@@ -185,7 +185,7 @@ https://github.com/ytsaurus/yt-k8s-operator/releases/tag/release%2F0.5.0
 **Release date:** 2023-11-14
 
 
-- Fixed a bug that caused the user transaction to expire before the completion of the yql query on IPv4 only networks.
+- Fixed a bug that caused the user transaction to expire before the completion of the yql query on IPv4 only networks. 
 - System query_tracker tables have been moved to sys bundle
 
 
