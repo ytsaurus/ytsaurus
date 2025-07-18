@@ -174,8 +174,8 @@ public:
             if (now - logNoContextLastTime >= logNoContextInterval &&
                 LogNoContextLastTime_.compare_exchange_strong(logNoContextLastTime, now, std::memory_order::relaxed))
             {
-                YT_LOG_WARNING("No error manager context for error handling (Error: %Qv, Method: %v)",
-                    error.GetMessage(),
+                YT_LOG_WARNING("No error manager context for error handling (Error: %v, Method: %v)",
+                    error,
                     method);
             }
 
@@ -206,7 +206,7 @@ private:
     TIntrusivePtr<TDeduplicationCache> DeduplicationCache_;
     std::atomic<TDuration> ErrorExpirationTimeout_;
 
-    std::atomic<TInstant> LogNoContextLastTime_ = TInstant::Zero();
+    std::atomic<TInstant> LogNoContextLastTime_;
     std::atomic<TDuration> LogNoContextInterval_;
 
     static void MaybeDropError(NThreading::TAtomicObject<TError>* atomicError, TInstant expirationTime)
