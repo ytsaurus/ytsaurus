@@ -54,27 +54,34 @@ void TMasterHeartbeatReporterBase::StartNodeHeartbeats()
         Bootstrap_->GetNodeId(),
         MasterCellTags_);
 
-    for (auto cellTag : MasterCellTags_) {
-        StartNodeHeartbeatsToCell(cellTag);
-    }
+    StartNodeHeartbeatsToCells(MasterCellTags_);
 }
 
-void TMasterHeartbeatReporterBase::StartNodeHeartbeatsToCell(TCellTag cellTag)
+void TMasterHeartbeatReporterBase::StartNodeHeartbeatsToCells(const THashSet<TCellTag>& masterCellTags)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-    if (!MasterCellTags_.contains(cellTag)) {
-        YT_LOG_ALERT(
-            "Attempted to initiate heartbeat report to unknown master (CellTag: %v)",
-            cellTag);
-        return;
+    THashSet<TCellTag> allowedMasterCellTags;
+    allowedMasterCellTags.reserve(masterCellTags.size());
+    for (auto cellTag : masterCellTags) {
+        if (!MasterCellTags_.contains(cellTag)) {
+            YT_LOG_ALERT(
+                "Attempted to initiate heartbeat report to unknown master (CellTag: %v)",
+                cellTag);
+            continue;
+        }
+        InsertOrCrash(allowedMasterCellTags, cellTag);
     }
 
-    // This lock ensures that only one process is in the section below,
-    // it is important to to exclude intersections between heartbeat flows to master.
-    auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&GetOrCrash(ExecutorLockPerMaster_, cellTag)))
+    // These locks ensure that only one process per master heartbeat is in the section below,
+    // it is important to exclude intersections between heartbeat flows to master.
+    std::vector<TFuture<TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>>> futureGuards;
+    for (auto cellTag : allowedMasterCellTags) {
+        futureGuards.push_back(TAsyncLockWriterGuard::Acquire(&GetOrCrash(ExecutorLockPerMaster_, cellTag)));
+    }
+    auto guards = WaitFor(AllSucceeded(std::move(futureGuards)))
         .ValueOrThrow();
-    DoStartNodeHeartbeatsToCell(cellTag);
+    DoStartNodeHeartbeatsToCells(allowedMasterCellTags);
 }
 
 void TMasterHeartbeatReporterBase::Reconfigure(const TRetryingPeriodicExecutorOptions& options)
@@ -91,42 +98,63 @@ void TMasterHeartbeatReporterBase::Reconfigure(const TRetryingPeriodicExecutorOp
         }
     }
 }
-
-void TMasterHeartbeatReporterBase::DoStartNodeHeartbeatsToCell(TCellTag cellTag)
+void TMasterHeartbeatReporterBase::DoStopNodeHeartbeatsToCells(const THashSet<TCellTag>& masterCellTags)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-    if (auto executor = FindExecutor(cellTag); executor && executor->IsStarted()) {
-        YT_LOG_DEBUG(
-            "Waiting for the previous heartbeat executor to stop (CellTag: %v)",
-            cellTag);
-        auto error = WaitForFast(executor->Stop());
+    THashSet<TCellTag> masterCellTagsToStop;
+    std::vector<TFuture<void>> executorsStopFutures;
+    masterCellTagsToStop.reserve(masterCellTags.size());
+    executorsStopFutures.reserve(masterCellTags.size());
 
-        YT_LOG_ALERT_UNLESS(
-            error.IsOK(),
-            error,
-            "Unexpected failure while waiting for previous heartbeat executor to shut down");
+    for (auto cellTag : masterCellTags) {
+        if (auto executor = FindExecutor(cellTag); executor && executor->IsStarted()) {
+            executorsStopFutures.push_back(executor->Stop());
+            masterCellTagsToStop.insert(cellTag);
+        }
     }
 
-    // Reset reporter's state only after stopped heartbeats events were reported.
-    ResetState(cellTag);
+    YT_LOG_DEBUG(
+        "Waiting for the previous heartbeat executors to stop (CellTags: %v)",
+        masterCellTagsToStop);
+
+    auto error = WaitFor(AllSucceeded(std::move(executorsStopFutures)));
+
+    YT_LOG_ALERT_UNLESS(
+        error.IsOK(),
+        error,
+        "Unexpected failure while waiting for previous heartbeat executors to shut down");
+
+    // Reset reporters' states only after stopped heartbeats events were reported.
+    ResetStates(masterCellTags);
+
+    YT_LOG_DEBUG("Stopped node heartbeats to cells (CellTags: %v)", masterCellTagsToStop);
+}
+
+void TMasterHeartbeatReporterBase::DoStartNodeHeartbeatsToCells(const THashSet<TCellTag>& masterCellTags)
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    DoStopNodeHeartbeatsToCells(masterCellTags);
 
     // MasterConnectionInvoker changes after every registration
     // and so we have to make a new HeartbeatExecutor.
     // Technically, we could support "UpdateInvoker" method,
     // but there is no reason to preserve HeartbeatExecutor's state.
-    Executors_[cellTag] = New<TRetryingPeriodicExecutor>(
-        Bootstrap_->GetMasterConnectionInvoker(),
-        BIND([this, weakThis = MakeWeak(this), cellTag] {
-            auto this_ = weakThis.Lock();
-            return this_ ? ReportHeartbeat(cellTag) : TError("Master heartbeat reporter is destroyed");
-        }),
-        Options_);
+    for (auto cellTag : masterCellTags) {
+        Executors_[cellTag] = New<TRetryingPeriodicExecutor>(
+            Bootstrap_->GetMasterConnectionInvoker(),
+            BIND([this, weakThis = MakeWeak(this), cellTag] {
+                auto this_ = weakThis.Lock();
+                return this_ ? ReportHeartbeat(cellTag) : TError("Master heartbeat reporter is destroyed");
+            }),
+            Options_);
 
-    YT_LOG_INFO(
-        "Starting node heartbeat reports to master (CellTag: %v)",
-        cellTag);
-    Executors_[cellTag]->Start();
+        YT_LOG_INFO(
+            "Starting node heartbeat reports to master (CellTag: %v)",
+            cellTag);
+        Executors_[cellTag]->Start();
+    }
 }
 
 TError TMasterHeartbeatReporterBase::ReportHeartbeat(TCellTag cellTag)
@@ -180,14 +208,15 @@ void TMasterHeartbeatReporterBase::OnReadyToUpdateHeartbeatStream(
         EmplaceOrCrash(MasterCellTags_, cellTag);
         ExecutorLockPerMaster_[cellTag];
     }
+
     const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
-    std::vector<TCellTag> newSecondaryMasterCellTags;
+    THashSet<TCellTag> newSecondaryMasterCellTags;
     newSecondaryMasterCellTags.reserve(newSecondaryMasterConfigs.size());
     for (const auto& [cellTag, _] : newSecondaryMasterConfigs) {
-        newSecondaryMasterCellTags.emplace_back(cellTag);
-        if (clusterNodeMasterConnector->IsRegisteredAtPrimaryMaster()) {
-            StartNodeHeartbeatsToCell(cellTag);
-        }
+        newSecondaryMasterCellTags.insert(cellTag);
+    }
+    if (clusterNodeMasterConnector->IsRegisteredAtPrimaryMaster()) {
+        StartNodeHeartbeatsToCells(newSecondaryMasterCellTags);
     }
 
     YT_LOG_INFO(
