@@ -11,6 +11,7 @@ import yt.logger_config as logger_config
 import yt.yson as yson
 
 import inspect
+import os
 
 from io import BytesIO
 
@@ -20,6 +21,7 @@ driver_bindings = None
 logging_configured = False
 address_resolver_configured = False
 yp_service_discovery_configured = False
+driver_bindings_imported_with_pid = None
 
 
 class NullStream(object):
@@ -33,6 +35,8 @@ class NullStream(object):
 def lazy_import_driver_bindings():
     global driver_bindings
     global driver_bindings_type
+    global driver_bindings_imported_with_pid
+
     if driver_bindings is not None:
         return
 
@@ -40,6 +44,7 @@ def lazy_import_driver_bindings():
         import yt_driver_bindings
         driver_bindings = yt_driver_bindings
         driver_bindings_type = "native"
+        driver_bindings_imported_with_pid = os.getpid()
         return
     except ImportError:
         pass
@@ -48,6 +53,7 @@ def lazy_import_driver_bindings():
         import yt_driver_rpc_bindings
         driver_bindings = yt_driver_rpc_bindings
         driver_bindings_type = "rpc"
+        driver_bindings_imported_with_pid = os.getpid()
         return
     except ImportError:
         pass
@@ -231,6 +237,9 @@ def get_driver_instance(client):
 
         set_option("_driver", create_driver(driver_config, connection_type), client=client)
         driver = get_option("_driver", client=client)
+
+    if driver_bindings_imported_with_pid is not None and driver_bindings_imported_with_pid != os.getpid():
+        logger.error("RPC driver bindings used from different processes and may no function properly; it usually means that your program uses multiprocessong module (original_pid: %s, current_pid: %s)", driver_bindings_imported_with_pid, os.getpid())  # noqa
 
     return driver
 
