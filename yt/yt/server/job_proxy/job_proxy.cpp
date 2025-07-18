@@ -193,6 +193,7 @@ TJobProxy::TJobProxy(
     , JobId_(jobId)
     , JobThread_(New<TActionQueue>("JobMain"))
     , ControlThread_(New<TActionQueue>("Control"))
+    , JobProxyEnvironmentThread_(New<TActionQueue>("JobProxyEnv"))
     , Logger(JobProxyLogger().WithTag("OperationId: %v, JobId: %v",
         OperationId_,
         JobId_))
@@ -541,6 +542,10 @@ void TJobProxy::DoRun()
         YT_LOG_INFO("CPU monitor stopped");
     }
 
+    if (GetJobSpecHelper()->HasSidecars()) {
+        FindJobProxyEnvironment()->KillSidecars();
+    }
+
     {
         auto error = WaitFor(RpcServer_->Stop()
             .WithTimeout(RpcServerShutdownTimeout));
@@ -758,6 +763,7 @@ TJobResult TJobProxy::RunJob()
     TTraceContextGuard guard(RootSpan_);
 
     IJobPtr job;
+    IJobProxyEnvironmentPtr environment;
 
     try {
         if (Config_->TvmBridge && Config_->TvmBridgeConnection) {
@@ -776,7 +782,17 @@ TJobResult TJobProxy::RunJob()
 
         SolomonExporter_ = New<TSolomonExporter>(Config_->SolomonExporter);
 
-        auto environment = CreateJobProxyEnvironment(Config_->JobEnvironment);
+        environment = CreateJobProxyEnvironment(
+            Config_,
+            JobProxyEnvironmentThread_->GetInvoker(),
+            GetSlotPath(),
+            [this] (TError sidecarError) {
+                auto job = FindJob();
+                if (!job) {
+                    YT_LOG_FATAL("Job is missing within sidecar failure (SidecarError: %v)", sidecarError);
+                }
+                job->Fail(std::move(sidecarError));
+        });
         SetJobProxyEnvironment(environment);
 
         LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(Config_->Addresses, Config_->LocalHostName, Config_->Rack, Config_->DataCenter);
@@ -980,6 +996,10 @@ TJobResult TJobProxy::RunJob()
     MemoryWatchdogExecutor_->Start();
     HeartbeatExecutor_->Start();
     CpuMonitor_->Start();
+
+    if (GetJobSpecHelper()->HasSidecars()) {
+        environment->StartSidecars(GetJobSpecHelper()->GetJobSpecExt());
+    }
 
     return job->Run();
 }
