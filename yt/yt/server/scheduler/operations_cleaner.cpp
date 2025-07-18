@@ -606,7 +606,9 @@ public:
             Config_->ArchiveBatchTimeout))
         , Client_(Bootstrap_->GetClient()->GetNativeConnection()
             ->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::OperationsCleanerUserName)))
-    { }
+    {
+        SetupSensors();
+    }
 
     void Start()
     {
@@ -928,8 +930,6 @@ private:
 
         AnalysisExecutor_->Start();
 
-        SetupSensors();
-
         GetCancelableInvoker()->Invoke(BIND(&TImpl::RemoveOperations, MakeStrong(this)));
 
         ScheduleArchiveOperations();
@@ -1060,6 +1060,8 @@ private:
         ArchivePending_ = 0;
         RemovePending_ = 0;
         RemovePendingLocked_ = 0;
+        Submitted_ = 0;
+        EnqueuedAlertEvents_ = 0;
 
         YT_LOG_INFO("Operations cleaner stopped");
     }
