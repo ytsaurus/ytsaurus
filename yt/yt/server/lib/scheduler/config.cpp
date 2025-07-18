@@ -637,6 +637,13 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_guarantee_priority_scheduling", &TThis::EnableGuaranteePriorityScheduling)
         .Default(false);
 
+    registrar.Parameter("enable_step_function_for_gang_operations", &TThis::EnableStepFunctionForGangOperations)
+        .Default(false);
+    registrar.Parameter("enable_improved_fair_share_by_fit_factor_computation", &TThis::EnableImprovedFairShareByFitFactorComputation)
+        .Default(false);
+    registrar.Parameter("enable_improved_fair_share_by_fit_factor_computation_distribution_gap", &TThis::EnableImprovedFairShareByFitFactorComputationDistributionGap)
+        .Default(false);
+
     registrar.Parameter("min_job_resource_limits", &TThis::MinJobResourceLimits)
         .DefaultNew();
 

@@ -244,6 +244,9 @@ def get_scheduler_config():
                     "filter": ".*",
                     "priority": -117,
                     "config": {
+                        # COMPAT(ignat)
+                        "enable_step_function_for_gang_operations": True,
+                        "enable_improved_fair_share_by_fit_factor_computation": True,
                     },
                 },
             },

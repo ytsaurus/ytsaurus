@@ -76,6 +76,8 @@ class TBaseOperationElement
 {
 public:
     bool IsFairShareTruncationInFifoPoolAllowed() const override;
+
+    bool IsGang() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

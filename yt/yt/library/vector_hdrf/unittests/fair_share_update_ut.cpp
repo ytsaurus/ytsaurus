@@ -1,9 +1,32 @@
 #include <yt/yt/library/vector_hdrf/fair_share_update.h>
 #include <yt/yt/library/vector_hdrf/private.h>
 
+#include <yt/yt/core/ytree/convert.h>
+
 #include <library/cpp/testing/gtest/gtest.h>
 
+#include <library/cpp/resource/resource.h>
+
+#include <util/stream/file.h>
+
 namespace NYT::NVectorHdrf {
+
+using namespace NYson;
+using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TYsonString ReadTestData(TStringBuf fileName)
+{
+    return TYsonString(NResource::Find(TString("/data/") + fileName));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EElementType,
+    (Operation)
+    (Pool)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -368,6 +391,16 @@ public:
         return TResourceVector::Ones();
     }
 
+    bool IsGang() const override
+    {
+        return IsGang_;
+    }
+
+    void SetGangFlag(bool value)
+    {
+        IsGang_ = value;
+    }
+
     void SetFairShareTruncationInFifoPoolAllowed(bool allowed)
     {
         FairShareTruncationInFifoPoolAllowed_ = allowed;
@@ -379,6 +412,7 @@ public:
     }
 
 private:
+    bool IsGang_ = false;
     bool FairShareTruncationInFifoPoolAllowed_ = false;
 };
 
@@ -413,6 +447,10 @@ struct TTestFairShareUpdateOptions
     EJobResourceType MainResource = EJobResourceType::Cpu;
     TInstant Now = TInstant::Now();
     std::optional<TInstant> PreviousUpdateTime;
+    bool EnableStepFunctionForGangOperations = false;
+    bool EnableImprovedFairShareByFitFactorComputation = false;
+    // TODO(ignat): delete this option if no necessity will be found on production clusters.
+    bool EnableImprovedFairShareByFitFactorComputationDistributionGap = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -496,6 +534,11 @@ protected:
             weight);
     }
 
+    TOperationElementMockPtr CreateOperation(TString id)
+    {
+        return New<TOperationElementMock>(id);
+    }
+
     TOperationElementMockPtr CreateOperation(
         TCompositeElementMock* parent,
         const TJobResources& resourceDemand = {},
@@ -505,6 +548,16 @@ protected:
         operation->SetResourceDemand(resourceDemand);
         operation->SetResourceUsage(resourceUsage);
         operation->AttachParent(parent);
+        return operation;
+    }
+
+    TOperationElementMockPtr CreateGangOperation(
+        TCompositeElementMock* parent,
+        const TJobResources& resourceDemand = {},
+        const TJobResources& resourceUsage = {})
+    {
+        auto operation = CreateOperation(parent, resourceDemand, resourceUsage);
+        operation->SetGangFlag(true);
         return operation;
     }
 
@@ -535,10 +588,15 @@ protected:
         return onePercentOfCluster;
     }
 
+    virtual TTestFairShareUpdateOptions GetOptions()
+    {
+        return TTestFairShareUpdateOptions{};
+    }
+
     TFairShareUpdateContext DoFairShareUpdate(
         const TJobResources& totalResourceLimits,
         const TRootElementMockPtr& rootElement,
-        const TTestFairShareUpdateOptions& testOptions = {})
+        const TTestFairShareUpdateOptions& testOptions)
     {
         ResetFairShareFunctionsRecursively(rootElement.Get());
 
@@ -547,6 +605,10 @@ protected:
                 .MainResource = testOptions.MainResource,
                 .IntegralPoolCapacitySaturationPeriod = TDuration::Days(1),
                 .IntegralSmoothPeriod = TDuration::Minutes(1),
+                .EnableStepFunctionForGangOperations = testOptions.EnableStepFunctionForGangOperations,
+                .EnableImprovedFairShareByFitFactorComputation = testOptions.EnableImprovedFairShareByFitFactorComputation,
+                .EnableImprovedFairShareByFitFactorComputationDistributionGap =
+                    testOptions.EnableImprovedFairShareByFitFactorComputationDistributionGap,
             },
             totalResourceLimits,
             testOptions.Now,
@@ -560,6 +622,13 @@ protected:
         return context;
     }
 
+    TFairShareUpdateContext DoFairShareUpdate(
+        const TJobResources& totalResourceLimits,
+        const TRootElementMockPtr& rootElement)
+    {
+        return DoFairShareUpdate(totalResourceLimits, rootElement, GetOptions());
+    }
+
     // TODO(eshcherbin): Remove this method in favour of the previous one.
     TFairShareUpdateContext DoFairShareUpdate(
         const TJobResources& totalResourceLimits,
@@ -567,10 +636,10 @@ protected:
         TInstant now,
         std::optional<TInstant> previousUpdateTime = std::nullopt)
     {
-        return DoFairShareUpdate(totalResourceLimits, rootElement, TTestFairShareUpdateOptions{
-            .Now = now,
-            .PreviousUpdateTime = previousUpdateTime,
-        });
+        auto options = GetOptions();
+        options.Now = now;
+        options.PreviousUpdateTime = previousUpdateTime;
+        return DoFairShareUpdate(totalResourceLimits, rootElement, options);
     }
 
 private:
@@ -592,6 +661,30 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TFairShareUpdateParametrizedTest
+    : public TFairShareUpdateTest
+    , public testing::WithParamInterface<bool>
+{
+    TTestFairShareUpdateOptions GetOptions() override
+    {
+        auto options = TTestFairShareUpdateOptions{};
+        options.EnableImprovedFairShareByFitFactorComputation = GetParam();
+        return options;
+    }
+};
+
+INSTANTIATE_TEST_SUITE_P(
+    DisableImprovedFairShareByFitFactorComputation,
+    TFairShareUpdateParametrizedTest,
+    ::testing::Values(false));
+
+INSTANTIATE_TEST_SUITE_P(
+    EnableImprovedFairShareByFitFactorComputation,
+    TFairShareUpdateParametrizedTest,
+    ::testing::Values(true));
+
+////////////////////////////////////////////////////////////////////////////////
+
 MATCHER_P2(ResourceVectorNear, vec, absError, "") {
     return TResourceVector::Near(arg, vec, absError);
 }
@@ -609,7 +702,7 @@ MATCHER_P2(ResourceVolumeNear, vec, absError, "") {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TFairShareUpdateTest, TestSimple)
+TEST_P(TFairShareUpdateParametrizedTest, TestSimple)
 {
     constexpr int OperationCount = 4;
 
@@ -675,7 +768,7 @@ TEST_F(TFairShareUpdateTest, TestSimple)
     }
 }
 
-TEST_F(TFairShareUpdateTest, TestResourceLimits)
+TEST_P(TFairShareUpdateParametrizedTest, TestResourceLimits)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
     auto rootElement = CreateRootElement();
@@ -714,7 +807,7 @@ TEST_F(TFairShareUpdateTest, TestResourceLimits)
     }
 }
 
-TEST_F(TFairShareUpdateTest, TestFractionalResourceLimits)
+TEST_P(TFairShareUpdateParametrizedTest, TestFractionalResourceLimits)
 {
     TJobResources totalResourceLimits;
     totalResourceLimits.SetUserSlots(10);
@@ -743,7 +836,7 @@ TEST_F(TFairShareUpdateTest, TestFractionalResourceLimits)
     }
 }
 
-TEST_F(TFairShareUpdateTest, TestEmptyTree)
+TEST_P(TFairShareUpdateParametrizedTest, TestEmptyTree)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
 
@@ -762,7 +855,7 @@ TEST_F(TFairShareUpdateTest, TestEmptyTree)
     EXPECT_EQ(TResourceVector::Zero(), poolB->Attributes().FairShare.Total);
 }
 
-TEST_F(TFairShareUpdateTest, TestOneLargeOperation)
+TEST_P(TFairShareUpdateParametrizedTest, TestOneLargeOperation)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
 
@@ -791,7 +884,7 @@ TEST_F(TFairShareUpdateTest, TestOneLargeOperation)
     EXPECT_EQ(TResourceVector::Zero(), poolB->Attributes().FairShare.Total);
 }
 
-TEST_F(TFairShareUpdateTest, TestOneSmallOperation)
+TEST_P(TFairShareUpdateParametrizedTest, TestOneSmallOperation)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
 
@@ -819,7 +912,7 @@ TEST_F(TFairShareUpdateTest, TestOneSmallOperation)
     EXPECT_EQ(TResourceVector::Zero(), poolB->Attributes().FairShare.Total);
 }
 
-TEST_F(TFairShareUpdateTest, TestTwoComplementaryOperations)
+TEST_P(TFairShareUpdateParametrizedTest, TestTwoComplementaryOperations)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
 
@@ -848,14 +941,14 @@ TEST_F(TFairShareUpdateTest, TestTwoComplementaryOperations)
     DoFairShareUpdate(totalResourceLimits, rootElement);
 
     // Check the values
-    EXPECT_EQ(TResourceVector({2.0 / 3, 1.0, 0.0, 1.0, 0.0}), rootElement->Attributes().FairShare.Total);
-    EXPECT_EQ(TResourceVector({2.0 / 3, 1.0, 0.0, 1.0, 0.0}), poolA->Attributes().FairShare.Total);
-    EXPECT_EQ(TResourceVector({1.0 / 3, 1.0 / 3, 0.0, 2.0 / 3, 0.0}), operationX->Attributes().FairShare.Total);
-    EXPECT_EQ(TResourceVector({1.0 / 3, 2.0 / 3, 0.0, 1.0 / 3, 0.0}), operationY->Attributes().FairShare.Total);
-    EXPECT_EQ(TResourceVector::Zero(), poolB->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector({2.0 / 3, 1.0, 0.0, 1.0, 0.0}), rootElement->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector({2.0 / 3, 1.0, 0.0, 1.0, 0.0}), poolA->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector({1.0 / 3, 1.0 / 3, 0.0, 2.0 / 3, 0.0}), operationX->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector({1.0 / 3, 2.0 / 3, 0.0, 1.0 / 3, 0.0}), operationY->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector::Zero(), poolB->Attributes().FairShare.Total);
 }
 
-TEST_F(TFairShareUpdateTest, TestComplexCase)
+TEST_P(TFairShareUpdateParametrizedTest, TestComplexCase)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
 
@@ -907,7 +1000,7 @@ TEST_F(TFairShareUpdateTest, TestComplexCase)
     EXPECT_RV_NEAR(operationZ->Attributes().FairShare.Total, TResourceVector({5.0 / 40, 5.0 / 40, 0.0, 25.0 / 40, 0.0}));
 }
 
-TEST_F(TFairShareUpdateTest, TestNonContinuousFairShare)
+TEST_P(TFairShareUpdateParametrizedTest, TestNonContinuousFairShare)
 {
     TJobResources totalResourceLimits;
     totalResourceLimits.SetUserSlots(100'000);
@@ -956,7 +1049,7 @@ TEST_F(TFairShareUpdateTest, TestNonContinuousFairShare)
     EXPECT_RV_NEAR(operationY->Attributes().FairShare.Total, TResourceVector({0.0009, 0.9, 0.0, 0.9, 0.0}));
 }
 
-TEST_F(TFairShareUpdateTest, TestNonContinuousFairShareFunctionIsLeftContinuous)
+TEST_P(TFairShareUpdateParametrizedTest, TestNonContinuousFairShareFunctionIsLeftContinuous)
 {
     // Create a cluster with 1 large node.
     TJobResources totalResourceLimits;
@@ -1014,7 +1107,7 @@ TEST_F(TFairShareUpdateTest, TestNonContinuousFairShareFunctionIsLeftContinuous)
     EXPECT_RV_NEAR(operationY->Attributes().FairShare.Total, TResourceVector({0.00004, 0.04, 0.0, 0.04, 0.0}));
 }
 
-TEST_F(TFairShareUpdateTest, TestImpreciseComposition)
+TEST_P(TFairShareUpdateParametrizedTest, TestImpreciseComposition)
 {
     // NB: This test is reconstructed from a core dump. Don't be surprised by precise resource demands. See YT-13864.
 
@@ -1051,7 +1144,7 @@ TEST_F(TFairShareUpdateTest, TestImpreciseComposition)
     EXPECT_FALSE(Dominates(TResourceVector::Ones(), pool->Attributes().FairShare.Total));
 }
 
-TEST_F(TFairShareUpdateTest, TestTruncateUnsatisfiedChildFairShareInFifoPools)
+TEST_P(TFairShareUpdateParametrizedTest, TestTruncateUnsatisfiedChildFairShareInFifoPools)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
 
@@ -1097,7 +1190,7 @@ TEST_F(TFairShareUpdateTest, TestTruncateUnsatisfiedChildFairShareInFifoPools)
     EXPECT_RV_NEAR(TResourceVector(unit * 0.5), poolB->Attributes().FairShare.Total);
 }
 
-TEST_F(TFairShareUpdateTest, TestPromisedGuaranteeFairShare)
+TEST_P(TFairShareUpdateParametrizedTest, TestPromisedGuaranteeFairShare)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
 
@@ -1154,7 +1247,7 @@ TEST_F(TFairShareUpdateTest, TestPromisedGuaranteeFairShare)
     EXPECT_RV_NEAR(TResourceVector(unit * 0.0), rootElement->Attributes().PromisedGuaranteeFairShare.Total);
 }
 
-TEST_F(TFairShareUpdateTest, TestNestedPromisedGuaranteeFairSharePools)
+TEST_P(TFairShareUpdateParametrizedTest, TestNestedPromisedGuaranteeFairSharePools)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
 
@@ -1191,7 +1284,7 @@ TEST_F(TFairShareUpdateTest, TestNestedPromisedGuaranteeFairSharePools)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TFairShareUpdateTest, TestRelaxedPoolFairShareSimple)
+TEST_P(TFairShareUpdateParametrizedTest, TestRelaxedPoolFairShareSimple)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
     auto rootElement = CreateRootElement();
@@ -1221,7 +1314,7 @@ TEST_F(TFairShareUpdateTest, TestRelaxedPoolFairShareSimple)
     }
 }
 
-TEST_F(TFairShareUpdateTest, TestRelaxedPoolWithIncreasedMultiplierLimit)
+TEST_P(TFairShareUpdateParametrizedTest, TestRelaxedPoolWithIncreasedMultiplierLimit)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
     auto rootElement = CreateRootElement();
@@ -1249,7 +1342,7 @@ TEST_F(TFairShareUpdateTest, TestRelaxedPoolWithIncreasedMultiplierLimit)
     }
 }
 
-TEST_F(TFairShareUpdateTest, TestBurstPoolFairShareSimple)
+TEST_P(TFairShareUpdateParametrizedTest, TestBurstPoolFairShareSimple)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
     auto rootElement = CreateRootElement();
@@ -1279,7 +1372,7 @@ TEST_F(TFairShareUpdateTest, TestBurstPoolFairShareSimple)
     }
 }
 
-TEST_F(TFairShareUpdateTest, TestAccumulatedVolumeProvidesMore)
+TEST_P(TFairShareUpdateParametrizedTest, TestAccumulatedVolumeProvidesMore)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
     auto rootElement = CreateRootElement();
@@ -1318,7 +1411,7 @@ TEST_F(TFairShareUpdateTest, TestAccumulatedVolumeProvidesMore)
     }
 }
 
-TEST_F(TFairShareUpdateTest, TestStrongGuaranteePoolVsBurstPool)
+TEST_P(TFairShareUpdateParametrizedTest, TestStrongGuaranteePoolVsBurstPool)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
     auto rootElement = CreateRootElement();
@@ -1337,21 +1430,21 @@ TEST_F(TFairShareUpdateTest, TestStrongGuaranteePoolVsBurstPool)
         DoFairShareUpdate(totalResourceLimits, rootElement, now, now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
-        EXPECT_EQ(unit * 5, strongPool->Attributes().FairShare.StrongGuarantee);
-        EXPECT_EQ(unit * 0, strongPool->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(unit * 5, strongPool->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(unit * 0, strongPool->Attributes().FairShare.IntegralGuarantee);
         EXPECT_RV_NEAR(unit * 0, strongPool->Attributes().FairShare.WeightProportional);
 
-        EXPECT_EQ(unit * 0, burstPool->Attributes().FairShare.StrongGuarantee);
-        EXPECT_EQ(unit * 5, burstPool->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(unit * 0, burstPool->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(unit * 5, burstPool->Attributes().FairShare.IntegralGuarantee);
         EXPECT_RV_NEAR(unit * 0, burstPool->Attributes().FairShare.WeightProportional);
 
         EXPECT_RV_NEAR(unit * 5, rootElement->Attributes().FairShare.StrongGuarantee);
-        EXPECT_EQ(unit * 5, rootElement->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_EQ(unit * 0, rootElement->Attributes().FairShare.WeightProportional);
+        EXPECT_RV_NEAR(unit * 5, rootElement->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(unit * 0, rootElement->Attributes().FairShare.WeightProportional);
     }
 }
 
-TEST_F(TFairShareUpdateTest, TestStrongGuaranteePoolVsRelaxedPool)
+TEST_P(TFairShareUpdateParametrizedTest, TestStrongGuaranteePoolVsRelaxedPool)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
     auto rootElement = CreateRootElement();
@@ -1370,21 +1463,21 @@ TEST_F(TFairShareUpdateTest, TestStrongGuaranteePoolVsRelaxedPool)
         DoFairShareUpdate(totalResourceLimits, rootElement, now, now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
-        EXPECT_EQ(unit * 5, strongPool->Attributes().FairShare.StrongGuarantee);
-        EXPECT_EQ(unit * 0, strongPool->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(unit * 5, strongPool->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(unit * 0, strongPool->Attributes().FairShare.IntegralGuarantee);
         EXPECT_RV_NEAR(unit * 0, strongPool->Attributes().FairShare.WeightProportional);
 
-        EXPECT_EQ(unit * 0, relaxedPool->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(unit * 0, relaxedPool->Attributes().FairShare.StrongGuarantee);
         EXPECT_RV_NEAR(unit * 5, relaxedPool->Attributes().FairShare.IntegralGuarantee);
         EXPECT_RV_NEAR(unit * 0, relaxedPool->Attributes().FairShare.WeightProportional);
 
         EXPECT_RV_NEAR(unit * 5, rootElement->Attributes().FairShare.StrongGuarantee);
         EXPECT_RV_NEAR(unit * 5, relaxedPool->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_EQ(unit * 0, rootElement->Attributes().FairShare.WeightProportional);
+        EXPECT_RV_NEAR(unit * 0, rootElement->Attributes().FairShare.WeightProportional);
     }
 }
 
-TEST_F(TFairShareUpdateTest, TestBurstGetsAll_RelaxedNone)
+TEST_P(TFairShareUpdateParametrizedTest, TestBurstGetsAll_RelaxedNone)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
     auto rootElement = CreateRootElement();
@@ -1403,19 +1496,19 @@ TEST_F(TFairShareUpdateTest, TestBurstGetsAll_RelaxedNone)
         DoFairShareUpdate(totalResourceLimits, rootElement, now, now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
-        EXPECT_EQ(unit * 0, burstPool->Attributes().FairShare.StrongGuarantee);
-        EXPECT_EQ(unit * 10, burstPool->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(unit * 0, burstPool->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(unit * 10, burstPool->Attributes().FairShare.IntegralGuarantee);
         EXPECT_RV_NEAR(unit * 0, burstPool->Attributes().FairShare.WeightProportional);
 
         EXPECT_RV_NEAR(unit * 0, relaxedPool->Attributes().FairShare.Total);
 
         EXPECT_RV_NEAR(unit * 0, rootElement->Attributes().FairShare.StrongGuarantee);
-        EXPECT_EQ(unit * 10, rootElement->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_EQ(unit * 0, rootElement->Attributes().FairShare.WeightProportional);
+        EXPECT_RV_NEAR(unit * 10, rootElement->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(unit * 0, rootElement->Attributes().FairShare.WeightProportional);
     }
 }
 
-TEST_F(TFairShareUpdateTest, TestBurstGetsBurstGuaranteeOnly_RelaxedGetsRemaining)
+TEST_P(TFairShareUpdateParametrizedTest, TestBurstGetsBurstGuaranteeOnly_RelaxedGetsRemaining)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
     auto rootElement = CreateRootElement();
@@ -1434,21 +1527,21 @@ TEST_F(TFairShareUpdateTest, TestBurstGetsBurstGuaranteeOnly_RelaxedGetsRemainin
         DoFairShareUpdate(totalResourceLimits, rootElement, now, now - TDuration::Minutes(1));
 
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
-        EXPECT_EQ(unit * 0, burstPool->Attributes().FairShare.StrongGuarantee);
-        EXPECT_EQ(unit * 5, burstPool->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(unit * 0, burstPool->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(unit * 5, burstPool->Attributes().FairShare.IntegralGuarantee);
         EXPECT_RV_NEAR(unit * 0, burstPool->Attributes().FairShare.WeightProportional);
 
-        EXPECT_EQ(unit * 0, relaxedPool->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(unit * 0, relaxedPool->Attributes().FairShare.StrongGuarantee);
         EXPECT_RV_NEAR(unit * 5, relaxedPool->Attributes().FairShare.IntegralGuarantee);
         EXPECT_RV_NEAR(unit * 0, relaxedPool->Attributes().FairShare.WeightProportional);
 
         EXPECT_RV_NEAR(unit * 0, rootElement->Attributes().FairShare.StrongGuarantee);
         EXPECT_RV_NEAR(unit * 10, rootElement->Attributes().FairShare.IntegralGuarantee);
-        EXPECT_EQ(unit * 0, rootElement->Attributes().FairShare.WeightProportional);
+        EXPECT_RV_NEAR(unit * 0, rootElement->Attributes().FairShare.WeightProportional);
     }
 }
 
-TEST_F(TFairShareUpdateTest, TestAllKindsOfPoolsShareWeightProportionalComponent)
+TEST_P(TFairShareUpdateParametrizedTest, TestAllKindsOfPoolsShareWeightProportionalComponent)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
     auto rootElement = CreateRootElement();
@@ -1497,7 +1590,7 @@ TEST_F(TFairShareUpdateTest, TestAllKindsOfPoolsShareWeightProportionalComponent
     }
 }
 
-TEST_F(TFairShareUpdateTest, TestTwoRelaxedPoolsGetShareRatioProportionalToVolume)
+TEST_P(TFairShareUpdateParametrizedTest, TestTwoRelaxedPoolsGetShareRatioProportionalToVolume)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
     auto rootElement = CreateRootElement();
@@ -1535,7 +1628,7 @@ TEST_F(TFairShareUpdateTest, TestTwoRelaxedPoolsGetShareRatioProportionalToVolum
     }
 }
 
-TEST_F(TFairShareUpdateTest, TestStrongGuaranteeAdjustmentToTotalResources)
+TEST_P(TFairShareUpdateParametrizedTest, TestStrongGuaranteeAdjustmentToTotalResources)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
     auto rootElement = CreateRootElement();
@@ -1563,7 +1656,7 @@ TEST_F(TFairShareUpdateTest, TestStrongGuaranteeAdjustmentToTotalResources)
     }
 }
 
-TEST_F(TFairShareUpdateTest, TestStrongGuaranteePlusBurstGuaranteeAdjustmentToTotalResources)
+TEST_P(TFairShareUpdateParametrizedTest, TestStrongGuaranteePlusBurstGuaranteeAdjustmentToTotalResources)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
     auto rootElement = CreateRootElement();
@@ -1592,7 +1685,7 @@ TEST_F(TFairShareUpdateTest, TestStrongGuaranteePlusBurstGuaranteeAdjustmentToTo
     }
 }
 
-TEST_F(TFairShareUpdateTest, TestLimitsLowerThanStrongGuarantee)
+TEST_P(TFairShareUpdateParametrizedTest, TestLimitsLowerThanStrongGuarantee)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
     auto rootElement = CreateRootElement();
@@ -1618,7 +1711,7 @@ TEST_F(TFairShareUpdateTest, TestLimitsLowerThanStrongGuarantee)
     }
 }
 
-TEST_F(TFairShareUpdateTest, TestParentWithoutGuaranteeAndHisLimitsLowerThanChildBurstShare)
+TEST_P(TFairShareUpdateParametrizedTest, TestParentWithoutGuaranteeAndHisLimitsLowerThanChildBurstShare)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
     auto rootElement = CreateRootElement();
@@ -1642,7 +1735,7 @@ TEST_F(TFairShareUpdateTest, TestParentWithoutGuaranteeAndHisLimitsLowerThanChil
     }
 }
 
-TEST_F(TFairShareUpdateTest, TestParentWithStrongGuaranteeAndHisLimitsLowerThanChildBurstShare)
+TEST_P(TFairShareUpdateParametrizedTest, TestParentWithStrongGuaranteeAndHisLimitsLowerThanChildBurstShare)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
     auto rootElement = CreateRootElement();
@@ -1667,7 +1760,7 @@ TEST_F(TFairShareUpdateTest, TestParentWithStrongGuaranteeAndHisLimitsLowerThanC
     }
 }
 
-TEST_F(TFairShareUpdateTest, TestStrongGuaranteeAndRelaxedPoolVsRelaxedPool)
+TEST_P(TFairShareUpdateParametrizedTest, TestStrongGuaranteeAndRelaxedPoolVsRelaxedPool)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
     auto rootElement = CreateRootElement();
@@ -1700,7 +1793,7 @@ TEST_F(TFairShareUpdateTest, TestStrongGuaranteeAndRelaxedPoolVsRelaxedPool)
     }
 }
 
-TEST_F(TFairShareUpdateTest, PromisedFairShareOfIntegralPools)
+TEST_P(TFairShareUpdateParametrizedTest, PromisedFairShareOfIntegralPools)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
     auto rootElement = CreateRootElement();
@@ -1732,7 +1825,7 @@ TEST_F(TFairShareUpdateTest, PromisedFairShareOfIntegralPools)
     }
 }
 
-TEST_F(TFairShareUpdateTest, TestIntegralPoolsWithParent)
+TEST_P(TFairShareUpdateParametrizedTest, TestIntegralPoolsWithParent)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
     auto rootElement = CreateRootElement();
@@ -1776,7 +1869,7 @@ TEST_F(TFairShareUpdateTest, TestIntegralPoolsWithParent)
     }
 }
 
-TEST_F(TFairShareUpdateTest, TestProposedIntegralSharePrecisionError)
+TEST_P(TFairShareUpdateParametrizedTest, TestProposedIntegralSharePrecisionError)
 {
     // This test is based on real circumstances, nothing below is random or weird.
     // It works, and this is the most important thing. Enjoy.
@@ -1874,7 +1967,7 @@ TEST_F(TFairShareUpdateTest, TestProposedIntegralSharePrecisionError)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TFairShareUpdateTest, TestCrashInAdjustProposedIntegralShareOnUpdateBurstPoolIntegralShares)
+TEST_P(TFairShareUpdateParametrizedTest, TestCrashInAdjustProposedIntegralShareOnUpdateBurstPoolIntegralShares)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
     auto rootElement = CreateRootElement();
@@ -1919,6 +2012,279 @@ TEST_F(TFairShareUpdateTest, TestCrashInAdjustProposedIntegralShareOnUpdateBurst
         EXPECT_EQ(unit * 0, burstChild2->Attributes().FairShare.IntegralGuarantee);
         EXPECT_RV_NEAR(unit * 0.5, burstChild2->Attributes().FairShare.WeightProportional);
     }
+}
+
+TEST_F(TFairShareUpdateTest, TestGangOperations)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+
+    // Create a tree with 2 pools
+    auto rootElement = CreateRootElement();
+    auto poolA = CreateSimplePool("PoolA");
+    poolA->AttachParent(rootElement.Get());
+    auto poolB = CreateSimplePool("PoolB");
+    poolB->AttachParent(rootElement.Get());
+
+    TJobResources resourceDemand;
+    resourceDemand.SetUserSlots(60);
+    resourceDemand.SetCpu(60);
+    resourceDemand.SetMemory(600_MB);
+
+    auto operationX = CreateGangOperation(poolA.Get(), resourceDemand);
+    auto operationY = CreateGangOperation(poolB.Get(), resourceDemand);
+
+    DoFairShareUpdate(
+        totalResourceLimits,
+        rootElement,
+        TTestFairShareUpdateOptions{
+            .EnableStepFunctionForGangOperations = false,
+            .EnableImprovedFairShareByFitFactorComputation = false,
+        });
+    EXPECT_EQ(TResourceVector({1.0, 1.0, 0.0, 1.0, 0.0}), rootElement->Attributes().FairShare.Total);
+    EXPECT_EQ(TResourceVector({0.5, 0.5, 0.0, 0.5, 0.0}), poolA->Attributes().FairShare.Total);
+    EXPECT_EQ(TResourceVector({0.5, 0.5, 0.0, 0.5, 0.0}), poolB->Attributes().FairShare.Total);
+
+    DoFairShareUpdate(
+        totalResourceLimits,
+        rootElement,
+        TTestFairShareUpdateOptions{
+            .EnableStepFunctionForGangOperations = true,
+            .EnableImprovedFairShareByFitFactorComputation = false,
+        });
+    EXPECT_EQ(TResourceVector({0.0, 0.0, 0.0, 0.0, 0.0}), rootElement->Attributes().FairShare.Total);
+    EXPECT_EQ(TResourceVector({0.0, 0.0, 0.0, 0.0, 0.0}), poolA->Attributes().FairShare.Total);
+    EXPECT_EQ(TResourceVector({0.0, 0.0, 0.0, 0.0, 0.0}), poolB->Attributes().FairShare.Total);
+
+    DoFairShareUpdate(
+        totalResourceLimits * 2.0,
+        rootElement,
+        TTestFairShareUpdateOptions{
+            .EnableStepFunctionForGangOperations = true,
+            .EnableImprovedFairShareByFitFactorComputation = false,
+        });
+    EXPECT_EQ(TResourceVector({0.6, 0.6, 0.0, 0.6, 0.0}), rootElement->Attributes().FairShare.Total);
+    EXPECT_EQ(TResourceVector({0.3, 0.3, 0.0, 0.3, 0.0}), poolA->Attributes().FairShare.Total);
+    EXPECT_EQ(TResourceVector({0.3, 0.3, 0.0, 0.3, 0.0}), poolB->Attributes().FairShare.Total);
+
+
+    {
+        TJobResources updatedDemand;
+        updatedDemand.SetUserSlots(45);
+        updatedDemand.SetCpu(45);
+        updatedDemand.SetMemory(450_MB);
+
+        operationY->SetResourceDemand(updatedDemand);
+
+        DoFairShareUpdate(
+            totalResourceLimits,
+            rootElement,
+            TTestFairShareUpdateOptions{
+                .EnableStepFunctionForGangOperations = true,
+                .EnableImprovedFairShareByFitFactorComputation = false,
+            });
+        EXPECT_EQ(TResourceVector({0.45, 0.45, 0.0, 0.45, 0.0}), rootElement->Attributes().FairShare.Total);
+        EXPECT_EQ(TResourceVector({0.0, 0.0, 0.0, 0.0, 0.0}), poolA->Attributes().FairShare.Total);
+        EXPECT_EQ(TResourceVector({0.45, 0.45, 0.0, 0.45, 0.0}), poolB->Attributes().FairShare.Total);
+    }
+}
+
+TEST_F(TFairShareUpdateTest, TestGangOperationsWithImprovedFairShareByFitFactorComputation)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+
+    // Create a tree with 2 pools
+    auto rootElement = CreateRootElement();
+    auto poolA = CreateSimplePool("PoolA");
+    poolA->AttachParent(rootElement.Get());
+    auto poolB = CreateSimplePool("PoolB");
+    poolB->AttachParent(rootElement.Get());
+
+    TJobResources resourceDemand;
+    resourceDemand.SetUserSlots(60);
+    resourceDemand.SetCpu(60);
+    resourceDemand.SetMemory(600_MB);
+
+    auto operationX = CreateGangOperation(poolA.Get(), resourceDemand);
+    auto operationY = CreateGangOperation(poolB.Get(), resourceDemand);
+
+    DoFairShareUpdate(
+        totalResourceLimits,
+        rootElement,
+        TTestFairShareUpdateOptions{
+            .EnableStepFunctionForGangOperations = true,
+            .EnableImprovedFairShareByFitFactorComputation = true,
+        });
+    EXPECT_EQ(TResourceVector({0.6, 0.6, 0.0, 0.6, 0.0}), rootElement->Attributes().FairShare.Total);
+    EXPECT_EQ(TResourceVector({0.6, 0.6, 0.0, 0.6, 0.0}), poolA->Attributes().FairShare.Total);
+    EXPECT_EQ(TResourceVector({0.0, 0.0, 0.0, 0.0, 0.0}), poolB->Attributes().FairShare.Total);
+}
+
+TEST_F(TFairShareUpdateTest, TestGangOperationsWithSkewedResources)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+
+    // Create a tree with 2 pools
+    auto rootElement = CreateRootElement();
+    auto poolA = CreateSimplePool("PoolA");
+    poolA->AttachParent(rootElement.Get());
+    auto poolB = CreateSimplePool("PoolB");
+    poolB->AttachParent(rootElement.Get());
+
+    TJobResources resourceDemandForOperationX;
+    resourceDemandForOperationX.SetUserSlots(20);
+    resourceDemandForOperationX.SetCpu(20);
+    resourceDemandForOperationX.SetMemory(200_MB);
+
+    TJobResources resourceDemandForOperationY;
+    resourceDemandForOperationX.SetUserSlots(50);
+    resourceDemandForOperationX.SetCpu(60);
+    resourceDemandForOperationX.SetMemory(100_MB);
+
+    auto operationX = CreateGangOperation(poolA.Get(), resourceDemandForOperationX);
+    auto operationY = CreateGangOperation(poolB.Get(), resourceDemandForOperationY);
+
+    DoFairShareUpdate(
+        totalResourceLimits,
+        rootElement,
+        TTestFairShareUpdateOptions{
+            .EnableStepFunctionForGangOperations = true,
+            .EnableImprovedFairShareByFitFactorComputation = true,
+        });
+    EXPECT_EQ(TResourceVector({0.5, 0.6, 0.0, 0.1, 0.0}), rootElement->Attributes().FairShare.Total);
+    EXPECT_EQ(TResourceVector({0.5, 0.6, 0.0, 0.1, 0.0}), poolA->Attributes().FairShare.Total);
+    EXPECT_EQ(TResourceVector({0.0, 0.0, 0.0, 0.0, 0.0}), poolB->Attributes().FairShare.Total);
+}
+
+TEST_F(TFairShareUpdateTest, TestMultipleGangOperations)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+
+    // Create a tree with 2 pools
+    auto rootElement = CreateRootElement();
+    auto poolA = CreateSimplePool("PoolA");
+    poolA->SetMode(ESchedulingMode::Fifo);
+    poolA->AttachParent(rootElement.Get());
+
+    auto poolB = CreateSimplePool("PoolB");
+    poolB->SetMode(ESchedulingMode::Fifo);
+    poolB->AttachParent(rootElement.Get());
+
+    TJobResources resourceDemand;
+    resourceDemand.SetUserSlots(30);
+    resourceDemand.SetCpu(30);
+    resourceDemand.SetMemory(300_MB);
+
+    auto operationA1 = CreateGangOperation(poolA.Get(), resourceDemand);
+    auto operationA2 = CreateGangOperation(poolA.Get(), resourceDemand);
+
+    auto operationB1 = CreateGangOperation(poolB.Get(), resourceDemand);
+    auto operationB2 = CreateGangOperation(poolB.Get(), resourceDemand);
+
+    DoFairShareUpdate(
+        totalResourceLimits,
+        rootElement,
+        TTestFairShareUpdateOptions{
+            .EnableStepFunctionForGangOperations = true,
+            .EnableImprovedFairShareByFitFactorComputation = true,
+        });
+    EXPECT_RV_NEAR(TResourceVector({0.9, 0.9, 0.0, 0.9, 0.0}), rootElement->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector({0.6, 0.6, 0.0, 0.6, 0.0}), poolA->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector({0.3, 0.3, 0.0, 0.3, 0.0}), poolB->Attributes().FairShare.Total);
+
+    EXPECT_RV_NEAR(TResourceVector({0.3, 0.3, 0.0, 0.3, 0.0}), operationA1->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector({0.3, 0.3, 0.0, 0.3, 0.0}), operationA2->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector({0.3, 0.3, 0.0, 0.3, 0.0}), operationB1->Attributes().FairShare.Total);
+    EXPECT_RV_NEAR(TResourceVector({0.0, 0.0, 0.0, 0.0, 0.0}), operationB2->Attributes().FairShare.Total);
+}
+
+TEST_F(TFairShareUpdateTest, TestExampleFromProductionCluster)
+{
+    auto Logger = FairShareLogger;
+
+    auto elementsNode = ConvertToNode(ReadTestData("gpu_tree_elements.yson"));
+
+    TJobResources totalResourceLimits;
+    TResourceVector originalRootFairShare;
+
+    TRootElementMockPtr rootElement;
+    THashMap<TString, TCompositeElementMockPtr> pools;
+    THashMap<TString, TOperationElementMockPtr> operations;
+    for (auto child : elementsNode->AsList()->GetChildren()) {
+        auto childMap = child->AsMap();
+
+        auto name = childMap->GetChildValueOrThrow<TString>("name");
+        auto type = childMap->GetChildValueOrThrow<EElementType>("type");
+
+        TElementMockPtr element;
+        switch (type) {
+            case EElementType::Pool: {
+                TCompositeElementMockPtr compositeElement;
+                if (name == "<Root>") {
+                    rootElement = CreateRootElement();
+
+                    totalResourceLimits = ConvertTo<TJobResources>(childMap->GetChildOrThrow("resource_limits"));
+                    originalRootFairShare = ConvertTo<TResourceVector>(childMap->GetChildOrThrow("total_fair_share"));
+
+                    compositeElement = rootElement;
+                } else {
+                    auto pool = CreateSimplePool(name);
+
+                    auto strongGuaranteeResources = ConvertTo<TJobResources>(childMap->GetChildOrThrow("strong_guarantee_resources"));
+
+                    auto strongGuaranteeResourcesConfig = New<TTestJobResourcesConfig>();
+                    strongGuaranteeResourcesConfig->Gpu = strongGuaranteeResources.GetGpu();
+
+                    pool->SetStrongGuaranteeResourcesConfig(strongGuaranteeResourcesConfig);
+                    pool->SetMode(childMap->GetChildValueOrThrow<ESchedulingMode>("mode"));
+
+                    element = pool;
+                    compositeElement = pool;
+                }
+
+                pools.insert(std::pair(name, compositeElement));
+
+                break;
+            }
+            case EElementType::Operation: {
+                auto operation = CreateOperation(name);
+                auto operationType = childMap->GetChildValueOrThrow<TString>("operation_type");
+                // TODO(ignat): support is_gang in orchid.
+                if (operationType == "vanilla") {
+                    operation->SetGangFlag(true);
+                }
+                operation->SetResourceDemand(ConvertTo<TJobResources>(childMap->GetChildOrThrow("resource_demand")));
+                operation->SetResourceUsage(ConvertTo<TJobResources>(childMap->GetChildOrThrow("resource_usage")));
+
+                operations.insert(std::pair(name, operation));
+
+                element = operation;
+                break;
+            }
+        }
+
+        if (element) {
+            double weight = childMap->GetChildValueOrThrow<double>("weight");
+            element->SetWeight(weight);
+        }
+
+        if (name != "<Root>") {
+            auto parentName = childMap->GetChildValueOrThrow<TString>("parent");
+            element->AttachParent(GetOrCrash(pools, parentName).Get());
+        }
+    }
+
+    DoFairShareUpdate(
+        totalResourceLimits,
+        rootElement,
+        TTestFairShareUpdateOptions{
+            .EnableStepFunctionForGangOperations = true,
+            .EnableImprovedFairShareByFitFactorComputation = true,
+            .EnableImprovedFairShareByFitFactorComputationDistributionGap = true,
+        });
+
+    YT_LOG_INFO("Root element (FairShare: %v, OriginalFairShare: %v)",
+        rootElement->Attributes().FairShare.Total,
+        originalRootFairShare);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
