@@ -373,7 +373,7 @@ NRpc::IChannelFactoryPtr TClient::WrapChannelFactory(NRpc::IChannelFactoryPtr fa
     return factory;
 }
 
-TOperationId TClient::GetJobOperation(TJobId jobId) const
+TOperationId TClient::GetJobOperation(TJobId jobId)
 {
     auto allocationId = NScheduler::AllocationIdFromJobId(jobId);
 
@@ -381,13 +381,20 @@ TOperationId TClient::GetJobOperation(TJobId jobId) const
         "Requesting allocation brief info (AllocationId: %v)",
         allocationId);
 
-    return WaitFor(NApi::NNative::GetAllocationBriefInfo(
-        TOperationServiceProxy(Connection_->GetSchedulerChannel()),
-        allocationId,
-        NScheduler::TAllocationInfoToRequest{
-            .OperationId = true,
-        }))
-        .ValueOrThrow().OperationId;
+    try {
+        return WaitFor(NApi::NNative::GetAllocationBriefInfo(
+            TOperationServiceProxy(Connection_->GetSchedulerChannel()),
+            allocationId,
+            NScheduler::TAllocationInfoToRequest{
+                .OperationId = true,
+            }))
+            .ValueOrThrow().OperationId;
+    } catch (const std::exception& ex) {
+        if (auto operationId = TryGetOperationId(jobId)) {
+            return operationId;
+        }
+        THROW_ERROR TError(ex);
+    }
 }
 
 const IClientPtr& TClient::GetOperationsArchiveClient()

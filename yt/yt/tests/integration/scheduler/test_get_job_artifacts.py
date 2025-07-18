@@ -650,12 +650,11 @@ class TestGetJobStderr(YTEnvSetup):
         op.track()
         res = get_job_stderr(op.id, job_id)
         assert res == b"STDERR-OUTPUT\n"
-        with pytest.raises(YtError, match="Allocation .* not found"):
-            get_job_stderr(None, job_id)
 
         clean_operations()
 
         wait(lambda: get_job_stderr(op.id, job_id) == b"STDERR-OUTPUT\n")
+        wait(lambda: get_job_stderr(None, job_id) == b"STDERR-OUTPUT\n")
 
     @authors("ignat")
     def test_get_job_stderr(self):

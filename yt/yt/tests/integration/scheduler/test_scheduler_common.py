@@ -6,7 +6,7 @@ from yt_env_setup import (
 )
 from yt_commands import (
     authors, create_test_tables, extract_statistic_v2, extract_deprecated_statistic,
-    print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, wait_no_assert,
+    print_debug, wait, retry, wait_breakpoint, release_breakpoint, with_breakpoint, wait_no_assert,
     create, ls, get, set, copy, move, remove, exists,
     create_user, create_pool,
     start_transaction, abort_transaction,
@@ -28,6 +28,7 @@ from yt_scheduler_helpers import scheduler_orchid_path
 import yt.yson as yson
 
 from yt.wrapper import JsonFormat
+import yt.environment.init_operations_archive as init_operations_archive
 from yt.common import date_string_to_timestamp, YtError
 
 import pytest
@@ -54,6 +55,9 @@ class TestSchedulerCommon(YTEnvSetup):
             "watchers_update_period": 100,
             "operations_update_period": 10,
             "running_allocations_update_period": 10,
+            "enable_job_reporter": True,
+            "enable_job_spec_reporter": True,
+            "enable_job_stderr_reporter": True,
         }
     }
 
@@ -75,6 +79,14 @@ class TestSchedulerCommon(YTEnvSetup):
         }
     }
     USE_PORTO = False
+
+    def setup_method(self, method):
+        super(TestSchedulerCommon, self).setup_method(method)
+        sync_create_cells(1)
+        init_operations_archive.create_tables_latest_version(
+            self.Env.create_native_client(),
+            override_tablet_cell_bundle="default",
+        )
 
     @authors("ignat")
     def test_failed_jobs_twice(self):
@@ -209,8 +221,7 @@ class TestSchedulerCommon(YTEnvSetup):
         for job_id in op.list_jobs():
             fail_context = get_job_fail_context(op.id, job_id)
             assert len(fail_context) > 0
-            with pytest.raises(YtError, match="Allocation .* not found"):
-                get_job_fail_context(None, job_id)
+            assert len(retry(lambda: get_job_fail_context(None, job_id))) > 0
 
     @authors("ignat")
     def test_dump_job_context(self):
