@@ -82,11 +82,6 @@ class HttpProxyTestBase(YTEnvSetup):
         },
     }
 
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }
-
     USER = "root"
     PATH = "//tmp/test"
     PARAMS = {"path": PATH, "output_format": "yson"}

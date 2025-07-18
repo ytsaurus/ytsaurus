@@ -527,12 +527,6 @@ class TestSequoiaReplicasMulticell(TestSequoiaReplicas):
     ENABLE_MULTIDAEMON = False  # There are components restarts.
     NUM_SECONDARY_MASTER_CELLS = 3
 
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
-        "13": {"roles": ["chunk_host"]},
-    }
-
     @classmethod
     def modify_node_config(cls, config, cluster_index):
         super(TestSequoiaReplicasMulticell, cls).modify_node_config(config, cluster_index)

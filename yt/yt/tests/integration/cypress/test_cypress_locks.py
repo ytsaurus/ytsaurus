@@ -1652,11 +1652,6 @@ class TestCypressLocksMulticell(TestCypressLocks):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }
-
 
 @pytest.mark.enabled_multidaemon
 class TestCypressLocksRpcProxy(TestCypressLocks):
@@ -1679,8 +1674,6 @@ class TestCypressLocksShardedTx(TestCypressLocksMulticell):
     NUM_SECONDARY_MASTER_CELLS = 4
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
-        "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
         "13": {"roles": ["transaction_coordinator"]},
         "14": {"roles": ["transaction_coordinator"]},
     }

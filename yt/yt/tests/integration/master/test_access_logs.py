@@ -629,12 +629,6 @@ class TestAccessLogPortal(TestAccessLog):
 
     CELL_TAG_TO_LOG_FILTER = {11: {"prefix_path": "//tmp/access_log", "tx_methods": False}}
 
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["cypress_node_host"]},
-        "12": {"roles": ["chunk_host", "cypress_node_host"]},
-        "13": {"roles": ["chunk_host"]},
-    }
-
     @authors("kvk1920")
     def test_transaction_actions_log(self):
         pass

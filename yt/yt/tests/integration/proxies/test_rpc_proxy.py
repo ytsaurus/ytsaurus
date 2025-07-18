@@ -1254,11 +1254,6 @@ class TestPessimisticQuotaCheckMulticellRpcProxy(TestPessimisticQuotaCheckRpcPro
     NUM_SCHEDULERS = 1
     ENABLE_MULTIDAEMON = True
 
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }
-
 
 ##################################################################
 

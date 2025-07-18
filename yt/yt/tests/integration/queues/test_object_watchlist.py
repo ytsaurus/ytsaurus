@@ -597,11 +597,6 @@ class TestQueueAgentObjectsRevisionsPortal(TestQueueAgentObjectRevisions):
     ENABLE_TMP_PORTAL = True
     ENABLE_MULTIDAEMON = True
 
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host", "cypress_node_host"]},
-        "12": {"roles": ["chunk_host", "cypress_node_host"]},
-    }
-
     @authors("achulkov2", "nadya73")
     def test_objects_from_different_cells(self):
         create("portal_entrance", "//portals/p1", attributes={"exit_cell_tag": 11})

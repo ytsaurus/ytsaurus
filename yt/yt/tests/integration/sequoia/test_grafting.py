@@ -183,7 +183,7 @@ class TestSequoiaSymlinks(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 2
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
-        "11": {"roles": ["chunk_host"]},
+        # Master cell with tag 11 is reserved for portals.
         "12": {"roles": ["sequoia_node_host"]},
     }
 

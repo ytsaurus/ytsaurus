@@ -178,21 +178,11 @@ class TestSortedDynamicTablesMetadataCachingMulticell(TestSortedDynamicTablesMet
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }
-
 
 @pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMetadataCachingMulticell2(TestSortedDynamicTablesMetadataCaching2):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
-
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }
 
 
 ###################################################################

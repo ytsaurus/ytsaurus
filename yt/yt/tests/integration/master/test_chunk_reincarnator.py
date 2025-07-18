@@ -706,11 +706,6 @@ class TestChunkReincarnatorMultiCell(TestChunkReincarnatorSingleCell):
     NUM_SECONDARY_MASTER_CELLS = 2
     NUM_TEST_PARTITIONS = 2
 
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-        "12": {"roles": ["chunk_host"]},
-    }
-
     @authors("kvk1920")
     @pytest.mark.parametrize("on_primary", [True, False])
     def test_foreign_chunks(self, on_primary):

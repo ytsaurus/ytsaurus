@@ -282,7 +282,3 @@ class TestSecurityTags(YTEnvSetup):
 class TestSecurityTagsMulticell(TestSecurityTags):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 1
-
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["chunk_host"]},
-    }

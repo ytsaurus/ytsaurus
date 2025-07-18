@@ -849,9 +849,6 @@ class TestCypressCommandsMulticell(object):
     PORTAL1_CELL_ID = 2
 
     def setup(self):
-        registered_master_cell_tags = yt.get("//sys/@registered_master_cell_tags")
-        registered_master_cell_roles = {str(cell_tag): {"roles": ["chunk_host", "cypress_node_host"]} for cell_tag in registered_master_cell_tags}
-        yt.set("//sys/@config/multicell_manager/cell_descriptors", registered_master_cell_roles)
         assert self._create_portal(self.PORTAL1_ENTRANCE, self.PORTAL1_CELL_ID)
         yt.create("map_node", self.TMP_DIR)
 
