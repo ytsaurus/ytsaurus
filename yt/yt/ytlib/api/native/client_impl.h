@@ -1045,6 +1045,8 @@ private:
     //! NB: Could throw in case of non-existing cell tag.
     void InitChannelsOrThrow(EMasterChannelKind kind, NObjectClient::TCellTag cellTag);
 
+    NControllerAgent::TOperationId GetJobOperation(NControllerAgent::TJobId jobId);
+
     const IClientPtr& GetOperationsArchiveClient();
 
     template <class T>
