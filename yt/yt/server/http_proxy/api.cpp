@@ -321,11 +321,12 @@ void TApi::IncrementProfilingCounters(
     }
 
     if (apiErrorCode) {
+        auto errorCodeInfo = TErrorCodeRegistry::Get()->Get(apiErrorCode);
         counters->ApiErrors.FindOrInsert(apiErrorCode, [&, this] {
             return SparseProfiler_
                 .WithTag("user", user)
                 .WithTag("command", command)
-                .WithTag("error_code", ToString(static_cast<int>(apiErrorCode)))
+                .WithTag("error_code", ToString(errorCodeInfo))
                 .Counter("/api_error_count");
         }).first->Increment();
     }
