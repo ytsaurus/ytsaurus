@@ -201,6 +201,23 @@ class TestHttpProxy(HttpProxyTestBase):
         assert len(hosts) == 1
         assert not hosts[0]["banned"]
 
+    @authors("rp-1", "nadya73")
+    def test_symbolic_error_code(self):
+        proxy = ls("//sys/http_proxies")[0]
+
+        profiler = profiler_factory().at_http_proxy(proxy)
+        api_error_count_counter = profiler.counter(
+            "http_proxy/api_error_count",
+            tags={"error_code": "NYT::NYTree::EErrorCode::AlreadyExists"})
+
+        url = self._get_proxy_address() + "/api/v4/create?path=//some_table&type=table"
+        # Create table.
+        requests.post(url)
+        # Table with this name already exists.
+        requests.post(url)
+
+        wait(lambda: api_error_count_counter.get_delta() > 0)
+
     @authors("aleksandr.gaev")
     def test_cluster_connection(self):
         def get_cluster_connection(path):
