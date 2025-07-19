@@ -958,7 +958,7 @@ class TestQueriesYqlResultTruncation(TestQueriesYqlBase):
 
 
 class TestQueriesYqlAuth(TestQueriesYqlBase):
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "auth" : {"enable_authentication": True}
     }
 

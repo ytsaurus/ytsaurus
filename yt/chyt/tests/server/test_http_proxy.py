@@ -60,7 +60,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
     ENABLE_TLS = True
     ENABLE_CHYT_HTTPS_PROXIES = True
 
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "clickhouse": {
             "operation_cache": {
                 "refresh_time": 100,
@@ -747,7 +747,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
 
 class TestClickHouseProxyStructuredLog(ClickHouseTestBase):
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "clickhouse": {
             "operation_cache": {
                 "refresh_time": 100,

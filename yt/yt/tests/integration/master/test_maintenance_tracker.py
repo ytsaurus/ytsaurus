@@ -28,7 +28,7 @@ class TestMaintenanceTracker(YTEnvSetup):
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
 
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "coordinator": {
             "heartbeat_interval": 100,
             "death_age": 500,

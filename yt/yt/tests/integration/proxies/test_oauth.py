@@ -71,7 +71,7 @@ class TestOAuthBase(YTEnvSetup):
 
     ENABLE_HTTP_PROXY = True
     NUM_HTTP_PROXIES = 1
-    DELTA_PROXY_CONFIG = {}
+    DELTA_HTTP_PROXY_CONFIG = {}
     DELTA_PROXY_AUTH_CONFIG = {}
     ENABLE_MULTIDAEMON = True
 
@@ -81,8 +81,8 @@ class TestOAuthBase(YTEnvSetup):
             port_locks_path=os.environ.get("YT_LOCAL_PORT_LOCKS_PATH", None))
         cls.mock_server_port = next(cls.open_port_iterator)
 
-        cls.DELTA_PROXY_CONFIG["auth"] = auth_config(cls.mock_server_port)
-        cls.DELTA_PROXY_CONFIG["auth"].update(cls.DELTA_PROXY_AUTH_CONFIG)
+        cls.DELTA_HTTP_PROXY_CONFIG["auth"] = auth_config(cls.mock_server_port)
+        cls.DELTA_HTTP_PROXY_CONFIG["auth"].update(cls.DELTA_PROXY_AUTH_CONFIG)
         super(TestOAuthBase, cls).setup_class()
 
     # This is annoying, but we set blackbox_token_authenticator in default_config for

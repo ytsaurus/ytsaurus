@@ -351,7 +351,7 @@ class YTEnvSetup(object):
             },
         },
     }
-    DELTA_PROXY_CONFIG = {}
+    DELTA_HTTP_PROXY_CONFIG = {}
     DELTA_RPC_PROXY_CONFIG = {
         "api_service": {
             "enable_large_columnar_statistics": True,
@@ -1251,7 +1251,7 @@ class YTEnvSetup(object):
             # COMPAT(pogorelov)
             config["cluster_connection"]["scheduler"]["use_scheduler_job_prober_service"] = False
 
-            update_inplace(config, cls.get_param("DELTA_PROXY_CONFIG", cluster_index))
+            update_inplace(config, cls.get_param("DELTA_HTTP_PROXY_CONFIG", cluster_index))
             cls.update_timestamp_provider_config(config, cluster_index)
             cls.modify_http_proxy_config(config, multidaemon_config, index)
             multidaemon_config["daemons"][f"http_proxy_{index}"]["config"] = config

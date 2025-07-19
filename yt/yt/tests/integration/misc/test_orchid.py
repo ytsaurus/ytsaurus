@@ -154,7 +154,7 @@ class TestConfigExposureInOrchid(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "expose_config_in_orchid": False,
     }
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "expose_config_in_orchid": False,
     }
     DELTA_QUEUE_AGENT_CONFIG = {

@@ -65,7 +65,7 @@ class HttpProxyTestBase(YTEnvSetup):
     NUM_HTTP_PROXIES = 1
     NUM_RPC_PROXIES = 2
 
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "coordinator": {
             "heartbeat_interval": 100,
             "death_age": 500,
@@ -841,7 +841,7 @@ class TestSolomonProxy(HttpProxyTestBase):
     # Just to make the test run faster.
     NUM_SECONDARY_MASTER_CELLS = 0
 
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "solomon_proxy": {
             "public_component_names": ["rpc_proxy", "primary_master", "http_proxy"],
             # We will configure the endpoint providers later, since monitoring ports are not yet generated at this point.
@@ -988,7 +988,7 @@ class TestSolomonProxy(HttpProxyTestBase):
 
 @pytest.mark.enabled_multidaemon
 class HttpProxyAccessCheckerTestBase(HttpProxyTestBase):
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "access_checker": {
             "enabled": True,
             "cache": {
@@ -1093,7 +1093,7 @@ class TestHttpProxyAccessCheckerWithAco(HttpProxyAccessCheckerTestBase):
 
     @classmethod
     def setup_class(cls):
-        cls.DELTA_PROXY_CONFIG["access_checker"].update({
+        cls.DELTA_HTTP_PROXY_CONFIG["access_checker"].update({
             "use_access_control_objects": True,
             "path_prefix": "//sys/access_control_object_namespaces/http_proxy_roles",
         })
@@ -1111,7 +1111,7 @@ class TestHttpProxyAccessCheckerWithAco(HttpProxyAccessCheckerTestBase):
 
 @pytest.mark.enabled_multidaemon
 class TestHttpProxyRoleFromStaticConfig(HttpProxyTestBase):
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "role": "ab"
     }
 
@@ -1141,7 +1141,7 @@ class TestHttpProxyAuth(HttpProxyTestBase):
 
     @classmethod
     def setup_class(cls):
-        cls.DELTA_PROXY_CONFIG["auth"] = {
+        cls.DELTA_HTTP_PROXY_CONFIG["auth"] = {
             "enable_authentication": True,
         }
         super(TestHttpProxyAuth, cls).setup_class()
@@ -1221,7 +1221,7 @@ class TestHttpProxyFraming(HttpProxyTestBase):
     # CLIENT_TIMEOUT << DELAY_BEFORE_COMMAND to catch framing bugs
     # CLIENT_TIMEOUT >> KEEP_ALIVE_PERIOD to avoid false test failures
     CLIENT_TIMEOUT = 1 * 1000
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "api": {
             "testing": {
                 "delay_before_command": {
@@ -1679,7 +1679,7 @@ class TestHttpProxyBuildSnapshotBase(HttpProxyTestBase):
         },
     }
 
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "coordinator": {
             "heartbeat_interval": 100,
             "cypress_timeout": 50,
@@ -1845,7 +1845,7 @@ class TestHttpProxyHeapUsageStatisticsBase(HttpProxyTestBase):
 
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
 class TestHttpProxyHeapUsageStatistics(TestHttpProxyHeapUsageStatisticsBase):
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "heap_profiler": {
             "snapshot_update_period": 50,
         },
@@ -1910,7 +1910,7 @@ class TestHttpProxyHeapUsageStatistics(TestHttpProxyHeapUsageStatisticsBase):
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
 @pytest.mark.enabled_multidaemon
 class TestHttpProxyNullApiTestingOptions(TestHttpProxyHeapUsageStatisticsBase):
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "heap_profiler": {
             "snapshot_update_period": 50,
         },
@@ -1926,7 +1926,7 @@ class TestHttpProxyNullApiTestingOptions(TestHttpProxyHeapUsageStatisticsBase):
 
 
 class TestHttpProxySignaturesBase(HttpProxyTestBase):
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "signature_components": {
             "validation": {
                 "cypress_key_reader": dict(),
@@ -2048,7 +2048,7 @@ class TestHttpProxySignatures(TestHttpProxySignaturesBase):
 
 
 class TestHttpProxySignaturesKeyRotation(TestHttpProxySignaturesBase):
-    DELTA_PROXY_CONFIG = deep_update(TestHttpProxySignaturesBase.DELTA_PROXY_CONFIG, {
+    DELTA_HTTP_PROXY_CONFIG = deep_update(TestHttpProxySignaturesBase.DELTA_HTTP_PROXY_CONFIG, {
         "signature_components": {
             "generation": {
                 "key_rotator": {
@@ -2067,7 +2067,7 @@ class TestHttpProxySignaturesKeyRotation(TestHttpProxySignaturesBase):
 class TestHttpsProxy(HttpProxyTestBase):
     ENABLE_TLS = True
 
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "https_server": {
             "credentials": {
                 "update_period": 1000,
@@ -2208,7 +2208,7 @@ class TestHttpProxyDiscoveryRoleFromStaticConfig(YTEnvSetup):
     NUM_HTTP_PROXIES = 2
     NUM_RPC_PROXIES = 1
 
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "role": "ab",
     }
 
