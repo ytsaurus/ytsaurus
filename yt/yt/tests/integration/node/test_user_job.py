@@ -2150,7 +2150,7 @@ class TestTemporaryTokens(YTEnvSetup):
 
     USE_DYNAMIC_TABLES = True
 
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "auth": {
             "enable_authentication": True,
         },

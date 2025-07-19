@@ -4951,7 +4951,7 @@ class TestCypressNestingLevelLimitHttpProxy(TestCypressNestingLevelLimit):
     ENABLE_HTTP_PROXY = True
     NUM_HTTP_PROXIES = 1
 
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "cluster_connection": {
             "cypress_write_yson_nesting_level_limit": TestCypressNestingLevelLimit.DEPTH_LIMIT,
         }

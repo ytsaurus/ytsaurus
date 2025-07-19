@@ -51,7 +51,7 @@ class TestCypressTokenAuthBase(YTEnvSetup):
 
 @pytest.mark.enabled_multidaemon
 class TestCypressTokenAuth(TestCypressTokenAuthBase):
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "auth": {
             "enable_authentication": True,
             "cypress_token_authenticator": {
@@ -141,7 +141,7 @@ class TestCypressTokenAuth(TestCypressTokenAuthBase):
 
 @pytest.mark.enabled_multidaemon
 class TestCypressTokenAuthWithoutCache(TestCypressTokenAuthBase):
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "auth": {
             "enable_authentication": True,
             "cypress_token_authenticator": {
@@ -169,7 +169,7 @@ class TestCypressTokenAuthWithoutCache(TestCypressTokenAuthBase):
 
 @pytest.mark.enabled_multidaemon
 class TestAuthenticationCommands(TestCypressTokenAuthBase):
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "auth": {
             "enable_authentication": True,
         },
@@ -204,7 +204,7 @@ class TestAuthenticationCommands(TestCypressTokenAuthBase):
 
 @pytest.mark.enabled_multidaemon
 class TestAuthenticationCommandsWithNoPassword(TestCypressTokenAuthBase):
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "driver": {
             "require_password_in_authentication_commands": False,
         },

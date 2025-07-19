@@ -772,7 +772,7 @@ class ClickHouseTestBase(YTEnvSetup):
         }
     }
 
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "clickhouse": {
             "discovery_cache": {
                 "soft_age_threshold": 500,
