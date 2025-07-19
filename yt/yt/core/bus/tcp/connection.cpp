@@ -416,6 +416,11 @@ TConnectionId TTcpConnection::GetId() const
     return Id_;
 }
 
+EMultiplexingBand TTcpConnection::GetMultiplexingBand() const
+{
+    return MultiplexingBand_.load();
+}
+
 void TTcpConnection::Open(TGuard<NThreading::TSpinLock>& guard)
 {
     State_ = EState::Open;
