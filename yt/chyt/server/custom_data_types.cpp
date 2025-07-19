@@ -29,7 +29,7 @@ void RegisterDataTypeTimestamp()
     factory.registerSimpleDataTypeCustom("YtTimestamp", [] {
         // YT Timestamp logical type stores timestamp in microseconds so scale of underlying Decimal is equal to 6
         DB::DataTypePtr type = std::make_shared<DB::DataTypeDateTime64>(6);
-        return std::make_pair(type, std::make_unique<DB::DataTypeCustomDesc>(
+        return std::pair(type, std::make_unique<DB::DataTypeCustomDesc>(
             std::make_unique<DB::DataTypeCustomFixedName>("YtTimestamp")));
     });
 }

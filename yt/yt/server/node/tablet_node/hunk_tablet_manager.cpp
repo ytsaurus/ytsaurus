@@ -747,7 +747,7 @@ private:
             tablet->SetState(ETabletState::Orphaned);
             EmplaceOrCrash(
                 UnmountedTabletMap_,
-                std::make_pair(tabletId, mountRevision),
+                std::pair(tabletId, mountRevision),
                 std::move(tabletHolder));
         }
 

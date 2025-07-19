@@ -691,7 +691,7 @@ NYTree::IYPathServicePtr TAllocation::GetStaticOrchidService()
     return IYPathService::FromProducer(BIND([this, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
             auto [baseResourceUsage, additionalResourceUsage] = ResourceHolder_
                 ? ResourceHolder_->GetDetailedResourceUsage()
-                : std::make_pair(NClusterNode::TJobResources(), NClusterNode::TJobResources());
+                : std::pair(NClusterNode::TJobResources(), NClusterNode::TJobResources());
             BuildYsonFluently(consumer).BeginMap()
                 .Item("initial_resource_demand").Value(InitialResourceDemand_)
                 .Item("base_resource_usage").Value(baseResourceUsage)
