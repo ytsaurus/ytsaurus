@@ -822,7 +822,7 @@ class OperationReviveBase(YTEnvSetup):
 
     @authors("coteeq")
     def test_revive_before_controller_agent_assigned(self):
-        custom_tx = start_transaction(timeout=60000)
+        custom_tx = start_transaction(timeout=600000)
 
         create("table", "//tmp/in", tx=custom_tx)
         write_table("//tmp/in", {"foo": "bar"}, tx=custom_tx)
