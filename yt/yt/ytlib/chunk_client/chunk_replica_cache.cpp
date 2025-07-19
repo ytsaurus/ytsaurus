@@ -760,7 +760,7 @@ private:
         bool generationStarted = false;
         {
             auto entriesGuard = ReaderGuard(EntriesLock_);
-            while (!RefreshQueue_.empty() && std::ssize(chunkIdsToRefresh) < maxChunks) {
+            while (!RefreshQueue_.empty() && std::ssize(chunkIdsToRefresh) < maxChunks && !generationStarted) {
                 auto chunkId = RefreshQueue_.front();
                 RefreshQueue_.pop_front();
                 if (chunkId == GenerationSentinel) {
