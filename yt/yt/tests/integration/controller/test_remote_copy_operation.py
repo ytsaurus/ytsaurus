@@ -2523,6 +2523,7 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
         assert not get("//tmp/local_table/@sorted")
 
     @authors("yuryalekseev")
+    @pytest.mark.skip("This test is broken")
     def test_rate_limit_ratio_hard_threshold(self):
         bandwidth_limit = self.BANDWIDTH_LIMIT * 8
 

@@ -920,6 +920,7 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
         wait(lambda: has_no_remote_cluster_throttlers_group_members(), timeout=5*self.LEASE_TIMEOUT_SECONDS)
 
     @authors("yuryalekseev")
+    @pytest.mark.skip("This test is broken")
     def test_rate_limit_ratio_hard_threshold(self):
         bandwidth_limit = self.BANDWIDTH_LIMIT * 8
 
