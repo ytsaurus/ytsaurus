@@ -622,7 +622,7 @@ THashMap<std::string, int> BuildReferenceToIndexMap(const std::vector<TConstExpr
     for (int index = 0; index < std::ssize(equations); ++index) {
         auto& expression = equations[index];
         if (auto* ref = expression->As<TReferenceExpression>()) {
-            auto [_, inserted] = map.insert(std::make_pair(ref->ColumnName, index));
+            auto [_, inserted] = map.insert(std::pair(ref->ColumnName, index));
             THROW_ERROR_EXCEPTION_IF(!inserted, "Foreign key column %Qv occurs more than once in a join clause",
                 ref->ColumnName);
         }
