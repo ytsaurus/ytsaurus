@@ -98,7 +98,7 @@ private:
 
         auto channel = ChaosCacheChannel_;
         if (!channel) {
-            channel = connection->GetChaosChannelByCardId(replicationCardId, EPeerKind::Leader);
+            channel = connection->GetChaosChannelByCardIdOrThrow(replicationCardId, EPeerKind::Leader);
         }
 
         auto proxy = TChaosNodeServiceProxy(std::move(channel));
