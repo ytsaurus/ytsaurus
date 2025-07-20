@@ -273,6 +273,16 @@ func (c *httpClient) requestCredentials(ctx context.Context) (yt.Credentials, er
 		return creds, nil
 	}
 
+	// Check for general credentials provider first.
+	if c.config.CredentialsProviderFn != nil {
+		credentials, err := c.config.CredentialsProviderFn(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return credentials, nil
+	}
+
+	// Fallback to TVM for backward compatibility.
 	if c.config.TVMFn != nil {
 		ticket, err := c.config.TVMFn(ctx)
 		if err != nil {
@@ -808,7 +818,7 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 		Wrap(client.readRetrier.Write).
 		Wrap(errorWrapper.Write)
 
-	if c.TVMFn == nil {
+	if c.CredentialsProviderFn == nil && c.TVMFn == nil {
 		if c.Credentials != nil {
 			client.credentials = c.Credentials
 		} else if token := c.GetToken(); token != "" {

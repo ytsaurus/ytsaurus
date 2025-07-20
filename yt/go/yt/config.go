@@ -91,6 +91,16 @@ type Config struct {
 	// Only relevant for HTTP client.
 	ImpersonationUser string
 
+	// CredentialsProviderFn is used to dynamically generate authentication credentials for YT API requests.
+	//
+	// This is a general mechanism that can be used for any type of authentication
+	// (Bearer tokens, user tickets, etc.).
+	//
+	// If CredentialsProviderFn is not set, TVMFn, Credentials or OAuth token are used.
+	//
+	// The function should return appropriate Credentials implementation.
+	CredentialsProviderFn CredentialsProviderFn
+
 	// TVMFn is used to issue service tickets for YT API requests.
 	//
 	// TVM is a preferred way of service authentication.
@@ -413,5 +423,7 @@ func (c ClientCompressionCodec) BlockCodec() (string, bool) {
 }
 
 type TVMFn func(ctx context.Context) (string, error)
+
+type CredentialsProviderFn func(ctx context.Context) (Credentials, error)
 
 type TraceFn func(ctx context.Context) (traceID guid.GUID, spanID uint64, flags byte, ok bool)
