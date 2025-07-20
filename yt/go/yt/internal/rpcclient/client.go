@@ -271,6 +271,16 @@ func (c *client) requestCredentials(ctx context.Context) (yt.Credentials, error)
 		return creds, nil
 	}
 
+	// Check for general credentials provider first.
+	if c.conf.CredentialsProviderFn != nil {
+		credentials, err := c.conf.CredentialsProviderFn(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return credentials, nil
+	}
+
+	// Fallback to TVM for backward compatibility.
 	if c.conf.TVMFn != nil {
 		ticket, err := c.conf.TVMFn(ctx)
 		if err != nil {

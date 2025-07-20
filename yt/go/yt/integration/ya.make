@@ -21,6 +21,7 @@ GO_TEST_SRCS(
     client_test.go
     complex_types_test.go
     compression_test.go
+    credentials_provider_test.go
     cypress_client_test.go
     cypress_test.go
     discovery_client_test.go
