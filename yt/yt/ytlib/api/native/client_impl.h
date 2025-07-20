@@ -1233,7 +1233,7 @@ private:
     NRpc::IChannelPtr GetChaosChannelByCellTag(
         NObjectClient::TCellTag cellTag,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
-    NRpc::IChannelPtr GetChaosChannelByCardId(
+    NRpc::IChannelPtr GetChaosChannelByCardIdOrThrow(
         NChaosClient::TReplicationCardId replicationCardId,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
 

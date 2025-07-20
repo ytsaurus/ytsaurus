@@ -124,7 +124,7 @@ private:
         }
 
         for (auto replicationCardId : batch) {
-            auto channel = Bootstrap_->GetClusterConnection()->GetChaosChannelByCardId(replicationCardId);
+            auto channel = Bootstrap_->GetClusterConnection()->GetChaosChannelByCardIdOrThrow(replicationCardId);
             auto proxy = TChaosNodeServiceProxy(std::move(channel));
 
             auto req = proxy.RemoveReplicationCard();

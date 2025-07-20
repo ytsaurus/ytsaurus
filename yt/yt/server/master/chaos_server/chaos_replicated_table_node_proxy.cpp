@@ -586,7 +586,7 @@ private:
         TReplicationCardId replicationCardId,
         NNative::IConnectionPtr connection)
     {
-        auto proxy = TChaosNodeServiceProxy(connection->GetChaosChannelByCardId(replicationCardId));
+        auto proxy = TChaosNodeServiceProxy(connection->GetChaosChannelByCardIdOrThrow(replicationCardId));
         auto req = proxy.GetReplicationCardCollocation();
         ToProto(req->mutable_replication_card_collocation_id(), collocationId);
         return req->Invoke()

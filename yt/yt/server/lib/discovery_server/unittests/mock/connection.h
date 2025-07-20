@@ -183,7 +183,7 @@ public:
     {
         YT_UNIMPLEMENTED();
     }
-    NRpc::IChannelPtr GetChaosChannelByCardId(
+    NRpc::IChannelPtr GetChaosChannelByCardIdOrThrow(
         NChaosClient::TReplicationCardId /*replicationCardId*/,
         NHydra::EPeerKind /*peerKind*/) override
     {

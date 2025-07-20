@@ -44,7 +44,7 @@ private:
         getCardOptions.BypassCache = true;
         auto card = WaitFor(Client_->GetReplicationCard(replicationCardId, getCardOptions))
             .ValueOrThrow();
-        auto channel = Client_->GetChaosChannelByCardId(replicationCardId, EPeerKind::Leader);
+        auto channel = Client_->GetChaosChannelByCardIdOrThrow(replicationCardId, EPeerKind::Leader);
 
         return BuildYsonStringFluently()
             .BeginAttributes()
@@ -90,7 +90,7 @@ private:
         TReplicationCardId replicationCardId,
         const TRemoveNodeOptions& options) override
     {
-        auto channel = Client_->GetChaosChannelByCardId(replicationCardId, EPeerKind::Leader);
+        auto channel = Client_->GetChaosChannelByCardIdOrThrow(replicationCardId, EPeerKind::Leader);
         auto proxy = TChaosNodeServiceProxy(std::move(channel));
 
         auto req = proxy.RemoveReplicationCard();

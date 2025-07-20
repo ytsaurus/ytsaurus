@@ -669,7 +669,7 @@ public:
         return WrapChaosChannel(ChaosCellChannelFactory_->CreateChannel(cellTag, peerKind));
     }
 
-    IChannelPtr GetChaosChannelByCardId(TReplicationCardId replicationCardId, EPeerKind peerKind) override
+    IChannelPtr GetChaosChannelByCardIdOrThrow(TReplicationCardId replicationCardId, EPeerKind peerKind) override
     {
         if (TypeFromId(replicationCardId) != EObjectType::ReplicationCard) {
             THROW_ERROR_EXCEPTION("Malformed replication card id %v",
