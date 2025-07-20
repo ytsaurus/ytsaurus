@@ -3580,9 +3580,9 @@ IChannelPtr TClient::GetChaosChannelByCellTag(TCellTag cellTag, EPeerKind peerKi
     return GetNativeConnection()->GetChaosChannelByCellTag(cellTag, peerKind);
 }
 
-IChannelPtr TClient::GetChaosChannelByCardId(TReplicationCardId replicationCardId, EPeerKind peerKind)
+IChannelPtr TClient::GetChaosChannelByCardIdOrThrow(TReplicationCardId replicationCardId, EPeerKind peerKind)
 {
-    return GetNativeConnection()->GetChaosChannelByCardId(replicationCardId, peerKind);
+    return GetNativeConnection()->GetChaosChannelByCardIdOrThrow(replicationCardId, peerKind);
 }
 
 TReplicationCardPtr TClient::DoGetReplicationCard(
@@ -3599,7 +3599,7 @@ TReplicationCardPtr TClient::DoGetReplicationCard(
             .ValueOrThrow();
     }
 
-    auto channel = GetChaosChannelByCardId(replicationCardId, EPeerKind::LeaderOrFollower);
+    auto channel = GetChaosChannelByCardIdOrThrow(replicationCardId, EPeerKind::LeaderOrFollower);
     auto proxy = TChaosNodeServiceProxy(std::move(channel));
     proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
 
@@ -3625,7 +3625,7 @@ void TClient::DoUpdateChaosTableReplicaProgress(
     const TUpdateChaosTableReplicaProgressOptions& options)
 {
     auto replicationCardId = ReplicationCardIdFromReplicaId(replicaId);
-    auto channel = GetChaosChannelByCardId(replicationCardId);
+    auto channel = GetChaosChannelByCardIdOrThrow(replicationCardId);
     auto proxy = TChaosNodeServiceProxy(std::move(channel));
     proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
 
@@ -3651,7 +3651,7 @@ void TClient::DoAlterReplicationCard(
             replicationCardId);
     }
 
-    auto channel = GetChaosChannelByCardId(replicationCardId);
+    auto channel = GetChaosChannelByCardIdOrThrow(replicationCardId);
     auto proxy = TChaosNodeServiceProxy(std::move(channel));
     proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
 
