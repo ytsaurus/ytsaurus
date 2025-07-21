@@ -739,6 +739,7 @@ func BuildHTTPClient(c *yt.Config) (*http.Client, error) {
 
 			MaxIdleConns:        0,
 			MaxIdleConnsPerHost: 100,
+			MaxConnsPerHost:     100,
 			IdleConnTimeout:     30 * time.Second,
 
 			TLSHandshakeTimeout: 10 * time.Second,

@@ -39,7 +39,7 @@ func TestBuildHTTPClient(t *testing.T) {
 		// Verify default settings are applied
 		transport, ok := client.Transport.(*http.Transport)
 		require.True(t, ok)
-		require.Equal(t, 0, transport.MaxConnsPerHost)
+		require.Equal(t, 100, transport.MaxConnsPerHost)
 		require.Equal(t, 0, transport.MaxIdleConns)
 		require.Equal(t, 100, transport.MaxIdleConnsPerHost)
 		require.Equal(t, 30*time.Second, transport.IdleConnTimeout)
