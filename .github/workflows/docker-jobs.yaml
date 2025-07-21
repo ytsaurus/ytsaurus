@@ -127,7 +127,7 @@ jobs:
             docker push ghcr.io/ytsaurus/chyt:${{ steps.vars.outputs.IMAGE_TAG }}
           fi
           docker tag ghcr.io/ytsaurus/chyt:${{ steps.vars.outputs.IMAGE_TAG }} ghcr.io/ytsaurus/chyt-nightly:${{ steps.vars.outputs.NIGHTLY_IMAGE_TAG }}
-          docker push ghcr.io/ytsaurus/chyt-nightly:${{ steps.vars.outputs.NIGHTLY_IMAGE_TAG }}
+          # docker push ghcr.io/ytsaurus/chyt-nightly:${{ steps.vars.outputs.NIGHTLY_IMAGE_TAG }}
 
       - name: Strawberry image
         if: ${{ inputs.publish-strawberry }}
