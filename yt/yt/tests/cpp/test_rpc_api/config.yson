@@ -9,16 +9,17 @@
         };
     };
     DELTA_RPC_PROXY_CONFIG = {
-        signature_validation = {
-            cypress_key_reader = {};
-            validator = {};
-        };
-        signature_generation = {
-            cypress_key_writer = {
-                owner_id = test-rpc-proxy;
+        signature_components = {
+            validation = {
+                cypress_key_reader = {};
             };
-            generator = {};
-            key_rotator = {};
+            generation = {
+                cypress_key_writer = {
+                    owner_id = test-rpc-proxy;
+                };
+                generator = {};
+                key_rotator = {};
+            };
         };
     };
     DRIVER_BACKEND = rpc;

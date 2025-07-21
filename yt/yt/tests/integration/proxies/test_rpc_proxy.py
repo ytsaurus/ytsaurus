@@ -1526,15 +1526,16 @@ class TestRpcProxyNullApiTestingOptions(TestRpcProxyHeapUsageStatisticsBase):
 class TestRpcProxySignaturesBase(TestRpcProxyBase):
     ENABLE_MULTIDAEMON = True
     DELTA_RPC_PROXY_CONFIG = {
-        "signature_validation": {
-            "cypress_key_reader": dict(),
-            "validator": dict(),
-        },
-        "signature_generation": {
-            "cypress_key_writer": {
-                "owner_id": "test-rpc-proxy",
+        "signature_components": {
+            "validation": {
+                "cypress_key_reader": dict(),
             },
-            "generator": dict(),
+            "generation": {
+                "cypress_key_writer": {
+                    "owner_id": "test-rpc-proxy",
+                },
+                "generator": dict(),
+            },
         },
     }
 
@@ -1563,9 +1564,11 @@ def deep_update(source: dict[Any, Any], overrides: dict[Any, Any]) -> dict[Any, 
 class TestRpcProxySignaturesKeyCreation(TestRpcProxySignaturesBase):
     ENABLE_MULTIDAEMON = True
     DELTA_RPC_PROXY_CONFIG = deep_update(TestRpcProxySignaturesBase.DELTA_RPC_PROXY_CONFIG, {
-        "signature_generation": {
-            "key_rotator": {
-                "key_rotation_interval": "2h",
+        "signature_components": {
+            "generation": {
+                "key_rotator": {
+                    "key_rotation_interval": "2h",
+                },
             },
         },
     })
@@ -1580,9 +1583,11 @@ class TestRpcProxySignaturesKeyCreation(TestRpcProxySignaturesBase):
 class TestRpcProxySignaturesKeyRotation(TestRpcProxySignaturesBase):
     ENABLE_MULTIDAEMON = True
     DELTA_RPC_PROXY_CONFIG = deep_update(TestRpcProxySignaturesBase.DELTA_RPC_PROXY_CONFIG, {
-        "signature_generation": {
-            "key_rotator": {
-                "key_rotation_interval": "200ms",
+        "signature_components": {
+            "generation": {
+                "key_rotator": {
+                    "key_rotation_interval": "200ms",
+                },
             },
         },
     })

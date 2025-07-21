@@ -28,18 +28,6 @@ DEFINE_REFCOUNTED_TYPE(TSignatureGeneratorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSignatureValidatorConfig
-    : public NYTree::TYsonStruct
-{
-    REGISTER_YSON_STRUCT(TSignatureValidatorConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TSignatureValidatorConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TKeyRotatorConfig
     : public NYTree::TYsonStruct
 {
@@ -97,6 +85,52 @@ struct TCypressKeyWriterConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TCypressKeyWriterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSignatureValidationConfig
+    : public NYTree::TYsonStruct
+{
+    TCypressKeyReaderConfigPtr CypressKeyReader;
+
+    REGISTER_YSON_STRUCT(TSignatureValidationConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSignatureValidationConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSignatureGenerationConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TCypressKeyWriterConfigPtr CypressKeyWriter;
+    TSignatureGeneratorConfigPtr Generator;
+    TKeyRotatorConfigPtr KeyRotator;
+
+    REGISTER_YSON_STRUCT(TSignatureGenerationConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSignatureGenerationConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSignatureComponentsConfig
+    : public NYTree::TYsonStruct
+{
+    TSignatureValidationConfigPtr Validation;
+    TSignatureGenerationConfigPtr Generation;
+
+    REGISTER_YSON_STRUCT(TSignatureComponentsConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSignatureComponentsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

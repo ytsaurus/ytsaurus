@@ -2,11 +2,9 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/signature/public.h>
-
-#include <yt/yt/server/lib/signature/public.h>
-
 #include <yt/yt/server/lib/misc/bootstrap.h>
+
+#include <yt/yt/server/lib/signature/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -88,11 +86,7 @@ private:
 
     INodeMemoryTrackerPtr MemoryUsageTracker_;
 
-    NSignature::IKeyStoreReaderPtr CypressKeyReader_;
-    NSignature::TSignatureValidatorPtr SignatureValidator_;
-
-    NSignature::IKeyStoreWriterPtr CypressKeyWriter_;
-    NSignature::TKeyRotatorPtr SignatureKeyRotator_;
+    NSignature::TSignatureComponentsPtr SignatureComponents_;
 
     IQueryCorpusReporterPtr QueryCorpusReporter_;
 

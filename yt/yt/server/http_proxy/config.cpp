@@ -8,7 +8,7 @@
 
 #include <yt/yt/server/lib/security_server/config.h>
 
-#include <yt/yt/server/lib/signature/instance_config.h>
+#include <yt/yt/server/lib/signature/config.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
 
@@ -321,11 +321,8 @@ void TProxyBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("heap_profiler", &TThis::HeapProfiler)
         .DefaultNew();
 
-    registrar.Parameter("signature_validation", &TThis::SignatureValidation)
-        .Optional();
-
-    registrar.Parameter("signature_generation", &TThis::SignatureGeneration)
-        .Optional();
+    registrar.Parameter("signature_components", &TThis::SignatureComponents)
+        .DefaultNew();
 
     registrar.Preprocessor([] (TThis* config) {
         config->ClusterConnectionDynamicConfigPolicy = NApi::NNative::EClusterConnectionDynamicConfigPolicy::FromClusterDirectoryWithStaticPatch;

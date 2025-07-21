@@ -351,8 +351,7 @@ struct TProxyBootstrapConfig
     THeapProfilerConfigPtr HeapProfiler;
 
     //! Configuration for signature components.
-    NSignature::TSignatureValidationConfigPtr SignatureValidation;
-    NSignature::TSignatureGenerationConfigPtr SignatureGeneration;
+    NSignature::TSignatureComponentsConfigPtr SignatureComponents;
 
     REGISTER_YSON_STRUCT(TProxyBootstrapConfig);
 

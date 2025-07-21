@@ -33,7 +33,7 @@
 #include <yt/yt/server/lib/nbd/server.h>
 
 #include <yt/yt/server/lib/signature/cypress_key_store.h>
-#include <yt/yt/server/lib/signature/instance_config.h>
+#include <yt/yt/server/lib/signature/config.h>
 #include <yt/yt/server/lib/signature/key_rotator.h>
 #include <yt/yt/server/lib/signature/signature_generator.h>
 #include <yt/yt/server/lib/signature/signature_validator.h>
@@ -179,12 +179,10 @@ public:
             DnsOverRpcActionQueue_->GetInvoker()));
 
         if (auto signatureValidationConfig = GetConfig()->ExecNode->SignatureValidation) {
-            auto cypressKeyReader = CreateCypressKeyReader(
+            auto cypressKeyReader = New<TCypressKeyReader>(
                 signatureValidationConfig->CypressKeyReader,
                 GetClient());
-            SignatureValidator_ = New<TSignatureValidator>(
-                signatureValidationConfig->Validator,
-                std::move(cypressKeyReader));
+            SignatureValidator_ = New<TSignatureValidator>(std::move(cypressKeyReader));
         } else {
             // NB(pavook): we cannot do any meaningful signature operations safely.
             SignatureValidator_ = CreateAlwaysThrowingSignatureValidator();

@@ -1928,18 +1928,20 @@ class TestHttpProxyNullApiTestingOptions(TestHttpProxyHeapUsageStatisticsBase):
 
 class TestHttpProxySignaturesBase(HttpProxyTestBase):
     DELTA_PROXY_CONFIG = {
-        "signature_validation": {
-            "cypress_key_reader": dict(),
-            "validator": dict(),
-        },
-        "signature_generation": {
-            "cypress_key_writer": {
-                "owner_id": "test-http-proxy",
+        "signature_components": {
+            "validation": {
+                "cypress_key_reader": dict(),
+                "validator": dict(),
             },
-            "key_rotator": {
-                "key_rotation_interval": "2h",
+            "generation": {
+                "cypress_key_writer": {
+                    "owner_id": "test-http-proxy",
+                },
+                "key_rotator": {
+                    "key_rotation_interval": "2h",
+                },
+                "generator": dict(),
             },
-            "generator": dict(),
         },
     }
 
@@ -2048,9 +2050,11 @@ class TestHttpProxySignatures(TestHttpProxySignaturesBase):
 
 class TestHttpProxySignaturesKeyRotation(TestHttpProxySignaturesBase):
     DELTA_PROXY_CONFIG = deep_update(TestHttpProxySignaturesBase.DELTA_PROXY_CONFIG, {
-        "signature_generation": {
-            "key_rotator": {
-                "key_rotation_interval": "200ms",
+        "signature_components": {
+            "generation": {
+                "key_rotator": {
+                    "key_rotation_interval": "200ms",
+                },
             },
         },
     })
