@@ -1325,15 +1325,24 @@ TTableProfilingCounters TBundleState::InitializeProfilingCounters(
 
     profilingCounters.InMemoryMoves = profiler.Counter("/tablet_balancer/in_memory_moves");
     profilingCounters.OrdinaryMoves = profiler.Counter("/tablet_balancer/ordinary_moves");
+
     profilingCounters.TabletMerges = profiler.Counter("/tablet_balancer/tablet_merges");
     profilingCounters.TabletSplits = profiler.Counter("/tablet_balancer/tablet_splits");
     profilingCounters.NonTrivialReshards = profiler.Counter("/tablet_balancer/non_trivial_reshards");
+
     profilingCounters.ParameterizedMoves = profiler.Counter("/tablet_balancer/parameterized_moves");
+
     profilingCounters.ReplicaMoves = profiler.Counter("/tablet_balancer/parameterized_replica_moves");
+
     profilingCounters.ParameterizedReshardMerges = profiler.Counter(
         "/tablet_balancer/parameterized_reshard_merges");
     profilingCounters.ParameterizedReshardSplits = profiler.Counter(
         "/tablet_balancer/parameterized_reshard_splits");
+
+    profilingCounters.ReplicaMerges = profiler.Counter("/tablet_balancer/replica_merges");
+    profilingCounters.ReplicaSplits = profiler.Counter("/tablet_balancer/replica_splits");
+    profilingCounters.ReplicaNonTrivialReshards = profiler.Counter(
+        "/tablet_balancer/replica_non_trivial_reshards");
 
     return profilingCounters;
 }
