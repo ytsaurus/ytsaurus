@@ -480,9 +480,6 @@ void TTabletBalancer::BalancerIteration()
         auto isdReshardReplicaBalancingRequired = IsReshardReplicaBalancingRequired(bundle);
         auto idMoveReplicaBalancingRequired = IsMoveReplicaBalancingRequired(bundle);
 
-        YT_LOG_INFO("REPLICA isdReshardReplicaBalancingRequired: %v, idMoveReplicaBalancingRequired: %v",
-            isdReshardReplicaBalancingRequired, idMoveReplicaBalancingRequired);
-
         if (isdReshardReplicaBalancingRequired || idMoveReplicaBalancingRequired) {
             if (!dynamicConfig->UseStatisticsReporter) {
                 YT_LOG_ERROR("Cannot balance replicas when statistics reporter is not enabled (BundleName: %v)", bundleName);
