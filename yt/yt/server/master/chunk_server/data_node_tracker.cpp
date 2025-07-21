@@ -1257,12 +1257,7 @@ private:
         using NYT::Load;
 
         ChunkLocationMap_.LoadValues(context);
-        // COMPAT(koloshmet)
-        if (context.GetVersion() >= EMasterReign::DanglingLocationsCleaning) {
-            Load(context, DanglingLocationsDefaultLastSeenTime_);
-        } else {
-            DanglingLocationsDefaultLastSeenTime_ = TInstant::Max();
-        }
+        Load(context, DanglingLocationsDefaultLastSeenTime_);
 
         if (context.GetVersion() >= EMasterReign::ChunkLocationCounterId) {
             Load(context, ChunkLocationIdGenerator_);
@@ -1329,11 +1324,6 @@ private:
 
         for (auto [locationId, location] : ChunkLocationMap_) {
             RegisterChunkLocationUuid(location);
-        }
-
-        // COMPAT(koloshmet)
-        if (DanglingLocationsDefaultLastSeenTime_ == TInstant::Max()) {
-            DanglingLocationsDefaultLastSeenTime_ = GetCurrentHydraContext()->GetTimestamp();
         }
 
         // COMPAT(aleksandra-zh)

@@ -277,7 +277,7 @@ bool TDynamicChunkReincarnatorConfig::ShouldRescheduleAfterChange(
 void TDanglingLocationCleanerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("cleanup_period", &TThis::CleanupPeriod)
         .Default(TDuration::Seconds(60));
     registrar.Parameter("expiration_timeout", &TThis::ExpirationTimeout)
