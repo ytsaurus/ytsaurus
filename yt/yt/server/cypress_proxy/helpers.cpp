@@ -241,7 +241,7 @@ void ValidatePrerequisiteTransactions(
     }
 
     auto transactionRowsOrError = WaitFor(sequoiaClient->LookupRows(transactionKeys));
-    THROW_ERROR_EXCEPTION_IF_FAILED(transactionRowsOrError, "Failed to check prerequisite transactions")
+    THROW_ERROR_EXCEPTION_IF_FAILED(transactionRowsOrError, "Failed to check prerequisite transactions");
 
     auto transactionRows = transactionRowsOrError.Value();
     for (const auto& [key, row] : Zip(transactionKeys, transactionRows)) {

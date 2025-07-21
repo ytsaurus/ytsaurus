@@ -174,7 +174,7 @@ public:
             THROW_ERROR_EXCEPTION_IF_FAILED(
                 error,
                 NObjectClient::EErrorCode::PrerequisiteCheckFailed,
-                "Prerequisite check failed")
+                "Prerequisite check failed");
         };
 
         auto error = WaitForFast(Host_->IssueLeases(params.PrerequisiteTransactionIds));
