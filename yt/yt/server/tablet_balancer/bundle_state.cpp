@@ -718,6 +718,12 @@ void TBundleState::DoFetchReplicaStatistics(
     auto perClusterMinorToMajorTables = GetReplicaBalancingMinorToMajorTables(majorTableIds, Bundle_->Tables, SelfClusterName_);
 
     for (const auto& [cluster, tablePaths] : minorTablePaths) {
+        if (!allowedReplicaClusters.contains(cluster)) {
+            THROW_ERROR_EXCEPTION("Table replicas from cluster %Qv are not allowed",
+                cluster)
+                << TErrorAttribute("allowed_replica_clusters", allowedReplicaClusters);
+        }
+
         auto client = ClientDirectory_->GetClientOrThrow(cluster);
         YT_LOG_DEBUG("Started resolving alien table paths (ClusterName: %v, TableCount: %v)",
             cluster,
@@ -1147,6 +1153,7 @@ void TBundleState::FetchReplicaModes(
         THROW_ERROR_EXCEPTION_IF(!clusterName,
             "Cluster name for cell tag %v not found",
             cellTag);
+
         if (!allowedReplicaClusters.contains(*clusterName)) {
             THROW_ERROR_EXCEPTION("Table replicas from cluster %Qv are not allowed",
                 clusterName)

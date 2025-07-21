@@ -752,12 +752,16 @@ class TestReplicaBalancing(TestStandaloneTabletBalancerBase, TestStatisticsRepor
             remove(self.statistics_path, driver=driver)
         super(TestReplicaBalancing, self).teardown_method(method)
 
+    def _set_allowed_replica_clusters(self, clusters):
+        self._apply_dynamic_config_patch({
+            "allowed_replica_clusters": clusters,
+        })
+
     @authors("alexelexa")
     def test_balancing_one_table_by_another(self):
         self._set_default_metric("double([/statistics/uncompressed_data_size])")
-        print_debug([self.get_cluster_names()])
+        self._set_allowed_replica_clusters(self.get_cluster_names())
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups/default/parameterized/replica_clusters", self.get_cluster_names())
-        print_debug(get("//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups/default/parameterized"))
 
         self.statistics_path = "//sys/tablet_balancer/performance_counters"
 
@@ -812,6 +816,7 @@ class TestReplicaBalancing(TestStandaloneTabletBalancerBase, TestStatisticsRepor
     def test_replica_reshard(self):
         self.statistics_path = "//sys/tablet_balancer/performance_counters"
         self._set_default_metric("double([/statistics/uncompressed_data_size])")
+        self._set_allowed_replica_clusters(self.get_cluster_names())
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups/default/parameterized/replica_clusters", self.get_cluster_names())
 
         self._apply_dynamic_config_patch({
@@ -822,8 +827,8 @@ class TestReplicaBalancing(TestStandaloneTabletBalancerBase, TestStatisticsRepor
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "value", "type": "string"}]
 
-        create("replicated_table", "//tmp/replicated", attributes={"schema": schema, "dynamic": True})
-        self._disable_table_balancing("//tmp/replicated")
+        create("replicated_table", "//tmp/replicated", attributes={"schema": schema, "dynamic": True}, driver=self.remote_driver)
+        self._disable_table_balancing("//tmp/replicated", driver=self.remote_driver)
 
         modes = ["async", "sync"]
         replicas = []
@@ -833,6 +838,7 @@ class TestReplicaBalancing(TestStandaloneTabletBalancerBase, TestStatisticsRepor
                 self.get_cluster_name(i),
                 "//tmp/t",
                 attributes={"mode": mode},
+                driver=self.remote_driver,
             ))
 
         self._create_sorted_table("//tmp/t", schema=schema, upstream_replica_id=replicas[0])
@@ -856,9 +862,9 @@ class TestReplicaBalancing(TestStandaloneTabletBalancerBase, TestStatisticsRepor
             }, driver=driver)
 
         for replica in replicas:
-            sync_enable_table_replica(replica)
+            sync_enable_table_replica(replica, driver=self.remote_driver)
 
-        sync_mount_table("//tmp/replicated")
+        sync_mount_table("//tmp/replicated", driver=self.remote_driver)
 
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_parameterized_by_default", True)
         set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", True)
@@ -870,7 +876,7 @@ class TestReplicaBalancing(TestStandaloneTabletBalancerBase, TestStatisticsRepor
 
         def _check_replica_modes():
             for replica, mode in zip(replicas, modes):
-                assert get(f"#{replica}/@mode") == mode
+                assert get(f"#{replica}/@mode", driver=self.remote_driver) == mode
 
         _check_replica_modes()
         wait(lambda: major_pivot_keys == get("//tmp/t/@pivot_keys"))
