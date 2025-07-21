@@ -127,6 +127,16 @@ protected:
         return schema;
     }
 
+    static TTableSchema GetKeyWatermarkSchema()
+    {
+        TTableSchema schema({
+            TColumnSchema("watermark", EValueType::Uint64, ESortOrder::Ascending),
+            TColumnSchema("m", EValueType::Int64),
+            TColumnSchema("n", EValueType::Int64)
+        });
+        return schema;
+    }
+
     static TTableSchema GetAggregateSumSchema()
     {
         TTableSchema schema({
@@ -2542,30 +2552,93 @@ TEST_F(TVersionedRowMergerTest, DeleteIncreasedTtlColumn)
 
 TEST_F(TVersionedRowMergerTest, WatermarkBasic)
 {
-    auto watermarkDataConfig = TWatermarkRuntimeDataConfig();
-    watermarkDataConfig.ColumnName = "watermark";
-    watermarkDataConfig.Watermark = 11;
-    auto merger = GetTypicalMerger(
-        ERowMergerType::Watermark,
-        nullptr,
-        1000,
-        0,
-        GetTypicalWatermarkSchema(),
-        TColumnFilter(),
-        false,
-        false,
-        CreateWatermarkRuntimeData(watermarkDataConfig));
+    auto baseWatermarkDataConfig = TWatermarkRuntimeDataConfig();
+    baseWatermarkDataConfig.ColumnName = "watermark";
 
-    auto row = BuildVersionedRow(
-        "<id=0> 0",
-        "<id=1;ts=10> 5; <id=1;ts=15> 10; <id=1;ts=20> 11;"
-        "<id=2;ts=15> 42; <id=2;ts=13> 52");
-    merger->AddPartialRow(row);
+    std::vector<TWatermarkRuntimeDataConfig> watermarkDataConfigs;
+    std::vector<TVersionedRow> inputRows;
+    std::vector<TVersionedRow> expectedRows;
+    {
+        auto watermarkDataConfig = baseWatermarkDataConfig;
+        watermarkDataConfig.Watermark = 11;
+        watermarkDataConfig.ComparisonOperator = EWatermarkComparisonOperator::Less;
+        watermarkDataConfigs.push_back(watermarkDataConfig);
 
-    EXPECT_EQ(
-        TIdentityComparableVersionedRow{BuildVersionedRow(
-                "<id=0> 0","<id=1;ts=20> 11")},
-        TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+        auto row = BuildVersionedRow(
+            "<id=0> 0",
+            "<id=1;ts=10> 5; <id=1;ts=15> 10; <id=1;ts=20> 11;"
+            "<id=2;ts=15> 42; <id=2;ts=13> 52");
+        inputRows.push_back(row);
+
+        auto expectedRow = BuildVersionedRow("<id=0> 0","<id=1;ts=20> 11");
+        expectedRows.push_back(expectedRow);
+    }
+
+    {
+        auto watermarkDataConfig = baseWatermarkDataConfig;
+        watermarkDataConfig.Watermark = 10;
+        watermarkDataConfig.ComparisonOperator = EWatermarkComparisonOperator::LessEqual;
+        watermarkDataConfigs.push_back(watermarkDataConfig);
+
+        auto row = BuildVersionedRow(
+            "<id=0> 0",
+            "<id=1;ts=10> 5; <id=1;ts=15> 10; <id=1;ts=20> 11;"
+            "<id=2;ts=15> 42; <id=2;ts=13> 52");
+        inputRows.push_back(row);
+
+        auto expectedRow = BuildVersionedRow("<id=0> 0","<id=1;ts=20> 11");
+        expectedRows.push_back(expectedRow);
+    }
+
+    {
+        auto watermarkDataConfig = baseWatermarkDataConfig;
+        watermarkDataConfig.Watermark = 10;
+        watermarkDataConfig.ComparisonOperator = EWatermarkComparisonOperator::Greater;
+        watermarkDataConfigs.push_back(watermarkDataConfig);
+
+        auto row = BuildVersionedRow(
+            "<id=0> 0",
+            "<id=1;ts=10> 5; <id=1;ts=20> 10; <id=1;ts=15> 11;"
+            "<id=2;ts=15> 42; <id=2;ts=13> 52");
+        inputRows.push_back(row);
+
+        auto expectedRow = BuildVersionedRow("<id=0> 0","<id=1;ts=20> 10");
+        expectedRows.push_back(expectedRow);
+    }
+
+    {
+        auto watermarkDataConfig = baseWatermarkDataConfig;
+        watermarkDataConfig.Watermark = 10;
+        watermarkDataConfig.ComparisonOperator = EWatermarkComparisonOperator::GreaterEqual;
+        watermarkDataConfigs.push_back(watermarkDataConfig);
+
+        auto row = BuildVersionedRow(
+            "<id=0> 0",
+            "<id=1;ts=30> 5; <id=1;ts=20> 10; <id=1;ts=15> 11;"
+            "<id=2;ts=15> 42; <id=2;ts=13> 52");
+        inputRows.push_back(row);
+
+        auto expectedRow = BuildVersionedRow("<id=0> 0","<id=1;ts=30> 5");
+        expectedRows.push_back(expectedRow);
+    }
+
+    for (int index = 0; index < std::ssize(watermarkDataConfigs); ++index) {
+        auto merger = GetTypicalMerger(
+            ERowMergerType::Watermark,
+            nullptr,
+            1000,
+            0,
+            GetTypicalWatermarkSchema(),
+            TColumnFilter(),
+            false,
+            false,
+            CreateWatermarkRuntimeData(watermarkDataConfigs[index]));
+        merger->AddPartialRow(inputRows[index]);
+
+        EXPECT_EQ(
+            TIdentityComparableVersionedRow{expectedRows[index]},
+            TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+    }
 }
 
 TEST_F(TVersionedRowMergerTest, InvalidWatermarkDataFormat)
@@ -2628,7 +2701,7 @@ TEST_F(TVersionedRowMergerTest, WatermarkBlocksMaxDataTtlRemoval)
 
     auto watermarkDataConfig = TWatermarkRuntimeDataConfig();
     watermarkDataConfig.ColumnName = "watermark";
-    watermarkDataConfig.Watermark = 13;
+    watermarkDataConfig.Watermark = 12;
     auto merger = GetTypicalMerger(
         ERowMergerType::Watermark,
         config,
@@ -2710,6 +2783,56 @@ TEST_F(TVersionedRowMergerTest, WatermarkRemovalRespectsMinDataTtl)
     EXPECT_EQ(
         TIdentityComparableVersionedRow{expectedRow},
         TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+}
+
+TEST_F(TVersionedRowMergerTest, WatermarkKeyColumn)
+{
+    auto watermarkDataConfig = TWatermarkRuntimeDataConfig();
+    watermarkDataConfig.ColumnName = "watermark";
+    watermarkDataConfig.Watermark = 11;
+    auto merger = GetTypicalMerger(
+        ERowMergerType::Watermark,
+        nullptr,
+        1000,
+        0,
+        GetKeyWatermarkSchema(),
+        TColumnFilter(),
+        false,
+        false,
+        CreateWatermarkRuntimeData(watermarkDataConfig));
+
+    auto row1 = BuildVersionedRow(
+        "<id=0> 0",
+        "<id=1;ts=10> 5; <id=1;ts=15> 10; <id=1;ts=20> 12;"
+        "<id=1;ts=30> 5; <id=2;ts=150000> 10;");
+    auto row2 = BuildVersionedRow(
+        "<id=0> 11",
+        "<id=1;ts=10> 5; <id=2;ts=150000> 10;");
+    auto row3 = BuildVersionedRow(
+        "<id=0> 12",
+        "<id=1;ts=10> 5; <id=2;ts=150000> 10;");
+
+    {
+        merger->AddPartialRow(row1);
+
+        EXPECT_FALSE(merger->BuildMergedRow());
+    }
+
+    {
+        merger->AddPartialRow(row2);
+
+        EXPECT_EQ(
+            TIdentityComparableVersionedRow{row2},
+            TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+    }
+
+    {
+        merger->AddPartialRow(row3);
+
+        EXPECT_EQ(
+            TIdentityComparableVersionedRow{row3},
+            TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+    }
 }
 
 INSTANTIATE_TEST_SUITE_P(

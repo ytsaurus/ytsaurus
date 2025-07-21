@@ -243,19 +243,21 @@ public:
                 }
 
                 // Compute retention limit by MaxDataVersions and MaxDataTtl.
-                while (retentionBeginIt != ColumnValues_.begin()) {
-                    if (std::distance(retentionBeginIt, ColumnValues_.end()) >= Config_->MaxDataVersions) {
-                        break;
-                    }
+                if (!watermarkTimestamp) {
+                    while (retentionBeginIt != ColumnValues_.begin()) {
+                        if (std::distance(retentionBeginIt, ColumnValues_.end()) >= Config_->MaxDataVersions) {
+                            break;
+                        }
 
-                    auto timestamp = (retentionBeginIt - 1)->Timestamp;
-                    if (timestamp < CurrentTimestamp_ &&
-                        TimestampDiffToDuration(timestamp, CurrentTimestamp_).first > rowMaxDataTtl)
-                    {
-                        break;
-                    }
+                        auto timestamp = (retentionBeginIt - 1)->Timestamp;
+                        if (timestamp < CurrentTimestamp_ &&
+                            TimestampDiffToDuration(timestamp, CurrentTimestamp_).first > rowMaxDataTtl)
+                        {
+                            break;
+                        }
 
-                    --retentionBeginIt;
+                        --retentionBeginIt;
+                    }
                 }
             }
 
@@ -482,19 +484,45 @@ private:
         return Config_->MaxDataTtl;
     }
 
+    static bool CompareValueWithRuntimeWatermark(TUnversionedValue value, const TWatermarkRuntimeData& watermarkRuntimeData)
+    {
+        if (value.Id != watermarkRuntimeData.ColumnIndex || value.Type == EValueType::Null) {
+            return false;
+        }
+
+        switch (watermarkRuntimeData.ComparisonOpeator) {
+            case EWatermarkComparisonOperator::Less:
+                return FromUnversionedValue<ui64>(value) < watermarkRuntimeData.Watermark;
+
+            case EWatermarkComparisonOperator::LessEqual:
+                return FromUnversionedValue<ui64>(value) <= watermarkRuntimeData.Watermark;
+
+            case EWatermarkComparisonOperator::Greater:
+                return FromUnversionedValue<ui64>(value) > watermarkRuntimeData.Watermark;
+
+            case EWatermarkComparisonOperator::GreaterEqual:
+                return FromUnversionedValue<ui64>(value) >= watermarkRuntimeData.Watermark;
+
+            default:
+                YT_ABORT();
+        }
+    }
+
     std::optional<TTimestamp> ComputeWatermarkTimestamp() const
     {
         if (!WatermarkRuntimeData_) {
             return {};
         }
 
+        for (const auto& key : Keys_) {
+            if (CompareValueWithRuntimeWatermark(key, WatermarkRuntimeData_.value())) {
+                return MaxTimestamp;
+            }
+        }
+
         TTimestamp watermarkTimestamp = MinTimestamp;
         for (const auto& value : PartialValues_) {
-            if (value.Id != WatermarkRuntimeData_->ColumnIndex) {
-                continue;
-            }
-
-            if (value.Type != EValueType::Null && FromUnversionedValue<ui64>(value) < WatermarkRuntimeData_->Watermark) {
+            if (CompareValueWithRuntimeWatermark(value, WatermarkRuntimeData_.value())) {
                 watermarkTimestamp = std::max(watermarkTimestamp, value.Timestamp);
             }
         }
@@ -1236,7 +1264,8 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
 
                     watermarkRuntimeData = TWatermarkRuntimeData{
                         .Watermark = watermarkRuntimeDataConfig.Watermark,
-                        .ColumnIndex = tableSchema->GetColumnIndex(watermarkRuntimeDataConfig.ColumnName)
+                        .ColumnIndex = tableSchema->GetColumnIndex(watermarkRuntimeDataConfig.ColumnName),
+                        .ComparisonOpeator = watermarkRuntimeDataConfig.ComparisonOperator
                     };
                 } catch (const std::exception& ex) {
                     YT_LOG_ERROR(ex, "Failed to prepare watermark runtime data");
