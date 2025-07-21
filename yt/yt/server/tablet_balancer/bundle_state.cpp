@@ -1110,11 +1110,6 @@ void TBundleState::FetchReplicaModes(
 
     for (const auto& tableId : majorTableIds) {
         const auto& table = GetOrCrash(Bundle_->Tables, tableId);
-        YT_LOG_INFO("REPLICA table %v has upstreamReplicaId %v with cellTag %v",
-            tableId,
-            table->UpstreamReplicaId,
-            CellTagFromId(table->UpstreamReplicaId));
-
         TCellTag cellTag = getCellTag(table);
         if (cellTag == InvalidCellTag) {
             continue;
@@ -1149,7 +1144,6 @@ void TBundleState::FetchReplicaModes(
     for (const auto& [cellTag, replicaIds] : cellTagToReplicaIds) {
         auto connection = ClusterDirectory_->GetConnectionOrThrow(cellTag);
         auto clusterName = connection->GetClusterName();
-        YT_LOG_INFO("REPLICA going to fetch replica modes from cluster %v", clusterName);
         THROW_ERROR_EXCEPTION_IF(!clusterName,
             "Cluster name for cell tag %v not found",
             cellTag);
@@ -1176,7 +1170,6 @@ void TBundleState::FetchReplicaModes(
             auto mode = attributes->Get<ETableReplicaMode>("mode");
             auto table = GetOrCrash(replicaIdToTable, replicaId);
             table->ReplicaMode = mode;
-            YT_LOG_INFO("REPLICA table %v has mode: %v", replicaId, mode);
         }
     }
 }
