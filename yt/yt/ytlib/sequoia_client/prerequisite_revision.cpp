@@ -42,7 +42,7 @@ void ToProto(NCypressServer::NProto::TResolvedPrerequisiteRevision* protoRevisio
 
     ToProto(protoRevision->mutable_node_id(), revision.NodeId);
     ToProto(protoRevision->mutable_node_path(), revision.NodePath);
-    protoRevision->set_revision(ToProto<ui64>(revision.Revision));
+    protoRevision->set_revision(ToProto(revision.Revision));
 }
 
 void FromProto(TResolvedPrerequisiteRevision* revision, const NCypressServer::NProto::TResolvedPrerequisiteRevision& protoRevision)
