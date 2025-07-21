@@ -1329,7 +1329,7 @@ TTableProfilingCounters TBundleState::InitializeProfilingCounters(
     profilingCounters.TabletSplits = profiler.Counter("/tablet_balancer/tablet_splits");
     profilingCounters.NonTrivialReshards = profiler.Counter("/tablet_balancer/non_trivial_reshards");
     profilingCounters.ParameterizedMoves = profiler.Counter("/tablet_balancer/parameterized_moves");
-    profilingCounters.ReplicaMoves = profiler.Counter("/table_balancer/parameterized_replica_moves");
+    profilingCounters.ReplicaMoves = profiler.Counter("/tablet_balancer/parameterized_replica_moves");
     profilingCounters.ParameterizedReshardMerges = profiler.Counter(
         "/tablet_balancer/parameterized_reshard_merges");
     profilingCounters.ParameterizedReshardSplits = profiler.Counter(
