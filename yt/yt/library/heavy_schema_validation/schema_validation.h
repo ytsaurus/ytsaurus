@@ -43,6 +43,8 @@ void ValidateTableSchemaHeavy(
     bool isTableDynamic,
     const TSchemaValidationOptions& options = {});
 
+////////////////////////////////////////////////////////////////////////////////
+
 //! Validates computed columns.
 //!
 //! Validates that:
