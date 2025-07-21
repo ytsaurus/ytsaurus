@@ -50,7 +50,6 @@ type httpClient struct {
 	readRetrier     *internal.Retrier
 
 	clusterURL yt.ClusterURL
-	netDialer  *net.Dialer
 	httpClient *http.Client
 	log        log.Structured
 	tracer     opentracing.Tracer
