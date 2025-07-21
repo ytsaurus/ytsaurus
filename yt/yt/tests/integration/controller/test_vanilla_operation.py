@@ -2918,6 +2918,8 @@ class TestSidecarVanilla(YTEnvSetup):
         assert tasks["master"]["job_counter"]["completed"]["total"] == 1
 
         assert get(op.get_path() + "/@progress/total_job_counter/completed/total") == 1
+        assert op.get_job_count("aborted", from_orchid=False) == 0
+        assert op.get_job_count("failed", from_orchid=False) == 0
 
     @authors("pavel-bash")
     def test_general(self):
@@ -3292,51 +3294,75 @@ fi
     @authors("pavel-bash")
     def test_mounts(self):
         """
-        Check that the mounts are indeed shared between the main job and all sidecars; we can check
-        it using the 'files' parameter, as internally it uses mounts to pass files to the containers.
+        Check that the mounts are indeed shared between the main job and all sidecars; we create a file
+        and write some data into it in a sidecar job, then the master job reads the file and outputs
+        its contents into the output table.
         """
-        shared_file = create_tmpdir("sidecar_tmp") + "/shared_file"
-        with open(shared_file, "w") as shared_file_open:
-            shared_file_open.write("Header\n")
-        shared_file_expected_content = """Header
-master_write
-sidecar_write
-"""
+        output_table = "//tmp/output_table"
+        create("table", output_table)
+
+        shared_file_name = "shared_file"
 
         master_command = " ; ".join(
             [
                 events_on_fs().notify_event_cmd("master_job_started"),
-                f"echo 'master_write' >> {shared_file}",
-                events_on_fs().notify_event_cmd("master_job_wrote"),
+                events_on_fs().wait_event_cmd("master_proceed"),
+                f"cat {shared_file_name}",
+                events_on_fs().notify_event_cmd("master_job_cat"),
                 events_on_fs().wait_event_cmd("finish"),
             ]
         )
         sidecar_command = f"""
 #!/bin/bash
 {events_on_fs().notify_event_cmd("sidecar_job_started")}
-{events_on_fs().wait_event_cmd("sidecar_proceed")}
-echo 'sidecar_write' >> {shared_file}
+echo '{{secret=sidecar}}' >> {shared_file_name}
 {events_on_fs().notify_event_cmd("sidecar_job_wrote")}
 {events_on_fs().wait_event_cmd("finish")}
 """
 
-        op = self.start_operation(master_command, sidecar_command)
+        docker_image = self.Env.yt_config.default_docker_image
+        sidecar_cmds_file = self.prepare_sidecar_cmd_file(sidecar_command)
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "master": {
+                        "job_count": 1,
+                        "output_table_paths": [output_table],
+                        "command": master_command,
+                        "docker_image": docker_image,
+                        "files": [
+                            sidecar_cmds_file,
+                        ],
+                        "sidecars": {
+                            "sidecar1": {
+                                "command": f"/bin/bash {sidecar_cmds_file}",
+                                "docker_image": docker_image,
+                                "restart_policy": "fail_on_error",
+                            }
+                        }
+                    },
+                },
+            },
+        )
+        wait(lambda: len(get(op.get_path() + "/@progress/tasks")) == 1, ignore_exceptions=True)
 
         # Wait until both master job and sidecar are started.
         events_on_fs().wait_event("master_job_started", timeout=datetime.timedelta(1000))
         events_on_fs().wait_event("sidecar_job_started", timeout=datetime.timedelta(1000))
 
-        # Wait until master job has written something into the file.
-        events_on_fs().wait_event("master_job_wrote", timeout=datetime.timedelta(1000))
-
-        # Allow the sidecar to proceed and check that it also has written into the file.
-        events_on_fs().notify_event("sidecar_proceed")
+        # Wait until sidecar job has written something into the file.
         events_on_fs().wait_event("sidecar_job_wrote", timeout=datetime.timedelta(1000))
+
+        # Allow the master to proceed and wait until it finishes with the task.
+        events_on_fs().notify_event("master_proceed")
+        events_on_fs().wait_event("master_job_cat", timeout=datetime.timedelta(1000))
 
         events_on_fs().notify_event("finish")
 
         self.ensure_operation_finish(op)
 
-        # Check that we can see the results of both writes in this file.
-        with open(shared_file, "r") as shared_file_open:
-            assert shared_file_open.read() == shared_file_expected_content
+        # Check that we can see the sidecar's file contents in the output table.
+        output_table_contents = read_table(output_table)
+        print(output_table_contents)
+        assert read_table(output_table) == [{"secret": "sidecar"}]

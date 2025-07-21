@@ -193,7 +193,6 @@ TJobProxy::TJobProxy(
     , JobId_(jobId)
     , JobThread_(New<TActionQueue>("JobMain"))
     , ControlThread_(New<TActionQueue>("Control"))
-    , JobProxyEnvironmentThread_(New<TActionQueue>("JobProxyEnv"))
     , Logger(JobProxyLogger().WithTag("OperationId: %v, JobId: %v",
         OperationId_,
         JobId_))
@@ -784,7 +783,7 @@ TJobResult TJobProxy::RunJob()
 
         environment = CreateJobProxyEnvironment(
             Config_,
-            JobProxyEnvironmentThread_->GetInvoker(),
+            JobThread_->GetInvoker(),
             GetSlotPath(),
             [this] (TError sidecarError) {
                 auto job = FindJob();

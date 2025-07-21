@@ -1367,6 +1367,7 @@ public:
         auto sidecarFuture = BIND([=] {
                 return process->Spawn();
             })
+            // This Invoker is cached in Spawn via CurrentInvoker().
             .AsyncVia(Invoker_)
             .Run();
         sidecarIt->second.FutureCallbackCookie = sidecarFuture.Subscribe(BIND_NO_PROPAGATE(
