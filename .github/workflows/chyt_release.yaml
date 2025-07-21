@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - 'chyt/[0-9]+\.[0-9]+\.[0-9]+'
+    branches:
+      - members/ilyaibraev/fix-chyt-build
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
@@ -58,6 +60,7 @@ jobs:
       cpp-build-system: ya-make
       build-python: true
       build-chyt: true
+      update-remote-cache: true
     secrets:
       BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
@@ -85,6 +88,7 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       publish-chyt: true
+      cpp-build-system: ya-make
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.image-tag }}
     secrets:
