@@ -57,10 +57,8 @@ class TestStandaloneTabletBalancerBase:
 
     def _enable_parameterized_reshard(self, group):
         set(
-            f"//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups/{group}/parameterized",
-            {
-                "enable_reshard": True,
-            }
+            f"//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups/{group}/parameterized/enable_reshard",
+            True
         )
 
     def _set_group_config(self, group, config):
@@ -593,10 +591,12 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         sync_reshard_table("//tmp/t", [[]] + [[i * 100] for i in range(1, 3)])
         sync_mount_table("//tmp/t")
 
-        insert_rows("//tmp/t", [{"key": i * 100, "value": str(i)} for i in range(3)])
-        insert_rows("//tmp/t", [{"key": 201, "value": "201"}])
+        insert_rows("//tmp/t", [{"key": i * 100, "value": "value" * 100 + str(i)} for i in range(3)])
+        insert_rows("//tmp/t", [{"key": 201, "value": "value" * 100 + "201"}])
         sync_flush_table("//tmp/t")
 
+        for i in range(3):
+            wait(lambda: get(f"//tmp/t/@tablets/{i}/performance_counters/dynamic_row_write_count") > 0)
         set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", True)
 
         wait(lambda: get("//tmp/t/@tablet_count") == 2)
