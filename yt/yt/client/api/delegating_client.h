@@ -90,7 +90,7 @@ public:
     DELEGATE_METHOD(TFuture<void>, ImportTable, (
         const NYPath::TRichYPath& path,
         std::vector<std::string> s3Keys,
-        const TTableWriterOptions& options),
+        const TTableImportOptions& options),
         (path, std::move(s3Keys), options))
 
     // Queues

@@ -5988,7 +5988,7 @@ private:
             "Path: %v",
             path);
 
-        NApi::TTableWriterOptions options;
+        NApi::TTableImportOptions options;
         TString tableWriterConfig("{}");
         if (request->has_config()) {
             tableWriterConfig = request->config();

@@ -187,7 +187,7 @@ public:
     TFuture<void> ImportTable(
         const NYPath::TRichYPath& path,
         std::vector<std::string> s3Keys,
-        const NApi::TTableWriterOptions& options) override;
+        const NApi::TTableImportOptions& options) override;
 
     // Distributed table client
     TFuture<TDistributedWriteSessionWithCookies> StartDistributedWriteSession(

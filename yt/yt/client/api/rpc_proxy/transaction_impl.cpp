@@ -712,7 +712,7 @@ TFuture<ITableWriterPtr> TTransaction::CreateTableWriter(
 TFuture<void> TTransaction::ImportTable(
     const TRichYPath& path,
     std::vector<std::string> s3Keys,
-    const NApi::TTableWriterOptions& options)
+    const NApi::TTableImportOptions& options)
 {
     ValidateActive();
     return Client_->ImportTable(

@@ -151,7 +151,7 @@ public:
     TFuture<void> ImportTable(
         const NYPath::TRichYPath& path,
         std::vector<std::string> s3Keys,
-        const NApi::TTableWriterOptions& options) override;
+        const NApi::TTableImportOptions& options) override;
 
     TFuture<NYson::TYsonString> GetNode(
         const NYPath::TYPath& path,

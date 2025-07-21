@@ -48,6 +48,12 @@ struct TTableWriterOptions
     NTableClient::TTableWriterConfigPtr Config;
 };
 
+struct TTableImportOptions
+    : public TTableWriterOptions
+    , public TTimeoutOptions
+{
+};
+
 struct TTabletRangeOptions
 {
     std::optional<int> FirstTabletIndex;
@@ -358,7 +364,7 @@ struct ITableClientBase
     virtual TFuture<void> ImportTable(
         const NYPath::TRichYPath& path,
         std::vector<std::string> s3Keys,
-        const TTableWriterOptions& options = {}) = 0;
+        const TTableImportOptions& options = {}) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -90,10 +90,10 @@ TFuture<ITableWriterPtr> TClient::CreateTableWriter(
     }));
 }
 
-TFuture<void> TClient::ImportTable(
+void TClient::DoImportTable(
     const NYPath::TRichYPath& path,
     std::vector<std::string> s3Keys,
-    const TTableWriterOptions& options)
+    const TTableImportOptions& options)
 {
     auto nameTable = New<TNameTable>();
     nameTable->SetEnableColumnNameValidation();
@@ -109,7 +109,7 @@ TFuture<void> TClient::ImportTable(
         transaction = AttachTransaction(options.TransactionId, transactionOptions);
     }
 
-    return ImportSchemalessTable(
+    WaitFor(ImportSchemalessTable(
         options.Config ? options.Config : New<TTableWriterConfig>(),
         writerOptions,
         path,
@@ -119,7 +119,7 @@ TFuture<void> TClient::ImportTable(
         transaction,
         /*writeBlocksOptions*/ {},
         std::move(s3Keys)
-    );
+    )).ThrowOnError();
 }
 
 std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(

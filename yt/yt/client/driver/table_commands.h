@@ -99,7 +99,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TImportTableCommand
-    : public TTypedCommand<NApi::TTableWriterOptions>
+    : public TTypedCommand<NApi::TTableImportOptions>
 {
 public:
     REGISTER_YSON_STRUCT_LITE(TImportTableCommand);

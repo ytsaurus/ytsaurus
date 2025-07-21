@@ -797,7 +797,7 @@ TFuture<ITableWriterPtr> TClientBase::CreateTableWriter(
 TFuture<void> TClientBase::ImportTable(
     const TRichYPath& path,
     std::vector<std::string> s3Keys,
-    const TTableWriterOptions& options)
+    const TTableImportOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
     auto req = proxy.ImportTable();

@@ -603,7 +603,7 @@ public:
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<void>, ImportTable, (
         const TRichYPath& path,
         std::vector<std::string> s3Keys,
-        const TTableWriterOptions& options),
+        const TTableImportOptions& options),
         (path, std::move(s3Keys), options))
 
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<TDistributedWriteSessionWithCookies>, StartDistributedWriteSession, (
