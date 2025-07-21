@@ -143,9 +143,9 @@ These attributes aren't intended for high-load services and should only be used 
 ## Usage example
 
 {% if audience == "internal" %}
-These examples use [Hume](https://{{yt-domain}}.{{internal-domain}}/hume) and [Pythia](https://{{yt-domain}}.{{internal-domain}}/pythia) clusters.
+These examples use [Freud](https://{{yt-domain}}.{{internal-domain}}/freud) and [Pythia](https://{{yt-domain}}.{{internal-domain}}/pythia) clusters.
 {% else %}
-These examples use a hypothetical configuration with multiple clusters, named `hume` and `pythia`.
+These examples use a hypothetical configuration with multiple clusters, named `freud` and `pythia`.
 {% endif %}
 
 <small>Listing 1 — Example of using the Queue API</small>
@@ -155,15 +155,15 @@ These examples use a hypothetical configuration with multiple clusters, named `h
 $ yt --proxy pythia create table //tmp/$USER-test-queue --attributes '{dynamic=true;schema=[{name=data;type=string};{name="$timestamp";type=uint64};{name="$cumulative_data_weight";type=int64}]}
 '2826e-2b1e4-3f30191-dcd2013e
 
-# Create queue_consumer on hume.
-$ yt --proxy hume create queue_consumer //tmp/$USER-test-consumer
+# Create queue_consumer on freud.
+$ yt --proxy freud create queue_consumer //tmp/$USER-test-consumer
 
-# OR: Create queue_consumer on hume as table with explicit schema specification.
-$ yt --proxy hume create table //tmp/$USER-test-consumer --attributes '{dynamic=true;treat_as_queue_consumer=true;schema=[{name=queue_cluster;type=string;sort_order=ascending;required=true};{name=queue_path;type=string;sort_order=ascending;required=true};{name=partition_index;type=uint64;sort_order=ascending;required=true};{name=offset;type=uint64;required=true};{name=meta;type=any;required=false}]}
+# OR: Create queue_consumer on freud as table with explicit schema specification.
+$ yt --proxy freud create table //tmp/$USER-test-consumer --attributes '{dynamic=true;treat_as_queue_consumer=true;schema=[{name=queue_cluster;type=string;sort_order=ascending;required=true};{name=queue_path;type=string;sort_order=ascending;required=true};{name=partition_index;type=uint64;sort_order=ascending;required=true};{name=offset;type=uint64;required=true};{name=meta;type=any;required=false}]}
 '18a5b-28931-3ff0191-35282540
 
 # Register consumer for queue.
-$ yt --proxy pythia register-queue-consumer //tmp/$USER-test-queue "<cluster=hume>//tmp/$USER-test-consumer" --vital
+$ yt --proxy pythia register-queue-consumer //tmp/$USER-test-queue "<cluster=freud>//tmp/$USER-test-consumer" --vital
 
 # Check registrations for queue.
 $ yt --proxy pythia list-queue-consumer-registrations --queue-path //tmp/$USER-test-queue
@@ -173,7 +173,7 @@ $ yt --proxy pythia list-queue-consumer-registrations --queue-path //tmp/$USER-t
       "cluster" = "pythia";
     > "//tmp/bob-test-queue";
     "consumer_path" = <
-      "cluster" = "hume";
+      "cluster" = "freud";
     > "//tmp/bob-test-consumer";
     "vital" = %true;
     "partitions" = #;
@@ -201,7 +201,7 @@ $ yt --proxy pythia get //tmp/$USER-test-queue/@queue_status
     };
     "registrations" = [
         {
-            "consumer" = "hume://tmp/bob-test-consumer";
+            "consumer" = "freud://tmp/bob-test-consumer";
             "vital" = %true;
             "queue" = "pythia://tmp/bob-test-queue";
         };
@@ -237,7 +237,7 @@ $ yt --proxy pythia get //tmp/$USER-test-queue/@queue_partitions
 ]
 
 # Check queue consumer status provided by Queue Agent.
-$ yt --proxy hume get //tmp/$USER-test-consumer/@queue_consumer_status
+$ yt --proxy freud get //tmp/$USER-test-consumer/@queue_consumer_status
 {
     "queues" = {
         "pythia://tmp/bob-test-queue" = {
@@ -259,7 +259,7 @@ $ yt --proxy hume get //tmp/$USER-test-consumer/@queue_consumer_status
     };
     "registrations" = [
         {
-            "consumer" = "hume://tmp/bob-test-consumer";
+            "consumer" = "freud://tmp/bob-test-consumer";
             "vital" = %true;
             "queue" = "pythia://tmp/bob-test-queue";
         };
@@ -270,7 +270,7 @@ $ yt --proxy hume get //tmp/$USER-test-consumer/@queue_consumer_status
 # We can see some errors in the responses above, since both tables are unmounted.
 # Mount queue and consumer tables.
 $ yt --proxy pythia mount-table //tmp/$USER-test-queue
-$ yt --proxy hume mount-table //tmp/$USER-test-consumer
+$ yt --proxy freud mount-table //tmp/$USER-test-consumer
 
 # Check statuses again:
 $ yt --proxy pythia get //tmp/$USER-test-queue/@queue_partitions
@@ -305,7 +305,7 @@ $ yt --proxy pythia get //tmp/$USER-test-queue/@queue_partitions
     };
 ]
 
-$ yt --proxy hume get //tmp/$USER-test-consumer/@queue_consumer_status
+$ yt --proxy freud get //tmp/$USER-test-consumer/@queue_consumer_status
 {
     "queues" = {
         "pythia://tmp/bob-test-queue" = {
@@ -328,7 +328,7 @@ $ yt --proxy hume get //tmp/$USER-test-consumer/@queue_consumer_status
     };
     "registrations" = [
         {
-            "consumer" = "hume://tmp/bob-test-consumer";
+            "consumer" = "freud://tmp/bob-test-consumer";
             "vital" = %true;
             "queue" = "pythia://tmp/bob-test-queue";
         };
@@ -352,7 +352,7 @@ $ yt --proxy pythia get //tmp/$USER-test-queue/@queue_status/write_row_count_rat
 }
 
 # Read data via consumer.
-$ yt --proxy hume pull-queue-consumer //tmp/$USER-test-consumer "<cluster=pythia>//tmp/$USER-test-queue" --partition-index 0 --offset 0 --max-row-count 5 --format "<format=text>yson"
+$ yt --proxy freud pull-queue-consumer //tmp/$USER-test-consumer "<cluster=pythia>//tmp/$USER-test-queue" --partition-index 0 --offset 0 --max-row-count 5 --format "<format=text>yson"
 {"$tablet_index"=0;"$row_index"=0;"data"="foo";"$timestamp"=1865777451725072279u;"$cumulative_data_weight"=20;};
 {"$tablet_index"=0;"$row_index"=1;"data"="bar";"$timestamp"=1865777451725072279u;"$cumulative_data_weight"=40;};
 {"$tablet_index"=0;"$row_index"=2;"data"="foobar";"$timestamp"=1865777451725072279u;"$cumulative_data_weight"=63;};
@@ -360,11 +360,11 @@ $ yt --proxy hume pull-queue-consumer //tmp/$USER-test-consumer "<cluster=pythia
 {"$tablet_index"=0;"$row_index"=4;"data"="megabar";"$timestamp"=1865777451725072279u;"$cumulative_data_weight"=111;};
 
 # Advance queue consumer.
-$ yt --proxy hume advance-queue-consumer //tmp/$USER-test-consumer "<cluster=pythia>//tmp/$USER-test-queue" --partition-index 0 --old-offset 0 --new-offset 42
+$ yt --proxy freud advance-queue-consumer //tmp/$USER-test-consumer "<cluster=pythia>//tmp/$USER-test-queue" --partition-index 0 --old-offset 0 --new-offset 42
 
 # Since trimming is enabled and the consumer is the only vital consumer for the queue, soon the rows up to index 42 will be trimmed.
 # Calling pull-queue-consumer now returns the next available rows.
-$ yt --proxy hume pull-queue-consumer //tmp/$USER-test-consumer "<cluster=pythia>//tmp/$USER-test-queue"  --partition-index 0 --offset 0 --max-row-count 5 --format "<format=text>yson"
+$ yt --proxy freud pull-queue-consumer //tmp/$USER-test-consumer "<cluster=pythia>//tmp/$USER-test-queue"  --partition-index 0 --offset 0 --max-row-count 5 --format "<format=text>yson"
 {"$tablet_index"=0;"$row_index"=42;"data"="foobar";"$timestamp"=1865777485011069884u;"$cumulative_data_weight"=951;};
 {"$tablet_index"=0;"$row_index"=43;"data"="megafoo";"$timestamp"=1865777485011069884u;"$cumulative_data_weight"=975;};
 {"$tablet_index"=0;"$row_index"=44;"data"="megabar";"$timestamp"=1865777485011069884u;"$cumulative_data_weight"=999;};
@@ -440,7 +440,7 @@ $ yt --proxy pythia pull-queue //tmp/$USER-test-queue --offset 100 --partition-i
 ```
 
 {% if audience == "internal" %}
-You can see the results of the operations in graphs on the queue and consumer tab, as well as on the general [dashboard](https://{{monitoring-domain}}.{{internal-domain}}/projects/yt/dashboards/monuob4oi7lf8uddjs76?p%5Bconsumer_cluster%5D=hume&p%5Bconsumer_path%5D=%2F%2Ftmp%2Ftest_consumer&p%5Bqueue_cluster%5D=pythia&p%5Bqueue_path%5D=%2F%2Ftmp%2Ftest_queue&from=1687429383727&to=1687444244000&forceRefresh=1687444307283).
+You can see the results of the operations in graphs on the queue and consumer tab, as well as on the general [dashboard](https://{{monitoring-domain}}.{{internal-domain}}/projects/yt/dashboards/monuob4oi7lf8uddjs76?p%5Bconsumer_cluster%5D=freud&p%5Bconsumer_path%5D=%2F%2Ftmp%2Ftest_consumer&p%5Bqueue_cluster%5D=pythia&p%5Bqueue_path%5D=%2F%2Ftmp%2Ftest_queue&from=1687429383727&to=1687444244000&forceRefresh=1687444307283).
 
 ## Limitations and issues
 
