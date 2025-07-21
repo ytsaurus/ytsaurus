@@ -187,13 +187,13 @@ func (c *Controller) GetSparkDistrib(ctx context.Context, speclet *Speclet) (nam
 }
 
 func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
-	spec map[string]any, description map[string]any, annotations map[string]any, err error) {
+	spec map[string]any, description map[string]any, annotations map[string]any, runAsUser bool, err error) {
 	alias := oplet.Alias()
 
 	speclet := oplet.ControllerSpeclet().(Speclet)
 
 	if speclet.Version == nil {
-		return nil, nil, nil, yterrors.Err("SPYT version is not provided")
+		return nil, nil, nil, false, yterrors.Err("SPYT version is not provided")
 	}
 
 	globalConf, err := c.ParseGlobalConf(ctx)
@@ -256,6 +256,8 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 	annotations = map[string]any{
 		"is_spark": true,
 	}
+
+	runAsUser = false
 
 	return
 }

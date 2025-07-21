@@ -86,7 +86,7 @@ func (c *Controller) buildCommand(speclet *Speclet) (command string, env map[str
 }
 
 func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
-	spec map[string]any, description map[string]any, annotations map[string]any, err error) {
+	spec map[string]any, description map[string]any, annotations map[string]any, runAsUser bool, err error) {
 	alias := oplet.Alias()
 
 	// description = buildDescription(c.cluster, alias, c.config.EnableYandexSpecificLinksOrDefault())
@@ -137,6 +137,8 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 		"is_notebook": true,
 		"expose":      true,
 	}
+
+	runAsUser = c.config.RunAsUser
 
 	return
 }
@@ -335,10 +337,6 @@ func (c *Controller) GetScalerTarget(ctx context.Context, opletInfo strawberry.O
 	}
 
 	return nil, nil
-}
-
-func (c *Controller) RunAsUser() bool {
-	return c.config.RunAsUser
 }
 
 func parseConfig(rawConfig yson.RawValue) Config {

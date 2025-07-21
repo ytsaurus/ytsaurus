@@ -904,7 +904,7 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 		defer cancel()
 	}
 
-	spec, description, annotations, err := oplet.c.Prepare(ctx, oplet)
+	spec, description, annotations, runAsUser, err := oplet.c.Prepare(ctx, oplet)
 
 	if err != nil {
 		oplet.setError(err)
@@ -989,7 +989,7 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 	}
 
 	var ytClientForOpStart yt.Client
-	if oplet.c.RunAsUser() {
+	if runAsUser {
 		ytClientForOpStart, err = oplet.getUserClient()
 		if err != nil {
 			oplet.setError(err)
@@ -1012,7 +1012,7 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 			oplet.setError(abortErr)
 			return abortErr
 		}
-		opID, err = oplet.userClient.StartOperation(ctx, yt.OperationVanilla, spec, nil)
+		opID, err = ytClientForOpStart.StartOperation(ctx, yt.OperationVanilla, spec, nil)
 	}
 
 	if err != nil {

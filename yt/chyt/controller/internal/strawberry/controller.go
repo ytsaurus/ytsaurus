@@ -17,6 +17,7 @@ type Controller interface {
 		spec map[string]any,
 		description map[string]any,
 		annotation map[string]any,
+		runAsUser bool,
 		err error)
 
 	// Family returns short lowercase_with_underscore identifier which is included to all vanilla
@@ -51,9 +52,6 @@ type Controller interface {
 	// Returns `nil` if scaling is not required.
 	// May be called concurrently since it is accessed from `runScaler`, not from `background` goroutine.
 	GetScalerTarget(ctx context.Context, opletInfo OpletInfoForScaler) (*ScalerTarget, error)
-
-	// RunAsUser returns true if the operation should run as a user.
-	RunAsUser() bool
 }
 
 type ControllerFactory struct {
