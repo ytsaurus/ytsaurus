@@ -3713,7 +3713,7 @@ private:
             YT_LOG_INFO("Set custom runtime data for tablet (%v, CustomRuntimeData: %v)",
                 tablet->GetLoggingTag(),
                 TruncateString(
-                    ConvertToYsonString(request->custom_runtime_data(), EYsonFormat::Text).ToString(),
+                    ConvertToYsonString(ConvertToNode(request->custom_runtime_data()), EYsonFormat::Text).ToString(),
                     CustomRuntimeDataTruncateLimit));
 
             tablet->CustomRuntimeData() = TYsonString(request->custom_runtime_data());
