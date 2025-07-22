@@ -1261,6 +1261,30 @@ type LookupRowsOptions struct {
 	*TransactionOptions
 }
 
+type MultiLookupSubrequest struct {
+	Path                ypath.Path
+	KeepMissingRows     *bool
+	EnablePartialResult *bool
+	UseLookupCache      *bool
+	Columns             []string
+	Keys                []any
+}
+
+type TabletReadOptions struct {
+	ReadFrom                  *TabletReadKind
+	CachedSyncReplicasTimeout *uint64
+}
+
+type MultiLookupRowsOptions struct {
+	Timestamp          *Timestamp
+	RetentionTimestamp *Timestamp
+	TabletReadOptions  *TabletReadOptions
+	ReplicaConsistency *ReplicaConsistency
+	MultiplexingBand   *MultiplexingBand
+
+	*TransactionOptions
+}
+
 type InsertRowsOptions struct {
 	Atomicity          *Atomicity `http:"atomicity,omitnil"`
 	RequireSyncReplica *bool      `http:"require_sync_replica,omitnil"`
@@ -1345,6 +1369,19 @@ type TabletClient interface {
 		keys []any,
 		options *LookupRowsOptions,
 	) (r TableReader, err error)
+
+	// MultiLookupRows performs lookup by key across multiple tables.
+	//
+	// This method allows performing lookup operations on multiple tables in a single request,
+	// which can be more efficient than making separate LookupRows calls.
+	//
+	// Returns a slice of TableReaders, one for each subrequest in the same order.
+	// Each TableReader contains the lookup results for the corresponding table.
+	MultiLookupRows(
+		ctx context.Context,
+		subrequests []MultiLookupSubrequest,
+		options *MultiLookupRowsOptions,
+	) (readers []TableReader, err error)
 
 	// LockRows acquires lock for given keys, without changing row values.
 	//

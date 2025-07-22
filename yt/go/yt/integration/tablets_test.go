@@ -17,6 +17,7 @@ import (
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/ctxlog"
 	logzap "go.ytsaurus.tech/library/go/core/log/zap"
+	"go.ytsaurus.tech/library/go/ptr"
 	"go.ytsaurus.tech/yt/go/migrate"
 	"go.ytsaurus.tech/yt/go/schema"
 	"go.ytsaurus.tech/yt/go/yt"
@@ -53,6 +54,11 @@ func TestTabletClient(t *testing.T) {
 		{Name: "DeleteRows_empty", Test: suite.TestDeleteRows_empty},
 		{Name: "InsertRowsBatch", Test: suite.TestInsertRowsBatch},
 		{Name: "LookupRows_map", Test: suite.TestLookupRows_map, SkipRPC: true}, // todo https://st.yandex-team.ru/YT-15505
+		{Name: "MultiLookupRows_Basic", Test: suite.TestMultiLookupRows_Basic, SkipHTTP: true},
+		{Name: "MultiLookupRows_WithKeepMissingRows", Test: suite.TestMultiLookupRows_WithKeepMissingRows, SkipHTTP: true},
+		{Name: "MultiLookupRows_WithColumns", Test: suite.TestMultiLookupRows_WithColumns, SkipHTTP: true},
+		{Name: "MultiLookupRows_WithTimestamp", Test: suite.TestMultiLookupRows_WithTimestamp, SkipHTTP: true},
+		{Name: "MultiLookupRows_EmptySubrequests", Test: suite.TestMultiLookupRows_EmptySubrequests, SkipHTTP: true},
 		{Name: "SelectRowsWithPlaceholders", Test: suite.SelectRowsWithPlaceholders},
 	})
 }
@@ -619,4 +625,219 @@ func TestLockRows(t *testing.T) { // todo rewrite as suite test after LockRows i
 
 	require.NoError(t, tx0.LockRows(env.Ctx, testTable, []string{"lock"}, yt.LockTypeSharedStrong, key, nil))
 	require.Error(t, tx0.Commit())
+}
+
+func (s *Suite) TestMultiLookupRows_Basic(ctx context.Context, t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	// Create two test tables
+	table1 := tmpPath().Child("table1")
+	table2 := tmpPath().Child("table2")
+
+	require.NoError(t, migrate.Create(ctx, yc, table1, schema.MustInfer(&testRow{})))
+	require.NoError(t, migrate.Create(ctx, yc, table2, schema.MustInfer(&testRow{})))
+	require.NoError(t, migrate.MountAndWait(ctx, yc, table1))
+	require.NoError(t, migrate.MountAndWait(ctx, yc, table2))
+
+	// Insert data into both tables
+	rows1 := []any{
+		&testRow{"key1", "value1"},
+		&testRow{"key2", "value2"},
+	}
+	rows2 := []any{
+		&testRow{"key3", "value3"},
+		&testRow{"key4", "value4"},
+	}
+
+	require.NoError(t, yc.InsertRows(ctx, table1, rows1, nil))
+	require.NoError(t, yc.InsertRows(ctx, table2, rows2, nil))
+
+	subrequests := []yt.MultiLookupSubrequest{
+		{
+			Path: table1,
+			Keys: []any{
+				&testKey{"key1"},
+				&testKey{"key2"},
+			},
+		},
+		{
+			Path: table2,
+			Keys: []any{
+				&testKey{"key3"},
+				&testKey{"key4"},
+			},
+		},
+	}
+
+	readers, err := yc.MultiLookupRows(ctx, subrequests, nil)
+	require.NoError(t, err)
+	require.Len(t, readers, 2)
+
+	// Check first table results
+	reader1 := readers[0]
+	defer reader1.Close()
+
+	var row testRow
+	require.True(t, reader1.Next())
+	require.NoError(t, reader1.Scan(&row))
+	assert.Equal(t, testRow{"key1", "value1"}, row)
+
+	require.True(t, reader1.Next())
+	require.NoError(t, reader1.Scan(&row))
+	assert.Equal(t, testRow{"key2", "value2"}, row)
+
+	require.False(t, reader1.Next())
+	require.NoError(t, reader1.Err())
+
+	// Check second table results
+	reader2 := readers[1]
+	defer reader2.Close()
+
+	require.True(t, reader2.Next())
+	require.NoError(t, reader2.Scan(&row))
+	assert.Equal(t, testRow{"key3", "value3"}, row)
+
+	require.True(t, reader2.Next())
+	require.NoError(t, reader2.Scan(&row))
+	assert.Equal(t, testRow{"key4", "value4"}, row)
+
+	require.False(t, reader2.Next())
+	require.NoError(t, reader2.Err())
+}
+
+func (s *Suite) TestMultiLookupRows_WithKeepMissingRows(ctx context.Context, t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	table := tmpPath().Child("table")
+	require.NoError(t, migrate.Create(ctx, yc, table, schema.MustInfer(&testRow{})))
+	require.NoError(t, migrate.MountAndWait(ctx, yc, table))
+
+	// Insert only one row
+	rows := []any{&testRow{"existing", "value"}}
+	require.NoError(t, yc.InsertRows(ctx, table, rows, nil))
+
+	subrequests := []yt.MultiLookupSubrequest{
+		{
+			Path:            table,
+			KeepMissingRows: ptr.Bool(true),
+			Keys: []any{
+				&testKey{"existing"},
+				&testKey{"missing"},
+			},
+		},
+	}
+
+	readers, err := yc.MultiLookupRows(ctx, subrequests, nil)
+	require.NoError(t, err)
+	require.Len(t, readers, 1)
+
+	reader := readers[0]
+	defer reader.Close()
+
+	// First row should exist
+	var row testRow
+	require.True(t, reader.Next())
+	require.NoError(t, reader.Scan(&row))
+	assert.Equal(t, testRow{"existing", "value"}, row)
+
+	// Second row should be nil (missing)
+	require.True(t, reader.Next())
+	out := &testRow{}
+	require.NoError(t, reader.Scan(&out))
+	assert.Nil(t, out)
+
+	require.False(t, reader.Next())
+	require.NoError(t, reader.Err())
+}
+
+func (s *Suite) TestMultiLookupRows_WithColumns(ctx context.Context, t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	table := tmpPath().Child("table")
+	require.NoError(t, migrate.Create(ctx, yc, table, schema.MustInfer(&testRowWithTwoColumns{})))
+	require.NoError(t, migrate.MountAndWait(ctx, yc, table))
+
+	rows := []any{&testRowWithTwoColumns{"key1", "val0", "val1"}}
+	require.NoError(t, yc.InsertRows(ctx, table, rows, nil))
+
+	subrequests := []yt.MultiLookupSubrequest{
+		{
+			Path:    table,
+			Columns: []string{"table_key", "value0"}, // Only select specific columns
+			Keys: []any{
+				&testKey{"key1"},
+			},
+		},
+	}
+
+	readers, err := yc.MultiLookupRows(ctx, subrequests, nil)
+	require.NoError(t, err)
+	require.Len(t, readers, 1)
+
+	reader := readers[0]
+	defer reader.Close()
+
+	var row testRowWithTwoColumns
+	require.True(t, reader.Next())
+	require.NoError(t, reader.Scan(&row))
+	// Should only have the selected columns
+	assert.Equal(t, testRowWithTwoColumns{Key: "key1", Value0: "val0"}, row)
+
+	require.False(t, reader.Next())
+	require.NoError(t, reader.Err())
+}
+
+func (s *Suite) TestMultiLookupRows_WithTimestamp(ctx context.Context, t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	table := tmpPath().Child("table")
+	require.NoError(t, migrate.Create(ctx, yc, table, schema.MustInfer(&testRow{})))
+	require.NoError(t, migrate.MountAndWait(ctx, yc, table))
+
+	rows := []any{&testRow{"key1", "value1"}}
+	require.NoError(t, yc.InsertRows(ctx, table, rows, nil))
+
+	// Generate timestamp after insertion
+	ts, err := yc.GenerateTimestamp(ctx, nil)
+	require.NoError(t, err)
+
+	// Delete the row
+	keys := []any{&testKey{"key1"}}
+	require.NoError(t, yc.DeleteRows(ctx, table, keys, nil))
+
+	// MultiLookupRows with timestamp should still find the row
+	subrequests := []yt.MultiLookupSubrequest{
+		{
+			Path: table,
+			Keys: []any{&testKey{"key1"}},
+		},
+	}
+
+	options := &yt.MultiLookupRowsOptions{
+		Timestamp: &ts,
+	}
+
+	readers, err := yc.MultiLookupRows(ctx, subrequests, options)
+	require.NoError(t, err)
+	require.Len(t, readers, 1)
+
+	reader := readers[0]
+	defer reader.Close()
+
+	var row testRow
+	require.True(t, reader.Next())
+	require.NoError(t, reader.Scan(&row))
+	assert.Equal(t, testRow{"key1", "value1"}, row)
+
+	require.False(t, reader.Next())
+	require.NoError(t, reader.Err())
+}
+
+func (s *Suite) TestMultiLookupRows_EmptySubrequests(ctx context.Context, t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	// Test with empty subrequests
+	readers, err := yc.MultiLookupRows(ctx, []yt.MultiLookupSubrequest{}, nil)
+	require.NoError(t, err)
+	require.Len(t, readers, 0)
 }

@@ -994,6 +994,19 @@ func writeLookupRowsOptions(w *yson.Writer, o *yt.LookupRowsOptions) {
 	writeTransactionOptions(w, o.TransactionOptions)
 }
 
+func writeTabletReadOptions(w *yson.Writer, o *yt.TabletReadOptions) {
+	if o == nil {
+		return
+	}
+}
+
+func writeMultiLookupRowsOptions(w *yson.Writer, o *yt.MultiLookupRowsOptions) {
+	if o == nil {
+		return
+	}
+	writeTransactionOptions(w, o.TransactionOptions)
+}
+
 func writeInsertRowsOptions(w *yson.Writer, o *yt.InsertRowsOptions) {
 	if o == nil {
 		return
@@ -1109,6 +1122,7 @@ func writeCreateQueueProducerSessionOptions(w *yson.Writer, o *yt.CreateQueuePro
 		w.Any(o.UserMeta)
 	}
 	writeTimeoutOptions(w, o.TimeoutOptions)
+	writeMutatingOptions(w, o.MutatingOptions)
 }
 
 func writeRemoveQueueProducerSessionOptions(w *yson.Writer, o *yt.RemoveQueueProducerSessionOptions) {
@@ -4440,6 +4454,10 @@ func (p *CreateQueueProducerSessionParams) MarshalHTTP(w *yson.Writer) {
 
 func (p *CreateQueueProducerSessionParams) TimeoutOptions() **yt.TimeoutOptions {
 	return &p.options.TimeoutOptions
+}
+
+func (p *CreateQueueProducerSessionParams) MutatingOptions() **yt.MutatingOptions {
+	return &p.options.MutatingOptions
 }
 
 type RemoveQueueProducerSessionParams struct {

@@ -20,9 +20,10 @@ import (
 type Encoder struct {
 	StartCall func() *Call
 
-	Invoke        CallInvoker
-	InvokeInTx    CallInvoker
-	InvokeReadRow ReadRowInvoker
+	Invoke            CallInvoker
+	InvokeInTx        CallInvoker
+	InvokeReadRow     ReadRowInvoker
+	InvokeMultiLookup MultiLookupInvoker
 }
 
 func (e *Encoder) newCall(method Method, req Request, attachments [][]byte) *Call {
@@ -602,6 +603,53 @@ func (e *Encoder) LookupRows(
 	call := e.newCall(MethodLookupRows, NewLookupRowsRequest(req), attachments)
 	var rsp rpc_proxy.TRspLookupRows
 	return e.InvokeReadRow(ctx, call, &rsp)
+}
+
+func (e *Encoder) MultiLookupRows(
+	ctx context.Context,
+	subrequests []yt.MultiLookupSubrequest,
+	opts *yt.MultiLookupRowsOptions,
+) (readers []yt.TableReader, err error) {
+	if opts == nil {
+		opts = &yt.MultiLookupRowsOptions{}
+	}
+
+	var attachments [][]byte
+	var subreqs []*rpc_proxy.TReqMultiLookup_TSubrequest
+
+	for _, subreq := range subrequests {
+		subAttachments, descriptor, err := encodeToWire(subreq.Keys)
+		if err != nil {
+			return nil, xerrors.Errorf("unable to encode subrequest into wire format: %w", err)
+		}
+
+		attachments = append(attachments, subAttachments...)
+
+		protoSubreq := &rpc_proxy.TReqMultiLookup_TSubrequest{
+			Path:                []byte(subreq.Path.String()),
+			Columns:             subreq.Columns,
+			KeepMissingRows:     subreq.KeepMissingRows,
+			EnablePartialResult: subreq.EnablePartialResult,
+			UseLookupCache:      subreq.UseLookupCache,
+			RowsetDescriptor:    descriptor,
+			AttachmentCount:     proto.Int32(int32(len(subAttachments))),
+		}
+
+		subreqs = append(subreqs, protoSubreq)
+	}
+
+	req := &rpc_proxy.TReqMultiLookup{
+		Subrequests:        subreqs,
+		Timestamp:          convertTimestamp(opts.Timestamp),
+		TabletReadOptions:  convertTabletReadOptions(opts.TabletReadOptions),
+		ReplicaConsistency: convertReplicaConsistency(opts.ReplicaConsistency),
+		MultiplexingBand:   convertMultiplexingBand(opts.MultiplexingBand),
+	}
+
+	call := e.newCall(MethodMultiLookup, NewMultiLookupRequest(req), attachments)
+	var rsp rpc_proxy.TRspMultiLookup
+
+	return e.InvokeMultiLookup(ctx, call, &multiLookupRespWrapper{&rsp})
 }
 
 func (e *Encoder) LockRows(

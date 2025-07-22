@@ -111,6 +111,7 @@ func NewClient(conf *yt.Config) (*client, error) {
 	c.Encoder.Invoke = c.invoke
 	c.Encoder.InvokeInTx = c.invokeInTx
 	c.Encoder.InvokeReadRow = c.doReadRow
+	c.Encoder.InvokeMultiLookup = c.doMultiLookup
 
 	proxyBouncer := &ProxyBouncer{Log: c.log, ProxySet: c.proxySet, ConnPool: c.connPool}
 	requestLogger := &LoggingInterceptor{Structured: c.log}
@@ -152,6 +153,52 @@ func (c *client) doReadRow(
 	}
 
 	return newTableReader(rows, rsp.GetRowsetDescriptor())
+}
+
+func (c *client) doMultiLookup(
+	ctx context.Context,
+	call *Call,
+	rsp ProtoMultiLookupResp,
+) ([]yt.TableReader, error) {
+	var rspAttachments [][]byte
+
+	err := c.Invoke(ctx, call, rsp, bus.WithResponseAttachments(&rspAttachments))
+	if err != nil {
+		return nil, err
+	}
+
+	readers := make([]yt.TableReader, len(rsp.GetSubresponses()))
+	attachmentOffset := 0
+
+	defer func() {
+		if err != nil {
+			for _, reader := range readers {
+				if reader != nil {
+					reader.Close()
+				}
+			}
+		}
+	}()
+
+	for i, subresponse := range rsp.GetSubresponses() {
+		attachmentCount := int(subresponse.GetAttachmentCount())
+		subAttachments := rspAttachments[attachmentOffset : attachmentOffset+attachmentCount]
+		attachmentOffset += attachmentCount
+
+		rows, err := decodeFromWire(subAttachments)
+		if err != nil {
+			return nil, xerrors.Errorf("unable to decode subresponse %d from wire format: %w", i, err)
+		}
+
+		reader, err := newTableReader(rows, subresponse.GetRowsetDescriptor())
+		if err != nil {
+			return nil, xerrors.Errorf("unable to create table reader for subresponse %d: %w", i, err)
+		}
+
+		readers[i] = reader
+	}
+
+	return readers, nil
 }
 
 func (c *client) invoke(

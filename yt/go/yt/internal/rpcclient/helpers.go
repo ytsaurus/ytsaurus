@@ -1172,3 +1172,72 @@ func convertPlaceHolderValues(placeholderValues any) ([]byte, error) {
 
 	return yson.Marshal(placeholderValues)
 }
+
+func convertMultiplexingBand(band *yt.MultiplexingBand) *rpc_proxy.EMultiplexingBand {
+	var result rpc_proxy.EMultiplexingBand
+
+	if band == nil {
+		return nil
+	}
+
+	switch *band {
+	case yt.MultiplexingBandDefault:
+		result = rpc_proxy.EMultiplexingBand_MB_DEFAULT
+	case yt.MultiplexingBandControl:
+		result = rpc_proxy.EMultiplexingBand_MB_CONTROL
+	case yt.MultiplexingBandHeavy:
+		result = rpc_proxy.EMultiplexingBand_MB_HEAVY
+	case yt.MultiplexingBandInteractive:
+		result = rpc_proxy.EMultiplexingBand_MB_INTERACTIVE
+	}
+
+	return &result
+}
+
+func convertReplicaConsistency(consistency *yt.ReplicaConsistency) *rpc_proxy.EReplicaConsistency {
+	var result rpc_proxy.EReplicaConsistency
+
+	if consistency == nil {
+		return nil
+	}
+
+	switch *consistency {
+	case yt.ReplicaConsistencyNone:
+		result = rpc_proxy.EReplicaConsistency_RRM_NONE
+	case yt.ReplicaConsistencySync:
+		result = rpc_proxy.EReplicaConsistency_RRM_SYNC
+	}
+
+	return &result
+}
+
+func convertTabletReadOptions(opts *yt.TabletReadOptions) *rpc_proxy.TTabletReadOptions {
+	if opts == nil {
+		return nil
+	}
+	result := &rpc_proxy.TTabletReadOptions{}
+	if opts.ReadFrom != nil {
+		var readFrom rpc_proxy.ETabletReadKind
+		switch *opts.ReadFrom {
+		case yt.TabletReadKindLeader:
+			readFrom = rpc_proxy.ETabletReadKind_TRK_LEADER
+		case yt.TabletReadKindFollower:
+			readFrom = rpc_proxy.ETabletReadKind_TRK_FOLLOWER
+		case yt.TabletReadKindLeaderOrFollower:
+			readFrom = rpc_proxy.ETabletReadKind_TRK_LEADER_OR_FOLLOWER
+		}
+		result.ReadFrom = &readFrom
+	}
+	result.CachedSyncReplicasTimeout = opts.CachedSyncReplicasTimeout
+	return result
+}
+
+type multiLookupRespWrapper struct{ *rpc_proxy.TRspMultiLookup }
+
+func (w *multiLookupRespWrapper) GetSubresponses() []ProtoMultiLookupSubresp {
+	result := make([]ProtoMultiLookupSubresp, len(w.TRspMultiLookup.GetSubresponses()))
+	for i, sub := range w.TRspMultiLookup.GetSubresponses() {
+		result[i] = sub
+	}
+	return result
+}
