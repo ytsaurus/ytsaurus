@@ -3,6 +3,7 @@ GTEST()
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
+    client_ut.cpp
     crypto_helpers_ut.cpp
     http_ut.cpp
 )
