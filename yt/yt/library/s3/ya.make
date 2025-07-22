@@ -16,7 +16,8 @@ PEERDIR(
     yt/yt/core/http
 
     library/cpp/string_utils/base64
-    library/cpp/xml/document
+
+    contrib/libs/poco/XML
 )
 
 END()
