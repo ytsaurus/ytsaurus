@@ -1404,6 +1404,11 @@ class TestJobProfiling(YTEnvSetup):
                     "min_repeat_delay": 10,
                     "max_repeat_delay": 10,
                 },
+                "job_controller": {
+                    "job_proxy": {
+                        "enable_cuda_profile_event_streaming": False,
+                    },
+                },
             }
         }
     }
@@ -1594,7 +1599,6 @@ class TestJobTraceEvents(YTEnvSetup):
                 },
                 "job_controller": {
                     "job_proxy": {
-                        "enable_cuda_profile_event_streaming": True,
                         "job_trace_event_processor": {
                             "reporter": {
                                 "reporting_period": 10,
