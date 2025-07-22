@@ -20,6 +20,7 @@ RECURSE(
     error_skeleton
     formats
     fusion
+    heavy_hitters
     heavy_schema_validation
     huggingface_client
     monitoring
