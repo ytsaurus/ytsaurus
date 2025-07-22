@@ -278,7 +278,7 @@ public:
         });
     }
 
-    void OnProfiling(const std::function<bool(TCellId)>& cellIdFilter) override
+    void OnProfiling(TFunctionRef<bool(TCellId)> cellIdFilter) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
