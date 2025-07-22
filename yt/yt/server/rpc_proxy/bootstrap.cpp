@@ -202,10 +202,6 @@ void TBootstrap::DoInitialize()
         RootClient_,
         GetControlInvoker());
 
-    // NB(pavook):
-    // We can't wait for initialization anywhere in bootstrap, because proxy bootstrap
-    // should be possible even in master read-only mode.
-    YT_UNUSED_FUTURE(SignatureComponents_->Initialize());
     Connection_->SetSignatureGenerator(SignatureComponents_->GetSignatureGenerator());
 
     ProxyCoordinator_ = CreateProxyCoordinator();

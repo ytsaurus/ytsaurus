@@ -189,10 +189,9 @@ public:
         }
 
         if (auto signatureGenerationConfig = GetConfig()->ExecNode->SignatureGeneration) {
-            auto cypressKeyWriter = WaitFor(CreateCypressKeyWriter(
+            auto cypressKeyWriter = New<TCypressKeyWriter>(
                 signatureGenerationConfig->CypressKeyWriter,
-                GetClient()))
-                .ValueOrThrow();
+                GetClient());
             auto signatureGenerator = New<TSignatureGenerator>(signatureGenerationConfig->Generator);
             SignatureKeyRotator_ = New<TKeyRotator>(
                 signatureGenerationConfig->KeyRotator,

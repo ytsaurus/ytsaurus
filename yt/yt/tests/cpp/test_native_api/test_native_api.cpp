@@ -3,9 +3,18 @@
 
 #include <yt/yt/tests/cpp/modify_rows_test.h>
 
+#include <yt/yt/server/lib/signature/components.h>
+#include <yt/yt/server/lib/signature/config.h>
+#include <yt/yt/server/lib/signature/cypress_key_store.h>
+#include <yt/yt/server/lib/signature/key_info.h>
+#include <yt/yt/server/lib/signature/signature_generator.h>
+#include <yt/yt/server/lib/signature/signature_validator.h>
+
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
 #include <yt/yt/client/api/table_writer.h>
+
+#include <yt/yt/client/signature/signature.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/client.h>
@@ -42,6 +51,8 @@
 
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <yt/yt/core/ypath/helpers.h>
+
 #include <yt/yt/core/yson/string.h>
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
@@ -61,11 +72,16 @@ using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NRpc;
 using namespace NSecurityClient;
+using namespace NSignature;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
-using namespace NYson;
+using namespace NYPath;
 using namespace NYTree;
+using namespace NYson;
+
+using ::testing::HasSubstr;
+using ::testing::SizeIs;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1444,6 +1460,248 @@ TEST_F(TPingTransactionsTest, Reconfigure)
         .ThrowOnError();
 
     EXPECT_GE(timer.GetElapsedTime(), 2 * batchPeriod);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCypressKeyWriterTest
+    : public TApiTestBase
+{
+    NNative::IClientPtr NativeClient = DynamicPointerCast<NNative::IClient>(Client_);
+    TOwnerId OwnerId = TOwnerId("test");
+    TInstant NowTime = Now();
+    TInstant ExpiresAt = NowTime + TDuration::MilliSeconds(1);
+    TKeyPairMetadata MetaValid = TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>{
+        .OwnerId = OwnerId,
+        .KeyId = TKeyId(TGuid(1, 2, 3, 4)),
+        .CreatedAt = NowTime,
+        .ValidAfter = NowTime - TDuration::Hours(10),
+        .ExpiresAt = ExpiresAt,
+    };
+    TKeyPairMetadata MetaExpired = TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>{
+        .OwnerId = OwnerId,
+        .KeyId = TKeyId(TGuid(5, 6, 7, 8)),
+        .CreatedAt = NowTime,
+        .ValidAfter = NowTime - TDuration::Hours(10),
+        .ExpiresAt = NowTime - TDuration::Hours(1),
+    };
+    TCypressKeyWriterConfigPtr Config = New<TCypressKeyWriterConfig>();
+    TCypressKeyWriterPtr Writer;
+
+    TCypressKeyWriterTest()
+    {
+        static int testId = 0;
+        Config->Path = YPathJoin("//sys/public_keys", ++testId);
+        WaitFor(Client_->CreateNode(Config->Path, EObjectType::MapNode))
+            .ThrowOnError();
+        Config->OwnerId = OwnerId;
+        Writer = New<TCypressKeyWriter>(Config, NativeClient);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TCypressKeyWriterTest, GetOwner)
+{
+    EXPECT_EQ(Writer->GetOwner(), OwnerId);
+}
+
+TEST_F(TCypressKeyWriterTest, RegisterKey)
+{
+    auto keyInfo = New<TKeyInfo>(TPublicKey{}, MetaValid);
+
+    {
+        EXPECT_TRUE(
+            WaitFor(Writer->RegisterKey(keyInfo))
+                .IsOK());
+
+        EXPECT_TRUE(
+            WaitFor(Client_->GetNode(YPathJoin(Config->Path, "test")))
+                .IsOK());
+        EXPECT_EQ(
+            ConvertTo<TKeyInfo>(WaitFor(Client_->GetNode(YPathJoin(Config->Path, "test", "4-3-2-1")))
+                .ValueOrThrow()),
+            *keyInfo);
+        EXPECT_EQ(
+            ConvertTo<TInstant>(
+                WaitFor(Client_->GetNode(YPathJoin(Config->Path, "test", "4-3-2-1") + "/@expiration_time"))
+                    .ValueOrThrow()),
+            ExpiresAt + Config->KeyDeletionDelay);
+
+        // Second registration should fail.
+        EXPECT_THROW_WITH_SUBSTRING(
+            WaitFor(Writer->RegisterKey(keyInfo))
+                .ThrowOnError(),
+            "already exists");
+    }
+}
+
+TEST_F(TCypressKeyWriterTest, RegisterKeyFailed)
+{
+    Config->Path = "//sys/nonexistent/path";
+    auto keyInfo = New<TKeyInfo>(TPublicKey{}, MetaValid);
+
+    // Registration should fail gracefully.
+    EXPECT_THROW_WITH_SUBSTRING(
+        WaitFor(Writer->RegisterKey(keyInfo))
+            .ThrowOnError(),
+        "no child with key");
+}
+
+TEST_F(TCypressKeyWriterTest, RegisterExpiredKey)
+{
+    auto expiredKeyInfo = New<TKeyInfo>(TPublicKey{}, MetaExpired);
+
+    EXPECT_TRUE(
+        WaitFor(Writer->RegisterKey(expiredKeyInfo))
+            .IsOK());
+}
+
+TEST_F(TCypressKeyWriterTest, RegisterMultipleKeys)
+{
+    std::vector<TKeyInfoPtr> keys;
+    std::vector<TFuture<void>> registrationFutures;
+    for (int i = 0; i < 10; ++i) {
+        auto meta = TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>{
+            .OwnerId = OwnerId,
+            .KeyId = TKeyId(TGuid(i, 0, 0, 0)),
+            .CreatedAt = NowTime,
+            .ValidAfter = NowTime - TDuration::Hours(10),
+            .ExpiresAt = ExpiresAt,
+        };
+        keys.push_back(New<TKeyInfo>(TPublicKey{}, meta));
+        registrationFutures.push_back(Writer->RegisterKey(keys.back()));
+    }
+
+    EXPECT_TRUE(WaitFor(AllSucceeded(registrationFutures))
+        .IsOK());
+
+    auto keyNodes = ConvertTo<std::vector<TString>>(
+        WaitFor(Client_->ListNode(YPathJoin(Config->Path, "test")))
+            .ValueOrThrow());
+    EXPECT_THAT(keyNodes, SizeIs(keys.size()));
+}
+
+TEST_F(TCypressKeyWriterTest, BatchOperationPartialFailure)
+{
+    // Create a document node at the key path to simulate a conflict.
+    auto keyPath = YPathJoin(Config->Path, "test", "4-3-2-1");
+    TCreateNodeOptions options;
+    options.IgnoreExisting = true;
+    WaitFor(Client_->CreateNode(YPathJoin(Config->Path, "test"), EObjectType::MapNode, options))
+        .ThrowOnError();
+    WaitFor(Client_->CreateNode(keyPath, EObjectType::Document))
+        .ThrowOnError();
+
+    auto keyInfo = New<TKeyInfo>(TPublicKey{}, MetaValid);
+    EXPECT_THROW_WITH_SUBSTRING(
+        WaitFor(Writer->RegisterKey(keyInfo))
+            .ThrowOnError(),
+        "already exists");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSignatureComponentsTest
+    : public TApiTestBase
+{
+    NNative::IClientPtr NativeClient = DynamicPointerCast<NApi::NNative::IClient>(Client_);
+    TCypressKeyReaderConfigPtr CypressKeyReaderConfig = New<TCypressKeyReaderConfig>();
+    TCypressKeyWriterConfigPtr CypressKeyWriterConfig = New<TCypressKeyWriterConfig>();
+    TKeyRotatorConfigPtr KeyRotatorConfig = New<TKeyRotatorConfig>();
+    TSignatureGeneratorConfigPtr GeneratorConfig = New<TSignatureGeneratorConfig>();
+    TSignatureGenerationConfigPtr GenerationConfig = New<TSignatureGenerationConfig>();
+    TSignatureValidationConfigPtr ValidationConfig = New<TSignatureValidationConfig>();
+    TSignatureComponentsConfigPtr Config = New<TSignatureComponentsConfig>();
+    TSignatureComponentsPtr Components;
+
+    TSignatureComponentsTest()
+    {
+        CypressKeyWriterConfig->OwnerId = TOwnerId("test");
+        GenerationConfig->CypressKeyWriter = CypressKeyWriterConfig;
+        GenerationConfig->KeyRotator = KeyRotatorConfig;
+        GenerationConfig->Generator = GeneratorConfig;
+        ValidationConfig->CypressKeyReader = CypressKeyReaderConfig;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TSignatureComponentsTest, EmptyInit)
+{
+    Components = New<TSignatureComponents>(Config, NativeClient, GetCurrentInvoker());
+    auto startRotationFuture = Components->StartRotation();
+    auto stopRotationFuture = Components->StopRotation();
+    EXPECT_TRUE(startRotationFuture.IsSet() && startRotationFuture.Get().IsOK());
+    EXPECT_TRUE(stopRotationFuture.IsSet() && stopRotationFuture.Get().IsOK());
+
+    auto generator = Components->GetSignatureGenerator();
+    auto validator = Components->GetSignatureValidator();
+
+    EXPECT_THROW_WITH_SUBSTRING(YT_UNUSED_FUTURE(generator->Sign("test")), "unsupported");
+    auto signature = New<TSignature>();
+    EXPECT_THROW_WITH_SUBSTRING(YT_UNUSED_FUTURE(validator->Validate(signature)), "unsupported");
+}
+
+TEST_F(TSignatureComponentsTest, Generation)
+{
+    Config->Generation = GenerationConfig;
+    Components = New<TSignatureComponents>(Config, NativeClient, GetCurrentInvoker());
+
+    WaitFor(Components->StartRotation())
+        .ThrowOnError();
+
+    WaitFor(Components->StopRotation())
+        .ThrowOnError();
+
+    auto generator = Components->GetSignatureGenerator();
+    EXPECT_TRUE(generator);
+    auto signature = generator->Sign("test");
+    EXPECT_EQ(signature->Payload(), "test");
+}
+
+TEST_F(TSignatureComponentsTest, Validation)
+{
+    Config->Validation = ValidationConfig;
+    Components = New<TSignatureComponents>(Config, NativeClient, GetCurrentInvoker());
+
+    auto validator = Components->GetSignatureValidator();
+    auto signature = New<TSignature>();
+    auto validationResult = WaitFor(validator->Validate(signature))
+        .ValueOrThrow();
+    EXPECT_FALSE(validationResult);
+}
+
+TEST_F(TSignatureComponentsTest, DontCrashOnCypressFailure)
+{
+    Config->Generation = GenerationConfig;
+    Config->Generation->KeyRotator->KeyRotationInterval = TDuration::MilliSeconds(200);
+    Config->Validation = ValidationConfig;
+    Components = New<TSignatureComponents>(Config, NativeClient, GetCurrentInvoker());
+
+    WaitFor(Components->StartRotation())
+        .ThrowOnError();
+
+    WaitFor(Components->StopRotation())
+        .ThrowOnError();
+
+    // Imitate read-only mode with an invalid path.
+    Config->Generation->CypressKeyWriter->Path = Config->Validation->CypressKeyReader->Path = "//sys/nonexistent/path";
+
+    YT_UNUSED_FUTURE(Components->StartRotation());
+
+    WaitFor(Components->RotateOutOfBand())
+        .ThrowOnError();
+
+    auto generator = Components->GetSignatureGenerator();
+    auto signature = generator->Sign("test");
+    EXPECT_TRUE(signature);
+
+    auto validator = Components->GetSignatureValidator();
+    EXPECT_THROW_WITH_SUBSTRING(
+        WaitFor(validator->Validate(signature))
+            .ThrowOnError(),
+        "no child with key");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
