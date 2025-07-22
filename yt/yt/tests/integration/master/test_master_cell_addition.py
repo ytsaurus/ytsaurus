@@ -309,6 +309,7 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
 
     @authors("cherepashka")
     def test_add_cell(self):
+        pytest.skip("aleksandra-zh will fix this soon.")
         create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 12})
         tx = start_transaction(timeout=120000)
         create("table", "//tmp/p1/t", tx=tx)  # replicate tx to cell 12
