@@ -33,7 +33,7 @@ target_link_libraries(yt-library-s3 PUBLIC
   yt-yt-core
   yt-core-http
   cpp-string_utils-base64
-  cpp-xml-document
+  libs-poco-XML
 )
 
 target_sources(yt-library-s3 PRIVATE
