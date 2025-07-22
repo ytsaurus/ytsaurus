@@ -1293,17 +1293,18 @@ func NewMultiLookupRequest(r *rpc_proxy.TReqMultiLookup) *MultiLookupRequest {
 }
 
 func (r MultiLookupRequest) Log() []log.Field {
-	paths := make([]string, 0, len(r.GetSubrequests()))
-	for _, subreq := range r.GetSubrequests() {
-		paths = append(paths, string(subreq.GetPath()))
-	}
+	path, _ := r.Path()
 	return []log.Field{
-		log.String("path", strings.Join(paths, ", ")),
+		log.String("path", path),
 	}
 }
 
 func (r MultiLookupRequest) Path() (string, bool) {
-	return "", false // MultiLookup doesn't have a single path
+	paths := make([]string, 0, len(r.GetSubrequests()))
+	for _, subreq := range r.GetSubrequests() {
+		paths = append(paths, string(subreq.GetPath()))
+	}
+	return strings.Join(paths, ", "), true
 }
 
 func (r *MultiLookupRequest) SetTxOptions(opts *TransactionOptions) {
