@@ -35,8 +35,6 @@
 #include <yt/yt/ytlib/auth/native_authentication_manager.h>
 #include <yt/yt/ytlib/auth/tvm_bridge.h>
 
-#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
-
 #include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
@@ -684,7 +682,6 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
     if (Config_->StartQueueConsumerRegistrationManager) {
         connection->GetQueueConsumerRegistrationManager()->StartSync();
     }
-    connection->GetMasterCellDirectorySynchronizer()->Start();
 
     ApiServiceThreadPool_ = CreateThreadPool(rpcProxyWorkerThreadPoolSize, "RpcProxy");
 
@@ -836,7 +833,6 @@ TJobResult TJobProxy::RunJob()
         RetrieveJobSpec();
 
         auto clusterConnection = CreateNativeConnection(Config_->ClusterConnection);
-        clusterConnection->GetMasterCellDirectorySynchronizer()->Start();
         Client_ = clusterConnection->CreateNativeClient(TClientOptions::FromUser(GetAuthenticatedUser()));
 
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(Client_);
