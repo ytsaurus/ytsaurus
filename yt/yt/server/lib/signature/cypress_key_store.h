@@ -18,8 +18,6 @@ public:
 
     TFuture<TKeyInfoPtr> FindKey(const TOwnerId& ownerId, const TKeyId& keyId) const final;
 
-    void Reconfigure(const TCypressKeyReaderConfigPtr& config);
-
 private:
     TCypressKeyReaderConfigPtr Config_;
     const NApi::IClientPtr Client_;
@@ -33,29 +31,18 @@ class TCypressKeyWriter
     : public IKeyStoreWriter
 {
 public:
-    TCypressKeyWriter(TCypressKeyWriterConfigPtr config, NApi::IClientPtr client);
-
-    //! Initialize() should be called before all other calls.
-    TFuture<void> Initialize();
+    TCypressKeyWriter(TCypressKeyWriterConfigPtr config, NApi::NNative::IClientPtr client);
 
     const TOwnerId& GetOwner() const final;
 
     TFuture<void> RegisterKey(const TKeyInfoPtr& keyInfo) final;
 
-    TFuture<void> Reconfigure(const TCypressKeyWriterConfigPtr& config);
-
 private:
     const TCypressKeyWriterConfigPtr Config_;
-    const NApi::IClientPtr Client_;
+    const NApi::NNative::IClientPtr Client_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCypressKeyWriter)
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFuture<TCypressKeyWriterPtr> CreateCypressKeyWriter(
-    TCypressKeyWriterConfigPtr config,
-    NApi::IClientPtr client);
 
 ////////////////////////////////////////////////////////////////////////////////
 

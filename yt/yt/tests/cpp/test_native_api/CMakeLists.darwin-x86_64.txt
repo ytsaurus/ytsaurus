@@ -34,6 +34,7 @@ target_link_libraries(cpp-integration-test-native-api PUBLIC
   yt-yt-ytlib
   yt-core-test_framework
   yt-library-named_value
+  server-lib-signature
 )
 
 target_allocator(cpp-integration-test-native-api

@@ -2,10 +2,14 @@
 
 #include "config.h"
 #include "key_info.h"
-#include "key_store.h"
 #include "private.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
+
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/object_ypath_proxy.h>
+
+#include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <yt/yt/core/ypath/helpers.h>
 
@@ -17,11 +21,12 @@ namespace NYT::NSignature {
 
 using namespace NApi;
 using namespace NConcurrency;
+using namespace NCypressClient;
 using namespace NObjectClient;
-using namespace NYson;
-using namespace NYPath;
-using namespace NYTree;
 using namespace NThreading;
+using namespace NYPath;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,26 +37,16 @@ TYPath MakeCypressKeyPath(const TYPath& prefixPath, const TOwnerId& ownerId, con
     return YPathJoin(prefixPath, ToYPathLiteral(ownerId), ToYPathLiteral(keyId));
 }
 
-TFuture<void> DoInitializeNode(const NApi::IClientPtr& client, const TCypressKeyWriterConfigPtr& config)
+TYPath MakeCypressOwnerPath(const TYPath& prefixPath, const TOwnerId& ownerId)
 {
-    TCreateNodeOptions options;
-    options.IgnoreExisting = true;
-
-    auto ownerNodePath = YPathJoin(config->Path, ToYPathLiteral(config->OwnerId));
-
-    YT_LOG_INFO("Initializing Cypress key writer (OwnerNodePath: %v)", ownerNodePath);
-
-    return client->CreateNode(
-        ownerNodePath,
-        EObjectType::MapNode,
-        options).AsVoid();
+    return YPathJoin(prefixPath, ToYPathLiteral(ownerId));
 }
 
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressKeyReader::TCypressKeyReader(TCypressKeyReaderConfigPtr config, NApi::IClientPtr client)
+TCypressKeyReader::TCypressKeyReader(TCypressKeyReaderConfigPtr config, IClientPtr client)
         : Config_(std::move(config))
         , Client_(std::move(client))
 { }
@@ -76,21 +71,12 @@ TFuture<TKeyInfoPtr> TCypressKeyReader::FindKey(const TOwnerId& ownerId, const T
     }));
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressKeyWriter::TCypressKeyWriter(TCypressKeyWriterConfigPtr config, IClientPtr client)
+TCypressKeyWriter::TCypressKeyWriter(TCypressKeyWriterConfigPtr config, NNative::IClientPtr client)
     : Config_(std::move(config))
     , Client_(std::move(client))
 { }
-
-//! Initialize() should be called before all other calls.
-TFuture<void> TCypressKeyWriter::Initialize()
-{
-    return DoInitializeNode(Client_, Config_);
-}
-
-////////////////////////////////////////////////////////////////////////////////
 
 const TOwnerId& TCypressKeyWriter::GetOwner() const
 {
@@ -106,48 +92,56 @@ TFuture<void> TCypressKeyWriter::RegisterKey(const TKeyInfoPtr& keyInfo)
     YT_LOG_DEBUG("Registering key (OwnerId: %v, KeyId: %v)", ownerId, keyId);
 
     // We should not register keys belonging to other owners.
-        YT_VERIFY(ownerId == Config_->OwnerId);
+    YT_VERIFY(ownerId == Config_->OwnerId);
 
-        auto keyNodePath = MakeCypressKeyPath(Config_->Path, ownerId, keyId);
+    auto ownerNodePath = MakeCypressOwnerPath(Config_->Path, ownerId);
+    auto keyNodePath = MakeCypressKeyPath(Config_->Path, ownerId, keyId);
 
     auto keyExpirationTime = std::visit([] (const auto& meta) {
         return meta.ExpiresAt;
     }, keyInfo->Meta());
 
-    auto attributes = CreateEphemeralAttributes();
-    attributes->Set("expiration_time", keyExpirationTime + Config_->KeyDeletionDelay);
+    // Use object service proxy with batch requests.
+    auto proxy = CreateObjectServiceWriteProxy(Client_);
 
-    // TODO(pavook) retrying channel.
-    TCreateNodeOptions options;
-    options.Attributes = attributes;
-    auto node = Client_->CreateNode(
-        keyNodePath,
-        EObjectType::Document,
-        options);
+    // TODO(pavook): with retries.
+    auto batchReq = proxy.ExecuteBatch();
 
-    return node.ApplyUnique(
-        BIND([
-                this,
-                keyNodePath = std::move(keyNodePath),
-                keyInfo,
-                this_ = MakeStrong(this)
-            ] (NCypressClient::TNodeId&& /*nodeId*/) mutable {
-                return Client_->SetNode(
-                    keyNodePath,
-                    ConvertToYsonString(std::move(keyInfo)));
-            }));
-}
+    // Always initialize the owner node first.
+    {
+        auto req = TCypressYPathProxy::Create(ownerNodePath);
+        req->set_type(ToProto(EObjectType::MapNode));
+        req->set_ignore_existing(true);
+        batchReq->AddRequest(req, "create_owner");
+    }
 
-////////////////////////////////////////////////////////////////////////////////
+    // Create the key document node.
+    {
+        auto req = TCypressYPathProxy::Create(keyNodePath);
+        req->set_type(ToProto(EObjectType::Document));
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("expiration_time", keyExpirationTime + Config_->KeyDeletionDelay);
+        ToProto(req->mutable_node_attributes(), *attributes);
+        batchReq->AddRequest(req, "create_key");
+    }
 
-TFuture<TCypressKeyWriterPtr> CreateCypressKeyWriter(
-    TCypressKeyWriterConfigPtr config,
-    IClientPtr client)
-{
-    auto writer = New<TCypressKeyWriter>(std::move(config), std::move(client));
-    return writer->Initialize().Apply(BIND([writer = std::move(writer)] () mutable {
-        return std::move(writer);
-    }));
+    // Set the key content.
+    {
+        auto req = TObjectYPathProxy::Set(keyNodePath);
+        req->set_value(ConvertToYsonString(keyInfo).ToString());
+        batchReq->AddRequest(req, "set_key_content");
+    }
+
+    return batchReq->Invoke().ApplyUnique(BIND(
+        [ownerId = std::move(ownerId), keyId = std::move(keyId)] (TErrorOr<TObjectServiceProxy::TRspExecuteBatchPtr>&& batchRsp) -> TError {
+            auto cumulativeError = GetCumulativeError(batchRsp);
+            if (!cumulativeError.IsOK()) {
+                return cumulativeError.Wrap("Failed to register key (OwnerId: %v, KeyId: %v)", ownerId, keyId);
+            }
+
+            YT_LOG_DEBUG("Successfully registered key (OwnerId: %v, KeyId: %v)", ownerId, keyId);
+            return {};
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

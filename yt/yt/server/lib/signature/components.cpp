@@ -6,11 +6,13 @@
 #include "signature_generator.h"
 #include "signature_validator.h"
 
+#include <yt/yt/ytlib/api/native/client.h>
+
 namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using namespace NApi;
+using namespace NApi::NNative;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,27 +43,21 @@ TSignatureComponents::TSignatureComponents(
         UnderlyingGenerator_ ? UnderlyingGenerator_ : CreateAlwaysThrowingSignatureGenerator())
 { }
 
-TFuture<void> TSignatureComponents::Initialize()
-{
-    CypressKeyWriterInitialization_ = CypressKeyWriter_ ? CypressKeyWriter_->Initialize() : VoidFuture;
-    return CypressKeyWriterInitialization_;
-}
+////////////////////////////////////////////////////////////////////////////////
 
 TFuture<void> TSignatureComponents::StartRotation()
 {
-    YT_VERIFY(CypressKeyWriterInitialization_);
-    return CypressKeyWriterInitialization_
-        .Apply(BIND([this_ = MakeWeak(this)] {
-            if (auto self = this_.Lock(); self && self->KeyRotator_) {
-                return self->KeyRotator_->Start();
-            }
-            return VoidFuture;
-        }));
+    return KeyRotator_ ? KeyRotator_->Start() : VoidFuture;
 }
 
 TFuture<void> TSignatureComponents::StopRotation()
 {
     return KeyRotator_ ? KeyRotator_->Stop() : VoidFuture;
+}
+
+TFuture<void> TSignatureComponents::RotateOutOfBand()
+{
+    return KeyRotator_ ? KeyRotator_->Rotate() : VoidFuture;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
