@@ -1240,7 +1240,10 @@ private:
             ->GpuManager
             ->DefaultNvidiaDriverCapabilities;
         config->NvidiaVisibleDevices = JoinSeq(",", jobProxyConfig->GpuIndexes);
-        for (const auto& infinibandDevice: ListInfinibandDevices()) {
+
+        const auto infinibandDevices = ListInfinibandDevices();
+        config->InfinibandDevices.reserve(infinibandDevices.size());
+        for (const auto& infinibandDevice: infinibandDevices) {
             config->InfinibandDevices.push_back(infinibandDevice);
         }
         return config;

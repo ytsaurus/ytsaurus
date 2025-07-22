@@ -203,7 +203,7 @@ DEFINE_REFCOUNTED_TYPE(IJobProxyEnvironment)
 //! #failedSidecarCallback is invoked when a fatal error occurs in the sidecar(s),
 //! and it is expected to fail the job.
 IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
-    TJobProxyInternalConfigPtr config,
+    const TJobProxyInternalConfigPtr& config,
     IInvokerPtr invoker,
     const std::string& jobProxySlotPath,
     std::function<void(TError)> failedSidecarCallback);

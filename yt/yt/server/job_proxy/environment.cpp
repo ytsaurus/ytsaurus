@@ -1461,7 +1461,7 @@ DEFINE_REFCOUNTED_TYPE(TCriJobProxyEnvironment)
 ////////////////////////////////////////////////////////////////////////////////
 
 IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
-    TJobProxyInternalConfigPtr config,
+    const TJobProxyInternalConfigPtr& config,
     IInvokerPtr invoker,
     const std::string& jobProxySlotPath,
     std::function<void(TError)> failedSidecarCallback)
