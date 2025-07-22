@@ -1126,7 +1126,6 @@ struct TSidecarCriConfig
     TSidecarJobSpecPtr JobSpec;
     NCri::TCriContainerSpecPtr ContainerSpec;
     TString Command;
-    std::vector<TString> Arguments;
 };
 
 class TCriJobProxyEnvironment
@@ -1330,18 +1329,13 @@ public:
                 }
             }
 
-            std::vector<TString> commandSplit;
-            StringSplitter(sidecarSpec->Command).Split(' ').Collect(&commandSplit);
-            auto command = commandSplit[0];
-            commandSplit.erase(commandSplit.begin());
 
             // Save them for later use.
             RunningSidecars_[name] = TRunningSidecar{
                 .Config = TSidecarCriConfig{
-                    std::move(sidecarSpec),
+                    sidecarSpec,
                     std::move(containerSpec),
-                    std::move(command),
-                    std::move(commandSplit),
+                    sidecarSpec->Command,
                 },
             };
             StartSidecar(name);
@@ -1355,12 +1349,12 @@ public:
         const auto& sidecarConfig = sidecarIt->second.Config;
 
         auto process = Executor_->CreateProcess(
-            sidecarConfig.Command,
+            "/bin/bash",
             sidecarConfig.ContainerSpec,
             CriJobEnvironmentConfig_->PodDescriptor,
             CriJobEnvironmentConfig_->PodSpec
         );
-        process->AddArguments(sidecarConfig.Arguments);
+        process->AddArguments(std::vector<TString>{"-c", sidecarConfig.Command});
         process->SetWorkingDirectory(ProcessWorkingDirectory_);
         sidecarIt->second.Process = process;
 

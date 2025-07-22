@@ -2866,17 +2866,43 @@ class TestSidecarVanilla(YTEnvSetup):
         }
     }
 
-    def prepare_sidecar_cmd_file(self, sidecar_command):
+    def start_operation(self, master_command, sidecar_command, sidecar_restart_policy="fail_on_error"):
+        docker_image = self.Env.yt_config.default_docker_image
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "master": {
+                        "job_count": 1,
+                        "command": master_command,
+                        "docker_image": docker_image,
+                        "sidecars": {
+                            "sidecar1": {
+                                "command": sidecar_command,
+                                "docker_image": docker_image,
+                                "restart_policy": sidecar_restart_policy,
+                            }
+                        }
+                    },
+                },
+            },
+        )
+        wait(lambda: len(get(op.get_path() + "/@progress/tasks")) == 1, ignore_exceptions=True)
+        return op
+
+    def start_operation_with_file(self, master_command, sidecar_command, sidecar_restart_policy="fail_on_error"):
+        """
+        Same as start_operation, but this will put sidecar_command into a file, making it possible to write
+        a full bash script as the command.
+        """
+        docker_image = self.Env.yt_config.default_docker_image
+
         # Prepare a sidecar bash file as it seems to be impossible to just concatenate several commands
         # under "command" section of sidecar definition, so we invoke a bash file.
         sidecar_cmds_file = create_tmpdir("sidecar_tmp") + "/sidecar_cmds"
         with open(sidecar_cmds_file, "w") as sidecar_cmds_file_open:
             sidecar_cmds_file_open.write(sidecar_command)
-        return sidecar_cmds_file
 
-    def start_operation(self, master_command, sidecar_command, sidecar_restart_policy="fail_on_error"):
-        docker_image = self.Env.yt_config.default_docker_image
-        sidecar_cmds_file = self.prepare_sidecar_cmd_file(sidecar_command)
         op = vanilla(
             track=False,
             spec={
@@ -2890,7 +2916,7 @@ class TestSidecarVanilla(YTEnvSetup):
                         ],
                         "sidecars": {
                             "sidecar1": {
-                                "command": f"/bin/bash {sidecar_cmds_file}",
+                                "command": sidecar_command,
                                 "docker_image": docker_image,
                                 "restart_policy": sidecar_restart_policy,
                             }
@@ -3006,8 +3032,6 @@ class TestSidecarVanilla(YTEnvSetup):
         )
 
         docker_image = self.Env.yt_config.default_docker_image
-        sidecar1_cmds_file = self.prepare_sidecar_cmd_file(sidecar1_command)
-        sidecar2_cmds_file = self.prepare_sidecar_cmd_file(sidecar2_command)
         op = vanilla(
             track=False,
             spec={
@@ -3016,17 +3040,13 @@ class TestSidecarVanilla(YTEnvSetup):
                         "job_count": 1,
                         "command": master_command,
                         "docker_image": docker_image,
-                        "files": [
-                            sidecar1_cmds_file,
-                            sidecar2_cmds_file,
-                        ],
                         "sidecars": {
                             "sidecar1": {
-                                "command": f"/bin/bash {sidecar1_cmds_file}",
+                                "command": sidecar1_command,
                                 "docker_image": docker_image,
                             },
                             "sidecar2": {
-                                "command": f"/bin/bash {sidecar2_cmds_file}",
+                                "command": sidecar2_command,
                                 "docker_image": docker_image,
                             }
                         },
@@ -3068,7 +3088,7 @@ else
 fi
 """
 
-        op = self.start_operation(master_command, sidecar_command, "always")
+        op = self.start_operation_with_file(master_command, sidecar_command, "always")
 
         # Wait until master job is started.
         events_on_fs().wait_event("master_job_started", timeout=datetime.timedelta(1000))
@@ -3110,7 +3130,7 @@ else
 fi
 """
 
-        op = self.start_operation(master_command, sidecar_command, "always")
+        op = self.start_operation_with_file(master_command, sidecar_command, "always")
 
         # Wait until master job is started.
         events_on_fs().wait_event("master_job_started", timeout=datetime.timedelta(1000))
@@ -3150,7 +3170,7 @@ else
 fi
 """
 
-        op = self.start_operation(master_command, sidecar_command, "on_failure")
+        op = self.start_operation_with_file(master_command, sidecar_command, "on_failure")
 
         # Wait until master job is started.
         events_on_fs().wait_event("master_job_started", timeout=datetime.timedelta(1000))
@@ -3195,7 +3215,7 @@ else
 fi
 """
 
-        op = self.start_operation(master_command, sidecar_command, "on_failure")
+        op = self.start_operation_with_file(master_command, sidecar_command, "on_failure")
 
         # Wait until master job is started.
         events_on_fs().wait_event("master_job_started", timeout=datetime.timedelta(1000))
@@ -3235,7 +3255,7 @@ else
 fi
 """
 
-        op = self.start_operation(master_command, sidecar_command, "fail_on_error")
+        op = self.start_operation_with_file(master_command, sidecar_command, "fail_on_error")
 
         # Wait until master job is started.
         events_on_fs().wait_event("master_job_started", timeout=datetime.timedelta(1000))
@@ -3278,7 +3298,7 @@ else
 fi
 """
 
-        op = self.start_operation(master_command, sidecar_command, "fail_on_error")
+        op = self.start_operation_with_file(master_command, sidecar_command, "fail_on_error")
 
         # Wait until master job is started.
         events_on_fs().wait_event("master_job_started", timeout=datetime.timedelta(1000))
@@ -3312,16 +3332,16 @@ fi
                 events_on_fs().wait_event_cmd("finish"),
             ]
         )
-        sidecar_command = f"""
-#!/bin/bash
-{events_on_fs().notify_event_cmd("sidecar_job_started")}
-echo '{{secret=sidecar}}' >> {shared_file_name}
-{events_on_fs().notify_event_cmd("sidecar_job_wrote")}
-{events_on_fs().wait_event_cmd("finish")}
-"""
+        sidecar_command = " ; ".join(
+            [
+                events_on_fs().notify_event_cmd("sidecar_job_started"),
+                f"echo '{{secret=sidecar}}' >> {shared_file_name}",
+                events_on_fs().notify_event_cmd("sidecar_job_wrote"),
+                events_on_fs().wait_event_cmd("finish"),
+            ]
+        )
 
         docker_image = self.Env.yt_config.default_docker_image
-        sidecar_cmds_file = self.prepare_sidecar_cmd_file(sidecar_command)
         op = vanilla(
             track=False,
             spec={
@@ -3331,12 +3351,9 @@ echo '{{secret=sidecar}}' >> {shared_file_name}
                         "output_table_paths": [output_table],
                         "command": master_command,
                         "docker_image": docker_image,
-                        "files": [
-                            sidecar_cmds_file,
-                        ],
                         "sidecars": {
                             "sidecar1": {
-                                "command": f"/bin/bash {sidecar_cmds_file}",
+                                "command": sidecar_command,
                                 "docker_image": docker_image,
                                 "restart_policy": "fail_on_error",
                             }
