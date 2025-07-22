@@ -48,6 +48,8 @@ public:
 
     virtual bool CalculateIsOverloaded(const TOverloadTrackerConfig& config) = 0;
 
+    virtual EOverloadTrackerConfigType GetConfigType() const = 0;
+
     const TString& GetType() const
     {
         return Type_;
@@ -100,7 +102,15 @@ public:
             summary.Count(),
             meanValue);
 
-        return ProfileAndGetOverloaded(meanValue, config.TryGetConcrete<TOverloadTrackerMeanWaitTimeConfig>());
+        auto meanWaitTimeConfig = config.TryGetConcrete<TOverloadTrackerMeanWaitTimeConfig>();
+        YT_VERIFY(meanWaitTimeConfig);
+
+        return ProfileAndGetOverloaded(meanValue, meanWaitTimeConfig);
+    }
+
+    virtual EOverloadTrackerConfigType GetConfigType() const override
+    {
+        return EOverloadTrackerConfigType::MeanWaitTime;
     }
 
 protected:
@@ -157,7 +167,10 @@ public:
 
         LastCpuStats_ = cpuStats;
 
-        return ProfileAndGetOverloaded(throttlingTime, config.TryGetConcrete<TOverloadTrackerMeanWaitTimeConfig>());
+        auto meanWaitTimeConfig = config.TryGetConcrete<TOverloadTrackerMeanWaitTimeConfig>();
+        YT_VERIFY(meanWaitTimeConfig);
+
+        return ProfileAndGetOverloaded(throttlingTime, meanWaitTimeConfig);
     }
 
 private:
@@ -212,7 +225,8 @@ public:
             "(BacklogQueueFillFraction: %v)",
             BacklogQueueFillFraction);
 
-        const auto& logDropConfig = config.TryGetConcrete<TOverloadTrackerBacklogQueueFillFractionConfig>();
+        auto logDropConfig = config.TryGetConcrete<TOverloadTrackerBacklogQueueFillFractionConfig>();
+        YT_VERIFY(logDropConfig);
 
         bool overloaded = BacklogQueueFillFraction > logDropConfig->BacklogQueueFillFractionThreshold;
 
@@ -221,6 +235,11 @@ public:
         BacklogQueueFillFractionThreshold_.Update(logDropConfig->BacklogQueueFillFractionThreshold);
 
         return overloaded;
+    }
+
+    EOverloadTrackerConfigType GetConfigType() const override
+    {
+        return EOverloadTrackerConfigType::BacklogQueueFillFraction;
     }
 
 private:
@@ -511,6 +530,13 @@ void TOverloadController::DoAdjust(const THazardPtr<TState>& state)
         }
 
         const auto& trackerConfig = trackerIt->second;
+
+        if (trackerConfig.GetCurrentType() != tracker->GetConfigType()) {
+            YT_LOG_ERROR("Incorrect overload controller tracker config type (ExpectedType: %v, ActualType: %v)",
+                tracker->GetConfigType(),
+                trackerConfig.GetCurrentType());
+            continue;
+        }
 
         auto trackerOverloaded = tracker->CalculateIsOverloaded(trackerConfig);
 
