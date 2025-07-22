@@ -1408,9 +1408,8 @@ static TQueryBuilder GetListJobsQueryBuilder(
         operationIdAsGuid.Parts64[0],
         operationIdAsGuid.Parts64[1]));
 
-    // TODO(bystrovserg): Switch node_state to transient_state.
     auto runningJobsLookbehindPeriodExpression = Format(
-        "node_state IN (%v) "
+        "transient_state IN (%v) "
         "OR ((NOT is_null(update_time)) AND update_time >= %v)",
         FinishedJobStatesString,
         (TInstant::Now() - options.RunningJobsLookbehindPeriod).MicroSeconds());
@@ -1522,13 +1521,13 @@ TFuture<TListJobsStatistics> TClient::ListJobsStatisticsFromArchiveAsync(
     if (DoesArchiveContainAttribute("controller_state", archiveVersion)) {
         jobStateIndex = builder.AddSelectExpression(
             Format(
-                "if(NOT is_null(if(is_null(state), transient_state, state) AS node_state) AND NOT is_null(controller_state),"
+                "if(NOT is_null(transient_state AS node_state) AND NOT is_null(controller_state),"
                 "   if(node_state IN (%v), node_state, controller_state),"
                 "   if(is_null(node_state), controller_state, node_state))",
                 FinishedJobStatesString),
             "job_state");
     } else {
-        jobStateIndex = builder.AddSelectExpression("(if(is_null(state), transient_state, state) AS node_state)", "job_state");
+        jobStateIndex = builder.AddSelectExpression("transient_state", "job_state");
     }
     auto countIndex = builder.AddSelectExpression("sum(1)", "count");
 
@@ -1586,9 +1585,11 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             jobType = record.JobType;
         }
 
-        auto nodeState = record.TransientState;
+        auto nodeState = record.NodeState;
+        // TODO(bystrovserg): We do not have alieses in lookup-rows which is used in GetJob.
+        // So transient_state is used instead of node_state.
         if (!nodeState) {
-            nodeState = record.NodeState;
+            nodeState = record.TransientState;
         }
 
         bool needType = responseIdMapping.Type || responseIdMapping.JobType;
@@ -1765,7 +1766,9 @@ void TClient::AddSelectExpressions(
                 builder->AddSelectExpression("brief_statistics");
             }
         } else if (attribute == "state") {
-            builder->AddSelectExpression("if(is_null(state), transient_state, state)", "node_state");
+            // NB(bystrovserg): We use the alias for "transient_state" here
+            // just to highlight that this is job state according to the node.
+            builder->AddSelectExpression("transient_state", "node_state");
             if (DoesArchiveContainAttribute("controller_state", archiveVersion)) {
                 builder->AddSelectExpression("controller_state");
                 builder->AddSelectExpression(
@@ -2527,7 +2530,6 @@ static std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& at
             result.push_back(attribute + "_hi");
             result.push_back(attribute + "_lo");
         } else if (attribute == "state") {
-            result.emplace_back("state");
             result.emplace_back("transient_state");
             if (DoesArchiveContainAttribute("controller_state", archiveVersion)) {
                 result.emplace_back("controller_state");
