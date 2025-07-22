@@ -5454,15 +5454,14 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 
     State_ = EControllerState::Completed;
 
-    // XXX(namorniradnug): is this a right place for this alert?
     if (auto simpleSpec = DynamicPointerCast<TSimpleOperationSpecBase>(Spec_);
         !interrupted && simpleSpec && simpleSpec->CompressedDataSizePerJob)
     {
         constexpr int EstimationInaccuracyThreshold = 2;
 
         i64 actualCompressedData = [&] {
-            struct TInputCompressedDataSizeCollector
-                : public IDataFlowGraphVisitor
+            struct TInputCompressedDataSizeCollector final
+                : public TDataFlowGraphVisitor
             {
                 i64 InputCompressedDataSize = 0;
 
@@ -5479,7 +5478,7 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
             };
 
             TInputCompressedDataSizeCollector collector;
-            DataFlowGraph_->Traverse(collector);
+            DataFlowGraph_->Traverse(&collector);
             return collector.InputCompressedDataSize;
         }();
 

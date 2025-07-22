@@ -21,8 +21,6 @@ namespace NYT::NControllerAgent::NControllers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IDataFlowGraphVisitor;
-
 class TDataFlowGraph
     : public TRefCounted
 {
@@ -84,7 +82,7 @@ public:
 
     void SetNodeDirectory(NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory);
 
-    void Traverse(IDataFlowGraphVisitor& visitor) const;
+    void Traverse(TDataFlowGraphVisitor* visitor) const;
 
 private:
     class TImpl;
@@ -175,8 +173,10 @@ DEFINE_REFCOUNTED_TYPE(TOutputStreamDescriptor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IDataFlowGraphVisitor
+struct TDataFlowGraphVisitor
 {
+    virtual ~TDataFlowGraphVisitor() = default;
+
     virtual void VisitEdge(
         const TDataFlowGraph::TVertexDescriptor& from,
         const TDataFlowGraph::TVertexDescriptor& to,

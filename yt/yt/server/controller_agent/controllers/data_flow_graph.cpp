@@ -496,13 +496,13 @@ public:
         NodeDirectory_ = std::move(nodeDirectory);
     }
 
-    void Traverse(IDataFlowGraphVisitor& visitor) const
+    void Traverse(TDataFlowGraphVisitor* visitor) const
     {
         for (const auto& [vertexDescriptor, vertex] : *Vertices_) {
-            visitor.VisitVertex(vertexDescriptor, *vertex->JobCounter(), vertex->GetJobType());
+            visitor->VisitVertex(vertexDescriptor, *vertex->JobCounter(), vertex->GetJobType());
 
             for (const auto& [to, edge] : *vertex->Edges()) {
-                visitor.VisitEdge(vertexDescriptor, to, edge->JobDataStatistics(), edge->TeleportDataStatistics());
+                visitor->VisitEdge(vertexDescriptor, to, edge->JobDataStatistics(), edge->TeleportDataStatistics());
             }
         }
     }
@@ -640,21 +640,21 @@ void TDataFlowGraph::SetNodeDirectory(TNodeDirectoryPtr nodeDirectory)
     Impl_->SetNodeDirectory(std::move(nodeDirectory));
 }
 
-void TDataFlowGraph::Traverse(IDataFlowGraphVisitor& visitor) const
+void TDataFlowGraph::Traverse(TDataFlowGraphVisitor* visitor) const
 {
     Impl_->Traverse(visitor);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void IDataFlowGraphVisitor::VisitEdge(
+void TDataFlowGraphVisitor::VisitEdge(
     const TDataFlowGraph::TVertexDescriptor& /*from*/,
     const TDataFlowGraph::TVertexDescriptor& /*to*/,
     const NChunkClient::NProto::TDataStatistics& /*jobDataStatistics*/,
     const NChunkClient::NProto::TDataStatistics& /*teleportDataStatistics*/)
 { }
 
-void IDataFlowGraphVisitor::VisitVertex(
+void TDataFlowGraphVisitor::VisitVertex(
     const TDataFlowGraph::TVertexDescriptor& /*vertex*/,
     const TProgressCounter& /*jobCounter*/,
     EJobType /*jobType*/)
