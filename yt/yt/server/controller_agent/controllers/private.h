@@ -72,6 +72,8 @@ struct IJobSplitter;
 struct TJobStatisticsTags;
 class TAggregatedJobStatistics;
 
+struct TDataFlowGraphVisitor;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent::NControllers
