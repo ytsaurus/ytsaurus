@@ -139,24 +139,27 @@ private:
 
             context->SetRequestInfo();
 
+            if (context->IsRetry()) {
+                THROW_ERROR_EXCEPTION("Retries are not supported by proxy");
+            }
+
             const auto& header = context->RequestHeader();
             const auto& user = header.user();
 
             auto proxyRequest = CreateRequest();
-            if (header.has_logical_request_weight()) {
-                auto logicalWeight = header.logical_request_weight();
-                proxyRequest->Header().set_logical_request_weight(logicalWeight);
-            }
+            auto requestId = proxyRequest->GetRequestId();
+
+            proxyRequest->CopyFrom(context->Request());
+            proxyRequest->Header().CopyFrom(header);
 
             GenerateMutationId(proxyRequest);
-            proxyRequest->SetUser(user);
             proxyRequest->SetTimeout(owner->ConnectionConfig_->RpcTimeout);
-            proxyRequest->CopyFrom(context->Request());
+            ToProto(proxyRequest->Header().mutable_request_id(), requestId);
 
             YT_LOG_DEBUG("Chunk Service proxy request created (User: %v, RequestId: %v -> %v)",
                 user,
                 context->GetRequestId(),
-                proxyRequest->GetRequestId());
+                requestId);
 
             ForwardRequest(context, proxyRequest);
         }
