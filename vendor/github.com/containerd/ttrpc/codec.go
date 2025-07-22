@@ -1,5 +1,3 @@
-//go:build !windows && !freebsd
-
 /*
    Copyright The containerd Authors.
 
@@ -16,24 +14,30 @@
    limitations under the License.
 */
 
-package fs
+package ttrpc
 
 import (
 	"fmt"
-	"os"
-	"syscall"
+
+	"google.golang.org/protobuf/proto"
 )
 
-// copyIrregular covers devices, pipes, and sockets
-func copyIrregular(dst string, fi os.FileInfo) error {
-	st, ok := fi.Sys().(*syscall.Stat_t) // not *unix.Stat_t
-	if !ok {
-		return fmt.Errorf("unsupported stat type: %s: %v", dst, fi.Mode())
+type codec struct{}
+
+func (c codec) Marshal(msg interface{}) ([]byte, error) {
+	switch v := msg.(type) {
+	case proto.Message:
+		return proto.Marshal(v)
+	default:
+		return nil, fmt.Errorf("ttrpc: cannot marshal unknown type: %T", msg)
 	}
-	var rDev int
-	if fi.Mode()&os.ModeDevice == os.ModeDevice {
-		rDev = int(st.Rdev)
+}
+
+func (c codec) Unmarshal(p []byte, msg interface{}) error {
+	switch v := msg.(type) {
+	case proto.Message:
+		return proto.Unmarshal(p, v)
+	default:
+		return fmt.Errorf("ttrpc: cannot unmarshal into unknown type: %T", msg)
 	}
-	//nolint:unconvert
-	return syscall.Mknod(dst, uint32(st.Mode), rDev)
 }

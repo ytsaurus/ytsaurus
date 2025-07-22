@@ -1,5 +1,3 @@
-//go:build !windows && !freebsd
-
 /*
    Copyright The containerd Authors.
 
@@ -16,24 +14,21 @@
    limitations under the License.
 */
 
-package fs
+package ttrpc
 
-import (
-	"fmt"
-	"os"
-	"syscall"
+import "errors"
+
+var (
+	// ErrProtocol is a general error in the handling the protocol.
+	ErrProtocol = errors.New("protocol error")
+
+	// ErrClosed is returned by client methods when the underlying connection is
+	// closed.
+	ErrClosed = errors.New("ttrpc: closed")
+
+	// ErrServerClosed is returned when the Server has closed its connection.
+	ErrServerClosed = errors.New("ttrpc: server closed")
+
+	// ErrStreamClosed is when the streaming connection is closed.
+	ErrStreamClosed = errors.New("ttrpc: stream closed")
 )
-
-// copyIrregular covers devices, pipes, and sockets
-func copyIrregular(dst string, fi os.FileInfo) error {
-	st, ok := fi.Sys().(*syscall.Stat_t) // not *unix.Stat_t
-	if !ok {
-		return fmt.Errorf("unsupported stat type: %s: %v", dst, fi.Mode())
-	}
-	var rDev int
-	if fi.Mode()&os.ModeDevice == os.ModeDevice {
-		rDev = int(st.Rdev)
-	}
-	//nolint:unconvert
-	return syscall.Mknod(dst, uint32(st.Mode), rDev)
-}

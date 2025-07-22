@@ -4,23 +4,27 @@ LICENSE(Apache-2.0)
 
 VERSION(v0.4.4)
 
+SRCS(
+    devices.go
+)
+
 IF (OS_LINUX)
     SRCS(
-        nodata_linux.go
-        xattr.go
+        devices_unix.go
+        mknod_unix.go
     )
 ENDIF()
 
 IF (OS_DARWIN)
     SRCS(
-        nodata_unix.go
-        xattr.go
+        devices_unix.go
+        mknod_unix.go
     )
 ENDIF()
 
 IF (OS_WINDOWS)
     SRCS(
-        xattr_unsupported.go
+        devices_windows.go
     )
 ENDIF()
 
