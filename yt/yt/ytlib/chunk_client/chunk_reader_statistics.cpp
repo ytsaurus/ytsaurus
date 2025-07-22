@@ -198,6 +198,7 @@ TChunkReaderStatisticsCounters::TChunkReaderStatisticsCounters(
         GetWaitTimeHistogramBounds()))
     , BlockCount_(profiler.Counter("/block_count"))
     , PrefetchedBlockCount_(profiler.Counter("/prefetched_block_count"))
+    , MaxBlockSize_(profiler.Summary("/max_block_size"))
 { }
 
 void TChunkReaderStatisticsCounters::Increment(
@@ -238,6 +239,7 @@ void TChunkReaderStatisticsCounters::Increment(
 
     BlockCount_.Increment(chunkReaderStatistics->BlockCount.load(std::memory_order::relaxed));
     PrefetchedBlockCount_.Increment(chunkReaderStatistics->PrefetchedBlockCount.load(std::memory_order::relaxed));
+    MaxBlockSize_.Record(chunkReaderStatistics->MaxBlockSize.load(std::memory_order::relaxed));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

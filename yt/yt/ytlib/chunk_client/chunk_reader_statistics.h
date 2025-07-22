@@ -46,6 +46,7 @@ struct TChunkReaderStatistics
 
     std::atomic<i64> BlockCount = 0;
     std::atomic<i64> PrefetchedBlockCount = 0;
+    std::atomic<i64> MaxBlockSize = 0;
 
     static constexpr TDuration MinTrackedLatency = TDuration::MicroSeconds(1);
     static constexpr TDuration MaxTrackedLatency = TDuration::Seconds(125);
@@ -134,6 +135,7 @@ private:
 
     NProfiling::TCounter BlockCount_;
     NProfiling::TCounter PrefetchedBlockCount_;
+    NProfiling::TSummary MaxBlockSize_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
