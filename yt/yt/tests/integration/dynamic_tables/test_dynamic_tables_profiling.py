@@ -383,6 +383,34 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
                      total_hunk_length=0,
                      hunk_chunk_count=0)
 
+    @authors("atalmenev")
+    def test_max_block_size(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+        sync_mount_table("//tmp/t")
+
+        profiler = profiler_factory().at_tablet_node("//tmp/t")
+        max_block_size_summary = profiler.summary("lookup/chunk_reader_statistics/max_block_size")
+
+        insert_rows("//tmp/t", [{"key": 1, "value": "F" * 10}])
+        sync_flush_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": 2, "value": "F" * 20}])
+        sync_flush_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": 3, "value": "F" * 30}])
+        sync_flush_table("//tmp/t")
+
+        lookup_rows("//tmp/t", [{"key": i} for i in range(1, 4)], raw=False)
+        wait(lambda: max_block_size_summary.get_max() == 126.0)
+
+        insert_rows("//tmp/t", [{"key": 4, "value": "F" * 40}])
+        sync_flush_table("//tmp/t")
+
+        lookup_rows("//tmp/t", [{"key": i} for i in range(1, 4)], raw=False)
+        wait(lambda: max_block_size_summary.get_max() == 136.0)
+
 
 @pytest.mark.enabled_multidaemon
 class TestOrderedDynamicTablesProfiling(TestOrderedDynamicTablesBase):
