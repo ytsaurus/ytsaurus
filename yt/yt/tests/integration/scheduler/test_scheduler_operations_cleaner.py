@@ -282,11 +282,19 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         assert input_table_name in row["filter_factors"]
         assert output_table_name in row["filter_factors"]
 
-    @authors("asaitgalin", "eshcherbin")
+    @authors("bystrovserg")
     def test_profiling(self):
         init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
+
+        # Restart cleaner several times to check that FuncGauges are counted once.
+        for i in range(5):
+            update_scheduler_config("operations_cleaner", {"enable": False})
+            wait(lambda: not get(CLEANER_ORCHID + "/enable"))
+
+            update_scheduler_config("operations_cleaner", {"enable": True})
+            wait(lambda: get(CLEANER_ORCHID + "/enable"))
 
         config = {
             "analysis_period": 1 * 1000,
