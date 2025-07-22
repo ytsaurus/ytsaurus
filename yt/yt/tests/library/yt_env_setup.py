@@ -1602,7 +1602,7 @@ class YTEnvSetup(object):
 
         yt_commands._zombie_responses[:] = []
 
-        for cluster_index, env in enumerate(self.ground_envs + [self.Env] + self.remote_envs):
+        for cluster_index, env in enumerate([self.Env] + self.remote_envs + self.ground_envs):
             if env is None:
                 continue
 
