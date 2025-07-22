@@ -15,6 +15,8 @@
 
 #include <yt/yt/core/ytree/public.h>
 
+#include <util/generic/function_ref.h>
+
 namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -149,7 +151,7 @@ struct IHiveManager
     //! This is intended to be used in tests to simulate bad connection.
     virtual void FreezeEdges(std::vector<THiveEdge> edgesToFreeze) = 0;
 
-    virtual void OnProfiling(const std::function<bool(TCellId)>& cellIdFilter) = 0;
+    virtual void OnProfiling(TFunctionRef<bool(TCellId)> cellIdFilter) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IHiveManager)

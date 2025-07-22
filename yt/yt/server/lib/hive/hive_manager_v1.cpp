@@ -289,7 +289,7 @@ public:
             edgesToFreeze);
     }
 
-    void OnProfiling(const std::function<bool(TCellId)>& /*cellIdFilter*/) override
+    void OnProfiling(TFunctionRef<bool(TCellId)> /*cellIdFilter*/) override
     { }
 
     bool TryRemoveCellMailbox(TCellId cellId) override
