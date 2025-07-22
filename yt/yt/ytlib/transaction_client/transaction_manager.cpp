@@ -1187,7 +1187,7 @@ private:
                 &TImpl::OnAtomicTransactionCommitted<TCypressTransactionServiceProxy::TErrorOrRspCommitTransactionPtr>,
                 MakeStrong(this),
                 CoordinatorCellId_,
-                Passed(std::make_unique<TTransactionCommitOptions>(std::move(options)))));
+                options));
     }
 
     TFuture<TTransactionCommitResult> DoCommitTransaction(const TTransactionCommitOptions& options, bool dynamicTablesLocked = false)
@@ -1232,7 +1232,7 @@ private:
                 &TImpl::OnAtomicTransactionCommitted<TTransactionSupervisorServiceProxy::TErrorOrRspCommitTransactionPtr>,
                 MakeStrong(this),
                 CoordinatorCellId_,
-                Passed(std::make_unique<TTransactionCommitOptions>(std::move(options)))));
+                options));
     }
 
     TFuture<TTransactionCommitResult> DoCommitNonAtomic()
@@ -1341,7 +1341,7 @@ private:
     template <class TErrorOrRsp>
     TErrorOr<TTransactionCommitResult> OnAtomicTransactionCommitted(
         TCellId coordinatorCellId,
-        std::unique_ptr<TTransactionCommitOptions> commitOptions,
+        const TTransactionCommitOptions& commitOptions,
         const TErrorOrRsp& rspOrError)
     {
         if (!rspOrError.IsOK()) {
@@ -1354,7 +1354,6 @@ private:
             };
 
             if (const auto& lockError = rspOrError.FindMatching(NTransactionClient::EErrorCode::NeedLockDynamicTablesBeforeCommit)) {
-                YT_VERIFY(commitOptions);
                 YT_VERIFY(State_ == ETransactionState::Committing);
 
                 auto lockableDynamicTablesAttribute = lockError->Attributes().template
@@ -1384,10 +1383,10 @@ private:
                         Logger);
 
                     if (ShouldUseCypressTransactionService()) {
-                        return WaitFor(DoCommitCypressTransaction(*commitOptions, /*dynamicTablesLocked*/ true))
+                        return WaitFor(DoCommitCypressTransaction(commitOptions, /*dynamicTablesLocked*/ true))
                             .ValueOrThrow();
                     } else {
-                        return WaitFor(DoCommitTransaction(*commitOptions, /*dynamicTablesLocked*/ true))
+                        return WaitFor(DoCommitTransaction(commitOptions, /*dynamicTablesLocked*/ true))
                             .ValueOrThrow();
                     }
                 } catch (const std::exception& ex) {
