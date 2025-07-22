@@ -374,7 +374,7 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("enable_cuda_profile_event_streaming", &TThis::EnableCudaProfileEventStreaming)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("job_trace_event_processor", &TThis::JobTraceEventProcessor)
         .DefaultNew();
@@ -447,7 +447,7 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("enable_cuda_profile_event_streaming", &TThis::EnableCudaProfileEventStreaming)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("job_trace_event_processor", &TThis::JobTraceEventProcessor)
         .DefaultNew();
