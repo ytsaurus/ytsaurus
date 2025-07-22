@@ -93,7 +93,7 @@ func NewClient(conf *yt.Config) (*client, error) {
 
 	transport, ok := c.httpClient.Transport.(*http.Transport)
 	if !ok {
-		return nil, errors.New("http.Transport is not supported")
+		return nil, xerrors.Errorf("expected *http.Transport, got %T: rpc client does not support other transports", c.httpClient.Transport)
 	}
 
 	if conf.Credentials != nil {
