@@ -361,7 +361,7 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(60));
 
     registrar.Parameter("cypress_write_yson_nesting_level_limit", &TThis::CypressWriteYsonNestingLevelLimit)
-        .Default(NYson::OriginalNestingLevelLimit)
+        .Default(NYson::CypressWriteNestingLevelLimit)
         .LessThanOrEqual(NYson::NewNestingLevelLimit);
 
     registrar.Parameter("job_prober_rpc_timeout", &TThis::JobProberRpcTimeout)
