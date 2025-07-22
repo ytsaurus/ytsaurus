@@ -843,8 +843,8 @@ class TestVanillaOperationRevival(YTEnvSetup):
 
         op.track()
 
-        assert incarnation_switch_counter.get() == 0
-        assert started_job_profiler.get() == 3 - jobs_were_scheduled
+        wait(lambda: incarnation_switch_counter.get() == 0)
+        wait(lambda: started_job_profiler.get(default=0) == 3 - jobs_were_scheduled)
 
 
 ##################################################################
