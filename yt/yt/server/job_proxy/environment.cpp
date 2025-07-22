@@ -1348,6 +1348,9 @@ public:
         YT_VERIFY(sidecarIt != RunningSidecars_.end());
         const auto& sidecarConfig = sidecarIt->second.Config;
 
+        // The given command is passed into the containerd as:
+        // - Command: /bin/bash
+        // - Args: ["-c", "THE_COMMAND"]
         auto process = Executor_->CreateProcess(
             "/bin/bash",
             sidecarConfig.ContainerSpec,
