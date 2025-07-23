@@ -63,8 +63,6 @@ private:
         auto context,
         F createRequest) const
     {
-        context->SetIncrementalRequestInfo("OldRequestId: %v", context->GetRequestId());
-
         auto channel = GetTargetMasterPeerChannelOrThrow(context);
         auto proxy = TCypressTransactionServiceProxy(std::move(channel));
 

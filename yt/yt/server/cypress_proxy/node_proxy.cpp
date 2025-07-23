@@ -578,9 +578,16 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, MultisetAttributes)
         request->subrequests_size(),
         force);
 
-    auto subrequests = FromProto<std::vector<TMultisetAttributesSubrequest>>(request->subrequests());
-
     auto targetPath = TYPath(GetRequestTargetYPath(context->GetRequestHeader()));
+    NYPath::TTokenizer tokenizer(targetPath);
+    tokenizer.Advance();
+    tokenizer.Expect(NYPath::ETokenType::Slash);
+    tokenizer.Advance();
+    if (tokenizer.GetType() == NYPath::ETokenType::Literal) {
+        ThrowNoSuchChild(Path_, tokenizer.GetLiteralValue());
+    }
+
+    auto subrequests = FromProto<std::vector<TMultisetAttributesSubrequest>>(request->subrequests());
     SequoiaSession_->MultisetNodeAttributes(
         Id_,
         targetPath,
