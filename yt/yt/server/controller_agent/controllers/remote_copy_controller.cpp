@@ -614,6 +614,12 @@ private:
         }
     }
 
+    // NB: RemoteCopy cannot copy a set of columns, so the user needs full_read.
+    EPermission GetInputTablePermission() const override
+    {
+        return EPermission::FullRead;
+    }
+
     std::vector<TString> BuildSystemAttributeKeys() const
     {
         if (!Spec_->ForceCopySystemAttributes) {

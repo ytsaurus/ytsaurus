@@ -59,6 +59,8 @@ struct IInputManagerHost
 
     //! If fetching chunk slice statistics is not possible for the operation, returns an error with a reason.
     virtual TError GetUseChunkSliceStatisticsError() const = 0;
+
+    virtual NYTree::EPermission GetInputTablePermission() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IInputManagerHost)

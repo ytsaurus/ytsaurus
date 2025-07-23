@@ -19,7 +19,7 @@ from yt_commands import (
     write_file, wait_for_nodes, read_file, get_singular_chunk_id)
 
 from yt_helpers import skip_if_component_old, profiler_factory
-from yt_type_helpers import make_schema, normalize_schema, normalize_schema_v3, optional_type, list_type
+from yt_type_helpers import make_column, make_schema, normalize_schema, normalize_schema_v3, optional_type, list_type
 import yt_error_codes
 
 from yt.common import YtError
@@ -1289,6 +1289,58 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             lookup_rows("//tmp/t2", keys, versioned=True)
         )
         assert_items_equal(select_rows("* from [//tmp/t2]"), rows)
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("abuse_via", ["ypath", "omit_inaccessible_columns"])
+    def test_columnar_acl(self, abuse_via):
+        skip_if_component_old(self.Env, (25, 3), "controller-agent")
+        for user in [
+            "has_full_read",
+            "has_only_public_read",
+            "has_no_read",
+        ]:
+            create_user(user)
+            create_user(user, driver=self.remote_driver)
+
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "inherit_acl": False,
+                "acl": [
+                    make_ace("allow", ["has_full_read", "has_only_public_read"], "read"),
+                    make_ace("allow", ["has_full_read"], "read", columns=["private"]),
+                ],
+                "schema": make_schema([
+                    make_column("public", "string"),
+                    make_column("private", "int64"),
+                ])
+            },
+            driver=self.remote_driver
+        )
+
+        write_table("//tmp/t", [{"public": "what is the answer?", "private": 42}], driver=self.remote_driver)
+
+        in_ = "//tmp/t" if abuse_via != "ypath" else "//tmp/t{public}"
+
+        def do_copy(user):
+            return remote_copy(
+                in_=in_,
+                out="<create=%true>//tmp/t",
+                spec={
+                    "cluster_name": self.REMOTE_CLUSTER_NAME,
+                    "omit_inaccessible_columns": abuse_via == "omit_inaccessible_columns",
+                },
+                authenticated_user=user,
+            )
+
+        with raises_yt_error():
+            do_copy("has_no_read")
+
+        with raises_yt_error():
+            do_copy("has_only_public_read")
+
+        do_copy("has_full_read")
 
 
 ##################################################################
