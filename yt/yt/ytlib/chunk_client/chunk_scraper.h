@@ -63,7 +63,8 @@ private:
     const TChunkBatchLocatedHandler OnChunkBatchLocated_;
     const NLogging::TLogger Logger;
 
-    std::vector<TScraperTaskPtr> ScraperTasks_;
+    struct TScraperTaskWrapper;
+    std::vector<TScraperTaskWrapper> ScraperTasks_;
 
     //! Create scraper tasks for each cell.
     void CreateTasks(const THashSet<TChunkId>& chunkIds);
