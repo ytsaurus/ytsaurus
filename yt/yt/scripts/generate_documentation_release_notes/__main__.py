@@ -2,7 +2,7 @@ from datetime import datetime
 
 import argparse
 import requests
-
+import re
 
 REPO_OWNER = "ytsaurus"
 OUTPUT_FILE = "release_notes.md"
@@ -110,6 +110,8 @@ class Component:
             lines.append("\n")
 
             description = release["body"]
+            description = re.sub(r"^####\s+(.*)", r"##### \1", description, flags=re.MULTILINE)
+            description = re.sub(r"^#{1,3}\s+(.*)", r"#### \1", description, flags=re.MULTILINE)
             description = description.replace("\r\n", "\n")
             description = description.replace("\r", "\n")
 
