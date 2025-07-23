@@ -137,7 +137,7 @@ jobs:
     needs:
       - start-vm
       - checkout
-      - docker-cmake
+      - build-strawberry
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
@@ -170,7 +170,6 @@ jobs:
     name: Check
     needs:
       - start-vm
-      - docker-cmake
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
     uses: ./.github/workflows/check-jobs.yaml
@@ -182,6 +181,7 @@ jobs:
       - start-vm
       - tag
       - check
+      - docker-cmake
       - docker-ya-make
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
