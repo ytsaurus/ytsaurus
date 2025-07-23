@@ -359,7 +359,10 @@ public:
 
     void OnReference(TReferenceExpressionPtr referenceExpr)
     {
-        YT_VERIFY(!referenceExpr->Reference.TableName);
+        THROW_ERROR_EXCEPTION_IF(
+            referenceExpr->Reference.TableName,
+            "Invalid attribute reference %Qv",
+            FormatExpression(*referenceExpr));
         Inserter_(referenceExpr->Reference.ColumnName);
     }
 
