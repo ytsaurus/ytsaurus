@@ -4,8 +4,6 @@
 
 #include <yt/yt/library/formats/format.h>
 
-#include <yt/yt/client/arrow/fbs/Message.fbs.h>
-
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
@@ -38,11 +36,12 @@
 #include <contrib/libs/apache/arrow/cpp/src/arrow/io/memory.h>
 #include <contrib/libs/apache/arrow/cpp/src/arrow/ipc/api.h>
 
+#include <contrib/libs/apache/arrow/cpp/src/generated/Message.fbs.h>
+
 #include <limits>
 #include <stdlib.h>
 
 namespace NYT::NTableClient {
-
 namespace {
 
 using namespace NChunkClient;
@@ -56,7 +55,6 @@ IUnversionedRowBatchPtr MakeColumnarRowBatch(
     TRange<NTableClient::TUnversionedRow> rows,
     TTableSchemaPtr Schema_)
 {
-
     auto memoryWriter = New<TMemoryWriter>();
 
     auto config = New<TChunkWriterConfig>();
@@ -1547,8 +1545,7 @@ TEST(TArrowWriterTest, SeveralMultiTypesSeveralBatches)
     }
 }
 
-} // namespace
-
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NYT::NTableClient
