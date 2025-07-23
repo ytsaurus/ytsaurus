@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - stable/[0-9]+\.[0-9]+
+      - members/nadya73/fix-cpp-jobs-deps
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
@@ -132,7 +133,7 @@ jobs:
     needs:
       - start-vm
       - checkout
-      - docker-cmake
+      - build-strawberry
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
@@ -172,7 +173,6 @@ jobs:
       - start-vm
       - build-cmake
       - build-ya-make
-      - docker-cmake
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
     uses: ./.github/workflows/check-jobs.yaml
@@ -183,6 +183,7 @@ jobs:
       - start-vm
       - check
       - docker-ya-make
+      - docker-cmake
     runs-on: trampoline
     if: ${{ always() }}
     steps:
