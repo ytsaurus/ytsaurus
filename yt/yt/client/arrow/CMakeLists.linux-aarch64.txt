@@ -14,8 +14,6 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_subdirectory(fbs)
-
 add_library(yt-client-arrow)
 
 
