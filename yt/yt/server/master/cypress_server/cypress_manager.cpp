@@ -1179,7 +1179,6 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraTouchNodes, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraCreateForeignNode, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraCloneForeignNode, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraRemoveExpiredNodes, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraLockForeignNode, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraUnlockForeignNode, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraSetAttributeOnTransactionCommit, Unretained(this)));
@@ -4517,80 +4516,6 @@ private:
             TVersionedNodeId(sourceNodeId, sourceTransactionId),
             TVersionedNodeId(clonedNodeId, clonedTransactionId),
             account->GetName());
-    }
-
-    void HydraRemoveExpiredNodes(NProto::TReqRemoveExpiredNodes* request) noexcept
-    {
-        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
-
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* mutationContext = GetCurrentMutationContext();
-
-        for (const auto& protoId : request->node_ids()) {
-            auto nodeId = FromProto<TNodeId>(protoId);
-
-            if (IsSequoiaId(nodeId)) {
-                YT_LOG_ALERT("Removal of an expired Sequoia node in a master way; skipping (NodeId: %v)",
-                    nodeId);
-                continue;
-            }
-
-            auto* trunkNode = NodeMap_.Find(TVersionedNodeId(nodeId, NullTransactionId));
-            if (!trunkNode) {
-                continue;
-            }
-
-            // NB: IsOrphaned below lies on object ref-counters. This flush is seemingly redundant but makes the code more robust.
-            FlushObjectUnrefs();
-
-            if (IsOrphaned(trunkNode)) {
-                continue;
-            }
-
-            auto noLongerNeedsRemoval = [&] {
-                auto touchTime = trunkNode->GetTouchTime();
-                auto mutationTime = mutationContext->GetTimestamp();
-
-                auto expirationTime = trunkNode->TryGetExpirationTime();
-                auto timeExpired = expirationTime && *expirationTime <= mutationTime;
-
-                auto expirationTimeout = trunkNode->TryGetExpirationTimeout();
-                auto timeoutExpired = expirationTimeout && touchTime + *expirationTimeout <= mutationTime;
-
-                return !timeExpired && !timeoutExpired;
-            };
-
-            auto path = cypressManager->GetNodePath(trunkNode, nullptr);
-
-            if (noLongerNeedsRemoval()) {
-                YT_LOG_DEBUG("Expired node lifetime was prolonged externally; "
-                    "removal is canceled (NodeId: %v, Path: %v)",
-                    nodeId,
-                    path);
-                ExpirationTracker_->OnNodeRemovalFailed(trunkNode);
-                continue;
-            }
-
-            try {
-                YT_LOG_DEBUG("Removing expired node (NodeId: %v, Path: %v)",
-                    nodeId,
-                    path);
-                auto nodeProxy = GetNodeProxy(trunkNode, nullptr);
-                auto parentProxy = nodeProxy->GetParent();
-                parentProxy->RemoveChild(nodeProxy);
-
-                YT_LOG_ACCESS(
-                    nodeId,
-                    path,
-                    nullptr,
-                    "TtlRemove");
-            } catch (const std::exception& ex) {
-                YT_LOG_DEBUG(ex, "Cannot remove an expired node; backing off and retrying (NodeId: %v, Path: %v)",
-                    nodeId,
-                    path);
-                ExpirationTracker_->OnNodeRemovalFailed(trunkNode);
-            }
-        }
     }
 
     void HydraLockForeignNode(NProto::TReqLockForeignNode* request) noexcept
