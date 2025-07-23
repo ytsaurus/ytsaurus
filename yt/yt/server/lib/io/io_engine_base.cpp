@@ -447,9 +447,7 @@ TSharedMutableRef TIOEngineBase::AllocateHugeBlob()
         if (hugePageBlobReservingResult.IsOK()) {
             hugePageBlob = hugePageBlobReservingResult.Value();
         } else {
-            YT_LOG_DEBUG(
-                "Failed to reserve huge page blob: %v",
-                hugePageBlobReservingResult);
+            YT_LOG_DEBUG(hugePageBlobReservingResult, "Failed to reserve huge page blob");
         }
     }
     return hugePageBlob;
