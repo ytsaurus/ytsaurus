@@ -13,7 +13,7 @@ Is released as a docker image.
 **Release date:** 2025-04-08
 
 
-### General Updates
+#### General Updates
 
 **Features:**
 
@@ -28,17 +28,17 @@ Is released as a docker image.
 
 - Fixed panic on initialization if the cluster is unavailable. (Commit: b567f1737aeadd3c1ee0eba0d7bc7b46ec66a789) 
 
-### CHYT
+#### CHYT
 
 - Added an option to disable the export of runtime data from CHYT operations and an explicit expiration timeout for exported data. (Commit: 58d91c249ee4aaf7d7be3070af58569f5f2ad1b9)
 - Changed the default `read_from` option in AttributeCache. (Commit: 33de404dcce77593968fa45d548bf9ebceb3204e)
 
-### SPYT
+#### SPYT
 
 - Added Squashfs support for Livy via strawberry. (Commit: 15c08cd668eacdf57312dc9bcb01452faa82ce7d)
 - Specified yt token for Livy operations. (Commit: c91680616715f65da1855669e082a914f9909973)
 
-### Jupyter
+#### Jupyter
 
 - Added GPU support in Jupyter operations. (Commit: 935e0a5a7c2ffd4a45d3e4260f9aea9d4534a8c0)
 - Added job scaler interface and used it to suspend inactive Jupyter operations. (Commit: e4b7df0c0213644f54af6411ed06b2bc34576059)
