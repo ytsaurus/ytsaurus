@@ -289,8 +289,7 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
         }
     }
 
-    ValidateYPathResolutionDepth(Path_, MaxYPathResolveIterations + 1);
-    YT_UNREACHABLE();
+    ThrowYPathResolutionDepthExceeded(Path_);
 }
 
 TTransaction* TPathResolver::GetTransaction()
