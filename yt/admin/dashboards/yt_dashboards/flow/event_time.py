@@ -52,8 +52,8 @@ def build_lags():
 
 
 def build_late_messages():
-    late = MonitoringExpr(FlowWorker("yt.flow.worker.computation.watermark_generator.late.rate"))
-    total = MonitoringExpr(FlowWorker("yt.flow.worker.computation.watermark_generator.total.rate"))
+    late = MonitoringExpr(FlowWorker("yt.flow.worker.computation.watermark_info.late.rate"))
+    total = MonitoringExpr(FlowWorker("yt.flow.worker.computation.watermark_info.total.rate"))
     return (Rowset()
         .stack(False)
         .all("computation_id")
