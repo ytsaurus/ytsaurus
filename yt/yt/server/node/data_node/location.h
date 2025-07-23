@@ -471,6 +471,9 @@ public:
     //! Returns limit on the maximum memory used of location writes.
     i64 GetWriteMemoryLimit() const;
 
+    //! Returns limit on the maximum memory used of location writes and reads.
+    i64 GetTotalMemoryLimit() const;
+
     //! Returns limit on the maximum count of location write sessions.
     i64 GetSessionCountLimit() const;
 

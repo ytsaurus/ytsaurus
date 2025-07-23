@@ -58,6 +58,7 @@ struct TIOEngineConfigBase
 
     EDirectIOPolicy UseDirectIOForReads;
 
+    i64 TotalRequestLimit;
     i64 WriteRequestLimit;
     i64 ReadRequestLimit;
 
@@ -181,8 +182,12 @@ public:
 
     EDirectIOPolicy UseDirectIOForReads() const override;
 
+    bool IsInFlightRequestLimitExceeded() const override;
     bool IsInFlightReadRequestLimitExceeded() const override;
     bool IsInFlightWriteRequestLimitExceeded() const override;
+
+    i64 GetInFlightRequestCount() const override;
+    i64 GetTotalRequestLimit() const override;
 
     i64 GetInFlightReadRequestCount() const override;
     i64 GetReadRequestLimit() const override;

@@ -132,6 +132,9 @@ struct TChunkLocationConfig
     //! Limit on the maximum memory used of location writes.
     i64 WriteMemoryLimit;
 
+    //! Limit on the maximum memory used of location reads and writes.
+    i64 TotalMemoryLimit;
+
     //! Limit on the maximum count of location write sessions.
     i64 SessionCountLimit;
 
@@ -182,6 +185,9 @@ struct TChunkLocationDynamicConfig
 
     //! Limit on the maximum memory used by location writes.
     std::optional<i64> WriteMemoryLimit;
+
+    //! Limit on the maximum memory used by location reads and writes.
+    std::optional<i64> TotalMemoryLimit;
 
     //! Limit on the maximum count of location write sessions.
     std::optional<i64> SessionCountLimit;

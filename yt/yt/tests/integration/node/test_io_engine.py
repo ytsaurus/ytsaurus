@@ -192,6 +192,51 @@ class TestIoEngine(YTEnvSetup):
             write_table("<append=%true>//tmp/test", ys)
         read_table("//tmp/test")
 
+    @authors("vvshlyaga")
+    def test_io_engine_total_request_limit(self):
+        path = "//tmp/table"
+        create("table", path)
+        write_table(path, [{"a": 1}])
+        update_nodes_dynamic_config({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "io_config": {
+                            "total_request_limit": 0,
+                        }
+                    }
+                }
+            }
+        })
+
+        nodes = ls("//sys/cluster_nodes")
+
+        def seed_counter(node, path):
+            return profiler_factory().at_node(node).counter(path)
+
+        counters = [seed_counter(node, "location/throttled_reads") for node in nodes]
+        read_res = read_table(path, return_response=True, table_reader={"probe_peer_count": 1})
+        wait(lambda: any(counter.get_delta() > 0 for counter in counters))
+
+        counters = [seed_counter(node, "location/throttled_writes") for node in nodes]
+        write_res = write_table(path, [{"a": 1}], return_response=True)
+        wait(lambda: any(counter.get_delta() > 0 for counter in counters))
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "io_config": {
+                            "total_request_limit": 10000,
+                        }
+                    }
+                }
+            }
+        })
+
+        read_res.wait()
+        write_res.wait()
+
     @authors("don-dron")
     def test_io_engine_request_limit(self):
         path = "//tmp/table"
@@ -350,6 +395,7 @@ class TestIoEngine(YTEnvSetup):
                 "store_location_config_per_medium": {
                     "default": {
                         "memory_limit_fraction_for_starting_new_sessions": 1.0,
+                        "total_memory_limit": 20000000,
                         "read_memory_limit": 10000000,
                         "write_memory_limit": 10000000,
                         "session_count_limit": 10000000,
@@ -393,7 +439,6 @@ class TestIoEngine(YTEnvSetup):
                     "default": {
                         "memory_limit_fraction_for_starting_new_sessions": 0,
                         "write_memory_limit": -1,
-                        "probe_put_blocks_check_tick_period": 5,
                     }
                 }
             }
@@ -404,7 +449,6 @@ class TestIoEngine(YTEnvSetup):
                 "store_location_config_per_medium": {
                     "default": {
                         "write_memory_limit": -1,
-                        "probe_put_blocks_check_tick_period": 5,
                     }
                 }
             }
@@ -530,6 +574,26 @@ class TestIoEngine(YTEnvSetup):
                 }
             }
         }, True, False)
+
+        self._run_throttled({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        'total_memory_limit': -1,
+                    }
+                }
+            }
+        }, True, True)
+
+        self._run_throttled({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        'total_memory_limit': -1,
+                    }
+                }
+            }
+        }, False, True)
 
     @authors("yuryalekseev")
     def test_rpc_server_queue_bytes_size_limit(self):

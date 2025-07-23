@@ -64,6 +64,8 @@ void TIOEngineConfigBase::Register(TRegistrar registrar)
     registrar.Parameter("use_direct_io_for_reads", &TThis::UseDirectIOForReads)
         .Default(EDirectIOPolicy::Never);
 
+    registrar.Parameter("total_request_limit", &TThis::TotalRequestLimit)
+        .Default(std::numeric_limits<i64>::max());
     registrar.Parameter("write_request_limit", &TThis::WriteRequestLimit)
         .Default(std::numeric_limits<i64>::max());
     registrar.Parameter("read_request_limit", &TThis::ReadRequestLimit)
@@ -296,6 +298,21 @@ i64 TIOEngineBase::GetTotalWrittenBytes() const
 EDirectIOPolicy TIOEngineBase::UseDirectIOForReads() const
 {
     return Config_.Acquire()->UseDirectIOForReads;
+}
+
+bool TIOEngineBase::IsInFlightRequestLimitExceeded() const
+{
+    return GetInFlightRequestCount() >= GetTotalRequestLimit();
+}
+
+i64 TIOEngineBase::GetInFlightRequestCount() const
+{
+    return GetInFlightWriteRequestCount() + GetInFlightReadRequestCount();
+}
+
+i64 TIOEngineBase::GetTotalRequestLimit() const
+{
+    return Config_.Acquire()->TotalRequestLimit;
 }
 
 bool TIOEngineBase::IsInFlightReadRequestLimitExceeded() const

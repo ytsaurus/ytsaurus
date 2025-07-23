@@ -254,6 +254,11 @@ public:
         return EDirectIOPolicy::Never;
     }
 
+    bool IsInFlightRequestLimitExceeded() const override
+    {
+        return false;
+    }
+
     bool IsInFlightReadRequestLimitExceeded() const override
     {
         return false;
@@ -262,6 +267,16 @@ public:
     bool IsInFlightWriteRequestLimitExceeded() const override
     {
         return false;
+    }
+
+    i64 GetInFlightRequestCount() const override
+    {
+        return 0;
+    }
+
+    i64 GetTotalRequestLimit() const override
+    {
+        return std::numeric_limits<i64>::max();
     }
 
     i64 GetInFlightReadRequestCount() const override
