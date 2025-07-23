@@ -388,7 +388,7 @@ class TestHttpProxy(HttpProxyTestBase):
 class TestHttpProxyMemoryDrop(HttpProxyTestBase):
     ENABLE_MULTIDAEMON = True
 
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "memory_limits": {
             "total": 1000000000,
         }
