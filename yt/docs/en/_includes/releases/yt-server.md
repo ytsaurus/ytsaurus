@@ -66,7 +66,7 @@ New Features & Changes:
 Fixes & Optimizations:
 - Fixed issues with secondary indices in multi-cell clusters (especially large clusters).
 - Improved stability and performance of chaos replication.
-  
+
 ### MapReduce
 New Features & Changes:
 - Disallowed cluster_connection in remote copy operations.
@@ -181,7 +181,7 @@ Features:
 - Shared write lock - write to same row from different transactions without blocking.
 - Rpc proxy client balancer based on power of two choices algorithm.
 - Compression dictionary for Hunks and Hash index.
-  
+
 ### MapReduce
 Features:
 - Support input tables from remote clusters in operations.
@@ -289,7 +289,7 @@ Fixes:
   * Fix possible journal record loss during journal session abort.
   * Fix in backup manager.
   * Fix some bugs in chaos dynamic table replication.
-  
+
 ### MapReduce
 Features:
   * Combined per-locaiton throttlers limiting total in+out bandwidth.
@@ -345,7 +345,7 @@ Fixes:
 
 Many internal changes driven by developing new scheduling mechanics that separate jobs from resource allocations at exec nodes. These changes include modification of the protocol of interaction between schedulers, controller agents and exec nodes, and adding tons of new logic for introducing allocations in exec nodes, controller agents and schedulers.
 
-List of significant changes and fixes: 
+List of significant changes and fixes:
   - Optimize performance of scheduler's Control and NodeShard threads.
   - Optimize performance of the core scheduling algorithm by considering only a subset of operations in most node heartbeats.
   - Optimize operation launch time overhead by not creating debug transaction if neither stderr or core table have been specified.
@@ -367,7 +367,7 @@ List of significant changes and fixes:
 
 Aside small improvements, the most significant features include the ability to configure periodic exports of partitioned data from queues into  static tables and the support for using replicated and chaos dynamic tables as queues and consumers.
 
-Features: 
+Features:
 - Support chaos replicated tables as queues and consumers.
 - Support snapshot exports from queues into static tables.
 - Support queues and consumers that are symbolic links for other queues and consumers.
