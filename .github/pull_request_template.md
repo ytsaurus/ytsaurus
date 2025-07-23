@@ -8,7 +8,7 @@
 > Type: ?       # fix/feature (Select one value, example: `Type: fix`)
 > Component: ?  # master/proxy/scheduler/dynamic-tables/controller-agent/queue-agent/query-tracker
 >               # map-reduce/misc-server/odin/spyt/chyt/strawberry/python-sdk/python-yson/python-rpc-bindings/java-sdk
->               # cpp-sdk/go-sdk (Select one value, example: `Component: scheduler`)
+>               # cpp-sdk/go-sdk/cms/excel/cron/microservices (Select one value, example: `Component: scheduler`)
 > Description of this change which will be added in release notes.
 
 * Changelog entry
