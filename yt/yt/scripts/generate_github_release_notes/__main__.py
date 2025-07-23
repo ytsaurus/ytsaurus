@@ -56,7 +56,7 @@ def generate_release_notes(since_commit, until_commit):
     return release_notes
 
 
-def format_release_notes(release_notes, components, ignore_unparsed):
+def format_release_notes(release_notes, repo, components, ignore_unparsed):
     formatted_notes = []
     for component, types in release_notes.items():
         if component == "unparsed":
@@ -67,22 +67,26 @@ def format_release_notes(release_notes, components, ignore_unparsed):
         if 'feature' in types:
             formatted_notes.append('Features:')
             for commit_hash, message in types.get('feature', []) + types.get('change', []):
-                formatted_notes.append(f'- {message} (Commit: {commit_hash})')
+                message = message[:-1] if message.endswith(".") else message
+                formatted_notes.append(f'- {message}, [{commit_hash[:7]}](https://github.com/ytsaurus/{repo}/commit/{commit_hash}).')
         if 'fix' in types:
             formatted_notes.append('Fixes:')
             for commit_hash, message in types['fix']:
-                formatted_notes.append(f'- {message} (Commit: {commit_hash})')
+                message = message[:-1] if message.endswith(".") else message
+                formatted_notes.append(f'- {message}, [{commit_hash[:7]}](https://github.com/ytsaurus/{repo}/commit/{commit_hash}).')
         for t in types:
             if t != "fix" and t != "feature":
                 formatted_notes.append('Other:')
                 for commit_hash, message in types[t]:
-                    formatted_notes.append(f'- {message} (Commit: {commit_hash})')
+                    message = message[:-1] if message.endswith(".") else message
+                    formatted_notes.append(f'- {message}, [{commit_hash[:7]}](https://github.com/ytsaurus/{repo}/commit/{commit_hash}).')
         formatted_notes.append('')
 
     if "unparsed" in release_notes and not ignore_unparsed:
         formatted_notes.append("### UNPARSED")
         for commit_hash, message in release_notes["unparsed"]["unparsed"]:
-            formatted_notes.append(f'- {message} (Commit: {commit_hash})')
+            message = message[:-1] if message.endswith(".") else message
+            formatted_notes.append(f'- {message}, [{commit_hash[:7]}](https://github.com/ytsaurus/ytsaurus/{repo}/{commit_hash}).')
             formatted_notes.append('')
 
     return '\n'.join(formatted_notes)
@@ -113,6 +117,13 @@ def main():
     )
 
     parser.add_argument(
+        "-r", "--repo",
+        required=False,
+        default="ytsaurus",
+        help="Github repository in ytsaurus organization"
+    )
+
+    parser.add_argument(
         "-i", "--ignore-unparsed",
         action="store_true",
         default=False,
@@ -122,7 +133,7 @@ def main():
     args = parser.parse_args()
 
     release_notes = generate_release_notes(args.since_commit, args.until_commit)
-    print(format_release_notes(release_notes, args.component, args.ignore_unparsed))
+    print(format_release_notes(release_notes, args.repo, args.component, args.ignore_unparsed))
 
 
 if __name__ == "__main__":
