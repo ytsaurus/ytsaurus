@@ -65,6 +65,7 @@ DEFINE_ENUM(ESchedulerAlertType,
     ((ExperimentAssignmentError)                    (19))
     ((UnrecognizedPoolTreeConfigOptions)            (20))
     ((NodesWithInsufficientResourceLimits)          (21))
+    ((OperationStuckInRemoval)                      (22))
 );
 
 DEFINE_ENUM(EOperationAlertType,
