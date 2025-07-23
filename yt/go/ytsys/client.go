@@ -919,7 +919,7 @@ func (c *Client) GetDisableBundleBalancer(ctx context.Context) (bool, error) {
 	return out, err
 }
 
-// GetLVC returns number of lost vital chunks.
+// GetChunkCount returns total number of chunks.
 func (c *Client) GetChunkCount(ctx context.Context) (int64, error) {
 	return c.getInt64Attr(ctx, ChunksCountPath)
 }
