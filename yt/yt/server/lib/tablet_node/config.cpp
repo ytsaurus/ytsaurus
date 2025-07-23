@@ -413,6 +413,9 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
         .Default()
         .DontSerializeDefault();
 
+    registrar.Parameter("max_eden_data_size_for_splitting", &TThis::MaxEdenDataSizeForSplitting)
+        .Default(500_MB);
+
     registrar.Parameter("testing", &TThis::Testing)
         .Default();
 
