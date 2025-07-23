@@ -220,7 +220,13 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TScraperTask)
+DECLARE_REFCOUNTED_TYPE(TScraperTask);
+DEFINE_REFCOUNTED_TYPE(TScraperTask);
+
+struct TChunkScraper::TScraperTaskWrapper
+{
+    TScraperTaskPtr Impl;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -252,14 +258,14 @@ TChunkScraper::~TChunkScraper()
 void TChunkScraper::Start()
 {
     for (const auto& task : ScraperTasks_) {
-        task->Start();
+        task.Impl->Start();
     }
 }
 
 void TChunkScraper::Stop()
 {
     for (const auto& task : ScraperTasks_) {
-        task->Stop();
+        task.Impl->Stop();
     }
 }
 
@@ -298,7 +304,7 @@ void TChunkScraper::CreateTasks(const THashSet<TChunkId>& chunkIds)
             std::move(cellChunks.second),
             OnChunkBatchLocated_,
             Logger);
-        ScraperTasks_.push_back(std::move(task));
+        ScraperTasks_.emplace_back(std::move(task));
     }
 }
 
