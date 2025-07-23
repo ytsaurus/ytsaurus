@@ -5,14 +5,31 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 
 
 
+
 **Releases:**
+
+{% cut "**0.13.33**" %}
+
+**Release date:** 2025-07-14
+
+
+#### Features
+  * Support tz types in python
+  * Add type hints for YtClient config
+  * Support custom auth class in Python SDK config
+
+#### Fixes
+  * Fix hiding tokens in case of YtProxyUnavailable exception
+
+{% endcut %}
+
 
 {% cut "**0.13.31**" %}
 
 **Release date:** 2025-06-20
 
 
-## Features
+#### Features
  * Minor improvements
  * Bump py-dependencies 2f5dc26abd27401d7c775b4e7406b4c85c1c4105
 
@@ -24,7 +41,7 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-06-16
 
 
-## Features
+#### Features
   * Introduce `list_operation_events` command
 
 
@@ -36,11 +53,11 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-06-02
 
 
-## Features
+#### Features
   * Add `annotate_with_types` to `yson_to_json` function
   * Improve proxy banned warning message
 
-## Fixes
+#### Fixes
   * Remove `YtSequoiaRetriableError`
   * Fix handling errors in `write_table` with enabled framing
 
@@ -53,7 +70,7 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-04-30
 
 
-## Features
+#### Features
 
 - Turn on `redirect_stdout_to_stderr` by default
 - Add password strength validation in `set_user_password` request
@@ -66,11 +83,11 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-04-18
 
 
-### Features
+#### Features
 * Active users of dynamic tables APIs are encouraged to use RPC proxies
 * Support using /api/v4/discover_proxies handler instead of /hosts
 
-### Fixes
+#### Fixes
 * Error on getting `impersonation_user` setting from configuration
 
 {% endcut %}
@@ -81,7 +98,7 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-03-25
 
 
-### Features
+#### Features
 * Add support of `expression` and `aggregate` properties in TableSchema.
 * Add impersonation support.
 * Do not strip docker host in spec builder.
@@ -96,10 +113,10 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-03-12
 
 
-### Features
+#### Features
 * Introduce `yt whoami` command
 
-### Fixes
+#### Fixes
 * Fix issue-token output format
 
 
@@ -111,7 +128,7 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-03-02
 
 
-### Features
+#### Features
 * Replace `include_scheduler` option with `include_runtime` option in `get_operation` command (it is backward incompatible change)
 * Request `type` attributes instead of `operation_type` attribute in `get_operation` command
 * Add `redirect_stdout_to_stderr` support
@@ -119,11 +136,11 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 * Add `is_prerequisite_check_fail` method to error, add `YtAuthenticationError`
 * Support operation suspend reason
 
-### Fixes
+#### Fixes
 * Drop python2 related code in `_py_runner.py`
 * Add `python_requires=">=3.8"` to package setup
 * Do not request all attributes in operation exists check
-* Fix handling request timeout of `start_operation` command
+* Fix handling request timeout of `start_operation` command 
 
 {% endcut %}
 
@@ -133,7 +150,7 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-02-04
 
 
-### Features
+#### Features
   * Add `min_batch_row_count` option to dump parquet
   * Add `patch_operation_spec` method
   * Add queue producer methods in YT cli
@@ -145,7 +162,7 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
   * Make pickling->dynamic_libraries->enable_auto_collection remote patchable
   * Apply destination path attributes to temporary objects within parallel upload
 
-### Fixes
+#### Fixes
   * YSON: unescape invalid seqs as in bingings implementation.
   * Fix `generate_traceparent`
   * Remove `typing_extensions` module imports for newer python versions
@@ -159,7 +176,7 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-01-10
 
 
-### Fixes:
+#### Fixes:
 * Fix import checks for `orc` related functions
 
 {% endcut %}
@@ -243,7 +260,7 @@ Thanks to multiple outside contributors for the active participation in Python S
 **Release date:** 2024-06-26
 
 
-Features:
+Features: 
   - Support profiles in configuration file
   - Add versioned select
   - Add enum.StrEnum and enum.IntEnum support for yt_dataclasses

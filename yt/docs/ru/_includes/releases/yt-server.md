@@ -16,12 +16,12 @@ All main components are released as a docker image.
 _To install YTsaurus Server 24.2.0 [update](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release%2F0.22.0) the k8s-operator to version 0.22.0._
 
 ---
-### Known Issue
+#### Known Issue
 - Expanding a cluster with new master cells is temporarily disabled due to a bug. This issue will be resolved in the upcoming 25.1 version.
 
 ---
 
-### Scheduler and GPU
+#### Scheduler and GPU
 New Features & Changes:
 - Added support for ACO-based access control in operations.
 - Introduced `get_job_trace` method in the jobs API.
@@ -32,7 +32,7 @@ Fixes & Optimizations:
 - Fixed scheduling issues with new allocations immediately after operation suspension.
 - Optimized fair share updates within the control thread.
 
-### Queue Agent
+#### Queue Agent
 New Features & Changes:
 - Queue exports are now considered when trimming replicated and chaos replicated table queues.
 - Introduced sum aggregation for lag metrics in consumer partitions.
@@ -43,7 +43,7 @@ Fixes & Optimizations:
 - Corrected lock options when acquiring a shared lock for the export directory.
 - Resolved expiration issues of clients for chaos queues and consumers when the cluster connection changes.
 
-### Proxy
+#### Proxy
 New Features & Changes:
 - Supported YAML format for structured data. See details in the RFC: [YAML-format support](https://github.com/ytsaurus/ytsaurus/wiki/%5BRFC%5D-YAML-format-support).
 - Introduced create_user_if_not_exists config flag to disable automatic user creation during OAuth authentication. [Issue](https://github.com/ytsaurus/ytsaurus/issues/930).
@@ -56,10 +56,10 @@ Fixes & Optimizations:
 - If insufficient memory is available to handle RPC responses, a retryable `Unavailable` error will now be returned instead of the non-retryable `MemoryPressure` error.
 - Optimized the `concatenate` method.
 
-### Kafka proxy
+#### Kafka proxy
 Introduce a new component: the Kafka Proxy. This MVP version enables integration with YTsaurus queues using the Kafka protocol. It currently supports a minimal API for writing to queues and reading with load balancing through consumer groups.
 
-### Dynamic Tables
+#### Dynamic Tables
 New Features & Changes:
 - Introduced Versioned Remote Copy for tables with hunks.
 
@@ -67,7 +67,7 @@ Fixes & Optimizations:
 - Fixed issues with secondary indices in multi-cell clusters (especially large clusters).
 - Improved stability and performance of chaos replication.
   
-### MapReduce
+#### MapReduce
 New Features & Changes:
 - Disallowed cluster_connection in remote copy operations.
 - Introduced single-chunk teleportation for auto-merge operations.
@@ -80,7 +80,7 @@ Fixes & Optimizations:
 - Optimized job resource acquisition in exec nodes.
 - Fixed cases of lost metrics in exec nodes.
 
-### Master Server
+#### Master Server
 New Features & Changes:
 - Added an option to fetch input/output table schemas from an external cell using a schema ID.
 - Deprecated the list node type; its creation is now forbidden.
@@ -118,7 +118,7 @@ Fixes & Optimizations:
 
 _To install YTsaurus Server 24.1.0 [update](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases) the k8s-operator to version 0.17.0._
 
-### Scheduler and GPU
+#### Scheduler and GPU
 Features and changes:
 - Support prioritization of pools during strong guarantee adjustment due to insufficient total cluster resources.
 - Support prioritization of operations during module assignment stage of the GPU scheduling algorithm.
@@ -134,7 +134,7 @@ Fixes and optimizations:
 - Optimize general allocation scheduling algorithm and fair share computation.
 - Optimize scheduler <-> CA and exec node <-> CA heartbeats processing.
 
-### Queue Agent
+#### Queue Agent
 Features:
 - Treat static queue export the same way as vital consumer during queues trimming, so not exported rows will not be trimmed.
 - Add functionality for banning queue agent instances via cypress attribute.
@@ -148,7 +148,7 @@ Fixes:
 - Rename `write_registration_table_mapping` -> `write_replicated_table_mapping` in dynamic config.
 - Take shared lock instead of exclusive lock on static export destination directories.
 
-### Proxy
+#### Proxy
 Features:
 - Implement queue producer handlers for exactly once pushing in queues (`PushQueueProducer`, `CreateQueueProducerSession`).
 - Add `queue_consumer` and `queue_producer` object type handler, so they can be created without explicitly schema specification. Example: `yt create queue_consumer <path>`.
@@ -173,7 +173,7 @@ Fixes:
 - Fix null, void and optional composite columns in Arrow format.
 - Fix `yt.memory.heap_usage` metrics.
 
-### Dynamic Tables
+#### Dynamic Tables
 Features:
 - Secondary Indexes: basic, partial, list, and unique indexes.
 - Optimize queries which group and order by same keys.
@@ -182,7 +182,7 @@ Features:
 - Rpc proxy client balancer based on power of two choices algorithm.
 - Compression dictionary for Hunks and Hash index.
   
-### MapReduce
+#### MapReduce
 Features:
 - Support input tables from remote clusters in operations.
 - Improve control over how data is split into jobs for ML training applications.
@@ -198,7 +198,7 @@ Fixes:
 Optimizations:
 - Add JobInputCache: in-memory cache on exe nodes, storing data read by multiple jobs running on the same node.
 
-### Master Server
+#### Master Server
 
 Features:
 - Tablet cells Hydra persistence data is now primarily stored at the new location `//sys/hydra_persistence` by default. The duality with the previous location (`//sys/tablet_cells`) will be resolved in the future releases.
@@ -238,7 +238,7 @@ Fixes:
 - Fix an epoch restart-related crash in expiration tracker.
 - In master cell directory, alert on an unknown cell role instead of crashing.
 
-### Misc
+#### Misc
 Features:
 - Add ability to redirect stdout to stderr in user jobs (`redirect_stdout_to_stderr` option in operation spec).
 - Add dynamic table log writer.
@@ -251,7 +251,7 @@ Features:
 **Release date:** 2024-07-31
 
 
-### Scheduler and GPU
+#### Scheduler and GPU
 Features:
   * Disable writing `//sys/scheduler/event_log` by default.
   * Add lightweight running operations.
@@ -261,11 +261,11 @@ Fixes:
   * Improve total resource usage and limits profiling.
   * Do not account job preparation time in GPU statistics.
 
-### Queue Agent
+#### Queue Agent
 Fixes:
   * Normalize cluster name in queue consumer registration.
 
-### Proxy
+#### Proxy
 Features:
   * RPC proxy API for Query Tracker.
   * Changed format and added metadata for issued user tokens.
@@ -278,7 +278,7 @@ Fixes:
   * Fix per-user memory tracking (propagate allocation tags to child context).
   * Fix arrow format for optional types.
 
-### Dynamic Tables
+#### Dynamic Tables
 Features:
   * Shared write locks.
   * Increased maximum number of key columns to 128.
@@ -290,7 +290,7 @@ Fixes:
   * Fix in backup manager.
   * Fix some bugs in chaos dynamic table replication.
   
-### MapReduce
+#### MapReduce
 Features:
   * Combined per-locaiton throttlers limiting total in+out bandwidth.
   * Options in operation spec to force memory limits on user job containers.
@@ -306,7 +306,7 @@ Fixes:
   * Multiple retries added in CRI executor/docker image integration.
   * Cleaned up job memory statistics collection, renamed some statistics.
 
-### Master Server
+#### Master Server
 Features:
   * Parallelize and offload virtual map reads.
   * Emergency flag to disable attribute-based access control.
@@ -320,7 +320,7 @@ Fixes:
   * Fixes for jammed incremental hearbeats and lost replica update on disabled locations.
   * Fix per-account sensors on new account creation.
 
-### Misc
+#### Misc
 Features:
   * Config exposure via orchid became optional.
   * Support some c-ares options in YT config.
@@ -341,7 +341,7 @@ Fixes:
 **Release date:** 2024-02-29
 
 
-### Scheduler
+#### Scheduler
 
 Many internal changes driven by developing new scheduling mechanics that separate jobs from resource allocations at exec nodes. These changes include modification of the protocol of interaction between schedulers, controller agents and exec nodes, and adding tons of new logic for introducing allocations in exec nodes, controller agents and schedulers.
 
@@ -363,7 +363,7 @@ List of significant changes and fixes:
   - Hide user tokens in scheduler and job proxy logs.
   - Support configurable max capacity for pipes between job proxy and user job.
 
-### Queue Agent
+#### Queue Agent
 
 Aside small improvements, the most significant features include the ability to configure periodic exports of partitioned data from queues into  static tables and the support for using replicated and chaos dynamic tables as queues and consumers.
 
@@ -379,7 +379,7 @@ Fixes:
 - Fix metrics of read rows data weight via consumer.
 - Fix handling frozen tablets in queue.
 
-### Proxy
+#### Proxy
 Features:
 - Add ability to call `pull_consumer` without specifying `offset`, it will be taken from `consumer` table.
 - Add `advance_consumer` handler for queues.
@@ -394,7 +394,7 @@ Fixes:
 - Fix returning requested system columns in `web_json` format.
 
 
-### Dynamic Tables
+#### Dynamic Tables
 Features:
 - DynTables Query language improvments:
     - New range inferrer.
@@ -408,7 +408,7 @@ Features:
 - Store heavy chunk meta in blocks.
 
 
-### MapReduce
+#### MapReduce
 
 Features:
 - RemoteСopy now supports cypress file objects, in addition to tables.
@@ -422,7 +422,7 @@ Enhancements:
 - Improve memory tracking in data nodes (master jobs, blob write sessions, p2p tracking).
 - Rework memory acccounting in controller agents.
 
-### Master Server
+#### Master Server
 
 Noticeable/Potentially Breaking Changes:
   - Read requests are now processed in a multithreaded manner by default.
@@ -448,7 +448,7 @@ Optimizations & Fixes:
 
 Additionally, advancements have been made in the Sequoia project dedicated to scaling master server by offloading certain parts of its state to dynamic tables. (This is far from being production-ready yet.)
 
-### Misc
+#### Misc
 
 Enhancements:
 - Add rpc server config dynamization.
