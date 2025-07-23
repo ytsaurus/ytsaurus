@@ -773,43 +773,9 @@ TTableProfiler::TTableProfiler(
     , Profiler_(profiler)
     , MediumProfiler_(mediumProfiler)
     , MediumHistogramProfiler_(mediumHistogramProfiler)
+    , DiskProfiler_(diskProfiler)
     , Schema_(std::move(schema))
-{
-    for (auto method : TEnumTraits<EChunkWriteProfilingMethod>::GetDomainValues()) {
-        ChunkWriteCounters_[method] = {
-            TChunkWriteCounters(
-                diskProfiler.WithTag("method", FormatEnum(method)),
-                Schema_),
-            TChunkWriteCounters(
-                diskProfiler.WithTag("method", FormatEnum(method) + "_failed"),
-                Schema_)
-        };
-    }
-
-    for (auto method : TEnumTraits<EChunkReadProfilingMethod>::GetDomainValues()) {
-        ChunkReadCounters_[method] = {
-            TChunkReadCounters(
-                diskProfiler.WithTag("method", FormatEnum(method)),
-                Schema_),
-            TChunkReadCounters(
-                diskProfiler.WithTag("method", FormatEnum(method) + "_failed"),
-                Schema_)
-        };
-    }
-
-    for (auto kind : TEnumTraits<ETabletDistributedThrottlerKind>::GetDomainValues()) {
-        ThrottlerWaitTimers_[kind] = profiler.Timer(
-            "/tablet/" + CamelCaseToUnderscoreCase(ToString(kind)) + "_throttler_wait_time");
-    }
-
-    for (auto kind : TEnumTraits<ETabletDistributedThrottlerKind>::GetDomainValues()) {
-        ThrottlerCounters_[kind] = profiler.Counter(
-            "/tablet/throttled_" + CamelCaseToUnderscoreCase(ToString(kind)) + "_count");
-    }
-
-    LsmCounters_ = TLsmCounters(Profiler_);
-    TablePullerCounters_ = TTablePullerCounters(Profiler_);
-}
+{ }
 
 TTableProfilerPtr TTableProfiler::GetDisabled()
 {
@@ -879,59 +845,96 @@ TReplicaCounters TTableProfiler::GetReplicaCounters(const std::string& cluster)
     return TReplicaCounters{Profiler_.WithTag("replica_cluster", cluster)};
 }
 
-template <class TCounter>
-TCounter* TTableProfiler::GetCounterUnlessDisabled(TCounter* counter)
+template <class TCounter, class TCallback>
+TCounter* TTableProfiler::GetOrCreateCounter(std::optional<TCounter>* counter, TCallback&& callback)
 {
     if (Disabled_) {
         static TCounter staticCounter;
         return &staticCounter;
     }
 
-    return counter;
+    auto readerGuard = NThreading::ReaderGuard(SpinLock_);
+    if (!counter->has_value()) {
+        readerGuard.Release();
+
+        auto writerGuard = NThreading::WriterGuard(SpinLock_);
+        if (!counter->has_value()) {
+            if constexpr (std::is_same_v<TCallback, std::monostate>) {
+                counter->emplace(Profiler_);
+            } else {
+                counter->emplace(callback());
+            }
+        }
+    }
+
+    return &counter->value();
 }
 
 TTablePullerCounters* TTableProfiler::GetTablePullerCounters()
 {
-    return GetCounterUnlessDisabled(&TablePullerCounters_);
+    return GetOrCreateCounter(&TablePullerCounters_);
 }
 
 TChunkWriteCounters* TTableProfiler::GetWriteCounters(EChunkWriteProfilingMethod method, bool failed)
 {
-    return GetCounterUnlessDisabled(&ChunkWriteCounters_[method][failed ? 1 : 0]);
+    return GetOrCreateCounter(
+        &ChunkWriteCounters_[method][failed ? 1 : 0],
+        [&] {
+            if (failed) {
+                return TChunkWriteCounters(
+                    DiskProfiler_.WithTag("method", FormatEnum(method) + "_failed"),
+                    Schema_);
+            } else {
+                return TChunkWriteCounters(
+                    DiskProfiler_.WithTag("method", FormatEnum(method)),
+                    Schema_);
+            }
+        });
 }
 
 TChunkReadCounters* TTableProfiler::GetReadCounters(EChunkReadProfilingMethod method, bool failed)
 {
-    return GetCounterUnlessDisabled(&ChunkReadCounters_[method][failed ? 1 : 0]);
+    return GetOrCreateCounter(
+        &ChunkReadCounters_[method][failed ? 1 : 0],
+        [&] {
+            if (failed) {
+                return TChunkReadCounters(
+                    DiskProfiler_.WithTag("method", FormatEnum(method) + "_failed"),
+                    Schema_);
+            } else {
+                return TChunkReadCounters(
+                    DiskProfiler_.WithTag("method", FormatEnum(method)),
+                    Schema_);
+            }
+        });
 }
 
 TEventTimer* TTableProfiler::GetThrottlerTimer(ETabletDistributedThrottlerKind kind)
 {
-    return GetCounterUnlessDisabled(&ThrottlerWaitTimers_[kind]);
+    return GetOrCreateCounter(
+        &ThrottlerWaitTimers_[kind],
+        [&] {
+            return Profiler_.Timer("/tablet/" + FormatEnum(kind) + "_throttler_wait_time");
+        });
 }
 
 TCounter* TTableProfiler::GetThrottlerCounter(ETabletDistributedThrottlerKind kind)
 {
-    return GetCounterUnlessDisabled(&ThrottlerCounters_[kind]);
+    return GetOrCreateCounter(
+        &ThrottlerCounters_[kind],
+        [&] {
+            return Profiler_.Counter("/tablet/throttled_" + FormatEnum(kind) + "_count");
+        });
 }
 
 TLsmCounters* TTableProfiler::GetLsmCounters()
 {
-    return GetCounterUnlessDisabled(&LsmCounters_);
+    return GetOrCreateCounter(&LsmCounters_);
 }
 
 TSmoothMovementCounters* TTableProfiler::GetSmoothMovementCounters()
 {
-    if (Disabled_) {
-        static TSmoothMovementCounters counters;
-        return &counters;
-    }
-
-    if (!SmoothMovementCounters_) {
-        SmoothMovementCounters_.emplace(Profiler_);
-    }
-
-    return &SmoothMovementCounters_.value();
+    return GetOrCreateCounter(&SmoothMovementCounters_);
 }
 
 const TProfiler& TTableProfiler::GetProfiler() const
