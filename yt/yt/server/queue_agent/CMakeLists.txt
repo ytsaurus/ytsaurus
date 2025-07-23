@@ -30,6 +30,8 @@ target_link_libraries(yt-server-queue_agent PUBLIC
   cpp-yt-phdr_cache
   library-cpp-getopt
   yt-library-dynamic_config
+  yt-library-monitoring
+  yt-library-program
   yt-yt-client
   yt-client-federated
   yt-yt-ytlib
