@@ -4,6 +4,7 @@ RECURSE(
     gc_service
     job
     job_factory
+    job_launcher
     process
     proto
     request_options
