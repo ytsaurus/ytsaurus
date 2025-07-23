@@ -1526,8 +1526,8 @@ private:
             service->Reconfigure(newConfig->CachingObjectService);
         }
 
-        if (auto hugePageManager = HugePageManager_) {
-            hugePageManager->Reconfigure(newConfig->HugePageManager);
+        if (HugePageManager_) {
+            HugePageManager_->Reconfigure(newConfig->HugePageManager);
         }
 
         IOTracker_->SetConfig(newConfig->IOTracker);

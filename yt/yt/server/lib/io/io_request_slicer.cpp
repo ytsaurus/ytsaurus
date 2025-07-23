@@ -125,7 +125,7 @@ std::vector<TSlicedRequest> TIORequestSlicer::SliceRequest(const TInputRequest& 
 
     i64 offset = AlignDown(request.Offset, blockSize);
     i64 remainingSize = AlignUp<i64>(request.Offset + NDetail::GetByteCount(request), blockSize) - offset;
-    const i64 indivisibleBlockSize = desiredSize + minSize;
+    i64 indivisibleBlockSize = desiredSize + minSize;
 
     std::vector<TSlicedRequest> results;
     while (remainingSize > 0) {

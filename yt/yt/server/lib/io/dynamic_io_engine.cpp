@@ -225,8 +225,8 @@ public:
 
 private:
     const TString LocationId_;
-    const TFairShareHierarchicalSlotQueuePtr<std::string> FairShareQueue_ = nullptr;
-    const IHugePageManagerPtr HugePageManager_ = nullptr;
+    const TFairShareHierarchicalSlotQueuePtr<std::string> FairShareQueue_;
+    const IHugePageManagerPtr HugePageManager_;
     const NProfiling::TProfiler Profiler_;
     const NLogging::TLogger Logger;
 
