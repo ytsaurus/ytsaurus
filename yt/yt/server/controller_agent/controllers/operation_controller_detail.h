@@ -734,6 +734,7 @@ protected:
     void GetUserFilesAttributes();
     virtual void CustomPrepare();
     void InferInputRanges();
+    NYTree::EPermission GetInputTablePermission() const override;
 
     // Materialization.
     void FetchUserFiles();

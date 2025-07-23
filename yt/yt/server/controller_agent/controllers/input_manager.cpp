@@ -767,7 +767,7 @@ void TInputManager::FetchInputTablesAttributes()
                 MakeUserObjectList(cluster->InputTables()),
                 /*defaultTransactionId*/ NullTransactionId,
                 Logger,
-                EPermission::Read,
+                Host_->GetInputTablePermission(),
                 TGetUserObjectBasicAttributesOptions{
                     .OmitInaccessibleColumns = Host_->GetSpec()->OmitInaccessibleColumns,
                     .PopulateSecurityTags = true,

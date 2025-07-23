@@ -8088,6 +8088,11 @@ void TOperationControllerBase::InferInputRanges()
     }
 }
 
+EPermission TOperationControllerBase::GetInputTablePermission() const
+{
+    return EPermission::Read;
+}
+
 TError TOperationControllerBase::GetAutoMergeError() const
 {
     return TError("Automatic output merge is not supported for %Qlv operations", OperationType_);
