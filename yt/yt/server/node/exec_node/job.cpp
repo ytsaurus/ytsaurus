@@ -3239,7 +3239,6 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         proxyInternalConfig->UseNewDeliveryFencedConnection = proxyDynamicConfig->UseNewDeliveryFencedConnection;
         proxyInternalConfig->EnablePerClusterChunkReaderStatistics = proxyDynamicConfig->EnablePerClusterChunkReaderStatistics;
 
-        proxyInternalConfig->EnableCudaProfileEventStreaming = proxyDynamicConfig->EnableCudaProfileEventStreaming;
         proxyInternalConfig->JobTraceEventProcessor = proxyDynamicConfig->JobTraceEventProcessor;
 
         if (proxyDynamicConfig->MemoryProfileDumpPath) {

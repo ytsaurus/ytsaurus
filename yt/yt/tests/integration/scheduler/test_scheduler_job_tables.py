@@ -1404,11 +1404,6 @@ class TestJobProfiling(YTEnvSetup):
                     "min_repeat_delay": 10,
                     "max_repeat_delay": 10,
                 },
-                "job_controller": {
-                    "job_proxy": {
-                        "enable_cuda_profile_event_streaming": False,
-                    },
-                },
             }
         }
     }
@@ -1542,44 +1537,6 @@ class TestJobProfiling(YTEnvSetup):
             spec=spec,
         )
 
-    @authors("omgronny")
-    def test_user_job_cuda_profiling(self):
-        op = self._start_cuda_profiling_operation(0.5)
-
-        @wait_no_assert
-        def profile_ready():
-            profiles = get_profiles_from_table(op.id)
-            assert len(builtins.set(row["profile_type"] for row in profiles)) >= 1
-
-        profiles = get_profiles_from_table(op.id)
-
-        assert all(row["profiling_probability"] == 0.5 for row in profiles)
-        assert all(row["profile_blob"] == "profile_cuda" for row in profiles if row["profile_type"] == "user_job_cuda")
-        assert 0 < len(list(row for row in profiles if row["profile_type"] == "user_job_cuda")) < 20
-
-    @authors("omgronny")
-    def test_has_trace_in_archive_features(self):
-        op = self._start_cuda_profiling_operation(1.0)
-
-        @wait_no_assert
-        def profile_ready():
-            profiles = get_profiles_from_table(op.id)
-            assert len(builtins.set(row["profile_type"] for row in profiles)) >= 1
-            assert len(profiles) >= 20
-
-        def check_job(job):
-            assert "archive_features" in job
-            assert "has_trace" in job["archive_features"]
-            assert job["archive_features"]["has_trace"]
-
-        jobs = list_jobs(op.id)["jobs"]
-        for job in jobs:
-            check_job(job)
-
-        first_job_id = jobs[0]["id"]
-        first_job = get_job(op.id, first_job_id)
-        check_job(first_job)
-
 
 @pytest.mark.enabled_multidaemon
 class TestJobTraceEvents(YTEnvSetup):
@@ -1664,7 +1621,7 @@ class TestJobTraceEvents(YTEnvSetup):
 
         return vanilla(track=False, spec=spec)
 
-    @authors("omgronny")
+    @authors("bystrovserg")
     def test_no_profiling(self):
         op = run_test_vanilla(
             job_count=2,
@@ -1675,7 +1632,7 @@ class TestJobTraceEvents(YTEnvSetup):
         events = get_job_trace(op.id)
         assert not events
 
-    @authors("omgronny")
+    @authors("bystrovserg")
     def test_incorrect_event(self):
         profiles = [
             "{\"event\": \"profile\", \"tid\": 1}",
@@ -1695,7 +1652,7 @@ class TestJobTraceEvents(YTEnvSetup):
         events = select_rows("* from [//sys/operations_archive/job_trace_events]")
         assert len(events) == 0
 
-    @authors("omgronny")
+    @authors("bystrovserg")
     def test_get_job_trace(self):
         profile = "{\"event\": \"profile\", \"ts\": 1.5, \"tid\": 1}"
         op = self._start_vanilla_operation(profile)
@@ -1724,6 +1681,32 @@ class TestJobTraceEvents(YTEnvSetup):
         with pytest.raises(YtError):
             # Missing/incorrect op_id
             get_job_trace("1-1-1-1")
+
+    @authors("bystrovserg")
+    def test_has_trace_in_archive_features(self):
+        profile = "{\"event\": \"profile\", \"ts\": 1.5, \"tid\": 1}"
+        op = self._start_vanilla_operation(profile, write_count=1)
+
+        @wait_no_assert
+        def events_are_ready():
+            events_from_table = select_rows("* from [//sys/operations_archive/job_trace_events]")
+            assert len(events_from_table) == 2
+
+        def check_job(job):
+            assert "archive_features" in job
+            assert "has_trace" in job["archive_features"]
+            assert job["archive_features"]["has_trace"]
+
+        @wait_no_assert
+        def check_has_trace():
+            jobs = list_jobs(op.id)["jobs"]
+            for job in jobs:
+                check_job(job)
+
+            first_job_id = jobs[0]["id"]
+            first_job = get_job(op.id, first_job_id)
+            check_job(first_job)
+
 
 ##################################################################
 
