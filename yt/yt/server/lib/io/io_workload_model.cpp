@@ -515,6 +515,11 @@ public:
         return Underlying_->UseDirectIOForReads();
     }
 
+    bool IsInFlightRequestLimitExceeded() const override
+    {
+        return Underlying_->IsInFlightRequestLimitExceeded();
+    }
+
     bool IsInFlightReadRequestLimitExceeded() const override
     {
         return Underlying_->IsInFlightReadRequestLimitExceeded();
@@ -523,6 +528,16 @@ public:
     bool IsInFlightWriteRequestLimitExceeded() const override
     {
         return Underlying_->IsInFlightWriteRequestLimitExceeded();
+    }
+
+    i64 GetInFlightRequestCount() const override
+    {
+        return Underlying_->GetInFlightRequestCount();
+    }
+
+    i64 GetTotalRequestLimit() const override
+    {
+        return Underlying_->GetTotalRequestLimit();
     }
 
     i64 GetInFlightReadRequestCount() const override

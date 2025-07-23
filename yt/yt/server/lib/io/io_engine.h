@@ -212,8 +212,12 @@ struct IIOEngine
     virtual i64 GetTotalWrittenBytes() const = 0;
     virtual EDirectIOPolicy UseDirectIOForReads() const = 0;
 
+    virtual bool IsInFlightRequestLimitExceeded() const = 0;
     virtual bool IsInFlightReadRequestLimitExceeded() const = 0;
     virtual bool IsInFlightWriteRequestLimitExceeded() const = 0;
+
+    virtual i64 GetInFlightRequestCount() const  = 0;
+    virtual i64 GetTotalRequestLimit() const  = 0;
 
     virtual i64 GetInFlightReadRequestCount() const  = 0;
     virtual i64 GetReadRequestLimit() const  = 0;
