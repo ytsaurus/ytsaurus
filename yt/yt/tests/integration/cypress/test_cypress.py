@@ -3935,7 +3935,7 @@ class TestCypress(YTEnvSetup):
         with raises_yt_error("has unexpected suffix"):
             copy("//tmp/m/t1/@attr", "//tmp/t2", force=True)
 
-    @authors("gritukan")
+    @authors("kvk1920")
     def test_multiset_attributes(self):
         multiset_attributes("//tmp/@", {"a": 1, "b": 2})
         assert get("//tmp/@a") == 1
@@ -3966,6 +3966,8 @@ class TestCypress(YTEnvSetup):
             multiset_attributes("//tmp/@", {"a/b": 3})
         with raises_yt_error("Builtin attribute \"ref_counter\" cannot be set"):
             multiset_attributes("//tmp/@", {"ref_counter": 5})
+        with raises_yt_error("Node //tmp has no child with key \"unexisting_node\""):
+            multiset_attributes("//tmp/unexisting_node/@", {"m/y": 7, "m/z": 8})
 
     @authors("gritukan")
     def test_multiset_attributes_nonatomicity(self):
@@ -4025,8 +4027,7 @@ class TestCypress(YTEnvSetup):
         multiset_attributes("//tmp/doc/@", {"a": 3})
         assert get("//tmp/doc/@a") == 3
 
-    @authors("gritukan")
-    @not_implemented_in_sequoia
+    @authors("kvk1920")
     def test_multiset_attributes_transaction(self):
         tx1 = start_transaction()
         tx2 = start_transaction()
