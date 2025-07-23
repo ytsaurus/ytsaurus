@@ -74,8 +74,6 @@
   "cmake/conan-profiles/linux.aarch64.profile":"",
   "cmake/conan-profiles/macos.arm64.profile":"",
   "cmake/conan-profiles/macos.x86_64.profile":"",
-  "cmake/conan1_deprecated.cmake":"",
-  "cmake/conan_provider.cmake":"",
   "cmake/fbs.cmake":"",
   "cmake/global_flags.cmake":"",
   "cmake/global_flags.compiler.gnu.cmake":"",
