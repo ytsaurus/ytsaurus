@@ -593,7 +593,8 @@ TFuture<void> TSlotLocation::MakeSandboxLink(
                     "Failed to build file %Qv in sandbox %Qv",
                     artifactName,
                     sandboxKind)
-                    << ex;
+                    << ex
+                    << TErrorAttribute("job_id", jobId);
             }
 
             // NB: Set permissions for the link _source_ and prevent writes to it.
@@ -863,7 +864,8 @@ void TSlotLocation::OnArtifactPreparationFailed(
             "Failed to build file %Qv in sandbox %Qlv: broken pipe",
             artifactName,
             sandboxKind)
-            << error;
+            << error
+            << TErrorAttribute("job_id", jobId);
     } else if (destinationInsideTmpfs && noSpace) {
         YT_LOG_INFO(error, "Failed to build file in sandbox: tmpfs is too small");
 
@@ -871,7 +873,8 @@ void TSlotLocation::OnArtifactPreparationFailed(
             "Failed to build file %Qv in sandbox %Qlv: tmpfs is too small",
             artifactName,
             sandboxKind)
-            << error;
+            << error
+            << TErrorAttribute("job_id", jobId);
     } else if (slotWithQuota && noSpace) {
         YT_LOG_INFO(error, "Failed to build file in sandbox: disk space limit is too small");
 
@@ -879,7 +882,8 @@ void TSlotLocation::OnArtifactPreparationFailed(
             "Failed to build file %Qv in sandbox %Qlv: disk space limit is too small",
             artifactName,
             sandboxKind)
-            << error;
+            << error
+            << TErrorAttribute("job_id", jobId);
     } else if (isReaderError) {
         YT_LOG_INFO(error, "Failed to build file in sandbox: chunk fetching failed");
 
@@ -887,7 +891,8 @@ void TSlotLocation::OnArtifactPreparationFailed(
             "Failed to build file %Qv in sandbox %Qlv: chunk fetching failed",
             artifactName,
             sandboxKind)
-            << error;
+            << error
+            << TErrorAttribute("job_id", jobId);
     } else {
         YT_LOG_INFO(error, "Failed to build file in sandbox:");
 
@@ -895,7 +900,8 @@ void TSlotLocation::OnArtifactPreparationFailed(
             "Failed to build file %Qv in sandbox %Qlv",
             artifactName,
             sandboxKind)
-            << error;
+            << error
+            << TErrorAttribute("job_id", jobId);
 
         if (IsSystemError(wrappedError)) {
             Disable(wrappedError);
