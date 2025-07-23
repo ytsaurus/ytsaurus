@@ -77,6 +77,9 @@ private:
     const TPeriodicExecutorPtr ClusterThrottlersConfigUpdater_;
     const TPromise<void> ClusterThrottlersConfigInitializedPromise_ = NewPromise<void>();
 
+    const TCallback<void()> MasterConnectedCallback_;
+    const TCallback<void()> MasterDisconnectedCallback_;
+
     // The following members are protected by Lock_.
     bool MasterConnected_ = false;
     TClusterThrottlersConfigPtr ClusterThrottlersConfig_;
@@ -178,11 +181,13 @@ void TThrottlerManager::OnMasterDisconnected()
 
     YT_LOG_INFO("Disable cluster throttlers on master disconnect");
 
-    auto guard = Guard(Lock_);
-    MasterConnected_ = false;
-    ClusterThrottlersConfig_.Reset();
-    DistributedThrottlersHolder_.clear();
-    DistributedThrottlerFactory_.Reset();
+    {
+        auto guard = Guard(Lock_);
+        MasterConnected_ = false;
+        ClusterThrottlersConfig_.Reset();
+        DistributedThrottlersHolder_.clear();
+        DistributedThrottlerFactory_.Reset();
+    }
 }
 
 void TThrottlerManager::UpdateDistributedThrottlers()
@@ -486,6 +491,8 @@ TThrottlerManager::TThrottlerManager(
         BIND(&TThrottlerManager::TryUpdateClusterThrottlersConfig, MakeWeak(this)),
         // Default period will be updated once config has been retrieved.
         TDuration::Seconds(10)))
+    , MasterConnectedCallback_(BIND_NO_PROPAGATE(&TThrottlerManager::OnMasterConnected, MakeWeak(this)))
+    , MasterDisconnectedCallback_(BIND_NO_PROPAGATE(&TThrottlerManager::OnMasterDisconnected, MakeWeak(this)))
 {
     YT_LOG_INFO("Constructing throttler manager");
 
@@ -515,13 +522,17 @@ TThrottlerManager::TThrottlerManager(
     }
 
     const auto& masterConnector = Bootstrap_->GetExecNodeBootstrap()->GetMasterConnector();
-    masterConnector->SubscribeMasterConnected(BIND_NO_PROPAGATE(&TThrottlerManager::OnMasterConnected, MakeWeak(this)));
-    masterConnector->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(&TThrottlerManager::OnMasterDisconnected, MakeWeak(this)));
+    masterConnector->SubscribeMasterConnected(MasterConnectedCallback_);
+    masterConnector->SubscribeMasterDisconnected(MasterDisconnectedCallback_);
 }
 
 TThrottlerManager::~TThrottlerManager()
 {
     YT_LOG_INFO("Destructing throttler manager");
+
+    const auto& masterConnector = Bootstrap_->GetExecNodeBootstrap()->GetMasterConnector();
+    masterConnector->UnsubscribeMasterConnected(MasterConnectedCallback_);
+    masterConnector->UnsubscribeMasterDisconnected(MasterDisconnectedCallback_);
 }
 
 TFuture<void> TThrottlerManager::Start()
