@@ -994,10 +994,10 @@ class TestSchedulingSegments(YTEnvSetup):
 ##################################################################
 
 
-# @pytest.mark.skipif(
-#     is_asan_build() or is_debug_build(),
-#     reason="This test suite requires a genuine release build to fit into timeout"
-# )
+@pytest.mark.skipif(
+    is_asan_build() or is_debug_build(),
+    reason="This test suite requires a genuine release build to fit into timeout"
+)
 class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
