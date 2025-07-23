@@ -444,15 +444,20 @@ private:
 
             context->SetResponseInfo("SessionId: %v, CloseDemanded: %v, "
                 "RequestedCumulativeBlockSize: %v, "
-                "ApprovedCumulativeBlockSize: %v",
+                "ApprovedCumulativeBlockSize: %v, "
+                "NetThrottling: %v, NetQueueSize: %v",
                 sessionId,
                 closeDemanded,
                 maxRequestedCumulativeBlockSize,
-                approvedCumulativeBlockSize);
+                approvedCumulativeBlockSize,
+                netThrottling.Enabled,
+                netThrottling.QueueSize);
         } else {
-            context->SetResponseInfo("SessionId: %v, CloseDemanded: %v",
+            context->SetResponseInfo("SessionId: %v, CloseDemanded: %v, NetThrottling: %v, NetQueueSize: %v",
                 sessionId,
-                closeDemanded);
+                closeDemanded,
+                netThrottling.Enabled,
+                netThrottling.QueueSize);
         }
 
         // Inform writer about net state on data node.
@@ -623,6 +628,11 @@ private:
         auto enableSendBlocksNetThrottling = GetDynamicConfig()->EnableSendBlocksNetThrottling.value_or(Config_->EnableSendBlocksNetThrottling);
 
         if (enableSendBlocksNetThrottling && netThrottling.Enabled) {
+            context->SetResponseInfo(
+                "NetThrottling: %v, "
+                "NetQueueSize: %v",
+                netThrottling.Enabled,
+                netThrottling.QueueSize);
             context->Reply();
             return;
         }
@@ -633,6 +643,11 @@ private:
             .Apply(BIND([=] (const TErrorOr<ISession::TSendBlocksResult>& rspOrError) {
                 if (rspOrError.IsOK()) {
                     const auto& rsp = rspOrError.Value();
+                    context->SetResponseInfo(
+                        "NetThrottling: %v, "
+                        "NetQueueSize: %v",
+                        rsp.NetThrottling,
+                        netThrottling.QueueSize);
                     if (rsp.NetThrottling) {
                         response->set_net_throttling(true);
                         return TError();
