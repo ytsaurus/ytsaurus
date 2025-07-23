@@ -2143,7 +2143,7 @@ private:
             }
 
             std::vector<std::vector<TBlockWithCookie>> subrequests;
-            int totalElements = blocks.size();
+            int totalElements = std::ssize(blocks);
             int chunkSize = totalElements / batchCount;
             int remainder = totalElements % batchCount;
             int start = 0;
@@ -2407,7 +2407,7 @@ private:
                 .BackupPeer = backupPeer,
             },
             // If hedging is enabled, then get block batching is not allowed.
-            hedgingOptions.has_value() /*hedgingEnabled*/);
+            /*hedgingEnabled*/ hedgingOptions.has_value());
 
         SetSessionFuture(getBlockSetResponseFuture.As<void>());
         return getBlockSetResponseFuture
