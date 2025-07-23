@@ -12,6 +12,11 @@ TFmrRunTool::TFmrRunTool()
     : TYqlRunTool()
 {
     GetRunOptions().SetSupportedGateways({TString{YtProviderName}, TString{NFmr::FastMapReduceGatewayName}});
+    GetRunOptions().AddOptExtension([this](NLastGetopt::TOpts& opts) {
+        opts.AddLongOption( "table-data-service-discovery-file-path", "Table data service discovery file path")
+            .Required()
+            .StoreResult(&TableDataServiceDiscoveryFilePath_);
+    });
 }
 
 IOptimizerFactory::TPtr TFmrRunTool::CreateCboFactory() {
@@ -20,7 +25,13 @@ IOptimizerFactory::TPtr TFmrRunTool::CreateCboFactory() {
 
 IYtGateway::TPtr TFmrRunTool::CreateYtGateway() {
     auto fileGateway = TYqlRunTool::CreateYtGateway();
-    auto [fmrGateway, worker] = NFmr::InitializeFmrGateway(fileGateway, false, TString(), true);
+    auto fmrServices = MakeIntrusive<NFmr::TFmrServices>();
+    fmrServices->FunctionRegistry = GetFuncRegistry().Get();
+    fmrServices->JobLauncher = MakeIntrusive<NFmr::TFmrUserJobLauncher>(false);
+    fmrServices->TableDataServiceDiscoveryFilePath = TableDataServiceDiscoveryFilePath_;
+    fmrServices->YtJobService = NFmr::MakeFileYtJobSerivce();
+    fmrServices->YtCoordinatorService = NFmr::MakeFileYtCoordinatorService();
+    auto [fmrGateway, worker] = NFmr::InitializeFmrGateway(fileGateway, fmrServices);
     FmrWorker_ = std::move(worker);
     return fmrGateway;
 }

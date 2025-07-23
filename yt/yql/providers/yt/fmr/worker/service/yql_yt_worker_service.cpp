@@ -3,6 +3,7 @@
 #include <util/system/interrupt_signals.h>
 #include <yt/yql/providers/yt/fmr/coordinator/client/yql_yt_coordinator_client.h>
 #include <yt/yql/providers/yt/fmr/coordinator/impl/yql_yt_coordinator_impl.h>
+#include <yt/yql/providers/yt/fmr/job_launcher/yql_yt_job_launcher.h>
 #include <yt/yql/providers/yt/fmr/job/impl/yql_yt_job_impl.h>
 #include <yt/yql/providers/yt/fmr/job_factory/impl/yql_yt_job_factory_impl.h>
 #include <yt/yql/providers/yt/fmr/table_data_service/client/impl/yql_yt_table_data_service_client_impl.h>
@@ -23,6 +24,7 @@ struct TWorkerRunOptions {
     TString CoordinatorUrl;
     ui64 WorkerId;
     TString TableDataServiceDiscoveryFilePath;
+    TString FmrJobBinaryPath;
     int Verbosity;
 
     void InitLogger() {
@@ -47,6 +49,7 @@ int main(int argc, const char *argv[]) {
         opts.AddLongOption("coordinator-url", "Fast map reduce coordinator server url").Required().StoreResult(&options.CoordinatorUrl);
         opts.AddLongOption('w', "worker-id", "Fast map reduce worker id").Required().StoreResult(&options.WorkerId);
         opts.AddLongOption('v', "verbosity", "Logging verbosity level").StoreResult(&options.Verbosity).DefaultValue(static_cast<int>(TLOG_ERR));
+        opts.AddLongOption('b', "fmrjob-binary-path", "Path to fmrjob map binary").StoreResult(&options.FmrJobBinaryPath);
         opts.AddLongOption('p', "table-data-service-discovery-file-path", "Table data service discovery file path").StoreResult(&options.TableDataServiceDiscoveryFilePath);
         opts.AddLongOption("mem-limit", "Set memory limit in megabytes").Handler1T<ui32>(0, SetAddressSpaceLimit);
         opts.SetFreeArgsMax(0);
@@ -67,17 +70,11 @@ int main(int argc, const char *argv[]) {
         coordinatorClientSettings.Host = parsedUrl.GetHost();
         auto coordinator = MakeFmrCoordinatorClient(coordinatorClientSettings);
 
-        ITableDataService::TPtr tableDataService;
-        if (options.TableDataServiceDiscoveryFilePath) {
-            auto tableDataServiceDiscovery = MakeFileTableDataServiceDiscovery({.Path = options.TableDataServiceDiscoveryFilePath});
-            tableDataService = MakeTableDataServiceClient(tableDataServiceDiscovery);
-        } else {
-            tableDataService = MakeLocalTableDataService();
-        }
         auto fmrYtJobSerivce = MakeYtJobSerivce();
+        auto jobLauncher = MakeIntrusive<TFmrUserJobLauncher>(true, options.FmrJobBinaryPath);
         // TODO - add different job Settings here
-        auto func = [tableDataService, fmrYtJobSerivce] (TTask::TPtr task, std::shared_ptr<std::atomic<bool>> cancelFlag) mutable {
-            return RunJob(task, tableDataService, fmrYtJobSerivce, cancelFlag);
+        auto func = [options, fmrYtJobSerivce, jobLauncher] (NFmr::TTask::TPtr task, std::shared_ptr<std::atomic<bool>> cancelFlag) mutable {
+            return RunJob(task, options.TableDataServiceDiscoveryFilePath, fmrYtJobSerivce, jobLauncher , cancelFlag);
         };
 
         TFmrJobFactorySettings settings{.Function=func};

@@ -1,4 +1,5 @@
 RECURSE(
+    fmrjob
     interface
     impl
 )

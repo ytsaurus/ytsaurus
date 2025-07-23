@@ -19,12 +19,18 @@ PEERDIR(
     yt/yql/providers/yt/fmr/coordinator/client
     yt/yql/providers/yt/fmr/job_factory/impl
     yt/yql/providers/yt/fmr/job/impl
+    yt/yql/providers/yt/fmr/job_launcher
     yt/yql/providers/yt/fmr/table_data_service/client/impl
     yt/yql/providers/yt/fmr/table_data_service/local/impl
     yt/yql/providers/yt/fmr/table_data_service/discovery/file
     yt/yql/providers/yt/fmr/yt_job_service/impl
-    yql/essentials/utils/log
+    yt/yql/providers/yt/codec/codegen
+    yt/yql/providers/yt/comp_nodes/llvm16
+    yql/essentials/minikql/comp_nodes/llvm16
+    yql/essentials/minikql/invoke_builtins/llvm16
     yql/essentials/public/udf/service/terminate_policy
+    yql/essentials/sql/pg
+    yql/essentials/utils/log
 )
 
 YQL_LAST_ABI_VERSION()

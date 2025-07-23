@@ -1,5 +1,6 @@
 #include <yql/essentials/minikql/invoke_builtins/mkql_builtins.h>
 #include <yt/yql/providers/yt/fmr/fmr_tool_lib/yql_yt_fmr_initializer.h>
+#include <yt/yql/providers/yt/fmr/table_data_service/helpers/yql_yt_table_data_service_helpers.h>
 #include <yt/yql/providers/yt/provider/yql_yt_provider.h>
 #include <yt/yql/providers/yt/gateway/file/yql_yt_file.h>
 #include <yt/yql/providers/yt/gateway/file/yql_yt_file_services.h>
@@ -60,12 +61,24 @@ struct TRunSettings {
     THashMap<TString, TString> Tables;
 };
 
-bool RunProgram(const TString& query, const TRunSettings& runSettings) {
+bool RunProgram(const TString& query, const TRunSettings& runSettings, ui16 port) {
     auto functionRegistry = NKikimr::NMiniKQL::CreateFunctionRegistry(NKikimr::NMiniKQL::CreateBuiltinRegistry());
     auto yqlNativeServices = NFile::TYtFileServices::Make(functionRegistry.Get(), runSettings.Tables, {}, "");
     auto ytGateway = CreateYtFileGateway(yqlNativeServices);
 
-    auto [fmrGateway, worker] = InitializeFmrGateway(ytGateway, false, TString(), true);
+    auto fmrServices = MakeIntrusive<NFmr::TFmrServices>();
+    fmrServices->FunctionRegistry = functionRegistry.Get();
+    fmrServices->JobLauncher = MakeIntrusive<NFmr::TFmrUserJobLauncher>(false);
+    fmrServices->DisableLocalFmrWorker = false;
+    fmrServices->YtJobService = NFmr::MakeFileYtJobSerivce();
+    fmrServices->YtCoordinatorService = NFmr::MakeFileYtCoordinatorService();
+
+    TTempFileHandle discoveryFile;
+    SetupTableDataServiceDiscovery(discoveryFile, port);
+    auto tableDataServiceServer = MakeTableDataServiceServer(port);
+    fmrServices->TableDataServiceDiscoveryFilePath = discoveryFile.Name();
+
+    auto [fmrGateway, worker] = InitializeFmrGateway(ytGateway, fmrServices);
 
     TVector<TDataProviderInitializer> dataProvidersInit;
     dataProvidersInit.push_back(GetYtNativeDataProviderInitializer(fmrGateway, MakeSimpleCBOOptimizerFactory(), {}));
@@ -114,7 +127,7 @@ Y_UNIT_TEST_SUITE(FastMapReduceTests) {
         auto sqlQueryResult = WithTables([&](const auto& tables) {
             TRunSettings runSettings;
             runSettings.Tables = tables;
-            UNIT_ASSERT(RunProgram(query, runSettings));
+            UNIT_ASSERT(RunProgram(query, runSettings, 5000));
         });
         auto expected = NYT::NodeToCanonicalYsonString(NYT::NodeFromYsonString(InputData, NYT::NYson::EYsonType::ListFragment));
         UNIT_ASSERT_NO_DIFF(sqlQueryResult, expected);
@@ -126,11 +139,13 @@ Y_UNIT_TEST_SUITE(FastMapReduceTests) {
         auto sqlQueryResult = WithTables([&](const auto& tables) {
             TRunSettings runSettings;
             runSettings.Tables = tables;
-            UNIT_ASSERT(RunProgram(query, runSettings));
+            UNIT_ASSERT(RunProgram(query, runSettings, 5001));
         });
         TStringBuf filteredInputData = "{\"key\"=\"800\";\"subkey\"=\".\";\"value\"=\"ddd\"};\n"sv;
         auto expected = NYT::NodeToCanonicalYsonString(NYT::NodeFromYsonString(filteredInputData, NYT::NYson::EYsonType::ListFragment));
         UNIT_ASSERT_NO_DIFF(sqlQueryResult, expected);
     }
 }
+
+// TODO - figure out what to do for FMR map with file gateway.
 
