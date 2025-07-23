@@ -1301,11 +1301,10 @@ private:
                     return nullptr;
                 }
 
-                if (Config_->EnableCudaProfileEventStreaming &&
-                    JobProfiler_->GetUserJobProfilerSpec()->Type == NScheduler::EProfilerType::Cuda)
-                {
+                if (JobProfiler_->GetUserJobProfilerSpec()->Type == NScheduler::EProfilerType::Cuda) {
                     return TraceEventOutput_.get();
                 }
+
                 return JobProfiler_->GetUserJobProfileOutput();
             }();
 
@@ -1592,11 +1591,7 @@ private:
             return false;
         }
 
-        if (Config_->EnableCudaProfileEventStreaming) {
-            return TraceConsumer_.GetHasTrace();
-        }
-
-        return JobProfiler_->GetUserJobProfilerSpec()->Type == NScheduler::EProfilerType::Cuda;
+        return TraceConsumer_.GetHasTrace();
     }
 
     void OnIOErrorOrFinished(const TError& error, const TString& message)
