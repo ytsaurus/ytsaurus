@@ -24,6 +24,7 @@ public:
     TMisraGriesHeavyHitters(double threshold, TDuration window, i64 defaultLimit);
 
     void Register(const std::vector<TKey>& keys, TInstant now);
+    void RegisterWeighted(const std::vector<std::pair<TKey, double>>& weightedKeys, TInstant now);
     TStatistics GetStatistics(TInstant now, std::optional<i64> limit = {}) const;
 
 private:
@@ -54,6 +55,7 @@ private:
     double TotalCounter_ = 0;
 
 private:
+    void DoRegister(const TKey& key, double increment);
     void CleanUpSummary();
     static void UpdateState(std::set<std::pair<double, TKey>>& set, const TKey& key, double oldValue, double newValue);
     double GetNormalizationFactor(TInstant now) const;

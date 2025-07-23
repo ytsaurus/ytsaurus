@@ -19,32 +19,51 @@ TMisraGriesHeavyHitters<TKey>::TMisraGriesHeavyHitters(double threshold, TDurati
 { }
 
 template <class TKey>
+void TMisraGriesHeavyHitters<TKey>::DoRegister(const TKey& key, double increment)
+{
+    TotalCounter_ += increment;
+    // The difference between misra-gries and statistics counters is here.
+    auto [iter, emplaced] = Summary_.emplace(
+        key, TCounters{
+                    .MisraGriesCounter = increment + MisraGriesDelta_,
+                    .StatisticsCounter = increment,
+            });
+    if (!emplaced) {
+        auto oldValue = iter->second;
+
+        iter->second.MisraGriesCounter += increment;
+        iter->second.StatisticsCounter += increment;
+
+        UpdateState(SortedByMisraGriesCounter_, iter->first, oldValue.MisraGriesCounter, iter->second.MisraGriesCounter);
+        UpdateState(SortedByStatisticsCounter_, iter->first, oldValue.StatisticsCounter, iter->second.StatisticsCounter);
+    } else {
+        SortedByMisraGriesCounter_.insert(std::pair(iter->second.MisraGriesCounter, iter->first));
+        SortedByStatisticsCounter_.insert(std::pair(iter->second.StatisticsCounter, iter->first));
+        CleanUpSummary();
+    }
+}
+
+template <class TKey>
 void TMisraGriesHeavyHitters<TKey>::Register(const std::vector<TKey>& keys, TInstant now)
 {
     EnsureSummaryTimestampFreshness(now);
     double increment = 1.0 / GetNormalizationFactor(now);
 
     for (const auto& key : keys) {
-        TotalCounter_ += increment;
-        // The difference between misra-gries and statistics counters is here.
-        auto [iter, emplaced] = Summary_.emplace(
-            key, TCounters{
-                     .MisraGriesCounter = increment + MisraGriesDelta_,
-                     .StatisticsCounter = increment,
-                 });
-        if (!emplaced) {
-            auto oldValue = iter->second;
+        DoRegister(key, increment);
+    }
+}
 
-            iter->second.MisraGriesCounter += increment;
-            iter->second.StatisticsCounter += increment;
+template <class TKey>
+void TMisraGriesHeavyHitters<TKey>::RegisterWeighted(
+    const std::vector<std::pair<TKey, double>>& weightedKeys,
+    TInstant now)
+{
+    EnsureSummaryTimestampFreshness(now);
+    double increment = 1.0 / GetNormalizationFactor(now);
 
-            UpdateState(SortedByMisraGriesCounter_, iter->first, oldValue.MisraGriesCounter, iter->second.MisraGriesCounter);
-            UpdateState(SortedByStatisticsCounter_, iter->first, oldValue.StatisticsCounter, iter->second.StatisticsCounter);
-        } else {
-            SortedByMisraGriesCounter_.insert(std::pair(iter->second.MisraGriesCounter, iter->first));
-            SortedByStatisticsCounter_.insert(std::pair(iter->second.StatisticsCounter, iter->first));
-            CleanUpSummary();
-        }
+    for (const auto& [key, weight] : weightedKeys) {
+        DoRegister(key, increment * weight);
     }
 }
 
@@ -110,6 +129,7 @@ void TMisraGriesHeavyHitters<TKey>::UpdateState(std::set<std::pair<double, TKey>
     setElement.value().first = newValue;
     set.insert(std::move(setElement));
 }
+
 template <class TKey>
 void TMisraGriesHeavyHitters<TKey>::EnsureSummaryTimestampFreshness(TInstant now)
 {
