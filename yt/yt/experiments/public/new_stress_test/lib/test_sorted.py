@@ -289,6 +289,7 @@ def test_sorted_tables(base_path, spec, attributes, force):
 
         # All the stuff we do later is kinda useless otherwise.
         if iteration + 1 == spec.size.iterations:
+            unmount_table(registry.base)
             break
 
         if spec.reshard:
