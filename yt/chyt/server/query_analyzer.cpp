@@ -406,11 +406,13 @@ TQueryAnalyzer::TQueryAnalyzer(
     DB::ContextPtr context,
     const TStorageContext* storageContext,
     const DB::SelectQueryInfo& queryInfo,
-    const TLogger& logger)
+    const TLogger& logger,
+    bool onlyAnalyze)
     : DB::WithContext(std::move(context))
     , StorageContext_(storageContext)
     , QueryInfo_(queryInfo)
     , Logger(logger)
+    , OnlyAnalyze_(onlyAnalyze)
 {
     // When the query is not processed by InterpreterSelectQueryAnalyzer,
     // SelectQueryInfo does not contain query_tree and planner_context.
@@ -677,12 +679,24 @@ private:
 
 void TQueryAnalyzer::ParseQuery()
 {
+    YT_LOG_DEBUG("Analyzing query (Query: %v)", QueryInfo_.query_tree->toAST());
+
+    // We need to collect the table expression data before calling buildQueryTreeForShard,
+    // because the pointers to the table expression nodes will change and we won't be able to find them.
+    auto tableExpressionNodes = DB::extractTableExpressions(
+        QueryInfo_.query_tree->as<DB::QueryNode&>().getJoinTree());
+    for (auto& tableExpression : tableExpressionNodes) {
+        auto* tableExpressionData = QueryInfo_.planner_context->getTableExpressionDataOrNull(tableExpression);
+        YT_VERIFY(tableExpressionData);
+        TableExpressionDataPtrs_.emplace_back(tableExpressionData);
+    }
+
+    if (!OnlyAnalyze_) {
+        QueryInfo_.query_tree = DB::buildQueryTreeForShard(QueryInfo_.planner_context, QueryInfo_.query_tree);
+        QueryInfo_.query = DB::queryNodeToSelectQuery(QueryInfo_.query_tree);
+    }
+
     auto* selectQuery = QueryInfo_.query_tree->as<DB::QueryNode>();
-    YT_VERIFY(selectQuery);
-
-    YT_LOG_DEBUG("Analyzing query (Query: %v)", selectQuery->toAST());
-
-    YT_VERIFY(selectQuery->getJoinTree());
 
     TCheckInFunctionExistsVisitor visitor(selectQuery->getJoinTree());
     visitor.visit(QueryInfo_.query_tree);
@@ -724,11 +738,10 @@ void TQueryAnalyzer::ParseQuery()
         }
 
         TableExpressions_.emplace_back(tableExpression);
-        TableExpressionDataPtrs_.emplace_back(QueryInfo_.planner_context->getTableExpressionDataOrNull(tableExpression));
     }
+    TableExpressionPtrs_ = extractTableExpressionPtrs(selectQuery->getJoinTree());
 
-    YT_VERIFY(TableExpressions_.size() >= 1);
-    YT_VERIFY(TableExpressions_.size() <= 2);
+    YT_VERIFY(TableExpressions_.size() >= 1 && TableExpressions_.size() <= 2);
     for (size_t tableExpressionIndex = 0; tableExpressionIndex < TableExpressions_.size(); ++tableExpressionIndex) {
         const auto& tableExpression = TableExpressions_[tableExpressionIndex];
 
@@ -761,11 +774,11 @@ void TQueryAnalyzer::ParseQuery()
             YtTableCount_ = 1;
             TwoYTTableJoin_ = false;
             TableExpressions_.pop_back();
-            TableExpressionDataPtrs_.pop_back();
             Storages_.pop_back();
         }
     }
     SecondaryQueryOperandCount_ = YtTableCount_;
+    TableExpressionDataPtrs_.resize(TableExpressions_.size());
 
     YT_LOG_DEBUG(
         "Extracted table expressions from query (Query: %v, TableExpressionCount: %v, YtTableCount: %v, "
@@ -866,9 +879,6 @@ void TQueryAnalyzer::OptimizeQueryProcessingStage()
     };
 
     bool hasAggregates = hasAggregateFunctionNodes(QueryInfo_.query_tree);
-    if (QueryInfo_.syntax_analyzer_result) {
-        hasAggregates = hasAggregates || !QueryInfo_.syntax_analyzer_result->aggregates.empty();
-    }
 
     // Simple aggregation without groupBy, e.g. 'select avg(x) from table'.
     if (hasAggregates && !queryNode.hasGroupBy()) {
@@ -1065,6 +1075,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
                 DB::SelectQueryOptions options;
                 DB::Planner planner(QueryInfo_.query_tree, options);
                 const auto & table_filters = planner.getPlannerContext()->getGlobalPlannerContext()->filters_for_table_expressions;
+                // TODO (buyval01): investigate that computed filter action was added
                 auto it = table_filters.find(TableExpressions_[index]);
                 if (it != table_filters.end()) {
                     const auto& filters = it->second;
@@ -1100,19 +1111,6 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
     return result;
 }
 
-void TQueryAnalyzer::LazyProcessQueryTree()
-{
-    if (GlobalJoin_) {
-        QueryInfo_.query_tree = DB::buildQueryTreeForShard(QueryInfo_.planner_context, QueryInfo_.query_tree);
-        QueryInfo_.query = DB::queryNodeToSelectQuery(QueryInfo_.query_tree);
-    }
-
-    auto* selectQuery = QueryInfo_.query_tree->as<DB::QueryNode>();
-    TableExpressionPtrs_ = extractTableExpressionPtrs(selectQuery->getJoinTree());
-
-    QueryTreeProcessed_ = true;
-}
-
 TSecondaryQuery TQueryAnalyzer::CreateSecondaryQuery(
     const TRange<TSubquery>& threadSubqueries,
     TSubquerySpec specTemplate,
@@ -1125,9 +1123,7 @@ TSecondaryQuery TQueryAnalyzer::CreateSecondaryQuery(
             "this is a bug; please, file an issue in CHYT queue");
     }
 
-    if (!QueryTreeProcessed_) {
-        LazyProcessQueryTree();
-    }
+    YT_VERIFY(!OnlyAnalyze_);
 
     auto Logger = this->Logger.WithTag("SubqueryIndex: %v", subqueryIndex);
 

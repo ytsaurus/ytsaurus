@@ -883,7 +883,7 @@ public:
                 toString(toStage));
         }
 
-        TQueryAnalyzer analyzer(context, storageContext, queryInfo, Logger);
+        TQueryAnalyzer analyzer(context, storageContext, queryInfo, Logger, /*onlyAnalyze*/ true);
 
         bool isDistributedJoin = DB::hasJoin(select);
 
