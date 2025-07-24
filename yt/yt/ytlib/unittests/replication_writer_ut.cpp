@@ -432,7 +432,7 @@ public:
 
         THashMap<std::string, IServicePtr> addressToService;
 
-        auto chunkId = TGuid::Create();
+        auto chunkId = NObjectClient::MakeRandomId(NObjectClient::EObjectType::Chunk, NObjectClient::TCellTag(0xf003));
 
         TRandomGenerator generator(42);
         GeneratedBlocks = CreateBlocks(blockCount, &generator);
