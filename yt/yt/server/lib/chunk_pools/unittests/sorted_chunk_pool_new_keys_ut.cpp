@@ -1,7 +1,5 @@
 #include "chunk_pools_helpers.h"
 
-#include <yt/yt/core/test_framework/framework.h>
-
 #include <yt/yt/server/lib/chunk_pools/mock/chunk_slice_fetcher.h>
 
 #include <yt/yt/server/lib/chunk_pools/config.h>
@@ -20,8 +18,6 @@
 
 #include <util/generic/size_literals.h>
 
-#include <util/stream/null.h>
-
 #include <util/system/env.h>
 
 #include <random>
@@ -35,23 +31,67 @@ using namespace NControllerAgent;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
 
-using NControllerAgent::TCompletedJobSummary;
-
 using namespace ::testing;
+
+using NControllerAgent::TCompletedJobSummary;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr i32 Inf32 = std::numeric_limits<i32>::max() / 4;
-static constexpr i64 Inf64 = std::numeric_limits<i64>::max() / 4;
+class TChunkSlice
+{
+public:
+    DEFINE_BYVAL_RO_PROPERTY(TChunkId, ChunkId);
+    DEFINE_BYREF_RO_PROPERTY(TInputSliceLimit, LowerLimit);
+    DEFINE_BYREF_RO_PROPERTY(TInputSliceLimit, UpperLimit);
+
+    TChunkSlice(
+        const TInputChunkSlicePtr& chunkSlice,
+        const TLegacyDataSlicePtr& dataSlice,
+        const TComparator& comparator)
+        : ChunkId_(chunkSlice->GetInputChunk()->GetChunkId())
+        , LowerLimit_(chunkSlice->LowerLimit())
+        , UpperLimit_(chunkSlice->UpperLimit())
+        , RowBuffer_(New<TRowBuffer>())
+    {
+        YT_VERIFY(comparator);
+
+        LowerLimit_.KeyBound = ShortenKeyBound(LowerLimit_.KeyBound, comparator.GetLength(), RowBuffer_);
+        UpperLimit_.KeyBound = ShortenKeyBound(UpperLimit_.KeyBound, comparator.GetLength(), RowBuffer_);
+
+        TInputSliceLimit lowerLimit = dataSlice->LowerLimit();
+        TInputSliceLimit upperLimit = dataSlice->UpperLimit();
+        lowerLimit.KeyBound = ShortenKeyBound(lowerLimit.KeyBound, comparator.GetLength(), RowBuffer_);
+        upperLimit.KeyBound = ShortenKeyBound(upperLimit.KeyBound, comparator.GetLength(), RowBuffer_);
+
+        LowerLimit_.MergeLower(lowerLimit, comparator);
+        UpperLimit_.MergeUpper(upperLimit, comparator);
+    }
+
+private:
+    TRowBufferPtr RowBuffer_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsNonEmptyIntersection(
+    const TChunkSlice& lhs,
+    const TChunkSlice& rhs,
+    const TComparator& comparator)
+{
+    return !comparator.IsRangeEmpty(lhs.LowerLimit().KeyBound, rhs.UpperLimit().KeyBound) &&
+        !comparator.IsRangeEmpty(rhs.LowerLimit().KeyBound, lhs.UpperLimit().KeyBound);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSortedChunkPoolNewKeysTest
-    : public Test
+    : public TChunkPoolTestBase
 {
 protected:
     void SetUp() override
     {
+        TChunkPoolTestBase::SetUp();
+
         ChunkPool_ = nullptr;
         MultiChunkPool_ = nullptr;
         CreatedUnversionedDataSlices_.clear();
@@ -463,7 +503,7 @@ protected:
 
     static TLegacyDataSlicePtr CreateInputDataSlice(const TLegacyDataSlicePtr& dataSlice)
     {
-        auto copyDataSlice = NYT::NChunkPools::CreateInputDataSlice(dataSlice);
+        auto copyDataSlice = NChunkPools::CreateInputDataSlice(dataSlice);
         copyDataSlice->SetInputStreamIndex(dataSlice->GetInputStreamIndex());
         return copyDataSlice;
     }
@@ -3648,13 +3688,13 @@ TEST_F(TSortedChunkPoolNewKeysTest, Sampling)
 
     ChunkPool_->Finish();
 
-    Cerr << "Pending job count: " << ChunkPool_->GetJobCounter()->GetPending() << Endl;
+    Cdebug << "Pending job count: " << ChunkPool_->GetJobCounter()->GetPending() << Endl;
     EXPECT_LE(40, ChunkPool_->GetJobCounter()->GetPending());
     EXPECT_GE(60, ChunkPool_->GetJobCounter()->GetPending());
 
     ResetDataSlice(42, dataSlice42);
 
-    Cerr << "Pending job count: " << ChunkPool_->GetJobCounter()->GetPending() << Endl;
+    Cdebug << "Pending job count: " << ChunkPool_->GetJobCounter()->GetPending() << Endl;
     EXPECT_LE(40, ChunkPool_->GetJobCounter()->GetPending());
     EXPECT_GE(60, ChunkPool_->GetJobCounter()->GetPending());
 }
@@ -3686,13 +3726,13 @@ TEST_F(TSortedChunkPoolNewKeysTest, SamplingWithEnlarging)
 
     ChunkPool_->Finish();
 
-    Cerr << "Pending job count: " << ChunkPool_->GetJobCounter()->GetPending() << Endl;
+    Cdebug << "Pending job count: " << ChunkPool_->GetJobCounter()->GetPending() << Endl;
     EXPECT_LE(3, ChunkPool_->GetJobCounter()->GetPending());
     EXPECT_GE(7, ChunkPool_->GetJobCounter()->GetPending());
 
     ResetDataSlice(42, dataSlice42);
 
-    Cerr << "Pending job count: " << ChunkPool_->GetJobCounter()->GetPending() << Endl;
+    Cdebug << "Pending job count: " << ChunkPool_->GetJobCounter()->GetPending() << Endl;
     EXPECT_LE(3, ChunkPool_->GetJobCounter()->GetPending());
     EXPECT_GE(7, ChunkPool_->GetJobCounter()->GetPending());
 }
@@ -3928,7 +3968,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCorrectnessCustom)
         Options_.SortedJobOptions.EnableKeyGuarantee = false;
 
         if (iter % 10 == 0) {
-            Cerr << iter << Endl;
+            Cdebug << iter << Endl;
         }
 
         InitTables(
@@ -3992,12 +4032,12 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCorrectnessStrong)
 
     int iterCount = defaultIterCount;
 
-    Cerr << "Default iteration count = " << defaultIterCount << ", in order to override it use YT_ITER_COUNT env var" << Endl;
+    Cdebug << "Default iteration count = " << defaultIterCount << ", in order to override it use YT_ITER_COUNT env var" << Endl;
     if (auto iterCountStr = GetEnv("YT_ITER_COUNT"); !iterCountStr.empty()) {
         iterCount = FromString<int>(iterCountStr);
     }
 
-    Cerr << "Running " << iterCount << " iterations" << Endl;
+    Cdebug << "Running " << iterCount << " iterations" << Endl;
 
     for (int iter = 0; iter < iterCount; ++iter) {
         SetUp();
@@ -4005,7 +4045,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCorrectnessStrong)
         Options_.SortedJobOptions.EnableKeyGuarantee = false;
 
         if (iter % 1000 == 0) {
-            Cerr << iter << Endl;
+            Cdebug << iter << Endl;
         }
 
         const int maxTableCount = 3;
@@ -4069,7 +4109,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCorrectnessStrong)
         CheckEverything(stripeLists);
 
         if (HasFailure()) {
-            Cerr << "Failed on iteration " << iter << Endl;
+            Cdebug << "Failed on iteration " << iter << Endl;
             break;
         }
     }
@@ -4157,7 +4197,6 @@ public:
     }
 };
 
-
 static constexpr int NumberOfRepeats = 100;
 
 TEST_P(TSortedChunkPoolNewKeysTestRandomized, JobDataWeightDistribution)
@@ -4216,16 +4255,16 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, JobDataWeightDistribution)
 
     ChunkPool_->Finish();
 
-    Cerr << "Pool created " << ChunkPool_->GetJobCounter()->GetPending() << " jobs" << Endl;
+    Cdebug << "Pool created " << ChunkPool_->GetJobCounter()->GetPending() << " jobs" << Endl;
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
 
-    Cerr << "Job data weights: [";
+    Cdebug << "Job data weights: [";
     for (const auto& stripeList : stripeLists) {
-        Cerr << stripeList->TotalDataWeight << ", ";
+        Cdebug << stripeList->TotalDataWeight << ", ";
     }
-    Cerr << "]" << Endl;
+    Cdebug << "]" << Endl;
 
     CheckEverything(stripeLists);
 }
@@ -4353,10 +4392,6 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, VariousOperationsWithPoolTest)
     }
 
     ASSERT_EQ(ChunkPool_->GetJobCounter()->GetPending(), std::ssize(stripesByPoolIndex[0]));
-
-    // Set this to true when debugging locally. It helps a lot to understand what happens.
-    constexpr bool EnableDebugOutput = false;
-    IOutputStream& Cdebug = EnableDebugOutput ? Cerr : Cnull;
 
     int invalidationCount = 0;
 

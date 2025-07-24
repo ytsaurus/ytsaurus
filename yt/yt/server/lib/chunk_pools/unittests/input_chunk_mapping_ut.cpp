@@ -1,25 +1,19 @@
-#include <yt/yt/core/test_framework/framework.h>
-
-#include <yt/yt/server/controller_agent/helpers.h>
-
 #include <yt/yt/server/lib/chunk_pools/input_chunk_mapping.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
+#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
-#include <yt/yt/core/logging/log.h>
-#include <yt/yt/core/misc/blob_output.h>
-
-#include <random>
+#include <yt/yt/core/test_framework/framework.h>
 
 namespace NYT::NControllerAgent {
 namespace {
 
 using namespace NChunkClient;
 using namespace NChunkPools;
+using namespace NLogging;
 using namespace NTableClient;
 
 using NControllerAgent::TCompletedJobSummary;
@@ -41,7 +35,7 @@ protected:
     //! Such comparator is enough for all keys in this test suite.
     const TComparator Comparator_ = TComparator(std::vector<ESortOrder>(2, ESortOrder::Ascending));
 
-    NLogging::TLogger Logger = NLogging::TLogger("InputChunkMapping");
+    TLogger Logger = TLogger("InputChunkMapping");
 
     void InitChunkMapping(EChunkMappingMode mode)
     {

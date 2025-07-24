@@ -9,6 +9,7 @@ namespace NYT::NChunkPools {
 
 using namespace NChunkClient;
 using namespace NControllerAgent;
+using namespace NLogging;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
 
@@ -130,7 +131,7 @@ PHOENIX_DEFINE_TYPE(TSuspendableStripe);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateLogger(const NLogging::TLogger& logger)
+void ValidateLogger(const TLogger& logger)
 {
     YT_VERIFY(logger);
     const auto& tag = logger.GetTag();

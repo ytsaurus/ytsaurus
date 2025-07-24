@@ -1,8 +1,4 @@
-#include <yt/yt/core/test_framework/framework.h>
-
 #include <yt/yt/server/lib/chunk_pools/mock/chunk_pool.h>
-
-#include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 
 #include <yt/yt/server/lib/controller_agent/structs.h>
 
@@ -121,5 +117,4 @@ TEST(TJobSplittingBaseTest, EmptySiblingsNegative)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NControllerAgent
-
+} // namespace NYT::NChunkPools
