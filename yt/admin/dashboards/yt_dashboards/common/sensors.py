@@ -114,16 +114,20 @@ MasterCpu =        ProjectSensor("master_cpu",        "yt-master")  # noqa: E222
 MasterMemory =     ProjectSensor("master_memory",     "yt-master")  # noqa: E222
 MasterInternal =   ProjectSensor("master_internal",   "yt-master")  # noqa: E222
 MasterRpc =        ProjectSensor("master_rpc",        "yt-master")  # noqa: E222
-MasterRpcClient =  ProjectSensor("master_rpc_client", "yt-master")  # noqa: E222
+MasterRpcClient =  ProjectSensor("master_rpc_client", "yt-master", base=RpcBase)  # noqa: E222
 
 # Misc.
-HttpProxy = ProjectSensor("http_proxy", "yt_proxies")
-RpcProxy = ProjectSensor("rpc_proxy", "yt_rpc_proxies")
-RpcProxyRpc = ProjectSensor("rpc_proxy_rpc", "yt_rpc_proxies", base=RpcBase)
-RpcProxyInternal = ProjectSensor("rpc_proxy_internal", "yt_rpc_proxies")
-RpcProxyCpu = ProjectSensor("rpc_proxy_cpu", "yt_rpc_proxies")
-RpcProxyMemory =  ProjectSensor("rpc_proxy_memory", "yt_rpc_proxies")  # noqa: E222
-RpcProxyPorto =  ProjectSensor("rpc_proxy_porto", base=RpcBase)  # noqa: E222
+HttpProxy =           ProjectSensor("http_proxy",             "yt-http-proxy.*")  # noqa: E222
+HttpProxyPorto =      ProjectSensor("http_proxy_porto",       "yt-http-proxy.*")  # noqa: E222
+HttpProxyCpu =        ProjectSensor("http_proxy_cpu",         "yt-http-proxy.*")  # noqa: E222
+HttpProxyMemory =     ProjectSensor("http_proxy_memory",      "yt-http-proxy.*")  # noqa: E222
+HttpProxyRpcClient =  ProjectSensor("http_proxy_rpc_client",  "yt-http-proxy.*", base=RpcBase)  # noqa: E222
+RpcProxy =            ProjectSensor("rpc_proxy",              "yt-rpc-proxy.*")  # noqa: E222
+RpcProxyRpc =         ProjectSensor("rpc_proxy_rpc",          "yt-rpc-proxy.*",  base=RpcBase)  # noqa: E222
+RpcProxyInternal =    ProjectSensor("rpc_proxy_internal",     "yt-rpc-proxy.*")  # noqa: E222
+RpcProxyCpu =         ProjectSensor("rpc_proxy_cpu",          "yt-rpc-proxy.*")  # noqa: E222
+RpcProxyMemory =      ProjectSensor("rpc_proxy_memory",       "yt-rpc-proxy.*")  # noqa: E222
+RpcProxyPorto =       ProjectSensor("rpc_proxy_porto",        "yt-rpc-proxy.*")  # noqa: E222
 
 # BundleController.
 BundleController = ProjectSensor("bundle_controller", "yt_bundle_controller")  # noqa: E222
