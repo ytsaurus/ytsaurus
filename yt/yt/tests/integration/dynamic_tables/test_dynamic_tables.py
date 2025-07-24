@@ -15,12 +15,11 @@ from yt_commands import (
     exists, create_account, create_user, make_ace, make_batch_request,
     create_tablet_cell_bundle, remove_tablet_cell_bundle,
     create_area, remove_area, create_tablet_cell, remove_tablet_cell,
-    execute_batch, execute_command, start_transaction, abort_transaction,
-    commit_transaction, lock, insert_rows, select_rows, lookup_rows,
-    trim_rows, alter_table, read_table,
-    write_table, mount_table, unmount_table,
-    freeze_table, unfreeze_table, reshard_table, remount_table,
-    generate_timestamp, wait_for_tablet_state, wait_for_cells,
+    execute_batch, execute_command, get_active_primary_master_leader_address,
+    start_transaction, abort_transaction, commit_transaction, lock, insert_rows,
+    select_rows, lookup_rows, trim_rows, alter_table, read_table, write_table,
+    mount_table, unmount_table, freeze_table, unfreeze_table, reshard_table,
+    remount_table, generate_timestamp, wait_for_tablet_state, wait_for_cells,
     get_tablet_infos, get_table_pivot_keys, get_tablet_leader_address,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table,
     sync_unfreeze_table, sync_reshard_table, sync_flush_table, sync_compact_table,
@@ -3380,21 +3379,35 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         alter_table("//tmp/t", dynamic=True)
 
-        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        leader_address = get_active_primary_master_leader_address(self)
+        leader_profiler = profiler_factory().at_primary_master(leader_address)
+        user_counter = leader_profiler.counter(
+            "tablet_server/chunk_constraint_validation_errors",
+            tags={"user": "user"}
+        )
 
         sync_mount_table("//tmp/t", authenticated_user="user")
         sync_unmount_table("//tmp/t")
 
+        if not self.is_multicell():
+            wait(lambda: user_counter.get_delta() == 1)
+
         set("//sys/@config/tablet_manager/enable_unversioned_chunk_constraint_validation", True)
 
-        with raises_yt_error(f"Cannot mount tablet {tablet_id} since it has chunks with too large block size"):
+        with raises_yt_error("too large block size"):
             sync_mount_table("//tmp/t", authenticated_user="user")
+
+        if not self.is_multicell():
+            wait(lambda: user_counter.get_delta() == 2)
 
         set("//sys/users/user/@suppress_dynamic_table_chunk_size_validation", True)
         sync_mount_table("//tmp/t", authenticated_user="user")
         sync_unmount_table("//tmp/t")
 
-        with raises_yt_error(f"Cannot mount tablet {tablet_id} since it has chunks with too large block size"):
+        if not self.is_multicell():
+            wait(lambda: user_counter.get_delta() == 3)
+
+        with raises_yt_error("too large block size"):
             sync_mount_table("//tmp/t")
 
         set("//sys/users/user/@suppress_dynamic_table_chunk_size_validation", False)
@@ -3402,20 +3415,29 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         set("//tmp/t/@max_unversioned_block_size", 100 * KB)
         set("//sys/@config/tablet_manager/max_unversioned_chunk_size", 1 * KB)
 
-        with raises_yt_error(f"Cannot mount tablet {tablet_id} since it has too large chunks"):
+        with raises_yt_error("too large chunks"):
             sync_mount_table("//tmp/t", authenticated_user="user")
+
+        if not self.is_multicell():
+            wait(lambda: user_counter.get_delta() == 4)
 
         set("//sys/users/user/@suppress_dynamic_table_chunk_size_validation", True)
         sync_mount_table("//tmp/t", authenticated_user="user")
         sync_unmount_table("//tmp/t")
 
-        with raises_yt_error(f"Cannot mount tablet {tablet_id} since it has too large chunks"):
+        if not self.is_multicell():
+            wait(lambda: user_counter.get_delta() == 5)
+
+        with raises_yt_error("too large chunks"):
             sync_mount_table("//tmp/t")
 
         set("//sys/users/user/@suppress_dynamic_table_chunk_size_validation", False)
-
         set("//sys/@config/tablet_manager/max_unversioned_chunk_size", 1000 * KB)
         sync_mount_table("//tmp/t", authenticated_user="user")
+
+        if not self.is_multicell():
+            time.sleep(1)
+            assert user_counter.get_delta() == 5
 
     @authors("atalmenev")
     def test_max_chunk_size_validation_ordered_table(self):
