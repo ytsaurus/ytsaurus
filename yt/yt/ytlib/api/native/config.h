@@ -192,6 +192,8 @@ struct TConnectionStaticConfig
 
     NChunkClient::TChunkReplicaCacheConfigPtr ChunkReplicaCache;
 
+    NChaosClient::TChaosResidencyCacheConfigPtr ChaosResidencyCache;
+
     //! Visible in profiling as tag `connection_name`.
     TString ConnectionName;
 
@@ -351,7 +353,7 @@ struct TConnectionDynamicConfig
     //! If set, should (and hopefully will) be used for authentication in all native protocol RPC requests.
     std::optional<NAuth::TTvmId> TvmId;
 
-    NChaosClient::TChaosResidencyCacheConfigPtr ChaosResidencyCache;
+    NChaosClient::TChaosResidencyCacheDynamicConfigPtr ChaosResidencyCache;
 
     TDuration ObjectLifeStageCheckPeriod;
     int ObjectLifeStageCheckRetryCount;

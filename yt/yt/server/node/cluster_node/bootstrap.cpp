@@ -1570,16 +1570,12 @@ private:
             newConfig->ChunkReplicaCache);
         Connection_->GetChunkReplicaCache()->Reconfigure(std::move(newChunkReplicaCacheConfig));
 
-        auto newChaosResidencyCacheConfig = CloneYsonStruct(Config_->ClusterConnection->Dynamic->ChaosResidencyCache);
-        UpdateYsonStructField(
-            newChaosResidencyCacheConfig->EnableClientMode,
-            newConfig->ChaosResidencyCache->EnableClientMode);
+        auto newChaosResidencyCacheConfig = Config_->ClusterConnection->Static->ChaosResidencyCache->ApplyDynamic(
+            newConfig->ChaosResidencyCache);
         Connection_->GetChaosResidencyCache()->Reconfigure(std::move(newChaosResidencyCacheConfig));
 
         if (Connection_->GetStaticConfig()->ReplicationCardCache) {
-            auto newReplicationCardCacheConfig = CloneYsonStruct(Config_->ClusterConnection->Dynamic->ReplicationCardCache);
-            UpdateYsonStructField(
-                newReplicationCardCacheConfig,
+            auto newReplicationCardCacheConfig = Config_->ClusterConnection->Static->ReplicationCardCache->ApplyDynamic(
                 newConfig->ReplicationCardCache);
             Connection_->GetReplicationCardCache()->Reconfigure(std::move(newReplicationCardCacheConfig));
         }

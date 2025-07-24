@@ -2,12 +2,37 @@
 
 namespace NYT::NChaosClient {
 
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TChaosResidencyCacheConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable_client_mode", &TThis::EnableClientMode)
         .Default(false);
+}
+
+void TChaosResidencyCacheConfig::ApplyDynamicInplace(const TChaosResidencyCacheDynamicConfigPtr& dynamicConfig)
+{
+    TAsyncExpiringCacheConfig::ApplyDynamicInplace(dynamicConfig);
+    UpdateYsonStructField(EnableClientMode, dynamicConfig->EnableClientMode);
+}
+
+TChaosResidencyCacheConfigPtr TChaosResidencyCacheConfig::ApplyDynamic(
+    const TChaosResidencyCacheDynamicConfigPtr& dynamicConfig) const
+{
+    auto config = CloneYsonStruct(MakeStrong(this));
+    config->ApplyDynamicInplace(dynamicConfig);
+    config->Postprocess();
+    return config;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TChaosResidencyCacheDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable_client_mode", &TThis::EnableClientMode)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
