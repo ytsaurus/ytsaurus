@@ -218,6 +218,8 @@ public:
     int GetLastMutationTerm() const;
     TReign GetLastMutationReign() const;
 
+    int GetLastSnapshotIdUsedForRecovery() const;
+
     i64 GetMutationCountSinceLastSnapshot() const;
     i64 GetMutationSizeSinceLastSnapshot() const;
 
@@ -302,6 +304,8 @@ private:
     std::atomic<ui64> StateHash_;
     std::atomic<int> LastMutationTerm_ = InvalidTerm;
     std::atomic<TReign> LastMutationReign_ = InvalidReign;
+
+    std::atomic<int> LastSnapshotIdUsedForRecovery_ = InvalidSegmentId;
 
     std::atomic<i64> ReliablyAppliedSequenceNumber_;
 

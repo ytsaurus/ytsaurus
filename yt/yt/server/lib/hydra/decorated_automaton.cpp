@@ -1085,6 +1085,7 @@ void TDecoratedAutomaton::LoadSnapshot(
     MutationCountSinceLastSnapshot_ = 0;
     MutationSizeSinceLastSnapshot_ = 0;
     LogicalClock_.Initialize(timestamp, lastMutationTerm, logicalTime);
+    LastSnapshotIdUsedForRecovery_ = snapshotId;
 }
 
 void TDecoratedAutomaton::CheckInvariants()
@@ -1519,6 +1520,13 @@ TReign TDecoratedAutomaton::GetLastMutationReign() const
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return LastMutationReign_.load();
+}
+
+int TDecoratedAutomaton::GetLastSnapshotIdUsedForRecovery() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return LastSnapshotIdUsedForRecovery_.load();
 }
 
 i64 TDecoratedAutomaton::GetReliablyAppliedSequenceNumber() const

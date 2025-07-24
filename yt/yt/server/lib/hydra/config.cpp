@@ -500,6 +500,10 @@ void TDistributedHydraManagerConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .Default(20_GB);
 
+    registrar.Parameter("max_sequence_number_gap_for_changelog_only_recovery", &TThis::MaxSequenceNumberGapForChangelogOnlyRecovery)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+
     registrar.Parameter("checkpoint_check_period", &TThis::CheckpointCheckPeriod)
         .Default(TDuration::Seconds(15));
 
