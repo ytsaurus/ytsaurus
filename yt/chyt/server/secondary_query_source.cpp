@@ -246,7 +246,12 @@ private:
     int ReadersProcessed_ = 0;
 
     bool IsFinished_ = false;
+
     TChunkReaderStatisticsPtr ChunkReaderStatistics_;
+    NChunkClient::NProto::TDataStatistics DataStatistics_;
+    TCodecStatistics CodecStatistics_;
+    TTimingStatistics TimingStatistics_;
+
     TStatistics Statistics_;
     TCallback<void(const TStatistics&)> StatisticsCallback_;
 
@@ -273,10 +278,19 @@ private:
                 "Secondary source reader was not created because the coordinator ran out of reading tasks");
         }
 
-
         YT_LOG_DEBUG("Secondary query source was initialized");
 
         IdleTimer_.Start();
+    }
+
+    void OnReaderFinish()
+    {
+        DataStatistics_ += CurrentReader_->GetDataStatistics();
+        CodecStatistics_ += CurrentReader_->GetDecompressionStatistics();
+        TimingStatistics_ += CurrentReader_->GetTimingStatistics();
+
+        CurrentReader_ = ReaderFactory_ ? ReaderFactory_->CreateReader() : nullptr;
+        ++ReadersProcessed_;
     }
 
     DB::Chunk generate() override
@@ -307,11 +321,7 @@ private:
             YT_LOG_TRACE("Started reading loop iteration");
             auto batch = CurrentReader_->Read(options);
             if (!batch) {
-                if (!ReaderFactory_) {
-                    break;
-                }
-                CurrentReader_ = ReaderFactory_->CreateReader();
-                ++ReadersProcessed_;
+                OnReaderFinish();
                 continue;
             }
             if (batch->IsEmpty()) {
@@ -430,9 +440,9 @@ private:
             ReadCount_);
 
         if (TraceContext_ && TraceContext_->IsRecorded()) {
-            TraceContext_->AddTag("chyt.reader.data_statistics", CurrentReader_->GetDataStatistics());
-            TraceContext_->AddTag("chyt.reader.codec_statistics", CurrentReader_->GetDecompressionStatistics());
-            TraceContext_->AddTag("chyt.reader.timing_statistics", CurrentReader_->GetTimingStatistics());
+            TraceContext_->AddTag("chyt.reader.data_statistics", DataStatistics_);
+            TraceContext_->AddTag("chyt.reader.codec_statistics", CodecStatistics_);
+            TraceContext_->AddTag("chyt.reader.timing_statistics", TimingStatistics_);
             TraceContext_->AddTag("chyt.reader.idle_time", IdleTimer_.GetElapsedTime());
             if (ColumnarConversionCpuTime_ != TDuration::Zero()) {
                 TraceContext_->AddTag("chyt.reader.columnar_conversion_cpu_time", ColumnarConversionCpuTime_);
