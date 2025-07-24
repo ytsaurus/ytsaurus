@@ -5270,6 +5270,37 @@ private:
 
             YT_LOG_INFO("Finished initializing chunk lists");
         }
+
+        {
+            YT_LOG_INFO("Scanning for unhealthy unconfirmed chunks");
+
+            for (auto [_, chunk] : ChunkMap_) {
+                if (!IsObjectAlive(chunk) || chunk->IsConfirmed()) {
+                    continue;
+                }
+
+                auto exported = chunk->IsExported();
+                auto owningNodes = GetOwningNodes(chunk);
+                auto trunkOwningNodes = owningNodes
+                    | std::views::filter([] (const auto* node) {
+                        return node->IsTrunk();
+                    });
+
+                if (exported || !trunkOwningNodes.empty()) {
+                    YT_LOG_ALERT(
+                        "Found unhealthy unconfirmed chunk (ChunkId: %v, Exported: %v, TrunkOwningNodes: %v)",
+                        chunk->GetId(),
+                        exported,
+                        MakeFormattableView(
+                            owningNodes,
+                            [&] (auto* builder, const auto* node) {
+                                builder->AppendFormat("%v", node->GetVersionedId());
+                            }));
+                }
+            }
+
+            YT_LOG_INFO("Finished scanning");
+        }
     }
 
 
