@@ -4,7 +4,7 @@ from .constants import RPC_PACKAGE_INSTALLATION_TEXT, ENABLE_YP_SERVICE_DISCOVER
 from .errors import create_response_error, YtError
 from .string_iter_io import StringIterIO
 from .response_stream import ResponseStream
-from .http_helpers import get_proxy_address_url, get_token
+from .http_helpers import get_proxy_address_url, get_cluster_name, get_token
 
 import yt.logger as logger
 import yt.logger_config as logger_config
@@ -12,6 +12,7 @@ import yt.yson as yson
 
 import inspect
 import os
+import re
 
 from io import BytesIO
 
@@ -174,39 +175,66 @@ def get_driver_instance(client):
         address_resolver_config = None
         yp_service_discovery_config = None
 
-        config = get_config(client)
-        backend = get_backend_type(client)
-        if config["driver_config"] is not None:
-            driver_config = config["driver_config"]
-        elif config["driver_config_path"] is not None:
+        client_config = get_config(client)
+        client_backend = get_backend_type(client)
+        if client_config["driver_config"] is not None:
+            driver_config = client_config["driver_config"]
+        elif client_config["driver_config_path"] is not None:
             driver_config, logging_config, address_resolver_config, yp_service_discovery_config = \
-                read_config(config["driver_config_path"])
+                read_config(client_config["driver_config_path"])
         else:
-            if backend == "rpc":
-                if config["proxy"]["url"] is None:
+            if client_backend == "rpc":
+                if client_config["proxy"]["url"] is None:
                     raise YtError("For rpc backend driver config or proxy url must be specified")
                 else:
                     driver_config = {}
             else:
                 raise YtError("Driver config is not specified")
 
-        if backend == "rpc":
+        if client_backend == "rpc":
             if driver_config.get("connection_type") is None:
+                driver_config_patch = None
+
+                if client_config["enable_rpc_proxy_in_job_proxy"] and os.environ.get("YT_JOB_PROXY_SOCKET_PATH"):
+                    cluster_name = client_config["cluster_name_for_rpc_proxy_in_job_proxy"] or get_cluster_name(client=client)
+                    if re.search(r"\W", cluster_name):
+                        logger.debug(f"Do not enabling local rpc mode (wrong cluster name: \"{cluster_name}\")")
+                    else:
+
+                        socket_path = os.environ.get("YT_JOB_PROXY_SOCKET_PATH")
+                        if not socket_path or not os.path.exists(socket_path):
+                            raise RuntimeError(f"Socket for local rpc proxy does not exists \"{socket_path}\"")
+
+                        driver_config_patch = {
+                            "connection_type": "rpc",
+                            "multiproxy_target_cluster": cluster_name,
+                            "proxy_unix_domain_socket": socket_path,
+                        }
+
+                        logger.debug("Switching to local rpc proxy mode")
+
+                if not driver_config_patch:
+                    driver_config_patch = {
+                        "connection_type": "rpc",
+                        "cluster_url": get_proxy_address_url(client=client)
+                    }
+
                 driver_config = update(
-                    {"connection_type": "rpc", "cluster_url": get_proxy_address_url(client=client)},
-                    driver_config)
-            elif backend != driver_config["connection_type"]:
+                    driver_config_patch,
+                    driver_config,
+                )
+            elif client_backend != driver_config["connection_type"]:
                 raise YtError(
                     "Driver connection type and client backend mismatch "
                     "(driver_connection_type: {0}, client_backend: {1})"
-                    .format(driver_config["connection_type"], backend))
+                    .format(driver_config["connection_type"], client_backend))
 
-        if config["proxy"]["rpc_proxy_role"] is not None:
-            driver_config.setdefault("proxy_role", config["proxy"]["rpc_proxy_role"])
+        if client_config["proxy"]["rpc_proxy_role"] is not None:
+            driver_config.setdefault("proxy_role", client_config["proxy"]["rpc_proxy_role"])
 
         lazy_import_driver_bindings()
         if driver_bindings is None:
-            if backend == "rpc":
+            if client_backend == "rpc":
                 raise YtError("Driver class not found, install RPC driver bindings. "
                               "Bindings are shipped as additional package and "
                               "can be installed " + RPC_PACKAGE_INSTALLATION_TEXT)
@@ -230,10 +258,10 @@ def get_driver_instance(client):
             if specified_api_version is not None:
                 driver_config["api_version"] = int(specified_api_version[1:])
 
-        if backend == "http":
+        if client_backend == "http":
             connection_type = driver_bindings_type
         else:
-            connection_type = backend
+            connection_type = client_backend
 
         set_option("_driver", create_driver(driver_config, connection_type), client=client)
         driver = get_option("_driver", client=client)
