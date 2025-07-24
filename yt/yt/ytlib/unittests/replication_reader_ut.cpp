@@ -357,7 +357,7 @@ TEST_P(TReplicationReaderTest, ReadTest)
 
     THashMap<std::string, IServicePtr> addressToService;
 
-    auto chunkId = TChunkId::Create();
+    auto chunkId = NObjectClient::MakeRandomId(NObjectClient::EObjectType::Chunk, NObjectClient::TCellTag(0xf003));
 
     TRandomGenerator generator(42);
     auto blocks = CreateBlocks(blockCount, &generator);
