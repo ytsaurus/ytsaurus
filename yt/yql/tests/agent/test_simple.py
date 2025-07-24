@@ -11,6 +11,8 @@ from yt_env_setup import YTEnvSetup
 
 from yt_helpers import profiler_factory
 
+from yt_queries import get_query_tracker_info
+
 from yt.wrapper import yson
 
 import yt_error_codes
@@ -1385,3 +1387,107 @@ class TestAgentWithUndefinedMaxYqlVersion(TestSimpleQueriesBase):
     @authors("kirsiv40")
     def test_default_yql_query(self, query_tracker, yql_agent):
         self._test_simple_yql_query_versions(query_tracker, yql_agent)
+
+
+class TestGetQueryTrackerInfoBase(TestQueriesYqlBase):
+    NUM_YQL_AGENTS = 2
+
+    def _check_qt_info(self, qt_info):
+        assert "engines_info" in qt_info
+        assert "yql" in qt_info["engines_info"]
+        yql_info = qt_info["engines_info"]["yql"]
+
+        assert "available_yql_versions" in yql_info
+        assert "default_yql_ui_version" in yql_info
+        yql_versions = yql_info["available_yql_versions"]
+        default_version = yql_info["default_yql_ui_version"]
+
+        assert len(yql_versions) != 0
+        for version in yql_versions:
+            assert re.fullmatch(r'\d\d\d\d\.\d\d', version)
+
+        assert re.fullmatch(r'\d\d\d\d\.\d\d', default_version)
+
+        assert default_version in yql_versions
+
+    def _test_qt_info_with_incorrect_yqla_stage(self):
+        qt_info = get_query_tracker_info(attributes=["engines_info"], settings={"yql_agent_stage": "unavailable yqla stage name"})
+        assert qt_info["engines_info"] == {}
+
+        qt_info = get_query_tracker_info(settings={"yql_agent_stage": "unavailable yqla stage name"})
+        assert qt_info["engines_info"] == {}
+
+
+class TestGetQueryTrackerInfoWithMaxYqlVersion(TestGetQueryTrackerInfoBase):
+    MAX_YQL_VERSION = "2025.01"
+
+    def _check_specific_qt_info(self, qt_info):
+        self._check_qt_info(qt_info)
+        assert qt_info["engines_info"]["yql"] == \
+            {
+                "available_yql_versions": ["2025.01",],
+                "default_yql_ui_version": "2025.01",
+            }
+
+    @authors("kirsiv40")
+    def test_qt_info(self, query_tracker, yql_agent):
+        self._check_specific_qt_info(get_query_tracker_info())
+        self._check_specific_qt_info(get_query_tracker_info(settings={"yql_agent_stage": "production"}))
+        self._check_specific_qt_info(get_query_tracker_info(settings={"some_unused_settings": "some_unused_settings"}))
+        self._check_specific_qt_info(get_query_tracker_info(attributes=["engines_info"]))
+        self._check_specific_qt_info(get_query_tracker_info(attributes=["engines_info"], settings={"yql_agent_stage": "production"}))
+        self._check_specific_qt_info(get_query_tracker_info(attributes=["engines_info"], settings={"some_unused_settings": "some_unused_settings"}))
+        self._test_qt_info_with_incorrect_yqla_stage()
+
+
+class TestGetQueryTrackerInfoWithoutMaxYqlVersion(TestGetQueryTrackerInfoBase):
+    @authors("kirsiv40")
+    def test_qt_info(self, query_tracker, yql_agent):
+        self._check_qt_info(get_query_tracker_info())
+        self._check_qt_info(get_query_tracker_info(settings={"yql_agent_stage": "production"}))
+        self._check_qt_info(get_query_tracker_info(settings={"some_unused_settings": "some_unused_settings"}))
+        self._check_qt_info(get_query_tracker_info(attributes=["engines_info"]))
+        self._check_qt_info(get_query_tracker_info(attributes=["engines_info"], settings={"yql_agent_stage": "production"}))
+        self._check_qt_info(get_query_tracker_info(attributes=["engines_info"], settings={"some_unused_settings": "some_unused_settings"}))
+        self._test_qt_info_with_incorrect_yqla_stage()
+
+
+class TestGetQueryTrackerInfoWithInvalidMaxYqlVersion(TestGetQueryTrackerInfoBase):
+    MAX_YQL_VERSION = "some invalid version name. should be set to maximum availible in facade"
+
+    @authors("kirsiv40")
+    def test_qt_info(self, query_tracker, yql_agent):
+        self._check_qt_info(get_query_tracker_info())
+        self._check_qt_info(get_query_tracker_info(settings={"yql_agent_stage": "production"}))
+        self._check_qt_info(get_query_tracker_info(settings={"some_unused_settings": "some_unused_settings"}))
+        self._check_qt_info(get_query_tracker_info(attributes=["engines_info"]))
+        self._check_qt_info(get_query_tracker_info(attributes=["engines_info"], settings={"yql_agent_stage": "production"}))
+        self._check_qt_info(get_query_tracker_info(attributes=["engines_info"], settings={"some_unused_settings": "some_unused_settings"}))
+        self._test_qt_info_with_incorrect_yqla_stage()
+
+
+@authors("kirsiv40")
+@pytest.mark.enabled_multidaemon
+class TestGetQueryTrackerInfoWithMaxYqlVersionRpcProxy(TestGetQueryTrackerInfoWithMaxYqlVersion):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
+    ENABLE_MULTIDAEMON = True
+
+
+@authors("kirsiv40")
+@pytest.mark.enabled_multidaemon
+class TestGetQueryTrackerInfoWithoutMaxYqlVersionRpcProxy(TestGetQueryTrackerInfoWithoutMaxYqlVersion):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
+    ENABLE_MULTIDAEMON = True
+
+
+@authors("kirsiv40")
+@pytest.mark.enabled_multidaemon
+class TestGetQueryTrackerInfoWithInvalidMaxYqlVersionRpcProxy(TestGetQueryTrackerInfoWithInvalidMaxYqlVersion):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
+    ENABLE_MULTIDAEMON = True

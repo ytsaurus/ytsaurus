@@ -37,7 +37,7 @@ struct TYqlPluginOptions
 
     std::optional<TString> YqlPluginSharedLibrary;
 
-    TString MaxYqlLangVersion;
+    std::string MaxYqlLangVersion;
 };
 
 struct TYqlPluginDynamicConfig

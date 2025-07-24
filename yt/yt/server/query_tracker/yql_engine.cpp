@@ -41,6 +41,12 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static NLogging::TLogger Logger("YqlEngine");
+
+const std::string DefaultYqlAgentStageName = "production";
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TYqlSettings
     : public TYsonStruct
 {
@@ -365,9 +371,67 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TYqlEngineInfoProvider
+    : public IQueryEngineInfoProvider
+{
+public:
+    TYqlEngineInfoProvider(IClientPtr stateClient, TYPath stateRoot)
+        : StateClient_(std::move(stateClient))
+        , StateRoot_(std::move(stateRoot))
+    { }
+
+    NYson::TYsonString GetEngineInfo(IMapNodePtr settingsMap) override
+    {
+        auto stage = settingsMap->GetChildValueOrDefault("yql_agent_stage", DefaultYqlAgentStageName);
+
+        std::vector<std::string> availableYqlVersions;
+        std::string defaultYqlUIVersion;
+
+        auto connection = DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection());
+
+        auto providerInfo = connection->GetYqlAgentChannelProviderOrThrow(stage);
+        auto yqlAgentChannelProvider = providerInfo.first;
+        auto yqlServiceName = NYqlClient::TYqlServiceProxy::GetDescriptor().ServiceName;
+
+        auto yqlAgentChannel = WaitForFast(yqlAgentChannelProvider->GetChannel(yqlServiceName))
+            .ValueOrThrow();
+        TYqlServiceProxy proxy(yqlAgentChannel);
+
+        YT_LOG_DEBUG("Sending YQLA GetYqlAgentInfo request");
+
+        auto getYqlAgentInfoRequest = proxy.GetYqlAgentInfo();
+        getYqlAgentInfoRequest->SetTimeout(TDuration::Seconds(10));
+        auto getYqlAgentInfoResponse = WaitFor(getYqlAgentInfoRequest->Invoke())
+            .ValueOrThrow();
+
+        FromProto(&availableYqlVersions, getYqlAgentInfoResponse->available_yql_versions());
+        FromProto(&defaultYqlUIVersion, getYqlAgentInfoResponse->default_ui_yql_version());
+        YT_LOG_DEBUG("GetYqlAgentInfo response recieved (AvailableVersions: %v, DefaultYqlUIVersion: %v)", availableYqlVersions, defaultYqlUIVersion);
+
+        return BuildYsonStringFluently()
+            .BeginMap()
+                .Item("available_yql_versions").Value(availableYqlVersions)
+                .Item("default_yql_ui_version").Value(defaultYqlUIVersion)
+            .EndMap();
+    }
+
+private:
+    const IClientPtr StateClient_;
+    const TYPath StateRoot_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 IQueryEnginePtr CreateYqlEngine(const IClientPtr& stateClient, const TYPath& stateRoot)
 {
     return New<TYqlEngine>(stateClient, stateRoot);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IQueryEngineInfoProviderPtr CreateYqlEngineInfoProvider(const IClientPtr& stateClient, const TYPath& stateRoot)
+{
+    return New<TYqlEngineInfoProvider>(stateClient, stateRoot);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

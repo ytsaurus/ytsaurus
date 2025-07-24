@@ -303,6 +303,9 @@ TGetQueryTrackerInfoResult TClient::DoGetQueryTrackerInfo(const TGetQueryTracker
     if (options.Attributes) {
         ToProto(rpcRequest->mutable_attributes(), options.Attributes);
     }
+    if (options.Settings) {
+        ToProto(rpcRequest->mutable_settings(), ConvertToYsonString(options.Settings));
+    }
 
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
@@ -314,6 +317,7 @@ TGetQueryTrackerInfoResult TClient::DoGetQueryTrackerInfo(const TGetQueryTracker
         .SupportedFeatures = TYsonString(rpcResponse.supported_features()),
         .AccessControlObjects = FromProto<std::vector<std::string>>(rpcResponse.access_control_objects()),
         .Clusters = FromProto<std::vector<std::string>>(rpcResponse.clusters()),
+        .EnginesInfo = TYsonString(rpcResponse.engines_info()),
     };
 }
 

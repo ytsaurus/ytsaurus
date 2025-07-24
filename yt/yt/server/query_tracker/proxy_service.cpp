@@ -347,8 +347,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, GetQueryTrackerInfo)
     {
-        YT_VERIFY(NRpcProxy::NProto::TReqGetQueryTrackerInfo::GetDescriptor()->field_count() == 2);
-        YT_VERIFY(NRpcProxy::NProto::TRspGetQueryTrackerInfo::GetDescriptor()->field_count() == 5);
+        YT_VERIFY(NRpcProxy::NProto::TReqGetQueryTrackerInfo::GetDescriptor()->field_count() == 3);
+        YT_VERIFY(NRpcProxy::NProto::TRspGetQueryTrackerInfo::GetDescriptor()->field_count() == 6);
 
         auto rpcRequest = request->rpc_proxy_request();
         auto* rpcResponse = response->mutable_rpc_proxy_response();
@@ -359,6 +359,9 @@ private:
         }
         if (rpcRequest.has_attributes()) {
             options.Attributes = FromProto<TAttributeFilter>(rpcRequest.attributes());
+        }
+        if (rpcRequest.has_settings()) {
+            options.Settings = ConvertToNode(TYsonStringBuf(rpcRequest.settings()));
         }
         context->SetRequestInfo();
 
@@ -373,6 +376,7 @@ private:
         for (const auto& cluster : result.Clusters) {
             *rpcResponse->add_clusters() = cluster;
         }
+        rpcResponse->set_engines_info(ToProto(result.EnginesInfo));
 
         context->Reply();
     }
