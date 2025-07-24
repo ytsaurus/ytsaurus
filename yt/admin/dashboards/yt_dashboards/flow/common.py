@@ -45,11 +45,15 @@ def build_versions():
         .row()
             .cell(
                 "Controller versions",
-                FlowController("yt.build.version").aggr("host"),
+                MonitoringExpr(FlowController("yt.build.version"))
+                    .alias("{{version}}")
+                    .aggr("host"),
                 description="Color change on this graph means deploying new controller binary")
             .cell(
                 "Worker versions",
-                FlowWorker("yt.build.version").aggr("host"),
+                MonitoringExpr(FlowWorker("yt.build.version"))
+                    .alias("{{version}}")
+                    .aggr("host"),
                 description="Color change on this graph means deploying new worker binary")
             .cell(
                 "Specs version change",
