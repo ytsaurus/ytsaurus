@@ -298,6 +298,8 @@ struct TCustomTableMountConfig
     //! so chunk read sessions corresponding to this amount of keys will be opened.
     std::optional<int> PartitionReaderPrefetchKeyLimit;
 
+    i64 MaxEdenDataSizeForSplitting;
+
     TTestingTableMountConfig Testing;
 
     REGISTER_YSON_STRUCT(TCustomTableMountConfig);

@@ -83,6 +83,17 @@ private:
         int currentMaxOverlappingStoreCount = tablet->GetOverlappingStoreCount();
         int estimatedMaxOverlappingStoreCount = currentMaxOverlappingStoreCount;
 
+        i64 currentEdenDataSize = tablet->Eden()->GetCompressedDataSize();
+        i64 estimatedEdenDataSize = currentEdenDataSize;
+        bool atLeastOneSplitScheduled = false;
+
+        for (const auto& partition : tablet->Partitions()) {
+            if (partition->GetState() == EPartitionState::Splitting) {
+                estimatedEdenDataSize += partition->GetCompressedDataSize();
+                atLeastOneSplitScheduled = true;
+            }
+        }
+
         YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
             "Partition balancer started tablet scan for splits (%v, CurrentMosc: %v)",
             tablet->GetLoggingTag(),
@@ -104,6 +115,8 @@ private:
             auto request = ScanPartitionToSplit(
                 partition.get(),
                 &estimatedMaxOverlappingStoreCount,
+                &estimatedEdenDataSize,
+                &atLeastOneSplitScheduled,
                 secondLargestPartitionStoreCount);
             if (request) {
                 batch.Splits.push_back(std::move(*request));
@@ -133,6 +146,8 @@ private:
     std::optional<TSplitPartitionRequest> ScanPartitionToSplit(
         TPartition* partition,
         int* estimatedMaxOverlappingStoreCount,
+        i64* estimatedEdenDataSize,
+        bool* atLeastOneSplitScheduled,
         int secondLargestPartitionStoreCount)
     {
         auto* tablet = partition->GetTablet();
@@ -145,10 +160,13 @@ private:
 
         YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
             "Scanning partition to split (PartitionIndex: %v of %v, "
-            "EstimatedMosc: %v, DataSize: %v, StoreCount: %v, SecondLargestPartitionStoreCount: %v)",
+            "EstimatedMosc: %v, EstimatedEdenDataSize: %v, AtLeastOneSplitScheduled: %v, "
+            "DataSize: %v, StoreCount: %v, SecondLargestPartitionStoreCount: %v)",
             partition->GetIndex(),
             partitionCount,
             *estimatedMaxOverlappingStoreCount,
+            *estimatedEdenDataSize,
+            *atLeastOneSplitScheduled,
             actualDataSize,
             partition->Stores().size(),
             secondLargestPartitionStoreCount);
@@ -163,10 +181,13 @@ private:
         // TODO(ifsmirnov): validate that all stores are persistent.
 
         if (partition->GetIsImmediateSplitRequested()) {
-            if (ValidateSplit(partition, true)) {
+            if (ValidateSplit(partition, *estimatedEdenDataSize, *atLeastOneSplitScheduled, true)) {
                 // This is inexact to say the least: immediate split is called when we expect that
                 // most of the stores will stay intact after splitting by the provided pivots.
                 *estimatedMaxOverlappingStoreCount += estimatedStoresDelta;
+                *estimatedEdenDataSize += partition->GetCompressedDataSize();
+                *atLeastOneSplitScheduled = true;
+
                 return TSplitPartitionRequest{
                     .Tablet = MakeStrong(tablet),
                     .PartitionId = partition->GetId(),
@@ -193,9 +214,11 @@ private:
                 actualDataSize / mountConfig->MinPartitionDataSize,
                 static_cast<i64>(mountConfig->MaxPartitionCount - partitionCount)});
 
-            if (splitFactor > 1 && ValidateSplit(partition, false)) {
+            if (splitFactor > 1 && ValidateSplit(partition, *estimatedEdenDataSize, *atLeastOneSplitScheduled, false)) {
                 YT_LOG_DEBUG("Partition is scheduled for split");
                 *estimatedMaxOverlappingStoreCount = maxOverlappingStoreCountAfterSplit;
+                *estimatedEdenDataSize += partition->GetCompressedDataSize();
+                *atLeastOneSplitScheduled = true;
 
                 return TSplitPartitionRequest{
                     .Tablet = MakeStrong(tablet),
@@ -209,7 +232,11 @@ private:
         return {};
     }
 
-    bool ValidateSplit(TPartition* partition, bool immediateSplit) const
+    bool ValidateSplit(
+        TPartition* partition,
+        i64 estimatedEdenDataSize,
+        bool atLeastOneSplitScheduled,
+        bool immediateSplit) const
     {
         const auto* tablet = partition->GetTablet();
 
@@ -244,7 +271,11 @@ private:
             }
         }
 
-        return true;
+        i64 currentEdenDataSize = tablet->Eden()->GetCompressedDataSize();
+        estimatedEdenDataSize += partition->GetCompressedDataSize();
+
+        return currentEdenDataSize < mountConfig->MaxEdenDataSizeForSplitting &&
+            (!atLeastOneSplitScheduled || estimatedEdenDataSize <= mountConfig->MaxEdenDataSizeForSplitting);
     }
 
     std::optional<TMergePartitionsRequest> ScanPartitionToMerge(
