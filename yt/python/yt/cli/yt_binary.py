@@ -1850,6 +1850,7 @@ def add_list_operations_parser(add_parser):
     parser.add_argument("--no-include-counters", action="store_true",
                         help="do not include operation counters in result")
     parser.add_argument("--limit", type=int, help="maximum number of operations in output")
+    parser.add_argument("--attribute", action="append", dest="attributes", help="desired attributes in the response")
     add_structured_format_argument(parser)
 
 
