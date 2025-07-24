@@ -466,6 +466,7 @@ public:
                     .Item("building_snapshot").Value(DecoratedAutomaton_->IsBuildingSnapshotNow())
                     .Item("last_snapshot_id").Value(DecoratedAutomaton_->GetLastSuccessfulSnapshotId())
                     .Item("last_snapshot_read_only").Value(DecoratedAutomaton_->GetLastSuccessfulSnapshotReadOnly())
+                    .Item("last_snapshot_id_used_for_recovery").Value(DecoratedAutomaton_->GetLastSnapshotIdUsedForRecovery())
                     .Item("discombobulated").Value(IsDiscombobulated())
                 .EndMap();
         });

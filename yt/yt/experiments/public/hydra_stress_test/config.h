@@ -29,6 +29,8 @@ struct TConfig
 
     int MaxRandomPartitionIterations;
     TDuration RandomPartitionDelay;
+    int MaxSplitIntoTwoGroupsIterations;
+    TDuration MaxSplitIntoTwoGroupsDelay;
     TDuration QuorumPartitionDelay;
 
     TDuration ClearStatePeriod;

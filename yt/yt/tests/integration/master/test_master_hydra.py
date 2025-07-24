@@ -240,3 +240,37 @@ class TestLocalJanitor(YTEnvSetup):
         build_n_snapshots(3)
         time.sleep(1)
         assert len(os.listdir(snapshot_dir)) == 4
+
+
+class TestChangelogRecovery(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    NUM_MASTERS = 5
+    DELTA_MASTER_CONFIG = {
+        "hydra_manager": {
+            "max_sequence_number_gap_for_changelog_only_recovery": 100000,
+        },
+    }
+
+    @authors("grphil")
+    @pytest.mark.parametrize("read_only", [True, False])
+    def test_changelog_recovery(self, read_only):
+        self.Env.kill_service("master", indexes=[1])
+
+        set("//tmp/a", "b")
+
+        primary_master_config = self.Env.configs["master"][0]["primary_master"]
+
+        build_snapshot(cell_id=primary_master_config["cell_id"], set_read_only=read_only)
+
+        time.sleep(3)
+
+        self.Env.start_master_cell(set_config=False)
+        address = primary_master_config["addresses"][1]
+
+        def get_monitoring_param(param, default=None):
+            return get("{}/{}/orchid/monitoring/hydra/{}".format("//sys/primary_masters", address, param), default=default)
+
+        wait(lambda: get_monitoring_param("active", default=False), ignore_exceptions=True)
+
+        assert get_monitoring_param("last_snapshot_id_used_for_recovery", 1) == -1
+        assert get_monitoring_param("read_only", 2) == read_only

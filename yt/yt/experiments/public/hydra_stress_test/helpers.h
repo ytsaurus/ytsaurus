@@ -12,7 +12,7 @@ using TValue = i64;
 
 inline TString GetPeerAddress(int peerId)
 {
-    return NYT::Format("peer-%v", peerId);
+    return NYT::Format("peer-%v:22", peerId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

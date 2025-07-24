@@ -278,6 +278,24 @@ void TNetworkDisruptor::SplitRandomly()
     }
 }
 
+void TNetworkDisruptor::SplitIntoTwoGroups()
+{
+    int peerCount = Config_->PeerCount;
+    std::vector<int> groupIndex(peerCount);
+    for (int i = 0; i < peerCount / 2; i++) {
+        groupIndex[i] = 0;
+    }
+    for (int i = peerCount / 2; i < peerCount; i++) {
+        groupIndex[i] = 1;
+    }
+    shuffle(groupIndex.begin(), groupIndex.end(), std::mt19937(std::random_device()()));
+    for (int from = 0; from < peerCount; ++from) {
+        for (int to = from + 1; to < peerCount; ++to) {
+            ChannelManager_->SetBroken(from, to, groupIndex[from] != groupIndex[to]);
+        }
+    }
+}
+
 void TNetworkDisruptor::DoRun()
 {
     YT_LOG_INFO("Starting breaking connections");
@@ -289,6 +307,14 @@ void TNetworkDisruptor::DoRun()
             YT_LOG_INFO("Breaking connections randomly");
             SplitRandomly();
             TDelayedExecutor::WaitForDuration(Config_->RandomPartitionDelay);
+        }
+
+        YT_LOG_INFO("Splitting multiple times into two groups");
+        int splitIntoTwoGroupsIterations = rand() % Config_->MaxSplitIntoTwoGroupsIterations;
+        for (int i = 0; i < splitIntoTwoGroupsIterations; i++) {
+            SplitIntoTwoGroups();
+            auto waitProportion = rand() % 1000;
+            TDelayedExecutor::WaitForDuration(Config_->MaxSplitIntoTwoGroupsDelay / 1000 * waitProportion);
         }
 
         int partsCount = rand() % (Config_->PeerCount / 2 + 1) + 1;
