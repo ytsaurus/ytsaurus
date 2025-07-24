@@ -22,6 +22,9 @@ struct IDryRunHydraManager
     //! Replays changelog.
     virtual void DryRunReplayChangelog(IChangelogPtr changelog) = 0;
 
+    //! Emulates recovery completion.
+    virtual void DryRunCompleteRecovery() = 0;
+
     //! Builds snapshot and saves it.
     virtual void DryRunBuildSnapshot() = 0;
 

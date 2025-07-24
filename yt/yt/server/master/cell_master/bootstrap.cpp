@@ -678,6 +678,15 @@ void TBootstrap::ReplayChangelogs(std::vector<TString> changelogFileNames)
         .ThrowOnError();
 }
 
+void TBootstrap::FinishRecoveryDryRun()
+{
+    BIND(&TBootstrap::DoFinishRecoveryDryRun, MakeStrong(this))
+        .AsyncVia(GetControlInvoker())
+        .Run()
+        .Get()
+        .ThrowOnError();
+}
+
 void TBootstrap::BuildSnapshot()
 {
     BIND(&TBootstrap::DoBuildSnapshot, MakeStrong(this))
@@ -1278,6 +1287,14 @@ void TBootstrap::DoReplayChangelogs(const std::vector<TString>& changelogFileNam
             .ValueOrThrow();
         dryRunHydraManager->DryRunReplayChangelog(changelog);
     }
+}
+
+void TBootstrap::DoFinishRecoveryDryRun()
+{
+    const auto& hydraManager = HydraFacade_->GetHydraManager();
+    auto dryRunHydraManager = StaticPointerCast<IDryRunHydraManager>(hydraManager);
+    dryRunHydraManager->Initialize();
+    dryRunHydraManager->DryRunCompleteRecovery();
 }
 
 void TBootstrap::DoBuildSnapshot()
