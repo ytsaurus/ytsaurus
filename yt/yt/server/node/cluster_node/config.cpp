@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/lib/chaos_node/config.h>
 
+#include <yt/yt/ytlib/chaos_client/config.h>
+
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/ytlib/object_client/config.h>
@@ -558,14 +560,6 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
             config->NodeMemoryTracker->CheckPerCategoryLimitOvercommit = false;
         }
     });
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TChaosResidencyCacheDynamicConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("enable_client_mode", &TThis::EnableClientMode)
-        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

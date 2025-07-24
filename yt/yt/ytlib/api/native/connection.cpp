@@ -362,7 +362,7 @@ public:
         }
 
         ChaosResidencyCache_ = CreateChaosResidencyCache(
-            config->ChaosResidencyCache,
+            StaticConfig_->ChaosResidencyCache,
             StaticConfig_->ReplicationCardCache, // Nullptr is ok
             this,
             Options_.ChaosResidencyCacheMode,
@@ -956,9 +956,9 @@ public:
         TableMountCache_->Reconfigure(StaticConfig_->TableMountCache->ApplyDynamic(dynamicConfig->TableMountCache));
         ClockManager_->Reconfigure(StaticConfig_->ClockManager->ApplyDynamic(dynamicConfig->ClockManager));
         ChunkReplicaCache_->Reconfigure(StaticConfig_->ChunkReplicaCache->ApplyDynamic(dynamicConfig->ChunkReplicaCache));
-        ChaosResidencyCache_->Reconfigure(dynamicConfig->ChaosResidencyCache);
+        ChaosResidencyCache_->Reconfigure(StaticConfig_->ChaosResidencyCache->ApplyDynamic(dynamicConfig->ChaosResidencyCache));
         if (ReplicationCardCache_ && dynamicConfig->ReplicationCardCache) {
-            ReplicationCardCache_->Reconfigure(dynamicConfig->ReplicationCardCache);
+            ReplicationCardCache_->Reconfigure(StaticConfig_->ReplicationCardCache->ApplyDynamic(dynamicConfig->ReplicationCardCache));
         }
 
         Config_.Store(dynamicConfig);

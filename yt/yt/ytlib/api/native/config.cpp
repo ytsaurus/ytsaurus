@@ -147,6 +147,8 @@ void TConnectionStaticConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("chaos_cell_directory_synchronizer", &TThis::ChaosCellDirectorySynchronizer)
         .DefaultNew();
+    registrar.Parameter("chaos_residency_cache", &TThis::ChaosResidencyCache)
+        .DefaultNew();
     registrar.Parameter("clock_manager", &TThis::ClockManager)
         .DefaultNew();
     registrar.Parameter("sync_replica_cache", &TThis::SyncReplicaCache)

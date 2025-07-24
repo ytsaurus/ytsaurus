@@ -35,6 +35,8 @@
 
 #include <yt/yt/ytlib/object_client/public.h>
 
+#include <yt/yt/ytlib/chaos_client/public.h>
+
 #include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/library/dynamic_config/public.h>
@@ -137,20 +139,6 @@ struct TResourceLimitsOverrides
 };
 
 DEFINE_REFCOUNTED_TYPE(TResourceLimitsOverrides)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TChaosResidencyCacheDynamicConfig
-    : public NYTree::TYsonStruct
-{
-    std::optional<bool> EnableClientMode;
-
-    REGISTER_YSON_STRUCT(TChaosResidencyCacheDynamicConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TChaosResidencyCacheDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -491,7 +479,7 @@ struct TClusterNodeDynamicConfig
     NChunkClient::TChunkReplicaCacheDynamicConfigPtr ChunkReplicaCache;
 
     //! Chaos residency cache config overrides.
-    TChaosResidencyCacheDynamicConfigPtr ChaosResidencyCache;
+    NChaosClient::TChaosResidencyCacheDynamicConfigPtr ChaosResidencyCache;
 
     //! Chaos replication card cache config overrides.
     NChaosClient::TReplicationCardCacheDynamicConfigPtr ReplicationCardCache;
