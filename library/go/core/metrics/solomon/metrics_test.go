@@ -32,6 +32,13 @@ func TestMetrics_MarshalJSON(t *testing.T) {
 				tags:       map[string]string{"shimba": "boomba"},
 				value:      *atomic.NewFloat64(14.89),
 			},
+			&Gauge{
+				name:       "mygauge",
+				metricType: typeGauge,
+				tags:       map[string]string{"shimba": "boomba"},
+				value:      *atomic.NewFloat64(42.24),
+				timestamp:  timeAsRef(time.Unix(1500000000, 0)),
+			},
 			&Timer{
 				name:       "mytimer",
 				metricType: typeGauge,
@@ -54,13 +61,6 @@ func TestMetrics_MarshalJSON(t *testing.T) {
 				bucketValues: []int64{1, 2, 1},
 				infValue:     *atomic.NewInt64(1),
 			},
-			&Gauge{
-				name:       "mytimedgauge",
-				metricType: typeGauge,
-				tags:       map[string]string{"oki": "toki"},
-				value:      *atomic.NewFloat64(42.24),
-				timestamp:  timeAsRef(time.Unix(1500000000, 0)),
-			},
 		},
 	}
 
@@ -71,10 +71,10 @@ func TestMetrics_MarshalJSON(t *testing.T) {
 		`{"type":"COUNTER","labels":{"ololo":"trololo","sensor":"mycounter"},"value":42},` +
 		`{"type":"RATE","labels":{"ololo":"trololo","sensor":"myratedcounter"},"value":42},` +
 		`{"type":"DGAUGE","labels":{"sensor":"mygauge","shimba":"boomba"},"value":14.89},` +
+		`{"type":"DGAUGE","labels":{"sensor":"mygauge","shimba":"boomba"},"value":42.24,"ts":1500000000},` +
 		`{"type":"DGAUGE","labels":{"looken":"tooken","sensor":"mytimer"},"value":1.456},` +
 		`{"type":"HIST","labels":{"chicken":"cooken","sensor":"myhistogram"},"hist":{"bounds":[1,2,3],"buckets":[1,2,1],"inf":1}},` +
-		`{"type":"HIST_RATE","labels":{"chicken":"cooken","sensor":"myratedhistogram"},"hist":{"bounds":[1,2,3],"buckets":[1,2,1],"inf":1}},` +
-		`{"type":"DGAUGE","labels":{"oki":"toki","sensor":"mytimedgauge"},"value":42.24,"ts":1500000000}` +
+		`{"type":"HIST_RATE","labels":{"chicken":"cooken","sensor":"myratedhistogram"},"hist":{"bounds":[1,2,3],"buckets":[1,2,1],"inf":1}}` +
 		`]}`)
 	assert.Equal(t, expected, b)
 }
@@ -93,7 +93,7 @@ func TestMetrics_with_timestamp_MarshalJSON(t *testing.T) {
 				value:      *atomic.NewInt64(42),
 			},
 			&Gauge{
-				name:       "mytimedgauge",
+				name:       "mygauge",
 				metricType: typeGauge,
 				tags:       map[string]string{"oki": "toki"},
 				value:      *atomic.NewFloat64(42.24),
@@ -108,7 +108,7 @@ func TestMetrics_with_timestamp_MarshalJSON(t *testing.T) {
 
 	expected := []byte(`{"metrics":[` +
 		`{"type":"COUNTER","labels":{"ololo":"trololo","sensor":"mycounter"},"value":42},` +
-		`{"type":"DGAUGE","labels":{"oki":"toki","sensor":"mytimedgauge"},"value":42.24,"ts":1500000000}` +
+		`{"type":"DGAUGE","labels":{"oki":"toki","sensor":"mygauge"},"value":42.24,"ts":1500000000}` +
 		`],"ts":1657710477}`)
 	assert.Equal(t, expected, b)
 }

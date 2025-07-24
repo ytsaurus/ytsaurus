@@ -21,6 +21,13 @@ type FuncCounter struct {
 	memOnly    bool
 }
 
+func (c *FuncCounter) getID() string {
+	if c.timestamp != nil {
+		return c.name + "(" + c.timestamp.Format(time.RFC3339) + ")"
+	}
+	return c.name
+}
+
 func (c *FuncCounter) Name() string {
 	return c.name
 }
@@ -74,7 +81,7 @@ func (c *FuncCounter) MarshalJSON() ([]byte, error) {
 		Value: c.function(),
 		Labels: func() map[string]string {
 			labels := make(map[string]string, len(c.tags)+1)
-			labels[c.getNameTag()] = c.Name()
+			labels[c.getNameTag()] = c.name
 			for k, v := range c.tags {
 				labels[k] = v
 			}

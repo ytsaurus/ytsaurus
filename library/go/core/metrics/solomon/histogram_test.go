@@ -9,7 +9,7 @@ import (
 	"go.uber.org/atomic"
 )
 
-func TestHistogram_MarshalJSON(t *testing.T) {
+func TestHistogram_getID(t *testing.T) {
 	h := &Histogram{
 		name:         "myhistogram",
 		metricType:   typeHistogram,
@@ -19,10 +19,40 @@ func TestHistogram_MarshalJSON(t *testing.T) {
 		infValue:     *atomic.NewInt64(2),
 	}
 
+	assert.Equal(t, "myhistogram", h.getID())
+}
+
+func TestHistogram_getID_WithTS(t *testing.T) {
+	ts := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	h := &Histogram{
+		name:         "myhistogram",
+		metricType:   typeHistogram,
+		tags:         map[string]string{"ololo": "trololo"},
+		bucketBounds: []float64{1, 2, 3},
+		bucketValues: []int64{1, 2, 1},
+		infValue:     *atomic.NewInt64(2),
+		timestamp:    &ts,
+	}
+
+	assert.Equal(t, "myhistogram(2020-01-01T00:00:00Z)", h.getID())
+}
+
+func TestHistogram_MarshalJSON(t *testing.T) {
+	ts := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	h := &Histogram{
+		name:         "myhistogram",
+		metricType:   typeHistogram,
+		tags:         map[string]string{"ololo": "trololo"},
+		bucketBounds: []float64{1, 2, 3},
+		bucketValues: []int64{1, 2, 1},
+		infValue:     *atomic.NewInt64(2),
+		timestamp:    &ts,
+	}
+
 	b, err := json.Marshal(h)
 	assert.NoError(t, err)
 
-	expected := []byte(`{"type":"HIST","labels":{"ololo":"trololo","sensor":"myhistogram"},"hist":{"bounds":[1,2,3],"buckets":[1,2,1],"inf":2}}`)
+	expected := []byte(`{"type":"HIST","labels":{"ololo":"trololo","sensor":"myhistogram"},"hist":{"bounds":[1,2,3],"buckets":[1,2,1],"inf":2},"ts":1577836800}`)
 	assert.Equal(t, expected, b)
 }
 

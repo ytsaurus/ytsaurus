@@ -51,6 +51,13 @@ func (g *IntGauge) Add(value int64) {
 	g.value.Add(value)
 }
 
+func (g *IntGauge) getID() string {
+	if g.timestamp != nil {
+		return g.name + "(" + g.timestamp.Format(time.RFC3339) + ")"
+	}
+	return g.name
+}
+
 func (g *IntGauge) Name() string {
 	return g.name
 }
@@ -93,7 +100,7 @@ func (g *IntGauge) MarshalJSON() ([]byte, error) {
 	value := g.value.Load()
 	labels := func() map[string]string {
 		labels := make(map[string]string, len(g.tags)+1)
-		labels[g.getNameTag()] = g.Name()
+		labels[g.getNameTag()] = g.name
 		for k, v := range g.tags {
 			labels[k] = v
 		}

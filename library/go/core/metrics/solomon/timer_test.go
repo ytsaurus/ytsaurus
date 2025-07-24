@@ -24,17 +24,19 @@ func TestTimer_RecordDuration(t *testing.T) {
 }
 
 func TestTimerRated_MarshalJSON(t *testing.T) {
+	ts := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 	c := &Timer{
 		name:       "mytimer",
 		metricType: typeRated,
 		tags:       map[string]string{"ololo": "trololo"},
 		value:      *atomic.NewDuration(42 * time.Millisecond),
+		timestamp:  &ts,
 	}
 
 	b, err := json.Marshal(c)
 	assert.NoError(t, err)
 
-	expected := []byte(`{"type":"RATE","labels":{"ololo":"trololo","sensor":"mytimer"},"value":0.042}`)
+	expected := []byte(`{"type":"RATE","labels":{"ololo":"trololo","sensor":"mytimer"},"value":0.042,"ts":1577836800}`)
 	assert.Equal(t, expected, b)
 }
 
