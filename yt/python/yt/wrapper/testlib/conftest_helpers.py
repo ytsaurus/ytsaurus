@@ -218,8 +218,7 @@ def test_environment_with_rpc(request):
     return environment
 
 
-@pytest.fixture(scope="class", params=["v3", "v4"])
-def test_environment_with_authentication(request):
+def _test_environment_with_authentication(request):
     environment = init_environment_for_test_session(
         request,
         request.param,
@@ -248,6 +247,16 @@ def test_environment_with_authentication(request):
     )
     environment.env.create_client().set("//sys/tokens/toor", "root")  # toor
     return environment
+
+
+@pytest.fixture(scope="class", params=["v3", "v4"])
+def test_environment_with_authentication(request):
+    return _test_environment_with_authentication(request)
+
+
+@pytest.fixture(scope="class", params=["rpc"])
+def test_environment_with_authentication_rpc(request):
+    return _test_environment_with_authentication(request)
 
 
 @pytest.fixture(scope="class", params=["v4"])
@@ -437,6 +446,11 @@ def yt_env_with_rpc(request, test_environment_with_rpc):
 @pytest.fixture(scope="function")
 def yt_env_with_authentication(request, test_environment_with_authentication):
     return _yt_env(request, test_environment_with_authentication)
+
+
+@pytest.fixture(scope="function")
+def yt_env_with_authentication_rpc(request, test_environment_with_authentication_rpc):
+    return _yt_env(request, test_environment_with_authentication_rpc)
 
 
 @pytest.fixture(scope="function")

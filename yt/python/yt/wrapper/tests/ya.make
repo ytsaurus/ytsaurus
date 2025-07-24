@@ -174,6 +174,7 @@ TEST_SRCS(
     test_jupyter.py
     test_mapreduce.py
     test_misc.py
+    test_ml_helpers.py
     test_module.py
     test_operations.py
     test_operations_tracker.py
@@ -190,12 +191,6 @@ TEST_SRCS(
     test_yamr_mode.py
     test_yt_cli.py
 )
-
-IF (NOT OPENSOURCE)
-    TEST_SRCS(
-        test_ml_helpers.py
-    )
-ENDIF()
 
 END()
 
