@@ -204,9 +204,14 @@ func (r Registry) RemoveMetric(name string) {
 	r.metrics.Delete(metricKey)
 }
 
+// RemoveMetricWithTags is used for deletion metrics added by Vectors
 func (r Registry) RemoveMetricWithTags(name string, tags map[string]string) {
 	metricName := r.newMetricName(name)
-	metricKey := r.metricKeyWithTags(metricName, tags)
+
+	registryTags := registryutil.MergeTags(r.tags, map[string]string{"rated": strconv.FormatBool(r.rated)})
+	metricTags := registryutil.MergeTags(registryTags, tags)
+	metricKey := registryutil.BuildRegistryKey(metricName, metricTags)
+
 	r.metrics.Delete(metricKey)
 }
 
@@ -276,16 +281,8 @@ func (r *Registry) unregisterMetric(s Metric) {
 	r.metrics.Delete(r.metricKey(s.Name()))
 }
 
-func (r *Registry) produceMetricKey() map[string]string {
-	// differ simple and rated registries
-	return registryutil.MergeTags(r.tags, map[string]string{"rated": strconv.FormatBool(r.rated)})
-}
-
 func (r *Registry) metricKey(metricName string) string {
-	return registryutil.BuildRegistryKey(metricName, r.produceMetricKey())
-}
-
-func (r *Registry) metricKeyWithTags(metricName string, tags map[string]string) string {
-	keyTags := registryutil.MergeTags(r.produceMetricKey(), tags)
+	// differ simple and rated registries
+	keyTags := registryutil.MergeTags(r.tags, map[string]string{"rated": strconv.FormatBool(r.rated)})
 	return registryutil.BuildRegistryKey(metricName, keyTags)
 }
