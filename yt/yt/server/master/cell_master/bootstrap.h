@@ -180,6 +180,7 @@ public:
         ESerializationDumpMode dumpMode,
         TSerializationDumpScopeFilter dumpScopeFilter);
     void ReplayChangelogs(std::vector<TString> changelogFileNames);
+    void FinishRecoveryDryRun();
     void BuildSnapshot();
     void FinishDryRun();
 
@@ -280,15 +281,14 @@ protected:
     void DoStart();
 
     void InitializeTimestampProvider();
+
     void DoLoadSnapshot(
         const TString& fileName,
         ESerializationDumpMode dumpMode,
         TSerializationDumpScopeFilter dumpScopeFilter);
-
     void DoReplayChangelogs(const std::vector<TString>& changelogFileNames);
-
+    void DoFinishRecoveryDryRun();
     void DoBuildSnapshot();
-
     void DoFinishDryRun();
 
     void OnDynamicConfigChanged(const TDynamicClusterConfigPtr& oldConfig);

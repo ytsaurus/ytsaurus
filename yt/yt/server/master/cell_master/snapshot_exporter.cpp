@@ -345,11 +345,6 @@ void DoExportSnapshot(
         ++nodeIdx;
 
         auto nodeType = node->GetType();
-        // Skip sys_node. Such node has attributes that cannot be exported
-        // (e.g. chunk_replicator_enabled) due to RequireLeader checks.
-        if (nodeType == EObjectType::SysNode) {
-            continue;
-        }
         if (!searchedTypes.empty() && !searchedTypes.contains(nodeType)) {
             continue;
         }

@@ -143,7 +143,7 @@ public:
                 meta.random_seed(),
                 meta.state_hash(),
                 FromProto<TInstant>(meta.timestamp()),
-                FromProto<TInstant>(meta.logical_time()),
+                TInstant::FromValue(meta.logical_time()),
                 std::move(reader),
                 prepareState);
         WaitFor(loadSnapshotFuture)
@@ -215,6 +215,18 @@ public:
 
         YT_LOG_INFO("Changelog replayed (ChangelogId: %v)",
             changelog->GetId());
+    }
+
+    void DryRunCompleteRecovery() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        // This technically has to be done in EpochSystemAutomatonInvoker, but this should do.
+        auto leaderRecoveryCompleteFuture = BIND(&TDryRunHydraManager::DryRunLeaderRecoveryComplete, MakeWeak(this))
+            .AsyncVia(DecoratedAutomaton_->GetSystemInvoker())
+            .Run();
+        WaitFor(leaderRecoveryCompleteFuture)
+            .ThrowOnError();
     }
 
     void DryRunBuildSnapshot() override
@@ -439,6 +451,7 @@ private:
     std::atomic<bool> FollowerRecovered_ = false;
 
     bool StartedLeading_ = false;
+    bool LeaderRecoveryComplete_ = false;
     bool Initialized_ = false;
 
     // NB: This is needed to be called before any meaningful action.
@@ -465,6 +478,23 @@ private:
         StartLeading_.Fire();
 
         StartedLeading_ = true;
+    }
+
+    void DryRunLeaderRecoveryComplete()
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        // This only needs to be called once.
+        if (LeaderRecoveryComplete_) {
+            return;
+        }
+
+        YT_LOG_INFO("Mocking leader recovery completion");
+
+        DecoratedAutomaton_->OnLeaderRecoveryComplete();
+
+        // Not firing AutomatonLeaderRecoveryComplete signal; it looks like an overkill here.
+        LeaderRecoveryComplete_ = true;
     }
 };
 
