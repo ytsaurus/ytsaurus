@@ -1,8 +1,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/server/controller_agent/config.h>
-#include <yt/yt/server/lib/chunk_pools/job_size_adjuster.h>
 #include <yt/yt/server/lib/chunk_pools/config.h>
+#include <yt/yt/server/lib/chunk_pools/job_size_adjuster.h>
 
 namespace NYT::NChunkPools {
 namespace {
@@ -33,5 +32,4 @@ TEST(TJobSizeAdjusterTest, Simple)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NControllerAgent
-
+} // namespace NYT::NChunkPools

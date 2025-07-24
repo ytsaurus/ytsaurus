@@ -1,16 +1,13 @@
 #include "chunk_pools_helpers.h"
 
-#include <yt/yt/core/test_framework/framework.h>
-
-#include <yt/yt/server/controller_agent/helpers.h>
-#include <yt/yt/server/controller_agent/job_size_constraints.h>
-#include <yt/yt/server/controller_agent/operation_controller.h>
+#include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
 
 #include <yt/yt/server/lib/chunk_pools/unittests/chunk_pools_helpers.h>
 
 #include <yt/yt/server/lib/chunk_pools/config.h>
 #include <yt/yt/server/lib/chunk_pools/ordered_chunk_pool.h>
 
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
@@ -21,8 +18,6 @@
 #include <yt/yt/core/misc/blob_output.h>
 
 #include <library/cpp/iterator/zip.h>
-
-#include <util/stream/null.h>
 
 #include <random>
 
@@ -42,18 +37,14 @@ using namespace ::testing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A unit to measure all sizes in this file.
-static constexpr i32 Inf32 = std::numeric_limits<i32>::max();
-static constexpr i64 Inf64 = std::numeric_limits<i64>::max();
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TOrderedChunkPoolTestBase
-    : public Test
+    : public TChunkPoolTestBase
 {
 protected:
     void SetUp() override
     {
+        TChunkPoolTestBase::SetUp();
+
         Options_.MinTeleportChunkSize = Inf64;
         Options_.MaxTotalSliceCount = Inf64;
         Options_.ShouldSliceByRowIndices = true;
@@ -278,14 +269,14 @@ protected:
     void PrintCookie(TOutputCookie cookie)
     {
         if (TeleportChunks_.contains(cookie)) {
-            Cerr << "T " << ToString(TeleportChunks_[cookie]->GetChunkId()) << Endl;
+            Cdebug << "T " << ToString(TeleportChunks_[cookie]->GetChunkId()) << Endl;
         } else {
-            Cerr << "C ";
+            Cdebug << "C ";
             auto stripeList = ChunkPool_->GetStripeList(cookie);
             for (const auto& dataSlice : stripeList->Stripes[0]->DataSlices) {
-                Cerr << ToString(dataSlice->GetSingleUnversionedChunk()->GetChunkId()) << " ";
+                Cdebug << ToString(dataSlice->GetSingleUnversionedChunk()->GetChunkId()) << " ";
             }
-            Cerr << Endl;
+            Cdebug << Endl;
         }
     }
 
@@ -1262,10 +1253,6 @@ TEST_P(TOrderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
     ChunkPool_->Finish();
 
     ASSERT_EQ(ChunkPool_->GetJobCounter()->GetPending(), chunkCount);
-
-    // Set this to true when debugging locally. It helps a lot to understand what happens.
-    constexpr bool EnableDebugOutput = false;
-    IOutputStream& Cdebug = EnableDebugOutput ? Cerr : Cnull;
 
     int jobLosts = 0;
 

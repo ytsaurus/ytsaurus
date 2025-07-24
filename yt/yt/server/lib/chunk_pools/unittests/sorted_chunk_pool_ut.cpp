@@ -1,7 +1,5 @@
 #include "chunk_pools_helpers.h"
 
-#include <yt/yt/core/test_framework/framework.h>
-
 #include <yt/yt/server/lib/chunk_pools/mock/chunk_slice_fetcher.h>
 
 #include <yt/yt/server/lib/chunk_pools/input_chunk_mapping.h>
@@ -21,8 +19,6 @@
 
 #include <util/generic/size_literals.h>
 
-#include <util/stream/null.h>
-
 #include <random>
 
 namespace NYT::NChunkPools {
@@ -41,18 +37,14 @@ using namespace ::testing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A unit to measure all sizes in this file.
-static constexpr i32 Inf32 = std::numeric_limits<i32>::max();
-static constexpr i64 Inf64 = std::numeric_limits<i64>::max();
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TSortedChunkPoolTest
-    : public Test
+    : public TChunkPoolTestBase
 {
 protected:
     void SetUp() override
     {
+        TChunkPoolTestBase::SetUp();
+
         Options_.RowBuffer = RowBuffer_;
         Options_.MinTeleportChunkSize = Inf64;
         Options_.SliceForeignChunks = true;
@@ -2850,13 +2842,13 @@ TEST_F(TSortedChunkPoolTest, Sampling)
 
     ChunkPool_->Finish();
 
-    Cerr << "Pending job count: " << ChunkPool_->GetJobCounter()->GetPending() << Endl;
+    Cdebug << "Pending job count: " << ChunkPool_->GetJobCounter()->GetPending() << Endl;
     EXPECT_LE(40, ChunkPool_->GetJobCounter()->GetPending());
     EXPECT_GE(60, ChunkPool_->GetJobCounter()->GetPending());
 
     ResetChunk(42, chunk42);
 
-    Cerr << "Pending job count: " << ChunkPool_->GetJobCounter()->GetPending() << Endl;
+    Cdebug << "Pending job count: " << ChunkPool_->GetJobCounter()->GetPending() << Endl;
     EXPECT_LE(40, ChunkPool_->GetJobCounter()->GetPending());
     EXPECT_GE(60, ChunkPool_->GetJobCounter()->GetPending());
 }
@@ -2887,13 +2879,13 @@ TEST_F(TSortedChunkPoolTest, SamplingWithEnlarging)
 
     ChunkPool_->Finish();
 
-    Cerr << "Pending job count: " << ChunkPool_->GetJobCounter()->GetPending() << Endl;
+    Cdebug << "Pending job count: " << ChunkPool_->GetJobCounter()->GetPending() << Endl;
     EXPECT_LE(3, ChunkPool_->GetJobCounter()->GetPending());
     EXPECT_GE(7, ChunkPool_->GetJobCounter()->GetPending());
 
     ResetChunk(42, chunk42);
 
-    Cerr << "Pending job count: " << ChunkPool_->GetJobCounter()->GetPending() << Endl;
+    Cdebug << "Pending job count: " << ChunkPool_->GetJobCounter()->GetPending() << Endl;
     EXPECT_LE(3, ChunkPool_->GetJobCounter()->GetPending());
     EXPECT_GE(7, ChunkPool_->GetJobCounter()->GetPending());
 }
@@ -3183,16 +3175,16 @@ TEST_P(TSortedChunkPoolTestRandomized, JobDataWeightDistribution)
 
     ChunkPool_->Finish();
 
-    Cerr << "Pool created " << ChunkPool_->GetJobCounter()->GetPending() << " jobs" << Endl;
+    Cdebug << "Pool created " << ChunkPool_->GetJobCounter()->GetPending() << " jobs" << Endl;
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
 
-    Cerr << "Job data weights: [";
+    Cdebug << "Job data weights: [";
     for (const auto& stripeList : stripeLists) {
-        Cerr << stripeList->TotalDataWeight << ", ";
+        Cdebug << stripeList->TotalDataWeight << ", ";
     }
-    Cerr << "]" << Endl;
+    Cdebug << "]" << Endl;
 }
 
 TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
@@ -3315,10 +3307,6 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
     }
 
     ASSERT_EQ(ChunkPool_->GetJobCounter()->GetPending(), std::ssize(stripesByPoolIndex[0]));
-
-    // Set this to true when debugging locally. It helps a lot to understand what happens.
-    constexpr bool EnableDebugOutput = false;
-    IOutputStream& Cdebug = EnableDebugOutput ? Cerr : Cnull;
 
     int invalidationCount = 0;
 

@@ -1,7 +1,5 @@
 #include "chunk_pools_helpers.h"
 
-#include <yt/yt/core/test_framework/framework.h>
-
 #include <yt/yt/server/lib/chunk_pools/unittests/chunk_pools_helpers.h>
 
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
@@ -17,14 +15,9 @@
 
 #include <yt/yt/client/table_client/row_buffer.h>
 
-#include <yt/yt/core/logging/config.h>
-#include <yt/yt/core/logging/log_manager.h>
-
 #include <yt/yt/core/misc/blob_output.h>
 
 #include <util/generic/xrange.h>
-
-#include <util/stream/null.h>
 
 #include <random>
 
@@ -43,21 +36,13 @@ using namespace ::testing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A unit to measure all sizes in this file.
-static constexpr i32 Inf32 = std::numeric_limits<i32>::max();
-static constexpr i64 Inf64 = std::numeric_limits<i64>::max();
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TUnorderedChunkPoolTest
-    : public Test
+    : public TChunkPoolTestBase
 {
 protected:
     void SetUp() override
     {
-        auto config = TLogManagerConfig::CreateDefault();
-        config->AbortOnAlert = true;
-        TLogManager::Get()->Configure(config, /*sync*/ true);
+        TChunkPoolTestBase::SetUp();
 
         Options_.MinTeleportChunkSize = Inf64;
         Options_.RowBuffer = RowBuffer_;
@@ -1441,8 +1426,6 @@ class TUnorderedChunkPoolTestRandomized
     , public TUnorderedChunkPoolTest
 {
 public:
-    TUnorderedChunkPoolTestRandomized() = default;
-
     void SetUp() final
     {
         TUnorderedChunkPoolTest::SetUp();
@@ -1551,10 +1534,6 @@ TEST_P(TUnorderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
     if (IsExplicitJobCount_) {
         ASSERT_EQ(ChunkPool_->GetJobCounter()->GetPending(), JobCount_);
     }
-
-    // Set this to true when debugging locally. It helps a lot to understand what happens.
-    constexpr bool EnableDebugOutput = false;
-    IOutputStream& Cdebug = EnableDebugOutput ? Cerr : Cnull;
 
     int jobLosts = 0;
 
@@ -1697,7 +1676,7 @@ static constexpr int NumberOfRepeats = 100;
 
 INSTANTIATE_TEST_SUITE_P(VariousOperationsWithPoolInstantiation,
     TUnorderedChunkPoolTestRandomized,
-    ::testing::Range(0, NumberOfRepeats));
+    Range(0, NumberOfRepeats));
 
 ////////////////////////////////////////////////////////////////////////////////
 
