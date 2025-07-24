@@ -416,7 +416,7 @@ void TYqlAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("yql_thread_count", &TThis::YqlThreadCount)
         .Default(256);
     registrar.Parameter("max_supported_yql_version", &TThis::MaxSupportedYqlVersion)
-        .Default("");
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -13,6 +13,8 @@
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
+#include <yt/yt/server/query_tracker/yql_engine.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -22,7 +24,11 @@
 #include <yt/yt/ytlib/query_tracker_client/records/query.record.h>
 #include <yt/yt/ytlib/query_tracker_client/helpers.h>
 
+#include <yt/yt/ytlib/yql_client/yql_service_proxy.h>
+
 #include <yt/yt/core/logging/log.h>
+
+#include <yt/yt/core/rpc/roaming_channel.h>
 
 #include <yt/yt/core/ytree/convert.h>
 
@@ -644,7 +650,9 @@ TQueryTrackerProxy::TQueryTrackerProxy(
     : StateClient_(std::move(stateClient))
     , StateRoot_(std::move(stateRoot))
     , ProxyConfig_(std::move(config))
-{ }
+{
+    EngineInfoProviders_[EQueryEngine::Yql] = CreateYqlEngineInfoProvider(StateClient_, StateRoot_);
+}
 
 void TQueryTrackerProxy::Reconfigure(const TQueryTrackerProxyConfigPtr& config)
 {
@@ -1481,6 +1489,9 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
         "Getting query tracker information (Attributes: %v)",
         options.Attributes);
 
+    static const TYsonString EmptyMap = TYsonString(TString("{}"));
+    auto settingsMap = options.Settings ? options.Settings->AsMap() : ConvertToNode(EmptyMap)->AsMap();
+
     auto attributes = options.Attributes;
 
     attributes.ValidateKeysOnly();
@@ -1498,7 +1509,6 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
     nodeExistsOptions.ReadFrom = EMasterChannelKind::Cache;
     nodeExistsOptions.SuccessStalenessBound = TDuration::Minutes(1);
 
-    static const TYsonString EmptyMap = TYsonString(TString("{}"));
     TYsonString supportedFeatures = EmptyMap;
     if (attributes.AdmitsKeySlow("supported_features")) {
         // These features are guaranteed to be deployed before or with this code.
@@ -1531,12 +1541,25 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
         clusters = ConvertTo<std::vector<std::string>>(allClusters);
     }
 
+    auto enginesInfoMap = ConvertToNode(EmptyMap)->AsMap();
+    if (attributes.AdmitsKeySlow("engines_info")) {
+        try {
+            auto yqlEngineInfo = EngineInfoProviders_[EQueryEngine::Yql]->GetEngineInfo(settingsMap);
+            enginesInfoMap->AddChild("yql", ConvertToNode(yqlEngineInfo));
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR("GetEngineInfo call failed with exception. (Exception: %v)", ex);
+        }
+    }
+
+    auto enginesInfo = ConvertToYsonString(enginesInfoMap);
+
     return TGetQueryTrackerInfoResult{
         .QueryTrackerStage = options.QueryTrackerStage,
         .ClusterName = std::move(clusterName),
         .SupportedFeatures = std::move(supportedFeatures),
         .AccessControlObjects = std::move(accessControlObjects),
-        .Clusters = std::move(clusters)
+        .Clusters = std::move(clusters),
+        .EnginesInfo = std::move(enginesInfo),
     };
 }
 
