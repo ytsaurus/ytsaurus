@@ -32,6 +32,7 @@ PY_SRCS(
     yt_dashboards/flow/general.py
     yt_dashboards/flow/message_transfering.py
     yt_dashboards/flow/worker.py
+    yt_dashboards/http_proxies.py
     yt_dashboards/key_filter.py
     yt_dashboards/lsm.py
     yt_dashboards/master.py
