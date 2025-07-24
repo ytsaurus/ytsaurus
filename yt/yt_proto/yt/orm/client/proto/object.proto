@@ -393,9 +393,8 @@ message THistoryTableOptions
     // NB! This option may change the order of events.
     optional EHistoryCommitTime commit_time = 4;
 
-    // Default history layout is not effective for queries without provided uuid.
-    // Therefore, it may beneficial to omit uuid from key in cases, where the majority of queries comes without uuid.
-    optional bool use_uuid_in_key = 5;
+    reserved "use_uuid_in_key";
+    reserved 5;
 
     reserved "no_hash";
     reserved 6;
