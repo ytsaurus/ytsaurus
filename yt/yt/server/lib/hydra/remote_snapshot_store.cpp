@@ -168,6 +168,8 @@ private:
                         "last_segment_id",
                         "last_record_id",
                         "last_mutation_term",
+                        "last_mutation_reign",
+                        "read_only",
                         "logical_time",
                     };
 
@@ -193,6 +195,9 @@ private:
                     Params_.Meta.set_last_segment_id(attributes.Get<i64>("last_segment_id"));
                     Params_.Meta.set_last_record_id(attributes.Get<i64>("last_record_id"));
                     Params_.Meta.set_last_mutation_term(attributes.Get<int>("last_mutation_term"));
+                    // COMPAT(danilalexeev)
+                    Params_.Meta.set_last_mutation_reign(attributes.Get<int>("last_mutation_reign", 0));
+                    Params_.Meta.set_read_only(attributes.Get<bool>("read_only", false));
                     // COMPAT(h0pless): HydraLogicalClock. Remove the default value.
                     Params_.Meta.set_logical_time(attributes.Get<ui64>("logical_time", 0));
 
@@ -345,6 +350,8 @@ private:
                     attributes->Set("last_segment_id", Meta_.last_segment_id());
                     attributes->Set("last_record_id", Meta_.last_record_id());
                     attributes->Set("last_mutation_term", Meta_.last_mutation_term());
+                    attributes->Set("last_mutation_reign", Meta_.last_mutation_reign());
+                    attributes->Set("read_only", Meta_.read_only());
                     attributes->Set("logical_time", Meta_.logical_time());
                     options.Attributes = std::move(attributes);
                     if (Store_->PrerequisiteTransactionId_) {
