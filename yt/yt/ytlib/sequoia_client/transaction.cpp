@@ -965,9 +965,14 @@ TFuture<ISequoiaTransactionPtr> StartSequoiaTransaction(
     ESequoiaTransactionType type,
     IClientPtr localClient,
     IClientPtr groundClient,
-    const TTransactionStartOptions& transactionStartOptions,
+    TTransactionStartOptions transactionStartOptions,
     const TSequoiaTransactionOptions& sequoiaTransactionOptions)
 {
+    if (!transactionStartOptions.Timeout.has_value()) {
+        auto connectionConfig = localClient->GetNativeConnection()->GetConfig();
+        transactionStartOptions.Timeout = connectionConfig->SequoiaTransactionTypeToTimeout[type];
+    }
+
     auto transaction = New<TSequoiaTransaction>(
         std::move(sequoiaClient),
         type,

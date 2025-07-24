@@ -138,7 +138,7 @@ TFuture<ISequoiaTransactionPtr> StartSequoiaTransaction(
     ESequoiaTransactionType type,
     NApi::NNative::IClientPtr localClient,
     NApi::NNative::IClientPtr groundClient,
-    const NApi::TTransactionStartOptions& transactionStartOptions,
+    NApi::TTransactionStartOptions transactionStartOptions,
     const TSequoiaTransactionOptions& sequoiaTransactionOptions);
 
 } // namespace NDetail

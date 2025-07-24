@@ -635,6 +635,11 @@ class YTEnvSetup(object):
                 "sequoia_retries": {
                     "enable": True,
                 },
+                "sequoia_transaction_type_to_timeout": {
+                    "cypress_modification": 5000,
+                    "cypress_transaction_mirroring": 5000,
+                    "response_keeper": 5000,
+                },
             })
         if cls._is_ground_cluster(index):
             delta_global_cluster_connection_config = {
