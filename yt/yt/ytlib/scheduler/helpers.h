@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/yt/ytlib/controller_agent/helpers.h>
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
 #include <yt/yt/ytlib/scheduler/proto/scheduler_service.pb.h>
@@ -236,6 +237,14 @@ void FromProto(
 void ToProto(
     NProto::TReqGetAllocationBriefInfo::TRequestedInfo* allocationInfoToRequestProto,
     const TAllocationInfoToRequest& allocationInfoToRequest);
+
+void FromProto(
+    TSidecarJobSpec* sidecarJobSpec,
+    const NControllerAgent::NProto::TSidecarJobSpec& sidecarJobSpecProto);
+
+void ToProto(
+    NControllerAgent::NProto::TSidecarJobSpec* sidecarJobSpecProto,
+    const TSidecarJobSpec& sidecarJobSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
