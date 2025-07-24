@@ -107,6 +107,7 @@
 #include <util/stream/tee.h>
 
 #include <util/system/compiler.h>
+#include <util/system/env.h>
 #include <util/system/execpath.h>
 #include <util/system/fs.h>
 #include <util/system/shellcommand.h>
@@ -1361,6 +1362,14 @@ private:
             auto env = GetEnviron();
             for (const auto& variable : env) {
                 SetEnvironment(variable);
+            }
+        }
+
+        for (const auto& variable : Config_->EnvironmentVariables) {
+            if (variable->Export.value_or(false) && !Config_->ForwardAllEnvironmentVariables) {
+                SetEnvironment(Format("%v=%v", variable->Name, GetEnv(variable->Name)));
+            } else if (!variable->Export.value_or(true) && Config_->ForwardAllEnvironmentVariables) {
+                SetEnvironment(variable->Name);
             }
         }
 
