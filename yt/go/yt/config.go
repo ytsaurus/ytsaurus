@@ -3,6 +3,7 @@ package yt
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"os/user"
@@ -181,6 +182,13 @@ type Config struct {
 	//
 	// NOTE: this codec has nothing to do with codec used for storing table chunks.
 	CompressionCodec ClientCompressionCodec
+
+	// HTTPClient allows to override default http.Client.
+	//
+	// If this option is provided, http client is not configured using other config options,
+	// including CertificateAuthorityData. The user is responsible for full http.Client configuration.
+	// You can use ythttp.BuildHTTPClient or ytrpc.BuildHTTPClient to build http.Client with default settings and then use it as base.
+	HTTPClient *http.Client
 }
 
 func (c *Config) GetProxy() (string, error) {

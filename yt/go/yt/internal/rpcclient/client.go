@@ -43,13 +43,38 @@ type client struct {
 	stop     *internal.StopGroup
 }
 
-func NewClient(conf *yt.Config) (*client, error) {
-	clusterURL, err := conf.GetClusterURL()
+func BuildHTTPClient(c *yt.Config) (*http.Client, error) {
+	if c.HTTPClient != nil {
+		return c.HTTPClient, nil
+	}
+
+	certPool, err := internal.NewCertPool()
 	if err != nil {
 		return nil, err
 	}
 
-	certPool, err := internal.NewCertPool()
+	tlsConfig := tls.Config{
+		RootCAs: certPool,
+	}
+
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			MaxIdleConns:        0,
+			MaxIdleConnsPerHost: 100,
+			MaxConnsPerHost:     100,
+			IdleConnTimeout:     30 * time.Second,
+
+			TLSHandshakeTimeout: 10 * time.Second,
+			TLSClientConfig:     &tlsConfig,
+		},
+		Timeout: 60 * time.Second,
+	}
+
+	return httpClient, nil
+}
+
+func NewClient(conf *yt.Config) (*client, error) {
+	clusterURL, err := conf.GetClusterURL()
 	if err != nil {
 		return nil, err
 	}
@@ -62,20 +87,14 @@ func NewClient(conf *yt.Config) (*client, error) {
 		stop:       internal.NewStopGroup(),
 	}
 
-	tlsConfig := tls.Config{
-		RootCAs: certPool,
+	c.httpClient, err = BuildHTTPClient(conf)
+	if err != nil {
+		return nil, err
 	}
 
-	c.httpClient = &http.Client{
-		Transport: &http.Transport{
-			MaxIdleConns:        0,
-			MaxIdleConnsPerHost: 100,
-			IdleConnTimeout:     30 * time.Second,
-
-			TLSHandshakeTimeout: 10 * time.Second,
-			TLSClientConfig:     &tlsConfig,
-		},
-		Timeout: 60 * time.Second,
+	transport, ok := c.httpClient.Transport.(*http.Transport)
+	if !ok {
+		return nil, xerrors.Errorf("expected *http.Transport, got %T: rpc client does not support other transports", c.httpClient.Transport)
 	}
 
 	if conf.Credentials != nil {
@@ -91,8 +110,8 @@ func NewClient(conf *yt.Config) (*client, error) {
 			bus.WithLogger(c.log.Logger()),
 			bus.WithDefaultProtocolVersionMajor(ProtocolVersionMajor),
 		}
-		if conf.UseTLS {
-			busTLSConfig := tlsConfig.Clone()
+		if conf.UseTLS && transport.TLSClientConfig != nil {
+			busTLSConfig := transport.TLSClientConfig.Clone()
 			if conf.PeerAlternativeHostName != "" {
 				// TODO(khlebnikov) use custom VerifyPeerCertificate.
 				busTLSConfig.ServerName = conf.PeerAlternativeHostName
