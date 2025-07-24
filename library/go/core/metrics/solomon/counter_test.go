@@ -3,6 +3,7 @@ package solomon
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
@@ -42,18 +43,42 @@ func TestCounter_Inc(t *testing.T) {
 	assert.Equal(t, int64(12), c.value.Load())
 }
 
+func TestCounter_getID(t *testing.T) {
+	c := &Counter{
+		name:       "mycounter",
+		metricType: typeCounter,
+		tags:       map[string]string{"ololo": "trololo"},
+	}
+
+	assert.Equal(t, "mycounter", c.getID())
+}
+
+func TestCounter_getID_WithTS(t *testing.T) {
+	ts := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	c := &Counter{
+		name:       "mycounter",
+		metricType: typeCounter,
+		tags:       map[string]string{"ololo": "trololo"},
+		timestamp:  &ts,
+	}
+
+	assert.Equal(t, "mycounter(2020-01-01T00:00:00Z)", c.getID())
+}
+
 func TestCounter_MarshalJSON(t *testing.T) {
+	ts := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 	c := &Counter{
 		name:       "mycounter",
 		metricType: typeCounter,
 		tags:       map[string]string{"ololo": "trololo"},
 		value:      *atomic.NewInt64(42),
+		timestamp:  &ts,
 	}
 
 	b, err := json.Marshal(c)
 	assert.NoError(t, err)
 
-	expected := []byte(`{"type":"COUNTER","labels":{"ololo":"trololo","sensor":"mycounter"},"value":42}`)
+	expected := []byte(`{"type":"COUNTER","labels":{"ololo":"trololo","sensor":"mycounter"},"value":42,"ts":1577836800}`)
 	assert.Equal(t, expected, b)
 }
 

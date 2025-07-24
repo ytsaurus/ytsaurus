@@ -3,6 +3,7 @@ package solomon
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
@@ -42,18 +43,42 @@ func TestGauge_Set(t *testing.T) {
 	assert.Equal(t, float64(14.89), c.value.Load())
 }
 
+func TestGauge_getID(t *testing.T) {
+	c := &Gauge{
+		name:       "mygauge",
+		metricType: typeGauge,
+		tags:       map[string]string{"ololo": "trololo"},
+	}
+
+	assert.Equal(t, "mygauge", c.getID())
+}
+
+func TestGauge_getID_WithTS(t *testing.T) {
+	ts := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	c := &Gauge{
+		name:       "mygauge",
+		metricType: typeGauge,
+		tags:       map[string]string{"ololo": "trololo"},
+		timestamp:  &ts,
+	}
+
+	assert.Equal(t, "mygauge(2020-01-01T00:00:00Z)", c.getID())
+}
+
 func TestGauge_MarshalJSON(t *testing.T) {
+	ts := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 	c := &Gauge{
 		name:       "mygauge",
 		metricType: typeGauge,
 		tags:       map[string]string{"ololo": "trololo"},
 		value:      *atomic.NewFloat64(42.18),
+		timestamp:  &ts,
 	}
 
 	b, err := json.Marshal(c)
 	assert.NoError(t, err)
 
-	expected := []byte(`{"type":"DGAUGE","labels":{"ololo":"trololo","sensor":"mygauge"},"value":42.18}`)
+	expected := []byte(`{"type":"DGAUGE","labels":{"ololo":"trololo","sensor":"mygauge"},"value":42.18,"ts":1577836800}`)
 	assert.Equal(t, expected, b)
 }
 

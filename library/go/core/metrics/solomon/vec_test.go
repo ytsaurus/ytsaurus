@@ -335,6 +335,6 @@ func TestMetricsVectorWith(t *testing.T) {
 func assertMetricRemoved(t *testing.T, rg *Registry, m Metric) {
 	t.Helper()
 
-	v, ok := rg.metrics.Load(rg.metricKey(m.Name()))
+	v, ok := rg.metrics.Load(rg.metricKey(m.getID()))
 	assert.False(t, ok, v)
 }
