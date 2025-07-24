@@ -38,6 +38,8 @@
 
 #include <yt/yt/ytlib/chaos_client/public.h>
 
+#include <yt/yt/ytlib/sequoia_client/public.h>
+
 #include <yt/yt/library/auth_server/public.h>
 
 #include <yt/yt/core/bus/tcp/public.h>
@@ -341,6 +343,7 @@ struct TConnectionDynamicConfig
 
     TSequoiaConnectionConfigPtr SequoiaConnection;
     TSequoiaRetriesConfigPtr SequoiaRetries;
+    THashMap<NSequoiaClient::ESequoiaTransactionType, std::optional<TDuration>> SequoiaTransactionTypeToTimeout;
 
     bool UseFollowersForWriteTargetsAllocation;
 

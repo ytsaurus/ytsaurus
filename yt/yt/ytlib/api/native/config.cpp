@@ -428,6 +428,8 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("sequoia_retries", &TThis::SequoiaRetries)
         .DefaultNew();
+    registrar.Parameter("sequoia_transaction_type_to_timeout", &TThis::SequoiaTransactionTypeToTimeout)
+        .Default();
 
     registrar.Parameter("use_followers_for_write_targets_allocation", &TThis::UseFollowersForWriteTargetsAllocation)
         .Default(true);
