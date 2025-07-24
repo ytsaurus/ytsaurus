@@ -2350,6 +2350,8 @@ void TStoreLocation::CheckTrashWatermark()
             TrashMap_.erase(it);
         }
         RemoveTrashFiles(entry);
+        UpdateTrashChunkCount(-1);
+        UpdateTrashSpace(-entry.DiskSpace);
         availableSpace += entry.DiskSpace;
     }
 
