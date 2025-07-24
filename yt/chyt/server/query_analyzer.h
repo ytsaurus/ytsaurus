@@ -92,7 +92,8 @@ public:
         DB::ContextPtr context,
         const TStorageContext* storageContext,
         const DB::SelectQueryInfo& queryInfo,
-        const NLogging::TLogger& logger);
+        const NLogging::TLogger& logger,
+        bool onlyAnalyze = false);
 
     //! TQueryAnalyzer should be prepared before CreateSecondaryQuery,
     //! GetOptimizedQueryProcessingStage and Analyze methods are called.
@@ -141,7 +142,7 @@ private:
     bool HasInOperator_ = false;
 
     bool Prepared_ = false;
-    bool QueryTreeProcessed_ = false;
+    bool OnlyAnalyze_;
 
     int KeyColumnCount_ = 0;
     bool JoinedByKeyColumns_ = false;
@@ -164,8 +165,6 @@ private:
     void InferReadInOrderMode(bool assumeNoNullKeys, bool assumeNoNanKeys);
 
     IStorageDistributorPtr GetStorage(const DB::QueryTreeNodePtr& tableExpression) const;
-
-    void LazyProcessQueryTree();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
