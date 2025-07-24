@@ -261,13 +261,15 @@ private:
                         : std::nullopt);
             }
 
+            if (IsReplayChangelogsMode()) {
+                bootstrap->ReplayChangelogs(ReplayChangelogsPaths_);
+            }
+
+            bootstrap->FinishRecoveryDryRun();
+
             if (IsExportSnapshotMode()) {
                 // TODO (h0pless): maybe rename this to ExportState
                 ExportSnapshot(bootstrap.get(), ExportConfigPath_);
-            }
-
-            if (IsReplayChangelogsMode()) {
-                bootstrap->ReplayChangelogs(ReplayChangelogsPaths_);
             }
 
             if (IsBuildSnapshotMode()) {

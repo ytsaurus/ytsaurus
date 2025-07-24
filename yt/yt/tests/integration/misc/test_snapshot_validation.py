@@ -182,7 +182,8 @@ class TestSnapshotValidation(YTEnvSetup):
             "random_seed",
             "last_record_id",
             "sequence_number",
-            "state_hash"])
+            "state_hash",
+            "logical_time"])
 
         changelog_path = f"{changelog_dir}/{snapshot_id}"
         with open("changelog_file", 'wb') as fh:
@@ -217,7 +218,8 @@ class TestSnapshotValidation(YTEnvSetup):
             "random_seed",
             "last_record_id",
             "sequence_number",
-            "state_hash"])
+            "state_hash",
+            "logical_time"])
 
         assert self._run_validation(
             binary,
