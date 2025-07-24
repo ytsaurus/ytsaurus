@@ -1119,6 +1119,7 @@ public:
             }
         }
 
+        TError error;
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index]->As<TTablet>();
             auto* chunkList = tablet->GetChunkList();
@@ -1131,7 +1132,7 @@ public:
                     << TErrorAttribute("max_chunks_per_mounted_tablet", maxChunkCount);
             }
 
-            if (!enableConstraintValidation || !table->IsPhysicallySorted()) {
+            if (!table->IsPhysicallySorted()) {
                 continue;
             }
 
@@ -1144,7 +1145,7 @@ public:
                 if (auto chunkMaxBlockSize = chunk->GetMaxBlockSize();
                     maxBlockSize.has_value() && chunkMaxBlockSize > *maxBlockSize)
                 {
-                    THROW_ERROR_EXCEPTION("Cannot mount tablet %v since it has chunks with too large block size",
+                    error = TError("Cannot mount tablet %v since it has chunks with too large block size",
                         tablet->GetId())
                         << TErrorAttribute("chunk_max_block_size", chunkMaxBlockSize)
                         << TErrorAttribute("max_unversioned_block_size", *maxBlockSize);
@@ -1153,12 +1154,17 @@ public:
                 if (auto chunkCompressedDataSize = chunk->GetCompressedDataSize();
                     chunkCompressedDataSize > maxChunkSize)
                 {
-                    THROW_ERROR_EXCEPTION("Cannot mount tablet %v since it has too large chunks",
+                    error = TError("Cannot mount tablet %v since it has too large chunks",
                         tablet->GetId())
                         << TErrorAttribute("chunk_compressed_data_size", chunkCompressedDataSize)
                         << TErrorAttribute("max_unversioned_chunk_size", maxChunkSize);
                 }
             }
+        }
+
+        if (!error.IsOK()) {
+            GetUserChunkConstraintValidationErrorCounter(authenticatedUser->GetName()).Increment();
+            THROW_ERROR_EXCEPTION_IF(enableConstraintValidation, error);
         }
     }
 
@@ -2923,6 +2929,7 @@ private:
             .EndMap();
     }
 
+    THashMap<std::string, TCounter> UserChunkConstraintValidationErrorCounters_;
     THashMap<TTabletCellBundleId, TTabletCellBundleProfilingCounters>
         BundleIdToProfilingCounters_;
 
@@ -2953,6 +2960,21 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
+    TCounter& GetUserChunkConstraintValidationErrorCounter(const std::string& userName)
+    {
+        auto it = UserChunkConstraintValidationErrorCounters_.find(userName);
+        if (it != UserChunkConstraintValidationErrorCounters_.end()) {
+            return it->second;
+        }
+
+        auto profiler = TabletServerProfiler()
+            .WithSparse()
+            .WithTag("user", userName);
+        it = UserChunkConstraintValidationErrorCounters_.emplace(
+            userName,
+            profiler.Counter("/chunk_constraint_validation_errors")).first;
+        return it->second;
+    }
 
     TTabletCellBundleProfilingCounters GetOrCreateBundleProfilingCounters(
         TTabletCellBundle* bundle)
