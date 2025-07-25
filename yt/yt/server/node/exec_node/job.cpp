@@ -1844,7 +1844,9 @@ void TJob::DoInterrupt(
             << TErrorAttribute("interruption_reason", InterruptionReason_)
             << ex;
 
-        if (error.FindMatching(NJobProxy::EErrorCode::InterruptionFailed)) {
+        if (error.FindMatching(NJobProxy::EErrorCode::InterruptionFailed) ||
+            error.FindMatching(NJobProxy::EErrorCode::JobNotPrepared))
+        {
             Abort(error);
         } else {
             THROW_ERROR error;
