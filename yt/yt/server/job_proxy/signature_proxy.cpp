@@ -19,7 +19,7 @@ TProxySignatureGenerator::TProxySignatureGenerator(TSupervisorServiceProxy proxy
     , JobId_(std::move(jobId))
 { }
 
-void TProxySignatureGenerator::DoSign(const TSignaturePtr& signature) const
+void TProxySignatureGenerator::Resign(const TSignaturePtr& signature) const
 {
     auto request = Proxy_.GenerateSignature();
     ToProto(request->mutable_job_id(), JobId_);
