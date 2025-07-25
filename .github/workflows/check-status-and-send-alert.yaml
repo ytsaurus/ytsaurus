@@ -34,6 +34,7 @@ jobs:
       - name: Clean escape characters
         run: |
           DISPLAY_COMMIT_MESSAGE="\"$(echo ${{ github.event.head_commit.message }} | tr -d '"')"\"
+          echo $DISPLAY_COMMIT_MESSAGE >> $GITHUB_ENV
 
       - name: Save conclusion (failure)
         if: inputs.is_failure
