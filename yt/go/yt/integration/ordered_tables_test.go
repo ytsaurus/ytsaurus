@@ -21,8 +21,8 @@ func TestOrderedTables(t *testing.T) {
 
 	suite.RunClientTests(t, []ClientTest{
 		{Name: "OrderedDynamicTable_struct", Test: suite.TestOrderedDynamicTable_struct},
-		{Name: "OrderedDynamicTable_map", Test: suite.TestOrderedDynamicTable_map, SkipRPC: true}, // todo https://st.yandex-team.ru/YT-15505
 		{Name: "PushQueueProducer_struct", Test: suite.TestPushQueueProducer_struct},
+		{Name: "OrderedDynamicTable_map", Test: suite.TestOrderedDynamicTable_map, SkipRPC: true}, // TODO: YT-15505
 	})
 }
 
@@ -140,6 +140,7 @@ func pushBatch(
 	sessionID string,
 	epoch int64,
 	startSequenceNumber int64,
+	userMeta any,
 ) (*yt.PushQueueProducerResult, error) {
 	rows := []any{
 		&testOrderedTableRow{TabletIndex: 2, Value: "hello"},
@@ -148,7 +149,7 @@ func pushBatch(
 	}
 
 	return yc.PushQueueProducer(ctx, producerPath, queuePath, sessionID, epoch, rows,
-		&yt.PushQueueProducerOptions{SequenceNumber: ptr.Int64(startSequenceNumber)})
+		&yt.PushQueueProducerOptions{SequenceNumber: ptr.Int64(startSequenceNumber), UserMeta: userMeta})
 }
 
 func checkQueue(
@@ -197,24 +198,26 @@ func (s *Suite) TestPushQueueProducer_struct(ctx context.Context, t *testing.T, 
 
 	for i := 0; i < 2; i += 1 {
 		sessionID := "session-1"
-		options := &yt.CreateQueueProducerSessionOptions{}
-		expectedUserMeta, _ := yson.MarshalFormat(nil, yson.FormatBinary)
-		if i > 0 {
-			options.UserMeta = UserMeta{Value: "123"}
-			expectedUserMeta, _ = yson.MarshalFormat(options.UserMeta, yson.FormatBinary)
+		createSessionOptions := &yt.CreateQueueProducerSessionOptions{}
+		if i == 0 {
+			createSessionOptions.UserMeta = UserMeta{Value: "123"}
+		} else {
+			createSessionOptions.UserMeta = UserMeta{Value: "124356"}
 		}
+		expectedUserMeta, _ := yson.MarshalFormat(createSessionOptions.UserMeta, yson.FormatBinary)
 		createSessionResult, err := yc.CreateQueueProducerSession(
 			ctx,
 			producerPath,
 			queuePath,
 			sessionID,
-			options,
+			createSessionOptions,
 		)
 		require.NoError(t, err)
 		require.Equal(t, int64(0), createSessionResult.Epoch)
 		require.Equal(t, int64(-1), createSessionResult.SequenceNumber)
+		checkProducerSession(ctx, t, yc, producerPath, queuePath, sessionID, -1, 0, expectedUserMeta)
 
-		result, err := pushBatch(ctx, yc, producerPath, queuePath, sessionID, 0, 0)
+		result, err := pushBatch(ctx, yc, producerPath, queuePath, sessionID, 0, 0, nil)
 
 		require.NoError(t, err)
 		require.Equal(t, int64(2), result.LastSequenceNumber)
@@ -222,20 +225,23 @@ func (s *Suite) TestPushQueueProducer_struct(ctx context.Context, t *testing.T, 
 		checkQueue(ctx, t, yc, queuePath, 3+(i*10))
 		checkProducerSession(ctx, t, yc, producerPath, queuePath, sessionID, 2, 0, expectedUserMeta)
 
-		_, err = pushBatch(ctx, yc, producerPath, queuePath, sessionID, 1, 2)
+		_, err = pushBatch(ctx, yc, producerPath, queuePath, sessionID, 1, 2, nil)
 		require.Error(t, err)
 
-		result, err = pushBatch(ctx, yc, producerPath, queuePath, sessionID, 0, 2)
+		result, err = pushBatch(ctx, yc, producerPath, queuePath, sessionID, 0, 2, nil)
 		require.NoError(t, err)
 		require.Equal(t, int64(4), result.LastSequenceNumber)
 		require.Equal(t, int64(1), result.SkippedRowCount)
 		checkQueue(ctx, t, yc, queuePath, 5+(i*10))
 		checkProducerSession(ctx, t, yc, producerPath, queuePath, sessionID, 4, 0, expectedUserMeta)
 
-		_, err = pushBatch(ctx, yc, producerPath, queuePath, sessionID+"-unknown", 0, 3)
+		_, err = pushBatch(ctx, yc, producerPath, queuePath, sessionID+"-unknown", 0, 3, nil)
 		require.Error(t, err)
 
-		result, err = pushBatch(ctx, yc, producerPath, queuePath, sessionID, 0, 4)
+		userMeta := UserMeta{Value: "345"}
+		expectedUserMeta, _ = yson.MarshalFormat(userMeta, yson.FormatBinary)
+
+		result, err = pushBatch(ctx, yc, producerPath, queuePath, sessionID, 0, 4, userMeta)
 		require.NoError(t, err)
 		require.Equal(t, int64(6), result.LastSequenceNumber)
 		require.Equal(t, int64(1), result.SkippedRowCount)
@@ -243,7 +249,7 @@ func (s *Suite) TestPushQueueProducer_struct(ctx context.Context, t *testing.T, 
 		checkProducerSession(ctx, t, yc, producerPath, queuePath, sessionID, 6, 0, expectedUserMeta)
 
 		require.NoError(t, migrate.UnmountAndWait(ctx, yc, queuePath))
-		_, err = pushBatch(ctx, yc, producerPath, queuePath, sessionID, 0, 6)
+		_, err = pushBatch(ctx, yc, producerPath, queuePath, sessionID, 0, 6, nil)
 		require.Error(t, err)
 		require.NoError(t, migrate.MountAndWait(ctx, yc, queuePath))
 		checkQueue(ctx, t, yc, queuePath, 7+(i*10))
@@ -259,11 +265,12 @@ func (s *Suite) TestPushQueueProducer_struct(ctx context.Context, t *testing.T, 
 		require.NoError(t, err)
 		require.Equal(t, int64(1), createSessionResult.Epoch)
 		require.Equal(t, int64(6), createSessionResult.SequenceNumber)
+		checkProducerSession(ctx, t, yc, producerPath, queuePath, sessionID, 6, 1, expectedUserMeta)
 
-		_, err = pushBatch(ctx, yc, producerPath, queuePath, sessionID, 0, 7)
+		_, err = pushBatch(ctx, yc, producerPath, queuePath, sessionID, 0, 7, nil)
 		require.Error(t, err)
 
-		result, err = pushBatch(ctx, yc, producerPath, queuePath, sessionID, 1, 7)
+		result, err = pushBatch(ctx, yc, producerPath, queuePath, sessionID, 1, 7, nil)
 		require.NoError(t, err)
 		require.Equal(t, int64(9), result.LastSequenceNumber)
 		require.Equal(t, int64(0), result.SkippedRowCount)
