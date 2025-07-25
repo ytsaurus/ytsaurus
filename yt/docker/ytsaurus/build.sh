@@ -133,6 +133,7 @@ elif [[ "${component}" == "query-tracker" ]]; then
     cp -r ${ytsaurus_build_path}/ytsaurus_python ${output_path}
 
     cp -r ${ytsaurus_credits}/ytserver-all.CREDITS ${output_path}/credits
+    cp -r ${ytsaurus_credits}/init_query_tracker_state.CREDITS ${output_path}/credits
     cp -r ${qt_credits}/*.CREDITS ${output_path}/credits
 
 elif [[ "${component}" == "strawberry" ]]; then
