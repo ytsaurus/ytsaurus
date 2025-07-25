@@ -37,7 +37,7 @@ private:
     /*!
     *  \note Thread affinity: any
     */
-    void DoSign(const TSignaturePtr& signature) const final;
+    void Resign(const TSignaturePtr& signature) const final;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSignatureGenerator)
