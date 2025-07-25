@@ -1693,7 +1693,7 @@ def _build_cluster_connection_config(yt_config,
         "chaos_cell_directory_synchronizer": {
             "sync_period": 500,
             "sync_period_splay": 100,
-            "sync_all_chaos_cells": True,
+            "sync_all_chaos_cells": False,
         },
         "cluster_directory_synchronizer": {
             "sync_period": 500,
@@ -1841,6 +1841,7 @@ def _build_cluster_connection_config(yt_config,
             },
             "rpc_acknowledge_timeout": 100,
         }
+        cluster_connection["chaos_cell_directory_synchronizer"]["sync_all_chaos_cells"] = True
 
     if not yt_config.enable_permission_cache:
         cluster_connection["permission_cache"] = {
