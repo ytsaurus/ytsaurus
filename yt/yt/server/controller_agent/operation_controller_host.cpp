@@ -368,9 +368,9 @@ const IInvokerPtr& TOperationControllerHost::GetControllerThreadPoolInvoker()
     return Bootstrap_->GetControllerAgent()->GetControllerThreadPoolInvoker();
 }
 
-const IInvokerPtr& TOperationControllerHost::GetChunkScraperThreadPoolInvoker()
+const IInvokerPtr& TOperationControllerHost::GetChunkScraperHeavyThreadPoolInvoker()
 {
-    return Bootstrap_->GetControllerAgent()->GetChunkScraperThreadPoolInvoker();
+    return Bootstrap_->GetControllerAgent()->GetChunkScraperHeavyThreadPoolInvoker();
 }
 
 const IInvokerPtr& TOperationControllerHost::GetJobSpecBuildPoolInvoker()

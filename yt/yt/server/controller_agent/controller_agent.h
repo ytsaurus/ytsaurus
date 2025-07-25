@@ -54,7 +54,7 @@ public:
     /*!
      *  \note Thread affinity: any
      */
-    const IInvokerPtr& GetChunkScraperThreadPoolInvoker();
+    const IInvokerPtr& GetChunkScraperHeavyThreadPoolInvoker();
 
     /*!
      *  \note Thread affinity: any

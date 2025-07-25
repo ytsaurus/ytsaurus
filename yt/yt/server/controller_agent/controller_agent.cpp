@@ -201,7 +201,7 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , ControllerThreadPool_(CreateThreadPool(Config_->ControllerThreadCount, "Controller"))
-        , ChunkScraperThreadPool_(CreateThreadPool(Config_->ChunkScraperThreadCount, "ChunkScraper"))
+        , ChunkScraperHeavyThreadPool_(CreateThreadPool(Config_->ChunkScraperHeavyThreadCount, "ChunkScraperHeavy"))
         , JobSpecBuildPool_(CreateThreadPool(Config_->JobSpecBuildThreadCount, "JobSpec"))
         , StatisticsOffloadPool_(CreateThreadPool(Config_->StatisticsOffloadThreadCount, "StatsOffload"))
         , ExecNodesUpdateQueue_(New<TActionQueue>("ExecNodes"))
@@ -348,11 +348,11 @@ public:
         return ControllerThreadPool_->GetInvoker();
     }
 
-    const IInvokerPtr& GetChunkScraperThreadPoolInvoker()
+    const IInvokerPtr& GetChunkScraperHeavyThreadPoolInvoker()
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return ChunkScraperThreadPool_->GetInvoker();
+        return ChunkScraperHeavyThreadPool_->GetInvoker();
     }
 
     const IInvokerPtr& GetJobSpecBuildPoolInvoker()
@@ -429,7 +429,7 @@ public:
         Bootstrap_->OnDynamicConfigChanged(Config_);
 
         ControllerThreadPool_->SetThreadCount(Config_->ControllerThreadCount);
-        ChunkScraperThreadPool_->SetThreadCount(Config_->ChunkScraperThreadCount);
+        ChunkScraperHeavyThreadPool_->SetThreadCount(Config_->ChunkScraperHeavyThreadCount);
 
         JobTracker_->UpdateConfig(Config_);
 
@@ -1114,7 +1114,7 @@ private:
     TBootstrap* const Bootstrap_;
 
     const IThreadPoolPtr ControllerThreadPool_;
-    const IThreadPoolPtr ChunkScraperThreadPool_;
+    const IThreadPoolPtr ChunkScraperHeavyThreadPool_;
     const IThreadPoolPtr JobSpecBuildPool_;
     const IThreadPoolPtr StatisticsOffloadPool_;
     const TActionQueuePtr ExecNodesUpdateQueue_;
@@ -2329,9 +2329,9 @@ const IInvokerPtr& TControllerAgent::GetControllerThreadPoolInvoker()
     return Impl_->GetControllerThreadPoolInvoker();
 }
 
-const IInvokerPtr& TControllerAgent::GetChunkScraperThreadPoolInvoker()
+const IInvokerPtr& TControllerAgent::GetChunkScraperHeavyThreadPoolInvoker()
 {
-    return Impl_->GetChunkScraperThreadPoolInvoker();
+    return Impl_->GetChunkScraperHeavyThreadPoolInvoker();
 }
 
 const IInvokerPtr& TControllerAgent::GetJobSpecBuildPoolInvoker()

@@ -39,12 +39,14 @@ public:
     TFetcherChunkScraper(
         TChunkScraperConfigPtr config,
         IInvokerPtr invoker,
+        IInvokerPtr heavyInvoker,
         TThrottlerManagerPtr throttlerManager,
         NNative::IClientPtr client,
         TNodeDirectoryPtr nodeDirectory,
         const NLogging::TLogger& logger)
         : Config_(std::move(config))
         , Invoker_(CreateSerializedInvoker(std::move(invoker)))
+        , HeavyInvoker_(std::move(heavyInvoker))
         , ThrottlerManager_(std::move(throttlerManager))
         , Client_(std::move(client))
         , NodeDirectory_(std::move(nodeDirectory))
@@ -72,6 +74,7 @@ private:
 
     const TChunkScraperConfigPtr Config_;
     const IInvokerPtr Invoker_;
+    const IInvokerPtr HeavyInvoker_;
     const TThrottlerManagerPtr ThrottlerManager_;
     const NNative::IClientPtr Client_;
     const TNodeDirectoryPtr NodeDirectory_;
@@ -117,6 +120,7 @@ private:
         Scraper_ = New<TChunkScraper>(
             Config_,
             Invoker_,
+            HeavyInvoker_,
             ThrottlerManager_,
             Client_,
             NodeDirectory_,
@@ -226,6 +230,7 @@ DEFINE_REFCOUNTED_TYPE(TFetcherChunkScraper)
 IFetcherChunkScraperPtr CreateFetcherChunkScraper(
     TChunkScraperConfigPtr config,
     IInvokerPtr invoker,
+    IInvokerPtr heavyInvoker,
     TThrottlerManagerPtr throttlerManager,
     NNative::IClientPtr client,
     TNodeDirectoryPtr nodeDirectory,
@@ -234,6 +239,7 @@ IFetcherChunkScraperPtr CreateFetcherChunkScraper(
     return New<TFetcherChunkScraper>(
         std::move(config),
         std::move(invoker),
+        std::move(heavyInvoker),
         std::move(throttlerManager),
         std::move(client),
         std::move(nodeDirectory),

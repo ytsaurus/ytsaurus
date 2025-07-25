@@ -383,7 +383,8 @@ IFetcherChunkScraperPtr TInputManager::CreateFetcherChunkScraper(const TInputClu
     return Host_->GetSpec()->UnavailableChunkStrategy == EUnavailableChunkAction::Wait
         ? NChunkClient::CreateFetcherChunkScraper(
             Host_->GetConfig()->ChunkScraper,
-            Host_->GetChunkScraperInvoker(),
+            Host_->GetCancelableInvoker(),
+            Host_->GetChunkScraperHeavyInvoker(),
             Host_->GetChunkLocationThrottlerManager(),
             cluster->Client(),
             cluster->NodeDirectory(),
@@ -503,7 +504,7 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
 
     for (const auto& [clusterName, cluster] : Clusters_) {
         columnarStatisticsFetchers[clusterName] = New<TColumnarStatisticsFetcher>(
-            Host_->GetChunkScraperInvoker(),
+            Host_->GetCancelableInvoker(),
             cluster->Client(),
             TColumnarStatisticsFetcher::TOptions{
                 .Config = Host_->GetConfig()->Fetcher,
@@ -519,7 +520,7 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
             chunkSliceSizeFetchers[clusterName] = New<TChunkSliceSizeFetcher>(
                 Host_->GetConfig()->Fetcher,
                 cluster->NodeDirectory(),
-                Host_->GetChunkScraperInvoker(),
+                Host_->GetCancelableInvoker(),
                 /*chunkScraper*/ CreateFetcherChunkScraper(cluster),
                 cluster->Client(),
                 Logger);
@@ -1004,15 +1005,15 @@ void TInputManager::InitInputChunkScrapers()
         YT_VERIFY(!cluster->ChunkScraper());
         cluster->ChunkScraper() = New<TChunkScraper>(
             Host_->GetConfig()->ChunkScraper,
-            Host_->GetChunkScraperInvoker(),
+            Host_->GetCancelableInvoker(),
+            Host_->GetChunkScraperHeavyInvoker(),
             Host_->GetChunkLocationThrottlerManager(),
             cluster->Client(),
             cluster->NodeDirectory(),
             std::move(clusterToChunkIds[cluster]),
             MakeSafe(
                 MakeWeak(Host_),
-                BIND(&TInputManager::OnInputChunkBatchLocated, MakeWeak(this)))
-                    .Via(Host_->GetCancelableInvoker()),
+                BIND(&TInputManager::OnInputChunkBatchLocated, MakeWeak(this))),
             Logger);
         if (!cluster->UnavailableInputChunkIds().empty()) {
             YT_LOG_INFO(
