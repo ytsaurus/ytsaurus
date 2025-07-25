@@ -5989,14 +5989,7 @@ private:
             path);
 
         NApi::TTableImportOptions options;
-        TString tableWriterConfig("{}");
-        if (request->has_config()) {
-            tableWriterConfig = request->config();
-        }
-
-        options.Config = ConvertTo<TTableWriterConfigPtr>(TYsonString(tableWriterConfig));
-
-        PatchTableWriterOptions(&options);
+        options.ValidateAnyIsValidYson = true;
 
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());

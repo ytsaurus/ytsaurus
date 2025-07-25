@@ -96,17 +96,12 @@ class TSchemalessTableUploader
 {
 public:
     TSchemalessTableUploader(
-        TTableWriterConfigPtr config,
         TTableWriterOptionsPtr options,
         const TRichYPath& richPath,
-        TNameTablePtr nameTable,
         NNative::IClientPtr client,
-        TString localHostName,
-        ITransactionPtr transaction,
-        IThroughputThrottlerPtr throttler,
-        IBlockCachePtr blockCache,
-        IChunkWriter::TWriteBlocksOptions writeBlocksOptions);
+        TTransactionId transactionId);
 
+    INodePtr Attributes;
     TTableWriterConfigPtr WriterConfig;
     TUserObject UserObject;
     TTableSchemaPtr ChunkSchema;
@@ -114,28 +109,20 @@ public:
     TChunkListId ChunkListId;
     TMasterTableSchemaId ChunkSchemaId;
     ITransactionPtr UploadTransaction;
+    TTableUploadOptions TableUploadOptions;
 
     const TTableSchemaPtr& GetSchema() const;
 
     void Close(TTableYPathProxy::TReqEndUploadPtr endUpload);
 
 private:
-    const TTableWriterConfigPtr Config_;
     const TTableWriterOptionsPtr Options_;
     const TRichYPath RichPath_;
-    const TNameTablePtr NameTable_;
-    const TString LocalHostName_;
     const NNative::IClientPtr Client_;
-    const ITransactionPtr Transaction_;
-    const TTransactionId TransactionId_;
-    const IThroughputThrottlerPtr Throttler_;
-    const IBlockCachePtr BlockCache_;
-    const IChunkWriter::TWriteBlocksOptions WriteBlocksOptions_;
 
     const NLogging::TLogger Logger;
 
     TObjectId ObjectId_;
-    TTableUploadOptions TableUploadOptions_;
 
     TTableSchemaPtr GetChunkSchema() const;
 };

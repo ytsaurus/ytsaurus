@@ -2775,13 +2775,11 @@ message TReqImportTable
 {
     required bytes path = 1; // RichYPath
 
-    optional bytes config = 2; // YSON-serialized TTableWriterConfig
+    optional bytes format = 2; // YSON-serialized TFormat
 
-    optional bytes format = 3; // YSON-serialized TFormat
+    repeated string s3_keys = 3;
 
     optional TTransactionalOptions transactional_options = 100;
-
-    repeated string s3_keys = 4;
 }
 
 message TRspImportTable

@@ -807,10 +807,6 @@ TFuture<void> TClientBase::ImportTable(
         req->add_s3_keys(s3Key);
     }
 
-    if (options.Config) {
-        req->set_config(ConvertToYsonString(*options.Config).ToString());
-    }
-
     ToProto(req->mutable_transactional_options(), options);
     return req->Invoke().AsVoid();
 }

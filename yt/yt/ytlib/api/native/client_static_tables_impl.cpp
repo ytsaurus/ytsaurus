@@ -95,9 +95,6 @@ void TClient::DoImportTable(
     std::vector<std::string> s3Keys,
     const TTableImportOptions& options)
 {
-    auto nameTable = New<TNameTable>();
-    nameTable->SetEnableColumnNameValidation();
-
     auto writerOptions = New<NTableClient::TTableWriterOptions>();
     writerOptions->EnableValidationOptions(/*validateAnyIsValidYson*/ options.ValidateAnyIsValidYson);
 
@@ -110,14 +107,10 @@ void TClient::DoImportTable(
     }
 
     WaitFor(ImportSchemalessTable(
-        options.Config ? options.Config : New<TTableWriterConfig>(),
         writerOptions,
         path,
-        nameTable,
         this,
-        /*localHostName*/ TString(), // Locality is not important during table upload.
         transaction,
-        /*writeBlocksOptions*/ {},
         std::move(s3Keys)
     )).ThrowOnError();
 }

@@ -336,13 +336,8 @@ void TImportTableCommand::DoExecuteImpl(const ICommandContextPtr& context)
 {
     auto transaction = AttachTransaction(context, false);
 
-    auto config = UpdateYsonStruct(
-        context->GetConfig()->TableWriter,
-        TableWriter);
-
     // XXX(babenko): temporary workaround; this is how it actually works but not how it is intended to be.
     Options.PingAncestors = true;
-    Options.Config = config;
 
     PutMethodInfoInTraceContext("import_table");
 

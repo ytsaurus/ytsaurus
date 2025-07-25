@@ -122,17 +122,11 @@ TFuture<IUnversionedWriterPtr> CreateSchemalessTableWriter(
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<void> ImportSchemalessTable(
-    TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
     const NYPath::TRichYPath& richPath,
-    TNameTablePtr nameTable,
     NApi::NNative::IClientPtr client,
-    TString localHostName,
     NApi::ITransactionPtr transaction,
-    NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
-    std::vector<std::string> s3Keys,
-    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
-    NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
+    std::vector<std::string> s3Keys);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -2293,6 +2293,24 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
 
 namespace NDetail {
 
+void PatchWriterOptions(
+    const TTableWriterOptionsPtr& options,
+    const IAttributeDictionary& attributes,
+    const TTableUploadOptions& tableUploadOptions,
+    const TTableSchemaPtr& chunkSchema,
+    const TTableSchemaPtr& tableSchema,
+    const NLogging::TLogger& Logger);
+
+void PatchWriterConfig(
+    const TTableWriterConfigPtr& writerConfig,
+    const IAttributeDictionary& attributes)
+{
+    auto chunkWriterConfig = attributes.FindYson("chunk_writer");
+    if (chunkWriterConfig) {
+        ReconfigureYsonStruct(writerConfig, chunkWriterConfig);
+    }
+}
+
 void PatchWriterConfigs(
     const TTableWriterOptionsPtr& options,
     const TTableWriterConfigPtr& writerConfig,
@@ -2300,7 +2318,17 @@ void PatchWriterConfigs(
     const TTableUploadOptions& tableUploadOptions,
     const TTableSchemaPtr& chunkSchema,
     const TTableSchemaPtr& tableSchema,
-    const NLogging::TLogger& Logger);
+    const NLogging::TLogger& Logger)
+{
+    PatchWriterOptions(
+        options,
+        attributes,
+        tableUploadOptions,
+        chunkSchema,
+        tableSchema,
+        Logger);
+    PatchWriterConfig(writerConfig, attributes);
+}
 
 } // namespace NDetail
 
@@ -2408,17 +2436,18 @@ private:
 
     void DoOpen()
     {
-        Uploader_.emplace(
-            Config_,
-            Options_,
-            RichPath_,
-            NameTable_,
-            Client_,
-            LocalHostName_,
-            Transaction_,
-            Throttler_,
-            BlockCache_,
-            WriteBlocksOptions_);
+        Uploader_.emplace(Options_, RichPath_, Client_, TransactionId_);
+        if (BlockCache_->GetSupportedBlockTypes() != EBlockType::None) {
+            // It is hard to support both reordering and uncompressed block caching
+            // since block becomes cached significantly before we know the final permutation.
+            // Supporting reordering for compressed block cache is not hard
+            // to implement, but is not done for now.
+            Config_->EnableBlockReordering = false;
+        }
+
+        auto writerConfig = CloneYsonStruct(Config_);
+        writerConfig->WorkloadDescriptor.Annotations.push_back(Format("TablePath: %v", RichPath_.GetPath()));
+        NDetail::PatchWriterConfig(writerConfig, Uploader_->Attributes->Attributes());
         StartListenTransaction(Uploader_->UploadTransaction);
 
         auto timestamp = WaitFor(Client_->GetNativeConnection()->GetTimestampProvider()->GenerateTimestamps())
@@ -2430,7 +2459,7 @@ private:
         dataSink.SetAccount(Options_->Account);
 
         UnderlyingWriter_ = CreateSchemalessMultiChunkWriter(
-            Uploader_->WriterConfig,
+            writerConfig,
             Options_,
             NameTable_,
             Uploader_->ChunkSchema,
@@ -2527,28 +2556,16 @@ class TSchemalessTableImporter
 {
 public:
     TSchemalessTableImporter(
-        TTableWriterConfigPtr config,
         TTableWriterOptionsPtr options,
         const TRichYPath& richPath,
-        TNameTablePtr nameTable,
         NNative::IClientPtr client,
-        TString localHostName,
         ITransactionPtr transaction,
-        IThroughputThrottlerPtr throttler,
-        IBlockCachePtr blockCache,
-        IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
         std::vector<std::string> s3Keys)
-        : Config_(std::move(config))
-        , Options_(std::move(options))
+        : Options_(std::move(options))
         , RichPath_(richPath)
-        , NameTable_(std::move(nameTable))
-        , LocalHostName_(std::move(localHostName))
         , Client_(std::move(client))
         , Transaction_(std::move(transaction))
         , TransactionId_(Transaction_ ? Transaction_->GetId() : NullTransactionId)
-        , Throttler_(std::move(throttler))
-        , BlockCache_(std::move(blockCache))
-        , WriteBlocksOptions_(std::move(writeBlocksOptions))
         , S3Keys_(std::move(s3Keys))
         , Logger(TableClientLogger().WithTag("Path: %v, TransactionId: %v",
             richPath.GetPath(),
@@ -2567,17 +2584,11 @@ public:
     }
 
 private:
-    const TTableWriterConfigPtr Config_;
     const TTableWriterOptionsPtr Options_;
     const TRichYPath RichPath_;
-    const TNameTablePtr NameTable_;
-    const TString LocalHostName_;
     const NNative::IClientPtr Client_;
     const ITransactionPtr Transaction_;
     const TTransactionId TransactionId_;
-    const IThroughputThrottlerPtr Throttler_;
-    const IBlockCachePtr BlockCache_;
-    const IChunkWriter::TWriteBlocksOptions WriteBlocksOptions_;
     const std::vector<std::string> S3Keys_;
 
     const NLogging::TLogger Logger;
@@ -2589,17 +2600,7 @@ private:
 
     void DoOpen()
     {
-        Uploader_.emplace(
-            Config_,
-            Options_,
-            RichPath_,
-            NameTable_,
-            Client_,
-            LocalHostName_,
-            Transaction_,
-            Throttler_,
-            BlockCache_,
-            WriteBlocksOptions_);
+        Uploader_.emplace(Options_, RichPath_, Client_, TransactionId_);
         StartListenTransaction(Uploader_->UploadTransaction);
 
         YT_LOG_DEBUG("Table opened");
@@ -2728,37 +2729,17 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<void> ImportSchemalessTable(
-    TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
     const TRichYPath& richPath,
-    TNameTablePtr nameTable,
     NNative::IClientPtr client,
-    TString localHostName,
     ITransactionPtr transaction,
-    IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
-    std::vector<std::string> s3Keys,
-    IThroughputThrottlerPtr throttler,
-    IBlockCachePtr blockCache)
+    std::vector<std::string> s3Keys)
 {
-    if (blockCache->GetSupportedBlockTypes() != EBlockType::None) {
-        // It is hard to support both reordering and uncompressed block caching
-        // since block becomes cached significantly before we know the final permutation.
-        // Supporting reordering for compressed block cache is not hard
-        // to implement, but is not done for now.
-        config->EnableBlockReordering = false;
-    }
-
     return New<TSchemalessTableImporter>(
-        std::move(config),
         std::move(options),
         richPath,
-        std::move(nameTable),
         std::move(client),
-        std::move(localHostName),
         std::move(transaction),
-        std::move(throttler),
-        std::move(blockCache),
-        std::move(writeBlocksOptions),
         std::move(s3Keys))->Run();
 }
 

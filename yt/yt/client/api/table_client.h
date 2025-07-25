@@ -49,9 +49,10 @@ struct TTableWriterOptions
 };
 
 struct TTableImportOptions
-    : public TTableWriterOptions
+    : public TTransactionalOptions
     , public TTimeoutOptions
 {
+    bool ValidateAnyIsValidYson = false;
 };
 
 struct TTabletRangeOptions

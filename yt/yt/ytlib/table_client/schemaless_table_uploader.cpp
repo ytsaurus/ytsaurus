@@ -148,9 +148,8 @@ TTableSchemaPtr GetChunkSchema(
     return chunkSchema;
 }
 
-void PatchWriterConfigs(
+void PatchWriterOptions(
     const TTableWriterOptionsPtr& options,
-    const TTableWriterConfigPtr& writerConfig,
     const IAttributeDictionary& attributes,
     const TTableUploadOptions& tableUploadOptions,
     const TTableSchemaPtr& chunkSchema,
@@ -176,11 +175,6 @@ void PatchWriterConfigs(
     options->TableSchema = tableSchema;
     options->VersionedWriteOptions = tableUploadOptions.VersionedWriteOptions;
 
-    auto chunkWriterConfig = attributes.FindYson("chunk_writer");
-    if (chunkWriterConfig) {
-        ReconfigureYsonStruct(writerConfig, chunkWriterConfig);
-    }
-
     YT_LOG_DEBUG("Table upload options generated, table writer options and config patched "
         "(Account: %v, CompressionCodec: %v, ErasureCodec: %v, EnableStripedErasure: %v, EnableSkynetSharing: %v)",
         options->Account,
@@ -189,7 +183,6 @@ void PatchWriterConfigs(
         options->EnableStripedErasure,
         options->EnableSkynetSharing);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -397,43 +390,15 @@ void EndTableUpload(
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchemalessTableUploader::TSchemalessTableUploader(
-    TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
     const TRichYPath& richPath,
-    TNameTablePtr nameTable,
     NNative::IClientPtr client,
-    TString localHostName,
-    ITransactionPtr transaction,
-    IThroughputThrottlerPtr throttler,
-    IBlockCachePtr blockCache,
-    IChunkWriter::TWriteBlocksOptions writeBlocksOptions
-)
-    : Config_(std::move(config))
-    , Options_(std::move(options))
+    TTransactionId transactionId)
+    : Options_(std::move(options))
     , RichPath_(richPath)
-    , NameTable_(std::move(nameTable))
-    , LocalHostName_(std::move(localHostName))
     , Client_(std::move(client))
-    , Transaction_(std::move(transaction))
-    , TransactionId_(Transaction_ ? Transaction_->GetId() : NullTransactionId)
-    , Throttler_(std::move(throttler))
-    , BlockCache_(std::move(blockCache))
-    , WriteBlocksOptions_(std::move(writeBlocksOptions))
-    , Logger(TableClientLogger().WithTag("Path: %v, TransactionId: %v",
-        richPath.GetPath(),
-        TransactionId_))
+    , Logger(TableClientLogger().WithTag("Path: %v, TransactionId: %v", richPath.GetPath(), transactionId))
 {
-    if (BlockCache_->GetSupportedBlockTypes() != EBlockType::None) {
-        // It is hard to support both reordering and uncompressed block caching
-        // since block becomes cached significantly before we know the final permutation.
-        // Supporting reordering for compressed block cache is not hard
-        // to implement, but is not done for now.
-        Config_->EnableBlockReordering = false;
-    }
-
-    WriterConfig = CloneYsonStruct(Config_);
-    WriterConfig->WorkloadDescriptor.Annotations.push_back(Format("TablePath: %v", RichPath_.GetPath()));
-
     const auto& path = RichPath_.GetPath();
 
     UserObject = TUserObject(path);
@@ -441,7 +406,7 @@ TSchemalessTableUploader::TSchemalessTableUploader(
     GetUserObjectBasicAttributes(
         Client_,
         {&UserObject},
-        TransactionId_,
+        transactionId,
         Logger,
         EPermission::Write);
 
@@ -460,20 +425,20 @@ TSchemalessTableUploader::TSchemalessTableUploader(
     {
         YT_LOG_DEBUG("Requesting extended table attributes");
 
-        auto node = NDetail::GetTableAttributes(
+        Attributes = NDetail::GetTableAttributes(
             Client_,
             path,
             externalCellTag,
             objectIdPath,
             UserObject);
 
-        const auto& attributes = node->Attributes();
+        const auto& attributes = Attributes->Attributes();
 
         if (attributes.Get<bool>("dynamic")) {
             THROW_ERROR_EXCEPTION("\"write_table\" API is not supported for dynamic tables; use \"insert_rows\" instead");
         }
 
-        TableUploadOptions_ = GetTableUploadOptions(
+        TableUploadOptions = GetTableUploadOptions(
             RichPath_,
             attributes,
             attributes.Get<TTableSchemaPtr>("schema"),
@@ -481,11 +446,10 @@ TSchemalessTableUploader::TSchemalessTableUploader(
 
         ChunkSchema = GetChunkSchema();
 
-        NDetail::PatchWriterConfigs(
+        NDetail::PatchWriterOptions(
             Options_,
-            WriterConfig,
             attributes,
-            TableUploadOptions_,
+            TableUploadOptions,
             ChunkSchema,
             GetSchema(),
             Logger);
@@ -496,8 +460,8 @@ TSchemalessTableUploader::TSchemalessTableUploader(
         path,
         nativeCellTag,
         objectIdPath,
-        Transaction_ ? Transaction_->GetId() : NullTransactionId,
-        TableUploadOptions_,
+        transactionId,
+        TableUploadOptions,
         ChunkSchema,
         Logger,
         /*setUploadTxTimeout*/ true);
@@ -515,18 +479,18 @@ TSchemalessTableUploader::TSchemalessTableUploader(
             externalCellTag,
             objectIdPath,
             UploadTransaction->GetId(),
-            TableUploadOptions_,
+            TableUploadOptions,
             Logger);
 }
 
 const TTableSchemaPtr& TSchemalessTableUploader::GetSchema() const
 {
-    return TableUploadOptions_.TableSchema.Get();
+    return TableUploadOptions.TableSchema.Get();
 }
 
 TTableSchemaPtr TSchemalessTableUploader::GetChunkSchema() const
 {
-    return NDetail::GetChunkSchema(RichPath_, TableUploadOptions_);
+    return NDetail::GetChunkSchema(RichPath_, TableUploadOptions);
 }
 
 void TSchemalessTableUploader::Close(TTableYPathProxy::TReqEndUploadPtr endUpload)
@@ -543,7 +507,7 @@ void TSchemalessTableUploader::Close(TTableYPathProxy::TReqEndUploadPtr endUploa
         nativeCellTag,
         endUpload,
         UploadTransaction ? UploadTransaction->GetId() : NullTransactionId,
-        TableUploadOptions_);
+        TableUploadOptions);
 
     UploadTransaction->Detach();
 }
