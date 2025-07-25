@@ -17,7 +17,7 @@ jobs:
       - name: Build Docker image
         shell: bash
         run: |
-          exit 127
+          exit 0
 
   send-alert:
     needs:
@@ -29,4 +29,4 @@ jobs:
     secrets:
       GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
       TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-      TELEGRAM_CHAT_ID: "107511733" 
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
