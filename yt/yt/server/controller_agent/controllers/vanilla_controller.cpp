@@ -1672,8 +1672,7 @@ void TGangOperationController::InitUserJobSpec(
         jobSpec->add_environment(Format("%v=%v", key, value));
     });
 
-    if (const auto& options = Options_->GpuCheck;
-        options->UseSeparateRootVolume && jobSpec->has_gpu_check_binary_path())
+    if (jobSpec->has_gpu_check_binary_path())
     {
         auto* protoEnvironment = jobSpec->mutable_gpu_check_environment();
         fillEnvironment([protoEnvironment] (TStringBuf key, TStringBuf value) {

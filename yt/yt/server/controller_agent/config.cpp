@@ -334,9 +334,6 @@ void TUserJobOptions::Register(TRegistrar registrar)
 
 void TGpuCheckOptions::Register(TRegistrar registrar)
 {
-    registrar.Parameter("use_separate_root_volume", &TThis::UseSeparateRootVolume)
-        // COMPAT(ignat): change default to true and then delete this option.
-        .Default(false);
     registrar.Parameter("layer_paths", &TThis::LayerPaths)
         .Default();
     registrar.Parameter("binary_path", &TThis::BinaryPath)
@@ -1176,10 +1173,6 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("cuda_toolkit_layer_directory_path", &TThis::CudaToolkitLayerDirectoryPath)
-        .Default();
-
-    // COMPAT(ignat)
-    registrar.Parameter("gpu_check_layer_directory_path", &TThis::GpuCheckLayerDirectoryPath)
         .Default();
 
     registrar.Parameter("docker_registry", &TThis::DockerRegistry)

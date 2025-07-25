@@ -2656,13 +2656,12 @@ void TJob::OnJobProxyFinished(const TError& error)
     if (!currentError.IsOK() && NeedsGpuCheck()) {
         SetJobPhase(EJobPhase::RunningExtraGpuCheckCommand);
 
+        YT_VERIFY(GpuCheckVolume_);
+
         auto context = TJobGpuCheckerContext{
             .Slot = GetUserSlot(),
             .Job = MakeStrong(this),
-            .RootFS = GpuCheckVolume_
-                ? MakeWritableGpuCheckRootFS()
-                // COMPAT(ignat)
-                : MakeWritableRootFS(),
+            .RootFS = MakeWritableGpuCheckRootFS(),
             .CommandUser = CommonConfig_->SetupCommandUser,
             .Type = EGpuCheckType::Extra,
             .Options = GetGpuCheckOptions(),

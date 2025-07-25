@@ -65,14 +65,13 @@ class GpuCheckBase(object):
             attributes={"replication_factor": 1},
         )
 
-    def setup_gpu_check_options_for_separate_volume(self):
+    def setup_gpu_check_options(self, binary_path="/gpu_check/gpu_check_success", binary_args=None):
         update_controller_agent_config(
             "operation_options/gpu_check",
             {
-                "use_separate_root_volume": True,
                 "layer_paths": ["//tmp/gpu_check/0", "//tmp/gpu_base_layer"],
-                "binary_path": "/gpu_check/gpu_check_success",
-                "binary_args": [],
+                "binary_path": binary_path,
+                "binary_args": binary_args if binary_args is not None else [],
             }
         )
 
