@@ -7092,7 +7092,7 @@ private:
                 << TErrorAttribute("shuffle_handle", shuffleHandle);
         }
 
-        std::optional<std::pair<int, int>> writerIndexRange;
+        std::optional<IShuffleClient::TIndexRange> writerIndexRange;
         if (request->has_writer_index_range()) {
             auto writerIndexBegin = YT_OPTIONAL_FROM_PROTO(request->writer_index_range(), begin);
             auto writerIndexEnd = YT_OPTIONAL_FROM_PROTO(request->writer_index_range(), end);
