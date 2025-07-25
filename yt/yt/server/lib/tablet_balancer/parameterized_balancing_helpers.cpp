@@ -157,7 +157,7 @@ public:
             Metric_,
             newMetric);
         Evaluator_ = NOrm::NQuery::CreateOrmExpressionEvaluator(
-            std::move(newMetric),
+            newMetric,
             ParameterizedBalancingAttributes);
     }
 

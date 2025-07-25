@@ -31,17 +31,17 @@ DEFINE_REFCOUNTED_TYPE(IExpressionEvaluator)
 
 //! Thread-safe; exception-safe.
 IExpressionEvaluatorPtr CreateExpressionEvaluator(
-    std::string query,
+    TStringBuf query,
     std::vector<NQueryClient::TColumnSchema> columns);
 
 IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(
-    std::string query,
+    TStringBuf query,
     std::vector<TTypedAttributePath> typedAttributePaths);
 
 //! Shortcut for paths of type Any.
 IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(
-    std::string query,
-    std::vector<TString> attributePaths = {""});
+    TStringBuf query,
+    std::vector<NYPath::TYPath> attributePaths = {""});
 
 ////////////////////////////////////////////////////////////////////////////////
 

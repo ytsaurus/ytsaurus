@@ -205,16 +205,16 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const std::string& GetFakeTableColumnName(const NYPath::TYPath& attributePath)
+std::string GetFakeTableColumnName(TYPathBuf attributePath)
 {
     static const std::string Default = "data";
     return attributePath.empty()
         ? Default
-        : attributePath;
+        : std::string(attributePath);
 }
 
 TReferenceExpressionPtr CreateFakeTableColumnReference(
-    const NYPath::TYPath& attributePath,
+    TYPathBuf attributePath,
     TObjectsHolder* holder)
 {
     return holder->New<TReferenceExpression>(
@@ -223,7 +223,7 @@ TReferenceExpressionPtr CreateFakeTableColumnReference(
 }
 
 TTypedAttributePath GetMatchingAttributePath(
-    const TYPath& queryAttributePath,
+    TYPathBuf queryAttributePath,
     const std::vector<TTypedAttributePath>& typedAttributePaths)
 {
     std::optional<TTypedAttributePath> result = std::nullopt;
@@ -240,7 +240,7 @@ TTypedAttributePath GetMatchingAttributePath(
 }
 
 TExpressionPtr CreateFakeTableAttributeSelector(
-    const TYPath& queryAttributePath,
+    TYPathBuf queryAttributePath,
     const std::vector<TTypedAttributePath>& typedAttributePaths,
     TObjectsHolder* holder)
 {
@@ -262,7 +262,7 @@ TExpressionPtr CreateFakeTableAttributeSelector(
                 CreateFakeTableColumnReference(dataAttributePath, holder),
                 holder->New<TLiteralExpression>(
                     NQueryClient::NullSourceLocation,
-                    std::move(queryAttributePathSuffix))});
+                    TString(queryAttributePathSuffix))});
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error creating query selector for attribute path %Qv",
             queryAttributePath)
@@ -284,7 +284,7 @@ std::vector<TColumnSchema> CreateColumnsFromPaths(const std::vector<TTypedAttrib
 } // namespace
 
 IExpressionEvaluatorPtr CreateExpressionEvaluator(
-    std::string query,
+    TStringBuf query,
     std::vector<TColumnSchema> columns)
 {
     auto parsedQuery = ParseSource(query, NQueryClient::EParseMode::Expression);
@@ -319,7 +319,7 @@ IExpressionEvaluatorPtr CreateExpressionEvaluator(
 }
 
 IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(
-    std::string query,
+    TStringBuf query,
     std::vector<TTypedAttributePath> typedAttributePaths)
 {
     ValidateAttributePaths(typedAttributePaths);
@@ -344,7 +344,7 @@ IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(
         std::move(columns));
 }
 
-IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(std::string query, std::vector<TYPath> attributePaths)
+IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(TStringBuf query, std::vector<TYPath> attributePaths)
 {
     std::vector<TTypedAttributePath> typedAttributePaths;
     typedAttributePaths.reserve(attributePaths.size());
