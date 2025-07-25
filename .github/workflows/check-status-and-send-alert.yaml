@@ -31,6 +31,11 @@ jobs:
         run: |
           pip install PyGithub==2.6.1
 
+      - name: Clean escape characters
+        run: |
+          DISPLAY_COMMIT_MESSAGE=$(echo ${{ github.event.head_commit.message }} | tr -d '"')
+          echo "DISPLAY_COMMIT_MESSAGE=${DISPLAY_COMMIT_MESSAGE}" >> $GITHUB_ENV
+
       - name: Save conclusion (failure)
         if: inputs.is_failure
         run: echo "CURRENT_JOB_CONCLUSION=failure" >> $GITHUB_ENV
@@ -51,5 +56,5 @@ jobs:
                   --tg-chat-id ${{ secrets.TELEGRAM_CHAT_ID }} \
                   --current-job-conclusion $CURRENT_JOB_CONCLUSION \
                   --current-job-id ${{ github.run_id }} \
-                  --commit-message "${{ github.event.head_commit.message }}" \
+                  --commit-message "${DISPLAY_COMMIT_MESSAGE}" \
                   --git-server-url "${{ github.api_url }}"
