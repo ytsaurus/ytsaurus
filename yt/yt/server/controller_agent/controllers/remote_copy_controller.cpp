@@ -959,7 +959,13 @@ private:
                 auto* subrequest = req->add_subrequests();
                 subrequest->set_attribute(ToYPathLiteral(attribute));
                 auto value = InputTableAttributes_->GetYson(attribute);
-                ValidateYson(value, GetYsonNestingLevelLimit());
+                try {
+                    ValidateYson(value, GetYsonNestingLevelLimit());
+                } catch (const std::exception& ex) {
+                    THROW_ERROR_EXCEPTION("Error validating value of copied attribute")
+                        << TErrorAttribute("attribute_key", attribute)
+                        << ex;
+                }
                 subrequest->set_value(ToProto(value));
             }
 
