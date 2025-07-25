@@ -47,18 +47,26 @@ TYPath MakeCypressOwnerPath(const TYPath& prefixPath, const TOwnerId& ownerId)
 ////////////////////////////////////////////////////////////////////////////////
 
 TCypressKeyReader::TCypressKeyReader(TCypressKeyReaderConfigPtr config, IClientPtr client)
-        : Config_(std::move(config))
-        , Client_(std::move(client))
+    : Config_(std::move(config))
+    , Client_(std::move(client))
 { }
+
+void TCypressKeyReader::Reconfigure(TCypressKeyReaderConfigPtr config)
+{
+    YT_VERIFY(config);
+    Config_.Store(std::move(config));
+    YT_LOG_INFO("Cypress key reader reconfigured");
+}
 
 TFuture<TKeyInfoPtr> TCypressKeyReader::FindKey(const TOwnerId& ownerId, const TKeyId& keyId) const
 {
-    auto keyNodePath = MakeCypressKeyPath(Config_->Path, ownerId, keyId);
+    auto config = Config_.Acquire();
+    auto keyNodePath = MakeCypressKeyPath(config->Path, ownerId, keyId);
 
     YT_LOG_DEBUG("Looking for public key in Cypress (OwnerId: %v, KeyId: %v, Path: %v)", ownerId, keyId, keyNodePath);
 
     TGetNodeOptions options;
-    static_cast<TMasterReadOptions&>(options) = *Config_->CypressReadOptions;
+    static_cast<TMasterReadOptions&>(options) = *config->CypressReadOptions;
     auto result = Client_->GetNode(keyNodePath, options);
 
     return result.ApplyUnique(BIND([] (TYsonString&& str) {
@@ -78,9 +86,16 @@ TCypressKeyWriter::TCypressKeyWriter(TCypressKeyWriterConfigPtr config, NNative:
     , Client_(std::move(client))
 { }
 
-const TOwnerId& TCypressKeyWriter::GetOwner() const
+void TCypressKeyWriter::Reconfigure(TCypressKeyWriterConfigPtr config)
 {
-    return Config_->OwnerId;
+    YT_VERIFY(config);
+    Config_.Store(std::move(config));
+    YT_LOG_INFO("Cypress key writer reconfigured");
+}
+
+TOwnerId TCypressKeyWriter::GetOwner() const
+{
+    return Config_.Acquire()->OwnerId;
 }
 
 TFuture<void> TCypressKeyWriter::RegisterKey(const TKeyInfoPtr& keyInfo)
@@ -91,11 +106,13 @@ TFuture<void> TCypressKeyWriter::RegisterKey(const TKeyInfoPtr& keyInfo)
 
     YT_LOG_DEBUG("Registering key (OwnerId: %v, KeyId: %v)", ownerId, keyId);
 
-    // We should not register keys belonging to other owners.
-    YT_VERIFY(ownerId == Config_->OwnerId);
+    auto config = Config_.Acquire();
 
-    auto ownerNodePath = MakeCypressOwnerPath(Config_->Path, ownerId);
-    auto keyNodePath = MakeCypressKeyPath(Config_->Path, ownerId, keyId);
+    // We should not register keys belonging to other owners.
+    YT_VERIFY(ownerId == config->OwnerId);
+
+    auto ownerNodePath = MakeCypressOwnerPath(config->Path, ownerId);
+    auto keyNodePath = MakeCypressKeyPath(config->Path, ownerId, keyId);
 
     auto keyExpirationTime = std::visit([] (const auto& meta) {
         return meta.ExpiresAt;
@@ -120,7 +137,7 @@ TFuture<void> TCypressKeyWriter::RegisterKey(const TKeyInfoPtr& keyInfo)
         auto req = TCypressYPathProxy::Create(keyNodePath);
         req->set_type(ToProto(EObjectType::Document));
         auto attributes = CreateEphemeralAttributes();
-        attributes->Set("expiration_time", keyExpirationTime + Config_->KeyDeletionDelay);
+        attributes->Set("expiration_time", keyExpirationTime + config->KeyDeletionDelay);
         ToProto(req->mutable_node_attributes(), *attributes);
         batchReq->AddRequest(req, "create_key");
     }
