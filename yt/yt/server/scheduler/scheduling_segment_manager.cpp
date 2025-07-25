@@ -569,9 +569,6 @@ void TSchedulingSegmentManager::ResetOperationModuleAssignments(TUpdateSchedulin
         return;
     }
 
-    auto keyResource = GetSegmentBalancingKeyResource(Config_->Mode);
-    auto snapshotTotalKeyResourceLimit = GetResource(context->TreeSnapshot->ResourceLimits(), keyResource);
-    bool noResourcesInTree = snapshotTotalKeyResourceLimit == 0.0;
     for (const auto& [operationId, operation] : context->OperationStates) {
         auto* element = context->TreeSnapshot->FindEnabledOperationElement(operationId);
         if (!element) {
@@ -617,7 +614,7 @@ void TSchedulingSegmentManager::ResetOperationModuleAssignments(TUpdateSchedulin
 
         bool hasZeroUsageAndFairShare = (element->ResourceUsageAtUpdate() == TJobResources()) &&
             Dominates(TResourceVector::SmallEpsilon(), element->Attributes().FairShare.Total);
-        if (hasZeroUsageAndFairShare && !noResourcesInTree && Config_->EnableModuleResetOnZeroFairShareAndUsage) {
+        if (hasZeroUsageAndFairShare && Config_->EnableModuleResetOnZeroFairShareAndUsage) {
             YT_LOG_DEBUG(
                 "Revoking operation module assignment because it has zero fair share and usage "
                 "(OperationId: %v, SchedulingSegment: %v, PreviousModule: %v, ResourceUsage: %v, ResourceDemand: %v, "
