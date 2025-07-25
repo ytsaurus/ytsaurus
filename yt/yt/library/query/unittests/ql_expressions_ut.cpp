@@ -2463,7 +2463,8 @@ TEST_P(TEvaluateExpressionTest, Basic)
         function && (
             function->FunctionName == "is_finite" ||
             function->FunctionName.ends_with("_localtime") ||
-            function->FunctionName.ends_with("_tz")))
+            function->FunctionName.ends_with("_tz") ||
+            function->FunctionName.ends_with("_valid_utf8")))
     {
         return;
     }
@@ -2484,6 +2485,18 @@ INSTANTIATE_TEST_SUITE_P(
             "",
             "lower('ПрИвЕт, КаК ДеЛа?')",
             MakeString("привет, как дела?")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "s1=\"\x61\xF0\x80\x80\x80 \"",
+            "to_valid_utf8(s1)",
+            MakeString("a� ")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "s1=\"\xFF\"",
+            "to_valid_utf8(s1)",
+            MakeString("�")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "s1=\"\xFF\"",
+            "is_valid_utf8(s1)",
+            MakeBoolean(false)),
         std::tuple<const char*, const char*, TUnversionedValue>(
             "",
             "length('abc')",
