@@ -1302,7 +1302,8 @@ struct TControllerAgentConfig
     //! How many initial successive job aborts are needed to fail operation.
     THashMap<EAbortReason, int> MaxJobAbortsUntilOperationFailure;
 
-    THashMap<NScheduler::TClusterName, TRemoteOperationsConfigPtr> RemoteOperations;
+    //! Mapping of remote cluster name to that cluster's settings.
+    THashMap<std::string, TRemoteOperationsConfigPtr> RemoteOperations;
 
     bool EnableMergeSchemasDuringSchemaInfer;
 

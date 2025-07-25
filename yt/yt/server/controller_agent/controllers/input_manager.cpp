@@ -191,7 +191,7 @@ std::shared_ptr<TNodeDirectoryBuilder> TNodeDirectoryBuilderFactory::GetNodeDire
     if (!Builders_.contains(clusterName)) {
         auto* protoNodeDirectory = JobSpecExt_->mutable_input_node_directory();
         if (!IsLocal(clusterName)) {
-            auto* remoteClusterProto = &((*JobSpecExt_->mutable_remote_input_clusters())[clusterName.Underlying()]);
+            auto* remoteClusterProto = &((*JobSpecExt_->mutable_remote_input_clusters())[*clusterName.Underlying()]);
             protoNodeDirectory = remoteClusterProto->mutable_node_directory();
         }
         Builders_.emplace(
@@ -221,7 +221,7 @@ void TInputCluster::InitializeClient(IClientPtr localClient)
         Client_ = localClient
             ->GetNativeConnection()
             ->GetClusterDirectory()
-            ->GetConnectionOrThrow(Name_.Underlying())
+            ->GetConnectionOrThrow(*Name_.Underlying())
             ->CreateNativeClient(localClient->GetOptions());
     }
 }

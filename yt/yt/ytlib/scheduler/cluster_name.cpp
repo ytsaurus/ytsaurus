@@ -8,12 +8,12 @@ namespace NYT::NScheduler {
 
 bool IsLocal(const TClusterName& clusterName)
 {
-    return clusterName.Underlying().empty();
+    return !clusterName.Underlying();
 }
 
 void FormatValue(TStringBuilderBase* builder, const TClusterName& name, TStringBuf spec)
 {
-    FormatValue(builder, name.Underlying().empty() ? "<local>" : name.Underlying(), spec);
+    FormatValue(builder, name.Underlying().value_or("<local>"), spec);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

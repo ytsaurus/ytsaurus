@@ -30,10 +30,10 @@ class TThrottlingSession
     : public TRefCounted
 {
 public:
-    TThrottlingSession(const TJobThrottlerConfigPtr& jobThrottlerConfig, const IChannelPtr& nodeChannel, std::optional<TClusterName> remoteClusterName)
+    TThrottlingSession(const TJobThrottlerConfigPtr& jobThrottlerConfig, const IChannelPtr& nodeChannel, TClusterName clusterName)
         : Config_(jobThrottlerConfig)
         , Proxy_(nodeChannel)
-        , RemoteClusterName_(std::move(remoteClusterName))
+        , ClusterName_(std::move(clusterName))
     {
         Proxy_.SetDefaultTimeout(jobThrottlerConfig->RpcTimeout);
     }
@@ -45,9 +45,7 @@ public:
         request->set_throttler_type(ToProto(throttleDirection));
         request->set_amount(amount);
         ToProto(request->mutable_job_id(), jobId);
-        if (RemoteClusterName_) {
-            request->set_remote_cluster_name(ToProto(*RemoteClusterName_));
-        }
+        YT_OPTIONAL_TO_PROTO(request, remote_cluster_name, ClusterName_.Underlying());
 
         request->Invoke().Subscribe(BIND(&TThrottlingSession::OnThrottlingResponse, MakeStrong(this)));
 
@@ -57,7 +55,7 @@ public:
 private:
     const TJobThrottlerConfigPtr Config_;
     TSupervisorServiceProxy Proxy_;
-    const std::optional<TClusterName> RemoteClusterName_;
+    const TClusterName ClusterName_;
     TPromise<void> ThrottlePromise_ = NewPromise<void>();
 
     TGuid PollRequestId_;
@@ -133,15 +131,15 @@ public:
         , JobId_(jobId)
     { }
 
-    TFuture<void> DoThrottle(i64 amount, std::optional<TClusterName> remoteClusterName)
+    TFuture<void> DoThrottle(i64 amount, TClusterName clusterName)
     {
-        auto throttlingSession = New<TThrottlingSession>(Config_, Channel_, std::move(remoteClusterName));
+        auto throttlingSession = New<TThrottlingSession>(Config_, Channel_, std::move(clusterName));
         return throttlingSession->Throttle(amount, ThrottlerType_, Descriptor_, JobId_);
     }
 
     TFuture<void> Throttle(i64 amount) override
     {
-        return DoThrottle(amount, std::nullopt);
+        return DoThrottle(amount, LocalClusterName);
     }
 
     bool TryAcquire(i64 /*amount*/) override
@@ -199,7 +197,7 @@ class TJobBandwidthThrottlerWrapper
     : public IThroughputThrottler
 {
 public:
-    TJobBandwidthThrottlerWrapper(std::optional<TClusterName> clusterName, TIntrusivePtr<TJobBandwidthThrottler> throttler)
+    TJobBandwidthThrottlerWrapper(TClusterName clusterName, TIntrusivePtr<TJobBandwidthThrottler> throttler)
         : ClusterName_(std::move(clusterName))
         , Throttler_(std::move(throttler))
     { }
@@ -251,7 +249,7 @@ public:
     }
 
 private:
-    const std::optional<TClusterName> ClusterName_;
+    const TClusterName ClusterName_;
     const TIntrusivePtr<TJobBandwidthThrottler> Throttler_;
 };
 
@@ -272,11 +270,7 @@ NConcurrency::IThroughputThrottlerPtr CreateInJobBandwidthThrottler(
         descriptor,
         jobId);
 
-    std::optional<TClusterName> name;
-    if (!IsLocal(clusterName)) {
-        name = clusterName;
-    }
-    auto wrapper = New<TJobBandwidthThrottlerWrapper>(std::move(name), std::move(throttler));
+    auto wrapper = New<TJobBandwidthThrottlerWrapper>(clusterName, std::move(throttler));
     auto prefetchingThrottler = CreatePrefetchingThrottler(
         config->BandwidthPrefetch,
         std::move(wrapper),

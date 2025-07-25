@@ -4818,7 +4818,7 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
     jobSpecExt->set_use_cluster_throttlers(Spec_->UseClusterThrottlers);
 
     for (auto& [clusterName, protoRemoteCluster] : *(jobSpecExt->mutable_remote_input_clusters())) {
-        auto clusterConfigIt = Config_->RemoteOperations.find(TClusterName(clusterName));
+        auto clusterConfigIt = Config_->RemoteOperations.find(clusterName);
         if (clusterConfigIt != Config_->RemoteOperations.end()) {
             const auto& networks = clusterConfigIt->second->Networks;
             if (networks) {
@@ -7910,7 +7910,8 @@ void TOperationControllerBase::CollectTotals()
         if (IsLocal(clusterName)) {
             continue;
         }
-        auto clusterConfig = GetOrCrash(Config_->RemoteOperations, clusterName);
+        const auto& remoteClusterName = *clusterName.Underlying();
+        auto clusterConfig = GetOrCrash(Config_->RemoteOperations, remoteClusterName);
         if (clusterConfig->MaxTotalDataWeight && *clusterConfig->MaxTotalDataWeight < dataWeight) {
             THROW_ERROR_EXCEPTION(
                 "Total estimated input data weight from cluster %Qv is too large",
@@ -11784,7 +11785,7 @@ void TOperationControllerBase::BuildControllerInfoYson(TFluentMap fluent) const
     fluent
         .Item("network_bandwidth_availability")
             .DoMapFor(networkBandwidthAvailability, [] (TFluentMap fluent, const TClusterName& clusterName) {
-                fluent.Item(clusterName.Underlying()).Value(false);
+                fluent.Item(*clusterName.Underlying()).Value(false);
             });
 }
 

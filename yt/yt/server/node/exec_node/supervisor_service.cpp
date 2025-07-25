@@ -100,11 +100,11 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
-    IThroughputThrottlerPtr GetJobThrottler(EJobThrottlerType throttlerType, std::optional<TClusterName> remoteClusterName)
+    IThroughputThrottlerPtr GetJobThrottler(EJobThrottlerType throttlerType, TClusterName clusterName)
     {
         switch (throttlerType) {
             case EJobThrottlerType::InBandwidth:
-                return Bootstrap_->GetThrottler(EExecNodeThrottlerKind::JobIn, EThrottlerTrafficType::Bandwidth, std::move(remoteClusterName));
+                return Bootstrap_->GetThrottler(EExecNodeThrottlerKind::JobIn, EThrottlerTrafficType::Bandwidth, std::move(clusterName));
             case EJobThrottlerType::OutBandwidth:
                 return Bootstrap_->GetThrottler(EExecNodeThrottlerKind::JobOut);
             case EJobThrottlerType::OutRps:
@@ -385,16 +385,16 @@ private:
         auto amount = request->amount();
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
         auto jobId = FromProto<TJobId>(request->job_id());
-        auto remoteClusterName = YT_OPTIONAL_FROM_PROTO(*request, remote_cluster_name, TClusterName);
+        auto clusterName = TClusterName(YT_OPTIONAL_FROM_PROTO(*request, remote_cluster_name));
 
-        context->SetRequestInfo("ThrottlerType: %v, Amount: %v, JobId: %v, WorkloadDescriptor: %v, RemoteClusterName: %v",
+        context->SetRequestInfo("ThrottlerType: %v, Amount: %v, JobId: %v, WorkloadDescriptor: %v, ClusterName: %v",
             throttlerType,
             amount,
             jobId,
             workloadDescriptor,
-            remoteClusterName);
+            clusterName);
 
-        const auto& throttler = GetJobThrottler(throttlerType, std::move(remoteClusterName));
+        const auto& throttler = GetJobThrottler(throttlerType, std::move(clusterName));
         auto future = throttler->Throttle(amount);
         if (auto optionalResult = future.TryGet()) {
             optionalResult->ThrowOnError();

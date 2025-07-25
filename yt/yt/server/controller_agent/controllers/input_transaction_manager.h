@@ -52,16 +52,13 @@ public:
     TFuture<void> Init();
 
     NScheduler::TClusterName GetClusterName(const NYPath::TRichYPath& path);
-    const std::string& GetLocalClusterName() const;
 
     void Persist(const TPersistenceContext& context);
 
 private:
     const NApi::NNative::IClientPtr LocalClient_;
 
-    std::string LocalClusterName_;
-
-    bool IsLocalClusterName(const std::string& name) const;
+    std::optional<std::string> LocalClusterName_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TClusterResolver)
