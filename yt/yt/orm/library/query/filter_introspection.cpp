@@ -418,7 +418,7 @@ bool IntrospectFilterForDefinedReference(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExtractFilterAttributeReferences(const std::string& filterQuery, std::function<void(const std::string&)> inserter)
+void ExtractFilterAttributeReferences(TStringBuf filterQuery, std::function<void(TYPathBuf)> inserter)
 {
     if (filterQuery.empty()) {
         return;
@@ -431,7 +431,7 @@ void ExtractFilterAttributeReferences(const std::string& filterQuery, std::funct
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsAttributeReference(const TExpressionList& exprList, const TYPath& attributePath) noexcept
+bool IsAttributeReference(const TExpressionList& exprList, TYPathBuf attributePath) noexcept
 {
     if (exprList.size() == 1) {
         if (auto* typedExpr = exprList[0]->As<TReferenceExpression>()) {

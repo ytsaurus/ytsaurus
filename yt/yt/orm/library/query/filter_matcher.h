@@ -38,12 +38,12 @@ DEFINE_REFCOUNTED_TYPE(IFilterMatcher)
 
 //! Thread-safe; exception-safe.
 IFilterMatcherPtr CreateFilterMatcher(
-    std::string filterQuery,
+    TStringBuf filterQuery,
     std::vector<TTypedAttributePath> typedAttributePaths);
 
 //! Shortcut for paths of type Any.
 IFilterMatcherPtr CreateFilterMatcher(
-    std::string filterQuery,
+    TStringBuf filterQuery,
     std::vector<NYPath::TYPath> attributePaths = {""});
 
 ////////////////////////////////////////////////////////////////////////////////

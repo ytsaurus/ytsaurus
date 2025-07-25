@@ -85,15 +85,15 @@ bool IntrospectFilterForDefinedReference(
  *  Throws for an invalid #filterQuery.
  */
 void ExtractFilterAttributeReferences(
-    const std::string& filterQuery,
-    std::function<void(const std::string&)> inserter);
+    TStringBuf filterQuery,
+    std::function<void(NYPath::TYPathBuf)> inserter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Check whether #exprList is a reference to the attribute specified in #attributePath.
 bool IsAttributeReference(
     const NQueryClient::NAst::TExpressionList& exprList,
-    const NYPath::TYPath& attributePath) noexcept;
+    NYPath::TYPathBuf attributePath) noexcept;
 
 ////////////////////////////////////////////////////////////////////////////////
 

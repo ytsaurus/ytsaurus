@@ -28,10 +28,10 @@ class TFilterMatcher
 {
 public:
     TFilterMatcher(
-        std::string filterQuery,
+        TStringBuf filterQuery,
         std::vector<TTypedAttributePath> attributePaths)
         : Evaluator_(CreateOrmExpressionEvaluator(
-            std::move(filterQuery),
+            filterQuery,
             std::move(attributePaths)))
     { }
 
@@ -95,16 +95,16 @@ private:
 }
 
 IFilterMatcherPtr CreateFilterMatcher(
-    std::string filterQuery,
+    TStringBuf filterQuery,
     std::vector<TTypedAttributePath> typedAttributePaths)
 {
     return New<TFilterMatcher>(
-        std::move(filterQuery),
+        filterQuery,
         std::move(typedAttributePaths));
 }
 
 IFilterMatcherPtr CreateFilterMatcher(
-    std::string filterQuery,
+    TStringBuf filterQuery,
     std::vector<TYPath> attributePaths)
 {
     std::vector<TTypedAttributePath> typedAttributePaths;
@@ -117,7 +117,7 @@ IFilterMatcherPtr CreateFilterMatcher(
         });
     }
     return New<TFilterMatcher>(
-        std::move(filterQuery),
+        filterQuery,
         std::move(typedAttributePaths));
 }
 
