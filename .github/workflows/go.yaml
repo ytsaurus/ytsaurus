@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - members/epsilond1/test-escape-characters
 
 jobs:
   check:
@@ -13,47 +14,10 @@ jobs:
       matrix:
         module: ["yt/go", "library/go/core/log", "library/go/x/xreflect", "library/go/blockcodecs"]
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Prepare Dockerfile
-        shell: bash
-        run: |
-          echo "FROM ubuntu:20.04 " > Dockerfile
-          echo "WORKDIR /home/ytsaurus " >> Dockerfile
-          echo "RUN apt update && apt install -y ca-certificates wget build-essential curl" >> Dockerfile
-          echo "RUN wget https://go.dev/dl/go1.23.8.linux-amd64.tar.gz && tar -C /usr/local -xzf go1.23.8.linux-amd64.tar.gz" >> Dockerfile
-          echo "COPY . /home/ytsaurus/ " >> Dockerfile
-          echo "ENTRYPOINT [\"tail\", \"-f\", \"/dev/null\"]" >> Dockerfile
-
       - name: Build Docker image
         shell: bash
         run: |
-          docker build -t test-image .
-
-      - name: Run Docker container
-        working-directory: ${{ matrix.module }}
-        shell: bash
-        run: |
-          docker run --privileged -v "/var/run/docker.sock":"/var/run/docker.sock" --network host -d --name test-container test-image
-
-      - name: Build
-        working-directory: ${{ matrix.module }}
-        shell: bash
-        run: |
-          docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd ${{ matrix.module }} && go build -v -mod=readonly ./..."
-
-      - name: Run tests
-        working-directory: ${{ matrix.module }}
-        shell: bash
-        run: |
-          docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd ${{ matrix.module }} && go test -v -mod=readonly ./..."
-
-      - name: Run tests with race detector
-        working-directory: ${{ matrix.module }}
-        shell: bash
-        run: |
-          docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd ${{ matrix.module }} && go test -v -mod=readonly -race ./..."
+          exit 127
 
   send-alert:
     needs:
@@ -65,4 +29,4 @@ jobs:
     secrets:
       GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
       TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      TELEGRAM_CHAT_ID: 107511733 
