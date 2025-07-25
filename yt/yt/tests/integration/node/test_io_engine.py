@@ -505,7 +505,6 @@ class TestIoEngine(YTEnvSetup):
             }
         }, False, False)
 
-
     @authors("don-dron")
     def test_location_limits(self):
         REPLICATION_FACTOR = self.NUM_NODES
