@@ -62,7 +62,7 @@ void Serialize(const TRichTransactionId& transaction, NYson::IYsonConsumer* cons
                         // NB(coteeq): Underlying is intentional here.
                         // Value in Cypress should be raw (unformatted) string,
                         // rather than human-intended "<local>" notation.
-                        fluent.Value(transaction.Cluster.Underlying());
+                        fluent.Value(*transaction.Cluster.Underlying());
                     }
                 })
         .EndAttributes()
@@ -73,14 +73,18 @@ void ToProto(NProto::TRichTransactionId* transactionIdProto, const TRichTransact
 {
     ToProto(transactionIdProto->mutable_id(), transactionId.Id);
     ToProto(transactionIdProto->mutable_parent_id(), transactionId.ParentId);
-    ToProto(transactionIdProto->mutable_cluster(), transactionId.Cluster);
+    YT_OPTIONAL_TO_PROTO(transactionIdProto, cluster, transactionId.Cluster.Underlying());
 }
 
 void FromProto(TRichTransactionId* transactionId, const NProto::TRichTransactionId& transactionIdProto)
 {
     transactionId->Id = FromProto<TTransactionId>(transactionIdProto.id());
     transactionId->ParentId = FromProto<TTransactionId>(transactionIdProto.parent_id());
-    transactionId->Cluster = FromProto<TClusterName>(transactionIdProto.cluster());
+    transactionId->Cluster = TClusterName(YT_OPTIONAL_FROM_PROTO(transactionIdProto, cluster));
+    // COMPAT(coteeq): Remove in 25.4
+    if (const auto& underlying = transactionId->Cluster.Underlying(); underlying && underlying->empty()) {
+        transactionId->Cluster = LocalClusterName;
+    }
 }
 
 IAttributeDictionaryPtr TControllerTransactionIds::ToCypressAttributes() const

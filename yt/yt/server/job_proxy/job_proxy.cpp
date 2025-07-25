@@ -1088,11 +1088,11 @@ void TJobProxy::InitializeChunkReaderHost()
             .ChunkReaderStatistics = New<TChunkReaderStatistics>(),
         },
     };
-    for (const auto& [clusterName, protoRemoteCluster] : GetJobSpecHelper()->GetJobSpecExt().remote_input_clusters()) {
+    for (const auto& [remoteClusterName, protoRemoteCluster] : GetJobSpecHelper()->GetJobSpecExt().remote_input_clusters()) {
         auto remoteConnection = Client_
             ->GetNativeConnection()
             ->GetClusterDirectory()
-            ->GetConnectionOrThrow(clusterName);
+            ->GetConnectionOrThrow(remoteClusterName);
 
         if (!protoRemoteCluster.networks().empty()) {
             auto connectionConfig = remoteConnection
@@ -1107,7 +1107,7 @@ void TJobProxy::InitializeChunkReaderHost()
 
         clusterContextList.push_back(
             TMultiChunkReaderHost::TClusterContext{
-                .Name = TClusterName(clusterName),
+                .Name = TClusterName(remoteClusterName),
                 .Client = remoteConnection->CreateNativeClient(Client_->GetOptions()),
                 .ChunkReaderStatistics = New<TChunkReaderStatistics>(),
             });

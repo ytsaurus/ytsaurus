@@ -35,7 +35,7 @@ TFuture<void> TClusterResolver::Init()
 {
     return LocalClient_->GetClusterName()
         .Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<std::optional<std::string>>& clusterNameOrError) {
-            LocalClusterName_ = clusterNameOrError.IsOK() ? clusterNameOrError.Value().value_or("") : "";
+            LocalClusterName_ = clusterNameOrError.ValueOrDefault(std::nullopt);
             return VoidFuture;
         }));
 }
@@ -43,20 +43,10 @@ TFuture<void> TClusterResolver::Init()
 TClusterName TClusterResolver::GetClusterName(const TRichYPath& path)
 {
     auto clusterName = path.GetCluster();
-    if (clusterName && !IsLocalClusterName(*clusterName)) {
+    if (clusterName && clusterName != LocalClusterName_) {
         return TClusterName(*clusterName);
     }
     return LocalClusterName;
-}
-
-const std::string& TClusterResolver::GetLocalClusterName() const
-{
-    return LocalClusterName_;
-}
-
-bool TClusterResolver::IsLocalClusterName(const std::string& clusterName) const
-{
-    return IsLocal(TClusterName(clusterName)) || clusterName == LocalClusterName_;
 }
 
 void TClusterResolver::Persist(const TPersistenceContext& context)
@@ -90,7 +80,7 @@ TInputTransactionManager::TInputTransactionManager(
                 : client
                     ->GetNativeConnection()
                     ->GetClusterDirectory()
-                    ->GetConnectionOrThrow(name.Underlying())
+                    ->GetConnectionOrThrow(*name.Underlying())
                     ->CreateNativeClient(client->GetOptions());
         }
     };
@@ -263,7 +253,7 @@ TFuture<void> TInputTransactionManager::Abort(IClientPtr schedulerClient)
                 client = schedulerClient
                     ->GetNativeConnection()
                     ->GetClusterDirectory()
-                    ->GetConnectionOrThrow(parent.Cluster.Underlying())
+                    ->GetConnectionOrThrow(*parent.Cluster.Underlying())
                     ->CreateNativeClient(schedulerClient->GetOptions());
                 if (!client) {
                     auto error = TError(
@@ -349,14 +339,16 @@ void TInputTransactionManager::ValidateRemoteOperationsAllowed(
         return;
     }
 
-    if (!ControllerConfig_->RemoteOperations.contains(clusterName)) {
+    const auto& remoteClusterName = *clusterName.Underlying();
+
+    if (!ControllerConfig_->RemoteOperations.contains(remoteClusterName)) {
         THROW_ERROR_EXCEPTION(
             "Cluster %Qv is not allowed to be an input remote cluster",
             clusterName)
             << TErrorAttribute("input_table_path", path);
     }
 
-    const auto& clusterConfig = ControllerConfig_->RemoteOperations[clusterName];
+    const auto& clusterConfig = ControllerConfig_->RemoteOperations[remoteClusterName];
 
     if (clusterConfig->AllowedForEveryone) {
         return;

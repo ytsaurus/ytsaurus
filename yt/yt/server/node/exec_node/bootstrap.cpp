@@ -376,9 +376,9 @@ public:
     IThroughputThrottlerPtr GetThrottler(
         EExecNodeThrottlerKind kind,
         EThrottlerTrafficType trafficType,
-        std::optional<TClusterName> remoteClusterName) const override
+        TClusterName clusterName) const override
     {
-        return ThrottlerManager_->GetOrCreateThrottler(kind, trafficType, std::move(remoteClusterName));
+        return ThrottlerManager_->GetOrCreateThrottler(kind, trafficType, std::move(clusterName));
     }
 
     const TSolomonExporterPtr& GetJobProxySolomonExporter() const override
