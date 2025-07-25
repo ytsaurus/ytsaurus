@@ -255,7 +255,7 @@ TOperationControllerBase::TOperationControllerBase(
     , AcoName_(operation->GetAcoName())
     , ControllerEpoch_(operation->GetControllerEpoch())
     , CancelableContext_(New<TCancelableContext>())
-    , ChunkScraperInvoker_(Host_->GetChunkScraperThreadPoolInvoker())
+    , ChunkScraperHeavyInvoker_(Host_->GetChunkScraperHeavyThreadPoolInvoker())
     , DiagnosableInvokerPool_(CreateEnumIndexedProfiledFairShareInvokerPool<EOperationControllerQueue>(
         CreateCodicilGuardedInvoker(
             CreateSerializedInvoker(Host_->GetControllerThreadPoolInvoker(), "operation_controller_base"),
@@ -1906,7 +1906,7 @@ void TOperationControllerBase::InitIntermediateChunkScraper()
         Config_->ChunkScraper,
         GetCancelableInvoker(),
         CancelableInvokerPool_,
-        ChunkScraperInvoker_,
+        ChunkScraperHeavyInvoker_,
         Host_->GetChunkLocationThrottlerManager(),
         OutputClient_,
         OutputNodeDirectory_,
@@ -2103,6 +2103,8 @@ std::vector<TOutputStreamDescriptorPtr> TOperationControllerBase::GetAutoMergeSt
 
 THashSet<TChunkId> TOperationControllerBase::GetAliveIntermediateChunks() const
 {
+    YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool_);
+
     THashSet<TChunkId> intermediateChunks;
 
     for (const auto& [chunkId, job] : ChunkOriginMap_) {
@@ -5189,11 +5191,11 @@ IInvokerPoolPtr TOperationControllerBase::GetCancelableInvokerPool() const
     return CancelableInvokerPool_;
 }
 
-IInvokerPtr TOperationControllerBase::GetChunkScraperInvoker() const
+IInvokerPtr TOperationControllerBase::GetChunkScraperHeavyInvoker() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return ChunkScraperInvoker_;
+    return ChunkScraperHeavyInvoker_;
 }
 
 IInvokerPtr TOperationControllerBase::GetCancelableInvoker(EOperationControllerQueue queue) const
@@ -7318,7 +7320,7 @@ void TOperationControllerBase::ValidateUserFileSizes()
     }
 
     auto columnarStatisticsFetcher = New<TColumnarStatisticsFetcher>(
-        ChunkScraperInvoker_,
+        GetCancelableInvoker(),
         InputManager_->GetClient(LocalClusterName),
         TColumnarStatisticsFetcher::TOptions{
             .Config = Config_->Fetcher,

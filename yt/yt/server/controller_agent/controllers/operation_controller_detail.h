@@ -305,7 +305,7 @@ public:
 
     // ITaskHost implementation.
 
-    IInvokerPtr GetChunkScraperInvoker() const override;
+    IInvokerPtr GetChunkScraperHeavyInvoker() const override;
     IInvokerPtr GetCancelableInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const override;
     IInvokerPtr GetJobSpecBuildInvoker() const override;
     TDiagnosableInvokerPool::TInvokerStatistics GetInvokerStatistics(
@@ -535,7 +535,7 @@ protected:
     NApi::NNative::IClientPtr SchedulerOutputClient_;
 
     TCancelableContextPtr CancelableContext_;
-    const IInvokerPtr ChunkScraperInvoker_;
+    const IInvokerPtr ChunkScraperHeavyInvoker_;
     TDiagnosableInvokerPoolPtr DiagnosableInvokerPool_;
     IInvokerPoolPtr InvokerPool_;
     ISuspendableInvokerPoolPtr SuspendableInvokerPool_;

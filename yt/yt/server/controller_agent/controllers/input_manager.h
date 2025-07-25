@@ -50,7 +50,7 @@ struct IInputManagerHost
     virtual TCancelableContextPtr GetCancelableContext() const = 0;
     virtual IInvokerPoolPtr GetCancelableInvokerPool() const = 0;
 
-    virtual IInvokerPtr GetChunkScraperInvoker() const = 0;
+    virtual IInvokerPtr GetChunkScraperHeavyInvoker() const = 0;
 
     virtual NChunkClient::EChunkAvailabilityPolicy GetChunkAvailabilityPolicy() const = 0;
     virtual void ValidateInputTablesTypes() const = 0;

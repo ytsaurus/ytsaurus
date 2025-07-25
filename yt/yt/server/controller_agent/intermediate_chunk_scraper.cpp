@@ -29,7 +29,7 @@ TIntermediateChunkScraper::TIntermediateChunkScraper(
     : Config_(std::move(config))
     , Invoker_(std::move(invoker))
     , InvokerPool_(std::move(invokerPool))
-    , ScraperInvoker_(std::move(scraperInvoker))
+    , ScraperHeavyInvoker_(std::move(scraperInvoker))
     , ThrottlerManager_(std::move(throttlerManager))
     , Client_(std::move(client))
     , NodeDirectory_(std::move(nodeDirectory))
@@ -86,7 +86,8 @@ void TIntermediateChunkScraper::ResetChunkScraper()
         intermediateChunks.size());
     ChunkScraper_ = New<TChunkScraper>(
         Config_,
-        ScraperInvoker_,
+        Invoker_,
+        ScraperHeavyInvoker_,
         ThrottlerManager_,
         Client_,
         NodeDirectory_,

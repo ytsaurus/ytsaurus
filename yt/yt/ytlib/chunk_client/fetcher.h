@@ -37,6 +37,7 @@ struct IFetcherChunkScraper
 IFetcherChunkScraperPtr CreateFetcherChunkScraper(
     TChunkScraperConfigPtr config,
     IInvokerPtr invoker,
+    IInvokerPtr heavyInvoker,
     TThrottlerManagerPtr throttlerManager,
     NApi::NNative::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
