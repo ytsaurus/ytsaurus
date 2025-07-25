@@ -22,7 +22,7 @@ type Controller struct {
 }
 
 func (c Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
-	spec map[string]any, description map[string]any, annotations map[string]any, err error) {
+	spec map[string]any, description map[string]any, annotations map[string]any, runAsUser bool, err error) {
 	err = nil
 	spec = map[string]any{
 		"tasks": map[string]any{
@@ -38,6 +38,7 @@ func (c Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 		"sleeper_bar":          "Actually I'd like to wake up :)",
 		"controller_parameter": c.controllerParameter,
 	}
+	runAsUser = false
 	return
 }
 

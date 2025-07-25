@@ -17,6 +17,7 @@ type Controller interface {
 		spec map[string]any,
 		description map[string]any,
 		annotation map[string]any,
+		runAsUser bool,
 		err error)
 
 	// Family returns short lowercase_with_underscore identifier which is included to all vanilla
