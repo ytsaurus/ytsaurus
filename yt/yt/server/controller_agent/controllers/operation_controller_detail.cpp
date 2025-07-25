@@ -532,7 +532,7 @@ void TOperationControllerBase::InitializeInputTransactions()
             filesAndTables.push_back(path);
         }
 
-        if (Options_->GpuCheck->UseSeparateRootVolume && userJobSpec->EnableGpuCheck) {
+        if (userJobSpec->EnableGpuCheck) {
             for (const auto& path : Options_->GpuCheck->LayerPaths) {
                 filesAndTables.push_back(path);
             }
@@ -872,7 +872,7 @@ void TOperationControllerBase::InitializeStructures()
         }
 
         // Add gpu check layers.
-        if (Options_->GpuCheck->UseSeparateRootVolume && userJobSpec->EnableGpuCheck) {
+        if (userJobSpec->EnableGpuCheck) {
             for (const auto& path : Options_->GpuCheck->LayerPaths) {
                 auto file = TUserFile(
                     path,
@@ -10243,30 +10243,17 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpec->set_cuda_toolkit_version(*jobSpecConfig->CudaToolkitVersion);
     }
 
-    if (const auto& options = Options_->GpuCheck; options->UseSeparateRootVolume) {
-        if (jobSpecConfig->EnableGpuCheck && jobSpecConfig->GpuLimit > 0) {
-            jobSpec->set_gpu_check_binary_path(options->BinaryPath);
-            ToProto(jobSpec->mutable_gpu_check_binary_args(), options->BinaryArgs);
-            if (options->NetworkProject) {
-                auto networkProject = GetNetworkProject(Host_->GetClient(), AuthenticatedUser_, *(options->NetworkProject));
-                ToProto(jobSpec->mutable_gpu_check_network_project(), networkProject);
-            }
+    if (jobSpecConfig->EnableGpuCheck && jobSpecConfig->GpuLimit > 0) {
+        const auto& options = Options_->GpuCheck;
+        jobSpec->set_gpu_check_binary_path(options->BinaryPath);
+        ToProto(jobSpec->mutable_gpu_check_binary_args(), options->BinaryArgs);
+        if (options->NetworkProject) {
+            auto networkProject = GetNetworkProject(Host_->GetClient(), AuthenticatedUser_, *(options->NetworkProject));
+            ToProto(jobSpec->mutable_gpu_check_network_project(), networkProject);
+        }
 
-            auto* protoEnvironment = jobSpec->mutable_gpu_check_environment();
-            (*protoEnvironment)["YT_OPERATION_ID"] = ToString(OperationId_);
-        }
-    } else {
-        // COMPAT(ignat)
-        if (Config_->GpuCheckLayerDirectoryPath &&
-            jobSpecConfig->GpuCheckBinaryPath &&
-            jobSpecConfig->GpuCheckLayerName &&
-            jobSpecConfig->EnableGpuLayers)
-        {
-            jobSpec->set_gpu_check_binary_path(*jobSpecConfig->GpuCheckBinaryPath);
-            if (auto gpuCheckBinaryArgs = jobSpecConfig->GpuCheckBinaryArgs) {
-                ToProto(jobSpec->mutable_gpu_check_binary_args(), *gpuCheckBinaryArgs);
-            }
-        }
+        auto* protoEnvironment = jobSpec->mutable_gpu_check_environment();
+        (*protoEnvironment)["YT_OPERATION_ID"] = ToString(OperationId_);
     }
 
     if (jobSpecConfig->NetworkProject) {
@@ -10390,7 +10377,7 @@ void TOperationControllerBase::InitUserJobSpec(
         jobSpec->add_environment(Format("YT_START_ROW_INDEX=%v", joblet->StartRowIndex));
     }
 
-    if (const auto& options = Options_->GpuCheck; options->UseSeparateRootVolume && jobSpec->has_gpu_check_binary_path()) {
+    if (jobSpec->has_gpu_check_binary_path()) {
         auto* protoEnvironment = jobSpec->mutable_gpu_check_environment();
         fillEnvironment([protoEnvironment] (TStringBuf key, TStringBuf value) {
             (*protoEnvironment)[key] = value;
@@ -11448,18 +11435,6 @@ std::vector<TRichYPath> TOperationControllerBase::GetLayerPaths(
     {
         // If cuda toolkit is requested, add the layer as the topmost user layer.
         auto path = *Config_->CudaToolkitLayerDirectoryPath + "/" + *userJobSpec->CudaToolkitVersion;
-        layerPaths.insert(layerPaths.begin(), path);
-    }
-    // COMPAT(ignat)
-    if (!Options_->GpuCheck->UseSeparateRootVolume &&
-        Config_->GpuCheckLayerDirectoryPath &&
-        userJobSpec->GpuCheckLayerName &&
-        userJobSpec->GpuCheckBinaryPath &&
-        !layerPaths.empty() &&
-        userJobSpec->EnableGpuLayers)
-    {
-        // If cuda toolkit is requested, add the layer as the topmost user layer.
-        auto path = *Config_->GpuCheckLayerDirectoryPath + "/" + *userJobSpec->GpuCheckLayerName;
         layerPaths.insert(layerPaths.begin(), path);
     }
     if (userJobSpec->Profilers) {

@@ -1282,12 +1282,6 @@ void TUserJobSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("enable_gpu_check", &TThis::EnableGpuCheck)
         .Default(false);
-    registrar.Parameter("gpu_check_layer_name", &TThis::GpuCheckLayerName)
-        .Default();
-    registrar.Parameter("gpu_check_binary_path", &TThis::GpuCheckBinaryPath)
-        .Default();
-    registrar.Parameter("gpu_check_binary_args", &TThis::GpuCheckBinaryArgs)
-        .Default();
     registrar.Parameter("job_speculation_timeout", &TThis::JobSpeculationTimeout)
         .Default()
         .GreaterThan(TDuration::Zero());

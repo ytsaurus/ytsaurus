@@ -310,8 +310,6 @@ DEFINE_REFCOUNTED_TYPE(TUserJobOptions)
 struct TGpuCheckOptions
     : public NYTree::TYsonStruct
 {
-    bool UseSeparateRootVolume;
-
     //! Path to layers for separate volume of GPU check.
     std::vector<NYPath::TRichYPath> LayerPaths;
 
@@ -1161,10 +1159,6 @@ struct TControllerAgentConfig
     // GPU jobs. The layer is applied as an additional user layer on top of the others if they are
     // present.
     std::optional<TString> CudaToolkitLayerDirectoryPath;
-
-    // Cypress path to the directory with GPU check layers.  This layer is used to perform GPU check before user job start.
-    // The layer is applied as an additional user layer on top of the other layers (if they are present).
-    std::optional<TString> GpuCheckLayerDirectoryPath;
 
     //! Controls handling docker images specified in user spec.
     TDockerRegistryConfigPtr DockerRegistry;

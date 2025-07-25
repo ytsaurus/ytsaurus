@@ -1409,18 +1409,6 @@ struct TUserJobSpec
     //! This option applicable only in case of separate root volume.
     bool EnableGpuCheck;
 
-    // COMPAT(ignat)
-    //! Name of layer with GPU check.
-    std::optional<TString> GpuCheckLayerName;
-
-    // COMPAT(ignat)
-    //! Path to the file with GPU check binary inside layer.
-    std::optional<TString> GpuCheckBinaryPath;
-
-    // COMPAT(ignat)
-    //! Command line arguments for the GPU check binary.
-    std::optional<std::vector<TString>> GpuCheckBinaryArgs;
-
     //! Force running speculative job after this timeout. Has higher priority than `JobSpeculationTimeout`
     //! from TOperationBaseSpec.
     std::optional<TDuration> JobSpeculationTimeout;
