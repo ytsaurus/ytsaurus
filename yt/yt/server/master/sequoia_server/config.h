@@ -29,7 +29,11 @@ DEFINE_REFCOUNTED_TYPE(TDynamicTableUpdateQueueConfig)
 struct TDynamicGroundUpdateQueueManagerConfig
     : public NYTree::TYsonStruct
 {
+    static constexpr auto DefaultProfilingPeriod = TDuration::Seconds(5);
+
     THashMap<NSequoiaClient::EGroundUpdateQueue, TDynamicTableUpdateQueueConfigPtr> Queues;
+
+    TDuration ProfilingPeriod;
 
     const TDynamicTableUpdateQueueConfigPtr& GetQueueConfig(NSequoiaClient::EGroundUpdateQueue queue) const;
 

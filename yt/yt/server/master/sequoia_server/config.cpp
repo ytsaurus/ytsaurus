@@ -29,6 +29,9 @@ void TDynamicGroundUpdateQueueManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("queues", &TThis::Queues)
         .Default();
+
+    registrar.Parameter("profiling_period", &TThis::ProfilingPeriod)
+        .Default(DefaultProfilingPeriod);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
