@@ -89,8 +89,6 @@ struct TMergeRowsOnFlushBufferTag
 struct TMergeRowsOnFlushTag
 { };
 
-static const size_t MaxRowsPerFlushRead = 1024;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TSortedStoreManager::TSortedStoreManager(
