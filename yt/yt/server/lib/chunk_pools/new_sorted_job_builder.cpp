@@ -59,8 +59,8 @@ public:
         const std::vector<TInputChunkPtr>& teleportChunks,
         int retryIndex,
         const TInputStreamDirectory& inputStreamDirectory,
-        const TLogger& logger,
-        const TLogger& structuredLogger)
+        TLogger logger,
+        TLogger structuredLogger)
         : Options_(options)
         , PrimaryComparator_(options.PrimaryComparator)
         , ForeignComparator_(options.ForeignComparator)
@@ -69,8 +69,8 @@ public:
         , RowBuffer_(std::move(rowBuffer))
         , RetryIndex_(retryIndex)
         , InputStreamDirectory_(inputStreamDirectory)
-        , Logger(logger)
-        , StructuredLogger(structuredLogger)
+        , Logger(std::move(logger))
+        , StructuredLogger(std::move(structuredLogger))
     {
         double retryFactor = std::pow(JobSizeConstraints_->GetDataWeightPerJobRetryFactor(), RetryIndex_);
 
@@ -426,8 +426,8 @@ private:
     std::vector<TLegacyDataSlicePtr> InputDataSlices_;
 
     TPeriodicYielder PeriodicYielder_;
-    const TLogger& Logger;
-    const TLogger& StructuredLogger;
+    const TLogger Logger;
+    const TLogger StructuredLogger;
 
     void AddPivotKeysEndpoints()
     {
@@ -1091,8 +1091,8 @@ INewSortedJobBuilderPtr CreateNewSortedJobBuilder(
     const std::vector<TInputChunkPtr>& teleportChunks,
     int retryIndex,
     const TInputStreamDirectory& inputStreamDirectory,
-    const TLogger& logger,
-    const TLogger& structuredLogger)
+    TLogger logger,
+    TLogger structuredLogger)
 {
     return New<TNewSortedJobBuilder>(
         options,
@@ -1101,8 +1101,8 @@ INewSortedJobBuilderPtr CreateNewSortedJobBuilder(
         teleportChunks,
         retryIndex,
         inputStreamDirectory,
-        logger,
-        structuredLogger);
+        std::move(logger),
+        std::move(structuredLogger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
