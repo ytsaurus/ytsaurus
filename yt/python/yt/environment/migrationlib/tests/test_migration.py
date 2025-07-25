@@ -4,7 +4,7 @@ from yt.environment.migrationlib import TableInfo, Conversion, Migration
 
 from yt.wrapper.ypath import ypath_split, ypath_join
 from yt_commands import (authors, get, insert_rows, ls, print_debug, set, wait,
-                         read_table, create_tablet_cell_bundle, sync_create_cells)
+                         read_table, create_tablet_cell_bundle, sync_create_cells, select_rows)
 
 from yt_env_setup import YTEnvSetup
 
@@ -120,6 +120,71 @@ class TestMigration(YTEnvSetup):
         _check_schema(self.MIGRATION.get_schemas(1), "test_table", self.TRANSFORMS[1][0].table_info)
         _check_schema(self.MIGRATION.get_schemas(2), "test_table2", self.TRANSFORMS[2][0].table_info)
         _check_schema(self.MIGRATION.get_schemas(), "test_table2", self.TRANSFORMS[2][0].table_info)
+
+    @authors("bystrovserg")
+    def test_resharding(self):
+        INITIAL_VERSION = 0
+        INITIAL_TABLE_INFOS = {
+            "table": TableInfo(
+                [("key1", "int64"), ("key2", "int64")], [("other", "string")],
+                attributes={"tablet_cell_bundle": "sys"},
+            ),
+        }
+        TRANSFORMS = {
+            1: [
+                Conversion(
+                    "table",
+                    table_info=TableInfo(
+                        [("key1_partition", "int64", "key1 % 2"), ("key1", "int64",), ("key2", "int64")],
+                        [("other", "string")],
+                    ),
+                    use_default_mapper=True,
+                )
+            ]
+        }
+
+        create_tablet_cell_bundle("sys")
+        sync_create_cells(1, tablet_cell_bundle="sys")
+
+        tables_path = "//tmp/test_tables"
+        table_path = tables_path + "/table"
+
+        client = self.Env.create_client()
+
+        migration = Migration(
+            initial_table_infos=INITIAL_TABLE_INFOS,
+            initial_version=INITIAL_VERSION,
+            transforms=TRANSFORMS,
+        )
+
+        migration.create_tables(
+            client=client,
+            target_version=self.INITIAL_VERSION,
+            tables_path=tables_path,
+            shard_count=1,
+            override_tablet_cell_bundle=None,
+        )
+
+        data = []
+        for i in range(10):
+            data.append({"key1": i, "key2": i * 2, "other": "a" * i})
+
+        insert_rows(table_path, data)
+
+        migration.run(
+            client=client,
+            tables_path=tables_path,
+            target_version=migration.get_latest_version(),
+            shard_count=2,
+            force=False,
+            retransform=False,
+        )
+
+        insert_rows(table_path, [{"key1": 11, "key2": 22, "other": "a" * 11}])
+        rows = select_rows(f"* from [{tables_path + "/table"}]")
+        assert len(rows) == 11
+        assert rows[:5] == [{"key1_partition": 0, "key1": i, "key2": i * 2, "other": "a" * i} for i in range(0, 10, 2)]
+        assert rows[5:] == [{"key1_partition": 1, "key1": i, "key2": i * 2, "other": "a" * i} for i in range(1, 12, 2)]
 
 
 class TestConversionFilterCallback(YTEnvSetup):
