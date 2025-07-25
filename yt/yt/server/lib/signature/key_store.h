@@ -21,7 +21,7 @@ DEFINE_REFCOUNTED_TYPE(IKeyStoreReader)
 struct IKeyStoreWriter
     : public virtual TRefCounted
 {
-    [[nodiscard]] virtual const TOwnerId& GetOwner() const = 0;
+    [[nodiscard]] virtual TOwnerId GetOwner() const = 0;
 
     virtual TFuture<void> RegisterKey(const TKeyInfoPtr& keyInfo) = 0;
 };

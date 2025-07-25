@@ -37,7 +37,7 @@ struct TKeyRotatorTest
     TKeyRotatorTest()
     {
         EXPECT_CALL(*Store, GetOwner())
-            .WillRepeatedly(ReturnRef(OwnerId));
+            .WillRepeatedly(Return(OwnerId));
     }
 };
 

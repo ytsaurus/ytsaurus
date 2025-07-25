@@ -1504,6 +1504,14 @@ struct TCypressKeyWriterTest
 TEST_F(TCypressKeyWriterTest, GetOwner)
 {
     EXPECT_EQ(Writer->GetOwner(), OwnerId);
+
+    auto newConfig = New<TCypressKeyWriterConfig>();
+    newConfig->OwnerId = TOwnerId("trest");
+    newConfig->Path = "//tmp/shmublic_keys";
+    newConfig->KeyDeletionDelay = TDuration::Hours(12);
+
+    Writer->Reconfigure(newConfig);
+    EXPECT_EQ(Writer->GetOwner(), newConfig->OwnerId);
 }
 
 TEST_F(TCypressKeyWriterTest, RegisterKey)
@@ -1598,6 +1606,89 @@ TEST_F(TCypressKeyWriterTest, BatchOperationPartialFailure)
         WaitFor(Writer->RegisterKey(keyInfo))
             .ThrowOnError(),
         "already exists");
+}
+
+TEST_F(TCypressKeyWriterTest, ReconfigureWhileRegistering)
+{
+    std::vector<TFuture<void>> futures;
+    std::vector<TKeyInfoPtr> keyInfos;
+
+    for (int i = 0; i < 10; ++i) {
+        auto meta = TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>{
+            .OwnerId = OwnerId,
+            .KeyId = TKeyId(TGuid(i, 0, 0, 0)),
+            .CreatedAt = NowTime,
+            .ValidAfter = NowTime - TDuration::Hours(10),
+            .ExpiresAt = ExpiresAt,
+        };
+        keyInfos.push_back(New<TKeyInfo>(TPublicKey(), meta));
+    }
+
+    auto newConfig = New<TCypressKeyWriterConfig>();
+    newConfig->OwnerId = OwnerId;
+    newConfig->Path = "//tmp/reconfigure_while_registering";
+    WaitFor(Client_->CreateNode(newConfig->Path, EObjectType::MapNode))
+        .ThrowOnError();
+
+    for (const auto& keyInfo : keyInfos) {
+        futures.push_back(Writer->RegisterKey(keyInfo));
+    }
+
+    Writer->Reconfigure(newConfig);
+
+    for (const auto& keyInfo : keyInfos) {
+        futures.push_back(Writer->RegisterKey(keyInfo));
+    }
+
+    WaitFor(AllSucceeded(futures))
+        .ThrowOnError();
+
+    for (const auto& keyInfo : keyInfos) {
+        auto keyId = GetKeyId(keyInfo->Meta());
+        auto oldPath = Format("%v/%v/%v", Config->Path, OwnerId, keyId);
+        auto newPath = Format("%v/%v/%v", newConfig->Path, OwnerId, keyId);
+
+        auto oldExists = WaitFor(NativeClient->NodeExists(oldPath))
+            .ValueOrThrow();
+        auto newExists = WaitFor(NativeClient->NodeExists(newPath))
+            .ValueOrThrow();
+
+        EXPECT_TRUE(oldExists && newExists);
+    }
+}
+
+TEST_F(TCypressKeyWriterTest, Reconfigure)
+{
+    auto keyInfoValid = New<TKeyInfo>(TPublicKey(), MetaValid);
+    WaitFor(Writer->RegisterKey(keyInfoValid))
+        .ThrowOnError();
+
+    auto newConfig = New<TCypressKeyWriterConfig>();
+    newConfig->OwnerId = TOwnerId("trest");
+    newConfig->Path = Format("//tmp/reconfigured_keys");
+
+    WaitFor(Client_->CreateNode(newConfig->Path, EObjectType::MapNode))
+        .ThrowOnError();
+
+    Writer->Reconfigure(newConfig);
+    EXPECT_EQ(Writer->GetOwner(), newConfig->OwnerId);
+
+    TInstant NowTime = Now();
+    TKeyPairMetadata metaWithNewOwner = TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>{
+        .OwnerId = Writer->GetOwner(),
+        .KeyId = TKeyId(TGuid(5, 6, 7, 8)),
+        .CreatedAt = NowTime,
+        .ValidAfter = NowTime - TDuration::Hours(10),
+        .ExpiresAt = NowTime - TDuration::Hours(1),
+    };
+    auto keyInfoExpired = New<TKeyInfo>(TPublicKey(), metaWithNewOwner);
+    WaitFor(Writer->RegisterKey(keyInfoExpired))
+        .ThrowOnError();
+
+    EXPECT_EQ(
+        ConvertTo<TKeyInfo>(WaitFor(Client_->GetNode(YPathJoin(newConfig->Path, "trest", "8-7-6-5")))
+            .ValueOrThrow()),
+        *keyInfoExpired);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

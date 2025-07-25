@@ -25,15 +25,16 @@ using namespace NYson;
 using namespace NYTree;
 using namespace std::chrono_literals;
 
-using ::testing::_;
 using ::testing::AllOf;
 using ::testing::Field;
 using ::testing::HasSubstr;
+using ::testing::InSequence;
 using ::testing::Pointee;
 using ::testing::Pointer;
 using ::testing::ResultOf;
 using ::testing::Return;
 using ::testing::StrictMock;
+using ::testing::_;
 
 using TStrictMockClient = StrictMock<TMockClient>;
 DEFINE_REFCOUNTED_TYPE(TStrictMockClient)
@@ -79,6 +80,19 @@ TEST_F(TCypressKeyReaderTest, FindKey)
 
     auto keyInfo = WaitFor(reader->FindKey(OwnerId, KeyId));
     EXPECT_THAT(keyInfo.ValueOrThrow(), Pointee(*simpleKeyInfo));
+
+    auto newConfig = New<TCypressKeyReaderConfig>();
+    newConfig->Path = "//sys/public_keys/lawn_mower";
+    newConfig->CypressReadOptions->ReadFrom = EMasterChannelKind::Follower;
+    reader->Reconfigure(newConfig);
+
+    EXPECT_CALL(*Client, GetNode(
+        "//sys/public_keys/lawn_mower/test/4-3-2-1",
+        Field("ReadFrom", &TGetNodeOptions::ReadFrom, EMasterChannelKind::Follower)))
+        .WillOnce(Return(MakeFuture(ConvertToYsonString(simpleKeyInfo))));
+
+    auto keyInfo2 = WaitFor(reader->FindKey(OwnerId, KeyId));
+    EXPECT_THAT(keyInfo2.ValueOrThrow(), Pointee(*simpleKeyInfo));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -107,6 +121,63 @@ TEST_F(TCypressKeyReaderTest, FindKeyInvalidString)
     auto keyInfo = WaitFor(reader->FindKey(OwnerId, KeyId));
     EXPECT_FALSE(keyInfo.IsOK());
     EXPECT_THAT(keyInfo.GetMessage(), HasSubstr("node has invalid type"));
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TCypressKeyReaderTest, ReconfigureDuringReadOperation)
+{
+    auto reader = New<TCypressKeyReader>(Config, Client);
+
+    TPublicKey key{};
+    auto simpleKeyInfo = New<TKeyInfo>(key, Meta);
+
+    // We want to test out the case that reconfigure happened during registration.
+    std::vector<TPromise<TYsonString>> barriers(10);
+    for (auto& barrier : barriers) {
+        barrier = NewPromise<TYsonString>();
+    }
+
+    // We can't return the same future over an over, so some nasty tricks are required.
+    {
+        InSequence seq;
+        for (auto& barrier : barriers) {
+            EXPECT_CALL(*Client, GetNode("//sys/public_keys/by_owner/test/4-3-2-1", _))
+                .WillOnce(Return(barrier));
+        }
+    }
+
+    {
+        InSequence seq;
+        for (int i = 0; i < 10; ++i) {
+            EXPECT_CALL(*Client, GetNode("//sys/shmublic_keys/lawn_mower/test/4-3-2-1", _))
+                .WillOnce(Return(MakeFuture(ConvertToYsonString(*simpleKeyInfo))));
+        }
+    }
+
+    std::vector<TFuture<TKeyInfoPtr>> futures;
+    for (const auto& _ : barriers) {
+        futures.push_back(reader->FindKey(OwnerId, KeyId));
+    }
+
+    auto newConfig = New<TCypressKeyReaderConfig>();
+    newConfig->Path = "//sys/shmublic_keys/lawn_mower";
+    reader->Reconfigure(newConfig);
+
+    // Release all the barriers after reconfigure.
+    for (auto& barrier : barriers) {
+        barrier.Set(ConvertToYsonString(simpleKeyInfo));
+    }
+
+    for (int i = 0; i < 10; ++i) {
+        futures.push_back(reader->FindKey(OwnerId, KeyId));
+    }
+
+    for (auto& future : futures) {
+        auto result = WaitFor(future);
+        EXPECT_EQ(*result.ValueOrThrow(), *simpleKeyInfo);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

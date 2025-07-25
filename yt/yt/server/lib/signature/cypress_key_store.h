@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
 namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,8 +20,10 @@ public:
 
     TFuture<TKeyInfoPtr> FindKey(const TOwnerId& ownerId, const TKeyId& keyId) const final;
 
+    void Reconfigure(TCypressKeyReaderConfigPtr config);
+
 private:
-    TCypressKeyReaderConfigPtr Config_;
+    TAtomicIntrusivePtr<TCypressKeyReaderConfig> Config_;
     const NApi::IClientPtr Client_;
 };
 
@@ -33,12 +37,14 @@ class TCypressKeyWriter
 public:
     TCypressKeyWriter(TCypressKeyWriterConfigPtr config, NApi::NNative::IClientPtr client);
 
-    const TOwnerId& GetOwner() const final;
+    TOwnerId GetOwner() const final;
 
     TFuture<void> RegisterKey(const TKeyInfoPtr& keyInfo) final;
 
+    void Reconfigure(TCypressKeyWriterConfigPtr config);
+
 private:
-    const TCypressKeyWriterConfigPtr Config_;
+    TAtomicIntrusivePtr<TCypressKeyWriterConfig> Config_;
     const NApi::NNative::IClientPtr Client_;
 };
 

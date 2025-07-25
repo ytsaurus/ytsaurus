@@ -6,7 +6,7 @@ namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TOwnerId& TStubKeyStore::GetOwner() const
+TOwnerId TStubKeyStore::GetOwner() const
 {
     return OwnerId;
 }
