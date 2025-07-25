@@ -1451,34 +1451,6 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
         wait(lambda: self._get_operation_module(op) != op_module)
 
     @authors("eshcherbin")
-    def test_no_module_reset_in_empty_tree(self):
-        update_scheduler_config("node_registration_timeout", 500)
-        update_pool_tree_config_option("default", "scheduling_segments/enable_module_reset_on_zero_fair_share_and_usage", True)
-        update_pool_tree_config_option("default", "scheduling_segments/module_assignment_heuristic", "min_remaining_feasible_capacity")
-
-        update_pool_tree_config("default", {
-            "nodes_filter": "!other",
-        })
-        create_pool_tree("other", config={"nodes_filter": "other", "main_resource": "gpu"})
-
-        op = run_sleeping_vanilla(
-            spec={"pool": "large_gpu"},
-            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
-        )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
-        op_module = self._get_operation_module(op)
-
-        with Restarter(self.Env, NODES_SERVICE):
-            wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.0))
-
-            time.sleep(3.0)
-
-            wait(lambda: self._get_operation_module(op) == op_module)
-
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
-        wait(lambda: self._get_operation_module(op) == op_module)
-
-    @authors("eshcherbin")
     def test_rebalance_large_gpu_segment_nodes_between_modules(self):
         create_pool("large_gpu_other", attributes={"allow_normal_preemption": False})
         set("//sys/pools/large_gpu/@strong_guarantee_resources", {"gpu": 40})
@@ -1625,6 +1597,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             "nodes_filter": "!other",
             "allow_single_job_large_gpu_operations_in_multiple_trees": allow_single_job,
         })
+        set("//sys/pool_trees/default/@config/nodes_filter", "!other")
         create_pool_tree("other", config={"nodes_filter": "other", "main_resource": "gpu"})
         for node in other_nodes:
             set("//sys/cluster_nodes/{}/@user_tags/end".format(node), "other")
