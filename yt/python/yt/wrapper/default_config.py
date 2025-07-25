@@ -590,7 +590,7 @@ default_config = {
     # RPC/native driver configuration.
     "driver_config": None,
     # Use local rpc proxy in job (instead of regular rpc proxy)
-    "enable_rpc_proxy_in_job_proxy": RemotePatchableBoolean(False, "python_enable_rpc_proxy_in_job_proxy"),
+    "enable_rpc_proxy_in_job_proxy": False,
     # Target cluster name (in case it differs from proxy): None | str
     "cluster_name_for_rpc_proxy_in_job_proxy": None,
 
