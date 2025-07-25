@@ -1379,6 +1379,7 @@ func (r CreateQueueProducerSessionRequest) Log() []log.Field {
 		log.String("producer_path", string(r.GetProducerPath())),
 		log.String("queue_path", string(r.GetQueuePath())),
 		log.String("session_id", r.GetSessionId()),
+		log.String("mutation_id", r.GetMutatingOptions().GetMutationId().String()),
 	}
 }
 
