@@ -511,8 +511,8 @@ public:
         transactionManager->RegisterTransactionActionHandlers<TReqModifyReplicas>({
             .Prepare = BIND_NO_PROPAGATE(&TChunkManager::HydraPrepareModifyReplicas, Unretained(this)),
         });
-        transactionManager->RegisterTransactionActionHandlers<NProto::TReqAddConfirmReplicas>({
-            .Prepare = BIND_NO_PROPAGATE(&TChunkManager::HydraPrepareAddConfirmReplicas, Unretained(this)),
+        transactionManager->RegisterTransactionActionHandlers<TReqConfirmChunk>({
+            .Prepare = BIND_NO_PROPAGATE(&TChunkManager::HydraPrepareConfirmChunk, Unretained(this)),
         });
         transactionManager->RegisterTransactionActionHandlers<NProto::TReqRemoveDeadSequoiaChunkReplicas>({
             .Prepare = BIND_NO_PROPAGATE(&TChunkManager::HydraRemoveDeadSequoiaChunkReplicas, Unretained(this)),
@@ -3238,27 +3238,6 @@ private:
         --EndorsementCount_;
     }
 
-    void HydraPrepareAddConfirmReplicas(
-        TTransaction* /*transaction*/,
-        NProto::TReqAddConfirmReplicas* request,
-        const NTransactionSupervisor::TTransactionPrepareOptions& options)
-    {
-        YT_VERIFY(options.Persistent);
-        YT_VERIFY(options.LatePrepare);
-
-        auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        auto* chunk = GetChunkOrThrow(chunkId);
-
-        auto replicas = FromProto<TChunkReplicaWithLocationList>(request->replicas());
-
-        const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
-        if (config->StoreSequoiaReplicasOnMaster) {
-            AddConfirmReplicas(chunk, replicas);
-        } else {
-            ScheduleChunkRefresh(chunk);
-        }
-    }
-
     void HydraPrepareModifyReplicas(
         TTransaction* /*transaction*/,
         TReqModifyReplicas* request,
@@ -3400,18 +3379,18 @@ private:
             .EndList();
     }
 
-    TFuture<void> AddSequoiaConfirmReplicas(std::unique_ptr<NProto::TReqAddConfirmReplicas> request) override
+    TFuture<void> ConfirmSequoiaChunk(TReqConfirmChunk* request) override
     {
-        YT_VERIFY(request->replicas_size() > 0);
-
         const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
         const auto& retriableErrorCodes = config->RetriableErrorCodes;
+        auto storeSequoiaReplicasOnMaster = config->StoreSequoiaReplicasOnMaster;
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
-        std::vector<TChunkReplicaWithLocationIndex> replicasWithLocationIndex;
+        std::vector<TChunkReplicaWithLocationIndex> sequoiaReplicas;
+        std::vector<TConfirmChunkReplicaInfo> nonSequoiaReplicas;
         for (const auto& protoReplica : request->replicas()) {
             auto replica = FromProto<TChunkReplicaWithLocation>(protoReplica);
             auto nodeId = replica.GetNodeId();
@@ -3429,20 +3408,26 @@ private:
                 nodeId,
                 replica.GetReplicaIndex(),
                 location->GetIndex());
-            replicasWithLocationIndex.push_back(replicaWithLocationIndex);
+
+            auto locationUuid = location->GetUuid();
+            if (!ChunkReplicaFetcher_->IsSequoiaChunkReplica(chunkId, locationUuid)) {
+                nonSequoiaReplicas.push_back(protoReplica);
+            } else {
+                sequoiaReplicas.push_back(replicaWithLocationIndex);
+            }
         }
 
         return Bootstrap_
             ->GetSequoiaClient()
             ->StartTransaction(ESequoiaTransactionType::ChunkConfirmation, {.CellTag = Bootstrap_->GetCellTag()})
-            .Apply(BIND([=, request = std::move(request), replicasWithLocationIndex = std::move(replicasWithLocationIndex), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
+            .Apply(BIND([=, request = std::move(request), sequoiaReplicas = std::move(sequoiaReplicas), nonSequoiaReplicas = std::move(nonSequoiaReplicas), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
                 NRecords::TUnapprovedChunkReplicas chunkReplicas{
                     .Key = {
                         .ChunkId = chunkId,
                     },
-                    .StoredReplicas = GetReplicasYson(replicasWithLocationIndex, {}),
+                    .StoredReplicas = GetReplicasYson(sequoiaReplicas, {}),
                     .ConfirmationTime = TInstant::Now(),
                 };
                 transaction->WriteRow(
@@ -3450,6 +3435,12 @@ private:
                     NTableClient::ELockType::SharedWrite,
                     NTableClient::EValueFlags::Aggregate);
 
+                if (!storeSequoiaReplicasOnMaster) {
+                    request->mutable_replicas()->Clear();
+                    for (const auto& protoReplica : nonSequoiaReplicas) {
+                        *request->add_replicas() = protoReplica;
+                    }
+                }
                 transaction->AddTransactionAction(
                     Bootstrap_->GetCellTag(),
                     NTransactionClient::MakeTransactionActionData(*request));
