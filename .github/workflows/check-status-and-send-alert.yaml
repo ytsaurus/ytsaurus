@@ -33,7 +33,7 @@ jobs:
 
       - name: Clean escape characters
         run: |
-          DISPLAY_COMMIT_MESSAGE="\"$(echo ${{ github.event.head_commit.message }} | tr -d '"')"\"
+          DISPLAY_COMMIT_MESSAGE=$(echo ${{ github.event.head_commit.message }} | tr -d '"')
           echo "DISPLAY_COMMIT_MESSAGE=${DISPLAY_COMMIT_MESSAGE}" >> $GITHUB_ENV
 
       - name: Save conclusion (failure)
@@ -56,5 +56,5 @@ jobs:
                   --tg-chat-id ${{ secrets.TELEGRAM_CHAT_ID }} \
                   --current-job-conclusion $CURRENT_JOB_CONCLUSION \
                   --current-job-id ${{ github.run_id }} \
-                  --commit-message $DISPLAY_COMMIT_MESSAGE \
+                  --commit-message "${DISPLAY_COMMIT_MESSAGE}" \
                   --git-server-url "${{ github.api_url }}"
