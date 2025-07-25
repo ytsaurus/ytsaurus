@@ -281,6 +281,14 @@ LLVM_BC(
 )
 
 LLVM_BC(
+    udf/to_valid_utf8.cpp
+    NAME to_valid_utf8
+    SYMBOLS
+        to_valid_utf8
+        is_valid_utf8
+)
+
+LLVM_BC(
     udf/length.c
     NAME length
     SYMBOLS
