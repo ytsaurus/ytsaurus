@@ -15,6 +15,8 @@ struct IGroundUpdateQueueManager
 {
     virtual void Initialize() = 0;
 
+    virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
+
     template <typename TRecord>
     void EnqueueWrite(const TRecord& record);
     template <typename TRecordKey>

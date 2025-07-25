@@ -1209,6 +1209,10 @@ void TBootstrap::DoStart()
         CreateVirtualNode(TabletManager_->GetOrchidService()));
     SetNodeByYPath(
         orchidRoot,
+        "/ground_update_queue_manager",
+        CreateVirtualNode(GroundUpdateQueueManager_->GetOrchidService()));
+    SetNodeByYPath(
+        orchidRoot,
         "/reign",
         ConvertTo<INodePtr>(GetCurrentReign()));
     SetNodeByYPath(
