@@ -264,7 +264,7 @@ RUN ln -s /usr/bin/ytserver-all /usr/bin/ytserver-master && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-tablet-balancer
 
 # YTsaurus credits files.
-COPY ./credits/ytserver-all.CREDITS /usr/bin/ytserver-all.CREDITS
+COPY ./credits/*.CREDITS /usr/bin/
 
 # Scripts for init jobs.
 COPY ./init_queue_agent_state /usr/bin/init_queue_agent_state
@@ -284,6 +284,7 @@ COPY ./ytserver-clickhouse /usr/bin/ytserver-clickhouse
 
 # CHYT credits files.
 COPY ./credits/ytserver-clickhouse.CREDITS /usr/bin/ytserver-clickhouse.CREDITS
+COPY ./credits/clickhouse-trampoline.CREDITS /usr/bin/clickhouse-trampoline.CREDITS
 
 # Install YT client for setup script.
 RUN python3.8 -m pip install ytsaurus-client
@@ -325,6 +326,7 @@ COPY ./init_query_tracker_state /usr/bin/init_query_tracker_state
 
 # Query tracker credits files.
 COPY ./credits/ytserver-all.CREDITS /usr/bin/ytserver-all.CREDITS
+COPY ./credits/init_query_tracker_state.CREDITS /usr/bin/init_query_tracker_state.CREDITS
 
 FROM scratch AS query-tracker
 COPY --from=query-tracker-bloated / /
