@@ -22,14 +22,24 @@ SYS_BLOBS_BUNDLE_NAME = "sys_blobs"
 RESOURCE_LIMITS_ATTRIBUTE = "resource_limits"
 NODES_LIMIT_ATTRIBUTE = "node_count"
 JOB_TABLE_PARTITION_COUNT = 10
+JOB_TRACE_EVENTS_PARTITION_COUNT = 5
 
 
-def get_job_table_pivots(shard_count):
+def get_jobs_table_pivots(shard_count):
     pivot_keys = [[]]
     shards_per_partition = shard_count // JOB_TABLE_PARTITION_COUNT + 1
     for job_id_partition in range(JOB_TABLE_PARTITION_COUNT):
         for i in range(shards_per_partition):
             pivot_keys.append([yson.YsonUint64(job_id_partition), yson.YsonUint64(i * 2**64 / shards_per_partition)])
+    return pivot_keys
+
+
+def get_job_trace_events_pivots(shard_count):
+    pivot_keys = [[]]
+    shards_per_partition = shard_count // JOB_TRACE_EVENTS_PARTITION_COUNT + 1
+    for event_index_partition in range(JOB_TRACE_EVENTS_PARTITION_COUNT):
+        for i in range(shards_per_partition):
+            pivot_keys.append([yson.YsonInt64(event_index_partition), yson.YsonUint64(i * 2**64 / shards_per_partition)])
     return pivot_keys
 
 
@@ -136,7 +146,7 @@ INITIAL_TABLE_INFOS = {
             ("has_probing_competitors", "boolean"),
             ("job_cookie", "int64"),
         ],
-        get_pivot_keys=get_job_table_pivots,
+        get_pivot_keys=get_jobs_table_pivots,
         default_lock="operations_cleaner",
         attributes={
             "atomicity": "none",
@@ -963,6 +973,33 @@ TRANSFORMS[61] = [
                 "atomicity": "none",
                 "tablet_cell_bundle": SYS_BLOBS_BUNDLE_NAME,
                 "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
+            })),
+]
+
+TRANSFORMS[62] = [
+    Conversion(
+        "job_trace_events",
+        table_info=TableInfo(
+            [
+                ("event_index_partition", "int64", "event_index % {}".format(JOB_TRACE_EVENTS_PARTITION_COUNT)),
+                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
+                ("operation_id_hi", "uint64"),
+                ("operation_id_lo", "uint64"),
+                ("job_id_hi", "uint64"),
+                ("job_id_lo", "uint64"),
+                ("trace_id_hi", "uint64"),
+                ("trace_id_lo", "uint64"),
+                ("event_index", "int64"),
+            ], [
+                ("event", "string"),
+                ("event_time", "int64"),
+            ],
+            default_lock="operations_cleaner",
+            get_pivot_keys=get_job_trace_events_pivots,
+            attributes={
+                "tablet_cell_bundle": SYS_BUNDLE_NAME,
+                "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
+                "atomicity": "none",
             })),
 ]
 
