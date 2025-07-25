@@ -24,10 +24,10 @@ TKeyRotator::TKeyRotator(
     , Executor_(New<TPeriodicExecutor>(
         std::move(invoker),
         BIND_NO_PROPAGATE(&TKeyRotator::DoRotate, MakeWeak(this)),
-        Config_->KeyRotationInterval))
+        Config_.Acquire()->KeyRotationInterval))
 {
     InitializeCryptography();
-    YT_LOG_INFO("Key rotator initialized (KeyRotationInterval %v)", Config_->KeyRotationInterval);
+    YT_LOG_INFO("Key rotator initialized (KeyRotationInterval %v)", Config_.Acquire()->KeyRotationInterval);
 }
 
 
@@ -50,6 +50,18 @@ TFuture<void> TKeyRotator::Rotate()
     return event;
 }
 
+void TKeyRotator::Reconfigure(TKeyRotatorConfigPtr config)
+{
+    YT_VERIFY(config);
+    auto keyRotationInterval = config->KeyRotationInterval;
+    {
+        auto guard = Guard(ReconfigureSpinLock_);
+        Config_.Store(std::move(config));
+        Executor_->SetPeriod(keyRotationInterval);
+    }
+    YT_LOG_INFO("Key rotator reconfigured (KeyRotationInterval: %v)", keyRotationInterval);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TKeyRotator::DoRotate()
@@ -61,12 +73,13 @@ void TKeyRotator::DoRotate()
 
     auto now = Now();
     auto newKeyId = TGuid::Create();
+    auto config = Config_.Acquire();
     auto newKeyPair = New<TKeyPair>(TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>{
         .OwnerId = KeyWriter_->GetOwner(),
         .KeyId = TKeyId(newKeyId),
         .CreatedAt = now,
-        .ValidAfter = now - Config_->TimeSyncMargin,
-        .ExpiresAt = now + Config_->KeyExpirationDelta,
+        .ValidAfter = now - config->TimeSyncMargin,
+        .ExpiresAt = now + config->KeyExpirationDelta,
     });
 
     auto keyInfo = newKeyPair->KeyInfo();
