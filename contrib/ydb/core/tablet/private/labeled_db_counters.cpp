@@ -1,6 +1,5 @@
 #include "labeled_db_counters.h"
 
-#include <contrib/ydb/library/actors/core/actorsystem.h>
 #include <util/string/split.h>
 #include <contrib/ydb/core/sys_view/service/sysview_service.h>
 

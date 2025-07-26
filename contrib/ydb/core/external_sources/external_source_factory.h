@@ -1,6 +1,7 @@
 #pragma once
 
 #include "external_source.h"
+#include <contrib/ydb/library/actors/core/actorsystem_fwd.h>
 #include <contrib/ydb/library/yql/providers/common/token_accessor/client/factory.h>
 #include <contrib/ydb/library/yql/providers/common/db_id_async_resolver/database_type.h>
 

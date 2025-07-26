@@ -1,7 +1,8 @@
 #pragma once
 
+#include <contrib/ydb/library/actors/core/actorid.h>
 #include <contrib/ydb/library/grpc/server/grpc_server.h>
-#include <contrib/ydb/library/actors/core/actorsystem.h>
+#include <contrib/ydb/library/actors/core/actorsystem_fwd.h>
 #include <library/cpp/monlib/counters/counters.h>
 #include <contrib/ydb/public/api/grpc/draft/dummy.grpc.pb.h>
 

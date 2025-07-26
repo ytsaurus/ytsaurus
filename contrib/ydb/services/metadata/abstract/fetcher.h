@@ -3,7 +3,6 @@
 #include <contrib/ydb/library/actors/core/actorid.h>
 #include <contrib/ydb/library/actors/core/events.h>
 #include <contrib/ydb/library/actors/core/actor_virtual.h>
-#include <contrib/ydb/library/actors/core/actorsystem.h>
 #include <contrib/ydb/library/actors/core/actor_bootstrapped.h>
 #include <library/cpp/object_factory/object_factory.h>
 #include <contrib/ydb/core/base/events.h>

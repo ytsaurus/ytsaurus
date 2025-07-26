@@ -1,5 +1,6 @@
 #include "pq_impl.h"
-#include "read_balancer.h"
+
+#include <contrib/ydb/core/persqueue/pqrb/read_balancer.h>
 
 namespace NKikimr {
 

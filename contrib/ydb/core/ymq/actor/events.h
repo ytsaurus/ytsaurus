@@ -1,5 +1,5 @@
 #pragma once
-#include "defs.h"
+#include <contrib/ydb/core/ymq/actor/cfg/defs.h>
 
 #include <contrib/ydb/core/base/defs.h>
 #include <contrib/ydb/core/tx/scheme_cache/scheme_cache.h>

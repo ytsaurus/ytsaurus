@@ -4,6 +4,7 @@
 
 #include <yql/essentials/core/yql_data_provider.h>
 #include <contrib/ydb/library/yql/providers/common/token_accessor/client/factory.h>
+#include <contrib/ydb/library/yql/providers/generic/connector/api/service/protos/connector.pb.h>
 #include <contrib/ydb/library/yql/providers/generic/connector/libcpp/client.h>
 #include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/types/credentials/credentials.h>
 
