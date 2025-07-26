@@ -1,6 +1,6 @@
 from yt_commands import (create, authors, write_table, insert_rows, get, sync_reshard_table, sync_mount_table,
                          read_table, get_singular_chunk_id, copy, raises_yt_error, alter_table, sync_unmount_table,
-                         print_debug, select_rows)
+                         print_debug, select_rows, trim_rows, sync_flush_table)
 
 from yt_type_helpers import optional_type
 
@@ -1138,6 +1138,37 @@ class TestInputFetching(ClickHouseTestBase):
                     {"ts": "2024-05-05 00:00:00.000000"},
                     {"ts": "2024-10-10 00:00:00.000000"},
                 ])
+
+    @authors("achulkov2")
+    def test_queue_many_stores_yt_11825(self):
+        create("table", "//tmp/t", attributes={"dynamic": True, "schema": [{"name": "a", "type": "int64"}], "enable_dynamic_store_read": True})
+        sync_mount_table("//tmp/t")
+
+        chunk_count = 10
+
+        for i in range(chunk_count):
+            insert_rows("//tmp/t", [{"a": i}])
+            sync_flush_table("//tmp/t")
+
+        trimmed_chunk_count = 7
+
+        # Now we trim some chunks.
+        trim_rows("//tmp/t", tablet_index=0, trimmed_row_count=trimmed_chunk_count)
+        # Wait for chunks to be actually removed.
+        # This check should work irrespective of enable_dynamic_store_read value.
+        wait(lambda: len(get("//tmp/t/@chunk_ids")) == chunk_count - trimmed_chunk_count)
+
+        config_patch = {
+            "yt": {
+                "subquery": {
+                    "max_chunks_per_fetch": 1,
+                },
+            },
+        }
+
+        with Clique(1, config_patch=config_patch) as clique:
+            result = clique.make_query("select * from `//tmp/t`")
+            assert_items_equal(result, [{"a": i} for i in range(trimmed_chunk_count, chunk_count)])
 
 
 class TestReadInOrder(ClickHouseTestBase):

@@ -41,6 +41,7 @@ struct TTable
     TTable(NYPath::TRichYPath path, const NYTree::IAttributeDictionaryPtr& attributes);
 
     bool IsSortedDynamic() const;
+    bool IsOrderedDynamic() const;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TTablePtr& table, TStringBuf spec);
