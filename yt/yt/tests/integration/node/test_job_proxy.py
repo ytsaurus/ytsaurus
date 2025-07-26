@@ -258,7 +258,7 @@ class TestJobProxyUserJobFlagRedirectStdoutToStderr(YTEnvSetup):
 
 class TestRpcProxyInJobProxyBase(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 1
+    NUM_NODES = 2
     NUM_SCHEDULERS = 1
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
@@ -277,9 +277,12 @@ class TestRpcProxyInJobProxyBase(YTEnvSetup):
         },
         "job_resource_manager": {
             "resource_limits": {
-                "user_slots": 3,
-                "cpu": 3,
+                "user_slots": 4,
+                "cpu": 4,
             },
+        },
+        "solomon_exporter": {
+            "host": "node.yt.test",
         },
     }
 
@@ -366,11 +369,12 @@ class TestRpcProxyInJobProxySingleCluster(TestRpcProxyInJobProxyBase):
     @authors("hiddenpath")
     def test_rpc_proxy_count_metrics(self):
         nodes = ls("//sys/cluster_nodes")
-        rpc_proxy_in_job_proxy_gauge = (
+        rpc_proxy_in_job_proxy_gauges = [
             profiler_factory()
-            .at_node(nodes[0])
+            .at_node(nodes[node_index])
             .gauge(name="exec_node/rpc_proxy_in_job_proxy_count")
-        )
+            for node_index in range(self.NUM_NODES)
+        ]
 
         create_user("u1")
         create_user("u2")
@@ -379,35 +383,44 @@ class TestRpcProxyInJobProxySingleCluster(TestRpcProxyInJobProxyBase):
 
         run_test_vanilla(
             with_breakpoint("BREAKPOINT", breakpoint_name="op1"),
-            job_count=2,
+            job_count=5,
             task_patch=task_patch,
             authenticated_user="u1",
         )
-        job_ids1 = wait_breakpoint(breakpoint_name="op1", job_count=2)
-        assert len(job_ids1) == 2
+        job_ids1 = wait_breakpoint(breakpoint_name="op1", job_count=5)
+        assert len(job_ids1) == 5
 
         run_test_vanilla(
             with_breakpoint("BREAKPOINT", breakpoint_name="op2"),
-            job_count=1,
+            job_count=3,
             task_patch=task_patch,
             authenticated_user="u2",
         )
-        job_ids2 = wait_breakpoint(breakpoint_name="op2", job_count=1)
-        assert len(job_ids2) == 1
+        job_ids2 = wait_breakpoint(breakpoint_name="op2", job_count=3)
+        assert len(job_ids2) == 3
 
-        wait(lambda: rpc_proxy_in_job_proxy_gauge.get(tags={"user": "u1"}) == 2)
-        wait(lambda: rpc_proxy_in_job_proxy_gauge.get(tags={"user": "u2"}) == 1)
+        wait(lambda: rpc_proxy_in_job_proxy_gauges[0].get(tags={"user": "u1"}) is not None)
+
+        wait(lambda: sum([gauge.get(tags={"user": "u1"}, default=0.0) for gauge in rpc_proxy_in_job_proxy_gauges]) == 5)
+        wait(lambda: sum([gauge.get(tags={"user": "u2"}, default=0.0) for gauge in rpc_proxy_in_job_proxy_gauges]) == 3)
+
+        for node_index in range(self.NUM_NODES):
+            monitoring_port = self.Env.configs["node"][node_index]["monitoring_port"]
+            sensors = requests.get(f"http://localhost:{monitoring_port}/solomon/all").json()["sensors"]
+            sensors = [sensor for sensor in sensors if sensor.get("labels", {}).get("sensor") == "yt.exec_node.rpc_proxy_in_job_proxy_count"]
+            assert sensors[0]["labels"]["host"] == "node.yt.test"
 
         release_breakpoint(breakpoint_name="op1", job_id=job_ids1[0])
 
-        wait(lambda: rpc_proxy_in_job_proxy_gauge.get(tags={"user": "u1"}) == 1)
-        wait(lambda: rpc_proxy_in_job_proxy_gauge.get(tags={"user": "u2"}) == 1)
+        wait(lambda: sum([gauge.get(tags={"user": "u1"}, default=0.0) for gauge in rpc_proxy_in_job_proxy_gauges]) == 4)
+        wait(lambda: sum([gauge.get(tags={"user": "u2"}, default=0.0) for gauge in rpc_proxy_in_job_proxy_gauges]) == 3)
 
-        release_breakpoint(breakpoint_name="op1", job_id=job_ids1[1])
+        release_breakpoint(breakpoint_name="op1")
         release_breakpoint(breakpoint_name="op2")
 
-        wait(lambda: rpc_proxy_in_job_proxy_gauge.get(tags={"user": "u1"}) is None)
-        wait(lambda: rpc_proxy_in_job_proxy_gauge.get(tags={"user": "u2"}) is None)
+        for gauge in rpc_proxy_in_job_proxy_gauges:
+            wait(lambda: gauge.get(tags={"user": "u1"}) is None)
+            wait(lambda: gauge.get(tags={"user": "u2"}) is None)
 
 
 class TestRpcProxyInJobProxyMultiCluster(TestRpcProxyInJobProxyBase):

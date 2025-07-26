@@ -133,7 +133,6 @@ public:
         Profiler_.AddProducer("", JobCountBuffer_);
 
         ExecNodeProfiler()
-            .WithGlobal()
             .WithSparse()
             .WithProducerRemoveSupport()
                 .AddProducer("", RpcProxyInJobProxyCountBuffer_);
