@@ -664,7 +664,8 @@ private:
             MasterChunkSpecFetcher_->Add(
                 table->ObjectId,
                 table->ExternalCellTag,
-                table->ChunkCount,
+                // XXX(achulkov2, babenko): YT-11825
+                table->IsOrderedDynamic() ? -1 : table->ChunkCount,
                 tableIndex,
                 table->Path.GetNewRanges(table->Comparator));
         }
