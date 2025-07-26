@@ -1,6 +1,8 @@
 #pragma once
 
-#include <contrib/ydb/library/actors/core/actorsystem.h>
+#include <contrib/ydb/library/actors/core/actorsystem_fwd.h>
+#include <contrib/ydb/library/actors/core/actorid.h>
+#include <library/cpp/monlib/dynamic_counters/counters.h>
 
 namespace NKikimr {
 

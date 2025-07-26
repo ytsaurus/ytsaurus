@@ -6,6 +6,7 @@ ENDIF()
 
 SRCS(
     control.cpp
+    kqp_batch_operations.cpp
     kqp_event_ids.h
     kqp_event_impl.cpp
     kqp_lwtrace_probes.cpp
@@ -31,9 +32,10 @@ SRCS(
 PEERDIR(
     contrib/ydb/core/base
     contrib/ydb/core/engine
+    contrib/ydb/core/protos
+    contrib/ydb/core/scheme
     contrib/ydb/core/kqp/expr_nodes
     contrib/ydb/core/kqp/common/simple
-    contrib/ydb/core/kqp/common/batch
     contrib/ydb/core/kqp/common/compilation
     contrib/ydb/core/kqp/common/events
     contrib/ydb/core/kqp/common/shutdown
@@ -59,11 +61,11 @@ YQL_LAST_ABI_VERSION()
 
 GENERATE_ENUM_SERIALIZATION(kqp_tx_info.h)
 GENERATE_ENUM_SERIALIZATION(kqp_yql.h)
+GENERATE_ENUM_SERIALIZATION(kqp_resolve.h)
 
 END()
 
 RECURSE(
-    batch
     compilation
     events
     simple

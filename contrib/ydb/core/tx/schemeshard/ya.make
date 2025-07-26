@@ -121,7 +121,6 @@ SRCS(
     schemeshard__operation_backup_incremental_backup_collection.cpp
     schemeshard__operation_blob_depot.cpp
     schemeshard__operation_cancel_tx.cpp
-    schemeshard__operation_cansel_build_index.cpp
     schemeshard__operation_change_path_state.cpp
     schemeshard__operation_common.cpp
     schemeshard__operation_common.h
@@ -200,6 +199,7 @@ SRCS(
     schemeshard__operation_part.h
     schemeshard__operation_restore_backup_collection.cpp
     schemeshard__operation_rmdir.cpp
+    schemeshard__operation_rotate_cdc_stream.cpp
     schemeshard__operation_side_effects.cpp
     schemeshard__operation_side_effects.h
     schemeshard__operation_split_merge.cpp
@@ -231,6 +231,7 @@ SRCS(
     schemeshard_build_index_tx_base.cpp
     schemeshard_cdc_stream_common.cpp
     schemeshard_cdc_stream_scan.cpp
+    schemeshard_incremental_restore_scan.cpp
     schemeshard_domain_links.cpp
     schemeshard_domain_links.h
     schemeshard_effective_acl.cpp
@@ -271,6 +272,7 @@ SRCS(
     schemeshard_svp_migration.h
     schemeshard_system_names.cpp
     schemeshard_system_names.h
+    schemeshard_sysviews_update.cpp
     schemeshard_tx_infly.h
     schemeshard_types.cpp
     schemeshard_types.h
@@ -316,12 +318,12 @@ PEERDIR(
     contrib/ydb/core/resource_pools
     contrib/ydb/core/scheme
     contrib/ydb/core/statistics
+    contrib/ydb/core/sys_view/common
     contrib/ydb/core/sys_view/partition_stats
     contrib/ydb/core/tablet
     contrib/ydb/core/tablet_flat
     contrib/ydb/core/tx
     contrib/ydb/core/tx/datashard
-    contrib/ydb/core/tx/schemeshard/backup
     contrib/ydb/core/tx/schemeshard/common
     contrib/ydb/core/tx/schemeshard/generated
     contrib/ydb/core/tx/schemeshard/olap

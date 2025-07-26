@@ -13,7 +13,6 @@ PEERDIR(
     contrib/ydb/core/tx/program
     contrib/ydb/core/tx/columnshard/engines/reader/plain_reader
     contrib/ydb/core/tx/columnshard/engines/reader/simple_reader
-    contrib/ydb/core/tx/columnshard/engines/reader/sys_view
     contrib/ydb/core/tx/columnshard/engines/reader/abstract
     contrib/ydb/core/tx/columnshard/engines/reader/common
     contrib/ydb/core/tx/columnshard/engines/reader/actor

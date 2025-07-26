@@ -30,6 +30,7 @@ PEERDIR(
     contrib/ydb/library/yql/providers/s3/actors_factory
     contrib/ydb/library/yql/providers/solomon/actors
     yql/essentials/public/issue
+    contrib/ydb/library/yql/dq/comp_nodes
 )
 
 GENERATE_ENUM_SERIALIZATION(kqp_compute_state.h)

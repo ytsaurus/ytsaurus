@@ -1,8 +1,11 @@
 #pragma once
-#include <contrib/ydb/core/tx/columnshard/engines/reader/simple_reader/iterator/context.h>
 #include <contrib/ydb/core/tx/columnshard/engines/reader/simple_reader/iterator/source.h>
 
 #include <contrib/ydb/library/accessor/positive_integer.h>
+
+namespace NKikimr::NOlap::NReader::NCommon {
+class TSpecialReadContext;
+}
 
 namespace NKikimr::NOlap::NReader::NSimple {
 

@@ -1,6 +1,6 @@
 #include "kqp.h"
 
-#include <contrib/ydb/library/actors/core/actorsystem.h>
+#include <contrib/ydb/library/actors/core/actorid.h>
 
 #include <util/datetime/base.h>
 

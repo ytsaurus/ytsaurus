@@ -7,7 +7,7 @@
 
 #include <contrib/ydb/library/accessor/accessor.h>
 #include <contrib/ydb/library/aclib/aclib.h>
-#include <contrib/ydb/library/actors/core/actorsystem.h>
+#include <contrib/ydb/library/actors/core/actorsystem_fwd.h>
 #include <contrib/ydb/library/conclusion/result.h>
 #include <contrib/ydb/library/conclusion/status.h>
 #include <contrib/ydb/services/metadata/abstract/kqp_common.h>

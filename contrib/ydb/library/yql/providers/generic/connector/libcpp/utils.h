@@ -1,7 +1,13 @@
 #pragma once
 
 #include <arrow/api.h>
-#include <contrib/ydb/library/yql/providers/generic/connector/api/service/protos/connector.pb.h>
+#include <contrib/ydb/public/api/protos/ydb_value.pb.h>
+#include <util/generic/fwd.h>
+
+namespace NYql::NConnector::NApi {
+    class TReadSplitsResponse;
+    class TSchema;
+} // namespace NYql::NConnector::NApi
 
 namespace NYql::NConnector {
 

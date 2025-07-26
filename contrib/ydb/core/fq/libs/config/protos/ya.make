@@ -33,7 +33,6 @@ PEERDIR(
     contrib/ydb/library/folder_service/proto
     contrib/ydb/library/yql/dq/actors/protos
     yql/essentials/providers/common/proto
-    contrib/ydb/library/yql/providers/s3/proto
 )
 
 EXCLUDE_TAGS(GO_PROTO)

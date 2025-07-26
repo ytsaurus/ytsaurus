@@ -1,5 +1,5 @@
 #include "log.h"
-#include "cfg.h"
+#include <contrib/ydb/core/ymq/actor/cfg/cfg.h>
 #include "executor.h"
 #include "params.h"
 #include "purge.h"

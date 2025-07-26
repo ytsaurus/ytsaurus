@@ -6,6 +6,7 @@ SRCS(
 )
 
 PEERDIR(
+    contrib/ydb/core/ymq/actor/cloud_events/proto
     contrib/ydb/library/actors/core
     contrib/ydb/core/protos
     contrib/ydb/core/util
