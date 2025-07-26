@@ -68,6 +68,7 @@ func TestErrorInterceptor(t *testing.T) {
 	suite.RunClientTests(t, []ClientTest{
 		{Name: "GetNodeErrorInterceptor", Test: suite.TestGetNodeErrorInterceptor},
 		{Name: "LookupErrorInterceptor", Test: suite.TestLookupErrorInterceptor},
+		{Name: "MultiLookupErrorInterceptor", Test: suite.TestMultiLookupErrorInterceptor, SkipHTTP: true},
 	})
 }
 
@@ -98,5 +99,28 @@ func (s *Suite) TestLookupErrorInterceptor(ctx context.Context, t *testing.T, yc
 	}
 
 	_, err := yc.LookupRows(ctx, p, keys, nil)
+	checkPathError(t, err, p)
+}
+
+func (s *Suite) TestMultiLookupErrorInterceptor(ctx context.Context, t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+
+	p := tmpPath()
+
+	keys := []any{
+		&testKey{"bar"},
+		&testKey{"foo"},
+		&testKey{"baz"},
+	}
+
+	_, err := yc.MultiLookupRows(ctx, []yt.MultiLookupSubrequest{
+		{
+			Path: p,
+			Keys: keys,
+		},
+	}, nil)
 	checkPathError(t, err, p)
 }

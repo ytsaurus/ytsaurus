@@ -18,6 +18,7 @@ const (
 	MethodCheckPermissionByACL       Method = "CheckPermissionByAcl"
 	MethodSelectRows                 Method = "SelectRows"
 	MethodLookupRows                 Method = "LookupRows"
+	MethodMultiLookup                Method = "MultiLookup"
 	MethodModifyRows                 Method = "ModifyRows"
 	MethodDeleteRows                 Method = "DeleteRows"
 	MethodMountTable                 Method = "MountTable"

@@ -33,6 +33,18 @@ type Request interface {
 	Path() (string, bool)
 }
 
+type ProtoMultiLookupResp interface {
+	proto.Message
+
+	GetSubresponses() []ProtoMultiLookupSubresp
+}
+
+type ProtoMultiLookupSubresp interface {
+	ProtoRowset
+
+	GetAttachmentCount() int32
+}
+
 type ProtoRowset interface {
 	proto.Message
 
@@ -58,3 +70,13 @@ func (c ReadRowInvoker) Wrap(interceptor ReadRowInterceptor) ReadRowInvoker {
 }
 
 type ReadRowInterceptor func(ctx context.Context, call *Call, invoke ReadRowInvoker, rsp ProtoRowset) (r yt.TableReader, err error)
+
+type MultiLookupInvoker func(ctx context.Context, call *Call, rsp ProtoMultiLookupResp) (readers []yt.TableReader, err error)
+
+func (c MultiLookupInvoker) Wrap(interceptor MultiLookupInterceptor) MultiLookupInvoker {
+	return func(ctx context.Context, call *Call, rsp ProtoMultiLookupResp) (readers []yt.TableReader, err error) {
+		return interceptor(ctx, call, c, rsp)
+	}
+}
+
+type MultiLookupInterceptor func(ctx context.Context, call *Call, invoke MultiLookupInvoker, rsp ProtoMultiLookupResp) (readers []yt.TableReader, err error)
