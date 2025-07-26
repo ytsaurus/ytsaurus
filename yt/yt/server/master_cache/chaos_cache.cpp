@@ -141,7 +141,7 @@ void TChaosCache::EndLookup(
     auto entry = New<TChaosCacheEntry>(
         key,
         TInstant::Now(),
-        replicationCard);
+        std::move(replicationCard));
 
     cookie.EndInsert(std::move(entry));
 }

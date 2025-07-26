@@ -296,14 +296,17 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
             getCardOptions.BypassCache = true;
             static_cast<TReplicationCardFetchOptions&>(getCardOptions) = extendedFetchOptions;
 
-            // TODO(max42): switch to Subscribe.
-            YT_UNUSED_FUTURE(Client_->GetReplicationCard(replicationCardId, getCardOptions).Apply(
-                BIND([=, this, this_ = MakeStrong(this), cookie = std::move(cookie)] (const TErrorOr<TReplicationCardPtr>& replicationCardOrError) mutable {
-                    Cache_->EndLookup(
+            Client_->GetReplicationCard(replicationCardId, getCardOptions).SubscribeUnique(
+                BIND([
+                    requestId,
+                    cache = Cache_,
+                    cookie = std::move(cookie)
+                ] (TErrorOr<TReplicationCardPtr>&& replicationCardOrError) mutable {
+                    cache->EndLookup(
                         requestId,
                         std::move(cookie),
-                        replicationCardOrError);
-                })));
+                        std::move(replicationCardOrError));
+                }));
         }
     } else {
         context->SetRequestInfo("ReplicationCardId: %v, FetchOptions: %v",
