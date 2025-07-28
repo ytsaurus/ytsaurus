@@ -113,11 +113,11 @@ class TestYtBinary(object):
 
         yt_cli.check_output(["yt", "create", "scheduler_pool_tree", "--attributes", "{name=yggdrasil}"])
 
-        yt_cli.check_output(["yt", "create-pool", "parent", "yggdrasil", "--resource-limits", "{cpu=10; memory=1000000000}", "--min-share-resources", "{cpu=5}"])
+        yt_cli.check_output(["yt", "create-pool", "parent", "yggdrasil", "--resource-limits", "{cpu=10; memory=1000000000}", "--strong-guarantee-resources", "{cpu=5}"])
         assert yt_cli.check_output(["yt", "exists", "//sys/pool_trees/yggdrasil/parent"]) == b"true\n"
         assert yt_cli.check_output(["yt", "get", "//sys/pool_trees/yggdrasil/parent/@resource_limits/cpu"]) == b"10\n"
         assert yt_cli.check_output(["yt", "get", "//sys/pool_trees/yggdrasil/parent/@resource_limits/memory"]) == b"1000000000\n"
-        assert yt_cli.check_output(["yt", "get", "//sys/pool_trees/yggdrasil/parent/@min_share_resources/cpu"]) == b"5\n"
+        assert yt_cli.check_output(["yt", "get", "//sys/pool_trees/yggdrasil/parent/@strong_guarantee_resources/cpu"]) == b"5\n"
 
         yt_cli.check_output(
             [
