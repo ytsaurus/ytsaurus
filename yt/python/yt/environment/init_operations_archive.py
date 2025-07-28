@@ -1000,7 +1000,9 @@ TRANSFORMS[62] = [
                 "tablet_cell_bundle": SYS_BUNDLE_NAME,
                 "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
                 "atomicity": "none",
-            })),
+            }),
+        use_default_mapper=True,
+    ),
 ]
 
 # NB(renadeen): don't forget to update min_required_archive_version at yt/yt/server/lib/scheduler/config.cpp
