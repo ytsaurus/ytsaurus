@@ -118,6 +118,7 @@ constexpr auto DefaultClusterSettings = std::to_array<std::pair<TStringBuf, TStr
 });
 
 constexpr auto DefaultYtflowGatewaySettings = std::to_array<std::pair<TStringBuf, TStringBuf>>({
+    {"FiniteStreams", "0"},
     {"GatewayThreads", "16"},
     {"GracefulUpdate", "1"},
     {"ControllerCount", "1"},
