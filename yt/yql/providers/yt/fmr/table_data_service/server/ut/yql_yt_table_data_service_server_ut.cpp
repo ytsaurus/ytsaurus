@@ -1,5 +1,6 @@
-#include <library/cpp/testing/unittest/registar.h>
 #include <library/cpp/threading/future/wait/wait.h>
+#include <library/cpp/testing/unittest/registar.h>
+#include <library/cpp/testing/unittest/tests_data.h>
 #include <util/stream/file.h>
 #include <util/system/tempfile.h>
 #include <yt/yql/providers/yt/fmr/table_data_service/helpers/yql_yt_table_data_service_helpers.h>
@@ -10,7 +11,8 @@ TString Key = "table_id_part_id:0";
 
 Y_UNIT_TEST_SUITE(TableDataServiceWorkerTests) {
     Y_UNIT_TEST(SendGetRequestNonExistentKey) {
-        ui16 port = 1200;
+        TPortManager pm;
+        const ui16 port = pm.GetPort();
         auto tableDataServiceServer = MakeTableDataServiceServer(port);
         auto tableDataServiceClient = MakeTableDataServiceClient(port);
 
@@ -18,7 +20,8 @@ Y_UNIT_TEST_SUITE(TableDataServiceWorkerTests) {
         UNIT_ASSERT(!gottenTableContent);
     }
     Y_UNIT_TEST(SendGetRequestExistingKey) {
-        ui16 port = 1201;
+        TPortManager pm;
+        const ui16 port = pm.GetPort();
         auto tableDataServiceServer = MakeTableDataServiceServer(port);
         auto tableDataServiceClient = MakeTableDataServiceClient(port);
 
@@ -29,7 +32,8 @@ Y_UNIT_TEST_SUITE(TableDataServiceWorkerTests) {
         UNIT_ASSERT_NO_DIFF(*gottenTableContent, tableContent);
     }
     Y_UNIT_TEST(SendDeleteRequestExistingKey) {
-        ui16 port = 1202;
+        TPortManager pm;
+        const ui16 port = pm.GetPort();
         auto tableDataServiceServer = MakeTableDataServiceServer(port);
         auto tableDataServiceClient = MakeTableDataServiceClient(port);
 
@@ -43,7 +47,8 @@ Y_UNIT_TEST_SUITE(TableDataServiceWorkerTests) {
     Y_UNIT_TEST(SeveralTableDataSerivceServerNodes) {
         ui64 workersNum = 10;
         std::vector<IFmrServer::TPtr> tableDataServiceServers;
-        ui16 port = 1203;
+        TPortManager pm;
+        const ui16 port = pm.GetPort();
         for (size_t i = 0; i < workersNum; ++i) {
             auto tableDataServiceWorkerSettings = TTableDataServiceServerSettings{
                 .WorkerId = i, .WorkersNum = workersNum, .Host = "localhost", .Port = static_cast<ui16>(port + i)
@@ -77,7 +82,8 @@ Y_UNIT_TEST_SUITE(TableDataServiceWorkerTests) {
         }
     }
     Y_UNIT_TEST(RegisterDeletion) {
-        ui16 port = 1220;
+        TPortManager pm;
+        const ui16 port = pm.GetPort();
         auto tableDataServiceServer = MakeTableDataServiceServer(port);
         auto tableDataServiceClient = MakeTableDataServiceClient(port);
 
