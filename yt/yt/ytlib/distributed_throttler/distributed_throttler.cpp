@@ -264,22 +264,9 @@ public:
 
     void Initialize(std::optional<double> limit = std::nullopt)
     {
-        if (Initialized_) {
-            return;
-        }
-
-        YT_ASSERT_SPINLOCK_AFFINITY(HistoricUsageAggregatorLock_);
-
-        Initialized_ = true;
-
-        Limit_ = Profiler_.Gauge("/limit");
-        Usage_ = Profiler_.Gauge("/usage");
-        QueueTotalAmount_ = Profiler_.Gauge("/queue_total_amount");
-        EstimatedOverdraftDuration_ = Profiler_.TimeGauge("/estimated_overdraft_duration");
-
-        Limit_.Update(limit.value_or(ThrottlerConfig_.Acquire()->Limit.value_or(-1)));
-        QueueTotalAmount_.Update(0);
-        EstimatedOverdraftDuration_.Update(TDuration::Zero());
+        auto guard = Guard(HistoricUsageAggregatorLock_);
+        HistoricUsageAggregator_.UpdateAt(TInstant::Now(), /*value*/ 0);
+        DoInitialize(std::move(limit));
     }
 
 private:
@@ -308,11 +295,31 @@ private:
         auto guard = Guard(HistoricUsageAggregatorLock_);
         HistoricUsageAggregator_.UpdateAt(TInstant::Now(), amount);
         if (amount > 0) {
-            Initialize();
+            DoInitialize();
         }
         if (Initialized_) {
             Usage_.Update(HistoricUsageAggregator_.GetAverage());
         }
+    }
+
+    void DoInitialize(std::optional<double> limit = std::nullopt)
+    {
+        if (Initialized_) {
+            return;
+        }
+
+        YT_ASSERT_SPINLOCK_AFFINITY(HistoricUsageAggregatorLock_);
+
+        Initialized_ = true;
+
+        Limit_ = Profiler_.Gauge("/limit");
+        Usage_ = Profiler_.Gauge("/usage");
+        QueueTotalAmount_ = Profiler_.Gauge("/queue_total_amount");
+        EstimatedOverdraftDuration_ = Profiler_.TimeGauge("/estimated_overdraft_duration");
+
+        Limit_.Update(limit.value_or(ThrottlerConfig_.Acquire()->Limit.value_or(-1)));
+        QueueTotalAmount_.Update(0);
+        EstimatedOverdraftDuration_.Update(TDuration::Zero());
     }
 };
 
