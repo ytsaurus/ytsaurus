@@ -15,8 +15,8 @@ from yt_commands import (
     create_user, make_ace, start_transaction, lock, list_user_tokens,
     write_file, read_table, remote_copy, get_driver,
     write_table, map, abort_op, sort,
-    vanilla, run_test_vanilla, abort_job, get_job_spec,
-    list_jobs, get_job, get_job_stderr, get_operation,
+    vanilla, run_test_vanilla, run_sleeping_vanilla, abort_job, get_job_spec,
+    abandon_job, list_jobs, get_job, get_job_stderr, get_operation,
     sync_create_cells, get_singular_chunk_id,
     update_nodes_dynamic_config, set_node_banned, check_all_stderrs,
     assert_statistics, assert_statistics_v2, extract_statistic_v2,
@@ -2507,10 +2507,9 @@ class TestUserJobMonitoring(YTEnvSetup):
         assert len(jobs_with_descriptor) == len(list_jobs(op.id))
         assert any(job["monitoring_descriptor"] == expected_job_descriptor for job in jobs_with_descriptor["jobs"])
 
-    @authors("omgronny")
+    @authors("omgronny", "eshcherbin")
     def test_profiling(self):
-        op = run_test_vanilla(
-            with_breakpoint("BREAKPOINT"),
+        op = run_sleeping_vanilla(
             job_count=2,
             task_patch={
                 "monitoring": {
@@ -2518,19 +2517,33 @@ class TestUserJobMonitoring(YTEnvSetup):
                 },
             },
         )
-        wait_breakpoint()
+
+        wait(lambda: len(op.get_running_jobs()) == 2)
+        jobs = list(op.get_running_jobs())
 
         controller_agent_address = get(op.get_path() + "/@controller_agent_address")
         controller_agent_profiler = profiler_factory().at_controller_agent(controller_agent_address)
-        monitored_user_job_counter = controller_agent_profiler.gauge("controller_agent/monitored_user_job_count")
+        monitored_job_count_gauge = controller_agent_profiler.gauge("controller_agent/user_job_monitoring/monitored_job_count")
+        used_descriptor_count_gauge = controller_agent_profiler.gauge("controller_agent/user_job_monitoring/used_descriptor_count")
+        total_descriptor_count_gauge = controller_agent_profiler.gauge("controller_agent/user_job_monitoring/total_descriptor_count")
 
-        wait(lambda: monitored_user_job_counter.get() == 2)
+        max_monitored_user_jobs_per_agent = TestUserJobMonitoring.DELTA_CONTROLLER_AGENT_CONFIG["controller_agent"]["user_job_monitoring"]["max_monitored_user_jobs_per_agent"]
 
-        release_breakpoint()
+        wait(lambda: monitored_job_count_gauge.get() == 2)
+        wait(lambda: used_descriptor_count_gauge.get() == 2)
+        wait(lambda: total_descriptor_count_gauge.get() == max_monitored_user_jobs_per_agent)
 
-        op.wait_for_state("completed")
+        abandon_job(jobs[0])
 
-        wait(lambda: monitored_user_job_counter.get() == 0)
+        wait(lambda: monitored_job_count_gauge.get() == 1)
+        wait(lambda: used_descriptor_count_gauge.get() == 2)
+        wait(lambda: total_descriptor_count_gauge.get() == max_monitored_user_jobs_per_agent)
+
+        op.abort()
+
+        wait(lambda: monitored_job_count_gauge.get() == 0)
+        wait(lambda: used_descriptor_count_gauge.get() == 0)
+        wait(lambda: total_descriptor_count_gauge.get() == max_monitored_user_jobs_per_agent)
 
     @authors("levysotsky")
     def test_limits(self):
