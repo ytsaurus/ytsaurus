@@ -64,12 +64,6 @@ def _parse_args():
     )
 
     parser.add_argument(
-        "--commit-message",
-        type=str,
-        required=True,
-    )
-
-    parser.add_argument(
         "--git-server-url",
         default="https://api.github.com",
         type=str,
@@ -108,13 +102,15 @@ def _get_workflow_state(prev_conclusion, current_conclusion):
     return state_to_alert.get((prev_conclusion, current_conclusion))
 
 
-def _send_notify(args, workflow_state):
+def _send_notify(args, workflow_state, commit_message):
     human_readable_url = args.git_server_url.replace("api.", "")
     message = "\n".join((
         workflow_state,
         f"Workflow *{args.workflow}*: {human_readable_url}/{args.repo}/actions/runs/{args.current_job_id}",
         f"Git ref: *{args.ref}*.",
-        f"Commit: ```{args.commit_message}```",
+        "Commit: ```",
+        commit_message,
+        "```"
     ))
 
     url = "https://api.telegram.org/bot{}/sendMessage".format(args.tg_token)
@@ -141,7 +137,8 @@ def main():
 
     workflow_state = _get_workflow_state(prev_conclusion, args.current_job_conclusion)
     if workflow_state:
-        _send_notify(args, workflow_state)
+        current_job = repo.get_workflow_run(args.current_job_id)
+        _send_notify(args, workflow_state, current_job.head_commit.message)
         print("Workflow's was changed: ", workflow_state)
     else:
         print("The workflow state hasn't changed.")
