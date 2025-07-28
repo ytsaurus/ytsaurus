@@ -681,8 +681,13 @@ def add_create_account_parser(add_parser):
 def create_pool(**kwargs):
     patch_attributes(kwargs, ("name", "pool_tree", "parent_name", "weight", "mode", "fifo_sort_parameters",
                               "max_operation_count", "max_running_operation_count", "forbid_immediate_operations",
-                              "resource_limits", "min_share_resources", "create_ephemeral_subpools",
+                              "resource_limits", "strong_guarantee_resources", "min_share_resources", "create_ephemeral_subpools",
                               "ephemeral_subpool_config"))
+    # COMPAT(eshcherbin, YT-24083): Deprecate old *_ratio and *_share terms.
+    if "min_share_resources" in kwargs["attributes"]:
+        min_share_resources = kwargs["attributes"].pop("min_share_resources")
+        if "strong_guarantee_resources" not in kwargs["attributes"]:
+            kwargs["attributes"]["strong_guarantee_resources"] = min_share_resources
     if "pool_tree" not in kwargs["attributes"]:
         try:
             kwargs["attributes"]["pool_tree"] = yt.get("//sys/scheduler/orchid/scheduler/default_pool_tree")
@@ -706,7 +711,8 @@ def add_create_pool_parser(add_parser):
     parser.add_argument("--max-running-operation-count", type=int)
     parser.add_argument("--forbid-immediate-operations", action="store_true")
     add_structured_argument(parser, "--resource-limits")
-    add_structured_argument(parser, "--min-share-resources")
+    add_structured_argument(parser, "--min-share-resources", help="deprecated, use --strong-guarantee-resources instead")
+    add_structured_argument(parser, "--strong-guarantee-resources")
     parser.add_argument("--create-ephemeral-subpools", action="store_true")
     add_structured_argument(parser, "--ephemeral-subpool-config")
 
