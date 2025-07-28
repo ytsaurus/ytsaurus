@@ -165,5 +165,76 @@ TEST_F(TSignatureGeneratorTest, RotationUnderLoad)
     EXPECT_LE(finishedCount.load(), 5000u);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TSignatureGeneratorTest, ReconfigureChangesExpirationDelta)
+{
+    Gen->SetKeyPair(New<TKeyPair>(ValidKeyMeta()));
+
+    auto newConfig = New<TSignatureGeneratorConfig>();
+    newConfig->SignatureExpirationDelta = TDuration::Hours(3);
+    newConfig->TimeSyncMargin = TDuration::Minutes(5);
+    Gen->Reconfigure(newConfig);
+
+    auto now = Now();
+    auto signature = Gen->Sign("data");
+    auto header = ConvertTo<TSignatureHeader>(
+        TYsonString(
+            ConvertToNode(signature)->AsMap()
+                ->GetChildValueOrThrow<TString>("header")));
+
+    auto expiresAt = std::visit([](const auto& h) { return h.ExpiresAt; }, header);
+    auto validAfter = std::visit([](const auto& h) { return h.ValidAfter; }, header);
+
+    EXPECT_GE(expiresAt - now, TDuration::Hours(3) - TDuration::Seconds(10));
+    EXPECT_LE(expiresAt - now, TDuration::Hours(3) + TDuration::Seconds(10));
+
+    EXPECT_GE(now - validAfter, TDuration::Minutes(5) - TDuration::Seconds(10));
+    EXPECT_LE(now - validAfter, TDuration::Minutes(5) + TDuration::Seconds(10));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TSignatureGeneratorTest, ReconfigureMultipleTimes)
+{
+    Gen->SetKeyPair(New<TKeyPair>(ValidKeyMeta()));
+
+    std::atomic<bool> allStarted = false;
+    std::atomic<bool> shouldStop = false;
+    std::atomic<size_t> signCount = 0;
+
+    auto signerTask = BIND([this, &allStarted, &shouldStop, &signCount] () {
+        while (!allStarted.load());
+        while (!shouldStop.load()) {
+            auto signature = Gen->Sign("data");
+            EXPECT_EQ(signature->Payload(), "data");
+            signCount.fetch_add(1);
+        }
+    });
+
+    auto reconfigureTask = BIND([this, &allStarted, &shouldStop] () {
+        while (!allStarted.load());
+        for (int i = 0; i < 100 && !shouldStop.load(); ++i) {
+            auto newConfig = New<TSignatureGeneratorConfig>();
+            newConfig->SignatureExpirationDelta = TDuration::Hours(1 + i % 3);
+            newConfig->TimeSyncMargin = TDuration::Minutes(10 + i % 5);
+            Gen->Reconfigure(newConfig);
+            Sleep(TDuration::MilliSeconds(5));
+        }
+    });
+
+    auto threadPool = CreateThreadPool(2, "test");
+    signerTask.Via(threadPool->GetInvoker()).Run();
+    reconfigureTask.Via(threadPool->GetInvoker()).Run();
+
+    allStarted.store(true);
+    Sleep(TDuration::Seconds(3));
+    shouldStop.store(true);
+
+    EXPECT_GE(signCount.load(), 1000u);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NSignature

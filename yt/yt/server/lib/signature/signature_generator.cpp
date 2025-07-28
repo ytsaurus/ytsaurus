@@ -25,6 +25,13 @@ TSignatureGenerator::TSignatureGenerator(TSignatureGeneratorConfigPtr config)
     YT_LOG_INFO("Signature generator initialized");
 }
 
+void TSignatureGenerator::Reconfigure(TSignatureGeneratorConfigPtr config)
+{
+    YT_VERIFY(config);
+    Config_.Store(std::move(config));
+    YT_LOG_INFO("Signature generator reconfigured");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TSignatureGenerator::SetKeyPair(TKeyPairPtr keyPair)
@@ -48,25 +55,22 @@ TKeyInfoPtr TSignatureGenerator::KeyInfo() const
 
 void TSignatureGenerator::Resign(const TSignaturePtr& signature) const
 {
-    auto signatureId = TGuid::Create();
-    auto now = Now();
-    TSignatureHeader header;
-
     TKeyPairPtr signingKeyPair = KeyPair_.Acquire();
-
     if (!signingKeyPair) {
         THROW_ERROR_EXCEPTION(NRpc::EErrorCode::TransientFailure, "Signature generator is not ready yet");
     }
 
     auto keyInfo = signingKeyPair->KeyInfo();
-
-    header = TSignatureHeaderImpl<TSignatureVersion{0, 1}>{
+    auto config = Config_.Acquire();
+    auto signatureId = TGuid::Create();
+    auto now = Now();
+    TSignatureHeader header = TSignatureHeaderImpl<TSignatureVersion{0, 1}>{
         .Issuer = GetOwnerId(keyInfo->Meta()).Underlying(),
-        .KeypairId = GetKeyId(KeyInfo()->Meta()).Underlying(),
+        .KeypairId = GetKeyId(keyInfo->Meta()).Underlying(),
         .SignatureId = signatureId,
         .IssuedAt = now,
-        .ValidAfter = now - Config_->TimeSyncMargin,
-        .ExpiresAt = now + Config_->SignatureExpirationDelta,
+        .ValidAfter = now - config->TimeSyncMargin,
+        .ExpiresAt = now + config->SignatureExpirationDelta,
     };
 
     signature->Header_ = ConvertToYsonString(header, EYsonFormat::Binary);
