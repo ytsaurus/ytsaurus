@@ -1529,10 +1529,10 @@ public:
             return ConvertOutputValue(output.get(), RetType, 0, valueBuilder);
         }
         catch (const DBPoco::Exception& e) {
-            UdfTerminate((TStringBuilder() << valueBuilder->WithCalleePosition(Pos) << " " << e.displayText()).data());
+            UdfTerminate((TStringBuilder() << valueBuilder->WithCalleePosition(Pos) << " " << e.displayText()).c_str());
         }
         catch (const std::exception& e) {
-            UdfTerminate((TStringBuilder() << valueBuilder->WithCalleePosition(Pos) << " " << e.what()).data());
+            UdfTerminate((TStringBuilder() << valueBuilder->WithCalleePosition(Pos) << " " << e.what()).c_str());
         }
     }
 
@@ -1754,10 +1754,10 @@ public:
                 }
             }
             catch (const DBPoco::Exception& e) {
-                UdfTerminate((TStringBuilder() << ValueBuilder->WithCalleePosition(Pos) << " " << e.displayText()).data());
+                UdfTerminate((TStringBuilder() << ValueBuilder->WithCalleePosition(Pos) << " " << e.displayText()).c_str());
             }
             catch (const std::exception& e) {
-                UdfTerminate((TStringBuilder() << ValueBuilder->WithCalleePosition(Pos) << " " << e.what()).data());
+                UdfTerminate((TStringBuilder() << ValueBuilder->WithCalleePosition(Pos) << " " << e.what()).c_str());
             }
         }
 
@@ -1838,10 +1838,10 @@ public:
                 OutBlockIndexInStruct, OutMeta, SessionContext, queryContext, Pos, tzId));
         }
         catch (const DBPoco::Exception& e) {
-            UdfTerminate((TStringBuilder() << valueBuilder->WithCalleePosition(Pos) << " " << e.displayText()).data());
+            UdfTerminate((TStringBuilder() << valueBuilder->WithCalleePosition(Pos) << " " << e.displayText()).c_str());
         }
         catch (const std::exception& e) {
-            UdfTerminate((TStringBuilder() << valueBuilder->WithCalleePosition(Pos) << " " << e.what()).data());
+            UdfTerminate((TStringBuilder() << valueBuilder->WithCalleePosition(Pos) << " " << e.what()).c_str());
         }
     }
 
@@ -1947,9 +1947,9 @@ class TRemoteSourceImpl : public TBoxedValue {
                     return EFetchStatus::Ok;
                 }
             } catch (const DBPoco::Exception& e) {
-                UdfTerminate((TStringBuilder() << ValueBuilder->WithCalleePosition(Pos) << " " << e.displayText()).data());
+                UdfTerminate((TStringBuilder() << ValueBuilder->WithCalleePosition(Pos) << " " << e.displayText()).c_str());
             } catch (const std::exception& e) {
-                UdfTerminate((TStringBuilder() << ValueBuilder->WithCalleePosition(Pos) << " " << e.what()).data());
+                UdfTerminate((TStringBuilder() << ValueBuilder->WithCalleePosition(Pos) << " " << e.what()).c_str());
             }
         }
 
@@ -2035,10 +2035,10 @@ public:
                 OutBlockIndexInStruct, OutMeta, Async, callback));
         }
         catch (const DBPoco::Exception& e) {
-            UdfTerminate((TStringBuilder() << valueBuilder->WithCalleePosition(Pos) << " " << e.displayText()).data());
+            UdfTerminate((TStringBuilder() << valueBuilder->WithCalleePosition(Pos) << " " << e.displayText()).c_str());
         }
         catch (const std::exception& e) {
-            UdfTerminate((TStringBuilder() << valueBuilder->WithCalleePosition(Pos) << " " << e.what()).data());
+            UdfTerminate((TStringBuilder() << valueBuilder->WithCalleePosition(Pos) << " " << e.what()).c_str());
         }
     }
 
