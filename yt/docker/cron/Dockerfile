@@ -26,9 +26,9 @@ RUN pip install virtualenv \
     && . ${VIRTUAL_ENV}/bin/activate \
     && pip install -r /tmp/requirements.txt
 
-COPY ./ ${YT_CRON_ROOT}/
-
-RUN rm ${YT_CRON_ROOT}/requirements.txt
+COPY ./clear_tmp ${YT_CRON_ROOT}/clear_tmp
+COPY ./prune_offline_cluster_nodes ${YT_CRON_ROOT}/prune_offline_cluster_nodes
+COPY ./binaries ${YT_CRON_ROOT}/binaries
 
 RUN . ${VIRTUAL_ENV}/bin/activate ; \
     SITE_PACKAGES="${VIRTUAL_ENV}/lib/python${PYTHON_RUNTIME_VERSION}/site-packages"; \

@@ -1,6 +1,7 @@
 RECURSE(
     clear_tmp
     prune_offline_cluster_nodes
+    snapshot_processing
 )
 
 IF (NOT OPENSOURCE)
