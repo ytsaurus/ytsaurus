@@ -78,7 +78,7 @@ void TFairShareTreeProfileManager::UnregisterPool(const TSchedulerCompositeEleme
 
 void TFairShareTreeProfileManager::ProfileTree(
     const TFairShareTreeSnapshotPtr& treeSnapshot,
-    const THashMap<TOperationId, TResourceVolume>& operationIdToAccumulatedResourceUsageDelta)
+    const THashMap<TOperationId, TAccumulatedResourceDistribution>& operationIdToAccumulatedResourceDistributionDelta)
 {
     YT_ASSERT_INVOKER_AFFINITY(ProfilingInvoker_);
 
@@ -93,7 +93,7 @@ void TFairShareTreeProfileManager::ProfileTree(
 
     CleanupPoolProfilingEntries();
 
-    ProfileOperations(treeSnapshot, operationIdToAccumulatedResourceUsageDelta);
+    ProfileOperations(treeSnapshot, operationIdToAccumulatedResourceDistributionDelta);
     ProfilePools(treeSnapshot);
 }
 
@@ -393,7 +393,7 @@ void TFairShareTreeProfileManager::ProfileElement(
 
 void TFairShareTreeProfileManager::ProfileOperations(
     const TFairShareTreeSnapshotPtr& treeSnapshot,
-    const THashMap<TOperationId, TResourceVolume>& operationIdToAccumulatedResourceUsageDelta)
+    const THashMap<TOperationId, TAccumulatedResourceDistribution>& operationIdToAccumulatedResourceDistributionDelta)
 {
     YT_ASSERT_INVOKER_AFFINITY(ProfilingInvoker_);
 
@@ -411,19 +411,31 @@ void TFairShareTreeProfileManager::ProfileOperations(
         TreeScheduler_->ProfileOperation(element, treeSnapshot, &buffer);
 
         auto& operationState = GetOrCrash(OperationIdToState_, operationId);
-        if (auto it = operationIdToAccumulatedResourceUsageDelta.find(operationId);
-            it != operationIdToAccumulatedResourceUsageDelta.end())
+        if (auto it = operationIdToAccumulatedResourceDistributionDelta.find(operationId);
+            it != operationIdToAccumulatedResourceDistributionDelta.end())
         {
-            operationState.AccumulatedResourceUsage += it->second;
+            operationState.AccumulatedResourceDistribution += it->second;
         }
 
         ProfileResourceVolume(
             &buffer,
-            operationState.AccumulatedResourceUsage,
+            operationState.AccumulatedResourceDistribution.FairResources(),
+            "/accumulated_fair_resources",
+            EMetricType::Counter);
+
+        ProfileResourceVolume(
+            &buffer,
+            operationState.AccumulatedResourceDistribution.Usage(),
             "/accumulated_resource_usage",
             EMetricType::Counter);
 
-        operationState.JobMetrics.Profile(&buffer);
+        ProfileResourceVolume(
+            &buffer,
+            operationState.AccumulatedResourceDistribution.UsageDeficit(),
+            "/accumulated_usage_deficit",
+            EMetricType::Counter);
+
+            operationState.JobMetrics.Profile(&buffer);
 
         operationState.BufferedProducer->Update(std::move(buffer));
     }

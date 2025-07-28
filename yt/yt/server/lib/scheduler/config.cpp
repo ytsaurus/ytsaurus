@@ -589,7 +589,8 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_event_log_operation_batch_size", &TThis::MaxEventLogOperationBatchSize)
         .Default(1000);
 
-    registrar.Parameter("accumulated_resource_usage_update_period", &TThis::AccumulatedResourceUsageUpdatePeriod)
+    registrar.Parameter("accumulated_resource_distribution_update_period", &TThis::AccumulatedResourceDistributionUpdatePeriod)
+        .Alias("accumulated_resource_usage_update_period")
         .Default(TDuration::Seconds(1));
 
     registrar.Parameter("allow_aggressive_preemption_for_gang_operations", &TThis::AllowAggressivePreemptionForGangOperations)

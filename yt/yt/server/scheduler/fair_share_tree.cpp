@@ -84,48 +84,51 @@ struct TFairShareUpdateResult
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAccumulatedResourceUsageInfo
+class TResourceDistributionAccumulator
 {
 public:
-    TAccumulatedResourceUsageInfo(
-        bool accumulateUsageForPools,
-        bool accumulateUsageForOperations)
-        : AccumulateUsageForPools_(accumulateUsageForPools)
-        , AccumulateUsageForOperations_(accumulateUsageForOperations)
+    TResourceDistributionAccumulator(
+        bool accumulateForPools,
+        bool accumulateForOperations)
+        : AccumulateForPools_(accumulateForPools)
+        , AccumulateForOperations_(accumulateForOperations)
         , LastLocalUpdateTime_(TInstant::Now())
     { }
 
     void Update(const TFairShareTreeSnapshotPtr& treeSnapshot, const TResourceUsageSnapshotPtr& resourceUsageSnapshot)
     {
         auto now = TInstant::Now();
-        auto updatePeriod = treeSnapshot->TreeConfig()->AccumulatedResourceUsageUpdatePeriod;
+        auto updatePeriod = treeSnapshot->TreeConfig()->AccumulatedResourceDistributionUpdatePeriod;
         auto period = now - LastLocalUpdateTime_;
 
-        if (AccumulateUsageForPools_) {
+        if (AccumulateForPools_) {
             for (const auto& [poolName, resourceUsage] : resourceUsageSnapshot->PoolToResourceUsage) {
                 LocalPoolToAccumulatedResourceUsage_[poolName] += TResourceVolume(resourceUsage, period);
             }
         }
-        if (AccumulateUsageForOperations_) {
-            for (const auto& [operationId, resourceUsage] : resourceUsageSnapshot->OperationIdToResourceUsage) {
-                LocalOperationIdToAccumulatedResourceUsage_[operationId] += TResourceVolume(resourceUsage, period);
+        if (AccumulateForOperations_) {
+            for (const auto& [operationId, operationElement] : treeSnapshot->EnabledOperationMap()) {
+                auto fairResources = treeSnapshot->ResourceLimits() * operationElement->Attributes().FairShare.Total;
+                auto resourceUsage = GetOrDefault(resourceUsageSnapshot->OperationIdToResourceUsage, operationId);
+
+                LocalOperationIdToAccumulatedResourceDistribution_[operationId].AppendPeriod(fairResources, resourceUsage, period);
             }
         }
 
         if (LastUpdateTime_ + updatePeriod < now) {
             auto guard = Guard(Lock_);
-            if (AccumulateUsageForPools_) {
+            if (AccumulateForPools_) {
                 for (const auto& [poolName, resourceVolume] : LocalPoolToAccumulatedResourceUsage_) {
                     PoolToAccumulatedResourceUsage_[poolName] += resourceVolume;
                 }
             }
-            if (AccumulateUsageForOperations_) {
-                for (const auto& [operationId, resourceVolume] : LocalOperationIdToAccumulatedResourceUsage_) {
-                    OperationIdToAccumulatedResourceUsage_[operationId] += resourceVolume;
+            if (AccumulateForOperations_) {
+                for (const auto& [operationId, distribution] : LocalOperationIdToAccumulatedResourceDistribution_) {
+                    OperationIdToAccumulatedResourceDistribution_[operationId] += distribution;
                 }
             }
             LocalPoolToAccumulatedResourceUsage_.clear();
-            LocalOperationIdToAccumulatedResourceUsage_.clear();
+            LocalOperationIdToAccumulatedResourceDistribution_.clear();
             LastUpdateTime_ = now;
         }
 
@@ -134,7 +137,7 @@ public:
 
     THashMap<TString, TResourceVolume> ExtractPoolResourceUsages()
     {
-        YT_VERIFY(AccumulateUsageForPools_);
+        YT_VERIFY(AccumulateForPools_);
 
         auto guard = Guard(Lock_);
         auto result = std::move(PoolToAccumulatedResourceUsage_);
@@ -142,50 +145,49 @@ public:
         return result;
     }
 
-    THashMap<TOperationId, TResourceVolume> ExtractOperationResourceUsages()
+    THashMap<TOperationId, TAccumulatedResourceDistribution> ExtractOperationResourceDistributionVolumes()
     {
-        YT_VERIFY(AccumulateUsageForOperations_);
+        YT_VERIFY(AccumulateForOperations_);
 
         auto guard = Guard(Lock_);
-        auto result = std::move(OperationIdToAccumulatedResourceUsage_);
-        OperationIdToAccumulatedResourceUsage_.clear();
+        auto result = std::move(OperationIdToAccumulatedResourceDistribution_);
+        OperationIdToAccumulatedResourceDistribution_.clear();
         return result;
     }
 
-    TResourceVolume ExtractOperationResourceUsage(TOperationId operationId)
+    TAccumulatedResourceDistribution ExtractOperationAccumulatedResourceDistribution(TOperationId operationId)
     {
-        YT_VERIFY(AccumulateUsageForOperations_);
+        YT_VERIFY(AccumulateForOperations_);
 
         auto guard = Guard(Lock_);
 
-        TResourceVolume usage;
-        auto it = OperationIdToAccumulatedResourceUsage_.find(operationId);
-        if (it != OperationIdToAccumulatedResourceUsage_.end()) {
+        TAccumulatedResourceDistribution usage;
+        auto it = OperationIdToAccumulatedResourceDistribution_.find(operationId);
+        if (it != OperationIdToAccumulatedResourceDistribution_.end()) {
             usage = it->second;
         }
-        OperationIdToAccumulatedResourceUsage_.erase(it);
+        OperationIdToAccumulatedResourceDistribution_.erase(it);
         return usage;
     }
 
 
 private:
-    const bool AccumulateUsageForPools_;
-    const bool AccumulateUsageForOperations_;
+    const bool AccumulateForPools_;
+    const bool AccumulateForOperations_;
 
     // This maps is updated regularly from some thread pool, no parallel updates are possible.
     THashMap<TString, TResourceVolume> LocalPoolToAccumulatedResourceUsage_;
-    THashMap<TOperationId, TResourceVolume> LocalOperationIdToAccumulatedResourceUsage_;
+    THashMap<TOperationId, TAccumulatedResourceDistribution> LocalOperationIdToAccumulatedResourceDistribution_;
     TInstant LastLocalUpdateTime_;
 
     // This maps is updated rarely and accessed from Control thread.
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     THashMap<TString, TResourceVolume> PoolToAccumulatedResourceUsage_;
-    THashMap<TOperationId, TResourceVolume> OperationIdToAccumulatedResourceUsage_;
+    THashMap<TOperationId, TAccumulatedResourceDistribution> OperationIdToAccumulatedResourceDistribution_;
     TInstant LastUpdateTime_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 TFairShareStrategyOperationState::TFairShareStrategyOperationState(
     IOperationStrategyHostPtr host,
@@ -203,6 +205,37 @@ TPoolName TFairShareStrategyOperationState::GetPoolNameByTreeId(const TString& t
 void TFairShareStrategyOperationState::UpdateConfig(const TFairShareStrategyOperationControllerConfigPtr& config)
 {
     Controller_->UpdateConfig(config);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TAccumulatedResourceDistribution::AppendPeriod(const TJobResources& fairResources, const TJobResources& usage, TDuration period)
+{
+  auto fairResourcesVolume = TResourceVolume(fairResources, period);
+  FairResources_ += fairResourcesVolume;
+
+  auto usageVolume = TResourceVolume(usage, period);
+  Usage_ += usageVolume;
+
+  UsageDeficit_ = Max(fairResourcesVolume - usageVolume, TResourceVolume());
+}
+
+TAccumulatedResourceDistribution& TAccumulatedResourceDistribution::operator+=(const TAccumulatedResourceDistribution& other)
+{
+    FairResources_ += other.FairResources_;
+    Usage_ += other.Usage_;
+    UsageDeficit_ += other.UsageDeficit_;
+    return *this;
+}
+
+void Serialize(const TAccumulatedResourceDistribution& volume, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("fair_resources").Value(volume.FairResources())
+            .Item("usage").Value(volume.Usage())
+            .Item("usage_deficit").Value(volume.UsageDeficit())
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -291,10 +324,10 @@ public:
         , AccumulatedPoolResourceUsageForMetering_(
             /*accumulateUsageForPools*/ true,
             /*accumulateUsageForOperations*/ false)
-        , AccumulatedOperationsResourceUsageForProfiling_(
+        , AccumulatedOperationsResourceDistributionForProfiling_(
             /*accumulateUsageForPools*/ false,
             /*accumulateUsageForOperations*/ true)
-        , AccumulatedOperationsResourceUsageForLogging_(
+        , AccumulatedOperationsResourceDistributionForLogging_(
             /*accumulateUsageForPools*/ false,
             /*accumulateUsageForOperations*/ true)
     {
@@ -1677,9 +1710,9 @@ private:
     // Used only in fair share logging invoker.
     mutable TTreeSnapshotId LastLoggedTreeSnapshotId_;
 
-    mutable TAccumulatedResourceUsageInfo AccumulatedPoolResourceUsageForMetering_;
-    mutable TAccumulatedResourceUsageInfo AccumulatedOperationsResourceUsageForProfiling_;
-    mutable TAccumulatedResourceUsageInfo AccumulatedOperationsResourceUsageForLogging_;
+    mutable TResourceDistributionAccumulator AccumulatedPoolResourceUsageForMetering_;
+    mutable TResourceDistributionAccumulator AccumulatedOperationsResourceDistributionForProfiling_;
+    mutable TResourceDistributionAccumulator AccumulatedOperationsResourceDistributionForLogging_;
 
     void ThrowOrchidIsNotReady() const
     {
@@ -2872,7 +2905,7 @@ private:
 
         TreeProfileManager_->ProfileTree(
             treeSnapshot,
-            AccumulatedOperationsResourceUsageForProfiling_.ExtractOperationResourceUsages());
+            AccumulatedOperationsResourceDistributionForProfiling_.ExtractOperationResourceDistributionVolumes());
     }
 
     void LogFairShareAt(TInstant now) const override
@@ -2982,8 +3015,8 @@ private:
         YT_LOG_DEBUG("Updating accumulated resource usage");
 
         AccumulatedPoolResourceUsageForMetering_.Update(treeSnapshot, resourceUsageSnapshot);
-        AccumulatedOperationsResourceUsageForProfiling_.Update(treeSnapshot, resourceUsageSnapshot);
-        AccumulatedOperationsResourceUsageForLogging_.Update(treeSnapshot, resourceUsageSnapshot);
+        AccumulatedOperationsResourceDistributionForProfiling_.Update(treeSnapshot, resourceUsageSnapshot);
+        AccumulatedOperationsResourceDistributionForLogging_.Update(treeSnapshot, resourceUsageSnapshot);
 
         YT_LOG_DEBUG("Updating resource usage snapshot");
 
@@ -2991,10 +3024,10 @@ private:
         SetResourceUsageSnapshot(std::move(resourceUsageSnapshot));
     }
 
-    TResourceVolume ExtractAccumulatedUsageForLogging(TOperationId operationId) override
+    TAccumulatedResourceDistribution ExtractAccumulatedResourceDistributionForLogging(TOperationId operationId) override
     {
         // NB: We can loose some of usage, up to the AccumulatedResourceUsageUpdatePeriod duration.
-        return AccumulatedOperationsResourceUsageForLogging_.ExtractOperationResourceUsage(operationId);
+        return AccumulatedOperationsResourceDistributionForLogging_.ExtractOperationAccumulatedResourceDistribution(operationId);
     }
 
     void LogOperationsInfo(const TFairShareTreeSnapshotPtr& treeSnapshot) const
@@ -3293,24 +3326,25 @@ private:
 
     void DoBuildOperationsAccumulatedUsageInfo(const TFairShareTreeSnapshotPtr& treeSnapshot, TFluentMap fluent) const
     {
-        auto operationIdToAccumulatedResourceUsage = AccumulatedOperationsResourceUsageForLogging_.ExtractOperationResourceUsages();
+        auto operationIdToAccumulatedResourceDistribution = AccumulatedOperationsResourceDistributionForLogging_.ExtractOperationResourceDistributionVolumes();
 
         auto buildOperationInfo = [&] (const TSchedulerOperationElement* operation, TFluentMap fluent) {
             auto operationId = operation->GetOperationId();
             auto* parent = operation->GetParent();
 
-            TResourceVolume accumulatedUsage;
+            TAccumulatedResourceDistribution accumulatedResourceDistribution;
             {
-                auto it = operationIdToAccumulatedResourceUsage.find(operationId);
-                if (it != operationIdToAccumulatedResourceUsage.end()) {
-                    accumulatedUsage = it->second;
+                auto it = operationIdToAccumulatedResourceDistribution.find(operationId);
+                if (it != operationIdToAccumulatedResourceDistribution.end()) {
+                    accumulatedResourceDistribution = it->second;
                 }
             }
 
             fluent
                 .Item(operation->GetId()).BeginMap()
                     .Item("pool").Value(parent->GetId())
-                    .Item("accumulated_resource_usage").Value(accumulatedUsage)
+                    .Item("accumulated_resource_usage").Value(accumulatedResourceDistribution.Usage())
+                    .Item("accumulated_resource_distribution").Value(accumulatedResourceDistribution)
                     .Item("user").Value(operation->GetUserName())
                     .Item("operation_type").Value(operation->GetOperationType())
                     .OptionalItem("trimmed_annotations", operation->GetTrimmedAnnotations())
