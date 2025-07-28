@@ -200,6 +200,7 @@ DEFINE_ENUM(EMasterReign,
     ((HydraLogicalClock)                                            (2958))  // h0pless
     ((FixBuiltinUserIds_25_2)                                       (2959))  // cherepashka
     ((DropEnableFixRequisitionUpdateCompat_25_2)                    (2960))  // kvk1920
+    ((FixValidateTabletContainsStoreForBulkInsertOutputTimestamps)  (2961))  // dave11ar
     // 25.3 starts here.
     ((Start_25_3)                                                   (3000))  // community bot
     ((DropOldMountConfigKeyLists)                                   (3001))  // ifsmirnov
