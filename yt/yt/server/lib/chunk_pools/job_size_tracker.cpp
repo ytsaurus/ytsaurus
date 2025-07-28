@@ -153,7 +153,7 @@ public:
         ++FlushIndex_;
 
         if (!typedToken) {
-            DropRun(DominantResource_);
+            StartNewRun(DominantResource_);
             return;
         }
 
@@ -185,7 +185,7 @@ public:
             LocalVector_ = TResourceVector::Zero();
             CumulativeLimitVector_ = SafeClamp(CumulativeLimitVector_ + LocalLimitVector_);
         } else {
-            DropRun(typedToken->OverflownResource);
+            StartNewRun(typedToken->OverflownResource);
         }
     }
 
@@ -210,7 +210,7 @@ private:
 
     TLogger Logger;
 
-    void DropRun(EResourceKind dominantResource)
+    void StartNewRun(EResourceKind dominantResource)
     {
         CumulativeLimitVector_ = LocalLimitVector_;
         CumulativeVector_ = TResourceVector::Zero();
@@ -220,7 +220,7 @@ private:
             SwitchDominantResource(dominantResource);
         }
 
-        YT_LOG_TRACE("Run dropped (DominantResource: %v, CumulativeLimitVector: %v)", DominantResource_, CumulativeLimitVector_);
+        YT_LOG_TRACE("New run started (DominantResource: %v, CumulativeLimitVector: %v)", DominantResource_, CumulativeLimitVector_);
     }
 
     void SwitchDominantResource(EResourceKind dominantResource)
