@@ -366,16 +366,17 @@ class TestShuffleServiceInJobProxy(YTEnvSetup):
                     },
                 },
             },
-            "signature_generation": {
-                "generator": {},
-                "cypress_key_writer": {
-                    "owner_id": "test-exec-node"
+            "signature_components": {
+                "generation": {
+                    "generator": {},
+                    "cypress_key_writer": {
+                        "owner_id": "test-exec-node"
+                    },
+                    "key_rotator": {},
                 },
-                "key_rotator": {},
-            },
-            "signature_validation": {
-                "validator": {},
-                "cypress_key_reader": {},
+                "validation": {
+                    "cypress_key_reader": {},
+                },
             },
         },
     }
