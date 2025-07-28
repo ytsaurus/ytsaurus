@@ -30,8 +30,13 @@ public:
     */
     void SetKeyPair(TKeyPairPtr keyPair);
 
+    /*!
+    *  \note Thread affinity: any
+    */
+    void Reconfigure(TSignatureGeneratorConfigPtr config);
+
 private:
-    const TSignatureGeneratorConfigPtr Config_;
+    TAtomicIntrusivePtr<TSignatureGeneratorConfig> Config_;
     TAtomicIntrusivePtr<TKeyPair> KeyPair_;
 
     /*!
