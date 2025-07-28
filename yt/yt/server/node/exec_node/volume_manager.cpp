@@ -1413,24 +1413,24 @@ private:
             }
         }
 
-        THashMap<TString, TString> volumeProperties = {
-            {"backend", "overlay"},
-        };
-
-        if (placePath) {
-            // Set write permissions for everyone if root volume is used.
-            volumeProperties["permissions"] = "0777";
-        } else {
-            placePath = PlacePath_;
+        if (placePath.empty()) {
+            if (!options.SlotPath.empty() && options.EnableRootVolumeDiskQuota) {
+                // Place overlayfs (upper and work directories) in user slot.
+                placePath = "//" + NFS::CombinePaths(ToString(options.SlotPath), "overlay");
+            } else {
+                placePath = PlacePath_;
+            }
         }
 
-        volumeProperties["place"] = placePath;
+        THashMap<TString, TString> volumeProperties = {
+            {"backend", "overlay"},
+            {"user", ToString(options.UserId)},
+            {"permissions", "0777"},
+            {"place", placePath},
+        };
 
         // NB: Root volume quota is independent from sandbox quota but enforces the same limits.
         if (options.EnableRootVolumeDiskQuota) {
-            volumeProperties["user"] = ToString(options.UserId);
-            volumeProperties["permissions"] = "0777";
-
             if (options.DiskSpaceLimit) {
                 volumeProperties["space_limit"] = ToString(*options.DiskSpaceLimit);
             }
