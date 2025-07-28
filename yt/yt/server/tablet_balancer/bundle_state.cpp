@@ -1093,36 +1093,38 @@ void TBundleState::FetchReplicaModes(
     const THashSet<TTableId>& majorTableIds,
     const THashSet<std::string>& allowedReplicaClusters)
 {
-    THashMap<TCellTag, THashSet<TTableReplicaId>> cellTagToReplicaIds;
+    using cellTagWithReplicaType = std::pair<TCellTag, EObjectType>;
+    THashMap<cellTagWithReplicaType, THashSet<TTableReplicaId>> cellTagToReplicaIds;
     THashMap<TTableReplicaId, TTableBase*> replicaIdToTable;
 
-    auto getCellTag = [&] (const auto& table) {
-        switch (TypeFromId(table->UpstreamReplicaId)) {
+    auto getCellTag = [&] (const auto& table) -> cellTagWithReplicaType {
+        auto type = TypeFromId(table->UpstreamReplicaId);
+        switch (type) {
             case EObjectType::ChaosTableReplica:
-                return CellTagFromId(table->Id);
+                return {CellTagFromId(table->Id), type};
 
             case EObjectType::TableReplica:
-                return CellTagFromId(table->UpstreamReplicaId);
+                return {CellTagFromId(table->UpstreamReplicaId), type};
 
             default:
                 YT_LOG_WARNING(
                     "Upstream replica mode cannot be fetched since it has unexpected type (TableId: %v, UpstreamReplicaId: %v, Type: %v)",
                     table->Id,
                     table->UpstreamReplicaId,
-                    TypeFromId(table->UpstreamReplicaId));
-                return InvalidCellTag;
+                    type);
+                return {InvalidCellTag, type};
         }
     };
 
     for (const auto& tableId : majorTableIds) {
         const auto& table = GetOrCrash(Bundle_->Tables, tableId);
-        TCellTag cellTag = getCellTag(table);
+        auto [cellTag, replicaType] = getCellTag(table);
         if (cellTag == InvalidCellTag) {
             continue;
         }
 
         EmplaceOrCrash(replicaIdToTable, table->UpstreamReplicaId, table.Get());
-        auto it = cellTagToReplicaIds.emplace(cellTag, THashSet<TTableReplicaId>{}).first;
+        auto it = cellTagToReplicaIds.emplace(std::pair(cellTag, replicaType), THashSet<TTableReplicaId>{}).first;
         InsertOrCrash(it->second, table->UpstreamReplicaId);
 
         for (const auto& [cluster, tables] : table->GetReplicaBalancingMinorTables(SelfClusterName_)) {
@@ -1133,21 +1135,49 @@ void TBundleState::FetchReplicaModes(
                 }
 
                 auto minorTable = GetOrCrash(TableRegistry_->AlienTables(), minorTableIdIt->second);
-                TCellTag cellTag = getCellTag(minorTable);
+                auto [cellTag, replicaType] = getCellTag(minorTable);
                 if (cellTag == InvalidCellTag) {
                     continue;
                 }
 
                 EmplaceOrCrash(replicaIdToTable, minorTable->UpstreamReplicaId, minorTable.Get());
                 auto replicaIdsIt = cellTagToReplicaIds.emplace(
-                    cellTag,
+                    std::pair(cellTag, replicaType),
                     THashSet<TTableReplicaId>{}).first;
                 InsertOrCrash(replicaIdsIt->second, minorTable->UpstreamReplicaId);
             }
         }
     }
 
-    for (const auto& [cellTag, replicaIds] : cellTagToReplicaIds) {
+    auto fetchReplicaModes = [] (
+        const NNative::IClientPtr& localClient,
+        const NNative::IClientPtr& client,
+        const THashSet<TTableReplicaId>& replicaIds,
+        auto replicaType)
+    {
+        switch (replicaType) {
+            case EObjectType::ChaosTableReplica:
+                return FetchChaosTableReplicaModes(localClient, replicaIds);
+
+            case EObjectType::TableReplica: {
+                static const std::vector<std::string> attributeKeys{"mode"};
+                auto tableToAttributes = FetchAttributes(client, replicaIds, attributeKeys);
+
+                THashMap<TTableReplicaId, ETableReplicaMode> modes;
+                for (const auto& [replicaId, attributes] : tableToAttributes) {
+                    auto mode = attributes->Get<ETableReplicaMode>("mode");
+                    EmplaceOrCrash(modes, replicaId, mode);
+                }
+                return modes;
+            }
+
+            default:
+                YT_ABORT();
+        }
+    };
+
+    for (const auto& [cellTagWithReplicaType, replicaIds] : cellTagToReplicaIds) {
+        auto [cellTag, replicaType] = cellTagWithReplicaType;
         auto connection = ClusterDirectory_->GetConnectionOrThrow(cellTag);
         auto clusterName = connection->GetClusterName();
         THROW_ERROR_EXCEPTION_IF(!clusterName,
@@ -1162,19 +1192,18 @@ void TBundleState::FetchReplicaModes(
 
         auto client = ClientDirectory_->GetClientOrThrow(*clusterName);
 
-        YT_LOG_DEBUG("Started fetching replica table modes (Cluster: %v, TableCount: %v)",
+        YT_LOG_DEBUG("Started fetching replica table modes (Cluster: %v, TableCount: %v, CellTag: %v)",
             clusterName,
-            replicaIds.size());
+            replicaIds.size(),
+            cellTag);
 
-        static const std::vector<std::string> attributeKeys{"mode"};
-        auto tableToAttributes = FetchAttributes(client, replicaIds, attributeKeys);
+        auto replicaIdToMode = fetchReplicaModes(Client_, client, replicaIds, replicaType);
 
         YT_LOG_DEBUG("Finished fetching replica table modes (Cluster: %v, TableCount: %v)",
             clusterName,
-            tableToAttributes.size());
+            replicaIdToMode.size());
 
-        for (const auto& [replicaId, attributes] : tableToAttributes) {
-            auto mode = attributes->Get<ETableReplicaMode>("mode");
+        for (const auto& [replicaId, mode] : replicaIdToMode) {
             auto table = GetOrCrash(replicaIdToTable, replicaId);
             table->ReplicaMode = mode;
         }
