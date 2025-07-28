@@ -1,5 +1,7 @@
 #include "crypto.h"
 
+#include "private.h"
+
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <contrib/libs/libsodium/include/sodium.h>
@@ -12,24 +14,32 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void InitializeCryptography()
+namespace {
+
+std::atomic<bool> CryptographyInitializationFinished = {false};
+
+} // namespace
+
+TFuture<void> InitializeCryptography(const IInvokerPtr& invoker)
 {
     // NB(pavook) sodium_init might stall if there's not enough entropy in the system
     // (see https://docs.libsodium.org/usage). We need to set a reasonable timeout on this operation.
-    auto initFuture = BIND(sodium_init)
-        .AsyncVia(GetCurrentInvoker())
+    return BIND(sodium_init)
+        .AsyncVia(invoker)
         .Run()
-        .WithTimeout(CryptoInitializeTimeout);
+        .Apply(BIND([] (int initResult) {
+            if (initResult < 0) {
+                YT_LOG_ALERT("libsodium initialization failed.");
+            } else {
+                CryptographyInitializationFinished.store(true, std::memory_order::release);
+            }
+        }));
+}
 
-    auto initResult = WaitFor(initFuture);
-
-    if (initResult.FindMatching(NYT::EErrorCode::Timeout)) {
-        THROW_ERROR_EXCEPTION(
-            "timeout exceeded on libsodium initialization, ensure there is enough entropy in the system");
-    }
-
-    if (!initResult.IsOK() || initResult.Value() < 0) {
-        THROW_ERROR_EXCEPTION("libsodium initialization failed");
+void EnsureCryptographyInitialized()
+{
+    if (!CryptographyInitializationFinished.load(std::memory_order::acquire)) {
+        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::TransientFailure, "Cryptography subsystem hasn't been initialized yet");
     }
 }
 

@@ -26,7 +26,6 @@ TKeyRotator::TKeyRotator(
         BIND_NO_PROPAGATE(&TKeyRotator::DoRotate, MakeWeak(this)),
         Config_.Acquire()->KeyRotationInterval))
 {
-    InitializeCryptography();
     YT_LOG_INFO("Key rotator initialized (KeyRotationInterval %v)", Config_.Acquire()->KeyRotationInterval);
 }
 

@@ -99,7 +99,8 @@ TEST(TKeyInfoTest, DeserializeWrongLength)
 
 TEST(TKeyInfoTest, Verify)
 {
-    InitializeCryptography();
+    WaitFor(InitializeCryptography(GetCurrentInvoker()))
+        .ThrowOnError();
 
     auto metaOk = SimpleMetadata(-10h, -10h, 10h);
     EXPECT_TRUE(IsKeyPairMetadataValid(metaOk));

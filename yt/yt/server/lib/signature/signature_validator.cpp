@@ -22,7 +22,6 @@ using namespace NYTree;
 TSignatureValidator::TSignatureValidator(IKeyStoreReaderPtr keyReader)
     : KeyReader_(std::move(keyReader))
 {
-    InitializeCryptography();
     YT_LOG_INFO("Signature validator initialized");
 }
 

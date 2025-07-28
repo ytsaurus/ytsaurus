@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/yt/core/actions/public.h>
+
 #include <util/datetime/base.h>
 
 #include <contrib/libs/libsodium/include/sodium/crypto_sign.h>
@@ -14,11 +16,12 @@ constexpr static size_t SignatureSize = crypto_sign_BYTES;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr static auto CryptoInitializeTimeout = TDuration::Seconds(30);
+TFuture<void> InitializeCryptography(const IInvokerPtr& invoker);
 
-////////////////////////////////////////////////////////////////////////////////
-
-void InitializeCryptography();
+/*!
+ * \note Thread affinity: any
+ */
+void EnsureCryptographyInitialized();
 
 ////////////////////////////////////////////////////////////////////////////////
 
