@@ -9,6 +9,9 @@
 
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 
+#include <yt/yt/client/chaos_client/helpers.h>
+#include <yt/yt/client/chaos_client/replication_card.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/query_client/query_builder.h>
@@ -24,6 +27,7 @@
 namespace NYT::NTabletBalancer {
 
 using namespace NApi;
+using namespace NChaosClient;
 using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NTableClient;
@@ -85,6 +89,30 @@ TInstant TruncateToMinutes(TInstant t)
 }
 
 } // namespace
+
+THashMap<TTableReplicaId, ETableReplicaMode> FetchChaosTableReplicaModes(
+    const NNative::IClientPtr& client,
+    const THashSet<TTableReplicaId>& objectIds)
+{
+    std::vector<TFuture<TReplicationCardPtr>> futures;
+    std::vector<TTableReplicaId> replicaIds(objectIds.begin(), objectIds.end());
+    for (auto replicaId : replicaIds) {
+        auto replicationCardId = ReplicationCardIdFromReplicaId(replicaId);
+        futures.push_back(client->GetReplicationCard(replicationCardId));
+    }
+
+    auto replicationCards = WaitFor(AllSucceeded(std::move(futures)))
+        .ValueOrThrow();
+
+    THashMap<TTableReplicaId, ETableReplicaMode> responses;
+    for (int index = 0; index < std::ssize(replicaIds); ++index) {
+        auto replicaId = replicaIds[index];
+        auto replicationCardId = ReplicationCardIdFromReplicaId(replicaId);
+        const auto* replicaInfo = replicationCards[index]->GetReplicaOrThrow(replicaId, replicationCardId);
+        EmplaceOrCrash(responses, replicaId, replicaInfo->Mode);
+    }
+    return responses;
+};
 
 THashMap<TObjectId, IAttributeDictionaryPtr> FetchAttributes(
     const NNative::IClientPtr& client,
