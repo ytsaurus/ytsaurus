@@ -242,7 +242,13 @@ public:
         , JobMonitoringIndexManager_(Config_->UserJobMonitoring->MaxMonitoredUserJobsPerAgent)
         , ThrottledScheduleAllocationRequestCount_(ControllerAgentProfiler().WithHot().Counter("/throttled_schedule_allocation_request_count"))
     {
-        ControllerAgentProfiler().AddFuncGauge("/monitored_user_job_count", MakeStrong(this), [this] {
+        ControllerAgentProfiler().AddFuncGauge("/user_job_monitoring/used_descriptor_count", MakeStrong(this), [this] {
+            return JobMonitoringIndexManager_.GetSize();
+        });
+        ControllerAgentProfiler().AddFuncGauge("/user_job_monitoring/total_descriptor_count", MakeStrong(this), [this] {
+            return JobMonitoringIndexManager_.GetMaxSize();
+        });
+        ControllerAgentProfiler().AddFuncGauge("/user_job_monitoring/monitored_job_count", MakeStrong(this), [this] {
             return WaitFor(BIND([&] {
                 int sum = 0;
                 for (const auto& [_, operation] : IdToOperation_) {
