@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - stable/[0-9]+\.[0-9]+
+      - members/ziganshinmr/yt-qt-mrjob-build-fix
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
@@ -155,7 +155,7 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
-      publish-query-tracker: ${{ github.ref_name == 'main' }}
+      publish-query-tracker: ${{ github.ref_name == 'members/ziganshinmr/yt-qt-mrjob-build-fix' }}
       publish-ytsaurus: true
       publish-local: true
       publish-chyt: ${{ github.ref_name == 'main' }}
@@ -195,19 +195,3 @@ jobs:
           label: ${{ needs.start-vm.outputs.label }}
           instance-id: ${{ needs.start-vm.outputs.instance-id }}
 
-  send-alert:
-    needs:
-      - check
-      - build-cmake
-      - build-ya-make
-      - docker-ya-make
-      - docker-cmake
-      - build-strawberry
-    if: always()
-    uses: ./.github/workflows/check-status-and-send-alert.yaml
-    with:
-      is_failure: ${{ contains(join(needs.*.result, ','), 'failure') }}
-    secrets:
-      GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
