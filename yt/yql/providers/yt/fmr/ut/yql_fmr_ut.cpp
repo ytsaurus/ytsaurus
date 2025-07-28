@@ -13,6 +13,7 @@
 #include <library/cpp/yson/node/node_io.h>
 
 #include <library/cpp/testing/unittest/registar.h>
+#include <library/cpp/testing/unittest/tests_data.h>
 
 #include <util/stream/file.h>
 #include <util/system/user.h>
@@ -61,7 +62,7 @@ struct TRunSettings {
     THashMap<TString, TString> Tables;
 };
 
-bool RunProgram(const TString& query, const TRunSettings& runSettings, ui16 port) {
+bool RunProgram(const TString& query, const TRunSettings& runSettings) {
     auto functionRegistry = NKikimr::NMiniKQL::CreateFunctionRegistry(NKikimr::NMiniKQL::CreateBuiltinRegistry());
     auto yqlNativeServices = NFile::TYtFileServices::Make(functionRegistry.Get(), runSettings.Tables, {}, "");
     auto ytGateway = CreateYtFileGateway(yqlNativeServices);
@@ -74,6 +75,8 @@ bool RunProgram(const TString& query, const TRunSettings& runSettings, ui16 port
     fmrServices->YtCoordinatorService = NFmr::MakeFileYtCoordinatorService();
 
     TTempFileHandle discoveryFile;
+    TPortManager pm;
+    const ui16 port = pm.GetPort();
     SetupTableDataServiceDiscovery(discoveryFile, port);
     auto tableDataServiceServer = MakeTableDataServiceServer(port);
     fmrServices->TableDataServiceDiscoveryFilePath = discoveryFile.Name();
@@ -127,7 +130,7 @@ Y_UNIT_TEST_SUITE(FastMapReduceTests) {
         auto sqlQueryResult = WithTables([&](const auto& tables) {
             TRunSettings runSettings;
             runSettings.Tables = tables;
-            UNIT_ASSERT(RunProgram(query, runSettings, 5000));
+            UNIT_ASSERT(RunProgram(query, runSettings));
         });
         auto expected = NYT::NodeToCanonicalYsonString(NYT::NodeFromYsonString(InputData, NYT::NYson::EYsonType::ListFragment));
         UNIT_ASSERT_NO_DIFF(sqlQueryResult, expected);
@@ -139,13 +142,23 @@ Y_UNIT_TEST_SUITE(FastMapReduceTests) {
         auto sqlQueryResult = WithTables([&](const auto& tables) {
             TRunSettings runSettings;
             runSettings.Tables = tables;
-            UNIT_ASSERT(RunProgram(query, runSettings, 5001));
+            UNIT_ASSERT(RunProgram(query, runSettings));
         });
         TStringBuf filteredInputData = "{\"key\"=\"800\";\"subkey\"=\".\";\"value\"=\"ddd\"};\n"sv;
         auto expected = NYT::NodeToCanonicalYsonString(NYT::NodeFromYsonString(filteredInputData, NYT::NYson::EYsonType::ListFragment));
         UNIT_ASSERT_NO_DIFF(sqlQueryResult, expected);
     }
+
+    Y_UNIT_TEST(SelectFixedColumn) {
+        auto query = "use plato; insert into Output with truncate select key from Input where Cast(key As Uint32) > 700";
+        TTempFileHandle outputFile;
+        auto sqlQueryResult = WithTables([&](const auto& tables) {
+            TRunSettings runSettings;
+            runSettings.Tables = tables;
+            UNIT_ASSERT(RunProgram(query, runSettings));
+        });
+        TStringBuf filteredInputData = "{\"key\"=\"800\";};\n"sv;
+        auto expected = NYT::NodeToCanonicalYsonString(NYT::NodeFromYsonString(filteredInputData, NYT::NYson::EYsonType::ListFragment));
+        UNIT_ASSERT_NO_DIFF(sqlQueryResult, expected);
+    }
 }
-
-// TODO - figure out what to do for FMR map with file gateway.
-
