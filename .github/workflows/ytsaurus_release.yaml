@@ -55,7 +55,7 @@ jobs:
       - checkout
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
-      cpp-build-system: cmake
+      cpp-build-system: ya-make
       build-python: true
       build-strawberry: true
       build-ytsaurus: true
@@ -85,6 +85,7 @@ jobs:
       - tag
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
+      cpp-build-system: ya-make
       publish-ytsaurus: true
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.image-tag }}
