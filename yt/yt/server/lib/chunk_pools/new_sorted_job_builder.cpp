@@ -896,7 +896,7 @@ private:
                 }
             }();
 
-            // NB(apollo1321): Is it ok that we use possibly outdated token here? Some foreign slices could be added.
+            // XXX(apollo1321): Is it ok that we use possibly outdated token here? Some foreign slices could be added.
             Flush(overflowToken);
         }
     }
