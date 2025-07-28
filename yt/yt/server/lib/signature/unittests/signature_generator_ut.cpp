@@ -56,7 +56,10 @@ struct TSignatureGeneratorTest
         : Store(New<TStubKeyStore>(OwnerId))
         , Config(New<TSignatureGeneratorConfig>())
         , Gen(New<TSignatureGenerator>(Config))
-    { }
+    {
+        WaitFor(InitializeCryptography(GetCurrentInvoker()))
+            .ThrowOnError();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

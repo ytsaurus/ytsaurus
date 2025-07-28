@@ -4,8 +4,6 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/yt/core/actions/public.h>
-
 namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,6 +28,9 @@ public:
 private:
     const NApi::NNative::IClientPtr Client_;
     const IInvokerPtr RotateInvoker_;
+
+    TFuture<void> InitializeCryptographyFuture_;
+
     TCypressKeyReaderPtr CypressKeyReader_;
     TSignatureValidatorPtr UnderlyingValidator_;
     ISignatureValidatorPtr SignatureValidator_;

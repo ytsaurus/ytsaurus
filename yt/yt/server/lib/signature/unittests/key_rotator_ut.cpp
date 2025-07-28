@@ -36,6 +36,8 @@ struct TKeyRotatorTest
 
     TKeyRotatorTest()
     {
+        WaitFor(InitializeCryptography(GetCurrentInvoker()))
+            .ThrowOnError();
         EXPECT_CALL(*Store, GetOwner())
             .WillRepeatedly(Return(OwnerId));
     }
