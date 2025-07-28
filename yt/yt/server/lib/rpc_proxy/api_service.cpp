@@ -5989,7 +5989,6 @@ private:
             path);
 
         NApi::TTableImportOptions options;
-        options.ValidateAnyIsValidYson = true;
 
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());

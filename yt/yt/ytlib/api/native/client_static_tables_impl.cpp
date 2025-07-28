@@ -95,9 +95,6 @@ void TClient::DoImportTable(
     std::vector<std::string> s3Keys,
     const TTableImportOptions& options)
 {
-    auto writerOptions = New<NTableClient::TTableWriterOptions>();
-    writerOptions->EnableValidationOptions(/*validateAnyIsValidYson*/ options.ValidateAnyIsValidYson);
-
     NApi::ITransactionPtr transaction;
     if (options.TransactionId) {
         TTransactionAttachOptions transactionOptions;
@@ -107,7 +104,7 @@ void TClient::DoImportTable(
     }
 
     WaitFor(ImportSchemalessTable(
-        writerOptions,
+        New<NTableClient::TTableWriterOptions>(),
         path,
         this,
         transaction,

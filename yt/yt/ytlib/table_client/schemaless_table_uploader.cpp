@@ -493,20 +493,16 @@ TTableSchemaPtr TSchemalessTableUploader::GetChunkSchema() const
     return NDetail::GetChunkSchema(RichPath_, TableUploadOptions);
 }
 
-void TSchemalessTableUploader::Close(TTableYPathProxy::TReqEndUploadPtr endUpload)
+void TSchemalessTableUploader::EndUpload(TTableYPathProxy::TReqEndUploadPtr endUpload)
 {
-    const auto& path = RichPath_.GetPath();
-    auto nativeCellTag = CellTagFromId(ObjectId_);
-    auto objectIdPath = FromObjectId(ObjectId_);
-
     YT_LOG_DEBUG("Closing table");
 
     NDetail::EndTableUpload(
         Client_,
-        path,
-        nativeCellTag,
+        RichPath_.GetPath(),
+        CellTagFromId(ObjectId_),
         endUpload,
-        UploadTransaction ? UploadTransaction->GetId() : NullTransactionId,
+        UploadTransaction->GetId(),
         TableUploadOptions);
 
     UploadTransaction->Detach();

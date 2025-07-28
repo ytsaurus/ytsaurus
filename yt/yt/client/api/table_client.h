@@ -52,7 +52,6 @@ struct TTableImportOptions
     : public TTransactionalOptions
     , public TTimeoutOptions
 {
-    bool ValidateAnyIsValidYson = false;
 };
 
 struct TTabletRangeOptions

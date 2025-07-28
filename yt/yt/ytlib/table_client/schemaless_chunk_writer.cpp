@@ -2500,7 +2500,7 @@ private:
 
         auto endUpload = TTableYPathProxy::EndUpload(objectIdPath);
         *endUpload->mutable_statistics() = UnderlyingWriter_->GetDataStatistics();
-        Uploader_->Close(endUpload);
+        Uploader_->EndUpload(endUpload);
 
         // Log all statistics.
         YT_LOG_DEBUG("Writer data statistics (DataStatistics: %v)", UnderlyingWriter_->GetDataStatistics());
@@ -2634,14 +2634,14 @@ private:
         YT_VERIFY(mediumDescriptor);
         auto s3MediumDescriptor = mediumDescriptor->As<NYT::NChunkClient::TS3MediumDescriptor>();
         YT_VERIFY(s3MediumDescriptor);
-        auto chunkMetaGenerator = CreateArrowChunkMetaGenerator(
+        auto chunkMetaGenerator = CreateArrowTableChunkMetaGenerator(
             chunkFormat, std::make_shared<TS3ArrowRandomAccessFile>(
                 s3MediumDescriptor->GetConfig()->Bucket, TString(s3Key), s3MediumDescriptor->GetClient()
             )
         );
         chunkMetaGenerator->Generate();
         ChunkCount_++;
-        RowCount_ += dynamic_cast<ITableChunkMetaGenerator*>(&*chunkMetaGenerator)->GetRowCount();
+        RowCount_ += chunkMetaGenerator->GetRowCount();
         DataSize_ += chunkMetaGenerator->GetUncompressedSize();
 
         auto replica = TChunkReplicaWithLocation(
@@ -2711,7 +2711,7 @@ private:
         dataStatistics.set_uncompressed_data_size(DataSize_);
         dataStatistics.set_data_weight(DataSize_);
         *endUpload->mutable_statistics() = dataStatistics;
-        Uploader_->Close(endUpload);
+        Uploader_->EndUpload(endUpload);
 
         YT_LOG_DEBUG("Table closed");
     }

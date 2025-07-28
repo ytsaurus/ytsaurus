@@ -113,7 +113,7 @@ public:
 
     const TTableSchemaPtr& GetSchema() const;
 
-    void Close(TTableYPathProxy::TReqEndUploadPtr endUpload);
+    void EndUpload(TTableYPathProxy::TReqEndUploadPtr endUpload);
 
 private:
     const TTableWriterOptionsPtr Options_;

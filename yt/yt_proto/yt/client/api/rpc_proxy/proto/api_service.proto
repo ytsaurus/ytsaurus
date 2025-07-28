@@ -2775,9 +2775,7 @@ message TReqImportTable
 {
     required bytes path = 1; // RichYPath
 
-    optional bytes format = 2; // YSON-serialized TFormat
-
-    repeated string s3_keys = 3;
+    repeated string s3_keys = 2;
 
     optional TTransactionalOptions transactional_options = 100;
 }

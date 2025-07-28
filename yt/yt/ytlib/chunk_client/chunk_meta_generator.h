@@ -33,7 +33,13 @@ struct ITableChunkMetaGenerator
     virtual i64 GetRowCount() const = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(ITableChunkMetaGenerator)
+
 ////////////////////////////////////////////////////////////////////////////
+
+ITableChunkMetaGeneratorPtr CreateArrowTableChunkMetaGenerator(
+    EChunkFormat chunkFormat,
+    const std::shared_ptr<arrow::io::RandomAccessFile>& chunkFile);
 
 IChunkMetaGeneratorPtr CreateArrowChunkMetaGenerator(
     EChunkFormat chunkFormat,

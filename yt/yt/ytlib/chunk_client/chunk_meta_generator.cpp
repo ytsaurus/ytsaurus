@@ -533,13 +533,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////
 
-IChunkMetaGeneratorPtr CreateArrowChunkMetaGenerator(
+ITableChunkMetaGeneratorPtr CreateArrowTableChunkMetaGenerator(
     EChunkFormat chunkFormat,
     const std::shared_ptr<arrow::io::RandomAccessFile>& chunkFile)
 {
     switch (chunkFormat) {
-        case EChunkFormat::FileDefault:
-            return New<TFileChunkMetaGenerator>(chunkFile);
         case EChunkFormat::TableUnversionedArrowJson:
             return New<TJsonChunkMetaGenerator>(chunkFile);
         case EChunkFormat::TableUnversionedArrowCsv:
@@ -549,6 +547,15 @@ IChunkMetaGeneratorPtr CreateArrowChunkMetaGenerator(
         default:
             THROW_ERROR_EXCEPTION("Unsupported chunk format %Qlv for arrow chunk meta generation", chunkFormat);
     }
+}
+
+IChunkMetaGeneratorPtr CreateArrowChunkMetaGenerator(
+    EChunkFormat chunkFormat,
+    const std::shared_ptr<arrow::io::RandomAccessFile>& chunkFile)
+{
+    return chunkFormat == EChunkFormat::FileDefault
+        ? New<TFileChunkMetaGenerator>(chunkFile)
+        : DynamicPointerCast<IChunkMetaGenerator>(CreateArrowTableChunkMetaGenerator(chunkFormat, chunkFile));
 }
 
 ////////////////////////////////////////////////////////////////////////////
