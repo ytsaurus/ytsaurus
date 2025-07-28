@@ -360,10 +360,45 @@ void TPortoResourceTracker::UpdateResourceUsageStatisticsIfExpired() const
 
 TErrorOr<i64> TPortoResourceTracker::CalculateCounterDelta(
     const TErrorOr<i64>& oldValue,
-    const TErrorOr<i64>& newValue) const
+    const TErrorOr<i64>& newValue)
 {
     if (oldValue.IsOK() && newValue.IsOK()) {
         return newValue.Value() - oldValue.Value();
+    } else if (newValue.IsOK()) {
+        // It is better to return an error than an incorrect value.
+        return oldValue;
+    } else {
+        return newValue;
+    }
+}
+
+TErrorOr<std::vector<TResourceUsage::TTaggedStat>> TPortoResourceTracker::CalculateTaggedStatsDelta(
+    const TErrorOr<std::vector<TResourceUsage::TTaggedStat>>& oldValue,
+    const TErrorOr<std::vector<TResourceUsage::TTaggedStat>>& newValue)
+{
+    if (oldValue.IsOK() && newValue.IsOK()) {
+        std::vector<TResourceUsage::TTaggedStat> result;
+        result.reserve(newValue.Value().size());
+
+        for (const auto& newStat : newValue.Value()) {
+            auto oldStat = std::find_if(
+                oldValue.Value().begin(),
+                oldValue.Value().end(),
+                [&] (const TResourceUsage::TTaggedStat& stat) {
+                    return stat.Tag == newStat.Tag;
+                });
+
+            if (oldStat != oldValue.Value().end()) {
+                result.push_back(TResourceUsage::TTaggedStat{
+                    .Tag = newStat.Tag,
+                    .Value = newStat.Value - oldStat->Value,
+                });
+            } else {
+                result.push_back(newStat);
+            }
+        }
+
+        return result;
     } else if (newValue.IsOK()) {
         // It is better to return an error than an incorrect value.
         return oldValue;
@@ -411,42 +446,44 @@ void TPortoResourceTracker::ReCalculateResourceUsage(const TResourceUsage& newRe
     TResourceUsage resourceUsage;
     TResourceUsage resourceUsageDelta;
 
-    for (const auto& stat : InstanceStatFields) {
-        TErrorOr<i64> oldValue;
-        TErrorOr<i64> newValue;
+    auto recalculateContainer = [&] <class T> (T TResourceUsage::* containerStats, auto deltaCounter) {
+        for (const auto& stat : InstanceStatFields) {
+            typename T::value_type::second_type oldValue;
+            typename T::value_type::second_type newValue;
 
-        if (auto newValueIt = newResourceUsage.ContainerStats.find(stat); newValueIt.IsEnd()) {
-            newValue = TError("Missing property %Qlv in Porto response", stat)
-                << TErrorAttribute("container", Instance_->GetName());
-        } else {
-            newValue = newValueIt->second;
-        }
-
-        if (auto oldValueIt = ResourceUsage_.ContainerStats.find(stat); oldValueIt.IsEnd()) {
-            oldValue = newValue;
-        } else {
-            oldValue = oldValueIt->second;
-        }
-
-        if (newValue.IsOK()) {
-            resourceUsage.ContainerStats[stat] = newValue;
-        } else {
-            resourceUsage.ContainerStats[stat] = oldValue;
-        }
-
-        if (IsCumulativeStatistics(stat)) {
-            resourceUsageDelta.ContainerStats[stat] = CalculateCounterDelta(oldValue, newValue);
-        } else {
-            if (newValue.IsOK()) {
-                resourceUsageDelta.ContainerStats[stat] = newValue;
+            if (auto newValueIt = (newResourceUsage.*containerStats).find(stat); newValueIt.IsEnd()) {
+                newValue = TError("Missing property %Qlv in Porto response", stat)
+                    << TErrorAttribute("container", Instance_->GetName());
             } else {
-                resourceUsageDelta.ContainerStats[stat] = oldValue;
+                newValue = newValueIt->second;
+            }
+
+            if (auto oldValueIt = (ResourceUsage_.*containerStats).find(stat); oldValueIt.IsEnd()) {
+                oldValue = newValue;
+            } else {
+                oldValue = oldValueIt->second;
+            }
+
+            if (newValue.IsOK()) {
+                (resourceUsage.*containerStats)[stat] = newValue;
+            } else {
+                (resourceUsage.*containerStats)[stat] = oldValue;
+            }
+
+            if (IsCumulativeStatistics(stat)) {
+                (resourceUsageDelta.*containerStats)[stat] = deltaCounter(oldValue, newValue);
+            } else {
+                if (newValue.IsOK()) {
+                    (resourceUsageDelta.*containerStats)[stat] = newValue;
+                } else {
+                    (resourceUsageDelta.*containerStats)[stat] = oldValue;
+                }
             }
         }
-    }
+    };
 
-    resourceUsage.ContainerTaggedStats = newResourceUsage.ContainerTaggedStats;
-    resourceUsageDelta.ContainerTaggedStats = newResourceUsage.ContainerTaggedStats;
+    recalculateContainer(&TResourceUsage::ContainerStats, CalculateCounterDelta);
+    recalculateContainer(&TResourceUsage::ContainerTaggedStats, CalculateTaggedStatsDelta);
 
     ResourceUsage_ = resourceUsage;
     ResourceUsageDelta_ = resourceUsageDelta;
