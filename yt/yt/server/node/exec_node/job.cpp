@@ -3388,6 +3388,7 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
 
     options.VirtualSandboxData = VirtualSandboxData_;
     options.SandboxNbdRootVolumeData = SandboxNbdRootVolumeData_;
+    options.SlotPath = GetUserSlot()->GetSlotPath();
 
     return options;
 }
