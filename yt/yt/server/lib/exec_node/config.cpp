@@ -866,11 +866,8 @@ void TExecNodeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("job_proxy_log_manager", &TThis::JobProxyLogManager);
 
-    registrar.Parameter("signature_generation", &TThis::SignatureGeneration)
-        .Optional();
-
-    registrar.Parameter("signature_validation", &TThis::SignatureValidation)
-        .Optional();
+    registrar.Parameter("signature_components", &TThis::SignatureComponents)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

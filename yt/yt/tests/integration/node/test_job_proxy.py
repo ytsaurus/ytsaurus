@@ -539,18 +539,19 @@ class TestJobProxyProfiling(YTEnvSetup):
 class TestJobProxySignatures(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "signature_validation": {
-                "cypress_key_reader": dict(),
-                "validator": dict(),
-            },
-            "signature_generation": {
-                "cypress_key_writer": {
-                    "owner_id": "test-job-proxy",
+            "signature_components": {
+                "validation": {
+                    "cypress_key_reader": dict(),
                 },
-                "generator": dict(),
-                "key_rotator": {
-                    "key_rotation_interval": "1s",
-                }
+                "generation": {
+                    "cypress_key_writer": {
+                        "owner_id": "test-job-proxy",
+                    },
+                    "generator": dict(),
+                    "key_rotator": {
+                        "key_rotation_interval": "1s",
+                    },
+                },
             },
             "job_proxy": {
                 "job_proxy_authentication_manager": {
