@@ -672,7 +672,7 @@ func (c *Client) GetPoolTrees(ctx context.Context) (PoolTrees, error) {
 		p := PoolTreesPath.Child(tree)
 
 		options := &yt.ListNodeOptions{
-			Attributes: []string{"min_share_resources"},
+			Attributes: []string{"strong_guarantee_resources"},
 			MaxSize:    ptr.Int64(listResultMaxSize),
 		}
 
@@ -685,7 +685,11 @@ func (c *Client) GetPoolTrees(ctx context.Context) (PoolTrees, error) {
 		for _, n := range nodes {
 			t.Nodes[n.Name] = n
 			if n.Resources == nil {
-				n.Resources = &PoolTreeResourceLimits{}
+				if n.OldResources != nil {
+					n.Resources = n.OldResources
+				} else {
+					n.Resources = &PoolTreeResourceLimits{}
+				}
 			}
 		}
 		ret[tree] = t

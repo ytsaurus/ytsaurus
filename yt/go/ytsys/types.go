@@ -756,8 +756,11 @@ func IsGPUPoolTree(t *PoolTree) bool {
 }
 
 type PoolTreeNode struct {
-	Name      string                  `yson:",value"`
-	Resources *PoolTreeResourceLimits `yson:"min_share_resources,attr"`
+	Name string `yson:",value"`
+
+	// COMPAT(eshcherbin, YT-24083): Deprecate and remove this attribute.
+	OldResources *PoolTreeResourceLimits `yson:"min_share_resources,attr"`
+	Resources    *PoolTreeResourceLimits `yson:"strong_guarantee_resources,attr"`
 }
 
 type PoolTreeResourceLimits struct {
