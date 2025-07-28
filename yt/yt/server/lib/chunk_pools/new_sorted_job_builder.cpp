@@ -766,11 +766,11 @@ private:
     }
 
     // Flush job size tracker (if it is present) and staging area.
-    void Flush(std::optional<std::any> overflowToken = std::nullopt)
+    void Flush(const std::optional<std::any>& overflowToken = std::nullopt)
     {
         YT_LOG_TRACE("Flushing job");
         if (JobSizeTracker_) {
-            JobSizeTracker_->Flush(std::move(overflowToken));
+            JobSizeTracker_->Flush(overflowToken);
         }
         StagingArea_->Flush();
     }
@@ -896,6 +896,7 @@ private:
                 }
             }();
 
+            // NB(apollo1321): Is it ok that we use possibly outdated token here? Some foreign slices could be added.
             Flush(overflowToken);
         }
     }
