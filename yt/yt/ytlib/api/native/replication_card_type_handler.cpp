@@ -50,14 +50,14 @@ private:
         const auto& nativeConnection = Client_->GetNativeConnection();
         const auto& residencyCache = nativeConnection->GetChaosResidencyCache();
         auto futureResidencyCellDescriptor = residencyCache->GetChaosResidency(replicationCardId)
-            .ApplyUnique(BIND([cellDirectory = nativeConnection->GetCellDirectory()] (TCellTag&& cellTag) {
+            .Apply(BIND([cellDirectory = nativeConnection->GetCellDirectory()] (const TCellTag& cellTag) {
                 return cellDirectory->FindDescriptorByCellTag(cellTag);
             }));
 
         auto card = WaitFor(futureCard)
             .ValueOrThrow();
         auto residencyCellDescriptor = WaitForFast(futureResidencyCellDescriptor)
-            .ValueOrThrow(); // Can be null.
+            .ValueOrDefault(nullptr); // Null is OK.
 
         return BuildYsonStringFluently()
             .BeginAttributes()
