@@ -91,7 +91,7 @@ protected:
     void TryWriteProgress();
     bool TryWriteQueryState(EQueryState state, EQueryState previousState, const TError& error, const std::vector<TErrorOr<TWireRowset>>& wireRowsetOrErrors);
 
-    TYsonString SetYsonAttr(TYsonString to, TString key, TYsonString value);
+    TYsonString SetYsonAttribute(const TYsonString& to, const std::string& key, const TYsonString& value);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
