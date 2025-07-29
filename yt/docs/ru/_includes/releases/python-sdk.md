@@ -8,6 +8,19 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 
 **Releases:**
 
+{% cut "**0.13.34**" %}
+
+**Release date:** 2025-07-27
+
+
+#### Features
+  * Added support for `YT_LOG_PATH` for RPC requests
+  * Added `--attribute` argument for `list_operations` CLI command
+  * Rework local RPC connection configuration
+
+{% endcut %}
+
+
 {% cut "**0.13.33**" %}
 
 **Release date:** 2025-07-14
