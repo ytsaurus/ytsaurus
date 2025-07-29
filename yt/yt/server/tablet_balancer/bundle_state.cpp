@@ -701,7 +701,9 @@ void TBundleState::DoFetchReplicaStatistics(
     bool fetchReshard,
     bool fetchMove)
 {
-    YT_LOG_DEBUG("Collecting replica balancing major and minor tables");
+    YT_LOG_DEBUG("Collecting replica balancing major and minor tables (FetchReshard: %v, FetchMove: %v)",
+        fetchReshard,
+        fetchMove);
 
     auto majorTableIds = GetReplicaBalancingMajorTables();
     auto minorTablePaths = GetReplicaBalancingMinorTables(
@@ -802,10 +804,6 @@ void TBundleState::DoFetchReplicaStatistics(
 
             TableRegistry_->AddAlienTable(std::move(table), majorTables);
         }
-
-        YT_LOG_DEBUG("Finished filling alien table statistics and performance counters (Cluster: %v, TableCount: %v)",
-            cluster,
-            tableIdToStatistics.size());
     }
 
     if (fetchReshard) {
