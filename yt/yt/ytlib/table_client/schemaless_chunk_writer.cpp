@@ -2728,7 +2728,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<void> ImportSchemalessTable(
+TFuture<void> ImportTable(
     TTableWriterOptionsPtr options,
     const TRichYPath& richPath,
     NNative::IClientPtr client,

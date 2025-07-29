@@ -121,7 +121,7 @@ TFuture<IUnversionedWriterPtr> CreateSchemalessTableWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<void> ImportSchemalessTable(
+TFuture<void> ImportTable(
     TTableWriterOptionsPtr options,
     const NYPath::TRichYPath& richPath,
     NApi::NNative::IClientPtr client,

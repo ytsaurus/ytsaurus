@@ -435,7 +435,7 @@ TSchemalessTableUploader::TSchemalessTableUploader(
         const auto& attributes = Attributes->Attributes();
 
         if (attributes.Get<bool>("dynamic")) {
-            THROW_ERROR_EXCEPTION("\"write_table\" API is not supported for dynamic tables; use \"insert_rows\" instead");
+            THROW_ERROR_EXCEPTION("this API is not supported for dynamic tables; use \"insert_rows\" instead");
         }
 
         TableUploadOptions = GetTableUploadOptions(

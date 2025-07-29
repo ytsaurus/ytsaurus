@@ -103,7 +103,7 @@ void TClient::DoImportTable(
         transaction = AttachTransaction(options.TransactionId, transactionOptions);
     }
 
-    WaitFor(ImportSchemalessTable(
+    WaitFor(NTableClient::ImportTable(
         New<NTableClient::TTableWriterOptions>(),
         path,
         this,
