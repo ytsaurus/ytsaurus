@@ -4219,6 +4219,14 @@ void TFairShareTreeAllocationScheduler::UpdateDynamicAttributesListSnapshot(
     schedulingSnapshot->SetDynamicAttributesListSnapshot(std::move(attributesSnapshot));
 }
 
+TFuture<void> TFairShareTreeAllocationScheduler::Stop()
+{
+    return AllSucceeded(std::vector<TFuture<void>>{
+        SchedulingSegmentsManagementExecutor_->Stop(),
+        MinNodeResourceLimitsCheckExecutor_->Stop()
+    });
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler
