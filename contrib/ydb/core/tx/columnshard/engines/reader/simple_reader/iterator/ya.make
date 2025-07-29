@@ -22,4 +22,6 @@ PEERDIR(
     contrib/ydb/core/tx/limiter/grouped_memory/usage
 )
 
+GENERATE_ENUM_SERIALIZATION(source.h)
+
 END()

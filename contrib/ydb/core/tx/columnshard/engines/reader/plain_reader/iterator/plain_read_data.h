@@ -5,7 +5,7 @@
 #include <contrib/ydb/core/tx/columnshard/engines/reader/abstract/read_context.h>
 #include <contrib/ydb/core/tx/columnshard/engines/reader/abstract/read_metadata.h>
 #include <contrib/ydb/core/tx/columnshard/engines/reader/common/queue.h>
-#include <contrib/ydb/core/tx/columnshard/engines/reader/common_reader/iterator/columns_set.h>
+#include <contrib/ydb/core/tx/columnshard/engines/reader/common_reader/common/columns_set.h>
 
 namespace NKikimr::NOlap::NReader::NPlain {
 
