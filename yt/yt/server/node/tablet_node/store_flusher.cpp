@@ -134,19 +134,22 @@ struct TFlushTask
     const ITabletSlotPtr Slot;
     TTablet* Tablet;
     const IDynamicStorePtr Store;
+    const bool OnlyUpdateRowCache;
 
     TFlushTask(
         TFlushTaskInfoPtr info,
         TFlushOrchidPtr orchid,
         ITabletSlotPtr slot,
         TTablet* tablet,
-        IDynamicStorePtr store)
+        IDynamicStorePtr store,
+        bool onlyUpdateRowCache)
         : TGuardedTaskInfo<TFlushTaskInfo>(
             std::move(info),
             std::move(orchid))
         , Slot(std::move(slot))
         , Tablet(tablet)
         , Store(std::move(store))
+        , OnlyUpdateRowCache(onlyUpdateRowCache)
     { }
 };
 
@@ -283,10 +286,10 @@ private:
     {
         if (isLeader) {
             ScanTabletForRotationErrors(tablet);
-            ScanTabletForFlush(slot, tablet);
-            ScanTabletForLookupCacheReallocation(tablet);
         }
 
+        ScanTabletForFlush(slot, tablet);
+        ScanTabletForLookupCacheReallocation(tablet);
         ScanTabletForMemoryUsage(tablet);
     }
 
@@ -316,6 +319,13 @@ private:
             return;
         }
 
+        auto follower = slot->GetAutomatonState() == EPeerState::Following || slot->GetAutomatonState() == EPeerState::FollowerRecovery;
+        if (follower && !rowCache) {
+            return;
+        }
+
+        auto onlyUpdateRowCache = follower;
+
         std::vector<std::unique_ptr<TFlushTask>> tasks;
         std::vector<TFlushTaskInfoPtr> pendingTaskInfos;
         for (const auto& [storeId, store] : tablet->StoreIdMap()) {
@@ -334,7 +344,7 @@ private:
                     slot->GetTabletCellBundleName(),
                     storeId);
 
-                tasks.push_back(std::make_unique<TFlushTask>(taskInfo, Orchid_, slot, tablet, std::move(dynamicStore)));
+                tasks.push_back(std::make_unique<TFlushTask>(taskInfo, Orchid_, slot, tablet, std::move(dynamicStore), onlyUpdateRowCache));
                 pendingTaskInfos.push_back(std::move(taskInfo));
             }
         }
@@ -449,7 +459,8 @@ private:
         auto flushCallback = tablet->GetStoreManager()->BeginStoreFlush(
             store,
             tabletSnapshot,
-            IsInUnmountWorkflow(state));
+            IsInUnmountWorkflow(state),
+            task->OnlyUpdateRowCache);
 
         tablet->GetEpochAutomatonInvoker()->Invoke(BIND(
             &TStoreFlusher::FlushStore,
@@ -583,11 +594,6 @@ private:
                 updateTabletStoresReq.set_retained_timestamp(retainedTimestamp);
             }
 
-            auto actionData = MakeTransactionActionData(updateTabletStoresReq);
-            auto masterCellId = Bootstrap_->GetCellId(CellTagFromId(tabletSnapshot->TabletId));
-            transaction->AddAction(masterCellId, actionData);
-            transaction->AddAction(slot->GetCellId(), actionData);
-
             tablet->GetStructuredLogger()->LogEvent("end_flush")
                 .Item("store_id").Value(store->GetId())
                 .Item("tablet_id").Value(tablet->GetId())
@@ -607,9 +613,16 @@ private:
                     .EndList()
                 .Item("trace_id").Value(traceId);
 
-            const auto& tabletManager = slot->GetTabletManager();
-            WaitFor(tabletManager->CommitTabletStoresUpdateTransaction(tablet, transaction))
-                .ThrowOnError();
+            if (!task->OnlyUpdateRowCache) {
+                auto actionData = MakeTransactionActionData(updateTabletStoresReq);
+                auto masterCellId = Bootstrap_->GetCellId(CellTagFromId(tabletSnapshot->TabletId));
+                transaction->AddAction(masterCellId, actionData);
+                transaction->AddAction(slot->GetCellId(), actionData);
+
+                const auto& tabletManager = slot->GetTabletManager();
+                WaitFor(tabletManager->CommitTabletStoresUpdateTransaction(tablet, transaction))
+                    .ThrowOnError();
+            }
 
             storeManager->EndStoreFlush(store);
             tabletSnapshot->TabletRuntimeData->Errors

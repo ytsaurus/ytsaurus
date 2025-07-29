@@ -254,7 +254,8 @@ IDynamicStore* TOrderedStoreManager::GetActiveStore() const
 TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
     IDynamicStorePtr store,
     TTabletSnapshotPtr tabletSnapshot,
-    bool isUnmountWorkflow)
+    bool isUnmountWorkflow,
+    bool /*onlyUpdateRowCache*/)
 {
     auto orderedDynamicStore = store->AsOrderedDynamic();
     auto reader = orderedDynamicStore->CreateFlushReader();
