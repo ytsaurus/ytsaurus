@@ -13,13 +13,24 @@ namespace NYT::NChaosNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EChaosLeaseState,
+    ((Normal)                           (0))
+    ((RevokingShortcutsForRemoval)      (1))
+    ((Migrated)                         (2))
+);
+
 class TChaosLease
     : public TChaosObjectBase
     , public TRefTracked<TChaosLease>
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(TChaosLeaseId, ParentId);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TChaosLeaseId>, NestedLeases);
+
     DEFINE_BYVAL_RW_PROPERTY(TDuration, Timeout);
+    DEFINE_BYVAL_RW_PROPERTY(EChaosLeaseState, State);
+
+    DEFINE_BYREF_RW_PROPERTY(TPromise<void>, RemovePromise);
 
 public:
     using TChaosObjectBase::TChaosObjectBase;

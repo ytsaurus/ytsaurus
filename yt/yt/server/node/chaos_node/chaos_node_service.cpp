@@ -7,6 +7,7 @@
 #include "replication_card.h"
 #include "replication_card_collocation.h"
 #include "replication_card_serialization.h"
+#include "helpers.h"
 
 #include <yt/yt/server/lib/chaos_node/config.h>
 #include <yt/yt/server/lib/chaos_node/replication_card_watcher_service_callbacks.h>
