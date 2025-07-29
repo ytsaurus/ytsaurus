@@ -64,6 +64,7 @@ DEFINE_ENUM(ESchedulerAlertType,
     ((ArchiveIsOutdated)                            (18))
     ((ExperimentAssignmentError)                    (19))
     ((UnrecognizedPoolTreeConfigOptions)            (20))
+    ((OperationStuckInRemoval)                      (22))
 );
 
 DEFINE_ENUM(EOperationAlertType,

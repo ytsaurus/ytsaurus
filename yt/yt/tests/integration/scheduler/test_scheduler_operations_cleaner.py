@@ -5,7 +5,7 @@ from yt_commands import (
     create, create_table, get, set, remove, exists, start_transaction, lock, unlock,
     lookup_rows, write_table,
     map, list_operations, get_operation_cypress_path, sync_create_cells, clean_operations, run_test_vanilla,
-    update_scheduler_config)
+    update_scheduler_config, print_debug)
 
 import yt.environment.init_operations_archive as init_operations_archive
 
@@ -18,9 +18,12 @@ import pytest
 from datetime import datetime, timedelta
 import builtins
 
+import time
+
 ##################################################################
 
 CLEANER_ORCHID = "//sys/scheduler/orchid/scheduler/operations_cleaner"
+CLEANER_CONFIG = "//sys/scheduler/config/operations_cleaner"
 
 
 def _try_track(op, expect_fail=False):
@@ -83,7 +86,6 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
                 # can't succeed then operations will be just removed.
                 "max_operation_count_enqueued_for_archival": 5,
                 "max_operation_count_per_user": 3,
-                "fetch_batch_size": 1,
                 "max_removal_sleep_delay": 100,
                 "max_operation_age": 5000,
             },
@@ -383,8 +385,58 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         }
         update_scheduler_config("operations_cleaner", config)
 
-        # We run 2 more operations to flush remove batcher with size 3
+        # We run 2 more operations to flush remove batcher with size 3.
         for _ in range(2):
             run_test_vanilla("sleep 1")
 
         wait(lambda: get(CLEANER_ORCHID + "/remove_pending") == 0 and get(CLEANER_ORCHID + "/remove_pending_locked") == 0)
+
+    @authors("bystrovserg")
+    def test_removal_failed(self):
+        config = {
+            "remove_batch_size": 2,
+            # Big batch timeout, so we would not divide batches into smaller one.
+            "remove_batch_timeout": 1000 * 1000,
+            # 5 minute threshold.
+            "operation_removal_timeout_stuck_threshold": 5 * 60 * 1000,
+            "enable_operation_archivation": False,
+            # Try remove operations every second.
+            "max_removal_sleep_delay": 1000,
+        }
+        update_scheduler_config("operations_cleaner", config)
+        op = run_test_vanilla("sleep 1", track=True)
+        wait(lambda: len(get("//sys/scheduler/@alerts")) == 0)
+
+        path = op.get_path()
+        op_value = get(path, is_raw=True)
+
+        # Remove operation from Cypress manually so operations cleaner's removal fails.
+        print_debug("Remove operation from Cypress")
+        remove(path)
+
+        set(CLEANER_CONFIG + "/remove_batch_size", 1)
+
+        wait(lambda: get(CLEANER_ORCHID + "/remove_pending") == 1)
+
+        # Wait a bit to check that we have not set alert yet.
+        time.sleep(5)
+        assert len(get("//sys/scheduler/@alerts")) == 0
+
+        set(CLEANER_CONFIG + "/operation_removal_timeout_stuck_threshold", 3 * 1000)
+
+        wait(lambda: get(CLEANER_ORCHID + "/remove_pending") == 1)
+        wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
+
+        alert = get("//sys/scheduler/@alerts")[0]
+        print_debug("Fetched alert: {}".format(alert))
+
+        assert alert["attributes"]["alert_type"] == "operation_stuck_in_removal"
+        assert alert["attributes"]["failed_operation_count"] == 1
+        assert len(alert["attributes"]["failed_operation_ids"]) == 1
+        assert alert["attributes"]["failed_operation_ids"][0] == op.id
+
+        print_debug("Return operation to Cypress")
+        set(path, op_value)
+
+        wait(lambda: get(CLEANER_ORCHID + "/remove_pending") == 0)
+        wait(lambda: len(get("//sys/scheduler/@alerts")) == 0)

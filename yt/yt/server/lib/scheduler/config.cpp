@@ -940,6 +940,8 @@ void TOperationsCleanerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(1));
     registrar.Parameter("disconnect_on_finished_operation_fetch_failure", &TThis::DisconnectOnFinishedOperationFetchFailure)
         .Default(true);
+    registrar.Parameter("operation_removal_timeout_stuck_threshold", &TThis::OperationRemovalTimeoutStuckThreshold)
+        .Default(TDuration::Minutes(5));
 
     registrar.Postprocessor([&] (TOperationsCleanerConfig* config) {
         if (config->MaxArchivationRetrySleepDelay <= config->MinArchivationRetrySleepDelay) {
