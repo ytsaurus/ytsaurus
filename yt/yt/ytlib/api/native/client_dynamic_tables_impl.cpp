@@ -698,56 +698,99 @@ TGetTabletErrorsResult TClient::DoGetTabletErrors(
     auto req = TTableYPathProxy::Get(path + "/@tablets");
     SetCachingHeader(req, masterReadOptions);
 
-    auto tablets = WaitFor(proxy.Execute(req))
+    auto rsp = WaitFor(proxy.Execute(req))
         .ValueOrThrow();
-    auto tabletsNode = ConvertToNode(TYsonString(tablets->value()))->AsList();
+    auto tabletsNode = ConvertToNode(TYsonString(rsp->value()))->AsList();
 
-    i64 errorCount = 0;
-    i64 replicationErrorCount = 0;
     i64 limit = options.Limit.value_or(Connection_->GetConfig()->DefaultGetTabletErrorsLimit);
-    bool incomplete = false;
-    std::vector<TTabletId> tabletIdsToRequest;
-    for (const auto& tablet : tabletsNode->GetChildren()) {
-        auto tabletNode = tablet->AsMap();
-        if (ConvertTo<ETabletState>(tabletNode->GetChildOrThrow("state")) == ETabletState::Unmounted) {
-            continue;
-        }
+    i64 tabletIndex = 0;
+    auto tablets = tabletsNode->GetChildren();
 
-        auto tabletId = ConvertTo<TTabletId>(tabletNode->GetChildOrThrow("tablet_id"));
+    auto getTabletIdsToRequest = [&] {
+        i64 errorCount = 0;
+        i64 replicationErrorCount = 0;
+        bool incomplete = false;
 
-        if (errorCount <= limit &&
-            tabletNode->GetChildOrThrow("error_count")->AsInt64()->GetValue() > 0)
-        {
-            if (errorCount < limit) {
-                tabletIdsToRequest.push_back(tabletId);
-            } else {
-                incomplete = true;
+        std::vector<TTabletId> tabletIdsToRequest;
+        for (; tabletIndex < std::ssize(tablets); ++tabletIndex) {
+            auto tabletNode = tablets[tabletIndex]->AsMap();
+            if (ConvertTo<ETabletState>(tabletNode->GetChildOrThrow("state")) == ETabletState::Unmounted) {
+                continue;
             }
-            ++errorCount;
-        }
 
-        if (replicationErrorCount <= limit &&
-            tabletNode->GetChildOrThrow("replication_error_count")->AsInt64()->GetValue() > 0)
-        {
-            if (replicationErrorCount < limit) {
-                if (tabletIdsToRequest.empty() || tabletIdsToRequest.back() != tabletId) {
+            auto tabletId = ConvertTo<TTabletId>(tabletNode->GetChildOrThrow("tablet_id"));
+
+            if (errorCount <= limit &&
+                tabletNode->GetChildOrThrow("error_count")->AsInt64()->GetValue() > 0)
+            {
+                if (errorCount < limit) {
                     tabletIdsToRequest.push_back(tabletId);
+                } else {
+                    incomplete = true;
                 }
-            } else {
-                incomplete = true;
+                ++errorCount;
             }
-            ++replicationErrorCount;
+
+            if (replicationErrorCount <= limit &&
+                tabletNode->GetChildOrThrow("replication_error_count")->AsInt64()->GetValue() > 0)
+            {
+                if (replicationErrorCount < limit) {
+                    if (tabletIdsToRequest.empty() || tabletIdsToRequest.back() != tabletId) {
+                        tabletIdsToRequest.push_back(tabletId);
+                    }
+                } else {
+                    incomplete = true;
+                }
+                ++replicationErrorCount;
+            }
+
+            if (replicationErrorCount >= limit && errorCount >= limit && incomplete) {
+                break;
+            }
         }
 
-        if (replicationErrorCount >= limit && errorCount >= limit && incomplete) {
-            break;
-        }
-    }
+        ++tabletIndex;
 
-    auto tabletInfos = GetTabletInfosByTabletIds(
-        path,
-        tabletIdsToRequest,
-        TGetTabletInfosOptions{{.Timeout = options.Timeout}, /*RequestErrors*/ true});
+        return std::tuple(tabletIdsToRequest, incomplete);
+    };
+
+    auto hasAnyReportedTabletErrors = [&] (const std::vector<TTabletInfo>& tabletInfos) {
+        for (const auto& tabletInfo : tabletInfos) {
+            if (!tabletInfo.TabletErrors.empty()) {
+                return true;
+            }
+
+            if (!tabletInfo.TableReplicaInfos) {
+                continue;
+            }
+
+            for (const auto& replicaInfo : *tabletInfo.TableReplicaInfos) {
+                if (!replicaInfo.ReplicationError.IsOK()) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    };
+
+    constexpr int RetryCount = 5;
+    int retryIndex = 0;
+
+    bool incomplete = false;
+    std::vector<TTabletInfo> tabletInfos;
+    std::vector<TTabletId> tabletIdsToRequest;
+    TGetTabletInfosOptions getTabletInfosOptions{{.Timeout = options.Timeout}, /*RequestErrors*/ true};
+    do {
+        std::tie(tabletIdsToRequest, incomplete) = getTabletIdsToRequest();
+
+        tabletInfos = GetTabletInfosByTabletIds(
+            path,
+            tabletIdsToRequest,
+            getTabletInfosOptions);
+
+        ++retryIndex;
+    } while (incomplete && !hasAnyReportedTabletErrors(tabletInfos) && retryIndex < RetryCount);
 
     TGetTabletErrorsResult result{.Incomplete = incomplete};
     for (int resultIndex = 0; resultIndex < std::ssize(tabletInfos); ++resultIndex) {
