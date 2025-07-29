@@ -304,13 +304,11 @@ private:
 
     void DoInitialize(std::optional<double> limit = std::nullopt)
     {
-        if (Initialized_) {
+        if (Initialized_.exchange(true)) {
             return;
         }
 
         YT_ASSERT_SPINLOCK_AFFINITY(HistoricUsageAggregatorLock_);
-
-        Initialized_ = true;
 
         Limit_ = Profiler_.Gauge("/limit");
         Usage_ = Profiler_.Gauge("/usage");
