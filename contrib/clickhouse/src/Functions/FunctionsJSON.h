@@ -1,5 +1,3 @@
-#pragma once
-
 #include <type_traits>
 
 #include <base/range.h>
@@ -41,7 +39,6 @@
 #include <Interpreters/Context.h>
 
 #include "clickhouse_config.h"
-
 
 namespace DB
 {
@@ -744,10 +741,10 @@ public:
 
     static size_t getNumberOfIndexArguments(const ColumnsWithTypeAndName & arguments) { return arguments.size() - 1; }
 
-    // static const std::unique_ptr<JSONExtractTreeNode<JSONParser>> & getInsertNode()
-    // {
-    //     static const std::unique_ptr<JSONExtractTreeNode<JSONParser>> node = buildJSONExtractTree<JSONParser>(std::make_shared<DataTypeNumber<NumberType>>());
-    // }
+    static const std::unique_ptr<JSONExtractTreeNode<JSONParser>> & getInsertNode()
+    {
+        static const std::unique_ptr<JSONExtractTreeNode<JSONParser>> node = buildJSONExtractTree<JSONParser>(std::make_shared<DataTypeNumber<NumberType>>());
+    }
 
     static bool insertResultToColumn(IColumn & dest, const Element & element, std::string_view, const FormatSettings &, String & error)
     {
@@ -1075,4 +1072,3 @@ public:
 };
 
 }
-

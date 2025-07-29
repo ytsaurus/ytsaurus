@@ -1,14 +1,12 @@
 #pragma once
-
-#include <base/TypeName.h>
-
-#include <Core/AccurateComparison.h>
-
 #include <DataTypes/IDataType.h>
 #include <Columns/IColumn.h>
 #include <Formats/FormatSettings.h>
 
+#include <Formats/SchemaInferenceUtils.h>
 #include <Common/JSONParsers/ElementTypes.h>
+
+#include <Core/AccurateComparison.h>
 
 #include <Columns/ColumnArray.h>
 #include <Columns/ColumnDynamic.h>
@@ -43,22 +41,14 @@
 #include <DataTypes/Serializations/SerializationVariant.h>
 #include <DataTypes/Serializations/SerializationObject.h>
 
+
 #include <IO/ReadBufferFromMemory.h>
 #include <IO/ReadHelpers.h>
 #include <IO/WriteHelpers.h>
 #include <IO/parseDateTimeBestEffort.h>
 
-
-#include <Formats/SchemaInferenceUtils.h>
-
 namespace DB
 {
-
-namespace ErrorCodes
-{
-    extern const int ILLEGAL_TYPE_OF_ARGUMENT;
-    extern const int INCORRECT_DATA;
-}
 
 struct JSONExtractInsertSettings
 {
@@ -75,8 +65,22 @@ struct JSONExtractInsertSettings
     bool allow_type_conversion = true;
 };
 
-// template <typename JSONParser>
-// void jsonElementToString(const typename JSONParser::Element & element, WriteBuffer & buf, const FormatSettings & format_settings);
+template <typename JSONParser>
+class JSONExtractTreeNode
+{
+public:
+    JSONExtractTreeNode() = default;
+    virtual ~JSONExtractTreeNode() = default;
+    virtual bool insertResultToColumn(IColumn &, const typename JSONParser::Element &, const JSONExtractInsertSettings & insert_setting, const FormatSettings & format_settings, String & error) const = 0;
+};
+
+
+namespace ErrorCodes
+{
+    extern const int ILLEGAL_TYPE_OF_ARGUMENT;
+    extern const int INCORRECT_DATA;
+}
+
 template <typename JSONParser>
 void jsonElementToString(const typename JSONParser::Element & element, WriteBuffer & buf, const FormatSettings & format_settings)
 {
@@ -143,8 +147,6 @@ void jsonElementToString(const typename JSONParser::Element & element, WriteBuff
     }
 }
 
-// template <typename JSONParser, typename NumberType>
-// bool tryGetNumericValueFromJSONElement(NumberType & value, const typename JSONParser::Element & element, bool convert_bool_to_integer, bool allow_type_conversion, String & error);
 template <typename JSONParser, typename NumberType>
 bool tryGetNumericValueFromJSONElement(
     NumberType & value, const typename JSONParser::Element & element, bool convert_bool_to_integer, bool allow_type_conversion, String & error)
@@ -233,14 +235,8 @@ bool tryGetNumericValueFromJSONElement(
     return true;
 }
 
-template <typename JSONParser>
-class JSONExtractTreeNode
+namespace
 {
-public:
-    JSONExtractTreeNode() = default;
-    virtual ~JSONExtractTreeNode() = default;
-    virtual bool insertResultToColumn(IColumn &, const typename JSONParser::Element &, const JSONExtractInsertSettings & insert_setting, const FormatSettings & format_settings, String & error) const = 0;
-};
 
 template <typename JSONParser>
 String jsonElementToString(const typename JSONParser::Element & element, const FormatSettings & format_settings)
@@ -853,10 +849,10 @@ public:
                     value = convertToDecimal<DataTypeNumber<Float64>, DataTypeDecimal<DateTime64>>(element.getDouble(), scale);
                     break;
                 case ElementType::UINT64:
-                    value = convertToDecimal<DataTypeNumber<UInt64>, DataTypeDecimal<DateTime64>>(element.getUInt64(), scale);
+                    value.value = element.getUInt64();
                     break;
                 case ElementType::INT64:
-                    value = convertToDecimal<DataTypeNumber<Int64>, DataTypeDecimal<DateTime64>>(element.getInt64(), scale);
+                    value.value = element.getInt64();
                     break;
                 default:
                     error = fmt::format("cannot read DateTime64 value from JSON element: {}", jsonElementToString<JSONParser>(element, format_settings));
@@ -1802,12 +1798,12 @@ private:
                 error += fmt::format(" (while reading path {})", current_path);
                 return false;
             }
-
+    
             paths_and_values_for_shared_data.emplace_back(current_path, "");
             WriteBufferFromString buf(paths_and_values_for_shared_data.back().second);
             dynamic_serialization->serializeBinary(*tmp_dynamic_column, 0, buf, format_settings);
         }
-
+    
         return true;
     }
 
@@ -1840,7 +1836,8 @@ private:
     std::shared_ptr<SerializationDynamic> dynamic_serialization;
 };
 
-/// Build a tree for insertion JSON element into a column with provided data type.
+}
+    
 template <typename JSONParser>
 std::unique_ptr<JSONExtractTreeNode<JSONParser>> buildJSONExtractTree(const DataTypePtr & type, const char * source_for_exception_message)
 {
@@ -2011,6 +2008,15 @@ std::unique_ptr<JSONExtractTreeNode<JSONParser>> buildJSONExtractTree(const Data
                 type->getName());
     }
 }
+    
+/// Build a tree for insertion JSON element into a column with provided data type.
+template <typename JSONParser>
+std::unique_ptr<JSONExtractTreeNode<JSONParser>> buildJSONExtractTree(const DataTypePtr & type, const char * source_for_exception_message);
+
+template <typename JSONParser>
+void jsonElementToString(const typename JSONParser::Element & element, WriteBuffer & buf, const FormatSettings & format_settings);
+
+template <typename JSONParser, typename NumberType>
+bool tryGetNumericValueFromJSONElement(NumberType & value, const typename JSONParser::Element & element, bool convert_bool_to_integer, bool allow_type_conversion, String & error);
 
 }
-

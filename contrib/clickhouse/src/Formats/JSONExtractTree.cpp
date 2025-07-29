@@ -26,4 +26,3 @@ template std::unique_ptr<JSONExtractTreeNode<DummyJSONParser>> buildJSONExtractT
 #endif
 
 }
-
