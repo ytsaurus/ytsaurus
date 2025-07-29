@@ -42,7 +42,7 @@ public:
 
     void MarkAsOutput(TPCollectionNodeId nodeId, const TDynamicTypeTag& typeTag = {});
     void MarkAsOutputs(const std::vector<TPCollectionNodeId>& nodeIds);
-    IParDoTreePtr Build();
+    IParDoTreePtr Build(bool checkNoHangingNodes = true);
 
     bool Empty() const
     {

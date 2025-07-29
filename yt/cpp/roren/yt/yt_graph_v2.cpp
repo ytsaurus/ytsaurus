@@ -574,7 +574,7 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                     spec.OutputFormat(GetFormat(operation->OutputTables));
                     spec.Pool(Config_.GetPool());
 
-                    NYT::IRawJobPtr job = CreateImpulseJob(mapperBuilder.Build());
+                    NYT::IRawJobPtr job = CreateImpulseJob(mapperBuilder.Build(Config_.GetCheckNoHangingNodes()));
                     return client->RawMap(spec, job, operationOptions);
                 }
             } else {
@@ -623,7 +623,7 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                 spec.OutputFormat(GetFormat(operation->OutputTables));
                 spec.Pool(Config_.GetPool());
 
-                auto mapperParDo = mapperBuilder.Build();
+                auto mapperParDo = mapperBuilder.Build(Config_.GetCheckNoHangingNodes());
                 addLocalFiles(mapperParDo, &spec.MapperSpec_);
                 NYT::IRawJobPtr job = CreateImpulseJob(mapperParDo);
 
@@ -713,11 +713,11 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                 mapBuilder.Fuse(tmpMapperBuilderList[i], decodedId);
             }
 
-            auto mapperParDo = mapBuilder.Build();
+            auto mapperParDo = mapBuilder.Build(Config_.GetCheckNoHangingNodes());
             addLocalFiles(mapperParDo, &spec.MapperSpec_);
             auto mapperJob = CreateImpulseJob(mapperParDo);
 
-            auto reducerParDo = reducerBuilder.Build();
+            auto reducerParDo = reducerBuilder.Build(Config_.GetCheckNoHangingNodes());
             addLocalFiles(reducerParDo, &spec.ReducerSpec_);
             auto reducerJob = CreateImpulseJob(reducerParDo);
 
@@ -725,7 +725,7 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
             if (!mapReduceOperation->GetCombinerBuilder().Empty()) {
                 spec.ForceReduceCombiners(true);
                 auto combinerBuilder = mapReduceOperation->GetCombinerBuilder();
-                auto combinerParDo = combinerBuilder.Build();
+                auto combinerParDo = combinerBuilder.Build(Config_.GetCheckNoHangingNodes());
                 addLocalFiles(combinerParDo, &spec.ReduceCombinerSpec_);
                 combinerJob = CreateImpulseJob(combinerParDo);
             }
