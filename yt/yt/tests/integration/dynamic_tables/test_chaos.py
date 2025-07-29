@@ -4997,10 +4997,36 @@ class TestChaos(ChaosTestBase):
             return original_id[:-1] + "a" if original_id[-1] != "a" else original_id[:-1] + "b"
 
         with raises_yt_error(yt_error_codes.ChaosLeaseNotKnown):
+            create_chaos_lease(cell_id, attributes={"parent_id": corrupt_id(lease_id)})
+
+        with raises_yt_error(yt_error_codes.ChaosLeaseNotKnown):
             ping_chaos_lease(corrupt_id(lease_id))
 
         with raises_yt_error(yt_error_codes.ChaosLeaseNotKnown):
             remove(f"#{corrupt_id(lease_id)}")
+
+    @authors("gryzlov-ad")
+    def test_chaos_lease_hierarchy(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        root_lease_id = create_chaos_lease(cell_id, attributes={"timeout": 10000})
+        child_lease_id = create_chaos_lease(cell_id, attributes={"timeout": 10000, "parent_id": root_lease_id})
+
+        first_ping_time = get(f"#{root_lease_id}/@last_ping_time")
+        ping_chaos_lease(child_lease_id, ping_ancestors=True)
+        last_ping_time = get(f"#{root_lease_id}/@last_ping_time")
+
+        assert first_ping_time < last_ping_time
+
+        ping_chaos_lease(child_lease_id, ping_ancestors=False)
+        unchanged_ping_time = get(f"#{root_lease_id}/@last_ping_time")
+
+        assert unchanged_ping_time == last_ping_time
+
+        remove(f"#{root_lease_id}")
+        assert not self._chaos_lease_exists(child_lease_id)
+        assert not self._chaos_lease_exists(root_lease_id)
+
 
 ##################################################################
 
