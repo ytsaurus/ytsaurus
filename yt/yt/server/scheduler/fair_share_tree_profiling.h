@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include "fair_share_tree_snapshot.h"
+#include "fair_share_tree.h"
 
 namespace NYT::NScheduler {
 
@@ -32,7 +32,7 @@ public:
     // Thread affinity: Profiler thread.
     void ProfileTree(
         const TFairShareTreeSnapshotPtr& treeSnapshot,
-        const THashMap<TOperationId, TResourceVolume>& operationIdToAccumulatedResourceUsage);
+        const THashMap<TOperationId, TAccumulatedResourceDistribution>& operationIdToAccumulatedResourceDistribution);
 
     // Thread affinity: Profiler thread.
     void ApplyJobMetricsDelta(
@@ -79,7 +79,7 @@ private:
 
         NProfiling::TBufferedProducerPtr BufferedProducer;
 
-        TResourceVolume AccumulatedResourceUsage;
+        TAccumulatedResourceDistribution AccumulatedResourceDistribution;
 
         TJobMetrics JobMetrics;
     };
@@ -120,7 +120,7 @@ private:
 
     void ProfileOperations(
         const TFairShareTreeSnapshotPtr& treeSnapshot,
-        const THashMap<TOperationId, TResourceVolume>& operationIdToAccumulatedResourceUsage);
+        const THashMap<TOperationId, TAccumulatedResourceDistribution>& operationIdToAccumulatedResourceDistribution);
     void ProfilePools(const TFairShareTreeSnapshotPtr& treeSnapshot);
 
     void ProfilePool(

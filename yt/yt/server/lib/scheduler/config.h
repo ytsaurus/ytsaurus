@@ -447,7 +447,7 @@ struct TFairShareStrategyTreeConfig
     int MaxEventLogPoolBatchSize;
     int MaxEventLogOperationBatchSize;
 
-    TDuration AccumulatedResourceUsageUpdatePeriod;
+    TDuration AccumulatedResourceDistributionUpdatePeriod;
 
     bool AllowAggressivePreemptionForGangOperations;
 

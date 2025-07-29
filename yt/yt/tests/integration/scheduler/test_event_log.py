@@ -388,7 +388,9 @@ class TestEventLog(YTEnvSetup):
                                              row_filter=lambda e: "event_type" in e)
 
         found_accumulated_usage_event_with_op = False
+        accumulated_fair_resources = 0.0
         accumulated_usage = 0.0
+        accumulated_usage_deficit = 0.0
         for event in structured_log:
             if event["event_type"] == "accumulated_usage_info":
                 assert event["tree_id"] == "default"
@@ -404,17 +406,23 @@ class TestEventLog(YTEnvSetup):
                     assert event["operations"][op.id]["pool"] == "test_pool"
                     assert event["operations"][op.id]["user"] == "root"
                     assert event["operations"][op.id]["operation_type"] == "vanilla"
-                    accumulated_usage += event["operations"][op.id]["accumulated_resource_usage"]["cpu"]
+                    accumulated_fair_resources += event["operations"][op.id]["accumulated_resource_distribution"]["fair_resources"]["cpu"]
+                    accumulated_usage += event["operations"][op.id]["accumulated_resource_distribution"]["usage"]["cpu"]
+                    accumulated_usage_deficit += event["operations"][op.id]["accumulated_resource_distribution"]["usage_deficit"]["cpu"]
 
             if event["event_type"] == "operation_completed":
                 assert event["operation_id"] == op.id
                 assert event["scheduling_info_per_tree"]["default"]["pool"] == "test_pool"
                 assert event["scheduling_info_per_tree"]["default"]["ancestor_pools"] == ["parent_pool", "test_pool"]
-                accumulated_usage += event["accumulated_resource_usage_per_tree"]["default"]["cpu"]
-
-        assert accumulated_usage >= 5.0
+                accumulated_fair_resources += event["accumulated_resource_distribution_per_tree"]["default"]["fair_resources"]["cpu"]
+                accumulated_usage += event["accumulated_resource_distribution_per_tree"]["default"]["usage"]["cpu"]
+                accumulated_usage_deficit += event["accumulated_resource_distribution_per_tree"]["default"]["usage_deficit"]["cpu"]
 
         assert found_accumulated_usage_event_with_op
+
+        assert accumulated_fair_resources >= 5.0
+        assert accumulated_usage >= 5.0
+        assert accumulated_usage_deficit >= 0.0
 
     @authors("ignat")
     def test_trimmed_annotations(self):
