@@ -4,7 +4,10 @@
 #include "client_impl.h"
 #include "config.h"
 
+#include <yt/yt/ytlib/chaos_client/chaos_residency_cache.h>
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
+
+#include <yt/yt/ytlib/hive/cell_directory.h>
 
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
@@ -42,15 +45,27 @@ private:
         getCardOptions.IncludeProgress = true;
         getCardOptions.IncludeHistory = true;
         getCardOptions.BypassCache = true;
-        auto card = WaitFor(Client_->GetReplicationCard(replicationCardId, getCardOptions))
+        auto futureCard = Client_->GetReplicationCard(replicationCardId, getCardOptions);
+
+        const auto& nativeConnection = Client_->GetNativeConnection();
+        const auto& residencyCache = nativeConnection->GetChaosResidencyCache();
+        auto futureResidencyCellDescriptor = residencyCache->GetChaosResidency(replicationCardId)
+            .ApplyUnique(BIND([cellDirectory = nativeConnection->GetCellDirectory()] (TCellTag&& cellTag) {
+                return cellDirectory->FindDescriptorByCellTag(cellTag);
+            }));
+
+        auto card = WaitFor(futureCard)
             .ValueOrThrow();
-        auto channel = Client_->GetChaosChannelByCardIdOrThrow(replicationCardId, EPeerKind::Leader);
+        auto residencyCellDescriptor = WaitForFast(futureResidencyCellDescriptor)
+            .ValueOrThrow(); // Can be null.
 
         return BuildYsonStringFluently()
             .BeginAttributes()
                 .Item("id").Value(replicationCardId)
                 .Item("type").Value(EObjectType::ReplicationCard)
-                .Item("residency_host").Value(channel->GetEndpointDescription())
+                .DoIf(residencyCellDescriptor != nullptr, [&] (auto fluent) {
+                    Serialize(*residencyCellDescriptor, fluent.Item("residency_cell").GetConsumer());
+                })
                 .Do([&] (auto fluent) {
                     Serialize(
                         *card,
