@@ -409,7 +409,7 @@ bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, EQueryState previo
                 newRecord.ExecutionStartTime = now;
             }
             if (AssignedEngine_.has_value()) {
-                newRecord.Annotations = SetYsonAttr(record.Annotations, "assigned_engine", ConvertToYsonString(AssignedEngine_.value()));
+                newRecord.Annotations = SetYsonAttribute(record.Annotations, "assigned_engine", ConvertToYsonString(AssignedEngine_.value()));
                 AssignedEngine_.reset();
             }
 
@@ -479,7 +479,7 @@ bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, EQueryState previo
     }
 }
 
-TYsonString TQueryHandlerBase::SetYsonAttr(TYsonString to, TString key, TYsonString value)
+TYsonString TQueryHandlerBase::SetYsonAttribute(const TYsonString& to, const std::string& key, const TYsonString& value)
 {
     auto map = ConvertToNode(to)->AsMap();
     map->RemoveChild(key);
