@@ -1123,7 +1123,6 @@ bool TTabletBalancer::TryBalanceViaReshardParameterized(
             BalanceViaReshardParameterized(bundleState, groupName);
         }
     } catch (const TErrorException& ex) {
-        const auto& groupConfig = GetOrCrash(bundle->Config->Groups, groupName);
         YT_LOG_ERROR(ex,
             "Parameterized balancing via reshard failed with an exception "
             "(BundleName: %v, Group: %v, GroupType: %v, GroupMetric: %v)",
