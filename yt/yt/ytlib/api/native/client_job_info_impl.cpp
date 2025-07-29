@@ -1120,6 +1120,9 @@ TGetJobStderrResponse TClient::DoGetJobStderr(
         [&] (const TString& alias) {
             operationId = ResolveOperationAlias(alias, options, deadline);
         });
+    if (!operationId) {
+        operationId = GetJobOperation(jobId);
+    }
 
     ValidateOperationAccess(operationId, jobId, EPermissionSet(EPermission::Read));
 
@@ -1360,6 +1363,9 @@ TSharedRef TClient::DoGetJobFailContext(
         [&] (const TString& alias) {
             operationId = ResolveOperationAlias(alias, options, deadline);
         });
+    if (!operationId) {
+        operationId = GetJobOperation(jobId);
+    }
 
     ValidateOperationAccess(operationId, jobId, EPermissionSet(EPermission::Read));
 
@@ -2713,6 +2719,9 @@ TYsonString TClient::DoGetJob(
         [&] (const TString& alias) {
             operationId = ResolveOperationAlias(alias, options, deadline);
         });
+    if (!operationId) {
+        operationId = GetJobOperation(jobId);
+    }
 
     if (Connection_->GetConfig()->StrictOperationInfoAccessValidation) {
         ValidateOperationAccess(operationId, jobId, EPermissionSet(EPermission::Read));
