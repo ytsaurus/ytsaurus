@@ -5,7 +5,7 @@ message TOperationConfig
 {
     // Patch for operation spec in yson format.
     // Map fields are merged with existing, other fields overrides default spec derived by Roren.
-    // 
+    //
     // If operation runs multiple transforms and spec patches for these transforms conflict
     // i.e. contain different values for the same key, exception will be thrown when starting pipeline.
     optional string SpecPatch = 1;
@@ -47,4 +47,7 @@ message TYtPipelineConfig
 
     // Enable protobuf format for intermediate tables.
     optional bool EnableProtoFormatForIntermediates = 8 [default = false];
+
+    // TODO(@yurial) Remove after ROREN-119.
+    optional bool CheckNoHangingNodes = 9 [default = true];
 }

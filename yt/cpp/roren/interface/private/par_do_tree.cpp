@@ -435,12 +435,14 @@ void TParDoTreeBuilder::MarkAsOutputs(const std::vector<TPCollectionNodeId>& nod
     }
 }
 
-IParDoTreePtr TParDoTreeBuilder::Build()
+IParDoTreePtr TParDoTreeBuilder::Build(bool checkNoHangingNodes)
 {
     Y_ABORT_UNLESS(!Built_);
     Y_ABORT_UNLESS(!ParDoNodes_.empty());
 
-    CheckNoHangingPCollectionNodes();
+    if (checkNoHangingNodes) {
+        CheckNoHangingPCollectionNodes();
+    }
 
     Built_ = true;
     return NYT::New<TParDoTree>(
