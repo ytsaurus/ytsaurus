@@ -14,6 +14,10 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// NB(achulkov2): Due to YT-11825 this cache does not work with ordered dynamic tables properly iff master version is less than 25.1.
+// Since this cache is currently only used by CHYT for static tables AND 25.1 release/deployment in open-source is visible on the horizon,
+// we do not spend effort to use the pre-25.1 chunkCount = -1 hack for ordered dynamic tables, as it would require propagating the value
+// of the `dynamic` attribute to the cache key.
 class TTableColumnarStatisticsCache
     : public TRefCounted
 {

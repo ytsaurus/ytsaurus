@@ -1,6 +1,6 @@
 from yt_commands import (create, authors, write_table, insert_rows, get, sync_reshard_table, sync_mount_table,
                          read_table, get_singular_chunk_id, copy, raises_yt_error, alter_table, sync_unmount_table,
-                         print_debug, select_rows)
+                         print_debug, select_rows, trim_rows, sync_flush_table)
 
 from yt_type_helpers import optional_type
 
@@ -1087,6 +1087,96 @@ class TestInputFetching(ClickHouseTestBase):
             clique.make_query_and_validate_read_row_count(f'select b from "{table_path}" where e is null', exact=1)
             clique.make_query_and_validate_read_row_count(f'select b from "{table_path}" where e is not null', exact=4)
 
+    @authors("buyval01")
+    def test_timestamp_key_filtering(self):
+        create(
+            "table",
+            "//tmp/t-ts",
+            attributes={
+                "schema": [{
+                    "name": "ts",
+                    "type": "timestamp",
+                    "sort_order": "ascending",
+                }]
+            }
+        )
+
+        write_table(
+            "<append=%true>//tmp/t-ts",
+            [
+                {"ts": int(datetime.datetime(2023, 1, 1).timestamp() * 10**6)},
+                {"ts": int(datetime.datetime(2023, 5, 5).timestamp() * 10**6)},
+                {"ts": int(datetime.datetime(2023, 10, 10).timestamp() * 10**6)},
+            ]
+        )
+        write_table(
+            "<append=%true>//tmp/t-ts",
+            [
+                {"ts": int(datetime.datetime(2023, 12, 12).timestamp() * 10**6)},
+                {"ts": int(datetime.datetime(2024, 2, 2).timestamp() * 10**6)},
+            ]
+        )
+        write_table(
+            "<append=%true>//tmp/t-ts",
+            [
+                {"ts": int(datetime.datetime(2024, 5, 5).timestamp() * 10**6)},
+                {"ts": int(datetime.datetime(2024, 10, 10).timestamp() * 10**6)}
+            ]
+        )
+
+        config_patch = {
+            "yt": {
+                "settings": {
+                    "execution": {
+                        "enable_min_max_filtering": False,
+                    }
+                }
+            },
+        }
+        with Clique(1, config_patch=config_patch) as clique:
+            query = "select * from '//tmp/t-ts' where ts > toDateTime('2024-01-01T00:00:00')"
+            # the first chunk must be filtered and not read
+            assert_items_equal(
+                clique.make_query_and_validate_read_row_count(query, exact=4),
+                [
+                    {"ts": "2024-02-02 00:00:00.000000"},
+                    {"ts": "2024-05-05 00:00:00.000000"},
+                    {"ts": "2024-10-10 00:00:00.000000"},
+                ])
+
+    @authors("achulkov2")
+    def test_queue_many_stores_yt_11825(self):
+        create("table", "//tmp/t", attributes={"dynamic": True, "schema": [{"name": "a", "type": "int64"}], "enable_dynamic_store_read": True})
+        sync_mount_table("//tmp/t")
+
+        chunk_count = 10
+
+        for i in range(chunk_count):
+            insert_rows("//tmp/t", [{"a": i}])
+            sync_flush_table("//tmp/t")
+
+        trimmed_chunk_count = 7
+
+        # Now we trim some chunks.
+        trim_rows("//tmp/t", tablet_index=0, trimmed_row_count=trimmed_chunk_count)
+        # Wait for chunks to be actually removed.
+        # This check should work irrespective of enable_dynamic_store_read value.
+        wait(lambda: len(get("//tmp/t/@chunk_ids")) == chunk_count - trimmed_chunk_count)
+
+        config_patch = {
+            "yt": {
+                "subquery": {
+                    "max_chunks_per_fetch": 1,
+                },
+            },
+        }
+
+        with Clique(1, config_patch=config_patch) as clique:
+            result = clique.make_query("select * from `//tmp/t`")
+            assert_items_equal(result, [{"a": i} for i in range(trimmed_chunk_count, chunk_count)])
+
+
+class TestReadInOrder(ClickHouseTestBase):
     @staticmethod
     def make_query(clique, query, **kwargs):
         kwargs["full_response"] = True
