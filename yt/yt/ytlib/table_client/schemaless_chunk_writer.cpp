@@ -2437,13 +2437,6 @@ private:
     void DoOpen()
     {
         Uploader_.emplace(Options_, RichPath_, Client_, TransactionId_);
-        if (BlockCache_->GetSupportedBlockTypes() != EBlockType::None) {
-            // It is hard to support both reordering and uncompressed block caching
-            // since block becomes cached significantly before we know the final permutation.
-            // Supporting reordering for compressed block cache is not hard
-            // to implement, but is not done for now.
-            Config_->EnableBlockReordering = false;
-        }
 
         auto writerConfig = CloneYsonStruct(Config_);
         writerConfig->WorkloadDescriptor.Annotations.push_back(Format("TablePath: %v", RichPath_.GetPath()));

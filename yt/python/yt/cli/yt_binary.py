@@ -617,16 +617,14 @@ def add_write_file_parser(add_parser):
 
 
 def add_import_table_parser(add_parser):
-    for name, func in [("import", import_table), ("import-table", import_table)]:
-        parser = add_parser(
-            name,
-            func,
-            epilog="Rewrite table by default. For append mode specify <append=true> before path.")
-        add_ypath_argument(parser, "path", hybrid=True)
-        add_format_argument(parser, help="input format")
-        parser.add_argument("--s3-key", action="append", dest="s3_keys",
-                            help="s3 key to import")
-        add_structured_argument(parser, "--table-writer")
+    parser = add_parser(
+        "import-table",
+        import_table,
+        epilog="Rewrite table by default. For append mode specify <append=true> before path.")
+    add_ypath_argument(parser, "path", hybrid=True)
+    add_format_argument(parser, help="input format")
+    parser.add_argument("--s3-key", action="append", dest="s3_keys",
+                        help="s3 key to import")
 
 
 def add_write_table_parser(add_parser):
