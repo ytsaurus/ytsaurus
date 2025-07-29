@@ -104,6 +104,7 @@ TabNodeInternal =  ProjectSensor("tab_node_internal",   "yt-tablet-node.*")  # n
 TabNodePorto =     ProjectSensor("tab_node_porto",      "yt-tablet-node.*")  # noqa: E222
 TabNodeRpc =       ProjectSensor("tab_node_rpc",        "yt-tablet-node.*", base=RpcBase)  # noqa: E222
 TabNodeRpcClient = ProjectSensor("tab_node_rpc_client", "yt-tablet-node.*", base=RpcBase)  # noqa: E222
+TabNodeYtcfgen =   ProjectSensor("tab_node_ytcfgen",    "yt-tablet-node.*")  # noqa: E222
 
 # Generic sensor for tablet metrics.
 NodeTablet =       ProjectSensor("node_tablet",         "yt-tablet-node.*")  # noqa: E222
@@ -128,6 +129,7 @@ RpcProxyInternal =    ProjectSensor("rpc_proxy_internal",     "yt-rpc-proxy.*") 
 RpcProxyCpu =         ProjectSensor("rpc_proxy_cpu",          "yt-rpc-proxy.*")  # noqa: E222
 RpcProxyMemory =      ProjectSensor("rpc_proxy_memory",       "yt-rpc-proxy.*")  # noqa: E222
 RpcProxyPorto =       ProjectSensor("rpc_proxy_porto",        "yt-rpc-proxy.*")  # noqa: E222
+RpcProxyYtcfgen =     ProjectSensor("rpc_proxy_ytcfgen",      "yt-rpc-proxy.*")  # noqa: E222
 
 # BundleController.
 BundleController = ProjectSensor("bundle_controller", "yt_bundle_controller")  # noqa: E222

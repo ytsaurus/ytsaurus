@@ -1,7 +1,7 @@
 # flake8: noqa
 from yt_dashboard_generator.dashboard import Rowset
 from yt_dashboard_generator.sensor import EmptyCell, MultiSensor
-from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
+from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr, PlainMonitoringExpr
 from yt_dashboard_generator.specific_tags.tags import TemplateTag
 
 from .common import action_queue_utilization
@@ -130,6 +130,13 @@ def build_rpc_proxy_maintenance():
                 .cell("Rpc Proxy restarts", MonitoringExpr(RpcProxy("yt.server.restarted")
                         .stack(True)
                         .value("window", "5min")).alias("{{container}}"))
-                .cell("Rpc Proxy OOMs", MonitoringExpr(RpcProxyPorto("yt.porto.memory.oom_kills").value("container_category", "pod"))
-                      .alias("{{container}}"))
+                .cell("Rpc Proxy OOMs", MultiSensor(
+                        MonitoringExpr(RpcProxyPorto("yt.porto.memory.oom_kills").value("container_category", "pod"))
+                            .alias("porto oom kills {{container}}"),
+                        (MonitoringExpr(RpcProxyYtcfgen("yt.error_watcher.ooms"))
+                            + PlainMonitoringExpr("constant_line(0)"))
+                            .diff()
+                            .drop_below(0)
+                            .alias("memory limit kills {{container}}")
+                    ))
             ).owner
