@@ -2662,6 +2662,7 @@ private:
             }
         }
 
+        std::vector<std::pair<TStoreId, EStoreFlushState>> incompleteStoreFlushStates;
         std::vector<TStoreId> removedStoreIds;
         for (const auto& descriptor : request->stores_to_remove()) {
             auto storeId = FromProto<TStoreId>(descriptor.store_id());
@@ -2689,6 +2690,21 @@ private:
                         hunkChunk->GetStoreRefCount());
                 }
             }
+            if (store->IsDynamic()) {
+                auto dynamicStore = store->AsDynamic();
+                if (dynamicStore->GetFlushState() != EStoreFlushState::Complete) {
+                    incompleteStoreFlushStates.push_back({dynamicStore->GetId(), dynamicStore->GetFlushState()});
+                }
+            }
+        }
+
+        if (const auto& rowCache = tablet->GetRowCache(); rowCache && !incompleteStoreFlushStates.empty()) {
+            YT_VERIFY(!IsLeader());
+
+            YT_LOG_DEBUG("Some stores had not been flushed to row cache before their destruction was due on follower (StoreFlushStates: %v)",
+                incompleteStoreFlushStates);
+
+            tablet->ResetRowCache(Slot_);
         }
 
         std::vector<TChunkId> removedHunkChunkIds;

@@ -64,7 +64,8 @@ private:
     TStoreFlushCallback MakeStoreFlushCallback(
         IDynamicStorePtr store,
         TTabletSnapshotPtr tabletSnapshot,
-        bool isUnmountWorkflow) override;
+        bool isUnmountWorkflow,
+        bool onlyUpdateRowCache) override;
 
     i64 ComputeStartingRowIndex() const;
 };

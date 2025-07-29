@@ -55,7 +55,8 @@ public:
     TStoreFlushCallback BeginStoreFlush(
         IDynamicStorePtr store,
         TTabletSnapshotPtr tabletSnapshot,
-        bool isUnmountWorkflow) override;
+        bool isUnmountWorkflow,
+        bool onlyUpdateRowCache) override;
     void EndStoreFlush(IDynamicStorePtr store) override;
     void BackoffStoreFlush(IDynamicStorePtr store) override;
 
@@ -124,7 +125,8 @@ protected:
     virtual TStoreFlushCallback MakeStoreFlushCallback(
         IDynamicStorePtr store,
         TTabletSnapshotPtr tabletSnapshot,
-        bool isUnmountWorkflow) = 0;
+        bool isUnmountWorkflow,
+        bool onlyUpdateRowCache) = 0;
 
     TDynamicStoreId GenerateDynamicStoreId();
 
