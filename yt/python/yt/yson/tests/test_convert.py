@@ -4,38 +4,51 @@ from __future__ import absolute_import
 
 from yt.test_helpers import assert_items_equal
 from yt.yson.convert import YsonUint64, to_yson_type, json_to_yson, yson_to_json
+from yt.yson.yson_types import YsonStringProxy, YsonMap, YsonInt64, YsonString, YsonUnicode
 
 import json
+import pytest
 
 
 def test_convert_json_to_yson():
-    x = json_to_yson({
+    test_data_python = {
         "$value": {
             "x": {
                 "$value": 10,
-                "$attributes": {}
+                "$attributes": {},
             },
             "y": {
                 "$value": 11,
-                "$attributes": {}
+                "$attributes": {},
             },
-            "z": u"Брюссельская капуста"
+            "z": u"Брюссельская капуста",
+            b"g": b"Some invalid utf bytes \xee\xdc",
         },
         "$attributes": {
             "$value": "abc",
-            "$attributes": {}
+            "$attributes": {},
         }
-    })
+    }
 
-    z = u"Брюссельская капуста"
-    assert dict(x) == {"x": 10, "y": 11, "z": z}
-    assert x.attributes == "abc"
+    test_data_yson = json_to_yson(test_data_python)
+
+    assert type(test_data_yson) is YsonMap
+    assert test_data_yson["x"] == 10 and type(test_data_yson["x"]) is YsonInt64
+    assert test_data_yson["y"] == 11 and type(test_data_yson["y"]) is YsonInt64
+    assert test_data_yson["z"] == "Брюссельская капуста" and type(test_data_yson["z"]) is YsonUnicode
+    assert test_data_yson["g"] == b"Some invalid utf bytes \xee\xdc" and type(test_data_yson["g"]) is YsonString
+    assert test_data_yson.attributes == "abc"
 
     assert json_to_yson("abc") == "abc"
-    assert json_to_yson({"$type": "string", "$value": "abc"}) == "abc"
+
+    abc_string = json_to_yson({"$type": "string", "$value": "abc"})
+    assert abc_string == "abc" and type(abc_string) is YsonUnicode
 
 
 def test_convert_yson_to_json():
+    yson_string_proxy = YsonStringProxy()
+    yson_string_proxy._bytes = b'some_invalid_bytes'
+
     x = yson_to_json({
         "a": to_yson_type(10, attributes={"attr": 1}),
         "b": to_yson_type(5.0, attributes={"attr": 2}),
@@ -46,13 +59,14 @@ def test_convert_yson_to_json():
                 "attr": 4,
                 "$xxx": "yyy",
                 "other_attr": to_yson_type(10, attributes={}),
-                u"ключ": None
+                u"ключ": None,
             }
         ),
         "e": to_yson_type(None, attributes={"x": "y"}),
         "f": to_yson_type(u"abacaba", attributes={"attr": 4}),
         "g": {
             b"binary_key": b"binary value",
+            b"binary_proxy_key": yson_string_proxy,
             to_yson_type(b"yson_key"): to_yson_type(b"yson value"),
         },
         "h": {
@@ -61,18 +75,41 @@ def test_convert_yson_to_json():
         },
     })
 
-    # Verify that result is json-serializable
-    assert json.loads(json.dumps(x)) == x
-
     assert x["a"] == {"$value": 10, "$attributes": {"attr": 1}}
     assert x["b"] == {"$value": 5.0, "$attributes": {"attr": 2}}
     assert x["c"] == {"$value": "string", "$attributes": {"attr": 3}}
     assert x["d"] == {"$value": {"key": [1, 2]}, "$attributes": {"attr": 4, "$$xxx": "yyy", "other_attr": 10, u"ключ": None}}
     assert x["e"] == {"$value": None, "$attributes": {"x": "y"}}
     assert x["f"] == {"$value": "abacaba", "$attributes": {"attr": 4}}
-    assert x["g"] == {"binary_key": "binary value", "yson_key": "yson value"}
+    assert x["g"] == {"binary_key": "binary value", "binary_proxy_key": "some_invalid_bytes", "yson_key": "yson value"}
     assert x["h"] == {"true_value": True, "false_value": False}
     assert set(x.keys()) == set(["a", "b", "c", "d", "e", "f", "g", "h"])
+
+    assert json.loads(json.dumps(x)) == x
+
+    # with bytes
+    with pytest.raises(UnicodeDecodeError):
+        yson_to_json(
+            use_byte_strings=False,
+            yson_tree={
+                "b_invalid": b"str invalid bytes \xee\xdc",
+            },
+        )
+    value_yson_proxy = YsonStringProxy()
+    value_yson_proxy._bytes = b"str proxy"
+    test_data_python = yson_to_json(
+        use_byte_strings=True,
+        yson_tree={
+            "s": YsonUnicode("str unicode"),
+            "b": YsonString(b"str bytes"),
+            "b_invalid": YsonString(b"str invalid bytes \xee\xdc"),
+            "bp": value_yson_proxy,
+        },
+    )
+    assert test_data_python["s"] == "str unicode" and type(test_data_python["s"]) is str
+    assert test_data_python["b"] == b"str bytes" and type(test_data_python["b"]) is YsonString
+    assert test_data_python["b_invalid"] == b"str invalid bytes \xee\xdc" and type(test_data_python["b_invalid"]) is YsonString
+    assert test_data_python["bp"] == b"str proxy" and type(test_data_python["bp"]) is bytes
 
 
 def test_convert_yson_to_json_annotate_with_types():
@@ -98,7 +135,7 @@ def test_convert_yson_to_json_annotate_with_types():
                     "attr": 4,
                     "$xxx": "yyy",
                     "other_attr": to_yson_type(10, attributes={}),
-                    u"ключ": None
+                    u"ключ": None,
                 }
             ),
             "e": to_yson_type(None),
