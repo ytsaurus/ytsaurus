@@ -34,7 +34,7 @@ TNodeWarden::TNodeWarden(const TIntrusivePtr<TNodeWardenConfig> &cfg)
     , MaxSyncLogChunksInFlightSSD(10, 1, 1024)
     , DefaultHugeGarbagePerMille(300, 1, 1000)
     , HugeDefragFreeSpaceBorderPerMille(260, 1, 1000)
-    , MaxChunksToDefragInflight(10, 1, 50)
+    , MaxChunksToDefragInflight(10, 1, 1000)
     , FreshCompMaxInFlightWrites(10, 1, 1000)
     , FreshCompMaxInFlightReads(10, 1, 1000)
     , HullCompMaxInFlightWrites(10, 1, 1000)
@@ -167,7 +167,6 @@ STATEFN(TNodeWarden::StateOnline) {
         fFunc(TEvBlobStorage::EvNodeWardenUpdateCache, ForwardToDistributedConfigKeeper);
         fFunc(TEvBlobStorage::EvNodeWardenQueryCache, ForwardToDistributedConfigKeeper);
         fFunc(TEvBlobStorage::EvNodeWardenUnsubscribeFromCache, ForwardToDistributedConfigKeeper);
-        fFunc(TEvBlobStorage::EvNodeWardenUpdateConfigFromPeer, ForwardToDistributedConfigKeeper);
 
         hFunc(TEvNodeWardenQueryBaseConfig, Handle);
         hFunc(TEvNodeConfigInvokeOnRootResult, Handle);
