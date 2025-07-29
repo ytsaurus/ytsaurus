@@ -2,7 +2,7 @@
 from yt_dashboard_generator.dashboard import Rowset
 from yt_dashboard_generator.sensor import MultiSensor
 from yt_dashboard_generator.backends.monitoring import MonitoringTag
-from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
+from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr, PlainMonitoringExpr
 
 from ..common.sensors import *
 
@@ -50,11 +50,19 @@ def build_bundle_controller():
             .cell("Node restarts", MonitoringExpr(TabNode("yt.server.restarted")
                 .top()
                 .value("window", "5min")).alias("{{container}}"))
-            .cell("Node OOMs", MonitoringExpr(TabNodePorto("yt.porto.memory.oom_kills"))
-                .value("container_category", "pod")
-                .diff()
-                .top_max(10)
-                .alias("{{container}}"))
+            .cell("Node OOMs", MultiSensor(
+                    MonitoringExpr(TabNodePorto("yt.porto.memory.oom_kills"))
+                        .value("container_category", "pod")
+                        .diff()
+                        .top_max(10)
+                        .alias("porto oom kills {{container}}"),
+                    (MonitoringExpr(TabNodeYtcfgen("yt.error_watcher.ooms"))
+                        + PlainMonitoringExpr("constant_line(0)"))
+                        .diff()
+                        .drop_below(0)
+                        .top_max(10)
+                        .alias("memory limit kills {{container}}")
+                ))
         .row()
             .stack()
             .cell("Overload Controller", MonitoringExpr(NodeTablet("yt.tablet_node.overload_controller.overloaded.rate")
