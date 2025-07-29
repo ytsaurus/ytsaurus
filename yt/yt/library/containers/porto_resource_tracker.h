@@ -115,9 +115,13 @@ private:
     TLayerStatistics ExtractLayerStatistics(const TResourceUsage& resourceUsage) const;
     TTotalStatistics ExtractTotalStatistics(const TResourceUsage& resourceUsage) const;
 
-    TErrorOr<i64> CalculateCounterDelta(
+    static TErrorOr<i64> CalculateCounterDelta(
         const TErrorOr<i64>& oldValue,
-        const TErrorOr<i64>& newValue) const;
+        const TErrorOr<i64>& newValue);
+
+    static TErrorOr<std::vector<TResourceUsage::TTaggedStat>> CalculateTaggedStatsDelta(
+        const TErrorOr<std::vector<TResourceUsage::TTaggedStat>>& oldValue,
+        const TErrorOr<std::vector<TResourceUsage::TTaggedStat>>& newValue);
 
     void ReCalculateResourceUsage(const TResourceUsage& newResourceUsage) const;
 
