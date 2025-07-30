@@ -495,6 +495,10 @@ const std::vector<TSchedulerTreeAlertDescriptor>& GetSchedulerTreeAlertDescripto
             .Type = ESchedulerAlertType::UnrecognizedPoolTreeConfigOptions,
             .Message = "Pool tree configs contain unrecognized options",
         },
+        TSchedulerTreeAlertDescriptor{
+            .Type = ESchedulerAlertType::NodesWithInsufficientResourceLimits,
+            .Message = "Found nodes with insufficient resource limits",
+        },
     };
 
     return SchedulerTreeAlertDescriptors;

@@ -4,7 +4,7 @@ from yt_commands import (
     alter_table, authors, print_debug, wait, create, ls, get, set, sync_create_cells,
     remove, create_pool,
     read_table, write_table, map, map_reduce, run_test_vanilla, abort_job, get_singular_chunk_id, update_controller_agent_config, set_nodes_banned,
-    create_test_tables)
+    create_test_tables, update_pool_tree_config)
 
 from yt_type_helpers import make_schema
 
@@ -15,6 +15,16 @@ from flaky import flaky
 
 import string
 import time
+
+##################################################################
+
+
+def wait_single_scheduler_alert(alert_type):
+    wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
+    alert = get("//sys/scheduler/@alerts")[0]
+    assert alert["attributes"]["alert_type"] == alert_type
+    return alert
+
 
 ##################################################################
 
@@ -102,11 +112,9 @@ class TestSchedulerAlerts(YTEnvSetup):
         set("//sys/cluster_nodes/{}/@user_tags".format(nodes[0]), ["my_tag"])
         set("//sys/pool_trees/default/@config/nodes_filter", "my_tag")
 
-        wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
+        alert = wait_single_scheduler_alert("nodes_without_pool_tree")
+        attributes = alert["attributes"]
 
-        alerts = get("//sys/scheduler/@alerts")
-        attributes = alerts[0]["attributes"]
-        assert attributes["alert_type"] == "nodes_without_pool_tree"
         assert len(attributes["node_addresses"]) == 2
         assert attributes["node_count"] == 2
 
@@ -127,10 +135,26 @@ class TestSchedulerAlerts(YTEnvSetup):
 
         wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
 
-        alerts = get("//sys/scheduler/@alerts")
-        attributes = alerts[0]["attributes"]
-        assert attributes["alert_type"] == "unrecognized_pool_tree_config_options"
+        wait_single_scheduler_alert("unrecognized_pool_tree_config_options")
 
+    @authors("renadeen")
+    def test_min_node_resource_limits(self):
+        wait(lambda: len(get("//sys/scheduler/@alerts")) == 0)
+        update_pool_tree_config("default", {
+            "min_node_resource_limits": {
+                "cpu": 100.0,
+            },
+            "min_node_resource_limits_check_period": 100,
+        })
+
+        wait_single_scheduler_alert("nodes_with_insufficient_resource_limits")
+
+        update_pool_tree_config("default", {
+            "min_node_resource_limits": {
+                "cpu": 0.0,
+            },
+        })
+        wait(lambda: len(get("//sys/scheduler/@alerts")) == 0)
 
 ##################################################################
 

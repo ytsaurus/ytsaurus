@@ -719,6 +719,7 @@ private:
     NProfiling::TProfiler Profiler_;
 
     NConcurrency::TPeriodicExecutorPtr SchedulingSegmentsManagementExecutor_;
+    NConcurrency::TPeriodicExecutorPtr MinNodeResourceLimitsCheckExecutor_;
 
     TEnumIndexedArray<EAllocationSchedulingStage, std::unique_ptr<TSchedulingStageProfilingCounters>> SchedulingStageProfilingCounters_;
 
@@ -860,6 +861,8 @@ private:
     void ApplyNodeSchedulingSegmentsChanges(const TSetNodeSchedulingSegmentOptionsList& movedNodes);
 
     void ManageSchedulingSegments();
+
+    void CheckMinNodeResourceLimits();
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareTreeAllocationScheduler)

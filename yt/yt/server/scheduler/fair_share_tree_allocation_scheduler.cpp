@@ -2485,6 +2485,12 @@ TFairShareTreeAllocationScheduler::TFairShareTreeAllocationScheduler(
         BIND(&TFairShareTreeAllocationScheduler::ManageSchedulingSegments, MakeWeak(this)),
         Config_->SchedulingSegments->ManagePeriod);
     SchedulingSegmentsManagementExecutor_->Start();
+
+    MinNodeResourceLimitsCheckExecutor_ = New<TPeriodicExecutor>(
+        StrategyHost_->GetControlInvoker(EControlQueue::FairShareStrategy),
+        BIND(&TFairShareTreeAllocationScheduler::CheckMinNodeResourceLimits, MakeWeak(this)),
+        Config_->MinNodeResourceLimitsCheckPeriod);
+    MinNodeResourceLimitsCheckExecutor_->Start();
 }
 
 void TFairShareTreeAllocationScheduler::RegisterNode(TNodeId nodeId)
@@ -3120,6 +3126,8 @@ void TFairShareTreeAllocationScheduler::UpdateConfig(TFairShareStrategyTreeConfi
             Y_UNUSED(SchedulingSegmentManager_.InitOrUpdateOperationSchedulingSegment(operationId, operationState));
         }
     }
+
+    MinNodeResourceLimitsCheckExecutor_->SetPeriod(Config_->MinNodeResourceLimitsCheckPeriod);
 
     UpdateSsdPriorityPreemptionMedia();
 }
@@ -4089,6 +4097,38 @@ void TFairShareTreeAllocationScheduler::ApplyNodeSchedulingSegmentsChanges(const
 
     WaitFor(AllSucceeded(std::move(futures)))
         .ThrowOnError();
+}
+
+void TFairShareTreeAllocationScheduler::CheckMinNodeResourceLimits()
+{
+    static const int MaxViolatingNodesInError = 10;
+
+    if (!TreeHost_->IsConnected()) {
+        return;
+    }
+
+    std::vector<std::string> violatingNodes;
+    for (const auto& [nodeId, state] : GetNodeStateMapSnapshot()) {
+        if (!state.Descriptor) {
+            continue;
+        }
+
+        if (!Dominates(state.Descriptor->ResourceLimits, ToJobResources(Config_->MinNodeResourceLimits, TJobResources()))) {
+            violatingNodes.push_back(GetDefaultAddress(state.Descriptor->Addresses));
+        }
+    }
+
+    TError error;
+    if (violatingNodes.size() > 0) {
+        error = TError("Found violating nodes in tree %Qv", TreeId_);
+        if (violatingNodes.size() > MaxViolatingNodesInError) {
+            violatingNodes.resize(MaxViolatingNodesInError);
+            error = error << TErrorAttribute("violating_nodes_truncated", true);
+        }
+        error = error << TErrorAttribute("violating_nodes", violatingNodes);
+    }
+
+    TreeHost_->SetSchedulerTreeAlert(TreeId_, ESchedulerAlertType::NodesWithInsufficientResourceLimits, error);
 }
 
 void TFairShareTreeAllocationScheduler::ManageSchedulingSegments()
