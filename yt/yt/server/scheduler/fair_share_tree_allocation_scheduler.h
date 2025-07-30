@@ -705,6 +705,8 @@ public:
         const TSchedulerOperationElement* element,
         TAllocationId allocationId) const;
 
+    TFuture<void> Stop();
+
 private:
     const TString TreeId_;
     const NLogging::TLogger Logger;

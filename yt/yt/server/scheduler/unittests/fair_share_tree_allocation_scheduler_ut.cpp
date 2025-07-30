@@ -579,15 +579,19 @@ protected:
 
     TJobResources DefaultMinSpareResources;
 
+    TFairShareTreeAllocationSchedulerPtr DisposablePtrToTreeAllocationScheduler_;
+
     void TearDown() override
     {
-        // NB(eshcherbin): To prevent "Promise abandoned" exceptions in tree allocation scheduler's periodic activities.
-        BIND([] { }).AsyncVia(NodeShardActionQueue_->GetInvoker()).Run().Get().ThrowOnError();
+        // NB(renadeen): To prevent "use after free" and "Promise abandoned" problems in tree allocation scheduler's periodic activities.
+        NConcurrency::WaitFor(DisposablePtrToTreeAllocationScheduler_->Stop()).ThrowOnError();
+        DisposablePtrToTreeAllocationScheduler_.Reset();
     }
 
     TFairShareTreeAllocationSchedulerPtr CreateTestTreeScheduler(TWeakPtr<IFairShareTreeAllocationSchedulerHost> host, ISchedulerStrategyHost* strategyHost)
     {
-        return New<TFairShareTreeAllocationScheduler>(
+        YT_VERIFY(!DisposablePtrToTreeAllocationScheduler_);
+        DisposablePtrToTreeAllocationScheduler_ = New<TFairShareTreeAllocationScheduler>(
             /*treeId*/ "default",
             StrategyLogger(),
             std::move(host),
@@ -595,6 +599,8 @@ protected:
             strategyHost,
             TreeConfig_,
             NProfiling::TProfiler());
+
+        return DisposablePtrToTreeAllocationScheduler_;
     }
 
     TFairShareTreeAllocationSchedulerHostMockPtr CreateTestTreeAllocationSchedulerHost(TSchedulerStrategyHostMockPtr strategyHost)
