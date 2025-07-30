@@ -105,6 +105,7 @@ struct IInstanceLauncher
     virtual void SetCoreDumpHandler(const std::optional<TString>& handler) = 0;
     virtual void SetRoot(const TRootFS& rootFS) = 0;
 
+    virtual void SetCpuWeight(double cpuWeight) = 0;
     virtual void SetThreadLimit(i64 threadLimit) = 0;
     virtual void SetDevices(const std::vector<TDevice>& devices) = 0;
 

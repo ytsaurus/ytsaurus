@@ -172,6 +172,8 @@ void TPortoJobEnvironmentConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("jobs_io_weight", &TThis::JobsIOWeight)
         .Default(0.05);
+    registrar.Parameter("job_proxy_cpu_weight", &TThis::JobProxyCpuWeight)
+        .Default();
     registrar.Parameter("node_dedicated_cpu", &TThis::NodeDedicatedCpu)
         .GreaterThanOrEqual(0)
         .Default(2);

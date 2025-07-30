@@ -264,6 +264,7 @@ struct TPortoJobEnvironmentConfig
     THashMap<TString, TString> ExternalBinds;
 
     double JobsIOWeight;
+    std::optional<double> JobProxyCpuWeight;
     double NodeDedicatedCpu;
 
     bool UseShortContainerNames;
