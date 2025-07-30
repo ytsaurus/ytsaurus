@@ -226,10 +226,5 @@ func (t *TxInterceptor) MultiLookup(
 		return
 	}
 
-	readers, err = next(ctx, call, rsp)
-	if err != nil {
-		return
-	}
-
-	return readers, nil
+	return next(ctx, call, rsp)
 }
