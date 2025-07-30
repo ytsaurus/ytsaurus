@@ -264,9 +264,30 @@ public:
 
     void Initialize(std::optional<double> limit = std::nullopt)
     {
-        auto guard = Guard(HistoricUsageAggregatorLock_);
-        HistoricUsageAggregator_.UpdateAt(TInstant::Now(), /*value*/ 0);
-        DoInitialize(std::move(limit));
+        if (Initialized_) {
+            return;
+        }
+
+        // We make sure that solomon counters are initialized only once.
+        auto guard = TGuard(InitializationLock_);
+
+        if (Initialized_) {
+            return;
+        }
+
+        Limit_ = Profiler_.Gauge("/limit");
+        Limit_.Update(limit.value_or(ThrottlerConfig_.Acquire()->Limit.value_or(-1)));
+
+        Usage_ = Profiler_.Gauge("/usage");
+        Usage_.Update(0);
+
+        QueueTotalAmount_ = Profiler_.Gauge("/queue_total_amount");
+        QueueTotalAmount_.Update(0);
+
+        EstimatedOverdraftDuration_ = Profiler_.TimeGauge("/estimated_overdraft_duration");
+        EstimatedOverdraftDuration_.Update(TDuration::Zero());
+
+        Initialized_ = true;
     }
 
 private:
@@ -286,6 +307,7 @@ private:
     TGauge QueueTotalAmount_;
     TTimeGauge EstimatedOverdraftDuration_;
     std::atomic<bool> Initialized_ = false;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, InitializationLock_);
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, HistoricUsageAggregatorLock_);
     TAverageAdjustedExponentialMovingAverage HistoricUsageAggregator_;
@@ -295,29 +317,11 @@ private:
         auto guard = Guard(HistoricUsageAggregatorLock_);
         HistoricUsageAggregator_.UpdateAt(TInstant::Now(), amount);
         if (amount > 0) {
-            DoInitialize();
+            Initialize();
         }
         if (Initialized_) {
             Usage_.Update(HistoricUsageAggregator_.GetAverage());
         }
-    }
-
-    void DoInitialize(std::optional<double> limit = std::nullopt)
-    {
-        if (Initialized_.exchange(true)) {
-            return;
-        }
-
-        YT_ASSERT_SPINLOCK_AFFINITY(HistoricUsageAggregatorLock_);
-
-        Limit_ = Profiler_.Gauge("/limit");
-        Usage_ = Profiler_.Gauge("/usage");
-        QueueTotalAmount_ = Profiler_.Gauge("/queue_total_amount");
-        EstimatedOverdraftDuration_ = Profiler_.TimeGauge("/estimated_overdraft_duration");
-
-        Limit_.Update(limit.value_or(ThrottlerConfig_.Acquire()->Limit.value_or(-1)));
-        QueueTotalAmount_.Update(0);
-        EstimatedOverdraftDuration_.Update(TDuration::Zero());
     }
 };
 
