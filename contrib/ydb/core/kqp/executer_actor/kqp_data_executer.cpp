@@ -1647,8 +1647,7 @@ private:
             Y_DEBUG_ABORT_UNLESS(stageInfo.Meta.TablePath == op.GetTable().GetPath());
             switch (op.GetTypeCase()) {
                 case NKqpProto::TKqpPhyTableOperation::kReadRanges:
-                case NKqpProto::TKqpPhyTableOperation::kReadRange:
-                case NKqpProto::TKqpPhyTableOperation::kLookup: {
+                case NKqpProto::TKqpPhyTableOperation::kReadRange: {
                     auto columns = BuildKqpColumns(op, tableInfo);
                     bool isFullScan = false;
                     auto partitions = PartitionPruner.Prune(op, stageInfo, isFullScan);
@@ -2064,7 +2063,7 @@ private:
                 }
 
                 if (stage.GetIsSinglePartition()) {
-                    YQL_ENSURE(stageInfo.Tasks.size() == 1, "Unexpected multiple tasks in single-partition stage");
+                    YQL_ENSURE(stageInfo.Tasks.size() <= 1, "Unexpected multiple tasks in single-partition stage");
                 }
 
                 TasksGraph.GetMeta().AllowWithSpilling |= stage.GetAllowWithSpilling();

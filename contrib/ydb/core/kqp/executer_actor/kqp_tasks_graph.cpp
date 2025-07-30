@@ -194,7 +194,6 @@ void FillKqpTasksGraphStages(TKqpTasksGraph& tasksGraph, const TVector<IKqpGatew
                     case NKqpProto::TKqpPhyTableOperation::kReadRange:
                     case NKqpProto::TKqpPhyTableOperation::kReadRanges:
                     case NKqpProto::TKqpPhyTableOperation::kReadOlapRange:
-                    case NKqpProto::TKqpPhyTableOperation::kLookup:
                         stageInfo.Meta.ShardOperations.insert(TKeyDesc::ERowOperation::Read);
                         break;
                     case NKqpProto::TKqpPhyTableOperation::kUpsertRows:
@@ -220,6 +219,11 @@ void BuildKqpTaskGraphResultChannels(TKqpTasksGraph& tasksGraph, const TKqpPhyTx
         const auto& connection = result.GetConnection();
         const auto& inputStageInfo = tasksGraph.GetStageInfo(TStageId(txIdx, connection.GetStageIndex()));
         const auto& outputIdx = connection.GetOutputIndex();
+
+        if (inputStageInfo.Tasks.size() < 1) {
+            // it's empty result from a single partition stage
+            continue;
+        }
 
         YQL_ENSURE(inputStageInfo.Tasks.size() == 1, "actual count: " << inputStageInfo.Tasks.size());
         auto originTaskId = inputStageInfo.Tasks[0];
