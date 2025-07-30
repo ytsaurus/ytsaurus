@@ -388,7 +388,9 @@ struct TConnectionDynamicConfig
 
     bool EnableReadFromInSyncAsyncReplicas;
 
+    // COMPAT(sabdenovch)
     THashSet<std::string> BannedInSyncReplicaClusters;
+    THashSet<std::string> PreferredInSyncReplicaClusters;
 
     bool RequestFullStatisticsForBriefStatisticsInListJobs;
 
