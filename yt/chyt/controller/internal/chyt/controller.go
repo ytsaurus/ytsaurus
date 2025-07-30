@@ -191,7 +191,7 @@ func (c *Controller) Root() ypath.Path {
 }
 
 func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
-	spec map[string]any, description map[string]any, annotations map[string]any, err error) {
+	spec map[string]any, description map[string]any, annotations map[string]any, runAsUser bool, err error) {
 	alias := oplet.Alias()
 
 	description = buildDescription(c.cluster, alias, c.config.EnableYandexSpecificLinksOrDefault())
@@ -273,6 +273,8 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 		spec["stderr_table_path"] = runtimePaths.StderrTable
 		spec["core_table_path"] = runtimePaths.CoreTable
 	}
+
+	runAsUser = false
 
 	return
 }
@@ -435,6 +437,10 @@ func (c *Controller) GetOpBriefAttributes(parsedSpeclet any) map[string]any {
 
 func (c *Controller) GetScalerTarget(ctx context.Context, opletInfo strawberry.OpletInfoForScaler) (*strawberry.ScalerTarget, error) {
 	return nil, nil
+}
+
+func (c *Controller) RunAsUser() bool {
+	return false
 }
 
 func parseConfig(rawConfig yson.RawValue) Config {
