@@ -2025,7 +2025,7 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         actual = self._read("//tmp/t", range(100, 200, 2), use_lookup_cache=True)
         assert_items_equal(actual, expected)
 
-    @authors("dave11ar")
+    @authors("dave11ar", "sabdenovch")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("hunks", [False, True])
     @pytest.mark.parametrize("test_size", [30])
@@ -2119,7 +2119,7 @@ class TestLookupCache(TestSortedDynamicTablesBase):
                 if decision(2 / 3):
                     test_columns.append(column)
 
-            if not test_columns:
+            if not test_columns or not test_keys:
                 continue
 
             shuffle(test_keys)
