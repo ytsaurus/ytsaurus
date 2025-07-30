@@ -42,6 +42,7 @@ struct TRunnableContainerSpec
 
     bool EnableCoreDumps = true;
 
+    std::optional<double> CpuWeight;
     std::optional<i64> ThreadLimit;
 
     std::optional<TString> NetworkInterface;

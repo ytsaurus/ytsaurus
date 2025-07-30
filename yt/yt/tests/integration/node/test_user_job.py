@@ -1268,6 +1268,8 @@ class TestArtifactCacheBypass(YTEnvSetup):
 
 
 class TestUserJobIsolation(YTEnvSetup):
+    USE_PORTO = True
+
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1276,6 +1278,7 @@ class TestUserJobIsolation(YTEnvSetup):
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
+                    "job_proxy_cpu_weight": 42.0,
                     "porto_executor": {
                         "enable_network_isolation": False
                     }
@@ -1295,8 +1298,6 @@ class TestUserJobIsolation(YTEnvSetup):
             },
         },
     }
-
-    USE_PORTO = True
 
     @authors("gritukan")
     def test_create_network_project_map(self):
@@ -1445,6 +1446,50 @@ class TestUserJobIsolation(YTEnvSetup):
             return process_count == 0
 
         wait(lambda: check_command_ended())
+
+
+##################################################################
+
+
+class TestJobProxyContainer(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # Use list_*_subcontainers.
+    USE_PORTO = True
+
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                    "job_proxy_cpu_weight": 42.0,
+                    "porto_executor": {
+                        "enable_network_isolation": False
+                    }
+                },
+            }
+        }
+    }
+
+    def get_job_proxy_container_property(self, property):
+        from porto import Connection
+
+        conn = Connection()
+
+        containers = self.Env.list_node_subcontainers(0)
+        print_debug("Containers", containers)
+        assert containers
+        job_proxy_container = [x for x in containers if x.endswith("/jp")][0]
+
+        return conn.GetProperty(job_proxy_container, property)
+
+    @authors("ignat")
+    def test_job_proxy_cpu_weight(self):
+        run_test_vanilla(command=with_breakpoint("BREAKPOINT"))
+        wait_breakpoint()
+
+        assert self.get_job_proxy_container_property("cpu_weight") == "42"
 
 
 ##################################################################

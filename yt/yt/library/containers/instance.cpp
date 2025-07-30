@@ -313,6 +313,11 @@ public:
         Spec_.RootFS = rootFS;
     }
 
+    void SetCpuWeight(double cpuWeight) override
+    {
+        Spec_.CpuWeight = cpuWeight;
+    }
+
     void SetThreadLimit(i64 threadLimit) override
     {
         Spec_.ThreadLimit = threadLimit;
