@@ -14,6 +14,7 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 
 
 #### Features
+* Support for [YTsaurus Server 25.1.0](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fytsaurus%2F25.1.0)
 * Native RPC mTLS by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/493
 * Add ability to override http proxy ports by @imakunin in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/505
 * Support new exe node config format by @k-pogorelov in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/511
