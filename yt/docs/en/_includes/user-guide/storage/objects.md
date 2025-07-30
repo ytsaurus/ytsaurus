@@ -81,7 +81,7 @@ Each object has a unique **ID** that is a 128-bit number whose format coincides 
 
 | Component | Purpose |
 | :---------: | ------------------------------------------------------------ |
-| `a` | [The number of the epoch](https://en.wikipedia.org/wiki/Unix_time) in which the object was created |
+| `a` | The number of the Hydra epoch in which the object was created |
 | `b` | The mutation number within the epoch in which the object was created |
 | `c[16..31]` | The master group ID (cell id) is a unique 16-bit number that unambiguously identifies the cluster. This ID can be found in the cluster web interface opposite the master servers |
 | `c[0..15]` | Object type |
