@@ -637,7 +637,7 @@ private:
         const IConnectionPtr& connection,
         const TMultipleReplicationCardProgressesUpdates& batch) const
     {
-        const auto residencyCache = connection->GetChaosResidencyCache();
+        const auto& residencyCache = connection->GetChaosResidencyCache();
 
         std::vector<std::pair<TReplicationCardId, TFuture<TCellTag>>> futureTagById;
         std::vector<TFuture<TCellTag>> futures;
