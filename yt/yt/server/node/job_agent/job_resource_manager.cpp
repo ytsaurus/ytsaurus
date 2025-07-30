@@ -1903,7 +1903,7 @@ bool TResourceHolder::SetBaseResourceUsage(TJobResources newResourceUsage)
             newResourceUsage,
             State_);
 
-        // TODO(pogorelov): Uncomment when UpdateResourceDemande will be removed
+        // TODO(pogorelov): Uncomment this code when UpdateResourceDemand method will be removed.
         // {
         //     auto error = VerifyEquals(BaseResourceUsage_, InitialResourceDemand_, "Resources are unequal");
         //     YT_LOG_FATAL_UNLESS(
@@ -1959,7 +1959,7 @@ bool TResourceHolder::TrySetBaseResourceUsage(TJobResources newResourceUsage)
     if (!HasStarted_) {
         {
             auto error = VerifyEquals(InitialResourceDemand_, newResourceUsage, "Resources are unequal");
-            YT_LOG_FATAL_UNLESS(
+            YT_LOG_ERROR_UNLESS(
                 error.IsOK(),
                 error,
                 "Setting unexpected resources value");
