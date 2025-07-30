@@ -155,7 +155,7 @@ class TestJobProxyBinary(JobProxyTestBase):
         wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/user_slots") == 1)
 
     @authors("ermolovd")
-    @pytest.mark.parametrize('spec,expected_env_presence', [
+    @pytest.mark.parametrize("spec,expected_env_presence", [
         ({"enable_rpc_proxy_in_job_proxy": False}, False),
         ({"enable_rpc_proxy_in_job_proxy": True}, True),
     ])
@@ -183,7 +183,7 @@ class TestJobProxyUserJobFlagRedirectStdoutToStderr(YTEnvSetup):
     NUM_HTTP_PROXIES = 1
 
     @authors("apachee")
-    @pytest.mark.parametrize('env_variable_value,spec', [
+    @pytest.mark.parametrize("env_variable_value,spec", [
         ("1", {}),
         ("1", {"redirect_stdout_to_stderr": False}),
         ("4", {"redirect_stdout_to_stderr": True}),
@@ -250,7 +250,7 @@ class TestJobProxyUserJobFlagRedirectStdoutToStderr(YTEnvSetup):
 
         assert len(job_ids) == 1
         job_id = job_ids[0]
-        content = op.read_stderr(job_id).decode('ascii').strip()
+        content = op.read_stderr(job_id).decode("ascii").strip()
         assert content == "content"
 
         release_breakpoint()
@@ -308,11 +308,11 @@ class TestRpcProxyInJobProxyBase(YTEnvSetup):
             update_inplace(default_config, config)
         return YtClient(proxy=None, config=default_config)
 
-    def run_job_proxy(self, enable_rpc_proxy, rpc_proxy_thread_pool_size=None, monitoring=False, time_limit=2000):
+    def run_job_proxy(self, enable_rpc_proxy, rpc_proxy_thread_pool_size=None, enable_monitoring=False, time_limit=2000):
         task_patch = {
             "enable_rpc_proxy_in_job_proxy": enable_rpc_proxy,
             "monitoring": {
-                "enable": monitoring
+                "enable": enable_monitoring,
             }
         }
         if rpc_proxy_thread_pool_size is not None:
@@ -355,15 +355,15 @@ class TestRpcProxyInJobProxySingleCluster(TestRpcProxyInJobProxyBase):
     @authors("ermolovd")
     def test_metrics(self):
         def check_sensor_values(projections):
-            return any('job_descriptor' in projection['tags'] and
-                       'slot_index' in projection['tags'] and
-                       projection['value'] > 0 for projection in projections)
+            return any("job_descriptor" in projection["tags"] and
+                       "slot_index" in projection["tags"] and
+                       projection["value"] > 0 for projection in projections)
 
-        socket_file = self.run_job_proxy(enable_rpc_proxy=True, monitoring=True)
+        socket_file = self.run_job_proxy(enable_rpc_proxy=True, enable_monitoring=True)
         client = self.create_client_from_uds(socket_file, config={"token": "tester_token"})
         client.list("/")
         node = ls("//sys/cluster_nodes")[0]
-        profiler = profiler_factory().at_job_proxy(node, fixed_tags={'yt_service': 'ApiService', 'method': 'ListNode'})
+        profiler = profiler_factory().at_job_proxy(node, fixed_tags={"yt_service": "ApiService", "method": "ListNode"})
         wait(lambda: check_sensor_values(profiler.get_all("rpc/server/request_count")))
 
     @authors("hiddenpath")
@@ -528,7 +528,7 @@ class TestJobProxyProfiling(YTEnvSetup):
         node = ls("//sys/cluster_nodes")[0]
         profiler = profiler_factory().at_job_proxy(node)
 
-        wait(lambda: sum(projection['value'] for projection in profiler.get_all("resource_tracker/thread_count")) > 0)
+        wait(lambda: sum(projection["value"] for projection in profiler.get_all("resource_tracker/thread_count")) > 0)
 
         op.abort()
 
