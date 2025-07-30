@@ -8,6 +8,7 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
+#include <contrib/libs/libsodium/include/sodium/crypto_sign.h>
 #include <contrib/libs/libsodium/include/sodium/randombytes.h>
 
 namespace NYT::NSignature {

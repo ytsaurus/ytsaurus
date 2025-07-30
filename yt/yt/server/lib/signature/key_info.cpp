@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <contrib/libs/libsodium/include/sodium/crypto_sign.h>
+
 namespace NYT::NSignature {
 
 using namespace NLogging;

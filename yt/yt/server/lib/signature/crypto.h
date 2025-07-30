@@ -4,15 +4,13 @@
 
 #include <util/datetime/base.h>
 
-#include <contrib/libs/libsodium/include/sodium/crypto_sign.h>
-
 namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr static size_t PublicKeySize = crypto_sign_PUBLICKEYBYTES;
-constexpr static size_t PrivateKeySize = crypto_sign_SECRETKEYBYTES;
-constexpr static size_t SignatureSize = crypto_sign_BYTES;
+constexpr static size_t PublicKeySize = 32;
+constexpr static size_t PrivateKeySize = 64;
+constexpr static size_t SignatureSize = 64;
 
 ////////////////////////////////////////////////////////////////////////////////
 
