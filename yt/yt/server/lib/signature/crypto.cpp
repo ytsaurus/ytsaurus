@@ -14,6 +14,12 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static_assert(PublicKeySize == crypto_sign_PUBLICKEYBYTES);
+static_assert(PrivateKeySize == crypto_sign_SECRETKEYBYTES);
+static_assert(SignatureSize == crypto_sign_BYTES);
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 std::atomic<bool> CryptographyInitializationFinished = {false};
@@ -22,6 +28,8 @@ std::atomic<bool> CryptographyInitializationFinished = {false};
 
 TFuture<void> InitializeCryptography(const IInvokerPtr& invoker)
 {
+    YT_LOG_INFO("Initializing cryptography");
+
     // NB(pavook) sodium_init might stall if there's not enough entropy in the system
     // (see https://docs.libsodium.org/usage). We need to set a reasonable timeout on this operation.
     return BIND(sodium_init)
