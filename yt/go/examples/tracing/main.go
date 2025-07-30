@@ -37,6 +37,6 @@ func main() {
 	ctx = bridgeTracer.ContextWithBridgeSpan(ctx, otelSpan)
 
 	// Spans created by client will be linked to otel spans
-	// Trace id and span id will be sent in requests to yt proxy 
+	// Trace id and span id will be sent in requests to yt proxy
 	yc.ListNode(ctx, ypath.Path("/"), nil, nil)
 }

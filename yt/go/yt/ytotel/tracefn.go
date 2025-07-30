@@ -8,17 +8,17 @@ import (
 	"go.ytsaurus.tech/yt/go/guid"
 )
 
+// spanContextProvider is an interface that should be implemented by the bridge
+// that allows to get OpenTelemetry context from the OpenTracing span
+type spanContextProvider interface {
+	TraceID() trace.TraceID
+	SpanID() trace.SpanID
+	TraceFlags() trace.TraceFlags
+}
+
 func TraceFn(ctx context.Context) (traceID guid.GUID, spanID uint64, flags byte, ok bool) {
 	if otSpan := opentracing.SpanFromContext(ctx); otSpan != nil {
 		spanCtx := otSpan.Context()
-
-		// Try to get OpenTelemetry context from the OpenTracing span via bridge
-		// The bridge should implement these methods
-		type spanContextProvider interface {
-			TraceID() trace.TraceID
-			SpanID() trace.SpanID
-			TraceFlags() trace.TraceFlags
-		}
 
 		if bridgeSpanCtx, ok := spanCtx.(spanContextProvider); ok {
 			traceIDBytes := bridgeSpanCtx.TraceID()
