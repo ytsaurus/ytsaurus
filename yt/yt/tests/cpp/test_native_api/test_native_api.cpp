@@ -1795,6 +1795,177 @@ TEST_F(TSignatureComponentsTest, DontCrashOnCypressFailure)
         "no child with key");
 }
 
+TEST_F(TSignatureComponentsTest, ReconfigureEnableGeneration)
+{
+    // Start with empty config.
+    Components = New<TSignatureComponents>(Config, NativeClient, GetCurrentInvoker());
+    auto generator = Components->GetSignatureGenerator();
+
+    EXPECT_THROW_WITH_SUBSTRING(YT_UNUSED_FUTURE(generator->Sign("test")), "unsupported");
+
+    Config->Generation = GenerationConfig;
+    WaitFor(Components->Reconfigure(Config))
+        .ThrowOnError();
+
+    // Generation side should work now.
+    EXPECT_EQ(generator->Sign("test")->Payload(), "test");
+
+    WaitFor(Components->StartRotation())
+        .ThrowOnError();
+    WaitFor(Components->StopRotation())
+        .ThrowOnError();
+}
+
+TEST_F(TSignatureComponentsTest, ReconfigureDisableGeneration)
+{
+    Config->Generation = GenerationConfig;
+    Components = New<TSignatureComponents>(Config, NativeClient, GetCurrentInvoker());
+    auto generator = Components->GetSignatureGenerator();
+
+    WaitFor(Components->StartRotation())
+        .ThrowOnError();
+
+    EXPECT_EQ(generator->Sign("test")->Payload(), "test");
+
+    Config->Generation = nullptr;
+    // It should be disabled immediately, so we don't wait for the rotation stop.
+    YT_UNUSED_FUTURE(Components->Reconfigure(Config));
+    EXPECT_THROW_WITH_SUBSTRING(YT_UNUSED_FUTURE(generator->Sign("test")), "unsupported");
+
+    // Should be a no-op.
+    auto startFuture = Components->StartRotation();
+    EXPECT_TRUE(startFuture.IsSet() && startFuture.Get().IsOK());
+}
+
+TEST_F(TSignatureComponentsTest, ReconfigureEnableValidation)
+{
+    // Start with an empty config.
+    Components = New<TSignatureComponents>(Config, NativeClient, GetCurrentInvoker());
+    auto validator = Components->GetSignatureValidator();
+
+    auto signature = New<TSignature>();
+    EXPECT_THROW_WITH_SUBSTRING(YT_UNUSED_FUTURE(validator->Validate(signature)), "unsupported");
+
+    Config->Validation = ValidationConfig;
+    YT_UNUSED_FUTURE(Components->Reconfigure(Config));
+
+    auto validationResult = WaitFor(validator->Validate(signature))
+        .ValueOrThrow();
+    // The validator shouldn't be a dummy one, but shouldn't throw too.
+    EXPECT_FALSE(validationResult);
+}
+
+TEST_F(TSignatureComponentsTest, ReconfigureDisableValidation)
+{
+    Config->Validation = ValidationConfig;
+    Components = New<TSignatureComponents>(Config, NativeClient, GetCurrentInvoker());
+    auto validator = Components->GetSignatureValidator();
+
+    auto signature = New<TSignature>();
+    auto validationResult = WaitFor(validator->Validate(signature))
+        .ValueOrThrow();
+    EXPECT_FALSE(validationResult);
+
+    Config->Validation = nullptr;
+    YT_UNUSED_FUTURE(Components->Reconfigure(Config));
+
+    // Should be an always-throwing now.
+    EXPECT_THROW_WITH_SUBSTRING(YT_UNUSED_FUTURE(validator->Validate(signature)), "unsupported");
+}
+
+TEST_F(TSignatureComponentsTest, ReconfigureEnableBoth)
+{
+    // Start with empty config.
+    Components = New<TSignatureComponents>(Config, NativeClient, GetCurrentInvoker());
+    auto generator = Components->GetSignatureGenerator();
+    auto validator = Components->GetSignatureValidator();
+
+    Config->Generation = GenerationConfig;
+    Config->Validation = ValidationConfig;
+    WaitFor(Components->Reconfigure(Config))
+        .ThrowOnError();
+
+    auto signature = generator->Sign("test");
+    EXPECT_EQ(signature->Payload(), "test");
+
+    auto validationResult = WaitFor(validator->Validate(signature))
+        .ValueOrThrow();
+    EXPECT_TRUE(validationResult);
+}
+
+TEST_F(TSignatureComponentsTest, ReconfigureMultipleTimes)
+{
+    Components = New<TSignatureComponents>(Config, NativeClient, GetCurrentInvoker());
+    auto generator = Components->GetSignatureGenerator();
+    auto validator = Components->GetSignatureValidator();
+
+    // First reconfigure: enable generation.
+    Config->Generation = GenerationConfig;
+    WaitFor(Components->Reconfigure(Config))
+        .ThrowOnError();
+    auto signature = generator->Sign("test");
+    EXPECT_TRUE(signature);
+
+    // Second reconfigure: enable validation too.
+    Config->Validation = ValidationConfig;
+    YT_UNUSED_FUTURE(Components->Reconfigure(Config));
+
+    auto testSignature = New<TSignature>();
+    EXPECT_NO_THROW(WaitFor(validator->Validate(testSignature)).ValueOrThrow());
+
+    // Third reconfigure: disable generation.
+    Config->Generation = nullptr;
+    YT_UNUSED_FUTURE(Components->Reconfigure(Config));
+
+    EXPECT_THROW_WITH_SUBSTRING(YT_UNUSED_FUTURE(generator->Sign("test")), "unsupported");
+
+    // Validation should still work.
+    EXPECT_NO_THROW(WaitFor(validator->Validate(testSignature)).ValueOrThrow());
+
+    // Fourth reconfigure: disable validation too.
+    Config->Validation = nullptr;
+    YT_UNUSED_FUTURE(Components->Reconfigure(Config));
+    EXPECT_THROW_WITH_SUBSTRING(YT_UNUSED_FUTURE(validator->Validate(testSignature)), "unsupported");
+}
+
+TEST_F(TSignatureComponentsTest, ReconfigureWhileRotating)
+{
+    // Start with fast rotation.
+    GenerationConfig->KeyRotator->KeyRotationInterval = TDuration::MilliSeconds(10);
+    Config->Generation = GenerationConfig;
+    Components = New<TSignatureComponents>(Config, NativeClient, GetCurrentInvoker());
+    auto generator = Components->GetSignatureGenerator();
+
+    WaitFor(Components->StartRotation())
+        .ThrowOnError();
+
+    // Let it rotate a few times.
+    for (int i = 0; i < 100; ++i) {
+        YT_UNUSED_FUTURE(Components->RotateOutOfBand());
+        EXPECT_EQ(generator->Sign("payload")->Payload(), "payload");
+    }
+
+    // Reconfigure with slower rotation.
+    Config->Generation->KeyRotator->KeyRotationInterval = TDuration::Hours(10);
+    YT_UNUSED_FUTURE(Components->Reconfigure(Config));
+
+    // Should be still working perfectly fine.
+    for (int i = 0; i < 100; ++i) {
+        YT_UNUSED_FUTURE(Components->RotateOutOfBand());
+        EXPECT_EQ(generator->Sign("payload")->Payload(), "payload");
+    }
+
+    // Disable generation at all.
+    Config->Generation = nullptr;
+    YT_UNUSED_FUTURE(Components->Reconfigure(Config));
+
+    EXPECT_THROW_WITH_SUBSTRING(Y_UNUSED(generator->Sign("payload")), "unsupported");
+
+    // Start rotation should be a no-op now.
+    auto startFuture = Components->StartRotation();
+    EXPECT_TRUE(startFuture.IsSet() && startFuture.Get().IsOK());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

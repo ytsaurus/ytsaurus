@@ -196,5 +196,54 @@ TEST_F(TKeyRotatorTest, MultipleReconfigures)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_F(TKeyRotatorTest, GetNextRotation)
+{
+    EXPECT_CALL(*Store, RegisterKey(_))
+        .Times(Between(2, 5))
+        .WillRepeatedly(Return(VoidFuture));
+
+    Config->KeyRotationInterval = TDuration::MilliSeconds(50);
+    Rotator = New<TKeyRotator>(Config, GetCurrentInvoker(), Store, Generator);
+
+    WaitFor(Rotator->Start())
+        .ThrowOnError();
+    auto firstKey = Generator->KeyInfo();
+
+    auto nextRotationFuture = Rotator->GetNextRotation();
+    WaitFor(nextRotationFuture)
+        .ThrowOnError();
+
+    auto secondKey = Generator->KeyInfo();
+    EXPECT_THAT(secondKey, Pointee(Ne(*firstKey)));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TKeyRotatorTest, GetNextRotationWithReconfigure)
+{
+    EXPECT_CALL(*Store, RegisterKey(_))
+        .Times(2)
+        .WillRepeatedly(Return(VoidFuture));
+
+    Config->KeyRotationInterval = TDuration::Hours(1);
+    Rotator = New<TKeyRotator>(Config, GetCurrentInvoker(), Store, Generator);
+
+    WaitFor(Rotator->Start())
+        .ThrowOnError();
+
+    auto nextRotationFuture = Rotator->GetNextRotation();
+
+    // Reconfigure with short interval should trigger immediate rotation.
+    auto newConfig = New<TKeyRotatorConfig>();
+    newConfig->KeyRotationInterval = TDuration::MilliSeconds(10);
+    Rotator->Reconfigure(newConfig);
+
+    // Should complete quickly, not wait for an hour.
+    WaitFor(nextRotationFuture)
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NSignature
