@@ -61,6 +61,7 @@ public:
             return;
         }
 
+        timestamp = MinTimestamp;
         future = WatchUpstream(replicationCardId, timestamp);
     }
 
@@ -76,6 +77,9 @@ public:
             localFuture = std::move(it->second.first);
             WatchingFutures_.erase(it);
         }
+
+        YT_LOG_DEBUG("Stopped watching replication card (ReplicationCardId: %v)",
+            replicationCardId);
 
         localFuture.Cancel(TError("Stopped watching"));
     }
