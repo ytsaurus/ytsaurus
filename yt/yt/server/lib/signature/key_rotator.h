@@ -37,6 +37,13 @@ public:
     */
     TFuture<void> Rotate();
 
+    //! Returns the future that is set when the next started rotation completes, with "next"
+    //! starting from some point inside of this call.
+    /*!
+     * \note Thread affinity: any
+     */
+    TFuture<void> GetNextRotation();
+
     /*!
      * \note Thread affinity: any
      */

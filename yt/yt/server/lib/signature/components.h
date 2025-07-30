@@ -8,6 +8,9 @@ namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*!
+ * \note Thread affinity: any
+ */
 class TSignatureComponents final
 {
 public:
@@ -22,10 +25,14 @@ public:
 
     TFuture<void> RotateOutOfBand();
 
-    const ISignatureValidatorPtr& GetSignatureValidator();
-    const ISignatureGeneratorPtr& GetSignatureGenerator();
+    ISignatureValidatorPtr GetSignatureValidator();
+    ISignatureGeneratorPtr GetSignatureGenerator();
+
+    TFuture<void> Reconfigure(const TSignatureComponentsConfigPtr& config);
 
 private:
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ReconfigureSpinLock_);
+
     const NApi::NNative::IClientPtr Client_;
     const IInvokerPtr RotateInvoker_;
 
@@ -33,12 +40,18 @@ private:
 
     TCypressKeyReaderPtr CypressKeyReader_;
     TSignatureValidatorPtr UnderlyingValidator_;
-    ISignatureValidatorPtr SignatureValidator_;
+    const TDynamicSignatureValidatorPtr DynamicSignatureValidator_;
 
     TCypressKeyWriterPtr CypressKeyWriter_;
     TSignatureGeneratorPtr UnderlyingGenerator_;
     TKeyRotatorPtr KeyRotator_;
-    ISignatureGeneratorPtr SignatureGenerator_;
+    const TDynamicSignatureGeneratorPtr DynamicSignatureGenerator_;
+
+    void InitializeCryptographyIfRequired(const TSignatureComponentsConfigPtr& config);
+
+    TFuture<void> DoStartRotation() const;
+
+    TFuture<void> DoRotateOutOfBand() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSignatureComponents)
