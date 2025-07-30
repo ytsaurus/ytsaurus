@@ -125,18 +125,21 @@ def build_rpc_proxy_rpc_request_wait():
 def build_rpc_proxy_maintenance():
     return (Rowset()
             .stack(False)
-            .top()
             .row()
                 .cell("Rpc Proxy restarts", MonitoringExpr(RpcProxy("yt.server.restarted")
+                        .top()
                         .stack(True)
                         .value("window", "5min")).alias("{{container}}"))
                 .cell("Rpc Proxy OOMs", MultiSensor(
                         MonitoringExpr(RpcProxyPorto("yt.porto.memory.oom_kills").value("container_category", "pod"))
+                            .diff()
+                            .top_max(10)
                             .alias("porto oom kills {{container}}"),
                         (MonitoringExpr(RpcProxyYtcfgen("yt.error_watcher.ooms"))
                             + PlainMonitoringExpr("constant_line(0)"))
                             .diff()
                             .drop_below(0)
+                            .top_max(10)
                             .alias("memory limit kills {{container}}")
                     ))
             ).owner
