@@ -65,7 +65,8 @@ public:
     static NApi::TDistributedWriteSessionWithCookies StartDistributedWriteSession(
         bool append,
         int cookieCount,
-        std::optional<NCypressClient::TTransactionId> txId = {});
+        std::optional<NCypressClient::TTransactionId> txId = {},
+        std::optional<TDuration> timeout = std::nullopt);
 
     // Append is decided upon session opening.
     static NApi::TSignedWriteFragmentResultPtr DistributedWriteTable(

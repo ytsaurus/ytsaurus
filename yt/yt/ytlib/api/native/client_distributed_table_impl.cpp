@@ -224,6 +224,7 @@ TFuture<TDistributedWriteSessionWithCookies> TClient::StartDistributedWriteSessi
     const auto& path = richPath.GetPath();
 
     TTransactionStartOptions transactionStartOptions;
+    transactionStartOptions.Timeout = options.Timeout;
     if (options.TransactionId) {
         transactionStartOptions.ParentId = options.TransactionId;
         transactionStartOptions.Ping = true;
