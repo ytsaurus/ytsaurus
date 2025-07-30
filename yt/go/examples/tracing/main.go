@@ -9,8 +9,6 @@ import (
 	"go.ytsaurus.tech/yt/go/yt/ytotel"
 	"go.ytsaurus.tech/yt/go/yt/ytrpc"
 
-	"github.com/opentracing/opentracing-go"
-
 	otelBridge "go.opentelemetry.io/otel/bridge/opentracing"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -37,8 +35,6 @@ func main() {
 	defer otelSpan.End()
 
 	ctx = bridgeTracer.ContextWithBridgeSpan(ctx, otelSpan)
-	opentracingSpan, ctx := opentracing.StartSpanFromContextWithTracer(ctx, bridgeTracer, "example-opentracing")
-	defer opentracingSpan.Finish()
 
 	// Spans created by client will be linked to otel spans
 	// Trace id and span id will be sent in requests to yt proxy 
