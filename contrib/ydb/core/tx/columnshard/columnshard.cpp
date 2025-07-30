@@ -11,9 +11,12 @@
 
 #include <contrib/ydb/core/protos/table_stats.pb.h>
 #include <contrib/ydb/core/tx/columnshard/bg_tasks/adapter/adapter.h>
+#include <contrib/ydb/core/tx/columnshard/engines/reader/tracing/probes.h>
 #include <contrib/ydb/core/tx/columnshard/tablet/write_queue.h>
 #include <contrib/ydb/core/tx/priorities/usage/service.h>
 #include <contrib/ydb/core/tx/tiering/manager.h>
+
+#include <library/cpp/lwtrace/mon/mon_lwtrace.h>
 
 namespace NKikimr {
 
@@ -91,6 +94,8 @@ void TColumnShard::TrySwitchToWork(const TActorContext& ctx) {
 }
 
 void TColumnShard::OnActivateExecutor(const TActorContext& ctx) {
+    using namespace NOlap::NReader;
+    NLwTraceMonPage::ProbeRegistry().AddProbesList(LWTRACE_GET_PROBES(YDB_CS_READER));
     StartInstant = TMonotonic::Now();
     Counters.GetCSCounters().Initialization.OnActivateExecutor(TMonotonic::Now() - CreateInstant);
     const TLogContextGuard gLogging =
