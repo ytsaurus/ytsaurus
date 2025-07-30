@@ -15,45 +15,45 @@ All main components are released as a docker image.
 
 _To install YTsaurus Server 25.1.0 [update](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release%2F0.25.0) the k8s-operator to version 0.25.0._
 
-#### Significant changes
+## Significant changes
 
-#### API
+### API
   - Enhancement of operations/jobs API.
   - Introduced requests memory tracking in HTTP proxies.
 
-#### Compute
+### Compute
   - Implemented permission validation for operations using access control objects.
-  - Gang-operations gone production.
+  - Gang-operations gone production. Gang-operations represent a special scheduling mode of vanilla-operations, particularly useful for distributed ML model training. 
   - Introduced PatchSpec API to modify operation spec at runtime.
   - [experimental] Remote copy scheduler now considers inter-cluster bandwidth limits.
   - Introduced job shell for CRI-based job environments.
 
-#### Storage
+### Storage
   - Supported `decimal256` type.
   - Support non-materialized computed column evaluation in static tables.
 
-#### Query language features
+### Query language features
   - Added `allow_async_replica` hint to QL table descriptors to enable fallback to async replicas in selects.
   - Timestamp functions in QL now support localtime  and use lookup tables for better performance.
   - QL AVG  function now supports doubles and unsigned integers.
   - Functions list_contains  and list_has_intersection  in QL now support strongly typed composite values and nulls.
   - `EXPLAIN` query now works with replicated tables.
 
-#### Dynamic tables
+### Dynamic tables
   - Implemented gradual global compaction ("chunk reincarnation") for dynamic tables.
   - Supported remote copy for dynamic tables with hunk chunks.
 
-#### Default values
+### Default values
  - Changed default read format to scan  for dynamic tables.
  - Enabled versioned remote copy by default.
  - Enabled remote copy of hunk chunks by default.
  - Enabled two-random-choices allocation strategy for write targets by default.
 
-#### Full changelog
+## Full changelog
 
-#### Scheduler and GPU
+### Scheduler and GPU
 
-##### New Features & Changes:
+#### New Features & Changes:
 - Added alert for unrecognized options in the pool tree config, [6b2770b](https://github.com/ytsaurus/ytsaurus/commit/6b2770b65a51766fbd1ad53d81d6b409a2115f00).
 - Added support for generating temporary tokens valid for the duration of an operation, stored in the operation’s secure vault, [c91fd05](https://github.com/ytsaurus/ytsaurus/commit/c91fd057421160254f41d6c394673bf654fc358d).
 - Added an option to only allow gang operations to start in FIFO pools, [edcac9a](https://github.com/ytsaurus/ytsaurus/commit/edcac9a3e348b18fd03cb82fb9e15e782b1b4a58).
@@ -66,25 +66,25 @@ _To install YTsaurus Server 25.1.0 [update](https://github.com/ytsaurus/ytsaurus
 - Supported new logic for calculating cpu limit overcommit [d6d1d08a91f](https://github.com/ytsaurus/ytsaurus/commit/d6d1d08a91f).
 - Added ability to run GPU checks in isolated volumes and configure them via operation options, [631f328](https://github.com/ytsaurus/ytsaurus/commit/631f3288fa3eb07176c777c93bcf3afddfaf30dc).
 
-##### Fixes & Optimizations:
+#### Fixes & Optimizations:
 - Fixed bug when `offloading` and `schedule_in_single_tree` options specified simultaneously [e36e910b718](https://github.com/ytsaurus/ytsaurus/commit/e36e910b718)
 - Fixed fair share truncation in FIFO pools for single allocation vanillas [5d8e22b67fa](https://github.com/ytsaurus/ytsaurus/commit/5d8e22b67fa).
 - Dropped some scheduler compats and legacy options.
 
-#### Queue Agent
+### Queue Agent
 
-##### New Features & Changes:
+#### New Features & Changes:
 - Added `controller_info` field to queue agent Orchid for detecting stuck controller passes and tracking error counters, [74be9b4](https://github.com/ytsaurus/ytsaurus/commit/74be9b4ab44689d56f8110dc2313e1dc7c1e3057).
 - Export progress now includes details about the last export iteration, [6ec743a](https://github.com/ytsaurus/ytsaurus/commit/6ec743a21e4f4ed8e917fc17e822875367709ad3).
 - Aggregated alert metrics for the queue agent have been added, [d2bf505](https://github.com/ytsaurus/ytsaurus/commit/d2bf505c9b3bafa8f0966cdd0234c4929416c293).
 
-##### Fixes & Optimizations:
+#### Fixes & Optimizations:
 - Added retry backoffs to avoid overloading in case of misconfigured exports, [ae4ead4](https://github.com/ytsaurus/ytsaurus/commit/ae4ead4a1e9e5b86bbc9ffde2637488fb1dbe6ff).
 - Fixed crash when reusing an export directory after recreating a queue without resetting export progress, [49826ed](https://github.com/ytsaurus/ytsaurus/commit/49826ed8d9872d3d094224e0811335a2647ef7c3).
 
-#### Proxy
+### Proxy
 
-##### New Features & Changes:
+#### New Features & Changes:
 - Added support for HTTP proxies in the `discover_proxies` handler, [830e543](https://github.com/ytsaurus/ytsaurus/commit/830e543c1bbde6069180bdf451c807ff0175bdb6).
 - Preserved original column types (e.g., `timestamp`) in `web_json` responses from `select_rows`, [f4eb42d](https://github.com/ytsaurus/ytsaurus/commit/f4eb42d1b4e8521b8d70d83ec19ef50cb63647c5).
 - Enabled signature generation and verification in HTTP proxy using Cypress public keys, [f8d0c7d](https://github.com/ytsaurus/ytsaurus/commit/f8d0c7d4f096d335b7fc5313f360dcab6d47ceb2).
@@ -99,7 +99,7 @@ _To install YTsaurus Server 25.1.0 [update](https://github.com/ytsaurus/ytsaurus
 - Added support for signature validation using Cypress public keys, [12c8532](https://github.com/ytsaurus/ytsaurus/commit/12c85321bfd4fd41f32db7ee356345e0aee9c2b0).
 - Added a handler to retrieve job trace events, [8ee855e](https://github.com/ytsaurus/ytsaurus/commit/8ee855ef01ae55a6c500d6ec6029bac3b3c8260c).
 
-##### Fixes & Optimizations:
+#### Fixes & Optimizations:
 - Switched to using a dedicated thread pool for HTTP stream compression, [4f61857](https://github.com/ytsaurus/ytsaurus/commit/4f61857cbabea72e403b269f361de5b01bb6d746).
 - Added type compatibility checks in the Arrow parser using YT-specific types, [bd0a6ff](https://github.com/ytsaurus/ytsaurus/commit/bd0a6ff376a1c2ec28e10d4ee4d476d70bb8a131).
 - Introduced `UploadTransactionPingPeriod` config to correctly handle upload transaction timeouts, [f10f749](https://github.com/ytsaurus/ytsaurus/commit/f10f749527d924fece0e52a0248cf0c58ed8d313).
@@ -110,9 +110,9 @@ _To install YTsaurus Server 25.1.0 [update](https://github.com/ytsaurus/ytsaurus
   - Added support for nested `decimal128` and `decimal256` in Arrow.
   - Fixed incorrect fixed-length encoding of `decimal256(n, p)` for small precisions, now variable length like `decimal128`, [58c6c65](https://github.com/ytsaurus/ytsaurus/commit/58c6c6590919a2bfbb88c9f5b833324b86623ead).
 
-#### Dynamic Tables
+### Dynamic Tables
 
-##### New Features & Changes:
+#### New Features & Changes:
 - Added row-cache poisoning to help detect memory errors, [4933fe9](https://github.com/ytsaurus/ytsaurus/commit/4933fe97dd68a40b2c5cdce4d2aa77000fdfb8dc).
 - Added `allow_async_replica` hint to QL table descriptors to enable fallback to async replicas in selects, [27ac9b9](https://github.com/ytsaurus/ytsaurus/commit/27ac9b90f5d50dfc63490d86f24fb88bc042e74b).
 - Added a method to return freezing or unmounting tables to the mounted state, [cdb2027](https://github.com/ytsaurus/ytsaurus/commit/cdb2027bf1b1de28a9a025a14375da5cd29bcd75).
@@ -138,7 +138,7 @@ _To install YTsaurus Server 25.1.0 [update](https://github.com/ytsaurus/ytsaurus
 - Remote copy for dynamic tables with hunk chunks is now supported (except with compression dictionaries and striped erasure), [34f16d0](https://github.com/ytsaurus/ytsaurus/commit/34f16d0fd4c307134608f27cfb5cc028b3cbc771).
 - `dump-snapshot` command now supports `checksum` mode to help debug snapshot mismatches, [5daa913](https://github.com/ytsaurus/ytsaurus/commit/5daa91303d7210689ecb117614b908523bd429af).
 
-##### Fixes & Optimizations:
+#### Fixes & Optimizations:
 - Fixed float precision issues in scan reads by serializing floats as doubles, [0b78e7a](https://github.com/ytsaurus/ytsaurus/commit/0b78e7ad5b4a4ec48ece1f92501172bbeff8ec6d).
 - Fixed incorrect timezone behavior in `timestamp_floor_*_localtime` functions, [17f3dd1](https://github.com/ytsaurus/ytsaurus/commit/17f3dd1debf37d5b2a0222cf3d906b40e523ae12).
 - Switched from logical to physical chunk count in ordered dynamic tablet chunk lists, [2efe013](https://github.com/ytsaurus/ytsaurus/commit/2efe013a9ba51a105c3ce490b6cffdcdcc415c36).
@@ -146,9 +146,9 @@ _To install YTsaurus Server 25.1.0 [update](https://github.com/ytsaurus/ytsaurus
 - Fixed segfaults when reading tables with nested columns, [45cb542](https://github.com/ytsaurus/ytsaurus/commit/45cb542f8c883e7d559fee880065ddc5abde2e34).
 - Bundle controller now skips faulty bundles instead of blocking progress, [dc149b2](https://github.com/ytsaurus/ytsaurus/commit/dc149b27843635d16d2416f09a21ffba8b4de702).
 
-#### MapReduce
+### MapReduce
 
-##### New Features & Changes:
+#### New Features & Changes:
 - Added various job splitter options to operation specs, [e2998a4](https://github.com/ytsaurus/ytsaurus/commit/e2998a41e1794bfc139709f1df6cfd282cf82e33).
 - Preserved job cookies during gang operation restarts and allowed restarting already completed jobs on incarnation switch, [e3f7655](https://github.com/ytsaurus/ytsaurus/commit/e3f7655698256ea6c257171d17ba8af7f130a299).
 - Added operation incarnation controller that restarts all jobs if one terminates (useful for distributed ML), [fb9c7d3](https://github.com/ytsaurus/ytsaurus/commit/fb9c7d3d97563cb4e7d8d80270fe1be4739606d3).
@@ -159,13 +159,13 @@ _To install YTsaurus Server 25.1.0 [update](https://github.com/ytsaurus/ytsaurus
 - Remote copy scheduler now considers inter-cluster bandwidth limits, [e0af4fd](https://github.com/ytsaurus/ytsaurus/commit/e0af4fdbdea4fcab2561b803364f153078195223).
 - Controller agents now always fetch schemas from secondary cells using schema IDs, [af00687](https://github.com/ytsaurus/ytsaurus/commit/af0068716ea05530aade3474f15e59c7b2ab9d16).
 
-##### Fixes & Optimizations:
+#### Fixes & Optimizations:
 - Fixed a bug where teleportation of a single chunk in unordered pool could fail, [897ffff](https://github.com/ytsaurus/ytsaurus/commit/897ffff6c1ed4f7d21d52b3fb456ff8fa8b7023b).
 - Returned specific error instead of generic `Job failed by external request`, [703aae5](https://github.com/ytsaurus/ytsaurus/commit/703aae58eb1b2a515c2aa9e49d4e9ae63bc3a39e).
 
-#### Master Server
+### Master Server
 
-##### New Features & Changes:
+#### New Features & Changes:
 - Added metrics for read/write request rate limits and request queue size per user, [0052341](https://github.com/ytsaurus/ytsaurus/commit/0052341c563cc3c9eb2a3bdca11aaf7d36eabce4).
 - Prevented prerequisite paths from differing from execution paths, [50156f0](https://github.com/ytsaurus/ytsaurus/commit/50156f0aa5382824a725ab27d3d1b2dc6210293b).
 - Support opaqueness for `@schema` attribute, [4f2c6ad](https://github.com/ytsaurus/ytsaurus/commit/4f2c6ad11f2bc951642546e33b790705911cee3d).
@@ -186,7 +186,7 @@ _To install YTsaurus Server 25.1.0 [update](https://github.com/ytsaurus/ytsaurus
 - Added `checksum` mode to `dump-snapshot` CLI command for debugging snapshot mismatches, [5daa913](https://github.com/ytsaurus/ytsaurus/commit/5daa91303d7210689ecb117614b908523bd429af).
 - Enabled non-materialized computed column evaluation in static tables, [221672d](https://github.com/ytsaurus/ytsaurus/commit/221672d07a7b81987beff311ec22319d631a8278).
 
-##### Fixes & Optimizations:
+#### Fixes & Optimizations:
 - Fixed validation error when prerequisite and execution paths differ, [76ceba0](https://github.com/ytsaurus/ytsaurus/commit/76ceba0c03c5fce8bc042dcb3726a3997a2153d5).
 - Prevented users from creating tables that are indices to themselves, [f384a9f](https://github.com/ytsaurus/ytsaurus/commit/f384a9f9ea286f4cc4b018498bca6596664c0c85).
 - Fixed chunk replicator to correctly handle medium-specific replication overrides, [2e0ca64](https://github.com/ytsaurus/ytsaurus/commit/2e0ca6446ad66eeba31e4c3a2b91d56bf11c0293).
@@ -207,9 +207,9 @@ _To install YTsaurus Server 25.1.0 [update](https://github.com/ytsaurus/ytsaurus
 - Fixed non-deterministic error messages caused by unordered YSON fields, [d907ada](https://github.com/ytsaurus/ytsaurus/commit/d907ada9984b6b711e4d5dd02d36d9e333df5dbb).
 - Fixed compatibility issue with imaginary chunk locations, [f591951](https://github.com/ytsaurus/ytsaurus/commit/f591951182e9555c7ca58173ec14a75e7b6d41a7).
 
-#### Other
+### Other
 
-##### New Features & Changes:
+#### New Features & Changes:
 - Added memory usage tracking for logging, [f0351fa](https://github.com/ytsaurus/ytsaurus/commit/f0351fa2aa2278c7ac804c93074e91d70e724138).
 - Added memory usage tracking for chunk replica cache, [aa5053d](https://github.com/ytsaurus/ytsaurus/commit/aa5053d5b243a3356d95388fb51094e2ed43ea68).
 - Added memory usage tracking for sensors, [8396ecd](https://github.com/ytsaurus/ytsaurus/commit/8396ecddde795abc6b52642c07fbe56b5b76581d).
@@ -218,7 +218,7 @@ _To install YTsaurus Server 25.1.0 [update](https://github.com/ytsaurus/ytsaurus
 - Added support for `decimal256` type (up to 76 digits precision), including Skiff format as `int256`, [implicit].
 - Added `message_level_overrides` option to logging config for fine-grained runtime control, [4e13e2a](https://github.com/ytsaurus/ytsaurus/commit/4e13e2a32db1cb46272330c131c1c4ca3f50994d).
 
-##### Fixes & Optimizations:
+#### Fixes & Optimizations:
 - Fixed a bug where queued heavy RPC requests could incorrectly reuse storage (e.g. trace context) from unrelated requests, [6bd19a0](https://github.com/ytsaurus/ytsaurus/commit/6bd19a014d512d4d5f2bcac54ae2087f65cce3f9).
 - Improved tracking of row cache memory usage, [122fd89](https://github.com/ytsaurus/ytsaurus/commit/122fd89ce22e6eb1f6cb48672463a0c264af9069).
 - Histogram counters now use 64-bit values, [94fe6d3](https://github.com/ytsaurus/ytsaurus/commit/94fe6d36acebe32f2609ff1b7be7547dbeeaa446).
@@ -239,7 +239,7 @@ _To install YTsaurus Server 25.1.0 [update](https://github.com/ytsaurus/ytsaurus
 
 _To install YTsaurus Server 24.2.1 [update](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release%2F0.22.0) the k8s-operator to version 0.22.0._
 
-#### Proxy
+### Proxy
 Features:
 - Support HTTP proxies in `discover_proxies` handler, [0dc02db](https://github.com/ytsaurus/ytsaurus/commit/0dc02db399a7e3e6255f8716102add5bf404bd39).
 - Support full result table in YQL queries result, [2d7b0d3](https://github.com/ytsaurus/ytsaurus/commit/2d7b0d3e761361ff3157e7a36465ee79478ab3c7).
@@ -248,13 +248,13 @@ Fixes:
 - Set attribute `treat_as_queue_producer=%true` during `queue_producer` creation, [1ee68e1](https://github.com/ytsaurus/ytsaurus/commit/1ee68e1fa7409d125605ba4047f655532f42f6ee).
 - Fix `PartitionTables` handler for ordered mode, [100bdc4]( https://github.com/ytsaurus/ytsaurus/commit/100bdc425c787902212c041822ef9557ebb7b932).
 
-#### Master
+### Master
 Fixes:
 - Fix a crash on `GetIteratorOrCrash` in `TChunkMerger::HydraFinalizeChunkMergeSessions`, [5eda095]( https://github.com/ytsaurus/ytsaurus/commit/5eda0952c2a3453d853a83c24b16b3a5d7f31d49).
 - Fix for Object Service hang ups, [31e2dfd](https://github.com/ytsaurus/ytsaurus/commit/31e2dfd7dbe7ad001f11d30fa1c59bc7a7a9ca21).
 - Fix a data race on cache cookies in Object Service, [1d79d8d](https://github.com/ytsaurus/ytsaurus/commit/1d79d8d37d81438389a5280c595e8254cfc6f678).
 
-#### Queue Agent
+### Queue Agent
 Features:
 - Add a flag to select queue export implementation, [3ec2e69](https://github.com/ytsaurus/ytsaurus/commit/3ec2e6945cf0af0f64d16e94ee5aa66e902abbf1).
 Fixes:
@@ -263,11 +263,11 @@ Fixes:
 - Fix `init_queue_agent_state` script to handle restart cases properly, [ae43add](https://github.com/ytsaurus/ytsaurus/commit/ae43add3ecd560c1f49fc41b40a2b0bd6b1f402f).
 - Fix potential data loss in case of multiple exports per queue due to incorrect merging of queue export progresses, [c44e13b](https://github.com/ytsaurus/ytsaurus/commit/c44e13b5271ff91c5860c91448fbd704924ddf35).
 
-#### Tablet Balancer
+### Tablet Balancer
 Fixes:
 - Fix deviation recalculation during parameterized merge right index search, [b7df500](https://github.com/ytsaurus/ytsaurus/commit/b7df5009926f4d0386fa924902da46e71e63bb54)
 
-#### Other
+### Other
 Feature:
 - Support `ytprof` for all components.
 
@@ -282,12 +282,12 @@ Feature:
 _To install YTsaurus Server 24.2.0 [update](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release%2F0.22.0) the k8s-operator to version 0.22.0._
 
 ---
-#### Known Issue
+### Known Issue
 - Expanding a cluster with new master cells is temporarily disabled due to a bug. This issue will be resolved in the upcoming 25.1 version.
 
 ---
 
-#### Scheduler and GPU
+### Scheduler and GPU
 New Features & Changes:
 - Added support for ACO-based access control in operations.
 - Introduced `get_job_trace` method in the jobs API.
@@ -298,7 +298,7 @@ Fixes & Optimizations:
 - Fixed scheduling issues with new allocations immediately after operation suspension.
 - Optimized fair share updates within the control thread.
 
-#### Queue Agent
+### Queue Agent
 New Features & Changes:
 - Queue exports are now considered when trimming replicated and chaos replicated table queues.
 - Introduced sum aggregation for lag metrics in consumer partitions.
@@ -309,7 +309,7 @@ Fixes & Optimizations:
 - Corrected lock options when acquiring a shared lock for the export directory.
 - Resolved expiration issues of clients for chaos queues and consumers when the cluster connection changes.
 
-#### Proxy
+### Proxy
 New Features & Changes:
 - Supported YAML format for structured data. See details in the RFC: [YAML-format support](https://github.com/ytsaurus/ytsaurus/wiki/%5BRFC%5D-YAML-format-support).
 - Introduced create_user_if_not_exists config flag to disable automatic user creation during OAuth authentication. [Issue](https://github.com/ytsaurus/ytsaurus/issues/930).
@@ -322,10 +322,10 @@ Fixes & Optimizations:
 - If insufficient memory is available to handle RPC responses, a retryable `Unavailable` error will now be returned instead of the non-retryable `MemoryPressure` error.
 - Optimized the `concatenate` method.
 
-#### Kafka proxy
+### Kafka proxy
 Introduce a new component: the Kafka Proxy. This MVP version enables integration with YTsaurus queues using the Kafka protocol. It currently supports a minimal API for writing to queues and reading with load balancing through consumer groups.
 
-#### Dynamic Tables
+### Dynamic Tables
 New Features & Changes:
 - Introduced Versioned Remote Copy for tables with hunks.
 
@@ -333,7 +333,7 @@ Fixes & Optimizations:
 - Fixed issues with secondary indices in multi-cell clusters (especially large clusters).
 - Improved stability and performance of chaos replication.
   
-#### MapReduce
+### MapReduce
 New Features & Changes:
 - Disallowed cluster_connection in remote copy operations.
 - Introduced single-chunk teleportation for auto-merge operations.
@@ -346,7 +346,7 @@ Fixes & Optimizations:
 - Optimized job resource acquisition in exec nodes.
 - Fixed cases of lost metrics in exec nodes.
 
-#### Master Server
+### Master Server
 New Features & Changes:
 - Added an option to fetch input/output table schemas from an external cell using a schema ID.
 - Deprecated the list node type; its creation is now forbidden.

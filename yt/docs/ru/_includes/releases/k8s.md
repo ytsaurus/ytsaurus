@@ -13,19 +13,19 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 **Release date:** 2025-07-23
 
 
-#### Features
+## Features
 * Native RPC mTLS by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/493
 * Add ability to override http proxy ports by @imakunin in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/505
 * Support new exe node config format by @k-pogorelov in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/511
 * Support HydraPersistenceUploader sidecar by @ilyaibraev in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/489
 
-#### Minor
+## Minor
 * Sync exec node if containerd config changes by @sanchosancho in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/480
 * Fix atomic status update in update plan logic by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/496
 * Fix non-idempotent CreateUser by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/515
 
 
-#### New Contributors
+## New Contributors
 * @sanchosancho made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/480
 * @kirillgrachoff made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/492
 * @ilyaibraev made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/489
@@ -41,7 +41,7 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 **Release date:** 2025-05-20
 
 
-#### Minor
+## Minor
 * Rerun init queue agent script during QA update by @savnadya in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/479
 
 **Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/release/0.23.1...release/0.24.0
@@ -54,7 +54,7 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 **Release date:** 2025-04-04
 
 
-#### Minor
+## Minor
 * Revert "Disable stockpile by default" in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/477
 
 The change introduced in 0.23.0 was reverted due to the fact it ends up in updating all components of all existing clusters on the operator update, but change is not important. We'll consider making it opt-in in the next releases.
@@ -68,7 +68,7 @@ The change introduced in 0.23.0 was reverted due to the fact it ends up in updat
 **Release date:** 2025-04-02
 
 
-#### Minor
+## Minor
 * Fix bug in blocked components column by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/464
 * Deleted the `stderr` logger for JobProxy. by @imakunin in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/465
 * Set init quota for user-defined mediums by @futujaos in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/466
@@ -77,11 +77,11 @@ The change introduced in 0.23.0 was reverted due to the fact it ends up in updat
 * Create ROADMAP.md by @AMRivkin in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/473
 * Configure yqla mrjob syslibs V2 by @Krisha11 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/475
 
-#### Release notes
+## Release notes
 * `configureMrJobSystemLibs` field was removed https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/475 and now system libs for YQL agent are being added unconditionally.
 * stockpile/thread_count is set to zero in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/467 to remove non-relevant warnings in logs, as a downside it will trigger all components update.
 
-#### New Contributors
+## New Contributors
 * @futujaos made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/466
 * @AMRivkin made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/473
 
@@ -95,18 +95,18 @@ The change introduced in 0.23.0 was reverted due to the fact it ends up in updat
 **Release date:** 2025-03-07
 
 
-#### Features
+## Features
 * Update to YTsaurus 24.2 is supported
 
-#### Minor
+## Minor
 * Add lost CA bundle and TLS secrets VolumeMounts for jobs container by @imakunin in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/449
 * Add bus client configuration by @imakunin in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/450
 
-#### Experimental
+## Experimental
 * Add multiple update selectors by @wilwell in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/383
 * Add blocked components column to kubectl output by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/459
 
-#### New Contributors
+## New Contributors
 * @imakunin made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/449
 
 **Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/release/0.21.0...release/0.22.0
@@ -119,13 +119,13 @@ The change introduced in 0.23.0 was reverted due to the fact it ends up in updat
 **Release date:** 2025-02-10
 
 
-#### Features
+## Features
 * Support the ability to deploy a Kafka proxy by @savnadya in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/407
 
-#### Minor
+## Minor
 * Add config for kind with audit log by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/441
 
-#### Bugfix
+## Bugfix
 * Preserve object finalizers by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/440
 * Set quota and min_disk_space for locations by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/445
 * Fix zero port if no monitoring port configured by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/447
@@ -139,13 +139,13 @@ The change introduced in 0.23.0 was reverted due to the fact it ends up in updat
 **Release date:** 2025-01-20
 
 
-#### Minor
+## Minor
 * Support not creating non-existing users by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/416
 * Added DNSConfig into Instance and YTsaurusSpec by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/420
 * Enable real chunks job by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/412
 * Add log_manager_template for job proxy by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/428
 
-#### Release notes
+## Release notes
 This release makes yt operator compatible with ytsaurus 24.2. 
 Update to this version will launch job for setting correct enable_real_chunks_value values in cypress and exec nodes will be updated with a new config.
 
@@ -159,9 +159,9 @@ Update to this version will launch job for setting correct enable_real_chunks_va
 **Release date:** 2025-01-09
 
 
-#### Minor
+## Minor
 * Configure yqla mrjob syslibs by @Krisha11 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/409
-#### Bugfix
+## Bugfix
 * Add yqla update job by @Krisha11 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/387
 
 **Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/release/0.18.1...release/0.19.0
