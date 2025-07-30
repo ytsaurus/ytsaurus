@@ -67,10 +67,6 @@ using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr int MaxStuckInRemovalOperationsToIncludeInAlert = 5;
-
-////////////////////////////////////////////////////////////////////////////////
-
 static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "OperationsCleaner");
 
 // TODO(eshcherbin): It should be nested within SchedulerProfiler().
@@ -855,7 +851,6 @@ private:
 
     std::multimap<TInstant, TOperationId> ArchiveTimeToOperationIdMap_;
     THashMap<TOperationId, TArchiveOperationRequest> OperationMap_;
-    THashSet<TOperationId> StuckInRemovalOperations_;
 
     // Removals might be issued for operations without an entry in OperationMap_,
     // so we need to store the complete removal request in the queue.
@@ -1225,7 +1220,6 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(GetUncancelableInvoker());
 
         YT_LOG_DEBUG("Operation enqueued for removal (OperationId: %v, DependentNodeIds: %v)", request.Id, request.DependentNodeIds);
-        request.RemovalStartTime = TInstant::Now();
         RemovePending_++;
         RemoveBatcher_->Enqueue(std::move(request));
     }
@@ -1487,42 +1481,6 @@ private:
         ScheduleArchiveOperations();
     }
 
-    void OnOperationRemovalFailed(const TRemoveOperationRequest& request)
-    {
-        YT_VERIFY(request.RemovalStartTime);
-
-        auto removalTimeout = Config_->OperationRemovalTimeoutStuckThreshold;
-        auto now = TInstant::Now();
-        if (*request.RemovalStartTime + removalTimeout < now) {
-            StuckInRemovalOperations_.insert(request.Id);
-        }
-    }
-
-    void OnOperationRemoved(TOperationId id)
-    {
-        StuckInRemovalOperations_.erase(id);
-    }
-
-    void ProcessFailedOperationRemovals(const std::vector<TRemoveOperationRequest>& removedOperationRequests)
-    {
-        for (const auto& request : removedOperationRequests) {
-            OnOperationRemovalFailed(request);
-        }
-
-        if (StuckInRemovalOperations_.empty()) {
-            SetSchedulerAlert(ESchedulerAlertType::OperationStuckInRemoval, TError());
-            return;
-        }
-
-        auto failedOperationIdsToInclude = GetItems(StuckInRemovalOperations_, MaxStuckInRemovalOperationsToIncludeInAlert);
-
-        SetSchedulerAlert(
-            ESchedulerAlertType::OperationStuckInRemoval,
-            TError("Removing some operations from Cypress is stuck")
-            << TErrorAttribute("failed_operation_count", StuckInRemovalOperations_.size())
-            << TErrorAttribute("failed_operation_ids", failedOperationIdsToInclude));
-    }
-
     void DoRemoveOperations(std::vector<TRemoveOperationRequest> requests)
     {
         YT_LOG_DEBUG("Removing operations from Cypress (OperationCount: %v)", requests.size());
@@ -1599,7 +1557,6 @@ private:
         // If all dependent nodes are removed successfully, the operation node itself will be removed in the next step.
         // Otherwise, the whole removal process for the operation will be retried later.
         {
-            TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("RemoveDependentNodes"));
             auto proxy = CreateObjectServiceWriteProxy(Client_);
             // TODO(achulkov2): Split into subbatches as it is done below if we ever need it.
             auto batchReq = proxy.ExecuteBatch();
@@ -1636,10 +1593,6 @@ private:
                         const auto& response = responses[batchSubrequestIndex++];
 
                         if (response.IsOK()) {
-                            YT_LOG_DEBUG(
-                                "Successfully removed dependent node from Cypress (OperationId: %v, DependentNodeId: %v)",
-                                operationRemoveRequest.Id,
-                                dependentNodeId);
                             continue;
                         }
 
@@ -1681,8 +1634,6 @@ private:
 
         // Perform actual remove.
         if (!requestsWithOperationNodeToRemove.empty()) {
-            TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("RemoveOperations"));
-
             int subbatchSize = Config_->RemoveSubbatchSize;
 
             YT_LOG_DEBUG(
@@ -1730,9 +1681,6 @@ private:
 
                         auto rsp = rsps[index - startIndex];
                         if (rsp.IsOK()) {
-                            YT_LOG_DEBUG(
-                                "Successfully removed finished operation from Cypress (OperationId: %v)",
-                                removeRequest.Id);
                             successfulRequests.push_back(removeRequest);
                         } else {
                             YT_LOG_DEBUG(
@@ -1766,10 +1714,9 @@ private:
         RemoveOperationErrorCounter_.Increment(std::ssize(failedRequests) + lockedOperationCount);
 
         ProcessRemovedOperations(successfulRequests);
-        ProcessFailedOperationRemovals(failedRequests);
 
-        for (auto request : failedRequests) {
-            RemoveBatcher_->Enqueue(request);
+        for (auto operationId : failedRequests) {
+            RemoveBatcher_->Enqueue(operationId);
         }
 
         RemovePendingLocked_ += lockedOperationCount;
@@ -2012,7 +1959,6 @@ private:
         std::vector<TArchiveOperationRequest> removedOperationArchiveRequests;
         removedOperationArchiveRequests.reserve(removedOperationRequests.size());
         for (const auto& request : removedOperationRequests) {
-            OnOperationRemoved(request.Id);
             auto it = OperationMap_.find(request.Id);
             if (it != OperationMap_.end()) {
                 removedOperationArchiveRequests.emplace_back(std::move(it->second));
@@ -2089,11 +2035,11 @@ private:
     {
         auto now = TInstant::Now();
         while (!LockedOperationQueue_.empty()) {
-            const auto& [request, enqueueInstant] = LockedOperationQueue_.front();
+            const auto& [operationId, enqueueInstant] = LockedOperationQueue_.front();
             if (enqueueInstant + Config_->LockedOperationWaitTimeout > now) {
                 break;
             }
-            RemoveBatcher_->Enqueue(request);
+            RemoveBatcher_->Enqueue(operationId);
             LockedOperationQueue_.pop_front();
             --RemovePendingLocked_;
         }

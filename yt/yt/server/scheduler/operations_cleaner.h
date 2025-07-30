@@ -17,10 +17,6 @@ struct TRemoveOperationRequest
     //! It is guaranteed that all dependent nodes will be successfully
     //! removed before the operation node is removed itself.
     std::vector<NCypressClient::TNodeId> DependentNodeIds;
-
-    //! This field should not be empty in remove request
-    //! but it can be None in archive request.
-    std::optional<TInstant> RemovalStartTime;
 };
 
 struct TArchiveOperationRequest
