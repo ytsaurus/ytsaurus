@@ -34,8 +34,10 @@ struct TDistributedThrottlerConfig
     TDuration LimitUpdatePeriod;
     TDuration LeaderUpdatePeriod;
     TDuration ThrottlersAttributesUpdatePeriod;
+    TDuration ObsoleteMembersRemovalPeriod;
 
     TDuration ThrottlerExpirationTime;
+    TDuration MemberExpirationTime;
 
     TDuration AdjustedEmaHalflife;
 

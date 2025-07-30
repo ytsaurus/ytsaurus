@@ -26,9 +26,13 @@ void TDistributedThrottlerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("throttlers_attributes_update_period", &TThis::ThrottlersAttributesUpdatePeriod)
         .Default(TDuration::Seconds(20));
+    registrar.Parameter("obsolete_members_removal_period", &TThis::ObsoleteMembersRemovalPeriod)
+        .Default(TDuration::Seconds(30));
 
     registrar.Parameter("throttler_expiration_time", &TThis::ThrottlerExpirationTime)
         .Default(TDuration::Seconds(30));
+    registrar.Parameter("member_expiration_time", &TThis::MemberExpirationTime)
+        .Default(TDuration::Seconds(60));
 
     registrar.Parameter("mode", &TThis::Mode)
         .Default(EDistributedThrottlerMode::Adaptive);

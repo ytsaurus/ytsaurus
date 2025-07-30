@@ -379,9 +379,13 @@ public:
         , DiscoveryClient_(std::move(discoveryClient))
         , GroupId_(std::move(groupId))
         , UpdatePeriodicExecutor_(New<TPeriodicExecutor>(
-            std::move(invoker),
+            invoker,
             BIND(&TDistributedThrottlerService::UpdateLimits, MakeWeak(this)),
             config->LimitUpdatePeriod))
+        , RemoveObsoleteMembersPeriodicExecutor_(New<TPeriodicExecutor>(
+            std::move(invoker),
+            BIND(&TDistributedThrottlerService::RemoveObsoleteMembers, MakeWeak(this)),
+            config->ObsoleteMembersRemovalPeriod))
         , Throttlers_(std::move(throttlers))
         , ShardCount_(shardCount)
         , Logger(logger.WithTag("GroupId: %v, ShardCount: %v", GroupId_, ShardCount_))
@@ -405,6 +409,7 @@ public:
 
         RpcServer_->RegisterService(this);
         UpdatePeriodicExecutor_->Start();
+        RemoveObsoleteMembersPeriodicExecutor_->Start();
         Active_ = true;
     }
 
@@ -414,6 +419,7 @@ public:
             return;
         }
 
+        YT_UNUSED_FUTURE(RemoveObsoleteMembersPeriodicExecutor_->Stop());
         YT_UNUSED_FUTURE(UpdatePeriodicExecutor_->Stop());
         RpcServer_->UnregisterService(this);
         Active_ = false;
@@ -427,6 +433,10 @@ public:
 
         if (oldConfig->LimitUpdatePeriod != config->LimitUpdatePeriod) {
             UpdatePeriodicExecutor_->SetPeriod(config->LimitUpdatePeriod);
+        }
+
+        if (oldConfig->ObsoleteMembersRemovalPeriod != config->ObsoleteMembersRemovalPeriod) {
+            RemoveObsoleteMembersPeriodicExecutor_->SetPeriod(config->ObsoleteMembersRemovalPeriod);
         }
     }
 
@@ -498,15 +508,21 @@ public:
             }
         }
 
-        // Update throttlers local usage.
+        // Update last update time and throttlers local usage.
         {
             auto* shard = GetMemberShard(memberId);
 
-            auto guard = WriterGuard(shard->UsageRatesLock);
+            {
+                auto guard = WriterGuard(shard->MemberIdToLastUpdateTimeLock);
+                shard->MemberIdToLastUpdateTime[memberId] = now;
+            }
 
-            auto& memberThrottlersLocalUsage = shard->MemberIdToThrottlersLocalUsage[memberId];
-            for (const auto& [throttlerId, localUsage] : throttlerIdToLocalUsage) {
-                memberThrottlersLocalUsage[throttlerId] = localUsage;
+            {
+                auto guard = WriterGuard(shard->MemberIdToThrottlersLocalUsageLock);
+                auto& memberThrottlersLocalUsage = shard->MemberIdToThrottlersLocalUsage[memberId];
+                for (const auto& [throttlerId, localUsage] : throttlerIdToLocalUsage) {
+                    memberThrottlersLocalUsage[throttlerId] = localUsage;
+                }
             }
         }
     }
@@ -563,7 +579,7 @@ public:
             } else {
                 auto* shard = GetMemberShard(memberId);
 
-                auto guard = ReaderGuard(shard->LimitsLock);
+                auto guard = ReaderGuard(shard->MemberIdToLimitLock);
                 auto memberIt = shard->MemberIdToLimit.find(memberId);
                 if (memberIt != shard->MemberIdToLimit.end()) {
                     fillLimits(memberIt->second);
@@ -584,6 +600,7 @@ private:
     const IDiscoveryClientPtr DiscoveryClient_;
     const TGroupId GroupId_;
     const TPeriodicExecutorPtr UpdatePeriodicExecutor_;
+    const TPeriodicExecutorPtr RemoveObsoleteMembersPeriodicExecutor_;
     const TThrottlersPtr Throttlers_;
     const int ShardCount_;
     const NLogging::TLogger Logger;
@@ -595,10 +612,13 @@ private:
 
     struct TMemberShard
     {
-        YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, LimitsLock);
+        YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MemberIdToLastUpdateTimeLock);
+        THashMap<TMemberId, TInstant> MemberIdToLastUpdateTime;
+
+        YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MemberIdToLimitLock);
         THashMap<TMemberId, THashMap<TThrottlerId, double>> MemberIdToLimit;
 
-        YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, UsageRatesLock);
+        YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MemberIdToThrottlersLocalUsageLock);
         THashMap<TMemberId, THashMap<TThrottlerId, TThrottlerLocalUsage>> MemberIdToThrottlersLocalUsage;
     };
     std::vector<TMemberShard> MemberShards_;
@@ -785,13 +805,53 @@ private:
         {
             for (int i = 0; i < std::ssize(MemberShards_); ++i) {
                 auto& shard = MemberShards_[i];
-                auto guard = WriterGuard(shard.LimitsLock);
+                auto guard = WriterGuard(shard.MemberIdToLimitLock);
                 shard.MemberIdToLimit.swap(memberLimits[i]);
             }
         }
 
         // Update throttlers global data.
         ThrottlerToGlobalUsage_.Store(globalUsage.Get());
+    }
+
+    void RemoveObsoleteMembers()
+    {
+        auto config = Config_.Acquire();
+
+        auto now = TInstant::Now();
+        for (int i = 0; i < std::ssize(MemberShards_); ++i) {
+            auto& shard = MemberShards_[i];
+
+            // Collect obsolete members.
+            std::vector<TMemberId> obsoleteMembers;
+            {
+                auto guard = ReaderGuard(shard.MemberIdToLastUpdateTimeLock);
+                for (const auto& [memberId, lastUpdateTime] : shard.MemberIdToLastUpdateTime) {
+                    if (lastUpdateTime + config->MemberExpirationTime < now) {
+                        obsoleteMembers.push_back(memberId);
+                    }
+                }
+            }
+
+            if (obsoleteMembers.empty()) {
+                continue;
+            }
+
+            YT_LOG_DEBUG("Removing obsolete members (MemberCount: %v, Shard: %v)",
+                obsoleteMembers.size(),
+                i);
+
+            // Remove obsolete members.
+            auto memberIdToLastUpdateTimeGuard = WriterGuard(shard.MemberIdToLastUpdateTimeLock);
+            auto memberIdToLimitGuard = WriterGuard(shard.MemberIdToLimitLock);
+            auto memberIdToThrottlersLocalUsageGuard = WriterGuard(shard.MemberIdToThrottlersLocalUsageLock);
+
+            for (const auto& memberId : obsoleteMembers) {
+                shard.MemberIdToLastUpdateTime.erase(memberId);
+                shard.MemberIdToLimit.erase(memberId);
+                shard.MemberIdToThrottlersLocalUsage.erase(memberId);
+            }
+        }
     }
 
     void ForgetDeadThrottlers()
@@ -830,7 +890,7 @@ private:
             }
 
             for (auto& memberShard : MemberShards_) {
-                auto guard = WriterGuard(memberShard.LimitsLock);
+                auto guard = WriterGuard(memberShard.MemberIdToLimitLock);
                 for (auto& [memberId, throttlerIdToLimit] : memberShard.MemberIdToLimit) {
                     for (const auto& deadThrottlerId : deadThrottlersIds) {
                         throttlerIdToLimit.erase(deadThrottlerId);
@@ -839,7 +899,7 @@ private:
             }
 
             for (auto& memberShard : MemberShards_) {
-                auto guard = WriterGuard(memberShard.UsageRatesLock);
+                auto guard = WriterGuard(memberShard.MemberIdToThrottlersLocalUsageLock);
                 for (auto& [memberId, throttlerIdToLocalUsage] : memberShard.MemberIdToThrottlersLocalUsage) {
                     for (const auto& deadThrottlerId : deadThrottlersIds) {
                         throttlerIdToLocalUsage.erase(deadThrottlerId);
@@ -875,7 +935,7 @@ private:
         int memberCount = 0;
         THashMap<TThrottlerId, THashMap<TMemberId, double>> throttlerIdToMemberUsageRates;
         for (auto& shard : MemberShards_) {
-            auto guard = ReaderGuard(shard.UsageRatesLock);
+            auto guard = ReaderGuard(shard.MemberIdToThrottlersLocalUsageLock);
             memberCount += shard.MemberIdToThrottlersLocalUsage.size();
             for (const auto& [memberId, throttlerIdToLocalUsage] : shard.MemberIdToThrottlersLocalUsage) {
                 for (const auto& [throttlerId, throttlerLocalUsage] : throttlerIdToLocalUsage) {
@@ -906,7 +966,8 @@ private:
         for (const auto& [throttlerId, membersUsageRates] : throttlerIdToMemberUsageRates) {
             auto optionalTotalLimit = GetOrCrash(throttlerIdToTotalLimit, throttlerId);
             if (!optionalTotalLimit) {
-                // Skip throttlers without total limit.
+                YT_LOG_WARNING("Skip throttler without total limit (ThrottlerId: %v)",
+                    throttlerId);
                 continue;
             }
             auto totalLimit = *optionalTotalLimit;
