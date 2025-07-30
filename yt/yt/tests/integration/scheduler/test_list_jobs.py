@@ -1060,7 +1060,7 @@ class TestListJobs(TestListJobsCommon):
         assert len(jobs_with_attr["jobs"]) == 2
         assert jobs_with_attr["jobs"][0].keys() == {"id", "start_time"}
 
-    @authors("eshcherbin", "pogorelov")
+    @authors("bystrovserg")
     def test_operation_incarnation(self):
         def get_operation_incarnation(op):
             wait(lambda: exists(op.get_orchid_path() + "/controller/operation_incarnation"))
@@ -1143,7 +1143,12 @@ class TestListJobs(TestListJobsCommon):
             assert event_job_aborted["incarnation"] == new_incarnation
 
             event_info_job_aborted = event_job_aborted["incarnation_switch_info"]
+            event_info_operation_started = event_operation_started["incarnation_switch_info"]
+            assert len(event_info_operation_started) == 0
             assert event_info_job_aborted["trigger_job_id"] == first_job_id
+            assert event_info_job_aborted["abort_reason"] == "user_request"
+            assert event_info_job_aborted["trigger_job_error"] is not None
+            assert event_info_job_aborted["trigger_job_error"]["message"] is not None
 
             event_after = list_operation_events(op.id, event_type="incarnation_started", limit=1)
             assert len(event_after) == 1
@@ -1223,7 +1228,9 @@ class TestListJobs(TestListJobsCommon):
 
         wait(lambda: op1.get_job_count(state="aborted") == 2)
 
+        # Two jobs resources are guaranteed by pool "prod".
         wait(lambda: len(list_jobs(op2.id, with_interruption_info=False)["jobs"]) == 2)
+        # We have 2 interrupted jobs after running second operation because op1 has guaranteed {"cpu": 1}.
         wait(lambda: len(list_jobs(op1.id, with_interruption_info=True)["jobs"]) == 2)
         wait(lambda: len(list_jobs(op1.id, with_interruption_info=False)["jobs"]) == 1)
 
@@ -1231,6 +1238,7 @@ class TestListJobs(TestListJobsCommon):
         op1.track()
         op2.track()
 
+        # After releasing breakpoints both operations ran without any more job interruptions.
         wait(lambda: len(list_jobs(op2.id, with_interruption_info=False)["jobs"]) == 3)
         wait(lambda: len(list_jobs(op1.id, with_interruption_info=True)["jobs"]) == 2)
         wait(lambda: len(list_jobs(op1.id, with_interruption_info=False)["jobs"]) == 3)

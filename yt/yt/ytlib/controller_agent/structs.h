@@ -4,7 +4,11 @@
 
 #include <yt/yt/client/job_tracker_client/public.h>
 
+#include <yt/yt/client/scheduler/public.h>
+
 #include <library/cpp/yt/yson/consumer.h>
+
+#include <library/cpp/yt/error/error.h>
 
 namespace NYT::NControllerAgent {
 
@@ -14,6 +18,9 @@ struct TIncarnationSwitchInfo
 {
     // For JobAborted, JobFailed, JobInterrupted reasons.
     std::optional<NJobTrackerClient::TJobId> TriggerJobId;
+    std::optional<NScheduler::EAbortReason> AbortReason;
+    std::optional<NScheduler::EInterruptionReason> InterruptionReason;
+    std::optional<TError> TriggerJobError;
 
     // For JobLackAfterRevival reason.
     std::optional<i64> ExpectedJobCount;
