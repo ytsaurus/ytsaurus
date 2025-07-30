@@ -67,10 +67,12 @@ std::vector<TString> TDistributedTableApiTest::ReadTable()
 TDistributedWriteSessionWithCookies TDistributedTableApiTest::StartDistributedWriteSession(
     bool append,
     int cookieCount,
-    std::optional<TTransactionId> txId)
+    std::optional<TTransactionId> txId,
+    std::optional<TDuration> timeout)
 {
     TDistributedWriteSessionStartOptions options = {};
     options.CookieCount = cookieCount;
+    options.Timeout = timeout;
     if (txId) {
         options.TransactionId = *txId;
     }
@@ -334,6 +336,75 @@ TEST_F(TDistributedTableApiTest, StartWriteFinish)
 
     auto rowsDistributed = ReadTable();
     EXPECT_EQ(expectedRows, rowsDistributed);
+}
+
+TEST_F(TDistributedTableApiTest, StartWriteFinishNoTimeout)
+{
+    CreateStaticTable(
+        /*tablePath*/ "//tmp/distributed_table_api_test",
+        /*schema*/ "["
+        "{name=v1;type=string};"
+        "]");
+
+    std::vector<TString> rowStrings = {
+        "Foo",
+        "Bar",
+        "Baz",
+    };
+
+    std::vector<TString> inputRows;
+    std::vector<TString> expectedRows;
+
+    for (auto row : rowStrings) {
+        inputRows.push_back("<id=0> " + row + ";");
+        expectedRows.push_back("[\"" + row + "\";]");
+    }
+
+    auto sessionWithCookies = StartDistributedWriteSession(/*append*/ false, /*cookieCount*/ 1, std::nullopt, TDuration::Minutes(1));
+    TDelayedExecutor::WaitForDuration(TDuration::Seconds(10));
+    auto result = DistributedWriteTable(
+        sessionWithCookies.Cookies[0],
+        {
+            "v1",
+        },
+        inputRows);
+    FinishDistributedWriteSession(std::move(sessionWithCookies.Session), {std::move(result)});
+
+    auto rowsDistributed = ReadTable();
+    EXPECT_EQ(std::ssize(rowsDistributed), std::ssize(expectedRows));
+    EXPECT_EQ(expectedRows, rowsDistributed);
+}
+
+TEST_F(TDistributedTableApiTest, StartWriteFinishTimeout)
+{
+    CreateStaticTable(
+        /*tablePath*/ "//tmp/distributed_table_api_test",
+        /*schema*/ "["
+        "{name=v1;type=string};"
+        "]");
+
+    std::vector<TString> rowStrings = {
+        "Foo",
+        "Bar",
+        "Baz",
+    };
+
+    std::vector<TString> inputRows;
+    for (auto row : rowStrings) {
+        inputRows.push_back("<id=0> " + row + ";");
+    }
+
+    auto sessionWithCookies = StartDistributedWriteSession(/*append*/ false, /*cookieCount*/ 1, std::nullopt, TDuration::MilliSeconds(1));
+    TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
+    EXPECT_THROW_WITH_SUBSTRING({
+        auto result = DistributedWriteTable(
+            sessionWithCookies.Cookies[0],
+            {
+                "v1",
+            },
+            inputRows);
+        FinishDistributedWriteSession(std::move(sessionWithCookies.Session), {std::move(result)});
+    }, "No such transaction");
 }
 
 TEST_F(TDistributedTableApiTest, StartWriteFinishAbort)
