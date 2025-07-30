@@ -23,7 +23,7 @@ _To install YTsaurus Server 25.1.0 [update](https://github.com/ytsaurus/ytsaurus
 
 #### Compute
   - Implemented permission validation for operations using access control objects.
-  - Gang-operations gone production.
+  - Gang-operations gone production. Gang-operations represent a special scheduling mode of vanilla-operations, particularly useful for distributed ML model training. 
   - Introduced PatchSpec API to modify operation spec at runtime.
   - [experimental] Remote copy scheduler now considers inter-cluster bandwidth limits.
   - Introduced job shell for CRI-based job environments.
