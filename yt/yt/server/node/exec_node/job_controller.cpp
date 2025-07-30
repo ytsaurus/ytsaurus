@@ -688,7 +688,6 @@ private:
             auto agentDescriptor = controllerAgentConnectorPool->GetDescriptorByIncarnationId(incarnationId);
 
             auto resourceDemand = FromNodeResources(startInfoProto.resource_limits());
-            JobResourceManager_->CalculateAndSetVCpu(GetPtr(resourceDemand));
 
             auto allocation = CreateAllocation(
                 allocationId,
@@ -1530,7 +1529,14 @@ private:
 
             // We get vcpu here. Need to replace it with real cpu back.
             auto& resourceLimits = *allocationStartInfos.back().mutable_resource_limits();
+            resourceLimits.set_vcpu(resourceLimits.cpu());
             resourceLimits.set_cpu(static_cast<double>(NVectorHdrf::TCpuResource(resourceLimits.cpu() / LastHeartbeatCpuToVCpuFactor_)));
+
+            // NB: to avoid rounding errors we skip recalculating of vcpu if cpu_to_vcpu_factor is not changed.
+            auto actualCpuToVCpuFactor = JobResourceManager_->GetCpuToVCpuFactor();
+            if (actualCpuToVCpuFactor != LastHeartbeatCpuToVCpuFactor_) {
+                resourceLimits.set_vcpu(static_cast<double>(NVectorHdrf::TCpuResource(resourceLimits.cpu() * actualCpuToVCpuFactor)));
+            }
         }
 
         if (response->has_operations_archive_version()) {
