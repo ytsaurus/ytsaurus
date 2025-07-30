@@ -865,7 +865,7 @@ public:
     void TrySwitchToNewOperationIncarnation(
         const TGangJobletPtr& joblet,
         bool operationIsReviving,
-        EOperationIncarnationSwitchReason reason);
+        TIncarnationSwitchData data);
 
     int GetGangSize() const;
 
@@ -918,7 +918,7 @@ public:
     void TrySwitchToNewOperationIncarnation(
         const TGangJobletPtr& joblet,
         bool operationIsReviving,
-        EOperationIncarnationSwitchReason reason);
+        TIncarnationSwitchData data);
 
     void OnOperationIncarnationChanged(bool operationIsReviving, TIncarnationSwitchData data);
 
@@ -953,7 +953,7 @@ private:
 
     std::optional<TIncarnationSwitchData> ShouldRestartJobsOnRevival() const;
 
-    void TrySwitchToNewOperationIncarnation(bool operationIsReviving, EOperationIncarnationSwitchReason reason);
+    void TrySwitchToNewOperationIncarnation(bool operationIsReviving, TIncarnationSwitchData data);
 
     void VerifyJobsIncarnationsEqual() const;
 
@@ -1117,12 +1117,12 @@ TGangTask::TGangTask(
 void TGangTask::TrySwitchToNewOperationIncarnation(
     const TGangJobletPtr& joblet,
     bool operationIsReviving,
-    EOperationIncarnationSwitchReason reason)
+    TIncarnationSwitchData data)
 {
     if (IsGangPolicyEnabled()) {
         YT_LOG_DEBUG("Trying to switch operation to new incarnation");
 
-        GetOperationController().TrySwitchToNewOperationIncarnation(joblet, operationIsReviving, reason);
+        GetOperationController().TrySwitchToNewOperationIncarnation(joblet, operationIsReviving, std::move(data));
     } else {
         YT_LOG_DEBUG("Operation incarnation switch skipped due to task gang options");
     }
@@ -1345,6 +1345,7 @@ bool TGangOperationController::OnJobCompleted(
     }
 
     auto interruptionReason = jobSummary->InterruptionReason;
+    auto jobError = jobSummary->Error;
 
     YT_LOG_DEBUG(
         "Gang job completed (JobId: %v, Rank: %v, InterruptionReason: %v)",
@@ -1359,10 +1360,18 @@ bool TGangOperationController::OnJobCompleted(
     if (auto& gangTask = static_cast<TGangTask&>(*joblet->Task);
         rank && interruptionReason != EInterruptionReason::None)
     {
+        auto incarnationData = TIncarnationSwitchData{
+            .IncarnationSwitchReason = EOperationIncarnationSwitchReason::JobInterrupted,
+            .IncarnationSwitchInfo{
+                .TriggerJobId = joblet->JobId,
+                .InterruptionReason = interruptionReason,
+                .TriggerJobError = std::move(jobError),
+            },
+        };
         gangTask.TrySwitchToNewOperationIncarnation(
             StaticPointerCast<TGangJoblet>(std::move(joblet)),
             /*operationIsReviving*/ false,
-            EOperationIncarnationSwitchReason::JobInterrupted);
+            std::move(incarnationData));
     }
 
     return true;
@@ -1376,6 +1385,7 @@ bool TGangOperationController::OnJobFailed(
 
     const auto& gangJoblet = static_cast<const TGangJoblet&>(*joblet);
     auto rank = gangJoblet.Rank;
+    auto jobError = jobSummary->Error;
 
     if (!TOperationControllerBase::OnJobFailed(joblet, std::move(jobSummary))) {
         return false;
@@ -1383,10 +1393,17 @@ bool TGangOperationController::OnJobFailed(
 
     if (rank) {
         auto& gangTask = static_cast<TGangTask&>(*joblet->Task);
+        auto incarnationData = TIncarnationSwitchData{
+            .IncarnationSwitchReason = EOperationIncarnationSwitchReason::JobFailed,
+            .IncarnationSwitchInfo{
+                .TriggerJobId = joblet->JobId,
+                .TriggerJobError = std::move(jobError),
+            },
+        };
         gangTask.TrySwitchToNewOperationIncarnation(
             StaticPointerCast<TGangJoblet>(std::move(joblet)),
             /*operationIsReviving*/ false,
-            EOperationIncarnationSwitchReason::JobFailed);
+            std::move(incarnationData));
     }
 
     return true;
@@ -1400,16 +1417,29 @@ bool TGangOperationController::OnJobAborted(
 
     const auto& gangJoblet = static_cast<const TGangJoblet&>(*joblet);
 
+    auto abortReason = jobSummary->AbortReason;
+    auto jobError = jobSummary->Error;
+
     if (!TOperationControllerBase::OnJobAborted(joblet, std::move(jobSummary))) {
         return false;
     }
 
     if (gangJoblet.Rank) {
         auto& gangTask = static_cast<TGangTask&>(*joblet->Task);
+
+        auto incarnationData = TIncarnationSwitchData{
+            .IncarnationSwitchReason = EOperationIncarnationSwitchReason::JobAborted,
+            .IncarnationSwitchInfo{
+                .TriggerJobId = joblet->JobId,
+                .AbortReason = abortReason,
+                .TriggerJobError = std::move(jobError),
+            },
+        };
+
         gangTask.TrySwitchToNewOperationIncarnation(
             StaticPointerCast<TGangJoblet>(std::move(joblet)),
             /*operationIsReviving*/ false,
-            EOperationIncarnationSwitchReason::JobAborted);
+            std::move(incarnationData));
     }
 
     return true;
@@ -1444,7 +1474,7 @@ TJobletPtr TGangOperationController::CreateJoblet(
 void TGangOperationController::TrySwitchToNewOperationIncarnation(
     const TGangJobletPtr& joblet,
     bool operationIsReviving,
-    EOperationIncarnationSwitchReason reason)
+    TIncarnationSwitchData data)
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config_->JobEventsControllerQueue));
 
@@ -1454,12 +1484,6 @@ void TGangOperationController::TrySwitchToNewOperationIncarnation(
     }
 
     if (joblet->OperationIncarnation == Incarnation_) {
-        TIncarnationSwitchData data{
-            .IncarnationSwitchReason = reason,
-            .IncarnationSwitchInfo{
-                .TriggerJobId = joblet->JobId,
-            },
-        };
         SwitchToNewOperationIncarnation(operationIsReviving, std::move(data));
     }
 }
