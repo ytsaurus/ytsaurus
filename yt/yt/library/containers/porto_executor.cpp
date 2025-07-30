@@ -587,6 +587,10 @@ private:
             portoSpec.set_group(ToString(*spec.GroupId));
         }
 
+        if (spec.CpuWeight) {
+            portoSpec.set_cpu_weight(*spec.CpuWeight);
+        }
+
         if (spec.ThreadLimit) {
             portoSpec.set_thread_limit(*spec.ThreadLimit);
         }
