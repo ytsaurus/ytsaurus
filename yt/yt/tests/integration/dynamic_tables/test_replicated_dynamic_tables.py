@@ -90,6 +90,16 @@ EXPRESSIONLESS_SCHEMA = [
     {"name": "key", "type": "int64", "sort_order": "ascending"},
     {"name": "value", "type": "int64"},
 ]
+EXPRESSION_SCHEMA_MISMATCHING = [
+    {
+        "name": "hash",
+        "type": "int64",
+        "sort_order": "ascending",
+        "expression": "key % 11",
+    },
+    {"name": "key", "type": "int64", "sort_order": "ascending"},
+    {"name": "value", "type": "int64"},
+]
 
 ##################################################################
 
@@ -136,6 +146,7 @@ class TestReplicatedDynamicTablesBase(DynamicTablesBase):
         self.REQUIREDLESS_SCHEMA = REQUIREDLESS_SCHEMA
         self.EXPRESSION_SCHEMA = EXPRESSION_SCHEMA
         self.EXPRESSIONLESS_SCHEMA = EXPRESSIONLESS_SCHEMA
+        self.EXPRESSION_SCHEMA_MISMATCHING = EXPRESSION_SCHEMA_MISMATCHING
         self.REPLICA_CLUSTER_NAME = "remote_0"
 
         self.replica_driver = get_driver(cluster=self.REPLICA_CLUSTER_NAME)
@@ -2055,12 +2066,17 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             == [{"key": 1, "value1": "test2", "value2": 150}]
         )
 
-    @authors("babenko", "levysotsky", "gridem")
-    @pytest.mark.parametrize("only_replica", [True, False])
+    @authors("babenko", "levysotsky", "gridem", "sabdenovch")
+    @pytest.mark.parametrize("replication_queue_schema", ["match", "expressionless", "mismatch"])
     @pytest.mark.parametrize("dynamic", [True, False])
-    def test_expression_replication(self, dynamic, only_replica):
+    def test_expression_replication(self, dynamic, replication_queue_schema):
         self._create_cells()
-        replicated_schema = self.EXPRESSIONLESS_SCHEMA if only_replica else self.EXPRESSION_SCHEMA
+        if replication_queue_schema == "match":
+            replicated_schema = self.EXPRESSION_SCHEMA
+        elif replication_queue_schema == "expressionless":
+            replicated_schema = self.EXPRESSIONLESS_SCHEMA
+        else:
+            replicated_schema = self.EXPRESSION_SCHEMA_MISMATCHING
         self._create_replicated_table("//tmp/t", schema=replicated_schema)
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         self._create_replica_table("//tmp/r", replica_id, schema=self.EXPRESSION_SCHEMA)
