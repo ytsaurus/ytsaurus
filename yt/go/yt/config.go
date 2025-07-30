@@ -132,6 +132,9 @@ type Config struct {
 	// This function is extracted into config in order to avoid direct dependency on jaeger client.
 	//
 	// Assign ytjaeger.TraceFn to this field, if you wish to enable tracing.
+	//
+	// Use ytotel.TraceFn if you are using bridge between opentelemetry and opentracing.
+	// See example on how to use yt client with opentelemetry in yt/go/examples/tracing/main.go
 	TraceFn TraceFn
 
 	// LightRequestTimeout specifies default timeout for light requests. Timeout includes all retries and backoffs.
