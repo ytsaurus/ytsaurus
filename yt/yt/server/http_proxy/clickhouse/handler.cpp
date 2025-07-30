@@ -119,7 +119,7 @@ public:
         , IsLegacyQueryHandler_(!bootstrap->IsChytApiServerAddress(req->GetRemoteAddress()) && req->GetUrl().Path.StartsWith("/query"))
         , AllowGetRequests_(!IsLegacyQueryHandler_) // In case of the non-legacy handler GET-requests are allowed by default.
         , Handler_(handler)
-        , ChannelFactory_(CreateTcpBusChannelFactory(New<NBus::TBusConfig>()))
+        , ChannelFactory_(CreateTcpBusChannelFactory(Bootstrap_->GetConfig()->ClusterConnection->Dynamic->BusClient))
     {
         if (auto* traceParent = req->GetHeaders()->Find("traceparent")) {
             YT_LOG_INFO("Request contains traceparent header (Traceparent: %v)", traceParent);
