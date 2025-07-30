@@ -423,9 +423,9 @@ public:
     {
         auto oldConfig = Config_.Acquire();
 
+        Config_.Store(config);
+
         if (oldConfig->LimitUpdatePeriod != config->LimitUpdatePeriod) {
-            auto guard = Guard(ReconfigurationLock_);
-            Config_.Store(config);
             UpdatePeriodicExecutor_->SetPeriod(config->LimitUpdatePeriod);
         }
     }
@@ -591,7 +591,6 @@ private:
     TAtomicIntrusivePtr<const TThrottlerToGlobalUsage> ThrottlerToGlobalUsage_;
     bool Active_ = false;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ReconfigurationLock_);
     TAtomicIntrusivePtr<TDistributedThrottlerConfig> Config_;
 
     struct TMemberShard
@@ -1155,11 +1154,9 @@ public:
         {
             auto guard = ReaderGuard(Throttlers_->Lock);
             for (const auto& [throttlerId, weakThrottler] : Throttlers_->Throttlers) {
-                auto throttler = weakThrottler.Lock();
-                if (!throttler) {
-                    continue;
+                if (auto throttler = weakThrottler.Lock()) {
+                    throttler->SetDistributedThrottlerConfig(config);
                 }
-                throttler->SetDistributedThrottlerConfig(config);
             }
         }
 
