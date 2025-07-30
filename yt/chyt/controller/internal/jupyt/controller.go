@@ -23,6 +23,7 @@ type Config struct {
 	LastActivityURLPath *string           `yson:"last_activity_url_path"`
 	Command             *string           `yson:"command"`
 	AdditionalFiles     []string          `yson:"additional_files"`
+	RunAsUser           bool              `yson:"run_as_user"`
 }
 
 const (
@@ -85,7 +86,7 @@ func (c *Controller) buildCommand(speclet *Speclet) (command string, env map[str
 }
 
 func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
-	spec map[string]any, description map[string]any, annotations map[string]any, err error) {
+	spec map[string]any, description map[string]any, annotations map[string]any, runAsUser bool, err error) {
 	alias := oplet.Alias()
 
 	// description = buildDescription(c.cluster, alias, c.config.EnableYandexSpecificLinksOrDefault())
@@ -136,6 +137,8 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 		"is_notebook": true,
 		"expose":      true,
 	}
+
+	runAsUser = c.config.RunAsUser
 
 	return
 }
@@ -262,7 +265,8 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 		YTACONamespace:   c.Family(),
 		YTACORootPath:    strawberry.AccessControlNamespacesPath.String(),
 	}
-	serverConfigYTPath, err := c.uploadConfig(ctx, oplet.Alias(), "server_config.json", serverConfig)
+	creator := oplet.GetBriefInfo().Creator
+	serverConfigYTPath, err := c.uploadConfig(ctx, oplet.Alias(), "server_config.json", serverConfig, creator)
 	if err != nil {
 		return nil
 	}
