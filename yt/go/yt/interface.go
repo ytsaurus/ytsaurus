@@ -1271,6 +1271,8 @@ type MultiLookupSubrequest struct {
 }
 
 type TabletReadOptions struct {
+	RetentionTimestamp        *Timestamp
+	ReplicaConsistency        *ReplicaConsistency
 	ReadFrom                  *TabletReadKind
 	CachedSyncReplicasTimeout *uint64
 }
@@ -1280,9 +1282,7 @@ type MultiplexingBandOptions struct {
 }
 
 type MultiLookupRowsOptions struct {
-	Timestamp          *Timestamp
-	RetentionTimestamp *Timestamp
-	ReplicaConsistency *ReplicaConsistency
+	Timestamp *Timestamp
 
 	*MultiplexingBandOptions
 	*TabletReadOptions
