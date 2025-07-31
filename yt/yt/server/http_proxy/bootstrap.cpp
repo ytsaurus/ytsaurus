@@ -425,6 +425,10 @@ void TBootstrap::OnDynamicConfigChanged(
     BusServer_->OnDynamicConfigChanged(newConfig->BusServer);
 
     Coordinator_->GetTraceSampler()->UpdateConfig(newConfig->Tracing);
+
+    if (newConfig->SignatureComponents) {
+        YT_UNUSED_FUTURE(SignatureComponents_->Reconfigure(newConfig->SignatureComponents));
+    }
 }
 
 void TBootstrap::HandleRequest(

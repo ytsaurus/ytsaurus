@@ -1930,7 +1930,6 @@ class TestHttpProxySignaturesBase(HttpProxyTestBase):
         "signature_components": {
             "validation": {
                 "cypress_key_reader": dict(),
-                "validator": dict(),
             },
             "generation": {
                 "cypress_key_writer": {
@@ -1975,6 +1974,26 @@ class TestHttpProxySignatures(TestHttpProxySignaturesBase):
         # But this probability should be neglectable, as some network packeting should happen before the signatures
         # even start generating.
         wait(lambda: len(ls(cls.KEYS_PATH)) > 0)
+
+    @authors("pavook")
+    def test_dynamic_config(self):
+        new_owner = "dynamic_test_http_proxy"
+        set(
+            "//sys/http_proxies/@config",
+            deep_update(self.DELTA_HTTP_PROXY_CONFIG, {
+                "signature_components": {
+                    "generation": {
+                        "cypress_key_writer": {
+                            "owner_id": new_owner,
+                        },
+                        "key_rotator": {
+                            "key_rotation_interval": "5s",
+                        },
+                    },
+                },
+            }))
+
+        wait(lambda: new_owner in ls(f"{self.OWNERS_PATH}"))
 
     @authors("ermolovd")
     def test_partition_tables_with_modified_cookie(self):
