@@ -25,15 +25,16 @@ using namespace NYson;
 using namespace NYTree;
 using namespace std::chrono_literals;
 
-using ::testing::_;
 using ::testing::AllOf;
 using ::testing::Field;
 using ::testing::HasSubstr;
+using ::testing::InSequence;
 using ::testing::Pointee;
 using ::testing::Pointer;
 using ::testing::ResultOf;
 using ::testing::Return;
 using ::testing::StrictMock;
+using ::testing::_;
 
 using TStrictMockClient = StrictMock<TMockClient>;
 DEFINE_REFCOUNTED_TYPE(TStrictMockClient)
@@ -79,6 +80,19 @@ TEST_F(TCypressKeyReaderTest, FindKey)
 
     auto keyInfo = WaitFor(reader->FindKey(OwnerId, KeyId));
     EXPECT_THAT(keyInfo.ValueOrThrow(), Pointee(*simpleKeyInfo));
+
+    auto newConfig = New<TCypressKeyReaderConfig>();
+    newConfig->Path = "//sys/public_keys/lawn_mower";
+    newConfig->CypressReadOptions->ReadFrom = EMasterChannelKind::Follower;
+    reader->Reconfigure(newConfig);
+
+    EXPECT_CALL(*Client, GetNode(
+        "//sys/public_keys/lawn_mower/test/4-3-2-1",
+        Field("ReadFrom", &TGetNodeOptions::ReadFrom, EMasterChannelKind::Follower)))
+        .WillOnce(Return(MakeFuture(ConvertToYsonString(simpleKeyInfo))));
+
+    auto keyInfo2 = WaitFor(reader->FindKey(OwnerId, KeyId));
+    EXPECT_THAT(keyInfo2.ValueOrThrow(), Pointee(*simpleKeyInfo));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -109,133 +123,60 @@ TEST_F(TCypressKeyReaderTest, FindKeyInvalidString)
     EXPECT_THAT(keyInfo.GetMessage(), HasSubstr("node has invalid type"));
 }
 
+
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCypressKeyWriterNoInitTest
-    : public ::testing::Test
+TEST_F(TCypressKeyReaderTest, ReconfigureDuringReadOperation)
 {
-    TIntrusivePtr<TStrictMockClient> Client = New<TStrictMockClient>();
+    auto reader = New<TCypressKeyReader>(Config, Client);
 
-    TOwnerId OwnerId = TOwnerId("test");
-    TInstant NowTime = Now();
-    TInstant ExpiresAt = NowTime + TDuration::Hours(10);
-    TKeyPairMetadata Meta = TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>{
-        .OwnerId = OwnerId,
-        .KeyId = TKeyId(TGuid(1, 2, 3, 4)),
-        .CreatedAt = NowTime,
-        .ValidAfter = NowTime - TDuration::Hours(10),
-        .ExpiresAt = ExpiresAt,
-    };
-    TCypressKeyWriterConfigPtr Config = New<TCypressKeyWriterConfig>();
+    TPublicKey key{};
+    auto simpleKeyInfo = New<TKeyInfo>(key, Meta);
 
-    TCypressKeyWriterNoInitTest()
-    {
-        Config->OwnerId = OwnerId;
+    // We want to test out the case that reconfigure happened during registration.
+    std::vector<TPromise<TYsonString>> barriers(10);
+    for (auto& barrier : barriers) {
+        barrier = NewPromise<TYsonString>();
     }
-};
 
-////////////////////////////////////////////////////////////////////////////////
-
-struct TCypressKeyWriterTest
-    : public TCypressKeyWriterNoInitTest
-{
-    TCypressKeyWriterTest()
+    // We can't return the same future over an over, so some nasty tricks are required.
     {
-        auto optionMatcher = Field("IgnoreExisting", &TCreateNodeOptions::IgnoreExisting, true);
-        EXPECT_CALL(*Client, CreateNode("//sys/public_keys/by_owner/test", EObjectType::MapNode, optionMatcher))
-            .WillOnce(Return(MakeFuture(TNodeId())));
+        InSequence seq;
+        for (auto& barrier : barriers) {
+            EXPECT_CALL(*Client, GetNode("//sys/public_keys/by_owner/test/4-3-2-1", _))
+                .WillOnce(Return(barrier));
+        }
     }
-};
 
-////////////////////////////////////////////////////////////////////////////////
+    {
+        InSequence seq;
+        for (int i = 0; i < 10; ++i) {
+            EXPECT_CALL(*Client, GetNode("//sys/shmublic_keys/lawn_mower/test/4-3-2-1", _))
+                .WillOnce(Return(MakeFuture(ConvertToYsonString(*simpleKeyInfo))));
+        }
+    }
 
-TEST_F(TCypressKeyWriterTest, Init)
-{
-    auto writer = CreateCypressKeyWriter(Config, Client);
-    EXPECT_TRUE(WaitFor(writer).IsOK());
-}
+    std::vector<TFuture<TKeyInfoPtr>> futures;
+    for (const auto& _ : barriers) {
+        futures.push_back(reader->FindKey(OwnerId, KeyId));
+    }
 
-////////////////////////////////////////////////////////////////////////////////
+    auto newConfig = New<TCypressKeyReaderConfig>();
+    newConfig->Path = "//sys/shmublic_keys/lawn_mower";
+    reader->Reconfigure(newConfig);
 
-TEST_F(TCypressKeyWriterNoInitTest, InitFailed)
-{
-    EXPECT_CALL(*Client, CreateNode("//sys/public_keys/by_owner/test", _, _))
-        .WillOnce(Return(MakeFuture<TNodeId>(TError("failure"))));
+    // Release all the barriers after reconfigure.
+    for (auto& barrier : barriers) {
+        barrier.Set(ConvertToYsonString(simpleKeyInfo));
+    }
 
-    auto writer = WaitFor(CreateCypressKeyWriter(Config, Client));
+    for (int i = 0; i < 10; ++i) {
+        futures.push_back(reader->FindKey(OwnerId, KeyId));
+    }
 
-    EXPECT_FALSE(writer.IsOK());
-    EXPECT_THAT(writer.GetMessage(), HasSubstr("failure"));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TEST_F(TCypressKeyWriterTest, GetOwner)
-{
-    auto writer = WaitFor(CreateCypressKeyWriter(Config, Client))
-        .ValueOrThrow();
-
-    EXPECT_EQ(writer->GetOwner(), OwnerId);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TEST_F(TCypressKeyWriterTest, RegisterKey)
-{
-    auto optionMatcher = AllOf(
-        Field("IgnoreExisting", &TCreateNodeOptions::IgnoreExisting, false),
-        Field("Attributes", &TCreateNodeOptions::Attributes, Pointer(ResultOf([] (auto attributes) {
-            return attributes->template Get<TInstant>("expiration_time");
-        }, ExpiresAt + Config->KeyDeletionDelay))));
-
-    EXPECT_CALL(*Client, CreateNode("//sys/public_keys/by_owner/test/4-3-2-1", EObjectType::Document, optionMatcher))
-        .WillOnce(Return(MakeFuture(TNodeId())));
-
-    auto keyInfo = New<TKeyInfo>(TPublicKey{}, Meta);
-
-    EXPECT_CALL(*Client, SetNode("//sys/public_keys/by_owner/test/4-3-2-1", ConvertToYsonString(keyInfo), _))
-        .WillOnce(Return(VoidFuture));
-
-    auto writer = WaitFor(CreateCypressKeyWriter(Config, Client))
-        .ValueOrThrow();
-
-    EXPECT_TRUE(WaitFor(writer->RegisterKey(keyInfo)).IsOK());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TEST_F(TCypressKeyWriterTest, RegisterKeyFailed)
-{
-    EXPECT_CALL(*Client, CreateNode("//sys/public_keys/by_owner/test/4-3-2-1", _, _))
-        .WillOnce(Return(MakeFuture<TNodeId>(TError("some error"))));
-
-    auto writer = WaitFor(CreateCypressKeyWriter(Config, Client))
-        .ValueOrThrow();
-
-    auto keyInfo = New<TKeyInfo>(TPublicKey{}, Meta);
-
-    auto error = WaitFor(writer->RegisterKey(keyInfo));
-    EXPECT_FALSE(error.IsOK());
-    EXPECT_THAT(error.GetMessage(), HasSubstr("some error"));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TEST_F(TCypressKeyWriterTest, RegisterKeyWrongOwner)
-{
-    auto writer = WaitFor(CreateCypressKeyWriter(Config, Client))
-        .ValueOrThrow();
-
-    // TODO(pavook): enable this test when we can replace YT_VERIFY with exceptions.
-    if (false) {
-        auto metaNotMine = std::visit([] (const auto& meta) {
-            auto ret = meta;
-            ret.OwnerId = TOwnerId("notMine");
-            return ret;
-        }, Meta);
-        auto notMineKeyInfo = New<TKeyInfo>(TPublicKey{}, metaNotMine);
-
-        EXPECT_THROW(std::ignore = WaitFor(writer->RegisterKey(notMineKeyInfo)), TAssertionFailedException);
+    for (auto& future : futures) {
+        auto result = WaitFor(future);
+        EXPECT_EQ(*result.ValueOrThrow(), *simpleKeyInfo);
     }
 }
 

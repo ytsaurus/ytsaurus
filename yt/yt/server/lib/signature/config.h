@@ -71,8 +71,6 @@ struct TCypressKeyWriterConfig
     //! Prefix path for public keys (will be stored as <Path>/<Owner>/<KeyId>).
     NYPath::TYPath Path;
 
-    TOwnerId OwnerId;
-
     //! Time to wait after expiration before deleting keys from Cypress.
     TDuration KeyDeletionDelay;
 

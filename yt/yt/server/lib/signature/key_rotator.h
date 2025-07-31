@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
+#include <library/cpp/yt/threading/spin_lock.h>
+
 namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -35,11 +37,24 @@ public:
     */
     TFuture<void> Rotate();
 
+    //! Returns the future that is set when the next started rotation completes, with "next"
+    //! starting from some point inside of this call.
+    /*!
+     * \note Thread affinity: any
+     */
+    TFuture<void> GetNextRotation();
+
+    /*!
+     * \note Thread affinity: any
+     */
+    void Reconfigure(TKeyRotatorConfigPtr config);
+
 private:
-    const TKeyRotatorConfigPtr Config_;
+    TAtomicIntrusivePtr<TKeyRotatorConfig> Config_;
     const IKeyStoreWriterPtr KeyWriter_;
     const TSignatureGeneratorPtr Generator_;
     const NConcurrency::TPeriodicExecutorPtr Executor_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ReconfigureSpinLock_);
 
     void DoRotate();
 };

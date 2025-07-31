@@ -26,7 +26,7 @@ class TMockKeyStoreWriter
     : public IKeyStoreWriter
 {
 public:
-    MOCK_METHOD(const TOwnerId&, GetOwner, (), (const, override));
+    MOCK_METHOD(TOwnerId, GetOwner, (), (const, override));
 
     MOCK_METHOD(TFuture<void>, RegisterKey, (const TKeyInfoPtr& keyInfo), (override));
 };

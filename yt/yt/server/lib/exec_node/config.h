@@ -805,9 +805,7 @@ struct TExecNodeConfig
 
     TJobProxyLogManagerConfigPtr JobProxyLogManager;
 
-    NSignature::TSignatureGenerationConfigPtr SignatureGeneration;
-
-    NSignature::TSignatureValidationConfigPtr SignatureValidation;
+    NSignature::TSignatureComponentsConfigPtr SignatureComponents;
 
     REGISTER_YSON_STRUCT(TExecNodeConfig);
 
@@ -848,6 +846,8 @@ struct TExecNodeDynamicConfig
     // NB(yuryalekseev): At the moment dynamic NBD config is used only to create
     // NBD server during startup or to dynamically enable/disable creation of NBD volumes.
     TNbdConfigPtr Nbd;
+
+    NSignature::TSignatureComponentsConfigPtr SignatureComponents;
 
     REGISTER_YSON_STRUCT(TExecNodeDynamicConfig);
 

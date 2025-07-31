@@ -863,11 +863,8 @@ void TExecNodeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("job_proxy_log_manager", &TThis::JobProxyLogManager);
 
-    registrar.Parameter("signature_generation", &TThis::SignatureGeneration)
-        .Optional();
-
-    registrar.Parameter("signature_validation", &TThis::SignatureValidation)
-        .Optional();
+    registrar.Parameter("signature_components", &TThis::SignatureComponents)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -912,6 +909,10 @@ void TExecNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("nbd", &TThis::Nbd)
         .Default();
+
+    // NB(pavook): Static config is used if not specified in dynamic.
+    registrar.Parameter("signature_components", &TThis::SignatureComponents)
+        .Optional();
 
     registrar.Preprocessor([] (TThis* config) {
         // 10 user jobs containers per second by default.

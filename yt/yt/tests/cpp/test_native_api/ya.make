@@ -15,6 +15,7 @@ PEERDIR(
     yt/yt/ytlib
     yt/yt/core/test_framework
     yt/yt/library/named_value
+    yt/yt/server/lib/signature
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/recipe/recipe.inc)

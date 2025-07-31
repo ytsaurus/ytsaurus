@@ -41,6 +41,8 @@
 
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
+#include <yt/yt/server/lib/signature/config.h>
+
 #include <yt/yt/server/lib/job_agent/structs.h>
 
 #include <yt/yt/server/lib/job_proxy/job_probe.h>
@@ -3229,8 +3231,8 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     }
 
     // TODO(pavook): configure this dynamically (YT-25354).
-    proxyInternalConfig->EnableSignatureGeneration = static_cast<bool>(Bootstrap_->GetConfig()->ExecNode->SignatureGeneration);
-    proxyInternalConfig->EnableSignatureValidation = static_cast<bool>(Bootstrap_->GetConfig()->ExecNode->SignatureValidation);
+    proxyInternalConfig->EnableSignatureGeneration = static_cast<bool>(Bootstrap_->GetConfig()->ExecNode->SignatureComponents->Generation);
+    proxyInternalConfig->EnableSignatureValidation = static_cast<bool>(Bootstrap_->GetConfig()->ExecNode->SignatureComponents->Validation);
 
     if (auto proxyDynamicConfig = Bootstrap_->GetJobController()->GetJobProxyDynamicConfig()) {
         if (auto jaegerConfig = proxyInternalConfig->TryGetSingletonConfig<NTracing::TJaegerTracerConfig>()) {

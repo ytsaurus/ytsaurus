@@ -50,7 +50,10 @@ struct TSignatureValidatorTest
                 .ValidAfter = Now() - 10h,
                 .ExpiresAt = Now() + 10h}))
         , Validator(New<TSignatureValidator>(Store))
-    { }
+    {
+        WaitFor(InitializeCryptography(GetCurrentInvoker()))
+            .ThrowOnError();
+    }
 
     TSignatureHeader SimpleHeader(
         TDuration delta_created,

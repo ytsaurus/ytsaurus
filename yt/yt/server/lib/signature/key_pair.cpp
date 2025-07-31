@@ -10,6 +10,8 @@ namespace NYT::NSignature {
 
 TKeyPair::TKeyPair(const TKeyPairMetadata& metadata)
 {
+    EnsureCryptographyInitialized();
+
     std::array<char, PrivateKeySize> privateKey;
     TPublicKey publicKey;
 
@@ -44,6 +46,8 @@ void TKeyPair::Sign(
     std::span<const char> data,
     std::span<char, SignatureSize> signature) const
 {
+    EnsureCryptographyInitialized();
+
     THROW_ERROR_EXCEPTION_IF(
         crypto_sign_detached(
             reinterpret_cast<unsigned char*>(signature.data()),
@@ -58,6 +62,8 @@ void TKeyPair::Sign(
 
 bool TKeyPair::CheckSanity() const
 {
+    EnsureCryptographyInitialized();
+
     TPublicKey extractedPublicKey;
     int res = crypto_sign_ed25519_sk_to_pk(
         reinterpret_cast<unsigned char*>(extractedPublicKey.data()),

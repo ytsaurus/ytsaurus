@@ -1531,9 +1531,7 @@ class TestRpcProxySignaturesBase(TestRpcProxyBase):
                 "cypress_key_reader": dict(),
             },
             "generation": {
-                "cypress_key_writer": {
-                    "owner_id": "test-rpc-proxy",
-                },
+                "cypress_key_writer": dict(),
                 "generator": dict(),
             },
         },
@@ -1543,7 +1541,6 @@ class TestRpcProxySignaturesBase(TestRpcProxyBase):
     NUM_RPC_PROXIES = 1
 
     OWNERS_PATH = "//sys/public_keys/by_owner"
-    KEYS_PATH = f"{OWNERS_PATH}/test-rpc-proxy"
 
 
 def deep_update(source: dict[Any, Any], overrides: dict[Any, Any]) -> dict[Any, Any]:
@@ -1576,7 +1573,9 @@ class TestRpcProxySignaturesKeyCreation(TestRpcProxySignaturesBase):
     @authors("pavook")
     @pytest.mark.timeout(60)
     def test_public_key_appears(self):
-        wait(lambda: len(ls(self.KEYS_PATH)) == 1)
+        wait(lambda: len(ls(self.OWNERS_PATH)) == 1)
+        owner = ls(self.OWNERS_PATH)[0]
+        assert len(ls(f"{self.OWNERS_PATH}/{owner}")) == 1
 
 
 @pytest.mark.enabled_multidaemon
@@ -1595,4 +1594,29 @@ class TestRpcProxySignaturesKeyRotation(TestRpcProxySignaturesBase):
     @authors("pavook")
     @pytest.mark.timeout(60)
     def test_public_key_rotates(self):
-        wait(lambda: len(ls(self.KEYS_PATH)) > 1)
+        wait(lambda: ls(self.OWNERS_PATH))
+        owner = ls(self.OWNERS_PATH)[0]
+        wait(lambda: len(ls(f"{self.OWNERS_PATH}/{owner}")) > 1)
+
+    @authors("pavook")
+    @pytest.mark.timeout(60)
+    def test_dynamic_config(self):
+        wait(lambda: ls(self.OWNERS_PATH))
+        new_path = "//tmp/dynamic_test_rpc_proxy"
+        create("map_node", new_path)
+        set(
+            "//sys/rpc_proxies/@config",
+            deep_update(self.DELTA_RPC_PROXY_CONFIG, {
+                "signature_components": {
+                    "generation": {
+                        "cypress_key_writer": {
+                            "path": new_path,
+                        },
+                        "key_rotator": {
+                            "key_rotation_interval": "5s",
+                        },
+                    },
+                },
+            }))
+
+        wait(lambda: ls(new_path))

@@ -243,13 +243,12 @@ void TBootstrap::DoInitialize()
     ClickHouseHandler_->Start();
 
     AccessChecker_ = CreateAccessChecker(this);
-
+    auto ownerId = TOwnerId(Coordinator_->GetSelf()->Endpoint);
     SignatureComponents_ = New<TSignatureComponents>(
         Config_->SignatureComponents,
-        RootClient_,
+        std::move(ownerId),
+        DynamicPointerCast<NNative::IClient>(RootClient_),
         GetControlInvoker());
-    // NB(pavook): proxy bootstrap should be possible even in master read-only mode. :(
-    YT_UNUSED_FUTURE(SignatureComponents_->Initialize());
     Connection_->SetSignatureGenerator(SignatureComponents_->GetSignatureGenerator());
 
     auto driverV3Config = CloneYsonStruct(Config_->Driver);
@@ -427,6 +426,10 @@ void TBootstrap::OnDynamicConfigChanged(
     BusServer_->OnDynamicConfigChanged(newConfig->BusServer);
 
     Coordinator_->GetTraceSampler()->UpdateConfig(newConfig->Tracing);
+
+    if (newConfig->SignatureComponents) {
+        YT_UNUSED_FUTURE(SignatureComponents_->Reconfigure(newConfig->SignatureComponents));
+    }
 }
 
 void TBootstrap::HandleRequest(

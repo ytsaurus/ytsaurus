@@ -21,7 +21,7 @@ private:
     const NExecNode::TSupervisorServiceProxy Proxy_;
     const NJobTrackerClient::TJobId JobId_;
 
-    void DoSign(const NSignature::TSignaturePtr& signature) const final;
+    void Resign(const NSignature::TSignaturePtr& signature) const final;
 };
 
 DEFINE_REFCOUNTED_TYPE(TProxySignatureGenerator)

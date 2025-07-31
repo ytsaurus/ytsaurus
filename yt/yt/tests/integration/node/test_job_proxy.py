@@ -5,7 +5,7 @@ from yt_helpers import profiler_factory
 from yt_commands import (
     ls, get, set, print_debug, authors, wait, run_test_vanilla, create_user,
     wait_breakpoint, with_breakpoint, release_breakpoint, create, remove, read_table,
-    raises_yt_error, get_driver
+    raises_yt_error, get_driver, update_nodes_dynamic_config
 )
 
 from yt.common import update_inplace
@@ -537,20 +537,20 @@ class TestJobProxyProfiling(YTEnvSetup):
 
 @pytest.mark.enabled_multidaemon
 class TestJobProxySignatures(YTEnvSetup):
+    OWNERS_PATH = "//sys/public_keys/by_owner"
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "signature_validation": {
-                "cypress_key_reader": dict(),
-                "validator": dict(),
-            },
-            "signature_generation": {
-                "cypress_key_writer": {
-                    "owner_id": "test-job-proxy",
+            "signature_components": {
+                "validation": {
+                    "cypress_key_reader": dict(),
                 },
-                "generator": dict(),
-                "key_rotator": {
-                    "key_rotation_interval": "1s",
-                }
+                "generation": {
+                    "cypress_key_writer": dict(),
+                    "generator": dict(),
+                    "key_rotator": {
+                        "key_rotation_interval": "1s",
+                    },
+                },
             },
             "job_proxy": {
                 "job_proxy_authentication_manager": {
@@ -565,4 +565,17 @@ class TestJobProxySignatures(YTEnvSetup):
 
     @authors("pavook")
     def test_key_rotates(self):
-        wait(lambda: len(ls("//sys/public_keys/by_owner/test-job-proxy")) > 1)
+        wait(lambda: ls(self.OWNERS_PATH))
+        owner = ls(self.OWNERS_PATH)[0]
+        wait(lambda: len(ls(f"{self.OWNERS_PATH}/{owner}")) > 1)
+
+    @authors("pavook")
+    def test_dynamic_config(self):
+        wait(lambda: ls(self.OWNERS_PATH))
+        new_path = "//tmp/dynamic_test_public_keys"
+        create("map_node", new_path)
+        new_config = self.DELTA_NODE_CONFIG["exec_node"]["signature_components"]
+        new_config["generation"]["cypress_key_writer"]["path"] = new_path
+        new_config["validation"]["cypress_key_reader"]["path"] = new_path
+        update_nodes_dynamic_config(path="exec_node/signature_components", value=new_config)
+        wait(lambda: ls(new_path))

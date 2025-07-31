@@ -63,9 +63,6 @@ void TCypressKeyWriterConfig::Register(TRegistrar registrar)
         .Default(TYPath(DefaultKeyPath))
         .NonEmpty();
 
-    registrar.Parameter("owner_id", &TThis::OwnerId)
-        .CheckThat([] (const TOwnerId& owner) { return !owner.Underlying().empty(); });
-
     registrar.Parameter("key_deletion_delay", &TThis::KeyDeletionDelay)
         .Default(TDuration::Days(1))
         .GreaterThanOrEqual(TDuration::Zero());

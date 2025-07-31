@@ -192,6 +192,8 @@ struct TProxyDynamicConfig
 
     TProxyMemoryLimitsPtr MemoryLimits;
 
+    NSignature::TSignatureComponentsConfigPtr SignatureComponents;
+
     REGISTER_YSON_STRUCT(TProxyDynamicConfig);
 
     static void Register(TRegistrar registrar);
