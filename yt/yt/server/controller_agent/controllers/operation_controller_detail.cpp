@@ -8012,7 +8012,7 @@ void TOperationControllerBase::CustomMaterialize()
 
 void TOperationControllerBase::InferInputRanges()
 {
-    TPeriodicYielder yielder(PrepareYieldPeriod);
+    auto yielder = CreatePeriodicYielder(PrepareYieldPeriod);
 
     if (!InputQuery_) {
         return;
@@ -9849,7 +9849,7 @@ void TOperationControllerBase::UpdateAggregatedRunningJobStatistics()
 
         static const auto AggregationYieldPeriod = TDuration::MilliSeconds(10);
 
-        TPeriodicYielder yielder(AggregationYieldPeriod);
+        auto yielder = CreatePeriodicYielder(AggregationYieldPeriod);
 
         for (const auto& [jobStatistics, controllerStatistics, tags] : snapshots) {
             SafeUpdateAggregatedJobStatistics(

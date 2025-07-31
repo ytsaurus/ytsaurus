@@ -109,7 +109,7 @@ public:
         auto blockCount = blockMetaExt.data_blocks_size();
         BlockDescriptors_.reserve(blockCount);
 
-        TPeriodicYielder yielder(SlicerYieldPeriod);
+        auto yielder = CreatePeriodicYielder(SlicerYieldPeriod);
 
         for (int blockIndex = 0; blockIndex < blockCount; ++blockIndex) {
             yielder.TryYield();
@@ -162,7 +162,7 @@ public:
 
     void Clear()
     {
-        TPeriodicYielder yielder(SlicerYieldPeriod);
+        auto yielder = CreatePeriodicYielder(SlicerYieldPeriod);
 
         while (!BlockDescriptors_.empty()) {
             BlockDescriptors_.pop_back();
@@ -330,7 +330,7 @@ public:
         TOwningKeyBound lastBlockUpperBound;
         i64 lastBlockEndRowIndex = -1;
 
-        TPeriodicYielder yielder(SlicerYieldPeriod);
+        auto yielder = CreatePeriodicYielder(SlicerYieldPeriod);
 
         for (int blockIndex = 0; blockIndex < std::ssize(BlockDescriptors_); ++blockIndex) {
             yielder.TryYield();

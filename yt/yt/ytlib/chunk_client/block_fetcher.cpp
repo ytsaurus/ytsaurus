@@ -421,7 +421,7 @@ void TBlockFetcher::DecompressBlocks(
 {
     YT_VERIFY(windowIndexes.size() == compressedBlocks.size());
 
-    TPeriodicYielder yielder(TDuration::MilliSeconds(30));
+    auto periodicYielder = CreatePeriodicYielder(TDuration::MilliSeconds(30));
 
     std::vector<int> windowIndexesToRelease;
     for (int i = 0; i < std::ssize(compressedBlocks); ++i) {
@@ -463,7 +463,7 @@ void TBlockFetcher::DecompressBlocks(
                 Codec_->GetId());
         }
 
-        yielder.TryYield();
+        periodicYielder.TryYield();
 
         UncompressedDataSize_ += uncompressedBlock.Size();
         CompressedDataSize_ += compressedBlockSize;

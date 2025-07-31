@@ -401,7 +401,7 @@ TMasterChunkSpecFetcherPtr TInputManager::CreateChunkSpecFetcher(
     const TInputClusterPtr& cluster,
     bool fetchHunkChunks) const
 {
-    TPeriodicYielder yielder(PrepareYieldPeriod);
+    auto yielder = CreatePeriodicYielder(PrepareYieldPeriod);
 
     auto chunkSpecFetcher = New<TMasterChunkSpecFetcher>(
         cluster->Client(),
@@ -489,7 +489,7 @@ TMasterChunkSpecFetcherPtr TInputManager::CreateChunkSpecFetcher(
 
 TFetchInputTablesStatistics TInputManager::FetchInputTables()
 {
-    TPeriodicYielder yielder(PrepareYieldPeriod);
+    auto yielder = CreatePeriodicYielder(PrepareYieldPeriod);
 
     TFetchInputTablesStatistics fetchStatistics;
 

@@ -503,7 +503,7 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        TPeriodicYielder yielder(TDuration::MilliSeconds(50));
+        auto periodicYielder = CreatePeriodicYielder(TDuration::MilliSeconds(50));
         while (true) {
             if (!GetConfig()->EnableEventDequeue) {
                 TDelayedExecutor::WaitForDuration(PeriodQuant_);
@@ -526,7 +526,7 @@ private:
             PathAggregateSink_.TryFlush();
             EventsProcessed_.Increment(ssize(events));
 
-            yielder.TryYield();
+            periodicYielder.TryYield();
         }
     }
 };

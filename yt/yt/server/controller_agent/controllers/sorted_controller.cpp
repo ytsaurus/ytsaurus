@@ -476,7 +476,7 @@ protected:
         YT_PROFILE_TIMING("/operations/merge/input_processing_time") {
             YT_LOG_INFO("Processing inputs");
 
-            TPeriodicYielder yielder(PrepareYieldPeriod);
+            auto yielder = CreatePeriodicYielder(PrepareYieldPeriod);
 
             SortedTask_->SetIsInput(true);
 
