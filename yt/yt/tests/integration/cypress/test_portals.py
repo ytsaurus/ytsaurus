@@ -1744,11 +1744,7 @@ class TestCrossCellCopy(YTEnvSetup):
         self.create_map_node(f"{path}/map_node", tx=tx)
         self.create_table(f"{path}/map_node/table", tx=tx)
         self.create_file(f"{path}/map_node/file", tx=tx)
-
-        # TODO(h0pless): Fix documents in Sequoia.
-        if not self.USE_SEQUOIA:
-            self.create_document(f"{path}/map_node/document", tx=tx)
-
+        self.create_document(f"{path}/map_node/document", tx=tx)
         self.create_map_node(f"{path}/map_node/nested_map_node", tx=tx)
         self.create_table(f"{path}/map_node/nested_map_node/other_table", tx=tx)
         self.create_table(f"{path}/top_level_table", tx=tx)
@@ -1805,9 +1801,10 @@ class TestCrossCellCopy(YTEnvSetup):
             tx=tx)
 
     def validate_copy_base(self, src_path, dst_path, tx="0-0-0-0"):
-        # TODO(h0pless): Fix this!
         if self.COMMAND == "copy":
             assert get(src_path, tx=tx) == get(dst_path, tx=tx)
+        else:
+            assert self.SRC_GET_RESULT == get(dst_path, tx=tx)
 
     def validate_map_node_copy(self, path, tx="0-0-0-0"):
         return
@@ -1836,6 +1833,8 @@ class TestCrossCellCopy(YTEnvSetup):
         set(f"{path}/@my_personal_attribute", "is_here", tx=tx)
 
     def _preserve_src_state(self, src_path, tx):
+        self.SRC_GET_RESULT = get(src_path, tx=tx)
+
         # This is needed to properly test move with symlink.
         try:
             resolved_path = get(f"{src_path}/@path")
@@ -1898,10 +1897,6 @@ class TestCrossCellCopy(YTEnvSetup):
             pytest.skip()
 
         if self.USE_SEQUOIA:
-            # TODO(h0pless): Support documetns in Sequoia.
-            if node_type == "document":
-                pytest.skip()
-
             # TODO(h0pless): Sequoia doesn't quite work with dynamic tables just yet.
             if node_type == "frozen_table" or node_type == "unmounted_table":
                 pytest.skip()
@@ -2046,8 +2041,9 @@ class TestCrossCellCopy(YTEnvSetup):
         set(f"{src_path}/map_node/@opaque", True)
         self.execute_command(src_path, dst_path)
 
-        # TODO(h0pless): Fix this for Sequoia -> Cypress copy!
-        # self.validate_copy_base(src_path, dst_path)
+        # Opaqueness is ignored in Sequoia.
+        if not self.USE_SEQUOIA:
+            self.validate_copy_base(src_path, dst_path)
 
         self.validate_subtree_attribute_consistency(src_path, dst_path)
 
@@ -2589,17 +2585,6 @@ class TestCypressToSequoiaCopy(TestCrossCellCopy):
         "16": {"roles": ["sequoia_node_host"]},
     }
 
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            }
-        }
-    }
-
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "sequoia_manager": {
             "enable_ground_update_queues": True
@@ -2668,17 +2653,6 @@ class TestSequoiaToCypressCopy(TestCrossCellCopy):
         "14": {"roles": ["chunk_host"]},
         "15": {"roles": ["sequoia_node_host"]},
         "16": {"roles": ["sequoia_node_host"]},
-    }
-
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            }
-        }
     }
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
