@@ -1,8 +1,8 @@
 #include "new_sorted_chunk_pool.h"
 
-#include "job_size_adjuster.h"
 #include "helpers.h"
 #include "input_chunk_mapping.h"
+#include "job_size_adjuster.h"
 #include "new_job_manager.h"
 #include "new_sorted_job_builder.h"
 
@@ -38,6 +38,8 @@ using namespace NNodeTrackerClient;
 using namespace NScheduler;
 using namespace NTableClient;
 
+namespace {
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNewSortedChunkPool
@@ -57,15 +59,9 @@ public:
         TInputStreamDirectory inputStreamDirectory)
         : TChunkPoolOutputWithNewJobManagerBase(options.Logger)
         , SortedJobOptions_(options.SortedJobOptions)
-        , PrimaryComparator_(options.SortedJobOptions.PrimaryComparator)
-        , ForeignComparator_(options.SortedJobOptions.ForeignComparator)
         , ChunkSliceFetcherFactory_(std::move(chunkSliceFetcherFactory))
-        , EnableKeyGuarantee_(options.SortedJobOptions.EnableKeyGuarantee)
         , InputStreamDirectory_(std::move(inputStreamDirectory))
-        , PrimaryPrefixLength_(PrimaryComparator_.GetLength())
-        , ForeignPrefixLength_(ForeignComparator_.GetLength())
         , SliceForeignChunks_(options.SliceForeignChunks)
-        , MinTeleportChunkSize_(options.MinTeleportChunkSize)
         , MinManiacDataWeight_(options.MinManiacDataWeight)
         , JobSizeConstraints_(options.JobSizeConstraints)
         , TeleportChunkSampler_(JobSizeConstraints_->GetSamplingRate())
@@ -88,8 +84,8 @@ public:
             "PrimaryDataWeightPerJob: %v, MaxDataSlicesPerJob: %v, InputSliceDataWeight: %v, "
             "MinManiacDataWeight: %v, HasJobSizeAdjuster: %v)",
             SortedJobOptions_.EnableKeyGuarantee,
-            PrimaryPrefixLength_,
-            ForeignPrefixLength_,
+            SortedJobOptions_.PrimaryComparator.GetLength(),
+            SortedJobOptions_.ForeignComparator.GetLength(),
             JobSizeConstraints_->GetDataWeightPerJob(),
             JobSizeConstraints_->GetPrimaryDataWeightPerJob(),
             JobSizeConstraints_->GetMaxDataSlicesPerJob(),
@@ -106,7 +102,7 @@ public:
 
         const auto& inputStreamDescriptor = InputStreamDirectory_.GetDescriptor(stripe->GetInputStreamIndex());
         bool isForeign = inputStreamDescriptor.IsForeign();
-        int prefixLength = isForeign ? ForeignPrefixLength_ : PrimaryPrefixLength_;
+        int prefixLength = isForeign ? SortedJobOptions_.ForeignComparator.GetLength() : SortedJobOptions_.PrimaryComparator.GetLength();
 
         for (auto& dataSlice : stripe->DataSlices) {
             YT_VERIFY(!dataSlice->IsLegacy);
@@ -206,8 +202,15 @@ public:
                 jobSummary.SplitJobCount);
             auto foreignSlices = JobManager_->ReleaseForeignSlices(cookie);
             for (auto& dataSlice : foreignSlices) {
-                dataSlice->LowerLimit().KeyBound = ShortenKeyBound(dataSlice->LowerLimit().KeyBound, ForeignPrefixLength_, RowBuffer_);
-                dataSlice->UpperLimit().KeyBound = ShortenKeyBound(dataSlice->UpperLimit().KeyBound, ForeignPrefixLength_, RowBuffer_);
+                dataSlice->LowerLimit().KeyBound = ShortenKeyBound(
+                    dataSlice->LowerLimit().KeyBound,
+                    SortedJobOptions_.ForeignComparator.GetLength(),
+                    RowBuffer_);
+
+                dataSlice->UpperLimit().KeyBound = ShortenKeyBound(
+                    dataSlice->UpperLimit().KeyBound,
+                    SortedJobOptions_.ForeignComparator.GetLength(),
+                    RowBuffer_);
             }
             auto childCookies = SplitJob(jobSummary.UnreadInputDataSlices, std::move(foreignSlices), jobSummary.SplitJobCount, cookie);
             RegisterChildCookies(cookie, std::move(childCookies));
@@ -251,36 +254,14 @@ private:
     //! All options necessary for sorted job builder.
     TSortedJobOptions SortedJobOptions_;
 
-    //! Comparator corresponding to the primary merge or reduce key.
-    TComparator PrimaryComparator_;
-
-    //! Comparator corresponding to the foreign reduce key.
-    TComparator ForeignComparator_;
-
     //! A factory that is used to spawn chunk slice fetcher.
     IChunkSliceFetcherFactoryPtr ChunkSliceFetcherFactory_;
-
-    //! Guarantee that each key goes to the single job.
-    bool EnableKeyGuarantee_;
 
     //! Information about input sources (e.g. input tables for sorted reduce operation).
     TInputStreamDirectory InputStreamDirectory_;
 
-    //! Length of the key according to which primary tables should be sorted during
-    //! sorted reduce / sorted merge.
-    int PrimaryPrefixLength_;
-
-    //! Length of the key that defines a range in foreign tables that should be joined
-    //! to the job.
-    int ForeignPrefixLength_;
-
     //! Whether foreign chunks should be sliced.
     bool SliceForeignChunks_ = false;
-
-    //! TODO(apollo1321): Support MinTeleportChunkSize for new sorted pool. Currently it is not used.
-    //! An option to control chunk teleportation logic. Only large complete
-    //! chunks of at least that size will be teleported.
-    i64 MinTeleportChunkSize_;
 
     std::optional<i64> MinManiacDataWeight_;
 
@@ -351,8 +332,8 @@ private:
                     auto inputChunk = dataSlice->GetSingleUnversionedChunk();
                     auto isPrimary = InputStreamDirectory_.GetDescriptor(dataSlice->GetInputStreamIndex()).IsPrimary();
                     auto comparator = isPrimary
-                        ? PrimaryComparator_
-                        : ForeignComparator_;
+                        ? SortedJobOptions_.PrimaryComparator
+                        : SortedJobOptions_.ForeignComparator;
                     auto sliceSize = isPrimary
                         ? primarySliceSize
                         : foreignSliceSize;
@@ -396,8 +377,8 @@ private:
 
             auto isPrimary = InputStreamDirectory_.GetDescriptor(dataSlice->GetInputStreamIndex()).IsPrimary();
             auto comparator = isPrimary
-                ? PrimaryComparator_
-                : ForeignComparator_;
+                ? SortedJobOptions_.PrimaryComparator
+                : SortedJobOptions_.ForeignComparator;
 
             comparator.ReplaceIfStrongerKeyBound(dataSlice->LowerLimit().KeyBound, originalDataSlice->LowerLimit().KeyBound);
             comparator.ReplaceIfStrongerKeyBound(dataSlice->UpperLimit().KeyBound, originalDataSlice->UpperLimit().KeyBound);
@@ -478,7 +459,7 @@ private:
                 lowerLimits.emplace_back(lowerBound);
                 upperLimits.emplace_back(upperBound);
 
-                if (auto key = PrimaryComparator_.TryAsSingletonKey(lowerBound, upperBound)) {
+                if (auto key = SortedJobOptions_.PrimaryComparator.TryAsSingletonKey(lowerBound, upperBound)) {
                     ++keyToSingletonSliceCount[*key];
                 }
             }
@@ -489,7 +470,7 @@ private:
         }
 
         auto keyBoundComparator = [&] (const auto& lhs, const auto& rhs) {
-            return PrimaryComparator_.CompareKeyBounds(lhs, rhs) < 0;
+            return SortedJobOptions_.PrimaryComparator.CompareKeyBounds(lhs, rhs) < 0;
         };
 
         std::sort(lowerLimits.begin(), lowerLimits.end(), keyBoundComparator);
@@ -509,14 +490,14 @@ private:
             auto lowerBound = teleportCandidate.LowerBound;
             auto upperBound = teleportCandidate.UpperBound;
 
-            i64 slicesToTheLeft = (EnableKeyGuarantee_
+            i64 slicesToTheLeft = (SortedJobOptions_.EnableKeyGuarantee
                 ? std::upper_bound(upperLimits.begin(), upperLimits.end(), lowerBound, keyBoundComparator)
                 : std::upper_bound(upperLimits.begin(), upperLimits.end(), lowerBound.ToggleInclusiveness(), keyBoundComparator)) - upperLimits.begin();
-            i64 slicesToTheRight = lowerLimits.end() - (EnableKeyGuarantee_
+            i64 slicesToTheRight = lowerLimits.end() - (SortedJobOptions_.EnableKeyGuarantee
                 ? std::lower_bound(lowerLimits.begin(), lowerLimits.end(), upperBound, keyBoundComparator)
                 : std::lower_bound(lowerLimits.begin(), lowerLimits.end(), upperBound.ToggleInclusiveness(), keyBoundComparator));
             int extraCoincidingSingletonSlices = 0;
-            if (auto key = PrimaryComparator_.TryAsSingletonKey(lowerBound, upperBound); key && !EnableKeyGuarantee_) {
+            if (auto key = SortedJobOptions_.PrimaryComparator.TryAsSingletonKey(lowerBound, upperBound); key && !SortedJobOptions_.EnableKeyGuarantee) {
                 auto singletonSliceCount = GetOrCrash(keyToSingletonSliceCount, *key);
                 // +1 because we accounted data slice for the current chunk twice (in slicesToTheLeft and slicesToTheRight),
                 // but we actually want to account it zero times since we consider only data slices different from current.
@@ -548,16 +529,16 @@ private:
                 const auto& rhsLowerBound = rhs->LowerLimit().KeyBound;
                 const auto& rhsUpperBound = rhs->UpperLimit().KeyBound;
 
-                int cmpLower = PrimaryComparator_.CompareKeyBounds(lhsLowerBound, rhsLowerBound);
+                int cmpLower = SortedJobOptions_.PrimaryComparator.CompareKeyBounds(lhsLowerBound, rhsLowerBound);
                 if (cmpLower != 0) {
                     return cmpLower < 0;
                 }
-                int cmpUpper = PrimaryComparator_.CompareKeyBounds(lhsUpperBound, rhsUpperBound);
+                int cmpUpper = SortedJobOptions_.PrimaryComparator.CompareKeyBounds(lhsUpperBound, rhsUpperBound);
                 if (cmpUpper != 0) {
                     return cmpUpper < 0;
                 }
                 // This is possible only when both chunks contain the same only key or we comparing chunk with itself.
-                YT_VERIFY(&lhs == &rhs || PrimaryComparator_.TryAsSingletonKey(lhsLowerBound, lhsUpperBound));
+                YT_VERIFY(&lhs == &rhs || SortedJobOptions_.PrimaryComparator.TryAsSingletonKey(lhsLowerBound, lhsUpperBound));
                 return false;
             });
 
@@ -678,8 +659,8 @@ private:
             }
         };
 
-        validateDataSlices(unreadInputDataSlices, PrimaryPrefixLength_);
-        validateDataSlices(foreignInputDataSlices, ForeignPrefixLength_);
+        validateDataSlices(unreadInputDataSlices, SortedJobOptions_.PrimaryComparator.GetLength());
+        validateDataSlices(foreignInputDataSlices, SortedJobOptions_.ForeignComparator.GetLength());
 
         // Note that reader returns lower limit which may be more accurate in terms of lower key bound.
         // This may lead to a situation when first data slice from certain input stream has
@@ -694,7 +675,7 @@ private:
             }
             auto& lastDataSlice = inputStreamIndexToLastDataSlice[inputStreamIndex];
             if (lastDataSlice &&
-                PrimaryComparator_.CompareKeyBounds(dataSlice->LowerLimit().KeyBound, lastDataSlice->LowerLimit().KeyBound) < 0)
+                SortedJobOptions_.PrimaryComparator.CompareKeyBounds(dataSlice->LowerLimit().KeyBound, lastDataSlice->LowerLimit().KeyBound) < 0)
             {
                 dataSlice->LowerLimit().KeyBound = lastDataSlice->LowerLimit().KeyBound;
             }
@@ -810,28 +791,21 @@ void TNewSortedChunkPool::RegisterMetadata(auto&& registrar)
     // TLoggerOwner is persisted by TJobSplittingBase.
 
     PHOENIX_REGISTER_FIELD(1, SortedJobOptions_);
-    PHOENIX_REGISTER_FIELD(2, PrimaryComparator_);
-    PHOENIX_REGISTER_FIELD(3, ForeignComparator_);
+    PHOENIX_REGISTER_DELETED_FIELD(2, TComparator, PrimaryComparator_, ESnapshotVersion::DropRedundantFieldsInSortedChunkPool);
+    PHOENIX_REGISTER_DELETED_FIELD(3, TComparator, ForeignComparator_, ESnapshotVersion::DropRedundantFieldsInSortedChunkPool);
     PHOENIX_REGISTER_FIELD(4, ChunkSliceFetcherFactory_);
-    PHOENIX_REGISTER_FIELD(5, EnableKeyGuarantee_);
+    PHOENIX_REGISTER_DELETED_FIELD(5, bool, EnableKeyGuarantee_, ESnapshotVersion::DropRedundantFieldsInSortedChunkPool);
     PHOENIX_REGISTER_FIELD(6, InputStreamDirectory_);
-    PHOENIX_REGISTER_FIELD(7, PrimaryPrefixLength_);
-    PHOENIX_REGISTER_FIELD(8, ForeignPrefixLength_);
-    registrar
-        .template VirtualField<9>("ShouldSlicePrimaryTableByKeys_", [] (TThis* /*this_*/, auto& context) {
-            Load<bool>(context);
-        })
-        .BeforeVersion(ESnapshotVersion::DropShouldSlicePrimaryTableByKeys)();
+
+    PHOENIX_REGISTER_DELETED_FIELD(7, int, PrimaryPrefixLength_, ESnapshotVersion::DropRedundantFieldsInSortedChunkPool);
+    PHOENIX_REGISTER_DELETED_FIELD(8, int, ForeignPrefixLength_, ESnapshotVersion::DropRedundantFieldsInSortedChunkPool);
+    PHOENIX_REGISTER_DELETED_FIELD(9, bool, ShouldSlicePrimaryTableByKeys_, ESnapshotVersion::DropShouldSlicePrimaryTableByKeys);
     PHOENIX_REGISTER_FIELD(10, SliceForeignChunks_);
-    PHOENIX_REGISTER_FIELD(11, MinTeleportChunkSize_);
+    PHOENIX_REGISTER_DELETED_FIELD(11, i64, MinTeleportChunkSize_, ESnapshotVersion::DropRedundantFieldsInSortedChunkPool);
     PHOENIX_REGISTER_FIELD(12, Stripes_);
     PHOENIX_REGISTER_FIELD(13, JobSizeConstraints_);
     PHOENIX_REGISTER_FIELD(14, TeleportChunkSampler_);
-    registrar
-        .template VirtualField<15>("SupportLocality_", [] (TThis* /*this_*/, auto& context) {
-            Load<bool>(context);
-        })
-        .BeforeVersion(ESnapshotVersion::DropSupportLocality)();
+    PHOENIX_REGISTER_DELETED_FIELD(15, bool, SupportLocality_, ESnapshotVersion::DropSupportLocality);
     PHOENIX_REGISTER_FIELD(16, TeleportChunks_);
     PHOENIX_REGISTER_FIELD(17, IsCompleted_);
     PHOENIX_REGISTER_FIELD(18, StructuredLogger);
@@ -850,6 +824,8 @@ void TNewSortedChunkPool::RegisterMetadata(auto&& registrar)
 PHOENIX_DEFINE_TYPE(TNewSortedChunkPool);
 
 ////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 ISortedChunkPoolPtr CreateNewSortedChunkPool(
     const TSortedChunkPoolOptions& options,
