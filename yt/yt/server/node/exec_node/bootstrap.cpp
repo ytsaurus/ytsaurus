@@ -570,6 +570,9 @@ private:
         JobReporter_->OnDynamicConfigChanged(
             oldConfig->ExecNode->JobReporter,
             newConfig->ExecNode->JobReporter);
+        if (newConfig->ExecNode->SignatureComponents) {
+            YT_UNUSED_FUTURE(SignatureComponents_->Reconfigure(newConfig->ExecNode->SignatureComponents));
+        }
 
         DynamicConfig_.Store(newConfig);
 

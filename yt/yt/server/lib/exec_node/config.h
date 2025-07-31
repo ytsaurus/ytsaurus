@@ -850,6 +850,8 @@ struct TExecNodeDynamicConfig
     // NBD server during startup or to dynamically enable/disable creation of NBD volumes.
     TNbdConfigPtr Nbd;
 
+    NSignature::TSignatureComponentsConfigPtr SignatureComponents;
+
     REGISTER_YSON_STRUCT(TExecNodeDynamicConfig);
 
     static void Register(TRegistrar registrar);
