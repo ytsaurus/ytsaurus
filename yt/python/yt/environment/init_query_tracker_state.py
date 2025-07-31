@@ -1295,6 +1295,7 @@ def run_migration(client, version, force=True, shard_count=1, state_path=DEFAULT
         shard_count=shard_count,
         force=force,
         retransform=False,
+        pool=None,
     )
 
 

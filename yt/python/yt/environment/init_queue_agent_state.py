@@ -438,6 +438,7 @@ def run_migration(client, root, target_version=None, shard_count=1, force=False,
         target_version=target_version,
         force=force,
         retransform=False,
+        pool=None,
     )
 
 

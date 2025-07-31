@@ -1108,6 +1108,7 @@ def build_arguments_parser():
     parser.add_argument("--shard-count", type=int, default=DEFAULT_SHARD_COUNT)
     parser.add_argument("--proxy", type=str, default=config["proxy"]["url"])
     parser.add_argument("--retransform", action="store_true", default=False)
+    parser.add_argument("--pool", type=str, default=None)
 
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--target-version", type=int)
@@ -1115,7 +1116,7 @@ def build_arguments_parser():
     return parser
 
 
-def run(client, archive_path, target_version, shard_count, latest, force, retransform):
+def run(client, archive_path, target_version, shard_count, latest, force, retransform, pool):
     migration = prepare_migration(client, archive_path)
 
     target_version = target_version
@@ -1131,6 +1132,7 @@ def run(client, archive_path, target_version, shard_count, latest, force, retran
         shard_count=shard_count,
         force=force,
         retransform=retransform,
+        pool=pool,
     )
 
 
@@ -1148,6 +1150,7 @@ def main():
         latest=args.latest,
         force=args.force,
         retransform=args.retransform,
+        pool=args.pool,
     )
 
 
