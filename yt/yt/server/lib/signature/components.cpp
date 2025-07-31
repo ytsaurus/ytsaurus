@@ -26,9 +26,11 @@ using namespace NThreading;
 
 TSignatureComponents::TSignatureComponents(
     const TSignatureComponentsConfigPtr& config,
+    TOwnerId ownerId,
     IClientPtr client,
     IInvokerPtr rotateInvoker)
-    : Client_(std::move(client))
+    : OwnerId_(std::move(ownerId))
+    , Client_(std::move(client))
     , RotateInvoker_(std::move(rotateInvoker))
     , CypressKeyReader_(config->Validation
         ? New<TCypressKeyReader>(config->Validation->CypressKeyReader, Client_)
@@ -39,7 +41,7 @@ TSignatureComponents::TSignatureComponents(
     , DynamicSignatureValidator_(New<TDynamicSignatureValidator>(
         UnderlyingValidator_ ? UnderlyingValidator_ : CreateAlwaysThrowingSignatureValidator()))
     , CypressKeyWriter_(config->Generation
-        ? New<TCypressKeyWriter>(config->Generation->CypressKeyWriter, Client_)
+        ? New<TCypressKeyWriter>(config->Generation->CypressKeyWriter, OwnerId_, Client_)
         : nullptr)
     , UnderlyingGenerator_(config->Generation
         ? New<TSignatureGenerator>(config->Generation->Generator)
@@ -81,7 +83,7 @@ TFuture<void> TSignatureComponents::Reconfigure(const TSignatureComponentsConfig
         if (CypressKeyWriter_) {
             CypressKeyWriter_->Reconfigure(config->Generation->CypressKeyWriter);
         } else {
-            CypressKeyWriter_ = New<TCypressKeyWriter>(config->Generation->CypressKeyWriter, Client_);
+            CypressKeyWriter_ = New<TCypressKeyWriter>(config->Generation->CypressKeyWriter, OwnerId_, Client_);
         }
 
         if (UnderlyingGenerator_) {

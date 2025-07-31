@@ -14,9 +14,7 @@
                 cypress_key_reader = {};
             };
             generation = {
-                cypress_key_writer = {
-                    owner_id = test-rpc-proxy;
-                };
+                cypress_key_writer = {};
                 generator = {};
                 key_rotator = {};
             };
