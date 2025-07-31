@@ -13,6 +13,12 @@ PEERDIR(
 
 END()
 
+IF (NOT OPENSOURCE AND OS_LINUX)
+    RECURSE(
+        benchmark
+    )
+ENDIF()
+
 RECURSE_FOR_TESTS(
     unittests
 )
