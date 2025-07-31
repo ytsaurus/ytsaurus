@@ -243,9 +243,10 @@ void TBootstrap::DoInitialize()
     ClickHouseHandler_->Start();
 
     AccessChecker_ = CreateAccessChecker(this);
-
+    auto ownerId = TOwnerId(Coordinator_->GetSelf()->Endpoint);
     SignatureComponents_ = New<TSignatureComponents>(
         Config_->SignatureComponents,
+        std::move(ownerId),
         DynamicPointerCast<NNative::IClient>(RootClient_),
         GetControlInvoker());
     Connection_->SetSignatureGenerator(SignatureComponents_->GetSignatureGenerator());

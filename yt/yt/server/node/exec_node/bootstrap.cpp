@@ -175,8 +175,10 @@ public:
             NNet::TAddressResolver::Get()->GetDnsResolver(),
             DnsOverRpcActionQueue_->GetInvoker()));
 
+        auto ownerId = TOwnerId(NNet::BuildServiceAddress(GetLocalHostName(), GetConfig()->RpcPort));
         SignatureComponents_ = New<TSignatureComponents>(
             GetConfig()->ExecNode->SignatureComponents,
+            std::move(ownerId),
             GetClient(),
             GetControlInvoker());
 

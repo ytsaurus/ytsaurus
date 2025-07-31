@@ -197,8 +197,10 @@ void TBootstrap::DoInitialize()
             RootClient_);
     }
 
+    auto ownerId = TOwnerId(BuildServiceAddress(GetLocalHostName(), Config_->RpcPort));
     SignatureComponents_ = New<TSignatureComponents>(
         Config_->SignatureComponents,
+        std::move(ownerId),
         RootClient_,
         GetControlInvoker());
 

@@ -44,9 +44,7 @@ class TestShuffleService(YTEnvSetup):
         "signature_components": {
             "generation": {
                 "generator": {},
-                "cypress_key_writer": {
-                    "owner_id": "test"
-                },
+                "cypress_key_writer": {},
                 "key_rotator": {},
             },
             "validation": {
@@ -369,9 +367,7 @@ class TestShuffleServiceInJobProxy(YTEnvSetup):
             "signature_components": {
                 "generation": {
                     "generator": {},
-                    "cypress_key_writer": {
-                        "owner_id": "test-exec-node"
-                    },
+                    "cypress_key_writer": {},
                     "key_rotator": {},
                 },
                 "validation": {

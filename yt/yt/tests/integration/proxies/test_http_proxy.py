@@ -1932,9 +1932,7 @@ class TestHttpProxySignaturesBase(HttpProxyTestBase):
                 "cypress_key_reader": dict(),
             },
             "generation": {
-                "cypress_key_writer": {
-                    "owner_id": "test-http-proxy",
-                },
+                "cypress_key_writer": dict(),
                 "key_rotator": {
                     "key_rotation_interval": "2h",
                 },
@@ -1947,7 +1945,6 @@ class TestHttpProxySignaturesBase(HttpProxyTestBase):
     NUM_HTTP_PROXIES = 1
 
     OWNERS_PATH = "//sys/public_keys/by_owner"
-    KEYS_PATH = f"{OWNERS_PATH}/test-http-proxy"
 
 
 def deep_update(source: dict[Any, Any], overrides: dict[Any, Any]) -> dict[Any, Any]:
@@ -1973,27 +1970,7 @@ class TestHttpProxySignatures(TestHttpProxySignaturesBase):
         # commit and actual key emplace, this won't be enough: the key still won't be available.
         # But this probability should be neglectable, as some network packeting should happen before the signatures
         # even start generating.
-        wait(lambda: len(ls(cls.KEYS_PATH)) > 0)
-
-    @authors("pavook")
-    def test_dynamic_config(self):
-        new_owner = "dynamic_test_http_proxy"
-        set(
-            "//sys/http_proxies/@config",
-            deep_update(self.DELTA_HTTP_PROXY_CONFIG, {
-                "signature_components": {
-                    "generation": {
-                        "cypress_key_writer": {
-                            "owner_id": new_owner,
-                        },
-                        "key_rotator": {
-                            "key_rotation_interval": "5s",
-                        },
-                    },
-                },
-            }))
-
-        wait(lambda: new_owner in ls(f"{self.OWNERS_PATH}"))
+        wait(lambda: len(ls(cls.OWNERS_PATH)) > 0)
 
     @authors("ermolovd")
     def test_partition_tables_with_modified_cookie(self):
@@ -2080,7 +2057,30 @@ class TestHttpProxySignaturesKeyRotation(TestHttpProxySignaturesBase):
     @authors("pavook")
     @pytest.mark.timeout(60)
     def test_public_key_rotates(self):
-        wait(lambda: len(ls(self.KEYS_PATH)) > 1)
+        wait(lambda: ls(self.OWNERS_PATH))
+        owner = ls(self.OWNERS_PATH)[0]
+        wait(lambda: len(ls(f"{self.OWNERS_PATH}/{owner}")) > 1)
+
+    @authors("pavook")
+    def test_dynamic_config(self):
+        wait(lambda: ls(self.OWNERS_PATH))
+        new_path = "//tmp/dynamic_test_public_keys"
+        create("map_node", new_path)
+        set(
+            "//sys/http_proxies/@config",
+            deep_update(self.DELTA_HTTP_PROXY_CONFIG, {
+                "signature_components": {
+                    "generation": {
+                        "cypress_key_writer": {
+                            "path": new_path,
+                        },
+                        "key_rotator": {
+                            "key_rotation_interval": "5s",
+                        },
+                    },
+                },
+            }))
+        wait(lambda: ls(new_path))
 
 
 class TestHttpsProxy(HttpProxyTestBase):

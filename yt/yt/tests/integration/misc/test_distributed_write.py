@@ -47,9 +47,7 @@ class TestDistributedWriteRPC(TestDistributedWrite):
                 "cypress_key_reader": dict(),
             },
             "generation": {
-                "cypress_key_writer": {
-                    "owner_id": "test-rpc-proxy",
-                },
+                "cypress_key_writer": dict(),
                 "key_rotator": {
                     "key_rotation_interval": "2h",
                 },

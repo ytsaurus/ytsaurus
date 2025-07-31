@@ -16,6 +16,7 @@ class TSignatureComponents final
 public:
     TSignatureComponents(
         const TSignatureComponentsConfigPtr& config,
+        TOwnerId ownerId,
         NApi::NNative::IClientPtr client,
         IInvokerPtr rotateInvoker);
 
@@ -33,6 +34,7 @@ public:
 private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ReconfigureSpinLock_);
 
+    const TOwnerId OwnerId_;
     const NApi::NNative::IClientPtr Client_;
     const IInvokerPtr RotateInvoker_;
 

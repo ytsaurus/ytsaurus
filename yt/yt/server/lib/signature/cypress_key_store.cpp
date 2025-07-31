@@ -81,8 +81,9 @@ TFuture<TKeyInfoPtr> TCypressKeyReader::FindKey(const TOwnerId& ownerId, const T
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressKeyWriter::TCypressKeyWriter(TCypressKeyWriterConfigPtr config, NNative::IClientPtr client)
+TCypressKeyWriter::TCypressKeyWriter(TCypressKeyWriterConfigPtr config, TOwnerId ownerId, NNative::IClientPtr client)
     : Config_(std::move(config))
+    , OwnerId_(ownerId)
     , Client_(std::move(client))
 { }
 
@@ -95,7 +96,7 @@ void TCypressKeyWriter::Reconfigure(TCypressKeyWriterConfigPtr config)
 
 TOwnerId TCypressKeyWriter::GetOwner() const
 {
-    return Config_.Acquire()->OwnerId;
+    return OwnerId_;
 }
 
 TFuture<void> TCypressKeyWriter::RegisterKey(const TKeyInfoPtr& keyInfo)
@@ -109,7 +110,7 @@ TFuture<void> TCypressKeyWriter::RegisterKey(const TKeyInfoPtr& keyInfo)
     auto config = Config_.Acquire();
 
     // We should not register keys belonging to other owners.
-    YT_VERIFY(ownerId == config->OwnerId);
+    YT_VERIFY(ownerId == OwnerId_);
 
     auto ownerNodePath = MakeCypressOwnerPath(config->Path, ownerId);
     auto keyNodePath = MakeCypressKeyPath(config->Path, ownerId, keyId);

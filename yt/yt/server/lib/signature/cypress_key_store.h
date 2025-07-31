@@ -35,7 +35,7 @@ class TCypressKeyWriter
     : public IKeyStoreWriter
 {
 public:
-    TCypressKeyWriter(TCypressKeyWriterConfigPtr config, NApi::NNative::IClientPtr client);
+    TCypressKeyWriter(TCypressKeyWriterConfigPtr config, TOwnerId owner, NApi::NNative::IClientPtr client);
 
     TOwnerId GetOwner() const final;
 
@@ -45,6 +45,7 @@ public:
 
 private:
     TAtomicIntrusivePtr<TCypressKeyWriterConfig> Config_;
+    const TOwnerId OwnerId_;
     const NApi::NNative::IClientPtr Client_;
 };
 
