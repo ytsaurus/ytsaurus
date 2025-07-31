@@ -121,7 +121,7 @@ TReqExecuteBatchRetriesConfigPtr TSequoiaRetriesConfig::ToRetriesConfig() const
 void TSequoiaConnectionConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("ground_cluster_name", &TThis::GroundClusterName)
-        // COMPAT(babenko): drop once trunk_vs_25_1 and trunk_vs_25_2 are no more.
+        // COMPAT(babenko): drop once trunk_vs_25_2 are no more.
         .Default("<invalid>");
     registrar.Parameter("ground_cluster_connection_update_period", &TThis::GroundClusterConnectionUpdatePeriod)
         .Default(TDuration::Seconds(5));
