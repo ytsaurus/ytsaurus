@@ -55,7 +55,9 @@ target_sources(libs-apache-orc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/Compression.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/ConvertColumnReader.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/CpuInfoUtil.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/Dictionary.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/Exceptions.cc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/Geospatial.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/Int128.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/LzoDecompressor.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/MemoryPool.cc
