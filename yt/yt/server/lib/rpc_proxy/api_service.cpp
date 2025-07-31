@@ -4046,6 +4046,8 @@ private:
 
         const auto& query = request->query();
 
+        const auto config = Config_.Acquire();
+
         TSelectRowsOptions options;
         SetTimeoutOptions(&options, context.Get());
         FillSelectRowsOptionsBaseFromRequest(request, &options);
@@ -4132,6 +4134,11 @@ private:
         }
         if (request->has_max_join_batch_size()) {
             options.MaxJoinBatchSize = request->max_join_batch_size();
+        }
+        if (request->has_use_order_by_in_join_subqueries()) {
+            options.UseOrderByInJoinSubqueries = request->use_order_by_in_join_subqueries();
+        } else if (config->QueryFeatureToggles->UseOrderByInJoinSubqueries) {
+            options.UseOrderByInJoinSubqueries = *config->QueryFeatureToggles->UseOrderByInJoinSubqueries;
         }
 
         auto detailedProfilingInfo = New<TDetailedProfilingInfo>();

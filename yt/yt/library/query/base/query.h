@@ -437,6 +437,7 @@ DEFINE_REFCOUNTED_TYPE(TProjectClause)
 // IsMerge is always true for front Query and false for Bottom Query
 
 constexpr i64 UnorderedReadHint = std::numeric_limits<i64>::max();
+// TODO(sabdenovch): Deprecate this.
 constexpr i64 OrderedReadWithPrefetchHint = std::numeric_limits<i64>::max() - 1;
 
 struct TBaseQuery

@@ -18,6 +18,7 @@ DECLARE_REFCOUNTED_STRUCT(TMultiproxyDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TStructuredLoggingTopicDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TStructuredLoggingMethodDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueryCorpusReporterConfig)
+DECLARE_REFCOUNTED_STRUCT(TQueryFeatureToggles)
 
 DECLARE_REFCOUNTED_CLASS(TProxyHeapUsageProfiler)
 DECLARE_REFCOUNTED_STRUCT(TApiTestingOptions)
