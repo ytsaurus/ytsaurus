@@ -64,18 +64,14 @@ public:
         Looper_ = New<TAsyncLooper>(
             SerializedInvoker_,
             // There should be called BIND_NO_PROPAGATE, but currently we store allocation tags in trace context :(
-            /*asyncStart*/ BIND([weakThis = MakeWeak(this)] (bool cleanStart) {
+            /*asyncStart*/ BIND([weakThis = MakeWeak(this)] {
                 if (auto strongThis = weakThis.Lock()) {
-                    return strongThis->LocateChunksAsync(cleanStart);
+                    return strongThis->LocateChunksAsync();
                 }
                 // Break loop.
                 return TFuture<void>();
             }),
-            /*syncFinish*/ BIND([weakThis = MakeWeak(this)] (bool cleanStart) {
-                if (auto strongThis = weakThis.Lock()) {
-                    strongThis->LocateChunksSync(cleanStart);
-                }
-            }),
+            /*syncFinish*/ BIND(&TScraperTask::LocateChunksSync, MakeWeak(this)),
             Logger.WithTag("AsyncLooper: %v", "ScraperTask"));
     }
 
@@ -125,7 +121,7 @@ private:
     int NextChunkIndex_ = 0;
 
 
-    TFuture<void> LocateChunksAsync(bool /*cleanStart*/)
+    TFuture<void> LocateChunksAsync()
     {
         auto chunkCount = std::min<int>(ChunkIds_.size(), Config_->MaxChunksPerRequest);
 
@@ -136,13 +132,9 @@ private:
         return Throttler_->Throttle(chunkCount);
     }
 
-    void LocateChunksSync(bool cleanStart)
+    void LocateChunksSync()
     {
         YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(SerializedInvoker_);
-
-        if (cleanStart) {
-            NextChunkIndex_ = 0;
-        }
 
         DoLocateChunks();
     }
