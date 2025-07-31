@@ -70,6 +70,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((AddSliceCountStatistics)               (301810))
     // 25.3 starts here
     ((BumpTo_25_3)                           (301900))
+    ((DropRedundantFieldsInSortedChunkPool)  (301901))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
