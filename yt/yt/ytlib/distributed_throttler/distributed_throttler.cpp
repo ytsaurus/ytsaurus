@@ -990,6 +990,14 @@ private:
             }
             auto extraLimit = (config->ExtraLimitRatio * totalLimit + Max<double>(0, totalLimit - newTotalLimit)) / memberCount;
 
+            YT_LOG_DEBUG("Updating throttler member limits (ThrottlerId: %v, TotalLimit: %v, NewTotalLimit: %v, DefaultLimit: %v, ExtraLimit: %v, MemberCount: %v)",
+                throttlerId,
+                totalLimit,
+                newTotalLimit,
+                defaultLimit,
+                extraLimit,
+                membersUsageRates.size());
+
             for (const auto& [memberId, usageRate] : membersUsageRates) {
                 auto newLimit = Min(usageRate, defaultLimit) + extraLimit;
                 YT_LOG_TRACE(
