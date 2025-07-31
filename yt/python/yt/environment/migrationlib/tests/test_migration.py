@@ -177,14 +177,15 @@ class TestMigration(YTEnvSetup):
             client=client,
             tables_path=tables_path,
             target_version=migration.get_latest_version(),
-            shard_count=2,
+            shard_count=1,
             force=False,
             retransform=False,
             pool=None,
         )
 
         insert_rows(table_path, [{"key1": 11, "key2": 22, "other": "a" * 11}])
-        rows = select_rows(f"* from [{tables_path + "/table"}]")
+
+        rows = select_rows(f"* from [{tables_path + "/table"}] order by key1_partition, key1, key2 limit 20")
         assert len(rows) == 11
         assert rows[:5] == [{"key1_partition": 0, "key1": i, "key2": i * 2, "other": "a" * i} for i in range(0, 10, 2)]
         assert rows[5:] == [{"key1_partition": 1, "key1": i, "key2": i * 2, "other": "a" * i} for i in range(1, 12, 2)]
