@@ -4,7 +4,7 @@
 #include <yt/yt/library/query/base/private.h>
 #include <yt/yt/library/query/base/constraints.h>
 #include <yt/yt/library/query/base/query.h>
-#include <yt/yt/library/query/base/query_helpers.h> // MergeOverlappingRanges
+#include <yt/yt/library/query/base/query_helpers.h>
 #include <yt/yt/library/query/base/coordination_helpers.h>
 #include <yt/yt/library/query/base/helpers.h>
 

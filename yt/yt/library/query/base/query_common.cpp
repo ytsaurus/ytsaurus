@@ -2,8 +2,6 @@
 
 #include <yt/yt/library/query/proto/query.pb.h>
 
-#include <yt/yt/client/table_client/row_buffer.h>
-#include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 #include <yt/yt/client/table_client/helpers.h>
 
