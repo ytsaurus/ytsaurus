@@ -1275,13 +1275,17 @@ type TabletReadOptions struct {
 	CachedSyncReplicasTimeout *uint64
 }
 
+type MultiplexingBandOptions struct {
+	MultiplexingBand *MultiplexingBand
+}
+
 type MultiLookupRowsOptions struct {
 	Timestamp          *Timestamp
 	RetentionTimestamp *Timestamp
-	TabletReadOptions  *TabletReadOptions
 	ReplicaConsistency *ReplicaConsistency
-	MultiplexingBand   *MultiplexingBand
 
+	*MultiplexingBandOptions
+	*TabletReadOptions
 	*TransactionOptions
 }
 
