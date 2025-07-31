@@ -738,12 +738,19 @@ void TNodeMemoryTracker::DoRelease(ECategory category, i64 size, TPool* pool)
     YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);
 
     TotalUsed_ -= size;
+    YT_VERIFY(TotalUsed_ >= 0);
+
     TotalFree_ += size;
+
     Categories_[category].Used -= size;
+    YT_VERIFY(Categories_[category].Used >= 0);
 
     if (pool) {
         pool->Used[category] -= size;
+        YT_VERIFY(pool->Used[category] >= 0);
+
         pool->TotalUsed -= size;
+        YT_VERIFY(pool->TotalUsed >= 0);
     }
 }
 

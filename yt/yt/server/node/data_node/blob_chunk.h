@@ -81,6 +81,7 @@ private:
             i64 EndOffset = -1;
         };
 
+        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock);
         IInvokerPtr Invoker;
         std::optional<NProfiling::TWallTimer> ReadTimer;
         std::unique_ptr<TBlockEntry[]> Entries;

@@ -211,7 +211,11 @@ void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
 
     ProfileReadBlockSetLatency(session);
 
-    auto guard = session->PendingIOGuard.MoveMemoryTrackerGuard();
+    {
+        auto guard = Guard(session->SpinLock);
+        auto memoryGuard = session->PendingIOGuard.MoveMemoryTrackerGuard();
+    }
+
     auto delayBeforeFree = Location_->GetDelayBeforeBlobSessionBlockFree();
 
     std::vector<TBlock> blocks;
@@ -233,8 +237,11 @@ void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
     }
 
     session->SessionPromise.TrySet(std::move(blocks));
-    session->PendingIOGuard.Release();
-    session->LocationMemoryGuard.Release();
+    {
+        auto guard = Guard(session->SpinLock);
+        session->PendingIOGuard.Release();
+        session->LocationMemoryGuard.Release();
+    }
 }
 
 void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const TError& error)
@@ -264,8 +271,11 @@ void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const T
         session->DiskFetchPromise.TrySet(error);
     }
 
-    session->PendingIOGuard.Release();
-    session->LocationMemoryGuard.Release();
+    {
+        auto guard = Guard(session->SpinLock);
+        session->PendingIOGuard.Release();
+        session->LocationMemoryGuard.Release();
+    }
 }
 
 void TBlobChunkBase::DoReadMeta(
@@ -469,15 +479,18 @@ void TBlobChunkBase::DoReadSession(
         return;
     }
 
-    session->LocationMemoryGuard = Location_->AcquireLocationMemory(
-        EIODirection::Read,
-        session->Options.WorkloadDescriptor,
-        pendingDataSize);
-    session->PendingIOGuard = Location_->AcquirePendingIO(
-        std::move(memoryGuardOrError.Value()),
-        EIODirection::Read,
-        session->Options.WorkloadDescriptor,
-        pendingDataSize);
+    {
+        auto guard = Guard(session->SpinLock);
+        session->LocationMemoryGuard = Location_->AcquireLocationMemory(
+            EIODirection::Read,
+            session->Options.WorkloadDescriptor,
+            pendingDataSize);
+        session->PendingIOGuard = Location_->AcquirePendingIO(
+            std::move(memoryGuardOrError.Value()),
+            EIODirection::Read,
+            session->Options.WorkloadDescriptor,
+            pendingDataSize);
+    }
 
     DoReadBlockSet(session);
 }
@@ -678,17 +691,20 @@ void TBlobChunkBase::DoReadBlockSet(const TReadBlockSetSessionPtr& session)
         additionalMemory += entry.EndOffset - entry.BeginOffset;
     }
 
-    if (session->LocationMemoryGuard) {
-        session->LocationMemoryGuard.IncreaseSize(additionalMemory);
-    }
+    {
+        auto guard = Guard(session->SpinLock);
+        if (session->LocationMemoryGuard) {
+            session->LocationMemoryGuard.IncreaseSize(additionalMemory);
+        }
 
-    if (session->PendingIOGuard) {
-        auto pendingIOGuardNewSize = session->PendingIOGuard.GetSize() + additionalMemory;
-        session->PendingIOGuard = Location_->AcquirePendingIO(
-            TMemoryUsageTrackerGuard::Acquire(Location_->GetReadMemoryTracker(), pendingIOGuardNewSize),
-            EIODirection::Read,
-            session->Options.WorkloadDescriptor,
-            pendingIOGuardNewSize);
+        if (session->PendingIOGuard) {
+            auto pendingIOGuardNewSize = session->PendingIOGuard.GetSize() + additionalMemory;
+            session->PendingIOGuard = Location_->AcquirePendingIO(
+                TMemoryUsageTrackerGuard::Acquire(Location_->GetReadMemoryTracker(), pendingIOGuardNewSize),
+                EIODirection::Read,
+                session->Options.WorkloadDescriptor,
+                pendingIOGuardNewSize);
+        }
     }
 
     YT_LOG_DEBUG(
