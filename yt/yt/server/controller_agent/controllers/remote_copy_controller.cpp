@@ -826,7 +826,7 @@ private:
 
     int AddInputSlices()
     {
-        TPeriodicYielder yielder(PrepareYieldPeriod);
+        auto yielder = CreatePeriodicYielder(PrepareYieldPeriod);
 
         std::vector<TLegacyDataSlicePtr> hunkChunkSlices;
         std::vector<TLegacyDataSlicePtr> compressionDictionarySlices;

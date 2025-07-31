@@ -432,7 +432,10 @@ private:
         // is a hard work :(
         //
         // To overcome this difficulty, we additionally subtract the number of single-key slices that define the same key as our chunk.
-        auto yielder = CreatePeriodicYielder();
+        auto yielder = CreatePeriodicYielder(
+            SortedJobOptions_.EnablePeriodicYielder
+                ? std::optional(PrepareYieldPeriod)
+                : std::nullopt);
 
         if (!SortedJobOptions_.PivotKeys.empty()) {
             return;
@@ -564,15 +567,6 @@ private:
     bool CanScheduleJob() const
     {
         return Finished && GetJobCounter()->GetPending() != 0;
-    }
-
-    TPeriodicYielder CreatePeriodicYielder()
-    {
-        if (SortedJobOptions_.EnablePeriodicYielder) {
-            return TPeriodicYielder(PrepareYieldPeriod);
-        } else {
-            return TPeriodicYielder();
-        }
     }
 
     void DoFinish()

@@ -2501,7 +2501,7 @@ protected:
 
     void ProcessInputs(const TTaskPtr& inputTask, const IJobSizeConstraintsPtr& jobSizeConstraints)
     {
-        TPeriodicYielder yielder(PrepareYieldPeriod);
+        auto yielder = CreatePeriodicYielder(PrepareYieldPeriod);
 
         inputTask->SetIsInput(true);
 

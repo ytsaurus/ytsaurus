@@ -360,7 +360,7 @@ protected:
     {
         YT_LOG_INFO("Collecting inputs");
 
-        TPeriodicYielder yielder(PrepareYieldPeriod);
+        auto periodicYielder = CreatePeriodicYielder(PrepareYieldPeriod);
 
         auto unversionedSlices = InputManager_->CollectPrimaryUnversionedChunks();
 
@@ -396,14 +396,14 @@ protected:
             statisticsCollector.AddChunk(chunk, /*isPrimary*/ true);
 
             inputStripes.push_back(New<TChunkStripe>(std::move(dataSlice)));
-            yielder.TryYield();
+            periodicYielder.TryYield();
         }
 
         for (auto& slice : versionedSlices) {
             statisticsCollector.AddChunk(slice, /*isPrimary*/ true);
 
             inputStripes.push_back(New<TChunkStripe>(std::move(slice)));
-            yielder.TryYield();
+            periodicYielder.TryYield();
         }
 
 
@@ -420,13 +420,13 @@ protected:
 
     void ProcessInputs(std::vector<TChunkStripePtr> inputChunkStripes)
     {
-        TPeriodicYielder yielder(PrepareYieldPeriod);
+        auto periodicYielder = CreatePeriodicYielder(PrepareYieldPeriod);
 
         UnorderedTask_->SetIsInput(true);
 
         for (auto& stripe : inputChunkStripes) {
             UnorderedTask_->AddInput(std::move(stripe));
-            yielder.TryYield();
+            periodicYielder.TryYield();
         }
     }
 

@@ -307,15 +307,6 @@ private:
         }
     }
 
-    TPeriodicYielder CreatePeriodicYielder()
-    {
-        if (EnablePeriodicYielder_) {
-            return TPeriodicYielder(PrepareYieldPeriod);
-        } else {
-            return TPeriodicYielder();
-        }
-    }
-
     bool IsTeleportable(const TLegacyDataSlicePtr& dataSlice) const
     {
         if (dataSlice->Type != EDataSourceType::UnversionedTable) {
@@ -358,7 +349,10 @@ private:
         int droppedTeleportChunkCount = 0;
         int chunksTeleported = 0;
 
-        auto yielder = CreatePeriodicYielder();
+        auto yielder = CreatePeriodicYielder(
+            EnablePeriodicYielder_
+                ? std::optional(PrepareYieldPeriod)
+                : std::nullopt);
         for (int inputCookie = 0; inputCookie < std::ssize(Stripes_); ++inputCookie) {
             const auto& stripe = Stripes_[inputCookie].GetStripe();
             for (const auto& dataSlice : stripe->DataSlices) {

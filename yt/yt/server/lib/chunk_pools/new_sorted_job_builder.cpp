@@ -93,10 +93,6 @@ public:
             JobSizeTracker_ = CreateJobSizeTracker(LimitVector_, Options_.JobSizeTrackerOptions, Logger);
         }
 
-        if (Options_.EnablePeriodicYielder) {
-            PeriodicYielder_ = TPeriodicYielder(PrepareYieldPeriod);
-        }
-
         // We divide key space into segments between teleport chunks. Then we build jobs independently
         // on each segment.
         for (const auto& chunk : teleportChunks) {
@@ -425,7 +421,6 @@ private:
     //! Used for structured logging.
     std::vector<TLegacyDataSlicePtr> InputDataSlices_;
 
-    TPeriodicYielder PeriodicYielder_;
     const TLogger Logger;
     const TLogger StructuredLogger;
 
@@ -465,7 +460,7 @@ private:
     //! primary upper bound. It works correctly under assumption that StagingArea_->GetPrimaryUpperBound()
     //! monotonically increases.
     //! This method is idempotent and cheap to call (on average).
-    void AttachForeignSlices(TKeyBound primaryUpperBound)
+    void AttachForeignSlices(TKeyBound primaryUpperBound, const TPeriodicYielderGuard& periodicYielder)
     {
         if (!Options_.EnableKeyGuarantee && !primaryUpperBound.IsInclusive) {
             primaryUpperBound = primaryUpperBound.ToggleInclusiveness();
@@ -487,8 +482,8 @@ private:
         }
 
         while (shouldBeStaged(FirstUnstagedForeignIndex_)) {
-            PeriodicYielder_.TryYield();
-            Stage(ForeignSlices_[FirstUnstagedForeignIndex_], ESliceType::Foreign);
+            periodicYielder.TryYield();
+            Stage(ForeignSlices_[FirstUnstagedForeignIndex_], ESliceType::Foreign, periodicYielder);
             FirstUnstagedForeignIndex_++;
         }
 
@@ -775,14 +770,14 @@ private:
         StagingArea_->Flush();
     }
 
-    void PromoteUpperBound(TKeyBound newUpperBound)
+    void PromoteUpperBound(TKeyBound newUpperBound, const TPeriodicYielderGuard& periodicYielder)
     {
         StagingArea_->PromoteUpperBound(newUpperBound);
-        AttachForeignSlices(std::move(newUpperBound));
+        AttachForeignSlices(std::move(newUpperBound), periodicYielder);
     }
 
     //! Put data slice to staging area.
-    void Stage(TLegacyDataSlicePtr dataSlice, ESliceType sliceType)
+    void Stage(TLegacyDataSlicePtr dataSlice, ESliceType sliceType, const TPeriodicYielderGuard& periodicYielder)
     {
         if (JobSizeTracker_) {
             auto vector = TResourceVector::FromDataSlice(
@@ -793,9 +788,9 @@ private:
         StagingArea_->Put(dataSlice, sliceType);
 
         if (sliceType == ESliceType::Solid) {
-            AttachForeignSlices(dataSlice->UpperLimit().KeyBound);
+            AttachForeignSlices(dataSlice->UpperLimit().KeyBound, periodicYielder);
         } else if (sliceType == ESliceType::Buffer) {
-            AttachForeignSlices(dataSlice->LowerLimit().KeyBound.Invert());
+            AttachForeignSlices(dataSlice->LowerLimit().KeyBound.Invert(), periodicYielder);
         }
     }
 
@@ -810,7 +805,7 @@ private:
     }
 
     //! Stage several data slices using row slicing for better job size constraints meeting.
-    void StageRangeWithRowSlicing(TRange<TPrimaryEndpoint> endpoints)
+    void StageRangeWithRowSlicing(TRange<TPrimaryEndpoint> endpoints, const TPeriodicYielderGuard& periodicYielder)
     {
         YT_LOG_TRACE("Processing endpoint range with row slicing (EndpointCount: %v)", endpoints.size());
 
@@ -820,7 +815,7 @@ private:
         // TODO(max42): describe this situation, refer to RowSlicingCorrectnessCustom unittest.
         if (!lowerBound.Invert().IsInclusive && lowerBound.Prefix.GetCount() == static_cast<ui32>(PrimaryComparator_.GetLength())) {
             YT_LOG_TRACE("Weird max42 case (LowerBound: %v)", lowerBound);
-            PromoteUpperBound(endpoints[0].KeyBound.Invert().ToggleInclusiveness());
+            PromoteUpperBound(endpoints[0].KeyBound.Invert().ToggleInclusiveness(), periodicYielder);
         }
 
         YT_VERIFY(JobSizeTracker_);
@@ -838,7 +833,7 @@ private:
         // under no circumstances staging area would try to cut solid slice by key.
 
         while (!dataSlices.empty()) {
-            PeriodicYielder_.TryYield();
+            periodicYielder.TryYield();
 
             auto dataSlice = std::move(dataSlices.front());
             dataSlices.pop_front();
@@ -849,7 +844,7 @@ private:
 
             // First, check if we may put this data slice without producing overflow.
             if (!overflowToken) {
-                Stage(dataSlice, ESliceType::Solid);
+                Stage(dataSlice, ESliceType::Solid, periodicYielder);
                 continue;
             }
 
@@ -864,7 +859,7 @@ private:
                 // Due to rounding issues, we still decided to take data slice as a whole. This is ok.
                 if (fraction == 1.0) {
                     YT_LOG_TRACE("Fraction for the remaining data slice is high enough to take it as a whole (Fraction: %v)", fraction);
-                    Stage(std::move(dataSlice), ESliceType::Solid);
+                    Stage(std::move(dataSlice), ESliceType::Solid, periodicYielder);
                     return;
                 }
 
@@ -887,11 +882,11 @@ private:
 
                 if (rowCount == upperRowIndex - lowerRowIndex) {
                     // In some borderline cases this may still happen... just put the original data slice.
-                    Stage(std::move(dataSlice), ESliceType::Solid);
+                    Stage(std::move(dataSlice), ESliceType::Solid, periodicYielder);
                 } else if (rowCount == 0) {
                     dataSlices.emplace_front(std::move(dataSlice));
                 } else {
-                    Stage(std::move(leftDataSlice), ESliceType::Solid);
+                    Stage(std::move(leftDataSlice), ESliceType::Solid, periodicYielder);
                     dataSlices.emplace_front(std::move(rightDataSlice));
                 }
             }();
@@ -905,7 +900,8 @@ private:
     void StageRangeWithoutRowSlicing(
         TRange<TPrimaryEndpoint> endpoints,
         TKeyBound nextPrimaryLowerBound,
-        ERowSliceabilityDecision decision)
+        ERowSliceabilityDecision decision,
+        const TPeriodicYielderGuard& periodicYielder)
     {
         YT_LOG_TRACE(
             "Processing endpoint range without row slicing (EndpointCount: %v, Decision: %v)",
@@ -942,10 +938,10 @@ private:
                     Flush(overflowToken);
                     haveSolids = false;
                 }
-                Stage(dataSlice, ESliceType::Solid);
+                Stage(dataSlice, ESliceType::Solid, periodicYielder);
                 haveSolids = true;
             } else {
-                Stage(dataSlice, ESliceType::Buffer);
+                Stage(dataSlice, ESliceType::Buffer, periodicYielder);
             }
         }
 
@@ -962,7 +958,7 @@ private:
             }
         };
 
-        AttachForeignSlices(endpoints[0].KeyBound.Invert());
+        AttachForeignSlices(endpoints[0].KeyBound.Invert(), periodicYielder);
         tryFlush();
 
         for (size_t foreignDataSliceIndex = FirstUnstagedForeignIndex_; foreignDataSliceIndex < ForeignSlices_.size(); ++foreignDataSliceIndex) {
@@ -972,13 +968,18 @@ private:
             }
 
             auto upperBound = dataSlice->LowerLimit().KeyBound.Invert();
-            PromoteUpperBound(upperBound);
+            PromoteUpperBound(upperBound, periodicYielder);
             tryFlush();
         }
     }
 
     void BuildJobs(const std::vector<TPrimaryEndpoint>& endpoints)
     {
+        auto periodicYielder = CreatePeriodicYielder(
+            Options_.EnablePeriodicYielder
+                ? std::optional(PrepareYieldPeriod)
+                : std::nullopt);
+
         if (auto samplingRate = JobSizeConstraints_->GetSamplingRate()) {
             YT_LOG_DEBUG(
                 "Building jobs with sampling "
@@ -1003,10 +1004,10 @@ private:
         // Recall that coinciding endpoints are ordered by their type as follows:
         // Barrier < Foreign < Primary.
         for (int startIndex = 0, endIndex = 0; startIndex < std::ssize(endpoints); startIndex = endIndex) {
-            PeriodicYielder_.TryYield();
+            periodicYielder.TryYield();
 
             YT_LOG_TRACE("Moving to next endpoint (Endpoint: %v)", endpoints[startIndex].KeyBound);
-            PromoteUpperBound(endpoints[startIndex].KeyBound.Invert());
+            PromoteUpperBound(endpoints[startIndex].KeyBound.Invert(), periodicYielder);
 
             int primaryIndex = startIndex;
 
@@ -1052,19 +1053,19 @@ private:
 
             auto decision = DecideRowSliceability(primaryEndpoints, nextPrimaryLowerBound);
             if (decision == ERowSliceabilityDecision::SliceByRows) {
-                StageRangeWithRowSlicing(primaryEndpoints);
+                StageRangeWithRowSlicing(primaryEndpoints, periodicYielder);
             } else {
-                StageRangeWithoutRowSlicing(primaryEndpoints, nextPrimaryLowerBound, decision);
+                StageRangeWithoutRowSlicing(primaryEndpoints, nextPrimaryLowerBound, decision, periodicYielder);
             }
         }
 
-        AttachForeignSlices(TKeyBound::MakeUniversal(/*isUpper*/ true));
+        AttachForeignSlices(TKeyBound::MakeUniversal(/*isUpper*/ true), periodicYielder);
 
         StagingArea_->Finish();
         StagingArea_->PutBarrier();
 
         for (auto& preparedJob : StagingArea_->PreparedJobs()) {
-            PeriodicYielder_.TryYield();
+            periodicYielder.TryYield();
 
             if (preparedJob.GetIsBarrier()) {
                 Jobs_.emplace_back(std::move(preparedJob));
