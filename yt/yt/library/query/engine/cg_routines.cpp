@@ -9,12 +9,14 @@
 #include <yt/yt/library/web_assembly/engine/intrinsics.h>
 #include <yt/yt/library/web_assembly/engine/wavm_private_imports.h>
 
+#include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/private.h>
 
 #include <yt/yt/library/query/engine/time/dates.h>
 
 #include <yt/yt/library/query/engine_api/position_independent_value.h>
 #include <yt/yt/library/query/engine_api/position_independent_value_transfer.h>
+#include <yt/yt/library/query/engine_api/top_collector.h>
 
 #include <yt/yt/client/security_client/acl.h>
 #include <yt/yt/client/security_client/helpers.h>
@@ -23,18 +25,15 @@
 
 #include <yt/yt/client/table_client/composite_compare.h>
 #include <yt/yt/client/table_client/logical_type.h>
-#include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
-#include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/validate_logical_type.h>
 
 #include <yt/yt/client/node_tracker_client/public.h>
 
 #include <yt/yt/core/yson/lexer.h>
-#include <yt/yt/core/yson/parser.h>
 #include <yt/yt/core/yson/pull_parser.h>
 #include <yt/yt/core/yson/token.h>
 #include <yt/yt/core/yson/writer.h>
@@ -42,8 +41,6 @@
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/ypath_resolver.h>
-
-#include <yt/yt/core/concurrency/scheduler.h>
 
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/hyperloglog.h>
@@ -58,14 +55,10 @@
 
 #include <library/cpp/yt/farmhash/farm_hash.h>
 
-#include <library/cpp/yt/string/guid.h>
-
 #include <library/cpp/xdelta3/state/merge.h>
 
 #include <util/charset/utf8.h>
 #include <util/digest/multi.h>
-
-#include <mutex>
 
 #include <string.h>
 

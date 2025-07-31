@@ -1,9 +1,9 @@
 #include "folding_profiler.h"
-#include "cg_fragment_compiler.h"
-#include "functions_cg.h"
-#include "llvm_folding_set.h"
 
-#include <yt/yt/library/query/base/functions.h>
+#include "cg_fragment_compiler.h"
+#include "llvm_folding_set.h"
+#include "functions_cg.h"
+
 #include <yt/yt/library/query/base/helpers.h>
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_helpers.h>

@@ -8,7 +8,6 @@
 
 #include <yt/yt/library/query/base/builtin_function_registry.h>
 #include <yt/yt/library/query/base/constraints.h>
-#include <yt/yt/library/query/base/functions.h>
 #include <yt/yt/library/query/base/functions_builder.h>
 #include <yt/yt/library/query/base/helpers.h>
 #include <yt/yt/library/query/base/query.h>

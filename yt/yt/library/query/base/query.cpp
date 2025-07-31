@@ -7,11 +7,6 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 
-#include <yt/yt/core/ytree/serialize.h>
-#include <yt/yt/core/ytree/convert.h>
-
-#include <library/cpp/yt/misc/cast.h>
-
 #include <limits>
 
 namespace NYT::NQueryClient {

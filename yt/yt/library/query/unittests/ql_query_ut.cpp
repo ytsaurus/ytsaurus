@@ -18,9 +18,6 @@
 #include <yt/yt/library/query/engine/folding_profiler.h>
 #include <yt/yt/library/query/engine/functions_cg.h>
 
-#include <yt/yt/library/query/proto/query.pb.h>
-
-#include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unordered_schemaful_reader.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
@@ -34,8 +31,6 @@
 #include <yt/yt/core/misc/range_formatters.h>
 
 #include <yt/yt/core/ytree/convert.h>
-
-#include <library/cpp/resource/resource.h>
 
 #include <util/system/sanitizers.h>
 

@@ -7,9 +7,6 @@
 #include "web_assembly_caller.h"
 
 #include <yt/yt/library/codegen/module.h>
-#include <yt/yt/library/codegen/public.h>
-
-#include <yt/yt/core/logging/log.h>
 
 #include <llvm/IR/Module.h>
 

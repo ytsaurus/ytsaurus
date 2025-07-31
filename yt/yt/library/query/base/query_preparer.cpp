@@ -4,20 +4,12 @@
 #include "functions.h"
 #include "helpers.h"
 #include "lexer.h"
-#include "private.h"
 #include "push_down_group_by.h"
 #include "query_helpers.h"
 #include "query_visitors.h"
 #include "expr_builder_base.h"
 
-#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
-
-#include <yt/yt/client/tablet_client/public.h>
-
-#include <yt/yt/core/ytree/convert.h>
-
 #include <yt/yt/core/misc/collection_helpers.h>
-#include <yt/yt/core/misc/finally.h>
 
 #include <library/cpp/yt/misc/variant.h>
 
@@ -697,7 +689,8 @@ TJoinClausePtr BuildJoinClause(
     foreignBuilder->AddTable({
         *joinClause->Schema.Original,
         tableJoin.Table.Alias,
-        &joinClause->Schema.Mapping});
+        &joinClause->Schema.Mapping,
+    });
 
     std::vector<TSelfEquation> selfEquations;
     selfEquations.reserve(tableJoin.Fields.size() + tableJoin.Lhs.size());
@@ -889,7 +882,8 @@ TJoinClausePtr BuildJoinClause(
         &joinClause->Schema.Mapping,
         &joinClause->SelfJoinedColumns,
         &joinClause->ForeignJoinedColumns,
-        commonColumnNames});
+        commonColumnNames,
+    });
 
     return joinClause;
 }
@@ -946,9 +940,10 @@ TJoinClausePtr BuildArrayJoinClause(
         builderVersion);
 
     arrayBuilder->AddTable({
-        *arrayJoinClause->Schema.Original,
-        std::nullopt,
-        &arrayJoinClause->Schema.Mapping});
+        .Schema = *arrayJoinClause->Schema.Original,
+        .Alias = std::nullopt,
+        .Mapping = &arrayJoinClause->Schema.Mapping,
+    });
 
     for (const auto& nestedTableColumn : arrayJoinClause->Schema.Original->Columns()) {
         auto type = arrayBuilder->ResolveColumn(NAst::TReference(nestedTableColumn.Name()));
@@ -963,11 +958,12 @@ TJoinClausePtr BuildArrayJoinClause(
     }
 
     builder->AddTable({
-        *arrayJoinClause->Schema.Original,
-        std::nullopt,
-        &arrayJoinClause->Schema.Mapping,
-        &arrayJoinClause->SelfJoinedColumns,
-        &arrayJoinClause->ForeignJoinedColumns});
+        .Schema = *arrayJoinClause->Schema.Original,
+        .Alias = std::nullopt,
+        .Mapping = &arrayJoinClause->Schema.Mapping,
+        .SelfJoinedColumns = &arrayJoinClause->SelfJoinedColumns,
+        .ForeignJoinedColumns = &arrayJoinClause->ForeignJoinedColumns,
+    });
 
     return arrayJoinClause;
 }
@@ -1081,9 +1077,10 @@ TPlanFragmentPtr PreparePlanFragment(
         builderVersion);
 
     builder->AddTable({
-        *query->Schema.Original,
-        alias,
-        &query->Schema.Mapping});
+        .Schema = *query->Schema.Original,
+        .Alias = alias,
+        .Mapping = &query->Schema.Mapping,
+    });
 
     std::vector<TJoinClausePtr> joinClauses;
     size_t commonKeyPrefix = std::numeric_limits<size_t>::max();
@@ -1217,7 +1214,10 @@ TQueryPtr PrepareJobQuery(
     auto builder = CreateExpressionBuilder(source, functions, aliasMap, 1);
 
     builder->AddTable({
-        *tableSchema, std::nullopt, &query->Schema.Mapping});
+        .Schema = *tableSchema,
+        .Alias = std::nullopt,
+        .Mapping = &query->Schema.Mapping,
+    });
 
     PrepareQuery(
         query,
@@ -1264,7 +1264,10 @@ TConstExpressionPtr PrepareExpression(
     auto builder = CreateExpressionBuilder(parsedSource.Source, functions, aliasMap, builderVersion);
 
     builder->AddTable({
-        tableSchema, std::nullopt, &mapping});
+        .Schema = tableSchema,
+        .Alias = std::nullopt,
+        .Mapping = &mapping,
+    });
 
     auto result = builder->BuildTypedExpression(expr);
 
