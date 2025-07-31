@@ -238,8 +238,11 @@ void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
         blocks[originalEntryIndex] = std::move(block);
     }
 
-    session->LocationMemoryGuard.Release();
     session->SessionPromise.TrySet(std::move(blocks));
+    {
+        auto guard = Guard(session->SpinLock);
+        session->LocationMemoryGuard.Release();
+    }
 }
 
 void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const TError& error)
@@ -273,7 +276,10 @@ void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const T
         session->DiskFetchPromise.TrySet(error);
     }
 
-    session->LocationMemoryGuard.Release();
+    {
+        auto guard = Guard(session->SpinLock);
+        session->LocationMemoryGuard.Release();
+    }
 }
 
 void TBlobChunkBase::DoReadMeta(
@@ -533,12 +539,15 @@ void TBlobChunkBase::DoReadSession(
 
     session->FairShareSlot = fairShareSlotOrError.Value();
 
-    session->LocationMemoryGuard = Location_->AcquireLocationMemory(
-        /*useLegacyUsedMemory*/ false,
-        std::move(memoryGuardOrError.Value()),
-        EIODirection::Read,
-        session->Options.WorkloadDescriptor,
-        pendingDataSize);
+    {
+        auto guard = Guard(session->SpinLock);
+        session->LocationMemoryGuard = Location_->AcquireLocationMemory(
+            /*useLegacyUsedMemory*/ false,
+            std::move(memoryGuardOrError.Value()),
+            EIODirection::Read,
+            session->Options.WorkloadDescriptor,
+            pendingDataSize);
+    }
 
     DoReadBlockSet(session);
 }
@@ -741,8 +750,11 @@ void TBlobChunkBase::DoReadBlockSet(const TReadBlockSetSessionPtr& session)
         additionalMemory += entry.EndOffset - entry.BeginOffset;
     }
 
-    if (session->LocationMemoryGuard) {
-        session->LocationMemoryGuard.IncreaseSize(additionalMemory);
+    {
+        auto guard = Guard(session->SpinLock);
+        if (session->LocationMemoryGuard) {
+            session->LocationMemoryGuard.IncreaseSize(additionalMemory);
+        }
     }
 
     YT_LOG_DEBUG("Started reading blob chunk blocks ("
