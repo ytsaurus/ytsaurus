@@ -32,6 +32,14 @@ using TKeyToCypressNodeImpl = THashMap<
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+void FormatValue(TStringBuilderBase* builder, const TAccessTrackingOptions& options, TStringBuf /*spec*/);
+
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 using TKeyToCypressNode = NDetail::TKeyToCypressNodeImpl<TCypressNodeRawPtr>;
 using TKeyToCypressNodeId = NDetail::TKeyToCypressNodeImpl<TNodeId>;
 
