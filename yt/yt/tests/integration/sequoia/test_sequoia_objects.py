@@ -598,10 +598,6 @@ class TestSequoiaQueues(YTEnvSetup):
 
     @authors("aleksandra-zh")
     def test_restart(self):
-        master = get_active_primary_master_leader_address(self)
-        master_orchid_path = "//sys/primary_masters/{0}/orchid/ground_update_queue_manager/sequoia".format(master)
-        profiler = profiler_factory().at_primary_master(master)
-
         self._pause_sequoia_queue()
 
         create("map_node", "//tmp/m1")
@@ -611,6 +607,10 @@ class TestSequoiaQueues(YTEnvSetup):
 
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
+
+        master = get_active_primary_master_leader_address(self)
+        master_orchid_path = "//sys/primary_masters/{0}/orchid/ground_update_queue_manager/sequoia".format(master)
+        profiler = profiler_factory().at_primary_master(master)
 
         wait(lambda: get(master_orchid_path + "/record_count") > 0)
         wait(lambda: profiler.with_tags({"queue": "sequoia"}).gauge("sequoia_server/ground_update_queue_manager/record_count").get() > 0, ignore_exceptions=True)
@@ -632,6 +632,11 @@ class TestSequoiaQueues(YTEnvSetup):
 
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
+
+        # Leader might've changed, update orchid path and profiler.
+        master = get_active_primary_master_leader_address(self)
+        master_orchid_path = "//sys/primary_masters/{0}/orchid/ground_update_queue_manager/sequoia".format(master)
+        profiler = profiler_factory().at_primary_master(master)
 
         self._resume_sequoia_queue()
 
