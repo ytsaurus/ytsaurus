@@ -24,21 +24,24 @@ void TMisraGriesHeavyHitters<TKey>::DoRegister(const TKey& key, double increment
     TotalCounter_ += increment;
     // The difference between misra-gries and statistics counters is here.
     auto [iter, emplaced] = Summary_.emplace(
-        key, TCounters{
-                    .MisraGriesCounter = increment + MisraGriesDelta_,
-                    .StatisticsCounter = increment,
-            });
+        key,
+        TCounters{
+            .MisraGriesCounter = increment + MisraGriesDelta_,
+            .StatisticsCounter = increment,
+        });
+    auto summaryRef = std::addressof(*iter);
+
     if (!emplaced) {
         auto oldValue = iter->second;
 
         iter->second.MisraGriesCounter += increment;
         iter->second.StatisticsCounter += increment;
 
-        UpdateState(SortedByMisraGriesCounter_, iter->first, oldValue.MisraGriesCounter, iter->second.MisraGriesCounter);
-        UpdateState(SortedByStatisticsCounter_, iter->first, oldValue.StatisticsCounter, iter->second.StatisticsCounter);
+        UpdateState(SortedByMisraGriesCounter_, summaryRef, oldValue.MisraGriesCounter, iter->second.MisraGriesCounter);
+        UpdateState(SortedByStatisticsCounter_, summaryRef, oldValue.StatisticsCounter, iter->second.StatisticsCounter);
     } else {
-        SortedByMisraGriesCounter_.insert(std::pair(iter->second.MisraGriesCounter, iter->first));
-        SortedByStatisticsCounter_.insert(std::pair(iter->second.StatisticsCounter, iter->first));
+        SortedByMisraGriesCounter_.insert(std::pair(iter->second.MisraGriesCounter, summaryRef));
+        SortedByStatisticsCounter_.insert(std::pair(iter->second.StatisticsCounter, summaryRef));
         CleanUpSummary();
     }
 }
@@ -84,7 +87,8 @@ TMisraGriesHeavyHitters<TKey>::TStatistics TMisraGriesHeavyHitters<TKey>::GetSta
         auto hits = rit->first * normalizationFactor;
         auto ratio = hits / total;
         if (ratio >= Threshold_) {
-            statistics.Fractions[rit->second] = ratio;
+            auto summaryRef = rit->second;
+            statistics.Fractions[summaryRef->first] = ratio;
         }
         ++rit;
         --count;
@@ -107,7 +111,8 @@ void TMisraGriesHeavyHitters<TKey>::CleanUpSummary()
     auto it = SortedByMisraGriesCounter_.begin();
     while (it != SortedByMisraGriesCounter_.end() && it->first <= MisraGriesDelta_) {
         auto next = std::next(it);
-        auto summaryIter = Summary_.find(it->second);
+        auto summaryRef = it->second;
+        auto summaryIter = Summary_.find(summaryRef->first);
         SortedByStatisticsCounter_.erase(std::pair(summaryIter->second.StatisticsCounter, it->second));
         Summary_.erase(summaryIter);
         SortedByMisraGriesCounter_.erase(it);
@@ -122,9 +127,13 @@ double TMisraGriesHeavyHitters<TKey>::GetNormalizationFactor(TInstant now) const
 }
 
 template <class TKey>
-void TMisraGriesHeavyHitters<TKey>::UpdateState(std::set<std::pair<double, TKey>>& set, const TKey& key, double oldValue, double newValue)
+void TMisraGriesHeavyHitters<TKey>::UpdateState(
+    std::set<std::pair<double, TSummaryElementRef>>& set,
+    TSummaryElementRef summaryRef,
+    double oldValue,
+    double newValue)
 {
-    auto setElement = set.extract(std::pair(oldValue, key));
+    auto setElement = set.extract(std::pair(oldValue, summaryRef));
     YT_VERIFY(!setElement.empty());
     setElement.value().first = newValue;
     set.insert(std::move(setElement));
@@ -150,8 +159,10 @@ void TMisraGriesHeavyHitters<TKey>::EnsureSummaryTimestampFreshness(TInstant now
             iter->second.MisraGriesCounter *= normalizationFactor;
             iter->second.StatisticsCounter *= normalizationFactor;
 
-            UpdateState(SortedByMisraGriesCounter_, iter->first, oldValue.MisraGriesCounter, iter->second.MisraGriesCounter);
-            UpdateState(SortedByStatisticsCounter_, iter->first, oldValue.StatisticsCounter, iter->second.StatisticsCounter);
+            auto summaryRef = std::addressof(*iter);
+
+            UpdateState(SortedByMisraGriesCounter_, summaryRef, oldValue.MisraGriesCounter, iter->second.MisraGriesCounter);
+            UpdateState(SortedByStatisticsCounter_, summaryRef, oldValue.StatisticsCounter, iter->second.StatisticsCounter);
         }
         MisraGriesDelta_ *= normalizationFactor;
         TotalCounter_ *= normalizationFactor;

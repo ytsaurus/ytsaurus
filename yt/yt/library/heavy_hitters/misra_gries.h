@@ -47,8 +47,10 @@ private:
     static constexpr i64 MaxSummarySize = 10000000;
 
     THashMap<TKey, TCounters> Summary_;
-    std::set<std::pair<double, TKey>> SortedByMisraGriesCounter_;
-    std::set<std::pair<double, TKey>> SortedByStatisticsCounter_;
+
+    using TSummaryElementRef = std::pair<const TKey, TCounters>*;
+    std::set<std::pair<double, TSummaryElementRef>> SortedByMisraGriesCounter_;
+    std::set<std::pair<double, TSummaryElementRef>> SortedByStatisticsCounter_;
 
     TInstant SummaryTimestamp_ = TInstant::Zero();
     double MisraGriesDelta_ = 0;
@@ -57,7 +59,7 @@ private:
 private:
     void DoRegister(const TKey& key, double increment);
     void CleanUpSummary();
-    static void UpdateState(std::set<std::pair<double, TKey>>& set, const TKey& key, double oldValue, double newValue);
+    static void UpdateState(std::set<std::pair<double, TSummaryElementRef>>& set, TSummaryElementRef summaryRef, double oldValue, double newValue);
     double GetNormalizationFactor(TInstant now) const;
     void EnsureSummaryTimestampFreshness(TInstant now);
 };

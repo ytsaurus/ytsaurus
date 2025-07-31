@@ -46,8 +46,8 @@ TEST(TMisraGriesHeavyHitters, Basic)
     EXPECT_NEAR(heavyHitters.Fractions[5], (6.0 / 2 + 2) / total, 0.001);
     EXPECT_EQ(heavyHitters.Fractions.size(), 2u);
     heavyHitters = counter->GetStatistics(now, std::optional<i64>{1});
-    EXPECT_FALSE(heavyHitters.Fractions.contains(5));
-    EXPECT_TRUE(heavyHitters.Fractions.contains(7));
+    EXPECT_TRUE(heavyHitters.Fractions.contains(5) || heavyHitters.Fractions.contains(7));
+    EXPECT_FALSE(heavyHitters.Fractions.contains(5) && heavyHitters.Fractions.contains(7));
 
     // check if we get overflow error
     now += TDuration::Days(10);
