@@ -5,7 +5,7 @@ from yt_helpers import profiler_factory
 from yt_commands import (
     ls, get, set, print_debug, authors, wait, run_test_vanilla, create_user,
     wait_breakpoint, with_breakpoint, release_breakpoint, create, remove, read_table,
-    raises_yt_error, get_driver
+    raises_yt_error, get_driver, update_nodes_dynamic_config
 )
 
 from yt.common import update_inplace
@@ -537,6 +537,8 @@ class TestJobProxyProfiling(YTEnvSetup):
 
 @pytest.mark.enabled_multidaemon
 class TestJobProxySignatures(YTEnvSetup):
+    OWNER_NAME = "test_job_proxy"
+
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "signature_components": {
@@ -545,7 +547,7 @@ class TestJobProxySignatures(YTEnvSetup):
                 },
                 "generation": {
                     "cypress_key_writer": {
-                        "owner_id": "test-job-proxy",
+                        "owner_id": OWNER_NAME,
                     },
                     "generator": dict(),
                     "key_rotator": {
@@ -566,4 +568,13 @@ class TestJobProxySignatures(YTEnvSetup):
 
     @authors("pavook")
     def test_key_rotates(self):
-        wait(lambda: len(ls("//sys/public_keys/by_owner/test-job-proxy")) > 1)
+        wait(lambda: self.OWNER_NAME in ls("//sys/public_keys/by_owner"))
+        wait(lambda: len(ls(f"//sys/public_keys/by_owner/{self.OWNER_NAME}")) > 1)
+
+    @authors("pavook")
+    def test_dynamic_config(self):
+        new_name = "test_dynamic_job_proxy"
+        new_config = self.DELTA_NODE_CONFIG["exec_node"]["signature_components"]
+        new_config["generation"]["cypress_key_writer"]["owner_id"] = new_name
+        update_nodes_dynamic_config(path="exec_node/signature_components", value=new_config)
+        wait(lambda: new_name in ls("//sys/public_keys/by_owner"))
