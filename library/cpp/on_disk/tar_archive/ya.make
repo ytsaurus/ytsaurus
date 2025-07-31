@@ -1,0 +1,12 @@
+LIBRARY()
+SRCS(
+    archive_iterator.cpp
+    archive_writer.cpp
+)
+PEERDIR(
+    util
+    contrib/libs/libarchive
+)
+GENERATE_ENUM_SERIALIZATION(archive_iterator.h)
+GENERATE_ENUM_SERIALIZATION(archive_writer.h)
+END()
