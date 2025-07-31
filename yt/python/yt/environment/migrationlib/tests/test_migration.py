@@ -95,6 +95,7 @@ class TestMigration(YTEnvSetup):
             shard_count=1,
             force=True,
             retransform=False,
+            pool=None,
         )
         check_table_schema(table, self.TRANSFORMS[1][0].table_info)
         check_table_rows(table, self.DATA[1])
@@ -106,6 +107,7 @@ class TestMigration(YTEnvSetup):
             shard_count=1,
             force=True,
             retransform=False,
+            pool=None,
         )
         table = "//tmp/test_migration_path/test_table2"
         check_table_schema(table, self.TRANSFORMS[2][0].table_info)
@@ -178,6 +180,7 @@ class TestMigration(YTEnvSetup):
             shard_count=2,
             force=False,
             retransform=False,
+            pool=None,
         )
 
         insert_rows(table_path, [{"key1": 11, "key2": 22, "other": "a" * 11}])
@@ -276,6 +279,7 @@ class TestConversionFilterCallback(YTEnvSetup):
             shard_count=1,
             force=False,
             retransform=False,
+            pool=None,
         )
 
         if "test_table" in ignored_tables:
@@ -368,6 +372,7 @@ class TestInitCallback(YTEnvSetup):
             shard_count=1,
             force=False,
             retransform=False,
+            pool=None,
         )
 
         wait(lambda: get(table1_path_ttl) == 1)
