@@ -355,3 +355,22 @@ class TestQueriesChyt(ClickHouseTestBase):
             wait(lambda: len([r for r in read_table(table_path) if match(r)]) >= 4)
             rows = [r for r in read_table(table_path) if match(r)]
             assert len(rows) == 4
+
+    @authors("denmogilevec")
+    def test_instance_specification(self, query_tracker):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "test_column", "type": "int64"}]})
+        write_table("//tmp/t", [{"test_column" : i * 30} for i in range(3)])
+        with Clique(4, export_query_log=True, alias="*ch_alias") as clique:
+            for instance_job_cookie in range(4):
+                settings = {"clique": "ch_alias", "cluster": "primary", "instance": instance_job_cookie}
+                query = "select * from `//tmp/t`"
+                query = start_query(
+                    "chyt",
+                    query,
+                    settings=settings,
+                )
+                query.track()
+
+                rows = clique.wait_and_get_query_log_rows(query.id, include_secondary_queries=False)
+                assert len(rows) == 1
+                assert rows[0]["chyt_instance_cookie"] == instance_job_cookie
