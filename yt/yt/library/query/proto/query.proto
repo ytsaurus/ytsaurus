@@ -306,6 +306,7 @@ message TQueryOptions
     optional int64 rowset_processing_batch_size = 23;
     optional int64 write_rowset_size = 24;
     optional int64 max_join_batch_size = 25;
+    optional bool use_order_by_in_join_subqueries = 26; // COMPAT(sabdenovch)
 }
 
 message TFeatureFlags

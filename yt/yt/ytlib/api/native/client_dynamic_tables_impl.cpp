@@ -1648,6 +1648,7 @@ TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnecti
     queryOptions.RowsetProcessingBatchSize = options.RowsetProcessingBatchSize.value_or(DefaultRowsetProcessingBatchSize);
     queryOptions.WriteRowsetSize = options.WriteRowsetSize.value_or(DefaultWriteRowsetSize);
     queryOptions.MaxJoinBatchSize = options.MaxJoinBatchSize.value_or(DefaultMaxJoinBatchSize);
+    queryOptions.UseOrderByInJoinSubqueries = options.UseOrderByInJoinSubqueries;
 
     return queryOptions;
 }

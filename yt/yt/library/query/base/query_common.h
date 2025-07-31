@@ -206,6 +206,8 @@ struct TQueryOptions
     bool NewRangeInference = true;
     // COMPAT(dtorilov)
     bool AdaptiveOrderedSchemafulReader = false;
+    // COMPAT(sabdenovch)
+    bool UseOrderByInJoinSubqueries = false;
 };
 
 void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original);

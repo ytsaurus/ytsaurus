@@ -77,6 +77,19 @@ DEFINE_REFCOUNTED_TYPE(TQueryCorpusReporterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TQueryFeatureToggles
+    : public NYTree::TYsonStruct
+{
+    std::optional<bool> UseOrderByInJoinSubqueries;
+
+    REGISTER_YSON_STRUCT(TQueryFeatureToggles);
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TQueryFeatureToggles)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TApiTestingOptions
     : public NYTree::TYsonStruct
 {
@@ -206,6 +219,8 @@ struct TApiServiceDynamicConfig
     TMultiproxyDynamicConfigPtr Multiproxy;
 
     bool EnableAllocationTags;
+
+    TQueryFeatureTogglesPtr QueryFeatureToggles;
 
     REGISTER_YSON_STRUCT(TApiServiceDynamicConfig);
 

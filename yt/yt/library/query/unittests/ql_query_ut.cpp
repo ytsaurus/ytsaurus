@@ -1952,6 +1952,7 @@ protected:
                 std::move(consumeSubqueryStatistics),
                 std::move(getPrefetchJoinDataSource),
                 GetDefaultMemoryChunkProvider(),
+                /*useOrderByInJoinSubqueries=*/ true,
                 Logger()));
         }
 

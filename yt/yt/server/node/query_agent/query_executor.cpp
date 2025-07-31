@@ -642,6 +642,7 @@ private:
                             return getPrefetchJoinDataSource(subqueryIndex, joinIndex);
                         },
                         MemoryChunkProvider_,
+                        QueryOptions_.UseOrderByInJoinSubqueries,
                         Logger));
                 }
 

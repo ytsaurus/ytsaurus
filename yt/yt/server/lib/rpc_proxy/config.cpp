@@ -58,6 +58,14 @@ void TQueryCorpusReporterConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TQueryFeatureToggles::Register(TRegistrar registrar)
+{
+    registrar.Parameter("use_order_by_in_join_subqueries_override", &TThis::UseOrderByInJoinSubqueries)
+        .Optional();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TApiTestingOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("heap_profiler", &TThis::HeapProfiler)
@@ -154,6 +162,8 @@ void TApiServiceDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_allocation_tags", &TThis::EnableAllocationTags)
         .Default(false);
     registrar.Parameter("multiproxy", &TThis::Multiproxy)
+        .DefaultNew();
+    registrar.Parameter("query_feature_toggles", &TThis::QueryFeatureToggles)
         .DefaultNew();
 }
 

@@ -351,6 +351,7 @@ void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
     serialized->set_rowset_processing_batch_size(original.RowsetProcessingBatchSize);
     serialized->set_write_rowset_size(original.WriteRowsetSize);
     serialized->set_max_join_batch_size(original.MaxJoinBatchSize);
+    serialized->set_use_order_by_in_join_subqueries(original.UseOrderByInJoinSubqueries);
 }
 
 void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
@@ -419,6 +420,9 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
     }
     if (serialized.has_max_join_batch_size()) {
         original->MaxJoinBatchSize = serialized.max_join_batch_size();
+    }
+    if (serialized.has_use_order_by_in_join_subqueries()) {
+        original->UseOrderByInJoinSubqueries = serialized.use_order_by_in_join_subqueries();
     }
 }
 
