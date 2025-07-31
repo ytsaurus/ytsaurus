@@ -793,6 +793,7 @@ RECURSE(
 IF (NOT OPENSOURCE)
     RECURSE(
         benchmarks
+        fuzz
     )
 ENDIF()
 
