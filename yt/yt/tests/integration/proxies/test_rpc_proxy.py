@@ -1642,6 +1642,28 @@ class TestRpcProxySignaturesKeyCreation(TestRpcProxySignaturesBase):
     def test_public_key_appears(self):
         wait(lambda: len(ls(self.KEYS_PATH)) == 1)
 
+    @authors("pavook")
+    @pytest.mark.timeout(60)
+    def test_dynamic_config(self):
+        wait(lambda: ls(self.KEYS_PATH))
+        new_owner = "dynamic_test_rpc_proxy"
+        set(
+            "//sys/rpc_proxies/@config",
+            deep_update(self.DELTA_RPC_PROXY_CONFIG, {
+                "signature_components": {
+                    "generation": {
+                        "cypress_key_writer": {
+                            "owner_id": new_owner,
+                        },
+                        "key_rotator": {
+                            "key_rotation_interval": "5s",
+                        },
+                    },
+                },
+            }))
+
+        wait(lambda: new_owner in ls(f"{self.OWNERS_PATH}"))
+
 
 @pytest.mark.enabled_multidaemon
 class TestRpcProxySignaturesKeyRotation(TestRpcProxySignaturesBase):
