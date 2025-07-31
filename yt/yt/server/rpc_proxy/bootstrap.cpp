@@ -509,6 +509,10 @@ void TBootstrap::OnDynamicConfigChanged(
     ReconfigureMemoryLimits(newConfig->MemoryLimits);
 
     ReconfigureConnection(newConfig, BundleDynamicConfigManager_->GetConfig());
+
+    if (newConfig->SignatureComponents) {
+        YT_UNUSED_FUTURE(SignatureComponents_->Reconfigure(newConfig->SignatureComponents));
+    }
 }
 
 void TBootstrap::OnBundleDynamicConfigChanged(
