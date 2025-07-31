@@ -57,6 +57,8 @@ public:
 
     std::optional<TString> Clique;
 
+    std::optional<ui64> Instance;
+
     THashMap<TString, TString> QuerySettings;
 
     REGISTER_YSON_STRUCT(TChytSettings);
@@ -66,6 +68,8 @@ public:
         registrar.Parameter("cluster", &TThis::Cluster)
             .Default();
         registrar.Parameter("clique", &TThis::Clique)
+            .Default();
+        registrar.Parameter("instance", &TThis::Instance)
             .Default();
         registrar.Parameter("query_settings", &TThis::QuerySettings)
             .Default();
@@ -152,15 +156,36 @@ private:
         "clique_incarnation",
     };
 
+    IChannelPtr CreateChannelByInstance(IAttributeDictionaryPtr attributes)
+    {
+        auto host = attributes->Get<TString>("host");
+        auto rpcPort = attributes->Get<ui64>("rpc_port");
+        return ChannelFactory_->CreateChannel(Format("%v:%v", host, rpcPort));
+    }
+
+
     IChannelPtr GetChannelForRandomInstance()
     {
         auto instanceIterator = Instances_.begin();
         std::advance(instanceIterator, RandomNumber(Instances_.size()));
+        return CreateChannelByInstance(instanceIterator->second);
+    }
 
-        auto attributes = instanceIterator->second;
-        auto host = attributes->Get<TString>("host");
-        auto rpcPort = attributes->Get<ui64>("rpc_port");
-        return ChannelFactory_->CreateChannel(Format("%v:%v", host, rpcPort));
+    IChannelPtr GetChannelForInstanceByJobCookie(const ui64& jobCookie)
+    {
+        for (auto& instance : Instances_) {
+            if (instance.second->Get<ui64>("job_cookie") == jobCookie) {
+                return CreateChannelByInstance(instance.second);
+            }
+        }
+        THROW_ERROR_EXCEPTION("No instance was found for job cookie %Qv", jobCookie);
+    }
+
+    IChannelPtr GetChannelForInstance()
+    {
+        return  Settings_->Instance.has_value() ?
+                GetChannelForInstanceByJobCookie(Settings_->Instance.value()) :
+                GetChannelForRandomInstance();
     }
 
     void CheckPermission()
@@ -267,7 +292,7 @@ private:
         CheckPermission();
         InitializeInstances();
 
-        auto instanceChannel = GetChannelForRandomInstance();
+        auto instanceChannel = GetChannelForInstance();
         TQueryServiceProxy proxy(instanceChannel);
         // TODO(nadya02): Set the correct timeout here.
         proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
