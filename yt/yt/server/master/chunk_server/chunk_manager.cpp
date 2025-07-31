@@ -6119,12 +6119,14 @@ private:
             reason == ERemoveReplicaReason::NodeDisposed ||
             reason == ERemoveReplicaReason::ChunkDestroyed
             ? NLogging::ELogLevel::Trace : NLogging::ELogLevel::Debug,
-            "Chunk replica removed (ChunkId: %v, Reason: %v, NodeId: %v, Address: %v, Approved: %v)",
+            "Chunk replica removed "
+            "(ChunkId: %v, Reason: %v, NodeId: %v, Address: %v, Approved: %v, TemporarilyUnavailable: %v)",
             TChunkIdWithIndex(chunk->GetId(), replica.GetReplicaIndex()),
             reason,
             nodeId,
             node->GetDefaultAddress(),
-            approved);
+            approved,
+            node->IsPendingRestart());
 
         ScheduleChunkRefresh(chunk);
 
