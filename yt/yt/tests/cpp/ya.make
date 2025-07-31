@@ -1,4 +1,5 @@
 RECURSE(
+    library
     test_base
     test_cypress_election
     test_data_node_rpc
