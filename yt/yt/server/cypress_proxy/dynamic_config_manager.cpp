@@ -17,6 +17,7 @@ TDynamicConfigManager::TDynamicConfigManager(IBootstrap* bootstrap)
         TDynamicConfigManagerOptions{
             .ConfigPath = CypressProxyConfigPath,
             .Name = "CypressProxy",
+            .SuppressTransactionCoordinatorSync = true,
         },
         bootstrap->GetConfig()->DynamicConfigManager,
         bootstrap->GetRootClient(),

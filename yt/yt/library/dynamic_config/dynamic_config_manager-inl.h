@@ -190,6 +190,7 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
 
     NApi::TGetNodeOptions getOptions;
     getOptions.ReadFrom = Options_.ReadFrom;
+    getOptions.SuppressTransactionCoordinatorSync = Options_.SuppressTransactionCoordinatorSync;
     auto configOrError = NConcurrency::WaitFor(Client_->GetNode(Options_.ConfigPath, getOptions));
 
     NYTree::IMapNodePtr matchedConfigNode;
