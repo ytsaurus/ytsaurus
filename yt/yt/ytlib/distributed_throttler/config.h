@@ -18,7 +18,7 @@ DEFINE_ENUM(EDistributedThrottlerMode,
     (Precise)
 );
 
-DEFINE_ENUM(EDistributedThrottlerMemberPriority,
+DEFINE_ENUM(EDistributedThrottlerMemberPriorityGenerator,
     (StartTime)
     (Random)
 );
@@ -42,7 +42,8 @@ struct TDistributedThrottlerConfig
     TDuration AdjustedEmaHalflife;
 
     EDistributedThrottlerMode Mode;
-    EDistributedThrottlerMemberPriority MemberPriority;
+    EDistributedThrottlerMemberPriorityGenerator MemberPriorityGenerator;
+    std::optional<i64> MemberPriority;
     double ExtraLimitRatio;
 
     int HeartbeatThrottlerCountLimit;
