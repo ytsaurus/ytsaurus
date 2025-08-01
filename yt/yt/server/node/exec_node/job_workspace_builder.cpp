@@ -638,15 +638,17 @@ private:
                         YT_LOG_WARNING(imageOrError, "Failed to prepare root volume (Image: %v)", imageDescriptor);
 
                         THROW_ERROR_EXCEPTION(EErrorCode::DockerImagePullingFailed, "Failed to pull docker image")
-                            << TErrorAttribute("docker_image", *dockerImage)
+                            << TErrorAttribute("docker_image", imageDescriptor.Image)
                             << TErrorAttribute("authenticated", authenticated)
                             << imageOrError;
                     }
 
-                    const auto& imageId = imageOrError.Value()->ImageId();
-                    YT_LOG_INFO("Root volume prepared (ImageId: %v)", imageId);
+                    const auto& cachedImage = imageOrError.Value()->Image();
+                    YT_LOG_INFO("Root volume prepared (Image: %v)", cachedImage);
 
-                    ResultHolder_.DockerImage = imageId.Image;
+                    ResultHolder_.DockerImage = cachedImage.Image;
+                    ResultHolder_.DockerImageId = cachedImage.Id;
+
                     VolumePrepareFinishTime_ = TInstant::Now();
                     UpdateTimers_.Fire(MakeStrong(this));
                 }));
@@ -679,12 +681,35 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        YT_LOG_DEBUG_UNLESS(Context_.SetupCommands.empty(), "Setup command is not supported in CRI workspace");
-
         ValidateJobPhase(EJobPhase::PreparingSandboxDirectories);
         SetJobPhase(EJobPhase::RunningSetupCommands);
 
-        return VoidFuture;
+        if (Context_.SetupCommands.empty()) {
+            YT_LOG_DEBUG("No setup command is needed");
+            return VoidFuture;
+        }
+
+        YT_LOG_INFO("Running setup commands");
+
+        TRootFS rootFS{
+            .Binds = Context_.Binds,
+        };
+
+        rootFS.Binds.push_back(TBind{
+            .SourcePath = Context_.Slot->GetSlotPath(),
+            .TargetPath = "/slot",
+            .ReadOnly = false,
+        });
+
+        ResultHolder_.SetupCommandCount = Context_.SetupCommands.size();
+        return Context_.Slot->RunSetupCommands(
+            Context_.Job->GetId(),
+            Context_.SetupCommands,
+            rootFS,
+            Context_.CommandUser,
+            /*devices*/ std::nullopt,
+            /*startIndex*/ 0)
+            .AsVoid();
     }
 
     TFuture<void> DoRunGpuCheckCommand() override

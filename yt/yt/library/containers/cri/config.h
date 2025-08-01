@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/rpc/config.h>
 
+#include <yt/yt/library/re2/public.h>
+
 namespace NYT::NContainers::NCri {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -38,6 +40,9 @@ public:
 
     //! Retry requests on generic error with these message prefixes.
     std::vector<TString> RetryErrorPrefixes;
+
+    //! Retry requests on generic error with matched message.
+    NRe2::TRe2Ptr RetryErrorPattern;
 
     REGISTER_YSON_STRUCT(TCriExecutorConfig);
 

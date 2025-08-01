@@ -7,22 +7,21 @@ namespace NYT::NContainers::NCri {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCriImageCacheEntry::TCriImageCacheEntry(TCriImageDescriptor imageId, TCriImageDescriptor imageName, i64 imageSize)
-    : TAsyncCacheValueBase(imageId.Image)
-    , ImageName_(std::move(imageName))
-    , ImageId_(std::move(imageId))
+TCriImageCacheEntry::TCriImageCacheEntry(TCriImageDescriptor image, i64 imageSize)
+    : TAsyncCacheValueBase(image.Id)
+    , Image_(std::move(image))
     , ImageSize_(imageSize)
 {
     SetLastUsageTime(TInstant::Now());
 }
 
-TCriImageCacheEntry::TCriImageCacheEntry(TCriImageDescriptor imageAlias, TCriImageCacheEntryPtr entry)
-    : TAsyncCacheValueBase(imageAlias.Image)
-    , ImageName_(std::move(imageAlias))
-    , ImageId_(entry->ImageId())
-    , ImageSize_(entry->GetImageSize())
-    , Parent_(std::move(entry))
+TCriImageCacheEntry::TCriImageCacheEntry(TCriImageDescriptor image, TCriImageCacheEntryPtr parent)
+    : TAsyncCacheValueBase(image.Image)
+    , Image_(std::move(image))
+    , ImageSize_(parent->GetImageSize())
+    , Parent_(std::move(parent))
 {
+    YT_VERIFY(Image_.Id == Parent_->Image_.Id);
     SetLastUsageTime(TInstant::Now());
 
     auto guard = Guard(Parent_->SpinLock_);
@@ -141,18 +140,18 @@ public:
         }
 
         return Executor_->GetImageStatus(image)
-            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TCriImageApi::TRspImageStatusPtr& imageStatus) {
+            .Apply(BIND([this, this_ = MakeStrong(this), image = image] (
+                const TCriImageApi::TRspImageStatusPtr& imageStatus) mutable
+            {
                 if (!imageStatus->has_image()) {
                     return MakeFuture<TCriImageCacheEntryPtr>(TError("Docker image not found in cache (Image: %v)", image));
                 }
                 auto protoImage = imageStatus->image();
-                TCriImageDescriptor imageId{.Image = protoImage.id()};
                 if (!IsManagedImage(image)) {
-                    auto entry = New<TCriImageCacheEntry>(imageId, image, protoImage.size());
-                    YT_LOG_DEBUG("Unmanaged docker image found in cache (Image: %v, ImageId: %v)",
-                        image,
-                        imageId);
-                    return MakeFuture(entry);
+                    image.Id = protoImage.id();
+                    YT_LOG_DEBUG("Unmanaged docker image found in cache (Image: %v)", image);
+                    auto entry = New<TCriImageCacheEntry>(std::move(image), protoImage.size());
+                    return MakeFuture(std::move(entry));
                 }
                 auto cookie = BeginInsert(image.Image);
                 auto imageFuture = cookie.GetValue();
@@ -168,14 +167,12 @@ public:
         if (!IsManagedImage(image)) {
             // Bypass cache for unmanaged images.
             return Executor_->GetImageStatus(image)
-                .Apply(BIND([=] (const TCriImageApi::TRspImageStatusPtr& imageStatus) {
+                .Apply(BIND([image = image] (const TCriImageApi::TRspImageStatusPtr& imageStatus) mutable {
                     if (imageStatus->has_image()) {
                         auto protoImage = imageStatus->image();
-                        TCriImageDescriptor imageId{.Image = protoImage.id()};
-                        YT_LOG_DEBUG("Unmanaged docker image found in cache (Image: %v, ImageId: %v)",
-                            image,
-                            imageId);
-                        return New<TCriImageCacheEntry>(imageId, image, protoImage.size());
+                        image.Id = protoImage.id();
+                        YT_LOG_DEBUG("Unmanaged docker image found in cache (Image: %v)", image);
+                        return New<TCriImageCacheEntry>(std::move(image), protoImage.size());
                     } else {
                         THROW_ERROR_EXCEPTION("Unmanaged docker image not found in cache (Image: %v)",
                             image);
@@ -216,14 +213,21 @@ public:
             auto imageFuture = cookie.GetValue();
 
             if (auto entryOrError = imageFuture.TryGet(); entryOrError && entryOrError->IsOK()) {
-                auto entry = std::move(entryOrError->Value());
-                YT_LOG_DEBUG("Docker image found in cache (Image: %v, ImageId: %v, LastPullTime: %v, LastUsageTime: %v)",
-                    entry->ImageName(),
-                    entry->ImageId(),
-                    entry->GetLastPullTime(),
-                    entry->GetLastUsageTime());
-                TouchImage(entry);
-                return imageFuture;
+                return Executor_->GetImageStatus(image)
+                    .Apply(BIND([=, this, this_ = MakeStrong(this), entry = std::move(entryOrError->Value())] (
+                                const TCriImageApi::TRspImageStatusPtr& imageStatus) mutable {
+                        if (!imageStatus->has_image() || imageStatus->image().id() != entry->Image().Id) {
+                            YT_LOG_DEBUG("Docker image was removed externally (Image: %v)", entry->Image());
+                            TryRemove(image.Image, /*forbidResurrection*/ true);
+                            return PullImage(image, std::move(authConfig), pullPolicy);
+                        }
+                        YT_LOG_DEBUG("Docker image found in cache (Image: %v, LastPullTime: %v, LastUsageTime: %v)",
+                            entry->Image(),
+                            entry->GetLastPullTime(),
+                            entry->GetLastUsageTime());
+                        TouchImage(entry);
+                        return MakeFuture<TCriImageCacheEntryPtr>(std::move(entry));
+                    }));
             }
 
             YT_LOG_DEBUG("Waiting for in-flight docker image pull (Image: %v)", image);
@@ -258,13 +262,15 @@ public:
                     image,
                     bool(authConfig));
                 return Executor_->PullImage(image, authConfig)
-                    .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TCriImageApi::TRspPullImagePtr& result) {
-                        auto imageId = TCriImageDescriptor{.Image = result->image_ref()};
-                        return Executor_->GetImageStatus(imageId);
+                    .Apply(BIND([this, this_ = MakeStrong(this), image = image] (
+                        const TCriImageApi::TRspPullImagePtr& result) mutable
+                    {
+                        image.Id = result->image_ref();
+                        return Executor_->GetImageStatus(image);
                     }));
             }))
-            .Apply(BIND([=, this, this_ = MakeStrong(this), cookie = std::move(cookie)] (
-                        const TErrorOr<TCriImageApi::TRspImageStatusPtr>& imageStatusOrError) mutable
+            .Apply(BIND([this, this_ = MakeStrong(this), cookie = std::move(cookie), image = image] (
+                const TErrorOr<TCriImageApi::TRspImageStatusPtr>& imageStatusOrError) mutable
             {
                 if (!imageStatusOrError.IsOK()) {
                     YT_LOG_DEBUG(imageStatusOrError,
@@ -278,10 +284,8 @@ public:
                     THROW_ERROR_EXCEPTION("Docker image is not found in cache after pull");
                 }
                 auto& protoImage = imageStatus->image();
-                auto imageId = TCriImageDescriptor{.Image = protoImage.id()};
-                YT_LOG_DEBUG("Docker image pull finished (Image: %v, ImageId: %v)",
-                    image,
-                    imageId);
+                image.Id = protoImage.id();
+                YT_LOG_DEBUG("Docker image pull finished (Image: %v)", image);
                 auto imageFuture = cookie.GetValue();
                 DoInsertImage(cookie, protoImage, /*pullTime*/ TInstant::Now());
                 return imageFuture;
@@ -309,44 +313,47 @@ private:
 
     void DoInsertImage(TInsertCookie& cookie, const NCri::NProto::Image& protoImage, TInstant pullTime = TInstant::Zero())
     {
-        TCriImageDescriptor imageName{.Image = cookie.GetKey()};
-        TCriImageDescriptor imageId{.Image = protoImage.id()};
+        TCriImageDescriptor image{
+            .Image = cookie.GetKey(),
+            .Id = protoImage.id(),
+        };
         i64 imageSize = protoImage.size();
         bool pinned = false;
 
-        for (const auto& image : Config_->PinnedImages) {
-            if (image == imageName.Image) {
+        for (const auto& pinnedImage : Config_->PinnedImages) {
+            if (pinnedImage == image.Image) {
                 pinned = true;
                 break;
             }
         }
 
-        if (imageName.Image == imageId.Image) {
-            auto imageEntry = New<TCriImageCacheEntry>(imageId, imageId, imageSize);
+        if (image.Image == image.Id) {
+            auto imageEntry = New<TCriImageCacheEntry>(std::move(image), imageSize);
             cookie.EndInsert(std::move(imageEntry));
-        } else {
-            cookie.UpdateWeight(0);
-            auto imageCookie = BeginInsert(imageId.Image, imageSize);
-            if (imageCookie.IsActive()) {
-                auto imageEntry = New<TCriImageCacheEntry>(imageId, imageName, imageSize);
-                imageEntry->SetLastPullTime(pullTime);
-                imageCookie.EndInsert(std::move(imageEntry));
-            }
-            auto imageFuture = imageCookie.GetValue();
-            imageFuture.Subscribe(BIND([=, cookie = std::move(cookie)] (
-                        const TErrorOr<TCriImageCacheEntryPtr>& entryOrError) mutable
-            {
-                if (entryOrError.IsOK()) {
-                    auto& imageEntry = entryOrError.Value();
-                    auto aliasEntry = New<TCriImageCacheEntry>(imageName, imageEntry);
-                    aliasEntry->SetPinned(pinned);
-                    aliasEntry->SetLastPullTime(pullTime);
-                    cookie.EndInsert(std::move(aliasEntry));
-                } else {
-                    cookie.Cancel(entryOrError);
-                }
-            }));
+            return;
         }
+
+        cookie.UpdateWeight(0);
+        auto imageCookie = BeginInsert(image.Id, imageSize);
+        if (imageCookie.IsActive()) {
+            auto imageEntry = New<TCriImageCacheEntry>(image, imageSize);
+            imageEntry->SetLastPullTime(pullTime);
+            imageCookie.EndInsert(std::move(imageEntry));
+        }
+        auto imageFuture = imageCookie.GetValue();
+        imageFuture.Subscribe(BIND([=, cookie = std::move(cookie), image = std::move(image)] (
+            const TErrorOr<TCriImageCacheEntryPtr>& entryOrError) mutable
+        {
+            if (entryOrError.IsOK()) {
+                auto& imageEntry = entryOrError.Value();
+                auto aliasEntry = New<TCriImageCacheEntry>(std::move(image), imageEntry);
+                aliasEntry->SetPinned(pinned);
+                aliasEntry->SetLastPullTime(pullTime);
+                cookie.EndInsert(std::move(aliasEntry));
+            } else {
+                cookie.Cancel(entryOrError);
+            }
+        }));
     }
 
     TFuture<void> DoRemoveImage(TCriImageCacheEntryPtr entry)
@@ -357,9 +364,8 @@ private:
 
         // FIXME(khlebnikov): Remove sequence is slightly racy, should be ok for real life cases.
         if (entry->HasAliases() || Find(entry->GetKey())) {
-            YT_LOG_DEBUG("Retain docker image (Image: %v, ImageId: %v, ImageSize: %v, LastPullTime: %v, LastUsageTime: %v)",
-                entry->ImageName(),
-                entry->ImageId(),
+            YT_LOG_DEBUG("Retain docker image (Image: %v, ImageSize: %v, LastPullTime: %v, LastUsageTime: %v)",
+                entry->Image(),
                 entry->GetImageSize(),
                 entry->GetLastPullTime(),
                 entry->GetLastUsageTime());
@@ -370,26 +376,20 @@ private:
             return VoidFuture;
         }
 
-        YT_LOG_DEBUG("Removing docker image (Image: %v, ImageId: %v, ImageSize: %v, LastPullTime: %v, LastUsageTime: %v)",
-            entry->ImageName(),
-            entry->ImageId(),
+        YT_LOG_DEBUG("Removing docker image (Image: %v, ImageSize: %v, LastPullTime: %v, LastUsageTime: %v)",
+            entry->Image(),
             entry->GetImageSize(),
             entry->GetLastPullTime(),
             entry->GetLastUsageTime());
 
         TryRemoveValue(entry, /*forbidResurrection*/ true);
 
-        return Executor_->RemoveImage(entry->ImageId())
+        return Executor_->RemoveImage(entry->Image())
             .Apply(BIND([entry = std::move(entry)] (const TError& error) {
                 if (error.IsOK()) {
-                    YT_LOG_DEBUG("Docker image removed (Image: %v, ImageId: %v)",
-                        entry->ImageName(),
-                        entry->ImageId());
+                    YT_LOG_DEBUG("Docker image removed (Image: %v)", entry->Image());
                 } else {
-                    YT_LOG_WARNING(error,
-                        "Cannot remove docker image (Image: %v, ImageId: %v)",
-                        entry->ImageName(),
-                        entry->ImageId());
+                    YT_LOG_WARNING(error, "Cannot remove docker image (Image: %v)", entry->Image());
                 }
                 return error;
             }));
@@ -430,13 +430,11 @@ protected:
     void OnAdded(const TValuePtr& entry) override
     {
         if (entry->IsAlias()) {
-            YT_LOG_DEBUG("Docker image alias is added into cache (Image: %v, ImageId: %v)",
-                entry->ImageName(),
-                entry->ImageId());
+            YT_LOG_DEBUG("Docker image alias is added into cache (Image: %v)",
+                entry->Image());
         } else {
-            YT_LOG_DEBUG("Docker image entry is added into cache (Image: %v, ImageId: %v, ImageSize: %v)",
-                entry->ImageName(),
-                entry->ImageId(),
+            YT_LOG_DEBUG("Docker image entry is added into cache (Image: %v, ImageSize: %v)",
+                entry->Image(),
                 entry->GetImageSize());
             CacheSize_ += entry->GetImageSize();
         }
@@ -445,15 +443,13 @@ protected:
     void OnRemoved(const TValuePtr& entry) override
     {
         if (entry->IsAlias()) {
-            YT_LOG_DEBUG("Docker image alias is removed from cache (Image: %v, ImageId: %v, LastPullTime: %v, LastUsageTime: %v)",
-                entry->ImageName(),
-                entry->ImageId(),
+            YT_LOG_DEBUG("Docker image alias is removed from cache (Image: %v, LastPullTime: %v, LastUsageTime: %v)",
+                entry->Image(),
                 entry->GetLastPullTime(),
                 entry->GetLastUsageTime());
         } else {
-            YT_LOG_DEBUG("Docker image entry is removed from cache (Image: %v, ImageId: %v, ImageSize: %v, LastPullTime: %v, LastUsageTime: %v)",
-                entry->ImageName(),
-                entry->ImageId(),
+            YT_LOG_DEBUG("Docker image entry is removed from cache (Image: %v, ImageSize: %v, LastPullTime: %v, LastUsageTime: %v)",
+                entry->Image(),
                 entry->GetImageSize(),
                 entry->GetLastPullTime(),
                 entry->GetLastUsageTime());

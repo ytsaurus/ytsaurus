@@ -4074,3 +4074,53 @@ class TestJobInputCache(YTEnvSetup):
 
         wait(lambda: block_compressed_cache_size.get() == 0)
         wait(lambda: meta_cache_size.get() == 0)
+
+
+##################################################################
+
+
+@authors("khlebnikov")
+class TestJobSetupCommandCri(YTEnvSetup):
+    JOB_ENVIRONMENT_TYPE = "cri"
+
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+
+    def test_success(self):
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_common": {
+                        "job_setup_command": {
+                            "path": "/bin/bash",
+                            "args": ["-c", "echo success >setup.txt"],
+                        },
+                    },
+                },
+            },
+        })
+
+        op = run_test_vanilla("cat ../home/setup.txt >&2", track=True)
+        check_all_stderrs(op, b"success\n", 1)
+
+    def test_failure(self):
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_common": {
+                        "job_setup_command": {
+                            "path": "/bin/false",
+                            "args": [],
+                        },
+                    },
+                },
+            },
+        })
+
+        op = run_test_vanilla("true")
+        op.track(raise_on_failed=False)
+        assert op.get_state() == "failed"
+        err = op.get_error()
+        assert err.contains_code(10000)
+        assert err.find_matching_error(10000).attributes.get("exit_code") == 1
