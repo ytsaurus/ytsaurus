@@ -164,7 +164,7 @@ TYqlRowset BuildRowsetByRef(
 
         YT_LOG_DEBUG("Opening static table reader (Path: %v)", path);
 
-        auto reader = WaitFor(client->CreateTableReader(path))
+        auto reader = WaitFor(client->CreateTableReader(path, NApi::TTableReaderOptions{.EnableAnyUnpacking = false}))
             .ValueOrThrow();
 
         targetSchema = reader->GetTableSchema()->Filter(references->Columns);
