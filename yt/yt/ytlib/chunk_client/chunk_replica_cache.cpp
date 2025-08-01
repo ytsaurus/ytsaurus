@@ -7,6 +7,7 @@
 
 #include <yt/yt/ytlib/sequoia_client/client.h>
 #include <yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/unapproved_chunk_replicas.record.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
@@ -317,18 +318,12 @@ public:
             YT_LOG_DEBUG("Locating chunks in Sequoia (ChunkIds: %v)",
                 currentChunkIds);
 
-            std::vector<NSequoiaClient::NRecords::TChunkReplicasKey> currentRecordKeys;
-            currentRecordKeys.reserve(currentChunkIds.size());
-            for (auto chunkId : currentChunkIds) {
-                currentRecordKeys.push_back({.ChunkId = chunkId});
-            }
-
             SequoiaLocateCallsCounter_.Increment();
             SequoiaLocateChunksCounter_.Increment(std::ssize(currentChunkIds));
 
-            auto client = connection->GetSequoiaClient();
-            client->LookupRows(currentRecordKeys, columnFilter)
-                .Subscribe(BIND(&TChunkReplicaCache::OnSequoiaReplicasLocated,
+            LookupReplicasInSequoia(connection, currentChunkIds)
+                .SubscribeUnique(BIND(
+                    &TChunkReplicaCache::OnSequoiaReplicasLocated,
                     MakeStrong(this),
                     std::move(currentChunkIds),
                     std::move(currentPromises)));
@@ -581,55 +576,112 @@ private:
         }
     }
 
-    TAllyReplicasInfo ParseAllyReplicasInfoFromSequoiaRecord(const NSequoiaClient::NRecords::TChunkReplicas& record)
+    TFuture<std::vector<std::optional<TAllyReplicasInfo>>> LookupReplicasInSequoia(
+        const NApi::NNative::IConnectionPtr& connection,
+        const std::vector<TChunkId>& chunkIds)
     {
-        TAllyReplicasInfo result{
-            .Revision = TAllyReplicasInfo::SequoiaRevision,
-        };
+        auto client = connection->GetSequoiaClient();
 
-        ParseChunkReplicas(
-            record.StoredReplicas,
-            [&] (const TParsedChunkReplica& parsedReplica) {
-                result.Replicas.push_back(TChunkReplicaWithMedium(
-                    parsedReplica.NodeId,
-                    parsedReplica.ReplicaIndex,
-                    NChunkClient::DefaultStoreMediumIndex));
-            });
+        auto approvedReplicasFuture = [&] {
+            std::vector<NSequoiaClient::NRecords::TChunkReplicasKey> recordKeys;
+            recordKeys.reserve(chunkIds.size());
+            for (auto chunkId : chunkIds) {
+                recordKeys.push_back({.ChunkId = chunkId});
+            }
 
-        return result;
+            const auto& idMapping = NSequoiaClient::NRecords::TChunkReplicasDescriptor::Get()->GetIdMapping();
+            YT_VERIFY(idMapping.StoredReplicas);
+            TColumnFilter columnFilter{*idMapping.StoredReplicas};
+
+            return client->LookupRows(recordKeys, columnFilter);
+        }();
+
+        auto unapprovedReplicasFuture = [&] {
+            std::vector<NSequoiaClient::NRecords::TUnapprovedChunkReplicasKey> recordKeys;
+            recordKeys.reserve(chunkIds.size());
+            for (auto chunkId : chunkIds) {
+                recordKeys.push_back({.ChunkId = chunkId});
+            }
+
+            const auto& idMapping = NSequoiaClient::NRecords::TUnapprovedChunkReplicasDescriptor::Get()->GetIdMapping();
+            YT_VERIFY(idMapping.StoredReplicas);
+            TColumnFilter columnFilter{*idMapping.StoredReplicas};
+
+            return client->LookupRows(recordKeys, columnFilter);
+        }();
+
+        return AllSucceeded(std::vector{approvedReplicasFuture.AsVoid(), unapprovedReplicasFuture.AsVoid()})
+            .Apply(BIND([=] {
+                const auto& approvedReplicas = approvedReplicasFuture.Get().Value();
+                const auto& unapprovedReplicas = unapprovedReplicasFuture.Get().Value();
+                YT_VERIFY(approvedReplicas.size() == unapprovedReplicas.size());
+
+                std::vector<std::optional<TAllyReplicasInfo>> results;
+                for (int index = 0; index < std::ssize(approvedReplicas); ++index) {
+                    const auto& optionalApprovedRecord = approvedReplicas[index];
+                    const auto& optionalUnapprovedRecord = unapprovedReplicas[index];
+                    auto& result = results.emplace_back();
+
+                    auto handleRecord = [&] (const auto& optionalRecord) {
+                        if (!optionalRecord) {
+                            return;
+                        }
+
+                        if (!result) {
+                            result = TAllyReplicasInfo{
+                                .Revision = TAllyReplicasInfo::SequoiaRevision,
+                            };
+                        }
+
+                        ParseChunkReplicas(
+                            optionalRecord->StoredReplicas,
+                            [&] (const TParsedChunkReplica& parsedReplica) {
+                                result->Replicas.push_back(TChunkReplicaWithMedium(
+                                    parsedReplica.NodeId,
+                                    parsedReplica.ReplicaIndex,
+                                    NChunkClient::DefaultStoreMediumIndex));
+                            });
+                    };
+                    handleRecord(optionalApprovedRecord);
+                    handleRecord(optionalUnapprovedRecord);
+                }
+
+                return results;
+            }));
     }
 
     void OnSequoiaReplicasLocated(
         const std::vector<TChunkId>& chunkIds,
         const std::vector<TPromise<TAllyReplicasInfo>>& promises,
-        const TErrorOr<std::vector<std::optional<NSequoiaClient::NRecords::TChunkReplicas>>>& rspOrError)
+        TErrorOr<std::vector<std::optional<TAllyReplicasInfo>>>&& resultsOrError)
     {
-        if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError, "Error locating chunks in Sequoia");
+        if (!resultsOrError.IsOK()) {
+            YT_LOG_WARNING(resultsOrError, "Error locating chunks in Sequoia");
 
-            OnLocateChunksFailed(chunkIds, promises, rspOrError);
+            OnLocateChunksFailed(chunkIds, promises, resultsOrError);
             return;
         }
+
+        auto& results = resultsOrError.Value();
 
         YT_LOG_DEBUG("Chunks located in Sequoia (ChunkCount: %v)",
             std::ssize(promises));
 
-        const auto& rsp = rspOrError.Value();
-
         for (int index = 0; index < std::ssize(chunkIds); ++index) {
-            const auto& optionalRecord = rsp[index];
-            if (!optionalRecord) {
-                auto chunkId = chunkIds[index];
+            auto chunkId = chunkIds[index];
+            const auto& promise = promises[index];
+            auto& optionalResult = results[index];
+
+            if (!optionalResult) {
                 YT_LOG_DEBUG("Chunk is missing in Sequoia (ChunkId: %v)", chunkId);
-                promises[index].TrySet(TError(
+                promise.TrySet(TError(
                     NChunkClient::EErrorCode::NoSuchChunk,
                     "No such chunk %v",
                     chunkId));
                 continue;
             }
 
-            auto replicasInfo = ParseAllyReplicasInfoFromSequoiaRecord(*optionalRecord);
-            promises[index].TrySet(std::move(replicasInfo));
+            promise.TrySet(std::move(*optionalResult));
         }
     }
 
@@ -801,18 +853,12 @@ private:
             YT_LOG_DEBUG("Refreshing chunks in Sequoia (ChunkCount: %v)",
                 chunkIdsToRefresh.size());
 
-            std::vector<NSequoiaClient::NRecords::TChunkReplicasKey> recordKeys;
-            recordKeys.reserve(chunkIdsToRefresh.size());
-            for (auto chunkId : chunkIdsToRefresh) {
-                recordKeys.push_back({.ChunkId = chunkId});
-            }
-
             SequoiaLocateCallsCounter_.Increment();
             SequoiaLocateChunksCounter_.Increment(std::ssize(chunkIdsToRefresh));
 
-            auto client = connection->GetSequoiaClient();
-            client->LookupRows(recordKeys, columnFilter)
-                .Subscribe(BIND(&TChunkReplicaCache::OnSequoiaReplicasRefreshed,
+            LookupReplicasInSequoia(connection, chunkIdsToRefresh)
+                .SubscribeUnique(BIND(
+                    &TChunkReplicaCache::OnSequoiaReplicasRefreshed,
                     MakeStrong(this),
                     std::move(chunkIdsToRefresh)));
         } else {
@@ -823,22 +869,23 @@ private:
 
     void OnSequoiaReplicasRefreshed(
         const std::vector<TChunkId>& chunkIds,
-        const TErrorOr<std::vector<std::optional<NSequoiaClient::NRecords::TChunkReplicas>>>& rspOrError)
+        TErrorOr<std::vector<std::optional<TAllyReplicasInfo>>>&& resultsOrError)
     {
-        if (rspOrError.IsOK()) {
+        if (resultsOrError.IsOK()) {
             YT_LOG_DEBUG("Chunks refreshed in Sequoia");
 
-            const auto& rsp = rspOrError.Value();
+            auto& results = resultsOrError.Value();
 
             THashMap<TChunkId, TAllyReplicasInfo> chunkIdToReplicasInfo;
             for (int index = 0; index < std::ssize(chunkIds); ++index) {
-                const auto& optionalRecord = rsp[index];
-                if (!optionalRecord) {
+                auto chunkId = chunkIds[index];
+                auto& optionalResult = results[index];
+
+                if (!optionalResult) {
                     continue;
                 }
 
-                auto replicasInfo = ParseAllyReplicasInfoFromSequoiaRecord(*optionalRecord);
-                chunkIdToReplicasInfo.emplace(chunkIds[index], std::move(replicasInfo));
+                chunkIdToReplicasInfo.emplace(chunkId, std::move(*optionalResult));
             }
 
             {
@@ -863,7 +910,7 @@ private:
                 }
             }
         } else {
-            YT_LOG_WARNING(rspOrError, "Error refreshing chunks in Sequoia");
+            YT_LOG_WARNING(resultsOrError, "Error refreshing chunks in Sequoia");
         }
 
         ScheduleNextRefreshRound();
