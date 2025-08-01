@@ -108,6 +108,11 @@ class TestOrchidMulticell(TestOrchid):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
     @authors("babenko")
     def test_at_secondary_masters(self):
         for tag in range(1, self.NUM_SECONDARY_MASTER_CELLS + 1):

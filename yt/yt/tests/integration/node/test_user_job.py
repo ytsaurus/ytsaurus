@@ -1662,6 +1662,11 @@ class TestJobStderr(YTEnvSetup):
 class TestJobStderrMulticell(TestJobStderr):
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
 
 class TestJobStderrPorto(TestJobStderr):
     USE_PORTO = True
@@ -1974,6 +1979,11 @@ class TestUserFiles(YTEnvSetup):
 
 class TestUserFilesMulticell(TestUserFiles):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
 
 
 class TestUserFilesPorto(TestUserFiles):

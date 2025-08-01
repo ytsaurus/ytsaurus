@@ -186,7 +186,7 @@ void TDynamicMulticellManagerConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("remove_secondary_cell_default_roles", &TThis::RemoveSecondaryCellDefaultRoles)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("allow_master_cell_role_invariant_check", &TThis::AllowMasterCellRoleInvariantCheck)
         .Default(true);

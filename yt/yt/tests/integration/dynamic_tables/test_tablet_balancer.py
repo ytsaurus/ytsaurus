@@ -711,17 +711,32 @@ class TestStandaloneTabletBalancerMulticell(TestStandaloneTabletBalancer):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
 
 @pytest.mark.enabled_multidaemon
 class TestStandaloneTabletBalancerSlowMulticell(TestStandaloneTabletBalancerSlow):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
 
 @pytest.mark.enabled_multidaemon
 class TestParameterizedBalancingMulticell(TestParameterizedBalancing):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
 
 
 ##################################################################

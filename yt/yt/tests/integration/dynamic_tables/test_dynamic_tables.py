@@ -3655,6 +3655,11 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
     @authors("savrus")
     def test_external_dynamic(self):
         cells = sync_create_cells(1)
@@ -3812,6 +3817,11 @@ class TestDynamicTablesDecommissionStall(DynamicTablesBase):
         },
     }
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
     @authors("savrus")
     def test_decommission_stall(self):
         cells = sync_create_cells(1)
@@ -3833,12 +3843,20 @@ class TestDynamicTablesPortal(TestDynamicTablesMulticell):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     ENABLE_TMP_PORTAL = True
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["cypress_node_host", "chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
 
 class TestDynamicTablesShardedTx(TestDynamicTablesPortal):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SECONDARY_MASTER_CELLS = 3
+
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
         "13": {"roles": ["transaction_coordinator"]},
     }
 
@@ -4038,6 +4056,11 @@ class TestTabletCellJanitor(DynamicTablesBase):
         }
     }
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
     @authors("babenko")
     def test_cleanup(self):
         CELL_COUNT = 5
@@ -4069,6 +4092,8 @@ class TestDynamicTablesHydraPersistenceMigrationPortal(TestDynamicTablesMulticel
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
         "13": {"roles": ["transaction_coordinator"]},
     }
 

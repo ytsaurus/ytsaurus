@@ -961,6 +961,11 @@ class TestSchedulerCommonMulticell(TestSchedulerCommon):
     NUM_TEST_PARTITIONS = 6
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
 
 ##################################################################
 

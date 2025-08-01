@@ -697,6 +697,11 @@ class TestDataCentersMulticell(TestDataCenters):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
 ##################################################################
 
 
@@ -704,3 +709,8 @@ class TestDataCentersMulticell(TestDataCenters):
 class TestFaultyDataCentersMulticell(TestFaultyDataCenters):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }

@@ -678,7 +678,9 @@ class TestMasterTransactionsMulticell(TestMasterTransactions):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 3
     MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
         "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["chunk_host", "cypress_node_host"]},
     }
 
     def _assert_native_content_revision_matches(self, path, tx="0-0-0-0"):
