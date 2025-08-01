@@ -208,6 +208,11 @@ class TestReplicatedTablesCollocationMulticell(TestReplicatedTablesCollocation):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
     @authors("akozhikhov")
     def test_table_collocation_multicell(self):
         set("//sys/@config/tablet_manager/replicate_table_collocations", False)
@@ -243,6 +248,11 @@ class TestReplicatedTablesCollocationPortal(TestReplicatedTablesCollocationBase)
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
     ENABLE_TMP_PORTAL = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["cypress_node_host", "chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("external_cell_tag", [10, 11, 12])

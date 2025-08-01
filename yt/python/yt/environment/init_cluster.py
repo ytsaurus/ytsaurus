@@ -449,6 +449,11 @@ def _initialize_world_for_local_cluster(client, environment, yt_config):
 
     cluster_connection = environment.configs["driver"]
 
+    # Secondary masters in local cluster will have chunk_host & cypress_node_host roles.
+    registered_master_cell_tags = client.get("//sys/@registered_master_cell_tags")
+    registered_master_cell_roles = {str(cell_tag): {"roles": ["chunk_host", "cypress_node_host"]} for cell_tag in registered_master_cell_tags}
+    client.set("//sys/@config/multicell_manager/cell_descriptors", registered_master_cell_roles)
+
     initialize_world(
         client,
         proxy_address=None,

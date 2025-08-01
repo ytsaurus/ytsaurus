@@ -48,6 +48,8 @@ class TestChaos(ChaosTestBase):
     NUM_REMOTE_CLUSTERS = 2
     NUM_TEST_PARTITIONS = 40
     NUM_SCHEDULERS = 1
+    NUM_SECONDARY_MASTER_CELLS_REMOTE_0 = 1
+    NUM_SECONDARY_MASTER_CELLS_REMOTE_1 = 1
 
     DELTA_DRIVER_CONFIG = {
         "enable_read_from_async_replicas": True,
@@ -74,6 +76,14 @@ class TestChaos(ChaosTestBase):
         "chaos_node": {
             "replication_card_automaton_cache_expiration_time": 100
         },
+    }
+
+    MASTER_CELL_DESCRIPTORS_REMOTE_0 = {
+        "21": {"roles": ["chunk_host", "cypress_node_host"]},
+    }
+
+    MASTER_CELL_DESCRIPTORS_REMOTE_1 = {
+        "31": {"roles": ["chunk_host", "cypress_node_host"]},
     }
 
     def setup_method(self, method):
@@ -5455,6 +5465,11 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
 
 class TestChaosMulticell(TestChaos):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
 
 
 ##################################################################

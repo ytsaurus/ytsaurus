@@ -954,6 +954,11 @@ class TestUsersMulticell(TestUsers):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
     @authors("aleksandra-zh")
     def test_request_limit_cell_names(self):
         create_user("u")
@@ -967,7 +972,7 @@ class TestUsersMulticell(TestUsers):
     @authors("cherepashka")
     def test_last_seen_via_visit_portal(self):
         # Make sure secondary cell can host portal entries.
-        set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["cypress_node_host"]}})
+        set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["chunk_host", "cypress_node_host"]}})
 
         create_user("u")
         wait(lambda: self._get_last_seen_time("u").year > 1970, timeout=10)

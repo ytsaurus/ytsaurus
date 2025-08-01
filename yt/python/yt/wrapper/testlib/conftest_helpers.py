@@ -102,6 +102,12 @@ def test_function_setup():
     yt.mkdir(TEST_DIR, recursive=True)
 
 
+def setup_secondary_master_cell_roles():
+    registered_master_cell_tags = yt.get("//sys/@registered_master_cell_tags")
+    registered_master_cell_roles = {str(cell_tag): {"roles": ["chunk_host", "cypress_node_host"]} for cell_tag in registered_master_cell_tags}
+    yt.set("//sys/@config/multicell_manager/cell_descriptors", registered_master_cell_roles)
+
+
 def register_test_function_finalizer(request, remove_operations_archive=True):
     request.addfinalizer(lambda: yt.remove(TEST_DIR, recursive=True, force=True))
     request.addfinalizer(lambda: test_method_teardown(remove_operations_archive=remove_operations_archive))
@@ -528,6 +534,7 @@ def yt_env_multicell(request, test_environment_multicell):
     test_environment_multicell.reload_global_configuration()
     test_function_setup()
     register_test_function_finalizer(request)
+    setup_secondary_master_cell_roles()
     return test_environment_multicell
 
 

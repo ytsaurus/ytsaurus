@@ -328,6 +328,11 @@ class TestMaintenanceTrackerMulticell(TestMaintenanceTracker):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host", "cypress_node_host"]},
+    }
+
     @classmethod
     def setup_class(cls):
         super(TestMaintenanceTrackerMulticell, cls).setup_class()
