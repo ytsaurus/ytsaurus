@@ -166,8 +166,8 @@ def write_table(
 ):
     """Writes rows from input_stream to table.
 
-    :param table: output table. Specify `TablePath` attributes for append mode or something like this.
-        Table can not exist.
+    :param table: output table. Specify `TablePath` attributes for append mode or something like `<append=%true>//path/to/table`.
+        If the table does not exist, it will be created.
     :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
     :param input_stream: python file-like object, string, list of strings.
     :param format: format of input data, ``yt.wrapper.config["tabular_data_format"]`` by default.
