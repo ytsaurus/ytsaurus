@@ -94,6 +94,12 @@ public:
             .RequiredArgument("DIRECTORY");
         Opts_
             .AddLongOption(
+                "skip-invariants-check",
+                "Do not call CheckInvariants after snapshot load")
+            .StoreFalse(&CheckInvariants_)
+            .NoArgument();
+        Opts_
+            .AddLongOption(
                 "skip-tvm-service-env-validation",
                 "Do not validate TVM service files")
             .SetFlag(&SkipTvmServiceEnvValidationFlag_)
@@ -122,6 +128,7 @@ private:
     std::vector<TString> ReplayChangelogsPaths_;
     bool BuildSnapshotFlag_ = false;
     TString BuildSnapshotPath_;
+    bool CheckInvariants_ = true;
     bool SkipTvmServiceEnvValidationFlag_ = false;
     bool PrintCompatibilityInfoFlag_ = false;
 
@@ -205,8 +212,9 @@ private:
         auto config = GetConfig();
 
         if (IsDryRunMode()) {
-            config->DryRun->EnableHostNameValidation = false;
+            config->EnablePortoResourceTracker = false;
             config->DryRun->EnableDryRun = true;
+            config->DryRun->EnableHostNameValidation = false;
             auto loggingConfig = config->GetSingletonConfig<NLogging::TLogManagerConfig>();
             loggingConfig->ShutdownGraceTimeout = TDuration::Seconds(10);
             config->Snapshots->Path = NFS::GetDirectoryName(".");
@@ -253,12 +261,16 @@ private:
             bootstrap->Initialize();
 
             if (IsLoadSnapshotMode()) {
+                auto dumpMode = IsDumpSnapshotMode() ? SnapshotDumpMode_ : ESerializationDumpMode::None;
+                auto dumpScopeFilter = IsDumpSnapshotMode() && SnapshotDumpScopeFilterFlag_
+                    ? std::make_optional(THashSet<std::string>(SnapshotDumpScopeFilter_.begin(), SnapshotDumpScopeFilter_.end()))
+                    : std::nullopt;
+
                 bootstrap->LoadSnapshot(
                     LoadSnapshotPath_,
-                    IsDumpSnapshotMode() ? SnapshotDumpMode_ : ESerializationDumpMode::None,
-                    IsDumpSnapshotMode() && SnapshotDumpScopeFilterFlag_
-                        ? std::make_optional(THashSet<std::string>(SnapshotDumpScopeFilter_.begin(), SnapshotDumpScopeFilter_.end()))
-                        : std::nullopt);
+                    dumpMode,
+                    std::move(dumpScopeFilter),
+                    CheckInvariants_);
             }
 
             if (IsReplayChangelogsMode()) {
