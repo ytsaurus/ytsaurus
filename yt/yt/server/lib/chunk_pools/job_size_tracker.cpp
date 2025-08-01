@@ -22,11 +22,9 @@ static constexpr i64 SafeInf64 = std::numeric_limits<i64>::max() / 4;
     return vector;
 }
 
-} // namespace
-
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobSizeTracker
+class TJobSizeTracker final
     : public IJobSizeTracker
 {
 public:
@@ -81,15 +79,9 @@ public:
         i64 FlushIndex;
     };
 
-    // NB: We friend declare function here so that it is visible
-    // to our static analysis and therefore can be actually found
-    // during the lookup.
-    friend void FormatValue(
-        TStringBuilderBase* builder,
-        const TJobSizeTracker::TOverflowToken& token,
-        TStringBuf /*spec*/)
+    static TString FormatToken(const TJobSizeTracker::TOverflowToken& token)
     {
-        Format(builder, "{R: %v, L: %v, I: %v}", token.OverflownResource, token.IsLocal, token.FlushIndex);
+        return Format("{R: %v, L: %v, I: %v}", token.OverflownResource, token.IsLocal, token.FlushIndex);
     }
 
     std::optional<std::any> CheckOverflow(TResourceVector extraVector) const override
@@ -146,7 +138,11 @@ public:
             typedToken = std::any_cast<TOverflowToken>(*overflowToken);
         }
 
-        YT_LOG_TRACE("Flushing job size tracker (LocalVector: %v, OverflowToken: %v, FlushIndex: %v)", LocalVector_, typedToken, FlushIndex_);
+        YT_LOG_TRACE(
+            "Flushing job size tracker (LocalVector: %v, OverflowToken: %v, FlushIndex: %v)",
+            LocalVector_,
+            typedToken.has_value() ? std::optional(FormatToken(*typedToken)) : std::nullopt,
+            FlushIndex_);
 
         YT_VERIFY(!typedToken.has_value() || typedToken->FlushIndex == FlushIndex_);
 
@@ -261,9 +257,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobSizeTrackerPtr CreateJobSizeTracker(TResourceVector limitVector, TJobSizeTrackerOptions options, const TLogger& logger)
+} // namespace
+
+std::unique_ptr<IJobSizeTracker> CreateJobSizeTracker(
+    TResourceVector limitVector,
+    TJobSizeTrackerOptions options,
+    const TLogger& logger)
 {
-    return New<TJobSizeTracker>(limitVector, std::move(options), logger);
+    return std::make_unique<TJobSizeTracker>(limitVector, std::move(options), logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
