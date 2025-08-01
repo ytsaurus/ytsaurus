@@ -61,6 +61,7 @@ public:
 
 private:
     NClusterNode::IBootstrap* const Bootstrap_;
+    const bool SetMinimumMemberPriority_ = false;
     // Fields from bootstrap.
     const NRpc::IAuthenticatorPtr Authenticator_;
     const NApi::NNative::IConnectionPtr Connection_;
@@ -304,6 +305,11 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
 
         ClusterThrottlersConfig_ = std::move(newConfig);
 
+        if (SetMinimumMemberPriority_) {
+            // The higher the value, the lower the priority.
+            ClusterThrottlersConfig_->DistributedThrottler->MemberPriority = std::numeric_limits<i64>::max();
+        }
+
         ClusterThrottlersConfigUpdater_->SetPeriod(ClusterThrottlersConfig_->UpdatePeriod);
 
         if (NeedDistributedThrottlerFactory(ClusterThrottlersConfig_)) {
@@ -472,6 +478,7 @@ TThrottlerManager::TThrottlerManager(
     NClusterNode::IBootstrap* bootstrap,
     TThrottlerManagerOptions options)
     : Bootstrap_(bootstrap)
+    , SetMinimumMemberPriority_(std::count(Bootstrap_->GetConfig()->Tags.begin(), Bootstrap_->GetConfig()->Tags.end(), "cloud"))
     , Authenticator_(std::move(Bootstrap_->GetNativeAuthenticator()))
     , Connection_(Bootstrap_->GetConnection())
     , Client_(Connection_->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName)))
