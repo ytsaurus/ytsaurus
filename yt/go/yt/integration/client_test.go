@@ -20,9 +20,10 @@ func NewSuite(t *testing.T) *Suite {
 }
 
 type ClientTest struct {
-	Name    string
-	Test    func(ctx context.Context, t *testing.T, yc yt.Client)
-	SkipRPC bool
+	Name     string
+	Test     func(ctx context.Context, t *testing.T, yc yt.Client)
+	SkipRPC  bool
+	SkipHTTP bool
 }
 
 func (s *Suite) RunClientTests(t *testing.T, tests []ClientTest) {
@@ -38,14 +39,16 @@ func (s *Suite) RunClientTests(t *testing.T, tests []ClientTest) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, test := range tests {
-				if tc.name == "rpc" && test.SkipRPC {
-					t.Skip("rpc test is skipped")
-				} else {
-					t.Run(test.Name, func(t *testing.T) {
-						ctx := ctxlog.WithFields(s.Ctx, log.String("subtest_name", t.Name()))
-						test.Test(ctx, t, tc.client)
-					})
+				skip := (tc.name == "rpc" && test.SkipRPC) ||
+					(tc.name == "http" && test.SkipHTTP)
+				if skip {
+					continue
 				}
+
+				t.Run(test.Name, func(t *testing.T) {
+					ctx := ctxlog.WithFields(s.Ctx, log.String("subtest_name", t.Name()))
+					test.Test(ctx, t, tc.client)
+				})
 			}
 		})
 	}
