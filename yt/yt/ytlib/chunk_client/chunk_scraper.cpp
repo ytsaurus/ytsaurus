@@ -78,8 +78,6 @@ public:
     //! Starts periodic polling.
     void Start()
     {
-        // YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(SerializedInvoker_);
-
         YT_LOG_DEBUG(
             "Starting scraper task (ChunkCount: %v)",
             ChunkIds_.size());
@@ -90,8 +88,6 @@ public:
     //! Stops periodic polling.
     void Stop()
     {
-        // YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(SerializedInvoker_);
-
         YT_LOG_DEBUG(
             "Stopping scraper task (ChunkCount: %v)",
             ChunkIds_.size());
@@ -120,9 +116,10 @@ private:
 
     int NextChunkIndex_ = 0;
 
-
     TFuture<void> LocateChunksAsync()
     {
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(SerializedInvoker_);
+
         auto chunkCount = std::min<int>(ChunkIds_.size(), Config_->MaxChunksPerRequest);
 
         if (chunkCount == 0) {
@@ -136,11 +133,6 @@ private:
     {
         YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(SerializedInvoker_);
 
-        DoLocateChunks();
-    }
-
-    void DoLocateChunks()
-    {
         if (NextChunkIndex_ >= std::ssize(ChunkIds_)) {
             NextChunkIndex_ = 0;
         }
@@ -209,9 +201,10 @@ private:
             });
         }
 
-        [[maybe_unused]] auto mergeResult = WaitFor(
-            BIND([rsp = std::move(rsp), nodeDirectory = NodeDirectory_] { nodeDirectory->MergeFrom(rsp->node_directory()); })
-                .AsyncVia(HeavyInvoker_)());
+        WaitFor(BIND([this, rsp = std::move(rsp)] { NodeDirectory_->MergeFrom(rsp->node_directory()); })
+            .AsyncVia(HeavyInvoker_)
+            .Run())
+            .ThrowOnError();
 
         YT_LOG_DEBUG(
             "Chunks located (Count: %v, MissingCount: %v, SampleChunkIds: %v)",
@@ -263,8 +256,6 @@ TChunkScraper::~TChunkScraper()
 
 void TChunkScraper::Start()
 {
-    // YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(SerializedInvoker_);
-
     for (const auto& task : ScraperTasks_) {
         task.Impl->Start();
     }
@@ -272,8 +263,6 @@ void TChunkScraper::Start()
 
 void TChunkScraper::Stop()
 {
-    // YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(SerializedInvoker_);
-
     for (const auto& task : ScraperTasks_) {
         task.Impl->Stop();
     }
