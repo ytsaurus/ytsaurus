@@ -1,20 +1,18 @@
 #include "sorted_staging_area.h"
 
-#include "input_stream.h"
-#include "job_size_tracker.h"
 #include "new_job_manager.h"
 
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/core/misc/heap.h>
 
-#include <library/cpp/iterator/functools.h>
+#include <util/generic/adaptor.h>
 
 namespace NYT::NChunkPools {
 
 using namespace NChunkClient;
-using namespace NTableClient;
 using namespace NLogging;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -124,8 +122,156 @@ using namespace NLogging;
 // by an inclusive lower bound of a primary slice A), but this does not actually affect
 // any logic.
 
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Structure holding data slices for one of primary domains with their aggregated statistics.
+class TPrimaryDomain
+{
+public:
+    TLogger Logger;
+
+    DEFINE_BYVAL_RO_PROPERTY(TKeyBound, UpperBound);
+    DEFINE_BYVAL_RO_PROPERTY(TResourceVector, Statistics);
+
+public:
+    TPrimaryDomain(TStringBuf kind, const TLogger& logger, const TComparator& comparator)
+        : Logger(logger.WithTag("Domain: %v", kind))
+        , Comparator_(comparator)
+    { }
+
+    bool IsEmpty() const
+    {
+        YT_VERIFY(Statistics_.IsZero() == DataSlices_.empty());
+        return Statistics_.IsZero();
+    }
+
+    void PushBack(TLegacyDataSlicePtr dataSlice)
+    {
+        UpdateUpperBound(dataSlice->UpperLimit().KeyBound);
+
+        YT_LOG_TRACE("Pushing to domain back (DataSlice: %v)", GetDataSliceDebugString(dataSlice));
+        Statistics_ += TResourceVector::FromDataSlice(dataSlice, /*isPrimary*/ true);
+        DataSlices_.push_back(std::move(dataSlice));
+    }
+
+    void PushFront(TLegacyDataSlicePtr dataSlice)
+    {
+        UpdateUpperBound(dataSlice->UpperLimit().KeyBound);
+
+        YT_LOG_TRACE("Pushing to domain front (DataSlice: %v)", GetDataSliceDebugString(dataSlice));
+        Statistics_ += TResourceVector::FromDataSlice(dataSlice, /*isPrimary*/ true);
+        DataSlices_.push_front(std::move(dataSlice));
+    }
+
+    std::deque<TLegacyDataSlicePtr> ExtractDataSlicesAndClear()
+    {
+        Statistics_ = TResourceVector();
+        UpperBound_ = TKeyBound();
+        return std::exchange(DataSlices_, {});
+    }
+
+private:
+    const TComparator& Comparator_;
+    std::deque<TLegacyDataSlicePtr> DataSlices_;
+
+    void UpdateUpperBound(TKeyBound upperBound)
+    {
+        if (!UpperBound_ || Comparator_.CompareKeyBounds(UpperBound_, upperBound) < 0) {
+            UpperBound_ = upperBound;
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Similar to previous, but for foreign data slices.
+class TForeignDomain
+{
+public:
+    DEFINE_BYVAL_RO_PROPERTY(TResourceVector, Statistics);
+
+    //! Per-stream queue of data slices.
+    DEFINE_BYREF_RO_PROPERTY(std::vector<std::deque<TLegacyDataSlicePtr>>, StreamIndexToDataSlices);
+
+public:
+    explicit TForeignDomain(const TComparator& foreignComparator)
+        : ForeignComparator_(foreignComparator)
+    { }
+
+    //! Returns smallest data slice according to comparator or nullptr if empty.
+    TLegacyDataSlicePtr Front() const
+    {
+        return StreamHeap_.empty() ? nullptr : StreamIndexToDataSlices_[StreamHeap_.front()].front();
+    }
+
+    void AddDataSlice(TLegacyDataSlicePtr dataSlice)
+    {
+        int streamIndex = dataSlice->GetInputStreamIndex();
+        if (streamIndex >= std::ssize(StreamIndexToDataSlices_)) {
+            StreamIndexToDataSlices_.resize(streamIndex + 1);
+        }
+
+        bool wasEmpty = StreamIndexToDataSlices_[streamIndex].empty();
+        Statistics_ += TResourceVector::FromDataSlice(dataSlice, /*isPrimary*/ false);
+
+        StreamIndexToDataSlices_[streamIndex].push_back(std::move(dataSlice));
+
+        if (wasEmpty) {
+            AddToHeap(streamIndex);
+        }
+    }
+
+    void Pop()
+    {
+        YT_VERIFY(!StreamHeap_.empty());
+        int streamIndex = StreamHeap_.front();
+        auto& dataSlices = StreamIndexToDataSlices_[streamIndex];
+        Statistics_ -= TResourceVector::FromDataSlice(dataSlices.front(), /*isPrimary*/ false);
+        PopFromHeap();
+        dataSlices.pop_front();
+        if (!dataSlices.empty()) {
+            AddToHeap(streamIndex);
+        }
+    }
+
+private:
+    //! Heap of stream indices ordered by front data slice upper bounds.
+    //! Empty streams are not present in the heap.
+    std::vector<int> StreamHeap_;
+    const TComparator& ForeignComparator_;
+
+    auto GetStreamComparator() const
+    {
+        return [this] (int lhsIndex, int rhsIndex) {
+            YT_VERIFY(lhsIndex < std::ssize(StreamIndexToDataSlices_));
+            YT_VERIFY(!StreamIndexToDataSlices_[lhsIndex].empty());
+            const auto& lhsDataSlice = StreamIndexToDataSlices_[lhsIndex].front();
+            YT_VERIFY(rhsIndex < std::ssize(StreamIndexToDataSlices_));
+            YT_VERIFY(!StreamIndexToDataSlices_[rhsIndex].empty());
+            const auto& rhsDataSlice = StreamIndexToDataSlices_[rhsIndex].front();
+            return ForeignComparator_.CompareKeyBounds(lhsDataSlice->UpperLimit().KeyBound, rhsDataSlice->UpperLimit().KeyBound) < 0;
+        };
+    }
+
+    void AddToHeap(int streamIndex)
+    {
+        StreamHeap_.push_back(streamIndex);
+        AdjustHeapBack(StreamHeap_.begin(), StreamHeap_.end(), GetStreamComparator());
+    }
+
+    void PopFromHeap()
+    {
+        ExtractHeap(StreamHeap_.begin(), StreamHeap_.end(), GetStreamComparator());
+        StreamHeap_.pop_back();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! This class is responsible for holding the current "working set" of data slices.
-class TSortedStagingArea
+class TSortedStagingArea final
     : public ISortedStagingArea
 {
 public:
@@ -147,12 +293,11 @@ public:
         , MainDomain_("Main", logger, PrimaryComparator_)
         , BufferDomain_("Buffer", logger, PrimaryComparator_)
         , ForeignDomain_(ForeignComparator_)
+        , SolidDomain_(!EnableKeyGuarantee_
+            ? std::make_optional<TPrimaryDomain>("Solid", Logger, PrimaryComparator_)
+            : std::nullopt)
     {
         YT_LOG_DEBUG("Staging area instantiated");
-
-        if (!EnableKeyGuarantee_) {
-            SolidDomain_ = TPrimaryDomain("Solid", logger, PrimaryComparator_);
-        }
     }
 
     void PromoteUpperBound(TKeyBound newUpperBound) override
@@ -183,7 +328,8 @@ public:
                     dataSlice->LowerLimit().KeyBound == UpperBound_.Invert() ||
                     (dataSlice->LowerLimit().KeyBound.IsInclusive &&
                     dataSlice->LowerLimit().KeyBound == UpperBound_.Invert().ToggleInclusiveness()));
-                SolidDomain_.PushBack(std::move(dataSlice));
+                YT_VERIFY(SolidDomain_.has_value());
+                SolidDomain_->PushBack(std::move(dataSlice));
                 break;
             case ESliceType::Foreign:
                 ForeignDomain_.AddDataSlice(std::move(dataSlice));
@@ -225,12 +371,10 @@ public:
             GetStatisticsDebugString());
 
         // Make a sanity check that Main domain is empty.
-        YT_VERIFY(MainDomain_.DataSlices.empty());
-        YT_VERIFY(MainDomain_.Statistics.IsZero());
+        YT_VERIFY(MainDomain_.IsEmpty());
     }
 
-    //! Called at the end of processing to flush all remaining data slices into jobs.
-    void Finish() override
+    std::vector<TNewJobStub> Finish() && override
     {
         YT_LOG_TRACE("Finishing work in staging area");
 
@@ -238,14 +382,10 @@ public:
 
         Flush();
         for (const auto& domain : {MainDomain_, BufferDomain_}) {
-            YT_VERIFY(domain.DataSlices.empty());
-            YT_VERIFY(domain.Statistics.IsZero());
+            YT_VERIFY(domain.IsEmpty());
         }
-    }
-
-    std::vector<TNewJobStub>& PreparedJobs() override
-    {
-        return PreparedJobs_;
+        YT_VERIFY(!SolidDomain_.has_value() || SolidDomain_->IsEmpty());
+        return std::move(PreparedJobs_);
     }
 
     //! Total number of data slices in all created jobs.
@@ -258,23 +398,28 @@ public:
     TKeyBound GetPrimaryUpperBound() const override
     {
         TKeyBound upperBound = UpperBound_;
-        for (const auto* domain : {&MainDomain_, &BufferDomain_, &SolidDomain_}) {
-            if (auto domainUpperBound = domain->GetUpperBound()) {
+        auto updateUpperBound = [&] (auto domainUpperBound) {
+            if (domainUpperBound) {
                 upperBound = PrimaryComparator_.WeakerKeyBound(upperBound, domainUpperBound);
             }
+        };
+        updateUpperBound(MainDomain_.GetUpperBound());
+        updateUpperBound(BufferDomain_.GetUpperBound());
+        if (SolidDomain_.has_value()) {
+            updateUpperBound(SolidDomain_->GetUpperBound());
         }
         return upperBound;
     }
 
     TResourceVector GetForeignResourceVector() const override
     {
-        return ForeignDomain_.Statistics;
+        return ForeignDomain_.GetStatistics();
     }
 
 private:
     const bool EnableKeyGuarantee_;
-    TComparator PrimaryComparator_;
-    TComparator ForeignComparator_;
+    const TComparator PrimaryComparator_;
+    const TComparator ForeignComparator_;
     const i64 MaxTotalDataSliceCount_;
     const TRowBufferPtr RowBuffer_;
     TLogger Logger;
@@ -295,168 +440,26 @@ private:
     //! Previous job upper bound, used for internal sanity check.
     TKeyBound PreviousJobUpperBound_ = TKeyBound::MakeEmpty(/*isUpper*/ true);
 
-    //! Structure holding data slices for one of primary domains with their aggregated statistics.
-    class TPrimaryDomain
-    {
-    public:
-        TResourceVector Statistics;
-        std::deque<TLegacyDataSlicePtr> DataSlices;
-        TLogger Logger;
-
-        DEFINE_BYVAL_RO_PROPERTY(TKeyBound, UpperBound);
-
-    public:
-        TPrimaryDomain()
-            : Enabled_(false)
-        { }
-
-        TPrimaryDomain(TStringBuf kind, const TLogger& logger, TComparator comparator)
-            : Logger(logger.WithTag("Domain: %v", kind))
-            , Comparator_(std::move(comparator))
-            , Enabled_(true)
-        { }
-
-        bool IsEmpty() const
-        {
-            return Statistics.IsZero();
-        }
-
-        void PushBack(TLegacyDataSlicePtr dataSlice)
-        {
-            YT_VERIFY(Enabled_);
-
-            UpdateUpperBound(dataSlice->UpperLimit().KeyBound);
-
-            YT_LOG_TRACE("Pushing to domain back (DataSlice: %v)", GetDataSliceDebugString(dataSlice));
-            Statistics += TResourceVector::FromDataSlice(dataSlice, /*isPrimary*/ true);
-            DataSlices.push_back(std::move(dataSlice));
-        }
-
-        void PushFront(TLegacyDataSlicePtr dataSlice)
-        {
-            YT_VERIFY(Enabled_);
-
-            UpdateUpperBound(dataSlice->UpperLimit().KeyBound);
-
-            YT_LOG_TRACE("Pushing to domain front (DataSlice: %v)", GetDataSliceDebugString(dataSlice));
-            Statistics += TResourceVector::FromDataSlice(dataSlice, /*isPrimary*/ true);
-            DataSlices.push_front(std::move(dataSlice));
-        }
-
-        void Clear()
-        {
-            Statistics = TResourceVector();
-            DataSlices.clear();
-            UpperBound_ = TKeyBound();
-        }
-
-    private:
-        TComparator Comparator_;
-        bool Enabled_;
-
-        void UpdateUpperBound(TKeyBound upperBound)
-        {
-            if (!UpperBound_ || Comparator_.CompareKeyBounds(UpperBound_, upperBound) < 0) {
-                UpperBound_ = upperBound;
-            }
-        }
-    };
-
-    //! Similar to previous, but for foreign data slices.
-    struct TForeignDomain
-    {
-        TResourceVector Statistics;
-
-        //! Per-stream queue of data slices.
-        std::vector<std::deque<TLegacyDataSlicePtr>> StreamIndexToDataSlices;
-
-        using TStreamIndex = int;
-
-        //! Heap of stream indices ordered by front data slice upper bounds.
-        //! Empty streams are not present in the heap.
-        std::vector<TStreamIndex> StreamHeap;
-        std::function<bool(int, int)> Comparator;
-
-        explicit TForeignDomain(const TComparator& foreignComparator)
-            : Comparator([&foreignComparator, this] (int lhsIndex, int rhsIndex) {
-                YT_VERIFY(lhsIndex < std::ssize(StreamIndexToDataSlices));
-                YT_VERIFY(!StreamIndexToDataSlices[lhsIndex].empty());
-                const auto& lhsDataSlice = StreamIndexToDataSlices[lhsIndex].front();
-                YT_VERIFY(rhsIndex < std::ssize(StreamIndexToDataSlices));
-                YT_VERIFY(!StreamIndexToDataSlices[rhsIndex].empty());
-                const auto& rhsDataSlice = StreamIndexToDataSlices[rhsIndex].front();
-
-                return foreignComparator.CompareKeyBounds(lhsDataSlice->UpperLimit().KeyBound, rhsDataSlice->UpperLimit().KeyBound) < 0;
-            })
-        { }
-
-        void AddDataSlice(TLegacyDataSlicePtr dataSlice)
-        {
-            auto streamIndex = dataSlice->GetInputStreamIndex();
-            if (streamIndex >= std::ssize(StreamIndexToDataSlices)) {
-                StreamIndexToDataSlices.resize(streamIndex + 1);
-            }
-
-            bool wasEmpty = StreamIndexToDataSlices[streamIndex].empty();
-            Statistics += TResourceVector::FromDataSlice(dataSlice, /*isPrimary*/ false);
-
-            StreamIndexToDataSlices[streamIndex].push_back(std::move(dataSlice));
-
-            if (wasEmpty) {
-                StreamHeap.push_back(streamIndex);
-                AdjustHeapBack(StreamHeap.begin(), StreamHeap.end(), Comparator);
-            }
-        }
-
-        //! Returns smallest data slice according to comparator or nullptr if empty.
-        TLegacyDataSlicePtr Front() const
-        {
-            return StreamHeap.empty() ? nullptr : StreamIndexToDataSlices[StreamHeap.front()].front();
-        }
-
-        void Pop()
-        {
-            YT_VERIFY(!StreamHeap.empty());
-            auto streamIndex = StreamHeap.front();
-            auto& dataSlices = StreamIndexToDataSlices[streamIndex];
-            Statistics -= TResourceVector::FromDataSlice(dataSlices.front(), /*isPrimary*/ false);
-            ExtractHeap(StreamHeap.begin(), StreamHeap.end(), Comparator);
-            StreamHeap.pop_back();
-            dataSlices.pop_front();
-            if (!dataSlices.empty()) {
-                StreamHeap.push_back(streamIndex);
-                AdjustHeapBack(StreamHeap.begin(), StreamHeap.end(), Comparator);
-            }
-        }
-    };
-
     TPrimaryDomain MainDomain_;
-    TPrimaryDomain SolidDomain_;
     TPrimaryDomain BufferDomain_;
     TForeignDomain ForeignDomain_;
-    std::vector<TLegacyDataSlicePtr> NonSolidMainDataSlices_;
+    std::optional<TPrimaryDomain> SolidDomain_;
 
-    TResourceVector GetTotalStatistics() const
-    {
-        return
-            MainDomain_.Statistics +
-            SolidDomain_.Statistics +
-            BufferDomain_.Statistics +
-            ForeignDomain_.Statistics;
-    }
+    std::vector<TLegacyDataSlicePtr> NonSolidMainDataSlices_;
 
     TString GetStatisticsDebugString() const
     {
-        std::vector<TString> parts;
-        parts.emplace_back(Format("Main: %v", MainDomain_.Statistics));
-        parts.emplace_back(Format("Buffer: %v", BufferDomain_.Statistics));
-        return Format("{%v}", JoinToString(parts, TStringBuf(", ")));
+        return Format(
+            "{Main: %v, Buffer: %v, Solid: %v}",
+            MainDomain_.GetStatistics(),
+            BufferDomain_.GetStatistics(),
+            SolidDomain_.has_value() ? std::optional(SolidDomain_->GetStatistics()) : std::nullopt);
     }
 
     //! Check if we have at least one data slice to build job right now.
     bool IsExhausted() const
     {
-        return MainDomain_.IsEmpty() && SolidDomain_.IsEmpty();
+        return MainDomain_.IsEmpty() && (!SolidDomain_.has_value() || SolidDomain_->IsEmpty());
     }
 
     void CutNonSolidMainByUpperBound()
@@ -499,7 +502,7 @@ private:
 
         for (auto& dataSlice : Reversed(toBuffer)) { // line (2)
             auto& destinationDomain = PrimaryComparator_.IsInteriorEmpty(dataSlice->LowerLimit().KeyBound, dataSlice->UpperLimit().KeyBound) && !EnableKeyGuarantee_
-                ? SolidDomain_
+                ? *SolidDomain_
                 : BufferDomain_;
             destinationDomain.PushFront(std::move(dataSlice)); // line (1)
         }
@@ -509,24 +512,27 @@ private:
     {
         // NB: It is important to transfer singletons before non-singletons;
         // otherwise we would violate slice order guarantee.
-        for (auto& dataSlice : BufferDomain_.DataSlices) {
+        auto dataSlices = BufferDomain_.ExtractDataSlicesAndClear();
+        for (auto& dataSlice : dataSlices) {
             YT_VERIFY(dataSlice->LowerLimit().KeyBound == UpperBound_.Invert());
             NonSolidMainDataSlices_.push_back(dataSlice);
             MainDomain_.PushBack(std::move(dataSlice));
         }
-        BufferDomain_.Clear();
     }
 
     void TransferSolidToMain()
     {
-        for (const auto& dataSlice : SolidDomain_.DataSlices) {
+        if (!SolidDomain_.has_value()) {
+            return;
+        }
+        auto dataSlices = SolidDomain_->ExtractDataSlicesAndClear();
+        for (const auto& dataSlice : dataSlices) {
             YT_VERIFY(
                 dataSlice->LowerLimit().KeyBound == UpperBound_.Invert() ||
                 (dataSlice->LowerLimit().KeyBound.IsInclusive &&
                 dataSlice->LowerLimit().KeyBound == UpperBound_.Invert().ToggleInclusiveness()));
             MainDomain_.PushBack(std::move(dataSlice));
         }
-        SolidDomain_.Clear();
     }
 
     void ValidateCurrentJobBounds(TKeyBound actualLowerBound, TKeyBound actualUpperBound) const
@@ -589,19 +595,19 @@ private:
 
         YT_LOG_TRACE(
             "Flushing main and solid domains into job (MainStatistics: %v, SolidStatistics: %v)",
-            MainDomain_.Statistics,
-            SolidDomain_.Statistics);
+            MainDomain_.GetStatistics(),
+            SolidDomain_.has_value() ? SolidDomain_->GetStatistics() : TResourceVector());
 
         // Calculate the actual lower and upper bounds of newly formed job and move data slices to the job.
         auto actualLowerBound = TKeyBound::MakeEmpty(/*isUpper*/ false);
         auto actualUpperBound = TKeyBound::MakeEmpty(/*isUpper*/ true);
 
-        for (auto* domain : {&MainDomain_, &SolidDomain_}) {
-            for (auto& dataSlice : domain->DataSlices) {
+        auto flushDomain = [&] (auto& domain) {
+            for (auto& dataSlice : domain.ExtractDataSlicesAndClear()) {
                 actualLowerBound = PrimaryComparator_.WeakerKeyBound(dataSlice->LowerLimit().KeyBound, actualLowerBound);
                 actualUpperBound = PrimaryComparator_.WeakerKeyBound(dataSlice->UpperLimit().KeyBound, actualUpperBound);
                 YT_VERIFY(dataSlice->Tag);
-                const auto& Logger = domain->Logger;
+                const auto& Logger = domain.Logger;
                 if (!PrimaryComparator_.IsRangeEmpty(dataSlice->LowerLimit().KeyBound, dataSlice->UpperLimit().KeyBound)) {
                     auto tag = *dataSlice->Tag;
                     job.AddDataSlice(std::move(dataSlice), tag, /*isPrimary*/ true);
@@ -614,10 +620,12 @@ private:
                         GetDataSliceDebugString(dataSlice));
                 }
             }
-        }
+        };
 
-        MainDomain_.Clear();
-        SolidDomain_.Clear();
+        flushDomain(MainDomain_);
+        if (SolidDomain_.has_value()) {
+            flushDomain(*SolidDomain_);
+        }
 
         if (job.GetPrimarySliceCount() == 0) {
             YT_VERIFY(PrimaryComparator_.IsRangeEmpty(actualLowerBound, actualUpperBound));
@@ -632,7 +640,7 @@ private:
         // Perform sanity checks and prepare information for the next sanity check.
         ValidateCurrentJobBounds(actualLowerBound, actualUpperBound);
         PreviousJobUpperBound_ = UpperBound_;
-        PreviousJobContainedSolidSlices_ = SolidDomain_.Statistics.IsZero();
+        PreviousJobContainedSolidSlices_ = SolidDomain_.has_value() ? SolidDomain_->IsEmpty() : false;
 
         // Now trim foreign data slices. First of all, shorten actual lower and upper bounds
         // in order to respect the foreign comparator length.
@@ -646,7 +654,7 @@ private:
         // Also, recall that TrimForeignSlices provides us with a guarantee that none of data slices is located
         // to the left of job's range.
         TResourceVector foreignStatistics;
-        for (const auto& dataSlices : ForeignDomain_.StreamIndexToDataSlices) {
+        for (const auto& dataSlices : ForeignDomain_.StreamIndexToDataSlices()) {
             for (const auto& dataSlice : dataSlices) {
                 if (!ForeignComparator_.IsRangeEmpty(dataSlice->LowerLimit().KeyBound, shortenedActualUpperBound)) {
                     YT_VERIFY(dataSlice->Tag);
@@ -684,9 +692,11 @@ private:
     }
 };
 
+} // namespace
+
 ////////////////////////////////////////////////////////////////////////////////
 
-ISortedStagingAreaPtr CreateSortedStagingArea(
+std::unique_ptr<ISortedStagingArea> CreateSortedStagingArea(
     bool enableKeyGuarantee,
     TComparator primaryComparator,
     TComparator foreignComparator,
@@ -695,7 +705,7 @@ ISortedStagingAreaPtr CreateSortedStagingArea(
     i64 maxTotalDataSliceCount,
     const TLogger& logger)
 {
-    return New<TSortedStagingArea>(
+    return std::make_unique<TSortedStagingArea>(
         enableKeyGuarantee,
         std::move(primaryComparator),
         std::move(foreignComparator),
