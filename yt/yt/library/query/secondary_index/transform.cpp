@@ -108,14 +108,14 @@ struct TTableReferenceReplacer
     using TBase = TRewriter<TTableReferenceReplacer>;
 
     const THashSet<TStringBuf>& ReplacedColumns;
-    const std::optional<TString>& OldAlias;
-    const std::optional<TString>& NewAlias;
+    const std::optional<std::string>& OldAlias;
+    const std::optional<std::string>& NewAlias;
 
     TTableReferenceReplacer(
         TObjectsHolder* head,
         const THashSet<TStringBuf>& replacedColumns,
-        const std::optional<TString>& oldAlias,
-        const std::optional<TString>& newAlias)
+        const std::optional<std::string>& oldAlias,
+        const std::optional<std::string>& newAlias)
         : TBase(head)
         , ReplacedColumns(replacedColumns)
         , OldAlias(oldAlias)

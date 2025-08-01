@@ -609,10 +609,10 @@ struct TExpressionPrinter
     { }
 };
 
-TString InferName(TConstExpressionPtr expr, bool omitValues)
+std::string InferName(TConstExpressionPtr expr, bool omitValues)
 {
     if (!expr) {
-        return TString();
+        return std::string();
     }
     TStringBuilder builder;
     TExpressionPrinter expressionPrinter(&builder, omitValues);
@@ -620,7 +620,7 @@ TString InferName(TConstExpressionPtr expr, bool omitValues)
     return builder.Flush();
 }
 
-TString InferName(TConstBaseQueryPtr query, TInferNameOptions options)
+std::string InferName(TConstBaseQueryPtr query, TInferNameOptions options)
 {
     auto namedItemFormatter = [&] (TStringBuilderBase* builder, const TNamedItem& item) {
         builder->AppendString(InferName(item.Expression, options.OmitValues));
@@ -635,8 +635,8 @@ TString InferName(TConstBaseQueryPtr query, TInferNameOptions options)
             item.Descending ? "DESC" : "ASC");
     };
 
-    std::vector<TString> clauses;
-    TString str;
+    std::vector<std::string> clauses;
+    std::string str;
 
     if (query->ProjectClause) {
         str = JoinToString(query->ProjectClause->Projections, namedItemFormatter);
@@ -649,7 +649,7 @@ TString InferName(TConstBaseQueryPtr query, TInferNameOptions options)
     if (auto derivedQuery = dynamic_cast<const TQuery*>(query.Get())) {
         for (const auto& joinClause : derivedQuery->JoinClauses) {
             if (!joinClause->ArrayExpressions.empty()) {
-                std::vector<TString> arrayExpressions;
+                std::vector<std::string> arrayExpressions;
                 for (const auto& expression : joinClause->ArrayExpressions) {
                     arrayExpressions.push_back(InferName(expression, options.OmitValues));
                 }
@@ -658,11 +658,11 @@ TString InferName(TConstBaseQueryPtr query, TInferNameOptions options)
                     joinClause->IsLeft ? "LEFT" : "",
                     JoinToString(arrayExpressions)));
             } else {
-                std::vector<TString> selfJoinEquation;
+                std::vector<std::string> selfJoinEquation;
                 for (const auto& equation : joinClause->SelfEquations) {
                     selfJoinEquation.push_back(InferName(equation.Expression, options.OmitValues));
                 }
-                std::vector<TString> foreignJoinEquation;
+                std::vector<std::string> foreignJoinEquation;
                 for (const auto& equation : joinClause->ForeignEquations) {
                     foreignJoinEquation.push_back(InferName(equation, options.OmitValues));
                 }
@@ -682,7 +682,7 @@ TString InferName(TConstBaseQueryPtr query, TInferNameOptions options)
         }
 
         if (derivedQuery->WhereClause) {
-            clauses.push_back(TString("WHERE ") + InferName(derivedQuery->WhereClause, options.OmitValues));
+            clauses.push_back(std::string("WHERE ") + InferName(derivedQuery->WhereClause, options.OmitValues));
         }
     }
 
@@ -700,19 +700,19 @@ TString InferName(TConstBaseQueryPtr query, TInferNameOptions options)
     }
 
     if (query->HavingClause) {
-        clauses.push_back(TString("HAVING ") + InferName(query->HavingClause, options.OmitValues));
+        clauses.push_back(std::string("HAVING ") + InferName(query->HavingClause, options.OmitValues));
         if (query->GroupClause->TotalsMode == ETotalsMode::AfterHaving) {
             clauses.push_back("WITH TOTALS");
         }
     }
 
     if (query->OrderClause) {
-        clauses.push_back(TString("ORDER BY ") + JoinToString(query->OrderClause->OrderItems, orderItemFormatter));
+        clauses.push_back(std::string("ORDER BY ") + JoinToString(query->OrderClause->OrderItems, orderItemFormatter));
     }
 
     if (query->Limit < std::numeric_limits<i64>::max()) {
-        clauses.push_back(TString("OFFSET ") + (options.OmitValues ? "?" : ToString(query->Offset)));
-        clauses.push_back(TString("LIMIT ") + (options.OmitValues ? "?" : ToString(query->Limit)));
+        clauses.push_back(std::string("OFFSET ") + (options.OmitValues ? "?" : ToString(query->Offset)));
+        clauses.push_back(std::string("LIMIT ") + (options.OmitValues ? "?" : ToString(query->Limit)));
     }
 
     return JoinToString(clauses, TStringBuf(" "));

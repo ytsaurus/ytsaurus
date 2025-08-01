@@ -21,13 +21,13 @@ public:
 
     std::vector<ui64> RandomValues = GenerateRandomValues();
 
-    static const TString Letters;
+    static const std::string Letters;
 
-    TString GenerateExpression2();
+    std::string GenerateExpression2();
 
     int GetExponentialDistribution(int power);
 
-    TString GenerateRelation(int tupleSize);
+    std::string GenerateRelation(int tupleSize);
 
     TRow GenerateRandomRow(int keyColumnCount);
 
@@ -36,25 +36,25 @@ private:
 
     std::vector<int> GenerateRandomFieldIds(int size);
 
-    TString GenerateFieldTuple(TRange<int> ids);
+    std::string GenerateFieldTuple(TRange<int> ids);
 
-    TString GenerateLiteralTuple(TRange<int> ids);
+    std::string GenerateLiteralTuple(TRange<int> ids);
 
-    TString GenerateRandomLiteral(EValueType type);
+    std::string GenerateRandomLiteral(EValueType type);
 
     TUnversionedValue GenerateRandomUnversionedLiteral(EValueType type);
 
     ui64 GenerateInt();
 
-    TString GenerateRelation(TRange<int> ids);
+    std::string GenerateRelation(TRange<int> ids);
 
-    TString GenerateRelation(TRange<int> ids, const char* reationOp);
+    std::string GenerateRelation(TRange<int> ids, const char* reationOp);
 
-    TString RowToLiteralTuple(TUnversionedRow row);
+    std::string RowToLiteralTuple(TUnversionedRow row);
 
-    TString GenerateContinuationToken(int keyColumnCount);
+    std::string GenerateContinuationToken(int keyColumnCount);
 
-    TString GenerateRelationOrContinuationToken();
+    std::string GenerateRelationOrContinuationToken();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

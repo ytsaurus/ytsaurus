@@ -67,7 +67,7 @@ bool IsRe2SpecialCharacter(char character)
         character == '}';
 }
 
-TString ConvertLikePatternToRegex(
+std::string ConvertLikePatternToRegex(
     TStringBuf pattern,
     EStringMatchOp matchOp,
     TStringBuf escapeCharacter,
@@ -77,7 +77,7 @@ TString ConvertLikePatternToRegex(
         if (escapeCharacterUsed) {
             THROW_ERROR_EXCEPTION("Nontrivial ESCAPE value should not be used together with REGEX (RLIKE) operators");
         }
-        return TString(pattern);
+        return std::string(pattern);
     }
 
     TStringBuilder builder;

@@ -362,7 +362,7 @@ TConstraintRef TConstraintsHolder::Invert(TConstraintRef constraints)
     return result;
 }
 
-TString ToString(const TConstraintsHolder& constraints, TConstraintRef root)
+std::string ToString(const TConstraintsHolder& constraints, TConstraintRef root)
 {
     TStringBuilder result;
 

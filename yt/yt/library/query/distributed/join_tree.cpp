@@ -14,7 +14,7 @@ using namespace NLogging;
 using namespace NObjectClient;
 using namespace NTableClient;
 
-using TTypeLookup = THashMap<TString, TLogicalTypePtr>;
+using TTypeLookup = THashMap<std::string, TLogicalTypePtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

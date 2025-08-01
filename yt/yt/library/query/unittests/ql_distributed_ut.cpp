@@ -9,6 +9,7 @@ namespace NYT::NQueryClient {
 namespace {
 
 using namespace NTableClient;
+using namespace NYPath;
 
 using NChunkClient::NProto::TDataStatistics;
 
@@ -189,7 +190,7 @@ class TQueryPrepareJoinTreeTest
     : public ::testing::Test
 {
 protected:
-    TQueryPtr Prepare(const TString& query, const std::map<TString, TDataSplit>& dataSplits)
+    TQueryPtr Prepare(TStringBuf query, const std::map<TYPath, TDataSplit>& dataSplits)
     {
         for (const auto& [name, split] : dataSplits) {
             EXPECT_CALL(PrepareMock_, GetInitialSplit(name))
@@ -225,7 +226,7 @@ TEST_F(TQueryPrepareJoinTreeTest, IndexJoinIsLeftSkewed)
         " JOIN [//Beta] USING b JOIN [//Gamma] USING c JOIN [//Delta] USING d";
     auto primary = "//Alpha";
 
-    std::map<TString, TDataSplit> splits;
+    std::map<TYPath, TDataSplit> splits;
     splits[primary] = MakeSplit({
         {"a", EValueType::Int64, ESortOrder::Ascending},
         {"b", EValueType::Int64},
@@ -267,7 +268,7 @@ TEST_F(TQueryPrepareJoinTreeTest, IndexJoinCorrectProjectionAndOrder)
         "JOIN [//Beta] ON (a1 - 1, a1 + 1, a1 * a1, a2 * 123) = (b1, b2, b3, b4)";
     auto primary = "//Alpha";
 
-    std::map<TString, TDataSplit> splits;
+    std::map<TYPath, TDataSplit> splits;
     splits[primary] = MakeSplit({
         {"a1", EValueType::Int64, ESortOrder::Ascending},
         {"a2", EValueType::Int64},
@@ -299,7 +300,7 @@ TEST_F(TQueryPrepareJoinTreeTest, IndexJoinCorrectProjectionAndOrder)
     EXPECT_EQ(alphaOrders.size(), 3ul);
 
     int index = 0;
-    for (TString col : {"a1 - 0#1", "a1 + 0#1", "a1 * a1"}) {
+    for (std::string col : {"a1 - 0#1", "a1 + 0#1", "a1 * a1"}) {
         EXPECT_EQ(InferName(alphaOrders[index].Expression), col);
         EXPECT_EQ(InferName(alphaProjections[index].Expression), col);
         index++;
@@ -322,7 +323,7 @@ TEST_F(TQueryPrepareJoinTreeTest, IndexJoinGroup)
         "LIMIT 1";
     auto primary = "//Alpha";
 
-    std::map<TString, TDataSplit> splits;
+    std::map<TYPath, TDataSplit> splits;
     splits[primary] = MakeSplit({
         {"a1", EValueType::Int64, ESortOrder::Ascending},
         {"a2", EValueType::Int64},
@@ -376,7 +377,7 @@ TEST_F(TQueryPrepareJoinTreeTest, IndexJoinEvaluatedColumns)
         "JOIN [//Beta] on (a3, a2, a1) = (b1, b2, b2_squared)";
     auto primary = "//Alpha";
 
-    std::map<TString, TDataSplit> splits;
+    std::map<TYPath, TDataSplit> splits;
     splits[primary] = MakeSplit({
         {"a1", EValueType::Int64, ESortOrder::Ascending},
         {"a2", EValueType::Int64},
@@ -417,7 +418,7 @@ TEST_F(TQueryPrepareJoinTreeTest, PredicatePushDown)
         "JOIN [//Beta] on (a1, a2) = (b1, b2) "
         "WHERE a1 = 5 and b1 != 2 and a2 + b1 > 9";
 
-    std::map<TString, TDataSplit> splits;
+    std::map<TYPath, TDataSplit> splits;
     splits["//Alpha"] = MakeSplit({
         {"a1", EValueType::Int64, ESortOrder::Ascending},
         {"a2", EValueType::Int64},
@@ -441,9 +442,9 @@ TEST_F(TQueryPrepareJoinTreeTest, PredicatePushDown)
     ASSERT_TRUE(betaQuery->WhereClause);
     ASSERT_TRUE(betaQuery->JoinClauses.front()->Predicate);
 
-    EXPECT_EQ(InferName(alphaQuery->WhereClause), TString("a1 = 0#5"));
-    EXPECT_EQ(InferName(betaQuery->JoinClauses.front()->Predicate), TString("b1 != 0#2"));
-    EXPECT_EQ(InferName(betaQuery->WhereClause), TString("a2 + b1 > 0#9"));
+    EXPECT_EQ(InferName(alphaQuery->WhereClause), std::string("a1 = 0#5"));
+    EXPECT_EQ(InferName(betaQuery->JoinClauses.front()->Predicate), std::string("b1 != 0#2"));
+    EXPECT_EQ(InferName(betaQuery->WhereClause), std::string("a2 + b1 > 0#9"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

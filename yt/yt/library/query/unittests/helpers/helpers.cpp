@@ -6,7 +6,7 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TString TRandomExpressionGenerator::Letters("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+const std::string TRandomExpressionGenerator::Letters("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
 
 int TRandomExpressionGenerator::GetExponentialDistribution(int power)
 {
@@ -56,11 +56,11 @@ std::vector<int> TRandomExpressionGenerator::GenerateRandomFieldIds(int size)
     return result;
 }
 
-TString TRandomExpressionGenerator::GenerateFieldTuple(TRange<int> ids)
+std::string TRandomExpressionGenerator::GenerateFieldTuple(TRange<int> ids)
 {
     YT_VERIFY(!ids.Empty());
 
-    TString result = ids.Size() > 1 ? "(" : "";
+    std::string result = ids.Size() > 1 ? "(" : "";
 
     bool first = true;
     for (auto id : ids) {
@@ -77,11 +77,11 @@ TString TRandomExpressionGenerator::GenerateFieldTuple(TRange<int> ids)
     return result;
 }
 
-TString TRandomExpressionGenerator::GenerateLiteralTuple(TRange<int> ids)
+std::string TRandomExpressionGenerator::GenerateLiteralTuple(TRange<int> ids)
 {
     YT_VERIFY(!ids.Empty());
 
-    TString result = ids.Size() > 1 ? "(" : "";
+    std::string result = ids.Size() > 1 ? "(" : "";
 
     bool first = true;
     for (auto id : ids) {
@@ -98,7 +98,7 @@ TString TRandomExpressionGenerator::GenerateLiteralTuple(TRange<int> ids)
     return result;
 }
 
-TString TRandomExpressionGenerator::GenerateRandomLiteral(EValueType type)
+std::string TRandomExpressionGenerator::GenerateRandomLiteral(EValueType type)
 {
     bool nullValue = Rng.Uniform(10) == 0;
     if (nullValue) {
@@ -115,7 +115,7 @@ TString TRandomExpressionGenerator::GenerateRandomLiteral(EValueType type)
             static constexpr int MaxStringLength = 10;
             auto length = Rng.Uniform(MaxStringLength);
 
-            TString result(length, '\0');
+            std::string result(length, '\0');
             for (size_t index = 0; index < length; ++index) {
                 result[index] = Letters[Rng.Uniform(Letters.size())];
             }
@@ -168,7 +168,7 @@ ui64 TRandomExpressionGenerator::GenerateInt()
     return RandomValues[Rng.Uniform(RandomValues.size())];
 }
 
-TString TRandomExpressionGenerator::GenerateRelation(int tupleSize)
+std::string TRandomExpressionGenerator::GenerateRelation(int tupleSize)
 {
     auto ids = GenerateRandomFieldIds(tupleSize);
 
@@ -178,19 +178,19 @@ TString TRandomExpressionGenerator::GenerateRelation(int tupleSize)
     return GenerateRelation(ids);
 }
 
-TString TRandomExpressionGenerator::GenerateRelation(TRange<int> ids)
+std::string TRandomExpressionGenerator::GenerateRelation(TRange<int> ids)
 {
-    const char* reationOps[] = {">", ">=", "<", "<=", "=", "!=", "IN"};
-    const char* reationOp = reationOps[Rng.Uniform(7)];
+    const char* relationOps[] = {">", ">=", "<", "<=", "=", "!=", "IN"};
+    const char* relationOp = relationOps[Rng.Uniform(7)];
 
-    return GenerateRelation(ids, reationOp);
+    return GenerateRelation(ids, relationOp);
 }
 
-TString TRandomExpressionGenerator::GenerateRelation(TRange<int> ids, const char* reationOp)
+std::string TRandomExpressionGenerator::GenerateRelation(TRange<int> ids, const char* relationOp)
 {
-    TString result = GenerateFieldTuple(ids);
-    result += Format(" %v ", reationOp);
-    if (reationOp == TString("IN")) {
+    std::string result = GenerateFieldTuple(ids);
+    result += Format(" %v ", relationOp);
+    if (relationOp == std::string("IN")) {
         result += "(";
         int tupleCount = GetExponentialDistribution(9) + 1;
         bool first = true;
@@ -211,9 +211,9 @@ TString TRandomExpressionGenerator::GenerateRelation(TRange<int> ids, const char
     return result;
 }
 
-TString TRandomExpressionGenerator::RowToLiteralTuple(TUnversionedRow row)
+std::string TRandomExpressionGenerator::RowToLiteralTuple(TUnversionedRow row)
 {
-    TString result =  "(";
+    std::string result =  "(";
     bool first = true;
     for (int columnIndex = 0; columnIndex < static_cast<int>(row.GetCount()); ++columnIndex) {
         if (!first) {
@@ -252,7 +252,7 @@ TString TRandomExpressionGenerator::RowToLiteralTuple(TUnversionedRow row)
     return result;
 }
 
-TString TRandomExpressionGenerator::GenerateContinuationToken(int keyColumnCount)
+std::string TRandomExpressionGenerator::GenerateContinuationToken(int keyColumnCount)
 {
     YT_VERIFY(keyColumnCount > 1);
     std::vector<int> ids;
@@ -260,12 +260,12 @@ TString TRandomExpressionGenerator::GenerateContinuationToken(int keyColumnCount
         ids.push_back(columnIndex);
     }
 
-    TString result = GenerateFieldTuple(ids);
+    std::string result = GenerateFieldTuple(ids);
 
-    const char* reationOps[] = {">", ">=", "<", "<="};
-    const char* reationOp = reationOps[Rng.Uniform(4)];
+    const char* relationOps[] = {">", ">=", "<", "<="};
+    const char* relationOp = relationOps[Rng.Uniform(4)];
 
-    result += Format(" %v ", reationOp);
+    result += Format(" %v ", relationOp);
     result += RowToLiteralTuple(GenerateRandomRow(keyColumnCount));
     return result;
 }
@@ -289,16 +289,16 @@ TRow TRandomExpressionGenerator::GenerateRandomRow(int keyColumnCount)
     return row;
 }
 
-TString TRandomExpressionGenerator::GenerateRelationOrContinuationToken()
+std::string TRandomExpressionGenerator::GenerateRelationOrContinuationToken()
 {
     return Rng.Uniform(4) == 0
         ? GenerateContinuationToken(GetExponentialDistribution(Schema->GetKeyColumnCount() - 2) + 2)
         : GenerateRelation(GetExponentialDistribution(3) + 1);
 }
 
-TString TRandomExpressionGenerator::GenerateExpression2()
+std::string TRandomExpressionGenerator::GenerateExpression2()
 {
-    TString result = GenerateRelationOrContinuationToken();
+    std::string result = GenerateRelationOrContinuationToken();
 
     int count = GetExponentialDistribution(5);
     for (int i = 0; i < count; ++i) {

@@ -11,7 +11,7 @@ TTypingCtx::TTypingCtx()
     FillFunctionSignatures();
 }
 
-TTypeId TTypingCtx::GetTypeId(TString name, const TLogicalTypePtr& logicalType)
+TTypeId TTypingCtx::GetTypeId(TStringBuf name, const TLogicalTypePtr& logicalType)
 {
     auto [it, emplaced] = UniqueTypes_.emplace(name, std::ssize(UniqueTypes_));
     if (emplaced) {

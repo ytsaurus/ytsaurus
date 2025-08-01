@@ -39,12 +39,12 @@ using NCodegen::EExecutionBackend;
 struct TCachedCGQueryImage
     : public TAsyncCacheValueBase<llvm::FoldingSetNodeID, TCachedCGQueryImage>
 {
-    const TString Fingerprint;
+    const std::string Fingerprint;
     const TCGQueryImage Image;
 
     TCachedCGQueryImage(
         const llvm::FoldingSetNodeID& id,
-        TString fingerprint,
+        std::string fingerprint,
         TCGQueryImage image)
         : TAsyncCacheValueBase(id)
         , Fingerprint(std::move(fingerprint))

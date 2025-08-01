@@ -27,7 +27,7 @@ struct TParsedSource
         TStringBuf source,
         NAst::TAstHead astHead);
 
-    TString Source;
+    std::string Source;
     NAst::TAstHead AstHead;
 };
 

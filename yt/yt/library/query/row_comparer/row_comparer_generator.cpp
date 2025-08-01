@@ -600,9 +600,9 @@ TCGKeyComparers GenerateComparers(TRange<EValueType> keyColumnTypes)
 
     auto cgModule = TCGModule::Create(GetComparerRoutineRegistry());
     auto builder = TComparerBuilder(cgModule, keyColumnTypes);
-    auto ddComparerName = TString("DDCompare");
-    auto duComparerName = TString("DUCompare");
-    auto uuComparerName = TString("UUCompare");
+    auto ddComparerName = std::string("DDCompare");
+    auto duComparerName = std::string("DUCompare");
+    auto uuComparerName = std::string("UUCompare");
 
     builder.BuildDDComparer(ddComparerName);
     builder.BuildDUComparer(duComparerName);
@@ -629,7 +629,7 @@ TCallback<TUUComparerSignature> GenerateStaticTableKeyComparer(TRange<EValueType
     auto cgModule = TCGModule::Create(GetComparerRoutineRegistry());
     auto builder = TComparerBuilder(cgModule, keyColumnTypes, {.UseCompareDoubleValues = true});
 
-    auto uuComparerName = TString("UUCompare");
+    auto uuComparerName = std::string("UUCompare");
     builder.BuildUUComparer(uuComparerName);
     cgModule->ExportSymbol(uuComparerName);
     return cgModule->GetCompiledFunction<TUUComparerSignature>(uuComparerName);

@@ -4,11 +4,11 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashMap<TString, TShufflePart> Shuffle(
+THashMap<std::string, TShufflePart> Shuffle(
     const TShuffleNavigator& shuffleNavigator,
     TRange<TRow> rows)
 {
-    THashMap<TString, TShufflePart> shuffle;
+    THashMap<std::string, TShufflePart> shuffle;
 
     for (const auto& [destination, ranges] : shuffleNavigator.DestinationMap) {
         std::vector<TRange<TRow>> subrangesForDestination;

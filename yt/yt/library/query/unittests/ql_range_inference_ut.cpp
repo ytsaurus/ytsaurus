@@ -1469,7 +1469,7 @@ TEST_P(TInferRangesTest, Stress)
 
     TRandomExpressionGenerator gen{schema, rowBuffer, columnEvaluator};
 
-    auto testExpression = [&] (TString expressionString) {
+    auto testExpression = [&] (TStringBuf expressionString) {
         auto expr = ParseAndPrepareExpression(expressionString, *schema);
 
         TQueryOptions options;
