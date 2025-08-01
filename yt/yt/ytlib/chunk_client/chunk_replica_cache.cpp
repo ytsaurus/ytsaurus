@@ -590,8 +590,7 @@ private:
             }
 
             const auto& idMapping = NSequoiaClient::NRecords::TChunkReplicasDescriptor::Get()->GetIdMapping();
-            YT_VERIFY(idMapping.StoredReplicas);
-            TColumnFilter columnFilter{*idMapping.StoredReplicas};
+            TColumnFilter columnFilter{idMapping.StoredReplicas};
 
             return client->LookupRows(recordKeys, columnFilter);
         }();
@@ -604,8 +603,7 @@ private:
             }
 
             const auto& idMapping = NSequoiaClient::NRecords::TUnapprovedChunkReplicasDescriptor::Get()->GetIdMapping();
-            YT_VERIFY(idMapping.StoredReplicas);
-            TColumnFilter columnFilter{*idMapping.StoredReplicas};
+            TColumnFilter columnFilter{idMapping.StoredReplicas};
 
             return client->LookupRows(recordKeys, columnFilter);
         }();
