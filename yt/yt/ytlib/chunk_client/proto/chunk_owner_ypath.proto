@@ -70,10 +70,8 @@ message TReqEndUpload
 {
     optional TDataStatistics statistics = 1;
 
-    // COMPAT(h0pless): remove this when clients will send table schema options during begin upload.
-    optional NYT.NTableClient.NProto.TTableSchemaExt table_schema = 6;
-    optional int32 schema_mode = 7; // ETableSchemaMode
-    optional NYT.NProto.TGuid table_schema_id = 14;
+    // These fields should be safe to use after 25.3.
+    reserved 6, 7, 14;
 
     optional int32 optimize_for = 8; // EOptimizeFor
     optional int32 compression_codec = 9; // NCompression::ECodec

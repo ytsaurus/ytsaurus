@@ -2461,11 +2461,6 @@ private:
         auto req = TChunkOwnerYPathProxy::EndUpload(DstObject_.GetObjectIdPath());
         *req->mutable_statistics() = DataStatistics_;
 
-        // COMPAT(h0pless): remove this when all masters are 24.2.
-        if (CommonType_ == EObjectType::Table) {
-            req->set_schema_mode(ToProto(OutputTableSchemaMode_));
-        }
-
         std::vector<TSecurityTag> inferredSecurityTags;
         for (const auto& srcObject : SrcObjects_) {
             inferredSecurityTags.insert(inferredSecurityTags.end(), srcObject.SecurityTags.begin(), srcObject.SecurityTags.end());

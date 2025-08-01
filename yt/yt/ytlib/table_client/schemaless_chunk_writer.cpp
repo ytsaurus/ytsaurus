@@ -2589,9 +2589,6 @@ void EndTableUpload(
         req->set_erasure_codec(ToProto(tableUploadOptions.ErasureCodec));
         req->set_optimize_for(ToProto(tableUploadOptions.OptimizeFor));
 
-        // COMPAT(h0pless): remove this when all masters are 24.2.
-        req->set_schema_mode(ToProto(tableUploadOptions.SchemaMode));
-
         if (tableUploadOptions.SecurityTags) {
             ToProto(req->mutable_security_tags()->mutable_items(), *tableUploadOptions.SecurityTags);
         }
