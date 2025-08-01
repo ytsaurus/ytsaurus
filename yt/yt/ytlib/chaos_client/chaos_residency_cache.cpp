@@ -455,15 +455,15 @@ private:
         ));
     }
 
-    TFuture<IChannelPtr> EnsureChaosCellChannel(IConnectionPtr connection, TCellTag /* cellTag */)
+    static TFuture<IChannelPtr> EnsureChaosCellChannel(IConnectionPtr connection, TCellTag cellTag)
     {
         auto cellDirectoryPtr = connection->GetCellDirectory();
-        auto channel = cellDirectoryPtr->FindChannelByCellTag(CellTag_);
+        auto channel = cellDirectoryPtr->FindChannelByCellTag(cellTag);
         if (!channel) {
             const auto& synchronizer = connection->GetChaosCellDirectorySynchronizer();
-            synchronizer->AddCellTag(CellTag_);
+            synchronizer->AddCellTag(cellTag);
             return synchronizer->Sync().Apply(BIND([
-                cellTag = CellTag_,
+                cellTag = cellTag,
                 cellDirectoryPtr = std::move(cellDirectoryPtr)
             ] (const TErrorOr<void>& /* syncResult */) {
                 return cellDirectoryPtr->FindChannelByCellTag(cellTag);

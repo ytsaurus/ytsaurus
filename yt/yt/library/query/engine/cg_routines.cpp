@@ -1745,7 +1745,7 @@ void GroupOpHelper(
 
     closure.Flush(context, EStreamTag::Totals); // Dummy tag.
 
-    context->Statistics->TotalGroupedRowCount += closure.GetGroupedRowCount();
+    context->Statistics->GroupedRowCount += closure.GetGroupedRowCount();
 
     YT_VERIFY(closure.IsFlushed());
 }

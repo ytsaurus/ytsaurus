@@ -723,7 +723,7 @@ void TQueryTrackerProxy::StartQuery(
             };
             filterFactors = GetFilterFactors(newRecord);
             std::vector rows{
-                newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryDescriptor::Get()->GetIdMapping()),
+                newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryDescriptor::Get()->GetPartialIdMapping()),
             };
             transaction->WriteRows(
                 StateRoot_ + "/finished_queries",
@@ -742,7 +742,7 @@ void TQueryTrackerProxy::StartQuery(
                 .FilterFactors = filterFactors,
             };
             std::vector rows{
-                newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryByStartTimeDescriptor::Get()->GetIdMapping()),
+                newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryByStartTimeDescriptor::Get()->GetPartialIdMapping()),
             };
             transaction->WriteRows(
                 StateRoot_ + "/finished_queries_by_start_time",
@@ -759,7 +759,7 @@ void TQueryTrackerProxy::StartQuery(
                 .FilterFactors = filterFactors,
             };
             std::vector rows{
-                newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryByUserAndStartTimeDescriptor::Get()->GetIdMapping()),
+                newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryByUserAndStartTimeDescriptor::Get()->GetPartialIdMapping()),
             };
             transaction->WriteRows(
                 StateRoot_ + "/" + FinishedQueriesByUserAndStartTimeTable,
@@ -780,7 +780,7 @@ void TQueryTrackerProxy::StartQuery(
                         .State = EQueryState::Draft,
                         .FilterFactors = filterFactors,
                     };
-                    rows.push_back(newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryByAcoAndStartTimeDescriptor::Get()->GetIdMapping()));
+                    rows.push_back(newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryByAcoAndStartTimeDescriptor::Get()->GetPartialIdMapping()));
                 }
                 transaction->WriteRows(
                     StateRoot_ + "/" + FinishedQueriesByAcoAndStartTimeTable,
@@ -807,7 +807,7 @@ void TQueryTrackerProxy::StartQuery(
         };
         newRecord.FilterFactors = GetFilterFactors(newRecord);
         std::vector rows{
-            newRecord.ToUnversionedRow(rowBuffer, TActiveQueryDescriptor::Get()->GetIdMapping()),
+            newRecord.ToUnversionedRow(rowBuffer, TActiveQueryDescriptor::Get()->GetPartialIdMapping()),
         };
         transaction->WriteRows(
             StateRoot_ + "/active_queries",
@@ -836,7 +836,7 @@ void TQueryTrackerProxy::AbortQuery(
     };
     auto rowBuffer = New<TRowBuffer>();
     std::vector rows{
-        newRecord.ToUnversionedRow(rowBuffer, TActiveQueryDescriptor::Get()->GetIdMapping()),
+        newRecord.ToUnversionedRow(rowBuffer, TActiveQueryDescriptor::Get()->GetPartialIdMapping()),
     };
     auto transaction = WaitFor(StateClient_->StartTransaction(ETransactionType::Tablet, {}))
         .ValueOrThrow();
@@ -850,7 +850,7 @@ void TQueryTrackerProxy::AbortQuery(
         const auto& idMapping = TActiveQueryDescriptor::Get()->GetIdMapping();
         TLookupRowsOptions options;
         options.Timestamp = transaction->GetStartTimestamp();
-        options.ColumnFilter = {*idMapping.State, *idMapping.Engine, *idMapping.AssignedTracker, *idMapping.ExecutionStartTime};
+        options.ColumnFilter = {idMapping.State, idMapping.Engine, idMapping.AssignedTracker, idMapping.ExecutionStartTime};
         options.KeepMissingRows = true;
         TActiveQueryKey key{.QueryId = queryId};
         std::vector keys{
@@ -1359,7 +1359,7 @@ void TQueryTrackerProxy::AlterQuery(
             filterFactors = GetFilterFactors(record);
 
             std::vector rows{
-                record.ToUnversionedRow(rowBuffer, TFinishedQueryDescriptor::Get()->GetIdMapping()),
+                record.ToUnversionedRow(rowBuffer, TFinishedQueryDescriptor::Get()->GetPartialIdMapping()),
             };
             transaction->WriteRows(
                 StateRoot_ + "/finished_queries",
@@ -1376,7 +1376,7 @@ void TQueryTrackerProxy::AlterQuery(
             }
 
             std::vector rows{
-                record.ToUnversionedRow(rowBuffer, TFinishedQueryByStartTimeDescriptor::Get()->GetIdMapping()),
+                record.ToUnversionedRow(rowBuffer, TFinishedQueryByStartTimeDescriptor::Get()->GetPartialIdMapping()),
             };
             transaction->WriteRows(
                 StateRoot_ + "/finished_queries_by_start_time",
@@ -1397,7 +1397,7 @@ void TQueryTrackerProxy::AlterQuery(
                 };
 
                 std::vector rows{
-                    record.ToUnversionedRow(rowBuffer, TFinishedQueryByUserAndStartTimeDescriptor::Get()->GetIdMapping()),
+                    record.ToUnversionedRow(rowBuffer, TFinishedQueryByUserAndStartTimeDescriptor::Get()->GetPartialIdMapping()),
                 };
                 transaction->WriteRows(
                     StateRoot_ + "/" + FinishedQueriesByUserAndStartTimeTable,
@@ -1444,7 +1444,7 @@ void TQueryTrackerProxy::AlterQuery(
                         .State = query.State,
                         .FilterFactors = filterFactors,
                     };
-                    rows.push_back(record.ToUnversionedRow(rowBuffer, TFinishedQueryByAcoAndStartTimeDescriptor::Get()->GetIdMapping()));
+                    rows.push_back(record.ToUnversionedRow(rowBuffer, TFinishedQueryByAcoAndStartTimeDescriptor::Get()->GetPartialIdMapping()));
                 }
                 transaction->WriteRows(
                     StateRoot_ + "/" + FinishedQueriesByAcoAndStartTimeTable,
@@ -1469,7 +1469,7 @@ void TQueryTrackerProxy::AlterQuery(
             record.FilterFactors = GetFilterFactors(record);
 
             std::vector rows{
-                record.ToUnversionedRow(rowBuffer, TActiveQueryDescriptor::Get()->GetIdMapping()),
+                record.ToUnversionedRow(rowBuffer, TActiveQueryDescriptor::Get()->GetPartialIdMapping()),
             };
             transaction->WriteRows(
                 StateRoot_ + "/active_queries",

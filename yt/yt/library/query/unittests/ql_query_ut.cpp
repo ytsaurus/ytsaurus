@@ -78,8 +78,8 @@ static void SumCodegenExecute(
     TDuration* codegen,
     TDuration* execute)
 {
-    *codegen += statistics.CodegenTime;
-    *execute += statistics.ExecuteTime;
+    *codegen += statistics.CodegenTime.GetTotal();
+    *execute += statistics.ExecuteTime.GetTotal();
 
     for (auto& inner : statistics.InnerStatistics) {
         SumCodegenExecute(inner, codegen, execute);
@@ -4156,7 +4156,7 @@ TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithTotalsTotalRowCount)
             sources,
             AnyMatcher);
 
-        EXPECT_EQ(std::ssize(cardinality), statistics.TotalGroupedRowCount);
+        EXPECT_EQ(std::ssize(cardinality), statistics.GroupedRowCount.GetTotal());
     }
 
     {
@@ -4166,7 +4166,7 @@ TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithTotalsTotalRowCount)
             sources,
             AnyMatcher);
 
-        EXPECT_EQ(std::ssize(cardinality), statistics.TotalGroupedRowCount);
+        EXPECT_EQ(std::ssize(cardinality), statistics.GroupedRowCount.GetTotal());
     }
 
     {
@@ -4176,7 +4176,7 @@ TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithTotalsTotalRowCount)
             sources,
             AnyMatcher);
 
-        EXPECT_EQ(std::ssize(cardinality), statistics.TotalGroupedRowCount);
+        EXPECT_EQ(std::ssize(cardinality), statistics.GroupedRowCount.GetTotal());
     }
 }
 
@@ -4636,7 +4636,7 @@ TEST_F(TQueryEvaluateTest, GroupByWithLimitFirst)
         "first(b) as f FROM [//t] group by a limit 1",
         split,
         source,
-        ResultMatcher(result)).second.RowsRead;
+        ResultMatcher(result)).second.RowsRead.GetTotal();
     EXPECT_EQ(rowsRead, 3);
 
     SUCCEED();
@@ -4668,7 +4668,7 @@ TEST_F(TQueryEvaluateTest, GroupByWithLimitFirstString)
         split,
         source,
         ResultMatcher(result)).second;
-    EXPECT_EQ(queryStatistics.RowsRead, 3);
+    EXPECT_EQ(queryStatistics.RowsRead.GetTotal(), 3);
 
     SUCCEED();
 }
@@ -10196,7 +10196,7 @@ TEST_F(TQueryEvaluateTest, DataWeightRead)
     i64 secondRowWeight = rowWeight + int64Weight + booleanWeight + secondStringWeight;
     i64 expectedWeight = firstRowWeight + secondRowWeight;
 
-    EXPECT_EQ(queryStatistics.DataWeightRead, expectedWeight);
+    EXPECT_EQ(queryStatistics.DataWeightRead.GetTotal(), expectedWeight);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

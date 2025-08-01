@@ -6,16 +6,7 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>
-
-#include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
-
-#include <yt/yt/ytlib/transaction_client/transaction_manager.h>
-#include <yt/yt/ytlib/transaction_client/transaction_service_proxy.h>
-
 #include <yt/yt/core/actions/future.h>
-
-#include <yt/yt/core/rpc/retrying_channel.h>
 
 namespace NYT::NApi::NNative {
 
@@ -32,11 +23,11 @@ class TCellCommitSession
 {
 public:
     TCellCommitSession(
-        IClientPtr client,
+        IRegisterTransactionActionsRequestFactoryPtr requestFactory,
         TWeakPtr<TTransaction> transaction,
         TCellId cellId,
         TLogger logger)
-        : Client_(std::move(client))
+        : RequestFactory_(std::move(requestFactory))
         , Transaction_(std::move(transaction))
         , CellId_(cellId)
         , PrepareSignatureGenerator_(/*targetSignature*/ FinalTransactionSignature)
@@ -74,21 +65,19 @@ public:
             return MakeFuture(TError(NYT::EErrorCode::Canceled, "Transaction destroyed"));
         }
 
-        auto channel = Client_->GetCellChannelOrThrow(CellId_);
-
         YT_LOG_DEBUG("Sending transaction actions (ActionCount: %v)",
             Actions_.size());
 
         TFuture<void> future;
         switch (TypeFromId(CellId_)) {
             case EObjectType::TabletCell:
-                future = SendTabletActions(transaction, channel);
+                future = SendTabletActions(transaction);
                 break;
             case EObjectType::MasterCell:
-                future = SendMasterActions(transaction, channel);
+                future = SendMasterActions(transaction);
                 break;
             case EObjectType::ChaosCell:
-                future = SendChaosActions(transaction, channel);
+                future = SendChaosActions(transaction);
                 break;
             default:
                 YT_ABORT();
@@ -98,7 +87,7 @@ public:
     }
 
 private:
-    const IClientPtr Client_;
+    const IRegisterTransactionActionsRequestFactoryPtr RequestFactory_;
     const TWeakPtr<TTransaction> Transaction_;
     const TCellId CellId_;
 
@@ -109,12 +98,9 @@ private:
 
     std::vector<TTransactionActionData> Actions_;
 
-    TFuture<void> SendTabletActions(const TTransactionPtr& owner, const IChannelPtr& channel)
+    TFuture<void> SendTabletActions(const TTransactionPtr& owner)
     {
-        NTabletClient::TTabletServiceProxy proxy(channel);
-        auto req = proxy.RegisterTransactionActions();
-        req->SetResponseHeavy(true);
-        req->SetTimeout(Client_->GetNativeConnection()->GetConfig()->DefaultRegisterTransactionActionsTimeout);
+        auto req = RequestFactory_->CreateRegisterTransactionActionsTabletCellRequest(CellId_);
         ToProto(req->mutable_transaction_id(), owner->GetId());
         req->set_transaction_start_timestamp(owner->GetStartTimestamp());
         req->set_transaction_timeout(ToProto(owner->GetTimeout()));
@@ -123,28 +109,17 @@ private:
         return req->Invoke().As<void>();
     }
 
-    TFuture<void> SendMasterActions(const TTransactionPtr& owner, const IChannelPtr& channel)
+    TFuture<void> SendMasterActions(const TTransactionPtr& owner)
     {
-        const auto& connection = Client_->GetNativeConnection();
-        const auto& config = connection->GetConfig()->TransactionManager;
-        auto retryingChannel = CreateRetryingChannel(config, channel);
-
-        TTransactionServiceProxy proxy(retryingChannel);
-        auto req = proxy.RegisterTransactionActions();
-        req->SetResponseHeavy(true);
-        req->SetTimeout(Client_->GetNativeConnection()->GetConfig()->DefaultRegisterTransactionActionsTimeout);
-        GenerateMutationId(req);
-        req->SetRetry(true);
+        auto req = RequestFactory_->CreateRegisterTransactionActionsMasterCellRequest(CellId_);
         ToProto(req->mutable_transaction_id(), owner->GetId());
         ToProto(req->mutable_actions(), Actions_);
         return req->Invoke().As<void>();
     }
 
-    TFuture<void> SendChaosActions(const TTransactionPtr& owner, const IChannelPtr& channel)
+    TFuture<void> SendChaosActions(const TTransactionPtr& owner)
     {
-        NChaosClient::TCoordinatorServiceProxy proxy(channel);
-        auto req = proxy.RegisterTransactionActions();
-        req->SetTimeout(Client_->GetNativeConnection()->GetConfig()->DefaultRegisterTransactionActionsTimeout);
+        auto req = RequestFactory_->CreateRegisterTransactionActionsChaosCellRequest(CellId_);
         ToProto(req->mutable_transaction_id(), owner->GetId());
         req->set_transaction_start_timestamp(owner->GetStartTimestamp());
         req->set_transaction_timeout(ToProto(owner->GetTimeout()));
@@ -170,13 +145,13 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 ICellCommitSessionPtr CreateCellCommitSession(
-    IClientPtr client,
+    IRegisterTransactionActionsRequestFactoryPtr requestFactory,
     TWeakPtr<TTransaction> transaction,
     TCellId cellId,
     TLogger logger)
 {
     return New<TCellCommitSession>(
-        std::move(client),
+        std::move(requestFactory),
         std::move(transaction),
         cellId,
         std::move(logger));
@@ -189,10 +164,10 @@ class TCellCommitSessionProvider
 {
 public:
     TCellCommitSessionProvider(
-        IClientPtr client,
+        IRegisterTransactionActionsRequestFactoryPtr requestFactory,
         TWeakPtr<TTransaction> transaction,
         TLogger logger)
-        : Client_(std::move(client))
+        : RequestFactory_(std::move(requestFactory))
         , Transaction_(std::move(transaction))
         , Logger(std::move(logger))
     { }
@@ -211,7 +186,7 @@ public:
         auto cellIt = CellIdToCommitSession_.find(cellId);
         if (cellIt == CellIdToCommitSession_.end()) {
             auto session = CreateCellCommitSession(
-                Client_,
+                RequestFactory_,
                 Transaction_,
                 cellId,
                 Logger);
@@ -246,7 +221,7 @@ public:
     }
 
 private:
-    const IClientPtr Client_;
+    const IRegisterTransactionActionsRequestFactoryPtr RequestFactory_;
     const TWeakPtr<TTransaction> Transaction_;
 
     const TLogger Logger;
@@ -258,12 +233,12 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 ICellCommitSessionProviderPtr CreateCellCommitSessionProvider(
-    IClientPtr client,
-    TWeakPtr<NTransactionClient::TTransaction> transaction,
+    IRegisterTransactionActionsRequestFactoryPtr requestFactory,
+    TWeakPtr<TTransaction> transaction,
     NLogging::TLogger logger)
 {
     return New<TCellCommitSessionProvider>(
-        std::move(client),
+        std::move(requestFactory),
         std::move(transaction),
         std::move(logger));
 }

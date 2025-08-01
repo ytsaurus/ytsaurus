@@ -149,12 +149,12 @@ class TestReplacementCpuToVCpu(YTEnvSetup):
         job = jobs[list(jobs)[0]]
         return job["address"]
 
-    def _init_dynamic_config(self):
+    def _init_dynamic_config(self, cpu_to_vcpu_factor=1.21):
         update_nodes_dynamic_config({
             "job_resource_manager": {
                 "enable_cpu_to_vcpu_factor": True,
                 "cpu_model_to_cpu_to_vcpu_factor": {
-                    "AMD EPYC 7702 64-Core Processor": 1.21
+                    "AMD EPYC 7702 64-Core Processor": cpu_to_vcpu_factor,
                 }
             },
         })
@@ -198,6 +198,44 @@ class TestReplacementCpuToVCpu(YTEnvSetup):
 
         assert get(op.get_path() + "/@progress/jobs/aborted/total") == 0
         assert get(op.get_path() + "/@progress/jobs/completed/total") == 1
+
+    @authors("ignat")
+    def test_roundind_errors(self):
+        vcpu = 9.45
+        cpu_to_vcpu_factor = 1.22001
+
+        self._init_dynamic_config(cpu_to_vcpu_factor)
+
+        create("table", "//tmp/input", attributes={"replication_factor": 1})
+        write_table("//tmp/input", [{"foo": "bar"}])
+
+        create("table", "//tmp/output", attributes={"replication_factor": 1})
+
+        op = map(
+            track=False,
+            command=with_breakpoint("BREAKPOINT"),
+            in_="//tmp/input",
+            out="//tmp/output",
+            spec={
+                "mapper": {
+                    "cpu_limit": vcpu,
+                },
+            },
+        )
+
+        wait_breakpoint()
+
+        node = self._get_job_node(op)
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        for job_id in job_ids:
+            base_resource_usage = get(f"//sys/cluster_nodes/{node}/orchid/exec_node/job_controller/active_jobs/{job_id}/base_resource_usage")
+            additional_resource_usage = get(f"//sys/cluster_nodes/{node}/orchid/exec_node/job_controller/active_jobs/{job_id}/additional_resource_usage")
+            assert base_resource_usage["vcpu"] + additional_resource_usage["vcpu"] == 9.45
+
+        release_breakpoint()
+        op.track()
 
     @authors("nadya73")
     def test_cpu_to_vcpu_factor_no_enough_cpu(self):

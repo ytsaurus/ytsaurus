@@ -322,16 +322,15 @@ private:
             LookupActiveQuery(
                 queryId,
                 transaction->GetStartTimestamp(),
-                {*idMapping.Incarnation, *idMapping.LeaseTransactionId, *idMapping.AssignedTracker, *idMapping.State}))
+                {idMapping.Incarnation, idMapping.LeaseTransactionId, idMapping.AssignedTracker, idMapping.State}))
             .ValueOrThrow();
 
-        TTransactionId leaseTransactionId;
-        if (LeaseTransaction_) {
-            leaseTransactionId = LeaseTransaction_->GetId();
-        } else {
+        if (!LeaseTransaction_) {
             YT_LOG_INFO("Failed to acquire query since lease transaction is not active");
             return;
         }
+
+        auto leaseTransactionId = LeaseTransaction_->GetId();
 
         if (!optionalRecord) {
             YT_LOG_INFO("Query is no longer present (Timestamp: %v)", transaction->GetStartTimestamp());
@@ -371,8 +370,8 @@ private:
             .LeaseTransactionId = leaseTransactionId,
             .AssignedTracker = SelfAddress_,
         };
-        std::vector newRows = {
-            newRecord.ToUnversionedRow(rowBuffer, idMapping),
+        std::vector newRows{
+            newRecord.ToUnversionedRow(rowBuffer, TActiveQueryDescriptor::Get()->GetPartialIdMapping()),
         };
         transaction->WriteRows(
             StateRoot_ + "/active_queries",
@@ -468,7 +467,7 @@ private:
                 LookupActiveQuery(
                     queryId,
                     transaction->GetStartTimestamp(),
-                    {*idMapping.Incarnation, *idMapping.State, *idMapping.AbortRequest, *idMapping.Error}))
+                    {idMapping.Incarnation, idMapping.State, idMapping.AbortRequest, idMapping.Error}))
                 .ValueOrThrow();
 
             if (!activeQueryRecord) {
@@ -633,7 +632,7 @@ private:
                     .AssignedTracker = activeQueryRecord->AssignedTracker,
                 };
                 std::vector newRows = {
-                    newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryDescriptor::Get()->GetIdMapping()),
+                    newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryDescriptor::Get()->GetPartialIdMapping()),
                 };
                 transaction->WriteRows(
                     StateRoot_ + "/finished_queries",
@@ -652,7 +651,7 @@ private:
                     .FilterFactors = activeQueryRecord->FilterFactors,
                 };
                 std::vector newRows = {
-                    newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryByStartTimeDescriptor::Get()->GetIdMapping()),
+                    newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryByStartTimeDescriptor::Get()->GetPartialIdMapping()),
                 };
                 transaction->WriteRows(
                     StateRoot_ + "/finished_queries_by_start_time",
@@ -669,7 +668,7 @@ private:
                     .FilterFactors = activeQueryRecord->FilterFactors,
                 };
                 std::vector newRows = {
-                    newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryByUserAndStartTimeDescriptor::Get()->GetIdMapping()),
+                    newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryByUserAndStartTimeDescriptor::Get()->GetPartialIdMapping()),
                 };
                 transaction->WriteRows(
                     StateRoot_ + "/finished_queries_by_user_and_start_time",
@@ -692,7 +691,7 @@ private:
                             .State = finalState,
                             .FilterFactors = activeQueryRecord->FilterFactors,
                         };
-                        newRows.push_back(newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryByAcoAndStartTimeDescriptor::Get()->GetIdMapping()));
+                        newRows.push_back(newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryByAcoAndStartTimeDescriptor::Get()->GetPartialIdMapping()));
                     }
                     transaction->WriteRows(
                         StateRoot_ + "/finished_queries_by_aco_and_start_time",

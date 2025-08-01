@@ -122,6 +122,7 @@ using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NQueryTrackerClient;
 using namespace NQueueClient;
+using namespace NQueryClient;
 using namespace NRpc;
 using namespace NScheduler;
 using namespace NSecurityClient;
@@ -4140,6 +4141,9 @@ private:
         } else if (config->QueryFeatureToggles->UseOrderByInJoinSubqueries) {
             options.UseOrderByInJoinSubqueries = *config->QueryFeatureToggles->UseOrderByInJoinSubqueries;
         }
+        if (request->has_statistics_aggregation()) {
+            options.StatisticsAggregation = CheckedEnumCast<EStatisticsAggregation>(request->statistics_aggregation());
+        }
 
         auto detailedProfilingInfo = New<TDetailedProfilingInfo>();
         options.DetailedProfilingInfo = detailedProfilingInfo;
@@ -4174,8 +4178,8 @@ private:
 
                 context->SetResponseInfo("RowCount: %v", rows.Size());
 
-                SelectConsumeDataWeight_.Increment(result.Statistics.DataWeightRead);
-                SelectConsumeRowCount_.Increment(result.Statistics.RowsRead);
+                SelectConsumeDataWeight_.Increment(result.Statistics.DataWeightRead.GetTotal());
+                SelectConsumeRowCount_.Increment(result.Statistics.RowsRead.GetTotal());
                 SelectOutputDataWeight_.Increment(GetDataWeight(rows));
                 SelectOutputRowCount_.Increment(rows.Size());
 

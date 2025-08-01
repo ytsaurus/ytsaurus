@@ -119,7 +119,7 @@ public:
         , OrderedRequestsSlidingWindow_(
             Client_->GetNativeConnection()->GetConfig()->MaxRequestWindowSize)
         , CellCommitSessionProvider_(CreateCellCommitSessionProvider(
-            Client_,
+            CreateRegisterTransactionActionsRequestFactory(Client_, Logger),
             MakeWeak(Transaction_),
             Logger))
     {

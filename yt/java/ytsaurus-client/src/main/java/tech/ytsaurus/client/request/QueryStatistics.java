@@ -9,6 +9,55 @@ import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.rpcproxy.TQueryStatistics;
+import tech.ytsaurus.rpcproxy.TQueryStatistics.TAggregate;
+
+class LongAggregate {
+    @Nullable
+    private final Long total;
+    @Nullable
+    private final Long max;
+    @Nullable
+    private final String argmaxNode;
+
+    LongAggregate(Long value) {
+        this.total = value;
+        this.max = value;
+        this.argmaxNode = null;
+    }
+
+    LongAggregate(TAggregate aggregate) {
+        this.total = aggregate.hasTotal() ? aggregate.getTotal() : null;
+        this.max = aggregate.hasMax() ? aggregate.getTotal() : null;
+        this.argmaxNode = aggregate.hasArgmaxNode() ? aggregate.getArgmaxNode() : null;
+    }
+}
+
+class DurationAggregate {
+    @Nullable
+    private final Duration total;
+    @Nullable
+    private final Duration max;
+    @Nullable
+    private final String argmaxNode;
+
+    DurationAggregate(Long value) {
+        this.total = RpcUtil.durationFromMicros(value);
+        this.max = RpcUtil.durationFromMicros(value);
+        this.argmaxNode = null;
+    }
+
+    DurationAggregate(TAggregate aggregate) {
+        this.total = aggregate.hasTotal()
+                ? RpcUtil.durationFromMicros(aggregate.getTotal())
+                : null;
+        this.max = aggregate.hasMax()
+                ? RpcUtil.durationFromMicros(aggregate.getTotal())
+                : null;
+        this.argmaxNode = aggregate.hasArgmaxNode()
+                ? aggregate.getArgmaxNode()
+                : null;
+    }
+}
 
 /**
  * Immutable metadata about query statistics.
@@ -17,142 +66,193 @@ import tech.ytsaurus.rpcproxy.TQueryStatistics;
  */
 public class QueryStatistics {
     @Nullable
-    private final Long rowsRead;
+    private final LongAggregate rowsRead;
     @Nullable
-    private final Long dataWeightRead;
+    private final LongAggregate dataWeightRead;
     @Nullable
-    private final Long rowsWritten;
+    private final LongAggregate rowsWritten;
     @Nullable
-    private final Duration syncTime;
+    private final DurationAggregate syncTime;
     @Nullable
-    private final Duration asyncTime;
+    private final DurationAggregate asyncTime;
     @Nullable
-    private final Duration executeTime;
+    private final DurationAggregate executeTime;
     @Nullable
-    private final Duration readTime;
+    private final DurationAggregate readTime;
     @Nullable
-    private final Duration writeTime;
+    private final DurationAggregate writeTime;
     @Nullable
-    private final Duration codegenTime;
+    private final DurationAggregate codegenTime;
     @Nullable
-    private final Duration waitOnReadyEventTime;
+    private final DurationAggregate waitOnReadyEventTime;
     private final boolean incompleteInput;
     private final boolean incompleteOutput;
     @Nullable
-    private final Long memoryUsage;
+    private final LongAggregate memoryUsage;
     @Nullable
-    private final Long totalGroupedRowCount;
+    private final LongAggregate groupedRowCount;
+    @Nullable
+    private final Long queryCount;
     private final List<QueryStatistics> innerStatistics;
 
     public QueryStatistics(TQueryStatistics stats) {
-        this.rowsRead = stats.hasRowsRead() ? stats.getRowsRead() : null;
-        this.dataWeightRead = stats.hasDataWeightRead() ? stats.getDataWeightRead() : null;
-        this.rowsWritten = stats.hasRowsWritten() ? stats.getRowsWritten() : null;
-        this.syncTime = stats.hasSyncTime() ? RpcUtil.durationFromMicros(stats.getSyncTime()) : null;
-        this.asyncTime = stats.hasAsyncTime() ? RpcUtil.durationFromMicros(stats.getAsyncTime()) : null;
-        this.executeTime = stats.hasExecuteTime() ? RpcUtil.durationFromMicros(stats.getExecuteTime()) : null;
-        this.readTime = stats.hasReadTime() ? RpcUtil.durationFromMicros(stats.getReadTime()) : null;
-        this.writeTime = stats.hasWriteTime() ? RpcUtil.durationFromMicros(stats.getWriteTime()) : null;
-        this.codegenTime = stats.hasCodegenTime() ? RpcUtil.durationFromMicros(stats.getCodegenTime()) : null;
-        this.waitOnReadyEventTime = stats.hasWaitOnReadyEventTime()
-                ? RpcUtil.durationFromMicros(stats.getWaitOnReadyEventTime())
-                : null;
+        this.rowsRead = stats.hasRowsReadAggr()
+                ? new LongAggregate(stats.getRowsReadAggr())
+                : stats.hasRowsRead()
+                        ? new LongAggregate(stats.getRowsRead())
+                        : null;
+        this.dataWeightRead = stats.hasDataWeightReadAggr()
+                ? new LongAggregate(stats.getDataWeightReadAggr())
+                : stats.hasDataWeightRead()
+                        ? new LongAggregate(stats.getDataWeightRead())
+                        : null;
+        this.rowsWritten = stats.hasRowsWrittenAggr()
+                ? new LongAggregate(stats.getRowsWrittenAggr())
+                : stats.hasRowsWritten()
+                        ? new LongAggregate(stats.getRowsWritten())
+                        : null;
+        this.syncTime = stats.hasSyncTimeAggr()
+                ? new DurationAggregate(stats.getSyncTimeAggr())
+                : stats.hasSyncTime()
+                        ? new DurationAggregate(stats.getSyncTime())
+                        : null;
+        this.asyncTime = stats.hasAsyncTimeAggr()
+                ? new DurationAggregate(stats.getAsyncTimeAggr())
+                : stats.hasAsyncTime()
+                        ? new DurationAggregate(stats.getAsyncTime())
+                        : null;
+        this.executeTime = stats.hasExecuteTimeAggr()
+                ? new DurationAggregate(stats.getExecuteTimeAggr())
+                : stats.hasExecuteTime()
+                        ? new DurationAggregate(stats.getExecuteTime())
+                        : null;
+        this.readTime = stats.hasReadTimeAggr()
+                ? new DurationAggregate(stats.getReadTimeAggr())
+                : stats.hasReadTime()
+                        ? new DurationAggregate(stats.getReadTime())
+                        : null;
+        this.writeTime = stats.hasWriteTimeAggr()
+                ? new DurationAggregate(stats.getWriteTimeAggr())
+                : stats.hasWriteTime()
+                        ? new DurationAggregate(stats.getWriteTime())
+                        : null;
+        this.codegenTime = stats.hasCodegenTimeAggr()
+                ? new DurationAggregate(stats.getCodegenTimeAggr())
+                : stats.hasCodegenTime()
+                        ? new DurationAggregate(stats.getCodegenTime())
+                        : null;
+        this.waitOnReadyEventTime = stats.hasWaitOnReadyEventTimeAggr()
+                ? new DurationAggregate(stats.getWaitOnReadyEventTimeAggr())
+                : stats.hasWaitOnReadyEventTime()
+                        ? new DurationAggregate(stats.getWaitOnReadyEventTime())
+                        : null;
+        this.memoryUsage = stats.hasMemoryUsageAggr()
+                ? new LongAggregate(stats.getMemoryUsageAggr())
+                : stats.hasMemoryUsage()
+                        ? new LongAggregate(stats.getMemoryUsage())
+                        : null;
+        this.groupedRowCount = stats.hasGroupedRowCountAggr()
+                ? new LongAggregate(stats.getGroupedRowCountAggr())
+                : stats.hasGroupedRowCount()
+                        ? new LongAggregate(stats.getGroupedRowCount())
+                        : null;
+
         this.incompleteInput = stats.getIncompleteInput();
         this.incompleteOutput = stats.getIncompleteOutput();
-        this.memoryUsage = stats.hasMemoryUsage() ? stats.getMemoryUsage() : null;
-        this.totalGroupedRowCount = stats.hasTotalGroupedRowCount() ? stats.getTotalGroupedRowCount() : null;
+        this.queryCount = stats.hasQueryCount() ? stats.getQueryCount() : null;
+
         this.innerStatistics = stats.getInnerStatisticsList().stream()
                 .map(QueryStatistics::new)
                 .collect(Collectors.toUnmodifiableList());
     }
 
     /**
-     * Get the number of rows read if present.
+     * Get the number of rows read aggregate if present.
      *
-     * @return number of rows read if present.
+     * @return number of rows read aggregate if present.
      */
-    public Optional<Long> getRowsRead() {
+    public Optional<LongAggregate> getRowsRead() {
         return Optional.ofNullable(rowsRead);
     }
 
     /**
-     * Get the weight of the read data if present.
+     * Get the weight of the read data aggregate if present.
      *
-     * @return weight of the read data if present.
+     * @return weight of the read data aggregate if present.
      */
-    public Optional<Long> getDataWeightRead() {
+    public Optional<LongAggregate> getDataWeightRead() {
         return Optional.ofNullable(dataWeightRead);
     }
 
     /**
-     * Get the number of rows written if present.
+     * Get the number of rows written aggregate if present.
      *
-     * @return number of rows written if present.
+     * @return number of rows written aggregate if present.
      */
-    public Optional<Long> getRowsWritten() {
+    public Optional<LongAggregate> getRowsWritten() {
         return Optional.ofNullable(rowsWritten);
     }
 
     /**
-     * Get the sync time if present.
+     * Get the sync time aggregate if present.
      *
-     * @return sync time if present.
+     * @return sync time aggregate if present.
      */
-    public Optional<Duration> getSyncTime() {
+    public Optional<DurationAggregate> getSyncTime() {
         return Optional.ofNullable(syncTime);
     }
 
     /**
-     * Get the async time if present.
+     * Get the async time aggregate if present.
      *
-     * @return async time if present.
+     * @return async time aggregate if present.
      */
-    public Optional<Duration> getAsyncTime() {
+    public Optional<DurationAggregate> getAsyncTime() {
         return Optional.ofNullable(asyncTime);
     }
 
     /**
-     * Get the execution time if present.
+     * Get the execution time aggregate if present.
      *
-     * @return execution time if present.
+     * @return execution time aggregate if present.
      */
-    public Optional<Duration> getExecuteTime() {
+    public Optional<DurationAggregate> getExecuteTime() {
         return Optional.ofNullable(executeTime);
     }
 
     /**
-     * Get the read time if present.
+     * Get the read time aggregate if present.
      *
-     * @return read time if present.
+     * @return read time aggregate if present.
      */
-    public Optional<Duration> getReadTime() {
+    public Optional<DurationAggregate> getReadTime() {
         return Optional.ofNullable(readTime);
     }
 
     /**
-     * Get the write time if present.
+     * Get the write time aggregate if present.
      *
-     * @return write time if present.
+     * @return write time aggregate if present.
      */
-    public Optional<Duration> getWriteTime() {
+    public Optional<DurationAggregate> getWriteTime() {
         return Optional.ofNullable(writeTime);
     }
 
     /**
-     * Get the codegen time if present.
+     * Get the codegen time aggregate if present.
      *
-     * @return codegen time if present.
+     * @return codegen time aggregate if present.
      */
-    public Optional<Duration> getCodegenTime() {
+    public Optional<DurationAggregate> getCodegenTime() {
         return Optional.ofNullable(codegenTime);
     }
 
     /**
-     * Get the wait on ready event time if present.
+     * Get the wait on ready event time aggregate if present.
      *
-     * @return wait on ready event time if present.
+     * @return wait on ready event time aggregate if present.
      */
-    public Optional<Duration> getWaitOnReadyEventTime() {
+    public Optional<DurationAggregate> getWaitOnReadyEventTime() {
         return Optional.ofNullable(waitOnReadyEventTime);
     }
 
@@ -175,21 +275,30 @@ public class QueryStatistics {
     }
 
     /**
-     * Get the memory usage if present.
+     * Get the memory usage aggregate if present.
      *
-     * @return memory usage if present.
+     * @return memory usage aggregate if present.
      */
-    public Optional<Long> getMemoryUsage() {
+    public Optional<LongAggregate> getMemoryUsage() {
         return Optional.ofNullable(memoryUsage);
     }
 
     /**
-     * Get the total grouped row count if present.
+     * Get the grouped row count aggregate if present.
      *
-     * @return total grouped row count if present.
+     * @return grouped row count aggregate if present.
      */
-    public Optional<Long> getTotalGroupedRowCount() {
-        return Optional.ofNullable(totalGroupedRowCount);
+    public Optional<LongAggregate> getGroupedRowCount() {
+        return Optional.ofNullable(groupedRowCount);
+    }
+
+    /**
+     * Get the query count if present.
+     *
+     * @return query count if present.
+     */
+    public Optional<Long> getQueryCount() {
+        return Optional.ofNullable(queryCount);
     }
 
     /**
