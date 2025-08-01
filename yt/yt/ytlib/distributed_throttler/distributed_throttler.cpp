@@ -1103,7 +1103,10 @@ public:
                     break;
             }
         }
+    }
 
+    void Initialize()
+    {
         UpdateLimitsExecutor_->Start();
         UpdateLeaderExecutor_->Start();
         UpdateThrottlersAttributesExecutor_->Start();
@@ -1642,7 +1645,7 @@ IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
     IAuthenticatorPtr authenticator,
     TProfiler profiler)
 {
-    return New<TDistributedThrottlerFactory>(
+    auto factory = New<TDistributedThrottlerFactory>(
         CloneYsonStruct(std::move(config)),
         std::move(channelFactory),
         std::move(connection),
@@ -1654,6 +1657,10 @@ IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
         std::move(logger),
         std::move(authenticator),
         std::move(profiler));
+
+    factory->Initialize();
+
+    return factory;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
