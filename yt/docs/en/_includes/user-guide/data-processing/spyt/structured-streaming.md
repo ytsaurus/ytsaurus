@@ -4,7 +4,7 @@ SPYT 1.77.0 introduced support for [streaming processes](https://spark.apache.or
 
 ## General scheme of Spark Structured Streaming in SPYT
 
-![](../../../../../images/spyt-streaming-general-scheme.png){ .center }
+![](../../../../../images/spyt-streaming-general-schemeMM.png){ .center }
 
 ### Concepts
 
@@ -61,7 +61,7 @@ Before starting a streaming task, create and configure queues as described in th
 
 After processing a chunk of data, a new offset is committed to notify the input table to delete unnecessary rows.
 
-When using read and write queues, at-least-once guarantees apply.
+When using queues for reading and writing, at-least-once guarantees can be enabled.
 
 <small>Listing 2 — Example of using queues in Scala</small>
 
