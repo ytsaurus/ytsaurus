@@ -585,7 +585,10 @@ private:
 
         RandomGenerator_ = std::make_unique<TRandomGenerator>(Transaction_->GetStartTimestamp());
 
-        CellCommitSessionProvider_ = CreateCellCommitSessionProvider(GroundClient_, MakeWeak(Transaction_), Logger);
+        CellCommitSessionProvider_ = CreateCellCommitSessionProvider(
+            CreateRegisterTransactionActionsRequestFactory(GroundClient_, Logger),
+            MakeWeak(Transaction_),
+            Logger);
 
         Logger.AddTag("TransactionId: %v", Transaction_->GetId());
 
