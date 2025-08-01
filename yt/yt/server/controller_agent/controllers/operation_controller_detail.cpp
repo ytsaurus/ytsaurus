@@ -2979,9 +2979,6 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
                     *req->mutable_statistics() = table->DataStatistics;
 
                     if (!table->IsFile()) {
-                        // COMPAT(h0pless): remove this when all masters are 24.2.
-                        req->set_schema_mode(ToProto(table->TableUploadOptions.SchemaMode));
-
                         req->set_optimize_for(ToProto(table->TableUploadOptions.OptimizeFor));
                         if (table->TableUploadOptions.ChunkFormat) {
                             req->set_chunk_format(ToProto(*table->TableUploadOptions.ChunkFormat));
