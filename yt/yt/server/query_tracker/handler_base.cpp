@@ -191,12 +191,12 @@ std::pair<ITransactionPtr, TActiveQuery> TQueryHandlerBase::StartIncarnationTran
     options.Timestamp = transaction->GetStartTimestamp();
     const auto& idMapping = TActiveQueryDescriptor::Get()->GetIdMapping();
     options.ColumnFilter = {
-        *idMapping.AssignedTracker,
-        *idMapping.Engine,
-        *idMapping.Incarnation,
-        *idMapping.StartTime,
-        *idMapping.State,
-        *idMapping.Annotations,
+        idMapping.AssignedTracker,
+        idMapping.Engine,
+        idMapping.Incarnation,
+        idMapping.StartTime,
+        idMapping.State,
+        idMapping.Annotations,
     };
     options.KeepMissingRows = true;
     TActiveQueryKey key{.QueryId = QueryId_};
@@ -359,8 +359,8 @@ void TQueryHandlerBase::TryWriteProgress()
                 .Key = {.QueryId = QueryId_},
                 .Progress = progress,
             };
-            std::vector newRows = {
-                newRecord.ToUnversionedRow(rowBuffer, TActiveQueryDescriptor::Get()->GetIdMapping()),
+            std::vector newRows{
+                newRecord.ToUnversionedRow(rowBuffer, TActiveQueryDescriptor::Get()->GetPartialIdMapping()),
             };
             transaction->WriteRows(
                 StateRoot_ + "/active_queries",
@@ -413,8 +413,8 @@ bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, EQueryState previo
                 AssignedEngine_.reset();
             }
 
-            std::vector newRows = {
-                newRecord.ToUnversionedRow(rowBuffer, TActiveQueryDescriptor::Get()->GetIdMapping()),
+            std::vector newRows{
+                newRecord.ToUnversionedRow(rowBuffer, TActiveQueryDescriptor::Get()->GetPartialIdMapping()),
             };
             YT_LOG_DEBUG("Writing active query state (FinishTime: %v, ResultCount: %v)",
                 newRecord.FinishTime,
@@ -443,7 +443,7 @@ bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, EQueryState previo
                     index,
                     newRecord.Error ? newRecord.Error->GetMessage().size() : 0,
                     newRecord.Rowset && *newRecord.Rowset ? (**newRecord.Rowset).size() : 0);
-                newRows.push_back(newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryResultDescriptor::Get()->GetIdMapping()));
+                newRows.push_back(newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryResultDescriptor::Get()->GetPartialIdMapping()));
             }
             YT_LOG_INFO("Writing finished query result");
             transaction->WriteRows(

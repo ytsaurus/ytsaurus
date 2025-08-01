@@ -981,7 +981,7 @@ std::vector<TOperationEvent> TClient::DoListOperationEvents(
         .ValueOrThrow()
         .Rowset;
 
-    auto idMapping = NRecords::TOperationEvent::TRecordDescriptor::TIdMapping(rowset->GetNameTable());
+    auto idMapping = NRecords::TOperationEvent::TRecordDescriptor::TPartialIdMapping(rowset->GetNameTable());
     auto records = ToRecords<NRecords::TOperationEventPartial>(rowset->GetRows(), idMapping);
 
     std::vector<TOperationEvent> events;
@@ -1469,16 +1469,16 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
         bool needProgress = options.Attributes && options.Attributes->contains("progress");
         bool needAlertEvents = options.Attributes && options.Attributes->contains("alert_events");
 
-        auto idMapping = NRecords::TOrderedByIdDescriptor::Get()->GetIdMapping();
+        const auto& idMapping = NRecords::TOrderedByIdDescriptor::Get()->GetIdMapping();
         std::vector<int> columnIndices;
         if (needBriefProgress) {
-            columnIndices.push_back(*idMapping.BriefProgress);
+            columnIndices.push_back(idMapping.BriefProgress);
         }
         if (needProgress) {
-            columnIndices.push_back(*idMapping.Progress);
+            columnIndices.push_back(idMapping.Progress);
         }
         if (needAlertEvents) {
-            columnIndices.push_back(*idMapping.AlertEvents);
+            columnIndices.push_back(idMapping.AlertEvents);
         }
 
         auto columnFilter = NTableClient::TColumnFilter(columnIndices);

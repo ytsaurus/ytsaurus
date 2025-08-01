@@ -72,7 +72,7 @@ void ISequoiaTransaction::WriteRow(
     auto row = NTableClient::FromRecord(
         record,
         GetGuardedRowBuffer().Get(),
-        TRecord::TRecordDescriptor::Get()->GetIdMapping(),
+        TRecord::TRecordDescriptor::Get()->GetPartialIdMapping(),
         flags);
     WriteRow(
         TRecord::Table,
@@ -94,7 +94,7 @@ void ISequoiaTransaction::WriteRow(
     auto row = NTableClient::FromRecord(
         record,
         GetGuardedRowBuffer().Get(),
-        TRecord::TRecordDescriptor::Get()->GetIdMapping(),
+        TRecord::TRecordDescriptor::Get()->GetPartialIdMapping(),
         flags);
     WriteRow(
         descriptor,

@@ -1236,7 +1236,7 @@ private:
         const auto& idMapping = NRecords::TTransactionDescriptor::Get()->GetIdMapping();
         return SequoiaTransaction_->LookupRows<NRecords::TTransactionKey>(
             {{.TransactionId = ParentId_}},
-            {*idMapping.TransactionId, *idMapping.AncestorIds})
+            {idMapping.TransactionId, idMapping.AncestorIds})
             .ApplyUnique(BIND(
                 &TStartCypressTransaction::CheckParentAndGetParentAncestors,
                 MakeStrong(this))

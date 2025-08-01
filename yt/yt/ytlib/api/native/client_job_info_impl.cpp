@@ -1213,7 +1213,7 @@ std::vector<TJobTraceEvent> TClient::DoGetJobTraceFromTraceEventsTable(
         .ValueOrThrow()
         .Rowset;
 
-    auto idMapping = NRecords::TJobTraceEvent::TRecordDescriptor::TIdMapping(rowset->GetNameTable());
+    auto idMapping = NRecords::TJobTraceEvent::TRecordDescriptor::TPartialIdMapping(rowset->GetNameTable());
     auto records = ToRecords<NRecords::TJobTraceEvent>(rowset->GetRows(), idMapping);
 
     std::vector<TJobTraceEvent> traceEvents;
@@ -1312,9 +1312,10 @@ TSharedRef TClient::DoGetJobFailContextFromArchive(
 
         auto keys = FromRecordKeys(TRange(std::array{recordKey}));
 
-        TLookupRowsOptions lookupOptions;
         const auto& idMapping = NRecords::TJobFailContextDescriptor::Get()->GetIdMapping();
-        lookupOptions.ColumnFilter = NTableClient::TColumnFilter({*idMapping.FailContext});
+
+        TLookupRowsOptions lookupOptions;
+        lookupOptions.ColumnFilter = {idMapping.FailContext};
         lookupOptions.KeepMissingRows = true;
 
         auto rowset = WaitFor(GetOperationsArchiveClient()->LookupRows(
@@ -1574,7 +1575,7 @@ TFuture<TListJobsStatistics> TClient::ListJobsStatisticsFromArchiveAsync(
 static std::vector<TJob> ParseJobsFromArchiveResponse(
     TOperationId operationId,
     const std::vector<NRecords::TJobPartial>& records,
-    const NRecords::TJobPartial::TRecordDescriptor::TIdMapping& responseIdMapping,
+    const NRecords::TJobPartial::TRecordDescriptor::TPartialIdMapping& responseIdMapping,
     bool needFullStatistics)
 {
     std::vector<TJob> jobs;
@@ -1853,7 +1854,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
     auto selectOptions = GetDefaultSelectRowsOptions(deadline, AsyncLastCommittedTimestamp);
     return GetOperationsArchiveClient()->SelectRows(builder.Build(), selectOptions).Apply(BIND(
         [operationId, attributes = std::move(attributes), this_ = MakeStrong(this)] (const TSelectRowsResult& result) {
-        auto idMapping = NRecords::TJobPartial::TRecordDescriptor::TIdMapping(result.Rowset->GetNameTable());
+        auto idMapping = NRecords::TJobPartial::TRecordDescriptor::TPartialIdMapping(result.Rowset->GetNameTable());
         auto records = ToRecords<NRecords::TJobPartial>(result.Rowset->GetRows(), idMapping);
         return ParseJobsFromArchiveResponse(
             operationId,
@@ -2600,7 +2601,7 @@ std::optional<TJob> TClient::DoGetJobFromArchive(
         return {};
     }
 
-    auto idMapping = NRecords::TJobPartial::TRecordDescriptor::TIdMapping(rowset->GetNameTable());
+    auto idMapping = NRecords::TJobPartial::TRecordDescriptor::TPartialIdMapping(rowset->GetNameTable());
     auto records = ToRecords<NRecords::TJobPartial>(rowset->GetRows(), idMapping);
     auto jobs = ParseJobsFromArchiveResponse(
         operationId,

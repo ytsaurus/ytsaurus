@@ -304,8 +304,7 @@ public:
         }
 
         const auto& idMapping = NSequoiaClient::NRecords::TChunkReplicasDescriptor::Get()->GetIdMapping();
-        YT_VERIFY(idMapping.StoredReplicas);
-        TColumnFilter columnFilter{*idMapping.StoredReplicas};
+        TColumnFilter columnFilter{idMapping.StoredReplicas};
 
         std::vector<TChunkId> currentChunkIds;
         std::vector<TPromise<TAllyReplicasInfo>> currentPromises;
@@ -797,8 +796,7 @@ private:
 
         if (EnableSequoiaReplicasRefresh_.load(std::memory_order::relaxed)) {
             const auto& idMapping = NSequoiaClient::NRecords::TChunkReplicasDescriptor::Get()->GetIdMapping();
-            YT_VERIFY(idMapping.StoredReplicas);
-            TColumnFilter columnFilter{*idMapping.StoredReplicas};
+            TColumnFilter columnFilter{idMapping.StoredReplicas};
 
             YT_LOG_DEBUG("Refreshing chunks in Sequoia (ChunkCount: %v)",
                 chunkIdsToRefresh.size());
