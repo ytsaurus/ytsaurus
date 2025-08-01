@@ -165,6 +165,22 @@ DEFINE_REFCOUNTED_TYPE(TBindConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TContainerGpuConfig
+    : public NYTree::TYsonStruct
+{
+    std::string NvidiaDriverCapabilities;
+    std::string NvidiaVisibleDevices;
+    std::vector<std::string> InfinibandDevices;
+
+    REGISTER_YSON_STRUCT(TContainerGpuConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TContainerGpuConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TJobTraceEventProcessorConfig
     : public NYTree::TYsonStruct
 {
@@ -303,6 +319,17 @@ struct TCriJobEnvironmentConfig
 
     //! Do not bind mount jobproxy binary into container
     bool UseJobProxyFromImage;
+
+    //! Name of the user group which has access to container management. For instance, this group
+    //! should have access to containerd socket in case CRI is used. This value will only be used
+    //! if sidecars are to be spawned as part of the user job. If nothing is specified, it implies
+    //! that the process, running inside the sidecar, has access to the socket; for instance,
+    //! it's a root.
+    std::string ContainerUserGroupName;
+
+    NContainers::NCri::TCriPodDescriptorPtr PodDescriptor;
+    NContainers::NCri::TCriPodSpecPtr PodSpec;
+    TContainerGpuConfigPtr GpuConfig;
 
     REGISTER_YSON_STRUCT(TCriJobEnvironmentConfig);
 
