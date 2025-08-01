@@ -1,3 +1,7 @@
+RECURSE(
+    common
+)
+
 RECURSE_FOR_TESTS(
     agent
     core_ut
