@@ -1,5 +1,6 @@
 #include "public.h"
 
+#include "register_transaction_actions_request_factory.h"
 #include "transaction_helpers.h"
 
 #include <yt/yt/ytlib/transaction_client/action.h>
@@ -27,7 +28,7 @@ DEFINE_REFCOUNTED_TYPE(ICellCommitSession)
 ////////////////////////////////////////////////////////////////////////////////
 
 ICellCommitSessionPtr CreateCellCommitSession(
-    IClientPtr client,
+    IRegisterTransactionActionsRequestFactoryPtr requestFactory,
     TWeakPtr<NTransactionClient::TTransaction> transaction,
     NHiveClient::TCellId cellId,
     NLogging::TLogger logger);
@@ -50,7 +51,7 @@ DEFINE_REFCOUNTED_TYPE(ICellCommitSessionProvider)
 ////////////////////////////////////////////////////////////////////////////////
 
 ICellCommitSessionProviderPtr CreateCellCommitSessionProvider(
-    IClientPtr client,
+    IRegisterTransactionActionsRequestFactoryPtr requestFactory,
     TWeakPtr<NTransactionClient::TTransaction> transaction,
     NLogging::TLogger logger);
 
