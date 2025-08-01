@@ -130,23 +130,8 @@ func Rated(s interface{}) interface{} {
 
 // MemOnly marks given Solomon metric as mem-only.
 func MemOnly(m interface{}) interface{} {
-	switch st := m.(type) {
-	case *Counter:
-		st.setMemOnly()
-	case *FuncCounter:
-		st.setMemOnly()
-	case *Histogram:
-		st.setMemOnly()
-	case *Gauge:
-		st.setMemOnly()
-	case *IntGauge:
-		st.setMemOnly()
-	case *Timer:
-		st.setMemOnly()
-	case *FuncGauge:
-		st.setMemOnly()
-	case *FuncIntGauge:
-		st.setMemOnly()
+	if iface, ok := m.(interface{ setMemOnly() }); ok {
+		iface.setMemOnly()
 	}
 	return m
 }

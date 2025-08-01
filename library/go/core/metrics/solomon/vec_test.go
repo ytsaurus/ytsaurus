@@ -125,9 +125,9 @@ func TestCounterVecWith(t *testing.T) {
 		assertMetricRemoved(t, rg.WithTags(tags).(*Registry), metric.(*Counter))
 	})
 
-	t.Run("rated", func(t *testing.T) {
+	t.Run("rated+memOnly", func(t *testing.T) {
 		vec := rg.CounterVec("ololo", []string{"shimba", "looken"})
-		Rated(vec)
+		Rated(MemOnly(vec))
 		tags := map[string]string{
 			"shimba": "boomba",
 			"looken": "tooken",
@@ -137,6 +137,7 @@ func TestCounterVecWith(t *testing.T) {
 		assert.IsType(t, &CounterVec{}, vec)
 		assert.IsType(t, &Counter{}, metric)
 		assert.Equal(t, typeRated, metric.(*Counter).metricType)
+		assert.Equal(t, true, metric.(*Counter).memOnly)
 
 		assert.NotEmpty(t, vec.(*CounterVec).vec.metrics)
 		vec.Reset()
@@ -149,6 +150,7 @@ func TestGaugeVecWith(t *testing.T) {
 	rg := NewRegistry(NewRegistryOpts())
 
 	vec := rg.GaugeVec("ololo", []string{"shimba", "looken"})
+	MemOnly(vec)
 	tags := map[string]string{
 		"shimba": "boomba",
 		"looken": "tooken",
@@ -158,6 +160,7 @@ func TestGaugeVecWith(t *testing.T) {
 	assert.IsType(t, &GaugeVec{}, vec)
 	assert.IsType(t, &Gauge{}, metric)
 	assert.Equal(t, typeGauge, metric.(*Gauge).metricType)
+	assert.Equal(t, true, metric.(*Gauge).memOnly)
 
 	assert.NotEmpty(t, vec.(*GaugeVec).vec.metrics)
 	vec.Reset()
@@ -168,6 +171,7 @@ func TestGaugeVecWith(t *testing.T) {
 func TestTimerVecWith(t *testing.T) {
 	rg := NewRegistry(NewRegistryOpts())
 	vec := rg.TimerVec("ololo", []string{"shimba", "looken"})
+	MemOnly(vec)
 	tags := map[string]string{
 		"shimba": "boomba",
 		"looken": "tooken",
@@ -177,6 +181,7 @@ func TestTimerVecWith(t *testing.T) {
 	assert.IsType(t, &TimerVec{}, vec)
 	assert.IsType(t, &Timer{}, metric)
 	assert.Equal(t, typeGauge, metric.(*Timer).metricType)
+	assert.Equal(t, true, metric.(*Timer).memOnly)
 
 	assert.NotEmpty(t, vec.(*TimerVec).vec.metrics)
 	vec.Reset()
@@ -206,10 +211,10 @@ func TestHistogramVecWith(t *testing.T) {
 		assertMetricRemoved(t, rg.WithTags(tags).(*Registry), metric.(*Histogram))
 	})
 
-	t.Run("rated", func(t *testing.T) {
+	t.Run("rated+memOnly", func(t *testing.T) {
 		buckets := metrics.NewBuckets(1, 2, 3)
 		vec := rg.HistogramVec("ololo", buckets, []string{"shimba", "looken"})
-		Rated(vec)
+		Rated(MemOnly(vec))
 		tags := map[string]string{
 			"shimba": "boomba",
 			"looken": "tooken",
@@ -219,6 +224,7 @@ func TestHistogramVecWith(t *testing.T) {
 		assert.IsType(t, &HistogramVec{}, vec)
 		assert.IsType(t, &Histogram{}, metric)
 		assert.Equal(t, typeRatedHistogram, metric.(*Histogram).metricType)
+		assert.Equal(t, true, metric.(*Histogram).memOnly)
 
 		assert.NotEmpty(t, vec.(*HistogramVec).vec.metrics)
 		vec.Reset()
@@ -249,10 +255,10 @@ func TestDurationHistogramVecWith(t *testing.T) {
 		assertMetricRemoved(t, rg.WithTags(tags).(*Registry), metric.(*Histogram))
 	})
 
-	t.Run("rated", func(t *testing.T) {
+	t.Run("rated+memOnly", func(t *testing.T) {
 		buckets := metrics.NewDurationBuckets(1, 2, 3)
 		vec := rg.DurationHistogramVec("ololo", buckets, []string{"shimba", "looken"})
-		Rated(vec)
+		Rated(MemOnly(vec))
 		tags := map[string]string{
 			"shimba": "boomba",
 			"looken": "tooken",
@@ -262,6 +268,7 @@ func TestDurationHistogramVecWith(t *testing.T) {
 		assert.IsType(t, &DurationHistogramVec{}, vec)
 		assert.IsType(t, &Histogram{}, metric)
 		assert.Equal(t, typeRatedHistogram, metric.(*Histogram).metricType)
+		assert.Equal(t, true, metric.(*Histogram).memOnly)
 
 		assert.NotEmpty(t, vec.(*DurationHistogramVec).vec.metrics)
 		vec.Reset()
