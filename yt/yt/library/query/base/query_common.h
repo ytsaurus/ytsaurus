@@ -199,6 +199,8 @@ struct TQueryOptions
     i64 WriteRowsetSize = DefaultWriteRowsetSize;
     i64 MaxJoinBatchSize = DefaultMaxJoinBatchSize;
 
+    EStatisticsAggregation StatisticsAggregation = EStatisticsAggregation::None;
+
     bool VerboseLogging = false;
     bool AllowFullScan = true;
     bool SuppressAccessTracking = false;

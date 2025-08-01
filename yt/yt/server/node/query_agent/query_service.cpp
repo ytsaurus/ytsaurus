@@ -425,7 +425,7 @@ private:
             "RangeExpansionLimit: %v, MaxSubqueries: %v, EnableCodeCache: %v, WorkloadDescriptor: %v, "
             "ReadSessionId: %v, MemoryLimitPerNode: %v, "
             "RowsetProcessingBatchSize: %v, WriteRowsetSize: %v, MaxJoinBatchSize: %v, "
-            "DataRangeCount: %v, RandomTabletId: %v)",
+            "DataRangeCount: %v, RandomTabletId: %v, StatisticsAggregation: %Qlv)",
             query->Id,
             queryOptions.InputRowLimit,
             queryOptions.OutputRowLimit,
@@ -439,7 +439,8 @@ private:
             queryOptions.WriteRowsetSize,
             queryOptions.MaxJoinBatchSize,
             dataSources.size(),
-            dataSources.begin()->ObjectId);
+            dataSources.begin()->ObjectId,
+            queryOptions.StatisticsAggregation);
 
         if (RejectUponThrottlerOverdraft_.load(std::memory_order::relaxed)) {
             TClientChunkReadOptions chunkReadOptions{
@@ -491,7 +492,7 @@ private:
                 statistics.MemoryUsage = memoryChunkProvider->GetMaxAllocated();
 
                 YT_LOG_DEBUG("Query evaluation finished (TotalMemoryUsage: %v)",
-                    statistics.MemoryUsage);
+                    statistics.MemoryUsage.GetTotal());
 
                 auto responseFeatureFlags = MostFreshFeatureFlags();
                 ToProto(response->mutable_feature_flags(), responseFeatureFlags);

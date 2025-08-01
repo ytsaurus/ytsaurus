@@ -81,6 +81,7 @@ using TConstQueryPtr = TIntrusivePtr<const TQuery>;
 
 struct IPrepareCallbacks;
 
+struct TExecutionStatistics;
 struct TQueryStatistics;
 
 struct TQueryOptions;
@@ -186,4 +187,3 @@ DEFINE_ENUM(EConstraintKind,
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryClient
-
