@@ -290,6 +290,30 @@ var (
 	AsyncMode TableReplicaMode = "async"
 )
 
+type ReplicaConsistency int32
+
+const (
+	ReplicaConsistencyNone ReplicaConsistency = 0
+	ReplicaConsistencySync ReplicaConsistency = 1
+)
+
+type TabletReadKind int32
+
+const (
+	TabletReadKindLeader           TabletReadKind = 0
+	TabletReadKindFollower         TabletReadKind = 1
+	TabletReadKindLeaderOrFollower TabletReadKind = 2
+)
+
+type MultiplexingBand int32
+
+const (
+	MultiplexingBandDefault     MultiplexingBand = 0
+	MultiplexingBandControl     MultiplexingBand = 1
+	MultiplexingBandHeavy       MultiplexingBand = 2
+	MultiplexingBandInteractive MultiplexingBand = 3
+)
+
 type LockType string
 
 const (

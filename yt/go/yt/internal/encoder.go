@@ -797,6 +797,14 @@ func (e *Encoder) LookupRows(
 	return e.InvokeReadRow(ctx, call)
 }
 
+func (e *Encoder) MultiLookupRows(
+	ctx context.Context,
+	subrequests []yt.MultiLookupSubrequest,
+	options *yt.MultiLookupRowsOptions,
+) (readers []yt.TableReader, err error) {
+	return nil, xerrors.New("not implemented")
+}
+
 func (e *Encoder) SelectRows(
 	ctx context.Context,
 	query string,

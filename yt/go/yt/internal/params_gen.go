@@ -994,6 +994,19 @@ func writeLookupRowsOptions(w *yson.Writer, o *yt.LookupRowsOptions) {
 	writeTransactionOptions(w, o.TransactionOptions)
 }
 
+func writeTabletReadOptions(w *yson.Writer, o *yt.TabletReadOptions) {
+	if o == nil {
+		return
+	}
+}
+
+func writeMultiLookupRowsOptions(w *yson.Writer, o *yt.MultiLookupRowsOptions) {
+	if o == nil {
+		return
+	}
+	writeTransactionOptions(w, o.TransactionOptions)
+}
+
 func writeInsertRowsOptions(w *yson.Writer, o *yt.InsertRowsOptions) {
 	if o == nil {
 		return
