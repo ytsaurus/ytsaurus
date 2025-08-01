@@ -272,9 +272,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(std::optional<int>, WriteSessionLimit);
 
     // Transient update times used for alerts only.
-    DEFINE_BYVAL_RW_PROPERTY(TCpuInstant, LastDataHeartbeatTime);
-    DEFINE_BYVAL_RW_PROPERTY(TCpuInstant, LastJobHeartbeatTime);
-    DEFINE_BYVAL_RW_PROPERTY(TCpuInstant, LastStateChangeTime);
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, LastDataHeartbeatTime);
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, LastJobHeartbeatTime);
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, LastStateChangeTime);
 
 public:
     explicit TNode(NObjectServer::TObjectId objectId);
