@@ -333,8 +333,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         const auto& idMapping = NRecords::TChunkReplicasDescriptor::Get()->GetIdMapping();
-        YT_VERIFY(idMapping.ChunkId && idMapping.StoredReplicas);
-        TColumnFilter columnFilter{*idMapping.ChunkId, *idMapping.StoredReplicas};
+        TColumnFilter columnFilter{idMapping.ChunkId, idMapping.StoredReplicas};
         return DoGetSequoiaReplicas(chunkIds, columnFilter, [] (const NRecords::TChunkReplicas& replicaRecord) {
             return replicaRecord.StoredReplicas;
         });
@@ -379,7 +378,7 @@ public:
 
         auto lastOKConfirmationTime = TInstant::Now() - Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->ReplicaApproveTimeout;
         const auto& idMapping = NRecords::TUnapprovedChunkReplicasDescriptor::Get()->GetIdMapping();
-        TColumnFilter columnFilter{*idMapping.ChunkId, *idMapping.StoredReplicas, *idMapping.ConfirmationTime};
+        TColumnFilter columnFilter{idMapping.ChunkId, idMapping.StoredReplicas, idMapping.ConfirmationTime};
         return Bootstrap_
             ->GetSequoiaClient()
             ->LookupRows<NRecords::TUnapprovedChunkReplicasKey>(keys, columnFilter)
@@ -589,8 +588,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         const auto& idMapping = NRecords::TChunkReplicasDescriptor::Get()->GetIdMapping();
-        YT_VERIFY(idMapping.ChunkId && idMapping.LastSeenReplicas);
-        TColumnFilter columnFilter{*idMapping.ChunkId, *idMapping.LastSeenReplicas};
+        TColumnFilter columnFilter{idMapping.ChunkId, idMapping.LastSeenReplicas};
         return DoGetSequoiaReplicas({chunkId}, columnFilter, [] (const NRecords::TChunkReplicas& replicaRecord) {
             return replicaRecord.LastSeenReplicas;
         });

@@ -26,9 +26,19 @@ struct {{type.type_name}}Partial;
 struct {{type.type_name}}Key;
 {% endif -%}
 struct {{type.type_name}}IdMapping;
+struct {{type.type_name}}PartialIdMapping;
 class {{type.type_name}}Descriptor;
 
 struct {{type.type_name}}IdMapping
+{
+{% for field in type.fields if field.expression is none -%}
+    const int {{field.cpp_name}};
+{% endfor -%}
+
+    explicit {{type.type_name}}IdMapping(const NYT::NTableClient::TNameTablePtr& nameTable);
+};
+
+struct {{type.type_name}}PartialIdMapping
 {
 {% if not type.sorted -%}
     const std::optional<int> TabletIndex;
@@ -38,7 +48,7 @@ struct {{type.type_name}}IdMapping
     const std::optional<int> {{field.cpp_name}};
 {% endfor -%}
 
-    explicit {{type.type_name}}IdMapping(const NYT::NTableClient::TNameTablePtr& nameTable);
+    explicit {{type.type_name}}PartialIdMapping(const NYT::NTableClient::TNameTablePtr& nameTable);
 };
 
 class {{type.type_name}}Descriptor
@@ -51,6 +61,7 @@ public:
     using TKey = {{type.type_name}}Key;
     {% endif -%}
     using TIdMapping = {{type.type_name}}IdMapping;
+    using TPartialIdMapping = {{type.type_name}}PartialIdMapping;
     static constexpr int FieldCount = {{type.fields | length}};
 {% if type.verbatim %}
 {{type.verbatim}}
@@ -64,12 +75,14 @@ public:
     const NTableClient::TTableSchemaPtr& GetSchema() const override;
     const NTableClient::TNameTablePtr& GetNameTable() const override;
     const {{type.type_name}}IdMapping& GetIdMapping() const;
+    const {{type.type_name}}PartialIdMapping& GetPartialIdMapping() const;
     const NTableClient::TTableSchemaPtr& GetPrimaryTableSchema() const;
 
 private:
     const NTableClient::TTableSchemaPtr Schema_;
     const NTableClient::TNameTablePtr NameTable_;
     const {{type.type_name}}IdMapping IdMapping_;
+    const {{type.type_name}}PartialIdMapping PartialIdMapping_;
     const NTableClient::TTableSchemaPtr PrimaryTableSchema_;
 
 private:
@@ -117,11 +130,11 @@ struct {{type.type_name}}
 {%- endfor %}
     NYT::NTableClient::TUnversionedRow ToUnversionedRow(
         const NYT::NTableClient::TRowBufferPtr& rowBuffer,
-        const {{type.type_name}}IdMapping& idMapping,
+        const {{type.type_name}}PartialIdMapping& idMapping,
         NYT::NTableClient::EValueFlags flags = NYT::NTableClient::EValueFlags::None) const;
     static {{type.type_name}} FromUnversionedRow(
         NYT::NTableClient::TUnversionedRow row,
-        const {{type.type_name}}IdMapping& idMapping);
+        const {{type.type_name}}PartialIdMapping& idMapping);
 };
 
 struct {{type.type_name}}Partial
@@ -145,11 +158,11 @@ struct {{type.type_name}}Partial
 
     NYT::NTableClient::TUnversionedRow ToUnversionedRow(
         const NYT::NTableClient::TRowBufferPtr& rowBuffer,
-        const {{type.type_name}}IdMapping& idMapping,
+        const {{type.type_name}}PartialIdMapping& idMapping,
         NYT::NTableClient::EValueFlags flags = NYT::NTableClient::EValueFlags::None) const;
     static {{type.type_name}}Partial FromUnversionedRow(
         NYT::NTableClient::TUnversionedRow row,
-        const {{type.type_name}}IdMapping& idMapping);
+        const {{type.type_name}}PartialIdMapping& idMapping);
 };
 
 {% endfor %}

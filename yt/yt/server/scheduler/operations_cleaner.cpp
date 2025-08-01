@@ -513,9 +513,7 @@ void DoSendOperationAlerts(
 {
     YT_LOG_DEBUG("Writing operation alert events to archive (EventCount: %v)", eventsToSend.size());
 
-    auto idMapping = NRecords::TOrderedByIdDescriptor::Get()->GetIdMapping();
-    auto columns = std::vector{*idMapping.IdHi, *idMapping.IdLo, *idMapping.AlertEvents};
-    auto columnFilter = NTableClient::TColumnFilter(columns);
+    const auto& idMapping = NRecords::TOrderedByIdDescriptor::Get()->GetIdMapping();
 
     THashSet<TOperationId> ids;
     for (const auto& event : eventsToSend) {
@@ -524,7 +522,7 @@ void DoSendOperationAlerts(
     auto rowsetOrError = LookupOperationsInArchive(
         client,
         std::vector(ids.begin(), ids.end()),
-        columnFilter);
+        {idMapping.IdHi, idMapping.IdLo, idMapping.AlertEvents});
     THROW_ERROR_EXCEPTION_IF_FAILED(rowsetOrError, "Failed to fetch operation alert events from archive");
     auto rowset = rowsetOrError.Value();
     auto records = ToOptionalRecords<NRecords::TOrderedByIdPartial>(rowset);
@@ -1833,14 +1831,14 @@ private:
 
     void FetchBriefProgressFromArchive(std::vector<TArchiveOperationRequest>& requests)
     {
-        auto idMapping = NRecords::TOrderedByIdDescriptor::Get()->GetIdMapping();
+        const auto& idMapping = NRecords::TOrderedByIdDescriptor::Get()->GetIdMapping();
         std::vector<TOperationId> ids;
         ids.reserve(requests.size());
         for (const auto& req : requests) {
             ids.push_back(req.Id);
         }
-        auto filter = TColumnFilter({*idMapping.BriefProgress});
-        auto briefProgressIndex = filter.GetPosition(*idMapping.BriefProgress);
+        auto filter = TColumnFilter{idMapping.BriefProgress};
+        auto briefProgressIndex = filter.GetPosition(idMapping.BriefProgress);
         auto timeout = Config_->FinishedOperationsArchiveLookupTimeout;
         auto rowsetOrError = LookupOperationsInArchive(Client_, ids, filter, timeout);
         if (!rowsetOrError.IsOK()) {

@@ -50,7 +50,7 @@ TFuture<TResult> MakeQueryResult(
     for (const auto& record : records) {
         rows.push_back(record.ToUnversionedRow(
             rowBuffer,
-            TRecordDescriptor::Get()->GetIdMapping()));
+            TRecordDescriptor::Get()->GetPartialIdMapping()));
     };
 
     auto schema = TRecordDescriptor::Get()->GetSchema();

@@ -13,11 +13,20 @@ namespace {{namespace}} {
 using namespace NTableClient;
 using namespace NTableClient::NDetail;
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 {% for type in types %}
 {{type.type_name}}IdMapping::{{type.type_name}}IdMapping(const TNameTablePtr& nameTable)
+{%- if not type.sorted %}
+{%- endif -%}
+{%- for field in type.fields if field.expression is none %}
+    {{":" if loop.index0 == 0 else ","}} {{field.cpp_name}}(nameTable->GetIdOrThrow("{{field.column_name}}"))
+{%- endfor %}
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+{{type.type_name}}PartialIdMapping::{{type.type_name}}PartialIdMapping(const TNameTablePtr& nameTable)
 {%- if not type.sorted %}
     : TabletIndex(nameTable->FindId(TabletIndexColumnName))
     , RowIndex(nameTable->FindId(RowIndexColumnName))
@@ -47,6 +56,11 @@ const TNameTablePtr& {{type.type_name}}Descriptor::GetNameTable() const
 const {{type.type_name}}IdMapping& {{type.type_name}}Descriptor::GetIdMapping() const
 {
     return IdMapping_;
+}
+
+const {{type.type_name}}PartialIdMapping& {{type.type_name}}Descriptor::GetPartialIdMapping() const
+{
+    return PartialIdMapping_;
 }
 
 const TTableSchemaPtr& {{type.type_name}}Descriptor::GetPrimaryTableSchema() const
@@ -84,6 +98,7 @@ const TTableSchemaPtr& {{type.type_name}}Descriptor::GetPrimaryTableSchema() con
         }))
     , NameTable_(TNameTable::FromSchema(*Schema_))
     , IdMapping_(NameTable_)
+    , PartialIdMapping_(NameTable_)
     , PrimaryTableSchema_(New<TTableSchema>(std::vector{
 {% for field in type.fields -%}
         TColumnSchema(
@@ -148,7 +163,7 @@ TLegacyKey {{type.type_name}}Key::ToKey(const TRowBufferPtr& rowBuffer) const
 
 TUnversionedRow {{type.type_name}}::ToUnversionedRow(
     const TRowBufferPtr& rowBuffer,
-    const {{type.type_name}}IdMapping& idMapping,
+    const {{type.type_name}}PartialIdMapping& idMapping,
     EValueFlags flags) const
 {
     std::array values{
@@ -183,7 +198,7 @@ TUnversionedRow {{type.type_name}}::ToUnversionedRow(
 
 {{type.type_name}} {{type.type_name}}::FromUnversionedRow(
     TUnversionedRow row,
-    const {{type.type_name}}IdMapping& idMapping)
+    const {{type.type_name}}PartialIdMapping& idMapping)
 {
     {{type.type_name}} result;
 
@@ -227,7 +242,7 @@ TUnversionedRow {{type.type_name}}::ToUnversionedRow(
 
 TUnversionedRow {{type.type_name}}Partial::ToUnversionedRow(
     const TRowBufferPtr& rowBuffer,
-    const {{type.type_name}}IdMapping& idMapping,
+    const {{type.type_name}}PartialIdMapping& idMapping,
     EValueFlags flags) const
 {
     TUnversionedRowBuilder builder;
@@ -266,7 +281,7 @@ TUnversionedRow {{type.type_name}}Partial::ToUnversionedRow(
 
 {{type.type_name}}Partial {{type.type_name}}Partial::FromUnversionedRow(
     TUnversionedRow row,
-    const {{type.type_name}}IdMapping& idMapping)
+    const {{type.type_name}}PartialIdMapping& idMapping)
 {
     {{type.type_name}}Partial result;
 {% if not type.sorted -%}
