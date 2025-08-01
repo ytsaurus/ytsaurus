@@ -106,7 +106,9 @@ public:
             std::move(client),
             std::move(path),
             std::move(options)))
-    { }
+    {
+        Impl_->Initialize();
+    }
 
     ~TJournalWriter()
     {
@@ -158,7 +160,10 @@ private:
                 attachOptions.Ping = true;
                 Transaction_ = Client_->AttachTransaction(Options_.TransactionId, attachOptions);
             }
+        }
 
+        void Initialize()
+        {
             for (auto transactionId : Options_.PrerequisiteTransactionIds) {
                 TTransactionAttachOptions attachOptions = {};
                 attachOptions.Ping = false;
