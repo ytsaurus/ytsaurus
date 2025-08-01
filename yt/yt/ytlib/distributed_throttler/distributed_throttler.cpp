@@ -1086,17 +1086,22 @@ public:
         attributes->Set(AddressAttributeKey, address);
 
         auto conf = Config_.Acquire();
-        switch (conf->MemberPriority) {
-            case EDistributedThrottlerMemberPriority::StartTime:
-                MemberClient_->SetPriority(TInstant::Now().Seconds());
-                break;
-            case EDistributedThrottlerMemberPriority::Random:
-                MemberClient_->SetPriority(RandomNumber<ui64>());
-                break;
-            default:
-                THROW_ERROR_EXCEPTION("Unsupported priority: %v",
-                    conf->MemberPriority);
-                break;
+
+        if (conf->MemberPriority) {
+            MemberClient_->SetPriority(conf->MemberPriority.value());
+        } else {
+            switch (conf->MemberPriorityGenerator) {
+                case EDistributedThrottlerMemberPriorityGenerator::StartTime:
+                    MemberClient_->SetPriority(TInstant::Now().Seconds());
+                    break;
+                case EDistributedThrottlerMemberPriorityGenerator::Random:
+                    MemberClient_->SetPriority(RandomNumber<ui64>());
+                    break;
+                default:
+                    THROW_ERROR_EXCEPTION("Unsupported priority generator: %v",
+                        conf->MemberPriorityGenerator);
+                    break;
+            }
         }
 
         UpdateLimitsExecutor_->Start();
