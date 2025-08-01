@@ -350,6 +350,7 @@ void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
     serialized->set_write_rowset_size(original.WriteRowsetSize);
     serialized->set_max_join_batch_size(original.MaxJoinBatchSize);
     serialized->set_use_order_by_in_join_subqueries(original.UseOrderByInJoinSubqueries);
+    serialized->set_statistics_aggregation(ToProto(original.StatisticsAggregation));
 }
 
 void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
@@ -421,6 +422,9 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
     }
     if (serialized.has_use_order_by_in_join_subqueries()) {
         original->UseOrderByInJoinSubqueries = serialized.use_order_by_in_join_subqueries();
+    }
+    if (serialized.has_statistics_aggregation()) {
+        original->StatisticsAggregation = FromProto<EStatisticsAggregation>(serialized.statistics_aggregation());
     }
 }
 

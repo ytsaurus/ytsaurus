@@ -95,7 +95,7 @@ public:
             *query->GetTableSchema(),
             options.ExecutionBackend);
 
-        TQueryStatistics statistics;
+        TExecutionStatistics statistics;
         NProfiling::TWallTimer wallTime;
         NProfiling::TFiberWallTimer syncTime;
 
@@ -160,21 +160,11 @@ public:
         statistics.ExecuteTime =
             statistics.SyncTime - statistics.ReadTime - statistics.WriteTime - statistics.CodegenTime;
 
-        YT_LOG_DEBUG("Query statistics (%v)", statistics);
+        auto queryStatistics = TQueryStatistics::FromExecutionStatistics(statistics);
 
-        // TODO(prime): place these into trace log
-        //    TRACE_ANNOTATION("rows_read", statistics.RowsRead);
-        //    TRACE_ANNOTATION("rows_written", statistics.RowsWritten);
-        //    TRACE_ANNOTATION("sync_time", statistics.SyncTime);
-        //    TRACE_ANNOTATION("async_time", statistics.AsyncTime);
-        //    TRACE_ANNOTATION("execute_time", statistics.ExecuteTime);
-        //    TRACE_ANNOTATION("read_time", statistics.ReadTime);
-        //    TRACE_ANNOTATION("write_time", statistics.WriteTime);
-        //    TRACE_ANNOTATION("codegen_time", statistics.CodegenTime);
-        //    TRACE_ANNOTATION("incomplete_input", statistics.IncompleteInput);
-        //    TRACE_ANNOTATION("incomplete_output", statistics.IncompleteOutput);
+        YT_LOG_DEBUG("Query statistics (%v)", queryStatistics);
 
-        return statistics;
+        return queryStatistics;
     }
 
 private:
@@ -184,7 +174,7 @@ private:
         const std::vector<IJoinProfilerPtr>& joinProfilers,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
-        TQueryStatistics& statistics,
+        TExecutionStatistics& statistics,
         bool enableCodeCache,
         bool useCanonicalNullRelations,
         EExecutionBackend executionBackend,

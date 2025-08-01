@@ -645,7 +645,7 @@ private:
 
         int splitCount = std::ssize(groupedDataSplits);
 
-        return CoordinateAndExecute(
+        auto statistics = CoordinateAndExecute(
             query->IsOrdered(options.AllowUnorderedGroupByWithLimit),
             query->IsPrefetching(),
             splitCount,
@@ -698,6 +698,14 @@ private:
                     requestFeatureFlags,
                     responseFeatureFlags);
             });
+
+        if (options.StatisticsAggregation == EStatisticsAggregation::Depth) {
+            auto aggregated = TQueryStatistics();
+            aggregated.Merge(statistics);
+            return aggregated;
+        }
+
+        return statistics;
     }
 
     TEvaluateResult Delegate(
@@ -759,10 +767,6 @@ private:
             *query->GetTableSchema(),
             serializationTime,
             req->ByteSize());
-
-        // TODO(prime): put these into the trace log
-        // TRACE_ANNOTATION("serialization_time", serializationTime);
-        // TRACE_ANNOTATION("request_size", req->ByteSize());
 
         auto resultReader = New<TQueryResponseReader>(
             req->Invoke(),

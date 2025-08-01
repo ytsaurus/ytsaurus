@@ -212,7 +212,7 @@ struct TExecutionContext
     ISchemafulUnversionedReaderPtr Reader;
     IUnversionedRowsetWriterPtr Writer;
 
-    TQueryStatistics* Statistics = nullptr;
+    TExecutionStatistics* Statistics = nullptr;
 
     // These limits prevent full scan.
     i64 InputRowLimit = std::numeric_limits<i64>::max();

@@ -64,6 +64,9 @@ class TestQuery(DynamicTablesBase):
     DELTA_RPC_DRIVER_CONFIG = DELTA_DRIVER_CONFIG
 
     def _sample_data(self, path="//tmp/t", chunks=3, stripe=3):
+        pivot_keys = [[]]
+        if chunks > 1:
+            pivot_keys += [[stripe * i] for i in range(1, chunks)]
         create(
             "table",
             path,
@@ -74,6 +77,7 @@ class TestQuery(DynamicTablesBase):
                     {"name": "a", "type": "int64", "sort_order": "ascending"},
                     {"name": "b", "type": "int64"},
                 ],
+                "pivot_keys": pivot_keys
             },
         )
 
@@ -137,7 +141,7 @@ class TestQuery(DynamicTablesBase):
 
     @authors("lukyan")
     def test_response_parameters(self):
-        sync_create_cells(1)
+        sync_create_cells(3)
         self._sample_data(path="//tmp/t")
         response_parameters = {}
         select_rows(
@@ -145,7 +149,18 @@ class TestQuery(DynamicTablesBase):
             response_parameters=response_parameters,
             enable_statistics=True)
         assert "read_time" in response_parameters
-        assert "total_grouped_row_count" in response_parameters
+        assert "grouped_row_count" in response_parameters
+
+        response_parameters = {}
+        select_rows(
+            "sum(1) from [//tmp/t] join [//tmp/t] J on (b / 10) % 3 * 3 = J.a group by 1",
+            response_parameters=response_parameters,
+            enable_statistics=True,
+            statistics_aggregation="depth")
+
+        while "inner_statistics" in response_parameters:
+            assert len(response_parameters["inner_statistics"]) == 1
+            response_parameters = response_parameters["inner_statistics"][0]
 
     @authors("lukyan")
     def test_full_scan(self):
