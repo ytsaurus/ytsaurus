@@ -403,6 +403,7 @@ SRCS(
 
     sequoia_client/client.cpp
     sequoia_client/helpers.cpp
+    sequoia_client/ground_channel_wrapper.cpp
     sequoia_client/prerequisite_revision.cpp
     sequoia_client/record_helpers.cpp
     sequoia_client/sequoia_reign.cpp
