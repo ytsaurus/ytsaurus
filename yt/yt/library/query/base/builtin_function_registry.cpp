@@ -563,7 +563,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         "abs");
 
     struct TMathFunction {
-        TString Name;
+        std::string Name;
         std::vector<TType> ArgumentTypes;
         EValueType ResultType;
     };

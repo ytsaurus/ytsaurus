@@ -15,7 +15,7 @@ namespace NYT::NQueryClient {
 using namespace NConcurrency;
 using namespace NTableClient;
 
-using TKey = std::pair<TString, llvm::FoldingSetNodeID>;
+using TKey = std::pair<std::string, llvm::FoldingSetNodeID>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

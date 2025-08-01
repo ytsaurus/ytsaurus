@@ -30,7 +30,7 @@ struct TDataSplit
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TStructMemberAccessor = TString;
+using TStructMemberAccessor = std::string;
 using TTupleItemIndexAccessor = int;
 
 using TSourceLocation = std::pair<int, int>;
@@ -183,7 +183,7 @@ struct TQueryOptions
         .RetentionTimestamp = NTransactionClient::NullTimestamp,
     };
 
-    std::optional<TString> ExecutionPool;
+    std::optional<std::string> ExecutionPool;
     TWorkloadDescriptor WorkloadDescriptor;
 
     std::optional<bool> UseLookupCache;
@@ -226,7 +226,7 @@ struct TFeatureFlags
 TFeatureFlags MostFreshFeatureFlags();
 TFeatureFlags MostArchaicFeatureFlags();
 
-TString ToString(const TFeatureFlags& featureFlags);
+std::string ToString(const TFeatureFlags& featureFlags);
 
 void ToProto(NProto::TFeatureFlags* serialized, const TFeatureFlags& original);
 void FromProto(TFeatureFlags* original, const NProto::TFeatureFlags& serialized);
@@ -235,7 +235,7 @@ void FromProto(TFeatureFlags* original, const NProto::TFeatureFlags& serialized)
 
 struct TShuffleNavigator
 {
-    THashMap<TString, TSharedRange<TKeyRange>> DestinationMap;
+    THashMap<std::string, TSharedRange<TKeyRange>> DestinationMap;
     int PrefixHint;
 };
 

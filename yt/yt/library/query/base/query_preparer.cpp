@@ -54,7 +54,7 @@ void ExtractFunctionNames(
     std::vector<std::string>* functions)
 {
     if (auto functionExpr = expr->As<NAst::TFunctionExpression>()) {
-        functions->push_back(to_lower(TString(functionExpr->FunctionName)));
+        functions->push_back(ToLower(functionExpr->FunctionName));
         ExtractFunctionNames(functionExpr->Arguments, functions);
     } else if (auto unaryExpr = expr->As<NAst::TUnaryOpExpression>()) {
         ExtractFunctionNames(unaryExpr->Operand, functions);
@@ -461,7 +461,7 @@ void YsonParseError(TStringBuf message, TYsonStringBuf source)
         << TErrorAttribute("context", Format("%v", source.AsStringBuf()));
 }
 
-THashMap<TString, TString> ConvertYsonPlaceholdersToQueryLiterals(TYsonStringBuf placeholders)
+THashMap<std::string, std::string> ConvertYsonPlaceholdersToQueryLiterals(TYsonStringBuf placeholders)
 {
     TMemoryInput input{placeholders.AsStringBuf()};
     TYsonPullParser ysonParser{&input, EYsonType::Node};
@@ -473,12 +473,12 @@ THashMap<TString, TString> ConvertYsonPlaceholdersToQueryLiterals(TYsonStringBuf
 
     ysonCursor.Next();
 
-    THashMap<TString, TString> queryLiterals;
+    THashMap<std::string, std::string> queryLiterals;
     while (ysonCursor->GetType() != EYsonItemType::EndMap) {
         if (ysonCursor->GetType() != EYsonItemType::StringValue) {
             YsonParseError("Incorrect YSON map placeholder: keys should be strings", placeholders);
         }
-        auto key = TString(ysonCursor->UncheckedAsString());
+        auto key = std::string(ysonCursor->UncheckedAsString());
 
         ysonCursor.Next();
         switch (ysonCursor->GetType()) {
@@ -511,7 +511,7 @@ NAst::TAstHead ParseQueryString(
 {
     auto head = NAst::TAstHead();
 
-    THashMap<TString, TString> queryLiterals;
+    THashMap<std::string, std::string> queryLiterals;
     if (placeholderValues) {
         queryLiterals = ConvertYsonPlaceholdersToQueryLiterals(placeholderValues);
     }
@@ -626,7 +626,7 @@ THashMap<std::string, int> BuildReferenceToIndexMap(const std::vector<TConstExpr
 std::vector<std::pair<TConstExpressionPtr, int>> MakeExpressionsFromComputedColumns(
     const TTableSchemaPtr& schema,
     const TConstTypeInferrerMapPtr& functions,
-    const std::optional<TString>& alias)
+    const std::optional<std::string>& alias)
 {
     std::vector<std::pair<TConstExpressionPtr, int>> expressionsAndColumnIndices;
 
@@ -671,7 +671,7 @@ TJoinClausePtr BuildJoinClause(
     const TConstTypeInferrerMapPtr& functions,
     size_t* globalCommonKeyPrefix,
     const TTableSchemaPtr& tableSchema,
-    const std::optional<TString>& tableAlias,
+    const std::optional<std::string>& tableAlias,
     TExprBuilder* builder,
     int builderVersion,
     const NLogging::TLogger& Logger)
@@ -1066,7 +1066,7 @@ TPlanFragmentPtr PreparePlanFragment(
         [&] (const NAst::TQueryAstHeadPtr& subquery) {
             return subquery->Alias;
         },
-        [&] (const NAst::TExpressionList&) -> std::optional<TString> {
+        [&] (const NAst::TExpressionList&) -> std::optional<std::string> {
             return std::nullopt;
         });
 

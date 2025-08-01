@@ -226,7 +226,7 @@ TFeatureFlags MostArchaicFeatureFlags()
     };
 }
 
-TString ToString(const TFeatureFlags& featureFlags)
+std::string ToString(const TFeatureFlags& featureFlags)
 {
     return Format(
         "{WithTotalsFinalizesAggregatedOnCoordinator: %v, GroupByWithLimitIsUnordered: %v}",

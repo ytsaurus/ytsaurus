@@ -100,7 +100,7 @@ TEST(TTopCollectorTest, LargeRow)
         /*rowSize*/ 1,
         GetDefaultMemoryChunkProvider());
 
-    auto largeString = TString();
+    auto largeString = std::string();
     largeString.resize(600_KB);
 
     auto data = std::vector<TPIValue>(dataLength);

@@ -22,7 +22,7 @@ public:
 
     TTypingCtx();
 
-    TTypeId GetTypeId(TString name, const TLogicalTypePtr& logicalType);
+    TTypeId GetTypeId(TStringBuf name, const TLogicalTypePtr& logicalType);
 
     TTypeId GetTypeId(EValueType wireType);
 
@@ -55,8 +55,8 @@ public:
     std::vector<TTypeId> InferFunctionType(TStringBuf name, TRange<TTypeId> argumentTypes);
 
 private:
-    std::vector<std::pair<TString, TLogicalTypePtr>> TypeNames_;
-    THashMap<TString, TTypeId> UniqueTypes_;
+    std::vector<std::pair<std::string, TLogicalTypePtr>> TypeNames_;
+    THashMap<std::string, TTypeId> UniqueTypes_;
 
     THashMap<std::string, TFunctionSignatures, THash<TStringBuf>, TEqualTo<>> Functions_;
 };

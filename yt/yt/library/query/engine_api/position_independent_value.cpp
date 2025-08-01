@@ -56,7 +56,7 @@ void PrintTo(const TPIValue& value, ::std::ostream* os)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const TPIValue& value, bool valueOnly)
+std::string ToString(const TPIValue& value, bool valueOnly)
 {
     TUnversionedValue asUnversioned{};
     MakeUnversionedFromPositionIndependent(&asUnversioned, value);

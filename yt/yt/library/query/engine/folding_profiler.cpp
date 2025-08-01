@@ -417,7 +417,7 @@ struct TExpressionFragments
     THashMap<llvm::FoldingSetNodeID, size_t> Fingerprints;
     std::vector<TDebugInfo> DebugInfos;
 
-    TCodegenFragmentInfosPtr ToFragmentInfos(const TString& namePrefix)
+    TCodegenFragmentInfosPtr ToFragmentInfos(TStringBuf namePrefix)
     {
         if (IsDumpExprsEnabled()) {
             Cerr << "\n" << namePrefix << "\n";

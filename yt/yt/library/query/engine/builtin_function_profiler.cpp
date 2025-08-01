@@ -18,7 +18,7 @@
 
 #include <llvm/ADT/FoldingSet.h>
 
-#define UDF_BC(name) TSharedRef::FromString(::NResource::Find(TString("/llvm_bc/") + (name)))
+#define UDF_BC(name) TSharedRef::FromString(::NResource::Find(std::string("/llvm_bc/") + std::string(name)))
 
 namespace NYT::NQueryClient {
 namespace NBuiltins {

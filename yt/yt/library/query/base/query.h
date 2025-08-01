@@ -536,8 +536,8 @@ struct TInferNameOptions
     bool OmitOffsetAndLimit = false;
 };
 
-TString InferName(TConstExpressionPtr expr, bool omitValues = false);
-TString InferName(TConstBaseQueryPtr query, TInferNameOptions options = {});
+std::string InferName(TConstExpressionPtr expr, bool omitValues = false);
+std::string InferName(TConstBaseQueryPtr query, TInferNameOptions options = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

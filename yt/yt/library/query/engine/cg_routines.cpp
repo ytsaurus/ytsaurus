@@ -884,7 +884,7 @@ std::vector<TPIValue*> UnpackRows(TExpressionContext* context, std::vector<EValu
         }
 
         TMemoryInput memoryInput;
-        TString buffer;
+        std::string buffer;
         if (compartment) {
             buffer = arrayAtHost->AsStringBuf();
             memoryInput = TMemoryInput(TStringBuf(buffer));
@@ -2414,7 +2414,7 @@ int XdeltaMerge(
         \
         auto value = NYTree::TryGet ## TYPE( \
             TStringBuf(anyValueDataAtHost, anyValueAtHost->Length), \
-            TString(ypathDataAtHost, ypathAtHost->Length)); \
+            std::string(ypathDataAtHost, ypathAtHost->Length)); \
         if (value) { \
             STATEMENT_OK \
         } else { \
@@ -2676,6 +2676,7 @@ extern "C" void MakeMap(
 
     auto arguments = TRange(PtrFromVM(compartment, args, argCount), argCount);
 
+    // TODO(sabdenovch): migrate to std::string.
     TString resultYson;
     TStringOutput output(resultYson);
     NYson::TYsonWriter writer(&output);
@@ -2744,6 +2745,7 @@ extern "C" void MakeList(
 
     auto arguments = TRange(PtrFromVM(compartment, args, argCount), argCount);
 
+    // TODO(sabdenovch): migrate to std::string.
     TString resultYson;
     TStringOutput output(resultYson);
     NYson::TYsonWriter writer(&output);
@@ -2834,7 +2836,7 @@ void ListContains(
     bool found = false;
     switch (whatAtHost.Type) {
         case EValueType::String:
-            found = ListContainsImpl<ENodeType::String, TString>(node, TStringBuf(whatAtHost.Data.String, whatAtHost.Length));
+            found = ListContainsImpl<ENodeType::String, std::string>(node, TStringBuf(whatAtHost.Data.String, whatAtHost.Length));
             break;
         case EValueType::Int64:
             found = ListContainsImpl<ENodeType::Int64, i64>(node, whatAtHost.Data.Int64);
@@ -2977,6 +2979,7 @@ void AnyToYsonString(
 
 TString NumericToStringImpl(TValue* valueAtHost)
 {
+    // TODO(sabdenovch): migrate to std::string.
     auto resultYson = TString();
     auto output = TStringOutput(resultYson);
     auto writer = TYsonWriter(&output, EYsonFormat::Text);
@@ -3537,6 +3540,7 @@ void ArrayAggFinalize(TExpressionContext* context, TUnversionedValue* result, TU
     auto* resultAtHost = PtrFromVM(compartment, result);
     auto* stateAtHost = PtrFromVM(compartment, state);
 
+    // TODO(sabdenovch): migrate to std::string.
     TString resultYson;
     TStringOutput output(resultYson);
     NYson::TYsonWriter writer(&output);
@@ -3986,6 +3990,7 @@ bool SubqueryWriteRow(TNestedExecutionContext* context, TSubqueryWriteOpClosure*
 // Build yson list from values.
 TUnversionedValue PackValues(TRange<TUnversionedValue> values, TRowBuffer* rowBuffer)
 {
+    // TODO(sabdenovch): migrate to std::string.
     TString resultYson;
     TStringOutput output(resultYson);
     NYson::TYsonWriter writer(&output);

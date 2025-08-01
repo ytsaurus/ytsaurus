@@ -101,7 +101,7 @@ typedef TParser::token_type TToken;
             if (--rd == 0) {
                 re = fpc;
                 type = TToken::Identifier;
-                value->build(TString(rs, re - rs));
+                value->build(std::string(rs, re - rs));
                 fnext main;
                 fbreak;
             }
@@ -158,7 +158,7 @@ typedef TParser::token_type TToken;
 
         identifier => {
             type = TToken::Identifier;
-            value->build(TString(ts, te - ts));
+            value->build(std::string(ts, te - ts));
             fbreak;
         };
         int64_literal => {
@@ -173,23 +173,25 @@ typedef TParser::token_type TToken;
         };
         double_literal => {
             type = TToken::DoubleOrDotIntToken;
-            value->build(TDoubleOrDotIntToken{TString(ts, te - ts)});
+            value->build(TDoubleOrDotIntToken{std::string(ts, te - ts)});
             fbreak;
         };
         string_literal => {
             type = TToken::StringLiteral;
+            // NB(sabdenovch): Implicit TString construction.
             value->build(UnescapeC(ts + 1, te - ts - 2));
             fbreak;
         };
         placeholder_literal => {
             type = TToken::PlaceholderLiteral;
-            value->build(TString(ts + 1, te - ts - 2));
+            value->build(std::string(ts + 1, te - ts - 2));
             fbreak;
         };
 
         backtick_quoted_identifier => {
             type = TToken::Identifier;
-            value->build(UnescapeC(ts + 1, te - ts - 2));
+            // TODO(sabdenovch): migrate to std::string.
+            value->build(std::string(UnescapeC(ts + 1, te - ts - 2)));
             fbreak;
         };
 
@@ -299,7 +301,7 @@ TParser::token_type TBaseLexer::GetNextToken(
 TLexer::TLexer(
     TStringBuf source,
     TParser::token_type strayToken,
-    THashMap<TString, TString> placeholderValues,
+    THashMap<std::string, std::string> placeholderValues,
     int syntaxVersion)
     : QueryLexer_(source, strayToken, syntaxVersion)
     , PlaceholderValues_(std::move(placeholderValues))
@@ -328,13 +330,13 @@ void TLexer::SetPlaceholder(
     TParser::semantic_type* value,
     TParser::location_type* location)
 {
-    const TString* placeholderValue = nullptr;
+    const std::string* placeholderValue = nullptr;
     {
         auto finally = Finally([&] () {
-            value->destroy<TString>();
+            value->destroy<std::string>();
         });
 
-        const auto& placeholderName = value->as<TString>();
+        const auto& placeholderName = value->as<std::string>();
 
         const auto it = PlaceholderValues_.find(placeholderName);
         if (it == PlaceholderValues_.end()) {
@@ -387,4 +389,3 @@ TParser::token_type TLexer::GetNextToken(
 } // namespace NAst
 } // namespace NQueryClient
 } // namespace NYT
-

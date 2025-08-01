@@ -114,7 +114,7 @@ struct TLikeExpressionContext
     { }
 };
 
-TString ConvertLikePatternToRegex(
+std::string ConvertLikePatternToRegex(
     TStringBuf pattern,
     EStringMatchOp matchOp,
     TStringBuf escapeCharacter,
