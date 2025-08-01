@@ -14,12 +14,10 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_subdirectory(unittests)
-
-add_library(yt-client-arrow)
+add_executable(yt-yt-client-arrow-unittests)
 
 
-target_compile_options(yt-client-arrow PRIVATE
+target_compile_options(yt-yt-client-arrow-unittests PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
@@ -27,19 +25,64 @@ target_compile_options(yt-client-arrow PRIVATE
   -Wno-bitwise-op-parentheses
 )
 
-target_link_libraries(yt-client-arrow PUBLIC
+target_link_libraries(yt-yt-client-arrow-unittests PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  yt-yt-client
-  yt-library-formats
-  libs-apache-arrow
+  cpp-testing-gtest
+  cpp-testing-gtest_main
+  cpp-testing-common
+  yt-client-arrow
 )
 
-target_sources(yt-client-arrow PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/arrow/arrow_row_stream_encoder.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/arrow/arrow_row_stream_decoder.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/arrow/public.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/arrow/schema.cpp
+target_allocator(yt-yt-client-arrow-unittests
+  system_allocator
 )
 
+target_link_options(yt-yt-client-arrow-unittests PRIVATE
+  -ldl
+  -lrt
+  -Wl,--no-as-needed
+  -fPIC
+  -fPIC
+  -lrt
+  -ldl
+  -lutil
+)
+
+target_sources(yt-yt-client-arrow-unittests PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/arrow/unittests/schema_ut.cpp
+)
+
+
+add_test(
+  NAME
+  yt-yt-client-arrow-unittests
+  COMMAND
+  yt-yt-client-arrow-unittests
+)
+
+set_property(
+  TEST
+  yt-yt-client-arrow-unittests
+  PROPERTY
+  LABELS
+  SMALL
+)
+
+set_property(
+  TEST
+  yt-yt-client-arrow-unittests
+  PROPERTY
+  ENVIRONMENT
+)
+
+vcs_info(yt-yt-client-arrow-unittests)
+
+set_property(
+  TEST
+  yt-yt-client-arrow-unittests
+  PROPERTY
+  PROCESSORS
+  1
+)
