@@ -122,21 +122,32 @@ void TDiskHealthChecker::DoRunCheck()
     YT_LOG_DEBUG("Disk health check started");
 
     if (auto lockFilePath = NFS::CombinePaths(Path_, DisabledLockFileName); NFS::Exists(lockFilePath)) {
-        TError lockFileError("Empty lock file found");
+        TError lockFileError(NChunkClient::EErrorCode::LockFileIsFound, "Lock file is found");
+        TString fileContents;
+        try {
+            fileContents = TFileInput(lockFilePath).ReadAll();
+        } catch (const std::exception& ex) {
+            YT_LOG_INFO(ex, "Failed to extract error from location lock file");
+            lockFileError <<= TError("Failed to extract error from location lock file")
+                << ex;
+
+            THROW_ERROR(lockFileError);
+        }
         try {
             if (
-                auto error = NYTree::ConvertTo<TError>(NYson::TYsonString(TFileInput(lockFilePath).ReadAll()));
+                auto error = NYTree::ConvertTo<TError>(NYson::TYsonString(fileContents));
                 !error.IsOK())
             {
                 lockFileError = std::move(error);
             }
         } catch (const std::exception& ex) {
-            YT_LOG_INFO(ex, "Failed to extract error from location lock file");
-            lockFileError = TError("Failed to extract error from location lock file")
+            YT_LOG_INFO(ex, "Failed to parse error from location lock file");
+
+            lockFileError <<= TError("Failed to parse error from location lock file (%v)", fileContents)
                 << ex;
         }
 
-        THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::LockFileIsFound, "Lock file is found") << std::move(lockFileError);
+        THROW_ERROR(lockFileError);
     }
 
     auto testSize = GetTestSize();
