@@ -47,6 +47,12 @@ private:
     TAtomicIntrusivePtr<TCypressKeyWriterConfig> Config_;
     const TOwnerId OwnerId_;
     const NApi::NNative::IClientPtr Client_;
+
+    TFuture<void> CleanUpKeysIfLimitReached(TCypressKeyWriterConfigPtr config);
+
+    TFuture<void> DoCleanUpOnReachedLimit(TCypressKeyWriterConfigPtr config, const TErrorOr<NYson::TYsonString>& ownerNode);
+
+    TFuture<void> DoRegisterKey(TCypressKeyWriterConfigPtr config, TKeyInfoPtr keyInfo, TOwnerId ownerId, TKeyId keyId);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCypressKeyWriter)

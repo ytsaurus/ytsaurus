@@ -1490,8 +1490,7 @@ struct TCypressKeyWriterTest
 
     TCypressKeyWriterTest()
     {
-        static int testId = 0;
-        Config->Path = YPathJoin("//sys/public_keys", ++testId);
+        Config->Path = Format("//sys/public_keys/%v", TGuid::Create());
         WaitFor(Client_->CreateNode(Config->Path, EObjectType::MapNode))
             .ThrowOnError();
         Writer = New<TCypressKeyWriter>(Config, OwnerId, NativeClient);
@@ -1678,6 +1677,65 @@ TEST_F(TCypressKeyWriterTest, Reconfigure)
         ConvertTo<TKeyInfo>(WaitFor(Client_->GetNode(YPathJoin(newConfig->Path, OwnerId.Underlying(), "8-7-6-5")))
             .ValueOrThrow()),
         *keyInfoExpired);
+}
+
+TEST_F(TCypressKeyWriterTest, CleanupSoonExpiringKeysWhenLimitExceeded)
+{
+    Config->MaxKeyCount = 3;
+    Writer->Reconfigure(Config);
+
+    for (int i = 0; i < 5; ++i) {
+        auto meta = TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>{
+            .OwnerId = OwnerId,
+            .KeyId = TKeyId(TGuid(i, 0, 0, 0)),
+            .CreatedAt = NowTime - TDuration::Seconds(10),
+            .ValidAfter = NowTime,
+            .ExpiresAt = NowTime + TDuration::Hours(1) + TDuration::Seconds(i),
+        };
+        WaitFor(Writer->RegisterKey(New<TKeyInfo>(TPublicKey{}, meta)))
+            .ThrowOnError();
+    }
+
+    // Verify keys with nearest expiration time were deleted, others remain.
+    auto ownerPath = YPathJoin(Config->Path, "test");
+    EXPECT_FALSE(WaitFor(Client_->NodeExists(YPathJoin(ownerPath, "0-0-0-0")))
+        .ValueOrThrow());
+    EXPECT_FALSE(WaitFor(Client_->NodeExists(YPathJoin(ownerPath, "0-0-0-1")))
+        .ValueOrThrow());
+    EXPECT_TRUE(WaitFor(Client_->NodeExists(YPathJoin(ownerPath, "0-0-0-2")))
+        .ValueOrThrow());
+    EXPECT_TRUE(WaitFor(Client_->NodeExists(YPathJoin(ownerPath, "0-0-0-3")))
+        .ValueOrThrow());
+    EXPECT_TRUE(WaitFor(Client_->NodeExists(YPathJoin(ownerPath, "0-0-0-4")))
+        .ValueOrThrow());
+}
+
+TEST_F(TCypressKeyWriterTest, NoCleanupWhenMaxKeyCountNotSet)
+{
+    Config->MaxKeyCount = std::nullopt;
+    Writer->Reconfigure(Config);
+
+    std::vector<TFuture<void>> registerFutures;
+    int keyCount = 20;
+    for (int i = 0; i < keyCount; ++i) {
+        auto meta = TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>{
+            .OwnerId = OwnerId,
+            .KeyId = TKeyId(TGuid(i, 0, 0, 0)),
+            .CreatedAt = NowTime,
+            .ValidAfter = NowTime,
+            .ExpiresAt = ExpiresAt,
+        };
+        registerFutures.push_back(Writer->RegisterKey(New<TKeyInfo>(TPublicKey{}, std::move(meta))));
+    }
+    WaitFor(AllSucceeded(registerFutures))
+        .ThrowOnError();
+
+    // All keys should exist
+    auto ownerPath = YPathJoin(Config->Path, "test");
+    for (int i = 0; i < keyCount; ++i) {
+        EXPECT_TRUE(WaitFor(Client_->NodeExists(Format("%v/%v", ownerPath, TGuid(i, 0, 0, 0))))
+            .ValueOrThrow());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

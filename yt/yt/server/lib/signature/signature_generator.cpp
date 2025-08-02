@@ -78,7 +78,7 @@ void TSignatureGenerator::Resign(const TSignaturePtr& signature) const
     auto toSign = PreprocessSignature(signature->Header_, signature->Payload());
 
     if (!IsKeyPairMetadataValid(keyInfo->Meta())) {
-        YT_LOG_WARNING(
+        YT_LOG_ALERT(
             "Signing with an invalid keypair (SignatureId: %v, KeyPair: %v)",
             signatureId,
             GetKeyId(keyInfo->Meta()));

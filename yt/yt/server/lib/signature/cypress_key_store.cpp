@@ -99,6 +99,63 @@ TOwnerId TCypressKeyWriter::GetOwner() const
     return OwnerId_;
 }
 
+TFuture<void> TCypressKeyWriter::CleanUpKeysIfLimitReached(TCypressKeyWriterConfigPtr config)
+{
+    YT_VERIFY(config->MaxKeyCount);
+    auto ownerNodePath = MakeCypressOwnerPath(config->Path, OwnerId_);
+    TGetNodeOptions options;
+    options.Attributes = {"expiration_time"};
+    return Client_->GetNode(ownerNodePath, options)
+        .Apply(BIND([
+                this,
+                config = std::move(config),
+                this_ = MakeStrong(this)
+            ] (const TErrorOr<TYsonString>& result) mutable {
+                return DoCleanUpOnReachedLimit(std::move(config), result);
+            }));
+}
+
+TFuture<void> TCypressKeyWriter::DoCleanUpOnReachedLimit(TCypressKeyWriterConfigPtr config, const TErrorOr<TYsonString>& ownerNode) {
+    if (!ownerNode.IsOK()) {
+        if (ownerNode.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            YT_LOG_ERROR(ownerNode, "Skipping cleaning up keys: owner node doesn't exist");
+            return VoidFuture;
+        }
+        return MakeFuture(TError(ownerNode));
+    }
+
+    auto currentKeys = ConvertTo<IMapNodePtr>(ownerNode.Value());
+    auto currentKeyCount = currentKeys->GetChildCount();
+    if (currentKeyCount + 1 <= *config->MaxKeyCount) {
+        YT_LOG_DEBUG("Skipping cleaning up keys (CurrentKeyCount: %v, MaxKeyCount: %v)", currentKeyCount, *config->MaxKeyCount);
+        return VoidFuture;
+    }
+
+    int keysToDelete = currentKeyCount + 1 - *config->MaxKeyCount;
+    YT_LOG_WARNING(
+        "Current key count exceeds maximum allowed per owner, cleaning up keys with nearest expiration (CurrentKeyCount: %v, MaxKeyCount: %v, ToDelete: %v)",
+        currentKeyCount,
+        config->MaxKeyCount,
+        keysToDelete);
+
+    std::vector<std::pair<TInstant, TGuid>> sortedKeys;
+    sortedKeys.reserve(currentKeyCount);
+    for (const auto& [keyId, keyNode] : currentKeys->GetChildren()) {
+        auto expirationTime = keyNode->Attributes().Get<TInstant>("expiration_time");
+        sortedKeys.emplace_back(expirationTime, ConvertTo<TGuid>(keyId));
+    }
+    std::ranges::nth_element(sortedKeys, sortedKeys.begin() + keysToDelete);
+
+    auto proxy = CreateObjectServiceWriteProxy(Client_);
+    auto batchReq = proxy.ExecuteBatch();
+    for (const auto& [_, keyId] : sortedKeys | std::views::take(keysToDelete)) {
+        auto req = TCypressYPathProxy::Remove(MakeCypressKeyPath(config->Path, OwnerId_, TKeyId(keyId)));
+        req->set_force(true);
+        batchReq->AddRequest(req);
+    }
+    return batchReq->Invoke().AsVoid();
+}
+
 TFuture<void> TCypressKeyWriter::RegisterKey(const TKeyInfoPtr& keyInfo)
 {
     auto [ownerId, keyId] = std::visit([] (const auto& meta) {
@@ -112,6 +169,23 @@ TFuture<void> TCypressKeyWriter::RegisterKey(const TKeyInfoPtr& keyInfo)
     // We should not register keys belonging to other owners.
     YT_VERIFY(ownerId == OwnerId_);
 
+    auto cleanUpFuture = config->MaxKeyCount ? CleanUpKeysIfLimitReached(config) : VoidFuture;
+    return cleanUpFuture
+        .Apply(BIND([
+                this,
+                config = std::move(config),
+                keyInfo = keyInfo,
+                ownerId = std::move(ownerId),
+                keyId = std::move(keyId),
+                this_ = MakeStrong(this)
+            ] () mutable {
+                YT_LOG_DEBUG("Cleanup finished, registering key (OwnerId: %v, KeyId: %v)", ownerId, keyId);
+                return DoRegisterKey(std::move(config), std::move(keyInfo), std::move(ownerId), std::move(keyId));
+            }));
+}
+
+TFuture<void> TCypressKeyWriter::DoRegisterKey(TCypressKeyWriterConfigPtr config, TKeyInfoPtr keyInfo, TOwnerId ownerId, TKeyId keyId)
+{
     auto ownerNodePath = MakeCypressOwnerPath(config->Path, ownerId);
     auto keyNodePath = MakeCypressKeyPath(config->Path, ownerId, keyId);
 

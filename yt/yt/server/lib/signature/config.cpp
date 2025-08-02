@@ -67,9 +67,8 @@ void TCypressKeyWriterConfig::Register(TRegistrar registrar)
         .Default(TDuration::Days(1))
         .GreaterThanOrEqual(TDuration::Zero());
 
-    // TODO(pavook) implement.
     registrar.Parameter("max_key_count", &TThis::MaxKeyCount)
-        .Default(100)
+        .Default(10)
         .GreaterThan(0);
 }
 
