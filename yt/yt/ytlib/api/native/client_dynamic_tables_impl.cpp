@@ -1716,7 +1716,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     auto queryOptions = GetQueryOptions(options, dynamicConfig);
     queryOptions.ReadSessionId = TReadSessionId::Create();
 
-    auto memoryChunkProvider = MemoryProvider_->GetProvider(
+    auto memoryChunkProvider = MemoryProvider_->GetOrCreateProvider(
         ToString(queryOptions.ReadSessionId),
         options.MemoryLimitPerNode,
         HeavyRequestMemoryUsageTracker_);
@@ -1888,7 +1888,7 @@ NYson::TYsonString TClient::DoExplainQuery(
         options.ExpressionBuilderVersion,
         HeavyRequestMemoryUsageTracker_);
 
-    auto memoryChunkProvider = MemoryProvider_->GetProvider(
+    auto memoryChunkProvider = MemoryProvider_->GetOrCreateProvider(
         ToString(TReadSessionId::Create()),
         ExplainQueryMemoryLimit,
         HeavyRequestMemoryUsageTracker_);
