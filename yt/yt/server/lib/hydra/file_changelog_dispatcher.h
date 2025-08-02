@@ -49,7 +49,7 @@ IFileChangelogDispatcherPtr CreateFileChangelogDispatcher(
     NIO::IIOEnginePtr ioEngine,
     IMemoryUsageTrackerPtr memoryUsageTracker,
     TFileChangelogDispatcherConfigPtr config,
-    TString threadName,
+    std::string threadName,
     NProfiling::TProfiler profiler = {});
 
 ////////////////////////////////////////////////////////////////////////////////

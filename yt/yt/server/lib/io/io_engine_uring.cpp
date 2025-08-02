@@ -1487,7 +1487,7 @@ class TUringThreadPoolBase
 {
 public:
     TUringThreadPoolBase(
-        TString threadNamePrefix,
+        std::string threadNamePrefix,
         TString locationId,
         TUringIOEngineConfigPtr config,
         TIOEngineSensorsPtr sensors,
