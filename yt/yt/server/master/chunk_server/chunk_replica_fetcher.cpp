@@ -366,22 +366,26 @@ public:
         if (!config->Enable) {
             return MakeFuture<std::vector<TSequoiaChunkReplica>>({});
         }
+
         const auto& retriableErrorCodes = config->RetriableErrorCodes;
 
-        std::vector<NRecords::TUnapprovedChunkReplicasKey> keys;
+        std::vector<NRecords::TUnapprovedChunkReplicasKey> recordKeys;
+        recordKeys.reserve(chunkIds.size());
         for (auto chunkId : chunkIds) {
             NRecords::TUnapprovedChunkReplicasKey chunkReplicasKey{
                 .ChunkId = chunkId,
             };
-            keys.push_back(chunkReplicasKey);
+            recordKeys.push_back(chunkReplicasKey);
         }
 
-        auto lastOKConfirmationTime = TInstant::Now() - Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->ReplicaApproveTimeout;
         const auto& idMapping = NRecords::TUnapprovedChunkReplicasDescriptor::Get()->GetIdMapping();
         TColumnFilter columnFilter{idMapping.ChunkId, idMapping.StoredReplicas, idMapping.ConfirmationTime};
+
+        auto lastOKConfirmationTime = TInstant::Now() - Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->ReplicaApproveTimeout;
+
         return Bootstrap_
             ->GetSequoiaClient()
-            ->LookupRows<NRecords::TUnapprovedChunkReplicasKey>(keys, columnFilter)
+            ->LookupRows<NRecords::TUnapprovedChunkReplicasKey>(recordKeys, columnFilter)
             .Apply(BIND([retriableErrorCodes, lastOKConfirmationTime] (const TErrorOr<std::vector<std::optional<NRecords::TUnapprovedChunkReplicas>>>& replicaRecordsOrError) {
                 ThrowOnSequoiaReplicasError(replicaRecordsOrError, retriableErrorCodes);
                 const auto& replicaRecords = replicaRecordsOrError.ValueOrThrow();
