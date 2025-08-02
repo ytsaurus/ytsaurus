@@ -81,6 +81,7 @@ struct TQueryFeatureToggles
     : public NYTree::TYsonStruct
 {
     std::optional<bool> UseOrderByInJoinSubqueries;
+    std::optional<NQueryClient::EStatisticsAggregation> StatisticsAggregation;
 
     REGISTER_YSON_STRUCT(TQueryFeatureToggles);
     static void Register(TRegistrar registrar);
