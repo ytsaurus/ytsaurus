@@ -22,21 +22,19 @@ void TDynamicTableManagerConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("table_schema_cache", &TThis::TableSchemaCache)
-        .DefaultCtor([] {
-            auto config = New<TAsyncExpiringCacheConfig>();
-            config->RefreshTime = std::nullopt;
-            config->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(5);
-            config->ExpireAfterFailedUpdateTime = TDuration::Minutes(5);
-            return config;
-        });
+        .DefaultNew();
     registrar.Parameter("yson_table_schema_cache", &TThis::YsonTableSchemaCache)
-        .DefaultCtor([] {
-            auto config = New<TYsonTableSchemaCacheConfig>();
-            config->RefreshTime = std::nullopt;
-            config->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(5);
-            config->ExpireAfterFailedUpdateTime = TDuration::Minutes(5);
-            return config;
-        });
+        .DefaultNew();
+
+    registrar.Preprocessor([] (TThis* config) {
+        config->TableSchemaCache->RefreshTime = TDuration::Seconds(15);
+        config->TableSchemaCache->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(5);
+        config->TableSchemaCache->ExpireAfterFailedUpdateTime = TDuration::Minutes(5);
+
+        config->YsonTableSchemaCache->RefreshTime = TDuration::Seconds(15);
+        config->YsonTableSchemaCache->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(5);
+        config->YsonTableSchemaCache->ExpireAfterFailedUpdateTime = TDuration::Minutes(5);
+    });
 }
 
 void TTableManagerConfig::Register(TRegistrar /*registrar*/)
