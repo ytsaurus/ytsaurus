@@ -19,6 +19,7 @@ using namespace NYT;
 using namespace NClusterNode;
 using namespace NLogging;
 using namespace NDataNode;
+using namespace NConcurrency;
 
 class TBootstrap
     : public NDataNode::IBootstrap
