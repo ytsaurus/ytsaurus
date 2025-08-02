@@ -26,7 +26,7 @@ DEFINE_REFCOUNTED_TYPE(ITransactionLeaseTrackerThreadPool)
 ////////////////////////////////////////////////////////////////////////////////
 
 ITransactionLeaseTrackerThreadPoolPtr CreateTransactionLeaseTrackerThreadPool(
-    TString threadNamePrefix,
+    std::string threadNamePrefix,
     TTransactionLeaseTrackerConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////

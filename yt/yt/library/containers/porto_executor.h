@@ -140,7 +140,7 @@ DEFINE_REFCOUNTED_TYPE(IPortoExecutor)
 
 IPortoExecutorPtr CreatePortoExecutor(
     TPortoExecutorDynamicConfigPtr config,
-    const TString& threadNameSuffix,
+    std::string threadNameSuffix,
     const NProfiling::TProfiler& profiler = {});
 
 ////////////////////////////////////////////////////////////////////////////////

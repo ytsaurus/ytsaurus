@@ -25,7 +25,7 @@ class TTransactionLeaseTrackerThreadPool
 {
 public:
     TTransactionLeaseTrackerThreadPool(
-        const TString& threadNamePrefix,
+        std::string threadNamePrefix,
         const TTransactionLeaseTrackerConfigPtr& config)
     {
         for (int index = 0; index < config->ThreadCount; ++index) {
@@ -50,7 +50,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 ITransactionLeaseTrackerThreadPoolPtr CreateTransactionLeaseTrackerThreadPool(
-    TString threadNamePrefix,
+    std::string threadNamePrefix,
     TTransactionLeaseTrackerConfigPtr config)
 {
     return New<TTransactionLeaseTrackerThreadPool>(

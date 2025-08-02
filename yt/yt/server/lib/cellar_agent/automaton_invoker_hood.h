@@ -20,7 +20,7 @@ template <typename EQueue>
 class TAutomatonInvokerHood
 {
 public:
-    explicit TAutomatonInvokerHood(const TString& threadName);
+    explicit TAutomatonInvokerHood(std::string threadName);
 
     IInvokerPtr GetAutomatonInvoker(EQueue queue = EQueue::Default) const;
     IInvokerPtr GetEpochAutomatonInvoker(EQueue queue = EQueue::Default) const;

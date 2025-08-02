@@ -307,7 +307,7 @@ public:
     TLocalChangelogStoreFactory(
         NIO::IIOEnginePtr ioEngine,
         TFileChangelogStoreConfigPtr config,
-        const TString& threadName,
+        std::string threadName,
         const NProfiling::TProfiler& profiler)
         : TAsyncSlruCacheBase(config->ChangelogReaderCache)
         , IOEngine_(std::move(ioEngine))
@@ -764,7 +764,7 @@ IChangelogStorePtr TLocalChangelogStoreFactory::CreateStore(
 
 IChangelogStoreFactoryPtr CreateLocalChangelogStoreFactory(
     TFileChangelogStoreConfigPtr config,
-    const TString& threadName,
+    std::string threadName,
     const NProfiling::TProfiler& profiler)
 {
     return New<TLocalChangelogStoreFactory>(
