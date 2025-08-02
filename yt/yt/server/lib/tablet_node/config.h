@@ -190,7 +190,7 @@ struct TCustomTableMountConfig
     NConcurrency::TThroughputThrottlerConfigPtr CompactionThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr FlushThrottler;
 
-    THashMap<TString, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
+    THashMap<std::string, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
 
     int SamplesPerPartition;
 

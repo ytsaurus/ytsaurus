@@ -89,7 +89,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IThrottlerPtr CreateThrottler(const TString& type, TThrottlerConfigPtr config)
+IThrottlerPtr CreateThrottler(TStringBuf type, TThrottlerConfigPtr config)
 {
     switch (ParseEnum<EThrottlerType>(type)) {
         case EThrottlerType::Throughput:

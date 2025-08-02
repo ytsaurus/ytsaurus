@@ -200,8 +200,7 @@ private:
             // TODO(danilalexeev): Implement public methods to explicitly set request queue's throttlers.
             auto queueName = GetRequestQueueNameForKey(userNameAndWorkloadType);
             auto throttlerId = GetDistributedWeightThrottlerId(queueName);
-            // TODO(babenko): migrate to std::string
-            throttlerFactory->GetOrCreateThrottler(TString(throttlerId), newConfig);
+            throttlerFactory->GetOrCreateThrottler(throttlerId, newConfig);
         });
     }
 
