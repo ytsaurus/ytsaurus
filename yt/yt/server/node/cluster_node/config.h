@@ -381,10 +381,10 @@ struct TClusterNodeBootstrapConfig
     NIO::THugePageManagerConfigPtr HugePageManager;
 
     //! Bucket configuration for in network throttlers.
-    THashMap<TString, NConcurrency::TFairThrottlerBucketConfigPtr> InThrottlers;
+    THashMap<std::string, NConcurrency::TFairThrottlerBucketConfigPtr> InThrottlers;
 
     //! Bucket configuration for out network throttlers.
-    THashMap<TString, NConcurrency::TFairThrottlerBucketConfigPtr> OutThrottlers;
+    THashMap<std::string, NConcurrency::TFairThrottlerBucketConfigPtr> OutThrottlers;
 
     std::optional<TString> Rack;
     std::optional<TString> DataCenter;
@@ -457,10 +457,10 @@ struct TClusterNodeDynamicConfig
     TMasterConnectorDynamicConfigPtr MasterConnector;
 
     //! Bucket configuration for in network throttlers.
-    THashMap<TString, NConcurrency::TFairThrottlerBucketConfigPtr> InThrottlers;
+    THashMap<std::string, NConcurrency::TFairThrottlerBucketConfigPtr> InThrottlers;
 
     //! Bucket configuration for out network throttlers.
-    THashMap<TString, NConcurrency::TFairThrottlerBucketConfigPtr> OutThrottlers;
+    THashMap<std::string, NConcurrency::TFairThrottlerBucketConfigPtr> OutThrottlers;
 
     //! Cluster node porto environment config.
     TTopLevelPortoEnvironmentConfigPtr PortoEnvironment;

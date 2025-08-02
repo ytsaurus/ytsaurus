@@ -42,7 +42,7 @@ public:
         const TYPath& tablePath,
         TCellTag cellTag,
         const TThroughputThrottlerConfigPtr& config,
-        const TString& throttlerId,
+        const TThrottlerId& throttlerId,
         EDistributedThrottlerMode mode,
         TDuration rpcTimeout,
         bool admitUnlimitedThrottler,
@@ -105,27 +105,25 @@ public:
     }
 
 private:
-    using TKey = std::tuple<TString, NDistributedThrottler::EDistributedThrottlerMode>;
+    using TKey = std::tuple<TYPath, EDistributedThrottlerMode>;
 
     IBootstrap* const Bootstrap_;
     const NDiscoveryClient::TMemberId MemberId_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
-    THashMap<TKey, NDistributedThrottler::IDistributedThrottlerFactoryPtr> Factories_;
+    THashMap<TKey, IDistributedThrottlerFactoryPtr> Factories_;
 
-    static TString MakeFactoryName(
-        const TString& tablePath,
-        NDistributedThrottler::EDistributedThrottlerMode mode)
+    static NDiscoveryClient::TGroupId MakeFactoryName(const TYPath& tablePath, EDistributedThrottlerMode mode)
     {
         return Format("/dynamic_table_node%v/%v",
             tablePath.substr(1),
             mode);
     }
 
-    NDistributedThrottler::IDistributedThrottlerFactoryPtr DoCreateFactory(
-        const TString& factoryName,
+    IDistributedThrottlerFactoryPtr DoCreateFactory(
+        const NDiscoveryClient::TGroupId& factoryName,
         NObjectClient::TCellTag /*cellTag*/,
-        NDistributedThrottler::EDistributedThrottlerMode mode,
+        EDistributedThrottlerMode mode,
         NProfiling::TProfiler profiler)
     {
         auto config = New<TDistributedThrottlerConfig>();

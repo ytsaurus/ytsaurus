@@ -20,18 +20,18 @@ static constexpr auto UnlimitedThroughput = 1024_TB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
+namespace {
 
 DEFINE_ENUM(EMediumLoadDirection,
     ((Write)    (0))
     ((Read)     (1))
 );
 
-static TString GetMediumThrottlerName(
-    const EMediumLoadDirection& direction,
+std::string GetMediumThrottlerName(
+    EMediumLoadDirection direction,
     const std::string& mediumName)
 {
-    static const TEnumIndexedArray<EMediumLoadDirection, std::string> DirectionNames = {
+    static const TEnumIndexedArray<EMediumLoadDirection, std::string> DirectionNames{
         {EMediumLoadDirection::Write, "write"},
         {EMediumLoadDirection::Read, "read"},
     };
@@ -39,8 +39,8 @@ static TString GetMediumThrottlerName(
     return Format("%v_medium_%v", mediumName, DirectionNames[direction]);
 }
 
-static std::optional<long> GetMediumThrottlerLimit(
-    const EMediumLoadDirection& direction,
+std::optional<long> GetMediumThrottlerLimit(
+    EMediumLoadDirection direction,
     const std::string& mediumName,
     const TBundleDynamicConfigPtr& bundleConfig)
 {
@@ -70,8 +70,8 @@ static std::optional<long> GetMediumThrottlerLimit(
     return std::nullopt;
 }
 
-static TThroughputThrottlerConfigPtr GetMediumThrottlerConfig(
-    const EMediumLoadDirection& direction,
+TThroughputThrottlerConfigPtr GetMediumThrottlerConfig(
+    EMediumLoadDirection direction,
     const std::string& mediumName,
     const TBundleDynamicConfigPtr& bundleConfig)
 {
@@ -116,11 +116,9 @@ private:
     std::shared_ptr<THashSet<T>> Data_ = std::make_shared<THashSet<T>>();
 };
 
-} // namespace NDetail
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
-
-using namespace NDetail;
 
 class TMediumThrottlerManager
     : public IMediumThrottlerManager
