@@ -405,16 +405,16 @@ private:
         return false;
     }
 
-    TString GetUserName(const TConnectionId connectionId) const
+    std::string GetUserName(TConnectionId connectionId) const
     {
-        auto userName = GetConnectionState(connectionId)->UserName;
+        const auto& userName = GetConnectionState(connectionId)->UserName;
         if (!userName) {
             THROW_ERROR_EXCEPTION("Unknown user name, something went wrong");
         }
         return *userName;
     }
 
-    TString GetQueuePath(const TString& inputTopicName) const
+    TYPath GetQueuePath(const std::string& inputTopicName) const
     {
         std::string outputTopicName = inputTopicName;
 
@@ -584,14 +584,14 @@ private:
             return response;
         }
 
-        auto splitByString = [] (const TString& input, const char* delimiter) {
-            TVector<TString> parts;
+        auto splitByString = [] (const std::string& input, const char* delimiter) {
+            TVector<std::string> parts;
             StringSplitter(input).SplitByString(delimiter).Collect(&parts);
             return parts;
         };
 
-        auto splitByChar = [] (const TString& input, char delimiter) {
-            TVector<TString> parts;
+        auto splitByChar = [] (const std::string& input, char delimiter) {
+            TVector<std::string> parts;
             StringSplitter(input).Split(delimiter).Collect(&parts);
             return parts;
         };
@@ -601,8 +601,7 @@ private:
 
         if (*connectionState->SaslMechanism == OAuthBearerSaslMechanism) {
             YT_LOG_DEBUG("Authenticating using OAUTHBEARER SASL mechanism");
-            TString authBytes = request.AuthBytes;
-            auto parts = splitByString(authBytes, "\x01");
+            auto parts = splitByString(request.AuthBytes, "\x01");
             if (parts.size() < 2) {
                 fillError(Format("Unexpected \"auth_bytes\" format, got %v \\x01-separated parts", parts.size()));
                 return response;
@@ -615,8 +614,7 @@ private:
             token = parts[1];
         } else if (*connectionState->SaslMechanism == PlainSaslMechanism) {
             YT_LOG_DEBUG("Authenticating using PLAIN SASL mechanism");
-            TString authBytes = request.AuthBytes;
-            auto parts = splitByChar(authBytes, '\0');
+            auto parts = splitByChar(request.AuthBytes, '\0');
             if (parts.size() < 3) {
                 fillError(Format("Unexpected \"auth_bytes\" format, got %v \\0-separated parts", parts.size()));
                 return response;
@@ -926,7 +924,7 @@ private:
 
         auto& transaction = transactionOrError.Value();
 
-        auto consumerPath = TRichYPath::Parse(request.GroupId);
+        auto consumerPath = TRichYPath::Parse(TYPath(request.GroupId));
 
         for (const auto& topic : request.Topics) {
             auto queuePath = TRichYPath::Parse(GetQueuePath(topic.Name));
@@ -981,7 +979,7 @@ private:
         auto client = NativeConnection_->CreateNativeClient(TClientOptions::FromUser(userName));
         YT_VERIFY(NativeConnection_->GetClusterName());
 
-        auto path = TRichYPath::Parse(request.GroupId);
+        auto path = TRichYPath::Parse(TYPath(request.GroupId));
         auto consumerClient = CreateConsumerClient(client, path.GetPath());
 
         for (const auto& topic : request.Topics) {
