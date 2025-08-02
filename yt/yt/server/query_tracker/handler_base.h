@@ -14,22 +14,20 @@
 
 namespace NYT::NQueryTracker {
 
-using namespace NYson;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TWireRowset
 {
     TSharedRef Rowset;
     bool IsTruncated = false;
-    TYsonString FullResult;
+    NYson::TYsonString FullResult;
 };
 
 struct TRowset
 {
     NApi::IUnversionedRowsetPtr Rowset;
     bool IsTruncated = false;
-    TYsonString FullResult;
+    NYson::TYsonString FullResult;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,7 +65,7 @@ protected:
     const NConcurrency::TPeriodicExecutorPtr ProgressWriter_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ProgressSpinLock_);
-    TYsonString Progress_ = TYsonString(TString("{}"));
+    NYson::TYsonString Progress_ = NYson::TYsonString(TString("{}"));
     int ProgressVersion_ = 0;
     int LastSavedProgressVersion_ = 0;
 
@@ -79,7 +77,7 @@ protected:
     void StartProgressWriter();
     void StopProgressWriter();
 
-    void OnProgress(TYsonString progress);
+    void OnProgress(NYson::TYsonString progress);
 
     void OnQueryStarted();
     void OnQueryStarted(std::optional<std::string> assignedEngine);
@@ -91,7 +89,7 @@ protected:
     void TryWriteProgress();
     bool TryWriteQueryState(EQueryState state, EQueryState previousState, const TError& error, const std::vector<TErrorOr<TWireRowset>>& wireRowsetOrErrors);
 
-    TYsonString SetYsonAttribute(const TYsonString& to, const std::string& key, const TYsonString& value);
+    NYson::TYsonString SetYsonAttribute(const NYson::TYsonString& to, const std::string& key, const NYson::TYsonString& value);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

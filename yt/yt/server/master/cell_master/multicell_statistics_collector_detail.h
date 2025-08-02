@@ -10,8 +10,6 @@
 
 namespace NYT::NCellMaster {
 
-using namespace NConcurrency;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail {
@@ -29,7 +27,7 @@ class TMulticellStatisticsCollectorCommon
 {
 protected:
     using TValues = std::tuple<TMulticellStatisticsValues...>;
-    using TPeriodics = std::array<TPeriodicExecutorPtr, sizeof...(TMulticellStatisticsValues)>;
+    using TPeriodics = std::array<NConcurrency::TPeriodicExecutorPtr, sizeof...(TMulticellStatisticsValues)>;
 
     static constexpr std::index_sequence_for<TMulticellStatisticsValues...> ValuesIndex;
 
@@ -45,7 +43,7 @@ protected:
     void RegisterMutationHandlers();
 
     template <CMulticellStatisticsValue TMulticellStatisticsValue>
-    TPeriodicExecutorPtr MakeUpdatePeriodic(TMulticellStatisticsValue* node);
+    NConcurrency::TPeriodicExecutorPtr MakeUpdatePeriodic(TMulticellStatisticsValue* node);
 
     // Implementation.
     explicit TMulticellStatisticsCollectorCommon(TBootstrap* bootstrap);
@@ -60,7 +58,7 @@ protected:
 
     void LoadValues(TLoadContext& context);
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr);
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr config);
 
     void OnLeaderActive() override;
 

@@ -44,6 +44,7 @@ using namespace NClickHouseServer;
 using namespace NRpc;
 using namespace NRpc::NBus;
 using namespace NYTree;
+using namespace NYson;
 using namespace NConcurrency;
 using namespace NScheduler;
 

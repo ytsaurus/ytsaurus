@@ -20,6 +20,7 @@
 
 namespace NYT::NExecNode {
 
+using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NClusterNode;
 using namespace NCypressClient;
