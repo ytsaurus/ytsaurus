@@ -5,12 +5,12 @@ types:
     sorted: False
     fields:
       - cpp_name: MessageKey
-        cpp_type: std::optional<TString>
+        cpp_type: std::optional<std::string>
         column_name: key
         column_type: String
         required: False
       - cpp_name: MessageValue
-        cpp_type: std::optional<TString>
+        cpp_type: std::optional<std::string>
         column_name: value
         column_type: String
         required: False
