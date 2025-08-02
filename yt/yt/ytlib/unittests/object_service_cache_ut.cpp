@@ -14,14 +14,6 @@ const NLogging::TLogger Logger("Test");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateEqual(const TSharedRefArray& lhs, const TSharedRefArray& rhs)
-{
-    EXPECT_EQ(lhs.Size(), rhs.Size());
-    for (int index = 0; index < std::ssize(rhs); ++index) {
-        EXPECT_TRUE(TRef::AreBitwiseEqual(lhs[index], rhs[index]));
-    }
-}
-
 [[nodiscard]]
 NHydra::TRevision Increment(NHydra::TRevision revision)
 {
@@ -88,10 +80,7 @@ TEST(TObjectServiceCacheTest, TestStaleResponse)
         EXPECT_FALSE(cookie2.IsActive());
         EXPECT_EQ(nullptr, cookie2.ExpiredEntry());
         EXPECT_TRUE(cookie2.GetValue().IsSet());
-
-        ValidateEqual(
-            data,
-            cookie2.GetValue().Get().Value()->GetResponseMessage());
+        EXPECT_TRUE(TSharedRefArray::AreBitwiseEqual(data, cookie2.GetValue().Get().Value()->GetResponseMessage()));
     }
 
     NConcurrency::TDelayedExecutor::WaitForDuration(5 * expirationTime);
@@ -121,10 +110,7 @@ TEST(TObjectServiceCacheTest, TestStaleResponse)
         EXPECT_FALSE(cookie4.IsActive());
         EXPECT_FALSE(cookie4.GetValue().IsSet());
         EXPECT_NE(nullptr, cookie4.ExpiredEntry());
-
-        ValidateEqual(
-            data,
-            cookie4.ExpiredEntry()->GetResponseMessage());
+        EXPECT_TRUE(TSharedRefArray::AreBitwiseEqual(data, cookie4.ExpiredEntry()->GetResponseMessage()));
 
         endLookup(std::move(cookie1));
     }
@@ -188,10 +174,7 @@ TEST(TObjectServiceCacheTest, TestStaleError)
         EXPECT_FALSE(cookie2.IsActive());
         EXPECT_EQ(nullptr, cookie2.ExpiredEntry());
         EXPECT_TRUE(cookie2.GetValue().IsSet());
-
-        ValidateEqual(
-            data,
-            cookie2.GetValue().Get().Value()->GetResponseMessage());
+        EXPECT_TRUE(TSharedRefArray::AreBitwiseEqual(data, cookie2.GetValue().Get().Value()->GetResponseMessage()));
     }
 
     NConcurrency::TDelayedExecutor::WaitForDuration(5 * expirationTime);
