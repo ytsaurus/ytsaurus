@@ -15,11 +15,9 @@ namespace NYT::NQueryClient {
 class TTrackedMemoryChunkProvider
     : public IMemoryChunkProvider
 {
-private:
-
 public:
     TTrackedMemoryChunkProvider(
-        TString key,
+        TStringBuf key,
         TMemoryProviderMapByTagPtr parent,
         size_t limit,
         IMemoryUsageTrackerPtr memoryTracker);
@@ -33,7 +31,7 @@ public:
 private:
     struct THolder;
 
-    const TString Key_;
+    const std::string Key_;
     const TMemoryProviderMapByTagPtr Parent_;
     const size_t Limit_;
     const IMemoryUsageTrackerPtr MemoryTracker_;
@@ -50,8 +48,8 @@ class TMemoryProviderMapByTag
     : public TRefCounted
 {
 public:
-    TTrackedMemoryChunkProviderPtr GetProvider(
-        const TString& tag,
+    TTrackedMemoryChunkProviderPtr GetOrCreateProvider(
+        TStringBuf tag,
         size_t limit,
         IMemoryUsageTrackerPtr memoryTracker);
 
@@ -59,7 +57,7 @@ public:
 
 private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
-    THashMap<TString, TWeakPtr<TTrackedMemoryChunkProvider>> Map_;
+    THashMap<std::string, TWeakPtr<TTrackedMemoryChunkProvider>, THash<TStringBuf>, TEqualTo<>> Map_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TMemoryProviderMapByTag)
