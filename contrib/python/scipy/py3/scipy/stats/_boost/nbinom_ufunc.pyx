@@ -13,8 +13,8 @@ from numpy cimport (
     NPY_FLOAT,
     NPY_DOUBLE
 )
-from templated_pyufunc cimport PyUFunc_T
-from func_defs cimport (
+from .templated_pyufunc cimport PyUFunc_T
+from .func_defs cimport (
     boost_pdf2,
     boost_cdf2,
     boost_sf2,

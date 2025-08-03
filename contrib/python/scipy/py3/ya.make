@@ -53,7 +53,6 @@ ADDINCL(
     contrib/python/scipy/py3/scipy/stats/_unuran
     FOR cython contrib/python/numpy/py3
     FOR cython contrib/python/scipy/py3
-    FOR cython contrib/python/scipy/py3/scipy/stats/_boost/src
 )
 
 NO_COMPILER_WARNINGS()
@@ -584,8 +583,8 @@ SRCS(
     scipy/interpolate/fitpack/surev.f
     scipy/interpolate/fitpack/surfit.f
     scipy/interpolate/src/_fitpackmodule.c
-    scipy/interpolate/src/dfitpack-f2pywrappers.f
-    scipy/interpolate/src/dfitpackmodule.c
+    scipy/interpolate/dfitpack-f2pywrappers.f
+    scipy/interpolate/dfitpackmodule.c
     scipy/linalg/_blas_subroutine_wrappers.f
     scipy/linalg/_fblas-f2pywrappers.f
     scipy/linalg/_fblasmodule.c
@@ -714,8 +713,8 @@ SRCS(
     scipy/odr/odrpack/d_odr.f
     scipy/odr/odrpack/d_test.f
     scipy/odr/odrpack/dlunoc.f
-    scipy/optimize/__nnls/__nnls-f2pywrappers.f
-    scipy/optimize/__nnls/__nnlsmodule.c
+    scipy/optimize/__nnls-f2pywrappers.f
+    scipy/optimize/__nnlsmodule.c
     scipy/optimize/__nnls/nnls.f
     scipy/optimize/_direct/DIRect.c
     scipy/optimize/_direct/DIRserial.c
@@ -729,12 +728,12 @@ SRCS(
     scipy/optimize/_trlib/trlib_leftmost.c
     scipy/optimize/_trlib/trlib_quadratic_zero.c
     scipy/optimize/_trlib/trlib_tri_factor.c
-    scipy/optimize/cobyla/_cobyla-f2pywrappers.f
-    scipy/optimize/cobyla/_cobylamodule.c
+    scipy/optimize/_cobyla-f2pywrappers.f
+    scipy/optimize/_cobylamodule.c
     scipy/optimize/cobyla/cobyla2.f
     scipy/optimize/cobyla/trstlp.f
-    scipy/optimize/lbfgsb_src/_lbfgsb-f2pywrappers.f
-    scipy/optimize/lbfgsb_src/_lbfgsbmodule.c
+    scipy/optimize/_lbfgsb-f2pywrappers.f
+    scipy/optimize/_lbfgsbmodule.c
     scipy/optimize/lbfgsb_src/lbfgsb.f
     scipy/optimize/lbfgsb_src/linpack.f
     scipy/optimize/lbfgsb_src/timer.f
@@ -761,13 +760,13 @@ SRCS(
     scipy/optimize/minpack/r1mpyq.f
     scipy/optimize/minpack/r1updt.f
     scipy/optimize/minpack/rwupdt.f
-    scipy/optimize/minpack2/_minpack2-f2pywrappers.f
-    scipy/optimize/minpack2/_minpack2module.c
+    scipy/optimize/_minpack2-f2pywrappers.f
+    scipy/optimize/_minpack2module.c
     scipy/optimize/minpack2/dcsrch.f
     scipy/optimize/minpack2/dcstep.f
     scipy/optimize/rectangular_lsap/rectangular_lsap.cpp
-    scipy/optimize/slsqp/_slsqp-f2pywrappers.f
-    scipy/optimize/slsqp/_slsqpmodule.c
+    scipy/optimize/_slsqp-f2pywrappers.f
+    scipy/optimize/_slsqpmodule.c
     scipy/optimize/slsqp/slsqp_optmz.f
     scipy/optimize/tnc/tnc.c
     scipy/optimize/zeros.c
@@ -1046,8 +1045,8 @@ SRCS(
     scipy/sparse/linalg/_isolve/iterative/CGSREVCOM.f
     scipy/sparse/linalg/_isolve/iterative/GMRESREVCOM.f
     scipy/sparse/linalg/_isolve/iterative/QMRREVCOM.f
-    scipy/sparse/linalg/_isolve/iterative/_iterative-f2pywrappers.f
-    scipy/sparse/linalg/_isolve/iterative/_iterativemodule.c
+    scipy/sparse/linalg/_isolve/_iterative-f2pywrappers.f
+    scipy/sparse/linalg/_isolve/_iterativemodule.c
     scipy/sparse/linalg/_isolve/iterative/getbreak.f
     scipy/sparse/linalg/_propack/PROPACK/complex16/Lapack_Util/dbdsdc.f
     scipy/sparse/linalg/_propack/PROPACK/complex16/Lapack_Util/dbdsqr.f
