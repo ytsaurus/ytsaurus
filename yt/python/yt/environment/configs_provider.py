@@ -1737,7 +1737,7 @@ def _build_cluster_connection_config(yt_config,
             "refresh_time": 0,
         },
         "master_cell_directory_synchronizer": {
-            "sync_period": 500,
+            "sync_period": 100,
             "expire_after_successful_update_time": 500,
             "expire_after_failed_update_time": 500,
         },
