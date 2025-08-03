@@ -1,35 +1,8 @@
 # Конфигурации
 
-Список всех поддерживаемых опций Spark содержится в [документации](https://spark.apache.org/docs/latest/configuration.html).
+Список всех поддерживаемых опций Spark содержится в документации на соответствующую версию Spark, которую вы используете. Описание конфигурационных параметров для последней релизной версии Spark доступно [на этой странице](https://spark.apache.org/docs/latest/configuration.html).
 
-## Основные опции { #main }
-
-Большинство опций доступны начиная с версии 1.23.0, если не указано иное.
-
-| **Имя** | **Значение по умолчанию** | **Описание** |
-| ------------------- | --------------- | ------------------------------------------------------------ |
-| `spark.yt.write.batchSize` | `500000` | Размер данных, отправляемых через одну операцию `WriteTable` |
-| `spark.yt.write.miniBatchSize` | `1000` | Размер блока данных, отправляемого в `WriteTable` |
-| `spark.yt.write.timeout` | `60 seconds` | Ограничение на ожидание записи одного блока данных |
-| `spark.yt.write.typeV3.enabled` (`spark.yt.write.writingTypeV3.enabled` до 1.75.2) | `true` | Запись таблиц со схемой в формате [type_v3](../../../../../user-guide/storage/data-types.md) вместо `type_v1` |
-| `spark.yt.read.vectorized.capacity` | `1000` | Максимальное количество строк в батче при чтении через `wire` протокол |
-| `spark.yt.read.arrow.enabled` | `true` | Использовать `arrow` формат для чтения данных (если это возможно) |
-| `spark.hadoop.yt.timeout` | `300 seconds` | Таймаут на чтение из {{product-name}} |
-| `spark.yt.read.typeV3.enabled` (`spark.yt.read.parsingTypeV3.enabled` до 1.75.2) | `true` | Чтение таблиц со схемой в формате [type_v3](../../../../../user-guide/storage/data-types.md) вместо `type_v1` |
-| `spark.yt.read.keyColumnsFilterPushdown.enabled` | `true` | Использовать фильтры Spark-запроса для выборочного чтения из {{product-name}} |
-| `spark.yt.read.keyColumnsFilterPushdown.union.enabled` | `false` | Объединять все фильтры в непрерывный диапазон при выборочном чтении |
-| `spark.yt.read.keyColumnsFilterPushdown.ytPathCount.limit` | `100` | Максимальное количество диапазонов таблицы при выборочном чтении |
-| `spark.yt.transaction.timeout` | `5 minutes` | Таймаут на транзакцию записывающей операции |
-| `spark.yt.transaction.pingInterval` | `30 seconds` | Периодичность пингования транзакции записывающей операции |
-| `spark.yt.globalTransaction.enabled` | `false` | Использовать [глобальную транзакцию](../../../../../user-guide/data-processing/spyt/read-transaction.md) |
-| `spark.yt.globalTransaction.id` | `None` | Идентификатор глобальной транзакции |
-| `spark.yt.globalTransaction.timeout` | `5 minutes` | Таймаут глобальной транзакции |
-| `spark.hadoop.yt.user` | - | Имя пользователя {{product-name}} |
-| `spark.hadoop.yt.token` | - | Токен пользователя {{product-name}} |
-| `spark.yt.read.ytPartitioning.enabled` | `true` | Использовать партиционирование таблиц средствами {{product-name}} |
-| `spark.yt.read.planOptimization.enabled` | `false` | Оптимизировать агрегации и джойны на сортированных входных данных |
-| `spark.yt.read.keyPartitioningSortedTables.enabled` | `true` | Использовать партиционирование по ключам для сортированных таблиц, необходимо для оптимизации планов |
-| `spark.yt.read.keyPartitioningSortedTables.unionLimit` | `1` | Максимальное количество объединений партиций при переходе от чтения по индексам к чтению по ключам |
+Список дополнительных опций, относящихся к SPYT, приведен [в справочнике](../../../../../user-guide/data-processing/spyt/thesaurus/configuration.md).
 
 ## Оптимизация агрегаций и джойнов
 
@@ -45,8 +18,7 @@ Spark кластер при чтении игнорирует метаинфор
 spark-launch-yt \
   --proxy <cluster-name> \
   --discovery-path my_discovery_path \
-  --params '{"spark_conf"={"spark.yt.jarCaching"="True";};"layer_paths"=["//.../ubuntu_xenial_app_lastest.tar.gz";...;];"operation_spec"={"max_failed_job_count"=100;};}' \
-  --spyt-version '2.2.0'
+  --params '{"spark_conf"={"spark.yt.jarCaching"="True";};"layer_paths"=["//.../ubuntu_xenial_app_lastest.tar.gz";...;];"operation_spec"={"max_failed_job_count"=100;};}'
 ```
 
 ### Spark configuration
@@ -57,8 +29,7 @@ spark-launch-yt \
 spark-launch-yt \
   --proxy <cluster-name> \
   --discovery-path my_discovery_path \
-  --params '{"spark_conf"={"spark.sql.shuffle.partitions":1,"spark.cores.max":1,"spark.executor.cores"=1};}' \
-  --spyt-version '2.2.0'
+  --params '{"spark_conf"={"spark.sql.shuffle.partitions":1,"spark.cores.max":1,"spark.executor.cores"=1};}'
 ```
 
 При использовании `spark-submit-yt` для настройки задачи существует опция `spark_conf_args`:
@@ -106,23 +77,22 @@ protected void doRun(String[] args, SparkSession spark, CompoundClient yt) {
 
 ### Настройки операций
 
-При использовании `spark-launch-yt` для настройки кластера доступна опция `--params '{"operation_spec"={...};}`. [Список всех поддерживаемых опций](../../operations/operations-options.md).
+При использовании `spark-launch-yt` для настройки кластера доступна опция `--params '{"operation_spec"={...};}`. [Список всех поддерживаемых опций](../../../../../user-guide/data-processing/operations/operations-options.md).
 Это будет полезно, если необходимо изменить стандартные настройки операции например для увеличения количество failed джобов, после которого операция считается failed.
 
 ```bash
 spark-launch-yt \
   --proxy <cluster-name> \
   --discovery-path my_discovery_path \
-  --params '{"operation_spec"={"max_failed_job_count"=100;owners=[...]};}' \
-  --spyt-version '2.2.0'
+  --params '{"operation_spec"={"max_failed_job_count"=100;owners=[...]};}'
 ```
 
-### Обновление версии python 
+### Обновление версии python
 
 Существуют два способа обновления версии python:
 1. Установить необходимую версию python:
-   1. Установить необходимую версию python на exeс nodes 
-   2. Добавит версию python `//home/spark/conf/global` и путь к новому интерпретатору. 
+   1. Установить необходимую версию python на exeс nodes
+   2. Добавит версию python `//home/spark/conf/global` и путь к новому интерпретатору.
    3. После этого в spark-submit-yt будет возможность использовать его. Параметр `--python-version`
 2. Собрать свой образ с необходимой версией python
 
@@ -185,8 +155,8 @@ RUN python3.12 -m pip install -r requirements.txt
 ```text
 # requirements.txt
 ytsaurus-client==0.13.18
-ytsaurus-spyt==2.3.0
-pyspark==3.3.4
+ytsaurus-spyt==2.6.3
+pyspark==3.5.5
 ```
 
 #### Запуск кластера с docker образом

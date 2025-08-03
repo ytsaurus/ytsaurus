@@ -10,6 +10,7 @@ SORTED_DATA = b"x=04137\nx=18978\nx=24629\nx=29585\nx=33367\nx=44977\nx=46019\nx
 def run_check_impl(yt_client, logger, options, states, cloud=False):
     temp_path = options["temp_tables_path"]
     soft_sort_timeout = options["soft_sort_timeout"]
+    primary_medium = options.get("primary_medium", None)
 
     check_result = states.UNAVAILABLE_STATE
 
@@ -18,7 +19,13 @@ def run_check_impl(yt_client, logger, options, states, cloud=False):
         yt_client.mkdir(temp_path, recursive=True)
 
     logger.info("Creating temporary table")
-    table_path = yt_client.create_temp_table(path=temp_path)
+
+    table_attributes = {}
+    if primary_medium is not None:
+        table_attributes["primary_medium"] = primary_medium
+
+    table_path = yt_client.create_temp_table(path=temp_path, attributes=table_attributes)
+
     logger.info("Created %s table", table_path)
 
     try:
@@ -56,7 +63,7 @@ def run_check_impl(yt_client, logger, options, states, cloud=False):
         }
 
         if cloud:
-            spec["pool_trees"] = options.get("pool_config", {}).get(options["cluster_name"], ["cloud"])
+            spec["pool_trees"] = options.get("pool_config", {}).get(options["cluster_name"], ["cloud_default"])
 
         logger.info("Starting sort operation")
         operation = yt_client.run_sort(table_path, sort_by="x", sync=False, spec=spec)

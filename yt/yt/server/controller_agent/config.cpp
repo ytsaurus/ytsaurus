@@ -28,6 +28,7 @@
 
 namespace NYT::NControllerAgent {
 
+using namespace NChunkPools;
 using namespace NStatisticPath;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -252,11 +253,6 @@ void TJobSplitterConfig::Register(TRegistrar registrar)
         .LessThanOrEqual(1.0)
         .Default(0.8);
 
-    registrar.Parameter("late_jobs_percentile", &TThis::LateJobsPercentile)
-        .GreaterThanOrEqual(0.5)
-        .LessThanOrEqual(1.0)
-        .Default(0.95);
-
     registrar.Parameter("residual_job_factor", &TThis::ResidualJobFactor)
         .GreaterThan(0)
         .LessThanOrEqual(1.0)
@@ -306,6 +302,8 @@ void TSuspiciousJobsOptions::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(5));
     registrar.Parameter("max_orchid_entry_count_per_type", &TThis::MaxOrchidEntryCountPerType)
         .Default(100);
+    registrar.Parameter("min_required_cpu_limit", &TThis::MinRequiredCpuLimit)
+        .Default(NScheduler::TCpuResource(0.1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -330,6 +328,23 @@ void TUserJobOptions::Register(TRegistrar registrar)
         .Default(10'000);
     registrar.Parameter("initial_thread_limit", &TThis::InitialThreadLimit)
         .Default(10'000);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TGpuCheckOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("use_separate_root_volume", &TThis::UseSeparateRootVolume)
+        // COMPAT(ignat): change default to true and then delete this option.
+        .Default(false);
+    registrar.Parameter("layer_paths", &TThis::LayerPaths)
+        .Default();
+    registrar.Parameter("binary_path", &TThis::BinaryPath)
+        .Default();
+    registrar.Parameter("binary_args", &TThis::BinaryArgs)
+        .Default();
+    registrar.Parameter("network_project", &TThis::NetworkProject)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -382,6 +397,9 @@ void TOperationOptions::Register(TRegistrar registrar)
         .Default(2.0)
         .GreaterThan(1.0);
 
+    registrar.Parameter("cpu_limit_overcommit_mode", &TThis::CpuLimitOvercommitMode)
+        .Default(ECpuLimitOvercommitMode::Linear);
+
     registrar.Parameter("initial_cpu_limit_overcommit", &TThis::InitialCpuLimitOvercommit)
         .Default(2.0)
         .GreaterThanOrEqual(0);
@@ -409,7 +427,12 @@ void TOperationOptions::Register(TRegistrar registrar)
     registrar.Parameter("custom_statistics_count_limit", &TThis::CustomStatisticsCountLimit)
         .Default(1024);
 
-    registrar.Parameter("user_job_options", &TThis::UserJobOptions)
+    registrar.Parameter("user_job", &TThis::UserJob)
+        // COMPAT
+        .Alias("user_job_options")
+        .DefaultNew();
+
+    registrar.Parameter("gpu_check", &TThis::GpuCheck)
         .DefaultNew();
 
     registrar.Postprocessor([&] (TOperationOptions* options) {
@@ -438,34 +461,54 @@ void TSimpleOperationOptions::Register(TRegistrar registrar)
         .Alias("data_size_per_job")
         .Default(256_MB)
         .GreaterThan(0);
+
+    registrar.Parameter("job_size_adjuster", &TThis::JobSizeAdjuster)
+        // TODO(coteeq): DefaultNew when non-map job_size_adjuster will be stable.
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TMapOperationOptions::Register(TRegistrar registrar)
 {
-    registrar.Parameter("job_size_adjuster", &TThis::JobSizeAdjuster)
-        .DefaultNew();
-
     registrar.Preprocessor([&] (TMapOperationOptions* options) {
         options->DataWeightPerJob = 128_MB;
+        options->JobSizeAdjuster = New<TJobSizeAdjusterConfig>();
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TUnorderedMergeOperationOptions::Register(TRegistrar /*registrar*/)
-{ }
+void TUnorderedMergeOperationOptions::Register(TRegistrar registrar)
+{
+    registrar.Preprocessor([&] (TUnorderedMergeOperationOptions* options) {
+        // Value in options is an upper bound hint on uncompressed data size for merge jobs.
+        options->DataWeightPerJob = 20_GB;
+        options->MaxDataSlicesPerJob = 10'000;
+    });
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TOrderedMergeOperationOptions::Register(TRegistrar /*registrar*/)
-{ }
+void TOrderedMergeOperationOptions::Register(TRegistrar registrar)
+{
+    registrar.Preprocessor([&] (TOrderedMergeOperationOptions* options) {
+        // Value in options is an upper bound hint on uncompressed data size for merge jobs.
+        options->DataWeightPerJob = 20_GB;
+        options->MaxDataSlicesPerJob = 10'000;
+    });
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSortedMergeOperationOptions::Register(TRegistrar /*registrar*/)
-{ }
+void TSortedMergeOperationOptions::Register(TRegistrar registrar)
+{
+    registrar.Preprocessor([&] (TSortedMergeOperationOptions* options) {
+        // Value in options is an upper bound hint on uncompressed data size for merge jobs.
+        options->DataWeightPerJob = 20_GB;
+        options->MaxDataSlicesPerJob = 10'000;
+    });
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -528,6 +571,9 @@ void TSortOperationOptionsBase::Register(TRegistrar registrar)
     registrar.Parameter("partition_job_size_adjuster", &TThis::PartitionJobSizeAdjuster)
         .DefaultNew();
 
+    registrar.Parameter("sorted_merge_job_size_adjuster", &TThis::SortedMergeJobSizeAdjuster)
+        .DefaultNew();
+
     registrar.Parameter("data_balancer", &TThis::DataBalancer)
         .DefaultNew();
 
@@ -558,11 +604,8 @@ void TRemoteCopyOperationOptions::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TGangManagerConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("enabled", &TThis::Enabled)
-        .Default(true);
-}
+void TGangManagerConfig::Register(TRegistrar /*registrar*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -695,21 +738,39 @@ void TDockerRegistryConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("internal_registry_address", &TThis::InternalRegistryAddress)
         .Default();
+    registrar.Parameter("internal_registry_alternative_addresses", &TThis::InternalRegistryAlternativeAddresses)
+        .Default();
     registrar.Parameter("use_yt_token_for_internal_registry", &TThis::UseYtTokenForInternalRegistry)
         .Default(false);
     registrar.Parameter("forward_internal_images_to_job_specs", &TThis::ForwardInternalImagesToJobSpecs)
         .Default(false);
+    registrar.Parameter("translate_internal_images_into_layers", &TThis::TranslateInternalImagesIntoLayers)
+        .Default(true);
+
+    registrar.Postprocessor([&] (TDockerRegistryConfig* options) {
+        if (options->InternalRegistryAddress) {
+            options->InternalRegistryAlternativeAddresses.push_back(*options->InternalRegistryAddress);
+        }
+
+        if (options->UseYtTokenForInternalRegistry && !options->InternalRegistryAddress) {
+            THROW_ERROR_EXCEPTION("Enabling \"use_yt_token_for_internal_registry\" without \"internal_registry_address\" is unsafe, tokens could leak outside");
+        }
+
+        if (!options->TranslateInternalImagesIntoLayers && !options->ForwardInternalImagesToJobSpecs) {
+            THROW_ERROR_EXCEPTION("At least one of \"forward_internal_images_to_job_specs\" or \"translate_internal_images_into_layers\" must be enabled");
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDisallowRemoteOperationsConfig::Register(TRegistrar registrar)
+void TRemoteOperationsConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("allowed_users", &TThis::AllowedUsers)
         .Default();
-    registrar.Parameter("allowed_clusters", &TThis::AllowedClusters)
-        .Default();
-    registrar.Parameter("allowed_for_everyone_clusters", &TThis::AllowedForEveryoneClusters)
+    registrar.Parameter("allowed_for_everyone", &TThis::AllowedForEveryone)
+        .Default(false);
+    registrar.Parameter("max_total_data_weight", &TThis::MaxTotalDataWeight)
         .Default();
 }
 
@@ -756,6 +817,8 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("enable_snapshot_loading", &TThis::EnableSnapshotLoading)
+        .Default(true);
+    registrar.Parameter("enable_snapshot_phoenix_schema_during_snapshot_loading", &TThis::EnableSnapshotPhoenixSchemaDuringSnapshotLoading)
         .Default(true);
     registrar.Parameter("enable_snapshot_loading_disabled_alert", &TThis::EnableSnapshotLoadingDisabledAlert)
         .Default(true);
@@ -958,28 +1021,28 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("operation_options", &TThis::OperationOptions)
         .Default(NYTree::GetEphemeralNodeFactory()->CreateMap());
 
-    registrar.Parameter("map_operation_options", &TThis::MapOperationOptions)
-        .DefaultNew();
-    registrar.Parameter("reduce_operation_options", &TThis::ReduceOperationOptions)
-        .DefaultNew();
-    registrar.Parameter("join_reduce_operation_options", &TThis::JoinReduceOperationOptions)
-        .DefaultNew();
-    registrar.Parameter("erase_operation_options", &TThis::EraseOperationOptions)
-        .DefaultNew();
-    registrar.Parameter("ordered_merge_operation_options", &TThis::OrderedMergeOperationOptions)
-        .DefaultNew();
-    registrar.Parameter("unordered_merge_operation_options", &TThis::UnorderedMergeOperationOptions)
-        .DefaultNew();
-    registrar.Parameter("sorted_merge_operation_options", &TThis::SortedMergeOperationOptions)
-        .DefaultNew();
-    registrar.Parameter("map_reduce_operation_options", &TThis::MapReduceOperationOptions)
-        .DefaultNew();
-    registrar.Parameter("sort_operation_options", &TThis::SortOperationOptions)
-        .DefaultNew();
-    registrar.Parameter("remote_copy_operation_options", &TThis::RemoteCopyOperationOptions)
-        .DefaultNew();
-    registrar.Parameter("vanilla_operation_options", &TThis::VanillaOperationOptions)
-        .DefaultNew();
+    registrar.Parameter("map_operation_options", &TThis::MapOperationOptionsNode)
+        .Default();
+    registrar.Parameter("reduce_operation_options", &TThis::ReduceOperationOptionsNode)
+        .Default();
+    registrar.Parameter("join_reduce_operation_options", &TThis::JoinReduceOperationOptionsNode)
+        .Default();
+    registrar.Parameter("erase_operation_options", &TThis::EraseOperationOptionsNode)
+        .Default();
+    registrar.Parameter("ordered_merge_operation_options", &TThis::OrderedMergeOperationOptionsNode)
+        .Default();
+    registrar.Parameter("unordered_merge_operation_options", &TThis::UnorderedMergeOperationOptionsNode)
+        .Default();
+    registrar.Parameter("sorted_merge_operation_options", &TThis::SortedMergeOperationOptionsNode)
+        .Default();
+    registrar.Parameter("map_reduce_operation_options", &TThis::MapReduceOperationOptionsNode)
+        .Default();
+    registrar.Parameter("sort_operation_options", &TThis::SortOperationOptionsNode)
+        .Default();
+    registrar.Parameter("remote_copy_operation_options", &TThis::RemoteCopyOperationOptionsNode)
+        .Default();
+    registrar.Parameter("vanilla_operation_options", &TThis::VanillaOperationOptionsNode)
+        .Default();
 
     registrar.Parameter("environment", &TThis::Environment)
         .Default({
@@ -1027,6 +1090,10 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     //! By default we disable job size adjustment for partition maps,
     //! since it may lead to partition data skew between nodes.
     registrar.Parameter("enable_partition_map_job_size_adjustment", &TThis::EnablePartitionMapJobSizeAdjustment)
+        .Default(false);
+    registrar.Parameter("enable_ordered_partition_map_job_size_adjustment", &TThis::EnableOrderedPartitionMapJobSizeAdjustment)
+        .Default(false);
+    registrar.Parameter("enable_sorted_merge_in_sort_job_size_adjustment", &TThis::EnableSortedMergeInSortJobSizeAdjustment)
         .Default(false);
 
     registrar.Parameter("user_job_memory_digest_precision", &TThis::UserJobMemoryDigestPrecision)
@@ -1093,6 +1160,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("cuda_toolkit_layer_directory_path", &TThis::CudaToolkitLayerDirectoryPath)
         .Default();
 
+    // COMPAT(ignat)
     registrar.Parameter("gpu_check_layer_directory_path", &TThis::GpuCheckLayerDirectoryPath)
         .Default();
 
@@ -1148,14 +1216,30 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("custom_job_metrics", &TThis::CustomJobMetrics)
         .Default();
 
-    registrar.Parameter("dynamic_table_lock_checking_attempt_count_limit", &TThis::DynamicTableLockCheckingAttemptCountLimit)
-        .Default(10);
-    registrar.Parameter("dynamic_table_lock_checking_interval_scale", &TThis::DynamicTableLockCheckingIntervalScale)
-        .Default(1.5);
-    registrar.Parameter("dynamic_table_lock_checking_interval_duration_min", &TThis::DynamicTableLockCheckingIntervalDurationMin)
-        .Default(TDuration::Seconds(1));
-    registrar.Parameter("dynamic_table_lock_checking_interval_duration_max", &TThis::DynamicTableLockCheckingIntervalDurationMax)
-        .Default(TDuration::Seconds(30));
+    registrar.ParameterWithUniversalAccessor<int>(
+        "dynamic_table_lock_checking_attempt_count_limit",
+        [] (TThis* config) -> auto& {
+            return config->BulkInsertLockChecker.InvocationCount;
+        })
+        .Optional();
+    registrar.ParameterWithUniversalAccessor<double>(
+        "dynamic_table_lock_checking_interval_scale",
+        [] (TThis* config) -> auto& {
+            return config->BulkInsertLockChecker.BackoffMultiplier;
+        })
+        .Optional();
+    registrar.ParameterWithUniversalAccessor<TDuration>(
+        "dynamic_table_lock_checking_interval_duration_min",
+        [] (TThis* config) -> auto& {
+            return config->BulkInsertLockChecker.MinBackoff;
+        })
+        .Optional();
+    registrar.ParameterWithUniversalAccessor<TDuration>(
+        "dynamic_table_lock_checking_interval_duration_max",
+        [] (TThis* config) -> auto& {
+            return config->BulkInsertLockChecker.MaxBackoff;
+        })
+        .Optional();
 
     registrar.Parameter("desired_block_size", &TThis::DesiredBlockSize)
         .Default(2_MB);
@@ -1183,6 +1267,8 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("enable_hunks_remote_copy", &TThis::EnableHunksRemoteCopy)
         .Default(true);
+    registrar.Parameter("enable_compression_dictionary_remote_copy", &TThis::EnableCompressionDictionaryRemoteCopy)
+        .Default(false);
 
     registrar.Parameter("default_enable_porto", &TThis::DefaultEnablePorto)
         .Default(NScheduler::EEnablePorto::None);
@@ -1229,7 +1315,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_columnar_statistics_early_finish", &TThis::EnableColumnarStatisticsEarlyFinish)
         .Default(true);
     registrar.Parameter("enable_table_column_renaming", &TThis::EnableTableColumnRenaming)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("footprint_memory", &TThis::FootprintMemory)
         .Default();
@@ -1280,13 +1366,10 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("max_job_aborts_until_operation_failure", &TThis::MaxJobAbortsUntilOperationFailure)
-        .Default(THashMap<EAbortReason, int>({{EAbortReason::RootVolumePreparationFailed, 1000}}));
+        .Default(THashMap<EAbortReason, int>({{EAbortReason::RootVolumePreparationFailed, 1000}, {EAbortReason::NbdErrors, 10}}));
 
-    registrar.Parameter("job_id_unequal_to_allocation_id", &TThis::JobIdUnequalToAllocationId)
-        .Default(false);
-
-    registrar.Parameter("disallow_remote_operations", &TThis::DisallowRemoteOperations)
-        .DefaultNew();
+    registrar.Parameter("remote_operations", &TThis::RemoteOperations)
+        .Default();
 
     registrar.Parameter("enable_merge_schemas_during_schema_infer", &TThis::EnableMergeSchemasDuringSchemaInfer)
         .Default(false);
@@ -1304,35 +1387,35 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default()
         .GreaterThan(0);
 
+    registrar.Parameter("register_lockable_dynamic_tables", &TThis::RegisterLockableDynamicTables)
+        .Default(false);
+
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->ChunkLocationThrottler->Limit = 10'000;
 
-        // Value in options is an upper bound hint on uncompressed data size for merge jobs.
-        config->OrderedMergeOperationOptions->DataWeightPerJob = 20_GB;
-        config->OrderedMergeOperationOptions->MaxDataSlicesPerJob = 10'000;
-
-        config->SortedMergeOperationOptions->DataWeightPerJob = 20_GB;
-        config->SortedMergeOperationOptions->MaxDataSlicesPerJob = 10'000;
-
-        config->UnorderedMergeOperationOptions->DataWeightPerJob = 20_GB;
-        config->UnorderedMergeOperationOptions->MaxDataSlicesPerJob = 10'000;
-
         config->OperationOptions->AsMap()->AddChild("controller_building_job_spec_count_limit", NYTree::ConvertToNode(100));
         config->OperationOptions->AsMap()->AddChild("controller_total_building_job_spec_slice_count_limit", NYTree::ConvertToNode(200'000));
+
+        config->BulkInsertLockChecker = {
+            .InvocationCount = 10,
+            .MinBackoff = TDuration::Seconds(1),
+            .MaxBackoff = TDuration::Seconds(30),
+            .BackoffMultiplier = 1.5,
+        };
     });
 
     registrar.Postprocessor([&] (TControllerAgentConfig* config) {
-        UpdateOptions(&config->MapOperationOptions, config->OperationOptions);
-        UpdateOptions(&config->ReduceOperationOptions, config->OperationOptions);
-        UpdateOptions(&config->JoinReduceOperationOptions, config->OperationOptions);
-        UpdateOptions(&config->EraseOperationOptions, config->OperationOptions);
-        UpdateOptions(&config->OrderedMergeOperationOptions, config->OperationOptions);
-        UpdateOptions(&config->UnorderedMergeOperationOptions, config->OperationOptions);
-        UpdateOptions(&config->SortedMergeOperationOptions, config->OperationOptions);
-        UpdateOptions(&config->MapReduceOperationOptions, config->OperationOptions);
-        UpdateOptions(&config->SortOperationOptions, config->OperationOptions);
-        UpdateOptions(&config->RemoteCopyOperationOptions, config->OperationOptions);
-        UpdateOptions(&config->VanillaOperationOptions, config->OperationOptions);
+        BuildOptions(&config->MapOperationOptions, config->MapOperationOptionsNode, config->OperationOptions);
+        BuildOptions(&config->ReduceOperationOptions, config->ReduceOperationOptionsNode, config->OperationOptions);
+        BuildOptions(&config->JoinReduceOperationOptions, config->JoinReduceOperationOptionsNode, config->OperationOptions);
+        BuildOptions(&config->EraseOperationOptions, config->EraseOperationOptionsNode, config->OperationOptions);
+        BuildOptions(&config->OrderedMergeOperationOptions, config->OrderedMergeOperationOptionsNode, config->OperationOptions);
+        BuildOptions(&config->UnorderedMergeOperationOptions, config->UnorderedMergeOperationOptionsNode, config->OperationOptions);
+        BuildOptions(&config->SortedMergeOperationOptions, config->SortedMergeOperationOptionsNode, config->OperationOptions);
+        BuildOptions(&config->MapReduceOperationOptions, config->MapReduceOperationOptionsNode, config->OperationOptions);
+        BuildOptions(&config->SortOperationOptions, config->SortOperationOptionsNode, config->OperationOptions);
+        BuildOptions(&config->RemoteCopyOperationOptions, config->RemoteCopyOperationOptionsNode, config->OperationOptions);
+        BuildOptions(&config->VanillaOperationOptions, config->VanillaOperationOptionsNode, config->OperationOptions);
 
         THashSet<TString> customJobMetricsProfilingNames;
         for (const auto& customJobMetricDescription : config->CustomJobMetrics) {

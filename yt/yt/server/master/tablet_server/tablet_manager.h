@@ -90,7 +90,7 @@ public:
 
     void Mount(
         TTabletOwnerBase* table,
-        const TString& path,
+        const NYPath::TYPath& path,
         int firstTabletIndex,
         int lastTabletIndex,
         TTabletCellId hintCellId,
@@ -180,7 +180,7 @@ public:
 
     NNodeTrackerServer::TNode* FindTabletLeaderNode(const TTabletBase* tablet) const;
 
-    void UpdateExtraMountConfigKeys(std::vector<TString> keys);
+    void UpdateExtraMountConfigKeys(std::vector<std::string> keys);
     void MaterizlizeExtraMountConfigKeys(NObjectClient::TCellTag cellTag) const;
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTabletBase);

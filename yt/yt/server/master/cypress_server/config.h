@@ -76,6 +76,8 @@ struct TDynamicCypressManagerConfig
     int MaxLocksPerTransactionSubtree;
 
     std::optional<i64> VirtualMapReadOffloadBatchSize;
+    // COMPAT(shakurov)
+    bool EnableVirtualMapReadOffloadAuthenticatedUserPropagation;
 
     int CrossCellCopyMaxSubtreeSize;
 
@@ -89,7 +91,21 @@ struct TDynamicCypressManagerConfig
     bool EnableIntraCellCrossShardLinks;
 
     // COMPAT(koloshmet)
+    bool EnableCrossCellLinks;
+
+    // COMPAT(koloshmet)
     bool EnablePreserveAclDuringMove;
+
+    i64 MaxAttributeFilterSizeToLog;
+
+    // COMPAT(h0pless)
+    bool UseProperBranchedParentInLockCopyDestination;
+
+    // COMPAT(h0pless)
+    bool AlertOnListNodeLoad;
+
+    NTableClient::EOptimizeFor DefaultOptimizeFor;
+    NTableClient::EOptimizeFor DefaultDynamicTableOptimizeFor;
 
     REGISTER_YSON_STRUCT(TDynamicCypressManagerConfig);
 

@@ -41,10 +41,9 @@ using TPersistentOperationSchedulingSegmentStateMap = THashMap<TOperationId, TPe
 ////////////////////////////////////////////////////////////////////////////////
 
 // COMPAT(eshcherbin): Move to a more suitable file when old scheduling segments state is not used.
-class TPersistentSchedulingSegmentsState
+struct TPersistentSchedulingSegmentsState
     : public NYTree::TYsonStruct
 {
-public:
     TPersistentOperationSchedulingSegmentStateMap OperationStates;
 
     TPersistentNodeSchedulingSegmentStateMap NodeStates;
@@ -58,10 +57,9 @@ DEFINE_REFCOUNTED_TYPE(TPersistentSchedulingSegmentsState)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPersistentFairShareTreeAllocationSchedulerState
+struct TPersistentFairShareTreeAllocationSchedulerState
     : public NYTree::TYsonStruct
 {
-public:
     TPersistentSchedulingSegmentsStatePtr SchedulingSegmentsState;
 
     REGISTER_YSON_STRUCT(TPersistentFairShareTreeAllocationSchedulerState);

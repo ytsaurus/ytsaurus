@@ -1,6 +1,7 @@
 #include "client_impl.h"
 
 #include "box.h"
+#include "chaos_lease_type_handler.h"
 #include "chaos_replicated_table_type_handler.h"
 #include "chaos_table_replica_type_handler.h"
 #include "config.h"
@@ -142,6 +143,7 @@ TClient::TClient(
         CreateQueueConsumerTypeHandler(this),
         CreateQueueProducerTypeHandler(this),
         CreatePipelineTypeHandler(this),
+        CreateChaosLeaseTypeHandler(this),
         CreateReplicatedTableReplicaTypeHandler(this),
         CreateSecondaryIndexTypeHandler(this),
         CreateReplicationCardTypeHandler(this),
@@ -152,7 +154,7 @@ TClient::TClient(
         CreateTabletActionTypeHandler(this),
         CreateDefaultTypeHandler(this)
     }
-    , HeavyRequestMemoryUsageTracker_(WithCategory(memoryTracker, EMemoryCategory::HeavyRequest))
+    , HeavyRequestMemoryUsageTracker_(WithCategory(memoryTracker, EMemoryCategory::HeavyRequest, TString(Options_.GetAuthenticatedUser())))
     , FunctionImplCache_(BIND(CreateFunctionImplCache,
         Connection_->GetConfig()->FunctionImplCache,
         MakeWeak(this)))
@@ -160,7 +162,6 @@ TClient::TClient(
         Connection_->GetConfig()->FunctionRegistryCache,
         MakeWeak(this),
         Connection_->GetInvoker()))
-    , DummySignatureGenerator_(NSignature::CreateDummySignatureGenerator())
 {
     if (!Options_.User) {
         THROW_ERROR_EXCEPTION("Native connection requires non-null \"user\" parameter");
@@ -644,7 +645,7 @@ void TClient::ValidateSuperuserPermissions()
     auto groupYsonList = WaitFor(GetNode(pathToGroupYsonList, options))
         .ValueOrThrow();
 
-    auto groups = ConvertTo<THashSet<TString>>(groupYsonList);
+    auto groups = ConvertTo<THashSet<std::string>>(groupYsonList);
     YT_LOG_DEBUG("User group membership info received (Name: %v, Groups: %v)",
         Options_.User,
         groups);

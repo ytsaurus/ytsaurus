@@ -91,8 +91,11 @@ struct IUserSlot
 
     virtual TFuture<IVolumePtr> PrepareRootVolume(
         const std::vector<NDataNode::TArtifactKey>& layers,
-        const TArtifactDownloadOptions& downloadOptions,
-        const TUserSandboxOptions& options) = 0;
+        const TVolumePreparationOptions& options) = 0;
+
+    virtual TFuture<IVolumePtr> PrepareGpuCheckVolume(
+        const std::vector<NDataNode::TArtifactKey>& layers,
+        const TVolumePreparationOptions& options) = 0;
 
     virtual NBus::TBusServerConfigPtr GetBusServerConfig() const = 0;
     virtual NBus::TBusClientConfigPtr GetBusClientConfig() const = 0;
@@ -107,17 +110,19 @@ struct IUserSlot
 
     virtual TString GetSandboxPath(ESandboxKind sandbox) const = 0;
 
-    virtual TString GetMediumName() const = 0;
+    virtual std::string GetMediumName() const = 0;
 
     virtual TString GetJobProxyUnixDomainSocketPath() const = 0;
 
-    virtual TFuture<std::vector<TShellCommandOutput>> RunSetupCommands(
+    virtual TFuture<std::vector<TShellCommandOutput>> RunPreparationCommands(
         TJobId jobId,
         const std::vector<TShellCommandConfigPtr>& commands,
         const NContainers::TRootFS& rootFS,
         const std::string& user,
         const std::optional<std::vector<NContainers::TDevice>>& devices,
-        int startIndex) = 0;
+        const std::optional<TString>& hostName,
+        const std::vector<NNet::TIP6Address>& ipAddresses,
+        std::string tag) = 0;
 
     virtual void OnArtifactPreparationFailed(
         TJobId jobId,

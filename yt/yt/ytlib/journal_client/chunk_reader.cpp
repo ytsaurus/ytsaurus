@@ -46,7 +46,7 @@ std::vector<IChunkReaderPtr> CreatePartReaders(
     const TRemoteReaderOptionsPtr& remoteReaderOptions,
     const TChunkReaderHostPtr& chunkReaderHost,
     TChunkId chunkId,
-    TChunkReplicaWithMediumList replicas)
+    TChunkReplicaList replicas)
 {
     if (replicas.empty()) {
         return {};
@@ -63,7 +63,7 @@ std::vector<IChunkReaderPtr> CreatePartReaders(
     for (int replicaIndex = 0; replicaIndex < ChunkReplicaIndexBound; ++replicaIndex) {
         auto partChunkId = EncodeChunkId(TChunkIdWithIndex(chunkId, replicaIndex));
 
-        TChunkReplicaWithMediumList partReplicas;
+        TChunkReplicaList partReplicas;
         for (auto replica : replicas) {
             if (replica.GetReplicaIndex() == replicaIndex) {
                 partReplicas.push_back(replica);
@@ -124,7 +124,7 @@ public:
         TChunkReaderHostPtr chunkReaderHost,
         TChunkId chunkId,
         NErasure::ICodec* codec,
-        TChunkReplicaWithMediumList replicas)
+        TChunkReplicaList replicas)
         : Config_(std::move(config))
         , Options_(std::move(remoteReaderOptions))
         , ChunkReaderHost_(std::move(chunkReaderHost))
@@ -177,7 +177,7 @@ public:
         const TClientChunkReadOptions Options_;
         const int FirstBlockIndex_;
         const int BlockCount_;
-        const TChunkReplicaWithMediumList InitialReplicas_;
+        const TChunkReplicaList InitialReplicas_;
 
         const NLogging::TLogger Logger;
         const TPromise<std::vector<TBlock>> Promise_ = NewPromise<std::vector<TBlock>>();
@@ -227,7 +227,8 @@ public:
                     Reader_->Options_,
                     Reader_->ChunkReaderHost_,
                     DecodeChunkId(Reader_->ChunkId_).Id,
-                    replicas.Replicas),
+                    // TODO(babenko): drop cast once TAllyReplicasInfo no longer cares about media.
+                    TChunkReplicaList(replicas.Replicas.begin(), replicas.Replicas.end())),
                 GetPartIndexesToRead(Reader_->ChunkId_, Reader_->Codec_),
                 Logger);
 
@@ -248,7 +249,7 @@ public:
 
             const auto& rowLists = rowListsOrError.Value();
             if (TypeFromId(Reader_->ChunkId_) == EObjectType::ErasureJournalChunk) {
-                auto rows = DecodeErasureJournalRows(Reader_->Codec_, rowLists);
+                auto rows = DecodeErasureJournalRows(Reader_->Codec_, rowLists, Logger);
                 Promise_.Set(RowsToBlocks(rows));
             } else {
                 YT_VERIFY(rowLists.size() == 1);
@@ -272,7 +273,7 @@ public:
             }
 
             if (error.FindMatching(NChunkClient::EErrorCode::NoSuchChunk)) {
-                Reader_->InitialReplicas_.Store(TChunkReplicaWithMediumList{});
+                Reader_->InitialReplicas_.Store(TChunkReplicaList{});
                 Reader_->Client_->GetNativeConnection()->GetChunkReplicaCache()->DiscardReplicas(
                     DecodeChunkId(Reader_->ChunkId_).Id,
                     ReplicasFuture_);
@@ -324,7 +325,7 @@ private:
 
     const NLogging::TLogger Logger;
 
-    NThreading::TAtomicObject<TChunkReplicaWithMediumList> InitialReplicas_;
+    NThreading::TAtomicObject<TChunkReplicaList> InitialReplicas_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TErasureChunkReader)
@@ -337,7 +338,7 @@ IChunkReaderPtr CreateChunkReader(
     TChunkReaderHostPtr chunkReaderHost,
     TChunkId chunkId,
     NErasure::ECodec codecId,
-    TChunkReplicaWithMediumList replicas)
+    TChunkReplicaList replicas)
 {
     if (codecId == NErasure::ECodec::None) {
         return CreateReplicationReader(

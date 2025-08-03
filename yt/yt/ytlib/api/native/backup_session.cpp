@@ -30,7 +30,7 @@ static constexpr const char* OriginalEnabledReplicaIdsAttributeName  = "original
 ////////////////////////////////////////////////////////////////////////////////
 
 TClusterBackupSession::TClusterBackupSession(
-    TString clusterName,
+    std::string clusterName,
     TClientPtr client,
     TCreateOrRestoreTableBackupOptions options,
     TTimestamp timestamp,
@@ -133,9 +133,9 @@ void TClusterBackupSession::RegisterTable(const TTableBackupManifestPtr& manifes
                 auto attributes = ConvertToAttributes(attributesString);
                 TTableReplicaInfo replicaInfo{
                     .Id = replicaId,
-                    .ClusterName = attributes->Get<TString>("cluster_name"),
+                    .ClusterName = attributes->Get<std::string>("cluster_name"),
                     .Mode = attributes->Get<ETableReplicaMode>("mode"),
-                    .ReplicaPath = attributes->Get<TString>("replica_path"),
+                    .ReplicaPath = attributes->Get<TYPath>("replica_path"),
                 };
 
                 if (Direction_ == EBackupDirection::Backup) {
@@ -525,7 +525,7 @@ void TClusterBackupSession::ValidateBackupStates(ETabletBackupState expectedStat
 {
     auto buildRequest = [&] (const auto& batchReq, const TTableInfo& table) {
         auto req = TObjectYPathProxy::Get(FromObjectId(table.DestinationTableId) + "/@");
-        const static std::vector<TString> ExtraAttributeKeys{"tablet_backup_state", "backup_error"};
+        const static std::vector<std::string> ExtraAttributeKeys{"tablet_backup_state", "backup_error"};
         ToProto(req->mutable_attributes()->mutable_keys(), ExtraAttributeKeys);
         SetTransactionId(req, GetExternalizedTransactionId(table));
         batchReq->AddRequest(req, ToString(table.DestinationTableId));
@@ -584,8 +584,8 @@ void TClusterBackupSession::FetchClonedReplicaIds()
         auto clonedReplicas = ConvertTo<THashMap<TTableReplicaId, INodePtr>>(TYsonString(rsp->value()));
         for (const auto& [clonedReplicaId, attributesString] : clonedReplicas) {
             auto attributes = ConvertToAttributes(attributesString);
-            auto replicaClusterName = attributes->template Get<TString>("cluster_name");
-            auto replicaPath = attributes->template Get<TString>("replica_path");
+            auto replicaClusterName = attributes->Get<std::string>("cluster_name");
+            auto replicaPath = attributes->Get<TString>("replica_path");
 
             bool foundMatching = false;
 
@@ -956,14 +956,12 @@ void TBackupSession::RunRestore()
 }
 
 TClusterBackupSession* TBackupSession::CreateClusterSession(
-    const TString& clusterName,
+    const std::string& clusterName,
     EBackupDirection direction)
 {
     const auto& nativeConnection = Client_->GetNativeConnection();
-    auto remoteConnection = GetRemoteConnectionOrThrow(
-        nativeConnection,
-        clusterName,
-        /*syncOnFailure*/ true);
+    auto remoteConnection = WaitFor(InsistentGetRemoteConnection(nativeConnection, clusterName))
+        .ValueOrThrow();
     auto remoteClient = New<TClient>(
         std::move(remoteConnection),
         Client_->GetOptions(),

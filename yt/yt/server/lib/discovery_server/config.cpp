@@ -16,6 +16,8 @@ void TDiscoveryServerConfig::Register(TRegistrar registrar)
         .Default(1000);
     registrar.Parameter("gossip_batch_size", &TThis::GossipBatchSize)
         .Default(100);
+    registrar.Parameter("discovery_server_rpc_timeout", &TThis::DiscoveryServerRpcTimeout)
+        .Default(TDuration::Seconds(60));
     registrar.Parameter("max_members_per_group", &TThis::MaxMembersPerGroup)
         .Default();
     registrar.Parameter("max_group_count", &TThis::MaxGroupCount)

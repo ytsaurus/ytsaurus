@@ -28,11 +28,11 @@ public:
         ECallingConvention /*callingConvention*/,
         bool /*useFunctionContext*/) override
     {
-        TypeInferrers_->emplace(functionName, New<TFunctionTypeInferrer>(
-            std::move(typeParameterConstraints),
+        TypeInferrers_->emplace(functionName, CreateFunctionTypeInferrer(
+            resultType,
             std::move(argumentTypes),
-            repeatedArgType,
-            resultType));
+            std::move(typeParameterConstraints),
+            repeatedArgType));
     }
 
     void RegisterFunction(
@@ -42,11 +42,9 @@ public:
         TStringBuf /*implementationFile*/,
         ECallingConvention /*callingConvention*/) override
     {
-        TypeInferrers_->emplace(functionName, New<TFunctionTypeInferrer>(
-            std::unordered_map<TTypeParameter, TUnionType>{},
-            std::move(argumentTypes),
-            EValueType::Null,
-            resultType));
+        TypeInferrers_->emplace(functionName, CreateFunctionTypeInferrer(
+            resultType,
+            std::move(argumentTypes)));
     }
 
     void RegisterFunction(
@@ -57,28 +55,28 @@ public:
         TType resultType,
         TStringBuf /*implementationFile*/) override
     {
-        TypeInferrers_->emplace(functionName, New<TFunctionTypeInferrer>(
-            std::move(typeParameterConstraints),
+        TypeInferrers_->emplace(functionName, CreateFunctionTypeInferrer(
+            resultType,
             std::move(argumentTypes),
-            repeatedArgType,
-            resultType));
+            std::move(typeParameterConstraints),
+            repeatedArgType));
     }
 
     void RegisterAggregate(
         const std::string& aggregateName,
         std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
-        TType argumentType,
+        std::vector<TType> argumentTypes,
         TType resultType,
         TType stateType,
         TStringBuf /*implementationFile*/,
         ECallingConvention /*callingConvention*/,
         bool /*isFirst*/) override
     {
-        TypeInferrers_->emplace(aggregateName, New<TAggregateFunctionTypeInferrer>(
-            typeParameterConstraints,
-            argumentType,
+        TypeInferrers_->emplace(aggregateName, CreateAggregateTypeInferrer(
+            resultType,
+            std::move(argumentTypes),
             stateType,
-            resultType));
+            typeParameterConstraints));
     }
 
 private:
@@ -99,74 +97,68 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
 
     const TTypeParameter primitive = 0;
 
-    result->emplace("if", New<TFunctionTypeInferrer>(
-        std::unordered_map<TTypeParameter, TUnionType>(),
-        std::vector<TType>{EValueType::Boolean, primitive, primitive},
-        primitive));
+    result->emplace("if", CreateFunctionTypeInferrer(
+        primitive,
+        std::vector<TType>{EValueType::Boolean, primitive, primitive}));
 
-    result->emplace("is_prefix", New<TFunctionTypeInferrer>(
-        std::unordered_map<TTypeParameter, TUnionType>(),
-        std::vector<TType>{EValueType::String, EValueType::String},
-        EValueType::Boolean));
+    result->emplace("is_prefix", CreateFunctionTypeInferrer(
+        EValueType::Boolean,
+        std::vector<TType>{EValueType::String, EValueType::String}));
 
-    result->emplace("is_null", New<TFunctionTypeInferrer>(
-        std::unordered_map<TTypeParameter, TUnionType>(),
-        std::vector<TType>{primitive},
-        EValueType::Null,
-        EValueType::Boolean));
+    result->emplace("is_null", CreateFunctionTypeInferrer(
+        EValueType::Boolean,
+        std::vector<TType>{primitive}));
 
-    result->emplace("is_nan", New<TFunctionTypeInferrer>(
-        std::vector<TType>{EValueType::Double},
-        EValueType::Boolean));
+    result->emplace("is_nan", CreateFunctionTypeInferrer(
+        EValueType::Boolean,
+        std::vector<TType>{EValueType::Double}));
 
-    result->emplace("is_finite", New<TFunctionTypeInferrer>(
-        std::vector<TType>{EValueType::Double},
-        EValueType::Boolean));
+    result->emplace("is_finite", CreateFunctionTypeInferrer(
+        EValueType::Boolean,
+        std::vector<TType>{EValueType::Double}));
 
-    const TTypeParameter castable = 1;
+    const TTypeParameter castable = 0;
 
     {
         auto castConstraints = std::unordered_map<TTypeParameter, TUnionType>();
         castConstraints[castable] = std::vector<EValueType>{
+            EValueType::Null,
             EValueType::Int64,
             EValueType::Uint64,
             EValueType::Double,
             EValueType::Any,
         };
 
-        result->emplace("int64", New<TFunctionTypeInferrer>(
-            castConstraints,
+        result->emplace("int64", CreateFunctionTypeInferrer(
+            EValueType::Int64,
             std::vector<TType>{castable},
-            EValueType::Null,
-            EValueType::Int64));
+            castConstraints));
 
-        result->emplace("uint64", New<TFunctionTypeInferrer>(
-            castConstraints,
+        result->emplace("uint64", CreateFunctionTypeInferrer(
+            EValueType::Uint64,
             std::vector<TType>{castable},
-            EValueType::Null,
-            EValueType::Uint64));
+            castConstraints));
 
-        result->emplace("double", New<TFunctionTypeInferrer>(
-            castConstraints,
+        result->emplace("double", CreateFunctionTypeInferrer(
+            EValueType::Double,
             std::vector<TType>{castable},
-            EValueType::Null,
-            EValueType::Double));
+            castConstraints));
     }
 
     {
         auto castConstraints = std::unordered_map<TTypeParameter, TUnionType>();
         castConstraints[castable] = std::vector<EValueType>{
+            EValueType::Null,
             EValueType::Int64,
             EValueType::Uint64,
             EValueType::Boolean,
             EValueType::Any,
         };
 
-        result->emplace("boolean", New<TFunctionTypeInferrer>(
-            castConstraints,
+        result->emplace("boolean", CreateFunctionTypeInferrer(
+            EValueType::Boolean,
             std::vector<TType>{castable},
-            EValueType::Null,
-            EValueType::Boolean));
+            castConstraints));
     }
 
     {
@@ -176,19 +168,17 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
             EValueType::Any,
         };
 
-        result->emplace("string", New<TFunctionTypeInferrer>(
-            castConstraints,
+        result->emplace("string", CreateFunctionTypeInferrer(
+            EValueType::String,
             std::vector<TType>{castable},
-            EValueType::Null,
-            EValueType::String));
+            castConstraints));
     }
 
-    result->emplace("if_null", New<TFunctionTypeInferrer>(
-        std::unordered_map<TTypeParameter, TUnionType>(),
-        std::vector<TType>{primitive, primitive},
-        primitive));
+    result->emplace("if_null", CreateFunctionTypeInferrer(
+        primitive,
+        std::vector<TType>{primitive, primitive}));
 
-    const TTypeParameter nullable = 2;
+    const TTypeParameter nullable = 0;
 
     std::unordered_map<TTypeParameter, TUnionType> coalesceConstraints;
     coalesceConstraints[nullable] = {
@@ -200,13 +190,13 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
         EValueType::Composite,
         EValueType::Any,
     };
-    result->emplace("coalesce", New<TFunctionTypeInferrer>(
-        coalesceConstraints,
-        std::vector<TType>{},
+    result->emplace("coalesce", CreateFunctionTypeInferrer(
         nullable,
+        /*argumentTypes*/ {},
+        coalesceConstraints,
         nullable));
 
-    const TTypeParameter summable = 3;
+    const TTypeParameter summable = 0;
     auto sumConstraints = std::unordered_map<TTypeParameter, TUnionType>();
     sumConstraints[summable] = {
         EValueType::Int64,
@@ -214,13 +204,13 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
         EValueType::Double,
     };
 
-    result->emplace("sum", New<TAggregateFunctionTypeInferrer>(
-        sumConstraints,
+    result->emplace("sum", CreateAggregateTypeInferrer(
         summable,
         summable,
-        summable));
+        summable,
+        sumConstraints));
 
-    const TTypeParameter comparable = 4;
+    const TTypeParameter comparable = 0;
     auto minMaxConstraints = std::unordered_map<TTypeParameter, TUnionType>();
     minMaxConstraints[comparable] = {
         EValueType::Int64,
@@ -230,15 +220,15 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
         EValueType::String,
     };
     for (const auto& name : {"min", "max"}) {
-        result->emplace(name, New<TAggregateFunctionTypeInferrer>(
-            minMaxConstraints,
+        result->emplace(name, CreateAggregateTypeInferrer(
             comparable,
             comparable,
-            comparable));
+            comparable,
+            minMaxConstraints));
     }
 
     auto argMinMaxConstraints = std::unordered_map<TTypeParameter, TUnionType>();
-    argMinMaxConstraints[comparable] = {
+    argMinMaxConstraints[0] = {
         EValueType::Int64,
         EValueType::Uint64,
         EValueType::Boolean,
@@ -246,18 +236,20 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
         EValueType::String,
     };
     for (const auto& name : {"argmin", "argmax"}) {
-        result->emplace(name, New<TAggregateFunctionTypeInferrer>(
-            argMinMaxConstraints,
-            std::vector<TType>{primitive, comparable},
+        result->emplace(name, CreateAggregateTypeInferrer(
+            /*resultType*/ 1,
+            /*argumentTypes*/ {1, 0},
             EValueType::String,
-            primitive));
+            argMinMaxConstraints));
     }
 
-    result->emplace("avg", New<TAggregateFunctionTypeInferrer>(
-        sumConstraints,
+    result->emplace("avg", CreateAggregateTypeInferrer(
+        EValueType::Double,
         std::vector<TType>{summable},
         EValueType::String,
-        EValueType::Double));
+        sumConstraints));
+
+    result->emplace("array_agg", CreateArrayAggTypeInferrer());
 
     TTypeInferrerFunctionRegistryBuilder builder{result.Get()};
     RegisterBuiltinFunctions(&builder);

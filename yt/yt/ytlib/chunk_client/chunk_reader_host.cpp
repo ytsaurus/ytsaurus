@@ -24,8 +24,7 @@ TChunkReaderHost::TChunkReaderHost(
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
     NConcurrency::IThroughputThrottlerPtr rpsThrottler,
     NConcurrency::IThroughputThrottlerPtr mediumThrottler,
-    TTrafficMeterPtr trafficMeter,
-    TCallback<NConcurrency::IThroughputThrottlerPtr(const TClusterName& clusterName)> bandwidthThrottlerFactory)
+    TTrafficMeterPtr trafficMeter)
     : Client(std::move(client))
     , LocalDescriptor(std::move(localDescriptor))
     , BlockCache(std::move(blockCache))
@@ -35,7 +34,6 @@ TChunkReaderHost::TChunkReaderHost(
     , RpsThrottler(std::move(rpsThrottler))
     , MediumThrottler(std::move(mediumThrottler))
     , TrafficMeter(std::move(trafficMeter))
-    , BandwidthThrottlerFactory(std::move(bandwidthThrottlerFactory))
 { }
 
 TChunkReaderHostPtr TChunkReaderHost::FromClient(
@@ -57,31 +55,102 @@ TChunkReaderHostPtr TChunkReaderHost::FromClient(
         /*trafficMeter*/ nullptr);
 }
 
-TChunkReaderHostPtr TChunkReaderHost::CreateHostForCluster(const TClusterName& clusterName) const
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+THashMap<TClusterName, TChunkReaderHostPtr> CreateHostsMap(
+    const TChunkReaderHostPtr& baseHost,
+    const std::vector<TClusterName>& clusterList)
 {
-    auto client = Client;
+    THashMap<TClusterName, TChunkReaderHostPtr> hosts;
+    const auto& baseClient = baseHost->Client;
+    for (const auto& clusterName : clusterList) {
+        auto client = baseClient;
 
-    if (!IsLocal(clusterName)) {
-        client = Client
-                ->GetNativeConnection()
-                ->GetClusterDirectory()
-                ->GetConnectionOrThrow(clusterName.Underlying())
-                ->CreateNativeClient(Client->GetOptions());
+        if (!IsLocal(clusterName)) {
+            client = baseClient
+                    ->GetNativeConnection()
+                    ->GetClusterDirectory()
+                    ->GetConnectionOrThrow(clusterName.Underlying())
+                    ->CreateNativeClient(baseClient->GetOptions());
+        }
+
+        hosts[clusterName] = New<TChunkReaderHost>(
+            std::move(client),
+            baseHost->LocalDescriptor,
+            baseHost->BlockCache,
+            baseHost->ChunkMetaCache,
+            baseHost->NodeStatusDirectory,
+            baseHost->BandwidthThrottler,
+            baseHost->RpsThrottler,
+            baseHost->MediumThrottler,
+            baseHost->TrafficMeter);
     }
+    return hosts;
+}
 
-    auto bandwidthThrottler = BandwidthThrottlerFactory ? BandwidthThrottlerFactory(clusterName) : BandwidthThrottler;
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+TMultiChunkReaderHost::TMultiChunkReaderHost(
+    TChunkReaderHostPtr baseHost,
+    TBandwidthThrottlerFactory bandwidthThrottlerFactory,
+    const std::vector<TClusterName>& clusterList)
+    : BaseHost_(std::move(baseHost))
+    , BandwidthThrottlerFactory_(std::move(bandwidthThrottlerFactory))
+    , Hosts_(CreateHostsMap(BaseHost_, clusterList))
+{ }
+
+TChunkReaderHostPtr TMultiChunkReaderHost::CreateHostForCluster(
+    const NScheduler::TClusterName& clusterName)
+{
+    auto host = GetOrCrash(Hosts_, clusterName);
 
     return New<TChunkReaderHost>(
-        std::move(client),
-        LocalDescriptor,
-        BlockCache,
-        ChunkMetaCache,
-        NodeStatusDirectory,
-        std::move(bandwidthThrottler),
-        RpsThrottler,
-        MediumThrottler,
-        TrafficMeter,
-        BandwidthThrottlerFactory);
+        host->Client,
+        host->LocalDescriptor,
+        host->BlockCache,
+        host->ChunkMetaCache,
+        host->NodeStatusDirectory,
+        // NB(coteeq, yuryalekseev): All this thing with factory is here because of
+        // cross-cluster throttlers in exe-node. A new throttler could be configured
+        // while job is already running and we would like to throttle the job
+        // in this case. Obviously, this scheme will not throttle already-running
+        // readers, but it's a good enough approximation.
+        BandwidthThrottlerFactory_
+            ? BandwidthThrottlerFactory_(clusterName)
+            : host->BandwidthThrottler,
+        host->RpsThrottler,
+        host->MediumThrottler,
+        host->TrafficMeter);
+}
+
+TTrafficMeterPtr TMultiChunkReaderHost::GetTrafficMeter() const
+{
+    return BaseHost_->TrafficMeter;
+}
+
+TMultiChunkReaderHostPtr CreateMultiChunkReaderHost(
+    TChunkReaderHostPtr baseHost,
+    TMultiChunkReaderHost::TBandwidthThrottlerFactory bandwidthThrottlerFactory,
+    const std::vector<NScheduler::TClusterName>& clusterList)
+{
+    YT_VERIFY(AnyOf(clusterList, [] (const auto& clusterName) { return IsLocal(clusterName); }));
+    return New<TMultiChunkReaderHost>(
+        std::move(baseHost),
+        std::move(bandwidthThrottlerFactory),
+        clusterList);
+}
+
+TMultiChunkReaderHostPtr CreateSingleSourceMultiChunkReaderHost(
+    TChunkReaderHostPtr baseHost)
+{
+    return CreateMultiChunkReaderHost(
+        std::move(baseHost),
+        /*bandwidthThrottlerFactory*/ {},
+        /*clusterList*/ {LocalClusterName});
 }
 
 ////////////////////////////////////////////////////////////////////////////////

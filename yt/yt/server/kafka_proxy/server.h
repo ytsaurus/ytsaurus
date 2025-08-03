@@ -34,7 +34,7 @@ struct IServer
 
     //! Represents Kafka request handler.
     template <class TRequest, class TResponse>
-    using TTypedHandler = TCallback<TResponse(TConnectionId, const TRequest&, const NLogging::TLogger&)>;
+    using TTypedHandler = TCallback<TResponse(TConnectionId, TRequest, const NLogging::TLogger&)>;
     template <class TRequest, class TResponse>
     void RegisterTypedHandler(TTypedHandler<TRequest, TResponse> handler);
 

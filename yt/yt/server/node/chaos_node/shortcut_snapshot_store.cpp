@@ -23,46 +23,46 @@ class TShortcutSnapshotStore
     : public IShortcutSnapshotStore
 {
 public:
-    void UpdateShortcut(TReplicationCardId replicationCardId, TShortcutSnapshot snapshot) override
+    void UpdateShortcut(TChaosObjectId chaosObjectId, TShortcutSnapshot snapshot) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        auto* bucket = GetBucket(replicationCardId);
+        auto* bucket = GetBucket(chaosObjectId);
         auto guard = WriterGuard(bucket->Lock);
-        bucket->ShortcutSnapshots[replicationCardId] = snapshot;
+        bucket->ShortcutSnapshots[chaosObjectId] = snapshot;
     }
 
-    void RemoveShortcut(TReplicationCardId replicationCardId) override
+    void RemoveShortcut(TChaosObjectId chaosObjectId) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        auto* bucket = GetBucket(replicationCardId);
+        auto* bucket = GetBucket(chaosObjectId);
         auto guard = WriterGuard(bucket->Lock);
-        bucket->ShortcutSnapshots.erase(replicationCardId);
+        bucket->ShortcutSnapshots.erase(chaosObjectId);
     }
 
-    std::optional<TShortcutSnapshot> FindShortcut(TReplicationCardId replicationCardId) override
+    std::optional<TShortcutSnapshot> FindShortcut(TChaosObjectId chaosObjectId) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        auto* bucket = GetBucket(replicationCardId);
+        auto* bucket = GetBucket(chaosObjectId);
         {
             auto guard = ReaderGuard(bucket->Lock);
-            if (auto it = bucket->ShortcutSnapshots.find(replicationCardId)) {
+            if (auto it = bucket->ShortcutSnapshots.find(chaosObjectId)) {
                 return it->second;
             }
         }
         return {};
     }
 
-    TShortcutSnapshot GetShortcutOrThrow(TReplicationCardId replicationCardId) override
+    TShortcutSnapshot GetShortcutOrThrow(TChaosObjectId chaosObjectId) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        auto shortcut = FindShortcut(replicationCardId);
+        auto shortcut = FindShortcut(chaosObjectId);
         if (!shortcut) {
             THROW_ERROR_EXCEPTION("No shortcut for replication card %v",
-                replicationCardId);
+                chaosObjectId);
         }
         return *shortcut;
     }
@@ -78,13 +78,13 @@ public:
 private:
     struct TBucket
     {
-        THashMap<TReplicationCardId, TShortcutSnapshot> ShortcutSnapshots;
+        THashMap<TChaosObjectId, TShortcutSnapshot> ShortcutSnapshots;
         YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock);
     };
 
     std::vector<TBucket> Buckets_{ConcurrentHashBucketCount};
 
-    TBucket* GetBucket(TReplicationCardId replicationCardId)
+    TBucket* GetBucket(TChaosObjectId replicationCardId)
     {
         return &Buckets_[GetShardIndex<ConcurrentHashBucketCount>(replicationCardId)];
     }

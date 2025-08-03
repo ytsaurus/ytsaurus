@@ -85,10 +85,10 @@ struct TOperationAliasesTag
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const std::vector<TString>& TArchiveOperationRequest::GetAttributeKeys()
+const std::vector<std::string>& TArchiveOperationRequest::GetAttributeKeys()
 {
     // Keep the stuff below synchronized with InitializeRequestFromAttributes method.
-    static const std::vector<TString> attributeKeys = {
+    static const std::vector<std::string> attributeKeys = {
         "key",
         "start_time",
         "finish_time",
@@ -119,9 +119,9 @@ const std::vector<TString>& TArchiveOperationRequest::GetAttributeKeys()
     return attributeKeys;
 }
 
-const std::vector<TString>& TArchiveOperationRequest::GetProgressAttributeKeys()
+const std::vector<std::string>& TArchiveOperationRequest::GetProgressAttributeKeys()
 {
-    static const std::vector<TString> attributeKeys = {
+    static const std::vector<std::string> attributeKeys = {
         "progress",
         "brief_progress",
     };
@@ -789,11 +789,11 @@ public:
     {
         TArchiveOperationRequest result;
 
-        result.Id = TOperationId(TGuid::FromString(attributes.Get<TString>("key")));
+        result.Id = TOperationId(TGuid::FromString(attributes.Get<std::string>("key")));
         result.StartTime = attributes.Get<TInstant>("start_time");
         result.FinishTime = attributes.Get<TInstant>("finish_time");
         result.State = attributes.Get<EOperationState>("state");
-        result.AuthenticatedUser = attributes.Get<TString>("authenticated_user");
+        result.AuthenticatedUser = attributes.Get<std::string>("authenticated_user");
         result.OperationType = attributes.Get<EOperationType>("operation_type");
         result.Progress = attributes.FindYson("progress");
         result.BriefProgress = attributes.FindYson("brief_progress");
@@ -887,6 +887,7 @@ private:
 
     TCounter ArchivedOperationCounter_ = Profiler().Counter("/archived");
     TCounter RemovedOperationCounter_ = Profiler().Counter("/removed");
+    TCounter DroppedOperationCounter_ = Profiler().Counter("/dropped");
     TCounter CommittedDataWeightCounter_ = Profiler().Counter("/committed_data_weight");
     TCounter ArchiveErrorCounter_ = Profiler().Counter("/archive_errors");
     TCounter RemoveOperationErrorCounter_ = Profiler().Counter("/remove_errors");
@@ -1139,7 +1140,7 @@ private:
 
         int retainedCount = 0;
         int enqueuedForArchivationCount = 0;
-        THashMap<TString, int> operationCountPerUser;
+        THashMap<std::string, int> operationCountPerUser;
 
         auto canArchive = [&] (const auto& request) {
             if (retainedCount >= Config_->HardRetainedOperationCount) {
@@ -1222,6 +1223,8 @@ private:
             // This method is only called for operations that went through the SubmitForArchivation
             // pipeline, so it is safe to assume that it is present in OperationMap_.
             EnqueueForRemoval(GetRequest(operationId));
+
+            DroppedOperationCounter_.Increment();
         }
     }
 
@@ -1839,7 +1842,7 @@ private:
                     TOperationId operationId;
                     try {
                         attributes = ConvertToAttributes(operationDataToParse.AttributesYson);
-                        operationId = TOperationId(TGuid::FromString(attributes->Get<TString>("key")));
+                        operationId = TOperationId(TGuid::FromString(attributes->Get<std::string>("key")));
                         YT_VERIFY(operationId == operationDataToParse.OperationId);
                     } catch (const std::exception& ex) {
                         THROW_ERROR_EXCEPTION("Error parsing operation attributes")

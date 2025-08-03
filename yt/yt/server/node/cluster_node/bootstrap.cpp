@@ -183,6 +183,8 @@
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 #include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>
 #include <yt/yt/core/misc/configurable_singleton_def.h>
+#include <yt/yt/core/misc/config.h>
+#include <yt/yt/core/misc/fair_share_hierarchical_queue.h>
 
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/bus/server.h>
@@ -268,6 +270,19 @@ public:
             ClusterNodeLogger(),
             TDuration::MilliSeconds(500)))
     { }
+
+    TBootstrap(
+        TClusterNodeBootstrapConfigPtr config,
+        INodePtr configNode,
+        IServiceLocatorPtr serviceLocator,
+        NApi::NNative::IConnectionPtr connection)
+        : NYT::NClusterNode::TBootstrap(
+            std::move(config),
+            std::move(configNode),
+            std::move(serviceLocator))
+    {
+        Connection_ = std::move(connection);
+    }
 
     void Initialize() final
     {
@@ -368,6 +383,11 @@ public:
         return Config_;
     }
 
+    const TFairShareHierarchicalSchedulerPtr<std::string>& GetFairShareHierarchicalScheduler() const override
+    {
+        return FairShareHierarchicalScheduler_;
+    }
+
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const override
     {
         return DynamicConfigManager_;
@@ -465,9 +485,9 @@ public:
         return unwrapAddresses(secondaryMaster->Addresses);
     }
 
-    void ResetAndRegisterAtMaster() override
+    void ResetAndRegisterAtMaster(ERegistrationReason reason) override
     {
-        return MasterConnector_->ResetAndRegisterAtMaster();
+        return MasterConnector_->ResetAndRegisterAtMaster(reason);
     }
 
     bool IsConnected() const override
@@ -700,6 +720,8 @@ private:
     TNodeResourceManagerPtr NodeResourceManager_;
     TBufferedProducerPtr BufferedProducer_;
 
+    TFairShareHierarchicalSchedulerPtr<std::string> FairShareHierarchicalScheduler_;
+
     IReconfigurableThroughputThrottlerPtr LegacyRawTotalInThrottler_;
     IThroughputThrottlerPtr LegacyTotalInThrottler_;
 
@@ -831,9 +853,11 @@ private:
         connectionOptions.ConnectionInvoker = ConnectionThreadPool_->GetInvoker();
         connectionOptions.BlockCache = GetBlockCache();
 
-        Connection_ = NApi::NNative::CreateConnection(
-            Config_->ClusterConnection,
-            std::move(connectionOptions));
+        if (!Connection_) {
+            Connection_ = NApi::NNative::CreateConnection(
+                Config_->ClusterConnection,
+                std::move(connectionOptions));
+        }
 
         // Cycles are fine for bootstrap.
         Connection_->GetMasterCellDirectory()->SubscribeCellDirectoryChanged(
@@ -891,6 +915,10 @@ private:
                 ClusterNodeProfiler().WithPrefix("/throttlers"));
             LegacyTotalOutThrottler_ = IThroughputThrottlerPtr(LegacyRawTotalOutThrottler_);
         }
+
+        FairShareHierarchicalScheduler_ = CreateFairShareHierarchicalScheduler<std::string>(
+            New<TFairShareHierarchicalSchedulerDynamicConfig>(),
+            ClusterNodeProfiler().WithPrefix("/fair_share_hierarchical_scheduler"));
 
         RawUserJobContainerCreationThrottler_ = CreateNamedReconfigurableThroughputThrottler(
             New<NConcurrency::TThroughputThrottlerConfig>(),
@@ -1218,6 +1246,10 @@ private:
                 "/connected_secondary_masters",
                 CreateVirtualNode(GetSecondaryMasterConnectionConfigsOrchidService()));
         }
+        SetNodeByYPath(
+            OrchidRoot_,
+            "/fair_share_hierarchical_scheduler",
+            CreateVirtualNode(FairShareHierarchicalScheduler_->GetOrchidService()));
         SetNodeByYPath(
             OrchidRoot_,
             "/restart_manager",
@@ -1722,6 +1754,19 @@ IBootstrapPtr CreateNodeBootstrap(
         std::move(serviceLocator));
 }
 
+IBootstrapPtr CreateNodeBootstrap(
+    TClusterNodeBootstrapConfigPtr config,
+    INodePtr configNode,
+    IServiceLocatorPtr serviceLocator,
+    NApi::NNative::IConnectionPtr connection)
+{
+    return New<TBootstrap>(
+        std::move(config),
+        std::move(configNode),
+        std::move(serviceLocator),
+        std::move(connection));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TBootstrapBase::TBootstrapBase(IBootstrapBase* bootstrap)
@@ -1783,6 +1828,11 @@ const IThroughputThrottlerPtr& TBootstrapBase::GetAnnounceChunkReplicaRpsOutThro
 const TBufferedProducerPtr& TBootstrapBase::GetBufferedProducer() const
 {
     return Bootstrap_->GetBufferedProducer();
+}
+
+const TFairShareHierarchicalSchedulerPtr<std::string>& TBootstrapBase::GetFairShareHierarchicalScheduler() const
+{
+    return Bootstrap_->GetFairShareHierarchicalScheduler();
 }
 
 const TClusterNodeBootstrapConfigPtr& TBootstrapBase::GetConfig() const
@@ -1865,9 +1915,9 @@ std::vector<std::string> TBootstrapBase::GetMasterAddressesOrThrow(TCellTag cell
     return Bootstrap_->GetMasterAddressesOrThrow(cellTag);
 }
 
-void TBootstrapBase::ResetAndRegisterAtMaster()
+void TBootstrapBase::ResetAndRegisterAtMaster(ERegistrationReason reason)
 {
-    return Bootstrap_->ResetAndRegisterAtMaster();
+    return Bootstrap_->ResetAndRegisterAtMaster(reason);
 }
 
 bool TBootstrapBase::IsConnected() const

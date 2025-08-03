@@ -28,6 +28,8 @@
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
 
+#include <yt/yt/server/lib/object_server/helpers.h>
+
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
@@ -102,10 +104,6 @@ using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr auto DefaultScheduleReplyRetryBackoff = TDuration::MilliSeconds(100);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TStickyUserErrorCache
 {
 public:
@@ -153,7 +151,7 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
     //! Maps user name to (error, deadline) pairs.
-    THashMap<TString, std::pair<TError, TCpuInstant>> Map_;
+    THashMap<std::string, std::pair<TError, TCpuInstant>> Map_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -340,14 +338,18 @@ private:
     const IQuantizedExecutorPtr LocalReadExecutor_;
     const IThreadPoolPtr LocalReadOffloadPool_;
 
-    TMpscStack<TExecuteSessionPtr> ReadySessions_;
+    TMpscStack<TExecuteSessionPtr> AutomatonReadySessions_;
+    TMpscStack<TExecuteSessionPtr> LocalReadReadySessions_;
     TMpscStack<TExecuteSessionInfo> FinishedSessionInfos_;
 
     TStickyUserErrorCache StickyUserErrorCache_;
     std::atomic<bool> EnableTwoLevelCache_ = false;
     std::atomic<bool> EnableCypressTransactionsInSequoia_ = false;
+    static constexpr auto DefaultScheduleReplyRetryBackoff = TDuration::MilliSeconds(100);
     std::atomic<TDuration> ScheduleReplyRetryBackoff_ = DefaultScheduleReplyRetryBackoff;
     std::atomic<bool> MinimizeExecuteLatency_ = false;
+    static constexpr double NullPrematureBackoffAlarmProbability = -1.0;
+    std::atomic<double> PrematureBackoffAlarmProbability_ = NullPrematureBackoffAlarmProbability;
 
     static IInvokerPtr GetRpcInvoker()
     {
@@ -357,6 +359,7 @@ private:
     const TDynamicObjectServiceConfigPtr& GetDynamicConfig();
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig);
 
+    template <EUserWorkloadType WorkloadType>
     void EnqueueReadySession(TExecuteSessionPtr session);
     void EnqueueFinishedSession(TExecuteSessionInfo sessionInfo);
 
@@ -366,6 +369,15 @@ private:
     void OnUserCharged(TUser* user, const TUserWorkload& workload);
 
     void SetStickyUserError(const std::string& userName, const TError& error);
+
+    std::optional<double> GetPrematureBackoffAlarmProbability() const
+    {
+        auto prematureBackoffAlarmProbability = PrematureBackoffAlarmProbability_.load(std::memory_order::relaxed);
+        // This also protects from stray NaNs.
+        return prematureBackoffAlarmProbability >= 0.0
+            ? std::optional(prematureBackoffAlarmProbability)
+            : std::nullopt;
+    }
 
     std::function<void()> MakeLocalReadThreadInitializer()
     {
@@ -430,6 +442,9 @@ public:
         , Logger(ObjectServerLogger().WithTag("RequestId: %v", RequestId_))
         , TentativePeerState_(Bootstrap_->GetHydraFacade()->GetHydraManager()->GetAutomatonState())
         , CellSyncSession_(New<TMultiPhaseCellSyncSession>(Bootstrap_, Logger))
+        , PrematureBackoffAlarmProbability_(Owner_->GetPrematureBackoffAlarmProbability())
+        , LocalReadInvoker_(Owner_->CreateLocalReadInvoker(Identity_.User))
+        , ReplyLockCount_(TotalSubrequestCount_)
     { }
 
     ~TExecuteSession()
@@ -441,7 +456,7 @@ public:
         Owner_->EnqueueFinishedSession(TExecuteSessionInfo{
             std::move(EpochCancelableContext_),
             std::move(User_),
-            RequestQueueSizeIncreased_,
+            RequestQueueSizeIncremented_,
         });
     }
 
@@ -463,17 +478,30 @@ public:
         }
     }
 
+    template <EUserWorkloadType WorkloadType>
     void OnDequeued()
     {
-        Enqueued_.store(false);
+        Enqueued<WorkloadType>().store(false);
     }
 
-    bool RunAutomatonFast()
+    template <EUserWorkloadType WorkloadType>
+    std::atomic<bool>& Enqueued()
+    {
+        if constexpr (WorkloadType == EUserWorkloadType::Write) {
+            return EnqueuedToAutomaton_;
+        } else if constexpr (WorkloadType == EUserWorkloadType::Read) {
+            return EnqueuedToLocalRead_;
+        } else {
+            static_assert("Unexpected workload type for enqueuing/dequeuing execute session");
+        }
+    }
+
+    bool RunAutomatonFast(EUserWorkloadType workloadType)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         try {
-            return GuardedRunAutomatonFast();
+            return GuardedRunAutomatonFast(workloadType);
         } catch (const std::exception& ex) {
             Reply(ex);
             return false;
@@ -527,6 +555,7 @@ private:
     const NLogging::TLogger Logger;
     const EPeerState TentativePeerState_;
     const TMultiPhaseCellSyncSessionPtr CellSyncSession_;
+    const std::optional<double> PrematureBackoffAlarmProbability_;
 
     TDelayedExecutorCookie BackoffAlarmCookie_;
 
@@ -537,7 +566,8 @@ private:
         EExecutionSessionSubrequestType Type = EExecutionSessionSubrequestType::Undefined;
         IYPathServiceContextPtr RpcContext;
         std::unique_ptr<TMutation> Mutation;
-        std::optional<TObjectServiceCache::TCookie> ActiveCacheCookie;
+        std::atomic<bool> ActiveCacheCookieSet = false;
+        TObjectServiceCache::TCookie ActiveCacheCookie;
         NRpc::NProto::TRequestHeader RequestHeader;
         const NYTree::NProto::TYPathHeaderExt* YPathExt = nullptr;
         const NObjectClient::NProto::TPrerequisitesExt* PrerequisitesExt = nullptr;
@@ -552,7 +582,7 @@ private:
         TTraceContextPtr TraceContext;
         NHydra::TRevision Revision = NHydra::NullRevision;
         std::atomic<bool> Uncertain = false;
-        std::atomic<bool> LocallyStarted = false;
+        std::atomic<bool> Started = false;
         std::atomic<bool> Completed = false;
         TRequestProfilingCountersPtr ProfilingCounters;
         // Only for (local) write requests. (Local read requests are handled by
@@ -573,6 +603,34 @@ private:
     // For (local) read requests. (Write requests are handled by per-subrequest replication sessions.)
     TTransactionReplicationSessionWithoutBoomerangsPtr RemoteTransactionReplicationSession_;
 
+    // Some subrequests can be outsourced (either by forwarding to remote
+    // service or by subscribing to cache). A session should not be destroyed
+    // until such subrequests are processed, but neither should it be kept alive
+    // for too long because backoff alarms, timeouts and the like may require
+    // early destruction. Blithely capturing a strong reference per outsourced
+    // subrequest may lead to a host of ugly problems, cyclic references between
+    // multiple sessions through cache subscriptions being one of them.
+    //
+    // Basically, there're two ways of dealing with session lifetime here:
+    //
+    //   1. Capture a strong reference per outsourced subrequest but be prepared
+    //     to cancel those subscriptions and destroy corresponding references.
+    //
+    //   2. Capture a weak reference per outsourced subrequest and manage the
+    //     lifetime centrally. #SelfReference_ below does exactly that.
+    //
+    // The first way leaves less garbage around (it destroys not only the
+    // session but subscription callbacks). However, it's hard to implement
+    // efficiently and race-free because, firstly, a vector of cancellation
+    // cookies would require careful synchronization and, secondly, cancelling a
+    // subscription is inherently racy and would require even more
+    // synchronization. Oh, and don't forget exceptions that may occur while the
+    // vector is half-filled.
+    //
+    // With the second way, a lot of (no-op) callbacks may outlive a session
+    // object (for a time). But otherwise it's simpler.
+    TIntrusivePtr<TExecuteSession> SelfReference_;
+
     THashMap<TTransactionId, TCompactVector<TSubrequest*, 1>> RemoteTransactionIdToSubrequests_;
 
     std::unique_ptr<TSubrequest[]> Subrequests_;
@@ -588,6 +646,8 @@ private:
     TCancelableContextPtr EpochCancelableContext_;
 
     TEphemeralObjectPtr<TUser> User_;
+    // NB: LocalRead invoker is user-specific and, consequently, session-specific.
+    IInvokerPtr LocalReadInvoker_;
 
     struct TReadRequestComplexityLimits
     {
@@ -598,32 +658,23 @@ private:
 
     bool SuppressTransactionCoordinatorSync_ = false;
     bool NeedsUserAccessValidation_ = true;
-    bool RequestQueueSizeIncreased_ = false;
+    bool RequestQueueSizeIncremented_ = false;
 
     std::atomic<bool> ReplyScheduled_ = false;
-    std::atomic<bool> LocalExecutionStarted_ = false;
     std::atomic<bool> LocalExecutionInterrupted_ = false;
-
-    // If this is locked, the system is currently busy serving
-    // some local subrequest.
-    // NB: only TryAcquire() is called on this lock, never Acquire().
-    YT_DECLARE_SPIN_LOCK(NThreading::TRecursiveSpinLock, LocalExecutionLock_);
 
     // Has the time to backoff come?
     std::atomic<bool> BackoffAlarmTriggered_ = false;
 
     // Once this drops to zero, the request can be replied.
-    // Starts with one to indicate that the "ultimate" lock is initially held.
-    std::atomic<int> ReplyLockCount_ = 1;
-
-    // Set to true when the "ultimate" reply lock is released and
-    // RepyLockCount_ is decremented.
-    std::atomic<bool> UltimateReplyLockReleased_ = false;
+    // Initialized with the total number of subrequests (i.e. batch size).
+    std::atomic<int> ReplyLockCount_;
 
     // Set to true if we're ready to reply with at least one subresponse.
     std::atomic<bool> SomeSubrequestCompleted_ = false;
 
-    std::atomic<bool> Enqueued_ = false;
+    std::atomic<bool> EnqueuedToAutomaton_ = false;
+    std::atomic<bool> EnqueuedToLocalRead_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -636,13 +687,13 @@ private:
 
         auto originalRequestId = FromProto<TRequestId>(request.original_request_id());
 
-        RpcContext_->SetRequestInfo("SubrequestCount: %v, SupportsPortals: %v, SuppressUpstreamSync: %v, "
-            "SuppressTransactionCoordinatorSync: %v, OriginalRequestId: %v",
+        RpcContext_->SetRequestInfo("SubrequestCount: %v, SuppressUpstreamSync: %v, "
+            "SuppressTransactionCoordinatorSync: %v, OriginalRequestId: %v, AllowResolveFromSequoiaObject: %v",
             TotalSubrequestCount_,
-            request.supports_portals(),
             GetSuppressUpstreamSync(RpcContext_),
             GetSuppressTransactionCoordinatorSync(RpcContext_),
-            originalRequestId);
+            originalRequestId,
+            GetAllowResolveFromSequoiaObject(RpcContext_->GetRequestHeader()));
 
         if (TotalSubrequestCount_ == 0) {
             Reply();
@@ -814,30 +865,42 @@ private:
                 cookie.IsActive());
 
             if (cookie.IsActive()) {
-                subrequest.ActiveCacheCookie.emplace(std::move(cookie));
+                subrequest.ActiveCacheCookie = std::move(cookie);
+                subrequest.ActiveCacheCookieSet.store(true);
             } else {
-                // NB: Postpone subscribing to the cookie to avoid races with CancelPendingCachedSubrequests.
+                // NB: Postpone subscribing to the cookie to avoid races with CancelPendingCacheSubrequests.
                 pendingCacheSubscriptions.emplace_back(subrequestIndex, cookie.GetValue());
                 subrequest.Type = EExecutionSessionSubrequestType::Cache;
-                AcquireReplyLock();
+                // Strictly speaking, this is unnecessary. The Started flag is
+                // only used to mark subrequests as uncertain (when the session
+                // is interrupted mid-execution). And uncertainty is only used to
+                // properly set retry flags, which aren't required for read
+                // subrequests. So this is just for uniformity's sake.
+                subrequest.Started.store(true);
             }
         }
 
         for (const auto& [subrequestIndex, future] : pendingCacheSubscriptions) {
-            future.Subscribe(BIND([this, this_ = MakeStrong(this), subrequestIndex] (const TErrorOr<TObjectServiceCacheEntryPtr>& entryOrError) {
-                auto& subrequest = Subrequests_[subrequestIndex];
+            // MakeWeak is sufficient - see SelfReference_.
+            future.Subscribe(BIND([weakThis = MakeWeak(this), subrequestIndex] (const TErrorOr<TObjectServiceCacheEntryPtr>& entryOrError) {
+                auto this_ = weakThis.Lock();
+                if (!this_) {
+                    return;
+                }
+
+                auto& subrequest = this_->Subrequests_[subrequestIndex];
                 if (!entryOrError.IsOK()) {
                     if (entryOrError.FindMatching(NYT::EErrorCode::Canceled)) {
-                        Reply(TError(NRpc::EErrorCode::TransientFailure, "Transient failure")
+                        this_->Reply(TError(NRpc::EErrorCode::TransientFailure, "Transient failure")
                             << entryOrError);
                     } else {
-                        Reply(entryOrError);
+                        this_->Reply(entryOrError);
                     }
                     return;
                 }
                 const auto& entry = entryOrError.Value();
                 subrequest.Revision = entry->GetRevision();
-                OnSuccessfulSubresponse(&subrequest, entry->GetResponseMessage());
+                this_->OnCompletedSubresponse(&subrequest, entry->GetResponseMessage());
             }));
         }
     }
@@ -995,6 +1058,12 @@ private:
         try {
             LookupCachedSubrequests();
 
+            SelfReference_ = MakeStrong(this);
+
+            // This shouldn't be done any sooner to avoid races between
+            // CancelPendingCacheSubrequests and LookupCachedSubrequests.
+            SubscribeToCancelation();
+
             // Re-check remote requests to see if resolve cache resolve is still OK.
             DecideSubrequestTypes();
 
@@ -1011,6 +1080,19 @@ private:
         } catch (const std::exception& ex) {
             Reply(ex);
         }
+    }
+
+    void SubscribeToCancelation()
+    {
+        RpcContext_->SubscribeCanceled(BIND(&TExecuteSession::OnCanceled, MakeWeak(this)));
+    }
+
+    void OnCanceled(const TError& error)
+    {
+        // Since RpcContext_->IsCanceled() is already true, this will not actually
+        // send a reply (see DoReply). Nevertheless, this is crucial for releasing
+        // #SelfReference_ in case of a timeout.
+        Reply(error);
     }
 
     void MarkSubrequestLocal(TSubrequest* subrequest)
@@ -1356,27 +1438,39 @@ private:
             return;
         }
 
-        if (ContainsLocalSubrequests()) {
-            LocalExecutionStarted_.store(true);
-            Owner_->EnqueueReadySession(this);
-        } else {
-            ReleaseUltimateReplyLock();
-            // NB: No finish is needed.
+        if (ContainsLocalSubrequests<EUserWorkloadType::Write>()) {
+            Owner_->EnqueueReadySession<EUserWorkloadType::Write>(this);
         }
+
+        if (ContainsLocalSubrequests<EUserWorkloadType::Read>()) {
+            Owner_->EnqueueReadySession<EUserWorkloadType::Read>(this);
+        }
+
+        // NB: None of the above may be true, in which case the session is left
+        // awaiting being unreferenced and destroyed.
     }
 
+    template <EUserWorkloadType WorkloadType>
     bool ContainsLocalSubrequests()
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
+        EExecutionSessionSubrequestType subrequestType;
+        if constexpr (WorkloadType == EUserWorkloadType::Write) {
+            subrequestType = EExecutionSessionSubrequestType::LocalWrite;
+        } else if constexpr (WorkloadType == EUserWorkloadType::Read) {
+            subrequestType = EExecutionSessionSubrequestType::LocalRead;
+        } else {
+            static_assert("Unexpected workload type for detecting local subrequests");
+        }
+
         for (int index = 0; index < TotalSubrequestCount_; ++index) {
             auto& subrequest = Subrequests_[index];
-            if (subrequest.Type == EExecutionSessionSubrequestType::LocalRead ||
-                subrequest.Type == EExecutionSessionSubrequestType::LocalWrite)
-            {
+            if (subrequest.Type == subrequestType) {
                 return true;
             }
         }
+
         return false;
     }
 
@@ -1392,21 +1486,41 @@ private:
             TObjectServiceProxy::TReqExecuteBatchBasePtr BatchReq;
             TCompactVector<int, 16> Indexes;
         };
-        THashMap<TBatchKey, TBatchValue> batchMap;
+        THashMap<TBatchKey, TErrorOr<TBatchValue>> batchMap;
         auto getOrCreateBatch = [&] (TCellTag cellTag, NHydra::EPeerKind peerKind) {
             auto key = std::tuple(cellTag, peerKind);
             auto it = batchMap.find(key);
             if (it == batchMap.end()) {
-                auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
-                    multicellManager->GetMasterChannelOrThrow(cellTag, peerKind));
-                auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
-                batchReq->SetOriginalRequestId(RequestId_);
-                batchReq->SetTimeout(ComputeForwardingTimeout(RpcContext_, Owner_->Config_));
-                NRpc::SetAuthenticationIdentity(batchReq, RpcContext_->GetAuthenticationIdentity());
-
-                it = batchMap.emplace(key, TBatchValue{
-                    .BatchReq = std::move(batchReq)
-                }).first;
+                try {
+                    auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
+                        multicellManager->GetMasterChannelOrThrow(cellTag, peerKind));
+                    // TODO(nadya02): Set the correct timeout here.
+                    proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
+                    auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
+                    batchReq->SetOriginalRequestId(RequestId_);
+                    auto reserved = false;
+                    const auto& config = Owner_->Config_;
+                    batchReq->SetTimeout(
+                        ComputeForwardingTimeout(
+                            RpcContext_->GetTimeout().value_or(config->DefaultExecuteTimeout),
+                            RpcContext_->GetStartTime(),
+                            config->ForwardedRequestTimeoutReserve,
+                            &reserved));
+                    if (!reserved) {
+                        // If the timeout for forwarded request has been shortened, backoff alarm on the
+                        // remote side will trigger sooner that locally, and we should deal with the local
+                        // alarm as normal.
+                        // Otherwise both alarms will trigger more or less simultaneously, which makes the
+                        // local alarm useless at best and harmful at worst.
+                        TDelayedExecutor::CancelAndClear(BackoffAlarmCookie_);
+                    }
+                    NRpc::SetAuthenticationIdentity(batchReq, RpcContext_->GetAuthenticationIdentity());
+                    it = batchMap.emplace(key, TBatchValue{
+                        .BatchReq = std::move(batchReq)
+                    }).first;
+                } catch (const std::exception& ex) {
+                    it = batchMap.emplace(key, TError(ex)).first;
+                }
             }
             return &it->second;
         };
@@ -1417,21 +1531,36 @@ private:
                 continue;
             }
 
+            subrequest.Started.store(true);
+
             const auto& requestHeader = subrequest.RequestHeader;
             const auto& ypathExt = *subrequest.YPathExt;
             auto peerKind = subrequest.YPathExt->mutating()
                 ? NHydra::EPeerKind::Leader
                 : NHydra::EPeerKind::Follower;
 
-            auto* batch = getOrCreateBatch(subrequest.ForwardedCellTag, peerKind);
-            batch->BatchReq->AddRequestMessage(subrequest.RemoteRequestMessage);
-            batch->Indexes.push_back(subrequestIndex);
+            auto* batchOrError = getOrCreateBatch(subrequest.ForwardedCellTag, peerKind);
 
-            AcquireReplyLock();
+            if (!batchOrError->IsOK()) {
+                YT_LOG_DEBUG(
+                    *batchOrError,
+                    "Error forwarding subrequest (SubrequestIndex: %v, CellTag: %v, PeerKind: %v, Mutating: %v, Method: %v)",
+                    subrequestIndex,
+                    subrequest.ForwardedCellTag,
+                    peerKind,
+                    subrequest.YPathExt->mutating(),
+                    requestHeader.method());
+                OnCompletedSubresponse(&subrequest, CreateErrorResponseMessage(*batchOrError));
+                continue;
+            }
+
+            auto& batch = batchOrError->Value();
+            batch.BatchReq->AddRequestMessage(subrequest.RemoteRequestMessage);
+            batch.Indexes.push_back(subrequestIndex);
 
             YT_LOG_DEBUG("Forwarding object request (ForwardedRequestId: %v, Method: %v.%v, "
                 "%v%v%v%v, Mutating: %v, CellTag: %v, PeerKind: %v)",
-                batch->BatchReq->GetRequestId(),
+                batch.BatchReq->GetRequestId(),
                 requestHeader.service(),
                 requestHeader.method(),
                 MakeFormatterWrapper([&] (auto* builder) {
@@ -1455,9 +1584,22 @@ private:
                 peerKind);
         }
 
-        for (auto& [cellTag, batch] : batchMap) {
+        for (auto& [cellTag, batchReqOrError] : batchMap) {
+            if (!batchReqOrError.IsOK()) {
+                continue;
+            }
+
+            auto& batch = batchReqOrError.Value();
             batch.BatchReq->Invoke().Subscribe(
-                BIND([=, this, this_ = MakeStrong(this), batch = std::move(batch)] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+                // MakeWeak is sufficient - see SelfReference_.
+                BIND([=, weakThis = MakeWeak(this), batch = std::move(batch)] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+                    auto this_ = weakThis.Lock();
+                    if (!this_) {
+                        return;
+                    }
+
+                    const auto& Logger = this_->Logger;
+
                     if (batchRspOrError.IsOK()) {
                         YT_LOG_DEBUG("Forwarded request succeeded (ForwardedRequestId: %v, SubrequestIndexes: %v)",
                             batch.BatchReq->GetRequestId(),
@@ -1465,19 +1607,19 @@ private:
 
                         const auto& batchRsp = batchRspOrError.Value();
                         for (auto index : batchRsp->GetUncertainRequestIndexes()) {
-                            MarkSubrequestAsUncertain(batch.Indexes[index]);
+                            this_->MarkSubrequestAsUncertain(batch.Indexes[index]);
                         }
                         for (int index = 0; index < batchRsp->GetSize(); ++index) {
-                            auto* subrequest = &Subrequests_[batch.Indexes[index]];
+                            auto* subrequest = &this_->Subrequests_[batch.Indexes[index]];
                             if (subrequest->Uncertain.load()) {
                                 continue;
                             }
                             auto responseMessage = batchRsp->GetResponseMessage(index);
                             if (responseMessage) {
                                 subrequest->Revision = batchRsp->GetRevision(index);
-                                OnSuccessfulSubresponse(subrequest, std::move(responseMessage));
+                                this_->OnCompletedSubresponse(subrequest, std::move(responseMessage));
                             } else {
-                                OnMissingSubresponse(subrequest);
+                                this_->OnMissingSubresponse(subrequest);
                             }
                         }
                     } else {
@@ -1490,7 +1632,7 @@ private:
                         if (!IsRetriableError(forwardingError) || forwardingError.FindMatching(NHydra::EErrorCode::ReadOnly)) {
                             YT_LOG_DEBUG(forwardingError, "Failing request due to non-retryable forwarding error (SubrequestIndexes: %v)",
                                 batch.Indexes);
-                            Reply(TError(NObjectClient::EErrorCode::ForwardedRequestFailed, "Forwarded request failed")
+                            this_->Reply(TError(NObjectClient::EErrorCode::ForwardedRequestFailed, "Forwarded request failed")
                                 << forwardingError);
                             return;
                         }
@@ -1499,24 +1641,25 @@ private:
                             batch.Indexes);
 
                         for (auto index : batch.Indexes) {
-                            MarkSubrequestAsUncertain(index);
+                            this_->MarkSubrequestAsUncertain(index);
                         }
                     }
                 }));
         }
     }
 
+    template <EUserWorkloadType WorkloadType>
     void Reschedule()
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        if (!Enqueued_.exchange(true)) {
-            Owner_->EnqueueReadySession(this);
+        if (!Enqueued<WorkloadType>().exchange(true)) {
+            Owner_->EnqueueReadySession<WorkloadType>(this);
         }
     }
 
-    template <class T>
-    void CheckAndReschedule(const TErrorOr<T>& result)
+    template <EUserWorkloadType WorkloadType>
+    void CheckAndReschedule(const TError& result)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -1524,9 +1667,10 @@ private:
             Reply(result);
             return;
         }
-        Reschedule();
+        Reschedule<WorkloadType>();
     }
 
+    template <EUserWorkloadType WorkloadType>
     bool WaitForAndContinue(const TFuture<void>& result)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -1536,30 +1680,12 @@ private:
             return true;
         } else {
             result.Subscribe(
-                BIND_NO_PROPAGATE(&TExecuteSession::CheckAndReschedule<void>, MakeStrong(this)));
+                BIND_NO_PROPAGATE(&TExecuteSession::CheckAndReschedule<WorkloadType>, MakeStrong(this)));
             return false;
         }
     }
 
-    bool AllSubrequestsProcessed() const
-    {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        YT_ASSERT(CurrentAutomatonSubrequestIndex_ <= TotalSubrequestCount_);
-        YT_ASSERT(CurrentLocalReadSubrequestIndex_ <= TotalSubrequestCount_);
-
-        if (CurrentAutomatonSubrequestIndex_ < TotalSubrequestCount_) {
-            return false;
-        }
-
-        if (CurrentLocalReadSubrequestIndex_ < TotalSubrequestCount_) {
-            return false;
-        }
-
-        return true;
-    }
-
-    bool GuardedRunAutomatonFast()
+    bool GuardedRunAutomatonFast(EUserWorkloadType workloadType)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -1624,8 +1750,8 @@ private:
             }
         }
 
-        if (!RequestQueueSizeIncreased_) {
-            if (!securityManager->TryIncreaseRequestQueueSize(User_.Get())) {
+        if (!RequestQueueSizeIncremented_) {
+            if (!securityManager->TryIncrementRequestQueueSize(User_.Get())) {
                 auto cellTag = Bootstrap_->GetMulticellManager()->GetCellTag();
                 auto error = TError(
                     NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded,
@@ -1636,10 +1762,10 @@ private:
                 Owner_->SetStickyUserError(Identity_.User, error);
                 THROW_ERROR error;
             }
-            RequestQueueSizeIncreased_ = true;
+            RequestQueueSizeIncremented_ = true;
         }
 
-        if (!ThrottleRequests()) {
+        if (!ThrottleRequests(workloadType)) {
             return false;
         }
 
@@ -1672,7 +1798,7 @@ private:
                 }
             }
 
-            if (!WaitForAndContinue(throttlerFuture)) {
+            if (!WaitForAndContinue<WorkloadType>(throttlerFuture)) {
                 YT_LOG_DEBUG("Throttling subrequest (User: %v, SubrequestIndex: %v, SubrequestType: %v, WorkloadType: %v)",
                     User_->GetName(),
                     subrequestIndex,
@@ -1685,57 +1811,70 @@ private:
         return true;
     }
 
-    bool ThrottleRequests()
+    bool ThrottleRequests(EUserWorkloadType workloadType)
     {
-        if (!DoThrottleRequest<EExecutionSessionSubrequestType::LocalWrite, EUserWorkloadType::Write>(
-            &CurrentAutomatonSubrequestIndex_,
-            &ThrottledAutomatonSubrequestIndex_))
-        {
-            return false;
+        switch (workloadType) {
+            case EUserWorkloadType::Write:
+                return DoThrottleRequest<EExecutionSessionSubrequestType::LocalWrite, EUserWorkloadType::Write>(
+                    &CurrentAutomatonSubrequestIndex_,
+                    &ThrottledAutomatonSubrequestIndex_);
+            case EUserWorkloadType::Read:
+                return DoThrottleRequest<EExecutionSessionSubrequestType::LocalRead, EUserWorkloadType::Read>(
+                    &CurrentLocalReadSubrequestIndex_,
+                    &ThrottledLocalReadSubrequestIndex_);
+            default:
+                static_assert("Unexpected workload type for throttling requests");
         }
-
-        if (!DoThrottleRequest<EExecutionSessionSubrequestType::LocalRead, EUserWorkloadType::Read>(
-            &CurrentLocalReadSubrequestIndex_,
-            &ThrottledLocalReadSubrequestIndex_))
-        {
-            return false;
-        }
-
-        return true;
     }
 
     void GuardedRunAutomatonSlow()
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        auto subrequestFilter = [] (TSubrequest* subrequest) {
-            return subrequest->Type != EExecutionSessionSubrequestType::LocalRead;
-        };
-
-        GuardedProcessSubrequests(&CurrentAutomatonSubrequestIndex_, subrequestFilter);
+        GuardedProcessSubrequests(EUserWorkloadType::Write);
     }
 
     void GuardedRunRead()
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        auto subrequestFilter = [] (TSubrequest* subrequest) {
-            return subrequest->Type == EExecutionSessionSubrequestType::LocalRead;
-        };
-
-        GuardedProcessSubrequests(&CurrentLocalReadSubrequestIndex_, subrequestFilter);
+        GuardedProcessSubrequests(EUserWorkloadType::Read);
     }
 
-    void GuardedProcessSubrequests(
-        int* currentSubrequestIndex,
-        std::function<bool(TSubrequest*)> filter)
+    void GuardedProcessSubrequests(EUserWorkloadType workloadType)
     {
         auto batchStartTime = GetCpuInstant();
         auto batchDeadlineTime = batchStartTime + DurationToCpuDuration(Owner_->Config_->YieldTimeout);
 
         Owner_->ValidateClusterInitialized();
 
+        auto* currentSubrequestIndex = workloadType == EUserWorkloadType::Write
+            ? &CurrentAutomatonSubrequestIndex_
+            : &CurrentLocalReadSubrequestIndex_;
+
+        auto filter = workloadType == EUserWorkloadType::Write
+            ? [] (TSubrequest* subrequest) {
+                return subrequest->Type != EExecutionSessionSubrequestType::LocalRead;
+            }
+            : [] (TSubrequest* subrequest) {
+                return subrequest->Type == EExecutionSessionSubrequestType::LocalRead;
+            };
+
+        auto doReschedule = workloadType == EUserWorkloadType::Write
+            ? [] (TExecuteSession* session) {
+                session->Reschedule<EUserWorkloadType::Write>();
+            }
+            : [] (TExecuteSession* session) {
+                session->Reschedule<EUserWorkloadType::Read>();
+            };
+
         while (*currentSubrequestIndex < TotalSubrequestCount_) {
+            // NB: PrematureBackoffAlarmProbability_ is usually std::nullopt.
+            // NB: This may trigger even at 0 processed subrequests, which is intended.
+            if (Y_UNLIKELY(RandomNumber<double>() <= PrematureBackoffAlarmProbability_)) {
+                OnBackoffAlarm(/*premature*/ true);
+            }
+
             if (InterruptIfCanceled()) {
                 break;
             }
@@ -1744,42 +1883,34 @@ private:
                 break;
             }
 
-            if (!ThrottleRequests()) {
+            if (!ThrottleRequests(workloadType)) {
                 break;
             }
 
             if (GetCpuInstant() > batchDeadlineTime) {
                 YT_LOG_DEBUG("Yielding thread");
-                Reschedule();
+                doReschedule(this);
                 break;
             }
 
             {
-                auto guard = NThreading::TracelessTryGuard(LocalExecutionLock_);
-                if (!guard.WasAcquired()) {
-                    Reschedule();
-                    break;
-                }
-
                 if (LocalExecutionInterrupted_.load()) {
                     break;
                 }
 
-                auto* subrequest = &Subrequests_[*currentSubrequestIndex];
-                if (filter(subrequest) && !ExecuteSubrequest(subrequest)) {
-                    break;
+
+                if (auto* subrequest = &Subrequests_[*currentSubrequestIndex];
+                    filter(subrequest))
+                {
+                    ExecuteSubrequest(subrequest);
                 }
 
                 ++(*currentSubrequestIndex);
             }
         }
-
-        if (AllSubrequestsProcessed()) {
-            ReleaseUltimateReplyLock();
-        }
     }
 
-    bool ExecuteSubrequest(TSubrequest* subrequest)
+    void ExecuteSubrequest(TSubrequest* subrequest)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -1789,11 +1920,12 @@ private:
         switch (subrequest->Type) {
             case EExecutionSessionSubrequestType::LocalRead:
             case EExecutionSessionSubrequestType::LocalWrite:
-                return ExecuteLocalSubrequest(subrequest);
+                ExecuteLocalSubrequest(subrequest);
+                break;
 
             case EExecutionSessionSubrequestType::Remote:
             case EExecutionSessionSubrequestType::Cache:
-                return true;
+                break;
 
             default:
                 YT_ABORT();
@@ -1832,15 +1964,20 @@ private:
         subrequest->ProfilingCounters->LeaderFallbackRequestCounter.Increment();
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto timeoutReserved = false;
         auto asyncSubresponse = objectManager->ForwardObjectRequest(
             subrequest->RequestMessage,
             Bootstrap_->GetMulticellManager()->GetCellTag(),
-            NHydra::EPeerKind::Leader);
+            NHydra::EPeerKind::Leader,
+            &timeoutReserved);
+        if (!timeoutReserved) {
+            TDelayedExecutor::CancelAndClear(BackoffAlarmCookie_);
+        }
 
         SubscribeToSubresponse(subrequest, std::move(asyncSubresponse));
     }
 
-    bool ExecuteLocalSubrequest(TSubrequest* subrequest)
+    void ExecuteLocalSubrequest(TSubrequest* subrequest)
     {
         switch (subrequest->Type) {
             case EExecutionSessionSubrequestType::LocalWrite:
@@ -1855,9 +1992,7 @@ private:
 
         YT_VERIFY(!subrequest->RemoteTransactionReplicationFuture || !subrequest->MutationResponseFuture);
 
-        if (!subrequest->LocallyStarted.exchange(true)) {
-            AcquireReplyLock();
-        }
+        subrequest->Started.store(true);
 
         auto timeLeft = GetTimeLeft(subrequest);
 
@@ -1874,51 +2009,42 @@ private:
             YT_VERIFY(subrequest->Type == EExecutionSessionSubrequestType::LocalRead);
 
             ExecuteReadSubrequest(subrequest);
-            return true;
+            return;
         }
 
         if (subrequest->RemoteTransactionReplicationFuture) {
-            if (subrequest->RemoteTransactionReplicationFuture.IsSet()) {
-                const auto& error = subrequest->RemoteTransactionReplicationFuture.Get();
+            auto onRemoteTransactionReplicated = [weakThis = MakeWeak(this), subrequest] (const TError& error) {
+                auto this_ = weakThis.Lock();
+                if (!this_) {
+                    return;
+                }
+
                 if (!error.IsOK()) {
                     subrequest->RpcContext->Reply(error);
                 } else {
-                    ExecuteReadSubrequest(subrequest);
+                    this_->ExecuteReadSubrequest(subrequest);
                 }
-                return true;
+            };
+
+            if (subrequest->RemoteTransactionReplicationFuture.IsSet()) {
+                const auto& error = subrequest->RemoteTransactionReplicationFuture.Get();
+                onRemoteTransactionReplicated(error);
             } else {
-                auto doReschedule = [=, this, this_ = MakeStrong(this)] (const TError& error) {
-                    if (!error.IsOK()) {
-                        subrequest->RpcContext->Reply(error);
-                        return;
-                    }
-
-                    Reschedule();
-                };
-
-                // NB: Non-owning capture of this session object. Should be fine,
-                // since reply lock will prevent this session from being destroyed.
                 subrequest->RemoteTransactionReplicationFuture
                     .WithTimeout(timeLeft)
-                    .Subscribe(BIND(doReschedule));
-
-                return false;
+                    .Subscribe(
+                        BIND(onRemoteTransactionReplicated)
+                            .Via(LocalReadInvoker_));
             }
         } else {
             YT_VERIFY(subrequest->MutationResponseFuture);
             if (subrequest->MutationResponseFuture.IsSet()) {
                 OnMutationCommitted(subrequest, subrequest->MutationResponseFuture.Get());
             } else {
-                // NB: Non-owning capture of this session object. Should be fine,
-                // since reply lock will prevent this session from being destroyed.
                 subrequest->MutationResponseFuture
                     .Subscribe(BIND(&TExecuteSession::OnMutationCommitted, MakeStrong(this), subrequest));
             }
-
-            return true;
         }
-
-        YT_ABORT();
     }
 
     TDuration GetTimeLeft(TSubrequest* subrequest)
@@ -1984,7 +2110,7 @@ private:
         // Optimize for the (typical) case of synchronous response.
         const auto& context = subrequest->RpcContext;
         if (context->IsReplied()) {
-            OnSuccessfulSubresponse(subrequest, context->GetResponseMessage());
+            OnCompletedSubresponse(subrequest, context->GetResponseMessage());
         } else {
             SubscribeToSubresponse(subrequest, context->GetAsyncResponseMessage());
         }
@@ -2007,7 +2133,7 @@ private:
             return;
         }
 
-        OnSuccessfulSubresponse(subrequest, result.Value());
+        OnCompletedSubresponse(subrequest, result.Value());
     }
 
     void MarkSubrequestAsUncertain(int index)
@@ -2019,7 +2145,7 @@ private:
         ReleaseReplyLock();
     }
 
-    void OnSuccessfulSubresponse(TSubrequest* subrequest, TSharedRefArray subresponseMessage)
+    void OnCompletedSubresponse(TSubrequest* subrequest, TSharedRefArray subresponseMessage)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -2031,13 +2157,16 @@ private:
         subrequest->Completed.store(true);
         SomeSubrequestCompleted_.store(true);
 
-        if (subrequest->ActiveCacheCookie) {
-            Owner_->Cache_->EndLookup(
+        // Swap out cookie before proceeding to avoid races with CancelPendingCachedSubrequests.
+        if (subrequest->ActiveCacheCookieSet.exchange(false)) {
+            GetRpcInvoker()->Invoke(BIND(
+                &TObjectServiceCache::EndLookup,
+                Owner_->Cache_,
                 RequestId_,
-                std::move(*subrequest->ActiveCacheCookie),
+                Passed(std::move(subrequest->ActiveCacheCookie)),
                 subrequest->ResponseMessage,
                 subrequest->Revision,
-                true);
+                /*success*/ true));
         }
 
         ReleaseReplyLock();
@@ -2074,6 +2203,10 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
+        // DoReply is called from a callback holding a strong-reference to this,
+        // so this is just future-proofing.
+        auto finally = Finally([&] { SelfReference_.Reset(); });
+
         TDelayedExecutor::CancelAndClear(BackoffAlarmCookie_);
         CancelPendingCacheSubrequests();
 
@@ -2086,7 +2219,6 @@ private:
             return;
         }
 
-        auto& request = RpcContext_->Request();
         auto& response = RpcContext_->Response();
         auto& attachments = response.Attachments();
 
@@ -2104,9 +2236,7 @@ private:
             }
 
             if (!subrequest.Completed) {
-                if (subrequest.LocallyStarted) {
-                    // Possible for mutating subrequests because boomerangs are
-                    // launched ASAP but reply locks are taken later.
+                if (subrequest.Started) {
                     uncertainIndexes.push_back(index);
                 }
 
@@ -2138,24 +2268,10 @@ private:
             }
         }
 
-        // COMPAT(babenko)
-        if (!request.supports_portals()) {
-            for (int index = 0; index < std::ssize(completedIndexes); ++index) {
-                if (completedIndexes[index] != index) {
-                    completedIndexes.erase(completedIndexes.begin() + index, completedIndexes.end());
-                    break;
-                }
-            }
-        }
-
         for (int index : completedIndexes) {
             const auto& subrequest = Subrequests_[index];
             const auto& subresponseMessage = subrequest.ResponseMessage;
             attachments.insert(attachments.end(), subresponseMessage.Begin(), subresponseMessage.End());
-
-            // COMPAT(babenko)
-            response.add_part_counts(subresponseMessage.Size());
-            response.add_revisions(ToProto(subrequest.Revision));
 
             auto* subresponse = response.add_subresponses();
             subresponse->set_index(index);
@@ -2199,10 +2315,9 @@ private:
 
         for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
             auto& subrequest = Subrequests_[subrequestIndex];
-            if (auto& cookie = subrequest.ActiveCacheCookie) {
-                if (cookie->IsActive()) {
-                    cookie->Cancel(TError(NYT::EErrorCode::Canceled, "Cache request canceled"));
-                }
+            if (subrequest.ActiveCacheCookieSet.exchange(false)) {
+                auto cookie = std::move(subrequest.ActiveCacheCookie);
+                cookie.Cancel(TError(NYT::EErrorCode::Canceled, "Cache request canceled"));
             }
         }
     }
@@ -2237,25 +2352,25 @@ private:
         }
     }
 
-    void OnBackoffAlarm()
+    void OnBackoffAlarm(bool premature = false)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG("Backoff alarm triggered");
+        if (Y_UNLIKELY(premature)) {
+            // Premature backoff alarm is only triggered from Automaton or LocalRead threads,
+            // so it's safe to read subrequest indices here.
+            YT_LOG_DEBUG("Backoff alarm triggered prematurely "
+                "(CurrentAutomatonSubrequestIndex: %v, CurrentLocalReadSubrequestIndex: %v, TotalSubrequestCount: %v)",
+                CurrentAutomatonSubrequestIndex_,
+                CurrentLocalReadSubrequestIndex_,
+                TotalSubrequestCount_);
+        } else {
+            YT_LOG_DEBUG("Backoff alarm triggered");
+        }
 
         BackoffAlarmTriggered_.store(true);
 
         ScheduleReplyIfNeeded();
-    }
-
-    void AcquireReplyLock()
-    {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        int result = ++ReplyLockCount_;
-        YT_VERIFY(result > 1);
-        YT_LOG_TRACE("Reply lock acquired (LockCount: %v)",
-            result);
     }
 
     bool ReleaseReplyLock()
@@ -2269,18 +2384,6 @@ private:
         return ScheduleReplyIfNeeded();
     }
 
-    bool ReleaseUltimateReplyLock()
-    {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        if (UltimateReplyLockReleased_.exchange(true)) {
-            return false;
-        }
-
-        LocalExecutionInterrupted_.store(true);
-        return ReleaseReplyLock();
-    }
-
     bool ScheduleReplyIfNeeded()
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -2289,25 +2392,17 @@ private:
             return true;
         }
 
-        auto guard = NThreading::TracelessTryGuard(LocalExecutionLock_);
-        if (!guard.WasAcquired()) {
-            YT_LOG_DEBUG("Failed to acquire execution lock, backing off and retrying");
-            NConcurrency::TDelayedExecutor::Submit(
-                BIND(IgnoreResult(&TObjectService::TExecuteSession::ScheduleReplyIfNeeded), MakeStrong(this)),
-                Owner_->ScheduleReplyRetryBackoff_.load(),
-                TObjectService::GetRpcInvoker());
-            return false;
-        }
-
         if (ReplyLockCount_.load() == 0) {
             Reply();
             return true;
         }
 
-        if (BackoffAlarmTriggered_ && LocalExecutionStarted_ && SomeSubrequestCompleted_) {
-            YT_LOG_DEBUG("Local execution interrupted due to backoff alarm");
-            LocalExecutionInterrupted_.store(true);
-            return ReleaseUltimateReplyLock();
+        if (BackoffAlarmTriggered_ && SomeSubrequestCompleted_) {
+            if (!LocalExecutionInterrupted_.exchange(true)) {
+                YT_LOG_DEBUG("Local execution interrupted due to backoff alarm");
+            }
+            Reply();
+            return true;
         }
 
         return false;
@@ -2339,8 +2434,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectService::TLocalReadCallbackProvider::TLocalReadCallbackProvider(IFairSchedulerPtr<TClosure> cheduler)
-    : Scheduler_(std::move(cheduler))
+TObjectService::TLocalReadCallbackProvider::TLocalReadCallbackProvider(IFairSchedulerPtr<TClosure> scheduler)
+    : Scheduler_(std::move(scheduler))
 { }
 
 TCallback<void()> TObjectService::TLocalReadCallbackProvider::ExtractCallback()
@@ -2366,6 +2461,7 @@ void TObjectService::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig
     EnableTwoLevelCache_ = objectServiceConfig->EnableTwoLevelCache;
     ScheduleReplyRetryBackoff_ = objectServiceConfig->ScheduleReplyRetryBackoff;
     MinimizeExecuteLatency_ = objectServiceConfig->MinimizeExecuteLatency;
+    PrematureBackoffAlarmProbability_ = objectServiceConfig->Testing->PrematureBackoffAlarmProbability.value_or(NullPrematureBackoffAlarmProbability);
 
     const auto& sequoiaConfig = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
     EnableCypressTransactionsInSequoia_.store(
@@ -2378,11 +2474,18 @@ void TObjectService::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig
     LocalWriteRequestThrottler_->Reconfigure(objectServiceConfig->LocalWriteRequestThrottler);
 }
 
+template <EUserWorkloadType WorkloadType>
 void TObjectService::EnqueueReadySession(TExecuteSessionPtr session)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    ReadySessions_.Enqueue(std::move(session));
+    if constexpr (WorkloadType == EUserWorkloadType::Write) {
+        AutomatonReadySessions_.Enqueue(std::move(session));
+    } else if constexpr (WorkloadType == EUserWorkloadType::Read) {
+        LocalReadReadySessions_.Enqueue(std::move(session));
+    } else {
+        static_assert("Unexpected workload type for enqueuing execute session");
+    }
 
     if (MinimizeExecuteLatency_.load(std::memory_order::relaxed)) {
         ProcessSessionsExecutor_->ScheduleOutOfBand();
@@ -2409,17 +2512,29 @@ void TObjectService::ProcessSessions()
         FinishSession(sessionInfo);
     });
 
-    ReadySessions_.DequeueAll(false, [&] (TExecuteSessionPtr& session) {
+    AutomatonReadySessions_.DequeueAll(false, [&] (TExecuteSessionPtr& session) {
         TCurrentTraceContextGuard guard(session->GetTraceContext());
 
-        session->OnDequeued();
+        session->OnDequeued<EUserWorkloadType::Write>();
 
-        if (!session->RunAutomatonFast()) {
+        if (!session->RunAutomatonFast(EUserWorkloadType::Write)) {
             return;
         }
 
         const auto& userName = session->GetUserName();
         AutomatonScheduler_->Enqueue(session, userName);
+    });
+    LocalReadReadySessions_.DequeueAll(false, [&] (TExecuteSessionPtr& session) {
+        TCurrentTraceContextGuard guard(session->GetTraceContext());
+
+        session->OnDequeued<EUserWorkloadType::Read>();
+
+        // TODO(shakurov): consider introducing RunLocalReadFast.
+        if (!session->RunAutomatonFast(EUserWorkloadType::Read)) {
+            return;
+        }
+
+        const auto& userName = session->GetUserName();
         LocalReadScheduler_->Enqueue(BIND(&TObjectService::TExecuteSession::RunRead, session), userName);
     });
 
@@ -2461,7 +2576,7 @@ void TObjectService::FinishSession(const TExecuteSessionInfo& sessionInfo)
 
     if (sessionInfo.RequestQueueSizeIncreased && IsObjectAlive(sessionInfo.User)) {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->DecreaseRequestQueueSize(sessionInfo.User.Get());
+        securityManager->DecrementRequestQueueSize(sessionInfo.User.Get());
     }
 }
 
@@ -2497,11 +2612,6 @@ void TObjectService::SetStickyUserError(const std::string& userName, const TErro
 DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
 {
     Y_UNUSED(response);
-
-    YT_LOG_ALERT_UNLESS(
-        request->supports_portals(),
-        "Received batch request without portals support (RequestId: %v)",
-        context->GetRequestId());
 
     const auto& userName = context->GetAuthenticationIdentity().User;
     auto error = StickyUserErrorCache_.Get(userName);

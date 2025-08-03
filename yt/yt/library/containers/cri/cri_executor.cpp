@@ -14,6 +14,8 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
+#include <yt/yt/library/re2/re2.h>
+
 namespace NYT::NContainers::NCri {
 
 using namespace NRpc;
@@ -22,19 +24,24 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr size_t AbbreviatedIdLength = 16;
+
 void FormatValue(TStringBuilderBase* builder, const TCriDescriptor& descriptor, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("%v (%s)", descriptor.Id.substr(0, 12), descriptor.Name);
+    builder->AppendFormat("%v (%v)", descriptor.Id.substr(0, AbbreviatedIdLength), descriptor.Name);
 }
 
 void FormatValue(TStringBuilderBase* builder, const TCriPodDescriptor& descriptor, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("%v (%s)", descriptor.Id.substr(0, 12), descriptor.Name);
+    builder->AppendFormat("%v (%s)", descriptor.Id.substr(0, AbbreviatedIdLength), descriptor.Name);
 }
 
 void FormatValue(TStringBuilderBase* builder, const TCriImageDescriptor& descriptor, TStringBuf /*spec*/)
 {
     builder->AppendString(descriptor.Image);
+    if (!descriptor.Id.empty()) {
+        builder->AppendFormat(" id=%v", descriptor.Id.substr(0, AbbreviatedIdLength));
+    }
 }
 
 static TError DecodeExitCode(int exitCode, const TString& reason)
@@ -194,7 +201,21 @@ private:
 
     void OnContainerStatus(TErrorOr<TCriRuntimeApi::TRspContainerStatusPtr>&& responseOrError)
     {
-        auto response = responseOrError.ValueOrThrow();
+        if (!responseOrError.IsOK()) {
+            // TODO(khlebnikov): Handle NotFound as abort, but gRPC code is not mapped yet.
+            // TODO(khlebnikov): Maybe add common EProcessErrorCode::Lost.
+            auto error = TError("Cannot get container status")
+                << TErrorAttribute("container_name", ContainerDescriptor_.Name)
+                << TErrorAttribute("container_id", ContainerDescriptor_.Id)
+                << TErrorAttribute("pod_name", PodDescriptor_.Name)
+                << TErrorAttribute("pod_id", PodDescriptor_.Id)
+                << responseOrError;
+            YT_LOG_ERROR(error, "Process is lost");
+            YT_UNUSED_FUTURE(AsyncWaitExecutor_->Stop());
+            FinishedPromise_.TrySet(std::move(error));
+            return;
+        }
+        auto& response = responseOrError.Value();
         if (!response->has_status()) {
             return;
         }
@@ -689,7 +710,8 @@ private:
 
     void FillImageSpec(NProto::ImageSpec* spec, const TCriImageDescriptor& image)
     {
-        spec->set_image(image.Image);
+        spec->set_image(image.Id.empty() ? image.Image : image.Id);
+        spec->set_user_specified_image(image.Image);
     }
 
     void FillAuthConfig(NProto::AuthConfig* auth, const TCriAuthConfig& authConfig)
@@ -721,10 +743,14 @@ private:
                 return true;
             }
             if (error.GetCode() == NYT::EErrorCode::Generic) {
+                const auto& message = error.GetMessage();
                 for (const auto& prefix : config->RetryErrorPrefixes) {
-                    if (error.GetMessage().starts_with(prefix)) {
+                    if (message.starts_with(prefix)) {
                         return true;
                     }
+                }
+                if (config->RetryErrorPattern) {
+                    return NRe2::RE2::PartialMatch(message, *config->RetryErrorPattern);
                 }
             }
             return false;

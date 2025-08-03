@@ -62,7 +62,7 @@ public:
 private:
     TChunkStripePtr Stripe_;
     int SuspendedStripeCount_ = 0;
-    NTableClient::TChunkStripeStatistics Statistics_;
+    TPersistentChunkStripeStatistics Statistics_;
 
     PHOENIX_DECLARE_TYPE(TSuspendableStripe, 0x14cdc54f);
 };

@@ -71,7 +71,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ChunkServerLogger;
+constinit const auto Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -157,7 +157,6 @@ bool TMergeJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
         }
 
         const auto& replicas = replicasOrError.Value();
-        ToProto(protoChunk->mutable_legacy_source_replicas(), replicas);
         ToProto(protoChunk->mutable_source_replicas(), replicas);
         builder.Add(replicas);
 
@@ -296,7 +295,7 @@ public:
         }
 
         auto* table = Node_->As<TTableNode>();
-        const auto& schema = table->GetSchema()->AsTableSchema();
+        const auto& schema = table->GetSchema()->AsCompactTableSchema();
         YT_VERIFY(schema);
 
         TTraverserTestingOptions testingOptions;
@@ -465,7 +464,7 @@ private:
         }
 
         auto* table = Node_->As<TTableNode>();
-        auto schema = table->GetSchema()->AsTableSchema();
+        auto schema = table->GetSchema()->AsCompactTableSchema();
         return !table->IsDynamic() && !schema->HasHunkColumns();
     }
 
@@ -597,8 +596,6 @@ private:
                 chunk->GetUncompressedDataSize(),
                 mergerCriteria.MaxUncompressedDataSize));
 
-
-
         if (ParentChunkListId_ == NullObjectId || ParentChunkListId_ == parent->GetId()) {
             ++satisfiedCriteriaCount;
         }
@@ -720,7 +717,7 @@ bool TChunkMerger::CanRegisterMergeSession(TChunkOwnerBase* trunkChunkOwner)
     YT_VERIFY(trunkChunkOwner->IsTrunk());
 
     const auto& config = GetDynamicConfig();
-    if (!config->Enable && !config->EnableQueueSizeLimitChanges) {
+    if (!config->Enable) {
         YT_LOG_DEBUG("Cannot schedule merge: chunk merger is disabled");
         return false;
     }
@@ -742,7 +739,7 @@ bool TChunkMerger::CanRegisterMergeSession(TChunkOwnerBase* trunkChunkOwner)
         return false;
     }
 
-    auto schema = table->GetSchema()->AsTableSchema();
+    auto schema = table->GetSchema()->AsCompactTableSchema();
     if (schema->HasHunkColumns()) {
         YT_LOG_DEBUG("Chunk merging is not supported for tables with hunk columns (ChunkOwnerId: %v)",
             trunkChunkOwner->GetId());
@@ -750,7 +747,7 @@ bool TChunkMerger::CanRegisterMergeSession(TChunkOwnerBase* trunkChunkOwner)
     }
 
     auto* account = trunkChunkOwner->Account().Get();
-    if (config->RespectAccountSpecificToggle && !account->GetAllowUsingChunkMerger()) {
+    if (!account->GetAllowUsingChunkMerger()) {
         YT_LOG_DEBUG("Skipping node as its account is banned from using chunk merger (NodeId: %v, Account: %v)",
             trunkChunkOwner->GetId(),
             account->GetName());
@@ -1063,8 +1060,6 @@ void TChunkMerger::Clear()
     NodesBeingMergedPerAccount_.clear();
     AccountIdToNodeMergeDurations_.clear();
     ConfigVersion_ = 0;
-
-    NeedRestorePersistentStatistics_ = false;
 }
 
 void TChunkMerger::ResetTransientState()
@@ -1678,8 +1673,8 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
     TChunkMergerWriterOptions chunkMergerWriterOptions;
     if (chunkOwner->GetType() == EObjectType::Table) {
         const auto* table = chunkOwner->As<TTableNode>();
-        auto schema = table->GetSchema();
-        ToProto(chunkMergerWriterOptions.mutable_schema(), *schema->AsTableSchema());
+        const auto schema = table->GetSchema();
+        ToProto(chunkMergerWriterOptions.mutable_schema(), schema->AsCompactTableSchema());
         ToProto(chunkMergerWriterOptions.mutable_schema_id(), schema->GetId());
         chunkMergerWriterOptions.set_optimize_for(ToProto(table->GetOptimizeFor()));
     }
@@ -1805,9 +1800,11 @@ void TChunkMerger::OnJobFinished(const TMergeJobPtr& job)
         auto validateError = [&, this_ = MakeStrong(this)] (auto error, auto message) {
             if (!error.IsOK()) {
                 YT_VERIFY(job->GetState() == EJobState::Failed);
-                YT_LOG_ALERT(error, "%v (JobId: %v)",
+                YT_LOG_ALERT(error, "%v (JobId: %v, NodeId: %v, AccountId: %v)",
                     message,
-                    job->GetJobId());
+                    job->GetJobId(),
+                    job->JobInfo().NodeId,
+                    job->JobInfo().AccountId);
                 NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(
                     BIND(&TChunkMerger::DisableChunkMerger, MakeStrong(this)));
             }
@@ -2102,7 +2099,6 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     auto chunkReplacementsSucceeded = 0;
-    const auto& config = GetDynamicConfig();
 
     std::vector<TChunk*> chunksToReqUpdate;
     for (int index = 0; index < replacementCount; ++index) {
@@ -2137,19 +2133,18 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
                 accountId);
 
             ++chunkReplacementsSucceeded;
-            if (config->EnableCarefulRequisitionUpdate) {
-                chunksToReqUpdate.push_back(newChunk);
-                for (auto chunkId : chunkIds) {
-                    auto* inputChunk = chunkManager->FindChunk(newChunkId);
-                    if (!IsObjectAlive(inputChunk)) {
-                        YT_LOG_ALERT("Chunk merge input chunk is dead after replace (NodeId: %v, ChunkId: %v, AccountId: %v)",
-                            nodeId,
-                            chunkId,
-                            accountId);
-                        continue;
-                    }
-                    chunksToReqUpdate.push_back(inputChunk);
+
+            chunksToReqUpdate.push_back(newChunk);
+            for (auto chunkId : chunkIds) {
+                auto* inputChunk = chunkManager->FindChunk(chunkId);
+                if (!IsObjectAlive(inputChunk)) {
+                    YT_LOG_ALERT("Chunk merge input chunk is dead after replace (NodeId: %v, ChunkId: %v, AccountId: %v)",
+                        nodeId,
+                        chunkId,
+                        accountId);
+                    continue;
                 }
+                chunksToReqUpdate.push_back(inputChunk);
             }
 
             if (IsLeader()) {
@@ -2196,13 +2191,8 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
     newRootChunkList->AddOwningNode(chunkOwner);
     rootChunkList->RemoveOwningNode(chunkOwner);
 
-    if (config->EnableCarefulRequisitionUpdate) {
-        for (auto* chunk : chunksToReqUpdate) {
-            chunkManager->ScheduleChunkRequisitionUpdate(chunk);
-        }
-    } else {
-        chunkManager->ScheduleChunkRequisitionUpdate(rootChunkList);
-        chunkManager->ScheduleChunkRequisitionUpdate(newRootChunkList);
+    for (auto* chunk : chunksToReqUpdate) {
+        chunkManager->ScheduleChunkRequisitionUpdate(chunk);
     }
 
     YT_LOG_DEBUG(
@@ -2239,13 +2229,30 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
 
         YT_VERIFY(result != EMergeSessionResult::None);
 
-        auto accountId = GetIteratorOrCrash(NodesBeingMerged_, nodeId)->second;
-        RemoveFromNodesBeingMerged(nodeId);
+        TAccountId accountId;
+        if (auto it = NodesBeingMerged_.find(nodeId); it == NodesBeingMerged_.end()) {
+            YT_LOG_ALERT("Missing node encountered while finalizing chunk merge sessions (NodeId: %v)",
+                nodeId);
 
-        // IsLeader means we are not in recovery, so all merger stuff happened in this epoch.
-        if (IsLeader()) {
-            EraseOrCrash(RunningSessions_, nodeId);
-            EraseOrCrash(NodeIdToChunkMergerStatus_, nodeId);
+            // Same as below, but without asserts.
+            if (IsLeader()) {
+                RunningSessions_.erase(nodeId);
+                NodeIdToChunkMergerStatus_.erase(nodeId);
+            }
+
+            // NB: It's impossible to fully reproduce the effects of
+            // RemoveFromNodesBeingMerged here as the account ID is unknown.
+
+            continue;
+
+        } else {
+            accountId = it->second;
+            RemoveFromNodesBeingMerged(nodeId);
+            // IsLeader means we are not in recovery, so all merger stuff happened in this epoch.
+            if (IsLeader()) {
+                EraseOrCrash(RunningSessions_, nodeId);
+                EraseOrCrash(NodeIdToChunkMergerStatus_, nodeId);
+            }
         }
 
         auto* chunkOwner = FindChunkOwner(nodeId);
@@ -2405,19 +2412,7 @@ void TChunkMerger::Load(NCellMaster::TLoadContext& context)
 
     Load(context, NodesBeingMerged_);
     Load(context, NodesBeingMergedPerAccount_);
-    NeedRestorePersistentStatistics_ = context.GetVersion() < EMasterReign::FixMergerStatisticsOnceAgain;
-
     Load(context, ConfigVersion_);
-}
-
-void TChunkMerger::OnAfterSnapshotLoaded()
-{
-    if (NeedRestorePersistentStatistics_) {
-        NodesBeingMergedPerAccount_.clear();
-        for (const auto& [nodeId, accountId] : NodesBeingMerged_) {
-            IncrementPersistentTracker(accountId);
-        }
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

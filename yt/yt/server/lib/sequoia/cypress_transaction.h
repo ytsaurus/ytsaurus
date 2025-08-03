@@ -29,7 +29,8 @@ TFuture<NTransactionClient::TTransactionId> StartCypressTransaction(
 TFuture<void> AbortCypressTransaction(
     NSequoiaClient::ISequoiaClientPtr sequoiaClient,
     NObjectClient::TCellId cypressTransactionCoordinatorCellId,
-    NCypressTransactionClient::NProto::TReqAbortTransaction* request,
+    NCypressClient::TTransactionId transactionId,
+    bool force,
     NRpc::TAuthenticationIdentity authenticationIdentity,
     IInvokerPtr invoker,
     NLogging::TLogger logger);

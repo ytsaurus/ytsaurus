@@ -28,13 +28,6 @@ TYPathRewrite MakeYPathRewrite(
     const NYPath::TYPath& originalPath,
     const NYPath::TYPath& rewrittenPath);
 
-TDuration ComputeForwardingTimeout(
-    TDuration timeout,
-    const TObjectServiceConfigPtr& config);
-TDuration ComputeForwardingTimeout(
-    const NRpc::IServiceContextPtr& context,
-    const TObjectServiceConfigPtr& config);
-
 void ValidateFolderId(const std::string& folderId);
 
 ////////////////////////////////////////////////////////////////////////////////

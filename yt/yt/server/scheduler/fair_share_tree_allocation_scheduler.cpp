@@ -8,6 +8,8 @@
 #include <yt/yt/core/misc/heap.h>
 #include <yt/yt/core/misc/string_builder.h>
 
+#include <yt/yt/core/ytree/virtual.h>
+
 #include <yt/yt/core/actions/new_with_offloaded_dtor.h>
 
 namespace NYT::NScheduler {
@@ -17,6 +19,7 @@ using namespace NControllerAgent;
 using namespace NNodeTrackerClient;
 using namespace NProfiling;
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -317,16 +320,6 @@ const EOperationSchedulingPriorityList& GetDescendingSchedulingPriorities()
     };
 
     return DescendingSchedulingPriorities;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool IsSingleAllocationVanillaOperation(const TSchedulerOperationElement* element)
-{
-    const auto& maybeVanillaTaskSpecs = element->GetMaybeBriefVanillaTaskSpecMap();
-    return maybeVanillaTaskSpecs &&
-        (size(*maybeVanillaTaskSpecs) == 1) &&
-        (maybeVanillaTaskSpecs->begin()->second.JobCount == 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1199,7 +1192,8 @@ void TScheduleAllocationsContext::PreemptAllocationsAfterScheduling(
                 targetOperationPreemptionPriority);
             if (forcefullyPreemptibleAllocations.contains(allocation.Get())) {
                 preemptionReasonBuilder.AppendString(
-                    "; this allocation was forcefully preemptible, because its node was moved to other scheduling segment");
+                    "; this allocation was forcefully preemptible, because its node was "
+                    "moved to another scheduling segment or the operation was preempted from module");
             }
             if (conditionallyPreemptibleAllocations.contains(allocationInfo)) {
                 preemptionReasonBuilder.AppendString("; this allocation was conditionally preemptible");
@@ -1228,11 +1222,6 @@ void TScheduleAllocationsContext::PreemptAllocationsAfterScheduling(
     // This is one of the reasons why we advise against specified resource limits.
     for (; currentAllocationIndex < std::ssize(preemptibleAllocations); ++currentAllocationIndex) {
         const auto& allocationInfo = preemptibleAllocations[currentAllocationIndex];
-        if (conditionallyPreemptibleAllocations.contains(allocationInfo)) {
-            // Only unconditionally preemptible allocations can be preempted to recover violated resource limits.
-            continue;
-        }
-
         const auto& [allocation, _, operationElement] = allocationInfo;
         if (!IsAllocationKnown(operationElement, allocation->GetId())) {
             // Allocation may have been terminated concurrently with scheduling, e.g. operation aborted by user request. See: YT-16429, YT-17913.
@@ -1241,6 +1230,19 @@ void TScheduleAllocationsContext::PreemptAllocationsAfterScheduling(
                 allocation->GetId(),
                 allocation->GetOperationId());
 
+            continue;
+        }
+
+        const auto& treeConfig = TreeSnapshot_->TreeConfig();
+        if (treeConfig->SchedulingSegments->ForceIncompatibleSegmentPreemption && forcefullyPreemptibleAllocations.contains(allocation.Get())) {
+            allocation->SetPreemptionReason(
+                "Preempted because node was moved to another scheduling segment or the operation was preempted from module");
+            PreemptAllocation(allocation, operationElement, EAllocationPreemptionReason::IncompatibleSchedulingSegment);
+            continue;
+        }
+
+        if (conditionallyPreemptibleAllocations.contains(allocationInfo)) {
+            // Only unconditionally preemptible allocations can be preempted to recover violated resource limits.
             continue;
         }
 
@@ -1309,8 +1311,6 @@ void TScheduleAllocationsContext::PreemptAllocation(
     TSchedulerOperationElement* element,
     EAllocationPreemptionReason preemptionReason) const
 {
-    const auto& treeConfig = TreeSnapshot_->TreeConfig();
-
     SchedulingContext_->ResourceUsage() -= allocation->ResourceUsage();
     allocation->ResourceUsage() = TJobResources();
 
@@ -1321,7 +1321,10 @@ void TScheduleAllocationsContext::PreemptAllocation(
         TJobResources(),
         /*resetPreemptibleProgress*/ false);
 
-    SchedulingContext_->PreemptAllocation(allocation, treeConfig->AllocationPreemptionTimeout, preemptionReason);
+    SchedulingContext_->PreemptAllocation(
+        allocation,
+        element->GetEffectiveAllocationPreemptionTimeout(),
+        preemptionReason);
 }
 
 TNonOwningOperationElementList TScheduleAllocationsContext::ExtractBadPackingOperations()
@@ -1916,7 +1919,7 @@ std::optional<EDeactivationReason> TScheduleAllocationsContext::TryStartSchedule
     *availableResourcesOutput = Min(
         availableResourceLimits,
         SchedulingContext_->GetNodeFreeResourcesWithDiscountForOperation(element->GetTreeIndex()));
-    *availableDiskResourcesOutput = SchedulingContext_->GetDiskResourcesWithDiscountForOperation(element->GetTreeIndex());
+    *availableDiskResourcesOutput = SchedulingContext_->GetDiskResourcesWithDiscountForOperation(element->GetTreeIndex(), minNeededResources);
     return {};
 }
 
@@ -1938,8 +1941,7 @@ TControllerScheduleAllocationResultPtr TScheduleAllocationsContext::DoScheduleAl
         availableResources,
         availableDiskResources,
         TreeSnapshot_->ControllerConfig()->ScheduleAllocationTimeLimit,
-        element->GetTreeId(),
-        TreeSnapshot_->TreeConfig());
+        element->GetTreeId());
 
     MaybeDelay(element->Spec()->TestingOperationOptions->ScheduleAllocationDelayScheduler);
 
@@ -2639,8 +2641,6 @@ void TFairShareTreeAllocationScheduler::PreemptAllocationsGracefully(
 
     NProfiling::TEventTimerGuard eventTimerGuard(GracefulPreemptionTime_);
 
-    const auto& treeConfig = treeSnapshot->TreeConfig();
-
     YT_LOG_TRACE("Looking for gracefully preemptible allocations");
 
     std::vector<TAllocationPtr> candidates;
@@ -2651,11 +2651,11 @@ void TFairShareTreeAllocationScheduler::PreemptAllocationsGracefully(
     }
 
     auto allocationInfos = GetAllocationPreemptionInfos(candidates, treeSnapshot);
-    for (const auto& [allocation, preemptionStatus, _] : allocationInfos) {
+    for (const auto& [allocation, preemptionStatus, element] : allocationInfos) {
         if (preemptionStatus == EAllocationPreemptionStatus::Preemptible) {
             schedulingContext->PreemptAllocation(
                 allocation,
-                treeConfig->AllocationGracefulPreemptionTimeout,
+                element->GetEffectiveAllocationGracefulPreemptionTimeout(),
                 EAllocationPreemptionReason::GracefulPreemption);
         }
     }
@@ -2679,11 +2679,6 @@ void TFairShareTreeAllocationScheduler::RegisterOperation(const TSchedulerOperat
             operationState->SchedulingSegmentModule);
     }
 
-    if (IsGpuTree()) {
-        LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::OperationRegistered)
-            .Item("operation_id").Value(operationId);
-    }
-
     EmplaceOrCrash(
         OperationIdToState_,
         operationId,
@@ -2703,25 +2698,20 @@ void TFairShareTreeAllocationScheduler::UnregisterOperation(const TSchedulerOper
 
     auto operationId = element->GetOperationId();
 
-    if (IsGpuTree()) {
-        LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::OperationUnregistered)
-            .Item("operation_id").Value(operationId);
-    }
-
     EraseOrCrash(OperationIdToState_, operationId);
     EraseOrCrash(OperationIdToSharedState_, operationId);
 }
 
-void TFairShareTreeAllocationScheduler::OnOperationMaterialized(const TSchedulerOperationElement* element)
+TError TFairShareTreeAllocationScheduler::OnOperationMaterialized(const TSchedulerOperationElement* element)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     auto operationId = element->GetOperationId();
     const auto& operationState = GetOperationState(operationId);
     operationState->AggregatedInitialMinNeededResources = element->GetAggregatedInitialMinNeededResources();
-    operationState->SingleAllocationVanillaOperation = IsSingleAllocationVanillaOperation(element);
+    operationState->SingleAllocationVanillaOperation = element->IsSingleAllocationVanillaOperation();
 
-    SchedulingSegmentManager_.InitOrUpdateOperationSchedulingSegment(operationId, operationState);
+    return SchedulingSegmentManager_.InitOrUpdateOperationSchedulingSegment(operationId, operationState);
 }
 
 TError TFairShareTreeAllocationScheduler::CheckOperationSchedulingInSeveralTreesAllowed(const TSchedulerOperationElement* element) const
@@ -2730,11 +2720,9 @@ TError TFairShareTreeAllocationScheduler::CheckOperationSchedulingInSeveralTrees
 
     const auto& operationState = GetOperationState(element->GetOperationId());
 
-    bool singleAllocationVanillaOperation = IsSingleAllocationVanillaOperation(element);
-
     auto segment = operationState->SchedulingSegment;
     if (IsModuleAwareSchedulingSegment(*segment) &&
-        (!singleAllocationVanillaOperation || !Config_->AllowSingleJobLargeGpuOperationsInMultipleTrees))
+        (!element->IsSingleAllocationVanillaOperation() || !Config_->AllowSingleJobLargeGpuOperationsInMultipleTrees))
     {
         // NB: This error will be propagated to operation's failure only if operation is launched in several trees.
         return TError(
@@ -3125,7 +3113,8 @@ void TFairShareTreeAllocationScheduler::UpdateConfig(TFairShareStrategyTreeConfi
     SchedulingSegmentManager_.UpdateConfig(Config_->SchedulingSegments);
     if (oldConfig->SchedulingSegments->Mode != Config_->SchedulingSegments->Mode) {
         for (const auto& [operationId, operationState] : OperationIdToState_) {
-            SchedulingSegmentManager_.InitOrUpdateOperationSchedulingSegment(operationId, operationState);
+            // TODO(ignat): support abortion for operations with invalid scheduling segment configuration.
+            Y_UNUSED(SchedulingSegmentManager_.InitOrUpdateOperationSchedulingSegment(operationId, operationState));
         }
     }
 
@@ -3210,6 +3199,20 @@ bool TFairShareTreeAllocationScheduler::IsGpuTree(const TFairShareStrategyTreeCo
 bool TFairShareTreeAllocationScheduler::IsGpuTree() const
 {
     return IsGpuTree(Config_);
+}
+
+void TFairShareTreeAllocationScheduler::PopulateOrchidService(const TCompositeMapServicePtr& orchidService) const
+{
+    orchidService->AddChild("scheduling_segments", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
+        YT_ASSERT_INVOKER_AFFINITY(StrategyHost_->GetControlInvoker(EControlQueue::DynamicOrchid));
+
+        BuildYsonFluently(consumer).BeginMap()
+            .DoIf(static_cast<bool>(SerializedSchedulingSegmentsInfo_), [&] (TFluentMap fluent) {
+                fluent
+                    .Items(SerializedSchedulingSegmentsInfo_);
+            })
+        .EndMap();
+    })));
 }
 
 void TFairShareTreeAllocationScheduler::OnAllocationStartedInTest(
@@ -3504,6 +3507,8 @@ void TFairShareTreeAllocationScheduler::RunPreemptiveSchedulingStage(
     context->PrepareForScheduling();
 
     std::vector<TAllocationWithPreemptionInfo> unconditionallyPreemptibleAllocations;
+    // TODO(eshcherbin): Refactor so that attributes like conditionality or forcefulness are placed in a single struct.
+    // Or, even better, remove both conditional and forceful preemption altogether.
     TNonOwningAllocationSet forcefullyPreemptibleAllocations;
     context->AnalyzePreemptibleAllocations(
         parameters.TargetOperationPreemptionPriority,
@@ -3599,29 +3604,29 @@ std::optional<TPersistentOperationSchedulingSegmentState> TFairShareTreeAllocati
 
 void TFairShareTreeAllocationScheduler::UpdateSsdPriorityPreemptionMedia()
 {
-    THashSet<int> media;
-    std::vector<TString> unknownNames;
+    THashSet<int> mediaIndexes;
+    std::vector<std::string> unknownMediaNames;
     for (const auto& mediumName : Config_->SsdPriorityPreemption->MediumNames) {
         if (auto mediumIndex = StrategyHost_->FindMediumIndexByName(mediumName)) {
-            media.insert(*mediumIndex);
+            mediaIndexes.insert(*mediumIndex);
         } else {
-            unknownNames.push_back(mediumName);
+            unknownMediaNames.push_back(mediumName);
         }
     }
 
-    if (unknownNames.empty()) {
-        if (SsdPriorityPreemptionMedia_ != media) {
+    if (unknownMediaNames.empty()) {
+        if (SsdPriorityPreemptionMedia_ != mediaIndexes) {
             YT_LOG_INFO("Updated SSD priority preemption media (OldSsdPriorityPreemptionMedia: %v, NewSsdPriorityPreemptionMedia: %v)",
                 SsdPriorityPreemptionMedia_,
-                media);
+                mediaIndexes);
 
-            SsdPriorityPreemptionMedia_.emplace(std::move(media));
+            SsdPriorityPreemptionMedia_.emplace(std::move(mediaIndexes));
 
             StrategyHost_->SetSchedulerAlert(ESchedulerAlertType::UpdateSsdPriorityPreemptionMedia, TError());
         }
     } else {
         auto error = TError("Config contains unknown SSD priority preemption media")
-            << TErrorAttribute("unknown_medium_names", std::move(unknownNames));
+            << TErrorAttribute("unknown_medium_names", std::move(unknownMediaNames));
         StrategyHost_->SetSchedulerAlert(ESchedulerAlertType::UpdateSsdPriorityPreemptionMedia, error);
     }
 }
@@ -4035,10 +4040,11 @@ void TFairShareTreeAllocationScheduler::ApplyNodeSchedulingSegmentsChanges(const
         movedNodes.size());
 
     std::array<TSetNodeSchedulingSegmentOptionsList, MaxNodeShardCount> movedNodesPerNodeShard;
-    for (auto [nodeId, oldSegment, newSegment] : movedNodes) {
+    for (auto&& [nodeId, nodeAddress, oldSegment, newSegment] : movedNodes) {
         auto shardId = StrategyHost_->GetNodeShardId(nodeId);
         movedNodesPerNodeShard[shardId].push_back(TSetNodeSchedulingSegmentOptions{
             .NodeId = nodeId,
+            .NodeAddress = std::move(nodeAddress),
             .OldSegment = oldSegment,
             .NewSegment = newSegment,
         });
@@ -4050,11 +4056,11 @@ void TFairShareTreeAllocationScheduler::ApplyNodeSchedulingSegmentsChanges(const
         futures.push_back(BIND(
             [&, this_ = MakeStrong(this), shardId, movedNodes = std::move(movedNodesPerNodeShard[shardId])] {
                 auto& nodeStates = NodeStateShards_[shardId].NodeIdToState;
-                std::vector<std::pair<TNodeId, ESchedulingSegment>> missingNodeIdsWithSegments;
-                for (auto [nodeId, _, newSegment] : movedNodes) {
+                std::vector<std::pair<std::string, ESchedulingSegment>> missingNodeAddressesWithSegments;
+                for (const auto& [nodeId, nodeAddress, _, newSegment] : movedNodes) {
                     auto it = nodeStates.find(nodeId);
                     if (it == nodeStates.end()) {
-                        missingNodeIdsWithSegments.emplace_back(nodeId, newSegment);
+                        missingNodeAddressesWithSegments.emplace_back(nodeAddress, newSegment);
                         continue;
                     }
                     auto& node = it->second;
@@ -4062,16 +4068,16 @@ void TFairShareTreeAllocationScheduler::ApplyNodeSchedulingSegmentsChanges(const
                     YT_VERIFY(node.SchedulingSegment != newSegment);
 
                     YT_LOG_DEBUG("Setting new scheduling segment for node (Address: %v, Segment: %v)",
-                        node.Descriptor->Address,
+                        nodeAddress,
                         newSegment);
 
                     node.SchedulingSegment = newSegment;
                     node.ForceRunningAllocationStatisticsUpdate = true;
                 }
 
-                YT_LOG_DEBUG_UNLESS(missingNodeIdsWithSegments.empty(),
-                    "Trying to set scheduling segments for missing nodes (MissingNodeIdsWithSegments: %v)",
-                    missingNodeIdsWithSegments);
+                YT_LOG_DEBUG_UNLESS(missingNodeAddressesWithSegments.empty(),
+                    "Trying to set scheduling segments for missing nodes (MissingNodeAddressesWithSegments: %v)",
+                    missingNodeAddressesWithSegments);
             })
             .AsyncVia(nodeShardInvokers[shardId])
             .Run());
@@ -4123,6 +4129,8 @@ void TFairShareTreeAllocationScheduler::ManageSchedulingSegments()
         context.OperationStates = GetOperationStateMapSnapshot();
 
         SchedulingSegmentManager_.UpdateSchedulingSegments(&context);
+
+        SerializedSchedulingSegmentsInfo_ = std::move(context.SerializedSchedulingSegmentsInfo);
 
         ApplyOperationSchedulingSegmentsChanges(context.OperationStates);
         movedNodes = std::move(context.MovedNodes);

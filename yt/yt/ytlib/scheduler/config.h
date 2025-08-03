@@ -299,12 +299,14 @@ struct TPoolConfig
 
     std::optional<bool> EnablePrioritySchedulingSegmentModuleAssignment;
 
-    std::optional<TString> RedirectToCluster;
+    std::optional<std::string> RedirectToCluster;
 
     bool EnablePriorityStrongGuaranteeAdjustment;
     bool EnablePriorityStrongGuaranteeAdjustmentDonorship;
 
     bool AlwaysAllowGangOperations;
+
+    std::optional<TDuration> WaitingForResourcesOnNodeTimeout;
 
     void Validate(const TString& poolName);
 
@@ -397,12 +399,11 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategyPackingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStrategyOperationSpec
+struct TStrategyOperationSpec
     : public TSchedulableConfig
     , public TCommonPreemptionConfig
     , public virtual NPhoenix::TPolymorphicBase
 {
-public:
     std::optional<TString> Pool;
 
     //! This options have higher priority than Pool and other options
@@ -508,10 +509,9 @@ struct TJobIOConfig
 
     NChunkClient::TBlockCacheConfigPtr BlockCache;
 
-    class TTestingOptions
+    struct TTestingOptions
         : public NYTree::TYsonStruct
     {
-    public:
         TDuration PipeDelay;
 
         REGISTER_YSON_STRUCT(TTestingOptions);
@@ -546,10 +546,9 @@ DEFINE_REFCOUNTED_TYPE(TDelayConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPatchSpecProtocolTestingOptions
+struct TPatchSpecProtocolTestingOptions
     : public NYTree::TYsonStruct
 {
-public:
     // Scheduler.
     TDelayConfigPtr DelayBeforeCypressFlush;
     TDelayConfigPtr DelayBeforeApply;
@@ -558,6 +557,7 @@ public:
     bool FailValidate;
     bool FailApply;
     bool FailRevive;
+    TDelayConfigPtr DelayInsideApply;
 
     REGISTER_YSON_STRUCT(TPatchSpecProtocolTestingOptions);
 
@@ -597,10 +597,9 @@ DEFINE_ENUM(ETestingSpeculativeLaunchMode,
     (Always)
 );
 
-class TTestingOperationOptions
+struct TTestingOperationOptions
     : public NYTree::TYsonStruct
 {
-public:
     //! The following delays are used inside the operation controller.
 
     TDelayConfigPtr ScheduleAllocationDelay;
@@ -682,6 +681,17 @@ struct TJobSplitterConfig
 
     bool EnableJobSpeculation;
 
+    std::optional<TDuration> MinJobTime;
+    std::optional<i64> MinTotalDataWeight;
+    std::optional<double> ExecToPrepareTimeRatio;
+    std::optional<double> NoProgressJobTimeToAveragePrepareTimeRatio;
+
+    std::optional<int> MaxJobsPerSplit;
+    std::optional<int> MaxInputTableCount;
+
+    std::optional<double> ResidualJobFactor;
+    std::optional<int> ResidualJobCountMinThreshold;
+
     REGISTER_YSON_STRUCT(TJobSplitterConfig);
 
     static void Register(TRegistrar registrar);
@@ -754,6 +764,25 @@ void FromProto(TTmpfsVolumeConfig* tmpfsVolumeConfig, const NControllerAgent::NP
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TNbdDiskConfig
+    : public NYTree::TYsonStruct
+{
+    //! Params to connect to chosen data nodes.
+    TDuration DataNodeRpcTimeout;
+    std::optional<std::string> DataNodeAddress;
+
+    //! Params to get suitable data nodes from master.
+    TDuration MasterRpcTimeout;
+    int MinDataNodesCount;
+    int MaxDataNodesCount;
+
+    REGISTER_YSON_STRUCT(TNbdDiskConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TNbdDiskConfig)
+
 struct TDiskRequestConfig
     : public NYTree::TYsonStruct
 {
@@ -763,9 +792,12 @@ struct TDiskRequestConfig
     //! Limit for disk inodes.
     std::optional<i64> InodeCount;
 
-    std::optional<TString> MediumName;
+    std::optional<std::string> MediumName;
     std::optional<int> MediumIndex;
-    std::optional<TString> Account;
+    std::optional<std::string> Account;
+
+    //! Use Network Block Device (NBD) disk.
+    TNbdDiskConfigPtr NbdDisk;
 
     REGISTER_YSON_STRUCT(TDiskRequestConfig);
 
@@ -780,15 +812,14 @@ void ToProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobShell
+struct TJobShell
     : public NYTree::TYsonStruct
 {
-public:
     TString Name;
 
     TString Subcontainer;
 
-    std::vector<TString> Owners;
+    std::vector<std::string> Owners;
 
     REGISTER_YSON_STRUCT(TJobShell);
 
@@ -834,10 +865,9 @@ DEFINE_ENUM(EProfilerType,
     ((Cuda)             (3))
 );
 
-class TJobProfilerSpec
+struct TJobProfilerSpec
     : public NYTree::TYsonStruct
 {
-public:
     //! Binary to profile.
     EProfilingBinary Binary;
 
@@ -888,7 +918,7 @@ struct TJobExperimentConfig
     std::optional<TString> BaseLayerPath;
 
     //! The network project used in the treatment jobs of the experiment.
-    std::optional<TString> NetworkProject;
+    std::optional<std::string> NetworkProject;
 
     //! Do not run any more treatment jobs if the `MaxFailedTreatmentJobs` of them failed.
     int MaxFailedTreatmentJobs;
@@ -911,10 +941,9 @@ DEFINE_REFCOUNTED_TYPE(TJobExperimentConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCudaProfilerEnvironment
+struct TCudaProfilerEnvironment
     : public NYTree::TYsonStruct
 {
-public:
     TString PathEnvironmentVariableName;
 
     TString PathEnvironmentVariableValue;
@@ -928,10 +957,9 @@ DEFINE_REFCOUNTED_TYPE(TCudaProfilerEnvironment)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobFailsTolerance
+struct TJobFailsTolerance
     : public NYTree::TYsonStruct
 {
-public:
     //! If exit code does not match any of the mentioned
     //! it is matched for unknown.
     int MaxFailsUnknownExitCode;
@@ -958,6 +986,7 @@ struct TFastIntermediateMediumTableWriterConfig
     : public NYTree::TYsonStruct
 {
     int MinUploadReplicationFactor;
+    std::optional<int> DirectUploadNodeCount;
     int UploadReplicationFactor;
     NErasure::ECodec ErasureCodec;
     bool EnableStripedErasure;
@@ -967,17 +996,15 @@ struct TFastIntermediateMediumTableWriterConfig
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_TYPE(TFastIntermediateMediumTableWriterConfig)
 DEFINE_REFCOUNTED_TYPE(TFastIntermediateMediumTableWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOperationSpecBase
+struct TOperationSpecBase
     : public TStrategyOperationSpec
 {
-public:
     //! Account holding intermediate data produces by the operation.
-    TString IntermediateDataAccount;
+    std::string IntermediateDataAccount;
 
     //! Codec used for compressing intermediate output during shuffle.
     NCompression::ECodec IntermediateCompressionCodec;
@@ -985,13 +1012,16 @@ public:
     //! Replication factor for intermediate data.
     int IntermediateDataReplicationFactor;
 
+    //! Direct upload replication factor for intermediate data.
+    std::optional<int> IntermediateDirectUploadNodeCount;
+
     //! Minimum replication factor for intermediate data.
     int MinIntermediateDataReplicationFactor;
 
     //! SyncOnClose option for intermediate data.
     bool IntermediateDataSyncOnClose;
 
-    TString IntermediateDataMediumName;
+    std::string IntermediateDataMediumName;
 
     //! Table writer config for the data that will be written to the fast medium (SSD) in the default intermediate account.
     TFastIntermediateMediumTableWriterConfigPtr FastIntermediateMediumTableWriterConfig;
@@ -1000,7 +1030,7 @@ public:
     i64 FastIntermediateMediumLimit;
 
     //! Account for job nodes and operation files (stderrs and input contexts of failed jobs).
-    TString DebugArtifactsAccount;
+    std::string DebugArtifactsAccount;
 
     //! What to do during initialization if some chunks are unavailable.
     EUnavailableChunkAction UnavailableChunkStrategy;
@@ -1010,6 +1040,10 @@ public:
 
     i64 MaxDataWeightPerJob;
     i64 MaxPrimaryDataWeightPerJob;
+
+    //! Strict limit for job input compressed data size. May not affect input
+    //! slicing.
+    i64 MaxCompressedDataSizePerJob;
 
     //! Once this limit is reached the operation fails.
     int MaxFailedJobCount;
@@ -1028,7 +1062,7 @@ public:
     TDuration JobProxyRefCountedTrackerLogPeriod;
 
     //! An arbitrary user-provided string that is, however, logged by the scheduler.
-    std::optional<TString> Title;
+    std::optional<std::string> Title;
 
     //! Limit on operation execution time.
     std::optional<TDuration> TimeLimit;
@@ -1044,7 +1078,7 @@ public:
     std::optional<NSecurityClient::TSerializableAccessControlList> Acl;
 
     //! ACO name in the "operations" namespace.
-    std::optional<TString> AcoName;
+    std::optional<std::string> AcoName;
 
     //! Add the "read" and "manage" rights for the authenticated_user to |Acl|.
     std::optional<bool> AddAuthenticatedUserToAcl;
@@ -1252,6 +1286,15 @@ public:
 
     bool UseClusterThrottlers;
 
+    //! If |true|, exec node will reuse allocation for multiple jobs.
+    std::optional<bool> EnableMultipleJobsInAllocation;
+
+    //! COMPAT(apollo1321): remove in 25.2.
+    bool UseNewSlicingImplementationInOrderedPool;
+
+    //! COMPAT(apollo1321): remove in 25.2.
+    bool UseNewSlicingImplementationInUnorderedPool;
+
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 
     static void Register(TRegistrar registrar);
@@ -1278,11 +1321,10 @@ DEFINE_REFCOUNTED_TYPE(TTaskOutputStreamConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserJobSpec
+struct TUserJobSpec
     : public NYTree::TYsonStruct
     , public virtual NPhoenix::TPolymorphicBase
 {
-public:
     TString Command;
 
     TString TaskTitle;
@@ -1365,12 +1407,19 @@ public:
 
     std::optional<TString> CudaToolkitVersion;
 
+    //! Enables running GPU check.
+    //! This option applicable only in case of separate root volume.
+    bool EnableGpuCheck;
+
+    // COMPAT(ignat)
     //! Name of layer with GPU check.
     std::optional<TString> GpuCheckLayerName;
 
+    // COMPAT(ignat)
     //! Path to the file with GPU check binary inside layer.
     std::optional<TString> GpuCheckBinaryPath;
 
+    // COMPAT(ignat)
     //! Command line arguments for the GPU check binary.
     std::optional<std::vector<TString>> GpuCheckBinaryArgs;
 
@@ -1379,7 +1428,7 @@ public:
     std::optional<TDuration> JobSpeculationTimeout;
 
     //! Name of the network project to use in job.
-    std::optional<TString> NetworkProject;
+    std::optional<std::string> NetworkProject;
 
     //! Configures |enable_porto| setting for user job containers.
     //! If not given, then the global default from controller agent's config is used.
@@ -1417,6 +1466,8 @@ public:
     bool EnableRpcProxyInJobProxy;
     int RpcProxyWorkerThreadPoolSize;
 
+    bool StartQueueConsumerRegistrationManager;
+
     bool FailOnJobRestart;
 
     THashSet<EExtraEnvironment> ExtraEnvironment;
@@ -1437,10 +1488,9 @@ DEFINE_REFCOUNTED_TYPE(TUserJobSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMandatoryUserJobSpec
+struct TMandatoryUserJobSpec
     : public TUserJobSpec
 {
-public:
     REGISTER_YSON_STRUCT(TMandatoryUserJobSpec);
 
     static void Register(TRegistrar registrar);
@@ -1453,10 +1503,9 @@ DEFINE_REFCOUNTED_TYPE(TMandatoryUserJobSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOptionalUserJobSpec
+struct TOptionalUserJobSpec
     : public TUserJobSpec
 {
-public:
     bool IsNontrivial() const;
 
     REGISTER_YSON_STRUCT(TOptionalUserJobSpec);
@@ -1471,22 +1520,23 @@ DEFINE_REFCOUNTED_TYPE(TOptionalUserJobSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TGangManagerConfig
+struct TGangOptions
     : public NYTree::TYsonStruct
 {
-    REGISTER_YSON_STRUCT(TGangManagerConfig);
+    std::optional<int> Size;
+
+    REGISTER_YSON_STRUCT(TGangOptions);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TGangManagerConfig)
+DEFINE_REFCOUNTED_TYPE(TGangOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVanillaTaskSpec
+struct TVanillaTaskSpec
     : public TMandatoryUserJobSpec
 {
-public:
     //! Number of jobs that will be run in this task. This field is mandatory.
     int JobCount;
 
@@ -1496,7 +1546,7 @@ public:
 
     bool RestartCompletedJobs;
 
-    TGangManagerConfigPtr GangManager;
+    TGangOptionsPtr GangOptions;
 
     REGISTER_YSON_STRUCT(TVanillaTaskSpec);
 
@@ -1510,10 +1560,9 @@ DEFINE_REFCOUNTED_TYPE(TVanillaTaskSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueryFilterOptions
+struct TQueryFilterOptions
     : public virtual NYTree::TYsonStruct
 {
-public:
     bool EnableChunkFilter;
     bool EnableRowFilter;
 
@@ -1526,10 +1575,9 @@ DEFINE_REFCOUNTED_TYPE(TQueryFilterOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TInputQueryOptions
+struct TInputQueryOptions
     : public virtual NYTree::TYsonStruct
 {
-public:
     bool UseSystemColumns;
 
     REGISTER_YSON_STRUCT(TInputQueryOptions);
@@ -1580,15 +1628,17 @@ DEFINE_REFCOUNTED_TYPE(TOperationWithUserJobSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSimpleOperationSpecBase
+struct TSimpleOperationSpecBase
     : public TOperationSpecBase
 {
-public:
-    //! During sorted merge the scheduler tries to ensure that large connected
-    //! groups of chunks are partitioned into tasks of this or smaller size.
-    //! This number, however, is merely an estimate, i.e. some tasks may still
-    //! be larger.
+    //! During sorted merge, the controller tries to ensure that large, connected
+    //! groups of chunks are partitioned into tasks of this size or greater.
+    //! However, this number is merely an estimate; some tasks may still be
+    //! smaller or significantly larger in some cases.
     std::optional<i64> DataWeightPerJob;
+
+    //! Recomendation for job input compressed data size.
+    std::optional<i64> CompressedDataSizePerJob;
 
     std::optional<int> JobCount;
     std::optional<int> MaxJobCount;
@@ -1613,10 +1663,9 @@ DEFINE_REFCOUNTED_TYPE(TSimpleOperationSpecBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOperationWithInputSpec
+struct TOperationWithInputSpec
     : public virtual NYTree::TYsonStruct
 {
-public:
     std::vector<NYPath::TRichYPath> InputTablePaths;
 
     REGISTER_YSON_STRUCT(TOperationWithInputSpec);
@@ -1631,12 +1680,11 @@ DEFINE_REFCOUNTED_TYPE(TOperationWithInputSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUnorderedOperationSpecBase
+struct TUnorderedOperationSpecBase
     : public virtual TSimpleOperationSpecBase
     , public TInputlyQueryableSpec
     , public virtual TOperationWithInputSpec
 {
-public:
     REGISTER_YSON_STRUCT(TUnorderedOperationSpecBase);
 
     static void Register(TRegistrar registrar);
@@ -1649,11 +1697,10 @@ DEFINE_REFCOUNTED_TYPE(TUnorderedOperationSpecBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMapOperationSpec
+struct TMapOperationSpec
     : public TUnorderedOperationSpecBase
     , public TOperationWithUserJobSpec
 {
-public:
     TMandatoryUserJobSpecPtr Mapper;
     std::vector<NYPath::TRichYPath> OutputTablePaths;
     bool Ordered;
@@ -1677,11 +1724,10 @@ DEFINE_ENUM(EMergeMode,
     (Unordered)
 );
 
-class TMergeOperationSpec
+struct TMergeOperationSpec
     : public virtual TSimpleOperationSpecBase
     , public virtual TOperationWithInputSpec
 {
-public:
     NYPath::TRichYPath OutputTablePath;
     EMergeMode Mode;
     bool CombineChunks;
@@ -1701,11 +1747,10 @@ DEFINE_REFCOUNTED_TYPE(TMergeOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUnorderedMergeOperationSpec
+struct TUnorderedMergeOperationSpec
     : public TUnorderedOperationSpecBase
     , public TMergeOperationSpec
 {
-public:
     ESingleChunkTeleportStrategy SingleChunkTeleportStrategy;
 
     REGISTER_YSON_STRUCT(TUnorderedMergeOperationSpec);
@@ -1720,11 +1765,10 @@ DEFINE_REFCOUNTED_TYPE(TUnorderedMergeOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOrderedMergeOperationSpec
+struct TOrderedMergeOperationSpec
     : public TMergeOperationSpec
     , public TInputlyQueryableSpec
 {
-public:
     REGISTER_YSON_STRUCT(TOrderedMergeOperationSpec);
 
     static void Register(TRegistrar)
@@ -1736,12 +1780,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSortedOperationSpec
+struct TSortedOperationSpec
     : public virtual NYTree::TYsonStruct
 {
-public:
     bool UseNewSortedPool;
     NTableClient::TSortColumns MergeBy;
+    std::optional<i64> MinManiacDataWeight;
 
     REGISTER_YSON_STRUCT(TSortedOperationSpec);
 
@@ -1757,11 +1801,10 @@ DEFINE_REFCOUNTED_TYPE(TSortedOperationSpec)
 
 DEFINE_REFCOUNTED_TYPE(TOrderedMergeOperationSpec)
 
-class TSortedMergeOperationSpec
+struct TSortedMergeOperationSpec
     : public TMergeOperationSpec
     , public TSortedOperationSpec
 {
-public:
     REGISTER_YSON_STRUCT(TSortedMergeOperationSpec);
 
     static void Register(TRegistrar registrar);
@@ -1774,10 +1817,9 @@ DEFINE_REFCOUNTED_TYPE(TSortedMergeOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TEraseOperationSpec
+struct TEraseOperationSpec
     : public TSimpleOperationSpecBase
 {
-public:
     NYPath::TRichYPath TablePath;
     bool CombineChunks;
     ESchemaInferenceMode SchemaInferenceMode;
@@ -1795,12 +1837,11 @@ DEFINE_REFCOUNTED_TYPE(TEraseOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReduceOperationSpec
+struct TReduceOperationSpec
     : public TSimpleOperationSpecBase
     , public TOperationWithUserJobSpec
     , public TSortedOperationSpec
 {
-public:
     TMandatoryUserJobSpecPtr Reducer;
     std::vector<NYPath::TRichYPath> InputTablePaths;
     std::vector<NYPath::TRichYPath> OutputTablePaths;
@@ -1835,10 +1876,9 @@ DEFINE_REFCOUNTED_TYPE(TReduceOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSortOperationSpecBase
+struct TSortOperationSpecBase
     : public TOperationSpecBase
 {
-public:
     std::vector<NYPath::TRichYPath> InputTablePaths;
 
     //! Amount of (uncompressed) data to be distributed to one partition.
@@ -1932,10 +1972,9 @@ DEFINE_REFCOUNTED_TYPE(TSortOperationSpecBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSortOperationSpec
+struct TSortOperationSpec
     : public TSortOperationSpecBase
 {
-public:
     NYPath::TRichYPath OutputTablePath;
 
     ESchemaInferenceMode SchemaInferenceMode;
@@ -1956,12 +1995,11 @@ DEFINE_REFCOUNTED_TYPE(TSortOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMapReduceOperationSpec
+struct TMapReduceOperationSpec
     : public TSortOperationSpecBase
     , public TInputlyQueryableSpec
     , public TOperationWithUserJobSpec
 {
-public:
     std::vector<NYPath::TRichYPath> OutputTablePaths;
 
     std::vector<std::string> ReduceBy;
@@ -2009,11 +2047,10 @@ DEFINE_REFCOUNTED_TYPE(TMapReduceOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRemoteCopyOperationSpec
+struct TRemoteCopyOperationSpec
     : public TSimpleOperationSpecBase
 {
-public:
-    std::optional<TString> ClusterName;
+    std::optional<std::string> ClusterName;
     std::optional<TString> NetworkName;
     std::optional<NNodeTrackerClient::TNetworkPreferenceList> Networks;
     // TODO(max42): do we still need this?
@@ -2064,11 +2101,10 @@ DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVanillaOperationSpec
+struct TVanillaOperationSpec
     : public TOperationSpecBase
     , public TOperationWithUserJobSpec
 {
-public:
     //! Map consisting of pairs <task_name, task_spec>.
     THashMap<TString, TVanillaTaskSpecPtr> Tasks;
 
@@ -2084,10 +2120,9 @@ DEFINE_REFCOUNTED_TYPE(TVanillaOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOperationFairShareTreeRuntimeParameters
+struct TOperationFairShareTreeRuntimeParameters
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<double> Weight;
     TPoolName Pool;
     TJobResourcesConfigPtr ResourceLimits;
@@ -2109,11 +2144,10 @@ DEFINE_REFCOUNTED_TYPE(TOperationFairShareTreeRuntimeParameters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOperationJobShellRuntimeParameters
+struct TOperationJobShellRuntimeParameters
     : public NYTree::TYsonStruct
 {
-public:
-    std::vector<TString> Owners;
+    std::vector<std::string> Owners;
 
     REGISTER_YSON_STRUCT(TOperationJobShellRuntimeParameters);
 
@@ -2124,10 +2158,9 @@ DEFINE_REFCOUNTED_TYPE(TOperationJobShellRuntimeParameters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOperationRuntimeParameters
+struct TOperationRuntimeParameters
     : public TRefCounted
 {
-public:
     // Keep the stuff below synchronized with Serialize/Deserialize functions.
     // Heavy parameters may be serialized separately, check SerializeHeavyRuntimeParameters function.
 
@@ -2135,7 +2168,7 @@ public:
     // to be able to revive old operations.
     std::vector<std::string> Owners;
     NSecurityClient::TSerializableAccessControlList Acl;
-    std::optional<TString> AcoName;
+    std::optional<std::string> AcoName;
     TJobShellOptionsMap OptionsPerJobShell;
     THashMap<TString, TOperationFairShareTreeRuntimeParametersPtr> SchedulingOptionsPerPoolTree;
     TBooleanFormula SchedulingTagFilter;
@@ -2156,10 +2189,9 @@ DEFINE_REFCOUNTED_TYPE(TOperationRuntimeParameters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOperationFairShareTreeRuntimeParametersUpdate
+struct TOperationFairShareTreeRuntimeParametersUpdate
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<double> Weight;
     std::optional<TString> Pool;
     TJobResourcesConfigPtr ResourceLimits;
@@ -2175,14 +2207,13 @@ DEFINE_REFCOUNTED_TYPE(TOperationFairShareTreeRuntimeParametersUpdate)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOperationRuntimeParametersUpdate
+struct TOperationRuntimeParametersUpdate
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<double> Weight;
     std::optional<TString> Pool;
     std::optional<NSecurityClient::TSerializableAccessControlList> Acl;
-    std::optional<TString> AcoName;
+    std::optional<std::string> AcoName;
     THashMap<TString, TOperationFairShareTreeRuntimeParametersUpdatePtr> SchedulingOptionsPerPoolTree;
     std::optional<TBooleanFormula> SchedulingTagFilter;
     TJobShellOptionsUpdateMap OptionsPerJobShell;

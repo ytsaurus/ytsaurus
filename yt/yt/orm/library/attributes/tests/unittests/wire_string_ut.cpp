@@ -2,6 +2,10 @@
 
 #include <yt/yt/orm/library/attributes/tests/proto/wire_string.pb.h>
 
+#include <yt/yt/core/yson/protobuf_interop.h>
+
+#include <yt/yt/core/ytree/fluent.h>
+
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <google/protobuf/util/message_differencer.h>
@@ -72,6 +76,24 @@ TEST(TGetWireStringByPathTest, Flat)
     EXPECT_EQ(
         GetWireStringByPath(sheep.GetDescriptor(), sheepWireString, "/age"),
         TWireString::Empty);
+}
+
+TEST(TGetWireStringByPathTest, AttributeDictionary)
+{
+    NProto::TSheep sheep;
+    auto sheepLabels = NYTree::IAttributeDictionary::FromMap(NYTree::BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("color").Value("blue")
+        .EndMap()->AsMap());
+    ToProto(sheep.mutable_labels(), *sheepLabels);
+
+    auto sheepPayload = sheep.SerializeAsString();
+    TWireString sheepWireString = TWireString::FromSerialized(sheepPayload);
+
+    // TODO(grigminakov): Support GetWireStringByPath for TAttributeDictionary.
+    EXPECT_THROW_WITH_ERROR_CODE(
+        GetWireStringByPath(sheep.GetDescriptor(), sheepWireString, "/labels/color"),
+        EErrorCode::Unimplemented);
 }
 
 TEST(TGetWireStringByPathTest, Hierarchy)
@@ -200,6 +222,63 @@ TEST(TGetWireStringByPathTest, MapOverwrite)
     EXPECT_EQ(
         GetWireStringByPath(car.descriptor(), wireString, "/sensor_to_voltage/0"),
         TWireString::FromSerialized(SerializeAsString(&WireFormatLite::WriteSInt64NoTag, -10)));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TWriteWireStringTest, AddTag)
+{
+    NProto::TCar car;
+    car.mutable_engine()->set_name("Engine Name");
+
+    auto serializedCar = car.SerializeAsString();
+    auto serializedEngine = car.mutable_engine()->SerializeAsString();
+
+    EXPECT_EQ(
+        AddWireTag(
+            NYson::ReflectProtobufMessageType(car.GetDescriptor()),
+            "engine",
+            serializedEngine),
+        serializedCar);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TWriteWireStringTest, SerializeMap)
+{
+    NProto::TCar car;
+    car.mutable_owner_to_experience()->emplace("Arthur", 0u);
+    car.mutable_sensor_to_voltage()->emplace(6, 220);
+    (*car.mutable_series_to_engine())[1998].set_name("Engine V1");
+
+    auto serializedCar = car.SerializeAsString();
+    EXPECT_EQ(
+        GetWireStringByPath(car.descriptor(), TWireString::FromSerialized(serializedCar), "/owner_to_experience"),
+        TWireString::FromSerialized(SerializeKeyValuePair(
+            TWireStringPart::FromStringView("Arthur"sv),
+            NYson::TProtobufElementType{WireFormatLite::FieldType::TYPE_STRING},
+            TWireString::FromSerialized(
+                SerializeUint64(0u, NYson::TProtobufElementType{WireFormatLite::FieldType::TYPE_FIXED32})),
+            NYson::TProtobufElementType{WireFormatLite::FieldType::TYPE_FIXED32})));
+    EXPECT_EQ(
+        GetWireStringByPath(car.descriptor(), TWireString::FromSerialized(serializedCar), "/sensor_to_voltage"),
+        TWireString::FromSerialized(
+            SerializeKeyValuePair(
+                TWireStringPart::FromStringView(
+                    SerializeUint64(6u, NYson::TProtobufElementType{WireFormatLite::FieldType::TYPE_FIXED32})),
+                NYson::TProtobufElementType{WireFormatLite::FieldType::TYPE_FIXED32},
+                TWireString::FromSerialized(
+                    SerializeInt64(220, NYson::TProtobufElementType{WireFormatLite::FieldType::TYPE_SINT64})),
+                NYson::TProtobufElementType{WireFormatLite::FieldType::TYPE_SINT64})));
+    EXPECT_EQ(
+        GetWireStringByPath(car.descriptor(), TWireString::FromSerialized(serializedCar), "/series_to_engine"),
+        TWireString::FromSerialized(
+            SerializeKeyValuePair(
+                TWireStringPart::FromStringView(
+                    SerializeInt64(1998, NYson::TProtobufElementType{WireFormatLite::FieldType::TYPE_INT32})),
+                NYson::TProtobufElementType{WireFormatLite::FieldType::TYPE_INT32},
+                TWireString::FromSerialized(car.series_to_engine().at(1998).SerializeAsString()),
+                NYson::TProtobufElementType{WireFormatLite::FieldType::TYPE_MESSAGE})));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

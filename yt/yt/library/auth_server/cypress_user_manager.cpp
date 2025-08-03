@@ -1,9 +1,17 @@
 #include "cypress_user_manager.h"
 
-#include "auth_cache.h"
 #include "private.h"
 
 #include <yt/yt/client/api/client.h>
+
+#include <yt/yt/library/auth_server/config.h>
+#include <yt/yt/library/auth_server/helpers.h>
+
+#include <yt/yt/core/actions/future.h>
+
+#include <yt/yt/core/misc/async_expiring_cache.h>
+#include <yt/yt/core/misc/cache_config.h>
+#include <yt/yt/core/misc/error.h>
 
 #include <library/cpp/yt/logging/logger.h>
 
@@ -12,10 +20,6 @@ namespace NYT::NAuth {
 using namespace NYPath;
 using namespace NYTree;
 using namespace NObjectClient;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static constexpr auto& Logger = AuthLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,26 +34,24 @@ public:
         , Client_(std::move(client))
     { }
 
-    TFuture<TObjectId> CreateUser(const TString& name) override
+    TFuture<bool> CheckUserExists(const std::string& name) override
     {
-        YT_LOG_DEBUG("Creating user object (Name: %v)", name);
+        return Client_->NodeExists("//sys/users/" + ToYPathLiteral(name));
+    }
+
+    TFuture<void> CreateUser(const std::string& name, const std::vector<std::string>& tags) override
+    {
         NApi::TCreateObjectOptions options;
         options.IgnoreExisting = true;
 
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("name", name);
+        attributes->Set("tags", tags);
         options.Attributes = std::move(attributes);
 
         return Client_->CreateObject(
             EObjectType::User,
-            options);
-    }
-
-    TFuture<bool> CheckUserExists(const TString& name) override
-    {
-        YT_LOG_DEBUG("Checking if user exists (Name: %v)", name);
-
-        return Client_->NodeExists("//sys/users/" + ToYPathLiteral(name));
+            options).AsVoid();
     }
 
 private:
@@ -70,43 +72,43 @@ ICypressUserManagerPtr CreateCypressUserManager(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressUserManagerCreateUserCache
-    : public TAuthCache<TString, TObjectId, std::monostate>
+class TNullCypressUserManager
+    : public ICypressUserManager
 {
 public:
-    TCypressUserManagerCreateUserCache(
-        TAuthCacheConfigPtr config,
-        ICypressUserManagerPtr cypressUserManager,
-        NProfiling::TProfiler profiler)
-        : TAuthCache(std::move(config), std::move(profiler))
-        , CypressUserManager_(std::move(cypressUserManager))
-    { }
-
-private:
-    const ICypressUserManagerPtr CypressUserManager_;
-
-    TFuture<TObjectId> DoGet(
-        const TString& name,
-        const std::monostate& /*context*/) noexcept override
+    TFuture<bool> CheckUserExists(const std::string& /*name*/) override
     {
-        return CypressUserManager_->CreateUser(name);
+        return MakeFuture(true);
+    }
+
+protected:
+    TFuture<void> CreateUser(const std::string& /*name*/, const std::vector<std::string>& /*tags*/) override
+    {
+        YT_UNIMPLEMENTED();
     }
 };
 
-DECLARE_REFCOUNTED_CLASS(TCypressUserManagerCreateUserCache)
-DEFINE_REFCOUNTED_TYPE(TCypressUserManagerCreateUserCache)
+////////////////////////////////////////////////////////////////////////////////
+
+ICypressUserManagerPtr CreateNullCypressUserManager()
+{
+    return New<TNullCypressUserManager>();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCypressUserManagerCheckUserExistsCache
-    : public TAuthCache<TString, bool, std::monostate>
+    : public TAsyncExpiringCache<std::string, bool>
 {
 public:
     TCypressUserManagerCheckUserExistsCache(
-        TAuthCacheConfigPtr config,
+        TAsyncExpiringCacheConfigPtr config,
         ICypressUserManagerPtr cypressUserManager,
         NProfiling::TProfiler profiler)
-        : TAuthCache(std::move(config), std::move(profiler))
+        : TAsyncExpiringCache(
+            std::move(config),
+            /*logger*/ {},
+            std::move(profiler))
         , CypressUserManager_(std::move(cypressUserManager))
     { }
 
@@ -114,10 +116,15 @@ private:
     const ICypressUserManagerPtr CypressUserManager_;
 
     TFuture<bool> DoGet(
-        const TString& name,
-        const std::monostate& /*context*/) noexcept override
+        const std::string& name,
+        bool /*isPeriodicUpdate*/) noexcept override
     {
         return CypressUserManager_->CheckUserExists(name);
+    }
+
+    bool CanCacheError(const TError& /*error*/) noexcept override
+    {
+        return false;
     }
 };
 
@@ -134,22 +141,27 @@ public:
         TCachingCypressUserManagerConfigPtr config,
         ICypressUserManagerPtr cypressUserManager,
         NProfiling::TProfiler profiler)
-        : CreateUserCache_(New<TCypressUserManagerCreateUserCache>(config->Cache, cypressUserManager, profiler.WithPrefix("/create_user")))
-        , CheckUserExistsCache_(New<TCypressUserManagerCheckUserExistsCache>(config->Cache, cypressUserManager, profiler.WithPrefix("/user_exists")))
+        : UserManager_(std::move(cypressUserManager))
+        , CheckUserExistsCache_(New<TCypressUserManagerCheckUserExistsCache>(
+            config->Cache->ToAsyncExpiringCacheConfig(),
+            UserManager_,
+            profiler.WithPrefix("/user_exists")))
     { }
 
-    TFuture<TObjectId> CreateUser(const TString& name) override
+    TFuture<bool> CheckUserExists(const std::string& name) override
     {
-        return CreateUserCache_->Get(name, std::monostate{});
+        return CheckUserExistsCache_->Get(name);
     }
 
-    TFuture<bool> CheckUserExists(const TString& name) override
+    TFuture<void> CreateUser(const std::string& name, const std::vector<std::string>& tags) override
     {
-        return CheckUserExistsCache_->Get(name, std::monostate{});
+        // If we cached the fact that user didn't exist, we should invalidate it.
+        CheckUserExistsCache_->InvalidateValue(name, false);
+        return UserManager_->CreateUser(name, tags);
     }
 
 private:
-    const TCypressUserManagerCreateUserCachePtr CreateUserCache_;
+    const ICypressUserManagerPtr UserManager_;
     const TCypressUserManagerCheckUserExistsCachePtr CheckUserExistsCache_;
 };
 

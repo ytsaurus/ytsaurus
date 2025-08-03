@@ -154,16 +154,14 @@ private:
             }
 
             if (Options_.TransactionId) {
-                TTransactionAttachOptions attachOptions{
-                    .Ping = true
-                };
+                TTransactionAttachOptions attachOptions;
+                attachOptions.Ping = true;
                 Transaction_ = Client_->AttachTransaction(Options_.TransactionId, attachOptions);
             }
 
             for (auto transactionId : Options_.PrerequisiteTransactionIds) {
-                TTransactionAttachOptions attachOptions{
-                    .Ping = false
-                };
+                TTransactionAttachOptions attachOptions = {};
+                attachOptions.Ping = false;
                 auto transaction = Client_->AttachTransaction(transactionId, attachOptions);
                 StartProbeTransaction(transaction, Config_->PrerequisiteTransactionProbePeriod);
             }
@@ -282,8 +280,8 @@ private:
         int ReplicaCount_ = -1;
         int ReadQuorum_ = -1;
         int WriteQuorum_ = -1;
-        TString Account_;
-        TString PrimaryMedium_;
+        std::string Account_;
+        std::string PrimaryMedium_;
 
         TObjectId ObjectId_;
         TCellTag NativeCellTag_ = InvalidCellTag;
@@ -554,7 +552,7 @@ private:
                 auto req = TYPathProxy::Get(objectIdPath + "/@");
                 AddCellTagToSyncWith(req, ObjectId_);
                 SetTransactionId(req, UploadTransaction_);
-                std::vector<TString> attributeKeys{
+                std::vector<std::string> attributeKeys{
                     "type",
                     "erasure_codec",
                     "replication_factor",
@@ -580,8 +578,8 @@ private:
                     : NErasure::GetCodec(ErasureCodec_)->GetTotalPartCount();
                 ReadQuorum_ = attributes->Get<int>("read_quorum");
                 WriteQuorum_ = attributes->Get<int>("write_quorum");
-                Account_ = attributes->Get<TString>("account");
-                PrimaryMedium_ = attributes->Get<TString>("primary_medium");
+                Account_ = attributes->Get<std::string>("account");
+                PrimaryMedium_ = attributes->Get<std::string>("primary_medium");
 
                 YT_LOG_DEBUG("Extended journal attributes received (ErasureCodec: %v, ReplicationFactor: %v, ReplicaCount: %v, "
                     "WriteQuorum: %v, Account: %v, PrimaryMedium: %v)",
@@ -802,6 +800,14 @@ private:
                 THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error starting chunk sessions");
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(TError(ex));
+
+                // Best effort, fire-and-forget.
+                for (const auto& node : session->Nodes) {
+                    auto req = node->LightProxy.CancelChunk();
+                    ToProto(req->mutable_session_id(), GetSessionIdForNode(session, node));
+                    YT_UNUSED_FUTURE(req->Invoke());
+                }
+
                 return nullptr;
             }
 
@@ -835,8 +841,6 @@ private:
 
                 ToProto(req->mutable_chunk_id(), chunkId);
                 req->mutable_chunk_info();
-                ToProto(req->mutable_legacy_replicas(), replicas);
-
                 req->set_location_uuids_supported(true);
 
                 bool useLocationUuids = std::all_of(session->Nodes.begin(), session->Nodes.end(), [] (const auto& node) {
@@ -1108,7 +1112,41 @@ private:
         void HandleBatch(const TBatchPtr& batch)
         {
             if (ErasureCodec_ != NErasure::ECodec::None) {
-                batch->ErasureRows = EncodeErasureJournalRows(NErasure::GetCodec(ErasureCodec_), batch->Rows);
+                auto* codec = NErasure::GetCodec(ErasureCodec_);
+                batch->ErasureRows = EncodeErasureJournalRows(codec, batch->Rows);
+
+                if (Config_->ValidateErasureCoding) {
+                    YT_LOG_DEBUG("Validating erasure coding");
+
+                    const auto& originalRows = batch->ErasureRows;
+                    auto erasedPartCount = codec->GetGuaranteedRepairablePartCount();
+                    auto dataPartCount = codec->GetDataPartCount();
+
+                    std::vector<int> erasedParts(erasedPartCount);
+                    std::iota(erasedParts.begin(), erasedParts.end(), 0);
+
+                    std::vector<std::vector<TSharedRef>> preservedParts(
+                        originalRows.begin() + erasedPartCount,
+                        originalRows.end());
+
+                    auto repairedParts = RepairErasureJournalRows(codec, erasedParts, preservedParts);
+
+                    for (int index = 0; index < dataPartCount - erasedPartCount; ++index) {
+                        repairedParts.push_back(preservedParts[index]);
+                    }
+                    auto decodedRows = DecodeErasureJournalRows(codec, repairedParts, Logger);
+
+                    const auto& expectedRows = batch->Rows;
+                    YT_LOG_FATAL_UNLESS(
+                        expectedRows.size() == decodedRows.size(),
+                        "Journal erasure coding validation failed");
+                    for (int rowIndex = 0; rowIndex < std::ssize(expectedRows); ++rowIndex) {
+                        YT_LOG_FATAL_UNLESS(
+                            TRef::AreBitwiseEqual(expectedRows[rowIndex], decodedRows[rowIndex]),
+                            "Journal erasure coding validation failed");
+                    }
+                }
+
                 batch->Rows.clear();
             }
             QuorumUnflushedBatches_.push_back(batch);
@@ -1451,7 +1489,6 @@ private:
             }
         }
 
-
         void MaybeFlushBlocks(const TChunkSessionPtr& session, const TNodePtr& node)
         {
             if (!node->Started) {
@@ -1491,6 +1528,9 @@ private:
                 if (node->FirstPendingBlockIndex == 0) {
                     req->set_first_block_index(0);
                     req->Attachments().push_back(CurrentChunkSession_->HeaderRow);
+                    if (Config_->EnableChecksums) {
+                        ToProto(req->mutable_block_checksums()->Add(), GetChecksum(CurrentChunkSession_->HeaderRow));
+                    }
                 } else {
                     req->set_first_block_index(node->FirstPendingBlockIndex + 1);
                 }
@@ -1523,6 +1563,11 @@ private:
                     ? batch->Rows
                     : batch->ErasureRows[node->Index];
                 req->Attachments().insert(req->Attachments().end(), rows.begin(), rows.end());
+                if (Config_->EnableChecksums) {
+                    for (const auto& row : rows) {
+                        ToProto(req->mutable_block_checksums()->Add(), GetChecksum(row));
+                    }
+                }
 
                 flushRowCount += batch->RowCount;
                 flushDataSize += GetByteSize(rows);
@@ -1534,11 +1579,14 @@ private:
                 return;
             }
 
-            YT_LOG_DEBUG("Writing journal replica (Address: %v, BlockIds: %v:%v-%v, Rows: %v-%v, DataSize: %v, LagTime: %v)",
+            YT_LOG_DEBUG("Writing journal replica ("
+                "Address: %v, ChunkId: %v, Blocks: %v, Rows: %v-%v, "
+                "DataSize: %v, LagTime: %v)",
                 node->Descriptor.GetDefaultAddress(),
                 CurrentChunkSession_->Id,
-                node->FirstPendingBlockIndex,
-                node->FirstPendingBlockIndex + flushRowCount - 1,
+                FormatBlocks(
+                    node->FirstPendingBlockIndex,
+                    node->FirstPendingBlockIndex + flushRowCount - 1),
                 node->FirstPendingRowIndex,
                 node->FirstPendingRowIndex + flushRowCount - 1,
                 flushDataSize,
@@ -1585,12 +1633,14 @@ private:
                 writeObserver->RegisterJournalWrite(flushDataSize, response->statistics().data_bytes_written_to_medium());
             }
 
-            YT_LOG_DEBUG("Journal replica written (Address: %v, BlockIds: %v:%v-%v, Rows: %v-%v, "
+            YT_LOG_DEBUG("Journal replica written ("
+                "Address: %v, ChunkId: %v, Blocks: %v, Rows: %v-%v, "
                 "MediumWrittenBytes: %v, JournalWrittenBytes: %v)",
                 node->Descriptor.GetDefaultAddress(),
                 session->Id,
-                node->FirstPendingBlockIndex,
-                node->FirstPendingBlockIndex + flushRowCount - 1,
+                FormatBlocks(
+                    node->FirstPendingBlockIndex,
+                    node->FirstPendingBlockIndex + flushRowCount - 1),
                 node->FirstPendingRowIndex,
                 node->FirstPendingRowIndex + flushRowCount - 1,
                 response->statistics().data_bytes_written_to_medium(),

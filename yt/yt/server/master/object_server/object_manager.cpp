@@ -49,6 +49,8 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/yt/server/lib/object_server/helpers.h>
+
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -112,7 +114,7 @@ using TYPath = NYPath::TYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ObjectServerLogger;
+constinit const auto Logger = ObjectServerLogger;
 static const IObjectTypeHandlerPtr NullTypeHandler;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -132,18 +134,17 @@ TPathResolver::TResolveResult ResolvePath(
         GetTransactionId(context));
 
     auto options = TPathResolverOptions{
-        .AllowResolveFromSequoiaObject = GetAllowResolveFromSequoiaObject(context->RequestHeader())
+        .InitialResolveDepth = GetResolveDepth(context->RequestHeader()),
+        .AllowResolveFromSequoiaObject = GetAllowResolveFromSequoiaObject(context->RequestHeader()),
     };
     auto result = resolver.Resolve(options);
     if (result.CanCacheResolve) {
         options.PopulateResolveCache = true;
         auto populateResult = resolver.Resolve(options);
-        YT_ASSERT(std::holds_alternative<TPathResolver::TRemoteObjectPayload>(populateResult.Payload));
-        auto& payload = std::get<TPathResolver::TRemoteObjectPayload>(populateResult.Payload);
-        YT_LOG_DEBUG("Resolve cache populated (Path: %v, RemoteObjectId: %v, UnresolvedPathSuffix: %v)",
+        YT_LOG_DEBUG("Resolve cache populated (Path: %v, UnresolvedPathSuffix: %v, Payload: %v)",
             path,
-            payload.ObjectId,
-            populateResult.UnresolvedPathSuffix);
+            populateResult.UnresolvedPathSuffix,
+            populateResult.Payload);
     }
     return result;
 }
@@ -153,25 +154,27 @@ TPathResolver::TResolveResult ResolvePath(
 ////////////////////////////////////////////////////////////////////////////////
 
 static TError ValidatePrerequisiteRevisionPaths(
-    TYPathMaybeRef originalTargetPath,
-    const google::protobuf::RepeatedPtrField<TProtobufString>& originalAdditionalPaths,
-    const TProtobufString& prerequisitePath)
+    const NRpc::NProto::TRequestHeader& requestHeader,
+    TObjectId targetObjectId,
+    std::vector<TObjectId> additionalObjectIds,
+    TObjectId prerequisiteObjectId)
 {
-    if (prerequisitePath == originalTargetPath) {
+    // Object at targetObjectId could be not created yet.
+    if (targetObjectId && targetObjectId == prerequisiteObjectId) {
         return TError();
     }
-        for (const auto& additionalPath : originalAdditionalPaths) {
-            if (prerequisitePath == additionalPath) {
-                return TError();
-            }
+    for (const auto& additionalObjectId : additionalObjectIds) {
+        if (additionalObjectId == prerequisiteObjectId) {
+            return TError();
         }
-        return TError(
-            NObjectClient::EErrorCode::PrerequisitePathDifferFromExecutionPaths,
-            "Requests with prerequisitive paths different from target paths are prohibited in Cypress "
-            "(PrerequisitivePath: %v, TargetPath: %v, AdditionalPaths: %v)",
-            prerequisitePath,
-            originalTargetPath,
-            originalAdditionalPaths);
+    }
+    return TError(
+        NObjectClient::EErrorCode::PrerequisitePathDifferFromExecutionPaths,
+        "Requests with prerequisite paths different from target paths are prohibited in Cypress "
+        "(PrerequisiteObjectId: %v, TargetPath: %v, AdditionalPaths: %v)",
+        prerequisiteObjectId,
+        GetOriginalRequestTargetYPath(requestHeader),
+        GetOriginalRequestAdditionalPaths(requestHeader));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -217,7 +220,7 @@ public:
         EObjectType type,
         const IAttributeDictionary* attributes) override;
 
-    IYPathServicePtr CreateRemoteProxy(TObjectId id) override;
+    IYPathServicePtr CreateRemoteProxy(TObjectId id, int resolveDepth = 0) override;
     IYPathServicePtr CreateRemoteProxy(TCellTag cellTag) override;
 
     IObjectProxyPtr GetProxy(
@@ -261,23 +264,31 @@ public:
     bool IsObjectLifeStageValid(const TObject* object) const override;
     void ValidateObjectLifeStage(const TObject* object) const override;
 
-    TObject* ResolvePathToObject(
+    TObject* ResolvePathToLocalObject(
         const TYPath& path,
         TTransaction* transaction,
+        const TResolvePathOptions& options) override;
+
+    TObjectId ResolvePathToObjectId(
+        const NYPath::TYPath& path,
+        const std::string& method,
+        NTransactionServer::TTransaction* transaction,
         const TResolvePathOptions& options) override;
 
     TFuture<std::vector<TErrorOr<TVersionedObjectPath>>> ResolveObjectIdsToPaths(
         const std::vector<TVersionedObjectId>& objectIds) override;
 
     void ValidatePrerequisites(
-        NYTree::TYPathMaybeRef originalTargetPath,
-        const google::protobuf::RepeatedPtrField<TProtobufString>& originalAdditionalPaths,
+        const NRpc::NProto::TRequestHeader& requestHeader,
+        const std::string& method,
+        TObjectId targetObjectId,
         const NObjectClient::NProto::TPrerequisitesExt& prerequisites) override;
 
     TFuture<TSharedRefArray> ForwardObjectRequest(
         const TSharedRefArray& requestMessage,
         TCellTag cellTag,
-        NHydra::EPeerKind peerKind) override;
+        NHydra::EPeerKind peerKind,
+        bool* timeoutReserved) override;
 
     void ReplicateObjectCreationToSecondaryMaster(
         TObject* object,
@@ -318,7 +329,7 @@ private:
         NProfiling::TTimeCounter CumulativeExecuteTimeCounter;
     };
 
-    TSyncMap<std::pair<EObjectType, TString>, std::unique_ptr<TMethodEntry>> MethodToEntry_;
+    TSyncMap<std::pair<EObjectType, std::string>, std::unique_ptr<TMethodEntry>> MethodToEntry_;
 
     TRootServicePtr RootService_;
 
@@ -418,15 +429,17 @@ class TObjectManager::TRemoteProxy
     : public IYPathService
 {
 public:
-    TRemoteProxy(TBootstrap* bootstrap, TObjectId objectId)
+    TRemoteProxy(TBootstrap* bootstrap, TObjectId objectId, int resolveDepth = 0)
         : Bootstrap_(bootstrap)
         , ObjectId_(objectId)
         , ForwardedCellTag_(CellTagFromId(ObjectId_))
+        , ResolveDepth_(resolveDepth)
     { }
 
     TRemoteProxy(TBootstrap* bootstrap, TCellTag forwardedCellTag)
         : Bootstrap_(bootstrap)
         , ForwardedCellTag_(forwardedCellTag)
+        , ResolveDepth_(0)
     { }
 
     TResolveResult Resolve(const TYPath& path, const IYPathServiceContextPtr& /*context*/) override
@@ -463,11 +476,12 @@ public:
             : MakeYPathRewrite(requestPath, requestPath);
         forwardedYPathExt->set_target_path(targetPathRewrite.Rewritten);
 
+        std::vector<TObjectId> additionalObjectIds;
         TCompactVector<TYPathRewrite, TypicalAdditionalPathCount> additionalPathRewrites;
         for (int index = 0; index < forwardedYPathExt->additional_paths_size(); ++index) {
             const auto& additionalPath = forwardedYPathExt->additional_paths(index);
             auto additionalResolveResult = ResolvePath(Bootstrap_, additionalPath, context);
-            const auto* additionalPayload = std::get_if<TPathResolver::TRemoteObjectPayload>(&additionalResolveResult.Payload);
+            const auto* additionalPayload = std::get_if<TPathResolver::TRemoteObjectRedirectPayload>(&additionalResolveResult.Payload);
             if (!additionalPayload || CellTagFromId(additionalPayload->ObjectId) != ForwardedCellTag_) {
                 TError error(
                     NObjectClient::EErrorCode::CrossCellAdditionalPath,
@@ -494,9 +508,11 @@ public:
                 additionalResolveResult.UnresolvedPathSuffix);
             forwardedYPathExt->set_additional_paths(index, additionalPathRewrite.Rewritten);
             additionalPathRewrites.push_back(std::move(additionalPathRewrite));
+
+            if (Bootstrap_->GetDynamicConfig()->ObjectManager->ProhibitPrerequisiteRevisionsDifferFromExecutionPaths) {
+                additionalObjectIds.push_back(additionalPayload->ObjectId);
+            }
         }
-        auto originalTargetPath = GetOriginalRequestTargetYPath(context->GetRequestHeader());
-        auto originalAdditionalPaths = GetOriginalRequestAdditionalPaths(context->GetRequestHeader());
 
         TCompactVector<TYPathRewrite, 4> prerequisiteRevisionPathRewrites;
         if (forwardedRequestHeader.HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
@@ -504,11 +520,26 @@ public:
             for (int index = 0; index < prerequisitesExt->revisions_size(); ++index) {
                 auto* prerequisite = prerequisitesExt->mutable_revisions(index);
                 const auto& prerequisitePath = prerequisite->path();
-                if (Bootstrap_->GetDynamicConfig()->ObjectManager->ProhibitPrerequisiteRevisionsDifferFromExecutionPaths) {
-                    THROW_ERROR_EXCEPTION_IF_FAILED(ValidatePrerequisiteRevisionPaths(originalTargetPath, originalAdditionalPaths, prerequisitePath));
-                }
                 auto prerequisiteResolveResult = ResolvePath(Bootstrap_, prerequisitePath, context);
-                const auto* prerequisitePayload = std::get_if<TPathResolver::TRemoteObjectPayload>(&prerequisiteResolveResult.Payload);
+                // TODO(cherepashka): Unite std::get_if with Visit below after 25.1.
+                const auto* prerequisitePayload = std::get_if<TPathResolver::TRemoteObjectRedirectPayload>(&prerequisiteResolveResult.Payload);
+                if (Bootstrap_->GetDynamicConfig()->ObjectManager->ProhibitPrerequisiteRevisionsDifferFromExecutionPaths) {
+                    auto optionalPrerequisiteObjectId = Visit(
+                        prerequisiteResolveResult.Payload,
+                        [] (const TPathResolver::TLocalObjectPayload& payload) {
+                            return std::make_optional(payload.Object->GetId());
+                        },
+                        [] (const TPathResolver::TRemoteObjectRedirectPayload& payload) {
+                            return std::make_optional(payload.ObjectId);
+                        },
+                        [] (...) -> std::optional<TObjectId> {
+                            return std::nullopt;
+                        });
+
+                    if (optionalPrerequisiteObjectId) {
+                        THROW_ERROR_EXCEPTION_IF_FAILED(ValidatePrerequisiteRevisionPaths(forwardedRequestHeader, ObjectId_, additionalObjectIds, *optionalPrerequisiteObjectId));
+                    }
+                }
                 if (!prerequisitePayload || CellTagFromId(prerequisitePayload->ObjectId) != ForwardedCellTag_) {
                     TError error(
                         NObjectClient::EErrorCode::CrossCellRevisionPrerequisitePath,
@@ -543,16 +574,33 @@ public:
             SetMutationId(&forwardedRequestHeader, GenerateNextForwardedMutationId(mutationId), forwardedRequestHeader.retry());
         }
 
+        if (ResolveDepth_ > 0) {
+            SetResolveDepth(&forwardedRequestHeader, ResolveDepth_);
+        }
+
         auto forwardedMessage = SetRequestHeader(requestMessage, forwardedRequestHeader);
 
         auto peerKind = isMutating ? NHydra::EPeerKind::Leader : NHydra::EPeerKind::Follower;
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
             multicellManager->GetMasterChannelOrThrow(ForwardedCellTag_, peerKind));
+        // TODO(nadya02): Set the correct timeout here.
+        proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
 
         auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
         batchReq->SetOriginalRequestId(context->GetRequestId());
-        batchReq->SetTimeout(ComputeForwardingTimeout(context, Bootstrap_->GetConfig()->ObjectService));
+        const auto& config = Bootstrap_->GetConfig()->ObjectService;
+        // Normally, forwarded request timeout is shortened so that backoff alarm on the remote side would trigger
+        // earlier than locally. If the timeout is already too small, however, than, ideally, we should cancel
+        // (local) backoff alarm. However, since such short timeouts are rare, and getting here requires non-warmed-up
+        // resolve cache, and retrying a timed out request should help, and it's not trivial to cancel backoff alarm
+        // from here, it's simpler to ignore this.
+        batchReq->SetTimeout(
+            ComputeForwardingTimeout(
+                context->GetTimeout().value_or(config->DefaultExecuteTimeout),
+                context->GetStartTime(),
+                config->ForwardedRequestTimeoutReserve,
+                /*reserved*/ nullptr));
         SetAuthenticationIdentity(batchReq, context->GetAuthenticationIdentity());
         batchReq->AddRequestMessage(std::move(forwardedMessage));
 
@@ -647,6 +695,7 @@ private:
     TBootstrap* const Bootstrap_;
     const TObjectId ObjectId_;
     const TCellTag ForwardedCellTag_;
+    const int ResolveDepth_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -740,8 +789,8 @@ private:
 
                 return objectManager->GetProxy(targetPayload.Object, targetPayload.Transaction);
             },
-            [&] (const TPathResolver::TRemoteObjectPayload& payload) -> IYPathServicePtr  {
-                return objectManager->CreateRemoteProxy(payload.ObjectId);
+            [&] (const TPathResolver::TRemoteObjectRedirectPayload& payload) -> IYPathServicePtr  {
+                return objectManager->CreateRemoteProxy(payload.ObjectId, payload.ResolveDepth);
             },
             [&] (const TPathResolver::TMissingObjectPayload& /*payload*/) -> IYPathServicePtr {
                 return TNonexistingService::Get();
@@ -749,6 +798,7 @@ private:
             [&] (const TPathResolver::TSequoiaRedirectPayload& payload) -> IYPathServicePtr {
                 THROW_ERROR_EXCEPTION(NObjectClient::EErrorCode::RequestInvolvesSequoia,
                     "Request involves Sequoia shard")
+                    << TErrorAttribute("path", targetPath)
                     << TErrorAttribute("rootstock_node_id", payload.RootstockNodeId)
                     << TErrorAttribute("rootstock_path", payload.RootstockPath);
             });
@@ -1294,7 +1344,8 @@ TObject* TObjectManager::GetObjectOrThrow(TObjectId id)
         THROW_ERROR_EXCEPTION(
             NYTree::EErrorCode::ResolveError,
             "No such object %v",
-            id);
+            id)
+            << TErrorAttribute("missing_object_id", id);
     }
 
     return object;
@@ -1354,9 +1405,9 @@ void TObjectManager::RemoveObject(TObject* object)
     }
 }
 
-IYPathServicePtr TObjectManager::CreateRemoteProxy(TObjectId id)
+IYPathServicePtr TObjectManager::CreateRemoteProxy(TObjectId id, int resolveDepth)
 {
-    return New<TRemoteProxy>(Bootstrap_, id);
+    return New<TRemoteProxy>(Bootstrap_, id, resolveDepth);
 }
 
 IYPathServicePtr TObjectManager::CreateRemoteProxy(TCellTag cellTag)
@@ -1701,10 +1752,10 @@ void TObjectManager::AdvanceObjectLifeStageAtForeignMasterCells(TObject* object)
     multicellManager->PostToMasters(advanceRequest, replicationCellTags);
 }
 
-TObject* TObjectManager::ResolvePathToObject(const TYPath& path, TTransaction* transaction, const TResolvePathOptions& options)
+TObject* TObjectManager::ResolvePathToLocalObject(const TYPath& path, TTransaction* transaction, const TResolvePathOptions& options)
 {
-    static const TString NullService;
-    static const TString NullMethod;
+    static const std::string NullService;
+    static const std::string NullMethod;
     TPathResolver resolver(
         Bootstrap_,
         NullService,
@@ -1724,59 +1775,139 @@ TObject* TObjectManager::ResolvePathToObject(const TYPath& path, TTransaction* t
     return payload->Object;
 }
 
+TObjectId TObjectManager::ResolvePathToObjectId(
+    const NYPath::TYPath& path,
+    const std::string& method,
+    NTransactionServer::TTransaction* transaction,
+    const TResolvePathOptions& options)
+{
+    static const std::string NullService;
+    TPathResolver resolver(
+        Bootstrap_,
+        NullService,
+        method,
+        path,
+        transaction);
+
+    auto result = resolver.Resolve(TPathResolverOptions{
+        .EnablePartialResolve = options.EnablePartialResolve,
+    });
+    auto optionalObjectId = Visit(
+        result.Payload,
+        [] (const TPathResolver::TLocalObjectPayload& payload) {
+            return std::make_optional(payload.Object->GetId());
+        },
+        [] (const TPathResolver::TRemoteObjectRedirectPayload& payload) {
+            return std::make_optional(payload.ObjectId);
+        },
+        [] (...) -> std::optional<TObjectId> {
+            return std::nullopt;
+        });
+
+    if (optionalObjectId) {
+        return *optionalObjectId;
+    }
+    THROW_ERROR_EXCEPTION("Failed to resolve path %v, object is either missing or lies in Sequoia", path);
+}
+
 auto TObjectManager::ResolveObjectIdsToPaths(const std::vector<TVersionedObjectId>& objectIds)
     -> TFuture<std::vector<TErrorOr<TVersionedObjectPath>>>
 {
-    // Request object paths from the primary cell.
-    auto proxy = CreateObjectServiceReadProxy(
-        Bootstrap_->GetRootClient(),
-        NApi::EMasterChannelKind::Follower);
-
-    // TODO(babenko): improve
-    auto batchReq = proxy.ExecuteBatch();
-    for (const auto& versionedId : objectIds) {
-        auto req = TCypressYPathProxy::Get(FromObjectId(versionedId.ObjectId) + "/@path");
-        SetTransactionId(req, versionedId.TransactionId);
-        batchReq->AddRequest(req);
+    if (objectIds.empty()) {
+        return MakeFuture<std::vector<TErrorOr<TVersionedObjectPath>>>({});
     }
 
-    return
-        batchReq->Invoke()
-        .Apply(BIND([=] (const TErrorOr<TObjectServiceProxy::TRspExecuteBatchPtr>& batchRspOrError) -> TErrorOr<std::vector<TErrorOr<TVersionedObjectPath>>> {
-            if (!batchRspOrError.IsOK()) {
-                return TError("Error requesting object paths")
-                    << batchRspOrError;
-            }
+    struct TOriginRequestInfo
+    {
+        TTransactionId TransactionId;
+        int OriginIndex;
+    };
 
-            const auto& batchRsp = batchRspOrError.Value();
-            auto rspOrErrors = batchRsp->GetResponses<TCypressYPathProxy::TRspGet>();
-            YT_VERIFY(rspOrErrors.size() == objectIds.size());
+    struct TPerCellRequest
+    {
+        TObjectServiceProxy::TReqExecuteBatchPtr Batch;
+        std::vector<TOriginRequestInfo> OriginRequestInfos;
+    };
+    TCompactFlatMap<TCellTag, TPerCellRequest, MaxSecondaryMasterCells> perCellRequests;
 
-            std::vector<TErrorOr<TVersionedObjectPath>> results;
-            results.reserve(rspOrErrors.size());
-            for (int index = 0; index < std::ssize(rspOrErrors); ++index) {
-                const auto& rspOrError = rspOrErrors[index];
-                if (rspOrError.IsOK()) {
-                    const auto& rsp = rspOrError.Value();
-                    results.push_back(TVersionedObjectPath{ConvertTo<TYPath>(TYsonString(rsp->value())), objectIds[index].TransactionId});
-                } else {
-                    results.push_back(TError(rspOrError));
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    for (int index : std::views::iota(0, std::ssize(objectIds))) {
+        const auto& [objectId, transactionId] = objectIds[index];
+        auto cellTag = CellTagFromId(objectId);
+        auto it = perCellRequests.find(cellTag);
+        if (it == perCellRequests.end()) {
+            it = EmplaceOrCrash(
+                perCellRequests,
+                cellTag,
+                TPerCellRequest{
+                    .Batch = TObjectServiceProxy::FromDirectMasterChannel(
+                        multicellManager->GetMasterChannelOrThrow(cellTag, EPeerKind::Follower))
+                        .ExecuteBatch(),
+                    .OriginRequestInfos = {},
+                });
+        }
+        auto& request = it->second;
+        request.OriginRequestInfos.emplace_back(transactionId, index);
+        auto req = TCypressYPathProxy::Get(FromObjectId(objectId) + "/@path");
+        SetTransactionId(req, transactionId);
+        SetAllowResolveFromSequoiaObject(req, true);
+        request.Batch->AddRequest(req);
+    }
+
+    auto results = std::make_shared<std::vector<TErrorOr<TVersionedObjectPath>>>(objectIds.size());
+    std::vector<TFuture<void>> perCellFutures;
+    perCellFutures.reserve(perCellRequests.size());
+    for (auto& [cellTag, request] : perCellRequests) {
+        perCellFutures.push_back(request.Batch->Invoke().Apply(
+            BIND([
+                cellTag,
+                originRequestInfos = std::move(request.OriginRequestInfos),
+                results
+            ] (const TErrorOr<TObjectServiceProxy::TRspExecuteBatchPtr>& responsesOrError) {
+                if (!responsesOrError.IsOK()) {
+                    auto error = TError("Error requesting object paths from master cell %v", cellTag)
+                        << responsesOrError;
+                    for (const auto& [transactionId, index] : originRequestInfos) {
+                        (*results)[index] = error;
+                    }
+                    return;
                 }
-            }
 
-            return results;
+                const auto& responses = responsesOrError.Value();
+                YT_VERIFY(responses->GetResponseCount() == std::ssize(originRequestInfos));
+
+                for (int index : std::views::iota(0, responses->GetResponseCount())) {
+                    const auto& responseOrError = responses->GetResponse<TYPathProxy::TRspGet>(index);
+                    auto [transactionId, originIndex] = originRequestInfos[index];
+                    auto& result = (*results)[originIndex];
+                    if (!responseOrError.IsOK()) {
+                        result = TError(responseOrError);
+                    } else {
+                        result = TVersionedObjectPath{
+                            .Path = ConvertTo<TYPath>(TYsonString(responseOrError.Value()->value())),
+                            .TransactionId = transactionId,
+                        };
+                    }
+                }
+            })));
+    }
+
+    return AllSucceeded(std::move(perCellFutures))
+        .Apply(BIND([results = std::move(results)] {
+            return std::move(*results);
         }));
 }
 
 void TObjectManager::ValidatePrerequisites(
-    NYTree::TYPathMaybeRef originalTargetPath,
-    const google::protobuf::RepeatedPtrField<TProtobufString>& originalAdditionalPaths,
+    const NRpc::NProto::TRequestHeader& requestHeader,
+    const std::string& method,
+    TObjectId targetObjectId,
     const NObjectClient::NProto::TPrerequisitesExt& prerequisites)
 {
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
     const auto& cypressManager = Bootstrap_->GetCypressManager();
 
-    auto getPrerequisiteTransaction = [&] (TTransactionId transactionId) {
+    auto validatePrerequisiteTransaction = [&] (TTransactionId transactionId) {
         auto* transaction = transactionManager->FindTransaction(transactionId);
         if (!IsObjectAlive(transaction)) {
             ThrowPrerequisiteCheckFailedNoSuchTransaction(transactionId);
@@ -1787,19 +1918,15 @@ void TObjectManager::ValidatePrerequisites(
                 "Prerequisite check failed: transaction %v is not active",
                 transactionId);
         }
-        return transaction;
     };
 
     for (const auto& prerequisite : prerequisites.transactions()) {
         auto transactionId = FromProto<TTransactionId>(prerequisite.transaction_id());
-        getPrerequisiteTransaction(transactionId);
+        validatePrerequisiteTransaction(transactionId);
     }
 
     for (const auto& prerequisite : prerequisites.revisions()) {
         const auto& path = prerequisite.path();
-        if (GetDynamicConfig()->ProhibitPrerequisiteRevisionsDifferFromExecutionPaths) {
-            THROW_ERROR_EXCEPTION_IF_FAILED(ValidatePrerequisiteRevisionPaths(originalTargetPath, originalAdditionalPaths, path));
-        }
         auto revision = FromProto<NHydra::TRevision>(prerequisite.revision());
 
         TCypressNode* trunkNode;
@@ -1811,6 +1938,14 @@ void TObjectManager::ValidatePrerequisites(
                 "Prerequisite check failed: failed to resolve path %v",
                 path)
                 << ex;
+        }
+        if (GetDynamicConfig()->ProhibitPrerequisiteRevisionsDifferFromExecutionPaths) {
+            std::vector<TObjectId> additionalObjectIds;
+            for (const auto& additionalPath : GetRequestAdditionalPaths(requestHeader)) {
+                auto additionalObjectId = ResolvePathToObjectId(additionalPath, method, /*transaction*/ nullptr, /*options*/ {});
+                additionalObjectIds.push_back(additionalObjectId);
+            }
+            THROW_ERROR_EXCEPTION_IF_FAILED(ValidatePrerequisiteRevisionPaths(requestHeader, targetObjectId, additionalObjectIds, trunkNode->GetId()));
         }
 
         if (trunkNode->GetRevision() != revision) {
@@ -1827,7 +1962,8 @@ void TObjectManager::ValidatePrerequisites(
 TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
     const TSharedRefArray& requestMessage,
     TCellTag cellTag,
-    NHydra::EPeerKind peerKind)
+    NHydra::EPeerKind peerKind,
+    bool* timeoutReserved)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -1843,7 +1979,9 @@ TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
 
     auto timeout = ComputeForwardingTimeout(
         FromProto<TDuration>(header.timeout()),
-        Bootstrap_->GetConfig()->ObjectService);
+        YT_OPTIONAL_FROM_PROTO(header, start_time, TInstant),
+        Bootstrap_->GetConfig()->ObjectService->ForwardedRequestTimeoutReserve,
+        timeoutReserved);
 
     auto identity = ParseAuthenticationIdentityFromProto(header);
 
@@ -1852,6 +1990,8 @@ TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
         multicellManager->GetMasterChannelOrThrow(cellTag, peerKind));
+    // TODO(nadya02): Set the correct timeout here.
+    proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
     auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
     batchReq->SetOriginalRequestId(requestId);
     batchReq->SetTimeout(timeout);
@@ -2146,7 +2286,7 @@ void TObjectManager::HydraPrepareDestroyObjects(
         const auto& handler = GetHandler(type);
         auto* object = handler->FindObject(id);
         if (!object || object->GetObjectRefCounter(/*flushUnrefs*/ true) > 0) {
-            THROW_ERROR_EXCEPTION("Object %v is no more a zombie", object->GetId());
+            THROW_ERROR_EXCEPTION("Object %v is no longer a zombie", id);
         }
     }
 
@@ -2586,7 +2726,7 @@ IAttributeDictionaryPtr TObjectManager::GetReplicatedAttributes(
     // Check system attributes.
     std::vector<ISystemAttributeProvider::TAttributeDescriptor> descriptors;
     proxy->ListBuiltinAttributes(&descriptors);
-    THashSet<TString> systemAttributeKeys;
+    THashSet<std::string> systemAttributeKeys;
     for (const auto& descriptor : descriptors) {
         systemAttributeKeys.insert(descriptor.InternedKey.Unintern());
 

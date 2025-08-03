@@ -1,11 +1,13 @@
+#include "ordered_store_manager.h"
+
+#include "config.h"
 #include "in_memory_manager.h"
 #include "ordered_dynamic_store.h"
-#include "ordered_store_manager.h"
 #include "store.h"
+#include "store_flusher.h"
 #include "tablet.h"
 #include "tablet_profiling.h"
 #include "transaction.h"
-#include "store_flusher.h"
 #include "versioned_chunk_meta_manager.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -21,6 +23,7 @@
 #include <yt/yt/ytlib/chunk_client/confirming_writer.h>
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/chunk_replica_cache.h>
 
 #include <yt/yt/ytlib/table_client/versioned_chunk_writer.h>
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
@@ -209,7 +212,9 @@ void TOrderedStoreManager::ResetActiveStore()
 }
 
 void TOrderedStoreManager::OnActiveStoreRotated()
-{ }
+{
+    Tablet_->RuntimeData()->OrderedDynamicStoreRotateEpoch.fetch_add(1);
+}
 
 bool TOrderedStoreManager::IsFlushNeeded() const
 {
@@ -289,7 +294,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
             TabletContext_->GetControlInvoker(),
             TabletContext_->GetLocalDescriptor(),
             TabletContext_->GetLocalRpcServer(),
-            Client_->GetNativeConnection()->GetCellDirectory()->GetDescriptorByCellIdOrThrow(tabletSnapshot->CellId),
+            tabletSnapshot,
             inMemoryMode,
             InMemoryManager_->GetConfig());
 
@@ -380,7 +385,8 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
 
         auto updateWriterStatistics = [&] {
             auto guard = Guard(task->RuntimeData.SpinLock);
-            task->RuntimeData.ProcessedWriterStatistics = TBackgroundActivityTaskInfoBase::TWriterStatistics(tableWriter->GetDataStatistics());
+            task->RuntimeData.ProcessedWriterStatistics =
+                TBackgroundActivityTaskInfoBase::TWriterStatistics(tableWriter->GetDataStatistics());
         };
 
         std::vector<TUnversionedRow> rows;
@@ -419,12 +425,18 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
 
         updateWriterStatistics();
 
+        const auto& smoothMovementData = tabletSnapshot->TabletRuntimeData->SmoothMovementData;
+        auto targetServantMountRevision = smoothMovementData.Role == ESmoothMovementRole::Source
+            ? smoothMovementData.SiblingServantMountRevision.load()
+            : TRevision{};
+
         std::vector<TChunkInfo> chunkInfos{
             TChunkInfo{
                 .ChunkId = tableWriter->GetChunkId(),
                 .ChunkMeta = tableWriter->GetMeta(),
                 .TabletId = tabletSnapshot->TabletId,
-                .MountRevision = tabletSnapshot->MountRevision
+                .MountRevision = tabletSnapshot->MountRevision,
+                .TargetServantMountRevision = targetServantMountRevision,
             }
         };
 
@@ -470,6 +482,11 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
             // TODO(aleksandra-zh): add meta as well.
         }
 
+        if (tabletSnapshot->Settings.MountConfig->RegisterChunkReplicasOnStoresUpdate) {
+            const auto& chunkReplicaCache = TabletContext_->GetChunkReplicaCache();
+            chunkReplicaCache->UpdateReplicas(chunkWriter->GetChunkId(), TAllyReplicasInfo::FromChunkWriter(chunkWriter));
+        }
+
         return result;
     });
 }
@@ -477,4 +494,3 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode
-

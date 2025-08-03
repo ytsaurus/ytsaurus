@@ -10,7 +10,7 @@ namespace NYT::NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(TReqExecuteBatchWithRetriesConfig)
+DECLARE_REFCOUNTED_STRUCT(TReqExecuteBatchRetriesConfig)
 
 DECLARE_REFCOUNTED_STRUCT(TObjectAttributeCacheConfig)
 DECLARE_REFCOUNTED_CLASS(TObjectAttributeCache)

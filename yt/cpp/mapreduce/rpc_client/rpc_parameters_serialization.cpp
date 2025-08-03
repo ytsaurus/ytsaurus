@@ -7,6 +7,8 @@
 
 #include <yt/yt/client/api/config.h>
 
+#include <yt/yt/client/table_client/name_table.h>
+
 #include <library/cpp/yson/node/node_io.h>
 
 namespace NYT::NDetail {
@@ -119,6 +121,16 @@ NYTree::EPermission ToApiPermission(EPermission permission)
             return NYTree::EPermission::Manage;
     }
     YT_ABORT();
+}
+
+NTransactionClient::EAtomicity ToApiAtomicity(EAtomicity atomicity)
+{
+    switch (atomicity) {
+        case EAtomicity::None:
+            return NTransactionClient::EAtomicity::None;
+        case EAtomicity::Full:
+            return NTransactionClient::EAtomicity::Full;
+    }
 }
 
 NApi::EJobSortField ToApiJobSortField(EJobSortField field)
@@ -252,12 +264,20 @@ NJobTrackerClient::EJobState ToApiJobState(EJobState state)
     YT_ABORT();
 }
 
+THashSet<TString> ToApiJobAttributes(const THashSet<EJobAttribute>& attributes) {
+    THashSet<TString> result;
+    for (const auto& attribute : attributes) {
+        result.insert(ToString(attribute));
+    }
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Generates a new mutation ID based on the given conditions.
 // The retry logic in a higher layer resets the mutation ID if the 'useSameMutationId' parameter is set to false.
 // If 'useSameMutationId' is true, the function marks the operation for a retry and maintains the same mutation ID.
-void SetMutationId(
+static void SetMutationId(
     NApi::TMutatingOptions* options,
     TMutationId* mutationId)
 {
@@ -270,11 +290,20 @@ void SetMutationId(
     options->MutationId = YtGuidFromUtilGuid(*mutationId);
 }
 
-void SetTransactionId(
+static void SetTransactionId(
     NApi::TTransactionalOptions* options,
     const TTransactionId& transactionId)
 {
     options->TransactionId = YtGuidFromUtilGuid(transactionId);
+}
+
+template <typename T>
+static void SerializeSuppressableAccessTrackingOptions(
+    NApi::TSuppressableAccessTrackingOptions* apiOptions,
+    const TSuppressableAccessTrackingOptions<T>& options)
+{
+    apiOptions->SuppressAccessTracking = options.SuppressAccessTracking_;
+    apiOptions->SuppressModificationTracking = options.SuppressModificationTracking_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -285,6 +314,7 @@ NApi::TGetNodeOptions SerializeOptionsForGet(
 {
     NApi::TGetNodeOptions result;
     SetTransactionId(&result, transactionId);
+    SerializeSuppressableAccessTrackingOptions(&result, options);
     if (options.AttributeFilter_) {
         result.Attributes = options.AttributeFilter_->Attributes_;
     }
@@ -305,6 +335,7 @@ NApi::TSetNodeOptions SerializeOptionsForSet(
     NApi::TSetNodeOptions result;
     SetMutationId(&result, &mutationId);
     SetTransactionId(&result, transactionId);
+    SerializeSuppressableAccessTrackingOptions(&result, options);
     if (options.Force_) {
         result.Force = *options.Force_;
     }
@@ -318,6 +349,7 @@ NApi::TNodeExistsOptions SerializeOptionsForExists(
 {
     NApi::TNodeExistsOptions result;
     SetTransactionId(&result, transactionId);
+    SerializeSuppressableAccessTrackingOptions(&result, options);
     if (options.ReadFrom_) {
         result.ReadFrom = NApi::EMasterChannelKind(*options.ReadFrom_);
     }
@@ -332,6 +364,7 @@ NApi::TMultisetAttributesNodeOptions SerializeOptionsForMultisetAttributes(
     NApi::TMultisetAttributesNodeOptions result;
     SetMutationId(&result, &mutationId);
     SetTransactionId(&result, transactionId);
+    SerializeSuppressableAccessTrackingOptions(&result, options);
     if (options.Force_) {
         result.Force = *options.Force_;
     }
@@ -409,6 +442,7 @@ NApi::TListNodeOptions SerializeOptionsForList(
 {
     NApi::TListNodeOptions result;
     SetTransactionId(&result, transactionId);
+    SerializeSuppressableAccessTrackingOptions(&result, options);
     if (options.AttributeFilter_) {
         result.Attributes = options.AttributeFilter_->Attributes_;
     }
@@ -650,6 +684,14 @@ NYson::TYsonString SerializeParametersForUpdateOperationParameters(const TUpdate
     return NYson::TYsonString(NodeToYsonString(result, NYson::EYsonFormat::Binary));
 }
 
+NApi::TGetJobOptions SerializeOptionsForGetJob(const TGetJobOptions& options) {
+    NApi::TGetJobOptions result;
+    if (options.AttributeFilter_) {
+        result.Attributes = ToApiJobAttributes(options.AttributeFilter_->Attributes_);
+    }
+    return result;
+}
+
 NApi::TListJobsOptions SerializeOptionsForListJobs(const TListJobsOptions& options)
 {
     NApi::TListJobsOptions result;
@@ -673,6 +715,9 @@ NApi::TListJobsOptions SerializeOptionsForListJobs(const TListJobsOptions& optio
     }
     if (options.WithMonitoringDescriptor_) {
         result.WithMonitoringDescriptor = *options.WithMonitoringDescriptor_;
+    }
+    if (options.WithInterruptionInfo_) {
+        result.WithInterruptionInfo = *options.WithInterruptionInfo_;
     }
     if (options.OperationIncarnation_) {
         result.OperationIncarnation = *options.OperationIncarnation_;
@@ -710,6 +755,9 @@ NApi::TListJobsOptions SerializeOptionsForListJobs(const TListJobsOptions& optio
     if (options.Offset_) {
         result.Offset = *options.Offset_;
     }
+    if (options.AttributeFilter_) {
+        result.Attributes = ToApiJobAttributes(options.AttributeFilter_->Attributes_);
+    }
     return result;
 }
 
@@ -743,6 +791,7 @@ NApi::TFileReaderOptions SerializeOptionsForReadFile(
 {
     NApi::TFileReaderOptions result;
     SetTransactionId(&result, transactionId);
+    SerializeSuppressableAccessTrackingOptions(&result, options);
     result.Offset = options.Offset_;
     if (options.Length_) {
         result.Length = *options.Length_;
@@ -844,9 +893,50 @@ NApi::TReshardTableOptions SerializeOptionsForReshardTable(
     return result;
 }
 
+NApi::TModifyRowsOptions SerializeOptionsForInsertRows(const TInsertRowsOptions& options)
+{
+    NApi::TModifyRowsOptions result;
+    if (options.RequireSyncReplica_) {
+        result.RequireSyncReplica = *options.RequireSyncReplica_;
+    }
+    if (options.Update_) {
+        result.AllowMissingKeyColumns = *options.Update_;
+    }
+    return result;
+}
+
+NApi::TLookupRowsOptions SerializeOptionsForLookupRows(
+    const NTableClient::TNameTablePtr& nameTable,
+    const TLookupRowsOptions& options)
+{
+    NApi::TLookupRowsOptions result;
+    result.KeepMissingRows = options.KeepMissingRows_;
+    if (options.Columns_) {
+        const auto& columnNames = options.Columns_->Parts_;
+
+        std::vector<int> indexes;
+        indexes.reserve(columnNames.size());
+        for (const auto& columnName : columnNames) {
+            indexes.push_back(nameTable->GetIdOrThrow(columnName));
+        }
+
+        result.ColumnFilter = NTableClient::TColumnFilter(indexes);
+    }
+    if (options.Timeout_) {
+        result.Timeout = *options.Timeout_;
+    }
+    if (options.Versioned_) {
+        NTableClient::TVersionedReadOptions versionedReadOptions;
+        versionedReadOptions.ReadMode = NTableClient::EVersionedIOMode::LatestTimestamp;
+        result.VersionedReadOptions = std::move(versionedReadOptions);
+    }
+    return result;
+}
+
 NApi::TSelectRowsOptions SerializeOptionsForSelectRows(const TSelectRowsOptions& options)
 {
     NApi::TSelectRowsOptions result;
+    SerializeSuppressableAccessTrackingOptions(&result, options);
     if (options.Timeout_) {
         result.Timeout = *options.Timeout_;
     }
@@ -869,12 +959,21 @@ NApi::TTableReaderOptions SerializeOptionsForReadTable(
 {
     NApi::TTableReaderOptions result;
     SetTransactionId(&result, transactionId);
+    SerializeSuppressableAccessTrackingOptions(&result, options);
     if (options.Config_) {
         result.Config = NYTree::ConvertTo<NTableClient::TTableReaderConfigPtr>(
             NYson::TYsonString(NodeToYsonString(*options.Config_, NYson::EYsonFormat::Binary)));
     }
     result.EnableRowIndex = options.ControlAttributes_.EnableRowIndex_;
     result.EnableRangeIndex = options.ControlAttributes_.EnableRangeIndex_;
+    return result;
+}
+
+NApi::TReadTablePartitionOptions SerializeOptionsForReadTablePartition(
+    const TTablePartitionReaderOptions& options)
+{
+    NApi::TReadTablePartitionOptions result;
+    SerializeSuppressableAccessTrackingOptions(&result, options);
     return result;
 }
 
@@ -913,6 +1012,15 @@ NApi::TAlterTableReplicaOptions SerializeOptionsForAlterTableReplica(
     }
     if (options.Mode_) {
         result.Mode = NTabletClient::ETableReplicaMode(*options.Mode_);
+    }
+    return result;
+}
+
+NApi::TModifyRowsOptions SerializeOptionsForDeleteRows(const TDeleteRowsOptions& options)
+{
+    NApi::TModifyRowsOptions result;
+    if (options.RequireSyncReplica_) {
+        result.RequireSyncReplica = *options.RequireSyncReplica_;
     }
     return result;
 }
@@ -974,6 +1082,7 @@ NApi::TPartitionTablesOptions SerializeOptionsForGetTablePartitions(
         result.MaxPartitionCount = *options.MaxPartitionCount_;
     }
     result.AdjustDataWeightPerPartition = options.AdjustDataWeightPerPartition_;
+    result.EnableCookies = options.EnableCookies_;
     return result;
 }
 

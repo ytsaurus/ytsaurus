@@ -72,7 +72,6 @@ public:
             driver = CreateDriver(
                 connection,
                 driverConfig,
-                CreateAlwaysThrowingSignatureGenerator(),
                 CreateAlwaysThrowingSignatureValidator());
         } catch(const std::exception& ex) {
             throw Py::RuntimeError(TString("Error creating driver\n") + ex.what());

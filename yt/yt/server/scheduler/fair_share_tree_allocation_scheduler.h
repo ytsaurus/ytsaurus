@@ -609,7 +609,7 @@ public:
     void RegisterOperation(const TSchedulerOperationElement* element);
     void UnregisterOperation(const TSchedulerOperationElement* element);
 
-    void OnOperationMaterialized(const TSchedulerOperationElement* element);
+    TError OnOperationMaterialized(const TSchedulerOperationElement* element);
     TError CheckOperationSchedulingInSeveralTreesAllowed(const TSchedulerOperationElement* element) const;
 
     void EnableOperation(const TSchedulerOperationElement* element) const;
@@ -690,6 +690,8 @@ public:
     static bool IsGpuTree(const TFairShareStrategyTreeConfigPtr& config);
     bool IsGpuTree() const;
 
+    void PopulateOrchidService(const NYTree::TCompositeMapServicePtr& orchidService) const;
+
     //! Testing.
     void OnAllocationStartedInTest(
         TSchedulerOperationElement* element,
@@ -739,6 +741,7 @@ private:
     std::optional<THashSet<int>> SsdPriorityPreemptionMedia_;
 
     TSchedulingSegmentManager SchedulingSegmentManager_;
+    NYson::TYsonString SerializedSchedulingSegmentsInfo_;
 
     // TODO(eshcherbin): Add generic data structure for state sharding.
     struct alignas(CacheLineSize) TNodeStateShard

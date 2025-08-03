@@ -13,18 +13,12 @@
 
 #include <yt/yt/server/master/chaos_server/chaos_manager.h>
 
-#include <yt/yt/server/master/chunk_server/chunk_manager.h>
-
 #include <yt/yt/server/master/maintenance_tracker_server/cluster_proxy_node.h>
 
 #include <yt/yt/server/master/security_server/account.h>
 #include <yt/yt/server/master/security_server/user.h>
 
-#include <yt/yt/server/master/tablet_server/tablet_manager.h>
-
 #include <yt/yt/server/master/object_server/yson_intern_registry.h>
-
-#include <yt/yt/server/master/chaos_server/chaos_cell_bundle.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -44,7 +38,7 @@ using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = CypressServerLogger;
+constinit const auto Logger = CypressServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -116,23 +110,24 @@ const TDynamicCypressManagerConfigPtr& TNontemplateCypressNodeTypeHandlerBase::G
     return Bootstrap_->GetConfigManager()->GetConfig()->CypressManager;
 }
 
+void TNontemplateCypressNodeTypeHandlerBase::ZombifyCorePrologue(TCypressNode* node)
+{
+    if (node->IsTrunk()) {
+        // Invalidate resolve cache.
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        const auto& resolveCache = cypressManager->GetResolveCache();
+        resolveCache->InvalidateNode(node);
+    }
+}
+
 void TNontemplateCypressNodeTypeHandlerBase::DestroyCorePrologue(TCypressNode* node)
 {
-    // Reset parent links from immediate descendants.
-    for (auto* descendant : node->ImmediateDescendants()) {
-        descendant->ResetParent();
-    }
-    node->ImmediateDescendants().clear();
     node->SetParent(nullptr);
 
     if (node->IsTrunk()) {
         // Reset reference to shard.
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->ResetShard(node);
-
-        // Invalidate resolve cache.
-        const auto& resolveCache = cypressManager->GetResolveCache();
-        resolveCache->InvalidateNode(node);
     }
 
     // Clear ACDs to unregister the node from linked objects.
@@ -153,6 +148,8 @@ void TNontemplateCypressNodeTypeHandlerBase::SerializeNodeCore(
     auto erasedType = node->GetType();
     if (erasedType == EObjectType::PortalExit) {
         erasedType = EObjectType::MapNode;
+    } else if (erasedType == EObjectType::Scion) {
+        erasedType = EObjectType::SequoiaMapNode;
     }
 
     // These are loaded in TCypressManager::TNodeFactory::MaterializeNode.
@@ -186,6 +183,24 @@ TCypressNode* TNontemplateCypressNodeTypeHandlerBase::MaterializeNodeCore(
     TMaterializeNodeContext* context,
     ICypressNodeFactory* factory)
 {
+    auto sourceAccount = Load<TAccountRawPtr>(*context);
+    auto sourceResourceUsage = Load<TClusterResources>(*context);
+    auto sourceAcd = Load<TAccessControlDescriptor>(*context);
+    auto opaque = Load<bool>(*context);
+    auto optionalAnnotation = Load<std::optional<std::string>>(*context);
+    auto creationTime = Load<TInstant>(*context);
+    auto modificationTime = Load<TInstant>(*context);
+    auto expirationTime = Load<std::optional<TInstant>>(*context);
+    auto expirationTimeout = Load<std::optional<TDuration>>(*context);
+    auto keyToAttribute = Load<std::vector<std::pair<std::string, TYsonString>>>(*context);
+
+    auto* clonedAccount = factory->GetClonedNodeAccount(sourceAccount);
+    factory->ValidateClonedAccount(
+        context->GetMode(),
+        sourceAccount,
+        sourceResourceUsage,
+        clonedAccount);
+
     // See SerializeNodeCore.
    TCypressNode* trunkNode = nullptr;
     if (auto targetNodeId = context->GetInplaceLoadTargetNodeId()) {
@@ -198,19 +213,11 @@ TCypressNode* TNontemplateCypressNodeTypeHandlerBase::MaterializeNodeCore(
         trunkNode = cypressManager->GetNodeOrThrow({targetNodeId, NullTransactionId});
     } else {
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto clonedId = objectManager->GenerateId(GetObjectType());
+        auto clonedId = context->GetHintId()
+            ? context->GetHintId()
+            : objectManager->GenerateId(GetObjectType());
         trunkNode = factory->InstantiateNode(clonedId, context->GetExternalCellTag());
     }
-
-    auto sourceAccount = Load<TAccountRawPtr>(*context);
-    auto sourceResourceUsage = Load<TClusterResources>(*context);
-
-    auto* clonedAccount = factory->GetClonedNodeAccount(sourceAccount);
-    factory->ValidateClonedAccount(
-        context->GetMode(),
-        sourceAccount,
-        sourceResourceUsage,
-        clonedAccount);
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     securityManager->SetAccount(
@@ -218,7 +225,6 @@ TCypressNode* TNontemplateCypressNodeTypeHandlerBase::MaterializeNodeCore(
         clonedAccount,
         /*transaction*/ nullptr);
 
-    auto sourceAcd = Load<TAccessControlDescriptor>(*context);
     if (factory->ShouldPreserveAcl(context->GetMode()) && trunkNode->GetType() != EObjectType::PortalExit) {
         trunkNode->Acd().SetInherit(sourceAcd.Inherit());
         trunkNode->Acd().SetEntries(sourceAcd.Acl());
@@ -233,45 +239,38 @@ TCypressNode* TNontemplateCypressNodeTypeHandlerBase::MaterializeNodeCore(
     }
 
     // Copy opaque.
-    auto opaque = Load<bool>(*context);
     trunkNode->SetOpaque(opaque);
 
     // Copy annotation.
-    auto optionalAnnotation = Load<std::optional<TString>>(*context);
     if (optionalAnnotation) {
-        trunkNode->SetAnnotation(*optionalAnnotation);
+        trunkNode->SetAnnotation(std::move(*optionalAnnotation));
     } else {
         trunkNode->RemoveAnnotation();
     }
 
     // Copy creation time.
-    auto creationTime = Load<TInstant>(*context);
     if (factory->ShouldPreserveCreationTime()) {
         trunkNode->SetCreationTime(creationTime);
     }
 
     // Copy modification time.
-    auto modificationTime = Load<TInstant>(*context);
     if (factory->ShouldPreserveModificationTime()) {
         trunkNode->SetModificationTime(modificationTime);
     }
 
     // Copy expiration time.
-    auto expirationTime = Load<std::optional<TInstant>>(*context);
     if (factory->ShouldPreserveExpirationTime() && expirationTime) {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->SetExpirationTime(trunkNode, expirationTime);
     }
 
     // Copy expiration timeout.
-    auto expirationTimeout = Load<std::optional<TDuration>>(*context);
     if (factory->ShouldPreserveExpirationTimeout() && expirationTimeout) {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->SetExpirationTimeout(trunkNode, expirationTimeout);
     }
 
     // Copy attributes directly to suppress validation.
-    auto keyToAttribute = Load<std::vector<std::pair<TString, TYsonString>>>(*context);
     if (!keyToAttribute.empty()) {
         auto* clonedAttributes = trunkNode->GetMutableAttributes();
         const auto& ysonInternRegistry = Bootstrap_->GetYsonInternRegistry();
@@ -402,17 +401,6 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCoreEpilogue(
     securityManager->ResetAccount(branchedNode);
 
     securityManager->UpdateMasterMemoryUsage(originatingNode);
-
-    if (originatingNode->IsSequoia() && originatingNode->IsNative()) {
-        if (branchedNode->MutableSequoiaProperties()->Tombstone) {
-            if (originatingNode->IsTrunk()) {
-                const auto& objectManager = Bootstrap_->GetObjectManager();
-                objectManager->UnrefObject(originatingNode);
-            } else {
-                originatingNode->MutableSequoiaProperties()->Tombstone = true;
-            }
-        }
-    }
 }
 
 TCypressNode* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
@@ -459,9 +447,7 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
     // Copy ACD.
     if (factory->ShouldPreserveAcl(mode)) {
         clonedTrunkNode->Acd().SetInherit(sourceNode->Acd().Inherit());
-        for (const auto& ace : sourceNode->Acd().Acl().Entries) {
-            clonedTrunkNode->Acd().AddEntry(ace);
-        }
+        clonedTrunkNode->Acd().SetEntries(sourceNode->Acd().Acl());
     }
 
     // Copy builtin attributes.
@@ -474,557 +460,32 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
     securityManager->UpdateMasterMemoryUsage(clonedTrunkNode);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-template <bool Transient>
-void TCompositeNodeBase::TAttributes<Transient>::Persist(const NCellMaster::TPersistenceContext& context)
-    requires (!Transient)
+void TNontemplateCypressNodeTypeHandlerBase::RefObject(TCypressNode* node)
 {
-    using NCellMaster::EMasterReign;
-    using NYT::Persist;
-
-    Persist(context, CompressionCodec);
-    Persist(context, ErasureCodec);
-    Persist(context, HunkErasureCodec);
-    Persist(context, EnableStripedErasure);
-    Persist(context, ReplicationFactor);
-    Persist(context, Vital);
-    Persist(context, Atomicity);
-    Persist(context, CommitOrdering);
-    Persist(context, InMemoryMode);
-    // COMPAT(cherepashka)
-    if (context.GetVersion() >= EMasterReign::EnumsAndChunkReplicationReductionsInTTableNode) {
-        Persist(context, OptimizeFor);
-    } else {
-        auto compatOptimizeFor = Load<TVersionedBuiltinAttribute<NTableClient::ECompatOptimizeFor>>(context.LoadContext());
-        if (compatOptimizeFor.IsNull()) {
-            OptimizeFor.Reset();
-        } else if (compatOptimizeFor.IsTombstoned()) {
-            OptimizeFor.Remove();
-        } else if (compatOptimizeFor.IsSet()) {
-            auto optimizeFor = compatOptimizeFor.ToOptional();
-            YT_VERIFY(optimizeFor);
-            OptimizeFor.Set(CheckedEnumCast<NTableClient::EOptimizeFor>(*optimizeFor));
-        }
-    }
-    Persist(context, ProfilingMode);
-    Persist(context, ProfilingTag);
-    // COMPAT(cherepashka)
-    if (context.GetVersion() >= EMasterReign::EnumsAndChunkReplicationReductionsInTTableNode) {
-        Persist(context, ChunkMergerMode);
-    } else {
-        auto compatChunkMergerMode = Load<TVersionedBuiltinAttribute<NChunkClient::ECompatChunkMergerMode>>(context.LoadContext());
-        if (compatChunkMergerMode.IsNull()) {
-            ChunkMergerMode.Reset();
-        } else if (compatChunkMergerMode.IsTombstoned()) {
-            ChunkMergerMode.Remove();
-        } else if (compatChunkMergerMode.IsSet()) {
-            auto chunkMergerMode = compatChunkMergerMode.ToOptional();
-            YT_VERIFY(chunkMergerMode);
-            ChunkMergerMode.Set(CheckedEnumCast<NChunkClient::EChunkMergerMode>(*chunkMergerMode));
-        }
-    }
-    Persist(context, PrimaryMediumIndex);
-    Persist(context, Media);
-    Persist(context, TabletCellBundle);
-    Persist(context, ChaosCellBundle);
-
-    // COMPAT(kivedernikov)
-    if (!context.IsLoad() || context.GetVersion() >= EMasterReign::HunkMedia) {
-        Persist(context, HunkMedia);
-        Persist(context, HunkPrimaryMediumIndex);
-    }
+    Bootstrap_->GetObjectManager()->RefObject(node);
 }
 
-template <bool Transient>
-void TCompositeNodeBase::TAttributes<Transient>::Persist(const NCypressServer::TCopyPersistenceContext& context)
-    requires Transient
+void TNontemplateCypressNodeTypeHandlerBase::UnrefObject(TCypressNode* node)
 {
-    using NYT::Persist;
-#define XX(camelCaseName, snakeCaseName) \
-    Persist(context, camelCaseName);
-
-    FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
-#undef XX
-}
-
-template <bool Transient>
-bool TCompositeNodeBase::TAttributes<Transient>::AreFull() const
-{
-#define XX(camelCaseName, snakeCaseName) \
-    && camelCaseName.IsSet()
-    return true FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
-#undef XX
-}
-
-template <bool Transient>
-bool TCompositeNodeBase::TAttributes<Transient>::AreEmpty() const
-{
-#define XX(camelCaseName, snakeCaseName) \
-    && !camelCaseName.IsNull()
-    return true FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
-#undef XX
-}
-
-template <bool Transient>
-TCompositeNodeBase::TPersistentAttributes
-TCompositeNodeBase::TAttributes<Transient>::ToPersistent() const
-    requires Transient
-{
-    TPersistentAttributes result;
-#define XX(camelCaseName, snakeCaseName) \
-    if (camelCaseName.IsSet()) { \
-        result.camelCaseName.Set(TVersionedBuiltinAttributeTraits<decltype(result.camelCaseName)::TValue>::FromRaw(camelCaseName.Unbox())); \
-    }
-    FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
-#undef XX
-    return result;
-}
-
-template <bool Transient>
-TCompositeNodeBase::TAttributes<Transient>
-TCompositeNodeBase::TAttributes<Transient>::Clone() const
-    requires (!Transient)
-{
-    TCompositeNodeBase::TAttributes<Transient> result;
-#define XX(camelCaseName, snakeCaseName) \
-    result.camelCaseName = camelCaseName.Clone();
-    FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
-#undef XX
-    return result;
-}
-
-template struct TCompositeNodeBase::TAttributes<true>;
-template struct TCompositeNodeBase::TAttributes<false>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TCompositeNodeBase::Save(NCellMaster::TSaveContext& context) const
-{
-    TCypressNode::Save(context);
-
-    using NYT::Save;
-    TUniquePtrSerializer<>::Save(context, Attributes_);
-}
-
-void TCompositeNodeBase::Load(NCellMaster::TLoadContext& context)
-{
-    TCypressNode::Load(context);
-
-    using NYT::Load;
-    TUniquePtrSerializer<>::Load(context, Attributes_);
-}
-
-bool TCompositeNodeBase::HasInheritableAttributes() const
-{
-    for (auto* node = this; node; node = node->GetOriginator()->As<TCompositeNodeBase>()) {
-        if (node->Attributes_) {
-            YT_ASSERT(!node->Attributes_->AreEmpty());
-            return true;
-        }
-    }
-
-    return false;
-}
-
-const TCompositeNodeBase::TPersistentAttributes* TCompositeNodeBase::FindAttributes() const
-{
-    return Attributes_.get();
-}
-
-bool TCompositeNodeBase::CompareInheritableAttributes(
-    const TTransientAttributes& attributes,
-    ENodeMaterializationReason reason) const
-{
-    if (!HasInheritableAttributes()) {
-        return attributes.AreEmpty();
-    }
-
-#define XX(camelCaseName, snakeCaseName) \
-    if (TryGet##camelCaseName() != attributes.camelCaseName.ToOptional()) { \
-        return false; \
-    }
-
-    if (reason == ENodeMaterializationReason::Copy) {
-        FOR_EACH_INHERITABLE_DURING_COPY_ATTRIBUTE(XX)
-    } else {
-        FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
-    }
-#undef XX
-
-    return true;
-}
-
-TConstInheritedAttributeDictionaryPtr TCompositeNodeBase::MaybePatchInheritableAttributes(
-    const TConstInheritedAttributeDictionaryPtr& attributes,
-    ENodeMaterializationReason reason) const
-{
-    if (CompareInheritableAttributes(attributes->Attributes())) {
-        return attributes;
-    }
-
-    auto updatedInheritedAttributeDictionary = New<TInheritedAttributeDictionary>(attributes);
-    auto& underlyingAttributes = updatedInheritedAttributeDictionary->MutableAttributes();
-
-#define XX(camelCaseName, snakeCaseName) \
-    if (auto inheritedValue = TryGet##camelCaseName()) { \
-        underlyingAttributes.camelCaseName.Set(*inheritedValue); \
-    }
-
-    if (reason == ENodeMaterializationReason::Copy) {
-        FOR_EACH_INHERITABLE_DURING_COPY_ATTRIBUTE(XX)
-    } else {
-        FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
-    }
-#undef XX
-
-    return updatedInheritedAttributeDictionary;
-}
-
-void TCompositeNodeBase::FillInheritableAttributes(TTransientAttributes* attributes, ENodeMaterializationReason reason) const
-{
-#define XX(camelCaseName, snakeCaseName) \
-    if (!attributes->camelCaseName.IsSet()) { \
-        if (auto inheritedValue = TryGet##camelCaseName()) { \
-            attributes->camelCaseName.Set(*inheritedValue); \
-        } \
-    }
-
-    if (HasInheritableAttributes()) {
-        if (reason == ENodeMaterializationReason::Copy) {
-            FOR_EACH_INHERITABLE_DURING_COPY_ATTRIBUTE(XX)
-        } else {
-            FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
-        }
-    }
-#undef XX
-}
-
-void TCompositeNodeBase::SetAttributes(const TPersistentAttributes* attributes)
-{
-    if (!attributes || attributes->AreEmpty()) {
-        Attributes_.reset();
-    } else if (Attributes_) {
-        *Attributes_ = attributes->Clone();
-    } else {
-        Attributes_ = std::make_unique<TPersistentAttributes>(attributes->Clone());
-    }
-}
-
-void TCompositeNodeBase::CloneAttributesFrom(const TCompositeNodeBase* sourceNode)
-{
-    auto* attributes = sourceNode->FindAttributes();
-    SetAttributes(attributes);
-}
-
-void TCompositeNodeBase::MergeAttributesFrom(const TCompositeNodeBase* branchedNode)
-{
-    auto* attributes = branchedNode->FindAttributes();
-    if (!attributes) {
-        return;
-    }
-
-    if (!Attributes_) {
-        SetAttributes(attributes);
-        return;
-    }
-
-#define XX(camelCaseName, snakeCaseName) \
-    Attributes_->camelCaseName.Merge(attributes->camelCaseName, IsTrunk());
-
-    FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
-#undef XX
-}
-
-#define XX(camelCaseName, snakeCaseName) \
-const decltype(std::declval<TCompositeNodeBase::TPersistentAttributes>().camelCaseName)* TCompositeNodeBase::DoTryGet##camelCaseName() const \
-{ \
-    return Attributes_ ? &Attributes_->camelCaseName : nullptr; \
-} \
-\
-auto TCompositeNodeBase::TryGet##camelCaseName() const -> std::optional<TRawVersionedBuiltinAttributeType<T##camelCaseName>> \
-{ \
-    using TAttribute = decltype(TPersistentAttributes::camelCaseName); \
-    return TAttribute::TryGet(&TCompositeNodeBase::DoTryGet##camelCaseName, this); \
-} \
-\
-bool TCompositeNodeBase::Has##camelCaseName() const \
-{ \
-    return TryGet##camelCaseName().has_value(); \
-} \
-\
-void TCompositeNodeBase::Set##camelCaseName(TCompositeNodeBase::T##camelCaseName value) \
-{ \
-    if (!Attributes_) { \
-        Attributes_ = std::make_unique<TPersistentAttributes>(); \
-    } \
-    Attributes_->camelCaseName.Set(std::move(value)); \
-} \
-\
-void TCompositeNodeBase::Remove##camelCaseName() \
-{ \
-    if (!Attributes_) { \
-        return; \
-    } \
-\
-    if (IsTrunk()) { \
-        Attributes_->camelCaseName.Reset(); \
-    } else { \
-        Attributes_->camelCaseName.Remove(); \
-    } \
-\
-    if (Attributes_->AreEmpty()) { \
-        Attributes_.reset(); \
-    } \
-}
-
-FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
-#undef XX
-
-////////////////////////////////////////////////////////////////////////////////
-
-void GatherInheritableAttributes(
-    const TCypressNode* node,
-    TCompositeNodeBase::TTransientAttributes* attributes,
-    ENodeMaterializationReason reason)
-{
-    for (auto* ancestor = node; ancestor && !attributes->AreFull(); ancestor = ancestor->GetParent()) {
-        ancestor->As<TCompositeNodeBase>()->FillInheritableAttributes(attributes, reason);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TInheritedAttributeDictionary::TInheritedAttributeDictionary(TBootstrap* bootstrap)
-    : Bootstrap_(bootstrap)
-{ }
-
-TInheritedAttributeDictionary::TInheritedAttributeDictionary(
-    const TBootstrap* bootstrap,
-    NYTree::IAttributeDictionaryPtr&& attributes)
-    : Bootstrap_(bootstrap)
-{
-    for (const auto& [key, value] : attributes->ListPairs()){
-        SetYson(key, value);
-    }
-}
-
-TInheritedAttributeDictionary::TInheritedAttributeDictionary(const TConstInheritedAttributeDictionaryPtr& other)
-    : TInheritedAttributeDictionary(
-        other->Bootstrap_,
-        other->Clone())
-{ }
-
-auto TInheritedAttributeDictionary::ListKeys() const -> std::vector<TKey>
-{
-    std::vector<TKey> result;
-#define XX(camelCaseName, snakeCaseName) \
-    if (InheritedAttributes_.camelCaseName.IsSet()) {  \
-        result.push_back(#snakeCaseName); \
-    }
-
-    FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
-#undef XX
-
-    if (Fallback_) {
-        auto fallbackKeys = Fallback_->ListKeys();
-        result.insert(result.end(), fallbackKeys.begin(), fallbackKeys.end());
-        SortUnique(result);
-    }
-
-    return result;
-}
-
-auto TInheritedAttributeDictionary::ListPairs() const -> std::vector<TKeyValuePair>
-{
-    return ListAttributesPairs(*this);
-}
-
-auto TInheritedAttributeDictionary::FindYson(TKeyView key) const -> TValue
-{
-#define XX(camelCaseName, snakeCaseName) \
-    if (key == #snakeCaseName) { \
-        auto optionalValue = InheritedAttributes_.camelCaseName.ToOptional(); \
-        return optionalValue ? ConvertToYsonString(*optionalValue) : TYsonString(); \
-    } \
-
-    FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX);
-#undef XX
-
-    if (key == EInternedAttributeKey::PrimaryMedium.Unintern()) {
-        auto optionalPrimaryMediumIndex = InheritedAttributes_.PrimaryMediumIndex.ToOptional();
-        if (!optionalPrimaryMediumIndex) {
-            return {};
-        }
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto* medium = chunkManager->GetMediumByIndex(*optionalPrimaryMediumIndex);
-        return ConvertToYsonString(medium->GetName());
-    }
-
-    if (key == EInternedAttributeKey::HunkPrimaryMedium.Unintern()) {
-        auto optionalHunkPrimaryMediumIndex = InheritedAttributes_.HunkPrimaryMediumIndex.ToOptional();
-        if (!optionalHunkPrimaryMediumIndex) {
-            return {};
-        }
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto* medium = chunkManager->GetMediumByIndex(*optionalHunkPrimaryMediumIndex);
-        return ConvertToYsonString(medium->GetName());
-    }
-
-    if (key == EInternedAttributeKey::Media.Unintern()) {
-        auto optionalReplication = InheritedAttributes_.Media.ToOptional();
-        if (!optionalReplication) {
-            return {};
-        }
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        return ConvertToYsonString(TSerializableChunkReplication(*optionalReplication, chunkManager));
-    }
-
-    if (key == EInternedAttributeKey::HunkMedia.Unintern()) {
-        auto optionalReplication = InheritedAttributes_.HunkMedia.ToOptional();
-        if (!optionalReplication) {
-            return {};
-        }
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        return ConvertToYsonString(TSerializableChunkReplication(*optionalReplication, chunkManager));
-    }
-
-    if (key == EInternedAttributeKey::TabletCellBundle.Unintern()) {
-        auto optionalCellBundle = InheritedAttributes_.TabletCellBundle.ToOptional();
-        if (!optionalCellBundle) {
-            return {};
-        }
-        YT_VERIFY(*optionalCellBundle);
-        return ConvertToYsonString((*optionalCellBundle)->GetName());
-    }
-
-    if (key == EInternedAttributeKey::ChaosCellBundle.Unintern()) {
-        auto optionalCellBundle = InheritedAttributes_.ChaosCellBundle.ToOptional();
-        if (!optionalCellBundle) {
-            return {};
-        }
-        YT_VERIFY(*optionalCellBundle);
-        return ConvertToYsonString((*optionalCellBundle)->GetName());
-    }
-
-    return Fallback_ ? Fallback_->FindYson(key) : TYsonString();
-}
-
-void TInheritedAttributeDictionary::SetYson(TKeyView key, const TYsonString& value)
-{
-#define XX(camelCaseName, snakeCaseName) \
-    if (key == #snakeCaseName) { \
-        if (key == EInternedAttributeKey::CompressionCodec.Unintern()) { \
-            const auto& chunkManagerConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager; \
-            ValidateCompressionCodec( \
-                value, \
-                chunkManagerConfig->ForbiddenCompressionCodecs, \
-                chunkManagerConfig->ForbiddenCompressionCodecNameToAlias); \
-        } \
-        if (key == EInternedAttributeKey::ErasureCodec.Unintern()) { \
-            ValidateErasureCodec( \
-                value, \
-                Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->ForbiddenErasureCodecs); \
-        } \
-        using TAttr = decltype(InheritedAttributes_.camelCaseName)::TValue; \
-        InheritedAttributes_.camelCaseName.Set(ConvertTo<TAttr>(value)); \
-        return; \
-    }
-
-    FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX)
-#undef XX
-
-    if (key == EInternedAttributeKey::PrimaryMedium.Unintern()) {
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto mediumName = ConvertTo<std::string>(value);
-        auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
-        InheritedAttributes_.PrimaryMediumIndex.Set(medium->GetIndex());
-        return;
-    }
-
-    if (key == EInternedAttributeKey::HunkPrimaryMedium.Unintern()) {
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto mediumName = ConvertTo<std::string>(value);
-        auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
-        InheritedAttributes_.HunkPrimaryMediumIndex.Set(medium->GetIndex());
-        return;
-    }
-
-    if (key == EInternedAttributeKey::Media.Unintern()) {
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
-        TChunkReplication replication;
-        replication.SetVital(true);
-        serializableReplication.ToChunkReplication(&replication, chunkManager);
-        InheritedAttributes_.Media.Set(replication);
-        return;
-    }
-
-    if (key == EInternedAttributeKey::HunkMedia.Unintern()) {
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
-        TChunkReplication replication;
-        replication.SetVital(true);
-        serializableReplication.ToChunkReplication(&replication, chunkManager);
-        InheritedAttributes_.HunkMedia.Set(replication);
-        return;
-    }
-
-    if (key == EInternedAttributeKey::TabletCellBundle.Unintern()) {
-        auto bundleName = ConvertTo<std::string>(value);
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        auto* bundle = tabletManager->GetTabletCellBundleByNameOrThrow(bundleName, true /*activeLifeStageOnly*/);
-        InheritedAttributes_.TabletCellBundle.Set(bundle);
-        return;
-    }
-
-    if (key == EInternedAttributeKey::ChaosCellBundle.Unintern()) {
-        auto bundleName = ConvertTo<std::string>(value);
-        const auto& chaosManager = Bootstrap_->GetChaosManager();
-        auto* bundle = chaosManager->GetChaosCellBundleByNameOrThrow(bundleName, true /*activeLifeStageOnly*/);
-        InheritedAttributes_.ChaosCellBundle.Set(bundle);
-        return;
-    }
-
-    if (!Fallback_) {
-        Fallback_ = CreateEphemeralAttributes();
-    }
-
-    Fallback_->SetYson(key, value);
-}
-
-bool TInheritedAttributeDictionary::Remove(TKeyView key)
-{
-#define XX(camelCaseName, snakeCaseName) \
-    if (key == #snakeCaseName) { \
-        InheritedAttributes_.camelCaseName.Reset(); \
-        return true; \
-    }
-
-    FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
-#undef XX
-
-    if (Fallback_) {
-        return Fallback_->Remove(key);
-    }
-
-    return false;
-}
-
-TCompositeNodeBase::TTransientAttributes& TInheritedAttributeDictionary::MutableAttributes()
-{
-    return InheritedAttributes_;
-}
-
-const TCompositeNodeBase::TTransientAttributes& TInheritedAttributeDictionary::Attributes() const
-{
-    return InheritedAttributes_;
+    Bootstrap_->GetObjectManager()->UnrefObject(node);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TImpl>
-void TCompositeNodeTypeHandler<TImpl>::DoClone(
+void TCompositeCypressNodeTypeHandlerBase<TImpl>::DoDestroy(TImpl* node)
+{
+    TBase::DoDestroy(node);
+
+    // Drop parent links from immediate descendants.
+    for (auto* descendant : node->ImmediateDescendants()) {
+        descendant->DropParent();
+    }
+    node->ImmediateDescendants().clear();
+}
+
+template <class TImpl>
+void TCompositeCypressNodeTypeHandlerBase<TImpl>::DoClone(
     TImpl* sourceNode,
     TImpl* clonedTrunkNode,
     IAttributeDictionary* inheritedAttributes,
@@ -1038,7 +499,7 @@ void TCompositeNodeTypeHandler<TImpl>::DoClone(
 }
 
 template <class TImpl>
-void TCompositeNodeTypeHandler<TImpl>::DoBranch(
+void TCompositeCypressNodeTypeHandlerBase<TImpl>::DoBranch(
     const TImpl* originatingNode,
     TImpl* branchedNode,
     const TLockRequest& lockRequest)
@@ -1049,7 +510,7 @@ void TCompositeNodeTypeHandler<TImpl>::DoBranch(
 }
 
 template <class TImpl>
-void TCompositeNodeTypeHandler<TImpl>::DoMerge(
+void TCompositeCypressNodeTypeHandlerBase<TImpl>::DoMerge(
     TImpl* originatingNode,
     TImpl* branchedNode)
 {
@@ -1059,7 +520,7 @@ void TCompositeNodeTypeHandler<TImpl>::DoMerge(
 }
 
 template <class TImpl>
-bool TCompositeNodeTypeHandler<TImpl>::HasBranchedChangesImpl(
+bool TCompositeCypressNodeTypeHandlerBase<TImpl>::HasBranchedChangesImpl(
     TImpl* originatingNode,
     TImpl* branchedNode)
 {
@@ -1072,14 +533,14 @@ bool TCompositeNodeTypeHandler<TImpl>::HasBranchedChangesImpl(
 }
 
 template <class TImpl>
-void TCompositeNodeTypeHandler<TImpl>::DoSerializeNode(
+void TCompositeCypressNodeTypeHandlerBase<TImpl>::DoSerializeNode(
     TImpl* node,
     TSerializeNodeContext* context)
 {
     TBase::DoSerializeNode(node, context);
 
     using NYT::Save;
-    TCompositeNodeBase::TTransientAttributes attributes;
+    TCompositeCypressNode::TTransientAttributes attributes;
     // NB: Using ENodeMaterializationReason::Create here, since we need a full list of attributes for each node.
     node->FillInheritableAttributes(&attributes, ENodeMaterializationReason::Create);
     Save(*context, !attributes.AreEmpty());
@@ -1089,7 +550,7 @@ void TCompositeNodeTypeHandler<TImpl>::DoSerializeNode(
 }
 
 template <class TImpl>
-void TCompositeNodeTypeHandler<TImpl>::DoMaterializeNode(
+void TCompositeCypressNodeTypeHandlerBase<TImpl>::DoMaterializeNode(
     TImpl* trunkNode,
     TMaterializeNodeContext* context)
 {
@@ -1097,7 +558,7 @@ void TCompositeNodeTypeHandler<TImpl>::DoMaterializeNode(
 
     using NYT::Load;
     if (Load<bool>(*context)) {
-        auto attributes = Load<TCompositeNodeBase::TTransientAttributes>(*context);
+        auto attributes = Load<TCompositeCypressNode::TTransientAttributes>(*context);
         auto persistentAttributes = attributes.ToPersistent();
         trunkNode->SetAttributes(&persistentAttributes);
     }
@@ -1317,7 +778,7 @@ ENodeType TMapNodeImpl<TChild>::GetNodeType() const
 template <class TChild>
 void TMapNodeImpl<TChild>::Save(NCellMaster::TSaveContext& context) const
 {
-    TCompositeNodeBase::Save(context);
+    TCompositeCypressNode::Save(context);
 
     using NYT::Save;
     Save(context, ChildCountDelta_);
@@ -1327,7 +788,7 @@ void TMapNodeImpl<TChild>::Save(NCellMaster::TSaveContext& context) const
 template <class TChild>
 void TMapNodeImpl<TChild>::Load(NCellMaster::TLoadContext& context)
 {
-    TCompositeNodeBase::Load(context);
+    TCompositeCypressNode::Load(context);
 
     using NYT::Load;
 
@@ -1341,14 +802,14 @@ int TMapNodeImpl<TChild>::GetGCWeight() const
     if constexpr (TChildren::ChildIsPointer) {
         return TObject::GetGCWeight() + KeyToChild().size();
     } else {
-        return TCompositeNodeBase::GetGCWeight();
+        return TCompositeCypressNode::GetGCWeight();
     }
 }
 
 template <class TChild>
 TDetailedMasterMemory TMapNodeImpl<TChild>::GetDetailedMasterMemoryUsage() const
 {
-    auto result = TCompositeNodeBase::GetDetailedMasterMemoryUsage();
+    auto result = TCompositeCypressNode::GetDetailedMasterMemoryUsage();
     result[EMasterMemoryType::Nodes] += Children_.Get().GetMasterMemoryUsage();
     return result;
 }
@@ -1602,8 +1063,8 @@ void TCypressMapNodeTypeHandlerImpl<TImpl>::DoMaterializeNode(
 
     size_t size = TSizeSerializer::Load(*context);
     for (size_t index = 0; index < size; ++index) {
-        auto key = Load<std::string>(*context);
-        auto childId = Load<TNodeId>(*context);
+        auto key = Load<TKeyToCypressNodeId::key_type>(*context);
+        auto childId = Load<TKeyToCypressNodeId::mapped_type>(*context);
         context->RegisterChild(std::move(key), childId);
     }
 }
@@ -1614,15 +1075,6 @@ template class TCypressMapNodeTypeHandlerImpl<TPortalExitNode>;
 template class TCypressMapNodeTypeHandlerImpl<NMaintenanceTrackerServer::TClusterProxyNode>;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
-[[noreturn]] void ThrowSequoiaNodeCloningNotImplemented()
-{
-    THROW_ERROR_EXCEPTION("Sequoia node cloning is not implemented yet");
-}
-
-} // namespace
 
 template <class TImpl>
 EObjectType TSequoiaMapNodeTypeHandlerImpl<TImpl>::GetObjectType() const
@@ -1784,18 +1236,43 @@ bool TSequoiaMapNodeTypeHandlerImpl<TImpl>::HasBranchedChangesImpl(
 
 template <class TImpl>
 void TSequoiaMapNodeTypeHandlerImpl<TImpl>::DoSerializeNode(
-    TImpl* /*node*/,
-    TSerializeNodeContext* /*context*/)
+    TImpl* node,
+    TSerializeNodeContext* context)
 {
-    ThrowSequoiaNodeCloningNotImplemented();
+    TBase::DoSerializeNode(node, context);
+
+    using NYT::Save;
+
+    const auto& cypressManager = this->GetBootstrap()->GetCypressManager();
+    TKeyToCypressNodeId keyToChildMapStorage;
+    const auto& keyToChildIdMap = GetMapNodeChildMap(
+        cypressManager,
+        node->GetTrunkNode()->template As<TImpl>(),
+        node->GetTransaction(),
+        &keyToChildMapStorage);
+
+    TSizeSerializer::Save(*context, keyToChildIdMap.size());
+    for (const auto& [key, childId] : SortHashMapByKeys(keyToChildIdMap)) {
+        Save(*context, key);
+        Save(*context, childId);
+    }
 }
 
 template <class TImpl>
 void TSequoiaMapNodeTypeHandlerImpl<TImpl>::DoMaterializeNode(
-    TImpl* /*trunkNode*/,
-    TMaterializeNodeContext* /*context*/)
+    TImpl* trunkNode,
+    TMaterializeNodeContext* context)
 {
-    ThrowSequoiaNodeCloningNotImplemented();
+    TBase::DoMaterializeNode(trunkNode, context);
+
+    using NYT::Load;
+
+    size_t size = TSizeSerializer::Load(*context);
+    for (size_t index = 0; index < size; ++index) {
+        auto key = Load<TKeyToCypressNodeId::key_type>(*context);
+        auto childId = Load<TKeyToCypressNodeId::mapped_type>(*context);
+        context->RegisterChild(std::move(key), childId);
+    }
 }
 
 // Explicit instantiations.
@@ -1811,14 +1288,14 @@ ENodeType TListNode::GetNodeType() const
 
 void TListNode::Save(NCellMaster::TSaveContext& context) const
 {
-    TCompositeNodeBase::Save(context);
+    TCompositeCypressNode::Save(context);
 
     SaveWith<TVectorSerializer<TRawNonversionedObjectPtrSerializer>>(context, IndexToChild_);
 }
 
 void TListNode::Load(NCellMaster::TLoadContext& context)
 {
-    TCompositeNodeBase::Load(context);
+    TCompositeCypressNode::Load(context);
 
     LoadWith<TVectorSerializer<TRawNonversionedObjectPtrSerializer>>(context, IndexToChild_);
 
@@ -1970,7 +1447,7 @@ void TListNodeTypeHandler::DoMaterializeNode(
     TListNode* trunkNode,
     TMaterializeNodeContext* /*context*/)
 {
-    YT_LOG_ALERT("Recieved EndCopy command for list node, despite BeginCopy being disabled for this type (ListNodeId: %v)",
+    YT_LOG_ALERT("Received EndCopy command for list node, despite BeginCopy being disabled for this type (ListNodeId: %v)",
         trunkNode->GetId());
     THROW_ERROR_EXCEPTION("List nodes are deprecated and do not support cross-cell copying");
 }

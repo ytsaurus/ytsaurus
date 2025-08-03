@@ -69,7 +69,7 @@ using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = KafkaProxyLogger;
+constinit const auto Logger = KafkaProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -190,7 +190,7 @@ private:
             /*staticClusterConnectionNode*/ nullptr,
             Logger());
 
-        NativeRootClient_ = NativeConnection_->CreateNativeClient({.User = NSecurityClient::RootUserName});
+        NativeRootClient_ = NativeConnection_->CreateNativeClient(TClientOptions::Root());
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(NativeConnection_);
 
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(NativeRootClient_);

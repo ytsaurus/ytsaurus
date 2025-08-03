@@ -40,7 +40,7 @@ message TPeerDescriptor
 
     reserved 2;
 
-    optional TP2PBarrier delivery_barier = 4;
+    optional TP2PBarrier delivery_barrier = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,12 +54,14 @@ message TReqStartChunk
     optional bool enable_multiplexing = 4 [default = false];
     optional NYT.NProto.TGuid placement_id = 6;
     optional bool disable_send_blocks = 9 [default = false];
+    optional bool use_probe_put_blocks = 10 [default = false];
 }
 
 message TRspStartChunk
 {
     // COMPAT(kvk1920): Make this field required.
     optional NYT.NProto.TGuid location_uuid = 1;
+    optional bool use_probe_put_blocks = 2 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -70,6 +72,8 @@ message TReqFinishChunk
     optional TChunkMeta chunk_meta = 2;
     optional int32 block_count = 3;
     optional bool ignore_missing_session = 5 [default = false];
+    // If this option is true, block_count must be specified.
+    optional bool truncate_extra_blocks = 6;
 }
 
 message TRspFinishChunk
@@ -88,6 +92,26 @@ message TReqCancelChunk
 
 message TRspCancelChunk
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Used in replication writer before sending PutBlocks.
+message TReqProbePutBlocks
+{
+    required TSessionId session_id = 1;
+    required int64 cumulative_block_size = 2;
+}
+
+message TProbePutBlocksState
+{
+    required int64 requested_cumulative_block_size = 1;
+    required int64 approved_cumulative_block_size = 2;
+}
+
+message TRspProbePutBlocks
+{
+    required TProbePutBlocksState probe_put_blocks_state = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -134,6 +158,8 @@ message TReqSendBlocks
 message TRspSendBlocks
 {
     optional bool close_demanded = 1 [default = false];
+    optional bool net_throttling = 2 [default = false];
+    optional int64 net_queue_size = 3 [default = 0];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -189,6 +215,9 @@ message TRspProbeChunkSet
         required bool disk_throttling = 3;
         required int64 disk_queue_size = 4;
 
+        // COMPAT(babenko): make required after 25.2
+        optional int32 medium_index = 6;
+
         reserved 2;
     }
 
@@ -224,6 +253,7 @@ message TRspProbeBlockSet
     required bool disk_throttling = 5;
     required int64 disk_queue_size = 6;
     repeated TProbeBlockSetBlockInfo cached_blocks = 8;
+    optional int32 medium_index = 9;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -400,6 +430,9 @@ message TReqPingSession
 message TRspPingSession
 {
     optional bool close_demanded = 1 [default = false];
+    optional TProbePutBlocksState probe_put_blocks_state = 2;
+    optional bool net_throttling = 3 [default = false];
+    optional int64 net_queue_size = 4 [default = 0];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

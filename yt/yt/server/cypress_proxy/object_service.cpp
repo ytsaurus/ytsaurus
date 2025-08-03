@@ -4,20 +4,27 @@
 
 #include "bootstrap.h"
 #include "config.h"
+#include "cypress_proxy_service_base.h"
 #include "dynamic_config_manager.h"
 #include "helpers.h"
 #include "master_connector.h"
 #include "path_resolver.h"
 #include "per_user_and_workload_request_queue_provider.h"
+#include "response_keeper.h"
 #include "sequoia_service.h"
 #include "sequoia_session.h"
-#include "response_keeper.h"
 #include "user_directory.h"
 #include "user_directory_synchronizer.h"
 
-#include <yt/yt/ytlib/distributed_throttler/distributed_throttler.h>
+#include <yt/yt/server/lib/object_server/helpers.h>
+
+#include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+
+#include <yt/yt/ytlib/cypress_client/proto/rpc.pb.h>
+
+#include <yt/yt/ytlib/distributed_throttler/distributed_throttler.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
@@ -51,21 +58,20 @@ using NSequoiaClient::TRawYPath;
 
 class TObjectService
     : public IObjectService
-    , public TServiceBase
+    , public TCypressProxyServiceBase
 {
 public:
-    explicit TObjectService(IBootstrap* bootstrap)
-        : TServiceBase(
-            /*invoker*/ nullptr,
+    explicit TObjectService(IBootstrap* bootstrap, IThreadPoolPtr threadPool)
+        : TCypressProxyServiceBase(
+            bootstrap,
+            threadPool->GetInvoker(),
             TObjectServiceProxy::GetDescriptor(),
             CypressProxyLogger(),
             TServiceOptions{
                 .Authenticator = bootstrap->GetNativeAuthenticator(),
             })
-        , Bootstrap_(bootstrap)
         , Connection_(bootstrap->GetNativeConnection())
-        , ThreadPool_(CreateThreadPool(/*threadCount*/ 1, "ObjectService"))
-        , Invoker_(ThreadPool_->GetInvoker())
+        , ThreadPool_(std::move(threadPool))
         , ThrottlerFactory_(bootstrap->CreateDistributedThrottlerFactory(
             GetDynamicConfig()->DistributedThrottler,
             bootstrap->GetControlInvoker(),
@@ -82,7 +88,6 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetQueueSizeLimit(10'000)
             .SetConcurrencyLimit(10'000)
-            .SetInvoker(Invoker_)
             .SetRequestQueueProvider(RequestQueueProvider_));
 
         DeclareServerFeature(EMasterFeature::Portals);
@@ -119,12 +124,9 @@ public:
 private:
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, Execute);
 
-    IBootstrap* const Bootstrap_;
-
-    const NApi::NNative::IConnectionPtr Connection_;
+    const NNative::IConnectionPtr Connection_;
 
     const IThreadPoolPtr ThreadPool_;
-    const IInvokerPtr Invoker_;
 
     const IDistributedThrottlerFactoryPtr ThrottlerFactory_;
     const TPerUserAndWorkloadRequestQueueProviderPtr RequestQueueProvider_;
@@ -163,8 +165,7 @@ private:
                     "BytesThrottler",
                     CypressProxyLogger()),
                 Owner_->ThrottlerFactory_->GetOrCreateThrottler(
-                    // TODO(babenko): migrate to std::string
-                    TString(throttlerId),
+                    throttlerId,
                     throttlerConfig));
         }
     };
@@ -264,8 +265,8 @@ public:
         , TargetCellTag_(targetCellTag)
         , MasterChannelKind_(masterChannelKind)
         , ForceUseTargetCellTag_(
-            targetCellTag != Owner_->Bootstrap_->GetNativeConnection()->GetPrimaryMasterCellTag())
-        , Logger(Owner_->Logger)
+            targetCellTag != Owner_->Connection_->GetPrimaryMasterCellTag())
+        , Logger(Owner_->Logger.WithTag("RequestId: %v", RpcContext_->GetRequestId()))
     { }
 
     void Run()
@@ -295,6 +296,8 @@ private:
 
     struct TSubrequest
     {
+        int Index;
+
         TSharedRefArray RequestMessage;
         std::optional<NRpc::NProto::TRequestHeader> RequestHeader;
 
@@ -353,6 +356,7 @@ private:
         std::optional<bool> mutating;
         for (int index = 0; index < subrequestCount; ++index) {
             auto& subrequest = Subrequests_[index];
+            subrequest.Index = index;
 
             auto partCount = request.part_counts(index);
             TSharedRefArrayBuilder messageBuilder(partCount);
@@ -471,21 +475,30 @@ private:
             responseFutures.push_back(InvokeMasterRequestsToCell(subrequestIndices, cellTag));
         }
 
-        auto responsesOrError = WaitFor(AllSet(std::move(responseFutures)));
-        if (!responsesOrError.IsOK()) {
-            auto errorResponse = CreateErrorResponseMessage(
-                TError("Error communicating with master") << std::move(responsesOrError));
-            for (const auto& requestInfo : requestInfos) {
-                ReplyOnSubrequests(requestInfo.SubrequestIndices, errorResponse);
-            }
-            return;
-        }
+        auto responses = WaitFor(AllSet(std::move(responseFutures)))
+            // On unexpected error, just reply to the client.
+            .ValueOrThrow();
 
-        const auto& responses = responsesOrError.Value();
         for (const auto& [response, requestInfo] : Zip(responses, requestInfos)) {
             if (!response.IsOK()) {
+                if (requestInfo.SubrequestIndices.size() == Subrequests_.size()) {
+                    // In case of batch-level error it should be propagated to
+                    // the client iff batch wasn't split into smaller batches
+                    // during execution. Rationale: if Sequoia wasn't affected
+                    // by this request it should be processed as if there is no
+                    // Sequoia nor Cypress proxies.
+                    THROW_ERROR response;
+                }
+
+                if (!IsRetriableBatchLevelError(response)) {
+                    THROW_ERROR response;
+                }
+
                 auto responseMessage = CreateErrorResponseMessage(
-                    TError("Error communicating with master cell %v", requestInfo.CellTag)
+                    TError(
+                        NSequoiaClient::EErrorCode::SequoiaRetriableError,
+                        "Error communicating with master cell %v",
+                        requestInfo.CellTag)
                         << std::move(response));
                 ReplyOnSubrequests(requestInfo.SubrequestIndices, responseMessage);
             } else {
@@ -498,9 +511,11 @@ private:
         TRange<int> subrequestIndices,
         TCellTag cellTag)
     {
-        const auto& connection = Owner_->Bootstrap_->GetNativeConnection();
-        auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
-            connection->GetMasterChannelOrThrow(MasterChannelKind_, cellTag));
+        const auto& masterCellDirectory = Owner_->Connection_->GetMasterCellDirectory();
+        const auto& nakedMasterChannel = masterCellDirectory->GetNakedMasterChannelOrThrow(MasterChannelKind_, cellTag);
+        auto proxy = TObjectServiceProxy::FromDirectMasterChannel(nakedMasterChannel);
+        // TODO(nadya02): Set the correct timeout here.
+        proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
 
         auto masterRequest = proxy.Execute();
 
@@ -510,6 +525,25 @@ private:
         // Copy authentication identity.
         SetAuthenticationIdentity(masterRequest, RpcContext_->GetAuthenticationIdentity());
 
+        // Copy some header fields.
+        masterRequest->SetRetry(RpcContext_->RequestHeader().retry());
+
+        if (auto mutationId = RpcContext_->GetMutationId()) {
+            masterRequest->SetMutationId(mutationId);
+        }
+
+        if (auto startTime = RpcContext_->GetStartTime()) {
+            masterRequest->Header().set_start_time(ToProto(*startTime));
+        }
+
+        if (RpcContext_->GetTimeout().has_value()) {
+            masterRequest->SetTimeout(
+                NObjectServer::ComputeForwardingTimeout(
+                    *RpcContext_->GetTimeout(),
+                    RpcContext_->GetStartTime(),
+                    Owner_->GetDynamicConfig()->ForwardedRequestTimeoutReserve));
+        }
+
         // Copy some header extensions.
         auto copyHeaderExtension = [&] (auto tag) {
             if (RpcContext_->RequestHeader().HasExtension(tag)) {
@@ -518,6 +552,11 @@ private:
             }
         };
         copyHeaderExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
+        copyHeaderExtension(NRpc::NProto::TCustomMetadataExt::custom_metadata_ext);
+        copyHeaderExtension(NRpc::NProto::TBalancingExt::balancing_ext);
+        copyHeaderExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
+        copyHeaderExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
+        copyHeaderExtension(NRpc::NProto::TRequestHeader::tracing_ext);
 
         // Fill request with non-Sequoia requests.
         masterRequest->clear_part_counts();
@@ -535,11 +574,33 @@ private:
         return masterRequest->Invoke();
     }
 
+    bool IsRetriableBatchLevelError(const TError& error)
+    {
+        const TError* effectiveError = &error;
+        if (error.GetCode() == NObjectClient::EErrorCode::ForwardedRequestFailed &&
+            !error.InnerErrors().empty())
+        {
+            effectiveError = &error.InnerErrors().front();
+        }
+
+        // On the client's side every batch request should retry
+        // SequoiaRetriableError and RequestQueueSizeLimitExceeded for
+        // individual subrequests similar to backoff alarms.
+        // TODO(kvk1920): don't wrap RequestQueueSizeLimitExceeded since its
+        // retriability may be different from SequoiaRetriableError.
+        return
+            IsRetriableError(*effectiveError) ||
+            IsRetriableObjectServiceError(/*attempt*/ 0, *effectiveError) ||
+            effectiveError->GetCode() == NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded;
+    }
+
     void HandleMasterResponse(
         bool beforeSequoiaResolve,
         TRange<int> subrequestIndices,
         const TObjectServiceProxy::TRspExecutePtr& masterResponse)
     {
+        THashSet<int> subrequestsWithoutResponse(subrequestIndices.begin(), subrequestIndices.end());
+
         int currentPartIndex = 0;
         for (const auto& subresponse : masterResponse->subresponses()) {
             auto partCount = subresponse.part_count();
@@ -549,6 +610,7 @@ private:
             currentPartIndex += partCount;
 
             auto index = subrequestIndices[subresponse.index()];
+            subrequestsWithoutResponse.erase(index);
 
             TSharedRefArray subresponseMessage(partsRange, TSharedRefArray::TMoveParts{});
 
@@ -556,8 +618,7 @@ private:
                 if (IsSubrequestRejectedByMaster(index, subresponseMessage)) {
                     YT_LOG_DEBUG(
                         "Subrequest was rejected by master server in favor of Sequoia "
-                        "(RequestId: %v, SubrequestIndex: %v)",
-                        RpcContext_->GetRequestId(),
+                        "(SubrequestIndex: %v)",
                         index);
 
                     Subrequests_[index].Target = ERequestTarget::Sequoia;
@@ -569,8 +630,7 @@ private:
                     YT_LOG_DEBUG(
                         originError,
                         "Possible Sequoia resolve miss encountered; marking it as retriable "
-                        "(RequestId: %v, SubrequestIndex: %v, SequoiaObjectId: %v)",
-                        RpcContext_->GetRequestId(),
+                        "(SubrequestIndex: %v, SequoiaObjectId: %v)",
                         index,
                         Subrequests_[index].ResolvedNodeId);
                     // See comment next to |TSubrequest::TResolvedNodeId|.
@@ -579,7 +639,17 @@ private:
             }
 
             Subrequests_[index].Target = ERequestTarget::None;
-            ReplyOnSubrequest(index, std::move(subresponseMessage));
+
+            // TODO(banbenko, kvk1920): Currently this is only filled for requests forwarded to masters.
+            // Handle Sequoia requests as well!
+            auto revision = FromProto<NHydra::TRevision>(subresponse.revision());
+            ReplyOnSubrequest(index, std::move(subresponseMessage), revision);
+        }
+
+        for (int index : subrequestsWithoutResponse) {
+            // In case of backoff alarm master can omit response for some
+            // subrequests. Such subrequests shouldn't be invoked in Sequoia.
+            Subrequests_[index].Target = ERequestTarget::None;
         }
     }
 
@@ -617,18 +687,36 @@ private:
 
         auto originError = FromProto<TError>(header.error());
 
-        auto noSuchObjectErrorMessage = Format("No such object %v", subrequest->ResolvedNodeId);
-
         auto noSuchObjectError = originError.FindMatching([&] (const TError& error) {
             if (error.GetCode() != NYTree::EErrorCode::ResolveError) {
                 return false;
             }
 
-            // TODO(kvk1920): design some way to avoid comparing full error
-            // message.
+            if (!error.HasAttributes()) {
+                return false;
+            }
 
-            return error.GetMessage() == noSuchObjectErrorMessage;
+            const auto& attributes = error.Attributes();
+            try {
+                if (auto id = attributes.Find<TObjectId>("missing_object_id")) {
+                    return *id == subrequest->ResolvedNodeId;
+                }
+            } catch (const std::exception& ex) {
+                YT_LOG_ALERT(ex, "Failed to parse resolve error attribute");
+            }
+
+            return false;
         });
+
+        // COMPAT(kvk1920): remove after 25.2.
+        if (!noSuchObjectError.has_value()) {
+            auto noSuchObjectErrorMessage = Format("No such object %v", subrequest->ResolvedNodeId);
+            noSuchObjectError = originError.FindMatching([&] (const TError& error) {
+                return
+                    error.GetCode() == NYTree::EErrorCode::ResolveError &&
+                    error.GetMessage() == noSuchObjectErrorMessage;
+            });
+        }
 
         if (!noSuchObjectError.has_value()) {
             return {};
@@ -692,6 +780,9 @@ private:
             [&] (const TCypressResolveResult& cypressResolveResult) {
                 newPath = cypressResolveResult.Path.Underlying();
             },
+            [&] (const TMasterResolveResult& /*masterResolveResult*/) {
+                // NB: Path is currently unused in master requests.
+            },
             [&] (const TSequoiaResolveResult& sequoiaResolveResult) {
                 subrequest->ResolvedNodeId = sequoiaResolveResult.Id;
 
@@ -744,6 +835,8 @@ private:
 
         auto originalTargetPath = TRawYPath(GetRequestTargetYPath(*subrequest->RequestHeader));
         auto cypressTransactionId = GetTransactionId(*subrequest->RequestHeader);
+        auto isMutating = IsRequestMutating(*subrequest->RequestHeader);
+        auto prerequisiteTransactionIds = ParsePrerequisiteTransactionIds(*subrequest->RequestHeader);
 
         if (cypressTransactionId && !IsCypressTransactionType(TypeFromId(cypressTransactionId))) {
             // Requests with system transactions cannot be handled in Sequoia.
@@ -751,15 +844,22 @@ private:
             return std::nullopt;
         }
 
+        THROW_ERROR_EXCEPTION_IF(
+            !isMutating && !prerequisiteTransactionIds.empty(),
+            "Read requests with prerequisites are forbidden in Sequoia");
+
         TSequoiaSessionPtr session;
         TResolveResult resolveResult;
         try {
-            session = TSequoiaSession::Start(Owner_->Bootstrap_, cypressTransactionId);
+            session = TSequoiaSession::Start(Owner_->Bootstrap_, cypressTransactionId, prerequisiteTransactionIds);
             resolveResult = ResolvePath(
                 session,
                 originalTargetPath,
+                subrequest->RequestHeader->service(),
                 subrequest->RequestHeader->method());
         } catch (const std::exception& ex) {
+            YT_LOG_DEBUG(ex, "Subrequest resolve failed (SubrequestIndex: %v)",
+                subrequest->Index);
             return CreateErrorResponseMessage(ex);
         }
 
@@ -802,8 +902,7 @@ private:
                 continue;
             }
 
-            YT_LOG_DEBUG("Executing subrequest in Sequoia (RequestId: %v, SubrequestIndex: %v)",
-                RpcContext_->GetRequestId(),
+            YT_LOG_DEBUG("Executing subrequest in Sequoia (SubrequestIndex: %v)",
                 index);
 
             if (auto subresponse = ExecuteSequoiaSubrequest(&subrequest)) {
@@ -818,16 +917,23 @@ private:
         RpcContext_->Reply(error);
     }
 
-    void ReplyOnSubrequest(int subrequestIndex, TSharedRefArray subresponseMessage)
+    void ReplyOnSubrequest(
+        int subrequestIndex,
+        TSharedRefArray subresponseMessage,
+        NHydra::TRevision revision = NHydra::NullRevision)
     {
         // Caller is responsible for marking subrequest as executed.
         YT_VERIFY(Subrequests_[subrequestIndex].Target == ERequestTarget::None);
 
         auto& response = RpcContext_->Response();
 
-        auto* subresponseInfo = response.add_subresponses();
-        subresponseInfo->set_index(subrequestIndex);
-        subresponseInfo->set_part_count(subresponseMessage.Size());
+        auto* subresponse = response.add_subresponses();
+        subresponse->set_index(subrequestIndex);
+        subresponse->set_part_count(subresponseMessage.Size());
+        if (revision != NHydra::NullRevision) {
+            subresponse->set_revision(ToProto(revision));
+        }
+
         response.Attachments().insert(
             response.Attachments().end(),
             subresponseMessage.Begin(),
@@ -852,26 +958,16 @@ private:
 
 DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
 {
-    if (!request->has_cell_tag()) {
-        THROW_ERROR_EXCEPTION("Cell tag is not provided in request");
-    }
+    auto cellTag = context->GetTargetMasterCellTag();
+    auto masterChannelKind = context->GetTargetMasterChannelKind();
 
-    if (!request->has_master_channel_kind()) {
-        THROW_ERROR_EXCEPTION("Peer kind is not provided in request");
-    }
-
-    auto cellTag = FromProto<TCellTag>(request->cell_tag());
-    auto masterChannelKind = FromProto<EMasterChannelKind>(request->master_channel_kind());
-
-    context->SetRequestInfo("CellTag: %v, MasterChannelKind: %v, RequestCount: %v",
-        cellTag,
-        masterChannelKind,
+    context->SetRequestInfo("RequestCount: %v",
         request->part_counts_size());
 
     if (masterChannelKind != EMasterChannelKind::Leader &&
         masterChannelKind != EMasterChannelKind::Follower)
     {
-        THROW_ERROR_EXCEPTION("Expected %Qv or %Qv master channel kind, got %Qv",
+        THROW_ERROR_EXCEPTION("Expected %Qlv or %Qlv master channel kind, got %Qlv",
             EMasterChannelKind::Leader,
             EMasterChannelKind::Follower,
             masterChannelKind);
@@ -889,7 +985,9 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
 
 IObjectServicePtr CreateObjectService(IBootstrap* bootstrap)
 {
-    return New<TObjectService>(bootstrap);
+    return New<TObjectService>(
+        bootstrap,
+        CreateThreadPool(/*threadCount*/ 1, "ObjectService"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

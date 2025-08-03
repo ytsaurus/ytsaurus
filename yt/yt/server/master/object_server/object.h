@@ -336,6 +336,7 @@ void InitializeMasterStateThread(
     TEpochContextPtr epochContext,
     bool isAutomatonThread);
 void FinalizeMasterStateThread();
+NCellMaster::TBootstrap* GetBootstrap();
 
 void BeginEpoch();
 void EndEpoch();
@@ -389,6 +390,7 @@ public:
     void Assign(T* ptr) noexcept;
     void Assign(T* ptr, TObjectPtrLoadTag) noexcept;
     void Reset() noexcept;
+    T* Release() noexcept;
 
     T* operator->() const noexcept;
 

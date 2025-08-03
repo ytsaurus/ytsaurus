@@ -1,6 +1,7 @@
 #include "master_connector.h"
 
 #include "bootstrap.h"
+#include "config.h"
 #include "private.h"
 #include "slot_manager.h"
 #include "tablet.h"
@@ -21,7 +22,6 @@
 #include <yt/yt/server/lib/cellar_agent/cellar.h>
 #include <yt/yt/server/lib/cellar_agent/occupant.h>
 
-#include <yt/yt/server/lib/tablet_node/config.h>
 #include <yt/yt/server/lib/tablet_node/performance_counters.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -118,6 +118,10 @@ protected:
     TFuture<void> DoReportHeartbeat(TCellTag cellTag) override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        if (!Bootstrap_->IsConnected()) {
+            return MakeFuture(TError("Node disconnected"));
+        }
 
         auto req = BuildHeartbeatRequest(cellTag);
         auto rspFuture = req->Invoke();

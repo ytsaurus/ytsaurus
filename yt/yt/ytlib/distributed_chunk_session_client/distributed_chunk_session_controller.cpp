@@ -473,6 +473,7 @@ private:
         ToProto(req->mutable_session_id(), SessionId_);
         req->set_block_count(AcknowledgedBlockCount_);
         *req->mutable_chunk_meta() = ChunkMeta_;
+        req->set_truncate_extra_blocks(true);
 
         return req->Invoke().ApplyUnique(BIND(&TDistributedChunkSessionController::OnChunkFinished, MakeStrong(this), node));
     }

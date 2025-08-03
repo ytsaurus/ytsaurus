@@ -13,7 +13,7 @@ using namespace NControllerAgent;
 ////////////////////////////////////////////////////////////////////////////////
 
 TFairShareStrategyOperationController::TFairShareStrategyOperationController(
-    IOperationStrategyHost* operation,
+    const IOperationStrategyHostPtr& operation,
     const TFairShareStrategyOperationControllerConfigPtr& config,
     const std::vector<IInvokerPtr>& nodeShardInvokers)
     : Controller_(operation->GetControllerStrategyHost())
@@ -231,7 +231,7 @@ TControllerScheduleAllocationResultPtr TFairShareStrategyOperationController::Sc
     TDuration timeLimit,
     const TString& treeId,
     const TString& poolPath,
-    const TFairShareStrategyTreeConfigPtr& treeConfig)
+    std::optional<TDuration> waitingForResourcesOnNodeTimeout)
 {
     auto scheduleAllocationResultFuture = Controller_->ScheduleAllocation(
         context,
@@ -239,7 +239,7 @@ TControllerScheduleAllocationResultPtr TFairShareStrategyOperationController::Sc
         availableDiskResources,
         treeId,
         poolPath,
-        treeConfig);
+        waitingForResourcesOnNodeTimeout);
 
     auto scheduleAllocationResultFutureWithTimeout = scheduleAllocationResultFuture
         .ToUncancelable()

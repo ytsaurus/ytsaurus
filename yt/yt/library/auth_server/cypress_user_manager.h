@@ -13,8 +13,8 @@ namespace NYT::NAuth {
 struct ICypressUserManager
     : public virtual TRefCounted
 {
-    virtual TFuture<NObjectClient::TObjectId> CreateUser(const TString& name) = 0;
-    virtual TFuture<bool> CheckUserExists(const TString& name) = 0;
+    virtual TFuture<void> CreateUser(const std::string& name, const std::vector<std::string>& tags = {}) = 0;
+    virtual TFuture<bool> CheckUserExists(const std::string& name) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICypressUserManager)
@@ -24,6 +24,10 @@ DEFINE_REFCOUNTED_TYPE(ICypressUserManager)
 ICypressUserManagerPtr CreateCypressUserManager(
     TCypressUserManagerConfigPtr config,
     NApi::IClientPtr client);
+
+////////////////////////////////////////////////////////////////////////////////
+
+ICypressUserManagerPtr CreateNullCypressUserManager();
 
 ////////////////////////////////////////////////////////////////////////////////
 

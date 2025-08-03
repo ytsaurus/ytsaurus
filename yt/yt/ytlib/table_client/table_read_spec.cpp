@@ -53,7 +53,7 @@ TTableReadSpec FetchRegularTableReadSpec(
     bool dynamic;
     TTableSchemaPtr schema;
     bool fetchFromTablets;
-    TString account;
+    std::string account;
     {
         YT_LOG_INFO("Requesting extended table attributes");
 
@@ -98,7 +98,7 @@ TTableReadSpec FetchRegularTableReadSpec(
             schema = ToLatestTimestampSchema(schema);
         }
         fetchFromTablets = attributes->Get<bool>("fetch_from_tablets", false);
-        account = attributes->Get<TString>("account", "");
+        account = attributes->Get<std::string>("account", "");
 
         ValidateDynamicTableTimestamp(options.RichPath, dynamic, *schema, *attributes);
     }

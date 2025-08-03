@@ -807,7 +807,7 @@ TEST_F(TRefineKeyRangeTest, NotEqual)
 
 TEST_F(TRefineKeyRangeTest, Empty)
 {
-    auto expr = PrepareExpression("false", *GetSampleTableSchema());
+    auto expr = ParseAndPrepareExpression("false", *GetSampleTableSchema());
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -817,9 +817,44 @@ TEST_F(TRefineKeyRangeTest, Empty)
     ExpectIsEmpty(result);
 }
 
+TEST_F(TRefineKeyRangeTest, IsNull)
+{
+    auto expr = PrepareExpression("k is null", *GetSampleTableSchema());
+
+    auto rowBuffer = New<TRowBuffer>();
+    auto keyColumns = GetSampleKeyColumns();
+    auto constraints = TConstraintsHolder(keyColumns.size(), GetRefCountedTypeCookie<TRangeInferrerTestBufferTag>(), GetDefaultMemoryChunkProvider());
+    auto constraintRef = constraints.ExtractFromExpression(expr, keyColumns, rowBuffer);
+    auto result = GetRangesFromConstraints(rowBuffer, std::ssize(keyColumns), constraints, constraintRef);
+
+    EXPECT_EQ(1u, result.size());
+
+    EXPECT_EQ(YsonToKey(_NULL_), result[0].first);
+    EXPECT_EQ(YsonToKey(_NULL_ ";" _MAX_), result[0].second);
+}
+
+TEST_F(TRefineKeyRangeTest, NotIsNull)
+{
+    auto expr = PrepareExpression("k is not null", *GetSampleTableSchema());
+
+    auto rowBuffer = New<TRowBuffer>();
+    auto keyColumns = GetSampleKeyColumns();
+    auto constraints = TConstraintsHolder(keyColumns.size(), GetRefCountedTypeCookie<TRangeInferrerTestBufferTag>(), GetDefaultMemoryChunkProvider());
+    auto constraintRef = constraints.ExtractFromExpression(expr, keyColumns, rowBuffer);
+    auto result = GetRangesFromConstraints(rowBuffer, std::ssize(keyColumns), constraints, constraintRef);
+
+    EXPECT_EQ(2u, result.size());
+
+    EXPECT_EQ(YsonToKey(""), result[0].first);
+    EXPECT_EQ(YsonToKey(_NULL_), result[0].second);
+
+    EXPECT_EQ(YsonToKey(_NULL_ ";" _MAX_), result[1].first);
+    EXPECT_EQ(YsonToKey(_MAX_), result[1].second);
+}
+
 TEST_F(TRefineKeyRangeTest, ContradictiveConjuncts)
 {
-    auto expr = PrepareExpression("k >= 90 and k < 10", *GetSampleTableSchema());
+    auto expr = ParseAndPrepareExpression("k >= 90 and k < 10", *GetSampleTableSchema());
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -831,7 +866,7 @@ TEST_F(TRefineKeyRangeTest, ContradictiveConjuncts)
 
 TEST_F(TRefineKeyRangeTest, Lookup1)
 {
-    auto expr = PrepareExpression("k = 50 and l = 50", *GetSampleTableSchema());
+    auto expr = ParseAndPrepareExpression("k = 50 and l = 50", *GetSampleTableSchema());
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -844,7 +879,7 @@ TEST_F(TRefineKeyRangeTest, Lookup1)
 
 TEST_F(TRefineKeyRangeTest, Lookup2)
 {
-    auto expr = PrepareExpression("k = 50 and l = 50 and m = 50", *GetSampleTableSchema());
+    auto expr = ParseAndPrepareExpression("k = 50 and l = 50 and m = 50", *GetSampleTableSchema());
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -857,7 +892,7 @@ TEST_F(TRefineKeyRangeTest, Lookup2)
 
 TEST_F(TRefineKeyRangeTest, Range1)
 {
-    auto expr = PrepareExpression("k > 0 and k < 100", *GetSampleTableSchema());
+    auto expr = ParseAndPrepareExpression("k > 0 and k < 100", *GetSampleTableSchema());
 
     TKeyColumns keyColumns;
     keyColumns.push_back("k");
@@ -872,7 +907,7 @@ TEST_F(TRefineKeyRangeTest, Range1)
 
 TEST_F(TRefineKeyRangeTest, NegativeRange1)
 {
-    auto expr = PrepareExpression("k > -100 and (k) <= -(-1)", *GetSampleTableSchema());
+    auto expr = ParseAndPrepareExpression("k > -100 and (k) <= -(-1)", *GetSampleTableSchema());
 
     TKeyColumns keyColumns;
     keyColumns.push_back("k");
@@ -887,7 +922,7 @@ TEST_F(TRefineKeyRangeTest, NegativeRange1)
 
 TEST_F(TRefineKeyRangeTest, MultipleConjuncts1)
 {
-    auto expr = PrepareExpression("k >= 10 and k < 90", *GetSampleTableSchema());
+    auto expr = ParseAndPrepareExpression("k >= 10 and k < 90", *GetSampleTableSchema());
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -900,7 +935,7 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts1)
 
 TEST_F(TRefineKeyRangeTest, MultipleConjuncts2)
 {
-    auto expr = PrepareExpression(
+    auto expr = ParseAndPrepareExpression(
         "k = 50 and l >= 10 and l < 90 and m = 50",
         *GetSampleTableSchema());
 
@@ -915,7 +950,7 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts2)
 
 TEST_F(TRefineKeyRangeTest, MultipleConjuncts3)
 {
-    auto expr = PrepareExpression("k = 50 and m = 50", *GetSampleTableSchema());
+    auto expr = ParseAndPrepareExpression("k = 50 and m = 50", *GetSampleTableSchema());
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -939,7 +974,7 @@ TEST_F(TRefineKeyRangeTest, EmptyKeyTrie)
 
 TEST_F(TRefineKeyRangeTest, MultipleDisjuncts)
 {
-    auto expr = PrepareExpression(
+    auto expr = ParseAndPrepareExpression(
         "k = 50 and m = 50 or k = 75 and m = 50",
         *GetSampleTableSchema());
 
@@ -961,7 +996,7 @@ TEST_F(TRefineKeyRangeTest, MultipleDisjuncts)
 
 TEST_F(TRefineKeyRangeTest, NotEqualToMultipleRanges)
 {
-    auto expr = PrepareExpression(
+    auto expr = ParseAndPrepareExpression(
         "(k = 50 and l != 50) and (l > 40 and l < 60)",
         *GetSampleTableSchema());
 
@@ -983,7 +1018,7 @@ TEST_F(TRefineKeyRangeTest, NotEqualToMultipleRanges)
 
 TEST_F(TRefineKeyRangeTest, RangesProduct)
 {
-    auto expr = PrepareExpression(
+    auto expr = ParseAndPrepareExpression(
         "(k = 40 or k = 50 or k = 60) and (l = 40 or l = 50 or l = 60)",
         *GetSampleTableSchema());
 
@@ -1026,7 +1061,7 @@ TEST_F(TRefineKeyRangeTest, RangesProduct)
 
 TEST_F(TRefineKeyRangeTest, RangesProductWithOverlappingKeyPositions)
 {
-    auto expr = PrepareExpression(
+    auto expr = ParseAndPrepareExpression(
         "(k, m) in ((2, 3), (4, 6)) and l in (2, 3)",
         *GetSampleTableSchema());
 
@@ -1054,7 +1089,7 @@ TEST_F(TRefineKeyRangeTest, RangesProductWithOverlappingKeyPositions)
 
 TEST_F(TRefineKeyRangeTest, BetweenRanges)
 {
-    auto expr = PrepareExpression(
+    auto expr = ParseAndPrepareExpression(
         R"(
             (k, l) between (
                 (1) and (1, 20),
@@ -1089,7 +1124,7 @@ TEST_F(TRefineKeyRangeTest, BetweenRanges)
 
 TEST_F(TRefineKeyRangeTest, NormalizeShortKeys)
 {
-    auto expr = PrepareExpression(
+    auto expr = ParseAndPrepareExpression(
         "k = 1 and l = 2 and m = 3",
         *GetSampleTableSchema());
 
@@ -1112,7 +1147,7 @@ TEST_F(TRefineKeyRangeTest, PrefixQuery)
         TColumnSchema("b", EValueType::Int64),
     });
 
-    auto expr = PrepareExpression(
+    auto expr = ParseAndPrepareExpression(
         "k = 50 and l = 50 and m = 50 and is_prefix(\"abc\", s)",
         *tableSchema);
 
@@ -1127,7 +1162,7 @@ TEST_F(TRefineKeyRangeTest, PrefixQuery)
 
 TEST_F(TRefineKeyRangeTest, EmptyRange)
 {
-    auto expr = PrepareExpression(
+    auto expr = ParseAndPrepareExpression(
         "k between 1 and 1",
         *GetSampleTableSchema());
 
@@ -1142,7 +1177,7 @@ TEST_F(TRefineKeyRangeTest, EmptyRange)
 
 TEST_F(TRefineKeyRangeTest, RangeToPointCollapsing)
 {
-    auto expr = PrepareExpression(
+    auto expr = ParseAndPrepareExpression(
         "k >= 1 and k <= 1 and l = 1",
         *GetSampleTableSchema());
 
@@ -1157,7 +1192,7 @@ TEST_F(TRefineKeyRangeTest, RangeToPointCollapsing)
 
 TEST_F(TRefineKeyRangeTest, MultipleRangeDisjuncts)
 {
-    auto expr = PrepareExpression(
+    auto expr = ParseAndPrepareExpression(
         "(k between 21 and 32) OR (k between 43 and 54)",
         *GetSampleTableSchema());
 
@@ -1179,7 +1214,7 @@ TEST_F(TRefineKeyRangeTest, MultipleRangeDisjuncts)
 
 TEST_F(TRefineKeyRangeTest, SecondDimensionRange)
 {
-    auto expr = PrepareExpression(
+    auto expr = ParseAndPrepareExpression(
         "(k, l) >= (1, 2) and (k, l) < (1, 4)",
         *GetSampleTableSchema());
 
@@ -1198,7 +1233,7 @@ TEST_F(TRefineKeyRangeTest, SecondDimensionRange)
 
 TEST_F(TRefineKeyRangeTest, InTuples)
 {
-    auto expr = PrepareExpression(
+    auto expr = ParseAndPrepareExpression(
         "(k, l) in ((1, 2), (1, 2), (1, 3), (2, 1), (2, 2))",
         *GetSampleTableSchema());
 
@@ -1227,7 +1262,7 @@ TEST_F(TRefineKeyRangeTest, InTuples)
 
 TEST_F(TRefineKeyRangeTest, RangeExpansionLimit)
 {
-    auto expr = PrepareExpression(
+    auto expr = ParseAndPrepareExpression(
         "k in (10, 20, 30, 40, 50) and l in (1, 3, 5, 7)",
         *GetSampleTableSchema());
 
@@ -1260,7 +1295,7 @@ TEST_F(TRefineKeyRangeTest, RangeExpansionLimit)
 TEST_F(TRefineKeyRangeTest, RedundantCondition)
 {
     // Test case from ticket YT-19004.
-    auto expr = PrepareExpression("k = 2 and (k = 2 and l = 3 or l = 4)", *GetSampleTableSchema());
+    auto expr = ParseAndPrepareExpression("k = 2 and (k = 2 and l = 3 or l = 4)", *GetSampleTableSchema());
 
     auto rowBuffer = New<TRowBuffer>();
     auto result = GetRangesFromExpression(
@@ -1280,7 +1315,7 @@ TEST_F(TRefineKeyRangeTest, RedundantCondition)
 
 TEST_F(TRefineKeyRangeTest, InColumnPermutation)
 {
-    auto expr = PrepareExpression(
+    auto expr = ParseAndPrepareExpression(
         "(l, k) in ((0, 5), (1, 3))",
         *GetSampleTableSchema());
 
@@ -1308,7 +1343,7 @@ TEST_F(TRefineKeyRangeTest, InColumnPermutation2)
         TColumnSchema("a", EValueType::Int64)
     });
 
-    auto expr = PrepareExpression(
+    auto expr = ParseAndPrepareExpression(
         "(a, l) in ((0, 5), (1, 3)) and k = 1",
         *schema);
 
@@ -1330,7 +1365,7 @@ TEST_F(TRefineKeyRangeTest, InColumnPermutation2)
 
 TEST_F(TRefineKeyRangeTest, Any)
 {
-    auto expr = PrepareExpression(
+    auto expr = ParseAndPrepareExpression(
         R"(
             k = 1 and any_key >= yson_string_to_any('[1;2;3]') or
             k = 5 and any_key >= yson_string_to_any('[2;a;4u]')
@@ -1351,6 +1386,39 @@ TEST_F(TRefineKeyRangeTest, Any)
 
     EXPECT_EQ(YsonToKey("5;[2;a;4u]"), result[1].first);
     EXPECT_EQ(YsonToKey("5;[100;100;100]"), result[1].second);
+}
+
+TEST_F(TRefineKeyRangeTest, BadSchema)
+{
+    auto rowBuffer = New<TRowBuffer>();
+    auto columnEvaluatorCache = CreateColumnEvaluatorCache(New<TColumnEvaluatorCacheConfig>());
+
+    for (auto type : {EValueType::Uint64, EValueType::Int64}) {
+        for (char divisor : {'/', '%'}) {
+            auto schema = New<TTableSchema>(std::vector{
+                TColumnSchema("h", type)
+                    .SetSortOrder(ESortOrder::Ascending)
+                    .SetExpression(Format("k %v 0", divisor)),
+                TColumnSchema("k", type)
+                    .SetSortOrder(ESortOrder::Ascending),
+            });
+
+            auto expr = ParseAndPrepareExpression("(true)", *schema);
+
+            EXPECT_THROW_WITH_SUBSTRING(GetPrunedRanges(
+                expr,
+                schema,
+                schema->GetKeyColumns(),
+                {},
+                MakeSingletonRowRange(NTableClient::MinKey(), NTableClient::MaxKey()),
+                rowBuffer,
+                columnEvaluatorCache,
+                GetBuiltinRangeExtractors(),
+                TQueryOptions{.RangeExpansionLimit=1000},
+                GetDefaultMemoryChunkProvider(),
+                /*forceLightRangeInference*/ false), "Division by zero");
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1402,7 +1470,7 @@ TEST_P(TInferRangesTest, Stress)
     TRandomExpressionGenerator gen{schema, rowBuffer, columnEvaluator};
 
     auto testExpression = [&] (TString expressionString) {
-        auto expr = PrepareExpression(expressionString, *schema);
+        auto expr = ParseAndPrepareExpression(expressionString, *schema);
 
         TQueryOptions options;
         options.RangeExpansionLimit = 1000;

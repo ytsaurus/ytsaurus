@@ -10,12 +10,21 @@ PEERDIR(
 SRCS(
     config.cpp
     disk_info_provider.cpp
-    disk_manager_proxy_stub.cpp
     hotswap_manager.cpp
 )
 
 IF (NOT OPENSOURCE)
     INCLUDE(ya_non_opensource.inc)
+ELSE()
+    SRCS(
+        disk_manager_proxy_stub.cpp
+    )
 ENDIF()
 
 END()
+
+IF (NOT OPENSOURCE)
+RECURSE_FOR_TESTS(
+    unittests
+)
+ENDIF()

@@ -19,9 +19,8 @@ using TQueryId = TGuid;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYqlPluginOptions
+struct TYqlPluginOptions
 {
-public:
     NYson::TYsonString SingletonsConfig;
     NYson::TYsonString GatewayConfig;
     NYson::TYsonString DqGatewayConfig;
@@ -31,6 +30,7 @@ public:
     NYson::TYsonString Libraries;
 
     TString YTTokenPath;
+    TString UIOrigin;
 
     THolder<TLogBackend> LogBackend;
 

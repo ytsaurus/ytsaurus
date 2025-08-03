@@ -1,6 +1,7 @@
 from yt_odin.logserver import FULLY_AVAILABLE_STATE, UNAVAILABLE_STATE
 from yt_odin.test_helpers import make_check_dir, configure_odin, run_checks, CheckWatcher
-from yt.test_helpers import wait
+
+from yt.common import wait
 
 
 def test_allow_unaware_nodes(yt_env):

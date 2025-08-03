@@ -39,6 +39,9 @@ struct IUserJobReadController
     virtual void InterruptReader() = 0;
     virtual NChunkClient::TInterruptDescriptor GetInterruptDescriptor() const = 0;
     virtual i64 CurrentBufferRowCount() const = 0;
+
+    virtual std::optional<TDuration> GetReaderTimeToFirstBatch() const = 0;
+    virtual std::optional<TDuration> GetWriterTimeToFirstBatch() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IUserJobReadController)
@@ -47,14 +50,15 @@ DEFINE_REFCOUNTED_TYPE(IUserJobReadController)
 
 IUserJobReadControllerPtr CreateUserJobReadController(
     IJobSpecHelperPtr jobSpecHelper,
-    NChunkClient::TChunkReaderHostPtr chunkReaderHost,
+    NChunkClient::TMultiChunkReaderHostPtr chunkReaderHost,
     IInvokerPtr invoker,
     TClosure onNetworkRelease,
     std::optional<TString> udfDirectory,
     NChunkClient::TClientChunkReadOptions chunkReadOptions,
     TString localHostName,
     TDuration adaptiveConfigTimeoutThreshold = TDuration::Zero(),
-    i64 adaptiveRowCountUpperBound = std::numeric_limits<i64>::max());
+    i64 adaptiveRowCountUpperBound = std::numeric_limits<i64>::max(),
+    TInstant ioStartTime = GetInstant());
 
 ////////////////////////////////////////////////////////////////////////////////
 

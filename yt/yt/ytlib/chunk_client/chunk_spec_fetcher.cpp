@@ -354,11 +354,11 @@ void TTabletChunkSpecFetcher::AddSorted(
 
             auto subrangeLowerBound = tabletLowerBound;
             if (range.LowerLimit().KeyBound()) {
-                comparator.ReplaceIfStrongerKeyBound(subrangeLowerBound, range.LowerLimit().KeyBound());
+                comparator.ReplaceIfStrongerKeyBound<TKeyBound>(subrangeLowerBound, range.LowerLimit().KeyBound());
             }
             auto subrangeUpperBound = tabletUpperBound;
             if (range.UpperLimit().KeyBound()) {
-                comparator.ReplaceIfStrongerKeyBound(subrangeUpperBound, range.UpperLimit().KeyBound());
+                comparator.ReplaceIfStrongerKeyBound<TKeyBound>(subrangeUpperBound, range.UpperLimit().KeyBound());
             }
 
             TReadRange subrange = range;

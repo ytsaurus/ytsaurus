@@ -1,6 +1,5 @@
 #pragma once
 #include "query_common.h"
-#include "query.h"
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
@@ -28,6 +27,7 @@ XX(TBetweenExpression)
 XX(TTransformExpression)
 XX(TCaseExpression)
 XX(TLikeExpression)
+XX(TQueryExpression)
 
 #undef XX
 
@@ -35,7 +35,6 @@ XX(TLikeExpression)
 using TIdentifierList = std::vector<TReferenceExpressionPtr>;
 using TExpressionList = std::vector<TExpressionPtr>;
 using TNullableExpressionList = std::optional<TExpressionList>;
-using TNullableIdentifierList = std::optional<TIdentifierList>;
 
 struct TOrderExpression
 {
@@ -92,6 +91,33 @@ struct TDoubleOrDotIntToken
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TColumnReference
+{
+    std::string ColumnName;
+    std::optional<TString> TableName;
+
+    explicit TColumnReference(
+        TStringBuf columnName,
+        const std::optional<TString>& tableName = {})
+        : ColumnName(columnName)
+        , TableName(tableName)
+    { }
+
+    bool operator == (const TColumnReference& other) const = default;
+};
+
+struct TColumnReferenceHasher
+{
+    size_t operator() (const TColumnReference& reference) const;
+};
+
+struct TColumnReferenceEqComparer
+{
+    bool operator() (const TColumnReference& lhs, const TColumnReference& rhs) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 using TStructAndTupleMemberAccessorListItem = std::variant<TStructMemberAccessor, TTupleItemIndexAccessor>;
 using TStructAndTupleMemberAccessor = std::vector<TStructAndTupleMemberAccessorListItem>;
 
@@ -108,9 +134,8 @@ struct TCompositeTypeMemberAccessor
 };
 
 struct TReference
+    : public TColumnReference
 {
-    std::string ColumnName;
-    std::optional<TString> TableName;
     TCompositeTypeMemberAccessor CompositeTypeAccessor;
 
     TReference() = default;
@@ -119,8 +144,7 @@ struct TReference
         TStringBuf columnName,
         const std::optional<TString>& tableName = {},
         const TCompositeTypeMemberAccessor& compositeTypeAccessor = {})
-        : ColumnName(columnName)
-        , TableName(tableName)
+        : TColumnReference(columnName, tableName)
         , CompositeTypeAccessor(compositeTypeAccessor)
     { }
 
@@ -129,22 +153,12 @@ struct TReference
 
 struct TReferenceHasher
 {
-    size_t operator() (const NAst::TReference& reference) const;
+    size_t operator() (const TReference& reference) const;
 };
 
 struct TReferenceEqComparer
 {
-    bool operator() (const NAst::TReference& lhs, const NAst::TReference& rhs) const;
-};
-
-struct TCompositeAgnosticReferenceHasher
-{
-    size_t operator() (const NAst::TReference& reference) const;
-};
-
-struct TCompositeAgnosticReferenceEqComparer
-{
-    bool operator() (const NAst::TReference& lhs, const NAst::TReference& rhs) const;
+    bool operator() (const TReference& lhs, const TReference& rhs) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -505,7 +519,10 @@ struct TArrayJoin
 
 struct TQuery
 {
-    std::variant<TTableDescriptor, TQueryAstHeadPtr> FromClause;
+    std::variant<
+        TTableDescriptor,
+        TQueryAstHeadPtr,
+        TExpressionList> FromClause;
     std::optional<TTableDescriptor> WithIndex;
     std::vector<std::variant<TJoin, TArrayJoin>> Joins;
 
@@ -548,8 +565,27 @@ DEFINE_REFCOUNTED_TYPE(TQueryAstHead);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TQueryExpression
+    : public TExpression
+{
+    TQuery Query;
+    TAliasMap AliasMap;
+
+    TQueryExpression(
+        const TSourceLocation& sourceLocation,
+        TQuery query,
+        TAliasMap aliasMap)
+        : TExpression(sourceLocation)
+        , Query(std::move(query))
+        , AliasMap(std::move(aliasMap))
+    { }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TStringBuf GetSource(TSourceLocation sourceLocation, TStringBuf source);
 
+void FormatIdFinal(TStringBuilderBase* builder, TStringBuf id);
 TString FormatId(TStringBuf id);
 TString FormatLiteralValue(const TLiteralValue& value);
 TString FormatReference(const TReference& ref);
@@ -559,7 +595,7 @@ TString FormatJoin(const TJoin& join);
 TString FormatArrayJoin(const TArrayJoin& join);
 TString FormatQuery(const TQuery& query);
 TString InferColumnName(const TExpression& expr);
-TString InferColumnName(const TReference& ref);
+TString InferColumnName(const TColumnReference& ref);
 void FormatValue(TStringBuilderBase* builder, const TTableHint& hint, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////

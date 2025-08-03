@@ -16,6 +16,7 @@
 
 namespace NYT::NQueueAgent {
 
+using namespace NConcurrency;
 using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -36,8 +37,6 @@ void TCypressSynchronizerDynamicConfig::Register(TRegistrar registrar)
         .Default(ECypressSynchronizerPolicy::Polling);
     registrar.Parameter("clusters", &TThis::Clusters)
         .Default();
-    registrar.Parameter("poll_replicated_objects", &TThis::PollReplicatedObjects)
-        .Default(false);
     registrar.Parameter("write_replicated_table_mapping", &TThis::WriteReplicatedTableMapping)
         .Alias("write_registration_table_mapping")
         .Default(false);
@@ -57,6 +56,12 @@ void TQueueAgentConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const TExponentialBackoffOptions TQueueExporterDynamicConfig::DefaultRetryBackoff{
+    .InvocationCount = std::numeric_limits<int>::max(),
+    .MinBackoff = TDuration::Seconds(1),
+    .MaxBackoff = TDuration::Minutes(5),
+};
+
 void TQueueExporterDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)
@@ -66,6 +71,23 @@ void TQueueExporterDynamicConfig::Register(TRegistrar registrar)
         .GreaterThan(TDuration::Zero());
     registrar.Parameter("max_exported_table_count_per_task", &TThis::MaxExportedTableCountPerTask)
         .Default(10);
+    registrar.Parameter("retry_backoff", &TThis::RetryBackoff)
+        .Default(DefaultRetryBackoff);
+    registrar.Parameter("implementation", &TThis::Implementation)
+        .Default(EQueueExporterImplementation::Old);
+
+    registrar.Postprocessor([] (TQueueExporterDynamicConfig* config) {
+        THROW_ERROR_EXCEPTION_UNLESS(config->RetryBackoff.InvocationCount == DefaultRetryBackoff.InvocationCount, "Invalid value of \"invocation_count\"");
+    });
+}
+
+TPeriodicExecutorOptions TQueueExporterDynamicConfig::GetPeriodicExecutorOptions() const
+{
+    return TPeriodicExecutorOptions{
+        .Period = Enable
+            ? std::optional(PassPeriod)
+            : std::nullopt,
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -87,8 +109,8 @@ void TQueueControllerDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("delayed_objects", &TThis::DelayedObjects)
         .Default();
-    registrar.Parameter("controller_delay_duration", &TThis::ControllerDelayDuration)
-        .Default(TDuration::Seconds(50));
+    registrar.Parameter("controller_delay", &TThis::ControllerDelay)
+        .Default(TDuration::Zero());
 
     registrar.Postprocessor([] (TQueueControllerDynamicConfig* config) {
         if (config->TrimmingPeriod && config->TrimmingPeriod->GetValue() <= 0) {

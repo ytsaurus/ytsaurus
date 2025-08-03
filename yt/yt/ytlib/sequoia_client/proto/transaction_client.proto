@@ -44,6 +44,7 @@ message TReqStartTransaction
 
     // COMPAT(kvk1920): make it required after 25.1.
     optional int32 sequoia_reign = 7; // ESequoiaReign
+    repeated NYT.NProto.TGuid prerequisite_transaction_ids = 8;
 
     extensions 100 to max;
 }

@@ -335,7 +335,7 @@ private:
     void UpdateProxies()
     {
         TMasterReadOptions options{
-            .ReadFrom = EMasterChannelKind::LocalCache,
+            .ReadFrom = EMasterChannelKind::ClientSideCache,
             .ExpireAfterSuccessfulUpdateTime = Config_->DiscoveryService->ProxyUpdatePeriod,
             .ExpireAfterFailedUpdateTime = Config_->DiscoveryService->ProxyUpdatePeriod,
             .CacheStickyGroupSize = 1
@@ -355,7 +355,7 @@ private:
             auto req = TYPathProxy::Get(ProxyPath_ + "/@");
             ToProto(
                 req->mutable_attributes()->mutable_keys(),
-                std::vector<TString>{
+                std::vector<std::string>{
                     RoleAttributeName,
                     BannedAttributeName,
                     BanMessageAttributeName,
@@ -368,7 +368,7 @@ private:
             auto req = TYPathProxy::Get(RpcProxiesPath);
             ToProto(
                 req->mutable_attributes()->mutable_keys(),
-                std::vector<TString>{
+                std::vector<std::string>{
                     RoleAttributeName,
                     BannedAttributeName,
                     AddressesAttributeName,
@@ -419,8 +419,7 @@ private:
                 bool available = alive && !banned;
                 if (available) {
                     if (addresses.size() == 0) {
-                        // TODO(babenko): migrate to std::string
-                        addresses[DefaultAddressType] = TAddressMap{{DefaultNetworkName, TString(child.first)}};
+                        addresses[DefaultAddressType] = TAddressMap{{DefaultNetworkName, child.first}};
                     }
                     proxies.push_back({addresses, role});
                 }

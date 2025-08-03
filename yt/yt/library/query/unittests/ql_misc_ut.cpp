@@ -250,5 +250,89 @@ TEST(TVectorOverMemoryChunkProviderTest, AppendHuge)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(Typing, TypeInference)
+{
+    TTypingCtx typingCtx;
+
+    // auto printSignature = [&] (std::vector<TTypeId> result) {
+    //     Cout << Format("Signature: %v", MakeFormattableView(
+    //         result,
+    //         [&] (TStringBuilderBase* builder, const auto& typeId) {
+    //             if (typeId >= 0) {
+    //                 builder->AppendString(ToString(*typingCtx.GetLogicalType(typeId)));
+    //             } else {
+    //                 builder->AppendFormat("%v", typeId);
+    //             }
+    //         })) << Endl;
+    // };
+
+    {
+        auto result = typingCtx.InferFunctionType("=", {typingCtx.GetTypeId(EValueType::Null), typingCtx.GetTypeId(EValueType::Null)});
+        EXPECT_EQ(result[0], typingCtx.GetTypeId(EValueType::Boolean));
+        EXPECT_EQ(result[1], typingCtx.GetTypeId(EValueType::Null));
+        EXPECT_EQ(result[2], typingCtx.GetTypeId(EValueType::Null));
+
+        result = typingCtx.InferFunctionType("=", {typingCtx.GetTypeId(EValueType::Int64), typingCtx.GetTypeId(EValueType::Uint64)});
+        EXPECT_EQ(result[0], typingCtx.GetTypeId(EValueType::Boolean));
+        EXPECT_EQ(result[1], typingCtx.GetTypeId(EValueType::Uint64));
+        EXPECT_EQ(result[2], typingCtx.GetTypeId(EValueType::Uint64));
+
+        result = typingCtx.InferFunctionType("=", {typingCtx.GetTypeId(EValueType::Int64), typingCtx.GetTypeId(EValueType::Null)});
+        EXPECT_EQ(result[0], typingCtx.GetTypeId(EValueType::Boolean));
+        EXPECT_EQ(result[1], typingCtx.GetTypeId(EValueType::Int64));
+        EXPECT_EQ(result[2], typingCtx.GetTypeId(EValueType::Int64));
+
+
+        result = typingCtx.InferFunctionType("=", {typingCtx.GetTypeId(EValueType::Int64), typingCtx.GetTypeId(EValueType::Any)});
+        EXPECT_EQ(result[0], typingCtx.GetTypeId(EValueType::Boolean));
+        EXPECT_EQ(result[1], typingCtx.GetTypeId(EValueType::Any));
+        EXPECT_EQ(result[2], typingCtx.GetTypeId(EValueType::Any));
+
+        result = typingCtx.InferFunctionType("=", {typingCtx.GetTypeId(EValueType::Any), typingCtx.GetTypeId(EValueType::Null)});
+        EXPECT_EQ(result[0], typingCtx.GetTypeId(EValueType::Boolean));
+        EXPECT_EQ(result[1], typingCtx.GetTypeId(EValueType::Any));
+        EXPECT_EQ(result[2], typingCtx.GetTypeId(EValueType::Any));
+
+        result = typingCtx.InferFunctionType("=", {typingCtx.GetTypeId(EValueType::Any), typingCtx.GetTypeId(EValueType::Any)});
+        EXPECT_EQ(result[0], typingCtx.GetTypeId(EValueType::Boolean));
+        EXPECT_EQ(result[1], typingCtx.GetTypeId(EValueType::Any));
+        EXPECT_EQ(result[2], typingCtx.GetTypeId(EValueType::Any));
+
+        EXPECT_THROW(
+            typingCtx.InferFunctionType("=", {typingCtx.GetTypeId(EValueType::Int64), typingCtx.GetTypeId(EValueType::String)}),
+            NYT::TErrorException);
+    }
+
+    {
+        auto result = typingCtx.InferFunctionType("+", {typingCtx.GetTypeId(EValueType::Int64), typingCtx.GetTypeId(EValueType::Int64)});
+        EXPECT_EQ(result[0], typingCtx.GetTypeId(EValueType::Int64));
+        EXPECT_EQ(result[1], typingCtx.GetTypeId(EValueType::Int64));
+        EXPECT_EQ(result[2], typingCtx.GetTypeId(EValueType::Int64));
+    }
+
+    {
+        auto result = typingCtx.InferFunctionType("+", {typingCtx.GetTypeId(EValueType::Int64), typingCtx.GetTypeId(EValueType::Double)});
+        EXPECT_EQ(result[0], typingCtx.GetTypeId(EValueType::Double));
+        EXPECT_EQ(result[1], typingCtx.GetTypeId(EValueType::Double));
+        EXPECT_EQ(result[2], typingCtx.GetTypeId(EValueType::Double));
+    }
+
+    {
+        {
+            TTypingCtx::TFunctionSignatures signatures;
+            signatures.push_back(TTypingCtx::TFunctionSignature({-1, typingCtx.GetTypeId(EValueType::Boolean), -1, -1}));
+            typingCtx.RegisterFunction("if", std::move(signatures));
+        }
+
+        auto result = typingCtx.InferFunctionType("if", {typingCtx.GetTypeId(EValueType::Boolean), typingCtx.GetTypeId(EValueType::Int64), typingCtx.GetTypeId(EValueType::Double)});
+        EXPECT_EQ(result[0], typingCtx.GetTypeId(EValueType::Double));
+        EXPECT_EQ(result[1], typingCtx.GetTypeId(EValueType::Boolean));
+        EXPECT_EQ(result[2], typingCtx.GetTypeId(EValueType::Double));
+        EXPECT_EQ(result[3], typingCtx.GetTypeId(EValueType::Double));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NQueryClient

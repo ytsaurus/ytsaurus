@@ -3,8 +3,11 @@
 #include <library/cpp/http/misc/parsed_request.h>
 #include <library/cpp/http/server/http.h>
 #include <library/cpp/http/server/response.h>
+#include <yql/essentials/utils/log/context.h>
+#include <yql/essentials/utils/log/log.h>
 #include <yql/essentials/utils/yql_panic.h>
 #include <yt/yql/providers/yt/fmr/coordinator/interface/proto_helpers/yql_yt_coordinator_proto_helpers.h>
+#include <yt/yql/providers/yt/fmr/utils/yql_yt_log_context.h>
 
 namespace NYql::NFmr {
 
@@ -16,7 +19,8 @@ enum class EOperationHandler {
     StartOperation,
     GetOperation,
     DeleteOperation,
-    SendHeartbeatResponse
+    SendHeartbeatResponse,
+    GetFmrTableInfo
 };
 
 class TReplier: public TRequestReplier {
@@ -43,11 +47,9 @@ private:
     std::unordered_map<EOperationHandler, THandler> Handlers_;
 
     TMaybe<EOperationHandler> GetHandlerName(TParsedHttpFull httpRequest) {
-        TStringBuf queryPath, queryId;
+        TStringBuf queryPath;
         httpRequest.Path.SkipPrefix("/");
         queryPath = httpRequest.Path.NextTok('/');
-        queryId = httpRequest.Path.NextTok('/');
-
         if (queryPath == "operation") {
             if (httpRequest.Method == "POST") {
                 return EOperationHandler::StartOperation;
@@ -60,6 +62,9 @@ private:
         } else if (queryPath == "worker_heartbeat") {
             YQL_ENSURE(httpRequest.Method == "POST");
             return EOperationHandler::SendHeartbeatResponse;
+        } else if (queryPath == "fmr_table_info") {
+            YQL_ENSURE(httpRequest.Method == "GET");
+            return EOperationHandler::GetFmrTableInfo;
         }
         return Nothing();
     }
@@ -78,12 +83,15 @@ public:
         THandler getOperationHandler = std::bind(&TFmrCoordinatorServer::GetOperationHandler, this, std::placeholders::_1);
         THandler deleteOperationHandler = std::bind(&TFmrCoordinatorServer::DeleteOperationHandler, this, std::placeholders::_1);
         THandler sendHeartbeatResponseHandler = std::bind(&TFmrCoordinatorServer::SendHeartbeatResponseHandler, this, std::placeholders::_1);
+        THandler getFmrTableInfoHandler = std::bind(&TFmrCoordinatorServer::GetFmrTableInfoHandler, this, std::placeholders::_1);
+
 
         Handlers_ = std::unordered_map<EOperationHandler, THandler>{
             {EOperationHandler::StartOperation, startOperationHandler},
             {EOperationHandler::GetOperation, getOperationHandler},
             {EOperationHandler::DeleteOperation, deleteOperationHandler},
-            {EOperationHandler::SendHeartbeatResponse, sendHeartbeatResponseHandler}
+            {EOperationHandler::SendHeartbeatResponse, sendHeartbeatResponseHandler},
+            {EOperationHandler::GetFmrTableInfo, getFmrTableInfoHandler}
         };
     }
 
@@ -112,6 +120,7 @@ private:
     const TString Host_;
 
     THttpResponse StartOperationHandler(THttpInput& input) {
+        YQL_LOG_CTX_ROOT_SESSION_SCOPE(GetLogContext(input));
         NProto::TStartOperationRequest protoStartOperationRequest;
         YQL_ENSURE(protoStartOperationRequest.ParseFromString(input.ReadAll()));
         auto startOperationResponse = Coordinator_->StartOperation(StartOperationRequestFromProto(protoStartOperationRequest)).GetValueSync();
@@ -124,6 +133,7 @@ private:
     }
 
     THttpResponse GetOperationHandler(THttpInput& input) {
+        YQL_LOG_CTX_ROOT_SESSION_SCOPE(GetLogContext(input));
         TParsedHttpFull httpRequest(input.FirstLine());
         httpRequest.Path.SkipPrefix("/operation/");
         TGetOperationRequest getOperationRequest{.OperationId = ToString(httpRequest.Path)};
@@ -138,6 +148,7 @@ private:
     }
 
     THttpResponse DeleteOperationHandler(THttpInput& input) {
+        YQL_LOG_CTX_ROOT_SESSION_SCOPE(GetLogContext(input));
         TParsedHttpFull httpRequest(input.FirstLine());
         httpRequest.Path.SkipPrefix("/operation/");
         TDeleteOperationRequest deleteOperationRequest{.OperationId = ToString(httpRequest.Path)};
@@ -152,6 +163,7 @@ private:
     }
 
     THttpResponse SendHeartbeatResponseHandler(THttpInput& input) {
+        YQL_LOG_CTX_ROOT_SESSION_SCOPE(GetLogContext(input));
         NProto::THeartbeatRequest protoHeartbeatRequest;
         YQL_ENSURE(protoHeartbeatRequest.ParseFromString(input.ReadAll()));
 
@@ -161,6 +173,20 @@ private:
         THttpResponse httpResponse(HTTP_OK);
         httpResponse.SetContentType("application/x-protobuf");
         httpResponse.SetContent(protoSendHeartbeatResponse.SerializeAsString());
+        return httpResponse;
+    }
+
+    THttpResponse GetFmrTableInfoHandler(THttpInput& input) {
+        YQL_LOG_CTX_ROOT_SESSION_SCOPE(GetLogContext(input));
+        NProto::TGetFmrTableInfoRequest protoGetFmrTableInfoRequest;
+        YQL_ENSURE(protoGetFmrTableInfoRequest.ParseFromString(input.ReadAll()));
+
+        auto fmrTableInfoResponse = Coordinator_->GetFmrTableInfo(GetFmrTableInfoRequestFromProto(protoGetFmrTableInfoRequest)).GetValueSync();
+        auto protoFmrTableInfoResponse = GetFmrTableInfoResponseToProto(fmrTableInfoResponse);
+
+        THttpResponse httpResponse(HTTP_OK);
+        httpResponse.SetContentType("application/x-protobuf");
+        httpResponse.SetContent(protoFmrTableInfoResponse.SerializeAsString());
         return httpResponse;
     }
 };

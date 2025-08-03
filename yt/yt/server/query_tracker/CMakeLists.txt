@@ -22,6 +22,9 @@ add_library(yt-server-query_tracker)
 target_compile_options(yt-server-query_tracker PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(yt-server-query_tracker PUBLIC
@@ -54,6 +57,7 @@ target_sources(yt-server-query_tracker PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/dynamic_config_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/handler_base.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/profiler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/proxy_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/query_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/query_tracker_proxy.cpp

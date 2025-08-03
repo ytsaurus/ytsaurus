@@ -50,7 +50,7 @@ TJobResources ComputeAvailableResources(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationFairShareTreeRuntimeParametersPtr GetSchedulingOptionsPerPoolTree(IOperationStrategyHost* operation, const TString& treeId);
+TOperationFairShareTreeRuntimeParametersPtr GetSchedulingOptionsPerPoolTree(const IOperationStrategyHostPtr& operation, const TString& treeId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -140,10 +140,6 @@ struct TMatchingTreeCookie
     int TreeSetTopologyVersion = InvalidTreeSetTopologyVersion;
     int TreeIndex = InvalidTreeIndex;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-NLogging::TOneShotFluentLogEvent LogStructuredGpuEventFluently(EGpuSchedulingLogEventType eventType);
 
 ////////////////////////////////////////////////////////////////////////////////
 

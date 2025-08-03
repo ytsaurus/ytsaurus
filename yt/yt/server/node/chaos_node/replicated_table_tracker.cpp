@@ -144,7 +144,7 @@ public:
             .Run();
     }
 
-    NApi::IClientPtr CreateClusterClient(const TString& clusterName) override
+    NApi::IClientPtr CreateClusterClient(const std::string& clusterName) override
     {
         return Slot_->CreateClusterClient(clusterName);
     }

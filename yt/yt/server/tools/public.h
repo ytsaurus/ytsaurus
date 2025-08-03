@@ -34,6 +34,8 @@ DECLARE_REFCOUNTED_STRUCT(TDirectoryConfig)
 DECLARE_REFCOUNTED_STRUCT(TRootDirectoryConfig)
 DECLARE_REFCOUNTED_STRUCT(TDirectoryBuilderConfig)
 
+DECLARE_REFCOUNTED_STRUCT(TMkFsConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

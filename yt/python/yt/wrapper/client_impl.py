@@ -869,6 +869,23 @@ class YtClient(ClientState):
             client=self,
             discovery_path=discovery_path)
 
+    def flow_execute(
+            self,
+            pipeline_path, flow_command,
+            flow_argument=None, input_format=None, output_format=None):
+        """
+        Execute YT Flow specific command
+
+        :param pipeline_path: path to pipeline.
+        :param flow_command: name of the command to execute.
+        :param flow_argument: optional argument of the command.
+
+        """
+        return client_api.flow_execute(
+            pipeline_path, flow_command,
+            client=self,
+            flow_argument=flow_argument, input_format=input_format, output_format=output_format)
+
     def freeze_table(
             self,
             path,
@@ -1161,7 +1178,8 @@ class YtClient(ClientState):
 
     def get_pipeline_state(
             self,
-            pipeline_path):
+            pipeline_path,
+            timeout=None):
         """
         Get YT Flow pipeline state
 
@@ -1170,7 +1188,8 @@ class YtClient(ClientState):
         """
         return client_api.get_pipeline_state(
             pipeline_path,
-            client=self)
+            client=self,
+            timeout=timeout)
 
     def get_query(
             self,
@@ -1479,8 +1498,9 @@ class YtClient(ClientState):
             operation_id,
             job_type=None, job_state=None, address=None, job_competition_id=None, with_competitors=None,
             sort_field=None, sort_order=None, limit=None, offset=None, with_stderr=None, with_spec=None,
-            with_fail_context=None, with_monitoring_descriptor=None, include_cypress=None, include_runtime=None,
-            include_archive=None, data_source=None, format=None):
+            with_fail_context=None, with_monitoring_descriptor=None, with_interruption_info=None,
+            include_cypress=None, include_runtime=None, include_archive=None, data_source=None, attributes=None,
+            format=None):
         """
         List jobs of operation.
         """
@@ -1490,9 +1510,9 @@ class YtClient(ClientState):
             job_type=job_type, job_state=job_state, address=address, job_competition_id=job_competition_id,
             with_competitors=with_competitors, sort_field=sort_field, sort_order=sort_order, limit=limit,
             offset=offset, with_stderr=with_stderr, with_spec=with_spec, with_fail_context=with_fail_context,
-            with_monitoring_descriptor=with_monitoring_descriptor, include_cypress=include_cypress,
-            include_runtime=include_runtime, include_archive=include_archive, data_source=data_source,
-            format=format)
+            with_monitoring_descriptor=with_monitoring_descriptor, with_interruption_info=with_interruption_info,
+            include_cypress=include_cypress, include_runtime=include_runtime, include_archive=include_archive,
+            data_source=data_source, attributes=attributes, format=format)
 
     def list_operations(
             self,
@@ -2860,7 +2880,8 @@ class YtClient(ClientState):
 
     def start_pipeline(
             self,
-            pipeline_path):
+            pipeline_path,
+            timeout=None):
         """
         Start YT Flow pipeline.
 
@@ -2869,13 +2890,14 @@ class YtClient(ClientState):
         """
         return client_api.start_pipeline(
             pipeline_path,
-            client=self)
+            client=self,
+            timeout=timeout)
 
     def start_query(
             self,
             engine, query,
             settings=None, files=None, stage=None, annotations=None, access_control_object=None,
-            access_control_objects=None):
+            access_control_objects=None, secrets=None):
         """
         Start query.
 
@@ -2901,7 +2923,7 @@ class YtClient(ClientState):
             engine, query,
             client=self,
             settings=settings, files=files, stage=stage, annotations=annotations, access_control_object=access_control_object,
-            access_control_objects=access_control_objects)
+            access_control_objects=access_control_objects, secrets=secrets)
 
     def start_transaction(
             self,

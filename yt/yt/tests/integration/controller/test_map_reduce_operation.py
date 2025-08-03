@@ -11,7 +11,7 @@ from yt_commands import (
 
 from yt_type_helpers import struct_type, list_type, tuple_type, optional_type, make_schema, make_column
 
-from yt_helpers import skip_if_no_descending, skip_if_old, skip_if_renaming_disabled
+from yt_helpers import skip_if_old
 
 import yt_error_codes
 import yt.yson as yson
@@ -76,39 +76,31 @@ class TestSchedulerMapReduceBase(YTEnvSetup):
 
 class TestSchedulerMapReduceCommands(TestSchedulerMapReduceBase):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
-    NUM_TEST_PARTITIONS = 8
+    NUM_TEST_PARTITIONS = 10
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "sort_operation_options": {
-                "min_uncompressed_block_size": 1
+            "operation_options": {
+                "min_uncompressed_block_size": 1,
+                "spec_template": {
+                    "enable_table_index_if_has_trivial_mapper": True,
+                }
             },
             "map_reduce_operation_options": {
                 "data_balancer": {
                     "tolerance": 1.0,
                 },
-                "min_uncompressed_block_size": 1,
-                "job_splitter": {
-                    "min_job_time": 3000,
-                    "min_total_data_size": 1024,
-                    "update_period": 100,
-                    "candidate_percentile": 0.8,
-                    "max_jobs_per_split": 3,
-                    "job_logging_period": 0,
-                },
                 "spec_template": {
                     "use_new_sorted_pool": False,
-                }
+                },
+                "sorted_merge_job_size_adjuster": {},
             },
             "enable_partition_map_job_size_adjustment": True,
-            "operation_options": {
-                "spec_template": {
-                    "enable_table_index_if_has_trivial_mapper": True,
-                }
-            },
+            "enable_ordered_partition_map_job_size_adjustment": True,
+            "enable_sorted_merge_in_sort_job_size_adjustment": True,
         }
     }
 
@@ -228,7 +220,7 @@ def read_table():
 
 for key, rows in groupby(read_table(), lambda row: row["word"]):
     count = sum(int(row["count"]) for row in rows)
-    print "word=%s\\tcount=%s" % (key, count)
+    print("word=%s\\tcount=%s" % (key, count))
 """
 
         tx = start_transaction(timeout=60000)
@@ -253,7 +245,7 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_map_out",
-                command="python mapper.py",
+                command="python3 mapper.py",
                 file=["//tmp/mapper.py", "//tmp/yt_streaming.py"],
                 spec={"mapper": {"format": "dsv"}},
                 tx=tx,
@@ -265,7 +257,7 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
                 in_="//tmp/t_reduce_in",
                 out="//tmp/t_out",
                 reduce_by="word",
-                command="python reducer.py",
+                command="python3 reducer.py",
                 file=["//tmp/reducer.py", "//tmp/yt_streaming.py"],
                 spec={"reducer": {"format": "dsv"}},
                 tx=tx,
@@ -275,11 +267,11 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
                 sort_by="word",
-                mapper_command="python mapper.py",
+                mapper_command="python3 mapper.py",
                 mapper_file=["//tmp/mapper.py", "//tmp/yt_streaming.py"],
-                reduce_combiner_command="python reducer.py",
+                reduce_combiner_command="python3 reducer.py",
                 reduce_combiner_file=["//tmp/reducer.py", "//tmp/yt_streaming.py"],
-                reducer_command="python reducer.py",
+                reducer_command="python3 reducer.py",
                 reducer_file=["//tmp/reducer.py", "//tmp/yt_streaming.py"],
                 spec={
                     "partition_count": 2,
@@ -296,9 +288,9 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
                 sort_by="word",
-                mapper_command="python mapper.py",
+                mapper_command="python3 mapper.py",
                 mapper_file=["//tmp/mapper.py", "//tmp/yt_streaming.py"],
-                reducer_command="python reducer.py",
+                reducer_command="python3 reducer.py",
                 reducer_file=["//tmp/reducer.py", "//tmp/yt_streaming.py"],
                 spec={
                     "partition_count": 1,
@@ -312,10 +304,10 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
                 sort_by="word",
-                mapper_command="python mapper.py",
+                mapper_command="python3 mapper.py",
                 mapper_file=["//tmp/mapper.py", "//tmp/yt_streaming.py"],
                 reduce_combiner_command="cat >/dev/null",
-                reducer_command="python reducer.py",
+                reducer_command="python3 reducer.py",
                 reducer_file=["//tmp/reducer.py", "//tmp/yt_streaming.py"],
                 spec={
                     "partition_count": 2,
@@ -332,9 +324,9 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
                 sort_by="word",
-                mapper_command="python mapper.py",
+                mapper_command="python3 mapper.py",
                 mapper_file=["//tmp/mapper.py", "//tmp/yt_streaming.py"],
-                reduce_combiner_command="python reducer.py",
+                reduce_combiner_command="python3 reducer.py",
                 reduce_combiner_file=["//tmp/reducer.py", "//tmp/yt_streaming.py"],
                 reducer_command="cat",
                 spec={
@@ -352,11 +344,11 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
                 sort_by="word",
-                mapper_command="python mapper.py",
+                mapper_command="python3 mapper.py",
                 mapper_file=["//tmp/mapper.py", "//tmp/yt_streaming.py"],
-                reduce_combiner_command="python reducer.py",
+                reduce_combiner_command="python3 reducer.py",
                 reduce_combiner_file=["//tmp/reducer.py", "//tmp/yt_streaming.py"],
-                reducer_command="python reducer.py",
+                reducer_command="python3 reducer.py",
                 reducer_file=["//tmp/reducer.py", "//tmp/yt_streaming.py"],
                 spec={
                     "partition_count": 2,
@@ -374,11 +366,11 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
                 sort_by="word",
-                mapper_command="python mapper.py",
+                mapper_command="python3 mapper.py",
                 mapper_file=["//tmp/mapper.py", "//tmp/yt_streaming.py"],
-                reduce_combiner_command="python reducer.py",
+                reduce_combiner_command="python3 reducer.py",
                 reduce_combiner_file=["//tmp/reducer.py", "//tmp/yt_streaming.py"],
-                reducer_command="python reducer.py",
+                reducer_command="python3 reducer.py",
                 reducer_file=["//tmp/reducer.py", "//tmp/yt_streaming.py"],
                 spec={
                     "partition_count": 7,
@@ -470,9 +462,6 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
     @authors("psushin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_reduce_with_sort(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
@@ -492,8 +481,8 @@ for l in sys.stdin:
   d = dict([(a[0], int(a[1])) for a in pairs])
   x = d['x']
   y = d['y']
-  print l
-print "x={0}\ty={1}".format(x, y)
+  print(l)
+print("x={0}\ty={1}".format(x, y))
 """
 
         create("file", "//tmp/reducer.py")
@@ -507,7 +496,7 @@ print "x={0}\ty={1}".format(x, y)
             reduce_by="x",
             sort_by=sort_by,
             reducer_file=["//tmp/reducer.py"],
-            reducer_command="python reducer.py",
+            reducer_command="python3 reducer.py",
             spec={"partition_count": 2, "reducer": {"format": "dsv"}},
         )
 
@@ -763,9 +752,6 @@ print "x={0}\ty={1}".format(x, y)
     @authors("savrus")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_query_simple(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
@@ -788,9 +774,6 @@ print "x={0}\ty={1}".format(x, y)
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_rename_columns_simple(self, optimize_for, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create(
             "table",
             "//tmp/tin",
@@ -819,10 +802,6 @@ print "x={0}\ty={1}".format(x, y)
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_rename_columns_alter_table(self, optimize_for, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-        skip_if_renaming_disabled(self.Env)
-
         input_table = "//tmp/tin"
         output_table = "//tmp/tout"
 
@@ -1177,9 +1156,14 @@ print "x={0}\ty={1}".format(x, y)
         assert get("//tmp/t2/@schema_mode") == "strong"
         assert read_table("//tmp/t2") == [{"k1": i * 2, "k2": i} for i in range(2)]
 
-    @authors("klyachin")
-    @pytest.mark.skipif("True", reason="YT-8228")
-    def test_map_reduce_job_size_adjuster_boost(self):
+    @authors("klyachin", "coteeq")
+    @pytest.mark.parametrize("ordered", [True, False])
+    def test_map_reduce_job_size_adjuster_boost(self, ordered):
+        if not ordered:
+            pytest.skip(reason="YT-8228")
+
+        skip_if_old(self.Env, (25, 3), "No ordered adjuster in 25.2")
+
         create("table", "//tmp/t_input")
         # original_data should have at least 1Mb of data
         original_data = [{"index": "%05d" % i, "foo": "a" * 35000} for i in range(31)]
@@ -1195,9 +1179,13 @@ print "x={0}\ty={1}".format(x, y)
             mapper_command="echo lines=`wc -l`",
             reducer_command="cat",
             spec={
+                "ordered": ordered,
                 "mapper": {"format": "dsv"},
                 "map_job_io": {"table_writer": {"block_size": 1024}},
                 "resource_limits": {"user_slots": 1},
+                "job_testing_options": {
+                    "fake_prepare_duration": 10000,
+                },
             },
         )
 
@@ -1205,13 +1193,61 @@ print "x={0}\ty={1}".format(x, y)
         actual = read_table("//tmp/t_output")
         assert_items_equal(actual, expected)
 
+    @authors("coteeq")
+    @pytest.mark.timeout(300)
+    def test_map_reduce_job_size_adjuster_sorted_merge(self):
+        self.skip_if_legacy_sorted_pool()
+        create("table", "//tmp/t_input")
+        original_data = [{"index": "%05d" % i, "foo": "a" * 35000} for i in range(15)]
+        for row in original_data:
+            write_table("<append=true>//tmp/t_input", row, verbose=False)
+
+        create("table", "//tmp/t_output")
+
+        map_reduce(
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            reduce_by="index",
+            mapper_command="cat",
+            reducer_command="echo lines=`wc -l`",
+            spec={
+                "mapper": {"format": "dsv"},
+                "reducer": {"format": "dsv"},
+                "resource_limits": {"user_slots": 1},
+                "data_size_per_map_job": 1,
+                "data_size_per_sort_job": 36000,
+                "partition_count": 1,
+                "job_testing_options": {
+                    "fake_prepare_duration": 10000,
+                },
+            },
+        )
+
+        # NB(coteeq): A little quirk of sorted job builder is that it checks for data weight too late.
+        # So initially it will produce jobs with row counts [1, 2, 2, 2, 2, 2, 2, 2].
+        # JobManager will then schedule fat jobs first, so we will schedule jobs starting from the second.
+        # But this second job will not trigger enlargement, because the jobs are already too large.
+        # So the job sizes will look like this (c means completed):
+        # [1, 2, 2, 2, 2, 2, 2, 2]
+        # [1, c, 2, 2, 2, 2, 2, 2]
+        # [1, c, c, 4, 4, 2]
+        # [1, c, c, c, 6]
+        # [1, c, c, c, c]
+        # [c, c, c, c, c]
+        expected = [
+            {"lines": "1"},
+            {"lines": "2"},
+            {"lines": "2"},
+            {"lines": "4"},
+            {"lines": "6"},
+        ]
+        actual = read_table("//tmp/t_output")
+        assert_items_equal(actual, expected)
+
     @authors("max42")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending", None])
     @pytest.mark.parametrize("ordered", [False, True])
     def test_map_output_table(self, sort_order, ordered):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
         create(
@@ -1285,9 +1321,6 @@ print "x={0}\ty={1}".format(x, y)
     @authors("dakovalkov")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_ordered_map_reduce(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
         for i in range(50):
@@ -1310,9 +1343,6 @@ print "x={0}\ty={1}".format(x, y)
     @authors("babenko")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_commandless_user_job_spec(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
         for i in range(50):
@@ -1330,9 +1360,6 @@ print "x={0}\ty={1}".format(x, y)
     @authors("max42")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sampling(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create(
             "table",
             "//tmp/t1",
@@ -1536,8 +1563,6 @@ print "x={0}\ty={1}".format(x, y)
 
     @authors("gritukan")
     def test_pivot_keys_descending(self):
-        skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         create("table", "//tmp/t3")
@@ -1578,7 +1603,6 @@ print "x={0}\ty={1}".format(x, y)
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_intermediate_schema(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         schema = [
@@ -1628,7 +1652,7 @@ for l in sys.stdin:
             in_="//tmp/t1",
             out="//tmp/t2",
             mapper_file=["//tmp/mapper.py"],
-            mapper_command="python mapper.py",
+            mapper_command="python3 mapper.py",
             reducer_command="cat",
             reduce_combiner_command="cat",
             sort_by=[{"name": "a", "sort_order": sort_order}],
@@ -1688,7 +1712,7 @@ for l in sys.stdin:
             in_="//tmp/input",
             out=["//tmp/mapper_output", "//tmp/reducer_output"],
             mapper_file=["//tmp/mapper.py"],
-            mapper_command="python mapper.py",
+            mapper_command="python3 mapper.py",
             reducer_command="cat",
             reduce_by=["a"],
             spec={
@@ -1773,7 +1797,7 @@ for l in sys.stdin:
             in_=["//tmp/in"],
             out="//tmp/out",
             reducer_file=["//tmp/reducer.py"],
-            reducer_command="python reducer.py",
+            reducer_command="python3 reducer.py",
             sort_by=[{"name": "a", "sort_order": "ascending"}],
             spec={
                 "partition_count": 1,
@@ -1796,11 +1820,7 @@ for l in sys.stdin:
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_several_intermediate_schemas_trivial_mapper(self, sort_order, with_intermediate_sort):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
-        is_compat = "22_1" in getattr(self, "ARTIFACT_COMPONENTS", {})
-        if with_intermediate_sort and is_compat:
-            pytest.xfail("Hasn't worked before")
 
         first_schema = [
             {"name": "a", "type_v3": "int64", "sort_order": sort_order},
@@ -1880,7 +1900,7 @@ for l in sys.stdin:
             in_=["//tmp/in1", "//tmp/in2"],
             out="//tmp/out",
             reducer_file=["//tmp/reducer.py"],
-            reducer_command="python reducer.py",
+            reducer_command="python3 reducer.py",
             sort_by=[{"name": "a", "sort_order": sort_order}],
             spec=spec,
         )
@@ -1896,7 +1916,6 @@ for l in sys.stdin:
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_several_intermediate_schemas_trivial_mapper_type_casting(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         input_schemas = [
@@ -1984,7 +2003,7 @@ for l in sys.stdin:
             in_=input_paths,
             out="//tmp/out",
             reducer_file=["//tmp/reducer.py"],
-            reducer_command="python reducer.py",
+            reducer_command="python3 reducer.py",
             sort_by=[
                 {"name": "a", "sort_order": sort_order},
                 {"name": "b", "sort_order": sort_order},
@@ -2012,12 +2031,7 @@ for l in sys.stdin:
     )
     def test_several_intermediate_schemas_passing(self, sort_order, method):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
-
-        is_compat = "22_4" in getattr(self, "ARTIFACT_COMPONENTS", {})
-        if is_compat and method == "ordered_map_reduce":
-            pytest.xfail("Hasn't worked before")
 
         first_schema = [
             {"name": "a", "type_v3": "int64", "sort_order": sort_order},
@@ -2069,10 +2083,10 @@ for l in sys.stdin:
     a, b = row["a"], row["b"]
     if a % 2 == 0:
         out_row = {"a": a // 2, "struct": row}
-        os.write(1, json.dumps(out_row) + "\\n")
+        os.write(1, json.dumps(out_row).encode() + b"\\n")
     else:
         out_row = {"a": a // 2, "struct1": {"a1": a - 1}}
-        os.write(4, json.dumps(out_row) + "\\n")
+        os.write(4, json.dumps(out_row).encode() + b"\\n")
 """
         create("file", "//tmp/mapper.py")
         write_file("//tmp/mapper.py", mapper)
@@ -2085,9 +2099,9 @@ for l in sys.stdin:
                 in_="//tmp/t1",
                 out="//tmp/t2",
                 mapper_file=["//tmp/mapper.py"],
-                mapper_command="python mapper.py",
+                mapper_command="python3 mapper.py",
                 reducer_file=["//tmp/reducer.py"],
-                reducer_command="python reducer.py",
+                reducer_command="python3 reducer.py",
                 sort_by=[{"name": "a", "sort_order": sort_order}],
                 spec={
                     "mapper": {
@@ -2107,9 +2121,9 @@ for l in sys.stdin:
                 in_="//tmp/t1",
                 out="//tmp/t2",
                 mapper_file=["//tmp/mapper.py"],
-                mapper_command="python mapper.py",
+                mapper_command="python3 mapper.py",
                 reducer_file=["//tmp/reducer.py"],
-                reducer_command="python reducer.py",
+                reducer_command="python3 reducer.py",
                 sort_by=[{"name": "a", "sort_order": sort_order}],
                 spec={
                     "partition_count": 1,
@@ -2130,9 +2144,9 @@ for l in sys.stdin:
                 in_="//tmp/t1",
                 out="//tmp/t2",
                 mapper_file=["//tmp/mapper.py"],
-                mapper_command="python mapper.py",
+                mapper_command="python3 mapper.py",
                 reducer_file=["//tmp/reducer.py"],
-                reducer_command="python reducer.py",
+                reducer_command="python3 reducer.py",
                 sort_by=[{"name": "a", "sort_order": sort_order}],
                 spec={
                     "partition_count": 2,
@@ -2156,9 +2170,9 @@ for l in sys.stdin:
                 in_="//tmp/t1",
                 out="//tmp/t2",
                 mapper_file=["//tmp/mapper.py"],
-                mapper_command="python mapper.py",
+                mapper_command="python3 mapper.py",
                 reducer_file=["//tmp/reducer.py"],
-                reducer_command="python reducer.py",
+                reducer_command="python3 reducer.py",
                 sort_by=[{"name": "a", "sort_order": sort_order}],
                 spec={
                     "partition_count": 7,
@@ -2241,10 +2255,10 @@ for l in sys.stdin:
     a, b = row["a"], row["b"]
     if a % 2 == 0:
         out_row = {"a": a // 2, "struct": row}
-        os.write(1, json.dumps(out_row) + "\\n")
+        os.write(1, json.dumps(out_row).encode() + b"\\n")
     else:
         out_row = {"a": a // 2, "struct1": {"a1": a - 1}}
-        os.write(4, json.dumps(out_row) + "\\n")
+        os.write(4, json.dumps(out_row).encode() + b"\\n")
 """
         create("file", "//tmp/mapper.py")
         write_file("//tmp/mapper.py", mapper)
@@ -2263,7 +2277,7 @@ for l in sys.stdin:
     else:
         assert table_index == 1
         row["struct1"]["a1"] += 100
-    os.write(table_index * 3 + 1, json.dumps(row))
+    os.write(table_index * 3 + 1, json.dumps(row).encode())
 """
         create("file", "//tmp/reduce_combiner.py")
         write_file("//tmp/reduce_combiner.py", reduce_combiner)
@@ -2275,11 +2289,11 @@ for l in sys.stdin:
             in_="//tmp/t1",
             out="//tmp/t2",
             mapper_file=["//tmp/mapper.py"],
-            mapper_command="python mapper.py",
+            mapper_command="python3 mapper.py",
             reduce_combiner_file=["//tmp/reduce_combiner.py"],
-            reduce_combiner_command="cat" if cat_combiner else "python reduce_combiner.py",
+            reduce_combiner_command="cat" if cat_combiner else "python3 reduce_combiner.py",
             reducer_file=["//tmp/reducer.py"],
-            reducer_command="python reducer.py",
+            reducer_command="python3 reducer.py",
             sort_by=["a"],
             spec={
                 "mapper": {
@@ -2316,7 +2330,6 @@ for l in sys.stdin:
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_identical_intermediate_schemas(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         schema = [
@@ -2357,9 +2370,9 @@ for l in sys.stdin:
     row = json.loads(l)
     a, b = row["a"], row["b"]
     out_row = {"a": a, "struct": {"a": a**2, "b": str(a) * 3}}
-    os.write(1, json.dumps(out_row) + "\\n")
+    os.write(1, json.dumps(out_row).encode() + b"\\n")
     out_row = {"a": a, "struct": {"a": a**3, "b": str(a) * 5}}
-    os.write(4, json.dumps(out_row) + "\\n")
+    os.write(4, json.dumps(out_row).encode() + b"\\n")
 """
         create("file", "//tmp/mapper.py")
         write_file("//tmp/mapper.py", mapper)
@@ -2371,9 +2384,9 @@ for l in sys.stdin:
             in_="//tmp/t1",
             out="//tmp/t2",
             mapper_file=["//tmp/mapper.py"],
-            mapper_command="python mapper.py",
+            mapper_command="python3 mapper.py",
             reducer_file=["//tmp/reducer.py"],
-            reducer_command="python reducer.py",
+            reducer_command="python3 reducer.py",
             sort_by=[{"name": "a", "sort_order": sort_order}],
             spec={
                 "mapper": {
@@ -2399,7 +2412,6 @@ for l in sys.stdin:
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_identical_intermediate_schemas_trivial_mapper(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         input_schema = [
@@ -2448,7 +2460,7 @@ for l in sys.stdin:
             in_=["//tmp/in1", "//tmp/in2"],
             out="//tmp/out",
             reducer_file=["//tmp/reducer.py"],
-            reducer_command="python reducer.py",
+            reducer_command="python3 reducer.py",
             sort_by=[{"name": "a", "sort_order": sort_order}],
             spec={
                 "reducer": {"format": "json"},
@@ -2534,7 +2546,7 @@ for l in sys.stdin:
         }},
     }}
     out_row_1.update(key)
-    os.write(1, json.dumps(out_row_1) + "\\n")
+    os.write(1, json.dumps(out_row_1).encode() + b"\\n")
     out_row_2 = {{
         "struct1": {{
             "a1": a,
@@ -2542,7 +2554,7 @@ for l in sys.stdin:
         }},
     }}
     out_row_2.update(key)
-    os.write(4, json.dumps(out_row_2) + "\\n")
+    os.write(4, json.dumps(out_row_2).encode() + b"\\n")
 """
         create("file", "//tmp/mapper.py")
         write_file("//tmp/mapper.py", mapper.format(row_count=row_count).encode())
@@ -2586,9 +2598,9 @@ for l in sys.stdin:
             in_="//tmp/t1",
             out="//tmp/t2",
             mapper_file=["//tmp/mapper.py"],
-            mapper_command="python mapper.py",
+            mapper_command="python3 mapper.py",
             reducer_file=["//tmp/reducer.py"],
-            reducer_command="python reducer.py",
+            reducer_command="python3 reducer.py",
             sort_by=["key1", "key2", "key3"],
             spec={
                 "mapper": {
@@ -2737,7 +2749,7 @@ for l in sys.stdin:
             in_=["//tmp/in1", "//tmp/in2"],
             out="//tmp/out",
             reducer_file=["//tmp/reducer.py"],
-            reducer_command="python reducer.py",
+            reducer_command="python3 reducer.py",
             sort_by=["key1", "key2", "key3"],
             spec={
                 "reducer": {"format": "json"},
@@ -2785,7 +2797,7 @@ for l in sys.stdin:
                 out="//tmp/t2",
                 mapper_command="cat",
                 reducer_file=["//tmp/reducer.py"],
-                reducer_command="python reducer.py",
+                reducer_command="python3 reducer.py",
                 sort_by=sort_by,
                 spec={
                     "mapper": {
@@ -2861,7 +2873,7 @@ for l in sys.stdin:
                 in_=inputs,
                 out="//tmp/out",
                 reducer_file=["//tmp/reducer.py"],
-                reducer_command="python reducer.py",
+                reducer_command="python3 reducer.py",
                 sort_by=sort_by,
                 spec={
                     "reducer": {"format": "json"},
@@ -2986,94 +2998,6 @@ for l in sys.stdin:
                 [{"b": True, "c": "booh", "d": 2.71}],
             ],
         )
-
-    @authors("gritukan")
-    def test_job_splitting(self):
-        pytest.skip("Job splitting + lost jobs = no way.")
-        create("table", "//tmp/t_in")
-        create("table", "//tmp/t_out")
-        expected = []
-        for i in range(20):
-            row = {"a": str(i), "b": "x" * 10**6}
-            write_table("<append=%true>//tmp/t_in", row)
-            expected.append({"a": str(i)})
-
-        slow_cat = """
-while read ROW; do
-    if [ "$YT_JOB_COOKIE" == 0 ]; then
-        sleep 5
-    else
-        sleep 0.1
-    fi
-    echo "$ROW"
-done
-"""
-        op = map_reduce(
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            mapper_command=slow_cat,
-            reducer_command="cat",
-            sort_by=["key"],
-            spec={
-                "mapper": {"format": "dsv"},
-                "reducer": {"format": "dsv"},
-                "data_size_per_map_job": 14 * 1024 * 1024,
-                "partition_count": 2,
-                "map_job_io": {
-                    "buffer_row_count": 1,
-                },
-            })
-
-        assert get(op.get_path() + "/controller_orchid/progress/tasks/0/task_name") == "partition_map(0)"
-
-        path = op.get_path() + "/controller_orchid/progress/tasks/0/job_counter/completed/interrupted/job_split"
-        assert get(path) == 1
-
-        assert sorted_dicts(read_table("//tmp/t_out{a}", verbose=False)) == sorted_dicts(expected)
-
-    @authors("gritukan")
-    def test_job_speculation(self):
-        create("table", "//tmp/t_in")
-        create("table", "//tmp/t_out")
-        expected = []
-        for i in range(20):
-            row = {"a": str(i), "b": "x" * 10**6}
-            write_table("<append=%true>//tmp/t_in", row)
-            expected.append({"a": str(i)})
-
-        mapper = """
-while read ROW; do
-    if [ "$YT_JOB_INDEX" == 0 ]; then
-        sleep 5
-    else
-        sleep 0.1
-    fi
-    echo "$ROW"
-done
-"""
-        op = map_reduce(
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            mapper_command=mapper,
-            reducer_command="cat",
-            sort_by=["a"],
-            spec={
-                "mapper": {"format": "dsv"},
-                "reducer": {"format": "dsv"},
-                "data_size_per_map_job": 14 * 1024 * 1024,
-                "partition_count": 2,
-                "enable_job_splitting": False,
-                "reduce_job_io": {
-                    "testing_options": {"pipe_delay": 1000},
-                    "buffer_row_count": 1,
-                }
-            })
-        op.track()
-
-        assert get(op.get_path() + "/@progress/tasks/0/task_name") == "partition_map(0)"
-
-        path = op.get_path() + "/@progress/tasks/0/speculative_job_counter/aborted/scheduled/speculative_run_won"
-        assert get(path) == 1
 
     @authors("gritukan")
     def test_empty_mapper_output(self):
@@ -3294,7 +3218,7 @@ while True:
             in_=["//tmp/t_in1", "//tmp/t_in2"],
             out=["//tmp/t_out1", "//tmp/t_out2"],
             reduce_by="key",
-            reducer_command="python reducer.py",
+            reducer_command="python3 reducer.py",
             reducer_file=["//tmp/reducer.py"],
             spec={
                 "reducer": {
@@ -3654,9 +3578,9 @@ for key, count in counts.items():
             in_="//tmp/t_in",
             out="//tmp/t_out",
             reduce_by="word",
-            mapper_command="python mapper.py",
+            mapper_command="python3 mapper.py",
             mapper_file=["//tmp/mapper.py"],
-            reducer_command="python reducer.py",
+            reducer_command="python3 reducer.py",
             reducer_file=["//tmp/reducer.py"],
             spec={
                 "partition_count": 2,
@@ -3873,7 +3797,7 @@ for line in sys.stdin:
             out="//tmp/t_out",
             reduce_by=["x"],
             sort_by=sort_by,
-            reducer_command="python reducer.py",
+            reducer_command="python3 reducer.py",
             reducer_file=["//tmp/reducer.py"],
             spec={
                 "sort_job_io": {
@@ -3941,32 +3865,24 @@ class TestSchedulerMapReduceCommandsNewSortedPool(TestSchedulerMapReduceCommands
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "sort_operation_options": {
-                "min_uncompressed_block_size": 1
+            "operation_options": {
+                "min_uncompressed_block_size": 1,
+                "spec_template": {
+                    "enable_table_index_if_has_trivial_mapper": True,
+                },
             },
             "map_reduce_operation_options": {
                 "data_balancer": {
                     "tolerance": 1.0,
                 },
-                "min_uncompressed_block_size": 1,
-                "job_splitter": {
-                    "min_job_time": 3000,
-                    "min_total_data_size": 1024,
-                    "update_period": 100,
-                    "candidate_percentile": 0.8,
-                    "max_jobs_per_split": 3,
-                    "job_logging_period": 0,
-                },
                 "spec_template": {
                     "use_new_sorted_pool": True,
-                }
+                },
+                "sorted_merge_job_size_adjuster": {},
             },
             "enable_partition_map_job_size_adjustment": True,
-            "operation_options": {
-                "spec_template": {
-                    "enable_table_index_if_has_trivial_mapper": True,
-                },
-            },
+            "enable_ordered_partition_map_job_size_adjustment": True,
+            "enable_sorted_merge_in_sort_job_size_adjustment": True,
         }
     }
 

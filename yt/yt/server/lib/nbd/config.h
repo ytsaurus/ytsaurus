@@ -8,12 +8,38 @@ namespace NYT::NNbd {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EFilesystemType,
+    ((Unknown)      (1)     ("unknown"))
+    ((Ext3)         (2)     ("ext3"))
+    ((Ext4)         (3)     ("ext4"))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TChunkBlockDeviceConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    i64 Size;
+    int MediumIndex;
+    EFilesystemType FsType;
+    TDuration KeepSessionAlivePeriod;
+    TDuration DataNodeNbdServiceRpcTimeout;
+    //! Time to create chunk and make filesystem in it.
+    TDuration DataNodeNbdServiceMakeTimeout;
+
+    REGISTER_YSON_STRUCT(TChunkBlockDeviceConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TChunkBlockDeviceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TFileSystemBlockDeviceConfig
     : public NYTree::TYsonStruct
 {
-    // For testing purposes: how long to sleep before read request
-    TDuration TestSleepBeforeRead;
-
     REGISTER_YSON_STRUCT(TFileSystemBlockDeviceConfig);
 
     static void Register(TRegistrar registrar);
@@ -87,18 +113,33 @@ DEFINE_REFCOUNTED_TYPE(TUdsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TNbdTestOptions
+    : public NYTree::TYsonStruct
+{
+    std::optional<TDuration> BlockDeviceSleepBeforeRead;
+    std::optional<TDuration> BlockDeviceSleepBeforeWrite;
+    bool SetBlockDeviceErrorOnRead;
+    bool SetBlockDeviceErrorOnWrite;
+    bool AbortConnectionOnRead;
+    bool AbortConnectionOnWrite;
+
+    REGISTER_YSON_STRUCT(TNbdTestOptions);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TNbdTestOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TNbdServerConfig
     : public NYTree::TYsonStruct
 {
     TIdsConfigPtr InternetDomainSocket;
     TUdsConfigPtr UnixDomainSocket;
-    // For testing purposes: how long to sleep before read request
-    TDuration TestBlockDeviceSleepBeforeRead;
-    // For testing purposes: abort connection on read request
-    bool TestAbortConnectionOnRead;
-
     int ThreadCount;
-    i64 BlockCacheCompressedDataCapacity;
+    // For testing purposes.
+    TNbdTestOptionsPtr TestOptions;
 
     REGISTER_YSON_STRUCT(TNbdServerConfig);
 

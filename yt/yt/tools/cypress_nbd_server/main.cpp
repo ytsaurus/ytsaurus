@@ -78,7 +78,7 @@ DEFINE_REFCOUNTED_TYPE(TCypressFileBlockDeviceConfig)
 struct TConfig
     : public NYTree::TYsonStruct
 {
-    TString ClusterUser;
+    std::string ClusterUser;
     NApi::NNative::TConnectionCompoundConfigPtr ClusterConnection;
     TNbdServerConfigPtr NbdServer;
     THashMap<TString, TCypressFileBlockDeviceConfigPtr> FileSystemBlockDevices;
@@ -262,7 +262,6 @@ protected:
 
         auto nbdServer = CreateNbdServer(
             config->NbdServer,
-            connection,
             poller,
             threadPool->GetInvoker());
 
@@ -315,7 +314,6 @@ protected:
                 logger);
 
             auto config = New<TFileSystemBlockDeviceConfig>();
-            config->TestSleepBeforeRead = exportConfig->TestSleepBeforeRead;
 
             auto device = CreateFileSystemBlockDevice(
                 exportId,

@@ -18,6 +18,9 @@ add_executable(simple_map_tnode)
 target_compile_options(simple_map_tnode PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(simple_map_tnode PUBLIC

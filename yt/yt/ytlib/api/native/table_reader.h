@@ -26,6 +26,9 @@ TFuture<ITableReaderPtr> CreateTableReader(
     NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler(),
     IMemoryUsageTrackerPtr readTableMemoryTracker = GetNullMemoryUsageTracker());
 
+IRowBatchReaderPtr ToApiRowBatchReader(NTableClient::ISchemalessMultiChunkReaderPtr reader);
+NTableClient::TTableReaderOptionsPtr ToInternalTableReaderOptions(const TTableReaderOptions& options);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NNative

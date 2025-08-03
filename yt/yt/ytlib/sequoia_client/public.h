@@ -93,12 +93,12 @@ class TBasicYPathBuf;
 using TYPath = TBasicYPath<false>;
 using TYPathBuf = TBasicYPathBuf<false>;
 
-using TAbsoluteYPath = TBasicYPath<true>;
+class TAbsoluteYPath;
 using TAbsoluteYPathBuf = TBasicYPathBuf<true>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSequoiaTransactionSequencingOptions;
+struct TSequoiaTransactionOptions;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -107,14 +107,6 @@ DEFINE_STRING_SERIALIZABLE_ENUM(EForkKind,
     ((Tombstone)    (1))
     ((Snapshot)     (2))
 );
-
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(ESequoiaReign,
-    ((InitialReign) (1))
-);
-
-ESequoiaReign GetCurrentSequoiaReign() noexcept;
 
 ////////////////////////////////////////////////////////////////////////////////
 

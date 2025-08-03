@@ -1,15 +1,19 @@
-#include "config.h"
 #include "connection.h"
+
 #include "client.h"
-#include "sync_replica_cache.h"
-#include "tablet_sync_replica_cache.h"
-#include "table_replica_synchronicity_cache.h"
-#include "transaction_participant.h"
-#include "private.h"
+#include "config.h"
 #include "helpers.h"
+#include "private.h"
+#include "sync_replica_cache.h"
+#include "table_replica_synchronicity_cache.h"
+#include "tablet_sync_replica_cache.h"
+#include "transaction_participant.h"
 
 #include <yt/yt/ytlib/auth/native_authentication_manager.h>
 #include <yt/yt/ytlib/auth/native_authenticating_channel.h>
+
+#include <yt/yt/ytlib/cell_master_client/cell_directory.h>
+#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/chaos_client/banned_replica_tracker.h>
 #include <yt/yt/ytlib/chaos_client/chaos_cell_directory_synchronizer.h>
@@ -19,14 +23,13 @@
 #include <yt/yt/ytlib/chaos_client/replication_card_channel_factory.h>
 #include <yt/yt/ytlib/chaos_client/chaos_residency_cache.h>
 
-#include <yt/yt/ytlib/cell_master_client/cell_directory.h>
-#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
-
 #include <yt/yt/ytlib/chunk_client/chunk_meta_cache.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
 #include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 #include <yt/yt/ytlib/chunk_client/chunk_replica_cache.h>
+
+#include <yt/yt/ytlib/cypress_client/proto/rpc.pb.h>
 
 #include <yt/yt/ytlib/hive/config.h>
 #include <yt/yt/ytlib/hive/cell_directory.h>
@@ -78,6 +81,8 @@
 #include <yt/yt/ytlib/transaction_client/config.h>
 #include <yt/yt/ytlib/transaction_client/clock_manager.h>
 
+#include <yt/yt/ytlib/sequoia_client/client.h>
+
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/yt/client/api/sticky_transaction_pool.h>
@@ -85,6 +90,8 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/sequoia_client/public.h>
+
+#include <yt/yt/client/signature/generator.h>
 
 #include <yt/yt/client/transaction_client/config.h>
 #include <yt/yt/client/transaction_client/noop_timestamp_provider.h>
@@ -102,6 +109,7 @@
 #include <yt/yt/core/rpc/bus/channel.h>
 
 #include <yt/yt/core/rpc/caching_channel_factory.h>
+#include <yt/yt/core/rpc/channel_detail.h>
 #include <yt/yt/core/rpc/balancing_channel.h>
 #include <yt/yt/core/rpc/retrying_channel.h>
 #include <yt/yt/core/rpc/helpers.h>
@@ -129,6 +137,7 @@ using namespace NQueryTrackerClient;
 using namespace NQueueClient;
 using namespace NScheduler;
 using namespace NSecurityClient;
+using namespace NSignature;
 using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYTree;
@@ -153,6 +162,39 @@ TString MakeConnectionClusterId(const TConnectionStaticConfigPtr& config)
             CellTagFromId(config->PrimaryMaster->CellId));
     }
 }
+
+class TTargetMasterPeerInjectingChannel
+    : public TChannelWrapper
+{
+public:
+    TTargetMasterPeerInjectingChannel(
+        IChannelPtr underlying,
+        TCellTag cellTag,
+        EMasterChannelKind kind)
+        : TChannelWrapper(std::move(underlying))
+        , CellTag_(cellTag)
+        , Kind_(kind)
+    { }
+
+    IClientRequestControlPtr Send(
+        IClientRequestPtr request,
+        IClientResponseHandlerPtr responseHandler,
+        const TSendOptions& options) override
+    {
+        auto* ext = request->Header().MutableExtension(NCypressClient::NProto::TTargetMasterPeerExt::target_master_peer_ext);
+        ext->set_cell_tag(ToProto(CellTag_));
+        ext->set_master_channel_kind(ToProto(Kind_));
+
+        return TChannelWrapper::Send(
+            std::move(request),
+            std::move(responseHandler),
+            options);
+    }
+
+private:
+    const TCellTag CellTag_;
+    const EMasterChannelKind Kind_;
+};
 
 } // namespace
 
@@ -197,6 +239,8 @@ public:
         , DownedCellTracker_(New<TDownedCellTracker>(Config_.Acquire()->DownedCellTracker))
         , MemoryTracker_(std::move(memoryTracker))
         , ClusterDirectoryOverride_(std::move(clusterDirectoryOverride))
+        // NB(pavook): we can't hurt anybody by generating fake signatures.
+        , SignatureGenerator_(GetDummySignatureGenerator())
     { }
 
     void Initialize()
@@ -256,7 +300,7 @@ public:
             GetNetworks());
 
         InitializeQueueAgentChannels();
-        QueueConsumerRegistrationManager_ = New<TQueueConsumerRegistrationManager>(
+        QueueConsumerRegistrationManager_ = CreateQueueConsumerRegistrationManager(
             config->QueueAgent->QueueConsumerRegistrationManager,
             this,
             GetInvoker(),
@@ -264,7 +308,15 @@ public:
 
         PermissionCache_ = New<TPermissionCache>(
             config->PermissionCache,
-            this);
+            this,
+            Profiler_.WithPrefix("/permission_cache"));
+
+        UserAttributeCache_ = New<TUserAttributeCache>(
+            config->UserAttributeCache,
+            MakeWeak(this),
+            GetInvoker(),
+            Logger,
+            Profiler_.WithPrefix("/user_attribute_cache"));
 
         UserAttributeCache_ = New<TUserAttributeCache>(
             config->UserAttributeCache,
@@ -308,6 +360,7 @@ public:
             StaticConfig_->ChaosCellDirectorySynchronizer,
             CellDirectory_,
             this,
+            GetCellDirectorySynchronizerSourceOfTruthCellIds(),
             Logger);
 
         if (StaticConfig_->ReplicationCardCache || StaticConfig_->ChaosCellDirectorySynchronizer->SyncAllChaosCells) {
@@ -411,7 +464,7 @@ public:
         return LoggingTag_;
     }
 
-    const TString& GetClusterId() const override
+    const std::string& GetClusterId() const override
     {
         return ClusterId_;
     }
@@ -560,6 +613,13 @@ public:
         return ReplaceCellTagInId(GetPrimaryMasterCellId(), cellTag);
     }
 
+    IChannelPtr FindMasterChannel(
+        EMasterChannelKind kind,
+        TCellTag cellTag = PrimaryMasterCellTagSentinel) override
+    {
+        return MasterCellDirectory_->FindMasterChannel(kind, cellTag);
+    }
+
     IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
         TCellTag cellTag = PrimaryMasterCellTagSentinel) override
@@ -578,11 +638,21 @@ public:
         EMasterChannelKind kind,
         TCellTag cellTag = PrimaryMasterCellTagSentinel) override
     {
-        auto canUseCypressProxy = kind == EMasterChannelKind::Follower || kind == EMasterChannelKind::Leader;
+        auto effectiveKind = kind == EMasterChannelKind::Cache && !MasterCellDirectory_->IsMasterCacheConfigured()
+            ? EMasterChannelKind::Follower
+            : kind;
+
+        auto effectiveCellTag = cellTag == PrimaryMasterCellTagSentinel
+            ? GetPrimaryMasterCellTag()
+            : cellTag;
+
+        auto canUseCypressProxy =
+            effectiveKind == EMasterChannelKind::Leader ||
+            effectiveKind == EMasterChannelKind::Follower;
 
         return canUseCypressProxy && CypressProxyChannel_
-            ? CypressProxyChannel_
-            : GetMasterChannelOrThrow(kind, cellTag);
+            ? New<TTargetMasterPeerInjectingChannel>(CypressProxyChannel_, effectiveCellTag, effectiveKind)
+            : GetMasterChannelOrThrow(effectiveKind, effectiveCellTag);
     }
 
     const IChannelPtr& GetSchedulerChannel() override
@@ -624,25 +694,26 @@ public:
         return it->second;
     }
 
-    const TQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const override
+    const IQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const override
     {
         return QueueConsumerRegistrationManager_;
     }
 
-    IRoamingChannelProviderPtr GetYqlAgentChannelProviderOrThrow(const TString& stage) const override
+    std::pair<IRoamingChannelProviderPtr, TYqlAgentChannelConfigPtr> GetYqlAgentChannelProviderOrThrow(TStringBuf stage) const override
     {
         auto clusterConnection = MakeStrong(this);
         auto clusterStage = stage;
         if (auto semicolonPosition = stage.find(":"); semicolonPosition != TString::npos) {
             auto cluster = stage.substr(0, semicolonPosition);
             clusterStage = stage.substr(semicolonPosition + 1);
-            clusterConnection = DynamicPointerCast<TConnection>(GetClusterDirectory()->GetConnectionOrThrow(cluster));
+            // TODO(babenko): migrate to TStringBuf
+            clusterConnection = DynamicPointerCast<TConnection>(GetClusterDirectory()->GetConnectionOrThrow(std::string(cluster)));
             YT_VERIFY(clusterConnection);
         }
         auto config = clusterConnection->Config_.Acquire();
         const auto& stages = config->YqlAgent->Stages;
         if (auto iter = stages.find(clusterStage); iter != stages.end()) {
-            return CreateYqlAgentChannelProvider(iter->second->Channel);
+            return { CreateYqlAgentChannelProvider(iter->second->Channel), iter->second->Channel };
         } else {
             THROW_ERROR_EXCEPTION("YQL agent stage %Qv is not found in cluster directory", stage);
         }
@@ -905,6 +976,58 @@ public:
         return ConvertToYsonString(GetCompoundConfig());
     }
 
+    NSequoiaClient::ISequoiaClientPtr GetSequoiaClient() override
+    {
+        // Fast path: return the cached client.
+        if (auto existingSequoiaClient = CachedSequoiaClient_.Acquire()) {
+            return existingSequoiaClient;
+        }
+
+        // Slow path: create a new client.
+        auto config = Config_.Acquire()->SequoiaConnection;
+        auto localClient = CreateNativeClient(TClientOptions::Root());
+        auto groundClientFuture = [&] () -> TFuture<IClientPtr> {
+            if (config->GroundClusterName) {
+                return InsistentGetRemoteConnection(this, *config->GroundClusterName)
+                    .Apply(BIND([] (const IConnectionPtr& groundConnection) {
+                        return groundConnection->CreateNativeClient(TClientOptions::Root());
+                    }));
+            } else {
+                return MakeFuture(localClient);
+            }
+        }();
+
+        auto sequoiaClient = NSequoiaClient::CreateSequoiaClient(
+            config,
+            std::move(localClient),
+            std::move(groundClientFuture));
+
+        if (auto existingSequoiaClient = CachedSequoiaClient_.Exchange(sequoiaClient)) {
+            return existingSequoiaClient;
+        }
+
+        YT_LOG_DEBUG("Sequoia client recreated");
+
+        // We've got a cycle:
+        // *-> local client -> local connection -> sequoia client --*
+        // |                                                        |
+        // *--------------------------------------------------------*
+        //
+        // This callback is scheduled to break it after a short period of time
+        // and force the cached sequoia client to be recreated on demand.
+        //
+        // This also deals with ground cluster reconfiguration.
+        TDelayedExecutor::Submit(
+            BIND([weakThis = MakeWeak(this)] {
+                if (auto this_ = weakThis.Lock()) {
+                    this_->CachedSequoiaClient_.Reset();
+                }
+            }),
+            config->GroundClusterConnectionUpdatePeriod);
+
+        return sequoiaClient;
+    }
+
 private:
     const TConnectionStaticConfigPtr StaticConfig_;
     // TODO(max42): switch to atomic intrusive ptr.
@@ -913,7 +1036,7 @@ private:
     TConnectionOptions Options_;
 
     const std::string LoggingTag_;
-    const TString ClusterId_;
+    const std::string ClusterId_;
 
     NRpc::IChannelFactoryPtr ChannelFactory_;
     TStickyGroupSizeCachePtr StickyGroupSizeCache_;
@@ -939,7 +1062,7 @@ private:
     IChannelPtr BundleControllerChannel_;
 
     THashMap<TString, IChannelPtr> QueueAgentChannels_;
-    TQueueConsumerRegistrationManagerPtr QueueConsumerRegistrationManager_;
+    IQueueConsumerRegistrationManagerPtr QueueConsumerRegistrationManager_;
     IBlockCachePtr BlockCache_;
     IClientChunkMetaCachePtr ChunkMetaCache_;
     ITableMountCachePtr TableMountCache_;
@@ -955,9 +1078,9 @@ private:
     ICellDirectoryPtr CellDirectory_;
     ICellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     IChaosCellDirectorySynchronizerPtr ChaosCellDirectorySynchronizer_;
-    TDownedCellTrackerPtr DownedCellTracker_;
+    const TDownedCellTrackerPtr DownedCellTracker_;
 
-    INodeMemoryTrackerPtr MemoryTracker_;
+    const INodeMemoryTrackerPtr MemoryTracker_;
 
     TClusterDirectoryPtr ClusterDirectory_;
     TWeakPtr<TClusterDirectory> ClusterDirectoryOverride_;
@@ -979,9 +1102,13 @@ private:
 
     TServerAddressPoolPtr DiscoveryServerAddressPool_;
 
-    std::atomic<bool> Terminated_ = false;
-
     std::string ShuffleServiceAddress_;
+
+    ISignatureGeneratorPtr SignatureGenerator_;
+
+    TAtomicIntrusivePtr<NSequoiaClient::ISequoiaClient> CachedSequoiaClient_;
+
+    std::atomic<bool> Terminated_ = false;
 
     void ConfigureMasterCells()
     {
@@ -1030,7 +1157,7 @@ private:
                     .BeginMap()
                         .Item("channel_attributes").Value(TimestampProviderChannel_->GetEndpointAttributes())
                     .EndMap()
-                .Item("queue_consumer_registration_manager").Do(std::bind(&TQueueConsumerRegistrationManager::BuildOrchid, QueueConsumerRegistrationManager_, _1))
+                .Item("queue_consumer_registration_manager").Do(std::bind(&IQueueConsumerRegistrationManager::BuildOrchid, QueueConsumerRegistrationManager_, _1))
             .EndMap();
     }
 
@@ -1100,11 +1227,16 @@ private:
                 endpointDescription,
                 std::move(endpointAttributes));
 
-            channel = CreateRetryingChannel(channelConfig, std::move(channel));
+            auto retryChecker = BIND([] (const TError& error) -> bool {
+                if (NRpc::IsRetriableError(error)) {
+                    return true;
+                }
 
-            // TODO(max42): make customizable.
-            constexpr auto timeout = TDuration::Minutes(1);
-            channel = CreateDefaultTimeoutChannel(std::move(channel), timeout);
+                return error.FindMatching(NQueueClient::EErrorCode::QueueAgentRetriableError).has_value();
+            });
+
+            channel = CreateRetryingChannel(channelConfig, std::move(channel), std::move(retryChecker));
+            channel = CreateDefaultTimeoutChannel(std::move(channel), channelConfig->DefaultRequestTimeout);
 
             QueueAgentChannels_[stage] = std::move(channel);
         }
@@ -1161,7 +1293,7 @@ private:
         }
         ClusterDirectory_->SubscribeOnClusterUpdated(
             BIND_NO_PROPAGATE([tvmService] (const std::string& name, INodePtr nativeConnectionConfig) {
-                static constexpr auto& Logger = TvmSynchronizerLogger;
+                const auto& Logger = TvmSynchronizerLogger();
 
                 NNative::TConnectionDynamicConfigPtr config;
                 try {
@@ -1178,7 +1310,7 @@ private:
             }));
     }
 
-    std::pair<IClientPtr, TQueryTrackerStageConfigPtr> FindQueryTrackerStage(const TString& stage)
+    std::pair<IClientPtr, TQueryTrackerStageConfigPtr> FindQueryTrackerStage(TStringBuf stage)
     {
         auto findStage = [&stage, this] (const std::string& cluster) -> std::pair<IClientPtr, TQueryTrackerStageConfigPtr> {
             auto clusterConnection = FindRemoteConnection(MakeStrong(this), cluster);
@@ -1200,7 +1332,7 @@ private:
         };
 
         std::pair<IClientPtr, TQueryTrackerStageConfigPtr> resultStage;
-        TString resultCluster;
+        std::string resultCluster;
         for (const auto& cluster : GetClusterDirectory()->GetClusterNames()) {
             if (auto existingStage = findStage(cluster); existingStage.first) {
                 if (resultStage.first) {
@@ -1218,13 +1350,13 @@ private:
     }
 
     //! Returns a pair consisting of the client for the Query Tracker cluster and the path to the Query Tracker root in Cypress.
-    std::pair<IClientPtr, TString> GetQueryTrackerStage(const TString& stage) override
+    std::pair<IClientPtr, TYPath> GetQueryTrackerStage(TStringBuf stage) override
     {
         auto resultStage = FindQueryTrackerStage(stage);
         return {resultStage.first, resultStage.second->Root};
     }
 
-    IChannelPtr GetQueryTrackerChannelOrThrow(const TString& stage) override
+    IChannelPtr GetQueryTrackerChannelOrThrow(TStringBuf stage) override
     {
         return CreateQueryTrackerChannel(FindQueryTrackerStage(stage).second->Channel);
     }
@@ -1262,6 +1394,16 @@ private:
     IChannelPtr CreateChannelByAddress(const std::string& address) override
     {
         return ChannelFactory_->CreateChannel(address);
+    }
+
+    ISignatureGeneratorPtr GetSignatureGenerator() const override
+    {
+        return SignatureGenerator_;
+    }
+
+    void SetSignatureGenerator(ISignatureGeneratorPtr signatureGenerator) override
+    {
+        SignatureGenerator_ = std::move(signatureGenerator);
     }
 };
 
@@ -1372,26 +1514,20 @@ IConnectionPtr FindRemoteConnection(
     return connection;
 }
 
-IConnectionPtr GetRemoteConnectionOrThrow(
+TFuture<IConnectionPtr> InsistentGetRemoteConnection(
     const IConnectionPtr& connection,
-    const std::string& clusterName,
-    bool syncOnFailure)
+    const std::string& clusterName)
 {
-    for (int retry = 0; retry < 2; ++retry) {
-        auto remoteConnection = FindRemoteConnection(connection, clusterName);
-        if (remoteConnection) {
-            return remoteConnection;
-        }
-
-        if (!syncOnFailure || retry == 1) {
-            THROW_ERROR_EXCEPTION("Cannot find cluster with name %Qv", clusterName);
-        }
-
-        WaitFor(connection->GetClusterDirectorySynchronizer()->Sync(/*immediately*/ true))
-            .ThrowOnError();
+    // Fast path.
+    if (auto remoteConnection = connection->GetClusterDirectory()->FindConnection(clusterName)) {
+        return MakeFuture(remoteConnection);
     }
 
-    YT_ABORT();
+    // Slow path.
+    return connection->GetClusterDirectorySynchronizer()->Sync(/*force*/ true)
+        .Apply(BIND([=] {
+            return connection->GetClusterDirectory()->GetConnectionOrThrow(clusterName);
+        }));
 }
 
 IConnectionPtr FindRemoteConnection(

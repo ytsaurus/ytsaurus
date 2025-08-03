@@ -90,6 +90,7 @@ private:
         ValueCounts_.clear();
 
         DataBuffer_ = std::make_unique<TChunkedOutputStream>();
+
         MaxValueCount_ = 0;
         MemoryGuard_.SetSize(GetMemoryUsage());
     }

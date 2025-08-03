@@ -39,13 +39,13 @@ void TSynchronizerBase::Stop()
     promise.Set(TError("Synchronizer is stopped"));
 }
 
-TFuture<void> TSynchronizerBase::Sync(bool immediately)
+TFuture<void> TSynchronizerBase::Sync(bool force)
 {
     auto guard = Guard(SpinLock_);
     if (Stopped_) {
         return SyncPromise_.ToFuture();
     }
-    return DoStart(std::move(guard), immediately);
+    return DoStart(std::move(guard), force);
 }
 
 TFuture<void> TSynchronizerBase::DoStart(TGuard<NThreading::TSpinLock>&& guard, bool syncImmediately)

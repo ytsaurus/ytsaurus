@@ -24,7 +24,7 @@ using namespace NYTree;
 using NYT::ToProto;
 using NYT::FromProto;
 
-static constexpr auto& Logger = ChunkServerLogger;
+constinit const auto Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,14 +102,7 @@ void TChunkReplication::TEntry::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
 
-    // COMPAT(cherepashka)
-    if (context.GetVersion() >= NCellMaster::EMasterReign::MediumIndexSizeofReduction) {
-        Load(context, MediumIndex_);
-    } else {
-        auto mediumIndex = Load<ui16>(context);
-        YT_VERIFY(mediumIndex <= MaxMediumCount);
-        MediumIndex_ = static_cast<ui8>(mediumIndex);
-    }
+    Load(context, MediumIndex_);
     Load(context, Policy_);
 }
 

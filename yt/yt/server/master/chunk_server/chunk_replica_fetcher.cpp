@@ -5,6 +5,7 @@
 #include "chunk_location.h"
 #include "config.h"
 #include "data_node_tracker.h"
+#include "domestic_medium.h"
 #include "chunk_manager.h"
 
 #include <yt/yt/server/master/object_server/object.h>
@@ -32,7 +33,6 @@
 
 namespace NYT::NChunkServer {
 
-using namespace NYson;
 using namespace NCellMaster;
 using namespace NSequoiaClient;
 using namespace NObjectServer;
@@ -44,44 +44,13 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ChunkServerLogger;
+constinit const auto Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
 
-TSequoiaChunkReplica ParseReplica(TYsonPullParserCursor* cursor, TChunkId chunkId)
-{
-    TSequoiaChunkReplica chunkReplica;
-    chunkReplica.ChunkId = chunkId;
-
-    auto consume = [&] (EYsonItemType type, const auto& fillField) {
-        const auto& current = cursor->GetCurrent();
-        if (current.GetType() != type) {
-            THROW_ERROR_EXCEPTION("Invalid YSON item type while parsing Sequoia replicas: expected %Qlv, actual %Qlv",
-                type,
-                current.GetType());
-        }
-        fillField(current);
-        cursor->Next();
-    };
-
-    consume(EYsonItemType::BeginList, [] (const TYsonItem&) {});
-    consume(EYsonItemType::StringValue, [&] (const TYsonItem& current) {
-        chunkReplica.LocationUuid = TGuid::FromString(current.UncheckedAsString());
-    });
-    consume(EYsonItemType::Int64Value, [&] (const TYsonItem& current) {
-        chunkReplica.ReplicaIndex = current.UncheckedAsInt64();
-    });
-    consume(EYsonItemType::Uint64Value, [&] (const TYsonItem& current) {
-        chunkReplica.NodeId = TNodeId(current.UncheckedAsUint64());
-    });
-    consume(EYsonItemType::EndList, [] (const TYsonItem&) {});
-
-    return chunkReplica;
-}
-
-std::vector<TSequoiaChunkReplica> ParseReplicas(
+    std::vector<TSequoiaChunkReplica> ParseReplicas(
     const auto& replicaRecords,
     const auto& extractReplicas)
 {
@@ -94,13 +63,16 @@ std::vector<TSequoiaChunkReplica> ParseReplicas(
         auto chunkId = replicaRecord->Key.ChunkId;
         auto extractedReplicas = extractReplicas(*replicaRecord);
 
-        TMemoryInput input(extractedReplicas.AsStringBuf().data(), extractedReplicas.AsStringBuf().size());
-        TYsonPullParser parser(&input, EYsonType::Node);
-        TYsonPullParserCursor cursor(&parser);
-
-        cursor.ParseList([&] (TYsonPullParserCursor* cursor) {
-            replicas.push_back(ParseReplica(cursor, chunkId));
-        });
+        ParseChunkReplicas(
+            extractedReplicas,
+            [&] (const TParsedChunkReplica& parsedReplica) {
+                replicas.push_back({
+                    .ChunkId = chunkId,
+                    .ReplicaIndex = parsedReplica.ReplicaIndex,
+                    .NodeId = parsedReplica.NodeId,
+                    .LocationUuid = parsedReplica.LocationUuid,
+                });
+            });
     }
 
     return replicas;
@@ -201,6 +173,7 @@ public:
         if (!config->Enable) {
             return MakeFuture<std::vector<NRecords::TLocationReplicas>>({});
         }
+        const auto& retriableErrorCodes = config->RetriableErrorCodes;
 
         return Bootstrap_
             ->GetSequoiaClient()
@@ -210,13 +183,8 @@ public:
                     Format("node_id = %v", nodeId),
                     Format("location_uuid = %Qv", locationUuid),
                 }
-            }).Apply(BIND([] (const TErrorOr<std::vector<NRecords::TLocationReplicas>>& result) {
-                if (IsRetriableSequoiaReplicasError(result)) {
-                    THROW_ERROR_EXCEPTION(
-                        NRpc::EErrorCode::TransientFailure,
-                        "Sequoia retriable error")
-                        << result;
-                }
+            }).Apply(BIND([retriableErrorCodes] (const TErrorOr<std::vector<NRecords::TLocationReplicas>>& result) {
+                ThrowOnSequoiaReplicasError(result, retriableErrorCodes);
                 return result;
             }));
     }
@@ -230,6 +198,7 @@ public:
         if (!config->Enable) {
             return MakeFuture<std::vector<NRecords::TLocationReplicas>>({});
         }
+        const auto& retriableErrorCodes = config->RetriableErrorCodes;
 
         return Bootstrap_
             ->GetSequoiaClient()
@@ -238,13 +207,8 @@ public:
                     Format("cell_tag = %v", Bootstrap_->GetCellTag()),
                     Format("node_id = %v", nodeId),
                 }
-            }).Apply(BIND([] (const TErrorOr<std::vector<NRecords::TLocationReplicas>>& result) {
-                if (IsRetriableSequoiaReplicasError(result)) {
-                    THROW_ERROR_EXCEPTION(
-                        NRpc::EErrorCode::TransientFailure,
-                        "Sequoia retriable error")
-                        << result;
-                }
+            }).Apply(BIND([retriableErrorCodes] (const TErrorOr<std::vector<NRecords::TLocationReplicas>>& result) {
+                ThrowOnSequoiaReplicasError(result, retriableErrorCodes);
                 return result;
             }));
     }
@@ -398,9 +362,11 @@ public:
         YT_VERIFY(!HasMutationContext());
         VerifyPersistentStateRead();
 
-        if (!GetDynamicConfig()->Enable) {
+        const auto& config = GetDynamicConfig();
+        if (!config->Enable) {
             return MakeFuture<std::vector<TSequoiaChunkReplica>>({});
         }
+        const auto& retriableErrorCodes = config->RetriableErrorCodes;
 
         std::vector<NRecords::TUnapprovedChunkReplicasKey> keys;
         for (auto chunkId : chunkIds) {
@@ -416,13 +382,8 @@ public:
         return Bootstrap_
             ->GetSequoiaClient()
             ->LookupRows<NRecords::TUnapprovedChunkReplicasKey>(keys, columnFilter)
-            .Apply(BIND([lastOKConfirmationTime] (const TErrorOr<std::vector<std::optional<NRecords::TUnapprovedChunkReplicas>>>& replicaRecordsOrError) {
-                if (IsRetriableSequoiaReplicasError(replicaRecordsOrError)) {
-                    THROW_ERROR_EXCEPTION(
-                        NRpc::EErrorCode::TransientFailure,
-                        "Sequoia retriable error")
-                        << replicaRecordsOrError;
-                }
+            .Apply(BIND([retriableErrorCodes, lastOKConfirmationTime] (const TErrorOr<std::vector<std::optional<NRecords::TUnapprovedChunkReplicas>>>& replicaRecordsOrError) {
+                ThrowOnSequoiaReplicasError(replicaRecordsOrError, retriableErrorCodes);
                 const auto& replicaRecords = replicaRecordsOrError.ValueOrThrow();
                 std::vector<std::optional<NRecords::TUnapprovedChunkReplicas>> okReplicaRecords;
                 okReplicaRecords.reserve(replicaRecords.size());
@@ -447,9 +408,11 @@ public:
         YT_VERIFY(!HasMutationContext());
         Bootstrap_->VerifyPersistentStateRead();
 
+        const auto& config = GetDynamicConfig();
         if (!GetDynamicConfig()->Enable) {
             return MakeFuture<std::vector<NRecords::TChunkRefreshQueue>>({});
         }
+        const auto& retriableErrorCodes = config->RetriableErrorCodes;
 
         return Bootstrap_
             ->GetSequoiaClient()
@@ -462,13 +425,8 @@ public:
                     .Limit = limit,
                 }
             )
-            .Apply(BIND([] (const TErrorOr<std::vector<NRecords::TChunkRefreshQueue>>& chunkRecordsOrError) {
-                if (IsRetriableSequoiaReplicasError(chunkRecordsOrError)) {
-                    THROW_ERROR_EXCEPTION(
-                        NRpc::EErrorCode::TransientFailure,
-                        "Sequoia retriable error")
-                        << chunkRecordsOrError;
-                }
+            .Apply(BIND([retriableErrorCodes] (const TErrorOr<std::vector<NRecords::TChunkRefreshQueue>>& chunkRecordsOrError) {
+                ThrowOnSequoiaReplicasError(chunkRecordsOrError, retriableErrorCodes);
                 return chunkRecordsOrError.ValueOrThrow();
             })
             .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
@@ -611,18 +569,15 @@ private:
             keys.push_back(chunkReplicasKey);
         }
 
+        const auto& config = GetDynamicConfig();
+        const auto& retriableErrorCodes = config->RetriableErrorCodes;
+
         return Bootstrap_
             ->GetSequoiaClient()
             ->LookupRows<NRecords::TChunkReplicasKey>(keys, columnFilter)
-            .Apply(BIND([extractReplicas] (const TErrorOr<std::vector<std::optional<NRecords::TChunkReplicas>>>& replicaRecordsOrError) {
-                if (IsRetriableSequoiaReplicasError(replicaRecordsOrError)) {
-                    THROW_ERROR_EXCEPTION(
-                        NRpc::EErrorCode::TransientFailure,
-                        "Sequoia retriable error")
-                        << replicaRecordsOrError;
-                }
-
-                const auto replicas = replicaRecordsOrError.ValueOrThrow();
+            .Apply(BIND([extractReplicas, retriableErrorCodes] (const TErrorOr<std::vector<std::optional<NRecords::TChunkReplicas>>>& replicaRecordsOrError) {
+                ThrowOnSequoiaReplicasError(replicaRecordsOrError, retriableErrorCodes);
+                const auto& replicas = replicaRecordsOrError.ValueOrThrow();
                 return ParseReplicas(replicas, extractReplicas);
             })
             .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));

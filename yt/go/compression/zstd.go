@@ -62,6 +62,8 @@ func (c CodecZstd) GetID() CodecID {
 		return CodecIDZstd1
 	case 3:
 		return CodecIDZstd3
+	case 6:
+		return CodecIDZstd6
 	case 7:
 		return CodecIDZstd7
 	}

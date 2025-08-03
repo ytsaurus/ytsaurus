@@ -3387,7 +3387,7 @@ usage: yt flow [-h] flow_command ...
 
 #### Positional Arguments
 
-> `flow_command`    Possible choices: start-pipeline, stop-pipeline, pause-pipeline, get-pipeline-spec, set-pipeline-spec, remove-pipeline-spec, get-pipeline-dynamic-spec, set-pipeline-dynamic-spec, remove-pipeline-dynamic-spec, get-pipeline-state, get-flow-view, show-logs
+> `flow_command`    Possible choices: start-pipeline, stop-pipeline, pause-pipeline, get-pipeline-spec, set-pipeline-spec, remove-pipeline-spec, get-pipeline-dynamic-spec, set-pipeline-dynamic-spec, remove-pipeline-dynamic-spec, get-pipeline-state, get-flow-view, show-logs, execute
 
 #### Sub-commands
 

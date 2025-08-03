@@ -10,7 +10,8 @@ namespace NYT::NSequoiaServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(ISequoiaContext)
+struct ISequoiaContext;
+
 DECLARE_REFCOUNTED_STRUCT(ISequoiaManager)
 DECLARE_REFCOUNTED_STRUCT(IGroundUpdateQueueManager)
 
@@ -21,7 +22,7 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicSequoiaManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(ICypressProxyTracker)
+DECLARE_REFCOUNTED_CLASS(ICypressProxyTracker)
 
 DECLARE_ENTITY_TYPE(TCypressProxyObject, NObjectServer::TObjectId, NObjectClient::TObjectIdEntropyHash)
 

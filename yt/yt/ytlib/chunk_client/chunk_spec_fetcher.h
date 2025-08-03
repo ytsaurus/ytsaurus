@@ -73,7 +73,7 @@ private:
 
     struct TCellState
     {
-        NObjectClient::TObjectServiceProxy::TReqExecuteBatchWithRetriesPtr BatchReq;
+        NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr BatchReq;
         int ReqCount = 0;
         std::vector<int> TableIndices;
         std::vector<int> RangeIndices;

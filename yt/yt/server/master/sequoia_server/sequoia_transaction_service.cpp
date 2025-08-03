@@ -9,6 +9,8 @@
 
 #include <yt/yt/ytlib/sequoia_client/transaction_service_proxy.h>
 
+#include <yt/yt/core/ytree/helpers.h>
+
 namespace NYT::NSequoiaServer {
 
 using namespace NCellMaster;
@@ -42,10 +44,14 @@ private:
 
         auto sequoiaReign = FromProto<ESequoiaReign>(request->sequoia_reign());
 
-        context->SetRequestInfo("TransactionId: %v, Timeout: %v, SequoiaReign: %v",
+        auto attributes = NYTree::FromProto(request->attributes());
+        auto title = attributes->Find<std::string>("title");
+
+        context->SetRequestInfo("TransactionId: %v, Timeout: %v, SequoiaReign: %v, Title: %v",
             FromProto<TTransactionId>(request->id()),
             FromProto<TDuration>(request->timeout()),
-            sequoiaReign);
+            sequoiaReign,
+            title);
 
         ValidateSequoiaReign(sequoiaReign);
 

@@ -166,7 +166,7 @@ python
 
 ### FAQ { #faq }
 
-This section contains answers to a number of frequently asked questions about the Python API. Answers to other frequently asked questions are in the [FAQ](../../../faq/faq.md) section.
+This section contains answers to a number of frequently asked questions about the Python API. Answers to other frequently asked questions are in the [FAQ](../../../faq/index.md) section.
 
 **Q: I installed the package via pypi, but I get the `yt: command not found` error.**
 A: Try running the

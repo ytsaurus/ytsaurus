@@ -1,9 +1,11 @@
 #include "in_memory_manager.h"
 
 #include "bootstrap.h"
+#include "config.h"
 #include "in_memory_service_proxy.h"
 #include "private.h"
 #include "slot_manager.h"
+#include "smooth_movement_tracker.h"
 #include "sorted_chunk_store.h"
 #include "store_manager.h"
 #include "structured_logger.h"
@@ -20,6 +22,7 @@
 #include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 
@@ -59,10 +62,10 @@
 
 #include <yt/yt/library/undumpable/ref.h>
 
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
 #include <library/cpp/yt/threading/spin_lock.h>
 #include <library/cpp/yt/threading/rw_spin_lock.h>
-
-#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NTabletNode {
 
@@ -381,7 +384,7 @@ private:
         if (!tabletSnapshot) {
             YT_LOG_INFO("Tablet snapshot is missing");
 
-            store->UpdatePreloadAttempt(false);
+            store->UpdatePreloadAttempt(/*isBackoff*/ false);
             storeManager->BackoffStorePreload(store);
             return;
         }
@@ -422,7 +425,7 @@ private:
             // SetInMemoryMode with other mode was called during current action execution.
 
             YT_LOG_ERROR(ex, "Error preloading tablet store, backing off");
-            store->UpdatePreloadAttempt(true);
+            store->UpdatePreloadAttempt(/*isBackoff*/ true);
             storeManager->BackoffStorePreload(store);
 
             auto error = TError(ex)
@@ -441,6 +444,8 @@ private:
         }
 
         snapshotStore->RegisterTabletSnapshot(slot, tablet);
+
+        slot->GetSmoothMovementTracker()->CheckTablet(tablet);
     }
 };
 
@@ -644,9 +649,8 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         endBlockIndex - startBlockIndex);
 
     if (preThrottledBytes) {
-        YT_LOG_DEBUG("Preliminary throttling of network bandwidth for preload (Blocks: %v-%v, Bytes: %v)",
-            startBlockIndex,
-            endBlockIndex,
+        YT_LOG_DEBUG("Preliminary throttling of network bandwidth for preload (Blocks: %v, Bytes: %v)",
+            FormatBlocks(startBlockIndex, endBlockIndex),
             preThrottledBytes);
 
         WaitFor(networkThrottler->Throttle(*preThrottledBytes))
@@ -665,9 +669,8 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
             .ValueOrThrow();
 
         int readBlockCount = compressedBlocks.size();
-        YT_LOG_DEBUG("Finished reading chunk blocks (Blocks: %v-%v)",
-            blockIndex,
-            blockIndex + readBlockCount - 1);
+        YT_LOG_DEBUG("Finished reading chunk blocks (Blocks: %v)",
+            FormatBlocks(blockIndex, blockIndex + readBlockCount - 1));
 
         for (const auto& compressedBlock : compressedBlocks) {
             compressedDataSize += compressedBlock.Size();
@@ -685,9 +688,8 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
             }
 
             case EInMemoryMode::Uncompressed: {
-                YT_LOG_DEBUG("Decompressing chunk blocks (Blocks: %v-%v, Codec: %v)",
-                    blockIndex,
-                    blockIndex + readBlockCount - 1,
+                YT_LOG_DEBUG("Decompressing chunk blocks (Blocks: %v, Codec: %v)",
+                    FormatBlocks(blockIndex, blockIndex + readBlockCount - 1),
                     compressionCodec->GetId());
 
                 std::vector<TFuture<std::pair<TSharedRef, TDuration>>> asyncUncompressedBlocks;
@@ -969,7 +971,7 @@ private:
             ToProto(req->mutable_session_id(), node->SessionId);
 
             for (const auto& block : blocks) {
-                YT_LOG_DEBUG("Sending in-memory block (ChunkId: %v, BlockIndex: %v, SessionId: %v, Address: %v)",
+                YT_LOG_DEBUG("Sending in-memory block (ChunkId: %v, Block: %v, SessionId: %v, Address: %v)",
                     block.first.ChunkId,
                     block.first.BlockIndex,
                     node->SessionId,
@@ -1041,6 +1043,7 @@ private:
                 *req->add_chunk_meta() = *chunkInfo.ChunkMeta;
                 ToProto(req->add_tablet_id(), chunkInfo.TabletId);
                 req->add_mount_revision(ToProto(chunkInfo.MountRevision));
+                req->add_target_servant_mount_revision(ToProto(chunkInfo.TargetServantMountRevision));
             }
 
             asyncResults.push_back(req->Invoke().As<void>());
@@ -1103,13 +1106,24 @@ IRemoteInMemoryBlockCachePtr DoCreateRemoteInMemoryBlockCache(
     const IInvokerPtr& controlInvoker,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     NRpc::IServerPtr localRpcServer,
-    const NHiveClient::TCellDescriptorPtr& cellDescriptor,
+    const std::vector<NHiveClient::TCellDescriptorPtr>& cellDescriptors,
     EInMemoryMode inMemoryMode,
     const TInMemoryManagerConfigPtr& config)
 {
+    THashMap<std::string, TNodeDescriptor> nodeDescriptors;
+
+    auto addCellPeers = [&] (const NHiveClient::TCellDescriptorPtr& cellDescriptor) {
+        for (const auto& target : cellDescriptor->Peers) {
+            nodeDescriptors.emplace(target.GetDefaultAddress(), target);
+        }
+    };
+
+    for (const auto& cellDescriptor : cellDescriptors) {
+        addCellPeers(cellDescriptor);
+    }
+
     std::vector<TNodePtr> nodes;
-    for (const auto& target : cellDescriptor->Peers) {
-        const auto& address = target.GetDefaultAddress();
+    for (const auto& [address, target] : nodeDescriptors) {
         auto channel = address == localDescriptor.GetDefaultAddress()
             ? CreateLocalChannel(localRpcServer)
             : client->GetChannelFactory()->CreateChannel(target);
@@ -1165,12 +1179,29 @@ TFuture<IRemoteInMemoryBlockCachePtr> CreateRemoteInMemoryBlockCache(
     IInvokerPtr controlInvoker,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     NRpc::IServerPtr localRpcServer,
-    NHiveClient::TCellDescriptorPtr cellDescriptor,
+    const TTabletSnapshotPtr& tabletSnapshot,
     EInMemoryMode inMemoryMode,
     TInMemoryManagerConfigPtr config)
 {
     if (inMemoryMode == EInMemoryMode::None) {
         return MakeFuture<IRemoteInMemoryBlockCachePtr>(New<TDummyInMemoryBlockCache>());
+    }
+
+    const auto& cellDirectory = client->GetNativeConnection()->GetCellDirectory();
+
+    std::vector<NHiveClient::TCellDescriptorPtr> cellDescriptors;
+    cellDescriptors.push_back(cellDirectory->GetDescriptorByCellIdOrThrow(tabletSnapshot->CellId));
+
+    {
+        const auto& movementData = tabletSnapshot->TabletRuntimeData->SmoothMovementData;
+        if (movementData.IsActiveServant.load() &&
+            movementData.Role.load() == ESmoothMovementRole::Source)
+        {
+            // NB: May be absent in case of concurrent modification.
+            if (auto cellId = movementData.SiblingServantCellId.Load()) {
+                cellDescriptors.push_back(cellDirectory->GetDescriptorByCellIdOrThrow(cellId));
+            }
+        }
     }
 
     return BIND(&DoCreateRemoteInMemoryBlockCache)
@@ -1180,7 +1211,7 @@ TFuture<IRemoteInMemoryBlockCachePtr> CreateRemoteInMemoryBlockCache(
             controlInvoker,
             localDescriptor,
             std::move(localRpcServer),
-            std::move(cellDescriptor),
+            std::move(cellDescriptors),
             inMemoryMode,
             std::move(config));
 }

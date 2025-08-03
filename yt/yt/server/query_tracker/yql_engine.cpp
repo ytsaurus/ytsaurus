@@ -10,6 +10,7 @@
 
 #include <yt/yt/ytlib/yql_client/yql_service_proxy.h>
 #include <yt/yt/ytlib/yql_client/public.h>
+#include <yt/yt/ytlib/yql_client/config.h>
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/attributes.h>
@@ -42,7 +43,7 @@ class TYqlSettings
     : public TYsonStruct
 {
 public:
-    std::optional<TString> Stage;
+    std::optional<std::string> Stage;
     EExecuteMode ExecuteMode;
 
     REGISTER_YSON_STRUCT(TYqlSettings);
@@ -88,12 +89,19 @@ public:
         , Settings_(ConvertTo<TYqlSettingsPtr>(SettingsNode_))
         , Stage_(Settings_->Stage.value_or(Config_->Stage))
         , ExecuteMode_(Settings_->ExecuteMode)
+        , Secrets_(MakeSecrets(activeQuery.Secrets))
         , ProgressGetterExecutor_(New<TPeriodicExecutor>(controlInvoker, BIND(&TYqlQueryHandler::GetProgress, MakeWeak(this)), Config_->QueryProgressGetPeriod))
     { }
 
+    static std::vector<TQuerySecretPtr> MakeSecrets(const std::optional<TYsonString>& secrets) {
+        return ConvertTo<std::optional<std::vector<TQuerySecretPtr>>>(secrets).value_or(std::vector<TQuerySecretPtr>());
+    }
+
     void Start() override
     {
-        YqlAgentChannelProvider_ = Connection_->GetYqlAgentChannelProviderOrThrow(Stage_);
+        auto providerInfo = Connection_->GetYqlAgentChannelProviderOrThrow(Stage_);
+        YqlAgentChannelProvider_ = providerInfo.first;
+        YqlAgentChannelProviderConfig_ = providerInfo.second;
         YqlServiceName_ = TYqlServiceProxy::GetDescriptor().ServiceName;
         TryStart();
     }
@@ -135,8 +143,10 @@ private:
     const TString Stage_;
     const EExecuteMode ExecuteMode_;
     const IInvokerPtr ProgressInvoker_;
+    const std::vector<TQuerySecretPtr> Secrets_;
 
     IRoamingChannelProviderPtr YqlAgentChannelProvider_;
+    TYqlAgentChannelConfigPtr YqlAgentChannelProviderConfig_;
     TString YqlServiceName_;
 
     IChannelPtr YqlServiceChannel_;
@@ -172,6 +182,15 @@ private:
             protoFile->set_content(file->Content);
             protoFile->set_type(static_cast<TYqlQueryFile_EContentType>(file->Type));
         }
+
+        for (const auto& secret : Secrets_) {
+            const auto protoSecret = yqlRequest->add_secrets();
+            protoSecret->set_id(secret->Id);
+            protoSecret->set_category(secret->Category);
+            protoSecret->set_subcategory(secret->Subcategory);
+            protoSecret->set_ypath(secret->YPath);
+        }
+
         startQueryReq->set_build_rowsets(true);
 
         {
@@ -201,6 +220,7 @@ private:
     void GetProgress()
     {
         TYqlServiceProxy proxy(YqlServiceChannel_);
+        proxy.SetDefaultTimeout(YqlAgentChannelProviderConfig_->DefaultProgressRequestTimeout);
         auto req = proxy.GetQueryProgress();
         ToProto(req->mutable_query_id(), QueryId_);
 

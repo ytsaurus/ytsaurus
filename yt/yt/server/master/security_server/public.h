@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/hydra/public.h>
 
+#include <yt/yt/server/lib/security_server/public.h>
+
 #include <yt/yt/ytlib/security_client/public.h>
 
 #include <yt/yt/core/misc/maybe_inf.h>
@@ -63,11 +65,11 @@ using TAccountChunkMergerNodeTraversalsPtr = NObjectServer::TObjectPtr<T, TAccou
 
 DECLARE_REFCOUNTED_STRUCT(ISecurityManager)
 
-DECLARE_REFCOUNTED_CLASS(TUserRequestLimitsOptions)
-DECLARE_REFCOUNTED_CLASS(TUserQueueSizeLimitsOptions)
+DECLARE_REFCOUNTED_STRUCT(TUserRequestLimitsOptions)
+DECLARE_REFCOUNTED_STRUCT(TUserQueueSizeLimitsOptions)
 DECLARE_REFCOUNTED_STRUCT(TUserRequestLimitsConfig)
-DECLARE_REFCOUNTED_CLASS(TUserReadRequestComplexityLimitsOptions)
-DECLARE_REFCOUNTED_CLASS(TSerializableUserRequestLimitsOptions)
+DECLARE_REFCOUNTED_STRUCT(TUserReadRequestComplexityLimitsOptions)
+DECLARE_REFCOUNTED_STRUCT(TSerializableUserRequestLimitsOptions)
 DECLARE_REFCOUNTED_CLASS(TSerializableUserQueueSizeLimitsOptions)
 DECLARE_REFCOUNTED_STRUCT(TSerializableUserRequestLimitsConfig)
 DECLARE_REFCOUNTED_CLASS(TSerializableUserReadRequestComplexityLimitsOptions)
@@ -84,10 +86,7 @@ using TAccountMulticellStatistics = THashMap<NObjectClient::TCellTag, TAccountSt
 
 DECLARE_REFCOUNTED_STRUCT(TSerializableAccessControlEntry)
 
-struct TPermissionCheckTarget;
 struct TPermissionCheckOptions;
-struct TPermissionCheckResult;
-struct TPermissionCheckResponse;
 
 class TClusterResources;
 class TRichClusterResources;
@@ -122,27 +121,6 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicSecurityManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(IUserActivityTracker)
 
 DECLARE_REFCOUNTED_CLASS(TRequestTracker)
-
-DEFINE_ENUM(EAccessControlEvent,
-    (UserCreated)
-    (GroupCreated)
-    (UserDestroyed)
-    (GroupDestroyed)
-    (MemberAdded)
-    (MemberRemoved)
-    (SubjectRenamed)
-    (AccessDenied)
-    (ObjectAcdUpdated)
-    (NetworkProjectCreated)
-    (NetworkProjectDestroyed)
-    (ProxyRoleCreated)
-    (ProxyRoleDestroyed)
-);
-
-DEFINE_ENUM(EAccessDeniedReason,
-    (DeniedByAce)
-    (NoAllowingAce)
-);
 
 DEFINE_ENUM(EUserWorkloadType,
     (Read)

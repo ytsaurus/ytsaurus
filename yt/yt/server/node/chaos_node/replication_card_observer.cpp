@@ -32,7 +32,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ChaosNodeLogger;
+constinit const auto Logger = ChaosNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -161,6 +161,8 @@ private:
                 checkExpiredHistory(replicaId, replica, minTimestamp);
             }
         }
+
+        chaosManager->UpdateReplicationCardLagTimes(*replicationCard);
     }
 };
 

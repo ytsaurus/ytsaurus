@@ -1,8 +1,9 @@
 from yt_dynamic_tables_base import DynamicTablesBase
 
 from yt_commands import (
-    print_debug, wait, get_driver, get, set, ls, exists, create, sync_create_cells, sync_mount_table, alter_table, insert_rows, pull_rows,
+    print_debug, wait, get_driver, get, set, ls, exists, create, alter_table, insert_rows, pull_rows,
     create_replication_card, create_chaos_table_replica, alter_table_replica,
+    create_tablet_cell, wait_for_cells, mount_table, wait_for_tablet_state,
     sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id, migrate_replication_cards)
 
 from yt.common import YtError
@@ -79,6 +80,14 @@ class ChaosTestBase(DynamicTablesBase):
         orchids = [get("#{0}/orchid".format(tablet_id), driver=driver) for tablet_id in tablet_ids]
         return orchids
 
+    def _get_chaos_cell_orchid_path(self, cell_id, driver=None):
+        address = get("#{0}/@peers/0/address".format(cell_id), driver=driver)
+        return "//sys/cluster_nodes/{0}/orchid/chaos_cells/{1}".format(address, cell_id)
+
+    def _get_chaos_cell_orchid(self, cell_id, path, driver=None):
+        orchid_path = self._get_chaos_cell_orchid_path(cell_id, driver=driver)
+        return get("{0}{1}".format(orchid_path, path), driver=driver)
+
     def _wait_for_card_era(self, path, card_id, era=1, check_write=False, driver=None):
         import logging
         logger = logging.getLogger()
@@ -121,14 +130,23 @@ class ChaosTestBase(DynamicTablesBase):
         return [self._create_chaos_table_replica(replica, replication_card_id=replication_card_id, table_path=table_path) for replica in replicas]
 
     def _prepare_replica_tables(self, replicas, replica_ids, create_tablet_cells=True, mount_tables=True):
+        created_cells = []
+        created_tables = []
         for replica, replica_id in zip(replicas, replica_ids):
             path = replica["replica_path"]
             driver = get_driver(cluster=replica["cluster_name"])
             alter_table(path, upstream_replica_id=replica_id, driver=driver)
+            created_tables.append((path, driver))
             if create_tablet_cells and len(ls("//sys/tablet_cells", driver=driver)) == 0:
-                sync_create_cells(1, driver=driver)
-            if mount_tables:
-                sync_mount_table(path, driver=driver)
+                cell_id = create_tablet_cell(driver=driver)
+                created_cells.append((cell_id, driver))
+        for cell_id, driver in created_cells:
+            wait_for_cells([cell_id], driver=driver)
+        if mount_tables:
+            for path, driver in created_tables:
+                mount_table(path, driver=driver)
+            for path, driver in created_tables:
+                wait_for_tablet_state(path, "mounted", driver=driver)
 
     def _create_replica_tables(self, replicas, replica_ids,
                                create_tablet_cells=True,

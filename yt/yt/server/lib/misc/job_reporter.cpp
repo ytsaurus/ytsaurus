@@ -76,13 +76,14 @@ public:
     size_t EstimateSize() const override
     {
         return NServer::EstimateSizes(
-            Report_.OperationId().Underlying(),
-            Report_.JobId().Underlying(),
+            Report_.OperationId(),
+            Report_.JobId(),
             Report_.State(),
             Report_.StartTime(),
             Report_.FinishTime(),
             /*updateTime*/ TInstant::Now().MicroSeconds(),
             Report_.Address(),
+            Report_.Addresses(),
             Report_.StderrSize(),
             Report_.HasCompetitors(),
             Report_.HasProbingCompetitors(),
@@ -97,14 +98,17 @@ public:
             Report_.Spec().has_value(),
             /*failContextSize*/ i64{0},
             Report_.CoreInfos(),
-            Report_.JobCompetitionId().Underlying(),
-            Report_.ProbingJobCompetitionId().Underlying(),
+            Report_.JobCompetitionId(),
+            Report_.ProbingJobCompetitionId(),
             Report_.ExecAttributes(),
             Report_.JobCookie(),
             Report_.ControllerState(),
             Report_.ArchiveFeatures(),
             Report_.Ttl(),
-            Report_.OperationIncarnation());
+            Report_.OperationIncarnation(),
+            Report_.AllocationId(),
+            Report_.ControllerStartTime(),
+            Report_.ControllerFinishTime());
     }
 
     TUnversionedOwningRow ToRow(int archiveVersion) const override
@@ -187,9 +191,27 @@ public:
         if (archiveVersion >= 53 && Report_.Ttl()) {
             record.Ttl = Report_.Ttl()->MilliSeconds();
         }
+
         // COMPAT(eshcherbin)
         if (archiveVersion >= 55 && Report_.OperationIncarnation()) {
             record.OperationIncarnation = Report_.OperationIncarnation();
+        }
+        // COMPAT(bystrovserg)
+        if (archiveVersion >= 56 && Report_.AllocationId()) {
+            auto allocationIdAsGuid = Report_.AllocationId().Underlying();
+            record.AllocationIdHi = allocationIdAsGuid.Parts64[0];
+            record.AllocationIdLo = allocationIdAsGuid.Parts64[1];
+        }
+
+        // COMPAT(aleksandr.gaev)
+        if (archiveVersion >= 57 && Report_.Addresses()) {
+            record.Addresses = ConvertToYsonString(*Report_.Addresses());
+        }
+
+        // COMPAT(bystrovserg)
+        if (archiveVersion >= 58) {
+            record.ControllerStartTime = Report_.ControllerStartTime();
+            record.ControllerFinishTime = Report_.ControllerFinishTime();
         }
 
         return FromRecord(record);
@@ -213,8 +235,8 @@ public:
     size_t EstimateSize() const override
     {
         return ::NYT::NServer::EstimateSizes(
-            Report_.OperationId().Underlying(),
-            Report_.JobId().Underlying());
+            Report_.OperationId(),
+            Report_.JobId());
     }
 
     TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
@@ -248,8 +270,8 @@ public:
     size_t EstimateSize() const override
     {
         return ::NYT::NServer::EstimateSizes(
-            Report_.OperationId().Underlying(),
-            Report_.JobId().Underlying(),
+            Report_.OperationId(),
+            Report_.JobId(),
             Report_.Spec(),
             Report_.SpecVersion());
     }
@@ -288,8 +310,8 @@ public:
     size_t EstimateSize() const override
     {
         return ::NYT::NServer::EstimateSizes(
-            Report_.OperationId().Underlying(),
-            Report_.JobId().Underlying(),
+            Report_.OperationId(),
+            Report_.JobId(),
             Report_.Stderr());
     }
 
@@ -330,8 +352,8 @@ public:
     size_t EstimateSize() const override
     {
         return NServer::EstimateSizes(
-            Report_.OperationId().Underlying(),
-            Report_.JobId().Underlying(),
+            Report_.OperationId(),
+            Report_.JobId(),
             Report_.FailContext());
     }
 
@@ -372,8 +394,8 @@ public:
     size_t EstimateSize() const override
     {
         return ::NYT::NServer::EstimateSizes(
-            Report_.OperationId().Underlying(),
-            Report_.JobId().Underlying(),
+            Report_.OperationId(),
+            Report_.JobId(),
             Report_.Profile().value_or(NJobAgent::TJobProfile{}).Type,
             /*partIndex*/ int{0},
             Report_.Profile().value_or(NJobAgent::TJobProfile{}).Blob,

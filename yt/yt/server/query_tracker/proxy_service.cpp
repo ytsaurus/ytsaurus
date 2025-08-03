@@ -56,7 +56,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, StartQuery)
     {
-        YT_VERIFY(NRpcProxy::NProto::TReqStartQuery::GetDescriptor()->field_count() == 9);
+        YT_VERIFY(NRpcProxy::NProto::TReqStartQuery::GetDescriptor()->field_count() == 10);
         YT_VERIFY(NRpcProxy::NProto::TRspStartQuery::GetDescriptor()->field_count() == 1);
 
         auto rpcRequest = request->rpc_proxy_request();
@@ -79,7 +79,7 @@ private:
             options.AccessControlObject = rpcRequest.access_control_object();
         }
         options.AccessControlObjects = rpcRequest.has_access_control_objects()
-            ? std::make_optional(FromProto<std::vector<TString>>(rpcRequest.access_control_objects().items()))
+            ? std::make_optional(FromProto<std::vector<std::string>>(rpcRequest.access_control_objects().items()))
             : std::nullopt;
 
         options.Draft = rpcRequest.draft();
@@ -90,6 +90,15 @@ private:
             file->Content = requestFile.content();
             file->Type = FromProto<EContentType>(requestFile.type());
             options.Files.emplace_back(file);
+        }
+
+        for (const auto& protoSecret : rpcRequest.secrets()) {
+            auto secret = New<TQuerySecret>();
+            secret->Id = protoSecret.id();
+            secret->Category = protoSecret.category();
+            secret->Subcategory = protoSecret.subcategory();
+            secret->YPath = protoSecret.ypath();
+            options.Secrets.emplace_back(std::move(secret));
         }
 
         auto engine = ConvertQueryEngineFromProto(rpcRequest.engine());
@@ -320,7 +329,7 @@ private:
             : std::nullopt;
 
         options.AccessControlObjects = rpcRequest.has_access_control_objects()
-            ? std::make_optional(FromProto<std::vector<TString>>(rpcRequest.access_control_objects().items()))
+            ? std::make_optional(FromProto<std::vector<std::string>>(rpcRequest.access_control_objects().items()))
             : std::nullopt;
 
         auto user = context->GetAuthenticationIdentity().User;

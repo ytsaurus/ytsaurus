@@ -11,10 +11,9 @@ namespace NYT::NSecurityClient {
 
 //! Stores a representation of user object attributes that are resolved by the cache defined below.
 //! Extend with care.
-class TUserAttributes
+struct TUserAttributes
     : public NYTree::TYsonStruct
 {
-public:
     bool Banned;
     THashSet<std::string> MemberOfClosure;
 

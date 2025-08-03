@@ -46,6 +46,8 @@ struct TChunkContext final
     IJournalDispatcherPtr JournalDispatcher;
     IBlobReaderCachePtr BlobReaderCache;
 
+    NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager;
+
     static TChunkContextPtr Create(NClusterNode::IBootstrapBase* bootstrap);
 };
 
@@ -68,7 +70,7 @@ public:
     TFuture<void> PrepareToReadChunkFragments(
         const NChunkClient::TClientChunkReadOptions& options,
         bool useDirectIO) override;
-    NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
+    NIO::TReadRequest MakeChunkFragmentReadRequest(
         const NIO::TChunkFragmentDescriptor& fragmentDescriptor,
         bool useDirectIO) override;
 
@@ -108,6 +110,7 @@ protected:
         NProfiling::TWallTimer SessionTimer;
         std::optional<TChunkReadGuard> ChunkReadGuard;
         TChunkReadOptions Options;
+        TFuture<void> SessionAliveCheckFuture;
     };
 
     using TReadSessionBasePtr = TIntrusivePtr<TReadSessionBase>;

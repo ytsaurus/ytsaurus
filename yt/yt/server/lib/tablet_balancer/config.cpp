@@ -88,6 +88,8 @@ void TParameterizedBalancingConfig::Register(TRegistrar registrar)
     registrar.Parameter("min_relative_metric_improvement", &TThis::MinRelativeMetricImprovement)
         .Default()
         .GreaterThanOrEqual(0);
+    registrar.Parameter("replica_clusters", &TThis::ReplicaClusters)
+        .Default();
     registrar.Parameter("factors", &TThis::Factors)
         .Default();
 
@@ -96,6 +98,11 @@ void TParameterizedBalancingConfig::Register(TRegistrar registrar)
             config->Factors = TComponentFactorConfig::MakeUniformIdentity();
         } else if (!config->Factors) {
             config->Factors = New<TComponentFactorConfig>();
+        }
+
+        auto replicaClustersUnique = THashSet<TString>(config->ReplicaClusters.begin(), config->ReplicaClusters.end());
+        if (std::ssize(replicaClustersUnique) != std::ssize(config->ReplicaClusters)) {
+            THROW_ERROR_EXCEPTION("\"replica_clusters\" must contain unique cluster names");
         }
     });
 }
@@ -218,7 +225,7 @@ void TBundleTabletBalancerConfig::Register(TRegistrar registrar)
             it->second->Postprocess();
         }
 
-        if (auto it = config->Groups.emplace(LegacyGroupName, New<TTabletBalancingGroupConfig>()); it.second) {
+        if (auto it = config->Groups.emplace(LegacyOrdinaryGroupName, New<TTabletBalancingGroupConfig>()); it.second) {
             it.first->second->Type = EBalancingType::Legacy;
         }
 
@@ -229,7 +236,7 @@ void TBundleTabletBalancerConfig::Register(TRegistrar registrar)
         for (const auto& [groupName, groupConfig] : config->Groups) {
             if (groupConfig->Type == EBalancingType::Legacy) {
                 THROW_ERROR_EXCEPTION_IF(
-                    groupName != LegacyGroupName && groupName != LegacyInMemoryGroupName,
+                    groupName != LegacyOrdinaryGroupName && groupName != LegacyInMemoryGroupName,
                     "Group %Qv is not builtin but has legacy type",
                     groupName);
             }
@@ -321,6 +328,19 @@ void TTableTabletBalancerConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("group", &TThis::Group)
         .Default();
+    registrar.Parameter("replica_path_overrides", &TThis::ReplicaPathOverrides)
+        .Default();
+
+    registrar.Postprocessor([] (TThis* config) {
+        for (const auto& [cluster, paths] : config->ReplicaPathOverrides) {
+            auto uniquePaths = THashSet<TYPath>(paths.begin(), paths.end());
+            if (std::ssize(uniquePaths) != std::ssize(paths)) {
+                THROW_ERROR_EXCEPTION("\"replica_aliases\" must contain unique paths for each cluster, "
+                    "but cluster %v has two identical paths",
+                    cluster);
+            }
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

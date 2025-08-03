@@ -27,7 +27,8 @@ TBriefJobInfo::TBriefJobInfo(
     const TJobEvents& jobEvents,
     const NControllerAgent::TCoreInfos& jobCoreInfos,
     const TExecAttributes& jobExecAttributes,
-    std::optional<std::string> monitoringDescriptor)
+    std::optional<std::string> monitoringDescriptor,
+    TInstant jobResendBackoffStartTime)
     : JobId_(jobId)
     , OperationId_(operationId)
     , JobState_(jobState)
@@ -47,6 +48,7 @@ TBriefJobInfo::TBriefJobInfo(
     , JobCoreInfos_(jobCoreInfos)
     , JobExecAttributes_(jobExecAttributes)
     , MonitoringDescriptor_(std::move(monitoringDescriptor))
+    , JobResendBackoffStartTime_(jobResendBackoffStartTime)
 { }
 
 void TBriefJobInfo::BuildOrchid(TFluentMap fluent) const
@@ -69,7 +71,8 @@ void TBriefJobInfo::BuildOrchid(TFluentMap fluent) const
         .Item("events").Value(JobEvents_)
         .Item("core_infos").Value(JobCoreInfos_)
         .Item("exec_attributes").Value(JobExecAttributes_)
-        .OptionalItem("monitoring_descriptor", MonitoringDescriptor_);
+        .OptionalItem("monitoring_descriptor", MonitoringDescriptor_)
+        .OptionalItem("job_resend_backoff_start_time", JobResendBackoffStartTime_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

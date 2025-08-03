@@ -31,7 +31,7 @@ NChunkClient::TDataSinkDirectoryPtr BuildDataSinkDirectoryFromOutputTables(const
 NChunkClient::TDataSinkDirectoryPtr BuildDataSinkDirectoryWithAutoMerge(
     const std::vector<TOutputTablePtr>& outputTables,
     const std::vector<bool>& autoMergeEnabled,
-    const std::optional<TString>& intermediateAccountName);
+    const std::optional<std::string>& intermediateAccountName);
 
 NChunkClient::TDataSink BuildDataSinkFromOutputTable(const TOutputTablePtr& outputTable);
 
@@ -47,7 +47,7 @@ public:
     void AddSingular(TStringBuf name, double value);
     void AddSingular(const TString& name, const NYTree::INodePtr& node);
     void AddCounted(TStringBuf name, double value);
-    void CalculateJobSatisticsAverage();
+    void CalculateJobStatisticsAverage();
 
 private:
     THashMap<TString, NYson::TYsonString> Tags_;
@@ -90,9 +90,10 @@ struct TDockerImageSpec
     TString Tag;
     TString Digest;
 
-    TDockerImageSpec(const TString& dockerImage, const TDockerRegistryConfigPtr& config);
+    bool IsInternal = false;
 
-    bool IsInternal() const;
+    TDockerImageSpec(const TString& dockerImage, const TDockerRegistryConfigPtr& config);
+    TString GetDockerImage() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -105,13 +106,6 @@ void GenerateDockerAuthFromToken(
     const NYTree::IMapNodePtr& secureVault,
     const std::string& authenticatedUser,
     NControllerAgent::NProto::TUserJobSpec* jobSpec);
-
-////////////////////////////////////////////////////////////////////////////////
-
-NYTree::IAttributeDictionaryPtr GetNetworkProject(
-    const NApi::NNative::IClientPtr& client,
-    const std::string& authenticatedUser,
-    TString networkProject);
 
 ////////////////////////////////////////////////////////////////////////////////
 

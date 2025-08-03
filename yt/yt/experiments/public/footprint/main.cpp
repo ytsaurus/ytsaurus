@@ -71,7 +71,7 @@ void Reproduce()
         << std::endl;
 
     for (auto& [sensor, data] : metrics) {
-        auto current = *tcmalloc::MallocExtension::GetNumericProperty(sensor);;
+        auto current = *tcmalloc::MallocExtension::GetNumericProperty(sensor);
         std::cout << sensor << " diff MB: " << double(current - data) / 1024 / 1024 << std::endl;
 
         if ("generic.bytes_in_use_by_app" == sensor) {

@@ -14,22 +14,22 @@ namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TKeyPair
+class TKeyPair final
 {
 public:
-    TKeyPair(const TKeyPair& other) = delete;
-    TKeyPair& operator=(const TKeyPair& other) = delete;
+    explicit TKeyPair(const TKeyPairMetadata& metadata);
+
+    TKeyPair(const TKeyPair& other) = default;
+    TKeyPair& operator=(const TKeyPair& other) = default;
 
     TKeyPair(TKeyPair&& other) = default;
     TKeyPair& operator=(TKeyPair&& other) = default;
 
-    TKeyPair(const TKeyPairMetadata& metadata);
-
     [[nodiscard]] const TKeyInfoPtr& KeyInfo() const;
 
     void Sign(
-        std::span<const std::byte> data,
-        std::span<std::byte, SignatureSize> signature) const;
+        std::span<const char> data,
+        std::span<char, SignatureSize> signature) const;
 
     //! Checks that private key matches the public key.
     [[nodiscard]] bool CheckSanity() const;
@@ -38,6 +38,8 @@ private:
     TKeyInfoPtr KeyInfo_;
     NSecretString::TSecretString PrivateKey_;
 };
+
+DEFINE_REFCOUNTED_TYPE(TKeyPair)
 
 ////////////////////////////////////////////////////////////////////////////////
 

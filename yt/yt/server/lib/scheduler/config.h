@@ -62,10 +62,9 @@ DEFINE_ENUM(EDeactivationReason,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStrategyTestingOptions
+struct TStrategyTestingOptions
     : public NYTree::TYsonStruct
 {
-public:
     // Testing option that enables sleeping during fair share strategy update.
     std::optional<TDuration> DelayInsideFairShareUpdate;
 
@@ -169,9 +168,9 @@ struct TFairShareStrategySchedulingSegmentsConfig
 
     TDuration ModuleReconsiderationTimeout;
 
-    THashSet<TString> DataCenters;
+    THashSet<std::string> DataCenters;
 
-    THashSet<TString> InfinibandClusters;
+    THashSet<std::string> InfinibandClusters;
 
     ESchedulingSegmentModuleAssignmentHeuristic ModuleAssignmentHeuristic;
 
@@ -189,7 +188,11 @@ struct TFairShareStrategySchedulingSegmentsConfig
 
     TDuration PriorityModuleAssignmentTimeout;
 
-    const THashSet<TString>& GetModules() const;
+    std::optional<double> ModuleOversatisfactionThreshold;
+
+    bool ForceIncompatibleSegmentPreemption;
+
+    const THashSet<std::string>& GetModules() const;
 
     REGISTER_YSON_STRUCT(TFairShareStrategySchedulingSegmentsConfig);
 
@@ -209,9 +212,9 @@ struct TGpuAllocationSchedulerConfig
 
     TDuration PreemptForLargeOperationTimeout;
 
-    THashSet<TString> DataCenters;
+    THashSet<std::string> DataCenters;
 
-    THashSet<TString> InfinibandClusters;
+    THashSet<std::string> InfinibandClusters;
 
     ESchedulingSegmentModuleAssignmentHeuristic ModuleAssignmentHeuristic;
 
@@ -224,7 +227,7 @@ struct TGpuAllocationSchedulerConfig
 
     TDuration PriorityModuleAssignmentTimeout;
 
-    const THashSet<TString>& GetModules() const;
+    const THashSet<std::string>& GetModules() const;
 
     REGISTER_YSON_STRUCT(TGpuAllocationSchedulerConfig);
 
@@ -242,7 +245,7 @@ struct TFairShareStrategySsdPriorityPreemptionConfig
 
     TSchedulingTagFilter NodeTagFilter;
 
-    std::vector<TString> MediumNames;
+    std::vector<std::string> MediumNames;
 
     REGISTER_YSON_STRUCT(TFairShareStrategySsdPriorityPreemptionConfig);
 
@@ -269,10 +272,9 @@ DEFINE_REFCOUNTED_TYPE(TBatchOperationSchedulingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTreeTestingOptions
+struct TTreeTestingOptions
     : public NYTree::TYsonStruct
 {
-public:
     TDelayConfigPtr DelayInsideFairShareUpdate;
 
     std::optional<TDuration> DelayInsideResourceUsageInitializationInTree;
@@ -291,6 +293,8 @@ struct TFairShareStrategyTreeConfig
 {
     // Specifies nodes that are served by this tree.
     TSchedulingTagFilter NodesFilter;
+
+    bool EnableUnrecognizedAlert;
 
     // The following settings can be overridden in operation spec.
     TDuration FairShareStarvationTimeout;
@@ -497,10 +501,9 @@ DEFINE_REFCOUNTED_TYPE(TPoolTreesTemplateConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOperationStuckCheckOptions
+struct TOperationStuckCheckOptions
     : public NYTree::TYsonStruct
 {
-public:
     TDuration Period;
 
     //! During this timeout after activation operation can not be considered as stuck.
@@ -587,10 +590,9 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestingOptions
+struct TTestingOptions
     : public NYTree::TYsonStruct
 {
-public:
     // Testing options that enables random master disconnections.
     bool EnableRandomMasterDisconnection;
     TDuration RandomMasterDisconnectionMaxBackoff;
@@ -798,9 +800,6 @@ struct TResourceMeteringConfig
 {
     //! Default ABC id for use in resource metering
     int DefaultAbcId;
-
-    //! Enable separate schemas for guarantees and allocations.
-    bool EnableSeparateSchemaForAllocation;
 
     REGISTER_YSON_STRUCT(TResourceMeteringConfig);
 
@@ -1024,6 +1023,8 @@ struct TSchedulerConfig
     //! operation node is created, this will ensure it is cleaned up eventually.
     TDuration TemporaryOperationTokenExpirationTimeout;
 
+    THashSet<EOperationManagementAction> OperationActionsAllowedForPoolManagers;
+
     REGISTER_YSON_STRUCT(TSchedulerConfig);
 
     static void Register(TRegistrar registrar);
@@ -1064,6 +1065,24 @@ struct TSchedulerProgramConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerProgramConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TOperationOptions
+    : public NYTree::TYsonStruct
+{
+    // Allocation preemption timeout.
+    std::optional<TDuration> AllocationPreemptionTimeout;
+
+    // Allocation graceful preemption timeout.
+    std::optional<TDuration> AllocationGracefulPreemptionTimeout;
+
+    REGISTER_YSON_STRUCT(TOperationOptions)
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 

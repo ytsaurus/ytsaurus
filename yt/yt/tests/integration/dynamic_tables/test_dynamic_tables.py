@@ -33,7 +33,7 @@ from yt_type_helpers import make_schema, optional_type
 import yt_error_codes
 
 from yt.environment.helpers import assert_items_equal
-from yt.common import YtError
+from yt.common import YtError, update
 import yt.yson as yson
 
 import pytest
@@ -73,7 +73,21 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
     DELTA_NODE_CONFIG = {
         "resource_limits": {
             "cpu_per_tablet_slot": 1.0,
+            "memory_limits": {
+                "lookup_rows_cache": {
+                    "type": "static",
+                    "value": 1 * 1024 * 1024
+                }
+            },
         },
+        "tablet_node": {
+            "changelogs": {
+                "writer": {
+                    "enable_checksums": True,
+                    "validate_erasure_coding": True
+                }
+            }
+        }
     }
 
     @authors("babenko")
@@ -376,11 +390,8 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
     @authors("gritukan")
     def test_follower_decommissioned_during_decommission(self):
         set("//sys/@config/tablet_manager/decommission_through_extra_peers", True)
-        set(
-            "//sys/@config/tablet_manager/decommissioned_leader_reassignment_timeout",
-            7000,
-        )
-        set("//sys/@config/tablet_manager/extra_peer_drop_delay", 2000)
+        set("//sys/@config/tablet_manager/decommissioned_leader_reassignment_timeout", 5000)
+        set("//sys/@config/tablet_manager/extra_peer_drop_delay", 5000)
 
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count": 1}})
         sync_create_cells(1, tablet_cell_bundle="b")
@@ -422,6 +433,12 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
     @authors("gritukan")
     def test_dynamic_peer_count(self):
+        # We don't want decommission to interfere with manual peer count changes.
+        set(
+            "//sys/@config/tablet_manager/decommission_through_extra_peers",
+            False,
+        )
+
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count": 1}})
         sync_create_cells(1, tablet_cell_bundle="b")
         cell_id = ls("//sys/tablet_cells")[0]
@@ -713,14 +730,12 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         assert not exists("//tmp/t1/@profiling_mode")
         assert get("//tmp/t1/@profiling_tag") == "custom"
 
-    @pytest.mark.parametrize("new_scan_reader", [True, False])
     @authors("sabdenovch")
-    def test_no_column_meta_in_chunk_meta(self, new_scan_reader):
+    def test_no_column_meta_in_chunk_meta(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t", lookup_cache_rows_per_tablet=50, optimize_for="scan")
         set("//tmp/t/@mount_config/enable_column_meta_in_chunk_meta", False)
         set("//tmp/t/@mount_config/enable_segment_meta_in_blocks", True)
-        set("//tmp/t/@mount_config/enable_new_scan_reader_for_lookup", new_scan_reader)
         sync_mount_table("//tmp/t")
 
         rows = [{"key": i, "value": f"payload_{i}"} for i in range(10)]
@@ -2221,6 +2236,44 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                 else:
                     assert store.attributes["type"] == "dynamic_store"
 
+    @authors("cherepashka")
+    def test_owning_nodes(self):
+        def check_owning_nodes(object_id, owning_nodes):
+            cell_indicies = {0}  # primary cell
+            cell_indicies.add(get(f"#{object_id}/@native_cell_tag") - 10)
+
+            for cell_index in cell_indicies:
+                assert_items_equal(get(f"#{object_id}/@owning_nodes", driver=get_driver(cell_index)), owning_nodes)
+
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t", attributes={"external": True})
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": i, "value": f"{i}a"} for i in range(8)])
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [4]])
+
+        chunk_tree = get("#{}/@tree".format(get("//tmp/t/@chunk_list_id")))
+        chunk_views_ids = builtins.set()
+
+        for tablet in chunk_tree:
+            for store in tablet:
+                if store.attributes["type"] == "chunk_view":
+                    assert len(store) == 1
+                    chunk_views_ids.add(str(store[0]))
+                else:
+                    # Dynamic stores will be flushed during unmount/freeze
+                    # (to perform copy of dynamic table it should be unmounted or freezed),
+                    # so technicaly dynamic stores cannot be exported.
+                    assert store.attributes["type"] == "dynamic_store"
+        assert len(chunk_views_ids) > 0
+
+        copy("//tmp/t", "//home/t", recursive=True, force=True)
+        copy("//home/t", "//tmp/t1")
+        for chunk_view_id in chunk_views_ids:
+            check_owning_nodes(chunk_view_id, ["//tmp/t", "//home/t", "//tmp/t1"])
+
     @authors("savrus", "ifsmirnov")
     def test_select_rows_access_tracking(self):
         sync_create_cells(1)
@@ -2627,8 +2680,9 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(5)])
         sync_flush_table("//tmp/t")
 
-        throttled_lookup_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="tablet/throttled_lookup_count")
+        throttled_lookup_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "tablet/throttled_lookup_count")
 
         start_time = time.time()
         for i in range(5):
@@ -2651,8 +2705,9 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(5)])
         sync_flush_table("//tmp/t")
 
-        throttled_select_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="tablet/throttled_select_count")
+        throttled_select_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "tablet/throttled_select_count")
 
         start_time = time.time()
         for i in range(5):
@@ -2673,8 +2728,9 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         set("//tmp/t/@throttlers", {"write": {"limit": 10}})
         sync_mount_table("//tmp/t")
 
-        throttled_write_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="tablet/throttled_write_count")
+        throttled_write_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "tablet/throttled_write_count")
 
         def _insert(overdraft_expected, max_attempts=10):
             overdrafted = False
@@ -3232,90 +3288,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         for i in range(22):
             assert tablet_infos["tablets"][i]["total_row_count"] == tablet_indexes[i]
 
-    @staticmethod
-    def _create_table_for_statistics_reporter(table_path):
-        def get_struct(name):
-            return {
-                "name": name,
-                "type_v3": {
-                    "type_name": "struct",
-                    "members": [
-                        {"name": "count", "type": "int64"},
-                        {"name": "rate", "type": "double"},
-                        {"name": "rate_10m", "type": "double"},
-                        {"name": "rate_1h", "type": "double"},
-                    ],
-                }
-            }
-
-        create(
-            "table",
-            table_path,
-            attributes={
-                "dynamic": True,
-                "schema": [
-                    {"name": "table_id", "type_v3": "string", "sort_order": "ascending"},
-                    {"name": "tablet_id", "type_v3": "string", "sort_order": "ascending"},
-                    get_struct("dynamic_row_read"),
-                    get_struct("dynamic_row_read_data_weight"),
-                    get_struct("dynamic_row_lookup"),
-                    get_struct("dynamic_row_lookup_data_weight"),
-                    get_struct("dynamic_row_write"),
-                    get_struct("dynamic_row_write_data_weight"),
-                    get_struct("dynamic_row_delete"),
-                    get_struct("static_chunk_row_read"),
-                    get_struct("static_chunk_row_read_data_weight"),
-                    get_struct("static_chunk_row_lookup"),
-                    get_struct("static_chunk_row_lookup_data_weight"),
-                    get_struct("compaction_data_weight"),
-                    get_struct("partitioning_data_weight"),
-                    get_struct("lookup_error"),
-                    get_struct("write_error"),
-                    get_struct("lookup_cpu_time"),
-                    {"name": "uncompressed_data_size", "type_v3": "int64"},
-                    {"name": "compressed_data_size", "type_v3": "int64"},
-                ],
-                "mount_config": {
-                    "min_data_ttl": 0,
-                    "max_data_ttl": 86400000,
-                    "min_data_versions": 0,
-                    "max_data_versions": 1,
-                    "merge_rows_on_flush": True,
-                },
-            },
-        )
-
-    @authors("dave11ar")
-    def test_statistics_reporter(self):
-        statistics_path = "//tmp/statistics_reporter_table"
-
-        update_nodes_dynamic_config({
-            "tablet_node" : {
-                "statistics_reporter" : {
-                    "enable" : True,
-                    "table_path": statistics_path,
-                    "periodic_options": {
-                        "period": 1,
-                        "splay": 0,
-                        "jitter": 0,
-                    }
-                }
-            }
-        })
-
-        sync_create_cells(1)
-
-        self._create_table_for_statistics_reporter(statistics_path)
-        sync_mount_table(statistics_path)
-
-        self._create_sorted_table("//tmp/t")
-        sync_mount_table("//tmp/t")
-
-        table_id = get("//tmp/t/@id")
-        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-
-        wait(lambda: len(lookup_rows(statistics_path, [{"table_id": table_id, "tablet_id": tablet_id}])) == 1)
-
     @authors("alexelexa")
     def test_max_chunks_per_tablet(self):
         sync_create_cells(1)
@@ -3409,6 +3381,35 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         create("table", "//tmp/t_static")
         set_custom_runtime_data("//tmp/t_static", {"salut": "le monde"})
+
+    @authors("alexelexa")
+    @pytest.mark.parametrize("is_sorted", [True, False])
+    def test_tablet_orchid(self, is_sorted):
+        sync_create_cells(1)
+        if is_sorted:
+            self._create_sorted_table("//tmp/t")
+        else:
+            self._create_ordered_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        mount_revision = get(f"//sys/tablets/{tablet_id}/orchid/mount_revision")
+        mount_time = get(f"//sys/tablets/{tablet_id}/orchid/mount_time")
+
+        assert mount_revision == get("//tmp/t/@tablets/0/mount_revision")
+        assert mount_time >= get("//tmp/t/@tablets/0/mount_time")
+
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        new_mount_revision = get(f"//sys/tablets/{tablet_id}/orchid/mount_revision")
+        new_mount_time = get(f"//sys/tablets/{tablet_id}/orchid/mount_time")
+
+        assert mount_revision < new_mount_revision
+        assert mount_time < new_mount_time
+        assert new_mount_revision == get("//tmp/t/@tablets/0/mount_revision")
+        assert new_mount_time >= get("//tmp/t/@tablets/0/mount_time")
 
 
 ##################################################################
@@ -3662,32 +3663,8 @@ class TestDynamicTablesShardedTx(TestDynamicTablesPortal):
 
 class TestDynamicTablesMirroredTx(TestDynamicTablesShardedTx):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-    ENABLE_TMP_ROOTSTOCK = False
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            }
-        }
-    }
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "commit_operation_cypress_node_changes_via_system_transaction": True,
-    }
-
-    def setup_method(self, method):
-        super(TestDynamicTablesShardedTx, self).setup_method(method)
-        set("//sys/@config/transaction_manager/forbid_transaction_actions_for_cypress_transactions", True)
-
-
-class TestDynamicTablesCypressProxy(TestDynamicTablesShardedTx):
-    ENABLE_MULTIDAEMON = False  # There are component restarts.
-    NUM_CYPRESS_PROXIES = 1
 
 
 ##################################################################
@@ -3708,15 +3685,18 @@ class TestDynamicTablesRpcProxy(TestDynamicTablesSingleCell):
 @pytest.mark.enabled_multidaemon
 class TestDynamicTablesWithAbandoningLeaderLeaseDuringRecovery(DynamicTablesSingleCellBase):
     ENABLE_MULTIDAEMON = True
-    DELTA_NODE_CONFIG = {
-        "tablet_node": {
-            "hydra_manager": {
-                "leader_lease_grace_delay": 6000,
-                "leader_lease_timeout": 5000,
-                "disable_leader_lease_grace_delay": False,
+    DELTA_NODE_CONFIG = update(
+        DynamicTablesSingleCellBase.DELTA_NODE_CONFIG,
+        {
+            "tablet_node": {
+                "hydra_manager": {
+                    "leader_lease_grace_delay": 6000,
+                    "leader_lease_timeout": 5000,
+                    "disable_leader_lease_grace_delay": False,
+                }
             }
         }
-    }
+    )
 
     def setup_method(self, method):
         super(DynamicTablesSingleCellBase, self).setup_method(method)

@@ -196,6 +196,10 @@ void ToProto(
     NProto::TMultiTablePartition* protoMultiTablePartition,
     const NApi::TMultiTablePartition& multiTablePartition);
 
+void ToProto(
+    TProtobufString* protoCookie,
+    const TTablePartitionCookiePtr& cookie);
+
 void FromProto(
     NApi::TMultiTablePartition* multiTablePartition,
     const NProto::TMultiTablePartition& protoMultiTablePartition);
@@ -203,6 +207,10 @@ void FromProto(
 void FromProto(
     NApi::TMultiTablePartitions* multiTablePartitions,
     const NProto::TRspPartitionTables& protoRspPartitionTables);
+
+void FromProto(
+    TTablePartitionCookiePtr* cookie,
+    const TProtobufString& protoCookie);
 
 void ToProto(
     NProto::TRowBatchReadOptions* proto,
@@ -320,10 +328,7 @@ void ParseRequest(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsRetriableError(
-    const TError& error,
-    bool retryProxyBanned = true,
-    bool retrySequoiaErrorsOnly = false);
+bool IsRetriableError(const TError& error, bool retryProxyBanned = true);
 
 ////////////////////////////////////////////////////////////////////////////////
 

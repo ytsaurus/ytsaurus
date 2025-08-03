@@ -17,6 +17,7 @@
 #include "table_read_spec.h"
 #include "versioned_chunk_reader.h"
 #include "versioned_reader_adapter.h"
+#include "performance_counters.h"
 
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/client.h>
@@ -95,7 +96,7 @@ using NYT::TRange;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TableClientLogger;
+constinit const auto Logger = TableClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -147,7 +148,7 @@ TChunkReaderConfigPtr PatchConfig(TChunkReaderConfigPtr config, i64 memoryEstima
 std::vector<IReaderFactoryPtr> CreateReaderFactories(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
-    TChunkReaderHostPtr chunkReaderHost,
+    TMultiChunkReaderHostPtr chunkReaderHost,
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     std::optional<THintKeyPrefixes> hintKeyPrefixes,
@@ -163,6 +164,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
         const auto& dataSource = dataSourceDirectory->DataSources()[dataSliceDescriptor.GetDataSourceIndex()];
         auto perClusterChunkReaderHost = chunkReaderHost->CreateHostForCluster(dataSource.GetClusterName());
+
+        auto performanceCounters = New<TTabletPerformanceCounters>();
 
         auto& chunkFragmentReader = chunkFragmentReaders[dataSource.GetClusterName()];
         if (!chunkFragmentReader) {
@@ -188,7 +191,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                 chunkFragmentReader,
                 std::move(dictionaryCompressionFactory),
                 dataSource.Schema(),
-                chunkReadOptions);
+                chunkReadOptions,
+                performanceCounters);
         };
 
         switch (dataSource.GetType()) {
@@ -257,7 +261,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             chunkMeta->GetChunkFormat() != EChunkFormat::TableUnversionedSchemalessHorizontal)
                         {
                             return CreateSchemalessRangeChunkReader(
-                                chunkReaderHost->Client->GetNativeConnection()->GetColumnEvaluatorCache(),
+                                perClusterChunkReaderHost->Client->GetNativeConnection()->GetColumnEvaluatorCache(),
                                 std::move(chunkState),
                                 std::move(chunkMeta),
                                 PatchConfig(config, memoryEstimate),
@@ -278,7 +282,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         } else {
                             YT_LOG_DEBUG("Only reading hint prefixes (Count: %v)", hintKeyPrefixes->HintPrefixes.size());
                             return CreateSchemalessKeyRangesChunkReader(
-                                chunkReaderHost->Client->GetNativeConnection()->GetColumnEvaluatorCache(),
+                                perClusterChunkReaderHost->Client->GetNativeConnection()->GetColumnEvaluatorCache(),
                                 std::move(chunkState),
                                 std::move(chunkMeta),
                                 PatchConfig(config, memoryEstimate),
@@ -312,7 +316,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                 auto createReader = BIND([=] {
                     auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
                     if (TypeFromId(chunkId) == EObjectType::OrderedDynamicTabletStore) {
-                        return MakeFuture<IReaderBasePtr>(CreateRetryingRemoteOrderedDynamicStoreReader(
+                        return MakeFuture<IReaderBasePtr>(wrapReader(CreateRetryingRemoteOrderedDynamicStoreReader(
                             chunkSpec,
                             dataSource.Schema(),
                             config->DynamicStoreReader,
@@ -323,7 +327,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             columnsToRead,
                             multiReaderMemoryManager->CreateChunkReaderMemoryManager(
                                 DefaultRemoteDynamicStoreReaderMemoryEstimate),
-                            createChunkReaderFromSpecAsync));
+                            createChunkReaderFromSpecAsync)));
                     }
 
                     return createChunkReaderFromSpecAsync(chunkSpec, nullptr).Apply(
@@ -619,7 +623,7 @@ const TDataSliceDescriptor& TSchemalessMultiChunkReader::GetCurrentReaderDescrip
 ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
-    TChunkReaderHostPtr chunkReaderHost,
+    TMultiChunkReaderHostPtr chunkReaderHost,
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     std::optional<THintKeyPrefixes> hintKeyPrefixes,
@@ -667,7 +671,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
 ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
-    TChunkReaderHostPtr chunkReaderHost,
+    TMultiChunkReaderHostPtr chunkReaderHost,
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     std::optional<THintKeyPrefixes> hintKeyPrefixes,
@@ -1499,7 +1503,8 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
                 std::move(chunkFragmentReader),
                 std::move(dictionaryCompressionFactory),
                 dataSource.Schema(),
-                chunkReadOptions);
+                chunkReadOptions,
+                New<TTabletPerformanceCounters>());
         }
 
         case EDataSourceType::UnversionedTable: {
@@ -1509,7 +1514,7 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
             return factory(
                 config,
                 options,
-                chunkReaderHost,
+                CreateSingleSourceMultiChunkReaderHost(std::move(chunkReaderHost)),
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
                 /*hintKeyPrefixes*/ std::nullopt,

@@ -4,7 +4,6 @@
 
 #include "fwd.h"
 
-#include <util/generic/ptr.h>
 #include <util/generic/hash.h>
 #include <util/stream/fwd.h>
 
@@ -15,7 +14,7 @@ namespace NRoren::NPrivate {
 ////////////////////////////////////////////////////////////////////////////////
 
 class IRawOutput
-    : public virtual TThrRefBase
+    : public virtual NYT::TRefCounted
 {
 public:
     virtual void AddRaw(const void* row, ssize_t count) = 0;
@@ -33,6 +32,8 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(IRawOutput);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNullOutput
@@ -49,7 +50,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class IRawInput
-    : public virtual TThrRefBase
+    : public virtual NYT::TRefCounted
 {
 public:
     virtual const void* NextRaw() = 0;
@@ -61,6 +62,8 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(IRawInput);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //
@@ -71,7 +74,7 @@ public:
 // Подразумевается, что реализация класса хранит набор IRawInput.
 // Каждый IRawInput позволяет проитерироваться по какой-то группе значений.
 class IRawGroupedInput
-    : public virtual TThrRefBase
+    : public virtual NYT::TRefCounted
 {
 public:
     //

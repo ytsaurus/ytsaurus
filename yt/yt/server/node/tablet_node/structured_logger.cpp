@@ -1,6 +1,7 @@
 #include "structured_logger.h"
 
 #include "bootstrap.h"
+#include "config.h"
 #include "hunk_chunk.h"
 #include "partition.h"
 #include "private.h"

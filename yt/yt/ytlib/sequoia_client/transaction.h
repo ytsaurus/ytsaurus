@@ -124,10 +124,10 @@ namespace NDetail {
 TFuture<ISequoiaTransactionPtr> StartSequoiaTransaction(
     ISequoiaClientPtr client,
     ESequoiaTransactionType type,
-    NApi::NNative::IClientPtr nativeRootClient,
-    NApi::NNative::IClientPtr groundRootClient,
-    const NApi::TTransactionStartOptions& options,
-    const TSequoiaTransactionSequencingOptions& sequencingOptions);
+    NApi::NNative::IClientPtr localClient,
+    NApi::NNative::IClientPtr groundClient,
+    const NApi::TTransactionStartOptions& transactionStartOptions,
+    const TSequoiaTransactionOptions& sequoiaTransactionOptions);
 
 } // namespace NDetail
 

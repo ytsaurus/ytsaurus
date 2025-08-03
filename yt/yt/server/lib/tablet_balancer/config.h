@@ -9,7 +9,7 @@
 namespace NYT::NTabletBalancer {
 
 const TString DefaultGroupName = "default";
-const TString LegacyGroupName = "legacy";
+const TString LegacyOrdinaryGroupName = "legacy";
 const TString LegacyInMemoryGroupName = "legacy_in_memory";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,6 +48,7 @@ struct TParameterizedBalancingConfig
     std::optional<double> NodeDeviationThreshold;
     std::optional<double> CellDeviationThreshold;
     std::optional<double> MinRelativeMetricImprovement;
+    std::vector<TClusterName> ReplicaClusters;
     TComponentFactorConfigPtr Factors;
 
     REGISTER_YSON_STRUCT(TParameterizedBalancingConfig);
@@ -175,6 +176,7 @@ struct TTableTabletBalancerConfig
 {
     std::optional<bool> EnableParameterized;
     std::optional<TString> Group;
+    THashMap<TClusterName, std::vector<NYPath::TYPath>> ReplicaPathOverrides;
 
     REGISTER_YSON_STRUCT(TTableTabletBalancerConfig);
 

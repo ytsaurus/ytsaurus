@@ -13,12 +13,12 @@ struct IReadRequestCombiner
 
     struct TCombinedRequest
     {
-        IIOEngine::TReadRequest ReadRequest;
+        TReadRequest ReadRequest;
         TSharedMutableRef ResultBuffer;
     };
 
     virtual std::vector<TCombinedRequest> Combine(
-        std::vector<IIOEngine::TReadRequest> requests,
+        std::vector<TReadRequest> requests,
         i64 pageSize,
         TRefCountedTypeCookie tagCookie) = 0;
 

@@ -56,8 +56,8 @@ public:
     int GetNodeShardId(NNodeTrackerClient::TNodeId nodeId) const override;
     void AbortAllocationsAtNode(NNodeTrackerClient::TNodeId nodeId, NScheduler::EAbortReason reason) override;
 
-    std::optional<int> FindMediumIndexByName(const TString& mediumName) const override;
-    const TString& GetMediumNameByIndex(int mediumIndex) const override;
+    std::optional<int> FindMediumIndexByName(const std::string& mediumName) const override;
+    const std::string& GetMediumNameByIndex(int mediumIndex) const override;
 
     TString FormatResources(const NScheduler::TJobResourcesWithQuota& resources) const override;
     void SerializeResources(const NScheduler::TJobResourcesWithQuota& resources, NYson::IYsonConsumer* consumer) const override;
@@ -105,7 +105,7 @@ public:
 
     void CloseEventLogger();
 
-    const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const override;
+    const THashMap<std::string, TString>& GetUserDefaultParentPoolMap() const override;
 
 private:
     const std::vector<NScheduler::TExecNodePtr>* ExecNodes_;

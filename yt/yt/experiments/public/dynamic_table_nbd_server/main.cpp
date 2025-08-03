@@ -92,7 +92,6 @@ protected:
 
         auto nbdServer = CreateNbdServer(
             config->NbdServer,
-            connection,
             poller,
             threadPool->GetInvoker());
 

@@ -133,7 +133,9 @@ TError TMasterHeartbeatReporterBase::ReportHeartbeat(TCellTag cellTag)
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
-    YT_VERIFY(clusterNodeMasterConnector->IsConnected());
+    if (!clusterNodeMasterConnector->IsConnected()) {
+        return TError("Node disconnected");
+    }
 
     YT_LOG_INFO("Sending node heartbeat to master (CellTag: %v)",
         cellTag);
@@ -158,7 +160,7 @@ TError TMasterHeartbeatReporterBase::ReportHeartbeat(TCellTag cellTag)
                 error,
                 "Received non-retriable error during heartbeat report to master, node will reconnect to primary master (CellTag: %v)",
                 cellTag);
-            clusterNodeMasterConnector->ResetAndRegisterAtMaster(/*firstTime*/ false);
+            clusterNodeMasterConnector->ResetAndRegisterAtMaster(ERegistrationReason::HeartbeatFailure);
             return TError("Received non-retriable error while reporting node heartbeat") << error;
         }
     }

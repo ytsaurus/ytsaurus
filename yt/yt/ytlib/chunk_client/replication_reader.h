@@ -21,7 +21,7 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     TRemoteReaderOptionsPtr options,
     TChunkReaderHostPtr chunkReaderHost,
     TChunkId chunkId,
-    TChunkReplicaWithMediumList seedReplicas);
+    TChunkReplicaList seedReplicas);
 
 ////////////////////////////////////////////////////////////////////////////////
 

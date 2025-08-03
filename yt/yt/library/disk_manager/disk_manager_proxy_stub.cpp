@@ -42,6 +42,11 @@ public:
         return MakeFuture(TError(NRpc::EErrorCode::NoSuchService, "Disk manager library is not available under this build configuration"));
     }
 
+    bool IsStub() const override
+    {
+        return true;
+    }
+
     void Reconfigure(const TDiskManagerProxyDynamicConfigPtr& /*newConfig*/) final
     {
         // Do nothing.

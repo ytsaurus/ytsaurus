@@ -4,6 +4,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
     test_columnar_statistics.cpp
+    test_chunk_blocks_truncation.cpp
 )
 
 EXPLICIT_DATA()
@@ -20,14 +21,17 @@ PEERDIR(
 
 INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/recipe/recipe.inc)
 
-TAG(ya:yt ya:fat ya:huge_logs)
+TAG(
+    ya:yt
+    ya:fat
+    ya:huge_logs
+    ya:large_tests_on_single_slots
+)
 
 SIZE(LARGE)
 
 YT_SPEC(yt/yt/tests/integration/spec.yson)
 
 REQUIREMENTS(ram:20)
-
-INCLUDE(${ARCADIA_ROOT}/devtools/large_on_single_slots.inc)
 
 END()

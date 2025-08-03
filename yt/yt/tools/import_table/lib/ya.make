@@ -6,7 +6,7 @@ PEERDIR(
     yt/cpp/mapreduce/library/blob_table
     yt/cpp/mapreduce/library/table_schema
 
-    yt/yt/library/arrow_parquet_adapter
+    yt/yt/library/arrow_adapter
     yt/yt/library/huggingface_client
     yt/yt/library/program
     yt/yt/library/re2

@@ -2,7 +2,7 @@
 
 ## Выбор образа и старт обновления
 
-Периодически выпускаются новые релизы, а также вносятся исправления в рамках текущих стабильных релизов.{% if datahub != true %} Почитать подробнее про выпущенные релизы можно [в отдельном разделе](../../admin-guide/releases.md).{% endif %} Докер-образы со стабильными релизами имеют вид `ghcr.io/ytsaurus/ytsaurus:23.N.M`, например `ghcr.io/ytsaurus/ytsaurus:{{yt-server-version}}`.
+Периодически выпускаются новые релизы, а также вносятся исправления в рамках текущих стабильных релизов. Почитать подробнее про выпущенные релизы можно [в отдельном разделе](../../admin-guide/releases.md). Докер-образы со стабильными релизами имеют вид `ghcr.io/ytsaurus/ytsaurus:23.N.M`, например `ghcr.io/ytsaurus/ytsaurus:{{yt-server-version}}`.
 
 Kubernetes оператор поддерживает обновление докер-образов, используемых для серверных компонент. Для обновления необходимо поменять `coreImage` в спецификации {{product-name}} и запушить её в k8s с помощью `kubectl apply -f my_ytsaurus_spec.yaml -n <namespace>`.
 
@@ -101,7 +101,7 @@ $ kubectl describe ytsaurus -n <namespace>
     ```bash
     helm upgrade ytsaurus --install oci://ghcr.io/ytsaurus/ytop-chart --version <new-version>
     ```
-   {% if datahub != true %}Список доступных версий оператора приведён на [странице релизов](../../admin-guide/releases.md#kubernetes-operator).{% endif %}
+   Список доступных версий оператора приведён на [странице релизов](../../admin-guide/releases.md#kubernetes-operator).
 2. Проверьте, что старые поды оператора удалились, а новые создались:
     ```bash
     $ kubectl get pod -n <namespace>

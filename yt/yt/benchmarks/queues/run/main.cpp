@@ -43,7 +43,7 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueBenchmarkLogger, "QueueBenchmark");
-static constexpr auto& Logger = QueueBenchmarkLogger;
+constinit const auto Logger = QueueBenchmarkLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -172,10 +172,10 @@ private:
     TRichYPath ConsumerPath_;
     TYPath QueuePathRaw_;
     TRichYPath QueuePath_;
-    TString Cluster_;
+    std::string Cluster_;
     i64 MaxDataWeight_;
     i64 BatchLoggingPeriod_;
-    TString TabletCellBundle_;
+    std::string TabletCellBundle_;
     TString Mode_;
     IConnectionPtr Connection_;
     IClientPtr Client_;

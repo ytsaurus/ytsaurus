@@ -38,7 +38,7 @@ public:
 
     [[nodiscard]] TDefaultFactoryFunc GetDefaultFactory() const override
     {
-        return MakeIntrusive;
+        return &TRawIdComputation::New;
     }
 
     std::vector<TDynamicTypeTag> GetInputTags() const override
@@ -58,9 +58,9 @@ public:
     }
 
 private:
-    static IRawParDoPtr MakeIntrusive()
+    static IRawParDoPtr New()
     {
-        return ::MakeIntrusive<TRawIdComputation>();
+        return NYT::New<TRawIdComputation>();
     }
 
 private:
@@ -72,7 +72,7 @@ private:
 
 IRawParDoPtr MakeRawIdComputation(TRowVtable rowVtable)
 {
-    return ::MakeIntrusive<TRawIdComputation>(std::move(rowVtable));
+    return NYT::New<TRawIdComputation>(std::move(rowVtable));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

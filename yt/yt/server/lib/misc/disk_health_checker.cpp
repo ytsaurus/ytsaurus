@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/misc/fs.h>
 
+#include <yt/yt/core/profiling/timing.h>
+
 #include <util/random/random.h>
 
 namespace NYT::NServer {
@@ -22,9 +24,9 @@ TDiskHealthChecker::TDiskHealthChecker(
     IInvokerPtr invoker,
     TLogger logger,
     const TProfiler& profiler)
-    : Config_(config)
+    : Config_(std::move(config))
     , Path_(path)
-    , CheckInvoker_(invoker)
+    , CheckInvoker_(std::move(invoker))
     , Logger(logger)
     , TotalTimer_(profiler.Timer("/disk_health_check/total_time"))
     , ReadTimer_(profiler.Timer("/disk_health_check/read_time"))
@@ -32,9 +34,29 @@ TDiskHealthChecker::TDiskHealthChecker(
     , PeriodicExecutor_(New<TPeriodicExecutor>(
         CheckInvoker_,
         BIND(&TDiskHealthChecker::OnCheck, MakeWeak(this)),
-        Config_->CheckPeriod))
+        Config_.Acquire()->CheckPeriod))
 {
     Logger.AddTag("Path: %v", Path_);
+}
+
+void TDiskHealthChecker::Reconfigure(const TDiskHealthCheckerConfigPtr& newConfig)
+{
+    Config_.Store(newConfig);
+}
+
+TDuration TDiskHealthChecker::GetWaitTimeout() const
+{
+    return Config_.Acquire()->WaitTimeout;
+}
+
+TDuration TDiskHealthChecker::GetExecTimeout() const
+{
+    return Config_.Acquire()->ExecTimeout;
+}
+
+i64 TDiskHealthChecker::GetTestSize() const
+{
+    return Config_.Acquire()->TestSize;
 }
 
 void TDiskHealthChecker::Start()
@@ -50,21 +72,33 @@ TFuture<void> TDiskHealthChecker::Stop()
 void TDiskHealthChecker::RunCheck()
 {
     YT_VERIFY(!PeriodicExecutor_->IsStarted());
-    return RunCheckWithTimeout()
+    return RunCheckWithDeadline()
         .ThrowOnError();
 }
 
-TError TDiskHealthChecker::RunCheckWithTimeout()
+TError TDiskHealthChecker::RunCheckWithDeadline()
 {
-    return WaitFor(BIND_NO_PROPAGATE(&TDiskHealthChecker::DoRunCheck, MakeStrong(this))
+    return WaitFor(BIND_NO_PROPAGATE(&TDiskHealthChecker::RunCheckWithTimeout, MakeStrong(this))
         .AsyncVia(CheckInvoker_)
         .Run()
-        .WithTimeout(Config_->Timeout));
+        .WithDeadline(TInstant::Now() + GetWaitTimeout() + GetExecTimeout()));
 }
+
+void TDiskHealthChecker::RunCheckWithTimeout()
+{
+    TWallTimer timer;
+
+    DoRunCheck();
+
+    if (timer.GetElapsedTime() > GetExecTimeout()) {
+        THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::DiskHealthCheckFailed, "Disk health check timed out at %v", Path_);
+    }
+}
+
 
 void TDiskHealthChecker::OnCheck()
 {
-    OnCheckCompleted(RunCheckWithTimeout());
+    OnCheckCompleted(RunCheckWithDeadline());
 }
 
 void TDiskHealthChecker::OnCheckCompleted(const TError& error)
@@ -105,9 +139,10 @@ void TDiskHealthChecker::DoRunCheck()
         THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::LockFileIsFound, "Lock file is found") << std::move(lockFileError);
     }
 
-    std::vector<ui8> writeData(Config_->TestSize);
-    std::vector<ui8> readData(Config_->TestSize);
-    for (int i = 0; i < Config_->TestSize; ++i) {
+    auto testSize = GetTestSize();
+    std::vector<ui8> writeData(testSize);
+    std::vector<ui8> readData(testSize);
+    for (int i = 0; i < testSize; ++i) {
         writeData[i] = RandomNumber<ui8>();
     }
 
@@ -119,7 +154,7 @@ void TDiskHealthChecker::DoRunCheck()
             TEventTimerGuard totalGuard(WriteTimer_);
             try {
                 TFile file(fileName, CreateAlways | WrOnly | Seq | Direct);
-                file.Write(writeData.data(), Config_->TestSize);
+                file.Write(writeData.data(), testSize);
             } catch (const TSystemError& ex) {
                 if (ex.Status() == ENOSPC) {
                     YT_LOG_WARNING(ex, "Disk health check ignored");
@@ -132,17 +167,17 @@ void TDiskHealthChecker::DoRunCheck()
         {
             TEventTimerGuard totalGuard(ReadTimer_);
             TFile file(fileName, OpenExisting | RdOnly | Seq | Direct);
-            if (file.GetLength() != Config_->TestSize) {
+            if (file.GetLength() != testSize) {
                 THROW_ERROR_EXCEPTION("Wrong test file size: %v instead of %v",
                     file.GetLength(),
-                    Config_->TestSize);
+                    testSize);
             }
-            file.Read(readData.data(), Config_->TestSize);
+            file.Read(readData.data(), testSize);
         }
 
         NFS::Remove(fileName);
 
-        if (memcmp(readData.data(), writeData.data(), Config_->TestSize) != 0) {
+        if (memcmp(readData.data(), writeData.data(), testSize) != 0) {
             THROW_ERROR_EXCEPTION("Test file is corrupt");
         }
     } catch (const std::exception& ex) {

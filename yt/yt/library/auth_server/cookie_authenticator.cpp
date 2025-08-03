@@ -2,7 +2,6 @@
 
 #include "config.h"
 #include "helpers.h"
-#include "private.h"
 #include "auth_cache.h"
 #include "credentials.h"
 
@@ -18,8 +17,9 @@ using namespace NConcurrency;
 
 struct TCookieAuthenticatorCacheKey
 {
-    THashMap<TString, TString> Cookies;;
+    THashMap<TString, TString> Cookies;
     TString UserIPFactor;
+    std::optional<std::string> Origin;
 
     operator size_t() const
     {
@@ -32,6 +32,7 @@ struct TCookieAuthenticatorCacheKey
         }
 
         HashCombine(result, UserIPFactor);
+        HashCombine(result, Origin);
 
         return result;
     }
@@ -66,7 +67,11 @@ public:
     TFuture<TAuthenticationResult> Authenticate(const TCookieCredentials& credentials) override
     {
         return Get(
-            TCookieAuthenticatorCacheKey{credentials.Cookies, GetBlackboxCacheKeyFactorFromUserIP(Config_->CacheKeyMode, credentials.UserIP)},
+            TCookieAuthenticatorCacheKey{
+                credentials.Cookies,
+                GetBlackboxCacheKeyFactorFromUserIP(Config_->CacheKeyMode, credentials.UserIP),
+                credentials.Origin,
+            },
             credentials.UserIP);
     }
 
@@ -78,7 +83,7 @@ private:
         const TCookieAuthenticatorCacheKey& key,
         const NNet::TNetworkAddress& userIP) noexcept override
     {
-        return UnderlyingAuthenticator_->Authenticate(TCookieCredentials{key.Cookies, userIP});
+        return UnderlyingAuthenticator_->Authenticate(TCookieCredentials{key.Cookies, userIP, key.Origin});
     }
 };
 
@@ -131,9 +136,7 @@ public:
     {
         for (const auto& authenticator : Authenticators_) {
             if (authenticator->CanAuthenticate(credentials)) {
-                TCookieCredentials filteredCredentials{
-                    .UserIP = credentials.UserIP,
-                };
+                TCookieCredentials filteredCredentials{/*Cookies*/ {}, credentials.UserIP, credentials.Origin};
                 const auto& cookies = credentials.Cookies;
                 for (const auto& cookie : authenticator->GetCookieNames()) {
                     auto cookieIt = cookies.find(cookie);

@@ -9,7 +9,7 @@ namespace NYT::NAuth {
 
 using namespace NConcurrency;
 
-static constexpr auto& Logger = AuthLogger;
+constinit const auto Logger = AuthLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

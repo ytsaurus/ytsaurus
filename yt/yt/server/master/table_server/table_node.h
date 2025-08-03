@@ -12,7 +12,6 @@
 #include <yt/yt/server/master/tablet_server/public.h>
 #include <yt/yt/server/master/tablet_server/tablet.h>
 #include <yt/yt/server/master/tablet_server/tablet_owner_base.h>
-#include <yt/yt/server/master/tablet_server/tablet_resources.h>
 
 #include <yt/yt/server/lib/tablet_balancer/config.h>
 
@@ -73,7 +72,7 @@ private:
         std::optional<bool> EnableDynamicStoreRead;
         bool MountedWithEnabledDynamicStoreRead = false;
         std::optional<NTabletNode::EDynamicTableProfilingMode> ProfilingMode;
-        std::optional<TString> ProfilingTag;
+        std::optional<std::string> ProfilingTag;
         bool EnableDetailedProfiling = false;
         NTableClient::ETabletTransactionSerializationType SerializationType = NTableClient::ETabletTransactionSerializationType::Coarse;
         bool EnableConsistentChunkReplicaPlacement = false;
@@ -185,7 +184,6 @@ public:
     bool IsTrackedQueueProducerObject() const;
     bool IsEmpty() const;
     bool IsLogicallyEmpty() const;
-    bool IsUniqueKeys() const;
     bool IsReplicated() const;
     bool IsPhysicallyLog() const;
     bool IsPhysicallySorted() const;
@@ -243,7 +241,7 @@ private:
 DEFINE_MASTER_OBJECT_TYPE(TTableNode)
 
 // Think twice before increasing this.
-YT_STATIC_ASSERT_SIZEOF_SANITY(TTableNode, 736);
+YT_STATIC_ASSERT_SIZEOF_SANITY(TTableNode, 704);
 
 ////////////////////////////////////////////////////////////////////////////////
 

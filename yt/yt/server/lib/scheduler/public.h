@@ -63,6 +63,7 @@ DEFINE_ENUM(ESchedulerAlertType,
     ((FoundNodesWithUnsupportedPreemption)          (17))
     ((ArchiveIsOutdated)                            (18))
     ((ExperimentAssignmentError)                    (19))
+    ((UnrecognizedPoolTreeConfigOptions)            (20))
 );
 
 DEFINE_ENUM(EOperationAlertType,
@@ -187,15 +188,26 @@ static constexpr int MaxNodeShardCount = 64;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TStrategyTestingOptions)
-DECLARE_REFCOUNTED_CLASS(TOperationStuckCheckOptions)
+DEFINE_ENUM(EOperationManagementAction,
+    (Suspend)
+    (Resume)
+    (Abort)
+    (Complete)
+    // TODO(ignat): YT-23056: support more sophisticated checks for UpdateOperationParameters.
+    // (UpdateParameters)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(TStrategyTestingOptions)
+DECLARE_REFCOUNTED_STRUCT(TOperationStuckCheckOptions)
 DECLARE_REFCOUNTED_STRUCT(TFairShareStrategyConfig)
 DECLARE_REFCOUNTED_STRUCT(TFairShareStrategyOperationControllerConfig)
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyControllerThrottling)
-DECLARE_REFCOUNTED_CLASS(TTreeTestingOptions)
+DECLARE_REFCOUNTED_STRUCT(TTreeTestingOptions)
 DECLARE_REFCOUNTED_STRUCT(TFairShareStrategyTreeConfig)
 DECLARE_REFCOUNTED_STRUCT(TDelayConfig)
-DECLARE_REFCOUNTED_CLASS(TTestingOptions)
+DECLARE_REFCOUNTED_STRUCT(TTestingOptions)
 DECLARE_REFCOUNTED_STRUCT(TOperationsCleanerConfig)
 DECLARE_REFCOUNTED_STRUCT(TControllerAgentTrackerConfig)
 DECLARE_REFCOUNTED_STRUCT(TResourceMeteringConfig)
@@ -208,6 +220,7 @@ DECLARE_REFCOUNTED_STRUCT(TFairShareStrategySchedulingSegmentsConfig)
 DECLARE_REFCOUNTED_STRUCT(TGpuAllocationSchedulerConfig)
 DECLARE_REFCOUNTED_STRUCT(TFairShareStrategySsdPriorityPreemptionConfig)
 DECLARE_REFCOUNTED_STRUCT(TBatchOperationSchedulingConfig)
+DECLARE_REFCOUNTED_STRUCT(TOperationOptions)
 
 DECLARE_REFCOUNTED_STRUCT(TExperimentEffectConfig)
 DECLARE_REFCOUNTED_STRUCT(TExperimentGroupConfig)
@@ -251,6 +264,10 @@ extern const TString LastMeteringLogTimePath;
 ////////////////////////////////////////////////////////////////////////////////
 
 inline const TString ProfilingPoolTreeKey{"tree"};
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline const TString InfinibandClusterNameKey{"infiniband_cluster_tag"};
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -10,8 +10,8 @@ using namespace NCypressClient;
 
 TError CheckLockRequest(
     NCypressClient::ELockMode mode,
-    const std::optional<TString>& childKey,
-    const std::optional<TString>& attributeKey)
+    const std::optional<std::string>& childKey,
+    const std::optional<std::string>& attributeKey)
 {
     if (mode != ELockMode::Snapshot &&
         mode != ELockMode::Shared &&
@@ -32,6 +32,32 @@ TError CheckLockRequest(
     }
 
     return {};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+EObjectType MaybeConvertToSequoiaType(EObjectType originalType)
+{
+    if (originalType == EObjectType::MapNode) {
+        return EObjectType::SequoiaMapNode;
+    }
+    if (originalType == EObjectType::Link) {
+        return EObjectType::SequoiaLink;
+    }
+
+    return originalType;
+}
+
+EObjectType MaybeConvertToCypressType(EObjectType originalType)
+{
+    if (originalType == EObjectType::SequoiaMapNode) {
+        return EObjectType::MapNode;
+    }
+    if (originalType == EObjectType::SequoiaLink) {
+        return EObjectType::Link;
+    }
+
+    return originalType;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

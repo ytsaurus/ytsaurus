@@ -34,6 +34,23 @@ double TDoubleOrDotIntToken::AsDouble() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+size_t TColumnReferenceHasher::operator() (const TColumnReference& reference) const
+{
+    size_t result = 0;
+    HashCombine(result, reference.ColumnName);
+    HashCombine(result, reference.TableName);
+    return result;
+}
+
+bool TColumnReferenceEqComparer::operator() (const TColumnReference& lhs, const TColumnReference& rhs) const
+{
+    return
+        std::tie(lhs.ColumnName, lhs.TableName) ==
+        std::tie(rhs.ColumnName, rhs.TableName);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 bool TCompositeTypeMemberAccessor::IsEmpty() const
 {
     return NestedStructOrTupleItemAccessor.empty() && !DictOrListItemAccessor.has_value();
@@ -69,21 +86,6 @@ size_t TReferenceHasher::operator() (const TReference& reference) const
 bool TReferenceEqComparer::operator() (const TReference& lhs, const TReference& rhs) const
 {
     return lhs == rhs;
-}
-
-size_t TCompositeAgnosticReferenceHasher::operator() (const TReference& reference) const
-{
-    size_t result = 0;
-    HashCombine(result, reference.ColumnName);
-    HashCombine(result, reference.TableName);
-    return result;
-}
-
-bool TCompositeAgnosticReferenceEqComparer::operator() (const TReference& lhs, const TReference& rhs) const
-{
-    return
-        std::tie(lhs.ColumnName, lhs.TableName) ==
-        std::tie(rhs.ColumnName, rhs.TableName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -204,6 +206,13 @@ bool operator == (const TExpression& lhs, const TExpression& rhs)
             typedLhs->Opcode == typedRhs->Opcode &&
             typedLhs->Pattern == typedRhs->Pattern &&
             typedLhs->EscapeCharacter == typedRhs->EscapeCharacter;
+    } else if (const auto* typedLhs = lhs.As<TQueryExpression>()) {
+        const auto* typedRhs = rhs.As<TQueryExpression>();
+        if (!typedRhs) {
+            return false;
+        }
+        return
+            typedLhs->Query == typedRhs->Query;
     } else {
         YT_ABORT();
     }
@@ -217,13 +226,7 @@ TStringBuf TExpression::GetSource(TStringBuf source) const
     return source.substr(begin, end - begin);
 }
 
-TStringBuf GetSource(TSourceLocation sourceLocation, TStringBuf source)
-{
-    auto begin = sourceLocation.first;
-    auto end = sourceLocation.second;
-
-    return source.substr(begin, end - begin);
-}
+////////////////////////////////////////////////////////////////////////////////
 
 void TTableHint::Register(TRegistrar registrar)
 {
@@ -233,7 +236,15 @@ void TTableHint::Register(TRegistrar registrar)
         .Default(false);
 }
 
-const TTableHintPtr DefaultHint = New<TTableHint>();
+////////////////////////////////////////////////////////////////////////////////
+
+TStringBuf GetSource(TSourceLocation sourceLocation, TStringBuf source)
+{
+    auto begin = sourceLocation.first;
+    auto end = sourceLocation.second;
+
+    return source.substr(begin, end - begin);
+}
 
 void FormatValue(TStringBuilderBase* builder, const TTableHint& hint, TStringBuf /*spec*/)
 {
@@ -312,6 +323,7 @@ std::vector<TStringBuf> GetKeywords()
     XX(left)
     XX(as)
     XX(on)
+    XX(unnest)
     XX(and)
     XX(or)
     XX(not)
@@ -419,18 +431,31 @@ void FormatId(TStringBuilderBase* builder, TStringBuf id, bool isFinal = false)
     }
 }
 
+void FormatIdFinal(TStringBuilderBase* builder, TStringBuf id)
+{
+    FormatId(builder, id, true);
+}
+
 void FormatExpressions(TStringBuilderBase* builder, const TExpressionList& exprs, int depth = 0, bool expandAliases = true);
 void FormatExpression(TStringBuilderBase* builder, const TExpression& expr, int depth = 0, bool expandAliases = true, bool isFinal = false);
 void FormatExpression(TStringBuilderBase* builder, const TExpressionList& expr, int depth = 0, bool expandAliases = true);
+void FormatQuery(TStringBuilderBase* builder, const TQuery& query);
 
-void FormatReference(TStringBuilderBase* builder, const TReference& ref, int depth = 0, bool isFinal = false)
+void FormatColumnReference(TStringBuilderBase* builder, const TColumnReference& ref, bool isFinal = false)
 {
+    // TODO(lukyan): Do not use final = true if query has any table aliases.
+
     if (ref.TableName) {
-        builder->AppendString(*ref.TableName);
+        FormatId(builder, *ref.TableName, isFinal);
         builder->AppendChar('.');
     }
 
     FormatId(builder, ref.ColumnName, isFinal);
+}
+
+void FormatReference(TStringBuilderBase* builder, const TReference& ref, int depth = 0, bool isFinal = false)
+{
+    FormatColumnReference(builder, ref, isFinal);
 
     for (const auto& item : ref.CompositeTypeAccessor.NestedStructOrTupleItemAccessor) {
         Visit(item,
@@ -453,6 +478,8 @@ void FormatReference(TStringBuilderBase* builder, const TReference& ref, int dep
 
 void FormatTableDescriptor(TStringBuilderBase* builder, const TTableDescriptor& descriptor)
 {
+    static const TTableHintPtr DefaultHint = New<TTableHint>();
+
     FormatId(builder, descriptor.Path);
     if (descriptor.Alias) {
         builder->AppendString(" AS ");
@@ -607,6 +634,11 @@ void FormatExpression(TStringBuilderBase* builder, const TExpression& expr, int 
             builder->AppendString(" ESCAPE ");
             FormatExpressions(builder, *typedExpr->EscapeCharacter, depth + 1, expandAliases);
         }
+    } else if (auto* typedExpr = expr.As<TQueryExpression>()) {
+        builder->AppendChar('(');
+        builder->AppendString(" SELECT ");
+        FormatQuery(builder, typedExpr->Query);
+        builder->AppendChar(')');
     } else {
         YT_ABORT();
     }
@@ -715,6 +747,11 @@ void FormatQuery(TStringBuilderBase* builder, const TQuery& query)
                 builder->AppendString(" AS ");
                 FormatId(builder, *subquery->Alias);
             }
+        },
+        [&] (const NAst::TExpressionList& expression) {
+            builder->AppendChar('(');
+            FormatExpression(builder, expression);
+            builder->AppendChar(')');
         });
 
     if (query.WithIndex) {
@@ -833,10 +870,10 @@ TString InferColumnName(const TExpression& expr)
     return builder.Flush();
 }
 
-TString InferColumnName(const TReference& ref)
+TString InferColumnName(const TColumnReference& ref)
 {
     TStringBuilder builder;
-    FormatReference(&builder, ref, /*depth*/ 0, /*isFinal*/ true);
+    FormatColumnReference(&builder, ref, /*isFinal*/ true);
     return builder.Flush();
 }
 
@@ -850,6 +887,9 @@ NYPath::TYPath GetMainTablePath(const TQuery& query)
         },
         [] (const TQueryAstHeadPtr& subquery) {
             return GetMainTablePath(subquery->Ast);
+        },
+        [] (const TExpressionList& /*expression*/) -> NYPath::TYPath {
+            THROW_ERROR_EXCEPTION("Unknown main table path");
         });
 }
 

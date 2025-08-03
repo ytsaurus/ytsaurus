@@ -2,6 +2,7 @@
 
 #include "private.h"
 #include "chunk_cache.h"
+#include "job_gpu_checker.h"
 #include "job.h"
 
 #include <yt/yt/server/node/data_node/artifact.h>
@@ -27,8 +28,7 @@
 
 #include <yt/yt/core/misc/public.h>
 
-namespace NYT::NExecNode
-{
+namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,16 +45,13 @@ struct TJobWorkspaceBuildingContext
 
     std::vector<TArtifact> Artifacts;
     std::vector<NContainers::TBind> Binds;
-    std::vector<NDataNode::TArtifactKey> LayerArtifactKeys;
+    std::vector<NDataNode::TArtifactKey> RootVolumeLayerArtifactKeys;
+    std::vector<NDataNode::TArtifactKey> GpuCheckVolumeLayerArtifactKeys;
     std::vector<TShellCommandConfigPtr> SetupCommands;
     std::optional<TString> DockerImage;
     NContainers::NCri::TCriAuthConfigPtr DockerAuth;
 
-    bool NeedGpuCheck;
-    std::optional<TString> GpuCheckBinaryPath;
-    std::optional<std::vector<TString>> GpuCheckBinaryArgs;
-    EGpuCheckType GpuCheckType;
-    std::vector<NContainers::TDevice> GpuDevices;
+    std::optional<TGpuCheckOptions> GpuCheckOptions;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,12 +59,28 @@ struct TJobWorkspaceBuildingContext
 struct TJobWorkspaceBuildingResult
 {
     IVolumePtr RootVolume;
+    IVolumePtr GpuCheckVolume;
     std::optional<TString> DockerImage;
+    std::optional<TString> DockerImageId;
     std::vector<TString> TmpfsPaths;
     std::vector<NContainers::TBind> RootBinds;
     int SetupCommandCount = 0;
 
     TError LastBuildError;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TJobWorkspaceBuilderTimePoints
+{
+    std::optional<TInstant> PrepareRootVolumeStartTime;
+    std::optional<TInstant> PrepareRootVolumeFinishTime;
+
+    std::optional<TInstant> PrepareGpuCheckVolumeStartTime;
+    std::optional<TInstant> PrepareGpuCheckVolumeFinishTime;
+
+    std::optional<TInstant> GpuCheckStartTime;
+    std::optional<TInstant> GpuCheckFinishTime;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,13 +91,7 @@ class TJobWorkspaceBuilder
 public:
     DEFINE_SIGNAL(void(EJobPhase phase), UpdateBuilderPhase);
     DEFINE_SIGNAL(void(i64 compressedDataSize, bool cacheHit), UpdateArtifactStatistics);
-    DEFINE_SIGNAL(void(TJobWorkspaceBuilderPtr), UpdateTimers);
-
-    DEFINE_BYVAL_RO_PROPERTY(std::optional<TInstant>, VolumePrepareStartTime);
-    DEFINE_BYVAL_RO_PROPERTY(std::optional<TInstant>, VolumePrepareFinishTime);
-
-    DEFINE_BYVAL_RO_PROPERTY(std::optional<TInstant>, GpuCheckStartTime);
-    DEFINE_BYVAL_RO_PROPERTY(std::optional<TInstant>, GpuCheckFinishTime);
+    DEFINE_SIGNAL(void(TJobWorkspaceBuilderTimePoints), UpdateTimePoints);
 
 public:
     TJobWorkspaceBuilder(
@@ -103,9 +110,13 @@ protected:
 
     TJobWorkspaceBuildingResult ResultHolder_;
 
+    TJobWorkspaceBuilderTimePoints TimePoints_;
+
     const NLogging::TLogger& Logger;
 
     virtual TFuture<void> DoPrepareRootVolume() = 0;
+
+    virtual TFuture<void> DoPrepareGpuCheckVolume() = 0;
 
     virtual TFuture<void> DoPrepareSandboxDirectories() = 0;
 
@@ -122,6 +133,8 @@ protected:
     void MakeArtifactSymlinks();
 
     void PrepareArtifactBinds();
+
+    void SetNowTime(std::optional<TInstant>& timeField);
 
 private:
     template<TFuture<void>(TJobWorkspaceBuilder::*Step)()>

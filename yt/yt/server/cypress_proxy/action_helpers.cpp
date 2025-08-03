@@ -40,9 +40,11 @@ struct TSequoiaTransactionActionSequencer
         HANDLE_ACTION_TYPE(TReqDetachChild, 200)
         HANDLE_ACTION_TYPE(TReqRemoveNode, 300)
         HANDLE_ACTION_TYPE(TReqCreateNode, 400)
-        HANDLE_ACTION_TYPE(TReqAttachChild, 500)
-        HANDLE_ACTION_TYPE(TReqSetNode, 600)
-        HANDLE_ACTION_TYPE(TReqMultisetAttributes, 700)
+        HANDLE_ACTION_TYPE(TReqFinishNodeMaterialization, 500)
+        HANDLE_ACTION_TYPE(TReqAttachChild, 600)
+        HANDLE_ACTION_TYPE(TReqSetNode, 700)
+        HANDLE_ACTION_TYPE(TReqMultisetAttributes, 800)
+        HANDLE_ACTION_TYPE(TReqImplicitlyLockNode, 900)
 
         #undef HANDLE_ACTION_TYPE
 
@@ -52,7 +54,7 @@ struct TSequoiaTransactionActionSequencer
 
 static const TSequoiaTransactionActionSequencer TransactionActionSequencer;
 
-static const TSequoiaTransactionSequencingOptions SequencingOptions = {
+static const TSequoiaTransactionOptions SequoiaTransactionOptionsTemplate = {
     .TransactionActionSequencer = &TransactionActionSequencer,
     .RequestPriorities = TSequoiaTransactionRequestPriorities{
         .DatalessLockRow = 100,
@@ -60,6 +62,7 @@ static const TSequoiaTransactionSequencingOptions SequencingOptions = {
         .WriteRow = 400,
         .DeleteRow = 300,
     },
+    .SequenceTabletCommitSessions = true,
 };
 
 } // namespace
@@ -67,9 +70,12 @@ static const TSequoiaTransactionSequencingOptions SequencingOptions = {
 TFuture<ISequoiaTransactionPtr> StartCypressProxyTransaction(
     const ISequoiaClientPtr& sequoiaClient,
     ESequoiaTransactionType type,
+    const std::vector<TTransactionId>& cypressPrerequisiteTransactionIds,
     const TTransactionStartOptions& options)
 {
-    return sequoiaClient->StartTransaction(type, options, SequencingOptions);
+    auto sequoiaTransactionOptions = SequoiaTransactionOptionsTemplate;
+    sequoiaTransactionOptions.CypressPrerequisiteTransactionIds = cypressPrerequisiteTransactionIds;
+    return sequoiaClient->StartTransaction(type, options, sequoiaTransactionOptions);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,8 +92,7 @@ TFuture<std::vector<NRecords::TPathToNodeId>> SelectSubtree(
     auto mangledPath = path.ToMangledSequoiaPath();
     return transaction->SelectRows<NRecords::TPathToNodeId>({
         .WhereConjuncts = {
-            Format("path >= %Qv", mangledPath),
-            Format("path <= %Qv", MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(mangledPath)),
+            Format("is_prefix(%Qv, path)", mangledPath),
             BuildMultipleTransactionSelectCondition(cypressTransactionIds),
         },
         .OrderBy = {"path"},

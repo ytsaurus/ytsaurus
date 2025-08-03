@@ -12,7 +12,7 @@ from yt_odin.logserver import (
 from yt.common import update
 
 from cheroot import wsgi as wsgiserver
-from flask import Flask, make_response, request, jsonify
+from flask import Flask, make_response, request, jsonify, Response
 import dateutil
 
 import re
@@ -148,7 +148,7 @@ def get_prometheus_metric_line(
 ):
     label_str = "{" + ",".join(f"{k}=\"{v}\"" for k, v in labels.items()) + "}" if labels else ""
     result_parts = [
-        f"{metric_name}{label_str}",
+        f"yt_odin_{metric_name}{label_str}",
         str(metric_value),
     ]
     if timestamp is not None:
@@ -203,13 +203,14 @@ def prometheus():
         ):
             last_records_per_service[record.service] = record
 
-    return "".join(
+    data = "".join(
         get_prometheus_metric_line(
             service, record.state, record.timestamp,
             {"sensor": "state", "cluster": record.cluster},
         )
         for service, record in last_records_per_service.items()
     )
+    return Response(data, content_type="text/plain; version=0.0.4")
 
 
 @app.route("/exists/<string:cluster>")

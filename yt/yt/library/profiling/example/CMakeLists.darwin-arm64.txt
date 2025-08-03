@@ -18,6 +18,9 @@ add_executable(profiling-example)
 target_compile_options(profiling-example PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(profiling-example PUBLIC

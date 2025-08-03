@@ -24,7 +24,8 @@ TColumnWriterBase::TColumnWriterBase(
     TDataBlockWriter* blockWriter,
     IMemoryUsageTrackerPtr memoryUsageTracker)
     : BlockWriter_(blockWriter)
-    , MemoryGuard_(TMemoryUsageTrackerGuard::Build(std::move(memoryUsageTracker)))
+    , MemoryUsageTracker_(std::move(memoryUsageTracker))
+    , MemoryGuard_(TMemoryUsageTrackerGuard::Build(MemoryUsageTracker_))
 {
     BlockWriter_->RegisterColumnWriter(this);
 }
@@ -62,7 +63,7 @@ TSharedRef TColumnWriterBase::FinishBlock(int blockIndex)
 
     CurrentBlockSegmentMetas_.clear();
 
-    return mergedMeta;
+    return TrackMemory(MemoryUsageTracker_, mergedMeta);
 }
 
 const NProto::TColumnMeta& TColumnWriterBase::ColumnMeta() const

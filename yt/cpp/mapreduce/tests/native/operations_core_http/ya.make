@@ -54,6 +54,5 @@ FORK_TESTS()
 FORK_SUBTESTS()
 SPLIT_FACTOR(5)
 
-INCLUDE(${ARCADIA_ROOT}/devtools/large_on_multi_slots.inc)
 
 END()

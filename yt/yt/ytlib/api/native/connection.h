@@ -26,6 +26,10 @@
 
 #include <yt/yt/ytlib/hive/public.h>
 
+#include <yt/yt/ytlib/yql_client/public.h>
+
+#include <yt/yt/ytlib/sequoia_client/public.h>
+
 #include <yt/yt/library/auth_server/public.h>
 
 #include <yt/yt/client/cell_master_client/public.h>
@@ -82,11 +86,14 @@ struct IConnection
 
     virtual const NChunkClient::IChunkReplicaCachePtr& GetChunkReplicaCache() = 0;
 
-    virtual std::pair<IClientPtr, NYPath::TYPath> GetQueryTrackerStage(const TString& stage) = 0;
-    virtual NRpc::IChannelPtr GetQueryTrackerChannelOrThrow(const TString& stage) = 0;
+    virtual std::pair<IClientPtr, NYPath::TYPath> GetQueryTrackerStage(TStringBuf stage) = 0;
+    virtual NRpc::IChannelPtr GetQueryTrackerChannelOrThrow(TStringBuf stage) = 0;
 
     virtual const NHiveClient::TDownedCellTrackerPtr& GetDownedCellTracker() = 0;
 
+    virtual NRpc::IChannelPtr FindMasterChannel(
+        EMasterChannelKind kind,
+        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) = 0;
     virtual NRpc::IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) = 0;
@@ -117,9 +124,9 @@ struct IConnection
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader) = 0;
 
     virtual NRpc::IChannelPtr FindQueueAgentChannel(TStringBuf stage) const = 0;
-    virtual const NQueueClient::TQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const = 0;
+    virtual const NQueueClient::IQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const = 0;
 
-    virtual NRpc::IRoamingChannelProviderPtr GetYqlAgentChannelProviderOrThrow(const TString& stage) const = 0;
+    virtual std::pair<NRpc::IRoamingChannelProviderPtr, NYqlClient::TYqlAgentChannelConfigPtr> GetYqlAgentChannelProviderOrThrow(TStringBuf stage) const = 0;
 
     virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() = 0;
     virtual const NChaosClient::IReplicationCardCachePtr& GetReplicationCardCache() = 0;
@@ -154,8 +161,6 @@ struct IConnection
 
     virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 
-    void Terminate() override = 0;
-
     virtual void InitializeDiscoveryServerAddressPool() = 0;
 
     virtual TFuture<void> SyncHiveCellWithOthers(
@@ -172,8 +177,13 @@ struct IConnection
 
     virtual NRpc::IChannelPtr CreateChannelByAddress(const std::string& address) = 0;
 
+    virtual NSequoiaClient::ISequoiaClientPtr GetSequoiaClient() = 0;
+
     using TReconfiguredSignature = void(const TConnectionDynamicConfigPtr& newConfig);
     DECLARE_INTERFACE_SIGNAL(TReconfiguredSignature, Reconfigured);
+
+    virtual NSignature::ISignatureGeneratorPtr GetSignatureGenerator() const = 0;
+    virtual void SetSignatureGenerator(NSignature::ISignatureGeneratorPtr generator) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IConnection)
@@ -253,15 +263,17 @@ IConnectionPtr FindRemoteConnection(
     const std::string& clusterName);
 
 //! Returns native connection to cluster `clusterName`.
-//! Falls back to the provided connection if `clusterName` is null or the cluster is not present in the connection's cluster directory.
+//! Falls back to the provided connection if `clusterName` is null or
+//! the cluster is not present in the connection's cluster directory.
 IConnectionPtr FindRemoteConnection(
     const IConnectionPtr& connection,
     const std::optional<std::string>& clusterName);
 
-IConnectionPtr GetRemoteConnectionOrThrow(
+//! Synchornizes the directory (once) and retries the lookup if
+//! the cluster is missing in the directory at the moment.
+TFuture<IConnectionPtr> InsistentGetRemoteConnection(
     const NApi::NNative::IConnectionPtr& connection,
-    const std::string& clusterName,
-    bool syncOnFailure = false);
+    const std::string& clusterName);
 
 IConnectionPtr FindRemoteConnection(
     const NApi::NNative::IConnectionPtr& connection,

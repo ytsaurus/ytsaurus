@@ -64,6 +64,11 @@ IClientPtr TTestConnection::CreateNativeClient(const TClientOptions& options)
     return New<TClient>(this, options, NodeMemoryTracker_);
 }
 
+NSequoiaClient::ISequoiaClientPtr TTestConnection::GetSequoiaClient()
+{
+    YT_UNIMPLEMENTED();
+}
+
 const NRpc::IChannelFactoryPtr& TTestConnection::GetChannelFactory()
 {
     return ChannelFactory_;
@@ -72,6 +77,13 @@ const NRpc::IChannelFactoryPtr& TTestConnection::GetChannelFactory()
 const NNodeTrackerClient::TNodeDirectoryPtr& TTestConnection::GetNodeDirectory()
 {
     return NodeDirectory_;
+}
+
+NRpc::IChannelPtr TTestConnection::FindMasterChannel(
+    EMasterChannelKind kind,
+    NObjectClient::TCellTag cellTag)
+{
+    return ChannelFactory_->CreateChannel(Format("master-%v-tag-%v", kind, cellTag));
 }
 
 NRpc::IChannelPtr TTestConnection::GetMasterChannelOrThrow(
@@ -127,7 +139,7 @@ const NChunkClient::TMediumDirectoryPtr& TTestConnection::GetMediumDirectory()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NApi::NNative::IConnectionPtr CreateConnection(
+TTestConnectionPtr CreateConnection(
     NRpc::IChannelFactoryPtr channelFactory,
     NNodeTrackerClient::TNetworkPreferenceList networkPreferenceList,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,

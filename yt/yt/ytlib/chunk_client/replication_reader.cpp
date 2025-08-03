@@ -50,8 +50,8 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/hedging_manager.h>
-#include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/memory_usage_tracker.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/net/local_address.h>
 
@@ -101,21 +101,17 @@ DEFINE_ENUM(EPeerType,
 
 struct TPeer
 {
-    TChunkReplicaWithMedium Replica;
+    TChunkReplica Replica;
     std::string Address;
     const TNodeDescriptor* NodeDescriptor;
     EPeerType Type;
     EAddressLocality Locality;
-    int MediumPriority = 0;
     std::optional<TInstant> NodeSuspicionMarkTime;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TPeer& peer, TStringBuf format)
 {
     FormatValue(builder, peer.Address, format);
-    if (peer.Replica.GetMediumIndex() != GenericMediumIndex) {
-        builder->AppendFormat("@%v", peer.Replica.GetMediumIndex());
-    }
 }
 
 using TPeerList = TCompactVector<TPeer, 3>;
@@ -157,7 +153,8 @@ struct IRequestBatcher
         TIntrusivePtr<TSessionBase> Session;
 
         std::vector<NProto::TP2PBarrier> Barriers;
-        TPeerList Peers;
+        TPeer PrimaryPeer;
+        std::optional<TPeer> BackupPeer;
     };
 
     struct TGetBlocksResult
@@ -190,7 +187,7 @@ public:
         TRemoteReaderOptionsPtr options,
         TChunkReaderHostPtr chunkReaderHost,
         TChunkId chunkId,
-        TChunkReplicaWithMediumList seedReplicas)
+        TChunkReplicaList seedReplicas)
         : Config_(std::move(config))
         , Options_(std::move(options))
         , Client_(chunkReaderHost->Client)
@@ -324,7 +321,7 @@ private:
     //! If AllowFetchingSeedsFromMaster is |true| InitialSeeds_ (if present) are used
     //! until 'DiscardSeeds' is called for the first time.
     //! If AllowFetchingSeedsFromMaster is |false| InitialSeeds_ must be given and cannot be discarded.
-    TChunkReplicaWithMediumList InitialSeeds_;
+    TChunkReplicaList InitialSeeds_;
 
     std::atomic<TInstant> LastFailureTime_ = TInstant();
     TCallback<TError(i64, TDuration)> SlownessChecker_;
@@ -460,6 +457,7 @@ protected:
         bool DiskThrottling = false;
         i64 NetQueueSize = 0;
         i64 DiskQueueSize = 0;
+        int MediumPriority = 0;
         ::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TPeerDescriptor> PeerDescriptors;
         TAllyReplicasInfo AllyReplicas;
         bool HasCompleteChunk = false;
@@ -470,8 +468,7 @@ protected:
 
     using TErrorOrPeerProbeResult = TErrorOr<TPeerProbeResult>;
 
-    template <class TRspPtr>
-    static TPeerProbeResult ParseProbeResponse(const TRspPtr& rsp)
+    TPeerProbeResult ParseProbeResponse(const TDataNodeServiceProxy::TRspProbeBlockSetPtr& rsp)
     {
         std::vector<TBlockInfo> blockInfos;
         blockInfos.reserve(rsp->cached_blocks_size());
@@ -482,11 +479,14 @@ protected:
                 rsp->cached_blocks()[index].block_size());
         }
 
+        const auto* mediumDescriptor = MediumDirectory_->FindByIndex(rsp->medium_index());
+
         return {
             .NetThrottling = rsp->net_throttling(),
             .DiskThrottling = rsp->disk_throttling(),
             .NetQueueSize = rsp->net_queue_size(),
             .DiskQueueSize = rsp->disk_queue_size(),
+            .MediumPriority = mediumDescriptor ? mediumDescriptor->Priority : 0,
             .PeerDescriptors = rsp->peer_descriptors(),
             .AllyReplicas = FromProto<TAllyReplicasInfo>(rsp->ally_replicas()),
             .HasCompleteChunk = rsp->has_complete_chunk(),
@@ -610,6 +610,10 @@ protected:
             Logger.AddTag("CompressionFairShareTag: %v", WorkloadDescriptor_.CompressionFairShareTag);
         }
 
+        if (SessionOptions_.Cookie) {
+            Logger.AddTag("Cookie: %x", *SessionOptions_.Cookie);
+        }
+
         SessionOptions_.ChunkReaderStatistics->RecordSession();
 
         ResetPeerQueue();
@@ -619,12 +623,6 @@ protected:
     {
         auto reader = Reader_.Lock();
         return reader ? ComputeAddressLocality(descriptor, reader->LocalDescriptor_) : EAddressLocality::None;
-    }
-
-    int GetMediumPriority(TChunkReplicaWithMedium replica)
-    {
-        const auto* descriptor = MediumDirectory_->FindByIndex(replica.GetMediumIndex());
-        return descriptor ? descriptor->Priority : 0;
     }
 
     IThroughputThrottlerPtr CreateCombinedDataByteThrottler() const
@@ -686,7 +684,8 @@ protected:
     void HandleChunkReaderStatistics(const NProto::TChunkReaderStatistics& protoChunkReaderStatistics)
     {
         UpdateFromProto(&SessionOptions_.ChunkReaderStatistics, protoChunkReaderStatistics);
-        TotalBytesReadFromDisk_ += protoChunkReaderStatistics.data_bytes_read_from_disk();
+        TotalBytesReadFromDisk_ += protoChunkReaderStatistics.data_bytes_read_from_disk() +
+            protoChunkReaderStatistics.meta_bytes_read_from_disk();
     }
 
     void AccountExtraMediumBandwidth(i64 throttledBytes)
@@ -731,7 +730,7 @@ protected:
 
     //! Register peer and install it into the peer queue if necessary.
     bool AddPeer(
-        TChunkReplicaWithMedium replica,
+        TChunkReplica replica,
         const std::string& address,
         const TNodeDescriptor& descriptor,
         EPeerType type,
@@ -756,7 +755,6 @@ protected:
             .NodeDescriptor = &descriptor,
             .Type = type,
             .Locality = GetNodeLocality(descriptor),
-            .MediumPriority = GetMediumPriority(replica),
             .NodeSuspicionMarkTime = nodeSuspicionMarkTime
         };
         if (!Peers_.emplace(address, peer).second) {
@@ -909,21 +907,18 @@ protected:
     }
 
     IChannelPtr MakePeersChannel(
-        const TPeerList& peers,
+        const TPeer& primaryPeer,
+        const std::optional<TPeer>& backupPeer,
         const std::optional<THedgingChannelOptions>& hedgingOptions)
     {
-        if (peers.empty()) {
-            return nullptr;
-        }
-
-        if (peers.size() != 1 && hedgingOptions) {
+        if (backupPeer && hedgingOptions) {
             return CreateHedgingChannel(
-                GetChannel(peers[0].Address),
-                GetChannel(peers[1].Address),
+                GetChannel(primaryPeer.Address),
+                GetChannel(backupPeer->Address),
                 *hedgingOptions);
         }
 
-        return GetChannel(peers[0].Address);
+        return GetChannel(primaryPeer.Address);
     }
 
     void NextRetry()
@@ -1038,7 +1033,7 @@ protected:
         const auto& seedReplicas = SeedReplicas_.Replicas;
 
         std::vector<const TNodeDescriptor*> peerDescriptors;
-        std::vector<TChunkReplicaWithMedium> replicas;
+        std::vector<TChunkReplica> replicas;
         std::vector<TNodeId> nodeIds;
         std::vector<std::string> peerAddresses;
         peerDescriptors.reserve(seedReplicas.size());
@@ -1291,12 +1286,6 @@ private:
 
     int ComparePeerQueueEntries(const TPeerQueueEntry& lhs, const TPeerQueueEntry rhs) const
     {
-        if (lhs.Peer.MediumPriority < rhs.Peer.MediumPriority) {
-            return -1;
-        } else if (lhs.Peer.MediumPriority > rhs.Peer.MediumPriority) {
-            return +1;
-        }
-
         if (int result = ComparePeerLocality(lhs.Peer, rhs.Peer); result != 0) {
             return result;
         }
@@ -1431,10 +1420,9 @@ private:
         return false;
     }
 
-    template <class TRspPtr>
-    static std::pair<TPeer, TErrorOrPeerProbeResult> ParsePeerAndProbeResponse(
+    std::pair<TPeer, TErrorOrPeerProbeResult> ParsePeerAndProbeResponse(
         TPeer peer,
-        const TErrorOr<TRspPtr>& rspOrError)
+        const TDataNodeServiceProxy::TErrorOrRspProbeBlockSetPtr& rspOrError)
     {
         if (rspOrError.IsOK()) {
             return {
@@ -1449,15 +1437,13 @@ private:
         }
     }
 
-    template <class TRspPtr>
     std::pair<TPeer, TErrorOrPeerProbeResult> ParseSuspiciousPeerAndProbeResponse(
         TPeer peer,
-        const TErrorOr<TRspPtr>& rspOrError,
+        const TDataNodeServiceProxy::TErrorOrRspProbeBlockSetPtr& rspOrError,
         const TFuture<TAllyReplicasInfo>& allyReplicasFuture,
         int totalPeerCount)
     {
         YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
-
         YT_VERIFY(peer.NodeSuspicionMarkTime && NodeStatusDirectory_);
 
         if (rspOrError.IsOK()) {
@@ -1520,7 +1506,7 @@ private:
                 })
                 .AsyncVia(SessionInvoker_));
         } else {
-            return probeBlockSetResponseFuture.Apply(BIND([=] (const TDataNodeServiceProxy::TErrorOrRspProbeBlockSetPtr& rspOrError) {
+            return probeBlockSetResponseFuture.Apply(BIND([peer, this, this_ = MakeStrong(this)] (const TDataNodeServiceProxy::TErrorOrRspProbeBlockSetPtr& rspOrError) {
                 return ParsePeerAndProbeResponse(std::move(peer), rspOrError);
             }));
         }
@@ -1700,6 +1686,11 @@ private:
                 const auto& [firstPeer, firstProbeResult] = first;
                 const auto& [secondPeer, secondProbeResult] = second;
 
+                if (firstProbeResult.MediumPriority != secondProbeResult.MediumPriority) {
+                    // Higher priorities must come first.
+                    return firstProbeResult.MediumPriority > secondProbeResult.MediumPriority;
+                }
+
                 auto firstNetQueueSize = firstProbeResult.NetQueueSize;
                 auto secondNetQueueSize = secondProbeResult.NetQueueSize;
 
@@ -1838,6 +1829,7 @@ private:
 
     i64 BytesThrottled_ = 0;
 
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, RequestHandlerLock_);
     //! Blocks that are fetched so far.
     THashMap<int, TBlock> Blocks_;
 
@@ -1919,7 +1911,7 @@ private:
 
                 if (auto suggestedAddress = maybeSuggestedDescriptor->FindAddress(Networks_)) {
                     if (AddPeer(
-                        TChunkReplicaWithMedium(peerNodeId, GenericChunkReplicaIndex, suggestorPeer.Replica.GetMediumIndex()),
+                        TChunkReplica(peerNodeId, GenericChunkReplicaIndex),
                         *suggestedAddress,
                         *maybeSuggestedDescriptor,
                         EPeerType::Peer,
@@ -1934,10 +1926,10 @@ private:
                         *suggestedAddress,
                         suggestorPeer.Address);
 
-                    if (peerDescriptor.has_delivery_barier()) {
+                    if (peerDescriptor.has_delivery_barrier()) {
                         P2PDeliveryBarrier_[peerNodeId].emplace(
                             blockIndex,
-                            peerDescriptor.delivery_barier());
+                            peerDescriptor.delivery_barrier());
                     }
                 } else {
                     YT_LOG_WARNING("Peer suggestion ignored, required network is missing "
@@ -2013,7 +2005,7 @@ private:
                 }
                 return;
             }
-            requestMoreBlocks = FetchBlocksFromNodes(reader, uncachedBlocks, candidates);
+            requestMoreBlocks = FetchBlocksFromNodes(reader, std::move(uncachedBlocks), candidates);
         }
 
         FetchBlocksFromCache(cachedBlocks);
@@ -2059,24 +2051,27 @@ private:
         return candidates;
     }
 
+    void CancelAllBlocks(
+        const std::vector<TBlockWithCookie>& blocks,
+        const TError& error)
+    {
+        for (const auto& block : blocks) {
+            // NB: Setting cookie twice is OK. Only the first value
+            // will be used.
+            if (const auto& cookie = block.Cookie) {
+                cookie->SetBlock(error);
+            }
+        }
+    }
+
     //! Fetches blocks from nodes and adds them to block cache via cookies.
     //! Blocks must be sorted by block index.
     //! Returns |True| if more blocks can be requested and |False| otherwise.
     bool FetchBlocksFromNodes(
         const TReplicationReaderPtr& reader,
-        const std::vector<TBlockWithCookie>& blocks,
+        std::vector<TBlockWithCookie> blocks,
         const TPeerList& candidates)
     {
-        auto cancelAll = [&] (const TError& error) {
-            for (const auto& block : blocks) {
-                // NB: Setting cookie twice is OK. Only the first value
-                // will be used.
-                if (const auto& cookie = block.Cookie) {
-                    cookie->SetBlock(error);
-                }
-            }
-        };
-
         std::vector<int> blockIndexes;
         blockIndexes.reserve(blocks.size());
         for (const auto& block : blocks) {
@@ -2088,83 +2083,122 @@ private:
         // One extra request for actually getting blocks.
         // Hedging requests are disregarded.
         if (!SyncThrottle(RpsThrottler_, 1 + candidates.size())) {
-            cancelAll(TError(
-                NChunkClient::EErrorCode::ReaderThrottlingFailed,
-                "Failed to apply throttling in reader"));
+            CancelAllBlocks(
+                blocks,
+                TError(
+                    NChunkClient::EErrorCode::ReaderThrottlingFailed,
+                    "Failed to apply throttling in reader"));
             return false;
         }
 
+        if (candidates.empty()) {
+            CancelAllBlocks(
+                blocks,
+                TError("No candidates were selected"));
+            return true;
+        }
+
+        auto subrequestThreshold = reader->Config_->BlockSetSubrequestThreshold;
         auto peers = ProbeAndSelectBestPeers(
             candidates,
-            GetDesiredPeerCount(),
+            subrequestThreshold ? candidates.size() : GetDesiredPeerCount(),
             blockIndexes);
+
+        if (peers.empty()) {
+            CancelAllBlocks(
+                blocks,
+                TError("No peers were selected"));
+            return true;
+        }
 
         SessionOptions_.ChunkReaderStatistics->PickPeerWaitTime.fetch_add(
             pickPeerTimer.GetElapsedValue(),
             std::memory_order::relaxed);
 
-        IHedgingManagerPtr hedgingManager;
-        if (SessionOptions_.HedgingManager) {
-            hedgingManager = SessionOptions_.HedgingManager;
-        } else if (ReaderConfig_->BlockRpcHedgingDelay) {
-            hedgingManager = CreateSimpleHedgingManager(*ReaderConfig_->BlockRpcHedgingDelay);
-        }
+        auto peerCount = peers.size();
+        if (EstimatedSize_ &&
+            subrequestThreshold &&
+            peerCount > 1)
+        {
+            int batchCount = peerCount;
 
-        std::optional<THedgingChannelOptions> hedgingOptions;
-        if (hedgingManager) {
-            hedgingOptions = THedgingChannelOptions{
-                .HedgingManager = std::move(hedgingManager),
-                .CancelPrimaryOnHedging = ReaderConfig_->CancelPrimaryBlockRpcRequestOnHedging,
-            };
-        }
-
-        auto channel = MakePeersChannel(
-            peers,
-            hedgingOptions);
-        if (!channel) {
-            cancelAll(TError("No peers were selected"));
-            return true;
-        }
-
-        const auto& primaryAddress = peers[0].Address;
-        if (ShouldThrottle(primaryAddress, BytesThrottled_ == 0 && EstimatedSize_)) {
-            // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
-            // In order not to throttle twice, we check BytesThrottled_ is zero.
-            // Still it protects us from bursty incoming traffic on the host.
-            // If estimated size was not given, we fallback to post-throttling on actual received size.
-            YT_VERIFY(blockIndexes.size() <= BlockIndexes_.size());
-            // NB: Some blocks are read from cache hence we need to further estimate throttling amount.
-            auto requestedBlocksEstimatedSize = *EstimatedSize_ * std::ssize(blockIndexes) / std::ssize(BlockIndexes_);
-            BytesThrottled_ = requestedBlocksEstimatedSize;
-            if (!SyncThrottle(CombinedDataByteThrottler_, requestedBlocksEstimatedSize)) {
-                cancelAll(TError(
-                    NChunkClient::EErrorCode::ReaderThrottlingFailed,
-                    "Failed to apply throttling in reader"));
-                return false;
+            while (batchCount > 1 && *EstimatedSize_ / batchCount < *subrequestThreshold) {
+                batchCount--;
             }
+
+            std::vector<std::vector<TBlockWithCookie>> subrequests;
+            int totalElements = blocks.size();
+            int chunkSize = totalElements / batchCount;
+            int remainder = totalElements % batchCount;
+            int start = 0;
+
+            for (int i = 0; i < batchCount; ++i) {
+                size_t end = start + chunkSize + (i < remainder ? 1 : 0);
+                std::vector<TBlockWithCookie> subrequest;
+                subrequest.reserve(end - start);
+                for (size_t j = start; j < end; ++j) {
+                    subrequest.push_back(std::move(blocks[j]));
+                }
+
+                if (!subrequest.empty()) {
+                    subrequests.push_back(std::move(subrequest));
+                }
+                start = end;
+            }
+
+            std::vector<TFuture<bool>> futures;
+
+            int peerIndex = 0;
+
+            for (auto& subrequest : subrequests) {
+                std::vector<int> blockIndexes;
+                blockIndexes.reserve(subrequest.size());
+                for (const auto& block : subrequest) {
+                    blockIndexes.push_back(block.BlockIndex);
+                }
+
+                futures.push_back(FetchBlocksFromPeer(
+                    reader,
+                    std::move(subrequest),
+                    std::move(blockIndexes),
+                    peers[peerIndex % peers.size()],
+                    peers[(peerIndex + 1) % peers.size()],
+                    peers));
+                peerIndex++;
+            }
+
+            auto results = WaitFor(AllSucceeded(futures))
+                .ValueOrThrow();
+            return std::any_of(results.begin(), results.end(), [] (bool result) { return result; });
         }
 
-        auto getBlockSetResponseFuture = RequestBatcher_->GetBlockSet(
-            IRequestBatcher::TRequest{
-                .Address = primaryAddress,
-                .Channel = channel,
-                .BlockIndexes = blockIndexes,
-                .Session = MakeStrong(this),
-                .Barriers = FillP2PBarriers(peers, blockIndexes),
-                .Peers = peers,
-            },
-            // If hedging is enabled, then get block batching is not allowed.
-            hedgingOptions.has_value());
+        auto primaryPeer = peers[0];
+        auto backupPeer = peers.size() > 1 ? peers[1] : std::optional<TPeer>();
 
-        SetSessionFuture(getBlockSetResponseFuture.As<void>());
-        auto result = WaitFor(getBlockSetResponseFuture);
+        return WaitFor(FetchBlocksFromPeer(
+            reader,
+            std::move(blocks),
+            std::move(blockIndexes),
+            primaryPeer,
+            backupPeer,
+            peers)).ValueOrThrow();
+    }
 
+    bool HandleBlocks(
+        const TReplicationReaderPtr& reader,
+        std::vector<TBlockWithCookie> blocks,
+        std::vector<int> blockIndexes,
+        TPeer primaryPeer,
+        std::optional<TPeer> backupPeer,
+        const TErrorOr<IRequestBatcher::TGetBlocksResult>& result)
+    {
+        auto guard = Guard(RequestHandlerLock_);
         auto rspOrError = result.IsOK()
             ? result.Value().Response
             : TErrorOr<TDataNodeServiceProxy::TRspGetBlockSetPtr>(result.Wrap());
 
         bool backup = IsBackup(rspOrError);
-        const auto& respondedPeer = backup ? peers[1] : peers[0];
+        const auto& respondedPeer = backup ? *backupPeer : primaryPeer;
 
         if (!rspOrError.IsOK()) {
             auto wrappingError = TError(
@@ -2174,14 +2208,16 @@ private:
                 rspOrError,
                 respondedPeer,
                 wrappingError);
-            cancelAll(wrappingError << rspOrError);
+            CancelAllBlocks(
+                blocks,
+                wrappingError << rspOrError);
             return true;
         }
 
         const auto& rsp = rspOrError.Value();
 
         if (backup) {
-            BanPeer(peers[0].Address, false);
+            BanPeer(primaryPeer.Address, false);
         }
 
         auto netThrottling = rsp->net_throttling();
@@ -2236,7 +2272,7 @@ private:
 
             block.Data = TrackMemory(SessionOptions_.MemoryUsageTracker, std::move(block.Data));
 
-            if (auto error = block.ValidateChecksum(); !error.IsOK()) {
+            if (auto error = block.CheckChecksum(); !error.IsOK()) {
                 RegisterError(
                     TError(
                         NChunkClient::EErrorCode::BlockChecksumMismatch,
@@ -2249,10 +2285,6 @@ private:
                 ++invalidBlockCount;
                 continue;
             }
-
-            auto sourceDescriptor = ReaderOptions_->EnableP2P
-                ? std::optional<TNodeDescriptor>(GetPeerDescriptor(respondedPeer.Address))
-                : std::optional<TNodeDescriptor>(std::nullopt);
 
             if (auto& cookie = blocks[index].Cookie) {
                 cookie->SetBlock(block);
@@ -2289,16 +2321,89 @@ private:
         if (ShouldThrottle(respondedPeer.Address, TotalBytesReceived_ > BytesThrottled_)) {
             auto delta = TotalBytesReceived_ - BytesThrottled_;
             BytesThrottled_ = TotalBytesReceived_;
+
+            guard.Release();
+
             if (!SyncThrottle(CombinedDataByteThrottler_, delta)) {
-                cancelAll(TError(
-                    NChunkClient::EErrorCode::ReaderThrottlingFailed,
-                    "Failed to apply throttling in reader"));
+                CancelAllBlocks(
+                    blocks,
+                    TError(NChunkClient::EErrorCode::ReaderThrottlingFailed, "Failed to apply throttling in reader"));
                 return false;
             }
         }
 
-        cancelAll(TError("Block was not sent by node"));
+        CancelAllBlocks(blocks, TError("Block was not sent by node"));
         return true;
+    }
+
+    TFuture<bool> FetchBlocksFromPeer(
+        const TReplicationReaderPtr& reader,
+        std::vector<TBlockWithCookie> blocks,
+        std::vector<int> blockIndexes,
+        TPeer primaryPeer,
+        std::optional<TPeer> backupPeer,
+        const TPeerList& peers)
+    {
+        IHedgingManagerPtr hedgingManager;
+        if (SessionOptions_.HedgingManager) {
+            hedgingManager = SessionOptions_.HedgingManager;
+        } else if (ReaderConfig_->BlockRpcHedgingDelay) {
+            hedgingManager = CreateSimpleHedgingManager(*ReaderConfig_->BlockRpcHedgingDelay);
+        }
+
+        std::optional<THedgingChannelOptions> hedgingOptions;
+        if (hedgingManager) {
+            hedgingOptions = THedgingChannelOptions{
+                .HedgingManager = std::move(hedgingManager),
+                .CancelPrimaryOnHedging = ReaderConfig_->CancelPrimaryBlockRpcRequestOnHedging,
+            };
+        }
+
+        auto channel = MakePeersChannel(primaryPeer, backupPeer, hedgingOptions);
+        YT_VERIFY(channel);
+
+        const auto& primaryAddress = primaryPeer.Address;
+        if (ShouldThrottle(primaryAddress, BytesThrottled_ == 0 && EstimatedSize_)) {
+            // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
+            // In order not to throttle twice, we check BytesThrottled_ is zero.
+            // Still it protects us from bursty incoming traffic on the host.
+            // If estimated size was not given, we fallback to post-throttling on actual received size.
+            YT_VERIFY(blockIndexes.size() <= BlockIndexes_.size());
+            // NB: Some blocks are read from cache hence we need to further estimate throttling amount.
+            auto requestedBlocksEstimatedSize = *EstimatedSize_ * std::ssize(blockIndexes) / std::ssize(BlockIndexes_);
+            BytesThrottled_ = requestedBlocksEstimatedSize;
+            if (!SyncThrottle(CombinedDataByteThrottler_, requestedBlocksEstimatedSize)) {
+                CancelAllBlocks(
+                    blocks,
+                    TError(NChunkClient::EErrorCode::ReaderThrottlingFailed, "Failed to apply throttling in reader"));
+                return MakeFuture<bool>(false);
+            }
+        }
+
+        auto getBlockSetResponseFuture = RequestBatcher_->GetBlockSet(
+            IRequestBatcher::TRequest{
+                .Address = primaryAddress,
+                .Channel = channel,
+                .BlockIndexes = blockIndexes,
+                .Session = MakeStrong(this),
+                .Barriers = FillP2PBarriers(peers, blockIndexes),
+                .PrimaryPeer = primaryPeer,
+                .BackupPeer = backupPeer,
+            },
+            // If hedging is enabled, then get block batching is not allowed.
+            hedgingOptions.has_value() /*hedgingEnabled*/);
+
+        SetSessionFuture(getBlockSetResponseFuture.As<void>());
+        return getBlockSetResponseFuture
+            .Apply(BIND(
+                &TReadBlockSetSession::HandleBlocks,
+                MakeStrong(this),
+                reader,
+                Passed(std::move(blocks)),
+                Passed(std::move(blockIndexes)),
+                Passed(std::move(primaryPeer)),
+                Passed(std::move(backupPeer)))
+            .AsyncVia(SessionInvoker_));
     }
 
     std::vector<NProto::TP2PBarrier> FillP2PBarriers(
@@ -2364,7 +2469,7 @@ private:
                 std::memory_order::relaxed);
         }
 
-        YT_LOG_DEBUG("Fetched blocks from block cache (Count: %v, BlockIndexes: %v)",
+        YT_LOG_DEBUG("Fetched blocks from block cache (Count: %v, Blocks: %v)",
             fetchedBlockIndexes.size(),
             MakeCompactIntervalView(fetchedBlockIndexes));
     }
@@ -2473,7 +2578,8 @@ public:
         , BlockCount_(blockCount)
         , EstimatedSize_(options.EstimatedSize)
     {
-        YT_LOG_DEBUG("Will read block range (Blocks: %v)", FormatBlocks());
+        YT_LOG_DEBUG("Will read block range (Blocks: %v)",
+            FormatBlocks(FirstBlockIndex_, FirstBlockIndex_ + BlockCount_ - 1));
     }
 
     TFuture<std::vector<TBlock>> Run()
@@ -2551,12 +2657,6 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Requesting blocks from peer (Address: %v, Blocks: %v, EstimatedSize: %v, BytesThrottled: %v)",
-            peerAddress,
-            FormatBlocks(),
-            EstimatedSize_,
-            BytesThrottled_);
-
         if (ShouldThrottle(peerAddress, BytesThrottled_ == 0 && EstimatedSize_)) {
             // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
             // In order not to throttle twice, we check BytesThrottled_ is zero.
@@ -2574,6 +2674,11 @@ private:
 
         auto req = proxy.GetBlockRange();
         req->SetResponseHeavy(true);
+        req->SetRequestInfo("Blocks: %v, EstimatedSize: %v, BytesThrottled: %v, Cookie: %x",
+            FormatBlocks(FirstBlockIndex_, FirstBlockIndex_ + BlockCount_ - 1),
+            EstimatedSize_,
+            BytesThrottled_,
+            SessionOptions_.Cookie);
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
@@ -2619,7 +2724,7 @@ private:
                 break;
             }
 
-            if (auto error = block.ValidateChecksum(); !error.IsOK()) {
+            if (auto error = block.CheckChecksum(); !error.IsOK()) {
                 RegisterError(
                     TError(
                         NChunkClient::EErrorCode::BlockChecksumMismatch,
@@ -2655,10 +2760,9 @@ private:
             }
         }
 
-        YT_LOG_DEBUG("Finished processing block response (Address: %v, BlocksReceived: %v-%v, BytesReceived: %v)",
+        YT_LOG_DEBUG("Finished processing block response (Address: %v, BlocksReceived: %v, BytesReceived: %v)",
             peerAddress,
-            FirstBlockIndex_,
-            FirstBlockIndex_ + blocksReceived - 1,
+            FormatBlocks(FirstBlockIndex_, FirstBlockIndex_ + blocksReceived - 1),
             bytesReceived);
 
         if (ShouldThrottle(peerAddress, TotalBytesReceived_ > BytesThrottled_)) {
@@ -2678,7 +2782,8 @@ private:
 
     void OnSessionSucceeded()
     {
-        YT_LOG_DEBUG("Some blocks are fetched (Blocks: %v)", FormatBlocks());
+        YT_LOG_DEBUG("Some blocks are fetched (Blocks: %v)",
+            FormatBlocks(FirstBlockIndex_, FirstBlockIndex_ + BlockCount_ - 1));
 
         AccountExtraMediumBandwidth(BytesThrottled_);
 
@@ -2714,21 +2819,6 @@ private:
             << error;
         TSessionBase::OnCanceled(wrappedError);
         Promise_.TrySet(wrappedError);
-    }
-
-    TString FormatBlocks() const
-    {
-        TStringBuilder builder;
-
-        if (BlockCount_ == 1) {
-            builder.AppendFormat("[%v]", FirstBlockIndex_);
-        } else {
-            builder.AppendFormat("[%v-%v]",
-                FirstBlockIndex_,
-                FirstBlockIndex_ + BlockCount_ - 1);
-        }
-
-        return builder.Flush();
     }
 };
 
@@ -2862,15 +2952,14 @@ private:
                 .CancelPrimaryOnHedging = false,
             };
         }
-        auto channel = MakePeersChannel(peers, hedgingOptions);
-        if (!channel) {
-            RequestMeta();
-            return;
-        }
 
-        YT_LOG_DEBUG("Requesting chunk meta (Addresses: %v)", peers);
+        auto primaryPeer = peers[0];
+        auto backupPeer = peers.size() > 1 ? peers[1] : std::optional<TPeer>();
+        auto channel = MakePeersChannel(primaryPeer, backupPeer, hedgingOptions);
 
-        if (ShouldThrottle(peers[0].Address, BytesThrottled_ == 0 && MetaSize_ > 0)) {
+        YT_VERIFY(channel);
+
+        if (ShouldThrottle(primaryPeer.Address, BytesThrottled_ == 0 && MetaSize_ > 0)) {
             BytesThrottled_ = *MetaSize_;
             if (!CombinedDataByteThrottler_->IsOverdraft()) {
                 CombinedDataByteThrottler_->Acquire(BytesThrottled_);
@@ -2885,6 +2974,13 @@ private:
 
         auto req = proxy.GetChunkMeta();
         req->SetResponseHeavy(true);
+        req->SetRequestInfo("ChunkId: %v, ExtensionTags: %v, PartitionTag: %v, Workload: %v, EnableThrottling: %v, Cookie: %x",
+            ChunkId_,
+            ExtensionTags_,
+            PartitionTag_,
+            WorkloadDescriptor_,
+            true,
+            SessionOptions_.Cookie);
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
@@ -2900,7 +2996,7 @@ private:
         auto rspOrError = WaitFor(rspFuture);
 
         bool backup = IsBackup(rspOrError);
-        const auto& respondedPeer = backup ? peers[1] : peers[0];
+        const auto& respondedPeer = backup ? *backupPeer : primaryPeer;
 
         if (!rspOrError.IsOK()) {
             ProcessError(
@@ -2916,7 +3012,7 @@ private:
         const auto& rsp = rspOrError.Value();
 
         if (backup) {
-            BanPeer(peers[0].Address, false);
+            BanPeer(primaryPeer.Address, false);
         }
 
         SessionOptions_.ChunkReaderStatistics->MetaBytesTransmitted.fetch_add(
@@ -3197,6 +3293,11 @@ private:
 
         auto peers = peersOrError.ValueOrThrow();
 
+        if (peers.empty()) {
+            RequestRows();
+            return;
+        }
+
         IHedgingManagerPtr hedgingManager;
         if (SessionOptions_.HedgingManager) {
             hedgingManager = SessionOptions_.HedgingManager;
@@ -3212,13 +3313,13 @@ private:
             };
         }
 
-        auto channel = MakePeersChannel(peers, hedgingOptions);
-        if (!channel) {
-            RequestRows();
-            return;
-        }
+        auto primaryPeer = peers[0];
+        auto backupPeer = peers.size() > 1 ? peers[1] : std::optional<TPeer>();
+        auto channel = MakePeersChannel(primaryPeer, backupPeer, hedgingOptions);
 
-        if (ShouldThrottle(peers[0].Address, BytesThrottled_ == 0 && BytesToThrottle_ > 0)) {
+        YT_VERIFY(channel);
+
+        if (ShouldThrottle(primaryPeer.Address, BytesThrottled_ == 0 && BytesToThrottle_ > 0)) {
             // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
             // In order not to throttle twice, we check BytesThrottled_ is zero.
             // Still it protects us from bursty incoming traffic on the host.
@@ -3266,6 +3367,15 @@ private:
 
         auto req = proxy.LookupRows();
         req->SetResponseHeavy(true);
+        req->SetRequestInfo("ChunkId: %v, ReadSessionId: %v, Workload: %v, "
+            "PopulateCache: %v, EnableHashChunkIndex: %v, ContainsSchema: %v, Cookie: %x",
+            ChunkId_,
+            SessionOptions_.ReadSessionId,
+            WorkloadDescriptor_,
+            true,
+            Options_->EnableHashChunkIndex,
+            schemaRequested,
+            SessionOptions_.Cookie);
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
@@ -3630,7 +3740,8 @@ private:
         TIntrusivePtr<TSessionBase> Session;
 
         std::vector<NProto::TP2PBarrier> Barriers;
-        TPeerList Peers;
+        TPeer PrimaryPeer;
+        std::optional<TPeer> BackupPeer;
 
         bool RequestIsInitialized = false;
         TPromise<TResponse> RequestResult;
@@ -3670,7 +3781,8 @@ private:
         batch.RequestResult = NewPromise<TResponse>();
         batch.Session = request.Session;
         batch.Barriers = request.Barriers;
-        batch.Peers = request.Peers;
+        batch.PrimaryPeer = request.PrimaryPeer;
+        batch.BackupPeer = request.BackupPeer;
         batch.RequestCount = 1;
 
         for (auto index : request.BlockIndexes) {
@@ -3706,7 +3818,8 @@ private:
 
     TGetBlocksResult HandleGetBlockSetResponse(
         TIntrusivePtr<TSessionBase> session,
-        TPeerList peers,
+        TPeer primaryPeer,
+        std::optional<TPeer> backupPeer,
         std::vector<int> blockIndexes,
         TErrorOr<TGetBlocksResponsePtr>&& rspOrError)
     {
@@ -3715,7 +3828,7 @@ private:
         auto&& rsp = rspOrError.ValueOrThrow();
 
         bool backup = IsBackup(rspOrError);
-        const auto& respondedPeer = backup ? peers[1] : peers[0];
+        const auto& respondedPeer = backup ? *backupPeer : primaryPeer;
 
         chunkReaderStatistics->DataBytesTransmitted.fetch_add(
             rsp->GetTotalSize(),
@@ -3745,10 +3858,17 @@ private:
         proxy.SetDefaultTimeout(ReaderConfig_->ProbeRpcTimeout);
 
         auto req = proxy.ProbeBlockSet();
+        auto blockIndexes = std::vector<int>(queuedBatch.BlockIds.begin(), queuedBatch.BlockIds.end());
         SetRequestWorkloadDescriptor(req, queuedBatch.Session->SessionOptions_.WorkloadDescriptor);
         req->SetResponseHeavy(true);
+        req->SetRequestInfo("ChunkId: %v, Blocks: %v, BlockCount: %v, Workload: %v, Cookie: %x",
+            ChunkId_,
+            MakeCompactIntervalView(blockIndexes),
+            blockIndexes.size(),
+            queuedBatch.Session->SessionOptions_.WorkloadDescriptor,
+            queuedBatch.Session->SessionOptions_.Cookie);
         ToProto(req->mutable_chunk_id(), ChunkId_);
-        ToProto(req->mutable_block_indexes(), std::vector<int>(queuedBatch.BlockIds.begin(), queuedBatch.BlockIds.end()));
+        ToProto(req->mutable_block_indexes(), std::move(blockIndexes));
         req->SetAcknowledgementTimeout(std::nullopt);
         req->set_ally_replicas_revision(ToProto(queuedBatch.Session->SeedReplicas_.Revision));
 
@@ -3771,6 +3891,14 @@ private:
         auto blockIndexes = std::vector(queuedBatch.BlockIds.begin(), queuedBatch.BlockIds.end());
         std::sort(blockIndexes.begin(), blockIndexes.end());
 
+        req->SetRequestInfo("ChunkId: %v, Blocks: %v, "
+            "PopulateCache: %v, Workload: %v, Cookie: %x",
+            ChunkId_,
+            MakeCompactIntervalView(blockIndexes),
+            ReaderConfig_->PopulateCache,
+            queuedBatch.Session->SessionOptions_.WorkloadDescriptor,
+            queuedBatch.Session->SessionOptions_.Cookie);
+
         ToProto(req->mutable_block_indexes(), blockIndexes);
         req->set_populate_cache(ReaderConfig_->PopulateCache);
         ToProto(req->mutable_read_session_id(), queuedBatch.Session->SessionOptions_.ReadSessionId);
@@ -3785,7 +3913,8 @@ private:
                 &TRequestBatcher::HandleGetBlockSetResponse,
                 MakeStrong(this),
                 queuedBatch.Session,
-                queuedBatch.Peers,
+                queuedBatch.PrimaryPeer,
+                queuedBatch.BackupPeer,
                 Passed(std::move(blockIndexes))));
     }
 
@@ -3817,11 +3946,10 @@ private:
         YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         YT_LOG_DEBUG(
-            "Start new batch request (Address: %v, RequestType: %v, BlockIds: %v, BlockCount: %v)",
+            "Start new batch request (Address: %v, RequestType: %v, Blocks: %v)",
             request.Address,
             GetRequestLogName<TResponse>(),
-            MakeShrunkFormattableView(request.BlockIndexes, TDefaultFormatter(), 3),
-            request.BlockIndexes.size());
+            MakeCompactIntervalView(request.BlockIndexes));
 
         auto batch = BuildRequestBatch<TResponse>(request);
 
@@ -3844,15 +3972,15 @@ private:
         YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         YT_LOG_DEBUG(
-            "Add blocks to next batch request (Address: %v, RequestType: %v, BlockIds: %v, BlockCount: %v)",
+            "Add blocks to next batch request (Address: %v, RequestType: %v, Blocks: %v)",
             request.Address,
             GetRequestLogName<TResponse>(),
-            MakeShrunkFormattableView(request.BlockIndexes, TDefaultFormatter(), 3),
-            request.BlockIndexes.size());
+            MakeCompactIntervalView(request.BlockIndexes));
 
         nextBatch.Channel = request.Channel;
         nextBatch.Session = request.Session;
-        nextBatch.Peers = request.Peers;
+        nextBatch.PrimaryPeer = request.PrimaryPeer;
+        nextBatch.BackupPeer = request.BackupPeer;
         nextBatch.Barriers = request.Barriers;
         nextBatch.RequestCount++;
 
@@ -3893,11 +4021,10 @@ private:
             auto& nextBatch = state.Current;
 
             YT_LOG_DEBUG(
-                "Start next batch request (Address: %v, RequestType: %v, BlockIds: %v, BlockCount: %v, RequestCount: %v)",
+                "Start next batch request (Address: %v, RequestType: %v, Blocks: %v, RequestCount: %v)",
                 address,
                 GetRequestLogName<TResponse>(),
-                MakeShrunkFormattableView(nextBatch.BlockIds, TDefaultFormatter(), 3),
-                nextBatch.BlockIds.size(),
+                MakeCompactIntervalView(nextBatch.BlockIds),
                 nextBatch.RequestCount);
 
             auto requestFuture = ExecuteBatchRequest(nextBatch);
@@ -3935,7 +4062,7 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     TRemoteReaderOptionsPtr options,
     TChunkReaderHostPtr chunkReaderHost,
     TChunkId chunkId,
-    TChunkReplicaWithMediumList seedReplicas)
+    TChunkReplicaList seedReplicas)
 {
     return New<TReplicationReader>(
         std::move(config),

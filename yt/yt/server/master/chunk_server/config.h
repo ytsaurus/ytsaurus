@@ -96,19 +96,19 @@ struct TS3ConnectionConfig
     : public virtual NYTree::TYsonStruct
 {
     //! Url of the S3 server, for example, http://my_bucket.s3.amazonaws.com
-    TString Url;
+    std::string Url;
 
     //! Name of the region.
     //! In some of the S3 implementations it is already included into
     //! address, in some not.
-    TString Region;
+    std::string Region;
 
     //! Name of the bucket to use.
-    TString Bucket;
+    std::string Bucket;
 
     //! Credentials.
-    TString AccessKeyId;
-    TString SecretAccessKey;
+    std::string AccessKeyId;
+    std::string SecretAccessKey;
 
     REGISTER_YSON_STRUCT(TS3ConnectionConfig);
 
@@ -185,15 +185,6 @@ struct TDynamicChunkMergerConfig
 
     bool RescheduleMergeOnSuccess;
     bool AllowSettingChunkMergerMode;
-
-    // COMPAT(aleksandra-zh)
-    bool EnableQueueSizeLimitChanges;
-
-    // COMPAT(aleksandra-zh)
-    bool RespectAccountSpecificToggle;
-
-    // COMPAT(aleksandra-zh)
-    bool EnableCarefulRequisitionUpdate;
 
     int MaxNodesBeingMerged;
 
@@ -308,17 +299,26 @@ DEFINE_REFCOUNTED_TYPE(TDanglingLocationCleanerConfig)
 struct TDynamicDataNodeTrackerConfig
     : public NYTree::TYsonStruct
 {
+    int MaxConcurrentChunkReplicasDuringFullHeartbeat;
+
+    int MaxConcurrentChunkReplicasDuringIncrementalHeartbeat;
+
     // COMPAT(danilalexeev): YT-23781.
     int MaxConcurrentFullHeartbeats;
 
+    // COMPAT(cherepashka)
     int MaxConcurrentLocationFullHeartbeats;
 
+    // COMPAT(cherepashka)
     int MaxConcurrentIncrementalHeartbeats;
 
     TDanglingLocationCleanerConfigPtr DanglingLocationCleaner;
 
     // COMPAT(danilalexeev): YT-23781.
     bool EnablePerLocationFullHeartbeats;
+
+    // COMPAT(cherepashka)
+    bool EnableChunkReplicasThrottlingInHeartbeats;
 
     REGISTER_YSON_STRUCT(TDynamicDataNodeTrackerConfig);
 
@@ -518,6 +518,8 @@ struct TDynamicSequoiaChunkReplicasConfig
     int SequoiaChunkCountToFetchFromRefreshQueue;
 
     bool ClearMasterRequest;
+
+    std::vector<TErrorCode> RetriableErrorCodes;
 
     REGISTER_YSON_STRUCT(TDynamicSequoiaChunkReplicasConfig);
 
@@ -733,6 +735,8 @@ struct TDynamicChunkManagerConfig
 
     TDuration DisposedPendingRestartNodeChunkRefreshDelay;
 
+    i64 VirtualChunkMapReadResultLimit;
+
     // COMPAT(kvk1920): YT-17756.
     bool EnableFixRequisitionUpdateOnMerge;
 
@@ -751,6 +755,9 @@ struct TDynamicChunkManagerConfig
     bool UseHunkSpecificMediaForRequisitionUpdates;
 
     bool EnableRepairViaReplication;
+
+    // COMPAT(aleksandra-zh)
+    bool UseProperReplicaAdditionReason;
 
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 

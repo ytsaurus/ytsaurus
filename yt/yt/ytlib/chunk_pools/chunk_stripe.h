@@ -14,8 +14,8 @@ namespace NYT::NChunkPools {
 struct TChunkStripe
     : public TRefCounted
 {
-    TChunkStripe(bool foreign = false, bool solid = false);
-    explicit TChunkStripe(NChunkClient::TLegacyDataSlicePtr dataSlice, bool foreign = false, bool solid = false);
+    explicit TChunkStripe(bool foreign = false);
+    explicit TChunkStripe(NChunkClient::TLegacyDataSlicePtr dataSlice, bool foreign = false);
     explicit TChunkStripe(const std::vector<NChunkClient::TLegacyDataSlicePtr>& dataSlices);
     explicit TChunkStripe(NChunkClient::TChunkListId, TBoundaryKeys boundaryKeys = TBoundaryKeys());
 
@@ -29,7 +29,6 @@ struct TChunkStripe
     TCompactVector<NChunkClient::TLegacyDataSlicePtr, 1> DataSlices;
     int WaitingChunkCount = 0;
     bool Foreign = false;
-    bool Solid = false;
 
     NChunkClient::TChunkListId ChunkListId;
     TBoundaryKeys BoundaryKeys;
@@ -69,6 +68,8 @@ struct TChunkStripeList
     i64 TotalRowCount = 0;
     i64 TotalValueCount = 0;
 
+    i64 TotalCompressedDataSize = 0;
+
     int TotalChunkCount = 0;
     int LocalChunkCount = 0;
 
@@ -78,6 +79,12 @@ struct TChunkStripeList
 DEFINE_REFCOUNTED_TYPE(TChunkStripeList)
 
 extern const TChunkStripeListPtr NullStripeList;
+
+struct TPersistentChunkStripeStatistics
+    : public NTableClient::TChunkStripeStatistics
+{
+    void Persist(const TPersistenceContext& context);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

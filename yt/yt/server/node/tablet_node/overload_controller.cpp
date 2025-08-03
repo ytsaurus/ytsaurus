@@ -1,7 +1,7 @@
 #include "overload_controller.h"
-#include "private.h"
 
-#include <yt/yt/server/lib/tablet_node/config.h>
+#include "config.h"
+#include "private.h"
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
@@ -117,7 +117,7 @@ public:
             auto throttlingDelta = cpuStats->ThrottledTime - LastCpuStats_->ThrottledTime;
             throttlingTime = TDuration::MicroSeconds(throttlingDelta / 1000);
 
-            YT_LOG_DEBUG("Reporting container cpu throttling time "
+            YT_LOG_DEBUG("Reporting container CPU throttling time "
                 "(LastCpuThrottlingTime: %v, CpuThrottlingTime: %v, ThrottlingDelta: %v, ThrottlingTime: %v)",
                 LastCpuStats_->ThrottledTime,
                 cpuStats->ThrottledTime,
@@ -154,7 +154,7 @@ private:
             }
         } catch (const std::exception& ex) {
             if (!CgroupErrorLogged_) {
-                YT_LOG_INFO(ex, "Failed to collect cgroup cpu statistics");
+                YT_LOG_INFO(ex, "Failed to collect cgroup CPU statistics");
                 CgroupErrorLogged_ = true;
             }
         }
@@ -332,7 +332,6 @@ TIntrusivePtr<TTracker> TOverloadController::CreateGenericTracker(TStringBuf tra
     auto trackerId = id.value_or(trackerType);
 
     auto tracker = New<TTracker>(trackerType, trackerId);
-    // TODO(babenko): switch to std::string
     auto profiler = Profiler.WithTag("tracker", std::string(trackerId));
 
     auto guard = Guard(SpinLock_);

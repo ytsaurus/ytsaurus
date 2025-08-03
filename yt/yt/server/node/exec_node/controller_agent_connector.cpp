@@ -43,7 +43,7 @@ using NScheduler::TIncarnationId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ExecNodeLogger;
+constinit const auto Logger = ExecNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -399,7 +399,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::PrepareHeartbeatR
             }
 
             auto* availability = cluster_network_bandwidth_availability->add_availability();
-            availability->set_cluster_name(TString(clusterName.Underlying()));
+            availability->set_cluster_name(clusterName.Underlying());
             availability->set_is_available(isAvailable);
         }
     }
@@ -448,6 +448,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::DoPrepareHeartbea
     context->StatisticsThrottler = StatisticsThrottler_;
     context->RunningJobStatisticsSendingBackoff = GetConfig()->RunningJobStatisticsSendingBackoff;
     context->JobStalenessDelay = GetConfig()->JobStalenessDelay;
+    context->ResendFullJobInfo = GetConfig()->ResendFullJobInfo;
 
     context->JobsToForcefullySend = EnqueuedFinishedJobs_;
     context->UnconfirmedJobIds = std::move(UnconfirmedJobIds_);

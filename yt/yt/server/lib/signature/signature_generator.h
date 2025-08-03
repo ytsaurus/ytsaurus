@@ -8,7 +8,7 @@
 
 #include <yt/yt/core/yson/public.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NSignature {
 
@@ -18,25 +18,26 @@ class TSignatureGenerator
     : public ISignatureGenerator
 {
 public:
-    using ISignatureGenerator::Sign;
+    explicit TSignatureGenerator(TSignatureGeneratorConfigPtr config);
 
-    TSignatureGenerator(TSignatureGeneratorConfigPtr config, IKeyStoreWriterPtr keyWriter);
-
-    //! Fills out the Signature_ and Header_ fields in a given TSignature
-    // based on its payload.
-    void Sign(const TSignaturePtr& signature) override;
-
+    /*!
+     *  \note Thread affinity: any
+    */
     [[nodiscard]] TKeyInfoPtr KeyInfo() const;
 
-    TFuture<void> Rotate();
+    /*!
+    *  \note Thread affinity: any
+    */
+    void SetKeyPair(TKeyPairPtr keyPair);
 
 private:
     const TSignatureGeneratorConfigPtr Config_;
-    const IKeyStoreWriterPtr KeyWriter_;
-    const TOwnerId OwnerId_;
+    TAtomicIntrusivePtr<TKeyPair> KeyPair_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, KeyPairLock_);
-    std::optional<TKeyPair> KeyPair_;
+    /*!
+    *  \note Thread affinity: any
+    */
+    void DoSign(const TSignaturePtr& signature) const final;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSignatureGenerator)

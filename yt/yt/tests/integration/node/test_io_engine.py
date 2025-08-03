@@ -290,6 +290,43 @@ class TestIoEngine(YTEnvSetup):
 
         write_table("//tmp/test", ys)
 
+    def _run_throttled_writes_with_probing(self, delta, need_throttle):
+        nodes = ls("//sys/cluster_nodes")
+
+        def seed_counter(node, path):
+            return profiler_factory().at_node(node).counter(path)
+
+        update_nodes_dynamic_config(delta)
+        counters = [seed_counter(node, "location/throttled_probing_writes") for node in nodes]
+
+        responses = []
+        for i in range(10):
+            responses.append(write_table("//tmp/test", [{"key": "x"}], return_response=True))
+
+        if need_throttle:
+            wait(lambda: any(counter.get_delta() > 0 for counter in counters))
+        else:
+            wait(lambda: all(counter.get_delta() == 0 for counter in counters))
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "memory_limit_fraction_for_starting_new_sessions": 1.0,
+                        "read_memory_limit": 10000000,
+                        "write_memory_limit": 10000000,
+                        "session_count_limit": 10000000,
+                    }
+                }
+            }
+        })
+
+        for i in range(10):
+            responses.append(write_table("//tmp/test2", [{"key": "x"}], return_response=True))
+
+        for response in responses:
+            response.wait()
+
     def _run_throttled(self, delta, is_read, need_throttle):
         nodes = ls("//sys/cluster_nodes")
 
@@ -315,8 +352,6 @@ class TestIoEngine(YTEnvSetup):
                         "memory_limit_fraction_for_starting_new_sessions": 1.0,
                         "read_memory_limit": 10000000,
                         "write_memory_limit": 10000000,
-                        "pending_io_read_limit": 10000000,
-                        "pending_io_write_limit": 10000000,
                         "session_count_limit": 10000000,
                     }
                 }
@@ -325,6 +360,112 @@ class TestIoEngine(YTEnvSetup):
 
         for response in responses:
             response.wait()
+
+    @authors("vvshlyaga")
+    def test_probe_put_blocks(self):
+        REPLICATION_FACTOR = self.NUM_NODES
+
+        create(
+            "table",
+            "//tmp/test",
+            attributes={
+                "primary_medium": "default",
+                "replication_factor": REPLICATION_FACTOR,
+                "chunk_writer": {
+                    "use_probe_put_blocks": True,
+                },
+            })
+
+        create(
+            "table",
+            "//tmp/test2",
+            attributes={
+                "primary_medium": "default",
+                "replication_factor": REPLICATION_FACTOR,
+                "chunk_writer": {
+                    "use_probe_put_blocks": True,
+                },
+            })
+
+        self._run_throttled_writes_with_probing({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "memory_limit_fraction_for_starting_new_sessions": 0,
+                        "write_memory_limit": -1,
+                        "probe_put_blocks_check_tick_period": 5,
+                    }
+                }
+            }
+        }, True)
+
+        self._run_throttled_writes_with_probing({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "write_memory_limit": -1,
+                        "probe_put_blocks_check_tick_period": 5,
+                    }
+                }
+            }
+        }, True)
+
+        self._run_throttled_writes_with_probing({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {}
+                }
+            }
+        }, False)
+
+    @authors("vvshlyaga")
+    def test_write_without_send_blocks(self):
+        update_nodes_dynamic_config({
+            "data_node": {
+                "enable_send_blocks_net_throttling": True,
+                "testing_options": {
+                    "always_throttle_net_on_send_blocks": True
+                }
+            }
+        })
+        REPLICATION_FACTOR = self.NUM_NODES
+
+        create(
+            "table",
+            "//tmp/test",
+            attributes={
+                "primary_medium": "default",
+                "replication_factor": REPLICATION_FACTOR,
+            })
+
+        self._run_throttled({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "memory_limit_fraction_for_starting_new_sessions": 0,
+                        'write_memory_limit': -1,
+                    }
+                }
+            }
+        }, False, True)
+
+        self._run_throttled({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "write_memory_limit": -1,
+                    }
+                }
+            }
+        }, False, True)
+
+        self._run_throttled({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {}
+                }
+            }
+        }, False, False)
 
     @authors("don-dron")
     def test_location_limits(self):
@@ -353,7 +494,7 @@ class TestIoEngine(YTEnvSetup):
             "data_node": {
                 "store_location_config_per_medium": {
                     "default": {
-                        "pending_io_write_limit": -1,
+                        "write_memory_limit": -1,
                     }
                 }
             }
@@ -381,7 +522,7 @@ class TestIoEngine(YTEnvSetup):
             "data_node": {
                 "store_location_config_per_medium": {
                     "default": {
-                        'pending_io_read_limit': -1,
+                        'read_memory_limit': -1,
                     }
                 }
             }
@@ -541,6 +682,33 @@ class TestIoEngine(YTEnvSetup):
         # uring is broken in CI
         # use_engine("uring")
 
+    @authors("vvshlyaga")
+    def test_metrics(self):
+        nodes = ls("//sys/cluster_nodes")
+        create("table", "//tmp/table")
+
+        content1 = [{"a": i} for i in range(100)]
+        content2 = [{"a": i} for i in range(100, 200)]
+
+        def seed_counter(node, path):
+            return profiler_factory().at_node(node).counter(name=path, tags={"location_type": "store"})
+
+        self._set_io_engine({"default": "fair_share_thread_pool"})
+        self._wait_for_io_engine_enabled("fair_share_thread_pool")
+        write_table("//tmp/table", content1)
+
+        wait(lambda: all(seed_counter(node, "location/alive").get() == 1. for node in nodes))
+
+        self._set_io_engine({"default": "thread_pool"})
+        self._wait_for_io_engine_enabled("thread_pool")
+        write_table("<append=%true>//tmp/table", content2)
+
+        wait(lambda: all(seed_counter(node, "location/alive").get() == 1. for node in nodes))
+
+        assert read_table("//tmp/table") == content1 + content2
+
+        wait(lambda: all(seed_counter(node, "location/alive").get() == 1. for node in nodes))
+
     @authors("kvk1920")
     def test_dynamic_io_engine_with_overriden_medium(self):
         if not exists("//sys/media/ssd_blobs"):
@@ -559,6 +727,53 @@ class TestIoEngine(YTEnvSetup):
 
         # Shouldn't change.
         self._wait_for_io_engine_enabled("fair_share_thread_pool")
+
+    @classmethod
+    def get_io_weight(self, node, medium):
+        return get("//sys/cluster_nodes/{}/@statistics/media/{}/io_weight".format(node, medium))
+
+    @authors("vvshlyaga")
+    def test_custom_io_weight_formula(self):
+        nodes = ls("//sys/cluster_nodes")
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "io_weight_formula": "0.5",
+                    }
+                }
+            }
+        })
+
+        REPLICATION_FACTOR = self.NUM_NODES
+
+        create(
+            "table",
+            "//tmp/test",
+            attributes={
+                "primary_medium": "default",
+                "replication_factor": REPLICATION_FACTOR,
+            })
+
+        wait(lambda: all(self.get_io_weight(node, "default") == 0.5 for node in nodes))
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "io_weight_formula": "double([/stat/available_space]) / (double([/stat/used_space]) + double([/stat/available_space]))",
+                    }
+                }
+            }
+        })
+
+        wait(lambda: all(self.get_io_weight(node, "default") == 1. for node in nodes))
+        io_weights = [self.get_io_weight(node, "default") for node in nodes]
+
+        write_table("//tmp/test", [{"a" * 10: i} for i in range(10000)])
+
+        wait(lambda: all(self.get_io_weight(node, "default") < io_weights[i] for i, node in enumerate(nodes)))
 
 
 @authors("capone212")

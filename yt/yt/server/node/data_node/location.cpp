@@ -11,6 +11,10 @@
 #include "master_connector.h"
 #include "medium_updater.h"
 
+#include <yt/yt/orm/library/query/expression_evaluator.h>
+
+#include <yt/yt/server/node/data_node/session.h>
+
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
@@ -34,9 +38,11 @@
 #include <yt/yt/library/program/program.h>
 
 #include <yt/yt/client/object_client/helpers.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/proc.h>
+#include <yt/yt/core/misc/fair_share_hierarchical_queue.h>
 
 #include <yt/yt/core/logging/log_manager.h>
 
@@ -76,19 +82,16 @@ TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TPr
                 .WithTag("direction", FormatEnum(direction), -1)
                 .WithTag("category", FormatEnum(category), -2);
 
-            r.AddFuncGauge("/pending_data_size", MakeStrong(this), [this, direction, category] {
-                return PendingIOSize[direction][category].load();
-            });
-
             r.AddFuncGauge("/used_memory", MakeStrong(this), [this, direction, category] {
-                return UsedMemory[direction][category].load();
+                return UsedMemory[direction][category].load() + LegacyUsedMemory[direction][category].load();
             });
 
             CompletedIOSize[direction][category] = r.Counter("/blob_block_bytes");
         }
     }
 
-    ThrottledProbing = profiler.Counter("/throttled_probing");
+    ThrottledProbingReads = profiler.Counter("/throttled_probing_reads");
+    ThrottledProbingWrites = profiler.Counter("/throttled_probing_writes");
     ThrottledReads = profiler.Counter("/throttled_reads");
     ThrottledWrites = profiler.Counter("/throttled_writes");
 
@@ -146,15 +149,20 @@ TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TPr
     Full = profiler.Gauge("/full");
 }
 
-void TLocationPerformanceCounters::ReportThrottledProbing()
+void TLocationPerformanceCounters::ReportThrottledProbingRead()
 {
-    ThrottledProbing.Increment();
+    ThrottledProbingReads.Increment();
 }
 
 void TLocationPerformanceCounters::ReportThrottledRead()
 {
     ThrottledReads.Increment();
     LastReadThrottleTime = GetCpuInstant();
+}
+
+void TLocationPerformanceCounters::ReportThrottledProbingWrite()
+{
+    ThrottledProbingWrites.Increment();
 }
 
 void TLocationPerformanceCounters::ReportThrottledWrite()
@@ -165,12 +173,42 @@ void TLocationPerformanceCounters::ReportThrottledWrite()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TLocationFairShareSlot::TLocationFairShareSlot(
+    TFairShareHierarchicalSlotQueuePtr<std::string> queue,
+    TFairShareHierarchicalSlotQueueSlotPtr<std::string> slot)
+    : Queue_(std::move(queue))
+    , Slot_(std::move(slot))
+{
+    YT_VERIFY(Queue_);
+    YT_VERIFY(Slot_);
+}
+
+TFairShareHierarchicalSlotQueueSlotPtr<std::string> TLocationFairShareSlot::GetSlot() const
+{
+    return Slot_;
+}
+
+TLocationFairShareSlot::~TLocationFairShareSlot()
+{
+    if (Slot_) {
+        Queue_->DequeueSlot(Slot_);
+        Slot_->ReleaseResources();
+        Slot_.Reset();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TLocationMemoryGuard::TLocationMemoryGuard(
+    TMemoryUsageTrackerGuard memoryGuard,
+    bool useLegacyUsedMemory,
     EIODirection direction,
     EIOCategory category,
     i64 size,
     TChunkLocationPtr owner)
-    : Direction_(direction)
+    : MemoryGuard_(std::move(memoryGuard))
+    , UseLegacyUsedMemory_(useLegacyUsedMemory)
+    , Direction_(direction)
     , Category_(category)
     , Size_(size)
     , Owner_(owner)
@@ -183,11 +221,14 @@ TLocationMemoryGuard::TLocationMemoryGuard(TLocationMemoryGuard&& other)
 
 void TLocationMemoryGuard::MoveFrom(TLocationMemoryGuard&& other)
 {
+    MemoryGuard_ = std::move(other.MemoryGuard_);
+    UseLegacyUsedMemory_ = other.UseLegacyUsedMemory_;
     Direction_ = other.Direction_;
     Category_ = other.Category_;
     Size_ = other.Size_;
     Owner_ = std::move(other.Owner_);
 
+    other.MemoryGuard_.Release();
     other.Size_ = 0;
     other.Owner_.Reset();
 }
@@ -209,7 +250,8 @@ TLocationMemoryGuard& TLocationMemoryGuard::operator=(TLocationMemoryGuard&& oth
 void TLocationMemoryGuard::Release()
 {
     if (Owner_) {
-        Owner_->DecreaseUsedMemory(Direction_, Category_, Size_);
+        Owner_->DecreaseUsedMemory(UseLegacyUsedMemory_, Direction_, Category_, Size_);
+        MemoryGuard_.Release();
         Owner_.Reset();
         Size_ = 0;
     }
@@ -220,7 +262,10 @@ void TLocationMemoryGuard::IncreaseSize(i64 delta)
     YT_VERIFY(Owner_);
 
     Size_ += delta;
-    Owner_->IncreaseUsedMemory(Direction_, Category_, delta);
+    Owner_->IncreaseUsedMemory(UseLegacyUsedMemory_, Direction_, Category_, delta);
+    if (MemoryGuard_) {
+        MemoryGuard_.IncreaseSize(delta);
+    }
 }
 
 void TLocationMemoryGuard::DecreaseSize(i64 delta)
@@ -229,7 +274,10 @@ void TLocationMemoryGuard::DecreaseSize(i64 delta)
     YT_VERIFY(Size_ >= delta);
 
     Size_ -= delta;
-    Owner_->DecreaseUsedMemory(Direction_, Category_, delta);
+    Owner_->DecreaseUsedMemory(UseLegacyUsedMemory_, Direction_, Category_, delta);
+    if (MemoryGuard_) {
+        MemoryGuard_.DecreaseSize(delta);
+    }
 }
 
 i64 TLocationMemoryGuard::GetSize() const
@@ -237,79 +285,17 @@ i64 TLocationMemoryGuard::GetSize() const
     return Size_;
 }
 
+bool TLocationMemoryGuard::GetUseLegacyUsedMemory() const
+{
+    return UseLegacyUsedMemory_;
+}
+
+TChunkLocationPtr TLocationMemoryGuard::GetOwner() const
+{
+    return Owner_;
+}
+
 TLocationMemoryGuard::operator bool() const
-{
-    return Owner_.operator bool();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TPendingIOGuard::TPendingIOGuard(
-    TMemoryUsageTrackerGuard memoryGuard,
-    EIODirection direction,
-    EIOCategory category,
-    i64 size,
-    TChunkLocationPtr owner)
-    : MemoryGuard_(std::move(memoryGuard))
-    , Direction_(direction)
-    , Category_(category)
-    , Size_(size)
-    , Owner_(owner)
-{ }
-
-TPendingIOGuard::TPendingIOGuard(TPendingIOGuard&& other)
-{
-    MoveFrom(std::move(other));
-}
-
-void TPendingIOGuard::MoveFrom(TPendingIOGuard&& other)
-{
-    MemoryGuard_ = std::move(other.MemoryGuard_);
-    Direction_ = other.Direction_;
-    Category_ = other.Category_;
-    Size_ = other.Size_;
-    Owner_ = std::move(other.Owner_);
-
-    other.MemoryGuard_.Release();
-    other.Size_ = 0;
-    other.Owner_.Reset();
-}
-
-TPendingIOGuard::~TPendingIOGuard()
-{
-    Release();
-}
-
-i64 TPendingIOGuard::GetSize() const
-{
-    return Size_;
-}
-
-TPendingIOGuard& TPendingIOGuard::operator=(TPendingIOGuard&& other)
-{
-    if (this != &other) {
-        Release();
-        MoveFrom(std::move(other));
-    }
-    return *this;
-}
-
-void TPendingIOGuard::Release()
-{
-    if (Owner_) {
-        Owner_->DecreasePendingIOSize(Direction_, Category_, Size_);
-        MemoryGuard_.Release();
-        Owner_.Reset();
-        Size_ = 0;
-    }
-}
-
-TMemoryUsageTrackerGuard&& TPendingIOGuard::MoveMemoryTrackerGuard()
-{
-    return std::move(MemoryGuard_);
-}
-
-TPendingIOGuard::operator bool() const
 {
     return Owner_.operator bool();
 }
@@ -404,14 +390,28 @@ TChunkLocation::TChunkLocation(
 
     PerformanceCounters_ = New<TLocationPerformanceCounters>(Profiler_);
 
+    IOFairShareQueue_ = CreateFairShareHierarchicalSlotQueue<std::string>(
+        ChunkStoreHost_->GetFairShareHierarchicalScheduler(),
+        Profiler_.WithPrefix("/fair_share_hierarchical_queue"));
+
+    auto probePutblocksProfiler = Profiler_.WithPrefix("/probe_writes");
+    probePutblocksProfiler.AddFuncGauge("/queue_size", MakeStrong(this), [this] {
+        return GetRequestedQueueSize();
+    });
+
+    probePutblocksProfiler.AddFuncGauge("/requested_memory", MakeStrong(this), [this] {
+        return GetRequestedMemory();
+    });
+
     MediumFlag_ = Profiler_.Gauge("/medium");
     MediumFlag_.Update(1);
 
     UpdateMediumTag();
 
-    DynamicIOEngine_ = CreateDynamicIOEngine(
+    DynamicIOEngine_ = NIO::CreateDynamicIOEngine(
         StaticConfig_->IOEngineType,
         StaticConfig_->IOConfig,
+        IOFairShareQueue_,
         Id_,
         Profiler_,
         DataNodeLogger().WithTag("LocationId: %v", Id_));
@@ -443,7 +443,7 @@ TChunkLocation::TChunkLocation(
         diskThrottlerProfiler);
 
     HealthChecker_ = New<TDiskHealthChecker>(
-        ChunkContext_->DataNodeConfig->DiskHealthChecker,
+        StaticConfig_->DiskHealthChecker,
         GetPath(),
         GetAuxPoolInvoker(),
         DataNodeLogger(),
@@ -451,6 +451,28 @@ TChunkLocation::TChunkLocation(
 
     ChunkStoreHost_->SubscribePopulateAlerts(
         BIND_NO_PROPAGATE(&TChunkLocation::PopulateAlerts, MakeWeak(this)));
+}
+
+TErrorOr<TLocationFairShareSlotPtr> TChunkLocation::AddFairShareQueueSlot(
+    i64 size,
+    std::vector<IFairShareHierarchicalSlotQueueResourcePtr> resources,
+    std::vector<TFairShareHierarchyLevel<std::string>> levels)
+{
+    auto slotOrError = IOFairShareQueue_->EnqueueSlot(
+        size,
+        std::move(resources),
+        std::move(levels));
+
+    if (slotOrError.IsOK()) {
+        YT_LOG_DEBUG("Add new fair share slot (SlotId: %v, SlotSize: %v)",
+            slotOrError.Value()->GetSlotId(),
+            size);
+        return New<TLocationFairShareSlot>(
+            IOFairShareQueue_,
+            std::move(slotOrError.Value()));
+    }
+
+    return slotOrError.Wrap();
 }
 
 const NIO::IIOEnginePtr& TChunkLocation::GetIOEngine() const
@@ -467,6 +489,16 @@ const NIO::IIOEngineWorkloadModelPtr& TChunkLocation::GetIOEngineModel() const
     return IOEngineModel_;
 }
 
+double TChunkLocation::GetFairShareWorkloadCategoryWeight(EWorkloadCategory category) const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    auto config = GetRuntimeConfig();
+    return config->FairShareWorkloadCategoryWeights[category]
+        ? config->FairShareWorkloadCategoryWeights[category].value()
+        : DefaultFairShareWorkloadCategoryWeights[category];
+}
+
 THazardPtr<TChunkLocationConfig> TChunkLocation::GetRuntimeConfig() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -474,20 +506,12 @@ THazardPtr<TChunkLocationConfig> TChunkLocation::GetRuntimeConfig() const
     return RuntimeConfig_.AcquireHazard();
 }
 
-i64 TChunkLocation::GetPendingReadIOLimit() const
+i64 TChunkLocation::GetLegacyWriteMemoryLimit() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto config = GetRuntimeConfig();
-    return config->PendingReadIOLimit;
-}
-
-i64 TChunkLocation::GetPendingWriteIOLimit() const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    auto config = GetRuntimeConfig();
-    return config->PendingWriteIOLimit;
+    return config->LegacyWriteMemoryLimit;
 }
 
 i64 TChunkLocation::GetReadMemoryLimit() const
@@ -526,6 +550,10 @@ void TChunkLocation::Reconfigure(TChunkLocationConfigPtr config)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
+    UpdateIOWeightEvaluator(config->IOWeightFormula);
+
+    HealthChecker_->Reconfigure(config->DiskHealthChecker);
+
     TDiskLocation::Reconfigure(config);
 
     DynamicIOEngine_->SetType(config->IOEngineType, config->IOConfig);
@@ -562,7 +590,7 @@ const TString& TChunkLocation::GetDiskFamily() const
     return StaticConfig_->DiskFamily;
 }
 
-TString TChunkLocation::GetMediumName() const
+std::string TChunkLocation::GetMediumName() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -608,7 +636,14 @@ double TChunkLocation::GetIOWeight() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return StaticConfig_->IOWeight;
+    auto evaluator = IOWeightEvaluator_.Acquire();
+
+    if (evaluator) {
+        auto value = EvaluateIOWeight(evaluator);
+        return value.ValueOrDefault(1.);
+    } else {
+        return StaticConfig_->IOWeight;
+    }
 }
 
 i64 TChunkLocation::GetCoalescedReadMaxGapSize() const
@@ -827,60 +862,163 @@ const IMemoryUsageTrackerPtr& TChunkLocation::GetWriteMemoryTracker() const
     return WriteMemoryTracker_;
 }
 
+i64 TChunkLocation::GetMaxUsedMemory(
+    bool useLegacyUsedMemory,
+    EIODirection direction) const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    i64 result = 0;
+    for (auto category : TEnumTraits<EIOCategory>::GetDomainValues()) {
+        if (useLegacyUsedMemory) {
+            result = std::max(result, PerformanceCounters_->LegacyUsedMemory[direction][category].load());
+        } else {
+            result = std::max(result, PerformanceCounters_->UsedMemory[direction][category].load());
+        }
+    }
+    return result;
+}
+
 i64 TChunkLocation::GetUsedMemory(
+    bool useLegacyUsedMemory,
     EIODirection direction,
     const TWorkloadDescriptor& workloadDescriptor) const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto category = ToIOCategory(workloadDescriptor);
-    return PerformanceCounters_->UsedMemory[direction][category].load();
+
+    if (useLegacyUsedMemory) {
+        return PerformanceCounters_->LegacyUsedMemory[direction][category].load();
+    } else {
+        return PerformanceCounters_->UsedMemory[direction][category].load();
+    }
 }
 
-i64 TChunkLocation::GetUsedMemory(EIODirection direction) const
+i64 TChunkLocation::GetRequestedMemory() const
+{
+    auto guard = Guard(ProbePutBlocksRequestsLock_);
+
+    i64 result = 0;
+
+    for (const auto& supplier : ProbePutBlocksRequests_) {
+        if (!supplier->IsCanceled()) {
+            result += supplier->GetMaxRequestedMemory();
+        }
+    }
+
+    return result;
+}
+
+i64 TChunkLocation::GetRequestedQueueSize() const
+{
+    auto guard = Guard(ProbePutBlocksRequestsLock_);
+
+    return ProbePutBlocksRequests_.size();
+}
+
+TError TChunkLocation::GetLocationDisableError() const
+{
+    return LocationDisabledAlert_.Load();
+}
+
+void TChunkLocation::PushProbePutBlocksRequestSupplier(const TProbePutBlocksRequestSupplierPtr& supplier)
+{
+    auto guard = Guard(ProbePutBlocksRequestsLock_);
+
+    if (!ContainsProbePutBlocksRequestSupplier(supplier)) {
+        ProbePutBlocksRequests_.push_back(supplier);
+        EmplaceOrCrash(ProbePutBlocksSessionIds_, supplier->GetSessionId());
+    }
+
+    DoCheckProbePutBlocksRequests();
+
+    if (ContainsProbePutBlocksRequestSupplier(supplier)) {
+        YT_LOG_DEBUG("Supplier with probe put blocks request is delayed (SessionId: %v)", supplier->GetSessionId());
+        ReportThrottledProbingWrite();
+    }
+}
+
+bool TChunkLocation::ContainsProbePutBlocksRequestSupplier(const TProbePutBlocksRequestSupplierPtr& supplier) const
+{
+    YT_ASSERT_SPINLOCK_AFFINITY(ProbePutBlocksRequestsLock_);
+
+    return ProbePutBlocksSessionIds_.contains(supplier->GetSessionId());
+}
+
+void TChunkLocation::CheckProbePutBlocksRequests()
+{
+    auto guard = Guard(ProbePutBlocksRequestsLock_);
+    DoCheckProbePutBlocksRequests();
+}
+
+void TChunkLocation::DoCheckProbePutBlocksRequests()
+{
+    YT_ASSERT_SPINLOCK_AFFINITY(ProbePutBlocksRequestsLock_);
+
+    while (!ProbePutBlocksRequests_.empty()) {
+        auto supplierIt = ProbePutBlocksRequests_.begin();
+        auto& supplier = *supplierIt;
+        if (supplier->IsCanceled()) {
+            ProbePutBlocksRequests_.erase(supplierIt);
+            EraseOrCrash(ProbePutBlocksSessionIds_, supplier->GetSessionId());
+            continue;
+        }
+
+        auto request = supplier->TryGetMinRequest();
+        if (!request.has_value()) {
+            ProbePutBlocksRequests_.erase(supplierIt);
+            EraseOrCrash(ProbePutBlocksSessionIds_, supplier->GetSessionId());
+            continue;
+        }
+
+        auto memoryDifference = request->CumulativeBlockSize - supplier->GetCurrentApprovedMemory();
+        YT_VERIFY(memoryDifference > 0);
+
+        auto memoryGuard = TryAcquireLocationMemory(
+            /*useLegacyUsedMemory*/ false,
+            EIODirection::Write,
+            request->WorkloadDescriptor,
+            memoryDifference);
+
+        YT_LOG_DEBUG("Resources acquirenment "
+            "(SessionId: %v, MemoryDifference: %v, CumulativeBlockSize: %v, RequestedCumulativeBlockSize: %v, Error: %v)",
+            supplier->GetSessionId(),
+            memoryDifference,
+            request->CumulativeBlockSize,
+            supplier->GetMaxRequestedMemory(),
+            memoryGuard);
+
+        if (memoryGuard.IsOK()) {
+            supplier->ApproveRequest(std::move(memoryGuard.Value()), *request);
+
+            ProbePutBlocksRequests_.push_back(supplier);
+            ProbePutBlocksRequests_.erase(supplierIt);
+        } else {
+            break;
+        }
+    }
+}
+
+i64 TChunkLocation::GetUsedMemory(
+    bool useLegacyUsedMemory,
+    EIODirection direction) const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     i64 result = 0;
     for (auto category : TEnumTraits<EIOCategory>::GetDomainValues()) {
-        result += PerformanceCounters_->UsedMemory[direction][category].load();
+        if (useLegacyUsedMemory) {
+            result += PerformanceCounters_->LegacyUsedMemory[direction][category].load();
+        } else {
+            result += PerformanceCounters_->UsedMemory[direction][category].load();
+        }
     }
     return result;
 }
 
-i64 TChunkLocation::GetPendingIOSize(
-    EIODirection direction,
-    const TWorkloadDescriptor& workloadDescriptor) const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    auto category = ToIOCategory(workloadDescriptor);
-    return PerformanceCounters_->PendingIOSize[direction][category].load();
-}
-
-i64 TChunkLocation::GetMaxPendingIOSize(EIODirection direction) const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    i64 result = 0;
-    for (auto category : TEnumTraits<EIOCategory>::GetDomainValues()) {
-        result = std::max(result, PerformanceCounters_->PendingIOSize[direction][category].load());
-    }
-    return result;
-}
-
-i64 TChunkLocation::GetPendingIOSize(EIODirection direction) const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    i64 result = 0;
-    for (auto category : TEnumTraits<EIOCategory>::GetDomainValues()) {
-        result += PerformanceCounters_->PendingIOSize[direction][category].load();
-    }
-    return result;
-}
-
-TPendingIOGuard TChunkLocation::AcquirePendingIO(
+TLocationMemoryGuard TChunkLocation::AcquireLocationMemory(
+    bool useLegacyUsedMemory,
     TMemoryUsageTrackerGuard memoryGuard,
     EIODirection direction,
     const TWorkloadDescriptor& workloadDescriptor,
@@ -890,16 +1028,18 @@ TPendingIOGuard TChunkLocation::AcquirePendingIO(
 
     YT_ASSERT(delta >= 0);
     auto category = ToIOCategory(workloadDescriptor);
-    UpdatePendingIOSize(direction, category, delta);
-    return TPendingIOGuard(
+    UpdateUsedMemory(useLegacyUsedMemory, direction, category, delta);
+    return TLocationMemoryGuard(
         std::move(memoryGuard),
+        useLegacyUsedMemory,
         direction,
         category,
         delta,
         this);
 }
 
-TLocationMemoryGuard TChunkLocation::AcquireLocationMemory(
+TErrorOr<TLocationMemoryGuard> TChunkLocation::TryAcquireLocationMemory(
+    bool useLegacyUsedMemory,
     EIODirection direction,
     const TWorkloadDescriptor& workloadDescriptor,
     i64 delta)
@@ -907,13 +1047,28 @@ TLocationMemoryGuard TChunkLocation::AcquireLocationMemory(
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     YT_ASSERT(delta >= 0);
-    auto category = ToIOCategory(workloadDescriptor);
-    UpdateUsedMemory(direction, category, delta);
-    return TLocationMemoryGuard(
-        direction,
-        category,
-        delta,
-        this);
+
+    if (GetUsedMemory(useLegacyUsedMemory, direction) + delta > GetWriteMemoryLimit()) {
+        return TError(NChunkClient::EErrorCode::WriteThrottlingActive,
+            "Location memory of category %Qlv exceeds memory limit",
+            EMemoryCategory::PendingDiskWrite);
+    }
+
+    const auto& memoryTracker = GetWriteMemoryTracker();
+    auto memoryGuardOrError = TMemoryUsageTrackerGuard::TryAcquire(memoryTracker, delta);
+
+    if (memoryGuardOrError.IsOK()) {
+        return AcquireLocationMemory(
+            useLegacyUsedMemory,
+            std::move(memoryGuardOrError.Value()),
+            direction,
+            workloadDescriptor,
+            delta);
+    } else {
+        return TError(NChunkClient::EErrorCode::WriteThrottlingActive,
+            "Location memory of category %Qlv exceeds memory limit",
+            EMemoryCategory::PendingDiskWrite);
+    }
 }
 
 EIOCategory TChunkLocation::ToIOCategory(const TWorkloadDescriptor& workloadDescriptor)
@@ -946,64 +1101,80 @@ EIOCategory TChunkLocation::ToIOCategory(const TWorkloadDescriptor& workloadDesc
     }
 }
 
-void TChunkLocation::DecreasePendingIOSize(
-    EIODirection direction,
-    EIOCategory category,
-    i64 delta)
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    UpdatePendingIOSize(direction, category, -delta);
-}
-
-void TChunkLocation::UpdatePendingIOSize(
-    EIODirection direction,
-    EIOCategory category,
-    i64 delta)
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    i64 result = PerformanceCounters_->PendingIOSize[direction][category].fetch_add(delta) + delta;
-    YT_LOG_TRACE("Pending IO size updated (Direction: %v, Category: %v, PendingSize: %v, Delta: %v)",
-        direction,
-        category,
-        result,
-        delta);
-}
-
 void TChunkLocation::IncreaseUsedMemory(
+    bool useLegacyUsedMemory,
     EIODirection direction,
     EIOCategory category,
     i64 delta)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    UpdateUsedMemory(direction, category, delta);
+    UpdateUsedMemory(useLegacyUsedMemory, direction, category, delta);
 }
 
 void TChunkLocation::DecreaseUsedMemory(
+    bool useLegacyUsedMemory,
     EIODirection direction,
     EIOCategory category,
     i64 delta)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    UpdateUsedMemory(direction, category, -delta);
+    UpdateUsedMemory(useLegacyUsedMemory, direction, category, -delta);
 }
 
 void TChunkLocation::UpdateUsedMemory(
+    bool useLegacyUsedMemory,
     EIODirection direction,
     EIOCategory category,
     i64 delta)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    i64 result = PerformanceCounters_->UsedMemory[direction][category].fetch_add(delta) + delta;
-    YT_LOG_TRACE("Used memory updated (Direction: %v, Category: %v, UsedMemory: %v, Delta: %v)",
+    i64 result;
+    if (useLegacyUsedMemory) {
+        result = PerformanceCounters_->LegacyUsedMemory[direction][category].fetch_add(delta) + delta;
+    } else {
+        result = PerformanceCounters_->UsedMemory[direction][category].fetch_add(delta) + delta;
+    }
+
+    YT_LOG_TRACE("Used memory updated (UseLegacyUsedMemory: %v, Direction: %v, Category: %v, UsedMemory: %v, Delta: %v)",
+        useLegacyUsedMemory,
         direction,
         category,
         result,
         delta);
+}
+
+TErrorOr<double> TChunkLocation::EvaluateIOWeight(const NOrm::NQuery::IExpressionEvaluatorPtr& evaluator) const
+{
+    auto rowBuffer = New<NTableClient::TRowBuffer>();
+    auto value = evaluator->Evaluate(
+        BuildYsonStringFluently().BeginMap()
+            .Item("available_space").Value(GetAvailableSpace())
+            .Item("used_space").Value(GetUsedSpace())
+        .EndMap(),
+        rowBuffer);
+
+    if (value.IsOK() && value.Value().Type == NTableClient::EValueType::Double) {
+        return value.Value().Data.Double;
+    } else {
+        return TError("Failure in evaluation of IO weight formula") << value;
+    }
+}
+
+void TChunkLocation::UpdateIOWeightEvaluator(const std::optional<std::string>& formula)
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    if (formula) {
+        auto evaluator = NOrm::NQuery::CreateOrmExpressionEvaluator(*formula, {"/stat"});
+        EvaluateIOWeight(evaluator).ThrowOnError();
+
+        IOWeightEvaluator_ = std::move(evaluator);
+    } else {
+        IOWeightEvaluator_.Reset();
+    }
 }
 
 void TChunkLocation::IncreaseCompletedIOSize(
@@ -1274,7 +1445,7 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckReadThrottling(
     bool isProbing) const
 {
     auto readQueueSize =
-        GetPendingIOSize(EIODirection::Read, workloadDescriptor) +
+        GetUsedMemory(/*useLegacyUsedMemory*/ false, EIODirection::Read, workloadDescriptor) +
         GetOutThrottler(workloadDescriptor)->GetQueueTotalAmount();
 
     bool throttled = true;
@@ -1289,14 +1460,7 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckReadThrottling(
         error = TError("In flight IO read request count exceeds read request limit")
             << TErrorAttribute("in_flight_read_request_count", IOEngine_->GetInFlightReadRequestCount())
             << TErrorAttribute("read_requests_limit", IOEngine_->GetReadRequestLimit());
-    } else if (i64 pendingIOSize = GetPendingIOSize(EIODirection::Read),
-        readThrottlingLimit = GetPendingReadIOLimit();
-        pendingIOSize > readThrottlingLimit)
-    {
-        error = TError("Pending IO size exceeds read throttling limit")
-            << TErrorAttribute("pending_io_size", pendingIOSize)
-            << TErrorAttribute("read_throttling_limit", readThrottlingLimit);
-    } else if (i64 usedMemory = GetUsedMemory(EIODirection::Read),
+    } else if (i64 usedMemory = GetUsedMemory(/*useLegacyUsedMemory*/ false, EIODirection::Read),
         readMemoryLimit = GetReadMemoryLimit();
         usedMemory > readMemoryLimit)
     {
@@ -1317,7 +1481,7 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckReadThrottling(
 
     if (throttled) {
         if (isProbing) {
-            ReportThrottledProbing();
+            ReportThrottledProbingRead();
         } else {
             ReportThrottledRead();
         }
@@ -1330,14 +1494,19 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckReadThrottling(
     };
 }
 
-void TChunkLocation::ReportThrottledProbing() const
+void TChunkLocation::ReportThrottledProbingRead() const
 {
-    PerformanceCounters_->ReportThrottledProbing();
+    PerformanceCounters_->ReportThrottledProbingRead();
 }
 
 void TChunkLocation::ReportThrottledRead() const
 {
     PerformanceCounters_->ReportThrottledRead();
+}
+
+void TChunkLocation::ReportThrottledProbingWrite() const
+{
+    PerformanceCounters_->ReportThrottledProbingWrite();
 }
 
 TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
@@ -1357,8 +1526,8 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
             << TErrorAttribute("bytes_used", WriteMemoryTracker_->GetUsed())
             << TErrorAttribute("bytes_limit", WriteMemoryTracker_->GetLimit());
         memoryOvercommit = true;
-    } else if (i64 usedMemory = GetUsedMemory(EIODirection::Write),
-        writeMemoryLimit = GetWriteMemoryLimit();
+    } else if (i64 usedMemory = GetUsedMemory(/*useLegacyUsedMemory*/ true, EIODirection::Write, workloadDescriptor),
+        writeMemoryLimit = GetLegacyWriteMemoryLimit();
         usedMemory > writeMemoryLimit && blocksWindowShifted)
     {
         error = TError(
@@ -1368,26 +1537,16 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
             << TErrorAttribute("bytes_used", usedMemory)
             << TErrorAttribute("bytes_limit", writeMemoryLimit);
         memoryOvercommit = true;
-    } else if (i64 pendingIOSize = GetPendingIOSize(EIODirection::Write, workloadDescriptor),
-        writeThrottlingLimit = GetWriteThrottlingLimit();
-        pendingIOSize > writeThrottlingLimit && blocksWindowShifted)
+    } else if (i64 usedMemory = GetUsedMemory(/*useLegacyUsedMemory*/ true, EIODirection::Write),
+        writeMemoryLimit = GetLegacyWriteMemoryLimit();
+        usedMemory > writeMemoryLimit && blocksWindowShifted)
     {
         error = TError(
             NChunkClient::EErrorCode::WriteThrottlingActive,
-            "Pending IO size of workload category exceeds write throttling limit")
-            << TErrorAttribute("workload_category", workloadDescriptor.Category)
-            << TErrorAttribute("pending_io_size", pendingIOSize)
-            << TErrorAttribute("write_throttling_limit", writeThrottlingLimit);
-        memoryOvercommit = true;
-    } else if (i64 pendingIOSize = GetPendingIOSize(EIODirection::Write),
-        writeThrottlingLimit = GetPendingWriteIOLimit();
-        pendingIOSize > writeThrottlingLimit && blocksWindowShifted)
-    {
-        error = TError(
-            NChunkClient::EErrorCode::WriteThrottlingActive,
-            "Pending IO size exceeds write throttling limit")
-            << TErrorAttribute("pending_io_size", pendingIOSize)
-            << TErrorAttribute("write_throttling_limit", writeThrottlingLimit);
+            "Location memory of category %Qlv exceeds memory limit",
+            EMemoryCategory::PendingDiskWrite)
+            << TErrorAttribute("bytes_used", usedMemory)
+            << TErrorAttribute("bytes_limit", writeMemoryLimit);
         memoryOvercommit = true;
     } else if (IOEngine_->IsInFlightWriteRequestLimitExceeded()) {
         error = TError(
@@ -1450,7 +1609,10 @@ TLockedChunkGuard TChunkLocation::TryLockChunk(TChunkId chunkId)
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(LockedChunksLock_);
+
     if (!LockedChunkIds_.insert(chunkId).second) {
+        YT_LOG_DEBUG("Chunk is already locked (ChunkId: %v)",
+            chunkId);
         return {};
     }
     YT_LOG_DEBUG("Chunk locked (ChunkId: %v)",
@@ -1543,10 +1705,6 @@ void TChunkLocation::MarkUninitializedLocationDisabled(const TError& error)
     }
     ChunkCount_.store(0);
 
-    Profiler_
-        .WithTag("error_code", ToString(static_cast<int>(error.GetNonTrivialCode())))
-        .AddFuncGauge("/disabled", MakeStrong(this), [] { return 1.0; });
-
     ChangeState(ELocationState::Disabled, ELocationState::Disabling);
 }
 
@@ -1596,6 +1754,11 @@ std::vector<TChunkDescriptor> TChunkLocation::DoScan()
     // by moving them into trash.
     std::vector<TChunkDescriptor> descriptors;
     for (auto chunkId : chunkIds) {
+        if (TypeFromId(DecodeChunkId(chunkId).Id) == EObjectType::NbdChunk) {
+            YT_LOG_DEBUG("Removing left over NBD chunk (ChunkId: %v)", chunkId);
+            RemoveChunkFiles(chunkId, /*force*/ true);
+            continue;
+        }
         auto optionalDescriptor = RepairChunk(chunkId);
         if (optionalDescriptor) {
             descriptors.push_back(*optionalDescriptor);
@@ -1738,13 +1901,14 @@ class TStoreLocation::TIOStatisticsProvider
 {
 public:
     TIOStatisticsProvider(
+        TWeakPtr<TStoreLocation> storeLocation,
         TStoreLocationConfigPtr config,
         NIO::IIOEnginePtr ioEngine,
         TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         NProfiling::TProfiler profiler,
         TLogger logger)
-        : DeviceName_(config->DeviceName)
-        , MaxWriteRateByDwpd_(config->MaxWriteRateByDwpd)
+        : MaxWriteRateByDwpd_(config->MaxWriteRateByDwpd)
+        , StoreLocation_(storeLocation)
         , IOEngine_(std::move(ioEngine))
         , Logger(std::move(logger))
         , LastUpdateTime_(TInstant::Now())
@@ -1754,6 +1918,18 @@ public:
             BIND(&TIOStatisticsProvider::OnDynamicConfigChanged, MakeWeak(this)));
 
         profiler.AddProducer("", MakeStrong(this));
+
+        try {
+            if (config->DeviceName != TStoreLocationConfig::UnknownDeviceName) {
+                DeviceId_ = GetBlockDeviceId(config->DeviceName);
+            } else {
+                DeviceId_ = NFS::GetDeviceId(config->Path);
+            }
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Failed to get location device id (LocationPath: %v, DeviceName: %v)",
+                config->Path,
+                config->DeviceName);
+        }
     }
 
     TIOStatistics Get()
@@ -1768,8 +1944,8 @@ public:
     }
 
 private:
-    const TString DeviceName_;
     const i64 MaxWriteRateByDwpd_;
+    const TWeakPtr<TStoreLocation> StoreLocation_;
     const NIO::IIOEnginePtr IOEngine_;
     const TLogger Logger;
 
@@ -1784,6 +1960,7 @@ private:
     };
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CountersLock_);
+    std::optional<NFS::TDeviceId> DeviceId_;
     TInstant LastUpdateTime_;
     std::optional<TCounters> LastCounters_;
     TIOStatistics Statistics_;
@@ -1797,14 +1974,14 @@ private:
             .FilesystemWritten = IOEngine_->GetTotalWrittenBytes(),
         };
 
-        if (DeviceName_ != TStoreLocationConfig::UnknownDeviceName) {
+        if (DeviceId_) {
             try {
-                if (auto stat = GetBlockDeviceStat(DeviceName_)) {
+                if (auto stat = NYT::GetBlockDeviceStat(*DeviceId_)) {
                     counters.DiskRead = stat->SectorsRead * UnixSectorSize;
                     counters.DiskWritten = stat->SectorsWritten * UnixSectorSize;
                 } else {
-                    YT_LOG_WARNING("Missing disk statistics (DeviceName: %v, Func: GetCounters)",
-                        DeviceName_);
+                    YT_LOG_WARNING("Missing disk statistics (DeviceId: %v, Func: GetCounters)",
+                        *DeviceId_);
                 }
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(ex, "Failed to get disk statistics (Func: GetCounters)");
@@ -1851,9 +2028,9 @@ private:
 
     void CollectSensors(ISensorWriter* writer) override
     {
-        if (DeviceName_ != TStoreLocationConfig::UnknownDeviceName) {
+        if (DeviceId_) {
             try {
-                if (auto stat = GetBlockDeviceStat(DeviceName_)) {
+                if (auto stat = GetBlockDeviceStat(*DeviceId_)) {
                     writer->AddCounter(
                         "/disk/read_bytes",
                         stat->SectorsRead * UnixSectorSize);
@@ -1866,14 +2043,28 @@ private:
                         "/disk/io_in_progress",
                         stat->IOCurrentlyInProgress);
                 } else {
-                    YT_LOG_WARNING("Missing disk statistics (DeviceName: %v, Func: CollectSensors)",
-                        DeviceName_);
+                    YT_LOG_WARNING("Missing disk statistics (DeviceId: %v, Func: CollectSensors)",
+                        *DeviceId_);
                 }
             } catch (const std::exception& ex) {
                 if (!ErrorLogged_) {
                     YT_LOG_ERROR(ex, "Failed to get disk statistics (Func: CollectSensors)");
                     ErrorLogged_ = true;
                 }
+            }
+        }
+
+        if (auto storeLocation = StoreLocation_.Lock(); storeLocation) {
+            writer->AddGauge(
+                "/alive",
+                storeLocation->IsEnabled());
+
+            if (!storeLocation->IsEnabled()) {
+                writer->PushTag(TTag{"error_code", ToString(static_cast<int>(storeLocation->GetLocationDisableError().GetNonTrivialCode()))});
+                writer->AddGauge(
+                    "/disabled",
+                    !storeLocation->IsEnabled());
+                writer->PopTag();
             }
         }
 
@@ -1912,6 +2103,7 @@ TStoreLocation::TStoreLocation(
         BIND(&TStoreLocation::OnCheckTrash, MakeWeak(this)),
         config->TrashCheckPeriod))
     , IOStatisticsProvider_(New<TIOStatisticsProvider>(
+        MakeWeak(this),
         config,
         GetIOEngine(),
         DynamicConfigManager_,
@@ -1974,8 +2166,8 @@ i64 TStoreLocation::GetMaxWriteRateByDwpd() const
 
 bool TStoreLocation::IsTrashScanStopped() const
 {
-    const auto dynamicValue = DynamicConfigManager_->GetConfig()->DataNode->TestingOptions->EnableTrashScanningBarrier;
-    const auto staticValue = ChunkStore_->GetStaticDataNodeConfig()->EnableTrashScanningBarrier;
+    auto dynamicValue = DynamicConfigManager_->GetConfig()->DataNode->TestingOptions->EnableTrashScanningBarrier;
+    auto staticValue = ChunkStore_->GetStaticDataNodeConfig()->EnableTrashScanningBarrier;
     return dynamicValue.value_or(staticValue);
 }
 
@@ -2035,7 +2227,6 @@ void TStoreLocation::UpdateTrashChunkCount(int delta)
 
     TrashChunkCount_ += delta;
 }
-
 
 int TStoreLocation::GetTrashChunkCount() const
 {
@@ -2448,6 +2639,9 @@ std::vector<TString> TStoreLocation::GetChunkPartNames(TChunkId chunkId) const
                 primaryName + "." + SealedFlagExtension
             };
 
+        case EObjectType::NbdChunk:
+            return {primaryName};
+
         default:
             YT_ABORT();
     }
@@ -2508,15 +2702,15 @@ void TStoreLocation::DoScanTrash()
 void TStoreLocation::DoAsyncScanTrash()
 {
     BIND(&TStoreLocation::DoScanTrash, MakeStrong(this))
-    .AsyncVia(GetAuxPoolInvoker())
-    .Run()
-    .Subscribe(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<void>& err) {
-        if (err.IsOK()) {
-            TrashCheckExecutor_->Start();
-        } else {
-            YT_LOG_ERROR(err, "Error scanning location trash");
-        }
-    }));
+        .AsyncVia(GetAuxPoolInvoker())
+        .Run()
+        .Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
+            if (error.IsOK()) {
+                TrashCheckExecutor_->Start();
+            } else {
+                YT_LOG_ERROR(error, "Error scanning location trash");
+            }
+        }));
 }
 
 std::vector<TChunkDescriptor> TStoreLocation::DoScan()
@@ -2556,23 +2750,8 @@ bool TStoreLocation::IsWritable() const
         return false;
     }
 
-    if (GetMaxPendingIOSize(EIODirection::Write) > GetWriteThrottlingLimit()) {
+    if (GetMaxUsedMemory(true, EIODirection::Write) + GetMaxUsedMemory(false, EIODirection::Write) > GetWriteThrottlingLimit()) {
         return false;
-    }
-
-    auto dynamicConfig = DynamicConfigManager_->GetConfig()->DataNode;
-    if (dynamicConfig->DisableLocationWritesPendingReadSizeLowLimit && dynamicConfig->DisableLocationWritesPendingReadSizeHighLimit) {
-        auto pendingReadSize = GetMaxPendingIOSize(EIODirection::Read);
-        if (WritesDisabledDueToHighPendingReadSize_.load()) {
-            if (pendingReadSize < *dynamicConfig->DisableLocationWritesPendingReadSizeLowLimit) {
-                WritesDisabledDueToHighPendingReadSize_.store(false);
-            }
-        } else {
-            if (pendingReadSize > *dynamicConfig->DisableLocationWritesPendingReadSizeHighLimit) {
-                WritesDisabledDueToHighPendingReadSize_.store(true);
-                return false;
-            }
-        }
     }
 
     return true;

@@ -20,6 +20,9 @@ add_library(server-lib-cypress_registrar)
 target_compile_options(server-lib-cypress_registrar PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(server-lib-cypress_registrar PUBLIC

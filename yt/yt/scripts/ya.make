@@ -16,6 +16,7 @@ IF (NOT OPENSOURCE)
         job_perforator
         lvc-hunter
         mispick
+        used_disk_space
         scrape_cofe_metrics
         tutorial
         upload_resource

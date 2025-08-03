@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"net"
 	"net/http"
 	"time"
 
@@ -42,7 +43,7 @@ type client struct {
 }
 
 func NewClient(conf *yt.Config) (*client, error) {
-	clusterURL, err := conf.GetCusterURL()
+	clusterURL, err := conf.GetClusterURL()
 	if err != nil {
 		return nil, err
 	}
@@ -60,6 +61,10 @@ func NewClient(conf *yt.Config) (*client, error) {
 		stop:       internal.NewStopGroup(),
 	}
 
+	tlsConfig := tls.Config{
+		RootCAs: certPool,
+	}
+
 	c.httpClient = &http.Client{
 		Transport: &http.Transport{
 			MaxIdleConns:        0,
@@ -67,9 +72,7 @@ func NewClient(conf *yt.Config) (*client, error) {
 			IdleConnTimeout:     30 * time.Second,
 
 			TLSHandshakeTimeout: 10 * time.Second,
-			TLSClientConfig: &tls.Config{
-				RootCAs: certPool,
-			},
+			TLSClientConfig:     &tlsConfig,
 		},
 		Timeout: 60 * time.Second,
 	}
@@ -86,6 +89,20 @@ func NewClient(conf *yt.Config) (*client, error) {
 		clientOpts := []bus.ClientOption{
 			bus.WithLogger(c.log.Logger()),
 			bus.WithDefaultProtocolVersionMajor(ProtocolVersionMajor),
+		}
+		if conf.UseTLS {
+			busTLSConfig := tlsConfig.Clone()
+			if conf.PeerAlternativeHostName != "" {
+				// TODO(khlebnikov) use custom VerifyPeerCertificate.
+				busTLSConfig.ServerName = conf.PeerAlternativeHostName
+			} else if host, _, err := net.SplitHostPort(addr); err == nil {
+				// VerifyHostname expects FQDN or IP, both without port.
+				busTLSConfig.ServerName = host
+			} else {
+				busTLSConfig.ServerName = addr
+			}
+			clientOpts = append(clientOpts, bus.WithEncryptionMode(bus.EncryptionModeRequired))
+			clientOpts = append(clientOpts, bus.WithTLSConfig(busTLSConfig))
 		}
 		return bus.NewClient(ctx, addr, clientOpts...)
 	}, c.log)

@@ -34,6 +34,9 @@ add_library(server-lib-discovery_server)
 target_compile_options(server-lib-discovery_server PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(server-lib-discovery_server PUBLIC

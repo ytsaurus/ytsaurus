@@ -2,6 +2,7 @@ package timbertruck
 
 import (
 	"fmt"
+	"log/slog"
 	"path"
 	"testing"
 	"time"
@@ -14,7 +15,7 @@ import (
 func TestDatastore(t *testing.T) {
 	dir := t.TempDir()
 
-	ds, err := NewDatastore(path.Join(dir, "db.sqlite"))
+	ds, err := NewDatastore(slog.Default(), path.Join(dir, "db.sqlite"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		err = ds.Close()
@@ -46,7 +47,7 @@ func TestDatastore(t *testing.T) {
 func TestDatastoreGetTask(t *testing.T) {
 	dir := t.TempDir()
 
-	ds, err := NewDatastore(path.Join(dir, "db.sqlite"))
+	ds, err := NewDatastore(slog.Default(), path.Join(dir, "db.sqlite"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		err = ds.Close()
@@ -115,7 +116,7 @@ func TestDatastoreGetTask(t *testing.T) {
 func TestDatastoreCompleteTask(t *testing.T) {
 	dir := t.TempDir()
 
-	ds, err := NewDatastore(path.Join(dir, "db.sqlite"))
+	ds, err := NewDatastore(slog.Default(), path.Join(dir, "db.sqlite"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		err = ds.Close()
@@ -163,7 +164,7 @@ func TestDatastoreCompleteTask(t *testing.T) {
 func TestCleanUpCompletedTask(t *testing.T) {
 	dir := t.TempDir()
 
-	ds, err := NewDatastore(path.Join(dir, "db.sqlite"))
+	ds, err := NewDatastore(slog.Default(), path.Join(dir, "db.sqlite"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		err = ds.Close()
@@ -212,7 +213,7 @@ func TestCleanUpCompletedTask(t *testing.T) {
 func TestDatastoreCantAddSamePath(t *testing.T) {
 	dir := t.TempDir()
 
-	ds, err := NewDatastore(path.Join(dir, "db.sqlite"))
+	ds, err := NewDatastore(slog.Default(), path.Join(dir, "db.sqlite"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		err = ds.Close()
@@ -247,7 +248,7 @@ func TestDatastoreCantAddSamePath(t *testing.T) {
 func TestDatastoreTaskByIno(t *testing.T) {
 	dir := t.TempDir()
 
-	ds, err := NewDatastore(path.Join(dir, "db.sqlite"))
+	ds, err := NewDatastore(slog.Default(), path.Join(dir, "db.sqlite"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		err = ds.Close()
@@ -279,7 +280,7 @@ func TestDatastoreTaskByIno(t *testing.T) {
 func TestDatastoreTaskLimit(t *testing.T) {
 	dir := t.TempDir()
 
-	ds, err := NewDatastore(path.Join(dir, "db.sqlite"))
+	ds, err := NewDatastore(slog.Default(), path.Join(dir, "db.sqlite"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		err = ds.Close()

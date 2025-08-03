@@ -4,6 +4,7 @@
 
 #include "porto_executor.h"
 #include "private.h"
+#include "porto_helpers.h"
 
 #include <yt/yt/library/containers/cgroup.h>
 #include <yt/yt/library/containers/config.h>
@@ -111,8 +112,7 @@ std::vector<TResourceUsage::TTaggedStat> ExtractIOStatsPerDevice(
         if (deviceName != "hw") {
             result.emplace_back(
                 std::move(deviceName),
-                statisticsValue
-            );
+                statisticsValue);
         }
     }
 
@@ -187,15 +187,17 @@ const THashMap<EStatField, TPortoStatRule> PortoStatRules = {
     {EStatField::IOOpsLimit, {"io_ops_limit", GetIOStatExtractor()}},
     {EStatField::IOTotalTime, {"io_time", GetIOStatExtractor()}},
     {EStatField::IOWaitTime, {"io_wait", GetIOStatExtractor()}},
+};
 
-    {EStatField::NetTxBytes, {"net_tx_bytes[veth]", LongExtractor}},
-    {EStatField::NetTxPackets, {"net_tx_packets[veth]", LongExtractor}},
-    {EStatField::NetTxDrops, {"net_tx_drops[veth]", LongExtractor}},
-    {EStatField::NetTxLimit, {"net_limit[veth]", LongExtractor}},
-    {EStatField::NetRxBytes, {"net_rx_bytes[veth]", LongExtractor}},
-    {EStatField::NetRxPackets, {"net_rx_packets[veth]", LongExtractor}},
-    {EStatField::NetRxDrops, {"net_rx_drops[veth]", LongExtractor}},
-    {EStatField::NetRxLimit, {"net_rx_limit[veth]", LongExtractor}},
+const THashMap<EStatField, TPortoStatRule> PortoNetworkStatRules = {
+    {EStatField::NetTxBytes, {"net_tx_bytes", LongExtractor}},
+    {EStatField::NetTxPackets, {"net_tx_packets", LongExtractor}},
+    {EStatField::NetTxDrops, {"net_tx_drops", LongExtractor}},
+    {EStatField::NetTxLimit, {"net_limit", LongExtractor}},
+    {EStatField::NetRxBytes, {"net_rx_bytes", LongExtractor}},
+    {EStatField::NetRxPackets, {"net_rx_packets", LongExtractor}},
+    {EStatField::NetRxDrops, {"net_rx_drops", LongExtractor}},
+    {EStatField::NetRxLimit, {"net_rx_limit", LongExtractor}},
 };
 
 const THashMap<EStatField, TPortoTaggedStatRule> PortoTaggedStatRules = {
@@ -505,10 +507,17 @@ public:
         bool volumeCountRequested = false;
         bool layerCountRequested = false;
 
+        auto makeNetworkProperty = [&] (const TString& name) {
+            return Format("%v[%v]", name, DefaultPortoNetworkInterface);
+        };
+
         for (auto field : fields) {
             if (auto it = NDetail::PortoStatRules.find(field)) {
                 const auto& rule = it->second;
                 properties.push_back(rule.first);
+            } else if (auto it = NDetail::PortoNetworkStatRules.find(field)) {
+                const auto& rule = it->second;
+                properties.push_back(makeNetworkProperty(rule.first));
             } else if (auto it = NDetail::PortoTaggedStatRules.find(field)) {
                 const auto& rule = it->second;
                 properties.push_back(rule.first);
@@ -531,7 +540,7 @@ public:
 
         TResourceUsage result;
 
-        auto handleProperties = [&](const auto& statRules, auto& outputContainer) {
+        auto handleProperties = [&] (const auto& statRules, auto makePropertyName, auto& outputContainer) {
             for (auto field : fields) {
                 auto ruleIt = statRules.find(field);
                 if (ruleIt == statRules.end()) {
@@ -540,7 +549,8 @@ public:
 
                 const auto& [property, callback] = ruleIt->second;
                 auto& record = outputContainer[field];
-                if (auto responseIt = propertyMap.find(property); responseIt != propertyMap.end()) {
+                auto propertyName = makePropertyName(property);
+                if (auto responseIt = propertyMap.find(propertyName); responseIt != propertyMap.end()) {
                     const auto& valueOrError = responseIt->second;
                     if (valueOrError.IsOK()) {
                         const auto& value = valueOrError.Value();
@@ -565,8 +575,9 @@ public:
             }
         };
 
-        handleProperties(NDetail::PortoStatRules, result.ContainerStats);
-        handleProperties(NDetail::PortoTaggedStatRules, result.ContainerTaggedStats);
+        handleProperties(NDetail::PortoStatRules, [] (const TString& name) { return name; }, result.ContainerStats);
+        handleProperties(NDetail::PortoNetworkStatRules, makeNetworkProperty, result.ContainerStats);
+        handleProperties(NDetail::PortoTaggedStatRules, [] (const TString& name) { return name; }, result.ContainerTaggedStats);
 
         // We should maintain context switch information even if this field
         // is not requested since metrics of individual containers can go up and down.

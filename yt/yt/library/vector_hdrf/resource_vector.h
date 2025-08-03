@@ -100,6 +100,10 @@ inline TJobResources operator*(const TJobResources& lhs, const TResourceVector& 
     return result;
 }
 
+void Serialize(const TResourceVector& resourceVector, NYson::IYsonConsumer* consumer);
+
+void FormatValue(TStringBuilderBase* builder, const TResourceVector& resourceVector, TStringBuf spec);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using TVectorPiecewiseSegment = TPiecewiseSegment<TResourceVector>;
@@ -110,4 +114,3 @@ using TScalarPiecewiseLinearFunction = TPiecewiseLinearFunction<double>;
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NVectorHdrf
-

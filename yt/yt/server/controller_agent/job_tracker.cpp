@@ -803,10 +803,8 @@ TJobTracker::TJobTracker(TBootstrap* bootstrap, TJobReporterPtr jobReporter)
     , Config_(bootstrap->GetConfig()->ControllerAgent->JobTracker)
     , ThreadPool_(CreateThreadPool(Config_->HeavyInvokerThreadCount, "JobTrackerHeavy"))
     , JobEventsControllerQueue_(bootstrap->GetConfig()->ControllerAgent->JobEventsControllerQueue)
-    , HeartbeatStatisticsBytes_(NodeHeartbeatProfiler().WithHot().Counter("/statistics_bytes"))
-    , HeartbeatDataStatisticsBytes_(NodeHeartbeatProfiler().WithHot().Counter("/data_statistics_bytes"))
-    , HeartbeatJobResultBytes_(NodeHeartbeatProfiler().WithHot().Counter("/job_result_bytes"))
     , HeartbeatProtoMessageBytes_(NodeHeartbeatProfiler().WithHot().Counter("/proto_message_bytes"))
+    , HeartbeatDataStatisticsBytes_(NodeHeartbeatProfiler().WithHot().Counter("/data_statistics_bytes"))
     , HeartbeatEnqueuedControllerEvents_(NodeHeartbeatProfiler().WithHot().GaugeSummary("/enqueued_controller_events"))
     , HeartbeatCount_(NodeHeartbeatProfiler().WithHot().Counter("/count"))
     , StaleHeartbeatCount_(NodeHeartbeatProfiler().WithHot().Counter("/stale_count"))
@@ -833,7 +831,20 @@ TJobTracker::TJobTracker(TBootstrap* bootstrap, TJobReporterPtr jobReporter)
     , JobTrackerQueue_(New<NConcurrency::TActionQueue>("JobTracker"))
     , ExecNodes_(New<TRefCountedExecNodeDescriptorMap>())
     , OrchidService_(CreateOrchidService())
-{ }
+{
+    auto hotProfiler = NodeHeartbeatProfiler().WithHot();
+    for (auto jobStage : TEnumTraits<EJobStage>::GetDomainValues()) {
+        for (int i = 0; i <= 1; ++i) {
+            HeartbeatStatisticsBytes_[jobStage][i] = hotProfiler
+                .WithTag("job_stage", FormatEnum(jobStage))
+                .WithTag("known_jobs", i == 1 ? "true" : "false")
+                .Counter("/statistics_bytes");
+            HeartbeatJobResultBytes_[i] = hotProfiler
+                .WithTag("known_jobs", i == 1 ? "true" : "false")
+                .Counter("/job_result_bytes");
+        }
+    }
+}
 
 TFuture<void> TJobTracker::Initialize()
 {
@@ -907,7 +918,7 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
     }
 
     ProfileHeartbeatRequest(request);
-    THashMap<TOperationId, std::vector<std::unique_ptr<TJobSummary>>> groupedJobSummaries;
+    THashMap<TOperationId, std::vector<TJobEventSummary>> groupedJobSummaries;
     for (auto& job : *request->mutable_jobs()) {
         auto operationId = FromProto<TOperationId>(job.operation_id());
 
@@ -915,8 +926,16 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
             "ProcessHeartbeat",
             operationId);
 
+        auto protoJobResultMessageBytes = job.result().ByteSizeLong();
+        auto protoStatisticsMessageBytes = size(job.statistics());
+
         auto jobSummary = ParseJobSummary(&job, Logger());
-        groupedJobSummaries[operationId].push_back(std::move(jobSummary));
+
+        groupedJobSummaries[operationId].push_back(TJobEventSummary{
+            .JobSummary = std::move(jobSummary),
+            .ProtoJobResultMessageBytes = static_cast<i64>(protoJobResultMessageBytes),
+            .ProtoStatisticsMessageBytes = static_cast<i64>(protoStatisticsMessageBytes)
+        });
     }
 
     THashSet<TAllocationId> allocationIdsRunningOnNode;
@@ -928,6 +947,15 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
     }
 
     auto unconfirmedJobs = NYT::FromProto<std::vector<TJobId>>(request->unconfirmed_job_ids());
+
+    std::vector<TStoredJobInfo> storedJobs;
+    storedJobs.reserve(std::size(request->stored_jobs()));
+    for (const auto& storedJobProto : request->stored_jobs()) {
+        storedJobs.push_back(TStoredJobInfo{
+            .JobId = FromProto<TJobId>(storedJobProto.job_id()),
+            .OperationId = FromProto<TOperationId>(storedJobProto.operation_id()),
+        });
+    }
 
     THeartbeatProcessingContext heartbeatProcessingContext{
         .RpcContext = context,
@@ -942,6 +970,7 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
             .GroupedJobSummaries = std::move(groupedJobSummaries),
             .AllocationIdsRunningOnNode = std::move(allocationIdsRunningOnNode),
             .UnconfirmedJobIds = std::move(unconfirmedJobs),
+            .StoredJobs = std::move(storedJobs)
         },
         .ClusterToNetworkBandwidthAvailability = std::move(clusterToNetworkBandwidthAvailability),
     };
@@ -1186,26 +1215,15 @@ IInvokerPtr TJobTracker::GetHeavyInvoker() const
 
 void TJobTracker::ProfileHeartbeatRequest(const NProto::TReqHeartbeat* request)
 {
-    i64 totalJobStatisticsSize = 0;
     i64 totalJobDataStatisticsSize = 0;
-    i64 totalJobResultSize = 0;
     for (const auto& job : request->jobs()) {
-        if (job.has_statistics()) {
-            totalJobStatisticsSize += std::size(job.statistics());
-        }
-        if (job.has_result()) {
-            totalJobResultSize += job.result().ByteSizeLong();
-        }
         for (const auto& dataStatistics : job.output_data_statistics()) {
             totalJobDataStatisticsSize += dataStatistics.ByteSizeLong();
         }
-        totalJobStatisticsSize += job.total_input_data_statistics().ByteSizeLong();
     }
 
     HeartbeatProtoMessageBytes_.Increment(request->ByteSizeLong());
-    HeartbeatStatisticsBytes_.Increment(totalJobStatisticsSize);
     HeartbeatDataStatisticsBytes_.Increment(totalJobDataStatisticsSize);
-    HeartbeatJobResultBytes_.Increment(totalJobResultSize);
     HeartbeatCount_.Increment();
     ReceivedJobCount_.Increment(request->jobs_size());
 }
@@ -1235,6 +1253,19 @@ void TJobTracker::ProfileHeartbeatProperties(const THeartbeatCounters& heartbeat
     ThrottledRunningJobEventCount_.Increment(heartbeatCounters.ThrottledRunningJobEventCount);
     ThrottledHeartbeatCount_.Increment(heartbeatCounters.ThrottledRunningJobEventCount > 0);
     ThrottledOperationCount_.Increment(heartbeatCounters.ThrottledOperationCount);
+
+    // Update statistics and result bytes with known_jobs tag
+    for (auto isKnownJob : {true, false}) {
+        int index = static_cast<int>(isKnownJob);
+
+        for (auto jobStage : TEnumTraits<EJobStage>::GetDomainValues()) {
+            auto statisticsBytes = heartbeatCounters.JobStatisticsMessageSizes[jobStage][index];
+            HeartbeatStatisticsBytes_[jobStage][index].Increment(statisticsBytes);
+        }
+
+        auto resultBytes = heartbeatCounters.JobResultMessageSizes[index];
+        HeartbeatJobResultBytes_[index].Increment(resultBytes);
+    }
 }
 
 void TJobTracker::TOperationUpdatesProcessingContext::AddAllocationEvent(TSchedulerToAgentAllocationEvent&& event)
@@ -1489,7 +1520,12 @@ THashSet<TJobId> TJobTracker::DoProcessAbortedAndReleasedJobsInHeartbeat(
                 "Request node to remove job (JobId: %v, ReleaseFlags: %v)",
                 jobId,
                 releaseFlags);
-            ToProto(response->add_jobs_to_remove(), TJobToRelease{jobId, releaseFlags});
+            ToProto(
+                response->add_jobs_to_remove(),
+                TJobToRelease{
+                    .JobId = jobId,
+                    .ReleaseFlags = releaseFlags,
+                });
             ++heartbeatCounters.JobReleaseRequestCount;
         }
 
@@ -1547,8 +1583,9 @@ void TJobTracker::DoProcessJobInfosInHeartbeat(
         bool throttledAnyEvents = false;
 
         for (auto& jobSummary : jobSummaries) {
-            auto jobId = jobSummary->Id;
+            auto jobId = jobSummary.JobSummary->Id;
 
+            // Skip jobs that are already being aborted or released.
             if (jobsToSkip.contains(jobId)) {
                 continue;
             }
@@ -1557,7 +1594,13 @@ void TJobTracker::DoProcessJobInfosInHeartbeat(
                 "JobId: %v",
                 jobId);
 
-            auto newJobStage = JobStageFromJobState(jobSummary->State);
+            auto newJobStage = JobStageFromJobState(jobSummary.JobSummary->State);
+
+            auto increaseJobMessageSizes = [&] (bool isKnownJob) {
+                int index = static_cast<int>(isKnownJob);
+                heartbeatCounters.JobStatisticsMessageSizes[newJobStage][index] += jobSummary.ProtoStatisticsMessageBytes;
+                heartbeatCounters.JobResultMessageSizes[index] += jobSummary.ProtoJobResultMessageBytes;
+            };
 
             if (auto allocationIt = nodeJobs.Allocations.find(AllocationIdFromJobId(jobId));
                 allocationIt != end(nodeJobs.Allocations))
@@ -1569,11 +1612,13 @@ void TJobTracker::DoProcessJobInfosInHeartbeat(
                         *currentJobStage,
                         GetPtr(operationUpdatesProcessingContext),
                         response,
-                        GetPtr(jobSummary),
+                        GetPtr(jobSummary.JobSummary),
                         Logger,
                         GetPtr(heartbeatCounters),
                         shouldSkipRunningJobEvents);
-                    throttledAnyEvents = wasJobEventThrottled;
+                    throttledAnyEvents |= wasJobEventThrottled;
+
+                    increaseJobMessageSizes(/*isKnownJob:*/ true);
 
                     continue;
                 }
@@ -1583,10 +1628,12 @@ void TJobTracker::DoProcessJobInfosInHeartbeat(
 
             bool shouldAbortJob = newJobStage == EJobStage::Running;
 
+            increaseJobMessageSizes(/*isKnownJob:*/ false);
+
             YT_LOG_INFO(
                 "Request node to %v unknown job (JobState: %v)",
                 shouldAbortJob ? "abort" : "remove",
-                jobSummary->State);
+                jobSummary.JobSummary->State);
 
             ++heartbeatCounters.UnknownJobCount;
 
@@ -1601,11 +1648,66 @@ void TJobTracker::DoProcessJobInfosInHeartbeat(
                 ReportUnknownJobInArchive(jobId, operationId, nodeInfo->NodeAddress);
             } else {
                 ++heartbeatCounters.JobReleaseRequestCount;
-                ToProto(response->add_jobs_to_remove(), TJobToRelease{jobId});
+                ToProto(
+                    response->add_jobs_to_remove(),
+                    TJobToRelease{
+                        .JobId = jobId,
+                    });
             }
         }
 
         heartbeatCounters.ThrottledOperationCount += throttledAnyEvents;
+    }
+
+    for (const auto& storedJobInfo : heartbeatProcessingContext->Request.StoredJobs) {
+        auto operationIt = RegisteredOperations_.find(storedJobInfo.OperationId);
+        if (operationIt == end(RegisteredOperations_)) {
+            ToProto(response->add_unknown_operation_ids(), storedJobInfo.OperationId);
+            ++heartbeatCounters.UnknownOperationCount;
+            continue;
+        }
+
+        if (auto& operationInfo = operationIt->second;
+            !operationInfo.JobsReady)
+        {
+            YT_LOG_INFO(
+                "Operation jobs are not ready yet; skip handling stored job (JobId: %v, OperationId: %v)",
+                storedJobInfo.JobId,
+                storedJobInfo.OperationId);
+            continue;
+        }
+
+        auto allocationIt = nodeJobs.Allocations.find(AllocationIdFromJobId(storedJobInfo.JobId));
+        if (allocationIt != end(nodeJobs.Allocations) && allocationIt->second.HasJob(storedJobInfo.JobId)) {
+            const auto& allocation = allocationIt->second;
+            YT_LOG_FATAL_IF(
+                allocation.HasRunningJob(storedJobInfo.JobId) && allocation.GetRunningJob()->Confirmed,
+                "Stored job confirmed but considered running (JobId: %v, OperationId: %v)",
+                storedJobInfo.JobId,
+                storedJobInfo.OperationId);
+
+            YT_LOG_DEBUG(
+                "Node reported known stored job (OperationId: %v, JobId: %v)",
+                storedJobInfo.OperationId,
+                storedJobInfo.JobId);
+            ToProto(
+                response->add_jobs_to_store(),
+                TJobToStore{
+                    .JobId = storedJobInfo.JobId,
+                });
+        } else {
+            // Job is not running, tell the node to remove it.
+            YT_LOG_DEBUG(
+                "Node reported unknown stored job, requesting removal (OperationId: %v, JobId: %v)",
+                storedJobInfo.OperationId,
+                storedJobInfo.JobId);
+            ToProto(
+                response->add_jobs_to_remove(),
+                TJobToRelease{
+                    .JobId = storedJobInfo.JobId,
+                });
+            ++heartbeatCounters.JobReleaseRequestCount;
+        }
     }
 }
 
@@ -1628,7 +1730,7 @@ void TJobTracker::DoProcessAllocationsInHeartbeat(
         auto& [allocationId, allocation] = *allocationIt;
 
         bool shouldTryErase = false;
-        auto addAllocationToTryToErase = [&](TNodeJobs::TAllocationIterator allocationIt, TOperationInfo* operationInfo) {
+        auto addAllocationToTryToErase = [&] (TNodeJobs::TAllocationIterator allocationIt, TOperationInfo* operationInfo) {
             if (!std::exchange(shouldTryErase, true)) {
                 operationInfoToAllocationsToTryToErase[operationInfo].push_back(allocationIt);
             }
@@ -2406,7 +2508,7 @@ void TJobTracker::RequestJobAbortion(
         }
     } else {
         YT_LOG_DEBUG(
-            "Requested to abort job from unknown allocation; ignored (AllocationId: %v, JobId: %v)",
+            "Requested to abort job from unknown allocation (AllocationId: %v, JobId: %v)",
             AllocationIdFromJobId(jobId),
             jobId);
     }
@@ -2419,6 +2521,7 @@ void TJobTracker::RequestJobAbortion(
             .AbortReason = reason,
             .RequestNewJob = requestNewJob,
         });
+    ProcessOperationContext(std::move(context));
 }
 
 std::optional<TJobTracker::TAllocationInfo> TJobTracker::EraseAllocationIfNeeded(

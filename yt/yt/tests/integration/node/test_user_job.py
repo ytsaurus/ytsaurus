@@ -434,7 +434,7 @@ class TestSandboxTmpfs(YTEnvSetup):
         write_table("//tmp/t_input", {"foo": "bar"})
 
         op = map(
-            command="python -c 'import time; x = \"0\" * (200 * 1000 * 1000); time.sleep(2)'",
+            command="python3 -c 'import time; x = \"0\" * (200 * 1000 * 1000); time.sleep(2)'",
             in_="//tmp/t_input",
             out="//tmp/t_output",
             spec={
@@ -451,8 +451,7 @@ class TestSandboxTmpfs(YTEnvSetup):
         create("table", "//tmp/t_output")
         write_table("//tmp/t_input", {"foo": "bar"})
 
-        mapper = b"""
-#!/usr/bin/python
+        mapper = b"""#!/usr/bin/env python3
 
 import mmap, time
 
@@ -928,7 +927,7 @@ class TestSandboxTmpfsOverflow(YTEnvSetup):
                 "dd if=/dev/zero of=tmpfs_1/file  bs=1M  count=512; ls tmpfs_1/ >&2; "
                 "dd if=/dev/zero of=tmpfs_2/file  bs=1M  count=512; ls tmpfs_2/ >&2; "
                 "BREAKPOINT; "
-                "python -c 'import time; x = \"A\" * (200 * 1024 * 1024); time.sleep(100);'"
+                "python3 -c 'import time; x = \"A\" * (200 * 1024 * 1024); time.sleep(100);'"
             ),
             in_="//tmp/t_input",
             out="//tmp/t_output",
@@ -1524,7 +1523,7 @@ class TestJobStderr(YTEnvSetup):
         op = map(
             in_="//tmp/t1",
             out="//tmp/t2",
-            command='cat > /dev/null; python -c \'print("head" + "0" * 10000000); print("1" * 10000000 + "tail")\' >&2;',
+            command='cat > /dev/null; python3 -c \'print("head" + "0" * 10000000); print("1" * 10000000 + "tail")\' >&2;',
             spec={"max_failed_job_count": 1, "mapper": {"max_stderr_size": 1000000}},
         )
 
@@ -2828,11 +2827,11 @@ class TestHealExecNode(YTEnvSetup):
     USE_PORTO = True
 
     DELTA_NODE_CONFIG = {
-        "data_node": {
-            "disk_health_checker": {
-                "check_period": 1000,
+        "exec_node": {
+            "slot_manager": {
+                "locations": [{"disk_health_checker": {"check_period": 1000}}],
             },
-        },
+        }
     }
 
     DELTA_DYNAMIC_NODE_CONFIG = {
@@ -4006,7 +4005,7 @@ class TestCriJobStatistics(YTEnvSetup):
         write_table("//tmp/t_input", {"foo": "bar"})
 
         op = map(
-            command="python -c 'import time; x = \"X\" * (200 * 1000 * 1000); time.sleep(5)'",
+            command="python3 -c 'import time; x = \"X\" * (200 * 1000 * 1000); time.sleep(5)'",
             in_="//tmp/t_input",
             out="//tmp/t_output",
             spec={
@@ -4169,7 +4168,7 @@ class TestJobInputCache(YTEnvSetup):
         block_compressed_cache_size = self._seed_gauge(node, "exec_node/job_input_cache/block_cache/compressed_data/size")
         meta_cache_size = self._seed_gauge(node, "exec_node/job_input_cache/meta_cache/size")
 
-        map(
+        op = map(
             in_="<read_via_exec_node=%true>//tmp/input{}".format("[0:1,3:4]" if sort else ""),
             out="//tmp/output",
             command="cat",
@@ -4212,6 +4211,8 @@ class TestJobInputCache(YTEnvSetup):
             wait(lambda: block_compressed_cache_size.get() > 0)
             wait(lambda: meta_cache_size.get() > 0)
 
+        return op
+
     @pytest.mark.timeout(200)
     @authors("don-dron")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -4245,6 +4246,31 @@ class TestJobInputCache(YTEnvSetup):
         for node in nodes_to_run:
             self._run_job(node, sort=True, retry=False, cache_disabled=True)
             self._run_job(node, sort=True, retry=True, cache_disabled=True)
+
+    @authors("coteeq")
+    def test_reader_statistics(self):
+        self._set_config()
+        create("table", "//tmp/output")
+        nodes_to_run = [
+            self.find_node_with_flavors(["exec"]),
+            self.find_node_with_flavors(["data", "exec"]),
+        ]
+
+        def check_op(op, is_retry):
+            statistics = op.get_statistics()
+
+            if is_retry:
+                assert extract_statistic_v2(statistics, "chunk_reader_statistics.data_bytes_read_from_disk") == 0
+                assert extract_statistic_v2(statistics, "chunk_reader_statistics.data_bytes_read_from_cache") > 0
+            else:
+                assert extract_statistic_v2(statistics, "chunk_reader_statistics.data_bytes_read_from_disk") > 0
+                assert extract_statistic_v2(statistics, "chunk_reader_statistics.data_bytes_read_from_cache") == 0
+
+        for node in nodes_to_run:
+            remove("//tmp/input", force=True)
+            self._fill_table("//tmp/input", 1, "none", "scan", True, "none")
+            check_op(self._run_job(node, sort=True, retry=False, cache_disabled=False), is_retry=False)
+            check_op(self._run_job(node, sort=True, retry=True, cache_disabled=False), is_retry=True)
 
     @authors("don-dron")
     def test_disable_for_remote_copy(self):
@@ -4340,6 +4366,7 @@ class TestJobStatistics(YTEnvSetup):
 
         for output in [0, 1]:
             assert get_statistics("data_bytes_written_to_disk", output) > 0
+            assert get_statistics("data_blocks_written_to_disk", output) == upload_replication_factor
             assert get_statistics("data_io_write_requests", output) == upload_replication_factor
             assert get_statistics("data_io_sync_requests", output) == upload_replication_factor
             assert get_statistics("meta_bytes_written_to_disk", output) > 0

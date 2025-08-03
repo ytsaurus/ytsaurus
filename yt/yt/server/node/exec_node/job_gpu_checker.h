@@ -16,8 +16,7 @@
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
-namespace NYT::NExecNode
-{
+namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,12 +27,12 @@ struct TJobGpuCheckerContext
     NContainers::TRootFS RootFS;
     TString CommandUser;
 
-    TString GpuCheckBinaryPath;
-    std::vector<TString> GpuCheckBinaryArgs;
-    EGpuCheckType GpuCheckType;
+    EGpuCheckType Type;
+
+    TGpuCheckOptions Options;
+
     int CurrentStartIndex;
     bool TestExtraGpuCheckCommandFailure;
-    std::vector<NContainers::TDevice> GpuDevices;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

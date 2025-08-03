@@ -615,7 +615,7 @@ class TestQuery(DynamicTablesBase):
 
         assert sorted_dicts(expected) == sorted_dicts(actual)
 
-        read_count_path = "//tmp/jr/@tablets/0/performance_counters/dynamic_row_lookup_count"
+        read_count_path = "//tmp/jr/@tablets/0/performance_counters/dynamic_row_read_count"
         wait(lambda: get(read_count_path) > 0)
         assert get(read_count_path) == 3
 
@@ -2517,6 +2517,10 @@ class TestQuery(DynamicTablesBase):
             query = "col_name from (select 1 as col_name from [//tmp/t] limit 1) join [//tmp/t] on 1 = 1 group by col_name"
             select_rows(query, allow_join_without_index=True)
 
+        assert select_rows("cardinality_merge(Subquery.x) AS c FROM "
+                           "(SELECT cardinality_state(k_2) AS x FROM `//tmp/t` GROUP BY k_1) AS Subquery "
+                           "GROUP BY 1")[0]["c"] == 4
+
     @authors("sabdenovch")
     def test_push_down_group_by_primary_key(self):
         sync_create_cells(1)
@@ -2737,6 +2741,34 @@ class TestQueryRpcProxy(TestQuery):
 
         assert select_rows("* from [//tmp/t] with hint \"{require_sync_replica=%false}\"") == data
 
+    @authors("dtorilov")
+    def test_select_with_limit_read_data_weight(self):
+        length = 100
+        sync_create_cells(3)
+        path = "//tmp/t"
+        schema = [
+            make_sorted_column("key", "int64"),
+            make_column("value", "int64"),
+        ]
+        create("table", path, attributes={"dynamic": True, "schema": schema})
+        reshard_table(path, [[]] + [[i] for i in range(10, length * 10, 10)])
+        sync_mount_table(path)
+        insert_rows(path, [{"key": i, "value": i} for i in range(length * 10)])
+        select_rows(f"* from [{path}] where key > 500 limit 10")
+        statistics = [get(f"{path}/@tablets/{i}/performance_counters/dynamic_row_read_count") for i in range(length)]
+        assert all(map(lambda x : x == 0, statistics[:(length//2)]))
+        assert statistics[length//2] != 0
+        assert all(map(lambda x : x == 0, statistics[(length//2+2):]))
+        set("//sys/rpc_proxies/@config", {})
+        set("//sys/rpc_proxies/@config/cluster_connection", {})
+        set("//sys/rpc_proxies/@config/cluster_connection/disable_adaptive_ordered_schemaful_reader", False)
+        time.sleep(1)
+        select_rows(f"* from [{path}] where key > 500 limit 10")
+        statistics = [get(f"{path}/@tablets/{i}/performance_counters/dynamic_row_read_count") for i in range(length)]
+        assert all(map(lambda x : x == 0, statistics[:(length//2)]))
+        assert statistics[length//2] != 0
+        assert all(map(lambda x : x == 0, statistics[(length//2+3):]))
+
 
 @pytest.mark.enabled_multidaemon
 class TestSelectWithRowCache(TestLookupCache):
@@ -2747,3 +2779,18 @@ class TestSelectWithRowCache(TestLookupCache):
         keys = str(list(keys))[1:-1]
         column_names = "*" if column_names is None else ", ".join(column_names)
         return select_rows(column_names + f" from [{table}] where key in ({keys})", **kwargs)
+
+
+@pytest.mark.enabled_multidaemon
+class TestQuerySequoia(TestQuery):
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+    NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_TEST_PARTITIONS = 4
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }

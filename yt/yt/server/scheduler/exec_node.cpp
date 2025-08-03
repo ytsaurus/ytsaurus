@@ -29,6 +29,11 @@ const std::string& TExecNode::GetDefaultAddress() const
     return NodeDescriptor_.GetDefaultAddress();
 }
 
+const TAddressMap& TExecNode::GetAddresses() const
+{
+    return NodeDescriptor_.Addresses();
+}
+
 bool TExecNode::CanSchedule(const TSchedulingTagFilter& filter) const
 {
     return filter.IsEmpty() || filter.CanSchedule(Tags_);
@@ -39,6 +44,7 @@ TExecNodeDescriptorPtr TExecNode::BuildExecDescriptor() const
     return New<TExecNodeDescriptor>(
         Id_,
         GetDefaultAddress(),
+        GetAddresses(),
         NodeDescriptor_.GetDataCenter(),
         IOWeight_,
         MasterState_ == NNodeTrackerClient::ENodeState::Online && SchedulerState_ == ENodeState::Online,
@@ -50,7 +56,7 @@ TExecNodeDescriptorPtr TExecNode::BuildExecDescriptor() const
         SchedulingOptions_);
 }
 
-void TExecNode::SetIOWeights(const THashMap<TString, double>& mediumToWeight)
+void TExecNode::SetIOWeights(const THashMap<std::string, double>& mediumToWeight)
 {
     // NB: Surely, something smarter than this should be done with individual medium weights here.
     IOWeight_ = 0.0;

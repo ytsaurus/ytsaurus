@@ -18,6 +18,9 @@ add_executable(table_read_write_tnode)
 target_compile_options(table_read_write_tnode PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(table_read_write_tnode PUBLIC

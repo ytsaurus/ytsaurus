@@ -58,7 +58,7 @@ public:
         if (FailMetaRequests_ && TryFail()) {
             return MakeFuture<TRefCountedChunkMetaPtr>(TError("Failed to read meta"));
         }
-        return Underlying_->GetMeta(options.ClientOptions, partitionTag);
+        return Underlying_->GetMeta(options.ClientOptions, {}, partitionTag);
     }
 
     TChunkId GetChunkId() const override
@@ -73,7 +73,7 @@ public:
         if (TryFail()) {
             return MakeFuture<std::vector<TBlock>>(TError("Failed to read blocks"));
         }
-        return Underlying_->ReadBlocks(options.ClientOptions, blockIndexes);
+        return Underlying_->ReadBlocks(options.ClientOptions, blockIndexes, {});
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
@@ -84,7 +84,7 @@ public:
         if (TryFail()) {
             return MakeFuture<std::vector<TBlock>>(TError("Failed to read blocks"));
         }
-        return Underlying_->ReadBlocks(options.ClientOptions, firstBlockIndex, blockCount);
+        return Underlying_->ReadBlocks(options.ClientOptions, firstBlockIndex, blockCount, {});
     }
 
     TInstant GetLastFailureTime() const override

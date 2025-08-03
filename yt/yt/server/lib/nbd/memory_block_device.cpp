@@ -6,7 +6,7 @@ namespace NYT::NNbd {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMemoryBlockDevice
-    : public IBlockDevice
+    : public TBaseBlockDevice
 {
 public:
     explicit TMemoryBlockDevice(TMemoryBlockDeviceConfigPtr config)
@@ -34,21 +34,22 @@ public:
         return TString();
     }
 
-    TFuture<TSharedRef> Read(
+    TFuture<TReadResponse> Read(
         i64 offset,
-        i64 length) override
+        i64 length,
+        const TReadOptions& /*options*/) override
     {
-        return MakeFuture<TSharedRef>(Data_.Slice(offset, offset + length));
+        return MakeFuture<TReadResponse>({Data_.Slice(offset, offset + length), false});
     }
 
-    TFuture<void> Write(
+    TFuture<TWriteResponse> Write(
         i64 offset,
         const TSharedRef& data,
         const TWriteOptions& /*options*/) override
     {
         // XXX(babenko): racy
         std::copy(data.Begin(), data.End(), Data_.Begin() + offset);
-        return VoidFuture;
+        return MakeFuture<TWriteResponse>({});
     }
 
     TFuture<void> Flush() override
@@ -57,6 +58,11 @@ public:
     }
 
     TFuture<void> Initialize() override
+    {
+        return VoidFuture;
+    }
+
+    TFuture<void> Finalize() override
     {
         return VoidFuture;
     }

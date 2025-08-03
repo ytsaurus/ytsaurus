@@ -7,6 +7,7 @@ message TSheep
 {
     optional string name = 1;
     optional int32 age = 2;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 3;
 }
 
 message TEngine
@@ -30,4 +31,5 @@ message TCar
     repeated bool quality_controls = 6 [packed = true];
     map<string, fixed32> owner_to_experience = 7;
     map<fixed32, sint64> sensor_to_voltage = 8;
+    map<int32, TEngine> series_to_engine = 9;
 }

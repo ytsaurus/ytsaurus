@@ -47,7 +47,7 @@ void TNonversionedMapObjectBase<TSelf>::DetachChild(TSelf* child) noexcept
 {
     YT_VERIFY(child);
     YT_VERIFY(child->GetParent() == this);
-    child->ResetParent();
+    child->SetParent(nullptr);
     for (auto* node = As<TSelf>(); node; node = node->GetParent()) {
         node->SubtreeSize_ -= child->SubtreeSize_;
     }
@@ -124,12 +124,6 @@ std::string TNonversionedMapObjectBase<TSelf>::GetRootName() const
 }
 
 template <class TSelf>
-void TNonversionedMapObjectBase<TSelf>::ResetParent()
-{
-    SetParent(nullptr);
-}
-
-template <class TSelf>
 bool TNonversionedMapObjectBase<TSelf>::IsRoot() const
 {
     return IsRoot_;
@@ -171,7 +165,7 @@ void TNonversionedMapObjectBase<TSelf>::Load(NCellMaster::TLoadContext& context)
 template <class TSelf>
 void RecomputeSubtreeSize(TNonversionedMapObjectBase<TSelf>* mapObject, bool validateMatch)
 {
-    static constexpr auto& Logger = ObjectServerLogger;
+    const auto& Logger = ObjectServerLogger();
     int subtreeSize = 1;
     for (const auto& [_, child] : mapObject->KeyToChild()) {
         RecomputeSubtreeSize(child.Get(), validateMatch);

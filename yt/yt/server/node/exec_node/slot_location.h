@@ -90,7 +90,7 @@ public:
 
     TDiskStatistics GetDiskStatistics(int slotIndex) const;
 
-    TString GetMediumName() const;
+    std::string GetMediumName() const;
 
     NChunkClient::TMediumDescriptor GetMediumDescriptor() const;
     void SetMediumDescriptor(const NChunkClient::TMediumDescriptor& descriptor);
@@ -123,6 +123,8 @@ public:
     TFuture<void> Repair();
 
     IJobDirectoryManagerPtr GetJobDirectoryManager();
+
+    void UpdateHealthCheckerConfig(const NServer::TDiskHealthCheckerDynamicConfigPtr& config);
 
 private:
     const TSlotLocationConfigPtr Config_;

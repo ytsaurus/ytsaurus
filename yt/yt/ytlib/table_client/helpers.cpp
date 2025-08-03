@@ -219,7 +219,7 @@ TOutputResult GetWrittenChunksBoundaryKeys(const ISchemalessMultiChunkWriterPtr&
         return result;
     }
 
-    result.set_unique_keys(writer->GetSchema()->GetUniqueKeys());
+    result.set_unique_keys(writer->GetSchema()->IsUniqueKeys());
 
     auto frontBoundaryKeys = GetProtoExtension<NProto::TBoundaryKeysExt>(chunks.front().chunk_meta().extensions());
     result.set_min(frontBoundaryKeys.min());
@@ -506,37 +506,37 @@ TColumnarStatistics GetColumnarStatistics(
         return columnarStatistics;
     }
 
-    i64 totalDataWeight = 0;
+    i64 schemaColumnsDataWeight = 0;
     THashMap<std::string_view, i64> columnGroupToDataWeight;
     for (const auto& column : tableSchema->Columns()) {
         i64 columnDataWeight = estimateColumnDataWeight(column.StableName());
-        totalDataWeight += columnDataWeight;
+        schemaColumnsDataWeight += columnDataWeight;
         if (!column.Group()) {
             continue;
         }
         columnGroupToDataWeight[*column.Group()] += columnDataWeight;
     }
 
-    i64 uncompressedReadDataSizeEstimate = 0;
+    i64 dataWeightWithColumnGroups = 0;
     bool shouldCountOtherColumns = false;
     THashSet<std::string_view> visitedColumnGroups;
     for (const auto& columnName : columnNames) {
         const auto* column = tableSchema->FindColumnByStableName(columnName);
-        if (!column && !tableSchema->GetStrict()) {
+        if (!column && !tableSchema->IsStrict()) {
             shouldCountOtherColumns = true;
         } else if (column && !column->Group()) {
-            uncompressedReadDataSizeEstimate += estimateColumnDataWeight(columnName);
+            dataWeightWithColumnGroups += estimateColumnDataWeight(columnName);
         } else if (column && visitedColumnGroups.insert(*column->Group()).second) {
-            uncompressedReadDataSizeEstimate += columnGroupToDataWeight[*column->Group()];
+            dataWeightWithColumnGroups += columnGroupToDataWeight[*column->Group()];
         }
     }
 
     if (shouldCountOtherColumns) {
-        uncompressedReadDataSizeEstimate += std::max<i64>(0, chunk->GetUncompressedDataSize() - totalDataWeight);
+        dataWeightWithColumnGroups += std::max<i64>(0, chunk->GetDataWeight() - schemaColumnsDataWeight);
     }
 
-    double compressionRatio = static_cast<double>(chunk->GetCompressedDataSize()) / chunk->GetUncompressedDataSize();
-    columnarStatistics.ReadDataSizeEstimate = uncompressedReadDataSizeEstimate * compressionRatio;
+    double compressedDataSizeToDataWeightRatio = static_cast<double>(chunk->GetCompressedDataSize()) / chunk->GetDataWeight();
+    columnarStatistics.ReadDataSizeEstimate = dataWeightWithColumnGroups * compressedDataSizeToDataWeightRatio;
 
     return columnarStatistics;
 }
@@ -576,7 +576,7 @@ std::optional<i64> EstimateReadDataSizeForColumns(
     const auto& columnMeta = *optionalColumnMetaExt;
 
     int expectedColumnSize = std::ssize(schema->Columns());
-    if (!schema->GetStrict()) {
+    if (!schema->IsStrict()) {
         ++expectedColumnSize;
     }
 
@@ -584,7 +584,7 @@ std::optional<i64> EstimateReadDataSizeForColumns(
         YT_LOG_ALERT("Unexpected chunk columns size in column meta "
             "(ChunkId: %v, SchemaStrict: %v, ExpectedColumnSize: %v, ActualColumnSize: %v)",
             chunkId,
-            schema->GetStrict(),
+            schema->IsStrict(),
             expectedColumnSize,
             columnMeta.columns_size());
         return compressedDataSize;
@@ -598,7 +598,7 @@ std::optional<i64> EstimateReadDataSizeForColumns(
         int columnIndex;
         const auto* columnSchema = schema->FindColumnByStableName(columnName);
         if (!columnSchema) {
-            if (otherColumnsBlocksAdded || schema->GetStrict()) {
+            if (otherColumnsBlocksAdded || schema->IsStrict()) {
                 continue;
             }
             otherColumnsBlocksAdded = true;
@@ -897,7 +897,7 @@ IAttributeDictionaryPtr ResolveExternalTable(
     const TYPath& path,
     TTableId* tableId,
     TCellTag* externalCellTag,
-    const std::vector<TString>& extraAttributeKeys)
+    const std::vector<std::string>& extraAttributeKeys)
 {
     TMasterReadOptions options;
     auto proxy = std::make_unique<TObjectServiceProxy>(CreateObjectServiceReadProxy(

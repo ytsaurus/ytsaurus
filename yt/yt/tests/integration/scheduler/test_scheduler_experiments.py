@@ -1,11 +1,18 @@
 import builtins
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import (
+    YTEnvSetup,
+    Restarter,
+    SCHEDULERS_SERVICE,
+)
+
 from yt_commands import (
-    authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
+    authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create, update_pool_tree_config,
     get, exists,
-    reduce, map_reduce, sort, erase, remote_copy, get_driver, run_test_vanilla, vanilla,
+    reduce, map_reduce, sort, erase, remote_copy, get_driver, run_test_vanilla, run_sleeping_vanilla, vanilla,
     write_table, map, merge, get_operation, list_operations, sync_create_cells, raises_yt_error)
+
+from yt_scheduler_helpers import scheduler_orchid_operation_path
 
 import yt.environment.init_operations_archive as init_operations_archive
 
@@ -510,6 +517,19 @@ class TestUserJobAndJobIOExperiments(YTEnvSetup):
                         }
                     },
                 },
+                "exp_d1": {
+                    "fraction": 0.1,
+                    "ticket": "ytexp-4",
+                    "ab_treatment_group": {
+                        "fraction": 1.0,
+                        "controller_user_job_spec_template_patch": {
+                            "environment": {
+                                "YT_HTTP_PROXY_ROLE": "ml",
+                                "YT_RPC_PROXY_ROLE": "ml",
+                            },
+                        },
+                    },
+                },
             },
         },
     }
@@ -692,6 +712,30 @@ class TestUserJobAndJobIOExperiments(YTEnvSetup):
         assert spec["partition_job_io"]["foo_spec"] == "patched"
         assert spec["merge_job_io"]["foo_spec"] == "patched"
 
+    @authors("hiddenpath")
+    def test_patch_job_environment(self):
+        op = vanilla(
+            spec={
+                "experiment_overrides": ["exp_d1.treatment"],
+                "tasks": {
+                    "task_a": {
+                        "job_count": 1,
+                        "command": "true",
+                    },
+                    "task_b": {
+                        "job_count": 1,
+                        "command": "true",
+                        "environment": {
+                            "YT_HTTP_PROXY_ROLE": "data"
+                        }
+                    },
+                }})
+        spec = get_operation(op.id, attributes=["full_spec"])["full_spec"]
+        assert spec["tasks"]["task_a"]["environment"]["YT_HTTP_PROXY_ROLE"] == "ml"
+        assert spec["tasks"]["task_a"]["environment"]["YT_RPC_PROXY_ROLE"] == "ml"
+        assert spec["tasks"]["task_b"]["environment"]["YT_HTTP_PROXY_ROLE"] == "data"
+        assert spec["tasks"]["task_b"]["environment"]["YT_RPC_PROXY_ROLE"] == "ml"
+
 
 @pytest.mark.enabled_multidaemon
 class TestListOperationFilterExperiments(YTEnvSetup):
@@ -753,3 +797,58 @@ class TestListOperationFilterExperiments(YTEnvSetup):
         assert {op["id"] for op in res["operations"]} == {op2.id}
         res = list_operations()
         assert {op["id"] for op in res["operations"]} == {op1.id, op2.id, op3.id}
+
+
+@pytest.mark.enabled_multidaemon
+class TestSchedulerOperationOptionsPatch(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "experiments": {
+                "exp_a1": {
+                    "fraction": 0,
+                    "ticket": "YTEXP-1",
+                    "ab_treatment_group": {
+                        "fraction": 0,
+                        "scheduler_options_patch": {
+                            "allocation_preemption_timeout": 1000,
+                            "allocation_graceful_preemption_timeout": 2000,
+                        },
+                    },
+                },
+            },
+        },
+    }
+
+    @authors("renadeen")
+    def test_scheduler_operation_options_patch(self):
+        update_pool_tree_config("default", {
+            "allocation_preemption_timeout": 5000,
+            "allocation_graceful_preemption_timeout": 6000,
+        })
+
+        op_noexp = run_sleeping_vanilla()
+        op_exp = run_sleeping_vanilla(spec={"experiment_overrides": ["exp_a1"]})
+
+        wait(lambda: exists(scheduler_orchid_operation_path(op_noexp.id)))
+        assert get(scheduler_orchid_operation_path(op_noexp.id) + "/allocation_preemption_timeout") == 5000
+        assert get(scheduler_orchid_operation_path(op_noexp.id) + "/allocation_graceful_preemption_timeout") == 6000
+
+        wait(lambda: exists(scheduler_orchid_operation_path(op_exp.id)))
+        assert get(scheduler_orchid_operation_path(op_exp.id) + "/allocation_preemption_timeout") == 1000
+        assert get(scheduler_orchid_operation_path(op_exp.id) + "/allocation_graceful_preemption_timeout") == 2000
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        wait(lambda: exists(scheduler_orchid_operation_path(op_noexp.id)))
+        assert get(scheduler_orchid_operation_path(op_noexp.id) + "/allocation_preemption_timeout") == 5000
+        assert get(scheduler_orchid_operation_path(op_noexp.id) + "/allocation_graceful_preemption_timeout") == 6000
+
+        wait(lambda: exists(scheduler_orchid_operation_path(op_exp.id)))
+        assert get(scheduler_orchid_operation_path(op_exp.id) + "/allocation_preemption_timeout") == 1000
+        assert get(scheduler_orchid_operation_path(op_exp.id) + "/allocation_graceful_preemption_timeout") == 2000

@@ -1185,7 +1185,7 @@ TYPath TSchedulerCompositeElement::GetFullPath(bool explicitOnly, bool withTreeI
     return path;
 }
 
-std::optional<TString> TSchedulerCompositeElement::GetRedirectToCluster() const
+std::optional<std::string> TSchedulerCompositeElement::GetRedirectToCluster() const
 {
     return std::nullopt;
 }
@@ -1241,12 +1241,12 @@ bool TSchedulerPoolElement::IsEphemeralInDefaultParentPool() const
     return EphemeralInDefaultParentPool_;
 }
 
-void TSchedulerPoolElement::SetUserName(const std::optional<TString>& userName)
+void TSchedulerPoolElement::SetUserName(const std::optional<std::string>& userName)
 {
     UserName_ = userName;
 }
 
-const std::optional<TString>& TSchedulerPoolElement::GetUserName() const
+const std::optional<std::string>& TSchedulerPoolElement::GetUserName() const
 {
     return UserName_;
 }
@@ -1305,6 +1305,12 @@ TJobResourcesConfigPtr TSchedulerPoolElement::GetSpecifiedNonPreemptibleResource
 {
     return Config_->NonPreemptibleResourceUsageThreshold;
 }
+
+std::optional<TDuration> TSchedulerPoolElement::GetSpecifiedWaitingForResourcesOnNodeTimeout() const
+{
+    return Config_->WaitingForResourcesOnNodeTimeout;
+}
+
 TString TSchedulerPoolElement::GetId() const
 {
     return Id_;
@@ -1361,6 +1367,11 @@ void TSchedulerPoolElement::UpdateRecursiveAttributes()
     EffectiveNonPreemptibleResourceUsageThresholdConfig_ = Parent_->EffectiveNonPreemptibleResourceUsageThresholdConfig();
     if (const auto& specifiedConfig = GetSpecifiedNonPreemptibleResourceUsageThresholdConfig()) {
         EffectiveNonPreemptibleResourceUsageThresholdConfig_ = specifiedConfig;
+    }
+
+    EffectiveWaitingForResourcesOnNodeTimeout_ = Parent_->GetEffectiveWaitingForResourcesOnNodeTimeout();
+    if (auto specifiedTimeout = GetSpecifiedWaitingForResourcesOnNodeTimeout()) {
+        EffectiveWaitingForResourcesOnNodeTimeout_ = specifiedTimeout;
     }
 
     TSchedulerCompositeElement::UpdateRecursiveAttributes();
@@ -1562,7 +1573,8 @@ const TSchedulerCompositeElement* TSchedulerPoolElement::GetNearestAncestorWithR
         if (element->PersistentAttributes().AppliedSpecifiedResourceLimits) {
             return element;
         }
-    } while (element = element->GetParent());
+        element = element->GetParent();
+    } while (element);
 
     return nullptr;
 }
@@ -1724,7 +1736,7 @@ std::optional<bool> TSchedulerPoolElement::IsIdleCpuPolicyAllowed() const
     return Parent_->IsIdleCpuPolicyAllowed();
 }
 
-std::optional<TString> TSchedulerPoolElement::GetRedirectToCluster() const
+std::optional<std::string> TSchedulerPoolElement::GetRedirectToCluster() const
 {
     return Config_->RedirectToCluster
         ? Config_->RedirectToCluster
@@ -1741,15 +1753,15 @@ void TSchedulerPoolElement::PropagatePoolAttributesToOperations()
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerOperationElementFixedState::TSchedulerOperationElementFixedState(
-    IOperationStrategyHost* operation,
+    IOperationStrategyHostPtr operation,
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,
     TSchedulingTagFilter schedulingTagFilter)
     : OperationId_(operation->GetId())
-    , OperationHost_(operation)
+    , OperationHost_(std::move(operation))
     , ControllerConfig_(std::move(controllerConfig))
-    , UserName_(operation->GetAuthenticatedUser())
-    , Type_(operation->GetType())
-    , TrimmedAnnotations_(operation->GetTrimmedAnnotations())
+    , UserName_(OperationHost_->GetAuthenticatedUser())
+    , Type_(OperationHost_->GetType())
+    , TrimmedAnnotations_(OperationHost_->GetTrimmedAnnotations())
     , SchedulingTagFilter_(std::move(schedulingTagFilter))
 { }
 
@@ -1758,13 +1770,14 @@ TSchedulerOperationElementFixedState::TSchedulerOperationElementFixedState(
 TSchedulerOperationElement::TSchedulerOperationElement(
     TFairShareStrategyTreeConfigPtr treeConfig,
     TStrategyOperationSpecPtr spec,
+    TOperationOptionsPtr operationOptions,
     TOperationFairShareTreeRuntimeParametersPtr runtimeParameters,
     TFairShareStrategyOperationControllerPtr controller,
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,
     TFairShareStrategyOperationStatePtr state,
     ISchedulerStrategyHost* strategyHost,
     IFairShareTreeElementHost* treeElementHost,
-    IOperationStrategyHost* operation,
+    IOperationStrategyHostPtr operation,
     const TString& treeId,
     const NLogging::TLogger& logger)
     : TSchedulerElement(
@@ -1776,10 +1789,11 @@ TSchedulerOperationElement::TSchedulerOperationElement(
         EResourceTreeElementKind::Operation,
         logger.WithTag("OperationId: %v", operation->GetId()))
     , TSchedulerOperationElementFixedState(
-        operation,
+        std::move(operation),
         std::move(controllerConfig),
         TSchedulingTagFilter(spec->SchedulingTagFilter))
     , Spec_(std::move(spec))
+    , OperationOptions_(std::move(operationOptions))
     , RuntimeParameters_(std::move(runtimeParameters))
     , Controller_(std::move(controller))
     , FairShareStrategyOperationState_(std::move(state))
@@ -1791,6 +1805,7 @@ TSchedulerOperationElement::TSchedulerOperationElement(
     : TSchedulerElement(other, clonedParent)
     , TSchedulerOperationElementFixedState(other)
     , Spec_(other.Spec_)
+    , OperationOptions_(other.OperationOptions_)
     , RuntimeParameters_(other.RuntimeParameters_)
     , Controller_(other.Controller_)
 { }
@@ -1905,6 +1920,9 @@ void TSchedulerOperationElement::UpdateRecursiveAttributes()
 
     // These attributes cannot be overwritten in operations.
     EffectiveAggressiveStarvationEnabled_ = Parent_->GetEffectiveAggressiveStarvationEnabled();
+
+    // TODO(eshcherbin): Currently |WaitingJobTimeout| spec option is applied in controller. Should we do it here instead?
+    EffectiveWaitingForResourcesOnNodeTimeout_ = Parent_->GetEffectiveWaitingForResourcesOnNodeTimeout();
 }
 
 void TSchedulerOperationElement::OnFifoSchedulableElementCountLimitReached(TFairSharePostUpdateContext* context)
@@ -1943,6 +1961,11 @@ TString TSchedulerOperationElement::GetId() const
 TOperationId TSchedulerOperationElement::GetOperationId() const
 {
     return OperationId_;
+}
+
+std::optional<std::string> TSchedulerOperationElement::GetTitle() const
+{
+    return OperationHost_->GetTitle();
 }
 
 void TSchedulerOperationElement::SetRuntimeParameters(TOperationFairShareTreeRuntimeParametersPtr runtimeParameters)
@@ -2062,7 +2085,7 @@ int TSchedulerOperationElement::GetSlotIndex() const
     return SlotIndex_;
 }
 
-TString TSchedulerOperationElement::GetUserName() const
+std::string TSchedulerOperationElement::GetUserName() const
 {
     return UserName_;
 }
@@ -2080,6 +2103,11 @@ const TYsonString& TSchedulerOperationElement::GetTrimmedAnnotations() const
 TResourceVector TSchedulerOperationElement::GetBestAllocationShare() const
 {
     return PersistentAttributes_.BestAllocationShare;
+}
+
+bool TSchedulerOperationElement::IsFairShareTruncationInFifoPoolAllowed() const
+{
+    return IsGang() || IsSingleAllocationVanillaOperation();
 }
 
 bool TSchedulerOperationElement::IsGang() const
@@ -2172,8 +2200,7 @@ TControllerScheduleAllocationResultPtr TSchedulerOperationElement::ScheduleAlloc
     const TJobResources& availableResources,
     const TDiskResources& availableDiskResources,
     TDuration timeLimit,
-    const TString& treeId,
-    const TFairShareStrategyTreeConfigPtr& treeConfig)
+    const TString& treeId)
 {
     return Controller_->ScheduleAllocation(
         context,
@@ -2181,7 +2208,8 @@ TControllerScheduleAllocationResultPtr TSchedulerOperationElement::ScheduleAlloc
         availableDiskResources,
         timeLimit,
         treeId,
-        GetParent()->GetFullPath(/*explicitOnly*/ false), treeConfig);
+        GetParent()->GetFullPath(/*explicitOnly*/ false),
+        EffectiveWaitingForResourcesOnNodeTimeout_);
 }
 
 void TSchedulerOperationElement::OnScheduleAllocationFailed(
@@ -2415,9 +2443,22 @@ bool TSchedulerOperationElement::IsIdleCpuPolicyAllowed() const
     return false;
 }
 
-const std::optional<TBriefVanillaTaskSpecMap>& TSchedulerOperationElement::GetMaybeBriefVanillaTaskSpecMap() const
+bool TSchedulerOperationElement::IsSingleAllocationVanillaOperation() const
 {
-    return OperationHost_->GetMaybeBriefVanillaTaskSpecs();
+    const auto& maybeVanillaTaskSpecs = OperationHost_->GetMaybeBriefVanillaTaskSpecs();
+    return maybeVanillaTaskSpecs &&
+        (size(*maybeVanillaTaskSpecs) == 1) &&
+        (maybeVanillaTaskSpecs->begin()->second.JobCount == 1);
+}
+
+TDuration TSchedulerOperationElement::GetEffectiveAllocationPreemptionTimeout() const
+{
+    return OperationOptions_->AllocationPreemptionTimeout.value_or(TreeConfig_->AllocationPreemptionTimeout);
+}
+
+TDuration TSchedulerOperationElement::GetEffectiveAllocationGracefulPreemptionTimeout() const
+{
+    return OperationOptions_->AllocationGracefulPreemptionTimeout.value_or(TreeConfig_->AllocationGracefulPreemptionTimeout);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2500,6 +2541,9 @@ void TSchedulerRootElement::UpdateRecursiveAttributes()
     YT_VERIFY(GetSpecifiedNonPreemptibleResourceUsageThresholdConfig());
     EffectiveNonPreemptibleResourceUsageThresholdConfig_ = GetSpecifiedNonPreemptibleResourceUsageThresholdConfig();
 
+    // NB: May be null.
+    EffectiveWaitingForResourcesOnNodeTimeout_ = GetSpecifiedWaitingForResourcesOnNodeTimeout();
+
     TSchedulerCompositeElement::UpdateRecursiveAttributes();
 }
 
@@ -2546,6 +2590,11 @@ std::optional<bool> TSchedulerRootElement::IsAggressiveStarvationEnabled() const
 TJobResourcesConfigPtr TSchedulerRootElement::GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const
 {
     return TreeConfig_->NonPreemptibleResourceUsageThreshold;
+}
+
+std::optional<TDuration> TSchedulerRootElement::GetSpecifiedWaitingForResourcesOnNodeTimeout() const
+{
+    return TreeConfig_->WaitingForResourcesOnNodeTimeout;
 }
 
 void TSchedulerRootElement::BuildPoolSatisfactionDigests(TFairSharePostUpdateContext* postUpdateContext)

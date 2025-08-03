@@ -17,6 +17,7 @@ ENDIF()
 GO_TEST_SRCS(
     admin_client_test.go
     auth_client_test.go
+    batch_request_test.go
     client_test.go
     complex_types_test.go
     compression_test.go
@@ -34,6 +35,7 @@ GO_TEST_SRCS(
     operations_test.go
     ordered_tables_test.go
     replicated_tables_test.go
+    skiff_test.go
     smart_read_test.go
     tables_test.go
     table_backup_test.go

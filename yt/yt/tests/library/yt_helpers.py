@@ -157,16 +157,17 @@ def skip_if_component_old(env, version_at_least, component, message="too old"):
         pytest.skip(component + " " + message)
 
 
-def skip_if_no_descending(env):
-    skip_if_old(env, (21, 1), "do not support descending yet")
+# COMPAT(pogorelov)
+def skip_if_delivery_fenced_pipe_writer_not_supported(use_new_delivery_fenced_connection):
+    kernel_version = platform.release()
+    major_kernel_version = tuple(int(part) for part in kernel_version.split(".")[0:2])
+    print_debug("platform release:", major_kernel_version)
 
+    if major_kernel_version >= (5, 4) and major_kernel_version < (5, 15) and use_new_delivery_fenced_connection:
+        pytest.xfail("New delivery fenced pipe writer is not supported since linux kernel 5.4 and before 5.15")
 
-def skip_if_renaming_disabled(env):
-    skip_if_old(env, (22, 2), "do not support column renaming")
-
-
-def skip_if_renaming_not_differentiated(env):
-    skip_if_old(env, (23, 1), "not differentiated renaming in static vs dynamic")
+    if major_kernel_version >= (5, 15) and not use_new_delivery_fenced_connection:
+        pytest.xfail("Old delivery fenced pipe writer is not supported on kernels newer than 5.15")
 
 
 def write_log_barrier(address, category="Barrier", driver=None, cluster_name="primary"):
@@ -304,3 +305,21 @@ def is_uring_disabled():
         return False
     with open(proc_file, "r") as myfile:
         return myfile.read().strip() == '0'
+
+
+def wait_and_get_controller_incarnation(agent: str):
+    """
+    :param agent: Controller agent's address.
+    """
+    incarnation_id = None
+
+    def check():
+        nonlocal incarnation_id
+        incarnation_id = get(
+            f"//sys/controller_agents/instances/{agent}/orchid/controller_agent/incarnation_id",
+            default=None
+        )
+        return incarnation_id is not None
+
+    wait(check)
+    return incarnation_id

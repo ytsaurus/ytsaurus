@@ -153,9 +153,9 @@ protected:
                 TotalOutputRowCount_ += jobSummary.TotalOutputDataStatistics->row_count();
             }
 
-            TChunkStripeKey key = 0;
+            TChunkStripeKey key;
             if (Controller_->OrderedOutputRequired_) {
-                key = TOutputOrder::TEntry(joblet->OutputCookie);
+                key = TChunkStripeKey(TOutputOrder::TEntry(joblet->OutputCookie));
             }
 
             RegisterOutput(jobSummary, joblet->ChunkListIds, joblet, key, /*processEmptyStripes*/ true);
@@ -242,9 +242,9 @@ protected:
             TTask::OnChunkTeleported(teleportChunk, tag);
 
             if (Controller_->OrderedOutputRequired_) {
-                Controller_->RegisterTeleportChunk(teleportChunk, /*key*/ TOutputOrder::TEntry(teleportChunk), /*tableIndex*/ 0);
+                Controller_->RegisterTeleportChunk(teleportChunk, /*key*/ TChunkStripeKey(TOutputOrder::TEntry(teleportChunk)), /*tableIndex*/ 0);
             } else {
-                Controller_->RegisterTeleportChunk(std::move(teleportChunk), /*key*/ 0, /*tableIndex*/ 0);
+                Controller_->RegisterTeleportChunk(std::move(teleportChunk), /*key*/ TChunkStripeKey(), /*tableIndex*/ 0);
             }
         }
 
@@ -252,9 +252,9 @@ protected:
         {
             auto config = TaskHost_->GetJobSplitterConfigTemplate();
 
-            config->EnableJobSplitting &=
-                (IsJobInterruptible() &&
-                std::ssize(Controller_->InputManager->GetInputTables()) <= Controller_->Options_->JobSplitter->MaxInputTableCount);
+            if (!IsJobInterruptible()) {
+                config->EnableJobSplitting = false;
+            }
 
             return config;
         }
@@ -262,11 +262,6 @@ protected:
         bool IsJobInterruptible() const override
         {
             if (!TTask::IsJobInterruptible()) {
-                return false;
-            }
-
-            // Remote copy jobs works with chunks as blobs and therefore are unsplittable.
-            if (Controller_->GetOperationType() == EOperationType::RemoteCopy) {
                 return false;
             }
 
@@ -292,7 +287,7 @@ protected:
 
     using TOrderedTaskPtr = TIntrusivePtr<TOrderedTask>;
 
-    std::vector<TOrderedTaskPtr> OrderedTasks_;
+    TOrderedTaskPtr OrderedTask_;
 
     IJobSizeConstraintsPtr JobSizeConstraints_;
 
@@ -308,7 +303,7 @@ protected:
 
     virtual bool IsTeleportationSupported() const = 0;
 
-    virtual i64 GetMinTeleportChunkSize() = 0;
+    virtual i64 GetMinTeleportChunkSize() const = 0;
 
     virtual void ValidateInputDataSlice(const TLegacyDataSlicePtr& /*dataSlice*/)
     { }
@@ -325,10 +320,7 @@ protected:
 
     bool IsCompleted() const override
     {
-        return !OrderedTasks_.empty() &&
-            std::all_of(OrderedTasks_.begin(), OrderedTasks_.end(), [] (const auto& task) {
-                return task->IsCompleted();
-            });
+        return OrderedTask_ && OrderedTask_->IsCompleted();
     }
 
     void CustomPrepare() override
@@ -340,35 +332,19 @@ protected:
 
     void CalculateSizes()
     {
-        switch (OperationType) {
+        switch (OperationType_) {
             case EOperationType::Merge:
             case EOperationType::Erase:
-            case EOperationType::RemoteCopy: {
-                auto dataSizeHint = OperationType == EOperationType::RemoteCopy
-                    ? EDataSizePerMergeJobHint::OperationOptions
-                    : EDataSizePerMergeJobHint::DesiredChunkSize;
-                JobSizeConstraints_ = CreateMergeJobSizeConstraints(
-                    Spec_,
-                    Options_,
-                    Logger,
-                    TotalEstimatedInputChunkCount,
-                    PrimaryInputDataWeight,
-                    DataWeightRatio,
-                    InputCompressionRatio,
-                    /*inputTableCount*/ 1,
-                    /*primaryInputTableCount*/ 1,
-                    dataSizeHint);
-                break;
-            }
             case EOperationType::Map:
                 JobSizeConstraints_ = CreateUserJobSizeConstraints(
                     Spec_,
                     Options_,
                     Logger,
                     OutputTables_.size(),
-                    DataWeightRatio,
-                    TotalEstimatedInputChunkCount,
-                    PrimaryInputDataWeight);
+                    DataWeightRatio_,
+                    TotalEstimatedInputChunkCount_,
+                    PrimaryInputDataWeight_,
+                    PrimaryInputCompressedDataSize_);
                 break;
 
             default:
@@ -393,30 +369,22 @@ protected:
         return chunkStripe;
     }
 
-    virtual int AddInputSlices()
-    {
-        int sliceCount = 0;
-        TPeriodicYielder yielder(PrepareYieldPeriod);
-        for (auto& slice : CollectPrimaryInputDataSlices(InputSliceDataWeight_)) {
-            ValidateInputDataSlice(slice);
-            GetSingleOrderedTask()->AddInput(CreateChunkStripe(std::move(slice)));
-            ++sliceCount;
-            yielder.TryYield();
-        }
-
-        return sliceCount;
-    }
-
     void ProcessInputs()
     {
-        YT_PROFILE_TIMING("/operations/merge/input_processing_time") {
+        YT_PROFILE_TIMING("/operations/ordered/input_processing_time") {
             YT_LOG_INFO("Processing inputs");
 
-            for (auto& task : OrderedTasks_) {
-                task->SetIsInput(true);
+            OrderedTask_->SetIsInput(true);
+
+            int sliceCount = 0;
+            TPeriodicYielder yielder(PrepareYieldPeriod);
+            for (auto& slice : CollectPrimaryInputDataSlices(InputSliceDataWeight_)) {
+                ValidateInputDataSlice(slice);
+                OrderedTask_->AddInput(CreateChunkStripe(std::move(slice)));
+                ++sliceCount;
+                yielder.TryYield();
             }
 
-            auto sliceCount = AddInputSlices();
             YT_LOG_INFO("Processed inputs (Slices: %v)", sliceCount);
         }
     }
@@ -436,7 +404,7 @@ protected:
     void InitTeleportableInputTables()
     {
         if (IsTeleportationSupported()) {
-            const auto& inputTables = InputManager->GetInputTables();
+            const auto& inputTables = InputManager_->GetInputTables();
             for (int index = 0; index < std::ssize(inputTables); ++index) {
                 if (inputTables[index]->SupportsTeleportation() && OutputTables_[0]->SupportsTeleportation()) {
                     inputTables[index]->Teleportable = CheckTableSchemaCompatibility(
@@ -450,7 +418,7 @@ protected:
 
     TOutputOrderPtr GetOutputOrder() const override
     {
-        return GetSingleOrderedTask()->GetChunkPoolOutput()->GetOutputOrder();
+        return OrderedTask_->GetChunkPoolOutput()->GetOutputOrder();
     }
 
     void CustomMaterialize() override
@@ -469,52 +437,38 @@ protected:
             }
         }
 
-        CreateTasks();
-        for (const auto& task : OrderedTasks_) {
-            RegisterTask(task);
-        }
+        OrderedTask_ = New<TOrderedTask>(this);
+        RegisterTask(OrderedTask_);
 
         ProcessInputs();
 
-        for (const auto& task : OrderedTasks_) {
-            FinishTaskInput(task);
-        }
+        FinishTaskInput(OrderedTask_);
 
         FinishPreparation();
     }
 
-    virtual void CreateTasks()
-    {
-        OrderedTasks_.emplace_back(New<TOrderedTask>(this));
-    }
-
-    TOrderedChunkPoolOptions GetOrderedChunkPoolOptions()
+    virtual TOrderedChunkPoolOptions GetOrderedChunkPoolOptions() const
     {
         TOrderedChunkPoolOptions chunkPoolOptions;
-        chunkPoolOptions.MaxTotalSliceCount = Config->MaxTotalSliceCount;
+        chunkPoolOptions.MaxTotalSliceCount = Config_->MaxTotalSliceCount;
         chunkPoolOptions.EnablePeriodicYielder = true;
         chunkPoolOptions.MinTeleportChunkSize = GetMinTeleportChunkSize();
         chunkPoolOptions.JobSizeConstraints = JobSizeConstraints_;
-        chunkPoolOptions.KeepOutputOrder = OrderedOutputRequired_;
-        chunkPoolOptions.ShouldSliceByRowIndices = GetJobType() != EJobType::RemoteCopy;
+        chunkPoolOptions.BuildOutputOrder = OrderedOutputRequired_;
+        chunkPoolOptions.ShouldSliceByRowIndices = true;
+        chunkPoolOptions.UseNewSlicingImplementation = GetSpec()->UseNewSlicingImplementationInOrderedPool;
         chunkPoolOptions.Logger = Logger().WithTag("Name: Root");
         return chunkPoolOptions;
     }
 
     TDataFlowGraph::TVertexDescriptor GetOutputLivePreviewVertexDescriptor() const override
     {
-        return GetSingleOrderedTask()->GetVertexDescriptor();
+        return OrderedTask_->GetVertexDescriptor();
     }
 
     TError GetUseChunkSliceStatisticsError() const override
     {
         return TError();
-    }
-
-    const TOrderedTaskPtr& GetSingleOrderedTask() const
-    {
-        YT_VERIFY(std::ssize(OrderedTasks_) == 1);
-        return OrderedTasks_[0];
     }
 
     PHOENIX_DECLARE_FRIEND();
@@ -531,18 +485,9 @@ void TOrderedControllerBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(4, JobSpecTemplate_);
     PHOENIX_REGISTER_FIELD(5, JobSizeConstraints_);
     PHOENIX_REGISTER_FIELD(6, InputSliceDataWeight_);
-
-    // COMPAT(alexelexa)
-    registrar.template VirtualField<7>("Task_", [] (TThis* this_, auto& context) {
-        auto task = Load<TOrderedTaskPtr>(context);
-        this_->OrderedTasks_.push_back(std::move(task));
-    })
-        .BeforeVersion(ESnapshotVersion::MultipleOrderedTasks)();
-    PHOENIX_REGISTER_FIELD(8, OrderedTasks_,
-        .SinceVersion(ESnapshotVersion::MultipleOrderedTasks));
-
-    PHOENIX_REGISTER_FIELD(9, OrderedOutputRequired_);
-    PHOENIX_REGISTER_FIELD(10, IsExplicitJobCount_);
+    PHOENIX_REGISTER_FIELD(7, OrderedTask_);
+    PHOENIX_REGISTER_FIELD(8, OrderedOutputRequired_);
+    PHOENIX_REGISTER_FIELD(9, IsExplicitJobCount_);
 }
 
 PHOENIX_DEFINE_TYPE(TOrderedControllerBase);
@@ -573,7 +518,7 @@ public:
     TOrderedMergeController(
         TOrderedMergeOperationSpecPtr spec,
         TControllerAgentConfigPtr config,
-        TSimpleOperationOptionsPtr options,
+        TOrderedMergeOperationOptionsPtr options,
         IOperationControllerHostPtr host,
         TOperation* operation)
         : TOrderedControllerBase(
@@ -583,10 +528,12 @@ public:
             host,
             operation)
         , Spec_(spec)
+        , Options_(std::move(options))
     { }
 
 private:
     TOrderedMergeOperationSpecPtr Spec_;
+    TOrderedMergeOperationOptionsPtr Options_;
 
     bool IsRowCountPreserved() const override
     {
@@ -595,7 +542,7 @@ private:
             !Spec_->JobIO->TableReader->SamplingRate;
     }
 
-    i64 GetMinTeleportChunkSize() override
+    i64 GetMinTeleportChunkSize() const override
     {
         if (Spec_->ForceTransform || Spec_->InputQuery) {
             return std::numeric_limits<i64>::max() / 4;
@@ -617,7 +564,7 @@ private:
     {
         if (Spec_->InputQuery) {
             if (Spec_->InputQueryOptions->UseSystemColumns) {
-                InputManager->AdjustSchemas(ControlAttributesToColumnOptions(*Spec_->JobIO->ControlAttributes));
+                InputManager_->AdjustSchemas(ControlAttributesToColumnOptions(*Spec_->JobIO->ControlAttributes));
             }
             ParseInputQuery(
                 *Spec_->InputQuery,
@@ -654,7 +601,7 @@ private:
 
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             jobSpecExt->mutable_extensions(),
-            BuildDataSourceDirectoryFromInputTables(InputManager->GetInputTables()));
+            BuildDataSourceDirectoryFromInputTables(InputManager_->GetInputTables()));
         SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
             jobSpecExt->mutable_extensions(),
             BuildDataSinkDirectoryFromOutputTables(OutputTables_));
@@ -674,7 +621,7 @@ private:
 
         auto inferFromInput = [&] {
             if (Spec_->InputQuery) {
-                table->TableUploadOptions.TableSchema = InputQuery->Query->GetTableSchema();
+                table->TableUploadOptions.TableSchema = InputQuery_->Query->GetTableSchema();
             } else {
                 InferSchemaFromInputOrdered();
             }
@@ -734,17 +681,23 @@ private:
         return TConfigurator<TOrderedMergeOperationSpec>();
     }
 
+    TOrderedChunkPoolOptions GetOrderedChunkPoolOptions() const override
+    {
+        auto options = TOrderedControllerBase::GetOrderedChunkPoolOptions();
+        options.JobSizeAdjusterConfig = Options_->JobSizeAdjuster;
+        return options;
+    }
+
     void OnOperationCompleted(bool interrupted) override
     {
         if (!interrupted) {
             auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables() || InputHasDynamicStores();
             if (!isNontrivialInput && IsRowCountPreserved() && Spec_->ForceTransform) {
-                const auto& task = GetSingleOrderedTask();
-                YT_LOG_ERROR_IF(TotalEstimatedInputRowCount != task->GetTotalOutputRowCount(),
+                YT_LOG_ERROR_IF(TotalEstimatedInputRowCount_ != OrderedTask_->GetTotalOutputRowCount(),
                     "Input/output row count mismatch in ordered merge operation (TotalEstimatedInputRowCount: %v, TotalOutputRowCount: %v)",
-                    TotalEstimatedInputRowCount,
-                    task->GetTotalOutputRowCount());
-                YT_VERIFY(TotalEstimatedInputRowCount == task->GetTotalOutputRowCount());
+                    TotalEstimatedInputRowCount_,
+                    OrderedTask_->GetTotalOutputRowCount());
+                YT_VERIFY(TotalEstimatedInputRowCount_ == OrderedTask_->GetTotalOutputRowCount());
             }
         }
 
@@ -768,7 +721,7 @@ IOperationControllerPtr CreateOrderedMergeController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto options = config->OrderedMergeOperationOptions;
+    auto options = CreateOperationOptions(config->OrderedMergeOperationOptions, operation->GetOptionsPatch());
     auto spec = ParseOperationSpec<TOrderedMergeOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
     AdjustSamplingFromConfig(spec, config);
     return New<TOrderedMergeController>(spec, config, options, host, operation);
@@ -812,7 +765,7 @@ private:
         return Spec_->Mapper;
     }
 
-    i64 GetMinTeleportChunkSize() override
+    i64 GetMinTeleportChunkSize() const override
     {
         return std::numeric_limits<i64>::max() / 4;
     }
@@ -836,7 +789,7 @@ private:
             .EndMap();
     }
 
-    void CustomizeJoblet(const TJobletPtr& joblet) override
+    void CustomizeJoblet(const TJobletPtr& joblet, const TAllocation& /*allocation*/) override
     {
         joblet->StartRowIndex = StartRowIndex_;
         StartRowIndex_ += joblet->InputStripeList->TotalRowCount;
@@ -885,7 +838,7 @@ private:
 
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             jobSpecExt->mutable_extensions(),
-            BuildDataSourceDirectoryFromInputTables(InputManager->GetInputTables()));
+            BuildDataSourceDirectoryFromInputTables(InputManager_->GetInputTables()));
         SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
             jobSpecExt->mutable_extensions(),
             BuildDataSinkDirectoryFromOutputTables(OutputTables_));
@@ -912,7 +865,7 @@ private:
     {
         if (Spec_->InputQuery) {
             if (Spec_->InputQueryOptions->UseSystemColumns) {
-                InputManager->AdjustSchemas(ControlAttributesToColumnOptions(*Spec_->JobIO->ControlAttributes));
+                InputManager_->AdjustSchemas(ControlAttributesToColumnOptions(*Spec_->JobIO->ControlAttributes));
             }
             ParseInputQuery(
                 *Spec_->InputQuery,
@@ -963,6 +916,13 @@ private:
         return TConfigurator<TMapOperationSpec>();
     }
 
+    TOrderedChunkPoolOptions GetOrderedChunkPoolOptions() const override
+    {
+        auto options = TOrderedControllerBase::GetOrderedChunkPoolOptions();
+        options.JobSizeAdjusterConfig = Options_->JobSizeAdjuster;
+        return options;
+    }
+
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TOrderedMapController, 0x3be901ca);
 };
 
@@ -982,7 +942,7 @@ IOperationControllerPtr CreateOrderedMapController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto options = config->MapOperationOptions;
+    auto options = CreateOperationOptions(config->MapOperationOptions, operation->GetOptionsPatch());
     auto spec = ParseOperationSpec<TMapOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
     AdjustSamplingFromConfig(spec, config);
     return New<TOrderedMapController>(spec, config, options, host, operation);
@@ -1041,7 +1001,7 @@ private:
         return false;
     }
 
-    i64 GetMinTeleportChunkSize() override
+    i64 GetMinTeleportChunkSize() const override
     {
         if (!Spec_->CombineChunks) {
             return 0;
@@ -1065,8 +1025,8 @@ private:
     {
         TOrderedControllerBase::CustomPrepare();
 
-        auto& path = InputManager->GetInputTables()[0]->Path;
-        auto ranges = path.GetNewRanges(InputManager->GetInputTables()[0]->Comparator, InputManager->GetInputTables()[0]->Schema->GetKeyColumnTypes());
+        auto& path = InputManager_->GetInputTables()[0]->Path;
+        auto ranges = path.GetNewRanges(InputManager_->GetInputTables()[0]->Comparator, InputManager_->GetInputTables()[0]->Schema->GetKeyColumnTypes());
         if (ranges.size() > 1) {
             THROW_ERROR_EXCEPTION("Erase operation does not support tables with multiple ranges");
         }
@@ -1124,9 +1084,9 @@ private:
                 if (table->TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
                     InferSchemaFromInputOrdered();
                 } else {
-                    if (InputManager->GetInputTables()[0]->SchemaMode == ETableSchemaMode::Strong) {
+                    if (InputManager_->GetInputTables()[0]->SchemaMode == ETableSchemaMode::Strong) {
                         const auto& [compatibility, error] = CheckTableSchemaCompatibility(
-                            *InputManager->GetInputTables()[0]->Schema,
+                            *InputManager_->GetInputTables()[0]->Schema,
                             *table->TableUploadOptions.TableSchema.Get(),
                             {.IgnoreStableNamesDifference = true});
 
@@ -1157,7 +1117,7 @@ private:
 
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             jobSpecExt->mutable_extensions(),
-            BuildDataSourceDirectoryFromInputTables(InputManager->GetInputTables()));
+            BuildDataSourceDirectoryFromInputTables(InputManager_->GetInputTables()));
         SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
             jobSpecExt->mutable_extensions(),
             BuildDataSinkDirectoryFromOutputTables(OutputTables_));
@@ -1208,831 +1168,10 @@ IOperationControllerPtr CreateEraseController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto options = config->EraseOperationOptions;
+    auto options = CreateOperationOptions(config->EraseOperationOptions, operation->GetOptionsPatch());
     auto spec = ParseOperationSpec<TEraseOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
     AdjustSamplingFromConfig(spec, config);
     return New<TEraseController>(spec, config, options, host, operation);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TRemoteCopyController
-    : public TOrderedControllerBase
-{
-public:
-    TRemoteCopyController(
-        TRemoteCopyOperationSpecPtr spec,
-        TControllerAgentConfigPtr config,
-        TRemoteCopyOperationOptionsPtr options,
-        IOperationControllerHostPtr host,
-        TOperation* operation)
-        : TOrderedControllerBase(
-            spec,
-            config,
-            options,
-            host,
-            operation)
-        , Spec_(spec)
-        , Options_(options)
-        , Networks_(Spec_->Networks)
-    {
-        if (!Networks_ && Options_->Networks) {
-            Networks_ = Options_->Networks;
-        }
-
-        if (!Spec_->AllowClusterConnection) {
-            THROW_ERROR_EXCEPTION_IF(
-                Spec_->ClusterConnection,
-                "\"cluster_connection\" is not allowed in remote copy operation spec");
-
-            THROW_ERROR_EXCEPTION_UNLESS(
-                Spec_->ClusterName,
-                "\"cluster_name\" is not set in remote copy operation spec");
-        }
-    }
-
-protected:
-    class TRemoteCopyTaskBase;
-    using TRemoteCopyTaskBasePtr = TIntrusivePtr<TRemoteCopyTaskBase>;
-    using TRemoteCopyTaskBaseWeakPtr = TWeakPtr<TRemoteCopyTaskBase>;
-
-    class TRemoteCopyTaskBase
-        : public TOrderedTask
-    {
-    public:
-        TRemoteCopyTaskBase()
-            : TOrderedTask()
-            , Controller_(nullptr)
-            , IsInitializationCompleted_(false)
-        { }
-
-        TRemoteCopyTaskBase(TRemoteCopyController* controller)
-            : TOrderedTask(controller)
-            , Controller_(controller)
-            , IsInitializationCompleted_(false)
-        {
-            if (Controller_->Spec_->ClusterName && Controller_->Spec_->UseClusterThrottlers) {
-                TClusterName clusterName{*Controller_->Spec_->ClusterName};
-                UpdateClusterToNetworkBandwidthAvailability(
-                    clusterName,
-                    TaskHost_->IsNetworkBandwidthAvailable(clusterName));
-                // Unsubscribe is done in destructor.
-                SubscribeToClusterNetworkBandwidthAvailabilityUpdated(clusterName);
-            }
-        }
-
-        void FinishInitialization()
-        {
-            IsInitializationCompleted_ = true;
-        }
-
-        void AddDependency(TRemoteCopyTaskBasePtr dependency)
-        {
-            YT_VERIFY(!IsInitializationCompleted_);
-            dependency->AddDependent(MakeStrong(this));
-            Dependencies_.emplace_back(std::move(dependency));
-        }
-
-    protected:
-        TRemoteCopyController* Controller_;
-
-    private:
-        // On which it depends.
-        std::vector<TRemoteCopyTaskBaseWeakPtr> Dependencies_;
-        // Which depends on it.
-        std::vector<TRemoteCopyTaskBasePtr> Dependents_;
-        bool IsInitializationCompleted_;
-
-        void AddDependent(TRemoteCopyTaskBasePtr dependent)
-        {
-            YT_VERIFY(!IsInitializationCompleted_);
-            Dependents_.emplace_back(std::move(dependent));
-        }
-
-        void RemoveDependency(TRemoteCopyTaskBaseWeakPtr dependency)
-        {
-            YT_VERIFY(IsInitializationCompleted_);
-            auto dependencyIt = std::find(Dependencies_.begin(), Dependencies_.end(), dependency);
-            YT_VERIFY(dependencyIt != Dependencies_.end());
-            Dependencies_.erase(dependencyIt);
-
-            UpdateState();
-        }
-
-        TCompositePendingJobCount GetPendingJobCount() const override
-        {
-            YT_VERIFY(IsInitializationCompleted_);
-
-            if (std::ssize(Dependencies_) > 0) {
-                return {};
-            }
-            return TOrderedTask::GetPendingJobCount();
-        }
-
-        void UpdateState()
-        {
-            Controller_->UpdateTask(this);
-
-            if (Dependencies_.empty()) {
-                Controller_->FillJobSpecHunkChunkIdMapping();
-            }
-        }
-
-        void RemoveDependents()
-        {
-            YT_VERIFY(IsInitializationCompleted_);
-            for (auto& dependant : Dependents_) {
-                dependant->RemoveDependency(MakeWeak(this));
-            }
-        }
-
-        void OnTaskCompleted() override
-        {
-            TTask::OnTaskCompleted();
-
-            ValidateAllDataHaveBeenCopied();
-            RemoveDependents();
-        }
-
-        virtual void ValidateAllDataHaveBeenCopied()
-        { }
-
-        PHOENIX_DECLARE_POLYMORPHIC_TYPE(TRemoteCopyTaskBase, 0x5859dab3);
-    };
-
-    class TRemoteCopyTask
-        : public TRemoteCopyTaskBase
-    {
-    public:
-        TRemoteCopyTask()
-            : TRemoteCopyTaskBase()
-        { }
-
-        TRemoteCopyTask(TRemoteCopyController* controller)
-            : TRemoteCopyTaskBase(controller)
-        { }
-
-    private:
-
-        PHOENIX_DECLARE_POLYMORPHIC_TYPE(TRemoteCopyTask, 0xaba78385);
-    };
-
-    using TRemoteCopyTaskPtr = TIntrusivePtr<TRemoteCopyTask>;
-
-    class TRemoteCopyHunkTask
-        : public TRemoteCopyTaskBase
-    {
-    public:
-        TRemoteCopyHunkTask()
-            : TRemoteCopyTaskBase()
-        { }
-
-        TRemoteCopyHunkTask(TRemoteCopyController* controller)
-            : TRemoteCopyTaskBase(controller)
-        { }
-
-        TString GetTitle() const override
-        {
-            return "HunkRemoteCopy";
-        }
-
-        TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
-        {
-            auto& jobResultExt = jobSummary.GetJobResultExt();
-            THashMap<TChunkId, TChunkId> newHunkChunkIdMapping;
-            for (const auto& mapping : jobResultExt.hunk_chunk_id_mapping()) {
-                EmplaceOrCrash(
-                    newHunkChunkIdMapping,
-                    FromProto<TChunkId>(mapping.input_hunk_chunk_id()),
-                    FromProto<TChunkId>(mapping.output_hunk_chunk_id()));
-            }
-            Controller_->UpdateHunkChunkIdMapping(newHunkChunkIdMapping);
-
-            return TOrderedTask::OnJobCompleted(joblet, jobSummary);
-        }
-
-    private:
-        void ValidateAllDataHaveBeenCopied() override
-        {
-            Controller_->ValidateHunkChunksConsistency();
-        }
-
-        PHOENIX_DECLARE_POLYMORPHIC_TYPE(TRemoteCopyHunkTask, 0xaba78386);
-    };
-
-private:
-    TRemoteCopyOperationSpecPtr Spec_;
-    TRemoteCopyOperationOptionsPtr Options_;
-    std::optional<NNodeTrackerClient::TNetworkPreferenceList> Networks_;
-
-    IAttributeDictionaryPtr InputTableAttributes_;
-
-    THashMap<TChunkId, TChunkId> HunkChunkIdMapping_;
-
-    void ValidateTableType(const auto& table) const
-    {
-        if (table->Type != EObjectType::Table && table->Type != EObjectType::File) {
-            THROW_ERROR_EXCEPTION("Only files and tables are allowed, but %v has type %Qlv",
-                table->GetPath(),
-                table->Type);
-        }
-    }
-
-    void ValidateInputTablesTypes() const override
-    {
-        // NB(coteeq): remote_copy always has one input table.
-        YT_VERIFY(InputManager->GetInputTables().size() == 1);
-        ValidateTableType(InputManager->GetInputTables()[0]);
-    }
-
-    void ValidateUpdatingTablesTypes() const override
-    {
-        // NB(coteeq): remote_copy always has one input table.
-        YT_VERIFY(OutputTables_.size() == 1);
-        ValidateTableType(OutputTables_[0]);
-
-        const auto& inputTables = InputManager->GetInputTables();
-
-        THROW_ERROR_EXCEPTION_UNLESS(
-            OutputTables_[0]->Type == inputTables[0]->Type,
-            "Output object type does not match that of the input object %v: expected %Qlv, found %Qlv",
-            inputTables[0]->GetPath(),
-            inputTables[0]->Type,
-            OutputTables_[0]->Type);
-
-        YT_VERIFY(!StderrTable_ && !CoreTable_);
-    }
-
-    EObjectType GetOutputTableDesiredType() const override
-    {
-        YT_VERIFY(InputManager->GetInputTables().size() == 1);
-        return InputManager->GetInputTables()[0]->Type;
-    }
-
-    TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
-    {
-        YT_ABORT();
-    }
-
-    std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
-    {
-        return {};
-    }
-
-    bool ShouldVerifySortedOutput() const override
-    {
-        return false;
-    }
-
-    void BuildBriefSpec(TFluentMap fluent) const override
-    {
-        TOperationControllerBase::BuildBriefSpec(fluent);
-        fluent
-            .Item("cluster_name").Value(Spec_->ClusterName)
-            .Item("networks").Value(Networks_);
-    }
-
-    // Custom bits of preparation pipeline.
-    TTransactionId GetInputTransactionParentId() override
-    {
-        return {};
-    }
-
-    void InitializeClients() override
-    {
-        TOperationControllerBase::InitializeClients();
-
-        InputClient = GetRemoteConnection()->CreateNativeClient(TClientOptions::FromUser(AuthenticatedUser));
-        SchedulerInputClient = GetRemoteConnection()->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::SchedulerUserName));
-        InputManager->InitializeClients(InputClient);
-    }
-
-    std::vector<TRichYPath> GetInputTablePaths() const override
-    {
-        return Spec_->InputTablePaths;
-    }
-
-    std::vector<TRichYPath> GetOutputTablePaths() const override
-    {
-        return {Spec_->OutputTablePath};
-    }
-
-    TDataFlowGraph::TVertexDescriptor GetOutputLivePreviewVertexDescriptor() const override
-    {
-        return OrderedTasks_.back()->GetVertexDescriptor();
-    }
-
-    void PrepareOutputTables() override
-    {
-        auto& table = OutputTables_[0];
-
-        ValidateSchemaInferenceMode(Spec_->SchemaInferenceMode);
-
-        switch (Spec_->SchemaInferenceMode) {
-            case ESchemaInferenceMode::Auto:
-                if (table->TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
-                    InferSchemaFromInputOrdered();
-                    break;
-                }
-                [[fallthrough]];
-
-            case ESchemaInferenceMode::FromOutput:
-                ValidateOutputSchemaOrdered();
-
-                // Since remote copy doesn't unpack blocks and validate schema, we must ensure
-                // that schemas are identical.
-                for (const auto& inputTable : InputManager->GetInputTables()) {
-                    if (table->TableUploadOptions.SchemaMode == ETableSchemaMode::Strong &&
-                        *inputTable->Schema->ToCanonical() != *table->TableUploadOptions.TableSchema->ToCanonical())
-                    {
-                        THROW_ERROR_EXCEPTION("Cannot make remote copy into table with \"strong\" schema since "
-                            "input table schema differs from output table schema")
-                            << TErrorAttribute("input_table_schema", inputTable->Schema)
-                            << TErrorAttribute("output_table_schema", *table->TableUploadOptions.TableSchema);
-                    }
-                }
-                break;
-
-            case ESchemaInferenceMode::FromInput:
-                InferSchemaFromInputOrdered();
-                break;
-        }
-    }
-
-    void ValidateInputDataSlice(const TLegacyDataSlicePtr& dataSlice) override
-    {
-        auto errorCode = NChunkClient::EErrorCode::InvalidInputChunk;
-        if (!dataSlice->IsTrivial()) {
-            THROW_ERROR_EXCEPTION(errorCode, "Remote copy operation does not support versioned data slices");
-        }
-        const auto& chunk = dataSlice->GetSingleUnversionedChunk();
-        YT_VERIFY(!chunk->IsDynamicStore());
-        if ((chunk->LowerLimit() && !IsTrivial(*chunk->LowerLimit())) ||
-            (chunk->UpperLimit() && !IsTrivial(*chunk->UpperLimit())))
-        {
-            THROW_ERROR_EXCEPTION(
-                errorCode,
-                "Remote copy operation does not support non-trivial table limits%v",
-                MakeFormatterWrapper([&] (auto* builder) {
-                    if (InputManager->GetInputTables()[0]->Dynamic) {
-                        FormatValue(builder, " and chunks crossing tablet boundaries", "v");
-                    }
-                }));
-        }
-    }
-
-    void CustomPrepare() override
-    {
-        TOrderedControllerBase::CustomPrepare();
-
-        static const auto allowedAttributes = [] {
-            const auto& wellKnown = GetWellKnownRichYPathAttributes();
-            return THashSet<TString>(wellKnown.begin(), wellKnown.end());
-        }();
-
-        for (const auto& attributeName : Spec_->OutputTablePath.Attributes().ListKeys()) {
-            if (!allowedAttributes.contains(attributeName)) {
-                THROW_ERROR_EXCEPTION("Found unexpected attribute %Qv in Rich YPath", attributeName)
-                    << TErrorAttribute("path", Spec_->OutputTablePath);
-            }
-        }
-    }
-
-    std::vector<TString> BuildSystemAttributeKeys() const
-    {
-        if (!Spec_->ForceCopySystemAttributes) {
-            return {};
-        }
-
-        std::vector<TString> keys{
-            "compression_codec",
-            "erasure_codec",
-        };
-
-        if (!InputManager->GetInputTables()[0]->IsFile()) {
-            keys.push_back("optimize_for");
-        }
-
-        return keys;
-    }
-
-    void FetchInputTableAttributes()
-    {
-        if (!Spec_->ForceCopySystemAttributes && !Spec_->CopyAttributes) {
-            return;
-        }
-
-        auto attributesFuture = InputManager->FetchSingleInputTableAttributes(
-            Spec_->CopyAttributes
-                ? std::nullopt
-                : std::make_optional(BuildSystemAttributeKeys()));
-
-        InputTableAttributes_ = WaitFor(attributesFuture)
-            .ValueOrThrow();
-    }
-
-    void CustomMaterialize() override
-    {
-        FetchInputTableAttributes();
-
-        bool hasDynamicInputTable = false;
-        bool hasDynamicOutputTable = false;
-        bool hasStaticTableWithHunkChunks = false;
-        for (const auto& table : InputManager->GetInputTables()) {
-            hasDynamicInputTable |= table->Dynamic;
-            hasStaticTableWithHunkChunks |= !table->Dynamic && !table->HunkChunks.empty();
-        }
-        for (const auto& table : OutputTables_) {
-            hasDynamicOutputTable |= table->Dynamic;
-        }
-
-        if (hasStaticTableWithHunkChunks) {
-            THROW_ERROR_EXCEPTION("Static table with hunk chunks cannot be copied");
-        }
-
-        if (hasDynamicInputTable) {
-            if (!hasDynamicOutputTable) {
-                THROW_ERROR_EXCEPTION("Dynamic table can be copied only to another dynamic table");
-            }
-            if (InputManager->GetInputTables().size() != 1 || OutputTables_.size() != 1) {
-                THROW_ERROR_EXCEPTION("Only one dynamic table can be copied at a time");
-            }
-            if (OutputTables_[0]->TableUploadOptions.UpdateMode != EUpdateMode::Overwrite) {
-                THROW_ERROR_EXCEPTION("Remote copy of dynamic tables can only be done in overwrite mode");
-            }
-        } else if (hasDynamicOutputTable) {
-            THROW_ERROR_EXCEPTION("Static table cannot be copied into a dynamic table");
-        }
-
-        if (InputTableAttributes_) {
-            YT_VERIFY(Spec_->CopyAttributes || Spec_->ForceCopySystemAttributes);
-        }
-
-        TOrderedControllerBase::CustomMaterialize();
-    }
-
-    void CreateTasks() override
-    {
-        bool hasDynamicTableWithHunkChunks = InputManager->HasDynamicTableWithHunkChunks();
-
-        // Tasks order in OrderedTasks matters.
-        // 1. The task of copying hunk chunks (if any);
-        // 2. The task of copying regular chunks.
-
-        auto task = New<TRemoteCopyTask>(this);
-        if (hasDynamicTableWithHunkChunks) {
-            auto hunkTask = New<TRemoteCopyHunkTask>(this);
-            task->AddDependency(hunkTask);
-            hunkTask->FinishInitialization();
-            OrderedTasks_.emplace_back(std::move(hunkTask));
-        }
-
-        task->FinishInitialization();
-        OrderedTasks_.emplace_back(std::move(task));
-    }
-
-    int AddInputSlices() override
-    {
-        TPeriodicYielder yielder(PrepareYieldPeriod);
-
-        auto slices = [&] (std::vector<TLegacyDataSlicePtr>&& slices) -> std::vector<std::vector<TLegacyDataSlicePtr>> {
-            if (!HasHunkChunks()) {
-                return {std::move(slices)};
-            }
-
-            std::vector<TLegacyDataSlicePtr> hunkChunkSlices;
-            std::vector<TLegacyDataSlicePtr> chunkSlices;
-            for (auto& slice : slices) {
-                ValidateInputDataSlice(slice);
-                if (slice->GetSingleUnversionedChunk()->IsHunk()) {
-                    hunkChunkSlices.emplace_back(std::move(slice));
-                } else {
-                    chunkSlices.emplace_back(std::move(slice));
-                }
-            }
-            return {hunkChunkSlices, chunkSlices};
-        } (CollectPrimaryInputDataSlices(InputSliceDataWeight_));
-
-        YT_VERIFY(std::ssize(slices) == std::ssize(OrderedTasks_));
-
-        int sliceCount = 0;
-        for (int index = 0; index < std::ssize(OrderedTasks_); ++index) {
-            sliceCount += std::ssize(slices[index]);
-            for (auto& slice : slices[index]) {
-                OrderedTasks_[index]->AddInput(CreateChunkStripe(std::move(slice)));
-                yielder.TryYield();
-            }
-        }
-        return sliceCount;
-    }
-
-    bool HasHunkChunks() const
-    {
-        // If there are any hunk chunks than the task of copying hunk chunks will be created,
-        // as well as the task of copying regular chunks, which is always created.
-        // Then there will be at least two tasks.
-        return std::ssize(OrderedTasks_) > 1;
-    }
-
-    std::vector<TString> BuildOutputTableAttributeKeys() const
-    {
-        YT_VERIFY(Spec_->CopyAttributes || Spec_->ForceCopySystemAttributes);
-
-        auto systemAttributeKeys = BuildSystemAttributeKeys();
-        auto attributeKeys = systemAttributeKeys;
-        if (Spec_->CopyAttributes) {
-            // Filter out unneeded attributes.
-            auto userAttributeKeys = InputTableAttributes_->Get<std::vector<TString>>("user_attribute_keys");
-            auto specAttributeKeys = Spec_->AttributeKeys.value_or(userAttributeKeys);
-            attributeKeys.reserve(attributeKeys.size() + specAttributeKeys.size());
-            for (const auto& key : specAttributeKeys) {
-                auto isSystemAttribute = [&] (const auto& key) {
-                    return std::find(
-                        systemAttributeKeys.begin(),
-                        systemAttributeKeys.end(),
-                        key) != systemAttributeKeys.end();
-                };
-
-                if (isSystemAttribute(key)) {
-                    // Do not duplicate system attributes' keys.
-                    continue;
-                }
-                attributeKeys.push_back(key);
-            }
-        }
-
-        return attributeKeys;
-    }
-
-    void CustomCommit() override
-    {
-        TOperationControllerBase::CustomCommit();
-
-        // COMPAT(coteeq)
-        if (InputTableAttributes_) {
-            const auto& path = Spec_->OutputTablePath.GetPath();
-
-            auto proxy = CreateObjectServiceWriteProxy(OutputClient);
-
-            auto attributeKeys = BuildOutputTableAttributeKeys();
-            auto batchReq = proxy.ExecuteBatch();
-            auto req = TYPathProxy::MultisetAttributes(path + "/@");
-            SetTransactionId(req, OutputCompletionTransaction->GetId());
-
-            for (const auto& attribute : attributeKeys) {
-                auto* subrequest = req->add_subrequests();
-                subrequest->set_attribute(ToYPathLiteral(attribute));
-                auto value = InputTableAttributes_->GetYson(attribute);
-                ValidateYson(value, GetYsonNestingLevelLimit());
-                subrequest->set_value(value.ToString());
-            }
-
-            batchReq->AddRequest(req);
-
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error setting attributes for output table %v",
-                path);
-        }
-    }
-
-    void InitJobSpecTemplate() override
-    {
-        JobSpecTemplate_.set_type(ToProto(EJobType::RemoteCopy));
-        auto* jobSpecExt = JobSpecTemplate_.MutableExtension(
-            TJobSpecExt::job_spec_ext);
-
-        jobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
-        jobSpecExt->set_table_reader_options("");
-        SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
-            jobSpecExt->mutable_extensions(),
-            BuildDataSourceDirectoryFromInputTables(InputManager->GetInputTables()));
-        SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
-            jobSpecExt->mutable_extensions(),
-            BuildDataSinkDirectoryFromOutputTables(OutputTables_));
-
-        auto connectionConfig = GetRemoteConnectionConfig()->Clone();
-        if (Networks_) {
-            connectionConfig->Static->Networks = *Networks_;
-        }
-
-        auto masterCacheAddresses = GetRemoteMasterCacheAddresses();
-        if (masterCacheAddresses.empty()) {
-            YT_LOG_DEBUG("Not using remote master caches for remote copy operation");
-        } else {
-            connectionConfig->Static->OverrideMasterAddresses(masterCacheAddresses);
-
-            YT_LOG_DEBUG("Using remote master caches for remote copy operation (Addresses: %v)",
-                masterCacheAddresses);
-        }
-
-        auto* remoteCopyJobSpecExt = JobSpecTemplate_.MutableExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
-        auto connectionNode = ConvertToNode(connectionConfig)->AsMap();
-        // COMPAT(max42): remove this after 23.1 is everywhere.
-        if (connectionNode->FindChild("yql_agent")) {
-            connectionNode->RemoveChild("yql_agent");
-        }
-        remoteCopyJobSpecExt->set_connection_config(ConvertToYsonString(connectionNode).ToString());
-        remoteCopyJobSpecExt->set_concurrency(Spec_->Concurrency);
-        remoteCopyJobSpecExt->set_block_buffer_size(Spec_->BlockBufferSize);
-        remoteCopyJobSpecExt->set_delay_in_copy_chunk(ToProto(Spec_->DelayInCopyChunk));
-        remoteCopyJobSpecExt->set_erasure_chunk_repair_delay(ToProto(Spec_->ErasureChunkRepairDelay));
-        remoteCopyJobSpecExt->set_repair_erasure_chunks(Spec_->RepairErasureChunks);
-
-        // TODO(yuryalekseev): Prohibit ClusterConnection in Spec_.
-        if (Spec_->ClusterName) {
-            remoteCopyJobSpecExt->set_remote_cluster_name(*Spec_->ClusterName);
-        }
-    }
-
-    NNative::IConnectionPtr GetRemoteConnection() const
-    {
-        if (Spec_->ClusterConnection) {
-            NNative::TConnectionOptions connectionOptions;
-            connectionOptions.ConnectionInvoker = Host->GetConnectionInvoker();
-            return NApi::NNative::CreateConnection(
-                Spec_->ClusterConnection,
-                std::move(connectionOptions));
-        } else if (Spec_->ClusterName) {
-            return Host
-                ->GetClient()
-                ->GetNativeConnection()
-                ->GetClusterDirectory()
-                ->GetConnectionOrThrow(*Spec_->ClusterName);
-        } else {
-            THROW_ERROR_EXCEPTION("No remote cluster is specified");
-        }
-    }
-
-    NApi::NNative::TConnectionCompoundConfigPtr GetRemoteConnectionConfig() const
-    {
-        return GetRemoteConnection()->GetCompoundConfig();
-    }
-
-    std::vector<std::string> GetRemoteMasterCacheAddresses() const
-    {
-        try {
-            return GuardedGetRemoteMasterCacheAddresses();
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Failed to get remote master cache addresses")
-                << ex;
-        }
-    }
-
-    std::vector<std::string> GuardedGetRemoteMasterCacheAddresses() const
-    {
-        if (!Spec_->UseRemoteMasterCaches) {
-            return {};
-        }
-
-        TGetClusterMetaOptions options{
-            .PopulateMasterCacheNodeAddresses = true,
-        };
-        auto clusterMeta = WaitFor(InputClient->GetClusterMeta(options))
-            .ValueOrThrow();
-        return clusterMeta.MasterCacheNodeAddresses;
-    }
-
-    EChunkAvailabilityPolicy GetChunkAvailabilityPolicy() const override
-    {
-        // If repair in remote copy is disabled, all parts are required.
-        if (!Spec_->RepairErasureChunks) {
-            return EChunkAvailabilityPolicy::AllPartsAvailable;
-        }
-
-        return Spec_->ChunkAvailabilityPolicy;
-    }
-
-    EJobType GetJobType() const override
-    {
-        return EJobType::RemoteCopy;
-    }
-
-    bool IsTeleportationSupported() const override
-    {
-        return false;
-    }
-
-    i64 GetMinTeleportChunkSize() override
-    {
-        return std::numeric_limits<i64>::max() / 4;
-    }
-
-    TYsonStructPtr GetTypedSpec() const override
-    {
-        return Spec_;
-    }
-
-    TOperationSpecBasePtr ParseTypedSpec(const INodePtr& spec) const override
-    {
-        return ParseOperationSpec<TRemoteCopyOperationSpec>(spec);
-    }
-
-    TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
-    {
-        return TConfigurator<TRemoteCopyOperationSpec>();
-    }
-
-    TCpuResource GetCpuLimit() const override
-    {
-        return Options_->CpuLimit;
-    }
-
-    void UpdateHunkChunkIdMapping(const THashMap<TChunkId, TChunkId>& newMapping)
-    {
-        for (const auto& mapping : newMapping) {
-            EmplaceOrCrash(
-                HunkChunkIdMapping_,
-                mapping.first,
-                mapping.second);
-        }
-    }
-
-    void ValidateHunkChunksConsistency() const
-    {
-        YT_VERIFY(HunkChunkIdMapping_.size() == InputManager->GetInputTables()[0]->HunkChunks.size());
-    }
-
-    void FillJobSpecHunkChunkIdMapping()
-    {
-        auto* remoteCopyJobSpecExt = JobSpecTemplate_.MutableExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
-
-        for (const auto& mapping : HunkChunkIdMapping_) {
-            auto* protoMapping = remoteCopyJobSpecExt->add_hunk_chunk_id_mapping();
-            ToProto(protoMapping->mutable_input_hunk_chunk_id(), mapping.first);
-            ToProto(protoMapping->mutable_output_hunk_chunk_id(), mapping.second);
-        }
-    }
-
-    PHOENIX_DECLARE_FRIEND();
-
-    PHOENIX_DECLARE_FRIEND();
-    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TRemoteCopyController, 0xaa8829a9);
-};
-
-void TRemoteCopyController::RegisterMetadata(auto&& registrar)
-{
-    registrar.template BaseType<TOrderedControllerBase>();
-
-    PHOENIX_REGISTER_FIELD(1, Spec_);
-    PHOENIX_REGISTER_FIELD(2, Options_);
-    PHOENIX_REGISTER_FIELD(3, InputTableAttributes_,
-        .template Serializer<TAttributeDictionarySerializer>());
-    PHOENIX_REGISTER_FIELD(4, Networks_);
-    // COMPAT(alexelexa)
-    PHOENIX_REGISTER_FIELD(5, HunkChunkIdMapping_,
-        .SinceVersion(ESnapshotVersion::RemoteCopyDynamicTableWithHunks));
-
-    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
-        if (this_->InputTableAttributes_ && this_->InputTableAttributes_->ListKeys().empty()) {
-            this_->InputTableAttributes_.Reset();
-        }
-    });
-}
-
-PHOENIX_DEFINE_TYPE(TRemoteCopyController);
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TRemoteCopyController::TRemoteCopyTaskBase::RegisterMetadata(auto&& registrar)
-{
-    registrar.template BaseType<TOrderedTask>();
-
-    PHOENIX_REGISTER_FIELD(1, Controller_);
-    PHOENIX_REGISTER_FIELD(2, Dependencies_);
-    PHOENIX_REGISTER_FIELD(3, Dependents_);
-    PHOENIX_REGISTER_FIELD(4, IsInitializationCompleted_);
-}
-
-PHOENIX_DEFINE_TYPE(TRemoteCopyController::TRemoteCopyTaskBase);
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TRemoteCopyController::TRemoteCopyTask::RegisterMetadata(auto&& registrar)
-{
-    registrar.template BaseType<TRemoteCopyTaskBase>();
-}
-
-PHOENIX_DEFINE_TYPE(TRemoteCopyController::TRemoteCopyTask);
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TRemoteCopyController::TRemoteCopyHunkTask::RegisterMetadata(auto&& registrar)
-{
-    registrar.template BaseType<TRemoteCopyTaskBase>();
-}
-
-PHOENIX_DEFINE_TYPE(TRemoteCopyController::TRemoteCopyHunkTask);
-
-////////////////////////////////////////////////////////////////////////////////
-
-IOperationControllerPtr CreateRemoteCopyController(
-    TControllerAgentConfigPtr config,
-    IOperationControllerHostPtr host,
-    TOperation* operation)
-{
-    auto options = config->RemoteCopyOperationOptions;
-    auto spec = ParseOperationSpec<TRemoteCopyOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
-    return New<TRemoteCopyController>(spec, config, options, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

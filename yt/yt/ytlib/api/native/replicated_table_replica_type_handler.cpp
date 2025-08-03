@@ -51,7 +51,7 @@ public:
         }
 
         {
-            auto clusterName = attributes->Get<TString>("cluster_name");
+            auto clusterName = attributes->Get<std::string>("cluster_name");
             auto result = WaitFor(Client_->NodeExists(GetCypressClusterPath(clusterName), {}));
             THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error checking replica cluster existence");
             if (!result.Value()) {

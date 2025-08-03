@@ -51,7 +51,7 @@ template <class TImpl>
 void TSchemafulNodeTypeHandlerBase<TImpl>::DoBranch(
     const TImpl* originatingNode,
     TImpl* branchedNode,
-    const NCypressServer::TLockRequest& lockRequest)
+    const TLockRequest& lockRequest)
 {
     TBase::DoBranch(originatingNode, branchedNode, lockRequest);
 
@@ -78,8 +78,8 @@ void TSchemafulNodeTypeHandlerBase<TImpl>::DoClone(
     TImpl* sourceNode,
     TImpl* clonedTrunkNode,
     IAttributeDictionary* inheritedAttributes,
-    NCypressServer::ICypressNodeFactory* factory,
-    NCypressServer::ENodeCloneMode mode,
+    ICypressNodeFactory* factory,
+    ENodeCloneMode mode,
     NSecurityServer::TAccount* account)
 {
     TBase::DoClone(sourceNode, clonedTrunkNode, inheritedAttributes, factory, mode, account);

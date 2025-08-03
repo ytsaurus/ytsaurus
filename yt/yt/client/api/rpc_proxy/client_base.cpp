@@ -59,6 +59,7 @@ using NYT::FromProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr i64 MaxTracingTagLength = 1'000;
+constexpr i64 MinQueryTailPartSize = 100;
 static const TString DisabledSelectQueryTracingTag = "Tag is disabled, look for enable_select_query_tracing_tag parameter";
 
 std::string SanitizeTracingTag(TStringBuf originalTag)
@@ -67,6 +68,27 @@ std::string SanitizeTracingTag(TStringBuf originalTag)
         return std::string(originalTag);
     }
     return Format("%v ... TRUNCATED", originalTag.substr(0, MaxTracingTagLength));
+}
+
+std::string SanitizeTracingQuery(TStringBuf originalQuery)
+{
+    if (originalQuery.size() <= MaxTracingTagLength) {
+        return std::string(originalQuery);
+    }
+    return Format("%v...<truncated>...%v",
+        originalQuery.substr(0, MaxTracingTagLength - MinQueryTailPartSize),
+        originalQuery.substr(originalQuery.size() - MinQueryTailPartSize));
+}
+
+void EnrichTracingForLookupRequest(NTracing::TTraceContext::TTagList& tagList, TStringBuf path, const auto& columns)
+{
+    if (NTracing::IsCurrentTraceContextRecorded()) {
+        tagList.emplace_back("yt.table_path", path);
+        std::string columnsTag = columns.empty()
+            ? "universal"
+            : SanitizeTracingTag(ConvertToYsonString(columns).ToString());
+        tagList.emplace_back("yt.column_filter", std::move(columnsTag));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -243,7 +265,7 @@ TFuture<TYsonString> TClientBase::GetNode(
 
     // COMPAT(max42): after 22.3 is everywhere, drop legacy field.
     if (options.Attributes) {
-        ToProto(req->mutable_legacy_attributes()->mutable_keys(), options.Attributes.Keys);
+        ToProto(req->mutable_legacy_attributes()->mutable_keys(), options.Attributes.Keys());
         ToProto(req->mutable_attributes(), options.Attributes);
     } else {
         req->mutable_legacy_attributes()->set_all(true);
@@ -279,7 +301,7 @@ TFuture<TYsonString> TClientBase::ListNode(
 
     // COMPAT(max42): after 22.3 is everywhere, drop legacy field.
     if (options.Attributes) {
-        ToProto(req->mutable_legacy_attributes()->mutable_keys(), options.Attributes.Keys);
+        ToProto(req->mutable_legacy_attributes()->mutable_keys(), options.Attributes.Keys());
         ToProto(req->mutable_attributes(), options.Attributes);
     } else {
         req->mutable_legacy_attributes()->set_all(true);
@@ -799,7 +821,7 @@ TFuture<TDistributedWriteSessionWithCookies> TClientBase::StartDistributedWriteS
             TDistributedWriteSessionWithCookies sessionWithCookies;
             sessionWithCookies.Session = ConvertTo<TSignedDistributedWriteSessionPtr>(TYsonString(result->signed_session())),
             sessionWithCookies.Cookies = std::move(cookies);
-            return std::move(sessionWithCookies);
+            return sessionWithCookies;
         }));
 }
 
@@ -838,13 +860,7 @@ TFuture<TUnversionedLookupRowsResult> TClientBase::LookupRows(
             req->add_columns(TString(columnName));
         }
     }
-    if (NTracing::IsCurrentTraceContextRecorded()) {
-        req->TracingTags().emplace_back("yt.table_path", path);
-        std::string columnsTag = options.ColumnFilter.IsUniversal()
-            ? "universal"
-            : SanitizeTracingTag(ConvertToYsonString(req->columns()).ToString());
-        req->TracingTags().emplace_back("yt.column_filter", std::move(columnsTag));
-    }
+    EnrichTracingForLookupRequest(req->TracingTags(), path, req->columns());
     req->set_timestamp(options.Timestamp);
     req->set_retention_timestamp(options.RetentionTimestamp);
     req->set_keep_missing_rows(options.KeepMissingRows);
@@ -888,14 +904,7 @@ TFuture<TVersionedLookupRowsResult> TClientBase::VersionedLookupRows(
             req->add_columns(TString(nameTable->GetName(id)));
         }
     }
-    if (NTracing::IsCurrentTraceContextRecorded()) {
-        req->TracingTags().emplace_back("yt.table_path", path);
-
-        std::string columnsTag = options.ColumnFilter.IsUniversal()
-            ? "universal"
-            : SanitizeTracingTag(ConvertToYsonString(req->columns()).ToString());
-        req->TracingTags().emplace_back("yt.column_filter", std::move(columnsTag));
-    }
+    EnrichTracingForLookupRequest(req->TracingTags(), path, req->columns());
     req->set_timestamp(options.Timestamp);
     req->set_keep_missing_rows(options.KeepMissingRows);
     req->set_enable_partial_result(options.EnablePartialResult);
@@ -1043,7 +1052,7 @@ TFuture<TSelectRowsResult> TClientBase::SelectRows(
 
     if (NTracing::IsCurrentTraceContextRecorded()) {
         if (config->EnableSelectQueryTracingTag) {
-            req->TracingTags().emplace_back("yt.query", SanitizeTracingTag(query));
+            req->TracingTags().emplace_back("yt.query", SanitizeTracingQuery(query));
         } else {
             req->TracingTags().emplace_back("yt.query", DisabledSelectQueryTracingTag);
         }
@@ -1079,6 +1088,7 @@ TFuture<TSelectRowsResult> TClientBase::SelectRows(
     req->set_merge_versioned_rows(options.MergeVersionedRows);
     ToProto(req->mutable_versioned_read_options(), options.VersionedReadOptions);
     YT_OPTIONAL_SET_PROTO(req, use_lookup_cache, options.UseLookupCache);
+    req->set_expression_builder_version(options.ExpressionBuilderVersion);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspSelectRowsPtr& rsp) {
         TSelectRowsResult result;

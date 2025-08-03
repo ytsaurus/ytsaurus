@@ -90,7 +90,8 @@ void TSimpleTabletManager::InitializeTablet(TTabletOptions options)
             TTableReplicaId(),
             /*retainedTimestamp*/ NullTimestamp,
             /*cumulativeDataWeight*/ 0,
-            /*serializationType*/ ETabletTransactionSerializationType::Coarse);
+            /*serializationType*/ ETabletTransactionSerializationType::Coarse,
+            TInstant::Now());
 
         TRawTableSettings rawSettings;
         rawSettings.CreateNewProvidedConfigs();
@@ -190,7 +191,7 @@ TTabletManagerConfigPtr TSimpleTabletManager::GetConfig() const
     return Config_;
 }
 
-void TSimpleTabletManager::ValidateMemoryLimit(const std::optional<TString>& /*poolTag*/)
+void TSimpleTabletManager::ValidateMemoryLimit(const std::optional<std::string>& /*poolTag*/)
 { }
 
 TTimestamp TSimpleTabletManager::GetLatestTimestamp() const

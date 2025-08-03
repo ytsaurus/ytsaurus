@@ -2,11 +2,17 @@
 
 #include "helpers.h"
 
+#include <yt/yt/ytlib/sequoia_client/helpers.h>
+
 #include <yt/yt/client/job_tracker_client/helpers.h>
 
 #include <yt/yt/core/concurrency/config.h>
 
+#include <yt/yt/core/misc/error_code.h>
+
 namespace NYT::NChunkServer {
+
+using namespace NSequoiaClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -99,8 +105,7 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
         .Default(2_GB);
     registrar.Parameter("max_compressed_data_size", &TThis::MaxCompressedDataSize)
         .GreaterThan(0)
-        .Default(512_MB)
-        .DontSerializeDefault();
+        .Default(512_MB);
     registrar.Parameter("max_input_chunk_data_weight", &TThis::MaxInputChunkDataWeight)
         .GreaterThan(0)
         .Default(512_MB);
@@ -114,8 +119,7 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("max_chunk_list_count_per_merge_session", &TThis::MaxChunkListCountPerMergeSession)
         .GreaterThan(0)
-        .Default(100)
-        .DontSerializeDefault();
+        .Default(100);
 
     registrar.Parameter("schedule_period", &TThis::SchedulePeriod)
         .Default(TDuration::Seconds(1));
@@ -126,8 +130,7 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
     registrar.Parameter("session_finalization_period", &TThis::SessionFinalizationPeriod)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("schedule_chunk_replace_period", &TThis::ScheduleChunkReplacePeriod)
-        .Default(TDuration::Seconds(1))
-        .DontSerializeDefault();
+        .Default(TDuration::Seconds(1));
 
     registrar.Parameter("create_chunks_batch_size", &TThis::CreateChunksBatchSize)
         .GreaterThan(0)
@@ -150,28 +153,13 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("reschedule_merge_on_success", &TThis::RescheduleMergeOnSuccess)
-        .Default(false)
-        .DontSerializeDefault();
-
-    registrar.Parameter("enable_queue_size_limit_changes", &TThis::EnableQueueSizeLimitChanges)
-        .Default(false)
-        .DontSerializeDefault();
-
-    registrar.Parameter("respect_account_specific_toggle", &TThis::RespectAccountSpecificToggle)
-        .Default(false)
-        .DontSerializeDefault();
-
-    registrar.Parameter("enable_careful_requisition_update", &TThis::EnableCarefulRequisitionUpdate)
-        .Default(false)
-        .DontSerializeDefault();
+        .Default(false);
 
     registrar.Parameter("max_nodes_being_merged", &TThis::MaxNodesBeingMerged)
-        .Default(1'000'000)
-        .DontSerializeDefault();
+        .Default(1'000'000);
 
     registrar.Parameter("max_chunk_lists_with_chunks_being_replaced", &TThis::MaxChunkListsWithChunksBeingReplaced)
-        .Default(100)
-        .DontSerializeDefault();
+        .Default(100);
 
     registrar.Parameter("max_allowed_backoff_reschedulings_per_table", &TThis::MaxAllowedBackoffReschedulingsPerSession)
         .Default(30);
@@ -265,15 +253,13 @@ void TDynamicChunkReincarnatorConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_verbose_logging", &TThis::EnableVerboseLogging)
         .Default(false)
-        .DontSerializeDefault();
+        ;
 
     registrar.Parameter("forced_underfilled_batch_replacement_period", &TThis::ForcedUnderfilledBatchReplacementPeriod)
-        .Default(TDuration::Minutes(5))
-        .DontSerializeDefault();
+        .Default(TDuration::Minutes(5));
 
     registrar.Parameter("skip_versioned_chunks", &TThis::SkipVersionedChunks)
-        .Default(false)
-        .DontSerializeDefault();
+        .Default(false);
 }
 
 bool TDynamicChunkReincarnatorConfig::ShouldRescheduleAfterChange(
@@ -308,6 +294,12 @@ void TDanglingLocationCleanerConfig::Register(TRegistrar registrar)
 
 void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("max_concurrent_chunk_replicas_during_full_heartbeat", &TThis::MaxConcurrentChunkReplicasDuringFullHeartbeat)
+        .Default(5'000'000)
+        .GreaterThan(0);
+    registrar.Parameter("max_concurrent_chunk_replicas_during_incremental_heartbeat", &TThis::MaxConcurrentChunkReplicasDuringIncrementalHeartbeat)
+        .Default(5'000)
+        .GreaterThan(0);
     registrar.Parameter("max_concurrent_full_heartbeats", &TThis::MaxConcurrentFullHeartbeats)
         .Default(1)
         .GreaterThan(0);
@@ -320,6 +312,8 @@ void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("dangling_location_cleaner", &TThis::DanglingLocationCleaner)
         .DefaultNew();
     registrar.Parameter("enable_per_location_full_heartbeats", &TThis::EnablePerLocationFullHeartbeats)
+        .Default(false);
+    registrar.Parameter("enable_chunk_replicas_throttling_in_heartbeats", &TThis::EnableChunkReplicasThrottlingInHeartbeats)
         .Default(false);
 }
 
@@ -433,6 +427,9 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("clear_master_request", &TThis::ClearMasterRequest)
         .Default(true);
+
+    registrar.Parameter("retriable_error_codes", &TThis::RetriableErrorCodes)
+        .Default(std::vector<TErrorCode>(std::begin(RetriableSequoiaErrorCodes), std::end(RetriableSequoiaErrorCodes)));
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->StoreSequoiaReplicasOnMaster && !config->ProcessRemovedSequoiaReplicasOnMaster) {
@@ -736,41 +733,41 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
 
 
     registrar.Parameter("removal_job_schedule_delay", &TThis::RemovalJobScheduleDelay)
-        .Default(TDuration::Minutes(3))
-        .DontSerializeDefault();
+        .Default(TDuration::Minutes(3));
 
     registrar.Parameter("disposed_pending_restart_node_chunk_refresh_delay", &TThis::DisposedPendingRestartNodeChunkRefreshDelay)
-        .Default(TDuration::Minutes(1))
-        .DontSerializeDefault();
+        .Default(TDuration::Minutes(1));
+
+    registrar.Parameter("virtual_chunk_map_read_result_limit", &TThis::VirtualChunkMapReadResultLimit)
+        .GreaterThanOrEqual(0)
+        .Default(100);
 
     registrar.Parameter("enable_fix_requisition_update_on_merge", &TThis::EnableFixRequisitionUpdateOnMerge)
-        .Default(false)
-        .DontSerializeDefault();
+        .Default(false);
 
     registrar.Parameter("enable_chunk_schemas", &TThis::EnableChunkSchemas)
         .Default(true);
 
     registrar.Parameter("enable_two_random_choices_write_target_allocation", &TThis::EnableTwoRandomChoicesWriteTargetAllocation)
-        .Default(true)
-        .DontSerializeDefault();
+        .Default(true);
 
     registrar.Parameter("nodes_to_check_before_giving_up_on_write_target_allocation", &TThis::NodesToCheckBeforeGivingUpOnWriteTargetAllocation)
-        .Default(32)
-        .DontSerializeDefault();
+        .Default(32);
 
     registrar.Parameter("data_center_failure_detector", &TThis::DataCenterFailureDetector)
         .DefaultNew();
 
     registrar.Parameter("validate_resource_usage_increase_on_primary_medium_change", &TThis::ValidateResourceUsageIncreaseOnPrimaryMediumChange)
-        .Default(true)
-        .DontSerializeDefault();
+        .Default(true);
 
     registrar.Parameter("use_hunk_specific_media_for_requisition_updates", &TThis::UseHunkSpecificMediaForRequisitionUpdates)
         .Default(true);
 
     registrar.Parameter("enable_repair_via_replication", &TThis::EnableRepairViaReplication)
-        .Default(false)
-        .DontSerializeDefault();
+        .Default(false);
+
+    registrar.Parameter("use_proper_replica_addition_reason", &TThis::UseProperReplicaAdditionReason)
+        .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
         auto& jobTypeToThrottler = config->JobTypeToThrottler;

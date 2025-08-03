@@ -147,10 +147,10 @@ bool TSchedulingContextBase::CanStartAllocationForOperation(
     TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>* unsatisfiedResources) const
 {
     // NB(omgronny): We ignore disk usage in case of full host GPU allocation.
-    auto considerUsage = !IsFullHostGpuAllocation(allocationResourcesWithQuota.ToJobResources());
+    auto considerDiskUsage = !IsFullHostGpuAllocation(allocationResourcesWithQuota.ToJobResources());
 
     auto diskRequest = allocationResourcesWithQuota.DiskQuota();
-    if (DiscountMediumIndex_ && considerUsage) {
+    if (DiscountMediumIndex_ && considerDiskUsage) {
         if (DiskResources_.DefaultMediumIndex == *DiscountMediumIndex_ && diskRequest.DiskSpaceWithoutMedium) {
             diskRequest.DiskSpacePerMedium[*DiscountMediumIndex_] += *diskRequest.DiskSpaceWithoutMedium;
             diskRequest.DiskSpaceWithoutMedium.reset();
@@ -171,7 +171,7 @@ bool TSchedulingContextBase::CanStartAllocationForOperation(
     bool canSatisfyDiskQuotaRequests = CanSatisfyDiskQuotaRequests(
         DiskResources_,
         diskRequests,
-        considerUsage);
+        considerDiskUsage);
 
     (*unsatisfiedResources)[EJobResourceWithDiskQuotaType::DiskQuota] |= !canSatisfyDiskQuotaRequests;
 
@@ -277,15 +277,21 @@ TJobResources TSchedulingContextBase::GetNodeFreeResourcesWithDiscountForOperati
     return ResourceLimits_ - ResourceUsage_ + UnconditionalDiscount_.JobResources + ConditionalDiscountForOperation(operationIndex).JobResources;
 }
 
-TDiskResources TSchedulingContextBase::GetDiskResourcesWithDiscountForOperation(TOperationIndex operationIndex) const
+TDiskResources TSchedulingContextBase::GetDiskResourcesWithDiscountForOperation(TOperationIndex operationIndex, const TJobResources& allocationResources) const
 {
     auto diskResources = DiskResources_;
-    if (DiscountMediumIndex_) {
+
+    if (IsFullHostGpuAllocation(allocationResources)) {
+        for (auto& diskLocation : diskResources.DiskLocationResources) {
+            diskLocation.Usage = 0;
+        }
+    } else if (DiscountMediumIndex_) {
         auto discountForOperation = UnconditionalDiscount_.DiscountMediumDiskQuota + ConditionalDiscountForOperation(operationIndex).DiscountMediumDiskQuota;
 
         auto& diskLocation = diskResources.DiskLocationResources.front();
         diskLocation.Usage = std::max(0l, diskLocation.Usage - discountForOperation);
     }
+
     return diskResources;
 }
 

@@ -10,18 +10,6 @@ namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSecurityManagerDynamicConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("user_cache", &TThis::UserCache)
-        .DefaultNew();
-
-    registrar.Preprocessor([] (TThis* config) {
-        config->UserCache->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(60);
-    });
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TStructuredLoggingMethodDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)
@@ -83,18 +71,41 @@ void TApiServiceConfig::Register(TRegistrar registrar)
     registrar.Parameter("client_cache", &TThis::ClientCache)
         .DefaultNew();
 
-    registrar.Parameter("security_manager", &TThis::SecurityManager)
+    registrar.Parameter("user_access_validator", &TThis::UserAccessValidator)
+        .Alias("security_manager")
         .DefaultNew();
 
     registrar.Parameter("testing", &TThis::TestingOptions)
         .Default();
 
     registrar.Parameter("enable_large_columnar_statistics", &TThis::EnableLargeColumnarStatistics)
-        .Default(false);
+        .Default(true);
 
     registrar.Preprocessor([] (TThis* config) {
-        config->ClientCache->Capacity = DefaultClientCacheCapacity;
+        config->ClientCache->Capacity = 1'000;
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TMultiproxyPresetDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enabled_methods", &TThis::EnabledMethods)
+        .Default();
+
+    registrar.Parameter("method_overrides", &TThis::MethodOverrides)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TMultiproxyDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("presets", &TThis::Presets)
+        .Default();
+
+    registrar.Parameter("cluster_presets", &TThis::ClusterPresets)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -113,7 +124,8 @@ void TApiServiceDynamicConfig::Register(TRegistrar registrar)
         .Default(10000);
     registrar.Parameter("read_buffer_data_weight", &TThis::ReadBufferDataWeight)
         .Default(16_MB);
-    registrar.Parameter("security_manager", &TThis::SecurityManager)
+    registrar.Parameter("user_access_validator", &TThis::UserAccessValidator)
+        .Alias("security_manager")
         .DefaultNew();
     registrar.Parameter("structured_logging_main_topic", &TThis::StructuredLoggingMainTopic)
         .DefaultCtor([] {
@@ -141,6 +153,8 @@ void TApiServiceDynamicConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("enable_allocation_tags", &TThis::EnableAllocationTags)
         .Default(false);
+    registrar.Parameter("multiproxy", &TThis::Multiproxy)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

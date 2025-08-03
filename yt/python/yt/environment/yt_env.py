@@ -112,10 +112,10 @@ def _do_get_yt_binary_versions(binary_infos):
         processes.append((binary_info.name, process))
 
     for name, process in processes:
-        stdout, _ = process.communicate()
+        stdout, stderr = process.communicate()
         assert name not in result
+        assert process.returncode == 0, f"Failed to get version of {name}, returncode={process.returncode}, stderr={stderr}"
         result[name] = _parse_version(to_native_str(stdout))
-        assert process.returncode == 0, f"Failed to get version of {name}, returncode={process.returncode}"
 
     return result
 
@@ -133,7 +133,8 @@ def _get_yt_versions(custom_paths):
                 "ytserver-http-proxy", "ytserver-proxy", "ytserver-job-proxy",
                 "ytserver-clock", "ytserver-discovery", "ytserver-cell-balancer",
                 "ytserver-exec", "ytserver-tools", "ytserver-timestamp-provider", "ytserver-master-cache",
-                "ytserver-tablet-balancer", "ytserver-replicated-table-tracker", "ytserver-kafka-proxy", "ytserver-queue-agent"]
+                "ytserver-tablet-balancer", "ytserver-replicated-table-tracker", "ytserver-kafka-proxy", "ytserver-queue-agent",
+                "ytserver-cypress-proxy"]
 
     binary_infos = [BinaryInfo(name=name, path=_get_yt_binary_path(name, custom_paths=custom_paths)) for name in binaries]
 
@@ -182,7 +183,7 @@ def _get_ports_generator(yt_config):
 class YTInstance(object):
     def __init__(self, path, yt_config,
                  modify_configs_func=None,
-                 modify_dynamic_configs_func=None,
+                 modify_dynamic_configs_func=None,  # TODO(kvk1920): rename to modify_node_dynamic_configs_func.
                  kill_child_processes=False,
                  watcher_config=None,
                  run_watcher=True,
@@ -193,10 +194,12 @@ class YTInstance(object):
                  external_bin_path=None,
                  tmpfs_path=None,
                  open_port_iterator=None,
-                 modify_driver_logging_config_func=None):
+                 modify_driver_logging_config_func=None,
+                 modify_master_dynamic_configs_func=None):
         self.path = os.path.realpath(os.path.abspath(path))
         self.yt_config = yt_config
         self.modify_dynamic_configs_func = modify_dynamic_configs_func
+        self.modify_master_dynamic_configs_func = modify_master_dynamic_configs_func
 
         self.id = yt_config.cluster_name
 
@@ -643,7 +646,7 @@ class YTInstance(object):
                 client.set("//sys/@local_mode_fqdn", get_fqdn())
 
             if on_masters_started_func is not None:
-                on_masters_started_func()
+                on_masters_started_func(client)
 
             patched_node_config = self._apply_nodes_dynamic_config(client)
 
@@ -783,6 +786,9 @@ class YTInstance(object):
     def rewrite_controller_agent_configs(self):
         self._prepare_controller_agents(self._cluster_configuration["controller_agent"], force_overwrite=True)
 
+    def rewrite_cypress_proxies_configs(self):
+        self._prepare_cypress_proxies(self._cluster_configuration["cypress_proxy"], force_overwrite=True)
+
     def rewrite_timestamp_provider_configs(self):
         self._prepare_timestamp_providers(self._cluster_configuration["timestamp_provider"], force_overwrite=True)
 
@@ -869,6 +875,12 @@ class YTInstance(object):
         return ["{0}:{1}".format(self.yt_config.fqdn, get_value_from_config(config, "monitoring_port", "rpcproxy"))
                 for config in self.configs["rpc_proxy"]]
 
+    def get_http_proxy_monitoring_addresses(self):
+        if self.yt_config.http_proxy_count == 0:
+            raise YtError("Http proxies are not started")
+        return ["{0}:{1}".format(self.yt_config.fqdn, get_value_from_config(config, "monitoring_port", "http_proxy"))
+                for config in self.configs["http_proxy"]]
+
     def get_grpc_proxy_address(self):
         if self.yt_config.rpc_proxy_count == 0:
             raise YtError("Rpc proxies are not started")
@@ -934,7 +946,19 @@ class YTInstance(object):
                 ])
             )
 
-    def kill_nodes(self, indexes=None, wait_offline=True):
+    def get_node_index_by_address(self, address):
+        for index in range(len(self._service_processes["node"])):
+            if self.get_node_address(index) == address:
+                return index
+
+        raise YtError(f"Node with address {address} not found")
+
+    def kill_nodes(self, indexes=None, addresses=None, wait_offline=True):
+        assert indexes is None or addresses is None
+
+        if indexes is None and addresses is not None:
+            indexes = [self.get_node_index_by_address(address) for address in addresses]
+
         self.kill_service("node", indexes=indexes)
 
         addresses = None
@@ -983,7 +1007,7 @@ class YTInstance(object):
         self.kill_service("tablet_balancer", indexes=indexes)
 
     def kill_cypress_proxies(self, indexes=None):
-        self.kill_service("cypress_proxies", indexes=indexes)
+        self.kill_service("cypress_proxy", indexes=indexes)
 
     def kill_replicated_table_trackers(self, indexes=None):
         self.kill_service("replicated_table_tracker", indexes=indexes)
@@ -1219,7 +1243,7 @@ class YTInstance(object):
                 has_some_bind_failure = has_some_bind_failure or has_bind_failure
 
         if has_some_bind_failure:
-            raise YtEnvRetriableError("Process failed to bind on some of ports")
+            raise YtEnvRetriableError(f"Process {name} failed to bind on some of ports")
 
     def _run(self, args, name, env=None, number=None):
         with self._lock:
@@ -1265,7 +1289,7 @@ class YTInstance(object):
 
             return p
 
-    def run_yt_component(self, component, config_paths, name=None, config_option=None, custom_paths=None):
+    def run_yt_component(self, component, config_paths, name=None, indexes=None, config_option=None, custom_paths=None):
         if config_option is None:
             config_option = "--config"
         if name is None:
@@ -1279,6 +1303,9 @@ class YTInstance(object):
 
         pids = []
         for index in xrange(len(config_paths)):
+            if indexes is not None and index not in indexes:
+                continue
+
             with push_front_env_path(self.bin_path):
                 binary_path = _get_yt_binary_path("ytserver-" + component, custom_paths=custom_paths)
                 if binary_path is None:
@@ -1298,7 +1325,7 @@ class YTInstance(object):
                     pids.append(run_result.pid)
         return pids
 
-    def _run_builtin_yt_component(self, component, name=None, config_option=None, custom_paths=None):
+    def _run_builtin_yt_component(self, component, name=None, indexes=None, config_option=None, custom_paths=None):
         if name is None:
             name = component
 
@@ -1306,7 +1333,8 @@ class YTInstance(object):
             logger.info("Skip starting %s process as it was run before as multidaemon", name)
             return
 
-        self.run_yt_component(component, self.config_paths[name], name=name, config_option=config_option, custom_paths=custom_paths)
+        self.run_yt_component(
+            component, self.config_paths[name], name=name, indexes=indexes, config_option=config_option, custom_paths=custom_paths)
 
     def _prepare_multi(self, multi_config, force_overwrite=False):
         name = "multi"
@@ -1390,7 +1418,14 @@ class YTInstance(object):
                 # `suppress_transaction_coordinator_sync` and `suppress_upstream_sync`
                 # are set True due to possibly enabled read-only mode.
                 if set_config:
-                    client.set("//sys/@config", get_patched_dynamic_master_config(get_dynamic_master_config()),
+                    patched_dynamic_master_config = get_patched_dynamic_master_config(get_dynamic_master_config())
+                    # TODO(kvk1920): there are many optional callbacks which
+                    # leads to "if some_func is not None: some_func()". It's
+                    # better use no-op callbacks instead of None.
+                    if self.modify_master_dynamic_configs_func is not None:
+                        self.modify_master_dynamic_configs_func(patched_dynamic_master_config, self.abi_version)
+
+                    client.set("//sys/@config", patched_dynamic_master_config,
                                suppress_transaction_coordinator_sync=True,
                                suppress_upstream_sync=True)
                 else:
@@ -1666,8 +1701,13 @@ class YTInstance(object):
             self.config_paths["node"].append(config_path)
             self._service_processes["node"].append(None)
 
-    def start_nodes(self, sync=True):
-        self._run_builtin_yt_component("node")
+    def start_nodes(self, indexes=None, addresses=None, sync=True):
+        assert indexes is None or addresses is None
+
+        if indexes is None and addresses is not None:
+            indexes = [self.get_node_index_by_address(address) for address in addresses]
+
+        self._run_builtin_yt_component("node", indexes=indexes)
 
         def nodes_ready():
             self._validate_processes_are_running("node")
@@ -2194,11 +2234,16 @@ class YTInstance(object):
             lambda: self._wait_for(tablet_balancer_ready, "tablet_balancer"),
             sync)
 
-    def _prepare_cypress_proxies(self, cypress_proxy_configs):
+    def _prepare_cypress_proxies(self, cypress_proxy_configs, force_overwrite=False):
+        if force_overwrite:
+            self.configs["cypress_proxy"] = []
+            self.config_paths["cypress_proxy"] = []
+            self._service_processes["cypress_proxy"] = []
+
         for cypress_proxy_index in xrange(self.yt_config.cypress_proxy_count):
             cypress_proxy_config_name = "cypress_proxy-{0}.yson".format(cypress_proxy_index)
             config_path = os.path.join(self.configs_path, cypress_proxy_config_name)
-            if self._load_existing_environment:
+            if self._load_existing_environment and not force_overwrite:
                 if not os.path.isfile(config_path):
                     raise YtError("Cypress proxy config {0} not found. It is possible that you requested "
                                   "more cypress proxies than configs exist".format(config_path))

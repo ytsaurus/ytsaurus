@@ -1,5 +1,6 @@
 #include "query_executor.h"
 #include "config.h"
+#include "session.h"
 #include "helpers.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -66,6 +67,7 @@
 
 #include <yt/yt/library/query/base/helpers.h>
 #include <yt/yt/library/query/base/query.h>
+#include <yt/yt/library/query/base/query_common.h>
 #include <yt/yt/library/query/base/query_helpers.h>
 #include <yt/yt/library/query/base/coordination_helpers.h>
 #include <yt/yt/library/query/base/private.h>
@@ -74,9 +76,12 @@
 #include <yt/yt/library/query/engine_api/coordinator.h>
 #include <yt/yt/library/query/engine_api/evaluator.h>
 
+#include <yt/yt/library/query/misc/rowset_subrange_reader.h>
+
 #include <yt/yt/core/concurrency/scheduler.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/mpsc_queue.h>
 #include <yt/yt/core/misc/range_formatters.h>
 #include <yt/yt/core/misc/tls_cache.h>
 
@@ -196,12 +201,25 @@ std::pair<NTableClient::TColumnFilter, TTimestampReadOptions> GetColumnFilter(
     return {TColumnFilter(std::move(indexes)), std::move(timestampReadOptions)};
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TTabletBalancingRatios final
+    : public std::vector<THashMap<TTabletId, double>>
+{ };
+
+using TTabletBalancingRatiosPtr = TIntrusivePtr<TTabletBalancingRatios>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TProfilingReaderWrapper
     : public ISchemafulUnversionedReader
 {
 private:
     const ISchemafulUnversionedReaderPtr Underlying_;
     const TSelectRowsCounters Counters_;
+    const TTabletBalancingRatiosPtr TabletRatios_;
+    const TTabletId TabletId_;
+    const int SubqueryIndex_;
 
     std::optional<TWallTimer> Timer_;
 
@@ -209,9 +227,15 @@ public:
     TProfilingReaderWrapper(
         ISchemafulUnversionedReaderPtr underlying,
         TSelectRowsCounters counters,
-        bool enableDetailedProfiling)
+        bool enableDetailedProfiling,
+        TTabletId tabletId,
+        int subqueryIndex,
+        TTabletBalancingRatiosPtr tabletRatios)
         : Underlying_(std::move(underlying))
         , Counters_(std::move(counters))
+        , TabletRatios_(std::move(tabletRatios))
+        , TabletId_(tabletId)
+        , SubqueryIndex_(subqueryIndex)
     {
         if (enableDetailedProfiling) {
             Timer_.emplace();
@@ -262,6 +286,8 @@ public:
         if (Timer_) {
             Counters_.SelectDuration.Record(Timer_->GetElapsedTime());
         }
+
+        (*TabletRatios_)[SubqueryIndex_][TabletId_] += statistics.data_weight();
     }
 };
 
@@ -366,87 +392,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRowsetSubrangeReader
-    : public ISchemafulUnversionedReader
-{
-public:
-    TRowsetSubrangeReader(
-        TFuture<TSharedRange<TUnversionedRow>> asyncRows,
-        std::optional<std::pair<TKeyBoundRef, TKeyBoundRef>> readRange)
-        : AsyncRows_(std::move(asyncRows))
-        , ReadRange_(std::move(readRange))
-    { }
-
-    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
-    {
-        if (!ReadRange_) {
-            return nullptr;
-        }
-        auto readRange = *ReadRange_;
-
-        if (!AsyncRows_.IsSet() || !AsyncRows_.Get().IsOK()) {
-            return CreateEmptyUnversionedRowBatch();
-        }
-
-        const auto& rows = AsyncRows_.Get().Value();
-
-        CurrentRowIndex_ = BinarySearch(CurrentRowIndex_, std::ssize(rows), [&] (i64 index) {
-            return !TestKeyWithWidening(
-                ToKeyRef(rows[index]),
-                readRange.first);
-        });
-
-        auto startIndex = CurrentRowIndex_;
-
-        CurrentRowIndex_ = std::min(CurrentRowIndex_ + options.MaxRowsPerRead, std::ssize(rows));
-
-        CurrentRowIndex_ = BinarySearch(startIndex, CurrentRowIndex_, [&] (i64 index) {
-            return TestKeyWithWidening(
-                ToKeyRef(rows[index]),
-                readRange.second);
-        });
-
-        if (startIndex == CurrentRowIndex_) {
-            return nullptr;
-        }
-
-        return CreateBatchFromUnversionedRows(MakeSharedRange(rows.Slice(startIndex, CurrentRowIndex_), rows));
-    }
-
-    TFuture<void> GetReadyEvent() const override
-    {
-        return AsyncRows_.AsVoid();
-    }
-
-    NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
-    {
-        return NChunkClient::NProto::TDataStatistics();
-    }
-
-    NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
-    {
-        return NChunkClient::TCodecStatistics();
-    }
-
-    bool IsFetchingCompleted() const override
-    {
-        return false;
-    }
-
-    std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
-    {
-        return {};
-    }
-
-private:
-    TFuture<TSharedRange<TUnversionedRow>> AsyncRows_;
-    i64 CurrentRowIndex_ = 0;
-    std::optional<std::pair<TKeyBoundRef, TKeyBoundRef>> ReadRange_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TabletReadItems
+struct TTabletReadItems
 {
     TTabletId TabletId;
 
@@ -488,9 +434,11 @@ public:
         , DataSources_(std::move(dataSources))
         , Writer_(std::move(writer))
         , MemoryChunkProvider_(std::move(memoryChunkProvider))
+        , RowBuffer_(New<TRowBuffer>(TQuerySubexecutorBufferTag(), MemoryChunkProvider_))
         , Invoker_(std::move(invoker))
         , QueryOptions_(std::move(queryOptions))
         , RequestFeatureFlags_(std::move(requestFeatureFlags))
+        , TabletRatios_(New<TTabletBalancingRatios>())
         , Logger(MakeQueryLogger(Query_))
         , Identity_(NRpc::GetCurrentAuthenticationIdentity())
         , TabletSnapshots_(Bootstrap_->GetTabletSnapshotStore(), Logger)
@@ -520,7 +468,9 @@ public:
             }
         }
 
-        profilerGuard.Start(TabletSnapshots_.GetTableProfiler()->GetQueryServiceCounters(GetCurrentProfilingUser())->Execute);
+        profilerGuard.Start(TabletSnapshots_.GetTableProfiler()
+            ->GetQueryServiceCounters(GetCurrentProfilingUser())
+            ->Execute);
 
         auto counters = TabletSnapshots_.GetTableProfiler()->GetSelectRowsCounters(GetProfilingUser(Identity_));
 
@@ -543,18 +493,9 @@ public:
             }
         });
 
-        auto rowBuffer = New<TRowBuffer>(TQuerySubexecutorBufferTag(), MemoryChunkProvider_);
-        auto classifiedDataSources = GetClassifiedDataSources(rowBuffer);
-        auto minKeyWidth = GetMinKeyWidth(classifiedDataSources);
+        auto statistics = DoCoordinateAndExecute();
 
-        auto groupedDataSplits = QueryOptions_.MergeVersionedRows
-            ? CoordinateDataSourcesOld(std::move(classifiedDataSources), rowBuffer)
-            : CoordinateDataSourcesNew(std::move(classifiedDataSources), rowBuffer);
-
-        auto statistics = DoCoordinateAndExecute(
-            std::move(groupedDataSplits),
-            rowBuffer,
-            minKeyWidth);
+        AccountCpuTimeToTablets(statistics);
 
         auto cpuTime = statistics.SyncTime;
         for (const auto& innerStatistics : statistics.InnerStatistics) {
@@ -578,10 +519,13 @@ private:
     const std::vector<TDataSource> DataSources_;
     const IUnversionedRowsetWriterPtr Writer_;
     const IMemoryChunkProviderPtr MemoryChunkProvider_;
+    const TRowBufferPtr RowBuffer_;
 
     const IInvokerPtr Invoker_;
     const TQueryOptions QueryOptions_;
     const TFeatureFlags RequestFeatureFlags_;
+
+    const TTabletBalancingRatiosPtr TabletRatios_;
 
     const NLogging::TLogger Logger;
 
@@ -591,9 +535,177 @@ private:
 
     TClientChunkReadOptions ChunkReadOptions_;
 
-    using TSubreaderCreator = std::function<ISchemafulUnversionedReaderPtr()>;
+    using TGetSubreader = std::function<ISchemafulUnversionedReaderPtr(int subqueryIndex)>;
+    using TGetPrefetchJoinSubDataSource = std::function<std::optional<TDataSource>(int subqueryIndex, size_t keyPrefix)>;
 
-    TDataSource GetPrefixReadItems(TRange<TabletReadItems> dataSplits, size_t keyPrefix)
+    TQueryStatistics DoCoordinateAndExecute()
+    {
+        auto functionGenerators = New<TFunctionProfilerMap>();
+        auto aggregateGenerators = New<TAggregateProfilerMap>();
+        MergeFrom(functionGenerators.Get(), *GetBuiltinFunctionProfilers());
+        MergeFrom(aggregateGenerators.Get(), *GetBuiltinAggregateProfilers());
+
+        FetchFunctionImplementationsFromCypress(
+            functionGenerators,
+            aggregateGenerators,
+            ExternalCGInfo_,
+            FunctionImplCache_,
+            ChunkReadOptions_);
+
+        auto [frontQuery, bottomQueryPattern] = GetDistributedQueryPattern(Query_);
+
+        int splitCount;
+        TGetSubreader getSubqueryReader;
+        TGetPrefetchJoinSubDataSource getPrefetchJoinDataSource;
+
+        auto ordered = frontQuery->IsOrdered(QueryOptions_.AllowUnorderedGroupByWithLimit);
+        auto classifiedDataSources = GetClassifiedDataSources();
+        auto minKeyWidth = GetMinKeyWidth(classifiedDataSources);
+
+        auto groupedDataSplits = QueryOptions_.MergeVersionedRows
+            ? CoordinateDataSourcesOld(std::move(classifiedDataSources))
+            : CoordinateDataSourcesNew(std::move(classifiedDataSources));
+
+        splitCount = std::ssize(groupedDataSplits);
+
+        TabletRatios_->resize(splitCount);
+
+        getSubqueryReader = [=, this, this_ = MakeStrong(this)] (int subqueryIndex) {
+            return CreateReaderForDataSources(groupedDataSplits[subqueryIndex], subqueryIndex);
+        };
+
+        getPrefetchJoinDataSource = [
+            =,
+            this,
+            this_ = MakeStrong(this)
+        ] (int subqueryIndex, int joinIndex) -> std::optional<TDataSource> {
+            const auto& joinClause = *Query_->JoinClauses[joinIndex];
+            if (!ShouldPrefetchJoinSource(
+                Query_,
+                joinClause,
+                minKeyWidth,
+                ordered))
+            {
+                return std::nullopt;
+            }
+
+            return GetPrefixReadItems(groupedDataSplits[subqueryIndex], joinClause.CommonKeyPrefix);
+        };
+
+        return CoordinateAndExecute(
+            Query_->IsOrdered(QueryOptions_.AllowUnorderedGroupByWithLimit),
+            Query_->IsPrefetching(),
+            splitCount,
+            Query_->Offset,
+            Query_->Limit,
+            QueryOptions_.AdaptiveOrderedSchemafulReader,
+            [
+                &,
+                getSubqueryReader = std::move(getSubqueryReader),
+                getPrefetchJoinDataSource = std::move(getPrefetchJoinDataSource),
+                bottomQueryPattern = std::move(bottomQueryPattern),
+                executePlanCallback = GetExecutePlanCallback(),
+                splitCount,
+                subqueryIndex = 0
+            ] () mutable -> TEvaluateResult {
+                if (subqueryIndex >= splitCount) {
+                    return {};
+                }
+
+                // Copy query to generate new id.
+                auto bottomQuery = New<TQuery>(*bottomQueryPattern);
+
+                YT_LOG_DEBUG("Evaluating bottom query (BottomQueryId: %v)", bottomQuery->Id);
+
+                auto pipe = New<TSchemafulPipe>(MemoryChunkProvider_);
+
+                // MPSC stack is an overkill in the current implementation but sequential execution of join
+                // subqueries is not specified anywhere and they might get parallelized later in the future.
+                auto subqueryResults = New<TMpscStack<TQueryStatistics>>();
+
+                // This refers to the Node execution level.
+                // There is only NodeThread execution level below,
+                // so we can set the most recent feature flags.
+                auto responseFeatureFlags = MakeFuture(MostFreshFeatureFlags());
+
+                std::vector<IJoinProfilerPtr> joinProfilers;
+
+                for (int joinIndex = 0; joinIndex < std::ssize(Query_->JoinClauses); ++joinIndex) {
+                    joinProfilers.push_back(CreateJoinSubqueryProfiler(
+                        Query_->JoinClauses[joinIndex],
+                        executePlanCallback,
+                        [=, Logger = Logger] (TQueryStatistics statistics) mutable {
+                            YT_LOG_DEBUG("Remote subquery statistics %v", statistics);
+                            subqueryResults->Enqueue(std::move(statistics));
+                        },
+                        [=] () {
+                            return getPrefetchJoinDataSource(subqueryIndex, joinIndex);
+                        },
+                        MemoryChunkProvider_,
+                        Logger));
+                }
+
+                auto asyncStatistics = BIND(&IEvaluator::Run, Evaluator_)
+                    .AsyncVia(Invoker_)
+                    .Run(
+                        bottomQuery,
+                        getSubqueryReader(subqueryIndex++),
+                        pipe->GetWriter(),
+                        std::move(joinProfilers),
+                        functionGenerators,
+                        aggregateGenerators,
+                        MemoryChunkProvider_,
+                        QueryOptions_,
+                        RequestFeatureFlags_,
+                        responseFeatureFlags);
+
+                asyncStatistics = asyncStatistics.ApplyUnique(BIND([=, Logger = Logger] (TErrorOr<TQueryStatistics>&& result) {
+                    if (!result.IsOK()) {
+                        pipe->Fail(result);
+                        YT_LOG_DEBUG(result, "Bottom query failed (SubqueryId: %v)", bottomQuery->Id);
+                        return result;
+                    } else {
+                        auto& statistics = result.Value();
+
+                        YT_LOG_DEBUG("Bottom query finished (SubqueryId: %v, Statistics: %v)",
+                            bottomQuery->Id,
+                            statistics);
+
+                        subqueryResults->DequeueAll(/*reverse*/ true, [&] (TQueryStatistics& innerStatistics) {
+                            statistics.AddInnerStatistics(std::move(innerStatistics));
+                        });
+
+                        return result;
+                    }
+                }));
+
+                return {pipe->GetReader(), std::move(asyncStatistics), responseFeatureFlags};
+            },
+            [=, this, this_ = MakeStrong(this)] (
+                const ISchemafulUnversionedReaderPtr& reader,
+                TFuture<TFeatureFlags> responseFeatureFlags
+            ) {
+                YT_LOG_DEBUG("Evaluating front query (FrontQueryId: %v)", frontQuery->Id);
+
+                auto result = Evaluator_->Run(
+                    frontQuery,
+                    std::move(reader),
+                    Writer_,
+                    /*joinProfilers*/ {},
+                    functionGenerators,
+                    aggregateGenerators,
+                    MemoryChunkProvider_,
+                    QueryOptions_,
+                    RequestFeatureFlags_,
+                    responseFeatureFlags);
+
+                YT_LOG_DEBUG("Finished evaluating front query (FrontQueryId: %v)", frontQuery->Id);
+
+                return result;
+            });
+    }
+
+    TDataSource GetPrefixReadItems(TRange<TTabletReadItems> dataSplits, size_t keyPrefix)
     {
         auto rowBuffer = New<TRowBuffer>(TQuerySubexecutorBufferTag(), MemoryChunkProvider_);
         std::vector<TRowRange> prefixRanges;
@@ -709,31 +821,7 @@ private:
         return dataSource;
     }
 
-    static size_t GetMinKeyWidth(TRange<TDataSource> dataSources)
-    {
-        size_t minKeyWidth = std::numeric_limits<size_t>::max();
-        for (const auto& split : dataSources) {
-            for (const auto& range : split.Ranges) {
-                minKeyWidth = std::min({
-                    minKeyWidth,
-                    GetSignificantWidth(range.first),
-                    GetSignificantWidth(range.second)});
-            }
-
-            for (const auto& key : split.Keys) {
-                minKeyWidth = std::min(
-                    minKeyWidth,
-                    static_cast<size_t>(key.GetCount()));
-            }
-        }
-
-        return minKeyWidth;
-    }
-
-    TQueryStatistics DoCoordinateAndExecute(
-        std::vector<std::vector<TabletReadItems>> groupedDataSplits,
-        const TRowBufferPtr& rowBuffer,
-        size_t minKeyWidth)
+    TExecutePlan GetExecutePlanCallback()
     {
         auto clientOptions = NApi::TClientOptions::FromAuthenticationIdentity(Identity_);
         auto client = Bootstrap_
@@ -749,264 +837,29 @@ private:
             client->GetChannelFactory(),
             FunctionImplCache_);
 
-        auto functionGenerators = New<TFunctionProfilerMap>();
-        auto aggregateGenerators = New<TAggregateProfilerMap>();
-        MergeFrom(functionGenerators.Get(), *GetBuiltinFunctionProfilers());
-        MergeFrom(aggregateGenerators.Get(), *GetBuiltinAggregateProfilers());
-
-        FetchFunctionImplementationsFromCypress(
-            functionGenerators,
-            aggregateGenerators,
-            ExternalCGInfo_,
-            FunctionImplCache_,
-            ChunkReadOptions_);
-
-        auto [frontQuery, bottomQueryPattern] = GetDistributedQueryPattern(Query_);
-
-        int splitCount = std::ssize(groupedDataSplits);
-
-        return CoordinateAndExecute(
-            Query_->IsOrdered(QueryOptions_.AllowUnorderedGroupByWithLimit),
-            Query_->IsPrefetching(),
-            splitCount,
-            [
-                &,
-                bottomQueryPattern = bottomQueryPattern,
-                groupedDataSplits = std::move(groupedDataSplits),
-                rowBuffer,
-                subqueryIndex = 0
-            ] () mutable -> TEvaluateResult {
-                if (subqueryIndex >= std::ssize(groupedDataSplits)) {
-                    return {};
-                }
-
-                auto dataSplits = groupedDataSplits[subqueryIndex++];
-
-                auto asyncSubqueryResults = std::make_shared<std::vector<TFuture<TQueryStatistics>>>();
-
-                // Copy query to generate new id.
-                auto bottomQuery = New<TQuery>(*bottomQueryPattern);
-
-                bool orderedExecution = bottomQuery->IsOrdered(QueryOptions_.AllowUnorderedGroupByWithLimit);
-
-                auto foreignProfileCallback = [
-                    asyncSubqueryResults,
-                    remoteExecutor,
-                    dataSplits,
-                    orderedExecution,
-                    minKeyWidth,
-                    this,
-                    this_ = MakeStrong(this)
-                ] (int joinIndex) -> TJoinSubqueryEvaluator {
-                    auto joinClause = Query_->JoinClauses[joinIndex];
-
-                    auto remoteOptions = QueryOptions_;
-                    remoteOptions.MaxSubqueries = 1;
-                    remoteOptions.MergeVersionedRows = true;
-
-                    auto remoteFeatureFlags = RequestFeatureFlags_;
-
-                    auto definedKeyColumns = Query_->GetRenamedSchema()->Columns();
-                    definedKeyColumns.resize(minKeyWidth);
-
-                    auto lhsTableWhereClause = SplitPredicateByColumnSubset(Query_->WhereClause, *Query_->GetRenamedSchema()).first;
-                    bool lhsQueryCanBeSelective = SplitPredicateByColumnSubset(lhsTableWhereClause, TTableSchema(definedKeyColumns))
-                        .second->As<TLiteralExpression>() == nullptr;
-                    bool inferredRangesCompletelyDefineRhsRanges = joinClause->CommonKeyPrefix >= minKeyWidth && minKeyWidth > 0;
-                    bool canUseMergeJoin = inferredRangesCompletelyDefineRhsRanges && !orderedExecution && !lhsQueryCanBeSelective;
-
-                    YT_LOG_DEBUG("Profiling query (CommonKeyPrefix: %v, MinKeyWidth: %v, LhsQueryCanBeSelective: %v)",
-                        joinClause->CommonKeyPrefix,
-                        minKeyWidth,
-                        lhsQueryCanBeSelective);
-
-                    if (canUseMergeJoin) {
-                        auto dataSource = GetPrefixReadItems(dataSplits, joinClause->CommonKeyPrefix);
-                        dataSource.ObjectId = joinClause->ForeignObjectId;
-                        dataSource.CellId = joinClause->ForeignCellId;
-                        auto joinSubquery = joinClause->GetJoinSubquery();
-
-                        joinSubquery->InferRanges = false;
-
-                        // COMPAT(lukyan): Use ordered read without modification of protocol
-                        joinSubquery->Limit = OrderedReadWithPrefetchHint;
-
-                        YT_LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", joinSubquery->Id);
-
-                        auto writer = New<TSimpleRowsetWriter>(MemoryChunkProvider_);
-
-                        auto asyncResult = BIND(
-                            &IExecutor::Execute,
-                            remoteExecutor,
-                            TPlanFragment{
-                                .Query = std::move(joinSubquery),
-                                .DataSource = std::move(dataSource),
-                            },
-                            ExternalCGInfo_,
-                            writer,
-                            remoteOptions,
-                            remoteFeatureFlags)
-                            .AsyncVia(Invoker_)
-                            .Run();
-
-                        asyncResult.Subscribe(BIND([writer] (const TErrorOr<TQueryStatistics>& error) {
-                            if (!error.IsOK()) {
-                                writer->Fail(error);
-                            }
-                        }));
-
-                        asyncSubqueryResults->push_back(asyncResult);
-
-                        auto asyncRows = writer->GetResult();
-
-                        return [
-                            asyncRows,
-                            foreignKeyPrefix = joinClause->ForeignKeyPrefix
-                        ] (std::vector<TRow> keys, TRowBufferPtr /*permanentBuffer*/) {
-                            std::optional<std::pair<TKeyBoundRef, TKeyBoundRef>> readRange;
-                            if (!keys.empty()) {
-                                readRange = {
-                                    TKeyBoundRef(keys.front().FirstNElements(foreignKeyPrefix), /*inclusive*/ true, /*upper*/ false),
-                                    TKeyBoundRef(keys.back().FirstNElements(foreignKeyPrefix), /*inclusive*/ true, /*upper*/ true)};
-                            }
-
-                            return New<TRowsetSubrangeReader>(asyncRows, readRange);
-                        };
-                    } else {
-                        return [
-                            asyncSubqueryResults,
-                            remoteExecutor,
-                            joinClause,
-                            remoteOptions,
-                            remoteFeatureFlags,
-                            this,
-                            this_ = MakeStrong(this)
-                        ] (std::vector<TRow> keys, TRowBufferPtr permanentBuffer) {
-                            if (keys.empty()) {
-                                return ISchemafulUnversionedReaderPtr{};
-                            }
-                            TDataSource dataSource;
-                            TQueryPtr foreignQuery;
-                            std::tie(foreignQuery, dataSource) = GetForeignQuery(
-                                std::move(keys),
-                                std::move(permanentBuffer),
-                                *joinClause);
-
-                            YT_LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", foreignQuery->Id);
-
-                            auto pipe = New<NTableClient::TSchemafulPipe>(MemoryChunkProvider_);
-
-                            auto asyncResult = BIND(
-                                &IExecutor::Execute,
-                                remoteExecutor,
-                                TPlanFragment{
-                                    .Query = std::move(foreignQuery),
-                                    .DataSource = std::move(dataSource),
-                                },
-                                ExternalCGInfo_,
-                                pipe->GetWriter(),
-                                remoteOptions,
-                                remoteFeatureFlags)
-                                .AsyncVia(Invoker_)
-                                .Run();
-
-                            asyncResult.Subscribe(BIND([pipe] (const TErrorOr<TQueryStatistics>& error) {
-                                if (!error.IsOK()) {
-                                    pipe->Fail(error);
-                                }
-                            }));
-
-                            asyncSubqueryResults->push_back(asyncResult);
-
-                            return pipe->GetReader();
-                        };
-                    }
-                };
-
-                auto mergingReader = CreateReaderForDataSources(std::move(dataSplits), rowBuffer);
-
-                YT_LOG_DEBUG("Evaluating bottom query (BottomQueryId: %v)", bottomQuery->Id);
-
-                auto pipe = New<TSchemafulPipe>(MemoryChunkProvider_);
-
-                // This refers to the Node execution level.
-                // There is only NodeThread execution level below,
-                // so we can set the most recent feature flags.
-                auto responseFeatureFlags = MakeFuture(MostFreshFeatureFlags());
-
-                auto asyncStatistics = BIND(&IEvaluator::Run, Evaluator_)
-                    .AsyncVia(Invoker_)
-                    .Run(
-                        bottomQuery,
-                        mergingReader,
-                        pipe->GetWriter(),
-                        foreignProfileCallback,
-                        functionGenerators,
-                        aggregateGenerators,
-                        MemoryChunkProvider_,
-                        QueryOptions_,
-                        RequestFeatureFlags_,
-                        responseFeatureFlags);
-
-                asyncStatistics = asyncStatistics.Apply(BIND([
-                    =,
-                    this,
-                    this_ = MakeStrong(this)
-                ] (const TErrorOr<TQueryStatistics>& result) -> TFuture<TQueryStatistics> {
-                    if (!result.IsOK()) {
-                        pipe->Fail(result);
-                        YT_LOG_DEBUG(result, "Bottom query failed (SubqueryId: %v)", bottomQuery->Id);
-                        return MakeFuture(result);
-                    } else {
-                        TQueryStatistics statistics = result.Value();
-
-                        YT_LOG_DEBUG("Bottom query finished (SubqueryId: %v, Statistics: %v)",
-                            bottomQuery->Id,
-                            statistics);
-
-                        return AllSucceeded(*asyncSubqueryResults)
-                        .Apply(BIND([
-                            =,
-                            this,
-                            this_ = MakeStrong(this)
-                        ] (const std::vector<TQueryStatistics>& subqueryResults) mutable {
-                            for (const auto& subqueryResult : subqueryResults) {
-                                YT_LOG_DEBUG("Remote subquery statistics %v", subqueryResult);
-                                statistics.AddInnerStatistics(subqueryResult);
-                            }
-                            return statistics;
-                        }));
-                    }
-                }));
-
-                return {pipe->GetReader(), asyncStatistics, responseFeatureFlags};
-            },
-            [&, frontQuery = frontQuery] (
-                const ISchemafulUnversionedReaderPtr& reader,
-                TFuture<TFeatureFlags> responseFeatureFlags
-            ) -> TQueryStatistics {
-                YT_LOG_DEBUG("Evaluating front query (FrontQueryId: %v)", frontQuery->Id);
-                auto result = Evaluator_->Run(
-                    frontQuery,
-                    std::move(reader),
-                    Writer_,
-                    nullptr,
-                    functionGenerators,
-                    aggregateGenerators,
-                    MemoryChunkProvider_,
-                    QueryOptions_,
-                    RequestFeatureFlags_,
-                    responseFeatureFlags);
-                YT_LOG_DEBUG("Finished evaluating front query (FrontQueryId: %v)", frontQuery->Id);
-                return result;
-            });
+        return [
+            options = GetJoinSubqueryOptions(QueryOptions_),
+            this,
+            this_ = MakeStrong(this),
+            remoteExecutor
+        ] (TPlanFragment fragment, IUnversionedRowsetWriterPtr writer) {
+            return BIND(
+                &IExecutor::Execute,
+                remoteExecutor,
+                fragment,
+                ExternalCGInfo_,
+                writer,
+                options,
+                RequestFeatureFlags_)
+                .AsyncVia(Invoker_)
+                .Run();
+        };
     }
 
-    std::vector<std::vector<TabletReadItems>> CoordinateDataSourcesOld(
-        std::vector<TDataSource> dataSourcesByTablet,
-        const TRowBufferPtr& rowBuffer)
+    TSharedRange<std::vector<TTabletReadItems>> CoordinateDataSourcesOld(
+        std::vector<TDataSource> dataSourcesByTablet)
     {
-        std::vector<TabletReadItems> splits;
+        std::vector<TTabletReadItems> splits;
 
         bool sortedDataSource = false;
 
@@ -1020,7 +873,7 @@ private:
             YT_VERIFY(tabletIdRange.Keys.Empty() != ranges.Empty());
 
             if (!tabletSnapshot->TableSchema->IsSorted() || ranges.Empty()) {
-                splits.push_back(TabletReadItems{
+                splits.push_back(TTabletReadItems{
                     .TabletId = tabletId,
                     .Ranges = ranges,
                     .Keys = keys,
@@ -1040,13 +893,13 @@ private:
             auto tabletSplits = SplitTablet(
                 TRange(partitions),
                 ranges,
-                rowBuffer,
+                RowBuffer_,
                 Config_->MaxSubsplitsPerTablet,
                 QueryOptions_.VerboseLogging,
                 Logger);
 
             for (const auto& split : tabletSplits) {
-                splits.push_back(TabletReadItems{
+                splits.push_back(TTabletReadItems{
                     .TabletId = tabletId,
                     .Ranges = split,
                 });
@@ -1073,7 +926,7 @@ private:
 
         bool regroupByTablets = Query_->GroupClause && Query_->GroupClause->CommonPrefixWithPrimaryKey > 0;
 
-        std::vector<std::vector<TabletReadItems>> groupedDataSplits;
+        std::vector<std::vector<TTabletReadItems>> groupedDataSplits;
 
         auto processSplitsRanges = [&] (int beginIndex, int endIndex) {
             if (beginIndex == endIndex) {
@@ -1127,10 +980,10 @@ private:
 
         YT_VERIFY(splitOffset == splitCount);
 
-        return groupedDataSplits;
+        return MakeSharedRange(std::move(groupedDataSplits), RowBuffer_);
     }
 
-    std::vector<TDataSource> GetClassifiedDataSources(const TRowBufferPtr& rowBuffer)
+    std::vector<TDataSource> GetClassifiedDataSources()
     {
         YT_LOG_DEBUG("Classifying data sources into ranges and lookup keys");
 
@@ -1176,7 +1029,7 @@ private:
                     classifiedDataSources.push_back(TDataSource{
                         .ObjectId = source.ObjectId,
                         .CellId = source.CellId,
-                        .Ranges = MakeSharedRange(std::move(rowRanges), source.Ranges.GetHolder(), rowBuffer),
+                        .Ranges = MakeSharedRange(std::move(rowRanges), source.Ranges.GetHolder(), RowBuffer_),
                     });
                 }
             };
@@ -1221,7 +1074,7 @@ private:
                     keys.push_back(key);
                 } else {
                     pushKeys();
-                    rowRanges.emplace_back(key, WidenKeySuccessor(key, rowSize, rowBuffer, false));
+                    rowRanges.emplace_back(key, WidenKeySuccessor(key, rowSize, RowBuffer_, false));
                 }
             }
             pushRanges();
@@ -1235,9 +1088,8 @@ private:
         return classifiedDataSources;
     }
 
-    std::vector<std::vector<TabletReadItems>> CoordinateDataSourcesNew(
-        std::vector<TDataSource> dataSourcesByTablet,
-        const TRowBufferPtr& rowBuffer)
+    TSharedRange<std::vector<TTabletReadItems>> CoordinateDataSourcesNew(
+        std::vector<TDataSource> dataSourcesByTablet)
     {
         struct TSampleRange
         {
@@ -1252,7 +1104,7 @@ private:
         {
             std::vector<TSampleRange> SampleRanges;
 
-            // PartitionIndex is used to determine which partiton to read if range intersects partition's bound.
+            // PartitionIndex is used to determine which partition to read if range intersects partition's bound.
             int PartitionIndex;
         };
 
@@ -1335,7 +1187,7 @@ private:
 
                 int partitionIndex = static_cast<int>(partitionIt - partitions.begin());
 
-                TRange<TLegacyKey> paritionSampleKeys = (*partitionIt)->SampleKeys->Keys;
+                TRange<TLegacyKey> partitionSampleKeys = (*partitionIt)->SampleKeys->Keys;
 
                 // Alternatively can group items by original sample ranges with weight 1 and concat them afterwise.
                 // It does not make difference because of original ranges width.
@@ -1344,7 +1196,7 @@ private:
                 if (QueryOptions_.MergeVersionedRows) {
                     weights.push_back(1);
 
-                    for (auto key : paritionSampleKeys) {
+                    for (auto key : partitionSampleKeys) {
                         sampleKeyPrefixes.push_back(ToKeyRef(key));
                         weights.push_back(1);
                     }
@@ -1361,14 +1213,14 @@ private:
                         YT_LOG_DEBUG("Preparing sample key prefixes (PartitionIndex: %v, KeyWidth: %v, SamplesInPartition: %v)",
                             partitionIndex,
                             keyWidth,
-                            std::ssize(paritionSampleKeys));
+                            std::ssize(partitionSampleKeys));
                     }
 
-                    auto maxKeyWidth = paritionSampleKeys.Empty() ? keyWidth : paritionSampleKeys.Front().GetCount();
+                    auto maxKeyWidth = partitionSampleKeys.Empty() ? keyWidth : partitionSampleKeys.Front().GetCount();
 
                     auto optimalKeyWidth = ExponentialSearch(keyWidth, maxKeyWidth, [&] (size_t keyWidth) {
                         std::tie(sampleKeyPrefixes, weights) = GetSampleKeysForPrefix(
-                            paritionSampleKeys,
+                            partitionSampleKeys,
                             keyWidth,
                             (*partitionIt)->PivotKey);
 
@@ -1386,11 +1238,11 @@ private:
                         }
 
                         // Stop when maxWeight is less than square root of sample key count per parittion.
-                        return maxWeight * maxWeight > std::ssize(paritionSampleKeys);
+                        return maxWeight * maxWeight > std::ssize(partitionSampleKeys);
                     });
 
                     std::tie(sampleKeyPrefixes, weights) = GetSampleKeysForPrefix(
-                        paritionSampleKeys,
+                        partitionSampleKeys,
                         optimalKeyWidth,
                         (*partitionIt)->PivotKey);
 
@@ -1407,7 +1259,7 @@ private:
                     rowCountInPartition += store->GetRowCount();
                 }
 
-                ui64 rowCountPerSampleRange = std::max<ui64>(rowCountInPartition / (paritionSampleKeys.size() + 1), 1);
+                ui64 rowCountPerSampleRange = std::max<ui64>(rowCountInPartition / (partitionSampleKeys.size() + 1), 1);
                 YT_VERIFY(rowCountPerSampleRange > 0);
 
                 if (QueryOptions_.VerboseLogging) {
@@ -1478,8 +1330,8 @@ private:
         int groupId = 0;
         ui64 nextWeight = (groupId + 1) * totalWeight / targetGroupCount;
 
-        std::vector<std::vector<TabletReadItems>> groupedReadRanges;
-        std::vector<TabletReadItems> tabletBoundsGroup;
+        std::vector<std::vector<TTabletReadItems>> groupedReadRanges;
+        std::vector<TTabletReadItems> tabletBoundsGroup;
 
         bool firstSampleInGroup = true;
 
@@ -1514,7 +1366,7 @@ private:
                     if (firstSampleInGroup) {
                         lowerBound = sampleRange.Ranges.Front().first;
                         if (CompareValueRanges(ToKeyRef(lowerBound), sampleRange.LowerSampleKey) < 0) {
-                            lowerBound = rowBuffer->CaptureRow(sampleRange.LowerSampleKey);
+                            lowerBound = RowBuffer_->CaptureRow(sampleRange.LowerSampleKey);
                         }
 
                         firstSampleInGroup = false;
@@ -1533,7 +1385,7 @@ private:
 
                         auto upperBound = tabletBoundsGroup.back().PartitionBounds.back().Bounds.back().second;
                         if (CompareValueRanges(sampleRange.UpperSampleKey, ToKeyRef(upperBound)) < 0) {
-                            upperBound = rowBuffer->CaptureRow(sampleRange.UpperSampleKey);
+                            upperBound = RowBuffer_->CaptureRow(sampleRange.UpperSampleKey);
                         }
 
                         tabletBoundsGroup.front().PartitionBounds.front().Bounds.front().first = lowerBound;
@@ -1570,8 +1422,8 @@ private:
         bool regroupByTablets = Query_->GroupClause && Query_->GroupClause->CommonPrefixWithPrimaryKey > 0;
 
         if (regroupByTablets) {
-            std::vector<std::vector<TabletReadItems>> regroupedReadRanges;
-            std::vector<TabletReadItems> tabletBoundsGroup;
+            std::vector<std::vector<TTabletReadItems>> regroupedReadRanges;
+            std::vector<TTabletReadItems> tabletBoundsGroup;
 
             for (const auto& group : groupedReadRanges) {
                 for (const auto& tabletReadItems : group) {
@@ -1584,15 +1436,15 @@ private:
                 regroupedReadRanges.push_back(std::move(tabletBoundsGroup));
             }
 
-            return regroupedReadRanges;
+            return MakeSharedRange(regroupedReadRanges, RowBuffer_);
         }
 
-        return groupedReadRanges;
+        return MakeSharedRange(groupedReadRanges, RowBuffer_);
     }
 
     ISchemafulUnversionedReaderPtr CreateReaderForDataSources(
-        std::vector<TabletReadItems> dataSplits,
-        TRowBufferPtr rowBuffer)
+        std::vector<TTabletReadItems> dataSplits,
+        int subqueryIndex)
     {
         size_t partitionBounds = 0;
         size_t sortedRangeCount = 0;
@@ -1609,7 +1461,7 @@ private:
             keyCount += dataSplit.Keys.size();
         }
 
-        YT_LOG_DEBUG("Generating reader (SplitCount: %v, PartitionBounds: %v, SortedRanges: %v, OrderedRanges: %v, Keys: %v",
+        YT_LOG_DEBUG("Generating reader (SplitCount: %v, PartitionBounds: %v, SortedRanges: %v, OrderedRanges: %v, Keys: %v)",
             dataSplits.size(),
             partitionBounds,
             sortedRangeCount,
@@ -1693,7 +1545,7 @@ private:
                     reader = CreatePartitionScanReader(
                         tabletSnapshot,
                         columnFilter,
-                        MakeSharedRange(dataSplit.PartitionBounds, rowBuffer),
+                        MakeSharedRange(dataSplit.PartitionBounds, RowBuffer_),
                         QueryOptions_.TimestampRange,
                         ChunkReadOptions_,
                         ETabletDistributedThrottlerKind::Select,
@@ -1721,13 +1573,77 @@ private:
                 return New<TProfilingReaderWrapper>(
                     reader,
                     *tabletSnapshot->TableProfiler->GetSelectRowsCounters(GetProfilingUser(Identity_)),
-                    tabletSnapshot->Settings.MountConfig->EnableDetailedProfiling);
+                    tabletSnapshot->Settings.MountConfig->EnableDetailedProfiling,
+                    dataSplit.TabletId,
+                    subqueryIndex,
+                    TabletRatios_);
             } catch (const std::exception& ex) {
                 THROW_ERROR EnrichErrorForErrorManager(TError(ex), tabletSnapshot);
             }
         };
 
         return CreatePrefetchingOrderedSchemafulReader(std::move(bottomSplitReaderGenerator));
+    }
+
+    void AccountCpuTimeToTablets(const TQueryStatistics& statistics)
+    {
+        int subqueryCount = statistics.InnerStatistics.size();
+        // We might end up executing fewer subqueries than initially planned.
+        YT_VERIFY(subqueryCount <= std::ssize(*TabletRatios_));
+
+        std::vector<double> ratioSums(subqueryCount, 0.0);
+        double totalRowsWrittenBySubqueries = 0;
+
+        auto safeDiv = [] (double lhs, double rhs) {
+            return rhs == 0.0 ? 0.0 : lhs / rhs;
+        };
+
+        for (int subqueryIndex = 0; subqueryIndex < subqueryCount; ++subqueryIndex) {
+            for (const auto& [_, ratio] : (*TabletRatios_)[subqueryIndex]) {
+                ratioSums[subqueryIndex] += ratio;
+            }
+            totalRowsWrittenBySubqueries += statistics.InnerStatistics[subqueryIndex].RowsWritten;
+        }
+
+        for (int subqueryIndex = 0; subqueryIndex < subqueryCount; ++subqueryIndex) {
+            const auto& innerStatistics = statistics.InnerStatistics[subqueryIndex];
+
+            auto subqueryCpuTime = (
+                (innerStatistics.SyncTime - innerStatistics.CodegenTime) +
+                (statistics.SyncTime - statistics.CodegenTime) *
+                    safeDiv(innerStatistics.RowsWritten, totalRowsWrittenBySubqueries))
+                .MicroSeconds();
+
+
+            for (const auto& [tabletId, ratio] : (*TabletRatios_)[subqueryIndex]) {
+                TabletSnapshots_.GetCachedTabletSnapshot(tabletId)
+                    ->PerformanceCounters
+                    ->SelectCpuTime.Counter.fetch_add(
+                        safeDiv(ratio, ratioSums[subqueryIndex]) * subqueryCpuTime,
+                        std::memory_order::relaxed);
+            }
+        }
+    }
+
+    static size_t GetMinKeyWidth(TRange<TDataSource> dataSources)
+    {
+        size_t minKeyWidth = std::numeric_limits<size_t>::max();
+        for (const auto& split : dataSources) {
+            for (const auto& range : split.Ranges) {
+                minKeyWidth = std::min({
+                    minKeyWidth,
+                    GetSignificantWidth(range.first),
+                    GetSignificantWidth(range.second)});
+            }
+
+            for (const auto& key : split.Keys) {
+                minKeyWidth = std::min(
+                    minKeyWidth,
+                    static_cast<size_t>(key.GetCount()));
+            }
+        }
+
+        return minKeyWidth;
     }
 };
 

@@ -10,6 +10,99 @@
 
 namespace NYT::NDataNode {
 
+////////////////////////////////////////////////////////////////////////////////
+
+TProbePutBlocksRequestSupplier::TProbePutBlocksRequestSupplier(TSessionId sessionId)
+    : SessionId_(sessionId)
+{ }
+
+TSessionId TProbePutBlocksRequestSupplier::GetSessionId() const
+{
+    return SessionId_;
+}
+
+void TProbePutBlocksRequestSupplier::CancelRequests()
+{
+    auto guard = Guard(Lock_);
+    Canceled_ = true;
+}
+
+bool TProbePutBlocksRequestSupplier::IsCanceled() const
+{
+    auto guard = Guard(Lock_);
+    return Canceled_;
+}
+
+i64 TProbePutBlocksRequestSupplier::GetCurrentApprovedMemory() const
+{
+    auto guard = Guard(Lock_);
+    return ApprovedMemory_;
+}
+
+i64 TProbePutBlocksRequestSupplier::GetMaxRequestedMemory() const
+{
+    auto guard = Guard(Lock_);
+    return MaxRequestedMemory_;
+}
+
+std::optional<TProbePutBlocksRequestSupplier::TRequest> TProbePutBlocksRequestSupplier::TryGetMinRequest()
+{
+    auto guard = Guard(Lock_);
+    if (Requests_.empty()) {
+        return std::nullopt;
+    }
+
+    auto request = *Requests_.begin();
+
+    return request;
+}
+
+void TProbePutBlocksRequestSupplier::ApproveRequest(TLocationMemoryGuard&& memoryGuard, TRequest request)
+{
+    auto guard = Guard(Lock_);
+
+    YT_VERIFY(request.CumulativeBlockSize > ApprovedMemory_);
+    YT_VERIFY(memoryGuard.GetUseLegacyUsedMemory() == false);
+    YT_VERIFY(memoryGuard.GetSize() == request.CumulativeBlockSize - ApprovedMemory_);
+    YT_VERIFY(!MemoryGuard_ || MemoryGuard_.GetUseLegacyUsedMemory() == false);
+
+    if (MemoryGuard_) {
+        YT_VERIFY(memoryGuard.GetOwner() == MemoryGuard_.GetOwner());
+
+        auto acquiredMemory = memoryGuard.GetSize();
+        memoryGuard.Release();
+        MemoryGuard_.IncreaseSize(acquiredMemory);
+    } else {
+        MemoryGuard_ = std::move(memoryGuard);
+    }
+
+    ApprovedMemory_ = request.CumulativeBlockSize;
+
+    while (!Requests_.empty() && Requests_.begin()->CumulativeBlockSize <= ApprovedMemory_) {
+        Requests_.erase(Requests_.begin());
+    }
+}
+
+void TProbePutBlocksRequestSupplier::PushRequest(TRequest request)
+{
+    auto guard = Guard(Lock_);
+
+    if (request.CumulativeBlockSize <= ApprovedMemory_) {
+        return;
+    }
+
+    Requests_.insert(std::move(request));
+    MaxRequestedMemory_ = std::max(MaxRequestedMemory_, request.CumulativeBlockSize);
+}
+
+void TProbePutBlocksRequestSupplier::ReleaseResourcesForPutBlocks(i64 memory)
+{
+    auto guard = Guard(Lock_);
+    MemoryGuard_.DecreaseSize(memory);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 using namespace NRpc;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -42,6 +135,8 @@ TSessionBase::TSessionBase(
     , StartTime_(TInstant::Now())
     , LockedChunkGuard_(std::move(lockedChunkGuard))
     , WriteBlocksOptions_(std::move(writeBlocksOptions))
+    , ProbePutBlocksRequestSupplier_(New<TProbePutBlocksRequestSupplier>(SessionId_))
+    , UseProbePutBlocks_(options.UseProbePutBlocks)
 {
     YT_VERIFY(Bootstrap_);
     YT_VERIFY(Location_);
@@ -174,6 +269,8 @@ void TSessionBase::Cancel(const TError& error)
             TLeaseManager::CloseLease(Lease_);
             Active_ = false;
             Canceled_.store(true);
+            ProbePutBlocksRequestSupplier_->CancelRequests();
+            Location_->CheckProbePutBlocksRequests();
 
             DoCancel(error);
         }));
@@ -202,7 +299,8 @@ TFuture<void> TSessionBase::GetUnregisteredEvent()
 
 TFuture<ISession::TFinishResult> TSessionBase::Finish(
     const TRefCountedChunkMetaPtr& chunkMeta,
-    std::optional<int> blockCount)
+    std::optional<int> blockCount,
+    bool truncateExtraBlocks)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -217,10 +315,56 @@ TFuture<ISession::TFinishResult> TSessionBase::Finish(
             TLeaseManager::CloseLease(Lease_);
             Active_ = false;
 
-            return DoFinish(chunkMeta, blockCount);
+            return DoFinish(chunkMeta, blockCount, truncateExtraBlocks);
         })
         .AsyncVia(SessionInvoker_)
         .Run();
+}
+
+TLocationMemoryGuard TSessionBase::GetMemoryForPutBlocks(i64 memory)
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    ProbePutBlocksRequestSupplier_->ReleaseResourcesForPutBlocks(memory);
+
+    return Location_->AcquireLocationMemory(true, {}, EIODirection::Write, GetWorkloadDescriptor(), memory);
+}
+
+i64 TSessionBase::GetApprovedCumulativeBlockSize() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return ProbePutBlocksRequestSupplier_->GetCurrentApprovedMemory();
+}
+
+i64 TSessionBase::GetMaxRequestedCumulativeBlockSize() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return ProbePutBlocksRequestSupplier_->GetMaxRequestedMemory();
+}
+
+bool TSessionBase::ShouldUseProbePutBlocks() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return UseProbePutBlocks_;
+}
+
+void TSessionBase::ProbePutBlocks(i64 requestedCumulativeMemorySize)
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    YT_LOG_INFO("ProbePutBlocks request pushed "
+        "(SessionId: %v, RequestedCumulativeBlockSize: %v)",
+        SessionId_, requestedCumulativeMemorySize);
+
+    ProbePutBlocksRequestSupplier_->PushRequest({
+        .CumulativeBlockSize = requestedCumulativeMemorySize,
+        .WorkloadDescriptor = GetWorkloadDescriptor(),
+    });
+
+    Location_->PushProbePutBlocksRequestSupplier(ProbePutBlocksRequestSupplier_);
 }
 
 TFuture<NIO::TIOCounters> TSessionBase::PutBlocks(
@@ -249,10 +393,12 @@ TFuture<NIO::TIOCounters> TSessionBase::PutBlocks(
         .Run();
 }
 
-TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TSessionBase::SendBlocks(
+TFuture<TSessionBase::TSendBlocksResult> TSessionBase::SendBlocks(
     int startBlockIndex,
     int blockCount,
     i64 cumulativeBlockSize,
+    TDuration requestTimeout,
+    bool instantReplyOnThrottling,
     const TNodeDescriptor& targetDescriptor)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -264,7 +410,7 @@ TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TSessionBase::SendBlocks(
             ValidateActive();
             Ping();
 
-            return DoSendBlocks(startBlockIndex, blockCount, cumulativeBlockSize, targetDescriptor);
+            return DoSendBlocks(startBlockIndex, blockCount, cumulativeBlockSize, requestTimeout, instantReplyOnThrottling, targetDescriptor);
         })
         .AsyncVia(SessionInvoker_)
         .Run();

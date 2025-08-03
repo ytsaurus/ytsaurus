@@ -206,6 +206,9 @@ struct ITabletWriteManager
     virtual bool HasUnfinishedTransientTransactions() const = 0;
     virtual bool HasUnfinishedPersistentTransactions() const = 0;
 
+    //! Returns all transactions that affect the tablet, both transient and persistent.
+    virtual THashSet<TTransactionId> GetAffectingTransactionIds() const = 0;
+
     virtual void StartEpoch() = 0;
     virtual void StopEpoch() = 0;
 

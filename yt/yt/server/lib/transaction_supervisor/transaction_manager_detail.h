@@ -25,21 +25,38 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TTransaction>
+template <class TTransaction, class TSaveContext, class TLoadContext>
 class TTransactionManagerBase
     : public virtual NLogging::TLoggerOwner
+    , public ITransactionActionStateFactory<TSaveContext, TLoadContext>
 {
 protected:
-    THashMap<TString, TTransactionActionDescriptor<TTransaction>> ActionHandlerMap_;
+    using TTransactionActionDescriptor = TTypeErasedTransactionActionDescriptor<
+        TTransaction,
+        TSaveContext,
+        TLoadContext
+    >;
+    THashMap<std::string, TTransactionActionDescriptor, THash<TStringBuf>, TEqualTo<>> ActionDescriptorMap_;
 
-    void DoRegisterTransactionActionHandlers(TTransactionActionDescriptor<TTransaction> descriptor);
+    void RegisterTransactionActionHandlers(
+        TTypeErasedTransactionActionDescriptor<TTransaction, TSaveContext, TLoadContext> descriptor);
     void RunPrepareTransactionActions(
         TTransaction* transaction,
-        const TTransactionPrepareOptions& options,
-        bool requireLegacyBehavior = false);
+        const TTransactionPrepareOptions& options);
     void RunCommitTransactionActions(TTransaction* transaction, const TTransactionCommitOptions& options);
-    void RunAbortTransactionActions(TTransaction* transaction, const TTransactionAbortOptions& options);
+    // COMPAT(kvk1920): drop #requireLegacyBehavior after both Chaos and tablet
+    // reigns |FixTransactionActionAbort| are removed.
+    void RunAbortTransactionActions(TTransaction* transaction, const TTransactionAbortOptions& options, bool requireLegacyBehavior);
     void RunSerializeTransactionActions(TTransaction* transaction);
+
+private:
+    using ITransactionActionState = ITransactionActionState<TSaveContext, TLoadContext>;
+
+    ITransactionActionState* GetOrCreateTransactionActionState(
+        typename TTransaction::TAction* action,
+        const TTransactionActionDescriptor& descriptor);
+
+    std::unique_ptr<ITransactionActionState> CreateTransactionActionState(TStringBuf type) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

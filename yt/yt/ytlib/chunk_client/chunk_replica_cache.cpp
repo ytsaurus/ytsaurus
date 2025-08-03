@@ -413,9 +413,7 @@ private:
                         chunkIds[index]));
                     continue;
                 }
-                auto replicas = subresponse.replicas_size() == 0
-                    ? FromProto<TChunkReplicaList>(subresponse.legacy_replicas())
-                    : TChunkReplicaWithMedium::ToChunkReplicas(FromProto<TChunkReplicaWithMediumList>(subresponse.replicas()));
+                auto replicas = FromProto<TChunkReplicaWithMediumList>(subresponse.replicas());
                 auto revision = FromProto<NHydra::TRevision>(rsp->revision());
                 auto replicasInfo = TAllyReplicasInfo::FromChunkReplicas(replicas, revision);
                 promises[index].TrySet(std::move(replicasInfo));

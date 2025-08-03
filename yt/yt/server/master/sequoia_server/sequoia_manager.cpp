@@ -6,20 +6,27 @@
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 
+#include <yt/yt/server/master/transaction_server/config.h>
 #include <yt/yt/server/master/transaction_server/transaction.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
 
-#include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
+#include <yt/yt/server/lib/hive/hive_manager.h>
+
+#include <yt/yt/server/lib/lease_server/lease_manager.h>
+#include <yt/yt/server/lib/lease_server/helpers.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
 
 #include <yt/yt/ytlib/transaction_client/action.h>
+#include <yt/yt/ytlib/transaction_client/transaction_service_proxy.h>
 
 namespace NYT::NSequoiaServer {
 
 using namespace NCellMaster;
 using namespace NConcurrency;
 using namespace NHydra;
+using namespace NLeaseServer;
+using namespace NObjectClient;
 using namespace NRpc;
 using namespace NSecurityServer;
 using namespace NTracing;
@@ -28,7 +35,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = SequoiaServerLogger;
+constinit const auto Logger = SequoiaServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,14 +45,14 @@ class TSequoiaTransactionManager
 {
 public:
     explicit TSequoiaTransactionManager(TBootstrap* bootstrap)
-        : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::Default)
+        : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::SequoiaTransactionService)
     {
         RegisterMethod(BIND_NO_PROPAGATE(&TSequoiaTransactionManager::HydraStartTransaction, Unretained(this)));
     }
 
     virtual void StartTransaction(NSequoiaClient::NProto::TReqStartTransaction* request)
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         // There is a common problem: if user got OK response on his request
         // there is no any guarantees that 2PC transaction was actually
@@ -62,11 +69,52 @@ public:
         auto mutation = CreateMutation(hydraManager, *request);
         mutation->SetCurrentTraceContext();
 
+        auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
+        ValidateWritePrerequisites(prerequisiteTransactionIds);
+
         WaitFor(mutation->Commit())
             .ThrowOnError();
     }
 
 private:
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
+    void ValidateWritePrerequisites(const std::vector<TTransactionId>& prerequisiteTransactionIds) const
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        // Fast path.
+        if (!Bootstrap_->GetConfigManager()->GetConfig()->TransactionManager->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases) {
+            return;
+        }
+
+        if (prerequisiteTransactionIds.empty()) {
+            return;
+        }
+
+        const auto& leaseManager = Bootstrap_->GetLeaseManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+
+        auto resultOrError = WaitFor(IssueLeasesForCell(
+            prerequisiteTransactionIds,
+            leaseManager,
+            hiveManager,
+            multicellManager->GetCellId(),
+            /*synWithAllLeaseTransactionCoordinators*/ true,
+            BIND([multicellManager] (TCellTag cellTag) {
+                return multicellManager->GetCellId(cellTag);
+            }),
+            BIND([multicellManager] (TCellTag cellTag) {
+                return multicellManager->FindMasterChannel(cellTag, EPeerKind::Leader);
+            })));
+
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            resultOrError,
+            NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+            "Failed to issue leases for prerequisite transactions");
+    }
+
     void HydraStartTransaction(NSequoiaClient::NProto::TReqStartTransaction* request)
     {
         // To set actual user before creating transaction object.
@@ -75,21 +123,37 @@ private:
 
         auto transactionId = FromProto<TGuid>(request->id());
         auto timeout = FromProto<TDuration>(request->timeout());
+        auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
 
         auto attributes = FromProto(request->attributes());
-        auto title = attributes->FindAndRemove<std::string>("title").value_or("Sequoia transaction");
+        std::string title;
+        if (auto specifiedTitle = attributes->FindAndRemove<std::string>("title")) {
+            // NB: it's better to have weird title like "Sequoia transaction:
+            // sequoia transaction for something" than to not have any Sequoia
+            // mentioning at all.
+            if (!specifiedTitle->starts_with("Sequoia transaction")) {
+                *specifiedTitle = "Sequoia transaction: " + *specifiedTitle;
+            }
+            title = std::move(*specifiedTitle);
+        } else {
+            title = "Sequoia transaction";
+        }
+
+        auto enableLeaseIssuing = Bootstrap_->GetConfigManager()->GetConfig()->TransactionManager->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases;
 
         YT_LOG_DEBUG("Staring Sequoia transaction "
-            "(TransactionId: %v, Timeout: %v, Title: %v)",
+            "(TransactionId: %v, Timeout: %v, Title: %v, IssuedLeaseIds: %v)",
             transactionId,
             timeout,
-            title);
+            title,
+            enableLeaseIssuing ? prerequisiteTransactionIds : std::vector<TTransactionId>{});
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         if (transactionManager->FindTransaction(transactionId)) {
             THROW_ERROR_EXCEPTION("Transaction %v already exists", transactionId);
         }
 
+        // TODO(cherepashka): add user-friendly handling of errors above.
         auto* transaction = transactionManager->StartSystemTransaction(
             /*replicatedToCellTags*/ {},
             timeout,
@@ -102,7 +166,11 @@ private:
 
         for (const auto& protoData : request->actions()) {
             auto data = FromProto<TTransactionActionData>(protoData);
-            transaction->Actions().push_back(data);
+            auto& action = transaction->Actions().emplace_back(std::move(data));
+
+            YT_LOG_DEBUG("Transaction action registered (TransactionId: %v, ActionType: %v)",
+                transactionId,
+                action.Type);
         }
 
         transaction->SetAuthenticationIdentity(std::move(identity));

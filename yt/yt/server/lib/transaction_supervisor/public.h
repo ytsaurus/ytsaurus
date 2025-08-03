@@ -32,6 +32,20 @@ struct TTransactionPrepareOptions;
 struct TTransactionCommitOptions;
 struct TTransactionAbortOptions;
 
+template <class TSaveContext, class TLoadContext>
+struct ITransactionActionState;
+
+template <class TSaveContext, class TLoadContext>
+struct ITransactionActionStateFactory;
+
+template <class TTransaction, class TProto, class TState>
+struct TTypedTransactionActionDescriptor;
+
+template <class TTransaction, class TSaveContext, class TLoadContext>
+class TTypeErasedTransactionActionDescriptor;
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NProto {
 
 class TTransactionPrepareOptions;

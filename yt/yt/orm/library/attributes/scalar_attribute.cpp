@@ -364,8 +364,10 @@ class TSetVisitor<TWireString> final
 public:
     TSetVisitor(
         const TWireString& value,
-        bool recursive)
+        bool recursive,
+        bool discardUnknownFields)
         : TSetVisitorBase(recursive, value)
+        , DiscardUnknownFields_(discardUnknownFields)
     { }
 
 protected:
@@ -377,6 +379,10 @@ protected:
         if (PathComplete()) {
             message->Clear();
             MergeMessageFrom(message, CurrentValue_);
+
+            if (DiscardUnknownFields_) {
+                message->DiscardUnknownFields();
+            }
             return;
         }
 
@@ -395,6 +401,10 @@ protected:
         if (PathComplete()) {
             reflection->ClearField(message, fieldDescriptor);
             MergeMessageFrom(message, CurrentValue_);
+
+            if (DiscardUnknownFields_) {
+                message->DiscardUnknownFields();
+            }
             return;
         }
 
@@ -411,9 +421,13 @@ protected:
             const auto* reflection = message->GetReflection();
             reflection->ClearField(message, fieldDescriptor);
             for (auto wireStringPart : CurrentValue_) {
-                if (!reflection->AddMessage(message, fieldDescriptor)->MergeFromString(wireStringPart.AsStringView())) {
+                auto* nestedMessage = reflection->AddMessage(message, fieldDescriptor);
+                if (!nestedMessage->MergeFromString(wireStringPart.AsStringView())) {
                     THROW_ERROR_EXCEPTION(TError(NAttributes::EErrorCode::InvalidData,
                         "Cannot parse map key-value pair from wire representation"));
+                }
+                if (DiscardUnknownFields_) {
+                    nestedMessage->DiscardUnknownFields();
                 }
             }
             return;
@@ -431,13 +445,25 @@ protected:
             const auto* reflection = message->GetReflection();
             reflection->ClearField(message, fieldDescriptor);
             for (auto wireStringPart : CurrentValue_) {
-                AddScalarRepeatedFieldEntry(message, fieldDescriptor, wireStringPart).ThrowOnError();
+                if (fieldDescriptor->message_type()) {
+                    auto* nestedMessage = reflection->AddMessage(message, fieldDescriptor);
+                    MergeMessageFrom(nestedMessage, wireStringPart);
+                    if (DiscardUnknownFields_) {
+                        nestedMessage->DiscardUnknownFields();
+                    }
+                } else {
+                    AddScalarRepeatedFieldEntry(message, fieldDescriptor, wireStringPart)
+                        .ThrowOnError();
+                }
             }
             return;
         }
 
         TProtoVisitor::VisitRepeatedField(message, fieldDescriptor, reason);
     }
+
+private:
+    bool DiscardUnknownFields_ = true;
 }; // TSetVisitor<TWireString>
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -756,9 +782,10 @@ void SetProtobufFieldByPath(
     Message& message,
     const NYPath::TYPath& path,
     const TWireString& value,
+    bool discardUnknownFields,
     bool recursive)
 {
-    TSetVisitor<TWireString> visitor(value, recursive);
+    TSetVisitor<TWireString> visitor(value, recursive, discardUnknownFields);
     visitor.Visit(&message, path);
 }
 

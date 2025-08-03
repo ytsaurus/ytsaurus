@@ -17,8 +17,6 @@
 #include <yt/yt/ytlib/chunk_client/proto/chunk_info.pb.h>
 #include <yt/yt/ytlib/chunk_client/proto/chunk_service.pb.h>
 
-#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
-
 #include <yt/yt/library/erasure/public.h>
 
 #include <yt/yt/core/misc/property.h>
@@ -143,6 +141,8 @@ public:
     //! Cached |GetChunkShardIndex(id)| for efficient access.
     DEFINE_BYVAL_RO_PROPERTY(i8, ShardIndex);
 
+    static constexpr auto SupportsConsistentPlacement = true;
+
 public:
     explicit TChunk(TChunkId id);
 
@@ -189,6 +189,9 @@ public:
     // COMPAT(ifsmirnov)
     void SetApprovedReplicaCount(int count);
 
+    void ValidateConfirmation(
+        const NChunkClient::NProto::TChunkInfo& chunkInfo,
+        const NChunkClient::NProto::TChunkMeta& chunkMeta) const;
     void Confirm(
         const NChunkClient::NProto::TChunkInfo& chunkInfo,
         const NChunkClient::NProto::TChunkMeta& chunkMeta);
@@ -377,6 +380,9 @@ public:
     //! and false otherwise.
     bool IsRefreshActual() const;
 
+    int CapTotalReplicationFactor(int replicationFactor, const TDomesticMediumConfigPtr& config) const;
+    int CapPerRackReplicationFactor(int replicationFactor, const TDomesticMediumConfigPtr& config) const;
+
 private:
     //! -1 stands for std::nullopt for non-overlayed chunks.
     i64 FirstOverlayedRowIndex_ = -1;
@@ -407,12 +413,9 @@ private:
         //! Number of approved replicas among stored.
         int ApprovedReplicaCount = 0;
 
-        //! Indicates the position in LastSeenReplicas to be written next.
-        int CurrentLastSeenReplicaIndex = 0;
+        int LastSeenReplicaCount = 0;
 
         virtual ~TReplicasDataBase() = default;
-
-        virtual void Initialize() = 0;
 
         virtual TRange<TChunkLocationPtrWithReplicaInfo> GetStoredReplicas() const = 0;
         virtual TMutableRange<TChunkLocationPtrWithReplicaInfo> MutableStoredReplicas() = 0;
@@ -427,7 +430,7 @@ private:
         virtual void Save(NCellMaster::TSaveContext& context) const = 0;
     };
 
-    template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
+    template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
     struct TReplicasData
         : public TReplicasDataBase
     {
@@ -435,9 +438,14 @@ private:
 
         TStoredReplicas StoredReplicas;
 
-        std::array<TNodeId, LastSeenReplicaCount> LastSeenReplicas;
+        std::array<TNodeId, MaxLastSeenReplicaCount> LastSeenReplicas;
 
-        void Initialize() override;
+        TReplicasData();
+
+        // COMPAT(kvk1920): it's used in Load() and AddReplica(). After compats
+        // for reign FixLastSeenReplicas are removed this function will become
+        // redundant.
+        void AddLastSeenReplica(TNodeId nodeId);
 
         TRange<TNodeId> GetLastSeenReplicas() const override;
         TMutableRange<TNodeId> MutableLastSeenReplicas() override;
@@ -491,6 +499,28 @@ DEFINE_MASTER_OBJECT_TYPE(TChunk)
 
 // Think twice before increasing this.
 YT_STATIC_ASSERT_SIZEOF_SANITY(TChunk, 288);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDummyNbdChunk
+{
+public:
+    static constexpr auto SupportsConsistentPlacement = false;
+
+public:
+    TChunkId GetId() const;
+
+    bool IsErasure() const;
+
+    int GetMaxReplicasPerFailureDomain(
+        int mediumIndex,
+        std::optional<int> replicationFactorOverride,
+        const TChunkRequisitionRegistry* registry) const;
+
+    int GetPhysicalReplicationFactor(int mediumIndex, const TChunkRequisitionRegistry* registry) const;
+    int CapTotalReplicationFactor(int replicationFactor, const TDomesticMediumConfigPtr& config) const;
+    int CapPerRackReplicationFactor(int replicationFactor, const TDomesticMediumConfigPtr& config) const;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

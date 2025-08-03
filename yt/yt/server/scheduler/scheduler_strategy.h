@@ -24,8 +24,6 @@
 
 #include <yt/yt/core/ytree/permission.h>
 
-#include <yt/yt/library/vector_hdrf/resource_helpers.h>
-
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,8 +57,8 @@ struct ISchedulerStrategyHost
     virtual void SerializeResources(const TJobResourcesWithQuota& resources, NYson::IYsonConsumer* consumer) const = 0;
     virtual void SerializeDiskQuota(const TDiskQuota& diskQuota, NYson::IYsonConsumer* consumer) const = 0;
 
-    virtual std::optional<int> FindMediumIndexByName(const TString& mediumName) const = 0;
-    virtual const TString& GetMediumNameByIndex(int mediumIndex) const = 0;
+    virtual std::optional<int> FindMediumIndexByName(const std::string& mediumName) const = 0;
+    virtual const std::string& GetMediumNameByIndex(int mediumIndex) const = 0;
 
     virtual TInstant GetConnectionTime() const = 0;
 
@@ -100,7 +98,7 @@ struct ISchedulerStrategyHost
 
     virtual TFuture<void> UpdateLastMeteringLogTime(TInstant time) = 0;
 
-    virtual const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const = 0;
+    virtual const THashMap<std::string, TString>& GetUserDefaultParentPoolMap() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -227,7 +225,7 @@ struct ISchedulerStrategy
      *  The implementation must throw no exceptions.
      */
     virtual void RegisterOperation(
-        IOperationStrategyHost* operation,
+        IOperationStrategyHostPtr operation,
         std::vector<TString>* unknownTreeIds,
         TPoolTreeControllerSettingsMap* poolTreeControllerSettingsMap) = 0;
 
@@ -244,7 +242,7 @@ struct ISchedulerStrategy
     /*!
      *  The implementation must throw no exceptions.
      */
-    virtual void UnregisterOperation(IOperationStrategyHost* operation) = 0;
+    virtual void UnregisterOperation(const IOperationStrategyHostPtr& operation) = 0;
 
     virtual void UnregisterOperationFromTree(TOperationId operationId, const TString& treeId) = 0;
 
@@ -263,7 +261,7 @@ struct ISchedulerStrategy
 
     virtual void UpdatePoolTrees(const NYson::TYsonString& poolTreesYson) = 0;
 
-    virtual TError UpdateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) = 0;
+    virtual TError UpdateUserToDefaultPoolMap(const THashMap<std::string, TString>& userToDefaultPoolMap) = 0;
 
     //! Initializes persistent strategy state.
     virtual void InitPersistentState(const TPersistentStrategyStatePtr& persistentStrategyState) = 0;
@@ -274,6 +272,11 @@ struct ISchedulerStrategy
         IOperationStrategyHost* operation,
         const TOperationRuntimeParametersPtr& runtimeParameters,
         bool validatePools) = 0;
+
+    virtual TFuture<void> ValidateOperationPoolPermissions(
+        const IOperationStrategyHost* operation,
+        const std::string& user,
+        NYTree::EPermissionSet permissions) = 0;
 
     virtual void ValidatePoolLimitsOnPoolChange(
         IOperationStrategyHost* operation,

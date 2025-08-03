@@ -58,7 +58,7 @@ TSerializableAccessControlList MakeOperationArtifactAcl(const TSerializableAcces
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateInfinibandClusterName(const TString& name)
+void ValidateInfinibandClusterName(TStringBuf name)
 {
     if (name.empty()) {
         THROW_ERROR_EXCEPTION("Infiniband cluster name cannot be empty");

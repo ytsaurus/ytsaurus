@@ -39,7 +39,7 @@ protected:
 
     TSharedRange<TRowRange> Coordinate(const TString& source, ui64 rangeExpansionLimit = 1000)
     {
-        auto fragment = PreparePlanFragment(
+        auto fragment = ParseAndPreparePlanFragment(
             &PrepareMock_,
             source);
         const auto& query = fragment->Query;
@@ -64,7 +64,7 @@ protected:
 
     TSharedRange<TRowRange> CoordinateForeign(const TString& source)
     {
-        auto fragment = PreparePlanFragment(
+        auto fragment = ParseAndPreparePlanFragment(
             &PrepareMock_,
             source);
         const auto& query = fragment->Query;
@@ -1238,6 +1238,39 @@ TEST_F(TComputedColumnTest, ContianuationKeyToken2)
 
     EXPECT_EQ(YsonToKey("147449605462316706u;225350873616724758;155984532810876166;" _MAX_), result[0].first);
     EXPECT_EQ(YsonToKey(_MAX_), result[0].second);
+}
+
+TEST_F(TComputedColumnTest, ContianuationKeyTokenModulo)
+{
+    TTableSchema tableSchema({
+        TColumnSchema("h", EValueType::Uint64)
+            .SetSortOrder(ESortOrder::Ascending)
+            .SetExpression(TString("farm_hash(k) % 10")),
+        TColumnSchema("k", EValueType::Int64)
+            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("l", EValueType::Int64)
+            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("a", EValueType::Int64)
+    });
+
+    SetSchema(tableSchema);
+
+    auto query = TString("a from [//t] where k between 1 and 15 and h between 2 and 5");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(4u, result.size());
+
+    EXPECT_EQ(YsonToKey("2u;1"), result[0].first);
+    EXPECT_EQ(YsonToKey("2u;15;" _MAX_), result[0].second);
+
+    EXPECT_EQ(YsonToKey("3u;1"), result[1].first);
+    EXPECT_EQ(YsonToKey("3u;15;" _MAX_), result[1].second);
+
+    EXPECT_EQ(YsonToKey("4u;1"), result[2].first);
+    EXPECT_EQ(YsonToKey("4u;15;" _MAX_), result[2].second);
+
+    EXPECT_EQ(YsonToKey("5u;1"), result[3].first);
+    EXPECT_EQ(YsonToKey("5u;15;" _MAX_), result[3].second);
 }
 
 TEST_F(TComputedColumnTest, ContianuationKeyTokenRepeatedField)

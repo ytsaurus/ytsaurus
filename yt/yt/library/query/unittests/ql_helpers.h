@@ -46,6 +46,8 @@ TValue MakeDouble(double value);
 TValue MakeBoolean(bool value);
 TValue MakeString(TStringBuf value);
 TValue MakeNull();
+TValue MakeAny(TStringBuf ysonString);
+TValue MakeComposite(TStringBuf ysonString);
 
 template <class TTypedExpression, class... TArgs>
 TConstExpressionPtr Make(TArgs&&... args)
@@ -95,7 +97,7 @@ void ProfileForBothExecutionBackends(
     const TConstBaseQueryPtr& query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    TJoinSubqueryProfiler joinProfiler);
+    const std::vector<IJoinProfilerPtr>& joinProfilers);
 
 void ProfileForBothExecutionBackends(
     const TConstExpressionPtr& expr,
@@ -106,6 +108,27 @@ void ProfileForBothExecutionBackends(
 ////////////////////////////////////////////////////////////////////////////////
 
 bool EnableWebAssemblyInUnitTests();
+
+////////////////////////////////////////////////////////////////////////////////
+
+IJoinProfilerPtr MakeNullJoinSubqueryProfiler();
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern int DefaultExpressionBuilderVersion;
+
+TPlanFragmentPtr ParseAndPreparePlanFragment(
+    IPrepareCallbacks* callbacks,
+    TStringBuf source,
+    NYson::TYsonStringBuf placeholderValues = {},
+    int syntaxVersion = 1,
+    IMemoryUsageTrackerPtr memoryTracker = nullptr);
+
+TConstExpressionPtr ParseAndPrepareExpression(
+    TStringBuf source,
+    const TTableSchema& tableSchema,
+    const TConstTypeInferrerMapPtr& functions = GetBuiltinTypeInferrers(),
+    THashSet<std::string>* references = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

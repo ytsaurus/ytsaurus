@@ -4,19 +4,27 @@
 #include "config.h"
 #include "format_row_stream.h"
 #include "helpers.h"
+#include "multiconnection_client_cache.h"
+#include "multiproxy_access_validator.h"
 #include "private.h"
 #include "proxy_coordinator.h"
 #include "query_corpus_reporter.h"
-#include "security_manager.h"
+#include "private.h"
+#include "helpers.h"
 
 #include <yt/yt/server/lib/misc/format_manager.h>
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 
+#include <yt/yt/server/lib/security_server/user_access_validator.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/client_cache.h>
+#include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
@@ -44,6 +52,7 @@
 #include <yt/yt/client/api/query_tracker_client.h>
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/sticky_transaction_pool.h>
+#include <yt/yt/client/api/table_partition_reader.h>
 #include <yt/yt/client/api/table_reader.h>
 #include <yt/yt/client/api/table_writer.h>
 #include <yt/yt/client/api/transaction.h>
@@ -98,6 +107,7 @@ namespace NYT::NRpcProxy {
 
 using namespace NApi::NRpcProxy;
 using namespace NApi;
+using namespace NApi::NDetail;
 using namespace NArrow;
 using namespace NAuth;
 using namespace NChaosClient;
@@ -114,6 +124,7 @@ using namespace NRpc;
 using namespace NScheduler;
 using namespace NSecurityClient;
 using namespace NSignature;
+using namespace NSecurityServer;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTracing;
@@ -351,6 +362,8 @@ bool IsColumnarRowsetFormat(NApi::NRpcProxy::NProto::ERowsetFormat format)
     return format == NApi::NRpcProxy::NProto::RF_ARROW;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TDetailedProfilingCounters)
 
 class TDetailedProfilingCounters
@@ -441,6 +454,8 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TDetailedProfilingCounters)
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! This context extends standard typed service context. By this moment it is used for structured
 //! logging reasons.
@@ -611,14 +626,12 @@ public:
         NRpc::IAuthenticatorPtr authenticator,
         IProxyCoordinatorPtr proxyCoordinator,
         IAccessCheckerPtr accessChecker,
-        ISecurityManagerPtr securityManager,
         NTracing::TSamplerPtr traceSampler,
         NLogging::TLogger logger,
         TProfiler profiler,
         INodeMemoryTrackerPtr memoryTracker,
         IStickyTransactionPoolPtr stickyTransactionPool,
         ISignatureValidatorPtr signatureValidator,
-        ISignatureGeneratorPtr signatureGenerator,
         IQueryCorpusReporterPtr queryCorpusReporter)
         : TServiceBase(
             std::move(workerInvoker),
@@ -630,218 +643,237 @@ public:
             })
         , ApiServiceConfig_(config)
         , Profiler_(std::move(profiler))
-        , Connection_(std::move(connection))
+        , LocalConnection_(std::move(connection))
         , ProxyCoordinator_(std::move(proxyCoordinator))
         , AccessChecker_(std::move(accessChecker))
-        , SecurityManager_(std::move(securityManager))
         , TraceSampler_(std::move(traceSampler))
         , StickyTransactionPool_(stickyTransactionPool
             ? stickyTransactionPool
             : CreateStickyTransactionPool(Logger))
-        , AuthenticatedClientCache_(New<NApi::NNative::TClientCache>(
-            config->ClientCache,
-            Connection_))
+        , AuthenticatedClientCache_(New<TMulticonnectionClientCache>(config->ClientCache))
         , ControlInvoker_(std::move(controlInvoker))
-        , HeapProfilerTestingOptions_(
-            config->TestingOptions
+        , HeapProfilerTestingOptions_(config->TestingOptions
             ? config->TestingOptions->HeapProfiler
             : nullptr)
         , HeavyRequestMemoryUsageTracker_(WithCategory(memoryTracker, EMemoryCategory::HeavyRequest))
         , SignatureValidator_(std::move(signatureValidator))
-        , SignatureGenerator_(std::move(signatureGenerator))
         , QueryCorpusReporter_(std::move(queryCorpusReporter))
+        , UserAccessValidator_(CreateUserAccessValidator(
+            ApiServiceConfig_->UserAccessValidator,
+            LocalConnection_,
+            Logger))
         , SelectConsumeDataWeight_(Profiler_.Counter("/select_consume/data_weight"))
         , SelectConsumeRowCount_(Profiler_.Counter("/select_consume/row_count"))
         , SelectOutputDataWeight_(Profiler_.Counter("/select_output/data_weight"))
         , SelectOutputRowCount_(Profiler_.Counter("/select_output/row_count"))
     {
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamps));
+        TMultiproxyMethodList methodList;
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PingTransaction));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTransaction));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitTransaction));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushTransaction));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AttachTransaction));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(DetachTransaction));
+        auto registerMethod = [&] (EMultiproxyMethodKind methodKind, TMethodDescriptor&& descriptor) {
+            const auto& methodName = descriptor.Method;
+            methodList.emplace_back(std::string(methodName), methodKind);
+            return RegisterMethod(descriptor);
+        };
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ExistsNode));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetNode));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ListNode));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateNode));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveNode));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SetNode));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(MultisetAttributesNode));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(LockNode));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(UnlockNode));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CopyNode));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(MoveNode));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(LinkNode));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ConcatenateNodes));
+        // Read / Write markup is for multiproxy mode.
+        // Rpc proxy can be configured to redirect requests for other clusters if request has corresponding header.
+        // Rpc proxy can allow redirect read requests or read and write requests (or disallow redirecting completely).
+        //
+        // YT-24245
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(GenerateTimestamps));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(MountTable));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(UnmountTable));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(RemountTable));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(FreezeTable));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(UnfreezeTable));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReshardTable));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReshardTableAutomatic));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(TrimTable));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterTable));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterTableReplica));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterReplicationCard));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(BalanceTabletCells));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateTableBackup));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(RestoreTableBackup));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(StartTransaction));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PingTransaction));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AbortTransaction));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(CommitTransaction));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(FlushTransaction));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AttachTransaction));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(DetachTransaction));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartOperation));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortOperation));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SuspendOperation));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeOperation));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CompleteOperation));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateOperationParameters));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PatchOperationSpec));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetOperation));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ListOperations));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ExistsNode));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetNode));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ListNode));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(CreateNode));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RemoveNode));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(SetNode));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(MultisetAttributesNode));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(LockNode));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(UnlockNode));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(CopyNode));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(MoveNode));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(LinkNode));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(ConcatenateNodes));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ListJobs));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpJobContext));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobInput)
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(MountTable));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(UnmountTable));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RemountTable));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(FreezeTable));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(UnfreezeTable));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(ReshardTable));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(ReshardTableAutomatic));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(TrimTable));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AlterTable));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AlterTableReplica));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AlterReplicationCard));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(BalanceTabletCells));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(CreateTableBackup));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RestoreTableBackup));
+
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(StartOperation));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AbortOperation));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(SuspendOperation));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(ResumeOperation));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(CompleteOperation));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(UpdateOperationParameters));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PatchOperationSpec));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetOperation));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ListOperations));
+
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ListJobs));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(DumpJobContext));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetJobInput)
             .SetStreamingEnabled(true)
             .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobInputPaths));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobSpec));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobStderr));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobTrace));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobFailContext));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJob));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AbandonJob));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PollJobShell));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortJob));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpJobProxyLog));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetJobInputPaths));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetJobSpec));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetJobStderr));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetJobTrace));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetJobFailContext));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetJob));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AbandonJob));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PollJobShell));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AbortJob));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(DumpJobProxyLog));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupRows));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(VersionedLookupRows));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(MultiLookup)
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(LookupRows));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(VersionedLookupRows));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(MultiLookup)
             .SetConcurrencyLimit(1'000));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SelectRows)
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(SelectRows)
             .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ExplainQuery));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PullRows)
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ExplainQuery));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PullRows)
             .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetInSyncReplicas));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletInfos));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletErrors));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetInSyncReplicas));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetTabletInfos));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetTabletErrors));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AdvanceConsumer));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AdvanceQueueConsumer));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PullQueue));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PullConsumer));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PullQueueConsumer));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterQueueConsumer));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(UnregisterQueueConsumer));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ListQueueConsumerRegistrations));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateQueueProducerSession));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveQueueProducerSession));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PushQueueProducer));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AdvanceConsumer));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AdvanceQueueConsumer));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PullQueue));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PullConsumer));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PullQueueConsumer));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RegisterQueueConsumer));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(UnregisterQueueConsumer));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ListQueueConsumerRegistrations));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(CreateQueueProducerSession));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RemoveQueueProducerSession));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PushQueueProducer));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyRows));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(BatchModifyRows));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(ModifyRows));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(BatchModifyRows));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(BuildSnapshot));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ExitReadOnly));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(MasterExitReadOnly));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(DiscombobulateNonvotingPeers));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GCCollect));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SuspendCoordinator));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeCoordinator));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(MigrateReplicationCards));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SuspendChaosCells));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeChaosCells));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SuspendTabletCells));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeTabletCells));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AddMaintenance));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveMaintenance));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(DisableChunkLocations));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(DestroyChunkLocations));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ResurrectChunkLocations));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(RequestRestart));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(BuildSnapshot));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(ExitReadOnly));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(MasterExitReadOnly));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(DiscombobulateNonvotingPeers));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(GCCollect));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(SuspendCoordinator));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(ResumeCoordinator));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(MigrateReplicationCards));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(SuspendChaosCells));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(ResumeChaosCells));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(SuspendTabletCells));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(ResumeTabletCells));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(AddMaintenance));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(RemoveMaintenance));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(DisableChunkLocations));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(DestroyChunkLocations));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(ResurrectChunkLocations));
+        registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(RequestRestart));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateObject));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableMountInfo));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTablePivotKeys));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(CreateObject));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetTableMountInfo));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetTablePivotKeys));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AddMember));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveMember));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckPermission));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckPermissionByAcl));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(TransferAccountResources));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetCurrentUser));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AddMember));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RemoveMember));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(CheckPermission));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(CheckPermissionByAcl));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(TransferAccountResources));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadFile)
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ReadFile)
             .SetStreamingEnabled(true)
             .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteFile)
-            .SetStreamingEnabled(true)
-            .SetCancelable(true));
-
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadJournal)
-            .SetStreamingEnabled(true)
-            .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteJournal)
-            .SetStreamingEnabled(true)
-            .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(TruncateJournal));
-
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadTable)
-            .SetStreamingEnabled(true)
-            .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteTable)
-            .SetStreamingEnabled(true)
-            .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetColumnarStatistics));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PartitionTables));
-
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetFileFromCache));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PutFileToCache));
-
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetPipelineSpec));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SetPipelineSpec));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetPipelineDynamicSpec));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SetPipelineDynamicSpec));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartPipeline));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(StopPipeline));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PausePipeline));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetPipelineState));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetFlowView));
-
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartQuery));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortQuery));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQueryResult));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadQueryResult));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQuery));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ListQueries));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterQuery));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQueryTrackerInfo));
-
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartDistributedWriteSession)
-            .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishDistributedWriteSession));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteTableFragment)
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(WriteFile)
             .SetStreamingEnabled(true)
             .SetCancelable(true));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartShuffle));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteShuffleData)
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ReadJournal)
             .SetStreamingEnabled(true)
             .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadShuffleData)
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(WriteJournal)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(TruncateJournal));
+
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ReadTable)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(WriteTable)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetColumnarStatistics));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(PartitionTables));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ReadTablePartition)
             .SetStreamingEnabled(true)
             .SetCancelable(true));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckClusterLiveness));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetFileFromCache));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PutFileToCache));
+
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetPipelineSpec));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(SetPipelineSpec));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetPipelineDynamicSpec));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(SetPipelineDynamicSpec));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(StartPipeline));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(StopPipeline));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PausePipeline));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetPipelineState));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetFlowView));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(FlowExecute));
+
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(StartQuery));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AbortQuery));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetQueryResult));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ReadQueryResult));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetQuery));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(ListQueries));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AlterQuery));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetQueryTrackerInfo));
+
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(StartDistributedWriteSession)
+            .SetCancelable(true));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(FinishDistributedWriteSession));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(WriteTableFragment)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
+
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(StartShuffle));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(WriteShuffleData)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ReadShuffleData)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
+
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(CheckClusterLiveness));
+
 
         DeclareServerFeature(ERpcProxyFeature::GetInSyncWithoutKeys);
         DeclareServerFeature(ERpcProxyFeature::WideLocks);
+        MultiproxyAccessValidator_ = CreateMultiproxyAccessValidator(std::move(methodList));
     }
 
     void OnDynamicConfigChanged(const TApiServiceDynamicConfigPtr& config) override
@@ -857,7 +889,8 @@ public:
 
         AuthenticatedClientCache_->Reconfigure(config->ClientCache);
 
-        SecurityManager_->Reconfigure(config->SecurityManager);
+        UserAccessValidator_->Reconfigure(config->UserAccessValidator);
+        MultiproxyAccessValidator_->Reconfigure(config->Multiproxy);
 
         Config_.Store(config);
     }
@@ -872,22 +905,22 @@ private:
     TApiServiceConfigPtr ApiServiceConfig_;
     const TProfiler Profiler_;
     TAtomicIntrusivePtr<TApiServiceDynamicConfig> Config_{New<TApiServiceDynamicConfig>()};
-    const NApi::NNative::IConnectionPtr Connection_;
+    const NApi::NNative::IConnectionPtr LocalConnection_;
     const IProxyCoordinatorPtr ProxyCoordinator_;
     const IAccessCheckerPtr AccessChecker_;
-    const ISecurityManagerPtr SecurityManager_;
     const NTracing::TSamplerPtr TraceSampler_;
     const IStickyTransactionPoolPtr StickyTransactionPool_;
-    const NNative::TClientCachePtr AuthenticatedClientCache_;
+    const TMulticonnectionClientCachePtr AuthenticatedClientCache_;
     const IInvokerPtr ControlInvoker_;
     const THeapProfilerTestingOptionsPtr HeapProfilerTestingOptions_;
     const IMemoryUsageTrackerPtr HeavyRequestMemoryUsageTracker_;
     const ISignatureValidatorPtr SignatureValidator_;
-    const ISignatureGeneratorPtr SignatureGenerator_;
-
     const IQueryCorpusReporterPtr QueryCorpusReporter_;
+    const IUserAccessValidatorPtr UserAccessValidator_;
 
     static const TStructuredLoggingMethodDynamicConfigPtr DefaultMethodConfig;
+
+    IMultiproxyAccessValidatorPtr MultiproxyAccessValidator_;
 
     TCounter SelectConsumeDataWeight_;
     TCounter SelectConsumeRowCount_;
@@ -916,10 +949,19 @@ private:
 
     std::atomic<i64> NextSequenceNumberSourceId_ = 0;
 
-    NNative::IClientPtr GetOrCreateClient(const TAuthenticationIdentity& identity)
+    std::optional<std::string> GetMultiproxyTargetCluster(const IServiceContextPtr& context)
     {
-        auto options = TClientOptions::FromAuthenticationIdentity(identity);
-        return AuthenticatedClientCache_->Get(identity, options);
+        const auto& header = context->GetRequestHeader();
+        const auto& multiproxyTargetExt = header.GetExtension(NRpc::NProto::TMultiproxyTargetExt::multiproxy_target_ext);
+        if (!multiproxyTargetExt.has_cluster()) {
+            return {};
+        }
+        const auto& cluster = multiproxyTargetExt.cluster();
+        const auto& localClusterName = LocalConnection_->GetStaticConfig()->ClusterName;
+        if (cluster == localClusterName) {
+            return {};
+        }
+        return cluster;
     }
 
     void AllocateTestData(const TTraceContextPtr& traceContext)
@@ -1067,7 +1109,11 @@ private:
 
         THROW_ERROR_EXCEPTION_IF_FAILED(AccessChecker_->CheckAccess(identity.User));
 
-        SecurityManager_->ValidateUser(identity.User);
+        const auto& multiproxyTargetCluster = GetMultiproxyTargetCluster(context);
+        if (multiproxyTargetCluster) {
+            MultiproxyAccessValidator_->ValidateMultiproxyAccess(*multiproxyTargetCluster, context->GetMethod());
+        }
+        UserAccessValidator_->ValidateUser(identity.User, multiproxyTargetCluster);
 
         ProxyCoordinator_->ValidateOperable();
 
@@ -1080,7 +1126,16 @@ private:
                 request->ShortDebugString());
         }
 
-        auto client = GetOrCreateClient(identity);
+        const auto& connection = multiproxyTargetCluster
+            ? LocalConnection_->GetClusterDirectory()->GetConnectionOrThrow(*multiproxyTargetCluster)
+            : LocalConnection_;
+
+        auto client = AuthenticatedClientCache_->Get(
+            multiproxyTargetCluster,
+            identity,
+            connection,
+            TClientOptions::FromAuthenticationIdentity(identity));
+
         if (!client) {
             THROW_ERROR_EXCEPTION("No client found for identity %Qv", identity);
         }
@@ -1259,15 +1314,16 @@ private:
             count,
             clockClusterTag);
 
+        const auto& connection = client->GetNativeConnection();
         if (clockClusterTag == InvalidCellTag) {
-            Connection_->GetClockManager()->ValidateDefaultClock("Unable to generate timestamps");
+            connection->GetClockManager()->ValidateDefaultClock("Unable to generate timestamps");
         }
 
-        const auto& timestampProvider = Connection_->GetTimestampProvider();
+        const auto& timestampProvider = connection->GetTimestampProvider();
 
         ExecuteCall(
             context,
-            [=, Logger = Logger, connection = Connection_] {
+            [=, Logger = Logger] {
                 return timestampProvider->GenerateTimestamps(count, clockClusterTag).ApplyUnique(
                     BIND([connection, clockClusterTag, count, Logger] (TErrorOr<TTimestamp>&& providerResult) {
                         if (providerResult.IsOK() ||
@@ -1383,7 +1439,7 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
-        TTransactionAttachOptions attachOptions;
+        TTransactionAttachOptions attachOptions = {};
         attachOptions.Ping = false;
         attachOptions.PingAncestors = request->ping_ancestors();
 
@@ -1410,6 +1466,9 @@ private:
         TTransactionCommitOptions options;
         SetMutatingOptions(&options, request, context.Get());
         options.AdditionalParticipantCellIds = FromProto<std::vector<TCellId>>(request->additional_participant_cell_ids());
+        if (request->has_max_allowed_commit_timestamp()) {
+            options.MaxAllowedCommitTimestamp = request->max_allowed_commit_timestamp();
+        }
         if (request->has_prerequisite_options()) {
             FromProto(&options, request->prerequisite_options());
         }
@@ -1419,14 +1478,14 @@ private:
             options.PrerequisiteTransactionIds,
             options.AdditionalParticipantCellIds);
 
+        TTransactionAttachOptions attachOptions = {};
+        attachOptions.Ping = false;
+        attachOptions.PingAncestors = false;
         auto transaction = GetTransactionOrThrow(
             context,
             request,
             transactionId,
-            TTransactionAttachOptions{
-                .Ping = false,
-                .PingAncestors = false
-            });
+            attachOptions);
 
         ExecuteCall(
             context,
@@ -1450,14 +1509,14 @@ private:
         context->SetRequestInfo("TransactionId: %v",
             transactionId);
 
+        TTransactionAttachOptions attachOptions = {};
+        attachOptions.Ping = false;
+        attachOptions.PingAncestors = false;
         auto transaction = GetTransactionOrThrow(
             context,
             request,
             transactionId,
-            TTransactionAttachOptions{
-                .Ping = false,
-                .PingAncestors = false
-            });
+            attachOptions);
 
         ExecuteCall(
             context,
@@ -1483,14 +1542,14 @@ private:
         context->SetRequestInfo("TransactionId: %v",
             transactionId);
 
+        TTransactionAttachOptions attachOptions = {};
+        attachOptions.Ping = false;
+        attachOptions.PingAncestors = false;
         auto transaction = GetTransactionOrThrow(
             context,
             request,
             transactionId,
-            TTransactionAttachOptions{
-                .Ping = false,
-                .PingAncestors = false
-            });
+            attachOptions);
 
         ExecuteCall(
             context,
@@ -1632,6 +1691,9 @@ private:
                         ToProto(protoIndexInfo->mutable_unfolded_column(), *unfoldedColumn);
                     }
                     protoIndexInfo->set_index_correspondence(ToProto(indexInfo.Correspondence));
+                    if (const auto& evaluatedColumnsSchema = indexInfo.EvaluatedColumnsSchema) {
+                        ToProto(protoIndexInfo->mutable_evaluated_columns_schema(), *evaluatedColumnsSchema);
+                    }
                 }
 
                 context->SetResponseInfo("Dynamic: %v, TabletCount: %v, ReplicaCount: %v",
@@ -2631,15 +2693,18 @@ private:
             options.ReplicaPath = request->replica_path();
         }
 
+        options.Force = request->force();
+
         context->SetRequestInfo("ReplicaId: %v, Enabled: %v, Mode: %v, Atomicity: %v, PreserveTimestamps: %v, "
-            "EnableReplicatedTableTracker: %v, ReplicaPath: %v",
+            "EnableReplicatedTableTracker: %v, ReplicaPath: %v, Force: %v",
             replicaId,
             options.Enabled,
             options.Mode,
             options.Atomicity,
             options.PreserveTimestamps,
             options.EnableReplicatedTableTracker,
-            options.ReplicaPath);
+            options.ReplicaPath,
+            options.Force);
 
         ExecuteCall(
             context,
@@ -3136,6 +3201,9 @@ private:
         if (request->has_with_monitoring_descriptor()) {
             options.WithMonitoringDescriptor = request->with_monitoring_descriptor();
         }
+        if (request->has_with_interruption_info()) {
+            options.WithInterruptionInfo = request->with_interruption_info();
+        }
         if (request->has_task_name()) {
             options.TaskName = request->task_name();
         }
@@ -3150,6 +3218,10 @@ private:
         }
         if (request->has_continuation_token()) {
             options.ContinuationToken = request->continuation_token();
+        }
+        if (request->has_attributes()) {
+            options.Attributes.emplace();
+            NYT::CheckedHashSetFromProto(&(*options.Attributes), request->attributes().keys());
         }
 
         options.SortField = FromProto<EJobSortField>(request->sort_field());
@@ -3167,7 +3239,8 @@ private:
 
         context->SetRequestInfo(
             "OperationIdOrAlias: %v, Type: %v, State: %v, Address: %v, IncludeCypress: %v, "
-            "IncludeControllerAgent: %v, IncludeArchive: %v, JobCompetitionId: %v, WithCompetitors: %v, WithMonitoringDescriptor: %v",
+            "IncludeControllerAgent: %v, IncludeArchive: %v, JobCompetitionId: %v, WithCompetitors: %v, "
+            "WithMonitoringDescriptor: %v, WithInterruptionInfo: %v, Attributes: %v",
             operationIdOrAlias,
             options.Type,
             options.State,
@@ -3177,7 +3250,9 @@ private:
             options.IncludeArchive,
             options.JobCompetitionId,
             options.WithCompetitors,
-            options.WithMonitoringDescriptor);
+            options.WithMonitoringDescriptor,
+            options.WithInterruptionInfo,
+            options.Attributes);
 
         ExecuteCall(
             context,
@@ -3981,6 +4056,9 @@ private:
         }
         if (request->has_syntax_version()) {
             options.SyntaxVersion = request->syntax_version();
+        }
+        if (request->has_expression_builder_version()) {
+            options.ExpressionBuilderVersion = request->expression_builder_version();
         }
         if (request->has_execution_backend()) {
             options.ExecutionBackend = CheckedEnumCast<EExecutionBackend>(request->execution_backend());
@@ -5368,6 +5446,23 @@ private:
     // SECURITY
     ////////////////////////////////////////////////////////////////////////////////
 
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetCurrentUser)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        context->SuppressMissingRequestInfoCheck();
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->GetCurrentUser();
+            },
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                response->set_user(result->User);
+            });
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AddMember)
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
@@ -6060,17 +6155,21 @@ private:
         options.AdjustDataWeightPerPartition = request->adjust_data_weight_per_partition();
 
         options.EnableKeyGuarantee = request->enable_key_guarantee();
+        options.EnableCookies = request->enable_cookies();
+        options.UseNewSlicingImplementationInOrderedPool = request->use_new_slicing_implementation_in_ordered_pool();
+        options.UseNewSlicingImplementationInUnorderedPool = request->use_new_slicing_implementation_in_unordered_pool();
 
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
 
-        context->SetRequestInfo("Paths: %v, PartitionMode: %v, KeyGuarantee: %v, DataWeightPerPartition: %v, AdjustDataWeightPerPartition: %v",
+        context->SetRequestInfo("Paths: %v, PartitionMode: %v, KeyGuarantee: %v, DataWeightPerPartition: %v, AdjustDataWeightPerPartition: %v, EnableCookies: %v",
             paths,
             options.PartitionMode,
             options.EnableKeyGuarantee,
             options.DataWeightPerPartition,
-            options.AdjustDataWeightPerPartition);
+            options.AdjustDataWeightPerPartition,
+            options.EnableCookies);
 
         ExecuteCall(
             context,
@@ -6085,18 +6184,108 @@ private:
             });
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadTablePartition)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto cookie = ConvertTo<TTablePartitionCookiePtr>(TYsonStringBuf(request->cookie()));
+
+        YT_VERIFY(cookie);
+
+        auto signatureOk = WaitFor(ValidateSignature(cookie.Underlying()))
+            .ValueOrThrow();
+        if (!signatureOk) {
+            THROW_ERROR_EXCEPTION("Signature validation failed");
+        }
+
+        auto format = GetFormat(context, request);
+
+        NApi::TReadTablePartitionOptions options;
+        options.Unordered = request->unordered();
+        options.OmitInaccessibleColumns = request->omit_inaccessible_columns();
+        options.EnableTableIndex = request->enable_table_index();
+        options.EnableRowIndex = request->enable_row_index();
+        options.EnableRangeIndex = request->enable_range_index();
+        if (request->has_config()) {
+            options.Config = ConvertTo<TTableReaderConfigPtr>(TYsonString(request->config()));
+        }
+
+        auto desiredRowsetFormat = request->desired_rowset_format();
+        auto arrowFallbackRowsetFormat = request->arrow_fallback_rowset_format();
+
+        context->SetRequestInfo(
+            "Unordered: %v, OmitInaccessibleColumns: %v, DesiredRowsetFormat: %v, ArrowFallbackRowsetFormat: %v",
+            options.Unordered,
+            options.OmitInaccessibleColumns,
+            NApi::NRpcProxy::NProto::ERowsetFormat_Name(desiredRowsetFormat),
+            NApi::NRpcProxy::NProto::ERowsetFormat_Name(arrowFallbackRowsetFormat));
+
+        PutMethodInfoInTraceContext("read_table_partition");
+
+        auto reader = WaitFor(client->CreateTablePartitionReader(cookie, options))
+            .ValueOrThrow();
+
+        auto controlAttributesConfig = New<NFormats::TControlAttributesConfig>();
+        controlAttributesConfig->EnableRowIndex = request->enable_row_index();
+        controlAttributesConfig->EnableTableIndex = request->enable_table_index();
+        controlAttributesConfig->EnableRangeIndex = request->enable_range_index();
+
+        auto schemas = GetTableSchemas(reader);
+        auto columnFilters = GetColumnFilters(reader);
+
+        if (schemas.size() > 1 || columnFilters.size() > 1) {
+            THROW_ERROR_EXCEPTION("Reading multiple table partitions is not supported yet");
+        }
+
+        auto encoder = CreateRowStreamEncoder(
+            desiredRowsetFormat,
+            arrowFallbackRowsetFormat,
+            schemas[0],
+            columnFilters[0],
+            reader->GetNameTable(),
+            controlAttributesConfig,
+            std::move(format));
+
+        auto outputStream = context->GetResponseAttachmentsStream();
+
+        // For now we don't have any metadata, but we can have it in the future.
+        NApi::NRpcProxy::NProto::TRspReadTablePartitionMeta meta;
+
+        auto metaRef = SerializeProtoToRef(meta);
+        WaitFor(outputStream->Write(metaRef))
+            .ThrowOnError();
+
+        bool finished = false;
+        const auto& config = Config_.Acquire();
+
+        HandleInputStreamingRequest(
+            context,
+            [&] {
+                if (finished) {
+                    return TSharedRef();
+                }
+
+                TRowBatchReadOptions options{
+                    .MaxRowsPerRead = config->ReadBufferRowCount,
+                    .MaxDataWeightPerRead = config->ReadBufferDataWeight,
+                    .Columnar = IsColumnarRowsetFormat(request->desired_rowset_format())
+                };
+                auto batch = ReadRowBatch(reader, options);
+                if (!batch) {
+                    finished = true;
+                }
+
+                return encoder->Encode(
+                    batch ? batch : CreateEmptyUnversionedRowBatch(),
+                    /*statistics*/ nullptr);
+            });
+    }
+
     ////////////////////////////////////////////////////////////////////////////////
     // DISTRIBUTED TABLE CLIENT
     ////////////////////////////////////////////////////////////////////////////////
 
     // Signature helpers.
-    template <std::constructible_from<TSignaturePtr> TFinal>
-    TFinal GenerateSignature(TSignaturePtr&& emptySignature) const
-    {
-        SignatureGenerator_->Sign(emptySignature);
-        return TFinal(std::move(emptySignature));
-    }
-
     TFuture<bool> ValidateSignature(const TSignaturePtr& signedValue) const
     {
         return SignatureValidator_->Validate(signedValue);
@@ -6114,21 +6303,10 @@ private:
             "Path: %v",
             path);
 
-        auto signSessionAndCookies = [&, this_ = MakeStrong(this)] (TDistributedWriteSessionWithCookies&& sessionAndCookies) {
-            sessionAndCookies.Session = GenerateSignature<TSignedDistributedWriteSessionPtr>(std::move(sessionAndCookies.Session.Underlying()));
-
-            for (auto& cookie : sessionAndCookies.Cookies) {
-                cookie = GenerateSignature<TSignedWriteFragmentCookiePtr>(std::move(cookie.Underlying()));
-            }
-
-            return std::move(sessionAndCookies);
-        };
-
         ExecuteCall(
             context,
             [=] {
-                return client->StartDistributedWriteSession(path, options)
-                    .ApplyUnique(BIND(std::move(signSessionAndCookies)));
+                return client->StartDistributedWriteSession(path, options);
             },
             [] (const auto& context, const auto& result) {
                 context->Response().set_signed_session(ConvertToYsonString(result.Session).ToString());
@@ -6222,8 +6400,8 @@ private:
             request,
             tableWriter,
             [&, tableWriter] {
-                auto signedWriteResult = GenerateSignature<TSignedWriteFragmentResultPtr>(tableWriter->GetWriteFragmentResult().Underlying());
-                response->set_signed_write_result(ConvertToYsonString(signedWriteResult).ToString());
+                auto writeResult = tableWriter->GetWriteFragmentResult();
+                response->set_signed_write_result(ConvertToYsonString(writeResult).ToString());
             });
     }
 
@@ -6533,6 +6711,29 @@ private:
             });
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, FlowExecute)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        TFlowExecuteOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        auto pipelinePath = FromProto<TYPath>(request->pipeline_path());
+        auto command = request->command();
+        auto argument = NYson::TYsonString(request->argument());
+        context->SetRequestInfo("PipelinePath: %v, Command: %v", pipelinePath, command);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->FlowExecute(pipelinePath, command, argument, options);
+            },
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                response->set_result(result.Result.ToString());
+            });
+    }
+
     ////////////////////////////////////////////////////////////////////////////////
     // QUERY TRACKER
     ////////////////////////////////////////////////////////////////////////////////
@@ -6795,9 +6996,11 @@ private:
                     parentTransactionId,
                     std::move(options));
             },
-            [] (const auto& context, const auto& shuffleHandle) {
+            [] (const auto& context, const auto& signedShuffleHandle) {
                 auto* response = &context->Response();
-                response->set_shuffle_handle(ConvertToYsonString(shuffleHandle).ToString());
+                response->set_signed_shuffle_handle(ConvertToYsonString(signedShuffleHandle).ToString());
+                // TODO(pavook): friendly YSON wrapper.
+                auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonStringBuf(signedShuffleHandle.Underlying()->Payload()));
                 context->SetResponseInfo("TransactionId: %v", shuffleHandle->TransactionId);
             });
     }
@@ -6806,22 +7009,68 @@ private:
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
-        auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
+        auto signedShuffleHandle = ConvertTo<TSignedShuffleHandlePtr>(TYsonStringBuf(request->signed_shuffle_handle()));
+
+        // TODO(pavook): friendly YSON wrappers without double-conversions.
+        auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonStringBuf(signedShuffleHandle.Underlying()->Payload()));
+
+        auto isValid = WaitFor(ValidateSignature(signedShuffleHandle.Underlying()))
+            .ValueOrThrow();
+
+        if (!isValid) {
+            THROW_ERROR_EXCEPTION("Signature validation failed for shuffle handle")
+                << TErrorAttribute("shuffle_handle", shuffleHandle);
+        }
+
+        std::optional<std::pair<int, int>> writerIndexRange;
+        if (request->has_writer_index_range()) {
+            auto writerIndexBegin = request->writer_index_range().has_begin()
+                ? std::optional<int>(request->writer_index_range().begin())
+                : std::nullopt;
+
+            auto writerIndexEnd = request->writer_index_range().has_end()
+                ? std::optional<int>(request->writer_index_range().end())
+                : std::nullopt;
+
+            if (!writerIndexBegin.has_value() || !writerIndexEnd.has_value()) {
+                THROW_ERROR_EXCEPTION("One or both writer index range limits are empty")
+                    << TErrorAttribute("begin", writerIndexBegin)
+                    << TErrorAttribute("end", writerIndexEnd);
+            }
+
+            if (*writerIndexBegin > *writerIndexEnd) {
+                THROW_ERROR_EXCEPTION(
+                    "Lower limit of mappers range %v cannot be greater than upper limit %v",
+                    *writerIndexBegin,
+                    *writerIndexEnd);
+            }
+
+            if (*writerIndexBegin < 0) {
+                THROW_ERROR_EXCEPTION("Received negative lower limit of writer index range %v", *writerIndexBegin);
+            }
+
+            writerIndexRange = std::pair(*writerIndexBegin, *writerIndexEnd);
+        }
 
         context->SetRequestInfo(
-            "TransactionId: %v, CoordinatorAddress: %v, Account: %v, PartitionCount: %v, PartitionIndex: %v",
+            "TransactionId: %v, CoordinatorAddress: %v, Account: %v, PartitionCount: %v, PartitionIndex: %v, WriterIndexRange: %v",
             shuffleHandle->TransactionId,
             shuffleHandle->CoordinatorAddress,
             shuffleHandle->Account,
             shuffleHandle->PartitionCount,
-            request->partition_index());
+            request->partition_index(),
+            writerIndexRange);
 
-        auto readerConfig = ConvertTo<NTableClient::TTableReaderConfigPtr>(TYsonString(request->reader_config()));
+        TShuffleReaderOptions options;
+        options.Config = request->has_reader_config()
+            ? ConvertTo<TTableReaderConfigPtr>(TYsonString(request->reader_config()))
+            : New<TTableReaderConfig>();
 
         auto reader = WaitFor(client->CreateShuffleReader(
-            shuffleHandle,
+            std::move(signedShuffleHandle),
             request->partition_index(),
-            readerConfig))
+            writerIndexRange,
+            options))
             .ValueOrThrow();
 
         auto encoder = CreateWireRowStreamEncoder(reader->GetNameTable());
@@ -6856,9 +7105,18 @@ private:
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
-        auto writerConfig = ConvertTo<NTableClient::TTableWriterConfigPtr>(TYsonString(request->writer_config()));
+        auto signedShuffleHandle = ConvertTo<TSignedShuffleHandlePtr>(TYsonStringBuf(request->signed_shuffle_handle()));
 
-        auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
+        // TODO(pavook): friendly YSON helpers without double conversions.
+        auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonStringBuf(signedShuffleHandle.Underlying()->Payload()));
+
+        auto isValid = WaitFor(ValidateSignature(signedShuffleHandle.Underlying()))
+            .ValueOrThrow();
+
+        if (!isValid) {
+            THROW_ERROR_EXCEPTION("Signature validation failed for shuffle handle")
+                << TErrorAttribute("shuffle_handle", shuffleHandle);
+        }
 
         auto partitionColumn = request->partition_column();
 
@@ -6870,8 +7128,29 @@ private:
             shuffleHandle->PartitionCount,
             partitionColumn);
 
+        auto writerIndex = request->has_writer_index() ? std::optional<int>(request->writer_index()) : std::nullopt;
+        if (writerIndex && *writerIndex < 0) {
+            THROW_ERROR_EXCEPTION("Received negative writer index %v", *writerIndex);
+        }
+
+        TShuffleWriterOptions options;
+        options.Config = ConvertTo<TTableWriterConfigPtr>(TYsonString(
+            request->has_writer_config()
+            ? request->writer_config()
+            : "{}"));
+
+
+        options.Config = request->has_writer_config()
+            ? ConvertTo<TTableWriterConfigPtr>(TYsonString(request->writer_config()))
+            : New<TTableWriterConfig>();
+
+        options.OverwriteExistingWriterData = request->overwrite_existing_writer_data();
+        if (options.OverwriteExistingWriterData && !writerIndex.has_value()) {
+            THROW_ERROR_EXCEPTION("Writer index must be set when overwrite existing writer data option is enabled");
+        }
+
         auto writer = WaitFor(
-            client->CreateShuffleWriter(shuffleHandle, partitionColumn, writerConfig))
+            client->CreateShuffleWriter(std::move(signedShuffleHandle), partitionColumn, writerIndex, options))
             .ValueOrThrow();
 
         auto decoder = CreateWireRowStreamDecoder(writer->GetNameTable());
@@ -6950,17 +7229,15 @@ IApiServicePtr CreateApiService(
     NRpc::IAuthenticatorPtr authenticator,
     IProxyCoordinatorPtr proxyCoordinator,
     IAccessCheckerPtr accessChecker,
-    ISecurityManagerPtr securityManager,
     NTracing::TSamplerPtr traceSampler,
     NLogging::TLogger logger,
     TProfiler profiler,
     ISignatureValidatorPtr signatureValidator,
-    ISignatureGeneratorPtr signatureGenerator,
     INodeMemoryTrackerPtr memoryUsageTracker,
     IStickyTransactionPoolPtr stickyTransactionPool,
     IQueryCorpusReporterPtr queryCorpusReporter)
 {
-    YT_VERIFY(signatureValidator && signatureGenerator);
+    YT_VERIFY(signatureValidator);
     return New<TApiService>(
         std::move(config),
         std::move(controlInvoker),
@@ -6969,14 +7246,12 @@ IApiServicePtr CreateApiService(
         std::move(authenticator),
         std::move(proxyCoordinator),
         std::move(accessChecker),
-        std::move(securityManager),
         std::move(traceSampler),
         std::move(logger),
         std::move(profiler),
         std::move(memoryUsageTracker),
         std::move(stickyTransactionPool),
         std::move(signatureValidator),
-        std::move(signatureGenerator),
         std::move(queryCorpusReporter));
 }
 

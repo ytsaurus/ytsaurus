@@ -19,7 +19,7 @@ public:
 
 TPipeline MakeDummyPipeline()
 {
-    return MakePipeline(MakeIntrusive<TDummyExecutor>());
+    return MakePipeline(NYT::New<TDummyExecutor>());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

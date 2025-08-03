@@ -21,28 +21,14 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCoordinatorInfo::Persist(const TPersistenceContext& context)
-{
-    using NYT::Persist;
-
-    Persist(context, State);
-}
-
-void TMigration::Persist(const TPersistenceContext& context)
-{
-    using NYT::Persist;
-
-    Persist(context, OriginCellId);
-    Persist(context, ImmigratedToCellId);
-    Persist(context, EmigratedFromCellId);
-    Persist(context, ImmigrationTime);
-    Persist(context, EmigrationTime);
-}
+TReplicaCounters::TReplicaCounters(const NProfiling::TProfiler& profiler)
+    : LagTime(profiler.WithSparse().TimeGauge("/lag_time"))
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TReplicationCard::TReplicationCard(TObjectId id)
-    : TObjectBase(id)
+    : TChaosObjectBase(id)
     , ReplicatedTableOptions_(New<TReplicatedTableOptions>())
 { }
 
@@ -63,17 +49,16 @@ TReplicaInfo* TReplicationCard::GetReplicaOrThrow(TReplicaId replicaId)
 
 void TReplicationCard::Save(TSaveContext& context) const
 {
+    TChaosObjectBase::Save(context);
+
     using NYT::Save;
 
     Save(context, Replicas_);
     Save(context, CurrentReplicaIdIndex_);
-    Save(context, Coordinators_);
-    Save(context, Era_);
     Save(context, TableId_);
     Save(context, TablePath_);
     Save(context, TableClusterName_);
     Save(context, CurrentTimestamp_);
-    Save(context, Migration_);
     Save(context, State_);
     Save(context, *ReplicatedTableOptions_);
     Save(context, Collocation_);
@@ -82,23 +67,47 @@ void TReplicationCard::Save(TSaveContext& context) const
 
 void TReplicationCard::Load(TLoadContext& context)
 {
-    using NYT::Load;
+    if (context.GetVersion() >= EChaosReign::IntroduceChaosObjectAndLease) {
+        TChaosObjectBase::Load(context);
 
-    Load(context, Replicas_);
-    Load(context, CurrentReplicaIdIndex_);
-    Load(context, Coordinators_);
-    Load(context, Era_);
-    Load(context, TableId_);
-    Load(context, TablePath_);
-    Load(context, TableClusterName_);
-    Load(context, CurrentTimestamp_);
-    Load(context, Migration_);
-    Load(context, State_);
-    Load(context, *ReplicatedTableOptions_);
-    Load(context, Collocation_);
-    // COMPAT(savrus)
-    if (context.GetVersion() >= EChaosReign::AttachDistributedCollocation) {
-        Load(context, AwaitingCollocationId_);
+        using NYT::Load;
+
+        Load(context, Replicas_);
+        Load(context, CurrentReplicaIdIndex_);
+        Load(context, TableId_);
+        Load(context, TablePath_);
+        Load(context, TableClusterName_);
+        Load(context, CurrentTimestamp_);
+        Load(context, State_);
+        Load(context, *ReplicatedTableOptions_);
+        Load(context, Collocation_);
+        // COMPAT(savrus)
+        if (context.GetVersion() >= EChaosReign::AttachDistributedCollocation) {
+            Load(context, AwaitingCollocationId_);
+        }
+    } else {
+        using NYT::Load;
+
+        Load(context, Replicas_);
+        Load(context, CurrentReplicaIdIndex_);
+        Load(context, Coordinators_);
+        Load(context, Era_);
+        Load(context, TableId_);
+        Load(context, TablePath_);
+        Load(context, TableClusterName_);
+        Load(context, CurrentTimestamp_);
+        Load(context, Migration_);
+        Load(context, State_);
+        Load(context, *ReplicatedTableOptions_);
+        Load(context, Collocation_);
+        // COMPAT(savrus)
+        if (context.GetVersion() >= EChaosReign::AttachDistributedCollocation) {
+            Load(context, AwaitingCollocationId_);
+        }
+        // COMPAT(gryzlov-ad)
+        if (context.GetVersion() >= EChaosReign::PersistMigrationToken) {
+            Load(context, MigrationToken_);
+        }
     }
 }
 

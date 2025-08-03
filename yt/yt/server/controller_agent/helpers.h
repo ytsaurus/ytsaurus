@@ -20,6 +20,9 @@ TIntrusivePtr<TSpec> ParseOperationSpec(NYTree::INodePtr specNode);
 
 NYTree::INodePtr UpdateSpec(NYTree::INodePtr templateSpec, NYTree::INodePtr originalSpec);
 
+template <class TOptions>
+TOptions CreateOperationOptions(const TOptions& options, const NYTree::INodePtr& patch);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TString TrimCommandForBriefSpec(const TString& command);
@@ -43,6 +46,7 @@ struct TUserFile
     NTableClient::TTableSchemaPtr Schema = New<NTableClient::TTableSchema>();
     bool Dynamic = false;
     bool Layer = false;
+    bool GpuCheck = false;
     std::optional<ELayerAccessMethod> AccessMethod;
     std::optional<ELayerFilesystem> Filesystem;
 
@@ -73,13 +77,13 @@ void BuildFileSpecs(
 TString GetIntermediatePath(int streamIndex);
 
 NChunkClient::TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(
-    const TString& intermediateAccount,
+    const std::string& intermediateAccount,
     const std::vector<NTableClient::TTableSchemaPtr>& schemas = {});
 
-NChunkClient::TDataSink BuildIntermediateDataSink(const TString& intermediateAccount);
+NChunkClient::TDataSink BuildIntermediateDataSink(const std::string& intermediateAccount);
 
 NChunkClient::TDataSinkDirectoryPtr BuildIntermediateDataSinkDirectory(
-    const TString& intermediateAccount);
+    const std::string& intermediateAccount);
 
 ////////////////////////////////////////////////////////////////////////////////
 

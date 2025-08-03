@@ -3,6 +3,8 @@
 #include "balancing_helpers.h"
 #include "bounded_priority_queue.h"
 #include "config.h"
+#include "helpers.h"
+#include "replica_balancing_helpers.h"
 #include "table.h"
 #include "tablet_cell_bundle.h"
 #include "tablet_cell.h"
@@ -130,33 +132,62 @@ void FormatValue(TStringBuilderBase* builder, const TParameterizedResharderConfi
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EMetricsCalculatorType,
+    (Parameterized)
+    (Replica)
+);
+
 class TParameterizedMetricsCalculator
+    : public TRefCounted
 {
 public:
     TParameterizedMetricsCalculator(
         TString metric,
-        std::vector<TString> performanceCountersKeys,
-        TTableSchemaPtr performanceCountersTableSchema)
-    : PerformanceCountersKeys_(std::move(performanceCountersKeys))
-    , PerformanceCountersTableSchema_(std::move(performanceCountersTableSchema))
-    , Metric_(std::move(metric))
-    , Evaluator_(NOrm::NQuery::CreateOrmExpressionEvaluator(
-        Metric_,
-        ParameterizedBalancingAttributes))
-    { }
+        std::vector<std::string> performanceCountersKeys,
+        TTableSchemaPtr performanceCountersTableSchema,
+        const TLogger& logger)
+        : PerformanceCountersKeys_(std::move(performanceCountersKeys))
+        , PerformanceCountersTableSchema_(std::move(performanceCountersTableSchema))
+        , Metric_(std::move(metric))
+        , Logger(logger)
+    {
+        auto newMetric = ReplaceAliases(Metric_);
+        YT_LOG_DEBUG_IF(newMetric != Metric_,
+            "Replaced aliases in parameterized balancing metric (OldMetric: %v, NewMetric: %v)",
+            Metric_,
+            newMetric);
+        Evaluator_ = NOrm::NQuery::CreateOrmExpressionEvaluator(
+            std::move(newMetric),
+            ParameterizedBalancingAttributes);
+    }
+
+    virtual THashMap<TTabletId, double> GetTableMetrics(const TTable* table) const
+    {
+        THashMap<TTabletId, double> tabletToMetric;
+        for (const auto& tablet : table->Tablets) {
+            EmplaceOrCrash(tabletToMetric, tablet->Id, GetTabletMetric(tablet));
+        }
+        return tabletToMetric;
+    }
+
+    virtual double GetTabletMetric(const TTabletPtr& tablet) const
+    {
+        return GetTabletMetric(tablet, PerformanceCountersTableSchema_);
+    }
 
 protected:
-    const std::vector<TString> PerformanceCountersKeys_;
+    const std::vector<std::string> PerformanceCountersKeys_;
     const TTableSchemaPtr PerformanceCountersTableSchema_;
     const TString Metric_;
+    const TLogger Logger;
     NOrm::NQuery::IExpressionEvaluatorPtr Evaluator_;
 
-    double GetTabletMetric(const TTabletPtr& tablet) const
+    double GetTabletMetric(const TTabletPtr& tablet, const TTableSchemaPtr& schema) const
     {
         auto rowBuffer = New<TRowBuffer>();
         auto value = Evaluator_->Evaluate({
                 ConvertToYsonString(tablet->Statistics.OriginalNode),
-                tablet->GetPerformanceCountersYson(PerformanceCountersKeys_, PerformanceCountersTableSchema_)
+                tablet->GetPerformanceCountersYson(PerformanceCountersKeys_, schema)
             },
             rowBuffer)
             .ValueOrThrow();
@@ -182,18 +213,174 @@ protected:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TParameterizedMetricsCalculator)
+DECLARE_REFCOUNTED_CLASS(TParameterizedMetricsCalculator)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReplicaMetricsCalculator
+    : public TParameterizedMetricsCalculator
+{
+public:
+    TReplicaMetricsCalculator(
+        TString metric,
+        std::vector<std::string> performanceCountersKeys,
+        TTableSchemaPtr performanceCountersTableSchema,
+        THashMap<TClusterName, TTableSchemaPtr> perClusterPerformanceCountersTableSchemas,
+        const TLogger& logger,
+        bool enableVerboseLogging)
+        : TParameterizedMetricsCalculator(
+            std::move(metric),
+            std::move(performanceCountersKeys),
+            std::move(performanceCountersTableSchema),
+            logger)
+        , ClusterPerformanceCountersTableSchemas_(std::move(perClusterPerformanceCountersTableSchemas))
+        , Logger(logger)
+        , EnableVerboseLogging_(enableVerboseLogging)
+    { }
+
+    THashMap<TTabletId, double> GetTableMetrics(const TTable* table) const override
+    {
+        if (table->AlienTables.empty()) {
+            YT_LOG_DEBUG_IF(EnableVerboseLogging_,
+                "Calculating replica table metrics as only major table metrics (TableId: %v)",
+                table->Id);
+            return TParameterizedMetricsCalculator::GetTableMetrics(table);
+        }
+
+        if (DoMinorTablesHaveSamePivotKeys(table)) {
+            return TParameterizedMetricsCalculator::GetTableMetrics(table);
+        }
+
+        YT_LOG_DEBUG_IF(EnableVerboseLogging_,
+            "Calculating replica table metrics by approximate metrics of minor tables (TableId: %v)",
+            table->Id);
+
+        auto getTabletSizes = [] (const auto& table) {
+            std::vector<i64> sizes;
+            for (const auto& tablet : table->Tablets) {
+                sizes.push_back(tablet->Statistics.CompressedDataSize);
+            }
+            return sizes;
+        };
+
+        auto majorTabletSizes = getTabletSizes(table);
+        auto majorMetrics = GetTabletMetrics(
+            static_cast<const TTableBase*>(table),
+            PerformanceCountersTableSchema_);
+
+        for (const auto& [cluster, minorTables] : table->AlienTables) {
+            auto schema = GetOrCrash(ClusterPerformanceCountersTableSchemas_, cluster);
+            for (const auto& minorTable : minorTables) {
+                auto minorMetrics = CalculateMajorMetrics(
+                    GetTabletMetrics(minorTable.Get(), schema),
+                    majorTabletSizes,
+                    getTabletSizes(minorTable),
+                    table->PivotKeys,
+                    minorTable->PivotKeys,
+                    Logger.WithTag("TableId: %v", minorTable->Id),
+                    EnableVerboseLogging_);
+
+                YT_VERIFY(std::ssize(minorMetrics) == std::ssize(majorMetrics));
+                for (int index = 0; index < std::ssize(minorMetrics); ++index) {
+                    majorMetrics[index] += minorMetrics[index];
+                }
+            }
+        }
+
+        THashMap<TTabletId, double> metrics;
+        for (int index = 0; index < std::ssize(table->Tablets); ++index) {
+            EmplaceOrCrash(metrics, table->Tablets[index]->Id, majorMetrics[index]);
+        }
+
+        return metrics;
+    }
+
+private:
+    THashMap<TClusterName, TTableSchemaPtr> ClusterPerformanceCountersTableSchemas_;
+    const NLogging::TLogger Logger;
+    const bool EnableVerboseLogging_;
+    mutable int LogMessageCount_ = 0;
+
+    double GetTabletMetric(const TTabletPtr& tablet) const override
+    {
+        YT_VERIFY(tablet->Table);
+
+        double metric = TParameterizedMetricsCalculator::GetTabletMetric(tablet);
+        if (tablet->Table->AlienTables.empty()) {
+            return metric;
+        }
+
+        for (const auto& [cluster, minorTables] : tablet->Table->AlienTables) {
+            auto schema = GetOrCrash(ClusterPerformanceCountersTableSchemas_, cluster);
+            for (const auto& minorTable : minorTables) {
+                YT_VERIFY(std::ssize(tablet->Table->Tablets) == std::ssize(minorTable->Tablets));
+                metric += TParameterizedMetricsCalculator::GetTabletMetric(
+                    minorTable->Tablets[tablet->Index],
+                    schema);
+            }
+        }
+
+        YT_LOG_DEBUG_IF(EnableVerboseLogging_ && LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
+            "Calculated tablet metric as sum of minor table tablet metrics and major table tablet metric "
+            "(TableId: %v, TabletId: %v, Metric: %v)",
+            tablet->Table->Id,
+            tablet->Id,
+            metric);
+
+        return metric;
+    }
+
+    std::vector<double> GetTabletMetrics(const TTableBase* table, const TTableSchemaPtr& schema) const
+    {
+        std::vector<double> metrics;
+        for (const auto& tablet : table->Tablets) {
+            YT_VERIFY(std::ssize(metrics) == tablet->Index);
+            metrics.push_back(TParameterizedMetricsCalculator::GetTabletMetric(tablet, schema));
+        }
+        return metrics;
+    }
+
+    bool DoMinorTablesHaveSamePivotKeys(const TTable* table) const
+    {
+        for (const auto& [cluster, minorTables] : table->AlienTables) {
+            for (const auto& minorTable : minorTables) {
+                if (minorTable->PivotKeys != table->PivotKeys) {
+                    YT_LOG_DEBUG_IF(EnableVerboseLogging_,
+                        "Pivots of minor and major tables are different "
+                        "(MinorTableId: %v, MajorTableId: %v, MinorPivotKeys: %v, MajorPivotKeys: %v)",
+                        minorTable->Id,
+                        table->Id,
+                        minorTable->PivotKeys,
+                        table->PivotKeys);
+                    return false;
+                }
+            }
+        }
+
+        YT_LOG_DEBUG_IF(EnableVerboseLogging_,
+            "Pivot keys of minor tables and major table are the same (MajorTableId: %v)",
+            table->Id);
+        return true;
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TReplicaMetricsCalculator)
+DECLARE_REFCOUNTED_CLASS(TReplicaMetricsCalculator)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TParameterizedReassignSolver
     : public IParameterizedReassignSolver
-    , public TParameterizedMetricsCalculator
 {
 public:
     TParameterizedReassignSolver(
         TTabletCellBundlePtr bundle,
-        std::vector<TString> performanceCountersKeys,
-        TTableSchemaPtr performanceCountersTableSchema,
+        std::vector<std::string> performanceCountersKeys,
         TParameterizedReassignSolverConfig config,
         TGroupName groupName,
         TTableParameterizedMetricTrackerPtr metricTracker,
+        EMetricsCalculatorType type,
         const TLogger& logger);
 
     std::vector<TMoveDescriptor> BuildActionDescriptors() override;
@@ -247,6 +434,7 @@ private:
     const TParameterizedReassignSolverConfig Config_;
     const TGroupName GroupName_;
     TTableParameterizedMetricTrackerPtr MetricTracker_;
+    TParameterizedMetricsCalculatorPtr Calculator_;
 
     std::vector<TTabletInfo> Tablets_;
     std::vector<TTabletCellInfo> Cells_;
@@ -258,7 +446,6 @@ private:
     TMoveActionInfo BestActionInfo_;
 
     double TableNormalizingCoefficient_ = 1.0;
-
 
     std::vector<std::vector<double>> TableByNodeMetric_;
     std::vector<std::vector<double>> TableByCellMetric_;
@@ -300,17 +487,13 @@ private:
 
 TParameterizedReassignSolver::TParameterizedReassignSolver(
     TTabletCellBundlePtr bundle,
-    std::vector<TString> performanceCountersKeys,
-    TTableSchemaPtr performanceCountersTableSchema,
+    std::vector<std::string> performanceCountersKeys,
     TParameterizedReassignSolverConfig config,
     TGroupName groupName,
     TTableParameterizedMetricTrackerPtr metricTracker,
+    EMetricsCalculatorType type,
     const TLogger& logger)
-    : TParameterizedMetricsCalculator(
-        config.Metric,
-        std::move(performanceCountersKeys),
-        std::move(performanceCountersTableSchema))
-    , Bundle_(std::move(bundle))
+    : Bundle_(std::move(bundle))
     , Logger(logger
         .WithTag("BundleName: %v", Bundle_->Name)
         .WithTag("Group: %v", groupName))
@@ -318,7 +501,27 @@ TParameterizedReassignSolver::TParameterizedReassignSolver(
     , GroupName_(std::move(groupName))
     , MetricTracker_(std::move(metricTracker))
     , MoveActions_(Config_.BoundedPriorityQueueSize)
-{ }
+{
+    switch (type) {
+        case EMetricsCalculatorType::Parameterized:
+            Calculator_ = New<TParameterizedMetricsCalculator>(
+                Config_.Metric,
+                std::move(performanceCountersKeys),
+                Bundle_->PerformanceCountersTableSchema,
+                Logger);
+            break;
+
+        case EMetricsCalculatorType::Replica:
+            Calculator_ = New<TReplicaMetricsCalculator>(
+                Config_.Metric,
+                std::move(performanceCountersKeys),
+                Bundle_->PerformanceCountersTableSchema,
+                Bundle_->PerClusterPerformanceCountersTableSchemas,
+                Logger,
+                Bundle_->Config->EnableVerboseLogging);
+            break;
+    }
+}
 
 void TParameterizedReassignSolver::Initialize()
 {
@@ -333,6 +536,37 @@ void TParameterizedReassignSolver::Initialize()
     THashMap<TTabletCellId, int> cellInfoIndex;
     THashMap<TTableId, int> tableInfoIndex;
     THashMap<TString, int> nodeInfoIndex;
+
+    THashMap<TTableId, const TTable*> tablesToCalculateMetrics;
+    for (const auto& cell : cells) {
+        for (const auto& [tabletId, tablet] : cell->Tablets) {
+            if (!IsTableMovable(tablet->Table->Id)) {
+                continue;
+            }
+
+            if (TypeFromId(tabletId) != EObjectType::Tablet) {
+                continue;
+            }
+
+            if (tablet->Table->GetBalancingGroup() != GroupName_) {
+                continue;
+            }
+
+            if (!tablet->Table->IsParameterizedMoveBalancingEnabled()) {
+                continue;
+            }
+
+            tablesToCalculateMetrics[tablet->Table->Id] = tablet->Table;
+        }
+    }
+
+    THashMap<TTabletId, double> tabletMetrics;
+    for (const auto& [tableId, table] : tablesToCalculateMetrics) {
+        auto metrics = Calculator_->GetTableMetrics(table);
+        for (const auto& [tabletId, metric] : metrics) {
+            EmplaceOrCrash(tabletMetrics, tabletId, metric);
+        }
+    }
 
     Cells_.reserve(std::ssize(cells));
     for (const auto& cell : cells) {
@@ -353,23 +587,17 @@ void TParameterizedReassignSolver::Initialize()
         });
 
         for (const auto& [tabletId, tablet] : cell->Tablets) {
-            if (!IsTableMovable(tablet->Table->Id)) {
+            if (!tabletMetrics.contains(tabletId)) {
+                // For now let's verify that we didn't miss any tablet for no reason.
+                YT_VERIFY(
+                    TypeFromId(tabletId) != EObjectType::Tablet ||
+                    !IsTableMovable(tablet->Table->Id) ||
+                    tablet->Table->GetBalancingGroup() != GroupName_ ||
+                    !tablet->Table->IsParameterizedMoveBalancingEnabled());
                 continue;
             }
 
-            if (TypeFromId(tabletId) != EObjectType::Tablet) {
-                continue;
-            }
-
-            if (tablet->Table->GetBalancingGroup() != GroupName_) {
-                continue;
-            }
-
-            if (!tablet->Table->IsParameterizedMoveBalancingEnabled()) {
-                continue;
-            }
-
-            auto tabletMetric = GetTabletMetric(tablet);
+            auto tabletMetric = GetOrCrash(tabletMetrics, tabletId);
 
             if (tabletMetric < 0.0) {
                 THROW_ERROR_EXCEPTION("Tablet metric must be nonnegative, got %v", tabletMetric)
@@ -382,7 +610,7 @@ void TParameterizedReassignSolver::Initialize()
             } else if (tabletMetric <= MinimumAcceptableMetricValue) {
                 YT_LOG_DEBUG_IF(
                     Bundle_->Config->EnableVerboseLogging,
-                    "Skip tablet since it has metric less than %v"
+                    "Skip tablet since it has metric less than %e"
                     "(TabletId: %v, TableId: %v)",
                     MinimumAcceptableMetricValue,
                     tabletId,
@@ -448,7 +676,7 @@ void TParameterizedReassignSolver::Initialize()
 
     if (Bundle_->Config->EnableVerboseLogging) {
         for (const auto& [nodeAddress, nodeInfo] : Nodes_) {
-            YT_LOG_DEBUG("Calculated node metric (NodeAddress: %v, NodeMetric: %v)",
+            YT_LOG_DEBUG("Calculated node metric (NodeAddress: %v, NodeMetric: %e)",
                 nodeAddress,
                 nodeInfo.Metric);
         }
@@ -565,7 +793,7 @@ bool TParameterizedReassignSolver::ShouldTrigger() const
     YT_LOG_DEBUG_IF(
         Bundle_->Config->EnableVerboseLogging,
         "Arguments for checking whether parameterized balancing should trigger have been calculated "
-        "(MinNodeMetric: %v, MaxNodeMetric: %v, MinCellMetric: %v, MaxCellMetric: %v, "
+        "(MinNodeMetric: %e, MaxNodeMetric: %e, MinCellMetric: %e, MaxCellMetric: %e, "
         "NodeDeviationThreshold: %v, CellDeviationThreshold: %v)",
         minNode->second.Metric,
         maxNode->second.Metric,
@@ -606,8 +834,8 @@ double TParameterizedReassignSolver::CalculateTotalBundleMetric() const
     tableNodeMetric *= TableNormalizingCoefficient_;
 
     YT_LOG_DEBUG(
-        "Calculated total metrics (CellMetric: %v, NodeMetric: %v, "
-        "TableCellMetric: %v, TableNodeMetric: %v)",
+        "Calculated total metrics (CellMetric: %e, NodeMetric: %e, "
+        "TableCellMetric: %e, TableNodeMetric: %e)",
         cellMetric,
         nodeMetric,
         tableCellMetric,
@@ -788,9 +1016,9 @@ bool TParameterizedReassignSolver::TryMoveTablet(
 
     YT_LOG_DEBUG_IF(
         Bundle_->Config->EnableVerboseLogging && LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
-        "Trying to move tablet to another cell (TabletId: %v, CellId: %v, CurrentMetric: %v, "
-        "NewMetricDiff: %v, TabletMetric: %v, SourceCellMetric: %v, DestinationCellMetric: %v, "
-        "SourceNodeMetric: %v, DestinationNodeMetric: %v)",
+        "Trying to move tablet to another cell (TabletId: %v, CellId: %v, CurrentMetric: %e, "
+        "NewMetricDiff: %e, TabletMetric: %e, SourceCellMetric: %e, DestinationCellMetric: %e, "
+        "SourceNodeMetric: %e, DestinationNodeMetric: %e)",
         tablet->Id,
         cell->Id,
         CurrentMetric_,
@@ -976,7 +1204,7 @@ std::vector<TMoveDescriptor> TParameterizedReassignSolver::BuildActionDescriptor
             if (CurrentMetric_ * Config_.MinRelativeMetricImprovement / std::ssize(Nodes_) >= BestActionInfo_.MetricDiff)
             {
                 YT_LOG_DEBUG(
-                    "Metric-improving action is not better enough (CurrentMetric: %v, MetricAfterAction: %v)",
+                    "Metric-improving action is not better enough (CurrentMetric: %e, MetricAfterAction: %e)",
                     CurrentMetric_,
                     BestActionInfo_.MetricDiff);
                 break;
@@ -985,7 +1213,7 @@ std::vector<TMoveDescriptor> TParameterizedReassignSolver::BuildActionDescriptor
             ApplyBestAction(&availableActionCount);
 
             YT_LOG_DEBUG(
-                "Total parameterized metric changed (Old: %v, Diff: %v)",
+                "Total parameterized metric changed (Old: %e, Diff: %e)",
                 CurrentMetric_,
                 BestActionInfo_.MetricDiff);
             CurrentMetric_ -= BestActionInfo_.MetricDiff;
@@ -1038,13 +1266,11 @@ std::vector<TMoveDescriptor> TParameterizedReassignSolver::BuildActionDescriptor
 
 class TParameterizedResharder
     : public IParameterizedResharder
-    , public TParameterizedMetricsCalculator
 {
 public:
     TParameterizedResharder(
         TTabletCellBundlePtr bundle,
-        std::vector<TString> performanceCountersKeys,
-        TTableSchemaPtr performanceCountersTableSchema,
+        std::vector<std::string> performanceCountersKeys,
         TParameterizedResharderConfig config,
         TGroupName groupName,
         const TLogger& logger);
@@ -1091,6 +1317,7 @@ private:
     const TLogger Logger;
     const TParameterizedResharderConfig Config_;
     const TGroupName GroupName_;
+    TParameterizedMetricsCalculatorPtr Calculator_;
 
     mutable int LogMessageCount_ = 0;
 
@@ -1133,21 +1360,21 @@ private:
 
 TParameterizedResharder::TParameterizedResharder(
     TTabletCellBundlePtr bundle,
-    std::vector<TString> performanceCountersKeys,
-    TTableSchemaPtr performanceCountersTableSchema,
+    std::vector<std::string> performanceCountersKeys,
     TParameterizedResharderConfig config,
     TGroupName groupName,
     const TLogger& logger)
-    : TParameterizedMetricsCalculator(
-        config.Metric,
-        std::move(performanceCountersKeys),
-        std::move(performanceCountersTableSchema))
-    , Bundle_(std::move(bundle))
+    : Bundle_(std::move(bundle))
     , Logger(logger
         .WithTag("BundleName: %v", Bundle_->Name)
         .WithTag("Group: %v", groupName))
     , Config_(std::move(config))
     , GroupName_(std::move(groupName))
+    , Calculator_(New<TParameterizedMetricsCalculator>(
+        Config_.Metric,
+        std::move(performanceCountersKeys),
+        Bundle_->PerformanceCountersTableSchema,
+        Logger))
 {
     YT_LOG_DEBUG("Reporting parameterized resharder config (Config: %v)",
         Config_);
@@ -1260,7 +1487,7 @@ std::optional<TReshardDescriptor> TParameterizedResharder::TryMakeTabletFit(
                 (Bundle_->Config->EnableVerboseLogging || table->TableConfig->EnableVerboseLogging) &&
                 LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
                 "Trying to split an empty tablet. Skip it "
-                "(TableId: %v, TabletId: %v, TabletMetric: %v, TableSize: %v, DesiredTabletSize: %v, MaxTabletSize: %v)",
+                "(TableId: %v, TabletId: %v, TabletMetric: %e, TableSize: %v, DesiredTabletSize: %v, MaxTabletSize: %v)",
                 table->Id,
                 table->Tablets[tabletIndex]->Id,
                 tabletMetric,
@@ -1280,7 +1507,7 @@ std::optional<TReshardDescriptor> TParameterizedResharder::TryMakeTabletFit(
         YT_LOG_DEBUG_IF(
             (Bundle_->Config->EnableVerboseLogging || table->TableConfig->EnableVerboseLogging) &&
             LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
-            "Tablet is just right (TabletId: %v, TabletMetric: %v, TabletSize: %v)",
+            "Tablet is just right (TabletId: %v, TabletMetric: %e, TabletSize: %v)",
             table->Tablets[tabletIndex]->Id,
             tabletMetric,
             tabletSize);
@@ -1310,7 +1537,7 @@ TReshardDescriptor TParameterizedResharder::SplitTablet(
     YT_VERIFY(tabletCount > 0);
 
     auto correlationId = TGuid::Create();
-    YT_LOG_DEBUG("Splitting tablet (Tablet: %v, TabletSize: %v, TabletMetric: %v, CorrelationId: %v)",
+    YT_LOG_DEBUG("Splitting tablet (Tablet: %v, TabletSize: %v, TabletMetric: %e, CorrelationId: %v)",
         tabletId,
         DivCeil<i64>(tabletSize, tabletCount),
         tabletMetric / tabletCount,
@@ -1384,7 +1611,7 @@ std::optional<TReshardDescriptor> TParameterizedResharder::MergeTablets(
             (Bundle_->Config->EnableVerboseLogging || table->TableConfig->EnableVerboseLogging) &&
             LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
             "The tablet is too small, but there are no tablets to merge with it "
-            "(TabletId: %v, TabletIndex: %v, TabletSize: %v, TabletMetric: %v)",
+            "(TabletId: %v, TabletIndex: %v, TabletSize: %v, TabletMetric: %e)",
             table->Tablets[tabletIndex]->Id,
             tabletIndex,
             enlargedTabletSize,
@@ -1399,7 +1626,7 @@ std::optional<TReshardDescriptor> TParameterizedResharder::MergeTablets(
     }
 
     auto correlationId = TGuid::Create();
-    YT_LOG_DEBUG("Merging tablets (Tablets: %v, TabletSize: %v, TabletMetric: %v, CorrelationId: %v)",
+    YT_LOG_DEBUG("Merging tablets (Tablets: %v, TabletSize: %v, TabletMetric: %e, CorrelationId: %v)",
         tabletsToMerge,
         enlargedTabletSize,
         enlargedTabletMetric,
@@ -1460,7 +1687,7 @@ TParameterizedResharder::TTableStatistics TParameterizedResharder::GetTableStati
         statistics.TabletSizes.push_back(GetTabletBalancingSize(tablet));
         statistics.TableSize += statistics.TabletSizes.back();
 
-        auto tabletMetric = GetTabletMetric(tablet);
+        auto tabletMetric = Calculator_->GetTabletMetric(tablet);
         if (tabletMetric < 0.0) {
             THROW_ERROR_EXCEPTION("Tablet metric must be nonnegative, got %v", tabletMetric)
                 << TErrorAttribute("tablet_metric_value", tabletMetric)
@@ -1474,7 +1701,7 @@ TParameterizedResharder::TTableStatistics TParameterizedResharder::GetTableStati
         YT_LOG_DEBUG_IF(
             (Bundle_->Config->EnableVerboseLogging || table->TableConfig->EnableVerboseLogging) &&
             LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
-            "Reporting tablet statistics (TabletId: %v, Size: %v, Metric: %v, TableId: %v)",
+            "Reporting tablet statistics (TabletId: %v, Size: %v, Metric: %e, TableId: %v)",
             tablet->Id,
             statistics.TabletSizes.back(),
             tabletMetric,
@@ -1490,7 +1717,7 @@ TParameterizedResharder::TTableStatistics TParameterizedResharder::GetTableStati
 
     if (statistics.TableMetric == 0.0 || statistics.DesiredTabletMetric == 0.0) {
         YT_LOG_DEBUG("Calculated table metric for parameterized balancing via reshard is zero or almost zero "
-            "(TableId: %v, TablePath: %v, TableMetric: %v)",
+            "(TableId: %v, TablePath: %v, TableMetric: %e)",
             table->Id,
             table->Path,
             statistics.TableMetric);
@@ -1503,7 +1730,7 @@ TParameterizedResharder::TTableStatistics TParameterizedResharder::GetTableStati
         Bundle_->Config->EnableVerboseLogging || table->TableConfig->EnableVerboseLogging,
         "Reporting reshard limits and statistics "
         "(MinTabletSize: %v, DesiredTabletSize: %v, MaxTabletSize: %v, TableSize: %v, "
-        "MinTabletMetric: %v, DesiredTabletMetric: %v, MaxTabletMetric: %v, TableMetric: %v, TableId: %v)",
+        "MinTabletMetric: %e, DesiredTabletMetric: %e, MaxTabletMetric: %e, TableMetric: %e, TableId: %v)",
         statistics.MinTabletSize,
         statistics.DesiredTabletSize,
         statistics.MaxTabletSize,
@@ -1521,8 +1748,7 @@ TParameterizedResharder::TTableStatistics TParameterizedResharder::GetTableStati
 
 IParameterizedReassignSolverPtr CreateParameterizedReassignSolver(
     TTabletCellBundlePtr bundle,
-    std::vector<TString> performanceCountersKeys,
-    TTableSchemaPtr performanceCountersTableSchema,
+    std::vector<std::string> performanceCountersKeys,
     TParameterizedReassignSolverConfig config,
     TGroupName groupName,
     TTableParameterizedMetricTrackerPtr metricTracker,
@@ -1531,17 +1757,34 @@ IParameterizedReassignSolverPtr CreateParameterizedReassignSolver(
     return New<TParameterizedReassignSolver>(
         std::move(bundle),
         std::move(performanceCountersKeys),
-        std::move(performanceCountersTableSchema),
         std::move(config),
         std::move(groupName),
         std::move(metricTracker),
+        EMetricsCalculatorType::Parameterized,
+        logger);
+}
+
+IParameterizedReassignSolverPtr CreateReplicaReassignSolver(
+    TTabletCellBundlePtr bundle,
+    std::vector<std::string> performanceCountersKeys,
+    TParameterizedReassignSolverConfig config,
+    TGroupName groupName,
+    TTableParameterizedMetricTrackerPtr metricTracker,
+    const NLogging::TLogger& logger)
+{
+    return New<TParameterizedReassignSolver>(
+        std::move(bundle),
+        std::move(performanceCountersKeys),
+        std::move(config),
+        std::move(groupName),
+        std::move(metricTracker),
+        EMetricsCalculatorType::Replica,
         logger);
 }
 
 IParameterizedResharderPtr CreateParameterizedResharder(
     TTabletCellBundlePtr bundle,
-    std::vector<TString> performanceCountersKeys,
-    TTableSchemaPtr performanceCountersTableSchema,
+    std::vector<std::string> performanceCountersKeys,
     TParameterizedResharderConfig config,
     TGroupName groupName,
     const NLogging::TLogger& logger)
@@ -1549,7 +1792,6 @@ IParameterizedResharderPtr CreateParameterizedResharder(
     return New<TParameterizedResharder>(
         std::move(bundle),
         std::move(performanceCountersKeys),
-        std::move(performanceCountersTableSchema),
         std::move(config),
         std::move(groupName),
         logger);

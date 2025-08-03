@@ -24,6 +24,8 @@ SRCS(
     data_node/blob_chunk.cpp
     data_node/blob_reader_cache.cpp
     data_node/blob_session.cpp
+    data_node/nbd_session.cpp
+    data_node/nbd_chunk_handler.cpp
     data_node/bootstrap.cpp
     data_node/chunk.cpp
     data_node/chunk_detail.cpp
@@ -33,6 +35,7 @@ SRCS(
     data_node/chunk_reader_sweeper.cpp
     data_node/config.cpp
     data_node/data_node_service.cpp
+    data_node/data_node_nbd_service.cpp
     data_node/disk_location.cpp
     data_node/job.cpp
     data_node/job_controller.cpp
@@ -115,9 +118,11 @@ SRCS(
     tablet_node/compaction_hint_fetcher.cpp
     tablet_node/compression_dictionary_builder.cpp
     tablet_node/compression_dictionary_manager.cpp
+    tablet_node/config.cpp
     tablet_node/distributed_throttler_manager.cpp
     tablet_node/dynamic_store_bits.cpp
     tablet_node/error_manager.cpp
+    tablet_node/failing_on_rotation_reader.cpp
     tablet_node/hedging_manager_registry.cpp
     tablet_node/hint_manager.cpp
     tablet_node/hunk_chunk.cpp

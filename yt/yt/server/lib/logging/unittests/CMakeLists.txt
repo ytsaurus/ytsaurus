@@ -20,6 +20,9 @@ add_executable(unittester-library-logging)
 target_compile_options(unittester-library-logging PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(unittester-library-logging PUBLIC

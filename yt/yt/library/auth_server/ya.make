@@ -27,6 +27,7 @@ SRCS(
     oauth_cookie_authenticator.cpp
     oauth_token_authenticator.cpp
     oauth_service.cpp
+    yc_iam_token_authenticator.cpp
 )
 
 PEERDIR(
@@ -39,6 +40,7 @@ PEERDIR(
     yt/yt/library/re2
     library/cpp/string_utils/quote
     library/cpp/string_utils/url
+    library/cpp/json
 )
 
 END()

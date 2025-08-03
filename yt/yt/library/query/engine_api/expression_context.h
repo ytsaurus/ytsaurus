@@ -37,12 +37,6 @@ private:
     NWebAssembly::TWebAssemblyMemoryPool WebAssemblyPool_;
 };
 
-template <class TTag = NTableClient::TDefaultRowBufferPoolTag>
-TExpressionContext MakeExpressionContext(
-    TTag,
-    IMemoryUsageTrackerPtr memoryTracker,
-    size_t startChunkSize = TChunkedMemoryPool::DefaultStartChunkSize);
-
 template <class TTag>
 TExpressionContext MakeExpressionContext(
     TTag,

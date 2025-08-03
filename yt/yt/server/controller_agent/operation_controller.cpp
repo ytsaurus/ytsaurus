@@ -7,6 +7,7 @@
 #include <yt/yt/library/ytprof/heap_profiler.h>
 
 #include <yt/yt/server/controller_agent/controllers/ordered_controller.h>
+#include <yt/yt/server/controller_agent/controllers/remote_copy_controller.h>
 #include <yt/yt/server/controller_agent/controllers/sort_controller.h>
 #include <yt/yt/server/controller_agent/controllers/sorted_controller.h>
 #include <yt/yt/server/controller_agent/controllers/unordered_controller.h>
@@ -208,7 +209,7 @@ public:
         return Underlying_->TestHeap();
     }
 
-    std::pair<NApi::ITransactionPtr, TString> GetIntermediateMediumTransaction() override
+    std::pair<NApi::ITransactionPtr, std::string> GetIntermediateMediumTransaction() override
     {
         return DoExecuteGuarded(&IOperationController::GetIntermediateMediumTransaction);
     }
@@ -644,6 +645,8 @@ void ApplyExperiments(TOperation* operation)
         }
     }
 
+    INodePtr optionsPatch;
+
     for (const auto& experiment : operation->ExperimentAssignments()) {
         for (const auto& path : userJobPaths) {
             ApplyPatch(
@@ -659,7 +662,14 @@ void ApplyExperiments(TOperation* operation)
                 experiment->Effect->ControllerJobIOTemplatePatch,
                 experiment->Effect->ControllerJobIOPatch);
         }
+        if (const auto& node = experiment->Effect->ControllerOptionsPatch; node) {
+            optionsPatch = optionsPatch
+                ? PatchNode(optionsPatch, node)
+                : node;
+        }
     }
+
+    operation->SetOptionsPatch(std::move(optionsPatch));
 }
 
 IOperationControllerPtr CreateControllerForOperation(
@@ -674,54 +684,54 @@ IOperationControllerPtr CreateControllerForOperation(
         case EOperationType::Map: {
             auto baseSpec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());
             controller = baseSpec->Ordered
-                ? NControllers::CreateOrderedMapController(config, host, operation)
-                : NControllers::CreateUnorderedMapController(config, host, operation);
+                ? NControllers::CreateOrderedMapController(std::move(config), std::move(host), operation)
+                : NControllers::CreateUnorderedMapController(std::move(config), std::move(host), operation);
             break;
         }
         case EOperationType::Merge: {
             auto baseSpec = ParseOperationSpec<TMergeOperationSpec>(operation->GetSpec());
             switch (baseSpec->Mode) {
                 case EMergeMode::Ordered: {
-                    controller = NControllers::CreateOrderedMergeController(config, host, operation);
+                    controller = NControllers::CreateOrderedMergeController(std::move(config), std::move(host), operation);
                     break;
                 }
                 case EMergeMode::Sorted: {
-                    controller = NControllers::CreateSortedMergeController(config, host, operation);
+                    controller = NControllers::CreateSortedMergeController(std::move(config), std::move(host), operation);
                     break;
                 }
                 case EMergeMode::Unordered: {
-                    controller = NControllers::CreateUnorderedMergeController(config, host, operation);
+                    controller = NControllers::CreateUnorderedMergeController(std::move(config), std::move(host), operation);
                     break;
                 }
             }
             break;
         }
         case EOperationType::Erase: {
-            controller = NControllers::CreateEraseController(config, host, operation);
+            controller = NControllers::CreateEraseController(std::move(config), std::move(host), operation);
             break;
         }
         case EOperationType::Sort: {
-            controller = NControllers::CreateSortController(config, host, operation);
+            controller = NControllers::CreateSortController(std::move(config), std::move(host), operation);
             break;
         }
         case EOperationType::Reduce: {
-            controller = NControllers::CreateReduceController(config, host, operation, /*isJoinReduce*/ false);
+            controller = NControllers::CreateReduceController(std::move(config), std::move(host), operation, /*isJoinReduce*/ false);
             break;
         }
         case EOperationType::JoinReduce: {
-            controller = NControllers::CreateReduceController(config, host, operation, /*isJoinReduce*/ true);
+            controller = NControllers::CreateReduceController(std::move(config), std::move(host), operation, /*isJoinReduce*/ true);
             break;
         }
         case EOperationType::MapReduce: {
-            controller = NControllers::CreateMapReduceController(config, host, operation);
+            controller = NControllers::CreateMapReduceController(std::move(config), std::move(host), operation);
             break;
         }
         case EOperationType::RemoteCopy: {
-            controller = NControllers::CreateRemoteCopyController(config, host, operation);
+            controller = NControllers::CreateRemoteCopyController(std::move(config), std::move(host), operation);
             break;
         }
         case EOperationType::Vanilla: {
-            controller = NControllers::CreateVanillaController(config, host, operation);
+            controller = NControllers::CreateVanillaController(std::move(config), std::move(host), operation);
             break;
         }
         default:
@@ -730,7 +740,7 @@ IOperationControllerPtr CreateControllerForOperation(
 
     return New<TOperationControllerWrapper>(
         operation->GetId(),
-        controller,
+        std::move(controller),
         controller->GetInvoker(),
         parentTraceContext);
 }

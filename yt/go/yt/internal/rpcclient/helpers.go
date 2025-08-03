@@ -1,7 +1,9 @@
 package rpcclient
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"time"
 
@@ -14,12 +16,17 @@ import (
 	"go.ytsaurus.tech/yt/go/proto/core/ytree"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yt/internal"
 	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
 // unexpectedStatusCode is last effort attempt to get useful error message from a failed request.
 func unexpectedStatusCode(rsp *http.Response) error {
-	d := json.NewDecoder(rsp.Body)
+	body, err := io.ReadAll(rsp.Body)
+	if err != nil {
+		return xerrors.Errorf("failed to read http response body: %w", err)
+	}
+	d := json.NewDecoder(bytes.NewReader(body))
 	d.UseNumber()
 
 	var ytErr yterrors.Error
@@ -27,7 +34,7 @@ func unexpectedStatusCode(rsp *http.Response) error {
 		return &ytErr
 	}
 
-	return xerrors.Errorf("unexpected status code %d", rsp.StatusCode)
+	return internal.NewHTTPError(rsp.StatusCode, rsp.Header, body)
 }
 
 func convertTxID(txID yt.TxID) *misc.TGuid {
@@ -219,8 +226,6 @@ func convertReadKind(k yt.ReadKind) *rpc_proxy.EMasterReadKind {
 		ret = rpc_proxy.EMasterReadKind_MRK_FOLLOWER
 	case yt.ReadFromCache:
 		ret = rpc_proxy.EMasterReadKind_MRK_CACHE
-	case yt.ReadFromMasterCache:
-		ret = rpc_proxy.EMasterReadKind_MRK_MASTER_CACHE
 	default:
 		return nil
 	}
@@ -1054,6 +1059,20 @@ func makeListJobsResult(result *rpc_proxy.TListJobsResult) (*yt.ListJobsResult, 
 	}
 
 	return ret, nil
+}
+
+func makeGetJobResult(result *rpc_proxy.TRspGetJob) (*yt.JobStatus, error) {
+	if result == nil {
+		return nil, nil
+	}
+
+	var info yt.JobStatus
+
+	if err := yson.Unmarshal(result.Info, &info); err != nil {
+		return nil, xerrors.Errorf("unable to deserialize job: %w", err)
+	}
+
+	return &info, nil
 }
 
 func convertTabletRangeOptions(opts *yt.TabletRangeOptions) *rpc_proxy.TTabletRangeOptions {

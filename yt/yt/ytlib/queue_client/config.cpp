@@ -8,6 +8,14 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TQueueAgentStageChannelConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("default_request_timeout", &TThis::DefaultRequestTimeout)
+        .Default(TDuration::Minutes(1));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TQueueAgentDynamicStateConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("root", &TThis::Root)
@@ -50,6 +58,14 @@ void TQueueAgentConnectionConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("queue_consumer_registration_manager", &TThis::QueueConsumerRegistrationManager)
         .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TQueueProducerSystemMeta::Register(TRegistrar registrar)
+{
+    registrar.Parameter("mutation_id", &TThis::MutationId)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

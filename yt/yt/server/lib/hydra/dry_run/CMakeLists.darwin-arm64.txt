@@ -18,6 +18,9 @@ add_library(lib-hydra-dry_run)
 target_compile_options(lib-hydra-dry_run PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(lib-hydra-dry_run PUBLIC

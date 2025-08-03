@@ -4,6 +4,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 SRCS(
     acl.go
+    batch_request.go
     batch.go
     config.go
     credentials.go

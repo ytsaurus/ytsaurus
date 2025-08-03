@@ -125,7 +125,6 @@ public:
             driver = CreateDriver(
                 std::move(connection),
                 std::move(driverConfig),
-                CreateDummySignatureGenerator(),
                 CreateDummySignatureValidator());
         } catch (const std::exception& ex) {
             throw Py::RuntimeError(TString("Error creating driver\n") + ex.what());

@@ -303,6 +303,7 @@ TString TRandomExpressionGenerator::GenerateExpression2()
     int count = GetExponentialDistribution(5);
     for (int i = 0; i < count; ++i) {
         result += Rng.Uniform(4) == 0 ? " OR " : " AND ";
+        result += Rng.Uniform(4) == 0 ? " NOT " : "";
         result += GenerateRelation(1);
 
     }

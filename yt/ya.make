@@ -13,11 +13,9 @@ RECURSE(
     docker
     odin
     styleguide
-    systest
     admin
     cron
 )
-
 
 IF (NOT OPENSOURCE)
     # Yandex-specific parts of YT.
@@ -28,6 +26,7 @@ IF (NOT OPENSOURCE)
         docs
         docs/yandex-specific
         docs/ytsaurus
+        datahub-docs
         idm-integration
         internal
         jaeger

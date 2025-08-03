@@ -18,6 +18,9 @@ add_library(tests-cpp-test_base)
 target_compile_options(tests-cpp-test_base PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(tests-cpp-test_base PUBLIC

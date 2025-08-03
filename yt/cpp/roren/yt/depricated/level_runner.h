@@ -74,7 +74,7 @@ private:
     ::NYT::TIntrusivePtr<TState> State_;
 };
 
-DECLARE_REFCOUNTED_TYPE(TLevelRunner)
+using TLevelRunnerPtr = NYT::TIntrusivePtr<TLevelRunner>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

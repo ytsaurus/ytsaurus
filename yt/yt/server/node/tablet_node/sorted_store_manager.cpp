@@ -1,14 +1,16 @@
+#include "sorted_store_manager.h"
+
+#include "automaton.h"
+#include "config.h"
 #include "in_memory_manager.h"
 #include "sorted_chunk_store.h"
 #include "sorted_dynamic_store.h"
-#include "sorted_store_manager.h"
+#include "store_flusher.h"
+#include "structured_logger.h"
 #include "tablet.h"
 #include "tablet_profiling.h"
 #include "tablet_slot.h"
 #include "transaction_manager.h"
-#include "structured_logger.h"
-#include "automaton.h"
-#include "store_flusher.h"
 #include "versioned_chunk_meta_manager.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -665,9 +667,9 @@ void TSortedStoreManager::PopulateReplicateTabletContentRequest(
     TStoreManagerBase::PopulateReplicateTabletContentRequest(request);
 }
 
-void TSortedStoreManager::AddStore(IStorePtr store, bool onMount, bool onFlush, TPartitionId partitionIdHint)
+void TSortedStoreManager::AddStore(IStorePtr store, bool useInterceptedChunkData, bool onFlush, TPartitionId partitionIdHint)
 {
-    TStoreManagerBase::AddStore(store, onMount, onFlush, partitionIdHint);
+    TStoreManagerBase::AddStore(store, useInterceptedChunkData, onFlush, partitionIdHint);
 
     auto sortedStore = store->AsSorted();
     MaxTimestampToStore_.emplace(sortedStore->GetMaxTimestamp(), sortedStore);
@@ -675,13 +677,14 @@ void TSortedStoreManager::AddStore(IStorePtr store, bool onMount, bool onFlush, 
     SchedulePartitionSampling(sortedStore->GetPartition());
 }
 
-void TSortedStoreManager::BulkAddStores(TRange<IStorePtr> stores, bool onMount)
+void TSortedStoreManager::BulkAddStores(TRange<IStorePtr> stores)
 {
     TBulkInsertProfiler bulkInsertProfiler(Tablet_);
     THashMap<TPartitionId, std::vector<ISortedStorePtr>> addedStoresByPartition;
     for (const auto& store : stores) {
         bulkInsertProfiler.Update(store);
-        AddStore(store, onMount, /*onFlush*/ false);
+        AddStore(store, /*useInterceptedChunkData*/ false, /*onFlush*/ false);
+
         auto sortedStore = store->AsSorted();
         addedStoresByPartition[sortedStore->GetPartition()->GetId()].push_back(sortedStore);
     }
@@ -846,7 +849,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             TabletContext_->GetControlInvoker(),
             TabletContext_->GetLocalDescriptor(),
             TabletContext_->GetLocalRpcServer(),
-            Client_->GetNativeConnection()->GetCellDirectory()->GetDescriptorByCellIdOrThrow(tabletSnapshot->CellId),
+            tabletSnapshot,
             inMemoryMode,
             InMemoryManager_->GetConfig());
 
@@ -933,17 +936,13 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                     return;
                 }
 
-                auto enableNewScanReader =
-                    mountConfig->EnableNewScanReaderForLookup ||
-                    mountConfig->EnableNewScanReaderForSelect;
-
                 auto result = false;
                 if (auto chunkMetaManager = TabletContext_->GetVersionedChunkMetaManager()) {
                     result = chunkMetaManager->InsertMeta(
                         TVersionedChunkMetaCacheKey{
                             .ChunkId = storeWriter->GetChunkId(),
                             .TableSchemaKeyColumnCount = tabletSnapshot->PhysicalSchema->GetKeyColumnCount(),
-                            .PreparedColumnarMeta = enableNewScanReader,
+                            .PreparedColumnarMeta = true,
                         },
                         New<TRefCountedChunkMeta>(*finalizedMeta));
                 }
@@ -1105,12 +1104,18 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
         updateWriterStatistics();
 
+        const auto& smoothMovementData = tabletSnapshot->TabletRuntimeData->SmoothMovementData;
+        auto targetServantMountRevision = smoothMovementData.Role == ESmoothMovementRole::Source
+            ? smoothMovementData.SiblingServantMountRevision.load()
+            : TRevision{};
+
         std::vector<TChunkInfo> chunkInfos{
             TChunkInfo{
                 .ChunkId = storeWriter->GetChunkId(),
                 .ChunkMeta = storeWriter->GetMeta(),
                 .TabletId = tabletSnapshot->TabletId,
-                .MountRevision = tabletSnapshot->MountRevision
+                .MountRevision = tabletSnapshot->MountRevision,
+                .TargetServantMountRevision = targetServantMountRevision,
             }
         };
 
@@ -1173,23 +1178,10 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
         if (mountConfig->RegisterChunkReplicasOnStoresUpdate) {
             const auto& chunkReplicaCache = TabletContext_->GetChunkReplicaCache();
-            // TODO(kvk1920): Consider using chunk + location instead of chunk + node + medium.
-            auto registerReplicas = [&] (const IChunkWriterPtr& chunkWriter) {
-                const auto& replicasInfo = chunkWriter->GetWrittenChunkReplicasInfo();
-                NChunkClient::TAllyReplicasInfo newReplicas;
-                newReplicas.Revision = replicasInfo.ConfirmationRevision;
-                newReplicas.Replicas.reserve(replicasInfo.Replicas.size());
-                for (auto replica : replicasInfo.Replicas) {
-                    newReplicas.Replicas.push_back(replica);
-                }
-
-                chunkReplicaCache->UpdateReplicas(chunkWriter->GetChunkId(), newReplicas);
-            };
-
-            registerReplicas(storeChunkWriter);
+            chunkReplicaCache->UpdateReplicas(storeChunkWriter->GetChunkId(), NChunkClient::TAllyReplicasInfo::FromChunkWriter(storeChunkWriter));
 
             if (hunkChunkPayloadWriter->HasHunks()) {
-                registerReplicas(hunkChunkWriter);
+                chunkReplicaCache->UpdateReplicas(hunkChunkWriter->GetChunkId(), NChunkClient::TAllyReplicasInfo::FromChunkWriter(hunkChunkWriter));
             }
         }
 

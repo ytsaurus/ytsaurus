@@ -1,15 +1,16 @@
 #include "partition_balancer.h"
+
 #include "bootstrap.h"
-#include "private.h"
-#include "sorted_chunk_store.h"
+#include "config.h"
 #include "partition.h"
+#include "private.h"
 #include "slot_manager.h"
+#include "sorted_chunk_store.h"
 #include "store.h"
+#include "structured_logger.h"
 #include "tablet.h"
 #include "tablet_manager.h"
 #include "tablet_slot.h"
-#include "structured_logger.h"
-#include "yt/yt/library/profiling/sensor.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -52,6 +53,8 @@
 
 #include <yt/yt/core/tracing/trace_context.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NChunkClient;
@@ -70,7 +73,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletNodeLogger;
+constinit const auto Logger = TabletNodeLogger;
 
 struct TPartitionSamplesTag
 { };
@@ -678,7 +681,6 @@ private:
                 NChunkClient::NProto::TChunkSpec chunkSpec;
                 ToProto(chunkSpec.mutable_chunk_id(), chunkId);
                 ToProto(chunkSpec.mutable_replicas(), replicas.Replicas);
-                ToProto(chunkSpec.mutable_legacy_replicas(), TChunkReplicaWithMedium::ToChunkReplicas(replicas.Replicas));
                 *chunkSpec.mutable_chunk_meta() = store->GetChunkMeta();
                 ToProto(chunkSpec.mutable_lower_limit(), TLegacyReadLimit(partition->GetPivotKey()));
                 ToProto(chunkSpec.mutable_upper_limit(), TLegacyReadLimit(partition->GetNextPivotKey()));

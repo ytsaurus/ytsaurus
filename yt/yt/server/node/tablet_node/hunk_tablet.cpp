@@ -199,13 +199,8 @@ void THunkTablet::RemoveStore(const THunkStorePtr& store)
         storeState);
 }
 
-bool THunkTablet::IsReadyToUnmount(bool force) const
+bool THunkTablet::IsReadyToUnmount() const
 {
-    // Force unmount is always possible.
-    if (force) {
-        return true;
-    }
-
     // Cannot unmount tablet when there are alive stores.
     if (!IdToStore_.empty()) {
         return false;
@@ -220,10 +215,10 @@ bool THunkTablet::IsReadyToUnmount(bool force) const
     return true;
 }
 
-bool THunkTablet::IsFullyUnlocked(bool forceUnmount) const
+bool THunkTablet::IsFullyUnlocked(bool force) const
 {
-    // Persistently locked.
-    if (!IsReadyToUnmount(forceUnmount)) {
+    // Persistently locked. However, force unmount is always possible.
+    if (!force && !IsReadyToUnmount()) {
         return false;
     }
 
@@ -232,7 +227,7 @@ bool THunkTablet::IsFullyUnlocked(bool forceUnmount) const
         return false;
     }
 
-    // Some write is still in progress.
+    // Some writes are still in progress.
     if (WriteLockCount_ > 0) {
         return false;
     }
@@ -339,13 +334,27 @@ TTransactionId THunkTablet::GetLockTransactionId() const
 
 bool THunkTablet::TryLockScan()
 {
-    return !std::exchange(LockedByScan_, true);
+    auto wasUnlocked = !std::exchange(LockedByScan_, true);
+    YT_LOG_DEBUG_IF(wasUnlocked, "Hunk tablet locked by scanner");
+    return wasUnlocked;
 }
 
 void THunkTablet::UnlockScan()
 {
     YT_VERIFY(LockedByScan_);
     LockedByScan_ = false;
+
+    YT_LOG_DEBUG("Hunk tablet unlocked by scanner");
+}
+
+bool THunkTablet::IsLockedScan() const
+{
+    return LockedByScan_;
+}
+
+int THunkTablet::GetWriteLockCount() const
+{
+    return WriteLockCount_.load();
 }
 
 void THunkTablet::ValidateMountRevision(TRevision mountRevision) const

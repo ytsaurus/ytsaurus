@@ -1,4 +1,5 @@
 TAG(
+    sb:ttl=2
     ya:fat
     ya:full_logs
     ya:sys_info
@@ -7,6 +8,8 @@ TAG(
     ya:noretries
     ya:yt
     ya:relwithdebinfo
+    ya:dump_test_env
+    ya:large_tests_on_single_slots
 )
 
 ENV(YT_DEBUG_TAKEN_PORT=1)
@@ -101,5 +104,3 @@ IF (CLANG_COVERAGE)
 ELSE()
     REQUIREMENTS(ram_disk:10)
 ENDIF()
-
-INCLUDE(${ARCADIA_ROOT}/devtools/large_on_single_slots.inc)

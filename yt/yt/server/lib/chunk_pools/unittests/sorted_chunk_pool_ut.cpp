@@ -1,16 +1,14 @@
 #include "chunk_pools_helpers.h"
 
-#include <yt/yt/server/lib/chunk_pools/mock/chunk_slice_fetcher.h>
-
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/server/controller_agent/helpers.h>
-#include <yt/yt/server/controller_agent/job_size_constraints.h>
-#include <yt/yt/server/controller_agent/operation_controller.h>
+#include <yt/yt/server/lib/chunk_pools/mock/chunk_slice_fetcher.h>
 
 #include <yt/yt/server/lib/chunk_pools/input_chunk_mapping.h>
-#include <yt/yt/server/lib/chunk_pools/multi_chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/legacy_sorted_chunk_pool.h>
+#include <yt/yt/server/lib/chunk_pools/multi_chunk_pool.h>
+
+#include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
 
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
@@ -21,7 +19,6 @@
 
 #include <yt/yt/core/misc/blob_output.h>
 
-#include <util/generic/cast.h>
 #include <util/generic/size_literals.h>
 
 #include <util/stream/null.h>
@@ -31,9 +28,9 @@
 namespace NYT::NChunkPools {
 namespace {
 
-using namespace NControllerAgent;
 using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NControllerAgent;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NTableClient;
@@ -60,7 +57,6 @@ protected:
         Options_.MinTeleportChunkSize = Inf64;
         Options_.SliceForeignChunks = true;
         Options_.SortedJobOptions.MaxTotalSliceCount = Inf64;
-        Options_.UseNewJobBuilder = false;
         Options_.ReturnNewDataSlices = false;
         Options_.Logger = GetTestLogger();
         DataSizePerJob_ = Inf64;
@@ -68,23 +64,26 @@ protected:
         MaxDataSlicesPerJob_ = Inf32;
         MaxDataWeightPerJob_ = Inf64;
         MaxPrimaryDataWeightPerJob_ = Inf64;
+        MaxCompressedDataSizePerJob_ = Inf64;
         InputSliceDataWeight_ = Inf64;
     }
 
     void InitJobConstraints()
     {
         Options_.JobSizeConstraints = CreateExplicitJobSizeConstraints(
-            false /*canAdjustDataWeightPerJob*/,
-            false /*isExplicitJobCount*/,
-            0 /*jobCount*/,
+            /*canAdjustDataWeightPerJob*/ false,
+            /*isExplicitJobCount*/ false,
+            /*jobCount*/ 0,
             DataSizePerJob_,
             PrimaryDataWeightPerJob_,
+            /*compressedDataSizePerJob*/ Inf64,
             MaxDataSlicesPerJob_,
             MaxDataWeightPerJob_,
             MaxPrimaryDataWeightPerJob_,
+            MaxCompressedDataSizePerJob_,
             InputSliceDataWeight_,
-            Inf64 /*inputSliceRowCount*/,
-            {} /*batchRowCount*/,
+            /*inputSliceRowCount*/ Inf64,
+            /*batchRowCount*/ {},
             InputSliceDataWeight_,
             SamplingRate_,
             SamplingDataWeightPerJob_,
@@ -123,6 +122,7 @@ protected:
                             Property(
                                 &TLegacyDataSlice::GetSingleUnversionedChunk,
                                 Eq(chunk)))),
+                    _,
                     _,
                     _,
                     _));
@@ -254,7 +254,8 @@ protected:
         TInputChunkPtr chunk,
         std::vector<TLegacyKey> internalPoints,
         std::vector<i64> sliceSizes = std::vector<i64>(),
-        std::vector<i64> sliceRowCounts = std::vector<i64>())
+        std::vector<i64> sliceRowCounts = std::vector<i64>(),
+        std::vector<i64> sliceCompressedDataSizes = std::vector<i64>())
     {
         if (sliceSizes.empty()) {
             sliceSizes.assign(internalPoints.size() + 1, chunk->GetUncompressedDataSize() / (internalPoints.size() + 1));
@@ -267,7 +268,13 @@ protected:
             sliceRowCounts.assign(internalPoints.size() + 1, chunk->GetRowCount() / (internalPoints.size() + 1));
             sliceRowCounts[0] += chunk->GetRowCount() - (internalPoints.size() + 1) * sliceRowCounts[0];
         } else {
-            YT_VERIFY(internalPoints.size() + 1 == sliceSizes.size());
+            YT_VERIFY(internalPoints.size() + 1 == sliceRowCounts.size());
+        }
+        if (sliceCompressedDataSizes.empty()) {
+            sliceCompressedDataSizes.assign(internalPoints.size() + 1, chunk->GetCompressedDataSize() / (internalPoints.size() + 1));
+            sliceCompressedDataSizes[0] += chunk->GetRowCount() - (internalPoints.size() + 1) * sliceRowCounts[0];
+        } else {
+            YT_VERIFY(internalPoints.size() + 1 == sliceCompressedDataSizes.size());
         }
 
         YT_VERIFY(!InputTables_[chunk->GetTableIndex()].IsVersioned());
@@ -288,7 +295,7 @@ protected:
                 currentRow += sliceRowCounts[index];
                 slices.back()
                     ->LegacyUpperLimit().RowIndex = currentRow;
-                slices.back()->OverrideSize(sliceRowCounts[index], sliceSizes[index]);
+                slices.back()->OverrideSize(sliceRowCounts[index], sliceSizes[index], sliceCompressedDataSizes[index]);
             }
             lastKey = upperLimit;
         }
@@ -681,6 +688,8 @@ protected:
     i64 MaxBuildRetryCount_;
 
     i32 MaxDataSlicesPerJob_;
+
+    i64 MaxCompressedDataSizePerJob_;
 
     i64 InputSliceDataWeight_;
 
@@ -2198,7 +2207,7 @@ TEST_F(TSortedChunkPoolTest, TestCorrectOrderInsideStripe)
     auto chunk = CreateChunk(BuildRow({10}), BuildRow({20}), 0);
     std::vector<TInputChunkSlicePtr> slices;
     for (int index = 0; index < 100; ++index) {
-        slices.emplace_back(New<TInputChunkSlice>(chunk, 0 /*partIndex*/, 10 * index, 10 * (index + 1), 1_KB));
+        slices.emplace_back(New<TInputChunkSlice>(chunk, 0 /*partIndex*/, 10 * index, 10 * (index + 1), 1_KB, 1_KB));
         slices.back()
             ->LegacyLowerLimit().Key = BuildRow({10});
         slices.back()
@@ -2942,7 +2951,7 @@ TEST_F(TSortedChunkPoolTest, TrickySliceSortOrder)
     ChunkPool_->Finish();
 
     EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
-    auto outputCookie = ChunkPool_->Extract(NNodeTrackerClient::TNodeId(0));
+    auto outputCookie = ChunkPool_->Extract(TNodeId(0));
     auto stripeList = ChunkPool_->GetStripeList(outputCookie);
     EXPECT_EQ(1u, stripeList->Stripes.size());
     EXPECT_EQ(2u, stripeList->Stripes[0]->DataSlices.size());
@@ -2959,7 +2968,7 @@ TEST_F(TSortedChunkPoolTest, TrickySliceSortOrder)
     ChunkPool_->Completed(outputCookie, jobSummary);
 
     EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
-    outputCookie = ChunkPool_->Extract(NNodeTrackerClient::TNodeId(0));
+    outputCookie = ChunkPool_->Extract(TNodeId(0));
     stripeList = ChunkPool_->GetStripeList(outputCookie);
     EXPECT_EQ(1u, stripeList->Stripes.size());
     EXPECT_EQ(2u, stripeList->Stripes[0]->DataSlices.size());
@@ -3000,7 +3009,7 @@ TEST_F(TSortedChunkPoolTest, TrickySliceSortOrder2)
     ChunkPool_->Finish();
 
     EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
-    auto outputCookie = ChunkPool_->Extract(NNodeTrackerClient::TNodeId(0));
+    auto outputCookie = ChunkPool_->Extract(TNodeId(0));
     auto stripeList = ChunkPool_->GetStripeList(outputCookie);
     EXPECT_EQ(1u, stripeList->Stripes.size());
     EXPECT_EQ(2u, stripeList->Stripes[0]->DataSlices.size());
@@ -3018,7 +3027,7 @@ TEST_F(TSortedChunkPoolTest, TrickySliceSortOrder2)
     ChunkPool_->Completed(outputCookie, jobSummary);
 
     EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
-    outputCookie = ChunkPool_->Extract(NNodeTrackerClient::TNodeId(0));
+    outputCookie = ChunkPool_->Extract(TNodeId(0));
     stripeList = ChunkPool_->GetStripeList(outputCookie);
     EXPECT_EQ(1u, stripeList->Stripes.size());
     EXPECT_EQ(2u, stripeList->Stripes[0]->DataSlices.size());
@@ -3529,7 +3538,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
 
 INSTANTIATE_TEST_SUITE_P(Instantiation200,
     TSortedChunkPoolTestRandomized,
-    ::testing::Combine(::testing::Range(0, NumberOfRepeats), ::testing::Bool()));
+    Combine(Range(0, NumberOfRepeats), Bool()));
 
 ////////////////////////////////////////////////////////////////////////////////
 

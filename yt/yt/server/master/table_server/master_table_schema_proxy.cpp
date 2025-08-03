@@ -2,6 +2,7 @@
 
 #include "private.h"
 #include "master_table_schema.h"
+#include "table_manager.h"
 
 #include <yt/yt/server/master/object_server/object_detail.h>
 
@@ -40,7 +41,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::Value);
     }
 
-    bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto* schema = GetThisImpl();
 
@@ -58,7 +59,7 @@ private:
 
             case EInternedAttributeKey::MemoryUsage:
                 BuildYsonFluently(consumer)
-                    .Value(schema->AsTableSchema()->GetMemoryUsage());
+                    .Value(schema->AsCompactTableSchema()->GetMemoryUsage());
                 return true;
 
             case EInternedAttributeKey::ReferencingAccounts:
@@ -78,13 +79,15 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override
+    TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
     {
         const auto* schema = GetThisImpl();
 
         switch (key) {
-            case EInternedAttributeKey::Value:
-                return schema->AsYsonAsync();
+            case EInternedAttributeKey::Value: {
+                const auto& tableManager = Bootstrap_->GetTableManager();
+                return tableManager->GetYsonTableSchemaAsync(schema);
+            }
 
             default:
                 break;
@@ -95,7 +98,10 @@ private:
 
     void GetSelf(TReqGet* /*request*/, TRspGet* response, const TCtxGetPtr& context) override
     {
-        GetThisImpl()->AsYsonAsync().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
+        const auto* schema = GetThisImpl();
+
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        tableManager->GetYsonTableSchemaAsync(schema).Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
             if (resultOrError.IsOK()) {
                 response->set_value(resultOrError.Value().ToString());
                 context->Reply();

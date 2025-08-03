@@ -19,6 +19,7 @@ add_subdirectory(logging)
 add_subdirectory(formats)
 add_subdirectory(arrow)
 add_subdirectory(api)
+add_subdirectory(query_client)
 add_subdirectory(signature)
 add_subdirectory(table_client)
 add_subdirectory(unittests)
@@ -41,6 +42,9 @@ add_library(yt-yt-client)
 target_compile_options(yt-yt-client PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_include_directories(yt-yt-client PUBLIC
@@ -58,11 +62,13 @@ target_link_libraries(yt-yt-client PUBLIC
   yt-core-https
   yt-library-auth
   yt-library-decimal
-  yt-library-re2
   yt-library-erasure
   yt-library-numeric
   yt-library-quantile_digest
+  yt-library-re2
+  yt-library-tz_types
   yt_proto-yt-client
+  cpp-digest-crc32c
   library-cpp-json
   cpp-string_utils-base64
   contrib-libs-pfr
@@ -95,6 +101,8 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/sticky_transaction_pool.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/options.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/shuffle_client.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/table_partition_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/private.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/address_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/config.cpp
@@ -110,6 +118,7 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/table_mount_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/table_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/table_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/target_cluster_injecting_channel.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/timestamp_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/transaction.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/transaction_impl.cpp
@@ -177,7 +186,6 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/row_buffer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/schema.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/schema_serialization_helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/schemaless_buffered_dynamic_table_writer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/schemaless_dynamic_table_writer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/serialize.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/table_upload_options.cpp

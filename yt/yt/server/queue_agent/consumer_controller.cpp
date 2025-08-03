@@ -509,6 +509,11 @@ public:
             ConvertToYsonString(newConfig, EYsonFormat::Text));
     }
 
+    void Stop() override
+    {
+        YT_UNUSED_FUTURE(PassExecutor_->Stop());
+    }
+
     TRefCountedPtr GetLatestSnapshot() const override
     {
         return ConsumerSnapshot_.Acquire();
@@ -570,8 +575,8 @@ private:
             auto it = std::find(config->DelayedObjects.begin(), config->DelayedObjects.end(), static_cast<TRichYPath>(ConsumerRow_.Load().Ref));
             if (it != config->DelayedObjects.end()) {
                 // NB(apachee): Since this should only be used for debug, it is a warning in case "delayed_objects" field is left non-empty accidentally.
-                YT_LOG_WARNING("This pass is delayed since queue is present in \"delayed_objects\" field of dynamic config (DelayDuration: %v)", config->ControllerDelayDuration);
-                TDelayedExecutor::WaitForDuration(config->ControllerDelayDuration);
+                YT_LOG_WARNING("This pass is delayed since consumer is present in \"delayed_objects\" field of dynamic config (DelayDuration: %v)", config->ControllerDelay);
+                TDelayedExecutor::WaitForDuration(config->ControllerDelay);
             }
         }
 

@@ -12,10 +12,14 @@
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/sequoia_client/sequoia_reign.h>
+
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/local_address.h>
+
+#include <yt/yt/build/build.h>
 
 #include <library/cpp/yt/threading/atomic_object.h>
 
@@ -23,6 +27,7 @@ namespace NYT::NCypressProxy {
 
 using namespace NApi;
 using namespace NConcurrency;
+using namespace NHydra;
 using namespace NNet;
 using namespace NObjectClient;
 using namespace NSequoiaClient;
@@ -58,18 +63,28 @@ public:
         Executor_->ScheduleOutOfBand();
     }
 
-    bool IsRegistered() override
+    bool IsRegistered() const override
     {
         return RegistrationError_.Read([] (const TError& error) {
             return error.IsOK();
         });
     }
 
-    void ValidateRegistration() override
+    void ValidateRegistration() const override
     {
         RegistrationError_.Read([] (const TError& error) {
             error.ThrowOnError();
         });
+    }
+
+    TReign GetMasterReign() const override
+    {
+        return MasterReign_.Load();
+    }
+
+    int MaxCopiableSubtreeSize() const override
+    {
+        return MaxCopiableSubtreeSize_.Load();
     }
 
 private:
@@ -78,33 +93,52 @@ private:
     const TPeriodicExecutorPtr Executor_;
 
     TAtomicObject<TError> RegistrationError_;
+    TAtomicObject<TReign> MasterReign_;
+    TAtomicObject<int> MaxCopiableSubtreeSize_;
 
     void Heartbeat()
     {
         auto connection = Bootstrap_->GetNativeConnection();
-        auto proxy = TCypressProxyTrackerServiceProxy(
-            connection->GetMasterChannelOrThrow(
-                EMasterChannelKind::Leader,
-                PrimaryMasterCellTagSentinel));
+        auto channel = connection->GetMasterChannelOrThrow(
+            EMasterChannelKind::Follower,
+            PrimaryMasterCellTagSentinel);
+        auto proxy = TCypressProxyTrackerServiceProxy(std::move(channel));
         auto request = proxy.Heartbeat();
         request->set_address(SelfAddress_);
         request->set_sequoia_reign(ToProto(GetCurrentSequoiaReign()));
+        request->set_version(GetVersion());
 
-        auto error = WaitFor(request->Invoke());
-
-        if (!error.IsOK()) {
-            if (error.FindMatching(NSequoiaClient::EErrorCode::InvalidSequoiaReign)) {
-                YT_LOG_ALERT(error, "Failed to send heartbeat; retrying");
+        auto rspOrError = WaitFor(request->Invoke());
+        if (!rspOrError.IsOK()) {
+            if (rspOrError.FindMatching(NSequoiaClient::EErrorCode::InvalidSequoiaReign)) {
+                YT_LOG_ALERT(rspOrError, "Failed to send heartbeat (CurrentSequoiaReign: %v, Version: %v)",
+                    GetCurrentSequoiaReign(),
+                    GetVersion());
             } else {
-                YT_LOG_ERROR(error, "Failed to send heartbeat; retrying");
+                YT_LOG_ERROR(rspOrError, "Failed to send heartbeat (CurrentSequoiaReign: %v, Version: %v)",
+                    GetCurrentSequoiaReign(),
+                    GetVersion());
             }
 
-            error = WrapCypressProxyRegistrationError(std::move(error));
-        } else if (!IsRegistered()) {
-            YT_LOG_DEBUG("Cypress proxy registered at primary master");
+            auto error = WrapCypressProxyRegistrationError(std::move(rspOrError));
+
+            RegistrationError_.Store(std::move(error));
+            MasterReign_.Store(0);
+            MaxCopiableSubtreeSize_.Store(0);
+
+            return;
         }
 
-        RegistrationError_.Store(std::move(error));
+        auto rsp = rspOrError.Value();
+        auto reign = rsp->master_reign();
+        MasterReign_.Store(reign);
+        MaxCopiableSubtreeSize_.Store(rsp->limits().max_copiable_subtree_size());
+
+        if (!IsRegistered()) {
+            YT_LOG_DEBUG("Cypress proxy registered at primary master (MasterReign: %v)", reign);
+        }
+
+        RegistrationError_.Store(TError{});
     }
 };
 

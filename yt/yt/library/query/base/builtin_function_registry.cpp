@@ -35,7 +35,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
 
     builder->RegisterFunction(
         "yson_length",
-        std::vector<TType>{EValueType::Any},
+        std::vector<TType>{TUnionType{EValueType::Any, EValueType::Composite}},
         EValueType::Int64,
         "yson_length",
         ECallingConvention::Simple);
@@ -76,7 +76,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
 
     builder->RegisterFunction(
         "make_map",
-        std::unordered_map<TTypeParameter, TUnionType>(),
+        {},
         std::vector<TType>{},
         TUnionType{
             EValueType::Int64,
@@ -85,13 +85,14 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
             EValueType::Double,
             EValueType::String,
             EValueType::Any,
+            EValueType::Composite,
         },
         EValueType::Any,
         "make_map");
 
     builder->RegisterFunction(
         "make_list",
-        std::unordered_map<TTypeParameter, TUnionType>(),
+        {},
         std::vector<TType>{},
         TUnionType{
             EValueType::Int64,
@@ -100,6 +101,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
             EValueType::Double,
             EValueType::String,
             EValueType::Any,
+            EValueType::Composite,
         },
         EValueType::Any,
         "make_list");
@@ -154,7 +156,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
     builder->RegisterFunction(
         "regex_full_match",
         "regex_full_match",
-        std::unordered_map<TTypeParameter, TUnionType>(),
+        {},
         std::vector<TType>{EValueType::String, EValueType::String},
         EValueType::Null,
         EValueType::Boolean,
@@ -165,7 +167,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
     builder->RegisterFunction(
         "regex_partial_match",
         "regex_partial_match",
-        std::unordered_map<TTypeParameter, TUnionType>(),
+        {},
         std::vector<TType>{EValueType::String, EValueType::String},
         EValueType::Null,
         EValueType::Boolean,
@@ -176,7 +178,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
     builder->RegisterFunction(
         "regex_replace_first",
         "regex_replace_first",
-        std::unordered_map<TTypeParameter, TUnionType>(),
+        {},
         std::vector<TType>{EValueType::String, EValueType::String, EValueType::String},
         EValueType::Null,
         EValueType::String,
@@ -187,7 +189,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
     builder->RegisterFunction(
         "regex_replace_all",
         "regex_replace_all",
-        std::unordered_map<TTypeParameter, TUnionType>(),
+        {},
         std::vector<TType>{EValueType::String, EValueType::String, EValueType::String},
         EValueType::Null,
         EValueType::String,
@@ -198,7 +200,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
     builder->RegisterFunction(
         "regex_extract",
         "regex_extract",
-        std::unordered_map<TTypeParameter, TUnionType>(),
+        {},
         std::vector<TType>{EValueType::String, EValueType::String, EValueType::String},
         EValueType::Null,
         EValueType::String,
@@ -209,7 +211,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
     builder->RegisterFunction(
         "regex_escape",
         "regex_escape",
-        std::unordered_map<TTypeParameter, TUnionType>(),
+        {},
         std::vector<TType>{EValueType::String},
         EValueType::Null,
         EValueType::String,
@@ -231,7 +233,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
     builder->RegisterAggregate(
         "first",
         anyConstraints,
-        typeParameter,
+        {typeParameter},
         typeParameter,
         typeParameter,
         "first",
@@ -246,7 +248,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
     builder->RegisterAggregate(
         "xdelta",
         xdeltaConstraints,
-        typeParameter,
+        {typeParameter},
         typeParameter,
         typeParameter,
         "xdelta",
@@ -254,23 +256,67 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
 
     builder->RegisterAggregate(
         "cardinality",
-        std::unordered_map<TTypeParameter, TUnionType>(),
-        std::vector{
+        {},
+        {TUnionType{
             EValueType::String,
             EValueType::Uint64,
             EValueType::Int64,
             EValueType::Double,
             EValueType::Boolean,
-        },
+        }},
         EValueType::Uint64,
         EValueType::String,
         "hyperloglog",
         ECallingConvention::UnversionedValue);
 
     builder->RegisterAggregate(
-        "dict_sum",
-        std::unordered_map<TTypeParameter, TUnionType>{},
+        "cardinality_state",
+        std::unordered_map<TTypeParameter, TUnionType>(),
+        {TUnionType{
+            EValueType::String,
+            EValueType::Uint64,
+            EValueType::Int64,
+            EValueType::Double,
+            EValueType::Boolean,
+        }},
+        EValueType::String,
+        EValueType::String,
+        "hyperloglog",
+        ECallingConvention::UnversionedValue);
+
+    builder->RegisterAggregate(
+        "cardinality_merge",
+        std::unordered_map<TTypeParameter, TUnionType>(),
+        {EValueType::String},
+        EValueType::Uint64,
+        EValueType::String,
+        "hyperloglog",
+        ECallingConvention::UnversionedValue);
+
+    builder->RegisterAggregate(
+        "array_agg",
+        {},
+        {
+            TUnionType{
+                EValueType::String,
+                EValueType::Uint64,
+                EValueType::Int64,
+                EValueType::Double,
+                EValueType::Boolean,
+                EValueType::Any,
+                EValueType::Composite,
+            },
+            EValueType::Boolean,
+        },
         EValueType::Any,
+        EValueType::String,
+        "array_agg",
+        ECallingConvention::UnversionedValue);
+
+    builder->RegisterAggregate(
+        "dict_sum",
+        {},
+        {TUnionType{EValueType::Any, EValueType::Composite}},
         EValueType::Any,
         EValueType::Any,
         "dict_sum",
@@ -293,11 +339,13 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         "timestamp_floor_day",
         "timestamp_floor_week",
         "timestamp_floor_month",
+        "timestamp_floor_quarter",
         "timestamp_floor_year",
         "timestamp_floor_hour_localtime",
         "timestamp_floor_day_localtime",
         "timestamp_floor_week_localtime",
         "timestamp_floor_month_localtime",
+        "timestamp_floor_quarter_localtime",
         "timestamp_floor_year_localtime",
     }) {
         builder->RegisterFunction(
@@ -307,6 +355,37 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
             "dates",
             ECallingConvention::Simple);
     }
+
+    for (const auto& name : std::vector<std::string>{
+        "timestamp_floor_hour_tz",
+        "timestamp_floor_day_tz",
+        "timestamp_floor_week_tz",
+        "timestamp_floor_month_tz",
+        "timestamp_floor_quarter_tz",
+        "timestamp_floor_year_tz",
+    }) {
+        builder->RegisterFunction(
+            name,
+            name,
+            {},
+            std::vector<TType>{EValueType::Int64, EValueType::String},
+            EValueType::Null,
+            EValueType::Int64,
+            "dates",
+            ECallingConvention::Simple,
+            /*useFunctionContext*/ true);
+    }
+
+    builder->RegisterFunction(
+        "format_timestamp_tz",
+        "format_timestamp_tz",
+        {},
+        std::vector<TType>{EValueType::Int64, EValueType::String, EValueType::String},
+        EValueType::Null,
+        EValueType::String,
+        "dates",
+        ECallingConvention::Simple,
+        /*useFunctionContext*/ true);
 
     builder->RegisterFunction(
         "format_guid",
@@ -335,7 +414,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         auto&& type = fns.second;
         builder->RegisterFunction(
             name,
-            std::vector<TType>{EValueType::Any, EValueType::String},
+            std::vector<TType>{TUnionType{EValueType::Any, EValueType::Composite}, EValueType::String},
             type,
             "ypath_get",
             ECallingConvention::UnversionedValue);
@@ -373,6 +452,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
                 EValueType::Composite,
             },
             TUnionType{
+                EValueType::Null,
                 EValueType::Int64,
                 EValueType::Uint64,
                 EValueType::Double,
@@ -402,7 +482,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
 
     builder->RegisterFunction(
         "any_to_yson_string",
-        std::vector<TType>{EValueType::Any},
+        std::vector<TType>{TUnionType{EValueType::Any, EValueType::Composite}},
         EValueType::String,
         "any_to_yson_string",
         ECallingConvention::Simple);
@@ -410,7 +490,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
     builder->RegisterFunction(
         "_yt_has_permissions",
         "has_permissions",
-        std::unordered_map<TTypeParameter, TUnionType>(),
+        {},
         std::vector<TType>{EValueType::Any, EValueType::String, EValueType::String},
         EValueType::Null,
         EValueType::Boolean,
@@ -419,8 +499,8 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
 
     builder->RegisterAggregate(
         "_yt_stored_replica_set",
-        std::unordered_map<TTypeParameter, TUnionType>(),
-        std::vector{EValueType::Any},
+        {},
+        {EValueType::Any},
         EValueType::Any,
         EValueType::Any,
         "stored_replica_set",
@@ -428,8 +508,8 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
 
     builder->RegisterAggregate(
         "_yt_last_seen_replica_set",
-        std::unordered_map<TTypeParameter, TUnionType>(),
-        std::vector{EValueType::Any},
+        {},
+        {EValueType::Any},
         EValueType::Any,
         EValueType::Any,
         "last_seen_replica_set",
@@ -451,6 +531,76 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         typeParameterGreatest,
         typeParameterGreatest,
         "greatest");
+
+    const TTypeParameter typeParameterAbs = 0;
+    auto anyConstraintsAbs = std::unordered_map<TTypeParameter, TUnionType>();
+    anyConstraintsAbs[typeParameterAbs] = {
+        EValueType::Int64,
+        EValueType::Uint64,
+        EValueType::Double,
+    };
+
+    builder->RegisterFunction(
+        "abs",
+        anyConstraintsAbs,
+        {typeParameterAbs},
+        EValueType::Null,
+        typeParameterAbs,
+        "abs");
+
+    struct TMathFunction {
+        TString Name;
+        std::vector<TType> ArgumentTypes;
+        EValueType ResultType;
+    };
+
+    std::vector<TMathFunction> mathFunctions = {
+        {"acos", {EValueType::Double}, EValueType::Double},
+        {"asin", {EValueType::Double}, EValueType::Double},
+        {"ceil", {EValueType::Double}, EValueType::Int64},
+        {"cbrt", {EValueType::Double}, EValueType::Double},
+        {"cos", {EValueType::Double}, EValueType::Double},
+        {"cot", {EValueType::Double}, EValueType::Double},
+        {"degrees", {EValueType::Double}, EValueType::Double},
+        {"even", {EValueType::Double}, EValueType::Int64},
+        {"exp", {EValueType::Double}, EValueType::Double},
+        {"floor", {EValueType::Double}, EValueType::Int64},
+        {"gamma", {EValueType::Double}, EValueType::Double},
+        {"is_inf", {EValueType::Double}, EValueType::Boolean},
+        {"lgamma", {EValueType::Double}, EValueType::Double},
+        {"ln", {EValueType::Double}, EValueType::Double},
+        {"log", {EValueType::Double}, EValueType::Double},
+        {"log10", {EValueType::Double}, EValueType::Double},
+        {"log2", {EValueType::Double}, EValueType::Double},
+        {"radians", {EValueType::Double}, EValueType::Double},
+        {"sign", {EValueType::Double}, EValueType::Int64},
+        {"signbit", {EValueType::Double}, EValueType::Boolean},
+        {"sin", {EValueType::Double}, EValueType::Double},
+        {"sqrt", {EValueType::Double}, EValueType::Double},
+        {"tan", {EValueType::Double}, EValueType::Double},
+        {"trunc", {EValueType::Double}, EValueType::Int64},
+        {"bit_count", {EValueType::Uint64}, EValueType::Int64},
+        {"atan2", {EValueType::Double, EValueType::Double}, EValueType::Double},
+        {"factorial", {EValueType::Uint64}, EValueType::Uint64},
+        {"gcd", {EValueType::Uint64, EValueType::Uint64}, EValueType::Uint64},
+        {"lcm", {EValueType::Uint64, EValueType::Uint64}, EValueType::Uint64},
+        {"pow", {EValueType::Double, EValueType::Double}, EValueType::Double},
+        {"round", {EValueType::Double}, EValueType::Int64},
+        {"xor", {EValueType::Uint64, EValueType::Uint64}, EValueType::Uint64},
+    };
+
+    for (const auto& [name, argumentType, resultType] : mathFunctions) {
+        builder->RegisterFunction(
+            name,
+            "math_" + name,
+            {},
+            argumentType,
+            EValueType::Null,
+            resultType,
+            "math",
+            ECallingConvention::Simple,
+            false);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

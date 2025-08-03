@@ -86,7 +86,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletServerLogger;
+constinit const auto Logger = TabletServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -472,7 +472,7 @@ private:
 
         std::atomic<i64> IterationsWithoutAcceptableBundleHealth_ = 0;
         std::atomic<TInstant> LastUpdateTime_ = {};
-        NThreading::TAtomicObject<TFuture<TString>> AsyncTabletCellBundleName_ = MakeFuture<TString>(TError("<unknown>"));
+        NThreading::TAtomicObject<TFuture<std::string>> AsyncTabletCellBundleName_ = MakeFuture<std::string>(TError("<unknown>"));
 
         TFuture<void> CheckClusterState()
         {
@@ -500,7 +500,7 @@ private:
         TFuture<void> CheckBundleHealth()
         {
             return GetAsyncTabletCellBundleName()
-                .Apply(BIND([client = Client_, clusterName = ClusterName_, bundleHealthCache = BundleHealthCache_] (const TErrorOr<TString>& bundleNameOrError) {
+                .Apply(BIND([client = Client_, clusterName = ClusterName_, bundleHealthCache = BundleHealthCache_] (const TErrorOr<std::string>& bundleNameOrError) {
                     THROW_ERROR_EXCEPTION_IF_FAILED(bundleNameOrError, "Error getting table bundle name");
 
                     const auto& bundleName = bundleNameOrError.Value();
@@ -562,7 +562,7 @@ private:
                     << TErrorAttribute("replica_lag_threshold", SyncReplicaLagThreshold_);
         }
 
-        TFuture<TString> GetAsyncTabletCellBundleName()
+        TFuture<std::string> GetAsyncTabletCellBundleName()
         {
             auto now = NProfiling::GetInstant();
             auto asyncTabletCellBundleName = AsyncTabletCellBundleName_.Load();
@@ -576,7 +576,7 @@ private:
                 asyncTabletCellBundleName = Client_->GetNode(Path_ + "/@tablet_cell_bundle")
                     .Apply(BIND([] (const TErrorOr<TYsonString>& bundleNameOrError) {
                         THROW_ERROR_EXCEPTION_IF_FAILED(bundleNameOrError, "Error getting table bundle name");
-                        return ConvertTo<TString>(bundleNameOrError.Value());
+                        return ConvertTo<std::string>(bundleNameOrError.Value());
                     }));
                 AsyncTabletCellBundleName_.Store(asyncTabletCellBundleName);
             }
@@ -594,7 +594,7 @@ private:
         struct TCheckResult
         {
             int SwitchCount;
-            std::optional<THashSet<TString>> SyncReplicaClusters;
+            std::optional<THashSet<std::string>> SyncReplicaClusters;
         };
 
         TTable(
@@ -656,7 +656,7 @@ private:
 
         TFuture<TCheckResult> Check(
             TBootstrap* bootstrap,
-            std::optional<THashSet<TString>> referenceReplicaClusters)
+            std::optional<THashSet<std::string>> referenceReplicaClusters)
         {
             if (!CheckFuture_ || CheckFuture_.IsSet()) {
                 std::vector<TReplicaPtr> syncReplicas;
@@ -664,10 +664,12 @@ private:
                 int maxSyncReplicaCount;
                 int minSyncReplicaCount;
 
-                std::optional<std::vector<TString>> preferredSyncReplicaClusters;
+                std::optional<std::vector<std::string>> preferredSyncReplicaClusters;
                 {
                     auto guard = Guard(Lock_);
-                    std::tie(minSyncReplicaCount, maxSyncReplicaCount) = Config_->GetEffectiveMinMaxReplicaCount(std::ssize(Replicas_));
+                    std::tie(minSyncReplicaCount, maxSyncReplicaCount) = Config_->GetEffectiveMinMaxReplicaCount(
+                        ETableReplicaContentType::Data,
+                        std::ssize(Replicas_));
                     asyncReplicas.reserve(Replicas_.size());
                     syncReplicas.reserve(Replicas_.size());
                     for (auto& replica : Replicas_) {
@@ -784,7 +786,7 @@ private:
 
                         // NB: We use hash map here so the bizarre case of multiple replicas
                         // on a single replica cluster would be processed in a more reliable way.
-                        THashMap<TString, int> actualSyncReplicaClusterMap;
+                        THashMap<std::string, int> actualSyncReplicaClusterMap;
                         for (const auto& replica : goodSyncReplicas) {
                             ++actualSyncReplicaClusterMap[replica->GetClusterName()];
                         }
@@ -818,7 +820,7 @@ private:
                             }
                         }
 
-                        THashSet<TString> actualSyncReplicaClusters;
+                        THashSet<std::string> actualSyncReplicaClusters;
                         for (const auto& [replicaCluster, replicaCount] : actualSyncReplicaClusterMap) {
                             if (replicaCount > 0) {
                                 actualSyncReplicaClusters.insert(replicaCluster);
@@ -863,7 +865,7 @@ private:
     };
 
     NThreading::TSpinLock ClusterToConnectionLock_;
-    THashMap<TString, TClusterConnectionInfo> ClusterToConnection_;
+    THashMap<std::string, TClusterConnectionInfo> ClusterToConnection_;
 
     TPeriodicExecutorPtr UpdaterExecutor_;
 
@@ -907,16 +909,17 @@ private:
         Enabled_ = true;
     }
 
-    IClientPtr CreateClient(TStringBuf clusterName, IConnectionPtr connection, const TGuard<NThreading::TSpinLock>& /*guard*/)
+    IClientPtr CreateClient(const std::string& clusterName, IConnectionPtr connection, const TGuard<NThreading::TSpinLock>& /*guard*/)
     {
         YT_VERIFY(connection);
 
         auto client = connection->CreateClient(NApi::TClientOptions::FromUser(RootUserName));
         ClusterToConnection_[clusterName] = {
             .Connection = std::move(connection),
-            .Client = client};
+            .Client = client,
+        };
 
-        YT_LOG_DEBUG("Created new client for cluster %v in replicated table tracker",
+        YT_LOG_DEBUG("Created new client in replicated table tracker (ClusterName: %v)",
             clusterName);
 
         return client;
@@ -1228,7 +1231,9 @@ private:
                 GeneralCheckTimeout_.load()));
         }
 
-        const auto [maxSyncReplicaCount,  minSyncReplicaCount] = config->GetEffectiveMinMaxReplicaCount(std::ssize(replicas));
+        const auto [maxSyncReplicaCount,  minSyncReplicaCount] = config->GetEffectiveMinMaxReplicaCount(
+            ETableReplicaContentType::Data,
+            std::ssize(replicas));
 
         YT_LOG_DEBUG("Table %v "
             "(TableId: %v, CollocationId: %v, "
@@ -1621,7 +1626,7 @@ private:
         EnqueueAction(std::move(action), "ReplicationCollocationDestroyed");
     }
 
-    void EnqueueAction(TUpdateAction action, const TString& actionString)
+    void EnqueueAction(TUpdateAction action, TStringBuf actionString)
     {
         auto revision = ++Revision_;
         action.set_revision(revision);

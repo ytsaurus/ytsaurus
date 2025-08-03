@@ -1,20 +1,18 @@
 #include "chunk_scraper.h"
-#include "private.h"
+
 #include "config.h"
 
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/throttler_manager.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/yt/ytlib/api/native/client.h>
-
-#include <yt/yt/core/concurrency/throughput_throttler.h>
 #include <yt/yt/core/concurrency/async_looper.h>
-
-#include <yt/yt/core/misc/finally.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <library/cpp/yt/compact_containers/compact_vector.h>
 
@@ -23,8 +21,12 @@
 namespace NYT::NChunkClient {
 
 using namespace NChunkClient::NProto;
+
 using namespace NConcurrency;
+using namespace NLogging;
+using namespace NNodeTrackerClient;
 using namespace NObjectClient;
+using namespace NRpc;
 
 using NYT::FromProto;
 
@@ -35,38 +37,39 @@ class TScraperTask
 {
 public:
     TScraperTask(
-        const TChunkScraperConfigPtr config,
-        const IInvokerPtr invoker,
-        const NConcurrency::IThroughputThrottlerPtr throttler,
-        NRpc::IChannelPtr masterChannel,
-        NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+        TChunkScraperConfigPtr config,
+        IInvokerPtr invoker,
+        IThroughputThrottlerPtr throttler,
+        IChannelPtr masterChannel,
+        TNodeDirectoryPtr nodeDirectory,
         TCellTag cellTag,
         std::vector<TChunkId> chunkIds,
-        TChunkLocatedHandler onChunkLocated,
-        const NLogging::TLogger& logger)
-    : Config_(config)
-    , Throttler_(throttler)
-    , NodeDirectory_(nodeDirectory)
+        TChunkBatchLocatedHandler onChunkBatchLocated,
+        TLogger logger)
+    : Config_(std::move(config))
+    , Throttler_(std::move(throttler))
+    , NodeDirectory_(std::move(nodeDirectory))
     , CellTag_(cellTag)
-    , OnChunkLocated_(onChunkLocated)
-    , Invoker_(invoker)
+    , OnChunkBatchLocated_(std::move(onChunkBatchLocated))
+    , Invoker_(std::move(invoker))
     , ChunkIds_(std::move(chunkIds))
-    , Logger(logger.WithTag("ScraperTaskId: %v, CellTag: %v",
+    , Logger(std::move(logger).WithTag("ScraperTaskId: %v, CellTag: %v",
         TGuid::Create(),
         CellTag_))
-    , Proxy_(masterChannel)
+    , Proxy_(std::move(masterChannel))
     {
         Shuffle(ChunkIds_.begin(), ChunkIds_.end());
         Looper_ = New<TAsyncLooper>(
             Invoker_,
-            BIND_NO_PROPAGATE([weakThis = MakeWeak(this)] (bool cleanStart) {
+            // There should be called BIND_NO_PROPAGATE, but currently we store allocation tags in trace context :(
+            /*asyncStart*/ BIND([weakThis = MakeWeak(this)] (bool cleanStart) {
                 if (auto strongThis = weakThis.Lock()) {
                     return strongThis->LocateChunksAsync(cleanStart);
                 }
                 // Break loop.
                 return TFuture<void>();
             }),
-            BIND_NO_PROPAGATE([weakThis = MakeWeak(this)] (bool cleanStart) {
+            /*syncFinish*/ BIND([weakThis = MakeWeak(this)] (bool cleanStart) {
                 if (auto strongThis = weakThis.Lock()) {
                     strongThis->LocateChunksSync(cleanStart);
                 }
@@ -77,7 +80,8 @@ public:
     //! Starts periodic polling.
     void Start()
     {
-        YT_LOG_DEBUG("Starting scraper task (ChunkCount: %v)",
+        YT_LOG_DEBUG(
+            "Starting scraper task (ChunkCount: %v)",
             ChunkIds_.size());
 
         Looper_->Start();
@@ -86,7 +90,8 @@ public:
     //! Stops periodic polling.
     void Stop()
     {
-        YT_LOG_DEBUG("Stopping scraper task (ChunkCount: %v)",
+        YT_LOG_DEBUG(
+            "Stopping scraper task (ChunkCount: %v)",
             ChunkIds_.size());
 
         Looper_->Stop();
@@ -94,10 +99,10 @@ public:
 
 private:
     const TChunkScraperConfigPtr Config_;
-    const NConcurrency::IThroughputThrottlerPtr Throttler_;
-    const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
+    const IThroughputThrottlerPtr Throttler_;
+    const TNodeDirectoryPtr NodeDirectory_;
     const TCellTag CellTag_;
-    const TChunkLocatedHandler OnChunkLocated_;
+    const TChunkBatchLocatedHandler OnChunkBatchLocated_;
     const IInvokerPtr Invoker_;
 
     TAsyncLooperPtr Looper_;
@@ -106,7 +111,7 @@ private:
     //! on every restart.
     std::vector<TChunkId> ChunkIds_;
 
-    const NLogging::TLogger Logger;
+    const TLogger Logger;
 
     TChunkServiceProxy Proxy_;
 
@@ -144,7 +149,9 @@ private:
         req->SetRequestHeavy(true);
         req->SetResponseHeavy(true);
 
-        constexpr int maxSampleChunkCount = 5;
+        // NB(apollo1321): Scrappers should be reworked.
+        // At least, we should log unavailable chunks firstly.
+        constexpr int maxSampleChunkCount = 15;
         TCompactVector<TChunkId, maxSampleChunkCount> sampleChunkIds;
         for (int chunkCount = 0; chunkCount < Config_->MaxChunksPerRequest; ++chunkCount) {
             ToProto(req->add_subrequests(), ChunkIds_[NextChunkIndex_]);
@@ -161,8 +168,11 @@ private:
             }
         }
 
-        YT_LOG_DEBUG("Locating chunks (Count: %v, SampleChunkIds: %v)",
+        YT_LOG_DEBUG(
+            "Locating chunks (Count: %v, StartChunkIndex: %v, EndChunkIndex: %v, SampleChunkIds: %v)",
             req->subrequests_size(),
+            startIndex,
+            NextChunkIndex_,
             sampleChunkIds);
 
         auto rspOrError = WaitFor(req->Invoke());
@@ -174,31 +184,39 @@ private:
         const auto& rsp = rspOrError.Value();
         YT_VERIFY(req->subrequests_size() == rsp->subresponses_size());
 
-        YT_LOG_DEBUG("Chunks located (Count: %v, SampleChunkIds: %v)",
-            req->subrequests_size(),
-            sampleChunkIds);
-
         NodeDirectory_->MergeFrom(rsp->node_directory());
 
+        std::vector<TScrapedChunkInfo> chunkInfos;
+        chunkInfos.reserve(req->subrequests_size());
+
+        int missingCount = 0;
         for (int index = 0; index < req->subrequests_size(); ++index) {
             const auto& subrequest = req->subrequests(index);
             const auto& subresponse = rsp->subresponses(index);
             auto chunkId = FromProto<TChunkId>(subrequest);
             if (subresponse.missing()) {
-                OnChunkLocated_(chunkId, TChunkReplicaWithMediumList(), /*missing*/ true);
+                ++missingCount;
+                chunkInfos.push_back(TScrapedChunkInfo{
+                    .ChunkId = chunkId,
+                    .Missing = true,
+                });
                 continue;
             }
-            if (subresponse.replicas_size() == 0) {
-                TChunkReplicaWithMediumList replicas;
-                for (auto replica : FromProto<TChunkReplicaList>(subresponse.legacy_replicas())) {
-                    replicas.emplace_back(replica);
-                }
-                OnChunkLocated_(chunkId, replicas, /*missing*/ false);
-            } else {
-                auto replicas = FromProto<TChunkReplicaWithMediumList>(subresponse.replicas());
-                OnChunkLocated_(chunkId, replicas, /*missing*/ false);
-            }
+            auto replicas = FromProto<TChunkReplicaList>(subresponse.replicas());
+            chunkInfos.push_back(TScrapedChunkInfo{
+                .ChunkId = chunkId,
+                .Replicas = std::move(replicas),
+                .Missing = false,
+            });
         }
+
+        YT_LOG_DEBUG(
+            "Chunks located (Count: %v, MissingCount: %v, SampleChunkIds: %v)",
+            req->subrequests_size(),
+            missingCount,
+            sampleChunkIds);
+
+        OnChunkBatchLocated_(std::move(chunkInfos));
     }
 };
 
@@ -207,23 +225,28 @@ DEFINE_REFCOUNTED_TYPE(TScraperTask)
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkScraper::TChunkScraper(
-    const TChunkScraperConfigPtr config,
-    const IInvokerPtr invoker,
+    TChunkScraperConfigPtr config,
+    IInvokerPtr invoker,
     TThrottlerManagerPtr throttlerManager,
     NApi::NNative::IClientPtr client,
-    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    TNodeDirectoryPtr nodeDirectory,
     const THashSet<TChunkId>& chunkIds,
-    TChunkLocatedHandler onChunkLocated,
-    const NLogging::TLogger& logger)
-    : Config_(config)
-    , Invoker_(invoker)
-    , ThrottlerManager_(throttlerManager)
-    , Client_(client)
-    , NodeDirectory_(nodeDirectory)
-    , OnChunkLocated_(onChunkLocated)
-    , Logger(logger)
+    TChunkBatchLocatedHandler onChunkBatchLocated,
+    TLogger logger)
+    : Config_(std::move(config))
+    , Invoker_(std::move(invoker))
+    , ThrottlerManager_(std::move(throttlerManager))
+    , Client_(std::move(client))
+    , NodeDirectory_(std::move(nodeDirectory))
+    , OnChunkBatchLocated_(std::move(onChunkBatchLocated))
+    , Logger(std::move(logger))
 {
     CreateTasks(chunkIds);
+}
+
+TChunkScraper::~TChunkScraper()
+{
+    Stop();
 }
 
 void TChunkScraper::Start()
@@ -233,12 +256,11 @@ void TChunkScraper::Start()
     }
 }
 
-TFuture<void> TChunkScraper::Stop()
+void TChunkScraper::Stop()
 {
     for (const auto& task : ScraperTasks_) {
         task->Stop();
     }
-    return VoidFuture;
 }
 
 void TChunkScraper::CreateTasks(const THashSet<TChunkId>& chunkIds)
@@ -260,7 +282,9 @@ void TChunkScraper::CreateTasks(const THashSet<TChunkId>& chunkIds)
         chunksByCells[cellTag].push_back(chunkId);
     }
 
-    for (const auto& cellChunks : chunksByCells) {
+    YT_VERIFY(empty(ScraperTasks_));
+    ScraperTasks_.reserve(size(chunksByCells));
+    for (auto& cellChunks : chunksByCells) {
         auto cellTag = cellChunks.first;
         auto throttler = ThrottlerManager_->GetThrottler(cellTag);
         auto masterChannel = Client_->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Follower, cellTag);
@@ -272,7 +296,7 @@ void TChunkScraper::CreateTasks(const THashSet<TChunkId>& chunkIds)
             NodeDirectory_,
             cellTag,
             std::move(cellChunks.second),
-            OnChunkLocated_,
+            OnChunkBatchLocated_,
             Logger);
         ScraperTasks_.push_back(std::move(task));
     }

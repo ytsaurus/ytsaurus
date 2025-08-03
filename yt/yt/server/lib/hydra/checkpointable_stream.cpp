@@ -3,6 +3,7 @@
 #include "checkpointable_stream_block_header.h"
 
 #include <yt/yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/misc/error.h>
 

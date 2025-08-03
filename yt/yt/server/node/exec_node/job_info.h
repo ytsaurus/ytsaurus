@@ -51,6 +51,8 @@ private:
 
     std::optional<std::string> MonitoringDescriptor_;
 
+    TInstant JobResendBackoffStartTime_;
+
     friend class TJob;
 
     TBriefJobInfo(
@@ -72,7 +74,8 @@ private:
         const NServer::TJobEvents& jobEvents,
         const NControllerAgent::TCoreInfos& jobCoreInfos,
         const NServer::TExecAttributes& jobExecAttributes,
-        std::optional<std::string> monitoringDescriptor);
+        std::optional<std::string> monitoringDescriptor,
+        TInstant jobResendBackoffStartTime);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -26,6 +26,7 @@
 #include <yt/yt/core/misc/config.h>
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/phoenix/type_def.h>
 
@@ -43,6 +44,7 @@ using namespace NYTree;
 using namespace NYson;
 
 using NVectorHdrf::EIntegralGuaranteeType;
+using NYT::ToProto;
 
 extern const TString OperationAliasPrefix;
 
@@ -188,6 +190,13 @@ void Serialize(const TPoolName& value, IYsonConsumer* consumer)
 
 void TJobIOConfig::Register(TRegistrar registrar)
 {
+    registrar.Preprocessor([] (TJobIOConfig* config) {
+        config->ErrorFileWriter->UploadReplicationFactor = 1;
+
+        config->DynamicTableWriter->DesiredChunkSize = 100_MB;
+        config->DynamicTableWriter->BlockSize = 256_KB;
+    });
+
     registrar.Parameter("table_reader", &TThis::TableReader)
         .DefaultNew();
     registrar.Parameter("table_writer", &TThis::TableWriter)
@@ -231,11 +240,10 @@ void TJobIOConfig::Register(TRegistrar registrar)
     registrar.Parameter("testing_options", &TThis::Testing)
         .DefaultNew();
 
-    registrar.Preprocessor([] (TJobIOConfig* config) {
-        config->ErrorFileWriter->UploadReplicationFactor = 1;
-
-        config->DynamicTableWriter->DesiredChunkSize = 100_MB;
-        config->DynamicTableWriter->BlockSize = 256_KB;
+    registrar.Postprocessor([] (TJobIOConfig* config) {
+        THROW_ERROR_EXCEPTION_IF(
+            config->UseAdaptiveRowCount && !config->UseDeliveryFencedPipeWriter,
+            "\"use_adaptive_buffer_row_count\" cannot be set if \"use_delivery_fenced_pipe_writer\" is not set");
     });
 }
 
@@ -268,6 +276,8 @@ void TPatchSpecProtocolTestingOptions::Register(TRegistrar registrar)
     registrar.Parameter("fail_apply", &TThis::FailApply)
         .Default();
     registrar.Parameter("fail_revive", &TThis::FailRevive)
+        .Default();
+    registrar.Parameter("delay_inside_apply", &TThis::DelayInsideApply)
         .Default();
 }
 
@@ -354,6 +364,35 @@ void TTestingOperationOptions::Register(TRegistrar registrar)
 
 void TJobSplitterConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("min_job_time", &TThis::MinJobTime)
+        .Default();
+
+    registrar.Parameter("min_total_data_weight", &TThis::MinTotalDataWeight)
+        .Default();
+
+    registrar.Parameter("exec_to_prepare_time_ratio", &TThis::ExecToPrepareTimeRatio)
+        .Default();
+
+    registrar.Parameter("no_progress_job_time_to_average_prepare_time_ratio", &TThis::NoProgressJobTimeToAveragePrepareTimeRatio)
+        .Default();
+
+    registrar.Parameter("max_jobs_per_split", &TThis::MaxJobsPerSplit)
+        .GreaterThan(0)
+        .Default();
+
+    registrar.Parameter("max_input_table_count", &TThis::MaxInputTableCount)
+        .GreaterThan(0)
+        .Default();
+
+    registrar.Parameter("residual_job_factor", &TThis::ResidualJobFactor)
+        .GreaterThan(0)
+        .LessThanOrEqual(1.0)
+        .Default();
+
+    registrar.Parameter("residual_job_count_min_threshold", &TThis::ResidualJobCountMinThreshold)
+        .GreaterThan(0)
+        .Default();
+
     registrar.Parameter("enable_job_splitting", &TThis::EnableJobSplitting)
         .Default(true);
 
@@ -484,6 +523,30 @@ void FromProto(TTmpfsVolumeConfig* tmpfsVolumeConfig, const NControllerAgent::NP
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TNbdDiskConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("data_node_rpc_timeout", &TThis::DataNodeRpcTimeout)
+        .Default(TDuration::Seconds(10));
+    registrar.Parameter("data_node_address", &TThis::DataNodeAddress)
+        .Default();
+    registrar.Parameter("master_rpc_timeout", &TThis::MasterRpcTimeout)
+        .Default(TDuration::Seconds(2));
+    registrar.Parameter("min_data_nodes_count", &TThis::MinDataNodesCount)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+    registrar.Parameter("max_data_nodes_count", &TThis::MaxDataNodesCount)
+        .GreaterThanOrEqual(0)
+        .Default(3);
+
+    registrar.Postprocessor([&] (TNbdDiskConfig* config) {
+        if (config->MinDataNodesCount > config->MaxDataNodesCount) {
+            THROW_ERROR_EXCEPTION("Invalid \"min_data_nodes_count\", \"max_data_nodes_count\" pair.")
+                << TErrorAttribute("min_data_nodes_count", config->MinDataNodesCount)
+                << TErrorAttribute("max_data_nodes_count", config->MaxDataNodesCount);
+        }
+    });
+}
+
 void TDiskRequestConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("disk_space", &TThis::DiskSpace);
@@ -495,8 +558,15 @@ void TDiskRequestConfig::Register(TRegistrar registrar)
     registrar.Parameter("account", &TThis::Account)
         .NonEmpty()
         .Default();
+    registrar.Parameter("nbd_disk", &TThis::NbdDisk)
+        .Default();
 
     registrar.Postprocessor([&] (TDiskRequestConfig* config) {
+        if (config->NbdDisk && static_cast<i64>(20_GB) < config->DiskSpace) {
+            THROW_ERROR_EXCEPTION("\"disk_space\" exceeds maximum limit for NBD disk.")
+                << TErrorAttribute("max_disk_space", 20_GB)
+                << TErrorAttribute("disk_space", config->DiskSpace);
+        }
         if (config->Account && !config->MediumName) {
             THROW_ERROR_EXCEPTION("\"medium_name\" is required in disk request if account is specified");
         }
@@ -514,6 +584,16 @@ void ToProto(
     if (diskRequestConfig.MediumName) {
         YT_VERIFY(diskRequestConfig.MediumIndex);
         protoDiskRequest->set_medium_index(*diskRequestConfig.MediumIndex);
+    }
+    if (diskRequestConfig.NbdDisk) {
+        auto* nbd_disk = protoDiskRequest->mutable_nbd_disk();
+        if (diskRequestConfig.NbdDisk->DataNodeAddress) {
+            nbd_disk->set_data_node_address(*diskRequestConfig.NbdDisk->DataNodeAddress);
+        }
+        nbd_disk->set_data_node_rpc_timeout(ToProto(diskRequestConfig.NbdDisk->DataNodeRpcTimeout));
+        nbd_disk->set_master_rpc_timeout(ToProto(diskRequestConfig.NbdDisk->MasterRpcTimeout));
+        nbd_disk->set_min_data_nodes_count(diskRequestConfig.NbdDisk->MinDataNodesCount);
+        nbd_disk->set_max_data_nodes_count(diskRequestConfig.NbdDisk->MaxDataNodesCount);
     }
 }
 
@@ -653,6 +733,8 @@ void TFastIntermediateMediumTableWriterConfig::Register(TRegistrar registrar)
         .Default(DefaultIntermediateDataReplicationFactor);
     registrar.Parameter("min_upload_replication_factor", &TThis::MinUploadReplicationFactor)
         .Default(1);
+    registrar.Parameter("direct_upload_node_count", &TThis::DirectUploadNodeCount)
+        .Default();
     registrar.Parameter("erasure_codec", &TThis::ErasureCodec)
         .Default(NErasure::ECodec::None);
     registrar.Parameter("enable_striped_erasure", &TThis::EnableStripedErasure)
@@ -672,6 +754,8 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         .Default(NCompression::ECodec::Lz4);
     registrar.Parameter("intermediate_data_replication_factor", &TThis::IntermediateDataReplicationFactor)
         .Default(DefaultIntermediateDataReplicationFactor);
+    registrar.Parameter("intermediate_direct_upload_node_count", &TThis::IntermediateDirectUploadNodeCount)
+        .Default();
     registrar.Parameter("min_intermediate_data_replication_factor", &TThis::MinIntermediateDataReplicationFactor)
         .Alias("intermediate_min_data_replication_factor")
         .Default(1);
@@ -701,6 +785,10 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         .GreaterThan(0);
     registrar.Parameter("max_primary_data_weight_per_job", &TThis::MaxPrimaryDataWeightPerJob)
         .Default(std::numeric_limits<i64>::max())
+        .GreaterThan(0);
+
+    registrar.Parameter("max_compressed_data_size_per_job", &TThis::MaxCompressedDataSizePerJob)
+        .Default(200_GB)
         .GreaterThan(0);
 
     registrar.Parameter("max_failed_job_count", &TThis::MaxFailedJobCount)
@@ -947,6 +1035,15 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("use_cluster_throttlers", &TThis::UseClusterThrottlers)
         .Default(false);
 
+    registrar.Parameter("enable_multiple_jobs_in_allocation", &TThis::EnableMultipleJobsInAllocation)
+        .Default();
+
+    registrar.Parameter("use_new_slicing_implementation_in_ordered_pool", &TThis::UseNewSlicingImplementationInOrderedPool)
+        .Default(true);
+
+    registrar.Parameter("use_new_slicing_implementation_in_unordered_pool", &TThis::UseNewSlicingImplementationInUnorderedPool)
+        .Default(true);
+
     registrar.Postprocessor([] (TOperationSpecBase* spec) {
         if (spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             spec->UnavailableChunkTactics == EUnavailableChunkAction::Skip)
@@ -1186,6 +1283,8 @@ void TUserJobSpec::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("cuda_toolkit_version", &TThis::CudaToolkitVersion)
         .Default();
+    registrar.Parameter("enable_gpu_check", &TThis::EnableGpuCheck)
+        .Default(false);
     registrar.Parameter("gpu_check_layer_name", &TThis::GpuCheckLayerName)
         .Default();
     registrar.Parameter("gpu_check_binary_path", &TThis::GpuCheckBinaryPath)
@@ -1202,9 +1301,6 @@ void TUserJobSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("fail_job_on_core_dump", &TThis::FailJobOnCoreDump)
         .Default(true);
-    // COMPAT(artemagafonov): RootFS is always writable, so the flag should be removed after the update of all nodes.
-    registrar.Parameter("make_rootfs_writable", &TThis::MakeRootFSWritable)
-        .Default(false);
     registrar.Parameter("enable_fuse", &TThis::EnableFuse)
         .Default(false);
     registrar.Parameter("use_smaps_memory_tracker", &TThis::UseSMapsMemoryTracker)
@@ -1229,6 +1325,9 @@ void TUserJobSpec::Register(TRegistrar registrar)
     registrar.Parameter("rpc_proxy_worker_thread_pool_size", &TThis::RpcProxyWorkerThreadPoolSize)
         .Default(1)
         .GreaterThan(0);
+
+    registrar.Parameter("start_queue_consumer_registration_manager", &TThis::StartQueueConsumerRegistrationManager)
+        .Default(true);
 
     registrar.Parameter("fail_on_job_restart", &TThis::FailOnJobRestart)
         .Default(false);
@@ -1330,11 +1429,6 @@ void TUserJobSpec::Register(TRegistrar registrar)
             spec->InodeLimit = std::nullopt;
         }
 
-        // COMPAT(artemagafonov): RootFS is always writable, so the flag should be removed after the update of all nodes.
-        if (spec->MakeRootFSWritable && spec->LayerPaths.empty()) {
-            THROW_ERROR_EXCEPTION("Option \"make_rootfs_writable\" cannot be set without specifying \"layer_paths\"");
-        }
-
         if (spec->Profilers) {
             ValidateProfilers(*spec->Profilers);
         }
@@ -1376,8 +1470,12 @@ void TMandatoryUserJobSpec::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TGangManagerConfig::Register(TRegistrar /*registrar*/)
-{ }
+void TGangOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("size", &TThis::Size)
+        .GreaterThanOrEqual(1)
+        .Default();
+}
 
 void TVanillaTaskSpec::Register(TRegistrar registrar)
 {
@@ -1390,13 +1488,21 @@ void TVanillaTaskSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("restart_completed_jobs", &TThis::RestartCompletedJobs)
         .Default(false);
-    registrar.Parameter("gang_manager", &TThis::GangManager)
+    registrar.Parameter("gang_options", &TThis::GangOptions)
+        .Alias("gang_manager")
         .Default();
 
     registrar.Postprocessor([] (TVanillaTaskSpec* spec) {
-        if (spec->GangManager && spec->RestartCompletedJobs) {
+        if (spec->GangOptions && spec->RestartCompletedJobs) {
             THROW_ERROR_EXCEPTION(
-                "\"gang_manager\" and \"restart_completed_jobs\" can not be turned on both");
+                "\"gang_options\" and \"restart_completed_jobs\" can not be turned on both");
+        }
+
+        if (spec->GangOptions && spec->GangOptions->Size && *spec->GangOptions->Size > spec->JobCount) {
+            THROW_ERROR_EXCEPTION(
+                "\"gang_options.size\" must be less than or equal to \"job_count\"")
+                << TErrorAttribute("gang_options.size", *spec->GangOptions->Size)
+                << TErrorAttribute("job_count", spec->JobCount);
         }
     });
 }
@@ -1483,6 +1589,9 @@ void TSimpleOperationSpecBase::Register(TRegistrar registrar)
         .Alias("data_size_per_job")
         .Default()
         .GreaterThan(0);
+    registrar.Parameter("compressed_data_size_per_job", &TThis::CompressedDataSizePerJob)
+        .Default()
+        .GreaterThan(0);
     registrar.Parameter("job_count", &TThis::JobCount)
         .Default()
         .GreaterThan(0);
@@ -1500,6 +1609,19 @@ void TSimpleOperationSpecBase::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(5));
     registrar.Parameter("job_io", &TThis::JobIO)
         .DefaultNew();
+
+    registrar.Postprocessor([] (TSimpleOperationSpecBase* spec) {
+        if (spec->DataWeightPerJob > spec->MaxDataWeightPerJob) {
+            THROW_ERROR_EXCEPTION("\"data_weight_per_job\" cannot be greater than \"max_data_weight_per_job\"")
+                << TErrorAttribute("data_weight_per_job", spec->DataWeightPerJob)
+                << TErrorAttribute("max_data_weight_per_job", spec->MaxDataWeightPerJob);
+        }
+        if (spec->CompressedDataSizePerJob > spec->MaxCompressedDataSizePerJob) {
+            THROW_ERROR_EXCEPTION("\"compressed_data_size_per_job\" cannot be greater than \"max_compressed_data_size_per_job\"")
+                << TErrorAttribute("compressed_data_size_per_job", spec->CompressedDataSizePerJob)
+                << TErrorAttribute("max_compressed_data_size_per_job", spec->MaxCompressedDataSizePerJob);
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1597,6 +1719,14 @@ void TSortedOperationSpec::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("merge_by", &TThis::MergeBy)
         .Default();
+    registrar.Parameter("min_maniac_data_weight", &TThis::MinManiacDataWeight)
+        .Default();
+
+    registrar.Postprocessor([] (TSortedOperationSpec* spec) {
+        if (spec->MinManiacDataWeight && !spec->UseNewSortedPool) {
+            THROW_ERROR_EXCEPTION("\"min_maniac_data_weight\" is only allowed for new sorted pool");
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2176,7 +2306,7 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
         .NonEmpty();
 
     registrar.Postprocessor([] (TVanillaOperationSpec* spec) {
-        TStringBuf taskWithGangManagerName;
+        TStringBuf taskWithGangOptionsName;
         TStringBuf taskWithFailOnJobRestartName;
         TStringBuf taskWithOutputTableName;
         for (const auto& [taskName, taskSpec] : spec->Tasks) {
@@ -2190,8 +2320,8 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
 
             ValidateOutputTablePaths(taskSpec->OutputTablePaths);
 
-            if (taskSpec->GangManager) {
-                taskWithGangManagerName = taskName;
+            if (taskSpec->GangOptions) {
+                taskWithGangOptionsName = taskName;
             }
             if (taskSpec->FailOnJobRestart) {
                 taskWithFailOnJobRestartName = taskName;
@@ -2201,24 +2331,24 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
             }
         }
 
-        if (taskWithGangManagerName && spec->FailOnJobRestart) {
+        if (taskWithGangOptionsName && spec->FailOnJobRestart) {
             THROW_ERROR_EXCEPTION(
-                "Operation with \"fail_on_job_restart\" enabled can not have tasks with configured \"gang_manager\"")
-                << TErrorAttribute("task_with_gang_manager_name", taskWithGangManagerName);
+                "Operation with \"fail_on_job_restart\" enabled can not have tasks with configured \"gang_options\"")
+                << TErrorAttribute("task_with_gang_options_name", taskWithGangOptionsName);
         }
 
-        if (taskWithGangManagerName && taskWithFailOnJobRestartName) {
+        if (taskWithGangOptionsName && taskWithFailOnJobRestartName) {
             THROW_ERROR_EXCEPTION(
-                "Operation can not have both task with \"gang_manager\" and task with \"fail_on_job_restart\"")
-                << TErrorAttribute("task_with_gang_manager_name", taskWithGangManagerName)
+                "Operation can not have both task with \"gang_options\" and task with \"fail_on_job_restart\"")
+                << TErrorAttribute("task_with_gang_options_name", taskWithGangOptionsName)
                 << TErrorAttribute("task_with_fail_on_job_restart_name", taskWithFailOnJobRestartName);
         }
 
-        if (taskWithOutputTableName && taskWithGangManagerName) {
+        if (taskWithOutputTableName && taskWithGangOptionsName) {
             THROW_ERROR_EXCEPTION(
                 "Gang operations having output tables are not currently supported")
                 << TErrorAttribute("task_with_output_table_name", taskWithOutputTableName)
-                << TErrorAttribute("task_with_gang_manager_name", taskWithGangManagerName);
+                << TErrorAttribute("task_with_gang_options_name", taskWithGangOptionsName);
         }
 
         if (spec->Sampling && spec->Sampling->SamplingRate) {
@@ -2470,6 +2600,9 @@ void TPoolConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("always_allow_gang_operations", &TThis::AlwaysAllowGangOperations)
         .Default(false);
+
+    registrar.Parameter("waiting_for_resources_on_node_timeout", &TThis::WaitingForResourcesOnNodeTimeout)
+        .Default();
 
     registrar.Postprocessor([] (TThis* config) {
         // COMPAT(omgronny)

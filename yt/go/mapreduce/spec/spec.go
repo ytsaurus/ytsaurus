@@ -1,6 +1,6 @@
 // package spec defines specification of YT operation.
 //
-// See https://wiki.yandex-team.ru/yt/userdoc/operations/
+// See https://ytsaurus.tech/docs/en/user-guide/data-processing/operations/overview
 package spec
 
 import (
@@ -115,6 +115,17 @@ type AutoMerge struct {
 	ChunkSizeThreshold        int `yson:"chunk_size_threshold,omitempty"`
 }
 
+const (
+	ColumnarStatisticsModeFallback   = "fallback"
+	ColumnarStatisticsModeFromMaster = "from_master"
+	ColumnarStatisticsModeFromNodes  = "from_nodes"
+)
+
+type ColumnarStatistics struct {
+	Mode    string `yson:"mode"`
+	Enabled bool   `yson:"enabled"`
+}
+
 type Spec struct {
 	Type yt.OperationType `yson:"-"`
 
@@ -165,6 +176,8 @@ type Spec struct {
 	DataWeightPerSortedMergeJob int   `yson:"data_weight_per_sorted_merge_job,omitempty"`
 	DataWeightPerReduceJob      int   `yson:"data_weight_per_reduce_job,omitempty"`
 
+	MaxDataWeightPerJob int64 `yson:"max_data_weight_per_job,omitempty"`
+
 	UseColumnarStatistics *bool `yson:"use_columnar_statistics,omitempty"`
 
 	TimeLimit                     yson.Duration `yson:"time_limit,omitempty"`
@@ -189,7 +202,9 @@ type Spec struct {
 	MergeJobIO     *JobIO `yson:"merge_job_io,omitempty"`
 	SortJobIO      *JobIO `yson:"sort_job_io,omitempty"`
 
-	AutoMerge *AutoMerge `yson:"auto_merge,omitempty"`
+	AutoMerge                    *AutoMerge          `yson:"auto_merge,omitempty"`
+	InputTableColumnarStatistics *ColumnarStatistics `yson:"input_table_columnar_statistics,omitempty"`
+	UserFileColumnarStatistics   *ColumnarStatistics `yson:"user_file_columnar_statistics,omitempty"`
 
 	ACL                     []yt.ACE `yson:"acl,omitempty"`
 	EnableKeyGuarantee      *bool    `yson:"enable_key_guarantee,omitempty"`

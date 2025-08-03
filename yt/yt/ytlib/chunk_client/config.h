@@ -33,10 +33,9 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRemoteReaderOptions
+struct TRemoteReaderOptions
     : public virtual NYTree::TYsonStruct
 {
-public:
     //! If |true| then the master may be asked for seeds.
     bool AllowFetchingSeedsFromMaster;
 
@@ -54,12 +53,11 @@ DEFINE_REFCOUNTED_TYPE(TRemoteReaderOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRemoteWriterOptions
+struct TRemoteWriterOptions
     : public virtual TMemoryTrackedWriterOptions
 {
-public:
     bool AllowAllocatingNewTargetNodes;
-    TString MediumName;
+    std::string MediumName;
     TPlacementId PlacementId;
 
     REGISTER_YSON_STRUCT(TRemoteWriterOptions);
@@ -102,16 +100,14 @@ DEFINE_REFCOUNTED_TYPE(TDispatcherConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMultiChunkWriterOptions
+struct TMultiChunkWriterOptions
     : public virtual TEncodingWriterOptions
     , public virtual TRemoteWriterOptions
 {
-public:
     static constexpr int InvalidTableIndex = -1;
 
-public:
     int ReplicationFactor;
-    TString Account;
+    std::string Account;
     bool ChunksVital;
     bool ChunksMovable;
     bool ValidateResourceUsageIncrease;
@@ -139,10 +135,9 @@ DEFINE_REFCOUNTED_TYPE(TMultiChunkWriterOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMultiChunkReaderOptions
+struct TMultiChunkReaderOptions
     : public TRemoteReaderOptions
 {
-public:
     bool KeepInMemory;
 
     REGISTER_YSON_STRUCT(TMultiChunkReaderOptions);
@@ -154,10 +149,9 @@ DEFINE_REFCOUNTED_TYPE(TMultiChunkReaderOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMetaAggregatingWriterOptions
+struct TMetaAggregatingWriterOptions
     : public TMultiChunkWriterOptions
 {
-public:
     bool EnableSkynetSharing;
     int MaxHeavyColumns;
     bool AllowUnknownExtensions;

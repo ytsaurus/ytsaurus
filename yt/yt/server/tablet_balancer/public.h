@@ -47,6 +47,7 @@ YT_DEFINE_ERROR_ENUM(
 DECLARE_REFCOUNTED_CLASS(TTableRegistry)
 
 DECLARE_REFCOUNTED_STRUCT(IReshardIteration)
+DECLARE_REFCOUNTED_STRUCT(IMoveIteration)
 
 ////////////////////////////////////////////////////////////////////////////////
 

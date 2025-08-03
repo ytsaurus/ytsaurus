@@ -69,7 +69,7 @@ public:
         const TDiskResources& diskResourceLimits,
         const TString& treeId,
         const TString& poolPath,
-        const TFairShareStrategyTreeConfigPtr& treeConfig) override;
+        std::optional<TDuration> waitingForResourcesOnNodeTimeout) override;
 
     void UpdateGroupedNeededResources() override;
 
@@ -78,7 +78,7 @@ public:
     TAllocationGroupResourcesMap GetInitialGroupedNeededResources() const override;
     EPreemptionMode GetPreemptionMode() const override;
 
-    std::pair<NApi::ITransactionPtr, TString> GetIntermediateMediumTransaction();
+    std::pair<NApi::ITransactionPtr, std::string> GetIntermediateMediumTransaction();
     void UpdateIntermediateMediumUsage(i64 usage);
 
 private:

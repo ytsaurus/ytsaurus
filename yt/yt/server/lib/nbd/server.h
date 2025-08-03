@@ -32,14 +32,11 @@ struct INbdServer
 
     virtual bool IsDeviceRegistered(const TString& name) const = 0;
 
+    virtual IBlockDevicePtr GetDevice(const TString& name) const = 0;
+
     virtual const NLogging::TLogger& GetLogger() const = 0;
 
-    virtual NApi::NNative::IConnectionPtr GetConnection() const = 0;
-
     virtual IInvokerPtr GetInvoker() const = 0;
-
-    virtual NChunkClient::TChunkReaderHostPtr GetLayerReaderHost() const = 0;
-    virtual NChunkClient::TChunkReaderHostPtr GetFileReaderHost() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(INbdServer)
@@ -48,7 +45,6 @@ DEFINE_REFCOUNTED_TYPE(INbdServer)
 
 INbdServerPtr CreateNbdServer(
     TNbdServerConfigPtr config,
-    NApi::NNative::IConnectionPtr connection,
     NConcurrency::IPollerPtr poller,
     IInvokerPtr invoker);
 

@@ -20,7 +20,8 @@ type Config struct {
 	QueuePath    string `yaml:"queue_path"`
 	ProducerPath string `yaml:"producer_path"`
 
-	RPCProxyRole string `yaml:"rpc_proxy_role"`
+	RPCProxyRole     string `yaml:"rpc_proxy_role"`
+	CompressionCodec string `yaml:"compression_codec"`
 }
 
 type OutputConfig struct {
@@ -28,13 +29,16 @@ type OutputConfig struct {
 	QueuePath    string
 	ProducerPath string
 
-	RPCProxyRole string
-	SessionID    string
+	RPCProxyRole     string
+	CompressionCodec string
+	SessionID        string
 
 	TVMFn yt.TVMFn
 	Token string
 
 	Logger *slog.Logger
+
+	BatchSize int
 }
 
 func NewOutput(ctx context.Context, config OutputConfig) (out pipelines.Output[pipelines.Row], err error) {
@@ -67,12 +71,23 @@ func NewOutput(ctx context.Context, config OutputConfig) (out pipelines.Output[p
 		return
 	}
 
+	var compressor *compressor
+	if config.CompressionCodec != "" {
+		compressor, err = newCompressor(config.BatchSize, config.CompressionCodec)
+		if err != nil {
+			err = fmt.Errorf("failed to create compressor: %w", err)
+			return
+		}
+		config.Logger.Debug("Compression codec is set", "compression_codec", compressor.codec())
+	}
 	out = &output{
 		yc:           yc,
 		queuePath:    ypath.Path(config.QueuePath),
 		producerPath: ypath.Path(config.ProducerPath),
 		sessionID:    config.SessionID,
 		epoch:        createSessionResult.Epoch,
+
+		compressor: compressor,
 
 		logger: config.Logger,
 	}
@@ -93,33 +108,66 @@ type output struct {
 	sessionID    string
 	epoch        int64
 
+	compressor *compressor
+
 	logger *slog.Logger
 }
 
 func (o *output) Add(ctx context.Context, meta pipelines.RowMeta, row pipelines.Row) {
+	codec := "null"
+	value := row.Payload
+	if o.compressor != nil {
+		codec = o.compressor.codec()
+		value = o.compressor.compress(row.Payload)
+	}
 	ytRow := ytRow{
-		Value:          row.Payload,
-		Codec:          "null",
+		Value:          value,
+		Codec:          codec,
 		SourceURI:      o.sessionID,
 		SequenceNumber: row.SeqNo,
 	}
 
-	retryInterval := 1 * time.Second
-	maxRetryInterval := 1 * time.Minute
+	retry(
+		func() error {
+			_, err := o.yc.PushQueueProducer(ctx, o.producerPath, o.queuePath, o.sessionID, o.epoch, []any{ytRow}, nil)
+			return err
+		},
+		func(err error) { o.logger.Warn("error pushing queue, will retry", "error", err) },
+	)
+}
+
+func (o *output) Close(ctx context.Context) {
+	retry(
+		func() error {
+			return o.yc.RemoveQueueProducerSession(
+				ctx,
+				o.producerPath,
+				o.queuePath,
+				o.sessionID,
+				&yt.RemoveQueueProducerSessionOptions{},
+			)
+		},
+		func(err error) { o.logger.Warn("cannot remove queue producer session, will retry", "error", err) },
+	)
+	o.yc.Stop()
+	if o.compressor != nil {
+		o.compressor.close()
+	}
+}
+
+func retry(action func() error, errHandler func(error)) {
+	retryInterval := time.Second
+	maxRetryInterval := time.Minute
 	for {
-		_, err := o.yc.PushQueueProducer(ctx, o.producerPath, o.queuePath, o.sessionID, o.epoch, []any{ytRow}, nil)
+		err := action()
 		if err == nil {
-			break
+			return
 		}
-		o.logger.Warn("error pushing queue, will retry", "error", err)
+		errHandler(err)
 		time.Sleep(retryInterval)
 		retryInterval *= 2
 		if retryInterval > maxRetryInterval {
 			retryInterval = maxRetryInterval
 		}
 	}
-}
-
-func (o *output) Close(ctx context.Context) {
-	o.yc.Stop()
 }

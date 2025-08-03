@@ -1,5 +1,6 @@
 #pragma once
 
+#include "yt/yt/client/api/public.h"
 #include "private.h"
 
 #include <yt/yt/ytlib/security_client/public.h>
@@ -60,6 +61,9 @@ struct TStaticClickHouseConfig
 
     //! For testing.
     bool PopulateUserWithToken;
+
+    //! Option for tests to not use MasterCache while updating operation ids.
+    NApi::EMasterChannelKind ReadOperationIdsFrom;
 
     NYPath::TYPath ChytStrawberryPath;
 

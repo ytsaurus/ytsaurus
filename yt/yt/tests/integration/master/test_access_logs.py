@@ -57,7 +57,7 @@ class TestAccessLog(YTEnvSetup):
                 path = os.path.join(self.path_to_run, "logs/master-{}-{}.access.json.log".format(master_tag, idx))
                 barrier_record = "{}-{}".format(master_tag, generate_timestamp())
                 create("table", "{}/{}".format(directory, barrier_record))
-                wait(lambda: self._is_node_in_logs(barrier_record, path, directory), iter=120, sleep_backoff=1.0)
+                wait(lambda: self._is_node_in_logs(barrier_record, path, directory), iter=120, sleep_backoff=1.0, timeout=120)
                 written_logs.extend([line_json for line_json in self._log_lines(path, directory)])
         return written_logs
 

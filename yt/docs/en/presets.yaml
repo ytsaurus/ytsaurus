@@ -11,3 +11,6 @@ public:
     mr-clusters: <cluster-name>
     package-name: ytsaurus-client
     pool-tree: default
+    ipa: _wai-tee-saw-ruhs_
+    yt-docs-root: https://ytsaurus.tech/docs/en
+    community-tg: https://t.me/ytsaurus

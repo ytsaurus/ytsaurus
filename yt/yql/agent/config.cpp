@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/bus/tcp/config.h>
 
+#include <util/string/vector.h>
+
 #include <array>
 #include <utility>
 
@@ -77,6 +79,7 @@ constexpr auto DefaultGatewaySettings = std::to_array<std::pair<TStringBuf, TStr
     {"JoinCommonUseMapMultiOut", "true"},
     {"UseAggPhases", "true"},
     {"EnforceJobUtc", "true"},
+    {"_EnforceRegexpProbabilityFail", "0"},
     {"_ForceJobSizeAdjuster", "true"},
     {"_EnableWriteReorder", "true"},
     {"_EnableYtPartitioning", "true"},
@@ -177,7 +180,8 @@ void TDQYTBackend::Register(TRegistrar registrar)
     registrar.Parameter("pool_trees", &TThis::PoolTrees)
         .Default({});
     registrar.Parameter("owner", &TThis::Owner)
-        .Default({YqlAgentUserName});
+        // TODO(babenko): migrate to std::string
+        .Default({TString(YqlAgentUserName)});
     registrar.Parameter("cpu_limit", &TThis::CpuLimit)
         .Default(6);
     registrar.Parameter("worker_capacity", &TThis::WorkerCapacity)
@@ -194,6 +198,8 @@ void TDQYTBackend::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("enforce_job_utc", &TThis::EnforceJobUtc)
         .Default(true);
+    registrar.Parameter("use_local_l_d_library_path", &TThis::UseLocalLDLibraryPath)
+        .Default(false);
 }
 
 void TDQYTCoordinator::Register(TRegistrar registrar)
@@ -238,6 +244,12 @@ IListNodePtr TYqlPluginConfig::MergeClusterDefaultSettings(const IListNodePtr& c
     return MergeDefaultSettings(clusterConfigSettings, DefaultClusterSettings);
 }
 
+void TAdditionalSystemLib::Register(TRegistrar registrar)
+{
+    registrar.Parameter("file", &TThis::File)
+        .Default();
+}
+
 void TYqlPluginConfig::Register(TRegistrar registrar)
 {
     auto defaultRemoteFilePatterns = BuildYsonNodeFluently()
@@ -249,13 +261,16 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
             .EndMap()
         .EndList();
 
-    registrar.Parameter("gateway_config", &TThis::GatewayConfig)
+    registrar.Parameter("gateway", &TThis::GatewayConfig)
+        .Alias("gateway_config")
         .Default(GetEphemeralNodeFactory()->CreateMap())
         .ResetOnLoad();
-    registrar.Parameter("dq_gateway_config", &TThis::DQGatewayConfig)
+    registrar.Parameter("dq_gateway", &TThis::DQGatewayConfig)
+        .Alias("dq_gateway_config")
         .Default(GetEphemeralNodeFactory()->CreateMap())
         .ResetOnLoad();
-    registrar.Parameter("file_storage_config", &TThis::FileStorageConfig)
+    registrar.Parameter("file_storage", &TThis::FileStorageConfig)
+        .Alias("file_storage_config")
         .Default(GetEphemeralNodeFactory()->CreateMap())
         .ResetOnLoad();
     registrar.Parameter("operation_attributes", &TThis::OperationAttributes)
@@ -263,9 +278,14 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
         .ResetOnLoad();
     registrar.Parameter("yt_token_path", &TThis::YTTokenPath)
         .Default();
+    registrar.Parameter("ui_origin", &TThis::UIOrigin)
+        .Default();
     registrar.Parameter("yql_plugin_shared_library", &TThis::YqlPluginSharedLibrary)
         .Default();
-    registrar.Parameter("dq_manager_config", &TThis::DQManagerConfig)
+    registrar.Parameter("additional_system_libs", &TThis::AdditionalSystemLibs)
+        .Default();
+    registrar.Parameter("dq_manager", &TThis::DQManagerConfig)
+        .Alias("dq_manager_config")
         .DefaultNew();
     registrar.Parameter("enable_dq", &TThis::EnableDQ)
         .Default(false);
@@ -303,6 +323,32 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
                 settings = GetEphemeralNodeFactory()->CreateList();
             }
             YT_VERIFY(clusterMap->AddChild("settings", MergeClusterDefaultSettings(settings->AsList())));
+        }
+
+        if (!config->AdditionalSystemLibs.empty()) {
+            auto mrJobSystemLibs = GetEphemeralNodeFactory()->CreateList();
+            for (const auto& lib : config->AdditionalSystemLibs) {
+                auto file = BuildYsonNodeFluently()
+                    .BeginMap()
+                        .Item("file").Value(lib->File)
+                    .EndMap();
+                mrJobSystemLibs->AddChild(std::move(file));
+            }
+
+            gatewayConfig->AddChild("mr_job_system_libs_with_md5", std::move(mrJobSystemLibs));
+
+            for (auto& backend : config->DQManagerConfig->YTBackends) {
+                for (const auto& lib : config->AdditionalSystemLibs) {
+                    auto pathParts = SplitString(lib->File, "/");
+
+                    TVanillaJobFilePtr vanillaJobFile = New<TVanillaJobFile>();
+                    vanillaJobFile->Name = pathParts.back(),
+                    vanillaJobFile->LocalPath = lib->File,
+
+                    backend->VanillaJobFiles.emplace_back(std::move(vanillaJobFile));
+                }
+                backend->UseLocalLDLibraryPath = true;
+            }
         }
 
         auto dqGatewayConfig = config->DQGatewayConfig->AsMap();
@@ -347,7 +393,7 @@ void TYqlAgentDynamicConfig::Register(TRegistrar registrar)
         .Default(128);
     registrar.Parameter("state_check_period", &TThis::StateCheckPeriod)
         .Default(TDuration::Seconds(15));
-    registrar.Parameter("gateways_config", &TThis::GatewaysConfig)
+    registrar.Parameter("gateways", &TThis::GatewaysConfig)
         .Default(GetEphemeralNodeFactory()->CreateMap())
         .ResetOnLoad();
 }
@@ -361,7 +407,8 @@ void TYqlAgentServerConfig::Register(TRegistrar registrar)
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
     registrar.Parameter("user", &TThis::User)
-        .Default(YqlAgentUserName);
+        // TODO(babenko): migrate to std::string
+        .Default(TString(YqlAgentUserName));
     registrar.Parameter("cypress_annotations", &TThis::CypressAnnotations)
         .Default(BuildYsonNodeFluently()
             .BeginMap()

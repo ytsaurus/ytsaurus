@@ -120,9 +120,6 @@ private:
     void ValidateTransactionCellTags() const;
     //! Returns |true| if transaction may be not replicated to this cell.
     bool IsTransactionRemote(TTransactionId transactionId) const;
-
-    // NB: This function must not be used when mirroring is disabled.
-    static bool IsMirroredToSequoia(TTransactionId transactionId);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

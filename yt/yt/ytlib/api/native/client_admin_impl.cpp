@@ -87,7 +87,8 @@ int TClient::DoBuildSnapshot(const TBuildSnapshotOptions& options)
 
     THydraServiceProxy proxy(channel);
     auto req = proxy.ForceBuildSnapshot();
-    req->SetTimeout(options.Timeout);
+    // TODO(nadya02): Set the correct timeout here.
+    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
     req->set_set_read_only(options.SetReadOnly);
     req->set_wait_for_snapshot_completion(options.WaitForSnapshotCompletion);
 
@@ -113,7 +114,8 @@ TCellIdToSnapshotIdMap TClient::DoBuildMasterSnapshots(const TBuildMasterSnapsho
     auto constructRequest = [&] (IChannelPtr channel) {
         THydraServiceProxy proxy(std::move(channel));
         auto req = proxy.ForceBuildSnapshot();
-        req->SetTimeout(options.Timeout);
+        // TODO(nadya02): Set the correct timeout here.
+        req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
         req->set_set_read_only(options.SetReadOnly);
         req->set_wait_for_snapshot_completion(options.WaitForSnapshotCompletion);
         return req;
@@ -190,7 +192,8 @@ TCellIdToConsistentStateMap TClient::DoGetMasterConsistentState(
     auto constructRequest = [&] (IChannelPtr channel, std::optional<i64> logicalTime = {}) {
         THiveServiceProxy proxy(std::move(channel));
         auto req = proxy.GetConsistentState();
-        req->SetTimeout(options.Timeout);
+        // TODO(nadya02): Set the correct timeout here.
+        req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
         if (logicalTime) {
             req->set_logical_time(*logicalTime);
         }
@@ -230,7 +233,7 @@ TCellIdToConsistentStateMap TClient::DoGetMasterConsistentState(
         auto req = constructRequest(channels[primaryCellId]);
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
-        YT_LOG_INFO("Recieved consistent state (CellId: %v, LogicalTime: %v, SequenceNumber: %v)",
+        YT_LOG_INFO("Received consistent state (CellId: %v, LogicalTime: %v, SequenceNumber: %v)",
             primaryCellId,
             rsp->logical_time(),
             rsp->sequence_number());
@@ -255,7 +258,7 @@ TCellIdToConsistentStateMap TClient::DoGetMasterConsistentState(
         auto responseOrError = WaitFor(request.Future);
         if (responseOrError.IsOK()) {
             auto response = responseOrError.Value();
-            YT_LOG_INFO("Recieved consistent state (CellId: %v, SequenceNumber: %v, SegmentId: %v)",
+            YT_LOG_INFO("Received consistent state (CellId: %v, SequenceNumber: %v, SegmentId: %v)",
                 cellId,
                 response->sequence_number(),
                 response->segment_id());
@@ -290,7 +293,8 @@ void TClient::DoExitReadOnly(
     THydraServiceProxy proxy(channel);
 
     auto req = proxy.ExitReadOnly();
-    req->SetTimeout(options.Timeout);
+    // TODO(nadya02): Set the correct timeout here.
+    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
 
     WaitFor(req->Invoke())
         .ThrowOnError();
@@ -313,7 +317,8 @@ void TClient::DoMasterExitReadOnly(
     auto constructRequest = [&] (IChannelPtr channel) {
         THydraServiceProxy proxy(std::move(channel));
         auto req = proxy.ExitReadOnly();
-        req->SetTimeout(options.Timeout);
+        // TODO(nadya02): Set the correct timeout here.
+        req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
         return req;
     };
 
@@ -372,7 +377,8 @@ void TClient::DoDiscombobulateNonvotingPeers(
 
     THydraServiceProxy proxy(channel);
     auto req = proxy.DiscombobulateNonvotingPeers();
-    req->SetTimeout(options.Timeout);
+    // TODO(nadya02): Set the correct timeout here.
+    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
 
     WaitFor(req->Invoke())
         .ThrowOnError();
@@ -432,7 +438,8 @@ void TClient::DoResetStateHash(
     auto newStateHash = options.NewStateHash.value_or(RandomNumber<ui64>());
     auto req = proxy.ResetStateHash();
     req->set_new_state_hash(newStateHash);
-    req->SetTimeout(options.Timeout);
+    // TODO(nadya02): Set the correct timeout here.
+    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
 
     WaitFor(req->Invoke())
         .ThrowOnError();
@@ -446,7 +453,8 @@ void TClient::DoGCCollect(const TGCCollectOptions& options)
     auto channel = Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellId);
     auto proxy = TObjectServiceProxy::FromDirectMasterChannel(std::move(channel));
     auto req = proxy.GCCollect();
-    req->SetTimeout(options.Timeout);
+    // TODO(nadya02): Set the correct timeout here.
+    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
 
     WaitFor(req->Invoke())
         .ThrowOnError();
@@ -460,6 +468,8 @@ void TClient::DoKillProcess(const std::string& address, const TKillProcessOption
 
     TAdminServiceProxy proxy(channel);
     auto req = proxy.Die();
+    // TODO(nadya02): Set the correct timeout here.
+    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
     req->set_exit_code(options.ExitCode);
 
     // NB: This will always throw an error since the service can
@@ -477,6 +487,8 @@ TString TClient::DoWriteCoreDump(const std::string& address, const TWriteCoreDum
 
     TAdminServiceProxy proxy(channel);
     auto req = proxy.WriteCoreDump();
+    // TODO(nadya02): Set the correct timeout here.
+    req->SetTimeout(NRpc::DefaultRpcRequestTimeout);
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
     return rsp->path();
@@ -490,7 +502,8 @@ TGuid TClient::DoWriteLogBarrier(const std::string& address, const TWriteLogBarr
 
     TAdminServiceProxy proxy(channel);
     auto req = proxy.WriteLogBarrier();
-    req->SetTimeout(options.Timeout);
+    // TODO(nadya02): Set the correct timeout here.
+    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
     req->set_category(options.Category);
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
@@ -517,6 +530,8 @@ TString TClient::DoWriteOperationControllerCoreDump(
 
     TControllerAgentServiceProxy proxy(channel);
     auto req = proxy.WriteOperationControllerCoreDump();
+    // TODO(nadya02): Set the correct timeout here.
+    req->SetTimeout(NRpc::DefaultRpcRequestTimeout);
     ToProto(req->mutable_operation_id(), operationId);
 
     auto rsp = WaitFor(req->Invoke())
@@ -533,6 +548,8 @@ void TClient::DoHealExecNode(
 
     TExecNodeAdminServiceProxy proxy(channel);
     auto req = proxy.HealNode();
+    // TODO(nadya02): Set the correct timeout here.
+    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
 
     for (const auto& location : options.Locations) {
         req->add_locations(location);
@@ -555,6 +572,7 @@ void TClient::DoSuspendCoordinator(
 
     auto req = proxy.SuspendCoordinator();
     SetMutationId(req, options);
+    req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
 
     WaitFor(req->Invoke())
         .ThrowOnError();
@@ -569,6 +587,7 @@ void TClient::DoResumeCoordinator(
 
     auto req = proxy.ResumeCoordinator();
     SetMutationId(req, options);
+    req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
 
     WaitFor(req->Invoke())
         .ThrowOnError();
@@ -599,6 +618,7 @@ void TClient::DoMigrateReplicationCards(
     SetMutationId(req, options);
     ToProto(req->mutable_migrate_to_cell_id(), destinationCellId);
     ToProto(req->mutable_replication_card_ids(), options.ReplicationCardIds);
+    req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
 
     WaitFor(req->Invoke())
         .ThrowOnError();
@@ -633,6 +653,7 @@ void TClient::DoSuspendChaosCells(
             ToProto(req->mutable_migrate_to_cell_id(), descriptor->CellId);
             req->set_migrate_all_replication_cards(true);
             req->set_suspend_chaos_cell(true);
+            req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
 
             futures.push_back(req->Invoke().AsVoid());
         }
@@ -644,6 +665,7 @@ void TClient::DoSuspendChaosCells(
 
             auto req = proxy.SuspendCoordinator();
             SetMutationId(req, options);
+            req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
 
             futures.push_back(req->Invoke().AsVoid());
         }
@@ -669,7 +691,7 @@ void TClient::DoResumeChaosCells(
             auto proxy = TChaosNodeServiceProxy(std::move(channel));
 
             auto req = proxy.ResumeChaosCell();
-            req->SetTimeout(options.Timeout);
+            req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
             futures.push_back(req->Invoke().AsVoid());
         }
 
@@ -680,6 +702,7 @@ void TClient::DoResumeChaosCells(
 
             auto req = proxy.ResumeCoordinator();
             SetMutationId(req, options);
+            req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
 
             futures.push_back(req->Invoke().AsVoid());
         }
@@ -703,7 +726,7 @@ void TClient::DoSuspendTabletCells(
         TTabletServiceProxy proxy(std::move(channel));
 
         auto req = proxy.SuspendTabletCell();
-        req->SetTimeout(options.Timeout);
+        req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
         futures.push_back(req->Invoke().AsVoid());
     }
 
@@ -725,7 +748,7 @@ void TClient::DoResumeTabletCells(
         TTabletServiceProxy proxy(std::move(channel));
 
         auto req = proxy.ResumeTabletCell();
-        req->SetTimeout(options.Timeout);
+        req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
         futures.push_back(req->Invoke().AsVoid());
     }
 
@@ -800,7 +823,8 @@ TMaintenanceIdPerTarget TClient::DoAddMaintenance(
     }
     request->set_supports_per_target_response(true);
     batchRequest->AddRequest(request);
-    batchRequest->SetTimeout(options.Timeout);
+    // TODO(nadya02): Set the correct timeout here.
+    batchRequest->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
 
     auto batchResponse = WaitFor(batchRequest->Invoke())
         .ValueOrThrow();
@@ -861,7 +885,8 @@ TMaintenanceCountsPerTarget TClient::DoRemoveMaintenance(
     request->set_supports_per_target_response(true);
 
     batchRequest->AddRequest(request);
-    batchRequest->SetTimeout(options.Timeout);
+    // TODO(nadya02): Set the correct timeout here.
+    batchRequest->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
 
     auto batchResponse = WaitFor(batchRequest->Invoke())
         .ValueOrThrow();
@@ -903,7 +928,8 @@ TDisableChunkLocationsResult TClient::DoDisableChunkLocations(
 
     auto req = proxy.DisableChunkLocations();
     ToProto(req->mutable_location_uuids(), locationUuids);
-    req->SetTimeout(options.Timeout);
+    // TODO(nadya02): Set the correct timeout here.
+    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
 
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
@@ -927,7 +953,8 @@ TDestroyChunkLocationsResult TClient::DoDestroyChunkLocations(
     auto req = proxy.DestroyChunkLocations();
     req->set_recover_unlinked_disks(recoverUnlinkedDisks);
     ToProto(req->mutable_location_uuids(), locationUuids);
-    req->SetTimeout(options.Timeout);
+    // TODO(nadya02): Set the correct timeout here.
+    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
 
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
@@ -949,7 +976,8 @@ TResurrectChunkLocationsResult TClient::DoResurrectChunkLocations(
 
     auto req = proxy.ResurrectChunkLocations();
     ToProto(req->mutable_location_uuids(), locationUuids);
-    req->SetTimeout(options.Timeout);
+    // TODO(nadya02): Set the correct timeout here.
+    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
 
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
@@ -969,7 +997,8 @@ TRequestRestartResult TClient::DoRequestRestart(
     TRestartServiceProxy proxy(Connection_->GetChannelFactory()->CreateChannel(nodeAddress));
 
     auto req = proxy.RequestRestart();
-    req->SetTimeout(options.Timeout);
+    // TODO(nadya02): Set the correct timeout here.
+    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
 
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
@@ -988,6 +1017,8 @@ TCollectCoverageResult TClient::DoCollectCoverage(
 
     NCoverage::TCoverageProxy proxy(channel);
     auto req = proxy.Collect();
+    // TODO(nadya02): Set the correct timeout here.
+    req->SetTimeout(NRpc::DefaultRpcRequestTimeout);
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
     return {rsp->coverage_map()};

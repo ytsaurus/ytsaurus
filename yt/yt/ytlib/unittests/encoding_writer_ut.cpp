@@ -1,25 +1,28 @@
+#include <yt/yt/ytlib/chunk_client/block_cache.h>
+#include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
+#include <yt/yt/ytlib/chunk_client/encoding_writer.h>
+#include <yt/yt/ytlib/chunk_client/memory_writer.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
+
+#include <yt/yt/client/chunk_client/config.h>
+
+#include <yt/yt/core/profiling/timing.h>
+
+#include <yt/yt/core/test_framework/framework.h>
+
+#include <util/datetime/base.h>
+
 #include <algorithm>
 #include <iterator>
 #include <random>
-#include <util/datetime/base.h>
-#include <yt/yt/core/test_framework/framework.h>
-
-#include <yt/yt/ytlib/chunk_client/public.h>
-
-#include <yt/yt/core/logging/log.h>
-#include <yt/yt/core/profiling/timing.h>
-#include <yt/yt/client/table_client/config.h>
-
-#include <yt/yt/ytlib/chunk_client/encoding_writer.h>
-#include <yt/yt/ytlib/chunk_client/client_block_cache.h>
-#include <yt/yt/ytlib/chunk_client/memory_writer.h>
-#include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
 
 namespace NYT::NChunkClient {
 namespace {
 
-using namespace NConcurrency;
 using namespace NCompression;
+using namespace NConcurrency;
+using namespace NLogging;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,7 +40,7 @@ void DoTestEncodingWriter(
         memoryWriter,
         IChunkWriter::TWriteBlocksOptions(),
         GetNullBlockCache(),
-        NLogging::TLogger{"test"});
+        TLogger{"test"});
 
     std::vector<TSharedRef> blocks;
     int blockNum = 20;
@@ -56,7 +59,7 @@ void DoTestEncodingWriter(
         return TSharedRef::FromString(base);
     });
 
-    NProfiling::TWallTimer wallTimer;
+    TWallTimer wallTimer;
 
     for (const auto& block : blocks) {
         while (!encodingWriter->IsReady()) {
@@ -72,12 +75,16 @@ void DoTestEncodingWriter(
 
     auto wallTime = wallTimer.GetElapsedTime();
 
-    WaitFor(memoryWriter->Close(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), New<TDeferredChunkMeta>()))
+    WaitFor(memoryWriter->Close(
+        IChunkWriter::TWriteBlocksOptions(),
+        TWorkloadDescriptor(),
+        New<TDeferredChunkMeta>(),
+        /*truncateBlockCount*/ std::nullopt))
         .ThrowOnError();
 
     auto result = memoryWriter->GetBlocks();
 
-    auto codec = NCompression::GetCodec(options->CompressionCodec);
+    auto* codec = GetCodec(options->CompressionCodec);
     EXPECT_EQ(std::ssize(blocks) + 1, std::ssize(result));
     for (ssize_t i = 0; i < std::ssize(blocks); ++i) {
         EXPECT_TRUE(TRef::AreBitwiseEqual(blocks[i], codec->Decompress(result[i].Data)));

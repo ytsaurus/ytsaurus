@@ -4,6 +4,10 @@
 ARG BASE_REPOSITORY="ghcr.io/ytsaurus/ytsaurus-nightly"
 ARG BASE_IMAGE="latest"
 
+# Args for base-server-crio
+ARG K8S_VERSION="v1.32"
+ARG CRIO_VERSION="v1.32"
+
 # Args for odin.
 ARG PYTHON_RUNTIME_VERSION="3.11"
 
@@ -16,11 +20,16 @@ ARG ODIN_CHECKS_DATA_DIR="${ODIN_RUNTIME_ROOT}/checks-data"
 # Flow control args.
 # copy-ytsaurus-python-binaries or build-ytsaurus-python-binaries
 ARG PYTHON_BUILD_BASE="copy-ytsaurus-python-binaries"
-ARG ROOT_IMAGE="ubuntu-base"
+# base-server or base-server-crio
+ARG SERVER_IMAGE_BASE="base-server"
 
 ##########################################################################################
 
 FROM mirror.gcr.io/ubuntu:focal AS ubuntu-base
+
+ARG APT_MIRROR="http://archive.ubuntu.com/"
+
+RUN sed -i "s|http://archive.ubuntu.com/|${APT_MIRROR}|g" /etc/apt/sources.list
 
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
@@ -31,55 +40,69 @@ RUN apt-get update \
 
 ##########################################################################################
 
-FROM python:${PYTHON_RUNTIME_VERSION}-slim as python-base
-
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
-  linux-perf
-
-##########################################################################################
-
-FROM ${ROOT_IMAGE} AS base
+FROM ubuntu-base AS base
 
 USER root
 
 WORKDIR /tmp
 
-RUN apt-get update \
-    && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
-      software-properties-common \
-      python3-launchpadlib
-RUN add-apt-repository ppa:deadsnakes/ppa
+RUN <<-EOT
+#!/bin/bash
+set -eux -o pipefail
 
-RUN apt-get update \
-    && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
-      curl \
-      dnsutils \
-      gdb \
-      iproute2 \
-      iputils-ping \
-      less \
-      libidn11-dev \
-      lsb-release \
-      lsof \
-      python3.11 \
-      python3.11-venv \
-      strace \
-      telnet \
-      tini \
-      unzip \
-      zstd \
-      google-perftools \
-      procps \
-      jq \
-      htop \
-      vim \
-      ncdu \
-      iperf \
-      netcat-openbsd \
-      tcpdump \
-      wget \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+export DEBIAN_FRONTEND=noninteractive
+export TZ=Etc/UTC
+
+apt-get update -q --error-on=any
+apt-get install -y curl
+
+# https://launchpad.net/~deadsnakes/+archive/ubuntu/ppa
+mkdir -p /etc/apt/keyrings
+curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xF23C5A6CF475977595C89F51BA6932366A755776" |
+  tee /etc/apt/keyrings/deadsnakes-ubuntu-ppa.asc
+
+cat <<EOF >/etc/apt/sources.list.d/deadsnakes-ubuntu-ppa-focal.list
+deb [signed-by=/etc/apt/keyrings/deadsnakes-ubuntu-ppa.asc] https://ppa.launchpadcontent.net/deadsnakes/ppa/ubuntu focal main
+# deb-src [signed-by=/etc/apt/keyrings/deadsnakes-ubuntu-ppa.asc] https://ppa.launchpadcontent.net/deadsnakes/ppa/ubuntu focal main
+EOF
+
+apt-get update -q --error-on=any
+
+packages=(
+  curl
+  dnsutils
+  gdb
+  iproute2
+  iputils-ping
+  less
+  libidn11-dev
+  lsb-release
+  lsof
+  python3.11
+  python3.11-venv
+  strace
+  telnet
+  tini
+  unzip
+  zstd
+  google-perftools
+  procps
+  jq
+  htop
+  vim
+  ncdu
+  iperf
+  netcat-openbsd
+  tcpdump
+  wget
+)
+
+apt-get install -y "${packages[@]}"
+
+apt-get clean
+rm -rf /var/lib/apt/lists/*
+
+EOT
 
 ##########################################################################################
 
@@ -87,7 +110,8 @@ FROM base AS build-ytsaurus-python-binaries
 
 ARG PROTOC_VERSION="3.20.1"
 
-RUN curl -sL -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip \
+RUN PROTOC_ARCH=$(uname -m | sed -e 's/aarch64/aarch_64/') \
+    && curl -sL -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-${PROTOC_ARCH}.zip \
     && unzip protoc.zip -d /usr/local \
     && rm protoc.zip
 
@@ -134,13 +158,18 @@ RUN rm -rf /tmp/ytsaurus_python
 
 ##########################################################################################
 
-FROM base-ytsaurus-python-packages AS base-exec
+FROM base-ytsaurus-python-packages AS base-server
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
   containerd \
-  openjdk-11-jdk
+  openjdk-11-jdk \
+  openjdk-17-jdk \
+  java-common
 
-RUN ln -s /usr/lib/jvm/java-11-openjdk-amd64 /opt/jdk11
+RUN HOST_ARCH=$(dpkg --print-architecture) \
+  && ln -s /usr/lib/jvm/java-11-openjdk-${HOST_ARCH} /opt/jdk11 \
+  && ln -s /usr/lib/jvm/java-17-openjdk-${HOST_ARCH} /opt/jdk17 \
+  && update-java-alternatives --set java-1.11.0-openjdk-${HOST_ARCH}
 
 # Default python to be used by python3 jobs, for compatibility with jupyter tutorial.
 RUN ln -s /usr/bin/python3.8 /usr/bin/python3 -f
@@ -149,7 +178,38 @@ RUN sed -i 's/python3/python3.8/' /usr/bin/lsb_release
 
 ##########################################################################################
 
-FROM base-exec AS ytsaurus-bloated
+FROM base-server AS base-server-crio
+
+ARG K8S_VERSION
+ARG CRIO_VERSION
+
+ADD --chmod=644 https://pkgs.k8s.io/core:/stable:/${K8S_VERSION}/deb/Release.key \
+            /etc/apt/keyrings/kubernetes-apt-keyring.asc
+
+ADD --chmod=644 https://download.opensuse.org/repositories/isv:/cri-o:/stable:/${CRIO_VERSION}/deb/Release.key \
+            /etc/apt/keyrings/cri-o-apt-keyring.asc
+
+# Install CRI-O, see https://cri-o.io/
+RUN <<-EOT
+#!/bin/bash
+set -eux -o pipefail
+
+cat <<EOF >/etc/apt/sources.list.d/kubernetes.list
+deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.asc] https://pkgs.k8s.io/core:/stable:/${K8S_VERSION}/deb/ /
+EOF
+
+cat <<EOF >/etc/apt/sources.list.d/cri-o.list
+deb [signed-by=/etc/apt/keyrings/cri-o-apt-keyring.asc] https://download.opensuse.org/repositories/isv:/cri-o:/stable:/${CRIO_VERSION}/deb/ /
+EOF
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -q --error-on=any
+apt-get install -y cri-tools cri-o
+EOT
+
+##########################################################################################
+
+FROM ${SERVER_IMAGE_BASE} AS ytsaurus-bloated
 
 # YTsaurus binary.
 COPY ./ytserver-all /usr/bin/ytserver-all
@@ -249,7 +309,7 @@ COPY ./credits/chyt-controller.CREDITS /usr/bin/strawberry-controller.CREDITS
 
 ##########################################################################################
 
-FROM base-exec AS local-bloated
+FROM ${SERVER_IMAGE_BASE} AS local-bloated
 
 COPY ./ytserver-all /usr/bin/ytserver-all
 COPY ./ytserver-yql-agent /usr/bin/ytserver-yql-agent
@@ -300,7 +360,7 @@ COPY --from=ytsaurus-server-override-bloated / /
 
 ##########################################################################################
 
-FROM python-base as odin-installer
+FROM base as odin-installer
 
 ARG ODIN_ROOT
 ARG ODIN_VIRTUAL_ENV

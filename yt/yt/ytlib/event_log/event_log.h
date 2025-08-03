@@ -42,31 +42,22 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TParent>
-class TFluentLogEventImpl;
-
-using TFluentLogEvent = TFluentLogEventImpl<NYTree::TFluentYsonVoid>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TParent>
-class TFluentLogEventImpl
-    : public NYTree::TFluentYsonBuilder::TFluentFragmentBase<TFluentLogEventImpl, TParent, NYTree::TFluentMap>
+class TFluentLogEvent
+    : public NYTree::TFluentYsonBuilder::TFluentMapFragmentBase<NYTree::TFluentYsonVoid, TFluentLogEvent&&>
 {
 public:
-    using TThis = TFluentLogEventImpl;
-    using TBase = NYTree::TFluentYsonBuilder::TFluentFragmentBase<NEventLog::TFluentLogEventImpl, TParent, NYTree::TFluentMap>;
+    using TThis = TFluentLogEvent;
+    using TBase = NYTree::TFluentYsonBuilder::TFluentMapFragmentBase<NYTree::TFluentYsonVoid, TThis&&>;
 
-    TFluentLogEventImpl(std::unique_ptr<NYson::IYsonConsumer> consumer);
+    TFluentLogEvent(std::unique_ptr<NYson::IYsonConsumer> consumer);
 
-    TFluentLogEventImpl(TFluentLogEventImpl&& other) = default;
+    TFluentLogEvent(TFluentLogEvent&& other) = default;
+    TFluentLogEvent(const TFluentLogEvent& other) = delete;
 
-    ~TFluentLogEventImpl();
+    ~TFluentLogEvent();
 
-    TFluentLogEventImpl& operator = (TFluentLogEventImpl&& other) = default;
-
-    NYTree::TFluentYsonBuilder::TAny<TThis&&> Item(TStringBuf key);
-    TThis& Items(const NYson::TYsonString& items);
+    TFluentLogEvent& operator=(TFluentLogEvent&& other) = default;
+    TFluentLogEvent& operator=(const TFluentLogEvent& other) = delete;
 
 private:
     std::unique_ptr<NYson::IYsonConsumer> Consumer_;
@@ -127,7 +118,3 @@ TEventLogWriterPtr CreateStaticTableEventLogWriter(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NEventLog
-
-#define EVENT_LOG_INL_H_
-#include "event_log-inl.h"
-#undef EVENT_LOG_INL_H_

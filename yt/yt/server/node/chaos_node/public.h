@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/hydra/public.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/public.h>
+
 #include <yt/yt/client/transaction_client/public.h>
 
 #include <yt/yt/client/chaos_client/replication_card.h>
@@ -35,9 +37,14 @@ DECLARE_REFCOUNTED_STRUCT(IMigratedReplicationCardRemover)
 DECLARE_REFCOUNTED_STRUCT(IForeignMigratedReplicationCardRemover)
 
 enum class EChaosSnapshotVersion;
+
 class TSaveContext;
 class TLoadContext;
-using TPersistenceContext = TCustomPersistenceContext<TSaveContext, TLoadContext, EChaosSnapshotVersion>;
+using TPersistenceContext = TCustomPersistenceContext<
+    TSaveContext,
+    TLoadContext,
+    EChaosSnapshotVersion
+>;
 
 DEFINE_ENUM(EAutomatonThreadQueue,
     (Default)
@@ -47,16 +54,36 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (MigrationDepartment)
 );
 
+class TChaosObjectBase;
+
+using TChaosObjectId = NChaosClient::TChaosObjectId;
+
 using TReplicationCardId = NChaosClient::TReplicationCardId;
-DECLARE_ENTITY_TYPE(TReplicationCard, NChaosClient::TReplicationCardId, NObjectClient::TObjectIdEntropyHash)
+DECLARE_ENTITY_TYPE(TReplicationCard, TReplicationCardId, NObjectClient::TObjectIdEntropyHash)
 
 using TReplicationCardCollocationId = NChaosClient::TReplicationCardCollocationId;
-DECLARE_ENTITY_TYPE(TReplicationCardCollocation, NChaosClient::TReplicationCardCollocationId, NObjectClient::TObjectIdEntropyHash)
+DECLARE_ENTITY_TYPE(TReplicationCardCollocation, TReplicationCardCollocationId, NObjectClient::TObjectIdEntropyHash)
 
 using TTransactionId = NTransactionClient::TTransactionId;
 DECLARE_ENTITY_TYPE(TTransaction, TTransactionId, ::THash<TTransactionId>)
 
+using TChaosLeaseId = NChaosClient::TChaosLeaseId;
+DECLARE_ENTITY_TYPE(TChaosLease, TChaosLeaseId, NObjectClient::TObjectIdEntropyHash)
+
 using TTimestamp = NTransactionClient::TTimestamp;
+
+template <class TProto, class TState>
+using TTypedTransactionActionDescriptor = NTransactionSupervisor::TTypedTransactionActionDescriptor<
+    TTransaction,
+    TProto,
+    TState
+>;
+
+using TTypeErasedTransactionActionDescriptor = NTransactionSupervisor::TTypeErasedTransactionActionDescriptor<
+    TTransaction,
+    TSaveContext,
+    TLoadContext
+>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

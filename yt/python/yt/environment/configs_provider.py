@@ -1014,8 +1014,7 @@ def _build_node_configs(multidaemon_config_output,
         init_cypress_annotations(config, index)
 
         config["addresses"] = [
-            ("interconnect", yt_config.fqdn),
-            ("default", yt_config.fqdn)
+            (network_name, yt_config.fqdn) for network_name in yt_config.node_network_names
         ]
 
         config["rpc_port"] = next(ports_generator)
@@ -1266,8 +1265,7 @@ def _build_chaos_node_configs(multidaemon_config_output,
         init_cypress_annotations(config, index)
 
         config["addresses"] = [
-            ("interconnect", yt_config.fqdn),
-            ("default", yt_config.fqdn)
+            (network_name, yt_config.fqdn) for network_name in yt_config.node_network_names
         ]
         config["rpc_port"] = next(ports_generator)
         config["monitoring_port"] = next(ports_generator)
@@ -1554,7 +1552,9 @@ def _build_rpc_proxy_configs(multidaemon_config_output,
             "ref_counted_tracker_dump_period": 15000,
             "enable_authentication": False,
             "api_service": {
+                # COMPAT(babenko): rename to user_access_validator
                 "security_manager": {
+                    # COMPAT(babenko): rename to ban_cache
                     "user_cache": {
                         "expire_after_successful_update_time": 0,
                         "refresh_time": 0,
@@ -1715,9 +1715,9 @@ def _build_cluster_connection_config(yt_config,
             "expire_after_successful_update_time": 72000000,  # 20h
             "expire_after_failed_update_time": 100,
             "refresh_time": 0,
-            "is_client_mode_active" : True,
         },
         "upload_transaction_timeout": 5000,
+        "read_operations_archive_state_from": "follower",
     }
 
     if len(cypress_proxy_rpc_ports) > 0:
@@ -1790,12 +1790,6 @@ def _build_cluster_connection_config(yt_config,
                 "min_backoff": 50,
             },
             "rpc_acknowledge_timeout": 100,
-        }
-        cluster_connection["chaos_residency_cache"] = {
-            "expire_after_successful_update_time": 100,
-            "expire_after_failed_update_time": 100,
-            "expire_after_access_time": 100,
-            "refresh_time": 50,
         }
 
     if not yt_config.enable_permission_cache:
@@ -2164,6 +2158,7 @@ def init_singletons(config, yt_config):
         "compression_pool_size": 1,
         "heavy_pool_size": 1,
         "alert_on_missing_request_info": True,
+        "alert_on_unset_request_timeout": True,
     })
     set_at(config, "chunk_client_dispatcher", {
         "chunk_reader_pool_size": 1,

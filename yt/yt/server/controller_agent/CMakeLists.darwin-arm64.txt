@@ -20,6 +20,9 @@ add_library(yt-server-controller_agent)
 target_compile_options(yt-server-controller_agent PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(yt-server-controller_agent PUBLIC
@@ -51,7 +54,6 @@ target_sources(yt-server-controller_agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/intermediate_chunk_scraper.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/job_monitoring_index_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/job_prober_service.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/job_profiler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/job_size_constraints.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/job_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/job_tracker_service.cpp

@@ -695,7 +695,7 @@ class TestSpecBuilders(object):
                 .input_table_paths(["//tmp/t_in"]).output_table_paths(["//tmp/t_out"]) \
                 .build(client=client)  # noqa
             assert "layer_paths" not in spec["mapper"]
-            assert spec["mapper"]["docker_image"] == "images/docker/image1:py311", "guess base layer"
+            assert spec["mapper"]["docker_image"] == "registry.cluster_name.yandex.net/images/docker/image1:py311", "guess base layer"
 
             # user layers
             spec = MapSpecBuilder() \
@@ -708,7 +708,7 @@ class TestSpecBuilders(object):
             client.config["operation_base_layer"] = "  //layer1,  //layer2  "
             assert deepcopy(spec).build(client=client)["mapper"]["layer_paths"] == ["//layer1", "//layer2"], "split layers"
             client.config["operation_base_layer"] = "registry.cluster_name.yandex.net/yt/storage/some_image"
-            assert deepcopy(spec).build(client=client)["mapper"]["docker_image"] == "yt/storage/some_image", "docker: cut yt registry host"
+            assert deepcopy(spec).build(client=client)["mapper"]["docker_image"] == "registry.cluster_name.yandex.net/yt/storage/some_image", "docker: host path"
             client.config["operation_base_layer"] = "yt/storage/some_image:latest"
             assert deepcopy(spec).build(client=client)["mapper"]["docker_image"] == "yt/storage/some_image:latest", "docker: local path"
             client.config["operation_base_layer"] = "docker.io/some_image:latest"

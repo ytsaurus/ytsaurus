@@ -35,8 +35,8 @@ struct IFetcherChunkScraper
 };
 
 IFetcherChunkScraperPtr CreateFetcherChunkScraper(
-    const TChunkScraperConfigPtr config,
-    const IInvokerPtr invoker,
+    TChunkScraperConfigPtr config,
+    IInvokerPtr invoker,
     TThrottlerManagerPtr throttlerManager,
     NApi::NNative::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
@@ -133,7 +133,7 @@ private:
     THashSet<NNodeTrackerClient::TNodeId> DeadNodes_;
 
     //! |(nodeId, chunkId)| pairs for which an error was returned from the node.
-    std::set<std::pair<NNodeTrackerClient::TNodeId, TChunkId>> DeadChunks_;
+    THashSet<std::pair<NNodeTrackerClient::TNodeId, TChunkId>> DeadChunks_;
 
     //! |(unbanTime, nodeId)| pairs for nodes that throttled our requests.
     std::set<std::pair<TInstant, NNodeTrackerClient::TNodeId>> BannedNodes_;

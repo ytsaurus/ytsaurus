@@ -22,11 +22,26 @@ message TDiskQuota
     repeated TDiskLocationQuota disk_location_quota = 1;
 }
 
+message TNbdDisk
+{
+    //! Params to connect to chosen data nodes.
+    optional int64 data_node_rpc_timeout = 1 [default = 10000];
+    //! Address of data node that hosts NBD chunk.
+    optional string data_node_address = 2;
+
+    //! Params to get suitable data nodes from master.
+    optional int64 master_rpc_timeout = 3 [default = 2000];
+    optional int32 min_data_nodes_count = 4 [default = 0];
+    optional int32 max_data_nodes_count = 5 [default = 3];
+}
+
 message TDiskRequest
 {
     optional int64 disk_space = 1;
     optional int64 inode_count = 2;
     optional int32 medium_index = 3;
+    //! Use Network Block Device (NBD) disk.
+    optional TNbdDisk nbd_disk = 4;
 }
 
 message TCpuRequest
@@ -55,6 +70,7 @@ message TAllocationAttributes
     required bool allow_idle_cpu_policy = 3;
     required int64 port_count = 4;
     required TDiskRequest disk_request = 5;
+    optional bool enable_multiple_jobs = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

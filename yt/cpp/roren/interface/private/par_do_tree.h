@@ -18,6 +18,8 @@ public:
     virtual TString GetDebugDescription() const = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IParDoTree);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TParDoTreeBuilder
@@ -28,6 +30,7 @@ public:
 
 public:
     std::vector<TPCollectionNodeId> AddParDo(IRawParDoPtr parDo, TPCollectionNodeId input);
+    std::vector<TPCollectionNodeId> AddParDo(IRawParDoPtr parDo, std::vector<TPCollectionNodeId> inputs);
     TPCollectionNodeId AddParDoVerifySingleOutput(IRawParDoPtr parDo, TPCollectionNodeId input);
     void AddParDoVerifyNoOutput(IRawParDoPtr parDo, TPCollectionNodeId input);
 
@@ -50,10 +53,10 @@ private:
     struct TParDoNode
     {
         IRawParDoPtr ParDo;
-        TPCollectionNodeId Input;
+        std::vector<TPCollectionNodeId> Inputs;
         std::vector<TPCollectionNodeId> Outputs;
 
-        Y_SAVELOAD_DEFINE(ParDo, Input, Outputs);
+        Y_SAVELOAD_DEFINE(ParDo, Inputs, Outputs);
     };
 
     struct TPCollectionNode

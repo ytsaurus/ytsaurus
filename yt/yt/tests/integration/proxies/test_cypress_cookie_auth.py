@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, Restarter, HTTP_PROXIES_SERVICE
 from yt_commands import (
     authors, get, create_user, exists,
-    print_debug, set_user_password,
+    print_debug, remove, set_user_password,
 )
 
 import dateutil
@@ -45,13 +45,19 @@ class TestCypressCookieAuth(YTEnvSetup):
 
     ENABLE_MULTIDAEMON = False  # There are component restarts.
 
+    def teardown_method(self, method):
+        super().teardown_method(method)
+        remove("//sys/cypress_cookies/*")
+
     def _get_proxy_address(self):
         return "http://" + self.Env.get_proxy_address()
 
-    def _check_login_page(self, rsp):
+    def _check_login_page(self, rsp, check_generic_msg=False):
         assert rsp.status_code == 401
         print_debug(rsp.content)
         assert rsp.headers["WWW-Authenticate"] == "Basic"
+        if check_generic_msg:
+            assert rsp.json()["message"] == "Incorrect login or password"
 
     def _try_login(self, user, password):
         auth = HTTPBasicAuth(user, password)
@@ -78,7 +84,7 @@ class TestCypressCookieAuth(YTEnvSetup):
         assert rsp.status_code == 401
         assert "YTCypressCookie" not in rsp.cookies
 
-    @authors("gritukan")
+    @authors("ermolovd")
     def test_login_401(self):
         def check(path_suffix):
             rsp = requests.get(self._get_proxy_address() + path_suffix)
@@ -88,7 +94,7 @@ class TestCypressCookieAuth(YTEnvSetup):
         check("/login/")
         check("/login/foo?bar=a&baz=b")
 
-    @authors("gritukan")
+    @authors("ermolovd")
     def test_cookie_in_cypress(self):
         create_user("u")
         set_user_password("u", "1234")
@@ -104,7 +110,7 @@ class TestCypressCookieAuth(YTEnvSetup):
 
         assert not exists(f"//sys/cypress_cookies/{cookie}")
 
-    @authors("gritukan")
+    @authors("ermolovd")
     def test_cookie_format(self):
         create_user("u")
         set_user_password("u", "u")
@@ -127,20 +133,20 @@ class TestCypressCookieAuth(YTEnvSetup):
         assert http_only == " HttpOnly"
         assert path == " Path=/"
 
-    @authors("gritukan")
+    @authors("ermolovd")
     def test_login_failed(self):
         # No such user.
-        self._check_login_page(self._try_login("v", "1234"))
+        self._check_login_page(self._try_login("v", "1234"), True)
 
         create_user("u")
         # User has no password set.
-        self._check_login_page(self._try_login("u", ""))
+        self._check_login_page(self._try_login("u", ""), True)
 
         set_user_password("u", "1234")
         # Invalid password.
-        self._check_login_page(self._try_login("u", "123"))
+        self._check_login_page(self._try_login("u", "123"), True)
 
-    @authors("gritukan")
+    @authors("ermolovd")
     def test_weird_password(self):
         PASSWORD = "  :  -_-"
 
@@ -148,7 +154,7 @@ class TestCypressCookieAuth(YTEnvSetup):
         set_user_password("u", PASSWORD)
         self._login("u", PASSWORD)
 
-    @authors("gritukan")
+    @authors("ermolovd")
     def test_request_with_cookie(self):
         create_user("u")
         set_user_password("u", "1234")
@@ -156,7 +162,7 @@ class TestCypressCookieAuth(YTEnvSetup):
         rsp = self._make_request(cookie)
         rsp.raise_for_status()
 
-    @authors("gritukan")
+    @authors("ermolovd")
     def test_request_with_invalid_cookie(self):
         # No cookie.
         self._check_deny()
@@ -184,7 +190,7 @@ class TestCypressCookieAuth(YTEnvSetup):
         time.sleep(2.2)
         self._check_deny(cookie)
 
-    @authors("gritukan")
+    @authors("ermolovd")
     def test_cookie_rotation(self):
         create_user("u")
         set_user_password("u", "1234")
@@ -203,7 +209,7 @@ class TestCypressCookieAuth(YTEnvSetup):
         self._check_allow(cookie1)
         self._check_allow(cookie2)
 
-    @authors("gritukan")
+    @authors("ermolovd")
     def test_periodic_cookie_fetch(self):
         create_user("u")
         set_user_password("u", "1234")

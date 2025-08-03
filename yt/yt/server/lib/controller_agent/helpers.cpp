@@ -10,6 +10,8 @@
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
+#include <yt/yt/ytlib/scheduler/helpers.h>
+
 #include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
 
 #include <yt/yt/ytlib/security_client/helpers.h>
@@ -129,7 +131,7 @@ TTableSchemaPtr RenameColumnsInSchema(
                 << TErrorAttribute("failed_rename_descriptors", columnMapping)
                 << TErrorAttribute("schema", schema);
         }
-        schema = New<TTableSchema>(newColumns, schema->GetStrict(), schema->GetUniqueKeys());
+        schema = New<TTableSchema>(newColumns, schema->IsStrict(), schema->IsUniqueKeys());
         ValidateColumnUniqueness(*schema);
         return schema;
     } catch (const std::exception& ex) {
@@ -146,7 +148,7 @@ void ValidateJobShellAccess(
     const NApi::NNative::IClientPtr& client,
     const std::string& user,
     const TString& jobShellName,
-    const std::vector<TString>& jobShellOwners)
+    const std::vector<std::string>& jobShellOwners)
 {
     if (user == RootUserName || user == SuperusersGroupName) {
         return;
@@ -165,8 +167,7 @@ void ValidateJobShellAccess(
         readOptions);
 
     auto allowedSubjects = jobShellOwners;
-    // TODO(babenko): switch to std::string
-    allowedSubjects.push_back(TString(RootUserName));
+    allowedSubjects.push_back(RootUserName);
     allowedSubjects.push_back(SuperusersGroupName);
 
     for (const auto& allowedSubject : allowedSubjects) {

@@ -79,6 +79,7 @@ private:
         if (maybeCollocationOptions) {
             req->set_options(ConvertToYsonString(*maybeCollocationOptions).ToString());
         }
+        req->SetTimeout(options.Timeout.value_or(Client_->GetNativeConnection()->GetConfig()->DefaultChaosNodeServiceTimeout));
 
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
@@ -117,11 +118,11 @@ private:
         return replicationCardIds;
     }
 
-    TString GetChaosCellBundle(TYPath path)
+    std::string GetChaosCellBundle(TYPath path)
     {
         auto yson = WaitFor(Client_->GetNode(Format("%v/@chaos_cell_bundle", path), TGetNodeOptions{}))
             .ValueOrThrow();
-        return ConvertTo<TString>(yson);
+        return ConvertTo<std::string>(yson);
     }
 
     TCellId GetChaosCellId(TGuid objectId)
@@ -154,6 +155,7 @@ private:
         auto proxy = TChaosNodeServiceProxy(std::move(channel));
         auto req = proxy.GetReplicationCardCollocation();
         ToProto(req->mutable_replication_card_collocation_id(), replicationCardCollocationId);
+        req->SetTimeout(Client_->GetNativeConnection()->GetConfig()->DefaultChaosNodeServiceTimeout);
 
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();

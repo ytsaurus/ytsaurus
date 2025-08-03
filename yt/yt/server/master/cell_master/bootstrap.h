@@ -116,7 +116,7 @@ public:
     const NRpc::IChannelPtr& GetLocalRpcChannel() const;
     const NApi::NNative::IConnectionPtr& GetClusterConnection() const;
     const NApi::NNative::IClientPtr& GetRootClient() const;
-    const NSequoiaClient::ISequoiaClientPtr& GetSequoiaClient() const;
+    NSequoiaClient::ISequoiaClientPtr GetSequoiaClient() const;
     const NElection::TCellManagerPtr& GetCellManager() const;
     const NHydra::IChangelogStoreFactoryPtr& GetChangelogStoreFactory() const;
     const NHydra::ISnapshotStorePtr& GetSnapshotStore() const;
@@ -176,7 +176,8 @@ public:
 
     void LoadSnapshot(
         const TString& fileName,
-        ESerializationDumpMode dumpMode);
+        ESerializationDumpMode dumpMode,
+        TSerializationDumpScopeFilter dumpScopeFilter);
     void ReplayChangelogs(std::vector<TString> changelogFileNames);
     void BuildSnapshot();
     void FinishDryRun();
@@ -206,12 +207,12 @@ protected:
     IConfigManagerPtr ConfigManager_;
     IMulticellManagerPtr MulticellManager_;
     IMulticellStatisticsCollectorPtr MulticellStatisticsCollector_;
+    IHiveProfilingManagerPtr HiveProfilingManager_;
     NIncumbentServer::IIncumbentManagerPtr IncumbentManager_;
     NRpc::IServerPtr RpcServer_;
     NRpc::IChannelPtr LocalRpcChannel_;
     NApi::NNative::IConnectionPtr ClusterConnection_;
     NApi::NNative::IClientPtr RootClient_;
-    NSequoiaClient::ISequoiaClientPtr SequoiaClient_;
     NMonitoring::IMonitoringManagerPtr MonitoringManager_;
     NHttp::IServerPtr HttpServer_;
     NElection::TCellManagerPtr CellManager_;
@@ -271,8 +272,6 @@ protected:
 
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
 
-    TCallback<void(const TString &, NYTree::INodePtr)> GroundConnectionCallback_;
-
     NObjectClient::TCellTagList GetKnownParticipantCellTags() const;
 
     void DoRun();
@@ -282,7 +281,8 @@ protected:
     void InitializeTimestampProvider();
     void DoLoadSnapshot(
         const TString& fileName,
-        ESerializationDumpMode dumpMode);
+        ESerializationDumpMode dumpMode,
+        TSerializationDumpScopeFilter dumpScopeFilter);
 
     void DoReplayChangelogs(const std::vector<TString>& changelogFileNames);
 

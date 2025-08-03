@@ -1,4 +1,5 @@
 #include "bundle_state.h"
+#include "config.h"
 #include "helpers.h"
 #include "private.h"
 #include "table_registry.h"
@@ -10,25 +11,24 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 
+#include <yt/yt/ytlib/hive/cluster_directory.h>
+
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 
 #include <yt/yt/ytlib/tablet_client/master_tablet_service_proxy.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/yt/client/query_client/query_builder.h>
-
-#include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/node.h>
-
-#include <util/string/join.h>
 
 namespace NYT::NTabletBalancer {
 
 using namespace NApi;
 using namespace NConcurrency;
+using namespace NHiveClient;
 using namespace NHydra;
 using namespace NObjectClient;
 using namespace NTableClient;
@@ -43,7 +43,9 @@ using namespace NYTree;
 
 namespace {
 
-THashMap<TTabletId, TTableId> ParseTabletToTableMapping(const NYTree::IMapNodePtr& mapNode)
+////////////////////////////////////////////////////////////////////////////////
+
+THashMap<TTabletId, TTableId> ParseTabletToTableMapping(const IMapNodePtr& mapNode)
 {
     THashMap<TTabletId, TTableId> tabletToTable;
     for (const auto& [key, value] : mapNode->GetChildren()) {
@@ -58,8 +60,8 @@ THashMap<TTabletId, TTableId> ParseTabletToTableMapping(const NYTree::IMapNodePt
 
 TTabletStatistics BuildTabletStatistics(
     const TRspGetTableBalancingAttributes::TTablet::TCompressedStatistics& protoStatistics,
-    const std::vector<TString>& keys,
-    bool saveOriginalNode = false)
+    const std::vector<std::string>& keys,
+    bool saveOriginalNode)
 {
     auto node = BuildYsonNodeFluently()
         .DoMap([&] (TFluentMap fluent) {
@@ -94,7 +96,7 @@ struct TTabletCellPeer
     EPeerState State = EPeerState::None;
 };
 
-void Deserialize(TTabletCellPeer& value, NYTree::INodePtr node)
+void Deserialize(TTabletCellPeer& value, INodePtr node)
 {
     auto mapNode = node->AsMap();
 
@@ -105,6 +107,123 @@ void Deserialize(TTabletCellPeer& value, NYTree::INodePtr node)
     if (auto stateNode = mapNode->FindChildValue<EPeerState>("state")) {
         value.State = *stateNode;
     }
+}
+
+THashMap<TTableId, TCellTag> BuildTableToCellTagMapping(const THashMap<TTableId, TTablePtr>& tables)
+{
+    THashMap<TTableId, TCellTag> tableIdToCellTag;
+    for (const auto& [tableId, table] : tables) {
+        EmplaceOrCrash(tableIdToCellTag, tableId, table->ExternalCellTag);
+    }
+    return tableIdToCellTag;
+}
+
+TTabletBalancerDynamicConfigPtr FetchTabletBalancerConfig(
+    const NNative::IClientPtr& client)
+{
+    auto proxy = CreateObjectServiceReadProxy(
+        client,
+        EMasterChannelKind::Follower);
+    auto req = TYPathProxy::Get(DefaultTabletBalancerDynamicConfigPath);
+    auto rsp = WaitFor(proxy.Execute(req))
+        .ValueOrThrow();
+
+    return ConvertTo<TTabletBalancerDynamicConfigPtr>(TYsonString(rsp->value()));
+}
+
+std::vector<std::pair<TTableId, std::optional<TCellTag>>> ResolveTablePaths(
+    const NNative::IClientPtr& client,
+    const std::vector<TYPath>& paths)
+{
+    auto proxy = CreateObjectServiceReadProxy(
+        client,
+        EMasterChannelKind::Follower);
+    auto batchRequest = proxy.ExecuteBatch();
+
+    auto Logger = TabletBalancerLogger();
+    for (auto path : paths) {
+        static const std::vector<std::string> attributeKeys{"id", "external", "external_cell_tag", "dynamic"};
+        auto req = TYPathProxy::Get(path + "/@");
+        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+        batchRequest->AddRequest(req);
+    }
+
+    auto batchResponse = WaitFor(batchRequest->Invoke())
+        .ValueOrThrow();
+
+    std::vector<std::pair<TTableId, std::optional<TCellTag>>> tableIdsWithCellTags;
+    for (int index = 0; index < std::ssize(paths); ++index) {
+        const auto& rspOrError = batchResponse->GetResponse<TYPathProxy::TRspGet>(index);
+        if (!rspOrError.IsOK()) {
+            tableIdsWithCellTags.emplace_back(NullObjectId, std::nullopt);
+            YT_LOG_WARNING(rspOrError,
+                "Failed to resolve table id for table %v", paths[index]);
+            continue;
+        }
+
+        auto attributes = ConvertToAttributes(TYsonString(rspOrError.ValueOrThrow()->value()));
+        auto tableId = attributes->Get<TTableId>("id");
+
+        auto dynamic = attributes->Get<bool>("dynamic");
+        THROW_ERROR_EXCEPTION_IF(!dynamic,
+            "Replica table %v with path %v must be dynamic",
+            tableId,
+            paths[index]);
+
+        auto cellTag = CellTagFromId(tableId);
+        auto external = attributes->Get<bool>("external");
+        if (external) {
+            cellTag = attributes->Get<TCellTag>("external_cell_tag");
+        }
+
+        tableIdsWithCellTags.emplace_back(tableId, cellTag);
+    }
+    return tableIdsWithCellTags;
+}
+
+THashMap<TClusterName, std::vector<TYPath>> GetReplicaBalancingMinorTables(
+    const THashSet<TTableId>& majorTableIds,
+    const THashMap<TTableId, TTablePtr>& tables,
+    const std::string& selfClusterName,
+    const NLogging::TLogger& Logger,
+    bool enableVerboseLogging)
+{
+    THashMap<TClusterName, THashSet<TYPath>> clusterToMinorTables;
+    for (auto tableId : majorTableIds) {
+        const auto& majorTable = GetOrCrash(tables, tableId);
+        const auto minorTables = majorTable->GetReplicaBalancingMinorTables(selfClusterName);
+        YT_LOG_DEBUG_IF(enableVerboseLogging,
+            "List of minor tables associated with major table (MajorTableId: %v, MinorTables: %v)",
+            tableId,
+            minorTables);
+
+        for (const auto& [cluster, tables] : minorTables) {
+            clusterToMinorTables[cluster].insert(tables.begin(), tables.end());
+        }
+    }
+
+    THashMap<TClusterName, std::vector<TYPath>> clusterToPaths;
+    for (const auto& [cluster, paths] : clusterToMinorTables) {
+        EmplaceOrCrash(clusterToPaths, cluster, std::vector(paths.begin(), paths.end()));
+    }
+    return clusterToPaths;
+}
+
+THashMap<TClusterName, THashMap<TYPath, std::vector<TTableId>>> GetReplicaBalancingMinorToMajorTables(
+    const THashSet<TTableId>& majorTableIds,
+    const THashMap<TTableId, TTablePtr>& tables,
+    const std::string& selfClusterName)
+{
+    THashMap<TClusterName, THashMap<TYPath, std::vector<TTableId>>> minorToMajorTables;
+    for (auto tableId : majorTableIds) {
+        const auto& table = GetOrCrash(tables, tableId);
+        for (const auto& [cluster, minorTables] : table->GetReplicaBalancingMinorTables(selfClusterName)) {
+            for (const auto& minorTable : minorTables) {
+                minorToMajorTables[cluster][minorTable].push_back(tableId);
+            }
+        }
+    }
+    return minorToMajorTables;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -120,13 +239,13 @@ TBundleProfilingCounters::TBundleProfilingCounters(const NProfiling::TProfiler& 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const std::vector<TString> DefaultPerformanceCountersKeys{
+const std::vector<std::string> DefaultPerformanceCountersKeys{
     #define XX(name, Name) #name,
     ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
     #undef XX
 };
 
-const std::vector<TString> AdditionalPerformanceCountersKeys{
+const std::vector<std::string> AdditionalPerformanceCountersKeys{
     #define XX(name, Name) #name,
     ITERATE_NODE_TABLET_PERFORMANCE_COUNTERS(XX)
     #undef XX
@@ -136,13 +255,17 @@ TBundleState::TBundleState(
     TString name,
     TTableRegistryPtr tableRegistry,
     NApi::NNative::IClientPtr client,
-    IInvokerPtr invoker)
+    TClientDirectoryPtr clientDirectory,
+    IInvokerPtr invoker,
+    std::string clusterName)
     : Bundle_(New<TTabletCellBundle>(name))
     , Logger(TabletBalancerLogger().WithTag("BundleName: %v", name))
     , Profiler_(TabletBalancerProfiler().WithTag("tablet_cell_bundle", name))
     , Client_(client)
+    , ClientDirectory_(clientDirectory)
     , Invoker_(invoker)
     , TableRegistry_(std::move(tableRegistry))
+    , SelfClusterName_(std::move(clusterName))
     , Counters_(New<TBundleProfilingCounters>(Profiler_))
 { }
 
@@ -164,10 +287,10 @@ void TBundleState::UpdateBundleAttributes(
 TFuture<void> TBundleState::UpdateState(bool fetchTabletCellsFromSecondaryMasters, int iterationIndex)
 {
     return BIND(
-            &TBundleState::DoUpdateState,
-            MakeStrong(this),
-            fetchTabletCellsFromSecondaryMasters,
-            iterationIndex)
+        &TBundleState::DoUpdateState,
+        MakeStrong(this),
+        fetchTabletCellsFromSecondaryMasters,
+        iterationIndex)
         .AsyncVia(Invoker_)
         .Run();
 }
@@ -178,11 +301,20 @@ TFuture<void> TBundleState::FetchStatistics(
     const TYPath& statisticsTablePath)
 {
     return BIND(
-            &TBundleState::DoFetchStatistics,
-            MakeStrong(this),
-            nodeStatistics,
-            useStatisticsReporter,
-            statisticsTablePath)
+        &TBundleState::DoFetchStatistics,
+        MakeStrong(this),
+        nodeStatistics,
+        useStatisticsReporter,
+        statisticsTablePath)
+        .AsyncVia(Invoker_)
+        .Run();
+}
+
+TFuture<void> TBundleState::FetchReplicaStatistics()
+{
+    return BIND(
+        &TBundleState::DoFetchReplicaStatistics,
+        MakeStrong(this))
         .AsyncVia(Invoker_)
         .Run();
 }
@@ -274,7 +406,7 @@ void TBundleState::DoUpdateState(bool fetchTabletCellsFromSecondaryMasters, int 
     }
 }
 
-bool TBundleState::IsTableBalancingAllowed(const TTableSettings& table) const
+bool TBundleState::IsTableBalancingEnabled(const TTableSettings& table) const
 {
     if (!table.Dynamic) {
         return false;
@@ -282,6 +414,17 @@ bool TBundleState::IsTableBalancingAllowed(const TTableSettings& table) const
 
     return table.Config->EnableAutoTabletMove ||
         table.Config->EnableAutoReshard;
+}
+
+bool TBundleState::IsReplicaBalancingEnabled(const TTableSettings& table) const
+{
+    auto groupName = GetBalancingGroup(table.InMemoryMode, table.Config, Bundle_->Config);
+    if (!groupName) {
+        return false;
+    }
+
+    const auto& groupConfig = GetOrCrash(Bundle_->Config->Groups, *groupName);
+    return !groupConfig->Parameterized->ReplicaClusters.empty();
 }
 
 bool TBundleState::IsParameterizedBalancingEnabled() const
@@ -299,6 +442,40 @@ bool TBundleState::IsParameterizedBalancingEnabled() const
 
         const auto& groupConfig = GetOrCrash(Bundle_->Config->Groups, *groupName);
         if (groupConfig->Type == EBalancingType::Parameterized && groupConfig->EnableMove) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool TBundleState::HasReplicaBalancingGroups() const
+{
+    for (const auto& [group, config] : Bundle_->Config->Groups) {
+        if (config->Type == EBalancingType::Parameterized && !config->Parameterized->ReplicaClusters.empty()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool TBundleState::IsReplicaBalancingEnabled() const
+{
+    if (!HasReplicaBalancingGroups()) {
+        return false;
+    }
+
+    for (const auto& [id, table] : Bundle_->Tables) {
+        if (!table->TableConfig->EnableAutoTabletMove) {
+            continue;
+        }
+
+        auto groupName = table->GetBalancingGroup();
+        if (!groupName) {
+            continue;
+        }
+
+        const auto& groupConfig = GetOrCrash(Bundle_->Config->Groups, *groupName);
+        if (groupConfig->Type == EBalancingType::Parameterized && !groupConfig->Parameterized->ReplicaClusters.empty()) {
             return true;
         }
     }
@@ -325,9 +502,13 @@ void TBundleState::DoFetchStatistics(
     }
 
     THashSet<TTableId> tableIdsToFetch;
+    THashSet<TTableId> tableIdsToFetchPivotKeys;
     for (auto& [tableId, tableSettings] : tableSettings) {
-        if (IsTableBalancingAllowed(tableSettings)) {
+        if (IsTableBalancingEnabled(tableSettings)) {
             InsertOrCrash(tableIdsToFetch, tableId);
+            if (IsReplicaBalancingEnabled(tableSettings)) {
+                InsertOrCrash(tableIdsToFetchPivotKeys, tableId);
+            }
         }
 
         const auto& table = GetOrCrash(Bundle_->Tables, tableId);
@@ -347,7 +528,12 @@ void TBundleState::DoFetchStatistics(
     YT_LOG_DEBUG("Started fetching table statistics (TableCount: %v)", tableIdsToFetch.size());
     Counters_->TableStatisticsRequestCount.Increment(tableIdsToFetch.size());
 
-    auto tableIdToStatistics = FetchTableStatistics(tableIdsToFetch, !useStatisticsReporter);
+    auto tableIdToStatistics = FetchTableStatistics(
+        Client_,
+        tableIdsToFetch,
+        tableIdsToFetchPivotKeys,
+        BuildTableToCellTagMapping(Bundle_->Tables),
+        !useStatisticsReporter);
 
     YT_LOG_DEBUG("Finished fetching table statistics (TableCount: %v)", tableIdToStatistics.size());
 
@@ -374,7 +560,7 @@ void TBundleState::DoFetchStatistics(
         auto& table = GetOrCrash(Bundle_->Tables, tableId);
         SetTableStatistics(table, statistics);
 
-        for (auto& tabletResponse : statistics) {
+        for (auto& tabletResponse : statistics.Tablets) {
             TTabletPtr tablet;
 
             if (auto it = Tablets_.find(tabletResponse.TabletId); it != Tablets_.end()) {
@@ -394,7 +580,7 @@ void TBundleState::DoFetchStatistics(
                 auto cellIt = Bundle_->TabletCells.find(tabletResponse.CellId);
                 if (cellIt == Bundle_->TabletCells.end()) {
                     tablesFromAnotherBundle.insert(table->Id);
-                    continue;
+                    break;
                 }
 
                 EmplaceOrCrash(cellIt->second->Tablets, tablet->Id, tablet);
@@ -404,23 +590,14 @@ void TBundleState::DoFetchStatistics(
                 tablet->Cell = nullptr;
             }
 
-            tablet->Index = tabletResponse.Index;
-            tablet->Statistics = std::move(tabletResponse.Statistics);
-            tablet->State = tabletResponse.State;
-            tablet->MountTime = tabletResponse.MountTime;
-
-            Visit(std::move(tabletResponse.PerformanceCounters),
-                [&] (TTablet::TPerformanceCountersProtoList&& performanceCounters) {
-                    tablet->PerformanceCounters = std::move(performanceCounters);
-                },
-                [&] (TUnversionedOwningRow&& performanceCounters) {
-                    tablet->PerformanceCounters = std::move(performanceCounters);
-                });
+            FillTabletWithStatistics(tablet, tabletResponse);
 
             YT_VERIFY(tablet->Index == std::ssize(table->Tablets));
 
             table->Tablets.push_back(tablet);
         }
+
+        table->PivotKeys = std::move(statistics.PivotKeys);
         EraseOrCrash(missingTables, tableId);
     }
 
@@ -469,6 +646,153 @@ void TBundleState::DoFetchStatistics(
     Bundle_->NodeStatistics = GetNodeStatistics(nodeStatistics, addresses);
 }
 
+void TBundleState::FillTabletWithStatistics(const TTabletPtr& tablet, TTabletStatisticsResponse& tabletResponse) const
+{
+    tablet->Index = tabletResponse.Index;
+    tablet->Statistics = std::move(tabletResponse.Statistics);
+    tablet->State = tabletResponse.State;
+    tablet->MountTime = tabletResponse.MountTime;
+
+    Visit(std::move(tabletResponse.PerformanceCounters),
+        [&] (auto&& performanceCounters) {
+            tablet->PerformanceCounters = std::move(performanceCounters);
+        });
+}
+
+void TBundleState::DoFetchReplicaStatistics()
+{
+    YT_LOG_DEBUG("Collecting replica balancing major and minor tables");
+
+    auto majorTableIds = GetReplicaBalancingMajorTables();
+    auto minorTablePaths = GetReplicaBalancingMinorTables(
+        majorTableIds,
+        Bundle_->Tables,
+        SelfClusterName_,
+        Logger,
+        Bundle_->Config->EnableVerboseLogging);
+
+    YT_LOG_DEBUG("Collected replica balancing major and minor tables (MajorTableCount: %v, MinorTableCount: %v)",
+        std::ssize(majorTableIds),
+        std::ssize(minorTablePaths));
+
+    auto perClusterMinorToMajorTables = GetReplicaBalancingMinorToMajorTables(majorTableIds, Bundle_->Tables, SelfClusterName_);
+
+    for (const auto& [cluster, tablePaths] : minorTablePaths) {
+        auto client = ClientDirectory_->GetClientOrThrow(cluster);
+        YT_LOG_DEBUG("Started resolving alien table paths (ClusterName: %v, TableCount: %v)",
+            cluster,
+            std::ssize(tablePaths));
+        auto tableIdsWithCellTags = ResolveTablePaths(client, tablePaths);
+        YT_LOG_DEBUG("Finished resolving alien table paths (ClusterName: %v)", cluster);
+
+        THashMap<TTableId, TAlienTablePtr> alienTables;
+        THashMap<TTableId, TCellTag> tableIdToCellTag;
+        YT_VERIFY(std::ssize(tableIdsWithCellTags) == std::ssize(tablePaths));
+        for (int index = 0; index < std::ssize(tableIdsWithCellTags); ++index) {
+            if (tableIdsWithCellTags[index].first) {
+                YT_VERIFY(tableIdsWithCellTags[index].second);
+                TableRegistry_->AddAlienTablePath(cluster, tablePaths[index], tableIdsWithCellTags[index].first);
+                EmplaceOrCrash(alienTables, tableIdsWithCellTags[index].first, New<TAlienTable>(
+                    tablePaths[index],
+                    tableIdsWithCellTags[index].first,
+                    tableIdsWithCellTags[index].second.value()));
+                EmplaceOrCrash(
+                    tableIdToCellTag,
+                    tableIdsWithCellTags[index].first,
+                    tableIdsWithCellTags[index].second.value());
+            }
+        }
+
+        YT_LOG_DEBUG("Resolved alien table paths (ClusterName: %v, TableCount: %v)",
+            cluster,
+            std::ssize(alienTables));
+
+        auto tableIdsToFetchStatistics = GetKeySet(alienTables);
+
+        YT_LOG_DEBUG("Started fetching alien table statistics (ClusterName: %v, TableCount: %v)",
+            cluster,
+            tableIdsToFetchStatistics.size());
+        Counters_->TableStatisticsRequestCount.Increment(tableIdsToFetchStatistics.size());
+
+        auto tableIdToStatistics = FetchTableStatistics(
+            client,
+            tableIdsToFetchStatistics,
+            /*tableIdsToFetchPivotKeys*/ tableIdsToFetchStatistics,
+            tableIdToCellTag,
+            /*fetchPerformanceCounters*/ false,
+            /*parameterizedBalancingEnabledDefault*/ true);
+
+        YT_LOG_DEBUG("Finished fetching alien table statistics (ClusterName: %v, TableCount: %v)",
+            cluster,
+            tableIdToStatistics.size());
+
+        YT_LOG_DEBUG("Started fetching tablet balancer config (ClusterName: %v)", cluster);
+        auto config = FetchTabletBalancerConfig(client);
+        YT_LOG_DEBUG("Finished fetching tablet balancer config (ClusterName: %v)", cluster);
+
+        THROW_ERROR_EXCEPTION_IF(!config->UseStatisticsReporter || config->StatisticsTablePath.empty(),
+            "Cannot fetch table performance counters from another cluster without statistics table");
+
+        auto tableIdsToFetchCounters = GetKeySet(tableIdToStatistics);
+
+        YT_LOG_DEBUG("Started fetching alien table performance counters from archive (Cluster: %v, TableCount: %v)",
+            cluster,
+            tableIdsToFetchCounters.size());
+
+        auto [tableToPerformanceCounters, tableSchema] = FetchPerformanceCountersAndSchemaFromTable(
+            client,
+            tableIdsToFetchCounters,
+            config->StatisticsTablePath);
+
+        YT_LOG_DEBUG("Finished fetching alien table performance counters from archive (Cluster: %v, TableCount: %v)",
+            cluster,
+            tableToPerformanceCounters.size());
+
+        Bundle_->PerClusterPerformanceCountersTableSchemas[cluster] = std::move(tableSchema);
+
+        YT_LOG_DEBUG("Started filling alien table statistics and performance counters (Cluster: %v, TableCount: %v)",
+            cluster,
+            tableToPerformanceCounters.size());
+
+        FillPerformanceCounters(&tableIdToStatistics, tableToPerformanceCounters);
+
+        auto aliveTables = GetKeySet(tableToPerformanceCounters);
+        DropMissingKeys(tableIdToStatistics, aliveTables);
+
+        const auto& minorToMajorTables = GetOrCrash(perClusterMinorToMajorTables, cluster);
+        for (auto& [tableId, statistics] : tableIdToStatistics) {
+            auto table = GetOrCrash(alienTables, tableId);
+            for (auto& tabletResponse : statistics.Tablets) {
+                auto tablet = New<TTablet>(tabletResponse.TabletId, /*table*/ nullptr);
+                FillTabletWithStatistics(tablet, tabletResponse);
+
+                YT_VERIFY(tablet->Index == std::ssize(table->Tablets));
+
+                table->Tablets.push_back(std::move(tablet));
+            }
+            table->PivotKeys = std::move(statistics.PivotKeys);
+
+            THROW_ERROR_EXCEPTION_IF(std::ssize(table->PivotKeys) != std::ssize(table->Tablets),
+                "Not all pivot keys of table %v are known. Fetched %v tablets and %v pivot keys",
+                tableId,
+                std::ssize(table->Tablets),
+                std::ssize(table->PivotKeys));
+
+            const auto& majorTables = GetOrCrash(minorToMajorTables, table->Path);
+            for (const auto& majorTableId : majorTables) {
+                auto majorTable = GetOrCrash(Bundle_->Tables, majorTableId);
+                majorTable->AlienTables[cluster].push_back(table);
+            }
+
+            TableRegistry_->AddAlienTable(std::move(table), majorTables);
+        }
+
+        YT_LOG_DEBUG("Finished filling alien table statistics and performance counters (Cluster: %v, TableCount: %v)",
+            cluster,
+            tableIdToStatistics.size());
+    }
+}
+
 TBundleState::TTabletCellInfo TBundleState::TabletCellInfoFromAttributes(
     TTabletCellId cellId,
     const IAttributeDictionaryPtr& attributes) const
@@ -508,7 +832,7 @@ THashMap<TTabletCellId, TBundleState::TTabletCellInfo> TBundleState::FetchTablet
 {
     THashMap<TCellTag, TCellTagBatch> batchRequests;
 
-    static const std::vector<TString> attributeKeys{"tablets", "status", "total_statistics", "peers", "tablet_cell_life_stage"};
+    static const std::vector<std::string> attributeKeys{"tablets", "status", "total_statistics", "peers", "tablet_cell_life_stage"};
     for (auto cellTag : cellTags) {
         auto proxy = CreateObjectServiceReadProxy(
             Client_,
@@ -589,7 +913,7 @@ THashMap<TNodeAddress, TTabletCellBundle::TNodeStatistics> TBundleState::GetNode
 THashMap<TTableId, TTablePtr> TBundleState::FetchBasicTableAttributes(
     const THashSet<TTableId>& tableIds) const
 {
-    static const std::vector<TString> attributeKeys{"path", "external", "sorted", "external_cell_tag"};
+    static const std::vector<std::string> attributeKeys{"path", "external", "sorted", "external_cell_tag"};
     auto tableToAttributes = FetchAttributes(Client_, tableIds, attributeKeys);
 
     THashMap<TTableId, TTablePtr> tableInfos;
@@ -624,7 +948,8 @@ THashMap<TTableId, TBundleState::TTableSettings> TBundleState::FetchActualTableS
     auto cellTagToBatch = FetchTableAttributes(
         Client_,
         tableIds,
-        Bundle_->Tables,
+        /*tableIdsToFetchPivotKeys*/ {},
+        BuildTableToCellTagMapping(Bundle_->Tables),
         [] (const NTabletClient::TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr& request) {
             request->set_fetch_balancing_attributes(true);
         });
@@ -659,14 +984,19 @@ THashMap<TTableId, TBundleState::TTableSettings> TBundleState::FetchActualTableS
     return tableConfigs;
 }
 
-THashMap<TTableId, std::vector<TBundleState::TTabletStatisticsResponse>> TBundleState::FetchTableStatistics(
+THashMap<TTableId, TBundleState::TTableStatisticsResponse> TBundleState::FetchTableStatistics(
+    const NApi::NNative::IClientPtr& client,
     const THashSet<TTableId>& tableIds,
-    bool fetchPerformanceCounters) const
+    const THashSet<TTableId>& tableIdsToFetchPivotKeys,
+    const THashMap<TTableId, TCellTag>& tableIdToCellTag,
+    bool fetchPerformanceCounters,
+    bool parameterizedBalancingEnabledDefault) const
 {
     auto cellTagToBatch = FetchTableAttributes(
-        Client_,
+        client,
         tableIds,
-        Bundle_->Tables,
+        tableIdsToFetchPivotKeys,
+        tableIdToCellTag,
         [fetchPerformanceCounters] (const NTabletClient::TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr& request) {
             request->set_fetch_statistics(true);
             if (fetchPerformanceCounters) {
@@ -674,7 +1004,7 @@ THashMap<TTableId, std::vector<TBundleState::TTabletStatisticsResponse>> TBundle
             }
     });
 
-    THashMap<TTableId, std::vector<TTabletStatisticsResponse>> tableStatistics;
+    THashMap<TTableId, TTableStatisticsResponse> tableToStatistics;
     for (const auto& [cellTag, batch] : cellTagToBatch) {
         THROW_ERROR_EXCEPTION_IF_FAILED(
             batch.Response.Get(),
@@ -682,11 +1012,10 @@ THashMap<TTableId, std::vector<TBundleState::TTabletStatisticsResponse>> TBundle
             cellTag);
 
         auto responseBatch = batch.Response.Get().ValueOrThrow();
-        auto statisticsFieldNames = FromProto<std::vector<TString>>(responseBatch->statistics_field_names());
+        auto statisticsFieldNames = FromProto<std::vector<std::string>>(responseBatch->statistics_field_names());
 
         for (int index = 0; index < batch.Request->table_ids_size(); ++index) {
             auto tableId = FromProto<TTableId>(batch.Request->table_ids()[index]);
-            auto table = GetOrCrash(Bundle_->Tables, tableId);
 
             const auto& response = responseBatch->tables()[index];
             if (response.tablets_size() == 0) {
@@ -694,12 +1023,16 @@ THashMap<TTableId, std::vector<TBundleState::TTabletStatisticsResponse>> TBundle
                 continue;
             }
 
-            auto parameterizedBalancingEnabled = table->IsParameterizedMoveBalancingEnabled() ||
-                table->IsParameterizedReshardBalancingEnabled(/*enableParameterizedReshardByDefault*/ true);
+            bool parameterizedBalancingEnabled = parameterizedBalancingEnabledDefault;
+            if (!parameterizedBalancingEnabled) {
+                auto table = GetOrCrash(Bundle_->Tables, tableId);
+                parameterizedBalancingEnabled |= table->IsParameterizedMoveBalancingEnabled() ||
+                    table->IsParameterizedReshardBalancingEnabled(/*enableParameterizedReshardByDefault*/ true);
+            }
 
-            std::vector<TTabletStatisticsResponse> tablets;
+            TTableStatisticsResponse tableStatistics;
             for (const auto& tablet : response.tablets()) {
-                tablets.push_back(TTabletStatisticsResponse{
+                tableStatistics.Tablets.push_back(TTabletStatisticsResponse{
                     .Index = tablet.index(),
                     .TabletId = FromProto<TTabletId>(tablet.tablet_id()),
                     .State = FromProto<ETabletState>(tablet.state()),
@@ -710,33 +1043,37 @@ THashMap<TTableId, std::vector<TBundleState::TTabletStatisticsResponse>> TBundle
                 });
 
                 if (fetchPerformanceCounters) {
-                    tablets.back().PerformanceCounters = tablet.performance_counters();
+                    tableStatistics.Tablets.back().PerformanceCounters = tablet.performance_counters();
                 }
 
                 if (tablet.has_cell_id()) {
-                    tablets.back().CellId = FromProto<TTabletCellId>(tablet.cell_id());
+                    tableStatistics.Tablets.back().CellId = FromProto<TTabletCellId>(tablet.cell_id());
                 }
 
                 if (tablet.has_mount_time()) {
-                    tablets.back().MountTime = FromProto<TInstant>(tablet.mount_time());
+                    tableStatistics.Tablets.back().MountTime = FromProto<TInstant>(tablet.mount_time());
                 }
             }
 
-            EmplaceOrCrash(tableStatistics, tableId, std::move(tablets));
+            if (tableIdsToFetchPivotKeys.contains(tableId) && response.pivot_keys_size() > 0) {
+                tableStatistics.PivotKeys = FromProto<std::vector<TLegacyOwningKey>>(response.pivot_keys());
+            }
+
+            EmplaceOrCrash(tableToStatistics, tableId, std::move(tableStatistics));
         }
     }
 
-    return tableStatistics;
+    return tableToStatistics;
 }
 
 void TBundleState::FetchPerformanceCountersFromTable(
-    THashMap<TTableId, std::vector<TTabletStatisticsResponse>>* tableIdToStatistics,
+    THashMap<TTableId, TTableStatisticsResponse>* tableIdToStatistics,
     const NYPath::TYPath& statisticsTablePath)
 {
     YT_VERIFY(!statisticsTablePath.empty());
 
     THashSet<TTableId> tableIdsToFetch;
-    for (const auto& [tableId, tablets] : *tableIdToStatistics) {
+    for (const auto& [tableId, statistics] : *tableIdToStatistics) {
         const auto& table = GetOrCrash(Bundle_->Tables, tableId);
         if (table->IsParameterizedMoveBalancingEnabled() ||
             table->IsParameterizedReshardBalancingEnabled(/*enableParameterizedReshardByDefault*/ true))
@@ -752,50 +1089,42 @@ void TBundleState::FetchPerformanceCountersFromTable(
     YT_LOG_DEBUG("Started fetching table performance counters from archive (TableCount: %v)",
         tableIdsToFetch.size());
 
-    std::vector<TString> quotedTableIds;
-    for (auto tableId : tableIdsToFetch) {
-        quotedTableIds.push_back("\"" + ToString(tableId) + "\"");
-    }
+    auto [tableToPerformanceCounters, schema] = FetchPerformanceCountersAndSchemaFromTable(
+        Client_,
+        tableIdsToFetch,
+        statisticsTablePath);
+    Bundle_->PerformanceCountersTableSchema = std::move(schema);
+    YT_VERIFY(Bundle_->PerformanceCountersTableSchema);
 
-    NQueryClient::TQueryBuilder builder;
-    builder.SetSource(statisticsTablePath);
-    builder.AddSelectExpression("*");
-    builder.AddWhereConjunct(Format(
-        "table_id in (%v)",
-        JoinSeq(", ", quotedTableIds)));
+    FillPerformanceCounters(tableIdToStatistics, tableToPerformanceCounters);
 
-    auto selectResult = WaitFor(Client_->SelectRows(builder.Build()))
-        .ValueOrThrow();
-    PerformanceCountersTableSchema_ = selectResult.Rowset->GetSchema();
-
-    THashMap<TTableId, THashMap<TTabletId, TUnversionedOwningRow>> tableToPerformanceCounters;
-    for (const auto& row : selectResult.Rowset->GetRows()) {
-        auto tableId = TGuid::FromString(FromUnversionedValue<TString>(
-            row[PerformanceCountersTableSchema_->GetColumnIndexOrThrow("table_id")]));
-        auto tabletId = TGuid::FromString(FromUnversionedValue<TString>(
-            row[PerformanceCountersTableSchema_->GetColumnIndexOrThrow("tablet_id")]));
-        tableToPerformanceCounters[tableId][tabletId] = TUnversionedOwningRow(row);
-    }
-
-
-    THashSet<TTableId> aliveTables;
-    for (auto& [tableId, tablets] : *tableIdToStatistics) {
+    auto aliveTables = GetKeySet(tableToPerformanceCounters);
+    for (const auto& [tableId, _] : *tableIdToStatistics) {
         if (!tableIdsToFetch.contains(tableId)) {
             aliveTables.insert(tableId);
-            continue;
         }
+    }
+    DropMissingKeys(*tableIdToStatistics, aliveTables);
 
+    YT_LOG_DEBUG("Finished fetching table performance counters from archive (TableCount: %v)",
+        tableToPerformanceCounters.size());
+}
+
+void TBundleState::FillPerformanceCounters(
+    THashMap<TTableId, TTableStatisticsResponse>* tableIdToStatistics,
+    const TTablePerformanceCountersMap& tableToPerformanceCounters) const
+{
+    for (auto& [tableId, statistics] : *tableIdToStatistics) {
         auto it = tableToPerformanceCounters.find(tableId);
         if (it == tableToPerformanceCounters.end()) {
-            // The table has already been deleted or
+            // The table may not be fetched or
+            // the table has already been deleted or
             // the table is too new, then we just pretend that we haven’t seen it yet.
             continue;
         }
 
-        aliveTables.insert(tableId);
-
         auto& tabletToPerformanceCounters = it->second;
-        for (auto& tablet : tablets) {
+        for (auto& tablet : statistics.Tablets) {
             // There might be no such tablet in select result if the tablet has been unmounted for a long time
             // and performance counters have already been removed by ttl from the table.
             if (auto performanceCountersIt = tabletToPerformanceCounters.find(tablet.TabletId);
@@ -810,14 +1139,9 @@ void TBundleState::FetchPerformanceCountersFromTable(
             }
         }
     }
-
-    DropMissingKeys(*tableIdToStatistics, aliveTables);
-
-    YT_LOG_DEBUG("Finished fetching table performance counters from archive (TableCount: %v)",
-        tableToPerformanceCounters.size());
 }
 
-const TTableProfilingCounters& TBundleState::GetProfilingCounters(
+TTableProfilingCounters& TBundleState::GetProfilingCounters(
     const TTable* table,
     const TString& groupName)
 {
@@ -853,6 +1177,7 @@ TTableProfilingCounters TBundleState::InitializeProfilingCounters(
     profilingCounters.TabletSplits = profiler.Counter("/tablet_balancer/tablet_splits");
     profilingCounters.NonTrivialReshards = profiler.Counter("/tablet_balancer/non_trivial_reshards");
     profilingCounters.ParameterizedMoves = profiler.Counter("/tablet_balancer/parameterized_moves");
+    profilingCounters.ReplicaMoves = profiler.Counter("/table_balancer/parameterized_replica_moves");
     profilingCounters.ParameterizedReshardMerges = profiler.Counter(
         "/tablet_balancer/parameterized_reshard_merges");
     profilingCounters.ParameterizedReshardSplits = profiler.Counter(
@@ -863,15 +1188,42 @@ TTableProfilingCounters TBundleState::InitializeProfilingCounters(
 
 void TBundleState::SetTableStatistics(
     const TTablePtr& table,
-    const std::vector<TTabletStatisticsResponse>& tablets)
+    const TTableStatisticsResponse& statistics)
 {
     table->CompressedDataSize = 0;
     table->UncompressedDataSize = 0;
 
-    for (const auto& tablet : tablets) {
+    for (const auto& tablet : statistics.Tablets) {
         table->CompressedDataSize += tablet.Statistics.CompressedDataSize;
         table->UncompressedDataSize += tablet.Statistics.UncompressedDataSize;
     }
+}
+
+THashSet<TTableId> TBundleState::GetReplicaBalancingMajorTables() const
+{
+    THashSet<TTableId> majorTableIds;
+    for (const auto& [id, table] : Bundle_->Tables) {
+        if (table->IsParameterizedMoveBalancingEnabled() ||
+            table->IsParameterizedReshardBalancingEnabled(/*enableParameterizedReshardByDefault*/ true))
+        {
+            const auto& groupConfig = GetOrCrash(Bundle_->Config->Groups, *table->GetBalancingGroup());
+            const auto& replicaClusters = groupConfig->Parameterized->ReplicaClusters;
+            if (replicaClusters.empty()) {
+                continue;
+            }
+
+            if (std::ranges::count(replicaClusters, SelfClusterName_) == 0) {
+                THROW_ERROR_EXCEPTION(
+                    "Wrong parameterized replica balancing configuration. "
+                    "The list of replica clusters must contain current cluster name")
+                    << TErrorAttribute("replica_clusters", replicaClusters)
+                    << TErrorAttribute("current_cluster_name", SelfClusterName_);
+            }
+            majorTableIds.insert(id);
+        }
+    }
+
+    return majorTableIds;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

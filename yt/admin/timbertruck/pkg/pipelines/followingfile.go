@@ -49,8 +49,8 @@ func (f *FollowingFile) Read(buf []byte) (read int, err error) {
 	return f.ReadContext(context.Background(), buf)
 }
 
-func (f *FollowingFile) FilePosition() int64 {
-	return f.filePosition
+func (f *FollowingFile) FilePosition() FilePosition {
+	return FilePosition{LogicalOffset: f.filePosition}
 }
 
 func (f *FollowingFile) ReadContext(ctx context.Context, buf []byte) (read int, err error) {
@@ -58,6 +58,7 @@ func (f *FollowingFile) ReadContext(ctx context.Context, buf []byte) (read int, 
 		read, err = f.file.Read(buf)
 		f.filePosition += int64(read)
 		if err != nil && err != io.EOF {
+			err = fmt.Errorf("failed to read bytes (read: %d): %w", read, err)
 			return
 		}
 		if read > 0 {
@@ -86,4 +87,9 @@ func (f *FollowingFile) Stop() {
 
 func (f *FollowingFile) Close() error {
 	return f.file.Close()
+}
+
+func (f *FollowingFile) seekBack(offset int) error {
+	_, err := f.file.Seek(int64(-offset), io.SeekCurrent)
+	return err
 }

@@ -37,26 +37,6 @@ template <class T>
     };
 }
 
-template <class TKey, class TValue>
-::google::protobuf::Map<TKey, TValue> HashMapToProtoMap(const THashMap<TKey, TValue>& hashMap)
-{
-    ::google::protobuf::Map<TKey, TValue> result;
-    for (const auto& [key, value] : hashMap) {
-        InsertOrCrash(result, ::google::protobuf::MapPair<TKey, TValue>(key, value));
-    }
-    return result;
-}
-
-template <class TKey, class TValue>
-THashMap<TKey, TValue> HashMapFromProtoMap(const ::google::protobuf::Map<TKey, TValue>& proto)
-{
-    THashMap<TKey, TValue> result;
-    for (const auto& [key, value] : proto) {
-        EmplaceOrCrash(result, key, value);
-    }
-    return result;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 template <std::derived_from<google::protobuf::Message> TObject, class TValue>

@@ -34,7 +34,7 @@ using namespace NHiveClient;
 using namespace NSecurityClient;
 using namespace NLogging;
 
-static constexpr auto& Logger = YqlAgentLogger;
+constinit const auto Logger = YqlAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -88,6 +88,11 @@ public:
     TActiveQueriesGuard CreateGuard()
     {
         return TActiveQueriesGuard(MaxSimultaneousQueries_, &ActiveQueries_);
+    }
+
+    int GetGuardedValue() const
+    {
+        return ActiveQueries_.load();
     }
 
 private:
@@ -185,6 +190,10 @@ public:
         , ThreadPool_(CreateThreadPool(Config_->YqlThreadCount, "Yql"))
         , ActiveQueriesGuardFactory_(TActiveQueriesGuardFactory(DynamicConfig_->MaxSimultaneousQueries))
     {
+        YqlAgentProfiler().AddFuncGauge("/active_queries", MakeStrong(this), [this] {
+            return ActiveQueriesGuardFactory_.GetGuardedValue();
+        });
+
         static const TYsonString EmptyMap = TYsonString(TString("{}"));
 
         auto clustersConfig = Config_->GatewayConfig->AsMap()->GetChildOrThrow("cluster_mapping")->AsList();
@@ -230,6 +239,7 @@ public:
             .OperationAttributes = ConvertToYsonString(Config_->OperationAttributes),
             .Libraries = ConvertToYsonString(Config_->Libraries),
             .YTTokenPath = Config_->YTTokenPath,
+            .UIOrigin = Config_->UIOrigin,
             .LogBackend = NYT::NLogging::CreateArcadiaLogBackend(TLogger("YqlPlugin")),
             .YqlPluginSharedLibrary = Config_->YqlPluginSharedLibrary,
         };
@@ -357,7 +367,7 @@ private:
 
         std::vector<TSharedRef> wireRowsets;
         try {
-            auto query = Format("pragma yt.UseNativeYtTypes; pragma ResultRowsLimit=\"%v\";\n%v", request.row_count_limit(), yqlRequest.query());
+            auto query = Format("pragma yt.UseNativeYtTypes;\npragma yt.UseNativeDynamicTableRead;\npragma ResultRowsLimit=\"%v\";\n%v", request.row_count_limit(), yqlRequest.query());
             auto settings = yqlRequest.has_settings() ? TYsonString(yqlRequest.settings()) : EmptyMap;
 
             std::vector<NYqlPlugin::TQueryFile> files;
@@ -378,15 +388,28 @@ private:
 
             THashMap<TString, NApi::NNative::IClientPtr> queryClients;
             for (const auto& clusterName : clustersResult.Clusters) {
-                queryClients[clusterName] = ClusterDirectory_->GetConnectionOrThrow(clusterName)->CreateNativeClient(NApi::TClientOptions{ .User = user });
+                queryClients[clusterName] = ClusterDirectory_->GetConnectionOrThrow(clusterName)->CreateNativeClient(NApi::TClientOptions::FromUser(user));
             }
 
             auto token = IssueToken(queryId, user, clustersResult.Clusters, queryClients, Config_->TokenExpirationTimeout, Config_->IssueTokenAttempts);
 
+
             auto refreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, user, token, queryClients), Config_->RefreshTokenPeriod);
             refreshTokenExecutor->Start();
 
-            const THashMap<TString, THashMap<TString, TString>> credentials = {{"default_yt", {{"category", "yt"}, {"content", token}}}};
+            const auto defaultCluster = clustersResult.Clusters.front();
+            THashMap<TString, THashMap<TString, TString>> credentials = {{"default_yt", {{"category", "yt"}, {"content", token}}}};
+            for (const auto& src : yqlRequest.secrets()) {
+                auto& dst = credentials[src.id()];
+                dst["content"] = ConvertTo<TString>(WaitFor(queryClients[defaultCluster]->GetNode(src.ypath())).ValueOrThrow());
+                if (src.has_category()) {
+                    dst["category"] = src.category();
+                }
+                if (src.has_subcategory()) {
+                    dst["subcategory"] = src.subcategory();
+                }
+            }
+
             // This is a long blocking call.
             const auto result = YqlPlugin_->Run(queryId, user, ConvertToYsonString(credentials), query, settings, files, yqlRequest.mode());
             WaitFor(refreshTokenExecutor->Stop()).ThrowOnError();

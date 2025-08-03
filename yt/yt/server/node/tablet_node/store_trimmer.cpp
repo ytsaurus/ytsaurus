@@ -1,8 +1,9 @@
 #include "store_trimmer.h"
 
 #include "bootstrap.h"
+#include "config.h"
 #include "ordered_chunk_store.h"
-#include "private.h"
+#include "replication_log.h"
 #include "slot_manager.h"
 #include "store.h"
 #include "store_manager.h"
@@ -10,7 +11,6 @@
 #include "tablet_manager.h"
 #include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
-#include "replication_log.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -35,6 +35,8 @@
 
 #include <yt/yt/ytlib/transaction_client/action.h>
 
+#include <yt/yt/core/actions/cancelable_context.h>
+
 #include <yt/yt/core/ytree/helpers.h>
 
 namespace NYT::NTabletNode {
@@ -43,8 +45,10 @@ using namespace NApi;
 using namespace NConcurrency;
 using namespace NHydra;
 using namespace NObjectClient;
+using namespace NLogging;
 using namespace NTabletNode::NProto;
 using namespace NTabletServer::NProto;
+using namespace NTracing;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NTabletClient;
@@ -54,10 +58,63 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletNodeLogger;
+class TChaosDataTrimProgressGuard
+    : public TMoveOnly
+{
+public:
+    TChaosDataTrimProgressGuard(
+        TChaosTabletDataPtr chaosTabletData,
+        TCancelableContextPtr tabletCancelableContext,
+        const TLogger& logger)
+        : Logger(logger.WithTag("TrimGuardId: %v", TGuid::Create()))
+        , TabletCancelableContext_(std::move(tabletCancelableContext))
+        , ChaosTabletData_(std::move(chaosTabletData))
+    {
+        if (ChaosTabletData_) {
+            ChaosTabletData_->IsTrimInProgress.store(true);
+        }
+    }
+
+    TChaosDataTrimProgressGuard(TChaosDataTrimProgressGuard&& guard)
+        : Logger(std::move(guard.Logger))
+        , TabletCancelableContext_(std::move(guard.TabletCancelableContext_))
+        , ChaosTabletData_(std::move(guard.ChaosTabletData_))
+    { }
+
+    ~TChaosDataTrimProgressGuard()
+    {
+        if (!ChaosTabletData_) {
+            return;
+        }
+
+        if (TabletCancelableContext_ && TabletCancelableContext_->IsCanceled()) {
+            YT_LOG_DEBUG("Tablet epoch changed, do nothing");
+            return;
+        }
+
+        if (!ChaosTabletData_->IsTrimInProgress.load()) {
+            YT_LOG_ALERT("Chaos data trimming progress flag was reset unexpectedly");
+            return;
+        }
+
+        ChaosTabletData_->IsTrimInProgress.store(false);
+
+        YT_LOG_DEBUG("Replication log trimming finished without actually trimming");
+    }
+
+    void Release()
+    {
+        ChaosTabletData_.Reset();
+    }
+
+private:
+    const TLogger Logger;
+    const TCancelableContextPtr TabletCancelableContext_;
+
+    TChaosTabletDataPtr ChaosTabletData_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
-
 class TStoreTrimmer
     : public IStoreTrimmer
 {
@@ -74,7 +131,6 @@ public:
 
 private:
     IBootstrap* const Bootstrap_;
-
 
     void OnScanSlot(const ITabletSlotPtr& slot)
     {
@@ -184,7 +240,18 @@ private:
             trimmedRowCount = chunkStore->GetStartingRowIndex() + chunkStore->GetRowCount();
         }
 
-        CommitTrimRowsMutation(slot, tablet->GetId(), trimmedRowCount);
+        auto logger = TabletNodeLogger()
+            .WithTag("%v", tablet->GetLoggingTag());
+        auto finallyGuard = TChaosDataTrimProgressGuard(
+            nullptr,
+            tablet->GetCancelableContext(),
+            logger);
+        CommitTrimRowsMutation(
+            std::move(slot),
+            tablet->GetId(),
+            trimmedRowCount,
+            std::move(finallyGuard),
+            std::move(logger));
     }
 
     void RequestReplicationLogStoreTrim(
@@ -205,6 +272,16 @@ private:
             return;
         }
 
+        auto tabletId = tablet->GetId();
+        auto tabletChaosData = tablet->ChaosData();
+
+        auto Logger = TabletNodeLogger().WithTag("%v", tablet->GetLoggingTag());
+
+        if (tabletChaosData->IsTrimInProgress.load()) {
+            YT_LOG_DEBUG("Skipping replication log trimming because previous iteration is not finished yet");
+            return;
+        }
+
         auto minTimestamp = MaxTimestamp;
         auto lower = tablet->GetPivotKey().Get();
         auto upper = tablet->GetNextPivotKey().Get();
@@ -217,26 +294,81 @@ private:
             minTimestamp = std::min(minTimestamp, replicaMinTimestamp);
         }
 
-        Bootstrap_->GetTableReplicatorPoolInvoker()->Invoke(BIND(
-            &TStoreTrimmer::FindReplicationLogTrimRowIndex,
-            MakeWeak(this),
-            tablet->GetId(),
-            tablet->GetEpochAutomatonInvoker(),
+        auto finallyGuard = TChaosDataTrimProgressGuard(
+            std::move(tabletChaosData),
+            tablet->GetCancelableContext(),
+            Logger);
+
+        TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("ChaosReplicationLogStoreTrim"));
+
+        YT_LOG_DEBUG("Replication log trimming started");
+
+        auto startRowIndexFuture = BIND(
+            &TStoreTrimmer::ComputeReplicationLogTrimRowIndex,
+            MakeStrong(this),
+            tabletId,
+            tablet->GetMountRevision(),
             minTimestamp,
-            slot));
+            Logger)
+            .AsyncVia(Bootstrap_->GetTableReplicatorPoolInvoker())
+            .Run();
+
+        auto tabletInvoker = tablet->GetEpochAutomatonInvoker();
+        startRowIndexFuture.SubscribeUnique(
+            BIND([
+                tabletId,
+                slot = std::move(slot),
+                tabletInvoker = std::move(tabletInvoker),
+                finallyGuard = std::move(finallyGuard),
+                Logger
+            ] (TErrorOr<std::optional<i64>>&& errorOrStartRowIndex) mutable {
+                if (!errorOrStartRowIndex.IsOK()) {
+                    YT_LOG_DEBUG(errorOrStartRowIndex,
+                        "Skipping replication log trimming due to start index calculation error");
+                    return;
+                }
+
+                if (!errorOrStartRowIndex.Value()) {
+                    YT_LOG_DEBUG("Skipping replication log trimming due to start index calculated to null");
+                    return;
+                }
+
+                tabletInvoker->Invoke(BIND([
+                    tabletId,
+                    slot = std::move(slot),
+                    startRowIndex = *errorOrStartRowIndex.Value(),
+                    finallyGuard = std::move(finallyGuard),
+                    logger = Logger
+                ] () mutable {
+                    TStoreTrimmer::CommitTrimRowsMutation(
+                        std::move(slot),
+                        tabletId,
+                        startRowIndex,
+                        std::move(finallyGuard),
+                        std::move(logger));
+                }));
+            }));
     }
 
-    void FindReplicationLogTrimRowIndex(
+    std::optional<i64> ComputeReplicationLogTrimRowIndex(
         TTabletId tabletId,
-        IInvokerPtr tabletInvoker,
+        TRevision mountRevision,
         TTimestamp trimTimestamp,
-        ITabletSlotPtr slot)
+        TLogger Logger)
     {
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
 
         auto tabletSnapshot = snapshotStore->FindLatestTabletSnapshot(tabletId);
         if (!tabletSnapshot) {
-            return;
+            return std::nullopt;
+        }
+
+        if (tabletSnapshot->MountRevision != mountRevision) {
+            YT_LOG_DEBUG("Skipping replication log trim iteration due to mount revision mismatch "
+                "(RequestedMountRevision: %v, CurrentMountRevision: %v)",
+                mountRevision,
+                tabletSnapshot->MountRevision);
+            return std::nullopt;
         }
 
         try {
@@ -255,36 +387,27 @@ private:
                 trimTimestamp,
                 chunkReadOptions);
 
-            YT_LOG_DEBUG("Computed replication log trim row count (TabletId: %v, TrimTimestamp: %v, TrimRowCount: %v)",
-                tabletId,
+            YT_LOG_DEBUG("Computed replication log trim row count (TrimTimestamp: %v, TrimRowCount: %v)",
                 trimTimestamp,
                 startRowIndex);
 
-            if (!startRowIndex) {
-                return;
-            }
-
-            tabletInvoker->Invoke(BIND(
-                &TStoreTrimmer::CommitTrimRowsMutation,
-                MakeWeak(this),
-                slot,
-                tabletId,
-                *startRowIndex));
+            return startRowIndex;
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Error computing replication log trim row count (TabletId: %v)",
-                tabletId);
+            YT_LOG_ERROR(ex, "Error computing replication log trim row count");
+            return std::nullopt;
         }
     }
 
-    void CommitTrimRowsMutation(
+    static void CommitTrimRowsMutation(
         ITabletSlotPtr slot,
         TTabletId tabletId,
-        i64 trimmedRowCount)
+        i64 trimmedRowCount,
+        TChaosDataTrimProgressGuard&& finallyGuard,
+        TLogger Logger)
     {
         auto* tablet = slot->GetTabletManager()->FindTablet(tabletId);
         if (!tablet) {
-            YT_LOG_ALERT("Tablet not found while we are in tablet automaton invoker (TabletId: %v)",
-                tabletId);
+            YT_LOG_ALERT("Tablet not found while we are in tablet automaton invoker");
             return;
         }
 
@@ -296,8 +419,10 @@ private:
         ToProto(hydraRequest.mutable_tablet_id(), tablet->GetId());
         hydraRequest.set_mount_revision(ToProto(tablet->GetMountRevision()));
         hydraRequest.set_trimmed_row_count(trimmedRowCount);
-        YT_UNUSED_FUTURE(CreateMutation(slot->GetHydraManager(), hydraRequest)
-            ->CommitAndLog(Logger()));
+        auto mutation = CreateMutation(slot->GetHydraManager(), hydraRequest);
+        mutation->SetCurrentTraceContext();
+        YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
+        finallyGuard.Release();
     }
 
     void TrimStores(

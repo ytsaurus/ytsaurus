@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
+#include <yt/yt/server/cell_balancer/bundle_mutation.h>
+
 namespace NYT::NCellBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,7 +30,8 @@ DECLARE_REFCOUNTED_STRUCT(TDeallocationRequestSpec)
 DECLARE_REFCOUNTED_STRUCT(TDeallocationRequestStatus)
 DECLARE_REFCOUNTED_STRUCT(TDeallocationRequest)
 DECLARE_REFCOUNTED_STRUCT(TDeallocationRequestState)
-DECLARE_REFCOUNTED_STRUCT(TInstanceAnnotations)
+DECLARE_REFCOUNTED_STRUCT(TBundleControllerInstanceAnnotations)
+DECLARE_REFCOUNTED_STRUCT(TCypressAnnotations)
 DECLARE_REFCOUNTED_STRUCT(TTabletNodeInfo)
 DECLARE_REFCOUNTED_STRUCT(TTabletNodeMemoryStatistics)
 DECLARE_REFCOUNTED_STRUCT(TMemoryCategory)
@@ -52,7 +55,7 @@ DECLARE_REFCOUNTED_STRUCT(TGlobalCellRegistry)
 DECLARE_REFCOUNTED_STRUCT(TDrillsModeOperationState)
 DECLARE_REFCOUNTED_STRUCT(TDrillsModeState)
 
-template <typename TEntryInfo>
+template <class TEntryInfo>
 using TIndexedEntries = THashMap<std::string, TIntrusivePtr<TEntryInfo>>;
 using TChaosCellId = NObjectClient::TObjectId;
 
@@ -89,7 +92,7 @@ DEFINE_REFCOUNTED_TYPE(TSysConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename TDerived>
+template <class TDerived>
 class TYsonStructAttributes
     : public NYTree::TYsonStruct
 {
@@ -102,7 +105,7 @@ public:
         return holder->Attributes_;
     }
 
-    template <typename TRegistrar, typename TValue>
+    template <class TRegistrar, class TValue>
     static auto& RegisterAttribute(TRegistrar registrar, const std::string& attribute, TValue(TDerived::*field))
     {
         Attributes_.push_back(attribute);
@@ -459,6 +462,7 @@ DEFINE_REFCOUNTED_TYPE(TAllocationRequestStatus)
 
 struct TAllocationRequest
     : public NYTree::TYsonStruct
+    , public TBundleNameMixin
 {
     TAllocationRequestSpecPtr Spec;
     TAllocationRequestStatusPtr Status;
@@ -504,6 +508,7 @@ DEFINE_REFCOUNTED_TYPE(TDeallocationRequestStatus)
 
 struct TDeallocationRequest
     : public NYTree::TYsonStruct
+    , public TBundleNameMixin
 {
     TDeallocationRequestSpecPtr Spec;
     TDeallocationRequestStatusPtr Status;
@@ -637,7 +642,7 @@ DEFINE_REFCOUNTED_TYPE(TBundleControllerState)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TInstanceAnnotations
+struct TBundleControllerInstanceAnnotations
     : public NYTree::TYsonStruct
 {
     std::string YPCluster;
@@ -651,12 +656,26 @@ struct TInstanceAnnotations
 
     std::optional<std::string> DataCenter;
 
-    REGISTER_YSON_STRUCT(TInstanceAnnotations);
+    REGISTER_YSON_STRUCT(TBundleControllerInstanceAnnotations);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TInstanceAnnotations)
+DEFINE_REFCOUNTED_TYPE(TBundleControllerInstanceAnnotations)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCypressAnnotations
+    : public NYTree::TYsonStruct
+{
+    std::optional<std::string> PodId;
+
+    REGISTER_YSON_STRUCT(TCypressAnnotations);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCypressAnnotations)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -744,7 +763,8 @@ struct TTabletNodeInfo
     std::string State;
     THashSet<std::string> Tags;
     THashSet<std::string> UserTags;
-    TInstanceAnnotationsPtr Annotations;
+    TBundleControllerInstanceAnnotationsPtr BundleControllerAnnotations;
+    TCypressAnnotationsPtr CypressAnnotations;
     std::vector<TTabletSlotPtr> TabletSlots;
     THashMap<std::string, TCmsMaintenanceRequestPtr> CmsMaintenanceRequests;
     TInstant LastSeenTime;
@@ -777,7 +797,8 @@ struct TRpcProxyInfo
 {
     bool Banned;
     std::string Role;
-    TInstanceAnnotationsPtr Annotations;
+    TBundleControllerInstanceAnnotationsPtr BundleControllerAnnotations;
+    TCypressAnnotationsPtr CypressAnnotations;
     THashMap<std::string, TCmsMaintenanceRequestPtr> CmsMaintenanceRequests;
     TInstant ModificationTime;
 

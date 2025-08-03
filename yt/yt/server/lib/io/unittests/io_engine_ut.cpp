@@ -276,7 +276,7 @@ TEST_P(TIOEngineTest, ManyConcurrentDirectIOReads)
         .Get()
         .ValueOrThrow();
 
-    std::vector<TFuture<IIOEngine::TReadResponse>> futures;
+    std::vector<TFuture<TReadResponse>> futures;
     constexpr auto N = 100;
 
     for (int i = 0; i < N; ++i) {
@@ -328,10 +328,10 @@ private:
             .ValueOrThrow();
 
         while (!Stopped_) {
-            std::vector<TFuture<IIOEngine::TReadResponse>> futures;
+            std::vector<TFuture<TReadResponse>> futures;
 
             for (int requestIndex = 0; requestIndex < RequestCount; ++requestIndex) {
-                std::vector<IIOEngine::TReadRequest> readRequests;
+                std::vector<TReadRequest> readRequests;
                 readRequests.reserve(SubRequestCount);
 
                 for (int subRequestIndex = 0; subRequestIndex < SubRequestCount; ++subRequestIndex) {
@@ -366,6 +366,7 @@ TEST_P(TIOEngineTest, ChangeDynamicConfig)
         {
             uring_thread_count = %v;
             read_thread_count = %v;
+            enable_slicing = %v;
             simulated_max_bytes_per_write = 512;
         })";
 
@@ -388,9 +389,11 @@ TEST_P(TIOEngineTest, ChangeDynamicConfig)
             Sleep(RandomDuration(TDuration::MilliSeconds(10)));
 
             auto readThreadCount = RandomNumber<ui32>(7) + 1;
+            auto enableSlicing = RandomNumber<bool>();
             auto config = Format(ConfigTemplate,
                 readThreadCount,
-                readThreadCount);
+                readThreadCount,
+                enableSlicing);
 
             engine->Reconfigure(NYTree::ConvertTo<NYTree::INodePtr>(
                 NYson::TYsonString(config)));
@@ -425,7 +428,7 @@ TEST_P(TIOEngineTest, DirectIOAligned)
         .Get()
         .ValueOrThrow();
 
-    auto read = [&] (std::vector<IIOEngine::TReadRequest> requests) {
+    auto read = [&] (std::vector<TReadRequest> requests) {
         for (auto& request : requests) {
             request.Handle = file;
         }
@@ -485,6 +488,10 @@ INSTANTIATE_TEST_SUITE_P(
         std::tuple(EIOEngineType::FairShareThreadPool, DefaultConfig, AllocatorBehaviourCollocate),
         std::tuple(EIOEngineType::FairShareThreadPool, CustomConfig, AllocatorBehaviourCollocate),
         std::tuple(EIOEngineType::FairShareThreadPool, DefaultConfig, AllocatorBehaviourSeparate),
+
+        std::tuple(EIOEngineType::FairShareHierarchical, DefaultConfig, AllocatorBehaviourCollocate),
+        std::tuple(EIOEngineType::FairShareHierarchical, CustomConfig, AllocatorBehaviourCollocate),
+        std::tuple(EIOEngineType::FairShareHierarchical, DefaultConfig, AllocatorBehaviourSeparate),
 
         std::tuple(EIOEngineType::Uring, DefaultConfig, AllocatorBehaviourCollocate),
         std::tuple(EIOEngineType::Uring, CustomConfig, AllocatorBehaviourCollocate),

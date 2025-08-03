@@ -59,7 +59,7 @@ struct TDynamicTransactionManagerConfig
     bool AlertTransactionIsNotCompatibleWithMethod;
 
     // NB: If type is not present in this map, then all methods are allowed.
-    THashMap<NObjectClient::EObjectType, THashSet<TString>> TransactionTypeToMethodWhitelist;
+    THashMap<NObjectClient::EObjectType, THashSet<std::string>> TransactionTypeToMethodWhitelist;
 
     // COMPAT(kvk1920): Remove after enabling on every cluster.
     bool ForbidTransactionActionsForCypressTransactions;
@@ -73,6 +73,12 @@ struct TDynamicTransactionManagerConfig
 
     // COMPAT(shakurov)
     bool EnableStartForeignTransactionFixes;
+
+    // COMPAT(cherepashka)
+    bool EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases;
+
+    // COMPAT(aleksandra-zh)
+    int RecomputeStronglyOrderedTransactionRefs;
 
     REGISTER_YSON_STRUCT(TDynamicTransactionManagerConfig);
 

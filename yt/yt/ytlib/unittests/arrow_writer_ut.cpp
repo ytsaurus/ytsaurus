@@ -310,6 +310,7 @@ using ColumnInteger = std::vector<int64_t>;
 using ColumnInteger32 = std::vector<int32_t>;
 using ColumnString = std::vector<std::string>;
 using ColumnNullableString = std::vector<std::optional<std::string>>;
+using ColumnNullableInteger = std::vector<std::optional<int64_t>>;
 using ColumnBool = std::vector<bool>;
 using ColumnDouble = std::vector<double>;
 using ColumnFloat = std::vector<float>;
@@ -425,10 +426,42 @@ TOwnerRows MakeUnversionedNullableStringRows(
         auto columnId = nameTable->RegisterName(columnNames[colIdx]);
         for (int rowIndex = 0; rowIndex < std::ssize(column[colIdx]); rowIndex++) {
             if (column[colIdx][rowIndex] == std::nullopt) {
-                rowsBuilders[rowIndex].AddValue(MakeUnversionedNullValue( columnId));
+                rowsBuilders[rowIndex].AddValue(MakeUnversionedNullValue(columnId));
             } else {
                 strings.push_back(TString(*column[colIdx][rowIndex]));
                 rowsBuilders[rowIndex].AddValue(MakeUnversionedStringValue(strings.back(), columnId));
+            }
+        }
+    }
+    std::vector<TUnversionedRow> rows;
+    std::vector<TUnversionedOwningRow> owningRows;
+    for (int rowIndex = 0; rowIndex < std::ssize(rowsBuilders); rowIndex++) {
+        owningRows.push_back(rowsBuilders[rowIndex].FinishRow());
+        rows.push_back(owningRows.back().Get());
+    }
+    return {std::move(rows), std::move(rowsBuilders), std::move(nameTable), std::move(owningRows)};
+}
+
+TOwnerRows MakeUnversionedNullableIntegerRows(
+    const std::vector<ColumnNullableInteger>& column,
+    const std::vector<std::string>& columnNames,
+    bool isSigned = true)
+{
+    YT_VERIFY(column.size() > 0);
+
+    auto nameTable = New<TNameTable>();
+
+    std::vector<TUnversionedOwningRowBuilder> rowsBuilders(column[0].size());
+
+    for (int colIdx = 0; colIdx < std::ssize(column); colIdx++) {
+        auto columnId = nameTable->RegisterName(columnNames[colIdx]);
+        for (int rowIndex = 0; rowIndex < std::ssize(column[colIdx]); rowIndex++) {
+            if (!column[colIdx][rowIndex]) {
+                rowsBuilders[rowIndex].AddValue(MakeUnversionedNullValue(columnId));
+            } else if (isSigned) {
+                rowsBuilders[rowIndex].AddValue(MakeUnversionedInt64Value(*column[colIdx][rowIndex], columnId));
+            } else {
+                rowsBuilders[rowIndex].AddValue(MakeUnversionedUint64Value(*column[colIdx][rowIndex], columnId));
             }
         }
     }
@@ -496,6 +529,34 @@ TEST(TArrowWriterTest, SimpleInteger)
     auto batch = MakeBatch(outputStream);
     CheckColumnNames(batch, columnNames);
     EXPECT_EQ(ReadInteger64Array(batch->column(0)), column);
+}
+
+TEST(TArrowWriterTest2, Json)
+{
+    std::vector<TTableSchemaPtr> tableSchemas;
+    std::vector<std::string> columnNames = {"json"};
+
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(columnNames[0], ESimpleLogicalValueType::Json),
+    }));
+
+    TStringStream outputStream;
+
+    ColumnString column = {"42", "true"};
+
+    auto rows = MakeUnversionedStringRows({column}, columnNames);
+    auto writer = CreateArrowWriter(rows.NameTable, &outputStream, tableSchemas);
+
+    EXPECT_TRUE(writer->Write(rows.Rows));
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    auto batch = MakeBatch(outputStream);
+
+    CheckColumnNames(batch, columnNames);
+    EXPECT_EQ(ReadAnyStringArray(batch->column(0)), column);
 }
 
 TEST(TArrowWriterTest, YT_20699_WrongAlign)
@@ -566,6 +627,73 @@ TEST(TArrowWriterTest, SimpleDate)
     auto batch = MakeBatch(outputStream);
     CheckColumnNames(batch, columnNames);
     EXPECT_EQ(ReadIntegerDateArray(batch->column(0)), column);
+}
+
+TEST(TArrowWriterTest, OptionalDate)
+{
+    std::vector<TTableSchemaPtr> tableSchemas;
+    std::vector<std::string> columnNames = {"date"};
+
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(columnNames[0], ESimpleLogicalValueType::Date),
+    }));
+
+    TStringStream outputStream;
+    i64 ma = std::numeric_limits<int>::max();
+
+    ColumnNullableInteger column = {18367, std::nullopt, ma, std::nullopt};
+
+    auto rows = MakeUnversionedNullableIntegerRows({column}, columnNames, false);
+
+    auto writer = CreateArrowWriter(rows.NameTable, &outputStream, tableSchemas);
+
+    EXPECT_TRUE(writer->Write(rows.Rows));
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    auto batch = MakeBatch(outputStream);
+    CheckColumnNames(batch, columnNames);
+    auto arrowColumn = batch->column(0);
+    EXPECT_EQ(arrowColumn->null_count(), 2);
+    auto columnData = ReadIntegerDateArray(batch->column(0));
+    EXPECT_EQ(columnData[0], 18367);
+    EXPECT_EQ(columnData[1], 0);
+}
+
+TEST(TArrowWriterTest, OptionalRleDate)
+{
+    std::vector<TTableSchemaPtr> tableSchemas;
+    std::vector<std::string> columnNames = {"date"};
+
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(columnNames[0], ESimpleLogicalValueType::Date),
+    }));
+
+    TStringStream outputStream;
+    i64 ma = std::numeric_limits<int>::max();
+
+    ColumnNullableInteger column = {20, 20, 20, 30, 30, 30, std::nullopt, std::nullopt};
+    for (int i = 0; i < 100; i++) {
+        column.push_back(ma);
+    }
+
+    auto rows = MakeUnversionedNullableIntegerRows({column}, columnNames, false);
+
+    auto writer = CreateArrowWriter(rows.NameTable, &outputStream, tableSchemas);
+
+    auto columnarBatch = MakeColumnarRowBatch(rows.Rows, tableSchemas[0]);
+    EXPECT_TRUE(writer->WriteBatch(columnarBatch));
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    auto batch = MakeBatch(outputStream);
+    CheckColumnNames(batch, columnNames);
+    auto arrowColumn = batch->column(0);
+    EXPECT_EQ(arrowColumn->null_count(), 2);
 }
 
 TEST(TArrowWriterTest, SimpleDatatime)

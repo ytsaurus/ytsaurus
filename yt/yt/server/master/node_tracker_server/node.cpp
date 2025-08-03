@@ -3,6 +3,7 @@
 #include "config.h"
 #include "data_center.h"
 #include "host.h"
+#include "node_tracker.h"
 #include "node_tracker_log.h"
 #include "rack.h"
 #include "private.h"
@@ -63,7 +64,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = NodeTrackerServerLogger;
+constinit const auto Logger = NodeTrackerServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,11 +103,7 @@ void TNode::TCellNodeDescriptor::Persist(const NCellMaster::TPersistenceContext&
 
     Persist(context, State);
     Persist(context, RegistrationPending);
-
-    // COMPAT(cherepashka)
-    if (context.IsSave() || context.IsLoad() && context.GetVersion() >= EMasterReign::DynamicMasterCellReconfigurationOnNodes) {
-        Persist(context, CellReliability);
-    }
+    Persist(context, CellReliability);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -398,7 +395,7 @@ TDataCenter* TNode::GetDataCenter() const
     return rack ? rack->GetDataCenter() : nullptr;
 }
 
-bool TNode::HasTag(const std::optional<TString>& tag) const
+bool TNode::HasTag(const std::optional<std::string>& tag) const
 {
     return !tag || Tags_.find(*tag) != Tags_.end();
 }
@@ -711,13 +708,7 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, ResourceLimitsOverrides_);
     Load(context, Host_);
     Load(context, LeaseTransaction_);
-
-    if (context.GetVersion() >= EMasterReign::PersistLastSeenLeaseTransactionTimeout ||
-        context.GetVersion() < EMasterReign::SecondaryIndex)
-    {
-        Load(context, LastSeenLeaseTransactionTimeout_);
-    }
-
+    Load(context, LastSeenLeaseTransactionTimeout_);
     Load(context, Cellars_);
     Load(context, Annotations_);
     Load(context, Version_);

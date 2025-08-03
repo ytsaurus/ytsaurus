@@ -91,7 +91,10 @@ IAlertManagerPtr CreateAlertManager(
 struct IAlertCollector
     : public TRefCounted
 {
-public:
+    //! Stops propagation of alerts from collector to the associated alert manager.
+    //! After alert collector is stopped, publishing alerts is basically no-op: no alerts are actually published
+    //! and alert-based metrics are no longer reported from this alert collector.
+    virtual void Stop() = 0;
     //! Stages and stores alert.
     //! NB: The descriptions of staged alerts should be equal within the same category. This means that you
     //! can use the same category for alerts with different descriptions, but not within the same stage-publish cycle.

@@ -987,7 +987,7 @@ void TScanBlobExtractor::InitData(
     } else {
         auto idsView = CreateCompressedView(ptr, meta->IdsSize, meta->IdsWidth, newMeta);
         ptr += idsView.GetSizeInWords();
-        auto offsetsView = CreateCompressedView(ptr, meta->OffsetsSize, meta->OffsetsWidth, newMeta);;
+        auto offsetsView = CreateCompressedView(ptr, meta->OffsetsSize, meta->OffsetsWidth, newMeta);
         ptr += offsetsView.GetSizeInWords();
 
         auto& ids = tmpBuffers->Ids;

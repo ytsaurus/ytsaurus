@@ -173,6 +173,7 @@ struct TAgentHeartbeatContext
     NConcurrency::IThroughputThrottlerPtr StatisticsThrottler;
     TDuration RunningJobStatisticsSendingBackoff;
     TDuration JobStalenessDelay;
+    bool ResendFullJobInfo = true;
 
     THashSet<TJobPtr> JobsToForcefullySend;
     std::vector<TJobId> UnconfirmedJobIds;

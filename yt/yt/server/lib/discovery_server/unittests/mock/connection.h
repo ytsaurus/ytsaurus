@@ -142,6 +142,13 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    NRpc::IChannelPtr FindMasterChannel(
+        NApi::EMasterChannelKind /*kind*/,
+        NObjectClient::TCellTag /*cellTag*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     NRpc::IChannelPtr GetMasterChannelOrThrow(
         NApi::EMasterChannelKind /*kind*/,
         NObjectClient::TCellTag /*cellTag*/) override
@@ -193,22 +200,22 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    const NQueueClient::TQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const override
+    const NQueueClient::IQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const override
     {
         YT_UNIMPLEMENTED();
     }
 
-    NRpc::IRoamingChannelProviderPtr GetYqlAgentChannelProviderOrThrow(const TString& /*stage*/) const override
+    std::pair<NRpc::IRoamingChannelProviderPtr, NYqlClient::TYqlAgentChannelConfigPtr> GetYqlAgentChannelProviderOrThrow(TStringBuf /*stage*/) const override
     {
         YT_UNIMPLEMENTED();
     }
 
-    std::pair<NApi::NNative::IClientPtr, TString> GetQueryTrackerStage(const TString& /*stage*/) override
+    std::pair<NApi::NNative::IClientPtr, NYPath::TYPath> GetQueryTrackerStage(TStringBuf /*stage*/) override
     {
         YT_UNIMPLEMENTED();
     }
 
-    NRpc::IChannelPtr GetQueryTrackerChannelOrThrow(const TString& /*stage*/) override
+    NRpc::IChannelPtr GetQueryTrackerChannelOrThrow(TStringBuf /*stage*/) override
     {
         YT_UNIMPLEMENTED();
     }
@@ -276,6 +283,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    NSequoiaClient::ISequoiaClientPtr GetSequoiaClient() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     std::vector<std::string> GetDiscoveryServerAddresses() const override
     {
         YT_UNIMPLEMENTED();
@@ -291,7 +303,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    const TString& GetClusterId() const override
+    const std::string& GetClusterId() const override
     {
         YT_UNIMPLEMENTED();
     }
@@ -396,6 +408,16 @@ public:
     }
 
     NRpc::IChannelPtr CreateChannelByAddress(const std::string& /*address*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    NSignature::ISignatureGeneratorPtr GetSignatureGenerator() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void SetSignatureGenerator(NSignature::ISignatureGeneratorPtr /*generator*/) override
     {
         YT_UNIMPLEMENTED();
     }

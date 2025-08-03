@@ -267,7 +267,7 @@ def check_secondary_indices():
         attributes["external_cell_tag"] = get(f"#{table_id}/@external_cell_tag")
 
     create("table", "//tmp/index_table", attributes=attributes)
-    index_id = create_secondary_index("//tmp/main_table", "//tmp/index_table", "full_sync")
+    index_id = create_secondary_index("//tmp/main_table", "//tmp/index_table", "full_sync", "bijective")
 
     yield
 
@@ -276,12 +276,14 @@ def check_secondary_indices():
         index_id: {
             "index_path": "//tmp/index_table",
             "kind": "full_sync",
+            "table_to_index_correspondence": "bijective",
         }
     }
     assert get("//tmp/index_table/@index_to") == {
         "index_id": index_id,
         "table_path": "//tmp/main_table",
         "kind": "full_sync",
+        "table_to_index_correspondence": "bijective",
     }
 
 
@@ -785,7 +787,8 @@ class TestMastersSnapshotsShardedTx(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 4
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
-        "11": {"roles": ["transaction_coordinator"]},
+        # Master cell with tag 11 is reserved for portals.
+        "11": {"roles": ["transaction_coordinator", "cypress_node_host"]},
         "12": {"roles": ["chunk_host"]},
         "13": {"roles": ["chunk_host"]},
     }
@@ -802,7 +805,10 @@ class TestMastersSnapshotsShardedTx(YTEnvSetup):
                      suppress_upstream_sync=True)
         wait(lambda: is_leader_in_read_only("//sys/primary_masters", primary))
 
-        abort_transaction(tx)
+        if not self.ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA:
+            # In Sequoia Cypress transactions are aborted via 2PC. If one or
+            # more of masters is in read-only mode 2PC isn't possible.
+            abort_transaction(tx)
 
         for secondary_master in self.Env.configs["master"][0]["secondary_masters"]:
             build_snapshot(cell_id=secondary_master["cell_id"], set_read_only=True)
@@ -883,37 +889,12 @@ class TestMastersPersistentReadOnly(YTEnvSetup):
             wait(lambda: no_peers_in_read_only("//sys/secondary_masters/{}".format(cell_tag), addresses))
 
 
-@pytest.mark.enabled_multidaemon
-class TestMastersSnapshotsShardedTxCTxS(YTEnvSetup):
-    ENABLE_MULTIDAEMON = True
-    NUM_SECONDARY_MASTER_CELLS = 4
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    MASTER_CELL_DESCRIPTORS = {
-        "10": {"roles": ["cypress_node_host"]},
-        "11": {"roles": ["transaction_coordinator"]},
-        "12": {"roles": ["chunk_host"]},
-        "13": {"roles": ["chunk_host"]},
-    }
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            }
-        }
-    }
-
-
 @authors("kvk1920")
 @pytest.mark.enabled_multidaemon
-class TestMastersSnapshotsMirroredTx(TestMastersSnapshotsShardedTxCTxS):
+class TestMastersSnapshotsMirroredTx(TestMastersSnapshotsShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-    ENABLE_TMP_ROOTSTOCK = False
-    NUM_CYPRESS_PROXIES = 1
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "commit_operation_cypress_node_changes_via_system_transaction": True,

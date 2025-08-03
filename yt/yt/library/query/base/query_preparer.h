@@ -51,6 +51,7 @@ TPlanFragmentPtr PreparePlanFragment(
     TStringBuf source,
     const NAst::TQuery& query,
     const NAst::TAliasMap& aliasMap,
+    int builderVersion = 1,
     IMemoryUsageTrackerPtr memoryTracker = nullptr,
     int depth = 0);
 
@@ -70,6 +71,12 @@ TConstExpressionPtr PrepareExpression(
 TConstExpressionPtr PrepareExpression(
     const TParsedSource& parsedSource,
     const TTableSchema& tableSchema,
+    const TConstTypeInferrerMapPtr& functions);
+
+TConstExpressionPtr PrepareExpression(
+    const TParsedSource& parsedSource,
+    const TTableSchema& tableSchema,
+    int builderVersion = 1,
     const TConstTypeInferrerMapPtr& functions = GetBuiltinTypeInferrers(),
     THashSet<std::string>* references = nullptr);
 

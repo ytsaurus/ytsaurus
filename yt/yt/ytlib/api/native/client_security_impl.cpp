@@ -37,6 +37,13 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TGetCurrentUserResultPtr TClient::DoGetCurrentUser(const TGetCurrentUserOptions& /*options*/)
+{
+    auto result = New<TGetCurrentUserResult>();
+    result->User = Options_.GetAuthenticatedUser();
+    return result;
+}
+
 TCheckPermissionByAclResult TClient::DoCheckPermissionByAcl(
     const std::optional<std::string>& user,
     EPermission permission,
@@ -68,13 +75,13 @@ TCheckPermissionByAclResult TClient::DoCheckPermissionByAcl(
     result.Action = ESecurityAction(rsp->action());
     result.SubjectId = FromProto<TSubjectId>(rsp->subject_id());
     result.SubjectName = rsp->has_subject_name() ? std::make_optional(rsp->subject_name()) : std::nullopt;
-    result.MissingSubjects = FromProto<std::vector<TString>>(rsp->missing_subjects());
+    result.MissingSubjects = FromProto<std::vector<std::string>>(rsp->missing_subjects());
     return result;
 }
 
 void TClient::DoAddMember(
-    const TString& group,
-    const TString& member,
+    const std::string& group,
+    const std::string& member,
     const TAddMemberOptions& options)
 {
     auto proxy = CreateObjectServiceWriteProxy();
@@ -94,8 +101,8 @@ void TClient::DoAddMember(
 }
 
 void TClient::DoRemoveMember(
-    const TString& group,
-    const TString& member,
+    const std::string& group,
+    const std::string& member,
     const TRemoveMemberOptions& options)
 {
     auto proxy = CreateObjectServiceWriteProxy();
@@ -238,8 +245,8 @@ void TClient::ValidateTableReplicaPermission(
 }
 
 void TClient::DoTransferAccountResources(
-    const TString& srcAccount,
-    const TString& dstAccount,
+    const std::string& srcAccount,
+    const std::string& dstAccount,
     NYTree::INodePtr resourceDelta,
     const TTransferAccountResourcesOptions& options)
 {

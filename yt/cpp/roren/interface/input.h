@@ -48,7 +48,7 @@ public:
 
 template <>
 class TInput<TMultiRow>
-    : public TThrRefBase
+    : public NYT::TRefCounted
 {
 public:
     TInput() = default;
@@ -229,7 +229,7 @@ public:
 
     inline void Decode(IInputStream* in, TMultiInputPtr& value)
     {
-        value = ::MakeIntrusive<TMultiInput>();
+        value = NYT::New<TMultiInput>();
 
         TagCoder_.Decode(in, value->Tags_);
 
@@ -251,7 +251,7 @@ public:
                 ::Load(in, buffer);
                 rawValues.emplace_back(buffer);
             }
-            value->InputMap_.emplace(tag.GetKey(), ::MakeIntrusive<TSingleInput>(coder, std::move(rawValues), rowVtable));
+            value->InputMap_.emplace(tag.GetKey(), NYT::New<TSingleInput>(coder, std::move(rawValues), rowVtable));
         }
     }
 
@@ -400,7 +400,7 @@ private:
 template <typename T>
 NPrivate::IRawInputPtr MakeRawVectorInput(std::vector<T> rows)
 {
-    return ::MakeIntrusive<TRawVectorIterator<T>>(std::move(rows));
+    return NYT::New<TRawVectorIterator<T>>(std::move(rows));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

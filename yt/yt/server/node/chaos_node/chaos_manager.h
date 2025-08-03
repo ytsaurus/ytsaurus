@@ -67,7 +67,14 @@ struct IChaosManager
         NChaosClient::NProto::TReqCreateReplicationCardCollocation,
         NChaosClient::NProto::TRspCreateReplicationCardCollocation
     >>;
-
+    using TCtxCreateChaosLeasePtr = TIntrusivePtr<NRpc::TTypedServiceContext<
+        NChaosClient::NProto::TReqCreateChaosLease,
+        NChaosClient::NProto::TRspCreateChaosLease
+    >>;
+    using TCtxRemoveChaosLeasePtr = TIntrusivePtr<NRpc::TTypedServiceContext<
+        NChaosClient::NProto::TReqRemoveChaosLease,
+        NChaosClient::NProto::TRspRemoveChaosLease
+    >>;
     using TCtxForsakeCoordinatorPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
         NChaosClient::NProto::TReqForsakeCoordinator,
         NChaosClient::NProto::TRspForsakeCoordinator
@@ -85,11 +92,15 @@ struct IChaosManager
     virtual void ResumeChaosCell(const TCtxResumeChaosCellPtr& context) = 0;
     virtual TFuture<void> ExecuteAlterTableReplica(const NChaosClient::NProto::TReqAlterTableReplica& request) = 0;
     virtual void CreateReplicationCardCollocation(const TCtxCreateReplicationCardCollocationPtr& context) = 0;
+    virtual void CreateChaosLease(const TCtxCreateChaosLeasePtr& context) = 0;
+    virtual void RemoveChaosLease(const TCtxRemoveChaosLeasePtr& context) = 0;
 
     virtual void ForsakeCoordinator(const TCtxForsakeCoordinatorPtr& context) = 0;
 
     virtual const std::vector<NObjectClient::TCellId>& CoordinatorCellIds() = 0;
     virtual bool IsCoordinatorSuspended(NObjectClient::TCellId coordinatorCellId) = 0;
+
+    virtual void UpdateReplicationCardLagTimes(const TReplicationCard& replicationCard) = 0;
 
     DECLARE_INTERFACE_SIGNAL(void(NTabletServer::TReplicatedTableData), ReplicatedTableCreated);
     DECLARE_INTERFACE_SIGNAL(void(NTableClient::TTableId), ReplicatedTableDestroyed);
@@ -103,6 +114,11 @@ struct IChaosManager
 
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(ReplicationCardCollocation, TReplicationCardCollocation);
     virtual TReplicationCardCollocation* GetReplicationCardCollocationOrThrow(TReplicationCardCollocationId colocationId) = 0;
+
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(ChaosLease, TChaosLease);
+    virtual TChaosLease* GetChaosLeaseOrThrow(TChaosLeaseId chaosLeaseId) = 0;
+
+    virtual TChaosObjectBase* FindChaosObject(TChaosObjectId chaosObjectId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChaosManager)

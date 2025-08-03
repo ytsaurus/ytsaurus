@@ -61,7 +61,7 @@ public:
         Y_ABORT_UNLESS(first);
         TKV<K, TInputPtr<V>> result;
         result.Key() = first->Key();
-        result.Value() = TInputPtr<V>{MakeIntrusive<TValueIterator<K, V>>(&first->Value(), std::move(input))};
+        result.Value() = TInputPtr<V>{NYT::New<TValueIterator<K, V>>(&first->Value(), std::move(input))};
         upcastedOutput->Add(result);
     }
 
@@ -79,7 +79,7 @@ private:
     [[nodiscard]] TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawGroupByKeyPtr {
-            return ::MakeIntrusive<TRawGroupByKey<K, V>>();
+            return NYT::New<TRawGroupByKey<K, V>>();
         };
     }
 
@@ -99,7 +99,7 @@ private:
 template <typename K, typename V>
 IRawGroupByKeyPtr MakeRawGroupByKey()
 {
-    return ::MakeIntrusive<TRawGroupByKey<K, V>>();
+    return NYT::New<TRawGroupByKey<K, V>>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

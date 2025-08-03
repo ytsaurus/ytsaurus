@@ -2,13 +2,15 @@
 
 #include <yt/yt/library/query/base/query_common.h>
 
+#include <yt/yt/library/query/distributed/public.h>
+
 namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TShufflePart
 {
-    TDataSource DataSource;
+    TRowsetId RowsetId;
     std::vector<TRange<TRow>> Subranges;
 };
 

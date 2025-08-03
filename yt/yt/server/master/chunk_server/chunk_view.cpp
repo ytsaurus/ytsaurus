@@ -6,17 +6,18 @@
 
 namespace NYT::NChunkServer {
 
-using namespace NObjectClient;
-using namespace NChunkClient;
 using namespace NCellMaster;
+using namespace NChunkClient;
+using namespace NObjectClient;
+using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkViewModifier TChunkViewModifier::WithReadRange(NChunkClient::TLegacyReadRange readRange) &&
+TChunkViewModifier TChunkViewModifier::WithReadRange(NChunkClient::TReadRange readRange) &&
 {
-    SetReadRange(std::move(readRange));
+    SetReadRange(ReadRangeToLegacyReadRange(readRange));
     return *this;
 }
 
@@ -40,6 +41,22 @@ void TChunkViewModifier::SetReadRange(NChunkClient::TLegacyReadRange readRange)
     YT_VERIFY(!readRange.UpperLimit().HasChunkIndex());
     YT_VERIFY(!readRange.LowerLimit().HasRowIndex());
     YT_VERIFY(!readRange.UpperLimit().HasRowIndex());
+
+    if (readRange.LowerLimit().HasLegacyKey()) {
+        for (auto value : readRange.LowerLimit().GetLegacyKey()) {
+            YT_VERIFY(value.Type != EValueType::Min);
+            YT_VERIFY(value.Type != EValueType::Max);
+            YT_VERIFY(value.Type != EValueType::TheBottom);
+        }
+    }
+
+    if (readRange.UpperLimit().HasLegacyKey()) {
+        for (auto value : readRange.UpperLimit().GetLegacyKey()) {
+            YT_VERIFY(value.Type != EValueType::Min);
+            YT_VERIFY(value.Type != EValueType::Max);
+            YT_VERIFY(value.Type != EValueType::TheBottom);
+        }
+    }
 
     if (readRange.UpperLimit().HasLegacyKey()) {
         const auto& key = readRange.UpperLimit().GetLegacyKey();
@@ -196,12 +213,16 @@ void TChunkView::Load(NCellMaster::TLoadContext& context)
     Load(context, Modifier_);
 }
 
-TLegacyReadRange TChunkView::GetCompleteReadRange() const
+TReadRange TChunkView::GetCompleteReadRange(TComparator comparator)
 {
-    return {
-        Modifier_.GetAdjustedLowerReadLimit(TLegacyReadLimit(GetMinKeyOrThrow(UnderlyingTree_))),
-        Modifier_.GetAdjustedUpperReadLimit(TLegacyReadLimit(GetUpperBoundKeyOrThrow(UnderlyingTree_)))
-    };
+    auto lowerKeyBound = GetLowerKeyBoundOrThrow(UnderlyingTree_, comparator.GetLength());
+    auto upperKeyBound = GetUpperKeyBoundOrThrow(UnderlyingTree_, comparator.GetLength());
+    auto readRange = ReadRangeFromLegacyReadRange(
+        Modifier_.ReadRange(),
+        comparator.GetLength());
+    comparator.ReplaceIfStrongerKeyBound(readRange.LowerLimit().KeyBound(), lowerKeyBound);
+    comparator.ReplaceIfStrongerKeyBound(readRange.UpperLimit().KeyBound(), upperKeyBound);
+    return readRange;
 }
 
 void TChunkView::AddParent(TChunkList* parent)

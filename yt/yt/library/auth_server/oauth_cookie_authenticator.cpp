@@ -21,7 +21,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = AuthLogger;
+constinit const auto Logger = AuthLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,56 +76,32 @@ private:
     const IOAuthServicePtr OAuthService_;
     const ICypressUserManagerPtr UserManager_;
 
-    TFuture<TAuthenticationResult> OnGetUserInfo(
+    TAuthenticationResult OnGetUserInfo(
         const TString& accessTokenMD5,
         const TOAuthUserInfoResult& userInfo)
     {
-        auto result = OnGetUserInfoImpl(userInfo);
-        if (result.IsOK()) {
-            YT_LOG_DEBUG(
-                "Authentication via OAuth successful (AccessTokenMD5: %v, Login: %v, Realm: %v)",
-                accessTokenMD5,
-                result.Value().Login,
-                result.Value().Realm);
-        } else {
-            YT_LOG_DEBUG(result, "Authentication via OAuth failed (AccessTokenMD5: %v)", accessTokenMD5);
-            result <<= TErrorAttribute("access_token_md5", accessTokenMD5);
+        auto error = EnsureUserExists(
+            Config_->CreateUserIfNotExists,
+            UserManager_,
+            userInfo.Login,
+            Config_->DefaultUserTags);
+
+        if (!error.IsOK()) {
+            YT_LOG_DEBUG(error, "Authentication via OAuth failed (AccessTokenMD5: %v)", accessTokenMD5);
+            error <<= TErrorAttribute("access_token_md5", accessTokenMD5);
+            THROW_ERROR error;
         }
 
-        return MakeFuture(std::move(result));
-    }
-
-    TErrorOr<TAuthenticationResult> OnGetUserInfoImpl(const TOAuthUserInfoResult& userInfo)
-    {
-        if (Config_->CreateUserIfNotExists) {
-            auto result = WaitFor(UserManager_->CreateUser(userInfo.Login));
-            if (!result.IsOK()) {
-                auto error = TError("Failed to create user")
-                    << TErrorAttribute("name", userInfo.Login)
-                    << std::move(result);
-                YT_LOG_WARNING(error);
-                return error;
-            }
-        } else {
-            auto result = WaitFor(UserManager_->CheckUserExists(userInfo.Login));
-            if (!result.IsOK()) {
-                auto error = TError("Failed to check if user exists")
-                    << TErrorAttribute("name", userInfo.Login)
-                    << std::move(result);
-                YT_LOG_WARNING(error);
-                return error;
-            } else if (!result.Value()) {
-                YT_LOG_DEBUG("User does not exist (Name: %v)", userInfo.Login);
-                auto error = TError(NRpc::EErrorCode::InvalidCredentials, "User does not exist")
-                    << TErrorAttribute("name", userInfo.Login);
-                return error;
-            }
-        }
-
-        return TAuthenticationResult{
+        auto result = TAuthenticationResult{
             .Login = userInfo.Login,
-            .Realm = TString(OAuthCookieRealm)
+            .Realm = TString(OAuthCookieRealm),
         };
+        YT_LOG_DEBUG(
+            "Authentication via OAuth successful (AccessTokenMD5: %v, Login: %v, Realm: %v)",
+            accessTokenMD5,
+            result.Login,
+            result.Realm);
+        return result;
     }
 };
 

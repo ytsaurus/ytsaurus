@@ -43,6 +43,9 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(TChunkStripeListPtr, StripeList, New<TChunkStripeList>());
 
+    DEFINE_BYVAL_RO_PROPERTY(i64, PrimaryCompressedDataSize, 0);
+    DEFINE_BYVAL_RO_PROPERTY(i64, ForeignCompressedDataSize, 0);
+
     friend class TNewJobManager;
 
 public:
@@ -57,6 +60,7 @@ public:
     void Finalize();
 
     i64 GetDataWeight() const;
+    i64 GetCompressedDataSize() const;
     i64 GetRowCount() const;
     int GetSliceCount() const;
 
@@ -99,6 +103,10 @@ public:
 
     TNewJobManager(const NLogging::TLogger& logger);
 
+    //! NB: Without manual dtor, other classes cannot persist TNewJobManager
+    //! because they do not know how to destruct std::unique_ptr<TJobOrder>.
+    ~TNewJobManager();
+
     std::vector<IChunkPoolOutput::TCookie> AddJobs(std::vector<std::unique_ptr<TNewJobStub>> jobStubs);
 
     //! Add a job that is built from the given stub.
@@ -116,8 +124,6 @@ public:
     // Used if we know which cookie we want to extract.
     void ExtractCookie(IChunkPoolOutput::TCookie cookie);
 
-    void Invalidate(IChunkPoolInput::TCookie inputCookie);
-
     std::vector<NChunkClient::TLegacyDataSlicePtr> ReleaseForeignSlices(IChunkPoolInput::TCookie inputCookie);
 
     NTableClient::TChunkStripeStatisticsVector GetApproximateStripeStatistics() const;
@@ -126,16 +132,28 @@ public:
 
     void InvalidateAllJobs();
 
+    //! Returns: cookies of jobs to abort.
+    std::vector<IChunkPoolOutput::TCookie> SetJobCount(int desiredJobCount);
+
     //! Perform a pass over all jobs in their order and join some groups of
-    //! adjacent jobs that are still smaller than `dataWeightPerJob` in total.
+    //! adjacent jobs that are smaller than `dataWeightPerJob` in total.
     void Enlarge(
         i64 dataWeightPerJob,
-        i64 primaryDataWeightPerJob);
+        i64 primaryDataWeightPerJob,
+        const NControllerAgent::IJobSizeConstraintsPtr& jobSizeConstraints,
+        const TOutputOrderPtr& outputOrder = {});
+
+    void SeekOrder(TOutputCookie cookie);
 
     std::pair<NTableClient::TKeyBound, NTableClient::TKeyBound>
         GetBounds(IChunkPoolOutput::TCookie cookie) const;
 
 private:
+    //! NB: |delta| > 0.
+    void IncreaseJobCount(int delta);
+    //! NB: |delta| > 0.
+    std::vector<IChunkPoolOutput::TCookie> DecreaseJobCount(int delta);
+
     class TStripeListComparator
     {
     public:
@@ -157,6 +175,10 @@ private:
 
     //! All jobs before this job were invalidated.
     int FirstValidJobIndex_ = 0;
+
+    //! Count of non-invalidated jobs.
+    //! Makes no sense for non-vanilla pools (always equals to Jobs_.size()).
+    int ValidJobCount_ = 0;
 
     //! All input cookies that are currently suspended.
     THashSet<IChunkPoolInput::TCookie> SuspendedInputCookies_;
@@ -189,6 +211,7 @@ private:
         void ChangeSuspendedStripeCountBy(int delta);
 
         void Invalidate();
+        void Revalidate();
 
         bool IsInvalidated() const;
 
@@ -205,9 +228,6 @@ private:
         TCookiePool::iterator CookiePoolIterator_;
         IChunkPoolOutput::TCookie Cookie_;
 
-        //! Is true for a job if it is present in owner's CookiePool_.
-        //! Changes of this flag are accompanied with AddSelf()/RemoveSelf().
-        bool InPool_ = false;
         //! Is true for a job if it is in the pending state and has suspended stripes.
         //! Changes of this flag are accompanied with SuspendSelf()/ResumeSelf().
         bool Suspended_ = false;
@@ -225,13 +245,38 @@ private:
         void RemoveSelf();
         void AddSelf();
 
+        //! Is true for a job if it is present in owner's CookiePool_.
+        bool InPool() const;
+
         void SuspendSelf();
         void ResumeSelf();
 
         PHOENIX_DECLARE_TYPE(TJob, 0xa97f53ea);
     };
 
+    //! For vanilla pool: invalidated jobs may interleave with valid jobs.
+    //! For other pools: invalidated jobs are always to the left of the other
+    //! (the border is identified by |FirstInvalidJobIndex_|).
+    //!
+    //! Every job is either removed (IsRemoved_ == true) or participates in logical order.
+    //! Order is represented by |JobOrder_|.
+    //! Every new job is pushed_back into Jobs_, but the logical order is modified differently:
+    //! - On initial jobs creation, jobs are added consecutively, so their logical order
+    //!   is the same as vector-order.
+    //! - On job split, child jobs are added after the parent job.
+    //! - On job join (in TJobManager::Enlarge), old jobs are removed (TJob::Remove),
+    //!   removed from logical order and the new jobs are placed where removed jobs were.
+    //!
+    //! To clarify a bit: there are three reasons why |Jobs_| could be changed
+    //! at runtime (e.g. after materialization) for ordered/sorted pools:
+    //! - job split.
+    //! - |Enlarge| due to job_size_adjuster adjustments.
+    //! - |Enlarge| for sorted pool to account for sampling.
     std::vector<TJob> Jobs_;
+
+    class TJobOrder;
+
+    std::unique_ptr<TJobOrder> JobOrder_;
 
     NLogging::TSerializableLogger Logger;
 

@@ -175,6 +175,11 @@ def escape_ypath_literal(literal, encoding=_ENCODING_SENTINEL):
         return "".join(map(lambda ch: escape_char(ch).decode("ascii"), literal))
 
 
+def unescape_ypath_literal(key: bytes) -> bytes:
+    """Converts a YPath key to string literal."""
+    return b"\\".join(x.replace(b"\\", b"") for x in key.split(b"\\\\"))
+
+
 class YPath(object):
     """Represents path with attributes (YPath).
 

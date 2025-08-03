@@ -69,7 +69,6 @@ public:
         , MinTeleportChunkSize_(options.MinTeleportChunkSize)
         , JobSizeConstraints_(options.JobSizeConstraints)
         , TeleportChunkSampler_(JobSizeConstraints_->GetSamplingRate())
-        , SupportLocality_(options.SupportLocality)
         , ReturnNewDataSlices_(options.ReturnNewDataSlices)
         , RowBuffer_(options.RowBuffer)
     {
@@ -272,8 +271,6 @@ private:
     IJobSizeConstraintsPtr JobSizeConstraints_;
     TBernoulliSampler TeleportChunkSampler_;
 
-    bool SupportLocality_ = false;
-
     bool ReturnNewDataSlices_ = true;
 
     TRowBufferPtr RowBuffer_;
@@ -347,7 +344,7 @@ private:
                             keyColumnCount,
                             sliceByKeys);
                         TComparator comparator(std::vector<ESortOrder>(keyColumnCount, ESortOrder::Ascending));
-                        chunkSliceFetcher->AddDataSliceForSlicing(dataSlice, comparator, sliceSize, sliceByKeys);
+                        chunkSliceFetcher->AddDataSliceForSlicing(dataSlice, comparator, sliceSize, sliceByKeys, /*minManiacDataWeight*/ std::nullopt);
                     } else if (!isPrimary) {
                         // Take foreign slice as-is.
                         processDataSlice(dataSlice, inputCookie);
@@ -663,19 +660,21 @@ private:
         // We create new job size constraints by incorporating the new desired data size per job
         // into the old job size constraints.
         auto jobSizeConstraints = CreateExplicitJobSizeConstraints(
-            false /*canAdjustDataSizePerJob*/,
-            false /*isExplicitJobCount*/,
-            splitJobCount /*jobCount*/,
+            /*canAdjustDataSizePerJob*/ false,
+            /*isExplicitJobCount*/ false,
+            /*jobCount*/ splitJobCount,
             dataWeightPerJob,
-            std::numeric_limits<i64>::max() / 4 /*primaryDataSizePerJob*/,
+            /*primaryDataSizePerJob*/ std::numeric_limits<i64>::max() / 4,
+            /*compressedDataSizePerJob*/ std::numeric_limits<i64>::max() / 4,
             maxDataSlicesPerJob,
             JobSizeConstraints_->GetMaxDataWeightPerJob(),
             JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob(),
+            JobSizeConstraints_->GetMaxCompressedDataSizePerJob(),
             JobSizeConstraints_->GetInputSliceDataWeight(),
             JobSizeConstraints_->GetInputSliceRowCount(),
             JobSizeConstraints_->GetBatchRowCount(),
             JobSizeConstraints_->GetForeignSliceDataWeight(),
-            std::nullopt /*samplingRate*/);
+            /*samplingRate*/ std::nullopt);
 
         // Teleport chunks do not affect the job split process since each original
         // job is already located between the teleport chunks.
@@ -757,7 +756,10 @@ void TLegacySortedChunkPool::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(10, Stripes_);
     PHOENIX_REGISTER_FIELD(11, JobSizeConstraints_);
     PHOENIX_REGISTER_FIELD(12, TeleportChunkSampler_);
-    PHOENIX_REGISTER_FIELD(13, SupportLocality_);
+    registrar.template VirtualField<13>("SupportLocality_", [] (TThis* /*this_*/, auto& context) {
+        Load<bool>(context);
+    })
+        .BeforeVersion(ESnapshotVersion::DropSupportLocality)();
     PHOENIX_REGISTER_FIELD(14, TeleportChunks_);
     PHOENIX_REGISTER_FIELD(15, IsCompleted_);
     PHOENIX_REGISTER_FIELD(16, ReturnNewDataSlices_);

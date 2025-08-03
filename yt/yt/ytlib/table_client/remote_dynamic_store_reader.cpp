@@ -332,6 +332,8 @@ protected:
             const auto& channelFactory = Client_->GetChannelFactory();
             auto channel = channelFactory->CreateChannel(*address);
             TQueryServiceProxy proxy(channel);
+            // TODO(nadya02): Set the correct timeout here.
+            proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
 
             auto req = proxy.ReadDynamicStore();
             ToProto(req->mutable_store_id(), storeId);
@@ -994,12 +996,7 @@ protected:
             }
 
             YT_LOG_DEBUG("Dynamic store located: got new replicas");
-            ChunkSpec_.clear_legacy_replicas();
-            ChunkSpec_.clear_replicas();
-            for (auto replica : replicas) {
-                ChunkSpec_.add_legacy_replicas(ToProto<ui32>(replica.ToChunkReplica()));
-                ChunkSpec_.add_replicas(ToProto(replica));
-            }
+            ToProto(ChunkSpec_.mutable_replicas(), TChunkReplicaWithMediumList(replicas.begin(), replicas.end()));
 
             PatchChunkSpecWithContinuationToken();
 

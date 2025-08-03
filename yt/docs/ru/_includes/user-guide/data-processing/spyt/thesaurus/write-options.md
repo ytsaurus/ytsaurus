@@ -9,7 +9,7 @@
 df.write.sorted_by("uuid").yt("//sys/spark/examples/test_data")
 ```
 
-## unique_keys 
+## unique_keys
 
 Уникальность ключа в таблице:
 
@@ -28,7 +28,7 @@ spark.write.optimize_for("lookup").yt("//sys/spark/examples/test_data")
 
 ## Schema v3
 
-Запись таблиц со схемой в формате [type_v3](../../../../../user-guide/storage/data-types.md) вместо `type_v1`. Настраивается в [Spark конфигурации](../cluster/configuration.md) или опции записи.
+Запись таблиц со схемой в формате [type_v3](../../../../../user-guide/storage/data-types.md) вместо `type_v1`. Настраивается в [Spark конфигурации](../../../../../user-guide/data-processing/spyt/cluster/configuration.md) или опции записи.
 
 Python example:
 ```python

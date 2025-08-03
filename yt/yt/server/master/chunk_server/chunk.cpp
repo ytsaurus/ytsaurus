@@ -45,7 +45,7 @@ using NYT::FromProto;
 
 const TChunk::TEmptyChunkReplicasData TChunk::EmptyChunkReplicasData = {};
 
-static constexpr auto& Logger = ChunkServerLogger;
+constinit const auto Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -302,8 +302,14 @@ void TChunk::AddReplica(
         if (IsErasure()) {
             lastSeenReplicas[replica.GetReplicaIndex()] = nodeId;
         } else {
-            lastSeenReplicas[data->CurrentLastSeenReplicaIndex] = nodeId;
-            data->CurrentLastSeenReplicaIndex = (data->CurrentLastSeenReplicaIndex + 1) % lastSeenReplicas.size();
+            // NB: there are only 3 classes derived from TChunkReplicasDataBase:
+            //   - empty: not the case because all instances of this class are
+            //     always const;
+            //   - erasure: not the case;
+            //   - regular.
+            // So this static cast seems to be correct.
+            // COMPAT(kvk1920): FixLastSeenReplicas.
+            static_cast<TRegularChunkReplicasData*>(data)->AddLastSeenReplica(nodeId);
         }
     }
 }
@@ -358,16 +364,18 @@ void TChunk::SetApprovedReplicaCount(int count)
     MutableReplicasData()->ApprovedReplicaCount = count;
 }
 
-void TChunk::Confirm(const TChunkInfo& chunkInfo, const TChunkMeta& chunkMeta)
+void TChunk::ValidateConfirmation(const TChunkInfo& /*chunkInfo*/, const TChunkMeta& chunkMeta) const
 {
     // YT-3251
     if (!HasProtoExtension<TMiscExt>(chunkMeta.extensions())) {
         THROW_ERROR_EXCEPTION("Missing TMiscExt in chunk meta");
     }
 
-    Y_UNUSED(FromProto<EChunkType>(chunkMeta.type()));
-    Y_UNUSED(FromProto<EChunkFormat>(chunkMeta.format()));
+    ValidateFromProto(chunkMeta);
+}
 
+void TChunk::Confirm(const TChunkInfo& chunkInfo, const TChunkMeta& chunkMeta)
+{
     ChunkMeta_ = FromProto<TImmutableChunkMetaPtr>(chunkMeta);
 
     SetDiskSpace(chunkInfo.disk_space());
@@ -757,6 +765,38 @@ bool TChunk::HasConsistentReplicaPlacementHash() const
         !IsErasure(); // CRP with erasure is not supported.
 }
 
+int TChunk::CapTotalReplicationFactor(int replicationFactor, const TDomesticMediumConfigPtr& config) const
+{
+    switch (GetType()) {
+        case EObjectType::Chunk:
+        case EObjectType::JournalChunk:
+            return std::min(replicationFactor, config->MaxReplicationFactor);
+        case EObjectType::ErasureChunk:
+        case EObjectType::ErasureJournalChunk:
+            return replicationFactor;
+        default:
+            YT_ABORT();
+    }
+}
+
+int TChunk::CapPerRackReplicationFactor(int replicationFactor, const TDomesticMediumConfigPtr& config) const
+{
+    replicationFactor = std::min(replicationFactor, config->MaxReplicasPerRack);
+
+    switch (GetType()) {
+        case EObjectType::Chunk:
+            return std::min(replicationFactor, config->MaxRegularReplicasPerRack);
+        case EObjectType::ErasureChunk:
+            return std::min(replicationFactor, config->MaxErasureReplicasPerRack);
+        case EObjectType::JournalChunk:
+            return std::min(replicationFactor, config->MaxJournalReplicasPerRack);
+        case EObjectType::ErasureJournalChunk:
+            return std::min(replicationFactor, config->MaxErasureJournalReplicasPerRack);
+        default:
+            YT_ABORT();
+    }
+}
+
 void TChunk::OnMiscExtUpdated(const TMiscExt& miscExt)
 {
     RowCount_ = miscExt.row_count();
@@ -776,58 +816,88 @@ void TChunk::OnMiscExtUpdated(const TMiscExt& miscExt)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
-void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Initialize()
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
+TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::TReplicasData()
 {
     std::fill(LastSeenReplicas.begin(), LastSeenReplicas.end(), InvalidNodeId);
 }
 
-template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
-TRange<TChunkLocationPtrWithReplicaInfo> TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::GetStoredReplicas() const
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
+TRange<TChunkLocationPtrWithReplicaInfo> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::GetStoredReplicas() const
 {
     return TRange(StoredReplicas);
 }
 
-template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
-TMutableRange<TChunkLocationPtrWithReplicaInfo> TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::MutableStoredReplicas()
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
+TMutableRange<TChunkLocationPtrWithReplicaInfo> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::MutableStoredReplicas()
 {
     return TMutableRange(StoredReplicas);
 }
 
-template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
-void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::AddStoredReplica(TChunkLocationPtrWithReplicaInfo replica)
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
+void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::AddStoredReplica(TChunkLocationPtrWithReplicaInfo replica)
 {
     StoredReplicas.push_back(replica);
 }
 
-template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
-void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::RemoveStoredReplica(int replicaIndex)
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
+void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::RemoveStoredReplica(int replicaIndex)
 {
     std::swap(StoredReplicas[replicaIndex], StoredReplicas.back());
     StoredReplicas.pop_back();
     StoredReplicas.shrink_to_small();
 }
 
-template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
-TRange<TNodeId> TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::GetLastSeenReplicas() const
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
+void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::AddLastSeenReplica(TNodeId nodeId)
+{
+    if constexpr (MaxLastSeenReplicaCount > 0) {
+        LastSeenReplicaCount =
+            std::remove(LastSeenReplicas.begin(), LastSeenReplicas.begin() + LastSeenReplicaCount, nodeId) -
+            LastSeenReplicas.begin();
+        if (LastSeenReplicaCount == MaxLastSeenReplicaCount) {
+            std::move(LastSeenReplicas.begin() + 1, LastSeenReplicas.end(), LastSeenReplicas.begin());
+            --LastSeenReplicaCount;
+        }
+        LastSeenReplicas[LastSeenReplicaCount++] = nodeId;
+    }
+}
+
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
+TRange<TNodeId> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::GetLastSeenReplicas() const
 {
     return TRange(LastSeenReplicas);
 }
 
-template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
-TMutableRange<TNodeId> TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::MutableLastSeenReplicas()
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
+TMutableRange<TNodeId> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::MutableLastSeenReplicas()
 {
     return TMutableRange(LastSeenReplicas);
 }
 
-template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
-void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Load(NCellMaster::TLoadContext& context)
+template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
+void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
 
     Load(context, StoredReplicas);
     Load(context, LastSeenReplicas);
-    Load(context, CurrentLastSeenReplicaIndex);
+    // COMPAT(kvk1920)
+    if (context.GetVersion() < EMasterReign::FixLastSeenReplicas) {
+        auto index = Load<int>(context);
+        if constexpr (MaxLastSeenReplicaCount > 0) {
+            auto legacyLastSeenReplicas = LastSeenReplicas;
+            // Position of queue's tail.
+            LastSeenReplicaCount = 0;
+            for (int offset : std::views::iota(0u, MaxLastSeenReplicaCount)) {
+                AddLastSeenReplica(legacyLastSeenReplicas[(index + offset) % MaxLastSeenReplicaCount]);
+            }
+        } else {
+            LastSeenReplicaCount = 0;
+        }
+    } else {
+        Load(context, LastSeenReplicaCount);
+    }
     Load(context, ApprovedReplicaCount);
 }
 
@@ -840,8 +910,43 @@ void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Sav
     // deterministic (i.e. when unregistering a node we traverse certain hashtables).
     TVectorSerializer<TDefaultSerializer, TSortedTag>::Save(context, StoredReplicas);
     Save(context, LastSeenReplicas);
-    Save(context, CurrentLastSeenReplicaIndex);
+    Save(context, LastSeenReplicaCount);
     Save(context, ApprovedReplicaCount);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChunkId TDummyNbdChunk::GetId() const
+{
+    return TChunkId();
+}
+
+bool TDummyNbdChunk::IsErasure() const
+{
+    return false;
+}
+
+int TDummyNbdChunk::GetMaxReplicasPerFailureDomain(
+    int /*mediumIndex*/,
+    std::optional<int> /*replicationFactorOverride*/,
+    const TChunkRequisitionRegistry* /*registry*/) const
+{
+    return 1;
+}
+
+int TDummyNbdChunk::GetPhysicalReplicationFactor(int /*mediumIndex*/, const TChunkRequisitionRegistry* /*registry*/) const
+{
+    return 1;
+}
+
+int TDummyNbdChunk::CapTotalReplicationFactor(int replicationFactor, const TDomesticMediumConfigPtr&) const
+{
+    return replicationFactor;
+}
+
+int TDummyNbdChunk::CapPerRackReplicationFactor(int replicationFactor, const TDomesticMediumConfigPtr&) const
+{
+    return replicationFactor;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,15 +1,18 @@
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, CONTROLLER_AGENTS_SERVICE
 
 from yt_commands import (
-    authors, wait, retry, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, create,
-    get, create_tmpdir,
+    authors, wait, retry, wait_no_assert, wait_breakpoint,
+    release_breakpoint, with_breakpoint, create, get, set, create_tmpdir,
     create_pool, insert_rows, select_rows, lookup_rows, write_table,
     map, map_reduce, vanilla, run_test_vanilla, run_sleeping_vanilla,
     abort_job, list_jobs, clean_operations, mount_table, unmount_table, wait_for_cells, sync_create_cells,
-    update_controller_agent_config, print_debug, exists,
+    update_controller_agent_config, print_debug, exists, get_allocation_id_from_job_id,
     make_random_string, raises_yt_error, clear_metadata_caches, ls)
 
 from yt_scheduler_helpers import scheduler_new_orchid_pool_tree_path
+
+from yt_operations_archive_helpers import (
+    get_allocation_id_from_archive, get_job_from_archive, update_job_in_archive)
 
 import yt_error_codes
 
@@ -17,7 +20,7 @@ import yt.yson as yson
 import yt.environment.init_operations_archive as init_operations_archive
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 from yt.wrapper.common import uuid_hash_pair, YtError
-from yt.common import date_string_to_datetime, datetime_to_string, utcnow
+from yt.common import date_string_to_datetime, date_string_to_timestamp_mcs, datetime_to_string, utcnow, update
 
 import os
 import time
@@ -140,6 +143,10 @@ class TestListJobsBase(YTEnvSetup):
         },
     }
 
+    DELTA_DRIVER_CONFIG = {
+        "cluster_connection_dynamic_config_policy": "from_cluster_directory",
+    }
+
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -154,6 +161,8 @@ class TestListJobsBase(YTEnvSetup):
         self._tmpdir = create_tmpdir("list_jobs")
         self.failed_job_id_fname = os.path.join(self._tmpdir, "failed_job_id")
 
+
+class TestListJobsCommon(TestListJobsBase):
     def restart_services_and_wait_jobs_table(self, services):
         def get_user_slots_limit():
             return get(scheduler_new_orchid_pool_tree_path("default") + "/resource_limits/user_slots")
@@ -513,7 +522,7 @@ class TestListJobsBase(YTEnvSetup):
         job_ids["map"] = job_ids["completed_map"] + job_ids["failed_map"] + job_ids["aborted_map"]
         return op, job_ids
 
-    @authors("omgronny")
+    @authors("omgronny", "bystrovserg")
     @add_failed_operation_stderrs_to_error_message
     def test_list_jobs_attributes(self):
         create_pool("my_pool")
@@ -564,9 +573,19 @@ class TestListJobsBase(YTEnvSetup):
         assert completed_map_job["pool"] == "my_pool"
         assert completed_map_job["pool_tree"] == "default"
         assert completed_map_job["job_cookie"] >= 0
+        assert "events" not in completed_map_job
+        assert "statistics" not in completed_map_job
 
         stderr_size = len(b"STDERR-OUTPUT\n")
         assert completed_map_job["stderr_size"] == stderr_size
+
+        jobs_with_extra_attributes = [job for job in checked_list_jobs(op.id, attributes=["events", "statistics"])["jobs"] if job["id"] == completed_map_job_id]
+        assert len(jobs_with_extra_attributes) == 1
+        job_with_event = jobs_with_extra_attributes[0]
+        assert "events" in job_with_event
+        assert "statistics" in job_with_event
+        assert len(job_with_event["events"]) > 0
+        assert all(field in job_with_event["events"][0] for field in ["phase", "state", "time"])
 
         aborted_map_job_list = [job for job in res["jobs"] if job["id"] == aborted_map_job_id]
         assert len(aborted_map_job_list) == 1
@@ -575,6 +594,8 @@ class TestListJobsBase(YTEnvSetup):
         check_times(aborted_map_job)
         assert aborted_map_job["type"] == "partition_map"
         assert aborted_map_job.get("abort_reason") == "user_request"
+        assert "events" not in aborted_map_job
+        assert "statistics" not in completed_map_job
 
     @authors("omgronny")
     @pytest.mark.timeout(150)
@@ -599,13 +620,13 @@ class TestListJobsBase(YTEnvSetup):
         wait_no_assert(lambda: self._check_after_finish(op, job_ids, operation_cleaned=True))
 
 
-class TestListJobsStatisticsLz4(TestListJobsBase):
+class TestListJobsStatisticsLz4(TestListJobsCommon):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     DELTA_DYNAMIC_NODE_CONFIG = deepcopy(TestListJobsBase.DELTA_DYNAMIC_NODE_CONFIG)
     DELTA_DYNAMIC_NODE_CONFIG["%true"]["exec_node"]["job_reporter"]["report_statistics_lz4"] = True
 
 
-class TestListJobs(TestListJobsBase):
+class TestListJobs(TestListJobsCommon):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
 
     @authors("ermolovd", "omgronny")
@@ -937,7 +958,7 @@ class TestListJobs(TestListJobsBase):
         for job in non_monitored_jobs:
             assert "monitoring_descriptor" not in job
 
-    @authors("omgronny")
+    @authors("omgronny", "bystrovserg")
     def test_list_jobs_sort_by_task_name(self):
         op = vanilla(
             track=False,
@@ -963,6 +984,12 @@ class TestListJobs(TestListJobsBase):
         wait_breakpoint(breakpoint_name="b", job_count=1)
         wait_breakpoint(breakpoint_name="c", job_count=1)
 
+        def check_sorted_list_jobs_with_attr(attr):
+            jobs = list_jobs(op.id, sort_field="task_name", attributes=attr)["jobs"]
+            assert get_job_from_archive(op.id, jobs[0]["id"])["task_name"] == "a"
+            assert get_job_from_archive(op.id, jobs[1]["id"])["task_name"] == "b"
+            assert get_job_from_archive(op.id, jobs[2]["id"])["task_name"] == "c"
+
         def check_sorted_list_jobs():
             jobs = list_jobs(op.id, sort_field="task_name")["jobs"]
             assert jobs[0]["task_name"] == "a"
@@ -970,6 +997,8 @@ class TestListJobs(TestListJobsBase):
             assert jobs[2]["task_name"] == "c"
 
         check_sorted_list_jobs()
+        check_sorted_list_jobs_with_attr([])
+        check_sorted_list_jobs_with_attr(["task_name"])
 
         release_breakpoint(breakpoint_name="a")
         release_breakpoint(breakpoint_name="b")
@@ -978,6 +1007,8 @@ class TestListJobs(TestListJobsBase):
         op.track()
 
         check_sorted_list_jobs()
+        check_sorted_list_jobs_with_attr([])
+        check_sorted_list_jobs_with_attr(["task_name"])
 
     @authors("omgronny")
     def test_list_jobs_continuation_token(self):
@@ -997,8 +1028,6 @@ class TestListJobs(TestListJobsBase):
 
     @authors("eshcherbin", "pogorelov")
     def test_operation_incarnation(self):
-        update_controller_agent_config("vanilla_operation_options/gang_manager/enabled", True)
-
         def get_operation_incarnation(op):
             wait(lambda: exists(op.get_orchid_path() + "/controller/operation_incarnation"))
             incarnation_id = get(op.get_orchid_path() + "/controller/operation_incarnation")
@@ -1009,7 +1038,7 @@ class TestListJobs(TestListJobsBase):
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
             job_count=2,
-            task_patch={"gang_manager": {}},
+            task_patch={"gang_options": {}},
         )
 
         job_ids = wait_breakpoint(job_count=2)
@@ -1041,7 +1070,7 @@ class TestListJobs(TestListJobsBase):
 
         new_job_ids = wait_breakpoint(job_count=2)
 
-        assert len(set(job_ids) & set(new_job_ids)) == 0
+        assert len(builtins.set(job_ids) & builtins.set(new_job_ids)) == 0
 
         new_incarnation = get_operation_incarnation(op)
 
@@ -1092,14 +1121,14 @@ class TestListJobs(TestListJobsBase):
         wait_breakpoint(breakpoint_name="b", job_count=1)
 
         # For running jobs to_time filter uses start_time attribute for comparison
-        # so we expect both jobs to be detected
+        # so we expect both jobs to be detected.
         middle_time_before_breakpoint = datetime_to_string(utcnow())
         check_filter(2, from_time=start_time, to_time=middle_time_before_breakpoint)
 
         release_breakpoint(breakpoint_name="a")
         wait(lambda: len(list_jobs(op.id, state="completed")["jobs"]) == 1)
 
-        # Now we expect only running job to be detected
+        # Now we expect only running job to be detected.
         check_filter(1, from_time=start_time, to_time=middle_time_before_breakpoint)
 
         middle_time_after_breakpoint = datetime_to_string(utcnow())
@@ -1120,6 +1149,295 @@ class TestListJobs(TestListJobsBase):
         check_filter(1, to_time=middle_time_after_breakpoint)
         check_filter(2, to_time=end_time)
 
+    @authors("bystrovserg")
+    def test_with_interruption_info(self):
+        create_pool("research", attributes={"strong_guarantee_resources": {"cpu": 1}})
+        create_pool("prod", attributes={"strong_guarantee_resources": {"cpu": 2}})
+
+        op1 = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=3, spec={"pool": "research"})
+        wait_breakpoint(job_count=3)
+
+        wait(lambda: len(list_jobs(op1.id, with_interruption_info=True)["jobs"]) == 0)
+
+        op2 = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool": "prod"}, job_count=3)
+        wait_breakpoint(job_count=3)
+
+        wait(lambda: op1.get_job_count(state="aborted") == 2)
+
+        wait(lambda: len(list_jobs(op2.id, with_interruption_info=False)["jobs"]) == 2)
+        wait(lambda: len(list_jobs(op1.id, with_interruption_info=True)["jobs"]) == 2)
+        wait(lambda: len(list_jobs(op1.id, with_interruption_info=False)["jobs"]) == 1)
+
+        release_breakpoint()
+        op1.track()
+        op2.track()
+
+        wait(lambda: len(list_jobs(op2.id, with_interruption_info=False)["jobs"]) == 3)
+        wait(lambda: len(list_jobs(op1.id, with_interruption_info=True)["jobs"]) == 2)
+        wait(lambda: len(list_jobs(op1.id, with_interruption_info=False)["jobs"]) == 3)
+
+    @authors("aleksandr.gaev")
+    def test_job_addresses(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+        )
+        (job_id,) = wait_breakpoint()
+
+        def check_addresses(list_jobs_response):
+            return len(list_jobs_response) == 1 and "address" in list_jobs_response[0] and "addresses" in list_jobs_response[0]
+
+        wait(lambda: check_addresses(list_jobs(op.id, verbose=False)["jobs"]))
+
+        release_breakpoint()
+
+        op.track()
+
+        jobs = list_jobs(op.id, verbose=False)["jobs"]
+        assert check_addresses(jobs)
+        assert len(jobs[0].get("address")) > 0
+        assert len(jobs[0].get("addresses")) > 0
+        assert jobs[0].get("addresses")["default"] == jobs[0].get("address")
+
+    @authors("bystrovserg")
+    def test_attributes_simple(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=1,
+        )
+        (job_id,) = wait_breakpoint()
+
+        def test_attributes(attr, expected_attr, is_optional=False):
+            wait(lambda: len(list_jobs(op.id, attributes=attr)["jobs"]) == 1)
+            jobs = list_jobs(op.id, attributes=attr)["jobs"]
+            assert len(jobs) == 1
+            if not is_optional:
+                assert len(jobs[0]) == len(expected_attr)
+            for attribute in jobs[0].keys():
+                assert attribute in expected_attr
+            if isinstance(expected_attr, dict):
+                assert all(jobs[0].get(attribute) == value for attribute, value in expected_attr.items())
+
+        # Test default attributes.
+        test_attributes([], ["id"])
+
+        test_attributes(["job_id", "type", "start_time"], ["id", "type", "start_time"])
+        test_attributes(["state"], ["id", "state", "archive_state", "controller_state"], True)
+        test_attributes(["operation_id"], {"id" : job_id, "operation_id" : op.id})
+
+        release_breakpoint()
+        op.track()
+
+        test_attributes([], ["id"])
+        test_attributes(["job_id", "type", "start_time"], ["id", "type", "start_time"])
+        test_attributes(["state"], ["id", "state", "archive_state", "controller_state"])
+        test_attributes(["state", "controller_state"], ["id", "state", "archive_state", "controller_state"])
+        test_attributes(["operation_id"], {"id" : job_id, "operation_id" : op.id})
+        test_attributes(["statistics", "brief_statistics"], ["id", "statistics", "brief_statistics"])
+
+    @authors("bystrovserg")
+    @flaky(max_runs=3)
+    def test_controller_start_finish_time(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+        )
+        (job_id,) = wait_breakpoint()
+
+        def check_times(op_finished):
+            jobs = list_jobs(op.id)["jobs"]
+            assert len(jobs) == 1
+            job_from_api = jobs[0]
+            job_from_archive = get_job_from_archive(op.id, job_id)
+
+            start_time_by_list_jobs = date_string_to_timestamp_mcs(job_from_api["start_time"])
+            assert job_from_archive.get("controller_start_time") is not None
+            assert start_time_by_list_jobs == job_from_archive["controller_start_time"]
+            assert job_from_archive["start_time"] != job_from_archive["controller_start_time"]
+
+            if op_finished:
+                finish_time_by_list_jobs = date_string_to_timestamp_mcs(job_from_api["finish_time"])
+                assert job_from_archive.get("controller_finish_time") is not None
+                assert finish_time_by_list_jobs == job_from_archive["controller_finish_time"]
+                assert job_from_archive["finish_time"] != job_from_archive["controller_finish_time"]
+
+        wait_no_assert(lambda: check_times(op_finished=False))
+
+        release_breakpoint()
+        op.track()
+
+        wait_no_assert(lambda: check_times(op_finished=True))
+
+    # Before setting start_time and finish_time by the controller agent,
+    # "list_jobs" returned the controller agent's times for running jobs
+    # and the node's times for completed jobs. Test checks that these times stay the same now.
+    @authors("bystrovserg")
+    def test_same_time_for_running_and_completed_jobs(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+        )
+        wait_breakpoint()
+
+        wait(lambda: len(list_jobs(op.id)["jobs"]) == 1)
+        running_jobs = list_jobs(op.id)["jobs"]
+
+        release_breakpoint()
+        op.track()
+
+        wait(lambda: len(list_jobs(op.id)["jobs"]) == 1)
+        completed_jobs = list_jobs(op.id)["jobs"]
+
+        assert frozenset(job["start_time"] for job in running_jobs) == frozenset(job["start_time"] for job in completed_jobs)
+
+    @authors("bystrovserg")
+    def test_state_count_in_statistics(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+        )
+        (job_id,) = wait_breakpoint()
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        release_breakpoint()
+        op.track()
+
+        wait_for_cells()
+
+        wait(lambda: len(list_jobs(op.id)["state_counts"]) == 2)
+        state_counts = list_jobs(op.id)["state_counts"]
+        assert frozenset(state_counts.keys()) == frozenset(["aborted", "completed"])
+
+    @authors("bystrovserg")
+    def test_brief_statistics_without_full_statistics(self):
+        if not self.ENABLE_RPC_PROXY:
+            set("//sys/clusters/primary/request_full_statistics_for_brief_statistics_in_list_jobs", False)
+        else:
+            rpc_config = {
+                "cluster_connection" : {
+                    "request_full_statistics_for_brief_statistics_in_list_jobs": False
+                }
+            }
+            set("//sys/rpc_proxies/@config", rpc_config)
+
+        input_table, output_table = self._create_tables()
+        op = map(
+            track=False,
+            in_=input_table,
+            out=output_table,
+            command="cat",
+            spec={"job_count": 1},
+        )
+        op.track()
+
+        wait(lambda: len(list_jobs(op.id)["jobs"]) == 1)
+        job_id = list_jobs(op.id)["jobs"][0]["id"]
+
+        print_debug("Clear job's statistics in archive")
+        update_job_in_archive(op.id, job_id, {"statistics" : "", "statistics_lz4" : ""})
+
+        @wait_no_assert
+        def check_brief_statistics():
+            jobs = list_jobs(op.id, attributes=["brief_statistics"])["jobs"]
+            assert len(jobs) == 1
+            job = jobs[0]
+            assert job.get("brief_statistics") != {}
+
+
+class TestListJobsAllocation(TestListJobsBase):
+    NUM_NODES = 1
+    ENABLE_MULTIDAEMON = True
+
+    DELTA_NODE_CONFIG = update(TestListJobsBase.DELTA_NODE_CONFIG, {
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 1,
+                "user_slots": 1,
+            },
+        },
+    })
+
+    DELTA_DYNAMIC_NODE_CONFIG = update(TestListJobsBase.DELTA_DYNAMIC_NODE_CONFIG, {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "allocation": {
+                        "enable_multiple_jobs": True,
+                    },
+                },
+            },
+        },
+    })
+
+    @authors("bystrovserg")
+    def test_allocation_id(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+        )
+
+        def check_allocation_id(job_id, include_archive=False):
+            wait(lambda: len(list_jobs(op.id)["jobs"]) == 1 and "allocation_id" in list_jobs(op.id)["jobs"][0])
+            job_from_list = list_jobs(op.id)["jobs"][0]
+            if include_archive:
+                job_allocation_id_from_archive = get_allocation_id_from_archive(op.id, job_id)
+                assert job_from_list["allocation_id"] == job_allocation_id_from_archive
+            assert job_from_list["allocation_id"] == get_allocation_id_from_job_id(job_id)
+
+        job_ids = wait_breakpoint()
+        assert len(job_ids) == 1
+        check_allocation_id(job_ids[0], include_archive=False)
+
+        release_breakpoint()
+
+        op.track()
+        check_allocation_id(job_ids[0], include_archive=True)
+
+    @authors("bystrovserg")
+    def test_same_allocation(self):
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+
+        write_table("//tmp/t_in", [{"foo": "bar"}] * 2)
+
+        op = map(
+            wait_for_jobs=True,
+            track=False,
+            command=with_breakpoint("BREAKPOINT ; cat"),
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"data_size_per_job": 1, "enable_multiple_jobs_in_allocation": True},
+        )
+
+        job_ids = wait_breakpoint()
+        assert len(job_ids) == 1
+
+        job_id1 = job_ids[0]
+
+        wait(lambda: len(checked_list_jobs(op.id)["jobs"]) == 1)
+        assert "allocation_id" in checked_list_jobs(op.id)["jobs"][0]
+        allocation_id_before = checked_list_jobs(op.id)["jobs"][0]["allocation_id"]
+
+        release_breakpoint(job_id=job_id1)
+
+        job_ids = wait_breakpoint()
+        assert len(job_ids) == 1
+
+        job_id2 = job_ids[0]
+
+        assert job_id1 != job_id2
+
+        wait(lambda: len(checked_list_jobs(op.id)["jobs"]) == 2)
+        jobs_after = checked_list_jobs(op.id)["jobs"]
+        assert "allocation_id" in jobs_after[0] and "allocation_id" in jobs_after[1]
+        assert allocation_id_before == jobs_after[0]["allocation_id"] == jobs_after[1]["allocation_id"]
+
+        release_breakpoint()
+
+        op.track()
+
+        wait(lambda: len(checked_list_jobs(op.id)["jobs"]) == 2)
+        jobs_end = checked_list_jobs(op.id)["jobs"]
+        assert "allocation_id" in jobs_end[0] and "allocation_id" in jobs_end[1]
+        assert allocation_id_before == jobs_end[0]["allocation_id"] == jobs_end[1]["allocation_id"]
+
+
 ##################################################################
 
 
@@ -1132,6 +1450,12 @@ class TestListJobsRpcProxy(TestListJobs):
 
 class TestListJobsStatisticsLz4RpcProxy(TestListJobsStatisticsLz4):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_HTTP_PROXY = True
+
+
+class TestListJobsAllocationdIdRpcProxy(TestListJobsAllocation):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True

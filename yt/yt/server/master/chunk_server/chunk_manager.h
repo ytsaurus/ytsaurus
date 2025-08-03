@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include "chunk_placement.h"
 #include "chunk_replica.h"
 #include "chunk_view.h"
 #include "chunk_replica_fetcher.h"
 #include "chunk_requisition.h"
+#include "data_node_tracker.h"
 #include "medium_base.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
@@ -170,7 +170,27 @@ struct IChunkManager
 
     virtual TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,
+        TDummyNbdChunk* chunk,
+        const TChunkLocationPtrWithReplicaInfoList& replicas,
+        int desiredCount,
+        int minCount,
+        std::optional<int> replicationFactorOverride,
+        const TNodeList* forbiddenNodes,
+        const TNodeList* allocatedNodes,
+        const std::optional<std::string>& preferredHostName) = 0;
+
+    virtual TNodeList AllocateWriteTargets(
+        TDomesticMedium* medium,
         TChunk* chunk,
+        const TChunkLocationPtrWithReplicaInfoList& replicas,
+        int replicaIndex,
+        int desiredCount,
+        int minCount,
+        std::optional<int> replicationFactorOverride) = 0;
+
+    virtual TNodeList AllocateWriteTargets(
+        TDomesticMedium* medium,
+        TDummyNbdChunk* chunk,
         const TChunkLocationPtrWithReplicaInfoList& replicas,
         int replicaIndex,
         int desiredCount,
@@ -203,7 +223,6 @@ struct IChunkManager
         TChunkTree* newChild) = 0;
 
     virtual TChunkView* CreateChunkView(TChunkTree* underlyingTree, TChunkViewModifier modifier) = 0;
-    virtual TChunkView* CloneChunkView(TChunkView* chunkView, NChunkClient::TLegacyReadRange readRange) = 0;
 
     virtual TChunk* CreateChunk(
         NTransactionServer::TTransaction* transaction,

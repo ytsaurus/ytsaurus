@@ -24,10 +24,9 @@ namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueTabletExportProgress
+struct TQueueTabletExportProgress
     : public NYTree::TYsonStruct
 {
-public:
     NChunkClient::TChunkId LastChunk;
     NHiveClient::TTimestamp MaxTimestamp;
     i64 RowCount;
@@ -42,10 +41,9 @@ DEFINE_REFCOUNTED_TYPE(TQueueTabletExportProgress)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueExportProgress
+struct TQueueExportProgress
     : public NYTree::TYsonStruct
 {
-public:
     //! Instant corresponding to the last export task, which had no errors, meaning
     //! that all exported tables supposed to be created were created without issues or
     //! at the point of the task execution there was nothing to export.
@@ -102,6 +100,9 @@ using TQueueExportProfilingCountersPtr = TIntrusivePtr<TQueueExportProfilingCoun
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*!
+ * \note Thread affinity: any.
+*/
 struct IQueueExporter
     : public virtual TRefCounted
 {
@@ -109,6 +110,13 @@ struct IQueueExporter
 
     virtual void OnExportConfigChanged(const NQueueClient::TQueueStaticExportConfigPtr& newExportConfig) = 0;
     virtual void OnDynamicConfigChanged(const TQueueExporterDynamicConfig& newDynamicConfig) = 0;
+
+    virtual void Stop() = 0;
+
+    virtual void BuildOrchidYson(NYTree::TFluentAny fluent) const = 0;
+
+    // COMPAT(apachee): To differentiate old and new implementation.
+    virtual EQueueExporterImplementation GetImplementationType() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IQueueExporter)

@@ -79,7 +79,7 @@ TSlotLocation::TSlotLocation(
     , HeavyInvoker_(HeavyLocationQueue_->GetInvoker())
     , LightInvoker_(LightLocationQueue_->GetInvoker())
     , HealthChecker_(New<TDiskHealthChecker>(
-        bootstrap->GetConfig()->DataNode->DiskHealthChecker,
+        Config_->DiskHealthChecker,
         Config_->Path,
         HeavyInvoker_,
         Logger))
@@ -97,6 +97,13 @@ TSlotLocation::TSlotLocation(
         .WithTag("device_name", Config_->DeviceName)
         .WithTag("disk_family", Config_->DiskFamily)
         .AddProducer("", MakeCopyMetricBuffer_);
+}
+
+void TSlotLocation::UpdateHealthCheckerConfig(const NServer::TDiskHealthCheckerDynamicConfigPtr& config)
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    HealthChecker_->Reconfigure(Config_->DiskHealthChecker->ApplyDynamic(*config));
 }
 
 TFuture<void> TSlotLocation::Initialize()
@@ -643,7 +650,6 @@ TFuture<void> TSlotLocation::MakeSandboxFile(
                         },
                         /*tags*/ {
                             {FormatIOTag(EAggregateIOTag::Direction), "write"},
-                            // TODO(babenko): switch to std::string
                             {FormatIOTag(EAggregateIOTag::User), ToString(GetCurrentAuthenticationIdentity().User)},
                             {FormatIOTag(EAggregateIOTag::LocationType), "slot"},
                             {FormatIOTag(ERawIOTag::SlotIndex), ToString(slotIndex)},
@@ -801,7 +807,7 @@ TDiskStatistics TSlotLocation::GetDiskStatistics(int slotIndex) const
     return it == DiskStatisticsPerSlot_.end() ? TDiskStatistics{} : it->second;
 }
 
-TString TSlotLocation::GetMediumName() const
+std::string TSlotLocation::GetMediumName() const
 {
     return Config_->MediumName;
 }
@@ -1164,7 +1170,7 @@ void TSlotLocation::PopulateAlerts(std::vector<TError>* alerts)
 {
     auto alert = Alert_.Load();
     if (!alert.IsOK()) {
-        alerts->push_back(alert);
+        alerts->push_back(std::move(alert));
     }
 }
 

@@ -22,6 +22,9 @@ add_library(library-profiling-sensors_owner)
 target_compile_options(library-profiling-sensors_owner PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(library-profiling-sensors_owner PUBLIC

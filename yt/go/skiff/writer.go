@@ -26,6 +26,30 @@ func (w *writer) writeByte(b byte) {
 	w.err = w.w.WriteByte(b)
 }
 
+func (w *writer) writeInt8(i int8) {
+	w.writeByte(byte(i))
+}
+
+func (w *writer) writeInt16(i int16) {
+	if w.err != nil {
+		return
+	}
+
+	var buf [2]byte
+	binary.LittleEndian.PutUint16(buf[:], uint16(i))
+	_, w.err = w.w.Write(buf[:])
+}
+
+func (w *writer) writeInt32(i int32) {
+	if w.err != nil {
+		return
+	}
+
+	var buf [4]byte
+	binary.LittleEndian.PutUint32(buf[:], uint32(i))
+	_, w.err = w.w.Write(buf[:])
+}
+
 func (w *writer) writeInt64(i int64) {
 	if w.err != nil {
 		return
@@ -74,6 +98,10 @@ func (w *writer) writeUint16(i uint16) {
 	var buf [2]byte
 	binary.LittleEndian.PutUint16(buf[:], i)
 	_, w.err = w.w.Write(buf[:])
+}
+
+func (w *writer) writeUint8(i uint8) {
+	w.writeByte(i)
 }
 
 func (w *writer) writeBytes(b []byte) {

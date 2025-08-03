@@ -1,0 +1,13 @@
+#include "ypath_detail.h"
+
+namespace NYT::NSequoiaClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAbsoluteYPath::TAbsoluteYPath(const TMangledSequoiaPath& mangledPath)
+    : TBase(DemangleSequoiaPath(mangledPath))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NSequoiaClient

@@ -849,7 +849,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
         auto objectId = attributes.Get<TObjectId>("id");
         auto nodeId = NodeIdFromObjectId(objectId);
         auto newState = attributes.Get<NNodeTrackerClient::ENodeState>("state");
-        auto ioWeights = attributes.Get<THashMap<TString, double>>("io_weights", {});
+        auto ioWeights = attributes.Get<THashMap<std::string, double>>("io_weights", {});
         auto annotationsYson = attributes.FindYson("annotations");
         auto schedulingOptionsYson = attributes.FindYson("scheduling_options");
 
@@ -1882,7 +1882,7 @@ TAllocationPtr TNodeShard::ProcessAllocationHeartbeat(
             if (auto error = FromProto<TError>(allocationStatus->result().error());
                 !error.IsOK())
             {
-                YT_LOG_DEBUG(error, "Allocation finished with error, storage scheduled");
+                YT_LOG_DEBUG(error, "Allocation finished with error");
 
                 if (ParseAbortReason(error, allocationId, Logger).value_or(EAbortReason::Scheduler) == EAbortReason::GetSpecFailed) {
                     OnAllocationAborted(allocation, error, EAbortReason::GetSpecFailed);
@@ -1890,7 +1890,7 @@ TAllocationPtr TNodeShard::ProcessAllocationHeartbeat(
                     OnAllocationFinished(allocation);
                 }
             } else {
-                YT_LOG_DEBUG("Allocation finished, storage scheduled");
+                YT_LOG_DEBUG("Allocation finished");
 
                 OnAllocationFinished(allocation);
             }
@@ -2181,7 +2181,7 @@ void TNodeShard::OnAllocationRunning(const TAllocationPtr& allocation, NProto::T
             allocation,
             operationState);
 
-        allocationToSubmitToStrategy.ResourceUsageUpdated = true;;
+        allocationToSubmitToStrategy.ResourceUsageUpdated = true;
     }
 }
 
@@ -2304,7 +2304,7 @@ void TNodeShard::IncrementFinishedAllocationProfilingCounter(const TAllocationPt
         return SchedulerProfiler()
             .WithTags(TTagSet(TTagList{
                 {ProfilingPoolTreeKey, allocation->GetTreeId()},
-                {"aborted", aborted ? "true" : "false"},
+                {"aborted", std::string(FormatBool(aborted))},
             }))
             .Counter("/allocations/finished_allocation_count");
     };

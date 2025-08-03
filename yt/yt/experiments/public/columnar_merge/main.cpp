@@ -1,6 +1,5 @@
 #include "routines.h"
 
-#include <yt/yt/core/misc/signal_registry.h>
 #include <yt/yt/core/misc/crash_handler.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
@@ -20,11 +19,6 @@
 
 #include <yt/yt/core/misc/range_formatters.h>
 
-#include <util/string/cast.h>
-
-#include <library/cpp/getopt/last_getopt.h>
-
-
 #include <yt/yt/ytlib/table_client/chunk_state.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
@@ -39,6 +33,12 @@
 
 #include <yt/yt/library/query/engine_api/config.h>
 
+#include <yt/yt/library/signals/signal_registry.h>
+
+#include <library/cpp/getopt/last_getopt.h>
+
+#include <util/string/cast.h>
+
 namespace NYT {
 
 using namespace NConcurrency;
@@ -48,6 +48,7 @@ using namespace NTableClient::NProto;
 using namespace NYTree;
 using namespace NYson;
 using namespace NProfiling;
+using namespace NSignals;
 
 using NTableClient::EValueType;
 

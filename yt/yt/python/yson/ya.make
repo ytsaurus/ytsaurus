@@ -38,6 +38,7 @@ SRCS(
 PEERDIR(
     yt/yt/core
     yt/yt/library/skiff_ext
+    yt/yt/library/signals
     yt/yt/python/common
     contrib/libs/pycxx
     library/cpp/skiff

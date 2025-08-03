@@ -17,8 +17,8 @@ items:
     when: audience == "public"
     href: overview/about.md
   - name: Как попробовать
-    when: audience == "public"
     href: overview/try-yt.md
+    when: audience == "public"
   - name: Руководство пользователя
     when: audience == "public"
     expanded: true
@@ -299,8 +299,10 @@ items:
                 href: user-guide/data-processing/spyt/cluster/cluster-start.md
               - name: Порядок обновления SPYT
                 href: user-guide/data-processing/spyt/version.md
-              - name: Livy сервер
+              - name: Livy server
                 href: user-guide/data-processing/spyt/cluster/livy.md
+              - name: History server
+                href: user-guide/data-processing/spyt/cluster/shs.md
               # - name: Метрики в Prometheus
               #   href: user-guide/data-processing/spyt/cluster/prometheus.md
               - name: Конфигурации
@@ -325,6 +327,8 @@ items:
                   href: user-guide/data-processing/spyt/API/spyt-java.md
             - name: Справочник
               items:
+                - name: Конфигурационные параметры
+                  href: user-guide/data-processing/spyt/thesaurus/configuration.md
                 - name: Опции чтения
                   href: user-guide/data-processing/spyt/thesaurus/read-options.md
                 - name: Чтение и запись под транзакцией
@@ -377,7 +381,7 @@ items:
             href: user-guide/import.md
           - name: Работа с данными Microsoft Excel
             href: user-guide/excel.md
-      - name: Query tracker
+      - name: Query Tracker
         when: audience == "public"
         items:
           - name: Обзор
@@ -414,6 +418,8 @@ items:
                 href: api/python/dataclass.md
               - name: Примеры
                 href: api/python/examples.md
+          - name: Apache Airflow
+            href: api/airflow/userdoc.md
           - name: C++
             items:
               - name: Описание
@@ -484,13 +490,11 @@ items:
       - name: Синхронизация пользователей и групп с внешней системой
         href: admin-guide/identity-sync.md
   - name: Release notes
-    when: datahub != true
     href: admin-guide/releases.md
   - name: FAQ
-    href: faq/faq.md
+    href: faq/index.md
   - name: Как сообщить о проблеме
-    when: datahub != true
     href: user-guide/problems/howtoreport.md
   - name: Выступления на мероприятиях, публикации и семинары
-    when: audience == "public" and datahub != true
+    when: audience == "public"
     href: other/video-posts.md

@@ -2,20 +2,23 @@
 
 #include "public.h"
 
-#include <yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h>
-
 #include <yt/yt/server/master/cell_master/public.h>
 
 #include <yt/yt/server/master/cell_server/public.h>
 
 #include <yt/yt/server/master/cypress_server/public.h>
 
+#include <yt/yt/server/master/object_server/public.h>
+#include <yt/yt/server/master/object_server/object.h>
+
+#include <yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h>
+
+#include <yt/yt/server/lib/lease_server/public.h>
+
 #include <yt/yt/server/lib/transaction_supervisor/transaction_action.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_manager.h>
 
 #include <yt/yt/server/lib/hydra/entity_map.h>
-
-#include <yt/yt/server/master/object_server/public.h>
 
 #include <yt/yt/client/election/public.h>
 
@@ -91,7 +94,7 @@ struct ITransactionManager
 
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction);
 
-    virtual NHydra::TEntityMap<TTransaction>* MutableTransactionMap() = 0;
+    virtual NHydra::TMutableEntityMap<TTransaction>* MutableTransactionMap() = 0;
 
     virtual const THashSet<TTransaction*>& ForeignTransactions() const = 0;
     virtual const THashSet<TTransaction*>& NativeTopmostTransactions() const = 0;
@@ -147,16 +150,17 @@ struct ITransactionManager
         TTransaction* transaction,
         NObjectServer::TObject* object) = 0;
 
-    virtual bool RegisterTransactionLease(
-        TTransaction* transaction,
-        NCellServer::TCellBase* cell) = 0;
     virtual bool UnregisterTransactionLease(
         TTransaction* transaction,
-        NCellServer::TCellBase* cell) = 0;
+        NElection::TCellId cellId,
+        THashSet<TTransactionId>* cellLeaseTransactionIds) = 0;
 
-    template <class TProto>
+    virtual void RegisterTransactionActionHandlers(
+        TTypeErasedTransactionActionDescriptor descriptor) = 0;
+    template <class TProto, class TState = void>
     void RegisterTransactionActionHandlers(
-        NTransactionSupervisor::TTypedTransactionActionDescriptor<TTransaction, TProto> descriptor);
+        TTypedTransactionActionDescriptor<TProto, TState> descriptor);
+    virtual ITransactionActionStateFactory* GetTransactionActionStateFactory() = 0;
 
     using TCtxStartTransaction = NRpc::TTypedServiceContext<
         NTransactionClient::NProto::TReqStartTransaction,
@@ -187,6 +191,13 @@ struct ITransactionManager
     virtual std::unique_ptr<NHydra::TMutation> CreateIssueLeasesMutation(
         TCtxIssueLeasesPtr context) = 0;
 
+    using TCtxRegisterLockableDynamicTables = NRpc::TTypedServiceContext<
+        NProto::TReqRegisterLockableDynamicTables,
+        NProto::TRspRegisterLockableDynamicTables>;
+    using TCtxRegisterLockableDynamicTablesPtr = TIntrusivePtr<TCtxRegisterLockableDynamicTables>;
+    virtual std::unique_ptr<NHydra::TMutation> CreateRegisterLockableDynamicTablesMutation(
+        TCtxRegisterLockableDynamicTablesPtr context) = 0;
+
     virtual void CreateOrRefTimestampHolder(TTransactionId transactionId) = 0;
     virtual void SetTimestampHolderTimestamp(TTransactionId transactionId, TTimestamp timestamp) = 0;
     virtual TTimestamp GetTimestampHolderTimestamp(TTransactionId transactionId) = 0;
@@ -213,10 +224,6 @@ struct ITransactionManager
     virtual void AbortCypressTransaction(const TCtxAbortCypressTransactionPtr& context) = 0;
 
     virtual TTransaction* GetAndValidatePrerequisiteTransaction(TTransactionId transactionId) = 0;
-
-protected:
-    virtual void DoRegisterTransactionActionHandlers(
-        NTransactionSupervisor::TTransactionActionDescriptor<TTransaction> descriptor) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransactionManager)

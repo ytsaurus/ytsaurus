@@ -17,7 +17,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletBalancerLogger;
+constinit const auto Logger = TabletBalancerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,7 +31,7 @@ TTablet::TTablet(
 ////////////////////////////////////////////////////////////////////////////////
 
 NYson::TYsonString TTablet::GetPerformanceCountersYson(
-    const std::vector<TString>& performanceCountersKeys,
+    const std::vector<std::string>& performanceCountersKeys,
     const TTableSchemaPtr& performanceCountersTableSchema) const
 {
     if (auto performanceCounters = std::get_if<TYsonString>(&PerformanceCounters)) {
@@ -41,14 +41,23 @@ NYson::TYsonString TTablet::GetPerformanceCountersYson(
     if (auto performanceCountersRow = std::get_if<NTableClient::TUnversionedOwningRow>(&PerformanceCounters)) {
         return BuildYsonStringFluently()
             .DoMap([&] (TFluentMap fluent) {
-                for (const auto& performenceCounterKey : performanceCountersKeys) {
-                    auto index = performanceCountersTableSchema->GetColumnIndexOrThrow(performenceCounterKey);
+                for (const auto& performanceCounterKey : performanceCountersKeys) {
+                    if (!performanceCountersTableSchema->FindColumn(performanceCounterKey)) {
+                        YT_LOG_DEBUG_IF(Index == 0,
+                            "Statistics reporter schema does not contain performance counter column "
+                            "(PerformanceCounterKey: %v, TabletId: %v)",
+                            performanceCounterKey,
+                            Id);
+                        continue;
+                    }
+
+                    auto index = performanceCountersTableSchema->GetColumnIndexOrThrow(performanceCounterKey);
                     auto values = ConvertTo<IListNodePtr>(performanceCountersRow->Get()[index]);
                     fluent
-                        .Item(performenceCounterKey + "_count").Value(values->GetChildValueOrThrow<i64>(0))
-                        .Item(performenceCounterKey + "_rate").Value(values->GetChildValueOrThrow<double>(1))
-                        .Item(performenceCounterKey + "_10m_rate").Value(values->GetChildValueOrThrow<double>(2))
-                        .Item(performenceCounterKey + "_1h_rate").Value(values->GetChildValueOrThrow<double>(3));
+                        .Item(performanceCounterKey + "_count").Value(values->GetChildValueOrThrow<i64>(0))
+                        .Item(performanceCounterKey + "_rate").Value(values->GetChildValueOrThrow<double>(1))
+                        .Item(performanceCounterKey + "_10m_rate").Value(values->GetChildValueOrThrow<double>(2))
+                        .Item(performanceCounterKey + "_1h_rate").Value(values->GetChildValueOrThrow<double>(3));
                 }
         });
     }

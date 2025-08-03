@@ -24,7 +24,7 @@ using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = DataNodeLogger;
+constinit const auto Logger = DataNodeLogger;
 
 DECLARE_REFCOUNTED_CLASS(TCachedChangelog)
 DECLARE_REFCOUNTED_CLASS(TJournalDispatcher)
@@ -220,7 +220,7 @@ public:
         return UnderlyingChangelog_->Read(firstRecordId, maxRecords, maxBytes);
     }
 
-    NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
+    NIO::TReadRequest MakeChunkFragmentReadRequest(
         const NIO::TChunkFragmentDescriptor& fragmentDescriptor) override
     {
         return UnderlyingChangelog_->MakeChunkFragmentReadRequest(fragmentDescriptor);

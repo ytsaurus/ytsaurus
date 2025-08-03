@@ -1,19 +1,18 @@
 #include "new_sorted_chunk_pool.h"
 
-#include "new_job_manager.h"
+#include "job_size_adjuster.h"
 #include "helpers.h"
 #include "input_chunk_mapping.h"
+#include "new_job_manager.h"
 #include "new_sorted_job_builder.h"
 
 #include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
 #include <yt/yt/server/lib/controller_agent/structs.h>
 
-#include <yt/yt/ytlib/node_tracker_client/public.h>
-
 #include <yt/yt/ytlib/table_client/chunk_slice_fetcher.h>
 
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/library/random/bernoulli_sampler.h>
 
@@ -27,8 +26,6 @@
 #include <yt/yt/core/phoenix/type_decl.h>
 #include <yt/yt/core/phoenix/type_def.h>
 
-#include <library/cpp/yt/memory/ref_tracked.h>
-
 #include <library/cpp/yt/misc/numeric_helpers.h>
 
 namespace NYT::NChunkPools {
@@ -36,10 +33,10 @@ namespace NYT::NChunkPools {
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NControllerAgent;
-using namespace NNodeTrackerClient;
-using namespace NTableClient;
 using namespace NLogging;
+using namespace NNodeTrackerClient;
 using namespace NScheduler;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,12 +64,11 @@ public:
         , InputStreamDirectory_(std::move(inputStreamDirectory))
         , PrimaryPrefixLength_(PrimaryComparator_.GetLength())
         , ForeignPrefixLength_(ForeignComparator_.GetLength())
-        , ShouldSlicePrimaryTableByKeys_(options.SortedJobOptions.ShouldSlicePrimaryTableByKeys)
         , SliceForeignChunks_(options.SliceForeignChunks)
         , MinTeleportChunkSize_(options.MinTeleportChunkSize)
+        , MinManiacDataWeight_(options.MinManiacDataWeight)
         , JobSizeConstraints_(options.JobSizeConstraints)
         , TeleportChunkSampler_(JobSizeConstraints_->GetSamplingRate())
-        , SupportLocality_(options.SupportLocality)
         , RowBuffer_(options.RowBuffer)
     {
         Logger = options.Logger;
@@ -81,16 +77,25 @@ public:
 
         YT_VERIFY(RowBuffer_);
 
+        if (options.JobSizeAdjusterConfig && JobSizeConstraints_->CanAdjustDataWeightPerJob()) {
+            JobSizeAdjuster_ = CreateDiscreteJobSizeAdjuster(
+                JobSizeConstraints_->GetDataWeightPerJob(),
+                options.JobSizeAdjusterConfig);
+        }
+
         YT_LOG_DEBUG("New sorted chunk pool created (EnableKeyGuarantee: %v, PrimaryPrefixLength: %v, "
             "ForeignPrefixLength: %v, DataWeightPerJob: %v, "
-            "PrimaryDataWeightPerJob: %v, MaxDataSlicesPerJob: %v, InputSliceDataWeight: %v)",
+            "PrimaryDataWeightPerJob: %v, MaxDataSlicesPerJob: %v, InputSliceDataWeight: %v, "
+            "MinManiacDataWeight: %v, HasJobSizeAdjuster: %v)",
             SortedJobOptions_.EnableKeyGuarantee,
             PrimaryPrefixLength_,
             ForeignPrefixLength_,
             JobSizeConstraints_->GetDataWeightPerJob(),
             JobSizeConstraints_->GetPrimaryDataWeightPerJob(),
             JobSizeConstraints_->GetMaxDataSlicesPerJob(),
-            JobSizeConstraints_->GetInputSliceDataWeight());
+            JobSizeConstraints_->GetInputSliceDataWeight(),
+            MinManiacDataWeight_,
+            static_cast<bool>(JobSizeAdjuster_));
     }
 
     IChunkPoolInput::TCookie Add(TChunkStripePtr stripe) override
@@ -200,10 +205,29 @@ public:
                 jobSummary.InterruptionReason,
                 jobSummary.SplitJobCount);
             auto foreignSlices = JobManager_->ReleaseForeignSlices(cookie);
-            auto childCookies = SplitJob(jobSummary.UnreadInputDataSlices, std::move(foreignSlices), jobSummary.SplitJobCount);
+            auto childCookies = SplitJob(jobSummary.UnreadInputDataSlices, std::move(foreignSlices), jobSummary.SplitJobCount, cookie);
             RegisterChildCookies(cookie, std::move(childCookies));
         }
         JobManager_->Completed(cookie, jobSummary.InterruptionReason);
+
+        if (JobSizeAdjuster_) {
+            // No point in enlarging jobs if we cannot at least double them.
+            auto action = EJobAdjustmentAction::None;
+            if (JobManager_->JobCounter()->GetPending() > JobManager_->JobCounter()->GetRunning()) {
+                action = JobSizeAdjuster_->UpdateStatistics(jobSummary);
+            }
+
+            if (action == EJobAdjustmentAction::RebuildJobs) {
+                YT_LOG_INFO("Job completion triggered enlargement (JobCookie: %v)", cookie);
+                auto primaryDataWeightRatio = static_cast<double>(JobSizeConstraints_->GetPrimaryDataWeightPerJob())
+                    / JobSizeConstraints_->GetDataWeightPerJob();
+                JobManager_->Enlarge(
+                    JobSizeAdjuster_->GetDataWeightPerJob(),
+                    JobSizeAdjuster_->GetDataWeightPerJob() * primaryDataWeightRatio,
+                    JobSizeConstraints_);
+            }
+        }
+
         CheckCompleted();
     }
 
@@ -246,23 +270,21 @@ private:
     //! to the job.
     int ForeignPrefixLength_;
 
-    //! Whether primary tables chunks should be sliced by keys.
-    bool ShouldSlicePrimaryTableByKeys_;
-
     //! Whether foreign chunks should be sliced.
     bool SliceForeignChunks_ = false;
 
+    //! TODO(apollo1321): Support MinTeleportChunkSize for new sorted pool. Currently it is not used.
     //! An option to control chunk teleportation logic. Only large complete
     //! chunks of at least that size will be teleported.
     i64 MinTeleportChunkSize_;
+
+    std::optional<i64> MinManiacDataWeight_;
 
     //! All stripes that were added to this pool.
     std::vector<TSuspendableStripe> Stripes_;
 
     IJobSizeConstraintsPtr JobSizeConstraints_;
     TBernoulliSampler TeleportChunkSampler_;
-
-    bool SupportLocality_ = false;
 
     TRowBufferPtr RowBuffer_;
 
@@ -271,6 +293,8 @@ private:
     bool IsCompleted_ = false;
 
     TSerializableLogger StructuredLogger;
+
+    std::unique_ptr<IDiscreteJobSizeAdjuster> JobSizeAdjuster_;
 
     //! This method processes all input stripes that do not correspond to teleported chunks
     //! and either slices them using ChunkSliceFetcher (for unversioned stripes) or leaves them as is
@@ -336,7 +360,7 @@ private:
                             comparator,
                             sliceSize);
 
-                        chunkSliceFetcher->AddDataSliceForSlicing(dataSlice, comparator, sliceSize, /*sliceByKeys*/ true);
+                        chunkSliceFetcher->AddDataSliceForSlicing(dataSlice, comparator, sliceSize, /*sliceByKeys*/ true, MinManiacDataWeight_);
                     } else if (!isPrimary) {
                         // Take foreign slice as-is.
                         processDataSlice(dataSlice, inputCookie);
@@ -563,7 +587,7 @@ private:
         return Finished && GetJobCounter()->GetPending() != 0;
     }
 
-    TPeriodicYielder CreatePeriodicYielder()
+    TPeriodicYielder CreatePeriodicYielder() const
     {
         if (SortedJobOptions_.EnablePeriodicYielder) {
             return TPeriodicYielder(PrepareYieldPeriod);
@@ -635,7 +659,8 @@ private:
         if (JobSizeConstraints_->GetSamplingRate()) {
             JobManager_->Enlarge(
                 JobSizeConstraints_->GetDataWeightPerJob(),
-                JobSizeConstraints_->GetPrimaryDataWeightPerJob());
+                JobSizeConstraints_->GetPrimaryDataWeightPerJob(),
+                JobSizeConstraints_);
         }
 
         auto oldDataSliceCount = GetDataSliceCounter()->GetTotal();
@@ -647,7 +672,8 @@ private:
     std::vector<IChunkPoolOutput::TCookie> SplitJob(
         std::vector<TLegacyDataSlicePtr> unreadInputDataSlices,
         std::vector<TLegacyDataSlicePtr> foreignInputDataSlices,
-        int splitJobCount)
+        int splitJobCount,
+        TOutputCookie cookie)
     {
         auto validateDataSlices = [&] (const std::vector<TLegacyDataSlicePtr>& dataSlices, int prefixLength) {
             for (const auto& dataSlice : dataSlices) {
@@ -698,19 +724,21 @@ private:
         // We create new job size constraints by incorporating the new desired data size per job
         // into the old job size constraints.
         auto jobSizeConstraints = CreateExplicitJobSizeConstraints(
-            false /*canAdjustDataSizePerJob*/,
-            false /*isExplicitJobCount*/,
-            splitJobCount /*jobCount*/,
+            /*canAdjustDataSizePerJob*/ false,
+            /*isExplicitJobCount*/ false,
+            /*jobCount*/ splitJobCount,
             dataWeightPerJob,
-            std::numeric_limits<i64>::max() / 4,
+            /*primaryDataWeightPerJob*/ std::numeric_limits<i64>::max() / 4,
+            JobSizeConstraints_->GetCompressedDataSizePerJob(),
             JobSizeConstraints_->GetMaxDataSlicesPerJob(),
             JobSizeConstraints_->GetMaxDataWeightPerJob(),
             JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob(),
+            JobSizeConstraints_->GetMaxCompressedDataSizePerJob(),
             JobSizeConstraints_->GetInputSliceDataWeight(),
             JobSizeConstraints_->GetInputSliceRowCount(),
             JobSizeConstraints_->GetBatchRowCount(),
             JobSizeConstraints_->GetForeignSliceDataWeight(),
-            std::nullopt /*samplingRate*/);
+            /*samplingRate*/ std::nullopt);
 
         // Teleport chunks do not affect the job split process since each original
         // job is already located between the teleport chunks.
@@ -746,6 +774,7 @@ private:
         for (auto& job : jobs) {
             jobStubs.emplace_back(std::make_unique<TNewJobStub>(std::move(job)));
         }
+        JobManager_->SeekOrder(cookie);
         auto childCookies = JobManager_->AddJobs(std::move(jobStubs));
 
         return childCookies;
@@ -795,16 +824,29 @@ void TNewSortedChunkPool::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(6, InputStreamDirectory_);
     PHOENIX_REGISTER_FIELD(7, PrimaryPrefixLength_);
     PHOENIX_REGISTER_FIELD(8, ForeignPrefixLength_);
-    PHOENIX_REGISTER_FIELD(9, ShouldSlicePrimaryTableByKeys_);
+    registrar
+        .template VirtualField<9>("ShouldSlicePrimaryTableByKeys_", [] (TThis* /*this_*/, auto& context) {
+            Load<bool>(context);
+        })
+        .BeforeVersion(ESnapshotVersion::DropShouldSlicePrimaryTableByKeys)();
     PHOENIX_REGISTER_FIELD(10, SliceForeignChunks_);
     PHOENIX_REGISTER_FIELD(11, MinTeleportChunkSize_);
     PHOENIX_REGISTER_FIELD(12, Stripes_);
     PHOENIX_REGISTER_FIELD(13, JobSizeConstraints_);
     PHOENIX_REGISTER_FIELD(14, TeleportChunkSampler_);
-    PHOENIX_REGISTER_FIELD(15, SupportLocality_);
+    registrar
+        .template VirtualField<15>("SupportLocality_", [] (TThis* /*this_*/, auto& context) {
+            Load<bool>(context);
+        })
+        .BeforeVersion(ESnapshotVersion::DropSupportLocality)();
     PHOENIX_REGISTER_FIELD(16, TeleportChunks_);
     PHOENIX_REGISTER_FIELD(17, IsCompleted_);
     PHOENIX_REGISTER_FIELD(18, StructuredLogger);
+    PHOENIX_REGISTER_FIELD(19, MinManiacDataWeight_,
+        .SinceVersion(ESnapshotVersion::IsolateManiacsInSlicing));
+
+    PHOENIX_REGISTER_FIELD(20, JobSizeAdjuster_,
+        .SinceVersion(ESnapshotVersion::OrderedAndSortedJobSizeAdjuster));
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         ValidateLogger(this_->Logger);

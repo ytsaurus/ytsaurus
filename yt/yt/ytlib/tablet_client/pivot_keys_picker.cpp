@@ -291,7 +291,7 @@ std::vector<TLegacyOwningKey> PickPivotKeysWithSlicing(
             sliceSize,
             comparator,
             dataSlice);
-        chunkSliceFetcher->AddDataSliceForSlicing(dataSlice, comparator, sliceSize, /*sliceByKeys*/ true);
+        chunkSliceFetcher->AddDataSliceForSlicing(dataSlice, comparator, sliceSize, /*sliceByKeys*/ true, /*minManiacDataWeight*/ std::nullopt);
     }
 
     YT_LOG_DEBUG("Fetching chunk slices");

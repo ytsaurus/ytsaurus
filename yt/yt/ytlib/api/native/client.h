@@ -111,11 +111,11 @@ struct IClient
         const std::vector<NChaosClient::TAlienCellDescriptorLite>& alienCellDescriptors,
         const TSyncAlienCellOptions& options = {}) = 0;
 
-    virtual bool DoesOperationsArchiveExist(bool useOperationsArchiveClient = true) = 0;
+    virtual bool DoesOperationsArchiveExist() = 0;
 
     virtual TFuture<TIssueTokenResult> IssueSpecificTemporaryToken(
         const std::string& user,
-        const TString& token,
+        const std::string& token,
         const NYTree::IAttributeDictionaryPtr& attributes,
         const TIssueTemporaryTokenOptions& options) = 0;
 
@@ -126,7 +126,7 @@ struct IClient
 
     virtual TFuture<void> RefreshTemporaryToken(
         const std::string& user,
-        const TString& token,
+        const std::string& token,
         const TRefreshTemporaryTokenOptions& options) = 0;
 };
 

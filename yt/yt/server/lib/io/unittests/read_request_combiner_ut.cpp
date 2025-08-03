@@ -13,7 +13,7 @@ using TCombinedRequest = IReadRequestCombiner::TCombinedRequest;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool operator==(const IIOEngine::TReadRequest& lhs, const IIOEngine::TReadRequest& rhs)
+static bool operator==(const TReadRequest& lhs, const TReadRequest& rhs)
 {
     return lhs.Offset == rhs.Offset && lhs.Size == rhs.Size &&
         lhs.Handle == rhs.Handle;
@@ -64,13 +64,13 @@ protected:
     }
 
     std::tuple<IReadRequestCombinerPtr, std::vector<TCombinedRequest>>
-    Combine(const std::vector<IIOEngine::TReadRequest>& input)
+    Combine(const std::vector<TReadRequest>& input)
     {
         auto combiner = Dummy ? CreateDummyReadRequestCombiner() : CreateReadRequestCombiner();
         auto combineResult = combiner->Combine(
             input,
             PageSize,
-            GetRefCountedTypeCookie<IIOEngine::TDefaultReadTag>());
+            GetRefCountedTypeCookie<TDefaultReadTag>());
 
         return {
             std::move(combiner),
@@ -79,7 +79,7 @@ protected:
     }
 
     void RunTest(
-        const std::vector<IIOEngine::TReadRequest>& input,
+        const std::vector<TReadRequest>& input,
         const std::vector<TCombinedRequest>& output)
     {
         auto [combiner, combineResult] = Combine(input);

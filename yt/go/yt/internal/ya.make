@@ -2,8 +2,11 @@ GO_LIBRARY()
 
 SRCS(
     call.go
+    decoder.go
     encoder.go
     error_wrapper.go
+    errors.go
+    interface.go
     logging.go
     mutation_retrier.go
     params_gen.go

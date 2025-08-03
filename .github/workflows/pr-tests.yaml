@@ -98,7 +98,7 @@ jobs:
       - name: Calculate variables
         id: vars
         run: |
-          TEST_FLAGS="--thinlto -DCGO_ENABLED=0 -DCFLAGS=-fsized-deallocation -DSTRIP=yes --build=release --run-tagged-tests-on-yt -A -DYT_OPENSOURCE_CI=true"
+          TEST_FLAGS="-DCGO_ENABLED=0 -DCFLAGS=-fsized-deallocation -DSTRIP=yes --build=release --run-tagged-tests-on-yt -A -DYT_OPENSOURCE_CI=true"
           echo "TEST_FLAGS=$TEST_FLAGS" >> $GITHUB_OUTPUT
 
       - name: Configure S3

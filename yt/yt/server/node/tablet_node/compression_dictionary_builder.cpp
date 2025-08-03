@@ -60,7 +60,7 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletNodeLogger;
+constinit const auto Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -391,13 +391,11 @@ private:
             StoreIds_.size(),
             StoreIds_[storeIndex]);
 
-        const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
-        bool prepareColumnarMeta = mountConfig->EnableNewScanReaderForLookup || mountConfig->EnableNewScanReaderForSelect;
         auto backendReader = store->GetBackendReaders(WorkloadCategory_);
         auto chunkMeta = WaitFor(store->GetCachedVersionedChunkMeta(
             backendReader.ChunkReader,
             chunkReadOptions,
-            prepareColumnarMeta))
+            /*prepareColumnarMeta*/ true))
             .ValueOrThrow();
 
         // This is just some very rough approximation.
@@ -496,7 +494,8 @@ private:
             tabletSnapshot->DictionaryCompressionFactory,
             tabletSnapshot->PhysicalSchema,
             referencedHunkChunkIds,
-            chunkReadOptions);
+            chunkReadOptions,
+            tabletSnapshot->PerformanceCounters);
 
         WaitForFast(reader->Open())
             .ThrowOnError();
@@ -816,17 +815,8 @@ private:
         }
 
         if (tabletSnapshot->Settings.MountConfig->RegisterChunkReplicasOnStoresUpdate) {
-            // TODO(kvk1920): Consider using chunk + location instead of chunk + node + medium.
-            auto replicasInfo = chunkWriter->GetWrittenChunkReplicasInfo();
-            TAllyReplicasInfo newReplicas;
-            newReplicas.Revision = replicasInfo.ConfirmationRevision;
-            newReplicas.Replicas.reserve(replicasInfo.Replicas.size());
-            for (auto replica : replicasInfo.Replicas) {
-                newReplicas.Replicas.push_back(replica);
-            }
-
             const auto& chunkReplicaCache = Bootstrap_->GetConnection()->GetChunkReplicaCache();
-            chunkReplicaCache->UpdateReplicas(chunkWriter->GetChunkId(), newReplicas);
+            chunkReplicaCache->UpdateReplicas(chunkWriter->GetChunkId(), TAllyReplicasInfo::FromChunkWriter(chunkWriter));
         }
 
         YT_LOG_DEBUG("Compression dictionary builder finished writing dictionary hunk chunk "

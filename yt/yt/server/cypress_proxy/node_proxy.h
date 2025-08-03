@@ -4,13 +4,21 @@
 
 #include <yt/yt/ytlib/sequoia_client/public.h>
 
-#include <yt/yt/core/ytree/public.h>
-
 namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeProxyBasePtr CreateNodeProxy(
+struct INodeProxy
+    : public TRefCounted
+{
+    virtual EInvokeResult Invoke(const ISequoiaServiceContextPtr& context) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(INodeProxy)
+
+////////////////////////////////////////////////////////////////////////////////
+
+INodeProxyPtr CreateNodeProxy(
     IBootstrap* bootstrap,
     TSequoiaSessionPtr session,
     TSequoiaResolveResult resolveResult);

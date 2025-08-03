@@ -1,0 +1,4 @@
+public:
+  pages:
+    try-yt:
+      mr-source: https://github.com/ytsaurus/ytsaurus/blob/main/yt/docs/code-examples/python/word-count.py

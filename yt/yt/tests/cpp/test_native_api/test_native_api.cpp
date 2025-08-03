@@ -1,8 +1,11 @@
 #include <yt/yt/tests/cpp/test_base/api_test_base.h>
-#include "yt/yt/tests/cpp/modify_rows_test.h"
+#include <yt/yt/tests/cpp/test_base/private.h>
+
+#include <yt/yt/tests/cpp/modify_rows_test.h>
 
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
+#include <yt/yt/client/api/table_writer.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/client.h>
@@ -23,6 +26,7 @@
 
 #include <yt/yt/client/api/internal_client.h>
 
+#include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
@@ -31,6 +35,7 @@
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/logging/config.h>
 #include <yt/yt/core/logging/log_manager.h>
@@ -42,8 +47,6 @@
 #include <util/datetime/base.h>
 
 #include <util/random/random.h>
-
-#include <tuple>
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,6 +65,10 @@ using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYson;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+const auto Logger = CppTestsLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -93,7 +100,7 @@ protected:
         auto client = DynamicPointerCast<NApi::NNative::IClient>(Client_);
         auto proxy = CreateObjectServiceReadProxy(client, EMasterChannelKind::Follower);
         auto batchReq = proxy.ExecuteBatch();
-        batchReq->SetTimeout(TDuration::MilliSeconds(200));
+        batchReq->SetTimeout(TDuration::Seconds(1));
         MaybeSetMutationId(batchReq, subrequestTypes);
 
         FillWithSubrequests(batchReq, subrequestTypes);
@@ -252,6 +259,29 @@ private:
     int SubrequestCounter_ = 0;
 };
 
+TEST_F(TBatchRequestTest, TestInvalidObjectIdError)
+{
+    auto client = DynamicPointerCast<NApi::NNative::IClient>(Client_);
+    auto proxy = CreateObjectServiceReadProxy(client, EMasterChannelKind::Follower);
+    auto batchRequest = proxy.ExecuteBatch();
+    auto unexistingObject = MakeId(EObjectType::MapNode, TCellTag(10), 0, 0);
+    auto invalidCellTag = MakeId(EObjectType::MapNode, TCellTag(9), 0, 0);
+
+    batchRequest->AddRequest(TYPathProxy::Get(FromObjectId(unexistingObject)));
+    batchRequest->AddRequest(TYPathProxy::Get(FromObjectId(invalidCellTag)));
+
+    auto batchResponse = WaitFor(batchRequest->Invoke())
+        .ValueOrThrow();
+
+    auto unexistingObjectResponse = batchResponse->GetResponse<TYPathProxy::TRspGet>(0);
+    EXPECT_FALSE(unexistingObjectResponse.IsOK());
+    EXPECT_EQ(unexistingObjectResponse.InnerErrors().front().GetMessage(), Format("No such object %v", unexistingObject));
+
+    auto invalidCellTagResponse = batchResponse->GetResponse<TYPathProxy::TRspGet>(1);
+    EXPECT_FALSE(invalidCellTagResponse.IsOK());
+    EXPECT_EQ(invalidCellTagResponse.GetMessage(), Format("Unknown cell tag %v", TCellTag(9)));
+}
+
 TEST_F(TBatchRequestTest, TestEmptyBatchRequest)
 {
     TestBatchRequest(0);
@@ -355,7 +385,7 @@ protected:
 
     int InvokeAndGetRetryCount(TYPathRequestPtr request, TErrorCode errorCode, int maxRetryCount)
     {
-        auto config = New<TReqExecuteBatchWithRetriesConfig>();
+        auto config = New<TReqExecuteBatchRetriesConfig>();
         config->RetryCount = maxRetryCount;
         config->StartBackoff = TDuration::MilliSeconds(100);
         config->BackoffMultiplier = 1;
@@ -418,7 +448,7 @@ protected:
         int subbatchSize,
         int maxParallelSubbatchCount)
     {
-        auto config = New<TReqExecuteBatchWithRetriesConfig>();
+        auto config = New<TReqExecuteBatchRetriesConfig>();
         config->RetryCount = maxRetryCount;
         config->StartBackoff = TDuration::MilliSeconds(100);
         config->BackoffMultiplier = 1;
@@ -437,6 +467,9 @@ protected:
         auto batchRequest = proxy.ExecuteBatchWithRetriesInParallel(config, BIND(needRetry), subbatchSize, maxParallelSubbatchCount);
 
         for (int i = 0; i < requestCount; ++i) {
+            if (i > 0) {
+                GenerateMutationId(request);
+            }
             batchRequest->AddRequest(request);
         }
 
@@ -812,9 +845,9 @@ TEST_F(TAlterTableTest, TestUnknownType)
         column->set_name("foo");
         column->set_stable_name("foo");
 
-        EXPECT_THROW_THAT(
+        EXPECT_THROW_WITH_SUBSTRING(
             AlterTable("//tmp/t1", schema),
-            testing::HasSubstr("has no corresponding logical type"));
+            "required fileds are not set");
     }
 
     {
@@ -825,9 +858,9 @@ TEST_F(TAlterTableTest, TestUnknownType)
         column->set_stable_name("foo");
         column->set_type(ToProto(EValueType::Min));
 
-        EXPECT_THROW_THAT(
+        EXPECT_THROW_WITH_SUBSTRING(
             AlterTable("//tmp/t1", schema),
-            testing::HasSubstr("has no corresponding logical type"));
+            "has no corresponding logical type");
     }
 
     {
@@ -838,9 +871,9 @@ TEST_F(TAlterTableTest, TestUnknownType)
         column->set_stable_name("foo");
         column->set_type(-1);
 
-        EXPECT_THROW_THAT(
+        EXPECT_THROW_WITH_SUBSTRING(
             AlterTable("//tmp/t1", schema),
-            testing::HasSubstr("Error casting"));
+            "Error casting");
     }
 
     {
@@ -852,9 +885,9 @@ TEST_F(TAlterTableTest, TestUnknownType)
         column->set_type(ToProto(EValueType::Any));
         column->set_simple_logical_type(-1);
 
-        EXPECT_THROW_THAT(
+        EXPECT_THROW_WITH_SUBSTRING(
             AlterTable("//tmp/t1", schema),
-            testing::HasSubstr("Error casting"));
+            "Error casting");
     }
 
     {
@@ -878,9 +911,9 @@ TEST_F(TAlterTableTest, TestUnknownType)
         column->set_type(ToProto(EValueType::Int64));
         column->mutable_logical_type()->set_simple(-1);
 
-        EXPECT_THROW_THAT(
+        EXPECT_THROW_WITH_SUBSTRING(
             AlterTable("//tmp/t1", schema),
-            testing::HasSubstr("Error casting"));
+            "Error casting");
     }
 
     {
@@ -892,9 +925,9 @@ TEST_F(TAlterTableTest, TestUnknownType)
         column->set_type(ToProto(EValueType::Int64));
         column->mutable_logical_type();
 
-        EXPECT_THROW_THAT(
+        EXPECT_THROW_WITH_SUBSTRING(
             AlterTable("//tmp/t1", schema),
-            testing::HasSubstr("Cannot parse unknown logical type from proto"));
+            "Cannot parse unknown logical type from proto");
     }
 
     {
@@ -908,10 +941,124 @@ TEST_F(TAlterTableTest, TestUnknownType)
         auto unknownFields = column->GetReflection()->MutableUnknownFields(column);
         unknownFields->AddVarint(100500, 0);
 
-        EXPECT_THROW_THAT(
+        EXPECT_THROW_WITH_SUBSTRING(
             AlterTable("//tmp/t1", schema),
-            testing::HasSubstr("Cannot parse unknown logical type from proto"));
+            "Cannot parse unknown logical type from proto");
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TConcatenateTest
+    : public TApiTestBase
+{
+protected:
+    void CreateTableWithData(const TString& path, TCreateNodeOptions options, int valueCount) const
+    {
+        WaitFor(Client_->CreateNode(path, EObjectType::Table, options))
+            .ThrowOnError();
+        auto writer = WaitFor(Client_->CreateTableWriter(path))
+            .ValueOrThrow();
+
+        auto columnId = writer->GetNameTable()->GetIdOrRegisterName("key");
+        std::vector<TUnversionedRow> rows;
+        auto rowBuffer = New<TRowBuffer>();
+
+        for (auto i = 0; i < valueCount; ++i) {
+            TUnversionedRowBuilder rowBuilder;
+            // Same value to allow sequential concatinations for sorted table.
+            rowBuilder.AddValue(MakeUnversionedInt64Value(10, columnId));
+            rows.push_back(rowBuffer->CaptureRow(rowBuilder.GetRow()));
+        }
+
+        YT_VERIFY(writer->Write(rows));
+        WaitFor(writer->Close())
+            .ThrowOnError();
+    }
+};
+
+TEST_F(TConcatenateTest, TestParallelConcatenateToSortedWithAppend)
+{
+    auto threadPool = CreateThreadPool(2, "ParallelConcatenate");
+    TCreateNodeOptions options;
+    options.Attributes = CreateEphemeralAttributes();
+    options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"key", EValueType::Int64, ESortOrder::Ascending}}));
+
+    CreateTableWithData("//tmp/table1", options, 5);
+    CreateTableWithData("//tmp/table2", options, 5);
+    CreateTableWithData("//tmp/table3", options, 5);
+    CreateTableWithData("//tmp/concat", options, 0);
+
+    auto barrierPromise = NewPromise<void>();
+    std::vector<TFuture<void>> futures;
+    for (int i = 0; i < 3; ++i) {
+        futures.push_back(BIND([
+            client = Client_,
+            barrierFuture = barrierPromise.ToFuture()
+        ] {
+            WaitForFast(barrierFuture)
+                .ThrowOnError();
+            WaitFor(client->ConcatenateNodes(
+                {"//tmp/table1", "//tmp/table2", "//tmp/table3"},
+                "<append=true>//tmp/concat"))
+                .ThrowOnError();
+        })
+            .AsyncVia(threadPool->GetInvoker())
+            .Run());
+    }
+
+    barrierPromise.Set();
+    auto results = WaitFor(AllSet(std::move(futures))).ValueOrThrow();
+
+    int failedCount = 0;
+    for (auto& result : results) {
+        if (!result.IsOK()) {
+            ++failedCount;
+            YT_LOG_INFO("Concatenate failed with error (ErrorMessage: %v)", result);
+            EXPECT_TRUE(result.FindMatching(NCypressClient::EErrorCode::ConcurrentTransactionLockConflict));
+        }
+    }
+
+    EXPECT_GT(failedCount, 0);
+
+    futures.clear();
+    for (auto path : {"//tmp/table1", "//tmp/table2", "//tmp/table3", "//tmp/concat"}) {
+        futures.push_back(Client_->RemoveNode(path));
+    }
+    WaitFor(AllSet(std::move(futures))).ThrowOnError();
+}
+
+TEST_F(TConcatenateTest, TestParallelConcatenateWithAppend)
+{
+    TCreateNodeOptions options;
+    options.Attributes = CreateEphemeralAttributes();
+    options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"key", EValueType::Int64}}));
+
+    CreateTableWithData("//tmp/table1", options, 5);
+    CreateTableWithData("//tmp/table2", options, 5);
+    CreateTableWithData("//tmp/table3", options, 5);
+    CreateTableWithData("//tmp/concat", options, 0);
+
+    std::vector<TFuture<void>> futures;
+    futures.push_back(Client_->ConcatenateNodes({"//tmp/table1", "//tmp/table2", "//tmp/table3"}, "<append=true>//tmp/concat"));
+    futures.push_back(Client_->ConcatenateNodes({"//tmp/table1", "//tmp/table2", "//tmp/table3"}, "<append=true>//tmp/concat"));
+
+    auto results = WaitFor(AllSet(std::move(futures))).ValueOrThrow();
+
+    int failedCount = 0;
+    for (auto& result : results) {
+        if (!result.IsOK()) {
+            ++failedCount;
+        }
+    }
+
+    EXPECT_EQ(failedCount, 0);
+
+    futures.clear();
+    for (auto path : {"//tmp/table1", "//tmp/table2", "//tmp/table3", "//tmp/concat"}) {
+        futures.push_back(Client_->RemoveNode(path));
+    }
+    WaitFor(AllSet(std::move(futures))).ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1225,7 +1372,10 @@ TEST_F(TPingTransactionsTest, Basic)
 
     auto cellId = CellTagFromId(tx1->GetId());
     auto unknownTransactionId = MakeId(EObjectType::Transaction, cellId, RandomNumber<ui32>(), RandomNumber<ui32>());
-    auto unknownTx = Client_->AttachTransaction(unknownTransactionId, TTransactionAttachOptions{.Ping = false});
+
+    TTransactionAttachOptions attachOptions = {};
+    attachOptions.Ping = false;
+    auto unknownTx = Client_->AttachTransaction(unknownTransactionId, attachOptions);
 
     auto pingResult1 = WaitFor(tx1->Ping());
     auto unknownPingResult = WaitFor(unknownTx->Ping());
@@ -1242,6 +1392,7 @@ TEST_F(TPingTransactionsTest, MaxBatchSize)
     auto startOptions = TTransactionStartOptions{
         .Timeout = TDuration::Days(365),
         .Ping = false,
+        .StartCypressTransaction = false, // TODO(gryzlov-ad): add tests for Cypress transactions.
     };
     auto tx1 = WaitFor(Client_->StartTransaction(ETransactionType::Master, startOptions))
         .ValueOrThrow();
@@ -1272,6 +1423,7 @@ TEST_F(TPingTransactionsTest, Reconfigure)
     auto startOptions = TTransactionStartOptions{
         .Timeout = TDuration::Days(365),
         .Ping = false,
+        .StartCypressTransaction = false, // TODO(gryzlov-ad): add tests for Cypress transactions.
     };
     auto tx = WaitFor(Client_->StartTransaction(ETransactionType::Master, startOptions))
         .ValueOrThrow();
@@ -1282,7 +1434,7 @@ TEST_F(TPingTransactionsTest, Reconfigure)
         .ThrowOnError();
     auto batchPeriod = timer.GetElapsedTime();
 
-    ReconfigurePingBatcher(2 * batchPeriod);;
+    ReconfigurePingBatcher(2 * batchPeriod);
 
     timer.Start();
     future = tx->Ping();

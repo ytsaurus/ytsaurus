@@ -44,4 +44,5 @@ ENDIF()
 
 RECURSE_FOR_TESTS(
     prepare_scheduling_usage
+    node/network_isolation
 )

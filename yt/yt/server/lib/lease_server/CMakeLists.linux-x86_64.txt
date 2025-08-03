@@ -34,6 +34,9 @@ add_library(server-lib-lease_server)
 target_compile_options(server-lib-lease_server PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_include_directories(server-lib-lease_server PUBLIC
@@ -54,6 +57,7 @@ target_sources(server-lib-lease_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/lease_server/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/lease_server/lease_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/lease_server/serialize.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/lease_server/helpers.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/server/lib/lease_server/proto/lease_manager.pb.h
 )
 

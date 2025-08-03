@@ -4,6 +4,8 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 PROTO_NAMESPACE(yt)
 
+BISON_FLAGS(-Wcounterexamples)
+
 SRCS(
     ast.cpp
     ast_visitors.cpp
@@ -11,6 +13,7 @@ SRCS(
     coordination_helpers.cpp
     expr_builder_base.cpp
     expr_builder_v1.cpp
+    expr_builder_v2.cpp
     functions.cpp
     helpers.cpp
     builtin_function_registry.cpp
@@ -26,6 +29,7 @@ SRCS(
     query_helpers.cpp
     query_preparer.cpp
     query_visitors.cpp
+    typing.cpp
 )
 
 PEERDIR(

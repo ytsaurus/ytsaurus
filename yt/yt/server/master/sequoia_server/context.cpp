@@ -87,7 +87,7 @@ public:
         tabletRequestBatcher->SubmitUnversionedRow(EWireProtocolCommand::DeleteRow, key, TLockMask{});
     }
 
-    void SubmitRows() override
+    void SubmitRows() noexcept override
     {
         THashMap<TTabletId, std::vector<std::unique_ptr<ITabletRequestBatcher::TBatch>>> tabletIdToBatches;
 
@@ -134,54 +134,31 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISequoiaContextPtr CreateSequoiaContext(
+YT_DEFINE_THREAD_LOCAL(std::unique_ptr<ISequoiaContext>, SequoiaContext);
+
+ISequoiaContext* GetSequoiaContext()
+{
+    return SequoiaContext().get();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSequoiaContextGuard::TSequoiaContextGuard(
     TBootstrap* bootstrap,
     TTransactionId transactionId,
     const NSequoiaClient::NProto::TWriteSet& protoWriteSet)
 {
-    return New<TSequoiaContext>(bootstrap, transactionId, protoWriteSet);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-YT_DEFINE_THREAD_LOCAL(ISequoiaContextPtr, SequoiaContext);
-
-void SetSequoiaContext(ISequoiaContextPtr context)
-{
-    SequoiaContext() = std::move(context);
-}
-
-const ISequoiaContextPtr& GetSequoiaContext()
-{
-    return SequoiaContext();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TSequoiaContextGuard::TSequoiaContextGuard(ISecurityManagerPtr securityManager)
-    : UserGuard_(std::move(securityManager))
-    , TraceContextGuard_(nullptr)
-{ }
-
-TSequoiaContextGuard::TSequoiaContextGuard(
-    ISequoiaContextPtr context,
-    ISecurityManagerPtr securityManager,
-    TAuthenticationIdentity identity,
-    TTraceContextPtr traceContext)
-    : UserGuard_(std::move(securityManager), std::move(identity))
-    , TraceContextGuard_(std::move(traceContext))
-{
-    SetSequoiaContext(std::move(context));
+    auto& sequoiaContext = SequoiaContext();
+    YT_VERIFY(!sequoiaContext);
+    sequoiaContext = std::make_unique<TSequoiaContext>(bootstrap, transactionId, protoWriteSet);
 }
 
 TSequoiaContextGuard::~TSequoiaContextGuard()
 {
     auto& sequoiaContext = SequoiaContext();
-    if (sequoiaContext) {
-        sequoiaContext->SubmitRows();
-    }
-
-    SetSequoiaContext(/*context*/ nullptr);
+    YT_VERIFY(sequoiaContext);
+    sequoiaContext->SubmitRows();
+    sequoiaContext.reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

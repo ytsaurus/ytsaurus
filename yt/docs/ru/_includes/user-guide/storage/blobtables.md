@@ -48,7 +48,7 @@ $ yt --proxy <cluster-name> list-jobs 11788844-52f37dd2-3ff03e8-ff3bf1e4 --forma
 
 "4c3fc84d-884fbde5-3ff0384-94b1"
 
-# Читам «ошибки» только этого джоба
+# Читаем «ошибки» только этого джоба
 $ yt --proxy <cluster-name> read-blob-table '//tmp/stderr_table["4c3fc84d-884fbde5-3ff0384-94b1"]'
 something
 ```

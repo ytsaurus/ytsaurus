@@ -107,10 +107,14 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, MonitoringDescriptor);
     DEFINE_BYREF_RO_PROPERTY(std::optional<ui64>, JobCookie);
     DEFINE_BYREF_RO_PROPERTY(std::optional<std::string>, Address);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<NNodeTrackerClient::TAddressMap>, Addresses);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, ControllerState);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, ArchiveFeatures);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TDuration>, Ttl);
     DEFINE_BYREF_RO_PROPERTY(std::optional<std::string>, OperationIncarnation);
+    DEFINE_BYREF_RO_PROPERTY(NScheduler::TAllocationId, AllocationId);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<i64>, ControllerStartTime);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<i64>, ControllerFinishTime);
 
 protected:
     TJobReport() = default;
@@ -147,7 +151,7 @@ struct TExecAttributes
     TString SandboxPath;
 
     //! Medium of disk acquired by slot.
-    TString MediumName;
+    std::string MediumName;
 
     //! Absolute path to job proxy socket file.
     TString JobProxySocketPath;

@@ -69,6 +69,10 @@ func getTVMOnlyPort(config *yt.Config) int {
 	return yt.TVMOnlyHTTPProxyPort
 }
 
+type discoverProxiesResponse struct {
+	Proxies []string `json:"proxies"`
+}
+
 func (c *httpClient) listHeavyProxies() ([]string, error) {
 	if !c.stop.TryAdd() {
 		return nil, fmt.Errorf("client is stopped")
@@ -79,6 +83,22 @@ func (c *httpClient) listHeavyProxies() ([]string, error) {
 	if c.config.ProxyRole != "" {
 		v.Add("role", c.config.ProxyRole)
 	}
+	if c.config.NetworkName != "" {
+		v.Add("network_name", c.config.NetworkName)
+	}
+	v.Add("type", "http")
+
+	addressType := ""
+	if c.config.UseTVMOnlyEndpoint {
+		addressType += "tvm_only_"
+	}
+	if c.config.UseTLS {
+		addressType += "https"
+	} else {
+		addressType += "http"
+	}
+	// `/hosts` ignores it, `/api/v4/discover_proxies` uses it and returns addresses with appropriate ports.
+	v.Add("address_type", addressType)
 
 	var resolveURL url.URL
 	resolveURL.Scheme = c.clusterURL.Scheme
@@ -105,16 +125,29 @@ func (c *httpClient) listHeavyProxies() ([]string, error) {
 		return nil, unexpectedStatusCode(rsp)
 	}
 
+	body, err := io.ReadAll(rsp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read body: %w", err)
+	}
+
+	withPort := false
 	var proxies []string
-	if err = json.NewDecoder(rsp.Body).Decode(&proxies); err != nil {
-		return nil, err
+	if err = json.Unmarshal(body, &proxies); err != nil {
+		// Try to parse it as `/api/v4/discover_proxies` response.
+		var response discoverProxiesResponse
+		if err = json.Unmarshal(body, &response); err != nil {
+			return nil, err
+		}
+		proxies = response.Proxies
+		// All proxies should contain appropriate port.
+		withPort = true
 	}
 
 	if len(proxies) == 0 {
 		return nil, xerrors.New("proxy list is empty")
 	}
 
-	if c.config.UseTVMOnlyEndpoint {
+	if !withPort && c.config.UseTVMOnlyEndpoint {
 		port := getTVMOnlyPort(c.config)
 		for i, proxy := range proxies {
 			proxies[i] = net.JoinHostPort(proxy, fmt.Sprint(port))
@@ -153,7 +186,6 @@ func (c *httpClient) writeParams(req *http.Request, call *internal.Call) error {
 	}
 
 	h := req.Header
-	h.Add("X-YT-Header-Format", "yson")
 	if req.Method == http.MethodPost && req.Body == http.NoBody {
 		req.Body = io.NopCloser(&params)
 		req.ContentLength = int64(params.Len())
@@ -214,7 +246,7 @@ func (c *httpClient) newHTTPRequest(ctx context.Context, call *internal.Call, bo
 	c.injectTracing(ctx, req)
 
 	if body != nil {
-		req.Header.Add("X-YT-Input-Format", "yson")
+		req.Header.Add("X-YT-Input-Format", "<string_keyed_dict_mode=named>yson")
 	}
 	req.Header.Add("X-YT-Header-Format", "<format=text>yson")
 	req.Header.Add("X-YT-Output-Format", "yson")
@@ -266,7 +298,11 @@ func (c *httpClient) logResponse(ctx context.Context, rsp *http.Response) {
 
 // unexpectedStatusCode is last effort attempt to get useful error message from a failed request.
 func unexpectedStatusCode(rsp *http.Response) error {
-	d := json.NewDecoder(rsp.Body)
+	body, err := io.ReadAll(rsp.Body)
+	if err != nil {
+		return xerrors.Errorf("failed to read http response body: %w", err)
+	}
+	d := json.NewDecoder(bytes.NewReader(body))
 	d.UseNumber()
 
 	var ytErr yterrors.Error
@@ -274,7 +310,7 @@ func unexpectedStatusCode(rsp *http.Response) error {
 		return &ytErr
 	}
 
-	return xerrors.Errorf("unexpected status code %d", rsp.StatusCode)
+	return internal.NewHTTPError(rsp.StatusCode, rsp.Header, body)
 }
 
 func (c *httpClient) readResult(rsp *http.Response) (res *internal.CallResult, err error) {
@@ -538,7 +574,10 @@ func (c *httpClient) doReadRow(ctx context.Context, call *internal.Call) (r yt.T
 		return
 	}
 
-	tr := newTableReader(rr)
+	tr, err := newTableReader(rr, call.OutputFormat, call.TableSchema)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to create table reader: %w", err)
+	}
 
 	if rspParams != nil {
 		if err := tr.setRspParams(rspParams); err != nil {
@@ -671,7 +710,7 @@ func (c *httpClient) dialContext(ctx context.Context, network, addr string) (net
 func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 	var client httpClient
 
-	clusterURL, err := c.GetCusterURL()
+	clusterURL, err := c.GetClusterURL()
 	if err != nil {
 		return nil, err
 	}

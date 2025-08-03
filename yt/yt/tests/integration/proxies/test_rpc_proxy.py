@@ -13,7 +13,7 @@ from yt_commands import (
     map_reduce, sort, dump_job_context, sync_create_cells,
     sync_mount_table, sync_unmount_table, update_op_parameters, set_node_banned,
     set_account_disk_space_limit, create_dynamic_table, execute_command, Operation, raises_yt_error,
-    discover_proxies)
+    issue_token, discover_proxies)
 
 from yt_helpers import write_log_barrier, read_structured_log, read_structured_log_single_entry, profiler_factory
 
@@ -84,6 +84,34 @@ class TestRpcProxy(YTEnvSetup):
             pass
 
         wait(config_updated, ignore_exceptions=True)
+
+
+class TestRpcProxyAuthentication(YTEnvSetup):
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
+    DELTA_RPC_PROXY_CONFIG = {
+        "enable_authentication": True,
+        "cypress_token_authenticator": {
+            "secure": True
+        }
+    }
+
+    @authors("ermolovd")
+    def test_get_current_user(self):
+        create_user("test_get_current_user")
+        token, _ = issue_token("test_get_current_user")
+
+        driver = Driver({
+            "connection_type": "rpc",
+            "api_version": 4,
+            "proxy_addresses": self.Env.get_rpc_proxy_addresses(),
+        })
+
+        user_info = execute_command("get_current_user", {
+            "driver": driver,
+            "token": token,
+        }, parse_yson=True, unwrap_v4_result=False)
+        assert user_info["user"] == "test_get_current_user"
 
 
 class RpcProxyAccessCheckerTestBase(YTEnvSetup):
@@ -1083,7 +1111,9 @@ class TestPessimisticQuotaCheckRpcProxy(TestRpcProxyBase):
 
     DELTA_RPC_PROXY_CONFIG = {
         "api_service": {
+            # COMPAT(babenko): rename to user_access_validator
             "security_manager": {
+                # COMPAT(babenko): rename to ban_cache
                 "user_cache": {
                     "expire_after_successful_update_time": 1000,
                     "refresh_time": 100,

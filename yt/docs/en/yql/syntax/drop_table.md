@@ -4,7 +4,7 @@ Deletes the specified table.  Search for the table by name in the database speci
 
 If there is no such table, an error is returned.
 
-**Examples:**
+### Examples
 
 ```yql
 DROP TABLE my_table;

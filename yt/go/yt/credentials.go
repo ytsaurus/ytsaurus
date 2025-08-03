@@ -43,6 +43,22 @@ func (c *TokenCredentials) SetExtension(req *rpc.TRequestHeader) {
 	)
 }
 
+type BearerCredentials struct {
+	Token string
+}
+
+func (c *BearerCredentials) Set(r *http.Request) {
+	r.Header.Add("Authorization", "Bearer "+c.Token)
+}
+
+func (c *BearerCredentials) SetExtension(req *rpc.TRequestHeader) {
+	_ = proto.SetExtension(
+		req,
+		rpc.E_TCredentialsExt_CredentialsExt,
+		&rpc.TCredentialsExt{Token: &c.Token},
+	)
+}
+
 // UserTicketCredentials implements TVM user-tickets authentication.
 type UserTicketCredentials struct {
 	Ticket string

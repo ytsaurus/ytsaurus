@@ -25,6 +25,9 @@ add_library(query-unittests-udf INTERFACE)
 target_compile_options(query-unittests-udf INTERFACE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_include_directories(query-unittests-udf INTERFACE
@@ -45,6 +48,9 @@ add_global_library_for(query-unittests-udf.global
 target_compile_options(query-unittests-udf.global PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_include_directories(query-unittests-udf.global PRIVATE

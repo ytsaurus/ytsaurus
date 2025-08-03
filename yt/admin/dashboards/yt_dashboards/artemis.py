@@ -330,6 +330,16 @@ def build_fair_throttler(cls):
     ).owner
 
 
+def build_logging():
+    return (Rowset()
+        .stack(False)
+        .min(0)
+        .row()
+            .cell("Dropped log messages", TabNodeInternal("yt.logging.dropped_events.rate"))
+            .cell("", EmptyCell())
+    ).owner
+
+
 def build_tablet_balancer():
     s = Master("yt.tablet_server.tablet_balancer.{}.rate")
     return (Rowset()
@@ -959,6 +969,7 @@ def build_local_artemis_container():
         build_server_rpc_message_size_stats_per_method(TabNodeRpc, "Rpc server (yt_node)"),
         build_network_local_porto(),
         build_fair_throttler(TabNode),
+        build_logging(),
     ]
 
     try:

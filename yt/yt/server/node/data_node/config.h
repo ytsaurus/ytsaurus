@@ -20,6 +20,8 @@
 
 #include <yt/yt/client/api/public.h>
 
+#include <yt/yt/client/misc/workload.h>
+
 #include <yt/yt/library/containers/public.h>
 
 #include <yt/yt/library/re2/re2.h>
@@ -89,7 +91,7 @@ struct TChunkLocationConfig
 
     // NB: Actually registered as parameter by subclasses (because default value
     // is subclass-specific).
-    TString MediumName;
+    std::string MediumName;
 
     //! Configuration for various per-location throttlers.
     TEnumIndexedArray<EChunkLocationThrottlerKind, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
@@ -97,6 +99,8 @@ struct TChunkLocationConfig
     //! Configuration for uncategorized throttler.
     bool EnableUncategorizedThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr UncategorizedThrottler;
+
+    NServer::TDiskHealthCheckerConfigPtr DiskHealthChecker;
 
     //! IO engine type.
     NIO::EIOEngineType IOEngineType;
@@ -116,23 +120,29 @@ struct TChunkLocationConfig
 
     bool ResetUuid;
 
+    TEnumIndexedArray<EWorkloadCategory, std::optional<double>> FairShareWorkloadCategoryWeights;
+
+    //! Limit on the maximum memory used in location writes with legacy protocol without probing.
+    // COMPAT(vvshlyaga): Remove after rolling writer with probing on all nodes.
+    i64 LegacyWriteMemoryLimit;
+
     //! Limit on the maximum memory used of location reads.
     i64 ReadMemoryLimit;
 
     //! Limit on the maximum memory used of location writes.
     i64 WriteMemoryLimit;
 
-    //! Limit on the maximum IO in bytes used of location reads.
-    i64 PendingReadIOLimit;
-
-    //! Limit on the maximum IO in bytes used of location writes.
-    i64 PendingWriteIOLimit;
-
     //! Limit on the maximum count of location write sessions.
     i64 SessionCountLimit;
 
     //! If the tracked memory is close to the limit, new sessions will not be started.
     double MemoryLimitFractionForStartingNewSessions;
+
+    //! Enables defining a dynamic location IO weight given by a formula, which
+    //! is re-evaluated periodically to determine the current value.
+    //! Example: double([/stat/available_space]) / (double([/stat/used_space]) + double([/stat/available_space]))
+    //! Supported variables: available_space, used_space
+    std::optional<std::string> IOWeightFormula;
 
     void ApplyDynamicInplace(const TChunkLocationDynamicConfig& dynamicConfig);
 
@@ -157,7 +167,15 @@ struct TChunkLocationDynamicConfig
     std::optional<bool> EnableUncategorizedThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr UncategorizedThrottler;
 
+    NServer::TDiskHealthCheckerDynamicConfigPtr DiskHealthChecker;
+
     std::optional<i64> CoalescedReadMaxGapSize;
+
+    TEnumIndexedArray<EWorkloadCategory, std::optional<double>> FairShareWorkloadCategoryWeights;
+
+    //! Limit on the maximum memory used in location writes with legacy protocol without probing.
+    // COMPAT(vvshlyaga): Remove after rolling writer with probing on all nodes.
+    std::optional<i64> LegacyWriteMemoryLimit;
 
     //! Limit on the maximum memory used by location reads.
     std::optional<i64> ReadMemoryLimit;
@@ -165,17 +183,17 @@ struct TChunkLocationDynamicConfig
     //! Limit on the maximum memory used by location writes.
     std::optional<i64> WriteMemoryLimit;
 
-    //! Limit on the maximum IO in bytes used by location reads.
-    std::optional<i64> PendingReadIOLimit;
-
-    //! Limit on the maximum IO in bytes used by location writes.
-    std::optional<i64> PendingWriteIOLimit;
-
     //! Limit on the maximum count of location write sessions.
     std::optional<i64> SessionCountLimit;
 
     //! If the tracked memory is close to the limit, new sessions will not be started.
     std::optional<double> MemoryLimitFractionForStartingNewSessions;
+
+    //! Enables defining a dynamic location IO weight given by a formula, which
+    //! is re-evaluated periodically to determine the current value.
+    //! Example: double([/stat/available_space]) / (double([/stat/used_space]) + double([/stat/available_space]))
+    //! Supported variables: available_space, used_space
+    std::optional<std::string> IOWeightFormula;
 
     REGISTER_YSON_STRUCT(TChunkLocationDynamicConfig);
 
@@ -337,6 +355,8 @@ struct TLayerLocationConfig
     bool LocationIsAbsolute;
 
     bool ResidesOnTmpfs;
+
+    NServer::TDiskHealthCheckerConfigPtr DiskHealthChecker;
 
     REGISTER_YSON_STRUCT(TLayerLocationConfig);
 
@@ -509,10 +529,9 @@ DEFINE_REFCOUNTED_TYPE(TAllyReplicaManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDataNodeTestingOptions
+struct TDataNodeTestingOptions
     : public NYTree::TYsonStruct
 {
-public:
     //! This duration will be used to insert delays within [0, MaxDelay] after each
     //! chunk meta fetch for GetColumnarStatistics.
     std::optional<TDuration> ColumnarStatisticsChunkMetaFetchMaxDelay;
@@ -541,6 +560,9 @@ public:
     // Stop trash scanning at initialization
     std::optional<bool> EnableTrashScanningBarrier;
 
+    // Always return on SendBlocks that network is throttling.
+    std::optional<bool> AlwaysThrottleNetOnSendBlocks;
+
     REGISTER_YSON_STRUCT(TDataNodeTestingOptions);
 
     static void Register(TRegistrar registrar);
@@ -553,7 +575,7 @@ DEFINE_REFCOUNTED_TYPE(TDataNodeTestingOptions)
 struct TMediumThroughputMeterConfig
     : public NIO::TGentleLoaderConfig
 {
-    TString MediumName;
+    std::string MediumName;
     bool Enabled;
 
     double VerificationInitialWindowFactor;
@@ -902,6 +924,9 @@ struct TDataNodeConfig
      */
     TDuration SessionTimeout;
 
+    //! After that time alert about long live read sessions will be sent.
+    TDuration LongLiveReadSessionThreshold;
+
     TDuration SessionBlockReorderTimeout;
 
     //! Timeout for "PutBlocks" requests to other data nodes.
@@ -920,6 +945,9 @@ struct TDataNodeConfig
 
     //! Smoothing interval for net out limit throttling.
     TDuration NetOutThrottlingDuration;
+
+    //! If |true| data node will reply instantly when network is throttling.
+    bool EnableSendBlocksNetThrottling;
 
     //! Write requests are throttled when the number of bytes queued for write exceeds this limit.
     //! This is a per-location limit.
@@ -946,9 +974,6 @@ struct TDataNodeConfig
 
     //! Configuration for RPS throttler of ally replica manager.
     NConcurrency::TThroughputThrottlerConfigPtr AnnounceChunkReplicaRpsOutThrottler;
-
-    //! Runs periodic checks against disks.
-    NServer::TDiskHealthCheckerConfigPtr DiskHealthChecker;
 
     //! Publish disabled locations to master.
     bool PublishDisabledLocations;
@@ -1045,6 +1070,9 @@ struct TDataNodeDynamicConfig
     TMasterConnectorDynamicConfigPtr MasterConnector;
     TAllyReplicaManagerDynamicConfigPtr AllyReplicaManager;
 
+    //! After that time alert about long live read sessions will be sent.
+    std::optional<TDuration> LongLiveReadSessionThreshold;
+
     //! Prepared chunk readers are kept open during this period of time after the last use.
     TDuration ChunkReaderRetentionTimeout;
 
@@ -1073,6 +1101,8 @@ struct TDataNodeDynamicConfig
 
     std::optional<double> ReadMetaTimeoutFraction;
 
+    bool PropagateCachedBlockInfosToProbing;
+
     TIOThroughputMeterConfigPtr IOThroughputMeter;
 
     TRemoveChunkJobDynamicConfigPtr RemoveChunkJob;
@@ -1085,19 +1115,14 @@ struct TDataNodeDynamicConfig
 
     TLocationHealthCheckerDynamicConfigPtr LocationHealthChecker;
 
-    THashMap<TString, TStoreLocationDynamicConfigPtr> StoreLocationConfigPerMedium;
+    THashMap<std::string, TStoreLocationDynamicConfigPtr> StoreLocationConfigPerMedium;
 
     std::optional<i64> NetOutThrottlingLimit;
 
     std::optional<i64> DiskWriteThrottlingLimit;
     std::optional<i64> DiskReadThrottlingLimit;
 
-    //! If the total pending read size exceeds the limit, all writes to this location become disabled.
-    std::optional<i64> DisableLocationWritesPendingReadSizeHighLimit;
-
-    //! If writes to the location were earlier disabled due to #DisableLocationWritesPendingReadSizeHighLimit,
-    //! writes are re-enabled once the total pending read size drops below this limit.
-    std::optional<i64> DisableLocationWritesPendingReadSizeLowLimit;
+    std::optional<bool> EnableSendBlocksNetThrottling;
 
     //! Testing options.
     TDataNodeTestingOptionsPtr TestingOptions;

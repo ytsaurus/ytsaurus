@@ -34,7 +34,7 @@ struct TBlock
 
     i64 Size() const;
 
-    TError ValidateChecksum() const;
+    TError CheckChecksum() const;
 
     TChecksum GetOrComputeChecksum() const;
 

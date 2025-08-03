@@ -586,6 +586,37 @@ ui64 GetEvaluatedColumnModulo(const TConstExpressionPtr& expr)
     return moduloExpansion;
 }
 
+bool ShouldPrefetchJoinSource(
+    const TConstQueryPtr& query,
+    const TJoinClause& joinClause,
+    size_t minKeyWidth,
+    bool ordered)
+{
+    if (ordered) {
+        return false;
+    }
+
+    bool inferredRangesCompletelyDefineRhsRanges =
+        (joinClause.CommonKeyPrefix >= minKeyWidth) && (minKeyWidth > 0);
+
+    if (!inferredRangesCompletelyDefineRhsRanges) {
+        return false;
+    }
+
+    auto definedKeyColumns = query->GetRenamedSchema()->Columns();
+    definedKeyColumns.resize(minKeyWidth);
+
+    auto lhsTableWhereClause = SplitPredicateByColumnSubset(
+        query->WhereClause,
+        *query->GetRenamedSchema()).first;
+    bool lhsQueryCanBeSelective = SplitPredicateByColumnSubset(
+        lhsTableWhereClause,
+        TTableSchema(definedKeyColumns))
+        .second->As<TLiteralExpression>() == nullptr;
+
+    return !lhsQueryCanBeSelective;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryClient

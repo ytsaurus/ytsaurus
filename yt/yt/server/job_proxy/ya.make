@@ -16,6 +16,7 @@ SRCS(
     merge_job.cpp
     partition_job.cpp
     partition_sort_job.cpp
+    private.cpp
     program.cpp
     public.cpp
     remote_copy_job.cpp
@@ -43,14 +44,15 @@ PEERDIR(
     yt/yt/library/containers/cri
     yt/yt/server/lib/exec_node
     yt/yt/server/lib/rpc_proxy
-    yt/yt/server/tools
     yt/yt/server/lib/shell
     yt/yt/server/lib/user_job
+    yt/yt/server/tools
     yt/yt/library/sparse_coredump
     yt/yt/library/query/row_comparer
     yt/yt/library/profiling/solomon
     yt/yt/library/tracing/jaeger
     yt/yt/library/server_program
+    yt/yt/library/signals
 )
 
 END()

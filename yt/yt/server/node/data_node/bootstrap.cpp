@@ -4,6 +4,7 @@
 #include "chunk_detail.h"
 #include "chunk_store.h"
 #include "data_node_service.h"
+#include "data_node_nbd_service.h"
 #include "io_throughput_meter.h"
 #include "job_controller.h"
 #include "journal_dispatcher.h"
@@ -21,7 +22,7 @@
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
-#include <yt/yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/node/tablet_node/config.h>
 
 #include <yt/yt/server/lib/distributed_chunk_session_server/distributed_chunk_session_service.h>
 
@@ -51,7 +52,7 @@ using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = DataNodeLogger;
+constinit const auto Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -236,6 +237,8 @@ public:
         RowComparerProvider_ = CreateRowComparerProvider(GetConfig()->TabletNode->ColumnEvaluatorCache->CGCache);
 
         GetRpcServer()->RegisterService(CreateDataNodeService(GetConfig()->DataNode, this));
+
+        GetRpcServer()->RegisterService(CreateDataNodeNbdService(this, DataNodeLogger()));
 
         GetRpcServer()->RegisterService(CreateDistributedChunkSessionService(
             GetConfig()->DataNode->DistributedChunkSessionService,

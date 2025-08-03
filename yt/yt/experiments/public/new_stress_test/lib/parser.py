@@ -217,7 +217,6 @@ def parse_args():
         builder.add_yesno_argument("hash_chunk_index_for_lookup", "enable_hash_chunk_index_for_lookup", help="enable lookup with hash chunk index")
         builder.add_yesno_argument("lookup_hash_table", "enable_lookup_hash_table", help="enable lookup hash table")
         builder.add_argument("lookup_cache_rows_per_tablet", type=int, metavar="N", help="lookup cache rows per tablet")
-        builder.add_argument("max_inline_hunk_size", metavar="N", type=int, help="limit on value size to not move the value into a hunk")
         builder.add_yesno_argument("value_dictionary_compression", "enable_value_dictionary_compression", help="enable value dictionary compression")
 
 
@@ -227,6 +226,10 @@ def parse_args():
         builder.add_yesno_argument("trim")
 
 
+    with builder.group("queues specifics", "queues"):
+        builder.add_yesno_argument("use_hunk_storage")
+        builder.add_yesno_argument("use_erasure_hunk_storage")
+
     with builder.group("schema", "schema"):
         builder.add_bool_mixin_argument("simple_schema", help="schema with two int64 key columns and one string value column")
         builder.add_argument("key_column_count", metavar="N", type=int)
@@ -234,6 +237,7 @@ def parse_args():
         builder.add_argument("key_column_types", metavar="TYPE", type=str, nargs="*")
         builder.add_argument("value_column_types", metavar="TYPE", type=str, nargs="*")
         builder.add_argument("no_aggregate", "allow_aggregates", action="store_false", help="do not include aggregate columns in schema")
+        builder.add_argument("max_inline_hunk_size", metavar="N", type=int, help="this attribute will be set for each string-like non-key column")
 
 
     with builder.group("map-reduce operation options", "mr_options"):

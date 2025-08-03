@@ -73,12 +73,12 @@ public:
         int slotIndex,
         TChaosNodeConfigPtr config,
         IBootstrap* bootstrap)
-        : THood(Format("ChaosSlot:%v", slotIndex))
+        : THood(Format("ChaosSlot/%v", slotIndex))
         , Config_(config)
         , ShortcutSnapshotStore_(CreateShortcutSnapshotStore())
         , Bootstrap_(bootstrap)
         , SnapshotQueue_(New<TActionQueue>(
-            Format("ChaosSnap:%v", slotIndex)))
+            Format("ChaosSnap/%v", slotIndex)))
         , ReplicationCardsWatcher_(CreateReplicationCardsWatcher(
             Config_->ReplicationCardsWatcher,
             bootstrap->GetConnection()->GetInvoker()))
@@ -108,7 +108,7 @@ public:
         return Occupant_->GetCellId();
     }
 
-    const TString& GetCellBundleName() const override
+    const std::string& GetCellBundleName() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -335,7 +335,8 @@ public:
         return orchid
             ->AddChild("transactions", TransactionManager_->GetOrchidService())
             ->AddChild("chaos_manager", ChaosManager_->GetOrchidService())
-            ->AddChild("coordinator_manager", CoordinatorManager_->GetOrchidService());
+            ->AddChild("coordinator_manager", CoordinatorManager_->GetOrchidService())
+            ->AddChild("replicated_table_tracker", ReplicatedTableTracker_->GetOrchidService());
     }
 
     NProfiling::TRegistry GetProfiler() override
@@ -385,7 +386,7 @@ public:
         return IChaosSlot::CellarType;
     }
 
-    NApi::IClientPtr CreateClusterClient(const TString& clusterName) const override
+    NApi::IClientPtr CreateClusterClient(const std::string& clusterName) const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -407,11 +408,11 @@ public:
         return Bootstrap_->GetReplicatedTableTrackerConfig();
     }
 
-    bool IsExtendedLoggingEnabled() const override
+    bool IsVerboseLoggingEnabled() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return ExtendedLoggingEnabled_;
+        return VerboseLoggingEnabled_;
     }
 
     void Reconfigure(const TChaosNodeDynamicConfigPtr& config) override
@@ -419,8 +420,13 @@ public:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (auto it = config->PerBundleConfigs.find(GetCellBundleName()); it != config->PerBundleConfigs.end()) {
-            ExtendedLoggingEnabled_ = it->second->EnableExtendedLogging;
+            VerboseLoggingEnabled_ = it->second->EnableVerboseLogging;
         }
+    }
+
+    TChaosNodeDynamicConfigPtr GetDynamicConfig() const override
+    {
+        return Bootstrap_->GetDynamicConfig();
     }
 
 private:
@@ -450,7 +456,7 @@ private:
 
     IYPathServicePtr OrchidService_;
 
-    std::atomic<bool> ExtendedLoggingEnabled_ = false;
+    std::atomic<bool> VerboseLoggingEnabled_ = false;
 
     NLogging::TLogger Logger;
 

@@ -32,20 +32,6 @@ DEFINE_REFCOUNTED_TYPE(TCellBalancerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCellBalancerMasterConnectorConfig
-    : public NYTree::TYsonStruct
-{
-    TDuration ConnectRetryBackoffTime;
-
-    REGISTER_YSON_STRUCT(TCellBalancerMasterConnectorConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TCellBalancerMasterConnectorConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TChaosConfig
     : public NYTree::TYsonStruct
 {
@@ -86,6 +72,7 @@ struct TBundleControllerConfig
     NYPath::TYPath HulkDeallocationsHistoryPath;
 
     bool DecommissionReleasedNodes;
+    bool EnableSpareNodeAssignment;
 
     int NodeCountPerCell;
     int ChunkCountPerCell;
@@ -120,7 +107,6 @@ struct TCellBalancerBootstrapConfig
 {
     bool AbortOnUnrecognizedOptions;
     NCypressElection::TCypressElectionManagerConfigPtr ElectionManager;
-    TCellBalancerMasterConnectorConfigPtr MasterConnector;
     NNodeTrackerClient::TNetworkAddressList Addresses;
 
     bool EnableCellBalancer;

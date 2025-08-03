@@ -143,6 +143,7 @@ public:
         ENodeState state);
 
     const std::string& GetDefaultAddress() const;
+    const NNodeTrackerClient::TAddressMap& GetAddresses() const;
 
     //! Checks if the node can handle jobs demanding a certain #tag.
     bool CanSchedule(const TSchedulingTagFilter& filter) const;
@@ -151,7 +152,7 @@ public:
     TExecNodeDescriptorPtr BuildExecDescriptor() const;
 
     //! Set the node's IO weight.
-    void SetIOWeights(const THashMap<TString, double>& mediumToWeight);
+    void SetIOWeights(const THashMap<std::string, double>& mediumToWeight);
 
     void SetTags(TBooleanFormulaTags tags);
 

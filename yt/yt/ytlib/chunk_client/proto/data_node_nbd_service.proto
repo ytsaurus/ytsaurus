@@ -1,0 +1,77 @@
+package NYT.NChunkClient.NNbd.NProto;
+
+import "yt/ytlib/chunk_client/proto/session_id.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqOpenSession
+{
+    optional NYT.NChunkClient.NProto.TSessionId session_id = 1;
+    optional int64 size = 2;
+    optional int32 fs_type = 3; // EFilesystemType
+}
+
+message TRspOpenSession
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCloseSession
+{
+    optional NYT.NChunkClient.NProto.TSessionId session_id = 1;
+}
+
+message TRspCloseSession
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRead
+{
+    optional NYT.NChunkClient.NProto.TSessionId session_id = 1;
+    optional int64 offset = 2;
+    optional int64 length = 3;
+    optional uint64 cookie = 4;
+}
+
+message TRspRead
+{
+    optional uint64 cookie = 1;
+    repeated fixed64 block_checksums = 2;
+    optional bool should_close_session = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqWrite
+{
+    optional NYT.NChunkClient.NProto.TSessionId session_id = 1;
+    optional int64 offset = 2;
+    optional uint64 cookie = 3;
+
+    // Might be empty, or contain NullChecksum.
+    repeated fixed64 block_checksums = 4;
+
+}
+
+message TRspWrite
+{
+    optional uint64 cookie = 1;
+    optional bool should_close_session = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqKeepSessionAlive
+{
+    optional NYT.NChunkClient.NProto.TSessionId session_id = 1;
+}
+
+message TRspKeepSessionAlive
+{
+    optional bool should_close_session = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

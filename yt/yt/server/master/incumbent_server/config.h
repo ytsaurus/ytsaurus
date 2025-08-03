@@ -65,7 +65,7 @@ struct TIncumbentManagerDynamicConfig
     TDuration PeerGracePeriod;
 
     //! Peers listed here act like offline peers.
-    THashSet<TString> BannedPeers;
+    THashSet<std::string> BannedPeers;
 
     //! Timeout for heartbeat RPC request.
     TDuration HeartbeatTimeout;

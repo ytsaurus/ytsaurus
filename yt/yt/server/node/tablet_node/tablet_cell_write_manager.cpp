@@ -1,6 +1,7 @@
 #include "tablet_cell_write_manager.h"
 
 #include "automaton.h"
+#include "config.h"
 #include "hunk_lock_manager.h"
 #include "mutation_forwarder.h"
 #include "sorted_dynamic_store.h"
@@ -1146,7 +1147,7 @@ private:
 
         if (tablet->IsPhysicallyOrdered()) {
             i64 tabletDataWeight = tablet->GetTotalDataWeight();
-            if (auto maxOrderedTabletDataWeight = tablet->GetSettings().MountConfig->MaxOrderedTabletDataWeight;
+            if (auto maxOrderedTabletDataWeight = mountConfig->MaxOrderedTabletDataWeight;
                 maxOrderedTabletDataWeight && tabletDataWeight >= maxOrderedTabletDataWeight)
             {
                 THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::RequestThrottled,

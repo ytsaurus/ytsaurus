@@ -103,19 +103,30 @@ void TChunkLocationConfig::ApplyDynamicInplace(const TChunkLocationDynamicConfig
     UpdateYsonStructField(EnableUncategorizedThrottler, dynamicConfig.EnableUncategorizedThrottler);
     UpdateYsonStructField(UncategorizedThrottler, dynamicConfig.UncategorizedThrottler);
 
+    UpdateYsonStructField(DiskHealthChecker, DiskHealthChecker->ApplyDynamic(*dynamicConfig.DiskHealthChecker));
+
     UpdateYsonStructField(CoalescedReadMaxGapSize, dynamicConfig.CoalescedReadMaxGapSize);
+
+    UpdateYsonStructField(LegacyWriteMemoryLimit, dynamicConfig.LegacyWriteMemoryLimit);
 
     UpdateYsonStructField(ReadMemoryLimit, dynamicConfig.ReadMemoryLimit);
 
+    for (auto category : TEnumTraits<EWorkloadCategory>::GetDomainValues()) {
+        auto priority = dynamicConfig.FairShareWorkloadCategoryWeights[category];
+        if (priority) {
+            FairShareWorkloadCategoryWeights[category] = *priority;
+        } else {
+            FairShareWorkloadCategoryWeights[category] = DefaultFairShareWorkloadCategoryWeights[category];
+        }
+    }
+
     UpdateYsonStructField(WriteMemoryLimit, dynamicConfig.WriteMemoryLimit);
-
-    UpdateYsonStructField(PendingReadIOLimit, dynamicConfig.PendingReadIOLimit);
-
-    UpdateYsonStructField(PendingWriteIOLimit, dynamicConfig.PendingWriteIOLimit);
 
     UpdateYsonStructField(SessionCountLimit, dynamicConfig.SessionCountLimit);
 
     UpdateYsonStructField(MemoryLimitFractionForStartingNewSessions, dynamicConfig.MemoryLimitFractionForStartingNewSessions);
+
+    UpdateYsonStructField(IOWeightFormula, dynamicConfig.IOWeightFormula);
 }
 
 void TChunkLocationConfig::Register(TRegistrar registrar)
@@ -133,19 +144,20 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
     registrar.Parameter("uncategorized_throttler", &TThis::UncategorizedThrottler)
         .DefaultNew();
 
+    registrar.Parameter("disk_health_checker", &TThis::DiskHealthChecker)
+        .DefaultNew();
+
     registrar.Parameter("io_engine_type", &TThis::IOEngineType)
         .Default(NIO::EIOEngineType::ThreadPool);
     registrar.Parameter("io_config", &TThis::IOConfig)
         .Optional();
 
+    registrar.Parameter("fair_share_workload_category_priorities", &TThis::FairShareWorkloadCategoryWeights)
+        .Default();
+
     registrar.Parameter("read_memory_limit", &TThis::ReadMemoryLimit)
         .Default(10_GB);
     registrar.Parameter("write_memory_limit", &TThis::WriteMemoryLimit)
-        .Default(10_GB);
-
-    registrar.Parameter("pending_io_read_limit", &TThis::PendingReadIOLimit)
-        .Default(10_GB);
-    registrar.Parameter("pending_io_write_limit", &TThis::PendingWriteIOLimit)
         .Default(10_GB);
 
     registrar.Parameter("session_count_limit", &TThis::SessionCountLimit)
@@ -155,6 +167,9 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0.0)
         .LessThanOrEqual(1.0)
         .Default(0.9);
+
+    registrar.Parameter("io_weight_formula", &TThis::IOWeightFormula)
+        .Optional();
 
     registrar.Parameter("throttle_duration", &TThis::ThrottleDuration)
         .Default(TDuration::Seconds(30));
@@ -175,6 +190,8 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
+        config->LegacyWriteMemoryLimit = config->WriteMemoryLimit;
+
         for (auto kind : TEnumTraits<EChunkLocationThrottlerKind>::GetDomainValues()) {
             if (!config->Throttlers[kind]) {
                 config->Throttlers[kind] = New<TRelativeThroughputThrottlerConfig>();
@@ -199,6 +216,10 @@ void TChunkLocationDynamicConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("uncategorized_throttler", &TThis::UncategorizedThrottler)
         .Optional();
+
+    registrar.Parameter("disk_health_checker", &TThis::DiskHealthChecker)
+        .DefaultNew();
+
     registrar.Parameter("coalesced_read_max_gap_size", &TThis::CoalescedReadMaxGapSize)
         .GreaterThanOrEqual(0)
         .Optional();
@@ -213,13 +234,15 @@ void TChunkLocationDynamicConfig::Register(TRegistrar registrar)
         .LessThanOrEqual(1.0)
         .Optional();
 
-    registrar.Parameter("pending_io_read_limit", &TThis::PendingReadIOLimit)
-        .Optional();
-    registrar.Parameter("pending_io_write_limit", &TThis::PendingWriteIOLimit)
-        .Optional();
-
     registrar.Parameter("session_count_limit", &TThis::SessionCountLimit)
         .Optional();
+
+    registrar.Parameter("io_weight_formula", &TThis::IOWeightFormula)
+        .Optional();
+
+    registrar.Postprocessor([] (TThis* config) {
+        config->LegacyWriteMemoryLimit = config->WriteMemoryLimit;
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -373,6 +396,9 @@ void TLayerLocationConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("resides_on_tmpfs", &TThis::ResidesOnTmpfs)
         .Default(false);
+
+    registrar.Parameter("disk_health_checker", &TThis::DiskHealthChecker)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -544,6 +570,9 @@ void TDataNodeTestingOptions::Register(TRegistrar registrar)
         .Default(0.75);
 
     registrar.Parameter("enable_trash_scanning_barrier", &TThis::EnableTrashScanningBarrier)
+        .Default();
+
+    registrar.Parameter("always_throttle_net_on_send_blocks", &TThis::AlwaysThrottleNetOnSendBlocks)
         .Default();
 }
 
@@ -831,6 +860,8 @@ void TDataNodeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("session_timeout", &TThis::SessionTimeout)
         .Default(TDuration::Seconds(120));
+    registrar.Parameter("long_live_read_session_threshold", &TThis::LongLiveReadSessionThreshold)
+        .Default(TDuration::Minutes(60));
     registrar.Parameter("session_block_reorder_timeout", &TThis::SessionBlockReorderTimeout)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("node_rpc_timeout", &TThis::NodeRpcTimeout)
@@ -845,6 +876,8 @@ void TDataNodeConfig::Register(TRegistrar registrar)
         .Default(512_MB);
     registrar.Parameter("net_out_throttling_duration", &TThis::NetOutThrottlingDuration)
         .Default(TDuration::Seconds(30));
+    registrar.Parameter("enable_send_blocks_net_throttling", &TThis::EnableSendBlocksNetThrottling)
+        .Default(false);
 
     registrar.Parameter("disk_write_throttling_limit", &TThis::DiskWriteThrottlingLimit)
         .GreaterThan(0)
@@ -868,9 +901,6 @@ void TDataNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("read_rps_out_throttler", &TThis::ReadRpsOutThrottler)
         .DefaultNew();
     registrar.Parameter("announce_chunk_replica_rps_out_throttler", &TThis::AnnounceChunkReplicaRpsOutThrottler)
-        .DefaultNew();
-
-    registrar.Parameter("disk_health_checker", &TThis::DiskHealthChecker)
         .DefaultNew();
 
     registrar.Parameter("publish_disabled_locations", &TThis::PublishDisabledLocations)
@@ -965,6 +995,9 @@ void TDataNodeConfig::Register(TRegistrar registrar)
             // This is not a mistake!
             config->MasterConnector->JobHeartbeatPeriod = config->IncrementalHeartbeatPeriod;
         }
+
+        THROW_ERROR_EXCEPTION_IF(config->LeaseTransactionPingPeriod >= config->LeaseTransactionTimeout,
+            "Lease transaction ping period cannot be greater or equal to lease transaction timeout");
     });
 }
 
@@ -1028,6 +1061,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("ally_replica_manager", &TThis::AllyReplicaManager)
         .DefaultNew();
 
+    registrar.Parameter("long_live_read_session_threshold", &TThis::LongLiveReadSessionThreshold)
+        .Optional();
+
     registrar.Parameter("chunk_reader_retention_timeout", &TThis::ChunkReaderRetentionTimeout)
         .Default(TDuration::Minutes(1));
 
@@ -1065,6 +1101,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("read_meta_timeout_fraction", &TThis::ReadMetaTimeoutFraction)
         .Default();
 
+    registrar.Parameter("propage_cached_block_infos_to_probing", &TThis::PropagateCachedBlockInfosToProbing)
+        .Default(false);
+
     registrar.Parameter("io_throughput_meter", &TThis::IOThroughputMeter)
         .DefaultNew();
 
@@ -1089,14 +1128,12 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("net_out_throttling_limit", &TThis::NetOutThrottlingLimit)
         .Default();
 
+    registrar.Parameter("enable_send_blocks_net_throttling", &TThis::EnableSendBlocksNetThrottling)
+        .Optional();
+
     registrar.Parameter("disk_write_throttling_limit", &TThis::DiskWriteThrottlingLimit)
         .Default();
     registrar.Parameter("disk_read_throttling_limit", &TThis::DiskReadThrottlingLimit)
-        .Default();
-
-    registrar.Parameter("disable_location_writes_pending_read_size_high_limit", &TThis::DisableLocationWritesPendingReadSizeHighLimit)
-        .Default();
-    registrar.Parameter("disable_location_writes_pending_read_size_low_limit", &TThis::DisableLocationWritesPendingReadSizeLowLimit)
         .Default();
 
     registrar.Parameter("testing_options", &TThis::TestingOptions)
@@ -1107,22 +1144,6 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("fallback_timeout_fraction", &TThis::FallbackTimeoutFraction)
         .Default();
-
-    registrar.Postprocessor([] (TThis* config) {
-        if (config->DisableLocationWritesPendingReadSizeHighLimit.has_value() != config->DisableLocationWritesPendingReadSizeLowLimit.has_value()) {
-            THROW_ERROR_EXCEPTION(
-                "\"disable_location_writes_pending_read_size_high_limit\" and "
-                "\"disable_location_writes_pending_read_size_low_limit\" must either both be present or absent");
-        }
-
-        if (config->DisableLocationWritesPendingReadSizeHighLimit &&
-            *config->DisableLocationWritesPendingReadSizeHighLimit < *config->DisableLocationWritesPendingReadSizeLowLimit)
-        {
-            THROW_ERROR_EXCEPTION(
-                "\"disable_location_writes_pending_read_size_high_limit\" must not be less than "
-                "\"disable_location_writes_pending_read_size_low_limit\"");
-        }
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -67,19 +67,13 @@ bool Unify(TTypeSet* genericAssignments, const TTypeSet& types)
     }
 }
 
-EValueType GetFrontWithCheck(const TTypeSet& typeSet, TStringBuf source)
+EValueType GetFrontWithCheck(const TTypeSet& typeSet, TStringBuf /*source*/)
 {
-    auto result = typeSet.GetFront();
-    if (result == EValueType::Null) {
-        THROW_ERROR_EXCEPTION("Type inference failed")
-            << TErrorAttribute("actual_type", EValueType::Null)
-            << TErrorAttribute("source", source);
-    }
-    return result;
+    return typeSet.GetFront();
 }
 
 TTypeSet InferFunctionTypes(
-    const TFunctionTypeInferrer* inferrer,
+    const ITypeInferrerPtr& inferrer,
     const std::vector<TTypeSet>& effectiveTypes,
     std::vector<TTypeSet>* genericAssignments,
     TStringBuf functionName,
@@ -104,12 +98,10 @@ TTypeSet InferFunctionTypes(
     {
         auto& constraints = (*genericAssignments)[*formalArg];
         if (!Unify(&constraints, *arg)) {
-            THROW_ERROR_EXCEPTION(
-                "Wrong type for argument %v to function %Qv: expected %Qv, got %Qv",
-                argIndex,
-                functionName,
-                constraints,
-                *arg)
+            THROW_ERROR_EXCEPTION("No matching function %Qv", functionName)
+                << TErrorAttribute("argument_index", argIndex)
+                << TErrorAttribute("expected_type", ToString(constraints))
+                << TErrorAttribute("actual_type", ToString(*arg))
                 << TErrorAttribute("expression", source);
         }
     }
@@ -119,11 +111,9 @@ TTypeSet InferFunctionTypes(
     if (formalArg != formalArguments.end() ||
         (arg != effectiveTypes.end() && hasNoRepeatedArgument))
     {
-        THROW_ERROR_EXCEPTION(
-            "Wrong number of arguments to function %Qv: expected %v, got %v",
-            functionName,
-            formalArguments.size(),
-            effectiveTypes.size())
+        THROW_ERROR_EXCEPTION("No matching function %Qv", functionName)
+            << TErrorAttribute("expected_arguments", formalArguments.size())
+            << TErrorAttribute("actual_arguments", effectiveTypes.size())
             << TErrorAttribute("expression", source);
     }
 
@@ -148,7 +138,7 @@ TTypeSet InferFunctionTypes(
 }
 
 std::vector<EValueType> RefineFunctionTypes(
-    const TFunctionTypeInferrer* inferrer,
+    const ITypeInferrerPtr& inferrer,
     EValueType resultType,
     int argumentCount,
     std::vector<TTypeSet>* genericAssignments,
@@ -205,21 +195,19 @@ void IntersectGenericsWithArgumentTypes(
     TStringBuf source)
 {
     if (formalArguments.size() != effectiveTypes.size()) {
-        THROW_ERROR_EXCEPTION("Expected %v number of arguments to function %Qv, got %v",
-            formalArguments.size(),
-            functionName,
-            effectiveTypes.size());
+        THROW_ERROR_EXCEPTION("No matching function %Qv", functionName)
+            << TErrorAttribute("expected_arguments", formalArguments.size())
+            << TErrorAttribute("actual_arguments", effectiveTypes.size())
+            << TErrorAttribute("expression", source);
     }
 
-    for (int argIndex = 0; argIndex < std::ssize(formalArguments); ++argIndex)
-    {
+    for (int argIndex = 0; argIndex < std::ssize(formalArguments); ++argIndex) {
         auto& constraints = (*genericAssignments)[formalArguments[argIndex]];
         if (!Unify(&constraints, effectiveTypes[argIndex])) {
-            THROW_ERROR_EXCEPTION("Wrong type for argument %v to function %Qv: expected %Qv, got %Qv",
-                argIndex + 1,
-                functionName,
-                constraints,
-                effectiveTypes[argIndex])
+            THROW_ERROR_EXCEPTION("No matching function %Qv", functionName)
+                << TErrorAttribute("argument_index", argIndex + 1)
+                << TErrorAttribute("expected_type", ToString(constraints))
+                << TErrorAttribute("actual_type", ToString(effectiveTypes[argIndex]))
                 << TErrorAttribute("expression", source);
         }
     }
@@ -495,7 +483,6 @@ EValueType RefineUnaryExprTypes(
     return argType;
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 using TExpressionGenerator = std::function<TConstExpressionPtr(EValueType)>;
@@ -524,6 +511,62 @@ public:
 
     TConstExpressionPtr DoBuildTypedExpression(const NAst::TExpression* expr, TRange<EValueType> resultTypes) override;
 
+    void AddTable(TNameSource nameSource) override
+    {
+        ColumnResolver_.AddTable(std::move(nameSource));
+    }
+
+    TLogicalTypePtr ResolveColumn(const NAst::TColumnReference& reference) override
+    {
+        return ColumnResolver_.Resolve(reference);
+    }
+
+    void PopulateAllColumns() override
+    {
+        ColumnResolver_.PopulateAllColumns();
+    }
+
+    void Finish() override
+    {
+        ColumnResolver_.Finish();
+    }
+
+    TLogicalTypePtr GetColumnType(const NAst::TColumnReference& reference)
+    {
+        if (AfterGroupBy_) {
+            // Search other way after group by.
+            if (reference.TableName) {
+                return nullptr;
+            }
+
+            for (int index = 0; index < std::ssize(*GroupItems_); ++index) {
+                const auto& item = (*GroupItems_)[index];
+                if (item.Name == reference.ColumnName) {
+                    return item.Expression->LogicalType;
+                }
+            }
+            return nullptr;
+        }
+
+        return ColumnResolver_.Resolve(reference);
+    }
+
+    void SetGroupData(const TNamedItemList* groupItems, TAggregateItemList* aggregateItems) override
+    {
+        YT_VERIFY(!GroupItems_ && !AggregateItems_);
+
+        GroupItems_ = groupItems;
+        AggregateItems_ = aggregateItems;
+        AfterGroupBy_ = true;
+    }
+
+    TString InferGroupItemName(
+        const TConstExpressionPtr& /*typedExpression*/,
+        const NAst::TExpression& expressionsAst) override
+    {
+        return InferColumnName(expressionsAst);
+    }
+
 private:
     struct ResolveNestedTypesResult
     {
@@ -538,6 +581,15 @@ private:
 
     THashMap<std::pair<TString, EValueType>, TConstExpressionPtr> AggregateLookup_;
 
+    TReferenceResolver ColumnResolver_;
+
+    const TNamedItemList* GroupItems_ = nullptr;
+    // TODO: Enrich TMappedSchema with alias and keep here pointers to TMappedSchema.
+
+    TAggregateItemList* AggregateItems_ = nullptr;
+
+    bool AfterGroupBy_ = false;
+
     ResolveNestedTypesResult ResolveNestedTypes(
         const TLogicalTypePtr& type,
         const NAst::TReference& reference);
@@ -548,7 +600,7 @@ private:
 
     TUntypedExpression UnwrapCompositeMemberAccessor(
         const NAst::TReference& reference,
-        TBaseColumn column);
+        const TLogicalTypePtr& type);
 
     TUntypedExpression OnReference(
         const NAst::TReference& reference);
@@ -594,7 +646,7 @@ private:
         const NAst::TLikeExpression* likeExpr);
 };
 
-std::unique_ptr<TExprBuilder> CreateExpressionBuilder(
+std::unique_ptr<TExprBuilder> CreateExpressionBuilderV1(
     TStringBuf source,
     const TConstTypeInferrerMapPtr& functions,
     const NAst::TAliasMap& aliasMap)
@@ -647,6 +699,8 @@ TUntypedExpression TExprBuilderV1::OnExpression(
         return OnCaseOp(caseExpr);
     } else if (auto likeExpr = expr->As<NAst::TLikeExpression>()) {
         return OnLikeOp(likeExpr);
+    } else if (auto queryExpr = expr->As<NAst::TQueryExpression>()) {
+        THROW_ERROR_EXCEPTION("Subqueries in expressions are not supported in expression builder v1.");
     }
 
     YT_ABORT();
@@ -789,20 +843,19 @@ TConstExpressionPtr TExprBuilderV1::UnwrapListOrDictItemAccessor(
 
 TUntypedExpression TExprBuilderV1::UnwrapCompositeMemberAccessor(
     const NAst::TReference& reference,
-    TBaseColumn column)
+    const TLogicalTypePtr& type)
 {
-    auto columnType = column.LogicalType;
-    auto columnReference = New<TReferenceExpression>(columnType, column.Name);
+    auto columnReference = New<TReferenceExpression>(type, InferColumnName(reference));
 
     if (reference.CompositeTypeAccessor.IsEmpty()) {
         auto generator = [columnReference] (EValueType /*type*/) {
             return columnReference;
         };
 
-        return {TTypeSet({GetWireType(columnType)}), std::move(generator), /*IsConstant*/ false};
+        return {TTypeSet({GetWireType(type)}), std::move(generator), /*IsConstant*/ false};
     }
 
-    auto resolved = ResolveNestedTypes(columnType, reference);
+    auto resolved = ResolveNestedTypes(type, reference);
     auto listOrDictItemAccessor = UnwrapListOrDictItemAccessor(reference, resolved.IntermediateType->GetMetatype());
 
     auto memberAccessor = New<TCompositeMemberAccessorExpression>(
@@ -821,8 +874,8 @@ TUntypedExpression TExprBuilderV1::UnwrapCompositeMemberAccessor(
 TUntypedExpression TExprBuilderV1::OnReference(const NAst::TReference& reference)
 {
     if (AfterGroupBy_) {
-        if (auto column = GetColumnPtr(reference)) {
-            return UnwrapCompositeMemberAccessor(reference, *column);
+        if (auto type = GetColumnType(reference)) {
+            return UnwrapCompositeMemberAccessor(reference, type);
         }
     }
 
@@ -842,13 +895,13 @@ TUntypedExpression TExprBuilderV1::OnReference(const NAst::TReference& reference
     }
 
     if (!AfterGroupBy_) {
-        if (auto column = GetColumnPtr(reference)) {
-            return UnwrapCompositeMemberAccessor(reference, *column);
+        if (auto type = GetColumnType(reference)) {
+            return UnwrapCompositeMemberAccessor(reference, type);
         }
     }
 
     THROW_ERROR_EXCEPTION("Undefined reference %Qv",
-        NAst::InferColumnName(reference));
+        InferColumnName(reference));
 }
 
 TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* functionExpr)
@@ -858,7 +911,7 @@ TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* f
 
     const auto& descriptor = Functions_->GetFunction(functionName);
 
-    if (const auto* aggregateFunction = descriptor->As<TAggregateFunctionTypeInferrer>()) {
+    if (descriptor->IsAggregate()) {
         auto subexpressionName = InferColumnName(*functionExpr);
 
         std::vector<TTypeSet> argTypes;
@@ -885,7 +938,7 @@ TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* f
         int stateConstraintIndex;
         int resultConstraintIndex;
 
-        std::tie(stateConstraintIndex, resultConstraintIndex) = aggregateFunction->GetNormalizedConstraints(
+        std::tie(stateConstraintIndex, resultConstraintIndex) = descriptor->GetNormalizedConstraints(
             &genericAssignments,
             &formalArguments);
         IntersectGenericsWithArgumentTypes(
@@ -935,8 +988,8 @@ TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* f
                 typedOperands,
                 functionName,
                 subexpressionName,
-                stateType,
-                type);
+                MakeLogicalType(GetLogicalType(stateType), /*required*/ false),
+                MakeLogicalType(GetLogicalType(type), /*required*/ false));
 
             auto expr = New<TReferenceExpression>(
                 MakeLogicalType(GetLogicalType(type), /*required*/ false),
@@ -947,7 +1000,7 @@ TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* f
         };
 
         return TUntypedExpression{resultTypes, std::move(generator), /*IsConstant*/ false};
-    } else if (const auto* regularFunction = descriptor->As<TFunctionTypeInferrer>()) {
+    } else {
         std::vector<TTypeSet> argTypes;
         std::vector<TExpressionGenerator> operandTypers;
         argTypes.reserve(functionExpr->Arguments.size());
@@ -960,7 +1013,7 @@ TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* f
 
         std::vector<TTypeSet> genericAssignments;
         auto resultTypes = InferFunctionTypes(
-            regularFunction,
+            descriptor,
             argTypes,
             &genericAssignments,
             functionName,
@@ -968,13 +1021,13 @@ TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* f
 
         TExpressionGenerator generator = [
             functionName,
-            regularFunction,
+            descriptor,
             operandTypers,
             genericAssignments,
             source = functionExpr->GetSource(Source_)
         ] (EValueType type) mutable {
             auto effectiveTypes = RefineFunctionTypes(
-                regularFunction,
+                descriptor,
                 type,
                 operandTypers.size(),
                 &genericAssignments,
@@ -990,8 +1043,6 @@ TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* f
         };
 
         return TUntypedExpression{.FeasibleTypes=resultTypes, .Generator=std::move(generator), .IsConstant=false};
-    } else {
-        YT_ABORT();
     }
 }
 
@@ -1447,15 +1498,10 @@ TUntypedExpression TExprBuilderV1::OnCaseOp(const NAst::TCaseExpression* caseExp
 
             auto untypedExpression = OnExpression(condition.front());
             if (!Unify(&conditionTypes, untypedExpression.FeasibleTypes)) {
-                if (hasOptionalOperand) {
-                    THROW_ERROR_EXCEPTION("Types mismatch in CASE WHEN expression")
-                        << TErrorAttribute("source", source)
-                        << TErrorAttribute("actual_type", ToString(untypedExpression.FeasibleTypes))
-                        << TErrorAttribute("expected_type", ToString(conditionTypes));
-                } else {
-                    THROW_ERROR_EXCEPTION("Expression inside CASE WHEN should be boolean")
-                        << TErrorAttribute("source", source);
-                }
+                THROW_ERROR_EXCEPTION("Types mismatch in CASE WHEN expression")
+                    << TErrorAttribute("source", source)
+                    << TErrorAttribute("actual_type", ToString(untypedExpression.FeasibleTypes))
+                    << TErrorAttribute("expected_type", ToString(conditionTypes));
             }
 
             untypedConditions.push_back(std::move(untypedExpression));
@@ -1490,7 +1536,7 @@ TUntypedExpression TExprBuilderV1::OnCaseOp(const NAst::TCaseExpression* caseExp
 
             auto untypedExpression = OnExpression(result.front());
             if (!Unify(&resultTypes, untypedExpression.FeasibleTypes)) {
-                THROW_ERROR_EXCEPTION("Types mismatch in CASE THEN expression")
+                THROW_ERROR_EXCEPTION("Types mismatch in CASE THEN/ELSE expression")
                     << TErrorAttribute("source", source)
                     << TErrorAttribute("actual_type", ToString(untypedExpression.FeasibleTypes))
                     << TErrorAttribute("expected_type", ToString(resultTypes));
@@ -1507,7 +1553,7 @@ TUntypedExpression TExprBuilderV1::OnCaseOp(const NAst::TCaseExpression* caseExp
 
             untypedDefault = OnExpression(caseExpr->DefaultExpression->front());
             if (!Unify(&resultTypes, untypedDefault.FeasibleTypes)) {
-                THROW_ERROR_EXCEPTION("Types mismatch in CASE ELSE expression")
+                THROW_ERROR_EXCEPTION("Types mismatch in CASE THEN/ELSE expression")
                     << TErrorAttribute("source", source)
                     << TErrorAttribute("actual_type", ToString(untypedDefault.FeasibleTypes))
                     << TErrorAttribute("expected_type", ToString(resultTypes));

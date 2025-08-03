@@ -333,12 +333,14 @@ TFuture<TDistributedWriteSessionWithCookies> TClient::StartDistributedWriteSessi
     std::vector<TSignedWriteFragmentCookiePtr> cookies;
     cookies.reserve(options.CookieCount);
 
+    auto signatureGenerator = GetNativeConnection()->GetSignatureGenerator();
+
     for (int i = 0; i < options.CookieCount; ++i) {
-        cookies.emplace_back(DummySignatureGenerator_->Sign(ConvertToYsonString(session.CookieFromThis()).ToString()));
+        cookies.emplace_back(signatureGenerator->Sign(ConvertToYsonString(session.CookieFromThis()).ToString()));
     }
 
     TDistributedWriteSessionWithCookies result;
-    result.Session = TSignedDistributedWriteSessionPtr(DummySignatureGenerator_->Sign(ConvertToYsonString(session).ToString()));
+    result.Session = TSignedDistributedWriteSessionPtr(signatureGenerator->Sign(ConvertToYsonString(session).ToString()));
     result.Cookies = std::move(cookies);
 
     return MakeFuture(std::move(result));
@@ -357,9 +359,9 @@ TFuture<void> TClient::FinishDistributedWriteSession(
 
     auto attributes = IAttributeDictionary::FromMap(patchInfo.TableAttributes->AsMap());
 
-    auto transaction = AttachTransaction(session.MainTransactionId, TTransactionAttachOptions{
-        .AutoAbort = true,
-    });
+    TTransactionAttachOptions attachOptions = {};
+    attachOptions.AutoAbort = true;
+    auto transaction = AttachTransaction(session.MainTransactionId, attachOptions);
 
     const auto tableUploadOptions = GetTableUploadOptions(
         patchInfo.RichPath,

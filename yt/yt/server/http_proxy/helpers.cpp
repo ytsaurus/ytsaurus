@@ -23,14 +23,13 @@ using namespace NConcurrency;
 using namespace NHttp;
 using namespace NYTree;
 
-static constexpr auto& Logger = HttpProxyLogger;
+constinit const auto Logger = HttpProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<TString> GatherHeader(const THeadersPtr& headers, const TString& headerName)
+std::optional<std::string> GatherHeader(const THeadersPtr& headers, const std::string& headerName)
 {
-    auto singleHeader = headers->Find(headerName);
-    if (singleHeader) {
+    if (auto singleHeader = headers->Find(headerName)) {
         return *singleHeader;
     }
 
@@ -41,18 +40,20 @@ std::optional<TString> GatherHeader(const THeadersPtr& headers, const TString& h
                 << TErrorAttribute("header_name", headerName);
         }
 
-        auto key = headerName + ToString(i);
-        auto part = headers->Find(key);
-        if (part) {
-            buffer += *part;
-            continue;
+        {
+            auto key = Format("%v%v", headerName, i);
+            if (auto part = headers->Find(key)) {
+                buffer += *part;
+                continue;
+            }
         }
 
-        key = headerName + "-" + ToString(i);
-        part = headers->Find(key);
-        if (part) {
-            buffer += *part;
-            continue;
+        {
+            auto key = Format("%v-%v", headerName, i);
+            if (auto part = headers->Find(key)) {
+                buffer += *part;
+                continue;
+            }
         }
 
         if (i == 0) {
@@ -62,8 +63,7 @@ std::optional<TString> GatherHeader(const THeadersPtr& headers, const TString& h
         }
     }
 
-    buffer = Base64Decode(buffer);
-    return buffer;
+    return Base64Decode(buffer);
 }
 
 std::vector<TStringBuf> TokenizeQueryArgumentName(TStringBuf argument)
@@ -240,13 +240,12 @@ NYTree::IMapNodePtr HideSecretParameters(const TString& commandName, NYTree::IMa
     return parameters;
 }
 
-static const re2::RE2 PythonWrapperPattern{"Python wrapper (\\d+).(\\d+).(\\d+)"};
-
-std::optional<TPythonWrapperVersion> DetectPythonWrapper(const TString& userAgent)
+std::optional<TPythonWrapperVersion> DetectPythonWrapper(TStringBuf userAgent)
 {
+    static const re2::RE2 PythonWrapperPattern{"Python wrapper (\\d+).(\\d+).(\\d+)"};
     TPythonWrapperVersion version;
     if (re2::RE2::PartialMatch(
-        userAgent.c_str(),
+        userAgent.data(),
         PythonWrapperPattern,
         &version.Major,
         &version.Minor,
@@ -258,13 +257,12 @@ std::optional<TPythonWrapperVersion> DetectPythonWrapper(const TString& userAgen
     return {};
 }
 
-static const re2::RE2 JavaIcebergPattern{"iceberg/inside-yt@@(\\d+)"};
-
-std::optional<i64> DetectJavaIceberg(const TString& userAgent)
+std::optional<i64> DetectJavaIceberg(TStringBuf userAgent)
 {
+    static const re2::RE2 JavaIcebergPattern{"iceberg/inside-yt@@(\\d+)"};
     i64 version;
     if (re2::RE2::PartialMatch(
-        userAgent.c_str(),
+        userAgent.data(),
         JavaIcebergPattern,
         &version))
     {
@@ -274,17 +272,16 @@ std::optional<i64> DetectJavaIceberg(const TString& userAgent)
     return {};
 }
 
-static const re2::RE2 GoPattern{"go-yt-client/(\\d+)"};
-
-std::optional<i64> DetectGo(const TString& userAgent)
+std::optional<i64> DetectGo(TStringBuf userAgent)
 {
     if (userAgent == "go-yt-client") {
         return 0;
     }
 
+    static const re2::RE2 GoPattern{"go-yt-client/(\\d+)"};
     i64 version;
     if (re2::RE2::PartialMatch(
-        userAgent.c_str(),
+        userAgent.data(),
         GoPattern,
         &version))
     {

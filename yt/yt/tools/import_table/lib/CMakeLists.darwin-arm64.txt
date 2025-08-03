@@ -22,7 +22,7 @@ target_link_libraries(tools-import_table-lib PUBLIC
   cpp-mapreduce-util
   mapreduce-library-blob_table
   mapreduce-library-table_schema
-  yt-library-arrow_parquet_adapter
+  yt-library-arrow_adapter
   yt-library-huggingface_client
   yt-library-program
   yt-library-re2

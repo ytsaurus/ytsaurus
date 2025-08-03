@@ -47,7 +47,13 @@ public:
 
     TFuture<TFinishResult> Finish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        std::optional<int> blockCount) override;
+        std::optional<int> blockCount,
+        bool truncateExtraBlocks) override;
+
+    bool ShouldUseProbePutBlocks() const override;
+    void ProbePutBlocks(i64 requestedCumulativeMemorySize) override;
+    i64 GetApprovedCumulativeBlockSize() const override;
+    i64 GetMaxRequestedCumulativeBlockSize() const override;
 
     TFuture<NIO::TIOCounters> PutBlocks(
         int startBlockIndex,
@@ -55,10 +61,12 @@ public:
         i64 cumulativeBlockSize,
         bool enableCaching) override;
 
-    TFuture<NChunkClient::TDataNodeServiceProxy::TRspPutBlocksPtr> SendBlocks(
+    TFuture<TSendBlocksResult> SendBlocks(
         int startBlockIndex,
         int blockCount,
         i64 cumulativeBlockSize,
+        TDuration requestTimeout,
+        bool instantReplyOnThrottling,
         const NNodeTrackerClient::TNodeDescriptor& targetDescriptor) override;
 
     TFuture<TFlushBlocksResult> FlushBlocks(int blockIndex) override;
@@ -96,20 +104,29 @@ protected:
 
     std::atomic<bool> Canceled_ = false;
 
+    TProbePutBlocksRequestSupplierPtr ProbePutBlocksRequestSupplier_;
+
+    bool UseProbePutBlocks_ = false;
+
+    TLocationMemoryGuard GetMemoryForPutBlocks(i64 memory);
+
     virtual TFuture<void> DoStart() = 0;
     virtual void DoCancel(const TError& error) = 0;
     virtual TFuture<TFinishResult> DoFinish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        std::optional<int> blockCount) = 0;
+        std::optional<int> blockCount,
+        bool truncateExtraBlocks) = 0;
     virtual TFuture<NIO::TIOCounters> DoPutBlocks(
         int startBlockIndex,
         std::vector<NChunkClient::TBlock> blocks,
         i64 cumulativeBlockSize,
         bool enableCaching) = 0;
-    virtual TFuture<NChunkClient::TDataNodeServiceProxy::TRspPutBlocksPtr> DoSendBlocks(
+    virtual TFuture<TSendBlocksResult> DoSendBlocks(
         int startBlockIndex,
         int blockCount,
         i64 cumulativeBlockSize,
+        TDuration requestTimeout,
+        bool enableThrottling,
         const NNodeTrackerClient::TNodeDescriptor& target) = 0;
     virtual TFuture<TFlushBlocksResult> DoFlushBlocks(int blockIndex) = 0;
 

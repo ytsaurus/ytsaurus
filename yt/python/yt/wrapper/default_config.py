@@ -6,7 +6,7 @@ from . import common
 from .config_remote_patch import (RemotePatchableValueBase, RemotePatchableString, RemotePatchableBoolean,
                                   RemotePatchableInteger, _validate_operation_link_pattern,
                                   _validate_query_link_pattern)
-from .constants import DEFAULT_HOST_SUFFIX, SKYNET_MANAGER_URL, PICKLING_DL_ENABLE_AUTO_COLLECTION, STARTED_BY_COMMAND_LENGTH_LIMIT
+from .constants import DEFAULT_HOST_SUFFIX, SKYNET_MANAGER_URL, PICKLING_DL_ENABLE_AUTO_COLLECTION, ENCRYPT_PICKLE_FILES, STARTED_BY_COMMAND_LENGTH_LIMIT
 from .errors import YtConfigError
 from .mappings import VerifiedDict
 
@@ -102,6 +102,19 @@ default_config = {
         # It is recommended to use only cluster name as alias for proxy url.
         "aliases": {},
 
+        # Proxy role to use in heavy proxies discovering based on the backend type.
+        # If it is set to None, the default will be used.
+        # NB: If the "proxy_discovery_url" config option is set, it is assumed to take priority over "http_proxy_role" option.
+        "http_proxy_role": None,
+        "rpc_proxy_role": None,
+
+        # For testing purposes only.
+        # If there are no heavy proxies, we can fallback to the light proxy.
+        "allow_light_proxy_for_heavy_requests": True,
+
+        # The name of the network from which the address will be returned during proxy discovery.
+        "network_name": None,
+
         # use https for proxy.url (if no schema in proxy.url)
         "prefer_https": False,
 
@@ -166,7 +179,8 @@ default_config = {
         # proxy for heavy request.
         "number_of_top_proxies_for_random_choice": 5,
         # Part of url to get list of heavy proxies.
-        "proxy_discovery_url": "hosts",
+        # Deprecated! It's recommended to use the 'http_proxy_role' option instead for configuring proxies.
+        "proxy_discovery_url": RemotePatchableString("hosts", "http_proxy_discovery_url"),
         # Timeout of proxy ban.
         "proxy_ban_timeout": 120 * 1000,
 
@@ -226,6 +240,13 @@ default_config = {
     "oauth_client_secret": "87dcc81340254b12a4cecdfe34c6d387",
     # Set to yt.wrapper.tvm.ServiceTicketAuth(tvm_client) or yt.wrapper.tvm.UserTicketFixedAuth()
     "tvm_auth": None,
+
+    # This option allows the client to impersonate another user.
+    # Setting this option is only allowed for superusers that are not banned,
+    # all other attempts at impersonation will result in an authorization error.
+    # For now only the HTTP driver supports option, in the RPC driver it is ignored.
+    # If you are using the native driver, use the `driver_user_name` option below instead.
+    "impersonation_user": None,
 
     # Force using this version of api.
     "api_version": None,
@@ -325,8 +346,8 @@ default_config = {
         #  * close - stdout will be closed for user writes. Warning: may lead to errors that are hard to debug;
         #  * none - disable protection.
         "stdout_fd_protection": "redirect_to_stderr",
-        # Any stdout output will be redirected to stderr (by cluster, not client).
-        "redirect_stdout_to_stderr": False,
+        # Any stdout output will be redirected to stderr (by cluster, not client). "use_yamr_descriptors" has priority over "redirect_stdout_to_stderr"
+        "redirect_stdout_to_stderr": True,
         # Enables using tmpfs for modules archive.
         "enable_tmpfs_archive": True,
         # Add tmpfs archive size to memory limit.
@@ -360,6 +381,8 @@ default_config = {
             r"/lib/python[\d\.]+/(site|dist)-packages/",
             r"/lib/python[\d\.]+/.+\.(py|pyc|so)$",
         ],
+        # Encrypt files with pickle data (None - disabled, 1 - enabled, 2 - enabled with key in "secure vault")
+        "encrypt_pickle_files": RemotePatchableInteger(ENCRYPT_PICKLE_FILES, "python_encrypt_pickle_files"),
     },
 
     # Enables special behavior if client works with local mode cluster.
@@ -721,6 +744,10 @@ default_config = {
         # When dumping a table, the size of the result row groups will exceed the set value.
         "min_batch_row_count": 0,
     },
+
+    # if enabled, the password strength will be verified by the client when performing
+    # a set_user_password request
+    "enable_password_strength_validation": RemotePatchableBoolean(False, "python_enable_password_strength_validation"),
 }
 
 # pydoc :: default_config :: end
@@ -754,6 +781,8 @@ def get_default_config():
 
 FORCED_SHORTCUTS = {
     "YT_BASE_LAYER" : "operation_base_layer",
+    "YT_HTTP_PROXY_ROLE": "proxy/http_proxy_role",
+    "YT_RPC_PROXY_ROLE": "proxy/rpc_proxy_role",
 }
 
 
@@ -761,6 +790,9 @@ SHORTCUTS = {
     "YT_PROXY": "proxy/url",
     "YT_PROXY_SUFFIX": "proxy/default_suffix",
     "YT_PROXY_URL_ALIASING_CONFIG": "proxy/aliases",
+    "YT_HTTP_PROXY_ROLE": "proxy/http_proxy_role",
+    "YT_RPC_PROXY_ROLE": "proxy/rpc_proxy_role",
+
     "YT_TOKEN": "token",
     "YT_TOKEN_PATH": "token_path",
     "YT_USE_TOKEN": "enable_token",
@@ -834,11 +866,15 @@ SHORTCUTS = {
     "YT_IGNORE_EMPTY_TABLES_IN_MAPREDUCE_LIST": "yamr_mode/ignore_empty_tables_in_mapreduce_list",
 
     "YT_CONFIG_PROFILE": "config_profile",
+
+    "YT_ENCRYPT_PICKLE": "pickling/encrypt_pickle_files",
 }
 
 
-def update_config_from_env(config, config_profile=None):
-    # type: (yt.wrapper.mappings.VerifiedDict, str | None) -> yt.wrapper.mappings.VerifiedDict
+def update_config_from_env(
+    config: VerifiedDict,
+    config_profile: Optional[str] = None
+) -> VerifiedDict:
     """Patch config from envs and the config file."""
 
     _update_from_env_patch(config)
@@ -850,9 +886,10 @@ def update_config_from_env(config, config_profile=None):
     return config
 
 
-def _update_from_env_vars(config, shortcuts=None):
-    # type: (yt.wrapper.mappings.VerifiedDict, dict | None) -> None
-
+def _update_from_env_vars(
+    config: VerifiedDict,
+    shortcuts: Optional[dict] = None
+):
     def _get_var_type(value):
         var_type = type(value)
         # Using int we treat "0" as false, "1" as "true"
@@ -913,9 +950,7 @@ def _update_from_env_vars(config, shortcuts=None):
             _set(config, name, _apply_type(var_type, key, value))
 
 
-def _update_from_env_patch(config):
-    # type: (yt.wrapper.mappings.VerifiedDict) -> None
-
+def _update_from_env_patch(config: VerifiedDict):
     if "YT_CONFIG_PATCHES" in os.environ:
         try:
             patches = yson._loads_from_native_str(os.environ["YT_CONFIG_PATCHES"],
@@ -1057,13 +1092,17 @@ def _update_from_file(
     common.update_inplace(config, config_from_file)
 
 
-def get_config_from_env(config_profile=None):
-    # type: (str) -> yt.wrapper.mappings.VerifiedDict
+def get_config_from_env(
+    config_profile: Optional[str] = None
+) -> VerifiedDict:
     """Get default config with patches from envs"""
     return update_config_from_env(get_default_config(), config_profile=config_profile)
 
 
-def _get_settings_from_cluster_callback(config=None, client=None):
+def _get_settings_from_cluster_callback(
+    config: Optional[VerifiedDict] = None,
+    client=None
+):
     import yt.wrapper as yt
     if config is None and client is None:
         # config=None, client=None

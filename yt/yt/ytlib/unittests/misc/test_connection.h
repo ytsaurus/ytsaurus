@@ -86,6 +86,8 @@
 
 #include <yt/yt/client/sequoia_client/public.h>
 
+#include <yt/yt/client/signature/generator.h>
+
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/client/api/client.h>
@@ -166,14 +168,14 @@ public:
     MOCK_METHOD(const NChunkClient::TMediumDirectorySynchronizerPtr&, GetMediumDirectorySynchronizer, (), (override));
     MOCK_METHOD(const NNodeTrackerClient::INodeDirectorySynchronizerPtr&, GetNodeDirectorySynchronizer, (), (override));
     MOCK_METHOD(const NChunkClient::IChunkReplicaCachePtr&, GetChunkReplicaCache, (), (override));
-    MOCK_METHOD((std::pair<IClientPtr, NYPath::TYPath>), GetQueryTrackerStage, (const TString&), (override));
-    MOCK_METHOD(NRpc::IChannelPtr, GetQueryTrackerChannelOrThrow, (const TString&), (override));
+    MOCK_METHOD((std::pair<IClientPtr, NYPath::TYPath>), GetQueryTrackerStage, (TStringBuf), (override));
+    MOCK_METHOD(NRpc::IChannelPtr, GetQueryTrackerChannelOrThrow, (TStringBuf), (override));
     MOCK_METHOD(NRpc::IChannelPtr, GetChaosChannelByCellId, (NObjectClient::TCellId, NHydra::EPeerKind), (override));
     MOCK_METHOD(NRpc::IChannelPtr, GetChaosChannelByCellTag, (NObjectClient::TCellTag, NHydra::EPeerKind), (override));
     MOCK_METHOD(NRpc::IChannelPtr, GetChaosChannelByCardId, (NChaosClient::TReplicationCardId, NHydra::EPeerKind), (override));
     MOCK_METHOD(NRpc::IChannelPtr, FindQueueAgentChannel, (TStringBuf), (const, override));
-    MOCK_METHOD(const NQueueClient::TQueueConsumerRegistrationManagerPtr&, GetQueueConsumerRegistrationManager, (), (const, override));
-    MOCK_METHOD(NRpc::IRoamingChannelProviderPtr, GetYqlAgentChannelProviderOrThrow, (const TString&), (const, override));
+    MOCK_METHOD(const NQueueClient::IQueueConsumerRegistrationManagerPtr&, GetQueueConsumerRegistrationManager, (), (const, override));
+    MOCK_METHOD((std::pair<NRpc::IRoamingChannelProviderPtr, NYqlClient::TYqlAgentChannelConfigPtr>), GetYqlAgentChannelProviderOrThrow, (TStringBuf), (const, override));
     MOCK_METHOD(const NTabletClient::ITableMountCachePtr&, GetTableMountCache, (), (override));
     MOCK_METHOD(const NChaosClient::IReplicationCardCachePtr&, GetReplicationCardCache, (), (override));
     MOCK_METHOD(const NChaosClient::IChaosResidencyCachePtr&, GetChaosResidencyCache, (), (override));
@@ -199,7 +201,7 @@ public:
     MOCK_METHOD(const TConnectionConfigPtr&, GetConfig, (), ());
     MOCK_METHOD(TClusterTag, GetClusterTag, (), (const, override));
     MOCK_METHOD(const std::string&, GetLoggingTag, (), (const, override));
-    MOCK_METHOD(const TString&, GetClusterId, (), (const, override));
+    MOCK_METHOD(const std::string&, GetClusterId, (), (const, override));
     MOCK_METHOD(const std::optional<std::string>&, GetClusterName, (), (const, override));
     MOCK_METHOD(bool, IsSameCluster, (const TIntrusivePtr<NApi::IConnection>&), (const, override));
     MOCK_METHOD(NHiveClient::ITransactionParticipantPtr, CreateTransactionParticipant, (NHiveClient::TCellId, const NApi::TTransactionParticipantOptions&), (override));
@@ -209,12 +211,15 @@ public:
     MOCK_METHOD(void, Reconfigure, (const TConnectionDynamicConfigPtr&), (override));
     MOCK_METHOD(NRpc::IChannelPtr, GetShuffleServiceChannelOrThrow, (), (override));
     MOCK_METHOD(void, RegisterShuffleService, (const std::string&), (override));
+    MOCK_METHOD(NSignature::ISignatureGeneratorPtr, GetSignatureGenerator, (), (const, override));
+    MOCK_METHOD(void, SetSignatureGenerator, (NSignature::ISignatureGeneratorPtr), (override));
 
     const TConnectionStaticConfigPtr& GetStaticConfig() const override;
     const NNodeTrackerClient::TNetworkPreferenceList& GetNetworks() const override;
     TConnectionDynamicConfigPtr GetConfig() const override;
     NRpc::IChannelPtr CreateChannelByAddress(const std::string& address) override;
     IClientPtr CreateNativeClient(const TClientOptions& options) override;
+    NSequoiaClient::ISequoiaClientPtr GetSequoiaClient() override;
     const NRpc::IChannelFactoryPtr& GetChannelFactory() override;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() override;
 
@@ -227,6 +232,9 @@ public:
     const NHiveClient::TDownedCellTrackerPtr& GetDownedCellTracker() override;
     const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() override;
 
+    NRpc::IChannelPtr FindMasterChannel(
+        EMasterChannelKind kind,
+        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) override;
     NRpc::IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) override;
@@ -260,7 +268,7 @@ DEFINE_REFCOUNTED_TYPE(TTestConnection)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NApi::NNative::IConnectionPtr CreateConnection(
+TTestConnectionPtr CreateConnection(
     NRpc::IChannelFactoryPtr channelFactory,
     NNodeTrackerClient::TNetworkPreferenceList networkPreferenceList,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,

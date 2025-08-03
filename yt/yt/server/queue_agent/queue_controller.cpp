@@ -6,6 +6,7 @@
 #include "helpers.h"
 #include "profile_manager.h"
 #include "queue_exporter.h"
+#include "queue_exporter_old.h"
 #include "queue_export_manager.h"
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
@@ -334,6 +335,8 @@ private:
                 if (partitionSnapshot->CumulativeDataWeight) {
                     partitionSnapshot->WriteRate.DataWeight.Update(*partitionSnapshot->CumulativeDataWeight);
                 }
+            } else if (partitionSnapshot->CumulativeDataWeight) {
+                partitionSnapshot->WriteRate.DataWeight.Update(partitionSnapshot->WriteRate.DataWeight.Count);
             }
 
             partitionSnapshot->AvailableDataWeight = OptionalSub(
@@ -429,6 +432,7 @@ public:
             .Item("replicated_table_mapping_row").Value(queueSnapshot->ReplicatedTableMappingRow)
             .Item("status").Do(std::bind(BuildQueueStatusYson, queueSnapshot, AlertManager_, queueExportsProgressOrError, _1))
             .Item("partitions").Do(std::bind(BuildQueuePartitionListYson, queueSnapshot, _1))
+            .Item("exporters").Do(std::bind(&TOrderedDynamicTableController::BuildExporterMappingYson, this, _1))
         .EndMap();
     }
 
@@ -461,7 +465,7 @@ public:
         AlertManager_->Reconfigure(oldConfig->AlertManager, newConfig->AlertManager);
 
         {
-            auto guard = WriterGuard(QueueExportsLock_);
+            auto guard = ReaderGuard(QueueExportsLock_);
             if (QueueExports_.IsOK()) {
                 for (const auto& exporter : GetValues(QueueExports_.Value())) {
                     exporter->OnDynamicConfigChanged(newConfig->QueueExporter);
@@ -473,6 +477,24 @@ public:
             "Updated queue controller dynamic config (OldConfig: %v, NewConfig: %v)",
             ConvertToYsonString(oldConfig, EYsonFormat::Text),
             ConvertToYsonString(newConfig, EYsonFormat::Text));
+    }
+
+    void Stop() override
+    {
+        TrimAlertCollector_->Stop();
+        QueueExportsAlertCollector_->Stop();
+
+        {
+            auto guard = ReaderGuard(QueueExportsLock_);
+
+            if (QueueExports_.IsOK()) {
+                for (const auto& [_, exporter] : QueueExports_.Value()) {
+                    exporter->Stop();
+                }
+            }
+        }
+
+        YT_UNUSED_FUTURE(PassExecutor_->Stop());
     }
 
     TRefCountedPtr GetLatestSnapshot() const override
@@ -533,8 +555,8 @@ private:
             auto it = std::find(config->DelayedObjects.begin(), config->DelayedObjects.end(), static_cast<TRichYPath>(QueueRow_.Load().Ref));
             if (it != config->DelayedObjects.end()) {
                 // NB(apachee): Since this should only be used for debug, it is a warning in case "delayed_objects" field is left non-empty accidentally.
-                YT_LOG_WARNING("This pass is delayed since queue is present in \"delayed_objects\" field of dynamic config (DelayDuration: %v)", config->ControllerDelayDuration);
-                TDelayedExecutor::WaitForDuration(config->ControllerDelayDuration);
+                YT_LOG_WARNING("This pass is delayed since queue is present in \"delayed_objects\" field of dynamic config (Delay: %v)", config->ControllerDelay);
+                TDelayedExecutor::WaitForDuration(config->ControllerDelay);
             }
         }
 
@@ -596,6 +618,7 @@ private:
 
     void UpdateExports(const TQueueSnapshotPtr& nextQueueSnapshot)
     {
+        YT_LOG_DEBUG("Updating exports");
         // NB(apachee): We keep the exports even in the case of "enableQueueStaticExport" being false
         // to allow trimming exported rows, but prevent trimming past them.
 
@@ -605,6 +628,38 @@ private:
 
         auto queueExporterConfig = DynamicConfig_.Acquire()->QueueExporter;
         const auto& staticExportConfig = nextQueueSnapshot->Row.StaticExportConfig;
+
+        // COMPAT(apachee): Create queue exporter depending on implementation set in config.
+        // NB(apachee): We re-create exporters here and not in OnDynamicConfigChanged for simplicity.
+        auto createQueueExporter = [&] (TString name, TQueueStaticExportConfigPtr exportConfig) -> IQueueExporterPtr {
+            switch (queueExporterConfig.Implementation) {
+                case EQueueExporterImplementation::New:
+                    return CreateQueueExporter(
+                        std::move(name),
+                        QueueRef_,
+                        std::move(exportConfig),
+                        queueExporterConfig,
+                        ClientDirectory_->GetUnderlyingClientDirectory(),
+                        Invoker_,
+                        QueueExportManager_,
+                        CreateAlertCollector(AlertManager_),
+                        ProfileManager_->GetQueueProfiler(),
+                        Logger);
+                case EQueueExporterImplementation::Old:
+                    return New<TQueueExporterOld>(
+                        std::move(name),
+                        QueueRef_,
+                        std::move(exportConfig),
+                        queueExporterConfig,
+                        ClientDirectory_->GetUnderlyingClientDirectory(),
+                        Invoker_,
+                        CreateAlertCollector(AlertManager_),
+                        ProfileManager_->GetQueueProfiler(),
+                        Logger);
+            }
+
+            YT_ABORT();
+        };
 
         auto guard = WriterGuard(QueueExportsLock_);
 
@@ -627,20 +682,19 @@ private:
         }
         auto& queueExports = QueueExports_.Value();
         for (const auto& [name, exportConfig] : *staticExportConfig) {
-            if (queueExports.find(name) == queueExports.end()) {
-                queueExports[name] = CreateQueueExporter(
-                    name,
-                    QueueRef_,
-                    exportConfig,
-                    queueExporterConfig,
-                    ClientDirectory_->GetUnderlyingClientDirectory(),
-                    Invoker_,
-                    QueueExportManager_,
-                    CreateAlertCollector(AlertManager_),
-                    ProfileManager_->GetQueueProfiler(),
-                    Logger);
+            auto queueExportsIt = queueExports.find(name);
+            if (queueExportsIt == queueExports.end()) {
+                queueExports[name] = createQueueExporter(name, exportConfig);
+            } else if (queueExportsIt->second->GetImplementationType() != queueExporterConfig.Implementation) {
+                YT_LOG_DEBUG("Chaging exporter implementation (OldImplementation: %v, NewImplementation: %v)",
+                    queueExportsIt->second->GetImplementationType(),
+                    queueExporterConfig.Implementation);
+
+                // NB(apachee): Previous queue exporter is destroyed after assignment, so we stop it.
+                queueExportsIt->second->Stop();
+                queueExportsIt->second = createQueueExporter(name, exportConfig);
             } else {
-                queueExports[name]->OnExportConfigChanged(exportConfig);
+                queueExportsIt->second->OnExportConfigChanged(exportConfig);
             }
         }
 
@@ -652,7 +706,15 @@ private:
             }
         }
         for (const auto& name : unusedExportNames) {
-            queueExports.erase(name);
+            auto it = GetIteratorOrCrash(queueExports, name);
+            it->second->Stop();
+
+            queueExports.erase(it);
+        }
+
+        // COMPAT(apachee): Sanity check that after each UpdateExports all exporters are of proper implementation.
+        for (const auto& [exportName, exporter] : queueExports) {
+            YT_VERIFY(exporter->GetImplementationType() == queueExporterConfig.Implementation);
         }
     }
 
@@ -1457,6 +1519,24 @@ private:
             }
         }
     };
+
+    void BuildExporterMappingYson(TFluentAny fluent) const
+    {
+        auto guard = ReaderGuard(QueueExportsLock_);
+
+        if (!QueueExports_.IsOK()) {
+            fluent
+                .BeginAttributes()
+                    .Item("error").Value(TError(QueueExports_))
+                .EndAttributes()
+                .Entity();
+            return;
+        }
+
+        fluent.DoMapFor(QueueExports_.Value(), [] (TFluentMap fluent, const auto& pair) {
+            fluent.Item(pair.first).Do(std::bind(&IQueueExporter::BuildOrchidYson, pair.second.Get(), _1));
+        });
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TOrderedDynamicTableController)
@@ -1493,6 +1573,9 @@ public:
     {
         // Row update is handled in UpdateQueueController.
     }
+
+    void Stop() override
+    { }
 
     TRefCountedPtr GetLatestSnapshot() const override
     {

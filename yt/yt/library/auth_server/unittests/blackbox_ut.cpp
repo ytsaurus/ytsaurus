@@ -17,6 +17,8 @@
 
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <yt/yt/library/re2/re2.h>
+
 namespace NYT::NAuth {
 namespace {
 
@@ -269,7 +271,7 @@ protected:
             .WillOnce(Return(MakeFuture<INodePtr>(ConvertTo<INodePtr>(TYsonString(yson)))));
     }
 
-    TFuture<TAuthenticationResult> Invoke(const TString& token, const TString& userIP)
+    TFuture<TAuthenticationResult> Invoke(const std::string& token, const TString& userIP)
     {
         return Authenticator_->Authenticate(TTokenCredentials{
             token,
@@ -600,6 +602,40 @@ TEST_F(TCookieAuthenticatorTest, SuccessWithoutTicket)
     EXPECT_EQ("sandello", result.Value().Login);
     EXPECT_EQ("blackbox:cookie", result.Value().Realm);
     EXPECT_EQ("", result.Value().UserTicket);
+}
+
+TEST_F(TCookieAuthenticatorTest, SessguardGoodOrigin)
+{
+    Config_->EnableSessguard = true;
+    Config_->SessguardOriginPatterns = {
+        New<NRe2::TRe2>("good.ytsaurus"),
+        New<NRe2::TRe2>(".*.good.ytsaurus"),
+    };
+    auto authenticateSessguard = [&] (const std::optional<std::string>& origin) {
+        TCookieCredentials credentials;
+        credentials.Cookies[BlackboxSessionIdCookieName] = "mysessionid";
+        credentials.Cookies[BlackboxSslSessionIdCookieName] = "mysslsessionid";
+        credentials.Cookies[BlackboxSessguardCookieName] = "sessguard";
+        credentials.UserIP = NNet::TNetworkAddress::Parse("127.0.0.1");
+        credentials.Origin = origin;
+        return Authenticator_->Authenticate(credentials).Get();
+    };
+
+    MockCall("{status={id=0};login=sandello;user_ticket=good_ticket}");
+    EXPECT_NO_THROW(authenticateSessguard("good.ytsaurus").ThrowOnError());
+
+    MockCall("{status={id=0};login=sandello;user_ticket=good_ticket}");
+    EXPECT_NO_THROW(authenticateSessguard("http://good.ytsaurus").ThrowOnError());
+
+    MockCall("{status={id=0};login=sandello;user_ticket=good_ticket}");
+    EXPECT_NO_THROW(authenticateSessguard("https://good.ytsaurus").ThrowOnError());
+
+    MockCall("{status={id=0};login=sandello;user_ticket=good_ticket}");
+    EXPECT_NO_THROW(authenticateSessguard({}).ThrowOnError());
+
+    EXPECT_THROW_THAT(
+        authenticateSessguard("https://bad.ytsaurus").ThrowOnError(),
+        ::testing::HasSubstr("Sessguard cookie from disallowed origin:"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

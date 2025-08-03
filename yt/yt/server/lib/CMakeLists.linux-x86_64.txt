@@ -24,6 +24,7 @@ add_subdirectory(job_agent)
 add_subdirectory(job_proxy)
 add_subdirectory(rpc_proxy)
 add_subdirectory(transaction_server)
+add_subdirectory(security_server)
 add_subdirectory(signature)
 add_subdirectory(hive)
 add_subdirectory(election)
@@ -43,16 +44,16 @@ add_subdirectory(lsm)
 add_subdirectory(rpc)
 add_subdirectory(distributed_chunk_session_server)
 add_subdirectory(cypress_election)
+add_subdirectory(cypress_registrar)
 add_subdirectory(cell_server)
 add_subdirectory(discovery_server)
 add_subdirectory(incumbent_client)
-add_subdirectory(security_server)
+add_subdirectory(object_server)
 add_subdirectory(table_server)
 add_subdirectory(tablet_balancer)
 add_subdirectory(timestamp_server)
 add_subdirectory(sequoia)
 add_subdirectory(user_job)
-add_subdirectory(cypress_registrar)
 add_subdirectory(logging)
 add_subdirectory(shell)
 add_subdirectory(chaos_cache)
@@ -66,6 +67,9 @@ add_library(ytserver INTERFACE)
 target_compile_options(ytserver INTERFACE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(ytserver INTERFACE

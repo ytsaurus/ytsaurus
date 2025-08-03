@@ -20,7 +20,11 @@ using NQueryTrackerClient::TQueryId;
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, QueryTrackerLogger, "QueryTracker");
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, QueryTrackerProfiler,  NProfiling::TProfiler("/query_tracker").WithGlobal());
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline const NProfiling::TProfiler QueryTrackerProfilerGlobal = NProfiling::TProfiler("/query_tracker").WithGlobal();
+inline const NProfiling::TProfiler QueryTrackerProfiler = NProfiling::TProfiler("/query_tracker");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,7 +63,7 @@ DECLARE_REFCOUNTED_STRUCT(TYqlEngineConfig)
 DECLARE_REFCOUNTED_STRUCT(TChytEngineConfig)
 DECLARE_REFCOUNTED_STRUCT(TSpytEngineConfig)
 DECLARE_REFCOUNTED_STRUCT(TQLEngineConfig)
-DECLARE_REFCOUNTED_CLASS(TEngineConfigBase)
+DECLARE_REFCOUNTED_STRUCT(TEngineConfigBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 

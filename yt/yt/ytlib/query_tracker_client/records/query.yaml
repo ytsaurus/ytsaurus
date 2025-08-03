@@ -42,7 +42,7 @@ types:
         lock: client
 
       - cpp_name: User
-        cpp_type: TString
+        cpp_type: std::string
         column_name: user
         column_type: String
         lock: client
@@ -57,6 +57,12 @@ types:
       - cpp_name: StartTime
         cpp_type: TInstant
         column_name: start_time
+        column_type: Timestamp
+        lock: client
+
+      - cpp_name: ExecutionStartTime
+        cpp_type: std::optional<TInstant>
+        column_name: execution_start_time
         column_type: Timestamp
         lock: client
 
@@ -135,6 +141,13 @@ types:
         column_type: Any
         lock: client
 
+      # YSON dictionary.
+      - cpp_name: Secrets
+        cpp_type: std::optional<NYson::TYsonString>
+        column_name: secrets
+        column_type: Any
+        lock: client
+
 
   - type_name: TFinishedQuery
     fields:
@@ -173,7 +186,7 @@ types:
         column_type: Any
 
       - cpp_name: User
-        cpp_type: TString
+        cpp_type: std::string
         column_name: user
         column_type: String
 
@@ -218,6 +231,13 @@ types:
         column_name: annotations
         column_type: Any
 
+      # YSON dictionary.
+      - cpp_name: Secrets
+        cpp_type: NYson::TYsonString
+        column_name: secrets
+        column_type: Any
+        lock: client
+
 
   - type_name: TFinishedQueryByStartTime
     fields:
@@ -243,7 +263,7 @@ types:
         column_type: String
 
       - cpp_name: User
-        cpp_type: TString
+        cpp_type: std::string
         column_name: user
         column_type: String
 
@@ -269,7 +289,7 @@ types:
       # Key.
 
       - cpp_name: AccessControlObject
-        cpp_type: TString
+        cpp_type: std::string
         column_name: access_control_object
         column_type: String
         sort_order: Ascending
@@ -294,7 +314,7 @@ types:
         column_type: String
 
       - cpp_name: User
-        cpp_type: TString
+        cpp_type: std::string
         column_name: user
         column_type: String
 
@@ -314,7 +334,7 @@ types:
       # Key.
 
       - cpp_name: User
-        cpp_type: TString
+        cpp_type: std::string
         column_name: user
         column_type: String
         sort_order: Ascending

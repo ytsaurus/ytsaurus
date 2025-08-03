@@ -1,9 +1,11 @@
+
 # Functions for working with data types
 
 In addition to the ordinary functions that work with particular values (FIND, COALESCE types), YQL supports functions for working with [types](../types/index.md).
 The functions enable you to find out the type of an arbitrary expression, analyze a container type, and create a new container type based on the existing one.
 
-**Examples**
+## Examples
+
 ```yql
 $itemType = TypeOf($item);
 SELECT CAST($foo AS ListType($itemType));  -- cast $foo to type List<$itemType>
@@ -11,46 +13,70 @@ SELECT CAST($foo AS ListType($itemType));  -- cast $foo to type List<$itemType>
 
 ## FormatType {#formattype}
 
-**Signature**
-```
+#### Signature
+
+```yql
 FormatType(Type)->String
+FormatType(TypeHandle)->String
 ```
 
 Serialization of a type or a type handle into a human-readable string. This is useful for debugging and will also be used in the following examples in this section. [Format documentation](../types/type_string.md).
 
+## FormatTypeDiff and FormatTypeDiffPretty {#formattypediff}
+
+#### Signature
+
+```yql
+FormatTypeDiff(Type, Type)->String
+FormatTypeDiff(TypeHandle, TypeHandle)->String
+
+FormatTypeDiffPretty(Type, Type)->String
+FormatTypeDiffPretty(TypeHandle, TypeHandle)->String
+```
+
+Getting a string representation of the difference between two types or two type handles. The pretty version makes the resulting string more human-readable by adding line breaks and spaces.
+
 ## ParseType {#parsetype}
 
-**Signature**
-```
+#### Signature
+
+```yql
 ParseType(String)->Type
 ```
+
 Building a type by a string with its description. [Its format documentation](../types/type_string.md).
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT FormatType(ParseType("List<Int32>"));  -- List<int32>
 ```
 
 ## TypeOf {#typeof}
 
-**Signature**
-```
+#### Signature
+
+```yql
 TypeOf(<any expression>)->Type
 ```
+
 Getting the value type passed to the argument.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT FormatType(TypeOf("foo"));  -- String
 ```
+
 ```yql
 SELECT FormatType(TypeOf(AsTuple(1, 1u))); -- Tuple<Int32,Uint32>
 ```
 
 ## InstanceOf {#instanceof}
 
-**Signature**
-```
+#### Signature
+
+```yql
 InstanceOf(Type)->Type object
 ```
 
@@ -58,7 +84,8 @@ Returns an instance of the object of the specified type. The resulting object do
 InstanceOf can only be used if the result of the expression in which InstanceOf is used depends on the InstanceOf type, but not on the value.
 Otherwise, the operation will be completed with an error.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT InstanceOf(ParseType("Int32")) + 1.0; -- error (Can't execute InstanceOf): the result depends on the (undefined) value of InstanceOf
 SELECT FormatType(TypeOf(
@@ -69,14 +96,17 @@ SELECT FormatType(TypeOf(
 
 ## DataType {#datatype}
 
-**Signature**
-```
+#### Signature
+
+```yql
 DataType(String, [String, ...])->Type
 ```
+
 Returns the type for [primitive data types](../types/primitive.md) by its name.
 For some types (for example, Decimal), you need to pass type parameters as additional arguments.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT FormatType(DataType("Bool")); -- Bool
 SELECT FormatType(DataType("Decimal","5","1")); -- Decimal(5,1)
@@ -84,13 +114,16 @@ SELECT FormatType(DataType("Decimal","5","1")); -- Decimal(5,1)
 
 ## OptionalType {#optionaltype}
 
-**Signature**
-```
+#### Signature
+
+```yql
 OptionalType(Type)->optional Type
 ```
+
 Adds the ability to contain `NULL` to the passed type.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT FormatType(OptionalType(DataType("Bool"))); -- Bool?
 SELECT FormatType(OptionalType(ParseType("List<String?>"))); -- List<String?>?
@@ -98,29 +131,33 @@ SELECT FormatType(OptionalType(ParseType("List<String?>"))); -- List<String?>?
 
 ## ListType and StreamType {#listtype}
 
-**Signature**
-```
+#### Signature
+
+```yql
 ListType(Type)->list type with items of the Type type
 StreamType(Type)->stream type with items of the Type type
 ```
 
 Builds a list or stream type based on the passed item type.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT FormatType(ListType(DataType("Bool"))); -- List<Bool>
 ```
 
 ## DictType {#dicttype}
 
-**Signature**
-```
+#### Signature
+
+```yql
 DictType(Type, Type)->dict type
 ```
 
 Builds a dict type based on the passed key (first argument) and value (second argument) types.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT FormatType(DictType(
     DataType("String"),
@@ -130,13 +167,16 @@ SELECT FormatType(DictType(
 
 ## TupleType {#tupletype}
 
-**Signature**
-```
+#### Signature
+
+```yql
 TupleType(Type, ...)->tuple type
 ```
+
 Builds a tuple type based on the passed item types.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT FormatType(TupleType(
     DataType("String"),
@@ -147,13 +187,16 @@ SELECT FormatType(TupleType(
 
 ## StructType {#structtype}
 
-**Signature**
-```
+#### Signature
+
+```yql
 StructType(Type AS ElementName1, Type AS ElementName2, ...)->structure type
 ```
+
 Builds a structure type based on the passed item types. The standard syntax for named arguments is used to specify item names.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT FormatType(StructType(
     DataType("Bool") AS MyBool,
@@ -163,14 +206,17 @@ SELECT FormatType(StructType(
 
 ## VariantType {#varianttype}
 
-**Signature**
-```
+#### Signature
+
+```yql
 VariantType(StructType)->variant type on top of structure
 VariantType(TupleType)->variant type on top of tuple
 ```
+
 Returns the variant type by the underlying type (structure or tuple).
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT FormatType(VariantType(
   ParseType("Struct<foo:Int32,bar:Double>")
@@ -179,30 +225,36 @@ SELECT FormatType(VariantType(
 
 ## ResourceType {#resourcetype}
 
-**Signature**
-```
+#### Signature
+
+```yql
 ResourceType(String)->resource type
 ```
+
 Returns the [resource](../types/special.md) type by the passed string label.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT FormatType(ResourceType("Foo")); -- Resource<'Foo'>
 ```
 
 ## CallableType {#callabletype}
 
-**Signature**
-```
+#### Signature
+
+```yql
 CallableType(Uint32, Type, [Type, ...])->callable value type
 ```
+
 Builds the callable value type based on the following arguments:
 
 1. Number of optional arguments (if all are mandatory, then 0).
 2. Result type.
 3. All subsequent CallableType arguments are interpreted as the argument types of the callable value with a shift of two mandatory ones (for example, the third CallableType argument describes the type of the first argument of the callable value).
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT FormatType(CallableType(
   1, -- optional args count
@@ -214,37 +266,44 @@ SELECT FormatType(CallableType(
 
 ## GenericType, UnitType and VoidType {#generictype}
 
-**Signature**
-```
+#### Signature
+
+```yql
 GenericType()->type
 UnitType()->type
 VoidType()->type
 ```
+
 Return [special data types](../types/special.md) with the same name. There are no arguments, because they are not parameterized.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT FormatType(VoidType()); -- Void
 ```
 
 ## OptionalItemType, ListItemType and StreamItemType {#optionalitemtype}
 
-**Signature**
-```
+#### Signature
+
+```yql
 OptionalItemType(OptionalType)->optional item type
 ListItemType(ListType)->list item type
 StreamItemType(StreamType)->stream item type
 ```
 
-If a type is passed to these functions, they perform the action opposite to [OptionalType](#optionaltype), [ListType](#listtype), and [StreamType](#streamtype) — they return the item type by the type of the corresponding container.
-If a type handle is passed to these functions, they perform the action opposite to [OptionalTypeHandle](#optionaltypehandle), [ListTypeHandle](#listtypehandle), and [StreamTypeHandle](#streamtypehandle) — they return the item type handle by the type handle of the corresponding container.
+If a type is passed to these functions, they perform the action opposite to [OptionalType](#optionaltype), [ListType](#listtype), and [StreamType](#listtype) — they return the item type by the type of the corresponding container.
 
-**Examples**
+If a type handle is passed to these functions, they perform the action opposite to [OptionalTypeHandle](#optionaltypehandle), [ListTypeHandle](#list-stream-typehandle), and [StreamTypeHandle](#list-stream-typehandle) — they return the item type handle by the type handle of the corresponding container.
+
+#### Examples
+
 ```yql
 SELECT FormatType(ListItemType(
   ParseType("List<Int32>")
 )); -- Int32
 ```
+
 ```yql
 SELECT FormatType(ListItemType(
   ParseTypeHandle("List<Int32>")
@@ -253,14 +312,17 @@ SELECT FormatType(ListItemType(
 
 ## DictKeyType and DictPayloadType {#dictkeytype}
 
-**Signature**
-```
+#### Signature
+
+```yql
 DictKetType(DictType)->dict key type
 DictPayloadType(DictType)->dict meaning type
 ```
+
 Return the key or meaning type by the dict type.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT FormatType(DictKeyType(
   ParseType("Dict<Int32,String>")
@@ -269,13 +331,16 @@ SELECT FormatType(DictKeyType(
 
 ## TupleElementType {#tupleelementtype}
 
-**Signature**
-```
+#### Signature
+
+```yql
 TupleElementType(TupleType, String)->tuple item type
 ```
+
 Returns the tuple item type by the tuple type and item index (index from zero).
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT FormatType(TupleElementType(
   ParseType("Tuple<Int32,Double>"), "1"
@@ -284,13 +349,16 @@ SELECT FormatType(TupleElementType(
 
 ## StructMemberType {#structmembertype}
 
-**Signature**
-```
+#### Signature
+
+```yql
 StructMemberType(StructType, String)->structure item type
 ```
+
 Returns the structure item type by the structure type and item name.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT FormatType(StructMemberType(
   ParseType("Struct<foo:Int32,bar:Double>"), "foo"
@@ -299,14 +367,17 @@ SELECT FormatType(StructMemberType(
 
 ## CallableResultType and CallableArgumentType {#callableresulttype}
 
-**Signature**
-```
+#### Signature
+
+```yql
 CallableResultType(CallableType)->callable value result type
 CallableArgumentType(CallableType, Uint32)->callable value argument type
 ```
+
 `CallableResultType` returns the result type by the callable value type and `CallableArgumentType` returns the argument type by the callable value type and its index (index from zero).
 
-**Examples**
+#### Examples
+
 ```yql
 $callable_type = ParseType("(String,Bool)->Double");
 
@@ -320,14 +391,18 @@ FormatType(CallableArgumentType(
 
 ## VariantUnderlyingType {#variantunderlyingtype}
 
-**Signature**
-```
+#### Signature
+
+```yql
 VariantUnderlyingType(VariantType)->underlying variant type
 ```
+
 If a type is passed to this function, it performs the action opposite to [VariantType](#varianttype) — it returns the underlying type by the variant type.
+
 If a type handle is passed to this function, it performs the action opposite to [VariantTypeHandle](#varianttypehandle) — it returns the underlying type handle by the variant type handle.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT FormatType(VariantUnderlyingType(
   ParseType("Variant<foo:Int32,bar:Double>")
@@ -336,6 +411,7 @@ FormatType(VariantUnderlyingType(
   ParseType("Variant<Int32,Double>")
 )); -- Tuple<Int32,Double>
 ```
+
 ```yql
 SELECT FormatType(VariantUnderlyingType(
   ParseTypeHandle("Variant<foo:Int32,bar:Double>")
@@ -345,86 +421,104 @@ FormatType(VariantUnderlyingType(
 )); -- Tuple<Int32,Double>
 ```
 
-# Functions for working with data types during computations
+## Functions for working with data types during computations
 
 To work with data types during computations, the type handle mechanism is used — the [resource](../types/special.md) containing an opaque type description. After constructing a type handle, you can return to a regular type using the [EvaluateType](#evaluatetype) function. For debugging, convert the type handle into a string using the [FormatType](#formattype) function.
 
-## TypeHandle
+### TypeHandle
 
 Getting a type handle from the type passed to the argument.
 
-**Signature**
-```
+#### Signature
+
+```yql
 TypeHandle(Type)->хэндл типа
 ```
 
-**Examples:**
+#### Examples
+
 ```yql
 SELECT FormatType(TypeHandle(TypeOf("foo")));  -- String
 ```
-## EvaluateType
 
-**Signature**
-```
+### EvaluateType
+
+#### Signature
+
+```yql
 EvaluateType(TypeHandle)->type
 ```
+
 Getting a type from the type handle passed to the argument. The function is computed before the main computation process starts, just like [EvaluateExpr](basic.md#evaluate_expr_atom).
 
-**Examples:**
+#### Examples
+
 ```yql
 SELECT FormatType(EvaluateType(TypeHandle(TypeOf("foo"))));  -- String
 ```
 
-## ParseTypeHandle
+### ParseTypeHandle
 
-**Signature**
-```
+#### Signature
+
+```yql
 ParseTypeHandle(String)->type handle
 ```
+
 Building a type handle by a string with its description. [Its format documentation](../types/type_string.md).
 
-**Examples:**
+#### Examples
+
 ```yql
 SELECT FormatType(ParseTypeHandle("List<Int32>"));  -- List<int32>
 ```
 
-## TypeKind
+### TypeKind
 
-**Signature**
-```
+#### Signature
+
+```yql
 TypeKind(TypeHandle)->String
 ```
+
 Getting the name of the top-level type from the type handle passed to the argument.
 
-**Examples:**
+#### Examples
+
 ```yql
 SELECT TypeKind(TypeHandle(TypeOf("foo")));  -- Data
 SELECT TypeKind(ParseTypeHandle("List<Int32>"));  -- List
 ```
 
-## DataTypeComponents
+### DataTypeComponents
 
-**Signature**
-```
+#### Signature
+
+```yql
 DataTypeComponents(DataTypeHandle)->List<String>
 ```
+
 Getting the name and parameters of the [primitive data type](../types/primitive.md) from the handle of the primitive type passed to the argument. The reverse function is [DataTypeHandle](#datatypehandle).
 
-**Examples:**
+#### Examples
+
 ```yql
 SELECT DataTypeComponents(TypeHandle(TypeOf("foo")));  -- ["String"]
 SELECT DataTypeComponents(ParseTypeHandle("Decimal(4,1)"));  -- ["Decimal", "4", "1"]
 ```
 
-## DataTypeHandle
+### DataTypeHandle
 
-**Signature**
-```
+#### Signature
+
+```yql
 DataTypeHandle(List<String>)->handle of the primitive data type
 ```
+
 Building a handle of the [primitive data type](../types/primitive.md) from its name and parameters passed to the argument as a list. The reverse function is [DataTypeComponents](#datatypecomponents).
 
-**Examples:**
+#### Examples
+
 ```yql
 SELECT FormatType(DataTypeHandle(
     AsList("String")
@@ -435,60 +529,104 @@ SELECT FormatType(DataTypeHandle(
 )); -- Decimal(4,1)
 ```
 
-## OptionalTypeHandle
+### OptionalTypeHandle
 
-**Signature**
-```
+#### Signature
+
+```yql
 OptionalTypeHandle(TypeHandle)->optional type handle
 ```
+
 Adds the ability to contain `NULL` to the passed type handle.
 
-**Examples:**
+#### Examples
+
 ```yql
 SELECT FormatType(OptionalTypeHandle(
     TypeHandle(DataType("Bool"))
 )); -- Bool?
 ```
 
-## ListTypeHandle and StreamTypeHandle {#list-stream-typehandle}
+### PgTypeName
 
-**Signature**
+#### Signature
+
+```yql
+PgTypeName(PgTypeHandle)->String
 ```
+
+Getting a PostgreSQL type name from the type handle passed to the argument. The reverse function is [PgTypeHandle](#pgtypehandle).
+
+#### Examples
+
+```yql
+SELECT PgTypeName(ParseTypeHandle("pgint4")); -- int4
+```
+
+### PgTypeHandle
+
+#### Signature
+
+```yql
+PgTypeHandle(String)->type handle
+```
+
+Building a type handle by the name of the PostgreSQL type passed to the argument. The reverse function is [PgTypeName](#pgtypename).
+
+#### Examples
+
+```yql
+SELECT FormatType(PgTypeHandle("int4")); -- pgint4
+```
+
+### ListTypeHandle and StreamTypeHandle {#list-stream-typehandle}
+
+#### Signature
+
+```yql
 ListTypeHandle(TypeHandle)->list type handle
 StreamTypeHandle(TypeHandle)->stream type handle
 ```
+
 Builds a list or stream type handle based on the passed item type handle.
 
-**Examples:**
+#### Examples
+
 ```yql
 SELECT FormatType(ListTypeHandle(
     TypeHandle(DataType("Bool"))
 )); -- List<Bool>
 ```
 
-## EmptyListTypeHandle and EmptyDictTypeHandle
+### EmptyListTypeHandle and EmptyDictTypeHandle
 
-**Signature**
-```
+#### Signature
+
+```yql
 EmptyListTypeHandle()->empty list type handle
 EmptyDictTypeHandle()->empty dict type handle
 ```
+
 Builds an empty list or dict type handle.
 
-**Examples:**
+#### Examples
+
 ```yql
 SELECT FormatType(EmptyListTypeHandle()); -- EmptyList
 ```
 
-## TupleTypeComponents
+### TupleTypeComponents
 
-**Signature**
-```
+#### Signature
+
+```yql
 TupleTypeComponents(TupleTypeHandle)->List<TypeHandle>
 ```
+
 Getting the item type handle list from the tuple type handle passed to the argument. The reverse function is [TupleTypeHandle](#tupletypehandle).
 
-**Examples:**
+#### Examples
+
 ```yql
 SELECT ListMap(
    TupleTypeComponents(
@@ -500,15 +638,18 @@ SELECT ListMap(
 ); -- ["Int32", "String"]
 ```
 
-## TupleTypeHandle
+### TupleTypeHandle
 
-**Signature**
-```
+#### Signature
+
+```yql
 TupleTypeHandle(List<TypeHandle>)->tuple type handle
 ```
+
 Building a tuple type handle from the item type handles passed to the argument as a list. The reverse function is [TupleTypeComponents](#tupletypecomponents).
 
-**Examples:**
+#### Examples
+
 ```yql
 SELECT FormatType(
     TupleTypeHandle(
@@ -520,15 +661,18 @@ SELECT FormatType(
 ); -- Tuple<Int32,String>
 ```
 
-## StructTypeComponents
+### StructTypeComponents
 
-**Signature**
-```
+#### Signature
+
+```yql
 StructTypeComponents(StructTypeHandle)->List<Struct<Name:String, Type:TypeHandle>>
 ```
+
 Getting the item type handle list and their names from the structure type handle passed to the argument. The reverse function is [StructTypeHandle](#structtypehandle).
 
-**Examples:**
+#### Examples
+
 ```yql
 SELECT ListMap(
     StructTypeComponents(
@@ -543,15 +687,18 @@ SELECT ListMap(
 ); -- [("Int32","a"), ("String","b")]
 ```
 
-## StructTypeHandle
+### StructTypeHandle
 
-**Signature**
-```
+#### Signature
+
+```yql
 StructTypeHandle(List<Struct<Name:String, Type:TypeHandle>>)->structure type handle
 ```
+
 Building a structure type handle from the item type handles and names passed to the argument as a list. The reverse function is [StructTypeComponents](#structtypecomponents).
 
-**Examples:**
+#### Examples
+
 ```yql
 SELECT FormatType(
     StructTypeHandle(
@@ -563,15 +710,18 @@ SELECT FormatType(
 ); -- Struct<'a':Int32,'b':String>
 ```
 
-## DictTypeComponents
+### DictTypeComponents
 
-**Signature**
-```
+#### Signature
+
+```yql
 DictTypeComponents(DictTypeHandle)->Struct<Key:TypeHandle, Payload:TypeHandle>
 ```
+
 Getting the type-key handle and the type-value handle from the dict type handle passed to the argument. The reverse function is [DictTypeHandle](#dicttypehandle).
 
-**Examples:**
+#### Examples
+
 ```yql
 $d = DictTypeComponents(ParseTypeHandle("Dict<Int32,String>"));
 
@@ -580,15 +730,18 @@ SELECT
     FormatType($d.Payload); -- String
 ```
 
-## DictTypeHandle
+### DictTypeHandle
 
-**Signature**
-```
+#### Signature
+
+```yql
 DictTypeHandle(TypeHandle, TypeHandle)->dict type handle
 ```
+
 Building a dict type handle from the type-key and type-value handle passed to the arguments. The reverse function is [DictTypeComponents](#dicttypecomponents).
 
-**Examples:**
+#### Examples
+
 ```yql
 SELECT FormatType(
     DictTypeHandle(
@@ -598,97 +751,116 @@ SELECT FormatType(
 ); -- Dict<Int32, String>
 ```
 
-## ResourceTypeTag
+### ResourceTypeTag
 
-**Signature**
-```
+#### Signature
+
+```yql
 ResourceTypeTag(ResourceTypeHandle)->String
 ```
+
 Getting the tag from the resource type handle passed to the argument. The reverse function is [ResourceTypeHandle](#resourcetypehandle).
 
-**Examples:**
+#### Examples
+
 ```yql
 SELECT ResourceTypeTag(ParseTypeHandle("Resource<foo>")); -- foo
 ```
 
-## ResourceTypeHandle
+### ResourceTypeHandle
 
-**Signature**
-```
+#### Signature
+
+```yql
 ResourceTypeHandle(String)->resource type handle
 ```
+
 Building a resource type handle by the value of the tag passed to the argument. The reverse function is [ResourceTypeTag](#resourcetypetag).
 
-**Examples:**
+#### Examples
+
 ```yql
 SELECT FormatType(ResourceTypeHandle("foo")); -- Resource<'foo'>
 ```
 
-## TaggedTypeComponents
+### TaggedTypeComponents
 
-**Signature**
-```
+#### Signature
+
+```yql
 TaggedTypeComponents(TaggedTypeHandle)->Struct<Base:TypeHandle, Tag:String>
 ```
+
 Getting the tag and base type from the tagged type handle passed to the argument. The reverse function is [TaggedTypeHandle](#taggedtypehandle).
 
-**Examples:**
+#### Examples
+
 ```yql
 $t = TaggedTypeComponents(ParseTypeHandle("Tagged<Int32,foo>"));
 
 SELECT FormatType($t.Base), $t.Tag; -- Int32, foo
 ```
 
-## TaggedTypeHandle
+### TaggedTypeHandle
 
-**Signature**
-```
+#### Signature
+
+```yql
 TaggedTypeHandle(TypeHandle, String)->tagged type handle
 ```
+
 Building a tagged type handle by the base type handle and the tag name passed in the arguments. The reverse function is [TaggedTypeComponents](#taggedtypecomponents).
 
-**Examples:**
+#### Examples
+
 ```yql
 SELECT FormatType(TaggedTypeHandle(
     ParseTypeHandle("Int32"), "foo"
 )); -- Tagged<Int32, 'foo'>
 ```
 
-## VariantTypeHandle
+### VariantTypeHandle
 
-**Signature**
-```
+#### Signature
+
+```yql
 VariantTypeHandle(StructTypeHandle)->variant type handle on top of structure
 VariantTypeHandle(TupleTypeHandle)->variant type handle on top of tuple
 ```
+
 Building a variant type handle by the underlying type handle passed to the argument. The reverse function is [VariantUnderlyingType](#variantunderlyingtype).
 
-**Examples:**
+#### Examples
+
 ```yql
 SELECT FormatType(VariantTypeHandle(
     ParseTypeHandle("Tuple<Int32, String>")
 )); -- Variant<Int32, String>
 ```
 
-## VoidTypeHandle and NullTypeHandle
+### VoidTypeHandle and NullTypeHandle
 
-**Signature**
-```
+#### Signature
+
+```yql
 VoidTypeHandle()->Void type handle
 NullTypeHandle()->Null type handle
 ```
+
 Building a Void and Null type handle, respectively.
 
-**Examples:**
+#### Examples
+
 ```yql
 SELECT FormatType(VoidTypeHandle()); -- Void
 SELECT FormatType(NullTypeHandle()); -- Null
 ```
 
-## CallableTypeComponents
+### CallableTypeComponents
 
-**Signature**
-```
+#### Signature
+
+```yql
 CallableTypeComponents(CallableTypeHandle)->
 Struct<
     Arguments:List<Struct<
@@ -700,9 +872,11 @@ Struct<
     Result:TypeHandle
 >
 ```
+
 Getting a description of the callable value type handle passed to the argument. The reverse function is [CallableTypeHandle](#callabletypehandle).
 
-**Examples:**
+#### Examples
+
 ```yql
 $formatArgument = ($x) -> {
     return AsStruct(
@@ -731,24 +905,28 @@ SELECT $formatCallable(
     -- ])
 ```
 
-## CallableArgument
+### CallableArgument
 
-**Signature**
-```
+#### Signature
+
+```yql
 CallableArgument(TypeHandle, [String, [List<String>]])->Struct<Flags:List<String>,Name:String,Type:TypeHandle>
 ```
+
 Packing the callable value argument description into the structure to pass to the [CallableTypeHandle](#callabletypehandle) function based on the following arguments:
 
 1. Argument type handle.
 2. Optional argument name. The default value is an empty string.
 3. Optional argument flags as a list of strings. The default value is an empty list. Supported flags: "AutoMap".
 
-## CallableTypeHandle
+### CallableTypeHandle
 
-**Signature**
-```
+#### Signature
+
+```yql
 CallableTypeHandle(TypeHandle, List<Struct<Flags:List<String>,Name:String,Type:TypeHandle>>, [Uint32, [String]])->callable value type handle
 ```
+
 Building a callable value type handle based on the following arguments:
 
 1. Returned value type handle.
@@ -758,7 +936,8 @@ Building a callable value type handle based on the following arguments:
 
 The reverse function is [CallableTypeComponents](#callabletypecomponents).
 
-**Examples:**
+#### Examples
+
 ```yql
 SELECT FormatType(
     CallableTypeHandle(
@@ -772,32 +951,36 @@ SELECT FormatType(
 );  -- Callable<(Int32,['bar':Double?{Flags:AutoMap}])->String>
 ```
 
-## LambdaArgumentsCount
+### LambdaArgumentsCount
 
-**Signature**
-```
+#### Signature
+
+```yql
 LambdaArgumentsCount(LambdaFunction)->Uint32
 ```
+
 Getting the number of arguments in a lambda function.
 
-**Examples:**
+#### Examples
+
 ```yql
 SELECT LambdaArgumentsCount(($x, $y)->($x+$y))
 ; -- 2
 ```
 
-## LambdaOptionalArgumentsCount
+### LambdaOptionalArgumentsCount
 
-**Signature**
-```
+#### Signature
+
+```yql
 LambdaOptionalArgumentsCount(LambdaFunction)->Uint32
 ```
+
 Getting the number of optional arguments in a lambda function.
 
-**Examples:**
+#### Examples
+
 ```yql
 SELECT LambdaOptionalArgumentsCount(($x, $y, $z?)->(if($x,$y,$z)))
 ; -- 1
 ```
-
-

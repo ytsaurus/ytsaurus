@@ -498,6 +498,40 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0) == [replica_id])
         wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp1) == [replica_id])
 
+    @authors("savrus")
+    def test_forbid_in_sync_async_replicas(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", schema=self.SIMPLE_SCHEMA_SORTED)
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": "async"})
+        self._create_replica_table("//tmp/r", replica_id, schema=self.SIMPLE_SCHEMA_SORTED)
+
+        sync_enable_table_replica(replica_id)
+
+        rows = [{"key": 1, "value1": "1", "value2": 2}]
+        keys = [{"key": 1}]
+        insert_rows("//tmp/t", rows, require_sync_replica=False)
+
+        timestamp = generate_timestamp()
+        wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp) == [replica_id])
+        assert get_in_sync_replicas("//tmp/t", [], timestamp=timestamp) == [replica_id]
+
+        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == rows
+        assert lookup_rows("//tmp/r", keys, driver=self.replica_driver) == rows
+
+        with raises_yt_error("No cluster contains in-sync replicas for table //tmp/t"):
+            select_rows("* from [//tmp/t]", timestamp=timestamp)
+        with raises_yt_error("No working in-sync replicas found for table //tmp/t"):
+            lookup_rows("//tmp/t", keys, timestamp=timestamp)
+
+        # NB: Check only select since lookup doesn't support reading from async replicas for replicated tables
+        if self.DRIVER_BACKEND == "rpc":
+            with self.RpcProxyDynamicConfig("/cluster_connection/enable_read_from_async_replicas", True):
+                assert select_rows("* from [//tmp/t]", timestamp=timestamp) == rows
+
+                with self.RpcProxyDynamicConfig("/cluster_connection/banned_in_sync_replica_clusters", ["remote_0"]):
+                    with raises_yt_error("No cluster contains in-sync replicas for table //tmp/t"):
+                        select_rows("* from [//tmp/t]", timestamp=timestamp)
+
     @authors("ponasenko-rs")
     @pytest.mark.parametrize("replica_ordering", ["sorted", "ordered"])
     def test_incompatible_orderings(self, replica_ordering):

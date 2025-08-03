@@ -10,6 +10,8 @@ from yt_type_helpers import normalize_schema, make_schema
 
 import yt.environment.init_queue_agent_state as init_queue_agent_state
 
+from yt.wrapper.common import generate_uuid
+
 import yt_error_codes
 
 import pytest
@@ -193,6 +195,28 @@ class TestCreateRemoveForQueueProducerSessions(TestQueueAgentBase):
         remove("//tmp/q1")
         remove("//tmp/q2")
         remove("//tmp/p")
+
+    @authors("nadya73")
+    def test_mutation_id(self):
+        queue_path = "//tmp/queue"
+        producer_path = "//tmp/producer"
+        session_id = "my_session"
+
+        self._create_queue(queue_path)
+        self._create_producer(producer_path)
+
+        session = create_queue_producer_session(producer_path, queue_path, session_id)
+        assert session["epoch"] == 0
+
+        mutation_id = generate_uuid()
+        session = create_queue_producer_session(producer_path, queue_path, session_id, mutation_id=mutation_id)
+        assert session["epoch"] == 1
+        session = create_queue_producer_session(producer_path, queue_path, session_id, mutation_id=mutation_id)
+        assert session["epoch"] == 1
+
+        mutation_id = generate_uuid()
+        session = create_queue_producer_session(producer_path, queue_path, session_id, mutation_id=mutation_id)
+        assert session["epoch"] == 2
 
 
 @pytest.mark.enabled_multidaemon

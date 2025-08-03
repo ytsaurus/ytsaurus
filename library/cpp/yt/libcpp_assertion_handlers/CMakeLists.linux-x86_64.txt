@@ -20,6 +20,9 @@ add_library(cpp-yt-libcpp_assertion_handlers INTERFACE)
 target_compile_options(cpp-yt-libcpp_assertion_handlers INTERFACE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(cpp-yt-libcpp_assertion_handlers INTERFACE
@@ -38,6 +41,9 @@ add_global_library_for(cpp-yt-libcpp_assertion_handlers.global
 target_compile_options(cpp-yt-libcpp_assertion_handlers.global PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(cpp-yt-libcpp_assertion_handlers.global PUBLIC

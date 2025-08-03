@@ -19,7 +19,12 @@ PEERDIR(
 
 INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/recipe/recipe.inc)
 
-TAG(ya:yt ya:fat ya:huge_logs)
+TAG(
+    ya:yt
+    ya:fat
+    ya:huge_logs
+    ya:large_tests_on_single_slots
+)
 
 SIZE(LARGE)
 
@@ -30,7 +35,5 @@ IF (SANITIZER_TYPE)
 ELSE()
     REQUIREMENTS(ram:10)
 ENDIF()
-
-INCLUDE(${ARCADIA_ROOT}/devtools/large_on_single_slots.inc)
 
 END()

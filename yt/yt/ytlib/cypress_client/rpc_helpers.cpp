@@ -101,6 +101,35 @@ bool GetAllowResolveFromSequoiaObject(const NRpc::NProto::TRequestHeader& header
         : false;
 }
 
+void SetResolveDepth(NRpc::NProto::TRequestHeader* header, int value)
+{
+    header->SetExtension(TResolveDepthExt::resolve_depth, value);
+}
+
+void SetResolveDepth(const NRpc::IClientRequestPtr& request, int value)
+{
+    SetResolveDepth(&request->Header(), value);
+}
+
+int GetResolveDepth(const NRpc::NProto::TRequestHeader& header)
+{
+    return header.HasExtension(TResolveDepthExt::resolve_depth)
+        ? header.GetExtension(TResolveDepthExt::resolve_depth)
+        : 0;
+}
+
+void SetCausedByNodeExpiration(NRpc::NProto::TRequestHeader* header)
+{
+    header->SetExtension(TExpirationExt::caused_by_node_expiration, true);
+}
+
+bool GetCausedByNodeExpiration(const NRpc::NProto::TRequestHeader& header)
+{
+    return header.HasExtension(TExpirationExt::caused_by_node_expiration)
+        ? header.GetExtension(TExpirationExt::caused_by_node_expiration)
+        : false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressClient

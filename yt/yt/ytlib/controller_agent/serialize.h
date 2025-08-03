@@ -47,6 +47,22 @@ DEFINE_ENUM(ESnapshotVersion,
     ((GroupedNeededResources)                (301707))
     ((MonitoringDescriptorsPreserving)       (301708))
     ((ValidateLivePreviewChunks)             (301709))
+    ((IsolateManiacsInSlicing)               (301710))
+    ((MaxCompressedDataSizePerJob)           (301711))
+    ((DynamicVanillaJobCount)                (301712))
+    ((AddAddressesToJob)                     (301713))
+    ((NewOrderedChunkPoolSlicing)            (301714))
+    ((DropSupportLocality)                   (301715))
+    ((PrepareGpuCheckFSDuration)             (301716))
+    ((DropShouldSlicePrimaryTableByKeys)     (301717))
+    ((NewUnorderedChunkPoolSlicing)          (301718))
+    // 25.2 starts here
+    ((BumpTo_25_2)                           (301800))
+    ((CompressedDataSizePerJob)              (301801))
+    ((DropSolidFromChunkStripe)              (301802))
+    ((GangRanks)                             (301803))
+    ((ChunkStripeKeyNoIndex)                 (301804))
+    ((OrderedAndSortedJobSizeAdjuster)       (301805))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

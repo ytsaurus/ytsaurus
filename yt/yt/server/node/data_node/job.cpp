@@ -641,9 +641,9 @@ private:
                 writeBlocks.push_back(block);
             }
 
-            YT_LOG_DEBUG("Enqueuing blocks for replication (Blocks: %v-%v)",
-                currentBlockIndex,
-                currentBlockIndex + std::ssize(writeBlocks) - 1);
+            YT_LOG_DEBUG("Enqueuing blocks for replication (Blocks: %v)",
+                FormatBlocks(currentBlockIndex,
+                    currentBlockIndex + std::ssize(writeBlocks) - 1));
 
             auto writeResult = writer->WriteBlocks(writeBlocksOptions, workloadDescriptor, writeBlocks);
             if (!writeResult) {
@@ -715,7 +715,7 @@ public:
             bootstrap)
         , JobSpecExt_(JobSpec_.GetExtension(TRepairChunkJobSpecExt::repair_chunk_job_spec_ext))
         , ChunkId_(FromProto<TChunkId>(JobSpecExt_.chunk_id()))
-        , SourceReplicas_(ParseSourceReplicas(JobSpecExt_))
+        , SourceReplicas_(FromProto<TChunkReplicaList>(JobSpecExt_.source_replicas()))
         , TargetReplicas_(FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.target_replicas()))
         , Sensors_(std::move(sensors))
         , DynamicConfig_(Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->RepairChunkJob)
@@ -726,28 +726,14 @@ public:
 private:
     const TRepairChunkJobSpecExt JobSpecExt_;
     const TChunkId ChunkId_;
-    const TChunkReplicaWithMediumList SourceReplicas_;
+    const TChunkReplicaList SourceReplicas_;
     const TChunkReplicaWithMediumList TargetReplicas_;
     const TMasterJobSensors Sensors_;
     const TRepairChunkJobDynamicConfigPtr DynamicConfig_;
 
-    // COMPAT(babenko)
-    static TChunkReplicaWithMediumList ParseSourceReplicas(const TRepairChunkJobSpecExt& jobSpecExt)
-    {
-        if (jobSpecExt.source_replicas_size() == 0) {
-            TChunkReplicaWithMediumList result;
-            for (auto replica : FromProto<TChunkReplicaList>(jobSpecExt.legacy_source_replicas())) {
-                result.emplace_back(replica);
-            }
-            return result;
-        } else {
-            return FromProto<TChunkReplicaWithMediumList>(jobSpecExt.source_replicas());
-        }
-    }
-
     IChunkReaderAllowingRepairPtr CreateReader(int partIndex)
     {
-        TChunkReplicaWithMediumList partReplicas;
+        TChunkReplicaList partReplicas;
         for (auto replica : SourceReplicas_) {
             if (replica.GetReplicaIndex() == partIndex) {
                 partReplicas.push_back(replica);
@@ -1038,20 +1024,6 @@ private:
     const TChunkId ChunkId_;
     const TSealChunkJobDynamicConfigPtr DynamicConfig_;
 
-    // COMPAT(babenko)
-    static TChunkReplicaWithMediumList ParseSourceReplicas(const TSealChunkJobSpecExt& jobSpecExt)
-    {
-        if (jobSpecExt.source_replicas_size() == 0) {
-            TChunkReplicaWithMediumList result;
-            for (auto replica : FromProto<TChunkReplicaList>(jobSpecExt.legacy_source_replicas())) {
-                result.emplace_back(replica);
-            }
-            return result;
-        } else {
-            return FromProto<TChunkReplicaWithMediumList>(jobSpecExt.source_replicas());
-        }
-    }
-
     TFuture<void> DoRun() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -1067,7 +1039,7 @@ private:
 
         auto codecId = FromProto<NErasure::ECodec>(JobSpecExt_.codec_id());
         int mediumIndex = JobSpecExt_.medium_index();
-        auto sourceReplicas = ParseSourceReplicas(JobSpecExt_);
+        auto sourceReplicas = FromProto<TChunkReplicaList>(JobSpecExt_.source_replicas());
         i64 sealRowCount = JobSpecExt_.row_count();
 
         NodeDirectory_->MergeFrom(JobSpecExt_.node_directory());
@@ -1183,8 +1155,7 @@ private:
                             {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
                             {FormatIOTag(EAggregateIOTag::Direction), "write"},
                             {FormatIOTag(ERawIOTag::ChunkId), ToString(DecodeChunkId(ChunkId_).Id)},
-                            // TODO(babenko): switch to std::string
-                            {FormatIOTag(EAggregateIOTag::User), TString(NRpc::RootUserName)},
+                            {FormatIOTag(EAggregateIOTag::User), NRpc::RootUserName},
                         });
                 }
 
@@ -1530,7 +1501,6 @@ private:
         ToProto(chunkInfo.mutable_id(), writer->GetChunkId());
 
         for (auto replica : writer->GetWrittenChunkReplicasInfo().Replicas) {
-            chunkInfo.add_legacy_source_replicas(ToProto<ui32>(replica.ToChunkReplica()));
             chunkInfo.add_source_replicas(ToProto(TChunkReplicaWithMedium(replica)));
         }
 
@@ -1763,7 +1733,6 @@ private:
         chunkSpec.set_row_count_override(chunkInfo.row_count());
         chunkSpec.set_erasure_codec(chunkInfo.erasure_codec()),
         *chunkSpec.mutable_chunk_id() = chunkInfo.id();
-        *chunkSpec.mutable_legacy_replicas() = chunkInfo.legacy_source_replicas();
         *chunkSpec.mutable_replicas() = chunkInfo.source_replicas();
         return chunkSpec;
     }
@@ -2086,7 +2055,6 @@ private:
         TChunkSpec oldChunkSpec;
         ToProto(oldChunkSpec.mutable_chunk_id(), OldChunkId_);
         oldChunkSpec.set_erasure_codec(ToProto(ErasureCodec_));
-        *oldChunkSpec.mutable_legacy_replicas() = JobSpecExt_.legacy_source_replicas();
         *oldChunkSpec.mutable_replicas() = JobSpecExt_.source_replicas();
 
         auto readerConfig = DynamicConfig_->Reader;
@@ -2639,7 +2607,7 @@ private:
             return {};
         }
 
-        auto bodyChunkReplicas = FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.body_chunk_replicas());
+        auto bodyChunkReplicas = FromProto<TChunkReplicaList>(JobSpecExt_.body_chunk_replicas());
 
         auto chunkReaderHost = New<TChunkReaderHost>(
             Bootstrap_->GetClient(),
@@ -2929,7 +2897,6 @@ private:
 
         ToProto(req->mutable_chunk_id(), TailChunkId_);
         req->mutable_chunk_info();
-        ToProto(req->mutable_legacy_replicas(), writtenReplicas);
         auto* meta = req->mutable_chunk_meta();
         meta->set_type(ToProto(EChunkType::Journal));
         meta->set_format(ToProto(EChunkFormat::JournalDefault));
@@ -2988,7 +2955,7 @@ private:
         return Bootstrap_
             ->GetClient()
             ->GetNativeConnection()
-            ->CreateNativeClient({.User = NSecurityClient::RootUserName})
+            ->CreateNativeClient(NApi::TClientOptions::Root())
             ->GetChannelFactory();
     }
 };
@@ -3091,4 +3058,3 @@ TMasterJobBasePtr CreateJob(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDataNode
-

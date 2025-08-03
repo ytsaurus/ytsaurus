@@ -63,6 +63,7 @@ PEERDIR(
     library/cpp/yt/memory
     library/cpp/xdelta3/state
     contrib/libs/sparsehash
+    contrib/libs/xxhash
 )
 
 USE_LLVM_BC18()
@@ -75,6 +76,24 @@ LLVM_BC(
         cardinality_update
         cardinality_merge
         cardinality_finalize
+        cardinality_state_init
+        cardinality_state_update
+        cardinality_state_merge
+        cardinality_state_finalize
+        cardinality_merge_init
+        cardinality_merge_update
+        cardinality_merge_merge
+        cardinality_merge_finalize
+)
+
+LLVM_BC(
+    udf/array_agg.cpp
+    NAME array_agg
+    SYMBOLS
+        array_agg_init
+        array_agg_update
+        array_agg_merge
+        array_agg_finalize
 )
 
 LLVM_BC(
@@ -284,13 +303,22 @@ LLVM_BC(
         timestamp_floor_day
         timestamp_floor_week
         timestamp_floor_month
+        timestamp_floor_quarter
         timestamp_floor_year
         format_timestamp_localtime
         timestamp_floor_hour_localtime
         timestamp_floor_day_localtime
         timestamp_floor_week_localtime
         timestamp_floor_month_localtime
+        timestamp_floor_quarter_localtime
         timestamp_floor_year_localtime
+        format_timestamp_tz
+        timestamp_floor_hour_tz
+        timestamp_floor_day_tz
+        timestamp_floor_week_tz
+        timestamp_floor_month_tz
+        timestamp_floor_quarter_tz
+        timestamp_floor_year_tz
 )
 
 LLVM_BC(
@@ -343,6 +371,51 @@ LLVM_BC(
     NAME greatest
     SYMBOLS
         greatest
+)
+
+LLVM_BC(
+    udf/abs.cpp
+    NAME abs
+    SYMBOLS
+        abs
+)
+
+LLVM_BC(
+    udf/math.cpp
+    NAME math
+    SYMBOLS
+        math_acos
+        math_asin
+        math_ceil
+        math_cbrt
+        math_cos
+        math_cot
+        math_degrees
+        math_even
+        math_exp
+        math_floor
+        math_gamma
+        math_is_inf
+        math_lgamma
+        math_ln
+        math_log
+        math_log10
+        math_log2
+        math_radians
+        math_sign
+        math_signbit
+        math_sin
+        math_sqrt
+        math_tan
+        math_trunc
+        math_bit_count
+        math_atan2
+        math_factorial
+        math_gcd
+        math_lcm
+        math_pow
+        math_round
+        math_xor
 )
 
 LLVM_BC(

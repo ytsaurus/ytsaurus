@@ -128,6 +128,9 @@ func TestOperationWithStderr(t *testing.T) {
 		stderr, err := env.YT.GetJobStderr(ctx, opID, job.ID, nil)
 		require.NoError(t, err)
 		require.Equal(t, []byte("hello\n"), stderr)
+		info, err := env.YT.GetJob(ctx, opID, job.ID, nil)
+		require.NoError(t, err)
+		require.Equal(t, &job, info)
 	}
 }
 

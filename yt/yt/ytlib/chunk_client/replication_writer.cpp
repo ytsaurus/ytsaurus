@@ -37,11 +37,11 @@
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
+#include <yt/yt/core/misc/memory_usage_tracker.h>
+
 #include <yt/yt/core/rpc/retrying_channel.h>
 
 #include <yt/yt/core/net/local_address.h>
-
-#include <yt/yt/core/misc/memory_usage_tracker.h>
 
 #include <library/cpp/yt/threading/atomic_object.h>
 
@@ -105,6 +105,11 @@ public:
         return Closing_;
     }
 
+    bool ShouldUseProbePutBlocks() const
+    {
+        return UseProbePutBlocks_;
+    }
+
     void SetClosing()
     {
         Closing_ = true;
@@ -138,7 +143,8 @@ public:
     void InitializeSession(
         int index,
         IChannelPtr channel,
-        TChunkLocationUuid targetLocationUuid)
+        TChunkLocationUuid targetLocationUuid,
+        bool useProbePutBlocks)
     {
         YT_VERIFY(channel);
         YT_VERIFY(!Channel_);
@@ -146,6 +152,7 @@ public:
         Index_ = index;
         Channel_ = channel;
         TargetLocationUuid_ = targetLocationUuid;
+        UseProbePutBlocks_ = useProbePutBlocks;
     }
 
     void StartPing(
@@ -181,6 +188,47 @@ public:
         return Error_.Load().IsOK();
     }
 
+    void UpdateAcquiredMemory(i64 requestedMemory, i64 approvedMemory)
+    {
+        // It can happen when old ping response handled after ProbePutBlocks request.
+        if (approvedMemory < ApprovedMemory_) {
+            return;
+        }
+
+        RequestedMemory_ = requestedMemory;
+        ApprovedMemory_ = approvedMemory;
+    }
+
+    i64 GetRequestedMemory() const
+    {
+        return RequestedMemory_;
+    }
+
+    i64 GetApprovedMemory() const
+    {
+        return ApprovedMemory_;
+    }
+
+    bool IsNetThrottling() const
+    {
+        return NetThrottling_;
+    }
+
+    void SetNetThrottling(bool value)
+    {
+        NetThrottling_ = value;
+    }
+
+    i64 GetNetQueueSize() const
+    {
+        return NetQueueSize_;
+    }
+
+    void SetNetQueueSize(i64 value)
+    {
+        NetQueueSize_ = value;
+    }
+
     const std::string& GetDefaultAddress() const
     {
         return Descriptor_.GetDefaultAddress();
@@ -199,6 +247,12 @@ private:
 
     bool Closing_ = false;
     bool Finished_ = false;
+    bool UseProbePutBlocks_ = false;
+
+    i64 RequestedMemory_ = 0;
+    i64 ApprovedMemory_ = 0;
+    bool NetThrottling_ = false;
+    i64 NetQueueSize_ = 0;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TNodePtr& node, TStringBuf spec)
@@ -246,6 +300,7 @@ private:
 
     bool Flushing_ = false;
     std::vector<bool> SentTo_;
+    std::optional<TInstant> ProbeStartTime_;
 
     std::vector<TBlock> Blocks_;
     int FirstBlockIndex_;
@@ -253,6 +308,7 @@ private:
     i64 Size_ = 0;
     i64 CumulativeBlockSize_ = 0;
 
+    void ProbePutBlocks(const TReplicationWriterPtr& writer, const IChunkWriter::TWriteBlocksOptions& options);
     void PutGroup(const TReplicationWriterPtr& writer, const IChunkWriter::TWriteBlocksOptions& options);
     void SendGroup(
         const TReplicationWriterPtr& writer,
@@ -264,27 +320,6 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TGroup)
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
-TString FormatBlocks(int startBlockIndex, int endBlockIndex)
-{
-    TStringBuilder builder;
-
-    if (startBlockIndex == endBlockIndex) {
-        builder.AppendFormat("[%v]", startBlockIndex);
-    } else {
-        builder.AppendFormat("[%v-%v]", startBlockIndex, endBlockIndex);
-    }
-
-    return builder.Flush();
-}
-
-} // anonymous namespace
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TReplicationWriter
     : public IChunkWriter
@@ -382,10 +417,12 @@ public:
     TFuture<void> Close(
         const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
-        const TDeferredChunkMetaPtr& chunkMeta) override
+        const TDeferredChunkMetaPtr& chunkMeta,
+        std::optional<int> truncateBlockCount) override
     {
         YT_VERIFY(State_.load() == EReplicationWriterState::Open);
         YT_VERIFY(chunkMeta || IsJournalChunkId(DecodeChunkId(SessionId_.ChunkId).Id));
+        YT_VERIFY(!truncateBlockCount.has_value());
 
         State_.store(EReplicationWriterState::Closing);
 
@@ -918,6 +955,7 @@ private:
         req->set_sync_on_close(Config_->SyncOnClose);
         req->set_enable_direct_io(Config_->EnableDirectIO);
         req->set_disable_send_blocks(disableSendBlocks);
+        req->set_use_probe_put_blocks(Config_->UseProbePutBlocks);
         ToProto(req->mutable_placement_id(), Options_->PlacementId);
 
         auto rspOrError = WaitFor(req->Invoke());
@@ -941,7 +979,8 @@ private:
         node->InitializeSession(
             Nodes_.size(),
             channel,
-            targetLocationUuid);
+            targetLocationUuid,
+            rsp->use_probe_put_blocks());
         node->StartPing(
             BIND(&TReplicationWriter::SendPing, MakeWeak(this), MakeWeak(node)),
             Config_->NodePingPeriod);
@@ -981,6 +1020,15 @@ private:
         if (rsp->close_demanded()) {
             DemandClose();
         }
+
+        if (rsp->has_probe_put_blocks_state()) {
+            node->UpdateAcquiredMemory(
+                rsp->probe_put_blocks_state().requested_cumulative_block_size(),
+                rsp->probe_put_blocks_state().approved_cumulative_block_size());
+        }
+
+        node->SetNetThrottling(rsp->net_throttling());
+        node->SetNetQueueSize(rsp->net_queue_size());
     }
 
     void CloseSessions(const IChunkWriter::TWriteBlocksOptions& options)
@@ -1088,6 +1136,8 @@ private:
         cancelFutures.reserve(nodes.size());
         for (const auto& channel : nodes) {
             TDataNodeServiceProxy proxy(channel);
+            // TODO(nadya02): Set the correct timeout here.
+            proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
             auto req = proxy.CancelChunk();
             req->set_wait_for_cancelation(wait);
             ToProto(req->mutable_session_id(), SessionId_);
@@ -1229,17 +1279,79 @@ bool TGroup::ShouldThrottle(const std::string& address, const TReplicationWriter
     return !IsAddressLocal(address) || writer->Config_->EnableLocalThrottling;
 }
 
+void TGroup::ProbePutBlocks(const TReplicationWriterPtr& writer, const IChunkWriter::TWriteBlocksOptions& options)
+{
+    YT_ASSERT_THREAD_AFFINITY(writer->WriterThread);
+
+    std::vector<TNodePtr> nodes;
+    for (auto node : writer->Nodes_) {
+        // Send ProbePutBlocks requests only if they were not sent or were preempted.
+        if (node->IsAlive() && node->GetRequestedMemory() < CumulativeBlockSize_) {
+            nodes.push_back(node);
+        }
+    }
+
+    std::vector<TFuture<TDataNodeServiceProxy::TRspProbePutBlocks::TResult>> requests;
+    requests.reserve(nodes.size());
+
+    for (const auto& node : nodes) {
+        YT_LOG_DEBUG("Probing blocks (Address: %v, CumulativeBlockSize: %v)",
+            node->GetDefaultAddress(),
+            CumulativeBlockSize_);
+
+        if (node->ShouldUseProbePutBlocks()) {
+            YT_LOG_DEBUG("Sending ProbePutBlocks "
+                "(Node: %v, RequestedCumulativeBlockSize: %v, SessionId: %v)",
+                node->GetIndex(),
+                CumulativeBlockSize_,
+                writer->SessionId_);
+
+            TDataNodeServiceProxy proxy(node->GetChannel());
+            auto req = proxy.ProbePutBlocks();
+            req->set_cumulative_block_size(CumulativeBlockSize_);
+            ToProto(req->mutable_session_id(), writer->SessionId_);
+            auto rspOrError = WaitFor(req->Invoke());
+
+            if (rspOrError.IsOK()) {
+                node->UpdateAcquiredMemory(rspOrError.Value()->probe_put_blocks_state().requested_cumulative_block_size(),
+                rspOrError.Value()->probe_put_blocks_state().approved_cumulative_block_size());
+            } else {
+                writer->OnNodeFailed(node, rspOrError);
+            }
+        } else {
+            node->UpdateAcquiredMemory(CumulativeBlockSize_, CumulativeBlockSize_);
+        }
+    }
+
+    ScheduleProcess(options);
+}
+
 void TGroup::PutGroup(const TReplicationWriterPtr& writer, const IChunkWriter::TWriteBlocksOptions& options)
 {
     YT_ASSERT_THREAD_AFFINITY(writer->WriterThread);
 
     std::vector<TNodePtr> selectedNodes;
+    std::vector<TNodePtr> nodesWithoutBlocks;
     for (int index = 0; index < std::ssize(writer->Nodes_); ++index) {
         const auto& node = writer->Nodes_[index];
 
-        if (!node->IsAlive()) {
+        if (!node->IsAlive() || SentTo_[node->GetIndex()]) {
             continue;
         }
+
+        YT_VERIFY(node->IsAlive() && !SentTo_[node->GetIndex()] && node->GetApprovedMemory() >= CumulativeBlockSize_);
+        nodesWithoutBlocks.push_back(node);
+    }
+
+    std::sort(
+        nodesWithoutBlocks.begin(),
+        nodesWithoutBlocks.end(),
+        [&] (const auto& lhs, const auto& rhs) {
+            return lhs->GetNetQueueSize() < rhs->GetNetQueueSize();
+        });
+
+    for (int index = 0; index < std::ssize(nodesWithoutBlocks); ++index) {
+        const auto& node = nodesWithoutBlocks[index];
 
         if (std::ssize(selectedNodes) < writer->DirectUploadNodeCount_) {
             selectedNodes.push_back(node);
@@ -1336,6 +1448,7 @@ void TGroup::SendGroup(
     for (int index = 0; index < std::ssize(SentTo_); ++index) {
         const auto& node = writer->Nodes_[index];
         if (node->IsAlive() && !SentTo_[index]) {
+            YT_VERIFY(node->GetApprovedMemory() >= CumulativeBlockSize_);
             dstNodes.push_back(node);
         }
     }
@@ -1371,10 +1484,23 @@ void TGroup::SendGroup(
 
         auto rspOrError = WaitFor(sendBlocksFutures[i]);
         if (rspOrError.IsOK()) {
-            if (rspOrError.Value()->close_demanded()) {
+            auto &rsp = rspOrError.Value();
+            if (rsp->close_demanded()) {
                 YT_LOG_DEBUG("Close demanded by node (NodeAddress: %v)", dstNode->GetDefaultAddress());
                 writer->DemandClose();
             }
+
+            srcNode->SetNetThrottling(rsp->net_throttling());
+            srcNode->SetNetQueueSize(rsp->net_queue_size());
+
+            if (srcNode->IsNetThrottling()) {
+                YT_LOG_DEBUG("Blocks are not sent, because of net throttling (Blocks: %v, SrcAddress: %v, DstAddress: %v)",
+                    FormatBlocks(FirstBlockIndex_, GetEndBlockIndex()),
+                    srcNode->GetDefaultAddress(),
+                    dstNode->GetDefaultAddress());
+                continue;
+            }
+
             SentTo_[dstNode->GetIndex()] = true;
 
             writer->AccountTraffic(Size_, srcNode->GetDescriptor(), dstNode->GetDescriptor());
@@ -1451,13 +1577,26 @@ void TGroup::Process(const IChunkWriter::TWriteBlocksOptions& options)
     YT_LOG_DEBUG("Processing blocks (Blocks: %v)",
         FormatBlocks(FirstBlockIndex_, GetEndBlockIndex()));
 
-    std::vector<TNodePtr> nodesWithBlocks;
+    std::vector<TNodePtr> nodesWithAcquiredResources;
+    std::vector<TNodePtr> nodesWithRequestedResources;
+    std::vector<TNodePtr> nodesWithPossibleToSendBlocks;
     bool emptyNodeFound = false;
     for (int nodeIndex = 0; nodeIndex < std::ssize(SentTo_); ++nodeIndex) {
         const auto& node = writer->Nodes_[nodeIndex];
         if (node->IsAlive()) {
+            if (node->GetRequestedMemory() >= CumulativeBlockSize_) {
+                nodesWithRequestedResources.push_back(node);
+            }
+
+            if (node->GetApprovedMemory() >= CumulativeBlockSize_) {
+                nodesWithAcquiredResources.push_back(node);
+            }
+
             if (SentTo_[nodeIndex]) {
-                nodesWithBlocks.push_back(node);
+                YT_VERIFY(node->GetApprovedMemory() >= CumulativeBlockSize_);
+                if (!node->IsNetThrottling()) {
+                    nodesWithPossibleToSendBlocks.push_back(node);
+                }
             } else {
                 emptyNodeFound = true;
             }
@@ -1466,10 +1605,34 @@ void TGroup::Process(const IChunkWriter::TWriteBlocksOptions& options)
 
     if (!emptyNodeFound) {
         writer->ShiftWindow(options);
-    } else if (nodesWithBlocks.empty()) {
+    } else if (nodesWithPossibleToSendBlocks.empty() &&
+        // Retry ProbePutBlocks requests only if they were preempted.
+        std::ssize(nodesWithRequestedResources) < writer->AliveNodeCount_)
+    {
+        ProbePutBlocks(writer, options);
+        // ProbePutBlocks request before retries.
+        if (!ProbeStartTime_.has_value()) {
+            ProbeStartTime_ = TInstant::Now();
+        }
+    } else if (nodesWithPossibleToSendBlocks.empty() &&
+        std::ssize(nodesWithAcquiredResources) < writer->AliveNodeCount_)
+    {
+        YT_VERIFY(ProbeStartTime_.has_value());
+        for (const auto& node : writer->Nodes_) {
+            if (node->IsAlive() &&
+                node->GetApprovedMemory() < CumulativeBlockSize_ &&
+                TInstant::Now() - *ProbeStartTime_ > writer->Config_->ProbePutBlocksTimeout)
+            {
+                // Node failed because of timeout for acquiring resources on node for Group.
+                writer->OnNodeFailed(node, TError(EErrorCode::NodeProbeFailed, "ProbePutBlocks failed"));
+            }
+        }
+        TDelayedExecutor::Submit(BIND(&TGroup::ScheduleProcess, MakeWeak(this), options),
+            writer->Config_->NodePingPeriod);
+    } else if (nodesWithPossibleToSendBlocks.empty()) {
         PutGroup(writer, options);
     } else {
-        SendGroup(writer, options, nodesWithBlocks);
+        SendGroup(writer, options, nodesWithPossibleToSendBlocks);
     }
 }
 

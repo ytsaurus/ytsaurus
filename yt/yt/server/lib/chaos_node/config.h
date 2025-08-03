@@ -137,6 +137,8 @@ struct TChaosNodeConfig
 
     NDynamicConfig::TDynamicConfigManagerConfigPtr ReplicatedTableTrackerConfigFetcher;
 
+    TDuration ReplicationCardAutomatonCacheExpirationTime;
+
     REGISTER_YSON_STRUCT(TChaosNodeConfig);
 
     static void Register(TRegistrar registrar);
@@ -149,8 +151,7 @@ DEFINE_REFCOUNTED_TYPE(TChaosNodeConfig)
 struct TChaosSlotDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
-    bool EnableExtendedLogging;
+    bool EnableVerboseLogging;
 
     REGISTER_YSON_STRUCT(TChaosSlotDynamicConfig);
 
@@ -164,8 +165,9 @@ DEFINE_REFCOUNTED_TYPE(TChaosSlotDynamicConfig)
 struct TChaosNodeDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     THashMap<std::string, TChaosSlotDynamicConfigPtr> PerBundleConfigs;
+
+    TDuration ReplicationCardAutomatonCacheExpirationTime;
 
     REGISTER_YSON_STRUCT(TChaosNodeDynamicConfig);
 

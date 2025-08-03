@@ -169,7 +169,7 @@ public:
     }
 
 
-    TFuture<void> Ping(const TTransactionPingOptions& options = {}) override
+    TFuture<void> Ping(const TPrerequisitePingOptions& options = {}) override
     {
         return Transaction_->Ping(options);
     }
@@ -199,7 +199,7 @@ public:
             .Run(options, needsFlush);
     }
 
-    TFuture<void> Abort(const TTransactionAbortOptions& options = {}) override
+    TFuture<void> Abort(const TTransactionAbortOptions& options) override
     {
         auto guard = Guard(SpinLock_);
 
@@ -940,6 +940,8 @@ private:
 
             auto cellChannel = transaction->Client_->GetCellChannelOrThrow(RandomHunkTabletInfo_->CellId);
             TTabletServiceProxy proxy(cellChannel);
+            // TODO(nadya02): Set the correct timeout here.
+            proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
             auto req = proxy.WriteHunks();
             ToProto(req->mutable_tablet_id(), RandomHunkTabletInfo_->TabletId);
             req->set_mount_revision(ToProto(RandomHunkTabletInfo_->MountRevision));
@@ -1737,6 +1739,17 @@ private:
         return it->second;
     }
 
+    std::vector<TFuture<void>> GetTableSessionsPrepareFutures(const std::vector<TTableCommitSessionPtr>& tableSessions)
+    {
+        std::vector<TFuture<void>> prepareFutures;
+        prepareFutures.reserve(tableSessions.size());
+        for (const auto& tableSession : tableSessions) {
+            prepareFutures.push_back(tableSession->GetPrepareFuture());
+        }
+
+        return prepareFutures;
+    }
+
     ITabletCommitSessionPtr GetOrCreateTabletSession(
         const TTabletInfoPtr& tabletInfo,
         const TTableMountInfoPtr& tableInfo,
@@ -1872,7 +1885,8 @@ private:
         // TODO(nadya73): check queue producer registration.
 
         // Cluster for queue and producer should be the same.
-        auto cluster = Client_->GetClusterName();
+        auto cluster = WaitFor(Client_->GetClusterName())
+            .ValueOrThrow();
         if (!cluster) {
             THROW_ERROR_EXCEPTION("Cannot serve request, there is a server-side misconfiguration, "
                 "cluster connection was not properly configured with a cluster name");
@@ -1882,7 +1896,7 @@ private:
 
         auto producerNameTable = NQueueClient::NRecords::TQueueProducerSessionDescriptor::Get()->GetNameTable();
         NQueueClient::NRecords::TQueueProducerSessionKey sessionKey{
-            .QueueCluster = TString(*cluster),
+            .QueueCluster = *cluster,
             .QueuePath = queuePath.GetPath(),
             .SessionId = sessionId,
         };
@@ -2018,7 +2032,7 @@ private:
         }
 
         std::vector<ISecondaryIndexModifierPtr> indexModifiers;
-        std::vector<TFuture<void>> lookupRowsEvents;
+        std::vector<TFuture<void>> lookupRowsFutures;
 
         for (auto& [tableId, mergedRows] : mergedRowsByTable) {
             const auto& mountInfo = GetOrCrash(mountInfosByTable, tableId);
@@ -2040,25 +2054,25 @@ private:
                 mountInfo,
                 std::move(indexTableInfos),
                 mergedRows,
-                connection->GetExpressionEvaluatorCache(),
+                connection->GetColumnEvaluatorCache(),
                 Logger);
 
-            lookupRowsEvents.push_back(indexModifier->LookupRows());
+            lookupRowsFutures.push_back(indexModifier->LookupRows());
             indexModifiers.push_back(std::move(indexModifier));
         }
 
-        WaitFor(AllSucceeded(std::move(lookupRowsEvents)))
+        WaitFor(AllSucceeded(std::move(lookupRowsFutures)))
             .ThrowOnError();
 
-        std::vector<TFuture<void>> modificationsEnqueuedEvents;
+        std::vector<TFuture<void>> modificationsEnqueuedFutures;
 
         for (const auto& modifier : indexModifiers) {
             TModifyRowsOptions modifyRowsOptions{
-                .RequireSyncReplica=false,
-                .AllowMissingKeyColumns=true,
+                .RequireSyncReplica = false,
+                .AllowMissingKeyColumns = true,
             };
 
-            modificationsEnqueuedEvents.push_back(
+            modificationsEnqueuedFutures.push_back(
                 modifier->OnIndexModifications([&, modifyRowsOptions = std::move(modifyRowsOptions)] (
                     TYPath path,
                     TNameTablePtr nameTable,
@@ -2075,7 +2089,7 @@ private:
                 }));
         }
 
-        WaitForFast(AllSucceeded(std::move(modificationsEnqueuedEvents)))
+        WaitForFast(AllSucceeded(std::move(modificationsEnqueuedFutures)))
             .ThrowOnError();
     }
 
@@ -2097,13 +2111,7 @@ private:
             decltype(PendingSessions_) pendingSessions;
             std::swap(PendingSessions_, pendingSessions);
 
-            std::vector<TFuture<void>> prepareFutures;
-            prepareFutures.reserve(pendingSessions.size());
-            for (const auto& tableSession : pendingSessions) {
-                prepareFutures.push_back(tableSession->GetPrepareFuture());
-            }
-
-            return AllSucceeded(std::move(prepareFutures))
+            return AllSucceeded(GetTableSessionsPrepareFutures(pendingSessions))
                 .Apply(BIND([=, this, pendingRequests = std::move(pendingRequests)] {
                     std::vector<TFuture<void>> writeHunksFutures;
 
@@ -2145,6 +2153,10 @@ private:
 
     TFuture<void> DoCommitTabletSessions()
     {
+        if (TabletIdToSession_.empty()) {
+            return VoidFuture;
+        }
+
         std::vector<ITabletCommitSessionPtr> sessions;
         sessions.reserve(TabletIdToSession_.size());
         for (const auto& [tabletId, session] : TabletIdToSession_) {
@@ -2163,8 +2175,15 @@ private:
     {
         CommitOptions_ = options;
 
+        // NB: Include prerequisite ids which have been set during start_transaction call.
+        auto prerequisiteIds = Transaction_->GetPrerequisiteTransactionIds();
+        for (const auto& prerequisiteId : CommitOptions_.PrerequisiteTransactionIds) {
+            prerequisiteIds.push_back(prerequisiteId);
+        }
+
         THashSet<NObjectClient::TCellId> selectedCellIds;
         THashSet<NChaosClient::TReplicationCardId> requestedReplicationCardIds;
+        bool affectsChaosTables = false;
 
         for (const auto& [path, session] : TablePathToSession_) {
             if (session->GetInfo()->SerializationType == ETabletTransactionSerializationType::PerRow ||
@@ -2179,6 +2198,7 @@ private:
                 replicationCard->Era > InitialReplicationEra &&
                 !options.CoordinatorCellId)
             {
+                affectsChaosTables = true;
                 if (!requestedReplicationCardIds.insert(replicationCardId).second) {
                     YT_LOG_DEBUG("Coordinator for replication card already selected, skipping "
                         "(Path: %v, ReplicationCardId: %v, Era: %v)",
@@ -2228,6 +2248,18 @@ private:
                 NChaosClient::NProto::TReqReplicatedCommit request;
                 ToProto(request.mutable_replication_card_id(), replicationCardId);
                 request.set_replication_era(session->GetReplicationCard()->Era);
+                for (const auto& prerequisiteId : prerequisiteIds) {
+                    auto prerequisiteType = TypeFromId(prerequisiteId);
+                    if (!IsChaosLeaseType(prerequisiteType)) {
+                        THROW_ERROR_EXCEPTION(
+                            "Transaction commit affects chaos tables, only chaos leases allowed as prerequisite ids.")
+                            << TErrorAttribute("prerequisite_id", prerequisiteId)
+                            << TErrorAttribute("prerequisite_type", prerequisiteType)
+                            << TErrorAttribute("table_path", path);
+                    }
+
+                    ToProto(request.add_prerequisite_ids(), prerequisiteId);
+                }
 
                 DoAddAction(coordinatorCellId, MakeTransactionActionData(request));
 
@@ -2243,6 +2275,14 @@ private:
                     replicationCard->Era,
                     coordinatorCellId);
             }
+        }
+
+        if (affectsChaosTables) {
+            // NB: If commit affects chaos tables, then the list of prerequisite ids can contain only chaos leases,
+            // As the tab nodes can only handle master transactions as prerequisites, we send them only to chaos coordinators.
+            CommitOptions_.PrerequisiteTransactionIds = {};
+        } else {
+            CommitOptions_.PrerequisiteTransactionIds = std::move(prerequisiteIds);
         }
     }
 
@@ -2278,17 +2318,18 @@ private:
 
         return
             [&] {
-                // NB: During requests preparation some of the commit options
-                // like prerequisite transaction ids are required, so we firstly
-                // store raw commit options and then adjust them.
-                CommitOptions_ = options;
-
-                return needsFlush ? PrepareRequests() : VoidFuture;
+                return needsFlush
+                    ? AllSucceeded(GetTableSessionsPrepareFutures(PendingSessions_))
+                    : VoidFuture;
             }()
             .Apply(
                 BIND([=, this, this_ = MakeStrong(this)] {
                     BuildAdjustedCommitOptions(options);
 
+                    return needsFlush ? PrepareRequests() : VoidFuture;
+                }).AsyncVia(SerializedInvoker_))
+            .Apply(
+                BIND([=, this, this_ = MakeStrong(this)] {
                     Transaction_->ChooseCoordinator(CommitOptions_);
 
                     return Transaction_->ValidateNoDownedParticipants();

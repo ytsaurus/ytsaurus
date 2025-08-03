@@ -355,7 +355,7 @@ public:
     TSnapshotOutThrottlerProvider GetSnapshotOutThrottlerProvider() const
     {
         return [this, weakThis = MakeWeak(this)] () -> IThroughputThrottlerPtr {
-            if (auto strongThis = weakThis.Lock() && EnableSnapshotNetworkThrottling_) {
+            if (auto strongThis = weakThis.Lock(); strongThis && EnableSnapshotNetworkThrottling_) {
                 return Bootstrap_->GetSnapshotOutThrottler();
             }
 
@@ -468,21 +468,20 @@ public:
 
         ConfigureSnapshotStore(connection);
 
-        auto addTags = [this] (auto profiler) {
-            return profiler
-                .WithRequiredTag("tablet_cell_bundle", CellBundleName_ ? CellBundleName_ : "<unknown-cell-bundle>")
-                .WithTag("cell_id", ToString(CellDescriptor_.CellId), -1);
-        };
-
         auto changelogClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::TabletCellChangeloggerUserName));
         auto primaryStoresPath = GetStoresPath(/*primary*/ true);
         auto secondaryStoresPath = GetStoresPath(/*primary*/ false);
 
-        auto changelogProfiler = addTags(occupier->GetProfiler().WithPrefix("/remote_changelog"));
+        auto changelogProfiler = occupier->GetProfiler()
+            .WithPrefix("/remote_changelog")
+            // TODO(babenko): replace with optional
+            .WithRequiredTag("tablet_cell_bundle", !CellBundleName_.empty() ? CellBundleName_ : "<unknown-cell-bundle>")
+            .WithTag("medium", Options_->ChangelogPrimaryMedium)
+            .WithTag("cell_id", ToString(CellDescriptor_.CellId), -1);
         TJournalWriterPerformanceCounters performanceCounters{changelogProfiler};
         performanceCounters.JournalWritesObserver = JournalWritesObserver_;
 
-        auto changelogStoreFactory = CreateRemoteChangelogStoreFactory(
+        ChangelogStoreFactory_ = CreateRemoteChangelogStoreFactory(
             Config_->Changelogs,
             Options_,
             primaryStoresPath + "/changelogs",
@@ -491,7 +490,7 @@ public:
             Bootstrap_->GetResourceLimitsManager(),
             PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId,
             std::move(performanceCounters));
-        ChangelogStoreFactoryThunk_->SetUnderlying(changelogStoreFactory);
+        ChangelogStoreFactoryThunk_->SetUnderlying(ChangelogStoreFactory_);
 
         bool independent = Options_->IndependentPeers;
         if (independent) {
@@ -709,16 +708,19 @@ public:
         }
     }
 
-    void Reconfigure(NHydra::TDynamicDistributedHydraManagerConfigPtr dynamicConfig) override
+    void Reconfigure(TCellarDynamicConfigPtr dynamicConfig) override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        JournalWritesObserver_->Reconfigure(dynamicConfig);
-        EnableSnapshotNetworkThrottling_.store(dynamicConfig->EnableSnapshotNetworkThrottling.value_or(false));
+        JournalWritesObserver_->Reconfigure(dynamicConfig->HydraManager);
+        EnableSnapshotNetworkThrottling_.store(dynamicConfig->HydraManager->EnableSnapshotNetworkThrottling.value_or(false));
 
         if (CanConfigure()) {
             if (const auto& hydraManager = HydraManager_.Acquire()) {
-                YT_UNUSED_FUTURE(hydraManager->Reconfigure(dynamicConfig));
+                YT_UNUSED_FUTURE(hydraManager->Reconfigure(dynamicConfig->HydraManager));
+            }
+            if (ChangelogStoreFactory_) {
+                ChangelogStoreFactory_->Reconfigure(dynamicConfig->Changelogs);
             }
         }
     }
@@ -749,7 +751,7 @@ public:
         return OrchidService_;
     }
 
-    const TString& GetCellBundleName() const override
+    const std::string& GetCellBundleName() const override
     {
         return CellBundleName_;
     }
@@ -794,7 +796,7 @@ private:
     TCellDescriptor CellDescriptor_;
     int ConfigVersion_ = 0;
 
-    const TString CellBundleName_;
+    const std::string CellBundleName_;
 
     TAtomicIntrusivePtr<TDynamicTabletCellOptions> DynamicOptions_{New<TDynamicTabletCellOptions>()};
     int DynamicConfigVersion_ = -1;
@@ -840,6 +842,7 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     const TIntrusivePtr<TJournalWritesObserver> JournalWritesObserver_;
+    IChangelogStoreFactoryPtr ChangelogStoreFactory_;
     std::atomic<bool> EnableSnapshotNetworkThrottling_ = false;
 
     // COMPAT(danilalexeev): 'primary'.
@@ -919,7 +922,7 @@ private:
 
         if (PrerequisiteTransaction_) {
             YT_LOG_DEBUG("Checking prerequisite transaction");
-            TTransactionPingOptions options{
+            TPrerequisitePingOptions options{
                 .EnableRetries = true
             };
             return PrerequisiteTransaction_->Ping(options);

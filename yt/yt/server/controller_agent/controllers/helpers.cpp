@@ -25,6 +25,7 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/timestamped_schema_helpers.h>
 
+#include <util/string/builder.h>
 #include <util/string/split.h>
 
 namespace NYT::NControllerAgent::NControllers {
@@ -45,7 +46,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ControllerLogger;
+constinit const auto Logger = ControllerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -129,7 +130,7 @@ TDataSinkDirectoryPtr BuildDataSinkDirectoryFromOutputTables(const std::vector<T
 NChunkClient::TDataSinkDirectoryPtr BuildDataSinkDirectoryWithAutoMerge(
     const std::vector<TOutputTablePtr>& outputTables,
     const std::vector<bool>& autoMergeEnabled,
-    const std::optional<TString>& intermediateAccountName)
+    const std::optional<std::string>& intermediateAccountName)
 {
     auto dataSinkDirectory = New<TDataSinkDirectory>();
     dataSinkDirectory->DataSinks().reserve(outputTables.size());
@@ -204,7 +205,7 @@ void TControllerFeatures::AddCounted(TStringBuf name, double value)
     Features_[countFeature] += 1;
 }
 
-void TControllerFeatures::CalculateJobSatisticsAverage()
+void TControllerFeatures::CalculateJobStatisticsAverage()
 {
     static const TString SumSuffix = ".sum";
     static const TString CountSuffix = ".count";
@@ -295,6 +296,7 @@ void SafeUpdateAggregatedJobStatistics(
 
 TDockerImageSpec::TDockerImageSpec(const TString& dockerImage, const TDockerRegistryConfigPtr& config)
 {
+    const auto& internalRegistries = config->InternalRegistryAlternativeAddresses;
     TStringBuf imageRef;
     TStringBuf imageTag;
 
@@ -303,10 +305,12 @@ TDockerImageSpec::TDockerImageSpec(const TString& dockerImage, const TDockerRegi
     if (!StringSplitter(dockerImage).Split('/').Limit(2).TryCollectInto(&Registry, &imageRef) ||
         Registry.find_first_of(".:") == TString::npos)
     {
-        Registry = "";
+        // Use main internal registry address.
+        Registry = config->InternalRegistryAddress.value_or("");
+        IsInternal = true;
         imageRef = dockerImage;
-    } else if (Registry == config->InternalRegistryAddress) {
-        Registry = "";
+    } else if (std::ranges::find(internalRegistries, Registry) != internalRegistries.end()) {
+        IsInternal = true;
     }
 
     if (!StringSplitter(imageRef).Split('@').Limit(2).TryCollectInto(&imageTag, &Digest)) {
@@ -322,9 +326,26 @@ TDockerImageSpec::TDockerImageSpec(const TString& dockerImage, const TDockerRegi
     }
 }
 
-bool TDockerImageSpec::IsInternal() const
+TString TDockerImageSpec::GetDockerImage() const
 {
-    return Registry.empty();
+    TStringBuilder reference;
+
+    reference.Preallocate(Registry.length() + Image.length() + Tag.length() + Digest.length() + 3);
+    if (Registry != "") {
+        reference.AppendString(Registry);
+        reference.AppendChar('/');
+    }
+    reference.AppendString(Image);
+    if (Tag != "") {
+        reference.AppendChar(':');
+        reference.AppendString(Tag);
+    }
+    if (Digest != "") {
+        reference.AppendChar('@');
+        reference.AppendString(Digest);
+    }
+
+    return reference.Flush();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -385,30 +406,6 @@ void GenerateDockerAuthFromToken(
             jobSpec->add_environment(Format("%s_%s={username=%Qs; password=%Qs}", SecureVaultEnvPrefix, DockerAuthEnv, authenticatedUser, *token));
         }
     }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-IAttributeDictionaryPtr GetNetworkProject(
-    const NApi::NNative::IClientPtr& client,
-    const std::string& authenticatedUser,
-    TString networkProject)
-{
-    const auto networkProjectPath = "//sys/network_projects/" + ToYPathLiteral(networkProject);
-    auto checkPermissionRsp = WaitFor(client->CheckPermission(authenticatedUser, networkProjectPath, EPermission::Use))
-        .ValueOrThrow();
-    if (checkPermissionRsp.Action == NSecurityClient::ESecurityAction::Deny) {
-        THROW_ERROR_EXCEPTION("User %Qv is not allowed to use network project %Qv",
-            authenticatedUser,
-            networkProject);
-    }
-
-    TGetNodeOptions options{
-        .Attributes = TAttributeFilter({"project_id", "enable_nat64", "disable_network"})
-    };
-    auto networkProjectNode = ConvertToNode(WaitFor(client->GetNode(networkProjectPath, options))
-        .ValueOrThrow());
-    return networkProjectNode->Attributes().Clone();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -529,6 +526,7 @@ bool IsBulkInsertAllowedForUser(
 bool HasCompressionDictionaries(
     const IAttributeDictionaryPtr& tableAttributes)
 {
+    // TODO(alexelexa, YT-20044): Support compression dicrionaries remote copy.
     auto dictionaryCompressionNode =
         tableAttributes->Get<IMapNodePtr>("mount_config")->FindChild("value_dictionary_compression");
     if (dictionaryCompressionNode) {
@@ -565,11 +563,13 @@ TYsonString MakeIntermediateTableWriterConfig(
 {
     auto uploadReplicationFactor = spec->IntermediateDataReplicationFactor;
     auto minUploadReplicationFactor = spec->MinIntermediateDataReplicationFactor;
+    auto directUploadNodeCount = spec->IntermediateDirectUploadNodeCount;
 
     auto tableWriterConfig = spec->FastIntermediateMediumTableWriterConfig;
     if (tableWriterConfig && fastIntermediateMediumEnabled) {
         uploadReplicationFactor = tableWriterConfig->UploadReplicationFactor;
         minUploadReplicationFactor = tableWriterConfig->MinUploadReplicationFactor;
+        directUploadNodeCount = tableWriterConfig->DirectUploadNodeCount;
     }
 
     return BuildYsonStringFluently()
@@ -582,6 +582,7 @@ TYsonString MakeIntermediateTableWriterConfig(
                 // Set reduced rpc_timeout if replication_factor is greater than one.
                 fluent.Item("node_rpc_timeout").Value(TDuration::Seconds(120));
             })
+            .OptionalItem("direct_upload_node_count", directUploadNodeCount)
         .EndMap();
 }
 

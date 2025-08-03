@@ -26,7 +26,7 @@ using namespace NCellServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletServerLogger;
+constinit const auto Logger = TabletServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,22 +67,22 @@ void TTabletCellBundle::ValidateResourceUsageIncrease(const TTabletResources& de
     const auto& usage = ResourceUsage_.Cluster();
     const auto& limits = ResourceLimits_;
 
-    auto validate = [&] (TStringBuf resourceName, auto TTabletResources::* resource) {
-        if (delta.*resource > 0 &&
-            usage.*resource + delta.*resource > limits.*resource)
+    auto validate = [&] (TStringBuf resourceName, auto (TTabletResources::* resource) () const) {
+        if ((delta.*resource)() > 0 &&
+            (usage.*resource)() + (delta.*resource)() > (limits.*resource)())
         {
             THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::BundleResourceLimitExceeded,
                 "Tablet cell bundle %Qv is over %v limit",
                 GetName(),
                 resourceName)
-                << TErrorAttribute("increase", delta.*resource)
-                << TErrorAttribute("usage", usage.*resource)
-                << TErrorAttribute("limit", limits.*resource);
+                << TErrorAttribute("increase", (delta.*resource)())
+                << TErrorAttribute("usage", (usage.*resource)())
+                << TErrorAttribute("limit", (limits.*resource)());
         }
     };
 
-    validate("tablet count", &TTabletResources::TabletCount);
-    validate("tablet static memory", &TTabletResources::TabletStaticMemory);
+    validate("tablet count", &TTabletResources::GetTabletCount);
+    validate("tablet static memory", &TTabletResources::GetTabletStaticMemory);
 }
 
 void TTabletCellBundle::UpdateResourceUsage(TTabletResources delta)
@@ -151,10 +151,10 @@ void TTabletCellBundle::Load(NCellMaster::TLoadContext& context)
 
 void TTabletCellBundle::OnProfiling(TTabletCellBundleProfilingCounters* counters)
 {
-    counters->TabletCountLimit.Update(ResourceLimits_.TabletCount);
-    counters->TabletCountUsage.Update(ResourceUsage_.Cluster().TabletCount);
-    counters->TabletStaticMemoryLimit.Update(ResourceLimits_.TabletStaticMemory);
-    counters->TabletStaticMemoryUsage.Update(ResourceUsage_.Cluster().TabletStaticMemory);
+    counters->TabletCountLimit.Update(ResourceLimits_.GetTabletCount());
+    counters->TabletCountUsage.Update(ResourceUsage_.Cluster().GetTabletCount());
+    counters->TabletStaticMemoryLimit.Update(ResourceLimits_.GetTabletStaticMemory());
+    counters->TabletStaticMemoryUsage.Update(ResourceUsage_.Cluster().GetTabletStaticMemory());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -513,7 +513,7 @@ public:
                 << TErrorAttribute("transaction_id", transactionId));
         }
 
-        auto proxy = CreateObjectServiceReadProxy(Bootstrap_->GetClient(), EMasterChannelKind::Follower);
+        auto proxy = CreateObjectServiceReadProxy(connection, EMasterChannelKind::Follower, cellTag);
         auto batchReq = proxy.ExecuteBatch();
         auto req = TObjectYPathProxy::GetBasicAttributes(FromObjectId(transactionId));
         batchReq->AddRequest(req);
@@ -864,7 +864,7 @@ private:
     bool DoesOperationsArchiveExist()
     {
         if (!ArchiveExists_) {
-            ArchiveExists_ = Bootstrap_->GetClient()->DoesOperationsArchiveExist(/*useOperationsArchiveClient*/ false);
+            ArchiveExists_ = Bootstrap_->GetClient()->DoesOperationsArchiveExist();
         }
         return *ArchiveExists_;
     }
@@ -1345,9 +1345,9 @@ private:
             auto specNode = ConvertSpecStringToNode(specString);
             auto operationType = attributes.Get<EOperationType>("operation_type");
             TPreprocessedSpec preprocessedSpec;
-            ParseSpec(std::move(specNode), /*specTemplate*/ nullptr, operationType, operationId, &preprocessedSpec);
             preprocessedSpec.ExperimentAssignments =
                 attributes.Get<std::vector<TExperimentAssignmentPtr>>("experiment_assignments", {});
+            ParseSpec(std::move(specNode), /*specTemplate*/ nullptr, operationType, operationId, &preprocessedSpec);
             const auto& spec = preprocessedSpec.Spec;
 
             // NB: Keep stuff below in sync with #RequestOperationAttributes.
@@ -1386,6 +1386,7 @@ private:
                 secureVault,
                 attributes.Find<TNodeId>("temporary_token_node_id"),
                 runtimeParameters,
+                std::move(preprocessedSpec.OperationOptions),
                 std::move(baseAcl),
                 user,
                 attributes.Get<TInstant>("start_time"),

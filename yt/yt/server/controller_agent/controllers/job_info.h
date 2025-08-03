@@ -32,9 +32,10 @@ struct TJobNodeDescriptor
 
     NNodeTrackerClient::TNodeId Id = NNodeTrackerClient::InvalidNodeId;
     std::string Address;
+    NNodeTrackerClient::TAddressMap Addresses;
     double IOWeight = 0.0;
 
-    void Persist(const TPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TJobNodeDescriptor, 0xca71c8d6);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,28 +54,26 @@ struct TAllocation
     TTask* Task = nullptr;
 
     struct TLastJobInfo
+        : public IPersistent
     {
         TJobId JobId;
         std::optional<EJobCompetitionType> CompetitionType;
-        NChunkPools::IChunkPoolOutput::TCookie OutputCookie;
-        std::optional<TJobMonitoringDescriptor> MonitoringDescriptor;
 
-        void Persist(const TPersistenceContext& context);
-
-        operator bool () const noexcept;
+        PHOENIX_DECLARE_POLYMORPHIC_TYPE(TLastJobInfo, 0x2201c8d6);
     };
 
-    TLastJobInfo LastJobInfo;
+    std::unique_ptr<TLastJobInfo> LastJobInfo;
 
     std::optional<EScheduleFailReason> NewJobsForbiddenReason;
 
-    void Persist(const TPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TAllocation, 0x2101c8d6);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TJoblet
     : public TRefCounted
+    , public IPersistent
 {
     NJobTrackerClient::TJobId JobId;
     NJobTrackerClient::EJobType JobType;
@@ -96,7 +95,7 @@ struct TJoblet
 
     EInterruptionReason InterruptionReason = EInterruptionReason::None;
 
-    TString DebugArtifactsAccount;
+    std::string DebugArtifactsAccount;
     bool Suspicious = false;
     TInstant LastActivityTime;
     TBriefJobStatisticsPtr BriefStatistics;
@@ -151,7 +150,7 @@ struct TJoblet
     EPredecessorType PredecessorType = EPredecessorType::None;
     TJobId PredecessorJobId;
 
-    std::optional<TString> DiskRequestAccount;
+    std::optional<std::string> DiskRequestAccount;
 
     NChunkPools::TChunkStripeListPtr InputStripeList;
     NChunkPools::IChunkPoolOutput::TCookie OutputCookie = -1;
@@ -181,9 +180,6 @@ struct TJoblet
 
     NScheduler::TJobProfilerSpecPtr EnabledJobProfiler;
 
-    // Used for restarting jobs in gang vanilla operations.
-    std::optional<TOperationIncarnation> OperationIncarnation;
-
     std::optional<TDuration> ArchiveTtl;
 
     // Used only for persistence.
@@ -195,8 +191,6 @@ struct TJoblet
         int taskJobIndex,
         const TString& treeId,
         bool treeIsTentative);
-
-    void Persist(const TPersistenceContext& context);
 
     NScheduler::TJobMetrics UpdateJobMetrics(
         const TJobSummary& jobSummary,
@@ -212,6 +206,8 @@ struct TJoblet
     bool ShouldLogFinishedEvent() const;
     bool IsStarted() const noexcept;
     bool IsJobStartedOnNode() const noexcept;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TJoblet, 0x2301c8d6);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJoblet)

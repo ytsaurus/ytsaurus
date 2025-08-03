@@ -2,6 +2,8 @@
 
 #include "operation_controller.h"
 
+#include <yt/yt/server/lib/scheduler/config.h>
+
 namespace NYT::NSchedulerSimulator {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,6 +34,12 @@ NScheduler::EOperationState TOperation::GetState() const
     return State_;
 }
 
+const NScheduler::TOperationOptionsPtr& TOperation::GetOperationOptions() const
+{
+    static auto stub = New<NScheduler::TOperationOptions>();
+    return stub;
+}
+
 std::optional<NScheduler::EUnschedulableReason> TOperation::CheckUnschedulable(const std::optional<TString>& treeId) const
 {
     if (treeId) {
@@ -57,9 +65,14 @@ TInstant TOperation::GetStartTime() const
     return StartTime_;
 }
 
-TString TOperation::GetAuthenticatedUser() const
+std::string TOperation::GetAuthenticatedUser() const
 {
     return AuthenticatedUser_;
+}
+
+std::optional<std::string> TOperation::GetTitle() const
+{
+    return std::nullopt;
 }
 
 void TOperation::SetSlotIndex(const TString& treeId, int value)

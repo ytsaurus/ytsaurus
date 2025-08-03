@@ -7,7 +7,7 @@ namespace NYT::NCellBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = BundleControllerLogger;
+constinit const auto Logger = BundleControllerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,16 +37,19 @@ TPerDataCenterSpareProxiesInfo GetSpareProxiesInfo(
         auto& spareProxies = result[dataCenterName];
         for (const auto& spareProxy : aliveProxies) {
             auto proxyInfo = GetOrCrash(input.RpcProxies, spareProxy);
-            std::string bundleName;
+
+            bool hasMaintenanceRequests = !proxyInfo->CmsMaintenanceRequests.empty();
 
             if (auto it = proxyRoleToBundle.find(proxyInfo->Role); it != proxyRoleToBundle.end()) {
-                bundleName = it->second;
-            }
-
-            if (!bundleName.empty()) {
+                const auto& bundleName = it->second;
+                YT_VERIFY(!bundleName.empty());
                 spareProxies.UsedByBundle[bundleName].push_back(spareProxy);
             } else {
-                spareProxies.FreeProxies.push_back(spareProxy);
+                if (hasMaintenanceRequests) {
+                    spareProxies.ScheduledForMaintenance.push_back(spareProxy);
+                } else {
+                    spareProxies.FreeProxies.push_back(spareProxy);
+                }
             }
         }
     }
@@ -67,7 +70,7 @@ void TryReleaseSpareProxies(
     auto proxiesToRelease = std::span(usingSpareProxies.begin(), usingSpareProxies.begin() + excessProxyCount);
 
     for (const auto& proxyName : proxiesToRelease) {
-        mutations->RemovedProxyRole.insert(proxyName);
+        mutations->RemovedProxyRole.insert(mutations->WrapMutation(proxyName));
 
         YT_LOG_INFO("Releasing spare proxy for bundle (Bundle: %v, ProxyName: %v)",
             bundleName,
@@ -79,23 +82,21 @@ void TryReleaseSpareProxies(
 
 void TryAssignSpareProxies(
     const std::string& bundleName,
+    const std::string& zoneName,
+    const std::string& dataCenterName,
     const std::string& proxyRole,
     int proxyCount,
-    TSpareProxiesInfo* spareProxiesInfo,
+    TSpareInstanceAllocator<TSpareProxiesInfo>& spareProxiesAllocator,
     TSchedulerMutations* mutations)
 {
-    auto& freeProxies = spareProxiesInfo->FreeProxies;
-
-    while (!freeProxies.empty() && proxyCount > 0) {
-        const auto& proxyName = freeProxies.back();
-        mutations->ChangedProxyRole[proxyName] = proxyRole;
+    while (spareProxiesAllocator.HasInstances(zoneName, dataCenterName) && proxyCount > 0) {
+        auto proxyName = spareProxiesAllocator.Allocate(zoneName, dataCenterName, bundleName);
+        --proxyCount;
+        mutations->ChangedProxyRole[proxyName] = mutations->WrapMutation(proxyRole);
 
         YT_LOG_INFO("Assigning spare proxy for bundle (Bundle: %v, ProxyName: %v)",
             bundleName,
             proxyName);
-
-        freeProxies.pop_back();
-        --proxyCount;
     }
 }
 
@@ -103,7 +104,7 @@ void TryAssignSpareProxies(
 
 struct TDataCenterOrderForProxies
 {
-    // Data center does not have enough alive rpc proxy (even with spare proxies).
+    // Data center does not have enough alive RPC proxy (even with spare proxies).
     bool Unfeasible = false;
 
     // Data center is forbidden by admin.
@@ -111,7 +112,7 @@ struct TDataCenterOrderForProxies
 
     int AssignedProxyCount = 0;
 
-    // How many rpc proxies we have to assign to bundle, i.e. how many proxies do not have needed proxy role.
+    // How many RPC proxies we have to assign to bundle, i.e. how many proxies do not have needed proxy role.
     int RequiredRpcProxyAssignmentCount = 0;
 
     // Just dc name alphabetical order for predictability.
@@ -236,7 +237,7 @@ THashSet<std::string> GetDataCentersToPopulate(
         const auto& status = dataCentersOrder.back();
 
         YT_LOG_DEBUG(
-            "Bundle rpc proxy data center status "
+            "Bundle RPC proxy data center status "
             "(Bundle: %v, DataCenter: %v, Unfeasible: %v, Forbidden: %v, RequiredPerDataCenterProxyCount: %v,"
             " RequiredRpcProxyAssignmentCount: %v, AvailableRpcProxyCount: %v)",
             bundleName,
@@ -267,24 +268,27 @@ THashSet<std::string> GetDataCentersToPopulate(
 
 void AssignProxyRoleForDataCenter(
     const std::string& bundleName,
+    const std::string& zoneName,
     const std::string& rpcProxyRole,
     const std::string& dataCenterName,
     int requiredRpcProxyCount,
     const THashSet<std::string>& aliveProxies,
     const TSchedulerInputState& input,
-    TSpareProxiesInfo* spareProxies,
+    TSpareInstanceAllocator<TSpareProxiesInfo>& spareProxiesAllocator,
     TSchedulerMutations* mutations)
 {
+    auto& spareProxies = spareProxiesAllocator.SpareInstances[zoneName][dataCenterName];
+
     for (const auto& proxyName : aliveProxies) {
         auto proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
         if (proxyInfo->Role != rpcProxyRole) {
-            YT_LOG_INFO("Assigning proxy role for bundle rpc proxy (Bundle: %v, DataCenter: %v, ProxyName: %v, Role: %v)",
+            YT_LOG_INFO("Assigning proxy role for bundle RPC proxy (Bundle: %v, DataCenter: %v, ProxyName: %v, Role: %v)",
                 bundleName,
                 dataCenterName,
                 proxyName,
                 rpcProxyRole);
 
-            mutations->ChangedProxyRole[proxyName] = rpcProxyRole;
+            mutations->ChangedProxyRole[proxyName] = mutations->WrapMutation(rpcProxyRole);
         }
     }
 
@@ -296,11 +300,11 @@ void AssignProxyRoleForDataCenter(
     };
 
     int aliveBundleProxyCount = std::ssize(aliveProxies);
-    int usedSpareProxyCount = getUsedSpareProxyCount(spareProxies->UsedByBundle);
+    int usedSpareProxyCount = getUsedSpareProxyCount(spareProxies.UsedByBundle);
 
     int proxyBalance = usedSpareProxyCount + aliveBundleProxyCount - requiredRpcProxyCount;
 
-    YT_LOG_DEBUG("Checking rpc proxies role for bundle in data center (Bundle: %v, DataCenter: %v, "
+    YT_LOG_DEBUG("Checking RPC proxies role for bundle in data center (Bundle: %v, DataCenter: %v, "
         " RpcProxyRole: %v, ProxyBalance: %v, SpareProxyCount: %v, BundleProxyCount: %v, RequiredRpcProxyCount: %v)",
         bundleName,
         dataCenterName,
@@ -311,9 +315,9 @@ void AssignProxyRoleForDataCenter(
         requiredRpcProxyCount);
 
     if (proxyBalance > 0) {
-        TryReleaseSpareProxies(bundleName, proxyBalance, spareProxies, mutations);
+        TryReleaseSpareProxies(bundleName, proxyBalance, &spareProxies, mutations);
     } else {
-        TryAssignSpareProxies(bundleName, rpcProxyRole, std::abs(proxyBalance), spareProxies, mutations);
+        TryAssignSpareProxies(bundleName, zoneName, dataCenterName, rpcProxyRole, std::abs(proxyBalance), spareProxiesAllocator, mutations);
     }
 }
 
@@ -340,13 +344,13 @@ void ReleaseProxyRoleForDataCenter(
     for (const auto& proxyName : aliveProxies) {
         auto proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
         if (proxyInfo->Role != releasedProxyRole) {
-            YT_LOG_INFO("Releasing proxy role for bundle rpc proxy (Bundle: %v, DataCenter: %v, ProxyName: %v, Role: %v)",
+            YT_LOG_INFO("Releasing proxy role for bundle RPC proxy (Bundle: %v, DataCenter: %v, ProxyName: %v, Role: %v)",
                 bundleName,
                 dataCenterName,
                 proxyName,
                 releasedProxyRole);
 
-            mutations->ChangedProxyRole[proxyName] = releasedProxyRole;
+            mutations->ChangedProxyRole[proxyName] = mutations->WrapMutation(releasedProxyRole);
         }
     }
 
@@ -369,12 +373,15 @@ void SetProxyRole(
     const std::string& bundleName,
     const TDataCenterToInstanceMap& bundleProxies,
     const TSchedulerInputState& input,
-    TPerDataCenterSpareProxiesInfo& perDataCenterSpareProxies,
+    TSpareInstanceAllocator<TSpareProxiesInfo>& spareProxiesAllocator,
     TSchedulerMutations* mutations)
 {
     const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
+    const auto& zoneName = bundleInfo->Zone;
     auto perDataCenterAliveProxies = GetAliveProxies(bundleProxies, input, EGracePeriodBehaviour::Immediately);
     auto proxyRole = bundleInfo->RpcProxyRole.value_or(bundleName);
+
+    auto& perDataCenterSpareProxies = spareProxiesAllocator.SpareInstances[zoneName];
 
     if (proxyRole.empty()) {
         YT_LOG_WARNING("Empty string assigned as proxy role name for bundle (Bundle: %v)",
@@ -382,7 +389,7 @@ void SetProxyRole(
 
         mutations->AlertsToFire.push_back({
             .Id = "invalid_proxy_role_value",
-            .Description = Format("Empty string assigned as proxy role name for bundle %v.",
+            .Description = Format("Empty string assigned as proxy role name for bundle %Qv.",
                 bundleName),
         });
         return;
@@ -406,12 +413,13 @@ void SetProxyRole(
         if (dataCentersToPopulate.count(dataCenterName) != 0) {
             AssignProxyRoleForDataCenter(
                 bundleName,
+                zoneName,
                 proxyRole,
                 dataCenterName,
                 perDataCenterProxyCount,
                 aliveProxies,
                 input,
-                spareProxies,
+                spareProxiesAllocator,
                 mutations);
         } else {
             ReleaseProxyRoleForDataCenter(
@@ -450,12 +458,13 @@ void InitializeZoneToSpareProxies(TSchedulerInputState& input, TSchedulerMutatio
 
         for (const auto& [dataCenterName, spareInfo] : perDCSpareInfo) {
             if (std::ssize(spareInfo.FreeProxies) == 0 && std::ssize(spareInfo.UsedByBundle) > 0) {
-                YT_LOG_WARNING("No free spare proxies available (Zone: %v)",
-                    zoneName);
+                YT_LOG_WARNING("No free spare proxies available (Zone: %v, DataCenter: %v)",
+                    zoneName,
+                    dataCenterName);
 
                 mutations->AlertsToFire.push_back({
                     .Id = "no_free_spare_proxies",
-                    .Description = Format("No free spare proxies available in zone: %v in datacenter: %v.",
+                    .Description = Format("No free spare proxies available in zone %Qv in datacenter %Qv.",
                         zoneName,
                         dataCenterName),
                 });
@@ -466,9 +475,14 @@ void InitializeZoneToSpareProxies(TSchedulerInputState& input, TSchedulerMutatio
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ManageRpcProxyRoles(TSchedulerInputState& input, TSchedulerMutations* mutations)
+void ManageRpcProxyRoles(
+    TSchedulerInputState& input,
+    TSpareInstanceAllocator<TSpareProxiesInfo>& spareProxiesAllocator,
+    TSchedulerMutations* mutations)
 {
     for (const auto& [bundleName, bundleInfo] : input.Bundles) {
+        auto guard = mutations->MakeBundleNameGuard(bundleName);
+
         if (!bundleInfo->EnableBundleController || !bundleInfo->EnableRpcProxyManagement) {
             continue;
         }
@@ -476,9 +490,8 @@ void ManageRpcProxyRoles(TSchedulerInputState& input, TSchedulerMutations* mutat
             continue;
         }
 
-        auto& spareProxies = input.ZoneToSpareProxies[bundleInfo->Zone];
         const auto& bundleProxies = input.BundleProxies[bundleName];
-        SetProxyRole(bundleName, bundleProxies, input, spareProxies, mutations);
+        SetProxyRole(bundleName, bundleProxies, input, spareProxiesAllocator, mutations);
     }
 }
 

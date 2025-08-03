@@ -137,7 +137,7 @@ int main(int argc, char** argv)
 
         }
 
-        if (!schema.GetStrict()) {
+        if (!schema.IsStrict()) {
             columnInfos.emplace_back();
             auto& columnInfo = columnInfos.back();
             columnInfo.Name = "== Other ==";

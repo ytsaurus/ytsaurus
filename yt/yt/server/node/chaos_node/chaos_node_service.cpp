@@ -5,7 +5,9 @@
 #include "private.h"
 #include "replication_card.h"
 #include "replication_card_collocation.h"
+#include "replication_card_serialization.h"
 
+#include <yt/yt/server/lib/chaos_node/config.h>
 #include <yt/yt/server/lib/chaos_node/replication_card_watcher_service_callbacks.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
@@ -65,6 +67,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveReplicationCard));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetReplicationCard));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(WatchReplicationCard));
+        // COMPAT(gryzlov-ad)
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FindReplicationCard));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterReplicationCard));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateTableReplica));
@@ -76,10 +79,22 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateReplicationCardCollocation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetReplicationCardCollocation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ForsakeCoordinator));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateChaosLease));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChaosLease));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PingChaosLease));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveChaosLease));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(FindChaosObject));
     }
 
 private:
     const IChaosSlotPtr Slot_;
+
+    struct TCachedCard
+    {
+        TCpuInstant Deadline;
+        NChaosClient::TReplicationCardPtr CachedCard;
+    };
+    THashMap<TReplicationCardId, TCachedCard> ReplicationCardCache_;
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GenerateReplicationCardId)
     {
@@ -110,7 +125,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, ForsakeCoordinator)
     {
-        auto coordinatorCellId = FromProto<TReplicationCardId>(request->coordinator_cell_id());
+        auto coordinatorCellId = FromProto<TCellId>(request->coordinator_cell_id());
 
         context->SetRequestInfo("CoordinatorCellId: %v",
             coordinatorCellId);
@@ -132,48 +147,125 @@ private:
 
         const auto& chaosManager = Slot_->GetChaosManager();
         auto* replicationCard = chaosManager->GetReplicationCardOrThrow(replicationCardId);
-
-        auto* protoReplicationCard = response->mutable_replication_card();
-        protoReplicationCard->set_era(replicationCard->GetEra());
-        ToProto(protoReplicationCard->mutable_table_id(), replicationCard->GetTableId());
-        protoReplicationCard->set_table_path(replicationCard->GetTablePath());
-        protoReplicationCard->set_table_cluster_name(replicationCard->GetTableClusterName());
-        protoReplicationCard->set_current_timestamp(replicationCard->GetCurrentTimestamp());
-
-        if (auto* collocation = replicationCard->GetCollocation()) {
-            ToProto(protoReplicationCard->mutable_replication_card_collocation_id(), collocation->GetId());
-        } else if (replicationCard->GetAwaitingCollocationId()) {
-            ToProto(protoReplicationCard->mutable_replication_card_collocation_id(), replicationCard->GetAwaitingCollocationId());
+        if (!fetchOptions.IncludeProgress) {
+            // Replication card is small without replication progress,
+            // so do not try to copy or validate the progress if progress was not requested.
+            ToProto(response->mutable_replication_card(), *replicationCard, fetchOptions);
+            context->SetResponseInfo("ReplicationCardId: %v",
+                replicationCardId);
+            context->Reply();
+            return;
         }
 
-        std::vector<TCellId> coordinators;
-        if (fetchOptions.IncludeCoordinators) {
-            for (const auto& [cellId, info] : replicationCard->Coordinators()) {
+        auto awaitingCollocationId = replicationCard->GetAwaitingCollocationId();
+
+        auto isSame = [] (const auto& cachedCard, const auto& replicationCard) {
+            if (cachedCard->Era != replicationCard->GetEra()) {
+                return false;
+            }
+
+            auto collocationId = replicationCard->GetCollocation()
+                ? replicationCard->GetCollocation()->GetId()
+                : TReplicationCardCollocationId();
+
+            if (cachedCard->ReplicationCardCollocationId != collocationId) {
+                return false;
+            }
+
+            int grantedCoordinatorsCount = 0;
+            for (const auto& [_, info] : replicationCard->Coordinators()) {
                 if (info.State == EShortcutState::Granted) {
-                    coordinators.push_back(cellId);
+                    ++grantedCoordinatorsCount;
                 }
             }
-            ToProto(protoReplicationCard->mutable_coordinator_cell_ids(), coordinators);
+
+            if (std::ssize(cachedCard->CoordinatorCellIds) != grantedCoordinatorsCount) {
+                return false;
+            }
+
+            if (cachedCard->ReplicatedTableOptions != replicationCard->GetReplicatedTableOptions()) {
+                return false;
+            }
+
+            for (const auto& [replicaId, cachedInfo] : cachedCard->Replicas) {
+                auto it = replicationCard->Replicas().find(replicaId);
+                if (!it ||
+                    cachedInfo.State != it->second.State ||
+                    cachedInfo.Mode != it->second.Mode ||
+                    cachedInfo.EnableReplicatedTableTracker != it->second.EnableReplicatedTableTracker)
+                {
+                    return false;
+                }
+
+                // TODO(savrus): This is computationally-intensive, remove or cache.
+                if (GetReplicationProgressMinTimestamp(cachedInfo.ReplicationProgress) < GetReplicationProgressMinTimestamp(it->second.ReplicationProgress)) {
+                    return false;
+                }
+            }
+
+            return true;
+        };
+
+        NChaosClient::TReplicationCardPtr replicationCardCopy;
+        auto cached = ReplicationCardCache_.find(replicationCardId);
+        if (!cached || cached->second.Deadline < GetCpuInstant() || !isSame(cached->second.CachedCard, replicationCard))
+        {
+            auto options = TReplicationCardFetchOptions{
+                .IncludeCoordinators = true,
+                .IncludeProgress = true,
+                .IncludeHistory = true,
+                .IncludeReplicatedTableOptions = true
+            };
+
+            replicationCardCopy = replicationCard->ConvertToClientCard(options);
+            ReplicationCardCache_[replicationCardId] = TCachedCard{
+                .Deadline = GetCpuInstant() +
+                    DurationToCpuDuration(Slot_->GetDynamicConfig()->ReplicationCardAutomatonCacheExpirationTime),
+                .CachedCard = replicationCardCopy
+            };
+        } else {
+            replicationCardCopy = cached->second.CachedCard;
         }
 
-        for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas()) {
-            auto* protoEntry = protoReplicationCard->add_replicas();
-            ToProto(protoEntry->mutable_id(), replicaId);
-            ToProto(protoEntry->mutable_info(), replicaInfo, fetchOptions);
-        }
+        const auto& invoker = Slot_->GetSnapshotStoreReadPoolInvoker();
+        auto callback = BIND([context, response, replicationCard = std::move(replicationCardCopy), fetchOptions, awaitingCollocationId] {
+            auto* protoReplicationCard = response->mutable_replication_card();
+            ToProto(protoReplicationCard, *replicationCard, fetchOptions);
+            if (!replicationCard->ReplicationCardCollocationId && awaitingCollocationId) {
+                ToProto(protoReplicationCard->mutable_replication_card_collocation_id(), awaitingCollocationId);
+            }
+        }).AsyncVia(invoker);
 
-        if (fetchOptions.IncludeReplicatedTableOptions) {
-            protoReplicationCard->set_replicated_table_options(ConvertToYsonString(replicationCard->GetReplicatedTableOptions()).ToString());
-        }
-
-        context->SetResponseInfo("ReplicationCardId: %v, CoordinatorCellIds: %v, ReplicationCard: %v",
-            replicationCardId,
-            coordinators,
-            *replicationCard);
-
-        context->Reply();
+        context->ReplyFrom(callback());
     }
 
+    void DoFindChaosObject(TChaosObjectId chaosObjectId)
+    {
+        const auto& chaosManager = Slot_->GetChaosManager();
+
+        switch (TypeFromId(chaosObjectId)) {
+            case EObjectType::ReplicationCard: {
+                auto* replicationCard = chaosManager->GetReplicationCardOrThrow(chaosObjectId);
+                Y_UNUSED(replicationCard);
+                break;
+            }
+            case EObjectType::ReplicationCardCollocation: {
+                auto* collocation = chaosManager->GetReplicationCardCollocationOrThrow(chaosObjectId);
+                Y_UNUSED(collocation);
+                break;
+            }
+            case EObjectType::ChaosLease: {
+                auto* chaosLease = chaosManager->GetChaosLeaseOrThrow(chaosObjectId);
+                Y_UNUSED(chaosLease);
+                break;
+            }
+            default:
+                THROW_ERROR_EXCEPTION("Unsupported object type: %v",
+                    TypeFromId(chaosObjectId));
+        }
+    }
+
+    // COMPAT(gryzlov-ad)
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, FindReplicationCard)
     {
         SyncWithUpstream();
@@ -184,23 +276,22 @@ private:
             objectId,
             TypeFromId(objectId));
 
-        const auto& chaosManager = Slot_->GetChaosManager();
+        DoFindChaosObject(objectId);
 
-        switch (TypeFromId(objectId)) {
-            case EObjectType::ReplicationCard: {
-                auto* replicationCard = chaosManager->GetReplicationCardOrThrow(objectId);
-                Y_UNUSED(replicationCard);
-                break;
-            }
-            case EObjectType::ReplicationCardCollocation: {
-                auto* collocation = chaosManager->GetReplicationCardCollocationOrThrow(objectId);
-                Y_UNUSED(collocation);
-                break;
-            }
-            default:
-                THROW_ERROR_EXCEPTION("Unsupported object type: %v",
-                    TypeFromId(objectId));
-        }
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, FindChaosObject)
+    {
+        SyncWithUpstream();
+
+        auto objectId = FromProto<TChaosObjectId>(request->chaos_object_id());
+
+        context->SetRequestInfo("ChaosObjectId: %v, Type: %v",
+            objectId,
+            TypeFromId(objectId));
+
+        DoFindChaosObject(objectId);
 
         context->Reply();
     }
@@ -253,12 +344,16 @@ private:
             ? std::make_optional(request->replica_path())
             : std::nullopt;
 
-        context->SetRequestInfo("ReplicationCardId: %v, ReplicaId: %v, Mode: %v, Enabled: %v, ReplicaPath: %v",
+        bool force = request->force();
+
+        context->SetRequestInfo(
+            "ReplicationCardId: %v, ReplicaId: %v, Mode: %v, Enabled: %v, ReplicaPath: %v, Force: %v",
             replicationCardId,
             replicaId,
             mode,
             enabled,
-            replicaPath);
+            replicaPath,
+            force);
 
         const auto& chaosManager = Slot_->GetChaosManager();
         chaosManager->AlterTableReplica(std::move(context));
@@ -359,6 +454,57 @@ private:
             replicationCardId,
             cacheTimestamp,
             CreateReplicationCardWatcherCallbacks(std::move(context)));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, CreateChaosLease)
+    {
+        context->SetRequestInfo();
+
+        const auto& chaosManager = Slot_->GetChaosManager();
+        chaosManager->CreateChaosLease(std::move(context));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetChaosLease)
+    {
+        auto chaosLeaseId = FromProto<TChaosLeaseId>(request->chaos_lease_id());
+
+        context->SetRequestInfo("ChaosLeaseId: %v",
+            chaosLeaseId);
+
+        const auto& chaosManager = Slot_->GetChaosManager();
+        auto* chaosLease = chaosManager->GetChaosLeaseOrThrow(chaosLeaseId);
+
+        auto* protoChaosLease = response->mutable_chaos_lease();
+        Y_UNUSED(chaosLease, protoChaosLease);
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, PingChaosLease)
+    {
+        // TODO(gryzlov-ad): Support pings for chaos leases.
+        auto chaosLeaseId = FromProto<TChaosLeaseId>(request->chaos_lease_id());
+
+        context->SetRequestInfo("ChaosLeaseId: %v",
+            chaosLeaseId);
+
+        const auto& chaosManager = Slot_->GetChaosManager();
+        auto* chaosLease = chaosManager->GetChaosLeaseOrThrow(chaosLeaseId);
+
+        Y_UNUSED(chaosLease);
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, RemoveChaosLease)
+    {
+        auto chaosLeaseId = FromProto<TChaosLeaseId>(request->chaos_lease_id());
+
+        context->SetRequestInfo("ChaosLeaseId: %v",
+            chaosLeaseId);
+
+        const auto& chaosManager = Slot_->GetChaosManager();
+        chaosManager->RemoveChaosLease(std::move(context));
     }
 };
 

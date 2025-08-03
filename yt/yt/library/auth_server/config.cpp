@@ -111,6 +111,9 @@ void TOAuthAuthenticatorConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("create_user_if_not_exists", &TThis::CreateUserIfNotExists)
         .Default(true);
+
+    registrar.Parameter("default_user_tags", &TThis::DefaultUserTags)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -127,6 +130,15 @@ void TCachingOAuthTokenAuthenticatorConfig::Register(TRegistrar /*registrar*/)
 
 void TBlackboxCookieAuthenticatorConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("enable_sessguard", &TThis::EnableSessguard)
+        .Default(false);
+
+    registrar.Parameter("sessguard_origin_patterns", &TThis::SessguardOriginPatterns)
+        .Default();
+
+    registrar.Parameter("sessguard_origin_cache_size", &TThis::SessguardOriginCacheSize)
+        .Default(4_KB);
+
     registrar.Parameter("domain", &TThis::Domain)
         .Default("yt.yandex-team.ru");
 
@@ -203,6 +215,28 @@ void TOAuthServiceConfig::Register(TRegistrar registrar)
 
 void TCypressUserManagerConfig::Register(TRegistrar /*registrar*/)
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TUserExistenceCheckCacheConfig::Register(TRegistrar registrar)
+{
+    // We register parameters with names reflecting both, TAuthCache and TAsyncExpiringCache.
+    registrar.Parameter("expire_after_successful_update_time", &TThis::ExpireAfterSuccessfulUpdateTime)
+        .Alias("cache_ttl")
+        .Default(TDuration::Minutes(1));
+
+    registrar.Parameter("expire_after_access_time", &TThis::ExpireAfterAccessTime)
+        .Alias("optimistic_cache_ttl")
+        .Default(TDuration::Minutes(10));
+}
+
+TAsyncExpiringCacheConfigPtr TUserExistenceCheckCacheConfig::ToAsyncExpiringCacheConfig() const
+{
+    auto config = New<TAsyncExpiringCacheConfig>();
+    config->ExpireAfterAccessTime = ExpireAfterAccessTime;
+    config->ExpireAfterSuccessfulUpdateTime = ExpireAfterSuccessfulUpdateTime;
+    return config;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -346,6 +380,39 @@ void TCypressCookieManagerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TYCIAMTokenAuthenticatorConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("retrying_client",  &TThis::RetryingClient)
+        .DefaultNew();
+    registrar.Parameter("http_client",  &TThis::HttpClient)
+        .DefaultNew();
+
+    registrar.Parameter("host", &TThis::Host)
+        .NonEmpty();
+    registrar.Parameter("port", &TThis::Port)
+        .Default(80);
+    registrar.Parameter("secure", &TThis::Secure)
+        .Default(false);
+
+    registrar.Parameter("check_user_exists", &TThis::CheckUserExists)
+        .Default(true);
+    registrar.Parameter("create_user_if_not_exists", &TThis::CreateUserIfNotExists)
+        .Default(true);
+
+    registrar.Parameter("default_user_tags", &TThis::DefaultUserTags)
+        .Default({"iam_user"});
+
+    registrar.Parameter("retry_all_server_errors", &TThis::RetryAllServerErrors)
+        .Default(true);
+    registrar.Parameter("retry_status_codes", &TThis::RetryStatusCodes)
+        .Default();
+
+    registrar.Parameter("authenticate_login_field", &TThis::AuthenticateLoginField)
+        .Default("subject");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TString TAuthenticationManagerConfig::GetCsrfSecret() const
 {
     if (BlackboxCookieAuthenticator &&
@@ -394,6 +461,8 @@ void TAuthenticationManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("oauth_token_authenticator", &TThis::OAuthTokenAuthenticator)
         .Optional();
     registrar.Parameter("oauth_service", &TThis::OAuthService)
+        .Optional();
+    registrar.Parameter("yc_iam_token_authenticator", &TThis::YCIAMTokenAuthenticator)
         .Optional();
     registrar.Parameter("cypress_user_manager", &TThis::CypressUserManager)
         .Optional();

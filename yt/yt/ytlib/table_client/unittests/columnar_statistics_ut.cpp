@@ -40,7 +40,8 @@ protected:
         EChunkFormat chunkFormat = EChunkFormat::TableUnversionedSchemalessHorizontal,
         i64 compressedDatasize = 10_MB,
         i64 uncompressedDataSize = 10_MB,
-        i64 rowCount = 1000)
+        i64 rowCount = 1000,
+        i64 additionalDataWeight = 0)
     {
         YT_VERIFY(columnDataWeights.size() == columnNames.size());
 
@@ -63,7 +64,8 @@ protected:
             std::accumulate(
                 columnDataWeights.begin(),
                 columnDataWeights.end(),
-                0LL));
+                0LL) +
+            additionalDataWeight);
         miscExt.set_row_count(rowCount);
 
         SetProtoExtension(chunkMeta->mutable_extensions(), miscExt);
@@ -210,7 +212,9 @@ TEST_F(TColumnarStatisticsTest, ColumnarChunkNonStrictSchemaNoGroups)
         {"small", "large1", "large2"},
         /*chunkFormat*/ EChunkFormat::TableUnversionedColumnar,
         /*compressedDatasize*/ 10_MB,
-        /*uncompressedDataSize*/ 120_MB);
+        /*uncompressedDataSize*/ 120_MB,
+        /*rowCount*/ 1000,
+        /*additionalDataWeight*/ 20_MB);
 
     EXPECT_NEAR(EstimateReadDataSize({"small"}), 512_KB, 128_KB);
     EXPECT_NEAR(EstimateReadDataSize({"large1"}), 1_MB, 256_KB);
@@ -297,7 +301,7 @@ TEST_F(TColumnarStatisticsTest, ColumnarChunkStrictSchemaWithGroups)
         128_KB);
 }
 
-TEST_F(TColumnarStatisticsTest, ColumnarChunkNonStrictSchemaWithGroups)
+TEST_F(TColumnarStatisticsTest, ColumnarChunkNonStrictSchemaWithGroups1)
 {
     TableSchema_ = New<TTableSchema>(
         std::vector{
@@ -312,7 +316,9 @@ TEST_F(TColumnarStatisticsTest, ColumnarChunkNonStrictSchemaWithGroups)
         {"small", "large1", "large2"},
         /*chunkFormat*/ EChunkFormat::TableUnversionedColumnar,
         /*compressedDatasize*/ 12_MB,
-        /*uncompressedDataSize*/ 120_MB);
+        /*uncompressedDataSize*/ 120_MB,
+        /*rowCount*/ 1000,
+        /*additionalDataWeight*/ 20_MB);
 
     EXPECT_NEAR(EstimateReadDataSize({"small"}), 9_MB, 512_KB);
     EXPECT_NEAR(EstimateReadDataSize({"large1"}), 1_MB, 128_KB);
@@ -347,6 +353,33 @@ TEST_F(TColumnarStatisticsTest, ColumnarChunkNonStrictSchemaWithGroups)
     EXPECT_GT(
         EstimateReadDataSize({"small", "large1", "large2", "unknown1"}),
         EstimateReadDataSize({"small", "large2", "unknown1", "unknown2"}));
+}
+
+TEST_F(TColumnarStatisticsTest, ColumnarChunkNonStrictSchemaNoGroups2)
+{
+    TableSchema_ = New<TTableSchema>(
+        std::vector{
+            TColumnSchema("small", EValueType::Int64),
+            TColumnSchema("large1", EValueType::String),
+            TColumnSchema("large2", EValueType::String),
+        },
+        /*strict*/ false);
+
+    Chunk_ = CreateChunk(
+        {100_MB, 500_MB, 500_MB},
+        {"small", "large1", "large2"},
+        /*chunkFormat*/ EChunkFormat::TableUnversionedColumnar,
+        /*compressedDatasize*/ 520_MB,
+        /*uncompressedDataSize*/ 120_MB,
+        /*rowCount*/ 1000,
+        /*additionalDataWeight*/ 50_MB);
+
+    EXPECT_NEAR(EstimateReadDataSize({"small"}), 50_MB, 5_MB);
+    EXPECT_NEAR(EstimateReadDataSize({"large1"}), 215_MB, 15_MB);
+    EXPECT_NEAR(EstimateReadDataSize({"large2"}), 215_MB, 15_MB);
+    EXPECT_NEAR(EstimateReadDataSize({"unknown1"}), 25_MB, 5_MB);
+
+    EXPECT_EQ(EstimateReadDataSize({"unknown1"}), EstimateReadDataSize({"unknown2", "unknown3"}));
 }
 
 TEST_F(TColumnarStatisticsTest, HorizontalChunkNonStrict)

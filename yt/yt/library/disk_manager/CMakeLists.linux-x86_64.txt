@@ -20,6 +20,9 @@ add_library(yt-library-disk_manager)
 target_compile_options(yt-library-disk_manager PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(yt-library-disk_manager PUBLIC
@@ -33,7 +36,7 @@ target_link_libraries(yt-library-disk_manager PUBLIC
 target_sources(yt-library-disk_manager PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/disk_manager/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/disk_manager/disk_info_provider.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/disk_manager/disk_manager_proxy_stub.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/disk_manager/hotswap_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/disk_manager/disk_manager_proxy_stub.cpp
 )
 

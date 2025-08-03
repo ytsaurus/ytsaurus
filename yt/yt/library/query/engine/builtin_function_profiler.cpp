@@ -1356,7 +1356,7 @@ public:
     void RegisterAggregate(
         const std::string& aggregateName,
         std::unordered_map<TTypeParameter, TUnionType> /*typeParameterConstraints*/,
-        TType /*argumentType*/,
+        std::vector<TType> /*argumentTypes*/,
         TType /*resultType*/,
         TType /*stateType*/,
         TStringBuf implementationFile,
@@ -1458,6 +1458,13 @@ TConstAggregateProfilerMapPtr CreateBuiltinAggregateProfilers()
     for (const auto& name : {"argmin", "argmax", "avg"}) {
         result->emplace(name, New<NBuiltins::TComplexAggregateCodegen>(name));
     }
+
+    result->emplace("array_agg", New<TExternalAggregateCodegen>(
+        "array_agg",
+        UDF_BC("array_agg"),
+        ECallingConvention::UnversionedValue,
+        false,
+        TSharedRef()));
 
     TProfilerFunctionRegistryBuilder builder{nullptr, result.Get()};
     RegisterBuiltinFunctions(&builder);

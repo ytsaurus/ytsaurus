@@ -1,23 +1,24 @@
 #include "tablet.h"
 
 #include "automaton.h"
-#include "compression_dictionary_manager.h"
 #include "bootstrap.h"
+#include "config.h"
+#include "compression_dictionary_manager.h"
 #include "distributed_throttler_manager.h"
+#include "hedging_manager_registry.h"
+#include "hunk_chunk.h"
+#include "hunk_lock_manager.h"
 #include "partition.h"
+#include "serialize.h"
 #include "sorted_chunk_store.h"
 #include "sorted_dynamic_store.h"
 #include "store_manager.h"
 #include "structured_logger.h"
 #include "tablet_manager.h"
-#include "tablet_snapshot_store.h"
-#include "tablet_slot.h"
 #include "tablet_profiling.h"
+#include "tablet_slot.h"
+#include "tablet_snapshot_store.h"
 #include "transaction_manager.h"
-#include "hunk_chunk.h"
-#include "hunk_lock_manager.h"
-#include "hedging_manager_registry.h"
-#include "serialize.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -25,33 +26,31 @@
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
+
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 
-#include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
+#include <yt/yt/client/chaos_client/helpers.h>
+
+#include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
+
+#include <yt/yt/ytlib/hive/cell_directory.h>
+
+#include <yt/yt/ytlib/table_client/helpers.h>
+
+#include <yt/yt/ytlib/tablet_client/config.h>
+
+#include <yt/yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/yt/client/table_client/schema.h>
-
 #include <yt/yt/client/table_client/wire_protocol.h>
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/yt/client/chaos_client/helpers.h>
-
-#include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
-
-#include <yt/yt/ytlib/tablet_client/config.h>
-
-#include <yt/yt/ytlib/transaction_client/helpers.h>
-
-#include <yt/yt/library/query/engine_api/column_evaluator.h>
-
-#include <yt/yt/ytlib/table_client/helpers.h>
-
-#include <yt/yt/ytlib/hive/cell_directory.h>
+#include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>
 
@@ -63,6 +62,8 @@
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/serialize.h>
 #include <yt/yt/core/misc/tls_cache.h>
+
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
 
 namespace NYT::NTabletNode {
 
@@ -89,7 +90,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletNodeLogger;
+constinit const auto Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -182,6 +183,16 @@ TRefCountedReplicationProgress& TRefCountedReplicationProgress::operator=(
 {
     TReplicationProgress::operator=(std::move(progress));
     return *this;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TRuntimeSmoothMovementData::Reset()
+{
+    Role.store(ESmoothMovementRole::None);
+    IsActiveServant.store(true);
+    SiblingServantCellId.Store(NullObjectId);
+    SiblingServantMountRevision.store(TRevision{});
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -326,7 +337,16 @@ void TTabletSnapshot::ValidateServantIsActive(const ICellDirectoryPtr& cellDirec
         auto siblingCellId = smoothMovementData.SiblingServantCellId.Load();
         auto siblingMountRevision = smoothMovementData.SiblingServantMountRevision.load();
 
-        if (siblingCellId && siblingMountRevision) {
+        if (!siblingCellId || !siblingMountRevision) {
+            // This may happen if movement finishes concurrently with the request.
+            if (smoothMovementData.IsActiveServant.load()) {
+                return;
+            } else {
+                THROW_ERROR error;
+            }
+        }
+
+        if (smoothMovementData.Role.load() == ESmoothMovementRole::Source) {
             error <<= TErrorAttribute("sibling_servant_cell_id", siblingCellId);
             error <<= TErrorAttribute("sibling_servant_mount_revision", siblingMountRevision);
 
@@ -348,6 +368,14 @@ void TTabletSnapshot::ValidateServantIsActive(const ICellDirectoryPtr& cellDirec
                 .ThrowOnError();
             YT_LOG_DEBUG("Finished waiting for target servant activation future (%v)",
                 LoggingTag);
+
+            // Not a YT_VERIFY since the violation of this condition is not critical
+            // and should not fail the process.
+            YT_ASSERT(smoothMovementData.IsActiveServant.load());
+        }
+
+        if (!smoothMovementData.IsActiveServant.load()) {
+            THROW_ERROR error;
         }
     }
 }
@@ -747,9 +775,11 @@ TTablet::TTablet(
     TTableReplicaId upstreamReplicaId,
     TTimestamp retainedTimestamp,
     i64 cumulativeDataWeight,
-    ETabletTransactionSerializationType serializationType)
+    ETabletTransactionSerializationType serializationType,
+    TInstant mountTime)
     : TObjectBase(tabletId)
     , MountRevision_(mountRevision)
+    , MountTime_(mountTime)
     , TableId_(tableId)
     , TablePath_(path)
     , SchemaId_(schemaId)
@@ -855,6 +885,7 @@ void TTablet::Save(TSaveContext& context) const
 
     Save(context, TableId_);
     Save(context, MountRevision_);
+    Save(context, MountTime_);
     Save(context, TablePath_);
     Save(context, MasterAvenueEndpointId_);
     Save(context, GetPersistentState());
@@ -906,11 +937,12 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, DynamicStoreIdRequested_);
     Save(context, ReservedDynamicStoreIdCount_);
     Save(context, SchemaId_);
+    Save(context, RuntimeData_->ReplicationEra.load());
     TNullableIntrusivePtrSerializer<>::Save(context, RuntimeData_->ReplicationProgress.Acquire());
     Save(context, ChaosData_->ReplicationRound);
     Save(context, ChaosData_->CurrentReplicationRowIndexes.Load());
-    Save(context, ChaosData_->PreparedWritePulledRowsTransactionId);
-    Save(context, ChaosData_->PreparedAdvanceReplicationProgressTransactionId);
+    Save(context, ChaosData_->PreparedWritePulledRowsTransactionId.Load());
+    Save(context, ChaosData_->PreparedAdvanceReplicationProgressTransactionId.Load());
     Save(context, BackupMetadata_);
     Save(context, *TabletWriteManager_);
     Save(context, LastDiscardStoresRevision_);
@@ -932,6 +964,12 @@ void TTablet::Load(TLoadContext& context)
 
     Load(context, TableId_);
     Load(context, MountRevision_);
+
+    // COMPAT(alexelexa)
+    if (context.GetVersion() >= ETabletReign::AddTabletMountTime) {
+        Load(context, MountTime_);
+    }
+
     Load(context, TablePath_);
     Load(context, MasterAvenueEndpointId_);
     Load(context, State_);
@@ -1067,47 +1105,45 @@ void TTablet::Load(TLoadContext& context)
 
     Load(context, SchemaId_);
 
+    // COMPAT(osidorkin)
+    if ((context.GetVersion() >= ETabletReign::ChaosReplicationEraIsPersistent) ||
+        (context.GetVersion() < ETabletReign::Start_25_2 &&
+            context.GetVersion() >= ETabletReign::ChaosReplicationEraIsPersistent_25_1)) {
+        RuntimeData_->ReplicationEra.store(Load<TReplicationEra>(context));
+    }
+
     TRefCountedReplicationProgressPtr replicationProgress;
     TNullableIntrusivePtrSerializer<>::Load(context, replicationProgress);
     RuntimeData_->ReplicationProgress.Store(std::move(replicationProgress));
     Load(context, ChaosData_->ReplicationRound);
     ChaosData_->CurrentReplicationRowIndexes.Store(Load<THashMap<TTabletId, i64>>(context));
 
-    Load(context, ChaosData_->PreparedWritePulledRowsTransactionId);
-    Load(context, ChaosData_->PreparedAdvanceReplicationProgressTransactionId);
+    ChaosData_->PreparedWritePulledRowsTransactionId.Store(Load<TTransactionId>(context));
+    ChaosData_->PreparedAdvanceReplicationProgressTransactionId.Store(Load<TTransactionId>(context));
 
     Load(context, BackupMetadata_);
 
     TabletWriteManager_->Load(context);
 
     Load(context, LastDiscardStoresRevision_);
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= ETabletReign::SmoothTabletMovement) {
-        Load(context, StoresUpdatePreparedTransactionId_);
-    }
+    Load(context, StoresUpdatePreparedTransactionId_);
     Load(context, PreparedReplicatorTransactionIds_);
 
     Load(context, IdGenerator_);
 
-    // COMPAT(akozhikhov)
-    if (context.GetVersion() >= ETabletReign::ValueDictionaryCompression) {
-        Load(context, CompressionDictionaryInfos_);
-        for (auto policy : TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues()) {
-            auto chunkId = CompressionDictionaryInfos_[policy].ChunkId;
-            if (!chunkId) {
-                continue;
-            }
-            auto dictionaryHunkChunk = GetHunkChunk(chunkId);
-            YT_VERIFY(!dictionaryHunkChunk->IsAttachedCompressionDictionary());
-            dictionaryHunkChunk->SetAttachedCompressionDictionary(true);
-            UpdateDanglingHunkChunks(dictionaryHunkChunk);
+    Load(context, CompressionDictionaryInfos_);
+    for (auto policy : TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues()) {
+        auto chunkId = CompressionDictionaryInfos_[policy].ChunkId;
+        if (!chunkId) {
+            continue;
         }
+        auto dictionaryHunkChunk = GetHunkChunk(chunkId);
+        YT_VERIFY(!dictionaryHunkChunk->IsAttachedCompressionDictionary());
+        dictionaryHunkChunk->SetAttachedCompressionDictionary(true);
+        UpdateDanglingHunkChunks(dictionaryHunkChunk);
     }
 
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= ETabletReign::SmoothTabletMovement) {
-        Load(context, SmoothMovementData_);
-    }
+    Load(context, SmoothMovementData_);
 
     // COMPAT(gryzlov-ad)
     if (context.GetVersion() >= ETabletReign::AddTabletCustomRuntimeData) {
@@ -1124,17 +1160,16 @@ void TTablet::Load(TLoadContext& context)
     UpdateOverlappingStoreCount();
     DynamicStoreCount_ = ComputeDynamicStoreCount();
 
-    if (IsActiveServant()) {
-        RuntimeData_->SmoothMovementData.IsActiveServant.store(true);
-    } else {
-        RuntimeData_->SmoothMovementData.IsActiveServant.store(false);
+    if (SmoothMovementData_.GetRole() != ESmoothMovementRole::None) {
+        auto& runtimeData = RuntimeData_->SmoothMovementData;
+        runtimeData.SiblingServantMountRevision.store(
+            SmoothMovementData_.GetSiblingMountRevision());
+        runtimeData.SiblingServantCellId.Store(
+            SmoothMovementData_.GetSiblingCellId());
+        runtimeData.Role.store(SmoothMovementData_.GetRole());
+        RuntimeData_->SmoothMovementData.IsActiveServant.store(IsActiveServant());
 
-        if (SmoothMovementData_.GetRole() == ESmoothMovementRole::Source) {
-            RuntimeData_->SmoothMovementData.SiblingServantMountRevision.store(
-                SmoothMovementData_.GetSiblingMountRevision());
-            RuntimeData_->SmoothMovementData.SiblingServantCellId.Store(
-                SmoothMovementData_.GetSiblingCellId());
-        } else {
+        if (SmoothMovementData_.GetRole() == ESmoothMovementRole::Target) {
             InitializeTargetServantActivationFuture();
         }
     }
@@ -1227,15 +1262,6 @@ void TTablet::AsyncLoad(TLoadContext& context)
     Load(context, *Settings_.StoreWriterOptions);
     Load(context, *Settings_.HunkWriterConfig);
     Load(context, *Settings_.HunkWriterOptions);
-
-    // COMPAT(osidorkin)
-    if (context.GetVersion() < ETabletReign::ChunkReplicaAlwaysPrecache) {
-        const auto& mountConfig = Settings_.MountConfig;
-        if (!mountConfig->PrecacheChunkReplicasOnMount && !mountConfig->RegisterChunkReplicasOnStoresUpdate) {
-            mountConfig->PrecacheChunkReplicasOnMount = true;
-            mountConfig->RegisterChunkReplicasOnStoresUpdate = true;
-        }
-    }
 
     auto& providedSettings = RawSettings_.Provided;
 
@@ -1900,6 +1926,8 @@ void TTablet::StopEpoch()
         CancelableContext_.Reset();
     }
 
+    ChaosData_->IsTrimInProgress.store(false);
+
     std::fill(EpochAutomatonInvokers_.begin(), EpochAutomatonInvokers_.end(), GetNullInvoker());
 
     SetState(GetPersistentState());
@@ -1971,45 +1999,16 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
     snapshot->DistributedThrottlers = DistributedThrottlers_;
     snapshot->HedgingManagerRegistry = HedgingManagerRegistry_;
     snapshot->CompressionDictionaryInfos = CompressionDictionaryInfos_;
-
-    auto addStoreStatistics = [&] (const IStorePtr& store) {
-        if (store->IsChunk()) {
-            auto chunkStore = store->AsChunk();
-
-            auto preloadState = chunkStore->GetPreloadState();
-            switch (preloadState) {
-                case EStorePreloadState::Scheduled:
-                case EStorePreloadState::Running:
-                    if (chunkStore->IsPreloadAllowed()) {
-                        ++snapshot->PreloadPendingStoreCount;
-                    } else {
-                        ++snapshot->PreloadFailedStoreCount;
-                    }
-                    break;
-                case EStorePreloadState::Complete:
-                    ++snapshot->PreloadCompletedStoreCount;
-                    break;
-                default:
-                    break;
-            }
-        }
-    };
-
-    auto addPartitionStatistics = [&] (const TPartitionSnapshotPtr& partitionSnapshot) {
-        for (const auto& store : partitionSnapshot->Stores) {
-            addStoreStatistics(store);
-        }
-    };
+    snapshot->OrderedDynamicStoreRotateEpoch = RuntimeData_->OrderedDynamicStoreRotateEpoch.load();
+    snapshot->CommitOrdering = CommitOrdering_;
 
     snapshot->Eden = Eden_->BuildSnapshot();
-    addPartitionStatistics(snapshot->Eden);
     snapshot->ActiveStore = ActiveStore_;
 
     snapshot->PartitionList.reserve(PartitionList_.size());
     for (const auto& partition : PartitionList_) {
         auto partitionSnapshot = partition->BuildSnapshot();
         snapshot->PartitionList.push_back(partitionSnapshot);
-        addPartitionStatistics(partitionSnapshot);
     }
 
     if (IsPhysicallyOrdered()) {
@@ -2017,11 +2016,15 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
         snapshot->OrderedStores.reserve(StoreRowIndexMap_.size());
         for (const auto& [_, store] : StoreRowIndexMap_) {
             snapshot->OrderedStores.push_back(store);
-            addStoreStatistics(store);
         }
 
         snapshot->TotalRowCount = GetTotalRowCount();
     }
+
+    auto preloadStatistics = ComputePreloadStatistics();
+    snapshot->PreloadPendingStoreCount = preloadStatistics.PendingStoreCount;
+    snapshot->PreloadCompletedStoreCount = preloadStatistics.CompletedStoreCount;
+    snapshot->PreloadFailedStoreCount = preloadStatistics.FailedStoreCount;
 
     if (IsPhysicallySorted() && StoreManager_) {
         auto lockedStores = StoreManager_->GetLockedStores();
@@ -2354,7 +2357,7 @@ const std::string& TTablet::GetLoggingTag() const
     return LoggingTag_;
 }
 
-std::optional<TString> TTablet::GetPoolTagByMemoryCategory(EMemoryCategory category) const
+std::optional<std::string> TTablet::GetPoolTagByMemoryCategory(EMemoryCategory category) const
 {
     if (category == EMemoryCategory::TabletDynamic) {
         return Context_->GetTabletCellBundleName();
@@ -2989,6 +2992,54 @@ void TTablet::InitializeTargetServantActivationFuture()
 bool TTablet::IsVersionedWriteUnversioned() const
 {
     return !IsPhysicallyLog() && !IsPhysicallySorted();
+}
+
+TPreloadStatistics TTablet::ComputePreloadStatistics() const
+{
+    TPreloadStatistics result;
+
+    auto addStoreStatistics = [&] (const IStorePtr& store) {
+        if (store->IsChunk()) {
+            auto chunkStore = store->AsChunk();
+
+            auto preloadState = chunkStore->GetPreloadState();
+            switch (preloadState) {
+                case EStorePreloadState::Scheduled:
+                case EStorePreloadState::Running:
+                    if (chunkStore->IsPreloadAllowed()) {
+                        ++result.PendingStoreCount;
+                    } else {
+                        ++result.FailedStoreCount;
+                    }
+                    break;
+                case EStorePreloadState::Complete:
+                    ++result.CompletedStoreCount;
+                    break;
+                default:
+                    break;
+            }
+        }
+    };
+
+    auto addPartitionStatistics = [&] (const TPartition* partition) {
+        for (const auto& store : partition->Stores()) {
+            addStoreStatistics(store);
+        }
+    };
+
+    addPartitionStatistics(Eden_.get());
+
+    for (const auto& partition : PartitionList_) {
+        addPartitionStatistics(partition.get());
+    }
+
+    if (IsPhysicallyOrdered()) {
+        for (const auto& [_, store] : StoreRowIndexMap_) {
+            addStoreStatistics(store);
+        }
+    }
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

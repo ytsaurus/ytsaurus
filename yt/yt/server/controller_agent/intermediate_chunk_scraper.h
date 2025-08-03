@@ -22,15 +22,15 @@ class TIntermediateChunkScraper
 {
 public:
     TIntermediateChunkScraper(
-        const TIntermediateChunkScraperConfigPtr& config,
-        const IInvokerPtr& invoker,
-        const IInvokerPoolPtr& invokerPool,
-        const IInvokerPtr& scraperInvoker,
-        const NChunkClient::TThrottlerManagerPtr& throttlerManager,
-        const NApi::NNative::IClientPtr& client,
-        const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
+        TIntermediateChunkScraperConfigPtr config,
+        IInvokerPtr invoker,
+        IInvokerPoolPtr invokerPool,
+        IInvokerPtr scraperInvoker,
+        NChunkClient::TThrottlerManagerPtr throttlerManager,
+        NApi::NNative::IClientPtr client,
+        NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         TGetChunksCallback getChunksCallback,
-        NChunkClient::TChunkLocatedHandler onChunkLocated,
+        NChunkClient::TChunkBatchLocatedHandler onChunkLocated,
         const NLogging::TLogger& logger);
 
     void Start();
@@ -47,7 +47,7 @@ private:
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
 
     const TGetChunksCallback GetChunksCallback_;
-    const NChunkClient::TChunkLocatedHandler OnChunkLocated_;
+    const NChunkClient::TChunkBatchLocatedHandler OnChunkBatchLocated_;
 
     NChunkClient::TChunkScraperPtr ChunkScraper_;
 

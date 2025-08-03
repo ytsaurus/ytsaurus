@@ -9,6 +9,7 @@ import (
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/yt/go/guid"
+	"go.ytsaurus.tech/yt/go/schema"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
@@ -31,6 +32,8 @@ type Call struct {
 	YSONValue    []byte
 	RowBatch     yt.RowBatch
 	WriteRspChan chan *CallResult
+	OutputFormat any
+	TableSchema  *schema.Schema
 
 	RequestedProxy string
 	SelectedProxy  string

@@ -12,7 +12,7 @@ from yt_type_helpers import (
     optional_type,
 )
 
-from yt_helpers import skip_if_renaming_disabled, profiler_factory
+from yt_helpers import profiler_factory
 
 from yt.common import YtError
 
@@ -58,9 +58,6 @@ class _TestColumnarStatisticsBase(YTEnvSetup):
     DELTA_DRIVER_CONFIG = {
         "fetcher": {
             "node_rpc_timeout": 10000
-        },
-        "table_writer": {
-            "enable_large_columnar_statistics": True,
         },
     }
 
@@ -165,6 +162,16 @@ class _TestColumnarStatisticsBase(YTEnvSetup):
             if expected_statistics.get(statistics_name) is not None:
                 assert statistics.get(statistics_name) == expected_statistics.get(statistics_name), \
                     "Error when checking {}, table path is {}".format(statistics_name, path)
+
+    @staticmethod
+    def _get_completed_summary(summaries):
+        result = None
+        for summary in summaries:
+            if summary["tags"]["job_state"] == "completed":
+                assert not result
+                result = summary
+        assert result
+        return result["summary"]
 
 
 @pytest.mark.enabled_multidaemon
@@ -773,21 +780,25 @@ class TestColumnarStatisticsOperations(_TestColumnarStatisticsBase):
 
         progress = get(op.get_path() + "/@progress")
         statistics = progress["estimated_input_statistics"]
+        estimated_data_weight = statistics["data_weight"]
         estimated_compressed_data_size = statistics["compressed_data_size"]
         estimated_uncompressed_data_size = statistics["uncompressed_data_size"]
 
-        if mode == "from_nodes":
-            job_input_statistics = progress["job_statistics_v2"]["data"]["input"]
-            actual_compressed_data_size = job_input_statistics["compressed_data_size"][0]["summary"]["sum"]
-            actual_uncompressed_data_size = job_input_statistics["uncompressed_data_size"][0]["summary"]["sum"]
+        job_input_statistics = progress["job_statistics_v2"]["data"]["input"]
+        actual_compressed_data_size = self._get_completed_summary(job_input_statistics["compressed_data_size"])["sum"]
+        actual_uncompressed_data_size = self._get_completed_summary(job_input_statistics["uncompressed_data_size"])["sum"]
+        actual_data_weight = self._get_completed_summary(job_input_statistics["data_weight"])["sum"]
 
+        assert 0.99 * estimated_data_weight <= actual_data_weight <= 1.01 * estimated_data_weight
+
+        if mode == "from_nodes":
             assert 0.99 * estimated_compressed_data_size <= actual_compressed_data_size <= 1.01 * estimated_compressed_data_size
             assert 0.99 * estimated_uncompressed_data_size <= actual_uncompressed_data_size <= 1.01 * estimated_uncompressed_data_size
         else:
-            # Mode "from_master" doest not account for rle encoding, input size estimation
+            # Mode "from_master" does not account for rle encoding, input size estimation
             # is rather inaccurate in this case.
-            assert 10000 <= estimated_compressed_data_size <= 12000
-            assert 10000 <= estimated_uncompressed_data_size <= 12000
+            assert 0.5 * estimated_compressed_data_size <= actual_compressed_data_size <= 3 * estimated_compressed_data_size
+            assert 0.5 * estimated_uncompressed_data_size <= actual_uncompressed_data_size <= 3 * estimated_uncompressed_data_size
 
     @authors("coteeq")
     @pytest.mark.parametrize("mode", ["from_nodes", "from_master", "fallback"])
@@ -903,7 +914,6 @@ class TestColumnarStatisticsOperationsEarlyFinish(TestColumnarStatisticsOperatio
         "fetcher": {
             "node_rpc_timeout": 3000
         },
-        "enable_large_columnar_statistics": True,
     }
 
     @classmethod
@@ -939,7 +949,6 @@ class TestColumnarStatisticsCommandEarlyFinish(_TestColumnarStatisticsBase):
         "fetcher": {
             "node_rpc_timeout": 3000
         },
-        "enable_large_columnar_statistics": True,
     }
 
     @authors("achulkov2")
@@ -986,8 +995,6 @@ class TestColumnarStatisticsRenamedColumns(_TestColumnarStatisticsBase):
 
     @authors("levysotsky")
     def test_get_table_columnar_statistics(self):
-        skip_if_renaming_disabled(self.Env)
-
         schema1 = make_schema([
             make_column("a", optional_type("string")),
             make_column("b", optional_type("int64")),
@@ -1131,20 +1138,11 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
     NUM_NODES = 16
 
     @staticmethod
-    def make_random_string(size) -> str:
+    def _make_random_string(size) -> str:
         return ''.join(random.choice(string.ascii_letters) for _ in range(size))
 
-    @staticmethod
-    def get_completed_summary(summaries):
-        result = None
-        for summary in summaries:
-            if summary["tags"]["job_state"] == "completed":
-                assert not result
-                result = summary
-        assert result
-        return result["summary"]
-
     @authors("apollo1321")
+    @pytest.mark.timeout(300)
     @pytest.mark.parametrize("strict", [False, True])
     @pytest.mark.parametrize("mode", ["from_nodes", "from_master"])
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -1185,22 +1183,22 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
             for index in range(50):
                 rows += [
                     {
-                        "small": self.make_random_string(200),
-                        "large_1": self.make_random_string(400),
-                        "large_2": self.make_random_string(800),
+                        "small": self._make_random_string(200),
+                        "large_1": self._make_random_string(400),
+                        "large_2": self._make_random_string(800),
                     },
                     {
-                        "large_2": self.make_random_string(1600),
+                        "large_2": self._make_random_string(1600),
                     },
                     {
-                        "small": self.make_random_string(3200),
-                        "large_1": self.make_random_string(6400),
+                        "small": self._make_random_string(3200),
+                        "large_1": self._make_random_string(6400),
                     },
                 ]
 
                 if not strict:
-                    rows[1]["unknown1"] = self.make_random_string(12800)
-                    rows[2]["unknown2"] = self.make_random_string(25600)
+                    rows[1]["unknown1"] = self._make_random_string(12800)
+                    rows[2]["unknown2"] = self._make_random_string(25600)
 
             write_table("<append=%true>//tmp/t_in", rows, table_writer=writer_config)
 
@@ -1231,8 +1229,8 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
 
             progress = get(op.get_path() + "/@progress")
             input_statistics = progress["job_statistics_v2"]["data"]["input"]
-            actual_uncompressed_data_size = self.get_completed_summary(input_statistics["uncompressed_data_size"])["sum"]
-            actual_compressed_data_size = self.get_completed_summary(input_statistics["compressed_data_size"])["sum"]
+            actual_uncompressed_data_size = self._get_completed_summary(input_statistics["uncompressed_data_size"])["sum"]
+            actual_compressed_data_size = self._get_completed_summary(input_statistics["compressed_data_size"])["sum"]
 
             estimated_uncompressed_data_size = progress["estimated_input_statistics"]["uncompressed_data_size"]
             estimated_compressed_data_size = progress["estimated_input_statistics"]["compressed_data_size"]
@@ -1263,9 +1261,9 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
         })
 
         write_table("//tmp/t_in", [{
-            "small": self.make_random_string(2**10),
-            "large_1": self.make_random_string(5 * 2**20),
-            "large_2": self.make_random_string(5 * 2**20),
+            "small": self._make_random_string(2**10),
+            "large_1": self._make_random_string(5 * 2**20),
+            "large_2": self._make_random_string(5 * 2**20),
         }])
 
         create("table", "//tmp/t_out")
@@ -1283,7 +1281,7 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
         )
 
         progress = get(op.get_path() + "/@progress")
-        actual_compressed_data_size = self.get_completed_summary(progress["job_statistics_v2"]["data"]["input"]["compressed_data_size"])["sum"]
+        actual_compressed_data_size = self._get_completed_summary(progress["job_statistics_v2"]["data"]["input"]["compressed_data_size"])["sum"]
         estimated_compressed_data_size = progress["estimated_input_statistics"]["compressed_data_size"]
 
         assert 4 * 2**20 < actual_compressed_data_size < 7 * 2**20

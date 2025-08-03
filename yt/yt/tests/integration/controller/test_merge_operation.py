@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, parametrize_external
 
 from yt_commands import (
-    authors, remount_table, wait, create, ls, get, set, copy,
+    authors, extract_statistic_v2, remount_table, wait, create, ls, get, set, copy,
     remove, exists, sorted_dicts,
     start_transaction, abort_transaction, insert_rows, trim_rows, read_table, write_table, merge, sort, interrupt_job,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_unfreeze_table, sync_flush_table,
@@ -12,7 +12,7 @@ from yt_type_helpers import (
     make_schema, normalize_schema, normalize_schema_v3, optional_type, list_type,
     struct_type, tuple_type, dict_type, variant_struct_type, tagged_type)
 
-from yt_helpers import skip_if_no_descending, skip_if_old, skip_if_renaming_disabled
+from yt_helpers import skip_if_component_old, skip_if_old
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
@@ -24,6 +24,8 @@ import string
 import random
 
 from time import sleep
+from math import ceil
+import itertools
 
 ##################################################################
 
@@ -50,27 +52,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         "controller_agent": {
             "operations_update_period": 10,
             "max_chunks_per_fetch": 10,
-            "sorted_merge_operation_options": {
-                "job_splitter": {
-                    "min_job_time": 3000,
-                    "min_total_data_size": 1024,
-                    "update_period": 100,
-                    "candidate_percentile": 0.8,
-                    "max_jobs_per_split": 3,
-                },
-                "spec_template": {
-                    "use_new_sorted_pool": False,
-                },
-            },
-            "ordered_merge_operation_options": {
-                "job_splitter": {
-                    "min_job_time": 3000,
-                    "min_total_data_size": 1024,
-                    "update_period": 100,
-                    "candidate_percentile": 0.8,
-                    "max_jobs_per_split": 3,
-                },
-            },
             "enable_merge_schemas_during_schema_infer" : True,
         }
     }
@@ -299,7 +280,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             pytest.skip()
 
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         if sort_order == "descending" and merge_mode != "sorted":
@@ -353,9 +333,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("merge_mode", ["unordered", "ordered", "sorted"])
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_rename_columns_alter_table(self, merge_mode, sort_order):
-        skip_if_renaming_disabled(self.Env)
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
         if sort_order == "descending" and merge_mode != "sorted":
             pytest.skip("Descending sort order is interesting only with sorted merge")
@@ -663,7 +641,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("combine_chunks", [False, True])
     def test_sorted(self, sort_order, combine_chunks):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/t1")
@@ -724,7 +701,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
     @authors("gritukan")
     def test_sorted_different_directions(self):
-        skip_if_no_descending(self.Env)
         self.skip_if_legacy_sorted_pool()
 
         create(
@@ -762,7 +738,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_merge_result_is_sorted(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/t1")
@@ -815,11 +790,90 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             else:
                 assert result[i]["key"] >= result[i + 1]["key"]
 
+    @authors("coteeq")
+    @pytest.mark.parametrize("min_maniac_data_weight", [None, 10, 1_000_000_000])
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_sorted_merge_isolate_maniac(self, sort_order, min_maniac_data_weight):
+        self.skip_if_legacy_sorted_pool()
+        skip_if_component_old(self.Env, (25, 1), "controller-agent")
+        skip_if_component_old(self.Env, (25, 1), "node")
+
+        count = 1000
+        tables = 4
+        for i in range(tables):
+            create("table", f"//tmp/t{i}")
+
+        chunks = []
+        chunks.append([
+            {
+                "key": "%05d" % (i if i < count / 2 else count / 2),
+                "value": "x" * 40 + "%05d" % i,
+            }
+            for i in range(count)
+        ])
+        chunks.append([{"key": "%05d" % (count / 2), "value": "x" * 40 + "%05d" % (i + count)} for i in range(count)])
+        chunks.append([{"key": "%05d" % (count / 2), "value": "x" * 40 + "%05d" % (i + 2 * count)} for i in range(count)])
+        chunks.append([
+            {
+                "key": "%05d" % (count / 2 if i < count / 2 else i),
+                "value": "x" * 40 + "%05d" % (i + 3 * count),
+            }
+            for i in range(count)
+        ])
+
+        if sort_order == "descending":
+            chunks = chunks[::-1]
+        for chunk in chunks:
+            if sort_order == "descending":
+                chunk = chunk[::-1]
+            for i in range(tables):
+                write_table(
+                    f"<append=%true>//tmp/t{i}",
+                    chunk,
+                    sorted_by=[{"name": "key", "sort_order": sort_order}],
+                    table_writer={"block_size": 1024},
+                )
+
+        create("table", "//tmp/t_out")
+
+        spec = {
+            "data_size_per_job": 10_000,
+        }
+        if min_maniac_data_weight is not None:
+            spec["min_maniac_data_weight"] = min_maniac_data_weight
+
+        op = merge(
+            mode="sorted",
+            in_=[f"//tmp/t{i}" for i in range(tables)],
+            out="//tmp/t_out",
+            spec=spec,
+        )
+
+        result = read_table("//tmp/t_out")
+        assert len(result) == 4 * count * tables
+        for i in range(len(result) - 1):
+            if sort_order == "ascending":
+                assert result[i]["key"] <= result[i + 1]["key"]
+            else:
+                assert result[i]["key"] >= result[i + 1]["key"]
+
+        # NB(coteeq): All other values do not split the maniac.
+        if min_maniac_data_weight == 10:
+            # Unfortunately, we do not (yet) account for tables count,
+            # so the expected data weight will be multiplied by table count,
+            # since the tables have exactly the same content.
+            def get_max_estimated_job_size():
+                task = get(op.get_path() + "/@progress/tasks/0")
+                assert task["task_name"] == "sorted_merge"
+                return task["estimated_input_data_weight_histogram"]["max"]
+
+            epsilon = 0.1
+            assert get_max_estimated_job_size() < 10_000 * tables * (1 + epsilon)
+
     @authors("psushin", "ignat")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_trivial(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/t1")
@@ -855,7 +909,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_with_same_chunks(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         t1 = "//tmp/t1"
@@ -925,7 +978,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_teleport(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/t1")
@@ -1030,7 +1082,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_with_maniacs(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/t1")
@@ -1075,7 +1126,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_with_row_limits(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/t1")
@@ -1096,7 +1146,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_by(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/t1")
@@ -1145,7 +1194,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_unique_simple(self, optimize_for, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/t1")
@@ -1211,7 +1259,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_unique_teleport(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create(
@@ -1261,7 +1308,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_unique_with_wider_key_columns(self, optimize_for, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/t1")
@@ -1423,7 +1469,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_column_selectors_schema_inference(self, mode, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create(
@@ -1989,7 +2034,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sort_order_validation_failure(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/input")
@@ -2054,7 +2098,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_merge_interrupt(self, mode, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create(
@@ -2098,57 +2141,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         op.track()
         assert read_table("//tmp/t_out") == rows
         assert get(op.get_path() + "/@progress/jobs/completed/total") == 2
-
-    @authors("max42")
-    @pytest.mark.parametrize("mode", ["sorted", "ordered"])
-    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
-    def test_merge_job_splitter(self, mode, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-            self.skip_if_legacy_sorted_pool()
-
-        create(
-            "table",
-            "//tmp/t_in",
-            attributes={
-                "schema": [
-                    {"name": "a", "type": "int64", "sort_order": sort_order},
-                    {"name": "b", "type": "string"},
-                ]
-            },
-        )
-        create("table", "//tmp/t_out")
-        rows = []
-        for i in range(20):
-            rows.append({"a": i, "b": "x" * 10 ** 4})
-        if sort_order == "descending":
-            rows = rows[::-1]
-        for row in rows:
-            write_table("<append=%true>//tmp/t_in", row)
-
-        op = merge(
-            track=False,
-            in_=["//tmp/t_in"],
-            out="//tmp/t_out",
-            spec={
-                "force_transform": True,
-                "mode": mode,
-                "job_io": {
-                    "testing_options": {"pipe_delay": 500},
-                    "buffer_row_count": 1,
-                },
-            },
-        )
-
-        wait(lambda: exists(op.get_path() + "/controller_orchid/progress/tasks/0/job_splitter"))
-
-        op.track()
-
-        completed = get(op.get_path() + "/@progress/jobs/completed")
-        interrupted = completed["interrupted"]
-        assert completed["total"] >= 2
-        assert interrupted["job_split"] >= 1
-        assert read_table("//tmp/t_out", verbose=False) == rows
 
     @authors("max42")
     @pytest.mark.parametrize("mode", ["sorted", "ordered", "unordered"])
@@ -2321,7 +2313,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_overlapping_ranges_in_sorted_merge(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create(
@@ -2856,6 +2847,46 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             return row
 
         assert read_table("//tmp/t_static") == [drop_value2(row) for row in dynamic_table_rows]
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("mode", ["query", "passthrough"])
+    def test_latency_statistics(self, mode):
+        skip_if_component_old(self.Env, (25, 1), "controller-agent")
+        skip_if_component_old(self.Env, (25, 1), "node")
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t_out")
+
+        maybe_input_query = {}
+        if mode == "query":
+            maybe_input_query = {
+                "input_query": "key * 2, value"
+            }
+            alter_table(
+                "//tmp/t1",
+                schema=[
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"},
+                ]
+            )
+
+        write_table("//tmp/t1", [{"key": i, "value": "val_{i}"} for i in range(10)])
+        op = merge(
+            mode="unordered",
+            in_=["//tmp/t1"],
+            out="//tmp/t_out",
+            spec={
+                "force_transform": True,
+                **maybe_input_query
+            }
+        )
+        op.track()
+
+        statistics = get(op.get_path() + "/@progress/job_statistics_v2")
+
+        first_read = extract_statistic_v2(statistics, "latency.input.time_to_first_read_batch", job_type="unordered_merge")
+        first_written = extract_statistic_v2(statistics, "latency.output.0.time_to_first_read_batch", job_type="unordered_merge")
+
+        assert 0 < first_read <= first_written
 
 
 ##################################################################
@@ -3896,24 +3927,8 @@ class TestSchedulerMergeCommandsNewSortedPool(TestSchedulerMergeCommands):
             "operations_update_period": 10,
             "max_chunks_per_fetch": 10,
             "sorted_merge_operation_options": {
-                "job_splitter": {
-                    "min_job_time": 3000,
-                    "min_total_data_size": 1024,
-                    "update_period": 100,
-                    "candidate_percentile": 0.8,
-                    "max_jobs_per_split": 3,
-                },
                 "spec_template": {
                     "use_new_sorted_pool": True,
-                },
-            },
-            "ordered_merge_operation_options": {
-                "job_splitter": {
-                    "min_job_time": 3000,
-                    "min_total_data_size": 1024,
-                    "update_period": 100,
-                    "candidate_percentile": 0.8,
-                    "max_jobs_per_split": 3,
                 },
             },
         }
@@ -3940,3 +3955,154 @@ class TestSchedulerMergeCommandsNewSortedPool(TestSchedulerMergeCommands):
             mode="sorted"
         )
         assert read_table("//tmp/t_out") == [{"k": 0}] * 2 + [{"k": 2}] * 8 + [{"k": 4}] * 2
+
+
+@pytest.mark.enabled_multidaemon
+class TestMergeJobSizeAdjuster(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "sorted_merge_operation_options": {
+                "job_size_adjuster": {},
+                "spec_template": {
+                    "use_new_sorted_pool": True,
+                },
+            },
+            "ordered_merge_operation_options": {
+                "job_size_adjuster": {},
+            }
+        }
+    }
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("mode", ["sorted", "ordered"])
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_sorted_merge_adjustment(self, mode, sort_order):
+        create(
+            "table",
+            "//tmp/in",
+            attributes={"schema": [{"name": "index", "type": "string", "sort_order": sort_order}]},
+        )
+        data = [{"index": "%05d" % i} for i in range(31)]
+        if sort_order == "descending":
+            data.reverse()
+        for row in data:
+            write_table("<append=true>//tmp/in", row, verbose=False)
+
+        create(
+            "table",
+            "//tmp/out",
+            attributes={"schema": [{"name": "index", "type": "string", "sort_order": sort_order}]},
+        )
+
+        merge(
+            in_="//tmp/in",
+            out="//tmp/out",
+            spec={
+                "merge_by": [{"name": "index", "sort_order": sort_order}],
+                "mode": mode,
+                "resource_limits": {"user_slots": 3},
+                "job_testing_options": {
+                    "fake_prepare_duration": 10000,
+                },
+                "force_transform": True,
+                "data_size_per_job": len(data[0]),
+                "force_job_size_adjuster": True,
+            },
+        )
+
+        assert data == read_table("//tmp/out")
+
+        chunk_weights = [
+            get(f"#{chunk_id}/@data_weight")
+            for chunk_id in get("//tmp/out/@chunk_ids")
+        ]
+
+        assert sum(chunk_weights) % len(data) == 0
+        row_weight = sum(chunk_weights) // len(data)
+
+        assert any(
+            # NB: 5 is chosen kind of arbitrarily. I just wanted to assert that the latter jobs
+            # are large enough (5 means enlargement happened at least 3 times).
+            chunk_weight // row_weight > 5
+            for chunk_weight in chunk_weights
+        )
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_sorted_merge_barrier_misplacement(self, sort_order):
+        """
+        This is a test for a bug in sorted job builder. It should place a barrier after the segment,
+        but it placed the barrier before the last job of the segment. So we try to build a repro here.
+
+        So we have one teleport chunk and two segments. We will try to build jobs such that
+        first segment's last job will happen to be _after_ the barrier that should've guarded this
+        segment. And after some jobs finished, during enlargement, last job of the first segment
+        and first job of the second segment will try to join.
+        """
+        create(
+            "table",
+            "//tmp/in",
+            attributes={"schema": [{"name": "index", "type": "string", "sort_order": sort_order}]},
+        )
+        data = [
+            [{"index": "%05d" % i} for i in range(0, 50)],  # Semi-huge guy to trigger enlargement
+            [{"index": "%05d" % i} for i in range(50, 60)],  # Small guy to be joined to the last chunk
+            [{"index": "%05d" % i} for i in range(60, 1000)],  # Fat guy to be teleported
+            [{"index": "%05d" % i} for i in range(1000, 1010)],  # Small guy to be joined with the second chunk
+        ]
+        if sort_order == "descending":
+            data.reverse()
+            for batch in data:
+                batch.reverse()
+        for batch in data:
+            write_table("<append=true>//tmp/in", batch, verbose=False)
+
+        create(
+            "table",
+            "//tmp/out",
+            attributes={"schema": [{"name": "index", "type": "string", "sort_order": sort_order}]},
+        )
+
+        chunk_ids = get("//tmp/in/@chunk_ids")
+        chunk_sizes = [get(f"#{chunk_id}/@compressed_data_size") for chunk_id in chunk_ids]
+        chunk_sizes.sort()
+
+        first_chunk_weight = min([get(f"#{chunk_id}/@data_weight") for chunk_id in chunk_ids])
+
+        assert len(chunk_sizes) == 4
+        assert chunk_sizes[0] == chunk_sizes[1]
+
+        # See TInputChunk::IsLargeCompleteChunk.
+        desired_chunk_size = ceil((chunk_sizes[2] + 1) / 0.9)
+
+        assert desired_chunk_size < chunk_sizes[3]
+
+        merge(
+            in_="//tmp/in",
+            out="//tmp/out",
+            spec={
+                "merge_by": [{"name": "index", "sort_order": sort_order}],
+                "mode": "sorted",
+                "resource_limits": {"user_slots": 1},
+                "job_testing_options": {
+                    "fake_prepare_duration": 10000,
+                },
+                "force_transform": False,
+                "job_io": {
+                    "table_writer": {
+                        "desired_chunk_size": desired_chunk_size,
+                    },
+                },
+                "data_size_per_job": first_chunk_weight,
+                "force_job_size_adjuster": True,
+                "combine_chunks": True,
+            },
+        )
+
+        flat_data = list(itertools.chain.from_iterable(data))
+        assert flat_data == read_table("//tmp/out")

@@ -2,11 +2,25 @@
 
 #include <yt/yt/server/lib/cypress_registrar/config.h>
 
-#include <yt/yt/library/dynamic_config/config.h>
-
 #include <yt/yt/library/auth_server/config.h>
 
+#include <yt/yt/library/dynamic_config/config.h>
+
+#include <yt/yt/library/re2/re2.h>
+
+
 namespace NYT::NKafkaProxy {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TStringTransformationConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("match_pattern", &TThis::MatchPattern);
+    registrar.Parameter("replacement", &TThis::Replacement)
+        .Default();
+}
+
+DEFINE_REFCOUNTED_TYPE(TStringTransformationConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,9 +64,37 @@ void TProxyBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("auth", &TThis::Auth)
         .DefaultNew();
 
+    registrar.Parameter("topic_name_transformations", &TThis::TopicNameTransformations)
+        .Default();
+
+    registrar.Parameter("queue_path_transformations", &TThis::QueuePathTransformations)
+        .Default();
+
     registrar.Postprocessor([] (TThis* config) {
         if (auto& dynamicConfigPath = config->DynamicConfigPath; dynamicConfigPath.empty()) {
             dynamicConfigPath = Format("%v/@config", KafkaProxiesRootPath);
+        }
+
+        // Some kafka connectors allows only the underscore, hyphen, dot and alphanumeric characters in topic names.
+        if (config->TopicNameTransformations.empty() && config->QueuePathTransformations.empty()) {
+            auto slashTransformation = New<TStringTransformationConfig>();
+            slashTransformation->MatchPattern = New<NRe2::TRe2>("\\.");
+            slashTransformation->Replacement = "/";
+
+            auto colonTransformation = New<TStringTransformationConfig>();
+            colonTransformation->MatchPattern = New<NRe2::TRe2>("-//");
+            colonTransformation->Replacement = "://";
+            config->TopicNameTransformations = {std::move(slashTransformation), std::move(colonTransformation)};
+
+            auto hyphenTransformation = New<TStringTransformationConfig>();
+            hyphenTransformation->MatchPattern = New<NRe2::TRe2>("://");
+            hyphenTransformation->Replacement = "-//";
+
+            auto dotTransformation = New<TStringTransformationConfig>();
+            dotTransformation->MatchPattern = New<NRe2::TRe2>("/");
+            dotTransformation->Replacement = "\\.";
+
+            config->QueuePathTransformations = {std::move(hyphenTransformation), std::move(dotTransformation)};
         }
     });
 }
@@ -85,6 +127,8 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("group_coordinator", &TThis::GroupCoordinator)
         .DefaultNew();
+    registrar.Parameter("topics", &TThis::Topics)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

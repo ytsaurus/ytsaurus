@@ -37,7 +37,8 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedAnyColumnReader(
     int columnIndex,
     int columnId,
     std::optional<NTableClient::ESortOrder> sortOrder,
-    const NTableClient::TColumnSchema& columnSchema);
+    const NTableClient::TColumnSchema& columnSchema,
+    bool decodeAny);
 
 std::unique_ptr<IUnversionedColumnReader> CreateUnversionedCompositeColumnReader(
     const NProto::TColumnMeta& columnMeta,

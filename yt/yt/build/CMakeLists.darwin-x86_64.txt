@@ -38,7 +38,7 @@ set(YT_VERSION_BRANCH local)
 
 set(YT_VERSION_MAJOR 25)
 
-set(YT_VERSION_MINOR 2)
+set(YT_VERSION_MINOR 3)
 
 set(YT_VERSION_PATCH 0)
 
@@ -50,6 +50,9 @@ add_library(yt-yt-build)
 target_compile_options(yt-yt-build PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_include_directories(yt-yt-build PUBLIC

@@ -13,7 +13,7 @@
 #include <yt/yt/server/master/security_server/cluster_resources.h>
 #include <yt/yt/server/master/security_server/detailed_master_memory.h>
 
-#include <yt/yt/server/master/tablet_server/tablet_resources.h>
+#include <yt/yt/server/master/tablet_server/public.h>
 
 #include <yt/yt/server/master/transaction_server/public.h>
 
@@ -194,10 +194,6 @@ class TCypressNode
     , public TRefTracked<TCypressNode>
 {
 public:
-    //! Contains all nodes with parent pointing here.
-    //! When a node dies parent pointers of its immediate descendants are reset.
-    DEFINE_BYREF_RW_PROPERTY(THashSet<TCypressNode*>, ImmediateDescendants);
-
     DEFINE_BYVAL_RW_PROPERTY(TCypressNode*, TrunkNode);
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, Transaction);
@@ -235,6 +231,7 @@ public:
     //! Always null for non-trunk nodes.
     DEFINE_BYVAL_RW_PROPERTY(TResolveCacheNodePtr, ResolveCacheNode);
 
+    // NB: Store as TString to reduce memory footprint.
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TCypressNode, TDuration, ExpirationTimeout);
 
     //! Used for both Sequoia nodes and Cypress link nodes. Note that link nodes
@@ -274,7 +271,6 @@ public:
 
     using TObject::TObject;
     explicit TCypressNode(TVersionedNodeId id);
-    virtual ~TCypressNode();
 
     // COMPAT(shakurov): delete the #branchIsOk parameters.
     TInstant GetTouchTime(bool branchIsOk = false) const;
@@ -305,9 +301,12 @@ public:
      */
     virtual NYTree::ENodeType GetNodeType() const = 0;
 
-    TCypressNode* GetParent() const;
-    void SetParent(TCypressNode* parent);
-    void ResetParent();
+    TCompositeCypressNode* GetParent() const;
+    void SetParent(TCompositeCypressNode* parent);
+
+    //! In contrast to |SetParent(nullptr)|, does not update the set of immediate descendats,
+    //! just zeroes out the parent pointer.
+    void DropParent();
 
     TCypressNode* GetOriginator() const;
     void SetOriginator(TCypressNode* originator);
@@ -367,7 +366,7 @@ public:
     void VerifySequoia() const;
 
 private:
-    TCypressNodeRawPtr Parent_;
+    TCompositeCypressNodeRawPtr Parent_;
     TCypressNodeRawPtr Originator_;
     std::unique_ptr<TCypressNodeLockingState> LockingState_;
     NTransactionServer::TTransactionId TransactionId_;
@@ -380,7 +379,7 @@ private:
 DEFINE_MASTER_OBJECT_TYPE(TCypressNode)
 
 // Think twice before increasing this.
-YT_STATIC_ASSERT_SIZEOF_SANITY(TCypressNode, 408);
+YT_STATIC_ASSERT_SIZEOF_SANITY(TCypressNode, 376);
 
 ////////////////////////////////////////////////////////////////////////////////
 

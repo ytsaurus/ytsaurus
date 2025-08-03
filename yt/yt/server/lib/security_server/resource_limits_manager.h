@@ -14,9 +14,9 @@ struct IResourceLimitsManager
     : public virtual TRefCounted
 {
     virtual void ValidateResourceLimits(
-        const TString& account,
-        const TString& mediumName,
-        const std::optional<TString>& tabletCellBundle = std::nullopt,
+        const std::string& account,
+        const std::string& mediumName,
+        const std::optional<std::string>& tabletCellBundle = std::nullopt,
         NTabletClient::EInMemoryMode inMemoryMode = NTabletClient::EInMemoryMode::None) = 0;
 
     virtual void Reconfigure(const NTabletNode::TSecurityManagerDynamicConfigPtr& config) = 0;

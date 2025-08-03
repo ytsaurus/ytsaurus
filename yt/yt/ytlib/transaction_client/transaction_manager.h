@@ -27,7 +27,7 @@ using TTransactionAttachOptions = NApi::TTransactionAttachOptions;
 using TTransactionCommitOptions = NApi::TTransactionCommitOptions;
 using TTransactionCommitResult = NApi::TTransactionCommitResult;
 using TTransactionAbortOptions = NApi::TTransactionAbortOptions;
-using TTransactionPingOptions = NApi::TTransactionPingOptions;
+using TPrerequisitePingOptions = NApi::TPrerequisitePingOptions;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,10 +45,10 @@ public:
     /*!
      *  Should not be called more than once.
      */
-    TFuture<TTransactionCommitResult> Commit(const TTransactionCommitOptions& options = TTransactionCommitOptions());
+    TFuture<TTransactionCommitResult> Commit(const TTransactionCommitOptions& options = {});
 
     //! Aborts the transaction asynchronously.
-    TFuture<void> Abort(const TTransactionAbortOptions& options = TTransactionAbortOptions());
+    TFuture<void> Abort(const TTransactionAbortOptions& options = {});
 
     //! Detaches the transaction, i.e. stops pings.
     /*!
@@ -58,8 +58,7 @@ public:
     void Detach();
 
     //! Sends an asynchronous ping.
-    TFuture<void> Ping(const TTransactionPingOptions& options = {});
-
+    TFuture<void> Ping(const TPrerequisitePingOptions& options = {});
 
     //! Returns the transaction type.
     ETransactionType GetType() const;
@@ -89,7 +88,6 @@ public:
     //! Only supported for master transactions that are created locally, not attached.
     NObjectClient::TCellTagList GetReplicatedToCellTags() const;
 
-
     //! Once a participant is registered, it will be pinged.
     void RegisterParticipant(NObjectClient::TCellId cellId);
 
@@ -99,12 +97,11 @@ public:
     //! Check that all participants are healthy.
     TFuture<void> ValidateNoDownedParticipants();
 
-
     //! Raised when the transaction is committed.
     DECLARE_SIGNAL(NApi::ITransaction::TCommittedHandlerSignature, Committed);
 
     //! Raised when the transaction is aborted.
-    DECLARE_SIGNAL(NApi::ITransaction::TAbortedHandlerSignature, Aborted);
+    DECLARE_SIGNAL(NApi::IPrerequisite::TAbortedHandlerSignature, Aborted);
 
 private:
     class TImpl;
@@ -167,7 +164,7 @@ public:
      */
     TTransactionPtr Attach(
         TTransactionId id,
-        const TTransactionAttachOptions& options = TTransactionAttachOptions());
+        const TTransactionAttachOptions& options = {});
 
     //! Asynchronously aborts all active transactions.
     void AbortAll();

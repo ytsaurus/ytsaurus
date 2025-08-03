@@ -7,11 +7,11 @@ from .helpers import (TEST_DIR, check_rows_equality, set_config_option, get_test
 import yt.wrapper.format as yt_format
 
 import yt.wrapper.py_wrapper as py_wrapper
-from yt.wrapper.py_wrapper import OperationParameters
-from yt.wrapper.table import TempTable
-from yt.wrapper.schema import TableSchema
-from yt.wrapper.common import MB
 from yt.wrapper import heavy_commands, parallel_writer
+from yt.wrapper.common import MB
+from yt.wrapper.py_wrapper import OperationParameters
+from yt.wrapper.schema import TableSchema
+from yt.wrapper.table import TempTable
 
 from yt.yson import YsonMap
 
@@ -1123,12 +1123,33 @@ def _check_delay(yt_env_with_framing):
 
 
 @pytest.mark.usefixtures("yt_env_with_framing")
-class TestTableCommandsFraming(object):
+class TestTableCommandsFraming:
     OVERRIDE_OPTIONS = {
         "read_retries/use_locked_node_id": False,
         "proxy/heavy_request_timeout": 2 * 1000,
         "proxy/commands_with_framing": ["read_table", "get_table_columnar_statistics"],
     }
+
+    @authors("ermolovd")
+    def test_bad_write_YIML_128(self):
+        path = TEST_DIR + "/test-bad-framing-write"
+        yt.create("table", path, attributes={
+            "schema": [{"name": "a", "type": "string"}]
+        })
+
+        def gen_data():
+            data = b"{a=42};" * (1024 * 1024)
+            while True:
+                yield data
+
+        options = {
+            "proxy/content_encoding": "gzip",
+            "proxy/accept_encoding": "gzip",
+            "proxy/commands_with_framing": ["write_table"],
+        }
+        with set_config_options(options):
+            with pytest.raises(yt.YtError, match="Invalid type: expected \"string\", actual \"int64\""):
+                yt.write_table(path, gen_data(), format="yson", raw=True)
 
     @authors("levysotsky")
     @pytest.mark.parametrize("use_compression", [True, False])

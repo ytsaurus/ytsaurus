@@ -5,7 +5,7 @@ from .retries import Retrier, default_chaos_monkey
 from .errors import (YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError,
                      YtRequestQueueSizeLimitExceeded, YtRpcUnavailable,
                      YtRequestTimedOut, YtRetriableError, YtTransportError, YtNoSuchTransaction,
-                     create_http_response_error, YtSequoiaRetriableError)
+                     create_http_response_error)
 from .framing import unframed_iter_content
 from .command import parse_commands
 from .format import JsonFormat, YsonFormat
@@ -15,7 +15,9 @@ import yt.yson as yson
 import yt.json_wrapper as json
 from yt.common import _pretty_format_for_logging, get_fqdn as _get_fqdn
 
+import io
 import os
+import re
 import sys
 import time
 import types
@@ -85,8 +87,7 @@ def get_retriable_errors():
             SocketError, ChunkedEncodingError, ReadTimeoutError,
             YtIncorrectResponse, YtProxyUnavailable,
             YtRequestQueueSizeLimitExceeded, YtRpcUnavailable,
-            YtRequestTimedOut, YtRetriableError, YtTransportError,
-            YtSequoiaRetriableError)
+            YtRequestTimedOut, YtRetriableError, YtTransportError)
 
 
 class ProxyProvider(object):
@@ -169,6 +170,7 @@ def configure_ip(session, force_ipv4=False, force_ipv6=False):
 
 
 def get_error_from_headers(headers):
+    """Return content of error header if present"""
     if int(headers.get("x-yt-response-code", 0)) != 0:
         return headers["x-yt-error"]
     return None
@@ -187,16 +189,36 @@ def get_header_format(client):
     return "yson"
 
 
+def log_bad_response(response):
+    def trim(s):
+        if len(s) > 4096:
+            return s[:4093] + "..."
+        return s
+
+    header_text = io.StringIO()
+    for name, value in response.headers.items():
+        header_text.write("\t{}: {}\n".format(name, value))
+    header_text = trim(header_text.getvalue())
+
+    text_content = response.content.decode("utf8", errors="replace")
+    text_content = re.sub("^", "\t", text_content, flags=re.MULTILINE).rstrip()
+    text_content = trim(text_content)
+
+    logger.error("Bad response:\n\tStatusCode: %s\n%s\n%s", response.status_code, header_text, text_content)
+
+
 def check_response_is_decodable(response, format):
     if format == "json":
         try:
             response.json()
         except (json.JSONDecodeError, TypeError):
+            log_bad_response(response)
             raise YtIncorrectResponse("Response body can not be decoded from JSON", response)
     elif format == "yson":
         try:
             yson.loads(response.content, encoding=None)
         except (yson.YsonError, TypeError):
+            log_bad_response(response)
             raise YtIncorrectResponse("Response body can not be decoded from YSON", response)
 
 
@@ -217,6 +239,9 @@ def create_response(response, request_info, request_id, error_format, client):
 
     def get_error():
         error_content = get_error_from_headers(response.headers)
+        trailers = response.trailers()
+        if error_content is None and trailers is not None:
+            error_content = get_error_from_headers(trailers)
         if error_content is None and not str(response.status_code).startswith("2"):
             check_response_is_decodable(response, error_format)
             error_content = response.content
@@ -391,7 +416,6 @@ class RequestRetrier(Retrier):
                     rsp = create_response(error.response, request_info, self.request_id, self.error_format, self.client)
                 except:  # noqa
                     raise exc_info[1].with_traceback(exc_info[2])
-                check_response_is_decodable(rsp, "json")
                 _raise_for_status(rsp, request_info)
             raise
 
@@ -718,9 +742,9 @@ def get_user_name(token=None, headers=None, client=None):
 
     version = get_http_api_version(client=client)
 
+    headers = headers or {}
+
     if version in ("v3", "v4"):
-        if headers is None:
-            headers = {}
         if token is not None:
             headers["Authorization"] = "OAuth " + token.strip()
         data = None
@@ -730,6 +754,10 @@ def get_user_name(token=None, headers=None, client=None):
             return None
         data = "token=" + token.strip()
         verb = "login"
+
+    impersonation_user = get_config(client).get("impersonation_user")
+    if impersonation_user is not None:
+        headers["X-YT-User-Name"] = impersonation_user
 
     response = make_request_with_retries(
         "post",

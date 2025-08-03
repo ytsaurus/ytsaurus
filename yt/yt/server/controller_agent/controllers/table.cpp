@@ -85,7 +85,7 @@ bool TInputTable::SupportsTeleportation() const
         return false;
     }
 
-    if (!Schema->GetStrict()) {
+    if (!Schema->IsStrict()) {
         return false;
     }
 

@@ -43,6 +43,7 @@ public:
         , Logger(logger)
     {
         YT_VERIFY(Config_);
+        YT_LOG_DEBUG("Job splitter initialized (Config: %v)", ConvertToYsonString(Config_, EYsonFormat::Text));
     }
 
     EJobSplitterVerdict ExamineJob(TJobId jobId) override

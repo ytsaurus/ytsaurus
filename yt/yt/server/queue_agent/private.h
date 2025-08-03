@@ -18,6 +18,8 @@ YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueAgentLogger, "QueueAgent");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueControllerLogger, "QueueController");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, ConsumerControllerLogger, "ConsumerController");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueExporterLogger, "QueueExporter");
+// COMPAT(apachee): For old queue export implementation.
+YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueStaticTableExporterLogger, "QueueStaticTableExporterLogger");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueExportManagerLogger, "QueueExportManager");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueAgentShardingManagerLogger, "QueueAgentShardingManager");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, CypressSynchronizerLogger, "CypressSynchronizer");
@@ -32,17 +34,19 @@ namespace NAlerts {
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_ERROR_ENUM(
-    ((CypressSynchronizerUnableToFetchObjectRevisions)            (3000))
-    ((CypressSynchronizerUnableToFetchAttributes)                 (3001))
-    ((CypressSynchronizerPassFailed)                              (3002))
+    ((CypressSynchronizerUnableToFetchObjectRevisions)              (3000))
+    ((CypressSynchronizerUnableToFetchAttributes)                   (3001))
+    ((CypressSynchronizerPassFailed)                                (3002))
+    ((CypressSynchronizerConflictingDynamicStateObjects)            (3003))
+    ((CypressSynchronizerMissingReplicatedTableMappingObjects)      (3004))
 
-    ((QueueAgentPassFailed)                                       (3025))
+    ((QueueAgentPassFailed)                                         (3025))
 
-    ((QueueAgentQueueControllerStaticExportFailed)                (3035))
-    ((QueueAgentQueueControllerTrimFailed)                        (3036))
-    ((QueueAgentQueueControllerStaticExportMisconfiguration)      (3037))
+    ((QueueAgentQueueControllerStaticExportFailed)                  (3035))
+    ((QueueAgentQueueControllerTrimFailed)                          (3036))
+    ((QueueAgentQueueControllerStaticExportMisconfiguration)        (3037))
 
-    ((QueueAgentShardingManagerPassFailed)                        (3050))
+    ((QueueAgentShardingManagerPassFailed)                          (3050))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -72,6 +76,8 @@ DECLARE_REFCOUNTED_STRUCT(TQueueAgentComponentDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)
 
 DECLARE_REFCOUNTED_STRUCT(IQueueExporter)
+// COMPAT(apachee): For old queue export implementation.
+DECLARE_REFCOUNTED_CLASS(TQueueExporterOld)
 
 DECLARE_REFCOUNTED_STRUCT(IQueueExportManager)
 
@@ -140,8 +146,11 @@ inline const TString NoneObjectType = "none";
 
 DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 
-DECLARE_REFCOUNTED_CLASS(TQueueTabletExportProgress)
-DECLARE_REFCOUNTED_CLASS(TQueueExportProgress)
+DECLARE_REFCOUNTED_STRUCT(TQueueTabletExportProgress)
+DECLARE_REFCOUNTED_STRUCT(TQueueExportProgress)
+// COMPAT(apachee): For old queue export implementation.
+DECLARE_REFCOUNTED_STRUCT(TQueueTabletExportProgressOld)
+DECLARE_REFCOUNTED_STRUCT(TQueueExportProgressOld)
 
 ////////////////////////////////////////////////////////////////////////////////
 

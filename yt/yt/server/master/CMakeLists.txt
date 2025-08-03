@@ -36,6 +36,9 @@ add_library(yt-server-master)
 target_compile_options(yt-server-master PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_include_directories(yt-server-master PUBLIC
@@ -62,6 +65,7 @@ target_link_libraries(yt-server-master PUBLIC
   server-lib-hydra
   server-lib-incumbent_client
   server-lib-node_tracker_server
+  server-lib-object_server
   server-lib-security_server
   server-lib-table_server
   server-lib-tablet_balancer
@@ -84,10 +88,12 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/disk_space_sensor_producer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/epoch_history_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/hydra_facade.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/hive_profiling_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/master_hydra_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multi_phase_cell_sync_session.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multicell_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multicell_node_statistics.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multicell_statistics_collector_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multicell_statistics_collector.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/response_keeper_manager.cpp
@@ -195,6 +201,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/medium_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/medium_proxy_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/medium_type_handler_base.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/private.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/incumbency_epoch.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/s3_medium_proxy.cpp
@@ -206,6 +213,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/access_control_object_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/access_control_object.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/access_tracker.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/composite_node.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/cypress_integration.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/cypress_manager.cpp
@@ -371,6 +379,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/sequoia_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/sequoia_transaction_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/table_server/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/table_server/compact_table_schema.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/table_server/cypress_integration.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/table_server/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/table_server/master_table_schema_proxy.cpp
@@ -394,6 +403,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/table_server/table_node_type_handler_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/table_server/table_node_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/table_server/table_node.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/table_server/table_schema_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/tablet_server/backup_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/tablet_server/balancing_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/tablet_server/chaos_helpers.cpp

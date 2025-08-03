@@ -40,13 +40,13 @@ static constexpr TDuration CheckPeriod = TDuration::MilliSeconds(10);
 
 static const int WarmUpIterationCount = 10;
 
-static const TString Cluster1 = "ReplicaCluster1";
-static const TString Cluster2 = "ReplicaCluster2";
+static const std::string Cluster1 = "ReplicaCluster1";
+static const std::string Cluster2 = "ReplicaCluster2";
 
 static const TYPath TablePath1 = "//tmp/replica_table_1";
 static const TYPath TablePath2 = "//tmp/replica_table_2";
 
-static const TString BundleName = "default";
+static const std::string BundleName = "default";
 
 using TStrictMockClient = StrictMock<TMockClient>;
 using TStrictMockClientPtr = TIntrusivePtr<TStrictMockClient>;
@@ -129,7 +129,7 @@ public:
     }
 
     // Cluster client registry stuff.
-    NApi::IClientPtr CreateClusterClient(const TString& clusterName) override
+    NApi::IClientPtr CreateClusterClient(const std::string& clusterName) override
     {
         auto it = Clusters_.find(clusterName);
         EXPECT_NE(it, Clusters_.end());
@@ -244,7 +244,7 @@ public:
         TTableId tableId,
         ETableReplicaMode mode = ETableReplicaMode::Async,
         bool enabled = true,
-        const TString& clusterName = Cluster1,
+        const std::string& clusterName = Cluster1,
         const TYPath& tablePath = TablePath1,
         std::optional<TDuration> replicaLagTime = TDuration::Zero(),
         EObjectType replicaObjectType = EObjectType::TableReplica,
@@ -281,7 +281,7 @@ public:
         TTableId tableId,
         ETableReplicaMode mode = ETableReplicaMode::Async,
         bool enabled = true,
-        const TString& clusterName = Cluster1,
+        const std::string& clusterName = Cluster1,
         const TYPath& tablePath = TablePath1,
         std::optional<TDuration> replicaLagTime = TDuration::Zero(),
         EObjectType replicaObjectType = EObjectType::TableReplica,
@@ -353,7 +353,7 @@ public:
 
     void UpdateReplicationCollocationOptions(
         TTableCollocationId collocationId,
-        std::optional<std::vector<TString>> preferredSyncReplicaClusters)
+        std::optional<std::vector<std::string>> preferredSyncReplicaClusters)
     {
         const auto& collocationInfo = GetOrCrash(CollocationIdToInfo_, collocationId);
 
@@ -389,7 +389,7 @@ private:
     std::atomic<bool> LoadingFromSnapshotRequested_ = false;
     std::atomic<bool> SnapshotFutureRequested_ = false;
 
-    const THashMap<TString, TStrictMockClientPtr> Clusters_ = {
+    const THashMap<std::string, TStrictMockClientPtr, THash<TStringBuf>, TEqualTo<TStringBuf>> Clusters_ = {
         {Cluster1, New<TStrictMockClient>()},
         {Cluster2, New<TStrictMockClient>()}
     };
@@ -483,7 +483,7 @@ public:
             .WillRepeatedly(Return(MakeFuture(ConvertToYsonString(true))));
     }
 
-    void MockGoodBundle(const TStrictMockClientPtr& client, const TString& tablePath = TablePath1)
+    void MockGoodBundle(const TStrictMockClientPtr& client, const NYPath::TYPath& tablePath = TablePath1)
     {
         EXPECT_CALL(*client, GetNode(tablePath + "/@tablet_cell_bundle", _))
             .WillOnce(Return(MakeFuture(ConvertToYsonString(BundleName))));
@@ -494,16 +494,16 @@ public:
             .WillRepeatedly(Return(VoidFuture));
     }
 
-    void MockGoodTable(const TStrictMockClientPtr& client, const TString& tablePath = TablePath1)
+    void MockGoodTable(const TStrictMockClientPtr& client, const NYPath::TYPath& tablePath = TablePath1)
     {
         EXPECT_CALL(*client, GetNode(tablePath, _))
             .WillRepeatedly(Invoke([=] (const NYPath::TYPath& /*path*/, const TGetNodeOptions& options) {
-                EXPECT_FALSE(options.Attributes);
+                EXPECT_TRUE(options.Attributes);
                 return MakeFuture(TYsonString());
             }));
     }
 
-    void MockBadTable(const TStrictMockClientPtr& client, const TString& tablePath = TablePath1)
+    void MockBadTable(const TStrictMockClientPtr& client, const NYPath::TYPath& tablePath = TablePath1)
     {
         EXPECT_CALL(*client, GetNode(tablePath, _))
             .WillRepeatedly(Return(MakeFuture<TYsonString>(TError("Bad table"))));
@@ -646,8 +646,8 @@ TFuture<TYsonString> ReturnSerializedPreloadStateFuture(
     const NYPath::TYPath& /*path*/,
     const TGetNodeOptions& options)
 {
-    if (options.Attributes) {
-        EXPECT_EQ(options.Attributes.Keys, std::vector<std::string>{"preload_state"});
+    if (options.Attributes && !options.Attributes.IsEmpty()) {
+        EXPECT_EQ(options.Attributes.Keys(), std::vector<std::string>{"preload_state"});
         return MakeFuture(
             BuildYsonStringFluently()
                 .BeginAttributes()
@@ -893,7 +893,7 @@ TEST_F(TReplicatedTableTrackerTest, TableCollocationWithPreferredReplicaClusters
 
     validateSyncOnCluster1();
 
-    Host_->UpdateReplicationCollocationOptions(collocationId, std::vector<TString>{Cluster1, Cluster2});
+    Host_->UpdateReplicationCollocationOptions(collocationId, std::vector<std::string>{Cluster1, Cluster2});
 
     WaitForUpdatesFromTracker();
     Host_->ValidateReplicaModeRemained(replica12);
@@ -901,7 +901,7 @@ TEST_F(TReplicatedTableTrackerTest, TableCollocationWithPreferredReplicaClusters
     Host_->ValidateReplicaModeRemained(replica21);
     Host_->ValidateReplicaModeRemained(replica22);
 
-    Host_->UpdateReplicationCollocationOptions(collocationId, std::vector<TString>{Cluster2});
+    Host_->UpdateReplicationCollocationOptions(collocationId, std::vector<std::string>{Cluster2});
 
     validateSyncOnCluster2();
 
@@ -1211,6 +1211,47 @@ TEST_F(TReplicatedTableTrackerTest, ReplicaContentTypes)
     WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeChanged(dataReplica, ETableReplicaMode::Async);
     Host_->ValidateReplicaModeRemained(queueReplica);
+}
+
+TEST_F(TReplicatedTableTrackerTest, QueueSyncReplicaCount)
+{
+    auto client = Host_->GetMockClient(Cluster1);
+    MockGoodReplicaCluster(client);
+    MockGoodBundle(client);
+    MockGoodTable(client);
+
+    auto client2 = Host_->GetMockClient(Cluster2);
+    MockGoodReplicaCluster(client2);
+    MockGoodBundle(client2);
+    MockGoodTable(client2);
+
+    auto tableId = Host_->CreateReplicatedTable();
+    auto options = Host_->GetTableOptions(tableId);
+    options->MinSyncQueueReplicaCount = 1;
+    Host_->SetTableOptions(tableId, std::move(options));
+
+    auto queueReplica1 = Host_->CreateTableReplica(
+        tableId,
+        ETableReplicaMode::Async,
+        true,
+        Cluster1,
+        TablePath1,
+        /*replicaLagTime*/ TDuration::Zero(),
+        EObjectType::ChaosTableReplica,
+        ETableReplicaContentType::Queue);
+    auto queueReplica2 = Host_->CreateTableReplica(
+        tableId,
+        ETableReplicaMode::Async,
+        true,
+        Cluster2,
+        TablePath1,
+        /*replicaLagTime*/ TDuration::Zero(),
+        EObjectType::ChaosTableReplica,
+        ETableReplicaContentType::Queue);
+
+    WaitForTrackerWarmUp();
+    Host_->ValidateReplicaModeChanged(queueReplica1, ETableReplicaMode::Sync);
+    Host_->ValidateReplicaModeChanged(queueReplica2, ETableReplicaMode::Sync);
 }
 
 TEST_F(TReplicatedTableTrackerTest, ClusterStateChecks)

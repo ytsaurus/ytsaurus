@@ -2,24 +2,24 @@
 
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/server/controller_agent/helpers.h>
-#include <yt/yt/server/controller_agent/job_size_constraints.h>
-#include <yt/yt/server/controller_agent/operation_controller.h>
-
 #include <yt/yt/server/lib/chunk_pools/unittests/chunk_pools_helpers.h>
+
+#include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/unordered_chunk_pool.h>
 
-#include <yt/yt/client/object_client/helpers.h>
-
-#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
 
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
+#include <yt/yt/client/object_client/helpers.h>
+
+#include <yt/yt/client/table_client/row_buffer.h>
+
 #include <yt/yt/core/misc/blob_output.h>
 
-#include <util/generic/cast.h>
+#include <util/generic/xrange.h>
 
 #include <util/stream/null.h>
 
@@ -28,9 +28,9 @@
 namespace NYT::NChunkPools {
 namespace {
 
-using namespace NControllerAgent;
 using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NControllerAgent;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NTableClient;
@@ -54,40 +54,49 @@ protected:
         Options_.MinTeleportChunkSize = Inf64;
         Options_.RowBuffer = RowBuffer_;
         Options_.Logger = GetTestLogger();
-        DataSizePerJob_ = Inf64;
+        DataWeightPerJob_ = Inf64;
+        CompressedDataSizePerJob_ = Inf64;
         MaxDataSlicesPerJob_ = Inf32;
-        InputSliceDataSize_ = Inf64;
+        MaxCompressedDataSizePerJob_ = Inf64;
+        InputSliceDataWeight_ = Inf64;
         InputSliceRowCount_ = Inf64;
     }
 
     void InitJobConstraints()
     {
         Options_.JobSizeConstraints = CreateExplicitJobSizeConstraints(
-            false /*canAdjustDataSizePerJob*/,
-            IsExplicitJobCount_ /*isExplicitJobCount*/,
-            JobCount_ /*jobCount*/,
-            DataSizePerJob_,
-            Inf64,
+            /*canAdjustDataSizePerJob*/ false ,
+            /*isExplicitJobCount*/ IsExplicitJobCount_,
+            /*jobCount*/ JobCount_,
+            DataWeightPerJob_,
+            /*primaryDataWeightPerJob*/ Inf64,
+            CompressedDataSizePerJob_,
             MaxDataSlicesPerJob_,
-            Inf64 /*maxDataSizePerJob*/,
-            0 /*maxPrimaryDataWeightPerJob*/,
-            InputSliceDataSize_,
+            /*maxDataSizePerJob*/ Inf64,
+            /*maxPrimaryDataWeightPerJob*/ 0,
+            MaxCompressedDataSizePerJob_,
+            InputSliceDataWeight_,
             InputSliceRowCount_,
-            {} /*batchRowCount*/,
-            0 /*foreignSliceDataWeight*/,
+            /*batchRowCount*/ {},
+            /*foreignSliceDataWeight*/ 0,
             SamplingRate_);
     }
 
     TInputChunkPtr CreateChunk(
         int tableIndex,
-        i64 size = 1_KB,
-        i64 rowCount = 1000)
+        i64 weight = 1_KB,
+        i64 rowCount = 1000,
+        i64 compressedSize = -1)
     {
+        YT_VERIFY(tableIndex < std::ssize(InputTables_));
+        if (compressedSize == -1) {
+            compressedSize = weight;
+        }
         auto inputChunk = New<TInputChunk>();
         inputChunk->SetChunkId(MakeRandomId(EObjectType::Chunk, TCellTag(0x42)));
-        inputChunk->SetCompressedDataSize(size);
-        inputChunk->SetTotalUncompressedDataSize(size);
-        inputChunk->SetTotalDataWeight(size);
+        inputChunk->SetCompressedDataSize(compressedSize);
+        inputChunk->SetTotalUncompressedDataSize(weight);
+        inputChunk->SetTotalDataWeight(weight);
         inputChunk->SetTableIndex(tableIndex);
         inputChunk->SetTableRowIndex(UnversionedTableRowCounts_[tableIndex]);
         UnversionedTableRowCounts_[tableIndex] += rowCount;
@@ -116,7 +125,7 @@ protected:
             }));
     }
 
-    TLegacyDataSlicePtr BuildDataSliceByChunk(const TInputChunkPtr& chunk)
+    static TLegacyDataSlicePtr BuildDataSliceByChunk(const TInputChunkPtr& chunk)
     {
         auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
         dataSlice->SetInputStreamIndex(chunk->GetTableIndex());
@@ -204,21 +213,20 @@ protected:
     //! Perform all the correctness checks over the given result of ordered chunk pool invocation
     //! (without any suspends nor job interruptions).
     void CheckEverything(
-        const std::vector<TChunkStripeListPtr>& stripeLists)
+        const std::vector<TChunkStripeListPtr>& stripeLists,
+        bool chunksRestored = false)
     {
         CheckStripeListsContainOnlyActiveChunks();
-        CheckDataIntegrity(stripeLists);
+        CheckDataIntegrity(stripeLists, chunksRestored);
     }
 
     // TODO(max42): extract all these weird repeating code parts into helpers already! Jeez!
     //! Check that:
     //! * The given stripe lists cover each input chunk with specified read limits without overlapping;
-    //! * For each input table the input data slices follow in an ascending order with tie broken by:
-    //! *** For the unversioned tables by chunk row index;
-    //! *** For the versioned tables by the full key;
-    void CheckDataIntegrity(const std::vector<TChunkStripeListPtr>& stripeLists)
+    void CheckDataIntegrity(const std::vector<TChunkStripeListPtr>& stripeLists, bool chunksRestored = false)
     {
-        THashMap<TInputChunkPtr, std::vector<TInputChunkSlicePtr>> chunkSlicesByInputChunk;
+        THashMap<TInputChunkPtr, std::vector<TInputChunkSlicePtr>> chunkSlicesByInputChunkPtr;
+        THashMap<TChunkId, std::vector<TInputChunkSlicePtr>> chunkSlicesByInputChunkId;
         THashSet<TInputChunkPtr> teleportChunksSet(TeleportChunks_.begin(), TeleportChunks_.end());
 
         // Check that data slices from each stripe are all from the same table.
@@ -231,7 +239,10 @@ protected:
                     for (const auto& chunkSlice : dataSlice->ChunkSlices) {
                         const auto& inputChunk = chunkSlice->GetInputChunk();
                         EXPECT_EQ(tableIndex, inputChunk->GetTableIndex());
-                        chunkSlicesByInputChunk[inputChunk].emplace_back(chunkSlice);
+                        chunkSlicesByInputChunkPtr[inputChunk].emplace_back(chunkSlice);
+                        if (chunksRestored) {
+                            chunkSlicesByInputChunkId[inputChunk->GetChunkId()].emplace_back(chunkSlice);
+                        }
                     }
                 }
             }
@@ -263,9 +274,17 @@ protected:
             TLegacyKey lastUpperKey = chunkLowerKey;
             i64 lastLeftRowIndex = -1;
             i64 lastRightRowIndex = chunkLowerRowIndex;
-            auto it = chunkSlicesByInputChunk.find(inputChunk);
-            ASSERT_TRUE(chunkSlicesByInputChunk.end() != it);
-            auto& chunkSlices = it->second;
+
+            std::vector<TInputChunkSlicePtr> chunkSlices;
+            if (chunksRestored) {
+                auto it = chunkSlicesByInputChunkId.find(inputChunk->GetChunkId());
+                ASSERT_TRUE(chunkSlicesByInputChunkId.end() != it);
+                chunkSlices = it->second;
+            } else {
+                auto it = chunkSlicesByInputChunkPtr.find(inputChunk);
+                ASSERT_TRUE(chunkSlicesByInputChunkPtr.end() != it);
+                chunkSlices = it->second;
+            }
 
             std::sort(chunkSlices.begin(), chunkSlices.end(), CompareChunkSlicesByLowerLimit);
 
@@ -299,35 +318,6 @@ protected:
             // For InferLimitsFromBoundaryKeys, lastUpperKey can be larger than chunkUpperKey.
             EXPECT_GE(lastUpperKey, chunkUpperKey);
             EXPECT_EQ(lastRightRowIndex, chunkUpperRowIndex);
-        }
-
-        // Second check.
-        auto unversionedDataSliceComparator = [] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
-            auto lhsChunk = lhs->GetSingleUnversionedChunk();
-            auto rhsChunk = rhs->GetSingleUnversionedChunk();
-            if (lhsChunk != rhsChunk) {
-                return lhsChunk->GetTableRowIndex() < rhsChunk->GetTableRowIndex();
-            } else {
-                return lhs->LegacyLowerLimit().Key <= rhs->LegacyLowerLimit().Key;
-            }
-        };
-        auto versionedDataSliceComparator = [] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
-            return lhs->LegacyLowerLimit().Key <= rhs->LegacyLowerLimit().Key;
-        };
-
-        for (const auto& stripeList : stripeLists) {
-            for (const auto& stripe : stripeList->Stripes) {
-                ASSERT_TRUE(!stripe->DataSlices.empty());
-                int tableIndex = stripe->DataSlices.front()->GetTableIndex();
-                if (!InputTables_[tableIndex].IsForeign()) {
-                    const auto& comparator = (InputTables_[tableIndex].IsVersioned()) ? versionedDataSliceComparator : unversionedDataSliceComparator;
-                    for (int index = 0; index + 1 < std::ssize(stripe->DataSlices); ++index) {
-                        const auto& lhs = stripe->DataSlices[index];
-                        const auto& rhs = stripe->DataSlices[index + 1];
-                        EXPECT_TRUE(comparator(lhs, rhs));
-                    }
-                }
-            }
         }
     }
 
@@ -373,11 +363,15 @@ protected:
 
     TUnorderedChunkPoolOptions Options_;
 
-    i64 DataSizePerJob_;
+    i64 DataWeightPerJob_;
+
+    i64 CompressedDataSizePerJob_;
 
     i32 MaxDataSlicesPerJob_;
 
-    i64 InputSliceDataSize_;
+    i64 MaxCompressedDataSizePerJob_;
+
+    i64 InputSliceDataWeight_;
 
     i64 InputSliceRowCount_;
 
@@ -402,7 +396,7 @@ TEST_F(TUnorderedChunkPoolTest, UnorderedMergeSimple)
         {true, true, true} /*isTeleportable*/,
         {false, false, false} /*isVersioned*/);
 
-    DataSizePerJob_ = 2_KB;
+    DataWeightPerJob_ = 2_KB;
     Options_.MinTeleportChunkDataWeight = 3_KB;
     JobCount_ = 2;
 
@@ -440,13 +434,13 @@ TEST_F(TUnorderedChunkPoolTest, OneStripe1)
         /*isTeleprotable*/ {false},
         /*isVersion*/ {false});
 
-    DataSizePerJob_ = 2047;
-    InputSliceDataSize_ = 1500;
+    DataWeightPerJob_ = 2047;
+    InputSliceDataWeight_ = 1500;
     JobCount_ = 1;
 
     InitJobConstraints();
 
-    auto chunk = CreateChunk(0, DataSizePerJob_);
+    auto chunk = CreateChunk(0, DataWeightPerJob_);
 
     CreateChunkPool();
     PersistAndRestore();
@@ -469,13 +463,13 @@ TEST_F(TUnorderedChunkPoolTest, OneStripe2)
         /*isTeleprotable*/ {false},
         /*isVersion*/ {false});
 
-    DataSizePerJob_ = 2047;
-    InputSliceDataSize_ = 800;
+    DataWeightPerJob_ = 2047;
+    InputSliceDataWeight_ = 800;
     JobCount_ = 1;
 
     InitJobConstraints();
 
-    auto chunk = CreateChunk(0, DataSizePerJob_);
+    auto chunk = CreateChunk(0, DataWeightPerJob_);
 
     CreateChunkPool();
     PersistAndRestore();
@@ -498,13 +492,13 @@ TEST_F(TUnorderedChunkPoolTest, OneStripe3)
         /*isTeleprotable*/ {false},
         /*isVersion*/ {false});
 
-    DataSizePerJob_ = 2048;
-    InputSliceDataSize_ = 800;
+    DataWeightPerJob_ = 2048;
+    InputSliceDataWeight_ = 800;
     JobCount_ = 1;
 
     InitJobConstraints();
 
-    auto chunk = CreateChunk(0, DataSizePerJob_);
+    auto chunk = CreateChunk(0, DataWeightPerJob_);
 
     CreateChunkPool();
     PersistAndRestore();
@@ -527,14 +521,14 @@ TEST_F(TUnorderedChunkPoolTest, InputChunksAreSliced)
         {false} /*isTeleportable*/,
         {false} /*isVersioned*/);
 
-    DataSizePerJob_ = 2_KB / 5;
+    DataWeightPerJob_ = 2_KB / 5;
     IsExplicitJobCount_ = true; // TODO(max42): consider what happens with false here.
     JobCount_ = 5;
-    InputSliceDataSize_ = DataSizePerJob_ / 10;
+    InputSliceDataWeight_ = DataWeightPerJob_ / 10;
     InitJobConstraints();
 
-    auto chunkA = CreateChunk(0); // 2Kb.
-    auto chunkB = CreateChunk(0); // 2Kb.
+    auto chunkA = CreateChunk(0); // 1Kb.
+    auto chunkB = CreateChunk(0); // 1Kb.
 
     CreateChunkPool();
 
@@ -551,10 +545,11 @@ TEST_F(TUnorderedChunkPoolTest, InputChunksAreSliced)
 
     CheckEverything(stripeLists);
 
-    for (const auto& stripeList : stripeLists) {
-        EXPECT_GE(stripeList->TotalDataWeight, DataSizePerJob_ * 0.9);
-        EXPECT_LE(stripeList->TotalDataWeight, DataSizePerJob_ * 1.1);
+    for (int index : xrange(std::ssize(stripeLists) - 1)) {
+        EXPECT_GE(stripeLists[index]->TotalDataWeight, DataWeightPerJob_);
+        EXPECT_LE(stripeLists[index]->TotalDataWeight, DataWeightPerJob_ + InputSliceDataWeight_);
     }
+    EXPECT_LE(stripeLists.back()->TotalDataWeight, DataWeightPerJob_);
 }
 
 TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks1)
@@ -563,7 +558,7 @@ TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks1)
         {false} /*isTeleportable*/,
         {false} /*isVersioned*/);
 
-    DataSizePerJob_ = 5_KB;
+    DataWeightPerJob_ = 5_KB;
     IsExplicitJobCount_ = true;
     JobCount_ = 1;
     InitJobConstraints();
@@ -603,7 +598,7 @@ TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks2)
         {false} /*isTeleportable*/,
         {false} /*isVersioned*/);
 
-    DataSizePerJob_ = 5_KB;
+    DataWeightPerJob_ = 5_KB;
     IsExplicitJobCount_ = true;
     JobCount_ = 1;
     InitJobConstraints();
@@ -671,15 +666,12 @@ TEST_F(TUnorderedChunkPoolTest, UnsuccessfulSplitMarksJobUnsplittable)
         /*isTeleportable*/ {false},
         /*isVersioned*/ {false});
 
-    DataSizePerJob_ = 2_KB;
+    DataWeightPerJob_ = 2_KB;
     IsExplicitJobCount_ = false;
     JobCount_ = 1;
     InitJobConstraints();
 
-    auto chunk = CreateChunk(
-        0,
-        /*size*/ 1_KB,
-        /*rowCount*/ 1);
+    auto chunk = CreateChunk(0, /*size*/ 1_KB, /*rowCount*/ 1);
 
     CreateChunkPool();
 
@@ -688,6 +680,368 @@ TEST_F(TUnorderedChunkPoolTest, UnsuccessfulSplitMarksJobUnsplittable)
     ChunkPool_->Finish();
 
     CheckUnsuccessfulSplitMarksJobUnsplittable(ChunkPool_);
+}
+
+TEST_F(TUnorderedChunkPoolTest, BuildJobsInputByMaxCompressedDataSize)
+{
+    InitTables(
+        /*isTeleportable*/ {false, false},
+        /*isVersioned*/ {false, false});
+
+    MaxCompressedDataSizePerJob_ = 150_MB;
+    DataWeightPerJob_ = 10_MB;
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    for (int i = 0; i < 10; ++i) {
+        AddChunk(CreateChunk(
+            i % 2,
+            /*weight*/ 1_MB,
+            /*rowCount*/ 1000,
+            /*compressedSize*/ 100_MB));
+    }
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+
+    EXPECT_TRUE(TeleportChunks_.empty());
+    EXPECT_EQ(stripeLists.size(), 10u);
+
+    CheckEverything(stripeLists);
+
+    for (const auto& stripeList : stripeLists) {
+        EXPECT_GE(stripeList->TotalCompressedDataSize, static_cast<i64>(100_MB) * 0.9);
+        EXPECT_LE(stripeList->TotalCompressedDataSize, static_cast<i64>(100_MB) * 1.1);
+
+        EXPECT_GE(stripeList->TotalDataWeight, static_cast<i64>(1_MB) * 0.9);
+        EXPECT_LE(stripeList->TotalDataWeight, static_cast<i64>(1_MB) * 1.1);
+    }
+}
+
+TEST_F(TUnorderedChunkPoolTest, BuildJobsInputByMaxCompressedDataSizeWithChunkSlicing)
+{
+    InitTables(
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+
+    MaxCompressedDataSizePerJob_ = 140_MB;
+    InputSliceDataWeight_ = 256_KB;
+    DataWeightPerJob_ = 10_MB;
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    for (int i = 0; i < 10; ++i) {
+        AddChunk(CreateChunk(
+            0,
+            /*weight*/ 512_KB,
+            /*rowCount*/ 5000,
+            /*compressedSize*/ 50_MB));
+        PersistAndRestore();
+    }
+
+    ChunkPool_->Finish();
+
+    PersistAndRestore();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+
+    EXPECT_TRUE(TeleportChunks_.empty());
+
+    EXPECT_EQ(stripeLists.size(), 4u);
+
+    CheckEverything(stripeLists, /*chunksRestored*/ true);
+
+    for (const auto& stripeList : stripeLists) {
+        EXPECT_GE(stripeList->TotalCompressedDataSize, static_cast<i64>(125_MB) * 0.9);
+        EXPECT_LE(stripeList->TotalCompressedDataSize, static_cast<i64>(125_MB) * 1.1);
+
+        EXPECT_GE(stripeList->TotalDataWeight, static_cast<i64>(1_MB + 256_KB) * 0.9);
+        EXPECT_LE(stripeList->TotalDataWeight, static_cast<i64>(1_MB + 256_KB) * 1.1);
+    }
+}
+
+TEST_F(TUnorderedChunkPoolTest, BuildJobsInputByMaxCompressedDataSizeAndByDataWeight)
+{
+    InitTables(
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+
+    MaxCompressedDataSizePerJob_ = 105_MB;
+    DataWeightPerJob_ = 10_MB;
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    for (int i = 0; i < 5; ++i) {
+        AddChunk(CreateChunk(
+            0,
+            /*weight*/ 1_MB,
+            /*rowCount*/ 1000,
+            /*compressedSize*/ 100_MB));
+    }
+    for (int i = 0; i < 5; ++i) {
+        AddChunk(CreateChunk(
+            0,
+            /*weight*/ 1_MB,
+            /*rowCount*/ 1000,
+            /*compressedSize*/ 10_MB));
+    }
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+
+    EXPECT_TRUE(TeleportChunks_.empty());
+
+    CheckEverything(stripeLists);
+
+    for (const auto& stripeList : stripeLists) {
+        EXPECT_LE(stripeList->TotalCompressedDataSize, static_cast<i64>(105_MB));
+        EXPECT_LE(stripeList->TotalDataWeight, static_cast<i64>(10_MB) * 1.1);
+    }
+}
+
+TEST_F(TUnorderedChunkPoolTest, BuildJobsInputByMaxCompressedDataSizeWhenDataWeightBigger)
+{
+    InitTables(
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+
+    MaxCompressedDataSizePerJob_ = 140_MB;
+    DataWeightPerJob_ = 1000_MB;
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    for (int i = 0; i < 10; ++i) {
+        AddChunk(CreateChunk(
+            0,
+            /*weight*/ 100_MB,
+            /*rowCount*/ 5000,
+            /*compressedSize*/ 50_MB));
+        PersistAndRestore();
+    }
+
+    ChunkPool_->Finish();
+
+    PersistAndRestore();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+
+    EXPECT_TRUE(TeleportChunks_.empty());
+
+    EXPECT_EQ(stripeLists.size(), 5u);
+
+    CheckEverything(stripeLists, /*chunksRestored*/ true);
+
+    for (const auto& stripeList : stripeLists) {
+        EXPECT_GE(stripeList->TotalCompressedDataSize, static_cast<i64>(100_MB) * 0.9);
+        EXPECT_LE(stripeList->TotalCompressedDataSize, static_cast<i64>(100_MB) * 1.1);
+
+        EXPECT_GE(stripeList->TotalDataWeight, static_cast<i64>(200_MB) * 0.9);
+        EXPECT_LE(stripeList->TotalDataWeight, static_cast<i64>(200_MB) * 1.1);
+    }
+}
+
+TEST_F(TUnorderedChunkPoolTest, BuildJobsInputByCompressedDataSize)
+{
+    InitTables(
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+
+    CompressedDataSizePerJob_ = 100_MB;
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    for (int i = 0; i < 10; ++i) {
+        AddChunk(CreateChunk(
+            /*tableIndex*/ 0,
+            /*weight*/ 100_MB,
+            /*rowCount*/ 5000,
+            /*compressedSize*/ 51_MB));
+        PersistAndRestore();
+    }
+
+    EXPECT_EQ(ChunkPool_->GetJobCounter()->GetTotal(), 6);
+    // One job is blocked and will become pending once chunk pool is finished.
+    EXPECT_EQ(ChunkPool_->GetJobCounter()->GetBlocked(), 1);
+
+    ChunkPool_->Finish();
+
+    EXPECT_EQ(ChunkPool_->GetJobCounter()->GetTotal(), 6);
+    EXPECT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 6);
+
+    PersistAndRestore();
+
+    ExtractOutputCookiesWhilePossible();
+
+    // Job count has decreased because each stripe has compressed size slightly
+    // greater than compressed data size per job.
+    EXPECT_EQ(ChunkPool_->GetJobCounter()->GetTotal(), 5);
+
+    auto stripeLists = GetAllStripeLists();
+
+    EXPECT_TRUE(TeleportChunks_.empty());
+
+    EXPECT_EQ(stripeLists.size(), 5u);
+
+    CheckEverything(stripeLists, /*chunksRestored*/ true);
+
+    for (const auto& stripeList : stripeLists) {
+        EXPECT_EQ(stripeList->TotalCompressedDataSize, 102_MBs);
+    }
+}
+
+TEST_F(TUnorderedChunkPoolTest, DataWeightPerJobDoesNotAffectCompressedDataSizePerJob)
+{
+    // +-------+---------------+
+    // |       |               |
+    // | Data  |               |
+    // | Weight|               |
+    // |       | #  _  _  _  _ | <- 250_MB
+    // +-------+---------------+
+    // |       | #  #  #  #  # | <- 1_GB
+    // | Compr.| #  #  #  #  # |
+    // | Data  | #  #  #  #  # |
+    // | Size  | #  #  #  #  # |
+    // +-------+---------------+
+    // | Chunk | 1  2  3  4  5 |
+    // +-------+---------------+
+    //
+    // Job counts:
+    //  - By compressed_data_size ~ ceil(5_GB / 6_GB)   = 1
+    //  - By data_weight          ~ ceil(250_MB / 1_MB) = 250
+    //
+    // Unordered chunk pool does not guarantee sequential ordering of input
+    // chunks and may process input chunks in the following orders:
+    //  1. [B][SSSS] - 2 jobs
+    //  2. [SB][SSS] - 2 jobs
+    //  3. [SSB][SS] - 2 jobs
+    //  4. [SSSB][S] - 2 jobs
+    //  5. [SSSSB]   - 1 job
+    //
+    // Where:
+    //  - "B": data_weight = 250_MB
+    //  - "S": data_weight -> 0
+
+    InitTables(
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+
+    CompressedDataSizePerJob_ = 6_GB;
+    DataWeightPerJob_ = 1_MB;
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    AddChunk(CreateChunk(
+        0,
+        /*weight*/ 250_MB,
+        /*rowCount*/ 5000,
+        /*compressedSize*/ 1_GB));
+    PersistAndRestore();
+
+    for (int i = 0; i < 4; ++i) {
+        AddChunk(CreateChunk(
+            0,
+            /*weight*/ 10_KB,
+            /*rowCount*/ 5000,
+            /*compressedSize*/ 1_GB));
+        PersistAndRestore();
+    }
+
+    ChunkPool_->Finish();
+
+    PersistAndRestore();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+
+    EXPECT_TRUE(TeleportChunks_.empty());
+
+    EXPECT_LE(stripeLists.size(), 2u);
+
+    CheckEverything(stripeLists, /*chunksRestored*/ true);
+}
+
+TEST_F(TUnorderedChunkPoolTest, CompressedDataSizePerJobDoesNotAffectDataWeightPerJob)
+{
+    // +-------+---------------+
+    // |       | #  #  #  #  # | <- 1_GB
+    // | Data  | #  #  #  #  # |
+    // | Weight| #  #  #  #  # |
+    // |       | #  #  #  #  # |
+    // +-------+---------------+
+    // |       |               |
+    // | Compr.|               |
+    // | Data  |               |
+    // | Size  | #  _  _  _  _ | <- 250_MB
+    // +-------+---------------+
+    // | Chunk | 1  2  3  4  5 |
+    // +-------+---------------+
+    //
+    // Job counts:
+    //  - By compressed_data_size ~ ceil(250_MB / 1_MB) = 250
+    //  - By data_weight          ~ ceil(5_GB / 6_GB) j = 1
+    //
+    // Unordered chunk pool does not guarantee sequential ordering of input
+    // chunks and may process input chunks in the following orders:
+    //  1. [B][SSSS] - 2 jobs
+    //  2. [SB][SSS] - 2 jobs
+    //  3. [SSB][SS] - 2 jobs
+    //  4. [SSSB][S] - 2 jobs
+    //  5. [SSSSB]   - 1 job
+    //
+    // Where:
+    //  - "B": compressed_size = 250_MB
+    //  - "S": compressed_size -> 0
+
+    InitTables(
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+
+    CompressedDataSizePerJob_ = 1_MB;
+    DataWeightPerJob_ = 6_GB;
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    AddChunk(CreateChunk(
+        0,
+        /*weight*/ 1_GB,
+        /*rowCount*/ 5000,
+        /*compressedSize*/ 250_MB));
+    PersistAndRestore();
+
+    for (int i = 0; i < 4; ++i) {
+        AddChunk(CreateChunk(
+            0,
+            /*weight*/ 1_GB,
+            /*rowCount*/ 5000,
+            /*compressedSize*/ 100));
+        PersistAndRestore();
+    }
+
+    ChunkPool_->Finish();
+
+    PersistAndRestore();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+
+    EXPECT_TRUE(TeleportChunks_.empty());
+
+    EXPECT_LE(stripeLists.size(), 2u);
+
+    CheckEverything(stripeLists, /*chunksRestored*/ true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -716,7 +1070,7 @@ TEST_P(TUnorderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
 
     constexpr int chunkCount = 25;
     constexpr int maxJobLosts = 50;
-    DataSizePerJob_ = 1_KB;
+    DataWeightPerJob_ = 1_KB;
     IsExplicitJobCount_ = true;
     JobCount_ = chunkCount;
     InitJobConstraints();

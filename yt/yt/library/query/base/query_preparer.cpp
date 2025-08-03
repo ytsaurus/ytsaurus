@@ -87,6 +87,9 @@ void ExtractFunctionNames(
     } else if (expr->As<NAst::TReferenceExpression>()) {
     } else if (auto aliasExpr = expr->As<NAst::TAliasExpression>()) {
         ExtractFunctionNames(aliasExpr->Expression, functions);
+    } else if (auto queryExpr = expr->As<NAst::TQueryExpression>()) {
+        ExtractFunctionNames(queryExpr->Query.WherePredicate, functions);
+        ExtractFunctionNames(queryExpr->Query.SelectExprs, functions);
     } else {
         YT_ABORT();
     }
@@ -164,6 +167,9 @@ std::vector<TString> ExtractFunctionNames(
                 functions.end(),
                 std::make_move_iterator(extracted.begin()),
                 std::make_move_iterator(extracted.end()));
+        },
+        [&] (const NAst::TExpressionList& expressions) {
+            ExtractFunctionNames(expressions, &functions);
         });
 
 
@@ -212,8 +218,7 @@ TGroupClausePtr BuildGroupClause(
 
     for (const auto& expressionAst : expressionsAst) {
         auto typedExpr = builder->BuildTypedExpression(expressionAst, ComparableTypes);
-
-        groupClause->AddGroupItem(typedExpr, InferColumnName(*expressionAst));
+        groupClause->AddGroupItem(typedExpr, builder->InferGroupItemName(typedExpr, *expressionAst));
     }
 
     builder->SetGroupData(
@@ -221,20 +226,6 @@ TGroupClausePtr BuildGroupClause(
         &groupClause->AggregateItems);
 
     return groupClause;
-}
-
-TConstProjectClausePtr BuildProjectClause(
-    const NAst::TExpressionList& expressionsAst,
-    TExprBuilder* builder)
-{
-    auto projectClause = New<TProjectClause>();
-    for (const auto& expressionAst : expressionsAst) {
-        auto typedExpr = builder->BuildTypedExpression(expressionAst);
-
-        projectClause->AddProjection(typedExpr, InferColumnName(*expressionAst));
-    }
-
-    return projectClause;
 }
 
 void DropLimitClauseWhenGroupByOne(const TQueryPtr& query)
@@ -383,15 +374,22 @@ void PrepareQuery(
     }
 
     if (ast.SelectExprs) {
-        query->ProjectClause = BuildProjectClause(
-            *ast.SelectExprs,
-            builder);
+        auto projectClause = New<TProjectClause>();
+        for (const auto& expressionAst : *ast.SelectExprs) {
+            auto typedExpr = builder->BuildTypedExpression(expressionAst);
+
+            projectClause->AddProjection(typedExpr, InferColumnName(*expressionAst));
+        }
+
+        query->ProjectClause = projectClause;
     } else {
         // Select all columns.
         builder->PopulateAllColumns();
     }
 
     DropLimitClauseWhenGroupByOne(query);
+
+    builder->Finish();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -547,7 +545,9 @@ NAst::TAstHead ParseQueryString(
     }
 
     NAst::TLexer lexer(source, strayToken, std::move(queryLiterals), syntaxVersion);
-    NAst::TParser parser(lexer, &head, source, /*aliasMapStack*/ {});
+    std::stack<NAst::TAliasMap> aliasMapStack;
+    aliasMapStack.push({});
+    NAst::TParser parser(lexer, &head, source, std::move(aliasMapStack));
 
     int result = parser.parse();
 
@@ -680,6 +680,17 @@ std::vector<std::pair<TConstExpressionPtr, int>> MakeExpressionsFromComputedColu
     return expressionsAndColumnIndices;
 }
 
+std::unique_ptr<TExprBuilder> CreateExpressionBuilder(
+    TStringBuf source,
+    const TConstTypeInferrerMapPtr& functions,
+    const NAst::TAliasMap& aliasMap,
+    int expressionBuilderVersion)
+{
+    return (expressionBuilderVersion == 1
+        ? &CreateExpressionBuilderV1
+        : &CreateExpressionBuilderV2)(source, functions, aliasMap);
+}
+
 TJoinClausePtr BuildJoinClause(
     const TDataSplit& foreignDataSplit,
     const NAst::TJoin& tableJoin,
@@ -690,6 +701,7 @@ TJoinClausePtr BuildJoinClause(
     const TTableSchemaPtr& tableSchema,
     const std::optional<TString>& tableAlias,
     TExprBuilder* builder,
+    int builderVersion,
     const NLogging::TLogger& Logger)
 {
     auto foreignTableSchema = foreignDataSplit.TableSchema;
@@ -700,46 +712,52 @@ TJoinClausePtr BuildJoinClause(
     joinClause->IsLeft = tableJoin.IsLeft;
 
     // BuildPredicate and BuildTypedExpression are used with foreignBuilder.
-    auto foreignBuilder = CreateExpressionBuilder(source, functions, aliasMap);
-    foreignBuilder->AddTable(
+    auto foreignBuilder = CreateExpressionBuilder(source, functions, aliasMap, builderVersion);
+
+    foreignBuilder->AddTable({
         *joinClause->Schema.Original,
         tableJoin.Table.Alias,
-        &joinClause->Schema.Mapping);
+        &joinClause->Schema.Mapping});
 
     std::vector<TSelfEquation> selfEquations;
     selfEquations.reserve(tableJoin.Fields.size() + tableJoin.Lhs.size());
     std::vector<TConstExpressionPtr> foreignEquations;
     foreignEquations.reserve(tableJoin.Fields.size() + tableJoin.Rhs.size());
+
+    THashSet<std::string> commonColumnNames;
     // Merge columns.
     for (const auto& referenceExpr : tableJoin.Fields) {
-        auto selfColumn = builder->GetColumnPtr(referenceExpr->Reference);
-        auto foreignColumn = foreignBuilder->GetColumnPtr(referenceExpr->Reference);
+        auto columnName = InferColumnName(referenceExpr->Reference);
+        commonColumnNames.insert(columnName);
 
-        if (!selfColumn || !foreignColumn) {
+        auto selfColumnType = builder->ResolveColumn(referenceExpr->Reference);
+        auto foreignColumnType = foreignBuilder->ResolveColumn(referenceExpr->Reference);
+
+        if (!selfColumnType || !foreignColumnType) {
             THROW_ERROR_EXCEPTION("Column %Qv not found",
-                NAst::InferColumnName(referenceExpr->Reference));
+                columnName);
         }
 
-        if (!NTableClient::IsV1Type(selfColumn->LogicalType) || !NTableClient::IsV1Type(foreignColumn->LogicalType)) {
+        if (!NTableClient::IsV1Type(selfColumnType) || !NTableClient::IsV1Type(foreignColumnType)) {
             THROW_ERROR_EXCEPTION("Cannot join column %Qv of nonsimple type",
-                NAst::InferColumnName(referenceExpr->Reference))
-                << TErrorAttribute("self_type", selfColumn->LogicalType)
-                << TErrorAttribute("foreign_type", foreignColumn->LogicalType);
+                columnName)
+                << TErrorAttribute("self_type", selfColumnType)
+                << TErrorAttribute("foreign_type", foreignColumnType);
         }
 
         // N.B. When we try join optional<int32> and int16 columns it must work.
-        if (NTableClient::GetWireType(selfColumn->LogicalType) != NTableClient::GetWireType(foreignColumn->LogicalType)) {
+        if (NTableClient::GetWireType(selfColumnType) != NTableClient::GetWireType(foreignColumnType)) {
             THROW_ERROR_EXCEPTION("Column %Qv type mismatch in join",
-                NAst::InferColumnName(referenceExpr->Reference))
-                << TErrorAttribute("self_type", selfColumn->LogicalType)
-                << TErrorAttribute("foreign_type", foreignColumn->LogicalType);
+                columnName)
+                << TErrorAttribute("self_type", selfColumnType)
+                << TErrorAttribute("foreign_type", foreignColumnType);
         }
 
         selfEquations.push_back({
-            .Expression=New<TReferenceExpression>(selfColumn->LogicalType, selfColumn->Name),
+            .Expression=New<TReferenceExpression>(selfColumnType, columnName),
             .Evaluated=false,
         });
-        foreignEquations.push_back(New<TReferenceExpression>(foreignColumn->LogicalType, foreignColumn->Name));
+        foreignEquations.push_back(New<TReferenceExpression>(foreignColumnType, columnName));
     }
 
     for (const auto& argument : tableJoin.Lhs) {
@@ -823,7 +841,7 @@ TJoinClausePtr BuildJoinClause(
                     auto aliasedReference = NAst::TReference(column.Name(), tableAlias);
 
                     // Register self evaluated column in the effective schema.
-                    builder->GetColumnPtr(aliasedReference);
+                    builder->ResolveColumn(aliasedReference);
 
                     matchingSelfExpression = New<TReferenceExpression>(
                         column.LogicalType(),
@@ -833,7 +851,7 @@ TJoinClausePtr BuildJoinClause(
             }
 
             // Register foreign evaluated column in the effective schema.
-            foreignBuilder->GetColumnPtr(foreignKeyColumnReference);
+            foreignBuilder->ResolveColumn(foreignKeyColumnReference);
 
             keySelfEquations.push_back({
                 .Expression=std::move(matchingSelfExpression),
@@ -885,7 +903,13 @@ TJoinClausePtr BuildJoinClause(
             "JOIN-PREDICATE-clause");
     }
 
-    builder->Merge(*foreignBuilder);
+    builder->AddTable({
+        *joinClause->Schema.Original,
+        tableJoin.Table.Alias,
+        &joinClause->Schema.Mapping,
+        &joinClause->SelfJoinedColumns,
+        &joinClause->ForeignJoinedColumns,
+        commonColumnNames});
 
     return joinClause;
 }
@@ -895,7 +919,8 @@ TJoinClausePtr BuildArrayJoinClause(
     TStringBuf source,
     const NAst::TAliasMap& aliasMap,
     const TConstTypeInferrerMapPtr& functions,
-    TExprBuilder* builder)
+    TExprBuilder* builder,
+    int builderVersion)
 {
     auto arrayJoinClause = New<TJoinClause>();
     arrayJoinClause->IsLeft = arrayJoin.IsLeft;
@@ -932,18 +957,22 @@ TJoinClausePtr BuildArrayJoinClause(
 
     arrayJoinClause->Schema.Original = New<TTableSchema>(std::move(nestedColumns));
 
+    ValidateColumnUniqueness(*arrayJoinClause->Schema.Original);
+
     auto arrayBuilder = CreateExpressionBuilder(
         source,
         functions,
-        aliasMap);
-    arrayBuilder->AddTable(
+        aliasMap,
+        builderVersion);
+
+    arrayBuilder->AddTable({
         *arrayJoinClause->Schema.Original,
         std::nullopt,
-        &arrayJoinClause->Schema.Mapping);
+        &arrayJoinClause->Schema.Mapping});
 
     for (const auto& nestedTableColumn : arrayJoinClause->Schema.Original->Columns()) {
-        auto column = arrayBuilder->GetColumnPtr(NAst::TReference(nestedTableColumn.Name()));
-        YT_ASSERT(column);
+        auto type = arrayBuilder->ResolveColumn(NAst::TReference(nestedTableColumn.Name()));
+        YT_ASSERT(type);
     }
 
     if (arrayJoin.Predicate) {
@@ -953,7 +982,12 @@ TJoinClausePtr BuildArrayJoinClause(
             "JOIN-PREDICATE-clause");
     }
 
-    builder->Merge(*arrayBuilder);
+    builder->AddTable({
+        *arrayJoinClause->Schema.Original,
+        std::nullopt,
+        &arrayJoinClause->Schema.Mapping,
+        &arrayJoinClause->SelfJoinedColumns,
+        &arrayJoinClause->ForeignJoinedColumns});
 
     return arrayJoinClause;
 }
@@ -973,6 +1007,7 @@ TPlanFragmentPtr PreparePlanFragment(
         parsedSource->Source,
         std::get<NAst::TQuery>(parsedSource->AstHead.Ast),
         parsedSource->AstHead.AliasMap,
+        1,
         std::move(memoryTracker));
 }
 
@@ -981,6 +1016,7 @@ TPlanFragmentPtr PreparePlanFragment(
     TStringBuf source,
     const NAst::TQuery& queryAst,
     const NAst::TAliasMap& aliasMap,
+    int builderVersion,
     IMemoryUsageTrackerPtr memoryTracker,
     int depth)
 {
@@ -997,10 +1033,14 @@ TPlanFragmentPtr PreparePlanFragment(
                 source,
                 subquery->Ast,
                 subquery->AliasMap,
+                builderVersion,
                 memoryTracker,
                 depth + 1);
         },
-        [&] (const NAst::TTableDescriptor&) { });
+        [&] (const NAst::TTableDescriptor&) { },
+        [&] (const NAst::TExpressionList&) {
+            THROW_ERROR_EXCEPTION("Unexpected expression in from clause");
+        });
 
     auto functions = New<TTypeInferrerMap>();
     callbacks->FetchFunctions(ExtractFunctionNames(queryAst, aliasMap), functions);
@@ -1049,16 +1089,21 @@ TPlanFragmentPtr PreparePlanFragment(
         },
         [&] (const NAst::TQueryAstHeadPtr& subquery) {
             return subquery->Alias;
+        },
+        [&] (const NAst::TExpressionList&) -> std::optional<TString> {
+            return std::nullopt;
         });
 
     auto builder = CreateExpressionBuilder(
         source,
         functions,
-        aliasMap);
-    builder->AddTable(
+        aliasMap,
+        builderVersion);
+
+    builder->AddTable({
         *query->Schema.Original,
         alias,
-        &query->Schema.Mapping);
+        &query->Schema.Mapping});
 
     std::vector<TJoinClausePtr> joinClauses;
     size_t commonKeyPrefix = std::numeric_limits<size_t>::max();
@@ -1076,6 +1121,7 @@ TPlanFragmentPtr PreparePlanFragment(
                     query->Schema.Original,
                     table->Alias,
                     builder.get(),
+                    builderVersion,
                     Logger));
             },
             [&] (const NAst::TArrayJoin& arrayJoin) {
@@ -1084,25 +1130,12 @@ TPlanFragmentPtr PreparePlanFragment(
                     source,
                     aliasMap,
                     functions,
-                    builder.get()));
+                    builder.get(),
+                    builderVersion));
             });
     }
 
     PrepareQuery(query, queryAst, builder.get());
-
-    // Must be filled after builder.Finish()
-    for (const auto& [reference, entry] : builder->Lookup()) {
-        auto formattedName = NAst::InferColumnName(reference);
-
-        for (size_t index = entry.OriginTableIndex; index < entry.LastTableIndex; ++index) {
-            YT_VERIFY(index < joinClauses.size());
-            joinClauses[index]->SelfJoinedColumns.insert(formattedName);
-        }
-
-        if (entry.OriginTableIndex > 0 && entry.LastTableIndex > 0) {
-            joinClauses[entry.OriginTableIndex - 1]->ForeignJoinedColumns.insert(formattedName);
-        }
-    }
 
     // Why after PrepareQuery? GetTableSchema is called inside PrepareQuery?
     query->JoinClauses.assign(joinClauses.begin(), joinClauses.end());
@@ -1201,8 +1234,10 @@ TQueryPtr PrepareJobQuery(
     auto functions = New<TTypeInferrerMap>();
     functionsFetcher(functionNames, functions);
 
-    auto builder = CreateExpressionBuilder(source, functions, aliasMap);
-    builder->AddTable(*tableSchema, std::nullopt, &query->Schema.Mapping);
+    auto builder = CreateExpressionBuilder(source, functions, aliasMap, 1);
+
+    builder->AddTable({
+        *tableSchema, std::nullopt, &query->Schema.Mapping});
 
     PrepareQuery(
         query,
@@ -1221,6 +1256,7 @@ TConstExpressionPtr PrepareExpression(
     return PrepareExpression(
         *ParseSource(source, EParseMode::Expression),
         tableSchema,
+        1,
         functions,
         references);
 }
@@ -1228,6 +1264,15 @@ TConstExpressionPtr PrepareExpression(
 TConstExpressionPtr PrepareExpression(
     const TParsedSource& parsedSource,
     const TTableSchema& tableSchema,
+    const TConstTypeInferrerMapPtr& functions)
+{
+    return PrepareExpression(parsedSource, tableSchema, 1, functions);
+}
+
+TConstExpressionPtr PrepareExpression(
+    const TParsedSource& parsedSource,
+    const TTableSchema& tableSchema,
+    int builderVersion,
     const TConstTypeInferrerMapPtr& functions,
     THashSet<std::string>* references)
 {
@@ -1236,8 +1281,10 @@ TConstExpressionPtr PrepareExpression(
 
     std::vector<TColumnDescriptor> mapping;
 
-    auto builder = CreateExpressionBuilder(parsedSource.Source, functions, aliasMap);
-    builder->AddTable(tableSchema, std::nullopt, &mapping);
+    auto builder = CreateExpressionBuilder(parsedSource.Source, functions, aliasMap, builderVersion);
+
+    builder->AddTable({
+        tableSchema, std::nullopt, &mapping});
 
     auto result = builder->BuildTypedExpression(expr);
 

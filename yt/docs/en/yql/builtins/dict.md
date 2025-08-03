@@ -1,20 +1,26 @@
+
 # Functions for working with dicts
 
 ## DictCreate {#dictcreate}
-**Signature**
-```
+
+#### Signature
+
+```yql
 DictCreate(K,V)->Dict<K,V>
 ```
 
 Construct an empty dict. Two arguments are passed — for the key and the value. In each of them, a string describing the data type or the type itself obtained using the [functions intended for it](types.md) are specified. There are no dicts with an unknown key or value type in YQL.
+
 A key type can be:
+
 * A [primitive data type](../types/primitive.md) (except for `Yson` and `Json`).
 * A primitive data type (except for `Yson` and `Json`) with an optionality sign.
 * A tuple with the length of at least two of the types listed above.
 
 [Type description format documentation](../types/type_string.md).
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT DictCreate(String, Tuple<String,Double?>);
 ```
@@ -28,8 +34,10 @@ SELECT DictCreate(ParseType("Tuple<Int32?,String>"), ParseType("Tuple<String,Dou
 ```
 
 ## SetCreate {#setcreate}
-**Signature**
-```
+
+#### Signature
+
+```yql
 SetCreate(T)->Set<T>
 ```
 
@@ -37,7 +45,8 @@ Construct an empty set. The argument is passed: a key type probably obtained usi
 
 [Type description format documentation](../types/type_string.md).
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT SetCreate(String);
 ```
@@ -47,100 +56,121 @@ SELECT SetCreate(Tuple<Int32?,String>);
 ```
 
 ## DictLength {#dictlength}
-**Signature**
-```
+
+#### Signature
+
+```yql
 DictLength(Dict<K,V>)->Uint64
 DictLength(Dict<K,V>?)->Uint64?
 ```
 
 Number of items in the dict.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT DictLength(AsDict(AsTuple(1, AsList("foo", "bar"))));
 ```
+
 ```yql
 SELECT DictLength(dict_column) FROM my_table;
 ```
+
 ## DictHasItems {#dicthasitems}
-**Signature**
-```
+
+#### Signature
+
+```yql
 DictHasItems(Dict<K,V>)->Bool
 DictHasItems(Dict<K,V>?)->Bool?
 ```
 
 Checking that the dict contains at least one item.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT DictHasItems(AsDict(AsTuple(1, AsList("foo", "bar")))) FROM my_table;
 ```
+
 ```yql
 SELECT DictHasItems(dict_column) FROM my_table;
 ```
 
-
 ## DictItems {#dictitems}
-**Signature**
-```
+
+#### Signature
+
+```yql
 DictItems(Dict<K,V>)->List<Tuple<K,V>>
 DictItems(Dict<K,V>?)->List<Tuple<K,V>>?
 ```
 
 Getting the contents of the dict as a list of tuples with key-value pairs (`List<Tuple<key_type,value_type>>`).
 
-**Examples**
+#### Examples
 
 ```yql
 SELECT DictItems(AsDict(AsTuple(1, AsList("foo", "bar"))));
 -- [ ( 1, [ "foo", "bar" ] ) ]
 ```
+
 ```yql
 SELECT DictItems(dict_column)
 FROM my_table;
 ```
+
 ## DictKeys {#dictkeys}
-**Signature**
-```
+
+#### Signature
+
+```yql
 DictKeys(Dict<K,V>)->List<K>
 DictKeys(Dict<K,V>?)->List<K>?
 ```
 
 Getting a list of dict keys.
 
-**Examples**
+#### Examples
 
 ```yql
 SELECT DictKeys(AsDict(AsTuple(1, AsList("foo", "bar"))));
 -- [ 1 ]
 ```
+
 ```yql
 SELECT DictKeys(dict_column)
 FROM my_table;
 ```
+
 ## DictPayloads {#dictpayloads}
-**Signature**
-```
+
+#### Signature
+
+```yql
 DictPayloads(Dict<K,V>)->List<V>
 DictPayloads(Dict<K,V>?)->List<V>?
 ```
 
 Getting a list of dict values.
 
-**Examples**
+#### Examples
 
 ```yql
 SELECT DictPayloads(AsDict(AsTuple(1, AsList("foo", "bar"))));
 -- [ [ "foo", "bar" ] ]
 ```
+
 ```yql
 SELECT DictPayloads(dict_column)
 FROM my_table;
 ```
 
 ## DictLookup {#dictlookup}
-**Signature**
-```
+
+#### Signature
+
+```yql
 DictLookup(Dict<K,V>, K)->V?
 DictLookup(Dict<K,V>?, K)->V?
 DictLookup(Dict<K,V>, K?)->V?
@@ -149,7 +179,7 @@ DictLookup(Dict<K,V>?, K?)->V?
 
 Getting a dict item by key.
 
-**Examples**
+#### Examples
 
 ```yql
 SELECT DictLookup(AsDict(
@@ -158,14 +188,17 @@ SELECT DictLookup(AsDict(
 ), 1);
 -- [ "foo", "bar" ]
 ```
+
 ```yql
 SELECT DictLookup(dict_column, "foo")
 FROM my_table;
 ```
 
 ## DictContains {#dictcontains}
-**Signature**
-```
+
+#### Signature
+
+```yql
 DictContains(Dict<K,V>, K)->Bool
 DictContains(Dict<K,V>?, K)->Bool
 DictContains(Dict<K,V>, K?)->Bool
@@ -174,7 +207,7 @@ DictContains(Dict<K,V>?, K?)->Bool
 
 Checking presence of an item in the dict by key. Returns true or false.
 
-**Examples**
+#### Examples
 
 ```yql
 SELECT DictContains(AsDict(
@@ -183,14 +216,17 @@ SELECT DictContains(AsDict(
 ), 42);
 -- false
 ```
+
 ```yql
 SELECT DictContains(dict_column, "foo")
 FROM my_table;
 ```
 
 ## DictAggregate {#dictaggregate}
-**Signature**
-```
+
+#### Signature
+
+```yql
 DictAggregate(Dict<K,List<V>>, List<V>->T)->Dict<K,T>
 DictAggregate(Dict<K,List<V>>?, List<V>->T)->Dict<K,T>?
 ```
@@ -206,20 +242,21 @@ Arguments:
 2. [Aggregate function factory](basic.md#aggregationfactory).
 
 
-**Examples**
+#### Examples
 
-```sql
+```yql
 SELECT DictAggregate(AsDict(
     AsTuple(1, AsList("foo", "bar")),
     AsTuple(2, AsList("baz", "qwe"))),
     AggregationFactory("Max"));
 -- {1 : "foo", 2 : "qwe" }
-
 ```
 
 ## SetIsDisjoint {#setisjoint}
-**Signature**
-```
+
+#### Signature
+
+```yql
 SetIsDisjoint(Dict<K,V1>, Dict<K,V2>)->Bool
 SetIsDisjoint(Dict<K,V1>?, Dict<K,V2>)->Bool?
 SetIsDisjoint(Dict<K,V1>, Dict<K,V2>?)->Bool?
@@ -238,16 +275,18 @@ Thus, there are two invocation variants:
 * With the `Dict<K,V1>` and `List<K>` arguments.
 * With the `Dict<K,V1>` and `Dict<K,V2>` arguments.
 
-**Examples**
+#### Examples
 
-```sql
+```yql
 SELECT SetIsDisjoint(ToSet(AsList(1, 2, 3)), AsList(7, 4)); -- true
 SELECT SetIsDisjoint(ToSet(AsList(1, 2, 3)), ToSet(AsList(3, 4))); -- false
 ```
 
 ## SetIntersection {#setintersection}
-**Signature**
-```
+
+#### Signature
+
+```yql
 SetIntersection(Dict<K,V1>, Dict<K,V2>)->Set<K>
 SetIntersection(Dict<K,V1>?, Dict<K,V2>)->Set<K>?
 SetIntersection(Dict<K,V1>, Dict<K,V2>?)->Set<K>?
@@ -266,7 +305,8 @@ Arguments:
 * Two dicts: `Dict<K,V1>` and `Dict<K,V2>`.
 * An optional function that combines values from the source dicts to build values of the output dict. If the type of this function is `(K,V1,V2) -> U`, the result type is `Dict<K,U>`. If the function is not set, the result type is `Dict<K,Void>` and values from the source dicts are ignored.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT SetIntersection(ToSet(AsList(1, 2, 3)), ToSet(AsList(3, 4))); -- { 3 }
 SELECT SetIntersection(
@@ -283,8 +323,10 @@ The [lambda function](../syntax/expressions.md#lambda) was used in the example.
 {% endnote %}
 
 ## SetIncludes {#setincludes}
-**Signature**
-```
+
+#### Signature
+
+```yql
 SetIncludes(Dict<K,V1>, List<K>)->Bool
 SetIncludes(Dict<K,V1>?, List<K>)->Bool?
 SetIncludes(Dict<K,V1>, List<K>?)->Bool?
@@ -303,15 +345,18 @@ Thus, there are two invocation variants:
 * With the `Dict<K,V1>` and `List<K>` arguments.
 * With the `Dict<K,V1>` and `Dict<K,V2>` arguments.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT SetIncludes(ToSet(AsList(1, 2, 3)), AsList(3, 4)); -- false
 SELECT SetIncludes(ToSet(AsList(1, 2, 3)), ToSet(AsList(2, 3))); -- true
 ```
 
 ## SetUnion {#setunion}
-**Signature**
-```
+
+#### Signature
+
+```yql
 SetUnion(Dict<K,V1>, Dict<K,V2>)->Set<K>
 SetUnion(Dict<K,V1>?, Dict<K,V2>)->Set<K>?
 SetUnion(Dict<K,V1>, Dict<K,V2>?)->Set<K>?
@@ -330,7 +375,8 @@ Arguments:
 * Two dicts: `Dict<K,V1>` and `Dict<K,V2>`.
 * An optional function that combines values from the source dicts to build values of the output dict. If the type of this function is `(K,V1?,V2?) -> U`, the result type is `Dict<K,U>`. If the function is not set, the result type is `Dict<K,Void>` and values from the source dicts are ignored.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT SetUnion(ToSet(AsList(1, 2, 3)), ToSet(AsList(3, 4))); -- { 1, 2, 3, 4 }
 SELECT SetUnion(
@@ -341,8 +387,10 @@ SELECT SetUnion(
 ```
 
 ## SetDifference {#setdifference}
-**Signature**
-```
+
+#### Signature
+
+```yql
 SetDifference(Dict<K,V1>, Dict<K,V2>)->Dict<K,V1>
 SetDifference(Dict<K,V1>?, Dict<K,V2>)->Dict<K,V1>?
 SetDifference(Dict<K,V1>, Dict<K,V2>?)->Dict<K,V1>?
@@ -351,7 +399,8 @@ SetDifference(Dict<K,V1>?, Dict<K,V2>?)->Dict<K,V1>?
 
 Builds a dict which has all keys with corresponding values of the first dict for which there is no key in the second dict.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT SetDifference(ToSet(AsList(1, 2, 3)), ToSet(AsList(3, 4))); -- { 1, 2 }
 SELECT SetDifference(
@@ -361,8 +410,10 @@ SELECT SetDifference(
 ```
 
 ## SetSymmetricDifference {#setsymmetricdifference}
-**Signature**
-```
+
+#### Signature
+
+```yql
 SetSymmetricDifference(Dict<K,V1>, Dict<K,V2>)->Set<K>
 SetSymmetricDifference(Dict<K,V1>?, Dict<K,V2>)->Set<K>?
 SetSymmetricDifference(Dict<K,V1>, Dict<K,V2>?)->Set<K>?
@@ -381,7 +432,8 @@ Arguments:
 * Two dicts: `Dict<K,V1>` and `Dict<K,V2>`.
 * An optional function that combines values from the source dicts to build values of the output dict. If the type of this function is `(K,V1?,V2?) -> U`, the result type is `Dict<K,U>`. If the function is not set, the result type is `Dict<K,Void>` and values from the source dicts are ignored.
 
-**Examples**
+#### Examples
+
 ```yql
 SELECT SetSymmetricDifference(ToSet(AsList(1, 2, 3)), ToSet(AsList(3, 4))); -- { 1, 2, 4 }
 SELECT SetSymmetricDifference(

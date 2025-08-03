@@ -5,9 +5,12 @@ package NYT.NChunkClient.NProto;
 message TChunkReaderStatistics
 {
     required int64 data_bytes_read_from_disk = 1;
+    optional int64 data_blocks_read_from_disk = 21;
     optional int64 data_io_requests = 11;
     required int64 data_bytes_transmitted = 7 [default = 0];
     required int64 data_bytes_read_from_cache = 2;
+    optional int64 wasted_data_bytes_read_from_disk = 22;
+    optional int64 wasted_data_blocks_read_from_disk = 23;
     required int64 meta_bytes_read_from_disk = 3;
     optional int64 meta_io_requests = 14;
     optional int64 omitted_suspicious_node_count = 10;

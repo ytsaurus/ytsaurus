@@ -33,12 +33,9 @@ struct TFilterType
 {
     EFilterPlace Place = EFilterPlace::Unknown;
     TString JoinName;
-};
 
-bool operator==(const TFilterType& lhs, const TFilterType& rhs)
-{
-    return lhs.Place == rhs.Place && lhs.JoinName == rhs.JoinName;
-}
+    bool operator==(const TFilterType& other) const = default;
+};
 
 class TFilterSplitter
     : public TBaseAstVisitor<TFilterType, TFilterSplitter>
@@ -319,6 +316,7 @@ private:
             case EFilterPlace::Having:
                 Having_ = BuildAndExpression(ObjectsHolder_, Having_, expression);
                 return;
+            case EFilterPlace::Unknown:
             case EFilterPlace::Where:
                 Where_ = BuildAndExpression(ObjectsHolder_, Where_, expression);
                 return;
@@ -332,9 +330,6 @@ private:
             }
             case EFilterPlace::Heterogenous:
                 return;
-            case EFilterPlace::Unknown:
-                ThrowSplitError(TError("Failed to determine filter place")
-                    << TErrorAttribute("expression", FormatExpression(*expression)));
         }
     }
 

@@ -108,13 +108,19 @@ TReplicationLogBatchDescriptor TReplicationLogBatchReaderBase::ReadReplicationBa
                 TTimestamp timestamp;
                 i64 rowDataWeight = 0;
 
-                if (!ToTypeErasedRow(replicationLogRow, rowBuffer, &replicationRow, &timestamp, &rowDataWeight)) {
+                ToTypeErasedRow(
+                    replicationLogRow,
+                    rowBuffer,
+                    &replicationRow,
+                    &timestamp,
+                    &rowDataWeight);
+
+                readDataWeightLimit -= rowDataWeight;
+
+                bool isRowFitIntoProgress = IsRowFitIntoProgress(replicationRow, timestamp);
+
+                if (!isRowFitIntoProgress) {
                     ++discardedByProgress;
-                    readDataWeightLimit -= rowDataWeight;
-                    if (!isRequestDeadlineExceeded && !isDataWeightPerPullRowsLimitExceeded) {
-                        ++currentRowIndex;
-                        continue;
-                    }
                 }
 
                 if (timestamp != prevTimestamp) {
@@ -157,18 +163,21 @@ TReplicationLogBatchDescriptor TReplicationLogBatchReaderBase::ReadReplicationBa
                         break;
                     }
 
-                    ++timestampCount;
+                    if (isRowFitIntoProgress) {
+                        ++timestampCount;
+                    }
                 }
 
-                MemoryUsageTracker_->Acquire(WriteTypeErasedRow(replicationRow));
-                rowBuffer->Clear();
+                if (isRowFitIntoProgress) {
+                    auto writtenSize = WriteTypeErasedRow(replicationRow);
+                    MemoryUsageTracker_->Acquire(writtenSize);
+                    batchRowCount += 1;
+                    batchDataWeight += rowDataWeight;
+                }
 
+                rowBuffer->Clear();
                 maxTimestamp = std::max(maxTimestamp, timestamp);
                 prevTimestamp = timestamp;
-
-                batchRowCount += 1;
-                batchDataWeight += rowDataWeight;
-
                 ++currentRowIndex;
             }
 

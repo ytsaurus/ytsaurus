@@ -95,7 +95,8 @@ std::vector<TSharedRef> EncodeErasureJournalRow(
 
 std::vector<TSharedRef> DecodeErasureJournalRows(
     NErasure::ICodec* codec,
-    const std::vector<std::vector<TSharedRef>>& encodedRowLists);
+    const std::vector<std::vector<TSharedRef>>& encodedRowLists,
+    const NLogging::TLogger& logger);
 
 std::vector<std::vector<TSharedRef>> RepairErasureJournalRows(
     NErasure::ICodec* codec,

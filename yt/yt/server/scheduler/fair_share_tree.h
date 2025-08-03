@@ -17,14 +17,14 @@ class TFairShareStrategyOperationState
 public:
     using TTreeIdToPoolNameMap = THashMap<TString, TPoolName>;
 
-    DEFINE_BYVAL_RO_PROPERTY(IOperationStrategyHost*, Host);
+    DEFINE_BYVAL_RO_PROPERTY(IOperationStrategyHostPtr, Host);
     DEFINE_BYVAL_RO_PROPERTY(TFairShareStrategyOperationControllerPtr, Controller);
     DEFINE_BYREF_RW_PROPERTY(TTreeIdToPoolNameMap, TreeIdToPoolNameMap);
     DEFINE_BYVAL_RW_PROPERTY(bool, Enabled);
 
 public:
     TFairShareStrategyOperationState(
-        IOperationStrategyHost* host,
+        IOperationStrategyHostPtr host,
         const TFairShareStrategyOperationControllerConfigPtr& config,
         const std::vector<IInvokerPtr>& nodeShardInvokers);
 
@@ -115,8 +115,9 @@ struct IFairShareTree
 
     //! Methods below manipulate directly with tree structure and fields, it should be used in serialized manner.
     virtual TFairShareStrategyTreeConfigPtr GetConfig() const = 0;
-    virtual bool UpdateConfig(const TFairShareStrategyTreeConfigPtr& config) = 0;
     virtual void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config) = 0;
+
+    virtual bool UpdateConfig(const TFairShareStrategyTreeConfigPtr& config) = 0;
 
     virtual const TSchedulingTagFilter& GetNodesFilter() const = 0;
 
@@ -132,7 +133,8 @@ struct IFairShareTree
     virtual TRegistrationResult RegisterOperation(
         const TFairShareStrategyOperationStatePtr& state,
         const TStrategyOperationSpecPtr& spec,
-        const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters) = 0;
+        const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters,
+        const TOperationOptionsPtr& operationOptions) = 0;
     virtual void UnregisterOperation(const TFairShareStrategyOperationStatePtr& state) = 0;
 
     virtual void EnableOperation(const TFairShareStrategyOperationStatePtr& state) = 0;
@@ -166,19 +168,20 @@ struct IFairShareTree
     virtual const TOffloadingSettings& GetOffloadingSettingsFor(const TString& poolName, const std::string& user) const = 0;
 
     virtual TPoolsUpdateResult UpdatePools(const NYTree::INodePtr& poolsNode, bool forceUpdate) = 0;
-    virtual TError ValidateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) = 0;
+    virtual TError ValidateUserToDefaultPoolMap(const THashMap<std::string, TString>& userToDefaultPoolMap) = 0;
 
     virtual void ValidatePoolLimits(const IOperationStrategyHost* operation, const TPoolName& poolName) const = 0;
     virtual void ValidatePoolLimitsOnPoolChange(const IOperationStrategyHost* operation, const TPoolName& newPoolName) const = 0;
     virtual TFuture<void> ValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TPoolName& poolName) const = 0;
+    virtual TFuture<void> ValidateOperationPoolPermissions(TOperationId operationId, const std::string& user, NYTree::EPermissionSet permissions) const = 0;
     virtual void EnsureOperationPoolExistence(const TString& poolName) const = 0;
 
-    virtual void ActualizeEphemeralPoolParents(const THashMap<TString, TString>& userToDefaultPoolMap) = 0;
+    virtual void ActualizeEphemeralPoolParents(const THashMap<std::string, TString>& userToDefaultPoolMap) = 0;
 
     virtual TPersistentTreeStatePtr BuildPersistentState() const = 0;
     virtual void InitPersistentState(const TPersistentTreeStatePtr& persistentState) = 0;
 
-    virtual void OnOperationMaterialized(TOperationId operationId) = 0;
+    virtual TError OnOperationMaterialized(TOperationId operationId) = 0;
     virtual TError CheckOperationJobResourceLimitsRestrictions(TOperationId operationId, bool revivedFromSnapshot) = 0;
     virtual TError CheckOperationSchedulingInSeveralTreesAllowed(TOperationId operationId) const = 0;
 

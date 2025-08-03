@@ -501,21 +501,11 @@ public:
             return;
         }
 
-        std::vector<std::string> wireStringBuffer;
-        BuildWireStringFromNodePtr(wireStringBuffer, value, element.Element, options.CreateChildOptions(path));
-        NAttributes::SetProtobufFieldByPath(message, path, TWireString::FromSerialized(wireStringBuffer), recursive);
+        auto wireStringBuffer = ConvertToWireString(value, element.Element, options.CreateChildOptions(path));
+        auto wireString = TWireString::FromSerialized(wireStringBuffer);
+        NAttributes::SetProtobufFieldByPath(message, path, wireString, /*discardUnknownFields*/ false, recursive);
     }
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-INSTANTIATE_TEST_SUITE_P(
-    TSetAttributeTest,
-    TSetAttributeTest,
-    /*setViaYson*/ testing::Values(false, true),
-    /*evalGenerateName*/ [] (const testing::TestParamInfo<TSetAttributeTest::ParamType>& setViaYson) {
-        return setViaYson.param ? "Yson" : "WireString";
-    });
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -636,7 +626,7 @@ TEST_P(TSetAttributeTest, RepeatedScalar)
 #undef TESTCASE
 }
 
-TEST(TSetAttributeTest, MapFieldYson)
+TEST_P(TSetAttributeTest, MapField)
 {
     auto node = NYTree::BuildYsonNodeFluently()
         .BeginMap()
@@ -646,29 +636,6 @@ TEST(TSetAttributeTest, MapFieldYson)
 
     NProto::TMessage message;
     EXPECT_NO_THROW(SetProtobufFieldByPath(message, "/string_to_int32_map", node));
-    EXPECT_EQ(2u, message.string_to_int32_map().size());
-    EXPECT_EQ(1, message.string_to_int32_map().at("a"));
-    EXPECT_EQ(2, message.string_to_int32_map().at("b"));
-
-    EXPECT_NO_THROW(SetProtobufFieldByPath(message, "/string_to_int32_map", NYTree::BuildYsonNodeFluently().Entity()));
-    EXPECT_TRUE(message.string_to_int32_map().empty());
-}
-
-TEST(TSetAttributeTest, MapFieldWireString)
-{
-    TString wireStringBuffer;
-    {
-        NProto::TMessage message;
-        message.mutable_string_to_int32_map()->emplace("a", 1);
-        message.mutable_string_to_int32_map()->emplace("b", 2);
-        wireStringBuffer = message.SerializeAsString();
-    }
-    auto wireString = GetWireStringByPath(
-        NProto::TMessage::descriptor(),
-        TWireString::FromSerialized(wireStringBuffer), "/string_to_int32_map");
-
-    NProto::TMessage message;
-    EXPECT_NO_THROW(SetProtobufFieldByPath(message, "/string_to_int32_map", wireString));
     EXPECT_EQ(2u, message.string_to_int32_map().size());
     EXPECT_EQ(1, message.string_to_int32_map().at("a"));
     EXPECT_EQ(2, message.string_to_int32_map().at("b"));
@@ -1027,33 +994,7 @@ TEST_P(TSetAttributeTest, UnknownYsonNestedFieldsByPath)
     ASSERT_EQ(1, list->AsList()->FindChild(0)->AsInt64()->GetValue());
 }
 
-TEST(TSetAttributeTest, MapWithNonStringKeyWireString)
-{
-    TString wireStringBuffer;
-    {
-        NProto::TMessage message;
-        message.mutable_int32_to_int32_map()->emplace(1, 1);
-        message.mutable_int32_to_int32_map()->emplace(-1, 2);
-        message.mutable_int32_to_int32_map()->emplace(170, 2);
-        wireStringBuffer = message.SerializeAsString();
-    }
-    auto wireString = GetWireStringByPath(
-        NProto::TMessage::descriptor(),
-        TWireString::FromSerialized(wireStringBuffer), "/int32_to_int32_map");
-
-    NProto::TMessage message;
-    EXPECT_NO_THROW(SetProtobufFieldByPath(message, "/int32_to_int32_map", wireString));
-    auto root = MessageToNode(message);
-    auto map = root->AsMap()->FindChild("int32_to_int32_map");
-    auto e1 = map->AsMap()->FindChild("1");
-    ASSERT_TRUE(e1);
-    auto e2 = map->AsMap()->FindChild("-1");
-    ASSERT_TRUE(e2);
-    auto e3 = map->AsMap()->FindChild("170");
-    ASSERT_TRUE(e3);
-}
-
-TEST(TSetAttributeTest, MapWithNonStringKeyYson)
+TEST_P(TSetAttributeTest, MapWithNonStringKey)
 {
     NProto::TMessage message;
     auto node = NYTree::BuildYsonNodeFluently()
@@ -1092,6 +1033,49 @@ TEST_P(TSetAttributeTest, ResetWithEntity)
     SetProtobufFieldByPath(message, "/repeated_int32_field", NYTree::BuildYsonNodeFluently().Entity());
     EXPECT_EQ(message.repeated_int32_field().size(), 0);
 }
+
+TEST_F(TSetAttributeTest, DiscardUnknownFields)
+{
+    NProto::TMessage message;
+    message.set_string_field("42");
+    message.mutable_nested_message()->set_int32_field(42);
+    message.mutable_nested_message()->add_repeated_int32_field(15);
+    message.add_repeated_int32_field(5);
+    message.add_repeated_int32_field(42);
+
+    // Field numbers 37-38 are reserved for unknown field tests in TMessage.
+    NProto::TMessage updateMessage;
+    updateMessage.mutable_unknown_fields()->AddFixed64(37, 42);
+    updateMessage.mutable_unknown_fields()->AddLengthDelimited(38, "UnknownValue");
+    // Field numbers 5-6 are reserved for unknown field tests in TNestedMessage.
+    updateMessage.mutable_nested_message()->mutable_unknown_fields()->AddFixed64(5, 42);
+    updateMessage.mutable_nested_message()->mutable_unknown_fields()->AddLengthDelimited(6, "UnknownNestedValue");
+    updateMessage.mutable_nested_message()->set_int32_field(42);
+    updateMessage.mutable_repeated_nested_message()->Add()->mutable_unknown_fields()->AddFixed64(5, 42);
+
+    auto serializedUpdate = updateMessage.SerializeAsString();
+    NAttributes::SetProtobufFieldByPath(
+        message,
+        /*path*/ {},
+        TWireString::FromSerialized(serializedUpdate),
+        /*discardUnknownFields*/ true);
+
+    EXPECT_EQ(message.unknown_fields().field_count(), 0);
+    EXPECT_EQ(message.nested_message().unknown_fields().field_count(), 0);
+    EXPECT_EQ(message.nested_message().int32_field(), 42);
+    EXPECT_EQ(message.repeated_nested_message().size(), 1);
+    EXPECT_EQ(message.repeated_nested_message().at(0).unknown_fields().field_count(), 0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+INSTANTIATE_TEST_SUITE_P(
+    TSetAttributeTest,
+    TSetAttributeTest,
+    /*setViaYson*/ testing::Values(true, false),
+    /*evalGenerateName*/ [] (const testing::TestParamInfo<TSetAttributeTest::ParamType>& setViaYson) {
+        return setViaYson.param ? "Yson" : "WireString";
+    });
 
 ////////////////////////////////////////////////////////////////////////////////
 

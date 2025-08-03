@@ -52,12 +52,14 @@ InvalidFormat = 2800
 ConsumerOffsetConflict = 3100
 NoOnlineNodeToScheduleJob = 4410
 ControllerMemoryLimitExceeded = 4416
+ChaosCoordinatorsAreNotAvailable = 11016
 ContainerDoesNotExist = 12004
 RequestQueueSizeLimitExceeded = 108
 SpecVersionMismatch = 3300
 InvalidEpoch = 3101
 ZombieEpoch = 3102
 InvalidRowSequenceNumbers = 3103
+QueueAgentRetriableError = 3104
 
 
 class Scheduler(object):

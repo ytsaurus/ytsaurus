@@ -29,6 +29,7 @@
 #include "tablet_type_handler.h"
 #include "replicated_table_tracker.h"
 
+#include <yt/yt/server/master/cell_master/alert_manager.h>
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -177,7 +178,7 @@ using TTabletResources = NTabletServer::TTabletResources;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletServerLogger;
+constinit const auto Logger = TabletServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -279,6 +280,11 @@ public:
         cellManager->SubscribeAfterSnapshotLoaded(BIND_NO_PROPAGATE(&TImpl::OnAfterCellManagerSnapshotLoaded, MakeWeak(this)));
         cellManager->SubscribeCellBundleDestroyed(BIND_NO_PROPAGATE(&TImpl::OnTabletCellBundleDestroyed, MakeWeak(this)));
         cellManager->SubscribeCellDecommissionStarted(BIND_NO_PROPAGATE(&TImpl::OnTabletCellDecommissionStarted, MakeWeak(this)));
+
+        if (Bootstrap_->IsPrimaryMaster()) {
+            Bootstrap_->GetAlertManager()->RegisterAlertSource(
+                BIND_NO_PROPAGATE(&TImpl::GetAlerts, MakeStrong(this)));
+        }
 
         TabletService_->Initialize();
     }
@@ -1066,19 +1072,22 @@ public:
             GetDynamicConfig());
         ValidateTableMountConfig(table, tableSettings.EffectiveMountConfig, GetDynamicConfig());
 
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        auto schema = tableManager->GetHeavyTableSchemaSync(table->GetSchema());
+
         if (table->GetReplicationCardId() && !table->IsSorted()) {
             if (table->GetCommitOrdering() != ECommitOrdering::Strong) {
                 THROW_ERROR_EXCEPTION("Ordered dynamic table bound for chaos replication should have %Qlv commit ordering",
                     ECommitOrdering::Strong);
             }
 
-            if (!table->GetSchema()->AsTableSchema()->FindColumn(TimestampColumnName)) {
+            if (!schema->FindColumn(TimestampColumnName)) {
                 THROW_ERROR_EXCEPTION("Ordered dynamic table bound for chaos replication should have %Qlv column",
                     TimestampColumnName);
             }
         }
 
-        for (const auto& column : table->GetSchema()->AsTableSchema()->Columns()) {
+        for (const auto& column : schema->Columns()) {
             if (column.GetWireType() == EValueType::Null) {
                 THROW_ERROR_EXCEPTION("Cannot mount table since it has column %Qv with value type %Qlv",
                     column.Name(),
@@ -1105,7 +1114,7 @@ public:
 
     void Mount(
         TTabletOwnerBase* table,
-        const TString& path,
+        const TYPath& path,
         int firstTabletIndex,
         int lastTabletIndex,
         TTabletCellId hintCellId,
@@ -1645,7 +1654,7 @@ public:
                     continue;
                 }
 
-                transaction->LockedDynamicTables().erase(typedTable);
+                transaction->BulkInsertState().LockedDynamicTables().erase(typedTable);
             }
 
             if (auto replicationCollocation = typedTable->GetReplicationCollocation()) {
@@ -1680,7 +1689,7 @@ public:
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
 
-        transaction->LockedDynamicTables().erase(originatingNode);
+        transaction->BulkInsertState().LockedDynamicTables().erase(originatingNode);
 
         i64 totalMemorySizeDelta = 0;
 
@@ -2014,7 +2023,7 @@ public:
         ValidateResourceUsageIncrease(
             trunkSourceNode,
             TTabletResources().SetTabletCount(
-                trunkSourceNode->GetTabletResourceUsage().TabletCount),
+                trunkSourceNode->GetTabletResourceUsage().GetTabletCount()),
             account);
     }
 
@@ -2238,7 +2247,7 @@ public:
                     committedReplicationRowIndexes.push_back(replicationRowIndex);
                 }
 
-                TString newReplicaPath = isBackupAction
+                auto newReplicaPath = isBackupAction
                     ? replicaBackupDescriptor->ReplicaPath
                     : replica->GetReplicaPath();
 
@@ -2363,7 +2372,7 @@ public:
 
         table->ValidateAllTabletsUnmounted("Cannot switch mode from dynamic to static");
 
-        if (table->GetSchema()->AsTableSchema()->HasHunkColumns()) {
+        if (table->GetSchema()->AsCompactTableSchema()->HasHunkColumns()) {
             THROW_ERROR_EXCEPTION("Cannot switch mode from dynamic to static: table schema contains hunk columns");
         }
     }
@@ -2450,7 +2459,7 @@ public:
             hiveManager->PostMessage(mailbox, req);
         }
 
-        transaction->LockedDynamicTables().insert(table);
+        transaction->BulkInsertState().LockedDynamicTables().insert(table);
         table->AddDynamicTableLock(transaction->GetId(), timestamp, pendingTabletCount);
 
         YT_LOG_DEBUG("Waiting for tablet lock confirmation (TableId: %v, TransactionId: %v, PendingTabletCount: %v)",
@@ -2803,7 +2812,7 @@ public:
         });
     }
 
-    void UpdateExtraMountConfigKeys(std::vector<TString> keys)
+    void UpdateExtraMountConfigKeys(std::vector<std::string> keys)
     {
         for (auto&& key : keys) {
             auto [it, inserted] = MountConfigKeysFromNodes_.insert(std::move(key));
@@ -2931,6 +2940,9 @@ private:
 
     // COMPAT(ifsmirnov)
     bool ForbidAvenuesDuringMigration_ = false;
+
+    // COMPAT(ifsmirnov)
+    bool InternalizeBundleResourceQuotaAttribute_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -3270,7 +3282,7 @@ private:
         TTabletOwnerBase* table,
         int firstTabletIndex,
         int lastTabletIndex,
-        const TString& request)
+        TStringBuf request)
     {
         YT_VERIFY(firstTabletIndex >= 0 && firstTabletIndex <= lastTabletIndex && lastTabletIndex < std::ssize(table->Tablets()));
 
@@ -3820,7 +3832,7 @@ private:
         req.set_serialization_type(ToProto(table->GetSerializationType()));
 
         ToProto(reqEssential.mutable_schema_id(), table->GetSchema()->GetId());
-        ToProto(reqEssential.mutable_schema(), *table->GetSchema()->AsTableSchema());
+        ToProto(reqEssential.mutable_schema(), table->GetSchema()->AsCompactTableSchema());
 
         FillTableSettings(req.mutable_replicatable_content(), serializedTableSettings);
 
@@ -3907,7 +3919,8 @@ private:
             }
 
             tablet->SetInMemoryMode(table->GetInMemoryMode());
-            resourceUsageDelta.TabletStaticMemory += tablet->GetTabletStaticMemorySize();
+            resourceUsageDelta.SetTabletStaticMemory(
+                resourceUsageDelta.GetTabletStaticMemory() + tablet->GetTabletStaticMemorySize());
 
             cell->GossipStatistics().Local() += tablet->GetTabletStatistics();
             table->AccountTabletStatistics(tablet->GetTabletStatistics());
@@ -4060,7 +4073,7 @@ private:
                 auto* replicatedTable = table->As<TReplicatedTableNode>();
                 for (auto replica : GetValuesSortedByKey(replicatedTable->Replicas())) {
                     const auto* replicaInfo = tablet->GetReplicaInfo(replica);
-                    PopulateTableReplicaDescriptor(req.add_replicas(), replica, *replicaInfo);
+                    PopulateTableReplicaDescriptor(reqReplicatable.add_replicas(), replica, *replicaInfo);
                 }
             }
 
@@ -4083,8 +4096,11 @@ private:
                     }
                 }
 
-                ToProto(req.mutable_replication_progress(), tablet->ReplicationProgress());
+                ToProto(reqReplicatable.mutable_replication_progress(), tablet->ReplicationProgress());
             }
+
+            // COMPAT(ifsmirnov)
+            reqReplicatable.set_has_replicas_and_replication_progress(true);
 
             auto* chunkList = tablet->GetChunkList();
             const auto& chunkListStatistics = chunkList->Statistics();
@@ -4398,7 +4414,7 @@ private:
         const auto& hiveManager = Bootstrap_->GetHiveManager();
 
         for (auto tableIt : GetSortedIterators(
-            transaction->LockedDynamicTables(),
+            transaction->BulkInsertState().LockedDynamicTables(),
             TObjectIdComparer()))
         {
             auto table = *tableIt;
@@ -4427,7 +4443,7 @@ private:
             table->RemoveDynamicTableLock(transaction->GetId());
         }
 
-        transaction->LockedDynamicTables().clear();
+        transaction->BulkInsertState().LockedDynamicTables().clear();
     }
 
     void DoRemount(
@@ -4751,13 +4767,13 @@ private:
             }
         }
 
-        std::vector<TLegacyOwningKey> oldPivotKeys;
+        std::vector<TOwningKeyBound> oldPivotKeyBounds;
 
         // Drop old tablets.
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = tablets[index]->As<TTablet>();
             if (table->IsPhysicallySorted()) {
-                oldPivotKeys.push_back(tablet->GetPivotKey());
+                oldPivotKeyBounds.push_back(tablet->GetPivotKeyBound());
             }
             table->DiscountTabletStatistics(tablet->GetTabletStatistics());
             tablet->SetOwner(nullptr);
@@ -4766,9 +4782,9 @@ private:
 
         if (table->IsPhysicallySorted()) {
             if (lastTabletIndex + 1 < std::ssize(tablets)) {
-                oldPivotKeys.push_back(tablets[lastTabletIndex + 1]->As<TTablet>()->GetPivotKey());
+                oldPivotKeyBounds.push_back(tablets[lastTabletIndex + 1]->As<TTablet>()->GetPivotKeyBound());
             } else {
-                oldPivotKeys.push_back(MaxKey());
+                oldPivotKeyBounds.push_back(TOwningKeyBound::MakeEmpty(/*isUpper*/ false));
             }
         }
 
@@ -4786,7 +4802,7 @@ private:
             firstTabletIndex,
             lastTabletIndex,
             newTabletCount,
-            oldPivotKeys,
+            oldPivotKeyBounds,
             pivotKeys,
             oldEdenStoreIds);
 
@@ -4900,9 +4916,12 @@ private:
         Load(context, LocalMountConfigKeys_);
 
         // Update mount config keys whenever the reign changes.
-        FillMountConfigKeys_ = context.GetVersion() != static_cast<EMasterReign>(GetCurrentReign());
+        FillMountConfigKeys_ = context.GetVersion() != static_cast<EMasterReign>(NCellMaster::GetCurrentReign());
 
         ForbidAvenuesDuringMigration_ = context.GetVersion() < EMasterReign::NoAvenuesDuringMigrationTo24_2;
+
+        // COMPAT(ifsmirnov)
+        InternalizeBundleResourceQuotaAttribute_ = context.GetVersion() < EMasterReign::ResourceQuotaAttributeForBundles;
     }
 
     void RecomputeHunkResourceUsage()
@@ -4960,6 +4979,7 @@ private:
         RecomputeHunkResourceUsage_ = false;
         FillMountConfigKeys_ = false;
         ForbidAvenuesDuringMigration_ = false;
+        InternalizeBundleResourceQuotaAttribute_ = false;
     }
 
     void OnAfterSnapshotLoaded() override
@@ -5008,6 +5028,53 @@ private:
                     YT_LOG_FATAL("Tablets mounted with avenues are not allowed during this migration "
                         "(TabletId: %v)",
                         id);
+                }
+            }
+        }
+
+        if (InternalizeBundleResourceQuotaAttribute_) {
+            const auto& cellManager = Bootstrap_->GetTamedCellManager();
+            for (auto* bundleBase : cellManager->CellBundles(ECellarType::Tablet)) {
+                YT_VERIFY(bundleBase->GetType() == EObjectType::TabletCellBundle);
+                auto* bundle = bundleBase->As<TTabletCellBundle>();
+
+                TYsonString resourceQuotaAttribute;
+
+                if (auto* attribute = bundle->FindAttribute("resource_quota")) {
+                    resourceQuotaAttribute = *attribute;
+                    YT_VERIFY(bundle->GetMutableAttributes()->TryRemove("resource_quota"));
+                } else {
+                    continue;
+                }
+
+                auto resourceQuotaNode = ConvertToNode(resourceQuotaAttribute);
+
+                try {
+                    auto resourceQuota = ConvertTo<TTabletCellBundleQuota>(
+                        *resourceQuotaNode);
+                    static_cast<TTabletCellBundleQuota&>(bundle->ResourceLimits())
+                        = resourceQuota;
+
+                    auto schemafulNode = ConvertToNode(resourceQuota);
+                    if (!AreNodesEqual(resourceQuotaNode, schemafulNode)) {
+                        THROW_ERROR_EXCEPTION("Unrecognized fields found")
+                            << TErrorAttribute(
+                                "original_resource_quota",
+                                ConvertToYsonString(resourceQuotaNode, EYsonFormat::Text))
+                            << TErrorAttribute(
+                                "converted_resource_quota",
+                                ConvertToYsonString(schemafulNode, EYsonFormat::Text));
+
+                    }
+                } catch (const std::exception& ex) {
+                    // QWFP alert
+                    YT_LOG_INFO(ex, "Failed to internalize \"resource_quota\" attribute "
+                        "(BundleName: %v, ResourceQuota: %v)",
+                        bundle->GetName(),
+                        ConvertToYsonString(*resourceQuotaNode, EYsonFormat::Text));
+                    bundle->GetMutableAttributes()->Set(
+                        "resource_quota_backup_after_failed_migration",
+                        resourceQuotaAttribute);
                 }
             }
         }
@@ -5108,8 +5175,8 @@ private:
                 ESecurityAction::Allow,
                 securityManager->GetUsersGroup(),
                 EPermission::Use));
-            DefaultTabletCellBundle_->ResourceLimits().TabletCount = 100'000;
-            DefaultTabletCellBundle_->ResourceLimits().TabletStaticMemory = 1_TB;
+            DefaultTabletCellBundle_->ResourceLimits().SetTabletCount(100'000);
+            DefaultTabletCellBundle_->ResourceLimits().SetTabletStaticMemory(1_TB);
         }
 
         // sequoia
@@ -5118,8 +5185,8 @@ private:
                 ESecurityAction::Allow,
                 securityManager->GetUsersGroup(),
                 EPermission::Use));
-            SequoiaTabletCellBundle_->ResourceLimits().TabletCount = 100'000;
-            SequoiaTabletCellBundle_->ResourceLimits().TabletStaticMemory = 1_TB;
+            SequoiaTabletCellBundle_->ResourceLimits().SetTabletCount(100'000);
+            SequoiaTabletCellBundle_->ResourceLimits().SetTabletStaticMemory(1_TB);
 
             auto options = SequoiaTabletCellBundle_->GetOptions();
             options->ChangelogAccount = NSecurityClient::SequoiaAccountName;
@@ -6039,7 +6106,7 @@ private:
     {
         YT_VERIFY(Bootstrap_->IsSecondaryMaster());
 
-        auto tableMountConfigKeys = FromProto<std::vector<TString>>(request->table_mount_config_keys());
+        auto tableMountConfigKeys = FromProto<std::vector<std::string>>(request->table_mount_config_keys());
         UpdateExtraMountConfigKeys(std::move(tableMountConfigKeys));
     }
 
@@ -7618,6 +7685,38 @@ private:
         }
     }
 
+    std::vector<TError> GetAlerts()
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        std::vector<TError> result;
+
+        // COMPAT(ifsmirnov): EMasterReign::ResourceQuotaAttributeForBundles
+        {
+            std::vector<std::string> badBundles;
+
+            const auto& cellManager = Bootstrap_->GetTamedCellManager();
+            for (auto* bundleBase : cellManager->CellBundles(ECellarType::Tablet)) {
+                YT_VERIFY(bundleBase->GetType() == EObjectType::TabletCellBundle);
+                auto* bundle = bundleBase->As<TTabletCellBundle>();
+
+                if (bundle->FindAttribute("resource_quota_backup_after_failed_migration")) {
+                    badBundles.push_back(bundle->GetName());
+                }
+            }
+
+            if (!badBundles.empty()) {
+                result.push_back(TError(
+                    "Failed to internalize \"resource_quota\" attribute for tablet cell bundles %v, "
+                    "see the old value in the \"resource_quota_backup_after_failed_migration\" "
+                    "attribute, fix the issue manually and remove it",
+                    badBundles));
+            }
+        }
+
+        return result;
+    }
+
     static void PopulateTableReplicaDescriptor(TTableReplicaDescriptor* descriptor, const TTableReplica* replica, const TTableReplicaInfo& info)
     {
         ToProto(descriptor->mutable_replica_id(), replica->GetId());
@@ -7770,7 +7869,7 @@ void TTabletManager::ValidateMakeTableStatic(TTableNode* table)
 
 void TTabletManager::Mount(
     TTabletOwnerBase* table,
-    const TString& path,
+    const NYPath::TYPath& path,
     int firstTabletIndex,
     int lastTabletIndex,
     TTabletCellId hintCellId,
@@ -7969,7 +8068,7 @@ TNode* TTabletManager::FindTabletLeaderNode(const TTabletBase* tablet) const
     return Impl_->FindTabletLeaderNode(tablet);
 }
 
-void TTabletManager::UpdateExtraMountConfigKeys(std::vector<TString> keys)
+void TTabletManager::UpdateExtraMountConfigKeys(std::vector<std::string> keys)
 {
     Impl_->UpdateExtraMountConfigKeys(std::move(keys));
 }

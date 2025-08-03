@@ -10,6 +10,7 @@ set -e
 script_name=$0
 
 # Set options defaults
+cluster_name=locasaurus
 proxy_port=8000
 docker_hostname=localhost
 interface_port=8001
@@ -28,18 +29,28 @@ enable_debug_logging=false
 extra_yt_docker_opts=''
 yt_fqdn=''
 init_operations_archive=false
+disable_query_tracker=false
+enable_shuffle_service=false
 
 network_name=yt_local_cluster_network
 ui_network=$network_name
 
 ui_container_name=yt.frontend
 yt_container_name=yt.backend
+prometheus_container_name=yt.prometheus
 
 ui_proxy_internal=${yt_container_name}:80
+
+port_range_start=24400
+node_port_set_size=100
+publish_ports=false
+prometheus_image="prom/prometheus"
+prometheus_port=9090
 
 print_usage() {
     cat <<EOF
 Usage: $script_name [-h|--help]
+                    [--cluster-name name]
                     [--proxy-port port]
                     [--docker-hostname hostname]
                     [--interface-port port]
@@ -52,14 +63,20 @@ Usage: $script_name [-h|--help]
                     [--local-cypress-dir dir]
                     [--rpc-proxy-count count]
                     [--rpc-proxy-port port]
+                    [--port-range-start port]
                     [--node-count count]
                     [--queue-agent-count count]
-                    [--with-auth true|false]
-                    [--enable-debug-logging true|false]
+                    [--with-auth]
+                    [--enable-debug-logging]
                     [--extra-yt-docker-opts opts]
                     [--init-operations-archive]
+                    [--run-prometheus]
+                    [--prometheus-port port]
+                    [--disable-query-tracker]
+                    [--enable-shuffle-service]
                     [--stop]
 
+  --cluster-name: Sets name of cluster '//sys/@cluster_name' (default: $cluster_name)
   --proxy-port: Sets the proxy port on docker host (default: $proxy_port)
   --interface-port: Sets the web interface port on docker host (default: $interface_port)
   --docker-hostname: Sets the hostname where docker engine is run (default: $docker_hostname)
@@ -73,12 +90,18 @@ Usage: $script_name [-h|--help]
   --local-cypress-dir: Sets the directory on the docker host to be mapped into local cypress dir inside yt local cluster container (default: $local_cypress_dir)
   --rpc-proxy-count: Sets the number of rpc proxies to start in yt local cluster (default: $rpc_proxy_count)
   --rpc-proxy-port: Sets ports for rpc proxies; number of values should be equal to rpc-proxy-count
+  --port-range-start: Assign ports from continuous range starting from this port number (default: $port_range_start)
+  --node-port-set-size: Assign node port set size (default: $node_port_set_size)
   --node-count: Sets the number of cluster nodes to start in yt local cluster (default: $node_count)
   --queue-agent-count: Sets the number of queue agents to start in yt local cluster (default: $queue_agent_count)
+  --disable-query-tracker: Turns off QueryTracker related services (default: $disable_query_tracker)
   --with-auth: Enables authentication and creates admin user
-  --enable-debug-logging: Enable debug logging in backend container (default: $enable_debug_logging)
+  --enable-debug-logging: Enable debug logging in backend container
   --extra-yt-docker-opts: Any extra configuration for backend docker container (default: $extra_yt_docker_opts)
   --init-operations-archive: Initialize operations archive, the option is required to keep more details of operations
+  --run-prometheus: Run prometheus and collect metrics
+  --prometheus-port: Sets the prometheus port on docker host (default: $prometheus_port)
+  --enable-shuffle-service: Enables shuffle service in rpc proxy
   --stop: Run 'docker stop ${ui_container_name} ${yt_container_name}' and exit
 EOF
     exit 0
@@ -88,96 +111,127 @@ EOF
 while [[ $# -gt 0 ]]; do
     key="$1"
     case $key in
-        --proxy-port)
+    --cluster-name)
+        cluster_name="$2"
+        shift 2
+        ;;
+    --proxy-port)
         proxy_port="$2"
         shift 2
         ;;
-        --docker-hostname)
+    --docker-hostname)
         docker_hostname="$2"
         shift 2
         ;;
-        --interface-port)
+    --interface-port)
         interface_port="$2"
         shift 2
         ;;
-        --yt-version)
+    --yt-version)
         yt_version="$2"
         shift 2
         ;;
-        --ui-version)
+    --ui-version)
         ui_version="$2"
         shift 2
         ;;
-        --ui-network)
+    --ui-network)
         ui_network="$2"
         shift 2
         ;;
-        --ui-proxy-internal)
+    --ui-proxy-internal)
         ui_proxy_internal="$2"
         shift 2
         ;;
-        --yt-skip-pull)
+    --yt-skip-pull)
         yt_skip_pull="$2"
         shift 2
         ;;
-        --ui-skip-pull)
+    --ui-skip-pull)
         ui_skip_pull="$2"
         shift 2
         ;;
-        --ui-app-installation)
+    --ui-app-installation)
         app_installation="$2"
         shift 2
         ;;
-        --local-cypress-dir)
+    --local-cypress-dir)
         local_cypress_dir="$2"
         shift 2
         ;;
-        --rpc-proxy-count)
+    --rpc-proxy-count)
         rpc_proxy_count="$2"
         shift 2
         ;;
-        --rpc-proxy-port)
+    --rpc-proxy-port)
         rpc_proxy_port="$2"
         shift 2
         ;;
-        --node-count)
+    --port-range-start)
+        port_range_start="$2"
+        shift 2
+        ;;
+    --node-port-set-size)
+        node_port_set_size="$2"
+        shift 2
+        ;;
+    --publish-ports)
+        publish_ports=true
+        shift
+        ;;
+    --node-count)
         node_count="$2"
         shift 2
         ;;
-        --queue-agent-count)
+    --queue-agent-count)
         queue_agent_count="$2"
         shift 2
         ;;
-        --with-auth)
-        with_auth="$2"
-        shift 2
+    --with-auth)
+        with_auth=true
+        shift
         ;;
-        --enable-debug-logging)
-        enable_debug_logging="$2"
-        shift 2
+    --enable-debug-logging)
+        enable_debug_logging=true
+        shift
         ;;
-        --extra-yt-docker-opts)
+    --extra-yt-docker-opts)
         extra_yt_docker_opts="$2"
         shift 2
         ;;
-        --init-operations-archive)
+    --init-operations-archive)
         init_operations_archive=true
         shift
         ;;
-        --fqdn)
+    --run-prometheus)
+        run_prometheus=true
+        publish_ports=true
+        shift
+        ;;
+    --fqdn)
         yt_fqdn="$2"
         shift 2
         ;;
-
-        -h|--help)
+    --disable-query-tracker)
+        disable_query_tracker=true
+        shift 1
+        ;;
+    --enable-shuffle-service)
+        enable_shuffle_service=true
+        shift 1
+        ;;
+    -h | --help)
         print_usage
         shift
         ;;
-        --stop)
+    --stop)
         docker stop $ui_container_name $yt_container_name
+        if [ "$(docker ps -q -f name=^/${prometheus_container_name}$)" ]; then
+          docker stop $prometheus_container_name
+        fi
         exit
         ;;
-        *) # unknown option
+    *) # unknown option
         echo "Unknown argument $1"
         print_usage
         ;;
@@ -196,8 +250,8 @@ if [ -z "$(which docker)" ]; then
 refer to the instructions at URL $url"
 fi
 
-yt_image=ghcr.io/ytsaurus/local:$yt_version
-ui_image=ghcr.io/ytsaurus/ui:$ui_version
+yt_image=${__YTSAURUS_IMAGE:-ghcr.io/ytsaurus/local}:$yt_version
+ui_image=${__YTSAURUS_UI_IMAGE:-ghcr.io/ytsaurus/ui}:$ui_version
 
 if [ -n "$local_cypress_dir" ]; then
     if [ ! -d "$local_cypress_dir" ]; then
@@ -221,32 +275,64 @@ if [ -z "$(docker network ls | grep $network_name)" ]; then
     docker network create $network_name
 fi
 
+yt_run_params=""
 params=""
-if [ ${enable_debug_logging} == "true" ]; then
+if [ "${enable_debug_logging}" == true ]; then
     params="--enable-debug-logging"
+    yt_backend_tmp="$(realpath ~/)/yt.backend_tmp_$(date +%Y%m%d_%H%M%S)"
+    # mkdir $yt_backend_tmp
+    yt_run_params="-v ${yt_backend_tmp}:/tmp"
+    (
+        echo
+        echo "    Debug logging is enabled, you can find log-files in:"
+        echo "        $yt_backend_tmp"
+        echo
+        echo "    Additionally you may want to watch output of the command bellow:"
+        echo "        docker logs -f yt.backend"
+        echo
+    ) >&2
 fi
 
-if [ ${with_auth} == "true" ]; then
+if [ "${with_auth}" == true ]; then
     params="${params} --enable-auth --create-admin-user"
 fi
 
-if [ ${init_operations_archive} == "true" ]; then
+if [ "${init_operations_archive}" == true ]; then
     params="${params} --init-operations-archive"
+fi
+
+if [ "${publish_ports}" == true ]; then
+    ports=""
+    max_port=$(($port_range_start + $node_port_set_size * $node_count))
+    for port in $(seq $port_range_start $max_port); do
+        ports+="-p $port:$port "
+    done
+    yt_run_params="${yt_run_params} ${ports}"
+fi
+
+if [ "${disable_query_tracker}" != "true" ]; then
+    params="$params -c {name=query-tracker} -c {name=yql-agent;config={ui_origin=\"$(printf '%q' "${docker_hostname}:${interface_port}")\";path=\"/usr/bin\";count=1;artifacts_path=\"/usr/bin\"}}"
+fi
+
+if [ "${enable_shuffle_service}" == true ]; then
+    params="$params --rpc-proxy-config {enable_shuffle_service=true;}"
 fi
 
 set +e
 cluster_container=$(
     docker run -itd \
-        --env YT_FORCE_IPV4=1 --env YT_FORCE_IPV6=0 --env YT_USE_HOSTS=0 \
+        --env YT_FORCE_IPV4=1 --env YT_FORCE_IPV6=0 --env YT_USE_HOSTS=0 --env YTSERVER_ALL_PATH="/usr/bin/ytserver-all" --env YT_LOCAL_ROOT_PATH="/tmp" \
         --network $network_name \
         --name $yt_container_name \
         -p ${proxy_port}:80 \
         -p ${rpc_proxy_port}:${rpc_proxy_port} \
-        --rm \
         $local_cypress_dir \
+        --rm \
         $extra_yt_docker_opts \
+        $yt_run_params \
         $yt_image \
         --fqdn "${yt_fqdn:-${docker_hostname}}" \
+        --port-range-start ${port_range_start} --node-port-set-size ${node_port_set_size} \
         --proxy-config "{coordinator={public_fqdn=\"${docker_hostname}:${proxy_port}\"}}" \
         --rpc-proxy-count ${rpc_proxy_count} \
         --rpc-proxy-port ${rpc_proxy_port} \
@@ -254,9 +340,8 @@ cluster_container=$(
         --queue-agent-count ${queue_agent_count} \
         --address-resolver-config "{enable_ipv4=%true;enable_ipv6=%false;}" \
         --native-client-supported \
-        --id primary \
-        -c '{name=query-tracker}' -c '{name=yql-agent;config={path="/usr/bin";count=1;artifacts_path="/usr/bin"}}' \
-        ${params} \
+        --id ${cluster_name} \
+        ${params}
 )
 
 if [ "$?" != "0" ]; then
@@ -264,17 +349,78 @@ if [ "$?" != "0" ]; then
 so you have to provide another port via --proxy-port option."
 fi
 
+# wait yt.backend rediness
+YT_BACKEND_LOGS=$(mktemp)
+docker logs -f yt.backend >$YT_BACKEND_LOGS &
+echo Wait until yt.backend is ready...
+for i in {60..1}; do
+    (
+        sleep 1
+        echo $i seconds...
+        grep "Local YT started" $YT_BACKEND_LOGS
+    ) >&2 && export ytBackendStarted=true && break
+done
+
+if [ "${ytBackendStarted}" = "true" ]; then
+    rm -f $YT_BACKEND_LOGS
+else
+    (
+        cat $YT_BACKEND_LOGS
+        rm -f $YT_BACKEND_LOGS
+        echo -e "\nError: yt.backend has not started in 60 seconds, see output of 'docker logs yt.backend' above\n"
+    ) >&2 && exit 1
+fi
+
+if [ "${run_prometheus}" == true ]; then
+    targets="['yt.backend:${port_range_start}'"
+    min_port=$(($port_range_start + 1))
+    max_port=$(($port_range_start + 100))
+    for port in $(seq $min_port $max_port); do
+        targets+=", 'yt.backend:${port}'"
+    done
+    targets+="]"
+
+    cat <<EOF >prometheus.yml.tmp
+global:
+ scrape_interval: 15s
+
+scrape_configs:
+ - job_name: 'ytsaurus_prometheus_container'
+   static_configs:
+     - targets: $targets
+   metrics_path: '/solomon/all'
+EOF
+
+    prometheus_container=$(
+        docker run -itd \
+            --network $network_name \
+            --name ${prometheus_container_name} \
+            -p ${prometheus_port}:${prometheus_port} \
+            -v $(pwd)/prometheus.yml.tmp:/etc/prometheus/prometheus.yml \
+            --rm \
+            ${prometheus_image}
+    )
+    if [ "$?" != "0" ]; then
+        die "Image $prometheus_image failed to run. Most likely that was because the port $prometheus_port is \
+    already busy, so you have to provide another port via --prometheus-port option."
+    fi
+
+    PROMETHEUS_BASE_URL=http://yt.prometheus:9090
+fi
+
 interface_container=$(
     docker run -itd \
         --network $ui_network \
         --name $ui_container_name \
         -p ${interface_port}:80 \
+        -e YT_LOCAL_CLUSTER_ID=${cluster_name} \
         -e PROXY=${docker_hostname}:${proxy_port} \
         -e PROXY_INTERNAL=$ui_proxy_internal \
         -e APP_ENV=local \
         -e APP_INSTALLATION=${app_installation} \
+        -e PROMETHEUS_BASE_URL=${PROMETHEUS_BASE_URL} \
         --rm \
-       $ui_image \
+        $ui_image
 )
 if [ "$?" != "0" ]; then
     die "Image $ui_image failed to run. Most likely that was because the port $interface_port is \

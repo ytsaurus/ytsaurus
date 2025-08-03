@@ -367,10 +367,9 @@ void Serialize(const TNodeResources& resources, IYsonConsumer* consumer)
         .EndMap();
 }
 
-class TSerializableNodeResourceLimitsOverrides
+struct TSerializableNodeResourceLimitsOverrides
     : public NYTree::TYsonStructLite
 {
-public:
     #define XX(name, Name) std::optional<decltype(TNodeResourceLimitsOverrides::default_instance().name())> Name;
     ITERATE_NODE_RESOURCE_LIMITS_OVERRIDES(XX)
     #undef XX

@@ -1,5 +1,6 @@
 #include <yt/yt/server/lib/tablet_balancer/balancing_helpers.h>
 #include <yt/yt/server/lib/tablet_balancer/config.h>
+#include <yt/yt/server/lib/tablet_balancer/helpers.h>
 #include <yt/yt/server/lib/tablet_balancer/parameterized_balancing_helpers.h>
 #include <yt/yt/server/lib/tablet_balancer/table.h>
 #include <yt/yt/server/lib/tablet_balancer/tablet.h>
@@ -568,7 +569,6 @@ TEST_P(TTestReassignTabletsParameterized, ViaMemorySize)
     auto descriptors = ReassignTabletsParameterized(
         bundle,
         /*performanceCountersKeys*/ {},
-        /*performanceCountersTableSchema*/ nullptr,
         TParameterizedReassignSolverConfig{
             .MaxMoveActionCount = std::get<2>(params)
         }.MergeWith(GetOrCrash(bundle->Config->Groups, group)->Parameterized),
@@ -847,7 +847,6 @@ TEST_P(TTestReassignTabletsParameterizedErrors, BalancingError)
         ReassignTabletsParameterized(
             bundle,
             /*performanceCountersKeys*/ {},
-            /*performanceCountersTableSchema*/ nullptr,
             TParameterizedReassignSolverConfig{
                 .MaxMoveActionCount = 3
             }.MergeWith(GetOrCrash(bundle->Config->Groups, group)->Parameterized),
@@ -900,7 +899,6 @@ TEST_P(TTestReassignTabletsParameterizedByNodes, ManyNodesWithInMemoryTablets)
     auto descriptors = ReassignTabletsParameterized(
         bundle,
         /*performanceCountersKeys*/ {},
-        /*performanceCountersTableSchema*/ nullptr,
         TParameterizedReassignSolverConfig{
             .MaxMoveActionCount = std::get<2>(params)
         }.MergeWith(GetOrCrash(bundle->Config->Groups, group)->Parameterized),
@@ -1142,7 +1140,6 @@ TEST_P(TTestMergeSplitTabletsParameterized, ViaMemorySize)
     auto resharder = CreateParameterizedResharder(
         bundle,
         /*performanceCountersKeys*/ {},
-        /*performanceCountersTableSchema*/ nullptr,
         TParameterizedResharderConfig{}.MergeWith(GetOrCrash(bundle->Config->Groups, group)->Parameterized),
         group,
         Logger());
@@ -1343,7 +1340,6 @@ TEST_P(TTestMergeSplitTabletsParameterizedErrors, BalancingError)
     auto resharder = CreateParameterizedResharder(
         bundle,
         /*performanceCountersKeys*/ {},
-        /*performanceCountersTableSchema*/ nullptr,
         TParameterizedResharderConfig{}.MergeWith(GetOrCrash(bundle->Config->Groups, group)->Parameterized),
         group,
         Logger());
@@ -1427,6 +1423,45 @@ INSTANTIATE_TEST_SUITE_P(
             CreateSplitDescriptor(5, 100.),
             CreateSplitDescriptor(2, 300.),
             CreateSplitDescriptor(2, 200.)}));
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTestReplaceAliases
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<std::tuple<
+        /*metric*/ TString,
+        /*expectedMetric*/ TString>>
+{ };
+
+TEST_P(TTestReplaceAliases, TestWithoutAliases)
+{
+    const auto& params = GetParam();
+    auto metricStr = std::get<0>(params);
+    auto expectedMetric = std::get<1>(params);
+
+    auto metric = ReplaceAliases(std::get<0>(params));
+    ASSERT_EQ(metric, expectedMetric);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TTestReplaceAliases,
+    TTestReplaceAliases,
+    ::testing::Values(
+        std::tuple(
+            "double([/statistics/memory_size])",
+            "double([/statistics/memory_size])"),
+        std::tuple(
+            "double([/performance_counters/dynamic_row_write_data_weight_10m_rate])",
+            "double([/performance_counters/dynamic_row_write_data_weight_10m_rate])"),
+        std::tuple(
+            "lookup_1h",
+            "(double([/performance_counters/dynamic_row_lookup_data_weight_1h_rate]) + double([/performance_counters/static_chunk_row_lookup_data_weight_1h_rate]))"),
+        std::tuple(
+            "read_10m * 2",
+            "(double([/performance_counters/dynamic_row_read_data_weight_10m_rate]) + double([/performance_counters/static_chunk_row_read_data_weight_10m_rate])) * 2"),
+        std::tuple(
+            "write_10m - 1",
+            "double([/performance_counters/dynamic_row_write_data_weight_10m_rate]) - 1")));
 
 ////////////////////////////////////////////////////////////////////////////////
 

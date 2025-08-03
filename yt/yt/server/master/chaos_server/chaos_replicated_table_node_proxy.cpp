@@ -92,7 +92,7 @@ public:
         TFuture<TReplicationCardPtr> replicationCardFuture,
         NNative::IConnectionPtr connection)
     {
-        auto getTableInfoWaitTimeout = connection->GetConfig()->DefaulChaosReplicatedTableGetTabletCountTimeout;
+        auto getTableInfoWaitTimeout = connection->GetConfig()->DefaultChaosReplicatedTableGetTabletCountTimeout;
         auto activeQueueConnectionsFuture = replicationCardFuture.ApplyUnique(BIND(
             [connection = std::move(connection)] (TReplicationCardPtr&& card) {
                 return GetActiveQueueReplicaConnections(card->Replicas, connection);
@@ -195,6 +195,8 @@ private:
         descriptors->push_back(EInternedAttributeKey::Replicas);
         descriptors->push_back(EInternedAttributeKey::ReplicationCollocationId);
         descriptors->push_back(EInternedAttributeKey::ReplicatedTableOptions);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Sorted)
+            .SetPresent(hasNonEmptySchema));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Schema)
             .SetWritable(true)
             .SetReplicated(true)
@@ -291,6 +293,15 @@ private:
 
                 BuildYsonFluently(consumer)
                     .Value(GetEffectiveQueueAgentStage(Bootstrap_, node->GetQueueAgentStage()));
+                return true;
+
+            case EInternedAttributeKey::Sorted:
+                if (!hasNonEmptySchema) {
+                    break;
+                }
+
+                BuildYsonFluently(consumer)
+                    .Value(node->IsSorted());
                 return true;
 
             default:
@@ -461,11 +472,13 @@ private:
                     }));
             }
 
-            case EInternedAttributeKey::Schema:
+            case EInternedAttributeKey::Schema: {
                 if (!table->GetSchema()) {
                     break;
                 }
-                return table->GetSchema()->AsYsonAsync();
+                const auto& tableManager = Bootstrap_->GetTableManager();
+                return tableManager->GetYsonTableSchemaAsync(table->GetSchema());
+            }
 
             case EInternedAttributeKey::ReplicatedTableOptions:
                 return GetReplicationCard({.IncludeReplicatedTableOptions = true})
@@ -574,6 +587,8 @@ private:
         NNative::IConnectionPtr connection)
     {
         auto proxy = TChaosNodeServiceProxy(connection->GetChaosChannelByCardId(replicationCardId));
+        // TODO(nadya02): Set the correct timeout here.
+        proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
         auto req = proxy.GetReplicationCardCollocation();
         ToProto(req->mutable_replication_card_collocation_id(), collocationId);
         return req->Invoke()
@@ -604,7 +619,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, GetMountInfo)
     const auto* trunkTable = GetThisImpl();
 
     auto schema = trunkTable->GetSchema();
-    if (!schema || schema->AsTableSchema()->Columns().empty()) {
+    if (!schema || schema->AsCompactTableSchema()->IsEmpty()) {
         THROW_ERROR_EXCEPTION("Table schema is not specified");
     }
 
@@ -616,7 +631,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, GetMountInfo)
     ToProto(response->mutable_upstream_replica_id(), NTabletClient::TTableReplicaId());
     ToProto(response->mutable_replication_card_id(), trunkTable->GetReplicationCardId());
     response->set_dynamic(true);
-    ToProto(response->mutable_schema(), *trunkTable->GetSchema()->AsTableSchema());
+    ToProto(response->mutable_schema(), trunkTable->GetSchema()->AsCompactTableSchema());
 
     if (trunkTable->IsQueue()) {
         auto tabletCountFuture = TChaosReplicatedTableTabletsCountGetter::GetTabletCount(
@@ -624,13 +639,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, GetMountInfo)
             Bootstrap_->GetClusterConnection());
 
         context->ReplyFrom(tabletCountFuture.ApplyUnique(BIND(
-            [context, response] (TErrorOr<int>&& result) {
-                if (!result.IsOK()) {
-                    return TError(std::move(result));
-                }
-
-                response->set_tablet_count(result.Value());
-                return TError();
+            [context, response] (int&& result) {
+                response->set_tablet_count(result);
             })));
     } else {
         context->Reply();
@@ -641,11 +651,11 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
 {
     DeclareMutating();
 
-    NTableClient::TTableSchemaPtr schema;
+    TCompactTableSchemaPtr schema;
     TMasterTableSchemaId schemaId;
 
     if (request->has_schema()) {
-        schema = New<TTableSchema>(FromProto<TTableSchema>(request->schema()));
+        schema = New<TCompactTableSchema>(request->schema());
     }
     if (request->has_schema_id()) {
         schemaId = FromProto<TMasterTableSchemaId>(request->schema_id());
@@ -658,12 +668,12 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
         THROW_ERROR_EXCEPTION("Chaos replicated table could not be altered in this way");
     }
 
+    const auto& tableManager = Bootstrap_->GetTableManager();
     context->SetRequestInfo("Schema: %v",
-        schema);
+        tableManager->GetHeavyTableSchemaSync(schema));
 
     auto* table = LockThisImpl();
 
-    const auto& tableManager = Bootstrap_->GetTableManager();
     // NB: Chaos replicated table is always native.
     auto schemaReceived = schemaId || schema;
     if (schemaReceived) {
@@ -673,25 +683,26 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
             schemaId);
     }
 
-    TTableSchemaPtr effectiveSchema;
+    TCompactTableSchemaPtr effectiveSchema;
     if (schema) {
         effectiveSchema = schema;
     } else if (schemaId) {
-        effectiveSchema = tableManager->GetMasterTableSchemaOrThrow(schemaId)->AsTableSchema();
+        effectiveSchema = tableManager->GetMasterTableSchemaOrThrow(schemaId)->AsCompactTableSchema();
     } else {
-        effectiveSchema = table->GetSchema()->AsTableSchema();
+        effectiveSchema = table->GetSchema()->AsCompactTableSchema();
     }
 
     // NB: Sorted dynamic tables contain unique keys, set this for user.
-    if (schemaReceived && effectiveSchema->IsSorted() && !effectiveSchema->GetUniqueKeys()) {
-        effectiveSchema = effectiveSchema->ToUniqueKeys();
+    if (schemaReceived && effectiveSchema->IsSorted() && !effectiveSchema->IsUniqueKeys()) {
+        auto heavySchema = tableManager->GetHeavyTableSchemaSync(effectiveSchema);
+        effectiveSchema = New<TCompactTableSchema>(heavySchema->ToUniqueKeys());
     }
 
     if (schemaReceived) {
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
 
         if (!config->EnableDescendingSortOrder || !config->EnableDescendingSortOrderDynamic) {
-            ValidateNoDescendingSortOrder(*effectiveSchema);
+            ValidateNoDescendingSortOrder(effectiveSchema->GetSortOrders(), effectiveSchema->GetKeyColumns());
         }
     }
 

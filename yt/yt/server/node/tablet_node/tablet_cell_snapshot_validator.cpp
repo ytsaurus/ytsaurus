@@ -33,14 +33,14 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto FakeTransactionId = MakeWellKnownId(EObjectType::Transaction, TCellTag(1));
-static const TString FakeAccount = "fake-account";
+static const std::string FakeAccount = "fake-account";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 ICellarOccupantPtr CreateFakeOccupant(
     IBootstrapBase* bootstrap,
     TCellId cellId,
-    TString tabletCellBundle,
+    std::string tabletCellBundle,
     NApi::TClusterTag clockClusterTag)
 {
     const auto& cellarManager = bootstrap

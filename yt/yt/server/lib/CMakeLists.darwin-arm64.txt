@@ -28,6 +28,7 @@ add_subdirectory(exec_node)
 add_subdirectory(job_agent)
 add_subdirectory(job_proxy)
 add_subdirectory(rpc_proxy)
+add_subdirectory(security_server)
 add_subdirectory(signature)
 add_subdirectory(nbd)
 add_subdirectory(squash_fs)
@@ -49,6 +50,9 @@ add_library(ytserver INTERFACE)
 target_compile_options(ytserver INTERFACE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(ytserver INTERFACE

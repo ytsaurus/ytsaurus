@@ -592,6 +592,94 @@ std::optional<TValue> FoldConstants(
     return std::nullopt;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+void TReferenceResolver::AddTable(TNameSource nameSource)
+{
+    NameSources_.push_back(std::move(nameSource));
+}
+
+TLogicalTypePtr TReferenceResolver::Resolve(const NAst::TColumnReference& reference)
+{
+    TLogicalTypePtr type;
+    int sourceIndex = 0;
+
+    auto lookupIt = Lookup_.find(reference);
+    if (lookupIt != Lookup_.end()) {
+        type = lookupIt->second.Type;
+        sourceIndex = lookupIt->second.SourceIndex;
+    }
+
+    for (; sourceIndex < std::ssize(NameSources_); ++sourceIndex) {
+        const auto& [schema, alias, mapping, selfColumns, foreignColumns, sharedColumns] = NameSources_[sourceIndex];
+
+        auto formattedName = InferColumnName(reference);
+
+        if (type && selfColumns) {
+            selfColumns->insert(formattedName);
+        }
+
+        if (alias == reference.TableName) {
+            if (auto* column = schema.FindColumn(reference.ColumnName)) {
+                if (type) {
+                    if (!sharedColumns.contains(formattedName)) {
+                        THROW_ERROR_EXCEPTION("Ambiguous resolution for column %Qv",
+                            formattedName);
+                    }
+                } else {
+                    if (mapping) {
+                        mapping->push_back(TColumnDescriptor{
+                            formattedName,
+                            schema.GetColumnIndex(*column)
+                        });
+                    }
+
+                    if (foreignColumns) {
+                        foreignColumns->insert(formattedName);
+                    }
+
+                    type = column->LogicalType();
+                }
+            }
+        }
+    }
+
+    if (type) {
+        lookupIt = Lookup_.emplace(reference, TResolvedInfo{type, 0}).first;
+        lookupIt->second.SourceIndex = std::ssize(NameSources_);
+    }
+
+    return type;
+}
+
+void TReferenceResolver::PopulateAllColumns()
+{
+    for (const auto& nameSource : NameSources_) {
+        for (const auto& column : nameSource.Schema.Columns()) {
+            Resolve(NAst::TReference(column.Name(), nameSource.Alias));
+        }
+    }
+}
+
+void TReferenceResolver::Finish()
+{
+    for (const auto& nameSource : NameSources_) {
+        if (nameSource.Mapping) {
+            std::sort(nameSource.Mapping->begin(), nameSource.Mapping->end(),
+                [] (const TColumnDescriptor& lhs, const TColumnDescriptor& rhs) {
+                    return lhs.Index < rhs.Index;
+                });
+
+            // Repeated columns can occur if column is used in join equation and further in query.
+            nameSource.Mapping->erase(std::unique(
+                nameSource.Mapping->begin(),
+                nameSource.Mapping->end(),
+                [] (const TColumnDescriptor& lhs, const TColumnDescriptor& rhs) {
+                    return lhs.Index == rhs.Index;
+                }), nameSource.Mapping->end());
+        }
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -602,161 +690,10 @@ TExprBuilder::TExprBuilder(
     , Functions_(functions)
 { }
 
-void TExprBuilder::AddTable(
-    const TTableSchema& schema,
-    std::optional<TString> alias,
-    std::vector<TColumnDescriptor>* mapping)
-{
-    Tables_.push_back(TTable{schema, alias, mapping});
-}
-
-// Columns already presented in Lookup are shared.
-// In mapping presented all columns needed for read and renamed schema.
-// SelfJoinedColumns and ForeignJoinedColumns are built from Lookup using OriginTableIndex and LastTableIndex.
-void TExprBuilder::Merge(TExprBuilder& other)
-{
-    size_t otherTablesCount = other.Tables_.size();
-    size_t tablesCount = Tables_.size();
-    size_t lastTableIndex = tablesCount + otherTablesCount - 1;
-
-    std::move(other.Tables_.begin(), other.Tables_.end(), std::back_inserter(Tables_));
-
-    for (const auto& [reference, entry] : other.Lookup()) {
-        auto [it, emplaced] = Lookup_.emplace(
-            reference,
-            TColumnEntry{
-                entry.Column,
-                0, // Consider not used yet.
-                tablesCount + entry.OriginTableIndex});
-
-        if (!emplaced) {
-            // Column is shared. Increment LastTableIndex to prevent search in new (other merged) tables.
-            it->second.LastTableIndex = lastTableIndex;
-        }
-    }
-}
-
-void TExprBuilder::PopulateAllColumns()
-{
-    for (const auto& table : Tables_) {
-        for (const auto& column : table.Schema.Columns()) {
-            GetColumnPtr(NAst::TReference(column.Name(), table.Alias));
-        }
-    }
-}
-
-void TExprBuilder::SetGroupData(const TNamedItemList* groupItems, TAggregateItemList* aggregateItems)
-{
-    YT_VERIFY(!GroupItems_ && !AggregateItems_);
-
-    GroupItems_ = groupItems;
-    AggregateItems_ = aggregateItems;
-    AfterGroupBy_ = true;
-}
-
-const std::optional<TBaseColumn> TExprBuilder::FindColumn(const TNamedItemList& schema, const std::string& name)
-{
-    for (int index = 0; index < std::ssize(schema); ++index) {
-        if (schema[index].Name == name) {
-            return TBaseColumn(name, schema[index].Expression->LogicalType);
-        }
-    }
-    return std::nullopt;
-}
-
-std::optional<TBaseColumn> TExprBuilder::GetColumnPtr(const NAst::TReference& reference)
-{
-    if (AfterGroupBy_) {
-        // Search other way after group by.
-        if (reference.TableName) {
-            return std::nullopt;
-        }
-
-        return FindColumn(*GroupItems_, reference.ColumnName);
-    }
-
-    size_t lastTableIndex = Tables_.size() - 1;
-
-    auto found = Lookup_.find(reference);
-    if (found != Lookup_.end()) {
-        // Provide column from max table index till end.
-
-        size_t nextTableIndex = std::max(found->second.OriginTableIndex, found->second.LastTableIndex) + 1;
-
-        CheckNoOtherColumn(reference, nextTableIndex);
-
-        // Update LastTableIndex after check.
-        found->second.LastTableIndex = lastTableIndex;
-
-        return found->second.Column;
-    } else if (auto [table, type] = ResolveColumn(reference); table) {
-        auto formattedName = NAst::InferColumnName(reference);
-        auto column = TBaseColumn(formattedName, type);
-
-        auto emplaced = Lookup_.emplace(
-            reference,
-            TColumnEntry{
-                column,
-                lastTableIndex,
-                size_t(table - Tables_.data())});
-
-        YT_VERIFY(emplaced.second);
-        return column;
-    } else {
-        return std::nullopt;
-    }
-}
-
 TConstExpressionPtr TExprBuilder::BuildTypedExpression(
     const NAst::TExpression* expr, TRange<EValueType> resultTypes)
 {
     return DoBuildTypedExpression(expr, resultTypes);
-}
-
-void TExprBuilder::CheckNoOtherColumn(const NAst::TReference& reference, size_t startTableIndex) const
-{
-    for (int index = startTableIndex; index < std::ssize(Tables_); ++index) {
-        auto& [schema, alias, mapping] = Tables_[index];
-
-        if (alias == reference.TableName && schema.FindColumn(reference.ColumnName)) {
-            THROW_ERROR_EXCEPTION("Ambiguous resolution for column %Qv",
-                NAst::InferColumnName(reference));
-        }
-    }
-}
-
-std::pair<const TTable*, TLogicalTypePtr> TExprBuilder::ResolveColumn(const NAst::TReference& reference) const
-{
-    const TTable* result = nullptr;
-    TLogicalTypePtr type;
-
-    int index = 0;
-    for (; index < std::ssize(Tables_); ++index) {
-        auto& [schema, alias, mapping] = Tables_[index];
-
-        if (alias != reference.TableName) {
-            continue;
-        }
-
-        if (auto* column = schema.FindColumn(reference.ColumnName)) {
-            auto formattedName = NAst::InferColumnName(reference);
-
-            if (mapping) {
-                mapping->push_back(TColumnDescriptor{
-                    formattedName,
-                    schema.GetColumnIndex(*column)
-                });
-            }
-            result = &Tables_[index];
-            type = column->LogicalType();
-            ++index;
-            break;
-        }
-    }
-
-    CheckNoOtherColumn(reference, index);
-
-    return {result, type};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

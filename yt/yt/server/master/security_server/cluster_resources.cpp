@@ -675,26 +675,11 @@ TRichClusterResources operator + (const TRichClusterResources& lhs, const TRichC
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletResources ConvertToTabletResources(const TClusterResources& clusterResources)
-{
-    YT_VERIFY(clusterResources.GetNodeCount() == 0);
-    YT_VERIFY(clusterResources.GetChunkCount() == 0);
-    for (const auto& [key, value] : clusterResources.DiskSpace()) {
-        YT_VERIFY(value == 0);
-    }
-
-    YT_VERIFY(clusterResources.DetailedMasterMemory().IsZero());
-
-    return TTabletResources()
-        .SetTabletCount(clusterResources.GetTabletCount())
-        .SetTabletStaticMemory(clusterResources.GetTabletStaticMemory());
-}
-
 TClusterResources ConvertToClusterResources(const TTabletResources& tabletResources)
 {
     return TClusterResources()
-        .SetTabletCount(tabletResources.TabletCount)
-        .SetTabletStaticMemory(tabletResources.TabletStaticMemory);
+        .SetTabletCount(tabletResources.GetTabletCount())
+        .SetTabletStaticMemory(tabletResources.GetTabletStaticMemory());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

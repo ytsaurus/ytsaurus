@@ -20,7 +20,8 @@ DEFINE_ENUM(EProgressCategory,
     ((Suspended)          (4))
     ((Invalidated)        (5))
     ((Uncategorized)      (6))
-    ((Blocked)            (7)));
+    ((Blocked)            (7))
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

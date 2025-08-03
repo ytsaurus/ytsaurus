@@ -34,6 +34,7 @@ IChaosCellDirectorySynchronizerPtr CreateChaosCellDirectorySynchronizer(
     TChaosCellDirectorySynchronizerConfigPtr,
     NHiveClient::ICellDirectoryPtr cellDirectory,
     NApi::NNative::IConnectionPtr connection,
+    NObjectClient::TCellIdList sourceOfTruthCellIds,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////

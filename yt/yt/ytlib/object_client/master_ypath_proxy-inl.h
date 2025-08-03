@@ -6,6 +6,8 @@
 
 #include "object_service_proxy.h"
 
+#include <yt/yt/ytlib/api/native/client.h>
+
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -112,10 +114,8 @@ private:
 
     void PrepareRequests(TCellTag cellTag, const std::vector<TObjectId>& objectIds)
     {
-        auto proxy = CreateObjectServiceReadProxy(
-            Client_,
-            NApi::EMasterChannelKind::Follower,
-            cellTag);
+        auto channel = Client_->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Follower, cellTag);
+        auto proxy = TObjectServiceProxy::FromDirectMasterChannel(channel);
 
         // NB: Batch request is still useful here because server will execute requests, packed in batch request in parallel.
         // Additionally it's better to send several smaller requests to make sure they don't occupy master for too long.

@@ -22,12 +22,16 @@ add_executable(yt-yt-library-profiling-unittests)
 target_compile_options(yt-yt-library-profiling-unittests PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(yt-yt-library-profiling-unittests PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  contrib-libs-tcmalloc
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
@@ -41,7 +45,6 @@ target_link_libraries(yt-yt-library-profiling-unittests PUBLIC
 
 target_allocator(yt-yt-library-profiling-unittests
   cpp-malloc-tcmalloc
-  contrib-libs-tcmalloc
 )
 
 target_link_options(yt-yt-library-profiling-unittests PRIVATE

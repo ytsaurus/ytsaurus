@@ -64,17 +64,16 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = QueryClientLogger;
+constinit const auto Logger = QueryClientLogger;
 
 struct TQueryUdfTag
 { };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressFunctionDescriptor
+struct TCypressFunctionDescriptor
     : public NYTree::TYsonStruct
 {
-public:
     TString Name;
     std::vector<TDescriptorType> ArgumentTypes;
     std::optional<TDescriptorType> RepeatedArgumentType;
@@ -107,13 +106,12 @@ public:
     }
 };
 
-DECLARE_REFCOUNTED_CLASS(TCypressFunctionDescriptor)
+DECLARE_REFCOUNTED_STRUCT(TCypressFunctionDescriptor)
 DEFINE_REFCOUNTED_TYPE(TCypressFunctionDescriptor)
 
-class TCypressAggregateDescriptor
+struct TCypressAggregateDescriptor
     : public NYTree::TYsonStruct
 {
-public:
     TString Name;
     TDescriptorType ArgumentType;
     TDescriptorType StateType;
@@ -133,7 +131,7 @@ public:
     }
 };
 
-DECLARE_REFCOUNTED_CLASS(TCypressAggregateDescriptor)
+DECLARE_REFCOUNTED_STRUCT(TCypressAggregateDescriptor)
 DEFINE_REFCOUNTED_TYPE(TCypressAggregateDescriptor)
 
 DEFINE_REFCOUNTED_TYPE(TExternalCGInfo)
@@ -340,15 +338,14 @@ void AppendUdfDescriptors(
             functionBody.UseFunctionContext = functionDescriptor->UseFunctionContext;
 
             auto typer = functionDescriptor->RepeatedArgumentType
-                ? New<TFunctionTypeInferrer>(
-                    std::unordered_map<TTypeParameter, TUnionType>(),
+                ? CreateFunctionTypeInferrer(
+                    functionDescriptor->ResultType.Type,
                     functionDescriptor->GetArgumentsTypes(),
-                    functionDescriptor->RepeatedArgumentType->Type,
-                    functionDescriptor->ResultType.Type)
-                : New<TFunctionTypeInferrer>(
-                    std::unordered_map<TTypeParameter, TUnionType>(),
-                    functionDescriptor->GetArgumentsTypes(),
-                    functionDescriptor->ResultType.Type);
+                    /*typeParameterConstraints*/ {},
+                    functionDescriptor->RepeatedArgumentType->Type)
+                : CreateFunctionTypeInferrer(
+                    functionDescriptor->ResultType.Type,
+                    functionDescriptor->GetArgumentsTypes());
 
             typeInferrers->emplace(name, typer);
             cgInfo->Functions.push_back(std::move(functionBody));
@@ -363,11 +360,10 @@ void AppendUdfDescriptors(
             functionBody.RepeatedArgType = EValueType::Null;
             functionBody.RepeatedArgIndex = -1;
 
-            auto typer = New<TAggregateFunctionTypeInferrer>(
-                std::unordered_map<TTypeParameter, TUnionType>(),
+            auto typer = CreateAggregateTypeInferrer(
+                aggregateDescriptor->ResultType.Type,
                 aggregateDescriptor->ArgumentType.Type,
-                aggregateDescriptor->StateType.Type,
-                aggregateDescriptor->ResultType.Type);
+                aggregateDescriptor->StateType.Type);
 
             typeInferrers->emplace(name, typer);
             cgInfo->Functions.push_back(std::move(functionBody));

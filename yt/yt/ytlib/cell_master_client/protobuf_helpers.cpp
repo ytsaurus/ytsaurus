@@ -32,7 +32,7 @@ void FromProto(
 {
     auto config = New<TServiceDiscoveryEndpointsConfig>();
     if (protoServiceDiscoveryEndpointsConfig.has_cluster()) {
-        config->Cluster = FromProto<TString>(protoServiceDiscoveryEndpointsConfig.cluster());
+        config->Cluster = FromProto<std::string>(protoServiceDiscoveryEndpointsConfig.cluster());
     }
     FromProto(&config->Clusters, protoServiceDiscoveryEndpointsConfig.clusters());
     FromProto(&config->EndpointSetId, protoServiceDiscoveryEndpointsConfig.endpoint_set_id());

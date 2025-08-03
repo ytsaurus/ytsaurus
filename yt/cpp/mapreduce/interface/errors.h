@@ -9,7 +9,7 @@
 
 #include <library/cpp/yson/node/node.h>
 
-#include <util/generic/bt_exception.h>
+#include <util/generic/yexception.h>
 #include <util/generic/guid.h>
 #include <util/generic/string.h>
 #include <util/generic/vector.h>
@@ -125,7 +125,7 @@ public:
     const TVector<TYtError>& InnerErrors() const;
 
     /// Parse error from json string.
-    void ParseFrom(const TString& jsonError);
+    void ParseFrom(TStringBuf jsonError);
 
     /// Collect error codes from entire error tree.
     TSet<int> GetAllErrorCodes() const;

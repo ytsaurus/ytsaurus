@@ -47,29 +47,6 @@ NClusterNode::TJobResources PatchJobResources(
     return initial;
 }
 
-TAllocationAttributes BuildAttributesFromJobSpec(const TJobSpecExt* jobSpecExt)
-{
-    const auto& userJobSpec = jobSpecExt->user_job_spec();
-    TAllocationAttributes attributes{
-        .DiskRequest = {
-            .InodeCount = userJobSpec.disk_request().inode_count(),
-        },
-        .AllowIdleCpuPolicy = jobSpecExt->allow_idle_cpu_policy(),
-        .PortCount = userJobSpec.port_count(),
-    };
-    if (userJobSpec.disk_request().has_medium_index()) {
-        attributes.DiskRequest.MediumIndex = userJobSpec.disk_request().medium_index();
-    }
-
-    if (userJobSpec.has_cuda_toolkit_version()) {
-        attributes.CudaToolkitVersion = userJobSpec.cuda_toolkit_version();
-    }
-    if (jobSpecExt->has_waiting_job_timeout()) {
-        attributes.WaitingForResourcesOnNodeTimeout = FromProto<TDuration>(jobSpecExt->waiting_job_timeout());
-    }
-    return attributes;
-}
-
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,7 +67,7 @@ TAllocation::TAllocation(
     TAllocationId id,
     TOperationId operationId,
     const NClusterNode::TJobResources& resourceDemand,
-    std::optional<NScheduler::TAllocationAttributes> attributes,
+    NScheduler::TAllocationAttributes attributes,
     TControllerAgentDescriptor agentDescriptor,
     IBootstrap* bootstrap)
     : TResourceOwner(
@@ -110,9 +87,9 @@ TAllocation::TAllocation(
     , RequestedMemory_(resourceDemand.UserMemory)
     , InitialResourceDemand_(resourceDemand)
     , Attributes_(std::move(attributes))
-    , ControllerAgentDescriptor_(std::move(agentDescriptor))
+    , ControllerAgentInfo_(std::move(agentDescriptor))
     , ControllerAgentConnector_(
-        Bootstrap_->GetControllerAgentConnectorPool()->GetControllerAgentConnector(ControllerAgentDescriptor_))
+        Bootstrap_->GetControllerAgentConnectorPool()->GetControllerAgentConnector(ControllerAgentInfo_.GetDescriptor()))
 {
     YT_VERIFY(bootstrap);
 
@@ -177,9 +154,7 @@ void TAllocation::Start()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    if (Attributes_) {
-        PrepareAllocationFromAttributes(*Attributes_);
-    }
+    PrepareAllocation();
 
     // NB(eshcherbin): Do not propagate scheduler heartbeat's trace context to SettleJob.
     NTracing::TNullTraceContextGuard guard;
@@ -222,24 +197,24 @@ void TAllocation::UpdateControllerAgentDescriptor(TControllerAgentDescriptor des
 
     TForbidContextSwitchGuard guard;
 
-    if (ControllerAgentDescriptor_ == descriptor) {
+    if (ControllerAgentInfo_.GetDescriptor() == descriptor) {
         return;
     }
 
     YT_LOG_DEBUG(
         "Update controller agent for allocation (ControllerAgentAddress: %v -> %v, ControllerAgentIncarnationId: %v)",
-        ControllerAgentDescriptor_.Address,
+        ControllerAgentInfo_.GetDescriptor().Address,
         descriptor.Address,
         descriptor.IncarnationId);
 
-    ControllerAgentDescriptor_ = std::move(descriptor);
+    ControllerAgentInfo_.SetDescriptor(std::move(descriptor));
 
     ControllerAgentConnector_ = Bootstrap_
         ->GetControllerAgentConnectorPool()
-        ->GetControllerAgentConnector(ControllerAgentDescriptor_);
+        ->GetControllerAgentConnector(ControllerAgentInfo_.GetDescriptor());
 
     if (Job_) {
-        Job_->UpdateControllerAgentDescriptor(ControllerAgentDescriptor_);
+        Job_->UpdateControllerAgentDescriptor(ControllerAgentInfo_.GetDescriptor());
     }
 }
 
@@ -247,7 +222,7 @@ const TControllerAgentDescriptor& TAllocation::GetControllerAgentDescriptor() co
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    return ControllerAgentDescriptor_;
+    return ControllerAgentInfo_.GetDescriptor();
 }
 
 NClusterNode::TJobResources TAllocation::GetResourceUsage(bool excludeReleasing) const noexcept
@@ -378,7 +353,7 @@ void TAllocation::SettleJob()
 
     YT_LOG_INFO(
         "Requesting controller agent to settle new job (ControllerAgentDescriptor: %v)",
-        ControllerAgentDescriptor_);
+        ControllerAgentInfo_.GetDescriptor());
 
     controllerAgentConnector->SettleJob(OperationId_, Id_, LastJobId_)
         .SubscribeUnique(BIND(&TAllocation::OnSettledJobReceived, MakeStrong(this))
@@ -423,15 +398,7 @@ void TAllocation::OnSettledJobReceived(
         return;
     }
 
-    // NB(arkady-e1ppa): Waiting is legacy. Remove when
-    // sched and CA are updated to 24.2.
-    YT_VERIFY(
-        State_ == EAllocationState::Waiting ||
-        State_ == EAllocationState::Running);
-
-    if (!Attributes_.has_value()) {
-        LegacyPrepareAllocationFromStartInfo(jobInfo);
-    }
+    YT_VERIFY(State_ == EAllocationState::Running || State_ == EAllocationState::Waiting);
 
     YT_VERIFY(ResourceHolder_);
     ResourceHolder_->RestoreResources();
@@ -473,7 +440,7 @@ void TAllocation::CreateAndSettleJob(
         OperationId_,
         MakeStrong(this),
         std::move(jobSpec),
-        ControllerAgentDescriptor_,
+        ControllerAgentInfo_.GetDescriptor(),
         Bootstrap_,
         Bootstrap_->GetJobController()->GetDynamicConfig()->JobCommon);
 
@@ -488,9 +455,6 @@ void TAllocation::CreateAndSettleJob(
 
     LastJobId_ = jobId;
 
-    // COMPAT(arkady-e1ppa): Non-legacy version
-    // always has state == Running at this point.
-    // Remove branch when sched and CA are 24.2.
     if (State_ == EAllocationState::Running) {
         Job_->Start();
     }
@@ -543,12 +507,11 @@ IYPathServicePtr TAllocation::GetOrchidService()
 
     auto staticAllocationService = GetStaticOrchidService();
 
-    auto service = New<TServiceCombiner>(
+    return New<TServiceCombiner>(
         std::vector<IYPathServicePtr>{
             std::move(jobService),
-            std::move(staticAllocationService)});
-
-    return service;
+            std::move(staticAllocationService),
+        });
 }
 
 NYTree::IYPathServicePtr TAllocation::GetStaticOrchidService()
@@ -642,7 +605,9 @@ void TAllocation::OnJobFinished(TJobPtr job)
             return false;
         }
 
-        if (GetConfig()->EnableMultipleJobs && job->GetState() == EJobState::Completed) {
+        bool enableMultipleJobs = GetConfig()->EnableMultipleJobs && Attributes_.EnableMultipleJobs;
+
+        if (enableMultipleJobs && job->GetState() == EJobState::Completed) {
             YT_LOG_INFO(
                 "Job completed and multiple jobs in allocation enabled, waiting for storing and clenup job to settle new one (JobId: %v)",
                 job->GetId());
@@ -694,7 +659,7 @@ void TAllocation::OnJobFinished(TJobPtr job)
                     return;
                 }
 
-                if (!ControllerAgentDescriptor_) {
+                if (!ControllerAgentInfo_.GetDescriptor()) {
                     YT_LOG_INFO(
                         "Allocation is not assigned to controller agent, skip new job settlement (JobId: %v)",
                         jobId);
@@ -728,45 +693,30 @@ void TAllocation::TransferResourcesToJob()
     OnResourcesTransferred();
 }
 
-void TAllocation::PrepareAllocationFromAttributes(
-    const NScheduler::TAllocationAttributes& attributes)
+void TAllocation::PrepareAllocation()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto jobControllerConfig = Bootstrap_->GetJobController()->GetDynamicConfig();
     auto resources = PatchJobResources(
         GetResourceUsage(),
-        attributes,
+        Attributes_,
         jobControllerConfig->MinRequiredDiskSpace);
 
     ResourceHolder_->UpdateResourceDemand(
         resources,
-        attributes);
+        Attributes_);
 
     AllocationPrepared_.Fire(
         MakeStrong(this),
-        attributes
-            .WaitingForResourcesOnNodeTimeout
-            .value_or(jobControllerConfig->WaitingForResourcesTimeout));
-}
-
-void TAllocation::LegacyPrepareAllocationFromStartInfo(TJobStartInfo& jobInfo)
-{
-    YT_ASSERT_THREAD_AFFINITY(JobThread);
-
-    auto jobSpecExtId = TJobSpecExt::job_spec_ext;
-    YT_VERIFY(jobInfo.JobSpec.HasExtension(jobSpecExtId));
-    auto* jobSpecExt = &jobInfo.JobSpec.GetExtension(jobSpecExtId);
-
-    auto attributes = BuildAttributesFromJobSpec(jobSpecExt);
-    PrepareAllocationFromAttributes(attributes);
+        Attributes_.WaitingForResourcesOnNodeTimeout.value_or(jobControllerConfig->WaitingForResourcesTimeout));
 }
 
 TAllocationPtr CreateAllocation(
     TAllocationId id,
     TOperationId operationId,
-    const NClusterNode::TJobResources& resourceUsage,
-    std::optional<NScheduler::TAllocationAttributes> attributes,
+    const NClusterNode::TJobResources& resourceDemand,
+    NScheduler::TAllocationAttributes attributes,
     TControllerAgentDescriptor agentDescriptor,
     IBootstrap* bootstrap)
 {
@@ -774,7 +724,7 @@ TAllocationPtr CreateAllocation(
         bootstrap->GetJobInvoker(),
         id,
         operationId,
-        resourceUsage,
+        resourceDemand,
         std::move(attributes),
         std::move(agentDescriptor),
         bootstrap);

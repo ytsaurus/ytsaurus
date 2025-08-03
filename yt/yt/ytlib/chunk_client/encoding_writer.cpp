@@ -249,18 +249,22 @@ void TEncodingWriter::VerifyVector(
     const std::vector<TSharedRef>& uncompressedVectorizedBlock,
     const TSharedRef& compressedBlock)
 {
-    auto decompressedBlock = Codec_->Decompress(compressedBlock);
+    try {
+        auto decompressedBlock = Codec_->Decompress(compressedBlock);
 
-    YT_LOG_FATAL_IF(
-        decompressedBlock.Size() != GetByteSize(uncompressedVectorizedBlock),
-        "Compression verification failed");
-
-    const char* current = decompressedBlock.Begin();
-    for (const auto& block : uncompressedVectorizedBlock) {
         YT_LOG_FATAL_IF(
-            !TRef::AreBitwiseEqual(TRef(current, block.Size()), block),
-            "Compression verification failed");
-        current += block.Size();
+            decompressedBlock.Size() != GetByteSize(uncompressedVectorizedBlock),
+            "Compression verification failed: decompressed size mismatch");
+
+        const char* current = decompressedBlock.Begin();
+        for (const auto& block : uncompressedVectorizedBlock) {
+            YT_LOG_FATAL_IF(
+                !TRef::AreBitwiseEqual(TRef(current, block.Size()), block),
+                "Compression verification failed: content differs");
+            current += block.Size();
+        }
+    } catch (const std::exception& ex) {
+        YT_LOG_FATAL(ex, "Compression verification failed: decompressor error");
     }
 }
 
@@ -268,10 +272,15 @@ void TEncodingWriter::VerifyBlock(
     const TSharedRef& uncompressedBlock,
     const TSharedRef& compressedBlock)
 {
-    auto decompressedBlock = Codec_->Decompress(compressedBlock);
-    YT_LOG_FATAL_IF(
-        !TRef::AreBitwiseEqual(decompressedBlock, uncompressedBlock),
-        "Compression verification failed");
+    try {
+        auto decompressedBlock = Codec_->Decompress(compressedBlock);
+
+        YT_LOG_FATAL_IF(
+            !TRef::AreBitwiseEqual(decompressedBlock, uncompressedBlock),
+            "Compression verification failed: content differs");
+    } catch (const std::exception& ex) {
+        YT_LOG_FATAL(ex, "Compression verification failed: decompressor error");
+    }
 }
 
 void TEncodingWriter::ProcessCompressedBlock(i64 sizeToRelease)

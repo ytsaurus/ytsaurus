@@ -9,12 +9,6 @@ namespace NYT::NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TTag>
-TExpressionContext MakeExpressionContext(TTag, IMemoryUsageTrackerPtr memoryTracker, size_t startChunkSize)
-{
-    return TExpressionContext(New<TRowBuffer>(TTag(), startChunkSize, std::move(memoryTracker)));
-}
-
-template <class TTag>
 TExpressionContext MakeExpressionContext(TTag, IMemoryChunkProviderPtr chunkProvider)
 {
     return TExpressionContext(New<TRowBuffer>(GetRefCountedTypeCookie<TTag>(), std::move(chunkProvider)));

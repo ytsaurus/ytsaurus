@@ -8,8 +8,21 @@ class Cell(Taggable):
     """ A dashboard cell: a title and a sensor.
 
     Calling |value| calls |value| of the underlying sensor.
+
+    :param title: Title of the cell.
+    :type title: str
+    :param sensor: Sensor to display in the cell.
+    :type sensor: |Sensor|
+    :param yaxis_label: Label for the y-axis.
+    :type yaxis_label: str or dict
+    :param display_legend: Whether to display the legend.
+    :type display_legend: bool
+    :param description: Description of the cell.
+    :type description: str
+    :param colors: Colors for the series. Dict from series names to colors in string format "#11114e".
+    :type colors: dict
     """
-    def __init__(self, title, sensor, yaxis_label=None, display_legend=None):
+    def __init__(self, title, sensor, yaxis_label=None, display_legend=None, description=None, colors=None):
         self.title = title
         self.sensor = sensor
         self.yaxis_to_label = {}
@@ -20,6 +33,8 @@ class Cell(Taggable):
         else:
             pass
         self.display_legend = display_legend
+        self.description = description
+        self.colors = colors
 
     def value(self, key, value):
         if self.sensor is not None:
@@ -64,12 +79,17 @@ class Row(Taggable):
         cells = [cell.serialize(begin_values, end_values, serializer) for cell in self.cells]
         return serializer.on_row(self, cells)
 
-    def cell(self, title, sensor, yaxis_label=None, display_legend=None):
-        self.cells.append(Cell(title, sensor, yaxis_label=yaxis_label, display_legend=display_legend))
+    def cell(self, title, sensor, yaxis_label=None, display_legend=None, description=None, colors=None):
+        self.cells.append(Cell(
+            title, sensor, yaxis_label=yaxis_label, display_legend=display_legend,
+            description=description, colors=colors))
         return self
 
     def row(self, height=None):
         return self.owner.row(height)
+
+    def apply_func(self, func):
+        return func(self)
 
 
 class Rowset(Taggable):
@@ -133,6 +153,9 @@ class Rowset(Taggable):
     def serialize(self, serializer):
         rows = [row.serialize(self.begin_values, self.end_values, serializer) for row in self.rows]
         return serializer.on_rowset(self, rows)
+
+    def apply_func(self, func):
+        return func(self)
 
 
 class Dashboard(Taggable):

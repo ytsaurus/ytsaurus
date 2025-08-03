@@ -1,4 +1,6 @@
 #include "chunk_view_size_fetcher.h"
+
+#include "config.h"
 #include "sorted_chunk_store.h"
 #include "tablet.h"
 
@@ -37,7 +39,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletNodeLogger;
+constinit const auto Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -246,7 +248,6 @@ private:
         NChunkClient::NProto::TChunkSpec chunkSpec;
         ToProto(chunkSpec.mutable_chunk_id(), store->GetChunkId());
         ToProto(chunkSpec.mutable_replicas(), replicas.Replicas);
-        ToProto(chunkSpec.mutable_legacy_replicas(), TChunkReplicaWithMedium::ToChunkReplicas(replicas.Replicas));
         *chunkSpec.mutable_chunk_meta() = store->GetChunkMeta();
 
         if (auto lowerLimit = store->GetChunkViewLowerLimit()) {

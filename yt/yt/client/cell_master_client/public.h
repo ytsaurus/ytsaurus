@@ -27,7 +27,8 @@ DEFINE_BIT_ENUM(EMasterCellRoles,
 );
 
 DEFINE_ENUM(EMasterCellRole,
-    ((None)                      (0x0000))
+    ((Unknown)                   (0x0000))
+
     ((CypressNodeHost)           (0x0001))
     ((TransactionCoordinator)    (0x0002))
     ((ChunkHost)                 (0x0004))
@@ -35,6 +36,8 @@ DEFINE_ENUM(EMasterCellRole,
     ((ExTransactionCoordinator)  (0x0010))
     ((SequoiaNodeHost)           (0x0020))
 );
+
+DEFINE_ENUM_UNKNOWN_VALUE(EMasterCellRole, Unknown);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -20,6 +20,8 @@
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/job_proxy/helpers.h>
+#include <yt/yt/ytlib/job_proxy/profiling_reader.h>
+#include <yt/yt/ytlib/job_proxy/profiling_writer.h>
 
 #include <yt/yt/ytlib/table_client/granule_min_max_filter.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
@@ -58,7 +60,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = JobProxyLogger;
+constinit const auto Logger = JobProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -235,6 +237,9 @@ TJobResult TSimpleJobBase::Run()
     const auto& jobSpec = Host_->GetJobSpecHelper()->GetJobSpecExt();
     auto enableRowFilter = jobSpec.input_query_spec().options().enable_row_filter();
 
+    IOStartTime_ = GetInstant();
+    YT_LOG_INFO("Started measuring I/O time (IOStartTime: %v)", IOStartTime_);
+
     if (jobSpec.has_input_query_spec() && enableRowFilter) {
         RunQuery(
             jobSpec.input_query_spec(),
@@ -318,6 +323,8 @@ IJob::TStatistics TSimpleJobBase::GetStatistics() const
         },
         result.ChunkReaderStatistics = ChunkReadOptions_.ChunkReaderStatistics;
         result.TimingStatistics = Reader_->GetTimingStatistics();
+
+        result.LatencyStatistics.InputTimeToFirstReadBatch = Reader_->GetTimeToFirstBatch();
     }
 
     if (Writer_) {
@@ -327,6 +334,12 @@ IJob::TStatistics TSimpleJobBase::GetStatistics() const
             .DataStatistics = {Writer_->GetDataStatistics()},
             .CodecStatistics = {Writer_->GetCompressionStatistics()},
         }};
+
+        // XXX(coteeq): I think that semantically this is the right field
+        // to dump this statistic into, but it feels weird that we just
+        // skipped |InputTimeToFirstWrittenBatch| entirely :/.
+        result.LatencyStatistics.OutputTimeToFirstReadBatch.push_back(
+            Writer_->GetTimeToFirstBatch());
     }
 
     return result;
@@ -386,7 +399,7 @@ ISchemalessMultiChunkReaderPtr TSimpleJobBase::DoInitializeReader(
     YT_VERIFY(!Reader_);
     YT_VERIFY(!Initialized_.load());
 
-    Reader_ = ReaderFactory_(nameTable, columnFilter);
+    Reader_ = CreateProfilingMultiChunkReader(ReaderFactory_(nameTable, columnFilter), IOStartTime_);
     Initialized_ = true;
 
     YT_LOG_INFO("Reader initialized");
@@ -400,7 +413,7 @@ ISchemalessMultiChunkWriterPtr TSimpleJobBase::DoInitializeWriter(
 {
     YT_VERIFY(!Writer_);
 
-    Writer_ = WriterFactory_(nameTable, schema);
+    Writer_ = CreateProfilingMultiChunkWriter(WriterFactory_(nameTable, schema), IOStartTime_);
 
     YT_LOG_INFO("Writer initialized");
 

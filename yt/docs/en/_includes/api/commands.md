@@ -16,7 +16,7 @@ Each command also defines the type of its input and output data. Below all the p
 - No data (`null`).
 - The data is a `binary` stream. For example, [file](../../user-guide/storage/files.md) contents.
 - The data is [structured](../../user-guide/storage/formats.md#structured_data) (`structured`). For example, regular [Cypress](../../user-guide/storage/cypress.md) nodes.
-- The data is a `binary` stream. For example, [table](../../user-guide/storage/objects.md#tables) contents.
+- The data is a `tabular` stream. For example, [table](../../user-guide/storage/objects.md#tables) contents.
 
 In addition to that, each command can be:
 
@@ -1494,9 +1494,9 @@ Semantics:
 - The resharded tablets must be unmounted.
 - Be sure to specify `tablet_count` for an ordered table. For a sorted table, you can specify both `tablet_count` and `pivot_keys`. The resharded tablets are replaced by a set of new tablets.
 - In the case of a sorted table:
-  - When passing `pivot_keys`, the first key in `pivot_keys` must match the first key of the first resharded tablet. The number of `pivot_keys` is equal to the number of new tablets that the resharded tablets are split into.
-  - When passing `tablet_count`, the system will select pivot keys based on the data available in the table as evenly as possible. If the table isn't large enough, you might get less tablets then requested as a result. At default settings, your resulting tablets can't be smaller than about 200 MB each. For smaller slicing, use the option`enable_slicing`.
-  - If the first key column of the table has an integer type, then along with `tablet_count`, you can use `uniform=True`. In this case, uniform values from the range of the appropriate type will be selected as pivot keys. `0, 2^64/n, 2^64\*2/n, ...` for an unsigned 64-bit type and `-2^63, -2^63 + 2^64/n, -2^63 + 2^64\*2/n, ...` for a signed 64-bit type.
+   - When passing `pivot_keys`, the first key in `pivot_keys` must match the first key of the first resharded tablet. The number of `pivot_keys` is equal to the number of new tablets that the resharded tablets are split into.
+   - When passing `tablet_count`, the system will select pivot keys based on the data available in the table as evenly as possible. If the table isn't large enough, you might get less tablets then requested as a result. At default settings, your resulting tablets can't be smaller than about 200 MB each. For smaller slicing, use the option`enable_slicing`.
+   - If the first key column of the table has an integer type, then along with `tablet_count`, you can use `uniform=True`. In this case, uniform values from the range of the appropriate type will be selected as pivot keys. `0, 2^64/n, 2^64\*2/n, ...` for an unsigned 64-bit type and `-2^63, -2^63 + 2^64/n, -2^63 + 2^64\*2/n, ...` for a signed 64-bit type.
 - For an ordered table, `table_count` specifies the number of new tablets that the sharded tablets are split into. In this case, if the resulting tablets are higher in numbers than the old ones, new empty tablets are created. If the resulting tablets are smaller in numbers, the corresponding number of source trailing tablets are merged into a single tablet in their natural order.
 
 Parameters:
@@ -1564,7 +1564,7 @@ OUTPUT [
 ]
 ```
 
- ### alter_table
+### alter_table
 
 Command properties: **Mutating**, **Light**.
 
@@ -1643,9 +1643,9 @@ Semantics:
 
 - Get statistics on the set of columns in the given set of tables (taken completely or partially, by ranges).
 - The statistics includes:
-  - The total `data_weight` for each of the requested columns.
-  - The total `data_weight` for all the old chunks (that the metainformation about each column hasn't been saved to because the chunk has been generated before column-by-column statistics were supported).
-  - The total weight of all the timestamps of rows in a dynamic table.
+   - The total `data_weight` for each of the requested columns.
+   - The total `data_weight` for all the old chunks (that the metainformation about each column hasn't been saved to because the chunk has been generated before column-by-column statistics were supported).
+   - The total weight of all the timestamps of rows in a dynamic table.
 - The paths should always include the `column selectors`.
 - The command can be nested in a transaction.
 
@@ -1690,6 +1690,12 @@ All the operations are run asynchronously, the specified commands only launch 
 All the commands used to work with operations are also transactional. It means that everything you do with tables in an operation will be executed within the specified transaction when you run the operation.  The node responsible for the operation (`//sys/operations/<OP_ID>`) is updated by the [scheduler](../../user-guide/data-processing/scheduler/scheduler-and-pools.md)outside of any transactions.
 
 ### start_operation
+
+{% note info %}
+
+The HTTP API supports this operation from version v4 onward. Earlier versions of the API use commands with the same names to run operations, such as `map`, `reduce`, `sort`, and so on.
+
+{% endnote %}
 
 Command properties: **Mutating**, **Light**.
 
@@ -2049,7 +2055,7 @@ Parameters:
 | `user` | `string` | No | `Null` | Username to filter for. |
 | `state` | `string` | No | `Null` | Operation state used to filter data. |
 | `type` | `string` | No | `Null` | Type of filtering operation. |
-| `filter` | `string` | No | `Null` | Substring that the operation's `filter_factors` should include. |
+| `filter` | `string` | No | `Null` | Substring that `filter_factors` should include. `filter_factors` is a concatenation of various operation attributes, such as `id`, `type`, `authenticated_user`, `state`, `input_table_paths`, `output_table_paths`, `experiments`, `annotations`, `runtime_parameters`, `pool`, and `title`. |
 | `pool` | `string` | No | `Null` | Pool used for filtering. |
 | `with_failed_jobs` | `bool` | No | `Null` | Return only the operations that have jobs with the `failed` status. |
 | `access` | `map` | No | `Null` | Dictionary with the mandatory fields `subject` (a string) and `permissions` (a list of strings) that set a filter by access rights. If specified, only the operations for which a `subject` has every right in the `permissions` list, are returned. |
@@ -2066,13 +2072,13 @@ Output data:
 
 - Type: `structured`.
 - Returns a dictionary with the following fields:
-  - `operations`: List with explicit descriptions of operations. Each operation described is a dictionary that includes the selected operation attributes: `id`, `type`, `state`, `authenticated_user`, `brief_progress`, `brief_spec`, `start_time`, `suspended`, `weight`. The `weight`, `brief_progress`, and `brief_spec` attributes are optional.
-  - `incomplete`: Whether the list of operations is complete (that is, whether all the operations in the range `from_time` — `to_time` are listed).
-  - `pool_counts`: Statistics on pools.
-  - `user_counts`: Statistics on users.
-  - `state_counts`: Statistics on operation states.
-  - `type_counts`: Statistics on operation type.
-  - `failed_jobs_count`: Count of `failed` jobs for the operations.
+   - `operations`: List with explicit descriptions of operations. Each operation described is a dictionary that includes the selected operation attributes: `id`, `type`, `state`, `authenticated_user`, `brief_progress`, `brief_spec`, `start_time`, `suspended`, `weight`. The `weight`, `brief_progress`, and `brief_spec` attributes are optional.
+   - `incomplete`: Whether the list of operations is complete (that is, whether all the operations in the range `from_time` — `to_time` are listed).
+   - `pool_counts`: Statistics on pools.
+   - `user_counts`: Statistics on users.
+   - `state_counts`: Statistics on operation states.
+   - `type_counts`: Statistics on operation type.
+   - `failed_jobs_count`: Count of `failed` jobs for the operations.
 
 Example:
 
@@ -2447,6 +2453,7 @@ Parameters:
 | `with_competitors` | `bool` | No | `Null` | At `Null`, all the jobs are returned. At `True`, only the jobs for which speculative copies were run along with those copies are returned. At `False`, only the jobs that do not have speculative copies are returned. |
 | `job_competition_id` | `GUID` | No | `Null` | When you specify the parameter, the response will include the job with the `job_competition_id` and all of its speculative copies (if any). |
 | `with_monitoring_descriptor` | `bool` | No | `Null` | At `Null`, all the jobs are returned. At `True`, only the jobs that have `monitoring_descriptor` are returned. At `False`, only the jobs that do not have `monitoring_descriptor` are returned. |
+| `with_interruption_info` | `bool` | No | `Null` | At `Null`, all the jobs are returned. At `True`, only the jobs that have `interruption_info` are returned. At `False`, only the jobs that do not have `interruption_info` are returned. |
 | `task_name` | `string` | No | `Null` | When you specify the parameter, the response will only include the jobs with the specified `task_name`. |
 | `sort_field` | `{none,type,state,start_time,finish_time,address,duration,progress,id}` | No | `none` | Sort fields. |
 | `sort_order` | `{ascending,descending}` | No | `ascending` | Sorting order. |
@@ -2454,7 +2461,7 @@ Parameters:
 | `offset` | `int` | No | `0` | Offset by the given number of jobs. |
 | `data_source` | `EDataSource` | No | `auto` | Data source, acceptable values: `runtime`, `archive`, and `auto`. |
 
-The `job_type`, `job_state`, `address`, `with_stderr`, `with_fail_context`, `with_competitors`, `with_spec`, and `with_monitoring_descriptor` parameters define the job *filter*. The response will only include the jobs that meet the filtering criteria.
+The `job_type`, `job_state`, `address`, `with_stderr`, `with_fail_context`, `with_competitors`, `with_spec`, `with_monitoring_descriptor`, and `with_interruption_info` parameters define the job *filter*. The response will only include the jobs that meet the filtering criteria.
 
 The `sort_field` and`sort_order` define the order of jobs in the response. In this case, the `limit` and `offset` parameters define the slice (subset) of jobs in the response: the first `offset` jobs are skipped, and then `limit` of the remaining jobs is selected.
 
@@ -2474,9 +2481,9 @@ Output data:
 - `*_count` fields: Сounter of jobs found for a given operation in the appropriate data sources, without filtering. If all three numbers are zeros, it means that there's no information about the operation's jobs. If all the three numbers aren't zeros, but the `jobs` response is empty, it means that all the jobs were filtered out. If you get `null` instead of a number, the corresponding data source wasn't polled.
 
 - `jobs` field: List of structures that describe each job. Each job can have the following fields:
-  - `id` (`guid`), `type` (`string`), `state` (`string`), `address` (`string`): Required fields.
-  - `start_time` (`instant`), `finish_time` (`instant`), `progress` (`double`), `stderr_size` (`int`): Optional fields.
-  - `error`, `brief_statistics`, `input_paths`, `core_infos`: Optional fields.
+   - `id` (`guid`), `type` (`string`), `state` (`string`), `address` (`string`): Required fields.
+   - `start_time` (`instant`), `finish_time` (`instant`), `progress` (`double`), `stderr_size` (`int`): Optional fields.
+   - `error`, `brief_statistics`, `input_paths`, `core_infos`: Optional fields.
 
 Example:
 
@@ -2588,47 +2595,6 @@ Example:
 ```bash
 PARAMETERS { "job_id" = "1225d-1f2fb8c4-f1075d39-5fb7cdff" }
 ```
-
-{% if audience == "internal" %}
-
-### strace_job
-
-
-{% note warning "Attention" %}
-
-The command is obsolete and will be deleted. Use `job shell` to replace it.
-
-{% endnote %}
-
-Command properties: **Non-mutating**, **Light**.
-
-Semantics:
-
-- Get job strace.
-
-Parameters:
-
-| **Parameter** | **Required** | **Default value** | **Description** |
-| ------------ | ------------- | ------------------------- | -------------------- |
-| `job_id` | Yes |                           | Job ID. |
-
-Input data:
-
-- Type: `null`.
-
-Output data:
-
-- Type: `structured`.
-- Value: traces of running processes.
-
-Example:
-
-```bash
-PARAMETERS { "job_id" = "1225d-1f2fb8c4-f1075d39-5fb7cdff" }
-```
-
-{% endif %}
-
 
 ### dump_job_context
 
@@ -2888,7 +2854,7 @@ PARAMETERS { }
 OUTPUT {
     "features" = {
       "primitive_types" = ["int8"; "int16"; ... ];
-      "erasure_codecs" = ["lrc_12_2_2"; "reed_solomon_6_3"; ... ];
+      "erasure_codecs" = ["none", "isa_lrc_12_2_2"; "isa_reed_solomon_6_3"; ... ];
       "compression_codecs" = ["none"; "snappy"; "brotli_1"; ... ];
     };
 }

@@ -277,6 +277,7 @@ private:
     std::atomic<i64> MaxPullQueueResponseDataWeight_;
     std::atomic<bool> AccountUserBackendOutTraffic_;
     std::atomic<bool> UseQueryPoolForLookups_;
+    std::atomic<bool> UseQueryPoolForInMemoryLookups_;
 
     NProfiling::TCounter TabletErrorCountCounter_ = QueryAgentProfiler().Counter("/get_tablet_infos/errors/count");
     NProfiling::TCounter TabletErrorSizeCounter_ = QueryAgentProfiler().Counter("/get_tablet_infos/errors/byte_size");
@@ -301,7 +302,14 @@ private:
         const auto& ext = requestHeader.GetExtension(NQueryClient::NProto::TReqMultireadExt::req_multiread_ext);
         auto inMemoryMode = FromProto<EInMemoryMode>(ext.in_memory_mode());
 
-        if (inMemoryMode == EInMemoryMode::None && UseQueryPoolForLookups_.load(std::memory_order_relaxed)) {
+        auto useQueryPoolForLookups = UseQueryPoolForLookups_.load();
+        auto useQueryPoolForInMemoryLookups = UseQueryPoolForInMemoryLookups_.load();
+
+        if ((inMemoryMode == EInMemoryMode::None &&
+            useQueryPoolForLookups) ||
+            (inMemoryMode != EInMemoryMode::None &&
+            useQueryPoolForInMemoryLookups))
+        {
             std::string tag;
             std::string poolName;
             if (requestHeader.HasExtension(NQueryClient::NProto::TReqExecuteExt::req_execute_ext)) {
@@ -559,7 +567,7 @@ private:
                 : TVersionedReadOptions(),
             Bootstrap_->GetTabletSnapshotStore(),
             GetProfilingUser(NRpc::GetCurrentAuthenticationIdentity()),
-            Bootstrap_->GetTabletLookupPoolInvoker());
+            GetCurrentInvoker());
 
         for (int index = 0; index < tabletCount; ++index) {
             auto tabletId = FromProto<TTabletId>(request->tablet_ids(index));
@@ -613,9 +621,8 @@ private:
         auto maxDataWeight = request->has_max_data_weight()
             ? request->max_data_weight()
             : std::numeric_limits<i64>::max();
-        auto requestTimeout = request->has_request_timeout()
-            ? FromProto<TDuration>(request->request_timeout())
-            : Bootstrap_->GetConnection()->GetConfig()->DefaultPullRowsTimeout;
+        auto requestTimeout = context->GetTimeout()
+            .value_or(Bootstrap_->GetConnection()->GetConfig()->DefaultPullRowsTimeout);
 
         // TODO(savrus): Extract this out of RPC request.
         TClientChunkReadOptions chunkReadOptions{
@@ -637,7 +644,7 @@ private:
             chunkReadOptions.ReadSessionId,
             requestTimeout);
 
-        auto requestDeadLine = (requestTimeout * Config_->PullRowsTimeoutShare).ToDeadLine();
+        auto requestDeadLine = (requestTimeout - Config_->PullRowsTimeoutSlack).ToDeadLine();
 
         auto* responseCodec = NCompression::GetCodec(responseCodecId);
 
@@ -1111,13 +1118,13 @@ private:
         auto localNodeId = Bootstrap_->GetNodeId();
         auto replicas = chunk->GetReplicas(localNodeId);
         ToProto(chunkSpec->mutable_replicas(), replicas);
-        ToProto(chunkSpec->mutable_legacy_replicas(), TChunkReplicaWithMedium::ToChunkReplicas(replicas));
 
         chunkSpec->set_erasure_codec(miscExt.erasure_codec());
         chunkSpec->set_striped_erasure(miscExt.striped_erasure());
 
         chunkSpec->set_row_count_override(miscExt.row_count());
         chunkSpec->set_data_weight_override(miscExt.data_weight());
+        chunkSpec->set_compressed_data_size_override(miscExt.compressed_data_size());
 
         *chunkSpec->mutable_chunk_meta() = chunkMeta;
         if (!fetchAllMetaExtensions) {
@@ -1145,10 +1152,10 @@ private:
         chunkSpec->set_row_count_override(dynamicStore->GetRowCount());
         // For dynamic stores it is more or less the same.
         chunkSpec->set_data_weight_override(dynamicStore->GetUncompressedDataSize());
+        chunkSpec->set_compressed_data_size_override(dynamicStore->GetCompressedDataSize());
 
         auto localNodeId = Bootstrap_->GetNodeId();
         TChunkReplicaWithMedium replica(localNodeId, GenericChunkReplicaIndex, GenericMediumIndex);
-        chunkSpec->add_legacy_replicas(ToProto<ui32>(replica.ToChunkReplica()));
         chunkSpec->add_replicas(ToProto(replica));
 
         if (!lowerLimit.IsTrivial()) {
@@ -1755,6 +1762,8 @@ private:
             newConfig->QueryAgent->AccountUserBackendOutTraffic.value_or(Config_->AccountUserBackendOutTraffic));
         UseQueryPoolForLookups_.store(
             newConfig->QueryAgent->UseQueryPoolForLookups.value_or(Config_->UseQueryPoolForLookups));
+        UseQueryPoolForInMemoryLookups_.store(
+            newConfig->QueryAgent->UseQueryPoolForInMemoryLookups.value_or(Config_->UseQueryPoolForInMemoryLookups));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, CreateDistributedSession)

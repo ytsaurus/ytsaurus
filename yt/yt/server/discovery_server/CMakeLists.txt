@@ -20,6 +20,9 @@ add_library(yt-server-discovery_server)
 target_compile_options(yt-server-discovery_server PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_include_directories(yt-server-discovery_server PUBLIC

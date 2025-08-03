@@ -291,7 +291,7 @@ class DiskMediumTestConfiguration(object):
     }
 
 
-class TestDiskMediumsPorto(YTEnvSetup, DiskMediumTestConfiguration):
+class TestDiskMediumPorto(YTEnvSetup, DiskMediumTestConfiguration):
     NUM_SCHEDULERS = 1
     NUM_MASTERS = 1
     NUM_NODES = 1
@@ -1427,7 +1427,6 @@ class TestRootVolumeDiskQuota(YTEnvSetup):
                     "disk_space_limit": 1024 * 1024,
                     "tmpfs_path": "tmpfs",
                     "tmpfs_size": 1024 * 1024,
-                    "make_rootfs_writable": True,
                 },
                 "enable_root_volume_disk_quota": enable_root_volume_disk_quota,
             },

@@ -39,6 +39,13 @@ struct IJobSizeConstraints
     //! Can be overflown if exact job count is provided.
     virtual i64 GetMaxPrimaryDataWeightPerJob() const = 0;
 
+    //! Approximate read data size provided via operation spec.
+    virtual i64 GetCompressedDataSizePerJob() const = 0;
+
+    //! Recommended upper limit on the compressed data size per job.
+    //! Can be overflown if exact job count is provided.
+    virtual i64 GetMaxCompressedDataSizePerJob() const = 0;
+
     virtual i64 GetInputSliceDataWeight() const = 0;
     virtual i64 GetInputSliceRowCount() const = 0;
 
@@ -73,6 +80,11 @@ struct IJobSizeConstraints
     virtual void UpdateInputDataWeight(i64 inputDataWeight) = 0;
     virtual void UpdatePrimaryInputDataWeight(i64 primaryInputDataWeight) = 0;
 
+    //! Constraints priority:
+    //! Max...PerJob
+    //! BatchRowCount
+    //! ...PerJob
+
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(IJobSizeConstraints, 0x1cf8445b);
 };
 
@@ -86,9 +98,11 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
     int jobCount,
     i64 dataWeightPerJob,
     i64 primaryDataWeightPerJob,
+    i64 compressedDataSizePerJob,
     i64 maxDataSlicesPerJob,
     i64 maxDataWeightPerJob,
     i64 maxPrimaryDataWeightPerJob,
+    i64 maxCompressedDataSizePerJob,
     i64 inputSliceDataWeight,
     i64 inputSliceRowCount,
     std::optional<i64> batchRowCount,
@@ -97,7 +111,7 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
     i64 samplingDataWeightPerJob = -1,
     i64 samplingPrimaryDataWeightPerJob = -1,
     i64 maxBuildRetryCount = 5,
-    double dataWeightPerJobBuildRetryFactor = 2.0,
+    double dataWeightPerJobRetryFactor = 2.0,
     bool forceAllowJobInterruption = false);
 
 ////////////////////////////////////////////////////////////////////////////////

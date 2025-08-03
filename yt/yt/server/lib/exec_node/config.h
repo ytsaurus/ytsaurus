@@ -37,10 +37,12 @@ struct TSlotLocationConfig
     //! Reserve subtracted from disk capacity.
     i64 DiskUsageWatermark;
 
-    TString MediumName;
+    std::string MediumName;
 
     //! Enforce disk space limits using disk quota.
     bool EnableDiskQuota;
+
+    NServer::TDiskHealthCheckerConfigPtr DiskHealthChecker;
 
     REGISTER_YSON_STRUCT(TSlotLocationConfig);
 
@@ -115,7 +117,7 @@ struct TSlotManagerConfig
     TDuration SlotLocationStatisticsUpdatePeriod;
 
     //! Default medium used to run jobs without disk requests.
-    TString DefaultMediumName;
+    std::string DefaultMediumName;
 
     TSlotManagerTestingConfigPtr Testing;
 
@@ -168,6 +170,8 @@ struct TSlotManagerDynamicConfig
 
     bool RestartContainerAfterFailedDeviceCheck;
 
+    NServer::TDiskHealthCheckerDynamicConfigPtr DiskHealthChecker;
+
     //! Polymorphic job environment configuration.
     NJobProxy::TJobEnvironmentConfig JobEnvironment;
 
@@ -195,6 +199,8 @@ struct TVolumeManagerDynamicConfig
     //! For testing purpuses.
     bool ThrowOnPrepareVolume;
 
+    NServer::TDiskHealthCheckerDynamicConfigPtr DiskHealthChecker;
+
     REGISTER_YSON_STRUCT(TVolumeManagerDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -204,10 +210,9 @@ DEFINE_REFCOUNTED_TYPE(TVolumeManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserJobSensor
+struct TUserJobSensor
     : public NYTree::TYsonStruct
 {
-public:
     NProfiling::EMetricType Type;
 
     TString ProfilingName;
@@ -222,10 +227,9 @@ DEFINE_REFCOUNTED_TYPE(TUserJobSensor)
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Description of a user job monitoring sensor which is produced from a given job statistic.
-class TUserJobStatisticSensor
+struct TUserJobStatisticSensor
     : public TUserJobSensor
 {
-public:
     NYPath::TYPath Path;
 
     REGISTER_YSON_STRUCT(TUserJobStatisticSensor);
@@ -253,10 +257,9 @@ DEFINE_REFCOUNTED_TYPE(TUserJobMonitoringDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THeartbeatReporterDynamicConfigBase
+struct THeartbeatReporterDynamicConfigBase
     : public NYTree::TYsonStruct
 {
-public:
     NConcurrency::TRetryingPeriodicExecutorOptions HeartbeatExecutor;
 
     //! Timeout of the exec node heartbeat RPC request.
@@ -286,6 +289,8 @@ struct TControllerAgentConnectorDynamicConfig
 
     NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
     TDuration RunningJobStatisticsSendingBackoff;
+
+    bool ResendFullJobInfo;
 
     REGISTER_YSON_STRUCT(TControllerAgentConnectorDynamicConfig);
 
@@ -333,6 +338,8 @@ struct TSchedulerConnectorDynamicConfig
 
     bool UseProfilingTagsFromScheduler;
 
+    TDuration RequestNewAgentDelay;
+
     REGISTER_YSON_STRUCT(TSchedulerConnectorDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -351,6 +358,7 @@ struct TJobInputCacheDynamicConfig
 
     NChunkClient::TBlockCacheDynamicConfigPtr BlockCache;
     TSlruCacheDynamicConfigPtr MetaCache;
+    NChunkClient::TErasureReaderConfigPtr Reader;
 
     i64 TotalInFlightBlockSize;
 
@@ -450,6 +458,7 @@ struct TShellCommandConfig
 {
     TString Path;
     std::vector<TString> Args;
+    THashMap<TString, TString> EnvironmentVariables;
 
     REGISTER_YSON_STRUCT(TShellCommandConfig);
 
@@ -471,6 +480,18 @@ struct TTestingConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TTestingConfig)
+
+struct TJobProbeConfig
+    : public NYTree::TYsonStruct
+{
+    TDuration RpcTimeout;
+
+    REGISTER_YSON_STRUCT(TJobProbeConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobProbeConfig)
 
 struct TJobCommonConfig
     : public NYTree::TYsonStruct
@@ -509,6 +530,8 @@ struct TJobCommonConfig
 
     i64 VirtualSandboxSquashFSBlockSize;
 
+    TJobProbeConfigPtr JobProbe;
+
     TTestingConfigPtr Testing;
 
     REGISTER_YSON_STRUCT(TJobCommonConfig);
@@ -537,12 +560,7 @@ DEFINE_REFCOUNTED_TYPE(TAllocationConfig)
 struct TJobControllerDynamicConfig
     : public NYTree::TYsonStruct
 {
-    TConstantBackoffOptions OperationInfoRequestBackoffStrategy;
-
     TDuration WaitingForResourcesTimeout;
-    // COMPAT(arkady-e1ppa): Remove when CA&Sched are update to
-    // a proper version of 24.1/24.2
-    bool DisableLegacyAllocationPreparation;
 
     TDuration CpuOverdraftTimeout;
 
@@ -609,6 +627,7 @@ struct TNbdConfig
     bool Enabled;
     TNbdClientConfigPtr Client;
     NNbd::TNbdServerConfigPtr Server;
+    i64 BlockCacheCompressedDataCapacity;
 
     REGISTER_YSON_STRUCT(TNbdConfig);
 

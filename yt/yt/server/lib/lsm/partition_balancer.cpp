@@ -1,8 +1,9 @@
 #include "partition_balancer.h"
 
-#include "tablet.h"
-#include "store.h"
+#include "config.h"
 #include "partition.h"
+#include "store.h"
+#include "tablet.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 #include <yt/yt/server/lib/tablet_node/private.h>
@@ -16,7 +17,7 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = NTabletNode::TabletNodeLogger;
+constinit const auto Logger = NTabletNode::TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,13 +27,13 @@ class TPartitionBalancer
 public:
     void StartNewRound(const TLsmBackendState& state) override
     {
-        ResamplingPeriod_ = state.TabletNodeConfig->PartitionBalancer->ResamplingPeriod;
+        ResamplingPeriod_ = state.TabletNodeConfig->ResamplingPeriod;
         CurrentTime_ = state.CurrentTime;
     }
 
     TLsmActionBatch BuildLsmActions(
         const std::vector<TTabletPtr>& tablets,
-        const TString& /*bundleName*/) override
+        const std::string& /*bundleName*/) override
     {
         YT_LOG_DEBUG("Started building partition balancer action batch");
 

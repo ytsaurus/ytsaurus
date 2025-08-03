@@ -20,6 +20,9 @@ add_executable(unittester-tablet-balancer-lib)
 target_compile_options(unittester-tablet-balancer-lib PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(unittester-tablet-balancer-lib PUBLIC
@@ -53,6 +56,7 @@ target_link_options(unittester-tablet-balancer-lib PRIVATE
 target_sources(unittester-tablet-balancer-lib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/unittests/balancing_helpers_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/unittests/bounded_priority_queue_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/unittests/replica_balancing_helpers_ut.cpp
 )
 
 

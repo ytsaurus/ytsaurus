@@ -97,7 +97,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ChunkServerLogger;
+constinit const auto Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -165,7 +165,6 @@ void PopulateChunkSpecWithReplicas(
         addReplica(replica);
     }
 
-    ToProto(chunkSpec->mutable_legacy_replicas(), replicas);
     ToProto(chunkSpec->mutable_replicas(), replicas);
 }
 
@@ -231,10 +230,14 @@ void BuildReplicalessChunkSpec(
 
     if (chunkSpec->row_count_override() >= chunk->GetRowCount()) {
         chunkSpec->set_data_weight_override(dataWeight);
+        chunkSpec->set_compressed_data_size_override(chunk->GetCompressedDataSize());
     } else {
         // NB: If overlayed chunk is nested into another, it has zero row count and non-zero data weight.
         i64 dataWeightPerRow = DivCeil(dataWeight, std::max<i64>(chunk->GetRowCount(), 1));
         chunkSpec->set_data_weight_override(dataWeightPerRow * chunkSpec->row_count_override());
+
+        double compressedDataSizePerRow = static_cast<double>(chunk->GetCompressedDataSize()) / std::max<i64>(chunk->GetRowCount(), 1);
+        chunkSpec->set_compressed_data_size_override(compressedDataSizePerRow * chunkSpec->row_count_override());
     }
 
     if (modifier) {
@@ -308,6 +311,7 @@ void BuildDynamicStoreSpec(
     // Something non-zero.
     chunkSpec->set_row_count_override(1);
     chunkSpec->set_data_weight_override(1);
+    chunkSpec->set_compressed_data_size_override(1);
 
     // NB: Table_row_index is not filled here since:
     // 1) dynamic store reader receives it from the node;
@@ -315,7 +319,6 @@ void BuildDynamicStoreSpec(
 
     if (auto* node = tabletManager->FindTabletLeaderNode(tablet)) {
         nodeDirectoryBuilder->Add(node);
-        chunkSpec->add_legacy_replicas(ToProto<ui32>(TNodePtrWithReplicaIndex(node, GenericChunkReplicaIndex)));
         chunkSpec->add_replicas(ToProto(TNodePtrWithReplicaAndMediumIndex(node, GenericChunkReplicaIndex, GenericMediumIndex)));
     }
 
@@ -371,11 +374,11 @@ public:
 
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
-    TChunkLists ChunkLists_;
+    const TChunkLists ChunkLists_;
     const TCtxFetchPtr RpcContext_;
-    TFetchContext FetchContext_;
+    const TFetchContext FetchContext_;
     const TComparator Comparator_;
-    EChunkListContentType ContentType_;
+    const EChunkListContentType ContentType_;
 
     std::vector<TEphemeralObjectPtr<TChunk>> Chunks_;
 
@@ -394,23 +397,15 @@ private:
             Bootstrap_,
             NCellMaster::EAutomatonThreadQueue::ChunkFetchingTraverser);
 
-        if (ContentType_ == EChunkListContentType::Hunk) {
-            TraverseHunkChunkTree(
-                std::move(context),
-                this,
-                ChunkLists_,
-                FetchContext_.Ranges[CurrentRangeIndex_].LowerLimit(),
-                FetchContext_.Ranges[CurrentRangeIndex_].UpperLimit(),
-                Comparator_);
-        } else {
-            TraverseChunkTree(
-                std::move(context),
-                this,
-                ChunkLists_,
-                FetchContext_.Ranges[CurrentRangeIndex_].LowerLimit(),
-                FetchContext_.Ranges[CurrentRangeIndex_].UpperLimit(),
-                Comparator_);
-        }
+        TraverseChunkTree(
+            std::move(context),
+            this,
+            ChunkLists_,
+            FetchContext_.Ranges[CurrentRangeIndex_].LowerLimit(),
+            FetchContext_.Ranges[CurrentRangeIndex_].UpperLimit(),
+            Comparator_,
+            /*testingOptions*/ {},
+            ContentType_);
     }
 
     bool PopulateReplicas()
@@ -1206,7 +1201,8 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
             securityTags.Validate();
 
             // TODO(babenko): audit
-            YT_LOG_DEBUG("Node security tags updated; node is switched to \"overwrite\" mode (NodeId: %v, OldSecurityTags: %v, NewSecurityTags: %v",
+            YT_LOG_DEBUG("Node security tags updated; node is switched to \"overwrite\" mode "
+                "(NodeId: %v, OldSecurityTags: %v, NewSecurityTags: %v)",
                 node->GetVersionedId(),
                 node->ComputeSecurityTags().Items,
                 securityTags.Items);
@@ -1585,7 +1581,7 @@ void TChunkOwnerNodeProxy::ReplicateBeginUploadRequestToExternalCell(
 
     if (uploadContext.ChunkSchema) {
         if (!uploadContext.ChunkSchema->IsExported(externalCellTag)) {
-            ToProto(replicationRequest->mutable_chunk_schema(), uploadContext.ChunkSchema->AsTableSchema());
+            ToProto(replicationRequest->mutable_chunk_schema(), uploadContext.ChunkSchema->AsCompactTableSchema());
         }
 
         auto chunkSchemaId = uploadContext.ChunkSchema->GetId();
@@ -1649,7 +1645,7 @@ void TChunkOwnerNodeProxy::ReplicateEndUploadRequestToExternalCell(
 
 TMasterTableSchema* TChunkOwnerNodeProxy::CalculateEffectiveMasterTableSchema(
     TChunkOwnerBase* node,
-    TTableSchemaPtr schema,
+    const TCompactTableSchemaPtr& schema,
     TMasterTableSchemaId schemaId,
     TTransaction* schemaHolder)
 {
@@ -1748,13 +1744,13 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         : std::nullopt;
 
     auto tableSchema = request->has_table_schema()
-        ? FromProto<TTableSchemaPtr>(request->table_schema())
+        ? New<TCompactTableSchema>(request->table_schema())
         : nullptr;
 
     auto tableSchemaId = FromProto<TMasterTableSchemaId>(request->table_schema_id());
 
     auto chunkSchema = request->has_chunk_schema()
-        ? FromProto<TTableSchemaPtr>(request->chunk_schema())
+        ? New<TCompactTableSchema>(request->chunk_schema())
         : nullptr;
 
     auto offloadedSchemaDestruction = Finally([&] {
@@ -1809,17 +1805,19 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
+    const auto& tableManager = Bootstrap_->GetTableManager();
 
     YT_LOG_ALERT_IF(!IsSchemafulType(node->GetType()) && (tableSchema || tableSchemaId),
         "Received a schema or schema ID while beginning upload into a non-schemaful node (NodeId: %v, Schema: %v, SchemaId: %v)",
         node->GetId(),
-        tableSchema,
+        tableManager->GetHeavyTableSchemaSync(tableSchema),
         tableSchemaId);
 
     YT_LOG_ALERT_IF(!IsSchemafulType(node->GetType()) && (chunkSchema || chunkSchemaId),
-        "Received a chunk schema or chunk schema ID while beginning upload into a non-schemaful node (NodeId: %v, ChunkSchema: %v, ChunkSchemaId: %v)",
+        "Received a chunk schema or chunk schema ID while beginning upload into a non-schemaful node "
+        "(NodeId: %v, ChunkSchema: %v, ChunkSchemaId: %v)",
         node->GetId(),
-        chunkSchema,
+        tableManager->GetHeavyTableSchemaSync(chunkSchema),
         chunkSchemaId);
 
     std::vector<TTransactionRawPtr> prerequisiteTransactions;
@@ -1842,7 +1840,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         ->LockNode(TrunkNode_, uploadTransaction, lockMode, false, true)
         ->As<TChunkOwnerBase>();
 
-    const auto& tableManager = Bootstrap_->GetTableManager();
     if (IsSchemafulType(node->GetType())) {
         tableManager->ValidateTableSchemaCorrespondence(
             node->GetVersionedId(),
@@ -1929,7 +1926,9 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                         auto processChunkList = [&] (EChunkListContentType contentType, EChunkListKind appendChunkListKind) {
                             auto* oldChunkList = lockedNode->GetChunkList(contentType);
                             if (!oldChunkList) {
-                                YT_VERIFY(contentType == EChunkListContentType::Hunk && oldMainChunkList->GetKind() == EChunkListKind::Static);
+                                YT_VERIFY(
+                                    contentType == EChunkListContentType::Hunk &&
+                                    oldMainChunkList->GetKind() == EChunkListKind::Static);
                                 return;
                             }
 
@@ -2112,7 +2111,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
 
     // COMPAT(h0pless): remove this when clients will send table schema options during begin upload.
     auto tableSchema = request->has_table_schema()
-        ? FromProto<TTableSchemaPtr>(request->table_schema())
+        ? New<TCompactTableSchema>(request->table_schema())
         : nullptr;
 
     auto offloadedSchemaDestruction = Finally([&] {
@@ -2161,7 +2160,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
         uploadContext.ErasureCodec = FromProto<NErasure::ECodec>(request->erasure_codec());
     }
 
-    context->SetRequestInfo("Statistics: %v, CompressionCodec: %v, ErasureCodec: %v, ChunkFormat: %v, MD5Hasher: %v, OptimizeFor: %v, IsTableSchemaPresent: %v",
+    context->SetRequestInfo("Statistics: %v, CompressionCodec: %v, ErasureCodec: %v, ChunkFormat: %v, "
+        "MD5Hasher: %v, OptimizeFor: %v, IsTableSchemaPresent: %v",
         uploadContext.Statistics,
         uploadContext.CompressionCodec,
         uploadContext.ErasureCodec,
@@ -2180,13 +2180,13 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     auto* node = GetThisImpl<TChunkOwnerBase>();
     YT_VERIFY(node->GetTransaction() == Transaction_);
 
+    const auto& tableManager = Bootstrap_->GetTableManager();
     YT_LOG_ALERT_IF(!IsSchemafulType(node->GetType()) && (tableSchema || tableSchemaId),
         "Received a schema or schema ID while ending upload into a non-schemaful node (NodeId: %v, Schema: %v, SchemaId: %v)",
         node->GetId(),
-        tableSchema,
+        tableManager->GetHeavyTableSchemaSync(tableSchema),
         tableSchemaId);
 
-    const auto& tableManager = Bootstrap_->GetTableManager();
     if (IsTableType(node->GetType())) {
         tableManager->ValidateTableSchemaCorrespondence(
             node->GetVersionedId(),

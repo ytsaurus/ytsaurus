@@ -26,6 +26,7 @@ DECLARE_REFCOUNTED_STRUCT(TSignatureValidationConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TKeyPair)
 DECLARE_REFCOUNTED_CLASS(TKeyInfo)
 DECLARE_REFCOUNTED_CLASS(TKeyRotator)
 DECLARE_REFCOUNTED_CLASS(TSignatureGenerator)

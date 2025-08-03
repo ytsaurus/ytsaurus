@@ -13,9 +13,7 @@ class TDataSink
 public:
     DEFINE_BYVAL_RW_PROPERTY(std::optional<NYPath::TYPath>, Path);
     DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TObjectId, ObjectId);
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, Account);
-
-    TDataSink() = default;
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<std::string>, Account);
 };
 
 void FromProto(TDataSink* dataSink, const NProto::TDataSink& protoDataSink);

@@ -94,7 +94,7 @@ protected:
 
     NTableServer::TMasterTableSchema* CalculateEffectiveMasterTableSchema(
         TChunkOwnerBase* node,
-        NTableClient::TTableSchemaPtr schema,
+        const NTableServer::TCompactTableSchemaPtr& schema,
         NTableClient::TMasterTableSchemaId schemaId,
         NTransactionServer::TTransaction* schemaHolder);
 

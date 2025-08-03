@@ -26,7 +26,7 @@ using namespace NTabletClient;
 using namespace NQueueClient;
 using namespace NYTree;
 
-static constexpr auto& Logger = QueueAgentLogger;
+constinit const auto Logger = QueueAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -257,6 +257,18 @@ TString TrimProfilingTagValue(const TString& value)
     result.resize(MaxProfilingTagValueLength);
 
     return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::string EnumValueToPluralForm(EObjectKind value, bool lowercase)
+{
+    // NB(apachee): "s" is suffix for plural form and %v, %lv are singular forms of #value.
+    if (lowercase) {
+        return Format("%lvs", value);
+    } else {
+        return Format("%vs", value);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

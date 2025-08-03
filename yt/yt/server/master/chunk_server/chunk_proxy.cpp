@@ -30,6 +30,8 @@
 #include <yt/yt/server/master/security_server/account.h>
 #include <yt/yt/server/master/security_server/helpers.h>
 
+#include <yt/yt/server/master/table_server/table_manager.h>
+
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -76,7 +78,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ChunkServerLogger;
+constinit const auto Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -591,7 +593,7 @@ private:
                     break;
                 }
                 BuildYsonFluently(consumer)
-                    .Value(static_cast<ETableChunkFormat>(chunk->GetChunkFormat()));
+                    .Value(SerializeChunkFormatAsTableChunkFormat(chunk->GetChunkFormat()));
                 return true;
             }
 
@@ -963,13 +965,15 @@ private:
 
         auto isForeign = chunk->IsForeign();
 
-        auto requestAttributeFromAllPeers = [&] (const TString& attributeSuffix) {
+        auto requestAttributeFromAllPeers = [&] (const std::string& attributeSuffix) {
             std::vector<TFuture<TIntrusivePtr<TObjectYPathProxy::TRspGet>>> responseFutures;
             responseFutures.reserve(cellManager->GetTotalPeerCount());
 
             for (int peerIndex = 0; peerIndex < cellManager->GetTotalPeerCount(); ++peerIndex) {
                 auto peerChannel = cellManager->GetPeerChannel(peerIndex);
                 auto proxy = TObjectServiceProxy::FromDirectMasterChannel(std::move(peerChannel));
+                // TODO(nadya02): Set the correct timeout here.
+                proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
                 auto req = TYPathProxy::Get(FromObjectId(chunk->GetId()) + attributeSuffix);
                 responseFutures.push_back(proxy.Execute(req));
             }
@@ -977,7 +981,7 @@ private:
             return responseFutures;
         };
 
-        auto requestAttributeFromChunkReplicator = [&] (const TString& attributeSuffix) {
+        auto requestAttributeFromChunkReplicator = [&] (const std::string& attributeSuffix) {
             auto replicatorChannel = chunkManager->GetChunkReplicatorChannelOrThrow(chunk);
             auto proxy = TObjectServiceProxy::FromDirectMasterChannel(std::move(replicatorChannel));
             auto req = TYPathProxy::Get(FromObjectId(chunk->GetId()) + attributeSuffix);
@@ -1104,7 +1108,8 @@ private:
                     break;
                 }
 
-                return chunkSchema->AsYsonAsync();
+                const auto& tableManager = Bootstrap_->GetTableManager();
+                return tableManager->GetYsonTableSchemaAsync(chunkSchema.Get());
             }
 
             case EInternedAttributeKey::StoredReplicas: {
@@ -1173,7 +1178,6 @@ private:
                         }
                     }
 
-                    SortUnique(replicas);
                     return BuildYsonStringFluently()
                         .DoListFor(replicas, [&] (TFluentList fluent, TNodePtrWithReplicaIndex replica) {
                             fluent.Item()
@@ -1272,7 +1276,6 @@ private:
         nodeDirectoryBuilder.Add(replicas);
 
         auto* chunkSpec = response->add_chunks();
-        ToProto(chunkSpec->mutable_legacy_replicas(), replicas);
         ToProto(chunkSpec->mutable_replicas(), replicas);
         ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
         chunkSpec->set_erasure_codec(ToProto(chunk->GetErasureCodec()));

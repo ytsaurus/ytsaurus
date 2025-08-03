@@ -139,8 +139,9 @@ class Cli():
                 headers="firstrow"))
             return
 
-        for cls in self.backend_classes.values():
-            cls.on_args_parsed(args)
+        if args.command in ["diff", "show", "submit"]:
+            for cls in self.backend_classes.values():
+                cls.on_args_parsed(args)
 
         selected_dashboards = []
         if "all" in args.dashboards:

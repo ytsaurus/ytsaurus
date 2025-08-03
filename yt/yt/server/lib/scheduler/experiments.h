@@ -27,6 +27,9 @@ struct TExperimentEffectConfig
     //! Spec patch applied in scheduler.
     NYTree::INodePtr SchedulerSpecPatch;
 
+    //! Patch to operation options in scheduler.
+    NYTree::INodePtr SchedulerOptionsPatch;
+
     //! User job spec template patch applied for all user jobs in spec in controller agent before controller instantiation.
     NYTree::INodePtr ControllerUserJobSpecTemplatePatch;
     //! User job spec patch applied for all user jobs in spec in controller agent before controller instantiation.
@@ -36,6 +39,9 @@ struct TExperimentEffectConfig
     NYTree::INodePtr ControllerJobIOTemplatePatch;
     //! Job IO spec patches applied for all job IO configs in controller agent before controller instantiation.
     NYTree::INodePtr ControllerJobIOPatch;
+
+    //! Patch to operation options in controller agent.
+    NYTree::INodePtr ControllerOptionsPatch;
 
     //! If set, only controller agents with this tag may be assigned to operations of this group.
     std::optional<TString> ControllerAgentTag;

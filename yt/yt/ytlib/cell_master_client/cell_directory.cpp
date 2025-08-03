@@ -123,10 +123,40 @@ public:
         return SecondaryMasterConnectionConfigs_;
     }
 
+    bool IsMasterCacheConfigured() override
+    {
+        const auto& config = Config_->MasterCache;
+
+        if (!config) {
+            return false;
+        }
+
+        if (!config->EnableMasterCacheDiscovery && !config->Endpoints && !config->Addresses) {
+            return false;
+        }
+
+        return true;
+    }
+
+    IChannelPtr FindMasterChannel(EMasterChannelKind kind, TCellTag cellTag) override
+    {
+        cellTag = cellTag == PrimaryMasterCellTagSentinel ? GetPrimaryMasterCellTag() : cellTag;
+        auto guard = ReaderGuard(SpinLock_);
+        auto it = CellWrappedChannelMap_.find(cellTag);
+        if (it == CellWrappedChannelMap_.end()) {
+            return nullptr;
+        }
+        return it->second[kind];
+    }
+
     IChannelPtr GetMasterChannelOrThrow(EMasterChannelKind kind, TCellTag cellTag) override
     {
         cellTag = cellTag == PrimaryMasterCellTagSentinel ? GetPrimaryMasterCellTag() : cellTag;
-        return GetCellChannelOrThrow(cellTag, kind);
+        auto channel = FindMasterChannel(kind, cellTag);
+        if (!channel) {
+            ThrowUnknownMasterCellTag(cellTag);
+        }
+        return channel;
     }
 
     IChannelPtr GetMasterChannelOrThrow(EMasterChannelKind kind, TCellId cellId) override
@@ -138,14 +168,47 @@ public:
         return GetMasterChannelOrThrow(kind, CellTagFromId(cellId));
     }
 
+    IChannelPtr FindNakedMasterChannel(EMasterChannelKind kind, TCellTag cellTag) override
+    {
+        YT_VERIFY(kind == EMasterChannelKind::Leader || kind == EMasterChannelKind::Follower);
+
+        if (cellTag == PrimaryMasterCellTagSentinel) {
+            cellTag = GetPrimaryMasterCellTag();
+        }
+
+        auto guard = ReaderGuard(SpinLock_);
+        auto it = CellNakedChannelMap_.find(cellTag);
+        if (it == CellNakedChannelMap_.end()) {
+            return nullptr;
+        }
+        return it->second[kind];
+    }
+
+    IChannelPtr GetNakedMasterChannelOrThrow(EMasterChannelKind kind, TCellTag cellTag) override
+    {
+        YT_VERIFY(kind == EMasterChannelKind::Leader || kind == EMasterChannelKind::Follower);
+
+        if (cellTag == PrimaryMasterCellTagSentinel) {
+            cellTag = GetPrimaryMasterCellTag();
+        }
+        if (auto channel = FindNakedMasterChannel(kind, cellTag)) {
+            return channel;
+        }
+        ThrowUnknownMasterCellTag(cellTag);
+    }
+
     TCellTagList GetMasterCellTagsWithRole(EMasterCellRole role) override
     {
+        ValidateSelectorRole(role);
+
         auto guard = ReaderGuard(SpinLock_);
         return RoleToCellTags_[role];
     }
 
     TCellId GetRandomMasterCellWithRoleOrThrow(EMasterCellRole role) override
     {
+        ValidateSelectorRole(role);
+
         auto candidateCellTags = GetMasterCellTagsWithRole(role);
         if (candidateCellTags.empty()) {
             THROW_ERROR_EXCEPTION("No master cell with %Qlv role is known",
@@ -188,15 +251,15 @@ public:
 
             auto roles = EMasterCellRoles::None;
             for (auto protoRole : item.roles()) {
-                auto role = TryCheckedEnumCast<EMasterCellRole>(protoRole);
-                if (!role) {
+                auto role = NYT::FromProto<EMasterCellRole>(protoRole);
+                if (role == EMasterCellRole::Unknown) {
                     YT_LOG_ALERT("Skipped an unknown cell role while synchronizing master cell directory (MasterCellRole: %v, CellTag: %v)",
                         protoRole,
                         cellTag);
                     continue;
                 }
-                roles |= EMasterCellRoles(*role);
-                roleToCellTags[*role].push_back(cellTag);
+                roles |= EMasterCellRoles(role);
+                roleToCellTags[role].push_back(cellTag);
             }
             EmplaceOrCrash(cellTagToRoles, cellTag, roles);
             EmplaceOrCrash(cellTagToAddresses, cellTag, *masterConnectionConfig->Addresses);
@@ -231,6 +294,10 @@ public:
             cellTagToRoles.clear();
             cellTagToRoles.emplace(PrimaryMasterCellTag_, primaryMasterCellRoles);
             for (auto role : TEnumTraits<EMasterCellRole>::GetDomainValues()) {
+                if (role == EMasterCellRole::Unknown) {
+                    continue;
+                }
+
                 roleToCellTags[role].clear();
                 if (Any(primaryMasterCellRoles & EMasterCellRoles(role))) {
                     roleToCellTags[role].push_back(PrimaryMasterCellTag_);
@@ -314,7 +381,8 @@ private:
     const NNative::TConnectionOptions Options_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
-    THashMap<TCellTag, TEnumIndexedArray<EMasterChannelKind, IChannelPtr>> CellChannelMap_;
+    THashMap<TCellTag, TEnumIndexedArray<EMasterChannelKind, IChannelPtr>> CellWrappedChannelMap_;
+    THashMap<TCellTag, TEnumIndexedArray<EMasterChannelKind, IChannelPtr>> CellNakedChannelMap_;
     THashMap<TCellTag, EMasterCellRoles> CellTagToRoles_;
     TEnumIndexedArray<EMasterCellRole, TCellTagList> RoleToCellTags_;
     TRandomGenerator RandomGenerator_;
@@ -322,6 +390,12 @@ private:
     TCellTagList SecondaryMasterCellTags_;
     THashSet<NObjectClient::TCellId> SecondaryMasterCellIds_;
     THashMap<TCellTag, IServicePtr> CachingObjectServices_;
+
+    static void ValidateSelectorRole(EMasterCellRole role) {
+        THROW_ERROR_EXCEPTION_IF(role == EMasterCellRole::Unknown,
+            "Master cell role %Qlv cannot be used for selecting cells",
+            role);
+    }
 
     bool ClusterMasterCompositionChanged(const TSecondaryMasterConnectionConfigs& newSecondaryMasterConnectionConfigs)
     {
@@ -414,17 +488,7 @@ private:
             removedSecondaryMasterCellTags);
     }
 
-    IChannelPtr GetCellChannelOrThrow(TCellTag cellTag, EMasterChannelKind kind) const
-    {
-        auto guard = ReaderGuard(SpinLock_);
-        auto it = CellChannelMap_.find(cellTag);
-        if (it == CellChannelMap_.end()) {
-            ThrowUnknownMasterCellTag(cellTag);
-        }
-        return it->second[kind];
-    }
-
-    void ThrowUnknownMasterCellTag(TCellTag cellTag) const
+    [[noreturn]] void ThrowUnknownMasterCellTag(TCellTag cellTag) const
     {
         THROW_ERROR_EXCEPTION("Unknown master cell tag %v", cellTag);
     }
@@ -452,7 +516,7 @@ private:
 
         InitMasterChannel(EMasterChannelKind::Leader, config, EPeerKind::Leader);
         InitMasterChannel(EMasterChannelKind::Follower, config, EPeerKind::Follower);
-        InitMasterChannel(EMasterChannelKind::MasterCache, config, EPeerKind::Follower);
+        InitMasterChannel(EMasterChannelKind::MasterSideCache, config, EPeerKind::Follower);
 
         auto masterCacheConfig = BuildMasterCacheConfig(config);
         if (Config_->MasterCache && Config_->MasterCache->EnableMasterCacheDiscovery) {
@@ -462,7 +526,7 @@ private:
                 MakeWeak(this),
                 ENodeRole::MasterCache,
                 BIND(&TCellDirectory::CreatePeerChannelFromAddresses, ChannelFactory_, masterCacheConfig, EPeerKind::Follower, Options_));
-            CellChannelMap_[cellTag][EMasterChannelKind::Cache] = channel;
+            CellWrappedChannelMap_[cellTag][EMasterChannelKind::Cache] = channel;
         } else {
             InitMasterChannel(EMasterChannelKind::Cache, masterCacheConfig, EPeerKind::Follower);
         }
@@ -470,7 +534,7 @@ private:
         auto cachingObjectService = CreateCachingObjectService(
             Config_->CachingObjectService,
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-            CellChannelMap_[cellTag][EMasterChannelKind::Cache],
+            CellWrappedChannelMap_[cellTag][EMasterChannelKind::Cache],
             Cache_,
             config->CellId,
             ObjectClientLogger(),
@@ -478,7 +542,7 @@ private:
             /*authenticator*/ nullptr);
         EmplaceOrCrash(CachingObjectServices_, cellTag, cachingObjectService);
         RpcServer_->RegisterService(cachingObjectService);
-        CellChannelMap_[cellTag][EMasterChannelKind::LocalCache] = CreateRealmChannel(CreateLocalChannel(RpcServer_), config->CellId);
+        CellWrappedChannelMap_[cellTag][EMasterChannelKind::ClientSideCache] = CreateRealmChannel(CreateLocalChannel(RpcServer_), config->CellId);
     }
 
     void InitMasterChannel(
@@ -489,9 +553,12 @@ private:
         YT_ASSERT_WRITER_SPINLOCK_AFFINITY(SpinLock_);
 
         auto cellTag = CellTagFromId(config->CellId);
-        auto peerChannel = CreatePeerChannel(ChannelFactory_, config, peerKind, Options_);
+        auto [nakedChannel, retryingChannelWithDefaultTimeout] = CreatePeerChannel(ChannelFactory_, config, peerKind, Options_);
 
-        CellChannelMap_[cellTag][channelKind] = peerChannel;
+        CellWrappedChannelMap_[cellTag][channelKind] = std::move(retryingChannelWithDefaultTimeout);
+        if (channelKind == EMasterChannelKind::Leader || channelKind == EMasterChannelKind::Follower) {
+            CellNakedChannelMap_[cellTag][channelKind] = std::move(nakedChannel);
+        }
     }
 
     void RemoveMasterChannels(TCellTag cellTag)
@@ -504,7 +571,8 @@ private:
         const auto& cachingObjectService = cachingObjectServiceIt->second;
         RpcServer_->UnregisterService(cachingObjectService);
         CachingObjectServices_.erase(cachingObjectServiceIt);
-        EraseOrCrash(CellChannelMap_, cellTag);
+        EraseOrCrash(CellWrappedChannelMap_, cellTag);
+        EraseOrCrash(CellNakedChannelMap_, cellTag);
     }
 
     static IChannelPtr CreatePeerChannelFromAddresses(
@@ -519,20 +587,23 @@ private:
             peerChannelConfig->Addresses = discoveredAddresses;
         }
 
-        return CreatePeerChannel(channelFactory, peerChannelConfig, peerKind, options);
+        return CreatePeerChannel(channelFactory, peerChannelConfig, peerKind, options)
+            .RetryingChannelWithDefaultTimeout;
     }
 
-    static IChannelPtr CreatePeerChannel(
+    struct TPeerChannel
+    {
+        IChannelPtr NakedChannel;
+        IChannelPtr RetryingChannelWithDefaultTimeout;
+    };
+
+    static TPeerChannel CreatePeerChannel(
         IChannelFactoryPtr channelFactory,
         const TMasterConnectionConfigPtr& config,
         EPeerKind kind,
         const NNative::TConnectionOptions& options)
     {
         auto isRetriableError = BIND_NO_PROPAGATE([options] (const TError& error) {
-            if (error.GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError) {
-                return true;
-            }
-
             const auto* effectiveError = &error;
             if (error.GetCode() == NObjectClient::EErrorCode::ForwardedRequestFailed &&
                 !error.InnerErrors().empty())
@@ -549,10 +620,13 @@ private:
             return IsRetriableError(*effectiveError);
         });
 
-        auto channel = NHydra::CreatePeerChannel(config, channelFactory, kind);
-        channel = CreateRetryingChannel(config, channel, isRetriableError);
-        channel = CreateDefaultTimeoutChannel(channel, config->RpcTimeout);
-        return channel;
+        auto nakedChannel = NHydra::CreatePeerChannel(config, channelFactory, kind);
+        auto channel = CreateRetryingChannel(config, nakedChannel, isRetriableError);
+        channel = CreateDefaultTimeoutChannel(std::move(channel), config->RpcTimeout);
+        return {
+            .NakedChannel = std::move(nakedChannel),
+            .RetryingChannelWithDefaultTimeout = std::move(channel),
+        };
     }
 };
 

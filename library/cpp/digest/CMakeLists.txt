@@ -12,10 +12,10 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+add_subdirectory(crc32c)
 add_subdirectory(md5)
 add_subdirectory(murmur)
 add_subdirectory(lower_case)
 add_subdirectory(argonish)
-add_subdirectory(crc32c)
 add_subdirectory(old_crc)
 add_subdirectory(sfh)

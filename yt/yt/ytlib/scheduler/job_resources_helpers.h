@@ -14,8 +14,6 @@
 
 #include <yt/yt/library/profiling/producer.h>
 
-#include <yt/yt/library/vector_hdrf/resource_helpers.h>
-
 namespace NYT {
 
 namespace NScheduler {

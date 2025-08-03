@@ -3188,7 +3188,8 @@ TEST(Operations, AllocatedPorts)
     EXPECT_TRUE(!stream.ReadLine(line));
 }
 
-TEST(Operations, UnrecognizedSpecWarnings)
+//COMPAT(hiddenpath): Enable test when consumer manager option will be shipped to production
+TEST(Operations, DISABLED_UnrecognizedSpecWarnings)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();

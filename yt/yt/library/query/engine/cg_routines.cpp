@@ -49,6 +49,8 @@
 
 #include <contrib/libs/re2/re2/re2.h>
 
+#include <contrib/libs/xxhash/xxhash.h>
+
 #include <library/cpp/yt/memory/chunked_memory_pool_output.h>
 
 #include <library/cpp/yt/farmhash/farm_hash.h>
@@ -83,7 +85,7 @@ using namespace NWebAssembly;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = QueryClientLogger;
+constinit const auto Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -578,10 +580,10 @@ void MultiJoinOpHelper(
 
             auto foreignExecutorCopy = CopyAndConvertFromPI(&foreignContext, orderedKeys, EAddressSpace::WebAssembly);
             SaveAndRestoreCurrentCompartment([&] {
-                auto reader = parameters->Items[joinId].ExecuteForeign(
+                auto reader = parameters->Items[joinId].JoinRowsProducer->FetchJoinedRows(
                     foreignExecutorCopy,
                     foreignContext.GetRowBuffer());
-                readers.push_back(reader);
+                readers.push_back(std::move(reader));
             });
 
             closure.Items[joinId].Lookup.clear();
@@ -865,26 +867,13 @@ void MultiJoinOpHelper(
     closure.ProcessJoinBatch();
 }
 
-using TArrayJoinPredicate = bool (*)(void** closure, TExpressionContext*, const TPIValue* row);
-
-bool ArrayJoinOpHelper(
-    TExpressionContext* context,
-    TArrayJoinParameters* parameters,
-    TPIValue* row,
-    TPIValue* arrays,
-    void** consumeRowsClosure,
-    TRowsConsumer consumeRowsFunction,
-    void** predicateClosure,
-    TArrayJoinPredicate predicateFunction)
+std::vector<TPIValue*> UnpackRows(TExpressionContext* context, std::vector<EValueType> types, TPIValue* lists, TRange<TPIValue> bindedValues = {})
 {
-    auto consumeRows = PrepareFunction(consumeRowsFunction);
-    auto predicate = PrepareFunction(predicateFunction);
-
-    int arrayCount = parameters->FlattenedTypes.size();
+    int arrayCount = types.size();
     std::vector<TPIValue*> nestedRows;
 
     for (int index = 0; index < arrayCount; ++index) {
-        auto* arrayAtHost = ConvertPointerFromWasmToHost(&arrays[index]);
+        auto* arrayAtHost = ConvertPointerFromWasmToHost(&lists[index]);
 
         if (arrayAtHost->Type == EValueType::Null) {
             continue;
@@ -902,7 +891,7 @@ bool ArrayJoinOpHelper(
         auto parser = TYsonPullParser(&memoryInput, EYsonType::Node);
         auto cursor = TYsonPullParserCursor(&parser);
 
-        auto listItemType = parameters->FlattenedTypes[index];
+        auto listItemType = types[index];
         TPIValue parsedValue;
         int currentArrayIndex = 0;
 
@@ -954,7 +943,8 @@ bool ArrayJoinOpHelper(
             }
 
             if (currentArrayIndex >= std::ssize(nestedRows)) {
-                auto mutableRange = AllocatePIValueRange(context, arrayCount, EAddressSpace::WebAssembly);
+                int nestedRowSize = arrayCount + bindedValues.Size();
+                auto mutableRange = AllocatePIValueRange(context, nestedRowSize, EAddressSpace::WebAssembly);
                 for (int leadingRowIndex = 0; leadingRowIndex < index; ++leadingRowIndex) {
                     MakePositionIndependentNullValue(ConvertPointerFromWasmToHost(&mutableRange[leadingRowIndex]));
                 }
@@ -972,6 +962,33 @@ bool ArrayJoinOpHelper(
             MakePositionIndependentNullValue(ConvertPointerFromWasmToHost(&nestedRows[trailingIndex][index]));
         }
     }
+
+    for (auto* nestedRow : nestedRows) {
+        for (int index = 0; index < std::ssize(bindedValues); ++index) {
+            CopyPositionIndependent(
+                ConvertPointerFromWasmToHost(&nestedRow[arrayCount + index]),
+                bindedValues[index]);
+        }
+    }
+
+    return nestedRows;
+}
+
+using TArrayJoinPredicate = bool (*)(void** closure, TExpressionContext*, const TPIValue* row);
+
+bool ArrayJoinOpHelper(
+    TExpressionContext* context,
+    TArrayJoinParameters* parameters,
+    TPIValue* row,
+    TPIValue* arrays,
+    void** consumeRowsClosure,
+    TRowsConsumer consumeRowsFunction,
+    void** predicateClosure,
+    TArrayJoinPredicate predicateFunction)
+{
+    auto consumeRows = PrepareFunction(consumeRowsFunction);
+    auto predicate = PrepareFunction(predicateFunction);
+    auto nestedRows = UnpackRows(context, parameters->FlattenedTypes, arrays);
 
     int valueCount = parameters->SelfJoinedColumns.size() + parameters->ArrayJoinedColumns.size();
     auto filteredRows = std::vector<const TPIValue*>();
@@ -2005,6 +2022,11 @@ size_t StringHash(
     return FarmFingerprint(ConvertPointerFromWasmToHost(data, length), length);
 }
 
+ui64 StringXxHash64(const char* data, ui32 length)
+{
+    return XXH_INLINE_XXH64(ConvertPointerFromWasmToHost(data, length), length, 0);
+}
+
 // FarmHash and MurmurHash hybrid to hash TRow.
 ui64 SimpleHash(const TUnversionedValue* begin, const TUnversionedValue* end)
 {
@@ -2389,9 +2411,9 @@ int XdeltaMerge(
         TValue* resultAtHost = ConvertPointerFromWasmToHost(result); \
         *resultAtHost = MakeUnversionedNullValue();) \
     DEFINE_YPATH_GET_IMPL2(, TYPE, STATEMENT_OK, \
-        THROW_ERROR_EXCEPTION("Value of type %Qlv is not found at YPath %v", \
+        THROW_ERROR_EXCEPTION("Value of type %Qlv is not found at YPath %Qv", \
             EValueType::TYPE, \
-            ypathDataAtHost);)
+            TStringBuf(ypathDataAtHost, ypathAtHost->Length));)
 
 #define DEFINE_YPATH_GET(TYPE) \
     DEFINE_YPATH_GET_IMPL(TYPE, \
@@ -2424,8 +2446,9 @@ DEFINE_YPATH_GET_ANY
             return; \
         } \
         NYson::TToken token; \
+        NYson::TStatelessLexer lexer; \
         auto anyString = anyValue->AsStringBuf(); \
-        NYson::ParseToken(anyString, &token); \
+        lexer.ParseToken(anyString, &token); \
         if (token.GetType() == NYson::ETokenType::TYPE) { \
             STATEMENT_OK \
         } else { \
@@ -2444,8 +2467,9 @@ DEFINE_YPATH_GET_ANY
             return; \
         } \
         NYson::TToken token; \
+        NYson::TStatelessLexer lexer; \
         auto anyString = anyValue->AsStringBuf(); \
-        NYson::ParseToken(anyString, &token); \
+        lexer.ParseToken(anyString, &token); \
         if (token.GetType() == NYson::ETokenType::Int64) { \
             MakePositionIndependent ## TYPE ## Value(ConvertPointerFromWasmToHost(result), token.GetInt64Value()); \
         } else if (token.GetType() == NYson::ETokenType::Uint64) { \
@@ -2537,6 +2561,11 @@ void ToAny(TExpressionContext* context, TValue* result, TValue* value)
 
     // TODO(babenko): for some reason, flags are garbage here.
     valueCopy.Flags = {};
+
+    if (value->Type == EValueType::Null) {
+        result->Type = EValueType::Null;
+        return;
+    }
 
     // NB: TRowBuffer should be used with caution while executing via WebAssembly engine.
     TValue buffer = EncodeUnversionedAnyValue(valueCopy, context->GetRowBuffer().Get()->GetPool());
@@ -2639,6 +2668,7 @@ extern "C" void MakeMap(
                     valueArg.Length));
                 break;
             case EValueType::Any:
+            case EValueType::Composite:
                 writer.OnRaw(TStringBuf(
                     ConvertPointerFromWasmToHost(valueArg.Data.String, valueArg.Length),
                     valueArg.Length));
@@ -2694,6 +2724,7 @@ extern "C" void MakeList(
                     valueArg.Length));
                 break;
             case EValueType::Any:
+            case EValueType::Composite:
                 writer.OnRaw(TStringBuf(
                     ConvertPointerFromWasmToHost(valueArg.Data.String, valueArg.Length),
                     valueArg.Length));
@@ -2934,8 +2965,9 @@ extern "C" void NumericToString(
             return; \
         } \
         NYson::TToken token; \
+        NYson::TStatelessLexer lexer; \
         auto valueString = TStringBuf(ConvertPointerFromWasmToHost(valueAtHost->Data.String, valueAtHost->Length), valueAtHost->Length); \
-        NYson::ParseToken(valueString, &token); \
+        lexer.ParseToken(valueString, &token); \
         if (token.GetType() == NYson::ETokenType::Int64) { \
             *resultAtHost = MakeUnversioned ## TYPE ## Value(token.GetInt64Value()); \
         } else if (token.GetType() == NYson::ETokenType::Uint64) { \
@@ -2976,6 +3008,16 @@ void HyperLogLogMerge(void* hll1, void* hll2)
     auto* hll1AtHost = ConvertPointerFromWasmToHost(static_cast<THLL*>(hll1));
     auto* hll2AtHost = ConvertPointerFromWasmToHost(static_cast<THLL*>(hll2));
     hll1AtHost->Merge(*hll2AtHost);
+}
+
+void HyperLogLogMergeWithValidation(void* hll1, void* hll2, uint64_t incomingStateLength)
+{
+    THROW_ERROR_EXCEPTION_IF(incomingStateLength != sizeof(THLL),
+        "State size mismatch in hyperloglog, expected: %v, got: %v."
+        "This error potentially signals a misuse of cardinality_merge function",
+        sizeof(THLL),
+        incomingStateLength);
+    HyperLogLogMerge(hll1, hll2);
 }
 
 ui64 HyperLogLogEstimateCardinality(void* hll)
@@ -3218,9 +3260,11 @@ void LastSeenReplicaSetMerge(
     ParseReplicas(state2, &newReplicas);
     for (const auto& replica : newReplicas) {
         // Linear complexity should be fine.
-        if (std::find(lastSeenReplicas.begin(), lastSeenReplicas.end(), replica) == lastSeenReplicas.end()) {
-            lastSeenReplicas.push_back(replica);
+        auto it = std::find(lastSeenReplicas.begin(), lastSeenReplicas.end(), replica);
+        if (it != lastSeenReplicas.end()) {
+            lastSeenReplicas.erase(it);
         }
+        lastSeenReplicas.push_back(replica);
     }
 
     std::optional<bool> isErasure;
@@ -3365,6 +3409,79 @@ void DictSumIteration(
     auto deltaNode = NodeFromWasmUnversionedValue(*delta);
     auto resultNode = DictSum(stateNode, deltaNode);
     NodeToWasmUnversionedValue(context, *result, resultNode);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ArrayAggFinalize(TExpressionContext* context, TUnversionedValue* result, TUnversionedValue* state)
+{
+    auto* resultAtHost = ConvertPointerFromWasmToHost(result);
+    auto* stateAtHost = ConvertPointerFromWasmToHost(state);
+
+    TString resultYson;
+    TStringOutput output(resultYson);
+    NYson::TYsonWriter writer(&output);
+
+    writer.OnBeginList();
+
+    if (stateAtHost->Length != 0) {
+        const auto* start = ConvertPointerFromWasmToHost(stateAtHost->Data.String);
+        const auto* end = start + *reinterpret_cast<const i64*>(stateAtHost->Data.String);
+        const auto* cursor = start + sizeof(i64);
+
+        while (cursor < end) {
+            writer.OnListItem();
+
+            auto type = *reinterpret_cast<const EValueType*>(cursor);
+            cursor += sizeof(EValueType);
+
+            if (type == EValueType::Null) {
+                writer.OnEntity();
+                continue;
+            }
+
+            auto data = *reinterpret_cast<const TUnversionedValueData*>(cursor);
+            cursor += sizeof(TUnversionedValueData);
+
+            switch (type) {
+                case EValueType::Int64:
+                    writer.OnInt64Scalar(data.Int64);
+                    break;
+
+                case EValueType::Boolean:
+                    writer.OnBooleanScalar(data.Boolean);
+                    break;
+
+                case EValueType::Uint64:
+                    writer.OnUint64Scalar(data.Uint64);
+                    break;
+
+                case EValueType::Double:
+                    writer.OnDoubleScalar(data.Double);
+                    break;
+
+                case EValueType::String:
+                    writer.OnStringScalar({cursor, data.Uint64});
+                    cursor+=data.Uint64;
+                    break;
+
+                case EValueType::Any:
+                case EValueType::Composite:
+                    writer.OnRaw({cursor, data.Uint64});
+                    cursor+=data.Uint64;
+                    break;
+
+                default:
+                    THROW_ERROR_EXCEPTION("Unsupported element type %Qlv", type);
+            }
+        }
+
+        YT_VERIFY(cursor == end);
+    }
+
+    writer.OnEndList();
+
+    *resultAtHost = context->GetRowBuffer()->CaptureValue(MakeUnversionedAnyValue(resultYson));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3716,6 +3833,105 @@ void CompositeMemberAccessorHelper(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool SubqueryExprHelper(
+    TExpressionContext* context,
+    TSubqueryParameters* parameters,
+    TPIValue* fromValues,
+    TPIValue* bindedValues,
+    void** consumeRowsClosure,
+    TRowsConsumer consumeRowsFunction)
+{
+    auto consumeRows = PrepareFunction(consumeRowsFunction);
+
+    // Unpack lists of fromValues.
+    auto nestedRows = UnpackRows(context, parameters->FromTypes, fromValues, TRange(bindedValues, parameters->BindedRowSize));
+
+    std::vector<const TPIValue*> castedRows(nestedRows.begin(), nestedRows.end());
+
+    return consumeRows(consumeRowsClosure, context, castedRows.data(), castedRows.size());
+}
+
+bool SubqueryWriteRow(TExpressionContext* context, TSubqueryWriteOpClosure* closure, TPIValue* values)
+{
+    closure->OutputRowsBatch.push_back(CopyAndConvertFromPI(context, TRange(values, values + closure->RowSize), EAddressSpace::WebAssembly).Begin());
+
+    return false;
+}
+
+// Build yson list from values.
+TUnversionedValue PackValues(TRange<TUnversionedValue> values, TRowBuffer* rowBuffer)
+{
+    TString resultYson;
+    TStringOutput output(resultYson);
+    NYson::TYsonWriter writer(&output);
+
+    writer.OnBeginList();
+    for (int index = 0; index < std::ssize(values); ++index) {
+        const auto& valueArg = values[index];
+
+        writer.OnListItem();
+
+        switch (valueArg.Type) {
+            case EValueType::Int64:
+                writer.OnInt64Scalar(valueArg.Data.Int64);
+                break;
+            case EValueType::Uint64:
+                writer.OnUint64Scalar(valueArg.Data.Uint64);
+                break;
+            case EValueType::Double:
+                writer.OnDoubleScalar(valueArg.Data.Double);
+                break;
+            case EValueType::Boolean:
+                writer.OnBooleanScalar(valueArg.Data.Boolean);
+                break;
+            case EValueType::String:
+                writer.OnStringScalar(valueArg.AsStringBuf());
+                break;
+            case EValueType::Any:
+            case EValueType::Composite:
+                writer.OnRaw(valueArg.AsStringBuf());
+                break;
+            case EValueType::Null:
+                writer.OnEntity();
+                break;
+            default:
+                THROW_ERROR_EXCEPTION("Unexpected type %Qlv of value #%v",
+                    valueArg.Type,
+                    index);
+        }
+    }
+    writer.OnEndList();
+
+    return rowBuffer->CaptureValue(MakeUnversionedCompositeValue(resultYson));
+}
+
+void SubqueryWriteHelper(
+    TExpressionContext* context,
+    int resultColumns,
+    TPIValue* result,
+    void** collectRowsClosure,
+    void (*collectRowsFunction)(void** closure, TSubqueryWriteOpClosure* writeOpClosure))
+{
+    auto collectRows = PrepareFunction(collectRowsFunction);
+
+    TSubqueryWriteOpClosure closure;
+    closure.RowSize = resultColumns;
+    collectRows(collectRowsClosure, &closure);
+
+    // Produce yson with complex_type_mode=positional.
+
+    auto* buffer = context->GetRowBuffer().Get();
+    std::vector<TValue> packedResult;
+
+    for (auto row : closure.OutputRowsBatch) {
+        packedResult.push_back(PackValues(TRange(row, row + closure.RowSize), context->GetRowBuffer().Get()));
+    }
+
+    MakePositionIndependentFromUnversioned(result, PackValues(packedResult, buffer));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 int CompareYsonValuesHelper(const char* lhsOffset, ui32 lhsLength, const char* rhsOffset, ui32 rhsLength)
 {
     auto* lhs = ConvertPointerFromWasmToHost(lhsOffset, lhsLength);
@@ -3794,6 +4010,8 @@ void* _ZNK3NYT12NQueryClient16TFunctionContext14GetPrivateDataEv(TFunctionContex
     return context->GetPrivateData();
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NRoutines
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3866,7 +4084,8 @@ struct RegisterLLVMRoutine
 
 #define REGISTER_TIME_ROUTINE(routine) \
     REGISTER_ROUTINE(routine); \
-    REGISTER_ROUTINE(routine ## Localtime)
+    REGISTER_ROUTINE(routine ## Localtime); \
+    REGISTER_ROUTINE(routine ## TZ)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3882,6 +4101,7 @@ REGISTER_ROUTINE(ArrayJoinOpHelper);
 REGISTER_ROUTINE(GroupOpHelper);
 REGISTER_ROUTINE(GroupTotalsOpHelper);
 REGISTER_ROUTINE(StringHash);
+REGISTER_ROUTINE(StringXxHash64);
 REGISTER_ROUTINE(AllocatePermanentRow);
 REGISTER_ROUTINE(AllocateBytes);
 REGISTER_ROUTINE(IsRowInRowset);
@@ -3933,6 +4153,7 @@ REGISTER_ROUTINE(StringToDouble);
 REGISTER_ROUTINE(HyperLogLogAllocate);
 REGISTER_ROUTINE(HyperLogLogAdd);
 REGISTER_ROUTINE(HyperLogLogMerge);
+REGISTER_ROUTINE(HyperLogLogMergeWithValidation);
 REGISTER_ROUTINE(HyperLogLogEstimateCardinality);
 REGISTER_ROUTINE(HyperLogLogGetFingerprint);
 REGISTER_ROUTINE(StoredReplicaSetMerge);
@@ -3954,6 +4175,12 @@ REGISTER_TIME_ROUTINE(TimestampFloorMonth);
 REGISTER_TIME_ROUTINE(TimestampFloorQuarter);
 REGISTER_TIME_ROUTINE(TimestampFloorYear);
 REGISTER_ROUTINE(FormatTimestamp);
+REGISTER_ROUTINE(FormatTimestampTZ);
+REGISTER_ROUTINE(ArrayAggFinalize);
+
+REGISTER_ROUTINE(SubqueryExprHelper);
+REGISTER_ROUTINE(SubqueryWriteRow);
+REGISTER_ROUTINE(SubqueryWriteHelper);
 
 REGISTER_ROUTINE(memcmp);
 REGISTER_ROUTINE(gmtime_r);

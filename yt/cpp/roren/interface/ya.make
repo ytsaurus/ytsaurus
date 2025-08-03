@@ -20,6 +20,7 @@ SRCS(
     private/stateful_par_do.cpp
     private/stateful_timer_par_do.cpp
     private/par_do_tree.cpp
+    private/save_loadable_logicaltype_wrapper.cpp
 
     coder.cpp
     fns.cpp
@@ -35,6 +36,8 @@ PEERDIR(
     library/cpp/iterator
     library/cpp/yson/node
     library/cpp/yt/string
+    yt/yt/flow/lib/serializer
+    yt/cpp/roren/library/bind
     yt/cpp/roren/library/timers/timer
     yt/yt/core
     yt/yt/library/profiling

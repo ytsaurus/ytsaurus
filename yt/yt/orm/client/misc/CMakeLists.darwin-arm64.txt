@@ -18,8 +18,11 @@ add_library(orm-client-misc)
 target_compile_options(orm-client-misc PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
-  -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
   -Wunused-parameter
+  -Wno-c99-designator
 )
 
 target_link_libraries(orm-client-misc PUBLIC
@@ -32,6 +35,5 @@ target_link_libraries(orm-client-misc PUBLIC
 target_sources(orm-client-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/client/misc/protobuf_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/client/misc/public.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/orm/client/misc/traits.cpp
 )
 

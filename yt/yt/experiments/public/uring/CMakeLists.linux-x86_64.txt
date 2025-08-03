@@ -20,6 +20,9 @@ add_executable(uring)
 target_compile_options(uring PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(uring PUBLIC

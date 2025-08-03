@@ -48,7 +48,7 @@ public:
         const NChunkClient::TClientChunkReadOptions& options,
         bool useDirectIO) override;
 
-    NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
+    NIO::TReadRequest MakeChunkFragmentReadRequest(
         const NIO::TChunkFragmentDescriptor& fragmentDescriptor,
         bool useDirectIO) override;
 
@@ -91,8 +91,8 @@ private:
         TPromise<void> DiskFetchPromise;
         NIO::TBlocksExtPtr BlocksExt;
         TLocationMemoryGuard LocationMemoryGuard;
-        TPendingIOGuard PendingIOGuard;
         std::atomic<bool> Finished = false;
+        TLocationFairShareSlotPtr FairShareSlot = nullptr;
     };
 
     using TReadBlockSetSessionPtr = TIntrusivePtr<TReadBlockSetSession>;
@@ -112,7 +112,7 @@ private:
     TSharedRef WrapBlockWithDelayedReferenceHolder(TSharedRef rawReference, TDuration delayBeforeFree);
 
     void CompleteSession(const TReadBlockSetSessionPtr& session);
-    static void FailSession(const TReadBlockSetSessionPtr& session, const TError& error);
+    void FailSession(const TReadBlockSetSessionPtr& session, const TError& error);
 
     void DoReadMeta(
         const TReadMetaSessionPtr& session,

@@ -6,9 +6,9 @@
 
 #include <yt/yt/server/node/query_agent/config.h>
 
-#include <yt/yt/server/lib/exec_node/config.h>
+#include <yt/yt/server/node/tablet_node/config.h>
 
-#include <yt/yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/exec_node/config.h>
 
 #include <yt/yt/server/lib/chaos_node/config.h>
 
@@ -445,6 +445,10 @@ void TClusterNodeBootstrapConfig::Register(TRegistrar registrar)
         if (!config->Rack && config->DataCenter) {
             THROW_ERROR_EXCEPTION("\"data_center\" should be defined with \"rack\"");
         }
+
+        //! NB: LeaseTransactionPingPeriod and LeaseTransactionTimeout should be ensured to be initialized by compat above.
+        THROW_ERROR_EXCEPTION_IF(*config->MasterConnector->LeaseTransactionPingPeriod >= *config->MasterConnector->LeaseTransactionTimeout,
+            "Lease transaction ping period cannot be greater or equal to lease transaction timeout");
     });
 }
 

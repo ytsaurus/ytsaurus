@@ -85,7 +85,6 @@ END()
 
 RECURSE(
     ytsaurus
-    datahub
 )
 
 IF (NOT OPENSOURCE)

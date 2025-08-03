@@ -17,19 +17,36 @@ void TPerformanceCountersEma::UpdateEma()
     Ema.Update(Counter.load(std::memory_order::relaxed));
 }
 
+void TChunkReaderPerformanceCounters::IncrementHunkDataWeight(
+    EPerformanceCountedRequestType requestType,
+    i64 value,
+    EWorkloadCategory workloadCategory)
+{
+    // NB: Do not account background activities in user read performance counters.
+    if (IsSystemWorkloadCategory(workloadCategory)) {
+        return;
+    }
+
+    if (requestType == EPerformanceCountedRequestType::Lookup) {
+        StaticHunkChunkRowLookupDataWeight.Counter.fetch_add(value, std::memory_order::relaxed);
+    } else {
+        StaticHunkChunkRowReadDataWeight.Counter.fetch_add(value, std::memory_order::relaxed);
+    }
+}
+
 void UpdatePerformanceCounters(
     const NChunkClient::NProto::TDataStatistics& statistics,
     const TTabletPerformanceCountersPtr& performanceCounters,
     EDataSource source,
-    ERequestType type)
+    EPerformanceCountedRequestType type)
 {
-    if (source == EDataSource::DynamicStore && type == ERequestType::Lookup) {
+    if (source == EDataSource::DynamicStore && type == EPerformanceCountedRequestType::Lookup) {
         performanceCounters->DynamicRowLookup.Counter.fetch_add(statistics.row_count(), std::memory_order::relaxed);
         performanceCounters->DynamicRowLookupDataWeight.Counter.fetch_add(statistics.data_weight(), std::memory_order::relaxed);
-    } else if (source == EDataSource::DynamicStore && type == ERequestType::Read) {
+    } else if (source == EDataSource::DynamicStore && type == EPerformanceCountedRequestType::Read) {
         performanceCounters->DynamicRowRead.Counter.fetch_add(statistics.row_count(), std::memory_order::relaxed);
         performanceCounters->DynamicRowReadDataWeight.Counter.fetch_add(statistics.data_weight(), std::memory_order::relaxed);
-    } else if (type == ERequestType::Lookup) {
+    } else if (type == EPerformanceCountedRequestType::Lookup) {
         performanceCounters->StaticChunkRowLookup.Counter.fetch_add(statistics.row_count(), std::memory_order::relaxed);
         performanceCounters->StaticChunkRowLookupDataWeight.Counter.fetch_add(statistics.data_weight(), std::memory_order::relaxed);
     } else {
@@ -72,7 +89,7 @@ public:
     }
 
 private:
-    IReaderBasePtr Reader_;
+    const IReaderBasePtr Reader_;
 };
 
 class TVersionedPerformanceCountingReader
@@ -84,7 +101,7 @@ public:
         IVersionedReaderPtr reader,
         TTabletPerformanceCountersPtr performanceCounters,
         EDataSource source,
-        ERequestType type)
+        EPerformanceCountedRequestType type)
         : TPerformanceCountingReaderBase(reader)
         , Reader_(std::move(reader))
         , PerformanceCounters_(std::move(performanceCounters))
@@ -115,7 +132,7 @@ private:
     const IVersionedReaderPtr Reader_;
     const TTabletPerformanceCountersPtr PerformanceCounters_;
     const EDataSource DataSource_;
-    const ERequestType RequestType_;
+    const EPerformanceCountedRequestType RequestType_;
 };
 
 class TSchemafulPerformanceCountingReader
@@ -127,7 +144,7 @@ public:
         ISchemafulUnversionedReaderPtr reader,
         TTabletPerformanceCountersPtr performanceCounters,
         EDataSource source,
-        ERequestType type)
+        EPerformanceCountedRequestType type)
         : TPerformanceCountingReaderBase(reader)
         , Reader_(std::move(reader))
         , PerformanceCounters_(std::move(performanceCounters))
@@ -153,14 +170,14 @@ private:
     const ISchemafulUnversionedReaderPtr Reader_;
     const TTabletPerformanceCountersPtr PerformanceCounters_;
     const EDataSource DataSource_;
-    const ERequestType RequestType_;
+    const EPerformanceCountedRequestType RequestType_;
 };
 
 IVersionedReaderPtr CreateVersionedPerformanceCountingReader(
     IVersionedReaderPtr reader,
     TTabletPerformanceCountersPtr performanceCounters,
     EDataSource source,
-    ERequestType type)
+    EPerformanceCountedRequestType type)
 {
     YT_ASSERT(!DynamicPointerCast<TVersionedPerformanceCountingReader>(reader));
     return New<TVersionedPerformanceCountingReader>(
@@ -174,7 +191,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulPerformanceCountingReader(
     ISchemafulUnversionedReaderPtr reader,
     TTabletPerformanceCountersPtr performanceCounters,
     EDataSource source,
-    ERequestType type)
+    EPerformanceCountedRequestType type)
 {
     YT_ASSERT(!DynamicPointerCast<TSchemafulPerformanceCountingReader>(reader));
     return New<TSchemafulPerformanceCountingReader>(
@@ -187,4 +204,3 @@ ISchemafulUnversionedReaderPtr CreateSchemafulPerformanceCountingReader(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient
-

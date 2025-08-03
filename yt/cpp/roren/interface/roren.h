@@ -203,7 +203,7 @@ private:
     void Optimize();
 
 private:
-    NPrivate::TRawPipelinePtr RawPipeline_ = MakeIntrusive<NPrivate::TRawPipeline>();
+    NPrivate::TRawPipelinePtr RawPipeline_ = NYT::New<NPrivate::TRawPipeline>();
     IExecutorPtr Executor_;
 
 private:
@@ -354,6 +354,8 @@ TRenamedTransform<TTransform> operator>>(TString name, TTransform transform)
     return TRenamedTransform{std::move(name), std::move(transform)};
 }
 
+NPrivate::TAttributeSetter Name(TString trnasformName);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TRow, typename TTransform>
@@ -399,7 +401,7 @@ template <typename K, typename S>
 TPState<K, S> MakePState(TRawPipelinePtr rawPipeline)
 {
     auto result = TPState<K, S>{
-        MakeIntrusive<TRawPStateNode>(),
+        NYT::New<TRawPStateNode>(),
         std::move(rawPipeline)
     };
     return result;

@@ -6,6 +6,7 @@ SRCS(
     misc/test_connection.cpp
 
     arrow_writer_ut.cpp
+    absolute_limit_ut.cpp
     chunk_client_fetcher_ut.cpp
     chunk_fragment_read_controller_ut.cpp
     chunk_meta_cache_ut.cpp
@@ -21,6 +22,7 @@ SRCS(
     partitioner_ut.cpp
     permission_cache_ut.cpp
     replication_reader_ut.cpp
+    replication_writer_ut.cpp
     row_merger_ut.cpp
     secondary_index_ut.cpp
     serialize_ut.cpp

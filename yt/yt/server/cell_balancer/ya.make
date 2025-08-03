@@ -14,7 +14,6 @@ SRCS(
     cluster_state_provider.cpp
     cypress_bindings.cpp
     config.cpp
-    master_connector.cpp
     node_tag_filters_manager.cpp
     orchid_bindings.cpp
     program.cpp
@@ -31,6 +30,7 @@ PEERDIR(
     yt/yt/server/lib
     yt/yt/server/lib/cypress_election
     yt/yt/server/lib/tablet_server
+    yt/yt/server/lib/cypress_registrar
     yt/yt/server/master
 )
 

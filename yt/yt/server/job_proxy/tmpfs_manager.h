@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/core/misc/fs.h>
+
 #include <yt/yt/server/lib/job_proxy/config.h>
 
 namespace NYT::NJobProxy {
@@ -23,7 +25,7 @@ public:
 
     //! Returns |true| if |deviceId| is a device id of some tmpfs volume
     //! and |false| otherwise.
-    bool IsTmpfsDevice(int deviceId) const;
+    bool IsTmpfsDevice(NFS::TDeviceId deviceId) const;
 
     bool HasTmpfsVolumes() const;
 
@@ -34,7 +36,7 @@ private:
     mutable std::vector<i64> MaxTmpfsUsage_;
     mutable i64 MaxAggregatedTmpfsUsage_ = 0;
 
-    THashSet<int> TmpfsDeviceIds;
+    THashSet<NFS::TDeviceId> TmpfsDeviceIds;
 
     struct TTmpfsVolumeStatitsitcs
     {

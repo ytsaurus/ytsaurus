@@ -13,6 +13,7 @@ RECURSE(
     res_pull
     row_spec
     schema
+    secret_masker
     skiff
     url_mapper
     ut_common

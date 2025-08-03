@@ -41,14 +41,14 @@ private:
     const int KeyColumnCount_;
     const NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
     const TTimestamp RetentionTimestamp_;
+    const std::vector<int> ColumnIds_;
     const TNestedColumnsSchema NestedColumnsSchema_;
 
     TMutableUnversionedRow MergedRow_;
-    TCompactVector<TTimestamp, TypicalColumnCount> MergedTimestamps_;
+    std::vector<TTimestamp> MergedTimestamps_;
 
-    TCompactVector<int, TypicalColumnCount> ColumnIds_;
-    TCompactVector<int, TypicalColumnCount> ColumnIdToIndex_;
-    TCompactVector<int, TypicalColumnCount> ColumnIdToTimestampColumnId_;
+    std::vector<int> ColumnIdToIndex_;
+    std::vector<int> ColumnIdToTimestampColumnId_;
 
     TCompactVector<bool, TypicalColumnCount> IsTimestampColumn_;
 

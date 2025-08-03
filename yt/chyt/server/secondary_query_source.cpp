@@ -379,7 +379,8 @@ ISchemalessMultiChunkReaderPtr CreateSourceReader(
     tableReaderConfig->SamplingRate = subquerySpec.TableReaderConfig->SamplingRate;
     tableReaderConfig->SamplingSeed = subquerySpec.TableReaderConfig->SamplingSeed;
 
-    auto chunkReaderHost = TChunkReaderHost::FromClient(queryContext->Client());
+    auto chunkReaderHost = CreateSingleSourceMultiChunkReaderHost(
+        TChunkReaderHost::FromClient(queryContext->Client()));
 
     THashMap<int, std::vector<TDataSliceDescriptor>> dataSourceIdToSliceDescriptors;
 

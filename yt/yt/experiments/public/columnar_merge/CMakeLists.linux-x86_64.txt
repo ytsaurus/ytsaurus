@@ -20,6 +20,9 @@ add_executable(columnar_merge)
 target_compile_options(columnar_merge PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_include_directories(columnar_merge PRIVATE
@@ -38,6 +41,7 @@ target_link_libraries(columnar_merge PUBLIC
   yt-yt-ytlib
   yt-server-node
   server-lib-io
+  yt-library-signals
   library-cpp-getopt
 )
 

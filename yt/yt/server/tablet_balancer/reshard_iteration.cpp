@@ -21,7 +21,7 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletBalancerLogger;
+constinit const auto Logger = TabletBalancerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,7 +30,7 @@ class TReshardIterationBase
 {
 public:
     TReshardIterationBase(
-        TString bundleName,
+        std::string bundleName,
         TString groupName,
         TTabletBalancerDynamicConfigPtr dynamicConfig)
         : BundleName_(std::move(bundleName))
@@ -38,12 +38,12 @@ public:
         , DynamicConfig_(std::move(dynamicConfig))
     { }
 
-    bool IsGroupBalancingEnabled(const TTabletBalancingGroupConfigPtr& /*groupConfig*/) override
+    bool IsGroupBalancingEnabled(const TTabletBalancingGroupConfigPtr& /*groupConfig*/) const override
     {
         return true;
     }
 
-    bool IsTableBalancingEnabled(const TTablePtr& /*table*/) override
+    bool IsTableBalancingEnabled(const TTablePtr& /*table*/) const override
     {
         return true;
     }
@@ -53,7 +53,7 @@ public:
         return DynamicConfig_->PickReshardPivotKeys && bundleConfig->EnablePickPivotKeys;
     }
 
-    const TString& GetBundleName() const override
+    const std::string& GetBundleName() const override
     {
         return BundleName_;
     }
@@ -69,7 +69,7 @@ public:
     }
 
 protected:
-    TString BundleName_;
+    std::string BundleName_;
     TString GroupName_;
     TTabletBalancerDynamicConfigPtr DynamicConfig_;
 };
@@ -81,7 +81,7 @@ class TSizeReshardIteration
 {
 public:
     TSizeReshardIteration(
-        TString bundleName,
+        std::string bundleName,
         TString groupName,
         TTabletBalancerDynamicConfigPtr dynamicConfig)
         : TReshardIterationBase(
@@ -90,7 +90,7 @@ public:
             std::move(dynamicConfig))
     { }
 
-    void StartIteration() override
+    void StartIteration() const override
     {
         YT_LOG_DEBUG("Balancing tablets via reshard started (BundleName: %v, Group: %v)",
             BundleName_,
@@ -102,7 +102,7 @@ public:
         const TTabletBalancingGroupConfigPtr& /*groupConfig*/) override
     { }
 
-    std::vector<TTablePtr> GetTablesToReshard(const TTabletCellBundlePtr& bundle) override
+    std::vector<TTablePtr> GetTablesToReshard(const TTabletCellBundlePtr& bundle) const override
     {
         std::vector<TTablePtr> tables;
         for (const auto& [id, table] : bundle->Tables) {
@@ -126,7 +126,7 @@ public:
         return tables;
     }
 
-    bool IsTableBalancingEnabled(const TTablePtr& table) override
+    bool IsTableBalancingEnabled(const TTablePtr& table) const override
     {
         auto parameterizedBalancingEnabled = table->IsParameterizedReshardBalancingEnabled(
             DynamicConfig_->EnableParameterizedReshardByDefault);
@@ -167,7 +167,7 @@ public:
 
     void UpdateProfilingCounters(
         const TTable* /*table*/,
-        const TTableProfilingCounters& profilingCounters,
+        TTableProfilingCounters& profilingCounters,
         const TReshardDescriptor& descriptor) override
     {
         if (descriptor.TabletCount == 1) {
@@ -179,7 +179,7 @@ public:
         }
     }
 
-    void FinishIteration(int actionCount) override
+    void FinishIteration(int actionCount) const override
     {
         YT_LOG_DEBUG("Balancing tablets via reshard finished (BundleName: %v, Group: %v, ActionCount: %v)",
             BundleName_,
@@ -195,7 +195,7 @@ class TParameterizedReshardIteration
 {
 public:
     TParameterizedReshardIteration(
-        TString bundleName,
+        std::string bundleName,
         TString groupName,
         TTabletBalancerDynamicConfigPtr dynamicConfig)
         : TReshardIterationBase(
@@ -204,7 +204,7 @@ public:
             std::move(dynamicConfig))
     { }
 
-    void StartIteration() override
+    void StartIteration() const override
     {
         YT_LOG_DEBUG("Balancing tablets via parameterized reshard started (BundleName: %v, Group: %v)",
             BundleName_,
@@ -218,7 +218,6 @@ public:
         Resharder_ = CreateParameterizedResharder(
             bundleState->GetBundle(),
             bundleState->PerformanceCountersKeys(),
-            bundleState->GetPerformanceCountersTableSchema(),
             TParameterizedResharderConfig{
                 .EnableReshardByDefault = DynamicConfig_->EnableParameterizedReshardByDefault,
                 .Metric = DynamicConfig_->DefaultParameterizedMetric,
@@ -227,7 +226,7 @@ public:
             Logger());
     }
 
-    std::vector<TTablePtr> GetTablesToReshard(const TTabletCellBundlePtr& bundle) override
+    std::vector<TTablePtr> GetTablesToReshard(const TTabletCellBundlePtr& bundle) const override
     {
         std::vector<TTablePtr> tables;
         for (const auto& [tableId, table] : bundle->Tables) {
@@ -236,7 +235,7 @@ public:
         return tables;
     }
 
-    bool IsGroupBalancingEnabled(const TTabletBalancingGroupConfigPtr& groupConfig) override
+    bool IsGroupBalancingEnabled(const TTabletBalancingGroupConfigPtr& groupConfig) const override
     {
         auto enable = groupConfig->Parameterized->EnableReshard.value_or(
             DynamicConfig_->EnableParameterizedReshardByDefault);
@@ -259,7 +258,7 @@ public:
 
     void UpdateProfilingCounters(
         const TTable* table,
-        const TTableProfilingCounters& profilingCounters,
+        TTableProfilingCounters& profilingCounters,
         const TReshardDescriptor& descriptor) override
     {
         if (descriptor.TabletCount == 1) {
@@ -281,7 +280,7 @@ public:
         }
     }
 
-    void FinishIteration(int actionCount) override
+    void FinishIteration(int actionCount) const override
     {
         YT_LOG_DEBUG("Balancing tablets via parameterized reshard finished (BundleName: %v, Group: %v, ActionCount: %v)",
             BundleName_,
@@ -296,7 +295,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IReshardIterationPtr CreateSizeReshardIteration(
-    TString bundleName,
+    std::string bundleName,
     TString groupName,
     TTabletBalancerDynamicConfigPtr dynamicConfig)
 {
@@ -307,7 +306,7 @@ IReshardIterationPtr CreateSizeReshardIteration(
 }
 
 IReshardIterationPtr CreateParameterizedReshardIteration(
-    TString bundleName,
+    std::string bundleName,
     TString groupName,
     TTabletBalancerDynamicConfigPtr dynamicConfig)
 {

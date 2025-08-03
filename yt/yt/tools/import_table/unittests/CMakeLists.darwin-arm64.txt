@@ -18,6 +18,9 @@ add_executable(yt-yt-tools-import_table-unittests)
 target_compile_options(yt-yt-tools-import_table-unittests PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(yt-yt-tools-import_table-unittests PUBLIC
@@ -27,7 +30,7 @@ target_link_libraries(yt-yt-tools-import_table-unittests PUBLIC
   yt-yt-core
   yt-core-http
   yt-library-huggingface_client
-  yt-library-arrow_parquet_adapter
+  yt-library-arrow_adapter
   tools-import_table-lib
   mapreduce-tests-gtest_main
   mapreduce-tests-yt_unittest_lib

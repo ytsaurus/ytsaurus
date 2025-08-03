@@ -26,10 +26,13 @@ jobs:
         run: ./gradlew build
 
       - name: Run tests
-        run: ./gradlew test
+        run: ./gradlew test --info
 
       - name: Run integration tests
-        run: ./gradlew testIntegration
+        run: ./gradlew testIntegration --info
+
+      - name: Run integration multicell tests
+        run: ./gradlew testIntegrationMulticell --info
 
       - name: Get latest Java SDK tag
         uses: oprypin/find-latest-tag@v1.1.2

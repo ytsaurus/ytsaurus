@@ -14,8 +14,8 @@ namespace NYT::NTableClient {
 int TSchemaDictionary::GetIdOrRegisterTable(const TTableSchema& table)
 {
     TTableSchemaInternal tableInternal;
-    tableInternal.set_unique_keys(table.GetUniqueKeys());
-    tableInternal.set_strict(table.GetStrict());
+    tableInternal.set_unique_keys(table.IsUniqueKeys());
+    tableInternal.set_strict(table.IsStrict());
     for (const auto& column : table.Columns()) {
         int id = GetIdOrRegisterColumn(column);
         tableInternal.add_columns(id);

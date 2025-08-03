@@ -148,3 +148,9 @@ yt merge --src '_path/to/src/table[#100:#500]' --dst _path/to/dst/table --mode o
 `curl -H 'Authorization: OAuth ${TOKEN}' http://<cluster_fqdn>/auth/whoami`
 
 {% endif %}
+
+------
+#### **Q: При чтении или копировании таблицы получаю ошибку "Access denied for user "some_user": "full_read" permission for node //home/some_table is not allowed by any matching ACE"**
+
+**A:** В таблице одна или несколько колонок закрыты по ACL, и у вас нет к ним доступа. Чтобы свершить задуманное, необходимо этот доступ получить. Подробнее см. в разделе [Управление доступом к колонкам таблиц](../../user-guide/storage/columnar-acl.md).
+

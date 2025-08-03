@@ -41,9 +41,7 @@ DECLARE_REFCOUNTED_CLASS(TChunkListPool)
 
 DECLARE_REFCOUNTED_CLASS(TZombieOperationOrchids)
 
-DECLARE_REFCOUNTED_CLASS(TJobProfiler)
-
-DECLARE_REFCOUNTED_CLASS(TJobTrackerTestingOptions)
+DECLARE_REFCOUNTED_STRUCT(TJobTrackerTestingOptions)
 DECLARE_REFCOUNTED_CLASS(TJobTracker)
 DECLARE_REFCOUNTED_CLASS(TJobTrackerOperationHandler)
 DECLARE_REFCOUNTED_STRUCT(TJobTrackerConfig)
@@ -51,7 +49,7 @@ DECLARE_REFCOUNTED_STRUCT(TGangManagerConfig)
 
 DECLARE_REFCOUNTED_STRUCT(TDockerRegistryConfig)
 
-DECLARE_REFCOUNTED_STRUCT(TDisallowRemoteOperationsConfig)
+DECLARE_REFCOUNTED_STRUCT(TRemoteOperationsConfig)
 
 struct TJobStartInfo
 {
@@ -79,6 +77,11 @@ struct TJobMonitoringDescriptor
     void Persist(const TPersistenceContext& context);
 
     auto operator<=>(const TJobMonitoringDescriptor& other) const = default;
+};
+
+inline const TJobMonitoringDescriptor NullMonitoringDescriptor{
+    .IncarnationId = TIncarnationId(),
+    .Index = -1,
 };
 
 void FormatValue(TStringBuilderBase* builder, const TJobMonitoringDescriptor& descriptor, TStringBuf /*spec*/);

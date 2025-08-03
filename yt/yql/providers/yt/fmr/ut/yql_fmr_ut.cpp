@@ -1,8 +1,8 @@
 #include <yql/essentials/minikql/invoke_builtins/mkql_builtins.h>
+#include <yt/yql/providers/yt/fmr/fmr_tool_lib/yql_yt_fmr_initializer.h>
 #include <yt/yql/providers/yt/provider/yql_yt_provider.h>
 #include <yt/yql/providers/yt/gateway/file/yql_yt_file.h>
 #include <yt/yql/providers/yt/gateway/file/yql_yt_file_services.h>
-#include <yt/yql/providers/yt/gateway/fmr/yql_yt_fmr.h>
 #include <yql/essentials/core/cbo/simple/cbo_simple.h>
 #include <yql/essentials/core/facade/yql_facade.h>
 #include <yql/essentials/providers/common/provider/yql_provider_names.h>
@@ -64,7 +64,8 @@ bool RunProgram(const TString& query, const TRunSettings& runSettings) {
     auto functionRegistry = NKikimr::NMiniKQL::CreateFunctionRegistry(NKikimr::NMiniKQL::CreateBuiltinRegistry());
     auto yqlNativeServices = NFile::TYtFileServices::Make(functionRegistry.Get(), runSettings.Tables, {}, "");
     auto ytGateway = CreateYtFileGateway(yqlNativeServices);
-    auto fmrGateway = CreateYtFmrGateway(ytGateway);
+
+    auto [fmrGateway, worker] = InitializeFmrGateway(ytGateway, false, TString(), true);
 
     TVector<TDataProviderInitializer> dataProvidersInit;
     dataProvidersInit.push_back(GetYtNativeDataProviderInitializer(fmrGateway, MakeSimpleCBOOptimizerFactory(), {}));
@@ -132,3 +133,4 @@ Y_UNIT_TEST_SUITE(FastMapReduceTests) {
         UNIT_ASSERT_NO_DIFF(sqlQueryResult, expected);
     }
 }
+

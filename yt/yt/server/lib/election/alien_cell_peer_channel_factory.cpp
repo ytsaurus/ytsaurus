@@ -118,7 +118,7 @@ public:
     { }
 
 private:
-    const TString Cluster_;
+    const std::string Cluster_;
     const TCellId CellId_;
     const int PeerId_;
     const ICellDirectoryPtr CellDirectory_;

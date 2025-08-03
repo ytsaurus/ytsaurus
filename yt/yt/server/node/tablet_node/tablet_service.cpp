@@ -1,20 +1,22 @@
 #include "tablet_service.h"
+
 #include "bootstrap.h"
-#include "private.h"
+#include "config.h"
+#include "error_reporting_service_base.h"
 #include "hunk_store.h"
 #include "hunk_tablet_manager.h"
+#include "overload_controlling_service_base.h"
+#include "private.h"
 #include "security_manager.h"
 #include "slot_manager.h"
 #include "store_manager.h"
 #include "tablet.h"
-#include "tablet_manager.h"
 #include "tablet_cell_write_manager.h"
+#include "tablet_manager.h"
 #include "tablet_slot.h"
+#include "tablet_snapshot_store.h"
 #include "transaction.h"
 #include "transaction_manager.h"
-#include "tablet_snapshot_store.h"
-#include "overload_controlling_service_base.h"
-#include "error_reporting_service_base.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -254,9 +256,11 @@ private:
                 }
 
                 if (*replicationEra > era) {
-                    const auto& chaosAgent = Slot_->GetTabletManager()->GetTabletOrThrow(tabletId)->GetChaosAgent();
-                    chaosAgent->RefreshEra(*replicationEra);
-                    era = tabletSnapshot->TabletRuntimeData->ReplicationEra.load();
+                    auto chaosAgent = Slot_->GetTabletManager()->GetTabletOrThrow(tabletId)->GetChaosAgent();
+                    if (chaosAgent) {
+                        chaosAgent->RefreshEra(*replicationEra);
+                        era = tabletSnapshot->TabletRuntimeData->ReplicationEra.load();
+                    }
                 }
 
                 if (*replicationEra != era) {
@@ -355,6 +359,14 @@ private:
         }
 
         commitResult.Subscribe(BIND([profilerGuard = std::move(profilerGuard)] (const TError& /*error*/) {}));
+
+        if (auto delay = tabletSnapshot->Settings.MountConfig->Testing.WriteResponseDelay) {
+            YT_LOG_DEBUG("Response for TabletService.Write will be delayed for testing purposes "
+                "(%v, Delay: %v)",
+                tabletSnapshot->LoggingTag,
+                delay);
+            TDelayedExecutor::WaitForDuration(delay);
+        }
 
         if (atomicity == EAtomicity::None && durability == EDurability::Sync) {
             context->ReplyFrom(commitResult);

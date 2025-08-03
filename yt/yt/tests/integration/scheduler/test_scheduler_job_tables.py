@@ -92,9 +92,6 @@ class TestStderrTable(YTEnvSetup):
         "controller_agent": {
             # We want to disable premature chunk list allocataion to expose YT-6219.
             "chunk_list_watermark_count": 0,
-            # COMPAT(shakurov): change the default to false and remove
-            # this delta once masters are up to date.
-            "enable_prerequisites_for_starting_completion_transactions": False,
         }
     }
 
@@ -403,7 +400,7 @@ class TestStderrTable(YTEnvSetup):
             map(
                 in_="//tmp/t_input",
                 out="//tmp/t_output",
-                command="""python -c 'import sys; s = "x" * (20 * 1024 * 1024) ; sys.stderr.write(s)'""",
+                command="""python3 -c 'import sys; s = "x" * (20 * 1024 * 1024) ; sys.stderr.write(s)'""",
                 spec={
                     "stderr_table_path": "//tmp/t_stderr",
                     "stderr_table_writer_config": {
@@ -423,7 +420,7 @@ class TestStderrTable(YTEnvSetup):
         map(
             in_="//tmp/t_input",
             out="//tmp/t_output",
-            command="""python -c 'import sys; s = "x" * (30 * 1024 * 1024) ; sys.stderr.write(s)'""",
+            command="""python3 -c 'import sys; s = "x" * (30 * 1024 * 1024) ; sys.stderr.write(s)'""",
             spec={
                 "stderr_table_path": "//tmp/t_stderr",
                 "stderr_table_writer_config": {
@@ -443,7 +440,7 @@ class TestStderrTable(YTEnvSetup):
         map(
             in_="//tmp/t_input",
             out="//tmp/t_output",
-            command="""python -c 'import sys; s = "x " * (30 * 1024 * 1024) ; sys.stderr.write(s)'""",
+            command="""python3 -c 'import sys; s = "x " * (30 * 1024 * 1024) ; sys.stderr.write(s)'""",
             spec=get_stderr_spec("//tmp/t_stderr"),
         )
         stderr_rows = read_table("//tmp/t_stderr", verbose=False)
@@ -660,36 +657,10 @@ class TestStderrTableShardedTx(TestStderrTable):
     }
 
 
-class TestStderrTableShardedTxCTxS(TestStderrTableShardedTx):
-    ENABLE_MULTIDAEMON = False  # There are component restarts
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            }
-        }
-    }
-
-
-class TestStderrTableMirroredTx(TestStderrTableShardedTxCTxS):
+class TestStderrTableMirroredTx(TestStderrTableShardedTx):
     ENABLE_MULTIDAEMON = False  # There are component restarts
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-    ENABLE_TMP_ROOTSTOCK = False
-    NUM_CYPRESS_PROXIES = 1
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "commit_operation_cypress_node_changes_via_system_transaction": True,
-    }
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "transaction_manager": {
-            "forbid_transaction_actions_for_cypress_transactions": True,
-        }
-    }
 
 
 ##################################################################
@@ -1691,11 +1662,14 @@ class TestJobTraceEvents(YTEnvSetup):
 
     @authors("omgronny")
     def test_no_profiling(self):
-        run_test_vanilla(
+        op = run_test_vanilla(
             job_count=2,
             command="sleep 0",
             track=True,
         )
+
+        events = get_job_trace(op.id)
+        assert not events
 
     @authors("omgronny")
     def test_incorrect_event(self):
@@ -1741,6 +1715,11 @@ class TestJobTraceEvents(YTEnvSetup):
                     events = get_job_trace(op.id, job_id=job_id, trace_id=trace_id)
                     assert len(events) == 2
 
+    @authors("ignat")
+    def test_get_job_trace_on_missing_operation(self):
+        with pytest.raises(YtError):
+            # Missing/incorrect op_id
+            get_job_trace("1-1-1-1")
 
 ##################################################################
 

@@ -26,6 +26,8 @@ public:
     void Load(NCellMaster::TLoadContext& context) override;
 };
 
+DEFINE_MASTER_OBJECT_TYPE(TDocumentNode)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer

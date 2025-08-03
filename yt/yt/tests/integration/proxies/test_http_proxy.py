@@ -17,21 +17,24 @@ from yt_commands import (
     with_breakpoint, wait_breakpoint, print_debug, raises_yt_error,
     read_table, write_table, add_member, Operation)
 
-from yt.common import YtResponseError
+from yt.common import YtResponseError, YtError
 import yt.packages.requests as requests
 import yt.yson as yson
 import yt_error_codes
 
+from yt_driver_bindings import Driver
+
 import pytest
 
+from copy import deepcopy
+from datetime import datetime, timedelta
+from typing import Any
 import collections
 import json
 import os
 import struct
 import socket
-from datetime import datetime, timedelta
 import time
-from typing import Any
 
 
 def try_parse_yt_error_headers(rsp):
@@ -117,17 +120,18 @@ class HttpProxyTestBase(YTEnvSetup):
             default={},
         )
 
-    def _execute_command(self, http_method, command_name, params=PARAMS):
+    def _execute_command(self, http_method, command_name, params=PARAMS, user="root", data=None):
         headers = {
             "X-YT-Parameters": yson.dumps(params),
             "X-YT-Header-Format": "<format=text>yson",
             "X-YT-Output-Format": "<format=text>yson",
-            "X-YT-User-Name": self.USER,
+            "X-YT-User-Name": user,
         }
         rsp = requests.request(
             http_method,
             "{}/api/v4/{}".format(self._get_proxy_address(), command_name),
             headers=headers,
+            data=data,
         )
 
         try_parse_yt_error_headers(rsp)
@@ -155,11 +159,6 @@ class TestHttpProxy(HttpProxyTestBase):
         service = requests.get(self._get_proxy_address() + "/service").json()
         assert "version" in service
         assert "start_time" in service
-
-    @authors("nadya73")
-    def test_discover_proxies(self):
-        rsp = requests.get(self._get_proxy_address() + "/api/v4/discover_proxies?type=http&address_type=internal_rpc")
-        assert rsp.status_code == 400
 
     @authors("levysotsky")
     def test_hosts(self):
@@ -421,6 +420,122 @@ class TestHttpProxyMemoryDrop(HttpProxyTestBase):
         assert err[0].is_rpc_unavailable()
 
 
+@pytest.mark.enabled_multidaemon
+class TestHttpProxyUserMemoryDrop(HttpProxyTestBase):
+    ENABLE_MULTIDAEMON = True
+
+    @authors("nadya02")
+    @pytest.mark.timeout(120)
+    def test_specific_user_drop(self):
+        create_user("nadya")
+
+        def get_yson(url):
+            return yson.loads(requests.get(url).content)
+
+        if get_yson(self._get_proxy_address() + "/hosts?role=data") != []:
+            create_proxy_role("ml", "http")
+        proxy_name = ls("//sys/http_proxies")[0]
+
+        create("table", "//tmp/test")
+
+        proxy = ls("//sys/http_proxies")[0]
+
+        set("//sys/http_proxies/" + proxy + "/@role", "ml")
+
+        def get_yson(url):
+            return yson.loads(requests.get(url).content)
+
+        def check_role_updated():
+            return get_yson(self._get_proxy_address() + "/hosts") == [] and \
+                get_yson(self._get_proxy_address() + "/hosts?role=data") == []
+
+        wait(check_role_updated)
+
+        set("//sys/http_proxies/@config", {
+            "api": {
+                "role_to_memory_limit_ratios" : {
+                    "ml" : {
+                        "user_to_memory_limit_ratio": {"nadya" : 0.0}
+                    }
+                }
+            }
+        })
+
+        def config_updated():
+            config = get("//sys/http_proxies/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
+            return config.get("api", {}).get("role_to_memory_limit_ratios") != {}
+
+        wait(config_updated)
+
+        with raises_yt_error("Request is dropped due to high memory pressure"):
+            self._execute_command("GET", "read_table", {"path": "//tmp/test"}, user="nadya")
+
+    @authors("nadya02")
+    @pytest.mark.timeout(120)
+    def test_role_default_user_drop(self):
+
+        def get_yson(url):
+            return yson.loads(requests.get(url).content)
+
+        if get_yson(self._get_proxy_address() + "/hosts?role=data") != []:
+            create_proxy_role("ml", "http")
+
+        proxy_name = ls("//sys/http_proxies")[0]
+
+        create("table", "//tmp/test")
+
+        proxy = ls("//sys/http_proxies")[0]
+
+        set("//sys/http_proxies/" + proxy + "/@role", "ml")
+
+        def check_role_updated():
+            return get_yson(self._get_proxy_address() + "/hosts") == [] and \
+                get_yson(self._get_proxy_address() + "/hosts?role=data") == []
+
+        wait(check_role_updated)
+
+        set("//sys/http_proxies/@config", {
+            "api": {
+                "role_to_memory_limit_ratios" : {
+                    "ml" : {
+                        "default_user_memory_limit_ratio": 0.0
+                    }
+                }
+            }
+        })
+
+        def config_updated():
+            config = get("//sys/http_proxies/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
+            return config.get("api", {}).get("role_to_memory_limit_ratios", {}).get("ml", {}).get("default_user_memory_limit_ratio", {}) == 0.0
+
+        wait(config_updated)
+
+        with raises_yt_error("Request is dropped due to high memory pressure"):
+            self._execute_command("GET", "read_table", {"path": "//tmp/test"})
+
+    @authors("nadya02")
+    @pytest.mark.timeout(120)
+    def test_default_user_drop(self):
+        proxy_name = ls("//sys/http_proxies")[0]
+
+        create("table", "//tmp/test")
+
+        set("//sys/http_proxies/@config", {
+            "api": {
+                "default_user_memory_limit_ratio": 0.0,
+            },
+        })
+
+        def config_updated():
+            config = get("//sys/http_proxies/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
+            return config.get("api", {}).get("default_user_memory_limit_ratio", None) == 0.0
+
+        wait(config_updated)
+
+        with raises_yt_error("Request is dropped due to high memory pressure"):
+            self._execute_command("GET", "read_table", {"path": "//tmp/test"})
+
+
 class TestFullDiscoverVersions(HttpProxyTestBase):
     ENABLE_MULTIDAEMON = False  # Cell balancer crashes in multidaemon mode.
     NUM_DISCOVERY_SERVERS = 1
@@ -490,7 +605,6 @@ class TestCypressProxyDiscoverVersions(HttpProxyTestBase):
 
     USE_SEQUOIA = True
     NUM_CLOCKS = 1
-    NUM_CYPRESS_PROXIES = 1
     NUM_REMOTE_CLUSTERS = 1
     USE_SEQUOIA_REMOTE_0 = False
 
@@ -680,7 +794,7 @@ class TestSolomonProxy(HttpProxyTestBase):
         prometheus_sensors_rsp = self.get_sensors_raw(headers={"Accept": "text/plain"})
         assert len([line for line in prometheus_sensors_rsp.text.split("\n") if "# TYPE" not in line and "build_version" in line]) == 3
         # No counter-to-rate transformation for prometheus format.
-        assert len([line for line in prometheus_sensors_rsp.text.split("\n") if "_rate" in line]) == 0
+        assert len([line for line in prometheus_sensors_rsp.text.split("\n") if "_rate" in line and "_rate_limit" not in line]) == 0
 
         # Spack (only check for errors).
         self.get_sensors_raw(headers={"Accept": "application/x-solomon-spack"})
@@ -708,6 +822,31 @@ class HttpProxyAccessCheckerTestBase(HttpProxyTestBase):
         },
     }
     ENABLE_MULTIDAEMON = True
+
+    @authors("nadya02")
+    def test_user_access_validator(self):
+        proxy_address = self._get_proxy_address()
+
+        def check_access(proxy_address, path="/", status_code=200, error_code=None, user=None):
+            url = "{}/api/v4/get?path={}".format(proxy_address, path)
+            headers = {}
+            if user:
+                headers["X-YT-User-Name"] = user
+
+            rsp = requests.get(url, headers=headers)
+
+            if error_code is not None :
+                assert json.loads(rsp.content)["code"] == error_code
+
+            return rsp.status_code == status_code
+
+        create_user("u")
+
+        set("//sys/users/u/@banned", True)
+        wait(lambda: check_access(proxy_address, status_code=403, user="u"))
+
+        set("//sys/users/u/@banned", False)
+        wait(lambda: check_access(proxy_address, status_code=200, user="u"))
 
     @authors("gritukan", "verytable")
     def test_access_checker(self):
@@ -832,14 +971,26 @@ class TestHttpProxyAuth(HttpProxyTestBase):
         }
         super(TestHttpProxyAuth, cls).setup_class()
 
+    def create_user_with_token(self, user):
+        create_user(user)
+        token, _ = issue_token(user)
+        return token
+
+    @authors("ermolovd")
+    def test_get_current_user(self):
+        token = self.create_user_with_token("test_get_current_user")
+
+        url = f"{self._get_proxy_address()}/api/v4/get_current_user"
+        headers = {
+            "Authorization": f"OAuth {token}",
+        }
+        rsp = requests.get(url, headers=headers)
+        assert rsp.status_code == 200, f"Proxy returned {rsp.status_code} response: {rsp.content}"
+        assert rsp.json()["user"] == "test_get_current_user"
+
     @authors("mpereskokova")
     def test_access_on_behalf_of_the_user(self):
         proxy_address = self._get_proxy_address()
-
-        def create_user_with_token(user):
-            create_user(user)
-            token, _ = issue_token(user)
-            return token
 
         def check_access(proxy_address, path="/", status_code=200, error_code=None, user=None, token=None):
             url = "{}/api/v4/get?path={}".format(proxy_address, path)
@@ -856,8 +1007,8 @@ class TestHttpProxyAuth(HttpProxyTestBase):
             assert rsp.status_code in [200, 400, 401]
             return rsp.status_code == status_code
 
-        yql_agent_token = create_user_with_token("yql_agent")
-        test_user_token = create_user_with_token("test_user")
+        yql_agent_token = self.create_user_with_token("yql_agent")
+        test_user_token = self.create_user_with_token("test_user")
 
         wait(lambda: check_access(proxy_address, status_code=200, token=yql_agent_token))
         wait(lambda: check_access(proxy_address, status_code=200, token=yql_agent_token, user="test_user"))
@@ -1312,38 +1463,6 @@ class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
                 output_format=self.YSON,
             )
 
-    @authors("nadya02")
-    @pytest.mark.timeout(120)
-    def test_http_drop_write_request(self):
-        wait(lambda: requests.get(f"{self._get_proxy_address()}/api/v4/get?path=//@").ok)
-
-        create("table", "//tmp/t")
-
-        total_memory_limit = 2000
-
-        set("//sys/http_proxies/@config", {"memory_limits": {"total": total_memory_limit}})
-
-        monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
-        config_url = "http://localhost:{}/orchid/dynamic_config_manager/effective_config".format(monitoring_port)
-
-        def config_updated():
-            config = requests.get(config_url).json()
-            return config.get("memory_limits", {}).get("total", 0) == total_memory_limit
-        wait(config_updated)
-
-        with pytest.raises(YtResponseError):
-            content = [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}] * 10
-            format = "yson"
-            user = "root"
-
-            self._execute_command(
-                "put",
-                "write_table",
-                {"path": "//tmp/t", "input_format": format},
-                user=user,
-                data=self._write_format(format, content),
-            )
-
     def _test_format_defaults_cypress(self, format, user, content, expected_content):
         set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         set("//tmp/list_node", content, force=True)
@@ -1481,8 +1600,7 @@ class TestHttpProxyBuildSnapshotReadonly(TestHttpProxyBuildSnapshotBase):
 
         wait(lambda: self._check_no_read_only())
 
-    @authors("alexkolodezny", "aleksandra-zh")
-    @pytest.mark.skip(reason="According to some recent studies, this has ~25% chance of failure")
+    @authors("aleksandra-zh")
     def test_read_only_proxy_availability(self):
         def check_proxies_online():
             rsp = requests.get(self._get_proxy_address() + "/hosts/all")
@@ -1643,6 +1761,9 @@ class TestHttpProxySignaturesBase(HttpProxyTestBase):
             "cypress_key_writer": {
                 "owner_id": "test-http-proxy",
             },
+            "key_rotator": {
+                "key_rotation_interval": "2h",
+            },
             "generator": dict(),
         },
     }
@@ -1668,19 +1789,81 @@ def deep_update(source: dict[Any, Any], overrides: dict[Any, Any]) -> dict[Any, 
     return result
 
 
-class TestHttpProxySignaturesKeyCreation(TestHttpProxySignaturesBase):
-    DELTA_PROXY_CONFIG = deep_update(TestHttpProxySignaturesBase.DELTA_PROXY_CONFIG, {
-        "signature_generation": {
-            "key_rotator": {
-                "key_rotation_interval": "2h",
-            },
-        },
-    })
-
+class TestHttpProxySignatures(TestHttpProxySignaturesBase):
     @authors("pavook")
     @pytest.mark.timeout(60)
     def test_public_key_appears(self):
         wait(lambda: len(ls(self.KEYS_PATH)) == 1)
+
+    @authors("ermolovd")
+    def test_partition_tables_with_modified_cookie(self):
+        create_user("user1")
+        create_user("user2")
+
+        table = "//tmp/table"
+        create("table", table)
+        write_table(table, [{"a": "123456789"}] * 1024)
+        partitions = self._execute_command("GET", "partition_tables", {
+            "paths": [table],
+            "data_weight_per_partition": 1024 * 10 // 3,
+            "enable_cookies": True,
+            "username": "user1",
+        }, user="user1")
+        partitions = yson.loads(partitions.content)
+        cookie = yson.get_bytes(partitions["partitions"][0]["cookie"])
+
+        self._execute_command("GET", "read_table_partition", {"cookie": cookie}, user="user1")
+
+        assert b"user1" in cookie
+        cookie = cookie.replace(b"user1", b"user2")
+        with raises_yt_error("Signature validation failed"):
+            self._execute_command("GET", "read_table_partition", {"cookie": cookie}, user="user2")
+
+    @authors("pavook")
+    @pytest.mark.timeout(60)
+    def test_distributed_write_with_modified_cookie(self):
+        table_path = "//tmp/distributed_table"
+        modified_path = "//tmp/pwntributed_table"
+        assert len(table_path) == len(modified_path)
+
+        create("table", table_path, schema=[{"name": "v1", "type": "string", "sort_order": "ascending"}])
+        res = self._execute_command(
+            "POST",
+            "start_distributed_write_session",
+            {"path": table_path})
+
+        assert bytes(table_path, "utf-8") in res.content
+        yson_res = yson.loads(res.content.replace(bytes(table_path, "utf-8"), bytes(modified_path, "utf-8")))
+        session = yson_res["session"]
+        with raises_yt_error("Signature validation failed"):
+            self._execute_command("POST", "finish_distributed_write_session", {"session": session, "results": []})
+
+    @authors("pavook")
+    def disabled_test_shuffle_with_modified_handle(self):  # TODO(pavook): enable when shuffle is supported via HTTP.
+        account = "intermediate"
+        modified_account = "pwnedmediate"
+        assert len(account) == len(modified_account)
+
+        parent_transaction = start_transaction(timeout=60000)
+        res = self._execute_command("POST", "start_shuffle", {
+            "account": account,
+            "partition_count": 1,
+            "parent_transaction_id": parent_transaction,
+        })
+
+        shuffle_handle = res.content
+        assert bytes(account, "utf-8") in shuffle_handle
+        modified_handle = shuffle_handle.replace(bytes(account, "utf-8"), bytes(modified_account, "utf-8"))
+        rows = [{"key": 0, "value": 1}]
+        yson_rows = yson.dumps(rows, yson_type="list_fragment")
+
+        self._execute_command("POST", "write_shuffle_data", {"signed_shuffle_handle": shuffle_handle}, data=yson_rows)
+        with raises_yt_error("Signature validation failed"):
+            self._execute_command("POST", "write_shuffle_data", {"signed_shuffle_handle": modified_handle}, data=yson_rows)
+
+        assert yson.loads(self._execute_command("GET", "read_shuffle_data").content, yson_type="list_fragment") == yson_rows
+        with raises_yt_error("Signature validation failed"):
+            self._execute_command("GET", "read_shuffle_data").content
 
 
 class TestHttpProxySignaturesKeyRotation(TestHttpProxySignaturesBase):
@@ -1757,3 +1940,175 @@ class TestHttpsProxy(HttpProxyTestBase):
 
         rsp = requests.get(self._get_https_proxy_url() + "/ping", verify=self._get_ca_cert())
         rsp.raise_for_status()
+
+
+@pytest.mark.enabled_multidaemon
+class TestHttpProxyDiscovery(YTEnvSetup):
+    ENABLE_HTTP_PROXY = True
+    ENABLE_RPC_PROXY = True
+
+    NUM_HTTP_PROXIES = 2
+    NUM_RPC_PROXIES = 1
+
+    ENABLE_MULTIDAEMON = True
+
+    def setup_method(self, method):
+        super(TestHttpProxyDiscovery, self).setup_method(method)
+        driver_config = deepcopy(self.Env.configs["driver"])
+        driver_config["api_version"] = 4
+        self.driver = Driver(driver_config)
+
+    @classmethod
+    def modify_proxy_config(cls, multidaemon_config, configs):
+        for config in configs:
+            addresses = [["default", "localhost"], ["fastbone", "fb-localhost"]]
+            config["addresses"] = addresses
+
+    @authors("nadya73")
+    def test_addresses(self):
+        proxy = ls("//sys/http_proxies")[0]
+
+        addresses = get("//sys/http_proxies/" + proxy + "/@addresses")
+        assert "http" in addresses
+        assert "default" in addresses["http"]
+        assert "fastbone" in addresses["http"]
+        assert proxy == addresses["http"]["default"]
+
+    @authors("nadya73")
+    def test_discovery(self):
+        configured_proxy_addresses = sorted(self.Env.get_http_proxy_addresses())
+        configured_proxy_addresses_fb = ["fb-" + address for address in configured_proxy_addresses]
+        configured_monitoring_addresses = sorted(self.Env.get_http_proxy_monitoring_addresses())
+
+        for test_name, request, expected_addresses in [
+            (
+                "defaults", {}, configured_proxy_addresses,
+            ),
+            (
+                "explicit_address_type",
+                {},
+                configured_proxy_addresses,
+            ),
+            (
+                "explicit_params",
+                {"network_name": "default"},
+                configured_proxy_addresses,
+            ),
+            (
+                "explicit_params",
+                {"network_name": "fastbone"},
+                configured_proxy_addresses_fb,
+            ),
+            (
+                "monitoring_addresses",
+                {"address_type": "monitoring_http", "network_name": "default"},
+                configured_monitoring_addresses,
+            ),
+        ]:
+            proxies = discover_proxies(type_="http", driver=self.driver, **request)
+            assert sorted(proxies) == expected_addresses, test_name
+
+    @authors("nadya73")
+    def test_invalid_address_type(self):
+        with pytest.raises(YtError):
+            discover_proxies(type_="http", driver=self.driver, address_type="invalid")
+
+    @authors("nadya73")
+    def test_invalid_network_name(self):
+        proxies = discover_proxies(type_="http", driver=self.driver, network_name="invalid")
+        assert len(proxies) == 0
+
+
+@pytest.mark.enabled_multidaemon
+class TestHttpProxyDiscoveryRoleFromStaticConfig(YTEnvSetup):
+    ENABLE_HTTP_PROXY = True
+    ENABLE_RPC_PROXY = True
+
+    NUM_HTTP_PROXIES = 2
+    NUM_RPC_PROXIES = 1
+
+    DELTA_PROXY_CONFIG = {
+        "role": "ab",
+    }
+
+    ENABLE_MULTIDAEMON = True
+
+    def setup_method(self, method):
+        super(TestHttpProxyDiscoveryRoleFromStaticConfig, self).setup_method(method)
+        driver_config = deepcopy(self.Env.configs["driver"])
+        driver_config["api_version"] = 4
+        self.driver = Driver(driver_config)
+
+    @authors("nadya73")
+    def test_role(self):
+        proxy = ls("//sys/http_proxies")[0]
+
+        role = get("//sys/http_proxies/" + proxy + "/@role")
+        assert role == "ab"
+
+    @authors("nadya73")
+    def test_discovery(self):
+        configured_proxy_addresses = sorted(self.Env.get_http_proxy_addresses())
+
+        proxies = discover_proxies(type_="http", driver=self.driver, **{})
+        assert sorted(proxies) == []
+
+        proxies = discover_proxies(type_="http", driver=self.driver, **{"role": "ab"})
+        assert sorted(proxies) == configured_proxy_addresses
+
+
+@pytest.mark.enabled_multidaemon
+class TestHttpProxyDiscoveryBalancers(YTEnvSetup):
+    ENABLE_HTTP_PROXY = True
+    ENABLE_RPC_PROXY = True
+
+    NUM_HTTP_PROXIES = 2
+    NUM_RPC_PROXIES = 1
+
+    ENABLE_MULTIDAEMON = True
+
+    def setup_method(self, method):
+        super(TestHttpProxyDiscoveryBalancers, self).setup_method(method)
+        driver_config = deepcopy(self.Env.configs["driver"])
+        driver_config["api_version"] = 4
+        driver_config["proxy_discovery_cache"] = {
+            "expire_after_access_time": 0,
+        }
+        self.driver = Driver(driver_config)
+
+    @authors("nadya73")
+    def test_discovery(self):
+        configured_proxy_addresses = sorted(self.Env.get_http_proxy_addresses())
+        configured_monitoring_addresses = sorted(self.Env.get_http_proxy_monitoring_addresses())
+
+        balancer_first = 'default-balancer.com:9013'
+        balancer_second = 'default-balancer-2.com:9013'
+        set(
+            "//sys/http_proxies/@balancers",
+            {
+                "data": {
+                    "http": {
+                        "default": [balancer_first, balancer_second]
+                    }
+                }
+            },
+        )
+
+        proxies = discover_proxies(type_="http", driver=self.driver, **{})
+        assert proxies == [balancer_first, balancer_second]
+
+        proxies = discover_proxies(type_="http", driver=self.driver, **{"ignore_balancers": True})
+        assert sorted(proxies) == configured_proxy_addresses
+
+        proxies = discover_proxies(type_="http", driver=self.driver, **{"address_type": "monitoring_http"})
+        assert sorted(proxies) == configured_monitoring_addresses
+
+    @authors("nadya73")
+    def test_invalid_address_type(self):
+        with pytest.raises(YtError):
+            discover_proxies(type_="http", driver=self.driver, address_type="invalid")
+
+    @authors("nadya73")
+    def test_invalid_network_name(self):
+        proxies = discover_proxies(type_="http", driver=self.driver, network_name="invalid")
+        assert len(proxies) == 0

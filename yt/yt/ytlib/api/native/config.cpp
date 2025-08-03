@@ -93,16 +93,46 @@ void TCypressProxyConnectionConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSequoiaRetriesConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+
+    registrar.Preprocessor([] (TSequoiaRetriesConfig* config) {
+        config->StartBackoff = TDuration::MilliSeconds(150); // Average duration of Sequoia tx.
+        config->MaxBackoff = TDuration::Seconds(10);
+        config->BackoffMultiplier = 2;
+        config->RetryCount = 15;
+    });
+}
+
+TReqExecuteBatchRetriesConfigPtr TSequoiaRetriesConfig::ToRetriesConfig() const
+{
+    auto adjustedConfig = New<TReqExecuteBatchRetriesConfig>();
+    static_cast<TReqExecuteBatchRetriesOptions&>(*adjustedConfig) = static_cast<const TReqExecuteBatchRetriesOptions&>(*this);
+    if (!Enable) {
+        adjustedConfig->RetryCount = 0;
+    }
+    return adjustedConfig;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TSequoiaConnectionConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("ground_cluster_name", &TThis::GroundClusterName)
         .Default();
+    registrar.Parameter("ground_cluster_connection_update_period", &TThis::GroundClusterConnectionUpdatePeriod)
+        .Default(TDuration::Seconds(5));
 
-    registrar.Parameter("sequoia_root_path", &TThis::SequoiaRootPath)
+        registrar.Parameter("sequoia_root_path", &TThis::SequoiaRootPath)
         .Default("//sys/sequoia");
 
     registrar.Parameter("sequoia_transaction_timeout", &TThis::SequoiaTransactionTimeout)
         .Default(TDuration::Minutes(1));
+
+    registrar.Parameter("retries", &TThis::Retries)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -314,8 +344,11 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         &TThis::DefaultChaosWatcherClientRequestTimeout)
         .Default(TDuration::Minutes(30));
     registrar.Parameter("default_chaos_replicated_table_get_tablet_count_timeout",
-        &TThis::DefaulChaosReplicatedTableGetTabletCountTimeout)
+        &TThis::DefaultChaosReplicatedTableGetTabletCountTimeout)
         .Default(TDuration::Seconds(15));
+    registrar.Parameter("default_shuffle_service_timeout",
+        &TThis::DefaultShuffleServiceTimeout)
+        .Default(TDuration::Seconds(60));
 
     registrar.Parameter("default_fetch_table_rows_timeout", &TThis::DefaultFetchTableRowsTimeout)
         .Default(TDuration::Seconds(15));
@@ -412,8 +445,7 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(60));
 
     registrar.Parameter("read_operations_archive_state_from", &TThis::ReadOperationsArchiveStateFrom)
-        .Alias("read_archive_state_from")
-        .Default(EMasterChannelKind::Follower);
+        .Default(EMasterChannelKind::ClientSideCache);
 
     registrar.Preprocessor([] (TThis* config) {
         config->FunctionImplCache->Capacity = 100;
@@ -439,17 +471,32 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("disable_new_range_inference", &TThis::DisableNewRangeInference)
         .Default(false);
 
+    registrar.Parameter("disable_adaptive_ordered_schemaful_reader", &TThis::DisableAdaptiveOrderedSchemafulReader)
+        .Default(true);
+
     registrar.Parameter("use_web_assembly", &TThis::UseWebAssembly)
         .Default(false);
 
-    registrar.Parameter("group_by_with_limit_is_unordered", &TThis::GroupByWithLimitIsUnordered)
+    registrar.Parameter("use_find_chaos_object", &TThis::UseFindChaosObject)
         .Default(false);
+
+    registrar.Parameter("group_by_with_limit_is_unordered", &TThis::GroupByWithLimitIsUnordered)
+        .Default(true);
 
     registrar.Parameter("flow_pipeline_controller_rpc_timeout", &TThis::FlowPipelineControllerRpcTimeout)
         .Default(TDuration::Seconds(10));
 
     registrar.Parameter("enable_distributed_replication_collocation_attachment", &TThis::EnableDistributedReplicationCollocationAttachment)
+        .Default(true);
+
+    registrar.Parameter("enable_read_from_async_replicas", &TThis::EnableReadFromInSyncAsyncReplicas)
         .Default(false);
+
+    registrar.Parameter("banned_in_sync_replica_clusters", &TThis::BannedInSyncReplicaClusters)
+        .Default();
+
+    registrar.Parameter("request_full_statistics_for_brief_statistics_in_list_jobs", &TThis::RequestFullStatisticsForBriefStatisticsInListJobs)
+        .Default(true);
 
     registrar.Postprocessor([] (TConnectionDynamicConfig* config) {
         if (!config->UploadTransactionPingPeriod.has_value()) {

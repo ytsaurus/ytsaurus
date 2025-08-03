@@ -158,6 +158,14 @@ TCodegenExpression MakeCodegenCompositeMemberAccessorExpr(
     std::optional<size_t> dictOrListItemAccessorId,
     EValueType resultType);
 
+TCodegenExpression MakeCodegenSubqueryExpr(
+    std::vector<size_t> fromExprIds,
+    std::vector<size_t> bindedExprIds,
+    std::optional<size_t> predicateId,
+    std::vector<size_t> projectExprIds,
+    TCodegenFragmentInfosPtr nestedFragmentsInfos,
+    int subqueryParametersIndex);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void CodegenEmptyOp(TCGOperatorContext& builder);

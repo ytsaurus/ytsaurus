@@ -1,19 +1,22 @@
 from yt_dashboards.common.runner import run
 
 from yt_dashboards.master import (
-    build_master_global, build_master_local, build_master_merge_jobs)
+    build_master_global, build_master_local, build_master_node_tracker, build_master_cpu, build_master_merge_jobs,
+    build_master_accounts)
 from yt_dashboards.artemis import (
     build_local_artemis, build_bundle_artemis, build_global_artemis, build_local_artemis_container)
 from yt_dashboards.scheduler_internal import build_scheduler_internal
 from yt_dashboards.scheduler_pool import build_scheduler_pool
+from yt_dashboards.scheduler_operation import build_scheduler_operation
 from yt_dashboards.cluster_resources import build_cluster_resources
 from yt_dashboards.cache import build_cache_with_ghosts
 from yt_dashboards.chyt import build_chyt_monitoring
 from yt_dashboards.key_filter import build_key_filter
 from yt_dashboards.exe_nodes import build_exe_nodes
 from yt_dashboards.data_nodes import build_data_nodes_common
+from yt_dashboards.user_load import build_user_load
 
-from yt_dashboards.bundle_ui_dashboard import (
+from yt_dashboards.bundle_ui import (
     build_bundle_ui_user_load, build_bundle_ui_lsm, build_bundle_ui_rpc_resource_overview,
     build_bundle_ui_cpu, build_bundle_ui_downtime, build_bundle_ui_memory, build_bundle_ui_network, build_bundle_rpc_proxy_dashboard,
     build_bundle_ui_disk, build_bundle_ui_resource_overview, build_bundle_ui_efficiency, build_bundle_capacity_planning,
@@ -61,6 +64,10 @@ dashboards = {
         "func": build_scheduler_pool,
         "monitoring": {},
         "grafana": {},
+    },
+    "scheduler-operation": {
+        "func": build_scheduler_operation,
+        "monitoring": {},
     },
     "cluster-resources": {
         "func": build_cluster_resources,
@@ -135,8 +142,20 @@ dashboards = {
         "monitoring": {},
         "grafana": {},
     },
+    "master-node-tracker": {
+        "func": build_master_node_tracker,
+        "monitoring": {},
+    },
+    "master-cpu": {
+        "func": build_master_cpu,
+        "monitoring": {},
+    },
     "master-merge-jobs": {
         "func": build_master_merge_jobs,
+        "monitoring": {},
+    },
+    "master-accounts": {
+        "func": build_master_accounts,
         "monitoring": {},
     },
     "chyt-monitoring-test": {
@@ -157,7 +176,31 @@ dashboards = {
         "monitoring": {},
     },
     "flow-general": {
-        "func": flow.build_pipeline,
+        "func": flow.build_flow_general,
+        "monitoring": {},
+    },
+    "flow-diagnostics": {
+        "func": flow.build_flow_diagnostics,
+        "monitoring": {},
+    },
+    "flow-event-time": {
+        "func": flow.build_flow_event_time,
+        "monitoring": {},
+    },
+    "flow-controller": {
+        "func": flow.build_flow_controller,
+        "monitoring": {},
+    },
+    "flow-worker": {
+        "func": flow.build_flow_worker,
+        "monitoring": {},
+    },
+    "flow-computation": {
+        "func": flow.build_flow_computation,
+        "monitoring": {},
+    },
+    "flow-message-transfering": {
+        "func": flow.build_flow_message_transfering,
         "monitoring": {},
     },
     "queue-metrics": {
@@ -177,6 +220,10 @@ dashboards = {
         "grafana": {
             "args": ["grafana"]
         },
+    },
+    "user-load": {
+        "func": build_user_load,
+        "monitoring": {},
     },
 }
 

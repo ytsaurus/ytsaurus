@@ -125,15 +125,22 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
     // COMPAT(achulkov2): Remove once yql_agent is added to superusers everywhere.
     const THashSet<TStringBuf> UserImpersonationWhitelist{"yql_agent"};
     if (auto authorizationHeader = request->GetHeaders()->Find(AuthorizationHeaderName)) {
-        static const TStringBuf Prefix = "OAuth ";
-        if (!authorizationHeader->StartsWith(Prefix)) {
+        static const TStringBuf OAuthPrefix = "OAuth ";
+        static const TStringBuf BearerPrefix = "Bearer ";
+        TString prefix;
+
+        if (authorizationHeader->starts_with(OAuthPrefix)) {
+            prefix = OAuthPrefix;
+        } else if (authorizationHeader->starts_with(BearerPrefix)) {
+            prefix = BearerPrefix;
+        } else {
             return TError(
                 NRpc::EErrorCode::InvalidCredentials,
                 "Malformed Authorization header");
         }
 
         TTokenCredentials credentials{
-            .Token = authorizationHeader->substr(Prefix.size()),
+            .Token = authorizationHeader->substr(prefix.size()),
             .UserIP = userIP
         };
 
@@ -191,9 +198,13 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
 
     constexpr TStringBuf CookieHeaderName = "Cookie";
     if (auto cookieHeader = request->GetHeaders()->Find(CookieHeaderName)) {
+        auto cookies = ParseCookies(*cookieHeader);
+        auto origin = request->GetHeaders()->Find("Origin");
         TCookieCredentials credentials{
-            .Cookies = ParseCookies(*cookieHeader),
+            // TODO(babenko): switch to std::string
+            .Cookies = {cookies.begin(), cookies.end()},
             .UserIP = userIP,
+            .Origin = origin ? std::optional<std::string>(*origin) : std::nullopt,
         };
         if (CookieAuthenticator_->CanAuthenticate(credentials)) {
             auto authResult = WaitFor(CookieAuthenticator_->Authenticate(credentials));
@@ -211,7 +222,7 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
                 }
 
                 auto error = CheckCsrfToken(
-                    Strip(*csrfTokenHeader),
+                    Strip(TString(*csrfTokenHeader)),
                     authResult.Value().Login,
                     Config_->GetCsrfSecret(),
                     Config_->GetCsrfTokenExpirationTime());
@@ -235,7 +246,8 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
         }
 
         TTicketCredentials credentials{
-            .Ticket = *userTicketHeader,
+            // TODO(babenko): switch to std::string
+            .Ticket = TString(*userTicketHeader),
         };
         auto authResult = WaitFor(ticketAuthenticator->Authenticate(credentials));
         if (!authResult.IsOK()) {
@@ -254,7 +266,8 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
         }
 
         TServiceTicketCredentials credentials{
-            .Ticket = *serviceTicketHeader,
+            // TODO(babenko): switch to std::string
+            .Ticket = TString(*serviceTicketHeader),
         };
         auto authResult = WaitFor(ticketAuthenticator->Authenticate(credentials));
         if (!authResult.IsOK()) {

@@ -13,7 +13,7 @@ DECLARE_REFCOUNTED_STRUCT(THeapSizeLimitConfig)
 DECLARE_REFCOUNTED_STRUCT(TDynamicTCMallocConfig)
 DECLARE_REFCOUNTED_STRUCT(TDynamicHeapSizeLimitConfig)
 
-YT_DECLARE_RECONFIGURABLE_SINGLETON(TTCMallocConfig, TTCMallocConfig);
+YT_DECLARE_RECONFIGURABLE_SINGLETON(TTCMallocConfig, TDynamicTCMallocConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

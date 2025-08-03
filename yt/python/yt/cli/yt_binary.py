@@ -808,6 +808,12 @@ def add_copy_move_preserve_arguments(parser):
     preserve_owner_parser.add_argument("--no-preserve-owner", dest="preserve_owner",
                                        default=None, action="store_false")
 
+    preserve_acl_parser = parser.add_mutually_exclusive_group(required=False)
+    preserve_acl_parser.add_argument("--preserve-acl", dest="preserve_acl",
+                                     default=None, action="store_true")
+    preserve_acl_parser.add_argument("--no-preserve-acl", dest="preserve_acl",
+                                     default=None, action="store_false")
+
     parser.add_argument("--preserve-creation-time", action="store_true",
                         help="preserve creation time of node")
     parser.add_argument("--preserve-modification-time", action="store_true",
@@ -825,12 +831,6 @@ def add_copy_parser(add_parser):
     add_ypath_argument(parser, "destination_path", help="destination address, path must not exist", hybrid=True)
 
     add_copy_move_preserve_arguments(parser)
-
-    preserve_acl_parser = parser.add_mutually_exclusive_group(required=False)
-    preserve_acl_parser.add_argument("--preserve-acl", dest="preserve_acl",
-                                     default=None, action="store_true")
-    preserve_acl_parser.add_argument("--no-preserve-acl", dest="preserve_acl",
-                                     default=None, action="store_false")
 
     parser.add_argument("-r", "--recursive", action="store_true")
     parser.add_argument("-i", "--ignore-existing", action="store_true")
@@ -1786,6 +1786,12 @@ def add_update_op_parameters_parser(add_parser):
     add_structured_argument(parser, "parameters")
 
 
+def add_patch_op_spec_parser(add_parser):
+    parser = add_parser("patch-op-spec", yt.patch_operation_spec)
+    operation_id_args(parser, dest="operation_id")
+    add_structured_argument(parser, "patches")
+
+
 @copy_docstring_from(yt.get_operation)
 def get_operation(**kwargs):
     result = yt.get_operation(**kwargs)
@@ -2086,9 +2092,18 @@ def list_user_tokens(**kwargs):
     print_to_output(result)
 
 
-def add_list_user_tokens(add_parser):
+def add_list_user_tokens_parser(add_parser):
     parser = add_parser("list-user-tokens", list_user_tokens)
     parser.add_argument("user", help="user to revoke token")
+
+
+@copy_docstring_from(cli_impl._whoami)
+def whoami(**kwargs):
+    print_to_output(cli_impl._whoami(**kwargs))
+
+
+def add_whoami_parser(add_parser):
+    add_parser("whoami", whoami)
 
 
 @copy_docstring_from(yt.get_supported_features)
@@ -2148,6 +2163,7 @@ def add_list_jobs_parser(add_parser):
     parser.add_argument("--with-fail-context", default=None, action="store_true")
     parser.add_argument("--with-competitors", default=None, action="store_true", help="with competitive jobs")
     parser.add_argument("--with-monitoring-descriptor", default=None, action="store_true")
+    parser.add_argument("--with-interruption-info", default=None, action="store_true")
     parser.add_argument(
         "--include-cypress", action="store_true",
         help='include jobs from Cypress in result. Have effect only if --data-source is set to "manual"')
@@ -2161,6 +2177,7 @@ def add_list_jobs_parser(add_parser):
         "--data-source",
         choices=("auto", "runtime", "archive", "manual"),
         help='data sources to list jobs from')
+    parser.add_argument("--attribute", action="append", dest="attributes", help="desired attributes in the response")
     add_structured_format_argument(parser)
 
 
@@ -2577,6 +2594,7 @@ def add_flow_parser(root_subparsers):
     add_flow_get_pipeline_state_parser(add_flow_subparser)
     add_flow_get_flow_view_parser(add_flow_subparser)
     add_flow_show_logs_parser(add_flow_subparser)
+    add_flow_execute_parser(add_flow_subparser)
 
 
 def wait_pipeline_change(operation, state):
@@ -2734,6 +2752,26 @@ def add_flow_show_logs_parser(add_parser):
                         help="Logs reading period in seconds")
     parser.add_argument("--print-host", action="store_true", default=False,
                         help="Print controller's hostname")
+
+
+@copy_docstring_from(yt.flow_execute)
+def show_flow_execute_result(**kwargs):
+    result = yt.flow_execute(**kwargs)
+    if kwargs["output_format"] is None:
+        result = dump_data(result)
+    print_to_output(result)
+
+
+def add_flow_execute_parser(add_parser):
+    parser = add_parser("execute", show_flow_execute_result,
+                        help="Execute YT Flow specific command")
+    add_ypath_argument(parser, "pipeline_path", hybrid=True)
+    add_hybrid_argument(parser, "flow_command", group_required=True,
+                        help="name of the command to execute")
+    add_hybrid_argument(parser, "flow_argument", group_required=False,
+                        help="argument of the command (optional)")
+    add_structured_format_argument(parser, "--input-format")
+    add_structured_format_argument(parser, "--output-format")
 
 
 @copy_docstring_from(yt.run_command_with_lock)
@@ -2943,6 +2981,7 @@ def _prepare_parser():
     add_track_op_parser(add_parser)
     add_complete_op_parser(add_parser)
     add_update_op_parameters_parser(add_parser)
+    add_patch_op_spec_parser(add_parser)
     add_get_operation_parser(add_parser)
     add_list_operations_parser(add_parser)
 
@@ -2975,7 +3014,8 @@ def _prepare_parser():
     add_set_user_password_parser(add_parser)
     add_issue_token_parser(add_parser)
     add_revoke_token_parser(add_parser)
-    add_list_user_tokens(add_parser)
+    add_list_user_tokens_parser(add_parser)
+    add_whoami_parser(add_parser)
 
     add_execute_parser(add_parser)
 

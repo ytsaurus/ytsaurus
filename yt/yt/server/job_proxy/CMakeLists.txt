@@ -22,6 +22,9 @@ add_library(yt-server-job_proxy)
 target_compile_options(yt-server-job_proxy PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(yt-server-job_proxy PUBLIC
@@ -37,14 +40,15 @@ target_link_libraries(yt-server-job_proxy PUBLIC
   library-containers-cri
   server-lib-exec_node
   server-lib-rpc_proxy
-  yt-server-tools
   server-lib-shell
   server-lib-user_job
+  yt-server-tools
   yt-library-sparse_coredump
   library-query-row_comparer
   library-profiling-solomon
   library-tracing-jaeger
   yt-library-server_program
+  yt-library-signals
 )
 
 target_sources(yt-server-job_proxy PRIVATE
@@ -61,6 +65,7 @@ target_sources(yt-server-job_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/merge_job.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/partition_job.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/partition_sort_job.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/private.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/remote_copy_job.cpp

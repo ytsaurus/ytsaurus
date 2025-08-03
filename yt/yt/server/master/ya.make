@@ -14,10 +14,12 @@ SRCS(
     cell_master/disk_space_sensor_producer.cpp
     cell_master/epoch_history_manager.cpp
     cell_master/hydra_facade.cpp
+    cell_master/hive_profiling_manager.cpp
     cell_master/master_hydra_service.cpp
     cell_master/multi_phase_cell_sync_session.cpp
     cell_master/multicell_manager.cpp
     cell_master/multicell_node_statistics.cpp
+    cell_master/multicell_statistics_collector_detail.cpp
     cell_master/multicell_statistics_collector.cpp
     cell_master/program.cpp
     cell_master/proto/alert_manager.proto
@@ -136,6 +138,7 @@ SRCS(
     chunk_server/medium_base.cpp
     chunk_server/medium_proxy_base.cpp
     chunk_server/medium_type_handler_base.cpp
+    chunk_server/private.cpp
     chunk_server/proto/chunk_autotomizer.proto
     chunk_server/proto/chunk_manager.proto
     chunk_server/proto/chunk_merger.proto
@@ -155,6 +158,7 @@ SRCS(
     cypress_server/access_control_object_type_handler.cpp
     cypress_server/access_control_object.cpp
     cypress_server/access_tracker.cpp
+    cypress_server/composite_node.cpp
     cypress_server/config.cpp
     cypress_server/cypress_integration.cpp
     cypress_server/cypress_manager.cpp
@@ -341,6 +345,7 @@ SRCS(
     sequoia_server/proto/ground_update_queue_manager.proto
 
     table_server/config.cpp
+    table_server/compact_table_schema.cpp
     table_server/cypress_integration.cpp
     table_server/helpers.cpp
     table_server/master_table_schema_proxy.cpp
@@ -364,6 +369,7 @@ SRCS(
     table_server/table_node_type_handler_detail.cpp
     table_server/table_node_type_handler.cpp
     table_server/table_node.cpp
+    table_server/table_schema_cache.cpp
 
     tablet_server/backup_manager.cpp
     tablet_server/balancing_helpers.cpp
@@ -452,6 +458,7 @@ PEERDIR(
     yt/yt/server/lib/hydra
     yt/yt/server/lib/incumbent_client
     yt/yt/server/lib/node_tracker_server
+    yt/yt/server/lib/object_server
     yt/yt/server/lib/security_server
     yt/yt/server/lib/table_server
     yt/yt/server/lib/tablet_balancer

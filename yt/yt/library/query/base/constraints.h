@@ -109,6 +109,8 @@ struct TConstraintsHolder
 
     TConstraintRef Unite(TConstraintRef lhs, TConstraintRef rhs);
 
+    TConstraintRef Invert(TConstraintRef constraints);
+
     TConstraintRef ExtractFromExpression(
         const TConstExpressionPtr& expr,
         const TKeyColumns& keyColumns,

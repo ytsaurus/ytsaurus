@@ -105,11 +105,11 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
     TSessionId sessionId,
     int desiredTargetCount,
     int minTargetCount,
-    std::optional<int> replicationFactorOverride,
-    const std::optional<std::string>& preferredHostName,
-    const std::vector<std::string>& forbiddenAddresses,
-    const std::vector<std::string>& allocatedAddresses,
-    const NLogging::TLogger& logger);
+    std::optional<int> replicationFactorOverride = std::nullopt,
+    const std::optional<std::string>& preferredHostName = std::nullopt,
+    const std::vector<std::string>& forbiddenAddresses = {},
+    const std::vector<std::string>& allocatedAddresses = {},
+    const NLogging::TLogger& logger = {});
 
 //! Returns the cumulative error for the whole batch.
 /*!
@@ -184,7 +184,7 @@ struct TUserObject
     // TODO(ignat): migrate to optional.
     i64 ChunkCount = UndefinedChunkCount;
 
-    std::optional<TString> Account;
+    std::optional<std::string> Account;
 
     virtual ~TUserObject() = default;
 
@@ -307,13 +307,17 @@ struct TAllyReplicasInfo
 
     Y_FORCE_INLINE explicit operator bool() const;
 
-    // TODO(babenko): drop?
-    static TAllyReplicasInfo FromChunkReplicas(
-        const TChunkReplicaList& chunkReplicas,
-        NHydra::TRevision revision = NHydra::NullRevision);
     static TAllyReplicasInfo FromChunkReplicas(
         const TChunkReplicaWithMediumList& chunkReplicas,
         NHydra::TRevision revision = NHydra::NullRevision);
+    static TAllyReplicasInfo FromChunkReplicas(
+        const TChunkReplicaList& chunkReplicas,
+        NHydra::TRevision revision = NHydra::NullRevision);
+
+    static TAllyReplicasInfo FromWrittenChunkReplicasInfo(TWrittenChunkReplicasInfo replicasInfo);
+    //! Populates replicas from writer's written chunk replicas info.
+    //! Writer must implement GetWrittenChunkReplicasInfo and be successfully closed.
+    static TAllyReplicasInfo FromChunkWriter(const IChunkWriterPtr& chunkWriter);
 };
 
 void ToProto(
@@ -335,6 +339,11 @@ bool IsLargeEnoughChunkSize(i64 chunkSize, i64 chunkSizeThreshold);
 
 //! Is chunk weight large enough to be teleported (is it large enough to be split).
 bool IsLargeEnoughChunkWeight(i64 chunkWeight, i64 chunkWeightThreshold);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Format blocks as [start:end] or [block] depending on interval size.
+TString FormatBlocks(int startBlockIndex, int endBlockIndex);
 
 ////////////////////////////////////////////////////////////////////////////////
 

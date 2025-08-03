@@ -590,7 +590,7 @@ private:
         auto fileName = GetLockFileName(Config_->Path);
         LockFileHandle_.emplace(fileName, RdWr | CreateAlways);
         if (LockFileHandle_->Flock(LOCK_EX | LOCK_NB) != 0) {
-            YT_LOG_FATAL("Cannot lock local changelog store");
+            YT_LOG_FATAL(TError::FromSystem(), "Cannot lock local changelog store");
         }
     }
 

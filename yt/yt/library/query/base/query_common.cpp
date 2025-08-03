@@ -5,6 +5,7 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
+#include <yt/yt/client/table_client/helpers.h>
 
 namespace NYT::NQueryClient {
 
@@ -150,10 +151,15 @@ bool IsStringBinaryOp(EBinaryOp opcode)
     }
 }
 
-TValue CastValueWithCheck(TValue value, EValueType targetType)
+TOwningValue CastValueWithCheck(TValue value, EValueType targetType)
 {
     if (value.Type == targetType || value.Type == EValueType::Null) {
         return value;
+    }
+
+    if (targetType == EValueType::Any) {
+        TChunkedMemoryPool pool;
+        return EncodeUnversionedAnyValue(value, &pool);
     }
 
     if (value.Type == EValueType::Int64) {
@@ -235,9 +241,7 @@ TString ToString(const TFeatureFlags& featureFlags)
 void ToProto(
     NProto::TDataSource* serialized,
     const TDataSource& original,
-    TRange<TLogicalTypePtr> schema,
-    bool lookupSupported,
-    size_t keyWidth)
+    TRange<TLogicalTypePtr> schema)
 {
     ToProto(serialized->mutable_object_id(), original.ObjectId);
     ToProto(serialized->mutable_cell_id(), original.CellId);
@@ -262,10 +266,6 @@ void ToProto(
         keysWriter->WriteSchemafulRowset(original.Keys);
         ToProto(serialized->mutable_keys(), MergeRefsToString(keysWriter->Finish()));
     }
-
-    // COMPAT(lukyan)
-    serialized->set_lookup_supported(lookupSupported);
-    serialized->set_key_width(keyWidth);
 }
 
 void FromProto(
@@ -327,6 +327,7 @@ void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
     serialized->set_retention_timestamp(original.TimestampRange.RetentionTimestamp);
     serialized->set_verbose_logging(original.VerboseLogging);
     serialized->set_new_range_inference(original.NewRangeInference);
+    serialized->set_adaptive_ordered_schemaful_reader(original.AdaptiveOrderedSchemafulReader);
     serialized->set_use_canonical_null_relations(original.UseCanonicalNullRelations);
     serialized->set_execution_backend(ToProto(original.ExecutionBackend));
     serialized->set_max_subqueries(original.MaxSubqueries);
@@ -386,6 +387,9 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
     if (serialized.has_new_range_inference()) {
         original->NewRangeInference = serialized.new_range_inference();
     }
+    if (serialized.has_adaptive_ordered_schemaful_reader()) {
+        original->AdaptiveOrderedSchemafulReader = serialized.adaptive_ordered_schemaful_reader();
+    }
     if (serialized.has_use_canonical_null_relations()) {
         original->UseCanonicalNullRelations = serialized.use_canonical_null_relations();
     }
@@ -404,6 +408,15 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
     if (serialized.has_allow_unordered_group_by_with_limit()) {
         original->AllowUnorderedGroupByWithLimit = serialized.allow_unordered_group_by_with_limit();
     }
+}
+
+TQueryOptions GetJoinSubqueryOptions(const TQueryOptions& queryOptions)
+{
+    auto result = queryOptions;
+    result.MaxSubqueries = 1;
+    result.MergeVersionedRows = true;
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

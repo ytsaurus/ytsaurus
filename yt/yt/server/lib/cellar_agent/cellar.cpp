@@ -29,7 +29,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = CellarAgentLogger;
+constinit const auto Logger = CellarAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,11 +67,10 @@ public:
 
         SetCellarSize(config->Size.value_or(Config_->Size));
 
-        HydraDynamicConfig_ = config->HydraManager;
-
+        OccupantDynamicConfig_ = config;
         for (auto& occupant : Occupants_) {
             if (occupant) {
-                occupant->Reconfigure(HydraDynamicConfig_);
+                occupant->Reconfigure(OccupantDynamicConfig_);
             }
         }
     }
@@ -148,8 +147,8 @@ public:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         occupant->Configure(configureInfo);
-        if (HydraDynamicConfig_) {
-            occupant->Reconfigure(HydraDynamicConfig_);
+        if (OccupantDynamicConfig_) {
+            occupant->Reconfigure(OccupantDynamicConfig_);
         }
     }
 
@@ -289,7 +288,7 @@ private:
 
     const IYPathServicePtr OrchidService_;
 
-    NHydra::TDynamicDistributedHydraManagerConfigPtr HydraDynamicConfig_;
+    TCellarDynamicConfigPtr OccupantDynamicConfig_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 

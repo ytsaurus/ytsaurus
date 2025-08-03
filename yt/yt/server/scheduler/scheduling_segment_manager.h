@@ -10,6 +10,8 @@
 #include <yt/yt/library/profiling/producer.h>
 #include <yt/yt/library/vector_hdrf/resource_vector.h>
 
+#include <yt/yt/core/logging/fluent_log.h>
+
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,6 +42,7 @@ using TNodeWithMovePenaltyList = std::vector<TNodeWithMovePenalty>;
 struct TSetNodeSchedulingSegmentOptions
 {
     NNodeTrackerClient::TNodeId NodeId = NNodeTrackerClient::InvalidNodeId;
+    std::string NodeAddress;
     ESchedulingSegment OldSegment = ESchedulingSegment::Default;
     ESchedulingSegment NewSegment = ESchedulingSegment::Default;
 };
@@ -67,6 +70,7 @@ struct TUpdateSchedulingSegmentsContext
     TSetNodeSchedulingSegmentOptionsList MovedNodes;
     TError Error;
     TPersistentSchedulingSegmentsStatePtr PersistentState;
+    NYson::TYsonString SerializedSchedulingSegmentsInfo;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -96,7 +100,7 @@ public:
 
     void UpdateSchedulingSegments(TUpdateSchedulingSegmentsContext* context);
 
-    void InitOrUpdateOperationSchedulingSegment(
+    TError InitOrUpdateOperationSchedulingSegment(
         TOperationId operationId,
         const TFairShareTreeAllocationSchedulerOperationStatePtr& operationState) const;
 
@@ -108,7 +112,7 @@ private:
 
     TFairShareStrategySchedulingSegmentsConfigPtr Config_;
 
-    std::optional<TInstant> UnsatisfiedSince_;
+    std::optional<TInstant> ImbalancedSince_;
     ESegmentedSchedulingMode PreviousMode_ = ESegmentedSchedulingMode::Disabled;
 
     NProfiling::TBufferedProducerPtr SensorProducer_;
@@ -154,7 +158,10 @@ private:
     void ApplySpecifiedSegments(TUpdateSchedulingSegmentsContext* context) const;
     void CheckAndRebalanceSegments(TUpdateSchedulingSegmentsContext* context);
 
-    std::pair<TSchedulingSegmentMap<bool>, bool> FindUnsatisfiedSegments(const TUpdateSchedulingSegmentsContext* context) const;
+    bool CheckSegmentBalance(
+        const TUpdateSchedulingSegmentsContext* context,
+        TSchedulingSegmentMap<bool> *segmentUnsatisfied,
+        TSchedulingSegmentMap<bool> *segmentOversatisfied) const;
     void DoRebalanceSegments(TUpdateSchedulingSegmentsContext* context) const;
     void GetMovableNodes(
         TUpdateSchedulingSegmentsContext* context,
@@ -165,7 +172,9 @@ private:
     void SetNodeSegment(TFairShareTreeAllocationSchedulerNodeState* node, ESchedulingSegment segment, TUpdateSchedulingSegmentsContext* context) const;
 
     void LogAndProfileSegments(const TUpdateSchedulingSegmentsContext* context) const;
-    void LogSegmentsStructured(const TUpdateSchedulingSegmentsContext* context) const;
+    NLogging::TOneShotFluentLogEvent LogStructuredGpuEventFluently(EGpuSchedulingLogEventType eventType) const;
+
+    NYson::TYsonString GetSerializedSchedulingSegmentsInfo(const TUpdateSchedulingSegmentsContext* context) const;
     void BuildGpuOperationInfo(
         TOperationId operationId,
         const TFairShareTreeAllocationSchedulerOperationStatePtr& operationState,

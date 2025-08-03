@@ -20,6 +20,9 @@ add_executable(unittester-library-process)
 target_compile_options(unittester-library-process PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(unittester-library-process PUBLIC
@@ -32,7 +35,9 @@ target_link_libraries(unittester-library-process PUBLIC
   yt-yt-build
   yt-yt-core
   yt-core-test_framework
+  yt-library-backtrace_introspector
   yt-library-process
+  yt-library-signals
 )
 
 target_allocator(unittester-library-process

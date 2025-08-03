@@ -253,8 +253,9 @@ TUnversionedOwningRow YsonToSchemafulRow(
     for (const auto& [name, value] : rowParts) {
         int id = nameTable->GetIdOrRegisterName(name);
         if (id >= std::ssize(tableSchema.Columns())) {
-            if (validateValues && tableSchema.GetStrict()) {
-                THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::SchemaViolation,
+            if (validateValues && tableSchema.IsStrict()) {
+                THROW_ERROR_EXCEPTION(
+                    EErrorCode::SchemaViolation,
                     "Unknown column %Qv in strict schema",
                     name);
             }
@@ -1151,7 +1152,7 @@ void UnversionedValueToListImpl(
 
 void MapToUnversionedValueImpl(
     TUnversionedValue* unversionedValue,
-    const std::function<bool(TString*, TUnversionedValue*)> producer,
+    const std::function<bool(std::string*, TUnversionedValue*)> producer,
     const TRowBufferPtr& rowBuffer,
     int id,
     EValueFlags flags)
@@ -1161,7 +1162,7 @@ void MapToUnversionedValueImpl(
     NYT::NYson::TYsonWriter writer(&outputStream);
     writer.OnBeginMap();
 
-    TString itemKey;
+    std::string itemKey;
     TUnversionedValue itemValue;
     while (true) {
         if (!producer(&itemKey, &itemValue)) {
@@ -1291,10 +1292,10 @@ void UnversionedValueToMapImpl(
         }
 
     private:
-        const std::function<google::protobuf::Message*(TString)> Appender_;
+        const std::function<google::protobuf::Message*(std::string)> Appender_;
         const TProtobufMessageType* const Type_;
 
-        std::optional<TString> Key_;
+        std::optional<std::string> Key_;
         std::unique_ptr<IYsonConsumer> Underlying_;
         int Depth_ = 0;
 
@@ -1314,7 +1315,7 @@ void UnversionedValueToMapImpl(
         {
             FlushElement();
             WireBytes_.clear();
-            Key_ = TString(key);
+            Key_ = std::string(key);
             Underlying_ = CreateProtobufWriter(&OutputStream_, Type_);
         }
 
@@ -1425,8 +1426,10 @@ TUnversionedValue EncodeUnversionedAnyValue(
 {
     YT_ASSERT(None(value.Flags));
     switch (value.Type) {
-        case EValueType::Any:
         case EValueType::Composite:
+            value.Type = EValueType::Any;
+            [[fallthrough]];
+        case EValueType::Any:
             return value;
 
         case EValueType::Null: {
@@ -1662,6 +1665,49 @@ TUnversionedValueRangeTruncationResult TruncateUnversionedValues(
     auto sampleSize = options.UseOriginalDataWeightInSamples ? inputSize : resultSize;
 
     return {MakeSharedRange(std::move(truncatedValues), rowBuffer), sampleSize, clipped};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool GetBit(TRef bitmap, i64 index)
+{
+    return (bitmap[index >> 3] & (1U << (index & 7))) != 0;
+}
+
+void SetBit(TMutableRef bitmap, i64 index, bool value)
+{
+    auto& byte = bitmap[index >> 3];
+    auto mask = (1U << (index & 7));
+    if (value) {
+        byte |= mask;
+    } else {
+        byte &= ~mask;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString EscapeCAndSingleQuotes(TStringBuf str)
+{
+    auto escaped = TString();
+    escaped.reserve(str.size() * 2);
+
+    EscapeC(str, escaped);
+
+    auto size = escaped.size();
+    auto newSize = size + std::count(escaped.cbegin(), escaped.cend(), '\'');
+
+    escaped.resize(newSize);
+
+    auto rit = escaped.rbegin();
+    std::for_each(rit + (newSize - size), escaped.rend(), [&] (char character) {
+        *rit++ = character;
+        if (character == '\'') {
+            *rit++ = '\\';
+        }
+    });
+
+    return escaped;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

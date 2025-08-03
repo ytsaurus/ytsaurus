@@ -22,6 +22,7 @@ IF (NOT OPENSOURCE)
         cypress_path
         lazy_sort
         llvm_profile
+        mock_client
         path_template
         table_schema
     )

@@ -21,6 +21,7 @@
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
 #include <util/system/byteorder.h>
+#include <util/system/hp_timer.h>
 
 namespace NYT::NNbd {
 
@@ -42,11 +43,9 @@ class TNbdServer
 public:
     TNbdServer(
         TNbdServerConfigPtr config,
-        NApi::NNative::IConnectionPtr connection,
         IPollerPtr poller,
         IInvokerPtr invoker)
         : Config_(std::move(config))
-        , Connection_(std::move(connection))
         , Poller_(std::move(poller))
         , Invoker_(std::move(invoker))
     {
@@ -65,8 +64,6 @@ public:
     void Start()
     {
         YT_LOG_INFO("Starting NBD server");
-
-        InitializeReaderHosts();
 
         try {
             int maxBacklogSize = 0;
@@ -151,29 +148,25 @@ public:
         return NameToDevice_.contains(name);
     }
 
+    IBlockDevicePtr GetDevice(const TString& name) const override
+    {
+        auto guard = ReaderGuard(NameToDeviceLock_);
+        auto it = NameToDevice_.find(name);
+        if (it == NameToDevice_.end()) {
+            return nullptr;
+        }
+
+        return it->second;
+    }
+
     const NLogging::TLogger& GetLogger() const override
     {
         return Logger;
     }
 
-    NApi::NNative::IConnectionPtr GetConnection() const override
-    {
-        return Connection_;
-    }
-
     IInvokerPtr GetInvoker() const override
     {
         return Invoker_;
-    }
-
-    TChunkReaderHostPtr GetLayerReaderHost() const override
-    {
-        return LayerReaderHost_;
-    }
-
-    TChunkReaderHostPtr GetFileReaderHost() const override
-    {
-        return FileReaderHost_;
     }
 
     const TNbdServerConfigPtr& GetConfig() const
@@ -188,7 +181,6 @@ private:
         .WithTag("ServerId: %v", TGuid::Create());
 
     const TNbdServerConfigPtr Config_;
-    const NApi::NNative::IConnectionPtr Connection_;
     const IPollerPtr Poller_;
     const IInvokerPtr Invoker_;
 
@@ -196,9 +188,6 @@ private:
 
     mutable YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, NameToDeviceLock_);
     THashMap<TString, IBlockDevicePtr> NameToDevice_;
-
-    TChunkReaderHostPtr LayerReaderHost_;
-    TChunkReaderHostPtr FileReaderHost_;
 
     std::vector<std::pair<TString, IBlockDevicePtr>> ListDevices()
     {
@@ -234,15 +223,7 @@ private:
             , Connection_(std::move(connection))
             , Logger(Server_->GetLogger().WithTag("ConnectionId: %v", TGuid::Create()))
             , ResponseInvoker_(CreateBoundedConcurrencyInvoker(Server_->GetInvoker(), /*maxConcurrentInvocations*/ 1))
-        {
-            Connection_->SubscribePeerDisconnect(BIND([this, weakThis = MakeWeak(this)]() {
-                if (auto this_ = weakThis.Lock()) {
-                    Abort_ = true;
-                    YT_LOG_DEBUG("Peer disconnected (RemoteAddress: %v)", Connection_->GetRemoteAddress());
-                }
-                TNbdProfilerCounters::Get()->GetCounter({}, "/server/connection/peer_disconnect").Increment(1);
-            }));
-        }
+        { }
 
         void Run()
         {
@@ -502,8 +483,17 @@ private:
             auto offset = InetToHost(message.Offset);
             auto length = InetToHost(message.Length);
 
-            if (Server_->GetConfig()->TestAbortConnectionOnRead) {
-                YT_LOG_DEBUG("Aborting connection for testing purposes on NBD_CMD_READ request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
+            if (Server_->GetConfig()->TestOptions->SetBlockDeviceErrorOnRead) {
+                YT_LOG_DEBUG("Set test error on NBD_CMD_READ request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
+                    cookie,
+                    offset,
+                    length,
+                    flags);
+                Device_->SetError(TError("Test error on NBD_CMD_READ"));
+            }
+
+            if (Server_->GetConfig()->TestOptions->AbortConnectionOnRead) {
+                YT_LOG_DEBUG("Do test connection abortion on NBD_CMD_READ request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
                     cookie,
                     offset,
                     length,
@@ -514,12 +504,23 @@ private:
             }
 
             if (offset + length > static_cast<ui64>(Device_->GetTotalSize())) {
-                YT_LOG_WARNING("Received an out-of-range NBD_CMD_READ request (Offset: %v, Length: %v, Size: %v)",
+                YT_LOG_WARNING("Received an out-of-range NBD_CMD_READ request (Cookie: %x, Offset: %v, Length: %v, Size: %v)",
+                    cookie,
                     offset,
                     length,
                     Device_->GetTotalSize());
                 WriteServerResponse(EServerError::NBD_EINVAL, cookie);
                 return;
+            }
+
+            if (Server_->GetConfig()->TestOptions->BlockDeviceSleepBeforeRead) {
+                YT_LOG_DEBUG("Do test sleep before NBD_CMD_READ request (Cookie: %x, Offset: %v, Length: %v, Duration: %v)",
+                    cookie,
+                    offset,
+                    length,
+                    Server_->GetConfig()->TestOptions->BlockDeviceSleepBeforeRead);
+
+                TDelayedExecutor::WaitForDuration(*Server_->GetConfig()->TestOptions->BlockDeviceSleepBeforeRead);
             }
 
             YT_LOG_DEBUG("Started serving NBD_CMD_READ request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
@@ -528,20 +529,36 @@ private:
                 length,
                 flags);
 
-            Device_->Read(offset, length)
+            NHPTimer::STime startTime;
+            NHPTimer::GetTime(&startTime);
+
+            Device_->Read(offset, length, {.Cookie = cookie})
                 .Subscribe(
-                    BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TSharedRef>& result) {
+                    BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TReadResponse>& result) {
+                        NHPTimer::STime nowTime = startTime;
+                        double durationSeconds = NHPTimer::GetTimePassed(&nowTime);
+
                         if (!result.IsOK()) {
-                            YT_LOG_WARNING(result, "NBD_CMD_READ request failed (Cookie: %x)",
-                                cookie);
+                            YT_LOG_WARNING(result, "NBD_CMD_READ request failed (Cookie: %x, Duration: %v)",
+                                cookie,
+                                durationSeconds);
+
+                            Device_->SetError(result);
+
                             WriteServerResponse(EServerError::NBD_EIO, cookie);
                             return;
                         }
+                        const auto& response = result.Value();
+                        if (response.ShouldStopUsingDevice) {
+                            Device_->OnShouldStopUsingDevice();
+                        }
 
-                        YT_LOG_DEBUG("Finished serving NBD_CMD_READ request (Cookie: %x)",
-                            cookie);
+                        YT_LOG_DEBUG("Finished serving NBD_CMD_READ request (Cookie: %x, ShouldStopUsingDevice: %v, Duration: %v)",
+                            cookie,
+                            response.ShouldStopUsingDevice,
+                            durationSeconds);
 
-                        const auto& payload = result.Value();
+                        const auto& payload = response.Data;
                         YT_VERIFY(payload.size() == length);
                         WriteServerResponse(EServerError::NBD_OK, cookie, payload);
                     }));
@@ -555,8 +572,29 @@ private:
             auto length = InetToHost(message.Length);
             auto payload = ReadBuffer(length);
 
+            if (Server_->GetConfig()->TestOptions->SetBlockDeviceErrorOnWrite) {
+                YT_LOG_DEBUG("Set test error on NBD_CMD_WRITE request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
+                    cookie,
+                    offset,
+                    length,
+                    flags);
+                Device_->SetError(TError("Test error on NBD_CMD_WRITE"));
+            }
+
+            if (Server_->GetConfig()->TestOptions->AbortConnectionOnRead) {
+                YT_LOG_DEBUG("Do test connection abortion on NBD_CMD_WRITE request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
+                    cookie,
+                    offset,
+                    length,
+                    flags);
+
+                Abort_ = true;
+                return;
+            }
+
             if (offset + length > static_cast<ui64>(Device_->GetTotalSize())) {
-                YT_LOG_WARNING("Received an out-of-range NBD_CMD_WRITE request (Offset: %v, Length: %v, Size: %v)",
+                YT_LOG_WARNING("Received an out-of-range NBD_CMD_WRITE request (Cookie: %x, Offset: %v, Length: %v, Size: %v)",
+                    cookie,
                     offset,
                     length,
                     Device_->GetTotalSize());
@@ -565,9 +603,19 @@ private:
             }
 
             if (Device_->IsReadOnly()) {
-                YT_LOG_WARNING("Received NBD_CMD_WRITE request for a read-only device");
+                YT_LOG_WARNING("Received NBD_CMD_WRITE request for a read-only device (Cookie: %x)", cookie);
                 WriteServerResponse(EServerError::NBD_EPERM, cookie);
                 return;
+            }
+
+            if (Server_->GetConfig()->TestOptions->BlockDeviceSleepBeforeWrite) {
+                YT_LOG_DEBUG("Do test sleep before NBD_CMD_WRITE request (Cookie: %x, Offset: %v, Length: %v, Duration: %v)",
+                    cookie,
+                    offset,
+                    length,
+                    Server_->GetConfig()->TestOptions->BlockDeviceSleepBeforeWrite);
+
+                TDelayedExecutor::WaitForDuration(*Server_->GetConfig()->TestOptions->BlockDeviceSleepBeforeWrite);
             }
 
             YT_LOG_DEBUG("Started serving NBD_CMD_WRITE request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
@@ -577,22 +625,40 @@ private:
                 flags);
 
             TWriteOptions options;
+            options.Cookie = cookie;
             if (Any(flags & ECommandFlags::NBD_CMD_FLAG_FUA)) {
                 options.Flush = true;
             }
 
+            NHPTimer::STime startTime;
+            NHPTimer::GetTime(&startTime);
+
             Device_->Write(offset, payload, options)
                 .Subscribe(
-                    BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
-                        if (!error.IsOK()) {
-                            YT_LOG_WARNING(error, "NBD_CMD_WRITE request failed (Cookie: %x)",
-                                cookie);
+                    BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TWriteResponse>& result) {
+                        NHPTimer::STime nowTime = startTime;
+                        double durationSeconds = NHPTimer::GetTimePassed(&nowTime);
+
+                        if (!result.IsOK()) {
+                            YT_LOG_WARNING(result, "NBD_CMD_WRITE request failed (Cookie: %x, Duration: %v)",
+                                cookie,
+                                durationSeconds);
+
+                            Device_->SetError(result);
+
                             WriteServerResponse(EServerError::NBD_EIO, cookie);
                             return;
                         }
 
-                        YT_LOG_DEBUG("Finished serving NBD_CMD_READ request (Cookie: %x)",
-                            cookie);
+                        const auto& response = result.Value();
+                        if (response.ShouldStopUsingDevice) {
+                            Device_->OnShouldStopUsingDevice();
+                        }
+
+                        YT_LOG_DEBUG("Finished serving NBD_CMD_WRITE request (Cookie: %x, ShouldStopUsingDevice: %v, Duration: %v)",
+                            cookie,
+                            response.ShouldStopUsingDevice,
+                            durationSeconds);
 
                         WriteServerResponse(EServerError::NBD_OK, cookie);
                     }));
@@ -700,6 +766,15 @@ private:
                     if (Device_) {
                         strTagSet = Device_->GetProfileSensorTag();
                         tagSet = TNbdProfilerCounters::MakeTagSet(strTagSet);
+
+                        if (!Abort_) {
+                            Device_->SetError(TError("Connection has been closed without NBD_CMD_DISC"));
+                        }
+
+                        YT_LOG_DEBUG("Connection has been closed by the peer (Abort: %v, DevicDebugString: %v, DeviceError: %v)",
+                            Abort_,
+                            Device_->DebugString(),
+                            Device_->GetError());
                     }
                     TNbdProfilerCounters::Get()->GetCounter(tagSet, "/server/request/zero_read_buffer").Increment(1);
                     THROW_ERROR_EXCEPTION("Read returned zero bytes")
@@ -744,47 +819,6 @@ private:
         auto handler = New<TConnectionHandler>(this, connection);
         handler->Run();
     }
-
-    void InitializeReaderHosts()
-    {
-        // TODO(yuryalekseev): user
-        auto clientOptions =  NYT::NApi::TClientOptions::FromUser(NSecurityClient::RootUserName);
-        auto client = Connection_->CreateNativeClient(clientOptions);
-        const auto& connection = client->GetNativeConnection();
-
-        auto blockCacheConfig = New<TBlockCacheConfig>();
-        blockCacheConfig->CompressedData->Capacity = Config_->BlockCacheCompressedDataCapacity;
-
-        auto layerBlockCache = CreateClientBlockCache(
-            blockCacheConfig,
-            NChunkClient::EBlockType::CompressedData,
-            GetNullMemoryUsageTracker());
-        LayerReaderHost_ = New<TChunkReaderHost>(
-            client,
-            /*localDescriptor*/ NNodeTrackerClient::TNodeDescriptor{},
-            std::move(layerBlockCache),
-            connection->GetChunkMetaCache(),
-            /*nodeStatusDirectory*/ nullptr,
-            /*bandwidthThrottler*/ GetUnlimitedThrottler(),
-            /*rpsThrottler*/ GetUnlimitedThrottler(),
-            /*mediumThrottler*/ GetUnlimitedThrottler(),
-            /*trafficMeter*/ nullptr);
-
-        auto fileBlockCache = CreateClientBlockCache(
-            std::move(blockCacheConfig),
-            NChunkClient::EBlockType::CompressedData,
-            GetNullMemoryUsageTracker());
-        FileReaderHost_ = New<TChunkReaderHost>(
-            client,
-            /*localDescriptor*/ NNodeTrackerClient::TNodeDescriptor{},
-            std::move(fileBlockCache),
-            connection->GetChunkMetaCache(),
-            /*nodeStatusDirectory*/ nullptr,
-            /*bandwidthThrottler*/ GetUnlimitedThrottler(),
-            /*rpsThrottler*/ GetUnlimitedThrottler(),
-            /*mediumThrottler*/ GetUnlimitedThrottler(),
-            /*trafficMeter*/ nullptr);
-    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TNbdServer)
@@ -797,13 +831,11 @@ std::atomic<int> TNbdServer::NbdServerCount_;
 
 INbdServerPtr CreateNbdServer(
     TNbdServerConfigPtr config,
-    NApi::NNative::IConnectionPtr connection,
     IPollerPtr poller,
     IInvokerPtr invoker)
 {
     auto server = New<TNbdServer>(
         std::move(config),
-        std::move(connection),
         std::move(poller),
         std::move(invoker));
     server->Start();

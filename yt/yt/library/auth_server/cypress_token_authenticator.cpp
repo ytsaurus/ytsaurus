@@ -20,7 +20,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = AuthLogger;
+constinit const auto Logger = AuthLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,46 +43,93 @@ public:
             tokenHash,
             userIP);
 
-        auto path = Format("%v/%v/@user",
+        // Try to retrieve both old (@user) and new (@user_id) token attributes
+        // at the same time to speed up the process.
+        auto path = Format("%v/%v",
             Config_->RootPath ? Config_->RootPath : "//sys/cypress_tokens",
             ToYPathLiteral(tokenHash));
-        return Client_->GetNode(path, /*options*/ {})
-            .Apply(BIND(
-                &TCypressTokenAuthenticator::OnCallResult,
-                MakeStrong(this),
-                std::move(tokenHash)));
+        auto options = TGetNodeOptions{
+            .Attributes = TAttributeFilter({"user", "user_id"}),
+        };
+        options.ReadFrom = EMasterChannelKind::Cache;
+        return Client_->GetNode(path, options)
+            .ApplyUnique(BIND(
+                &TCypressTokenAuthenticator::OnCallTokenResult,
+                MakeStrong(this)))
+            .ApplyUnique(BIND(
+                &TCypressTokenAuthenticator::WrapError,
+                tokenHash));
     }
 
 private:
     const TCypressTokenAuthenticatorConfigPtr Config_;
     const IClientPtr Client_;
 
-    TAuthenticationResult OnCallResult(const TString& tokenHash, const TErrorOr<TYsonString>& rspOrError)
+    static TAuthenticationResult WrapError(const std::string& tokenHash, TErrorOr<TAuthenticationResult>&& rspOrError)
     {
-        if (!rspOrError.IsOK()) {
-            if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                YT_LOG_DEBUG(rspOrError, "Token is missing in Cypress (TokenHash: %v)",
-                    tokenHash);
-                THROW_ERROR_EXCEPTION(NRpc::EErrorCode::InvalidCredentials,
-                    "Token is missing in Cypress")
-                    << TErrorAttribute("token_hash", tokenHash)
-                    << rspOrError;
-            } else {
-                YT_LOG_DEBUG(rspOrError, "Cypress authentication failed (TokenHash: %v)",
-                    tokenHash);
-                THROW_ERROR_EXCEPTION("Cypress authentication failed")
-                    << TErrorAttribute("token_hash", tokenHash)
-                    << rspOrError;
-            }
+        try {
+            auto& result = rspOrError.ValueOrThrow();
+            YT_LOG_DEBUG("Cypress authentication succeeded (TokenHash: %v, Login: %v)",
+                tokenHash,
+                result.Login);
+            return std::move(result);
+        } catch (const std::exception& ex) {
+            auto error = TError("Cypress authentication failed")
+                << TErrorAttribute("token_hash", tokenHash)
+                << ex;
+            YT_LOG_DEBUG(error, "Cypress authentication failed");
+            THROW_ERROR(error);
+        }
+    }
+
+    TFuture<TAuthenticationResult> OnCallTokenResult(TErrorOr<TYsonString>&& rspOrError)
+    {
+        if (!rspOrError.IsOK() && rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::InvalidCredentials,
+                "Token is missing in Cypress")
+                << rspOrError;
+        }
+        auto tokenNode = ConvertTo<INodePtr>(rspOrError.ValueOrThrow());
+        const auto& tokenAttributes = tokenNode->Attributes();
+
+        auto userIdAttribute = tokenAttributes.Find<std::string>("user_id");
+        if (userIdAttribute) {
+            // New authentication schema: now we need to get the username given the user ID which we received.
+            auto path = Format("#%v/@name", ToYPathLiteral(*userIdAttribute));
+            TGetNodeOptions options;
+            options.ReadFrom = EMasterChannelKind::Cache;
+            return Client_->GetNode(path, options)
+                .ApplyUnique(BIND(
+                    &TCypressTokenAuthenticator::OnCallUsernameResult,
+                    MakeStrong(this),
+                    std::move(*userIdAttribute)));
         }
 
-        auto login = ConvertTo<TString>(rspOrError.Value());
-        YT_LOG_DEBUG("Cypress authentication succeeded (TokenHash: %v, Login: %v)",
-            tokenHash,
-            login);
-        return TAuthenticationResult{
-            .Login = login,
-        };
+        auto userAttribute = tokenAttributes.Find<std::string>("user");
+        if (userAttribute) {
+            // Old authentication schema: we already retrieved the username.
+            return MakeFuture(TAuthenticationResult{
+                .Login = std::move(*userAttribute),
+            });
+        }
+
+        THROW_ERROR_EXCEPTION("Missing attributes \"user_id\" and \"user\" on token cypress node");
+    }
+
+    TAuthenticationResult OnCallUsernameResult(
+        const std::string& userId,
+        TErrorOr<TYsonString>&& rspOrError)
+    {
+        try {
+            auto login = ConvertTo<std::string>(rspOrError.ValueOrThrow());
+            return TAuthenticationResult{
+                .Login = std::move(login),
+            };
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error resolving user_id")
+                << TErrorAttribute("user_id", userId)
+                << ex;
+        }
     }
 };
 

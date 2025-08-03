@@ -106,7 +106,7 @@ void TScanBundleCounter::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename TBundleInstances, typename TCollection>
+template <class TBundleInstances, class TCollection>
 void PopulateInstances(
     const TBundleInstances& bundleInstances,
     const TCollection& instanciesInfo,
@@ -115,19 +115,20 @@ void PopulateInstances(
     for (const auto& name : bundleInstances) {
         auto instance = New<TInstanceInfo>();
         const auto& instanceInfo = GetOrCrash(instanciesInfo, name);
-        const auto& annotations = instanceInfo->Annotations;
+        const auto& bundleControllerAnnotations = instanceInfo->BundleControllerAnnotations;
+        const auto& cypressAnnotations = instanceInfo->CypressAnnotations;
 
-        instance->Resource = annotations->Resource;
-        instance->PodId = GetPodIdForInstance(name);
-        instance->YPCluster = annotations->YPCluster;
+        instance->Resource = bundleControllerAnnotations->Resource;
+        instance->PodId = GetPodIdForInstance(cypressAnnotations, name);
+        instance->YPCluster = bundleControllerAnnotations->YPCluster;
 
-        instance->DataCenter = annotations->DataCenter;
+        instance->DataCenter = bundleControllerAnnotations->DataCenter;
 
         instancies[name] = instance;
     }
 }
 
-template <typename TBundleToInstances, typename TCollection>
+template <class TBundleToInstances, class TCollection>
 void PopulateInstancesPerDC(
     const std::string& bundleName,
     const TBundleToInstances& bundleToInstances,
@@ -144,7 +145,7 @@ void PopulateInstancesPerDC(
     }
 }
 
-template <typename TBundleToInstances, typename TCollection>
+template <class TBundleToInstances, class TCollection>
 void PopulateInstancesPerBundle(
     const std::string& bundleName,
     const TBundleToInstances& bundleToInstances,

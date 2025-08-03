@@ -63,7 +63,8 @@ public:
         const NConcurrency::TAsyncSemaphorePtr& semaphore,
         NRpc::IServiceContextPtr context,
         TCallback<std::unique_ptr<NHydra::TMutation>()> mutationBuilder,
-        TCallback<void(const NHydra::TMutationResponse& response)> replyCallback = {}) = 0;
+        TCallback<void(const NHydra::TMutationResponse& response)> replyCallback = {},
+        i64 semaphoreSlotsToAquire = 1) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IHydraFacade)

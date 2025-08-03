@@ -42,6 +42,7 @@ void ToProto(
 
     protoAttributes->set_allow_idle_cpu_policy(attributes.AllowIdleCpuPolicy);
     protoAttributes->set_port_count(attributes.PortCount);
+    protoAttributes->set_enable_multiple_jobs(attributes.EnableMultipleJobs);
 }
 
 void FromProto(
@@ -71,6 +72,9 @@ void FromProto(
     }
     attributes->AllowIdleCpuPolicy = protoAttributes.allow_idle_cpu_policy();
     attributes->PortCount = protoAttributes.port_count();
+    if (protoAttributes.has_enable_multiple_jobs()) {
+        attributes->EnableMultipleJobs = protoAttributes.enable_multiple_jobs();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -270,20 +274,13 @@ void ToProto(NControllerAgent::NProto::TCompositeNeededResources* protoNeededRes
 {
     using namespace NProto;
     ToProto(protoNeededResources->mutable_default_resources(), neededResources.DefaultResources);
-
-    auto protoMap = protoNeededResources->mutable_resources_per_pool_tree();
-    for (const auto& [tree, resources] : neededResources.ResourcesByPoolTree) {
-        ToProto(&(*protoMap)[tree], resources);
-    }
+    ToProto(protoNeededResources->mutable_resources_per_pool_tree(), neededResources.ResourcesByPoolTree);
 }
 
 void FromProto(TCompositeNeededResources* neededResources, const NControllerAgent::NProto::TCompositeNeededResources& protoNeededResources)
 {
     FromProto(&neededResources->DefaultResources, protoNeededResources.default_resources());
-
-    for (const auto& [tree, resources] : protoNeededResources.resources_per_pool_tree()) {
-        FromProto(&neededResources->ResourcesByPoolTree[tree], resources);
-    }
+    FromProto(&neededResources->ResourcesByPoolTree, protoNeededResources.resources_per_pool_tree());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -80,7 +80,7 @@ public:
     void RegisterAggregate(
         const std::string& aggregateName,
         std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
-        TType argumentType,
+        std::vector<TType> argumentTypes,
         TType resultType,
         TType stateType,
         TStringBuf implementationFile,
@@ -89,12 +89,12 @@ public:
     {
         TypeInferrersBuilder_->RegisterAggregate(
             aggregateName, typeParameterConstraints,
-            argumentType, resultType, stateType,
+            argumentTypes, resultType, stateType,
             implementationFile, callingConvention, isFirst);
 
         FunctionProfilersBuilder_->RegisterAggregate(
             aggregateName, typeParameterConstraints,
-            argumentType, resultType, stateType,
+            std::move(argumentTypes), resultType, stateType,
             implementationFile, callingConvention, isFirst);
     }
 

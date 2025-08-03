@@ -21,6 +21,7 @@ PEERDIR(
     yt/yt/ytlib
     yt/yt/server/node
     yt/yt/server/lib/io
+    yt/yt/library/signals
     library/cpp/getopt
 )
 

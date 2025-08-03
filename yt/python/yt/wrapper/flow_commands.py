@@ -14,7 +14,7 @@ import enum
 import time
 
 
-def start_pipeline(pipeline_path, client=None):
+def start_pipeline(pipeline_path, timeout=None, client=None):
     """Start YT Flow pipeline.
 
     :param pipeline_path: path to pipeline.
@@ -22,7 +22,11 @@ def start_pipeline(pipeline_path, client=None):
 
     params = {"pipeline_path": YPath(pipeline_path, client=client)}
 
-    return make_request("start_pipeline", params, client=client)
+    return make_request(
+        "start_pipeline",
+        params=params,
+        client=client,
+        timeout=timeout)
 
 
 def stop_pipeline(pipeline_path, client=None):
@@ -179,18 +183,22 @@ def remove_pipeline_dynamic_spec(pipeline_path, spec_path=None, expected_version
         client=client)
 
 
-def get_pipeline_state(pipeline_path, client=None):
+def get_pipeline_state(pipeline_path, timeout=None, client=None):
     """Get YT Flow pipeline state
 
     :param pipeline_path: path to pipeline
     """
 
-    params = {"pipeline_path": YPath(pipeline_path, client=client)}
+    params = {
+        "pipeline_path": YPath(pipeline_path, client=client),
+        "timeout": timeout
+    }
 
     result = make_formatted_request(
         "get_pipeline_state",
         params=params,
         format=YsonFormat(),
+        timeout=timeout,
         client=client)
     return result.decode("utf-8").lower()
 
@@ -205,7 +213,7 @@ class PipelineState(str, enum.Enum):
     Completed = "completed"
 
 
-def wait_pipeline_state(target_state, pipeline_path, client=None, timeout=600):
+def wait_pipeline_state(target_state, pipeline_path, timeout=600, client=None):
     if target_state == PipelineState.Completed:
         target_states = {PipelineState.Completed, }
     elif target_state == PipelineState.Working:
@@ -232,7 +240,10 @@ def wait_pipeline_state(target_state, pipeline_path, client=None, timeout=600):
         if datetime.now() > deadline:
             raise YtError("Wait time out", attributes={"timeout": timeout})
 
-        current_state = get_pipeline_state(pipeline_path=pipeline_path, client=client)
+        current_state = get_pipeline_state(
+            pipeline_path=pipeline_path,
+            timeout=timeout,
+            client=client)
 
         if current_state in target_states:
             logger.info("Waiting finished (current state: %s, target state: %s)",
@@ -268,6 +279,33 @@ def get_flow_view(pipeline_path, view_path=None, cache=None, format=None, client
         format=format,
         client=client)
     return result
+
+
+def flow_execute(pipeline_path: str, flow_command: str, flow_argument=None, input_format=None, output_format=None, client=None):
+    """Execute YT Flow specific command
+
+    :param pipeline_path: path to pipeline.
+    :param flow_command: name of the command to execute.
+    :param flow_argument: optional argument of the command.
+    """
+
+    is_format_specified = input_format is not None
+    input_format = get_structured_format(input_format, client=client)
+    if not is_format_specified:
+        flow_argument = input_format.dumps_node(flow_argument)
+
+    params = {
+        "pipeline_path": YPath(pipeline_path, client=client),
+        "input_format": input_format.to_yson_type(),
+        "flow_command": flow_command,
+    }
+
+    return make_formatted_request(
+        "flow_execute",
+        params,
+        data=flow_argument,
+        format=output_format,
+        client=client)
 
 
 def get_controller_logs(pipeline_path, count, offset=None, client=None):

@@ -28,7 +28,7 @@ struct TMutationIdempotizerConfig
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_STRUCT(TMutationIdempotizerConfig)
+DEFINE_REFCOUNTED_TYPE(TMutationIdempotizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,7 +66,7 @@ struct TDynamicObjectManagerConfig
 
     //! Per-type list of attributes which will become interned in future versions
     //! and thus should not be set. Maps attribute names to error messages.
-    THashMap<EObjectType, THashMap<TString, TString>> ReservedAttributes;
+    THashMap<EObjectType, THashMap<std::string, std::string, THash<TStringBuf>, TEqualTo<>>> ReservedAttributes;
 
     //! Minimum length of YSON strings that will be interned during mutations.
     //! Outside mutations DefaultYsonStringInternLengthThreshold is always used.
@@ -84,7 +84,7 @@ struct TDynamicObjectManagerConfig
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_STRUCT(TDynamicObjectManagerConfig)
+DEFINE_REFCOUNTED_TYPE(TDynamicObjectManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -122,14 +122,13 @@ struct TObjectServiceConfig
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_STRUCT(TObjectServiceConfig)
+DEFINE_REFCOUNTED_TYPE(TObjectServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReadRequestComplexityLimitsConfigBase
+struct TReadRequestComplexityLimitsConfigBase
     : public NYTree::TYsonStruct
 {
-public:
     i64 NodeCount;
     i64 ResultSize;
 
@@ -151,6 +150,7 @@ struct TDefaultReadRequestComplexityLimitsConfig
     static void Register(TRegistrar registrar);
 };
 
+DEFINE_REFCOUNTED_TYPE(TDefaultReadRequestComplexityLimitsConfig)
 
 struct TMaxReadRequestComplexityLimitsConfig
     : public TReadRequestComplexityLimitsConfigBase
@@ -159,6 +159,8 @@ struct TMaxReadRequestComplexityLimitsConfig
 
     static void Register(TRegistrar registrar);
 };
+
+DEFINE_REFCOUNTED_TYPE(TMaxReadRequestComplexityLimitsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -188,12 +190,28 @@ struct TDynamicObjectServiceConfig
     //! This throttler is acquired simultaneously with per-user request throttling.
     NConcurrency::TThroughputThrottlerConfigPtr LocalWriteRequestThrottler;
 
+    TDynamicObjectServiceTestingConfigPtr Testing;
+
     REGISTER_YSON_STRUCT(TDynamicObjectServiceConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_STRUCT(TDynamicObjectServiceConfig)
+DEFINE_REFCOUNTED_TYPE(TDynamicObjectServiceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDynamicObjectServiceTestingConfig
+    : public NYTree::TYsonStruct
+{
+    std::optional<double> PrematureBackoffAlarmProbability;
+
+    REGISTER_YSON_STRUCT(TDynamicObjectServiceTestingConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicObjectServiceTestingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

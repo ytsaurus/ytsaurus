@@ -73,8 +73,12 @@ struct IStoreManager
     virtual void UnscheduleRotation() = 0;
     virtual void Rotate(bool createNewStore, NLsm::EStoreRotationReason reason, bool allowEmptyStore = false) = 0;
 
-    virtual void AddStore(IStorePtr store, bool onMount, bool onFlush, TPartitionId partitionIdHint = {}) = 0;
-    virtual void BulkAddStores(TRange<IStorePtr> stores, bool onMount) = 0;
+    virtual void AddStore(
+        IStorePtr store,
+        bool useInterceptedChunkData,
+        bool onFlush,
+        TPartitionId partitionIdHint = {}) = 0;
+    virtual void BulkAddStores(TRange<IStorePtr> stores) = 0;
     virtual void CreateActiveStore(TDynamicStoreId hintId = {}) = 0;
 
     virtual void DiscardAllStores() = 0;

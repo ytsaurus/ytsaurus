@@ -1,9 +1,14 @@
 #include "node.h"
+
+#include "node_detail.h"
 #include "shard.h"
+#include "private.h"
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
 #include <yt/yt/server/master/security_server/account.h>
+
+#include <yt/yt/server/master/tablet_server/tablet_resources.h>
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
@@ -49,8 +54,6 @@ TCypressNode::TCypressNode(TVersionedNodeId id)
     }
 }
 
-TCypressNode::~TCypressNode() = default;
-
 TInstant TCypressNode::GetTouchTime(bool branchIsOk) const
 {
     YT_VERIFY(branchIsOk || IsTrunk());
@@ -73,30 +76,31 @@ void TCypressNode::SetModified(EModificationType modificationType)
     SetModificationTime(hydraContext->GetTimestamp());
 }
 
-TCypressNode* TCypressNode::GetParent() const
+TCompositeCypressNode* TCypressNode::GetParent() const
 {
     return Parent_;
 }
 
-void TCypressNode::SetParent(TCypressNode* parent)
+void TCypressNode::SetParent(TCompositeCypressNode* parent)
 {
-    if (Parent_ == parent)
+    if (Parent_ == parent) {
         return;
+    }
 
     // Drop old parent.
     if (Parent_) {
-        YT_VERIFY(Parent_->ImmediateDescendants().erase(this) == 1);
+        EraseOrCrash(Parent_->ImmediateDescendants(), this);
     }
 
     // Set new parent.
     Parent_ = parent;
     if (Parent_) {
         YT_VERIFY(Parent_->IsTrunk());
-        YT_VERIFY(Parent_->ImmediateDescendants().insert(this).second);
+        InsertOrCrash(Parent_->ImmediateDescendants(), this);
     }
 }
 
-void TCypressNode::ResetParent()
+void TCypressNode::DropParent()
 {
     Parent_ = nullptr;
 }
@@ -231,13 +235,12 @@ bool TCypressNode::CanCacheResolve() const
     if (!TrunkNode_->LockingState().TransactionToExclusiveLocks.empty()) {
         return false;
     }
-    if (GetNodeType() != ENodeType::Map &&
-        GetType() != EObjectType::Link &&
-        GetType() != EObjectType::PortalEntrance)
-    {
-        return false;
-    }
-    return true;
+
+    return
+        GetNodeType() == ENodeType::Map ||
+        GetType() == EObjectType::Link ||
+        GetType() == EObjectType::PortalEntrance ||
+        GetType() == EObjectType::Rootstock;
 }
 
 void TCypressNode::CheckInvariants(TBootstrap* bootstrap) const
@@ -245,7 +248,8 @@ void TCypressNode::CheckInvariants(TBootstrap* bootstrap) const
     TObject::CheckInvariants(bootstrap);
 
     if (IsSequoia() && IsNative()) {
-        YT_VERIFY(MutableSequoiaProperties() && ImmutableSequoiaProperties());
+        YT_VERIFY(MutableSequoiaProperties());
+        YT_VERIFY(MutableSequoiaProperties()->BeingCreated || ImmutableSequoiaProperties());
     } else {
         // TODO(aleksandra-zh)
         if (GetType() != EObjectType::Link) {
@@ -324,49 +328,22 @@ void TCypressNode::Load(NCellMaster::TLoadContext& context)
     Load(context, Shard_);
     Load(context, Annotation_);
 
-    auto loadImmutableProperties = [&] {
-        if (Load<bool>(context)) {
+    if (Load<bool>(context)) {
+        auto key = Load<std::string>(context);
+        auto path = Load<TYPath>(context);
 
-            auto key = Load<std::string>(context);
-            auto path = Load<TYPath>(context);
-
-            TNodeId parentId = NullObjectId;
-            // COMPAT(kvk1920)
-            if (context.GetVersion() >= EMasterReign::ParentIdForSequoiaNodes) {
-                Load(context, parentId);
-            }
-
-            ImmutableSequoiaProperties_ = std::make_unique<TImmutableSequoiaProperties>(
-                std::move(key),
-                std::move(path),
-                parentId);
-        }
-    };
-
-    // NB: If object is older than SequoiaMapNode reign - it should only have SequoiaProperties if it's a scion.
-    // That case is handled in an appropriate class.
-    if (context.GetVersion() >= EMasterReign::TablesInSequoia) {
-        loadImmutableProperties();
-        TUniquePtrSerializer<>::Load(context, MutableSequoiaProperties_);
-    } else {
-        loadImmutableProperties();
-        if (ImmutableSequoiaProperties_ && context.GetVersion() >= EMasterReign::SequoiaPropertiesBeingCreated) {
-            auto beingCreated = Load<bool>(context);
-            MutableSequoiaProperties_ = std::make_unique<TMutableSequoiaProperties>();
-            MutableSequoiaProperties_->BeingCreated = beingCreated;
+        TNodeId parentId = NullObjectId;
+        // COMPAT(kvk1920)
+        if (context.GetVersion() >= EMasterReign::ParentIdForSequoiaNodes) {
+            Load(context, parentId);
         }
 
-        // Only Sequoia nodes should have sequoia properties, but before TablesInSequoia reign it was not the case.
-        // Let's remove them after load.
-        if (!IsSequoia()) {
-            YT_VERIFY(!ImmutableSequoiaProperties_ ||
-                ImmutableSequoiaProperties_->Key.empty() && ImmutableSequoiaProperties_->Path.empty());
-            YT_VERIFY(!MutableSequoiaProperties_ || !MutableSequoiaProperties_->BeingCreated);
-
-            ImmutableSequoiaProperties_.reset();
-            MutableSequoiaProperties_.reset();
-        }
+        ImmutableSequoiaProperties_ = std::make_unique<TImmutableSequoiaProperties>(
+            std::move(key),
+            std::move(path),
+            parentId);
     }
+    TUniquePtrSerializer<>::Load(context, MutableSequoiaProperties_);
 }
 
 void TCypressNode::SaveEctoplasm(TStreamSaveContext& context) const
@@ -389,7 +366,8 @@ void TCypressNode::LoadEctoplasm(TStreamLoadContext& context)
 
 void TCypressNode::VerifySequoia() const
 {
-    YT_VERIFY(IsSequoia() && ImmutableSequoiaProperties() && MutableSequoiaProperties());
+    YT_VERIFY(IsSequoia() && MutableSequoiaProperties());
+    YT_VERIFY(MutableSequoiaProperties()->BeingCreated || ImmutableSequoiaProperties());
 }
 
 TCypressNode::TImmutableSequoiaProperties::TImmutableSequoiaProperties(

@@ -173,7 +173,7 @@ class Opaque():
 spec_template = {
     "seed": None,
     "mode": "iterative",
-    "table_type": "sorted", #Variable(["sorted", "ordered"], VariationPolicy.PickRandom),
+    "table_type": "sorted", #Variable(["sorted", "ordered", "queues"], VariationPolicy.PickRandom),
     "replicas": [],
     "chunk_format": Variable(["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"], VariationPolicy.PickRandom),
     "in_memory_mode": Variable(["none", "compressed", "uncompressed"], VariationPolicy.PickRandom),
@@ -215,7 +215,6 @@ spec_template = {
         "write_policy": Variable(["insert_rows", "bulk_insert", "mixed"], VariationPolicy.PickRandom),
         "insertion_probability": 0.7,
         "deletion_probability": 0.1,
-        "max_inline_hunk_size": None,
         "enable_value_dictionary_compression": False,
     },
 
@@ -223,6 +222,11 @@ spec_template = {
         "rows_per_tablet": 10000,
         "insertion_batch_size": 100,
         "trim": True,
+    },
+
+    "queues": {
+        "use_hunk_storage": False,
+        "use_erasure_hunk_storage": BoolVariable(VariationPolicy.PickRandom),
     },
 
     "replicated": {
@@ -240,6 +244,7 @@ spec_template = {
         "key_column_types": None,
         "value_column_types": None,
         "allow_aggregates": True,
+        "max_inline_hunk_size": None,
     },
 
     "extra_attributes": MapWithUnrecognizedChildren(),
@@ -449,10 +454,7 @@ class Spec():
     # Helpers for accessing attributes that may be calculated implicitly.
     def get_write_user_slot_count(self):
         if self.size.write_user_slot_count is not None:
-            return self.size.write_user_slot_count,
-
-
-
+            return self.size.write_user_slot_count
         if self.size.bundle_node_count is not None:
             return self.size.bundle_node_count * self.write_user_slots_per_node
         return None

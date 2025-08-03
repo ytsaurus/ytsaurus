@@ -10,8 +10,6 @@
 #include <yt/yt/server/lib/rpc_proxy/api_service.h>
 #include <yt/yt/server/lib/rpc_proxy/profilers.h>
 #include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
-#include <yt/yt/server/lib/rpc_proxy/security_manager.h>
-#include <yt/yt/server/lib/rpc_proxy/private.h>
 
 #include <yt/yt/server/lib/signature/instance_config.h>
 #include <yt/yt/server/lib/signature/key_rotator.h>
@@ -115,7 +113,7 @@ using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = RpcProxyLogger;
+constinit const auto Logger = RpcProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -217,13 +215,13 @@ void TBootstrap::DoInitialize()
             Config_->SignatureGeneration->CypressKeyWriter,
             RootClient_))
             .ValueOrThrow();
-        SignatureGenerator_ = New<TSignatureGenerator>(
-            Config_->SignatureGeneration->Generator,
-            CypressKeyWriter_);
+        auto signatureGenerator = New<TSignatureGenerator>(Config_->SignatureGeneration->Generator);
         SignatureKeyRotator_ = New<TKeyRotator>(
             Config_->SignatureGeneration->KeyRotator,
             GetControlInvoker(),
-            SignatureGenerator_);
+            CypressKeyWriter_,
+            signatureGenerator);
+        Connection_->SetSignatureGenerator(std::move(signatureGenerator));
     }
 
     ProxyCoordinator_ = CreateProxyCoordinator();
@@ -316,11 +314,6 @@ void TBootstrap::DoStart()
         TvmOnlyRpcServer_->RegisterService(orchidService);
     }
 
-    auto securityManager = CreateSecurityManager(
-        Config_->ApiService->SecurityManager,
-        Connection_,
-        Logger());
-
     QueryCorpusReporter_ = MakeQueryCorpusReporter(RootClient_);
 
     if (SignatureKeyRotator_) {
@@ -337,12 +330,10 @@ void TBootstrap::DoStart()
             authenticationManager->GetRpcAuthenticator(),
             ProxyCoordinator_,
             AccessChecker_,
-            securityManager,
             TraceSampler_,
             RpcProxyLogger(),
             RpcProxyProfiler(),
             (SignatureValidator_ ? SignatureValidator_ : CreateAlwaysThrowingSignatureValidator()),
-            (SignatureGenerator_ ? SignatureGenerator_ : CreateAlwaysThrowingSignatureGenerator()),
             MemoryUsageTracker_,
             /*stickyTransactionPool*/ {},
             QueryCorpusReporter_);

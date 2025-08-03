@@ -37,7 +37,7 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = JobProxyClientLogger;
+constinit const auto Logger = JobProxyClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,7 +75,7 @@ void RunQuery(
         query,
         reader,
         writer,
-        nullptr,
+        /*joinProfilers*/ {},
         functionGenerators,
         aggregateGenerators,
         GetDefaultMemoryChunkProvider(),
@@ -92,6 +92,16 @@ std::vector<TDataSliceDescriptor> UnpackDataSliceDescriptors(const TTableInputSp
         inputTableSpec.chunk_specs(),
         inputTableSpec.chunk_spec_count_per_data_slice(),
         inputTableSpec.virtual_row_index_per_data_slice());
+}
+
+std::vector<TDataSliceDescriptor> UnpackDataSliceDescriptors(const ::google::protobuf::RepeatedPtrField<TTableInputSpec>& specList)
+{
+    std::vector<TDataSliceDescriptor> dataSliceDescriptors;
+    for (const auto& inputSpec : specList) {
+        auto descriptors = UnpackDataSliceDescriptors(inputSpec);
+        dataSliceDescriptors.insert(dataSliceDescriptors.end(), descriptors.begin(), descriptors.end());
+    }
+    return dataSliceDescriptors;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

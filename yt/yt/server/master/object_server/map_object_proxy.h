@@ -4,12 +4,15 @@
 #include "map_object.h"
 #include "object_detail.h"
 
+#include <yt/yt/server/master/cypress_server/public.h>
+
+#include <yt/yt/server/lib/object_server/permission_validator.h>
+
 #include <yt/yt/core/ytree/node_detail.h>
 #include <yt/yt/core/ytree/ypath_detail.h>
 
 #include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
 
-#include <yt/yt/server/master/cypress_server/public.h>
 
 namespace NYT::NObjectServer {
 
@@ -26,7 +29,7 @@ class TNonversionedMapObjectTypeHandlerBase;
 template <class TObject>
 class TNonversionedMapObjectProxyBase
     : public TNonversionedObjectProxyBase<TObject>
-    , public THierarchicPermissionValidator<TObject>
+    , public THierarchicPermissionValidator<TObject*, NObjectServer::TObject*>
     , public virtual NYTree::TMapNodeMixin
     , public virtual NYTree::TNodeBase
 {
@@ -120,15 +123,15 @@ protected:
 
     virtual TSelfPtr ResolveNameOrThrow(const std::string& name) = 0;
 
-    TCompactVector<TObject*, 1> ListDescendantsForPermissionValidation(TObject* object) override;
-    TObject* GetParentForPermissionValidation(TObject* object) override;
+    TCompactVector<NObjectServer::TObject*, 1> ListDescendantsForPermissionValidation(TObject* object) override;
+    NObjectServer::TObject* GetParentForPermissionValidation(TObject* object) override;
 
     void ValidatePermission(
         NYTree::EPermissionCheckScope scope,
         NYTree::EPermission permission,
         const std::string& user = {}) override;
 
-    using THierarchicPermissionValidator<TObject>::ValidatePermission;
+    using THierarchicPermissionValidator<TObject*, NObjectServer::TObject*>::ValidatePermission;
 
     virtual void ValidateBeforeAttachChild(
         const std::string& key,

@@ -13,16 +13,19 @@
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
-#include <yt/yt/client/table_client/unversioned_row.h>
-#include <yt/yt/client/table_client/versioned_row.h>
-#include <yt/yt/client/table_client/helpers.h>
 
 #include <yt/yt/ytlib/tablet_client/public.h>
 
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
+
+#include <yt/yt/client/object_client/helpers.h>
+
+#include <yt/yt/client/table_client/public.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/versioned_row.h>
+#include <yt/yt/client/table_client/helpers.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 #include <yt/yt/client/tablet_client/table_mount_cache_detail.h>
@@ -263,6 +266,9 @@ private:
             auto& rsp = getAttributesRspOrError.Value();
 
             PrimaryRevision_ = batchRsp->GetRevision(0);
+            if (PrimaryRevision_ == NHydra::NullRevision) {
+                THROW_ERROR_EXCEPTION("Table attributes request did not return a valid revision");
+            }
 
             auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
@@ -333,6 +339,9 @@ private:
             const auto& rsp = rspOrError.Value();
 
             SecondaryRevision_ = batchRsp->GetRevision(0);
+            if (SecondaryRevision_ == NHydra::NullRevision) {
+                THROW_ERROR_EXCEPTION("Table mount info request did not return a valid revision");
+            }
 
             auto tableInfo = New<TTableMountInfo>();
             tableInfo->Path = Path_;
@@ -416,6 +425,12 @@ private:
                         ? FromProto<ETableToIndexCorrespondence>(protoIndexInfo.index_correspondence())
                         : ETableToIndexCorrespondence::Unknown,
                 };
+
+                if (protoIndexInfo.has_evaluated_columns_schema()) {
+                    indexInfo.EvaluatedColumnsSchema = New<TTableSchema>(
+                        FromProto<TTableSchema>(protoIndexInfo.evaluated_columns_schema()));
+                }
+
                 tableInfo->Indices.push_back(indexInfo);
             }
 
@@ -492,4 +507,3 @@ ITableMountCachePtr CreateNativeTableMountCache(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletClient
-

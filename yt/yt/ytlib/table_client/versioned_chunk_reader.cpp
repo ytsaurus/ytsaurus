@@ -666,6 +666,7 @@ public:
         IChunkReaderPtr underlyingReader,
         TRange<ESortOrder> sortOrders,
         int commonKeyPrefix,
+        bool unpackAny,
         IBlockCachePtr blockCache,
         const TClientChunkReadOptions& chunkReadOptions,
         const std::vector<TColumnIdMapping>& schemaIdMapping,
@@ -678,6 +679,7 @@ public:
             std::move(underlyingReader),
             sortOrders,
             commonKeyPrefix,
+            unpackAny,
             std::move(blockCache),
             chunkReadOptions,
             [] (int) { YT_ABORT(); }, // Rows should not be skipped in versioned reader.
@@ -1085,6 +1087,7 @@ public:
         IChunkReaderPtr underlyingReader,
         TRange<ESortOrder> sortOrders,
         int commonKeyPrefix,
+        bool unpackAny,
         IBlockCachePtr blockCache,
         const TClientChunkReadOptions& chunkReadOptions,
         TSharedRange<TRowRange> ranges,
@@ -1099,6 +1102,7 @@ public:
             std::move(underlyingReader),
             sortOrders,
             commonKeyPrefix,
+            unpackAny,
             std::move(blockCache),
             chunkReadOptions,
             schemaIdMapping,
@@ -1445,6 +1449,7 @@ public:
             std::move(underlyingReader),
             sortOrders,
             commonKeyPrefix,
+            /*unpackAny*/ false,
             std::move(blockCache),
             chunkReadOptions,
             schemaIdMapping,
@@ -1770,6 +1775,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     std::move(chunkReader),
                     sortOrders,
                     chunkKeyColumnCount,
+                    /*unpackAny*/ false,
                     blockCache,
                     chunkReadOptions,
                     getCappedBounds(),
@@ -1811,6 +1817,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             auto schemalessReaderFactory = [&] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
                 auto options = New<TTableReaderOptions>();
                 options->DynamicTable = true;
+                options->EnableAnyUnpacking = false;
 
                 auto cappedBounds = getCappedBounds();
 

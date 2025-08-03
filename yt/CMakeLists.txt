@@ -12,9 +12,8 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(systest)
-add_subdirectory(cpp)
-add_subdirectory(yt_proto)
 add_subdirectory(yt)
+add_subdirectory(yt_proto)
 add_subdirectory(chyt)
 add_subdirectory(examples)
+add_subdirectory(cpp)

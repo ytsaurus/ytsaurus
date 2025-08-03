@@ -28,7 +28,7 @@ h3 {
 }
 </style>
 
-**{{product-name}}** is a distributed storage and processing platform for large amounts of data. It includes [MapReduce](http://en.wikipedia.org/wiki/MapReduce) computation model, a distributed file system and a NoSQL key-value storage.
+**{{product-name}}** (IPA: [waɪtiːsɔːrəs], pronounced {{ipa}}) is a distributed storage and processing platform for large amounts of data. It includes [MapReduce](http://en.wikipedia.org/wiki/MapReduce) computation model, a distributed file system and a NoSQL key-value storage.
 
 <div class="grid-container">
     <div class="grid-item">

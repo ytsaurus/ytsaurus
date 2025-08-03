@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE, with_additional_threads
 
 from yt_commands import (
-    authors, create_user, wait, create, ls, get, set, remove, exists,
+    authors, copy, create_user, get_driver, set_nodes_banned, wait, create, ls, get, set, remove, exists,
     start_transaction, insert_rows, build_snapshot, gc_collect, concatenate, create_account, create_rack,
     read_table, write_table, write_journal, merge, sync_create_cells, sync_mount_table, sync_unmount_table,
     sync_control_chunk_replicator, get_singular_chunk_id, multicell_sleep, update_nodes_dynamic_config,
@@ -35,9 +35,7 @@ class TestChunkServer(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "data_node": {
-            "disk_health_checker": {
-                "check_period": 1000,
-            },
+            "store_locations": [{"disk_health_checker": {"check_period": 1000}}],
         },
     }
 
@@ -463,6 +461,34 @@ class TestChunkServer(YTEnvSetup):
         set("//tmp/t1/@replication_factor", 4)
         wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 4)
 
+    @authors("kvk1920")
+    def test_last_seen_replicas(self):
+        # This makes current test deterministic.
+        nodes = ls("//sys/data_nodes")
+        set_nodes_banned(nodes[3:], True)
+
+        create("table", "//tmp/t")
+        write_table("//tmp/t", [{"key": 42, "value": "hello!"}])
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        def get_stored_replicas():
+            return {str(r) for r in get(f"#{chunk_id}/@stored_replicas")}
+
+        def get_last_seen_replicas():
+            return {str(r) for r in get(f"#{chunk_id}/@last_seen_replicas")}
+
+        # Last seen replica count is 5 for regular chunks.
+        for _ in range(6):
+            wait(lambda: len(get_stored_replicas()) == 3)
+            set_node_banned(nodes[0], True)
+            wait(lambda: len(get_stored_replicas()) == 2)
+            set_node_banned(nodes[0], False)
+            wait(lambda: len(get_stored_replicas()) == 3)
+
+        stored_replicas = get_stored_replicas()
+        last_seen_replicas = get_last_seen_replicas()
+        assert stored_replicas == last_seen_replicas
+
 
 ##################################################################
 
@@ -804,31 +830,39 @@ class TestPendingRestartNodeDisposal(TestNodePendingRestartBase):
 
 class TestChunkServerMulticell(TestChunkServer):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
-    NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_SECONDARY_MASTER_CELLS = 3
     NUM_SCHEDULERS = 1
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "multicell_manager": {
+            # NB: Allow to remove secondary cell default roles from cells with chunks and nodes behind portal.
+            "allow_master_cell_role_invariant_check": False,
+        },
+    }
 
     @authors("babenko")
     def test_validate_chunk_host_cell_role1(self):
-        set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["cypress_node_host"]}})
+        set("//sys/@config/multicell_manager/cell_descriptors", {"12": {"roles": ["cypress_node_host"]}})
         with raises_yt_error("cannot host chunks"):
-            create("table", "//tmp/t", attributes={"external": True, "external_cell_tag": 11})
+            create("table", "//tmp/t", attributes={"external": True, "external_cell_tag": 12})
 
     @authors("aleksandra-zh")
     def test_validate_chunk_host_cell_role2(self):
         set("//sys/@config/multicell_manager/remove_secondary_cell_default_roles", True)
         set("//sys/@config/multicell_manager/cell_descriptors", {})
         with raises_yt_error("cannot host chunks"):
-            create("table", "//tmp/t", attributes={"external": True, "external_cell_tag": 11})
+            create("table", "//tmp/t", attributes={"external": True, "external_cell_tag": 12})
 
         set("//sys/@config/multicell_manager/remove_secondary_cell_default_roles", False)
-        create("table", "//tmp/t", attributes={"external": True, "external_cell_tag": 11})
+        create("table", "//tmp/t", attributes={"external": True, "external_cell_tag": 12})
 
     @authors("aleksandra-zh")
     def test_multicell_with_primary_chunk_host(self):
         set("//sys/@config/multicell_manager/remove_secondary_cell_default_roles", True)
         set("//sys/@config/multicell_manager/cell_descriptors", {"10": {"roles": ["cypress_node_host", "chunk_host"]}})
 
-        create("table", "//tmp/t")
+        create("table", "//t")
+        remove("//t")
 
     @authors("babenko")
     def test_owning_nodes3(self):
@@ -853,6 +887,38 @@ class TestChunkServerMulticell(TestChunkServer):
 
         assert_items_equal(get("#" + chunk_id + "/@owning_nodes"), ["//tmp/t0", "//tmp/t1", "//tmp/t2"])
 
+    @authors("cherepashka")
+    @pytest.mark.parametrize("to_concatenate", [True, False])
+    def test_owning_nodes4(self, to_concatenate):
+        def check_owning_nodes(object_id, owning_nodes):
+            cell_indicies = {0}  # primary cell
+            cell_indicies.add(get(f"#{object_id}/@native_cell_tag") - 10)
+
+            for cell_index in cell_indicies:
+                assert_items_equal(get(f"#{object_id}/@owning_nodes", driver=get_driver(cell_index)), owning_nodes)
+
+        create("table", "//tmp/t", attributes={"external_cell_tag": 12})
+        write_table("//tmp/t", [{"key": 42, "value": "hello!"}])
+        chunk_id = get("//tmp/t/@chunk_ids")[0]
+        chunk_list_id = get("//tmp/t/@chunk_list_id")
+        chunk_list_owning_nodes = ["//tmp/t"]
+        if to_concatenate:
+            create("table", "//home/t", recursive=True, force=True, attributes={"external_cell_tag": 11})
+            # Export from 12 cell to 11.
+            concatenate(["//tmp/t", "//tmp/t"], "//home/t")
+
+            create("table", "//tmp/t1", attributes={"external_cell_tag": 13})
+            # Export from 11 cell to 13.
+            concatenate(["//home/t", "//home/t"], "//tmp/t1")
+        else:
+            copy("//tmp/t", "//home/t", recursive=True, force=True)
+            copy("//home/t", "//tmp/t1")
+            chunk_list_owning_nodes.append("//home/t")
+            chunk_list_owning_nodes.append("//tmp/t1")
+
+        check_owning_nodes(chunk_id, ["//tmp/t", "//home/t", "//tmp/t1"])
+        check_owning_nodes(chunk_list_id, chunk_list_owning_nodes)
+
     @authors("babenko")
     def test_chunk_requisition_registry_orchid(self):
         pass
@@ -866,18 +932,19 @@ class TestChunkServerMulticell(TestChunkServer):
             return False
 
         set("//sys/@config/multicell_manager/cell_descriptors",
-            {"11": {"roles": ["chunk_host", "dedicated_chunk_host"]}})
+            {"12": {"roles": ["chunk_host", "dedicated_chunk_host"]}})
         wait(lambda: has_alert('Cell received conflicting "chunk_host" and "dedicated_chunk_host" roles'))
 
         set("//sys/@config/multicell_manager/cell_descriptors",
-            {"11": {"roles": ["chunk_host"]}})
+            {"12": {"roles": ["chunk_host"]}})
         wait(lambda: not has_alert('Cell received conflicting "chunk_host" and "dedicated_chunk_host" roles'))
 
     @authors("h0pless")
     def test_dedicated_chunk_host_roles_only(self):
         set("//sys/@config/multicell_manager/cell_descriptors", {
-            "11": {"roles": ["dedicated_chunk_host"]},
-            "12": {"roles": ["dedicated_chunk_host"]}})
+            "11": {"roles": ["dedicated_chunk_host", "cypress_node_host"]},
+            "12": {"roles": ["dedicated_chunk_host"]},
+            "13": {"roles": ["dedicated_chunk_host"]}})
 
         with raises_yt_error("No secondary masters with a chunk host role were found"):
             create("table", "//tmp/t", attributes={
@@ -889,12 +956,12 @@ class TestChunkServerMulticell(TestChunkServer):
 
     @authors("h0pless")
     def test_dedicated_chunk_host_role(self):
-        dedicated_host_cell_tag = 11
-        chunk_host_cell_tag = 12
+        dedicated_host_cell_tag = 12
+        chunk_host_cell_tag = 11
 
         set("//sys/@config/multicell_manager/cell_descriptors", {
-            "11": {"roles": ["dedicated_chunk_host"]},
-            "12": {"roles": ["chunk_host"]}})
+            "11": {"roles": ["chunk_host", "cypress_node_host"]},
+            "12": {"roles": ["dedicated_chunk_host"]}})
 
         create("table", "//tmp/t1", attributes={
             "schema": [
@@ -950,7 +1017,9 @@ class TestChunkServerMulticell(TestChunkServer):
 
     @authors("koloshmet")
     def test_lost_vital_chunks_sample(self):
-        pytest.skip()
+        if self.ENABLE_TMP_PORTAL:
+            # TODO(koloshmet): fix me.
+            pytest.skip("Test is broken with portals")
 
         set("//sys/@config/chunk_manager/lost_vital_chunks_sample_update_period", 1000)
 
@@ -975,7 +1044,36 @@ class TestChunkServerMulticell(TestChunkServer):
 
         wait(lambda: get("//sys/@lost_vital_chunk_count") == 4)
         wait(lambda: get("//sys/lost_vital_chunks_sample/@count") == 4)
+
+        lost_vital_chunks_sample = ls("//sys/lost_vital_chunks_sample")
+        assert chunk_id0 in lost_vital_chunks_sample
+        assert chunk_id1 in lost_vital_chunks_sample
+        assert chunk_id2 in lost_vital_chunks_sample
+        assert chunk_id3 in lost_vital_chunks_sample
+
         lost_vital_chunks_sample = get("//sys/lost_vital_chunks_sample")
+        for chunk in lost_vital_chunks_sample:
+            assert lost_vital_chunks_sample[chunk] == yson.YsonEntity()
+        assert chunk_id0 in lost_vital_chunks_sample
+        assert chunk_id1 in lost_vital_chunks_sample
+        assert chunk_id2 in lost_vital_chunks_sample
+        assert chunk_id3 in lost_vital_chunks_sample
+
+        assert get(f"//sys/lost_vital_chunks_sample/{chunk_id0}/@id") == chunk_id0
+
+        lost_vital_chunks_sample = ls("//sys/lost_vital_chunks_sample", attributes=["id"])
+        lost_vital_chunks_sample_list = []
+        for chunk in lost_vital_chunks_sample:
+            assert chunk.attributes.get("id") == str(chunk)
+            lost_vital_chunks_sample_list.append(str(chunk))
+        assert chunk_id0 in lost_vital_chunks_sample_list
+        assert chunk_id1 in lost_vital_chunks_sample_list
+        assert chunk_id2 in lost_vital_chunks_sample_list
+        assert chunk_id3 in lost_vital_chunks_sample_list
+
+        lost_vital_chunks_sample = get("//sys/lost_vital_chunks_sample", attributes=["id"])
+        for chunk in lost_vital_chunks_sample:
+            assert lost_vital_chunks_sample[chunk].attributes.get("id") == chunk
         assert chunk_id0 in lost_vital_chunks_sample
         assert chunk_id1 in lost_vital_chunks_sample
         assert chunk_id2 in lost_vital_chunks_sample
@@ -995,6 +1093,20 @@ class TestChunkServerMulticell(TestChunkServer):
         wait(lambda: get("//sys/@lost_vital_chunk_count") == 0)
         wait(lambda: get("//sys/lost_vital_chunks_sample/@count") == 0)
 
+    @authors("cherepashka")
+    def test_revoke_chunk_host_role_validation(self):
+        set("//sys/@config/multicell_manager/allow_master_cell_role_invariant_check", True)
+        set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["chunk_host", "cypress_node_host"]}})
+        create("table", "//tmp/t", attributes={"external_cell_tag": 11})
+        for i in range(10):
+            write_table("<append=%true>//tmp/t", [{"a": i}])
+        with raises_yt_error("it still hosts chunks"):
+            set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["cypress_node_host"]}})
+
+
+class TestChunkServerPortal(TestChunkServerMulticell):
+    ENABLE_TMP_PORTAL = True
+
 
 ##################################################################
 
@@ -1006,9 +1118,7 @@ class TestChunkServerReplicaRemoval(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "data_node": {
-            "disk_health_checker": {
-                "check_period": 1000,
-            },
+            "store_locations": [{"disk_health_checker": {"check_period": 1000}}],
         },
     }
 

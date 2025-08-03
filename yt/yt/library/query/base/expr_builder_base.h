@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ast.h"
+#include "query.h"
 #include "public.h"
 
 #include <yt/yt/client/table_client/row_buffer.h>
@@ -52,43 +53,49 @@ std::optional<TValue> FoldConstants(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TBaseColumn
-{
-    TBaseColumn(const std::string& name, TLogicalTypePtr type)
-        : Name(name)
-        , LogicalType(type)
-    { }
-
-    std::string Name;
-    TLogicalTypePtr LogicalType;
-};
-
-struct TTable
+struct TNameSource
 {
     const TTableSchema& Schema;
     std::optional<TString> Alias;
     std::vector<TColumnDescriptor>* Mapping = nullptr;
+
+    // Columns inherited from previous sources.
+    THashSet<std::string>* SelfJoinedColumns = nullptr;
+    // Columns from current source.
+    THashSet<std::string>* ForeignJoinedColumns = nullptr;
+    THashSet<std::string> SharedColumns = {};
 };
 
-struct TColumnEntry
+class TReferenceResolver
 {
-    TBaseColumn Column;
+public:
+    void AddTable(TNameSource nameSource);
 
-    size_t LastTableIndex;
-    size_t OriginTableIndex;
+    TLogicalTypePtr Resolve(const NAst::TColumnReference& reference);
+
+    void PopulateAllColumns();
+
+    void Finish();
+
+private:
+    struct TResolvedInfo
+    {
+        TLogicalTypePtr Type;
+        int SourceIndex;
+    };
+
+    THashMap<
+        NAst::TColumnReference,
+        TResolvedInfo,
+        NAst::TColumnReferenceHasher,
+        NAst::TColumnReferenceEqComparer> Lookup_;
+
+    std::vector<TNameSource> NameSources_;
 };
 
 class TExprBuilder
 {
 public:
-    //! Lookup is a cache of resolved columns.
-    using TLookup = THashMap<
-        NAst::TReference,
-        TColumnEntry,
-        NAst::TCompositeAgnosticReferenceHasher,
-        NAst::TCompositeAgnosticReferenceEqComparer>;
-
-    DEFINE_BYREF_RO_PROPERTY(TLookup, Lookup);
     DEFINE_BYVAL_RO_PROPERTY(TStringBuf, Source);
     DEFINE_BYREF_RO_PROPERTY(TConstTypeInferrerMapPtr, Functions);
 
@@ -96,23 +103,16 @@ public:
         TStringBuf source,
         const TConstTypeInferrerMapPtr& functions);
 
-    void AddTable(
-        const TTableSchema& schema,
-        std::optional<TString> alias,
-        std::vector<TColumnDescriptor>* mapping);
+    virtual void AddTable(TNameSource nameSource) = 0;
+    virtual TLogicalTypePtr ResolveColumn(const NAst::TColumnReference& reference) = 0;
+    virtual void PopulateAllColumns() = 0;
+    virtual void Finish() = 0;
 
-    // Columns already presented in Lookup are shared.
-    // In mapping presented all columns needed for read and renamed schema.
-    // SelfJoinedColumns and ForeignJoinedColumns are built from Lookup using OriginTableIndex and LastTableIndex.
-    void Merge(TExprBuilder& other);
+    virtual void SetGroupData(const TNamedItemList* groupItems, TAggregateItemList* aggregateItems) = 0;
 
-    void PopulateAllColumns();
-
-    void SetGroupData(const TNamedItemList* groupItems, TAggregateItemList* aggregateItems);
-
-    static const std::optional<TBaseColumn> FindColumn(const TNamedItemList& schema, const std::string& name);
-
-    std::optional<TBaseColumn> GetColumnPtr(const NAst::TReference& reference);
+    virtual TString InferGroupItemName(
+        const TConstExpressionPtr& typedExpression,
+        const NAst::TExpression& expressionsAst) = 0;
 
     virtual TConstExpressionPtr DoBuildTypedExpression(
         const NAst::TExpression* expr, TRange<EValueType> resultTypes) = 0;
@@ -131,23 +131,14 @@ public:
         });
 
     virtual ~TExprBuilder() = default;
-
-protected:
-    // TODO: Combine in Structure? Move out?
-    const TNamedItemList* GroupItems_ = nullptr;
-    // TODO: Enrich TMappedSchema with alias and keep here pointers to TMappedSchema.
-    std::vector<TTable> Tables_;
-    TAggregateItemList* AggregateItems_ = nullptr;
-
-    bool AfterGroupBy_ = false;
-
-private:
-    void CheckNoOtherColumn(const NAst::TReference& reference, size_t startTableIndex) const;
-
-    std::pair<const TTable*, TLogicalTypePtr> ResolveColumn(const NAst::TReference& reference) const;
 };
 
-std::unique_ptr<TExprBuilder> CreateExpressionBuilder(
+std::unique_ptr<TExprBuilder> CreateExpressionBuilderV1(
+    TStringBuf source,
+    const TConstTypeInferrerMapPtr& functions,
+    const NAst::TAliasMap& aliasMap);
+
+std::unique_ptr<TExprBuilder> CreateExpressionBuilderV2(
     TStringBuf source,
     const TConstTypeInferrerMapPtr& functions,
     const NAst::TAliasMap& aliasMap);

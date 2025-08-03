@@ -41,7 +41,7 @@ private:
     void OnResponse(
         NNodeTrackerClient::TNodeId,
         std::vector<int> chunkIndexes,
-        const TErrorOr<std::vector<TDataNodeServiceProxy::TRspGetChunkMetaPtr>>& rspOrError);
+        TErrorOr<std::vector<TDataNodeServiceProxy::TRspGetChunkMetaPtr>>&& rspOrError);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkMetaFetcher)

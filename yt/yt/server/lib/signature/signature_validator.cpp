@@ -46,9 +46,14 @@ struct TMetadataCheckVisitor
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<bool> TSignatureValidator::Validate(const TSignaturePtr& signature)
+TFuture<bool> TSignatureValidator::Validate(const TSignaturePtr& signature) const
 {
     TSignatureHeader header;
+    if (!signature->Header_) {
+        YT_LOG_WARNING("Signature is missing header");
+        return FalseFuture;
+    }
+
     try {
         header = ConvertTo<TSignatureHeader>(signature->Header_);
     } catch (const std::exception& ex) {
@@ -91,8 +96,8 @@ TFuture<bool> TSignatureValidator::Validate(const TSignaturePtr& signature)
                         SignatureSize);
                     return false;
                 }
-                std::span<const std::byte, SignatureSize> signatureSpan(signature->Signature_);
-                if (!keyInfo->Verify(toSign, signatureSpan)) {
+
+                if (!keyInfo->Verify(toSign, std::span<const char, SignatureSize>(signature->Signature_))) {
                     YT_LOG_WARNING("Cryptographic verification failed (SignatureId: %v)", signatureId);
                     return false;
                 }

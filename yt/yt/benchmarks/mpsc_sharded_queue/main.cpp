@@ -71,9 +71,13 @@ void ConsumeAll(NYT::TRelaxedMpscQueue<i64>& queue, auto consumer)
 void ConsumeAll(moodycamel::ConcurrentQueue<i64>& queue, auto consumer)
 {
     std::vector<i64> batch(10000);
-    int dequeued = 0;
-    while (dequeued = queue.try_dequeue_bulk(batch.begin(), batch.size())) {
-        batch.resize(dequeued);
+
+    for (;; ) {
+        auto value = queue.try_dequeue_bulk(batch.begin(), batch.size());
+        if (value == 0) {
+            break;
+        }
+        batch.resize(value);
         consumer(batch);
 
         batch.resize(batch.capacity());
@@ -88,8 +92,11 @@ void ConsumeAll(TTestMpscFairShareQueue& queue, auto consumer)
     std::vector<i64> batch;
     batch.reserve(BatchSize);
 
-    i64 value = 0;
-    while (value = queue.TryDequeue()) {
+    for (;;) {
+        auto value = queue.TryDequeue();
+        if (value == 0) {
+            break;
+        }
         batch.push_back(value);
         if (batch.size() == BatchSize) {
             consumer(batch);

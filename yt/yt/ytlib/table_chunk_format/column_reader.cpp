@@ -21,7 +21,8 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedColumnReader(
     int columnIndex,
     int columnId,
     std::optional<ESortOrder> sortOrder,
-    bool serializeFloatsAsDoubles)
+    bool serializeFloatsAsDoubles,
+    bool decodeAny)
 {
     auto doCreate = [&] (auto factory) {
         return factory(meta, columnIndex, columnId, sortOrder, schema);
@@ -51,7 +52,7 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedColumnReader(
             return doCreate(CreateUnversionedBooleanColumnReader);
 
         case EValueType::Any:
-            return doCreate(CreateUnversionedAnyColumnReader);
+            return CreateUnversionedAnyColumnReader(meta, columnIndex, columnId, sortOrder, schema, decodeAny);
 
         case EValueType::Composite:
             return doCreate(CreateUnversionedCompositeColumnReader);

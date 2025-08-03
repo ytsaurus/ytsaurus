@@ -40,6 +40,7 @@ Before using this tool you must create a dashboard in the corresponding system. 
 Except for `list`, all commands take a repeated positional argument representing dashboard short name and a repeated `--backend` argument.
 
 *   `show`: print current upstream version of the dashboard.
+*   `json`: print the code-generated version of the dashboard.
 *   `preview`: print the code-generated version of the dashboard.
 *   `diff`: show diff between upstream and code-generated versions.
 *   `submit`: send generated dashboard to the system.

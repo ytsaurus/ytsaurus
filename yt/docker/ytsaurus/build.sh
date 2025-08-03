@@ -9,6 +9,7 @@ yql_build_path="."
 output_path="."
 image_cr=""
 component="ytsaurus"
+apt_mirror="http://archive.ubuntu.com/"
 
 print_usage() {
     cat << EOF
@@ -20,6 +21,7 @@ Usage: $script_name [-h|--help]
                     [--output-path /path/to/output (default: $output_path)]
                     [--image-tag some-tag (default: $image_tag)]
                     [--image-cr some-cr/ (default: '$image_cr')]
+                    [--apt-mirror http://some.apt.mirror/ (default: '$apt_mirror')]
 EOF
     exit 1
 }
@@ -54,6 +56,10 @@ while [[ $# -gt 0 ]]; do
         ;;
         --image-cr)
         image_cr="$2"
+        shift 2
+        ;;
+        --apt-mirror)
+        apt_mirror="$2"
         shift 2
         ;;
         -h|--help)
@@ -109,8 +115,8 @@ elif [[ "${component}" == "query-tracker" ]]; then
     ytserver_yql_agent="${yql_build_path}/yt/yql/agent/bin/ytserver-yql-agent"
     init_query_tracker_state="${ytsaurus_build_path}/yt/python/yt/environment/bin/init_query_tracker_state/init_query_tracker_state"
     mrjob="${ytsaurus_source_path}/yt/yql/tools/mrjob/mrjob"
-    dq_vanilla_job="${yql_build_path}/ydb/library/yql/yt/dq_vanilla_job/dq_vanilla_job"
-    dq_vanilla_job_lite="${yql_build_path}/ydb/library/yql/yt/dq_vanilla_job.lite/dq_vanilla_job.lite"
+    dq_vanilla_job="${yql_build_path}/yt/yql/dq_vanilla_job/dq_vanilla_job"
+    dq_vanilla_job_lite="${yql_build_path}/yt/yql/dq_vanilla_job.lite/dq_vanilla_job.lite"
 
     ytsaurus_credits="${ytsaurus_source_path}/yt/docker/ytsaurus/credits/ytsaurus"
     qt_credits="${ytsaurus_source_path}/yt/docker/ytsaurus/credits/query-tracker"
@@ -146,8 +152,8 @@ elif [[ "${component}" == "local" ]]; then
     ytserver_yql_agent="${yql_build_path}/yt/yql/agent/bin/ytserver-yql-agent"
     init_query_tracker_state="${ytsaurus_build_path}/yt/python/yt/environment/bin/init_query_tracker_state/init_query_tracker_state"
     mrjob="${ytsaurus_source_path}/yt/yql/tools/mrjob/mrjob"
-    dq_vanilla_job="${yql_build_path}/ydb/library/yql/yt/dq_vanilla_job/dq_vanilla_job"
-    dq_vanilla_job_lite="${yql_build_path}/ydb/library/yql/yt/dq_vanilla_job.lite/dq_vanilla_job.lite"
+    dq_vanilla_job="${yql_build_path}/yt/yql/dq_vanilla_job/dq_vanilla_job"
+    dq_vanilla_job_lite="${yql_build_path}/yt/yql/dq_vanilla_job.lite/dq_vanilla_job.lite"
 
     ytsaurus_credits="${ytsaurus_source_path}/yt/docker/ytsaurus/credits/ytsaurus"
     qt_credits="${ytsaurus_source_path}/yt/docker/ytsaurus/credits/query-tracker"
@@ -179,4 +185,4 @@ else
 fi
 
 cd ${output_path}
-docker build --target ${component} -t ${image_cr}ytsaurus/${component}:${image_tag} .
+docker build --target ${component} --build-arg APT_MIRROR=${apt_mirror} -t ${image_cr}ytsaurus/${component}:${image_tag} .

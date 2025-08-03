@@ -66,7 +66,7 @@ GROUP BY
 
 {% note warning "Attention!" %}
 
-Specifying a name for a column or expression in `GROUP BY .. AS foo` it is an extension on top of YQL. This name becomes visible in `WHERE` despite the fact that filtration by `WHERE` is performed[before](select.md#selectexec) grouping. For example, if the `T` table includes two columns, `foo` and `bar`, then the query `SELECT` foo FROM T WHERE foo > 0 GROUP BY bar AS foo would actually filter data by the `bar` column from the source table.
+Specifying a name for a column or expression in `GROUP BY .. AS foo` it is an extension on top of YQL. This name becomes visible in `WHERE` despite the fact that filtration by `WHERE` is performed[before](select/index.md#selectexec) grouping. For example, if the `T` table includes two columns, `foo` and `bar`, then the query `SELECT` foo FROM T WHERE foo > 0 GROUP BY bar AS foo would actually filter data by the `bar` column from the source table.
 
 {% endnote %}
 
@@ -226,7 +226,7 @@ Applying aggregate functions only to distinct values of the column.
 
 {% note info %}
 
-Applying `DISTINCT` to calculated values is not currently implemented. For this purpose, use a [subquery](select.md#from) or the clause `GROUP BY ... AS ...`.
+Applying `DISTINCT` to calculated values is not currently implemented. For this purpose, use a [subquery](select/from.md) or the clause `GROUP BY ... AS ...`.
 
 {% endnote %}
 
@@ -242,7 +242,7 @@ ORDER BY count DESC
 LIMIT 3.
 ```
 
-You can also use `DISTINCT` to fetch unique rows using [`SELECT DISTINCT`](select.md#distinct).
+You can also use `DISTINCT` to fetch unique rows using [`SELECT DISTINCT`](select/distinct.md).
 
 
 
@@ -270,7 +270,7 @@ LIMIT 3;
 
 ## HAVING {#having}
 
-Filtering a `SELECT` based on the aggregate function calculation results. The syntax is similar to the [`WHERE`](select.md#where) clause.
+Filtering a `SELECT` based on the aggregate function calculation results. The syntax is similar to the [`WHERE`](select/where.md) clause.
 
 **Example**
 

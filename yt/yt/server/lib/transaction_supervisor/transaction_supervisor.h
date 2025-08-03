@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/security_server/public.h>
 
+#include <yt/yt/library/profiling/producer.h>
+
 #include <yt/yt/client/api/public.h>
 
 #include <yt/yt/core/actions/public.h>
@@ -40,6 +42,12 @@ struct ITransactionSupervisor
     //! Returns future which is set when all currently prepared transactions are
     //! finished.
     virtual TFuture<void> WaitUntilPreparedTransactionsFinished() = 0;
+
+    //! COMPAT(aleksandra-zh).
+    virtual void RecomputeStronglyOrderedTransactionRefsOnCoordinator() = 0;
+
+    virtual void OnProfiling(NProfiling::TSensorBuffer* buffer) = 0;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransactionSupervisor)

@@ -155,14 +155,16 @@ template <class T>
 
     auto fillResult = [&] (auto* protoResult, const auto& result) {
         protoResult->set_action(ToProto(result.Action));
-        if (result.Object) {
-            ToProto(protoResult->mutable_object_id(), result.Object->GetId());
-            const auto& handler = objectManager->GetHandler(result.Object);
-            protoResult->set_object_name(ToProto(handler->GetName(result.Object)));
+        if (result.ObjectId) {
+            ToProto(protoResult->mutable_object_id(), result.ObjectId);
+            auto* object = objectManager->GetObject(result.ObjectId);
+            const auto& handler = objectManager->GetHandler(object);
+            protoResult->set_object_name(ToProto(handler->GetName(object)));
         }
-        if (result.Subject) {
-            ToProto(protoResult->mutable_subject_id(), result.Subject->GetId());
-            protoResult->set_subject_name(ToProto(result.Subject->GetName()));
+        if (result.SubjectId) {
+            ToProto(protoResult->mutable_subject_id(), result.SubjectId);
+            auto* subject = securityManager->GetSubjectOrThrow(result.SubjectId);
+            protoResult->set_subject_name(ToProto(subject->GetName()));
         }
     };
 

@@ -26,7 +26,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ChunkClientLogger;
+constinit const auto Logger = ChunkClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -351,7 +351,7 @@ private:
         auto expectedChecksum = partInfo.segment_checksums(descriptor.SegmentIndex);
 
         block->Checksum = expectedChecksum;
-        if (auto error = block->ValidateChecksum(); !error.IsOK()) {
+        if (auto error = block->CheckChecksum(); !error.IsOK()) {
             YT_LOG_ALERT(error);
             THROW_ERROR_EXCEPTION(error);
         }

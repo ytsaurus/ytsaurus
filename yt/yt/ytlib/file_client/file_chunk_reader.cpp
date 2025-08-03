@@ -319,9 +319,8 @@ private:
             ChunkReadOptions_);
         SequentialBlockFetcher_->Start();
 
-        YT_LOG_DEBUG("File chunk reader opened (BlockIndexes: %v-%v, SelectedSize: %v)",
-            blockIndex,
-            blockIndex + blockCount - 1,
+        YT_LOG_DEBUG("File chunk reader opened (Blocks: %v, SelectedSize: %v)",
+            FormatBlocks(blockIndex, blockIndex + blockCount - 1),
             selectedSize);
     }
 

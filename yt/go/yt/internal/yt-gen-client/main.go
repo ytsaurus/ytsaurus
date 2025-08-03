@@ -7,11 +7,23 @@ import (
 	"go/format"
 	"go/parser"
 	"os"
+	"strings"
 )
 
+type stringList []string
+
+func (s *stringList) String() string {
+	return strings.Join(*s, ",")
+}
+
+func (s *stringList) Set(value string) error {
+	*s = append(*s, value)
+	return nil
+}
+
 var (
-	flagInterface = flag.String("interface", "", "path to interface.go file")
-	flagOutput    = flag.String("output", "", "path to output file")
+	flagInterfaces stringList
+	flagOutput     = flag.String("output", "", "path to output file")
 )
 
 func fatalf(msg string, args ...any) {
@@ -25,25 +37,30 @@ func fatalf(msg string, args ...any) {
 }
 
 func main() {
+	flag.Var(&flagInterfaces, "interface", "path to interface.go file (can be specified multiple times)")
 	flag.Parse()
-	if *flagInterface == "" || *flagOutput == "" {
+	if len(flagInterfaces) == 0 || *flagOutput == "" {
 		flag.Usage()
 		os.Exit(2)
 	}
 
-	node, err := parser.ParseFile(fset, *flagInterface, nil, parser.ParseComments)
-	if err != nil {
-		fatalf("%v", err)
-	}
-
-	f, err := parseFile(node)
-	if err != nil {
-		fatalf("%v", err)
-	}
-
 	var buf bytes.Buffer
-	if err = emit(f, &buf); err != nil {
-		fatalf("emit error: %v", err)
+
+	emitHeader(&buf)
+	for _, filePath := range flagInterfaces {
+		node, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
+		if err != nil {
+			fatalf("ast parsing file %q error: %v", filePath, err)
+		}
+
+		f, err := parseFile(node)
+		if err != nil {
+			fatalf("parsing file %q error: %v", filePath, err)
+		}
+
+		if err = emit(f, &buf); err != nil {
+			fatalf("emit file %q error: %v", filePath, err)
+		}
 	}
 
 	fmtbuf, err := format.Source(buf.Bytes())

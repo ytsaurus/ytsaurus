@@ -18,6 +18,9 @@ add_library(yt-library-program)
 target_compile_options(yt-library-program PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(yt-library-program PUBLIC
@@ -27,6 +30,7 @@ target_link_libraries(yt-library-program PUBLIC
   library-profiling-tcmalloc
   yt-library-ytprof
   yt-library-tcmalloc
+  yt-library-signals
   cpp-yt-string
   cpp-yt-system
   yt-backtrace-absl_unwinder

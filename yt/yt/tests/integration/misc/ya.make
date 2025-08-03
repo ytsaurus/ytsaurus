@@ -4,6 +4,7 @@ TEST_SRCS(
     test_bootstrap.py
     test_clock_server.py
     test_discovery.py
+    test_distributed_write.py
     test_erasure.py
     test_error_codes.py
     test_file_cache.py

@@ -45,8 +45,7 @@ Additional options are passed in via `--params`:
 spark-launch-yt \
   --proxy <cluster-name> \
   --discovery-path my_discovery_path \
-  --params '{"spark_conf"={"spark.yt.jarCaching"="True";};"layer_paths"=["//.../ubuntu_xenial_app_lastest.tar.gz";...;];"operation_spec"={"max_failed_job_count"=100;};}' \
-  --spyt-version '2.2.0'
+  --params '{"spark_conf"={"spark.yt.jarCaching"="True";};"layer_paths"=["//.../ubuntu_xenial_app_lastest.tar.gz";...;];"operation_spec"={"max_failed_job_count"=100;};}'
 ```
 
 ### Spark configuration
@@ -57,8 +56,7 @@ When using `spark-launch-yt` to configure a cluster, `--params '{"spark_conf"={.
 spark-launch-yt \
   --proxy <cluster-name> \
   --discovery-path my_discovery_path \
-  --params '{"spark_conf"={"spark.sql.shuffle.partitions":1,"spark.cores.max":1,"spark.executor.cores"=1};}' \
-  --spyt-version '2.2.0'
+  --params '{"spark_conf"={"spark.sql.shuffle.partitions":1,"spark.cores.max":1,"spark.executor.cores"=1};}'
 ```
 
 When using `spark-submit-yt` to configure a task, `spark_conf_args` is available as an option:
@@ -101,20 +99,19 @@ Java example:
 protected void doRun(String[] args, SparkSession spark, CompoundClient yt) {
     spark.conf.set("spark.sql.adaptive.enabled", "false");
     spark.read().format("yt").load("/sys/spark/examples/test_data").show();
-}
+}s
 ```
 
 ### Operation options
 
-When using `spark-launch-yt` to configure a cluster, `--params '{"operation_spec"={...};}` is available as an option. [List of all operations options](../../operations/operations-options.md).
+When using `spark-launch-yt` to configure a cluster, `--params '{"operation_spec"={...};}` is available as an option. [List of all operations options](../../../../../user-guide/data-processing/operations/operations-options.md).
 It will be useful if you need to change the standard operation settings, for example, to increase the number of failed jobs past which the operation is considered failed.
 
 ```bash
 spark-launch-yt \
   --proxy <cluster-name> \
   --discovery-path my_discovery_path \
-  --params '{"operation_spec"={"max_failed_job_count"=100;owners=[...]};}' \
-  --spyt-version '2.2.0'
+  --params '{"operation_spec"={"max_failed_job_count"=100;owners=[...]};}'
 ```
 
 ### Updating Python version
@@ -183,8 +180,8 @@ RUN python3.12 -m pip install -r requirements.txt
 ```text
 # requirements.txt
 ytsaurus-client==0.13.20
-ytsaurus-spyt==2.5.0
-pyspark==3.5.4
+ytsaurus-spyt==2.6.4
+pyspark==3.5.5
 ```
 
 #### Create a cluster with a docker image

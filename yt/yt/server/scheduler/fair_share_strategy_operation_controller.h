@@ -15,7 +15,7 @@ class TFairShareStrategyOperationController
 {
 public:
     TFairShareStrategyOperationController(
-        IOperationStrategyHost* operation,
+        const IOperationStrategyHostPtr& operation,
         const TFairShareStrategyOperationControllerConfigPtr& config,
         const std::vector<IInvokerPtr>& nodeShardInvokers);
 
@@ -46,7 +46,7 @@ public:
         TDuration timeLimit,
         const TString& treeId,
         const TString& poolPath,
-        const TFairShareStrategyTreeConfigPtr& treeConfig);
+        std::optional<TDuration> waitingForResourcesOnNodeTimeout);
 
     // TODO(eshcherbin): Move to private.
     void AbortAllocation(

@@ -6,6 +6,7 @@
 #include "allocation.h"
 #include "controller_agent.h"
 
+#include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/experiments.h>
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
@@ -38,7 +39,7 @@ using NYT::ToProto;
 
 constexpr int MaxAnnotationValueLength = 128;
 
-static constexpr auto& Logger = SchedulerLogger;
+constinit const auto Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -98,6 +99,7 @@ TOperation::TOperation(
     IMapNodePtr secureVault,
     std::optional<TNodeId> temporaryTokenNodeId,
     TOperationRuntimeParametersPtr runtimeParameters,
+    TOperationOptionsPtr operationOptions,
     NSecurityClient::TSerializableAccessControlList baseAcl,
     const std::string& authenticatedUser,
     TInstant startTime,
@@ -133,6 +135,7 @@ TOperation::TOperation(
     , TrimmedAnnotations_(std::move(trimmedAnnotations))
     , BriefVanillaTaskSpecs_(std::move(briefVanillaTaskSpecs))
     , CustomSpecPerTree_(std::move(customSpecPerTree))
+    , OperationOptions_(std::move(operationOptions))
     , Codicil_(MakeOperationCodicil(Id_))
     , ControlInvoker_(std::move(controlInvoker))
     , State_(state)
@@ -158,9 +161,14 @@ TInstant TOperation::GetStartTime() const
     return StartTime_;
 }
 
-TString TOperation::GetAuthenticatedUser() const
+std::string TOperation::GetAuthenticatedUser() const
 {
     return AuthenticatedUser_;
+}
+
+std::optional<std::string> TOperation::GetTitle() const
+{
+    return Spec_->Title;
 }
 
 TStrategyOperationSpecPtr TOperation::GetStrategySpec() const
@@ -210,9 +218,9 @@ TFuture<TOperationPtr> TOperation::GetStarted()
 TAccessControlRule TOperation::GetAccessControlRule() const
 {
     if (RuntimeParameters_->AcoName) {
-        return *RuntimeParameters_->AcoName;
+        return TAccessControlRule(*RuntimeParameters_->AcoName);
     } else {
-        return RuntimeParameters_->Acl;
+        return TAccessControlRule(RuntimeParameters_->Acl);
     }
 }
 
@@ -297,6 +305,11 @@ TCodicilGuard TOperation::MakeCodicilGuard() const
 EOperationState TOperation::GetState() const
 {
     return State_;
+}
+
+const TOperationOptionsPtr& TOperation::GetOperationOptions() const
+{
+    return OperationOptions_;
 }
 
 void TOperation::SetStateAndEnqueueEvent(
@@ -537,7 +550,7 @@ std::vector<TString> TOperation::GetExperimentAssignmentNames() const
     return result;
 }
 
-std::vector<TString> TOperation::GetJobShellOwners(const TString& jobShellName)
+std::vector<std::string> TOperation::GetJobShellOwners(const TString& jobShellName)
 {
     TJobShellPtr jobShell;
     for (const auto& shell : Spec_->JobShells) {
@@ -619,7 +632,7 @@ bool TOperation::AddSecureVaultEntry(const TString& key, const INodePtr& value)
     return SecureVault_->AddChild(key, value);
 }
 
-void TOperation::SetTemporaryToken(const TString& token, const TNodeId& nodeId)
+void TOperation::SetTemporaryToken(const std::string& token, const TNodeId& nodeId)
 {
     YT_VERIFY(State_ == EOperationState::Starting);
     YT_VERIFY(Spec_->IssueTemporaryToken);
@@ -733,6 +746,18 @@ void ParseSpec(
             treeId,
             UpdateYsonStruct(strategySpec, ConvertToNode(optionPerPoolTree)));
     }
+
+    INodePtr schedulerOptions;
+    for (const auto& experiment : preprocessedSpec->ExperimentAssignments) {
+        if (const auto& node = experiment->Effect->SchedulerOptionsPatch) {
+            schedulerOptions = schedulerOptions
+                ? PatchNode(schedulerOptions, node)
+                : node;
+        }
+    }
+    preprocessedSpec->OperationOptions = schedulerOptions
+        ? ConvertTo<TOperationOptionsPtr>(schedulerOptions)
+        : New<TOperationOptions>();
 }
 
 IMapNodePtr ConvertSpecStringToNode(

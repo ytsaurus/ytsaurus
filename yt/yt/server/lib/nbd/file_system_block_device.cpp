@@ -37,7 +37,7 @@ using namespace NTracing;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileSystemBlockDevice
-    : public IBlockDevice
+    : public TBaseBlockDevice
 {
 public:
     TFileSystemBlockDevice(
@@ -104,9 +104,10 @@ public:
         return Reader_->GetPath();
     }
 
-    virtual TFuture<TSharedRef> Read(
+    virtual TFuture<TReadResponse> Read(
         i64 offset,
-        i64 length) override
+        i64 length,
+        const TReadOptions& options) override
     {
         auto guard = TCurrentTraceContextGuard(TraceContext_);
 
@@ -114,31 +115,22 @@ public:
         TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_bytes").Increment(length);
         NProfiling::TEventTimerGuard readTimeGuard(TNbdProfilerCounters::Get()->GetTimer(TagSet_, "/device/read_time"));
 
-        if (Config_->TestSleepBeforeRead != TDuration::Zero()) {
-            YT_LOG_DEBUG("Sleep for testing purposes prior to starting a read (Offset: %v, Length: %v, Duration: %v)",
-                offset,
-                length,
-                Config_->TestSleepBeforeRead);
-
-            TDelayedExecutor::WaitForDuration(Config_->TestSleepBeforeRead);
-        }
-
-        return Reader_->Read(offset, length)
+        return Reader_->Read(offset, length, options)
             .Apply(BIND([readTimeGuard = std::move(readTimeGuard), tagSet = TagSet_] (const TErrorOr<TSharedRef>& result) {
                 if (!result.IsOK()) {
                     TNbdProfilerCounters::Get()->GetCounter(tagSet, "/device/read_errors").Increment(1);
                 }
 
-                return result.ValueOrThrow();
+                return TReadResponse(result.ValueOrThrow(), false);
             }));
     }
 
-    virtual TFuture<void> Write(
+    virtual TFuture<TWriteResponse> Write(
         i64 /*offset*/,
         const TSharedRef& /*data*/,
         const TWriteOptions& /*options*/) override
     {
-        return MakeFuture(TError("Writes are not supported"));
+        return MakeFuture<TWriteResponse>(TError("Writes are not supported"));
     }
 
     TFuture<void> Flush() override
@@ -151,6 +143,11 @@ public:
         return BIND(&TFileSystemBlockDevice::DoInitialize, MakeStrong(this))
             .AsyncVia(Invoker_)
             .Run();
+    }
+
+    TFuture<void> Finalize() override
+    {
+        return VoidFuture;
     }
 
 private:

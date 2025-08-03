@@ -2,6 +2,7 @@
 
 #include "type_handler_detail.h"
 #include "client_impl.h"
+#include "config.h"
 #include "connection.h"
 #include "transaction.h"
 
@@ -112,6 +113,7 @@ private:
         auto proxy = TChaosNodeServiceProxy(std::move(channel));
 
         auto req = proxy.GenerateReplicationCardId();
+        req->SetTimeout(Client_->GetNativeConnection()->GetConfig()->DefaultChaosNodeServiceTimeout);
 
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
@@ -119,10 +121,10 @@ private:
         return FromProto<TReplicationCardId>(rsp->replication_card_id());
     }
 
-    TString GetClusterName()
+    std::string GetClusterName()
     {
         TGetNodeOptions options;
-        options.ReadFrom = EMasterChannelKind::LocalCache;
+        options.ReadFrom = EMasterChannelKind::ClientSideCache;
         auto yson = WaitFor(Client_->GetNode("//sys/@cluster_name", options))
             .ValueOrThrow();
         return ConvertTo<TString>(yson);
@@ -132,7 +134,7 @@ private:
     T GetAttributeOrThrow(
         const ITransactionPtr& transaction,
         const TYPath& path,
-        const TString& attributeKey,
+        const std::string& attributeKey,
         const TString& errorMessage)
     {
         TGetNodeOptions options;
@@ -150,9 +152,9 @@ private:
         return *optionalAttributeValue;
     }
 
-    TString GetChaosCellBundle(const ITransactionPtr& transaction, TTableId tableId)
+    std::string GetChaosCellBundle(const ITransactionPtr& transaction, TTableId tableId)
     {
-        return GetAttributeOrThrow<TString>(
+        return GetAttributeOrThrow<std::string>(
             transaction,
             FromObjectId(tableId),
             "chaos_cell_bundle",
@@ -174,7 +176,7 @@ private:
         const ITransactionPtr& transaction,
         TTableId tableId,
         const TYPath& tablePath,
-        const TString& tableClusterName,
+        const std::string& tableClusterName,
         TReplicatedTableOptionsPtr replicatedTableOptions,
         TReplicationCardId replicationCardId,
         TCellId metadataChaosCellId)

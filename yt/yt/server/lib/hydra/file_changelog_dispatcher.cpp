@@ -12,11 +12,11 @@
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/library/profiling/sensor.h>
-
 
 #include <atomic>
 
@@ -28,7 +28,7 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = HydraLogger;
+constinit const auto Logger = HydraLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -221,7 +221,7 @@ public:
         return records;
     }
 
-    NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
+    NIO::TReadRequest MakeChunkFragmentReadRequest(
         const NIO::TChunkFragmentDescriptor& fragmentDescriptor)
     {
         return Changelog_->MakeChunkFragmentReadRequest(fragmentDescriptor);
@@ -712,7 +712,7 @@ public:
             maxBytes);
     }
 
-    NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
+    NIO::TReadRequest MakeChunkFragmentReadRequest(
         const NIO::TChunkFragmentDescriptor& fragmentDescriptor) override
     {
         return Queue_->MakeChunkFragmentReadRequest(fragmentDescriptor);

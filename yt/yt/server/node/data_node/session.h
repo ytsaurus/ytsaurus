@@ -4,6 +4,10 @@
 
 #include <yt/yt/server/lib/io/io_tracker.h>
 
+#include <yt/yt/server/lib/nbd/chunk_block_device.h>
+
+#include <yt/yt/server/node/data_node/location.h>
+
 #include <yt/yt/server/node/cluster_node/public.h>
 
 #include <yt/yt/ytlib/chunk_client/session_id.h>
@@ -28,6 +32,57 @@ namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TProbePutBlocksRequestSupplier
+    : public TRefCounted
+{
+public:
+    struct TRequest
+    {
+        i64 CumulativeBlockSize;
+        TWorkloadDescriptor WorkloadDescriptor;
+
+        std::strong_ordering operator<=>(const TRequest& other) const
+        {
+            return CumulativeBlockSize <=> other.CumulativeBlockSize;
+        }
+    };
+
+public:
+    explicit TProbePutBlocksRequestSupplier(TSessionId sessionId);
+
+    TSessionId GetSessionId() const;
+
+    void CancelRequests();
+    bool IsCanceled() const;
+
+    i64 GetCurrentApprovedMemory() const;
+    i64 GetMaxRequestedMemory() const;
+
+    std::optional<TRequest> TryGetMinRequest();
+    void ApproveRequest(TLocationMemoryGuard&& memoryGuard, TRequest request);
+
+    void PushRequest(TRequest request);
+
+    void ReleaseResourcesForPutBlocks(i64 memory);
+
+private:
+    const TSessionId SessionId_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    std::set<TRequest> Requests_;
+
+    bool Canceled_ = false;
+
+    i64 MaxRequestedMemory_ = 0;
+    i64 ApprovedMemory_ = 0;
+
+    TLocationMemoryGuard MemoryGuard_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TProbePutBlocksRequestSupplier)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TSessionOptions
 {
     TWorkloadDescriptor WorkloadDescriptor;
@@ -35,6 +90,11 @@ struct TSessionOptions
     bool EnableMultiplexing = false;
     NChunkClient::TPlacementId PlacementId;
     bool DisableSendBlocks = false;
+    bool UseProbePutBlocks = false;
+    std::optional<i64> MinLocationAvailableSpace;
+    std::optional<i64> NbdChunkSize;
+    std::optional<NNbd::EFilesystemType> NbdChunkFsType;
+    std::vector<std::pair<std::string, double>> FairShareTags;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,6 +117,12 @@ struct ISession
     {
         NIO::TIOCounters IOCounters;
         NChunkClient::TChunkWriterStatisticsPtr ChunkWriterStatistics;
+    };
+
+    struct TSendBlocksResult
+    {
+        bool NetThrottling = false;
+        NChunkClient::TDataNodeServiceProxy::TRspPutBlocksPtr TargetNodePutBlocksResult;
     };
 
     //! Returns the TChunkId being uploaded.
@@ -100,7 +166,15 @@ struct ISession
     //! Finishes the session.
     virtual TFuture<TFinishResult> Finish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        std::optional<int> blockCount) = 0;
+        std::optional<int> blockCount,
+        bool truncateExtraBlocks) = 0;
+
+    //! Checks is probe put blocks should be used.
+    virtual bool ShouldUseProbePutBlocks() const = 0;
+    //! Prerequest memory for PutBlocks.
+    virtual void ProbePutBlocks(i64 cumulativeBlockSize) = 0;
+    virtual i64 GetApprovedCumulativeBlockSize() const = 0;
+    virtual i64 GetMaxRequestedCumulativeBlockSize() const = 0;
 
     //! Puts a contiguous range of blocks into the window.
     virtual TFuture<NIO::TIOCounters> PutBlocks(
@@ -110,10 +184,12 @@ struct ISession
         bool enableCaching) = 0;
 
     //! Sends a range of blocks (from the current window) to another data node.
-    virtual TFuture<NChunkClient::TDataNodeServiceProxy::TRspPutBlocksPtr> SendBlocks(
+    virtual TFuture<TSendBlocksResult> SendBlocks(
         int startBlockIndex,
         int blockCount,
         i64 cumulativeBlockSize,
+        TDuration requestTimeout,
+        bool instantReplyOnThrottling,
         const NNodeTrackerClient::TNodeDescriptor& target) = 0;
 
     //! Flushes blocks up to a given one.

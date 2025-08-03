@@ -32,6 +32,12 @@
 - **Докладчик:** Максим Бабенко
 - **Язык:** русский
 
+### 2023: Планирование миллиардов задач каждый день
+- **Мероприятие:** SmartData 2023
+- **Материалы:** [YouTube](https://www.youtube.com/watch?v=Vy6rHf-BIG8), [slides](https://squidex.jugru.team/api/assets/srm/c319271f-8ff5-45b3-94c7-439711825318/scheduling-billions-tasks-per-day.pdf)
+- **Докладчик:** Игнат Колесниченко
+- **Язык:** русский
+
 ### 2023: Транзакционная репликация в YTsaurus
 - **Мероприятие:** HighLoad++ 2023
 - **Материалы:** [YouTube](https://youtu.be/grNyiJrPE3w)
@@ -95,3 +101,4 @@
 - **Автор:** Максим Бабенко
 - **Материалы:** [YouTube](https://www.youtube.com/watch?v=VQGfH0sZi18)
 - **Язык:** русский
+

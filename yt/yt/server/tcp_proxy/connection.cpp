@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/yt/core/concurrency/scheduler_api.h>
+
 #include <yt/yt/core/misc/finally.h>
 
 #include <yt/yt/core/net/connection.h>

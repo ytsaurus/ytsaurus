@@ -47,6 +47,14 @@ def test_column_schema():
     assert a != None # noqa
     assert not (a == None) # noqa
 
+    a_aggregate = ColumnSchema("a", typing.Int64, aggregate="sum")
+    assert a_aggregate.to_yson_type() == {"name": "a", "type_v3": "int64", "aggregate": "sum"}
+    assert ColumnSchema.from_yson_type(a_aggregate.to_yson_type()) == a_aggregate
+
+    a_expression = ColumnSchema("a", typing.Int64, expression="farm_hash(b)")
+    assert a_expression.to_yson_type() == {"name": "a", "type_v3": "int64", "expression": "farm_hash(b)"}
+    assert ColumnSchema.from_yson_type(a_expression.to_yson_type()) == a_expression
+
 
 @authors("levysotsky")
 def test_table_schema():

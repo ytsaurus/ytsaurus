@@ -110,6 +110,7 @@ void Initialize(
         NYTree::BuildYsonNodeFluently()
             .BeginMap()
                 .Item("arc_revision").Value(buildInfo.ArcRevision)
+                .Item("arc_last_change_num").Value(buildInfo.ArcLastChangeNum)
                 .Item("binary_version").Value(buildInfo.BinaryVersion)
                 .Item("build_type").Value(buildInfo.BuildType)
             .EndMap());

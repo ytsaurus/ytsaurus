@@ -449,6 +449,10 @@ func writeReadTableOptions(w *yson.Writer, o *yt.ReadTableOptions) {
 	w.Any(o.Unordered)
 	w.MapKeyString("table_reader")
 	w.Any(o.TableReader)
+	if o.Format != nil {
+		w.MapKeyString("output_format")
+		w.Any(o.Format)
+	}
 	if o.ControlAttributes != nil {
 		w.MapKeyString("control_attributes")
 		w.Any(o.ControlAttributes)
@@ -599,6 +603,14 @@ func writeListJobsOptions(w *yson.Writer, o *yt.ListJobsOptions) {
 		w.MapKeyString("with_monitoring_descriptor")
 		w.Any(o.WithMonitoringDescriptor)
 	}
+	if o.WithInterruptionInfo != nil {
+		w.MapKeyString("with_interruption_info")
+		w.Any(o.WithInterruptionInfo)
+	}
+	if o.Attributes != nil {
+		w.MapKeyString("attributes")
+		w.Any(o.Attributes)
+	}
 	if o.SortField != nil {
 		w.MapKeyString("sort_field")
 		w.Any(o.SortField)
@@ -618,6 +630,16 @@ func writeListJobsOptions(w *yson.Writer, o *yt.ListJobsOptions) {
 	if o.DataSource != nil {
 		w.MapKeyString("data_source")
 		w.Any(o.DataSource)
+	}
+}
+
+func writeGetJobOptions(w *yson.Writer, o *yt.GetJobOptions) {
+	if o == nil {
+		return
+	}
+	if o.Attributes != nil {
+		w.MapKeyString("attributes")
+		w.Any(o.Attributes)
 	}
 }
 
@@ -3033,6 +3055,57 @@ func (p *ListJobsParams) MarshalHTTP(w *yson.Writer) {
 	w.MapKeyString("operation_id")
 	w.Any(p.opID)
 	writeListJobsOptions(w, p.options)
+}
+
+type GetJobParams struct {
+	verb    Verb
+	opID    yt.OperationID
+	jobID   yt.JobID
+	options *yt.GetJobOptions
+}
+
+func NewGetJobParams(
+	opID yt.OperationID,
+	jobID yt.JobID,
+	options *yt.GetJobOptions,
+) *GetJobParams {
+	if options == nil {
+		options = &yt.GetJobOptions{}
+	}
+	optionsCopy := *options
+	return &GetJobParams{
+		Verb("get_job"),
+		opID,
+		jobID,
+		&optionsCopy,
+	}
+}
+
+func (p *GetJobParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *GetJobParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *GetJobParams) Log() []log.Field {
+	fields := []log.Field{
+		log.Any("opID", p.opID),
+		log.Any("jobID", p.jobID),
+	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
+}
+
+func (p *GetJobParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("operation_id")
+	w.Any(p.opID)
+	w.MapKeyString("job_id")
+	w.Any(p.jobID)
+	writeGetJobOptions(w, p.options)
 }
 
 type GetJobStderrParams struct {
@@ -5672,4 +5745,64 @@ func (p *GetInSyncReplicasParams) MarshalHTTP(w *yson.Writer) {
 	w.MapKeyString("timestamp")
 	w.Any(p.ts)
 	writeGetInSyncReplicasOptions(w, p.options)
+}
+
+func writeExecuteBatchOptions(w *yson.Writer, o *ExecuteBatchOptions) {
+	if o == nil {
+		return
+	}
+	if o.Concurrency != nil {
+		w.MapKeyString("concurrency")
+		w.Any(o.Concurrency)
+	}
+	writeMutatingOptions(w, o.MutatingOptions)
+}
+
+type ExecuteBatchParams struct {
+	verb     Verb
+	requests []BatchSubrequest
+	options  *ExecuteBatchOptions
+}
+
+func NewExecuteBatchParams(
+	requests []BatchSubrequest,
+	options *ExecuteBatchOptions,
+) *ExecuteBatchParams {
+	if options == nil {
+		options = &ExecuteBatchOptions{}
+	}
+	optionsCopy := *options
+	return &ExecuteBatchParams{
+		Verb("execute_batch"),
+		requests,
+		&optionsCopy,
+	}
+}
+
+func (p *ExecuteBatchParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *ExecuteBatchParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *ExecuteBatchParams) Log() []log.Field {
+	fields := []log.Field{
+		log.Any("requests", p.requests),
+	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
+}
+
+func (p *ExecuteBatchParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("requests")
+	w.Any(p.requests)
+	writeExecuteBatchOptions(w, p.options)
+}
+
+func (p *ExecuteBatchParams) MutatingOptions() **yt.MutatingOptions {
+	return &p.options.MutatingOptions
 }

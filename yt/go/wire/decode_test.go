@@ -6,24 +6,30 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"go.ytsaurus.tech/yt/go/schema"
 )
 
 type testResponseRow struct {
-	I       int     `yson:"i"`
-	I64     int64   `yson:"i64"`
-	I32     int32   `yson:"i32"`
-	I16     int16   `yson:"i16"`
-	I8      int8    `yson:"i8"`
-	U       uint    `yson:"u"`
-	U64     uint64  `yson:"u64"`
-	U32     uint32  `yson:"u32"`
-	U16     uint16  `yson:"u16"`
-	U8      uint8   `yson:"u8"`
-	F32     float32 `yson:"f32"`
-	F64     float64 `yson:"f64"`
-	Boolean bool    `yson:"bool"`
-	String  string  `yson:"string"`
-	Bytes   []byte  `yson:"bytes"`
+	I         int              `yson:"i"`
+	I64       int64            `yson:"i64"`
+	I32       int32            `yson:"i32"`
+	I16       int16            `yson:"i16"`
+	I8        int8             `yson:"i8"`
+	U         uint             `yson:"u"`
+	U64       uint64           `yson:"u64"`
+	U32       uint32           `yson:"u32"`
+	U16       uint16           `yson:"u16"`
+	U8        uint8            `yson:"u8"`
+	F32       float32          `yson:"f32"`
+	F64       float64          `yson:"f64"`
+	Boolean   bool             `yson:"bool"`
+	String    string           `yson:"string"`
+	Bytes     []byte           `yson:"bytes"`
+	Date      schema.Date      `yson:"date"`
+	Datetime  schema.Datetime  `yson:"datetime"`
+	Timestamp schema.Timestamp `yson:"timestamp"`
+	Interval  schema.Interval  `yson:"interval"`
 
 	MyString MyString `yson:"my_string"`
 	MyInt    MyInt    `yson:"my_int"`
@@ -71,6 +77,10 @@ func TestDecoder_UnmarshalRow(t *testing.T) {
 				{Name: "bool"},
 				{Name: "string"},
 				{Name: "bytes"},
+				{Name: "date"},
+				{Name: "datetime"},
+				{Name: "timestamp"},
+				{Name: "interval"},
 				{Name: "my_string"},
 				{Name: "my_int"},
 				{Name: "struct"},
@@ -97,34 +107,42 @@ func TestDecoder_UnmarshalRow(t *testing.T) {
 				NewBool(12, true),
 				NewBytes(13, []byte("hello")),
 				NewBytes(14, []byte("world")),
-				NewBytes(15, []byte("my-string")),
-				NewInt64(16, 1337),
-				NewAny(17, []byte(`{id=88;name=foo;}`)),
-				NewAny(18, []byte(`{id=89;name=bar;}`)),
-				NewInt64(19, 90),
-				NewBytes(20, []byte("baz")),
-				NewInt64(21, 91),
-				NewAny(22, []byte(`{"exported_field_of_tagged_embedded"=93u;}`)),
-				NewAny(23, []byte(`{"exported_field_of_tagged_embedded_ptr"=%true;}`)),
+				NewUint64(15, 1),
+				NewUint64(16, 2),
+				NewUint64(17, 3),
+				NewInt64(18, 4),
+				NewBytes(19, []byte("my-string")),
+				NewInt64(20, 1337),
+				NewAny(21, []byte(`{id=88;name=foo;}`)),
+				NewAny(22, []byte(`{id=89;name=bar;}`)),
+				NewInt64(23, 90),
+				NewBytes(24, []byte("baz")),
+				NewInt64(25, 91),
+				NewAny(26, []byte(`{"exported_field_of_tagged_embedded"=93u;}`)),
+				NewAny(27, []byte(`{"exported_field_of_tagged_embedded_ptr"=%true;}`)),
 			},
 			expected: &testResponseRow{
-				I:        -1,
-				I64:      -64,
-				I32:      -32,
-				I16:      -16,
-				I8:       -8,
-				U:        1,
-				U64:      64,
-				U32:      32,
-				U16:      16,
-				U8:       8,
-				F32:      32.0,
-				F64:      64.0,
-				Boolean:  true,
-				String:   "hello",
-				Bytes:    []byte("world"),
-				MyString: MyString("my-string"),
-				MyInt:    MyInt(1337),
+				I:         -1,
+				I64:       -64,
+				I32:       -32,
+				I16:       -16,
+				I8:        -8,
+				U:         1,
+				U64:       64,
+				U32:       32,
+				U16:       16,
+				U8:        8,
+				F32:       32.0,
+				F64:       64.0,
+				Boolean:   true,
+				String:    "hello",
+				Bytes:     []byte("world"),
+				Date:      schema.Date(1),
+				Datetime:  schema.Datetime(2),
+				Timestamp: schema.Timestamp(3),
+				Interval:  schema.Interval(4),
+				MyString:  MyString("my-string"),
+				MyInt:     MyInt(1337),
 				Struct: innterStruct{
 					ID:   88,
 					Name: "foo",
@@ -168,6 +186,10 @@ func TestDecoder_UnmarshalRow(t *testing.T) {
 				{Name: "bool"},
 				{Name: "string"},
 				{Name: "bytes"},
+				{Name: "date"},
+				{Name: "datetime"},
+				{Name: "timestamp"},
+				{Name: "interval"},
 				{Name: "struct"},
 				{Name: "struct_ptr"},
 			},
@@ -187,25 +209,33 @@ func TestDecoder_UnmarshalRow(t *testing.T) {
 				NewBool(12, true),
 				NewBytes(13, []byte("hello")),
 				NewBytes(14, []byte("world")),
-				NewAny(15, []byte(`{id=88;name=foo;}`)),
-				NewAny(16, []byte(`{id=89;name=bar;}`)),
+				NewUint64(15, 1),
+				NewUint64(16, 2),
+				NewUint64(17, 3),
+				NewInt64(18, 4),
+				NewAny(19, []byte(`{id=88;name=foo;}`)),
+				NewAny(20, []byte(`{id=89;name=bar;}`)),
 			},
 			expected: &map[string]any{
-				"i":      int64(-1),
-				"i64":    int64(-64),
-				"i32":    int64(-32),
-				"i16":    int64(-16),
-				"i8":     int64(-8),
-				"u":      uint64(1),
-				"u64":    uint64(64),
-				"u32":    uint64(32),
-				"u16":    uint64(16),
-				"u8":     uint64(8),
-				"f32":    32.0,
-				"f64":    64.0,
-				"bool":   true,
-				"string": []byte("hello"),
-				"bytes":  []byte("world"),
+				"i":         int64(-1),
+				"i64":       int64(-64),
+				"i32":       int64(-32),
+				"i16":       int64(-16),
+				"i8":        int64(-8),
+				"u":         uint64(1),
+				"u64":       uint64(64),
+				"u32":       uint64(32),
+				"u16":       uint64(16),
+				"u8":        uint64(8),
+				"f32":       32.0,
+				"f64":       64.0,
+				"bool":      true,
+				"string":    []byte("hello"),
+				"bytes":     []byte("world"),
+				"date":      uint64(1),
+				"datetime":  uint64(2),
+				"timestamp": uint64(3),
+				"interval":  int64(4),
 				"struct": map[string]any{
 					"id":   int64(88),
 					"name": "foo",

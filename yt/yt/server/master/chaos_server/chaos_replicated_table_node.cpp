@@ -77,10 +77,7 @@ void TChaosReplicatedTableNode::Load(TLoadContext& context)
     Load(context, TreatAsQueueConsumer_);
 
     // COMPAT(apachee): Remove user attributes conflicting with new producer attributes.
-    // DropLegacyClusterNodeMap is the start of 24.2 reigns.
-    if ((context.GetVersion() >= EMasterReign::QueueProducers_24_1 && context.GetVersion() < EMasterReign::DropLegacyClusterNodeMap) ||
-        context.GetVersion() >= EMasterReign::QueueProducers)
-    {
+    if (context.GetVersion() >= EMasterReign::QueueProducers) {
         Load(context, TreatAsQueueProducer_);
     } else if (Attributes_) {
         static constexpr std::array producerRelatedAttributes = {
@@ -110,7 +107,7 @@ void TChaosReplicatedTableNode::CheckInvariants(NCellMaster::TBootstrap* bootstr
 
 bool TChaosReplicatedTableNode::IsSorted() const
 {
-    return HasNonEmptySchema() && GetSchema()->AsTableSchema()->IsSorted();
+    return HasNonEmptySchema() && GetSchema()->AsCompactTableSchema()->IsSorted();
 }
 
 // Chaos Replicated Tables are always dynamic.
@@ -152,7 +149,7 @@ bool TChaosReplicatedTableNode::IsTrackedQueueProducerObject() const
 bool TChaosReplicatedTableNode::HasNonEmptySchema() const
 {
     const auto& schema = GetSchema();
-    return schema && !schema->AsTableSchema()->IsEmpty();
+    return schema && !schema->AsCompactTableSchema()->IsEmpty();
 }
 ////////////////////////////////////////////////////////////////////////////////
 

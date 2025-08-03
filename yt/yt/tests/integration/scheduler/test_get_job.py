@@ -4,15 +4,21 @@ from yt_helpers import profiler_factory
 
 from yt_commands import (
     authors, wait, retry, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, create,
-    create_pool, insert_rows, run_sleeping_vanilla, print_debug,
-    update_controller_agent_config,
-    lookup_rows, delete_rows, write_table, map, vanilla, run_test_vanilla, abort_job, get_job, set, sync_create_cells, raises_yt_error)
+    create_pool, run_sleeping_vanilla, print_debug,
+    update_controller_agent_config, get_allocation_id_from_job_id,
+    lookup_rows, write_table, map, vanilla, run_test_vanilla,
+    abort_job, get_job, set, get, sync_create_cells, raises_yt_error, exists)
 
 import yt_error_codes
 
+from yt_operations_archive_helpers import (
+    get_allocation_id_from_archive, get_job_from_archive,
+    delete_job_from_archive, update_job_in_archive, get_controller_state_from_archive,
+    OPERATION_IDS_TABLE)
+
 import yt.environment.init_operations_archive as init_operations_archive
 
-from yt.common import date_string_to_datetime, uuid_to_parts, parts_to_uuid, update
+from yt.common import date_string_to_datetime, uuid_to_parts, parts_to_uuid, update, date_string_to_timestamp_mcs
 
 from flaky import flaky
 
@@ -21,68 +27,6 @@ import builtins
 import time
 import datetime
 from copy import deepcopy
-
-JOB_ARCHIVE_TABLE = "//sys/operations_archive/jobs"
-OPERATION_IDS_TABLE = "//sys/operations_archive/operation_ids"
-
-
-def _delete_job_from_archive(op_id, job_id):
-    op_id_hi, op_id_lo = uuid_to_parts(op_id)
-    job_id_hi, job_id_lo = uuid_to_parts(job_id)
-    delete_rows(
-        JOB_ARCHIVE_TABLE,
-        [
-            {
-                "operation_id_hi": op_id_hi,
-                "operation_id_lo": op_id_lo,
-                "job_id_hi": job_id_hi,
-                "job_id_lo": job_id_lo,
-            }
-        ],
-        atomicity="none",
-    )
-
-
-def _update_job_in_archive(op_id, job_id, attributes):
-    op_id_hi, op_id_lo = uuid_to_parts(op_id)
-    job_id_hi, job_id_lo = uuid_to_parts(job_id)
-    attributes.update(
-        {
-            "operation_id_hi": op_id_hi,
-            "operation_id_lo": op_id_lo,
-            "job_id_hi": job_id_hi,
-            "job_id_lo": job_id_lo,
-        }
-    )
-
-    def do_update_job_in_archive():
-        insert_rows(JOB_ARCHIVE_TABLE, [attributes], update=True, atomicity="none")
-        return True
-
-    wait(do_update_job_in_archive, ignore_exceptions=True)
-
-
-def _get_job_from_archive(op_id, job_id):
-    op_id_hi, op_id_lo = uuid_to_parts(op_id)
-    job_id_hi, job_id_lo = uuid_to_parts(job_id)
-    rows = lookup_rows(
-        JOB_ARCHIVE_TABLE,
-        [
-            {
-                "operation_id_hi": op_id_hi,
-                "operation_id_lo": op_id_lo,
-                "job_id_hi": job_id_hi,
-                "job_id_lo": job_id_lo,
-            }
-        ],
-    )
-    return rows[0] if rows else None
-
-
-def _get_controller_state_from_archive(op_id, job_id):
-    wait(lambda: _get_job_from_archive(op_id, job_id) is not None)
-    job_from_archive = _get_job_from_archive(op_id, job_id)
-    return job_from_archive.get("controller_state")
 
 
 class _TestGetJobBase(YTEnvSetup):
@@ -238,7 +182,7 @@ class _TestGetJobCommon(_TestGetJobBase):
         assert len(events) > 0
         assert all(field in events[0] for field in ["phase", "state", "time"])
 
-        _delete_job_from_archive(op.id, job_id)
+        delete_job_from_archive(op.id, job_id)
 
         # Controller agent must be able to respond as it stores
         # zombie operation orchids.
@@ -297,6 +241,14 @@ class TestGetJob(_TestGetJobCommon):
         },
     })
 
+    def _compare_time_from_archive_with_api(self, op_id, job_id, time_name):
+        job_from_api = get_job(op_id, job_id)
+        job_from_archive = get_job_from_archive(op_id, job_id)
+
+        assert job_from_api.get(time_name) is not None
+        assert job_from_archive.get("controller_" + time_name) is not None
+        return date_string_to_timestamp_mcs(job_from_api[time_name]) == job_from_archive["controller_" + time_name]
+
     @authors("gritukan")
     def test_get_job_task_name_attribute_vanilla(self):
         op = vanilla(
@@ -348,8 +300,8 @@ class TestGetJob(_TestGetJobCommon):
         )
         (job_id,) = wait_breakpoint()
 
-        wait(lambda: _get_job_from_archive(op.id, job_id) is not None)
-        job_from_archive = _get_job_from_archive(op.id, job_id)
+        wait(lambda: get_job_from_archive(op.id, job_id) is not None)
+        job_from_archive = get_job_from_archive(op.id, job_id)
 
         abort_job(job_id)
         release_breakpoint()
@@ -362,7 +314,7 @@ class TestGetJob(_TestGetJobCommon):
 
         @wait_no_assert
         def _check_get_job():
-            _update_job_in_archive(op.id, job_id, job_from_archive)
+            update_job_in_archive(op.id, job_id, job_from_archive)
             job_info = retry(lambda: get_job(op.id, job_id))
             assert job_info["job_id"] == job_id
             assert job_info["archive_state"] == "running"
@@ -372,7 +324,7 @@ class TestGetJob(_TestGetJobCommon):
             else:
                 assert controller_state == "aborted"
 
-        _delete_job_from_archive(op.id, job_id)
+        delete_job_from_archive(op.id, job_id)
 
         self._check_get_job(
             op.id,
@@ -394,7 +346,7 @@ class TestGetJob(_TestGetJobCommon):
 
         wait(lambda: get_job(op.id, job_id).get("controller_state") == "running")
 
-        wait(lambda: _get_controller_state_from_archive(op.id, job_id) == "running")
+        wait(lambda: get_controller_state_from_archive(op.id, job_id) == "running")
 
         if should_abort:
             abort_job(job_id)
@@ -402,9 +354,9 @@ class TestGetJob(_TestGetJobCommon):
         op.track()
 
         if should_abort:
-            wait(lambda: _get_controller_state_from_archive(op.id, job_id) == "aborted")
+            wait(lambda: get_controller_state_from_archive(op.id, job_id) == "aborted")
         else:
-            wait(lambda: _get_controller_state_from_archive(op.id, job_id) == "completed")
+            wait(lambda: get_controller_state_from_archive(op.id, job_id) == "completed")
 
     @authors("omgronny")
     def test_abort_vanished_jobs_in_archive(self):
@@ -420,8 +372,8 @@ class TestGetJob(_TestGetJobCommon):
         release_breakpoint()
         op.track()
 
-        _update_job_in_archive(op.id, job_id, {"transient_state": "running"})
-        wait(lambda: _get_controller_state_from_archive(op.id, job_id) == "aborted")
+        update_job_in_archive(op.id, job_id, {"transient_state": "running"})
+        wait(lambda: get_controller_state_from_archive(op.id, job_id) == "aborted")
 
     @authors("arkady-e1ppa")
     @pytest.mark.parametrize("use_get_job", [True, False])
@@ -444,7 +396,7 @@ class TestGetJob(_TestGetJobCommon):
                 print_debug(job)
                 return job.get("interruption_info", None)
 
-            return _get_job_from_archive(op1.id, job_id).get("interruption_info", None)
+            return get_job_from_archive(op1.id, job_id).get("interruption_info", None)
 
         wait(lambda: get_interruption_info().get("interruption_reason", None) is not None, ignore_exceptions=True)
         interruption_info = get_interruption_info()
@@ -536,6 +488,61 @@ class TestGetJob(_TestGetJobCommon):
 
         get_job(op.id, job_id)
 
+    @authors("aleksandr.gaev")
+    def test_job_addresses(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+        )
+        (job_id,) = wait_breakpoint()
+
+        def check_addresses(job_info):
+            return "address" in job_info and "addresses" in job_info
+
+        wait(lambda: check_addresses(get_job(op.id, job_id)))
+
+        release_breakpoint()
+
+        op.track()
+
+        job_info = get_job(op.id, job_id)
+        assert check_addresses(job_info)
+        assert len(job_info.get("address")) > 0
+        assert len(job_info.get("addresses")) > 0
+        assert job_info.get("addresses")["default"] == job_info.get("address")
+
+    @authors("bystrovserg")
+    def test_controller_start_finish_time(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+        )
+        (job_id,) = wait_breakpoint()
+
+        self._compare_time_from_archive_with_api(op.id, job_id, "start_time")
+        release_breakpoint()
+        op.track()
+
+        self._compare_time_from_archive_with_api(op.id, job_id, "start_time")
+        self._compare_time_from_archive_with_api(op.id, job_id, "finish_time")
+
+    @authors("bystrovserg")
+    def test_finish_time_on_broken_node(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+        )
+        (job_id,) = wait_breakpoint()
+
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        release_breakpoint()
+        op.track()
+
+        orchid_path = op.get_orchid_path()
+        wait(lambda: exists(orchid_path))
+        wait(lambda: len(get(orchid_path + "/retained_finished_jobs")) == 0)
+
+        wait(lambda: self._compare_time_from_archive_with_api(op.id, job_id, "finish_time"), ignore_exceptions=True)
+
 
 @pytest.mark.enabled_multidaemon
 class TestGetJobStatisticsLz4(_TestGetJobCommon):
@@ -574,12 +581,119 @@ class TestGetJobMonitoring(_TestGetJobBase):
             is not None)
 
 
+class TestGetJobAllocationBase(_TestGetJobBase):
+    NUM_NODES = 1
+    ENABLE_MULTIDAEMON = True
+
+    DELTA_NODE_CONFIG = update(_TestGetJobBase.DELTA_NODE_CONFIG, {
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 1,
+            },
+        },
+    })
+
+    DELTA_DYNAMIC_NODE_CONFIG = update(_TestGetJobBase.DELTA_DYNAMIC_NODE_CONFIG, {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "allocation": {
+                        "enable_multiple_jobs": True,
+                    },
+                },
+            },
+        },
+    })
+
+    def _check_allocation_id(self, op_id, job_id, include_archive=False):
+        wait(lambda: "allocation_id" in get_job(op_id, job_id))
+        allocation_id_from_get_job = get_job(op_id, job_id)["allocation_id"]
+        if include_archive:
+            job_allocation_id_from_archive = get_allocation_id_from_archive(op_id, job_id)
+            assert allocation_id_from_get_job == job_allocation_id_from_archive
+        assert allocation_id_from_get_job == get_allocation_id_from_job_id(job_id)
+
+    def _run_operation_and_check_allocation_id(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+        )
+
+        (job_id,) = wait_breakpoint()
+        self._check_allocation_id(op.id, job_id, include_archive=False)
+        release_breakpoint(job_id=job_id)
+        op.track()
+        return op, job_id
+
+
+class TestGetJobAllocationWithoutArchive(TestGetJobAllocationBase):
+    DELTA_CONTROLLER_AGENT_CONFIG = update(_TestGetJobBase.DELTA_CONTROLLER_AGENT_CONFIG, {
+        # Disable archive by setting a high reporting_period
+        "controller_agent": {
+            "job_reporter": {
+                "reporting_period": 1000000,
+            },
+        }
+    })
+
+    @authors("bystrovserg")
+    def test_allocation_id_from_controller(self):
+        self._run_operation_and_check_allocation_id()
+
+
+class TestGetJobAllocation(TestGetJobAllocationBase):
+    @authors("bystrovserg")
+    def test_allocation_id(self):
+        op, job_id = self._run_operation_and_check_allocation_id()
+        self._check_allocation_id(op.id, job_id, include_archive=True)
+
+    @authors("bystrovserg")
+    def test_same_allocation(self):
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+
+        write_table("//tmp/t_in", [{"foo": "bar"}] * 2)
+
+        op = map(
+            wait_for_jobs=True,
+            track=False,
+            command=with_breakpoint("BREAKPOINT ; cat"),
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"data_size_per_job": 1, "enable_multiple_jobs_in_allocation": True},
+        )
+
+        job_ids = wait_breakpoint()
+        assert len(job_ids) == 1
+
+        job_id1 = job_ids[0]
+
+        wait(lambda: "allocation_id" in get_job(op.id, job_id1))
+        allocation_id_before = get_job(op.id, job_id1)["allocation_id"]
+
+        release_breakpoint(job_id=job_id1)
+
+        job_ids = wait_breakpoint()
+        assert len(job_ids) == 1
+
+        job_id2 = job_ids[0]
+
+        assert job_id1 != job_id2
+
+        wait(lambda: "allocation_id" in get_job(op.id, job_id1))
+        assert allocation_id_before == get_job(op.id, job_id1)["allocation_id"]
+
+        release_breakpoint()
+
+        op.track()
+
+        wait(lambda: "allocation_id" in get_job(op.id, job_id1))
+        assert allocation_id_before == get_job(op.id, job_id1)["allocation_id"]
+
+
 ##################################################################
 
 
 class TestGetJobRpcProxy(TestGetJob):
-    ENABLE_MULTIDAEMON = False  # There are component restarts.
-
     USE_DYNAMIC_TABLES = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -589,6 +703,13 @@ class TestGetJobRpcProxy(TestGetJob):
 @pytest.mark.enabled_multidaemon
 class TestGetJobStatisticsLz4RpcProxy(TestGetJobStatisticsLz4):
     ENABLE_MULTIDAEMON = True
+    USE_DYNAMIC_TABLES = True
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_HTTP_PROXY = True
+
+
+class TestGetJobAllocationIdRpcProxy(TestGetJobAllocation):
     USE_DYNAMIC_TABLES = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True

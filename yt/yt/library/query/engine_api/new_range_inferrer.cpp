@@ -69,7 +69,15 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
         return TConstraintRef::Universal();
     }
 
-    if (const auto* binaryOpExpr = expr->As<TBinaryOpExpression>()) {
+    if (const auto* unaryOpExpr = expr->As<TUnaryOpExpression>()) {
+        auto opcode = unaryOpExpr->Opcode;
+        auto operand = unaryOpExpr->Operand;
+
+        if (opcode == EUnaryOp::Not) {
+            auto constraints = ExtractFromExpression(operand, keyColumns, rowBuffer, constraintExtractors);
+            return TConstraintsHolder::Invert(constraints);
+        }
+    } else if (const auto* binaryOpExpr = expr->As<TBinaryOpExpression>()) {
         auto opcode = binaryOpExpr->Opcode;
         auto lhsExpr = binaryOpExpr->Lhs;
         auto rhsExpr = binaryOpExpr->Rhs;

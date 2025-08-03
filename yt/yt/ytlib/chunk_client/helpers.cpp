@@ -3,6 +3,7 @@
 #include "chunk_meta_extensions.h"
 #include "chunk_service_proxy.h"
 #include "chunk_spec.h"
+#include "chunk_writer.h"
 #include "config.h"
 #include "data_slice_descriptor.h"
 #include "erasure_reader.h"
@@ -693,7 +694,7 @@ IChunkReaderPtr CreateRemoteReader(
         YT_LOG_DEBUG("Creating erasure remote reader (Codec: %v)",
             erasureCodecId);
 
-        std::array<TChunkReplicaWithMedium, ::NErasure::MaxTotalPartCount> partIndexToReplica;
+        std::array<TChunkReplica, ::NErasure::MaxTotalPartCount> partIndexToReplica;
         std::fill(partIndexToReplica.begin(), partIndexToReplica.end(), TChunkReplicaWithMedium());
         for (auto replica : replicas) {
             partIndexToReplica[replica.GetReplicaIndex()] = replica;
@@ -711,7 +712,7 @@ IChunkReaderPtr CreateRemoteReader(
         readers.reserve(partCount);
 
         for (int index = 0; index < partCount; ++index) {
-            TChunkReplicaWithMediumList partReplicas;
+            TChunkReplicaList partReplicas;
             auto replica = partIndexToReplica[index];
             if (replica.GetNodeId() != InvalidNodeId) {
                 partReplicas.push_back(replica);
@@ -832,7 +833,6 @@ void LocateChunks(
                             chunkId);
                     }
                 } else {
-                    chunkSpecs[globalIndex]->mutable_legacy_replicas()->Swap(subresponse->mutable_legacy_replicas());
                     chunkSpecs[globalIndex]->mutable_replicas()->Swap(subresponse->mutable_replicas());
                     chunkSpecs[globalIndex]->set_erasure_codec(subresponse->erasure_codec());
                 }
@@ -860,13 +860,13 @@ const NYPath::TYPath& TUserObject::GetPath() const
     return Path.GetPath();
 }
 
-TString TUserObject::GetObjectIdPath() const
+TYPath TUserObject::GetObjectIdPath() const
 {
     YT_VERIFY(IsPrepared());
     return FromObjectId(ObjectId);
 }
 
-TString TUserObject::GetObjectIdPathIfAvailable() const
+TYPath TUserObject::GetObjectIdPathIfAvailable() const
 {
     return ObjectId ? FromObjectId(ObjectId) : Path.GetPath();
 }
@@ -1021,7 +1021,7 @@ void TChunkWriterCounters::Increment(
 ////////////////////////////////////////////////////////////////////////////////
 
 TAllyReplicasInfo TAllyReplicasInfo::FromChunkReplicas(
-    const TChunkReplicaList& chunkReplicas,
+    const TChunkReplicaWithMediumList& chunkReplicas,
     NHydra::TRevision revision)
 {
     TAllyReplicasInfo result;
@@ -1035,7 +1035,7 @@ TAllyReplicasInfo TAllyReplicasInfo::FromChunkReplicas(
 }
 
 TAllyReplicasInfo TAllyReplicasInfo::FromChunkReplicas(
-    const TChunkReplicaWithMediumList& chunkReplicas,
+    const TChunkReplicaList& chunkReplicas,
     NHydra::TRevision revision)
 {
     TAllyReplicasInfo result;
@@ -1046,6 +1046,24 @@ TAllyReplicasInfo TAllyReplicasInfo::FromChunkReplicas(
     result.Revision = revision;
 
     return result;
+}
+
+TAllyReplicasInfo TAllyReplicasInfo::FromWrittenChunkReplicasInfo(TWrittenChunkReplicasInfo replicasInfo)
+{
+    // TODO(kvk1920): Consider using chunk + location instead of chunk + node + medium.
+    TAllyReplicasInfo result;
+    result.Replicas.reserve(replicasInfo.Replicas.size());
+    for (auto replica : replicasInfo.Replicas) {
+        result.Replicas.push_back(replica);
+    }
+    result.Revision = replicasInfo.ConfirmationRevision;
+
+    return result;
+}
+
+TAllyReplicasInfo TAllyReplicasInfo::FromChunkWriter(const IChunkWriterPtr& chunkWriter)
+{
+    return FromWrittenChunkReplicasInfo(chunkWriter->GetWrittenChunkReplicasInfo());
 }
 
 void ToProto(
@@ -1085,6 +1103,21 @@ bool IsLargeEnoughChunkSize(i64 chunkSize, i64 chunkSizeThreshold)
 bool IsLargeEnoughChunkWeight(i64 chunkWeight, i64 chunkWeightThreshold)
 {
     return chunkWeight >= chunkWeightThreshold;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString FormatBlocks(int startBlockIndex, int endBlockIndex)
+{
+    TStringBuilder builder;
+
+    if (startBlockIndex == endBlockIndex) {
+        builder.AppendFormat("[%v]", startBlockIndex);
+    } else {
+        builder.AppendFormat("[%v-%v]", startBlockIndex, endBlockIndex);
+    }
+
+    return builder.Flush();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

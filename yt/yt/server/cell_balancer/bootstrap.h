@@ -26,6 +26,8 @@ struct IBootstrap
     virtual const NCypressElection::ICypressElectionManagerPtr& GetElectionManager() const = 0;
 
     virtual const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const = 0;
+
+    virtual void ExecuteIteration(bool dryRun) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBootstrap)

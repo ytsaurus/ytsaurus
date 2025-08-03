@@ -70,6 +70,7 @@ message TTimeStatistics
     optional int64 artifacts_download_duration = 3;
     optional int64 prepare_root_fs_duration = 4;
     optional int64 gpu_check_duration = 5;
+    optional int64 prepare_gpu_check_fs_duration = 7;
 }
 
 // Describes the current job status.
@@ -157,12 +158,20 @@ message TJobProfilerSpec
     required bool run_external_symbolizer = 5;
 }
 
+message TNetworkProject
+{
+    required int32 id = 1;
+    required bool enable_nat64 = 2;
+    required bool disable_network = 3;
+}
+
 // Specification for starting user code during a job.
 message TUserJobSpec
 {
     // Additional files (tables) to be placed into the sandbox.
     repeated TFileDescriptor files = 1;
-    repeated TFileDescriptor layers = 34;
+    repeated TFileDescriptor root_volume_layers = 34;
+    repeated TFileDescriptor gpu_check_volume_layers = 78;
 
     // The external docker image specified for operation,
     // images from internal registry are resolved into layers.
@@ -252,6 +261,7 @@ message TUserJobSpec
 
     optional string cuda_toolkit_version = 46;
 
+    // COMPAT(ignat)
     optional uint32 network_project_id = 47;
 
     optional int32 enable_porto = 49; // NScheduler::EEnablePorto
@@ -263,8 +273,6 @@ message TUserJobSpec
     optional double container_cpu_limit = 53 [default = 0];
 
     optional int64 slot_container_memory_limit = 73;
-
-    optional bool make_rootfs_writable = 54 [default = false];
 
     optional int32 restart_exit_code = 55;
 
@@ -282,11 +290,15 @@ message TUserJobSpec
     optional int64 thread_limit = 60 [default = 1000000];
 
     repeated string gpu_check_binary_args = 63;
+    map<string, string> gpu_check_environment = 79;
+    optional TNetworkProject gpu_check_network_project = 81;
 
+    // COMPAT(ignat)
     // The following options must be used only with network projects.
     // Enables NAT64 - YT-15665.
     optional bool enable_nat64 = 64;
 
+    // COMPAT(ignat)
     // Disables networking inside the job.
     optional bool disable_network = 67;
 
@@ -306,7 +318,11 @@ message TUserJobSpec
 
     optional int64 archive_ttl = 76;
 
-    reserved 38, 48, 61, 62;
+    optional bool start_queue_consumer_registration_manager = 77 [default = true];
+
+    reserved 38, 48, 54, 61, 62;
+
+    optional TNetworkProject network_project = 80;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -745,6 +761,7 @@ message TRemoteCopyJobSpecExt
     optional bool repair_erasure_chunks = 6;
 
     repeated THunkChunkIdMapping hunk_chunk_id_mapping = 7;
+    repeated THunkChunkIdMapping compression_dictionary_id_mapping = 9;
 
     optional string remote_cluster_name = 8;
 }

@@ -22,8 +22,7 @@ DECLARE_REFCOUNTED_STRUCT(IServer)
 
 DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)
 
-struct IGroupCoordinator;
-DECLARE_REFCOUNTED_TYPE(IGroupCoordinator)
+DECLARE_REFCOUNTED_STRUCT(IGroupCoordinator)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -12,10 +12,6 @@ namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NScheduler::TAllocationId;
-
-////////////////////////////////////////////////////////////////////////////////
-
 namespace NProto {
 
 class TCoreInfo;
@@ -82,6 +78,7 @@ using NVectorHdrf::TJobResources;
 
 using NScheduler::TOperationId;
 using NJobTrackerClient::TJobId;
+using NScheduler::TAllocationId;
 using NScheduler::EAbortReason;
 using NScheduler::EInterruptionReason;
 using NScheduler::EOperationType;

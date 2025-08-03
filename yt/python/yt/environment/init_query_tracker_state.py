@@ -1019,30 +1019,193 @@ TRANSFORMS[11] = [
         table_info=ACTIVE_QUERIES_V11,
     ),]
 
+FINISHED_QUERY_RESULTS_V12 = TableInfo(
+    [
+        ("query_id", "string"),
+        ("result_index", "int64"),
+    ],
+    [
+        ("error", "any"),
+        ("schema", "any"),
+        ("data_statistics", "any"),
+        ("rowset", "string"),
+        ("is_truncated", "boolean"),
+        ("full_result", "any"),
+    ],
+    optimize_for="lookup",
+    attributes={
+        "tablet_cell_bundle": SYS_BUNDLE_NAME,
+    },
+)
+
 TRANSFORMS[12] = [
     Conversion(
         "finished_query_results",
-        table_info=TableInfo(
-            [
-                ("query_id", "string"),
-                ("result_index", "int64"),
-            ],
-            [
-                ("error", "any"),
-                ("schema", "any"),
-                ("data_statistics", "any"),
-                ("rowset", "string"),
-                ("is_truncated", "boolean"),
-                ("full_result", "any"),
-            ],
-            optimize_for="lookup",
-            attributes={
-                "tablet_cell_bundle": SYS_BUNDLE_NAME,
-            },
-        )
+        table_info=FINISHED_QUERY_RESULTS_V12,
     ),
 ]
 
+FINISHED_QUERY_RESULTS_V13 = TableInfo(
+    [
+        ("query_id", "string"),
+        ("result_index", "int64"),
+    ],
+    [
+        ("error", "any"),
+        ("schema", "any"),
+        ("data_statistics", "any"),
+        ("rowset", "string"),
+        ("is_truncated", "boolean"),
+        ("full_result", "any"),
+    ],
+    optimize_for="lookup",
+    attributes={
+        "tablet_cell_bundle": SYS_BUNDLE_NAME,
+        "min_data_ttl": 60000,
+        "merge_rows_on_flush": True,
+        "auto_compaction_period": 3600000,
+    },
+)
+
+# YT-24065
+TRANSFORMS[13] = [
+    Conversion(
+        "finished_queries_results",
+        remove_table=True,
+    ),
+    Conversion(
+        "finished_query_results",
+        table_info=FINISHED_QUERY_RESULTS_V13,
+    ),
+]
+
+ACTIVE_QUERIES_V14 = TableInfo(
+    [
+        ("query_id", "string"),
+    ],
+    [
+        ("engine", "string", {"lock": "client"}),
+        ("query", "string", {"lock": "client"}),
+        ("files", "any", {"lock": "client"}),
+        ("settings", "any", {"lock": "client"}),
+        ("user", "string", {"lock": "client"}),
+        ("access_control_objects", "any", {"lock": "client"}),
+        ("start_time", "timestamp", {"lock": "client"}),
+        ("filter_factors", "string", {"lock": "client"}),
+        ("state", "string", {"lock": "common"}),
+        ("incarnation", "int64", {"lock": "query_tracker"}),
+        ("ping_time", "timestamp", {"lock": "query_tracker"}),
+        ("lease_transaction_id", "string", {"lock": "query_tracker"}),
+        ("assigned_tracker", "string", {"lock": "query_tracker"}),
+        ("progress", "any", {"lock": "query_tracker_progress"}),
+        ("error", "any", {"lock": "query_tracker"}),
+        ("result_count", "int64", {"lock": "query_tracker"}),
+        ("finish_time", "timestamp", {"lock": "common"}),
+        ("abort_request", "any", {"lock": "client"}),
+        ("annotations", "any", {"lock": "client"}),
+        ("secrets", "any", {"lock": "client"}),
+    ],
+    optimize_for="lookup",
+    attributes={
+        "tablet_cell_bundle": SYS_BUNDLE_NAME,
+        "min_data_ttl": 60000,
+        "merge_rows_on_flush": True,
+        "auto_compaction_period": 3600000,
+    },
+)
+
+FINISHED_QUERIES_V14 = TableInfo(
+    [
+        ("query_id", "string"),
+    ],
+    [
+        ("engine", "string"),
+        ("query", "string"),
+        ("files", "any"),
+        ("settings", "any"),
+        ("user", "string"),
+        ("access_control_objects", "any"),
+        ("start_time", "timestamp"),
+        ("state", "string"),
+        ("progress", "any"),
+        ("error", "any"),
+        ("result_count", "int64"),
+        ("finish_time", "timestamp"),
+        ("annotations", "any"),
+        ("secrets", "any"),
+    ],
+    optimize_for="lookup",
+    attributes={
+        "tablet_cell_bundle": SYS_BUNDLE_NAME,
+        "min_data_ttl": 60000,
+        "merge_rows_on_flush": True,
+        "auto_compaction_period": 3600000,
+    },
+)
+
+TRANSFORMS[14] = [
+    Conversion(
+        "active_queries",
+        table_info=ACTIVE_QUERIES_V14,
+    ),
+    Conversion(
+        "finished_queries",
+        table_info=FINISHED_QUERIES_V14,
+    ),
+]
+
+ACTIVE_QUERIES_TABLE_V15 = TableInfo(
+    [
+        ("query_id", "string"),
+    ],
+    [
+        ("engine", "string", {"lock": "client"}),
+        ("query", "string", {"lock": "client"}),
+        ("files", "any", {"lock": "client"}),
+        ("settings", "any", {"lock": "client"}),
+        ("user", "string", {"lock": "client"}),
+        ("access_control_objects", "any", {"lock": "client"}),
+        ("start_time", "timestamp", {"lock": "client"}),
+        ("execution_start_time", "timestamp", {"lock": "query_tracker"}),
+        ("filter_factors", "string", {"lock": "client"}),
+        ("state", "string", {"lock": "common"}),
+        ("incarnation", "int64", {"lock": "query_tracker"}),
+        ("ping_time", "timestamp", {"lock": "query_tracker"}),
+        ("lease_transaction_id", "string", {"lock": "query_tracker"}),
+        ("assigned_tracker", "string", {"lock": "query_tracker"}),
+        ("progress", "any", {"lock": "query_tracker_progress"}),
+        ("error", "any", {"lock": "query_tracker"}),
+        ("result_count", "int64", {"lock": "query_tracker"}),
+        ("finish_time", "timestamp", {"lock": "common"}),
+        ("abort_request", "any", {"lock": "client"}),
+        ("annotations", "any", {"lock": "client"}),
+        ("secrets", "any", {"lock": "client"}),
+    ],
+    optimize_for="lookup",
+    attributes={
+        "tablet_cell_bundle": SYS_BUNDLE_NAME,
+        "min_data_ttl": 60000,
+        "merge_rows_on_flush": True,
+        "auto_compaction_period": 3600000,
+    },
+)
+
+
+def start_time_to_execution_start_time_mapper(row):
+    column_names = ACTIVE_QUERIES_TABLE_V15.user_columns
+    result = dict([(key, row.get(key)) for key in column_names])
+    result["execution_start_time"] = row.get("start_time")
+    yield result
+
+
+TRANSFORMS[15] = [
+    Conversion(
+        "active_queries",
+        source="active_queries",
+        table_info=ACTIVE_QUERIES_TABLE_V15,
+        mapper=start_time_to_execution_start_time_mapper
+    ),
+]
 
 # NB(mpereskokova): don't forget to update min_required_state_version at yt/yt/server/query_tracker/config.cpp and state at yt/yt/ytlib/query_tracker_client/records/query.yaml
 
@@ -1115,7 +1278,15 @@ def main():
     logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 
     args = build_arguments_parser().parse_args()
-    client = YtClient(proxy=args.proxy, token=config["token"])
+    client = YtClient(
+        proxy=args.proxy,
+        token=config["token"],
+        config={
+            "pickling": {
+                "ignore_system_modules": False,
+            },
+        },
+    )
 
     target_version = args.target_version
     if args.latest:

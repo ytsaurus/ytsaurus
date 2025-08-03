@@ -33,10 +33,9 @@ DEFINE_REFCOUNTED_TYPE(TPermissionCacheConfig)
 //! the provided master read options and, if relevant, node/master cache configuration
 //! themselves. The defaults are chosen to make this cache no more expensive than the
 //! permission cache in its default configuration.
-class TUserAttributeCacheConfig
+struct TUserAttributeCacheConfig
     : public NObjectClient::TObjectAttributeCacheConfig
 {
-public:
     REGISTER_YSON_STRUCT(TUserAttributeCacheConfig);
 
     static void Register(TRegistrar registrar);

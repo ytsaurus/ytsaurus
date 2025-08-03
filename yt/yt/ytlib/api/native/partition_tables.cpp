@@ -11,14 +11,21 @@
 #include <yt/yt/ytlib/chunk_pools/chunk_pool_factory.h>
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
 
+#include <yt/yt/ytlib/table_client/proto/table_partition_cookie.pb.h>
+
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/chunk_slice_fetcher.h>
 #include <yt/yt/ytlib/table_client/columnar_statistics_fetcher.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/client/object_client/public.h>
+
+#include <yt/yt/client/signature/generator.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 
@@ -40,16 +47,35 @@ using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NYPath;
 
+static NTableClient::NProto::TTablePartitionCookie GetTablePartitionCookie(const TDataSourceDirectoryPtr& dataSourceDirectory, const std::vector<std::vector<TDataSliceDescriptor>>& slicesByTable)
+{
+    NTableClient::NProto::TTablePartitionCookie protoCookie;
+    ToProto(protoCookie.mutable_data_source_directory(), dataSourceDirectory);
+
+    for (const auto& slices : slicesByTable) {
+        auto* tableInputSpec = protoCookie.add_table_input_specs();
+        ToProto(
+            tableInputSpec->mutable_chunk_specs(),
+            tableInputSpec->mutable_chunk_spec_count_per_data_slice(),
+            tableInputSpec->mutable_virtual_row_index_per_data_slice(),
+            slices);
+    }
+
+    return protoCookie;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TMultiTablePartitioner::TMultiTablePartitioner(
     IClientPtr client,
     std::vector<TRichYPath> paths,
     TPartitionTablesOptions options,
+    std::string user,
     NLogging::TLogger logger)
     : Client_(std::move(client))
     , Paths_(std::move(paths))
     , Options_(std::move(options))
+    , User_(std::move(user))
     , Logger(std::move(logger))
 { }
 
@@ -73,6 +99,8 @@ void TMultiTablePartitioner::InitializeChunkPool()
         Options_.PartitionMode,
         Options_.DataWeightPerPartition,
         Options_.AdjustDataWeightPerPartition ? Options_.MaxPartitionCount : std::nullopt,
+        Options_.UseNewSlicingImplementationInOrderedPool,
+        Options_.UseNewSlicingImplementationInUnorderedPool,
         Logger);
 }
 
@@ -194,9 +222,16 @@ void TMultiTablePartitioner::BuildPartitions()
         auto chunkStripeList = ChunkPool_->GetStripeList(cookie);
         auto slicesByTable = ConvertChunkStripeListIntoDataSliceDescriptors(chunkStripeList);
 
-        Partitions_.Partitions.emplace_back(TMultiTablePartition{
-            CombineDataSlices(DataSourceDirectory_, slicesByTable, Paths_),
-            chunkStripeList->GetAggregateStatistics()});
+        Partitions_.Partitions.push_back(TMultiTablePartition{
+            .TableRanges = CombineDataSlices(DataSourceDirectory_, slicesByTable, Paths_),
+            .AggregateStatistics = chunkStripeList->GetAggregateStatistics()});
+        if (Options_.EnableCookies) {
+            const auto& signatureGenerator = Client_->GetNativeConnection()->GetSignatureGenerator();
+            auto cookie = GetTablePartitionCookie(DataSourceDirectory_, slicesByTable);
+            cookie.set_user(User_);
+            auto cookieBytes = SerializeProtoToString(cookie);
+            Partitions_.Partitions.back().Cookie = TTablePartitionCookiePtr(signatureGenerator->Sign(cookieBytes));
+        }
     }
 
     YT_LOG_INFO("Partitions built (PartitionCount: %v)", Partitions_.Partitions.size());
@@ -244,9 +279,9 @@ std::vector<std::vector<TDataSliceDescriptor>> TMultiTablePartitioner::ConvertCh
         for (auto dataSlice : chunkStripe->DataSlices) {
             auto tableIndex = dataSlice->GetInputStreamIndex();
             const auto& comparator = GetComparator(tableIndex);
+            YT_VERIFY(tableIndex < std::ssize(slicesByTable));
+            auto& dataSliceDescriptor = slicesByTable[tableIndex].emplace_back();
             for (auto chunkSlice : dataSlice->ChunkSlices) {
-                YT_VERIFY(tableIndex < std::ssize(slicesByTable));
-                auto& dataSliceDescriptor = slicesByTable[tableIndex].emplace_back();
                 auto& chunkSpec = dataSliceDescriptor.ChunkSpecs.emplace_back();
 
                 ToProto(&chunkSpec, chunkSlice, comparator, dataSlice->Type);
@@ -298,7 +333,7 @@ void TMultiTablePartitioner::RequestVersionedDataSlices(const TInputTable& input
         YT_LOG_TRACE("Add data slice for slicing (TableIndex: %v, DataSlice: %v)",
             tableIndex,
             dataSlice);
-        fetcher->AddDataSliceForSlicing(dataSlice, comparator, Options_.DataWeightPerPartition, /*sliceByKeys*/ true);
+        fetcher->AddDataSliceForSlicing(dataSlice, comparator, Options_.DataWeightPerPartition, /*sliceByKeys*/ true, /*minManiacDataWeight*/ std::nullopt);
     }
 
     FetchState_.TableFetchers.push_back(std::move(fetcher));

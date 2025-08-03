@@ -99,7 +99,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ChunkServerLogger;
+constinit const auto Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -279,7 +279,6 @@ public:
         const auto& sourceReplicas = replicasOrError.Value();
         builder.Add(sourceReplicas);
         ToProto(jobSpecExt->mutable_source_replicas(), sourceReplicas);
-        ToProto(jobSpecExt->mutable_legacy_source_replicas(), sourceReplicas);
 
         jobSpecExt->set_striped_erasure_chunk(Chunk_->GetStripedErasure());
 
@@ -1879,6 +1878,13 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
 
             for (const auto& replica : replicasOrError.Value()) {
                 auto pushNode = replica.GetPtr()->GetNode();
+                if (!pushNode->ReportedDataNodeHeartbeat()) {
+                    // Refresh is scheduled on node complete unregistration, but I am not sure about
+                    // per location registration here, so it won't hurt.
+                    ScheduleChunkRefresh(chunk);
+                    continue;
+                }
+
                 for (int mediumIndex = 0; mediumIndex < std::ssize(mediumIndexSet); ++mediumIndex) {
                     if (mediumIndexSet.test(mediumIndex)) {
                         if (pushNode->GetTargetReplicationNodeId(chunkId, mediumIndex) != InvalidNodeId) {
@@ -2925,11 +2931,11 @@ void TChunkReplicator::OnCheckEnabledPrimary()
 
 void TChunkReplicator::OnCheckEnabledSecondary()
 {
-    auto proxy = CreateObjectServiceReadProxy(
-        Bootstrap_->GetRootClient(),
-        NApi::EMasterChannelKind::Leader);
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
+        multicellManager->GetMasterChannelOrThrow(PrimaryMasterCellTagSentinel, NHydra::EPeerKind::Leader));
 
-    auto [enabledRsp, faultyStorageDCsRsp] = WaitFor(proxy.ExecuteAll(
+    auto [enabledRsp, faultyStorageDCsRsp] = WaitFor(proxy.ExecuteMany(
         TYPathProxy::Get("//sys/@chunk_replicator_enabled"),
         TYPathProxy::Get("//sys/@faulty_storage_data_centers")))
         .ValueOrThrow();
@@ -3054,27 +3060,15 @@ void TChunkReplicator::OnJobWaiting(const TJobPtr& job, IJobControllerCallbacks*
 
 void TChunkReplicator::OnJobRunning(const TJobPtr& job, IJobControllerCallbacks* callbacks)
 {
-    if (TInstant::Now() - job->GetStartTime() > GetDynamicConfig()->JobTimeout)
-    {
-        // NB: Aborting removal jobs is potentially dangerous and may lead to inconsitency between
-        // master and data nodes.
-        // COMPAT(babenko): this is a temporary workaround until new epoch management is fully deployed.
-        if (job->GetType() == EJobType::RemoveChunk) {
-            YT_LOG_ALERT("Chunk removal job timed out (JobId: %v, Address: %v, Duration: %v, ChunkId: %v)",
-                job->GetJobId(),
-                job->NodeAddress(),
-                TInstant::Now() - job->GetStartTime(),
-                job->GetChunkIdWithIndexes());
-        } else {
-            YT_LOG_WARNING("Job timed out, aborting (JobId: %v, JobType: %v, Address: %v, Duration: %v, ChunkId: %v)",
-                job->GetJobId(),
-                job->GetType(),
-                job->NodeAddress(),
-                TInstant::Now() - job->GetStartTime(),
-                job->GetChunkIdWithIndexes());
+    if (TInstant::Now() - job->GetStartTime() > GetDynamicConfig()->JobTimeout) {
+        YT_LOG_WARNING("Job timed out, aborting (JobId: %v, JobType: %v, Address: %v, Duration: %v, ChunkId: %v)",
+            job->GetJobId(),
+            job->GetType(),
+            job->NodeAddress(),
+            TInstant::Now() - job->GetStartTime(),
+            job->GetChunkIdWithIndexes());
 
-            callbacks->AbortJob(job);
-        }
+        callbacks->AbortJob(job);
     }
 }
 
@@ -3771,14 +3765,14 @@ void TChunkReplicator::OnDynamicConfigChanged(const TDynamicClusterConfigPtr& ol
         InconsistentlyPlacedChunks_.clear();
     }
 
-    auto updateToggle = [&] (bool* currentValue, bool newValue, void(TChunkReplicator::*scheduleGlobalRefresh)(), TString what) {
+    auto updateToggle = [&] (bool* currentValue, bool newValue, void (TChunkReplicator::*scheduleGlobal)(), std::string what) {
         if (newValue != *currentValue) {
             *currentValue = newValue;
             YT_LOG_INFO("%v %v",
                 what,
                 newValue ? "enabled" : "disabled");
             if (newValue) {
-                (this->*scheduleGlobalRefresh)();
+                (this->*scheduleGlobal)();
             }
         }
     };

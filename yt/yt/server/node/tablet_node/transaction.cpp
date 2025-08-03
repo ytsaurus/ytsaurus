@@ -29,10 +29,6 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransaction::TTransaction(TTransactionId id)
-    : TTransactionBase(id)
-{ }
-
 void TTransaction::Save(TSaveContext& context) const
 {
     TTransactionBase::Save(context);
@@ -94,22 +90,12 @@ void TTransaction::Load(TLoadContext& context)
     Load(context, CommitTimestampClusterTag_);
     Load(context, TabletsToUpdateReplicationProgress_);
 
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= ETabletReign::TabletPrerequisites) {
-        Load(context, PersistentLeaseIds_);
-    }
-
-    // COMPAT(kvk1920)
-    if (context.GetVersion() >= ETabletReign::SaneTxActionAbort &&
-        context.GetVersion() < ETabletReign::SaneTxActionAbortFix)
-    {
-        Load(context, PreparedActionCount_);
-    }
+    Load(context, PersistentLeaseIds_);
 
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= ETabletReign::SmoothMovementForwardWrites) {
         Load(context, ExternalizerTablets_);
-    } else if (context.GetVersion() >= ETabletReign::SmoothTabletMovement) {
+    } else {
         if (auto tabletId = Load<TTabletId>(context)) {
             ExternalizerTablets_ = {{tabletId, tabletId}};
         }
@@ -144,6 +130,28 @@ TTimestamp TTransaction::GetPersistentPrepareTimestamp() const
             return NullTimestamp;
         default:
             return PrepareTimestamp_;
+    }
+}
+
+bool TTransaction::WasDefinitelyPrepared() const
+{
+    switch (GetPersistentState()) {
+        // Before prepare.
+        case ETransactionState::Active:
+            return false;
+        // After prepare.
+        case ETransactionState::PersistentCommitPrepared:
+        case ETransactionState::CommitPending:
+        case ETransactionState::Committed:
+        case ETransactionState::Serialized:
+            return true;
+        // Abort may happen with or without prepare.
+        case ETransactionState::Aborted:
+            return false;
+        // Transient state will never be returned by GetPersistentState.
+        case ETransactionState::TransientCommitPrepared:
+        case ETransactionState::TransientAbortPrepared:
+            YT_ABORT();
     }
 }
 

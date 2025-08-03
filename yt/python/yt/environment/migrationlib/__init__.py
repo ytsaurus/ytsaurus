@@ -134,7 +134,7 @@ class TableInfo(object):
         logging.info("Creating table %s with attributes %s", path, attributes)
         client.create("table", path, recursive=True, attributes=attributes)
 
-    def create_dynamic_table(self, client, path):
+    def create_dynamic_table(self, client, path, ignore_existing=False):
         attributes = _make_dynamic_table_attributes(self.schema, self.key_columns, self.optimize_for)
         attributes.update(self.attributes)
 
@@ -142,7 +142,7 @@ class TableInfo(object):
             attributes["account"] = SYS_ACCOUNT_NAME
 
         logging.info("Creating dynamic table %s with attributes %s", path, attributes)
-        client.create("table", path, recursive=True, attributes=attributes)
+        client.create("table", path, recursive=True, attributes=attributes, ignore_existing=ignore_existing)
 
     def to_dynamic_table(self, client, path):
         attributes = _make_dynamic_table_attributes(self.schema, self.key_columns, self.optimize_for)
@@ -208,15 +208,20 @@ class Conversion(object):
     :param filter_callback:
         a callback called with "client" and "table_path" arguments used to ignore some conversions
         for re-using migration in different environments
+    :param remove_table:
+        whether to remove table_name if it exists
     """
 
-    def __init__(self, table, table_info=None, mapper=None, source=None, use_default_mapper=False, filter_callback=None):
+    def __init__(self, table, table_info=None, mapper=None, source=None, use_default_mapper=False, filter_callback=None, remove_table=False):
         self.table = table
         self.table_info = table_info
         self.mapper = mapper
         self.source = source
         self.use_default_mapper = use_default_mapper
         self.filter_callback = filter_callback
+        self.remove_table = remove_table
+        if self.remove_table:
+            assert self.table_info is None
 
     def __call__(self, client, table_info, target_table, source_table, tables_path, shard_count):
         if self.table_info:
@@ -313,7 +318,7 @@ class Migration(object):
             table_info.attributes["pivot_keys"] = table_info.get_pivot_keys(shard_count)
         if table_info.in_memory:
             table_info.attributes["in_memory_mode"] = "compressed"
-        table_info.create_dynamic_table(client, table_path)
+        table_info.create_dynamic_table(client, table_path, ignore_existing=True)
 
     def _initialize_migration(self, client, tables_path, version=None, tablet_cell_bundle=None, shard_count=1, mount=False):
         if version is None:
@@ -324,6 +329,8 @@ class Migration(object):
             for conversion in self.transforms.get(version, []):
                 if conversion.table_info:
                     table_infos[conversion.table] = conversion.table_info
+                elif conversion.remove_table:
+                    table_infos.pop(conversion.table, None)
 
         for table_name, table_info in table_infos.items():
             if tablet_cell_bundle is not None:
@@ -350,6 +357,8 @@ class Migration(object):
             for conversion in self.transforms.get(version, []):
                 if conversion.table_info:
                     table_infos[conversion.table] = conversion.table_info
+                elif conversion.remove_table:
+                    table_infos.pop(conversion.table, None)
 
         # NB(omgronny): Allow retransform to the current version.
         if retransform:
@@ -368,6 +377,12 @@ class Migration(object):
                         continue
 
                     table_exists = client.exists(table_path)
+
+                    if conversion.remove_table:
+                        table_infos.pop(table, None)
+                        if table_exists:
+                            client.remove(table_path)
+                        continue
 
                     shard_count = shard_count
                     if table_exists:
@@ -425,6 +440,8 @@ class Migration(object):
                     del table_infos[conversion.source]
                 if conversion.table_info:
                     table_infos[conversion.table] = copy.deepcopy(conversion.table_info)
+                elif conversion.remove_table:
+                    table_infos.pop(conversion.table, None)
 
         return {table: table_info.schema for table, table_info in table_infos.items()}
 
@@ -453,6 +470,8 @@ class Migration(object):
             for conversion in self.transforms.get(version, []):
                 if conversion.table_info:
                     table_infos[conversion.table] = conversion.table_info
+                elif conversion.remove_table:
+                    table_infos.pop(conversion.table, None)
 
         for table, table_info in table_infos.items():
             table_path = ypath_join(tables_path, table)

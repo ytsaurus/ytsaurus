@@ -75,6 +75,12 @@ class YPathTokenizer(object):
             self.throw_malformed_escape_sequence(self._path[current - 1:current + 1])
         return current
 
+    def skip(self, type):
+        if self._type == type:
+            self.advance()
+            return True
+        return False
+
     def get_type(self):
         return self._type
 

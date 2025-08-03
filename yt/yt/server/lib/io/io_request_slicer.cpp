@@ -8,7 +8,7 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-i64 GetByteCount(const IIOEngine::TWriteRequest& request)
+i64 GetByteCount(const TWriteRequest& request)
 {
     return GetByteSize(request.Buffers);
 }
@@ -53,15 +53,25 @@ private:
 
 } // namespace NDetail
 
-TIORequestSlicer::TIORequestSlicer(i64 desiredSize, i64 minSize)
+TIORequestSlicer::TIORequestSlicer(i64 desiredSize, i64 minSize, bool enableSlicing)
     : DesiredRequestSize_(desiredSize)
     , MinRequestSize_(minSize)
+    , EnableSlicing_(enableSlicing)
 { }
 
 std::vector<TSlicedReadRequest> TIORequestSlicer::Slice(
-    IIOEngine::TReadRequest request,
+    TReadRequest request,
     const TSharedMutableRef& buffer) const
 {
+    if (!EnableSlicing_) {
+        return {
+            TSlicedReadRequest{
+                .Request = std::move(request),
+                .OutputBuffer = std::move(buffer)
+            }
+        };
+    }
+
     YT_VERIFY(std::ssize(buffer) >= request.Size);
     return SliceRequest<TSlicedReadRequest>(request, [&] (TSlicedReadRequest& slice, i64 offset, i64 sliceSize) {
         auto bufferOffset = offset - request.Offset;
@@ -72,10 +82,14 @@ std::vector<TSlicedReadRequest> TIORequestSlicer::Slice(
     });
 }
 
-std::vector<IIOEngine::TWriteRequest> TIORequestSlicer::Slice(IIOEngine::TWriteRequest request) const
+std::vector<TWriteRequest> TIORequestSlicer::Slice(TWriteRequest request) const
 {
+    if (!EnableSlicing_) {
+        return {std::move(request)};
+    }
+
     NDetail::TBuffersIterator iterator(request.Buffers);
-    return SliceRequest<IIOEngine::TWriteRequest>(request, [&] (IIOEngine::TWriteRequest& slice, i64 offset, i64 sliceSize) {
+    return SliceRequest<TWriteRequest>(request, [&] (TWriteRequest& slice, i64 offset, i64 sliceSize) {
         slice.Offset = offset;
         slice.Handle = request.Handle;
         slice.Flush = request.Flush;
@@ -83,9 +97,13 @@ std::vector<IIOEngine::TWriteRequest> TIORequestSlicer::Slice(IIOEngine::TWriteR
     });
 }
 
-std::vector<IIOEngine::TFlushFileRangeRequest> TIORequestSlicer::Slice(IIOEngine::TFlushFileRangeRequest request) const
+std::vector<TFlushFileRangeRequest> TIORequestSlicer::Slice(TFlushFileRangeRequest request) const
 {
-    return SliceRequest<IIOEngine::TFlushFileRangeRequest>(request, [&] (IIOEngine::TFlushFileRangeRequest& slice, i64 offset, i64 sliceSize) {
+    if (!EnableSlicing_) {
+        return {std::move(request)};
+    }
+
+    return SliceRequest<TFlushFileRangeRequest>(request, [&] (TFlushFileRangeRequest& slice, i64 offset, i64 sliceSize) {
         slice.Handle = request.Handle;
         slice.Offset = offset;
         slice.Size = sliceSize;
@@ -109,31 +127,6 @@ std::vector<TSlicedRequest> TIORequestSlicer::SliceRequest(const TInputRequest& 
     }
 
     return results;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TDummyRequestSlicer::TDummyRequestSlicer(i64 /*desiredSize*/, i64 /*minSize*/)
-{ }
-
-std::array<TSlicedReadRequest, 1> TDummyRequestSlicer::Slice(IIOEngine::TReadRequest request, TSharedMutableRef buffer) const
-{
-    return {
-        TSlicedReadRequest{
-            .Request = std::move(request),
-            .OutputBuffer = std::move(buffer)
-        }
-    };
-}
-
-std::array<IIOEngine::TWriteRequest, 1> TDummyRequestSlicer::Slice(IIOEngine::TWriteRequest request) const
-{
-    return {std::move(request)};
-}
-
-std::array<IIOEngine::TFlushFileRangeRequest, 1> TDummyRequestSlicer::Slice(IIOEngine::TFlushFileRangeRequest request) const
-{
-    return {std::move(request)};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

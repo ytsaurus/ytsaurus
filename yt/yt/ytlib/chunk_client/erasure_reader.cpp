@@ -298,8 +298,8 @@ private:
                 const std::vector<IChunkReaderAllowingRepairPtr>& availableReaders)
             {
                 if (!erasedParts.empty()) {
-                    YT_LOG_DEBUG("Reading blocks with repair (BlockIndexes: %v, BannedPartIndices: %v)",
-                        blockIndexes,
+                    YT_LOG_DEBUG("Reading blocks with repair (Blocks: %v, BannedPartIndices: %v)",
+                        MakeCompactIntervalView(blockIndexes),
                         erasedParts);
                 }
 

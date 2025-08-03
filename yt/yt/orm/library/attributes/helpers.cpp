@@ -66,17 +66,34 @@ const TProtobufMessageType* GetMessageTypeByYPath(
 }
 
 NYTree::INodePtr ConvertProtobufToNode(
-    const TProtobufMessageType* rootType,
+    const NYson::TProtobufMessageType* rootType,
     const NYPath::TYPath& path,
-    const TString& payload)
+    const TWireString& wireStringPayload,
+    const NYson::TProtobufParserOptions& options)
 {
+    THROW_ERROR_EXCEPTION_IF(wireStringPayload.size() > 1,
+        EErrorCode::Unimplemented,
+        "Cannot convert message of type %Qv represented by non-continuous wire string",
+        UnreflectProtobufMessageType(rootType)->full_name());
+    auto wireStringPart = wireStringPayload.LastOrEmptyPart();
     const auto* payloadType = GetMessageTypeByYPath(rootType, path, /*allowAttributeDictionary*/ false);
-    google::protobuf::io::ArrayInputStream protobufInputStream(payload.data(), payload.length());
+    google::protobuf::io::ArrayInputStream protobufInputStream(
+        wireStringPart.AsStringView().data(),
+        wireStringPart.AsStringView().size());
 
     auto builder = NYTree::CreateBuilderFromFactory(NYTree::GetEphemeralNodeFactory());
     builder->BeginTree();
-    ParseProtobuf(&*builder, &protobufInputStream, payloadType);
+    ParseProtobuf(&*builder, &protobufInputStream, payloadType, options);
     return builder->EndTree();
+}
+
+NYTree::INodePtr ConvertProtobufToNode(
+    const TProtobufMessageType* rootType,
+    const NYPath::TYPath& path,
+    const TString& payload,
+    const NYson::TProtobufParserOptions& options)
+{
+    return ConvertProtobufToNode(rootType, path, TWireString::FromSerialized(payload), options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

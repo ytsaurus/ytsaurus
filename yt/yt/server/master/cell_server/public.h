@@ -59,7 +59,6 @@ DECLARE_REFCOUNTED_STRUCT(ITamedCellManager)
 
 DECLARE_REFCOUNTED_STRUCT(TCellBalancerBootstrapConfig)
 DECLARE_REFCOUNTED_STRUCT(TDynamicCellarNodeTrackerConfig)
-DECLARE_REFCOUNTED_STRUCT(TCellManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TDynamicCellManagerConfig)
 
 struct ICellBalancer;
@@ -86,6 +85,7 @@ YT_DEFINE_ERROR_ENUM(
     ((NodeFilterMismatch)           (1404))
     ((CellDidNotAppearWithinTimeout)(1405))
     ((MasterCellNotReady)           (1406))
+    ((CompactSchemaParseError)      (1407))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

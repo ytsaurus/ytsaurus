@@ -13,14 +13,9 @@ namespace NRoren::NPrivate {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IRawYtRead;
-using IRawYtReadPtr = ::TIntrusivePtr<IRawYtRead>;
-
-class IRawYtWrite;
-using IRawYtWritePtr = ::TIntrusivePtr<IRawYtWrite>;
-
-class IRawYtSortedWrite;
-using IRawYtSortedWritePtr = ::TIntrusivePtr<IRawYtSortedWrite>;
+DECLARE_REFCOUNTED_CLASS(IRawYtRead)
+DECLARE_REFCOUNTED_CLASS(IRawYtWrite)
+DECLARE_REFCOUNTED_CLASS(IRawYtSortedWrite)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,14 +28,14 @@ public:
     }
 };
 
-using IYtNotSerializableJobInputPtr = ::TIntrusivePtr<IYtNotSerializableJobInput>;
+using IYtNotSerializableJobInputPtr = NYT::TIntrusivePtr<IYtNotSerializableJobInput>;
 
 class IYtJobInput
     : public IYtNotSerializableJobInput
     , public ISerializable<IYtJobInput>
 { };
 
-using IYtJobInputPtr = ::TIntrusivePtr<IYtJobInput>;
+using IYtJobInputPtr = NYT::TIntrusivePtr<IYtJobInput>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,7 +49,7 @@ public:
     virtual void SetSinkIndices(const std::vector<int>& sinkIndices) = 0;
 };
 
-using IYtJobOutputPtr = ::TIntrusivePtr<IYtJobOutput>;
+using IYtJobOutputPtr = NYT::TIntrusivePtr<IYtJobOutput>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,7 +81,7 @@ public:
     virtual void AddRawToTable(const void* raw, ssize_t count, ui64 tableIndex) = 0;
 };
 
-using IKvJobOutputPtr = ::TIntrusivePtr<IKvJobOutput>;
+using IKvJobOutputPtr = NYT::TIntrusivePtr<IKvJobOutput>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -97,7 +92,7 @@ public:
     virtual void Add(const void* key, const void* value, ui64 tableIndex) = 0;
 };
 
-using IKvTableIndedxJobOutputPtr = ::TIntrusivePtr<IKvTableIndexJobOutput>;
+using IKvTableIndedxJobOutputPtr = NYT::TIntrusivePtr<IKvTableIndexJobOutput>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -129,6 +124,8 @@ public:
 private:
     NYT::TRichYPath Path_;
 };
+
+DEFINE_REFCOUNTED_TYPE(IRawYtRead)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -167,18 +164,20 @@ public:
 
     void AddRaw(const void*, ssize_t) override
     {
-        Y_ABORT("not implemented");
+        YT_UNIMPLEMENTED();
     }
 
     void Close() override
     {
-        Y_ABORT("not implemented");
+        YT_UNIMPLEMENTED();
     }
 
 private:
     NYT::TRichYPath Path_;
     NYT::TTableSchema Schema_;
 };
+
+DEFINE_REFCOUNTED_TYPE(IRawYtWrite)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -191,6 +190,8 @@ public:
     virtual NYT::TSortColumns GetColumnsToSort() const = 0;
     virtual NYT::TTableSchema GetSortedSchema() const = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(IRawYtSortedWrite);
 
 ////////////////////////////////////////////////////////////////////////////////
 

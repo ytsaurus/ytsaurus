@@ -91,6 +91,7 @@
 %token KwLeft "keyword `LEFT`"
 %token KwAs "keyword `AS`"
 %token KwOn "keyword `ON`"
+%token KwUnnest "keyword `UNNEST`"
 
 %token KwAnd "keyword `AND`"
 %token KwOr "keyword `OR`"
@@ -159,7 +160,8 @@
 
 %type <TQuery> full-query
 %type <TNullableExpressionList> select-clause
-%type <std::variant<TTableDescriptor, TQueryAstHeadPtr>> from-clause
+%type <std::variant<TTableDescriptor, TQueryAstHeadPtr, TExpressionList>> from-clause
+%type <std::variant<TTableDescriptor, TQueryAstHeadPtr, TExpressionList>> from-clause-tail
 %type <std::optional<TTableDescriptor>> with-index-clause
 %type <std::vector<std::variant<TJoin, TArrayJoin>>> join-clause
 %type <TNullableExpressionList> where-clause
@@ -198,6 +200,7 @@
 %type <TExpressionList> additive-op-expr
 %type <TExpressionList> unary-expr
 %type <TExpressionList> atomic-expr
+%type <TExpressionList> atomic-expr-other
 %type <TExpressionList> comma-expr
 %type <TExpressionList> pseudo-alias-expr
 %type <TExpressionList> pseudo-alias-comma-expr
@@ -337,30 +340,56 @@ table-descriptor
 ;
 
 from-clause
-    : KwFrom table-descriptor[table]
+    : KwFrom
+        {
+            auto saved = std::move(head->AliasMap);
+            head->AliasMap = std::move(aliasMapStack.top());
+            aliasMapStack.pop();
+            aliasMapStack.push(std::move(saved));
+        }
+        from-clause-tail[result]
+        {
+            auto saved = std::move(head->AliasMap);
+            head->AliasMap = std::move(aliasMapStack.top());
+            aliasMapStack.pop();
+            aliasMapStack.push(std::move(saved));
+
+            $$ = std::move($result);
+        }
+;
+
+from-clause-tail
+    : table-descriptor[table]
         {
             $$ = std::move($table);
         }
-    | KwFrom LeftParenthesis
+    | atomic-expr-other[expr] optional-alias[alias]
         {
-            aliasMapStack.push(std::move(head->AliasMap));
-        }
-        KwSelect full-query[query] RightParenthesis optional-alias[alias]
-        {
-            auto subqueryHead = New<TQueryAstHead>();
-            subqueryHead->Ast = std::move($query);
-            subqueryHead->AliasMap = std::move(head->AliasMap);
-            subqueryHead->Alias = std::move($alias);
-            $$ = std::move(subqueryHead);
-            head->AliasMap = std::move(aliasMapStack.top());
-            aliasMapStack.pop();
+            bool asQueryAstHead = false;
+
+            // COMPAT
+            if ($expr.size() == 1) {
+                if (auto queryExpr = $expr[0]->As<TQueryExpression>()) {
+                    auto subqueryHead = New<TQueryAstHead>();
+                    subqueryHead->Ast = std::move(queryExpr->Query);
+                    subqueryHead->AliasMap = std::move(queryExpr->AliasMap);
+                    subqueryHead->Alias = std::move($alias);
+
+                    $$ = std::move(subqueryHead);
+                    asQueryAstHead = true;
+                }
+            }
+
+            if (!asQueryAstHead) {
+                $$ = std::move($expr);
+            }
         }
 ;
 
 with-index-clause
-    : KwWithIndex Identifier[path]
+    : KwWithIndex Identifier[path] optional-alias[alias]
         {
-            $$ = TTableDescriptor($path);
+            $$ = TTableDescriptor($path, std::move($alias));
         }
     |
         {
@@ -640,9 +669,17 @@ relational-op-expr
         {
             $$ = MakeExpression<TBetweenExpression>(head, @$, $expr, $ranges);
         }
+    | additive-op-expr[expr] KwIn LeftParenthesis RightParenthesis
+        {
+            $$ = MakeExpression<TLiteralExpression>(head, @$, TLiteralValue(false));
+        }
     | additive-op-expr[expr] KwIn LeftParenthesis const-tuple-list[args] RightParenthesis
         {
             $$ = MakeExpression<TInExpression>(head, @$, $expr, $args);
+        }
+    | additive-op-expr[expr] KwNot KwIn LeftParenthesis RightParenthesis
+        {
+            $$ = MakeExpression<TLiteralExpression>(head, @$, TLiteralValue(true));
         }
     | additive-op-expr[expr] KwNot KwIn LeftParenthesis const-tuple-list[args] RightParenthesis
         {
@@ -859,21 +896,9 @@ atomic-expr
         {
             $$ = TExpressionList(1, $identifier);
         }
-    | Identifier[name] LeftParenthesis RightParenthesis
-        {
-            $$ = MakeExpression<TFunctionExpression>(head, @$, $name, TExpressionList());
-        }
-    | Identifier[name] LeftParenthesis comma-expr[args] RightParenthesis
-        {
-            $$ = MakeExpression<TFunctionExpression>(head, @$, $name, $args);
-        }
     | KwTransform LeftParenthesis expression[expr] Comma LeftParenthesis const-tuple-list[from] RightParenthesis Comma LeftParenthesis const-tuple-list[to] RightParenthesis transform-default-expr[default] RightParenthesis
         {
             $$ = MakeExpression<TTransformExpression>(head, @$, $expr, $from, $to, $default);
-        }
-    | LeftParenthesis comma-expr[expr] RightParenthesis
-        {
-            $$ = $expr;
         }
     | literal-value[value]
         {
@@ -886,6 +911,34 @@ atomic-expr
     | KwCaseBegin when-then-expr-list[whenThenExpressions] case-default-expr[default] KwCaseEnd
         {
             $$ = MakeExpression<TCaseExpression>(head, @$, TNullableExpressionList{}, $whenThenExpressions, $default);
+        }
+    | atomic-expr-other
+        { $$ = $1; }
+;
+
+
+atomic-expr-other
+    : Identifier[name] LeftParenthesis RightParenthesis
+        {
+            $$ = MakeExpression<TFunctionExpression>(head, @$, $name, TExpressionList());
+        }
+    | Identifier[name] LeftParenthesis comma-expr[args] RightParenthesis
+        {
+            $$ = MakeExpression<TFunctionExpression>(head, @$, $name, $args);
+        }
+    | LeftParenthesis comma-expr[expr] RightParenthesis
+        {
+            $$ = $expr;
+        }
+    | LeftParenthesis
+        {
+            aliasMapStack.push(std::move(head->AliasMap));
+        }
+        KwSelect full-query[query] RightParenthesis
+        {
+            $$ = MakeExpression<TQueryExpression>(head, @$, std::move($query), std::move(head->AliasMap));
+            head->AliasMap = std::move(aliasMapStack.top());
+            aliasMapStack.pop();
         }
 ;
 

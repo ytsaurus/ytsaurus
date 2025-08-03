@@ -23,20 +23,6 @@ NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign);
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ETabletReign,
-    // 24.1 starts here.
-    ((NoMountRevisionCheckInBulkInsert)            (100900)) // ifsmirnov
-    ((SharedWriteLocks)                            (100901)) // ponasenko-rs
-    ((TabletPrerequisites)                         (100902)) // gritukan
-    ((ValueDictionaryCompression)                  (100903)) // akozhikhov
-    ((SaneTxActionAbort)                           (100904)) // kvk1920
-    ((HunkValueDictionaryCompression)              (100905)) // akozhikhov
-    ((SaneTxActionAbortFix)                        (100906)) // kvk1920
-    ((SmoothTabletMovement)                        (100907)) // ifsmirnov
-    ((DistributedTabletPrerequisites)              (100908)) // gritukan
-    ((HiveManagerLamportTimestamp)                 (100909)) // danilalexeev
-    ((ChunkReplicaAlwaysPrecache)                  (100910)) // osidorkin
-    ((FixCDWComputationForChaosReplicas)           (100911)) // akozhikhov
-    ((DropBuiltinAttrsFromMountConfig)             (100912)) // ifsmirnov
     // 24.2 starts here.
     ((Start_24_2)                                  (101000)) // ponasenko-rs
     ((AddTabletCustomRuntimeData)                  (101001)) // gryzlov-ad
@@ -48,10 +34,19 @@ DEFINE_ENUM(ETabletReign,
     ((FixPrepareToggleHunkTabletStore)             (101103)) // akozhikhov
     ((CancelTabletTransition_25_1)                 (101104)) // ifsmirnov
     ((PerRowSequencer_25_1_NOOP)                   (101105)) // ponasenko-rs
+    ((FixHunkStorageUnmountRoutine_25_1)           (101106)) // akozhikhov
+    ((CheckChaosTransactionsInPrepare_25_1)        (101107)) // savrus
+    ((ChaosReplicationEraIsPersistent_25_1)        (101108)) // osidorkin
     // 25.2 starts here.
     ((Start_25_2)                                  (101200)) // ponasenko-rs
     ((CancelTabletTransition)                      (101201)) // ifsmirnov
     ((PerRowSequencer)                             (101202)) // ponasenko-rs
+    ((FixHunkStorageUnmountRoutine)                (101203)) // akozhikhov
+    ((AddTabletMountTime)                          (101204)) // alexelexa
+    ((CheckChaosTransactionsInPrepare)             (101205)) // savrus
+    ((FixTransactionActionAbort)                   (101206)) // kvk1920
+    ((ChaosReplicationEraIsPersistent)             (101207)) // osidorkin
+    ((TransactionActionStates)                     (101208)) // babenko
 );
 
 static_assert(TEnumTraits<ETabletReign>::IsMonotonic, "Tablet reign enum is not monotonic");

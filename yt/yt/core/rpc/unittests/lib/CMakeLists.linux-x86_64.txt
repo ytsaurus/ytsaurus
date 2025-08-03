@@ -34,6 +34,9 @@ add_library(rpc-unittests-lib)
 target_compile_options(rpc-unittests-lib PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(rpc-unittests-lib PUBLIC

@@ -52,8 +52,8 @@ public:
         TUser* user,
         int limit);
 
-    bool TryIncreaseRequestQueueSize(TUser* user);
-    void DecreaseRequestQueueSize(TUser* user);
+    bool TryIncrementRequestQueueSize(TUser* user);
+    void DecrementRequestQueueSize(TUser* user);
 
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
@@ -67,11 +67,6 @@ private:
     bool DistributedThrottlerEnabled_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
-
-
-    void DoChargeUser(
-        TUser* user,
-        const TUserWorkload& workload);
 
     const TDynamicSecurityManagerConfigPtr& GetDynamicConfig();
     void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig);

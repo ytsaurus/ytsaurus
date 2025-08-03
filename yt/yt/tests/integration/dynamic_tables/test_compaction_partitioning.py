@@ -1093,11 +1093,49 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
 
         wait(_check_stores_queue_size(0))
 
+    @authors("alexelexa")
+    def test_performance_counters(self):
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t")
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+        set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", False)
+        sync_mount_table("//tmp/t")
+
+        for i in range(10):
+            insert_rows("//tmp/t", [{"key": i, "value": str(i)}])
+            sync_flush_table("//tmp/t")
+
+        assert get("//tmp/t/@tablets/0/statistics/chunk_count") >= 10
+        set("//tmp/t/@enable_compaction_and_partitioning", True)
+
+        set("//tmp/t/@forced_compaction_revision", 1)
+        remount_table("//tmp/t")
+
+        wait(lambda: get("//tmp/t/@tablets/0/statistics/chunk_count") < 10)
+        assert get("//tmp/t/@tablets/0/performance_counters/static_chunk_row_read_count") == 0
+        wait(lambda: get("//tmp/t/@tablets/0/performance_counters/compaction_data_weight_count") == get("//tmp/t/@data_weight"))
+
 
 ################################################################################
 
 
 @pytest.mark.enabled_multidaemon
 class TestCompactionPartitioningMulticell(TestCompactionPartitioning):
-    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
+
+
+@pytest.mark.enabled_multidaemon
+class TestCompactionPartitioningSequoia(TestCompactionPartitioning):
+    NUM_SECONDARY_MASTER_CELLS = 2
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+    NUM_CYPRESS_PROXIES = 1
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }

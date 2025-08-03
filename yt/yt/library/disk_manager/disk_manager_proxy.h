@@ -21,6 +21,8 @@ struct IDiskManagerProxy
 
     virtual TFuture<void> UpdateDiskCache() = 0;
 
+    virtual bool IsStub() const = 0;
+
     virtual void Reconfigure(const TDiskManagerProxyDynamicConfigPtr& dynamiconfig) = 0;
 };
 

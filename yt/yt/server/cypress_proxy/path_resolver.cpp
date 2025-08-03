@@ -7,6 +7,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
+
 #include <library/cpp/yt/misc/variant.h>
 
 namespace NYT::NCypressProxy {
@@ -128,7 +130,8 @@ bool ShouldFollowLink(TYPathBuf unresolvedSuffix, TStringBuf method)
         "Create",
         "Set",
         "Copy",
-        "LockCopySource",
+        "LockCopyDestination",
+        "AssembleTreeCopy",
     };
 
     return std::end(MethodsWithoutRedirection) == std::find(
@@ -282,7 +285,7 @@ TResolveIterationResult ResolveByObjectId(
     // But while we don't have any way to bypass Sequoia resolve we use "exists"
     // verb in tests to check object existence in master.
     // TODO(kvk1920): design some way to bypass Sequoia resolve.
-    if (method == "Exists") {
+    if (method == "Exists" || method == "Get") {
         return TForwardToMaster{std::move(path)};
     }
 
@@ -327,12 +330,17 @@ bool TSequoiaResolveResult::IsSnapshot() const noexcept
 TResolveResult ResolvePath(
     const TSequoiaSessionPtr& session,
     TRawYPath rawPath,
+    TStringBuf service,
     TStringBuf method,
     std::vector<TSequoiaResolveIterationResult>* history)
 {
     auto tokenizer = TTokenizer(rawPath.Underlying());
     tokenizer.Advance();
     auto firstTokenType = tokenizer.GetType();
+
+    if (service == TMasterYPathProxy::GetDescriptor().ServiceName) {
+        return TMasterResolveResult{};
+    }
 
     // Paths starting with '&#...' are used for accessing replicated
     // transactions and have to be resolved by master.

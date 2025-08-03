@@ -537,7 +537,7 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
         fetchChunkSpecFutures.push_back(fetcher->Fetch());
     }
 
-    auto hasHunkColumns = [&] () {
+    auto hasHunkColumns = [&] {
         return std::find_if(InputTables_.begin(), InputTables_.end(), [] (const auto& table) {
             return table->Schema->HasHunkColumns();
         }) != InputTables_.end();
@@ -613,7 +613,9 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
                 fetchStatistics.ExtensionSize += extension.data().size();
             }
 
-            bool shouldSkipChunkInFetchers = IsUnavailable(inputChunk, Host_->GetChunkAvailabilityPolicy()) && Host_->GetSpec()->UnavailableChunkStrategy == EUnavailableChunkAction::Skip;
+            bool shouldSkipChunkInFetchers =
+                inputChunk->IsUnavailable(Host_->GetChunkAvailabilityPolicy()) &&
+                Host_->GetSpec()->UnavailableChunkStrategy == EUnavailableChunkAction::Skip;
 
             // We only fetch chunk slice sizes for unversioned table chunks with non-trivial limits.
             // We do not fetch slice sizes in cases when ChunkSliceFetcher should later be used, since it performs similar computations and will misuse the scaling factors.
@@ -652,7 +654,7 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
 
             if (hasColumnSelectors) {
                 inputChunk->SetValuesPerRow(table->Path.GetColumns()->size());
-            } else if (table->Schema && table->Schema->GetStrict()) {
+            } else if (table->Schema && table->Schema->IsStrict()) {
                 inputChunk->SetValuesPerRow(table->Schema->Columns().size());
             }
         }
@@ -831,7 +833,7 @@ void TInputManager::FetchInputTablesAttributes()
                 "enable_dynamic_store_read",
                 "tablet_state",
                 "account",
-                "mount_config"
+                "mount_config",
             });
             AddCellTagToSyncWith(req, table->ObjectId);
             SetTransactionId(req, table->ExternalTransactionId);
@@ -890,7 +892,7 @@ void TInputManager::FetchInputTablesAttributes()
     for (const auto& [table, attributes] : tableAttributes) {
         table->ChunkCount = attributes->Get<int>("chunk_count");
         table->ContentRevision = attributes->Get<NHydra::TRevision>("content_revision");
-        table->Account = attributes->Get<TString>("account");
+        table->Account = attributes->Get<std::string>("account");
         if (table->Type == EObjectType::File) {
             // NB(coteeq): Files have none of the following attributes.
             continue;
@@ -961,7 +963,7 @@ void TInputManager::FetchInputTablesAttributes()
                 THROW_ERROR_EXCEPTION("Remote copy for dynamic tables with hunks is disabled");
             }
 
-            if (HasCompressionDictionaries(attributes)) {
+            if (!Host_->GetConfig()->EnableCompressionDictionaryRemoteCopy && HasCompressionDictionaries(attributes)) {
                 THROW_ERROR_EXCEPTION("Table with compression dictionaries cannot be copied to another cluster")
                     << TErrorAttribute("table_path", table->Path);
             }
@@ -1010,7 +1012,7 @@ void TInputManager::InitInputChunkScrapers()
             std::move(clusterToChunkIds[cluster]),
             MakeSafe(
                 MakeWeak(Host_),
-                BIND(&TInputManager::OnInputChunkLocated, MakeWeak(this)))
+                BIND(&TInputManager::OnInputChunkBatchLocated, MakeWeak(this)))
                     .Via(Host_->GetCancelableInvoker()),
             Logger);
         if (!cluster->UnavailableInputChunkIds().empty()) {
@@ -1088,48 +1090,44 @@ TInputChunkPtr TInputManager::GetInputChunk(NChunkClient::TChunkId chunkId, int 
     return *chunkIt;
 }
 
-void TInputManager::OnInputChunkLocated(
-    TChunkId chunkId,
-    const TChunkReplicaWithMediumList& replicas,
-    bool missing)
+void TInputManager::OnInputChunkBatchLocated(
+    const std::vector<TScrapedChunkInfo>& chunkBatch)
 {
     YT_ASSERT_INVOKER_AFFINITY(Host_->GetCancelableInvoker());
 
-    if (missing) {
-        // We must have locked all the relevant input chunks, but when user transaction is aborted
-        // there can be a race between operation completion and chunk scraper.
-        Host_->OnOperationFailed(TError("Input chunk %v is missing", chunkId));
-        return;
-    }
+    for (const auto& chunkInfo : chunkBatch) {
+        if (chunkInfo.Missing) {
+            // We must have locked all the relevant input chunks, but when user transaction is aborted
+            // there can be a race between operation completion and chunk scraper.
+            Host_->OnOperationFailed(TError("Input chunk %v is missing", chunkInfo.ChunkId));
+            return;
+        }
 
-    ++ChunkLocatedCallCount_;
-    if (ChunkLocatedCallCount_ >= Host_->GetConfig()->ChunkScraper->MaxChunksPerRequest) {
-        ChunkLocatedCallCount_ = 0;
-        YT_LOG_DEBUG(
-            "Located another batch of chunks (Count: %v)",
-            Host_->GetConfig()->ChunkScraper->MaxChunksPerRequest);
+        auto& descriptor = GetOrCrash(InputChunkMap_, chunkInfo.ChunkId);
+        YT_VERIFY(!descriptor.InputChunks.empty());
 
-        for (const auto& [_, cluster] : Clusters_) {
-            cluster->ReportIfHasUnavailableChunks();
+        const auto& chunkSpec = descriptor.InputChunks.front();
+        auto codecId = chunkSpec->GetErasureCodec();
+
+        if (IsUnavailable(chunkInfo.Replicas, codecId, Host_->GetChunkAvailabilityPolicy())) {
+            OnInputChunkUnavailable(chunkInfo.ChunkId, &descriptor);
+        } else {
+            OnInputChunkAvailable(chunkInfo.ChunkId, chunkInfo.Replicas, &descriptor);
         }
     }
 
-    auto& descriptor = GetOrCrash(InputChunkMap_, chunkId);
-    YT_VERIFY(!descriptor.InputChunks.empty());
+    YT_LOG_DEBUG(
+        "Located another batch of chunks (Count: %v)",
+        size(chunkBatch));
 
-    const auto& chunkSpec = descriptor.InputChunks.front();
-    auto codecId = chunkSpec->GetErasureCodec();
-
-    if (IsUnavailable(replicas, codecId, Host_->GetChunkAvailabilityPolicy())) {
-        OnInputChunkUnavailable(chunkId, &descriptor);
-    } else {
-        OnInputChunkAvailable(chunkId, replicas, &descriptor);
+    for (const auto& [_, cluster] : Clusters_) {
+        cluster->ReportIfHasUnavailableChunks();
     }
 }
 
 void TInputManager::OnInputChunkAvailable(
     TChunkId chunkId,
-    const TChunkReplicaWithMediumList& replicas,
+    const TChunkReplicaList& replicas,
     TInputChunkDescriptor* descriptor)
 {
     YT_ASSERT_INVOKER_AFFINITY(Host_->GetCancelableInvoker(EOperationControllerQueue::Default));
@@ -1142,12 +1140,12 @@ void TInputManager::OnInputChunkAvailable(
 
     auto& cluster = GetClusterOrCrash(*descriptor);
     if (cluster->UnavailableInputChunkIds().empty()) {
-        YT_UNUSED_FUTURE(cluster->ChunkScraper()->Stop());
+        cluster->ChunkScraper()->Stop();
     }
 
     // Update replicas in place for all input chunks with current chunkId.
     for (const auto& chunkSpec : descriptor->InputChunks) {
-        chunkSpec->SetReplicaList(replicas);
+        chunkSpec->SetReplicas(replicas);
     }
 
     descriptor->State = EInputChunkState::Active;
@@ -1322,7 +1320,7 @@ void TInputManager::RegisterInputChunk(const TInputChunkPtr& inputChunk)
     auto& chunkDescriptor = InputChunkMap_[chunkId];
     chunkDescriptor.InputChunks.push_back(inputChunk);
 
-    if (IsUnavailable(inputChunk, Host_->GetChunkAvailabilityPolicy())) {
+    if (inputChunk->IsUnavailable(Host_->GetChunkAvailabilityPolicy())) {
         chunkDescriptor.State = EInputChunkState::Waiting;
     }
 }
@@ -1338,7 +1336,7 @@ std::vector<TInputChunkPtr> TInputManager::CollectPrimaryChunks(bool versioned, 
     for (const auto& table : tables) {
         if (!table->IsForeign() && ((table->Dynamic && table->Schema->IsSorted()) == versioned)) {
             for (const auto& chunk : Concatenate(table->Chunks, table->HunkChunks)) {
-                if (IsUnavailable(chunk, Host_->GetChunkAvailabilityPolicy())) {
+                if (chunk->IsUnavailable(Host_->GetChunkAvailabilityPolicy())) {
                     switch (Host_->GetSpec()->UnavailableChunkStrategy) {
                         case EUnavailableChunkAction::Skip:
                             continue;
@@ -1409,7 +1407,9 @@ std::pair<TCombiningSamplesFetcherPtr, TUnavailableChunksWatcherPtr> TInputManag
     int maxSampleSize) const
 {
     std::vector<IFetcherChunkScraperPtr> fetcherChunkScrapers;
+    fetcherChunkScrapers.reserve(size(Clusters_));
     std::vector<TSamplesFetcherPtr> samplesFetchers;
+    samplesFetchers.reserve(size(Clusters_));
 
     for (const auto& [clusterName, cluster] : Clusters_) {
         fetcherChunkScrapers.push_back(CreateFetcherChunkScraper(cluster));
@@ -1439,26 +1439,11 @@ std::pair<TCombiningSamplesFetcherPtr, TUnavailableChunksWatcherPtr> TInputManag
         }
 
         samplesFetcher->SetCancelableContext(Host_->GetCancelableContext());
-        samplesFetchers.push_back(samplesFetcher);
+        samplesFetchers.push_back(std::move(samplesFetcher));
     }
     return std::pair(
         New<TCombiningSamplesFetcher>(std::move(samplesFetchers)),
         New<TUnavailableChunksWatcher>(std::move(fetcherChunkScrapers)));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool TInputManager::HasDynamicTableWithHunkChunks() const
-{
-    for (const auto& table : InputTables_) {
-        if (table->Dynamic &&
-            table->Schema->HasHunkColumns() &&
-            !table->HunkChunks.empty())
-        {
-            return true;
-        }
-    }
-    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

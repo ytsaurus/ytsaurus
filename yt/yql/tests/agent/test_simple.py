@@ -4,9 +4,12 @@ from yt.environment.helpers import assert_items_equal, wait_for_dynamic_config_u
 
 from yt_commands import (authors, create, create_user, sync_mount_table,
                          write_table, insert_rows, alter_table, raises_yt_error,
-                         write_file, create_pool, wait, get, set, ls)
+                         write_file, create_pool, wait, get, set, ls, list_operations,
+                         get_operation)
 
 from yt_env_setup import YTEnvSetup
+
+from yt_helpers import profiler_factory
 
 from yt.wrapper import yson
 
@@ -45,6 +48,59 @@ class TestQueriesYqlBase(YTEnvSetup):
             return
 
         assert_items_equal(result, expected)
+
+    def _exists_pending_stage_in_progress(self, query):
+        queryInfo = query.get()
+        if "progress" in queryInfo and "yql_progress" in queryInfo["progress"]:
+            for stage in queryInfo["progress"]["yql_progress"].values():
+                if "pending" in stage and stage["pending"] > 0 :
+                    return True
+        return False
+
+
+class TestGetOperationLink(TestQueriesYqlBase):
+    @authors("mpereskokova")
+    def test_operation_link(self, query_tracker, yql_agent):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        rows = [{"a": 42}]
+        write_table("//tmp/t", rows)
+        query = start_query("yql", 'select a+1 as result from primary.`//tmp/t`')
+        query.track()
+
+        op = list_operations()["operations"][0]["id"]
+        op_url = get_operation(op)["runtime_parameters"]["annotations"]["description"]["yql_op_url"]
+        assert str(op_url) == f"https://ui.test.ru/primary/queries/{query.id}"
+
+
+class TestMetrics(TestQueriesYqlBase):
+    @authors("mpereskokova")
+    def test_metrics(self, query_tracker, yql_agent):
+        yqla = ls("//sys/yql_agent/instances")[0]
+        profiler = profiler_factory().at_yql_agent(yqla)
+
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        rows = [{"a": 42}]
+        write_table("//tmp/t", rows)
+
+        create_pool("small", attributes={"resource_limits": {"user_slots": 0}})
+        query = start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
+
+        wait(lambda: self._exists_pending_stage_in_progress(query))
+
+        active_queries_metric = profiler.gauge("yql_agent/active_queries")
+        wait(lambda: active_queries_metric.get() == 1)
+
+        set("//sys/pools/small/@resource_limits/user_slots", 1)
+
+        query.track()
+        result = query.read_result(0)
+        assert_items_equal(result, [{"result": 43}])
+
+        wait(lambda: active_queries_metric.get() == 0)
 
 
 class TestSimpleQueriesYql(TestQueriesYqlBase):
@@ -118,6 +174,10 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
             select core::IndexOf([3,7,1], 7) as idx, test::my_sqr(3) as sqr;
         """, [{"idx": 1, "sqr": 9}])
 
+
+class TestTypes(TestQueriesYqlBase):
+    NUM_TEST_PARTITIONS = 4
+
     @authors("a-romanov")
     def test_datetime_types(self, query_tracker, yql_agent):
         self._test_simple_query("""
@@ -141,6 +201,24 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
                }])
 
     @authors("a-romanov")
+    def test_datetime_tz_types(self, query_tracker, yql_agent):
+        self._test_simple_query("""
+            select
+                TzDate("2024-11-25,CET") as `TzDate`,
+                TzDatetime("2024-11-24T11:20:59,Australia/NSW") as `TzDatetime`,
+                TzTimestamp("2024-11-24T13:42:11,Africa/Nairobi") as `TzTimestamp`,
+                TzDate32("1960-11-24,America/Cayenne") as `TzDate32`,
+                TzDatetime64("1950-11-24T11:20:59,Europe/Samara") as `TzDatetime64`,
+                TzTimestamp64("1940-11-24T13:42:11,Iceland") as `TzTimestamp64`,
+        """, [{"TzDate": "2024-11-25,CET",
+               "TzDatetime": "2024-11-24T11:20:59,Australia/NSW",
+               "TzTimestamp": "2024-11-24T13:42:11,Africa/Nairobi",
+               "TzDate32": "1960-11-24,America/Cayenne",
+               "TzDatetime64": "1950-11-24T11:20:59,Europe/Samara",
+               "TzTimestamp64": "1940-11-24T13:42:11,Iceland"
+               }])
+
+    @authors("a-romanov")
     def test_exotic_types(self, query_tracker, yql_agent):
         self._test_simple_query("""
             select
@@ -154,6 +232,7 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
                 {("One"u, 1UL), ("Two"u, 2UL)} as `Set`,
                 AsVariant(88L, "var") as `Variant`,
                 AsTagged(123, "tag") as `Tagged`,
+                Decimal("123456.789", 13, 3) as `Decimal`,
                 '[1, "text", 3.14]'j as `Json`,
                 Just('[7u; "str"; -3.14]'y) as `Yson`,
         """, [{"EmptyDict": None,
@@ -165,9 +244,21 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
                "Set": [[["Two", 2], None], [["One", 1], None]],
                "Variant": ["var", 88],
                "Tagged": 123,
+               "Decimal": "123456.789",
                "Json": '[1, "text", 3.14]',
                "Yson": [7, 'str', -3.14]
                }])
+
+    @authors("a-romanov")
+    def test_double_optional(self, query_tracker, yql_agent):
+        self._test_simple_query("""
+            $list = ["abc"u, null];
+            select $list, $list[0], $list[1], $list[2],
+            (just($list[0]), just($list[1]), just($list[2])),
+            {$list[0], $list[1], $list[2]};
+        """, [{'column0': ['abc', None], 'column1': ['abc'], 'column2': [None], 'column3': None,
+               'column4': [[['abc']], [[None]], [None]],
+               'column5': [[None, None], [[None], None], [['abc'], None]]}])
 
 
 class TestYqlAgentBan(TestQueriesYqlBase):
@@ -224,6 +315,8 @@ class TestYqlAgentBan(TestQueriesYqlBase):
 
 
 class TestYqlAgentDynConfig(TestQueriesYqlBase):
+    NUM_TEST_PARTITIONS = 8
+    CLASS_TEST_LIMIT = 20 * 60
     NUM_YQL_AGENTS = 1
 
     def _update_dyn_config(self, yql_agent, dyn_config):
@@ -233,6 +326,7 @@ class TestYqlAgentDynConfig(TestQueriesYqlBase):
         wait_for_dynamic_config_update(yql_agent.yql_agent.client, config, "//sys/yql_agent/instances")
 
     @authors("lucius")
+    @pytest.mark.timeout(180)
     def test_yql_agent_dyn_config(self, query_tracker, yql_agent):
         create("table", "//tmp/t", attributes={
             "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}]
@@ -242,7 +336,7 @@ class TestYqlAgentDynConfig(TestQueriesYqlBase):
         self._test_simple_query("select * from primary.`//tmp/t`", rows)
 
         self._update_dyn_config(yql_agent, {
-            "gateways_config": {
+            "gateways": {
                 "yt": {
                     "cluster_mapping": [
                     ],
@@ -252,7 +346,33 @@ class TestYqlAgentDynConfig(TestQueriesYqlBase):
         self._test_simple_query("select * from primary.`//tmp/t`", rows)
 
     @authors("lucius")
-    def test_yql_agent_broken_dyn_config(self, query_tracker, yql_agent):
+    @pytest.mark.timeout(300)
+    def test_yql_agent_dyn_config_replace_cluster(self, query_tracker, yql_agent):
+        instances = ls("//sys/yql_agent/instances")
+        assert instances
+        config_path = "//sys/yql_agent/instances/" + instances[0] + "/orchid/config"
+        config = get(config_path)
+        cluster_mapping = config["yql_agent"]["gateway_config"]["cluster_mapping"]
+        # expected cluster_mapping =
+        # [
+        #     {
+        #         'default': true,
+        #         'cluster': 'localhost:29782',
+        #         'name': 'primary',
+        #         'settings': [
+        #             {'name': 'QueryCacheChunkLimit', 'value': '100000'},
+        #             {'name': '_UseKeyBoundApi', 'value': 'true'}
+        #         ]
+        #     }
+        # ]
+        assert len(cluster_mapping) == 1
+        primary = cluster_mapping[0]
+        assert primary["name"] == "primary"
+        assert primary["settings"]
+        settings = {s["name"]: s["value"] for s in primary["settings"]}
+        assert "QueryCacheChunkLimit" in settings
+        assert "_EnableDq" not in settings
+
         create("table", "//tmp/t", attributes={
             "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}]
         })
@@ -260,22 +380,39 @@ class TestYqlAgentDynConfig(TestQueriesYqlBase):
         write_table("//tmp/t", rows)
         self._test_simple_query("select * from primary.`//tmp/t`", rows)
 
+        # add new attr and update existing one
         self._update_dyn_config(yql_agent, {
-            "gateways_config": {
+            "gateways": {
                 "yt": {
                     "cluster_mapping": [
                         {
-                            "name": "cluster does not exist",
+                            "name": "primary",
+                            "settings": [
+                                {"name": "_EnableDq", "value": "true"},
+                                {"name": "QueryCacheChunkLimit", "value": "200000"},
+                            ],
                         },
                     ],
                 },
             },
         })
-        with raises_yt_error("Cluster address must be specified"):
+        self._test_simple_query("select * from primary.`//tmp/t`", rows)
+
+    def _dyn_config_expect_error(self, yql_agent, dyn_config, expected_error):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}]
+        })
+        rows = [{"a": 42, "b": "foo"}, {"a": -17, "b": "bar"}]
+        write_table("//tmp/t", rows)
+        self._test_simple_query("select * from primary.`//tmp/t`", rows)
+
+        self._update_dyn_config(yql_agent, dyn_config)
+        with raises_yt_error(expected_error):
             self._test_simple_query("select * from primary.`//tmp/t`", rows)
 
+        # should work after fixing
         self._update_dyn_config(yql_agent, {
-            "gateways_config": {
+            "gateways": {
                 "yt": {
                     "cluster_mapping": [
                     ],
@@ -283,6 +420,67 @@ class TestYqlAgentDynConfig(TestQueriesYqlBase):
             },
         })
         self._test_simple_query("select * from primary.`//tmp/t`", rows)
+
+    @authors("lucius")
+    @pytest.mark.timeout(300)
+    def test_yql_agent_broken_dyn_config_without_address(self, query_tracker, yql_agent):
+        self._dyn_config_expect_error(
+            yql_agent,
+            {
+                "gateways": {
+                    "yt": {
+                        "cluster_mapping": [
+                            {
+                                "name": "cluster_without_address",
+                            },
+                        ],
+                    },
+                },
+            },
+            "Cluster address must be specified",
+        )
+
+    @authors("lucius")
+    @pytest.mark.timeout(300)
+    def test_yql_agent_broken_dyn_config_wrong_address(self, query_tracker, yql_agent):
+        self._dyn_config_expect_error(
+            yql_agent,
+            {
+                "gateways": {
+                    "yt": {
+                        "cluster_mapping": [
+                            {
+                                "name": "primary",
+                                "cluster": "host_does_not_exist:80",
+                            },
+                        ],
+                    },
+                },
+            },
+            "can not resolve host_does_not_exist:80",
+        )
+
+    @authors("lucius")
+    @pytest.mark.timeout(300)
+    def test_yql_agent_broken_dyn_config_wrong_settings(self, query_tracker, yql_agent):
+        self._dyn_config_expect_error(
+            yql_agent,
+            {
+                "gateways": {
+                    "yt": {
+                        "cluster_mapping": [
+                            {
+                                "name": "primary",
+                                "settings": [
+                                    {"name": "QueryCacheChunkLimit", "value": "-1.23"},
+                                ],
+                            },
+                        ],
+                    },
+                },
+            },
+            """Bad "QueryCacheChunkLimit" setting for "primary" cluster""",
+        )
 
 
 class TestComplexQueriesYql(TestQueriesYqlBase):
@@ -549,14 +747,7 @@ class TestYqlAgent(TestQueriesYqlBase):
         create_pool("small", attributes={"resource_limits": {"user_slots": 0}})
         query = start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
 
-        def existsPendingStage():
-            queryInfo = query.get()
-            if "progress" in queryInfo and "yql_progress" in queryInfo["progress"]:
-                for stage in queryInfo["progress"]["yql_progress"].values():
-                    if "pending" in stage and stage["pending"] > 0 :
-                        return True
-            return False
-        wait(existsPendingStage)
+        wait(lambda: self._exists_pending_stage_in_progress(query))
 
         set("//sys/pools/small/@resource_limits/user_slots", 1)
 
@@ -599,7 +790,7 @@ class TestYqlAgent(TestQueriesYqlBase):
             assert not gateway_config["execute_udf_locally_if_possible"]
             assert len(gateway_config["cluster_mapping"]) == 1
             assert len(gateway_config["cluster_mapping"][0]["settings"]) == 2
-            assert len(gateway_config["default_settings"]) == 58
+            assert len(gateway_config["default_settings"]) == 59
 
             setting_found = False
             for setting in gateway_config["default_settings"]:
@@ -652,6 +843,7 @@ class TestQueriesYqlLimitedResult(TestQueriesYqlBase):
 
 
 class TestQueriesYqlResultTruncation(TestQueriesYqlBase):
+    NUM_TEST_PARTITIONS = 2
     QUERY_TRACKER_DYNAMIC_CONFIG = {"yql_engine": {"resulting_rowset_value_length_limit": 20 * 1024**2}}
 
     @staticmethod
@@ -953,6 +1145,11 @@ class TestYqlColumnOrderDifferentSources(TestQueriesYqlBase):
         write_table("//tmp/t2", [{"a": 43, "b": "bar", "c": 3.0}])
 
         self._test_simple_query("""
+            select a, b, c from primary.`//tmp/t1`
+            union all
+            select a, b, c from primary.`//tmp/t2`
+        """, [{"a": 43, "b": "bar", "c": 3.0}, {"a": 42, "b": "foo", "c": 2.0}])
+        self._test_simple_query("""
             select a, b, c from primary.`//tmp/t2`
             union all
             select a, b, c from primary.`//tmp/t1`
@@ -962,3 +1159,33 @@ class TestYqlColumnOrderDifferentSources(TestQueriesYqlBase):
             union all
             select c, a, b from primary.`//tmp/t1`
         """, [{"a": 42, "b": "foo", "c": 2.0}, {"a": 43, "b": "bar", "c": 3.0}])
+
+    @authors("a-romanov")
+    @pytest.mark.timeout(300)
+    def test_different_sources_with_limit(self, query_tracker, yql_agent):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}, {"name": "c", "type": "float"}],
+            "dynamic": True,
+            "enable_dynamic_store_read": True,
+        })
+        sync_mount_table("//tmp/t1")
+        insert_rows("//tmp/t1", [{"a": 42, "b": "foo", "c": 2.0}, {"a": 43, "b": "xyz", "c": 3.0}, {"a": 44, "b": "uvw", "c": 4.0}])
+
+        create("table", "//tmp/t2", attributes={
+            "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}, {"name": "c", "type": "float"}],
+            "enable_dynamic_store_read": True,
+        })
+        write_table("//tmp/t2", [{"a": 45, "b": "bar", "c": -3.0}, {"a": 46, "b": "abc", "c": -4.0}, {"a": 47, "b": "def", "c": -5.0}])
+
+        self._test_simple_query("""
+            select * from primary.`//tmp/t1`
+            union all
+            select * from primary.`//tmp/t2`
+            limit 4
+       """, [{"a": 42, "b": "foo", "c": 2.0}, {"a": 43, "b": "xyz", "c": 3.0}, {"a": 44, "b": "uvw", "c": 4.0}, {"a": 45, "b": "bar", "c": -3.0}])
+        self._test_simple_query("""
+            select * from primary.`//tmp/t2`
+            union all
+            select * from primary.`//tmp/t1`
+            limit 4
+        """, [{"a": 45, "b": "bar", "c": -3.0}, {"a": 46, "b": "abc", "c": -4.0}, {"a": 47, "b": "def", "c": -5.0}, {"a": 42, "b": "foo", "c": 2.0}])

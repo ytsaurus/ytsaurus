@@ -1,6 +1,5 @@
 #include "private.h"
 #include "fair_share_update.h"
-#include "resource_helpers.h"
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -190,6 +189,19 @@ TResourceVector TElement::ComputeLimitsShare(const TFairShareUpdateContext* cont
 void TElement::ResetFairShareFunctions()
 {
     AreFairShareFunctionsPrepared_ = false;
+}
+
+std::optional<TFairShareFunctionsStatistics> TElement::GetFairShareFunctionsStatistics() const
+{
+    if (!AreFairShareFunctionsPrepared_) {
+        return {};
+    }
+
+    return TFairShareFunctionsStatistics{
+        .FairShareBySuggestionSize = static_cast<int>(std::ssize(FairShareBySuggestion_->Segments())),
+        .FairShareByFitFactorSize = static_cast<int>(std::ssize(FairShareByFitFactor_->Segments())),
+        .MaxFitFactorBySuggestionSize = static_cast<int>(std::ssize(MaxFitFactorBySuggestion_->Segments())),
+    };
 }
 
 TResourceVector TElement::ComputeLimitedDemandShare() const
@@ -912,53 +924,60 @@ void TCompositeElement::ComputeAndSetFairShare(double suggestion, EFairShareType
 
 void TCompositeElement::TruncateFairShareInFifoPools(EFairShareType fairShareType)
 {
-    auto& totalTruncatedFairShare = TotalTruncatedFairShare_[fairShareType];
-
-    THashSet<TElement*> truncatedChildren;
-    if (GetMode() == ESchedulingMode::Fifo && IsFairShareTruncationInFifoPoolEnabled()) {
+    if (GetMode() == ESchedulingMode::Fifo) {
+        DoTruncateFairShareInFifoPool(fairShareType);
+    } else {
         for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
-            auto* childOperation = SortedChildren_[childIndex]->AsOperation();
-
-            YT_VERIFY(childOperation);
-
-            const auto& childAttributes = childOperation->Attributes();
-            auto childFairShare = childAttributes.GetFairShare(fairShareType).Total;
-            if (childFairShare == TResourceVector::Zero()) {
-                continue;
-            }
-
-            // NB(eshcherbin, YT-15061): This truncation is only used in GPU-trees to enable preemption of jobs of gang operations
-            // which fair share is less than demand.
-            bool isChildFullySatisfied = Dominates(childFairShare + TResourceVector::Epsilon(), childAttributes.DemandShare);
-            bool shouldTruncate = !isChildFullySatisfied && childOperation->IsGang();
-            if (shouldTruncate) {
-                const auto& Logger = GetLogger();
-
-                totalTruncatedFairShare += childFairShare;
-                childOperation->Attributes().SetDetailedFairShare(TResourceVector::Zero(), fairShareType);
-                truncatedChildren.insert(childOperation);
-
-                YT_LOG_DEBUG("Truncated operation fair share in FIFO pool (OperationId: %v, FairShareType: %v, TruncatedFairShare: %v, DemandShare: %v)",
-                    childOperation->GetId(),
-                    fairShareType,
-                    childFairShare,
-                    childAttributes.DemandShare);
-            }
-        }
-    }
-
-    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
-        auto* child = GetChild(childIndex);
-        if (!truncatedChildren.contains(child)) {
+            auto* child = GetChild(childIndex);
             child->TruncateFairShareInFifoPools(fairShareType);
-            totalTruncatedFairShare += child->GetTotalTruncatedFairShare(fairShareType);
+            TotalTruncatedFairShare_[fairShareType] += child->GetTotalTruncatedFairShare(fairShareType);
         }
     }
 
     // TODO(eshcherbin): Should we use epsilon here?
-    if (totalTruncatedFairShare != TResourceVector::Zero()) {
-        auto fairShare = TResourceVector::Max(Attributes().GetFairShare(fairShareType).Total - totalTruncatedFairShare, TResourceVector::Zero());
+    if (TotalTruncatedFairShare_[fairShareType] != TResourceVector::Zero()) {
+        auto fairShare = TResourceVector::Max(
+            Attributes().GetFairShare(fairShareType).Total - TotalTruncatedFairShare_[fairShareType],
+            TResourceVector::Zero());
         Attributes().SetDetailedFairShare(fairShare, fairShareType);
+    }
+}
+
+void TCompositeElement::DoTruncateFairShareInFifoPool(EFairShareType fairShareType)
+{
+    YT_VERIFY(GetMode() == ESchedulingMode::Fifo);
+
+    if (!IsFairShareTruncationInFifoPoolEnabled()) {
+        return;
+    }
+
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
+        auto* childOperation = SortedChildren_[childIndex]->AsOperation();
+
+        YT_VERIFY(childOperation);
+
+        const auto& childAttributes = childOperation->Attributes();
+        auto childFairShare = childAttributes.GetFairShare(fairShareType).Total;
+        if (childFairShare == TResourceVector::Zero()) {
+            continue;
+        }
+
+        // NB(eshcherbin, YT-15061): This truncation is only used in GPU-trees to enable preemption of jobs of gang operations
+        // which fair share is less than demand.
+        bool isChildFullySatisfied = Dominates(childFairShare + TResourceVector::Epsilon(), childAttributes.DemandShare);
+        bool shouldTruncate = !isChildFullySatisfied && childOperation->IsFairShareTruncationInFifoPoolAllowed();
+        if (shouldTruncate) {
+            const auto& Logger = GetLogger();
+
+            TotalTruncatedFairShare_[fairShareType] += childFairShare;
+            childOperation->Attributes().SetDetailedFairShare(TResourceVector::Zero(), fairShareType);
+
+            YT_LOG_DEBUG("Truncated operation fair share in FIFO pool (OperationId: %v, FairShareType: %v, TruncatedFairShare: %v, DemandShare: %v)",
+                childOperation->GetId(),
+                fairShareType,
+                childFairShare,
+                childAttributes.DemandShare);
+        }
     }
 }
 

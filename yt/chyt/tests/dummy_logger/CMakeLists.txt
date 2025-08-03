@@ -20,6 +20,9 @@ add_executable(dummy-logger)
 target_compile_options(dummy-logger PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(dummy-logger PUBLIC

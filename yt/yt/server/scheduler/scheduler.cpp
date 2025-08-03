@@ -119,28 +119,27 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = SchedulerLogger;
+constinit const auto Logger = SchedulerLogger;
 
 static const TString UnknownTreeId = "<unknown>";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TPoolTreeKeysHolder
+const std::vector<std::string>& GetPoolTreeKeys()
 {
-    TPoolTreeKeysHolder()
-    {
+    static const std::vector<std::string> result = [] {
         auto poolConfigTemplate = New<TPoolConfig>();
         auto poolConfigKeys = poolConfigTemplate->GetRegisteredKeys();
-
-        Keys.reserve(poolConfigKeys.size() + 3);
-        Keys.insert(Keys.end(), poolConfigKeys.begin(), poolConfigKeys.end());
-        Keys.insert(Keys.end(), DefaultTreeAttributeName);
-        Keys.insert(Keys.end(), TreeConfigAttributeName);
-        Keys.insert(Keys.end(), IdAttributeName);
-    }
-
-    std::vector<TString> Keys;
-};
+        std::vector<std::string> keys;
+        keys.reserve(poolConfigKeys.size() + 3);
+        keys.insert(keys.end(), poolConfigKeys.begin(), poolConfigKeys.end());
+        keys.insert(keys.end(), DefaultTreeAttributeName);
+        keys.insert(keys.end(), TreeConfigAttributeName);
+        keys.insert(keys.end(), IdAttributeName);
+        return keys;
+    }();
+    return result;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -561,7 +560,6 @@ public:
             NScheduler::ValidateOperationAccess(
                 user,
                 operationId,
-                TAllocationId(),
                 permissions,
                 GetOperationOrThrow(operationId)->GetAccessControlRule(),
                 GetClient(),
@@ -577,7 +575,7 @@ public:
     void DoValidateJobShellAccess(
         const std::string& user,
         const TString& jobShellName,
-        const std::vector<TString>& jobShellOwners)
+        const std::vector<std::string>& jobShellOwners)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -598,7 +596,7 @@ public:
     TFuture<void> ValidateJobShellAccess(
         const std::string& user,
         const TString& jobShellName,
-        const std::vector<TString>& jobShellOwners)
+        const std::vector<std::string>& jobShellOwners)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -674,6 +672,7 @@ public:
             secureVault,
             /*temporaryTokenNodeId*/ std::nullopt,
             runtimeParameters,
+            std::move(preprocessedSpec.OperationOptions),
             std::move(baseAcl),
             user,
             /*startTime*/ TInstant::Now(),
@@ -750,8 +749,7 @@ public:
             THROW_ERROR_EXCEPTION("Operation is not started yet");
         }
 
-        WaitFor(ValidateOperationAccess(user, operation->GetId(), EPermissionSet(EPermission::Manage)))
-            .ThrowOnError();
+        ValidateOperationManagementAccess(user, operation, EPermissionSet(EPermission::Manage), EOperationManagementAction::Abort);
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             YT_LOG_INFO(error, "Operation is already shutting down (OperationId: %v, State: %v)",
@@ -784,8 +782,7 @@ public:
             THROW_ERROR_EXCEPTION("Operation is not started yet");
         }
 
-        WaitFor(ValidateOperationAccess(user, operation->GetId(), EPermissionSet(EPermission::Manage)))
-            .ThrowOnError();
+        ValidateOperationManagementAccess(user, operation, EPermissionSet(EPermission::Manage), EOperationManagementAction::Suspend);
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             return MakeFuture(TError(NScheduler::EErrorCode::InvalidOperationState,
@@ -818,8 +815,7 @@ public:
             THROW_ERROR_EXCEPTION("Operation is not started yet");
         }
 
-        WaitFor(ValidateOperationAccess(user, operation->GetId(), EPermissionSet(EPermission::Manage)))
-            .ThrowOnError();
+        ValidateOperationManagementAccess(user, operation, EPermissionSet(EPermission::Manage), EOperationManagementAction::Resume);
 
         if (!operation->GetSuspended()) {
             return MakeFuture(TError(NScheduler::EErrorCode::InvalidOperationState,
@@ -847,8 +843,7 @@ public:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        WaitFor(ValidateOperationAccess(user, operation->GetId(), EPermissionSet(EPermission::Manage)))
-            .ThrowOnError();
+        ValidateOperationManagementAccess(user, operation, EPermissionSet(EPermission::Manage), EOperationManagementAction::Complete);
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             YT_LOG_INFO(error, "Operation is already shutting down (OperationId: %v, State: %v)",
@@ -1054,6 +1049,14 @@ public:
 
         WaitFor(ValidateOperationAccess(user, operation->GetId(), update->GetRequiredPermissions()))
             .ThrowOnError();
+
+        // TODO(ignat): YT-23056: support more sophisticated checks for UpdateOperationParameters.
+        // std::vector<TFuture<void>> validateFutures{ValidateOperationAccess(user, operation->GetId(), update->GetRequiredPermissions())};
+        // if (Config_->OperationActionsAllowedForPoolManagers.contains(EOperationManagementAction::UpdateParameters)) {
+        //     validateFutures.push_back(Strategy_->ValidateOperationPoolPermissions(operation.Get(), user, update->GetRequiredPermissions()));
+        // }
+        // WaitFor(AnySucceeded(validateFutures))
+        //     .ThrowOnError();
 
         for (const auto& [jobShellName, _] : update->OptionsPerJobShell) {
             WaitFor(ValidateJobShellAccess(user, jobShellName, operation->GetJobShellOwners(jobShellName)))
@@ -1486,69 +1489,46 @@ public:
                 .Item("source_wt").Value((finishTime - TInstant()).Seconds());
         };
 
-        if (Config_->ResourceMetering->EnableSeparateSchemaForAllocation) {
-            for (auto [startTime, finishTime] : SplitTimeIntervalByHours(previousLogTime, currentTime)) {
-                auto usageQuantity = (finishTime - startTime).MilliSeconds();
-                buildCommonLogEventPart("yt.scheduler.pools.compute_guarantee.v1", usageQuantity, startTime, finishTime)
-                    .Item("tags").BeginMap()
-                        .Item("strong_guarantee_resources").Value(statistics.StrongGuaranteeResources())
-                        .Item("resource_flow").Value(statistics.ResourceFlow())
-                        .Item("burst_guarantee_resources").Value(statistics.BurstGuaranteeResources())
-                        .Item("cluster").Value(ClusterName_)
-                        .Item("gpu_type").Value(GuessGpuType(key.TreeId))
-                        .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
-                            fluent.Item(pair.first).Value(pair.second);
-                        })
-                        .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
-                            fluent.Item(pair.first).Value(pair.second);
-                        })
-                    .EndMap();
-                GuaranteesMeteringRecordCountCounter_.Increment();
-                GuaranteesMeteringUsageQuantityCounter_.Increment(usageQuantity);
-            }
+        for (auto [startTime, finishTime] : SplitTimeIntervalByHours(previousLogTime, currentTime)) {
+            auto usageQuantity = (finishTime - startTime).MilliSeconds();
+            buildCommonLogEventPart("yt.scheduler.pools.compute_guarantee.v1", usageQuantity, startTime, finishTime)
+                .Item("tags").BeginMap()
+                    .Item("strong_guarantee_resources").Value(statistics.StrongGuaranteeResources())
+                    .Item("resource_flow").Value(statistics.ResourceFlow())
+                    .Item("burst_guarantee_resources").Value(statistics.BurstGuaranteeResources())
+                    .Item("cluster").Value(ClusterName_)
+                    .Item("gpu_type").Value(GuessGpuType(key.TreeId))
+                    .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                        fluent.Item(pair.first).Value(pair.second);
+                    })
+                    .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                        fluent.Item(pair.first).Value(pair.second);
+                    })
+                .EndMap();
+            GuaranteesMeteringRecordCountCounter_.Increment();
+            GuaranteesMeteringUsageQuantityCounter_.Increment(usageQuantity);
+        }
 
-            auto usageLogStartTime = std::max(previousLogTime, connectionTime);
-            auto usageDuration = (currentTime - usageLogStartTime).SecondsFloat();
-            auto averageAllocatedResources = statistics.AccumulatedResourceUsage() / usageDuration;
-            for (auto [startTime, finishTime] : SplitTimeIntervalByHours(usageLogStartTime, currentTime)) {
-                double timeRatio = (finishTime - startTime).SecondsFloat() / usageDuration;
-                auto usageQuantity = (finishTime - startTime).MilliSeconds();
-                buildCommonLogEventPart("yt.scheduler.pools.compute_allocation.v1", usageQuantity, startTime, finishTime)
-                    .Item("tags").BeginMap()
-                        .Item("allocated_resources").Value(averageAllocatedResources * timeRatio)
-                        .Item("cluster").Value(ClusterName_)
-                        .Item("gpu_type").Value(GuessGpuType(key.TreeId))
-                        .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
-                            fluent.Item(pair.first).Value(pair.second);
-                        })
-                        .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
-                            fluent.Item(pair.first).Value(pair.second);
-                        })
-                    .EndMap();
-                AllocationMeteringRecordCountCounter_.Increment();
-                AllocationMeteringUsageQuantityCounter_.Increment(usageQuantity);
-            }
-        } else {
-            for (auto [startTime, finishTime] : SplitTimeIntervalByHours(previousLogTime, currentTime)) {
-                auto usageQuantity = (finishTime - startTime).MilliSeconds();
-                buildCommonLogEventPart("yt.scheduler.pools.compute.v1", usageQuantity, startTime, finishTime)
-                    .Item("tags").BeginMap()
-                        .Item("strong_guarantee_resources").Value(statistics.StrongGuaranteeResources())
-                        .Item("resource_flow").Value(statistics.ResourceFlow())
-                        .Item("burst_guarantee_resources").Value(statistics.BurstGuaranteeResources())
-                        .Item("allocated_resources").Value(statistics.AllocatedResources())
-                        .Item("cluster").Value(ClusterName_)
-                        .Item("gpu_type").Value(GuessGpuType(key.TreeId))
-                        .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
-                            fluent.Item(pair.first).Value(pair.second);
-                        })
-                        .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
-                            fluent.Item(pair.first).Value(pair.second);
-                        })
-                    .EndMap();
-                MeteringRecordCountCounter_.Increment();
-                MeteringUsageQuantityCounter_.Increment(usageQuantity);
-            }
+        auto usageLogStartTime = std::max(previousLogTime, connectionTime);
+        auto usageDuration = (currentTime - usageLogStartTime).SecondsFloat();
+        auto averageAllocatedResources = statistics.AccumulatedResourceUsage() / usageDuration;
+        for (auto [startTime, finishTime] : SplitTimeIntervalByHours(usageLogStartTime, currentTime)) {
+            double timeRatio = (finishTime - startTime).SecondsFloat() / usageDuration;
+            auto usageQuantity = (finishTime - startTime).MilliSeconds();
+            buildCommonLogEventPart("yt.scheduler.pools.compute_allocation.v1", usageQuantity, startTime, finishTime)
+                .Item("tags").BeginMap()
+                    .Item("allocated_resources").Value(averageAllocatedResources * timeRatio)
+                    .Item("cluster").Value(ClusterName_)
+                    .Item("gpu_type").Value(GuessGpuType(key.TreeId))
+                    .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                        fluent.Item(pair.first).Value(pair.second);
+                    })
+                    .DoFor(key.MeteringTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                        fluent.Item(pair.first).Value(pair.second);
+                    })
+                .EndMap();
+            AllocationMeteringRecordCountCounter_.Increment();
+            AllocationMeteringUsageQuantityCounter_.Increment(usageQuantity);
         }
     }
 
@@ -1581,7 +1561,7 @@ public:
             now);
     }
 
-    std::optional<int> FindMediumIndexByName(const TString& mediumName) const override
+    std::optional<int> FindMediumIndexByName(const std::string& mediumName) const override
     {
         const auto& mediumDirectory = Bootstrap_
             ->GetClient()
@@ -1591,7 +1571,7 @@ public:
         return descriptor ? std::optional(descriptor->Index) : std::nullopt;
     }
 
-    const TString& GetMediumNameByIndex(int mediumIndex) const override
+    const std::string& GetMediumNameByIndex(int mediumIndex) const override
     {
         const auto& mediumDirectory = Bootstrap_
             ->GetClient()
@@ -1792,7 +1772,7 @@ private:
 
     IResponseKeeperPtr OperationServiceResponseKeeper_;
 
-    std::optional<TString> ClusterName_;
+    std::optional<std::string> ClusterName_;
 
     const TNodeManagerPtr NodeManager_;
 
@@ -1873,7 +1853,7 @@ private:
     TIntrusivePtr<NYTree::ICachedYPathService> StaticOrchidService_;
     TIntrusivePtr<NYTree::TServiceCombiner> CombinedOrchidService_;
 
-    THashMap<TString, TString> UserToDefaultPoolMap_;
+    THashMap<std::string, TString> UserToDefaultPoolMap_;
 
     TExperimentAssigner ExperimentsAssigner_;
     TError LastExperimentAssignmentError_;
@@ -2074,7 +2054,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        ValidateConfig();
+        CheckConfigForUnrecognizedOptions();
 
         {
             YT_LOG_INFO("Connecting node manager");
@@ -2255,13 +2235,11 @@ private:
 
     void RequestPoolTrees(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
-        static const TPoolTreeKeysHolder PoolTreeKeysHolder;
-
         YT_LOG_INFO("Requesting pool trees");
 
         auto req = TYPathProxy::Get(Config_->PoolTreesRoot);
 
-        ToProto(req->mutable_attributes()->mutable_keys(), PoolTreeKeysHolder.Keys);
+        ToProto(req->mutable_attributes()->mutable_keys(), GetPoolTreeKeys());
         batchReq->AddRequest(req, "get_pool_trees");
     }
 
@@ -2387,7 +2365,7 @@ private:
             const auto& rsp = rspOrError.Value();
             auto configFromCypress = ConvertToNode(TYsonString(rsp->value()));
             try {
-                newConfig->Load(configFromCypress, /*validate*/ true, /*setDefaults*/ false);
+                newConfig->Load(configFromCypress, /*postprocess*/ true, /*setDefaults*/ false);
             } catch (const std::exception& ex) {
                 auto error = TError(NScheduler::EErrorCode::WatcherHandlerFailed, "Error updating scheduler configuration")
                     << ex;
@@ -2406,7 +2384,7 @@ private:
             YT_LOG_INFO("Scheduler configuration updated");
 
             Config_ = newConfig;
-            ValidateConfig();
+            CheckConfigForUnrecognizedOptions();
 
             SpecTemplate_ = CloneNode(Config_->SpecTemplate);
 
@@ -2532,7 +2510,7 @@ private:
 
         auto future =
             BIND([userToDefaultPoolMapYson = TYsonString(rspOrError.Value()->value())] {
-                return ConvertTo<THashMap<TString, TString>>(userToDefaultPoolMapYson);
+                return ConvertTo<THashMap<std::string, TString>>(userToDefaultPoolMapYson);
             })
             .AsyncVia(GetBackgroundInvoker())
             .Run();
@@ -3690,7 +3668,7 @@ private:
         for (const auto& [operationId, operation] : IdToOperation_) {
             builder.AppendString(operation->GetSuspiciousJobs().AsStringBuf());
         }
-        return TYsonString(builder.Flush(), EYsonType::MapFragment);
+        return TYsonString(TString(builder.Flush()), EYsonType::MapFragment);
     }
 
     void BuildStaticOrchid(IYsonConsumer* consumer)
@@ -3800,7 +3778,7 @@ private:
             .ValueOrThrow();
     }
 
-    void ValidateConfig()
+    void CheckConfigForUnrecognizedOptions()
     {
         // First reset the alert.
         SetSchedulerAlert(ESchedulerAlertType::UnrecognizedConfigOptions, TError());
@@ -4103,9 +4081,33 @@ private:
         return result;
     }
 
-    const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const override
+    const THashMap<std::string, TString>& GetUserDefaultParentPoolMap() const override
     {
         return UserToDefaultPoolMap_;
+    }
+
+    void ValidateOperationManagementAccess(
+        const std::string& user,
+        const TOperationPtr& operation,
+        EPermissionSet permissions,
+        EOperationManagementAction action)
+    {
+        std::vector<TFuture<void>> futures{ValidateOperationAccess(user, operation->GetId(), permissions)};
+        if (Config_->OperationActionsAllowedForPoolManagers.contains(action)) {
+            futures.push_back(Strategy_->ValidateOperationPoolPermissions(operation.Get(), user, permissions));
+        }
+
+        auto error = WaitFor(AnySucceeded(futures));
+        if (!error.IsOK()) {
+            std::vector<TError> errors;
+            errors.reserve(futures.size());
+            for (const auto& future : futures) {
+                YT_VERIFY(future.IsSet());
+                errors.push_back(future.Get());
+            }
+            THROW_ERROR_EXCEPTION("Access to perform %v of operation %v denied", action, operation->GetId())
+                << errors;
+        }
     }
 
     struct TOperationFinishedLogEventAttributes
@@ -4635,7 +4637,7 @@ TFuture<void> TScheduler::SetOperationAlert(
 TFuture<void> TScheduler::ValidateJobShellAccess(
     const std::string& user,
     const TString& jobShellName,
-    const std::vector<TString>& jobShellOwners)
+    const std::vector<std::string>& jobShellOwners)
 {
     return Impl_->ValidateJobShellAccess(user, jobShellName, jobShellOwners);
 }

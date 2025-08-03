@@ -1,7 +1,6 @@
 #include "helpers.h"
 
 #include "path_resolver.h"
-#include "sequoia_service.h"
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -9,7 +8,13 @@
 
 #include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 
+#include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
+
+#include <yt/yt/ytlib/sequoia_client/client.h>
+#include <yt/yt/ytlib/sequoia_client/transaction.h>
 #include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
+
+#include <yt/yt/ytlib/sequoia_client/records/transactions.record.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -18,6 +23,8 @@
 #include <yt/yt/core/ytree/ypath_detail.h>
 
 #include <library/cpp/yt/misc/variant.h>
+
+#include <library/cpp/iterator/zip.h>
 
 namespace NYT::NCypressProxy {
 
@@ -84,6 +91,10 @@ TAbsoluteYPath GetCanonicalYPath(const TResolveResult& resolveResult)
             // NB: Cypress resolve result doesn't contain unresolved links.
             return TAbsoluteYPath(resolveResult.Path);
         },
+        [] (const TMasterResolveResult& /*resolveResult*/) -> TAbsoluteYPath {
+            // NB: Master resolve result is uncurated, it's unwise to attempt to parse it.
+            Y_UNREACHABLE();
+        },
         [] (const TSequoiaResolveResult& resolveResult) -> TAbsoluteYPath {
             // We don't want to distinguish "//tmp/a&/my-link" from
             // "//tmp/a/my-link".
@@ -110,7 +121,12 @@ void ValidateLinkNodeCreation(
         const TAbsoluteYPath& forbiddenPrefix)
     {
         std::vector<TSequoiaResolveIterationResult> history;
-        auto resolveResult = ResolvePath(session, std::move(pathToResolve), /*method*/ {}, &history);
+        auto resolveResult = ResolvePath(
+            session,
+            std::move(pathToResolve),
+            /*service*/ {},
+            /*method*/ {},
+            &history);
 
         for (const auto& [id, path] : history) {
             if (IsLinkType(TypeFromId(id)) && path == forbiddenPrefix) {
@@ -125,6 +141,55 @@ void ValidateLinkNodeCreation(
         THROW_ERROR_EXCEPTION("Failed to create link: link is cyclic")
             << TErrorAttribute("target_path", targetPath.Underlying())
             << TErrorAttribute("path", linkPath);
+    }
+}
+
+std::vector<TTransactionId> ParsePrerequisiteTransactionIds(const NRpc::NProto::TRequestHeader& header)
+{
+    const auto prerequisitesExt = NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext;
+    if (!header.HasExtension(prerequisitesExt)) {
+        return {};
+    }
+
+    auto prerequisites = header.GetExtension(prerequisitesExt);
+    std::vector<TTransactionId> prerequisiteTransactionIds;
+    prerequisiteTransactionIds.reserve(prerequisites.transactions_size());
+    for (const auto& protoTransaction : prerequisites.transactions()) {
+        auto transactionId = FromProto<TTransactionId>(protoTransaction.transaction_id());
+        prerequisiteTransactionIds.push_back(transactionId);
+    }
+    return prerequisiteTransactionIds;
+}
+
+void ValidatePrerequisiteTransactions(
+    const ISequoiaClientPtr& sequoiaClient,
+    const std::vector<TTransactionId>& prerequisiteTransactionIds)
+{
+    // Fast path.
+    if (prerequisiteTransactionIds.empty()) {
+        return;
+    }
+
+    std::vector<NRecords::TTransactionKey> transactionKeys;
+    transactionKeys.reserve(prerequisiteTransactionIds.size());
+    for (const auto& transactionId : prerequisiteTransactionIds) {
+        if (!IsCypressTransactionMirroredToSequoia(transactionId)) {
+            THROW_ERROR_EXCEPTION("Non-mirrored transaction %v found in prerequisites", transactionId);
+        }
+        transactionKeys.push_back({.TransactionId = transactionId});
+    }
+
+    auto transactionRowsOrError = WaitFor(sequoiaClient->LookupRows(transactionKeys));
+    THROW_ERROR_EXCEPTION_IF_FAILED(transactionRowsOrError, "Failed to check prerequisite transactions")
+
+    auto transactionRows = transactionRowsOrError.Value();
+    for (const auto& [key, row] : Zip(transactionKeys, transactionRows)) {
+        if (!row.has_value()) {
+            THROW_ERROR_EXCEPTION(
+                NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+                "Prerequisite check failed: transaction %v is missing in Sequoia",
+                key.TransactionId);
+        }
     }
 }
 
@@ -157,7 +222,8 @@ bool IsSupportedSequoiaType(EObjectType type)
     return IsSequoiaCompositeNodeType(type) ||
         IsScalarType(type) ||
         IsChunkOwnerType(type) ||
-        type == EObjectType::SequoiaLink;
+        type == EObjectType::SequoiaLink ||
+        type == EObjectType::Orchid;
 }
 
 bool IsSequoiaCompositeNodeType(EObjectType type)
@@ -180,6 +246,16 @@ void ThrowAlreadyExists(const TAbsoluteYPath& path)
         NYTree::EErrorCode::AlreadyExists,
         "Node %v already exists",
         path);
+}
+
+void ThrowCannotHaveChildren(const TAbsoluteYPath& path)
+{
+    THROW_ERROR_EXCEPTION("%v cannot have children", path);
+}
+
+void ThrowCannotReplaceNode(const TAbsoluteYPath& path)
+{
+    THROW_ERROR_EXCEPTION("%v cannot be replaced", path);
 }
 
 void ThrowNoSuchChild(const TAbsoluteYPath& existingPath, TStringBuf missingPath)

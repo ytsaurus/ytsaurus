@@ -140,8 +140,8 @@ public:
         return Slave_->GetClusterServer(cluster);
     }
 
-    NYT::TRichYPath GetRealTable(const TString& sessionId, const TString& cluster, const TString& table, ui32 epoch, const TString& tmpFolder) const final {
-        return Slave_->GetRealTable(sessionId, cluster, table, epoch, tmpFolder);
+    NYT::TRichYPath GetRealTable(const TString& sessionId, const TString& cluster, const TString& table, ui32 epoch, const TString& tmpFolder, bool temp, bool anonymous) const final {
+        return Slave_->GetRealTable(sessionId, cluster, table, epoch, tmpFolder, temp, anonymous);
     }
 
     NYT::TRichYPath GetWriteTable(const TString& sessionId, const TString& cluster, const TString& table, const TString& tmpFolder) const final {
@@ -189,6 +189,11 @@ public:
     TClusterConnectionResult GetClusterConnection(const TClusterConnectionOptions&& options) override {
         YQL_PROFILE_FUNC(TRACE);
         return Slave_->GetClusterConnection(std::move(options));
+    }
+
+    TMaybe<TString> GetTableFilePath(const TGetTableFilePathOptions&& options) override {
+        YQL_PROFILE_FUNC(TRACE);
+        return Slave_->GetTableFilePath(std::move(options));
     }
 
 private:

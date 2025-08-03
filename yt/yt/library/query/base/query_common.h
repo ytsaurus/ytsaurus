@@ -30,6 +30,9 @@ struct TDataSplit
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TStructMemberAccessor = TString;
+using TTupleItemIndexAccessor = int;
+
 using TSourceLocation = std::pair<int, int>;
 static const TSourceLocation NullSourceLocation(0, 0);
 
@@ -118,8 +121,8 @@ bool IsRelationalBinaryOp(EBinaryOp opcode);
 //! Classifies binary opcode according to classification above.
 bool IsStringBinaryOp(EBinaryOp opcode);
 
-//! Cast numeric values.
-TValue CastValueWithCheck(TValue value, EValueType targetType);
+//! Cast values.
+TOwningValue CastValueWithCheck(TValue value, EValueType targetType);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -147,9 +150,7 @@ void VerifyIdsInKeys(TRange<TRow> keys);
 void ToProto(
     NProto::TDataSource* serialized,
     const TDataSource& original,
-    TRange<TLogicalTypePtr> schema,
-    bool lookupSupported,
-    size_t keyWidth);
+    TRange<TLogicalTypePtr> schema);
 void FromProto(
     TDataSource* original,
     const NProto::TDataSource& serialized,
@@ -171,7 +172,7 @@ struct TQueryBaseOptions
     bool UseCanonicalNullRelations = false;
     bool MergeVersionedRows = true;
     // COMPAT(sabdenovch)
-    bool AllowUnorderedGroupByWithLimit = false;
+    bool AllowUnorderedGroupByWithLimit = true;
 };
 
 struct TQueryOptions
@@ -199,10 +200,14 @@ struct TQueryOptions
     bool SuppressAccessTracking = false;
     // COMPAT(lukyan)
     bool NewRangeInference = true;
+    // COMPAT(dtorilov)
+    bool AdaptiveOrderedSchemafulReader = false;
 };
 
 void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original);
 void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized);
+
+TQueryOptions GetJoinSubqueryOptions(const TQueryOptions& queryOptions);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -16,10 +16,12 @@ struct TQueueAgentStageChannelConfig
     : public NRpc::TBalancingChannelConfig
     , public NRpc::TRetryingChannelConfig
 {
+    //! Default timeout for every request.
+    TDuration DefaultRequestTimeout;
+
     REGISTER_YSON_STRUCT(TQueueAgentStageChannelConfig);
 
-    static void Register(TRegistrar)
-    { }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueAgentStageChannelConfig)
@@ -112,6 +114,18 @@ struct TQueueAgentConnectionConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueAgentConnectionConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TQueueProducerSystemMeta
+    : public NYTree::TYsonStructLite
+{
+    std::optional<NRpc::TMutationId> MutationId;
+
+    REGISTER_YSON_STRUCT_LITE(TQueueProducerSystemMeta);
+
+    static void Register(TRegistrar registrar);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

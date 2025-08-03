@@ -44,7 +44,11 @@ using NYT::NQueryClient::TMultiJoinClosure;
 using NYT::NQueryClient::TLikeExpressionContext;
 using NYT::NQueryClient::TRowSchemaInformation;
 using NYT::NQueryClient::TCompositeMemberAccessorPath;
+using NYT::NQueryClient::TSubqueryParameters;
+using NYT::NQueryClient::TSubqueryWriteOpClosure;
+
 using NYT::NTableClient::TRowBuffer;
+
 using NYT::TSharedRange;
 
 template <>
@@ -83,6 +87,8 @@ struct TTypeBuilder<bool>
     OPAQUE_TYPE(TLikeExpressionContext*)
     OPAQUE_TYPE(TRowSchemaInformation*)
     OPAQUE_TYPE(TCompositeMemberAccessorPath*)
+    OPAQUE_TYPE(TSubqueryParameters*)
+    OPAQUE_TYPE(TSubqueryWriteOpClosure*)
 
     OPAQUE_TYPE(struct tm*)
 

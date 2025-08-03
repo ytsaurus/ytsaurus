@@ -6,8 +6,6 @@
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/yt/library/vector_hdrf/resource_helpers.h>
-
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>

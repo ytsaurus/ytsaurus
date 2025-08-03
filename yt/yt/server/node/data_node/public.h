@@ -24,7 +24,6 @@ struct TChunkDescriptor;
 struct TSessionOptions;
 struct TChunkReadOptions;
 
-class TPendingIOGuard;
 class TChunkReadGuard;
 
 struct TArtifactKey;
@@ -68,6 +67,7 @@ DECLARE_REFCOUNTED_CLASS(TLocationManager)
 DECLARE_REFCOUNTED_CLASS(TLocationHealthChecker)
 
 DECLARE_REFCOUNTED_STRUCT(ISession)
+DECLARE_REFCOUNTED_STRUCT(TNbdSession)
 DECLARE_REFCOUNTED_CLASS(TBlobWritePipeline)
 DECLARE_REFCOUNTED_CLASS(TBlobSession)
 DECLARE_REFCOUNTED_CLASS(TSessionManager)
@@ -84,7 +84,7 @@ DECLARE_REFCOUNTED_STRUCT(TSealReaderConfig)
 DECLARE_REFCOUNTED_STRUCT(TMasterConnectorConfig)
 DECLARE_REFCOUNTED_STRUCT(TMasterConnectorDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TAllyReplicaManagerDynamicConfig)
-DECLARE_REFCOUNTED_CLASS(TDataNodeTestingOptions)
+DECLARE_REFCOUNTED_STRUCT(TDataNodeTestingOptions)
 DECLARE_REFCOUNTED_STRUCT(TJournalManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TJobControllerDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TDataNodeConfig)
@@ -127,6 +127,11 @@ DECLARE_REFCOUNTED_STRUCT(TP2PChunk)
 DECLARE_REFCOUNTED_STRUCT(IIOThroughputMeter)
 
 DECLARE_REFCOUNTED_STRUCT(ILocalChunkFragmentReader)
+
+DECLARE_REFCOUNTED_STRUCT(INbdChunkHandler)
+
+DECLARE_REFCOUNTED_CLASS(TProbePutBlocksRequestSupplier)
+DECLARE_REFCOUNTED_CLASS(TLocationFairShareSlot)
 
 ////////////////////////////////////////////////////////////////////////////////
 

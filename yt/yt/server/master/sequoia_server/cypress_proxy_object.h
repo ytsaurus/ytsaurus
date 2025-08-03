@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/master/object_server/object.h>
 
-#include <yt/yt/ytlib/sequoia_client/public.h>
+#include <yt/yt/ytlib/sequoia_client/sequoia_reign.h>
 
 namespace NYT::NSequoiaServer {
 
@@ -15,8 +15,9 @@ class TCypressProxyObject
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(std::string, Address);
-    DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, LastPersistentHeartbeatTime);
     DEFINE_BYVAL_RW_PROPERTY(NSequoiaClient::ESequoiaReign, SequoiaReign);
+    DEFINE_BYVAL_RW_PROPERTY(std::string, Version);
 
 public:
     using NObjectServer::TObject::TObject;

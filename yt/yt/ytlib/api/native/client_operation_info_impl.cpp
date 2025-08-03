@@ -1,12 +1,13 @@
 #include "client_impl.h"
 #include "config.h"
 #include "connection.h"
+#include "helpers.h"
 #include "list_operations.h"
 #include "private.h"
 #include "rpc_helpers.h"
 
 #include <yt/yt/ytlib/scheduler/records/operation_alias.record.h>
-#include <yt/ytlib/scheduler/records/ordered_by_start_time.record.h>
+#include <yt/yt/ytlib/scheduler/records/ordered_by_start_time.record.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
@@ -95,32 +96,22 @@ static const THashSet<TString> ArchiveOnlyAttributes = {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TClient::DoesOperationsArchiveExist(bool useOperationsArchiveClient)
+bool TClient::DoesOperationsArchiveExist()
 {
     // NB: We suppose that archive should exist and work correctly if this map node is presented.
     TNodeExistsOptions nodeExistsOptions;
-    nodeExistsOptions.ReadFrom = Connection_->GetConfig()->ReadOperationsArchiveStateFrom;;
+    nodeExistsOptions.ReadFrom = Connection_->GetConfig()->ReadOperationsArchiveStateFrom;
 
-    IClient* client = this;
-    if (useOperationsArchiveClient) {
-        client = GetOperationsArchiveClient().Get();
-    }
-
-    return WaitFor(client->NodeExists(GetOperationsArchivePath(), nodeExistsOptions))
+    return WaitFor(NodeExists(GetOperationsArchivePath(), nodeExistsOptions))
         .ValueOrThrow();
 }
 
-std::optional<int> TClient::TryGetOperationsArchiveVersion(bool useOperationsArchiveClient)
+std::optional<int> TClient::TryGetOperationsArchiveVersion()
 {
     TGetNodeOptions getNodeOptions;
-    getNodeOptions.ReadFrom = Connection_->GetConfig()->ReadOperationsArchiveStateFrom;;
+    getNodeOptions.ReadFrom = Connection_->GetConfig()->ReadOperationsArchiveStateFrom;
 
-    IClient* client = this;
-    if (useOperationsArchiveClient) {
-        client = GetOperationsArchiveClient().Get();
-    }
-
-    auto asyncVersionResult = client->GetNode(GetOperationsArchiveVersionPath(), getNodeOptions);
+    auto asyncVersionResult = GetOperationsArchiveClient()->GetNode(GetOperationsArchiveVersionPath(), getNodeOptions);
 
     auto versionNodeOrError = WaitFor(asyncVersionResult);
 
@@ -265,7 +256,7 @@ TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
         attributeDictionary->Set("type", type);
     }
 
-    if (auto key = attributeDictionary->FindAndRemove<TString>("key")) {
+    if (auto key = attributeDictionary->FindAndRemove<std::string>("key")) {
         attributeDictionary->Set("id", key);
     }
 
@@ -276,7 +267,7 @@ TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
     auto modificationTime = attributeDictionary->GetAndRemove<TInstant>("modification_time");
 
     if (!options.Attributes) {
-        auto keysToKeep = attributeDictionary->Get<THashSet<TString>>("user_attribute_keys");
+        auto keysToKeep = attributeDictionary->Get<THashSet<std::string>>("user_attribute_keys");
         keysToKeep.insert("id");
         keysToKeep.insert("type");
         for (const auto& key : attributeDictionary->ListKeys()) {
@@ -378,19 +369,6 @@ static THashSet<TString> MakeIgnoredArchiveAttributes(THashSet<TString> ignoredA
     return ignoredAttributes;
 }
 
-static THashSet<TString> DeduceActualAttributes(
-    const std::optional<THashSet<TString>>& originalAttributes,
-    const THashSet<TString>& requiredAttributes,
-    const THashSet<TString>& defaultAttributes,
-    const THashSet<TString>& ignoredAttributes)
-{
-    auto attributes = originalAttributes.value_or(defaultAttributes);
-    attributes.insert(requiredAttributes.begin(), requiredAttributes.end());
-    for (const auto& attribute : ignoredAttributes) {
-        attributes.erase(attribute);
-    }
-    return attributes;
-}
 
 std::optional<TOperation> TClient::DoGetOperationFromArchive(
     NScheduler::TOperationId operationId,
@@ -471,7 +449,7 @@ TOperationId TClient::ResolveOperationAlias(
     lookupOptions.KeepMissingRows = true;
     lookupOptions.Timeout = deadline - Now();
 
-    auto rowset = WaitFor(LookupRows(
+    auto rowset = WaitFor(GetOperationsArchiveClient()->LookupRows(
         GetOperationsArchiveOperationAliasesPath(),
         NRecords::TOperationAliasDescriptor::Get()->GetNameTable(),
         MakeSharedRange(std::move(keys), std::move(rowBuffer)),
@@ -975,7 +953,7 @@ THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
     }
 
     auto columnFilter = NTableClient::TColumnFilter(columns);
-    auto rowset = LookupOperationsInArchive(this, ids, columnFilter, timeout)
+    auto rowset = LookupOperationsInArchive(GetOperationsArchiveClient(), ids, columnFilter, timeout)
         .ValueOrThrow();
     auto records = ToOptionalRecords<NRecords::TOrderedByIdPartial>(rowset);
 
@@ -1105,7 +1083,7 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
         selectOptions.InputRowLimit = std::numeric_limits<i64>::max();
         selectOptions.MemoryLimitPerNode = 100_MB;
 
-        auto resultCounts = WaitFor(SelectRows(builder.Build(), selectOptions))
+        auto resultCounts = WaitFor(GetOperationsArchiveClient()->SelectRows(builder.Build(), selectOptions))
             .ValueOrThrow();
 
         auto records = ToRecords<NRecords::TOrderedByStartTimePartial>(resultCounts.Rowset);
@@ -1221,7 +1199,7 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
     selectOptions.Timeout = deadline - Now();
     selectOptions.InputRowLimit = std::numeric_limits<i64>::max();
     selectOptions.MemoryLimitPerNode = 100_MB;
-    auto rowsItemsId = WaitFor(SelectRows(builder.Build(), selectOptions))
+    auto rowsItemsId = WaitFor(GetOperationsArchiveClient()->SelectRows(builder.Build(), selectOptions))
         .ValueOrThrow();
     auto records = ToRecords<NRecords::TOrderedByStartTimePartial>(rowsItemsId.Rowset);
 
@@ -1359,7 +1337,7 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
     }
 
     // Fetching progress and alert_events for operations with mentioned ids.
-    if (DoesOperationsArchiveExist()) {
+    if (GetOperationsArchiveClient()->DoesOperationsArchiveExist()) {
         std::vector<TOperationId> ids;
         for (const auto& operation : result.Operations) {
             ids.push_back(*operation.Id);
@@ -1383,7 +1361,7 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
 
         auto columnFilter = NTableClient::TColumnFilter(columnIndices);
         auto rowsetOrError = LookupOperationsInArchive(
-            this,
+            GetOperationsArchiveClient(),
             ids,
             columnFilter,
             options.ArchiveFetchingTimeout);

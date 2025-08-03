@@ -1,9 +1,10 @@
 #include "partition.h"
+
 #include "automaton.h"
-#include "store.h"
-#include "tablet.h"
-#include "structured_logger.h"
 #include "serialize.h"
+#include "store.h"
+#include "structured_logger.h"
+#include "tablet.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 

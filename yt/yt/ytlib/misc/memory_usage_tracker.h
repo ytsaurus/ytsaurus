@@ -4,12 +4,13 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/misc/memory_usage_tracker.h>
 #include <yt/yt/core/misc/error.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
+
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
@@ -21,7 +22,7 @@ struct INodeMemoryTracker
     : public TRefCounted
 {
     using ECategory = EMemoryCategory;
-    using TPoolTag = TString;
+    using TPoolTag = std::string;
 
     virtual i64 GetTotalLimit() const = 0;
     virtual i64 GetTotalUsed() const = 0;
@@ -36,7 +37,11 @@ struct INodeMemoryTracker
 
     virtual void SetTotalLimit(i64 newLimit) = 0;
     virtual void SetCategoryLimit(ECategory category, i64 newLimit) = 0;
-    virtual void SetPoolWeight(const TPoolTag& poolTag, i64 newWeight) = 0;
+    virtual void SetPoolWeight(const TPoolTag& poolTag, std::optional<i64> newWeight) = 0;
+    virtual void SetPoolRatio(const TPoolTag& poolTag, std::optional<double> newRatio) = 0;
+    virtual i64 GetPoolUsed(const TPoolTag& poolTag) const = 0;
+    virtual i64 GetPoolLimit(const TPoolTag& poolTag) const = 0;
+    virtual bool IsPoolExceeded(const TPoolTag& poolTag) const = 0;
 
     //! Returns true unless overcommit occurred.
     virtual bool Acquire(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag = {}) = 0;
@@ -48,12 +53,14 @@ struct INodeMemoryTracker
     virtual TSharedRef Track(
         TSharedRef reference,
         EMemoryCategory category,
+        std::optional<TPoolTag> poolTag,
         bool keepExistingTracking) = 0;
 
     //! Returns an error if overcommit has occurred.
     virtual TErrorOr<TSharedRef> TryTrack(
         TSharedRef reference,
         EMemoryCategory category,
+        std::optional<TPoolTag> poolTag,
         bool keepExistingTracking) = 0;
 
     virtual IMemoryUsageTrackerPtr WithCategory(

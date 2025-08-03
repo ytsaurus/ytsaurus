@@ -75,6 +75,17 @@ public:
         }
     }
 
+    int GetJobCount() const override
+    {
+        return JobCount_;
+    }
+
+    std::vector<TOutputCookie> UpdateJobCount(int desiredCount) override
+    {
+        SetJobCount(desiredCount);
+        return JobManager_->SetJobCount(desiredCount);
+    }
+
     TChunkStripeListPtr GetStripeList(IChunkPoolOutput::TCookie /*cookie*/) override
     {
         return NullStripeList;

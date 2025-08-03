@@ -32,8 +32,6 @@ SRCS(
     bus/tcp/client.cpp
     bus/tcp/local_bypass.cpp
     bus/tcp/server.cpp
-    bus/tcp/ssl_context.cpp
-    bus/tcp/ssl_helpers.cpp
 
     compression/brotli.cpp
     compression/bzip2.cpp
@@ -137,8 +135,8 @@ SRCS(
     misc/histogram.cpp
     misc/adjusted_exponential_moving_average.cpp
     misc/id_generator.cpp
+    misc/fair_share_hierarchical_queue.cpp
     misc/linear_probe.cpp
-    misc/memory_usage_tracker.cpp
     misc/relaxed_mpsc_queue.cpp
     misc/parser_helpers.cpp
     misc/pattern_formatter.cpp
@@ -153,8 +151,8 @@ SRCS(
     misc/ref_counted_tracker_profiler.cpp
     GLOBAL misc/ref_tracked.cpp
     misc/serialize.cpp
+    misc/serialize_dump.cpp
     misc/shutdown.cpp
-    misc/signal_registry.cpp
     misc/slab_allocator.cpp
     misc/statistic_path.cpp
     misc/statistics.cpp
@@ -162,6 +160,7 @@ SRCS(
     misc/utf8_decoder.cpp
     misc/zerocopy_output_writer.cpp
     misc/configurable_singleton_def.cpp
+    misc/memory_usage_tracker.cpp
 
     net/address.cpp
     net/connection.cpp
@@ -288,6 +287,7 @@ SRCS(
     ytree/request_complexity_limiter.cpp
     ytree/request_complexity_limits.cpp
     ytree/serialize.cpp
+    ytree/size.cpp
     ytree/static_service_dispatcher.cpp
     ytree/system_attribute_provider.cpp
     ytree/tree_builder.cpp
@@ -331,7 +331,7 @@ PEERDIR(
     contrib/libs/libbz2
     contrib/libs/c-ares
     contrib/libs/farmhash
-    contrib/libs/yajl
+    contrib/deprecated/yajl
     contrib/libs/lz4
     contrib/libs/openssl
 
@@ -370,10 +370,13 @@ PEERDIR(
     yt/yt/library/undumpable
     yt/yt/library/ytprof/api
 
+    yt/yt/library/signals
+
     # TODO(prime@): remove this, once yt/core is split into separate libraries.
     yt/yt/library/profiling
     yt/yt/library/profiling/resource_tracker
     yt/yt/library/tracing
+    yt/yt/library/numeric
 )
 
 IF (OS_WINDOWS)

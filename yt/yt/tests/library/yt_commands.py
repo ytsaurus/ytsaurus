@@ -175,6 +175,9 @@ def init_drivers(clusters):
         return drivers
 
     for instance in clusters:
+        if instance is None:
+            continue
+
         if instance.yt_config.master_count > 0:
             if instance._default_driver_backend == "native":
                 default_driver = create_driver_per_api(instance.configs["driver"])
@@ -429,6 +432,10 @@ def execute_command(
     if "user_tag" in parameters:
         user_tag = parameters["user_tag"]
         del parameters["user_tag"]
+    token = None
+    if "token" in parameters:
+        token = parameters["token"]
+        del parameters["token"]
 
     if "path" in parameters:
         parameters["path"] = prepare_path(parameters["path"])
@@ -459,7 +466,7 @@ def execute_command(
     if verbose:
 
         def _is_text_yson(fmt):
-            return fmt is not None and str(fmt) == "yson" and fmt.attributes.get("format", None) == "text"
+            return fmt is not None and str(fmt) == 'yson' and hasattr(fmt, 'attributes') and fmt.attributes.get("format", None) == "text"
 
         pretty_parameters = pycopy.deepcopy(parameters)
         for key in ["input_format", "output_format"]:
@@ -477,6 +484,7 @@ def execute_command(
             user=authenticated_user,
             user_tag=user_tag,
             trace_id=trace_id,
+            token=token,
         )
     )
 
@@ -806,6 +814,11 @@ def read_table(path, **kwargs):
     return execute_command_with_output_format("read_table", kwargs)
 
 
+def read_table_partition(partition_cookie, **kwargs):
+    kwargs["cookie"] = partition_cookie
+    return execute_command_with_output_format("read_table_partition", kwargs)
+
+
 def read_blob_table(path, **kwargs):
     kwargs["path"] = path
     output = BytesIO()
@@ -1030,11 +1043,10 @@ def abort_transaction(tx, **kwargs):
     execute_command("abort_tx", kwargs)
 
 
-def abort_all_transactions():
-    topmost_transactions = ls("//sys/topmost_transactions")
-    for i in range(len(topmost_transactions) // 100 + 1):
+def abort_transactions(transactions, **kwargs):
+    for i in range(len(transactions) // 100 + 1):
         start = i * 100
-        end = min(len(topmost_transactions), (i + 1) * 100)
+        end = min(len(transactions), (i + 1) * 100)
         if start >= end:
             break
         requests = []
@@ -1042,10 +1054,15 @@ def abort_all_transactions():
             requests.append(
                 {
                     "command": "abort_transaction",
-                    "parameters": {"transaction_id": topmost_transactions[j]},
+                    "parameters": {"transaction_id": transactions[j]},
                 }
             )
-        execute_batch(requests)
+        execute_batch(requests, **kwargs)
+
+
+def abort_all_transactions(**kwargs):
+    topmost_transactions = ls("//sys/topmost_transactions")
+    abort_transactions(topmost_transactions, **kwargs)
 
 
 def generate_timestamp(**kwargs):
@@ -1303,13 +1320,13 @@ def write_shuffle_data(shuffle_handle, partition_column, value, is_raw=False, **
         value = yson.dumps(value, yson_type="list_fragment")
     input_stream = BytesIO(value)
 
-    kwargs["shuffle_handle"] = shuffle_handle
+    kwargs["signed_shuffle_handle"] = shuffle_handle
     kwargs["partition_column"] = partition_column
     execute_command("write_shuffle_data", kwargs, input_stream=input_stream)
 
 
 def read_shuffle_data(shuffle_handle, partition_index, **kwargs):
-    kwargs["shuffle_handle"] = shuffle_handle
+    kwargs["signed_shuffle_handle"] = shuffle_handle
     kwargs["partition_index"] = partition_index
     return execute_command_with_output_format("read_shuffle_data", kwargs)
 
@@ -2418,21 +2435,28 @@ def create_s3_medium(name, config, **kwargs):
     return execute_command("create", kwargs)
 
 
-def create_replication_card(chaos_cell_id, **kwargs):
-    kwargs["type"] = "replication_card"
+def create_chaos_object(type, explicit_attirbutes, **kwargs):
+    kwargs["type"] = type
     if "attributes" not in kwargs:
-        kwargs["attributes"] = dict()
-    kwargs["attributes"]["chaos_cell_id"] = chaos_cell_id
+        kwargs["attributes"] = {}
+    kwargs["attributes"].update(**explicit_attirbutes)
     return execute_command("create", kwargs, parse_yson=True)
+
+
+def create_replication_card(chaos_cell_id, **kwargs):
+    return create_chaos_object("replication_card", {"chaos_cell_id": chaos_cell_id}, **kwargs)
+
+
+def create_chaos_lease(chaos_cell_id, **kwargs):
+    return create_chaos_object("chaos_lease", {"chaos_cell_id": chaos_cell_id}, **kwargs)
 
 
 def create_chaos_table_replica(cluster_name, replica_path, **kwargs):
-    kwargs["type"] = "chaos_table_replica"
-    if "attributes" not in kwargs:
-        kwargs["attributes"] = dict()
-    kwargs["attributes"]["cluster_name"] = cluster_name
-    kwargs["attributes"]["replica_path"] = replica_path
-    return execute_command("create", kwargs, parse_yson=True)
+    attributes = {
+        "cluster_name": cluster_name,
+        "replica_path": replica_path
+    }
+    return create_chaos_object("chaos_table_replica", attributes, **kwargs)
 
 
 def suspend_chaos_cells(cell_ids, **kwargs):
@@ -2805,20 +2829,30 @@ _MAINTENANCE_FLAGS = {
 }
 
 
-def clear_node_maintenance_flag(address, type, driver=None):
+def clear_node_maintenance_flag(address, type, driver=None, forbid_maintenance_attribute_writes=None):
     path = f"//sys/cluster_nodes/{address}"
     # COMPAT(kvk1920)
-    if get("//sys/@config/node_tracker/forbid_maintenance_attribute_writes", default=False, driver=driver):
+    if forbid_maintenance_attribute_writes is None:
+        forbid_maintenance_attribute_writes = get(
+            "//sys/@config/node_tracker/forbid_maintenance_attribute_writes",
+            default=False,
+            driver=driver)
+    if forbid_maintenance_attribute_writes:
         remove_maintenance("cluster_node", address, type=type, driver=driver)
     else:
         flag = _MAINTENANCE_FLAGS[type]
         set(f"{path}/@{flag}", False, driver=driver)
 
 
-def set_node_maintenance_flag(address, type, reason="", driver=None):
+def set_node_maintenance_flag(address, type, reason="", driver=None, forbid_maintenance_attribute_writes=None):
     path = f"//sys/cluster_nodes/{address}"
     # COMPAT(kvk1920)
-    if get("//sys/@config/node_tracker/forbid_maintenance_attribute_writes", default=False, driver=driver):
+    if forbid_maintenance_attribute_writes is None:
+        forbid_maintenance_attribute_writes = get(
+            "//sys/@config/node_tracker/forbid_maintenance_attribute_writes",
+            default=False,
+            driver=driver)
+    if forbid_maintenance_attribute_writes:
         # NB: Maintenance request api was changed in 23.1.
         add_maintenance("cluster_node", address, type, reason, driver=driver)
     else:
@@ -2826,22 +2860,39 @@ def set_node_maintenance_flag(address, type, reason="", driver=None):
         set(f"{path}/@{flag}", True, driver=driver)
 
 
-def _ban_node(address, reason="", driver=None):
-    set_node_maintenance_flag(address, "ban", reason, driver=driver)
+def _ban_node(address, reason="", driver=None, forbid_maintenance_attribute_writes=None):
+    set_node_maintenance_flag(
+        address,
+        "ban",
+        reason,
+        driver=driver,
+        forbid_maintenance_attribute_writes=forbid_maintenance_attribute_writes)
 
 
-def _unban_node(address, driver=None):
-    clear_node_maintenance_flag(address, "ban", driver=driver)
+def _unban_node(address, driver=None, forbid_maintenance_attribute_writes=None):
+    clear_node_maintenance_flag(
+        address,
+        "ban",
+        driver=driver,
+        forbid_maintenance_attribute_writes=forbid_maintenance_attribute_writes)
 
 
 def set_nodes_banned(nodes, value, wait_for_master=True, wait_for_scheduler=False, driver=None):
+    forbid_maintenance_attribute_writes = get(
+        "//sys/@config/node_tracker/forbid_maintenance_attribute_writes",
+        default=False,
+        driver=driver)
     if value:
         for node in nodes:
-            _ban_node(node, reason="set_nodes_banned", driver=driver)
+            _ban_node(
+                node,
+                reason="set_nodes_banned",
+                driver=driver,
+                forbid_maintenance_attribute_writes=forbid_maintenance_attribute_writes)
         state = "offline"
     else:
         for node in nodes:
-            _unban_node(node, driver=driver)
+            _unban_node(node, driver=driver, forbid_maintenance_attribute_writes=forbid_maintenance_attribute_writes)
         state = "online"
     if wait_for_master:
         print_debug(f"Waiting for nodes {nodes} to become {state} at master...")
@@ -3733,6 +3784,30 @@ def get_flow_view(pipeline_path, view_path=None, cache=None, **kwargs):
     return execute_command("get_flow_view", kwargs, parse_yson=True)
 
 
+def flow_execute(pipeline_path: str, flow_command: str, flow_argument=None, is_raw=False, **kwargs):
+    is_input_raw = is_raw or "input_format" in kwargs
+    if not is_input_raw:
+        flow_argument = yson.dumps(flow_argument)
+    elif isinstance(flow_argument, str):
+        flow_argument = flow_argument.encode("utf-8")
+    elif not isinstance(flow_argument, (bytes, bytearray)):
+        raise TypeError(
+            "Serialized flow_argument must be str, bytes or bytearray, "
+            "actual type: {}".format(flow_argument.__class__)
+        )
+
+    kwargs["pipeline_path"] = pipeline_path
+    kwargs["flow_command"] = flow_command
+
+    is_output_raw = is_raw or "output_format" in kwargs
+    return execute_command(
+        "flow_execute",
+        kwargs,
+        input_stream=BytesIO(flow_argument),
+        parse_yson=not is_output_raw,
+        unwrap_v4_result=False)
+
+
 def make_externalized_tx_id(tx_id, externalizing_cell_tag):
     parts = list(builtins.map(lambda p: int(p, 16), tx_id.split("-")))
 
@@ -3750,3 +3825,25 @@ def make_externalized_tx_id(tx_id, externalizing_cell_tag):
         f"{parts[1]:x}",
         f"{shifted_native_cell_tag | externalized_type:x}",
         f"{parts[3] | (int(externalizing_cell_tag) << 16):x}"])
+
+
+def start_distributed_write_session(path: str, cookie_count: int, **kwargs):
+    kwargs["path"] = path
+    kwargs["cookie_count"] = cookie_count
+    return execute_command("start_distributed_write_session", kwargs, parse_yson=True)
+
+
+def write_table_fragment(cookie: yson.YsonType, rows: list | bytes, **kwargs):
+    assert rows is not None
+    if not isinstance(rows, bytes):
+        rows = yson.dumps(rows, yson_type="list_fragment")
+    input_stream = BytesIO(rows)
+
+    kwargs["cookie"] = cookie
+    return execute_command("write_table_fragment", kwargs, input_stream=input_stream, parse_yson=True)
+
+
+def finish_distributed_write_session(session: yson.YsonType, results: list[yson.YsonType], **kwargs):
+    kwargs["session"] = session
+    kwargs["results"] = results
+    execute_command("finish_distributed_write_session", kwargs)

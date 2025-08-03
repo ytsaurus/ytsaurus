@@ -42,7 +42,7 @@ using NChunkClient::IChunkReaderPtr;
 
 using NTableClient::TChunkReaderConfigPtr;
 
-static constexpr auto& Logger = NTableClient::TableClientLogger;
+constinit const auto Logger = NTableClient::TableClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

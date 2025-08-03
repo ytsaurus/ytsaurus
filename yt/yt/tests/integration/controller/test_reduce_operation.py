@@ -7,7 +7,6 @@ from yt_commands import (
     sync_reshard_table, sync_flush_table, check_all_stderrs, assert_statistics, sorted_dicts,
     create_dynamic_table)
 
-from yt_helpers import skip_if_no_descending, skip_if_renaming_disabled
 from yt_type_helpers import make_schema, tuple_type
 
 from yt.environment.helpers import assert_items_equal
@@ -46,13 +45,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         "controller_agent": {
             "operations_update_period": 10,
             "reduce_operation_options": {
-                "job_splitter": {
-                    "min_job_time": 5000,
-                    "min_total_data_size": 1024,
-                    "update_period": 100,
-                    "candidate_percentile": 0.8,
-                    "max_jobs_per_split": 3,
-                },
                 "spec_template": {
                     "use_new_sorted_pool": False,
                 },
@@ -81,7 +73,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_tricky_chunk_boundaries(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/in1")
@@ -134,7 +125,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_cat(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/in1")
@@ -196,7 +186,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_column_filter(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/in1")
@@ -406,8 +395,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     @authors("levysotsky")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_rename_columns_alter_table(self, optimize_for):
-        skip_if_renaming_disabled(self.Env)
-
         schema1 = [
             {"name": "a", "type": "int64", "sort_order": "ascending"},
             {"name": "b", "type": "int64"},
@@ -543,7 +530,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_cat_teleport(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         schema = make_schema(
@@ -757,7 +743,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
     @authors("gritukan")
     def test_different_sort_order(self):
-        skip_if_no_descending(self.Env)
         self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/in")
@@ -775,7 +760,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_short_limits(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/in1")
@@ -1016,7 +1000,6 @@ echo {v = 2} >&7
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_reduce_with_foreign_join_one_job(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         def write(path, rows, sorted_by):
@@ -1823,7 +1806,6 @@ echo {v = 2} >&7
         if dynamic:
             sync_create_cells(1)
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         if dynamic and sort_order == "descending":
@@ -1960,93 +1942,6 @@ echo {v = 2} >&7
                 spec={"input_query": "a where a > 0"},
             )
 
-    @authors("klyachin")
-    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
-    def test_reduce_job_splitter(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-            self.skip_if_legacy_sorted_pool()
-
-        create("table", "//tmp/in_1")
-        for j in range(5):
-            x = j if sort_order == "ascending" else 4 - j
-            rows = [
-                {
-                    "key": "%08d" % (x * 4 + i),
-                    "value": "(t_1)",
-                    "data": "a" * (1024 * 1024),
-                }
-                for i in range(4)
-            ]
-            if sort_order == "descending":
-                rows = rows[::-1]
-            write_table(
-                "<append=true>//tmp/in_1",
-                rows,
-                sorted_by=[
-                    {"name": "key", "sort_order": sort_order},
-                    {"name": "value", "sort_order": sort_order},
-                ],
-                table_writer={
-                    "block_size": 1024,
-                },
-            )
-
-        create("table", "//tmp/in_2")
-        rows = [{"key": "(%08d)" % (i / 2), "value": "(t_2)"} for i in range(40)]
-        if sort_order == "descending":
-            rows = rows[::-1]
-        write_table(
-            "//tmp/in_2",
-            rows,
-            sorted_by=[{"name": "key", "sort_order": sort_order}],
-        )
-
-        input_ = ["<foreign=true>//tmp/in_2"] + ["//tmp/in_1"] * 5
-        output = "//tmp/output"
-        create("table", output)
-
-        command = """
-while read ROW; do
-    if [ "$YT_JOB_INDEX" == 0 ]; then
-        sleep 2
-    else
-        sleep 0.2
-    fi
-    echo "$ROW"
-done
-"""
-
-        op = reduce(
-            track=False,
-            label="split_job",
-            in_=input_,
-            out=output,
-            command=command,
-            reduce_by=[
-                {"name": "key", "sort_order": sort_order},
-                {"name": "value", "sort_order": sort_order},
-            ],
-            join_by=[{"name": "key", "sort_order": sort_order}],
-            spec={
-                "reducer": {
-                    "format": "dsv",
-                },
-                "data_size_per_job": 21 * 1024 * 1024,
-                "max_failed_job_count": 1,
-                "job_io": {
-                    "buffer_row_count": 1,
-                },
-            },
-        )
-
-        op.track()
-
-        completed = get(op.get_path() + "/@progress/jobs/completed")
-        interrupted = completed["interrupted"]
-        assert completed["total"] >= 6
-        assert interrupted["job_split"] >= 1
-
     @authors("max42")
     def test_intermediate_live_preview(self):
         create(
@@ -2078,7 +1973,6 @@ done
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_pivot_keys(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create(
@@ -2263,7 +2157,6 @@ done
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_reduce_skewed_key_distribution_one_table(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/in1")
@@ -2302,7 +2195,6 @@ done
     @authors("renadeen")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_reduce_skewed_key_distribution_two_tables(self, sort_order):
-        skip_if_no_descending(self.Env)
         self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/in1")
@@ -2649,7 +2541,6 @@ done
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_reduce_without_foreign_tables_and_key_guarantee(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create(
@@ -2701,7 +2592,6 @@ done
         pytest.skip("TODO: gritukan")
 
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create(
@@ -2845,7 +2735,7 @@ for line in sys.stdin:
             in_="//tmp/in",
             out="//tmp/out",
             reduce_by="key",
-            command="python script.py",
+            command="python3 script.py",
             file="//tmp/script.py",
             spec={
                 "reducer": {"format": "json"},
@@ -3003,7 +2893,6 @@ for line in sys.stdin:
             pytest.skip("Job proxy does not contain fix for the bug yet")
 
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         # YT-14023.
@@ -3394,16 +3283,148 @@ class TestSchedulerReduceCommandsNewSortedPool(TestSchedulerReduceCommands):
         "controller_agent": {
             "operations_update_period": 10,
             "reduce_operation_options": {
-                "job_splitter": {
-                    "min_job_time": 3000,
-                    "min_total_data_size": 1024,
-                    "update_period": 100,
-                    "candidate_percentile": 0.8,
-                    "max_jobs_per_split": 3,
-                },
                 "spec_template": {
                     "use_new_sorted_pool": True,
                 },
             },
         }
     }
+
+
+@pytest.mark.enabled_multidaemon
+class TestMergeJobSizeAdjuster(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "reduce_operation_options": {
+                "job_size_adjuster": {},
+                "spec_template": {
+                    "data_size_per_job": 1,
+                    "force_job_size_adjuster": True,
+                    "use_new_sorted_pool": True,
+                },
+            }
+        }
+    }
+
+    def _prepare_tables(self, data, sort_order, add_foreign):
+        schema = [
+            {"name": "key", "type": "string", "sort_order": sort_order},
+            {"name": "index", "type": "string"},
+        ]
+        create(
+            "table",
+            "//tmp/in",
+            attributes={"schema": schema},
+        )
+        if sort_order == "descending":
+            data = data[::-1]
+        for row in data:
+            write_table("<append=%true>//tmp/in", row, verbose=False)
+
+        if add_foreign:
+            schema.append(
+                {"name": "foreign_index", "type": "string"},
+            )
+
+        create(
+            "table",
+            "//tmp/out",
+            attributes={"schema": schema},
+        )
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_reduce_adjustment(self, sort_order):
+        data = [{"key": "single_key", "index": "%05d" % i} for i in range(31)]
+        self._prepare_tables(data, sort_order, add_foreign=False)
+        create("table", "//tmp/line_counts")
+
+        reduce(
+            in_="//tmp/in",
+            out=["//tmp/line_counts", "//tmp/out"],
+            command="echo lines=$(tee /proc/self/fd/4 | wc -l) cookie=$YT_JOB_COOKIE",
+            spec={
+                "reducer": {"format": yson.loads(b"<field_separator=\" \">dsv")},
+                "resource_limits": {"user_slots": 3},
+                "job_testing_options": {
+                    "fake_prepare_duration": 10000,
+                },
+                "reduce_by": [{"name": "key", "sort_order": sort_order}],
+                "enable_key_guarantee": False,
+            },
+        )
+
+        assert sorted_dicts(data) == sorted_dicts(read_table("//tmp/out"))
+
+        counts = read_table("//tmp/line_counts")
+        print_debug(counts)
+
+        assert any(
+            # NB: 5 is chosen kind of arbitrarily. I just wanted to assert that the latter jobs
+            # are large enough (5 means enlargement happened at least 3 times).
+            int(row["lines"]) > 5 for row in counts
+        )
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_join_reduce_no_adjustment(self, sort_order):
+        data = [{"key": "single_key", "index": "%05d" % i} for i in range(31)]
+        self._prepare_tables(data, sort_order, add_foreign=True)
+        create("table", "//tmp/line_counts")
+
+        create("table", "//tmp/foreign", attributes={"schema": [
+            {"name": "key", "type": "string", "sort_order": sort_order},
+            {"name": "foreign_index", "type": "string"},
+        ]})
+
+        foreign_data = [{"key": "single_key", "foreign_index": "00123"}]
+        write_table("//tmp/foreign", foreign_data)
+
+        reduce(
+            in_=["//tmp/in", "<foreign=%true>//tmp/foreign"],
+            out=["//tmp/line_counts", "//tmp/out"],
+            command="echo lines=$(tee /proc/self/fd/4 | wc -l) cookie=$YT_JOB_COOKIE",
+            spec={
+                "reducer": {"format": yson.loads(b"<field_separator=\" \">dsv")},
+                "resource_limits": {"user_slots": 3},
+                "job_testing_options": {
+                    "fake_prepare_duration": 10000,
+                },
+                "join_by": [{"name": "key", "sort_order": sort_order}],
+                "enable_key_guarantee": False,
+            },
+        )
+
+        # Creepy hack to be able to compare entities in python code.
+        def replace_entity(rows):
+            result = []
+            for row in rows:
+                res_row = {}
+                for key, val in row.items():
+                    if isinstance(val, yson.YsonEntity):
+                        val = "__entity__"
+                    res_row[key] = val
+                result.append(res_row)
+            return result
+
+        expected_data = data + foreign_data * len(data)
+        expected_data = [
+            {
+                "index": row.get("index", yson.YsonEntity()),
+                "foreign_index": row.get("foreign_index", yson.YsonEntity()),
+                "key": "single_key",
+            }
+            for row in expected_data
+        ]
+        assert sorted_dicts(replace_entity(expected_data)) == sorted_dicts(replace_entity(read_table("//tmp/out")))
+
+        counts = read_table("//tmp/line_counts")
+        print_debug(counts)
+
+        # 1 primary row + 1 foreign row == 2
+        assert all(int(row["lines"]) == 2 for row in counts)

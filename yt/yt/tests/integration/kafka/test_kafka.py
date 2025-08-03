@@ -6,17 +6,21 @@ from yt_queue_agent_test_base import TestQueueAgentBase
 from yt_commands import (
     authors, get, ls, create, sync_mount_table, insert_rows, sync_create_cells,
     create_user, issue_token, raises_yt_error, pull_queue, pull_consumer, set,
-    make_ace, select_rows, sync_unmount_table, wait)
+    make_ace, select_rows, sync_unmount_table, wait, exists)
 
 import yt.yson
 
 from confluent_kafka import (
     Consumer, TopicPartition, Producer, KafkaError)
 
+from confluent_kafka.admin import AdminClient, NewTopic
+
 from confluent_kafka.serialization import StringSerializer
 
 import builtins
 import functools
+import logging
+import pytest
 import time
 
 ##################################################################
@@ -73,7 +77,7 @@ def _check_error(code, err, msg):
     assert isinstance(err, KafkaError) and err.code() == code
 
 
-class TestKafkaProxy(TestQueueAgentBase, YTEnvSetup):
+class KafkaProxyBase(TestQueueAgentBase, YTEnvSetup):
     ENABLE_HTTP_PROXY = True
     NUM_HTTP_PROXIES = 1
     NUM_KAFKA_PROXIES = 1
@@ -183,6 +187,8 @@ class TestKafkaProxy(TestQueueAgentBase, YTEnvSetup):
         messages = KafkaMessageListHelper([KafkaMessageHelper(message) for message in messages])
         return messages
 
+
+class TestKafkaProxy(KafkaProxyBase):
     @authors("nadya73")
     def test_check_cypress(self):
         address = self.Env.get_kafka_proxy_address()
@@ -423,7 +429,7 @@ class TestKafkaProxy(TestQueueAgentBase, YTEnvSetup):
 
         def generic_queue_message(row):
             return {
-                "key": "",
+                "key": None,
                 "value": row,
             }
 
@@ -439,7 +445,10 @@ class TestKafkaProxy(TestQueueAgentBase, YTEnvSetup):
         ], True)
 
     @authors("nadya73")
+    @pytest.mark.timeout(240)
     def test_consumer_group_coordinator(self):
+        logger = logging.getLogger()
+
         username = "u"
         create_user(username)
         token, _ = issue_token(username)
@@ -476,7 +485,7 @@ class TestKafkaProxy(TestQueueAgentBase, YTEnvSetup):
                 "sasl.username": "u",
                 "sasl.password": token,
                 "partition.assignment.strategy": "range",
-                "heartbeat.interval.ms": 300,
+                "heartbeat.interval.ms": 150,
             }
 
             c = Consumer(consumer_config)
@@ -488,20 +497,32 @@ class TestKafkaProxy(TestQueueAgentBase, YTEnvSetup):
 
         messages = []
         consumer_message_counts = [0] * len(consumers)
+        consumer_none_message_counts = [0] * len(consumers)
+        consumer_error_counts = [0] * len(consumers)
 
-        for consumer_index, consumer in enumerate(consumers):
-            while True:
-                msg = consumer.poll(1.0)
+        while True:
+            if none_message_count > 30:
+                logger.debug("Total none message count limit was reached (TotalNoneMessageCount: %s, NoneMessageCounts: %s, MessageCounts: %s, ErrorCounts: %s)",
+                             none_message_count,
+                             consumer_none_message_counts,
+                             consumer_message_counts,
+                             consumer_error_counts)
+                break
+            for consumer_index, consumer in enumerate(consumers):
+                msg = consumer.poll(0.3)
 
                 if msg is None:
                     none_message_count += 1
-                    if none_message_count > 10:
-                        break
                     continue
 
                 if msg.error():
                     error_count += 1
-                    if error_count > 10:
+                    if error_count > 6:
+                        logger.debug("Error count limit was reached (ErrorCount: %s, NoneMessageCounts: %s, MessageCounts: %s, ErrorCounts: %s)",
+                                     error_count,
+                                     consumer_none_message_counts,
+                                     consumer_message_counts,
+                                     consumer_error_counts)
                         assert not msg.error()
                     continue
 
@@ -539,9 +560,9 @@ class TestKafkaProxy(TestQueueAgentBase, YTEnvSetup):
             consumers.append(c)
 
         # Wait rebalancing.
-        for _ in range(5):
+        for _ in range(15):
             for consumer_index, consumer in enumerate(consumers):
-                consumer.poll(0.2)
+                consumer.poll(0.1)
 
         consumer_count *= 2
         rows *= 2
@@ -553,20 +574,33 @@ class TestKafkaProxy(TestQueueAgentBase, YTEnvSetup):
         insert_rows(queue_path, rows)
 
         consumer_message_counts = [0] * len(consumers)
+        consumer_none_message_counts = [0] * len(consumers)
+        consumer_error_counts = [0] * len(consumers)
 
         while True:
-            if none_message_count > 30:
+            if none_message_count > 120:
+                logger.debug("Total none message count limit was reached (TotalNoneMessageCount: %s, NoneMessageCounts: %s, MessageCounts: %s, ErrorCounts: %s)",
+                             none_message_count,
+                             consumer_none_message_counts,
+                             consumer_message_counts,
+                             consumer_error_counts)
                 break
             for consumer_index, consumer in enumerate(consumers):
-                msg = consumer.poll(0.5)
+                msg = consumer.poll(0.3)
 
                 if msg is None:
+                    consumer_none_message_counts[consumer_index] += 1
                     none_message_count += 1
                     continue
 
                 if msg.error():
                     error_count += 1
                     if error_count > 100:
+                        logger.debug("Error count limit was reached (ErrorCount: %s, NoneMessageCounts: %s, MessageCounts: %s, ErrorCounts: %s)",
+                                     error_count,
+                                     consumer_none_message_counts,
+                                     consumer_message_counts,
+                                     consumer_error_counts)
                         assert not msg.error()
                     continue
 
@@ -578,11 +612,89 @@ class TestKafkaProxy(TestQueueAgentBase, YTEnvSetup):
         for consumer in consumers:
             consumer.close()
 
-        assert len(messages) == row_count
-
-        for consumer_message_count in consumer_message_counts:
-            assert consumer_message_count == 2
+        assert len(messages) == row_count, f"Read {len(messages)} messages, {row_count} messages were expected"
 
         consumer_rows = select_rows("* from [//tmp/consumer]")
         for consumer_row in consumer_rows:
             consumer_row["offset"] == 2
+
+    @authors("nadya73")
+    def test_topic_name_transformations(self):
+        username = "u"
+        create_user(username)
+        token, _ = issue_token(username)
+
+        self._create_cells()
+
+        kafka_queue_path = "primary-..tmp.queue"
+
+        queue_path = "primary://tmp/queue"
+        consumer_path = "primary://tmp/consumer"
+
+        TestKafkaProxy._create_queue(queue_path)
+        self._create_registered_consumer(consumer_path, queue_path)
+
+        insert_rows(queue_path, [
+            {"surname": "foo-0", "number": 0},
+            {"surname": "foo-1", "number": 1},
+            {"surname": "foo-2", "number": 2},
+        ])
+
+        set(f"{queue_path}/@inherit_acl", False)
+        set(f"{consumer_path}/@inherit_acl", False)
+        set(f"{queue_path}/@acl/end", make_ace("allow", "u", ["read"]))
+        set(f"{consumer_path}/@acl/end", make_ace("allow", "u", ["read", "write"]))
+
+        messages = self._consume_messages(kafka_queue_path, consumer_path, token, message_count=3, assign_partitions=[0])
+        assert len(messages) == 3
+
+        assert select_rows("* from [//tmp/consumer]")[0]["offset"] == len(messages)
+
+    @authors("nadya73")
+    def test_create_topic(self):
+        username = "u"
+        create_user(username)
+        token, _ = issue_token(username)
+
+        self._create_cells()
+
+        admin_client = AdminClient({
+            "bootstrap.servers": self.Env.get_kafka_proxy_address(),
+            "security.protocol": "SASL_PLAINTEXT",
+            "sasl.mechanisms": "PLAIN",
+            "client.id": "admin-client",
+            "group.id": "admin-client",
+            "debug": "all",
+            "sasl.username": "u",
+            "sasl.password": token,
+        })
+
+        create("map_node", "//tmp/queue")
+
+        set("//tmp/queue/@acl/end", make_ace("allow", "u", "mount"))
+
+        path_foo = "primary-..tmp.queue.foo"
+        path_bar = "primary-..tmp.queue.bar"
+
+        new_topic_foo = NewTopic(path_foo, num_partitions=2, replication_factor=2)
+        new_topic_bar = NewTopic(path_bar, num_partitions=1, replication_factor=3)
+
+        futures = admin_client.create_topics([new_topic_foo, new_topic_bar])
+
+        for topic, future in futures.items():
+            try:
+                future.result()
+            except Exception as e:
+                assert False, f"Failed to create topic '{topic}': {e}"
+
+        assert exists("//tmp/queue/foo")
+        assert exists("//tmp/queue/bar")
+
+        assert get("//tmp/queue/foo/@replication_factor", 2)
+        assert get("//tmp/queue/bar/@replication_factor", 3)
+
+        assert get("//tmp/queue/foo/@tablet_count", 2)
+        assert get("//tmp/queue/bar/@replication_factor", 1)
+
+        wait(lambda: get("//tmp/queue/foo/@tablet_count_by_state/mounted") == 2)
+        wait(lambda: get("//tmp/queue/bar/@tablet_count_by_state/mounted") == 1)

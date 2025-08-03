@@ -227,6 +227,6 @@ Below is a list of supported commands in version 0.17.
 
 
 
-```TODO:   "concat",   "add_member",   "remove_member",   "check_permission",      "dump_job_context",   "strace_job",      "insert_rows",   "delete_rows",   "lookup_rows",   "select_rows",    "mount_table",   "unmount_table",   "remount_table",   "reshard_table",    "parse_ypath",   "get_version",    "remote_copy",     "suspend_op",   "resume_op",`
+```TODO:   "concat",   "add_member",   "remove_member",   "check_permission",      "dump_job_context",   "insert_rows",   "delete_rows",   "lookup_rows",   "select_rows",    "mount_table",   "unmount_table",   "remount_table",   "reshard_table",    "parse_ypath",   "get_version",    "remote_copy",     "suspend_op",   "resume_op",`
 
 {% endif %}

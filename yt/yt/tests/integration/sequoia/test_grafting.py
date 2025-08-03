@@ -25,13 +25,13 @@ import pytest
 class TestGrafting(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
-    NUM_CYPRESS_PROXIES = 1
     NUM_CLOCKS = 3
 
     NUM_SECONDARY_MASTER_CELLS = 3
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["sequoia_node_host"]},
-        "11": {"roles": ["sequoia_node_host"]},
+        # Master cell with tag 11 is reserved for portals.
+        "12": {"roles": ["sequoia_node_host"]},
     }
 
     @authors("kvk1920", "gritukan")
@@ -47,7 +47,7 @@ class TestGrafting(YTEnvSetup):
         assert get("//tmp/r&/@parent_id") == get("//tmp/@id")
         assert get("//tmp/r/@parent_id") == get("//tmp/@id")
 
-        assert select_paths_from_ground() == ["//tmp/r/"]
+        assert select_paths_from_ground() == ["//tmp/r"]
 
         assert get(f"#{rootstock_id}&/@type") == "rootstock"
         assert get(f"#{rootstock_id}&/@scion_id") == scion_id
@@ -131,7 +131,6 @@ class TestGraftingTmpCleanup(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
-    NUM_CYPRESS_PROXIES = 1
     NUM_SECONDARY_MASTER_CELLS = 0
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["sequoia_node_host"]},
@@ -179,30 +178,18 @@ class TestSequoiaSymlinks(YTEnvSetup):
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
     VALIDATE_SEQUOIA_TREE_CONSISTENCY = True
-    NUM_CYPRESS_PROXIES = 1
     USE_CYPRESS_DIR = True
 
     NUM_SECONDARY_MASTER_CELLS = 2
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["sequoia_node_host"]},
-        "11": {"roles": ["sequoia_node_host"]},
+        # Master cell with tag 11 is reserved for portals.
+        "12": {"roles": ["sequoia_node_host"]},
     }
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "sequoia_manager": {
             "enable_ground_update_queues": True
-        },
-    }
-
-    # COMPAT(kvk1920): Remove when `use_cypress_transaction_service` become `true` by default.
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            },
         },
     }
 

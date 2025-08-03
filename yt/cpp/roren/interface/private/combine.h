@@ -17,7 +17,7 @@ public:
     using TOutputRow = typename TCombineFn::TOutputRow;
 
 public:
-    TRawCombine(ERawTransformType type, ::TIntrusivePtr<TCombineFn> combineFn, TRowVtable inputVtable, TRowVtable outputVtable)
+    TRawCombine(ERawTransformType type, NYT::TIntrusivePtr<TCombineFn> combineFn, TRowVtable inputVtable, TRowVtable outputVtable)
         : IRawCombine(type)
         , CombineFn_(std::move(combineFn))
         , InputVtable_(std::move(inputVtable))
@@ -84,12 +84,12 @@ private:
     {
         if (GetType() == ERawTransformType::CombineGlobally) {
             return []() -> IRawCombinePtr {
-                return ::MakeIntrusive<TRawCombine>(ERawTransformType::CombineGlobally, ::MakeIntrusive<TCombineFn>(), TRowVtable{}, TRowVtable{});
+                return NYT::New<TRawCombine>(ERawTransformType::CombineGlobally, NYT::New<TCombineFn>(), TRowVtable{}, TRowVtable{});
             };
         } else {
             Y_ABORT_UNLESS(GetType() == ERawTransformType::CombinePerKey);
             return []() -> IRawCombinePtr {
-                return ::MakeIntrusive<TRawCombine>(ERawTransformType::CombinePerKey, ::MakeIntrusive<TCombineFn>(), TRowVtable{}, TRowVtable{});
+                return NYT::New<TRawCombine>(ERawTransformType::CombinePerKey, NYT::New<TCombineFn>(), TRowVtable{}, TRowVtable{});
             };
         }
     }
@@ -109,15 +109,15 @@ private:
     }
 
 private:
-    ::TIntrusivePtr<ICombineFn<TInputRow, TAccumRow, TOutputRow>> CombineFn_;
+    NYT::TIntrusivePtr<ICombineFn<TInputRow, TAccumRow, TOutputRow>> CombineFn_;
     TRowVtable InputVtable_;
     TRowVtable OutputVtable_;
 };
 
 template <typename TCombineFn>
-IRawCombinePtr MakeRawCombine(ERawTransformType type, ::TIntrusivePtr<TCombineFn> combineFn, TRowVtable inputVtable, TRowVtable outputVtable)
+IRawCombinePtr MakeRawCombine(ERawTransformType type, NYT::TIntrusivePtr<TCombineFn> combineFn, TRowVtable inputVtable, TRowVtable outputVtable)
 {
-    return ::MakeIntrusive<TRawCombine<TCombineFn>>(type, std::move(combineFn), std::move(inputVtable), std::move(outputVtable));
+    return NYT::New<TRawCombine<TCombineFn>>(type, std::move(combineFn), std::move(inputVtable), std::move(outputVtable));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

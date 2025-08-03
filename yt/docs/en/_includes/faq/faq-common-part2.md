@@ -1,5 +1,3 @@
-
-------
 #### **Q: What do I do if I get error "Account "..." is over disk space limit (node count limit, etc)"?**
 
 **A:** This message is an indication that the account is out of one of its quotas. The system has quotas for all kinds of resources. For more information on the types of quotas and for forms to change quotas, see the [Quotas](../../user-guide/storage/quotas.md) section.
@@ -7,12 +5,9 @@
 ------
 #### **Q: How do I discover who is taking up space in an account or all the nodes with a specific account?**
 
-**A:** The short answer is `yt find / --name "*" --account <account_name>`
-
-A more detailed answer:
-1. Look in the recycle bin (`//tmp/trash/by-account/<account_name>`). To do this, follow the specified path in the web interface's Navigation section.
-2. Use `yt find` to look for your account's tables in `//tmp` and your associated project directories. Please note that `yt find` does not look in directories to which you do not have access.
-3. Contact the system administrator.
+**A:** Try using one of the following methods to find the relevant data:
+1. Look in the recycle bin (`//tmp/trash/by-account/<account_name>`). To do this, follow the specified path in the web interface's **Navigation** section.
+2. Use `yt find <path> --name "*" --account <account_name>` to look for your account's tables in `//tmp` and in your associated project directories. Please note that `yt find` does not look in directories to which you do not have access.
 
 ------
 #### **Q: How do I change a table's account?**
@@ -20,9 +15,9 @@ A more detailed answer:
 **A:** `yt set //path/to/table/@account my-account`
 
 ------
-#### **Q: How do I find what part of my resources is being used by a directory together with all the tables, files, and so on it contains?**
+#### **Q: How do I find out the total resource usage of a directory, including  all contained tables, files, and so on?**
 
-**A:** `yt get //path/to/dir/@recursive_resource_usage` или выбрать **Show all resources** в разделе **Navigation** в веб-интерфейсе.
+**A:** `yt get //path/to/dir/@recursive_resource_usage` or select **Show all resources** in the **Navigation** tab in the web interface.
 
 ------
 #### **Q: While working with the system, I am getting "Transaction has expired or was aborted". What does it mean and how should I deal with it?**
@@ -114,6 +109,13 @@ If the delete used `yt remove` or similar API calls, recovery is **not possible*
 #### **Q: Error "Operations of type "remote-copy" must have small enough specified resource limits in some of ancestor pools"**
 
 **A:** [RemoteCopy](../../user-guide/data-processing/operations/remote-copy.md) operations create load in the cross DC network.
-To limit the load, an artificial load limit was introduced: RemoteCopy operations must run in a pool with the `user_slots` limit not exceeding `2000`.
+To limit the load, we introduced artificial load limiting: RemoteCopy operations must run within a pool that enforces a `user_slots` limit. This limit is indicated in the error message and is typically set to `2000`.
+
 If the plan is only to run RemoteCopy in the pool, it is sufficient to set this limit for the pool
 `yt set //sys/pools/..../your_pool/@resource_limits '{user_slots=2000}'`.
+
+------
+#### **Q: When attempting to read or copy a table, I get the error 'Access denied for user "some_user": "full_read" permission for node //home/some_table is not allowed by any matching ACE'**
+
+**A:** One or more table columns are locked by the ACL, and you do not have access to them. To accomplish whatever you need to, you first need to obtain the necessary access. For more information, see [Managing access to table columns](../../user-guide/storage/columnar-acl.md).
+

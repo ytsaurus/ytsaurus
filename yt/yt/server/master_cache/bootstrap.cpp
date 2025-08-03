@@ -68,7 +68,7 @@ using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = MasterCacheLogger;
+constinit const auto Logger = MasterCacheLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -189,7 +189,7 @@ private:
         Connection_->GetClusterDirectorySynchronizer()->Start();
         Connection_->GetMasterCellDirectorySynchronizer()->Start();
 
-        RootClient_ = Connection_->CreateClient({.User = NSecurityClient::RootUserName});
+        RootClient_ = Connection_->CreateClient(NApi::TClientOptions::Root());
 
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(RootClient_);
 

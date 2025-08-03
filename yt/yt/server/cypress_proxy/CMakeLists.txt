@@ -20,6 +20,9 @@ add_library(yt-server-cypress_proxy)
 target_compile_options(yt-server-cypress_proxy PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(yt-server-cypress_proxy PUBLIC
@@ -34,6 +37,7 @@ target_link_libraries(yt-server-cypress_proxy PUBLIC
   yt-yt-ytlib
   server-lib-admin
   server-lib-misc
+  server-lib-object_server
   server-lib-sequoia
 )
 
@@ -42,9 +46,12 @@ target_sources(yt-server-cypress_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/action_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/cypress_proxy_service_base.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/cypress_transaction_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/dynamic_config_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/master_connector.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/master_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/node_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/node_proxy_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/object_service.cpp

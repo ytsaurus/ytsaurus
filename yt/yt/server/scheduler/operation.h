@@ -127,6 +127,7 @@ DEFINE_ENUM(EUnschedulableReason,
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IOperationStrategyHost
+    : public TRefCounted
 {
     virtual EOperationType GetType() const = 0;
 
@@ -140,7 +141,9 @@ struct IOperationStrategyHost
     virtual void SetSlotIndex(const TString& treeId, int index) = 0;
     virtual void ReleaseSlotIndex(const TString& treeId) = 0;
 
-    virtual TString GetAuthenticatedUser() const = 0;
+    virtual std::string GetAuthenticatedUser() const = 0;
+
+    virtual std::optional<std::string> GetTitle() const = 0;
 
     virtual TOperationId GetId() const = 0;
 
@@ -158,6 +161,8 @@ struct IOperationStrategyHost
 
     virtual TOperationRuntimeParametersPtr GetRuntimeParameters() const = 0;
 
+    virtual const TOperationOptionsPtr& GetOperationOptions() const = 0;
+
     virtual void UpdatePoolAttributes(
         const TString& treeId,
         const TOperationPoolTreeAttributes& operationPoolTreeAttributes) = 0;
@@ -169,6 +174,8 @@ struct IOperationStrategyHost
 protected:
     friend class TFairShareStrategyOperationState;
 };
+
+DEFINE_REFCOUNTED_TYPE(IOperationStrategyHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -209,8 +216,7 @@ public: \
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperation
-    : public TRefCounted
-    , public IOperationStrategyHost
+    : public IOperationStrategyHost
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(NRpc::TMutationId, MutationId);
@@ -313,7 +319,10 @@ public:
     TInstant GetStartTime() const override;
 
     //! Returns operation authenticated user.
-    TString GetAuthenticatedUser() const override;
+    std::string GetAuthenticatedUser() const override;
+
+    //! Returns operation title.
+    std::optional<std::string> GetTitle() const override;
 
     //! Returns strategy operation spec.
     TStrategyOperationSpecPtr GetStrategySpec() const override;
@@ -370,6 +379,8 @@ public:
 
     EOperationState GetState() const override;
 
+    const TOperationOptionsPtr& GetOperationOptions() const override;
+
     //! Sets operation state and adds the corresponding event with given attributes.
     void SetStateAndEnqueueEvent(
         EOperationState state,
@@ -425,7 +436,7 @@ public:
     //! name being of form "<experiment name>.<group name>".
     std::vector<TString> GetExperimentAssignmentNames() const;
 
-    std::vector<TString> GetJobShellOwners(const TString& jobShellName);
+    std::vector<std::string> GetJobShellOwners(const TString& jobShellName);
 
     // Aborts all transactions except user and "completion" transactions.
     TFuture<void> AbortCommonTransactions();
@@ -433,7 +444,7 @@ public:
     //! Adds token to secure vault according to the operation spec.
     //! Requires that the operation is in `Starting` state, token issuance is request in spec,
     //! and that the secure vault does not contain the key specified in the operation spec.
-    void SetTemporaryToken(const TString& token, const NCypressClient::TNodeId& nodeId);
+    void SetTemporaryToken(const std::string& token, const NCypressClient::TNodeId& nodeId);
 
     //! Returns a list of Cypress nodes which must be deleted alongside the operation node.
     std::vector<NCypressClient::TNodeId> GetDependentNodeIds() const;
@@ -451,6 +462,7 @@ public:
         NYTree::IMapNodePtr secureVault,
         std::optional<NCypressClient::TNodeId> temporaryTokenNodeId,
         TOperationRuntimeParametersPtr runtimeParameters,
+        TOperationOptionsPtr operationOptions,
         NSecurityClient::TSerializableAccessControlList baseAcl,
         const std::string& authenticatedUser,
         TInstant startTime,
@@ -469,11 +481,12 @@ private:
     const TOperationId Id_;
     const EOperationType Type_;
     const TInstant StartTime_;
-    const TString AuthenticatedUser_;
+    const std::string AuthenticatedUser_;
     const NYson::TYsonString SpecString_;
     const NYson::TYsonString TrimmedAnnotations_;
     const std::optional<TBriefVanillaTaskSpecMap> BriefVanillaTaskSpecs_;
     const THashMap<TString, TStrategyOperationSpecPtr> CustomSpecPerTree_;
+    const TOperationOptionsPtr OperationOptions_;
     const std::string Codicil_;
     const IInvokerPtr ControlInvoker_;
 
@@ -523,6 +536,7 @@ struct TPreprocessedSpec
     std::vector<TExperimentAssignmentPtr> ExperimentAssignments;
     std::vector<TError> ExperimentAssignmentErrors;
     std::optional<THashMap<std::string, TBriefVanillaTaskSpec>> BriefVanillaTaskSpecs;
+    TOperationOptionsPtr OperationOptions;
 };
 
 //! Fill various spec parts of preprocessed spec.

@@ -50,6 +50,7 @@
 #include <yt/yt/ytlib/file_client/file_chunk_output.h>
 
 #include <yt/yt/ytlib/job_proxy/helpers.h>
+#include <yt/yt/ytlib/job_proxy/profiling_writer.h>
 #include <yt/yt/ytlib/job_proxy/user_job_read_controller.h>
 
 #include <yt/yt/ytlib/query_client/functions_cache.h>
@@ -288,6 +289,9 @@ public:
     {
         TJob::Initialize();
 
+        IOStartTime_ = GetInstant();
+        YT_LOG_INFO("Started measuring I/O time (IOStartTime: %v)", IOStartTime_);
+
         UserJobReadController_ = CreateUserJobReadController(
             Host_->GetJobSpecHelper(),
             Host_->GetChunkReaderHost(),
@@ -304,7 +308,7 @@ public:
     {
         YT_LOG_INFO("Starting job process");
 
-        UserJobWriteController_->Init();
+        UserJobWriteController_->Init(IOStartTime_);
 
         Prepare();
 
@@ -954,11 +958,12 @@ private:
         const TJobShellDescriptor& jobShellDescriptor,
         const TYsonString& parameters) override
     {
-        ValidatePrepared();
+        ValidateStarted();
 
         if (!ShellManager_) {
-            THROW_ERROR_EXCEPTION("Job shell polling is not supported in non-Porto environment");
+            THROW_ERROR_EXCEPTION("Job shell polling is not supported");
         }
+
         auto response = ShellManager_->PollJobShell(jobShellDescriptor, parameters);
         if (response.LoggingContext) {
             response.LoggingContext = BuildYsonStringFluently<EYsonType::MapFragment>(EYsonFormat::Text)
@@ -1061,6 +1066,13 @@ private:
         }
     }
 
+    void ValidateStarted()
+    {
+        if (!JobStarted_) {
+            THROW_ERROR_EXCEPTION(NJobProxy::EErrorCode::JobNotPrepared, "Cannot operate on job: job has not been started yet");
+        }
+    }
+
     void PrepareOutputTablePipes()
     {
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.output_format()));
@@ -1147,12 +1159,26 @@ private:
         int jobDescriptor = 0;
         InputPipePath_= CreateNamedPipePath();
 
+        EDeliveryFencedMode deliveryFencedMode = EDeliveryFencedMode::None;
+        if (JobIOConfig_->UseDeliveryFencedPipeWriter) {
+            deliveryFencedMode = Config_->UseNewDeliveryFencedConnection
+                    ? EDeliveryFencedMode::New
+                    : EDeliveryFencedMode::Old;
+        }
+
+        if (deliveryFencedMode == EDeliveryFencedMode::New) {
+            if (!DeliveyFencedWriteEnabled) {
+                YT_LOG_DEBUG("Delivery fenced write is disabled, fail job");
+                THROW_ERROR_EXCEPTION("Delivery fenced write is disabled on the node");
+            }
+        }
+
         YT_LOG_DEBUG(
-            "Creating input table pipe (Path: %v, Permission: %v, CustomCapacity: %v, UseDeliveryFencedPipeWriter: %v)",
+            "Creating input table pipe (Path: %v, Permission: %v, CustomCapacity: %v, DeliveryFencedMode: %v)",
             InputPipePath_,
             DefaultArtifactPermissions,
             JobIOConfig_->PipeCapacity,
-            JobIOConfig_->UseDeliveryFencedPipeWriter);
+            deliveryFencedMode);
 
         auto pipe = TNamedPipe::Create(InputPipePath_, DefaultArtifactPermissions, JobIOConfig_->PipeCapacity);
         auto pipeConfig = TNamedPipeConfig::Create(Host_->AdjustPath(pipe->GetPath()), jobDescriptor, false);
@@ -1160,7 +1186,12 @@ private:
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.input_format()));
 
         auto reader = pipe->CreateAsyncReader();
-        auto asyncOutput = pipe->CreateAsyncWriter(JobIOConfig_->UseDeliveryFencedPipeWriter);
+        auto asyncOutput = pipe->CreateAsyncWriter(
+            JobIOConfig_->UseDeliveryFencedPipeWriter
+                ? Config_->UseNewDeliveryFencedConnection
+                    ? EDeliveryFencedMode::New
+                    : EDeliveryFencedMode::Old
+                : EDeliveryFencedMode::None);
 
         TablePipeWriters_.push_back(asyncOutput);
 
@@ -1434,12 +1465,21 @@ private:
             result.TimingStatistics = *timingStatistics;
         }
 
+        result.LatencyStatistics.InputTimeToFirstReadBatch = UserJobReadController_->GetReaderTimeToFirstBatch();
+        result.LatencyStatistics.InputTimeToFirstWrittenBatch = UserJobReadController_->GetWriterTimeToFirstBatch();
+
+        auto writers = UserJobWriteController_->GetWriters();
+        result.LatencyStatistics.OutputTimeToFirstReadBatch.reserve(writers.size());
+        for (const auto& writer : writers) {
+            result.LatencyStatistics.OutputTimeToFirstReadBatch.emplace_back(
+                    writer->GetTimeToFirstBatch());
+        }
+
         result.ChunkReaderStatistics = ChunkReadOptions_.ChunkReaderStatistics;
         for (const auto& writeBlocksOptions : UserJobWriteController_->GetOutputWriteBlocksOptions()) {
             result.ChunkWriterStatistics.push_back(writeBlocksOptions.ClientOptions.ChunkWriterStatistics);
         }
 
-        auto writers = UserJobWriteController_->GetWriters();
         for (const auto& writer : writers) {
             result.OutputStatistics.emplace_back() = {
                 .DataStatistics = writer->GetDataStatistics(),

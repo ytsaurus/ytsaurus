@@ -83,6 +83,8 @@ void TUserFile::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(9, Layer);
     PHOENIX_REGISTER_FIELD(10, Filesystem);
     PHOENIX_REGISTER_FIELD(11, AccessMethod);
+    PHOENIX_REGISTER_FIELD(12, GpuCheck,
+        .SinceVersion(NControllerAgent::ESnapshotVersion::PrepareGpuCheckFSDuration));
 }
 
 PHOENIX_DEFINE_TYPE(TUserFile);
@@ -167,9 +169,14 @@ void BuildFileSpecs(
     bool enableBypassArtifactCache)
 {
     for (const auto& file : files) {
-        auto* descriptor = file.Layer
-            ? jobSpec->add_layers()
-            : jobSpec->add_files();
+        NControllerAgent::NProto::TFileDescriptor* descriptor;
+        if (file.GpuCheck) {
+            descriptor = jobSpec->add_gpu_check_volume_layers();
+        } else if (file.Layer) {
+            descriptor = jobSpec->add_root_volume_layers();
+        } else {
+            descriptor = jobSpec->add_files();
+        }
 
         BuildFileSpec(descriptor, file, config->CopyFiles, enableBypassArtifactCache);
     }
@@ -183,7 +190,7 @@ TString GetIntermediatePath(int streamIndex)
 }
 
 TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(
-    const TString& intermediateAccount,
+    const std::string& intermediateAccount,
     const std::vector<NTableClient::TTableSchemaPtr>& schemas)
 {
     auto dataSourceDirectory = New<TDataSourceDirectory>();
@@ -210,7 +217,7 @@ TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(
     return dataSourceDirectory;
 }
 
-TDataSink BuildIntermediateDataSink(const TString& intermediateAccount)
+TDataSink BuildIntermediateDataSink(const std::string& intermediateAccount)
 {
     TDataSink dataSink;
     dataSink.SetPath(GetIntermediatePath(0));
@@ -218,7 +225,7 @@ TDataSink BuildIntermediateDataSink(const TString& intermediateAccount)
     return dataSink;
 }
 
-TDataSinkDirectoryPtr BuildIntermediateDataSinkDirectory(const TString& intermediateAccount)
+TDataSinkDirectoryPtr BuildIntermediateDataSinkDirectory(const std::string& intermediateAccount)
 {
     auto dataSinkDirectory = New<TDataSinkDirectory>();
     dataSinkDirectory->DataSinks().emplace_back(BuildIntermediateDataSink(intermediateAccount));

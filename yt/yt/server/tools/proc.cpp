@@ -405,4 +405,26 @@ void TRootDirectoryBuilderTool::operator()(const TDirectoryBuilderConfigPtr& arg
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TMkFsConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("path", &TThis::Path)
+        .Default();
+    registrar.Parameter("type", &TThis::Type)
+        .Default("ext4");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TMkFsAsRootTool::operator()(const TMkFsConfigPtr& config) const
+{
+    // Child process
+    TrySetUid(0);
+    execl("/usr/sbin/mke2fs", "/usr/sbin/mke2fs", "-F", "-q", "-t", config->Type.c_str(), config->Path.c_str(), (void*)nullptr);
+
+    THROW_ERROR_EXCEPTION("Failed to make filesystem for %v: execl failed",
+        config->Path) << TError::FromSystem();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTools

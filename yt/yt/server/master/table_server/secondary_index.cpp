@@ -1,5 +1,4 @@
 #include "secondary_index.h"
-#include "table_manager.h"
 
 #include <yt/yt/server/master/table_server/table_node.h>
 
@@ -8,6 +7,8 @@
 namespace NYT::NTableServer {
 
 using namespace NCellMaster;
+using namespace NObjectClient;
+using namespace NSecurityServer;
 using namespace NTableServer;
 using namespace NQueryClient;
 
@@ -35,6 +36,7 @@ void TSecondaryIndex::Save(TSaveContext& context) const
     Save(context, Predicate_);
     Save(context, UnfoldedColumn_);
     Save(context, TableToIndexCorrespondence_);
+    TNullableIntrusivePtrSerializer<>::Save(context, EvaluatedColumnsSchema_);
 }
 
 void TSecondaryIndex::Load(TLoadContext& context)
@@ -51,15 +53,9 @@ void TSecondaryIndex::Load(TLoadContext& context)
         Load(context, CompatIndexTable_);
     }
     Load(context, Kind_);
+    Load(context, ExternalCellTag_);
     // COMPAT(sabdenovch)
-    if (context.GetVersion() >= EMasterReign::SecondaryIndexReplication) {
-        Load(context, ExternalCellTag_);
-    }
-    // COMPAT(sabdenovch)
-    if (context.GetVersion() >= EMasterReign::SecondaryIndexPredicate ||
-        (context.GetVersion() >= EMasterReign::SecondaryIndexPredicate_24_1 &&
-        context.GetVersion() < EMasterReign::DropLegacyClusterNodeMap))
-    {
+    if (context.GetVersion() >= EMasterReign::SecondaryIndexPredicate) {
         Load(context, Predicate_);
     }
     // COMPAT(sabdenovch)
@@ -72,6 +68,11 @@ void TSecondaryIndex::Load(TLoadContext& context)
         Load(context, TableToIndexCorrespondence_);
     } else {
         TableToIndexCorrespondence_ = ETableToIndexCorrespondence::Unknown;
+    }
+
+    // COMPAT(sabdenovch)
+    if (context.GetVersion() >= EMasterReign::SecondaryIndexEvaluated) {
+        TNullableIntrusivePtrSerializer<>::Load(context, EvaluatedColumnsSchema_);
     }
 }
 

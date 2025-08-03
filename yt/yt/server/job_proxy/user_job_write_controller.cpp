@@ -6,6 +6,7 @@
 #include <yt/yt/server/lib/misc/job_table_schema.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/data_sink.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
@@ -13,6 +14,7 @@
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
+#include <yt/yt/ytlib/job_proxy/profiling_writer.h>
 #include <yt/yt/ytlib/job_proxy/user_job_io_factory.h>
 
 #include <yt/yt/ytlib/table_client/blob_table_writer.h>
@@ -202,7 +204,7 @@ TUserJobWriteController::TUserJobWriteController(IJobHostPtr host)
 
 TUserJobWriteController::~TUserJobWriteController() = default;
 
-void TUserJobWriteController::Init()
+void TUserJobWriteController::Init(TInstant ioStartTime)
 {
     YT_LOG_INFO("Opening writers");
 
@@ -212,7 +214,7 @@ void TUserJobWriteController::Init()
 
     auto userJobIOFactory = CreateUserJobWriterFactory(
         Host_->GetJobSpecHelper(),
-        Host_->GetChunkReaderHost(),
+        Host_->GetChunkReaderHost()->CreateHostForCluster(NScheduler::LocalClusterName),
         Host_->GetLocalHostName(),
         Host_->GetOutBandwidthThrottler());
 
@@ -261,7 +263,7 @@ void TUserJobWriteController::Init()
             dataSink,
             OutputWriteBlocksOptions_.emplace_back());
 
-        Writers_.push_back(writer);
+        Writers_.push_back(CreateProfilingMultiChunkWriter(std::move(writer), ioStartTime));
     }
 
     if (jobSpecExt.user_job_spec().has_stderr_table_spec()) {
@@ -294,7 +296,7 @@ void TUserJobWriteController::Init()
     }
 }
 
-std::vector<ISchemalessMultiChunkWriterPtr> TUserJobWriteController::GetWriters() const
+std::vector<IProfilingMultiChunkWriterPtr> TUserJobWriteController::GetWriters() const
 {
     if (Initialized_) {
         return Writers_;

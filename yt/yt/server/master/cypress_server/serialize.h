@@ -54,8 +54,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(h0pless): IntroduceNewPipelineForCrossCellCopy.
-// Rename this to SerializeNodeContext in a separate PR. Just to make sure that diff is more readable.
 class TSerializeNodeContext
     : public TEntityStreamSaveContext
 {
@@ -84,8 +82,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(h0pless): IntroduceNewPipelineForCrossCellCopy.
-// Rename this to MaterializeNodeContext in a separate PR. Just to make sure that diff is more readable.
 class TMaterializeNodeContext
     : public TEntityStreamLoadContext
 {
@@ -94,6 +90,8 @@ public:
         NCellMaster::TBootstrap* bootstrap,
         ENodeCloneMode mode,
         TRef data,
+        TNodeId hintId = NCypressClient::NullObjectId,
+        bool materializeAsSequoiaNode = false,
         NTableServer::TMasterTableSchemaId schemaId = NObjectServer::NullObjectId,
         TNodeId inplaceLoadTargetNodeId = NCypressClient::NullObjectId);
 
@@ -103,6 +101,8 @@ public:
     template <class T>
     const TInternRegistryPtr<T>& GetInternRegistry() const;
 
+    DEFINE_BYVAL_RO_PROPERTY(bool, MaterializeAsSequoiaNode);
+    DEFINE_BYVAL_RO_PROPERTY(TNodeId, HintId);
     DEFINE_BYVAL_RO_PROPERTY(ENodeCloneMode, Mode);
     DEFINE_BYVAL_RO_PROPERTY(TNodeId, InplaceLoadTargetNodeId);
     DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, ExternalCellTag);

@@ -82,7 +82,7 @@ using NNodeTrackerClient::GetDefaultAddress;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ControllerAgentLogger;
+constinit const auto Logger = ControllerAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -340,7 +340,7 @@ private:
     bool DoesOperationsArchiveExist()
     {
         if (!ArchiveExists_) {
-            ArchiveExists_ = Bootstrap_->GetClient()->DoesOperationsArchiveExist(/*useOperationsArchiveClient*/ false);
+            ArchiveExists_ = Bootstrap_->GetClient()->DoesOperationsArchiveExist();
         }
         return *ArchiveExists_;
     }
@@ -586,7 +586,7 @@ private:
                 if (!connection) {
                     continue;
                 }
-                auto proxy = CreateObjectServiceReadProxy(Bootstrap_->GetClient(), EMasterChannelKind::Follower);
+                auto proxy = CreateObjectServiceReadProxy(connection, EMasterChannelKind::Follower, cellTag);
                 batchReqs[cellTag] = proxy.ExecuteBatch();
             }
 
@@ -1439,7 +1439,7 @@ private:
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
 
-        THashMap<TOperationId, std::pair<TTransactionId, TString>> transactions;
+        THashMap<TOperationId, std::pair<TTransactionId, std::string>> transactions;
         for (const auto& [operationId, operation] : controllerAgent->GetOperations()) {
             auto [transaction, medium] = operation->GetController()->GetIntermediateMediumTransaction();
             if (transaction) {
@@ -1701,5 +1701,3 @@ void TMasterConnector::SetControllerAgentAlert(EControllerAgentAlertType alertTy
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent
-
-

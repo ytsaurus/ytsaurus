@@ -13,8 +13,9 @@ namespace NYT::NSequoiaServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ISequoiaContext
-    : public TRefCounted
 {
+    virtual ~ISequoiaContext() = default;
+
     virtual void WriteRow(
         NSequoiaClient::ESequoiaTable table,
         NTableClient::TUnversionedRow row) = 0;
@@ -29,24 +30,14 @@ struct ISequoiaContext
     template <class TRow>
     void DeleteRow(const TRow& row);
 
-    virtual void SubmitRows() = 0;
+    virtual void SubmitRows() noexcept = 0;
 
     virtual const NTableClient::TRowBufferPtr& GetRowBuffer() const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(ISequoiaContext)
-
 ////////////////////////////////////////////////////////////////////////////////
 
-ISequoiaContextPtr CreateSequoiaContext(
-    NCellMaster::TBootstrap* bootstrap,
-    NTransactionClient::TTransactionId transactionId,
-    const NSequoiaClient::NProto::TWriteSet& protoWriteSet);
-
-////////////////////////////////////////////////////////////////////////////////
-
-void SetSequoiaContext(ISequoiaContextPtr context);
-const ISequoiaContextPtr& GetSequoiaContext();
+ISequoiaContext* GetSequoiaContext();
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,17 +45,11 @@ class TSequoiaContextGuard
     : public TNonCopyable
 {
 public:
-    explicit TSequoiaContextGuard(NSecurityServer::ISecurityManagerPtr securityManager);
     TSequoiaContextGuard(
-        ISequoiaContextPtr context,
-        NSecurityServer::ISecurityManagerPtr securityManager,
-        NRpc::TAuthenticationIdentity identity,
-        NTracing::TTraceContextPtr traceContext);
+        NCellMaster::TBootstrap* bootstrap,
+        NTransactionServer::TTransactionId transactionId,
+        const NSequoiaClient::NProto::TWriteSet& protoWriteSet);
     ~TSequoiaContextGuard();
-
-private:
-    NSecurityServer::TAuthenticatedUserGuard UserGuard_;
-    NTracing::TTraceContextGuard TraceContextGuard_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

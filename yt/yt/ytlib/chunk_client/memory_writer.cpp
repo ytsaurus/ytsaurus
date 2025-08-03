@@ -67,10 +67,12 @@ TFuture<void> TMemoryWriter::GetReadyEvent()
 TFuture<void> TMemoryWriter::Close(
     const IChunkWriter::TWriteBlocksOptions& /*options*/,
     const TWorkloadDescriptor& /*workloadDescriptor*/,
-    const TDeferredChunkMetaPtr& chunkMeta)
+    const TDeferredChunkMetaPtr& chunkMeta,
+    std::optional<int> truncateBlockCount)
 {
     YT_VERIFY(Open_);
     YT_VERIFY(!Closed_);
+    YT_VERIFY(!truncateBlockCount.has_value());
 
     if (!chunkMeta->IsFinalized()) {
         auto& mapping = chunkMeta->BlockIndexMapping();

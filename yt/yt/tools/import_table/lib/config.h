@@ -26,6 +26,9 @@ struct TImportConfig
     //! Regex for filtering out non-parquet files like successful commit markers in S3 and other unrelated stuff.
     NRe2::TRe2Ptr ParquetFileRegex;
 
+    //! Regex for filtering out non-orc files like successful commit markers in S3 and other unrelated stuff.
+    NRe2::TRe2Ptr ORCFileRegex;
+
     REGISTER_YSON_STRUCT(TImportConfig);
 
     static void Register(TRegistrar registrar);

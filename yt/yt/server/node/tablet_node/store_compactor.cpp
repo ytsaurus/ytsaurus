@@ -2,6 +2,7 @@
 
 #include "background_activity_orchid.h"
 #include "bootstrap.h"
+#include "config.h"
 #include "hunk_chunk.h"
 #include "in_memory_manager.h"
 #include "partition.h"
@@ -186,7 +187,7 @@ struct TCompactionTaskInfo
         TTabletId tabletId,
         NHydra::TRevision mountRevision,
         TString tablePath,
-        TString tabletCellBundle,
+        std::string tabletCellBundle,
         TPartitionId partitionId,
         EStoreCompactionReason reason,
         bool discardStores,
@@ -488,11 +489,7 @@ private:
             Bootstrap_->GetControlInvoker(),
             Bootstrap_->GetLocalDescriptor(),
             Bootstrap_->GetRpcServer(),
-            Bootstrap_
-                ->GetClient()
-                ->GetNativeConnection()
-                ->GetCellDirectory()
-                ->GetDescriptorByCellIdOrThrow(TabletSnapshot_->CellId),
+            TabletSnapshot_,
             TabletSnapshot_->Settings.MountConfig->InMemoryMode,
             Bootstrap_->GetInMemoryManager()->GetConfig());
 
@@ -513,6 +510,11 @@ private:
                 .ThrowOnError();
         }
 
+        const auto& smoothMovementData = TabletSnapshot_->TabletRuntimeData->SmoothMovementData;
+        auto targetServantMountRevision = smoothMovementData.Role == ESmoothMovementRole::Source
+            ? smoothMovementData.SiblingServantMountRevision.load()
+            : TRevision{};
+
         std::vector<TChunkInfo> chunkInfos;
         for (const auto& writer : Writers_) {
             result.WriterStatistics.push_back(writer->GetDataStatistics());
@@ -521,7 +523,8 @@ private:
                     .ChunkId = FromProto<TChunkId>(chunkSpec.chunk_id()),
                     .ChunkMeta = New<TRefCountedChunkMeta>(chunkSpec.chunk_meta()),
                     .TabletId = TabletSnapshot_->TabletId,
-                    .MountRevision = TabletSnapshot_->MountRevision
+                    .MountRevision = TabletSnapshot_->MountRevision,
+                    .TargetServantMountRevision = targetServantMountRevision,
                 });
             }
         }
@@ -531,28 +534,17 @@ private:
 
         if (TabletSnapshot_->Settings.MountConfig->RegisterChunkReplicasOnStoresUpdate) {
             const auto& chunkReplicaCache = Bootstrap_->GetConnection()->GetChunkReplicaCache();
-            auto registerReplicas = [&] (TChunkId chunkId, const auto& replicasInfo) {
-                // TODO(kvk1920): Consider using chunk + location instead of chunk + node + medium.
-                NChunkClient::TAllyReplicasInfo newReplicas;
-                newReplicas.Revision = replicasInfo.ConfirmationRevision;
-                newReplicas.Replicas.reserve(replicasInfo.Replicas.size());
-                for (auto replica : replicasInfo.Replicas) {
-                    newReplicas.Replicas.push_back(replica);
-                }
-
-                chunkReplicaCache->UpdateReplicas(chunkId, newReplicas);
-            };
 
             for (const auto& writer : Writers_) {
                 for (const auto& [chunkId, replicasInfo] : writer->GetWrittenChunkReplicasInfos()) {
-                    registerReplicas(chunkId, replicasInfo);
+                    chunkReplicaCache->UpdateReplicas(chunkId, TAllyReplicasInfo::FromWrittenChunkReplicasInfo(replicasInfo));
                 }
             }
 
             if (HunkChunkPayloadWriter_->HasHunks()) {
-                registerReplicas(
+                chunkReplicaCache->UpdateReplicas(
                     HunkChunkWriter_->GetChunkId(),
-                    HunkChunkWriter_->GetWrittenChunkReplicasInfo());
+                    TAllyReplicasInfo::FromChunkWriter(HunkChunkWriter_));
             }
         }
 
@@ -591,17 +583,13 @@ private:
             return;
         }
 
-        auto enableNewScanReader =
-            TabletSnapshot_->Settings.MountConfig->EnableNewScanReaderForLookup ||
-            TabletSnapshot_->Settings.MountConfig->EnableNewScanReaderForSelect;
-
         auto result = false;
         if (auto chunkMetaManager = Bootstrap_->GetVersionedChunkMetaManager()) {
             result = chunkMetaManager->InsertMeta(
                 TVersionedChunkMetaCacheKey{
                     .ChunkId = writer->GetChunkId(),
                     .TableSchemaKeyColumnCount = TabletSnapshot_->PhysicalSchema->GetKeyColumnCount(),
-                    .PreparedColumnarMeta = enableNewScanReader,
+                    .PreparedColumnarMeta = true,
                 },
                 New<TRefCountedChunkMeta>(*finalizedMeta));
         }
@@ -760,7 +748,8 @@ public:
             auto peekInputRow = [&] {
                 if (currentRowIndex >= std::ssize(inputRows)) {
                     flushOutputRows();
-                    if (inputBatch = ReadRowBatch(reader, readOptions)) {
+                    inputBatch = ReadRowBatch(reader, readOptions);
+                    if (inputBatch) {
                         readRowCount += inputBatch->GetRowCount();
                         inputRows = inputBatch->MaterializeRows();
                         currentRowIndex = 0;
@@ -2356,7 +2345,8 @@ private:
                 tablet,
                 stores,
                 logger),
-            chunkReadOptions);
+            chunkReadOptions,
+            tabletSnapshot->PerformanceCounters);
     }
 
     static int GetOverlappingStoreLimit(const TTableMountConfigPtr& config)

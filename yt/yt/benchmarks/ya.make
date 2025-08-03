@@ -19,4 +19,5 @@ RECURSE(
     sendfile
     skiff
     versioned_block_format
+    yson_struct
 )

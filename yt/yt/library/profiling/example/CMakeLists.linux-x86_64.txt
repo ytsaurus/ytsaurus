@@ -20,12 +20,16 @@ add_executable(profiling-example)
 target_compile_options(profiling-example PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(profiling-example PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  contrib-libs-tcmalloc
   library-cpp-cpuid_check
   library-profiling-solomon
   library-profiling-tcmalloc
@@ -34,7 +38,6 @@ target_link_libraries(profiling-example PUBLIC
 
 target_allocator(profiling-example
   cpp-malloc-tcmalloc
-  contrib-libs-tcmalloc
 )
 
 target_link_options(profiling-example PRIVATE

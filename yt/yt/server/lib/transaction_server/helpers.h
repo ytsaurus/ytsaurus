@@ -12,8 +12,6 @@ TError CreateNoSuchTransactionError(TTransactionId transactionId);
 
 [[noreturn]] void ThrowNoSuchTransaction(TTransactionId transactionId);
 
-TError CreatePrerequisiteCheckFailedNoSuchTransactionError(TTransactionId transactionId);
-
 [[noreturn]] void ThrowPrerequisiteCheckFailedNoSuchTransaction(TTransactionId transactionId);
 
 ////////////////////////////////////////////////////////////////////////////////

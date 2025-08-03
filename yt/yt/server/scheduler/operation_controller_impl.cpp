@@ -685,7 +685,7 @@ TFuture<TControllerScheduleAllocationResultPtr> TOperationControllerImpl::Schedu
     const TDiskResources& diskResourceLimits,
     const TString& treeId,
     const TString& poolPath,
-    const TFairShareStrategyTreeConfigPtr& treeConfig)
+    std::optional<TDuration> waitingForResourcesOnNodeTimeout)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -726,7 +726,7 @@ TFuture<TControllerScheduleAllocationResultPtr> TOperationControllerImpl::Schedu
     request->NodeId = nodeId;
     request->NodeResourceLimits = context->ResourceLimits();
     request->NodeDiskResources = diskResourceLimits;
-    request->Spec.WaitingForResourcesOnNodeTimeout = treeConfig->WaitingForResourcesOnNodeTimeout;
+    request->Spec.WaitingForResourcesOnNodeTimeout = waitingForResourcesOnNodeTimeout;
 
     TIncarnationId incarnationId;
     {
@@ -889,7 +889,7 @@ TFuture<TIntrusivePtr<TResponse>> TOperationControllerImpl::InvokeAgent(
     }));
 }
 
-std::pair<NApi::ITransactionPtr, TString> TOperationControllerImpl::GetIntermediateMediumTransaction()
+std::pair<NApi::ITransactionPtr, std::string> TOperationControllerImpl::GetIntermediateMediumTransaction()
 {
     return {nullptr, {}};
 }

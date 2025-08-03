@@ -3,11 +3,8 @@ package schema
 import (
 	"encoding"
 	"reflect"
-	"sort"
 
 	"golang.org/x/xerrors"
-
-	"go.ytsaurus.tech/yt/go/yson"
 )
 
 var (
@@ -16,63 +13,24 @@ var (
 	typeOfTextMarshaler   = reflect.TypeOf((*encoding.TextMarshaler)(nil)).Elem()
 )
 
-func ytTypeFor(typ reflect.Type) (ytTyp Type, err error) {
-	if typ == typeOfBytes {
-		return TypeBytes, nil
-	}
-
-	if typ.Implements(typeOfTextMarshaler) || (typ.Kind() != reflect.Ptr && reflect.PtrTo(typ).Implements(typeOfTextMarshaler)) {
-		return TypeString, nil
-	}
-
-	if typ.Implements(typeOfBinaryMarshaler) || (typ.Kind() != reflect.Ptr && reflect.PtrTo(typ).Implements(typeOfBinaryMarshaler)) {
-		return TypeBytes, nil
-	}
-
-	if typ.Kind() == reflect.Ptr {
-		typ = typ.Elem()
-	}
-
-	switch {
-	case typ == reflect.TypeOf(Date(0)):
-		return TypeDate, nil
-	case typ == reflect.TypeOf(Datetime(0)):
-		return TypeDatetime, nil
-	case typ == reflect.TypeOf(Timestamp(0)):
-		return TypeTimestamp, nil
-	case typ == reflect.TypeOf(Interval(0)):
-		return TypeInterval, nil
-	}
-
-	switch typ.Kind() {
-	case reflect.Int, reflect.Int64:
-		return TypeInt64, nil
-	case reflect.Int32:
-		return TypeInt32, nil
-	case reflect.Int16:
-		return TypeInt16, nil
-
-	case reflect.Uint, reflect.Uint64:
-		return TypeUint64, nil
-	case reflect.Uint32:
-		return TypeUint32, nil
-	case reflect.Uint16:
-		return TypeUint16, nil
-
-	case reflect.String:
-		return TypeString, nil
-	case reflect.Bool:
-		return TypeBoolean, nil
-	case reflect.Float32:
-		return TypeFloat32, nil
-	case reflect.Float64:
-		return TypeFloat64, nil
-
-	case reflect.Struct, reflect.Slice, reflect.Map, reflect.Interface, reflect.Array:
+func ytTypeFromV3(ytType ComplexType) (ComplexType, error) {
+	switch t := ytType.(type) {
+	case Type:
+		switch t {
+		case typeBool:
+			return TypeBoolean, nil
+		case typeYSON:
+			return TypeAny, nil
+		default:
+			return t, nil
+		}
+	case Optional:
+		return ytTypeFromV3(t.Item)
+	case Struct, List, Dict:
 		return TypeAny, nil
+	default:
+		return ytType, nil
 	}
-
-	return "", xerrors.Errorf("type %v has no associated YT type", typ)
 }
 
 const (
@@ -80,36 +38,45 @@ const (
 	rowIndexTag    = "$row_index"
 )
 
-func parseTag(fieldName string, typ reflect.Type, tag reflect.StructTag) (c *Column, err error) {
-	c = &Column{Required: true}
-
-	decodedTag, skip := yson.ParseTag(fieldName, tag)
-	if skip {
-		return nil, nil
+func convertColumnFromV3(c Column) (Column, error) {
+	if c.ComplexType == nil {
+		return c, xerrors.Errorf("ComplexType is not set in column \"%+v\"", c)
 	}
-
-	if decodedTag.Name == tabletIndexTag || decodedTag.Name == rowIndexTag {
-		return nil, nil
-	}
-
-	c.Name = decodedTag.Name
-	if decodedTag.Key {
-		c.SortOrder = SortAscending
-	}
-	if decodedTag.Omitempty {
+	switch t := c.ComplexType.(type) {
+	case Optional, Struct, List, Dict:
 		c.Required = false
+	case Type:
+		if t == typeYSON {
+			c.Required = false
+		} else {
+			c.Required = true
+		}
+	default:
+		c.Required = true
 	}
 
-	c.Type, err = ytTypeFor(typ)
-	if typ.Kind() == reflect.Ptr || c.Type == TypeAny {
-		c.Required = false
+	ytTyp, err := ytTypeFromV3(c.ComplexType)
+	if err != nil {
+		return c, err
 	}
 
-	if ytGroup, ok := tag.Lookup("ytgroup"); ok {
-		c.Group = ytGroup
-	}
+	c.Type = ytTyp.(Type)
+	c.ComplexType = nil
 
-	return
+	return c, nil
+}
+
+func convertSchemaFromV3(s Schema) (Schema, error) {
+	columns := make([]Column, 0, len(s.Columns))
+	for _, c := range s.Columns {
+		converted, err := convertColumnFromV3(c)
+		if err != nil {
+			return Schema{}, err
+		}
+
+		columns = append(columns, converted)
+	}
+	return Schema{Columns: columns, UniqueKeys: s.UniqueKeys, Strict: s.Strict}, nil
 }
 
 // Infer infers Schema from go struct.
@@ -137,58 +104,13 @@ func parseTag(fieldName string, typ reflect.Type, tag reflect.StructTag) (c *Col
 // Go type string is mapped to YT type utf8.
 //
 // Go types implementing encoding.TextMarshaler interface are mapped to YT type utf8.
-func Infer(value any) (s Schema, err error) {
-	v, err := reflectValueOfType(value, reflect.Struct)
+func Infer(value any) (Schema, error) {
+	s, err := infer(value)
 	if err != nil {
-		return
+		return Schema{}, err
 	}
 
-	s = Schema{}
-
-	var inferFields func(typ reflect.Type, forceOptional bool) error
-	inferFields = func(typ reflect.Type, forceOptional bool) (err error) {
-		if typ.Kind() == reflect.Ptr {
-			forceOptional = true
-			typ = typ.Elem()
-		}
-
-		if typ.Kind() != reflect.Struct {
-			return xerrors.Errorf("can't infer schema from type %v", v.Type())
-		}
-
-		for i := 0; i < typ.NumField(); i++ {
-			field := typ.Field(i)
-
-			if field.Anonymous {
-				if err = inferFields(field.Type, forceOptional); err != nil {
-					return
-				}
-
-				continue
-			} else if field.PkgPath != "" {
-				continue
-			}
-
-			var column *Column
-			column, err = parseTag(field.Name, field.Type, field.Tag)
-			if err != nil {
-				return err
-			}
-
-			if column != nil {
-				if forceOptional {
-					column.Required = false
-				}
-
-				s.Columns = append(s.Columns, *column)
-			}
-		}
-
-		return
-	}
-
-	err = inferFields(v.Type(), false)
-	return
+	return convertSchemaFromV3(s)
 }
 
 // InferMap infers Schema from go map[string]any.
@@ -197,47 +119,13 @@ func Infer(value any) (s Schema, err error) {
 // Column name inferred from key itself, and column type inferred from the type of value.
 //
 // To avoid ambiguity key type should always be string, while value type doesn't matter.
-func InferMap(value any) (s Schema, err error) {
-	v, err := reflectValueOfType(value, reflect.Map)
+func InferMap(value any) (Schema, error) {
+	s, err := inferMap(value)
 	if err != nil {
-		return
+		return Schema{}, err
 	}
 
-	iter := v.MapRange()
-	for iter.Next() {
-		k := iter.Key()
-		if k.Kind() != reflect.String {
-			err = xerrors.Errorf("can't infer schema from map with key of type %v, only string is supported", k.Type())
-			return
-		}
-
-		name := k.Interface().(string)
-		v := iter.Value()
-
-		var typ reflect.Type
-		if v.IsNil() {
-			// In general nil value is an empty interface
-			typ = v.Type()
-		} else {
-			typ = v.Elem().Type()
-		}
-
-		var column *Column
-		column, err = parseTag(name, typ, "")
-		if err != nil {
-			return
-		}
-
-		if column != nil {
-			s.Columns = append(s.Columns, *column)
-		}
-	}
-
-	sort.Slice(s.Columns, func(i, j int) bool {
-		return s.Columns[i].Name < s.Columns[j].Name
-	})
-
-	return
+	return convertSchemaFromV3(s)
 }
 
 // MustInferMap infers Schema from go map[string]any.
@@ -279,4 +167,59 @@ func MustInfer(value any) Schema {
 		panic(err)
 	}
 	return s
+}
+
+type fieldParser[T any] func(field reflect.StructField, forceOptional bool) (T, error)
+
+func traverseStruct[T any](typ reflect.Type, p fieldParser[*T]) ([]T, error) {
+	return traverseNestedStruct(typ, false, p)
+}
+
+func traverseNestedStruct[T any](typ reflect.Type, forceOptional bool, p fieldParser[*T]) ([]T, error) {
+	if typ.Kind() == reflect.Ptr {
+		forceOptional = true
+		typ = typ.Elem()
+	}
+
+	if typ.Kind() != reflect.Struct {
+		return nil, xerrors.Errorf("can't infer schema from type %q", typ)
+	}
+
+	results := make([]T, 0, typ.NumField())
+	for i := 0; i < typ.NumField(); i++ {
+		field := typ.Field(i)
+
+		if field.Anonymous {
+			if field.Type.Kind() == reflect.Interface {
+				res, err := p(field, forceOptional)
+				if err != nil {
+					return nil, err
+				}
+
+				results = append(results, *res)
+			} else {
+				embedded, err := traverseNestedStruct(field.Type, forceOptional, p)
+				if err != nil {
+					return nil, err
+				}
+
+				results = append(results, embedded...)
+			}
+
+			continue
+		} else if field.PkgPath != "" {
+			continue
+		}
+
+		res, err := p(field, forceOptional)
+		if err != nil {
+			return nil, err
+		}
+
+		if res != nil {
+			results = append(results, *res)
+		}
+	}
+
+	return results, nil
 }

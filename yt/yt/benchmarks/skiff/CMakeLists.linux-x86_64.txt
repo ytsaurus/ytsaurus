@@ -20,6 +20,9 @@ add_executable(skiff)
 target_compile_options(skiff PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(skiff PUBLIC

@@ -5,7 +5,6 @@
 #include <yt/yt/build/build.h>
 
 #include <yt/yt/core/misc/crash_handler.h>
-#include <yt/yt/core/misc/signal_registry.h>
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/shutdown.h>
 
@@ -14,9 +13,11 @@
 
 #include <yt/yt/core/logging/log_manager.h>
 
-#include <yt/yt/library/ytprof/heap_profiler.h>
-
 #include <yt/yt/library/profiling/tcmalloc/profiler.h>
+
+#include <yt/yt/library/signals/signal_registry.h>
+
+#include <yt/yt/library/ytprof/heap_profiler.h>
 
 #include <library/cpp/yt/system/exit.h>
 
@@ -45,6 +46,7 @@
 namespace NYT {
 
 using namespace NYson;
+using namespace NSignals;
 
 ////////////////////////////////////////////////////////////////////////////////
 

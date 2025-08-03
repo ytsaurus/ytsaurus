@@ -4,20 +4,15 @@ from .internal_schema import _py_schema_to_ti_type, _create_py_schema
 
 from ..errors import YtError
 
-import yt.yson
-
-try:
-    from yt.packages.six.moves import builtins
-except ImportError:
-    from six.moves import builtins
-
 import copy
 import collections
+import typing
 
 import yt.type_info as ti
+import yt.yson
 
 
-class SortColumn(object):
+class SortColumn:
     ASCENDING = "ascending"
     DESCENDING = "descending"
 
@@ -32,40 +27,64 @@ class SortColumn(object):
         }
 
 
-class ColumnSchema(object):
-    """ Class representing table column schema.
+class ColumnSchema:
+    """Class representing column schema.
+
+    :param name:
+        name of the column
+    :param type:
+        type of the column, could be either a type_info type or a class object annotated with @yt.wrapper.yt_dataclass
+    :param sort_order:
+        column sort order, if argument is missing column is not sorted.
+    :param group:
+        column group name, columns with same group name are stored in the same block,
+        used for tuning read write performance
+    :param aggregate:
+        aggregating function column name, for nonkey columns of dynamic tables
+    :param expression:
+        expression for computed column
 
     See https://ytsaurus.tech/docs/en/user-guide/storage/static-schema
     """
 
-    def __init__(self, name, type, sort_order=None, group=None):
-        """type may be either a type_info type or a @yt.wrapper.schema.dataclass"""
-
-        type_ = type
-        type = builtins.type
+    def __init__(
+        self,
+        name: str,
+        type,
+        sort_order=None,
+        group: typing.Optional[str] = None,
+        aggregate: typing.Optional[str] = None,
+        expression: typing.Optional[str] = None,
+    ):
 
         self.name = name
-
-        if ti.is_valid_type(type_):
-            self.type = type_
-        elif is_schema_module_available() and is_yt_dataclass(type_):
-            self.type = _py_schema_to_ti_type(_create_py_schema(type_))
+        if ti.is_valid_type(type):
+            self.type = type
+        elif is_schema_module_available() and is_yt_dataclass(type):
+            self.type = _py_schema_to_ti_type(_create_py_schema(type))
         else:
             raise TypeError("Expected type_info type or class marked with @yt.wrapper.schema.yt_dataclass, "
-                            "got <{}>{!r}".format(type(type_), type_))
+                            "got <{}>{!r}".format(type(type), type))
 
         self.sort_order = sort_order
         self.group = group
+        self.expression = expression
+        self.aggregate = aggregate
 
     def to_yson_type(self):
         result = {
             "name": self.name,
             "type_v3": yt.yson.loads(ti.serialize_yson(self.type)),
         }
-        if self.sort_order is not None:
-            result["sort_order"] = self.sort_order
-        if self.group is not None:
-            result["group"] = self.group
+
+        for k, v in [
+            ("sort_order", self.sort_order),
+            ("group", self.group),
+            ("aggregate", self.aggregate),
+            ("expression", self.expression),
+        ]:
+            if v is not None:
+                result[k] = v
         return result
 
     @classmethod
@@ -76,13 +95,30 @@ class ColumnSchema(object):
             required = obj.get("required", False)
             type = ti.deserialize_yson_v1(yt.yson.dumps(obj["type"]), required)
 
-        return ColumnSchema(obj["name"], type, sort_order=obj.get("sort_order"), group=obj.get("group"))
+        return ColumnSchema(
+            obj["name"],
+            type,
+            sort_order=obj.get("sort_order"),
+            group=obj.get("group"),
+            aggregate=obj.get("aggregate"),
+            expression=obj.get("expression"),
+        )
 
     def __eq__(self, other):
         if not isinstance(other, ColumnSchema):
             return False
-        return (self.name, self.type, self.sort_order, self.group) == \
-            (other.name, other.type, other.sort_order, other.group)
+
+        def to_tuple(schema):
+            return (
+                schema.name,
+                schema.type,
+                schema.sort_order,
+                schema.group,
+                schema.expression,
+                schema.aggregate,
+            )
+
+        return to_tuple(self) == to_tuple(other)
 
     def __ne__(self, other):
         return not (self == other)
@@ -97,7 +133,7 @@ class ColumnSchema(object):
         self.__dict__ = ColumnSchema.from_yson_type(d).__dict__
 
 
-class TableSchema(object):
+class TableSchema:
     """Class representing table schema.
 
     It can be built using the constructor or fluently using add_column method:

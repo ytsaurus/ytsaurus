@@ -104,7 +104,7 @@ struct IUnbufferedFileChangelog
      *  \note
      *  Thread affinity: any
      */
-    virtual NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
+    virtual NIO::TReadRequest MakeChunkFragmentReadRequest(
         const NIO::TChunkFragmentDescriptor& fragmentDescriptor) = 0;
 
     //! Truncates the changelog to #recordCount records.

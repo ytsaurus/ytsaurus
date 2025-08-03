@@ -2192,8 +2192,8 @@ list jobs of operation
 ```bash
 usage: yt list-jobs [-h] [--params PARAMS] [--operation OPERATION_ID] [--job-type JOB_TYPE] [--job-state JOB_STATE] [--address ADDRESS] [--job-competition-id JOB_COMPETITION_ID]
                     [--sort-field {type,state,start_time,finish_time,address,duration,progress,id}] [--sort-order SORT_ORDER] [--limit LIMIT] [--offset OFFSET] [--with-spec] [--with-stderr] [--with-fail-context]
-                    [--with-competitors] [--with-monitoring-descriptor] [--include-cypress] [--include-runtime] [--include-archive] [--data-source {auto,runtime,archive,manual}] [--format FORMAT]
-                    [operation_id]
+                    [--with-competitors] [--with-monitoring-descriptor] [--with-interruption-info] [--include-cypress] [--include-runtime] [--include-archive] [--data-source {auto,runtime,archive,manual}]
+                    [--format FORMAT] [operation_id]
 ```
 
 #### Positional Arguments
@@ -2233,6 +2233,8 @@ usage: yt list-jobs [-h] [--params PARAMS] [--operation OPERATION_ID] [--job-typ
 > `--with-competitors`    with competitive jobs
 
 > `--with-monitoring-descriptor`
+
+> `--with-interruption-info`
 
 > `--include-cypress`    include jobs from Cypress in result. Have effect only if –data-source is set to «manual»
 

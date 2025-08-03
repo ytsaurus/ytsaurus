@@ -1,6 +1,6 @@
 RECURSE(
+    cron
     local
-    systest
     ya-build
     ytsaurus
     ytsaurus-bundle

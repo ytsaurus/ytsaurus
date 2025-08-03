@@ -4,7 +4,7 @@
 #include "bootstrap.h"
 #include "helpers.h"
 #include "job_monitoring_index_manager.h"
-#include "job_profiler.h"
+#include "controllers/common_profilers.h"
 #include "job_tracker.h"
 #include "master_connector.h"
 #include "memory_watchdog.h"
@@ -89,7 +89,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ControllerAgentLogger;
+constinit const auto Logger = ControllerAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -226,7 +226,6 @@ public:
             std::move(configNode),
             Bootstrap_))
         , JobTracker_(New<TJobTracker>(Bootstrap_, JobReporter_))
-        , JobProfiler_(New<TJobProfiler>())
         , JobEventsInvoker_(CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker(), "controller_agent"))
         , CachedExecNodeDescriptorsByTags_(New<TSyncExpiringCache<TSchedulingTagFilter, TFilteredExecNodeDescriptors>>(
             BIND_NO_PROPAGATE(&TImpl::FilterExecNodes, MakeStrong(this)),
@@ -390,13 +389,6 @@ public:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return JobTracker_.Get();
-    }
-
-    TJobProfiler* GetJobProfiler() const
-    {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        return JobProfiler_.Get();
     }
 
     const TMediumDirectoryPtr& GetMediumDirectory() const
@@ -990,7 +982,6 @@ public:
         NScheduler::ValidateOperationAccess(
             user,
             operationId,
-            TAllocationId(),
             permission,
             GetOperationOrThrow(operationId)->GetAccessControlRule(),
             Bootstrap_->GetClient(),
@@ -1125,7 +1116,6 @@ private:
     const TJobReporterPtr JobReporter_;
     const std::unique_ptr<TMasterConnector> MasterConnector_;
     const TJobTrackerPtr JobTracker_;
-    const TJobProfilerPtr JobProfiler_;
 
     bool Connected_= false;
     bool ConnectScheduled_ = false;
@@ -1165,7 +1155,7 @@ private:
     TAgentToSchedulerScheduleAllocationResponseOutboxPtr ScheduleAllocationResponsesOutbox_;
     TAgentToSchedulerRunningAllocationStatisticsOutboxPtr RunningAllocationStatisticsUpdatesOutbox_;
 
-    std::unique_ptr<TMessageQueueInbox> AllocationEventsInbox_;
+    std::shared_ptr<TMessageQueueInbox> AllocationEventsInbox_;
     std::unique_ptr<TMessageQueueInbox> OperationEventsInbox_;
     std::unique_ptr<TMessageQueueInbox> ScheduleAllocationRequestsInbox_;
 
@@ -1367,7 +1357,7 @@ private:
             ControllerAgentProfiler().WithTag("queue", "running_allocation_statistics"),
             Bootstrap_->GetControlInvoker());
 
-        AllocationEventsInbox_ = std::make_unique<TMessageQueueInbox>(
+        AllocationEventsInbox_ = std::make_shared<TMessageQueueInbox>(
             ControllerAgentLogger().WithTag(
                 "Kind: SchedulerToAgentAllocationEvents, IncarnationId: %v",
                 IncarnationId_),
@@ -1583,8 +1573,11 @@ private:
             },
             Config_->MaxRunningJobStatisticsUpdateCountPerHeartbeat);
 
-        auto error = WaitFor(BIND([&, request] {
-                AllocationEventsInbox_->ReportStatus(request->mutable_scheduler_to_agent_allocation_events());
+        // NB(pogorelov): CA may disconnect while the callback is executing (it will lead to invoker cancellation).
+        // So we just copy "allocationEventsInbox" shared pointer.
+        // Variable "request" will be valid cause fiber will be destroyed after the future is set.
+        auto error = WaitFor(BIND([allocationEventsInbox = AllocationEventsInbox_, request] {
+                allocationEventsInbox->ReportStatus(request->mutable_scheduler_to_agent_allocation_events());
             })
             .AsyncVia(JobEventsInvoker_)
             .Run());
@@ -2355,11 +2348,6 @@ TMasterConnector* TControllerAgent::GetMasterConnector()
 TJobTracker* TControllerAgent::GetJobTracker() const
 {
     return Impl_->GetJobTracker();
-}
-
-TJobProfiler* TControllerAgent::GetJobProfiler() const
-{
-    return Impl_->GetJobProfiler();
 }
 
 bool TControllerAgent::IsConnected() const

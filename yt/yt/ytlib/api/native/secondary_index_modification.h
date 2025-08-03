@@ -35,7 +35,7 @@ ISecondaryIndexModifierPtr CreateSecondaryIndexModifier(
     NTabletClient::TTableMountInfoPtr tableMountInfo,
     std::vector<NTabletClient::TTableMountInfoPtr> indexMountInfos,
     TRange<TUnversionedSubmittedRow> mergedModifications,
-    NQueryClient::IExpressionEvaluatorCachePtr expressionEvaluatorCache,
+    NQueryClient::IColumnEvaluatorCachePtr columnEvaluatorCache,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////

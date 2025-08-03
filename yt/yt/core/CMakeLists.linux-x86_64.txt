@@ -42,6 +42,9 @@ target_compile_options(yt-yt-core PRIVATE
   -mpclmul
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(yt-yt-core PUBLIC
@@ -55,7 +58,7 @@ target_link_libraries(yt-yt-core PUBLIC
   contrib-libs-libbz2
   contrib-libs-c-ares
   contrib-libs-farmhash
-  contrib-libs-yajl
+  contrib-deprecated-yajl
   contrib-libs-lz4
   contrib-libs-openssl
   cpp-openssl-init
@@ -86,9 +89,11 @@ target_link_libraries(yt-yt-core PUBLIC
   yt-library-syncmap
   yt-library-undumpable
   library-ytprof-api
+  yt-library-signals
   yt-library-profiling
   library-profiling-resource_tracker
   yt-library-tracing
+  yt-library-numeric
   backtrace-cursors-libunwind
 )
 
@@ -110,8 +115,6 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/tcp/client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/tcp/local_bypass.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/tcp/server.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/tcp/ssl_context.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/tcp/ssl_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/compression/brotli.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/compression/bzip2.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/compression/codec.cpp
@@ -202,8 +205,8 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/histogram.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/adjusted_exponential_moving_average.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/id_generator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/fair_share_hierarchical_queue.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/linear_probe.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/memory_usage_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/relaxed_mpsc_queue.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/parser_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/pattern_formatter.cpp
@@ -217,8 +220,8 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/ref_counted_tracker_statistics_producer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/ref_counted_tracker_profiler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/serialize.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/serialize_dump.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/shutdown.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/signal_registry.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/slab_allocator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/statistic_path.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/statistics.cpp
@@ -226,6 +229,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/utf8_decoder.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/zerocopy_output_writer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/configurable_singleton_def.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/memory_usage_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/net/address.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/net/connection.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/net/config.cpp
@@ -335,6 +339,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/request_complexity_limiter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/request_complexity_limits.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/serialize.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/size.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/static_service_dispatcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/system_attribute_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/tree_builder.cpp
@@ -367,6 +372,9 @@ target_compile_options(yt-yt-core.global PRIVATE
   -mpclmul
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(yt-yt-core.global PUBLIC
@@ -380,7 +388,7 @@ target_link_libraries(yt-yt-core.global PUBLIC
   contrib-libs-libbz2
   contrib-libs-c-ares
   contrib-libs-farmhash
-  contrib-libs-yajl
+  contrib-deprecated-yajl
   contrib-libs-lz4
   contrib-libs-openssl
   cpp-openssl-init
@@ -411,9 +419,11 @@ target_link_libraries(yt-yt-core.global PUBLIC
   yt-library-syncmap
   yt-library-undumpable
   library-ytprof-api
+  yt-library-signals
   yt-library-profiling
   library-profiling-resource_tracker
   yt-library-tracing
+  yt-library-numeric
   backtrace-cursors-libunwind
 )
 

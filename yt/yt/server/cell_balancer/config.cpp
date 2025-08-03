@@ -12,14 +12,6 @@ void TCellBalancerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCellBalancerMasterConnectorConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("connect_retry_backoff_time", &TThis::ConnectRetryBackoffTime)
-        .Default(TDuration::Seconds(15));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TChaosConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("tablet_cell_clusters", &TThis::TabletCellClusters)
@@ -72,6 +64,8 @@ void TBundleControllerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("decommission_released_nodes", &TThis::DecommissionReleasedNodes)
         .Default(true);
+    registrar.Parameter("enable_spare_node_assignment", &TThis::EnableSpareNodeAssignment)
+        .Default(true);
 
     registrar.Parameter("node_count_per_cell", &TThis::NodeCountPerCell)
         .GreaterThan(0)
@@ -122,8 +116,6 @@ void TCellBalancerBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
     registrar.Parameter("election_manager", &TThis::ElectionManager)
-        .DefaultNew();
-    registrar.Parameter("master_connector", &TThis::MasterConnector)
         .DefaultNew();
     registrar.Parameter("addresses", &TThis::Addresses)
         .Default();

@@ -21,6 +21,10 @@
 
 #include <yt/yt/library/program/config.h>
 
+#include <yt/yt/core/concurrency/config.h>
+
+#include <yt/yt/core/misc/config.h>
+
 namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,11 +59,8 @@ struct TCypressSynchronizerDynamicConfig
     ECypressSynchronizerPolicy Policy;
 
     //! Clusters polled by the watching version of the synchronizer.
-    std::vector<TString> Clusters;
+    std::vector<std::string> Clusters;
 
-    //! If true, the synchronizer will add objects from the registration table to the list of objects to watch.
-    //! NB: This flag is only supported with the `watching` policy.
-    bool PollReplicatedObjects;
     //! If true, the synchronizer will update the configured replicated table mapping table with the corresponding meta.
     //! NB: This flag is only supported with the `watching` policy, as well as enabled polling of replicated objects.
     bool WriteReplicatedTableMapping;
@@ -85,7 +86,7 @@ struct TQueueAgentConfig
 
     //! Identifies a family of queue agents.
     //! Each queue agent only handles queues and consumers with the corresponding attribute set to its own stage.
-    TString Stage;
+    std::string Stage;
 
     REGISTER_YSON_STRUCT(TQueueAgentConfig);
 
@@ -96,17 +97,39 @@ DEFINE_REFCOUNTED_TYPE(TQueueAgentConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EQueueExporterImplementation,
+    // Implementation before YT-23208.
+    (Old)
+    // Implementation after YT-23208.
+    (New)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 // NB(apachee): Separate config for exports for future refactoring. See YT-23208.
 
 struct TQueueExporterDynamicConfig
     : public NYTree::TYsonStructLite
 {
+    static const TExponentialBackoffOptions DefaultRetryBackoff;
+
     bool Enable;
+
+    // COMPAT(apachee): To differentiate queue export implementations.
+    EQueueExporterImplementation Implementation;
 
     //! Queue exporter pass period. Defines the minimum duration between 2 consecutive export iterations.
     TDuration PassPeriod;
     //! Maximum number of static tables exported per single export iteration.
     int MaxExportedTableCountPerTask;
+
+    //! Retry backoff options in case export task fails.
+    /*!
+     * \note #InvocationCount must be int max as exports are retried indefinitely.
+    */
+    TExponentialBackoffOptions RetryBackoff;
+
+    NConcurrency::TPeriodicExecutorOptions GetPeriodicExecutorOptions() const;
 
     bool operator==(const TQueueExporterDynamicConfig&) const = default;
 
@@ -140,11 +163,11 @@ struct TQueueControllerDynamicConfig
 
     //! List of objects, for which controllers must be delayed every pass.
     //!
-    //! Passes of such controllers take additional #ControllerDelayDuration seconds
+    //! Passes of such controllers take additional #ControllerDelay seconds
     //! to complete. This should be used for debug only.
     std::vector<NYPath::TRichYPath> DelayedObjects;
     //! Delay duration for #DelayedObjects.
-    TDuration ControllerDelayDuration;
+    TDuration ControllerDelay;
 
     TQueueExporterDynamicConfig QueueExporter;
 

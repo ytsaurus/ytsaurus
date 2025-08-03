@@ -1,13 +1,13 @@
 #pragma once
 
-#include "public.h"
 #include "chunk_writer_options.h"
+#include "public.h"
 
 #include <yt/yt/client/misc/workload.h>
 
-#include <yt/yt/core/actions/future.h>
-
 #include <yt/yt/library/erasure/public.h>
+
+#include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/misc/error.h>
 
@@ -52,11 +52,13 @@ struct IChunkWriter
     //! willing to finalize the upload.
     /*!
      *  For journal chunks, #chunkMeta is not used.
+     *  Blocks truncation may not be supported by some writers.
      */
     virtual TFuture<void> Close(
         const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor = {},
-        const TDeferredChunkMetaPtr& chunkMeta = nullptr) = 0;
+        const TDeferredChunkMetaPtr& chunkMeta = nullptr,
+        std::optional<int> truncateBlockCount = std::nullopt) = 0;
 
     //! Returns the chunk info.
     /*!

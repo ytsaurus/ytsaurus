@@ -27,7 +27,7 @@ PEERDIR(
     yt/yt/core/http
 
     yt/yt/library/huggingface_client
-    yt/yt/library/arrow_parquet_adapter
+    yt/yt/library/arrow_adapter
 
     yt/yt/tools/import_table/lib
 
@@ -45,6 +45,5 @@ REQUIREMENTS(
 SIZE(LARGE)
 TIMEOUT(1200)
 
-INCLUDE(${ARCADIA_ROOT}/devtools/large_on_multi_slots.inc)
 
 END()

@@ -32,7 +32,7 @@ using namespace NSecurityServer;
 using namespace NSequoiaClient;
 using namespace NTableClient;
 
-static constexpr auto& Logger = CypressServerLogger;
+constinit const auto Logger = CypressServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -144,8 +144,8 @@ private:
             auto linkPath = shard->MaybeRewritePath(originalLinkPath);
             auto targetPath = shard->MaybeRewritePath(originalTargetPath);
 
-            static const TString nullService;
-            static const TString nullMethod;
+            static const std::string nullService;
+            static const std::string nullMethod;
 
             auto getPayloadObject = [&] (TPathResolver::TResolveResult result) -> TCypressNode* {
                 auto payload = std::get_if<TPathResolver::TLocalObjectPayload>(&result.Payload);
@@ -165,7 +165,7 @@ private:
 
             TCypressNode* linkPathObject = getPayloadObject(linkPathResolveResult);
 
-            TString canonicalLinkPath;
+            NYPath::TYPath canonicalLinkPath;
             if (linkPathObject) {
                 canonicalLinkPath = cypressManager->GetNodePath(linkPathObject->GetTrunkNode(), linkPathObject->GetTransaction());
                 canonicalLinkPath += linkPathResolveResult.UnresolvedPathSuffix;
@@ -176,7 +176,7 @@ private:
                 }
             }
 
-            auto incrementalResolveWithCheck = [&] (const TString& pathToResolve, const TString& forbiddenPrefix) {
+            auto incrementalResolveWithCheck = [&] (const NYPath::TYPath& pathToResolve, NYPath::TYPathBuf forbiddenPrefix) {
                 auto currentResolvePath = pathToResolve;
                 TPathResolverOptions options;
 
@@ -186,7 +186,7 @@ private:
                 options.SymlinkEncounterCountLimit = 1;
 
                 // Using this as a bootleg flag to see if we hit the end of the resolve loop.
-                TString previousResolvedPath;
+                NYPath::TYPath previousResolvedPath;
 
                 while (true) {
                     // Resolving currentResolvePath before we hit the 1st symlink after it.

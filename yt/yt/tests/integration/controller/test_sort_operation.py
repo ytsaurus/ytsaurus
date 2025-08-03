@@ -6,7 +6,6 @@ from yt_commands import (
     make_ace, start_transaction, commit_transaction, insert_rows, read_table, write_table, sort, erase, get_operation,
     sync_create_cells, sync_mount_table, sync_unmount_table, get_singular_chunk_id, create_dynamic_table)
 
-from yt_helpers import skip_if_no_descending
 from yt_type_helpers import (
     make_schema, normalize_schema, normalize_schema_v3, list_type, optional_type, make_column, make_sorted_column)
 
@@ -366,8 +365,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     @authors("max42")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sort_with_sampling(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
 
         create("table", "//tmp/t_in")
 
@@ -406,9 +403,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     @authors("psushin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_simple_read_limits(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         v1 = {"key": "aaa", "value": "2"}
         v2 = {"key": "bb", "value": "5"}
         v3 = {"key": "bbxx", "value": "1"}
@@ -612,9 +606,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     @authors("dakovalkov")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_append_simple(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t_in")
         create(
             "table",
@@ -645,9 +636,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     @authors("dakovalkov")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_append_different_key_columns(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t_in")
         create(
             "table",
@@ -684,9 +672,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     @authors("dakovalkov")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_append_different_key_columns_2(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t_in")
         create(
             "table",
@@ -717,8 +702,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     @authors("gritukan", "dakovalkov")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_append_different_sort_order(self, sort_order):
-        skip_if_no_descending(self.Env)
-
         inverted_sort_order = "descending" if sort_order == "ascending" else "ascending"
 
         create("table", "//tmp/in_0")
@@ -749,9 +732,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     @authors("ignat")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_maniac(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         v1 = {"key": "aaa"}
         v2 = {"key": "bb"}
         v3 = {"key": "bbxx"}
@@ -812,7 +792,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_many_merge(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         v1 = {"key": "aaa"}
@@ -847,7 +826,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_several_merge_jobs_per_partition(self, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/t_in")
@@ -995,9 +973,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     @authors("panin", "ignat")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_composite_key(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         v1 = {"key": -7, "subkey": "bar", "value": "v1"}
         v2 = {"key": -7, "subkey": "foo", "value": "v2"}
         v3 = {"key": 12, "subkey": "a", "value": "v3"}
@@ -1041,9 +1016,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     @authors("ignat")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_many_inputs(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         v1 = {"key": -7, "value": "v1"}
         v2 = {"key": -3, "value": "v2"}
         v3 = {"key": 0, "value": "v3"}
@@ -1096,9 +1068,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     @authors("ignat", "babenko", "psushin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_one_partition_no_merge(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         self.sort_with_options("lookup", sort_order)
 
     @authors("psushin")
@@ -1106,7 +1075,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_one_partition_with_merge(self, optimize_for, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         self.sort_with_options(optimize_for, sort_order, spec={"data_weight_per_sort_job": 1})
@@ -1115,18 +1083,12 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_two_partitions_no_merge(self, optimize_for, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         self.sort_with_options(optimize_for, sort_order, spec={"partition_count": 2})
 
     @authors("psushin")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_ten_partitions_no_merge(self, optimize_for, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         self.sort_with_options(optimize_for, sort_order, spec={"partition_count": 10})
 
     @authors("psushin")
@@ -1134,7 +1096,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_two_partitions_with_merge(self, optimize_for, sort_order):
         if sort_order == "descending":
-            skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
         self.sort_with_options(
@@ -1150,9 +1111,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     @authors("ignat")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_inplace_sort(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t")
         write_table("//tmp/t", [{"key": "b"}, {"key": "a"}])
 
@@ -1172,12 +1130,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     @pytest.mark.parametrize("comparator", ["generic", "codegen"])
     def test_inplace_sort_with_schema(self, sort_order, comparator):
-        if self.Env.get_component_version("ytserver-job-proxy").abi <= (23, 2):
-            pytest.skip()
-
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create(
             "table",
             "//tmp/t",
@@ -1259,9 +1211,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_auto_schema_inference(self, optimize_for, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         loose_schema = make_schema([{"name": "key", "type": "int64"}], strict=False)
         strict_schema = make_schema([{"name": "key", "type": "int64"}])
 
@@ -1315,9 +1264,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     @authors("savrus")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_unique_keys_inference(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         schema_in = make_schema(
             [
                 {"name": "key1", "type": "string", "sort_order": sort_order},
@@ -1399,9 +1345,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     @authors("ermolovd")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_complex_types_schema_validation(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         input_schema = make_schema(
             [
                 {"name": "index", "type_v3": "int64"},
@@ -1591,9 +1534,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     @authors("savrus", "psushin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_computed_columns(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create(
             "table",
             "//tmp/t",
@@ -1753,9 +1693,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     @authors("savrus")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_column_selectors_schema_inference(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create(
             "table",
             "//tmp/t",
@@ -1842,9 +1779,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     @authors("savrus")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_column_selectors_output_schema_validation(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create(
             "table",
             "//tmp/t",
@@ -1943,8 +1877,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
 
     @authors("gritukan")
     def test_pivot_keys_descending(self):
-        skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
 
@@ -1975,9 +1907,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     @authors("gritukan")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_non_strict_schema(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/in")
         create("table", "//tmp/out1")
         create("table", "//tmp/out2")
@@ -2536,8 +2465,6 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         "3_phase_hierarchical"])
     @pytest.mark.parametrize("erasure_codec", [None, "isa_reed_solomon_6_3"])
     def test_descending_sort_order(self, sort_type, erasure_codec):
-        skip_if_no_descending(self.Env)
-
         spec = {}
         if erasure_codec is not None:
             if self.Env.get_component_version("ytserver-controller-agent").abi <= (24, 2) or self.Env.get_component_version("ytserver-job-proxy").abi <= (24, 2):

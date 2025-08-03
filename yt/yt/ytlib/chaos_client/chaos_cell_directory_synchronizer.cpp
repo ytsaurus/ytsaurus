@@ -34,10 +34,12 @@ public:
         TChaosCellDirectorySynchronizerConfigPtr config,
         ICellDirectoryPtr cellDirectory,
         IConnectionPtr connection,
+        TCellIdList sourceOfTruthCellIds,
         NLogging::TLogger logger)
         : Config_(std::move(config))
         , CellDirectory_(std::move(cellDirectory))
         , Connection_(std::move(connection))
+        , SourceOfTruthCellIds_(std::move(sourceOfTruthCellIds))
         , Logger(std::move(logger))
         , SyncExecutor_(New<TPeriodicExecutor>(
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
@@ -89,6 +91,7 @@ private:
     const TChaosCellDirectorySynchronizerConfigPtr Config_;
     const ICellDirectoryPtr CellDirectory_;
     const TWeakPtr<IConnection> Connection_;
+    const TCellIdList SourceOfTruthCellIds_;
 
     const NLogging::TLogger Logger;
     const TPeriodicExecutorPtr SyncExecutor_;
@@ -142,7 +145,12 @@ private:
                 THROW_ERROR_EXCEPTION("Unable to synchronize chaos cells in cell directory: connection terminated");
             }
 
-            auto masterChannel = connection->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Follower, PrimaryMasterCellTagSentinel);
+            int cellIndex = SourceOfTruthCellIds_.size() == 1
+                ? 0
+                : RandomNumber(SourceOfTruthCellIds_.size());
+
+            auto cellId = SourceOfTruthCellIds_[cellIndex];
+            auto masterChannel = connection->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Follower, cellId);
             auto proxy = TChaosMasterServiceProxy(std::move(masterChannel));
             auto req = proxy.GetCellDescriptors();
 
@@ -308,12 +316,14 @@ IChaosCellDirectorySynchronizerPtr CreateChaosCellDirectorySynchronizer(
     TChaosCellDirectorySynchronizerConfigPtr config,
     ICellDirectoryPtr cellDirectory,
     IConnectionPtr connection,
+    TCellIdList sourceOfTruthCellIds,
     NLogging::TLogger logger)
 {
     return New<TChaosCellDirectorySynchronizer>(
         std::move(config),
         std::move(cellDirectory),
         std::move(connection),
+        std::move(sourceOfTruthCellIds),
         std::move(logger));
 }
 

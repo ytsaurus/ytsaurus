@@ -33,7 +33,7 @@ private:
         i64 TabletMasterMemoryUsage = 0;
         int TabletErrorCount = 0;
 
-        TString MountPath;
+        NYPath::TYPath MountPath;
 
         TTabletResources ExternalTabletResourceUsage;
 
@@ -138,7 +138,7 @@ private:
 DEFINE_MASTER_OBJECT_TYPE(TTabletOwnerBase)
 
 // Think twice before increasing this.
-YT_STATIC_ASSERT_SIZEOF_SANITY(TTabletOwnerBase, 624);
+YT_STATIC_ASSERT_SIZEOF_SANITY(TTabletOwnerBase, 592);
 
 ////////////////////////////////////////////////////////////////////////////////
 

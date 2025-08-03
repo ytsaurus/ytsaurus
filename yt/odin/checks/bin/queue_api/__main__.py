@@ -3,7 +3,7 @@ from yt_odin_checks.lib.check_runner import main
 from yt.wrapper import YtClient
 from yt.ypath import parse_ypath
 
-from yt.test_helpers import wait
+from yt.common import wait
 
 from logging import Logger
 from datetime import datetime

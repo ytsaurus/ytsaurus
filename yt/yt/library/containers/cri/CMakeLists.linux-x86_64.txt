@@ -20,6 +20,9 @@ add_library(library-containers-cri)
 target_compile_options(library-containers-cri PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_include_directories(library-containers-cri PUBLIC
@@ -33,6 +36,7 @@ target_link_libraries(library-containers-cri PUBLIC
   yt-yt-core
   core-rpc-grpc
   yt-contrib-cri-api
+  yt-library-re2
 )
 
 target_sources(library-containers-cri PRIVATE

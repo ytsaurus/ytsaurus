@@ -99,6 +99,7 @@ class TInputChunkSlice
 public:
     DECLARE_BYVAL_RO_PROPERTY(i64, DataWeight);
     DECLARE_BYVAL_RO_PROPERTY(i64, RowCount);
+    DECLARE_BYVAL_RO_PROPERTY(i64, CompressedDataSize);
 
     DECLARE_BYVAL_RO_PROPERTY(bool, SizeOverridden);
     DECLARE_BYVAL_RO_PROPERTY(int, PartIndex);
@@ -143,14 +144,16 @@ public:
         const TInputChunkSlice& inputSlice,
         i64 lowerRowIndex,
         std::optional<i64> upperRowIndex,
-        i64 dataSize);
+        i64 dataWeight,
+        i64 compressedDataSize);
 
     TInputChunkSlice(
         const TInputChunkPtr& inputChunk,
         int partIndex,
         i64 lowerRowIndex,
         std::optional<i64> upperRowIndex,
-        i64 dataSize);
+        i64 dataWeight,
+        i64 compressedDataSize);
 
     TInputChunkSlice(
         const TInputChunkPtr& inputChunk,
@@ -187,7 +190,7 @@ public:
 
     i64 GetLocality(int replicaIndex) const;
 
-    void OverrideSize(i64 rowCount, i64 dataWeight);
+    void OverrideSize(i64 rowCount, i64 dataWeight, i64 compressedDataSize);
 
     void ApplySamplingSelectivityFactor(double samplingSelectivityFactor);
 
@@ -203,6 +206,10 @@ private:
     bool SizeOverridden_ = false;
     i64 DataWeight_ = 0;
     i64 RowCount_ = 0;
+    i64 CompressedDataSize_ = 0;
+
+    template<class TProtoChunkSpec>
+    void OverrideSize(const TInputChunkPtr& inputChunk, const TProtoChunkSpec& protoChunkSpec);
 
     PHOENIX_DECLARE_TYPE(TInputChunkSlice, 0xe177a42);
 };

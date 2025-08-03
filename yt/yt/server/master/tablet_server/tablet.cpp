@@ -29,6 +29,7 @@ namespace NYT::NTabletServer {
 using namespace NCellMaster;
 using namespace NChunkClient;
 using namespace NChunkServer;
+using namespace NTableClient;
 using namespace NCypressClient;
 using namespace NTableServer;
 using namespace NTabletClient;
@@ -374,6 +375,11 @@ void TTablet::ValidateReshardRemove() const
             "participate in resharding",
             Id_);
     }
+}
+
+TOwningKeyBound TTablet::GetPivotKeyBound() const
+{
+    return TOwningKeyBound::FromRow() >= PivotKey_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

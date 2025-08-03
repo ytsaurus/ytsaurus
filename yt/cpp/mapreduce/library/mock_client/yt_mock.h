@@ -38,11 +38,17 @@ public:
     MOCK_METHOD(IFileReaderPtr, CreateBlobTableReader, (const TYPath&, const TKey&, const TBlobTableReaderOptions&), (override));
     MOCK_METHOD(TTableWriterPtr<::google::protobuf::Message>, CreateTableWriter, (const TRichYPath& path, const ::google::protobuf::Descriptor& descriptor, const TTableWriterOptions& options), (override));
     MOCK_METHOD(TRawTableReaderPtr, CreateRawReader, (const TRichYPath& path, const TFormat& format, const TTableReaderOptions& options), (override));
+    MOCK_METHOD(TRawTableReaderPtr, CreateRawTablePartitionReader, (const TString&, const TFormat&, const TTablePartitionReaderOptions&), (override));
     MOCK_METHOD(TRawTableWriterPtr, CreateRawWriter, (const TRichYPath& path, const TFormat& format, const TTableWriterOptions& options), (override));
     MOCK_METHOD(::TIntrusivePtr<INodeReaderImpl>, CreateNodeReader, (const TRichYPath&, const TTableReaderOptions&), (override));
     MOCK_METHOD(::TIntrusivePtr<IYaMRReaderImpl>, CreateYaMRReader, (const TRichYPath&, const TTableReaderOptions&), (override));
     MOCK_METHOD(::TIntrusivePtr<IProtoReaderImpl>, CreateProtoReader, (const TRichYPath&, const TTableReaderOptions&, const ::google::protobuf::Message*), (override));
     MOCK_METHOD(::TIntrusivePtr<ISkiffRowReaderImpl>, CreateSkiffRowReader, (const TRichYPath&, const TTableReaderOptions&, const ISkiffRowSkipperPtr&, const NSkiff::TSkiffSchemaPtr&), (override));
+
+    MOCK_METHOD(::TIntrusivePtr<INodeReaderImpl>, CreateNodeTablePartitionReader, (const TString&, const TTablePartitionReaderOptions&), (override));
+    MOCK_METHOD(::TIntrusivePtr<IProtoReaderImpl>, CreateProtoTablePartitionReader, (const TString&, const TTablePartitionReaderOptions&, const ::google::protobuf::Message*), (override));
+    MOCK_METHOD(::TIntrusivePtr<ISkiffRowReaderImpl>, CreateSkiffRowTablePartitionReader, (const TString&, const TTablePartitionReaderOptions&, const ISkiffRowSkipperPtr&, const NSkiff::TSkiffSchemaPtr&), (override));
+
     MOCK_METHOD(::TIntrusivePtr<INodeWriterImpl>, CreateNodeWriter, (const TRichYPath&, const TTableWriterOptions&), (override));
     MOCK_METHOD(::TIntrusivePtr<IYaMRWriterImpl>, CreateYaMRWriter, (const TRichYPath&, const TTableWriterOptions&), (override));
     MOCK_METHOD(::TIntrusivePtr<IProtoWriterImpl>, CreateProtoWriter, (const TRichYPath&, const TTableWriterOptions&, const ::google::protobuf::Message*), (override));
@@ -141,12 +147,19 @@ public:
     MOCK_METHOD(IFileWriterPtr, CreateFileWriter, (const TRichYPath&, const TFileWriterOptions&), (override));
     MOCK_METHOD(TTableWriterPtr<::google::protobuf::Message>, CreateTableWriter, (const TRichYPath& path, const ::google::protobuf::Descriptor& descriptor, const TTableWriterOptions& options), (override));
     MOCK_METHOD(TRawTableReaderPtr, CreateRawReader, (const TRichYPath& path, const TFormat& format, const TTableReaderOptions& options), (override));
+    MOCK_METHOD(TRawTableReaderPtr, CreateRawTablePartitionReader, (const TString&, const TFormat&, const TTablePartitionReaderOptions&), (override));
     MOCK_METHOD(TRawTableWriterPtr, CreateRawWriter, (const TRichYPath& path, const TFormat& format, const TTableWriterOptions& options), (override));
     MOCK_METHOD(IFileReaderPtr, CreateBlobTableReader, (const TYPath&, const TKey&, const TBlobTableReaderOptions&), (override));
+
     MOCK_METHOD(::TIntrusivePtr<INodeReaderImpl>, CreateNodeReader, (const TRichYPath&, const TTableReaderOptions&), (override));
     MOCK_METHOD(::TIntrusivePtr<IYaMRReaderImpl>, CreateYaMRReader, (const TRichYPath&, const TTableReaderOptions&), (override));
     MOCK_METHOD(::TIntrusivePtr<IProtoReaderImpl>, CreateProtoReader, (const TRichYPath&, const TTableReaderOptions&, const ::google::protobuf::Message*), (override));
     MOCK_METHOD(::TIntrusivePtr<ISkiffRowReaderImpl>, CreateSkiffRowReader, (const TRichYPath&, const TTableReaderOptions&, const ISkiffRowSkipperPtr&, const NSkiff::TSkiffSchemaPtr&), (override));
+
+    MOCK_METHOD(::TIntrusivePtr<INodeReaderImpl>, CreateNodeTablePartitionReader, (const TString&, const TTablePartitionReaderOptions&), (override));
+    MOCK_METHOD(::TIntrusivePtr<IProtoReaderImpl>, CreateProtoTablePartitionReader, (const TString&, const TTablePartitionReaderOptions&, const ::google::protobuf::Message*), (override));
+    MOCK_METHOD(::TIntrusivePtr<ISkiffRowReaderImpl>, CreateSkiffRowTablePartitionReader, (const TString&, const TTablePartitionReaderOptions&, const ISkiffRowSkipperPtr&, const NSkiff::TSkiffSchemaPtr&), (override));
+
     MOCK_METHOD(::TIntrusivePtr<INodeWriterImpl>, CreateNodeWriter, (const TRichYPath&, const TTableWriterOptions&), (override));
     MOCK_METHOD(::TIntrusivePtr<IYaMRWriterImpl>, CreateYaMRWriter, (const TRichYPath&, const TTableWriterOptions&), (override));
     MOCK_METHOD(::TIntrusivePtr<IProtoWriterImpl>, CreateProtoWriter, (const TRichYPath&, const TTableWriterOptions&, const ::google::protobuf::Message*), (override));

@@ -1391,24 +1391,58 @@ class TestNbdSquashFSLayers(YTEnvSetup):
         set("//tmp/squashfs.img/@filesystem", "squashfs")
 
     @authors("yuryalekseev")
-    def test_squashfs_layer(self):
-        self.setup_files()
+    @pytest.mark.parametrize("use_disk_request", [True, False])
+    @pytest.mark.parametrize("access_method", ["from_user_spec", "from_cypress"])
+    @pytest.mark.parametrize("data_node_address", ["from_user_spec", "from_master"])
+    def test_squashfs_layer(self, use_disk_request, access_method, data_node_address):
+        # Set up image file.
+        create("file", "//tmp/squashfs.img")
+        write_file("//tmp/squashfs.img", open("layers/squashfs.img", "rb").read())
+        set("//tmp/squashfs.img/@filesystem", "squashfs")
+
+        layer_paths = ["//tmp/squashfs.img"]
+        if access_method == "from_cypress":
+            set("//tmp/squashfs.img/@access_method", "nbd")
+        else:
+            layer_paths = ["<access_method=nbd>//tmp/squashfs.img"]
 
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
 
+        spec = {
+            "max_failed_job_count": 1,
+            "mapper": {
+                "layer_paths": layer_paths,
+            },
+        }
+
+        command = "ls $YT_ROOT_FS/dir 1>&2"
+
+        if use_disk_request:
+            # In case of NBD disk save output of ls to disk.
+            command = "ls $YT_ROOT_FS/dir | tee $YT_ROOT_FS/ls_output.txt 1>&2"
+
+            spec["mapper"]["disk_request"] = {
+                "medium_name": "default",
+                "disk_space": 16 * 1024 * 1024,
+            }
+
+            # Use NBD disk.
+            if data_node_address == "from_user_spec":
+                # Take data node address from user spec.
+                spec["mapper"]["disk_request"]["nbd_disk"] = {
+                    "data_node_address": ls("//sys/data_nodes")[0],
+                }
+            else:
+                spec["mapper"]["disk_request"]["nbd_disk"] = {}
+
         op = map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="ls $YT_ROOT_FS/dir 1>&2",
-            spec={
-                "max_failed_job_count": 1,
-                "mapper": {
-                    "layer_paths": ["//tmp/squashfs.img"],
-                },
-            },
+            command=command,
+            spec=spec,
         )
 
         job_ids = op.list_jobs()
@@ -1541,6 +1575,14 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
         }
     }
 
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "max_job_aborts_until_operation_failure": {
+                "nbd_errors": 2,
+            },
+        }
+    }
+
     USE_PORTO = True
 
     def setup_files(self):
@@ -1551,6 +1593,74 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
 
     @authors("yuryalekseev")
     def test_read_timeout(self):
+        self.setup_files()
+
+        # Set read I/O timeout to 1/2 second
+        io_timeout = 500
+
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "nbd": {
+                    "block_cache_compressed_data_capacity": 536870912,
+                    "client": {
+                        "io_timeout": io_timeout,
+                    },
+                    "enabled": True,
+                    "server": {
+                        "unix_domain_socket": {
+                            # The best would be to use os.path.join(self.path_to_run, tempfile.mkstemp(dir="/tmp")[1]),
+                            # but it leads to a path with length greater than the maximum allowed 108 bytes.
+                            # So put it at home directory until PORTO-1242 is done, then put it in /tmp.
+                            "path": tempfile.mkstemp(dir="/root" if os.environ["USER"] == "root" else "/home/" + os.environ["USER"])[1]
+                        },
+                        "test_options": {
+                            # Sleep for a number of timeouts prior to performing block device read
+                            "block_device_sleep_before_read": 3 * io_timeout,
+                        },
+                    },
+                },
+            },
+        })
+
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        # Wait for node to restart
+        wait_for_nodes()
+
+        nodes = ls("//sys/data_nodes")
+        assert len(nodes) == 1
+        node = nodes[0]
+
+        wait(lambda: exists("//sys/scheduler/orchid/scheduler/nodes/{}".format(node)))
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "online")
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "online")
+
+        # Create input table
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
+
+        create("table", "//tmp/t_out")
+
+        with pytest.raises(YtError):
+            map(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                command="ls $YT_ROOT_FS/dir 1>&2",
+                spec={
+                    "max_failed_job_count": 1,
+                    "mapper": {
+                        "layer_paths": ["//tmp/squashfs.img"],
+                    },
+                },
+            )
+
+        # YT-14186: Corrupted user layer should not disable jobs on node.
+        for node in ls("//sys/cluster_nodes"):
+            assert len(get("//sys/cluster_nodes/{}/@alerts".format(node))) == 0
+
+    @authors("yuryalekseev")
+    def test_read_error(self):
         self.setup_files()
 
         update_nodes_dynamic_config({
@@ -1569,8 +1679,10 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
                             # So put it at home directory until PORTO-1242 is done, then put it in /tmp.
                             "path": tempfile.mkstemp(dir="/root" if os.environ["USER"] == "root" else "/home/" + os.environ["USER"])[1]
                         },
-                        # Sleep for 10 seconds prior to performing read I/O
-                        "test_block_device_sleep_before_read": 10000,
+                        "test_options": {
+                            # Set test error on block device read
+                            "set_block_device_error_on_read": True,
+                        },
                     },
                 },
             },
@@ -1599,10 +1711,6 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
                 },
             )
 
-        # YT-14186: Corrupted user layer should not disable jobs on node.
-        for node in ls("//sys/cluster_nodes"):
-            assert len(get("//sys/cluster_nodes/{}/@alerts".format(node))) == 0
-
     @authors("yuryalekseev")
     def test_abort_on_read(self):
         self.setup_files()
@@ -1623,8 +1731,10 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
                             # So put it at home directory until PORTO-1242 is done, then put it in /tmp.
                             "path": tempfile.mkstemp(dir="/root" if os.environ["USER"] == "root" else "/home/" + os.environ["USER"])[1]
                         },
-                        # Abort connection prior to read I/O
-                        "test_abort_connection_on_read": True,
+                        "test_options": {
+                            # Abort connection on block device read
+                            "abort_connection_on_read": True,
+                        },
                     },
                 },
             },
@@ -1930,7 +2040,6 @@ class TestEnableRootVolumeDiskQuota(YTEnvSetup):
                 "mapper": {
                     "layer_paths": ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz", "//tmp/sandbox.img"],
                     # "disk_space_limit": 1024 * 1024,
-                    "make_rootfs_writable": True,
                 },
                 "enable_root_volume_disk_quota": True,
             },
@@ -1954,7 +2063,6 @@ class TestEnableRootVolumeDiskQuota(YTEnvSetup):
                     "file_paths": ["//tmp/mapper.sh"],
                     "copy_files": True,
                     # "disk_space_limit": 1024 * 1024,
-                    "make_rootfs_writable": True,
                 },
                 "enable_root_volume_disk_quota": True,
             },
@@ -1975,7 +2083,6 @@ class TestEnableRootVolumeDiskQuota(YTEnvSetup):
                     "tmpfs_path": "tmpfs",
                     "tmpfs_size": 1024 * 1024,
                     # "disk_space_limit": 1024 * 1024,
-                    "make_rootfs_writable": True,
                 },
                 "enable_root_volume_disk_quota": True,
             },
@@ -1998,7 +2105,6 @@ class TestEnableRootVolumeDiskQuota(YTEnvSetup):
                 "mapper": {
                     "layer_paths": ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz"],
                     # "disk_space_limit": 1024 * 1024,
-                    "make_rootfs_writable": True,
                 },
                 "enable_root_volume_disk_quota": True,
                 "input_query": "a where a > 0"

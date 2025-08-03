@@ -222,6 +222,7 @@ struct TDynamicMulticellManagerConfig
 
     // COMPAT(aleksandra-zh)
     bool RemoveSecondaryCellDefaultRoles;
+    bool AllowMasterCellRoleInvariantCheck;
 
     TDuration SyncHiveClocksPeriod;
 
@@ -283,8 +284,6 @@ struct TCellMasterBootstrapConfig
     NChunkServer::TChunkManagerConfigPtr ChunkManager;
 
     NObjectServer::TObjectServiceConfigPtr ObjectService;
-
-    NCellServer::TCellManagerConfigPtr CellManager;
 
     NTabletServer::TReplicatedTableTrackerConfigPtr ReplicatedTableTracker;
     bool EnableTimestampManager;
@@ -348,13 +347,19 @@ DEFINE_REFCOUNTED_TYPE(TCellMasterProgramConfig)
 struct TDynamicCellMasterConfig
     : public TSingletonsDynamicConfig
 {
+    static constexpr auto DefaultHiveProfilingPeriod = TDuration::Seconds(10);
+
     TDuration MutationTimeCommitPeriod;
 
     TDuration AlertUpdatePeriod;
 
+    TDuration HiveProfilingPeriod;
+
     THashMap<TString, double> AutomatonThreadBucketWeights;
 
     TDuration ExpectedMutationCommitDuration;
+
+    bool CreateLostVitalChunksSampleMap;
 
     TDynamicResponseKeeperConfigPtr ResponseKeeper;
 

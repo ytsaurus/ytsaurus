@@ -25,7 +25,7 @@ using namespace NProto;
 
 using NYT::ToProto;
 
-static constexpr auto& Logger = ChunkServerLogger;
+constinit const auto Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

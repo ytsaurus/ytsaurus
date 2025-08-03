@@ -68,7 +68,7 @@ using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TableServerLogger;
+constinit const auto Logger = TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -122,7 +122,11 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     bool dynamic = combinedAttributes->GetAndRemove<bool>("dynamic", false);
     auto optionalTabletCellBundleName = combinedAttributes->FindAndRemove<std::string>("tablet_cell_bundle");
     bool optimizeForIsExplicit = context.ExplicitAttributes->Contains("optimize_for");
-    auto optimizeFor = combinedAttributes->GetAndRemove<EOptimizeFor>("optimize_for", dynamic ? EOptimizeFor::Scan : EOptimizeFor::Lookup);
+    auto optimizeFor = combinedAttributes->GetAndRemove<EOptimizeFor>(
+        "optimize_for",
+        dynamic
+            ? cypressManagerConfig->DefaultDynamicTableOptimizeFor
+            : cypressManagerConfig->DefaultOptimizeFor);
     auto optionalChunkFormat = combinedAttributes->FindAndRemove<EChunkFormat>("chunk_format");
     auto hunkErasureCodec = combinedAttributes->GetAndRemove<NErasure::ECodec>("hunk_erasure_codec", NErasure::ECodec::None);
     auto replicationFactor = combinedAttributes->GetAndRemove("replication_factor", cypressManagerConfig->DefaultTableReplicationFactor);
@@ -152,7 +156,10 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
             type);
     }
 
-    auto tableSchema = combinedAttributes->FindAndRemove<TTableSchemaPtr>("schema");
+    // TODO(cherepashka): offload from Automaton thread (YT-22284).
+    // TODO(cherepashka): add parsing NProto::TTableSchemaExt from Yson.
+    auto schemaFromAttributes = combinedAttributes->FindAndRemove<TTableSchema>("schema");
+    auto tableSchema = schemaFromAttributes ? New<TCompactTableSchema>(*schemaFromAttributes) : nullptr;
     auto schemaId = combinedAttributes->GetAndRemove<TObjectId>("schema_id", NullObjectId);
     auto schemaMode = combinedAttributes->GetAndRemove<ETableSchemaMode>("schema_mode", ETableSchemaMode::Weak);
 
@@ -608,7 +615,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoMaterializeNode(
 template<class TImpl>
 bool TTableNodeTypeHandlerBase<TImpl>::IsSupportedInheritableAttribute(const std::string& key) const
 {
-    static const THashSet<TString> SupportedInheritableAttributes{
+    static const THashSet<std::string> SupportedInheritableAttributes{
         EInternedAttributeKey::Atomicity.Unintern(),
         EInternedAttributeKey::CommitOrdering.Unintern(),
         EInternedAttributeKey::OptimizeFor.Unintern(),
@@ -627,11 +634,12 @@ bool TTableNodeTypeHandlerBase<TImpl>::IsSupportedInheritableAttribute(const std
 template <class TImpl>
 std::optional<std::vector<std::string>> TTableNodeTypeHandlerBase<TImpl>::DoListColumns(TImpl* node) const
 {
-    const auto& schema = *node->GetSchema()->AsTableSchema();
+    const auto& tableManager = GetBootstrap()->GetTableManager();
+    auto schema = tableManager->GetHeavyTableSchemaSync(node->GetSchema());
 
     std::vector<std::string> result;
-    result.reserve(schema.Columns().size());
-    for (const auto& column : schema.Columns()) {
+    result.reserve(schema->Columns().size());
+    for (const auto& column : schema->Columns()) {
         result.push_back(column.Name());
     }
 

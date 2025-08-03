@@ -16,7 +16,7 @@ TTableSchemaPtr InferInputSchema(const std::vector<TTableSchemaPtr>& schemas, bo
 
     // NB: If one schema is not strict then the resulting schema should be an intersection, not union.
     for (const auto& schema : schemas) {
-        if (!schema->GetStrict()) {
+        if (!schema->IsStrict()) {
             THROW_ERROR_EXCEPTION("Input table schema is not strict");
         }
     }

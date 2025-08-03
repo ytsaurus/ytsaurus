@@ -8,7 +8,6 @@ from yt_commands import (
 
 from yt_type_helpers import make_schema, normalize_schema, list_type
 
-from yt_helpers import skip_if_no_descending
 import yt_error_codes
 
 from yt.common import YtError
@@ -383,9 +382,6 @@ class TestConcatenate(YTEnvSetup):
     @authors("gritukan")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_concatenate_simple(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create(
             "table",
             "//tmp/in1",
@@ -448,9 +444,6 @@ class TestConcatenate(YTEnvSetup):
     @authors("gritukan")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_concatenate_comparator(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create(
             "table",
             "//tmp/in1",
@@ -502,9 +495,6 @@ class TestConcatenate(YTEnvSetup):
     @authors("gritukan")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_concatenate_overlapping_ranges(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         def make_rows(values):
             mul = 1 if sort_order == "ascending" else -1
             return [{"a": value * mul} for value in values]
@@ -627,9 +617,6 @@ class TestConcatenate(YTEnvSetup):
     @authors("gritukan")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_concatenate_append(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         def make_rows(values):
             mul = 1 if sort_order == "ascending" else -1
             return [{"a": value * mul} for value in values]
@@ -698,9 +685,6 @@ class TestConcatenate(YTEnvSetup):
     @authors("gritukan")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_sorted_concatenate_unique_keys_validation(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         def make_rows(values):
             mul = 1 if sort_order == "ascending" else -1
             return [{"a": value * mul} for value in values]
@@ -909,47 +893,12 @@ class TestConcatenateShardedTx(TestConcatenatePortal):
         "15": {"roles": ["transaction_coordinator"]},
     }
 
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            # COMPAT(shakurov): change the default to false and remove
-            # this delta once masters are up to date.
-            "enable_prerequisites_for_starting_completion_transactions": False,
-        }
-    }
-
 
 @pytest.mark.enabled_multidaemon
-class TestConcatenateShardedTxCTxS(TestConcatenateShardedTx):
-    ENABLE_MULTIDAEMON = True
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            }
-        }
-    }
-
-
-@pytest.mark.enabled_multidaemon
-class TestConcatenateMirroredTx(TestConcatenateShardedTxCTxS):
+class TestConcatenateMirroredTx(TestConcatenateShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-    ENABLE_TMP_ROOTSTOCK = False
-    NUM_CYPRESS_PROXIES = 1
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "commit_operation_cypress_node_changes_via_system_transaction": True,
-    }
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "transaction_manager": {
-            "forbid_transaction_actions_for_cypress_transactions": True,
-        }
-    }
 
 
 @pytest.mark.enabled_multidaemon
@@ -958,9 +907,3 @@ class TestConcatenateRpcProxy(TestConcatenate):
     DRIVER_BACKEND = "rpc"
     ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
-
-
-@pytest.mark.enabled_multidaemon
-class TestConcatenateCypressProxy(TestConcatenate):
-    ENABLE_MULTIDAEMON = True
-    NUM_CYPRESS_PROXIES = 1

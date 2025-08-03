@@ -21,6 +21,10 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Coordinator");
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::pair<TConstFrontQueryPtr, TConstQueryPtr> GetDistributedQueryPattern(const TConstQueryPtr& query)
 {
     auto bottomQuery = New<TQuery>();
@@ -134,17 +138,101 @@ TSharedRange<TRowRange> GetPrunedRanges(
         query->Id);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(TSubplanHolders)
+
+struct TSubplanHolders final
+    : public std::vector<TFutureHolder<TQueryStatistics>> // Use TFutureHolder to prevent leaking subqueries.
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TSubplanHolders)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAdaptiveReaderGenerator
+{
+public:
+    TAdaptiveReaderGenerator(
+        std::function<ISchemafulUnversionedReaderPtr()> getNextReader,
+        const TSubplanHoldersPtr& subplanHolders)
+        : GetNextReader_(getNextReader)
+        , SubplanHolders_(subplanHolders)
+    { }
+
+    ISchemafulUnversionedReaderPtr Next()
+    {
+        if (PrefetchWindow_.empty()) {
+            for (i64 i = 0; i < PrefetchWindowSize_; ++i) {
+                if (auto nextReader = GetNextReader_()) {
+                    PrefetchWindow_.push(nextReader);
+                }
+            }
+            PrefetchWindowSize_ *= PrefetchWindowGrowthFactor;
+        }
+
+        if (PrefetchWindow_.empty()) {
+            return nullptr;
+        }
+
+        auto result = PrefetchWindow_.front();
+        PrefetchWindow_.pop();
+        return result;
+    }
+
+private:
+    static constexpr i64 PrefetchWindowGrowthFactor = 2;
+
+    const std::function<ISchemafulUnversionedReaderPtr()> GetNextReader_;
+    const TSubplanHoldersPtr SubplanHolders_;
+
+    std::queue<ISchemafulUnversionedReaderPtr> PrefetchWindow_;
+    i64 PrefetchWindowSize_ = 1;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
+
+ISchemafulUnversionedReaderPtr CreateAdaptiveOrderedSchemafulReader(
+    std::function<ISchemafulUnversionedReaderPtr()> getNextReader,
+    const NDetail::TSubplanHoldersPtr& subplanHolders,
+    i64 /*offset*/,
+    i64 /*limit*/,
+    bool useAdaptiveOrderedSchemafulReader)
+{
+    if (!useAdaptiveOrderedSchemafulReader) {
+        return CreateOrderedSchemafulReader(std::move(getNextReader));
+    }
+
+    YT_LOG_DEBUG("Use adaptive ordered schemaful reader");
+
+    auto generator = NDetail::TAdaptiveReaderGenerator(getNextReader, subplanHolders);
+    auto readerGenerator = [generator = std::move(generator)] () mutable -> ISchemafulUnversionedReaderPtr {
+        return generator.Next();
+    };
+    return CreateUnorderedSchemafulReader(readerGenerator, 1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TQueryStatistics CoordinateAndExecute(
     bool ordered,
     bool prefetch,
     int splitCount,
+    i64 offset,
+    i64 limit,
+    bool useAdaptiveOrderedSchemafulReader,
     TSubQueryEvaluator evaluateSubQuery,
     TTopQueryEvaluator evaluateTopQuery)
 {
     std::vector<ISchemafulUnversionedReaderPtr> splitReaders;
 
-    // Use TFutureHolder to prevent leaking subqueries.
-    std::vector<TFutureHolder<TQueryStatistics>> subqueryHolders;
+    auto subplanHolders = New<NDetail::TSubplanHolders>();
 
     auto responseFeatureFlags = NewPromise<TFeatureFlags>();
 
@@ -157,7 +245,7 @@ TQueryStatistics CoordinateAndExecute(
     auto subqueryReaderCreator = [&] () mutable -> ISchemafulUnversionedReaderPtr {
         auto evaluateResult = evaluateSubQuery();
         if (evaluateResult.Reader) {
-            subqueryHolders.push_back(evaluateResult.Statistics);
+            subplanHolders->push_back(evaluateResult.Statistics);
 
             // One single feature flags response is enough, ignore others.
             responseFeatureFlags.TrySetFrom(evaluateResult.ResponseFeatureFlags);
@@ -165,20 +253,30 @@ TQueryStatistics CoordinateAndExecute(
         return evaluateResult.Reader;
     };
 
+    YT_LOG_DEBUG("Creating reader (Ordered: %v, Prefetch: %v, SplitCount: %v, Offset: %v, Limit: %v, UseAdaptiveOrderedSchemafulReader: %v)",
+        ordered,
+        prefetch,
+        splitCount,
+        offset,
+        limit,
+        useAdaptiveOrderedSchemafulReader);
+
     // TODO: Use separate condition for prefetch after protocol update
     auto topReader = ordered
         ? (prefetch
             ? CreateFullPrefetchingOrderedSchemafulReader(std::move(subqueryReaderCreator))
-            : CreateOrderedSchemafulReader(std::move(subqueryReaderCreator)))
+            : CreateAdaptiveOrderedSchemafulReader(std::move(subqueryReaderCreator), subplanHolders, offset, limit, useAdaptiveOrderedSchemafulReader))
         : CreateUnorderedSchemafulReader(std::move(subqueryReaderCreator), /*concurrency*/ splitCount);
 
     auto queryStatistics = evaluateTopQuery(std::move(topReader), responseFeatureFlags);
 
-    for (int index = 0; index < std::ssize(subqueryHolders); ++index) {
-        auto subqueryStatisticsOrError = WaitForFast(subqueryHolders[index].Get());
+    for (int index = 0; index < std::ssize(*subplanHolders); ++index) {
+        auto subqueryStatisticsOrError = WaitForFast((*subplanHolders)[index].Get());
         if (subqueryStatisticsOrError.IsOK()) {
             auto subqueryStatistics = std::move(subqueryStatisticsOrError).ValueOrThrow();
             queryStatistics.AddInnerStatistics(std::move(subqueryStatistics));
+        } else {
+            queryStatistics.AddInnerStatistics({});
         }
     }
 

@@ -87,7 +87,6 @@ private:
         NNodeTrackerClient::TNodeId nodeId,
         const std::vector<int>& requestedChunkIndexes,
         const NChunkClient::TDataNodeServiceProxy::TErrorOrRspGetTableSamplesPtr& rspOrError);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TSamplesFetcher)

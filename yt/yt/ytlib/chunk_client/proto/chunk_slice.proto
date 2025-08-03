@@ -18,6 +18,7 @@ message TChunkSlice
 
     optional int64 row_count_override = 4;
     optional int64 data_weight_override = 5;
+    optional int64 compressed_data_size_override = 6;
 }
 
 message TSliceRequest
@@ -32,6 +33,9 @@ message TSliceRequest
     // If true, chunks are sliced by key, each slice contains the whole key
     optional bool slice_by_keys = 6;
     optional int32 key_column_count = 7;
+    // After how much data weight the key is considered maniac.
+    // If not set, keys are never considered maniacs.
+    optional int64 min_maniac_data_weight = 8;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

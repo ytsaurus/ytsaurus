@@ -152,6 +152,11 @@ public:
         , FinishGuard_(TraceContext_)
         , RandomGenerator_(RandomNumber<ui64>())
         , SamplingThreshold_(static_cast<ui64>(MaxFloor<ui64>() * Config_->SampleRate))
+        , TruncatedSampleValueBuffer_(New<TRowBuffer>(
+            TDefaultRowBufferPoolTag(),
+            TChunkedMemoryPool::DefaultStartChunkSize,
+            Options_->MemoryUsageTracker,
+            /*allowMemoryOvercommit*/ true))
         , ColumnarStatistics_(TColumnarStatistics::MakeEmpty(ChunkNameTable_->GetSize(), Options_->EnableColumnarValueStatistics, Config_->EnableLargeColumnarStatistics))
     {
         YT_VERIFY(BlockSize_ > 0);
@@ -332,7 +337,7 @@ protected:
     {
         auto& miscExt = EncodingChunkWriter_->MiscExt();
         miscExt.set_sorted(IsSorted());
-        miscExt.set_unique_keys(Schema_->GetUniqueKeys());
+        miscExt.set_unique_keys(Schema_->IsUniqueKeys());
         miscExt.set_row_count(RowCount_);
         miscExt.set_data_weight(DataWeight_);
 
@@ -454,7 +459,7 @@ private:
     TRandomGenerator RandomGenerator_;
     const ui64 SamplingThreshold_;
 
-    TRowBufferPtr TruncatedSampleValueBuffer_ = New<TRowBuffer>();
+    TRowBufferPtr TruncatedSampleValueBuffer_;
     TUnversionedOwningRow Sample_;
     NProto::TSamplesExt SamplesExt_;
     i64 SamplesExtSize_ = 0;
@@ -526,7 +531,8 @@ private:
         auto sampleValues = TruncateUnversionedValues(row.Elements(), TruncatedSampleValueBuffer_, {
             .ClipAfterOverflow = false,
             .UseOriginalDataWeightInSamples = Config_->UseOriginalDataWeightInSamples,
-            .MaxTotalSize = MaxSampleSize});
+            .MaxTotalSize = MaxSampleSize,
+        });
 
         auto entry = SerializeToString(sampleValues.Values);
         SamplesExt_.add_entries(entry);
@@ -686,7 +692,7 @@ public:
                 Options_->MemoryUsageTracker));
         }
 
-        if (!Schema_->GetStrict() || BlockWriters_.empty()) {
+        if (!Schema_->IsStrict() || BlockWriters_.empty()) {
             // When we have empty strict schema, we create schemaless writer (trash writer) to fullfill the invariant
             // that at least one writer should be present.
             auto blockWriter = std::make_unique<TDataBlockWriter>();
@@ -1038,6 +1044,11 @@ public:
         , Schema_(std::move(schema))
         , BoundaryKeysProcessor_(std::move(boundaryKeysProcessor))
         , LastKeyHolder_(std::move(lastKey))
+        , RowBuffer_(New<TRowBuffer>(
+            TSchemalessChunkWriterTag(),
+            TChunkedMemoryPool::DefaultStartChunkSize,
+            Options_->MemoryUsageTracker,
+            /*allowMemoryOvercommit*/ true))
     {
         if (Options_->EvaluateComputedColumns) {
             ColumnEvaluator_ = Client_->GetNativeConnection()->GetColumnEvaluatorCache()->Find(Schema_);
@@ -1118,13 +1129,13 @@ protected:
             ValidateDuplicateIds(row);
 
             int columnCount = Schema_->GetColumnCount();
-            int additionalColumnCount = Schema_->GetStrict()
+            int additionalColumnCount = Schema_->IsStrict()
                 ? (Options_->VersionedWriteOptions.WriteMode == EVersionedIOMode::LatestTimestamp
                        ? Schema_->GetValueColumnCount()
                        : 0)
                 : row.GetCount();
             int maxColumnCount = columnCount + additionalColumnCount;
-            auto mutableRow = TMutableUnversionedRow::Allocate(RowBuffer_->GetPool(), maxColumnCount);
+            auto mutableRow = RowBuffer_->AllocateUnversioned(maxColumnCount);
 
             for (int i = 0; i < columnCount; ++i) {
                 // Id for schema columns in chunk name table always coincide with column index in schema.
@@ -1149,8 +1160,9 @@ protected:
                     mutableRow[id].Id = id;
                 } else {
                     // Validate non-schema columns for
-                    if (Schema_->GetStrict() && id >= maxColumnCount) {
-                        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::SchemaViolation,
+                    if (Schema_->IsStrict() && id >= maxColumnCount) {
+                        THROW_ERROR_EXCEPTION(
+                            EErrorCode::SchemaViolation,
                             "Unknown column %Qv in strict schema",
                             NameTable_->GetName(valueIt->Id));
                     }
@@ -1207,7 +1219,7 @@ private:
 
     bool IsFirstRow_ = true;
 
-    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TSchemalessChunkWriterTag());
+    const TRowBufferPtr RowBuffer_;
 
     TColumnEvaluatorPtr ColumnEvaluator_;
     TSkynetColumnEvaluatorPtr SkynetColumnEvaluator_;
@@ -1825,6 +1837,11 @@ public:
             std::move(throttler),
             std::move(blockCache),
             std::move(boundaryKeysProcessor))
+        , RowBuffer_(New<TRowBuffer>(
+            TTag(),
+            TChunkedMemoryPool::DefaultStartChunkSize,
+            Options_->MemoryUsageTracker,
+            /*allowMemoryOvercommit*/ true))
         , PhysicalSchema_(std::move(physicalSchema))
         , CreateChunkWriter_(std::move(createChunkWriter))
         , ChunkNameTable_(TNameTable::FromSchemaStable(*Schema_))
@@ -1856,7 +1873,7 @@ public:
     }
 
 protected:
-    TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TTag());
+    TRowBufferPtr RowBuffer_;
     TTableSchemaPtr PhysicalSchema_;
 
 private:
@@ -2354,11 +2371,11 @@ void PatchWriterConfigs(
     const NLogging::TLogger& Logger)
 {
     options->ReplicationFactor = attributes.Get<int>("replication_factor");
-    options->MediumName = attributes.Get<TString>("primary_medium");
+    options->MediumName = attributes.Get<std::string>("primary_medium");
     options->CompressionCodec = tableUploadOptions.CompressionCodec;
     options->ErasureCodec = tableUploadOptions.ErasureCodec;
     options->EnableStripedErasure = tableUploadOptions.EnableStripedErasure;
-    options->Account = attributes.Get<TString>("account");
+    options->Account = attributes.Get<std::string>("account");
     options->ChunksVital = attributes.Get<bool>("vital");
     options->EnableSkynetSharing = attributes.Get<bool>("enable_skynet_sharing", false);
 
@@ -2404,7 +2421,7 @@ INodePtr GetTableAttributes(
     static const auto AttributeKeys = [] {
         return ConcatVectors(
             GetTableUploadOptionsAttributeKeys(),
-            std::vector<TString>{
+            std::vector<std::string>{
                 "account",
                 "chunk_writer",
                 "primary_medium",
@@ -2776,10 +2793,10 @@ private:
             Logger,
             /*setUploadTxTimeout*/ true);
 
-        UploadTransaction_ = Client_->AttachTransaction(uploadTransactionId, TTransactionAttachOptions{
-            .AutoAbort = true,
-            .PingPeriod = Client_->GetNativeConnection()->GetConfig()->UploadTransactionPingPeriod,
-        });
+        TTransactionAttachOptions attachOptions = {};
+        attachOptions.AutoAbort = true;
+        attachOptions.PingPeriod = Client_->GetNativeConnection()->GetConfig()->UploadTransactionPingPeriod,
+        UploadTransaction_ = Client_->AttachTransaction(uploadTransactionId, attachOptions);
 
         StartListenTransaction(UploadTransaction_);
 
@@ -2931,7 +2948,6 @@ public:
         , Logger(TableClientLogger().WithTag("Path: %v, TransactionId: %v",
             cookie.PatchInfo.RichPath,
             TransactionId_))
-        , DummySignatureGenerator_(NSignature::CreateDummySignatureGenerator())
     { }
 
     TFuture<void> Open()
@@ -3000,8 +3016,6 @@ private:
     // convert WriteResult_ to the proper type possibly to be signed
     // by rpc proxy later.
     TSignedWriteFragmentResultPtr SignedResult_;
-
-    const NSignature::ISignatureGeneratorPtr DummySignatureGenerator_;
 
     bool FirstRow_ = true;
 
@@ -3129,7 +3143,8 @@ private:
                 << underlyingWriterCloseError;
         }
 
-        SignedResult_ = TSignedWriteFragmentResultPtr(DummySignatureGenerator_->Sign(ConvertToYsonString(WriteResult_).ToString()));
+        const auto& signatureGenerator = Client_->GetNativeConnection()->GetSignatureGenerator();
+        SignedResult_ = TSignedWriteFragmentResultPtr(signatureGenerator->Sign(ConvertToYsonString(WriteResult_).ToString()));
 
         // Log all statistics.
         YT_LOG_DEBUG("Writer data statistics (DataStatistics: %v)", UnderlyingWriter_->GetDataStatistics());

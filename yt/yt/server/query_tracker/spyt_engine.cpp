@@ -46,7 +46,7 @@ class TSpytSettings
     : public TYsonStruct
 {
 public:
-    std::optional<TString> Cluster;
+    std::optional<std::string> Cluster;
 
     std::optional<TYPath> DiscoveryPath;
 
@@ -112,7 +112,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct SpytQueryResult {
+struct TSpytQueryResult
+{
     const bool IsTruncated;
     const TSharedRef WireData;
 };
@@ -136,7 +137,7 @@ public:
         , Config_(config)
         , Cluster_(Settings_->Cluster.value_or(Config_->DefaultCluster))
         , NativeConnection_(clusterDirectory->GetConnectionOrThrow(Cluster_))
-        , QueryClient_(NativeConnection_->CreateNativeClient(TClientOptions{.User = activeQuery.User}))
+        , QueryClient_(NativeConnection_->CreateNativeClient(TClientOptions::FromUser(activeQuery.User)))
         , HttpClient_(CreateClient(Config_->HttpClient, NYT::NBus::TTcpDispatcher::Get()->GetXferPoller()))
         , Headers_(New<NHttp::THeaders>())
         , RefreshTokenExecutor_(New<TPeriodicExecutor>(GetCurrentInvoker(), BIND(&TSpytQueryHandler::RefreshToken, MakeWeak(this)), Config_->RefreshTokenPeriod))
@@ -190,7 +191,7 @@ public:
 private:
     const TSpytSettingsPtr Settings_;
     const TSpytEngineConfigPtr Config_;
-    const TString Cluster_;
+    const std::string Cluster_;
     const NApi::NNative::IConnectionPtr NativeConnection_;
     const NApi::NNative::IClientPtr QueryClient_;
     const NHttp::IClientPtr HttpClient_;
@@ -198,7 +199,7 @@ private:
     const TPeriodicExecutorPtr RefreshTokenExecutor_;
     const bool SessionReuse_;
     ISpytDiscoveryPtr Discovery_;
-    TFuture<SpytQueryResult> AsyncQueryResult_;
+    TFuture<TSpytQueryResult> AsyncQueryResult_;
     TString SessionUrl_;
     TString StatementUrl_;
     std::optional<TString> Token_;
@@ -407,7 +408,7 @@ private:
         return result;
     }
 
-    SpytQueryResult ExtractTableBytes(const TString& queryResult) const
+    TSpytQueryResult ExtractTableBytes(const TString& queryResult) const
     {
         auto encodedChunks = StringSplitter(queryResult).Split('\n').ToList<TString>();
         YT_LOG_DEBUG("Raw result received (LineCount: %v)", encodedChunks.size());
@@ -610,7 +611,7 @@ private:
         YT_UNUSED_FUTURE(RefreshTokenExecutor_->Stop());
     }
 
-    SpytQueryResult Execute()
+    TSpytQueryResult Execute()
     {
         UpdateMasterWebUIUrl();
         SetProgress(0.0, std::nullopt);
@@ -630,7 +631,7 @@ private:
         }
     }
 
-    void OnSpytResponse(const TErrorOr<SpytQueryResult>& queryResultOrError)
+    void OnSpytResponse(const TErrorOr<TSpytQueryResult>& queryResultOrError)
     {
         StopBackgroundExecutors();
         if (queryResultOrError.FindMatching(NYT::EErrorCode::Canceled)) {
@@ -643,7 +644,7 @@ private:
         auto result = queryResultOrError.Value();
         OnQueryCompletedWire({TWireRowset{
             .Rowset = result.WireData,
-            .IsTruncated = result.IsTruncated
+            .IsTruncated = result.IsTruncated,
         }});
     }
 };

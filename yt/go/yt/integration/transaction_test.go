@@ -270,7 +270,7 @@ func (s *Suite) TestExecTx_retries(ctx context.Context, t *testing.T, yc yt.Clie
 
 			t.Run("retry cancellation", func(t *testing.T) {
 				ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
-				ctx, cancel := context.WithTimeout(ctx, time.Second*3)
+				ctx, cancel := context.WithTimeout(ctx, time.Second*4)
 				defer cancel()
 
 				v := 0

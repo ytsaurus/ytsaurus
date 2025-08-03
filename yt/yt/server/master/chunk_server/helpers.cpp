@@ -5,6 +5,7 @@
 #include "chunk_manager.h"
 #include "chunk_view.h"
 #include "chunk_location.h"
+#include "domestic_medium.h"
 #include "dynamic_store.h"
 #include "job.h"
 
@@ -58,7 +59,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ChunkServerLogger;
+constinit const auto Logger = ChunkServerLogger;
 
 static const double ChunkListTombstoneRelativeThreshold = 0.5;
 static const double ChunkListTombstoneAbsoluteThreshold = 16;
@@ -443,7 +444,8 @@ void DetachFromChunkList(
         }
 
         case EChunkDetachPolicy::SortedTablet:
-        case EChunkDetachPolicy::HunkTablet: {
+        case EChunkDetachPolicy::HunkTablet:
+        case EChunkDetachPolicy::OrderedTabletHunk: {
             switch (policy) {
                 case EChunkDetachPolicy::SortedTablet:
                     YT_VERIFY(
@@ -453,6 +455,9 @@ void DetachFromChunkList(
                     break;
                 case EChunkDetachPolicy::HunkTablet:
                     YT_VERIFY(chunkList->GetKind() == EChunkListKind::HunkTablet);
+                    break;
+                case EChunkDetachPolicy::OrderedTabletHunk:
+                    YT_VERIFY(chunkList->GetKind() == EChunkListKind::Hunk);
                     break;
                 default:
                     YT_ABORT();
@@ -799,26 +804,24 @@ TYsonString DoGetMulticellOwningNodes(
     std::vector<std::pair<TCellTag, TFuture<TChunkServiceProxy::TRspGetChunkOwningNodesPtr>>> requestFutures;
     requestFutures.reserve(multicellManager->GetCellCount());
 
-    // Request owning nodes from all cells.
-    auto requestIdsFromCell = [&] (TCellTag cellTag) {
-        auto type = TypeFromId(chunkTreeId);
-        if (!IsPhysicalChunkType(type)) {
-            return;
+    // Request owning nodes from native cell and from cells, where chunk was exported.
+    if (IsPhysicalChunkType(TypeFromId(chunkTreeId))) {
+        auto* chunk = chunkManager->GetChunkOrThrow(chunkTreeId);
+        for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
+            if (!chunk->IsExportedToCell(cellTag) && cellTag != CellTagFromId(chunkTreeId)) {
+                continue;
+            }
+
+            auto channel = multicellManager->GetMasterChannelOrThrow(
+                cellTag,
+                NHydra::EPeerKind::Follower);
+            TChunkServiceProxy proxy(channel);
+
+            auto req = proxy.GetChunkOwningNodes();
+            ToProto(req->mutable_chunk_id(), chunkTreeId);
+
+            requestFutures.emplace_back(cellTag, req->Invoke());
         }
-
-        auto channel = multicellManager->GetMasterChannelOrThrow(
-            cellTag,
-            NHydra::EPeerKind::Follower);
-        TChunkServiceProxy proxy(channel);
-
-        auto req = proxy.GetChunkOwningNodes();
-        ToProto(req->mutable_chunk_id(), chunkTreeId);
-
-        requestFutures.emplace_back(cellTag, req->Invoke());
-    };
-
-    for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
-        requestIdsFromCell(cellTag);
     }
 
     for (const auto& [cellTag, future] : requestFutures) {
@@ -1323,7 +1326,7 @@ TJobPtr MummifyJob(const TJobPtr& job)
 
 TError SanitizeError(TError error)
 {
-    static const std::vector<TString> ForbiddenAttributes = {
+    static const std::vector<std::string> ForbiddenAttributes = {
         "lhs_value",
         "rhs_value",
     };

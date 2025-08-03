@@ -2,15 +2,21 @@ from operator import itemgetter
 from yt_env_setup import YTEnvSetup
 from yt_chaos_test_base import ChaosTestBase
 
-from yt_commands import (freeze_table, get, read_table, set, ls, unfreeze_table, wait, create, remove, sync_mount_table, sync_create_cells, exists,
+from yt_commands import (execute_batch, get, get_batch_output, make_batch_request, multiset_attributes, read_table, set, ls, wait, create, remove, sync_mount_table, sync_create_cells, exists,
                          select_rows, sync_reshard_table, print_debug, get_driver, register_queue_consumer,
                          sync_freeze_table, sync_unfreeze_table, create_table_replica, sync_enable_table_replica,
-                         advance_consumer, insert_rows, wait_for_tablet_state)
+                         advance_consumer, insert_rows, wait_for_tablet_state, abort_transactions)
+
+from yt_helpers import parse_yt_time
 
 from yt.common import YtError, update_inplace, update
 
+import copy
 import builtins
 import time
+
+from abc import ABC, abstractmethod
+from collections import defaultdict
 
 from yt.yson import YsonEntity
 
@@ -20,6 +26,9 @@ import yt.environment.init_queue_agent_state as init_queue_agent_state
 
 ##################################################################
 
+
+# TODO(apachee): Simplify code for get_xxx method by generating them from
+# field names (and maybe post-processing functions).
 
 class OrchidBase:
     ENTITY_NAME = None
@@ -167,12 +176,54 @@ class ObjectOrchid(OrchidWithRegularPasses):
         return get(f"{self.orchid_path()}/row")
 
 
+class QueueExporterOrchid(OrchidBase):
+    def __init__(self, queue_orchid: "QueueOrchid", export_name: str):
+        self.queue_orchid = queue_orchid
+        self.export_name = export_name
+
+    def queue_agent_orchid_path(self):
+        return self.queue_orchid.queue_agent_orchid_path()
+
+    def orchid_path(self):
+        return f"{self.queue_orchid.orchid_path()}/exporters/{self.export_name}"
+
+    def get(self):
+        return get(self.orchid_path())
+
+    def get_export_task_invocation_index(self):
+        return get(f"{self.orchid_path()}/export_task_invocation_index")
+
+    def get_export_task_invocation_instant(self):
+        return parse_yt_time(get(f"{self.orchid_path()}/export_task_invocation_instant"))
+
+    def get_retry_index(self):
+        return get(f"{self.orchid_path()}/retry_index")
+
+    def get_retry_backoff_duration_seconds(self):
+        return get(f"{self.orchid_path()}/retry_backoff_duration") / 1000
+
+    def wait_fresh_invocation(self):
+        invocation_index = self.get_export_task_invocation_index()
+        wait(lambda: self.get_export_task_invocation_index() >= invocation_index + 2, sleep_backoff=0.15)
+
+
 class QueueOrchid(ObjectOrchid):
     OBJECT_TYPE = "queue"
 
     def get_queue(self):
         result = self.get()
         return result["status"], result["partitions"]
+
+    def get_exporter_orchid(self, export_name: str = "default"):
+        return QueueExporterOrchid(self, export_name)
+
+
+class OwnedQueueOrchid(ObjectOrchid):
+    OBJECT_TYPE = "owned_queue"
+
+
+class OwnedConsumerOrchid(ObjectOrchid):
+    OBJECT_TYPE = "owned_consumer"
 
 
 class ConsumerOrchid(ObjectOrchid):
@@ -190,25 +241,71 @@ class ConsumerOrchid(ObjectOrchid):
 class QueueAgentOrchid(OrchidWithRegularPasses):
     ENTITY_NAME = "queue_agent"
 
-    def get_queues(self):
+    def list_queues(self):
+        """
+        List all queues from all instances.
+        """
         self.wait_fresh_pass()
-        return get(self.orchid_path() + "/queues")
+        return ls(self.orchid_path() + "/queues")
 
-    def get_consumers(self):
+    def list_consumers(self):
+        """
+        List all consumers from all instances.
+        """
         self.wait_fresh_pass()
-        return get(self.orchid_path() + "/consumers")
+        return ls(self.orchid_path() + "/consumers")
+
+    def list_instance_queues(self):
+        """
+        List all queues from this instance.
+        """
+        self.wait_fresh_pass()
+        return ls(self.orchid_path() + "/owned_queues")
+
+    def list_instance_consumers(self):
+        """
+        List all consumers from this instance.
+        """
+        self.wait_fresh_pass()
+        return ls(self.orchid_path() + "/owned_consumers")
+
+    def get_instance_queues(self):
+        """
+        Get all queues from this instance.
+        """
+        self.wait_fresh_pass()
+        return get(self.orchid_path() + "/owned_queues")
+
+    def get_instance_consumers(self):
+        """
+        Get all consumers from this instance.
+        """
+        self.wait_fresh_pass()
+        return get(self.orchid_path() + "/owned_consumers")
 
     def get_queue_orchid(self, queue_ref):
         return QueueOrchid(queue_ref, self.agent_id)
 
+    def get_owned_queue_orchid(self, queue_ref):
+        return OwnedQueueOrchid(queue_ref, self.agent_id)
+
     def get_queue_orchids(self):
-        return [self.get_queue_orchid(queue) for queue in self.get_queues()]
+        return [self.get_queue_orchid(queue) for queue in self.list_queues()]
+
+    def get_owned_queue_orchids(self):
+        return [self.get_owned_queue_orchid(queue) for queue in self.list_queues()]
 
     def get_consumer_orchid(self, consumer_ref):
         return ConsumerOrchid(consumer_ref, self.agent_id)
 
+    def get_owned_consumer_orchid(self, consumer_ref):
+        return OwnedConsumerOrchid(consumer_ref, self.agent_id)
+
     def get_consumer_orchids(self):
-        return [self.get_consumer_orchid(consumer) for consumer in self.get_consumers()]
+        return [self.get_consumer_orchid(consumer) for consumer in self.list_consumers()]
+
+    def get_owned_consumer_orchids(self):
+        return [self.get_consumer_orchid(consumer) for consumer in self.list_consumers()]
 
     def get_controller_info(self):
         return get(f"{self.orchid_path()}/controller_info")
@@ -292,27 +389,151 @@ class ReplicatedObjectBase(ChaosTestBase):
 ##################################################################
 
 
-class QueueStaticExportHelpers:
-    @staticmethod
-    def _create_export_destination(export_directory, queue_id, **kwargs):
-        create("map_node", export_directory, recursive=True, ignore_existing=True, **kwargs)
-        set(f"{export_directory}/@queue_static_export_destination", {
-            "originating_queue_id": queue_id,
-        }, **kwargs)
-        assert exists(export_directory, driver=kwargs.pop("driver", None))
+class QueueStaticExportHelpers(ABC):
+    def _initialize_active_export_destinations(self):
+        if not hasattr(self, "ACTIVE_EXPORT_DESTINATIONS"):
+            self.ACTIVE_EXPORT_DESTINATIONS: dict[str, builtins.set[str]] = defaultdict(lambda: builtins.set())
 
-    @staticmethod
-    def remove_export_destination(export_directory, **kwargs):
+    def _contains_active_export_destination(self, export_dir, cluster_name="primary"):
+        return export_dir in self.ACTIVE_EXPORT_DESTINATIONS[cluster_name]
+
+    def _add_active_export_destination(self, export_dir, cluster_name="primary"):
+        assert not self._contains_active_export_destination(export_dir, cluster_name)
+        self.ACTIVE_EXPORT_DESTINATIONS[cluster_name].add(export_dir)
+
+    def _remove_active_export_destination(self, export_dir, cluster_name="primary"):
+        self.ACTIVE_EXPORT_DESTINATIONS[cluster_name].remove(export_dir)
+
+    def _create_export_destination(self, export_dir, queue_id, cluster_name="primary", **kwargs):
+        self._initialize_active_export_destinations()
+
+        assert not self._contains_active_export_destination(export_dir, cluster_name)
+        assert "driver" not in kwargs
+
+        driver = None
+        if cluster_name != "primary":
+            driver = get_driver(cluster=cluster_name)
+
+        create("map_node", export_dir, recursive=True, ignore_existing=True, driver=driver, **kwargs)
+
+        attributes = {
+            "queue_static_export_destination": {
+                "originating_queue_id": queue_id,
+            },
+        }
+        attributes.update(kwargs.pop("attributes", {}))
+
+        multiset_attributes(f"{export_dir}/@", attributes, driver=driver)
+
+        assert exists(export_dir, driver=driver)
+
+        self._add_active_export_destination(export_dir, cluster_name)
+
+    def _create_export_destinations(self, export_dirs, queue_ids, cluster_name="primary", **kwargs):
+        self._initialize_active_export_destinations()
+
+        assert all(not self._contains_active_export_destination(export_dir, cluster_name) for export_dir in export_dirs)
+        assert len(export_dirs) == len(queue_ids)
+        assert "driver" not in kwargs
+
+        driver = None
+        if cluster_name != "primary":
+            driver = get_driver(cluster=cluster_name)
+
+        create_reqs = []
+
+        for export_dir, queue_id in zip(export_dirs, queue_ids):
+            create_reqs.append(make_batch_request("create", type="map_node", path=export_dir, recursive=True, ignore_existing=True, **kwargs))
+
+        create_rsps = execute_batch(create_reqs, driver=driver)
+        for rsp in create_rsps:
+            # Check that no error has occured
+            get_batch_output(rsp)
+
+        kwargs_attributes = kwargs.pop("attributes", {})
+        set_attribute_reqs = []
+
+        for export_dir, queue_id in zip(export_dirs, queue_ids):
+            attributes = {
+                "queue_static_export_destination": {
+                    "originating_queue_id": queue_id,
+                },
+            }
+            attributes.update(kwargs_attributes)
+            set_attribute_reqs.append(make_batch_request("multiset_attributes", path=f"{export_dir}/@", input=attributes))
+
+        set_attribute_rsps = execute_batch(set_attribute_reqs, driver=driver)
+
+        for rsp in set_attribute_rsps:
+            # Check that no error has occured
+            get_batch_output(rsp)
+
+        exists_reqs = []
+        for export_dir in export_dirs:
+            exists_reqs.append(make_batch_request("exists", path=export_dir))
+
+        exists_rsps = execute_batch(exists_reqs, driver=driver)
+        for rsp in exists_rsps:
+            assert get_batch_output(rsp)
+
+        for export_dir in export_dirs:
+            self._add_active_export_destination(export_dir, cluster_name)
+
+    def _abort_transactions_in_subtree(self, path, driver):
+        transactions = builtins.set()
+        traverse_stack = [get(path, attributes=["locks"], driver=driver)]
+        while traverse_stack:
+            node = traverse_stack.pop(-1)
+            for lock in node.attributes["locks"]:
+                if lock["mode"] in ("shared", "exclusive"):
+                    transactions.add(lock["transaction_id"])
+            if isinstance(node, dict):
+                traverse_stack += list(node.values())
+
+        if not transactions:
+            return
+
+        print_debug(f"Aborting transactions in subtree {path}")
+        abort_transactions(transactions, driver=driver, verbose=True)
+
+    def remove_export_destination(self, export_dir, cluster_name="primary", **kwargs):
+        print_debug(f"Removing export destination {export_dir} on cluster {cluster_name}")
+        self._initialize_active_export_destinations()
+
+        assert self._contains_active_export_destination(export_dir, cluster_name)
+        assert "driver" not in kwargs
+
+        driver = None
+        if cluster_name != "primary":
+            driver = get_driver(cluster=cluster_name)
+
         def try_remove():
-            remove(export_directory, **kwargs)
+            self._abort_transactions_in_subtree(export_dir, driver)
+            try:
+                remove(export_dir, force=True, driver=driver, **kwargs)
+            except YtError as ex:
+                print_debug(f"Failed to remove {export_dir}: {ex}; retrying")
+                raise
             return True
 
         wait(try_remove, ignore_exceptions=True)
-        assert not exists(export_directory, driver=kwargs.pop("driver", None))
+        assert not exists(export_dir, driver=driver)
 
-    @staticmethod
-    def remove_export_destinations(export_directories, **kwargs):
-        is_removed_list = [False] * len(export_directories)
+        self._remove_active_export_destination(export_dir, cluster_name)
+
+    def remove_export_destinations(self, export_dirs, timeout=None, cluster_name="primary", **kwargs):
+        self._initialize_active_export_destinations()
+
+        assert all(self._contains_active_export_destination(export_dir, cluster_name) for export_dir in export_dirs)
+        assert "driver" not in kwargs
+
+        driver = None
+        if cluster_name != "primary":
+            driver = get_driver(cluster=cluster_name)
+
+        print_debug(f"removing the following export destinations: {export_dirs}")
+
+        is_removed_list = [False] * len(export_dirs)
 
         def try_remove():
             last_exception = None
@@ -320,30 +541,51 @@ class QueueStaticExportHelpers:
                 if is_removed:
                     continue
                 try:
-                    remove(export_directories[i], **kwargs)
-                    is_removed_list[i] = True
+                    remove(export_dirs[i], force=True, driver=driver, **kwargs)
                 except Exception as ex:
                     last_exception = ex
+                    continue
+                assert not exists(export_dirs[i], driver=driver, **kwargs)
+                is_removed_list[i] = True
+                print_debug(f"removed export destination {export_dirs[i]}")
+                self._remove_active_export_destination(export_dirs[i], cluster_name)
 
             if all(is_removed_list):
                 return True
             raise last_exception
 
-        wait(try_remove, ignore_exceptions=True)
-        assert all(not exists(export_directory, driver=kwargs.pop("driver", None)) for export_directory in export_directories)
+        wait(try_remove, timeout=timeout, ignore_exceptions=True)
+        assert all(is_removed_list)
 
-    @staticmethod
+    def remove_all_active_export_destinations(self, **kwargs):
+        self._initialize_active_export_destinations()
+
+        items = list(self.ACTIVE_EXPORT_DESTINATIONS.items())
+        for cluster_name, export_dirs in items:
+            self.remove_export_destinations(list(export_dirs), cluster_name=cluster_name)
+
+        assert sum([len(i) for i in self.ACTIVE_EXPORT_DESTINATIONS.values()]) == 0
+
+    @classmethod
+    @abstractmethod
+    def _get_default_last_export_unix_ts_field_name(cls) -> str:
+        ...
+
+    @classmethod
     # NB: The last two options should be used carefully: currently they strictly check that all timestamps are within [ts - period, ts], which might not generally be the case.
     def _check_export(
+        cls,
         export_directory,
         expected_data,
         queue_path=None,
         use_upper_bound_for_table_names=False,
         check_lower_bound=False,
-        last_export_unix_ts_field_name="last_export_unix_ts",
+        last_export_unix_ts_field_name=None,
         expected_removed_rows=None,
         **kwargs
     ):
+        last_export_unix_ts_field_name = last_export_unix_ts_field_name or cls._get_default_last_export_unix_ts_field_name()
+
         expected_removed_rows = expected_removed_rows or 0
 
         exported_tables = [name for name in sorted(ls(export_directory, **kwargs)) if f"{export_directory}/{name}" != queue_path]
@@ -426,6 +668,8 @@ class TestQueueAgentBase(YTEnvSetup):
 
     USE_DYNAMIC_TABLES = True
 
+    USE_OLD_QUEUE_EXPORTER_IMPL = False
+
     BASE_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent_sharding_manager": {
             "pass_period": 100,
@@ -435,10 +679,17 @@ class TestQueueAgentBase(YTEnvSetup):
             "controller": {
                 "pass_period": 100,
                 "queue_exporter": {
+                    "implementation": "new",
                     "pass_period": 100,
                     # Fixate greater value for tests in case default decreases in the future.
                     "max_exported_table_count_per_task": 10,
-                }
+                    # Retry backoffs should be enabled explicitly in tests
+                    "retry_backoff": {
+                        "min_backoff": 1,
+                        "max_backoff": 1,
+                        "backoff_jitter": 0.0,
+                    },
+                },
             },
             "queue_export_manager": {
                 "export_rate_limit": 100.0,
@@ -454,6 +705,7 @@ class TestQueueAgentBase(YTEnvSetup):
     INSTANCES = None
 
     DO_PREPARE_TABLES_ON_SETUP = True
+    QUEUE_AGENT_DO_WAIT_FOR_GLOBAL_SYNC_ON_SETUP = False
 
     @classmethod
     def _calculate_diff(cls, obj1, obj2):
@@ -499,7 +751,12 @@ class TestQueueAgentBase(YTEnvSetup):
 
         create("document", cls.config_path, attributes={"value": cls.BASE_QUEUE_AGENT_DYNAMIC_CONFIG})
 
-        cls._apply_dynamic_config_patch(getattr(cls, "DELTA_QUEUE_AGENT_DYNAMIC_CONFIG", dict()))
+        # COMPAT(apachee): Temporary hack to ease compatability with old queue exporter implementation for the time being.
+        delta_queue_agent_dynamic_config = update(
+            getattr(cls, "DELTA_QUEUE_AGENT_DYNAMIC_CONFIG", dict()),
+            cls._get_queue_exporter_implementation_patch("old" if getattr(cls, "USE_OLD_QUEUE_EXPORTER_IMPL") else "new")
+        )
+        cls._apply_dynamic_config_patch(delta_queue_agent_dynamic_config)
 
         cls.INSTANCES = cls._wait_for_instances()
         cls._wait_for_elections()
@@ -515,6 +772,9 @@ class TestQueueAgentBase(YTEnvSetup):
         if self.DO_PREPARE_TABLES_ON_SETUP:
             self._prepare_tables()
 
+        if self.QUEUE_AGENT_DO_WAIT_FOR_GLOBAL_SYNC_ON_SETUP:
+            self._wait_for_global_sync()
+
     def teardown_method(self, method):
         self._drop_tables()
 
@@ -523,7 +783,7 @@ class TestQueueAgentBase(YTEnvSetup):
     @classmethod
     def _apply_dynamic_config_patch(cls, patch):
         config = get(cls.config_path)
-        update_inplace(config, patch)
+        update_inplace(config, copy.deepcopy(patch))
         set(cls.config_path, config, force=True)
 
         instances = ls(cls.root_path + "/instances")
@@ -582,6 +842,27 @@ class TestQueueAgentBase(YTEnvSetup):
 
         return schema, queue_id
 
+    # NB: This method must be kept in sync with _create_queue.
+    @staticmethod
+    def _make_create_queue_batch_request(path, partition_count=1, enable_timestamp_column=True,
+                                         enable_cumulative_data_weight_column=True, mount=True, max_inline_hunk_size=None, **kwargs):
+        assert partition_count == 1, "partition_count other than 1 is not yet implemented"
+        assert mount is False
+
+        schema = [{"name": "data", "type": "string"}]
+        if max_inline_hunk_size is not None:
+            schema[0]["max_inline_hunk_size"] = max_inline_hunk_size
+        if enable_timestamp_column:
+            schema += [{"name": "$timestamp", "type": "uint64"}]
+        if enable_cumulative_data_weight_column:
+            schema += [{"name": "$cumulative_data_weight", "type": "int64"}]
+        attributes = {
+            "dynamic": True,
+            "schema": schema,
+        }
+        attributes.update(kwargs)
+        return make_batch_request("create", type="table", path=path, attributes=attributes)
+
     @staticmethod
     def _create_consumer(path, mount=True, without_meta=False, driver=None, **kwargs):
         if without_meta or not mount:
@@ -627,15 +908,38 @@ class TestQueueAgentBase(YTEnvSetup):
         sync_unfreeze_table(path, first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index)
 
     @staticmethod
-    def _flush_tables(paths):
-        def do_for_all_paths(f):
-            for path in paths:
-                f(path)
+    def _execute_batch_for_all_paths(paths, create_req, process_reqs=None):
+        reqs = []
+        for path in paths:
+            reqs.append(create_req(path))
+        rsps = execute_batch(reqs)
+        if process_reqs is None:
+            return
+        return process_reqs(rsps)
 
-        do_for_all_paths(freeze_table)
-        do_for_all_paths(lambda path: wait_for_tablet_state(path, "frozen"))
-        do_for_all_paths(unfreeze_table)
-        do_for_all_paths(lambda path: wait_for_tablet_state(path, "mounted"))
+    @classmethod
+    def _wait_for_table_list_tablet_state(cls, paths, state):
+        while True:
+            if cls._execute_batch_for_all_paths(paths, lambda path: make_batch_request("get", path=f"{path}/@tablet_state", return_only_value=True),
+                                                process_reqs=lambda rsps: all(get_batch_output(rsp) == state for rsp in rsps)):
+                break
+
+    @classmethod
+    def _mount_tables(cls, paths):
+        cls._execute_batch_for_all_paths(paths, lambda path: make_batch_request("mount_table", path=path))
+        cls._wait_for_table_list_tablet_state(paths, "mounted")
+
+    @classmethod
+    def _unmount_tables(cls, paths):
+        cls._execute_batch_for_all_paths(paths, lambda path: make_batch_request("mount_table", path=path))
+        cls._wait_for_table_list_tablet_state(paths, "unmounted")
+
+    @classmethod
+    def _flush_tables(cls, paths):
+        cls._execute_batch_for_all_paths(paths, lambda path: make_batch_request("freeze_table", path=path))
+        cls._wait_for_table_list_tablet_state(paths, "frozen")
+        cls._execute_batch_for_all_paths(paths, lambda path: make_batch_request("unfreeze_table", path=path))
+        cls._wait_for_table_list_tablet_state(paths, "mounted")
 
     @staticmethod
     def _wait_for_row_count(path, tablet_index, count):
@@ -771,5 +1075,30 @@ class TestQueueAgentBase(YTEnvSetup):
         cls._wait_for_object_passes(instances)
 
         print_debug("Synced all state; elapsed time:", time.time() - start_time)
+
+    @staticmethod
+    def _get_queue_exporter_implementation_patch(queue_exporter_implementation):
+        return {
+            "queue_agent": {
+                "controller": {
+                    "queue_exporter": {
+                        "implementation": queue_exporter_implementation,
+                    },
+                },
+            },
+        }
+
+    @classmethod
+    def _switch_queue_exporter_implementation(cls, queue_exporter_implementation):
+        cls._apply_dynamic_config_patch(cls._get_queue_exporter_implementation_patch(queue_exporter_implementation))
+
+    @classmethod
+    def _is_old_queue_exporter_impl(cls):
+        return getattr(cls, "USE_OLD_QUEUE_EXPORTER_IMPL")
+
+    @classmethod
+    def _get_default_last_export_unix_ts_field_name(cls) -> str:
+        return "last_export_unix_ts" if not getattr(cls, "USE_OLD_QUEUE_EXPORTER_IMPL") else "last_exported_fragment_unix_ts"
+
 
 ##################################################################

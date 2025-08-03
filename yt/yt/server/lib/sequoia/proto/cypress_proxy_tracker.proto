@@ -6,9 +6,19 @@ message TReqHeartbeat
 {
     required string address = 1;
     required uint64 sequoia_reign = 2;
+    // COMPAT(kvk1920): make it required after 25.2.
+    optional string version = 3;
+}
+
+message TSequoiaRelevantLimits
+{
+    required int32 max_copiable_subtree_size = 1;
 }
 
 message TRspHeartbeat
-{ }
+{
+    optional uint64 master_reign = 1;
+    optional TSequoiaRelevantLimits limits = 2;
+}
 
 ////////////////////////////////////////////////////////////////////////////////

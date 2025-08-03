@@ -16,8 +16,7 @@ class TExplicitJobSizeConstraints
 {
 public:
     //! Used only for persistence.
-    TExplicitJobSizeConstraints()
-    { }
+    TExplicitJobSizeConstraints() = default;
 
     TExplicitJobSizeConstraints(
         bool canAdjustDataWeightPerJob,
@@ -25,9 +24,11 @@ public:
         int jobCount,
         i64 dataWeightPerJob,
         i64 primaryDataWeightPerJob,
+        i64 compressedDataSizePerJob,
         i64 maxDataSlicesPerJob,
         i64 maxDataWeightPerJob,
         i64 maxPrimaryDataWeightPerJob,
+        i64 maxCompressedDataSizePerJob,
         i64 inputSliceDataWeight,
         i64 inputSliceRowCount,
         std::optional<i64> batchRowCount,
@@ -44,9 +45,11 @@ public:
         , JobCount_(jobCount)
         , DataWeightPerJob_(dataWeightPerJob)
         , PrimaryDataWeightPerJob_(primaryDataWeightPerJob)
+        , CompressedDataSizePerJob_(compressedDataSizePerJob)
         , MaxDataSlicesPerJob_(maxDataSlicesPerJob)
         , MaxDataWeightPerJob_(maxDataWeightPerJob)
         , MaxPrimaryDataWeightPerJob_(maxPrimaryDataWeightPerJob)
+        , MaxCompressedDataSizePerJob_(maxCompressedDataSizePerJob)
         , InputSliceDataWeight_(inputSliceDataWeight)
         , InputSliceRowCount_(inputSliceRowCount)
         , BatchRowCount_(batchRowCount)
@@ -62,6 +65,9 @@ public:
         MaxDataWeightPerJob_ = std::max<i64>(1, MaxDataWeightPerJob_);
         DataWeightPerJob_ = std::max<i64>(1, DataWeightPerJob_);
         PrimaryDataWeightPerJob_ = std::max<i64>(1, PrimaryDataWeightPerJob_);
+
+        YT_VERIFY(compressedDataSizePerJob > 0);
+        YT_VERIFY(maxCompressedDataSizePerJob > 0);
     }
 
     bool CanAdjustDataWeightPerJob() const override
@@ -89,6 +95,11 @@ public:
         return DataWeightPerJob_;
     }
 
+    i64 GetCompressedDataSizePerJob() const override
+    {
+        return CompressedDataSizePerJob_;
+    }
+
     i64 GetMaxDataSlicesPerJob() const override
     {
         return MaxDataSlicesPerJob_;
@@ -107,6 +118,11 @@ public:
     i64 GetMaxPrimaryDataWeightPerJob() const override
     {
         return MaxPrimaryDataWeightPerJob_;
+    }
+
+    i64 GetMaxCompressedDataSizePerJob() const override
+    {
+        return MaxCompressedDataSizePerJob_;
     }
 
     i64 GetInputSliceDataWeight() const override
@@ -173,9 +189,11 @@ private:
     int JobCount_;
     i64 DataWeightPerJob_;
     i64 PrimaryDataWeightPerJob_;
+    i64 CompressedDataSizePerJob_;
     i64 MaxDataSlicesPerJob_;
     i64 MaxDataWeightPerJob_;
     i64 MaxPrimaryDataWeightPerJob_;
+    i64 MaxCompressedDataSizePerJob_;
     i64 InputSliceDataWeight_;
     i64 InputSliceRowCount_;
     std::optional<i64> BatchRowCount_;
@@ -217,6 +235,18 @@ void TExplicitJobSizeConstraints::RegisterMetadata(auto&& registrar)
             this_->ForceAllowJobInterruption_ = false;
         }));
 
+    PHOENIX_REGISTER_FIELD(19, MaxCompressedDataSizePerJob_,
+        .SinceVersion(ESnapshotVersion::MaxCompressedDataSizePerJob)
+        .WhenMissing([] (TThis* this_, auto& /*context*/) {
+            this_->MaxCompressedDataSizePerJob_ = std::numeric_limits<i64>::max() / 4;
+        }));
+
+    PHOENIX_REGISTER_FIELD(20, CompressedDataSizePerJob_,
+        .SinceVersion(ESnapshotVersion::CompressedDataSizePerJob)
+        .WhenMissing([] (TThis* this_, auto& /*context*/) {
+            this_->CompressedDataSizePerJob_ = std::numeric_limits<i64>::max() / 4;
+        }));
+
     // COMPAT(max42): remove this after YT-10666 (and put YT_VERIFY about job having non-empty
     // input somewhere in controller).
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
@@ -236,11 +266,13 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
     bool canAdjustDataSizePerJob,
     bool isExplicitJobCount,
     int jobCount,
-    i64 dataSizePerJob,
-    i64 primaryDataSizePerJob,
+    i64 dataWeightPerJob,
+    i64 primaryDataWeightPerJob,
+    i64 compressedDataSizePerJob,
     i64 maxDataSlicesPerJob,
     i64 maxDataWeightPerJob,
     i64 maxPrimaryDataWeightPerJob,
+    i64 maxCompressedDataSizePerJob,
     i64 inputSliceDataWeight,
     i64 inputSliceRowCount,
     std::optional<i64> batchRowCount,
@@ -256,11 +288,13 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
         canAdjustDataSizePerJob,
         isExplicitJobCount,
         jobCount,
-        dataSizePerJob,
-        primaryDataSizePerJob,
+        dataWeightPerJob,
+        primaryDataWeightPerJob,
+        compressedDataSizePerJob,
         maxDataSlicesPerJob,
         maxDataWeightPerJob,
         maxPrimaryDataWeightPerJob,
+        maxCompressedDataSizePerJob,
         inputSliceDataWeight,
         inputSliceRowCount,
         batchRowCount,

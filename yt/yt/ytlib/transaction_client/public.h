@@ -22,6 +22,9 @@ class TRspReplicateTransactions;
 class TReqIssueLeases;
 class TRspIssueLeases;
 
+class TReqRegisterLockableDynamicTables;
+class TRspRegisterLockableDynamicTables;
+
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////

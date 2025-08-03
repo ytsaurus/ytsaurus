@@ -18,7 +18,6 @@ enum ETaskStatus {
     TASK_IN_PROGRESS = 2;
     TASK_FAILED = 3;
     TASK_COMPLETED = 4;
-    TASK_ABORTED = 5;
 }
 
 enum ETaskType {
@@ -26,6 +25,7 @@ enum ETaskType {
     TASK_TYPE_DOWNLOAD = 1;
     TASK_TYPE_UPLOAD = 2;
     TASK_TYPE_MERGE = 3;
+    TASK_TYPE_MAP = 4;
 }
 
 enum EFmrComponent {
@@ -35,52 +35,156 @@ enum EFmrComponent {
     COMPONENT_JOB = 3;
 }
 
-message TFmrError {
-    EFmrComponent Component = 1;
-    string ErrorMessage = 2;
-    optional uint32 WorkerId = 3;
-    optional string TaskId = 4;
-    optional string OperationId = 5;
+enum EFmrReason {
+    REASON_UNKNOWN = 0;
+    USER_ERROR = 1;
 }
 
-message TStatistics {}
+message TFmrError {
+    EFmrComponent Component = 1;
+    EFmrReason Reason = 2;
+    string ErrorMessage = 3;
+    optional uint32 WorkerId = 4;
+    optional string TaskId = 5;
+    optional string OperationId = 6;
+    optional string JobId = 7;
+}
 
 message TYtTableRef {
     string Path = 1;
     string Cluster = 2;
+    optional string FilePath = 3;
+}
+
+message TYtTableTaskRef {
+    repeated string RichPath = 1;
+    repeated string FilePath = 2;
+}
+
+message TFmrTableId {
+    string Id = 1;
 }
 
 message TFmrTableRef {
-    string TableId = 1;
+    TFmrTableId FmrTableId = 1;
 }
 
-message TTableRef {
-    oneof TableRef {
+message TTableRange {
+    string PartId = 1;
+    uint64 MinChunk = 2;
+    uint64 MaxChunk = 3;
+}
+
+message TFmrTableInputRef {
+    string TableId = 1;
+    repeated TTableRange TableRanges = 2;
+}
+
+message TFmrTableOutputRef {
+    string TableId = 1;
+    string PartId = 2;
+}
+
+message TTableStats {
+    uint64 Chunks = 1;
+    uint64 Rows = 2;
+    uint64 DataWeight = 3;
+}
+
+message TChunkStats {
+    uint64 Rows = 1;
+    uint64 DataWeight = 2;
+}
+
+message TTableChunkStats {
+    string PartId = 1;
+    repeated TChunkStats PartIdChunkStats = 2;
+}
+
+message TStatisticsObject {
+    TFmrTableOutputRef FmrTableOutputRef = 1;
+    TTableChunkStats TableChunkStats = 2;
+}
+
+message TStatistics {
+    repeated TStatisticsObject OutputTables = 1;
+}
+
+message TOperationTableRef {
+    oneof OperationTableRef {
         TYtTableRef YtTableRef = 1;
         TFmrTableRef FmrTableRef = 2;
     }
 }
 
-message TUploadTaskParams {
+message TTaskTableRef {
+    oneof TaskTableRef {
+        TYtTableTaskRef YtTableTaskRef = 1;
+        TFmrTableInputRef FmrTableInputRef = 2;
+    }
+}
+
+message TTaskTableInputRef {
+    repeated TTaskTableRef Inputs = 1;
+}
+
+message TUploadOperationParams {
     TFmrTableRef Input = 1;
     TYtTableRef Output = 2;
 }
 
-message TDownloadTaskParams {
+message TUploadTaskParams {
+    TFmrTableInputRef Input = 1;
+    TYtTableRef Output = 2;
+}
+
+message TDownloadOperationParams {
     TYtTableRef Input = 1;
     TFmrTableRef Output = 2;
 }
 
-message TMergeTaskParams {
-    repeated TTableRef Input = 1;
+message TDownloadTaskParams {
+    TYtTableTaskRef Input = 1;
+    TFmrTableOutputRef Output = 2;
+}
+
+message TMergeOperationParams {
+    repeated TOperationTableRef Input = 1;
     TFmrTableRef Output = 2;
 }
 
+message TMergeTaskParams {
+    TTaskTableInputRef Input = 1;
+    TFmrTableOutputRef Output = 2;
+}
+
+message TMapOperationParams {
+    repeated TOperationTableRef Input = 1;
+    repeated TFmrTableRef Output = 2;
+    string Executable = 3;
+}
+
+message TMapTaskParams {
+    TTaskTableInputRef Input = 1;
+    repeated TFmrTableOutputRef Output = 2;
+    string Executable = 3;
+}
+
+message TOperationParams {
+    oneof TOperationParams {
+        TUploadOperationParams UploadOperationParams = 1;
+        TDownloadOperationParams DownloadOperationParams = 2;
+        TMergeOperationParams MergeOperationParams = 3;
+        TMapOperationParams MapOperationParams = 4;
+    }
+}
+
 message TTaskParams {
-    oneof TaskParams {
+    oneof TTaskParams {
         TUploadTaskParams UploadTaskParams = 1;
         TDownloadTaskParams DownloadTaskParams = 2;
         TMergeTaskParams MergeTaskParams = 3;
+        TMapTaskParams MapTaskParams = 4;
     }
 }
 
@@ -96,12 +200,13 @@ message TTask {
     TTaskParams TaskParams = 3;
     string SessionId = 4;
     optional uint32 NumRetries = 5;
-    TClusterConnection ClusterConnection = 6;
+    map<string, TClusterConnection> ClusterConnections = 6;
+    optional string JobSettings = 7;
 }
 
 message TTaskState {
     ETaskStatus TaskStatus = 1;
     string TaskId = 2;
     optional TFmrError TaskErrorMessage = 3;
+    TStatistics Stats = 4;
 }
-

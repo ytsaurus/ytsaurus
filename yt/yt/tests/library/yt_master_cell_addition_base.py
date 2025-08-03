@@ -6,6 +6,7 @@ from yt_env_setup import (
     NODES_SERVICE,
     MASTERS_SERVICE,
     CHAOS_NODES_SERVICE,
+    CYPRESS_PROXIES_SERVICE,
 )
 
 from yt_commands import (
@@ -34,6 +35,7 @@ class MasterCellAdditionBase(YTEnvSetup):
     DEFER_SCHEDULER_START = True
     DEFER_CONTROLLER_AGENT_START = True
     DEFER_CHAOS_NODE_START = True
+    # NB: It is impossible to defer start cypress proxies, since some setup handlers rely on their availability.
 
     PRIMARY_CLUSTER_INDEX = 0
 
@@ -51,7 +53,13 @@ class MasterCellAdditionBase(YTEnvSetup):
 
             assert secondary_master_cells_to_start >= 0
 
+            # Cypress proxies must be available to execute sync requests, so they should be started before masters.
+            env.kill_cypress_proxies()
+            if cls.get_param("NUM_CYPRESS_PROXIES", cluster_index) != 0:
+                env.start_cypress_proxies()
+
             # NB: The last secondary master cell on primary cluster is not started here.
+            # It is important to start cells synchroniously, so the last registered one - is the one we will add/remove.
             for cell_index in range(secondary_master_cells_to_start):
                 env.start_master_cell(cell_index + 1)
 
@@ -85,6 +93,13 @@ class MasterCellAdditionBase(YTEnvSetup):
 
     @classmethod
     def modify_controller_agent_config(cls, config, cluster_index):
+        cls._collect_cell_ids_and_maybe_stash_last_cell(
+            config["cluster_connection"],
+            cluster_index,
+            cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cluster_index))
+
+    @classmethod
+    def modify_cypress_proxy_config(cls, config, cluster_index):
         cls._collect_cell_ids_and_maybe_stash_last_cell(
             config["cluster_connection"],
             cluster_index,
@@ -143,26 +158,56 @@ class MasterCellAdditionBase(YTEnvSetup):
         assert len(cls.PATCHED_CONFIGS) == len(cls.STASHED_CELL_CONFIGS)
 
     @classmethod
-    def _disable_last_cell(cls):
-        print_debug("Disabling last master cell")
-
-        optional_services = [
+    def _get_optional_services(cls):
+        return [
             SCHEDULERS_SERVICE if cls.NUM_SCHEDULERS != 0 else None,
             CONTROLLER_AGENTS_SERVICE if cls.NUM_CONTROLLER_AGENTS != 0 else None,
             NODES_SERVICE if cls.NUM_NODES != 0 else None,
             CHAOS_NODES_SERVICE if cls.NUM_CHAOS_NODES != 0 else None,
         ]
+
+    @classmethod
+    def _rewrite_optional_services_configs(cls):
+        cls.Env.rewrite_node_configs()
+        cls.Env.rewrite_chaos_node_configs()
+        cls.Env.rewrite_scheduler_configs()
+        cls.Env.rewrite_controller_agent_configs()
+        cls.Env.rewrite_cypress_proxies_configs()
+
+    @classmethod
+    def _abort_world_initializer_transactions(cls):
+        for tx in ls("//sys/transactions", attributes=["title"]):
+            title = tx.attributes.get("title", "")
+            if "World initialization" in title:
+                abort_transaction(str(tx))
+
+    @classmethod
+    def _build_readonly_snapshot(cls):
+        for cell_id in cls.CELL_IDS:
+            build_snapshot(cell_id=cell_id, set_read_only=True)
+
+    @classmethod
+    def _kill_drivers(cls):
+        drivers = ["driver"]
+        cls.Env.kill_service("driver")
+        for i in range(cls.Env.yt_config.secondary_cell_count):
+            cls.Env.kill_service(f"driver_secondary_{i}")
+            drivers.append(f"driver_secondary_{i}")
+        return drivers
+
+    @classmethod
+    def _disable_last_cell(cls):
+        print_debug("Disabling last master cell")
+
+        optional_services = cls._get_optional_services()
         services = [service for service in optional_services if service is not None]
+        services_to_patch = services + [CYPRESS_PROXIES_SERVICE]
 
-        with Restarter(cls.Env, services):
-            drivers = ["driver"]
-            cls.Env.kill_service("driver")
-            for i in range(cls.Env.yt_config.secondary_cell_count):
-                cls.Env.kill_service(f"driver_secondary_{i}")
-                drivers.append(f"driver_secondary_{i}")
+        with Restarter(cls.Env, services, sync=False):
+            cls.Env.kill_cypress_proxies()
+            drivers = cls._kill_drivers()
 
-            for cell_id in cls.CELL_IDS:
-                build_snapshot(cell_id=cell_id, set_read_only=True)
+            cls._build_readonly_snapshot()
             cls.Env.kill_all_masters()
 
             # Patch static configs for all components.
@@ -171,9 +216,12 @@ class MasterCellAdditionBase(YTEnvSetup):
                 for peer_index, _ in enumerate(configs["master"][tag]):
                     cls.proceed_master_config(configs["master"][tag][peer_index], cls.PRIMARY_CLUSTER_INDEX, remove_last_master=True)
                     configs["master"][tag][peer_index]["hive_manager"]["allowed_for_removal_master_cell_tags"] = [13]
-            for service in services:
+            for service in services_to_patch:
                 # Config keys are services in the singular, drop plural.
                 service_name_singular = service[:-1]
+                if service == CYPRESS_PROXIES_SERVICE:
+                    # This one is an exception.
+                    service_name_singular = "cypress_proxy"
                 for _, config in enumerate(configs[service_name_singular]):
                     cls._collect_cell_ids_and_maybe_stash_last_cell(config["cluster_connection"], cls.PRIMARY_CLUSTER_INDEX, remove_last_master=True)
                     if service == NODES_SERVICE:
@@ -186,26 +234,20 @@ class MasterCellAdditionBase(YTEnvSetup):
 
             init_drivers([cls.Env])
             cls.Env.rewrite_master_configs()
-            cls.Env.rewrite_node_configs()
-            cls.Env.rewrite_chaos_node_configs()
-            cls.Env.rewrite_scheduler_configs()
-            cls.Env.rewrite_controller_agent_configs()
+            cls._rewrite_optional_services_configs()
 
-            cls.Env.start_master_cell(cell_index=0, set_config=False)
+            cls.Env.start_cypress_proxies()
+            cls.Env.start_master_cell(cell_index=0, set_config=False, sync=False)
             secondary_masters_to_start = cls.get_param("NUM_SECONDARY_MASTER_CELLS", cls.PRIMARY_CLUSTER_INDEX) - 1
             for cell_index in range(secondary_masters_to_start):
-                cls.Env.start_master_cell(cell_index=cell_index + 1, set_config=False)
-            wait_drivers()
+                cls.Env.start_master_cell(cell_index=cell_index + 1, set_config=False, sync=False)
             master_exit_read_only()
             # Cell 13 was dropped.
             wait_no_peers_in_read_only(secondary_cell_tags=["11", "12"])
-            cls.Env.synchronize()
+            wait_drivers()
 
-            for tx in ls("//sys/transactions", attributes=["title"]):
-                title = tx.attributes.get("title", "")
-                id = str(tx)
-                if "World initialization" in title:
-                    abort_transaction(id)
+        cls.Env.synchronize()
+        cls._abort_world_initializer_transactions()
 
         def _move_files(directory):
             files = os.listdir(directory)
@@ -227,22 +269,14 @@ class MasterCellAdditionBase(YTEnvSetup):
 
         assert len(cls.PATCHED_CONFIGS) == len(cls.STASHED_CELL_CONFIGS)
 
-        optional_services = [
-            SCHEDULERS_SERVICE if cls.NUM_SCHEDULERS != 0 else None,
-            CONTROLLER_AGENTS_SERVICE if cls.NUM_CONTROLLER_AGENTS != 0 else None,
-            NODES_SERVICE if cls.NUM_NODES != 0 else None,
-            CHAOS_NODES_SERVICE if cls.NUM_CHAOS_NODES != 0 else None,
-        ]
+        optional_services = cls._get_optional_services()
         services = [service for service in optional_services if downtime and service is not None]
 
-        with Restarter(cls.Env, services):
-            for cell_id in cls.CELL_IDS:
-                build_snapshot(cell_id=cell_id, set_read_only=True)
-
+        with Restarter(cls.Env, services, sync=False):
             # Restart drivers to apply new master cells configuration.
-            cls.Env.kill_service("driver")
-            for i in range(cls.Env.yt_config.secondary_cell_count):
-                cls.Env.kill_service(f"driver_secondary_{i}")
+            cls._kill_drivers()
+
+            cls._build_readonly_snapshot()
 
             with Restarter(cls.Env, MASTERS_SERVICE, sync=False):
                 for i in range(len(cls.PATCHED_CONFIGS)):
@@ -251,21 +285,13 @@ class MasterCellAdditionBase(YTEnvSetup):
 
                 cls.Env.rewrite_master_configs()
             wait_drivers()
+            if downtime:
+                cls._rewrite_optional_services_configs()
 
             master_exit_read_only_sync()
-            cls.Env.synchronize()
+        cls.Env.synchronize()
 
-            if downtime:
-                cls.Env.rewrite_node_configs()
-                cls.Env.rewrite_chaos_node_configs()
-                cls.Env.rewrite_scheduler_configs()
-                cls.Env.rewrite_controller_agent_configs()
-
-        for tx in ls("//sys/transactions", attributes=["title"]):
-            title = tx.attributes.get("title", "")
-            id = str(tx)
-            if "World initialization" in title:
-                abort_transaction(id)
+        cls._abort_world_initializer_transactions()
 
         cls.PATCHED_CONFIGS = []
         cls.STASHED_CELL_CONFIGS = []
@@ -274,6 +300,8 @@ class MasterCellAdditionBase(YTEnvSetup):
         return callback(get_driver(cell_index))
 
     def run_checkers_iteration(self, checker_state_list, final_iteration=False):
+        print_debug("Run {}checkers iteration".format("final " if final_iteration else ""))
+
         for s in checker_state_list:
             if final_iteration:
                 with pytest.raises(StopIteration):

@@ -1,5 +1,5 @@
 RECURSE(
-    arrow_parquet_adapter
+    arrow_adapter
     auth
     auth_server
     backtrace_introspector
@@ -14,6 +14,7 @@ RECURSE(
     dns_over_rpc
     dynamic_config
     fusion
+    gpu
     undumpable
     erasure
     error_skeleton
@@ -27,6 +28,7 @@ RECURSE(
     profiling
     program
     server_program
+    signals
     stockpile
     quantile_digest
     query

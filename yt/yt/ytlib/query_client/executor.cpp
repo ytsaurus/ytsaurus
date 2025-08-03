@@ -77,8 +77,8 @@ namespace {
 
 bool ValidateSchema(const TTableSchema& original, const TTableSchema& query)
 {
-    if (original.GetStrict() != query.GetStrict() ||
-        original.GetUniqueKeys() != query.GetUniqueKeys() ||
+    if (original.IsStrict() != query.IsStrict() ||
+        original.IsUniqueKeys() != query.IsUniqueKeys() ||
         original.GetSchemaModification() != query.GetSchemaModification() ||
         original.DeletedColumns() != query.DeletedColumns())
     {
@@ -556,8 +556,6 @@ private:
             VerifyIdsInKeys(dataSource.first.Keys);
         }
 
-        bool sortedDataSource = tableInfo->IsSorted();
-
         std::vector<std::pair<std::vector<TDataSource>, TString>> groupedDataSplits;
 
         if (coordinatedQuery->IsOrdered(options.AllowUnorderedGroupByWithLimit)) {
@@ -617,7 +615,6 @@ private:
             options,
             requestFeatureFlags,
             writer,
-            sortedDataSource,
             std::move(groupedDataSplits));
     }
 
@@ -662,7 +659,7 @@ private:
             query,
             reader,
             writer,
-            nullptr,
+            /*joinProfilers*/ {},
             functionGenerators,
             aggregateGenerators,
             MemoryChunkProvider_,
@@ -677,7 +674,6 @@ private:
         const TQueryOptions& options,
         const TFeatureFlags& requestFeatureFlags,
         const IUnversionedRowsetWriterPtr& writer,
-        bool sortedDataSource,
         std::vector<std::pair<std::vector<TDataSource>, TString>> groupedDataSplits)
     {
         auto Logger = MakeQueryLogger(query);
@@ -707,6 +703,9 @@ private:
             query->IsOrdered(options.AllowUnorderedGroupByWithLimit),
             query->IsPrefetching(),
             splitCount,
+            query->Offset,
+            query->Limit,
+            options.AdaptiveOrderedSchemafulReader,
             [
                 &,
                 bottomQueryPattern = bottomQueryPattern,
@@ -734,7 +733,6 @@ private:
                     options,
                     requestFeatureFlags,
                     std::move(dataSources),
-                    sortedDataSource,
                     address);
             },
             [&, frontQuery = frontQuery] (
@@ -746,7 +744,7 @@ private:
                     std::move(frontQuery),
                     std::move(reader),
                     writer,
-                    nullptr,
+                    /*joinProfilers*/ {},
                     functionGenerators,
                     aggregateGenerators,
                     MemoryChunkProvider_,
@@ -762,7 +760,6 @@ private:
         const TQueryOptions& options,
         const TFeatureFlags& requestFeatureFlags,
         std::vector<TDataSource> dataSources,
-        bool sortedDataSource,
         const std::string& address)
     {
         auto Logger = MakeQueryLogger(query);
@@ -802,24 +799,7 @@ private:
                 schema.push_back(query->Schema.Original->Columns()[index].LogicalType());
             }
 
-            auto lookupSupported = sortedDataSource;
-            size_t minKeyWidth = std::numeric_limits<size_t>::max();
-            for (const auto& split : dataSources) {
-                for (const auto& range : split.Ranges) {
-                    minKeyWidth = std::min({
-                        minKeyWidth,
-                        GetSignificantWidth(range.first),
-                        GetSignificantWidth(range.second)});
-                }
-
-                for (const auto& key : split.Keys) {
-                    minKeyWidth = std::min(
-                        minKeyWidth,
-                        static_cast<size_t>(key.GetCount()));
-                }
-            }
-
-            ToProto(req->mutable_data_sources(), dataSources, schema, lookupSupported, minKeyWidth);
+            ToProto(req->mutable_data_sources(), dataSources, schema);
             req->set_response_codec(ToProto(config->SelectRowsResponseCodec));
         }
 

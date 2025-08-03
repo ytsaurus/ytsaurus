@@ -4,9 +4,9 @@ from yt_commands import (
     authors, wait, create, ls, get, set, exists,
     start_transaction, commit_transaction,
     write_file, read_table, write_table,
-    map, vanilla, update_nodes_dynamic_config,
+    map, vanilla, update_nodes_dynamic_config, update_controller_agent_config,
     sync_create_cells, get_job, create_pool,
-    run_test_vanilla, list_jobs,
+    run_test_vanilla, list_jobs, create_network_project,
     with_breakpoint, wait_breakpoint, release_breakpoint,
     print_debug, raises_yt_error)
 
@@ -17,6 +17,7 @@ import yt_error_codes
 import yt.environment.init_operations_archive as init_operations_archive
 
 from yt.yson import get_bytes
+from yt.common import update
 
 import pytest
 
@@ -972,7 +973,7 @@ class TestRootFS(YTEnvSetup):
 
 
 class GpuCheckBase(object):
-    def setup_gpu_layer_and_reset_nodes(self):
+    def setup_gpu_layer_and_reset_nodes(self, prepare_gpu_base_layer=False):
         create("map_node", "//tmp/gpu_check")
 
         create("file", "//tmp/gpu_check/0", attributes={"replication_factor": 1})
@@ -991,6 +992,24 @@ class GpuCheckBase(object):
             file_writer={"upload_replication_factor": 1},
         )
 
+        if prepare_gpu_base_layer:
+            # Using same layer for root volume and GPU check volume could causes job aborts.
+            #
+            # Explanation: using same layer for these two volume could cause job abort with error
+            # 'Cannot find a suitable location for artifact chunk' while GPU check volume preparation.
+            # The root cause of this abort is following: exec node cannot download chunk in cache if the chunk is in removing state in cache.
+            # And we face this situation in case when the node tries to download chunk the second time for prepare the same layer second time.
+            #
+            # Note that layer cache can help to avoid this problem, but it is disabled because of another issue, see detailed in
+            # `yt/python/yt/environment/default_config.py`.
+            create("file", "//tmp/gpu_base_layer", attributes={"replication_factor": 1})
+            file_name = "rootfs/rootfs.tar.gz"
+            write_file(
+                "//tmp/gpu_base_layer",
+                open(file_name, "rb").read(),
+                file_writer={"upload_replication_factor": 1},
+            )
+
         # Reload node to reset alerts.
         with Restarter(self.Env, NODES_SERVICE):
             pass
@@ -1007,6 +1026,24 @@ class GpuCheckBase(object):
             "table",
             "//tmp/t_out",
             attributes={"replication_factor": 1},
+        )
+
+    def setup_gpu_check_options_for_separate_volume(self):
+        update_controller_agent_config(
+            "operation_options/gpu_check",
+            {
+                "use_separate_root_volume": True,
+                "layer_paths": ["//tmp/gpu_check/0", "//tmp/gpu_base_layer"],
+                "binary_path": "/gpu_check/gpu_check_success",
+                "binary_args": [],
+            }
+        )
+
+    def init_operations_archive(self):
+        sync_create_cells(1)
+        init_operations_archive.create_tables_latest_version(
+            self.Env.create_native_client(),
+            override_tablet_cell_bundle="default",
         )
 
 
@@ -1042,6 +1079,9 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
+                    "porto_executor": {
+                        "enable_network_isolation": False,
+                    },
                 },
             },
         },
@@ -1073,11 +1113,17 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         }
     }
 
+    @classmethod
+    def modify_node_config(cls, config, cluster_index):
+        config["cypress_annotations"]["infiniband_cluster_tag"] = "IBC"
+
     @pytest.mark.timeout(180)
     def test_gpu_check_success(self):
         self.setup_gpu_layer_and_reset_nodes()
 
         self.setup_tables()
+
+        update_controller_agent_config("operation_options/gpu_check/use_separate_root_volume", False)
 
         write_table("//tmp/t_in", [{"k": 0}])
         op = map(
@@ -1088,6 +1134,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
                 "max_failed_job_count": 1,
                 "mapper": {
                     "job_count": 1,
+                    "gpu_limit": 1,
                     "layer_paths": ["//tmp/base_layer"],
                     "enable_gpu_layers": True,
                     "gpu_check_layer_name": "0",
@@ -1104,16 +1151,238 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         assert res == b"AAA\n"
 
     @pytest.mark.timeout(180)
+    def test_gpu_check_with_separate_volume(self):
+        self.setup_gpu_layer_and_reset_nodes(prepare_gpu_base_layer=True)
+        self.setup_tables()
+        self.init_operations_archive()
+
+        update_controller_agent_config(
+            "map_operation_options/gpu_check",
+            {
+                "use_separate_root_volume": True,
+                "layer_paths": ["//tmp/gpu_check/0", "//tmp/gpu_base_layer"],
+                "binary_path": "/bin/bash",
+                "binary_args": ["-c", "set -u; echo $YT_GPU_CHECK_TYPE >&2"],
+            }
+        )
+
+        write_table("//tmp/t_in", [{"k": 0}])
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command='echo "$YT_OPERATION_ID $YT_JOB_ID" >&2',
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "job_count": 1,
+                    "gpu_limit": 1,
+                    "layer_paths": ["//tmp/base_layer"],
+                    "enable_gpu_layers": True,
+                    "enable_gpu_check": True,
+                },
+            },
+        )
+
+        job_ids = op.list_jobs()
+        # XXX: some job can be aborted with error "Cannot find a suitable location for artifact chunk"
+        # Looks like a problem with putting chunks in cache
+        assert len(job_ids) == 1
+        job_id = job_ids[0]
+
+        res = op.read_stderr(job_id)
+        assert res == "{} {}\n".format(op.id, job_id).encode("ascii")
+
+        events = get_job(op.id, job_id)["events"]
+        phases = [event["phase"] for event in events if "phase" in event]
+        assert "running_gpu_check_command" in phases
+
+    @pytest.mark.timeout(180)
+    def test_gpu_check_vanilla_with_separate_volume(self):
+        self.setup_gpu_layer_and_reset_nodes(prepare_gpu_base_layer=True)
+        self.setup_gpu_check_options_for_separate_volume()
+        self.init_operations_archive()
+
+        task_spec = {
+            "command": 'echo "$YT_OPERATION_ID $YT_JOB_ID $YT_TASK_NAME $YT_JOB_COUNT $YT_TASK_JOB_COUNT" >&2',
+            "layer_paths": ["//tmp/base_layer"],
+            "enable_gpu_layers": True,
+            "enable_gpu_check": True,
+            "gang_options": {},
+            "gpu_limit": 1,
+        }
+
+        op = vanilla(
+            track=True,
+            spec={
+                "tasks": {
+                    "master": update(task_spec, {"job_count": 1}),
+                    "slave": update(task_spec, {"job_count": 2}),
+                },
+            },
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 3
+
+        for job_id in job_ids:
+            events = get_job(op.id, job_id)["events"]
+            phases = [event["phase"] for event in events if "phase" in event]
+            assert "running_gpu_check_command" in phases
+
+            stderr = op.read_stderr(job_id).decode("ascii")
+            parsed_operation_id, parsed_job_id, parsed_task_name, parsed_job_count, parsed_task_job_count = stderr.split()
+            assert parsed_operation_id == op.id
+            assert parsed_job_id == job_id
+            assert int(parsed_job_count) == 3
+            assert parsed_task_name in ("master", "slave")
+            if parsed_task_name == "master":
+                assert int(parsed_task_job_count) == 1
+            if parsed_task_name == "slave":
+                assert int(parsed_task_job_count) == 2
+
+    @pytest.mark.timeout(180)
+    def test_gpu_check_with_network_project_with_separate_volume(self):
+        self.setup_gpu_layer_and_reset_nodes(prepare_gpu_base_layer=True)
+        self.init_operations_archive()
+
+        project_id = 0xDEADBEEF
+
+        create_network_project("n")
+        set("//sys/network_projects/n/@project_id", project_id)
+
+        update_controller_agent_config(
+            "vanilla_operation_options/gpu_check",
+            {
+                "use_separate_root_volume": True,
+                "layer_paths": ["//tmp/gpu_check/0", "//tmp/gpu_base_layer"],
+                "binary_path": "/bin/bash",
+                "binary_args": ["-c", "set -u; echo $YT_NETWORK_PROJECT_ID >&2; hostname >&2"],
+                "network_project": "n",
+            }
+        )
+
+        op = run_test_vanilla(
+            "sleep 1",
+            task_patch={
+                "gpu_limit": 1,
+                "layer_paths": ["//tmp/base_layer"],
+                "enable_gpu_layers": True,
+                "enable_gpu_check": True,
+            },
+            track=True,
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+
+        job_id = job_ids[0]
+
+        events = get_job(op.id, job_id)["events"]
+        phases = [event["phase"] for event in events if "phase" in event]
+        assert "running_gpu_check_command" in phases
+
+        # TODO(ignat): check GPU check stderr.
+        # stderr = op.read_stderr(job_id).decode("ascii")
+        # network_project_id, hostname = stderr.strip().split()
+
+        # assert network_project_id == str(project_id)
+        # assert hostname.startswith("slot-")
+
+    @pytest.mark.timeout(180)
+    def test_gpu_check_setup_commands(self):
+        self.setup_gpu_layer_and_reset_nodes(prepare_gpu_base_layer=True)
+        self.setup_tables()
+        self.init_operations_archive()
+
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "gpu_manager": {
+                    "job_setup_command": {
+                        "path": "/bin/bash",
+                        "args": [
+                            "-c",
+                            "echo SETUP-GPU-OUTPUT-DYNAMIC > /gpu_setup_output_file",
+                        ],
+                    },
+                },
+            },
+        })
+
+        update_controller_agent_config(
+            "operation_options/gpu_check",
+            {
+                "use_separate_root_volume": True,
+                "layer_paths": ["//tmp/gpu_check/0", "//tmp/gpu_base_layer"],
+                "binary_path": "/usr/bin/test",
+                "binary_args": ["-f", "/gpu_setup_output_file"],
+            }
+        )
+
+        write_table("//tmp/t_in", [{"k": 0}])
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="exit 0",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "job_count": 1,
+                    "gpu_limit": 1,
+                    "layer_paths": ["//tmp/base_layer"],
+                    "enable_gpu_layers": True,
+                    "enable_gpu_check": True,
+                },
+            },
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        job_id = job_ids[0]
+
+        events = get_job(op.id, job_id)["events"]
+        phases = [event["phase"] for event in events if "phase" in event]
+        assert "running_gpu_check_command" in phases
+
+    @pytest.mark.timeout(180)
+    def test_gpu_check_success_with_failed_job_with_separate_volume(self):
+        self.setup_gpu_layer_and_reset_nodes(prepare_gpu_base_layer=True)
+        self.setup_gpu_check_options_for_separate_volume()
+        self.setup_tables()
+        self.init_operations_archive()
+
+        write_table("//tmp/t_in", [{"k": 0}])
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="echo AAA >&2; exit 1",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "job_count": 1,
+                    "gpu_limit": 1,
+                    "layer_paths": ["//tmp/base_layer"],
+                    "enable_gpu_layers": True,
+                    "enable_gpu_check": True,
+                },
+            },
+            track=False,
+        )
+
+        wait(lambda: op.get_state() == "failed", timeout=INCREASED_TIMEOUT)
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        job_id = job_ids[0]
+
+        events = get_job(op.id, job_id)["events"]
+        phases = [event["phase"] for event in events if "phase" in event]
+        assert "running_extra_gpu_check_command" in phases
+
+    @pytest.mark.timeout(180)
     def test_gpu_check_success_with_failed_job(self):
         self.setup_gpu_layer_and_reset_nodes()
-
         self.setup_tables()
-
-        sync_create_cells(1)
-        init_operations_archive.create_tables_latest_version(
-            self.Env.create_native_client(),
-            override_tablet_cell_bundle="default",
-        )
+        self.init_operations_archive()
 
         write_table("//tmp/t_in", [{"k": 0}])
         op = map(
@@ -1419,6 +1688,41 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
 
         print_debug(_get_core_infos(op))
         assert _get_core_table_content()
+
+    @pytest.mark.timeout(180)
+    def test_gpu_check_infiniband_cluster(self):
+        self.setup_gpu_layer_and_reset_nodes(prepare_gpu_base_layer=True)
+        self.init_operations_archive()
+
+        update_controller_agent_config(
+            "vanilla_operation_options/gpu_check",
+            {
+                "use_separate_root_volume": True,
+                "layer_paths": ["//tmp/gpu_check/0", "//tmp/gpu_base_layer"],
+                "binary_path": "/bin/bash",
+                "binary_args": ["-c", "set -u; echo $YT_INFINIBAND_CLUSTER;"],
+            }
+        )
+
+        op = run_test_vanilla(
+            "sleep 1",
+            task_patch={
+                "layer_paths": ["//tmp/base_layer"],
+                "enable_gpu_layers": True,
+                "enable_gpu_check": True,
+                "gpu_limit": 1,
+            },
+            track=True,
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+
+        job_id = job_ids[0]
+
+        events = get_job(op.id, job_id)["events"]
+        phases = [event["phase"] for event in events if "phase" in event]
+        assert "running_gpu_check_command" in phases
 
 
 @authors("ignat")

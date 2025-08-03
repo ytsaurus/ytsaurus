@@ -51,18 +51,21 @@ void StartCypressTransactionInSequoiaAndReply(
         .Apply(CreateStartTransactionResponse));
 }
 
-void AbortCypressTransactionInSequoiaAndReply(
+TFuture<TSharedRefArray> AbortCypressTransactionInSequoia(
     TBootstrap* bootstrap,
-    const ITransactionManager::TCtxAbortCypressTransactionPtr& context)
+    TTransactionId transactionId,
+    bool force,
+    TAuthenticationIdentity authenticationIdentity)
 {
-    context->ReplyFrom(AbortCypressTransaction(
+    return AbortCypressTransaction(
         bootstrap->GetSequoiaClient(),
         bootstrap->GetCellId(),
-        &context->Request(),
-        context->GetAuthenticationIdentity(),
+        transactionId,
+        force,
+        authenticationIdentity,
         TDispatcher::Get()->GetHeavyInvoker(),
         TransactionServerLogger())
-        .Apply(CreateAbortTransactionResponse));
+        .Apply(CreateAbortTransactionResponse);
 }
 
 TFuture<TSharedRefArray> AbortExpiredCypressTransactionInSequoia(
@@ -95,7 +98,7 @@ TFuture<TSharedRefArray> CommitCypressTransactionInSequoia(
         TDispatcher::Get()->GetHeavyInvoker(),
         TransactionServerLogger())
         .Apply(BIND_NO_PROPAGATE([=] () {
-             NCypressTransactionClient::NProto::TRspCommitTransaction rsp;
+            NCypressTransactionClient::NProto::TRspCommitTransaction rsp;
             NHiveClient::TTimestampMap timestampMap;
             timestampMap.Timestamps.emplace_back(bootstrap->GetPrimaryCellTag(), commitTimestamp);
             ToProto(rsp.mutable_commit_timestamps(), timestampMap);

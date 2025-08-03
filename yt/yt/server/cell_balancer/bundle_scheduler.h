@@ -1,5 +1,6 @@
 #pragma once
 
+#include "bundle_mutation.h"
 #include "cypress_bindings.h"
 
 namespace NYT::NCellBalancer {
@@ -17,11 +18,12 @@ using TBundlesDynamicConfig = THashMap<std::string, TBundleDynamicConfigPtr>;
 struct TSpareNodesInfo
 {
     std::vector<std::string> FreeNodes;
+    std::vector<std::string> ScheduledForMaintenance;
     std::vector<std::string> ExternallyDecommissioned;
     THashMap<std::string, std::vector<std::string>> UsedByBundle;
     THashMap<std::string, std::vector<std::string>> ReleasingByBundle;
 
-    std::vector<std::string>& FreeInstances()
+    std::vector<std::string>& MutableFreeInstances()
     {
         return FreeNodes;
     }
@@ -39,9 +41,10 @@ using TPerDataCenterSpareNodesInfo = THashMap<std::string, TSpareNodesInfo>;
 struct TSpareProxiesInfo
 {
     std::vector<std::string> FreeProxies;
+    std::vector<std::string> ScheduledForMaintenance;
     THashMap<std::string, std::vector<std::string>> UsedByBundle;
 
-    std::vector<std::string>& FreeInstances()
+    std::vector<std::string>& MutableFreeInstances()
     {
         return FreeProxies;
     }
@@ -53,6 +56,19 @@ struct TSpareProxiesInfo
 };
 
 using TPerDataCenterSpareProxiesInfo = THashMap<std::string, TSpareProxiesInfo>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TSpareInstance>
+struct TSpareInstanceAllocator
+{
+    using TZoneToDataCenterToInfo = THashMap<std::string, THashMap<std::string, TSpareInstance>>;
+
+    TZoneToDataCenterToInfo& SpareInstances;
+
+    std::string Allocate(const std::string& zoneName, const std::string& dataCenterName, const std::string& bundleName);
+    bool HasInstances(const std::string& zoneName, const std::string& dataCenterName) const;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -156,35 +172,46 @@ struct TSchedulerInputState
 
 struct TSchedulerMutations
 {
+private:
+    class TBundleNameGuard;
+
+public:
+    template <class T>
+    using TMutationMap = THashMap<std::string, TBundleMutation<TIntrusivePtr<T>>>;
+
     TIndexedEntries<TAllocationRequest> NewAllocations;
     TIndexedEntries<TAllocationRequest> ChangedAllocations;
     TIndexedEntries<TDeallocationRequest> NewDeallocations;
     TIndexedEntries<TBundleControllerState> ChangedStates;
-    TIndexedEntries<TInstanceAnnotations> ChangeNodeAnnotations;
-    TIndexedEntries<TInstanceAnnotations> ChangedProxyAnnotations;
+    TMutationMap<TBundleControllerInstanceAnnotations> ChangeNodeAnnotations;
+    TMutationMap<TBundleControllerInstanceAnnotations> ChangedProxyAnnotations;
 
-    THashSet<std::string> CompletedAllocations;
+    THashSet<TBundleMutation<std::string>> CompletedAllocations;
 
     using TUserTags = THashSet<std::string>;
-    THashMap<std::string, TUserTags> ChangedNodeUserTags;
+    THashMap<std::string, TBundleMutation<TUserTags>> ChangedNodeUserTags;
 
-    THashMap<std::string, bool> ChangedDecommissionedFlag;
-    THashMap<std::string, bool> ChangedEnableBundleBalancerFlag;
-    THashMap<std::string, bool> ChangedMuteTabletCellsCheck;
-    THashMap<std::string, bool> ChangedMuteTabletCellSnapshotsCheck;
+    THashMap<std::string, TBundleMutation<bool>> ChangedDecommissionedFlag;
+    THashMap<std::string, TBundleMutation<bool>> ChangedEnableBundleBalancerFlag;
+    THashMap<std::string, TBundleMutation<bool>> ChangedMuteTabletCellsCheck;
+    THashMap<std::string, TBundleMutation<bool>> ChangedMuteTabletCellSnapshotsCheck;
 
-    THashMap<std::string, std::string> ChangedProxyRole;
-    THashSet<std::string> RemovedProxyRole;
+    THashMap<std::string, TBundleMutation<std::string>> ChangedProxyRole;
+    THashSet<TBundleMutation<std::string>> RemovedProxyRole;
 
-    std::vector<std::string> CellsToRemove;
+    std::vector<TBundleMutation<std::string>> CellsToRemove;
 
     // Maps bundle name to new tablet cells count to create.
     THashMap<std::string, int> CellsToCreate;
 
     std::vector<TAlert> AlertsToFire;
 
-    THashMap<std::string, TAccountResourcesPtr> LiftedSystemAccountLimit;
-    THashMap<std::string, TAccountResourcesPtr> LoweredSystemAccountLimit;
+    THashMap<std::string, TBundleMutation<TAccountResourcesPtr>> LiftedSystemAccountLimit;
+    THashMap<std::string, TBundleMutation<TAccountResourcesPtr>> LoweredSystemAccountLimit;
+
+    // We store only the last bundle at a time because this mutation could be
+    // annotated with one bundle only in order not to violate liveness.
+    std::string LastBundleWithChangedRootSystemAccountLimit;
     TAccountResourcesPtr ChangedRootSystemAccountLimit;
 
     std::optional<TBundlesDynamicConfig> DynamicConfig;
@@ -195,8 +222,32 @@ struct TSchedulerMutations
     THashMap<std::string, i64> ChangedTabletStaticMemory;
     THashMap<std::string, std::string> ChangedBundleShortName;
 
-    THashMap<std::string, std::string> ChangedNodeTagFilters;
+    THashMap<std::string, TBundleMutation<std::string>> ChangedNodeTagFilters;
     THashMap<std::string, TBundleConfigPtr> InitializedBundleTargetConfig;
+
+    TBundleNameGuard MakeBundleNameGuard(std::string bundleName);
+
+    template <class T, class... Args>
+        requires std::derived_from<T, TBundleNameMixin>
+    TIntrusivePtr<T> NewMutation(Args&&... args);
+
+    template <class T>
+    TBundleMutation<T> WrapMutation(T mutation);
+
+private:
+    class TBundleNameGuard
+        : TNonCopyable
+    {
+    public:
+        TBundleNameGuard(std::string bundleName, TSchedulerMutations* mutations);
+        ~TBundleNameGuard();
+
+    private:
+        std::string PrevBundleName_;
+        TSchedulerMutations* Owner_;
+    };
+
+    std::string BundleNameContext_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -205,13 +256,18 @@ void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NBundleControllerClient::TCpuLimitsPtr GetBundleEffectiveCpuLimits(
+    const std::string& bundleName,
+    const TBundleInfoPtr& bundleInfo,
+    const TSchedulerInputState& input);
+
 std::string GetSpareBundleName(const TZoneInfoPtr& zoneInfo);
 
 void InitializeZoneToSpareNodes(TSchedulerInputState& input, TSchedulerMutations* mutations);
-void ManageNodeTagFilters(TSchedulerInputState& input, TSchedulerMutations* mutations);
+void ManageNodeTagFilters(TSchedulerInputState& input, TSpareInstanceAllocator<TSpareNodesInfo>& spareNodesAllocator, TSchedulerMutations* mutations);
 
 void InitializeZoneToSpareProxies(TSchedulerInputState& input, TSchedulerMutations* mutations);
-void ManageRpcProxyRoles(TSchedulerInputState& input, TSchedulerMutations* mutations);
+void ManageRpcProxyRoles(TSchedulerInputState& input, TSpareInstanceAllocator<TSpareProxiesInfo>& spareProxiesAllocator, TSchedulerMutations* mutations);
 
 DEFINE_ENUM(EGracePeriodBehaviour,
     ((Wait)         (0))
@@ -245,7 +301,7 @@ TIndexedEntries<TBundleControllerState> MergeBundleStates(
     const TSchedulerInputState& schedulerState,
     const TSchedulerMutations& mutations);
 
-std::string GetPodIdForInstance(const std::string& name);
+std::string GetPodIdForInstance(const TCypressAnnotationsPtr& cypressAnnotations, const std::string& name);
 
 std::string GetInstanceSize(const NBundleControllerClient::TInstanceResourcesPtr& resource);
 
@@ -259,3 +315,7 @@ std::string GetReleasedProxyRole(const std::string& rpcProxyRole);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCellBalancer
+
+#define BUNDLE_SCHEDULER_INL_H_
+#include "bundle_scheduler-inl.h"
+#undef BUNDLE_SCHEDULER_INL_H_

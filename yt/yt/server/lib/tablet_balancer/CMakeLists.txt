@@ -23,6 +23,9 @@ add_library(server-lib-tablet_balancer)
 target_compile_options(server-lib-tablet_balancer PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(server-lib-tablet_balancer PUBLIC
@@ -38,7 +41,9 @@ target_link_libraries(server-lib-tablet_balancer PUBLIC
 target_sources(server-lib-tablet_balancer PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/balancing_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/parameterized_balancing_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/replica_balancing_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/table.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/tablet.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/tablet_cell.cpp

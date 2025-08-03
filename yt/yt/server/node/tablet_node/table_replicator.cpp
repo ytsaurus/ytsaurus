@@ -1,5 +1,6 @@
 #include "table_replicator.h"
 
+#include "config.h"
 #include "hint_manager.h"
 #include "private.h"
 #include "relative_replication_throttler.h"
@@ -173,7 +174,7 @@ private:
     const TTableSchemaPtr TableSchema_;
     const TNameTablePtr NameTable_;
     const TTableReplicaId ReplicaId_;
-    const TString ClusterName_;
+    const std::string ClusterName_;
     const TYPath ReplicaPath_;
     const TTableMountConfigPtr MountConfig_;
 
@@ -226,17 +227,17 @@ private:
             auto& counters = replicaSnapshot->Counters;
 
             auto countError = Finally([&] {
-                if (std::uncaught_exception()) {
+                if (std::uncaught_exceptions() > 0) {
                     counters.ReplicationErrorCount.Increment();
                 }
             });
 
-            std::optional<TDuration> ThrottleTime;
-            std::optional<TDuration> RelativeThrottleTime;
-            std::optional<TDuration> TransactionStartTime;
-            std::optional<TDuration> TransactionCommitTime;
-            std::optional<TDuration> RowsReadTime;
-            std::optional<TDuration> RowsWriteTime;
+            std::optional<TDuration> throttleTime;
+            std::optional<TDuration> relativeThrottleTime;
+            std::optional<TDuration> transactionStartTime;
+            std::optional<TDuration> transactionCommitTime;
+            std::optional<TDuration> rowsReadTime;
+            std::optional<TDuration> rowsWriteTime;
 
             {
                 auto throttleFuture = Throttler_->Throttle(1);
@@ -248,7 +249,7 @@ private:
                     WaitFor(throttleFuture)
                         .ThrowOnError();
                     YT_LOG_DEBUG("Finished waiting for replication throttling");
-                    ThrottleTime = timerGuard.GetElapsedTime();
+                    throttleTime = timerGuard.GetElapsedTime();
                 }
             }
 
@@ -261,9 +262,9 @@ private:
                     YT_LOG_DEBUG("Started waiting for relative replication throttling");
                     WaitFor(throttleFuture)
                         .ThrowOnError();
-                    RelativeThrottleTime = timerGuard.GetElapsedTime();
+                    relativeThrottleTime = timerGuard.GetElapsedTime();
                     YT_LOG_DEBUG("Finished waiting for relative replication throttling (ElapsedTime: %v)",
-                        RelativeThrottleTime);
+                        relativeThrottleTime);
                 }
             }
 
@@ -369,7 +370,7 @@ private:
 
                 YT_LOG_DEBUG("Replication transactions started (TransactionId: %v)",
                     localTransaction->GetId());
-                TransactionStartTime = timerGuard.GetElapsedTime();
+                transactionStartTime = timerGuard.GetElapsedTime();
             }
 
             TRowBufferPtr rowBuffer;
@@ -389,7 +390,7 @@ private:
             auto updateChunkReaderStatisticsGuard = Finally([&] {
                 counters.ChunkReaderStatisticsCounters.Increment(
                     chunkReadOptions.ChunkReaderStatistics,
-                    /*failed*/ std::uncaught_exception());
+                    /*failed*/ std::uncaught_exceptions() > 0);
             });
 
             EReaderTerminationReason readerResult = EReaderTerminationReason::None;
@@ -430,7 +431,7 @@ private:
                     YT_VERIFY(readerResult != EReaderTerminationReason::TimestampBoundViolation);
                 }
 
-                RowsReadTime = timerGuard.GetElapsedTime();
+                rowsReadTime = timerGuard.GetElapsedTime();
             }
             YT_VERIFY(readerResult != EReaderTerminationReason::None);
 
@@ -458,7 +459,7 @@ private:
                     MakeSharedRange(std::move(replicationRows), std::move(rowBuffer)),
                     options);
 
-                RowsWriteTime = timerGuard.GetElapsedTime();
+                rowsWriteTime = timerGuard.GetElapsedTime();
             }
 
             {
@@ -487,7 +488,7 @@ private:
                     .ThrowOnError();
 
                 YT_LOG_DEBUG("Finished committing replication transaction");
-                TransactionCommitTime = timerGuard.GetElapsedTime();
+                transactionCommitTime = timerGuard.GetElapsedTime();
             }
 
             if (lastReplicationTimestamp > newReplicationTimestamp) {
@@ -508,12 +509,12 @@ private:
                 "TransactionStartTime: %v, RowsReadTime: %v, RowsWriteTime: %v, TransactionCommitTime: %v)",
                 batchRowCount,
                 batchDataWeight,
-                ThrottleTime,
-                RelativeThrottleTime,
-                TransactionStartTime,
-                RowsReadTime,
-                RowsWriteTime,
-                TransactionCommitTime);
+                throttleTime,
+                relativeThrottleTime,
+                transactionStartTime,
+                rowsReadTime,
+                rowsWriteTime,
+                transactionCommitTime);
 
             SoftErrorBackoff_.Restart();
         } catch (const std::exception& ex) {
@@ -600,7 +601,7 @@ private:
             return true;
         };
 
-        EReaderTerminationReason result = EReaderTerminationReason::None;
+        auto result = EReaderTerminationReason::None;
         while (result == EReaderTerminationReason::None) {
             auto batch = reader->Read();
             if (!batch) {
@@ -699,7 +700,7 @@ private:
         *batchDataWeight = dataWeight;
 
         YT_LOG_DEBUG("Finished building replication batch (StartRowIndex: %v, RowCount: %v, DataWeight: %v, "
-            "NewReplicationRowIndex: %v, NewReplicationTimestamp: %v, ReaderTerminationReason: %Qlv)",
+            "NewReplicationRowIndex: %v, NewReplicationTimestamp: %v, ReaderTerminationReason: %v)",
             startRowIndex,
             rowCount,
             dataWeight,
@@ -715,14 +716,14 @@ private:
     {
         SoftErrorBackoff_.Next();
         auto backoffTime = SoftErrorBackoff_.GetBackoff();
-        YT_LOG_INFO(error, "Doing soft backoff for %v",
+        YT_LOG_INFO(error, "Doing soft backoff (BackoffTime: %v)",
             backoffTime);
         TDelayedExecutor::WaitForDuration(backoffTime);
     }
 
     void DoHardBackoff(const TError& error)
     {
-        YT_LOG_INFO(error, "Doing hard backoff for %v",
+        YT_LOG_INFO(error, "Doing hard backoff (BackoffTime: %v)",
             Config_->ReplicatorHardBackoffTime);
         TDelayedExecutor::WaitForDuration(Config_->ReplicatorHardBackoffTime);
     }

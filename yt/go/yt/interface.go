@@ -45,7 +45,7 @@ import (
 	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
-//go:generate yt-gen-client -interface interface.go -output internal/params_gen.go
+//go:generate internal/yt-gen-client/yt-gen-client -interface interface.go -interface internal/interface.go -output internal/params_gen.go
 
 // TransactionOptions control transactional context of cypress command.
 //
@@ -121,7 +121,7 @@ type TimeoutOptions struct {
 
 // CreateNodeOptions.
 //
-// See https://wiki.yandex-team.ru/yt/userdoc/api/#create
+// See https://ytsaurus.tech/docs/en/api/commands#create
 type CreateNodeOptions struct {
 	Recursive      bool `http:"recursive"`
 	IgnoreExisting bool `http:"ignore_existing"`
@@ -517,6 +517,12 @@ type ReadTableOptions struct {
 	Unordered   bool `http:"unordered"`
 	TableReader any  `http:"table_reader"`
 
+	// Format is YSON-serializable output format. If not specified "yson" will be used.
+	//
+	// Possible values:
+	//   - ​​skiff.Format (see skiff.MustInferFormat).
+	Format any `http:"output_format,omitnil"`
+
 	ControlAttributes any   `http:"control_attributes,omitnil"`
 	StartRowIndexOnly *bool `http:"start_row_index_only,omitnil"`
 
@@ -611,11 +617,17 @@ type ListJobsOptions struct {
 	WithStderr               *bool          `http:"with_stderr,omitnil"`
 	WithFailContext          *bool          `http:"with_fail_context,omitnil"`
 	WithMonitoringDescriptor *bool          `http:"with_monitoring_descriptor,omitnil"`
+	WithInterruptionInfo     *bool          `http:"with_interruption_info,omitnil"`
+	Attributes               []string       `http:"attributes,omitnil"`
 	SortField                *JobSortField  `http:"sort_field,omitnil"`
 	SortOrder                *JobSortOrder  `http:"sort_order,omitnil"`
 	Limit                    *int           `http:"limit,omitnil"`
 	Offset                   *int           `http:"offset,omitnil"`
 	DataSource               *JobDataSource `http:"data_source,omitnil"`
+}
+
+type GetJobOptions struct {
+	Attributes []string `http:"attributes,omitnil"`
 }
 
 type JobStatus struct {
@@ -764,6 +776,10 @@ type LowLevelSchedulerClient interface {
 		options *UpdateOperationParametersOptions,
 	) (err error)
 
+	// GetOperation returns information about an operation.
+	//
+	// Warning: frequent calls to this method without specifying attributes may cause an overload of Cypress.
+	//
 	// http:verb:"get_operation"
 	// http:params:"operation_id"
 	GetOperation(
@@ -793,6 +809,15 @@ type LowLevelSchedulerClient interface {
 		opID OperationID,
 		options *ListJobsOptions,
 	) (r *ListJobsResult, err error)
+
+	// http:verb:"get_job"
+	// http:params:"operation_id","job_id"
+	GetJob(
+		ctx context.Context,
+		opID OperationID,
+		jobID JobID,
+		options *GetJobOptions,
+	) (status *JobStatus, err error)
 
 	// http:verb:"get_job_stderr"
 	// http:params:"operation_id","job_id"
@@ -1388,6 +1413,7 @@ type CreateQueueProducerSessionOptions struct {
 	UserMeta any `http:"user_meta,omitnil"`
 
 	*TimeoutOptions
+	*MutatingOptions
 }
 
 type RemoveQueueProducerSessionOptions struct {
@@ -1781,6 +1807,9 @@ type Client interface {
 	) (ids []NodeID, err error)
 
 	NewRowBatchWriter() RowBatchWriter
+
+	// NewBatchRequest creates batch request object that allows to execute several light requests in parallel.
+	NewBatchRequest() (BatchRequest, error)
 
 	// Stop() cancels and waits for completion of all background activity associated with this client.
 	//

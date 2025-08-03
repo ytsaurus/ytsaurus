@@ -6,15 +6,15 @@ namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobTestingOptions
+struct TJobTestingOptions
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<TDuration> DelayAfterNodeDirectoryPrepared;
     std::optional<TDuration> DelayInCleanup;
     std::optional<TDuration> DelayBeforeRunJobProxy;
     std::optional<TDuration> DelayBeforeSpawningJobProxy;
     std::optional<TDuration> DelayAfterRunJobProxy;
+    std::optional<TDuration> FakePrepareDuration;
     bool FailBeforeJobStart;
     bool ThrowInShallowMerge;
 

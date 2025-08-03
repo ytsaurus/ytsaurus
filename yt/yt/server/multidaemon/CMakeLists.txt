@@ -20,6 +20,9 @@ add_library(yt-server-multidaemon)
 target_compile_options(yt-server-multidaemon PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(yt-server-multidaemon PUBLIC

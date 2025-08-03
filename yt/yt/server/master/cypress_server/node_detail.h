@@ -2,6 +2,7 @@
 
 #include "cypress_manager.h"
 #include "node.h"
+#include "composite_node.h"
 #include "private.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -19,8 +20,6 @@
 #include <yt/yt/server/master/security_server/security_manager.h>
 
 #include <yt/yt/server/master/tablet_server/tablet_cell_bundle.h>
-
-#include <yt/yt/server/lib/tablet_node/public.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
@@ -70,6 +69,8 @@ protected:
     bool IsRecovery() const;
     const TDynamicCypressManagerConfigPtr& GetDynamicCypressManagerConfig() const;
 
+    void ZombifyCorePrologue(TCypressNode* node);
+
     void DestroyCorePrologue(TCypressNode* node);
 
     void SerializeNodeCore(
@@ -104,6 +105,9 @@ protected:
         TCypressNode* clonedTrunkNode,
         ICypressNodeFactory* factory,
         ENodeCloneMode mode);
+
+    void RefObject(TCypressNode* node);
+    void UnrefObject(TCypressNode* node);
 
 private:
     NCellMaster::TBootstrap* Bootstrap_ = nullptr;
@@ -171,6 +175,10 @@ public:
         YT_VERIFY(!node->GetReachable());
         node->SetReachable(true);
 
+        if (node->IsTrunk() && node->IsSequoia() && node->IsNative()) {
+            RefObject(node);
+        }
+
         auto* typedNode = node->As<TImpl>();
         DoSetReachable(typedNode);
     }
@@ -180,12 +188,20 @@ public:
         YT_VERIFY(node->GetReachable());
         node->SetReachable(false);
 
+        if (node->IsTrunk() && node->IsSequoia() && node->IsNative()) {
+            UnrefObject(node);
+        }
+
         auto* typedNode = node->As<TImpl>();
         DoSetUnreachable(typedNode);
     }
 
     void Zombify(TCypressNode* node) override
     {
+        // Run core stuff.
+        ZombifyCorePrologue(node);
+
+        // Run custom stuff.
         auto* typedNode = node->As<TImpl>();
         DoZombify(typedNode);
     }
@@ -254,7 +270,7 @@ public:
         // Run core stuff.
         BranchCoreEpilogue(typedBranchedNode);
 
-        return std::move(branchedNodeHolder);
+        return branchedNodeHolder;
     }
 
     void Unbranch(
@@ -629,200 +645,8 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(ENodeMaterializationReason,
-    ((Create)  (0))
-    ((Copy)    (1))
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
-// NB: The list of inheritable attributes doesn't include the "account"
-// attribute because that's already present on every Cypress node.
-
-// NB: Although both Vital and ReplicationFactor can be deduced from Media, it's
-// important to be able to specify just the ReplicationFactor (or the Vital
-// flag) while leaving Media null.
-
-#define FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(process) \
-    process(CompressionCodec, compression_codec) \
-    process(ErasureCodec, erasure_codec) \
-    process(EnableStripedErasure, enable_striped_erasure) \
-    process(HunkErasureCodec, hunk_erasure_codec) \
-    process(ReplicationFactor, replication_factor) \
-    process(Vital, vital) \
-    process(Atomicity, atomicity) \
-    process(CommitOrdering, commit_ordering) \
-    process(InMemoryMode, in_memory_mode) \
-    process(OptimizeFor, optimize_for) \
-    process(ProfilingMode, profiling_mode) \
-    process(ProfilingTag, profiling_tag) \
-    process(ChunkMergerMode, chunk_merger_mode)
-
-#define FOR_EACH_INHERITABLE_ATTRIBUTE(process) \
-    FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(process) \
-    process(TabletCellBundle, tablet_cell_bundle) \
-    process(ChaosCellBundle, chaos_cell_bundle) \
-    process(PrimaryMediumIndex, primary_medium) \
-    process(Media, media) \
-    process(HunkPrimaryMediumIndex, hunk_primary_medium) \
-    process(HunkMedia, hunk_media)
-
-// NB: For now only chunk_merger_mode will be supported as an inherited attribute in copy, because for others the semantics are non-trivial.
-#define FOR_EACH_INHERITABLE_DURING_COPY_ATTRIBUTE(process) \
-    process(ChunkMergerMode, chunk_merger_mode)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TInheritedAttributeDictionary;
-using TConstInheritedAttributeDictionaryPtr = TIntrusivePtr<const TInheritedAttributeDictionary>;
-
-class TCompositeNodeBase
-    : public TCypressNode
-{
-public:
-    using TCypressNode::TCypressNode;
-
-    void Save(NCellMaster::TSaveContext& context) const override;
-    void Load(NCellMaster::TLoadContext& context) override;
-
-    bool HasInheritableAttributes() const;
-
-private:
-    template <bool Transient>
-    struct TAttributes
-    {
-        template <class T>
-        using TPtr = std::conditional_t<
-            Transient,
-            NObjectServer::TRawObjectPtr<T>,
-            NObjectServer::TStrongObjectPtr<T>
-        >;
-
-        TVersionedBuiltinAttribute<NCompression::ECodec> CompressionCodec;
-        TVersionedBuiltinAttribute<NErasure::ECodec> ErasureCodec;
-        TVersionedBuiltinAttribute<NErasure::ECodec> HunkErasureCodec;
-        TVersionedBuiltinAttribute<bool> EnableStripedErasure;
-        TVersionedBuiltinAttribute<int> PrimaryMediumIndex;
-        TVersionedBuiltinAttribute<int> HunkPrimaryMediumIndex;
-        TVersionedBuiltinAttribute<NChunkServer::TChunkReplication> Media;
-        TVersionedBuiltinAttribute<NChunkServer::TChunkReplication> HunkMedia;
-        TVersionedBuiltinAttribute<int> ReplicationFactor;
-        TVersionedBuiltinAttribute<bool> Vital;
-        TVersionedBuiltinAttribute<TPtr<NTabletServer::TTabletCellBundle>> TabletCellBundle;
-        TVersionedBuiltinAttribute<TPtr<NChaosServer::TChaosCellBundle>> ChaosCellBundle;
-        TVersionedBuiltinAttribute<NTransactionClient::EAtomicity> Atomicity;
-        TVersionedBuiltinAttribute<NTransactionClient::ECommitOrdering> CommitOrdering;
-        TVersionedBuiltinAttribute<NTabletClient::EInMemoryMode> InMemoryMode;
-        TVersionedBuiltinAttribute<NTableClient::EOptimizeFor> OptimizeFor;
-        TVersionedBuiltinAttribute<NTabletNode::EDynamicTableProfilingMode> ProfilingMode;
-        TVersionedBuiltinAttribute<TString> ProfilingTag;
-        TVersionedBuiltinAttribute<NChunkClient::EChunkMergerMode> ChunkMergerMode;
-
-        void Persist(const NCellMaster::TPersistenceContext& context) requires (!Transient);
-
-        // NB: on source cell attributes are serialized as transient to avoid references.
-        // On destination cell attributes are changed to persistent using ToPersist method.
-        void Persist(const NCypressServer::TCopyPersistenceContext& context) requires Transient;
-
-        // Are all attributes not null?
-        bool AreFull() const;
-
-        // Are all attributes null?
-        bool AreEmpty() const;
-
-        TAttributes<false> ToPersistent() const requires Transient;
-
-        // CClonable.
-        TAttributes Clone() const requires (!Transient);
-    };
-
-public:
-    using TTransientAttributes = TAttributes</*Transient*/ true>;
-    using TPersistentAttributes = TAttributes</*Transient*/ false>;
-
-    virtual bool CompareInheritableAttributes(
-        const TTransientAttributes& attributes,
-        ENodeMaterializationReason reason = ENodeMaterializationReason::Create) const;
-
-    virtual TConstInheritedAttributeDictionaryPtr MaybePatchInheritableAttributes(
-        const TConstInheritedAttributeDictionaryPtr& attributes,
-        ENodeMaterializationReason reason = ENodeMaterializationReason::Create) const;
-
-    virtual void FillInheritableAttributes(
-        TTransientAttributes* attributes,
-        ENodeMaterializationReason reason = ENodeMaterializationReason::Create) const;
-
-#define XX(camelCaseName, snakeCaseName) \
-public: \
-    using T##camelCaseName = decltype(std::declval<TPersistentAttributes>().camelCaseName)::TValue; \
-    std::optional<TRawVersionedBuiltinAttributeType<T##camelCaseName>> TryGet##camelCaseName() const; \
-    bool Has##camelCaseName() const; \
-    void Remove##camelCaseName(); \
-    void Set##camelCaseName(T##camelCaseName value); \
-\
-private: \
-    const decltype(std::declval<TPersistentAttributes>().camelCaseName)* DoTryGet##camelCaseName() const;
-
-    FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
-#undef XX
-
-    template <class U>
-    friend class TCompositeNodeTypeHandler;
-public:
-    // TODO(kvk1920): Consider accessing Attributes_ via type handler.
-    const TPersistentAttributes* FindAttributes() const;
-
-private:
-    void SetAttributes(const TPersistentAttributes* attributes);
-    void CloneAttributesFrom(const TCompositeNodeBase* sourceNode);
-    void MergeAttributesFrom(const TCompositeNodeBase* branchedNode);
-
-    std::unique_ptr<TPersistentAttributes> Attributes_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! A set of inheritable attributes represented as an attribute dictionary.
-//! If a setter for a non-inheritable attribute is called, falls back to an ephemeral dictionary.
-class TInheritedAttributeDictionary
-    : public NYTree::IAttributeDictionary
-{
-public:
-    explicit TInheritedAttributeDictionary(NCellMaster::TBootstrap* bootstrap);
-
-    explicit TInheritedAttributeDictionary(const TConstInheritedAttributeDictionaryPtr& other);
-
-    explicit TInheritedAttributeDictionary(
-        const NCellMaster::TBootstrap* bootstrap,
-        NYTree::IAttributeDictionaryPtr&& attributes);
-
-    std::vector<TKey> ListKeys() const override;
-    std::vector<TKeyValuePair> ListPairs() const override;
-    TValue FindYson(TKeyView key) const override;
-    void SetYson(TKeyView key, const TValue& value) override;
-    bool Remove(TKeyView key) override;
-
-    TCompositeNodeBase::TTransientAttributes& MutableAttributes();
-    const TCompositeNodeBase::TTransientAttributes& Attributes() const;
-
-private:
-    const NCellMaster::TBootstrap* Bootstrap_;
-    TCompositeNodeBase::TTransientAttributes InheritedAttributes_;
-    NYTree::IAttributeDictionaryPtr Fallback_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Traverse all ancestors and collect inheritable attributes.
-void GatherInheritableAttributes(
-    const TCypressNode* node,
-    TCompositeNodeBase::TTransientAttributes* attributes,
-    ENodeMaterializationReason reason = ENodeMaterializationReason::Create);
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <class TImpl>
-class TCompositeNodeTypeHandler
+class TCompositeCypressNodeTypeHandlerBase
     : public TCypressNodeTypeHandlerBase<TImpl>
 {
 private:
@@ -832,6 +656,8 @@ public:
     using TBase::TBase;
 
 protected:
+    void DoDestroy(TImpl* node) override;
+
     void DoClone(
         TImpl* sourceNode,
         TImpl* clonedTrunkNode,
@@ -935,7 +761,7 @@ private:
 // together with all relevant explicit instantiations.
 template <class TChild>
 class TMapNodeImpl
-    : public TCompositeNodeBase
+    : public TCompositeCypressNode
 {
 public:
     using TChildren = TMapNodeChildren<TChild>;
@@ -945,7 +771,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(int, ChildCountDelta);
 
 public:
-    using TCompositeNodeBase::TCompositeNodeBase;
+    using TCompositeCypressNode::TCompositeCypressNode;
 
     explicit TMapNodeImpl(const TMapNodeImpl&) = delete;
     TMapNodeImpl& operator=(const TMapNodeImpl&) = delete;
@@ -986,10 +812,10 @@ protected:
 // together with all relevant explicit instantiations.
 template <class TImpl = TCypressMapNode>
 class TCypressMapNodeTypeHandlerImpl
-    : public TCompositeNodeTypeHandler<TImpl>
+    : public TCompositeCypressNodeTypeHandlerBase<TImpl>
 {
 public:
-    using TBase = TCompositeNodeTypeHandler<TImpl>;
+    using TBase = TCompositeCypressNodeTypeHandlerBase<TImpl>;
 
     using TBase::TBase;
 
@@ -1040,10 +866,10 @@ using TCypressMapNodeTypeHandler = TCypressMapNodeTypeHandlerImpl<TCypressMapNod
 // (E.g. branching is similar in both cases).
 template <class TImpl = TSequoiaMapNode>
 class TSequoiaMapNodeTypeHandlerImpl
-    : public TCompositeNodeTypeHandler<TImpl>
+    : public TCompositeCypressNodeTypeHandlerBase<TImpl>
 {
 public:
-    using TBase = TCompositeNodeTypeHandler<TImpl>;
+    using TBase = TCompositeCypressNodeTypeHandlerBase<TImpl>;
 
     using TBase::TBase;
 
@@ -1091,10 +917,10 @@ using TSequoiaMapNodeTypeHandler = TSequoiaMapNodeTypeHandlerImpl<TSequoiaMapNod
 ////////////////////////////////////////////////////////////////////////////////
 
 class TListNode
-    : public TCompositeNodeBase
+    : public TCompositeCypressNode
 {
 private:
-    using TBase = TCompositeNodeBase;
+    using TBase = TCompositeCypressNode;
 
 public:
     using TIndexToChild = std::vector<TCypressNodeRawPtr>;
@@ -1117,10 +943,10 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TListNodeTypeHandler
-    : public TCompositeNodeTypeHandler<TListNode>
+    : public TCompositeCypressNodeTypeHandlerBase<TListNode>
 {
 private:
-    using TBase = TCompositeNodeTypeHandler<TListNode>;
+    using TBase = TCompositeCypressNodeTypeHandlerBase<TListNode>;
 
 public:
     using TBase::TBase;

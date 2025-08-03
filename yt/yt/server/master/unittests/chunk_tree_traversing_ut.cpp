@@ -618,13 +618,13 @@ TEST_F(TChunkTreeTraversingTest, Simple)
             TChunkInfo(
                 chunk2,
                 1,
-                {} /*tabletIndex*/,
+                /*tabletIndex*/ {},
                 correctLowerLimit,
                 TLegacyReadLimit()),
             TChunkInfo(
                 chunk3,
                 3,
-                {} /*tabletIndex*/,
+                /*tabletIndex*/ {},
                 TLegacyReadLimit(),
                 correctUpperLimit)
         };
@@ -698,7 +698,7 @@ TEST_F(TChunkTreeTraversingTest, WithEmptyChunkLists)
             TChunkInfo(
                 chunk2,
                 1,
-                {} /*tabletIndex*/,
+                /*tabletIndex*/ {},
                 correctLowerLimit,
                 correctUpperLimit)
         };
@@ -797,8 +797,8 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamic)
                 chunk1),
             TChunkInfo(
                 chunk2,
-                {} /*rowIndex*/,
-                {} /*tabletIndex*/,
+                /*rowIndex*/ {},
+                /*tabletIndex*/ {},
                 TLegacyReadLimit(),
                 upperLimit),
             TChunkInfo(
@@ -851,16 +851,16 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicWithChunkView)
         std::set<TChunkInfo> correctResult{
             TChunkInfo(
                 chunk1,
-                {} /*rowIndex*/,
-                {} /*tabletIndex*/,
+                /*rowIndex*/ {},
+                /*tabletIndex*/ {},
                 TLegacyReadLimit(BuildKey("1")),
                 TLegacyReadLimit(BuildKey("4"))),
             TChunkInfo(
                 chunk2),
             TChunkInfo(
                 chunk1,
-                {} /*rowIndex*/,
-                {} /*tabletIndex*/,
+                /*rowIndex*/ {},
+                /*tabletIndex*/ {},
                 TLegacyReadLimit(BuildKey("7")),
                 TLegacyReadLimit(BuildKey("10")))
         };
@@ -881,8 +881,8 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicWithChunkView)
         std::set<TChunkInfo> correctResult{
             TChunkInfo(
                 chunk1,
-                {} /*rowIndex*/,
-                {} /*tabletIndex*/,
+                /*rowIndex*/ {},
+                /*tabletIndex*/ {},
                 TLegacyReadLimit(BuildKey("1")),
                 TLegacyReadLimit(BuildKey("4"))),
             TChunkInfo(
@@ -905,8 +905,8 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicWithChunkView)
         std::set<TChunkInfo> correctResult{
             TChunkInfo(
                 chunk1,
-                {} /*rowIndex*/,
-                {} /*tabletIndex*/,
+                /*rowIndex*/ {},
+                /*tabletIndex*/ {},
                 TLegacyReadLimit(BuildKey("7")),
                 TLegacyReadLimit(BuildKey("10")))
         };
@@ -927,14 +927,14 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicWithChunkView)
         std::set<TChunkInfo> correctResult{
             TChunkInfo(
                 chunk1,
-                {} /*rowIndex*/,
-                {} /*tabletIndex*/,
+                /*rowIndex*/ {},
+                /*tabletIndex*/ {},
                 TLegacyReadLimit(BuildKey("1")),
                 TLegacyReadLimit(BuildKey("4"))),
             TChunkInfo(
                 chunk2,
-                {} /*rowIndex*/,
-                {} /*tabletIndex*/,
+                /*rowIndex*/ {},
+                /*tabletIndex*/ {},
                 TLegacyReadLimit(),
                 TLegacyReadLimit(BuildKey("5")))
         };
@@ -955,16 +955,16 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicWithChunkView)
         std::set<TChunkInfo> correctResult{
             TChunkInfo(
                 chunk1,
-                {} /*rowIndex*/,
-                {} /*tabletIndex*/,
+                /*rowIndex*/ {},
+                /*tabletIndex*/ {},
                 TLegacyReadLimit(BuildKey("2")),
                 TLegacyReadLimit(BuildKey("4"))),
             TChunkInfo(
                 chunk2),
             TChunkInfo(
                 chunk1,
-                {} /*rowIndex*/,
-                {} /*tabletIndex*/,
+                /*rowIndex*/ {},
+                /*tabletIndex*/ {},
                 TLegacyReadLimit(BuildKey("7")),
                 TLegacyReadLimit(BuildKey("8")))
         };
@@ -1011,20 +1011,20 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicChunkShared)
         std::set<TChunkInfo> correctResult{
             TChunkInfo(
                 chunk,
-                {} /*rowIndex*/,
-                {} /*tabletIndex*/,
+                /*rowIndex*/ {},
+                /*tabletIndex*/ {},
                 TLegacyReadLimit(),
                 limit2),
             TChunkInfo(
                 chunk,
-                {} /*rowIndex*/,
-                {} /*tabletIndex*/,
+                /*rowIndex*/ {},
+                /*tabletIndex*/ {},
                 limit2,
                 limit4),
             TChunkInfo(
                 chunk,
-                {} /*rowIndex*/,
-                {} /*tabletIndex*/,
+                /*rowIndex*/ {},
+                /*tabletIndex*/ {},
                 limit4,
                 TLegacyReadLimit()),
         };
@@ -1046,8 +1046,8 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicChunkShared)
         std::set<TChunkInfo> correctResult{
             TChunkInfo(
                 chunk,
-                {} /*rowIndex*/,
-                {} /*tabletIndex*/,
+                /*rowIndex*/ {},
+                /*tabletIndex*/ {},
                 limit2,
                 limit4)
         };
@@ -1069,20 +1069,20 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicChunkShared)
         std::set<TChunkInfo> correctResult{
             TChunkInfo(
                 chunk,
-                {} /*rowIndex*/,
-                {} /*tabletIndex*/,
+                /*rowIndex*/ {},
+                /*tabletIndex*/ {},
                 lowerLimit,
                 limit2),
             TChunkInfo(
                 chunk,
-                {} /*rowIndex*/,
-                {} /*tabletIndex*/,
+                /*rowIndex*/ {},
+                /*tabletIndex*/ {},
                 limit2,
                 limit4),
             TChunkInfo(
                 chunk,
-                {} /*rowIndex*/,
-                {} /*tabletIndex*/,
+                /*rowIndex*/ {},
+                /*tabletIndex*/ {},
                 limit4,
                 upperLimit)
         };
@@ -1527,13 +1527,15 @@ TEST_F(TChunkTreeTraversingTest, SortedHunkListAsMain)
 
     {
         auto visitor = New<TTestChunkVisitor>();
-        TraverseHunkChunkTree(
+        TraverseChunkTree(
             context,
             visitor,
             roots,
             TReadLimit(),
             TReadLimit(),
-            TComparator());
+            TComparator(),
+            /*testingOptions*/ {},
+            EChunkListContentType::Hunk);
 
         std::set<TChunkInfo> expected{
             TChunkInfo(hunkChunk1),
@@ -1556,13 +1558,15 @@ TEST_F(TChunkTreeTraversingTest, SortedHunkListAsMain)
         TLegacyReadLimit upperLimit;
         upperLimit.SetChunkIndex(2);
 
-        TraverseHunkChunkTree(
+        TraverseChunkTree(
             context,
             visitor,
             roots,
             lowerLimit,
             upperLimit,
-            MakeComparator(1));
+            MakeComparator(1),
+            /*testingOptions*/ {},
+            EChunkListContentType::Hunk);
         EXPECT_EQ(TraverseNaively(hunkRoot, false, false, lowerLimit, upperLimit), visitor->GetChunkInfos());
 
         std::set<TChunkInfo> expected{
@@ -1580,13 +1584,15 @@ TEST_F(TChunkTreeTraversingTest, SortedHunkListAsMain)
 
         TLegacyReadLimit upperLimit;
 
-        TraverseHunkChunkTree(
+        TraverseChunkTree(
             context,
             visitor,
             roots,
             lowerLimit,
             upperLimit,
-            MakeComparator(1));
+            MakeComparator(1),
+            /*testingOptions*/ {},
+            EChunkListContentType::Hunk);
         EXPECT_EQ(TraverseNaively(hunkRoot, false, false, lowerLimit, upperLimit), visitor->GetChunkInfos());
     }
 
@@ -1612,13 +1618,15 @@ TEST_F(TChunkTreeTraversingTest, SortedHunkListAsMain)
         auto expected = TraverseNaively(hunkRoot, false, false, lowerLimit, upperLimit);
 
         auto visitor = New<TTestChunkVisitor>();
-        TraverseHunkChunkTree(
+        TraverseChunkTree(
             context,
             visitor,
             roots,
             lowerLimit,
             upperLimit,
-            /*keyColumnCount*/ {});
+            /*keyColumnCount*/ {},
+            /*testingOptions*/ {},
+            EChunkListContentType::Hunk);
 
         EXPECT_EQ(expected, visitor->GetChunkInfos());
     }
@@ -1668,7 +1676,7 @@ TEST_P(TTraverseWithKeyColumnCount, TestStatic)
             correctResult.insert(TChunkInfo(
                 chunk1,
                 0,
-                {} /*tabletIndex*/,
+                /*tabletIndex*/ {},
                 *firstChunk,
                 TLegacyReadLimit()));
         }
@@ -1677,7 +1685,7 @@ TEST_P(TTraverseWithKeyColumnCount, TestStatic)
             correctResult.insert(TChunkInfo(
                 chunk2,
                 1,
-                {} /*tabletIndex*/,
+                /*tabletIndex*/ {},
                 TLegacyReadLimit(),
                 *secondChunk));
         }
@@ -1717,8 +1725,8 @@ TEST_P(TTraverseWithKeyColumnCount, TestDynamic)
         if (auto firstChunk = std::get<3>(params)) {
             correctResult.insert(TChunkInfo(
                 chunk1,
-                {} /*rowIndex*/,
-                {} /*tabletIndex*/,
+                /*rowIndex*/ {},
+                /*tabletIndex*/ {},
                 *firstChunk,
                 TLegacyReadLimit()));
         }
@@ -1726,8 +1734,8 @@ TEST_P(TTraverseWithKeyColumnCount, TestDynamic)
         if (auto secondChunk = std::get<4>(params)) {
             correctResult.insert(TChunkInfo(
                 chunk2,
-                {} /*rowIndex*/,
-                {} /*tabletIndex*/,
+                /*rowIndex*/ {},
+                /*tabletIndex*/ {},
                 TLegacyReadLimit(),
                 *secondChunk));
         }

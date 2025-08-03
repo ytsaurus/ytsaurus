@@ -280,5 +280,30 @@ TEST(TFilterIntrospectionTest, FullScanIntrospection)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool RunIntrospectFilterForDefinedAlwaysFalse(const TString& expressionString)
+{
+    auto parsedQuery = ParseSource(expressionString, NQueryClient::EParseMode::Expression);
+    auto expression = std::get<NAst::TExpressionPtr>(parsedQuery->AstHead.Ast);
+
+    return IntrospectFilterIsAlwaysFalse(expression);
+}
+
+TEST(TFilterIntrospectionTest, DefinedAlwaysFalse)
+{
+    EXPECT_FALSE(RunIntrospectFilterForDefinedAlwaysFalse("[/spec/a]=1"));
+    EXPECT_FALSE(RunIntrospectFilterForDefinedAlwaysFalse("[/spec/a]=%false"));
+    EXPECT_TRUE(RunIntrospectFilterForDefinedAlwaysFalse("%false"));
+    EXPECT_TRUE(RunIntrospectFilterForDefinedAlwaysFalse("[/spec/a]=1 AND %false"));
+    EXPECT_FALSE(RunIntrospectFilterForDefinedAlwaysFalse("[/spec/a]=1 OR %false"));
+    EXPECT_TRUE(RunIntrospectFilterForDefinedAlwaysFalse("[/spec/a]=1 AND [/spec/b]=2 AND %false"));
+    EXPECT_TRUE(RunIntrospectFilterForDefinedAlwaysFalse("%false OR ([/spec/b]=2 AND %false)"));
+    EXPECT_FALSE(RunIntrospectFilterForDefinedAlwaysFalse("NOT %false"));
+    EXPECT_FALSE(RunIntrospectFilterForDefinedAlwaysFalse("NOT ([/spec/b]=1 AND %false)"));
+    EXPECT_FALSE(RunIntrospectFilterForDefinedAlwaysFalse("[/spec/b] IN (%false)"));
+    EXPECT_TRUE(RunIntrospectFilterForDefinedAlwaysFalse("[/spec/a] IN ()"));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NOrm::NQuery::NTests

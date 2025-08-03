@@ -131,7 +131,7 @@ TTableSchema ExtendSchema(const TTableSchema& schema, const std::vector<TColumnS
 {
     auto columns = schema.Columns();
     columns.insert(columns.end(), extraColumns.begin(), extraColumns.end());
-    return TTableSchema(std::move(columns), schema.GetStrict(), schema.GetUniqueKeys());
+    return TTableSchema(std::move(columns), schema.IsStrict(), schema.IsUniqueKeys());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

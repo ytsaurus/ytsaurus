@@ -1,7 +1,8 @@
 #include "cell_hydra_janitor.h"
 
-#include "tamed_cell_manager.h"
+#include "helpers.h"
 #include "private.h"
+#include "tamed_cell_manager.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
@@ -34,8 +35,6 @@
 
 #include <yt/yt/core/ypath/helpers.h>
 
-#include <library/cpp/iterator/enumerate.h>
-
 namespace NYT::NCellServer {
 
 using namespace NConcurrency;
@@ -57,7 +56,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = CellServerLogger;
+constinit const auto Logger = CellServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -161,7 +160,7 @@ private:
 
     // COMPAT(danilalexeev)
     // Returns primary and secondary persistence storage paths for a given peer.
-    std::pair<TString, TString> GetPeerPersistencePaths(TPeerInfo peer)
+    std::pair<TYPath, TYPath> GetPeerPersistencePaths(TPeerInfo peer)
     {
         if (peer.PeerId) {
             return std::pair(
@@ -184,16 +183,18 @@ private:
             Bootstrap_->GetRootClient(),
             EMasterChannelKind::Follower);
 
-        // Batch request contains four requests for each cell:
-        // - primary path -> snapshots
-        // - secondary path -> snapshots
-        // - primary path -> changelogs
-        // - secondary path -> changelogs
+        // For each peer, requests the following directory listings:
+        //   - Primary storage path:
+        //       * <primary_path>/snapshots
+        //       * <primary_path>/changelogs
+        //   - Secondary storage path (if relevant):
+        //       * <secondary_path>/snapshots
+        //       * <secondary_path>/changelogs
         auto batchReq = proxy.ExecuteBatch();
 
         auto addListRequest = [&] (const TYPath& path) {
             auto req = TYPathProxy::List(path);
-            ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+            ToProto(req->mutable_attributes()->mutable_keys(), std::vector<std::string>{
                 "compressed_data_size"
             });
             batchReq->AddRequest(req);
@@ -201,9 +202,11 @@ private:
 
         for (auto peer : peers) {
             auto [primaryPath, secondaryPath] = GetPeerPersistencePaths(peer);
-            for (const char* fileType : {"snapshots", "changelogs"}) {
-                addListRequest(YPathJoin(primaryPath, fileType));
-                addListRequest(YPathJoin(secondaryPath, fileType));
+            addListRequest(YPathJoin(primaryPath, "snapshots"));
+            addListRequest(YPathJoin(primaryPath, "changelogs"));
+            if (checkSecondaryStorage[GetCellarTypeFromCellId(peer.CellId)]) {
+                addListRequest(YPathJoin(secondaryPath, "snapshots"));
+                addListRequest(YPathJoin(secondaryPath, "changelogs"));
             }
         }
 
@@ -249,7 +252,7 @@ private:
 
         auto getListResult = [&] (
             int primarySubrequestIndex,
-            int secondarySubrequestIndex,
+            std::optional<int> secondarySubrequestIndex,
             TPeerInfo peer) -> std::optional<TListResult>
         {
             auto getListResponse = [&] (int subrequestIndex) -> IListNodePtr {
@@ -261,12 +264,12 @@ private:
             };
 
             auto primaryList = getListResponse(primarySubrequestIndex);
-            auto secondaryList = checkSecondaryStorage[GetCellarTypeFromCellId(peer.CellId)]
-                ? getListResponse(secondarySubrequestIndex)
+            auto secondaryList = secondarySubrequestIndex
+                ? getListResponse(*secondarySubrequestIndex)
                 : nullptr;
 
-            if (!primaryList && !secondaryList) {
-                YT_LOG_WARNING("Missing both storages for cell (CellId: %v)",
+            if (!primaryList) {
+                YT_LOG_WARNING("Missing primary persistence storage for cell (CellId: %v)",
                     peer.CellId);
                 return std::nullopt;
             }
@@ -275,15 +278,23 @@ private:
         };
 
         std::vector<TPeerCleanupInfo> result;
-        for (auto [index, peer] : Enumerate(peers)) {
+        int currentIndex = 0;
+        for (auto peer : peers) {
+            auto requestExtended = checkSecondaryStorage[GetCellarTypeFromCellId(peer.CellId)];
             auto snapshots = getListResult(
-                /*primarySubrequestIndex*/ 4 * index + 0,
-                /*secondarySubrequestIndex*/ 4 * index + 1,
+                /*primarySubrequestIndex*/ currentIndex + 0,
+                /*secondarySubrequestIndex*/ requestExtended
+                    ? std::make_optional(currentIndex + 2)
+                    : std::nullopt,
                 peer);
             auto changelogs = getListResult(
-                /*primarySubrequestIndex*/ 4 * index + 2,
-                /*secondarySubrequestIndex*/ 4 * index + 3,
+                /*primarySubrequestIndex*/ currentIndex + 1,
+                /*secondarySubrequestIndex*/ requestExtended
+                    ? std::make_optional(currentIndex + 3)
+                    : std::nullopt,
                 peer);
+            currentIndex += (requestExtended ? 4 : 2);
+
             if (!snapshots || !changelogs) {
                 continue;
             }
@@ -342,7 +353,7 @@ private:
                     break;
                 }
 
-                auto key = ConvertTo<TString>(child);
+                auto key = ConvertTo<std::string>(child);
                 int id = 0;
                 if (!TryFromString<int>(key, id)) {
                     YT_LOG_WARNING("Janitor has found a broken Hydra file (Path: %v, Key: %v)",
@@ -378,7 +389,7 @@ private:
             .ValueOrThrow();
 
         for (const auto& [tag, rspOrError] : batchRsp->GetTaggedResponses<TYPathProxy::TRspRemove>()) {
-            auto filePath = std::any_cast<TString>(tag);
+            auto filePath = std::any_cast<TYPath>(tag);
             if (rspOrError.IsOK()) {
                 YT_LOG_DEBUG("Janitor has successfully removed Hydra file (Path: %v)", filePath);
             } else {
@@ -402,20 +413,17 @@ private:
         int changelogBudget = GetDynamicConfig()->MaxChangelogCountToRemovePerCheck;
 
         // COMPAT(danilalexeev)
-        TEnumIndexedArray<ECellarType, bool> isLegacyCellMap;
+        TEnumIndexedArray<ECellarType, bool> checkSecondaryStorage;
         try {
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            auto tabletCellMapNode = cypressManager->ResolvePathToNodeProxy(TabletCellCypressPrefix);
-            auto chaosCellMapNode = cypressManager->ResolvePathToNodeProxy(ChaosCellCypressPrefix);
-            isLegacyCellMap[ECellarType::Tablet] = tabletCellMapNode->GetTrunkNode()->GetType() == EObjectType::TabletCellMap;
-            isLegacyCellMap[ECellarType::Chaos] = chaosCellMapNode->GetTrunkNode()->GetType() == EObjectType::ChaosCellMap;
+            checkSecondaryStorage = !GetDynamicConfig()->SafeCheckSecondaryCellStorage
+                ? CheckLegacyCellMapNodeTypesOrThrow(Bootstrap_->GetCypressManager())
+                : TEnumIndexedArray<ECellarType, bool>{
+                    {ECellarType::Tablet, true},
+                    {ECellarType::Chaos, true}
+                };
         } catch (const TErrorException& ex) {
-            if (ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
-                YT_LOG_WARNING(ex,
-                    "Cell Cypress map node is missing");
-                return;
-            }
-            throw;
+            YT_LOG_WARNING(ex, "Error checking cell map node types");
+            return;
         }
 
         const auto& tamedCellManager = Bootstrap_->GetTamedCellManager();
@@ -446,7 +454,7 @@ private:
 
         auto result = WaitFor(BIND(&TCellHydraJanitor::CleanPeersPersistence, MakeStrong(this))
             .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
-            .Run(peersToCleanup, isLegacyCellMap, &snapshotBudget, &changelogBudget));
+            .Run(peersToCleanup, checkSecondaryStorage, &snapshotBudget, &changelogBudget));
 
         if (!result.IsOK()) {
             YT_LOG_WARNING(result, "Cell janitor cleanup failed");

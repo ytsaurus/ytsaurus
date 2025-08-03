@@ -12,8 +12,6 @@
 
 #include <yt/yt/core/yson/null_consumer.h>
 
-#include <yt/yt/library/vector_hdrf/resource_helpers.h>
-
 #include <library/cpp/iterator/enumerate.h>
 
 #include <library/cpp/testing/gtest/gtest.h>
@@ -156,12 +154,12 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    std::optional<int> FindMediumIndexByName(const TString& /*mediumName*/) const override
+    std::optional<int> FindMediumIndexByName(const std::string& /*mediumName*/) const override
     {
         YT_UNIMPLEMENTED();
     }
 
-    const TString& GetMediumNameByIndex(int /*mediumIndex*/) const override
+    const std::string& GetMediumNameByIndex(int /*mediumIndex*/) const override
     {
         YT_UNIMPLEMENTED();
     }
@@ -239,9 +237,9 @@ public:
         return VoidFuture;
     }
 
-    const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const override
+    const THashMap<std::string, TString>& GetUserDefaultParentPoolMap() const override
     {
-        static THashMap<TString, TString> stub;
+        static const THashMap<std::string, TString> stub;
         return stub;
     }
 
@@ -331,7 +329,7 @@ public:
         const TDiskResources& diskResourceLimits,
         const TString& treeId,
         const TString& poolPath,
-        const TFairShareStrategyTreeConfigPtr& treeConfig), (override));
+        std::optional<TDuration> waitingForResourcesOnNodeTimeout), (override));
 
     MOCK_METHOD(void, OnNonscheduledAllocationAborted, (TAllocationId, EAbortReason, TControllerEpoch), (override));
 
@@ -392,8 +390,7 @@ using TOperationControllerStrategyHostMockPtr = TIntrusivePtr<TOperationControll
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperationStrategyHostMock
-    : public TRefCounted
-    , public IOperationStrategyHost
+    : public IOperationStrategyHost
 {
 public:
     explicit TOperationStrategyHostMock(const TJobResourcesWithQuotaList& allocationResourcesList)
@@ -433,9 +430,9 @@ public:
     void ReleaseSlotIndex(const TString& /*treeId*/) override
     { }
 
-    TString GetAuthenticatedUser() const override
+    std::string GetAuthenticatedUser() const override
     {
-        return "root";
+        return NSecurityClient::RootUserName;
     }
 
     TOperationId GetId() const override
@@ -463,12 +460,22 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    std::optional<std::string> GetTitle() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     const NYson::TYsonString& GetTrimmedAnnotations() const override
     {
         return TrimmedAnnotations_;
     }
 
     const std::optional<TBriefVanillaTaskSpecMap>& GetMaybeBriefVanillaTaskSpecs() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    const TOperationOptionsPtr& GetOperationOptions() const override
     {
         YT_UNIMPLEMENTED();
     }
@@ -646,9 +653,9 @@ protected:
     TSchedulerOperationElementPtr CreateTestOperationElement(
         ISchedulerStrategyHost* strategyHost,
         const TFairShareTreeAllocationSchedulerPtr& treeScheduler,
-        IOperationStrategyHost* operation,
+        IOperationStrategyHostPtr operation,
         TSchedulerCompositeElement* parent,
-        TOperationFairShareTreeRuntimeParametersPtr operationOptions = nullptr,
+        TOperationFairShareTreeRuntimeParametersPtr runtimeParameters = nullptr,
         TStrategyOperationSpecPtr operationSpec = nullptr)
     {
         auto operationController = New<TFairShareStrategyOperationController>(
@@ -656,9 +663,9 @@ protected:
             SchedulerConfig_,
             strategyHost->GetNodeShardInvokers());
 
-        if (!operationOptions) {
-            operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
-            operationOptions->Weight = 1.0;
+        if (!runtimeParameters) {
+            runtimeParameters = New<TOperationFairShareTreeRuntimeParameters>();
+            runtimeParameters->Weight = 1.0;
         }
         if (!operationSpec) {
             operationSpec = New<TStrategyOperationSpec>();
@@ -666,7 +673,8 @@ protected:
         auto operationElement = New<TSchedulerOperationElement>(
             TreeConfig_,
             operationSpec,
-            operationOptions,
+            New<TOperationOptions>(),
+            runtimeParameters,
             operationController,
             SchedulerConfig_,
             New<TFairShareStrategyOperationState>(operation, SchedulerConfig_, strategyHost->GetNodeShardInvokers()),
@@ -698,7 +706,7 @@ protected:
         allocationResources.DiskQuota() = TDiskQuota{.DiskSpacePerMedium = {{0, 10_MB}}};
 
         auto operationHost = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(allocationCount, allocationResources));
-        auto operationElement = CreateTestOperationElement(strategyHost, treeScheduler, operationHost.Get(), parent);
+        auto operationElement = CreateTestOperationElement(strategyHost, treeScheduler, operationHost, parent);
         return {operationElement, operationHost};
     }
 
@@ -946,7 +954,7 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestUpdatePreemptibleAllocationsLi
     auto rootElement = CreateTestRootElement(strategyHost.Get());
 
     auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(10, allocationResources));
-    auto operationElementX = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationX.Get(), rootElement.Get(), operationOptions);
+    auto operationElementX = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationX, rootElement.Get(), operationOptions);
 
     std::vector<TAllocationId> allocationIds;
     for (int i = 0; i < 150; ++i) {
@@ -999,7 +1007,7 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, DontSuggestMoreResourcesThanOperat
     auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
     operationOptions->Weight = 1.0;
     auto operation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(2, operationAllocationResources));
-    auto operationElement = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operation.Get(), rootElement.Get(), operationOptions);
+    auto operationElement = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operation, rootElement.Get(), operationOptions);
 
     auto treeSnapshot = DoFairShareUpdate(strategyHost.Get(), treeScheduler, rootElement);
 
@@ -1014,7 +1022,7 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, DontSuggestMoreResourcesThanOperat
         operationControllerStrategyHost,
         ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
         .Times(2)
-        .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
+        .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/) {
             heartbeatsInScheduling.fetch_add(1);
             EXPECT_TRUE(NConcurrency::WaitFor(readyToGo.ToFuture()).IsOK());
             return MakeFuture<TControllerScheduleAllocationResultPtr>(
@@ -1066,7 +1074,7 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, DoNotPreemptAllocationsIfFairShare
     auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
     operationOptions->Weight = 1.0;
     auto operation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList({}));
-    auto operationElement = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operation.Get(), rootElement.Get(), operationOptions);
+    auto operationElement = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operation, rootElement.Get(), operationOptions);
 
     std::vector<TAllocationId> allocationIds;
     for (int i = 0; i < 4; ++i) {
@@ -1130,7 +1138,7 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestConditionalPreemption)
     allocationResources.DiskQuota() = TDiskQuota{.DiskSpacePerMedium = {{0, 150_MB}}};
 
     auto blockingOperation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
-    auto blockingOperationElement = CreateTestOperationElement(strategyHost.Get(), treeScheduler, blockingOperation.Get(), blockingPool.Get());
+    auto blockingOperationElement = CreateTestOperationElement(strategyHost.Get(), treeScheduler, blockingOperation, blockingPool.Get());
     treeScheduler->OnAllocationStartedInTest(blockingOperationElement.Get(), TAllocationId(TGuid::Create()), allocationResources);
 
     allocationResources.SetUserSlots(1);
@@ -1145,7 +1153,7 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestConditionalPreemption)
     auto donorOperationElement = CreateTestOperationElement(
         strategyHost.Get(),
         treeScheduler,
-        donorOperation.Get(),
+        donorOperation,
         guaranteedPool.Get(),
         /*operationOptions*/ nullptr,
         donorOperationSpec);
@@ -1314,7 +1322,7 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestSchedulableOperationsOrder)
         operationElements.push_back(CreateTestOperationElement(
             strategyHost.Get(),
             treeScheduler,
-            operations.back().Get(),
+            operations.back(),
             pool.Get()));
         nonOwningOperationElements.push_back(operationElements.back().Get());
     }
@@ -1458,7 +1466,7 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestSchedulableChildSetWithBatchSc
         operationElements[opIndex] = CreateTestOperationElement(
             strategyHost.Get(),
             treeScheduler,
-            operations[opIndex].Get(),
+            operations[opIndex],
             rootElement.Get());
     }
 
@@ -1469,7 +1477,7 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestSchedulableChildSetWithBatchSc
             operationControllerStrategyHost,
             ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
             .Times(2)
-            .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
+            .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/) {
                 auto result = New<TControllerScheduleAllocationResult>();
                 result->StartDescriptor.emplace(TAllocationStartDescriptor{TAllocationId(TGuid::Create()), operationAllocationResources, TAllocationAttributes{}});
                 return MakeFuture<TControllerScheduleAllocationResultPtr>(
@@ -1666,7 +1674,7 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestSchedulableChildSetWithoutBatc
         operationElements[opIndex] = CreateTestOperationElement(
             strategyHost.Get(),
             treeScheduler,
-            operations[opIndex].Get(),
+            operations[opIndex],
             rootElement.Get());
     }
 
@@ -1677,7 +1685,7 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestSchedulableChildSetWithoutBatc
             operationControllerStrategyHost,
             ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
             .Times(2)
-            .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
+            .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/) {
                 auto result = New<TControllerScheduleAllocationResult>();
                 result->StartDescriptor.emplace(TAllocationStartDescriptor{TAllocationId(TGuid::Create()), operationAllocationResources, TAllocationAttributes{}});
                 return MakeFuture<TControllerScheduleAllocationResultPtr>(
@@ -1797,15 +1805,15 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestCollectConsideredSchedulableCh
 
     // Create operations.
     auto operationRoot = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
-    auto operationElementRoot = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationRoot.Get(), rootElement.Get());
+    auto operationElementRoot = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationRoot, rootElement.Get());
     auto operationA = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
-    auto operationElementA = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationA.Get(), poolA.Get());
+    auto operationElementA = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationA, poolA.Get());
     auto operationB = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
-    auto operationElementB = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationB.Get(), poolB.Get());
+    auto operationElementB = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationB, poolB.Get());
     auto operationBX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
-    auto operationElementBX = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationBX.Get(), poolBX.Get());
+    auto operationElementBX = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationBX, poolBX.Get());
     auto operationBY = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
-    auto operationElementBY = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationBY.Get(), poolBY.Get());
+    auto operationElementBY = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationBY, poolBY.Get());
 
     const std::vector<TSchedulerElement*> treeElements{
         static_cast<TSchedulerElement*>(rootElement.Get()),
@@ -2059,13 +2067,13 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestGuaranteePriorityScheduling)
     allocationResources.DiskQuota() = CreateDiskQuota(0);
 
     auto operationA1 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, allocationResources));
-    auto operationElementA1 = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationA1.Get(), poolA.Get());
+    auto operationElementA1 = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationA1, poolA.Get());
     auto operationA2 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, allocationResources));
-    auto operationElementA2 = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationA2.Get(), poolA.Get());
+    auto operationElementA2 = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationA2, poolA.Get());
     auto operationB1 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, allocationResources));
-    auto operationElementB1 = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationB1.Get(), poolB.Get());
+    auto operationElementB1 = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationB1, poolB.Get());
     auto operationB2 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, allocationResources));
-    auto operationElementB2 = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationB2.Get(), poolB.Get());
+    auto operationElementB2 = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationB2, poolB.Get());
 
     // Create usage for operations.
     int allocationCount = 0;
@@ -2154,10 +2162,10 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestBuildDynamicAttributesListFrom
 
     // Operations.
     auto operationA = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
-    auto operationElementA = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationA.Get(), pool.Get());
+    auto operationElementA = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationA, pool.Get());
 
     auto operationB = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, allocationResources));
-    auto operationElementB = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationB.Get(), pool.Get());
+    auto operationElementB = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationB, pool.Get());
 
     // Check function.
     struct TUsageWithSatisfactions

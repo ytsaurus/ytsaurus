@@ -16,25 +16,25 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 TIntermediateChunkScraper::TIntermediateChunkScraper(
-    const TIntermediateChunkScraperConfigPtr& config,
-    const IInvokerPtr& invoker,
-    const IInvokerPoolPtr& invokerPool,
-    const IInvokerPtr& scraperInvoker,
-    const TThrottlerManagerPtr& throttlerManager,
-    const NNative::IClientPtr& client,
-    const TNodeDirectoryPtr& nodeDirectory,
+    TIntermediateChunkScraperConfigPtr config,
+    IInvokerPtr invoker,
+    IInvokerPoolPtr invokerPool,
+    IInvokerPtr scraperInvoker,
+    TThrottlerManagerPtr throttlerManager,
+    NNative::IClientPtr client,
+    TNodeDirectoryPtr nodeDirectory,
     TGetChunksCallback getChunksCallback,
-    TChunkLocatedHandler onChunkLocated,
+    TChunkBatchLocatedHandler onChunkBatchLocated,
     const NLogging::TLogger& logger)
-    : Config_(config)
-    , Invoker_(invoker)
-    , InvokerPool_(invokerPool)
-    , ScraperInvoker_(scraperInvoker)
-    , ThrottlerManager_(throttlerManager)
-    , Client_(client)
-    , NodeDirectory_(nodeDirectory)
+    : Config_(std::move(config))
+    , Invoker_(std::move(invoker))
+    , InvokerPool_(std::move(invokerPool))
+    , ScraperInvoker_(std::move(scraperInvoker))
+    , ThrottlerManager_(std::move(throttlerManager))
+    , Client_(std::move(client))
+    , NodeDirectory_(std::move(nodeDirectory))
     , GetChunksCallback_(std::move(getChunksCallback))
-    , OnChunkLocated_(std::move(onChunkLocated))
+    , OnChunkBatchLocated_(std::move(onChunkBatchLocated))
     , Logger(logger)
 { }
 
@@ -76,12 +76,13 @@ void TIntermediateChunkScraper::ResetChunkScraper()
     ResetScheduled_ = false;
 
     if (ChunkScraper_) {
-        YT_UNUSED_FUTURE(ChunkScraper_->Stop());
+        ChunkScraper_->Stop();
     }
 
     auto intermediateChunks = GetChunksCallback_();
 
-    YT_LOG_DEBUG("Reset intermediate chunk scraper (ChunkCount: %v)",
+    YT_LOG_DEBUG(
+        "Reset intermediate chunk scraper (ChunkCount: %v)",
         intermediateChunks.size());
     ChunkScraper_ = New<TChunkScraper>(
         Config_,
@@ -90,7 +91,7 @@ void TIntermediateChunkScraper::ResetChunkScraper()
         Client_,
         NodeDirectory_,
         std::move(intermediateChunks),
-        OnChunkLocated_,
+        OnChunkBatchLocated_,
         Logger);
     ChunkScraper_->Start();
 }

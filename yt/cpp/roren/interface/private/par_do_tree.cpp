@@ -21,6 +21,10 @@ namespace NRoren::NPrivate {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPipePCollectionNode
     : public IRawOutput
 {
@@ -82,7 +86,11 @@ private:
     std::vector<IRawParDoPtr> MoveParDos_;
 };
 
-using TPipePCollectionNodePtr = ::TIntrusivePtr<TPipePCollectionNode>;
+using TPipePCollectionNodePtr = NYT::TIntrusivePtr<TPipePCollectionNode>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -153,7 +161,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TParDoTree>();
+            return NYT::New<TParDoTree>();
         };
     }
 
@@ -183,9 +191,9 @@ public:
         for (const auto& node : ParDoNodes_) {
             const auto name = NPrivate::GetAttributeOrDefault(*node.ParDo, TransformNameTag, TString{"<unknown>"});
             builder.AppendFormat(
-                "    {name=%Qv; input=%v; outputs=%v};\n",
+                "    {name=%Qv; inputs=%v; outputs=%v};\n",
                 name,
-                node.Input,
+                NYT::NYson::ConvertToYsonString(node.Inputs, NYT::NYson::EYsonFormat::Text),
                 NYT::NYson::ConvertToYsonString(node.Outputs, NYT::NYson::EYsonFormat::Text));
         }
         builder.AppendString("]\n");
@@ -238,21 +246,23 @@ private:
             PCollectionNodeOutputIndex_.size());
 
         for (const auto& parDoNode : ParDoNodes_) {
-            pipePCollectionNodeOutputs[parDoNode.Input].second.push_back(parDoNode.ParDo);
+            for (const auto input : parDoNode.Inputs) {
+                pipePCollectionNodeOutputs[input].second.push_back(parDoNode.ParDo);
+            }
         }
 
         for (int pCollectionIndex = 0; pCollectionIndex < std::ssize(PCollectionNodeOutputIndex_); ++pCollectionIndex) {
             auto globalOutputIndex = PCollectionNodeOutputIndex_[pCollectionIndex];
             if (globalOutputIndex != InvalidOutputIndex) {
-                auto& pCollectionNodeOutputs = pipePCollectionNodeOutputs[pCollectionIndex];
-                pCollectionNodeOutputs.first.emplace_back(globalOutputs[globalOutputIndex]);
+                auto& pCollectionNodeOutputs = pipePCollectionNodeOutputs.at(pCollectionIndex);
+                pCollectionNodeOutputs.first.emplace_back(globalOutputs.at(globalOutputIndex));
             }
         }
 
         PipePCollectionNodes_.clear();
         PipePCollectionNodes_.reserve(pipePCollectionNodeOutputs.size());
         for (auto& [outputs, parDos] : pipePCollectionNodeOutputs) {
-            auto node = ::MakeIntrusive<TPipePCollectionNode>(std::move(outputs), std::move(parDos));
+            auto node = NYT::New<TPipePCollectionNode>(std::move(outputs), std::move(parDos));
             PipePCollectionNodes_.push_back(std::move(node));
         }
     }
@@ -303,17 +313,28 @@ std::vector<TParDoTreeBuilder::TPCollectionNodeId> TParDoTreeBuilder::AddParDo(
     IRawParDoPtr parDo,
     TPCollectionNodeId input)
 {
-    Y_ABORT_UNLESS(0 <= input && input < std::ssize(PCollectionNodes_));
-    const auto& tags = parDo->GetInputTags();
-    if (input == 0) {
-        Y_ABORT_UNLESS(tags.size() == 1);
-        if (!IsDefined(PCollectionNodes_[0].RowVtable)) {
-            PCollectionNodes_[0].RowVtable = tags[0].GetRowVtable();
-        }
-    }
-    Y_ABORT_UNLESS(IsDefined(PCollectionNodes_[input].RowVtable));
+    return AddParDo(std::move(parDo), std::vector{input});
+}
 
-    CheckPCollectionType(input, "ParDo being connected input", tags[0].GetRowVtable());
+std::vector<TParDoTreeBuilder::TPCollectionNodeId> TParDoTreeBuilder::AddParDo(
+    IRawParDoPtr parDo,
+    std::vector<TPCollectionNodeId> inputs)
+{
+    for (const auto input : inputs) {
+        Y_ABORT_UNLESS(0 <= input && input < std::ssize(PCollectionNodes_));
+        const auto& tags = parDo->GetInputTags();
+        Y_ABORT_UNLESS(tags.size() == 1);
+        if (input == 0) {
+            Y_ABORT_UNLESS(tags.size() == 1);
+            if (!IsDefined(PCollectionNodes_[0].RowVtable)) {
+                Y_ABORT_UNLESS(inputs.size() == 1);
+                PCollectionNodes_[0].RowVtable = tags[0].GetRowVtable();
+            }
+        }
+        Y_ABORT_UNLESS(IsDefined(PCollectionNodes_[input].RowVtable));
+
+        CheckPCollectionType(input, "ParDo being connected input", tags[0].GetRowVtable());
+    }
 
     std::vector<TPCollectionNodeId> outputs;
     const auto& outputTags = parDo->GetOutputTags();
@@ -324,7 +345,7 @@ std::vector<TParDoTreeBuilder::TPCollectionNodeId> TParDoTreeBuilder::AddParDo(
 
     ParDoNodes_.push_back(TParDoNode{
         .ParDo = std::move(parDo),
-        .Input = input,
+        .Inputs = std::move(inputs),
         .Outputs = outputs,
     });
 
@@ -422,7 +443,7 @@ IParDoTreePtr TParDoTreeBuilder::Build()
     CheckNoHangingPCollectionNodes();
 
     Built_ = true;
-    return ::MakeIntrusive<TParDoTree>(
+    return NYT::New<TParDoTree>(
         std::move(ParDoNodes_),
         PCollectionNodes_,
         std::move(MarkedOutputTypeTags_));
@@ -440,12 +461,14 @@ const TParDoTreeBuilder::TParDoNode& TParDoTreeBuilder::FindParDoByOutput(int pC
 
 void TParDoTreeBuilder::CheckNoHangingPCollectionNodes() const
 {
-    auto index_of = [](const auto& container, const auto& v) {
+    auto index_of = [] (const auto& container, const auto& v) {
         return std::distance(container.begin(), std::find(container.begin(), container.end(), v));
     };
     THashSet<TPCollectionNodeId> parDoInputs;
     for (const TParDoNode& parDoNode : ParDoNodes_) {
-        parDoInputs.insert(parDoNode.Input);
+        for (const auto input : parDoNode.Inputs) {
+            parDoInputs.insert(input);
+        }
     }
     for (ssize_t pCollectionIndex = 0; pCollectionIndex < std::ssize(PCollectionNodes_); ++pCollectionIndex) {
         const bool isGlobalOutput = PCollectionNodes_[pCollectionIndex].GlobalOutputIndex != InvalidOutputIndex;
@@ -475,11 +498,14 @@ THashMap<TParDoTreeBuilder::TPCollectionNodeId, TParDoTreeBuilder::TPCollectionN
     link(0, input);
 
     for (const auto& otherParDoNode : other.ParDoNodes_) {
-        auto it = otherToThisMap.find(otherParDoNode.Input);
-        Y_ABORT_UNLESS(it != otherToThisMap.end());
-        auto thisInputId = it->second;
+        std::vector<TPCollectionNodeId> thisInputIds;
+        for (const auto input : otherParDoNode.Inputs) {
+            auto it = otherToThisMap.find(input);
+            Y_ABORT_UNLESS(it != otherToThisMap.end());
+            thisInputIds.push_back(it->second);
+        }
 
-        auto thisOutputIds = AddParDo(otherParDoNode.ParDo, thisInputId);
+        auto thisOutputIds = AddParDo(otherParDoNode.ParDo, thisInputIds);
         Y_ABORT_UNLESS(thisOutputIds.size() == otherParDoNode.Outputs.size());
         for (ssize_t i = 0; i < std::ssize(thisOutputIds); ++i) {
             auto otherId = otherParDoNode.Outputs[i];

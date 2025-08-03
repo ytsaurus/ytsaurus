@@ -133,21 +133,6 @@ class TCellNodeProxy
 public:
     using TCypressMapNodeProxy::TCypressMapNodeProxy;
 
-    TResolveResult ResolveSelf(
-        const TYPath& path,
-        const IYPathServiceContextPtr& context) override
-    {
-        const auto& method = context->GetMethod();
-        const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->CellHydraPersistenceSynchronizer;
-        if (!config->MigrateToVirtualCellMaps &&
-            method == "Remove")
-        {
-            return TResolveResultThere{GetTargetProxy(), path};
-        } else {
-            return TCypressMapNodeProxy::ResolveSelf(path, context);
-        }
-    }
-
     IYPathService::TResolveResult ResolveAttributes(
         const TYPath& path,
         const IYPathServiceContextPtr& /*context*/) override
@@ -404,9 +389,9 @@ private:
                 THROW_ERROR_EXCEPTION("Specified \"cell_id\" does not correspond to any cell type");
             }
 
-            auto proxy = CreateObjectServiceReadProxy(
-                Bootstrap_->GetRootClient(),
-                EMasterChannelKind::Follower);
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
+                multicellManager->GetMasterChannelOrThrow(PrimaryMasterCellTagSentinel, NHydra::EPeerKind::Follower));
 
             auto batchReq = proxy.ExecuteBatch();
             auto req = TYPathProxy::Get(FromObjectId(cellId) + "/@peers");

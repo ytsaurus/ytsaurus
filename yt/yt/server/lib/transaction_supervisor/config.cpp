@@ -16,6 +16,10 @@ void TTransactionSupervisorConfig::Register(TRegistrar registrar)
         "enable_wait_until_prepared_transactions_finished",
         &TThis::EnableWaitUntilPreparedTransactionsFinished)
         .Default(false);
+    registrar.Parameter(
+        "validate_strongly_ordered_transaction_refs",
+        &TThis::ValidateStronglyOrderedTransactionRefs)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -40,6 +40,9 @@ add_library(yt-server-node)
 target_compile_options(yt-server-node PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_include_directories(yt-server-node PUBLIC
@@ -106,6 +109,8 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/blob_chunk.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/blob_reader_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/blob_session.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/nbd_session.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/nbd_chunk_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/chunk.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/chunk_detail.cpp
@@ -115,6 +120,7 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/chunk_reader_sweeper.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/data_node_service.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/data_node_nbd_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/disk_location.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/job.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/job_controller.cpp
@@ -192,9 +198,11 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/compaction_hint_fetcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/compression_dictionary_builder.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/compression_dictionary_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/distributed_throttler_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/dynamic_store_bits.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/error_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/failing_on_rotation_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/hedging_manager_registry.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/hint_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/hunk_chunk.cpp

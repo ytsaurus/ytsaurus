@@ -88,4 +88,12 @@ void CheckWritePermission(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+THashSet<TString> DeduceActualAttributes(
+    const std::optional<THashSet<TString>>& originalAttributes,
+    const THashSet<TString>& requiredAttributes,
+    const THashSet<TString>& defaultAttributes,
+    const THashSet<TString>& ignoredAttributes = {});
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NApi::NNative

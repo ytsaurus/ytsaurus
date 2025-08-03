@@ -9,6 +9,8 @@
 
 #include <yt/yt/server/lib/cypress_registrar/public.h>
 
+#include <yt/yt/server/lib/security_server/public.h>
+
 #include <yt/yt/server/lib/signature/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
@@ -117,10 +119,9 @@ DEFINE_REFCOUNTED_TYPE(TCoordinatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDelayBeforeCommand
+struct TDelayBeforeCommand
     : public NYTree::TYsonStruct
 {
-public:
     TDuration Delay;
     TString ParameterPath;
     TString Substring;
@@ -130,14 +131,13 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
 DEFINE_REFCOUNTED_TYPE(TDelayBeforeCommand)
 
-class TApiTestingOptions
+////////////////////////////////////////////////////////////////////////////////
+
+struct TApiTestingOptions
     : public NYTree::TYsonStruct
 {
-public:
     THashMap<TString, TIntrusivePtr<TDelayBeforeCommand>> DelayBeforeCommand;
 
     NServer::THeapProfilerTestingOptionsPtr HeapProfiler;
@@ -166,6 +166,36 @@ DEFINE_REFCOUNTED_TYPE(TFramingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TMemoryLimitRatiosConfig
+    : public NYTree::TYsonStruct
+{
+    //! Represents the ratio of total available memory that can be utilized by each user (if user is not specified in "DefaultUserMemoryLimitRatio"),
+    //! expressed as a value between 0 and 1.
+    std::optional<double> DefaultUserMemoryLimitRatio;
+    THashMap<std::string, double> UserToMemoryLimitRatio;
+
+    REGISTER_YSON_STRUCT(TMemoryLimitRatiosConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMemoryLimitRatiosConfig)
+
+struct TMemoryLimitsConfig
+    : public NYTree::TYsonStruct
+{
+    std::optional<i64> Total;
+    std::optional<i64> HeavyRequest;
+
+    REGISTER_YSON_STRUCT(TMemoryLimitsConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMemoryLimitsConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TApiConfig
     : public NYTree::TYsonStruct
 {
@@ -175,6 +205,9 @@ struct TApiConfig
     NHttp::TCorsConfigPtr Cors;
 
     bool ForceTracing;
+
+    TDuration CpuUpdatePeriod;
+    NSecurityServer::TUserAccessValidatorDynamicConfigPtr UserAccessValidator;
 
     TApiTestingOptionsPtr TestingOptions;
 
@@ -195,6 +228,14 @@ struct TApiDynamicConfig
     THashMap<NFormats::EFormatType, NServer::TFormatConfigPtr> Formats;
 
     bool EnableAllocationTags;
+
+    NSecurityServer::TUserAccessValidatorDynamicConfigPtr UserAccessValidator;
+
+    std::optional<double> DefaultUserMemoryLimitRatio;
+    THashMap<std::string, TMemoryLimitRatiosConfigPtr> RoleToMemoryLimitRatios;
+
+    // COMPAT(ignat): drop the option after 25.2.
+    bool UseCompressionThreadPool;
 
     REGISTER_YSON_STRUCT(TApiDynamicConfig);
 
@@ -218,9 +259,6 @@ struct TAccessCheckerConfig
 
     // COMPAT(verytable): Drop it after migration to aco roles everywhere.
     bool UseAccessControlObjects;
-
-    //! Parameters of the permission cache.
-    NSecurityClient::TPermissionCacheConfigPtr Cache;
 
     REGISTER_YSON_STRUCT(TAccessCheckerConfig);
 
@@ -246,21 +284,6 @@ DEFINE_REFCOUNTED_TYPE(TAccessCheckerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TProxyMemoryLimitsConfig
-    : public NYTree::TYsonStruct
-{
-    std::optional<i64> Total;
-    std::optional<i64> HeavyRequest;
-
-    REGISTER_YSON_STRUCT(TProxyMemoryLimitsConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TProxyMemoryLimitsConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TProxyBootstrapConfig
     : public NServer::TNativeServerBootstrapConfig
 {
@@ -273,6 +296,9 @@ struct TProxyBootstrapConfig
     NHttps::TServerConfigPtr TvmOnlyHttpsServer;
     NHttp::TServerConfigPtr ChytHttpServer;
     NHttps::TServerConfigPtr ChytHttpsServer;
+
+    //! Known HTTP proxy addresses.
+    NNodeTrackerClient::TNetworkAddressList Addresses;
 
     NDriver::TDriverConfigPtr Driver;
 
@@ -288,7 +314,7 @@ struct TProxyBootstrapConfig
 
     TAccessCheckerConfigPtr AccessChecker;
 
-    TProxyMemoryLimitsConfigPtr MemoryLimits;
+    TMemoryLimitsConfigPtr MemoryLimits;
 
     NClickHouse::TStaticClickHouseConfigPtr ClickHouse;
 
@@ -362,7 +388,7 @@ struct TProxyDynamicConfig
 
     NBus::TBusServerDynamicConfigPtr BusServer;
 
-    TProxyMemoryLimitsConfigPtr MemoryLimits;
+    TMemoryLimitsConfigPtr MemoryLimits;
 
     REGISTER_YSON_STRUCT(TProxyDynamicConfig);
 

@@ -42,13 +42,14 @@ public:
 
     struct TLocalObjectPayload
     {
-        TObject* Object;
-        NTransactionServer::TTransaction* Transaction;
+        TObject* Object = nullptr;
+        NTransactionServer::TTransaction* Transaction = nullptr;
     };
 
-    struct TRemoteObjectPayload
+    struct TRemoteObjectRedirectPayload
     {
         NObjectClient::TObjectId ObjectId;
+        int ResolveDepth = 0;
     };
 
     struct TSequoiaRedirectPayload
@@ -62,7 +63,7 @@ public:
 
     using TResolvePayload = std::variant<
         TLocalObjectPayload,
-        TRemoteObjectPayload,
+        TRemoteObjectRedirectPayload,
         TSequoiaRedirectPayload,
         TMissingObjectPayload
     >;
@@ -71,8 +72,8 @@ public:
     {
         NYPath::TYPath UnresolvedPathSuffix;
         TResolvePayload Payload;
-        bool CanCacheResolve;
-        int ResolveDepth;
+        bool CanCacheResolve = false;
+        int ResolveDepth = 0;
     };
 
     TResolveResult Resolve(const TPathResolverOptions& options = {});
@@ -92,12 +93,19 @@ private:
     std::optional<NTransactionServer::TTransaction*> Transaction_;
 
     NTransactionServer::TTransaction* GetTransaction();
-    TResolvePayload ResolveRoot(const TPathResolverOptions& options);
+    TResolvePayload ResolveRoot(const TPathResolverOptions& options, bool treatCypressRootAsRemoteOnSecondaryMaster);
 
     // COMPAT(kvk1920): remove after 24.2.
     bool IsBackupMethod() noexcept;
     void MaybeApplyNativeTransactionExternalizationCompat(TObjectId objectId);
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TPathResolver::TResolvePayload& payload,
+    TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

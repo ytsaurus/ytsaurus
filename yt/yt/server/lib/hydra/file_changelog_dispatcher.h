@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/core/misc/memory_usage_tracker.h>
+
 #include <yt/yt/server/lib/io/public.h>
 
 #include <yt/yt/library/profiling/sensor.h>

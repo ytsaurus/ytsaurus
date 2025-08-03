@@ -20,6 +20,9 @@ add_library(yt-server-tablet_balancer)
 target_compile_options(yt-server-tablet_balancer PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(yt-server-tablet_balancer PUBLIC
@@ -48,6 +51,7 @@ target_sources(yt-server-tablet_balancer PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/tablet_balancer/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/tablet_balancer/dynamic_config_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/tablet_balancer/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/tablet_balancer/move_iteration.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/tablet_balancer/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/tablet_balancer/reshard_iteration.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/tablet_balancer/table_registry.cpp

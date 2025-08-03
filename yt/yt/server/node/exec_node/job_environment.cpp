@@ -62,9 +62,11 @@ using namespace NYTree;
 using namespace NTools;
 using namespace NServer;
 
+using NNet::TIP6Address;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ExecNodeLogger;
+constinit const auto Logger = ExecNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -195,7 +197,7 @@ public:
         return 0;
     }
 
-    TFuture<std::vector<TShellCommandOutput>> RunSetupCommands(
+    TFuture<std::vector<TShellCommandOutput>> RunCommands(
         int /*slotIndex*/,
         ESlotType /*slotType*/,
         TJobId /*jobId*/,
@@ -203,9 +205,11 @@ public:
         const TRootFS& /*rootFS*/,
         const std::string& /*user*/,
         const std::optional<std::vector<TDevice>>& /*devices*/,
-        int /*startIndex*/) override
+        const std::optional<TString>& /*hostName*/,
+        const std::vector<TIP6Address>& /*ipAddresses*/,
+        std::string /*tag*/) override
     {
-        THROW_ERROR_EXCEPTION("Setup scripts are not yet supported by %Qlv environment",
+        THROW_ERROR_EXCEPTION("Running custom commands is not yet supported by %Qlv environment",
             Config_.GetCurrentType());
     }
 
@@ -304,7 +308,7 @@ private:
     {
         auto alert = Alert_.Load();
         if (!alert.IsOK()) {
-            alerts->push_back(alert);
+            alerts->push_back(std::move(alert));
         }
     }
 
@@ -445,11 +449,11 @@ public:
             ConcreteConfig_->PortoExecutor,
             "env_spawn",
             JobEnvironmentProfiler().WithPrefix("/porto")))
-        , CreatePortoExecutor_(CreatePortoExecutor(
+        , PortoCreateExecutor_(CreatePortoExecutor(
             ConcreteConfig_->PortoExecutor,
             "env_create",
             JobEnvironmentProfiler().WithPrefix("/porto_create")))
-        , DestroyPortoExecutor_(CreatePortoExecutor(
+        , PortoDestroyExecutor_(CreatePortoExecutor(
             ConcreteConfig_->PortoExecutor,
             "env_destroy",
             JobEnvironmentProfiler().WithPrefix("/porto_destroy")))
@@ -471,7 +475,11 @@ public:
                 executor->OnDynamicConfigChanged(portoConfig->PortoExecutor);
             }
 
-            if (auto executor = DestroyPortoExecutor_) {
+            if (auto executor = PortoDestroyExecutor_) {
+                executor->OnDynamicConfigChanged(portoConfig->PortoExecutor);
+            }
+
+            if (auto executor = PortoCreateExecutor_) {
                 executor->OnDynamicConfigChanged(portoConfig->PortoExecutor);
             }
 
@@ -561,7 +569,7 @@ public:
         return CreatePortoJobDirectoryManager(Bootstrap_->GetConfig()->DataNode->VolumeManager, path, locationIndex);
     }
 
-    TFuture<std::vector<TShellCommandOutput>> RunSetupCommands(
+    TFuture<std::vector<TShellCommandOutput>> RunCommands(
         int slotIndex,
         ESlotType slotType,
         TJobId jobId,
@@ -569,31 +577,45 @@ public:
         const TRootFS& rootFS,
         const std::string& user,
         const std::optional<std::vector<TDevice>>& devices,
-        int startIndex) override
+        const std::optional<TString>& hostName,
+        const std::vector<TIP6Address>& ipAddresses,
+        std::string tag) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        return BIND([this, this_ = MakeStrong(this), slotIndex, slotType, jobId, commands, rootFS, user, devices, startIndex] {
+        return BIND([this, this_ = MakeStrong(this), slotIndex, slotType, jobId, commands, rootFS, user, devices, hostName, ipAddresses, tag] {
             std::vector<TShellCommandOutput> outputs;
             outputs.reserve(commands.size());
 
             for (int index = 0; index < std::ssize(commands); ++index) {
                 const auto& command = commands[index];
                 YT_LOG_DEBUG(
-                    "Running setup command (JobId: %v, Path: %v, Args: %v, User: %v, Devices: %v)",
+                    "Running command (JobId: %v, Path: %v, Args: %v, User: %v, Devices: %v)",
                     jobId,
                     command->Path,
                     command->Args,
                     user,
                     devices);
 
-                auto launcher = CreateSetupInstanceLauncher(slotIndex, slotType, jobId, rootFS, user, startIndex + index);
+                auto launcher = CreatePortoInstanceLauncher(
+                    Format("%v_%v_%v",
+                        GetFullJobContainerName(slotIndex, slotType, CommandContainerPrefix, jobId),
+                        tag,
+                        index),
+                    PortoExecutor_);
+                launcher->SetRoot(rootFS);
+                launcher->SetUser(user);
                 if (devices) {
                     launcher->SetDevices(*devices);
                 }
 
-                auto instanceOrError = WaitFor(launcher->Launch(command->Path, command->Args, {}));
-                YT_LOG_WARNING_IF(!instanceOrError.IsOK(), instanceOrError, "Failed to launch setup command (JobId: %v)",
+                if (hostName) {
+                    launcher->SetHostName(*hostName);
+                    launcher->SetIPAddresses(ipAddresses, /*enableNat64*/ false);
+                }
+
+                auto instanceOrError = WaitFor(launcher->Launch(command->Path, command->Args, command->EnvironmentVariables));
+                YT_LOG_WARNING_IF(!instanceOrError.IsOK(), instanceOrError, "Failed to launch command (JobId: %v)",
                     jobId);
                 const auto& instance = instanceOrError.ValueOrThrow();
 
@@ -605,7 +627,7 @@ public:
                 };
 
                 if (!error.IsOK()) {
-                    YT_LOG_WARNING(error, "Setup command failed (JobId: %v, Stderr: %Qv, Stdout: %Qv)",
+                    YT_LOG_WARNING(error, "Command failed (JobId: %v, Stderr: %Qv, Stdout: %Qv)",
                         jobId,
                         instanceOutput.Stderr,
                         instanceOutput.Stdout);
@@ -619,10 +641,11 @@ public:
                 outputs.push_back(instanceOutput);
 
                 YT_LOG_DEBUG(
-                    "Setup command finished (JobId: %v, Path: %v, Args: %v)",
+                    "Command finished (JobId: %v, Path: %v, Args: %v, EnvironmentVariables: %v)",
                     jobId,
                     command->Path,
-                    command->Args);
+                    command->Args,
+                    command->EnvironmentVariables);
             }
 
             return outputs;
@@ -635,7 +658,7 @@ private:
     static constexpr TStringBuf JobsMetaContainerName = "jm";
     static constexpr TStringBuf JobsMetaContainerIdleSuffix = "_idle";
     static constexpr TStringBuf JobProxyContainerPrefix = "/jp";
-    static constexpr TStringBuf SetupCommandContainerPrefix = "/sc";
+    static constexpr TStringBuf CommandContainerPrefix = "/cm";
 
     TPortoJobEnvironmentConfigPtr ConcreteConfig_;
 
@@ -643,11 +666,11 @@ private:
     IPortoExecutorPtr PortoExecutor_;
 
     //! Porto connection for container creation that could be long.
-    IPortoExecutorPtr CreatePortoExecutor_;
+    IPortoExecutorPtr PortoCreateExecutor_;
 
     //! Porto connection used for container destruction, which is
     //! possibly a long operation and requires additional retries.
-    IPortoExecutorPtr DestroyPortoExecutor_;
+    IPortoExecutorPtr PortoDestroyExecutor_;
     NProfiling::TCounter ContainerDestroyFailureCounter_;
 
     IInstancePtr SelfInstance_;
@@ -676,13 +699,13 @@ private:
         while (!destroyed) {
             YT_LOG_DEBUG("Start container destruction attempt (RootContainer: %v)", rootContainer);
 
-            auto containers = WaitFor(DestroyPortoExecutor_->ListSubcontainers(rootContainer, false))
+            auto containers = WaitFor(PortoDestroyExecutor_->ListSubcontainers(rootContainer, false))
                 .ValueOrThrow();
 
             std::vector<TFuture<void>> futures;
             for (const auto& container : containers) {
                 YT_LOG_DEBUG("Destroy subcontainer (Container: %v)", container);
-                futures.push_back(DestroyPortoExecutor_->DestroyContainer(container));
+                futures.push_back(PortoDestroyExecutor_->DestroyContainer(container));
             }
 
             auto result = WaitFor(AllSet(futures));
@@ -780,7 +803,7 @@ private:
         auto slotInitFuture = BIND([this, this_ = MakeStrong(this), slotIndex] {
             for (auto slotType : {ESlotType::Common, ESlotType::Idle}) {
                 auto slotContainer = GetFullSlotMetaContainerName(slotIndex, slotType);
-                WaitFor(CreatePortoExecutor_->CreateContainer(slotContainer))
+                WaitFor(PortoCreateExecutor_->CreateContainer(slotContainer))
                     .ThrowOnError();
 
                 // This forces creation of CPU cgroup for this container.
@@ -947,22 +970,6 @@ private:
         return SelfInstance_->GetMajorPageFaultCount();
     }
 
-    IInstanceLauncherPtr CreateSetupInstanceLauncher(
-        int slotIndex,
-        ESlotType slotType,
-        TJobId jobId,
-        const TRootFS& rootFS,
-        const std::string& user,
-        int index)
-    {
-        auto launcher = CreatePortoInstanceLauncher(
-            GetFullJobContainerName(slotIndex, slotType, SetupCommandContainerPrefix, jobId) + "_" + ToString(index),
-            PortoExecutor_);
-        launcher->SetRoot(rootFS);
-        launcher->SetUser(user);
-        return launcher;
-    }
-
     TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
         IInvokerPtr invoker,
         TJobWorkspaceBuildingContext context,
@@ -1093,7 +1100,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         // Inject default docker image for job workspace.
-        if (!context.DockerImage && context.LayerArtifactKeys.empty()) {
+        if (!context.DockerImage && context.RootVolumeLayerArtifactKeys.empty()) {
             context.DockerImage = ConcreteConfig_->JobProxyImage;
         }
 
@@ -1104,7 +1111,7 @@ public:
             ImageCache_);
     }
 
-    TFuture<std::vector<TShellCommandOutput>> RunSetupCommands(
+    TFuture<std::vector<TShellCommandOutput>> RunCommands(
         int slotIndex,
         ESlotType slotType,
         TJobId jobId,
@@ -1112,7 +1119,9 @@ public:
         const TRootFS& rootFS,
         const std::string& /*user*/,
         const std::optional<std::vector<TDevice>>& /*devices*/,
-        int startIndex) override
+        const std::optional<TString>& /*hostName*/,
+        const std::vector<TIP6Address>& /*ipAddresses*/,
+        std::string tag) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -1148,7 +1157,7 @@ public:
         std::vector<TFuture<void>> results;
         results.reserve(std::ssize(commands));
         for (int index = 0; index < std::ssize(commands); ++index) {
-            spec->Name = Format("setup-command-%v", startIndex + index);
+            spec->Name = Format("command-%v-%v", tag, index);
 
             const auto& command = commands[index];
             auto process = Executor_->CreateProcess(
@@ -1157,6 +1166,7 @@ public:
                 PodDescriptors_[slotIndex],
                 PodSpecs_[slotIndex]);
             process->AddArguments(command->Args);
+            // TODO(ignat): add envs.
             process->SetWorkingDirectory("/slot/home");
 
             results.push_back(
@@ -1208,6 +1218,7 @@ private:
         // Run job proxy in docker image specified for the job.
         // For now CRI job-environment does not isolate user jobs from job proxy.
         spec->Image.Image = config->DockerImage.value_or(ConcreteConfig_->JobProxyImage);
+        spec->Image.Id = config->DockerImageId.value_or("");
 
         spec->Labels[YTJobIdLabel] = ToString(jobId);
 

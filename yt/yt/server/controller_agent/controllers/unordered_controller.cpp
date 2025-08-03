@@ -89,7 +89,7 @@ public:
         TDuration GetLocalityTimeout() const override
         {
             return Controller_->IsLocalityEnabled()
-                ? Controller_->Spec->LocalityTimeout
+                ? Controller_->Spec_->LocalityTimeout
                 : TDuration::Zero();
         }
 
@@ -147,9 +147,9 @@ public:
             auto config = TaskHost_->GetJobSplitterConfigTemplate();
 
             if (Controller_->GetOperationType() == EOperationType::Map) {
-                config->EnableJobSplitting &=
-                    (IsJobInterruptible() &&
-                    std::ssize(Controller_->InputManager->GetInputTables()) <= Controller_->Options->JobSplitter->MaxInputTableCount);
+                if (!IsJobInterruptible()) {
+                    config->EnableJobSplitting = false;
+                }
             } else {
                 YT_VERIFY(Controller_->GetOperationType() == EOperationType::Merge);
                 // TODO(gritukan): YT-13646.
@@ -180,8 +180,8 @@ public:
             return
                 !(Controller_->AutoMergeTask_ && CanLoseJobs()) &&
                 !Controller_->JobSizeConstraints_->IsExplicitJobCount() &&
-                2 * Controller_->Options->MaxOutputTablesTimesJobsCount > totalJobCount * std::ssize(Controller_->GetOutputTablePaths()) &&
-                2 * Controller_->Options->MaxJobCount > totalJobCount;
+                2 * Controller_->Options_->MaxOutputTablesTimesJobsCount > totalJobCount * std::ssize(Controller_->GetOutputTablePaths()) &&
+                2 * Controller_->Options_->MaxJobCount > totalJobCount;
         }
 
         i64 GetTotalOutputRowCount() const
@@ -207,7 +207,7 @@ public:
         {
             YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
-            jobSpec->CopyFrom(Controller_->JobSpecTemplate);
+            jobSpec->CopyFrom(Controller_->JobSpecTemplate_);
             AddSequentialInputSpec(jobSpec, joblet);
             AddOutputTableSpecs(jobSpec, joblet);
         }
@@ -217,7 +217,7 @@ public:
             TTask::OnChunkTeleported(teleportChunk, tag);
 
             YT_VERIFY(GetJobType() == EJobType::UnorderedMerge);
-            Controller_->RegisterTeleportChunk(std::move(teleportChunk), /*key*/ 0, /*tableIndex*/ 0);
+            Controller_->RegisterTeleportChunk(std::move(teleportChunk), /*key*/ TChunkStripeKey(), /*tableIndex*/ 0);
         }
 
         PHOENIX_DECLARE_POLYMORPHIC_TYPE(TUnorderedTaskBase, 0x38f1471a);
@@ -240,19 +240,19 @@ public:
             options,
             host,
             operation)
-        , Spec(spec)
-        , Options(options)
+        , Spec_(spec)
+        , Options_(options)
     { }
 
 protected:
-    TUnorderedOperationSpecBasePtr Spec;
-    TSimpleOperationOptionsPtr Options;
+    TUnorderedOperationSpecBasePtr Spec_;
+    TSimpleOperationOptionsPtr Options_;
 
     //! Customized job IO config.
-    TJobIOConfigPtr JobIOConfig;
+    TJobIOConfigPtr JobIOConfig_;
 
     //! The template for starting new jobs.
-    TJobSpec JobSpecTemplate;
+    TJobSpec JobSpecTemplate_;
 
     IJobSizeConstraintsPtr JobSizeConstraints_;
 
@@ -261,7 +261,7 @@ protected:
     // Custom bits of preparation pipeline.
     std::vector<TRichYPath> GetInputTablePaths() const override
     {
-        return Spec->InputTablePaths;
+        return Spec_->InputTablePaths;
     }
 
     bool IsCompleted() const override
@@ -279,11 +279,11 @@ protected:
 
     void InitTeleportableInputTables()
     {
-        if (GetJobType() == EJobType::UnorderedMerge && !Spec->InputQuery) {
-            for (int index = 0; index < std::ssize(InputManager->GetInputTables()); ++index) {
-                if (InputManager->GetInputTables()[index]->SupportsTeleportation() && OutputTables_[0]->SupportsTeleportation()) {
-                    InputManager->GetInputTables()[index]->Teleportable = CheckTableSchemaCompatibility(
-                        *InputManager->GetInputTables()[index]->Schema,
+        if (GetJobType() == EJobType::UnorderedMerge && !Spec_->InputQuery) {
+            for (int index = 0; index < std::ssize(InputManager_->GetInputTables()); ++index) {
+                if (InputManager_->GetInputTables()[index]->SupportsTeleportation() && OutputTables_[0]->SupportsTeleportation()) {
+                    InputManager_->GetInputTables()[index]->Teleportable = CheckTableSchemaCompatibility(
+                        *InputManager_->GetInputTables()[index]->Schema,
                         *OutputTables_[0]->TableUploadOptions.TableSchema.Get(),
                         {}).first == ESchemaCompatibility::FullyCompatible;
                 }
@@ -295,28 +295,30 @@ protected:
 
     void InitJobSizeConstraints()
     {
-        switch (OperationType) {
+        switch (OperationType_) {
             case EOperationType::Merge:
                 JobSizeConstraints_ = CreateMergeJobSizeConstraints(
-                    Spec,
-                    Options,
+                    Spec_,
+                    Options_,
                     Logger,
-                    TotalEstimatedInputChunkCount,
-                    PrimaryInputDataWeight,
-                    DataWeightRatio,
-                    InputCompressionRatio);
+                    TotalEstimatedInputChunkCount_,
+                    PrimaryInputDataWeight_,
+                    PrimaryInputCompressedDataSize_,
+                    DataWeightRatio_,
+                    InputCompressionRatio_);
                 break;
 
             case EOperationType::Map:
                 JobSizeConstraints_ = CreateUserJobSizeConstraints(
-                    Spec,
-                    Options,
+                    Spec_,
+                    Options_,
                     Logger,
                     GetOutputTablePaths().size(),
-                    DataWeightRatio,
-                    TotalEstimatedInputChunkCount,
-                    PrimaryInputDataWeight,
-                    TotalEstimatedInputRowCount);
+                    DataWeightRatio_,
+                    TotalEstimatedInputChunkCount_,
+                    PrimaryInputDataWeight_,
+                    PrimaryInputCompressedDataSize_,
+                    TotalEstimatedInputRowCount_);
                 break;
 
             default:
@@ -325,10 +327,11 @@ protected:
 
         YT_LOG_INFO(
             "Calculated operation parameters (JobCount: %v, DataWeightPerJob: %v, MaxDataWeightPerJob: %v, "
-            "InputSliceDataWeight: %v, InputSliceRowCount: %v, IsExplicitJobCount: %v)",
+            "MaxCompressedDataSizePerJob: %v, InputSliceDataWeight: %v, InputSliceRowCount: %v, IsExplicitJobCount: %v)",
             JobSizeConstraints_->GetJobCount(),
             JobSizeConstraints_->GetDataWeightPerJob(),
             JobSizeConstraints_->GetMaxDataWeightPerJob(),
+            JobSizeConstraints_->GetMaxCompressedDataSizePerJob(),
             JobSizeConstraints_->GetInputSliceDataWeight(),
             JobSizeConstraints_->GetInputSliceRowCount(),
             JobSizeConstraints_->IsExplicitJobCount());
@@ -337,12 +340,13 @@ protected:
     virtual TUnorderedChunkPoolOptions GetUnorderedChunkPoolOptions() const
     {
         TUnorderedChunkPoolOptions options;
-        options.RowBuffer = RowBuffer;
+        options.RowBuffer = RowBuffer_;
         options.MinTeleportChunkSize = GetMinTeleportChunkSize();
         options.MinTeleportChunkDataWeight = options.MinTeleportChunkSize;
         options.JobSizeConstraints = JobSizeConstraints_;
-        options.SliceErasureChunksByParts = Spec->SliceErasureChunksByParts;
+        options.SliceErasureChunksByParts = Spec_->SliceErasureChunksByParts;
         options.Logger = Logger().WithTag("Name: Root");
+        options.UseNewSlicingImplementation = GetSpec()->UseNewSlicingImplementationInUnorderedPool;
 
         return options;
     }
@@ -359,15 +363,15 @@ protected:
             int unversionedSlices = 0;
             int versionedSlices = 0;
             // TODO(max42): use CollectPrimaryInputDataSlices() here?
-            for (auto& chunk : InputManager->CollectPrimaryUnversionedChunks()) {
-                const auto& comparator = InputManager->GetInputTables()[chunk->GetTableIndex()]->Comparator;
+            for (auto& chunk : InputManager_->CollectPrimaryUnversionedChunks()) {
+                const auto& comparator = InputManager_->GetInputTables()[chunk->GetTableIndex()]->Comparator;
 
                 const auto& dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
                 dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(chunk->GetTableIndex(), chunk->GetRangeIndex()));
 
                 if (comparator) {
-                    dataSlice->TransformToNew(RowBuffer, comparator.GetLength());
-                    InferLimitsFromBoundaryKeys(dataSlice, RowBuffer, comparator);
+                    dataSlice->TransformToNew(RowBuffer_, comparator.GetLength());
+                    InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_, comparator);
                 } else {
                     dataSlice->TransformToNewKeyless();
                 }
@@ -430,11 +434,11 @@ protected:
         result.SetCpu(GetCpuLimit());
 
         auto jobProxyMemory = GetFinalIOMemorySize(
-            Spec->JobIO,
+            Spec_->JobIO,
             /*useEstimatedBufferSize*/ true,
             AggregateStatistics(statistics));
         auto jobProxyMemoryWithFixedWriteBufferSize = GetFinalIOMemorySize(
-            Spec->JobIO,
+            Spec_->JobIO,
             /*useEstimatedBufferSize*/ false,
             AggregateStatistics(statistics));
 
@@ -457,9 +461,9 @@ protected:
         auto mapperSpec = GetUserJobSpec();
         // We could get here only if this is an unordered map and auto-merge is enabled.
         YT_VERIFY(mapperSpec);
-        YT_VERIFY(Spec->AutoMerge->Mode != EAutoMergeMode::Disabled);
+        YT_VERIFY(Spec_->AutoMerge->Mode != EAutoMergeMode::Disabled);
 
-        if (Spec->AutoMerge->Mode != EAutoMergeMode::Relaxed && mapperSpec->Deterministic) {
+        if (Spec_->AutoMerge->Mode != EAutoMergeMode::Relaxed && mapperSpec->Deterministic) {
             return EIntermediateChunkUnstageMode::OnJobCompleted;
         } else {
             return EIntermediateChunkUnstageMode::OnSnapshotCompleted;
@@ -481,31 +485,31 @@ protected:
 
     void InitJobIOConfig()
     {
-        JobIOConfig = CloneYsonStruct(Spec->JobIO);
+        JobIOConfig_ = CloneYsonStruct(Spec_->JobIO);
     }
 
     void PrepareInputQuery() override
     {
-        if (Spec->InputQuery) {
-            if (Spec->InputQueryOptions->UseSystemColumns) {
-                InputManager->AdjustSchemas(ControlAttributesToColumnOptions(*Spec->JobIO->ControlAttributes));
+        if (Spec_->InputQuery) {
+            if (Spec_->InputQueryOptions->UseSystemColumns) {
+                InputManager_->AdjustSchemas(ControlAttributesToColumnOptions(*Spec_->JobIO->ControlAttributes));
             }
             ParseInputQuery(
-                *Spec->InputQuery,
-                Spec->InputSchema,
-                Spec->InputQueryFilterOptions);
+                *Spec_->InputQuery,
+                Spec_->InputSchema,
+                Spec_->InputQueryFilterOptions);
         }
     }
 
     virtual void InitJobSpecTemplate()
     {
-        JobSpecTemplate.set_type(ToProto(GetJobType()));
-        auto* jobSpecExt = JobSpecTemplate.MutableExtension(TJobSpecExt::job_spec_ext);
-        jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->JobIO)).ToString());
+        JobSpecTemplate_.set_type(ToProto(GetJobType()));
+        auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
+        jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
 
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             jobSpecExt->mutable_extensions(),
-            BuildDataSourceDirectoryFromInputTables(InputManager->GetInputTables()));
+            BuildDataSourceDirectoryFromInputTables(InputManager_->GetInputTables()));
         SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
             jobSpecExt->mutable_extensions(),
             BuildDataSinkDirectoryWithAutoMerge(
@@ -515,11 +519,11 @@ protected:
                     ? std::make_optional(GetSpec()->IntermediateDataAccount)
                     : std::nullopt));
 
-        if (Spec->InputQuery) {
+        if (Spec_->InputQuery) {
             WriteInputQueryToJobSpec(jobSpecExt);
         }
 
-        jobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).ToString());
+        jobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
     }
 
     TDataFlowGraph::TVertexDescriptor GetOutputLivePreviewVertexDescriptor() const override
@@ -540,9 +544,9 @@ void TUnorderedControllerBase::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TOperationControllerBase>();
 
-    PHOENIX_REGISTER_FIELD(1, Spec);
-    PHOENIX_REGISTER_FIELD(2, JobIOConfig);
-    PHOENIX_REGISTER_FIELD(3, JobSpecTemplate);
+    PHOENIX_REGISTER_FIELD(1, Spec_);
+    PHOENIX_REGISTER_FIELD(2, JobIOConfig_);
+    PHOENIX_REGISTER_FIELD(3, JobSpecTemplate_);
     PHOENIX_REGISTER_FIELD(4, JobSizeConstraints_);
     PHOENIX_REGISTER_FIELD(5, UnorderedTask_);
 }
@@ -602,8 +606,8 @@ public:
             options,
             host,
             operation)
-        , Spec(spec)
-        , Options(options)
+        , Spec_(spec)
+        , Options_(options)
     { }
 
     void BuildBriefSpec(TFluentMap fluent) const override
@@ -611,7 +615,7 @@ public:
         TUnorderedControllerBase::BuildBriefSpec(fluent);
         fluent
             .Item("mapper").BeginMap()
-                .Item("command").Value(TrimCommandForBriefSpec(Spec->Mapper->Command))
+                .Item("command").Value(TrimCommandForBriefSpec(Spec_->Mapper->Command))
             .EndMap();
     }
 
@@ -627,10 +631,10 @@ protected:
     }
 
 private:
-    TMapOperationSpecPtr Spec;
-    TMapOperationOptionsPtr Options;
+    TMapOperationSpecPtr Spec_;
+    TMapOperationOptionsPtr Options_;
 
-    i64 StartRowIndex = 0;
+    i64 StartRowIndex_ = 0;
 
     // Custom bits of preparation pipeline.
 
@@ -642,8 +646,8 @@ private:
     TUnorderedChunkPoolOptions GetUnorderedChunkPoolOptions() const override
     {
         auto options = TUnorderedControllerBase::GetUnorderedChunkPoolOptions();
-        if (Config->EnableMapJobSizeAdjustment) {
-            options.JobSizeAdjusterConfig = Options->JobSizeAdjuster;
+        if (Config_->EnableMapJobSizeAdjustment) {
+            options.JobSizeAdjusterConfig = Options_->JobSizeAdjuster;
         }
 
         return options;
@@ -651,77 +655,77 @@ private:
 
     TUserJobSpecPtr GetUserJobSpec() const override
     {
-        return Spec->Mapper;
+        return Spec_->Mapper;
     }
 
     std::vector<TRichYPath> GetOutputTablePaths() const override
     {
-        return Spec->OutputTablePaths;
+        return Spec_->OutputTablePaths;
     }
 
     std::optional<TRichYPath> GetStderrTablePath() const override
     {
-        return Spec->StderrTablePath;
+        return Spec_->StderrTablePath;
     }
 
     TBlobTableWriterConfigPtr GetStderrTableWriterConfig() const override
     {
-        return Spec->StderrTableWriter;
+        return Spec_->StderrTableWriter;
     }
 
     std::optional<TRichYPath> GetCoreTablePath() const override
     {
-        return Spec->CoreTablePath;
+        return Spec_->CoreTablePath;
     }
 
     TBlobTableWriterConfigPtr GetCoreTableWriterConfig() const override
     {
-        return Spec->CoreTableWriter;
+        return Spec_->CoreTableWriter;
     }
 
     bool GetEnableCudaGpuCoreDump() const override
     {
-        return Spec->EnableCudaGpuCoreDump;
+        return Spec_->EnableCudaGpuCoreDump;
     }
 
     std::vector<TUserJobSpecPtr> GetUserJobSpecs() const override
     {
-        return {Spec->Mapper};
+        return {Spec_->Mapper};
     }
 
     void DoInitialize() override
     {
         TUnorderedControllerBase::DoInitialize();
 
-        ValidateUserFileCount(Spec->Mapper, "mapper");
+        ValidateUserFileCount(Spec_->Mapper, "mapper");
     }
 
     ELegacyLivePreviewMode GetLegacyOutputLivePreviewMode() const override
     {
-        return ToLegacyLivePreviewMode(Spec->EnableLegacyLivePreview);
+        return ToLegacyLivePreviewMode(Spec_->EnableLegacyLivePreview);
     }
 
     // Unsorted helpers.
     TCpuResource GetCpuLimit() const override
     {
-        return TCpuResource(Spec->Mapper->CpuLimit);
+        return TCpuResource(Spec_->Mapper->CpuLimit);
     }
 
     void InitJobSpecTemplate() override
     {
         TUnorderedControllerBase::InitJobSpecTemplate();
-        auto* jobSpecExt = JobSpecTemplate.MutableExtension(TJobSpecExt::job_spec_ext);
+        auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
         InitUserJobSpecTemplate(
             jobSpecExt->mutable_user_job_spec(),
-            Spec->Mapper,
-            UserJobFiles_[Spec->Mapper],
-            Spec->DebugArtifactsAccount);
+            Spec_->Mapper,
+            UserJobFiles_[Spec_->Mapper],
+            Spec_->DebugArtifactsAccount);
     }
 
-    void CustomizeJoblet(const TJobletPtr& joblet) override
+    void CustomizeJoblet(const TJobletPtr& joblet, const TAllocation& /*allocation*/) override
     {
-        joblet->StartRowIndex = StartRowIndex;
-        StartRowIndex += joblet->InputStripeList->TotalRowCount;
+        joblet->StartRowIndex = StartRowIndex_;
+        StartRowIndex_ += joblet->InputStripeList->TotalRowCount;
     }
 
     i64 GetMinTeleportChunkSize() const override
@@ -736,7 +740,7 @@ private:
 
     TYsonStructPtr GetTypedSpec() const override
     {
-        return Spec;
+        return Spec_;
     }
 
     TOperationSpecBasePtr ParseTypedSpec(const INodePtr& spec) const override
@@ -761,8 +765,8 @@ void TMapController::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TUnorderedControllerBase>();
 
-    PHOENIX_REGISTER_FIELD(1, Spec);
-    PHOENIX_REGISTER_FIELD(2, StartRowIndex);
+    PHOENIX_REGISTER_FIELD(1, Spec_);
+    PHOENIX_REGISTER_FIELD(2, StartRowIndex_);
 }
 
 PHOENIX_DEFINE_TYPE(TMapController);
@@ -774,7 +778,7 @@ IOperationControllerPtr CreateUnorderedMapController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto options = config->MapOperationOptions;
+    auto options = CreateOperationOptions(config->MapOperationOptions, operation->GetOptionsPatch());
     auto spec = ParseOperationSpec<TMapOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
     AdjustSamplingFromConfig(spec, config);
     return New<TMapController>(spec, config, options, host, operation);
@@ -798,7 +802,7 @@ public:
             options,
             host,
             operation)
-        , Spec(spec)
+        , Spec_(spec)
     { }
 
 protected:
@@ -815,16 +819,16 @@ protected:
     TUnorderedChunkPoolOptions GetUnorderedChunkPoolOptions() const override
     {
         auto options = TUnorderedControllerBase::GetUnorderedChunkPoolOptions();
-        if (Spec->ForceTransform) {
+        if (Spec_->ForceTransform) {
             options.SingleChunkTeleportStrategy = ESingleChunkTeleportStrategy::Disabled;
         } else {
-            options.SingleChunkTeleportStrategy = Spec->SingleChunkTeleportStrategy;
+            options.SingleChunkTeleportStrategy = Spec_->SingleChunkTeleportStrategy;
         }
         return options;
     }
 
 private:
-    TUnorderedMergeOperationSpecPtr Spec;
+    TUnorderedMergeOperationSpecPtr Spec_;
 
     // Custom bits of preparation pipeline.
     EJobType GetJobType() const override
@@ -835,39 +839,39 @@ private:
     std::vector<TRichYPath> GetOutputTablePaths() const override
     {
         std::vector<TRichYPath> result;
-        result.push_back(Spec->OutputTablePath);
+        result.push_back(Spec_->OutputTablePath);
         return result;
     }
 
     // Unsorted helpers.
     bool IsRowCountPreserved() const override
     {
-        return !Spec->InputQuery &&
-            !Spec->Sampling->SamplingRate &&
-            !Spec->JobIO->TableReader->SamplingRate;
+        return !Spec_->InputQuery &&
+            !Spec_->Sampling->SamplingRate &&
+            !Spec_->JobIO->TableReader->SamplingRate;
     }
 
     i64 GetMinTeleportChunkSize() const override
     {
-        if (Spec->ForceTransform) {
+        if (Spec_->ForceTransform) {
             return std::numeric_limits<i64>::max() / 4;
         }
-        if (!Spec->CombineChunks) {
+        if (!Spec_->CombineChunks) {
             return 0;
         }
-        return Spec->JobIO->TableWriter->DesiredChunkSize;
+        return Spec_->JobIO->TableWriter->DesiredChunkSize;
     }
 
     void PrepareInputQuery() override
     {
-        if (Spec->InputQuery) {
-            if (Spec->InputQueryOptions->UseSystemColumns) {
-                InputManager->AdjustSchemas(ControlAttributesToColumnOptions(*Spec->JobIO->ControlAttributes));
+        if (Spec_->InputQuery) {
+            if (Spec_->InputQueryOptions->UseSystemColumns) {
+                InputManager_->AdjustSchemas(ControlAttributesToColumnOptions(*Spec_->JobIO->ControlAttributes));
             }
             ParseInputQuery(
-                *Spec->InputQuery,
-                Spec->InputSchema,
-                Spec->InputQueryFilterOptions);
+                *Spec_->InputQuery,
+                Spec_->InputSchema,
+                Spec_->InputQueryFilterOptions);
         }
     }
 
@@ -875,7 +879,7 @@ private:
     {
         auto& table = OutputTables_[0];
 
-        ValidateSchemaInferenceMode(Spec->SchemaInferenceMode);
+        ValidateSchemaInferenceMode(Spec_->SchemaInferenceMode);
 
         auto validateOutputNotSorted = [&] {
             if (table->TableUploadOptions.TableSchema->IsSorted()) {
@@ -885,21 +889,21 @@ private:
         };
 
         auto inferFromInput = [&] {
-            if (Spec->InputQuery) {
-                table->TableUploadOptions.TableSchema = InputQuery->Query->GetTableSchema();
+            if (Spec_->InputQuery) {
+                table->TableUploadOptions.TableSchema = InputQuery_->Query->GetTableSchema();
             } else {
                 InferSchemaFromInput();
             }
         };
 
-        switch (Spec->SchemaInferenceMode) {
+        switch (Spec_->SchemaInferenceMode) {
             case ESchemaInferenceMode::Auto:
                 if (table->TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
                     inferFromInput();
                 } else {
                     validateOutputNotSorted();
 
-                    if (!Spec->InputQuery) {
+                    if (!Spec_->InputQuery) {
                         ValidateOutputSchemaCompatibility({
                             .ForbidExtraComputedColumns = false,
                             .IgnoreStableNamesDifference = true,
@@ -925,7 +929,7 @@ private:
 
     TYsonStructPtr GetTypedSpec() const override
     {
-        return Spec;
+        return Spec_;
     }
 
     TOperationSpecBasePtr ParseTypedSpec(const INodePtr& spec) const override
@@ -943,14 +947,14 @@ private:
         if (!interrupted) {
             auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables() || InputHasDynamicStores();
             if (!isNontrivialInput && IsRowCountPreserved()) {
-                YT_LOG_ERROR_IF(TotalEstimatedInputRowCount != TeleportedOutputRowCount + UnorderedTask_->GetTotalOutputRowCount(),
+                YT_LOG_ERROR_IF(TotalEstimatedInputRowCount_ != TeleportedOutputRowCount_ + UnorderedTask_->GetTotalOutputRowCount(),
                     "Input/output row count mismatch in unordered merge operation (TotalEstimatedInputRowCount: %v, TotalOutputRowCount: %v, TeleportedOutputRowCount: %v)",
-                    TotalEstimatedInputRowCount,
+                    TotalEstimatedInputRowCount_,
                     UnorderedTask_->GetTotalOutputRowCount(),
-                    TeleportedOutputRowCount);
-                YT_VERIFY(TotalEstimatedInputRowCount == TeleportedOutputRowCount + UnorderedTask_->GetTotalOutputRowCount());
-                if (Spec->ForceTransform) {
-                    YT_VERIFY(TeleportedOutputRowCount == 0);
+                    TeleportedOutputRowCount_);
+                YT_VERIFY(TotalEstimatedInputRowCount_ == TeleportedOutputRowCount_ + UnorderedTask_->GetTotalOutputRowCount());
+                if (Spec_->ForceTransform) {
+                    YT_VERIFY(TeleportedOutputRowCount_ == 0);
                 }
             }
         }
@@ -975,7 +979,7 @@ IOperationControllerPtr CreateUnorderedMergeController(
     IOperationControllerHostPtr host,
     TOperation* operation)
 {
-    auto options = config->UnorderedMergeOperationOptions;
+    auto options = CreateOperationOptions(config->UnorderedMergeOperationOptions, operation->GetOptionsPatch());
     auto spec = ParseOperationSpec<TUnorderedMergeOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
     AdjustSamplingFromConfig(spec, config);
     return New<TUnorderedMergeController>(spec, config, options, host, operation);

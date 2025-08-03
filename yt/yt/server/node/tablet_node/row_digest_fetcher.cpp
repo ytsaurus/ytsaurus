@@ -1,4 +1,6 @@
 #include "row_digest_fetcher.h"
+
+#include "config.h"
 #include "sorted_chunk_store.h"
 #include "tablet.h"
 
@@ -32,7 +34,7 @@ using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletNodeLogger;
+constinit const auto Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,7 +104,8 @@ private:
             return;
         }
 
-        if (UseRowDigests_ = useRowDigests) {
+        UseRowDigests_ = useRowDigests;
+        if (UseRowDigests_) {
             FetchingExecutor_->Start();
         } else {
             YT_UNUSED_FUTURE(WaitFor(FetchingExecutor_->Stop()));

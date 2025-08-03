@@ -12,7 +12,7 @@ namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<TString> GatherHeader(const NHttp::THeadersPtr& headers, const TString& headerName);
+std::optional<std::string> GatherHeader(const NHttp::THeadersPtr& headers, const std::string& headerName);
 
 NYTree::IMapNodePtr ParseQueryString(TStringBuf queryString);
 
@@ -27,11 +27,9 @@ struct TPythonWrapperVersion
     int Patch = 0;
 };
 
-std::optional<TPythonWrapperVersion> DetectPythonWrapper(const TString& userAgent);
-
-std::optional<i64> DetectJavaIceberg(const TString& userAgent);
-
-std::optional<i64> DetectGo(const TString& userAgent);
+std::optional<TPythonWrapperVersion> DetectPythonWrapper(TStringBuf userAgent);
+std::optional<i64> DetectJavaIceberg(TStringBuf userAgent);
+std::optional<i64> DetectGo(TStringBuf userAgent);
 
 bool IsBrowserRequest(const NHttp::IRequestPtr& req);
 

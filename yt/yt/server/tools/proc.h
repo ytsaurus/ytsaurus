@@ -276,4 +276,25 @@ struct TRootDirectoryBuilderTool
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TMkFsConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TString Path;
+    TString Type;
+
+    REGISTER_YSON_STRUCT(TMkFsConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMkFsConfig)
+
+struct TMkFsAsRootTool
+{
+    void operator()(const TMkFsConfigPtr& config) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTools

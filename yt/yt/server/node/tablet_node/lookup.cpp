@@ -1,14 +1,15 @@
 #include "lookup.h"
+
 #include "error_manager.h"
 #include "hedging_manager_registry.h"
 #include "private.h"
+#include "sorted_dynamic_store.h"
 #include "store.h"
 #include "tablet.h"
 #include "tablet_profiling.h"
 #include "tablet_reader.h"
 #include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
-#include "sorted_dynamic_store.h"
 
 #include <yt/yt/server/node/query_agent/helpers.h>
 
@@ -107,6 +108,20 @@ ETabletDistributedThrottlerKind GetThrottlerKindFromQueryKind(EInitialQueryKind 
             return ETabletDistributedThrottlerKind::Lookup;
         case EInitialQueryKind::SelectRows:
             return ETabletDistributedThrottlerKind::Select;
+        default:
+            YT_ABORT();
+    }
+}
+
+EPerformanceCountedRequestType GetRequestTypeFromQueryKind(EInitialQueryKind queryKind)
+{
+    switch (queryKind) {
+        case EInitialQueryKind::LookupRows:
+            return EPerformanceCountedRequestType::Lookup;
+
+        case EInitialQueryKind::SelectRows:
+            return EPerformanceCountedRequestType::Read;
+
         default:
             YT_ABORT();
     }
@@ -806,12 +821,12 @@ protected:
         , ChunkFragmentReader_(tabletSnapshot->ChunkFragmentReader)
         , DictionaryCompressionFactory_(tabletSnapshot->DictionaryCompressionFactory)
         , ChunkReadOptions_(chunkReadOptions)
+        , PerformanceCounters_(tabletSnapshot->PerformanceCounters)
     {
         if (const auto& hedgingManagerRegistry = tabletSnapshot->HedgingManagerRegistry) {
             ChunkReadOptions_.HedgingManager = hedgingManagerRegistry->GetOrCreateHedgingManager(
                 THedgingUnit{
-                    // TODO(babenko): migrate to std::string
-                    .UserTag = profilingUser ? std::optional<TString>(profilingUser) : std::nullopt,
+                    .UserTag = profilingUser ? profilingUser : std::nullopt,
                     .HunkChunk = true,
                 });
         }
@@ -850,6 +865,7 @@ private:
     NChunkClient::IChunkFragmentReaderPtr ChunkFragmentReader_;
     NTableClient::IDictionaryCompressionFactoryPtr DictionaryCompressionFactory_;
     NChunkClient::TClientChunkReadOptions ChunkReadOptions_;
+    NTableClient::TTabletPerformanceCountersPtr PerformanceCounters_;
 
     std::vector<TMutableRow> HunkEncodedRows_;
     bool HunksDecoded_ = false;
@@ -866,6 +882,8 @@ private:
             std::move(ChunkFragmentReader_),
             std::move(DictionaryCompressionFactory_),
             std::move(ChunkReadOptions_),
+            std::move(PerformanceCounters_),
+            GetRequestTypeFromQueryKind(TBasePipeline::TAdapter::QueryKind),
             std::move(rows));
     }
 
@@ -878,6 +896,8 @@ private:
             std::move(ChunkFragmentReader_),
             std::move(DictionaryCompressionFactory_),
             std::move(ChunkReadOptions_),
+            std::move(PerformanceCounters_),
+            GetRequestTypeFromQueryKind(TBasePipeline::TAdapter::QueryKind),
             std::move(rows));
     }
 };
@@ -1107,6 +1127,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TClientChunkReadOptions PatchChunkReadOptionsRequestType(TClientChunkReadOptions chunkReadOptions, EInitialQueryKind queryKind)
+{
+    chunkReadOptions.RequestType = GetRequestTypeFromQueryKind(queryKind);
+    return chunkReadOptions;
+}
+
 template <class TPipeline>
 class TTabletLookupSession
     : public TRefCounted
@@ -1271,8 +1297,7 @@ void TLookupSession::AddTabletRequest(
                 if (const auto& hedgingManagerRegistry = tabletSnapshot->HedgingManagerRegistry) {
                     ChunkReadOptions_.HedgingManager = hedgingManagerRegistry->GetOrCreateHedgingManager(
                         THedgingUnit{
-                            // TODO(babenko): migrate to std::string
-                            .UserTag = ProfilingUser_ ? std::optional<TString>(ProfilingUser_) : std::nullopt,
+                            .UserTag = ProfilingUser_ ? ProfilingUser_ : std::nullopt,
                             .HunkChunk = false,
                         });
                 }
@@ -1672,7 +1697,10 @@ TFuture<TSharedRef> TTabletLookupRequest::RunTabletLookupSession(
             TTimestampReadOptions timestampReadOptions;
             if (isTimestampedLookup) {
                 if (columnFilter.IsUniversal()) {
-                    for (int columnIndex = physicalSchema->GetKeyColumnCount(); columnIndex < physicalSchema->GetColumnCount(); ++columnIndex) {
+                    for (int columnIndex = physicalSchema->GetKeyColumnCount();
+                        columnIndex < physicalSchema->GetColumnCount();
+                        ++columnIndex)
+                    {
                         timestampReadOptions.TimestampColumnMapping.push_back({
                             .ColumnIndex = columnIndex,
                             .TimestampColumnIndex = columnIndex + physicalSchema->GetValueColumnCount(),
@@ -1778,7 +1806,7 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
     , TabletSnapshot_(std::move(tabletSnapshot))
     , Timestamp_(lookupSession->TimestampRange_.Timestamp)
     , ProduceAllVersions_(produceAllVersions)
-    , ChunkReadOptions_(lookupSession->ChunkReadOptions_)
+    , ChunkReadOptions_(PatchChunkReadOptionsRequestType(lookupSession->ChunkReadOptions_, TPipeline::TAdapter::QueryKind))
     , ColumnFilter_(std::move(columnFilter))
     , LookupKeys_(std::move(lookupKeys))
     , ChunkLookupKeys_(TPipeline::Initialize(LookupKeys_))
@@ -1802,7 +1830,9 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
             std::memory_order::relaxed);
     })
     , Logger(lookupSession->Logger().WithTag("TabletId: %v", TabletSnapshot_->TabletId))
-{ }
+{
+    YT_VERIFY(TPipeline::TAdapter::QueryKind == EInitialQueryKind::LookupRows);
+}
 
 template <class TPipeline>
 TTabletLookupSession<TPipeline>::TTabletLookupSession(
@@ -1830,7 +1860,7 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
     , TabletSnapshot_(std::move(tabletSnapshot))
     , Timestamp_(readTimestampRange.Timestamp)
     , ProduceAllVersions_(produceAllVersions)
-    , ChunkReadOptions_(chunkReadOptions)
+    , ChunkReadOptions_(PatchChunkReadOptionsRequestType(chunkReadOptions, TPipeline::TAdapter::QueryKind))
     , ColumnFilter_(std::move(columnFilter))
     , LookupKeys_(std::move(lookupKeys))
     , ChunkLookupKeys_(TPipeline::Initialize(LookupKeys_))
@@ -1854,7 +1884,9 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
         }
     })
     , Logger(logger.WithTag("TabletId: %v", TabletSnapshot_->TabletId))
-{ }
+{
+    YT_VERIFY(TPipeline::TAdapter::QueryKind == EInitialQueryKind::SelectRows);
+}
 
 template <class TPipeline>
 auto TTabletLookupSession<TPipeline>::Run() -> TFuture<typename decltype(TPipeline::TAdapter::ResultPromise_)::TValueType>
@@ -2394,19 +2426,28 @@ ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
     const std::optional<std::string>& profilingUser,
     NLogging::TLogger Logger)
 {
+    auto timestamp = timestampRange.Timestamp;
+
+    ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
+    tabletSnapshot->WaitOnLocks(timestamp);
+
     ThrowUponDistributedThrottlerOverdraft(
         ETabletDistributedThrottlerKind::Select,
         tabletSnapshot,
         chunkReadOptions);
 
-    YT_LOG_DEBUG("Creating lookup session reader (ColumnFilter: %v, LookupKeyCount: %v, UseLookupCache: %v)",
+    YT_LOG_DEBUG("Creating lookup session reader (TabletId: %v, CellId: %v, WorkloadDescriptor: %v, "
+        "ReadSessionId: %v, ColumnFilter: %v, LookupKeyCount: %v, UseLookupCache: %v, Timestamp: %v)",
+        tabletSnapshot->TabletId,
+        tabletSnapshot->CellId,
+        chunkReadOptions.WorkloadDescriptor,
+        chunkReadOptions.ReadSessionId,
         columnFilter,
         lookupKeys.Size(),
-        useLookupCache);
+        useLookupCache,
+        timestamp);
 
-    auto rowBuffer = New<TRowBuffer>(
-        TLookupRowsBufferTag(),
-        memoryChunkProvider);
+    auto rowBuffer = New<TRowBuffer>(TLookupRowsBufferTag(), memoryChunkProvider);
 
     auto pipe = New<TSchemafulPipe>(memoryChunkProvider);
     auto reader = pipe->GetReader();

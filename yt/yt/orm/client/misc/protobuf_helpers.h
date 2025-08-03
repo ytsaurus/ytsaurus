@@ -19,12 +19,6 @@ std::vector<TFieldArg> VectorFromProtoField(TRepeatedField<TFieldArg> proto);
 template <class T>
 ::google::protobuf::RepeatedPtrField<T> VectorToProtoRepeated(std::vector<T> vector);
 
-template <class TKey, class TValue>
-::google::protobuf::Map<TKey, TValue> HashMapToProtoMap(const THashMap<TKey, TValue>& hashMap);
-
-template <class TKey, class TValue>
-THashMap<TKey, TValue> HashMapFromProtoMap(const ::google::protobuf::Map<TKey, TValue>& proto);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 NYTree::NProto::TAttributeDictionary JsonToAttributeDictionary(

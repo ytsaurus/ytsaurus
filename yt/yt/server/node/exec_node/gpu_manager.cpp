@@ -48,7 +48,7 @@ using namespace NDataNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ExecNodeLogger;
+constinit const auto Logger = ExecNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -87,9 +87,11 @@ void FormatValue(TStringBuilderBase* builder, const TGpuStatistics& gpuStatistic
         "{CumulativeUtilizationGpu: %v, CumulativeUtilizationMemory: %v, "
         "CumulativeMemory: %v, CumulativeMemoryMBSec: %v, "
         "MaxMemoryUsed: %v, CumulativeLoad: %v, CumulativeUtilizationPower: %v, CumulativePower: %v, "
-        "CumulativeUtilizationClocksSM: %v, CumulativeSMUtilization: %v, CumulativeSMOccupancy: %v, "
+        "CumulativeUtilizationClocksSM: %v, CumulativeSMClocks: %v, CumulativeSMUtilization: %v, CumulativeSMOccupancy: %v, "
         "NvlinkRxBytes: %v, NvlinkTxBytes: %v, PcieRxBytes: %v, PcieTxBytes: %v, "
-        "CumulativeTensorActivity: %v, CumulativeDramActivity: %v, MaxStuckDuration: %v}",
+        "CumulativeTensorActivity: %v, CumulativeDramActivity: %v, "
+        "CumulativeSwThermalSlowdown: %v, CumulativeHwThermalSlowdown: %v, CumulativeHwPowerBrakeSlowdown: %v, CumulativeHwSlowdown: %v, "
+        "MaxStuckDuration: %v}",
         gpuStatistics.CumulativeUtilizationGpu,
         gpuStatistics.CumulativeUtilizationMemory,
         gpuStatistics.CumulativeMemory,
@@ -99,6 +101,7 @@ void FormatValue(TStringBuilderBase* builder, const TGpuStatistics& gpuStatistic
         gpuStatistics.CumulativeUtilizationPower,
         gpuStatistics.CumulativePower,
         gpuStatistics.CumulativeUtilizationClocksSM,
+        gpuStatistics.CumulativeSMClocks,
         gpuStatistics.CumulativeSMUtilization,
         gpuStatistics.CumulativeSMOccupancy,
         gpuStatistics.NvlinkRxBytes,
@@ -107,6 +110,10 @@ void FormatValue(TStringBuilderBase* builder, const TGpuStatistics& gpuStatistic
         gpuStatistics.PcieTxBytes,
         gpuStatistics.CumulativeTensorActivity,
         gpuStatistics.CumulativeDramActivity,
+        gpuStatistics.CumulativeSwThermalSlowdown,
+        gpuStatistics.CumulativeHwThermalSlowdown,
+        gpuStatistics.CumulativeHwPowerBrakeSlowdown,
+        gpuStatistics.CumulativeHwSlowdown,
         gpuStatistics.MaxStuckDuration);
 }
 
@@ -133,6 +140,9 @@ TGpuManager::TGpuManager(IBootstrap* bootstrap)
         BIND_NO_PROPAGATE(&TGpuManager::OnTestGpuInfoUpdate, MakeWeak(this)),
         StaticConfig_->Testing->TestGpuInfoUpdatePeriod))
     , GpuInfoProvider_(CreateGpuInfoProvider(StaticConfig_->GpuInfoSource))
+{ }
+
+void TGpuManager::Initialize()
 {
     YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
 
@@ -436,15 +446,17 @@ void TGpuManager::OnRdmaDeviceInfoUpdate()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
+    std::vector<TRdmaDeviceInfo> rdmaDevices;
     try {
         auto timeout = DynamicConfig_.Acquire()->RdmaDeviceInfoUpdateTimeout;
-        auto rdmaDevices = GpuInfoProvider_.Acquire()->GetRdmaDeviceInfos(timeout);
-
-        auto guard = Guard(SpinLock_);
-        RdmaDevices_ = std::move(rdmaDevices);
+        rdmaDevices = GpuInfoProvider_.Acquire()->GetRdmaDeviceInfos(timeout);
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Failed to fetch RDMA device infos");
+        return;
     }
+
+    auto guard = Guard(SpinLock_);
+    std::swap(RdmaDevices_, rdmaDevices);
 }
 
 void TGpuManager::OnTestGpuInfoUpdate()

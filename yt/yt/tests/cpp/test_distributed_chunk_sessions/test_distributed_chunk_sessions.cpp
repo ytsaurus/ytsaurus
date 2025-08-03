@@ -108,7 +108,8 @@ protected:
         auto reader = CreateSchemalessSequentialMultiReader(
             New<TTableReaderConfig>(),
             New<NTableClient::TTableReaderOptions>(),
-            NChunkClient::TChunkReaderHost::FromClient(DynamicPointerCast<NNative::IClient>(Client_)),
+            NChunkClient::CreateSingleSourceMultiChunkReaderHost(
+                NChunkClient::TChunkReaderHost::FromClient(DynamicPointerCast<NNative::IClient>(Client_))),
             dataSourceDirectory,
             dataSlices,
             /*hintKeyPrefixes*/ std::nullopt,
@@ -341,6 +342,54 @@ TEST_F(TDistributedChunkSessionTest, CoordinatorLeaseExpiredWithDataOnNodes)
         HasSubstr("invalid or expired"));
 
     // Close should succeed, because data node session lease has not expired yet.
+    WaitFor(controller->Close())
+        .ThrowOnError();
+
+    auto resultRows = ReadAllChunkRows(controller->GetSessionId().ChunkId);
+    EXPECT_EQ(resultRows, std::vector{row});
+
+    EnsureControllerIsDestroyed(std::move(controller));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TDistributedChunkSessionTest, WritersCannotFinishWithoutControllerConfirmation)
+{
+    auto controller = CreateDistributedChunkSessionController(
+        NativeClient_,
+        ControllerConfig_,
+        Transaction_->GetId(),
+        ChunkNameTable_,
+        ActionQueue_->GetInvoker());
+
+    auto controllerNode = WaitFor(controller->StartSession())
+        .ValueOrThrow();
+
+    auto writerActionQueue = New<TActionQueue>();
+    auto writer = CreateDistributedChunkWriter(
+        controllerNode,
+        controller->GetSessionId(),
+        NativeConnection_,
+        New<TDistributedChunkWriterConfig>(),
+        writerActionQueue->GetInvoker());
+
+    RowBuilder_.AddValue(MakeUnversionedUint64Value(/*value*/ 1, GetColumnId("a")));
+    auto row = RowBuilder_.FinishRow();
+    WaitFor(writer->Write(MakeSharedRange(std::vector<TUnversionedRow>({row}))))
+        .ThrowOnError();
+
+    WaitFor(ActionQueue_->Suspend(/*immediately*/ true))
+        .ThrowOnError();
+
+    RowBuilder_.AddValue(MakeUnversionedUint64Value(/*value*/ 2, GetColumnId("a")));
+    // Wait for session expiration, as controller does not send any pings now.
+    EXPECT_THROW_THAT(
+        WaitFor(writer->Write(MakeSharedRange(std::vector<TUnversionedRow>{RowBuilder_.FinishRow()})))
+            .ThrowOnError(),
+        HasSubstr("session was closed"));
+
+    ActionQueue_->Resume();
+
     WaitFor(controller->Close())
         .ThrowOnError();
 

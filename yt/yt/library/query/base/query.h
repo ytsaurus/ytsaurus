@@ -29,6 +29,7 @@ DEFINE_ENUM(EExpressionKind,
     ((Case)                    (9))
     ((Like)                    (10))
     ((CompositeMemberAccessor) (11))
+    ((Subquery)                (12))
 );
 
 struct TExpression
@@ -87,6 +88,11 @@ struct TFunctionExpression
 
     TFunctionExpression(
         EValueType type,
+        const std::string& functionName,
+        std::vector<TConstExpressionPtr> arguments);
+
+    TFunctionExpression(
+        TLogicalTypePtr type,
         const std::string& functionName,
         std::vector<TConstExpressionPtr> arguments);
 };
@@ -211,9 +217,6 @@ struct TLikeExpression
         TConstExpressionPtr escapeCharacter);
 };
 
-using TStructMemberAccessor = TString;
-using TTupleItemIndexAccessor = int;
-
 struct TCompositeMemberAccessorPath
 {
     std::vector<NTableClient::ELogicalMetatype> NestedTypes;
@@ -259,13 +262,31 @@ struct TNamedItem
 
 using TNamedItemList = std::vector<TNamedItem>;
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSubqueryExpression
+    : public TExpression
+{
+    TNamedItemList FromExpressions;
+
+    TConstExpressionPtr WhereClause;
+    TConstGroupClausePtr GroupClause;
+    TConstProjectClausePtr ProjectClause;
+
+    using TExpression::TExpression;
+};
+
+DEFINE_REFCOUNTED_TYPE(TSubqueryExpression)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TAggregateItem
 {
     std::vector<TConstExpressionPtr> Arguments;
     std::string Name;
     std::string AggregateFunction;
-    EValueType StateType;
-    EValueType ResultType;
+    TLogicalTypePtr StateType;
+    TLogicalTypePtr ResultType;
 
     TAggregateItem() = default;
 
@@ -273,8 +294,8 @@ struct TAggregateItem
         std::vector<TConstExpressionPtr> arguments,
         const std::string& aggregateFunction,
         const std::string& name,
-        EValueType stateType,
-        EValueType resultType);
+        TLogicalTypePtr stateType,
+        TLogicalTypePtr resultType);
 };
 
 using TAggregateItemList = std::vector<TAggregateItem>;

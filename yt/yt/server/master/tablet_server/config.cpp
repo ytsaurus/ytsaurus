@@ -109,8 +109,6 @@ void TDynamicTabletNodeTrackerConfig::Register(TRegistrar registrar)
 
 void TDynamicCellHydraPersistenceSynchronizerConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("migrate_to_virtual_cell_maps", &TThis::MigrateToVirtualCellMaps)
-        .Default(false);
     registrar.Parameter("synchronization_period", &TThis::SynchronizationPeriod)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("max_cells_to_register_in_cypress_per_iteration", &TThis::MaxCellsToRegisterInCypressPerIteration)
@@ -184,10 +182,9 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_bulk_insert", &TThis::EnableBulkInsert)
         .Default(false);
     registrar.Parameter("decommission_through_extra_peers", &TThis::DecommissionThroughExtraPeers)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("synchronize_tablet_cell_leader_switches", &TThis::SynchronizeTabletCellLeaderSwitches)
-        .Default(true)
-        .DontSerializeDefault();
+        .Default(true);
     registrar.Parameter("decommissioned_leader_reassignment_timeout", &TThis::DecommissionedLeaderReassignmentTimeout)
         .Default();
     registrar.Parameter("abandon_leader_lease_during_recovery", &TThis::AbandonLeaderLeaseDuringRecovery)
@@ -203,8 +200,7 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("extra_peer_drop_delay", &TThis::ExtraPeerDropDelay)
         .Default(TDuration::Minutes(1));
     registrar.Parameter("accumulate_preload_pending_store_count_correctly", &TThis::AccumulatePreloadPendingStoreCountCorrectly)
-        .Default(false)
-        .DontSerializeDefault();
+        .Default(false);
     registrar.Parameter("increase_upload_replication_factor", &TThis::IncreaseUploadReplicationFactor)
         .Default(false);
     registrar.Parameter("enable_tablet_resource_validation", &TThis::EnableTabletResourceValidation)
@@ -217,8 +213,7 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("send_dynamic_store_id_in_backup", &TThis::SendDynamicStoreIdInBackup)
-        .Default(false)
-        .DontSerializeDefault();
+        .Default(false);
 
     registrar.Parameter("include_mount_config_attributes_in_user_attributes", &TThis::IncludeMountConfigAttributesInUserAttributes)
         .Default(true);
@@ -233,8 +228,7 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("forbid_arbitrary_data_versions_in_retention_config", &TThis::ForbidArbitraryDataVersionsInRetentionConfig)
-        .Default(false)
-        .DontSerializeDefault();
+        .Default(false);
 
     registrar.Parameter("max_table_collocation_size", &TThis::MaxTableCollocationSize)
         .Default(500);
@@ -246,14 +240,17 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("replicate_table_collocations", &TThis::ReplicateTableCollocations)
-        .Default(false)
-        .DontSerializeDefault();
+        .Default(false);
 
     registrar.Parameter("max_chunks_per_mounted_tablet", &TThis::MaxChunksPerMountedTablet)
         .Default(15000);
 
     registrar.Parameter("enable_hunk_specific_media", &TThis::EnableHunkSpecificMedia)
         .Default(true);
+
+    registrar.Parameter("safe_check_secondary_cell_storage", &TThis::SafeCheckSecondaryCellStorage)
+        .Default(false)
+        .DontSerializeDefault();
 
     registrar.Preprocessor([] (TThis* config) {
         config->StoreChunkReader->SuspiciousNodeGracePeriod = TDuration::Minutes(5);

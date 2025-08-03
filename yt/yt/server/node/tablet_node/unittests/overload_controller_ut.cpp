@@ -1,6 +1,5 @@
 #include <yt/yt/server/node/tablet_node/overload_controller.h>
-
-#include <yt/yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/node/tablet_node/config.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/two_level_fair_share_thread_pool.h>

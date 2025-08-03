@@ -81,8 +81,9 @@ DECLARE_REFCOUNTED_STRUCT(THydraJanitorConfig)
 DECLARE_REFCOUNTED_STRUCT(TLocalHydraJanitorConfig)
 DECLARE_REFCOUNTED_STRUCT(TLocalSnapshotStoreConfig)
 DECLARE_REFCOUNTED_STRUCT(TRemoteChangelogStoreConfig)
+DECLARE_REFCOUNTED_STRUCT(TDynamicRemoteChangelogStoreConfig)
 DECLARE_REFCOUNTED_STRUCT(TRemoteSnapshotStoreConfig)
-DECLARE_REFCOUNTED_CLASS(TSnapshotStoreConfigBase)
+DECLARE_REFCOUNTED_STRUCT(TSnapshotStoreConfigBase)
 
 using TReign = int;
 

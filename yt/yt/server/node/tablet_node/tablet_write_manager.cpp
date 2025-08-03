@@ -1,6 +1,7 @@
 #include "tablet_write_manager.h"
 
 #include "backup_manager.h"
+#include "config.h"
 #include "hunks_serialization.h"
 #include "private.h"
 #include "serialize.h"
@@ -11,7 +12,7 @@
 #include "transaction.h"
 #include "transaction_manager.h"
 
-#include <yt/yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/hive/helpers.h>
 
 #include <yt/yt/server/lib/hydra/hydra_manager.h>
 #include <yt/yt/server/lib/hydra/mutation_context.h>
@@ -23,15 +24,16 @@
 namespace NYT::NTabletNode {
 
 using namespace NChaosClient;
+using namespace NConcurrency;
+using namespace NHiveServer;
 using namespace NHydra;
 using namespace NObjectClient;
+using namespace NServer;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
-using namespace NYson;
 using namespace NYTree;
-using namespace NConcurrency;
-using namespace NServer;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -424,6 +426,8 @@ public:
         PrepareLocklessRows(transaction, persistent);
 
         if (!persistent) {
+            auto transientWriteState = GetOrCreateTransactionTransientWriteState(transaction->GetId());
+            InsertPreparedTransactionToBarrier(transaction, transientWriteState.Get());
             return;
         }
 
@@ -434,9 +438,7 @@ public:
             persistentWriteState->LockedWriteLog.Freeze();
         }
 
-        // NB: This only makes sense for persistently prepared transactions since only these participate in 2PC
-        // and may cause issues with committed rows not being visible.
-        InsertPreparedTransactionToBarrier(transaction, persistentWriteState);
+        InsertPreparedTransactionToBarrier(transaction, persistentWriteState.Get());
 
         if (IsReplicatorWrite(transaction) &&
             Tablet_->GetBackupCheckpointTimestamp() &&
@@ -486,6 +488,16 @@ public:
 
         YT_VERIFY(transientWriteState->PrelockedRows.empty());
 
+        // Persist transient cookie.
+        // In 1PC prepare is transient and so is the cookie from the barrier insertion.
+        // Commit is the first persistent action after that prepare where we can persist this cookie.
+        //
+        // In replay persistent prepared barrier cookie will stay invalid.
+        // However in StartEpoch all relevant cookies will be recreated.
+        if (persistentWriteState->PreparedBarrierCookie == InvalidAsyncBarrierCookie) {
+            persistentWriteState->PreparedBarrierCookie = transientWriteState->PreparedBarrierCookie;
+        }
+
         auto updateProfileCounters = [&] (const TTransactionWriteLog& log) {
             for (const auto& record : log) {
                 auto counters = Tablet_->GetTableProfiler()->GetCommitCounters(GetCurrentProfilingUser());
@@ -496,10 +508,7 @@ public:
         updateProfileCounters(persistentWriteState->LocklessWriteLog);
         updateProfileCounters(persistentWriteState->LockedWriteLog);
 
-        // COMPAT(ponasenko-rs)
-        if (auto reign = static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign);
-            reign < ETabletReign::SharedWriteLocks || !NeedsSortedSharedWriteSerialization(transaction))
-        {
+        if (!NeedsSortedSharedWriteSerialization(transaction)) {
             CommitLockedRows(transaction);
         }
 
@@ -581,18 +590,10 @@ public:
         auto transientWriteState = GetOrCreateTransactionTransientWriteState(transaction->GetId());
         YT_VERIFY(transientWriteState->PrelockedRows.empty());
 
-        // COMPAT(ponasenko-rs)
-        if (auto reign = static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign);
-            reign < ETabletReign::SharedWriteLocks)
-        {
-            YT_VERIFY(transientWriteState->LockedRows.empty());
+        if (transientWriteState->LockedRows.empty()) {
             CommitLocklessRows(transaction, /*delayed*/ true);
         } else {
-            if (transientWriteState->LockedRows.empty()) {
-                CommitLocklessRows(transaction, /*delayed*/ true);
-            } else {
-                CommitLockedRows(transaction);
-            }
+            CommitLockedRows(transaction);
         }
 
         EraseOrCrash(transaction->CoarseSerializingTabletIds(), Tablet_->GetId());
@@ -696,13 +697,6 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        // COMPAT(ponasenko-rs)
-        if (auto reign = static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign);
-            reign < ETabletReign::SharedWriteLocks)
-        {
-            return NeedsLocklessSerialization(transaction);
-        }
-
         return NeedsLocklessSerialization(transaction) || NeedsSortedSharedWriteSerialization(transaction);
     }
 
@@ -783,6 +777,18 @@ public:
         return !TransactionIdToPersistentWriteState_.empty();
     }
 
+    THashSet<TTransactionId> GetAffectingTransactionIds() const override
+    {
+        THashSet<TTransactionId> result;
+        for (const auto& [transactionId, _] : TransactionIdToTransientWriteState_) {
+            result.insert(transactionId);
+        }
+        for (const auto& [transactionId, _] : TransactionIdToPersistentWriteState_) {
+            result.insert(transactionId);
+        }
+        return result;
+    }
+
     void StartEpoch() override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -792,11 +798,15 @@ public:
             return;
         }
 
+        auto externalizationToken = Tablet_->SmoothMovementData().GetRole() == ESmoothMovementRole::Target
+            ? GetSiblingAvenueEndpointId(Tablet_->SmoothMovementData().GetSiblingAvenueEndpointId())
+            : TTransactionExternalizationToken{};
+
         const auto& transactionManager = Host_->GetTransactionManager();
         for (const auto& [transactionId, writeState] : TransactionIdToPersistentWriteState_) {
-            if (writeState->RowsPrepared) {
-                auto* transaction = transactionManager->GetPersistentTransaction(transactionId);
-                InsertPreparedTransactionToBarrier(transaction, writeState);
+            auto* transaction = transactionManager->GetPersistentTransaction(transactionId, externalizationToken);
+            if (transaction->WasDefinitelyPrepared()) {
+                InsertPreparedTransactionToBarrier(transaction, writeState.Get());
             }
         }
     }
@@ -879,9 +889,13 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
+        auto externalizationToken = Tablet_->SmoothMovementData().GetRole() == ESmoothMovementRole::Target
+            ? GetSiblingAvenueEndpointId(Tablet_->SmoothMovementData().GetSiblingAvenueEndpointId())
+            : TTransactionExternalizationToken{};
+
         const auto& transactionManager = Host_->GetTransactionManager();
         for (const auto& [transactionId, writeState] : TransactionIdToPersistentWriteState_) {
-            auto* transaction = transactionManager->GetPersistentTransaction(transactionId);
+            auto* transaction = transactionManager->GetPersistentTransaction(transactionId, externalizationToken);
 
             if (writeState->RowsPrepared && Tablet_->GetSerializationType() == ETabletTransactionSerializationType::PerRow) {
                 writeState->LockedWriteLog.Freeze();
@@ -938,16 +952,20 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
+    struct TTransactionWriteStateBase
+    {
+        // NB: Not persisted. Only valid during an epoch.
+        TAsyncBarrierCookie PreparedBarrierCookie = InvalidAsyncBarrierCookie;
+    };
+
     struct TTransactionPersistentWriteState final
+        : public TTransactionWriteStateBase
     {
         TTransactionWriteLog LocklessWriteLog;
         TTransactionIndexedWriteLog LockedWriteLog;
 
         bool RowsPrepared = false;
         bool SomeRowsCommitted = false;
-
-        // NB: Not persisted. Only valid during an epoch.
-        TAsyncBarrierCookie PreparedBarrierCookie = InvalidAsyncBarrierCookie;
 
         void Save(TSaveContext& context) const
         {
@@ -991,6 +1009,7 @@ private:
     using TTransactionPersistentWriteStatePtr = TIntrusivePtr<TTransactionPersistentWriteState>;
 
     struct TTransactionTransientWriteState final
+        : public TTransactionWriteStateBase
     {
         TRingQueue<TSortedDynamicRowRef> PrelockedRows;
         std::vector<TSortedDynamicRowRef> LockedRows;
@@ -1056,7 +1075,7 @@ private:
             FindTransactionPersistentWriteState(transactionId);
     }
 
-    void InsertPreparedTransactionToBarrier(TTransaction* transaction, const TTransactionPersistentWriteStatePtr& writeState)
+    void InsertPreparedTransactionToBarrier(TTransaction* transaction, TTransactionWriteStateBase* writeState)
     {
         if (!Tablet_->IsPhysicallyOrdered()) {
             return;

@@ -20,6 +20,9 @@ add_library(yt-server-tcp_proxy)
 target_compile_options(yt-server-tcp_proxy PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_include_directories(yt-server-tcp_proxy PUBLIC

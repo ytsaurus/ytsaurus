@@ -45,6 +45,12 @@ TControllerJobReport TControllerJobReport::Address(std::optional<std::string> ad
     return std::move(*this);
 }
 
+TControllerJobReport TControllerJobReport::Addresses(std::optional<NNodeTrackerClient::TAddressMap> addresses)
+{
+    Addresses_ = addresses;
+    return std::move(*this);
+}
+
 TControllerJobReport TControllerJobReport::ControllerState(EJobState controllerState)
 {
     ControllerState_ = FormatEnum(controllerState);
@@ -60,6 +66,24 @@ TControllerJobReport TControllerJobReport::Ttl(std::optional<TDuration> ttl)
 TControllerJobReport TControllerJobReport::OperationIncarnation(std::string incarnation)
 {
     OperationIncarnation_ = std::move(incarnation);
+    return std::move(*this);
+}
+
+TControllerJobReport TControllerJobReport::AllocationId(TAllocationId allocationId)
+{
+    AllocationId_ = allocationId;
+    return std::move(*this);
+}
+
+TControllerJobReport TControllerJobReport::StartTime(TInstant startTime)
+{
+    ControllerStartTime_ = startTime.MicroSeconds();
+    return std::move(*this);
+}
+
+TControllerJobReport TControllerJobReport::FinishTime(TInstant finishTime)
+{
+    ControllerFinishTime_ = finishTime.MicroSeconds();
     return std::move(*this);
 }
 

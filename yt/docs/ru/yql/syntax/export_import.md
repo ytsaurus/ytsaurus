@@ -1,30 +1,35 @@
-# Вынос части запроса в отдельный файл
+# EXPORT и IMPORT
 
-Механизм для выноса части запроса в отдельный приложенный файл:
+Механизм для выноса части запроса в отдельный приложенный файл. Чтобы воспользоваться механизмом, в запросе необходимо выставить прагму:
 
-* [PRAGMA Library](pragma.md#library) помечает приложенный файл как доступный для импорта.
-## `Export`
-* В `EXPORT $my_symbol1, $my_symbol2, ...;` перечисляется список именованных выражений в библиотеке, доступных для импорта.
-## `Import`
-* `IMPORT my_library SYMBOLS $my_symbol1, $my_symbol2, ...;` делает перечисленные именованные выражения доступными для использования ниже.
+* [PRAGMA Library](pragma.md#library) &mdash; помечает приложенный файл как доступный для импорта.
 
-{% note info "Примечание" %}
+## EXPORT
+
+В `EXPORT $my_symbol1, $my_symbol2, ...;` перечисляется список именованных выражений в библиотеке, доступных для импорта.
+
+## IMPORT
+
+`IMPORT my_library SYMBOLS $my_symbol1, $my_symbol2, ...;` делает перечисленные именованные выражения доступными для использования ниже.
+
+{% note info %}
 
 В библиотеку могут быть вынесены [лямбды](expressions.md#lambda), [действия](action.md), [именованные подзапросы](subquery.md), константы и выражения, но __не подзапросы и не агрегатные функции__.
 
 {% endnote %}
 
-{% note warning "Предупреждение" %}
+{% note warning %}
 
-Файл, на который ссылается [PRAGMA Library](pragma.md#library) должен быть приложен к запросу. __Использовать для этой цели [PRAGMA File](pragma.md#file) нельзя__.
+Файл, на который ссылается [PRAGMA Library](pragma.md#library), должен быть приложен к запросу. __Использовать для этой цели [PRAGMA File](pragma.md#file) нельзя__.
 
 {% endnote %}
 
 
-**Примеры:**
+## Пример
 
 my_lib.sql:
-``` yql
+
+```yql
 $Square = ($x) -> { RETURN $x * $x; };
 $Sqrt = ($x) -> { RETURN Math::Sqrt($x); };
 
@@ -37,7 +42,8 @@ EXPORT $Square, $Sqrt, $Agg_sum, $Agg_max;
 ```
 
 Запрос:
-``` yql
+
+```yql
 PRAGMA Library("my_lib.sql");
 IMPORT my_lib SYMBOLS $Square, $Sqrt, $Agg_sum, $Agg_max;
 SELECT

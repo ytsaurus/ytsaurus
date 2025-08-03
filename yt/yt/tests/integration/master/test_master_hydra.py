@@ -92,6 +92,10 @@ class TestDiscombobulate(YTEnvSetup):
         }
     }
 
+    DELTA_CYPRESS_PROXY_CONFIG = {
+        "heartbeat_period": 1000,
+    }
+
     @authors("danilalexeev")
     def test_discombobulate_nonvoting_peers(self):
         set("//tmp/hello", "world")

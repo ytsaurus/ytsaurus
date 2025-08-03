@@ -153,7 +153,7 @@ class TestDynamicTablesLeases(YTEnvSetup):
         issue_lease(cell_id, self.LEASE_ID)
         self._check_lease(cell_id, "active", 0, 0)
 
-        persistent = ("mode" == "persistent")
+        persistent = (mode == "persistent")
         reference_lease(cell_id, self.LEASE_ID, persistent=persistent)
 
         if persistent:
@@ -270,7 +270,7 @@ class TestDynamicTablesLeases(YTEnvSetup):
         sync_create_cells(1)
         self._create_table()
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Failed to issue leases for prerequisite transactions"):
             self._write_with_prerequisite()
 
     @authors("gritukan")

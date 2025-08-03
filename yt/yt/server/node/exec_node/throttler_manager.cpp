@@ -136,7 +136,7 @@ std::pair<EThrottlerTrafficType, TClusterName> TThrottlerManager::FromThrottlerI
 {
     for (auto trafficType : TEnumTraits<EThrottlerTrafficType>::GetDomainValues()) {
         auto trafficTypeString = Format("%lv_", trafficType);
-        if (throttlerId.StartsWith(trafficTypeString)) {
+        if (throttlerId.starts_with(trafficTypeString)) {
             return {trafficType, TClusterName(throttlerId.substr(trafficTypeString.size()))};
         }
     }
@@ -276,8 +276,7 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
                     "/remote_cluster_throttlers_group",
                     TMemberId(LocalAddress_),
                     RpcServer_,
-                    // TODO(babenko): switch to std::string
-                    TString(LocalAddress_),
+                    LocalAddress_,
                     this->Logger,
                     Authenticator_,
                     Profiler_.WithPrefix("/distributed_throttler"));
@@ -370,7 +369,9 @@ TThrottlerManager::TThrottlerManager(
     , Logger(std::move(options.Logger))
     , ClusterThrottlersConfigUpdater_(New<TPeriodicExecutor>(
         Bootstrap_->GetControlInvoker(),
-        BIND(&TThrottlerManager::TryUpdateClusterThrottlersConfig, MakeWeak(this))))
+        BIND(&TThrottlerManager::TryUpdateClusterThrottlersConfig, MakeWeak(this)),
+        // Default period will be updated once config has been retrieved.
+        TDuration::Seconds(10)))
 {
     if (ClusterNodeConfig_->EnableFairThrottler) {
         Throttlers_[EExecNodeThrottlerKind::JobIn] = Bootstrap_->GetInThrottler("job_in");
@@ -396,13 +397,13 @@ TThrottlerManager::TThrottlerManager(
             Throttlers_[kind] = std::move(throttler);
         }
     }
-
-    ClusterThrottlersConfigUpdater_->Start();
-    ClusterThrottlersConfigUpdater_->ScheduleOutOfBand();
 }
 
 TFuture<void> TThrottlerManager::Start()
 {
+    ClusterThrottlersConfigUpdater_->Start();
+    ClusterThrottlersConfigUpdater_->ScheduleOutOfBand();
+
     return ClusterThrottlersConfigInitializedPromise_.ToFuture();
 }
 

@@ -458,6 +458,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
         assert get(f"#{chunk_id}/@min_timestamp") == 123
 
     @authors("dave11ar")
+    @pytest.mark.timeout(180)
     @pytest.mark.parametrize("enable_dynamic_store_read", [False, True])
     def test_versioned_map_reduce_read(self, enable_dynamic_store_read):
         input = "//tmp/t_input"
@@ -1009,10 +1010,10 @@ class MROverOrderedDynTablesHelper(YTEnvSetup):
 
         script = "\n".join(
             [
-                "#!/usr/bin/python",
+                "#!/usr/bin/env python3",
                 "import sys",
                 "import base64",
-                "print '{out=\"' + base64.standard_b64encode(sys.stdin.read()) + '\"}'",
+                "print('{out=\"' + base64.standard_b64encode(sys.stdin.buffer.read()).decode() + '\"}')",
             ]
         )
         create(b"file", b"//tmp/script.py", attributes={"executable": True})
@@ -1350,8 +1351,7 @@ class TestSchedulerMapReduceDynamic(MROverOrderedDynTablesHelper):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "sort_operation_options": {"min_uncompressed_block_size": 1},
-            "map_reduce_operation_options": {
+            "operation_options": {
                 "min_uncompressed_block_size": 1,
             },
             "enable_partition_map_job_size_adjustment": True,
@@ -1507,6 +1507,7 @@ class TestSchedulerMapReduceDynamic(MROverOrderedDynTablesHelper):
             command="cat",
         )
         assert read_table("//tmp/t_out") == rows
+
 
 ##################################################################
 

@@ -262,7 +262,7 @@ std::vector<TFuture<TBlock>> TBlockFetcher::FetchBlocks(const std::vector<TBlock
             auto chunkId = Chunks_[readerIndex].Reader->GetChunkId();
 
             YT_LOG_DEBUG("Fetching block out of turn "
-                "(ChunkId: %v, BlockIndex: %v, WindowIndex: %v)",
+                "(ChunkId: %v, Block: %v, WindowIndex: %v)",
                 chunkId,
                 blockIndex,
                 windowIndex);
@@ -319,7 +319,6 @@ std::vector<TFuture<TBlock>> TBlockFetcher::FetchBlocks(const std::vector<TBlock
     if (!windowIndicesToRequest.empty()) {
         std::vector<int> groupWindowIndices;
         std::vector<TBlockDescriptor> groupBlockDescriptors;
-        i64 estimatedCompressedSize = 0;
 
         auto requestBlocks = [&] {
             YT_LOG_DEBUG("Requesting blocks async (BlockDescriptors: %v)",
@@ -330,8 +329,6 @@ std::vector<TFuture<TBlock>> TBlockFetcher::FetchBlocks(const std::vector<TBlock
                     MakeWeak(this),
                     std::move(groupWindowIndices),
                     std::move(groupBlockDescriptors)));
-
-            estimatedCompressedSize = 0;
         };
 
         i64 index = 0;
@@ -340,9 +337,7 @@ std::vector<TFuture<TBlock>> TBlockFetcher::FetchBlocks(const std::vector<TBlock
             auto windowIndex = windowIndicesToRequest[index];
             const auto& blockInfo = BlockInfos_[windowIndex];
 
-            i64 estimatedCompressedBlockSize = blockInfo.UncompressedDataSize * CompressionRatio_;
-            bool canGroupBlocks = Config_->GroupOutOfOrderBlocks
-                && estimatedCompressedSize + estimatedCompressedBlockSize <= Config_->GroupSize;
+            bool canGroupBlocks = Config_->GroupOutOfOrderBlocks;
 
             if (groupWindowIndices.empty() || canGroupBlocks) {
                 groupWindowIndices.push_back(windowIndex);
@@ -351,7 +346,6 @@ std::vector<TFuture<TBlock>> TBlockFetcher::FetchBlocks(const std::vector<TBlock
                     .BlockIndex = blockInfo.BlockIndex,
                 });
 
-                estimatedCompressedSize += estimatedCompressedBlockSize;
                 ++index;
             } else {
                 requestBlocks();
@@ -424,7 +418,7 @@ void TBlockFetcher::DecompressBlocks(
             uncompressedBlock = std::move(compressedBlock.Data);
         } else {
             YT_LOG_DEBUG("Started decompressing block "
-                "(ChunkId: %v, BlockIndex: %v, WindowIndex: %v, Codec: %v)",
+                "(ChunkId: %v, Block: %v, WindowIndex: %v, Codec: %v)",
                 chunkId,
                 blockIndex,
                 windowIndex,
@@ -438,7 +432,7 @@ void TBlockFetcher::DecompressBlocks(
             }
 
             YT_LOG_DEBUG("Finished decompressing block "
-                "(ChunkId: %v, BlockIndex: %v, WindowIndex: %v, CompressedSize: %v, UncompressedSize: %v, Codec: %v)",
+                "(ChunkId: %v, Block: %v, WindowIndex: %v, CompressedSize: %v, UncompressedSize: %v, Codec: %v)",
                 chunkId,
                 blockIndex,
                 windowIndex,
@@ -510,7 +504,7 @@ void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryU
         if (windowIndexes.empty() || uncompressedSize + blockInfo.UncompressedDataSize <= availableSlots) {
             if (Window_[FirstUnfetchedWindowIndex_].FetchStarted.test_and_set()) {
                 // This block has been already requested out of order.
-                YT_LOG_DEBUG("Skipping out of turn block (ChunkId: %v, BlockIndex: %v, WindowIndex: %v)",
+                YT_LOG_DEBUG("Skipping out of turn block (ChunkId: %v, Block: %v, WindowIndex: %v)",
                     chunkId,
                     blockIndex,
                     FirstUnfetchedWindowIndex_);

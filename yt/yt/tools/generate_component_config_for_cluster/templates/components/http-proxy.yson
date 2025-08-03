@@ -11,7 +11,7 @@
         };
     };
     "auth" = {
-        "blackbox_authenticator" = {
+        "blackbox_token_authenticator" = {
             "scope" = "yt:api";
         };
     };

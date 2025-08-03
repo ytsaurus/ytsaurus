@@ -2,6 +2,7 @@
 #include "private.h"
 
 #include <yt/yt/core/concurrency/async_stream_pipe.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/python/common/helpers.h>
@@ -36,7 +37,7 @@ using TArrowStatusCallback = std::function<void(arrow::Status)>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ArrowConverterLogger;
+constinit const auto Logger = ArrowConverterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

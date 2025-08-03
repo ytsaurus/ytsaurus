@@ -74,9 +74,6 @@ struct TAccessCheckerConfig
     // COMPAT(verytable): Drop it after migration to aco roles everywhere.
     bool UseAccessControlObjects;
 
-    //! Parameters of the permission cache.
-    NSecurityClient::TPermissionCacheConfigPtr Cache;
-
     REGISTER_YSON_STRUCT(TAccessCheckerConfig);
 
     static void Register(TRegistrar registrar);
@@ -101,10 +98,9 @@ DEFINE_REFCOUNTED_TYPE(TAccessCheckerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProxyMemoryLimits
+struct TProxyMemoryLimits
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<i64> Total;
     std::optional<i64> HeavyRequest;
 

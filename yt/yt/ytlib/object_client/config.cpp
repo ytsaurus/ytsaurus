@@ -97,16 +97,16 @@ void TCachingObjectServiceDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TReqExecuteBatchWithRetriesConfig::Register(TRegistrar registrar)
+void TReqExecuteBatchRetriesConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("base_backoff", &TThis::StartBackoff)
+    registrar.BaseClassParameter("base_backoff", &TThis::StartBackoff)
         .Default(TDuration::Seconds(1));
-    registrar.Parameter("max_backoff", &TThis::MaxBackoff)
+    registrar.BaseClassParameter("max_backoff", &TThis::MaxBackoff)
         .Default(TDuration::Seconds(20));
-    registrar.Parameter("backoff_multiplier", &TThis::BackoffMultiplier)
+    registrar.BaseClassParameter("backoff_multiplier", &TThis::BackoffMultiplier)
         .GreaterThanOrEqual(1)
         .Default(2);
-    registrar.Parameter("retry_count", &TThis::RetryCount)
+    registrar.BaseClassParameter("retry_count", &TThis::RetryCount)
         .GreaterThanOrEqual(0)
         .Default(5);
 }

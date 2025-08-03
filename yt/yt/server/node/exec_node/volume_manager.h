@@ -47,7 +47,8 @@ struct IVolume
 {
     virtual const TVolumeId& GetId() const = 0;
     virtual const TString& GetPath() const = 0;
-    virtual const NDataNode::TArtifactKey& GetArtifactKey() const = 0;
+    //! Overlayfs stores its upper/work directories in root volume.
+    virtual bool IsRootVolume() const = 0;
     virtual TFuture<void> Remove() = 0;
 };
 
@@ -62,14 +63,15 @@ struct IVolumeManager
 {
     virtual TFuture<IVolumePtr> PrepareVolume(
         const std::vector<NDataNode::TArtifactKey>& artifactKeys,
-        const TArtifactDownloadOptions& downloadOptions,
-        const TUserSandboxOptions& options) = 0;
+        const TVolumePreparationOptions& options) = 0;
 
     virtual bool IsLayerCached(const NDataNode::TArtifactKey& artifactKey) const = 0;
 
     virtual void BuildOrchid(NYTree::TFluentAny fluent) const = 0;
 
     virtual void ClearCaches() const = 0;
+
+    virtual void MarkLayersAsNotRemovable() const = 0;
 
     virtual TFuture<void> GetVolumeReleaseEvent() = 0;
 

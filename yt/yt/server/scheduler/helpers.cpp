@@ -196,7 +196,7 @@ TJobResources ComputeAvailableResources(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationFairShareTreeRuntimeParametersPtr GetSchedulingOptionsPerPoolTree(IOperationStrategyHost* operation, const TString& treeId)
+TOperationFairShareTreeRuntimeParametersPtr GetSchedulingOptionsPerPoolTree(const IOperationStrategyHostPtr& operation, const TString& treeId)
 {
     return GetOrCrash(operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree, treeId);
 }
@@ -242,7 +242,7 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"data/output/*/uncompressed_data_size", "Uncompressed size of blocks written to the output table", "bytes"},
         {"data/output/*/data_weight", "Logical size of data written to the output table", "bytes"},
         {"data/output/*/regular_disk_space", "Only for tables with erasure_codec == none, equals to compressed_data_size + size of the chunk metadata", "bytes"},
-        {"data/output/*/erasure_disk_space", "Only for tables with erasure_codec == none, equals to compressed_data_size + size of parity blocks", "bytes"},
+        {"data/output/*/erasure_disk_space", "Only for tables with erasure_codec != none, equals to compressed_data_size + size of parity blocks", "bytes"},
         {"data/output/*/unmerged_data_weight", "Only for dynamic tables, logical size of unmerged data written to the output table", "bytes"},
         {"data/output/*/unmerged_row_count", "Only for dynamic tables, number of unmerged rows written to the output table", "pieces"},
 
@@ -346,9 +346,13 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"user_job/gpu/cumulative_load", "Time during which GPU load was non-zero", "ms"},
         {"user_job/gpu/cumulative_memory_mb_sec", "Integral of GPU memory usage", "sec * MB"},
         {"user_job/gpu/cumulative_power", "Integral of GPU power usage", "ms * power"},
-        {"user_job/gpu/cumulative_clocks_sm", "Integral of GPU frequency usage", "ms * frequency"},
+        {"user_job/gpu/cumulative_sm_clocks", "Integral of GPU frequency usage", "ms * frequency"},
         {"user_job/gpu/cumulative_tensor_activity", "Time during which GPU tensor (HMMA) pipe was active", "ms"},
         {"user_job/gpu/cumulative_dram_activity", "Time during which GPU memory interface was active sending or receiving data", "ms"},
+        {"user_job/gpu/cumulative_sw_thermal_slowdown", "Time during which the GPU experienced software thermal slowdown", "ms"},
+        {"user_job/gpu/cumulative_hw_thermal_slowdown", "Time during which the GPU experienced hardware thermal slowdown", "ms"},
+        {"user_job/gpu/cumulative_hw_power_brake_slowdown", "Time during which the GPU experienced hardware power brake slowdown", "ms"},
+        {"user_job/gpu/cumulative_hw_slowdown", "Time during which the GPU experienced hardware slowdown", "ms"},
         {"user_job/gpu/max_memory_used", "Maximum registered GPU memory usage", "bytes"},
         {"user_job/gpu/memory_total", "Total available GPU memory", "bytes"},
 
@@ -367,6 +371,13 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"chunk_reader_statistics/session_count", "Total number of read sessions", "pieces"},
         {"chunk_reader_statistics/retry_count", "Total number of chunk reader retries", "pieces"},
         {"chunk_reader_statistics/pass_count", "Total number of chunk reader passes", "pieces"},
+
+        {"chunk_writer_statistics/*/data_bytes_written_to_disk", "Amount of chunk data written to disk", "bytes"},
+        {"chunk_writer_statistics/*/data_io_sync_requests", "Number of requests to flush chunk data from kernel buffers to disk", "pieces"},
+        {"chunk_writer_statistics/*/data_io_write_requests", "Number of write requests for chunk data", "pieces"},
+        {"chunk_writer_statistics/*/meta_bytes_written_to_disk", "Amount of chunk metadata written to disk", "bytes"},
+        {"chunk_writer_statistics/*/meta_io_sync_requests", "Number of requests to flush chunk metadata from kernel buffers to disk", "pieces"},
+        {"chunk_writer_statistics/*/meta_io_write_requests", "Number of write requests for chunk metadata", "pieces"},
     };
 
     return statisticsHints;
@@ -480,6 +491,10 @@ const std::vector<TSchedulerTreeAlertDescriptor>& GetSchedulerTreeAlertDescripto
             .Type = ESchedulerAlertType::ManageSchedulingSegments,
             .Message = "Found errors during node scheduling segments management",
         },
+        TSchedulerTreeAlertDescriptor{
+            .Type = ESchedulerAlertType::UnrecognizedPoolTreeConfigOptions,
+            .Message = "Pool tree configs contain unrecognized options",
+        },
     };
 
     return SchedulerTreeAlertDescriptors;
@@ -494,15 +509,6 @@ bool IsSchedulerTreeAlertType(ESchedulerAlertType alertType)
     }
 
     return false;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TOneShotFluentLogEvent LogStructuredGpuEventFluently(EGpuSchedulingLogEventType eventType)
-{
-    return NLogging::LogStructuredEventFluently(SchedulerGpuEventLogger(), NLogging::ELogLevel::Info)
-        .Item("timestamp").Value(TInstant::Now())
-        .Item("event_type").Value(eventType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

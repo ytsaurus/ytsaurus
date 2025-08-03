@@ -15,12 +15,12 @@ using TBufferSizes = std::vector<i64>;
 void CheckRead(i64 readRequestSize, i64 desiredSize, i64 minimalSize, const TBufferSizes& expectedSizes)
 {
     auto buffer = TSharedMutableRef::Allocate(readRequestSize);
-    auto request = IIOEngine::TReadRequest{
+    auto request = TReadRequest{
         .Handle = New<TIOEngineHandle>(),
         .Offset = 4096,
         .Size = readRequestSize
     };
-    auto slices = TIORequestSlicer(desiredSize, minimalSize).Slice(request, buffer);
+    auto slices = TIORequestSlicer(desiredSize, minimalSize, /*enableSlicing*/ true).Slice(request, buffer);
 
     EXPECT_EQ(expectedSizes.size(), slices.size());
 
@@ -60,7 +60,7 @@ void CheckWrite(
     i64 minimalSize,
     const std::vector<TBufferSizes>& expectedSizes)
 {
-    auto request = IIOEngine::TWriteRequest{
+    auto request = TWriteRequest{
         .Handle = New<TIOEngineHandle>(),
         .Offset = 4096,
         .Flush = true
@@ -70,7 +70,7 @@ void CheckWrite(
         request.Buffers.push_back(TSharedMutableRef::Allocate(size));
     }
 
-    auto slices = TIORequestSlicer(desiredSize, minimalSize).Slice(request);
+    auto slices = TIORequestSlicer(desiredSize, minimalSize, /*enableSlicing*/ true).Slice(request);
     EXPECT_EQ(expectedSizes.size(), slices.size());
     i64 offset = request.Offset;
 
@@ -93,13 +93,13 @@ void CheckFlushFileRange(
     i64 minimalSize,
     const TBufferSizes& expectedSizes)
 {
-    auto request = IIOEngine::TFlushFileRangeRequest{
+    auto request = TFlushFileRangeRequest{
         .Handle = New<TIOEngineHandle>(),
         .Offset = 4096,
         .Size = requestSize
     };
 
-    auto slices = TIORequestSlicer(desiredSize, minimalSize).Slice(request);
+    auto slices = TIORequestSlicer(desiredSize, minimalSize, /*enableSlicing*/ true).Slice(request);
     EXPECT_EQ(expectedSizes.size(), slices.size());
     i64 offset = request.Offset;
 

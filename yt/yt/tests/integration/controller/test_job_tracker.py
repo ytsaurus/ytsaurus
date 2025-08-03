@@ -13,7 +13,7 @@ from yt_commands import (
     wait_breakpoint, release_breakpoint,
     update_controller_agent_config, update_nodes_dynamic_config,
     update_scheduler_config, get_allocation_id_from_job_id,
-    create_pool,
+    create_pool, print_debug, abort_job,
 )
 from yt_helpers import read_structured_log, write_log_barrier, JobCountProfiler, profiler_factory
 
@@ -549,6 +549,83 @@ class TestJobTrackerRaces(YTEnvSetup):
         wait(lambda: not exists(f"//sys/controller_agents/instances/{controller_agent_address}/orchid/controller_agent/job_tracker/allocations/{allocation1}"))
 
         op.abort()
+
+
+##################################################################
+
+class TestStoredJobRemoval(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 3000,
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "controller_agent_connector": {
+                    "job_staleness_delay": 1000,
+                },
+            },
+        },
+    }
+
+    @authors("pogorelov")
+    @pytest.mark.parametrize("resend_full_job_info", [False, True])
+    def test_agent_restart(self, resend_full_job_info):
+        controller_agent = ls("//sys/controller_agents/instances")[0]
+        profiler = profiler_factory().at_controller_agent(controller_agent)
+        update_nodes_dynamic_config({"exec_node": {"controller_agent_connector": {"resend_full_job_info": resend_full_job_info}}})
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=2,
+        )
+
+        job_to_abort, job_to_keep = wait_breakpoint(job_count=2)
+        # Wait for fresh snapshot to prevent fast job releasing.
+        op.wait_for_fresh_snapshot()
+
+        print_debug(f"Jobs : {job_to_abort}, {job_to_keep}")
+
+        # We want to have one job not present in snapshot.
+        # And We hope to be able to do everything before a new snapshot is recorded.
+        print_debug(f"Aborting job {job_to_abort}")
+        abort_job(job_to_abort)
+
+        release_breakpoint(job_id=job_to_abort)
+
+        new_job_ids = wait_breakpoint(job_count=2)
+        assert len(new_job_ids) == 2
+        if new_job_ids[0] == job_to_keep:
+            job_to_release = new_job_ids[1]
+        else:
+            assert new_job_ids[1] == job_to_keep
+            job_to_release = new_job_ids[0]
+
+        orchid_path = op.get_job_node_orchid_path(job_to_release) + f"/exec_node/job_controller/active_jobs/{job_to_release}"
+        wait(lambda: exists(orchid_path))
+
+        # 4. Release one job
+        print_debug(f"Releasing job {job_to_release}")
+        release_breakpoint(job_id=job_to_release)
+
+        wait(lambda: get(orchid_path + "/stored"))
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        job_release_request_counter = profiler.counter("controller_agent/job_tracker/job_release_request_count")
+
+        wait(lambda: not exists(orchid_path))
+        wait(lambda: job_release_request_counter.get_delta() >= 1)
+
+        release_breakpoint()
+        op.track()
 
 
 ##################################################################

@@ -1,9 +1,8 @@
 #include "new_sorted_job_builder.h"
 
-#include "helpers.h"
 #include "input_stream.h"
-#include "new_job_manager.h"
 #include "job_size_tracker.h"
+#include "new_job_manager.h"
 #include "sorted_staging_area.h"
 
 #include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
@@ -11,8 +10,8 @@
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
-#include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/key_bound_compressor.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 
 #include <yt/yt/library/random/bernoulli_sampler.h>
 
@@ -20,18 +19,15 @@
 
 #include <yt/yt/core/logging/fluent_log.h>
 
-#include <yt/yt/core/misc/collection_helpers.h>
-#include <yt/yt/core/misc/finally.h>
-
 #include <cmath>
 
 namespace NYT::NChunkPools {
 
-using namespace NTableClient;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NControllerAgent;
 using namespace NLogging;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,7 +55,7 @@ public:
     TNewSortedJobBuilder(
         const TSortedJobOptions& options,
         IJobSizeConstraintsPtr jobSizeConstraints,
-        const TRowBufferPtr& rowBuffer,
+        TRowBufferPtr rowBuffer,
         const std::vector<TInputChunkPtr>& teleportChunks,
         int retryIndex,
         const TInputStreamDirectory& inputStreamDirectory,
@@ -70,7 +66,7 @@ public:
         , ForeignComparator_(options.ForeignComparator)
         , JobSizeConstraints_(std::move(jobSizeConstraints))
         , JobSampler_(JobSizeConstraints_->GetSamplingRate())
-        , RowBuffer_(rowBuffer)
+        , RowBuffer_(std::move(rowBuffer))
         , RetryIndex_(retryIndex)
         , InputStreamDirectory_(inputStreamDirectory)
         , Logger(logger)
@@ -111,17 +107,21 @@ public:
         SegmentPrimaryEndpoints_.resize(teleportChunks.size() + 1);
     }
 
-    void AddDataSlice(const TLegacyDataSlicePtr& dataSlice) override
+    void AddDataSlice(const TLegacyDataSlicePtr& originalDataSlice) override
     {
+        // Making a copy here is crucial since the copy may be modified in-place,
+        // while the caller assumes that the original will not be modified.
+        auto dataSlice = CreateInputDataSlice(originalDataSlice);
+
         YT_VERIFY(!dataSlice->IsLegacy);
         YT_VERIFY(dataSlice->LowerLimit().KeyBound);
         YT_VERIFY(dataSlice->UpperLimit().KeyBound);
 
-        // Making a copy here is crucial since provided data slice object may be modified in-place.
-        InputDataSlices_.push_back(CreateInputDataSlice(dataSlice));
+        // Log the original data slices that should not be modified.
+        InputDataSlices_.push_back(originalDataSlice);
 
-        auto inputStreamIndex = dataSlice->GetInputStreamIndex();
-        auto isPrimary = InputStreamDirectory_.GetDescriptor(inputStreamIndex).IsPrimary();
+        int inputStreamIndex = dataSlice->GetInputStreamIndex();
+        bool isPrimary = InputStreamDirectory_.GetDescriptor(inputStreamIndex).IsPrimary();
 
         const auto& comparator = isPrimary ? PrimaryComparator_ : ForeignComparator_;
 
@@ -465,6 +465,10 @@ private:
     //! This method is idempotent and cheap to call (on average).
     void AttachForeignSlices(TKeyBound primaryUpperBound)
     {
+        if (!Options_.EnableKeyGuarantee && !primaryUpperBound.IsInclusive) {
+            primaryUpperBound = primaryUpperBound.ToggleInclusiveness();
+        }
+
         YT_LOG_TRACE(
             "Attaching foreign slices (PrimaryUpperBound: %v, FirstUnstagedForeignIndex: %v)",
             primaryUpperBound,
@@ -533,7 +537,7 @@ private:
                 index,
                 endpoint.KeyBound,
                 endpoint.Type,
-                endpoint.DataSlice.Get());
+                endpoint.DataSlice ? GetDataSliceDebugString(endpoint.DataSlice) : "<null>");
         }
     }
 
@@ -670,7 +674,7 @@ private:
     }
 
     //! Decide if range of slices defined by their left endpoints must be added as a whole, or if it
-    //! May be added one by one with row slicing.
+    //! may be added one by one with row slicing.
     ERowSliceabilityDecision DecideRowSliceability(TRange<TPrimaryEndpoint> endpoints, TKeyBound nextPrimaryLowerBound)
     {
         YT_VERIFY(!endpoints.empty());
@@ -804,8 +808,10 @@ private:
 
         auto lowerBound = endpoints[0].KeyBound;
 
+        // TODO(coteeq): Do Max's todo.
         // TODO(max42): describe this situation, refer to RowSlicingCorrectnessCustom unittest.
         if (!lowerBound.Invert().IsInclusive && lowerBound.Prefix.GetCount() == static_cast<ui32>(PrimaryComparator_.GetLength())) {
+            YT_LOG_TRACE("Weird max42 case (LowerBound: %v)", lowerBound);
             StagingArea_->PromoteUpperBound(endpoints[0].KeyBound.Invert().ToggleInclusiveness());
         }
 
@@ -874,10 +880,8 @@ private:
                 if (rowCount == upperRowIndex - lowerRowIndex) {
                     // In some borderline cases this may still happen... just put the original data slice.
                     Stage(std::move(dataSlice), ESliceType::Solid);
-                    return;
                 } else if (rowCount == 0) {
                     dataSlices.emplace_front(std::move(dataSlice));
-                    return;
                 } else {
                     Stage(std::move(leftDataSlice), ESliceType::Solid);
                     dataSlices.emplace_front(std::move(rightDataSlice));
@@ -983,7 +987,6 @@ private:
             RowBuffer_,
             /*initialTotalDataSliceCount*/ TotalDataSliceCount_,
             Options_.MaxTotalSliceCount,
-            InputStreamDirectory_,
             Logger);
 
         // Iterate over groups of coinciding endpoints.
@@ -1045,11 +1048,10 @@ private:
             }
         }
 
-        StagingArea_->PutBarrier();
-
         AttachForeignSlices(TKeyBound::MakeUniversal(/*isUpper*/ true));
 
         StagingArea_->Finish();
+        StagingArea_->PutBarrier();
 
         for (auto& preparedJob : StagingArea_->PreparedJobs()) {
             PeriodicYielder_.TryYield();
@@ -1076,7 +1078,7 @@ DEFINE_REFCOUNTED_TYPE(TNewSortedJobBuilder)
 INewSortedJobBuilderPtr CreateNewSortedJobBuilder(
     const TSortedJobOptions& options,
     IJobSizeConstraintsPtr jobSizeConstraints,
-    const TRowBufferPtr& rowBuffer,
+    TRowBufferPtr rowBuffer,
     const std::vector<TInputChunkPtr>& teleportChunks,
     int retryIndex,
     const TInputStreamDirectory& inputStreamDirectory,
@@ -1086,7 +1088,7 @@ INewSortedJobBuilderPtr CreateNewSortedJobBuilder(
     return New<TNewSortedJobBuilder>(
         options,
         std::move(jobSizeConstraints),
-        rowBuffer,
+        std::move(rowBuffer),
         teleportChunks,
         retryIndex,
         inputStreamDirectory,

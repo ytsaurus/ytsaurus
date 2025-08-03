@@ -1,6 +1,7 @@
 #include "data_node_tracker.h"
 
 #include "data_node_tracker_internal.h"
+#include "domestic_medium.h"
 #include "chunk_manager.h"
 #include "chunk_location.h"
 #include "chunk_location_type_handler.h"
@@ -69,7 +70,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ChunkServerLogger;
+constinit const auto Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -232,11 +233,25 @@ public:
                 .ThrowOnError();
         }
 
+        const auto& config = GetDynamicConfig();
         const auto& hydraFacade = Bootstrap_->GetHydraFacade();
-        hydraFacade->CommitMutationWithSemaphore(
-            std::is_same_v<TFullHeartbeatContextPtr, TCtxFullHeartbeatPtr>
+        i64 chunkReplicasCount = 0;
+        if constexpr (std::is_same_v<TFullHeartbeatContextPtr, TCtxFullHeartbeatPtr>) {
+            for (const auto& statistics : preparedRequest->NonSequoiaRequest.per_location_chunk_counts()) {
+                chunkReplicasCount += statistics.chunk_count();
+            }
+        } else {
+            chunkReplicasCount += preparedRequest->NonSequoiaRequest.chunks_size();
+        }
+        auto semaphoreSlotsToAquire = config->EnableChunkReplicasThrottlingInHeartbeats ? chunkReplicasCount : 1;
+        const auto& semaphore = config->EnableChunkReplicasThrottlingInHeartbeats
+            ? FullHeartbeatPerReplicasSemaphore_
+            : (std::is_same_v<TFullHeartbeatContextPtr, TCtxFullHeartbeatPtr>
                 ? FullHeartbeatSemaphore_
-                : LocationFullHeartbeatSemaphore_,
+                : LocationFullHeartbeatSemaphore_);
+
+        hydraFacade->CommitMutationWithSemaphore(
+            semaphore,
             context,
             BIND([=, this, this_ = MakeStrong(this)] {
                 return CreateMutation(
@@ -256,7 +271,8 @@ public:
                 auto* response = &context->Response();
                 response->Swap(&preparedRequest->NonSequoiaResponse);
                 context->Reply();
-            }));
+            }),
+            semaphoreSlotsToAquire);
     }
 
     // COMPAT(danilalexeev): YT-23781.
@@ -332,8 +348,19 @@ public:
         auto locationDirectory = ParseLocationDirectoryOrThrow(node, this, originalRequest);
         THashSet<int> sequoiaLocationIndices;
         for (int i = 0; i < std::ssize(locationDirectory); ++i) {
+            YT_LOG_TRACE("Checking location (LocationIndex: %v, Uuid: %v)",
+                i,
+                locationDirectory[i]->GetUuid());
+
             if (chunkReplicaFetcher->CanHaveSequoiaReplicas(locationDirectory[i])) {
                 InsertOrCrash(sequoiaLocationIndices, i);
+                YT_LOG_TRACE("Location is Sequoia (LocationIndex: %v, Uuid: %v)",
+                    i,
+                    locationDirectory[i]->GetUuid());
+            } else {
+                YT_LOG_TRACE("Location is not Sequoia (LocationIndex: %v, Uuid: %v)",
+                    i,
+                    locationDirectory[i]->GetUuid());
             }
         }
 
@@ -383,6 +410,8 @@ public:
             .ValueOrThrow();
 
         if (preparedRequest->SequoiaRequest->removed_chunks_size() + preparedRequest->SequoiaRequest->added_chunks_size() > 0) {
+            YT_LOG_TRACE("There are Sequoia replicas for this request (NodeId: %v)", nodeId);
+
             auto modifyDeadChunks = BIND([&] {
                 for (const auto& protoChunkInfo : preparedRequest->SequoiaRequest->removed_chunks()) {
                     auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(protoChunkInfo.chunk_id()));
@@ -409,11 +438,20 @@ public:
 
             WaitFor(chunkManager->ModifySequoiaReplicas(ESequoiaTransactionType::IncrementalHeartbeat, std::move(preparedRequest->SequoiaRequest)))
                 .ThrowOnError();
+        } else {
+            YT_LOG_TRACE("No Sequoia replicas for this request (NodeId: %v)", nodeId);
         }
 
+        const auto& config = GetDynamicConfig();
         const auto& hydraFacade = Bootstrap_->GetHydraFacade();
+        auto chunkReplicasCount = preparedRequest->NonSequoiaRequest.added_chunks_size() + preparedRequest->NonSequoiaRequest.removed_chunks_size();
+        auto semaphoreSlotsToAquire = config->EnableChunkReplicasThrottlingInHeartbeats ? chunkReplicasCount : 1;
+        const auto& semaphore = config->EnableChunkReplicasThrottlingInHeartbeats
+            ? IncrementalHeartbeatPerReplicasSemaphore_
+            : IncrementalHeartbeatSemaphore_;
+
         hydraFacade->CommitMutationWithSemaphore(
-            IncrementalHeartbeatSemaphore_,
+            semaphore,
             context,
             BIND([=, this, this_ = MakeStrong(this)] {
                 return CreateMutation(
@@ -427,7 +465,8 @@ public:
                 auto* response = &context->Response();
                 response->Swap(&preparedRequest->NonSequoiaResponse);
                 context->Reply();
-            }));
+            }),
+            semaphoreSlotsToAquire);
     }
 
     void ProcessIncrementalHeartbeat(
@@ -677,9 +716,14 @@ public:
     }
 
 private:
-    const TAsyncSemaphorePtr FullHeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
-    const TAsyncSemaphorePtr LocationFullHeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
-    const TAsyncSemaphorePtr IncrementalHeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
+    const TAsyncSemaphorePtr FullHeartbeatPerReplicasSemaphore_ = New<TAsyncSemaphore>(/*totalSlots*/ 0, /*enableOverdraft*/ true);
+    const TAsyncSemaphorePtr IncrementalHeartbeatPerReplicasSemaphore_ = New<TAsyncSemaphore>(/*totalSlots*/ 0, /*enableOverdraft*/ true);
+    // COMPAT(cherepashka)
+    const TAsyncSemaphorePtr FullHeartbeatSemaphore_ = New<TAsyncSemaphore>(/*totalSlots*/ 0);
+    // COMPAT(cherepashka)
+    const TAsyncSemaphorePtr LocationFullHeartbeatSemaphore_ = New<TAsyncSemaphore>(/*totalSlots*/ 0);
+    // COMPAT(cherepashka)
+    const TAsyncSemaphorePtr IncrementalHeartbeatSemaphore_ = New<TAsyncSemaphore>(/*totalSlots*/ 0);
 
     NHydra::TEntityMap<TChunkLocation> ChunkLocationMap_;
     TChunkLocationUuidMap ChunkLocationUuidToLocation_;
@@ -1085,6 +1129,8 @@ private:
 
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
+        FullHeartbeatPerReplicasSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentChunkReplicasDuringFullHeartbeat);
+        IncrementalHeartbeatPerReplicasSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentChunkReplicasDuringIncrementalHeartbeat);
         FullHeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentFullHeartbeats);
         LocationFullHeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentLocationFullHeartbeats);
         IncrementalHeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentIncrementalHeartbeats);
@@ -1105,7 +1151,7 @@ private:
         auto cleaningLimit = GetDynamicConfig()->DanglingLocationCleaner->MaxLocationsToCleanPerIteration;
 
         constexpr auto defaultCleaningLimit = TDanglingLocationCleanerConfig::DefaultMaxLocationsToCleanPerIteration;
-        TCompactVector<TGuid, defaultCleaningLimit> expiredDanglingLocations;
+        TCompactVector<TChunkLocationId, defaultCleaningLimit> expiredDanglingLocations;
 
         for (auto [id, location] : ChunkLocationMap_) {
             if (std::ssize(expiredDanglingLocations) >= cleaningLimit) {

@@ -32,6 +32,7 @@ struct TAllocationAttributes
     TDiskRequest DiskRequest;
     bool AllowIdleCpuPolicy = false;
     int PortCount = 0;
+    bool EnableMultipleJobs = false;
 };
 
 void ToProto(

@@ -84,8 +84,9 @@ class Text(Taggable):
 
 
 class Title(Taggable):
-    def __init__(self, title):
+    def __init__(self, title, size=None):
         self.title = title
+        self.size = size
 
     def value(self, *args, **kwargs):
         return self

@@ -69,7 +69,7 @@ TEST_F(TApiTestBase, TestCreateInvalidNode)
 ////////////////////////////////////////////////////////////////////////////////
 
 using TLookupFilterTestParam = std::tuple<
-    std::vector<TString>,
+    std::vector<std::string>,
     TString,
     std::vector<int>,
     TString,
@@ -111,7 +111,7 @@ protected:
     }
 
     static void WriteUnversionedRow(
-        std::vector<TString> names,
+        const std::vector<std::string>& names,
         const TString& rowString,
         int timestampTag)
     {
@@ -144,7 +144,7 @@ protected:
     }
 
     static void DeleteRow(
-        std::vector<TString> names,
+        const std::vector<std::string>& names,
         const TString& rowString,
         int timestampTag)
     {
@@ -326,7 +326,7 @@ TEST_P(TLookupFilterTest, TestVersionedLookupFilter)
 
     bool hasNonKeyColumns = false;
     for (const auto& column : namedColumns) {
-        if (column.StartsWith("v")) {
+        if (column.starts_with("v")) {
             hasNonKeyColumns = true;
         }
     }
@@ -966,27 +966,26 @@ class TClusterIdentificationTest
 
 TEST_F(TClusterIdentificationTest, FetchFromMaster)
 {
-    auto clusterName = Client_->GetClusterName();
+    auto clusterName = WaitFor(Client_->GetClusterName()).ValueOrThrow();
     ASSERT_TRUE(clusterName);
     ASSERT_EQ(*clusterName, ClusterName_);
 
     {
-        TForbidContextSwitchGuard guard;
-
-        clusterName = Client_->GetClusterName();
+        auto clusterNameFuture = Client_->GetClusterName();
+        auto clusterName = clusterNameFuture.TryGetUnique();
         ASSERT_TRUE(clusterName);
-        ASSERT_EQ(*clusterName, ClusterName_);
+        ASSERT_EQ(clusterName->ValueOrThrow(), ClusterName_);
     }
 
     for (const auto& transactionType : TEnumTraits<ETransactionType>::GetDomainValues()) {
         auto transaction = WaitFor(Client_->StartTransaction(transactionType))
             .ValueOrThrow();
 
-        TForbidContextSwitchGuard guard;
+        auto clusterNameFuture = transaction->GetClient()->GetClusterName();
+        auto clusterName = clusterNameFuture.TryGetUnique();
 
-        clusterName = transaction->GetClient()->GetClusterName();
         ASSERT_TRUE(clusterName);
-        ASSERT_EQ(*clusterName, ClusterName_);
+        ASSERT_EQ(clusterName->ValueOrThrow(), ClusterName_);
     }
 }
 

@@ -217,10 +217,9 @@ void TParallelFileReader::LazyInit()
         ToReadPath_ = Path_.Path_;
     }
 
+    FileSize_ = GetFileSize(ToReadPath_.value(), Client_);
     if (Options_.ReaderOptions_.GetOrElse({}).Length_) {
-        FileSize_ = *Options_.ReaderOptions_->Length_;
-    } else {
-        FileSize_ = GetFileSize(ToReadPath_.value(), Client_);
+        FileSize_ = std::min<i64>(*FileSize_, *Options_.ReaderOptions_->Length_);
     }
 
     Supervisor_.Start();
@@ -234,7 +233,11 @@ size_t TParallelFileReader::DoReadWithCallback(void* ptr, size_t size, DoReadCal
     size_t curIdx = 0;
     std::optional<TBlob> curBlob;
 
-    while (curBlob = ReadNextBatch()) {
+    for (;;) {
+        curBlob = ReadNextBatch();
+        if (!curBlob) {
+            break;
+        }
         if (curIdx + curBlob->Size() <= size) {
             callback(reinterpret_cast<uint8_t*>(ptr) + curIdx, curBlob->Data(), curBlob->Size());
             curIdx += curBlob->Size();

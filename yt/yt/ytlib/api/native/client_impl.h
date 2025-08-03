@@ -50,6 +50,8 @@
 #include <yt/yt/client/api/internal_client.h>
 #include <yt/yt/client/bundle_controller_client/bundle_controller_settings.h>
 
+#include <yt/yt/client/query_client/query_builder.h>
+
 #include <yt/yt/flow/lib/client/controller/controller_service_proxy.h>
 
 #include <yt/yt/client/ypath/rich.h>
@@ -113,7 +115,7 @@ public:
 
     void Terminate() override;
 
-    bool DoesOperationsArchiveExist(bool useOperationsArchiveClient = true) override;
+    bool DoesOperationsArchiveExist() override;
 
     // Transactions
     TFuture<ITransactionPtr> StartNativeTransaction(
@@ -126,8 +128,11 @@ public:
         NTransactionClient::ETransactionType type,
         const TTransactionStartOptions& options) override;
     NApi::ITransactionPtr AttachTransaction(
-        NCypressClient::TTransactionId transactionId,
+        NTransactionClient::TTransactionId transactionId,
         const TTransactionAttachOptions& options) override;
+    NApi::IPrerequisitePtr AttachPrerequisite(
+        NObjectClient::TObjectId prerequisiteId,
+        const TPrerequisiteAttachOptions& options) override;
 
 #define DROP_BRACES(...) __VA_ARGS__
 #define IMPLEMENT_OVERLOADED_METHOD(returnType, method, doMethod, signature, args) \
@@ -261,7 +266,7 @@ public: \
         const TRestoreTableBackupOptions& options),
         (manifest, options))
     IMPLEMENT_METHOD(std::vector<NTabletClient::TTabletActionId>, BalanceTabletCells, (
-        const TString& tabletCellBundle,
+        const std::string& tabletCellBundle,
         const std::vector< NYPath::TYPath>& movableTables,
         const TBalanceTabletCellsOptions& options),
         (tabletCellBundle, movableTables, options))
@@ -503,6 +508,10 @@ public: \
         const TPartitionTablesOptions& options),
         (paths, options))
 
+    TFuture<ITablePartitionReaderPtr> CreateTablePartitionReader(
+        const TTablePartitionCookiePtr& cookie,
+        const TReadTablePartitionOptions& options) override;
+
     IMPLEMENT_METHOD(void, TruncateJournal, (
         const NYPath::TYPath& path,
         i64 rowCount,
@@ -520,14 +529,18 @@ public: \
         const TPutFileToCacheOptions& options),
         (path, expectedMD5, options))
 
+    IMPLEMENT_METHOD(TGetCurrentUserResultPtr, GetCurrentUser, (
+        const TGetCurrentUserOptions& options),
+        (options))
+
     IMPLEMENT_METHOD(void, AddMember, (
-        const TString& group,
-        const TString& member,
+        const std::string& group,
+        const std::string& member,
         const TAddMemberOptions& options),
         (group, member, options))
     IMPLEMENT_METHOD(void, RemoveMember, (
-        const TString& group,
-        const TString& member,
+        const std::string& group,
+        const std::string& member,
         const TRemoveMemberOptions& options),
         (group, member, options))
     IMPLEMENT_METHOD(TCheckPermissionResponse, CheckPermission, (
@@ -543,8 +556,8 @@ public: \
         const TCheckPermissionByAclOptions& options),
         (user, permission, acl, options))
     IMPLEMENT_METHOD(void, TransferAccountResources, (
-        const TString& srcAccount,
-        const TString& dstAccount,
+        const std::string& srcAccount,
+        const std::string& dstAccount,
         NYTree::INodePtr resourceDelta,
         const TTransferAccountResourcesOptions& options),
         (srcAccount, dstAccount, resourceDelta, options))
@@ -838,7 +851,7 @@ public: \
         (user, passwordSha256, options))
     IMPLEMENT_METHOD(TIssueTokenResult, IssueSpecificTemporaryToken, (
         const std::string& user,
-        const TString& token,
+        const std::string& token,
         const NYTree::IAttributeDictionaryPtr& attributes,
         const TIssueTemporaryTokenOptions& options),
         (user, token, attributes, options))
@@ -849,7 +862,7 @@ public: \
         (user, attributes, options))
     IMPLEMENT_METHOD(void, RefreshTemporaryToken, (
         const std::string& user,
-        const TString& token,
+        const std::string& token,
         const TRefreshTemporaryTokenOptions& options),
         (user, token, options))
     IMPLEMENT_METHOD(void, RevokeToken, (
@@ -865,11 +878,11 @@ public: \
         (user, passwordSha256, options))
 
     IMPLEMENT_METHOD(NBundleControllerClient::TBundleConfigDescriptorPtr, GetBundleConfig, (
-        const TString& bundleName,
+        const std::string& bundleName,
         const NBundleControllerClient::TGetBundleConfigOptions& options),
         (bundleName, options))
     IMPLEMENT_METHOD(void, SetBundleConfig, (
-        const TString& bundleName,
+        const std::string& bundleName,
         const NBundleControllerClient::TBundleTargetConfigPtr& bundleConfig,
         const NBundleControllerClient::TSetBundleConfigOptions& options),
         (bundleName, bundleConfig, options))
@@ -913,8 +926,14 @@ public: \
         const NYPath::TYPath& viewPath,
         const TGetFlowViewOptions& options),
         (pipelinePath, viewPath, options))
+    IMPLEMENT_METHOD(TFlowExecuteResult, FlowExecute, (
+        const NYPath::TYPath& pipelinePath,
+        const TString& command,
+        const NYson::TYsonString& argument,
+        const TFlowExecuteOptions& options),
+        (pipelinePath, command, argument, options))
 
-    IMPLEMENT_METHOD(TShuffleHandlePtr, StartShuffle, (
+    IMPLEMENT_METHOD(TSignedShuffleHandlePtr, StartShuffle, (
         const std::string& account,
         int partitionCount,
         NObjectClient::TTransactionId parentTransactionId,
@@ -923,13 +942,15 @@ public: \
     IMPLEMENT_METHOD(void, RegisterShuffleChunks, (
         const TShuffleHandlePtr& shuffleHandle,
         const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
+        std::optional<int> writerIndex,
         const TRegisterShuffleChunksOptions& options),
-        (shuffleHandle, chunkSpecs, options))
+        (shuffleHandle, chunkSpecs, writerIndex, options))
     IMPLEMENT_METHOD(std::vector<NChunkClient::NProto::TChunkSpec>, FetchShuffleChunks, (
         const TShuffleHandlePtr& shuffleHandle,
         int partitionIndex,
+        std::optional<std::pair<int, int>> writerIndexRange,
         const TFetchShuffleChunksOptions& options),
-        (shuffleHandle, partitionIndex, options))
+        (shuffleHandle, partitionIndex, writerIndexRange, options))
     IMPLEMENT_METHOD(void, ForsakeChaosCoordinator, (
         NHydra::TCellId chaosCellId,
         NHydra::TCellId cordiantorCellId,
@@ -937,13 +958,15 @@ public: \
         (chaosCellId, cordiantorCellId, options))
 
     TFuture<IRowBatchReaderPtr> CreateShuffleReader(
-        const TShuffleHandlePtr& shuffleHandle,
+        const TSignedShuffleHandlePtr& signedShuffleHandle,
         int partitionIndex,
-        const NTableClient::TTableReaderConfigPtr& config) override;
+        std::optional<std::pair<int, int>> writerIndexRange,
+        const TShuffleReaderOptions& options) override;
     TFuture<IRowBatchWriterPtr> CreateShuffleWriter(
-        const TShuffleHandlePtr& shuffleHandle,
+        const TSignedShuffleHandlePtr& signedShuffleHandle,
         const std::string& partitionColumn,
-        const NTableClient::TTableWriterConfigPtr& config) override;
+        std::optional<int> writerIndex,
+        const TShuffleWriterOptions& options) override;
 
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
@@ -954,6 +977,7 @@ private:
     friend class TReplicatedTableReplicaTypeHandler;
     friend class TReplicationCardTypeHandler;
     friend class TReplicationCardCollocationTypeHandler;
+    friend class TChaosLeaseTypeHandler;
     friend class TChaosTableReplicaTypeHandler;
     friend class TSecondaryIndexTypeHandler;
     friend class TTableCollocationTypeHandler;
@@ -988,8 +1012,6 @@ private:
     TLazyIntrusivePtr<NQueryClient::IFunctionRegistry> FunctionRegistry_;
     std::unique_ptr<NScheduler::TOperationServiceProxy> SchedulerOperationProxy_;
     std::unique_ptr<NBundleController::TBundleControllerServiceProxy> BundleControllerProxy_;
-
-    const NSignature::ISignatureGeneratorPtr DummySignatureGenerator_;
 
     struct TReplicaClient final
     {
@@ -1262,7 +1284,7 @@ private:
     // Operation info
     //
 
-    std::optional<int> TryGetOperationsArchiveVersion(bool useOperationsArchiveClient = true);
+    std::optional<int> TryGetOperationsArchiveVersion();
 
     struct TGetOperationFromCypressResult
     {
@@ -1345,7 +1367,8 @@ private:
     void ValidateOperationAccess(
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId,
-        NYTree::EPermissionSet permissions);
+        NYTree::EPermissionSet permissions,
+        bool ignoreMissingOperation = true);
     void ValidateOperationAccess(
         NScheduler::TOperationId operationId,
         const TOperation& operation,
@@ -1390,20 +1413,27 @@ private:
         TInstant deadline,
         const TListJobsOptions& options);
 
+    void AddSelectExpressions(
+        NQueryClient::TQueryBuilder* builder,
+        const THashSet<TString>& attributes,
+        int archiveVersion);
+
     // Retrieve:
     // 1) Filtered finished jobs (with limit).
-    // 2) All (non-filtered and without limit) in-progress jobs (if |includeInProgressJobs == true|).
+    // 2) All (non-filtered and without limit) in-progress jobs.
     TFuture<std::vector<TJob>> DoListJobsFromArchiveAsync(
         int archiveVersion,
         NScheduler::TOperationId operationId,
         TInstant deadline,
-        const TListJobsOptions& options);
+        const TListJobsOptions& options,
+        const THashSet<TString>& attributes);
 
     TFuture<TListJobsFromControllerAgentResult> DoListJobsFromControllerAgentAsync(
         NScheduler::TOperationId operationId,
         const std::optional<TString>& controllerAgentAddress,
         TInstant deadline,
-        const TListJobsOptions& options);
+        const TListJobsOptions& options,
+        const THashSet<TString>& attributes);
 
     std::optional<TJob> DoGetJobFromArchive(
         int archiveVersion,
@@ -1450,7 +1480,7 @@ private:
 
     TIssueTokenResult DoIssueTokenImpl(
         const std::string& user,
-        const TString& token,
+        const std::string& token,
         const NYTree::IAttributeDictionaryPtr& attributes,
         const TIssueTokenOptions& options);
 

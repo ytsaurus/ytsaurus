@@ -91,7 +91,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ObjectServerLogger;
+constinit const auto Logger = ObjectServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -245,31 +245,31 @@ void TObjectProxyBase::DoWriteAttributesFragment(
         auto keyToFilter = attributeFilter.Normalize();
 
         for (const auto& [key, pathFilter] : keyToFilter) {
-            TAttributeValueConsumer attributeValueConsumer(consumer, key);
-
-            TInternedAttributeKey internedKey;
-
             // Sync path.
-            {
+            if (auto value = customAttributes.FindYson(key)) {
+                TAttributeValueConsumer attributeValueConsumer(consumer, key);
                 auto filteringConsumer = TAttributeFilter::CreateFilteringConsumer(&attributeValueConsumer, pathFilter);
+                filteringConsumer->GetConsumer()->OnRaw(value);
+                filteringConsumer->Finish();
+                continue;
+            }
 
-                if (auto value = customAttributes.FindYson(key)) {
-                    filteringConsumer->GetConsumer()->OnRaw(value);
-                    filteringConsumer->Finish();
-                    continue;
-                }
+            auto internedKey = TInternedAttributeKey::Lookup(key);
+            if (internedKey == InvalidInternedAttribute) {
+                continue;
+            }
 
-                internedKey = TInternedAttributeKey::Lookup(key);
+            {
+                TAttributeValueConsumer attributeValueConsumer(consumer, key);
+                auto filteringConsumer = TAttributeFilter::CreateFilteringConsumer(&attributeValueConsumer, pathFilter);
                 if (GetBuiltinAttribute(internedKey, filteringConsumer->GetConsumer())) {
                     filteringConsumer->Finish();
                     continue;
                 }
-            }
 
-            // Async path.
-            {
-                auto asyncFilteringConsumer = TAttributeFilter::CreateAsyncFilteringConsumer(&attributeValueConsumer, pathFilter);
+                // Async path.
                 if (auto asyncValue = GetBuiltinAttributeAsync(internedKey)) {
+                    auto asyncFilteringConsumer = TAttributeFilter::CreateAsyncFilteringConsumer(&attributeValueConsumer, pathFilter);
                     asyncFilteringConsumer->GetAsyncConsumer()->OnRaw(std::move(asyncValue));
                     asyncFilteringConsumer->Finish();
                     continue; // just for the symmetry
@@ -340,9 +340,6 @@ void TObjectProxyBase::BeforeInvoke(const IYPathServiceContextPtr& context)
     const auto& ypathExt = requestHeader.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
     YT_VERIFY(!ypathExt.mutating() || NHydra::HasHydraContext());
 
-    auto originalTargetPath = GetOriginalRequestTargetYPath(context->GetRequestHeader());
-    auto originalAdditionalPaths = GetOriginalRequestAdditionalPaths(context->GetRequestHeader());
-
     const auto& objectManager = Bootstrap_->GetObjectManager();
     if (requestHeader.HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
         const auto& prerequisitesExt = requestHeader.GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
@@ -358,9 +355,10 @@ void TObjectProxyBase::BeforeInvoke(const IYPathServiceContextPtr& context)
             GetOriginalRequestAdditionalPaths(requestHeader),
             prerequisitesExt.revisions());
 
-        objectManager->ValidatePrerequisites(originalTargetPath, originalAdditionalPaths, prerequisitesExt);
+        objectManager->ValidatePrerequisites(requestHeader, context->GetMethod(), GetId(), prerequisitesExt);
     }
 
+    // TODO(cherepashka): move this resolve above after 25.1 and remove resolve from ValidatePrerequisites.
     for (const auto& additionalPath : ypathExt.additional_paths()) {
         TPathResolver resolver(
             Bootstrap_,
@@ -369,7 +367,9 @@ void TObjectProxyBase::BeforeInvoke(const IYPathServiceContextPtr& context)
             additionalPath,
             GetTransactionId(context));
         auto result = resolver.Resolve();
-        if (std::holds_alternative<TPathResolver::TRemoteObjectPayload>(result.Payload)) {
+        if (std::holds_alternative<TPathResolver::TSequoiaRedirectPayload>(result.Payload) ||
+            std::holds_alternative<TPathResolver::TRemoteObjectRedirectPayload>(result.Payload))
+        {
             THROW_ERROR_EXCEPTION(
                 NObjectClient::EErrorCode::CrossCellAdditionalPath,
                 "Request is cross-cell since it involves target path %v and additional path %v",
@@ -388,7 +388,7 @@ void TObjectProxyBase::BeforeInvoke(const IYPathServiceContextPtr& context)
             prerequisitePath,
             GetTransactionId(context));
         auto result = resolver.Resolve();
-        if (std::holds_alternative<TPathResolver::TRemoteObjectPayload>(result.Payload)) {
+        if (std::holds_alternative<TPathResolver::TRemoteObjectRedirectPayload>(result.Payload)) {
             THROW_ERROR_EXCEPTION(
                 NObjectClient::EErrorCode::CrossCellRevisionPrerequisitePath,
                 "Request is cross-cell since it involves target path %v and revision prerequisite path %v",
@@ -903,12 +903,12 @@ void TObjectProxyBase::ValidatePermission(TObject* object, EPermission permissio
     securityManager->ValidatePermission(object, user, permission);
 }
 
-std::unique_ptr<IPermissionValidator> TObjectProxyBase::CreatePermissionValidator()
+std::unique_ptr<TObjectProxyBase::IPermissionValidator> TObjectProxyBase::CreatePermissionValidator()
 {
     return std::make_unique<TPermissionValidator>(this);
 }
 
-void TObjectProxyBase::ValidateAnnotation(const TString& annotation)
+void TObjectProxyBase::ValidateAnnotation(const std::string& annotation)
 {
     if (annotation.size() > MaxAnnotationLength) {
         THROW_ERROR_EXCEPTION("Annotation is too long")

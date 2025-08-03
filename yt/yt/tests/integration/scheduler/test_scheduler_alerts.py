@@ -113,6 +113,24 @@ class TestSchedulerAlerts(YTEnvSetup):
         set("//sys/pool_trees/default/@config/nodes_filter", "")
         wait(lambda: len(get("//sys/scheduler/@alerts")) == 0)
 
+    @authors("ignat")
+    def test_pool_tree_config_unrecognized_alert(self):
+        assert get("//sys/scheduler/@alerts") == []
+
+        set("//sys/pool_trees/default/@config/enable_unrecognized_alert", True)
+
+        time.sleep(1)
+
+        assert get("//sys/scheduler/@alerts") == []
+
+        set("//sys/pool_trees/default/@config/unknown_option", "value")
+
+        wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
+
+        alerts = get("//sys/scheduler/@alerts")
+        attributes = alerts[0]["attributes"]
+        assert attributes["alert_type"] == "unrecognized_pool_tree_config_options"
+
 
 ##################################################################
 

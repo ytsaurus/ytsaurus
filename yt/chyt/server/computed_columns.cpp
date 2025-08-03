@@ -6,9 +6,9 @@
 #include "config.h"
 
 #include <yt/yt/library/codegen_api/execution_backend.h>
+#include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_preparer.h>
 #include <yt/yt/client/table_client/logical_type.h>
-
 #ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmacro-redefined"

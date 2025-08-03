@@ -132,6 +132,7 @@ class TCompositeAutomaton
 {
 public:
     void SetSerializationDumpMode(ESerializationDumpMode mode);
+    void SetSerializationDumpScopeFilter(TSerializationDumpScopeFilter filter);
 
     TFuture<void> SaveSnapshot(const TSnapshotSaveContext& context) override;
     void LoadSnapshot(const TSnapshotLoadContext& context) override;
@@ -152,6 +153,7 @@ public:
 
 protected:
     ESerializationDumpMode SerializationDumpMode_ = ESerializationDumpMode::None;
+    TSerializationDumpScopeFilter SerializationDumpScopeFilter_;
 
     const NLogging::TLogger Logger;
     NProfiling::TProfiler Profiler_;

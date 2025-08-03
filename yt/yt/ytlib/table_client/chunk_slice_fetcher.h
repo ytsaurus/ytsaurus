@@ -25,9 +25,10 @@ struct IChunkSliceFetcher
     // should hold a pointer to a physical data registry.
     virtual void AddDataSliceForSlicing(
         NChunkClient::TLegacyDataSlicePtr dataSlice,
-        const TComparator& comparator,
+        TComparator comparator,
         i64 sliceDataWeight,
-        bool sliceByKeys) = 0;
+        bool sliceByKeys,
+        std::optional<i64> minManiacDataWeight) = 0;
 
     virtual i64 GetChunkSliceCount() const = 0;
 };

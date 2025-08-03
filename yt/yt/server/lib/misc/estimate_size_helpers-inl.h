@@ -28,6 +28,12 @@ size_t EstimateSize(const std::optional<T>& v)
     return v ? EstimateSize(*v) : 0;
 }
 
+template <typename T1, typename T2>
+size_t EstimateSize(const std::pair<T1, T2>& v)
+{
+    return EstimateSize(v.first) + EstimateSize(v.second);
+}
+
 template <typename C>
     requires std::ranges::range<C>
 size_t EstimateSize(const C& value)
@@ -44,6 +50,12 @@ template <typename E>
 size_t EstimateSize(E /*value*/)
 {
     return EstimatedValueSize;
+}
+
+template <typename T, typename Tag>
+size_t EstimateSize(const TStrongTypedef<T, Tag>& v)
+{
+    return EstimateSize(v.Underlying());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

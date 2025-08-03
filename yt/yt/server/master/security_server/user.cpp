@@ -354,24 +354,11 @@ void TUser::Load(TLoadContext& context)
     Load(context, PasswordRevision_);
     Load(context, *ObjectServiceRequestLimits_);
     Load(context, Tags_);
-
-    // COMPAT(cherepashka)
-    if (context.GetVersion() < EMasterReign::SecondaryIndex ||
-        context.GetVersion() >= EMasterReign::FixLastSeenPersistance)
-    {
-        Load(context, LastSeenTime_);
-    }
-
-    // COMPAT(cherepashka)
-    if (context.GetVersion() >= EMasterReign::PendingRemovalUserAttribute) {
-        Load(context, PendingRemoval_);
-    }
+    Load(context, LastSeenTime_);
+    Load(context, PendingRemoval_);
 
     // COMPAT(sabdenovch)
-    if (context.GetVersion() >= EMasterReign::SecondaryIndexPerUserValidation ||
-        (context.GetVersion() >= EMasterReign::SecondaryIndexPerUserValidation_24_1 &&
-        context.GetVersion() < EMasterReign::DropLegacyClusterNodeMap))
-    {
+    if (context.GetVersion() >= EMasterReign::SecondaryIndexPerUserValidation) {
         Load(context, AllowCreateSecondaryIndices_);
     }
 
@@ -385,30 +372,19 @@ void TUser::InitializeCounters()
 {
     auto profiler = SecurityProfiler()
         .WithSparse()
-        .WithTag("user", Name_);
+        .WithTag("user", Name_)
+        .WithTag("cell_tag", ToString(NObjectServer::GetBootstrap()->GetCellTag()));
+    auto globalProfiler = profiler.WithGlobal();
 
     ReadTimeCounter_ = profiler.TimeCounter("/user_read_time");
     WriteTimeCounter_ = profiler.TimeCounter("/user_write_time");
     ReadRequestCounter_ = profiler.Counter("/user_read_request_count");
+    ReadRequestRateLimitGauge_ = globalProfiler.Gauge("/user_read_request_rate_limit");
     WriteRequestCounter_ = profiler.Counter("/user_write_request_count");
+    WriteRequestRateLimitGauge_ = globalProfiler.Gauge("/user_write_request_rate_limit");
     RequestCounter_ = profiler.Counter("/user_request_count");
     RequestQueueSizeSummary_ = profiler.Summary("/user_request_queue_size");
-}
-
-int TUser::GetRequestQueueSize() const
-{
-    return RequestQueueSize_;
-}
-
-void TUser::SetRequestQueueSize(int size)
-{
-    RequestQueueSize_ = size;
-    RequestQueueSizeSummary_.Record(size);
-}
-
-void TUser::ResetRequestQueueSize()
-{
-    RequestQueueSize_ = 0;
+    RequestQueueSizeLimitGauge_ = globalProfiler.Gauge("/user_request_queue_size_limit");
 }
 
 void TUser::SetHashedPassword(std::optional<std::string> hashedPassword)
@@ -425,21 +401,64 @@ void TUser::SetPasswordSalt(std::optional<std::string> passwordSalt)
     UpdatePasswordRevision();
 }
 
-void TUser::UpdateCounters(const TUserWorkload& workload)
+void TUser::Charge(const TUserWorkload& workload)
 {
+    auto& statistics = Statistics()[workload.Type];
+    statistics.RequestCount += workload.RequestCount;
+    statistics.RequestTime += workload.RequestTime.MilliSeconds();
+
+    auto cellTag = NObjectServer::GetBootstrap()->GetCellTag();
+
+    auto updateLimitGauge = [&] (const TUserRequestLimitsOptionsPtr& limitOptions, NProfiling::TGauge* gauge) {
+        if (auto optionalLimit = limitOptions->GetValue(cellTag)) {
+            gauge->Update(*optionalLimit);
+        }
+    };
+
     RequestCounter_.Increment(workload.RequestCount);
     switch (workload.Type) {
         case EUserWorkloadType::Read:
             ReadRequestCounter_.Increment(workload.RequestCount);
+            updateLimitGauge(ObjectServiceRequestLimits_->ReadRequestRateLimits, &ReadRequestRateLimitGauge_);
             ReadTimeCounter_.Add(workload.RequestTime);
             break;
         case EUserWorkloadType::Write:
             WriteRequestCounter_.Increment(workload.RequestCount);
+            updateLimitGauge(ObjectServiceRequestLimits_->WriteRequestRateLimits, &WriteRequestRateLimitGauge_);
             WriteTimeCounter_.Add(workload.RequestTime);
             break;
         default:
             YT_ABORT();
     }
+}
+
+bool TUser::TryIncrementRequestQueueSize(TCellTag cellTag)
+{
+    auto limit = GetRequestQueueSizeLimit(cellTag);
+
+    // NB: Updating the limit gauge just here seems enough.
+    RequestQueueSizeLimitGauge_.Update(limit);
+
+    if (RequestQueueSize_ >= limit) {
+        return false;
+    }
+
+    ++RequestQueueSize_;
+    RequestQueueSizeSummary_.Record(RequestQueueSize_);
+    return true;
+}
+
+void TUser::DecrementRequestQueueSize()
+{
+    YT_VERIFY(RequestQueueSize_ > 0);
+    --RequestQueueSize_;
+    RequestQueueSizeSummary_.Record(RequestQueueSize_);
+}
+
+void TUser::ResetRequestQueueSize()
+{
+    RequestQueueSize_ = 0;
+    RequestQueueSizeSummary_.Record(RequestQueueSize_);
 }
 
 const IReconfigurableThroughputThrottlerPtr& TUser::GetRequestRateThrottler(EUserWorkloadType workloadType)

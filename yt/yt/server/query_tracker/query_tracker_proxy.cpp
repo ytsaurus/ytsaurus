@@ -1,4 +1,5 @@
 #include "config.h"
+#include "profiler.h"
 #include "query_tracker_proxy.h"
 
 #include <yt/yt/client/api/transaction.h>
@@ -58,16 +59,16 @@ constexpr TStringBuf EveryoneShareAccessControlObject = "everyone-share";
 constexpr int MaxAccessControlObjectsPerQuery = 10;
 
 // Path to access control object namespace for QT.
-constexpr TStringBuf QueriesAcoNamespacePath = "//sys/access_control_object_namespaces/queries";
+const NYPath::TYPath QueriesAcoNamespacePath = "//sys/access_control_object_namespaces/queries";
 
 const TString FinishedQueriesByAcoAndStartTimeTable = "finished_queries_by_aco_and_start_time";
 const TString FinishedQueriesByUserAndStartTimeTable = "finished_queries_by_user_and_start_time";
 
 TQuery PartialRecordToQuery(const auto& partialRecord)
 {
-    static_assert(pfr::tuple_size<TQuery>::value == 16);
-    static_assert(TActiveQueryDescriptor::FieldCount == 19);
-    static_assert(TFinishedQueryDescriptor::FieldCount == 14);
+    static_assert(pfr::tuple_size<TQuery>::value == 17);
+    static_assert(TActiveQueryDescriptor::FieldCount == 21);
+    static_assert(TFinishedQueryDescriptor::FieldCount == 15);
 
     TQuery query;
     // Note that some of the fields are twice optional.
@@ -88,6 +89,7 @@ TQuery PartialRecordToQuery(const auto& partialRecord)
     query.Progress = partialRecord.Progress.value_or(TYsonString());
     query.Error = partialRecord.Error.value_or(std::nullopt);
     query.Annotations = partialRecord.Annotations.value_or(TYsonString());
+    query.Secrets = partialRecord.Secrets.value_or(TYsonString(TString("[]")));
 
     IAttributeDictionaryPtr otherAttributes;
     auto fillIfPresent = [&] (const TString& key, const auto& value) {
@@ -155,7 +157,7 @@ TFuture<typename TRecordDescriptor::TRecordPartial> LookupQueryTrackerRecord(
     return asyncRecord;
 };
 
-THashSet<TString> GetUserSubjects(const std::string& user, const IClientPtr& client)
+THashSet<std::string> GetUserSubjects(const std::string& user, const IClientPtr& client)
 {
     // Get all subjects for the user.
     TGetNodeOptions options;
@@ -166,14 +168,13 @@ THashSet<TString> GetUserSubjects(const std::string& user, const IClientPtr& cli
         THROW_ERROR_EXCEPTION("Error while fetching user membership for the user %Qv", user)
             << userSubjectsOrError;
     }
-    auto userSubjects = ConvertTo<THashSet<TString>>(userSubjectsOrError.Value());
-    return userSubjects;
+    return ConvertTo<THashSet<std::string>>(userSubjectsOrError.Value());
 }
 
 ESecurityAction CheckAccessControl(
     const std::string& user,
     const std::optional<TYsonString>& accessControlObjects,
-    const TString& queryAuthor,
+    const std::string& queryAuthor,
     const IClientPtr& client,
     EPermission permission)
 {
@@ -217,7 +218,7 @@ void ThrowAccessDeniedException(
     EPermission permission,
     const std::string& user,
     const std::optional<TYsonString>& accessControlObjects,
-    const TString& queryAuthor)
+    const std::string& queryAuthor)
 {
     THROW_ERROR_EXCEPTION(NSecurityClient::EErrorCode::AuthorizationError,
         "Access denied to query %v due to missing %Qv permission",
@@ -296,7 +297,10 @@ void ValidateQueryPermissions(
     }
 }
 
-std::vector<TString> GetAcosForSubjects(const THashSet<TString>& subjects, bool filterEveryoneShareAco, const IClientPtr& client)
+std::vector<std::string> GetAcosForSubjects(
+    const THashSet<std::string>& subjects,
+    bool filterEveryoneShareAco,
+    const IClientPtr& client)
 {
     // Get all access control objects.
     TGetNodeOptions options;
@@ -317,29 +321,26 @@ std::vector<TString> GetAcosForSubjects(const THashSet<TString>& subjects, bool 
 
     auto allAcos = ConvertToNode(allAcosOrError.Value())->AsMap()->GetChildren();
 
-    std::vector<TString> acosForUser;
+    std::vector<std::string> acosForUser;
     // We expect average user to have access to a small number of access control objects.
     acosForUser.reserve(10);
 
-    for (const auto& aco : allAcos) {
-        auto acoName = aco.first;
-
+    for (const auto& [acoName, acoNode] : allAcos) {
         if (filterEveryoneShareAco && acoName == EveryoneShareAccessControlObject) {
             continue;
         }
 
-        auto aclRules = ConvertToNode(aco.second->Attributes().GetYson("principal_acl"))->AsList()->GetChildren();
+        auto aclRuleNodes = ConvertToNode(acoNode->Attributes().GetYson("principal_acl"))->AsList()->GetChildren();
         bool allowUseRuleFound = false;
         bool denyUseRuleFound = false;
-        // Check if there are allow or deny "Use" rules matching the subjects.
-        for (const auto& aclRule : aclRules) {
-            auto aclSubjects = aclRule->AsMap()->GetChildOrThrow("subjects")->AsList()->GetChildren();
-            auto aclPermissions = aclRule->AsMap()->GetChildOrThrow("permissions")->AsList()->GetChildren();
+        // Check if there are allow or deny "use" rules matching the subjects.
+        for (const auto& aclRuleNode : aclRuleNodes) {
+            auto aclSubjectNodes = aclRuleNode->AsMap()->GetChildOrThrow("subjects")->AsList()->GetChildren();
+            auto aclPermissionNodes = aclRuleNode->AsMap()->GetChildOrThrow("permissions")->AsList()->GetChildren();
             bool usePermissionFound = false;
-            for (const auto& aclPermission : aclPermissions) {
-                auto aclPermissionName = aclPermission->GetValue<TString>();
-                aclPermissionName.to_lower();
-                if (aclPermissionName == "use") {
+            for (const auto& aclPermissionNode : aclPermissionNodes) {
+                auto aclPermission = aclPermissionNode->GetValue<EPermission>();
+                if (aclPermission == EPermission::Use) {
                     usePermissionFound = true;
                     break;
                 }
@@ -347,27 +348,26 @@ std::vector<TString> GetAcosForSubjects(const THashSet<TString>& subjects, bool 
             if (!usePermissionFound) {
                 continue;
             }
-            for (const auto& aclSubject : aclSubjects) {
-                auto aclSubjectName = aclSubject->GetValue<TString>();
+            for (const auto& aclSubjectNode : aclSubjectNodes) {
+                auto aclSubjectName = aclSubjectNode->GetValue<std::string>();
                 if (subjects.find(aclSubjectName) != subjects.end()) {
-                    auto aclAction = aclRule->AsMap()->GetChildOrThrow("action")->GetValue<TString>();
-                    aclAction.to_lower();
-                    if (aclAction == "allow") {
+                    auto aclAction = aclRuleNode->AsMap()->GetChildOrThrow("action")->GetValue<ESecurityAction>();
+                    if (aclAction == ESecurityAction::Allow) {
                         allowUseRuleFound = true;
-                    } else if (aclAction == "deny") {
+                    } else if (aclAction == ESecurityAction::Deny) {
                         denyUseRuleFound = true;
                     }
                 }
             }
         }
         if (allowUseRuleFound && !denyUseRuleFound) {
-            acosForUser.emplace_back(acoName);
+            acosForUser.push_back(acoName);
         }
     }
     return acosForUser;
 }
 
-void VerifyAllAccessControlObjectsExist(const std::vector<TString>& accessControlObjects, const IClientPtr& client)
+void VerifyAllAccessControlObjectsExist(const std::vector<std::string>& accessControlObjects, const IClientPtr& client)
 {
     TNodeExistsOptions nodeExistsOptions;
     nodeExistsOptions.ReadFrom = EMasterChannelKind::Cache;
@@ -438,7 +438,9 @@ std::vector<TQuery> PartialRecordsToQueries(const auto& partialRecords)
     return queries;
 }
 
-std::optional<std::vector<TString>> ValidateAccessControlObjects(const std::optional<TString>& accessControlObject, const std::optional<std::vector<TString>>& accessControlObjects)
+std::optional<std::vector<std::string>> ValidateAccessControlObjects(
+    const std::optional<std::string>& accessControlObject,
+    const std::optional<std::vector<std::string>>& accessControlObjects)
 {
     if (!accessControlObjects && !accessControlObject) {
         return std::nullopt;
@@ -449,7 +451,7 @@ std::optional<std::vector<TString>> ValidateAccessControlObjects(const std::opti
     }
 
     if (accessControlObject) {
-        return std::vector<TString>({ *accessControlObject });
+        return std::vector<std::string>({*accessControlObject});
     }
 
     if (accessControlObjects->size() > MaxAccessControlObjectsPerQuery) {
@@ -466,16 +468,16 @@ void AddFilterConditions(
     TYsonString& placeholderValues,
     const TListQueriesOptions& options,
     const std::string& user,
-    const std::vector<TString>& acosForUser,
+    const std::vector<std::string>& acosForUser,
     const TString& table,
     bool isSuperuser)
 {
-    std::optional<i64> fromTime = options.FromTime ? std::make_optional<i64>(options.FromTime->MicroSeconds()) : std::nullopt;
+    auto fromTime = options.FromTime ? std::make_optional<i64>(options.FromTime->MicroSeconds()) : std::nullopt;
     if (options.CursorDirection == EOperationSortDirection::Future && options.CursorTime) {
         fromTime = i64(options.CursorTime->MicroSeconds()) + 1;
     }
 
-    std::optional<i64> toTime = options.ToTime ? std::make_optional<i64>(options.ToTime->MicroSeconds()) : std::nullopt;
+    auto toTime = options.ToTime ? std::make_optional<i64>(options.ToTime->MicroSeconds()) : std::nullopt;
     if (options.CursorDirection == EOperationSortDirection::Past && options.CursorTime) {
         toTime = i64(options.CursorTime->MicroSeconds()) - 1;
     }
@@ -531,9 +533,7 @@ void AddFilterConditions(
                 placeholdersFluentMap.Item("User").Value(user);
                 builder.AddWhereConjunct("user = {User}");
             } else if (table == FinishedQueriesByAcoAndStartTimeTable) {
-                placeholdersFluentMap.Item("acosForUser").DoListFor(acosForUser, [] (TFluentList fluent, const TString& aco) {
-                    fluent.Item().Value(aco);
-                });
+                placeholdersFluentMap.Item("acosForUser").Value(acosForUser);
                 builder.AddWhereConjunct("access_control_object IN {acosForUser}");
             }
         }
@@ -545,11 +545,11 @@ void AddFilterConditions(
 template <typename TRecord>
 void GetQueriesByStartTime(
     const NApi::IClientPtr client,
-    const TString& root,
+    const TYPath& root,
     const TListQueriesOptions& requestOptions,
     const TTimestamp timestamp,
     const std::string& user,
-    const std::vector<TString>& acosForUser,
+    const std::vector<std::string>& acosForUser,
     const TString& tableName,
     std::vector<std::pair<TTimestamp, TQueryId>>& results,
     bool isSuperuser = false)
@@ -599,15 +599,17 @@ void ConvertAcoToOldFormat(TQuery& query)
     }
 }
 
-std::pair<std::vector<TString>, std::vector<TString>> GetAccessControlDiff(const std::vector<TString>& before, const std::optional<std::vector<TString>>& after)
+std::pair<std::vector<std::string>, std::vector<std::string>> GetAccessControlDiff(
+    const std::vector<std::string>& before,
+    const std::optional<std::vector<std::string>>& after)
 {
-    std::vector<TString> toDelete, toInsert;
+    std::vector<std::string> toDelete, toInsert;
     if (!after) {
         return {toDelete, toInsert};
     }
 
-    THashSet<TString> beforeSet(before.begin(), before.end());
-    THashSet<TString> afterSet(after->begin(), after->end());
+    THashSet<std::string> beforeSet(before.begin(), before.end());
+    THashSet<std::string> afterSet(after->begin(), after->end());
 
     for (const auto& aco : before) {
         if (!afterSet.contains(aco)) {
@@ -675,13 +677,15 @@ void TQueryTrackerProxy::StartQuery(
 
     static const TYsonString EmptyMap = TYsonString(TString("{}"));
 
-    YT_LOG_DEBUG("Starting query (QueryId: %v, Draft: %v)", queryId, options.Draft);
+    YT_LOG_DEBUG("Starting query (QueryId: %v, Draft: %v)",
+        queryId,
+        options.Draft);
 
     auto rowBuffer = New<TRowBuffer>();
     auto transaction = WaitFor(StateClient_->StartTransaction(ETransactionType::Tablet, {}))
         .ValueOrThrow();
 
-    auto accessControlObjects = ValidateAccessControlObjects(options.AccessControlObject, options.AccessControlObjects).value_or(std::vector<TString>{});
+    auto accessControlObjects = ValidateAccessControlObjects(options.AccessControlObject, options.AccessControlObjects).value_or(std::vector<std::string>{});
     VerifyAllAccessControlObjectsExist(accessControlObjects, StateClient_);
 
     // Draft queries go directly to finished query tables (regular and ordered by start time),
@@ -691,20 +695,20 @@ void TQueryTrackerProxy::StartQuery(
         TString filterFactors;
         auto startTime = TInstant::Now();
         {
-            static_assert(TFinishedQueryDescriptor::FieldCount == 14);
+            static_assert(TFinishedQueryDescriptor::FieldCount == 15);
             TFinishedQuery newRecord{
                 .Key = {.QueryId = queryId},
                 .Engine = engine,
                 .Query = query,
                 .Files = ConvertToYsonString(options.Files),
                 .Settings = options.Settings ? ConvertToYsonString(options.Settings) : EmptyMap,
-                // TODO(babenko): switch to std::string
-                .User = TString(user),
+                .User = user,
                 .AccessControlObjects = ConvertToYsonString(accessControlObjects),
                 .StartTime = startTime,
                 .State = EQueryState::Draft,
                 .Progress = EmptyMap,
                 .Annotations = options.Annotations ? ConvertToYsonString(options.Annotations) : EmptyMap,
+                .Secrets = ConvertToYsonString(options.Secrets),
             };
             filterFactors = GetFilterFactors(newRecord);
             std::vector rows{
@@ -721,8 +725,7 @@ void TQueryTrackerProxy::StartQuery(
             TFinishedQueryByStartTime newRecord{
                 .Key = {.MinusStartTime = -i64(startTime.MicroSeconds()), .QueryId = queryId},
                 .Engine = engine,
-                // TODO(babenko): switch to std::string
-                .User = TString(user),
+                .User = user,
                 .AccessControlObjects = ConvertToYsonString(accessControlObjects),
                 .State = EQueryState::Draft,
                 .FilterFactors = filterFactors,
@@ -739,8 +742,7 @@ void TQueryTrackerProxy::StartQuery(
             static_assert(TFinishedQueryByUserAndStartTimeDescriptor::FieldCount == 6);
 
             TFinishedQueryByUserAndStartTime newRecord{
-                // TODO(babenko): switch to std::string
-                .Key = {.User = TString(user), .MinusStartTime = -i64(startTime.MicroSeconds()), .QueryId = queryId},
+                .Key = {.User = user, .MinusStartTime = -i64(startTime.MicroSeconds()), .QueryId = queryId},
                 .Engine = engine,
                 .State = EQueryState::Draft,
                 .FilterFactors = filterFactors,
@@ -763,8 +765,7 @@ void TQueryTrackerProxy::StartQuery(
                     TFinishedQueryByAcoAndStartTime newRecord{
                         .Key = {.AccessControlObject = aco, .MinusStartTime = -i64(startTime.MicroSeconds()), .QueryId = queryId},
                         .Engine = engine,
-                        // TODO(babenko): switch to std::string
-                        .User = TString(user),
+                        .User = user,
                         .State = EQueryState::Draft,
                         .FilterFactors = filterFactors,
                     };
@@ -777,21 +778,21 @@ void TQueryTrackerProxy::StartQuery(
             }
         }
     } else {
-        static_assert(TActiveQueryDescriptor::FieldCount == 19);
+        static_assert(TActiveQueryDescriptor::FieldCount == 21);
         TActiveQueryPartial newRecord{
             .Key = {.QueryId = queryId},
             .Engine = engine,
             .Query = query,
             .Files = ConvertToYsonString(options.Files),
             .Settings = options.Settings ? ConvertToYsonString(options.Settings) : EmptyMap,
-            // TODO(babenko): switch to std::string
-            .User = TString(user),
+            .User = user,
             .AccessControlObjects = ConvertToYsonString(accessControlObjects),
             .StartTime = TInstant::Now(),
             .State = EQueryState::Pending,
             .Incarnation = -1,
             .Progress = EmptyMap,
             .Annotations = options.Annotations ? ConvertToYsonString(options.Annotations) : EmptyMap,
+            .Secrets = ConvertToYsonString(options.Secrets)
         };
         newRecord.FilterFactors = GetFilterFactors(newRecord);
         std::vector rows{
@@ -833,11 +834,12 @@ void TQueryTrackerProxy::AbortQuery(
 
     YT_LOG_DEBUG("Aborting query (QueryId: %v, AbortMessage: %v)", queryId, options.AbortMessage);
 
+    TActiveQuery record;
     {
         const auto& idMapping = TActiveQueryDescriptor::Get()->GetIdMapping();
         TLookupRowsOptions options;
         options.Timestamp = transaction->GetStartTimestamp();
-        options.ColumnFilter = {*idMapping.State};
+        options.ColumnFilter = {*idMapping.State, *idMapping.Engine, *idMapping.AssignedTracker, *idMapping.ExecutionStartTime};
         options.KeepMissingRows = true;
         TActiveQueryKey key{.QueryId = queryId};
         std::vector keys{
@@ -859,7 +861,7 @@ void TQueryTrackerProxy::AbortQuery(
                 "Query %v not found or is not running",
                 queryId);
         }
-        const auto& record = *optionalRecords[0];
+        record = *optionalRecords[0];
         if (record.State != EQueryState::Pending && record.State != EQueryState::Running) {
             THROW_ERROR_EXCEPTION("Cannot abort query %v which is in state %Qlv",
                 queryId,
@@ -880,6 +882,20 @@ void TQueryTrackerProxy::AbortQuery(
                 << error;
         }
         THROW_ERROR error;
+    }
+
+    {
+        // Save profile counter.
+        auto now = TInstant::Now();
+        auto time = now - record.StartTime;
+        if (record.State == EQueryState::Running) {
+            time = now - *record.ExecutionStartTime;
+        }
+
+        auto& stateTimeGauge = GetOrCreateProfilingCounter<TStateTimeProfilingCounter>(
+            QueryTrackerProfiler,
+            ProfilingTagsFromActiveQueryRecord(record))->StateTime;
+        stateTimeGauge.Update(time);
     }
 }
 
@@ -1037,7 +1053,7 @@ TQuery TQueryTrackerProxy::GetQuery(
 
     ValidateQueryPermissions(queryId, StateRoot_, timestamp, user, StateClient_, EPermission::Use, Logger);
 
-    auto lookupKeys = options.Attributes ? std::make_optional(options.Attributes.Keys) : std::nullopt;
+    auto lookupKeys = options.Attributes ? std::make_optional(options.Attributes.Keys()) : std::nullopt;
 
     auto query = LookupQuery(queryId, StateClient_, StateRoot_, lookupKeys, timestamp, Logger);
 
@@ -1076,21 +1092,20 @@ TListQueriesResult TQueryTrackerProxy::ListQueries(
 
     if (!attributes.AdmitsKeySlow("start_time")) {
         YT_VERIFY(attributes);
-        attributes.Keys.push_back("start_time");
+        attributes.AddKey("start_time");
     }
 
     auto userSubjects = GetUserSubjects(user, StateClient_);
-    // TODO(babenko): switch to std::string
-    userSubjects.insert(TString(user));
+    userSubjects.insert(user);
 
-    std::vector<TString> userSubjectsVector(userSubjects.begin(), userSubjects.end());
+    std::vector<std::string> userSubjectsVector(userSubjects.begin(), userSubjects.end());
     YT_LOG_DEBUG(
         "Fetched user subjects (User: %v, Subjects: %v)",
         user,
         userSubjectsVector);
 
     bool isSuperuser = userSubjects.contains(SuperusersGroupName);
-    std::vector<TString> acosForUser;
+    std::vector<std::string> acosForUser;
 
     if (!isSuperuser) {
         acosForUser = GetAcosForSubjects(userSubjects, /*filterEveryoneShareAco*/ true, StateClient_);
@@ -1102,7 +1117,7 @@ TListQueriesResult TQueryTrackerProxy::ListQueries(
 
     auto addSelectExpressionsFromAttributes = [&] (NQueryClient::TQueryBuilder& builder, const TNameTablePtr& nameTable) {
         if (attributes) {
-            for (const auto& key : attributes.Keys) {
+            for (const auto& key : attributes.Keys()) {
                 if (nameTable->FindId(key)) {
                     builder.AddSelectExpression("[" + key + "]");
                 }
@@ -1257,7 +1272,7 @@ TListQueriesResult TQueryTrackerProxy::ListQueries(
         result = std::vector(queries.begin(), queries.begin() + std::min(options.Limit, queries.size()));
     }
 
-    if (!attributes || std::find(attributes.Keys.begin(), attributes.Keys.end(), "access_control_object") != attributes.Keys.end()) {
+    if (!attributes || std::find(attributes.Keys().begin(), attributes.Keys().end(), "access_control_object") != attributes.Keys().end()) {
         for (auto& query : result) {
             ConvertAcoToOldFormat(query);
         }
@@ -1382,7 +1397,7 @@ void TQueryTrackerProxy::AlterQuery(
                 THROW_ERROR_EXCEPTION("StartTime is lost in query %v", queryId);
             }
 
-            auto previousAccessControlObjects = query.AccessControlObjects && *query.AccessControlObjects ? ConvertTo<std::vector<TString>>(*query.AccessControlObjects) : std::vector<TString>{};
+            auto previousAccessControlObjects = query.AccessControlObjects && *query.AccessControlObjects ? ConvertTo<std::vector<std::string>>(*query.AccessControlObjects) : std::vector<std::string>{};
             auto diff = GetAccessControlDiff(previousAccessControlObjects, accessControlObjects);
 
             auto acoToDelete = diff.first;
@@ -1463,11 +1478,13 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
 
     attributes.ValidateKeysOnly();
 
-    TString clusterName = "";
+    std::string clusterName = "";
 
     if (attributes.AdmitsKeySlow("cluster_name")) {
         YT_LOG_DEBUG("Getting cluster name");
-        clusterName = StateClient_->GetClusterName().value_or("");
+        clusterName = WaitFor(StateClient_->GetClusterName())
+            .ValueOrDefault("")
+            .value_or("");
     }
 
     TNodeExistsOptions nodeExistsOptions;
@@ -1485,18 +1502,18 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
             .EndMap();
     }
 
-    std::vector<TString> accessControlObjects;
+    std::vector<std::string> accessControlObjects;
     if (attributes.AdmitsKeySlow("access_control_objects")) {
         YT_LOG_DEBUG("Getting access control objects");
         TListNodeOptions listOptions;
         listOptions.ReadFrom = EMasterChannelKind::Cache;
         listOptions.SuccessStalenessBound = TDuration::Minutes(1);
-        auto allAcos = WaitFor(StateClient_->ListNode(TString(QueriesAcoNamespacePath), listOptions))
+        auto allAcos = WaitFor(StateClient_->ListNode(QueriesAcoNamespacePath, listOptions))
             .ValueOrThrow();
-        accessControlObjects = ConvertTo<std::vector<TString>>(allAcos);
+        accessControlObjects = ConvertTo<std::vector<std::string>>(allAcos);
     }
 
-    std::vector<TString> clusters;
+    std::vector<std::string> clusters;
     if (attributes.AdmitsKeySlow("clusters")) {
         YT_LOG_DEBUG("Getting list of available clusters");
         TListNodeOptions listOptions;
@@ -1504,7 +1521,7 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
         listOptions.SuccessStalenessBound = TDuration::Minutes(1);
         auto allClusters = WaitFor(StateClient_->ListNode("//sys/clusters", listOptions))
             .ValueOrThrow();
-        clusters = ConvertTo<std::vector<TString>>(allClusters);
+        clusters = ConvertTo<std::vector<std::string>>(allClusters);
     }
 
     return TGetQueryTrackerInfoResult{

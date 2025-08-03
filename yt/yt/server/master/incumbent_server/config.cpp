@@ -69,8 +69,7 @@ void TIncumbentManagerDynamicConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("heartbeat_timeout", &TThis::HeartbeatTimeout)
-        .Default(TDuration::Seconds(30))
-        .DontSerializeDefault();
+        .Default(TDuration::Seconds(30));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

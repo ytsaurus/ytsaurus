@@ -15,7 +15,7 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = SchedulerSimulatorLogger;
+constinit const auto Logger = SchedulerSimulatorLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -152,14 +152,14 @@ void TSchedulerStrategyHost::AbortAllocationsAtNode(TNodeId /*nodeId*/, NSchedul
     // Nothing to do.
 }
 
-std::optional<int> TSchedulerStrategyHost::FindMediumIndexByName(const TString& /*mediumName*/) const
+std::optional<int> TSchedulerStrategyHost::FindMediumIndexByName(const std::string& /*mediumName*/) const
 {
     return {};
 }
 
-const TString& TSchedulerStrategyHost::GetMediumNameByIndex(int /*mediumIndex*/) const
+const std::string& TSchedulerStrategyHost::GetMediumNameByIndex(int /*mediumIndex*/) const
 {
-    static const TString defaultMediumName = "default";
+    static const std::string defaultMediumName = "default";
     return defaultMediumName;
 }
 
@@ -270,9 +270,9 @@ void TSchedulerStrategyHost::CloseEventLogger()
     }
 }
 
-const THashMap<TString, TString>& TSchedulerStrategyHost::GetUserDefaultParentPoolMap() const
+const THashMap<std::string, TString>& TSchedulerStrategyHost::GetUserDefaultParentPoolMap() const
 {
-    static THashMap<TString, TString> stub;
+    static const THashMap<std::string, TString> stub;
     return stub;
 }
 

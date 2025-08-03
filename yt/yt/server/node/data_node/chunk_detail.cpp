@@ -7,6 +7,7 @@
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
@@ -22,7 +23,7 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = DataNodeLogger;
+constinit const auto Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,6 +41,7 @@ TChunkContextPtr TChunkContext::Create(NClusterNode::IBootstrapBase* bootstrap)
             ? bootstrap->GetDataNodeBootstrap()->GetJournalDispatcher()
             : nullptr,
         .BlobReaderCache = bootstrap->GetBlobReaderCache(),
+        .DynamicConfigManager = bootstrap->GetDynamicConfigManager(),
     });
 }
 
@@ -101,7 +103,7 @@ TFuture<void> TChunkBase::PrepareToReadChunkFragments(
         Id_);
 }
 
-NIO::IIOEngine::TReadRequest TChunkBase::MakeChunkFragmentReadRequest(
+NIO::TReadRequest TChunkBase::MakeChunkFragmentReadRequest(
     const NIO::TChunkFragmentDescriptor& /*fragmentDescriptor*/,
     bool /*useDirectIO*/)
 {
@@ -305,6 +307,20 @@ void TChunkBase::StartReadSession(
 
     session->Options = options;
     session->ChunkReadGuard = TChunkReadGuard::Acquire(this);
+    auto dynamicLongLiveReadSessionThreshold = Context_->DynamicConfigManager->GetConfig()->DataNode->LongLiveReadSessionThreshold;
+    auto longLiveReadSessionThreshold = dynamicLongLiveReadSessionThreshold.value_or(Context_->DataNodeConfig->LongLiveReadSessionThreshold);
+    session->SessionAliveCheckFuture = TDelayedExecutor::MakeDelayed(longLiveReadSessionThreshold)
+        .Apply(BIND([weakSession = MakeWeak(session), chunkId = GetId()] (const TError& error) {
+            if (error.IsOK()) {
+                YT_LOG_ALERT_IF(!weakSession.IsExpired(),
+                    "Long live read session (ChunkId: %v)",
+                    chunkId);
+            } else {
+                YT_LOG_TRACE(error,
+                    "Session completed before timeout (ChunkId: %v)",
+                    chunkId);
+            }
+        }));
 }
 
 void TChunkBase::ProfileReadBlockSetLatency(const TReadSessionBasePtr& session)

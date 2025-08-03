@@ -38,9 +38,7 @@ std::unique_ptr<TQueryEvaluationContext> CreateQueryEvaluationContext(
 
     context->Expression = PrepareExpression(
         parsedSource,
-        *schema,
-        GetBuiltinTypeInferrers(),
-        nullptr);
+        *schema);
 
     context->Image = Profile(
         context->Expression,

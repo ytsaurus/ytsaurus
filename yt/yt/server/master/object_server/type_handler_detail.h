@@ -275,7 +275,7 @@ class TObjectTypeHandlerWithMapBase
     : public TConcreteObjectTypeHandlerBase<TObject>
 {
 public:
-    using TMapType = NHydra::TEntityMap<TObject>;
+    using TMapType = NHydra::TMutableEntityMap<TObject>;
     using TBase = TObjectTypeHandlerBase<TObject>;
 
     TObjectTypeHandlerWithMapBase(NCellMaster::TBootstrap* bootstrap, TMapType* map)
@@ -291,7 +291,6 @@ public:
 protected:
     // We store map by a raw pointer. In most cases this should be OK.
     TMapType* const Map_;
-
 
     void DoDestroyObject(TObject* object) noexcept override
     {

@@ -47,6 +47,15 @@ struct TIntegralResourcesState
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TFairShareFunctionsStatistics
+{
+    const int FairShareBySuggestionSize;
+    const int FairShareByFitFactorSize;
+    const int MaxFitFactorBySuggestionSize;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 // TODO(eshcherbin): Sadly, this struct has to become class.
 struct TSchedulableAttributes
 {
@@ -130,6 +139,9 @@ public:
 
     // It is public for testing purposes.
     void ResetFairShareFunctions();
+
+    // Used for diagnostics.
+    std::optional<TFairShareFunctionsStatistics> GetFairShareFunctionsStatistics() const;
 
 protected:
     //! These methods are only available after fair share update.
@@ -234,7 +246,9 @@ private:
     void DistributeFreeVolume() override;
 
     void ComputeAndSetFairShare(double suggestion, EFairShareType fairShareType, TFairShareUpdateContext* context) override;
+
     void TruncateFairShareInFifoPools(EFairShareType fairShareType) override;
+    void DoTruncateFairShareInFifoPool(EFairShareType fairShareType);
 
     void ComputePromisedGuaranteeFairShare(TFairShareUpdateContext* context) override;
 
@@ -324,7 +338,7 @@ public:
 
     virtual TResourceVector GetBestAllocationShare() const = 0;
 
-    virtual bool IsGang() const = 0;
+    virtual bool IsFairShareTruncationInFifoPoolAllowed() const = 0;
 
 private:
     void PrepareFairShareByFitFactor(TFairShareUpdateContext* context) override;

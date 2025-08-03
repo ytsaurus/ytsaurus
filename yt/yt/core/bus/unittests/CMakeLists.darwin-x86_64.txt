@@ -12,12 +12,22 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+get_built_tool_path(
+  TOOL_rescompiler_bin
+  TOOL_rescompiler_dependency
+  tools/rescompiler/bin
+  rescompiler
+)
+
 add_executable(unittester-core-bus)
 
 
 target_compile_options(unittester-core-bus PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(unittester-core-bus PUBLIC
@@ -29,6 +39,7 @@ target_link_libraries(unittester-core-bus PUBLIC
   yt-yt-core
   yt-core-test_framework
   cpp-testing-common
+  library-cpp-resource
 )
 
 target_allocator(unittester-core-bus
@@ -46,6 +57,7 @@ target_link_options(unittester-core-bus PRIVATE
 target_sources(unittester-core-bus PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/unittests/bus_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/unittests/ssl_ut.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/core/bus/unittests/e1649386c08e7354b6a0ab189e536d57.cpp
 )
 
 
@@ -69,6 +81,31 @@ set_property(
   unittester-core-bus
   PROPERTY
   ENVIRONMENT
+)
+
+resources(unittester-core-bus
+  ${PROJECT_BINARY_DIR}/yt/yt/core/bus/unittests/e1649386c08e7354b6a0ab189e536d57.cpp
+  INPUTS
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/unittests/testdata/ca.pem
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/unittests/testdata/ca_ec.pem
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/unittests/testdata/ca_with_ip_in_san.pem
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/unittests/testdata/cert.pem
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/unittests/testdata/cert_ec.pem
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/unittests/testdata/cert_with_ip_in_san.pem
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/unittests/testdata/key.pem
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/unittests/testdata/key_ec.pem
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/unittests/testdata/key_with_ip_in_san.pem
+  KEYS
+  /testdata/ca.pem
+  /testdata/ca_ec.pem
+  /testdata/ca_with_ip_in_san.pem
+  /testdata/cert.pem
+  /testdata/cert_ec.pem
+  /testdata/cert_with_ip_in_san.pem
+  /testdata/key.pem
+  /testdata/key_ec.pem
+  /testdata/key_with_ip_in_san.pem
+  OPTS
 )
 
 vcs_info(unittester-core-bus)

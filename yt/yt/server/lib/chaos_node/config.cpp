@@ -93,13 +93,15 @@ void TChaosNodeConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("replication_cards_watcher", &TThis::ReplicationCardsWatcher)
         .DefaultNew();
+    registrar.Parameter("replication_card_automaton_cache_expiration_time", &TThis::ReplicationCardAutomatonCacheExpirationTime)
+        .Default(TDuration::Seconds(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TChaosSlotDynamicConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("enable_extended_logging", &TThis::EnableExtendedLogging)
+    registrar.Parameter("enable_verbose_logging", &TThis::EnableVerboseLogging)
         .Default(false);
 }
 
@@ -109,6 +111,8 @@ void TChaosNodeDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("per_bundle_configs", &TThis::PerBundleConfigs)
         .Default();
+    registrar.Parameter("replication_card_automaton_cache_expiration_time", &TThis::ReplicationCardAutomatonCacheExpirationTime)
+        .Default(TDuration::Seconds(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -61,25 +61,29 @@ public:
 
     TFuture<TSharedRef> Read(
         i64 offset,
-        i64 length) override
+        i64 length,
+        const TReadOptions& options) override
     {
         ReadBytes_ += length;
 
-        YT_LOG_DEBUG("Start read from file (Offset: %v, Length: %v)",
+        YT_LOG_DEBUG("Start read from file (Offset: %v, Length: %v, Cookie: %x)",
             offset,
-            length);
+            length,
+            options.Cookie);
 
         if (length == 0) {
-            YT_LOG_DEBUG("Finish read from file (Offset: %v, Length: %v)",
+            YT_LOG_DEBUG("Finish read from file (Offset: %v, Length: %v, Cookie: %x)",
                 offset,
-                length);
+                length,
+                options.Cookie);
             return MakeFuture<TSharedRef>({});
         }
 
         auto readFuture = ReadFromChunks(
             Chunks_,
             offset,
-            length);
+            length,
+            options);
         return readFuture.Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<std::vector<TSharedRef>>& chunkReadResults) {
             std::vector<TSharedRef> refs;
             for (const auto& blockReadResults : chunkReadResults) {
@@ -88,10 +92,11 @@ public:
 
             // Merge refs into single ref.
             auto mergedRefs = MergeRefsToRef<TRandomAccessFileReaderTag>(refs);
-            YT_LOG_DEBUG("Finish read from file (Offset: %v, ExpectedLength: %v, ResultLength: %v)",
+            YT_LOG_DEBUG("Finish read from file (Offset: %v, ExpectedLength: %v, ResultLength: %v, Cookie: %x)",
                 offset,
                 length,
-                mergedRefs.Size());
+                mergedRefs.Size(),
+                options.Cookie);
             return mergedRefs;
         }).AsyncVia(Invoker_));
     }
@@ -156,7 +161,8 @@ private:
     TFuture<std::vector<std::vector<TSharedRef>>> ReadFromChunks(
         const std::vector<TChunk>& chunks,
         i64 offset,
-        i64 length)
+        i64 length,
+        const TReadOptions& options)
     {
         if (offset + length > Size_) {
             THROW_ERROR_EXCEPTION(
@@ -193,7 +199,8 @@ private:
             auto readFuture = ReadFromChunk(
                 chunk,
                 beginWithinChunk,
-                sizeWithinChunk);
+                sizeWithinChunk,
+                options);
             readFutures.push_back(std::move(readFuture));
 
             length -= sizeWithinChunk;
@@ -248,13 +255,15 @@ private:
     TFuture<std::vector<TSharedRef>> ReadFromChunk(
         const TChunk& chunk,
         i64 offset,
-        i64 length)
+        i64 length,
+        const TReadOptions& options)
     {
-        YT_LOG_DEBUG("Read from chunk (Chunk: %v, ChunkSize: %v, Offset: %v, Length: %v)",
+        YT_LOG_DEBUG("Read from chunk (Chunk: %v, ChunkSize: %v, Offset: %v, Length: %v, Cookie: %x)",
             chunk.Index,
             chunk.Size,
             offset,
-            length);
+            length,
+            options.Cookie);
 
         if (offset + length > chunk.Size) {
             THROW_ERROR_EXCEPTION(
@@ -270,12 +279,14 @@ private:
             std::vector<TBlock> BlocksExt;
         };
 
+        auto readBlocksOptions = chunk.ReadBlocksOptions;
+        readBlocksOptions.ClientOptions.Cookie = options.Cookie;
         auto blocksFuture = GetBlockExt(chunk);
         auto readFuture = blocksFuture.Apply(BIND([
             offset,
             length,
             reader = chunk.Reader,
-            options = chunk.ReadBlocksOptions
+            options = std::move(readBlocksOptions)
         ] (const std::vector<TBlock>& blocksExt) {
             std::vector<int> blockIndexes;
             i64 blockOffsetWithinChunk = 0;
@@ -313,6 +324,7 @@ private:
             chunkSize = chunk.Size,
             offset,
             length,
+            cookie = options.Cookie,
             statistics = chunk.ReadBlocksOptions.ClientOptions.ChunkReaderStatistics,
             this,
             this_ = MakeStrong(this)
@@ -358,12 +370,13 @@ private:
                 YT_VERIFY(sizeWithinBlock <= blockSize);
                 YT_VERIFY(sizeWithinBlock <= length);
 
-                YT_LOG_DEBUG("Read from block (Chunk: %v, Block: %v, Begin: %v, End: %v, Size %v)",
+                YT_LOG_DEBUG("Read from block (Chunk: %v, Block: %v, Begin: %v, End: %v, Size %v, Cookie: %x)",
                     index,
                     blockIndex,
                     beginWithinBlock,
                     endWithinBlock,
-                    sizeWithinBlock);
+                    sizeWithinBlock,
+                    cookie);
 
                 auto ref = blocks[i].Data.Slice(
                     beginWithinBlock,

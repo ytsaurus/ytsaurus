@@ -1,19 +1,17 @@
-GTEST(unittester-query)
+LIBRARY()
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
-ALLOCATOR(TCMALLOC)
-
 SRCS(
-    ast_ut.cpp
-    ql_computed_columns_ut.cpp
-    ql_distributed_ut.cpp
-    ql_expressions_ut.cpp
-    ql_helpers.cpp
-    ql_misc_ut.cpp
-    ql_query_ut.cpp
-    ql_range_inference_ut.cpp
-    ql_range_coordination_ut.cpp
+    GLOBAL ast_ut.cpp
+    GLOBAL ql_computed_columns_ut.cpp
+    GLOBAL ql_distributed_ut.cpp
+    GLOBAL ql_expressions_ut.cpp
+    GLOBAL ql_helpers.cpp
+    GLOBAL ql_misc_ut.cpp
+    GLOBAL ql_query_ut.cpp
+    GLOBAL ql_range_inference_ut.cpp
+    GLOBAL ql_range_coordination_ut.cpp
 )
 
 IF (OPENSOURCE)
@@ -22,7 +20,8 @@ IF (OPENSOURCE)
     )
 ELSE()
     SRCS(
-        enable_web_assembly.cpp
+        disable_web_assembly.cpp
+        #enable_web_assembly.cpp
     )
 ENDIF()
 
@@ -47,14 +46,9 @@ PEERDIR(
     contrib/libs/sparsehash
 )
 
-FORK_SUBTESTS(MODULO)
-
-IF (SANITIZER_TYPE)
-    SPLIT_FACTOR(10)
-ELSE()
-    SPLIT_FACTOR(3)
-ENDIF()
-
-SIZE(MEDIUM)
-
 END()
+
+RECURSE(
+    v1
+    v2
+)

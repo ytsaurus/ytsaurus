@@ -35,6 +35,8 @@ using namespace NDataNode;
 using namespace NTools;
 using namespace NYTree;
 
+using NNet::TIP6Address;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template<typename F>
@@ -303,8 +305,7 @@ public:
 
     TFuture<IVolumePtr> PrepareRootVolume(
         const std::vector<TArtifactKey>& layers,
-        const TArtifactDownloadOptions& downloadOptions,
-        const TUserSandboxOptions& options) override
+        const TVolumePreparationOptions& options) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -318,7 +319,27 @@ public:
             /*actionName*/ "PrepareRootVolume",
             /*uncancelable*/ false,
             [&] {
-                return VolumeManager_->PrepareVolume(layers, downloadOptions, options);
+                return VolumeManager_->PrepareVolume(layers, options);
+            });
+    }
+
+    TFuture<IVolumePtr> PrepareGpuCheckVolume(
+        const std::vector<TArtifactKey>& layers,
+        const TVolumePreparationOptions& options) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        VerifyEnabled();
+
+        if (!VolumeManager_) {
+            return MakeFuture<IVolumePtr>(TError("Porto layers and custom root FS are not supported"));
+        }
+
+        return RunPreparationAction(
+            /*actionName*/ "PrepareGpuCheckVolume",
+            /*uncancelable*/ false,
+            [&] {
+                return VolumeManager_->PrepareVolume(layers, options);
             });
     }
 
@@ -350,7 +371,7 @@ public:
         return Location_->GetSandboxPath(SlotIndex_, sandbox);
     }
 
-    TString GetMediumName() const override
+    std::string GetMediumName() const override
     {
         VerifyEnabled();
 
@@ -391,24 +412,25 @@ public:
             });
     }
 
-    TFuture<std::vector<TShellCommandOutput>> RunSetupCommands(
+    TFuture<std::vector<TShellCommandOutput>> RunPreparationCommands(
         TJobId jobId,
         const std::vector<TShellCommandConfigPtr>& commands,
         const NContainers::TRootFS& rootFS,
         const std::string& user,
         const std::optional<std::vector<TDevice>>& devices,
-        int startIndex) override
+        const std::optional<TString>& hostName,
+        const std::vector<TIP6Address>& ipAddresses,
+        std::string tag) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         VerifyEnabled();
 
         return RunPreparationAction(
-            /*actionName*/ "RunSetupCommands",
-            // Setup commands are uncancelable since they are run in separate processes.
+            /*actionName*/ "RunPreparationCommands",
             /*uncancelable*/ true,
             [&] {
-                return JobEnvironment_->RunSetupCommands(
+                return JobEnvironment_->RunCommands(
                     SlotIndex_,
                     SlotGuard_->GetSlotType(),
                     jobId,
@@ -416,7 +438,9 @@ public:
                     rootFS,
                     user,
                     devices,
-                    startIndex);
+                    hostName,
+                    ipAddresses,
+                    std::move(tag));
             });
     }
 

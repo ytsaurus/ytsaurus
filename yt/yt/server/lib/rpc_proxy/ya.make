@@ -7,10 +7,11 @@ SRCS(
     api_service.cpp
     config.cpp
     format_row_stream.cpp
+    multiconnection_client_cache.cpp
+    multiproxy_access_validator.cpp
     profilers.cpp
     helpers.cpp
     proxy_coordinator.cpp
-    security_manager.cpp
 )
 
 PEERDIR(
@@ -27,6 +28,7 @@ PEERDIR(
     yt/yt/library/tracing/jaeger
 
     yt/yt/server/lib/transaction_server
+    yt/yt/server/lib/security_server
 
     yt/yt/server/lib/signature
 
@@ -34,3 +36,7 @@ PEERDIR(
 )
 
 END()
+
+RECURSE_FOR_TESTS(
+    unittests
+)

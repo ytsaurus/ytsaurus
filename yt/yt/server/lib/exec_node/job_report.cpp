@@ -142,6 +142,12 @@ TNodeJobReport TNodeJobReport::Address(std::optional<std::string> address)
     return std::move(*this);
 }
 
+TNodeJobReport TNodeJobReport::Addresses(std::optional<NNodeTrackerClient::TAddressMap> addresses)
+{
+    Addresses_ = addresses;
+    return std::move(*this);
+}
+
 void TNodeJobReport::SetStatistics(const TYsonString& statistics)
 {
     Statistics_ = StripAttributes(statistics).ToString();

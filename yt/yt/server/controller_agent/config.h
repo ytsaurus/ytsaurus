@@ -10,25 +10,26 @@
 
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
 
-#include <yt/yt/ytlib/scheduler/config.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/chunk_client/config.h>
-
-#include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/event_log/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/yt/library/server_program/config.h>
+#include <yt/yt/ytlib/scheduler/cluster_name.h>
+#include <yt/yt/ytlib/scheduler/config.h>
 
 #include <yt/yt/client/job_tracker_client/public.h>
 
 #include <yt/yt/client/ypath/rich.h>
 
-#include <yt/yt/library/re2/public.h>
-
 #include <yt/yt/library/program/config.h>
+
+#include <yt/yt/library/server_program/config.h>
+
+#include <yt/yt/library/re2/public.h>
 
 #include <yt/yt/core/concurrency/public.h>
 
@@ -55,10 +56,9 @@ DEFINE_REFCOUNTED_TYPE(TIntermediateChunkScraperConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestingOptions
+struct TTestingOptions
     : public NYTree::TYsonStruct
 {
-public:
     //! Testing option that enables snapshot build/load cycle after operation materialization.
     bool EnableSnapshotCycleAfterMaterialization;
 
@@ -220,7 +220,6 @@ struct TJobSplitterConfig
     double ResidualJobFactor;
     int ResidualJobCountMinThreshold;
     double CandidatePercentile;
-    double LateJobsPercentile;
     int MaxJobsPerSplit;
     int MaxInputTableCount;
     TDuration SplitTimeoutBeforeSpeculate;
@@ -241,10 +240,9 @@ DEFINE_REFCOUNTED_TYPE(TJobSplitterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSuspiciousJobsOptions
+struct TSuspiciousJobsOptions
     : public NYTree::TYsonStruct
 {
-public:
     //! Duration of no activity by job to be considered as suspicious.
     TDuration InactivityTimeout;
 
@@ -263,6 +261,9 @@ public:
     //! Maximum number of suspicious jobs that are reported in Orchid for each job type.
     i64 MaxOrchidEntryCountPerType;
 
+    //! Minimum CPU limit for jobs that are checked for suspiciousness.
+    NScheduler::TCpuResource MinRequiredCpuLimit;
+
     REGISTER_YSON_STRUCT(TSuspiciousJobsOptions);
 
     static void Register(TRegistrar registrar);
@@ -272,10 +273,9 @@ DEFINE_REFCOUNTED_TYPE(TSuspiciousJobsOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDataBalancerOptions
+struct TDataBalancerOptions
     : public NYTree::TYsonStruct
 {
-public:
     i64 LoggingMinConsecutiveViolationCount;
     TDuration LoggingPeriod;
     double Tolerance;
@@ -290,10 +290,9 @@ DEFINE_REFCOUNTED_TYPE(TDataBalancerOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserJobOptions
+struct TUserJobOptions
     : public NYTree::TYsonStruct
 {
-public:
     //! Thread limit for the user job is ceil(#InitialThreadLimit + #ThreadLimitMultiplier * JobCpuLimit);
     i64 ThreadLimitMultiplier;
     i64 InitialThreadLimit;
@@ -307,11 +306,37 @@ DEFINE_REFCOUNTED_TYPE(TUserJobOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOperationOptions
+//! This config is applicable only in case of enabled separate root volume.
+struct TGpuCheckOptions
+    : public NYTree::TYsonStruct
+{
+    bool UseSeparateRootVolume;
+
+    //! Path to layers for separate volume of GPU check.
+    std::vector<NYPath::TRichYPath> LayerPaths;
+
+    //! Path to the file with GPU check binary inside layer.
+    std::string BinaryPath;
+
+    //! Command line arguments for the GPU check binary.
+    std::vector<std::string> BinaryArgs;
+
+    //! Network project for GPU check container.
+    std::optional<TString> NetworkProject;
+
+    REGISTER_YSON_STRUCT(TGpuCheckOptions);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TGpuCheckOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TOperationOptions
     : public NYTree::TYsonStruct
     , public virtual NPhoenix::TPolymorphicBase
 {
-public:
     NYTree::INodePtr SpecTemplate;
 
     //! Controls finer initial slicing of input data to ensure even distribution of data split sizes among jobs.
@@ -338,10 +363,15 @@ public:
     TJobSplitterConfigPtr JobSplitter;
 
     //! This flags currently makes sense only for Porto environment.
-    //! It forces setting container CPU limit on slot container calculated as
-    //! JobCpuLimit * CpuLimitOvercommitMultiplier + InitialCpuLimitOvercommit
+    //! It forces setting container CPU limit on slot container.
+    //!
+    //! If CpuLimitOvercommitMode is Linear than cpu limit calculated as
+    //! JobCpuLimit * CpuLimitOvercommitMultiplier + InitialCpuLimitOvercommit,
+    //! if CpuLimitOvercommitMode is minimum than cpu limit calculated as
+    //! Min(JobCpuLimit * CpuLimitOvercommitMultiplier, JobCpuLimit + InitialCpuLimitOvercommit)
     bool SetContainerCpuLimit;
 
+    ECpuLimitOvercommitMode CpuLimitOvercommitMode;
     double CpuLimitOvercommitMultiplier;
     double InitialCpuLimitOvercommit;
 
@@ -358,7 +388,9 @@ public:
     //! Limit for number of aggregated custom job statistics per operation.
     i64 CustomStatisticsCountLimit;
 
-    TUserJobOptionsPtr UserJobOptions;
+    TUserJobOptionsPtr UserJob;
+
+    TGpuCheckOptionsPtr GpuCheck;
 
     REGISTER_YSON_STRUCT(TOperationOptions);
 
@@ -372,12 +404,13 @@ DEFINE_REFCOUNTED_TYPE(TOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSimpleOperationOptions
+struct TSimpleOperationOptions
     : public TOperationOptions
 {
-public:
     int MaxJobCount;
     i64 DataWeightPerJob;
+
+    NChunkPools::TJobSizeAdjusterConfigPtr JobSizeAdjuster;
 
     REGISTER_YSON_STRUCT(TSimpleOperationOptions);
 
@@ -391,12 +424,9 @@ DEFINE_REFCOUNTED_TYPE(TSimpleOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMapOperationOptions
+struct TMapOperationOptions
     : public TSimpleOperationOptions
 {
-public:
-    NChunkPools::TJobSizeAdjusterConfigPtr JobSizeAdjuster;
-
     REGISTER_YSON_STRUCT(TMapOperationOptions);
 
     static void Register(TRegistrar registrar);
@@ -409,10 +439,9 @@ DEFINE_REFCOUNTED_TYPE(TMapOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUnorderedMergeOperationOptions
+struct TUnorderedMergeOperationOptions
     : public TSimpleOperationOptions
 {
-public:
     REGISTER_YSON_STRUCT(TUnorderedMergeOperationOptions);
 
     static void Register(TRegistrar registrar);
@@ -425,10 +454,9 @@ DEFINE_REFCOUNTED_TYPE(TUnorderedMergeOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOrderedMergeOperationOptions
+struct TOrderedMergeOperationOptions
     : public TSimpleOperationOptions
 {
-public:
     REGISTER_YSON_STRUCT(TOrderedMergeOperationOptions);
 
     static void Register(TRegistrar registrar);
@@ -441,10 +469,9 @@ DEFINE_REFCOUNTED_TYPE(TOrderedMergeOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSortedMergeOperationOptions
+struct TSortedMergeOperationOptions
     : public TSimpleOperationOptions
 {
-public:
     REGISTER_YSON_STRUCT(TSortedMergeOperationOptions);
 
     static void Register(TRegistrar registrar);
@@ -457,10 +484,9 @@ DEFINE_REFCOUNTED_TYPE(TSortedMergeOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReduceOperationOptions
+struct TReduceOperationOptions
     : public TSortedMergeOperationOptions
 {
-public:
     REGISTER_YSON_STRUCT(TReduceOperationOptions);
 
     static void Register(TRegistrar registrar);
@@ -473,10 +499,9 @@ DEFINE_REFCOUNTED_TYPE(TReduceOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TEraseOperationOptions
+struct TEraseOperationOptions
     : public TOrderedMergeOperationOptions
 {
-public:
     REGISTER_YSON_STRUCT(TEraseOperationOptions);
 
     static void Register(TRegistrar registrar);
@@ -489,10 +514,9 @@ DEFINE_REFCOUNTED_TYPE(TEraseOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSortOperationOptionsBase
+struct TSortOperationOptionsBase
     : public TOperationOptions
 {
-public:
     int MaxPartitionJobCount;
     int MaxPartitionCount;
     int MaxNewPartitionCount;
@@ -503,6 +527,7 @@ public:
     i64 MinUncompressedBlockSize;
     i64 MaxValueCountPerSimpleSortJob;
     NChunkPools::TJobSizeAdjusterConfigPtr PartitionJobSizeAdjuster;
+    NChunkPools::TJobSizeAdjusterConfigPtr SortedMergeJobSizeAdjuster;
     TDataBalancerOptionsPtr DataBalancer;
     double CriticalNewPartitionDifferenceRatio;
 
@@ -518,10 +543,9 @@ DEFINE_REFCOUNTED_TYPE(TSortOperationOptionsBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSortOperationOptions
+struct TSortOperationOptions
     : public TSortOperationOptionsBase
 {
-public:
     REGISTER_YSON_STRUCT(TSortOperationOptions);
 
     static void Register(TRegistrar registrar);
@@ -534,10 +558,9 @@ DEFINE_REFCOUNTED_TYPE(TSortOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMapReduceOperationOptions
+struct TMapReduceOperationOptions
     : public TSortOperationOptionsBase
 {
-public:
     REGISTER_YSON_STRUCT(TMapReduceOperationOptions);
 
     static void Register(TRegistrar registrar);
@@ -550,10 +573,9 @@ DEFINE_REFCOUNTED_TYPE(TMapReduceOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRemoteCopyOperationOptions
+struct TRemoteCopyOperationOptions
     : public TSimpleOperationOptions
 {
-public:
     NScheduler::TCpuResource CpuLimit;
     std::optional<NNodeTrackerClient::TNetworkPreferenceList> Networks;
 
@@ -572,8 +594,6 @@ DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationOptions)
 struct TGangManagerConfig
     : public NYTree::TYsonStruct
 {
-    bool Enabled;
-
     REGISTER_YSON_STRUCT(TGangManagerConfig);
 
     static void Register(TRegistrar registrar);
@@ -583,10 +603,9 @@ DEFINE_REFCOUNTED_TYPE(TGangManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVanillaOperationOptions
+struct TVanillaOperationOptions
     : public TOperationOptions
 {
-public:
     //! Maximum number of tasks allowed.
     int MaxTaskCount;
 
@@ -712,10 +731,9 @@ DEFINE_REFCOUNTED_TYPE(TUserFileLimitsPatchConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobTrackerTestingOptions
+struct TJobTrackerTestingOptions
     : public NYTree::TYsonStruct
 {
-public:
     NScheduler::TDelayConfigPtr DelayInSettleJob;
 
     REGISTER_YSON_STRUCT(TJobTrackerTestingOptions);
@@ -754,12 +772,17 @@ DEFINE_REFCOUNTED_TYPE(TJobTrackerConfig)
 struct TDockerRegistryConfig
     : public NYTree::TYsonStruct
 {
-    //! FQDN of internal docker registry for docker images stored in Cypress.
-    std::string InternalRegistryAddress;
+    //! Address (FQDN[:PORT]) of internal docker registry for docker images stored in Cypress.
+    std::optional<std::string> InternalRegistryAddress;
+
+    //! Alternative addresses for internal docker registry.
+    std::vector<std::string> InternalRegistryAlternativeAddresses;
 
     bool UseYtTokenForInternalRegistry = false;
 
     bool ForwardInternalImagesToJobSpecs = false;
+
+    bool TranslateInternalImagesIntoLayers = true;
 
     REGISTER_YSON_STRUCT(TDockerRegistryConfig);
 
@@ -770,19 +793,21 @@ DEFINE_REFCOUNTED_TYPE(TDockerRegistryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDisallowRemoteOperationsConfig
+struct TRemoteOperationsConfig
     : public NYTree::TYsonStruct
 {
     THashSet<TString> AllowedUsers;
-    THashSet<TString> AllowedClusters;
-    THashSet<TString> AllowedForEveryoneClusters;
 
-    REGISTER_YSON_STRUCT(TDisallowRemoteOperationsConfig);
+    bool AllowedForEveryone;
+
+    std::optional<i64> MaxTotalDataWeight;
+
+    REGISTER_YSON_STRUCT(TRemoteOperationsConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TDisallowRemoteOperationsConfig)
+DEFINE_REFCOUNTED_TYPE(TRemoteOperationsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -835,7 +860,11 @@ struct TControllerAgentConfig
     NApi::TFileWriterConfigPtr SnapshotWriter;
 
     //! If |true|, snapshots are loaded during revival.
+    //! If |false|, then all operations are always restarted cleanly.
     bool EnableSnapshotLoading;
+
+    // COMPAT(babenko): make this always true when the feature is stable.
+    bool EnableSnapshotPhoenixSchemaDuringSnapshotLoading;
 
     bool EnableSnapshotLoadingDisabledAlert;
 
@@ -1005,6 +1034,11 @@ struct TControllerAgentConfig
     //! Enables dynamic change of job sizes.
     bool EnablePartitionMapJobSizeAdjustment;
 
+    //! Enables dynamic change of job sizes.
+    bool EnableOrderedPartitionMapJobSizeAdjustment;
+
+    bool EnableSortedMergeInSortJobSizeAdjustment;
+
     bool EnableMapJobSizeAdjustment;
 
     //! Enables splitting of long jobs.
@@ -1032,7 +1066,7 @@ struct TControllerAgentConfig
     std::optional<int> IopsThrottlerLimit;
 
     //! Patch for all operation options.
-    NYT::NYTree::INodePtr OperationOptions;
+    NYTree::INodePtr OperationOptions;
 
     //! Specific operation options.
     TMapOperationOptionsPtr MapOperationOptions;
@@ -1046,6 +1080,18 @@ struct TControllerAgentConfig
     TSortOperationOptionsPtr SortOperationOptions;
     TRemoteCopyOperationOptionsPtr RemoteCopyOperationOptions;
     TVanillaOperationOptionsPtr VanillaOperationOptions;
+
+    NYTree::INodePtr MapOperationOptionsNode;
+    NYTree::INodePtr ReduceOperationOptionsNode;
+    NYTree::INodePtr JoinReduceOperationOptionsNode;
+    NYTree::INodePtr EraseOperationOptionsNode;
+    NYTree::INodePtr OrderedMergeOperationOptionsNode;
+    NYTree::INodePtr UnorderedMergeOperationOptionsNode;
+    NYTree::INodePtr SortedMergeOperationOptionsNode;
+    NYTree::INodePtr MapReduceOperationOptionsNode;
+    NYTree::INodePtr SortOperationOptionsNode;
+    NYTree::INodePtr RemoteCopyOperationOptionsNode;
+    NYTree::INodePtr VanillaOperationOptionsNode;
 
     //! Default environment variables set for every job.
     THashMap<TString, TString> Environment;
@@ -1140,10 +1186,9 @@ struct TControllerAgentConfig
 
     std::vector<NScheduler::TCustomJobMetricDescription> CustomJobMetrics;
 
-    int DynamicTableLockCheckingAttemptCountLimit;
-    double DynamicTableLockCheckingIntervalScale;
-    TDuration DynamicTableLockCheckingIntervalDurationMin;
-    TDuration DynamicTableLockCheckingIntervalDurationMax;
+    // COMPAT(dave11ar): Migrate values and remove when new dynamic tables locking
+    // protocol will be enabled. Use transaction client config instead.
+    TExponentialBackoffOptions BulkInsertLockChecker;
 
     i64 DesiredBlockSize;
     i64 MaxEstimatedWriteBufferSize;
@@ -1160,6 +1205,7 @@ struct TControllerAgentConfig
     bool EnableBulkInsertForEveryone;
     bool EnableVersionedRemoteCopy;
     bool EnableHunksRemoteCopy;
+    bool EnableCompressionDictionaryRemoteCopy;
 
     NScheduler::EEnablePorto DefaultEnablePorto;
 
@@ -1183,13 +1229,13 @@ struct TControllerAgentConfig
     TMemoryWatchdogConfigPtr MemoryWatchdog;
 
     //! List of media that require specifying account and disk space limit.
-    THashSet<TString> ObligatoryAccountMedia;
+    THashSet<std::string> ObligatoryAccountMedia;
 
     //! List of media that are deprecated to be used in disk requests.
-    THashSet<TString> DeprecatedMedia;
+    THashSet<std::string> DeprecatedMedia;
 
     //! The name of the fast medium (SSD) in the communal intermediate account.
-    TString FastIntermediateMedium;
+    std::string FastIntermediateMedium;
 
     //! Per transaction intermediate data weight limit for the fast medium (SSD) in the communal intermediate account.
     i64 FastIntermediateMediumLimit;
@@ -1241,9 +1287,7 @@ struct TControllerAgentConfig
     //! How many initial successive job aborts are needed to fail operation.
     THashMap<EAbortReason, int> MaxJobAbortsUntilOperationFailure;
 
-    bool JobIdUnequalToAllocationId;
-
-    TDisallowRemoteOperationsConfigPtr DisallowRemoteOperations;
+    THashMap<NScheduler::TClusterName, TRemoteOperationsConfigPtr> RemoteOperations;
 
     bool EnableMergeSchemasDuringSchemaInfer;
 
@@ -1253,7 +1297,10 @@ struct TControllerAgentConfig
 
     bool EnableJobFailsTolerance;
 
-    std::optional<ui32> AllocationJobCountLimit;
+    std::optional<int> AllocationJobCountLimit;
+
+    // COMPAT(dave11ar): Remove when all masters will be 25.2.
+    bool RegisterLockableDynamicTables;
 
     REGISTER_YSON_STRUCT(TControllerAgentConfig);
 
@@ -1261,7 +1308,7 @@ struct TControllerAgentConfig
 
 private:
     template <class TOptions>
-    static void UpdateOptions(TOptions* options, NYT::NYTree::INodePtr patch);
+    static void BuildOptions(TOptions* options, NYTree::INodePtr optionsNode, NYTree::INodePtr patch);
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgentConfig)

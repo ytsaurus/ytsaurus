@@ -37,14 +37,13 @@ DEFINE_REFCOUNTED_TYPE(TPeerConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRemoteSnapshotStoreOptions
+struct TRemoteSnapshotStoreOptions
     : public virtual NYTree::TYsonStruct
 {
-public:
     int SnapshotReplicationFactor;
     NCompression::ECodec SnapshotCompressionCodec;
-    TString SnapshotAccount;
-    TString SnapshotPrimaryMedium;
+    std::string SnapshotAccount;
+    std::string SnapshotPrimaryMedium;
     NErasure::ECodec SnapshotErasureCodec;
     bool SnapshotEnableStripedErasure;
     NYTree::IListNodePtr SnapshotAcl;
@@ -58,10 +57,9 @@ DEFINE_REFCOUNTED_TYPE(TRemoteSnapshotStoreOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRemoteChangelogStoreOptions
+struct TRemoteChangelogStoreOptions
     : public virtual NYTree::TYsonStruct
 {
-public:
     NErasure::ECodec ChangelogErasureCodec;
     int ChangelogReplicationFactor;
     int ChangelogReadQuorum;
@@ -70,8 +68,8 @@ public:
     bool EnableChangelogChunkPreallocation;
     i64 ChangelogReplicaLagLimit;
     std::optional<NObjectClient::TCellTag> ChangelogExternalCellTag;
-    TString ChangelogAccount;
-    TString ChangelogPrimaryMedium;
+    std::string ChangelogAccount;
+    std::string ChangelogPrimaryMedium;
     NYTree::IListNodePtr ChangelogAcl;
 
     REGISTER_YSON_STRUCT(TRemoteChangelogStoreOptions);

@@ -186,6 +186,9 @@ def get_driver_instance(client):
                     "(driver_connection_type: {0}, client_backend: {1})"
                     .format(driver_config["connection_type"], backend))
 
+        if config["proxy"]["rpc_proxy_role"] is not None:
+            driver_config.setdefault("proxy_role", config["proxy"]["rpc_proxy_role"])
+
         lazy_import_driver_bindings()
         if driver_bindings is None:
             if backend == "rpc":

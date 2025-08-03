@@ -43,6 +43,7 @@ DEFINE_ENUM(EErrorCode,
     ((SemaphoreFull) (100032))
     ((RemovalForbidden) (100033))
     ((InvalidAccessControlPermission) (100034))
+    ((MaxInstantiatedObjectsLimitExceeded) (100035))
 );
 
 } // NYT::NOrm::NClient

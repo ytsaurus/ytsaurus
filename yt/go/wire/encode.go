@@ -278,14 +278,6 @@ func convertValue(id uint16, value reflect.Value) (Value, error) {
 		typ = typ.Elem()
 	}
 
-	switch {
-	case typ == reflect.TypeOf(schema.Date(0)) ||
-		typ == reflect.TypeOf(schema.Datetime(0)) ||
-		typ == reflect.TypeOf(schema.Timestamp(0)) ||
-		typ == reflect.TypeOf(schema.Interval(0)):
-		return Value{}, xerrors.Errorf("unsupported schema type %T when converting to wire", typ)
-	}
-
 	var v Value
 
 	switch typ.Kind() {

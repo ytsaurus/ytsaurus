@@ -1,5 +1,7 @@
 #include "spec_manager.h"
 
+#include <yt/yt/server/lib/scheduler/helpers.h>
+
 namespace NYT::NControllerAgent::NControllers {
 
 using namespace NConcurrency;
@@ -22,8 +24,6 @@ TSpecManager::TSpecManager(
 void TSpecManager::InitializeReviving(INodePtr&& cumulativeSpecPatch)
 {
     InitialCumulativeSpecPatch_ = std::move(cumulativeSpecPatch);
-    UpdateConfigurator_.emplace(Host_->ConfigureUpdate());
-
 
     // NB(coteeq): If there is no snapshot, then it's okay to initialize cleanly with the new spec.
     // If there is something wrong with the new spec, then we will find it out in the new lifecycle.
@@ -36,16 +36,33 @@ void TSpecManager::InitializeReviving(INodePtr&& cumulativeSpecPatch)
     }
 }
 
-void TSpecManager::InitializeClean()
+void TSpecManager::SetConfigurator(TOperationSpecBaseSealedConfigurator configurator)
 {
-    UpdateConfigurator_.emplace(Host_->ConfigureUpdate());
+    UpdateConfigurator_.emplace(std::move(configurator));
 }
 
-void TSpecManager::ValidateSpecPatch(const INodePtr& /*newCumulativeSpecPatch*/) const
+void TSpecManager::ValidateSpecPatch(const INodePtr& newCumulativeSpecPatch) const
 {
+
+    YT_LOG_INFO(
+        "Validating spec patch (OldPatch: %v, NewPatch: %v)",
+        InitialCumulativeSpecPatch_
+            ? ConvertToYsonString(InitialCumulativeSpecPatch_, EYsonFormat::Text).ToString()
+            : TString("<null>"),
+        ConvertToYsonString(newCumulativeSpecPatch, EYsonFormat::Text));
+
+    YT_VERIFY(UpdateConfigurator_);
+
     if (TestingSpec_ && TestingSpec_->FailValidate) {
         THROW_ERROR_EXCEPTION("Failed to validate patch because of spec option");
     }
+
+    auto currentSpec = GetSpec();
+    auto newSpec = PatchNode(ConvertToNode(currentSpec), newCumulativeSpecPatch);
+    auto parsedNewSpec = Host_->ParseTypedSpec(newSpec);
+
+    auto safeAssertionGuard = Host_->CreateSafeAssertionGuard();
+    UpdateConfigurator_->Validate(std::move(currentSpec), std::move(parsedNewSpec));
 }
 
 void TSpecManager::ApplySpecPatch(INodePtr newCumulativeSpecPatch)
@@ -97,7 +114,14 @@ void TSpecManager::DoApply(
             THROW_ERROR_EXCEPTION("Failed to apply patch because of testing spec option");
         }
 
+        if (TestingSpec_) {
+            MaybeDelay(TestingSpec_->DelayInsideApply);
+        }
+
         auto parsedNewSpec = Host_->ParseTypedSpec(newSpec);
+
+        // NB: Validate here as an additional check.
+        UpdateConfigurator_->Validate(currentSpec, parsedNewSpec);
 
         // NB: This works, because everything here is (hopefully) of the same
         // static type inside. Configurator's and both specs' type should be

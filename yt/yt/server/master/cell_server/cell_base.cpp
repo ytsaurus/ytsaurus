@@ -144,23 +144,11 @@ void TCellBase::Load(TLoadContext& context)
     Load(context, PeerCount_);
     Load(context, LastLeaderChangeTime_);
     Load(context, Suspended_);
-
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= EMasterReign::TabletPrerequisites) {
-        Load(context, LeaseTransactionIds_);
-    }
-
-    // COMPAT(danilalexeev)
-    if (context.GetVersion() >= EMasterReign::TabletCellsHydraPersistenceMigration) {
-        Load(context, RegisteredInCypress_);
-        Load(context, PendingAclsUpdate_);
-    }
-
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::CachedMaxSnapshotId) {
-        Load(context, MaxSnapshotId_);
-        Load(context, MaxChangelogId_);
-    }
+    Load(context, LeaseTransactionIds_);
+    Load(context, RegisteredInCypress_);
+    Load(context, PendingAclsUpdate_);
+    Load(context, MaxSnapshotId_);
+    Load(context, MaxChangelogId_);
 }
 
 int TCellBase::FindPeerId(const std::string& address) const

@@ -393,6 +393,10 @@ void PrintMeta(const IIOEnginePtr& ioEngine, const TString& chunkFileName)
     if (maybeHunkChunkMetasExt) {
         PrintHunkChunkMetasExt(*maybeHunkChunkMetasExt);
     }
+
+    if (miscExt.has_compression_dictionary_id()) {
+        Cout << "  Compression dictionary id: " << ToString(FromProto<TGuid>(miscExt.compression_dictionary_id())) << Endl;
+    }
 }
 
 void PrintMeta(const IIOEnginePtr& ioEngine, const std::vector<TString>& chunkFileNames)
@@ -594,7 +598,7 @@ std::unique_ptr<IUniversalReader> CreateVersionedUniversalReader(
     if (!schema) {
         schema = GetMergedSchema(ioEngine, chunkFileNames);
     }
-    if (!schema->GetStrict()) {
+    if (!schema->IsStrict()) {
         THROW_ERROR_EXCEPTION("Versioned chunk schema should be strict");
     }
 

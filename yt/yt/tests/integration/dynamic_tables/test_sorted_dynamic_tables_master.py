@@ -775,6 +775,74 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         reshard_table("//tmp/t4", 5, uniform=True)
         assert get("//tmp/t4/@pivot_keys") == [[], [-19661], [-6554], [6553], [19660]]
 
+    @authors("ifsmirnov")
+    def test_reshard_YT_20800(self):
+        def _get_schema(key_column_count):
+            return [
+                {
+                    "type": "boolean",
+                    "name": "k" + str(i),
+                    "sort_order": "ascending",
+                } for i in range(key_column_count)
+            ] + [
+                {"type": "uint64", "name": "v1"},
+                {"type": "uint64", "name": "v2"},
+            ]
+
+        sync_create_cells(1)
+        self._create_simple_table(
+            "//tmp/t",
+            schema=_get_schema(2),
+            mount_config={
+                "enable_compaction_and_partitioning": False,
+            })
+
+        # Iteration 0
+        sync_mount_table("//tmp/t")
+        insert_rows(
+            "//tmp/t",
+            [
+                {"k1": False, "v1": 0},
+                {"k0": True, "k1": True, "v1": 50},
+            ],
+            update=True)
+        assert (
+            select_rows("* from [//tmp/t] order by k0, k1 limit 100") ==
+            [
+                {"k0": yson.YsonEntity(), "k1": False, "v1": 0, "v2": yson.YsonEntity()},
+                {"k0": True, "k1": True, "v1": 50, "v2": yson.YsonEntity()},
+            ])
+
+        # Iteration 1
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [True]])
+        alter_table("//tmp/t", schema=_get_schema(3))
+        sync_mount_table("//tmp/t")
+
+        insert_rows(
+            "//tmp/t",
+            [
+                {"k0": True, "k1": True, "v2": 100},
+            ],
+            update=True)
+        assert (
+            select_rows("* from [//tmp/t] order by k0, k1, k2 limit 100") ==
+            [
+                {"k0": yson.YsonEntity(), "k1": False, "k2": yson.YsonEntity(), "v1": 0, "v2": yson.YsonEntity()},
+                {"k0": True, "k1": True, "k2": yson.YsonEntity(), "v1": 50, "v2": 100},
+            ])
+
+        # Iteration 2
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [True, True, yson.YsonEntity()]])
+        sync_mount_table("//tmp/t")
+        assert (
+            select_rows("* from [//tmp/t] order by k0, k1, k2 limit 100") ==
+            [
+                {"k0": yson.YsonEntity(), "k1": False, "k2": yson.YsonEntity(), "v1": 0, "v2": yson.YsonEntity()},
+                {"k0": True, "k1": True, "k2": yson.YsonEntity(), "v1": 50, "v2": 100},
+            ])
+
     @authors("max42", "savrus")
     def test_alter_table_fails(self):
         sync_create_cells(1)

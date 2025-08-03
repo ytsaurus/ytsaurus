@@ -9,6 +9,7 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
 #include <yt/yt/ytlib/chunk_client/confirming_writer.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
@@ -53,7 +54,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = JobProxyLogger;
+constinit const auto Logger = JobProxyLogger;
 
 constexpr auto ShallowMergeStatisticsUpdatePeriod = TDuration::Seconds(1);
 
@@ -299,7 +300,7 @@ private:
             chunkSpec,
             ReaderConfig_,
             ReaderOptions_,
-            Host_->GetChunkReaderHost());
+            Host_->GetChunkReaderHost()->CreateHostForCluster(NScheduler::LocalClusterName));
     }
 
     TDeferredChunkMetaPtr GetChunkMeta(const IChunkReaderPtr& reader)
@@ -550,9 +551,6 @@ private:
         TChunkSpec chunkSpec;
         ToProto(chunkSpec.mutable_chunk_id(), Writer_->GetChunkId());
         auto replicas = Writer_->GetWrittenChunkReplicasInfo().Replicas;
-        for (auto replica : replicas) {
-            chunkSpec.add_legacy_replicas(ToProto<ui32>(replica.ToChunkReplica()));
-        }
         ToProto(chunkSpec.mutable_replicas(), replicas);
         chunkSpec.set_table_index(0);
 

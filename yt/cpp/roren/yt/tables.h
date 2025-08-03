@@ -288,7 +288,7 @@ public:
     IRawParDoPtr CreateWriteParDo(ssize_t tableIndex) const override
     {
         if (UseProtoFormat_) {
-            auto writeParDo = MakeIntrusive<TWriteProtoParDo<TKVProto>>();
+            auto writeParDo = NYT::New<TWriteProtoParDo<TKVProto>>();
             writeParDo->SetTableIndex(tableIndex);
 
             return writeParDo;

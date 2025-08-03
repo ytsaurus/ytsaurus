@@ -66,6 +66,7 @@ import (
 	"runtime/pprof"
 	"slices"
 	"syscall"
+	"time"
 
 	"golang.org/x/sys/unix"
 	"gopkg.in/yaml.v3"
@@ -84,6 +85,18 @@ type Config struct {
 
 	// File for logs of timbertruck itself
 	LogFile string `yaml:"log_file"`
+
+	// File for error logs of timbertruck itself
+	ErrorLogFile string `yaml:"error_log_file"`
+
+	// LoggerBufferSize is the buffer size in bytes for the timbertruck logger.
+	//
+	// Default value is 32768 (32 KiB).
+	LoggerBufferSize int `yaml:"logger_buffer_size"`
+
+	// ReopenLogFileInterval defines the interval before reopening the log file,
+	// e.g., "5s" for 5 seconds, "10m" for 10 minutes.
+	ReopenLogFileInterval time.Duration `yaml:"reopen_log_file_interval"`
 
 	// File to write pid info. Locked while timbertruck is running, so second instance cannot be launched.
 	PidFile string `yaml:"pid_file"`
@@ -201,9 +214,8 @@ type daemonApp struct {
 	ctx        context.Context
 	cancelFunc context.CancelFunc
 
-	errorExitDetectorClose func()
-
-	closePid func()
+	closePid      func()
+	closeLogFiles func()
 
 	timberTruck *timbertruck.TimberTruck
 	adminPanel  *adminPanel
@@ -244,19 +256,45 @@ func newDaemonApp(config Config, isRestart bool) (app *daemonApp, err error) {
 		return
 	}
 
-	var logFile io.Writer = os.Stderr
+	reopenLogFileInterval := 16 * time.Minute
+	if config.ReopenLogFileInterval != 0 {
+		reopenLogFileInterval = config.ReopenLogFileInterval
+	}
+
+	var logFile io.WriteCloser = os.Stderr
+	closeLogFile := func() {}
 	if config.LogFile != "" {
-		logFile, err = misc.NewLogrotatingFile(config.LogFile)
+		logFile, err = misc.NewLogrotatingFile(config.LogFile, config.LoggerBufferSize, reopenLogFileInterval)
 		if err != nil {
 			err = fmt.Errorf("cannot open log file: %v", err)
 			return
 		}
+		closeLogFile = func() { _ = logFile.Close() }
 	}
+
+	var errorLogFile io.Writer = io.Discard
+	closeErrorLogFile := func() {}
+	if config.ErrorLogFile != "" {
+		var logrotatingFile io.WriteCloser
+		logrotatingFile, err = misc.NewLogrotatingFile(config.ErrorLogFile, config.LoggerBufferSize, reopenLogFileInterval)
+		if err != nil {
+			err = fmt.Errorf("cannot open error log file: %v", err)
+			return
+		}
+		errorLogFile = logrotatingFile
+		closeErrorLogFile = func() { _ = logrotatingFile.Close() }
+	}
+	app.closeLogFiles = func() {
+		closeLogFile()
+		closeErrorLogFile()
+	}
+
 	errorCounter := app.metrics.Counter("tt.application.error_log_count")
 	errorCounter.Add(0)
 	app.logger = slog.New(
 		newLogErrorTracker(
-			slog.NewJSONHandler(logFile, &slog.HandlerOptions{Level: slog.LevelDebug - 4}), // "trace" log level.
+			slog.NewJSONHandler(logFile, &slog.HandlerOptions{Level: slog.LevelDebug}),
+			slog.NewJSONHandler(errorLogFile, &slog.HandlerOptions{Level: slog.LevelInfo}),
 			errorCounter,
 		),
 	)
@@ -297,9 +335,9 @@ func (app *daemonApp) Close() error {
 		app.closePid()
 		app.closePid = nil
 	}
-	if app.errorExitDetectorClose != nil {
-		app.errorExitDetectorClose()
-		app.errorExitDetectorClose = nil
+	if app.closeLogFiles != nil {
+		app.closeLogFiles()
+		app.closeLogFiles = nil
 	}
 	return nil
 }
@@ -590,12 +628,13 @@ func startProfiling(logger *slog.Logger) func() {
 //
 
 type logErrorTrackingHandler struct {
-	underlying slog.Handler
-	counter    metrics.Counter
+	underlying   slog.Handler
+	errorHandler slog.Handler
+	counter      metrics.Counter
 }
 
-func newLogErrorTracker(underlying slog.Handler, counter metrics.Counter) slog.Handler {
-	return logErrorTrackingHandler{underlying, counter}
+func newLogErrorTracker(underlying, errorHandler slog.Handler, counter metrics.Counter) slog.Handler {
+	return logErrorTrackingHandler{underlying: underlying, errorHandler: errorHandler, counter: counter}
 }
 
 func (t logErrorTrackingHandler) Enabled(ctx context.Context, level slog.Level) bool {
@@ -603,6 +642,11 @@ func (t logErrorTrackingHandler) Enabled(ctx context.Context, level slog.Level) 
 }
 
 func (t logErrorTrackingHandler) Handle(ctx context.Context, record slog.Record) error {
+	if record.Level >= slog.LevelWarn || ctx.Value(&misc.LoggingStartedKey) != nil {
+		if err := t.errorHandler.Handle(ctx, record); err != nil {
+			return err
+		}
+	}
 	if record.Level >= slog.LevelError {
 		t.counter.Inc()
 	}
@@ -611,14 +655,16 @@ func (t logErrorTrackingHandler) Handle(ctx context.Context, record slog.Record)
 
 func (t logErrorTrackingHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	return logErrorTrackingHandler{
-		underlying: t.underlying.WithAttrs(attrs),
-		counter:    t.counter,
+		underlying:   t.underlying.WithAttrs(attrs),
+		errorHandler: t.errorHandler.WithAttrs(attrs),
+		counter:      t.counter,
 	}
 }
 
 func (t logErrorTrackingHandler) WithGroup(name string) slog.Handler {
 	return logErrorTrackingHandler{
-		underlying: t.underlying.WithGroup(name),
-		counter:    t.counter,
+		underlying:   t.underlying.WithGroup(name),
+		errorHandler: t.errorHandler.WithGroup(name),
+		counter:      t.counter,
 	}
 }

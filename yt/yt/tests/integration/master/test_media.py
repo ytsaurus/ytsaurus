@@ -664,7 +664,7 @@ class TestMedia(YTEnvSetup):
         wait(
             lambda:
                 self._count_chunks_on_medium("t2", "default") == 9
-                and self._count_chunks_on_medium("t2", TestMedia.NON_DEFAULT_MEDIUM) == 3
+                and self._count_chunks_on_medium("t2", TestMedia.NON_DEFAULT_MEDIUM) >= 3
                 and self._check_account_and_table_usage_equal("t2"))
 
         # Replica count:
@@ -717,6 +717,12 @@ class TestDynamicMedia(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     STORE_LOCATION_COUNT = 2
+
+    DELTA_MASTER_CONFIG = {
+        "chunk_manager": {
+            "allow_multiple_erasure_parts_per_node": True,
+        },
+    }
 
     DELTA_NODE_CONFIG = {
         "data_node": {
@@ -931,3 +937,24 @@ class TestDynamicMedia(YTEnvSetup):
 
         set(f"{t}/@media", {m1: {"replication_factor": 1, "data_parts_only": False}})
         wait(lambda: len(get(f"#{chunk}/@stored_replicas")) == 1)
+
+    @authors("aleksandra-zh")
+    def test_erasure_moves(self):
+        self._validate_empty_medium_overrides()
+        m2 = "m2"
+        self._create_domestic_medium(m2)
+        disk_space_limit = get_account_disk_space_limit("tmp", "default")
+        set_account_disk_space_limit("tmp", disk_space_limit, m2)
+
+        t = "//tmp/t"
+        create("table", t,  attributes={"primary_medium": "default", "erasure_codec": "lrc_12_2_2"})
+        content = [{"foo": 1, "bar": "123"}, {"foo": 42, "bar": "321"}]
+        write_table(t, content)
+        chunk_id = get_singular_chunk_id(t)
+
+        stored_replicas = get("#{}/@stored_replicas".format(chunk_id))
+        location_uuid = stored_replicas[0].attributes["location_uuid"]
+
+        set("//sys/chunk_locations/{}/@medium_override".format(location_uuid), m2)
+
+        wait(lambda: get("//sys/chunk_locations/{}/@statistics/chunk_count".format(location_uuid)) == 0)

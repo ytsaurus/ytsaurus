@@ -97,7 +97,6 @@ using namespace NTableClient::NProto;
 using namespace NTableClient;
 using namespace NTracing;
 
-using NChunkClient::NProto::TBlocksExt;
 using NChunkClient::TChunkReaderStatistics;
 using NYT::FromProto;
 using NYT::ToProto;
@@ -183,6 +182,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CancelChunk));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ProbePutBlocks));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PutBlocks)
             .SetQueueSizeLimit(100)
             .SetConcurrencyLimit(100)
@@ -299,19 +299,22 @@ private:
         options.EnableMultiplexing = request->enable_multiplexing();
         options.PlacementId = FromProto<TPlacementId>(request->placement_id());
         options.DisableSendBlocks = GetDynamicConfig()->UseDisableSendBlocks && request->disable_send_blocks();
+        options.UseProbePutBlocks = request->use_probe_put_blocks();
 
-        context->SetRequestInfo("SessionId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, PlacementId: %v, DisableSendBlocks: %v",
+        context->SetRequestInfo("SessionId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, PlacementId: %v, DisableSendBlocks: %v, UseProbePutBlocks: %v",
             sessionId,
             options.WorkloadDescriptor,
             options.SyncOnClose,
             options.EnableMultiplexing,
             options.PlacementId,
-            options.DisableSendBlocks);
+            options.DisableSendBlocks,
+            options.UseProbePutBlocks);
 
         ValidateOnline();
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->StartSession(sessionId, options);
+        response->set_use_probe_put_blocks(session->ShouldUseProbePutBlocks());
         ToProto(response->mutable_location_uuid(), session->GetStoreLocation()->GetUuid());
         context->ReplyFrom(session->Start());
     }
@@ -345,7 +348,7 @@ private:
         auto meta = request->has_chunk_meta()
             ? New<TRefCountedChunkMeta>(std::move(*request->mutable_chunk_meta()))
             : nullptr;
-        session->Finish(meta, blockCount)
+        session->Finish(meta, blockCount, request->truncate_extra_blocks())
             .Subscribe(BIND([
                 =,
                 this,
@@ -417,18 +420,72 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PingSession)
     {
-        auto chunkId = FromProto<TSessionId>(request->session_id()).ChunkId;
+        auto sessionId = FromProto<TSessionId>(request->session_id());
+        auto chunkId = sessionId.ChunkId;
         context->SetRequestInfo("ChunkId: %v",
             chunkId);
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSessionOrThrow(chunkId);
         const auto& location = session->GetStoreLocation();
+        auto netThrottling = CheckNetOutThrottling(context, session->GetSessionOptions().WorkloadDescriptor);
 
         session->Ping();
 
-        response->set_close_demanded(IsCloseDemanded(location));
+        const auto closeDemanded = IsCloseDemanded(location);
+        response->set_close_demanded(closeDemanded);
 
+        if (session->ShouldUseProbePutBlocks()) {
+            auto maxRequestedCumulativeBlockSize = session->GetMaxRequestedCumulativeBlockSize();
+            auto approvedCumulativeBlockSize = session->GetApprovedCumulativeBlockSize();
+
+            response->mutable_probe_put_blocks_state()->set_requested_cumulative_block_size(maxRequestedCumulativeBlockSize);
+            response->mutable_probe_put_blocks_state()->set_approved_cumulative_block_size(approvedCumulativeBlockSize);
+
+            context->SetResponseInfo("SessionId: %v, CloseDemanded: %v, "
+                "RequestedCumulativeBlockSize: %v, "
+                "ApprovedCumulativeBlockSize: %v",
+                sessionId,
+                closeDemanded,
+                maxRequestedCumulativeBlockSize,
+                approvedCumulativeBlockSize);
+        } else {
+            context->SetResponseInfo("SessionId: %v, CloseDemanded: %v",
+                sessionId,
+                closeDemanded);
+        }
+
+        // Inform writer about net state on data node.
+        response->set_net_throttling(netThrottling.Enabled);
+        response->set_net_queue_size(netThrottling.QueueSize);
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ProbePutBlocks)
+    {
+        context->SetRequestInfo("SessionId: %v, CumulativeBlockSize: %v",
+            request->session_id(),
+            request->cumulative_block_size());
+
+        const auto chunkId = FromProto<TSessionId>(request->session_id()).ChunkId;
+        const auto cumulativeBlockSize = request->cumulative_block_size();
+
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
+        auto session = sessionManager->GetSessionOrThrow(chunkId);
+
+        session->ProbePutBlocks(cumulativeBlockSize);
+
+        auto maxRequestedCumulativeBlockSize = session->GetMaxRequestedCumulativeBlockSize();
+        auto approvedCumulativeBlockSize = session->GetApprovedCumulativeBlockSize();
+
+        response->mutable_probe_put_blocks_state()->set_requested_cumulative_block_size(maxRequestedCumulativeBlockSize);
+        response->mutable_probe_put_blocks_state()->set_approved_cumulative_block_size(approvedCumulativeBlockSize);
+
+        context->SetResponseInfo("SessionId: %v, MaxRequestedCumulativeBlockSize: %v, ApprovedCumulativeBlockSize: %v",
+            request->session_id(),
+            maxRequestedCumulativeBlockSize,
+            approvedCumulativeBlockSize);
         context->Reply();
     }
 
@@ -452,12 +509,11 @@ private:
         auto blocksWindowShifted = cumulativeBlockSize == 0 || cumulativeBlockSize != 0 && firstBlockIndex >= session->GetWindowSize();
 
         context->SetRequestInfo(
-            "BlockIds: %v:%v-%v, PopulateCache: %v, "
+            "ChunkId: %v, Blocks: %v, PopulateCache: %v, "
             "FlushBlocks: %v, Medium: %v, "
             "DisableSendBlocks: %v, CumulativeBlockSize: %v, BlocksWindowShifted: %v",
             chunkId,
-            firstBlockIndex,
-            lastBlockIndex,
+            FormatBlocks(firstBlockIndex, lastBlockIndex),
             populateCache,
             flushBlocks,
             location->GetMediumName(),
@@ -476,6 +532,7 @@ private:
         response->set_close_demanded(IsCloseDemanded(location));
 
         // NB: Block checksums are validated before writing to disk.
+        // NB: Journal block checksums are validated within DoPutBlocks call.
         auto result = session->PutBlocks(
             firstBlockIndex,
             GetRpcAttachedBlocks(request, /*validateChecksums*/ false),
@@ -543,10 +600,10 @@ private:
         i64 cumulativeBlockSize = request->cumulative_block_size();
         auto targetDescriptor = FromProto<TNodeDescriptor>(request->target_descriptor());
 
-        context->SetRequestInfo("BlockIds: %v:%v-%v, CumulativeBlockSize: %v, Target: %v",
+        context->SetRequestInfo(
+            "ChunkId: %v, Blocks: %v, CumulativeBlockSize: %v, Target: %v",
             chunkId,
-            firstBlockIndex,
-            lastBlockIndex,
+            FormatBlocks(firstBlockIndex, lastBlockIndex),
             cumulativeBlockSize,
             targetDescriptor);
 
@@ -554,19 +611,44 @@ private:
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSessionOrThrow(chunkId);
-        session->SendBlocks(firstBlockIndex, blockCount, cumulativeBlockSize, targetDescriptor)
-            .Subscribe(BIND([=] (const TDataNodeServiceProxy::TErrorOrRspPutBlocksPtr& errorOrRsp) {
-                if (errorOrRsp.IsOK()) {
-                    response->set_close_demanded(errorOrRsp.Value()->close_demanded());
-                    context->Reply();
+
+        auto sessionOptions = session->GetSessionOptions();
+        auto netThrottling = CheckNetOutThrottling(context, sessionOptions.WorkloadDescriptor);
+        auto alwaysThrottleOnSendBlocks = GetDynamicConfig()->TestingOptions->AlwaysThrottleNetOnSendBlocks.value_or(false);
+        netThrottling.Enabled |= alwaysThrottleOnSendBlocks;
+
+        response->set_net_throttling(netThrottling.Enabled);
+        response->set_net_queue_size(netThrottling.QueueSize);
+
+        auto enableSendBlocksNetThrottling = GetDynamicConfig()->EnableSendBlocksNetThrottling.value_or(Config_->EnableSendBlocksNetThrottling);
+
+        if (enableSendBlocksNetThrottling && netThrottling.Enabled) {
+            context->Reply();
+            return;
+        }
+
+        auto fraction = GetFallbackTimeoutFraction().value_or(1);
+        auto timeout = *context->GetTimeout() * fraction;
+        context->ReplyFrom(session->SendBlocks(firstBlockIndex, blockCount, cumulativeBlockSize, timeout, enableSendBlocksNetThrottling, targetDescriptor)
+            .Apply(BIND([=] (const TErrorOr<ISession::TSendBlocksResult>& rspOrError) {
+                if (rspOrError.IsOK()) {
+                    const auto& rsp = rspOrError.Value();
+                    if (rsp.NetThrottling) {
+                        response->set_net_throttling(true);
+                        return TError();
+                    }
+
+                    YT_VERIFY(rsp.TargetNodePutBlocksResult);
+                    response->set_close_demanded(rsp.TargetNodePutBlocksResult->close_demanded());
+                    return TError();
                 } else {
-                    context->Reply(TError(
+                    return TError(
                         NChunkClient::EErrorCode::SendBlocksFailed,
                         "Error putting blocks to %v",
                         targetDescriptor.GetDefaultAddress())
-                        << errorOrRsp);
+                        << rspOrError;
                 }
-            }));
+            })));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, FlushBlocks)
@@ -574,7 +656,7 @@ private:
         auto chunkId = FromProto<TSessionId>(request->session_id()).ChunkId;
         int blockIndex = request->block_index();
 
-        context->SetRequestInfo("BlockId: %v:%v",
+        context->SetRequestInfo("ChunkId: %v, Block: %v",
             chunkId,
             blockIndex);
 
@@ -726,7 +808,7 @@ private:
             peerDescriptor->set_block_index(suggestion.BlockIndex);
             ToProto(peerDescriptor->mutable_node_ids(), suggestion.Peers);
 
-            auto barrier = peerDescriptor->mutable_delivery_barier();
+            auto barrier = peerDescriptor->mutable_delivery_barrier();
 
             barrier->set_iteration(suggestion.P2PIteration);
             ToProto(barrier->mutable_session_id(), suggestion.P2PSessionId);
@@ -769,6 +851,10 @@ private:
                 : TChunkLocation::TDiskThrottlingResult{.Enabled = false, .QueueSize = 0};
             subresponse->set_disk_throttling(diskThrottling.Enabled);
             subresponse->set_disk_queue_size(diskThrottling.QueueSize);
+
+            if (chunk) {
+                subresponse->set_medium_index(chunk->GetLocation()->GetMediumDescriptor().Index);
+            }
 
             YT_LOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), diskThrottling.Error);
 
@@ -816,9 +902,10 @@ private:
         auto blockIndexes = FromProto<std::vector<int>>(request->block_indexes());
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
 
-        context->SetRequestInfo("BlockIds: %v:%v, Workload: %v",
+        context->SetRequestInfo("ChunkId: %v, Blocks: %v, BlockCount: %v, Workload: %v",
             chunkId,
-            MakeShrunkFormattableView(blockIndexes, TDefaultFormatter(), 3),
+            MakeCompactIntervalView(blockIndexes),
+            blockIndexes.size(),
             workloadDescriptor);
 
         ValidateOnline();
@@ -834,6 +921,10 @@ private:
             : TChunkLocation::TDiskThrottlingResult{.Enabled = false, .QueueSize = 0};
         response->set_disk_throttling(diskThrottling.Enabled);
         response->set_disk_queue_size(diskThrottling.QueueSize);
+
+        if (chunk) {
+            response->set_medium_index(chunk->GetLocation()->GetMediumDescriptor().Index);
+        }
 
         YT_LOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), diskThrottling.Error);
 
@@ -854,14 +945,16 @@ private:
         const auto& p2pSnooper = Bootstrap_->GetP2PSnooper();
         AddBlockPeers(response->mutable_peer_descriptors(), p2pSnooper->OnBlockProbe(chunkId, blockIndexes));
 
-        auto cachedBlocks = Bootstrap_->GetBlockCache()->GetCachedBlocksByChunkId(chunkId, EBlockType::CompressedData);
         auto cachedBlockSize = 0L;
 
-        for (const auto& blockInfo : cachedBlocks) {
-            TProbeBlockSetBlockInfo* protoBlockInfo = response->add_cached_blocks();
-            protoBlockInfo->set_block_index(blockInfo.BlockIndex);
-            protoBlockInfo->set_block_size(blockInfo.BlockSize);
-            cachedBlockSize += blockInfo.BlockSize;
+        if (GetDynamicConfig()->PropagateCachedBlockInfosToProbing) {
+            auto cachedBlocks = Bootstrap_->GetBlockCache()->GetCachedBlocksByChunkId(chunkId, EBlockType::CompressedData);
+            for (const auto& blockInfo : cachedBlocks) {
+                auto* protoBlockInfo = response->add_cached_blocks();
+                protoBlockInfo->set_block_index(blockInfo.BlockIndex);
+                protoBlockInfo->set_block_size(blockInfo.BlockSize);
+                cachedBlockSize += blockInfo.BlockSize;
+            }
         }
 
         context->SetResponseInfo(
@@ -876,7 +969,7 @@ private:
             diskThrottling.Enabled,
             diskThrottling.QueueSize,
             response->peer_descriptors_size(),
-            cachedBlocks.size(),
+            response->cached_blocks_size(),
             cachedBlockSize);
 
         context->Reply();
@@ -1080,10 +1173,12 @@ private:
         bool fetchFromCache = request->fetch_from_cache();
         bool fetchFromDisk = request->fetch_from_disk();
 
-        context->SetRequestInfo("BlockIds: %v:%v, PopulateCache: %v, FetchFromCache: %v, "
+        context->SetRequestInfo(
+            "ChunkId: %v, Blocks: %v, "
+            "PopulateCache: %v, FetchFromCache: %v, "
             "FetchFromDisk: %v, Workload: %v",
             chunkId,
-            MakeShrunkFormattableView(blockIndexes, TDefaultFormatter(), 3),
+            MakeCompactIntervalView(blockIndexes),
             populateCache,
             fetchFromCache,
             fetchFromDisk,
@@ -1216,10 +1311,9 @@ private:
         bool populateCache = request->populate_cache();
 
         context->SetRequestInfo(
-            "BlockIds: %v:%v-%v, PopulateCache: %v, Workload: %v",
+            "ChunkId: %v, Blocks: %v, PopulateCache: %v, Workload: %v",
             chunkId,
-            firstBlockIndex,
-            firstBlockIndex + blockCount - 1,
+            FormatBlocks(firstBlockIndex, firstBlockIndex + blockCount - 1),
             populateCache,
             workloadDescriptor);
 
@@ -1421,7 +1515,7 @@ private:
                 }
 
                 std::vector<std::vector<int>> locationFragmentIndices(requestedLocations.size());
-                std::vector<std::vector<IIOEngine::TReadRequest>> locationRequests(requestedLocations.size());
+                std::vector<std::vector<TReadRequest>> locationRequests(requestedLocations.size());
                 std::vector<TMemoryUsageTrackerGuard> locationMemoryGuards(requestedLocations.size());
 
                 for (auto [_, locationRequestCount] : requestedLocations) {
@@ -1473,7 +1567,7 @@ private:
 
                 response->Attachments().resize(fragmentIndex);
 
-                std::vector<TFuture<IIOEngine::TReadResponse>> readFutures;
+                std::vector<TFuture<TReadResponse>> readFutures;
                 readFutures.reserve(requestedLocations.size());
 
                 for (int index = 0; index < std::ssize(requestedLocations); ++index) {
@@ -1496,7 +1590,7 @@ private:
                         readFuture = readFuture.ApplyUnique(BIND([
                             =,
                             memoryGuard = std::move(locationMemoryGuards[index]),
-                            resultIndex = index] (IIOEngine::TReadResponse&& result) mutable {
+                            resultIndex = index] (TReadResponse&& result) mutable {
                             const auto& fragmentIndices = locationFragmentIndices[resultIndex];
                             YT_VERIFY(result.OutputBuffers.size() == fragmentIndices.size());
 
@@ -1522,7 +1616,7 @@ private:
                             chunkRequestInfos = std::move(chunkRequestInfos),
                             locationFragmentIndices = std::move(locationFragmentIndices),
                             requestedLocations = std::move(requestedLocations)
-                        ] (TErrorOr<std::vector<IIOEngine::TReadResponse>>&& resultsOrError) {
+                        ] (TErrorOr<std::vector<TReadResponse>>&& resultsOrError) {
                             if (!resultsOrError.IsOK()) {
                                 context->Reply(resultsOrError);
                                 return;

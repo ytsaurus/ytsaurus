@@ -125,8 +125,10 @@ public:
     TFuture<void> Close(
         const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
-        const TDeferredChunkMetaPtr& /*chunkMeta*/ = nullptr) override
+        const TDeferredChunkMetaPtr& /*chunkMeta*/ = nullptr,
+        std::optional<int> truncateBlockCount = std::nullopt) override
     {
+        YT_VERIFY(!truncateBlockCount.has_value());
         if (!MetaFinalized_) {
             FinalizeMeta();
         }
@@ -516,9 +518,7 @@ private:
         }
         if (ColumnarStatistics_) {
             SetProtoExtension(ChunkMeta_->mutable_extensions(), ToProto<TColumnarStatisticsExt>(*ColumnarStatistics_));
-            if (!ColumnarStatistics_->LargeStatistics.IsEmpty()) {
-                SetProtoExtension(ChunkMeta_->mutable_extensions(), ToProto<TLargeColumnarStatisticsExt>(ColumnarStatistics_->LargeStatistics));
-            }
+            SetProtoExtension(ChunkMeta_->mutable_extensions(), ToProto<TLargeColumnarStatisticsExt>(ColumnarStatistics_->LargeStatistics));
         }
         if (Options_->MaxHeavyColumns > 0 && ColumnarStatistics_) {
             auto heavyColumnStatisticsExt = GetHeavyColumnStatisticsExt(
@@ -545,7 +545,7 @@ private:
             MiscExt_.set_max_timestamp(MaxTimestamp_);
         }
         if (TableSchema_) {
-            MiscExt_.set_unique_keys(TableSchema_->GetUniqueKeys());
+            MiscExt_.set_unique_keys(TableSchema_->IsUniqueKeys());
         }
         SetProtoExtension(ChunkMeta_->mutable_extensions(), MiscExt_);
 

@@ -585,7 +585,9 @@ public:
             }
 
             controlInvoker->Invoke(BIND([this, weakThis = MakeWeak(this), cellTag] {
-                StartNodeHeartbeatsToCell(cellTag);
+                if (auto strongThis = weakThis.Lock()) {
+                    StartNodeHeartbeatsToCell(cellTag);
+                }
             }));
         }
     }
@@ -638,12 +640,17 @@ protected:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
+        if (!Bootstrap_->IsConnected()) {
+            return MakeFuture(TError("Node disconnected"));
+        }
+
         THeartbeatRspFuture variantResult;
         auto state = GetMasterConnectorState(cellTag);
         EmplaceOrCrash(CellTagToMasterConnectorState_, cellTag, state);
 
         auto masterChannel = Bootstrap_->GetMasterChannel(cellTag);
         TDataNodeTrackerServiceProxy proxy(std::move(masterChannel));
+        proxy.SetDefaultTimeout(GetDynamicConfig()->FullHeartbeatTimeout);
 
         switch (state) {
             case EMasterConnectorState::Registered: {
@@ -673,8 +680,6 @@ protected:
                 YT_LOG_WARNING("Skip heartbeat report to master, since node is in invalid state (CellTag: %v, DataNodeState: %v)",
                     cellTag,
                     state);
-
-                Bootstrap_->ResetAndRegisterAtMaster();
 
                 return MakeFuture(TError("Invalid node state %Qlv", state) << TErrorAttribute("data_node_state", state));
             }
@@ -713,7 +718,7 @@ protected:
                     cellTag,
                     state);
 
-                Bootstrap_->ResetAndRegisterAtMaster();
+                Bootstrap_->ResetAndRegisterAtMaster(ERegistrationReason::HeartbeatFailure);
             }
         }
     }
@@ -750,7 +755,7 @@ protected:
                     cellTag,
                     state);
 
-                Bootstrap_->ResetAndRegisterAtMaster();
+                Bootstrap_->ResetAndRegisterAtMaster(ERegistrationReason::HeartbeatFailure);
             }
         }
     }
@@ -1138,7 +1143,7 @@ private:
                 if (IsRetriableError(rspOrError) || rspOrError.FindMatching(HeartbeatRetriableErrors)) {
                     DoScheduleJobHeartbeat(/*immediately*/ false);
                 } else {
-                    Bootstrap_->ResetAndRegisterAtMaster();
+                    Bootstrap_->ResetAndRegisterAtMaster(ERegistrationReason::HeartbeatFailure);
                 }
 
                 return;
@@ -1378,7 +1383,7 @@ private:
         statistics->set_full(full);
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
-        statistics->set_total_user_session_count(sessionManager->GetSessionCount(ESessionType::User));
+        statistics->set_total_user_session_count(sessionManager->GetSessionCount(ESessionType::User) + sessionManager->GetSessionCount(ESessionType::Nbd));
         statistics->set_total_replication_session_count(sessionManager->GetSessionCount(ESessionType::Replication));
         statistics->set_total_repair_session_count(sessionManager->GetSessionCount(ESessionType::Repair));
     }

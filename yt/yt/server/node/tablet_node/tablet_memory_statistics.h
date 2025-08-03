@@ -50,7 +50,7 @@ struct TTabletMemoryStatistics
 struct TTabletCellMemoryStatistics
 {
     TTabletCellId CellId;
-    TString BundleName;
+    std::string BundleName;
 
     std::vector<TTabletMemoryStatistics> Tablets;
 };
@@ -70,12 +70,12 @@ struct TNodeMemoryUsageSummary
     TMemoryStatistics Total;
 
     // Per bundle memory usage summary.
-    THashMap<TString /*bundleName*/, TBundleMemoryUsageSummary> Bundles;
+    THashMap<std::string, TBundleMemoryUsageSummary> Bundles;
 
     // Per table memory usage summary.
-    THashMap<TString /*tablePath*/, TMemoryStatistics> Tables;
+    THashMap<NYPath::TYPath, TMemoryStatistics> Tables;
 
-    THashMap<TString, TString> TablePathToBundleName;
+    THashMap<NYPath::TYPath, std::string> TablePathToBundleName;
 };
 
 

@@ -101,10 +101,9 @@ DEFINE_REFCOUNTED_TYPE(TCoreWatcherConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserJobNetworkAddress
+struct TUserJobNetworkAddress
     : public NYTree::TYsonStruct
 {
-public:
     NNet::TIP6Address Address;
 
     TString Name;
@@ -202,10 +201,9 @@ struct TJobThrashingDetectorConfig
 DEFINE_REFCOUNTED_TYPE(TJobThrashingDetectorConfig)
 
 //! Describes configuration of a single environment.
-class TJobEnvironmentConfigBase
+struct TJobEnvironmentConfigBase
     : public NYTree::TYsonStruct
 {
-public:
     //! When job control is enabled, system runs user jobs under fake
     //! uids in range [StartUid, StartUid + SlotCount - 1].
     int StartUid;
@@ -349,6 +347,9 @@ struct TJobProxyInternalConfig
     //! Docker image to build root volume as part of a container.
     std::optional<TString> DockerImage;
 
+    //! Docker image id in local cache.
+    std::optional<TString> DockerImageId;
+
     // COMPAT(artemagafonov): RootFS is always writable, so the flag should be removed after the update of all nodes.
     bool MakeRootFSWritable;
 
@@ -435,7 +436,8 @@ struct TJobProxyInternalConfig
 
     std::optional<i64> SlotContainerMemoryLimit;
 
-    NYT::NRpcProxy::TApiServiceConfigPtr ApiService;
+    NYT::NRpcProxy::TApiServiceConfigPtr JobProxyApiServiceStatic;
+    NYT::NRpcProxy::TApiServiceDynamicConfigPtr JobProxyApiService;
 
     std::optional<int> StatisticsOutputTableCountLimit;
 
@@ -463,9 +465,13 @@ struct TJobProxyInternalConfig
 
     i64 AdaptiveRowCountUpperBound;
 
+    bool UseNewDeliveryFencedConnection;
+
     //! Enable root volume disk quota.
-    //! Apply the quota to the entire RootFs instead of the sandbox and tmp folders individually.
+    //! Apply the quota to the entire root filesystem instead of the sandbox and tmp folders individually.
     bool EnableRootVolumeDiskQuota;
+
+    bool StartQueueConsumerRegistrationManager;
 
     REGISTER_YSON_STRUCT(TJobProxyInternalConfig);
 
@@ -509,8 +515,11 @@ struct TJobProxyDynamicConfig
     NJobProxy::TJobTraceEventProcessorConfigPtr JobTraceEventProcessor;
 
     i64 AdaptiveRowCountUpperBound;
+    bool UseNewDeliveryFencedConnection;
 
     std::optional<TString> MemoryProfileDumpPath;
+
+    NRpcProxy::TApiServiceDynamicConfigPtr JobProxyApiService;
 
     REGISTER_YSON_STRUCT(TJobProxyDynamicConfig);
 

@@ -920,6 +920,7 @@ protected:
         ISequoiaClientPtr sequoiaClient,
         TCellId coordinatorCellId,
         TStringBuf description,
+        std::string title,
         IInvokerPtr invoker,
         TLogger logger)
         : SequoiaClient_(std::move(sequoiaClient))
@@ -927,6 +928,7 @@ protected:
         , Invoker_(std::move(invoker))
         , Logger(std::move(logger))
         , Description_(description)
+        , Title_(std::move(title))
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
     }
@@ -947,13 +949,21 @@ protected:
 
 private:
     const TStringBuf Description_;
+    const std::string Title_;
 
     TFuture<TResult> DoApply()
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
+        NApi::TTransactionStartOptions options;
+        options.Attributes = CreateEphemeralAttributes();
+        options.Attributes->Set("title", Title_);
+
         return SequoiaClient_
-            ->StartTransaction(TransactionType)
+            ->StartTransaction(
+                TransactionType,
+                options,
+                /*sequoiaTransactionOptions*/ {.SequenceTabletCommitSessions = true})
             .ApplyUnique(
                 BIND(&TSequoiaMutation::OnSequoiaTransactionStarted, MakeStrong(this))
                     .AsyncVia(Invoker_));
@@ -994,14 +1004,7 @@ private:
                 Description_);
         }
 
-        if (IsRetriableSequoiaError(result)) {
-            THROW_ERROR_EXCEPTION(
-                NSequoiaClient::EErrorCode::SequoiaRetriableError,
-                "Sequoia retriable error")
-                << std::move(result);
-        }
-
-        THROW_ERROR result;
+        THROW_ERROR MaybeWrapSequoiaRetriableError<void>(result);
     }
 };
 
@@ -1037,6 +1040,7 @@ public:
             std::move(sequoiaClient),
             coordinatorCellId,
             "start",
+            "Sequoia transaction: start Cypress transaction",
             std::move(invoker),
             std::move(logger))
         , ParentId_(FromProto<TTransactionId>(request.parent_id()))
@@ -1482,7 +1486,7 @@ private:
 /*!
  *  When transaction is finished (because of commit or abort) every descendant
  *  and dependent transaction has to be aborted. On transaction coordinator it's
- *  handled in commit/abort mutation but we still need to clean Sequoia tables
+ *  handled in commit/abort mutation, but we still need to clean Sequoia tables
  *  and replicate abort mutations to all participants.
  *  1. Fetch target transaction (and validate it);
  *  2. Fetch all descendant and dependent transactions (transitively);
@@ -1515,11 +1519,13 @@ protected:
         TTransactionId transactionId,
         TAuthenticationIdentity authenticationIdentity,
         IInvokerPtr invoker,
-        TLogger logger)
+        TLogger logger,
+        std::string title)
         : TSequoiaMutation(
             std::move(sequoiaClient),
             cypressTransactionCoordinatorCellId,
             description,
+            std::move(title),
             std::move(invoker),
             std::move(logger))
         , TransactionId_(transactionId)
@@ -1716,7 +1722,8 @@ public:
     TAbortCypressTransaction(
         ISequoiaClientPtr sequoiaClient,
         TCellId cypressTransactionCoordinatorCellId,
-        const NCypressTransactionClient::NProto::TReqAbortTransaction& request,
+        TTransactionId transactionId,
+        bool force,
         NRpc::TAuthenticationIdentity authenticationIdentity,
         IInvokerPtr invoker,
         TLogger logger)
@@ -1724,11 +1731,13 @@ public:
             std::move(sequoiaClient),
             cypressTransactionCoordinatorCellId,
             "abort",
-            FromProto<TTransactionId>(request.transaction_id()),
+            transactionId,
             std::move(authenticationIdentity),
             std::move(invoker),
-            std::move(logger))
-        , Force_(request.force())
+            std::move(logger),
+            Format("Sequoia transaction: abort Cypress transaction %v",
+                transactionId))
+        , Force_(force)
     { }
 
     TAbortCypressTransaction(
@@ -1744,7 +1753,9 @@ public:
             transactionId,
             GetRootAuthenticationIdentity(),
             std::move(invoker),
-            std::move(logger))
+            std::move(logger),
+            Format("Sequoia transaction: abort expired Cypress transaction %v",
+                transactionId))
         , Force_(false)
     { }
 
@@ -1776,14 +1787,12 @@ protected:
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        NTransactionServer::NProto::TReqAbortCypressTransaction req;
-        ToProto(req.mutable_transaction_id(), TransactionId_);
-        req.set_replicate_via_hive(false);
-        req.set_force(Force_);
-        NRpc::WriteAuthenticationIdentityToProto(&req, AuthenticationIdentity_);
         SequoiaTransaction_->AddTransactionAction(
             CellTagFromId(CoordinatorCellId_),
-            MakeTransactionActionData(req));
+            MakeTransactionActionData(BuildAbortCypressTransactionRequest(
+                TransactionId_,
+                Force_,
+                AuthenticationIdentity_)));
 
         AbortTransactionOnParticipants(replicas);
     }
@@ -1814,7 +1823,8 @@ public:
             transactionId,
             std::move(authenticationIdentity),
             std::move(invoker),
-            std::move(logger))
+            std::move(logger),
+            Format("Sequoia transaction: commit Cypress transaction %v", transactionId))
         , CommitTimestamp_(commitTimestamp)
         , PrerequisiteTransactionIds_(std::move(prerequisiteTransactionIds))
     { }
@@ -1864,6 +1874,7 @@ private:
         if (!replicas.empty()) {
             NTransactionServer::NProto::TReqCommitTransaction req;
             ToProto(req.mutable_transaction_id(), TransactionId_);
+            req.set_commit_timestamp(CommitTimestamp_);
             auto transactionActionData = MakeTransactionActionData(req);
 
             for (const auto& replica : replicas) {
@@ -1904,6 +1915,9 @@ protected:
             std::move(sequoiaClient),
             hintCoordinatorCellId,
             "replicate Cypress",
+            Format("Sequoia transaction: replicate Cypress transactions %v to %v",
+                transactionIds,
+                destinationCellTags),
             std::move(invoker),
             std::move(logger))
         , TransactionIds_(std::move(transactionIds))
@@ -2014,7 +2028,8 @@ TFuture<TTransactionId> StartCypressTransaction(
 TFuture<void> AbortCypressTransaction(
     ISequoiaClientPtr sequoiaClient,
     TCellId cypressTransactionCoordinatorCellId,
-    NCypressTransactionClient::NProto::TReqAbortTransaction* request,
+    TTransactionId transactionId,
+    bool force,
     TAuthenticationIdentity authenticationIdentity,
     IInvokerPtr invoker,
     TLogger logger)
@@ -2022,7 +2037,8 @@ TFuture<void> AbortCypressTransaction(
     return New<TAbortCypressTransaction>(
         std::move(sequoiaClient),
         cypressTransactionCoordinatorCellId,
-        std::move(*request),
+        transactionId,
+        force,
         std::move(authenticationIdentity),
         std::move(invoker),
         std::move(logger))

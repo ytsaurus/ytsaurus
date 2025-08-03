@@ -12,6 +12,7 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/ref_counted_proto.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
@@ -35,7 +36,7 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = DataNodeLogger;
+constinit const auto Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -125,6 +126,8 @@ TFuture<TRefCountedChunkMetaPtr> TJournalChunk::ReadMeta(
     meta->set_format(ToProto(EChunkFormat::JournalDefault));
     SetProtoExtension(meta->mutable_extensions(), miscExt);
 
+    session->SessionAliveCheckFuture.Cancel(TError("Read meta in journal session completed"));
+
     ProfileReadMetaLatency(session);
 
     return MakeFuture(FilterMeta(meta, extensionTags));
@@ -187,7 +190,13 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockRange(
 
     Context_->StorageHeavyInvoker->Invoke(std::move(callback), options.WorkloadDescriptor.GetPriority());
 
-    return session->Promise;
+    return session->Promise.ToFuture()
+        .Apply(BIND([weakSession = MakeWeak(session)] (const std::vector<TBlock>& blocks) {
+            if (auto session = weakSession.Lock()) {
+                session->SessionAliveCheckFuture.Cancel(TError("Read block range in journal session completed"));
+            }
+            return blocks;
+        }));
 }
 
 void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
@@ -199,10 +208,10 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
         int lastBlockIndex = session->FirstBlockIndex + session->BlockCount - 1; // inclusive
         int blockCount = session->BlockCount;
 
-        YT_LOG_DEBUG("Started reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
+        YT_LOG_DEBUG("Started reading journal chunk blocks ("
+            "ChunkId: %v, Blocks: %v, LocationId: %v)",
             Id_,
-            firstBlockIndex,
-            lastBlockIndex,
+            FormatBlocks(firstBlockIndex, lastBlockIndex),
             Location_->GetId());
 
         TWallTimer timer;
@@ -232,11 +241,11 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
         // TODO(ngc224): propagate proper value in YT-23540
         session->Options.ChunkReaderStatistics->DataIORequests.fetch_add(1, std::memory_order::relaxed);
 
-        YT_LOG_DEBUG("Finished reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, BlocksReadActually: %v, "
+        YT_LOG_DEBUG("Finished reading journal chunk blocks ("
+            "ChunkId: %v, Blocks: %v, LocationId: %v, BlocksReadActually: %v, "
             "BytesReadActually: %v, Time: %v)",
             Id_,
-            firstBlockIndex,
-            lastBlockIndex,
+            FormatBlocks(firstBlockIndex, lastBlockIndex),
             Location_->GetId(),
             blocksRead,
             bytesRead,
@@ -304,7 +313,7 @@ TFuture<void> TJournalChunk::PrepareToReadChunkFragments(
     return promise.ToFuture();
 }
 
-IIOEngine::TReadRequest TJournalChunk::MakeChunkFragmentReadRequest(
+TReadRequest TJournalChunk::MakeChunkFragmentReadRequest(
     const TChunkFragmentDescriptor& fragmentDescriptor,
     bool /*useDirectIO*/)
 {

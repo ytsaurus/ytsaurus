@@ -49,12 +49,13 @@ class RpcBase(Sensor):
 
 
 # Schedulers.
-Scheduler =         ProjectSensor("scheduler",          "yt-scheduler")  # noqa: E222
-SchedulerMemory =   ProjectSensor("scheduler_memory",   "yt-scheduler")  # noqa: E222
-SchedulerCpu =      ProjectSensor("scheduler_cpu",      "yt-scheduler")  # noqa: E222
-SchedulerPools =    ProjectSensor("scheduler_pools",    "yt-scheduler")  # noqa: E222
-SchedulerInternal = ProjectSensor("scheduler_internal", "yt-scheduler")  # noqa: E222
-SchedulerRpc =      ProjectSensor("scheduler_rpc",      "yt-scheduler", base=RpcBase)  # noqa: E222
+Scheduler =           ProjectSensor("scheduler",            "yt-scheduler")  # noqa: E222
+SchedulerMemory =     ProjectSensor("scheduler_memory",     "yt-scheduler")  # noqa: E222
+SchedulerCpu =        ProjectSensor("scheduler_cpu",        "yt-scheduler")  # noqa: E222
+SchedulerPools =      ProjectSensor("scheduler_pools",      "yt-scheduler")  # noqa: E222
+SchedulerOperations = ProjectSensor("scheduler_operations", "yt-scheduler")  # noqa: E222
+SchedulerInternal =   ProjectSensor("scheduler_internal",   "yt-scheduler")  # noqa: E222
+SchedulerRpc =        ProjectSensor("scheduler_rpc",        "yt-scheduler", base=RpcBase)  # noqa: E222
 
 # Controller agents.
 CA =         ProjectSensor("controller_agent",          "yt-controller-agent")  # noqa: E222
@@ -121,23 +122,27 @@ RpcProxy = ProjectSensor("rpc_proxy", "yt_rpc_proxies")
 RpcProxyRpc = ProjectSensor("rpc_proxy_rpc", "yt_rpc_proxies", base=RpcBase)
 RpcProxyInternal = ProjectSensor("rpc_proxy_internal", "yt_rpc_proxies")
 RpcProxyCpu = ProjectSensor("rpc_proxy_cpu", "yt_rpc_proxies")
+RpcProxyMemory =  ProjectSensor("rpc_proxy_memory", "yt_rpc_proxies")  # noqa: E222
 RpcProxyPorto =  ProjectSensor("rpc_proxy_porto", base=RpcBase)  # noqa: E222
 
-# BundleController
+# BundleController.
 BundleController = ProjectSensor("bundle_controller", "yt_bundle_controller")  # noqa: E222
 
-# TabletBalancer
+# TabletBalancer.
 TabletBalancer = ProjectSensor("tablet_balancer", "yt_tablet_balancer")  # noqa: E222
 
-# CHYT
+# CHYT.
 Chyt = ProjectSensor("clickhouse", "chyt")
 
-# Flow
+# Flow.
 FlowController = ProjectSensor("controller")  # noqa: E222
 FlowWorker =     ProjectSensor("worker")  # noqa: E222
 
-# Queue Agent
+# Queue Agent.
 QueueAgent = ProjectSensor("queue_agent_default", "yt-queue-agent")
+
+# Old account sensors.
+Accounts = ProjectSensor("accounts", "yt-accounts")
 
 
 class SplitNodeSensorsGuard:

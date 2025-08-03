@@ -11,7 +11,7 @@ namespace NYT::NSignature {
 struct IKeyStoreReader
     : public virtual TRefCounted
 {
-    virtual TFuture<TKeyInfoPtr> FindKey(const TOwnerId& ownerId, const TKeyId& keyId) = 0;
+    virtual TFuture<TKeyInfoPtr> FindKey(const TOwnerId& ownerId, const TKeyId& keyId) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IKeyStoreReader)
@@ -21,7 +21,7 @@ DEFINE_REFCOUNTED_TYPE(IKeyStoreReader)
 struct IKeyStoreWriter
     : public virtual TRefCounted
 {
-    [[nodiscard]] virtual const TOwnerId& GetOwner() = 0;
+    [[nodiscard]] virtual const TOwnerId& GetOwner() const = 0;
 
     virtual TFuture<void> RegisterKey(const TKeyInfoPtr& keyInfo) = 0;
 };

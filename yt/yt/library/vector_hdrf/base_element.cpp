@@ -83,7 +83,7 @@ EIntegralGuaranteeType TBasePool::GetIntegralGuaranteeType() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TBaseOperationElement::IsGang() const
+bool TBaseOperationElement::IsFairShareTruncationInFifoPoolAllowed() const
 {
     return false;
 }

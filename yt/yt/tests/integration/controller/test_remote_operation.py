@@ -19,6 +19,8 @@ from yt_commands import (
     release_breakpoint,
     remove,
     set,
+    start_transaction,
+    update_controller_agent_config,
     wait_breakpoint,
     with_breakpoint,
     write_table,
@@ -34,7 +36,7 @@ from yt_commands import (
     wait,
 )
 
-from yt_helpers import skip_if_no_descending, profiler_factory
+from yt_helpers import profiler_factory
 from yt.common import YtError
 import yt.yson as yson
 
@@ -71,10 +73,11 @@ class TestSchedulerRemoteOperationCommandsBase(YTEnvSetup):
                     "use_remote_master_caches": True,
                 },
             },
-            "disallow_remote_operations": {
-                "allowed_users": ["root"],
-                "allowed_clusters": ["remote_0"],
-            }
+            "remote_operations": {
+                "remote_0": {
+                    "allowed_users": ["root"],
+                },
+            },
         },
     }
 
@@ -259,9 +262,6 @@ class TestSchedulerRemoteOperationCommands(TestSchedulerRemoteOperationCommandsB
     @authors("coteeq")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_reduce_cat(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/in1")
         rows = [
             {"key": 0, "value": 1},
@@ -614,6 +614,49 @@ class TestSchedulerRemoteOperationCommands(TestSchedulerRemoteOperationCommandsB
         assert read_table("//tmp/out") == expected
 
     @authors("coteeq")
+    @pytest.mark.parametrize("revive", [False, True])
+    def test_with_transactions(self, revive):
+        local_tx = start_transaction(timeout=30000)
+        remote_tx = start_transaction(timeout=30000, driver=self.remote_driver)
+
+        n_chunks = 2
+        create("table", "//tmp/t1", driver=self.remote_driver, tx=remote_tx)
+        create("table", "//tmp/t1", tx=local_tx)
+        create("table", "//tmp/t_out")
+        data1 = [{"a": 1}, {"a": 2}]
+        data2 = [{"a": 10}, {"a": 20}]
+        for _ in range(n_chunks):
+            write_table("<append=%true>//tmp/t1", data1, driver=self.remote_driver, tx=remote_tx)
+            write_table("<append=%true>//tmp/t1", data2, tx=local_tx)
+
+        op = map(
+            track=False,
+            in_=[
+                f"<transaction_id=\"{remote_tx}\";cluster=\"{self.REMOTE_CLUSTER_NAME}\">//tmp/t1",
+                f"<transaction_id=\"{local_tx}\">//tmp/t1",
+            ],
+            out="//tmp/t_out",
+            command=with_breakpoint("BREAKPOINT; cat"),
+            spec={
+                "mapper": {
+                    "enable_input_table_index": False,
+                },
+            },
+        )
+
+        wait_breakpoint()
+
+        if revive:
+            with Restarter(self.Env, [CONTROLLER_AGENTS_SERVICE]):
+                pass
+
+        release_breakpoint()
+        op.track()
+
+        assert sorted_dicts(read_table("//tmp/t_out")) == sorted_dicts((data1 + data2) * n_chunks)
+        assert not get("//tmp/t_out/@sorted")
+
+    @authors("coteeq")
     def test_disallow(self):
         create_user("user-not-allowed")
         with raises_yt_error("not allowed to start operations"):
@@ -632,6 +675,40 @@ class TestSchedulerRemoteOperationCommands(TestSchedulerRemoteOperationCommandsB
                 command="cat"
             )
 
+    @authors("coteeq")
+    def test_max_total_data_weight(self):
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        create("table", "//tmp/t2")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t1", [{"value": "x" * 10_000}], driver=self.remote_driver)
+        write_table("//tmp/t2", [{"value": "x" * 10_000}])
+
+        def try_run_map():
+            map(
+                in_=[
+                    self.to_remote_path("//tmp/t1"),
+                    "//tmp/t2",
+                ],
+                out="//tmp/t_out",
+                command="cat",
+                spec={
+                    "mapper": {
+                        "format": "json",
+                        "enable_input_table_index": False,
+                    },
+                },
+            )
+
+        try_run_map()
+
+        update_controller_agent_config("remote_operations/remote_0/max_total_data_weight", 1_000)
+        with raises_yt_error("Total estimated input data weight from cluster"):
+            try_run_map()
+
+        write_table("//tmp/t1", [{"value": "x" * 10}], driver=self.remote_driver)
+        try_run_map()
+
 
 @pytest.mark.enabled_multidaemon
 class TestSchedulerRemoteOperationAllowedForEveryoneCluster(TestSchedulerRemoteOperationCommandsBase):
@@ -644,9 +721,11 @@ class TestSchedulerRemoteOperationAllowedForEveryoneCluster(TestSchedulerRemoteO
                     "use_remote_master_caches": True,
                 },
             },
-            "disallow_remote_operations": {
-                "allowed_for_everyone_clusters": ["remote_0"],
-            }
+            "remote_operations": {
+                "remote_0": {
+                    "allowed_for_everyone": True,
+                },
+            },
         },
     }
 
@@ -695,10 +774,11 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
                     "use_remote_master_caches": True,
                 },
             },
-            "disallow_remote_operations": {
-                "allowed_users": ["root"],
-                "allowed_clusters": ["remote_0"],
-            }
+            "remote_operations": {
+                "remote_0": {
+                    "allowed_users": ["root"],
+                },
+            },
         },
     }
 

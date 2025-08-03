@@ -46,7 +46,7 @@ toDate(reinterpretAsInt64(reverse(unhex(substring(hex(payment_dt), 1, 8)))))
 
 **A:** First, make sure that your {{product-name}} account has a quota for the **ssd_blobs** medium. To do this, go to the account page, switch your medium type to **ssd_blobs**, and enter your account name. If you have no quota for the **ssd_blobs** medium, you can request it via a special form.
 
-After obtaining the quota for the **ssd_blobs** medium, you will need to change the value of the `primary_medium` attribute, and the data will be moved to the corresponding medium in the background. Learn more in the section on [storage](../../faq/faq.md).
+After obtaining the quota for the **ssd_blobs** medium, you will need to change the value of the `primary_medium` attribute, and the data will be moved to the corresponding medium in the background. Learn more in the section on [storage](../../faq/index.md).
 
 For static tables, you can force a move using the [Merge](../../user-guide/data-processing/operations/merge.md) operation:
 

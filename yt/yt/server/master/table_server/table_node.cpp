@@ -82,7 +82,7 @@ DEFINE_ENUM(ECompatChunkFormat,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TableServerLogger;
+constinit const auto Logger = TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -171,26 +171,16 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, IsVitalConsumer);
     Load(context, *MountConfigStorage);
     Load(context, HunkStorage);
-
-    // COMPAT(sabdenovch)
-    if (context.GetVersion() >= EMasterReign::SecondaryIndex) {
-        Load(context, SecondaryIndices);
-        Load(context, IndexTo);
-    }
+    Load(context, SecondaryIndices);
+    Load(context, IndexTo);
 
     // COMPAT(ponasenko-rs)
-    // DropLegacyClusterNodeMap is the start of 24.2 reigns.
-    if (context.GetVersion() >= EMasterReign::TabletSharedWriteLocks &&
-        context.GetVersion() < EMasterReign::RemoveEnableSharedWriteLocksFlag &&
-        (context.GetVersion() >= EMasterReign::DropLegacyClusterNodeMap || context.GetVersion() < EMasterReign::RemoveEnableSharedWriteLocksFlag_24_1))
-    {
+    if (context.GetVersion() < EMasterReign::RemoveEnableSharedWriteLocksFlag) {
         Load<bool>(context);
     }
 
     // COMPAT(apachee)
-    if ((context.GetVersion() >= EMasterReign::QueueProducers_24_1 && context.GetVersion() < EMasterReign::DropLegacyClusterNodeMap) ||
-        context.GetVersion() >= EMasterReign::QueueProducers)
-    {
+    if (context.GetVersion() >= EMasterReign::QueueProducers) {
         Load(context, TreatAsQueueProducer);
     }
 
@@ -273,12 +263,13 @@ const TTableNode* TTableNode::GetTrunkNode() const
 
 void TTableNode::ParseCommonUploadContext(const TCommonUploadContext& context)
 {
+    const auto& tableManager = context.Bootstrap->GetTableManager();
     if (IsDynamic()) {
         // NB: EndUpload may (and eventually will) stop sending schema info.
         auto contextMode = context.SchemaMode;
         auto* contextSchema = context.TableSchema;
         if ((contextMode && SchemaMode_ != contextMode) ||
-            (contextSchema && *GetSchema()->AsTableSchema() != *contextSchema->AsTableSchema()))
+            (contextSchema && *GetSchema()->AsCompactTableSchema() != *contextSchema->AsCompactTableSchema()))
         {
             YT_LOG_ALERT("Schema of a dynamic table changed during upload (TableId: %v, TransactionId: %v, "
                 "OriginalSchemaMode: %v, NewSchemaMode: %v, OriginalSchema: %v, NewSchema: %v)",
@@ -286,8 +277,8 @@ void TTableNode::ParseCommonUploadContext(const TCommonUploadContext& context)
                 GetTransaction()->GetId(),
                 SchemaMode_,
                 context.SchemaMode,
-                GetSchema()->AsTableSchema(),
-                context.TableSchema->AsTableSchema());
+                tableManager->GetHeavyTableSchemaSync(GetSchema()),
+                tableManager->GetHeavyTableSchemaSync(context.TableSchema));
         }
     }
 
@@ -296,7 +287,6 @@ void TTableNode::ParseCommonUploadContext(const TCommonUploadContext& context)
     }
 
     if (context.TableSchema) {
-        const auto& tableManager = context.Bootstrap->GetTableManager();
         tableManager->SetTableSchema(this, context.TableSchema);
     }
 }
@@ -336,12 +326,7 @@ TDetailedMasterMemory TTableNode::GetDetailedMasterMemoryUsage() const
 
 bool TTableNode::IsSorted() const
 {
-    return GetSchema()->AsTableSchema()->IsSorted();
-}
-
-bool TTableNode::IsUniqueKeys() const
-{
-    return GetSchema()->AsTableSchema()->IsUniqueKeys();
+    return GetSchema()->AsCompactTableSchema()->IsSorted();
 }
 
 TAccount* TTableNode::GetAccount() const
@@ -446,9 +431,7 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     }
 
     // COMPAT(apachee): Remove user attributes conflicting with new producer attributes.
-    // DropLegacyClusterNodeMap is the start of 24.2 reigns.
-    if (context.GetVersion() < EMasterReign::QueueProducers_24_1
-        || (context.GetVersion() >= EMasterReign::DropLegacyClusterNodeMap && context.GetVersion() < EMasterReign::QueueProducers)) {
+    if (context.GetVersion() < EMasterReign::QueueProducers) {
         if (Attributes_) {
             static constexpr std::array producerRelatedAttributes = {
                 EInternedAttributeKey::TreatAsQueueProducer,
@@ -756,8 +739,10 @@ void TTableNode::ValidateReshard(
             }
 
             // Validate pivot keys against table schema.
+            const auto& tableManager = bootstrap->GetTableManager();
+            auto heavySchema = tableManager->GetHeavyTableSchemaSync(GetSchema());
             for (const auto& pivotKey : pivotKeys) {
-                ValidatePivotKey(pivotKey, *GetSchema()->AsTableSchema());
+                ValidatePivotKey(pivotKey, *heavySchema);
             }
         }
 

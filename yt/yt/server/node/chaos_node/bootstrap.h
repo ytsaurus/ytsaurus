@@ -34,6 +34,9 @@ struct IBootstrap
 
     // Master connection stuff.
     virtual const NApi::NNative::IConnectionPtr& GetClusterConnection() const = 0;
+
+    // Chaos node stuff.
+    virtual TChaosNodeDynamicConfigPtr GetDynamicConfig() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBootstrap)

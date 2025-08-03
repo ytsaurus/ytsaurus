@@ -81,8 +81,7 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(1));
 
     registrar.Parameter("enable_portal_synchronization", &TThis::EnablePortalSynchronization)
-        .Default(true)
-        .DontSerializeDefault();
+        .Default(true);
 
     registrar.Parameter("allow_cross_shard_dynamic_table_copying", &TThis::AllowCrossShardDynamicTableCopying)
         .Default(true);
@@ -98,8 +97,10 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("virtual_map_read_offload_batch_size", &TThis::VirtualMapReadOffloadBatchSize)
         .Default()
-        .GreaterThanOrEqual(1)
-        .DontSerializeDefault();
+        .GreaterThanOrEqual(1);
+
+    registrar.Parameter("enable_virtual_map_read_offload_authenticated_user_propagation", &TThis::EnableVirtualMapReadOffloadAuthenticatedUserPropagation)
+        .Default(true);
 
     registrar.Parameter("cross_cell_copy_max_subtree_size", &TThis::CrossCellCopyMaxSubtreeSize)
         .Default(100'000)
@@ -115,8 +116,28 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
         .Default(true);
 
     // COMPAT(koloshmet)
+    registrar.Parameter("enable_cross_cell_links", &TThis::EnableCrossCellLinks)
+        .Default(false);
+
+    // COMPAT(koloshmet)
     registrar.Parameter("enable_preserve_acl_during_move", &TThis::EnablePreserveAclDuringMove)
         .Default(true);
+
+    registrar.Parameter("max_attribute_filter_size_to_log", &TThis::MaxAttributeFilterSizeToLog)
+        .Default(20)
+        .GreaterThan(0);
+
+    registrar.Parameter("use_proper_branched_parent_in_lock_copy_destination", &TThis::UseProperBranchedParentInLockCopyDestination)
+        .Default(true);
+
+    registrar.Parameter("alert_on_list_node_load", &TThis::AlertOnListNodeLoad)
+        .Default(true);
+
+    registrar.Parameter("default_optimize_for", &TThis::DefaultOptimizeFor)
+        .Default(NTableClient::EOptimizeFor::Lookup);
+
+    registrar.Parameter("default_dynamic_table_optimize_for", &TThis::DefaultDynamicTableOptimizeFor)
+        .Default(NTableClient::EOptimizeFor::Scan);
 
     registrar.Postprocessor([] (TThis* config) {
         NJournalClient::ValidateJournalAttributes(
@@ -130,7 +151,6 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
             config->DefaultHunkStorageReadQuorum,
             config->DefaultHunkStorageWriteQuorum);
     });
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////

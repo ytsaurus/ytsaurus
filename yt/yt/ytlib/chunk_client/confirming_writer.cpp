@@ -139,10 +139,12 @@ public:
     TFuture<void> Close(
         const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
-        const TDeferredChunkMetaPtr& chunkMeta) override
+        const TDeferredChunkMetaPtr& chunkMeta,
+        std::optional<int> truncateBlockCount) override
     {
         YT_VERIFY(Initialized_);
         YT_VERIFY(OpenFuture_.IsSet());
+        YT_VERIFY(!truncateBlockCount.has_value());
 
         ChunkMeta_ = chunkMeta;
 
@@ -343,7 +345,6 @@ private:
 
             FilterProtoExtensions(req->mutable_chunk_meta()->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
             req->set_request_statistics(true);
-            ToProto(req->mutable_legacy_replicas(), replicas);
 
             req->set_location_uuids_supported(true);
 

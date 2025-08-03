@@ -1,12 +1,18 @@
 #pragma once
 
 #include "fwd.h"
+#include "concepts.h"
 #include "raw_coder.h"
 #include "hash.h"
 #include "save_loadable_pointer_wrapper.h"
+#include "save_loadable_logicaltype_wrapper.h"
 
 #include "../coder.h"
 #include "../noncodable.h"
+
+#include <yt/yt/client/table_client/logical_type.h>  // ::NYT::NTableClient::TLogicalTypePtr
+
+#include <yt/yt/flow/lib/serializer/serializer.h>  // ::NYT::NFlow::TSerializer::GetSchema()
 
 #include <util/generic/buffer.h>
 #include <util/generic/string.h>
@@ -23,12 +29,12 @@ namespace NRoren::NPrivate {
 IRawCoderPtr CrashingCoderFactory();
 TRowVtable CrashingGetVtableFactory();
 
-////////////////////////////////////////////////////////////////////////////////
-
 struct TRowVtable
 {
 public:
     using TUniquePtr = std::unique_ptr<void, std::function<void(void*)>>;
+    using TConstructRefCountedFunction = ::NYT::TRefCounted* (*)(void*);
+    using TCastRefCountedFunction = ::NYT::TRefCounted* (*)(const void*);
     using TUniDataFunction = void (*)(void*);
     using TCopyDataFunction = void (*)(void*, const void*);
     using TMoveDataFunction = void (*)(void*, void*);
@@ -47,6 +53,8 @@ public:
     size_t TypeHash = 0xDEADBEEF;
     ssize_t DataSize = 0;
     TUniDataFunction DefaultConstructor = nullptr;
+    TConstructRefCountedFunction ConstructRefCountedObject = nullptr;
+    TCastRefCountedFunction GetRefCountedObject = nullptr;
     TUniDataFunction Destructor = nullptr;
     TCopyDataFunction CopyConstructor = nullptr;
     TMoveDataFunction MoveConstructor = nullptr;
@@ -66,6 +74,8 @@ public:
         TypeHash,
         DataSize,
         SaveLoadablePointer(DefaultConstructor),
+        SaveLoadablePointer(ConstructRefCountedObject),
+        SaveLoadablePointer(GetRefCountedObject),
         SaveLoadablePointer(Destructor),
         SaveLoadablePointer(CopyConstructor),
         SaveLoadablePointer(MoveConstructor),
@@ -117,6 +127,17 @@ TRowVtable MakeRowVtable()
         vtable.DefaultConstructor = [] (void* data) {
             new(data) T;
         };
+        if constexpr (CIntrusivePtr<T>) {
+            vtable.ConstructRefCountedObject = [] (void* data) -> ::NYT::TRefCounted* {
+                T* ptr = reinterpret_cast<T*>(data);
+                *ptr = ::NYT::New<TExtractTemplateArg<T>>();
+                return static_cast<::NYT::TRefCounted*>(ptr->Get());
+            };
+            vtable.GetRefCountedObject = [] (const void* data) -> ::NYT::TRefCounted* {
+                const T* ptr = reinterpret_cast<const T*>(data);
+                return static_cast<::NYT::TRefCounted*>(ptr->Get());
+            };
+        }
         vtable.CopyConstructor = [] (void* destination, const void* source) {
             new(destination) T(*reinterpret_cast<const T*>(source));
         };

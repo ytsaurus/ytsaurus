@@ -74,10 +74,11 @@ TInputStreamDirectory::TInputStreamDirectory(
     , DefaultDescriptor_(defaultDescriptor)
 {
     YT_VERIFY(DefaultDescriptor_.IsPrimary());
+    YT_VERIFY(Descriptors_.size() <= static_cast<size_t>(std::numeric_limits<int>::max()));
 
     for (const auto& [inputStreamIndex, descriptor] : Enumerate(Descriptors_)) {
         if (descriptor.GetTableIndex() && descriptor.GetRangeIndex()) {
-            auto [_, inserted] = TableAndRangeIndicesToInputStreamIndex_.insert({{*descriptor.GetTableIndex(), *descriptor.GetRangeIndex()}, inputStreamIndex});
+            auto [_, inserted] = TableAndRangeIndicesToInputStreamIndex_.insert({{*descriptor.GetTableIndex(), *descriptor.GetRangeIndex()}, static_cast<int>(inputStreamIndex)});
             YT_VERIFY(inserted);
         }
     }

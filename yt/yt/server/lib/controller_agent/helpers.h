@@ -76,7 +76,7 @@ void ValidateJobShellAccess(
     const NApi::NNative::IClientPtr& client,
     const std::string& user,
     const TString& jobShellName,
-    const std::vector<TString>& jobShellOwners);
+    const std::vector<std::string>& jobShellOwners);
 
 ////////////////////////////////////////////////////////////////////////////////
 

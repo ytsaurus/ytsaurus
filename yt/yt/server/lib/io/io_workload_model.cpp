@@ -306,12 +306,12 @@ public:
         YT_UNUSED_FUTURE(LatenciesMeasuringExecutor_->Stop());
     }
 
-    void RegisterRead(IIOEngine::TReadRequest request, EWorkloadCategory category, TDuration requestTime)
+    void RegisterRead(TReadRequest request, EWorkloadCategory category, TDuration requestTime)
     {
         Model_->RegisterRead(request.Size, category, requestTime);
     }
 
-    void RegisterWrite(IIOEngine::TWriteRequest request, EWorkloadCategory category, TDuration requestTime)
+    void RegisterWrite(TWriteRequest request, EWorkloadCategory category, TDuration requestTime)
     {
         Model_->RegisterWrite(GetByteSize(request.Buffers), category, requestTime);
     }
@@ -378,7 +378,7 @@ public:
         std::vector<TReadRequest> requests,
         EWorkloadCategory category,
         TRefCountedTypeCookie tagCookie,
-        TSessionId sessionId,
+        TIOSessionId sessionId,
         bool useDedicatedAllocations) override
     {
         NProfiling::TWallTimer requestTimer;
@@ -403,7 +403,7 @@ public:
     TFuture<TWriteResponse> Write(
         TWriteRequest request,
         EWorkloadCategory category,
-        TSessionId sessionId) override
+        TIOSessionId sessionId) override
     {
         NProfiling::TWallTimer requestTimer;
 
@@ -426,7 +426,7 @@ public:
     TFuture<TFlushFileRangeResponse> FlushFileRange(
         TFlushFileRangeRequest request,
         EWorkloadCategory category,
-        TSessionId sessionId) override
+        TIOSessionId sessionId) override
     {
         return Underlying_->FlushFileRange(std::move(request), category, sessionId);
     }

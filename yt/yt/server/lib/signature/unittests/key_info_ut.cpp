@@ -104,11 +104,11 @@ TEST(TKeyInfoTest, Verify)
     auto metaOk = SimpleMetadata(-10h, -10h, 10h);
     EXPECT_TRUE(IsKeyPairMetadataValid(metaOk));
 
-    std::array<std::byte, 10> randomData;
+    std::array<char, 10> randomData;
     std::generate(randomData.begin(), randomData.end(), TRandomByteGenerator());
 
     TPublicKey publicKey;
-    std::array<std::byte, SignatureSize> signature;
+    std::array<char, SignatureSize> signature;
 
     // Random key, random signature, valid meta.
     {
@@ -120,7 +120,7 @@ TEST(TKeyInfoTest, Verify)
         EXPECT_FALSE(keyInfo->Verify(randomData, signature));
     }
 
-    std::array<std::byte, PrivateKeySize> privateKey;
+    std::array<char, PrivateKeySize> privateKey;
     std::array<unsigned char, crypto_sign_ed25519_SEEDBYTES> seed{};
     randombytes_buf(seed.data(), seed.size());
     EXPECT_EQ(

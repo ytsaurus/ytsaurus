@@ -36,7 +36,7 @@ void ThrowNoSuchTransaction(TTransactionId transactionId)
     THROW_ERROR(CreateNoSuchTransactionError(transactionId));
 }
 
-TError CreatePrerequisiteCheckFailedNoSuchTransactionError(TTransactionId transactionId)
+static TError CreatePrerequisiteCheckFailedNoSuchTransactionError(TTransactionId transactionId)
 {
     return TError(
         NObjectClient::EErrorCode::PrerequisiteCheckFailed,

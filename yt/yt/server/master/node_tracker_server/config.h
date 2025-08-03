@@ -43,10 +43,9 @@ DEFINE_REFCOUNTED_TYPE(TNodeTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNodeGroupConfigBase
+struct TNodeGroupConfigBase
     : public NYTree::TYsonStruct
 {
-public:
     int MaxConcurrentNodeRegistrations;
 
     REGISTER_YSON_STRUCT(TNodeGroupConfigBase);
@@ -92,6 +91,7 @@ struct TDynamicNodeTrackerConfig
     THashMap<std::string, TNodeGroupConfigPtr> NodeGroups;
 
     TDuration TotalNodeStatisticsUpdatePeriod;
+    TDuration LocalStateToNodeCountUpdatePeriod;
 
     // COMPAT(aleksandra-zh).
     TDuration FullNodeStatesGossipPeriod;

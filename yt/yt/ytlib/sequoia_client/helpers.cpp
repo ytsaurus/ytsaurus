@@ -14,21 +14,56 @@ using namespace NYPath;
 
 TMangledSequoiaPath MangleSequoiaPath(NYPath::TYPathBuf path)
 {
-    YT_VERIFY(!path.empty());
-    YT_VERIFY(path == "/" || path.back() != '/');
-    return TMangledSequoiaPath(NYPath::TYPath(path) + "/");
+    TString mangledPath;
+    mangledPath.reserve(path.size());
+
+    TTokenizer tokenizer(path);
+    tokenizer.Advance();
+
+    tokenizer.Expect(ETokenType::Slash);
+    mangledPath += tokenizer.GetToken();
+    tokenizer.Advance();
+
+    for (; tokenizer.Skip(ETokenType::Slash); tokenizer.Advance()) {
+        tokenizer.Expect(ETokenType::Literal);
+        mangledPath += MangledPathSeparator;
+        mangledPath += tokenizer.GetLiteralValue();
+    }
+
+    tokenizer.Expect(ETokenType::EndOfStream);
+
+    mangledPath += MangledPathSeparator;
+
+    return TMangledSequoiaPath(std::move(mangledPath));
 }
 
 NYPath::TYPath DemangleSequoiaPath(const TMangledSequoiaPath& mangledPath)
 {
-    YT_VERIFY(!mangledPath.Underlying().empty());
-    YT_VERIFY(mangledPath.Underlying().back() == '/');
-    return mangledPath.Underlying().substr(0, mangledPath.Underlying().size() - 1);
-}
+    const auto& rawMangledPath = mangledPath.Underlying();
+    YT_VERIFY(rawMangledPath.StartsWith("/"));
+    YT_VERIFY(rawMangledPath.EndsWith(MangledPathSeparator));
 
-TMangledSequoiaPath MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(const TMangledSequoiaPath& prefix)
-{
-    return TMangledSequoiaPath(prefix.Underlying() + '\xFF');
+    constexpr int ExpectedSystemCharacterMaxCount = 5;
+
+    NYPath::TYPath path;
+    path.reserve(rawMangledPath.size() + ExpectedSystemCharacterMaxCount);
+
+    for (int from = 0, to = 0; to < ssize(rawMangledPath); ++to) {
+        if (rawMangledPath[to] != MangledPathSeparator) {
+            continue;
+        }
+
+        auto interval = TStringBuf(rawMangledPath, from, to - from);
+        if (from == 0) {
+            path += interval;
+        } else {
+            path += "/";
+            path += ToYPathLiteral(interval);
+        }
+        from = to + 1;
+    }
+
+    return path;
 }
 
 TString ToStringLiteral(TStringBuf key)
@@ -45,26 +80,46 @@ TString ToStringLiteral(TStringBuf key)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr TErrorCode RetriableSequoiaErrors[] = {
-    NTabletClient::EErrorCode::TransactionLockConflict,
-};
-
 bool IsRetriableSequoiaError(const TError& error)
 {
     if (error.IsOK()) {
         return false;
     }
 
-    return AnyOf(RetriableSequoiaErrors, [&] (auto errorCode) {
-        return error.FindMatching(errorCode);
-    });
+    if (error.FindMatching([] (const TError& error) {
+            return std::ranges::find(RetriableSequoiaErrorCodes, error.GetCode()) != std::end(RetriableSequoiaErrorCodes);
+        }))
+    {
+        return true;
+    }
+
+    return
+        error.FindMatching(NTransactionClient::EErrorCode::ParticipantFailedToPrepare) &&
+        !error.FindMatching(EErrorCode::TransactionActionFailedOnMasterCell);
 }
 
-bool IsRetriableSequoiaReplicasError(const TError& error)
+bool IsRetriableSequoiaReplicasError(
+    const TError& error,
+    const std::vector<TErrorCode>& /*retriableErrorCodes*/)
 {
-    // TODO(aleksandra-zh or someone else): use IsRetriableSequoiaError with a proper whitelist of errors,
-    // including Hydra ones.
-    return !error.IsOK();
+    if (error.IsOK()) {
+        return false;
+    }
+
+    return !error.FindMatching(EErrorCode::TransactionActionFailedOnMasterCell);
+}
+
+void ThrowOnSequoiaReplicasError(
+    const TError& error,
+    const std::vector<TErrorCode>& retriableErrorCodes)
+{
+    if (IsRetriableSequoiaReplicasError(error, retriableErrorCodes)) {
+        THROW_ERROR_EXCEPTION(
+            NRpc::EErrorCode::TransientFailure,
+            "Sequoia retriable error")
+            << std::move(error);
+    }
+    error.ThrowOnError();
 }
 
 bool IsMethodShouldBeHandledByMaster(const std::string& method)

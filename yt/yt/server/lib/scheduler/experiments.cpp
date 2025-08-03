@@ -26,6 +26,9 @@ void TExperimentEffectConfig::Register(TRegistrar registrar)
     registrar.Parameter("scheduler_spec_patch", &TThis::SchedulerSpecPatch)
         .Default();
 
+    registrar.Parameter("scheduler_options_patch", &TThis::SchedulerOptionsPatch)
+        .Default();
+
     registrar.Parameter("controller_user_job_spec_template_patch", &TThis::ControllerUserJobSpecTemplatePatch)
         .Default();
     registrar.Parameter("controller_user_job_spec_patch", &TThis::ControllerUserJobSpecPatch)
@@ -34,6 +37,9 @@ void TExperimentEffectConfig::Register(TRegistrar registrar)
     registrar.Parameter("controller_job_io_template_patch", &TThis::ControllerJobIOTemplatePatch)
         .Default();
     registrar.Parameter("controller_job_io_patch", &TThis::ControllerJobIOPatch)
+        .Default();
+
+    registrar.Parameter("controller_options_patch", &TThis::ControllerOptionsPatch)
         .Default();
 
     registrar.Parameter("controller_agent_tag", &TThis::ControllerAgentTag)

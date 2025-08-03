@@ -65,7 +65,7 @@ private:
 
     void GuardedUpdateBuiltinPoolAttribute(
         NYTree::TInternedAttributeKey key,
-        const std::function<void(const NScheduler::TPoolConfigPtr&, const TString&)>& update);
+        const std::function<void(const NScheduler::TPoolConfigPtr&, const std::string&)>& update);
 
     void ValidateNoAliasClash(
         const NYTree::TYsonStructPtr& config,

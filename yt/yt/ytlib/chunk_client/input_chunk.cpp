@@ -40,7 +40,7 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
     , MaxClipTimestamp_(chunkSpec.max_clip_timestamp())
     , StripedErasure_(chunkSpec.striped_erasure())
 {
-    SetReplicaList(GetReplicasFromChunkSpec(chunkSpec));
+    SetReplicas(GetReplicasFromChunkSpec(chunkSpec));
 
     const auto& chunkMeta = chunkSpec.chunk_meta();
     if (auto miscExt = FindProtoExtension<NProto::TMiscExt>(chunkMeta.extensions())) {
@@ -82,34 +82,44 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
     }
 }
 
-TChunkReplicaWithMediumList TInputChunkBase::GetReplicaList() const
+TChunkReplicaList TInputChunkBase::GetReplicas() const
 {
-    TChunkReplicaWithMediumList replicas;
-
-    replicas.reserve(MaxInputChunkReplicaCount);
-    for (auto replica : Replicas_) {
+    TChunkReplicaList replicas;
+    for (auto replica : RawReplicas_) {
         if (replica.GetNodeId() != InvalidNodeId) {
-            replicas.push_back(TChunkReplicaWithMedium(replica));
+            replicas.push_back(replica);
         }
     }
     return replicas;
 }
 
-void TInputChunkBase::SetReplicaList(const TChunkReplicaWithMediumList& replicas)
+void TInputChunkBase::SetReplicas(const TChunkReplicaList& replicas)
 {
-    Replicas_.fill(TChunkReplica());
+    RawReplicas_.fill(TChunkReplica());
     for (int index = 0; index < std::ssize(replicas); ++index) {
         auto replica = replicas[index];
         if (ErasureCodec_ == NErasure::ECodec::None) {
             if (index < MaxInputChunkReplicaCount) {
-                Replicas_[index] = replica;
+                RawReplicas_[index] = replica;
             }
         } else {
             int erasureIndex = replica.GetReplicaIndex();
             YT_VERIFY(erasureIndex < MaxInputChunkReplicaCount);
-            Replicas_[erasureIndex] = replica;
+            RawReplicas_[erasureIndex] = replica;
         }
     }
+}
+
+TChunkId TInputChunkBase::EncodeReplica(TNodeId nodeId) const
+{
+    auto replicaIt = std::find_if(
+        RawReplicas_.begin(),
+        RawReplicas_.end(),
+        [=] (TChunkReplica replica) { return replica.GetNodeId() == nodeId; });
+    YT_VERIFY(replicaIt != RawReplicas_.end());
+    return NChunkClient::EncodeChunkId(TChunkIdWithIndex(
+        GetChunkId(),
+        replicaIt->GetReplicaIndex()));
 }
 
 bool TInputChunkBase::IsDynamicStore() const
@@ -137,11 +147,33 @@ bool TInputChunkBase::IsHunk() const
     return ChunkFormat_ == EChunkFormat::HunkDefault;
 }
 
+bool TInputChunkBase::RowCountIsMeaningless() const
+{
+    // NB: Hunk and file chunks have no rows (well, they do not hold tabular data),
+    // but their size statistics (data weight, (un)compressed data size)
+    // are still accurate. So we do not want to apply selectivity factors, which
+    // will inevitably yield poor results because of zero row count.
+    return IsHunk() || IsFile();
+}
+
+bool TInputChunkBase::IsUnavailable(EChunkAvailabilityPolicy policy) const
+{
+    if (IsDynamicStore()) {
+        // It is up to the reader to locate the dynamic store.
+        return false;
+    }
+
+    return NChunkClient::IsUnavailable(
+        GetReplicas(),
+        GetErasureCodec(),
+        policy);
+}
+
 // Intentionally used.
 void TInputChunkBase::CheckOffsets()
 {
     static_assert(offsetof(TInputChunkBase, ChunkId_) == 0, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, Replicas_) == 16, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, RawReplicas_) == 16, "invalid offset");
     static_assert(offsetof(TInputChunkBase, TableIndex_) == 80, "invalid offset");
     static_assert(offsetof(TInputChunkBase, ErasureCodec_) == 84, "invalid offset");
     static_assert(offsetof(TInputChunkBase, TableRowIndex_) == 88, "invalid offset");
@@ -213,6 +245,13 @@ TInputChunk::TInputChunk(const NProto::TChunkSpec& chunkSpec, std::optional<int>
             BoundaryKeys_->MaxKey = GetKeyPrefix(BoundaryKeys_->MaxKey, *keyColumnCount);
         }
     }
+
+    const auto& chunkMeta = chunkSpec.chunk_meta();
+    if (auto miscExt = FindProtoExtension<NProto::TMiscExt>(chunkMeta.extensions())) {
+        if (miscExt->has_compression_dictionary_id()) {
+            CompressionDictionaryId_ = FromProto<TChunkId>(miscExt->compression_dictionary_id());
+        }
+    }
 }
 
 void TInputChunk::RegisterMetadata(auto&& registrar)
@@ -240,6 +279,7 @@ void TInputChunk::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(8, HunkChunkRefsExt_,
         .SinceVersion(static_cast<int>(ESnapshotVersion::RemoteCopyDynamicTableWithHunks))
         .template Serializer<TUniquePtrSerializer<>>());
+    PHOENIX_REGISTER_FIELD(9, CompressionDictionaryId_);
 }
 
 size_t TInputChunk::SpaceUsed() const
@@ -314,10 +354,8 @@ double TInputChunk::GetDataWeightSelectivityFactor() const
 
 i64 TInputChunk::GetDataWeight() const
 {
-    if (IsFile()) {
-        // NB(coteeq): Files do not have rows, but they are somewhat equivalent to one giant string,
-        //             so let's define file's data weight as its uncompressed size.
-        return TotalUncompressedDataSize_;
+    if (RowCountIsMeaningless()) {
+        return TotalDataWeight_;
     }
 
     return std::max<i64>(
@@ -327,7 +365,7 @@ i64 TInputChunk::GetDataWeight() const
 
 i64 TInputChunk::GetUncompressedDataSize() const
 {
-    if (IsFile()) {
+    if (RowCountIsMeaningless()) {
         return TotalUncompressedDataSize_;
     }
     return ApplySelectivityFactors(TotalUncompressedDataSize_, /*applyReadSizeSelectivityFactors*/ true);
@@ -335,7 +373,7 @@ i64 TInputChunk::GetUncompressedDataSize() const
 
 i64 TInputChunk::GetCompressedDataSize() const
 {
-    if (IsFile()) {
+    if (RowCountIsMeaningless()) {
         return CompressedDataSize_;
     }
     return ApplySelectivityFactors(CompressedDataSize_, /*applyReadSizeSelectivityFactors*/ true);
@@ -371,9 +409,8 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk)
 {
     SetObjectId(chunkSpec, inputChunk->GetChunkId());
 
-    auto replicas = inputChunk->GetReplicaList();
-    ToProto(chunkSpec->mutable_legacy_replicas(), TChunkReplicaWithMedium::ToChunkReplicas(replicas));
-    ToProto(chunkSpec->mutable_replicas(), replicas);
+    auto replicas = inputChunk->GetReplicas();
+    ToProto(chunkSpec->mutable_replicas(), TChunkReplicaWithMediumList(replicas.begin(), replicas.end()));
 
     if (inputChunk->TableIndex_ >= 0) {
         chunkSpec->set_table_index(inputChunk->TableIndex_);
@@ -441,9 +478,9 @@ void FormatValue(TStringBuilderBase* builder, const TInputChunkPtr& inputChunk, 
         "{ChunkId: %v, Replicas: %v, TableIndex: %v, ErasureCodec: %v, StripedErasure: %v, TableRowIndex: %v, "
         "RangeIndex: %v, ChunkIndex: %v, TabletIndex: %v, ChunkFormat: %v, UncompressedDataSize: %v, RowCount: %v, "
         "CompressedDataSize: %v, DataWeight: %v, MaxBlockSize: %v, LowerLimit: %v, UpperLimit: %v, "
-        "BoundaryKeys: {%v}, PartitionsExt: {%v}, HunkChunkRefsExt: {%v}}",
+        "BoundaryKeys: {%v}, PartitionsExt: {%v}, HunkChunkRefsExt: {%v}%v}",
         inputChunk->GetChunkId(),
-        inputChunk->GetReplicaList(),
+        inputChunk->GetReplicas(),
         inputChunk->GetTableIndex(),
         inputChunk->GetErasureCodec(),
         inputChunk->GetStripedErasure(),
@@ -461,39 +498,13 @@ void FormatValue(TStringBuilderBase* builder, const TInputChunkPtr& inputChunk, 
         inputChunk->UpperLimit() ? std::make_optional(*inputChunk->UpperLimit()) : std::nullopt,
         inputChunk->BoundaryKeys() ? boundaryKeys : "",
         inputChunk->PartitionsExt() ? inputChunk->PartitionsExt()->ShortDebugString() : "",
-        inputChunk->HunkChunkRefsExt() ? inputChunk->HunkChunkRefsExt()->ShortDebugString() : "");
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool IsUnavailable(const TInputChunkPtr& inputChunk, EChunkAvailabilityPolicy policy)
-{
-    if (inputChunk->IsDynamicStore()) {
-        // It is up to the reader to locate the dynamic store.
-        return false;
-    }
-
-    return IsUnavailable(
-        inputChunk->GetReplicaList(),
-        inputChunk->GetErasureCodec(),
-        policy);
-}
-
-TChunkId EncodeChunkId(const TInputChunkPtr& inputChunk, TNodeId nodeId)
-{
-    auto replicaIt = std::find_if(
-        inputChunk->Replicas().begin(),
-        inputChunk->Replicas().end(),
-        [=] (TChunkReplica replica) {
-            return static_cast<TNodeId>(replica.GetNodeId()) == nodeId;
-        });
-    YT_VERIFY(replicaIt != inputChunk->Replicas().end());
-
-    TChunkIdWithIndexes chunkIdWithIndexes(
-        inputChunk->GetChunkId(),
-        replicaIt->GetReplicaIndex(),
-        0 /*mediumIndex*/);
-    return EncodeChunkId(chunkIdWithIndexes);
+        inputChunk->HunkChunkRefsExt() ? inputChunk->HunkChunkRefsExt()->ShortDebugString() : "",
+        MakeFormatterWrapper([&] (auto* builder) {
+            if (inputChunk->CompressionDictionaryId()) {
+                builder->AppendFormat(", CompressionDictionaryId: %v",
+                    inputChunk->CompressionDictionaryId());
+            }
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

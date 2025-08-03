@@ -10,11 +10,12 @@
 #include <yt/yt/server/master/chunk_server/chunk_owner_data_statistics.h>
 
 #include <yt/yt/server/master/object_server/public.h>
-#include <yt/yt/server/master/object_server/permission_validator.h>
 
 #include <yt/yt/server/master/security_server/public.h>
 
 #include <yt/yt/server/master/transaction_server/public.h>
+
+#include <yt/yt/server/lib/object_server/permission_validator.h>
 
 #include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
 
@@ -28,7 +29,7 @@ namespace NYT::NCypressServer {
 class TNontemplateCypressNodeProxyBase
     : public virtual NYTree::TNodeBase
     , public NObjectServer::TObjectProxyBase
-    , public NObjectServer::THierarchicPermissionValidator<TCypressNode>
+    , public NObjectServer::THierarchicPermissionValidator<TCypressNode*, NObjectServer::TObject*>
     , public ICypressNodeProxy
 {
 public:
@@ -138,6 +139,11 @@ protected:
         TRspGet* response,
         const TCtxGetPtr& context) override;
 
+    void RemoveSelf(
+        TReqRemove* request,
+        TRspRemove* response,
+        const TCtxRemovePtr& context) override;
+
     void DoRemoveSelf(bool recursive, bool force) override;
 
     // Suppress access handling in the cases below.
@@ -196,8 +202,8 @@ protected:
 
     ICypressNodeProxyPtr GetProxy(TCypressNode* trunkNode) const;
 
-    TCompactVector<TCypressNode*, 1> ListDescendantsForPermissionValidation(TCypressNode* node) override;
-    TCypressNode* GetParentForPermissionValidation(TCypressNode* node) override;
+    TCompactVector<NObjectServer::TObject*, 1> ListDescendantsForPermissionValidation(TCypressNode* node) override;
+    NObjectServer::TObject* GetParentForPermissionValidation(TCypressNode* node) override;
 
     void SetReachableSubtreeNodes(TCypressNode* node);
     void SetUnreachableSubtreeNodes(TCypressNode* node);
@@ -209,7 +215,7 @@ protected:
         const std::string& user = {}) override;
 
     // Inject other overloads into the scope.
-    using THierarchicPermissionValidator<TCypressNode>::ValidatePermission;
+    using THierarchicPermissionValidator::ValidatePermission;
     using TObjectProxyBase::ValidatePermission;
 
     void ValidateNotExternal();
@@ -447,7 +453,10 @@ END_DEFINE_SCALAR_TYPE(Boolean, bool)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCypressMapNodeProxy
-    : public TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TCypressMapNode>
+    : public TCypressNodeProxyBase<
+        TNontemplateCompositeCypressNodeProxyBase,
+        NYTree::IMapNode,
+        TCypressMapNode>
     , public NYTree::TMapNodeMixin
     , public TSupportsForcefulSetSelfMixin
 {
@@ -473,7 +482,10 @@ protected:
     bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
 
 private:
-    using TBase = TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TCypressMapNode>;
+    using TBase = TCypressNodeProxyBase<
+        TNontemplateCompositeCypressNodeProxyBase,
+        NYTree::IMapNode,
+        TCypressMapNode>;
 
     bool DoInvoke(const NYTree::IYPathServiceContextPtr& context) override;
 
@@ -544,12 +556,18 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TListNodeProxy
-    : public TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IListNode, TListNode>
+    : public TCypressNodeProxyBase<
+        TNontemplateCompositeCypressNodeProxyBase,
+        NYTree::IListNode,
+        TListNode>
     , public NYTree::TListNodeMixin
     , public TSupportsForcefulSetSelfMixin
 {
 private:
-    using TBase = TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IListNode, TListNode>;
+    using TBase = TCypressNodeProxyBase<
+        TNontemplateCompositeCypressNodeProxyBase,
+        NYTree::IListNode,
+        TListNode>;
 
 public:
     YTREE_NODE_TYPE_OVERRIDES(List)

@@ -38,6 +38,8 @@ DEFINE_REFCOUNTED_TYPE(IObjectStore)
 struct IObjectController
     : public TRefCounted
 {
+    virtual void Stop() = 0;
+
     virtual void OnDynamicConfigChanged(
         const TQueueControllerDynamicConfigPtr& oldConfig,
         const TQueueControllerDynamicConfigPtr& newConfig) = 0;

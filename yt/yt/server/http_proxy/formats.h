@@ -4,28 +4,30 @@
 
 #include <yt/yt/library/formats/format.h>
 
+#include <yt/yt/server/lib/misc/public.h>
+
 namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 NFormats::TFormat InferFormat(
     const NServer::TFormatManager& formatManager,
-    const TString& ytHeaderName,
+    const std::string& ytHeaderName,
     const NFormats::TFormat& ytHeaderFormat,
-    const std::optional<TString>& ytHeader,
-    const TString& mimeHeaderName,
-    const TString* mimeHeader,
+    const std::optional<std::string>& ytHeader,
+    const std::string& mimeHeaderName,
+    const std::string* mimeHeader,
     bool isOutput,
     NFormats::EDataType dataType);
 
 NFormats::TFormat InferHeaderFormat(
     const NServer::TFormatManager& formatManager,
-    const TString* ytHeader);
+    const std::string* ytHeader);
 
 TString FormatToMime(const NFormats::TFormat& format);
 
 NYTree::INodePtr ConvertBytesToNode(
-    const TString& bytes,
+    TStringBuf bytes,
     const NFormats::TFormat& format);
 
 std::optional<TString> GetBestAcceptedType(

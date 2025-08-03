@@ -113,28 +113,28 @@ private:
             return TvmId_;
         }
 
-        TString GetServiceTicket(const TString& serviceAlias) override
+        std::string GetServiceTicket(const std::string& serviceAlias) override
         {
             return Format("ticket:%v:%v", serviceAlias, TvmId_);
         }
 
-        TString GetServiceTicket(TTvmId /*serviceId*/) override
+        std::string GetServiceTicket(TTvmId /*serviceId*/) override
         {
             THROW_ERROR_EXCEPTION("Not implemented");
         }
 
-        TParsedTicket ParseUserTicket(const TString& /*ticket*/) override
+        TParsedTicket ParseUserTicket(const std::string& /*ticket*/) override
         {
             THROW_ERROR_EXCEPTION("Not implemented");
         }
 
-        TParsedServiceTicket ParseServiceTicket(const TString& /*ticket*/) override
+        TParsedServiceTicket ParseServiceTicket(const std::string& /*ticket*/) override
         {
             THROW_ERROR_EXCEPTION("Not implemented");
         }
 
     private:
-        TTvmId TvmId_;
+       const TTvmId TvmId_;
     };
 
     TMockHttpServer MockHttpServer_;

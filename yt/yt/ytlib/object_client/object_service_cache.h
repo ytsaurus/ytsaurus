@@ -17,15 +17,17 @@ namespace NYT::NObjectClient {
 
 struct TObjectServiceCacheKey
 {
-    TCellTag CellTag;
+    TCellTag CellTag = InvalidCellTag;
     std::string User;
     NYPath::TYPath Path;
     TString Service;
     TString Method;
     TSharedRef RequestBody;
     size_t RequestBodyHash;
-    bool SuppressUpstreamSync;
-    bool SuppressTransactionCoordinatorSync;
+    bool SuppressUpstreamSync = false;
+    bool SuppressTransactionCoordinatorSync = false;
+
+    TObjectServiceCacheKey() = default;
 
     TObjectServiceCacheKey(
         TCellTag cellTag,
@@ -112,11 +114,19 @@ public:
         : public TUnderlyingCookie
     {
     public:
+        TCookie() = default;
         TCookie(TUnderlyingCookie&& underlyingCookie, TObjectServiceCacheEntryPtr expiredEntry);
+
+        TCookie(TCookie&& other);
+        TCookie(const TCookie& other) = delete;
+
+        TCookie& operator=(TCookie&& other);
+        TCookie& operator=(const TCookie& other) = delete;
+
         const TObjectServiceCacheEntryPtr& ExpiredEntry() const;
 
     private:
-        const TObjectServiceCacheEntryPtr ExpiredEntry_;
+        TObjectServiceCacheEntryPtr ExpiredEntry_;
     };
 
     TObjectServiceCache(

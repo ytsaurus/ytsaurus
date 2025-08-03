@@ -221,8 +221,10 @@ std::vector<TSharedRef> EncodeErasureJournalRow(
 
 std::vector<TSharedRef> DecodeErasureJournalRows(
     NErasure::ICodec* codec,
-    const std::vector<std::vector<TSharedRef>>& encodedRowLists)
+    const std::vector<std::vector<TSharedRef>>& encodedRowLists,
+    const NLogging::TLogger& logger)
 {
+    auto Logger = logger;
     int dataPartCount = codec->GetDataPartCount();
 
     YT_VERIFY(dataPartCount == std::ssize(encodedRowLists));
@@ -246,7 +248,10 @@ std::vector<TSharedRef> DecodeErasureJournalRows(
 
     for (i64 rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
         const auto* header = reinterpret_cast<const TErasureRowHeader*>(encodedRowLists[0][rowIndex].Begin());
-        YT_VERIFY(header->PaddingSize >= 0);
+        YT_LOG_FATAL_UNLESS(
+            header->PaddingSize >= 0,
+            "Journal decoding failed");
+
         i64 bytesRemaining =
             std::ssize(encodedRowLists[0][rowIndex]) * dataPartCount -
             header->PaddingSize -

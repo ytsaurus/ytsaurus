@@ -22,6 +22,9 @@ add_executable(tablet-balancer-dry-mode)
 target_compile_options(tablet-balancer-dry-mode PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(tablet-balancer-dry-mode PUBLIC

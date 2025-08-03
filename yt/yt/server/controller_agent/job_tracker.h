@@ -80,10 +80,11 @@ private:
 
     EOperationControllerQueue JobEventsControllerQueue_;
 
-    NProfiling::TCounter HeartbeatStatisticsBytes_;
-    NProfiling::TCounter HeartbeatDataStatisticsBytes_;
-    NProfiling::TCounter HeartbeatJobResultBytes_;
     NProfiling::TCounter HeartbeatProtoMessageBytes_;
+    NProfiling::TCounter HeartbeatDataStatisticsBytes_;
+    // Array of size 2: [0] - unknown job, [1] - known job.
+    std::array<NProfiling::TCounter, 2> HeartbeatJobResultBytes_;
+    TEnumIndexedArray<EJobStage, std::array<NProfiling::TCounter, 2>> HeartbeatStatisticsBytes_;
     NProfiling::TGauge HeartbeatEnqueuedControllerEvents_;
     std::atomic<i64> EnqueuedControllerEventCount_ = 0;
     NProfiling::TCounter HeartbeatCount_;
@@ -268,6 +269,10 @@ private:
         int JobFailureRequestCount = 0;
         int ThrottledRunningJobEventCount = 0;
         int ThrottledOperationCount = 0;
+
+        // Array of size 2: [0] - unknown job, [1] - known job.
+        TEnumIndexedArray<EJobStage, std::array<i64, 2>> JobStatisticsMessageSizes;
+        std::array<i64, 2> JobResultMessageSizes;
     };
 
     IInvokerPtr GetInvoker() const;
@@ -285,11 +290,25 @@ private:
     void AccountEnqueuedControllerEvent(int delta);
     void ProfileHeartbeatProperties(const THeartbeatCounters& heartbeatCounters);
 
+    struct TJobEventSummary
+    {
+        std::unique_ptr<TJobSummary> JobSummary;
+        i64 ProtoJobResultMessageBytes = 0;
+        i64 ProtoStatisticsMessageBytes = 0;
+    };
+
+    struct TStoredJobInfo
+    {
+        TJobId JobId;
+        TOperationId OperationId;
+    };
+
     struct THeartbeatRequest
     {
-        THashMap<TOperationId, std::vector<std::unique_ptr<TJobSummary>>> GroupedJobSummaries;
+        THashMap<TOperationId, std::vector<TJobEventSummary>> GroupedJobSummaries;
         THashSet<TAllocationId> AllocationIdsRunningOnNode;
         std::vector<TJobId> UnconfirmedJobIds;
+        std::vector<TStoredJobInfo> StoredJobs;
     };
 
     struct THeartbeatProcessingContext

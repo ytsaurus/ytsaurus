@@ -1,9 +1,11 @@
 #include "sorted_chunk_store.h"
+
 #include "automaton.h"
+#include "config.h"
 #include "in_memory_manager.h"
+#include "serialize.h"
 #include "tablet.h"
 #include "transaction.h"
-#include "serialize.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -84,13 +86,6 @@ using namespace NQueryClient;
 
 using NYT::FromProto;
 using NYT::ToProto;
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool IsNewScanReaderEnabled(const TTableMountConfigPtr& mountConfig)
-{
-    return mountConfig->EnableNewScanReaderForLookup || mountConfig->EnableNewScanReaderForSelect;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -454,16 +449,18 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         return CreateEmptyVersionedReader();
     }
 
-    const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
-    bool enableNewScanReader = IsNewScanReaderEnabled(mountConfig);
-
     auto wrapReaderWithPerformanceCounting = [&] (IVersionedReaderPtr underlyingReader)
     {
+        // Do not account background activities in user read performance counters.
+        if (workloadCategory && IsSystemWorkloadCategory(*workloadCategory)) {
+            return underlyingReader;
+        }
+
         return CreateVersionedPerformanceCountingReader(
             underlyingReader,
             PerformanceCounters_,
             NTableClient::EDataSource::ChunkStore,
-            ERequestType::Read);
+            EPerformanceCountedRequestType::Read);
     };
 
     // Fast lane: check for in-memory reads.
@@ -476,8 +473,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
                     timestamp,
                     produceAllVersions,
                     columnFilter,
-                    chunkReadOptions,
-                    enableNewScanReader)));
+                    chunkReadOptions)));
     }
 
     // Another fast lane: check for backing store.
@@ -503,12 +499,12 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             chunkReadOptions.MemoryUsageTracker);
     }
 
-    auto chunkMeta = FindCachedVersionedChunkMeta(enableNewScanReader);
+    auto chunkMeta = FindCachedVersionedChunkMeta(/*prepareColumnMeta*/ true);
     if (!chunkMeta) {
         chunkMeta = WaitForFast(GetCachedVersionedChunkMeta(
             backendReaders.ChunkReader,
             chunkReadOptions,
-            enableNewScanReader))
+            /*prepareColumnMeta*/ true))
             .ValueOrThrow();
     }
 
@@ -527,7 +523,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 
     auto keyFilterStatistics = keyFilterUsed ? chunkReadOptions.KeyFilterStatistics : nullptr;
 
-    if (enableNewScanReader && chunkState->ChunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
+    if (chunkState->ChunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
         auto blockManagerFactory = NColumnarChunkFormat::CreateAsyncBlockWindowManagerFactory(
             std::move(backendReaders.ReaderConfig),
             std::move(backendReaders.ChunkReader),
@@ -578,14 +574,13 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
-    const TClientChunkReadOptions& chunkReadOptions,
-    bool enableNewScanReader) const
+    const TClientChunkReadOptions& chunkReadOptions) const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     const auto& chunkMeta = chunkState->ChunkMeta;
 
-    if (enableNewScanReader && chunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
+    if (chunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
         auto blockManagerFactory = NColumnarChunkFormat::CreateSyncBlockWindowManagerFactory(
             chunkState->BlockCache,
             chunkMeta,
@@ -723,7 +718,6 @@ private:
         std::optional<EWorkloadCategory> workloadCategory)
     {
         const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
-        bool enableNewScanReader = IsNewScanReaderEnabled(mountConfig);
 
         // Check for in-memory reads.
         if (auto chunkState = chunk->FindPreloadedChunkState()) {
@@ -735,8 +729,7 @@ private:
                     timestamp,
                     produceAllVersions,
                     columnFilter,
-                    chunkReadOptions,
-                    enableNewScanReader),
+                    chunkReadOptions),
                 chunkReadOptions);
             return VoidFuture;
         }
@@ -781,7 +774,7 @@ private:
             return VoidFuture;
         }
 
-        if (auto chunkMeta = chunk->FindCachedVersionedChunkMeta(enableNewScanReader)) {
+        if (auto chunkMeta = chunk->FindCachedVersionedChunkMeta(/*prepareColumnMeta*/ true)) {
             return OnGotChunkMeta(
                 chunk,
                 tabletSnapshot,
@@ -796,7 +789,7 @@ private:
             return chunk->GetCachedVersionedChunkMeta(
                 backendReaders.ChunkReader,
                 chunkReadOptions,
-                enableNewScanReader)
+                /*prepareColumnMeta*/ true)
                 .ApplyUnique(BIND([
                     =,
                     this,
@@ -948,8 +941,7 @@ private:
 
         auto chunkState = chunkStore->PrepareChunkState(chunkMeta);
 
-        if (IsNewScanReaderEnabled(mountConfig) &&
-            chunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar)
+        if (chunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar)
         {
             auto blockManagerFactory = NColumnarChunkFormat::CreateAsyncBlockWindowManagerFactory(
                 std::move(backendReaders.ReaderConfig),
@@ -1027,7 +1019,7 @@ private:
             std::move(underlyingReader),
             chunk->PerformanceCounters_,
             NTableClient::EDataSource::ChunkStore,
-            ERequestType::Lookup);
+            chunkReaderOptions.RequestType);
         UnderlyingReaderInitialized_.store(true);
     }
 };
@@ -1077,11 +1069,10 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
                     timestamp,
                     produceAllVersions,
                     columnFilter,
-                    chunkReadOptions,
-                    IsNewScanReaderEnabled(tabletSnapshot->Settings.MountConfig)),
+                    chunkReadOptions),
                 PerformanceCounters_,
                 NTableClient::EDataSource::ChunkStore,
-                ERequestType::Lookup);
+                chunkReadOptions.RequestType);
         }
 
         // Check for backing store.
@@ -1120,12 +1111,11 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
-    const TClientChunkReadOptions& chunkReadOptions,
-    bool enableNewScanReader) const
+    const TClientChunkReadOptions& chunkReadOptions) const
 {
     const auto& chunkMeta = chunkState->ChunkMeta;
 
-    if (enableNewScanReader && chunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
+    if (chunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
         auto blockManagerFactory = NColumnarChunkFormat::CreateSyncBlockWindowManagerFactory(
             chunkState->BlockCache,
             chunkMeta,

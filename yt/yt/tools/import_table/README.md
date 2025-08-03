@@ -4,6 +4,7 @@ This tool downloads all the chosen data from external storage and converts it in
 
 Supported data formats:
 - [parquet](https://parquet.apache.org/)
+- [orc](https://orc.apache.org/docs/)
 
 Supported external storages:
 - S3 storage

@@ -4,8 +4,8 @@ namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TString DefaultTabletCellBundleName("default");
-const TString SequoiaTabletCellBundleName("sequoia");
+const std::string DefaultTabletCellBundleName("default");
+const std::string SequoiaTabletCellBundleName("sequoia");
 
 const TTimeFormula DefaultTabletBalancerSchedule = MakeTimeFormula("minutes % 5 == 0");
 

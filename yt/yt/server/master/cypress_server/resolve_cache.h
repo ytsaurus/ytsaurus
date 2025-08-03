@@ -33,19 +33,31 @@ struct TResolveCacheNode
     {
         NYPath::TYPath TargetPath;
     };
+
     struct TPortalEntrancePayload
     {
         TNodeId PortalExitId;
     };
+
+    struct TRootstockPayload
+    {
+        NCypressClient::TNodeId RootstockNodeId;
+        NYTree::TYPath RootstockPath;
+        NCypressClient::TNodeId ScionNodeId;
+    };
+
     struct TMapPayload
     {
         THashMap<std::string, TResolveCacheNodePtr, THash<std::string_view>, TEqualTo<std::string_view>> KeyToChild;
     };
+
     using TPayload = std::variant<
         TLinkPayload,
         TPortalEntrancePayload,
+        TRootstockPayload,
         TMapPayload
     >;
+
     TPayload Payload;
 
     TResolveCacheNode(TCypressNode* node, const NYPath::TYPath& path, TPayload payload);
@@ -70,6 +82,7 @@ public:
         TNodeId RemoteNodeId;
         NYPath::TYPath UnresolvedPathSuffix;
     };
+
     std::optional<TResolveResult> TryResolve(const NYPath::TYPath& path);
 
     TResolveCacheNodePtr FindNode(TNodeId nodeId);

@@ -51,9 +51,9 @@ public:
         TSynchronizerBase::Stop();
     }
 
-    TFuture<void> Sync(bool immediately) override
+    TFuture<void> Sync(bool force) override
     {
-        return TSynchronizerBase::Sync(immediately);
+        return TSynchronizerBase::Sync(force);
     }
 
     DEFINE_SIGNAL_OVERRIDE(void(const TError&), Synchronized);

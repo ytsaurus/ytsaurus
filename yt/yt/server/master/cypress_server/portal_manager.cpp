@@ -51,7 +51,7 @@ using namespace NApi::NNative::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = CypressServerLogger;
+constinit const auto Logger = CypressServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -284,6 +284,17 @@ public:
         return ExitNodes_;
     }
 
+    int CountPortalsLeadingToCell(TCellTag cellTag) const override
+    {
+        int count = 0;
+        for (const auto& [_, node] : EntranceNodes_) {
+            if (node->GetExitCellTag() == cellTag) {
+                ++count;
+            }
+        }
+        return count;
+    }
+
     void ValidateNoNodesBehindRemovedMastersPortal(const THashSet<TCellTag>& removedMasterCellTags) const override
     {
         for (const auto& [_, node] : EntranceNodes_) {
@@ -423,9 +434,10 @@ private:
                     securityManager);
                 auto* owner = DeserializeOwner(portalExitInfo.owner());
 
-                struct TAnnotationInfo {
-                    TString Annotation;
-                    TString Path;
+                struct TAnnotationInfo
+                {
+                    std::string Annotation;
+                    TYPath Path;
                 };
                 std::optional<TAnnotationInfo> effectiveAnnotationInfo;
                 if (portalExitInfo.has_effective_annotation()) {
@@ -489,7 +501,7 @@ private:
             : std::nullopt;
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* account = securityManager->GetAccountOrThrow(accountId);
+        auto* account = securityManager->GetAccountOrThrow(accountId, /*activeLifeStageOnly*/ true);
 
         auto effectiveAcl = DeserializeAclOrAlert(
             ConvertToNode(TYsonString(request->effective_acl())),

@@ -50,14 +50,15 @@ void TQueryAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_query_pool_for_lookups", &TThis::UseQueryPoolForLookups)
         .Default(false);
 
-    registrar.Parameter("pull_rows_timeout_share", &TThis::PullRowsTimeoutShare)
-        .Default(0.9)
-        .GreaterThan(0.1)
-        .LessThanOrEqual(1.);
+    registrar.Parameter("use_query_pool_for_in_memory_lookups", &TThis::UseQueryPoolForInMemoryLookups)
+        .Default(false);
 
     registrar.Parameter("pull_rows_read_data_weight_limit", &TThis::PullRowsReadDataWeightLimit)
         .GreaterThan(0)
         .Default(8_GB);
+
+    registrar.Parameter("pull_rows_timeout_slack", &TThis::PullRowsTimeoutSlack)
+        .Default(TDuration::Seconds(6));
 
     registrar.Preprocessor([] (TThis* config) {
         config->FunctionImplCache->Capacity = 100;
@@ -90,6 +91,8 @@ void TQueryAgentDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("account_user_backend_out_traffic", &TThis::AccountUserBackendOutTraffic)
         .Optional();
     registrar.Parameter("use_query_pool_for_lookups", &TThis::UseQueryPoolForLookups)
+        .Optional();
+    registrar.Parameter("use_query_pool_for_in_memory_lookups", &TThis::UseQueryPoolForInMemoryLookups)
         .Optional();
 }
 

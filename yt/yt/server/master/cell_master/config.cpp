@@ -154,8 +154,7 @@ void TTestConfig::Register(TRegistrar registrar)
     registrar.Parameter("master_cell_directory_override", &TThis::MasterCellDirectoryOverride)
         .Default();
     registrar.Parameter("frozen_hive_edges", &TThis::FrozenHiveEdges)
-        .Default()
-        .DontSerializeDefault();
+        .Default();
     registrar.Parameter("discovered_masters_cell_tags", &TThis::DiscoveredMastersCellTags)
         .Default();
     registrar.Parameter("allow_master_cell_with_empty_role", &TThis::AllowMasterCellWithEmptyRole)
@@ -188,6 +187,9 @@ void TDynamicMulticellManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("remove_secondary_cell_default_roles", &TThis::RemoveSecondaryCellDefaultRoles)
         .Default(false);
+
+    registrar.Parameter("allow_master_cell_role_invariant_check", &TThis::AllowMasterCellRoleInvariantCheck)
+        .Default(true);
 
     registrar.Parameter("sync_hive_clocks_period", &TThis::SyncHiveClocksPeriod)
         .Default(TDuration::Seconds(10));
@@ -271,8 +273,6 @@ void TCellMasterBootstrapConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("object_service", &TThis::ObjectService)
         .DefaultNew();
-    registrar.Parameter("cell_manager", &TThis::CellManager)
-        .DefaultNew();
     registrar.Parameter("replicated_table_tracker", &TThis::ReplicatedTableTracker)
         .DefaultNew();
     registrar.Parameter("enable_timestamp_manager", &TThis::EnableTimestampManager)
@@ -351,11 +351,18 @@ void TDynamicCellMasterConfig::Register(TRegistrar registrar)
     registrar.Parameter("alert_update_period", &TThis::AlertUpdatePeriod)
         .Default(TDuration::Seconds(30));
 
+    registrar.Parameter("hive_profiling_period", &TThis::HiveProfilingPeriod)
+        .Default(DefaultHiveProfilingPeriod);
+
     registrar.Parameter("automaton_thread_bucket_weights", &TThis::AutomatonThreadBucketWeights)
         .Default();
 
     registrar.Parameter("expected_mutation_commit_duration", &TThis::ExpectedMutationCommitDuration)
         .Default(TDuration::Zero());
+
+    // COMPAT(koloshmet)
+    registrar.Parameter("create_lost_vital_chunks_sample_map", &TThis::CreateLostVitalChunksSampleMap)
+        .Default(true);
 
     registrar.Parameter("response_keeper", &TThis::ResponseKeeper)
         .DefaultNew();
@@ -399,8 +406,7 @@ void TDynamicClusterConfig::Register(TRegistrar registrar)
     registrar.Parameter("cell_manager", &TThis::CellManager)
         .DefaultNew();
     registrar.Parameter("table_manager", &TThis::TableManager)
-        .DefaultNew()
-        .DontSerializeDefault();
+        .DefaultNew();
     registrar.Parameter("tablet_manager", &TThis::TabletManager)
         .DefaultNew();
     registrar.Parameter("chaos_manager", &TThis::ChaosManager)

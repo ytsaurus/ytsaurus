@@ -18,6 +18,9 @@ add_library(yt-server-tools)
 target_compile_options(yt-server-tools PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(yt-server-tools PUBLIC
@@ -46,6 +49,9 @@ add_global_library_for(yt-server-tools.global
 target_compile_options(yt-server-tools.global PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_link_libraries(yt-server-tools.global PUBLIC

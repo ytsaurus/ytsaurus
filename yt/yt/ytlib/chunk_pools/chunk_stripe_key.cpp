@@ -2,6 +2,8 @@
 
 namespace NYT::NChunkPools {
 
+using namespace NControllerAgent;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TBoundaryKeys::RegisterMetadata(auto&& registrar)
@@ -24,10 +26,6 @@ PHOENIX_DEFINE_TYPE(TBoundaryKeys);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkStripeKey::TChunkStripeKey(int index)
-    : Key_(index)
-{ }
-
 TChunkStripeKey::TChunkStripeKey(TBoundaryKeys boundaryKeys)
     : Key_(boundaryKeys)
 { }
@@ -37,13 +35,8 @@ TChunkStripeKey::TChunkStripeKey(TOutputOrder::TEntry Entry)
 { }
 
 TChunkStripeKey::TChunkStripeKey()
-    : Key_(-1)
+    : Key_(TUninitialized{})
 { }
-
-bool TChunkStripeKey::IsIndex() const
-{
-    return std::holds_alternative<int>(Key_);
-}
 
 bool TChunkStripeKey::IsBoundaryKeys() const
 {
@@ -57,17 +50,7 @@ bool TChunkStripeKey::IsOutputOrderEntry() const
 
 TChunkStripeKey::operator bool() const
 {
-    return !(IsIndex() && AsIndex() == -1);
-}
-
-int& TChunkStripeKey::AsIndex()
-{
-    return std::get<int>(Key_);
-}
-
-int TChunkStripeKey::AsIndex() const
-{
-    return std::get<int>(Key_);
+    return !std::holds_alternative<TUninitialized>(Key_);
 }
 
 TBoundaryKeys& TChunkStripeKey::AsBoundaryKeys()
@@ -92,7 +75,29 @@ const TOutputOrder::TEntry& TChunkStripeKey::AsOutputOrderEntry() const
 
 void TChunkStripeKey::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, Key_);
+    // COMPAT(coteeq)
+    using TLegacyKeyType = std::variant<int, TBoundaryKeys, TOutputOrder::TEntry>;
+    registrar.template VirtualField<1>(
+        "LegacyKey_",
+        [] (TThis* this_, auto& context) {
+            auto legacyKey = Load<TLegacyKeyType>(context);
+            Visit(
+                legacyKey,
+                [&] (int index) {
+                    YT_VERIFY(index == 0 || index == -1);
+                    this_->Key_ = TUninitialized{};
+                },
+                [&] (TOutputOrder::TEntry entry) {
+                    this_->Key_ = entry;
+                },
+                [&] (TBoundaryKeys boundaryKeys) {
+                    this_->Key_ = boundaryKeys;
+                });
+        })
+        .BeforeVersion(ESnapshotVersion::ChunkStripeKeyNoIndex)();
+
+    PHOENIX_REGISTER_FIELD(2, Key_,
+        .SinceVersion(ESnapshotVersion::ChunkStripeKeyNoIndex));
 }
 
 bool TChunkStripeKey::operator ==(const TChunkStripeKey& other) const
@@ -106,8 +111,8 @@ PHOENIX_DEFINE_TYPE(TChunkStripeKey);
 
 void FormatValue(TStringBuilderBase* builder, const TChunkStripeKey& key, TStringBuf /*spec*/)
 {
-    if (key.IsIndex()) {
-        builder->AppendFormat("index@%v", key.AsIndex());
+    if (!key) {
+        builder->AppendString("uninitialized");
         return;
     }
     if (key.IsBoundaryKeys()) {

@@ -20,6 +20,9 @@ add_executable(unittester-yt-library-numeric)
 target_compile_options(unittester-yt-library-numeric PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
 target_include_directories(unittester-yt-library-numeric PRIVATE

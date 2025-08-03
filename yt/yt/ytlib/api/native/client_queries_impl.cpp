@@ -57,6 +57,20 @@ TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const 
         }
     }
 
+    for (const auto& sec : options.Secrets) {
+        const auto secret = rpcRequest->add_secrets();
+        secret->set_id(sec->Id);
+        if (!sec->Category.empty()) {
+            secret->set_category(sec->Category);
+        }
+        if (!sec->Subcategory.empty()) {
+            secret->set_subcategory(sec->Subcategory);
+        }
+        if (!sec->YPath.empty()) {
+            secret->set_ypath(sec->YPath);
+        }
+    }
+
     rpcRequest->set_engine(NProto::ConvertQueryEngineToProto(engine));
     rpcRequest->set_query(query);
 
@@ -174,7 +188,7 @@ TQuery TClient::DoGetQuery(TQueryId queryId, const TGetQueryOptions& options)
         ToProto(rpcRequest->mutable_attributes(), options.Attributes);
     }
     if (options.Timestamp) {
-        rpcRequest->set_timestamp(ToProto<ui64>(options.Timestamp));
+        rpcRequest->set_timestamp(ToProto(options.Timestamp));
     }
 
     auto rsp = WaitFor(req->Invoke()).ValueOrThrow();
@@ -296,8 +310,8 @@ TGetQueryTrackerInfoResult TClient::DoGetQueryTrackerInfo(const TGetQueryTracker
         .QueryTrackerStage = rpcResponse.query_tracker_stage(),
         .ClusterName = rpcResponse.cluster_name(),
         .SupportedFeatures = TYsonString(rpcResponse.supported_features()),
-        .AccessControlObjects = FromProto<std::vector<TString>>(rpcResponse.access_control_objects()),
-        .Clusters = FromProto<std::vector<TString>>(rpcResponse.clusters()),
+        .AccessControlObjects = FromProto<std::vector<std::string>>(rpcResponse.access_control_objects()),
+        .Clusters = FromProto<std::vector<std::string>>(rpcResponse.clusters()),
     };
 }
 

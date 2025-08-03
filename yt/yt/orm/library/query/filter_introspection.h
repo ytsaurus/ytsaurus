@@ -111,6 +111,9 @@ bool IntrospectQueryForFullScan(
     const std::string& firstKeyFieldName,
     const std::string& firstNonEvaluatedKeyFieldName);
 
+//! Check that expression is always evaluated to false.
+bool IntrospectFilterIsAlwaysFalse(const NQueryClient::NAst::TExpressionPtr filterExpression);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NOrm::NQuery

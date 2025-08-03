@@ -3,8 +3,11 @@
 #include "public.h"
 
 #include <yt/yt/core/ypath/public.h>
-#include <yt/yt/core/yson/public.h>
+
 #include <yt/yt/core/ytree/public.h>
+
+#include <yt/yt/core/yson/public.h>
+#include <yt/yt/core/yson/protobuf_interop_options.h>
 
 namespace NYT::NOrm::NAttributes {
 
@@ -18,7 +21,14 @@ const NYson::TProtobufMessageType* GetMessageTypeByYPath(
 NYTree::INodePtr ConvertProtobufToNode(
     const NYson::TProtobufMessageType* rootType,
     const NYPath::TYPath& path,
-    const TString& payload);
+    const TWireString& wireStringPayload,
+    const NYson::TProtobufParserOptions& options = {});
+
+NYTree::INodePtr ConvertProtobufToNode(
+    const NYson::TProtobufMessageType* rootType,
+    const NYPath::TYPath& path,
+    const TString& payload,
+    const NYson::TProtobufParserOptions& options = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

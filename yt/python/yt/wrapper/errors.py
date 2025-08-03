@@ -53,8 +53,6 @@ def create_response_error(underlying_error):
     sample_error = YtResponseError(underlying_error)
     if sample_error.is_request_queue_size_limit_exceeded():
         error = YtRequestQueueSizeLimitExceeded(underlying_error)
-    elif sample_error.is_sequoia_retriable_error():
-        error = YtSequoiaRetriableError(underlying_error)
     elif sample_error.is_master_disconnected():
         error = YtMasterDisconnectedError(underlying_error)
     elif sample_error.is_concurrent_operations_limit_reached():
@@ -299,11 +297,6 @@ class YtChunkNotPreloaded(YtResponseError):
 
 class YtNoInSyncReplicas(YtResponseError):
     """No in-sync replicas found"""
-    pass
-
-
-class YtSequoiaRetriableError(YtResponseError):
-    """Transient error in Sequoia request, usually caused by lock conflict"""
     pass
 
 

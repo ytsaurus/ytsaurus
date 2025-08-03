@@ -1,6 +1,7 @@
 #include "store_flusher.h"
 
 #include "bootstrap.h"
+#include "config.h"
 #include "public.h"
 #include "slot_manager.h"
 #include "store_detail.h"
@@ -71,7 +72,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletNodeLogger;
+constinit const auto Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,8 +80,8 @@ TFlushTaskInfo::TFlushTaskInfo(
     TGuid taskId,
     TTabletId tabletId,
     NHydra::TRevision mountRevision,
-    TString tablePath,
-    TString tabletCellBundle,
+    NYPath::TYPath tablePath,
+    std::string tabletCellBundle,
     TStoreId storeId)
     : TBackgroundActivityTaskInfoBase(
         taskId,

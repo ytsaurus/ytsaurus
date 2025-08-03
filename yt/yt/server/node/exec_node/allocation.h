@@ -1,6 +1,7 @@
 #pragma once
 
 #include "job.h"
+#include "helpers.h"
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
@@ -35,7 +36,7 @@ public:
         TAllocationId id,
         TOperationId operationId,
         const NClusterNode::TJobResources& resourceUsage,
-        std::optional<NScheduler::TAllocationAttributes> attributes,
+        NScheduler::TAllocationAttributes attributes,
         TControllerAgentDescriptor agentDescriptor,
         IBootstrap* bootstrap);
     ~TAllocation();
@@ -101,11 +102,9 @@ private:
 
     const NClusterNode::TJobResources InitialResourceDemand_;
 
-    // NB(arkady-e1ppa): "optional" is a COMPAT
-    // Remove when scheduler and nodes both are 24.2.
-    std::optional<NScheduler::TAllocationAttributes> Attributes_;
+    NScheduler::TAllocationAttributes Attributes_;
 
-    TControllerAgentDescriptor ControllerAgentDescriptor_;
+    TControllerAgentAffiliationInfo ControllerAgentInfo_;
     // TODO(pogorelov): Maybe strong ref?
     TWeakPtr<TControllerAgentConnectorPool::TControllerAgentConnector> ControllerAgentConnector_;
 
@@ -138,9 +137,7 @@ private:
 
     void TransferResourcesToJob();
 
-    void PrepareAllocationFromAttributes(const NScheduler::TAllocationAttributes& attributes);
-    void LegacyPrepareAllocationFromStartInfo(
-        TControllerAgentConnectorPool::TControllerAgentConnector::TJobStartInfo& jobInfo);
+    void PrepareAllocation();
 
     NYTree::IYPathServicePtr GetStaticOrchidService();
 
@@ -152,8 +149,8 @@ DEFINE_REFCOUNTED_TYPE(TAllocation)
 TAllocationPtr CreateAllocation(
     TAllocationId id,
     TOperationId operationId,
-    const NClusterNode::TJobResources& resourceUsage,
-    std::optional<NScheduler::TAllocationAttributes> attributes,
+    const NClusterNode::TJobResources& resourceDemand,
+    NScheduler::TAllocationAttributes attributes,
     TControllerAgentDescriptor agentDescriptor,
     IBootstrap* bootstrap);
 

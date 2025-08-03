@@ -1,7 +1,5 @@
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
-#include <yt/yt/core/misc/memory_usage_tracker.h>
-
 #include <yt/yt/core/test_framework/framework.h>
 
 namespace NYT {
@@ -79,7 +77,7 @@ public:
 
     TSharedRef Track(TSharedRef reference, bool keepExistingTracker) override
     {
-        return MemoryTracker_->Track(reference, Category_, keepExistingTracker);
+        return MemoryTracker_->Track(reference, Category_, /*poolTag*/ std::nullopt, keepExistingTracker);
     }
 
 private:
@@ -157,9 +155,29 @@ public:
         Underlying_->SetCategoryLimit(category, newLimit);
     }
 
-    void SetPoolWeight(const TPoolTag& poolTag, i64 newWeight) override
+    void SetPoolWeight(const TPoolTag& poolTag, std::optional<i64> newWeight) override
     {
         Underlying_->SetPoolWeight(poolTag, newWeight);
+    }
+
+    void SetPoolRatio(const TPoolTag& poolTag, std::optional<double> newRatio) override
+    {
+        Underlying_->SetPoolRatio(poolTag, newRatio);
+    }
+
+    i64 GetPoolUsed(const TPoolTag& poolTag) const override
+    {
+        return Underlying_->GetPoolUsed(poolTag);
+    }
+
+    i64 GetPoolLimit(const TPoolTag& poolTag) const override
+    {
+        return Underlying_->GetPoolLimit(poolTag);
+    }
+
+    bool IsPoolExceeded(const TPoolTag& poolTag) const override
+    {
+        return Underlying_->IsPoolExceeded(poolTag);
     }
 
     bool Acquire(EMemoryCategory category, i64 size, const std::optional<TPoolTag>& poolTag) override
@@ -223,17 +241,19 @@ public:
     TSharedRef Track(
         TSharedRef reference,
         EMemoryCategory category,
+        std::optional<TPoolTag> poolTag,
         bool keepHolder) override
     {
-        return Underlying_->Track(std::move(reference), category, keepHolder);
+        return Underlying_->Track(std::move(reference), category, std::move(poolTag), keepHolder);
     }
 
     TErrorOr<TSharedRef> TryTrack(
         TSharedRef reference,
         EMemoryCategory category,
+        std::optional<TPoolTag> poolTag,
         bool keepHolder) override
     {
-        return Underlying_->TryTrack(std::move(reference), category, keepHolder);
+        return Underlying_->TryTrack(std::move(reference), category, std::move(poolTag), keepHolder);
     }
 
 private:
@@ -257,6 +277,49 @@ TEST(TMemoryUsageTrackerHelpersTest, Tracker)
     EXPECT_TRUE(tracker->CheckMemoryUsage(category, 1));
     EXPECT_FALSE(tracker->IsEmpty());
     tracker->ClearTrackers();
+}
+
+TEST(TMemoryUsageTrackerTest, Pool)
+{
+    auto tracker = New<TTestNodeMemoryTracker>();
+    auto category = EMemoryCategory::BlockCache;
+
+    tracker->SetTotalLimit(10);
+    tracker->SetPoolWeight("some_pool", 0);
+    EXPECT_TRUE(tracker->IsExceeded(category, "some_pool"));
+    tracker->SetPoolRatio("some_pool", 0.5);
+    tracker->SetPoolWeight("some_pool", std::nullopt);
+    EXPECT_FALSE(tracker->IsExceeded(category, "some_pool"));
+    tracker->Acquire(category, 6, "some_pool");
+    EXPECT_TRUE(tracker->IsExceeded(category, "some_pool"));
+    EXPECT_TRUE(tracker->IsPoolExceeded("some_pool"));
+    tracker->ClearTrackers();
+}
+
+TEST(TMemoryUsageTrackerTest, Overflow)
+{
+    auto tracker = New<TTestNodeMemoryTracker>();
+
+    tracker->SetTotalLimit(std::numeric_limits<i64>::max());
+    tracker->SetPoolRatio("some_pool", 1);
+    auto limit = tracker->GetPoolLimit("some_pool");
+    EXPECT_EQ(limit, std::numeric_limits<i64>::max());
+    tracker->ClearTrackers();
+}
+
+TEST(TMemoryUsageTrackerTest, PoolRef)
+{
+    auto memoryTracker = New<TTestNodeMemoryTracker>();
+
+    {
+        auto reference = CreateReference(1);
+        EXPECT_TRUE(memoryTracker->IsEmpty());
+        reference = memoryTracker->WithCategory(EMemoryCategory::P2P, "some_pool")->Track(std::move(reference));
+        EXPECT_TRUE(memoryTracker->GetPoolUsed("some_pool") == 1);
+    }
+
+    EXPECT_TRUE(memoryTracker->IsEmpty());
+    memoryTracker->ClearTrackers();
 }
 
 TEST(TMemoryUsageTrackerTest, Register)

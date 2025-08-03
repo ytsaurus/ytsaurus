@@ -10,7 +10,7 @@ namespace NYT::NTabletNode {
 
 struct TErrorManagerContext
 {
-    std::optional<TString> TabletCellBundle;
+    std::optional<std::string> TabletCellBundle;
     std::optional<NYPath::TYPath> TablePath;
     NTableClient::TTableId TableId;
     NTabletClient::TTabletId TabletId;
@@ -31,7 +31,7 @@ struct IErrorManager
 {
     virtual void Start() = 0;
     virtual void Reconfigure(const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig) = 0;
-    virtual void HandleError(const TError& error, const TString& method) = 0;
+    virtual void HandleError(const TError& error, const std::string& method) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IErrorManager)

@@ -16,7 +16,7 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = QueryClientLogger;
+constinit const auto Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -356,6 +356,7 @@ static ui64 Estimate(ui64 cardinalityMinusOne, TRange<ui64> divisors)
 {
     ui64 estimate = 1;
     for (auto divisor : divisors) {
+        THROW_ERROR_EXCEPTION_IF(divisor == 0, "Division by zero");
         // Ceil division.
         // Use cardinalityMinusOne + divisor instead of cardinality + divisor - 1.
         estimate = SaturationArithmeticMultiply(
@@ -540,6 +541,7 @@ public:
                     if (IsIntegralType(value.Type)) {
                         value.Id = columnId;
                         modulo = value;
+                        THROW_ERROR_EXCEPTION_IF(modulo.Data.Int64 == 0, "Division by zero");
                     }
                 }
             }
@@ -852,6 +854,19 @@ public:
             }
 
             do {
+                bool moduloColumnViolatesConstraints = false;
+                for (auto columnId : moduloColumnIds) {
+                    if (!TestValue(boundRow[columnId], constraintRow[columnId].Lower, constraintRow[columnId].Upper)) {
+                        moduloColumnViolatesConstraints = true;
+                        break;
+                    }
+                }
+
+                if (moduloColumnViolatesConstraints) {
+                    YT_LOG_DEBUG_IF(VerboseLogging_, "Skipping range (BoundRow: %kv)", boundRow);
+                    continue;
+                }
+
                 TRowRange rowRange;
                 if (prefixSize < keyColumnCount) {
                     // Included/excluded bounds are also considered inside TQuotientValueGenerator.
@@ -957,6 +972,8 @@ TSharedRange<TRowRange> CreateNewHeavyRangeInferrer(
             moduloExpansion *= GetEvaluatedColumnModulo(evaluator->GetExpression(index));
         }
     }
+
+    THROW_ERROR_EXCEPTION_IF(moduloExpansion == 0, "Division by zero");
 
     auto rangeCountLimit = options.RangeExpansionLimit / moduloExpansion + (options.RangeExpansionLimit % moduloExpansion > 0);
 

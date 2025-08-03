@@ -16,6 +16,7 @@ SRCS(
     api/native/bundle_controller_client_impl.cpp
     api/native/cell_commit_session.cpp
     api/native/chaos_helpers.cpp
+    api/native/chaos_lease_type_handler.cpp
     api/native/chaos_replicated_table_type_handler.cpp
     api/native/chaos_table_replica_type_handler.cpp
     api/native/client_admin_impl.cpp
@@ -199,6 +200,7 @@ SRCS(
     chunk_client/proto/chunk_slice.proto
     chunk_client/proto/chunk_writer_statistics.proto
     chunk_client/proto/data_node_service.proto
+    chunk_client/proto/data_node_nbd_service.proto
     chunk_client/proto/data_sink.proto
     chunk_client/proto/data_source.proto
     chunk_client/proto/heartbeat.proto
@@ -297,6 +299,8 @@ SRCS(
     job_proxy/helpers.cpp
     job_proxy/job_spec_helper.cpp
     job_proxy/private.cpp
+    job_proxy/profiling_reader.cpp
+    job_proxy/profiling_writer.cpp
     job_proxy/user_job_io_factory.cpp
     job_proxy/user_job_read_controller.cpp
 
@@ -376,7 +380,6 @@ SRCS(
     scheduler/helpers.cpp
     scheduler/job_resources_helpers.cpp
     scheduler/job_resources_with_quota.cpp
-    scheduler/public.cpp
     scheduler/scheduler_channel.cpp
 
     scheduler/proto/allocation.proto
@@ -397,11 +400,12 @@ SRCS(
 
     sequoia_client/client.cpp
     sequoia_client/helpers.cpp
-    sequoia_client/public.cpp
     sequoia_client/record_helpers.cpp
+    sequoia_client/sequoia_reign.cpp
     sequoia_client/table_descriptor.cpp
     sequoia_client/transaction.cpp
     sequoia_client/write_set.cpp
+    sequoia_client/ypath_detail.cpp
 
     sequoia_client/proto/transaction_client.proto
 
@@ -493,11 +497,13 @@ SRCS(
     table_client/versioned_row_merger.cpp
     table_client/virtual_value_directory.cpp
 
+    table_client/proto/table_partition_cookie.proto
     table_client/proto/table_ypath.proto
     table_client/proto/virtual_value_directory.proto
 
     tablet_client/backup.cpp
     tablet_client/config.cpp
+    tablet_client/bulk_insert_locking.cpp
     tablet_client/helpers.cpp
     tablet_client/native_table_mount_cache.cpp
     tablet_client/pivot_keys_builder.cpp
@@ -505,6 +511,7 @@ SRCS(
     tablet_client/public.cpp
 
     tablet_client/proto/backup.proto
+    tablet_client/proto/bulk_insert_locking.proto
     tablet_client/proto/heartbeat.proto
     tablet_client/proto/master_tablet_service.proto
     tablet_client/proto/table_replica_ypath.proto
@@ -689,6 +696,7 @@ GENERATE_YT_RECORD(
     OUTPUT_INCLUDES
         yt/yt/client/queue_client/public.h
         yt/yt/core/yson/string.h
+        yt/yt/ytlib/queue_client/config.h
 )
 
 GENERATE_YT_RECORD(
@@ -732,7 +740,7 @@ ADDINCL(
 PEERDIR(
     contrib/libs/re2
     contrib/libs/protobuf
-    contrib/libs/yajl
+    contrib/deprecated/yajl
     library/cpp/erasure
     library/cpp/iterator
     library/cpp/yt/backtrace/symbolizers/dwarf
@@ -752,6 +760,7 @@ PEERDIR(
     yt/yt/client
     yt/yt/client/logging
     yt/yt/library/formats
+    yt/yt/library/query/base
     yt/yt/library/query/engine_api
     yt/yt/library/query/row_comparer_api
     yt/yt/library/query/secondary_index

@@ -33,6 +33,8 @@ SRCS(
     api/sticky_transaction_pool.cpp
     api/options.cpp
     api/shuffle_client.cpp
+    api/table_partition_reader.cpp
+    api/private.cpp
 
     api/rpc_proxy/address_helpers.cpp
     api/rpc_proxy/public.cpp
@@ -49,6 +51,7 @@ SRCS(
     api/rpc_proxy/table_mount_cache.cpp
     api/rpc_proxy/table_reader.cpp
     api/rpc_proxy/table_writer.cpp
+    api/rpc_proxy/target_cluster_injecting_channel.cpp
     api/rpc_proxy/timestamp_provider.cpp
     api/rpc_proxy/transaction.cpp
     api/rpc_proxy/transaction_impl.cpp
@@ -131,7 +134,6 @@ SRCS(
     table_client/row_buffer.cpp
     table_client/schema.cpp
     table_client/schema_serialization_helpers.cpp
-    table_client/schemaless_buffered_dynamic_table_writer.cpp
     table_client/schemaless_dynamic_table_writer.cpp
     table_client/serialize.cpp
     table_client/table_upload_options.cpp
@@ -217,11 +219,13 @@ PEERDIR(
     yt/yt/core/https
     yt/yt/library/auth
     yt/yt/library/decimal
-    yt/yt/library/re2
     yt/yt/library/erasure
     yt/yt/library/numeric
     yt/yt/library/quantile_digest
+    yt/yt/library/re2
+    yt/yt/library/tz_types
     yt/yt_proto/yt/client
+    library/cpp/digest/crc32c
     library/cpp/json
     library/cpp/string_utils/base64
     contrib/libs/pfr
@@ -240,6 +244,7 @@ RECURSE(
 
 RECURSE_FOR_TESTS(
     api/unittests
+    query_client/unittests
     signature/unittests
     table_client/unittests
     unittests

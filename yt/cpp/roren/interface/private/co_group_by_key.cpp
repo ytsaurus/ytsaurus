@@ -32,7 +32,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawCoGroupByKeyPtr {
-            return ::MakeIntrusive<TRawCoGroupByKey>(std::vector<TDynamicTypeTag>{});
+            return NYT::New<TRawCoGroupByKey>(std::vector<TDynamicTypeTag>{});
         };
     }
 
@@ -46,7 +46,7 @@ private:
 
 IRawCoGroupByKeyPtr MakeRawCoGroupByKey(std::vector<TDynamicTypeTag> inputTags)
 {
-    return ::MakeIntrusive<TRawCoGroupByKey>(std::move(inputTags));
+    return NYT::New<TRawCoGroupByKey>(std::move(inputTags));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

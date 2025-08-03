@@ -2,6 +2,7 @@
 
 #include "type_handler_detail.h"
 #include "client_impl.h"
+#include "config.h"
 
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
 
@@ -40,6 +41,7 @@ public:
         if (options.Atomicity) {
             THROW_ERROR_EXCEPTION("Cannot alter \"atomicity\" for chaos replica");
         }
+
         if (options.PreserveTimestamps) {
             THROW_ERROR_EXCEPTION("Cannot alter \"preserve_timestamps\" for chaos replica");
         }
@@ -67,6 +69,11 @@ public:
 
         if (options.ReplicaPath) {
             req->set_replica_path(*options.ReplicaPath);
+        }
+        req->SetTimeout(options.Timeout.value_or(Client_->GetNativeConnection()->GetConfig()->DefaultChaosNodeServiceTimeout));
+
+        if (options.Force) {
+            req->set_force(true);
         }
 
         WaitFor(req->Invoke())
@@ -116,8 +123,8 @@ private:
         auto attributes = options.Attributes ? options.Attributes->Clone() : EmptyAttributes().Clone();
 
         auto replicationCardId = GetReplicationCardIdForNewReplica(attributes);
-        auto clusterName = attributes->Get<TString>("cluster_name");
-        auto replicaPath = attributes->Get<TString>("replica_path");
+        auto clusterName = attributes->Get<std::string>("cluster_name");
+        auto replicaPath = attributes->Get<TYPath>("replica_path");
         auto contentType = attributes->Get<ETableReplicaContentType>("content_type", ETableReplicaContentType::Data);
         auto mode = attributes->Get<ETableReplicaMode>("mode", ETableReplicaMode::Async);
         auto enabled = attributes->Get<bool>("enabled", false);
@@ -141,6 +148,7 @@ private:
         if (replicationProgress) {
             ToProto(req->mutable_replication_progress(), *replicationProgress);
         }
+        req->SetTimeout(options.Timeout.value_or(Client_->GetNativeConnection()->GetConfig()->DefaultChaosNodeServiceTimeout));
 
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
@@ -198,6 +206,7 @@ private:
         Client_->SetMutationId(req, options);
         ToProto(req->mutable_replication_card_id(), replicationCardId);
         ToProto(req->mutable_replica_id(), replicaId);
+        req->SetTimeout(options.Timeout.value_or(Client_->GetNativeConnection()->GetConfig()->DefaultChaosNodeServiceTimeout));
 
         WaitFor(req->Invoke())
             .ThrowOnError();

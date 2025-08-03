@@ -14,9 +14,9 @@ class TSignatureValidator
     : public ISignatureValidator
 {
 public:
-    explicit TSignatureValidator(TSignatureValidatorConfigPtr config, IKeyStoreReaderPtr keyReader);
+    TSignatureValidator(TSignatureValidatorConfigPtr config, IKeyStoreReaderPtr keyReader);
 
-    TFuture<bool> Validate(const TSignaturePtr& signature) override;
+    TFuture<bool> Validate(const TSignaturePtr& signature) const final;
 
 private:
     const TSignatureValidatorConfigPtr Config_;

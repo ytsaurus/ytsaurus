@@ -155,6 +155,7 @@ struct TOAuthAuthenticatorConfig
 {
     //! Creates a new user if it doesn't exist. User name is taken from the "Login" field.
     bool CreateUserIfNotExists;
+    std::vector<std::string> DefaultUserTags;
 
     REGISTER_YSON_STRUCT(TOAuthAuthenticatorConfig);
 
@@ -195,6 +196,15 @@ static const auto DefaultCsrfTokenTtl = TDuration::Days(7);
 struct TBlackboxCookieAuthenticatorConfig
     : public virtual NYTree::TYsonStruct
 {
+    // If set to true, sessguard cookie is checked.
+    bool EnableSessguard;
+    // List of regexes to match Origin header agains.
+    // Sessguard cookie can be checked only against requests with this origins.
+    std::vector<NRe2::TRe2Ptr> SessguardOriginPatterns;
+    // Size of the cache keeping results of checking origin
+    // headers against SessguardOriginPatterns.
+    int SessguardOriginCacheSize;
+
     TString Domain;
 
     std::optional<TString> CsrfSecret;
@@ -309,10 +319,30 @@ DEFINE_REFCOUNTED_TYPE(TCachingCookieAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// COMPAT(psushin): replace with TAsyncExpiringCache after migration.
+struct TUserExistenceCheckCacheConfig
+    : public virtual NYTree::TYsonStruct
+{
+    TDuration ExpireAfterAccessTime;
+    TDuration ExpireAfterSuccessfulUpdateTime;
+
+    REGISTER_YSON_STRUCT(TUserExistenceCheckCacheConfig);
+
+    static void Register(TRegistrar registrar);
+
+public:
+    TAsyncExpiringCacheConfigPtr ToAsyncExpiringCacheConfig() const;
+};
+
+DEFINE_REFCOUNTED_TYPE(TUserExistenceCheckCacheConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TCachingCypressUserManagerConfig
     : public TCypressUserManagerConfig
 {
-    TAuthCacheConfigPtr Cache;
+    // COMPAT(psushin): replace with TAsyncExpiringCache after migration.
+    TUserExistenceCheckCacheConfigPtr Cache;
 
     REGISTER_YSON_STRUCT(TCachingCypressUserManagerConfig);
 
@@ -476,6 +506,35 @@ DEFINE_REFCOUNTED_TYPE(TCypressCookieManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TYCIAMTokenAuthenticatorConfig
+    : public NYTree::TYsonStruct
+{
+    NHttp::TRetryingClientConfigPtr RetryingClient;
+    NHttps::TClientConfigPtr HttpClient;
+
+    TString Host;
+    int Port;
+    bool Secure;
+
+    bool CheckUserExists;
+    bool CreateUserIfNotExists;
+
+    std::vector<std::string> DefaultUserTags;
+
+    bool RetryAllServerErrors;
+    std::vector<int> RetryStatusCodes;
+
+    std::string AuthenticateLoginField;
+
+    REGISTER_YSON_STRUCT(TYCIAMTokenAuthenticatorConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TYCIAMTokenAuthenticatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TAuthenticationManagerConfig
     : public virtual NYT::NYTree::TYsonStruct
 {
@@ -489,6 +548,7 @@ struct TAuthenticationManagerConfig
     TCachingOAuthCookieAuthenticatorConfigPtr OAuthCookieAuthenticator;
     TCachingOAuthTokenAuthenticatorConfigPtr OAuthTokenAuthenticator;
     TOAuthServiceConfigPtr OAuthService;
+    TYCIAMTokenAuthenticatorConfigPtr YCIAMTokenAuthenticator;
 
     TCypressCookieManagerConfigPtr CypressCookieManager;
     TCachingCypressUserManagerConfigPtr CypressUserManager;

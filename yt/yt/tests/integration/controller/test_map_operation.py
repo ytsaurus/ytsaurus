@@ -15,7 +15,7 @@ from yt_commands import (
 
 from yt_type_helpers import make_schema, normalize_schema, make_column, list_type, tuple_type, optional_type
 
-from yt_helpers import skip_if_no_descending, skip_if_old, skip_if_renaming_disabled
+from yt_helpers import skip_if_component_old, skip_if_old, skip_if_delivery_fenced_pipe_writer_not_supported
 
 import yt.yson as yson
 from yt.test_helpers import assert_items_equal
@@ -54,16 +54,13 @@ class TestSchedulerMapCommands(YTEnvSetup):
             "map_operation_options": {
                 "job_splitter": {
                     "min_job_time": 5000,
-                    "min_total_data_size": 1024,
+                    "min_total_data_weight": 1024,
                     "update_period": 100,
                     "candidate_percentile": 0.8,
                     "max_jobs_per_split": 3,
                     "max_input_table_count": 5,
                 },
             },
-            # COMPAT(shakurov): change the default to false and remove
-            # this delta once masters are up to date.
-            "enable_prerequisites_for_starting_completion_transactions": False,
         }
     }
 
@@ -74,16 +71,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 "cpu": 5,
                 "memory": 5 * 1024 ** 3,
             }
-        },
-        # COMPAT(arkady-e1ppa):
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "user_slots": 5,
-                    "cpu": 5,
-                    "memory": 5 * 1024 ** 3,
-                }
-            },
         },
     }
 
@@ -283,9 +270,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
     @authors("psushin")
     @pytest.mark.parametrize("sort_kind", ["sorted_by", "ascending", "descending"])
     def test_sorted_output(self, sort_kind):
-        if sort_kind == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t1")
         for i in range(2):
             write_table("<append=true>//tmp/t1", {"key": "foo", "value": "ninja"})
@@ -336,9 +320,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
     @authors("psushin")
     @pytest.mark.parametrize("sort_kind", ["sorted_by", "ascending", "descending"])
     def test_sorted_output_overlap(self, sort_kind):
-        if sort_kind == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t1")
         for i in range(2):
             write_table("<append=true>//tmp/t1", {"key": "foo", "value": "ninja"})
@@ -369,9 +350,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
     @authors("psushin")
     @pytest.mark.parametrize("sort_kind", ["sorted_by", "ascending", "descending"])
     def test_sorted_output_job_failure(self, sort_kind):
-        if sort_kind == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t1")
         for i in range(2):
             write_table("<append=true>//tmp/t1", {"key": "foo", "value": "ninja"})
@@ -567,11 +545,11 @@ cat > /dev/null; echo {hello=world}
 import sys
 table_index = sys.stdin.readline().strip()
 row = sys.stdin.readline().strip()
-print row + table_index
+print(row + table_index)
 
 table_index = sys.stdin.readline().strip()
 row = sys.stdin.readline().strip()
-print row + table_index
+print(row + table_index)
 """
 
         create("file", "//tmp/mapper.py")
@@ -580,7 +558,7 @@ print row + table_index
         map(
             in_=["//tmp/t1", "//tmp/t2"],
             out="//tmp/out",
-            command="python mapper.py",
+            command="python3 mapper.py",
             file="//tmp/mapper.py",
             spec={"mapper": {"format": yson.loads(b"<enable_table_index=true>yamr")}},
         )
@@ -591,9 +569,6 @@ print row + table_index
     @authors("ignat")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_range_index(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-
         create("table", "//tmp/t_in", attributes={
             "schema": make_schema([
                 {"name": "key", "type": "string", "sort_order": sort_order},
@@ -1160,8 +1135,6 @@ print row + table_index
     @authors("levysotsky")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_rename_schema(self, optimize_for):
-        skip_if_renaming_disabled(self.Env)
-
         input_table = "//tmp/tin"
         output_table = "//tmp/tout"
 
@@ -1403,18 +1376,19 @@ print row + table_index
 
         update_inplace(spec, spec_patch)
 
-        mapper = b"""
-#!/usr/bin/python3
-
+        mapper = b"""#!/usr/bin/env python3
 import json
+import os
+import sys
 
-input = json.loads(raw_input())
+unbuffered_stdin = os.fdopen(sys.stdin.fileno(), "rb", buffering=0)
+input = json.loads(unbuffered_stdin.readline())
+
 old_value = input["value"]
 input["value"] = "(job)"
 print(json.dumps(input))
 input["value"] = old_value
 print(json.dumps(input))
-
 """
 
         create("file", "//tmp/mapper.py")
@@ -1422,7 +1396,7 @@ print(json.dumps(input))
 
         # NB(arkady-e1ppa): we force no bufferisation because otherwise we may read something like
         # "row1End\nrow2Start" and discard row2start completely.
-        map_cmd = """python -u mapper.py ; BREAKPOINT ; cat"""
+        map_cmd = """set -e; python3 -u mapper.py; BREAKPOINT; cat"""
 
         op = map(
             ordered=ordered,
@@ -1434,11 +1408,14 @@ print(json.dumps(input))
             spec=spec,
         )
 
-        jobs = wait_breakpoint()
-        op.interrupt_job(jobs[0])
+        try:
+            jobs = wait_breakpoint()
 
-        release_breakpoint()
-        op.track()
+            op.interrupt_job(jobs[0])
+
+            release_breakpoint()
+        finally:
+            op.track()
 
         return op
 
@@ -1544,14 +1521,23 @@ print(json.dumps(input))
             assertion=lambda row_count: row_count == len(result) - added_rows,
             job_type=job_type))
 
-    @authors("arkady-e1ppa")
-    @pytest.mark.skip(reason="broken until YIML-219 is closed")
+    @authors("pogorelov", "arkady-e1ppa")
     @pytest.mark.parametrize("ordered", [False, True])
     @pytest.mark.parametrize("fmt", ["json", "dsv"])
+    @pytest.mark.parametrize(
+        "use_new_delivery_fenced_connection", [
+            False,
+            True,
+        ]
+    )
     @pytest.mark.ignore_in_opensource_ci
-    def test_map_interrupt_job_with_delivery_fenced_pipe_writer(self, ordered, fmt):
+    def test_map_interrupt_job_with_delivery_fenced_pipe_writer(self, ordered, fmt, use_new_delivery_fenced_connection):
         if any(version in getattr(self, "ARTIFACT_COMPONENTS", {}) for version in ["23_2", "24_1"]):
             pytest.xfail("Is not supported for older versions of server components")
+
+        skip_if_delivery_fenced_pipe_writer_not_supported(use_new_delivery_fenced_connection)
+
+        update_nodes_dynamic_config(value=use_new_delivery_fenced_connection, path="exec_node/job_controller/job_proxy/use_new_delivery_fenced_connection")
 
         # Test explanation:
         # Each job reads one row and writes it twice
@@ -1633,10 +1619,20 @@ print(json.dumps(input))
             assertion=lambda row_count: row_count == len(result) - 2,
             job_type=job_type))
 
-    @authors("arkady-e1ppa")
+    @authors("pogorelov", "arkady-e1ppa")
     @pytest.mark.parametrize("ordered", [False, True])
-    def test_adaptive_buffer_row_count(self, ordered):
+    @pytest.mark.parametrize(
+        "use_new_delivery_fenced_connection", [
+            False,
+            True,
+        ]
+    )
+    def test_adaptive_buffer_row_count(self, ordered, use_new_delivery_fenced_connection):
         skip_if_old(self.Env, (24, 2), "Option is not present in older binaries")
+
+        skip_if_delivery_fenced_pipe_writer_not_supported(use_new_delivery_fenced_connection)
+
+        update_nodes_dynamic_config(value=use_new_delivery_fenced_connection, path="exec_node/job_controller/job_proxy/use_new_delivery_fenced_connection")
 
         input_table = "//tmp/in"
         output_table = "//tmp/out"
@@ -1661,10 +1657,12 @@ print(json.dumps(input))
             out=output,
             command=with_breakpoint("""read row; echo $row; BREAKPOINT; cat"""),
             spec={
+                "mapper": {"format": "json"},
                 "job_count": 1,
                 "job_io": {
                     "buffer_row_count": 1,
                     "use_adaptive_buffer_row_count": True,
+                    "use_delivery_fenced_pipe_writer": True,
                 },
                 "max_failed_job_count": 1,
             },
@@ -1887,84 +1885,6 @@ print(json.dumps(input))
         )
 
         assert len(op.list_jobs()) == 10
-
-    @authors("klyachin")
-    @pytest.mark.parametrize("ordered", [False, True])
-    def test_map_job_splitter(self, ordered):
-        create("table", "//tmp/in_1")
-        write_table(
-            "//tmp/in_1",
-            [{"key": "%08d" % i, "value": "(t_1)", "data": "a" * (1024 * 1024)} for i in range(20)],
-        )
-
-        input_ = "//tmp/in_1"
-        output = "//tmp/output"
-        create("table", output)
-
-        command = """
-while read ROW; do
-    if [ "$YT_JOB_INDEX" == 0 ]; then
-        sleep 10
-    else
-        sleep 0.1
-    fi
-    echo "$ROW"
-done
-"""
-
-        op = map(
-            ordered=ordered,
-            track=False,
-            in_=input_,
-            out=output,
-            command=command,
-            spec={
-                "mapper": {
-                    "format": "dsv",
-                },
-                "data_size_per_job": 21 * 1024 * 1024,
-                "max_failed_job_count": 1,
-                "job_io": {
-                    "buffer_row_count": 1,
-                },
-            },
-        )
-
-        op.track()
-
-        completed = get(op.get_path() + "/@progress/jobs/completed")
-        interrupted = completed["interrupted"]
-        assert completed["total"] >= 2
-        assert interrupted["job_split"] >= 1
-        expected = read_table("//tmp/in_1", verbose=False)
-        for row in expected:
-            del row["data"]
-        got = read_table(output, verbose=False)
-        for row in got:
-            del row["data"]
-        assert sorted_dicts(got) == sorted_dicts(expected)
-
-    @authors("babenko")
-    def test_job_splitter_max_input_table_count(self):
-        create("table", "//tmp/in_1")
-        write_table(
-            "//tmp/in_1",
-            [{"key": "%08d" % i, "value": "(t_1)", "data": "a" * (1024 * 1024)} for i in range(20)],
-        )
-
-        input_ = "//tmp/in_1"
-        output = "//tmp/output"
-        create("table", output)
-
-        op = map(
-            in_=[input_] * 10,
-            out=output,
-            command="sleep 5; echo '{a=1}'")
-        op.track()
-
-        completed = get(op.get_path() + "/@progress/jobs/completed")
-        interrupted = completed["interrupted"]
-        assert interrupted["job_split"] == 0
 
     @authors("ifsmirnov")
     def test_disallow_partially_sorted_output(self):
@@ -2352,6 +2272,99 @@ done
 
         assert sorted_dicts(read_table("//tmp/t_out")) == sorted_dicts(data)
 
+    @authors("coteeq")
+    @pytest.mark.parametrize("mode", ["query", "passthrough"])
+    def test_latency_statistics(self, mode):
+        skip_if_component_old(self.Env, (25, 1), "controller-agent")
+        skip_if_component_old(self.Env, (25, 1), "node")
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t_out0")
+        create("table", "//tmp/t_out1")
+        create("table", "//tmp/t_out2")
+
+        maybe_input_query = {}
+        if mode == "query":
+            maybe_input_query = {
+                "input_query": "key * 2, value"
+            }
+            alter_table(
+                "//tmp/t1",
+                schema=[
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"},
+                ]
+            )
+
+        write_table("//tmp/t1", [{"key": i, "value": "val_{i}"} for i in range(10)])
+        op = map(
+            in_=["//tmp/t1"],
+            out=["//tmp/t_out0", "//tmp/t_out1", "//tmp/t_out2"],
+            # For non-native bash speakers:
+            # this command sleeps 1 sec, writes to descriptor 4,
+            # sleeps 1 more sec and writes to stdout (aka descriptor 1).
+            command="sleep 1 && tee /proc/self/fd/4 | (sleep 1 && cat)",
+            spec={
+                **maybe_input_query
+            }
+        )
+        op.track()
+
+        statistics = get(op.get_path() + "/@progress/job_statistics_v2")
+
+        first_read = extract_statistic_v2(statistics, "latency.input.time_to_first_read_batch")
+        first_written = extract_statistic_v2(statistics, "latency.input.time_to_first_written_batch")
+
+        first_read_from_job_0 = extract_statistic_v2(statistics, "latency.output.0.time_to_first_read_batch")
+        first_read_from_job_1 = extract_statistic_v2(statistics, "latency.output.1.time_to_first_read_batch")
+        first_read_from_job_2 = extract_statistic_v2(statistics, "latency.output.2.time_to_first_read_batch")
+
+        first_read_from_job_total = extract_statistic_v2(statistics, "latency.output.total.min_time_to_first_read_batch")
+
+        assert 0 < first_read <= first_written
+        assert first_written <= first_read_from_job_0
+        assert first_written <= first_read_from_job_1
+        # No writes to third table.
+        assert first_read_from_job_2 is None
+
+        assert first_read_from_job_total == min(first_read_from_job_0, first_read_from_job_1)
+
+        assert first_read_from_job_0 >= 2000
+        assert first_read_from_job_1 >= 1000
+
+        chunk_reader_spent_time = sum([
+            extract_statistic_v2(statistics, "chunk_reader_statistics.read_time"),
+            extract_statistic_v2(statistics, "chunk_reader_statistics.wait_time"),
+            extract_statistic_v2(statistics, "chunk_reader_statistics.idle_time"),
+        ])
+
+        assert first_read <= first_written <= chunk_reader_spent_time
+
+    @authors("apollo1321")
+    def test_job_count_with_skewed_row_sizes(self):
+        skip_if_component_old(self.Env, (25, 2), "controller-agent")
+        create("table", "//tmp/t_in")
+        rows_batches = [
+            [{"k": "v"}, {"k": "v"}],
+            [{"k": "v"}, {"k": "v"}],
+            [{"k": "v" * 5000}],
+            [{"k": "v"}],
+        ]
+
+        for rows in rows_batches:
+            write_table("<append=true>//tmp/t_in", rows)
+
+        for job_count in [1, 2, 5, 6]:
+            op = map(
+                in_="//tmp/t_in",
+                out="<create=true>//tmp/t_out",
+                command="cat > /dev/null",
+                spec={
+                    "job_count": job_count,
+                },
+            )
+
+            assert op.get_job_count("completed") == job_count
+
 
 ##################################################################
 
@@ -2410,38 +2423,11 @@ class TestSchedulerMapCommandsShardedTx(TestSchedulerMapCommandsPortal):
 
 
 @pytest.mark.enabled_multidaemon
-class TestSchedulerMapCommandsShardedTxCTxS(TestSchedulerMapCommandsShardedTx):
-    ENABLE_MULTIDAEMON = True
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            }
-        }
-    }
-
-
-@pytest.mark.enabled_multidaemon
-class TestSchedulerMapCommandsMirroredTx(TestSchedulerMapCommandsShardedTxCTxS):
+class TestSchedulerMapCommandsMirroredTx(TestSchedulerMapCommandsShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-    ENABLE_TMP_ROOTSTOCK = False
     NUM_TEST_PARTITIONS = 24
-
-    def setup_method(self, method):
-        super(TestSchedulerMapCommandsShardedTxCTxS, self).setup_method(method)
-        set("//sys/@config/transaction_manager/forbid_transaction_actions_for_cypress_transactions", True)
-        update_controller_agent_config(
-            "set_committed_attribute_via_transaction_action",
-            False,
-            wait_for_orchid=False)
-        update_controller_agent_config(
-            "commit_operation_cypress_node_changes_via_system_transaction",
-            True)
 
 
 ##################################################################
@@ -2560,7 +2546,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
     DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"map_operation_options": {"data_size_per_job": 1}}}
 
     @authors("max42")
-    @pytest.mark.skipif("True", reason="YT-8228")
+    @pytest.mark.skip(reason="YT-8228")
     def test_map_job_size_adjuster_boost(self):
         create("table", "//tmp/t_input")
         original_data = [{"index": "%05d" % i} for i in range(31)]
@@ -2573,7 +2559,13 @@ class TestJobSizeAdjuster(YTEnvSetup):
             in_="//tmp/t_input",
             out="//tmp/t_output",
             command="echo lines=`wc -l`",
-            spec={"mapper": {"format": "dsv"}, "resource_limits": {"user_slots": 1}},
+            spec={
+                "mapper": {"format": "dsv"},
+                "resource_limits": {"user_slots": 1},
+                "job_testing_options": {
+                    "fake_prepare_duration": 10000,
+                },
+            },
         )
 
         expected = [{"lines": str(2 ** i)} for i in range(5)]
@@ -2582,7 +2574,9 @@ class TestJobSizeAdjuster(YTEnvSetup):
         estimated = get(op.get_path() + "/@progress/tasks/0/estimated_input_data_weight_histogram")
         histogram = get(op.get_path() + "/@progress/tasks/0/input_data_weight_histogram")
         assert estimated == histogram
-        assert histogram["max"] / histogram["min"] == 16
+        # NB(coteeq): THistogram is a little weird here and will pessimize max.
+        # assert histogram["max"] / histogram["min"] == 16
+        assert histogram["max"] / histogram["min"] >= 16
         assert histogram["count"][0] == 1
         assert sum(histogram["count"]) == 5
 
@@ -2609,6 +2603,42 @@ class TestJobSizeAdjuster(YTEnvSetup):
 
         for row in read_table("//tmp/t_output"):
             assert int(row["lines"]) < 5
+
+    @authors("coteeq")
+    def test_ordered_map_adjustment(self):
+        create("table", "//tmp/in")
+        data = [{"index": "%05d" % i} for i in range(31)]
+        for row in data:
+            write_table("<append=true>//tmp/in", row, verbose=False)
+
+        create("table", "//tmp/out")
+        create("table", "//tmp/line_counts")
+
+        map(
+            in_="//tmp/in",
+            out=["//tmp/line_counts", "//tmp/out"],
+            command="echo lines=$(tee /proc/self/fd/4 | wc -l) cookie=$YT_JOB_COOKIE",
+            spec={
+                "ordered": True,
+                "mapper": {"format": yson.loads(b"<field_separator=\" \">dsv")},
+                "resource_limits": {"user_slots": 3},
+                "job_testing_options": {
+                    "fake_prepare_duration": 10000,
+                },
+                "force_job_size_adjuster": True,
+            },
+        )
+
+        assert data == read_table("//tmp/out")
+
+        counts = read_table("//tmp/line_counts")
+        print_debug(counts)
+
+        assert any(
+            # NB: 5 is chosen kind of arbitrarily. I just wanted to assert that the latter jobs
+            # are large enough (5 means enlargement happened at least 3 times).
+            int(row["lines"]) > 5 for row in counts
+        )
 
     @authors("ignat")
     def test_map_unavailable_chunk(self):
@@ -2682,7 +2712,7 @@ class TestInputOutputFormats(YTEnvSetup):
             "map_operation_options": {
                 "job_splitter": {
                     "min_job_time": 5000,
-                    "min_total_data_size": 1024,
+                    "min_total_data_weight": 1024,
                     "update_period": 100,
                     "candidate_percentile": 0.8,
                     "max_jobs_per_split": 3,
@@ -2699,16 +2729,6 @@ class TestInputOutputFormats(YTEnvSetup):
                 "memory": 5 * 1024 ** 3,
             }
         },
-        # COMPAT(arkady-e1ppa)
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "user_slots": 5,
-                    "cpu": 5,
-                    "memory": 5 * 1024 ** 3,
-                }
-            },
-        },
     }
 
     @authors("ignat")
@@ -2721,7 +2741,7 @@ class TestInputOutputFormats(YTEnvSetup):
 import sys
 input = sys.stdin.readline().strip('\\n').split('\\t')
 assert input == ['tskv', 'foo=bar']
-print '{hello=world}'
+print('{hello=world}')
 
 """
         create("file", "//tmp/mapper.py")
@@ -2731,7 +2751,7 @@ print '{hello=world}'
         map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="python mapper.py",
+            command="python3 mapper.py",
             file="//tmp/mapper.py",
             spec={"mapper": {"input_format": yson.loads(b"<line_prefix=tskv>dsv")}},
         )
@@ -2750,7 +2770,7 @@ input = sys.stdin.readline().strip('\\n')
 assert input == '<"table_index"=0;>#;'
 input = sys.stdin.readline().strip('\\n')
 assert input == '{"foo"="bar";};'
-print "tskv" + "\\t" + "hello=world"
+print("tskv" + "\\t" + "hello=world")
 """
         create("file", "//tmp/mapper.py")
         write_file("//tmp/mapper.py", mapper)
@@ -2759,7 +2779,7 @@ print "tskv" + "\\t" + "hello=world"
         map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="python mapper.py",
+            command="python3 mapper.py",
             file="//tmp/mapper.py",
             spec={
                 "mapper": {
@@ -2782,7 +2802,7 @@ print "tskv" + "\\t" + "hello=world"
 import sys
 input = sys.stdin.readline().strip('\\n')
 assert input == '{"foo"="bar";};'
-print "key\\tsubkey\\tvalue"
+print("key\\tsubkey\\tvalue")
 
 """
         create("file", "//tmp/mapper.py")
@@ -2792,7 +2812,7 @@ print "key\\tsubkey\\tvalue"
         map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="python mapper.py",
+            command="python3 mapper.py",
             file="//tmp/mapper.py",
             spec={
                 "mapper": {
@@ -2817,7 +2837,7 @@ print "key\\tsubkey\\tvalue"
 import sys
 input = sys.stdin.readline().strip('\\n').split('\\t')
 assert input == ['key', 'subkey', 'value']
-print '{hello=world}'
+print('{hello=world}')
 
 """
         create("file", "//tmp/mapper.py")
@@ -2827,7 +2847,7 @@ print '{hello=world}'
         map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="python mapper.py",
+            command="python3 mapper.py",
             file="//tmp/mapper.py",
             spec={"mapper": {"input_format": yson.loads(b"<has_subkey=true>yamr")}},
         )
@@ -2914,10 +2934,10 @@ print '{hello=world}'
 
         script = b"\n".join(
             [
-                b"#!/usr/bin/python",
+                b"#!/usr/bin/env python3",
                 b"import sys",
                 b"import base64",
-                b"print '{out=\"' + base64.standard_b64encode(sys.stdin.read()) + '\"}'",
+                b"print('{out=\"' + base64.standard_b64encode(sys.stdin.buffer.read()).decode() + '\"}')",
             ]
         )
 
@@ -3012,9 +3032,6 @@ class TestNestingLevelLimitOperations(YTEnvSetup):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "operations_update_period": 10,
-            # COMPAT(shakurov): change the default to false and remove
-            # this delta once masters are up to date.
-            "enable_prerequisites_for_starting_completion_transactions": False,
         },
         "cluster_connection": {
             "cypress_write_yson_nesting_level_limit": YSON_DEPTH_LIMIT,

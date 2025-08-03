@@ -66,17 +66,16 @@ class TestSchedulerAutoMergeBase(YTEnvSetup):
 
     @classmethod
     def modify_controller_agent_config(cls, config, cluster_index):
-        for op_type in ["map", "reduce"]:
-            config["controller_agent"] = update(config.get('controller_agent'), {
-                op_type + "_operation_options": {
-                    "spec_template": {
-                        "auto_merge": {
-                            "shallow_merge_min_data_weight_per_chunk": 0,
-                            "enable_shallow_merge": cls.ENABLE_SHALLOW_MERGE,
-                        },
+        config["controller_agent"] = update(config.get("controller_agent"), {
+            "operation_options": {
+                "spec_template": {
+                    "auto_merge": {
+                        "shallow_merge_min_data_weight_per_chunk": 0,
+                        "enable_shallow_merge": cls.ENABLE_SHALLOW_MERGE,
                     },
                 },
-            })
+            },
+        })
 
     def _get_auto_merge_job_counts(self, operation):
         def none_to_zero(value):
@@ -1008,7 +1007,7 @@ else:
         op = map(
             in_="//tmp/t_in",
             out=["//tmp/t_out"],
-            command="python mapper.py",
+            command="python3 mapper.py",
             file="//tmp/mapper.py",
             spec={
                 "auto_merge": {

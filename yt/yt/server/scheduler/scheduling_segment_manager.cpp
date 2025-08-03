@@ -15,10 +15,16 @@ using namespace NConcurrency;
 using namespace NLogging;
 using namespace NNodeTrackerClient;
 using namespace NProfiling;
+using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+inline constexpr double ResourceAmountPrecision = 1e-6;
+
+////////////////////////////////////////////////////////////////////////////////
 
 double GetNodeResourceLimit(const TFairShareTreeAllocationSchedulerNodeState& node, EJobResourceType resourceType)
 {
@@ -149,19 +155,23 @@ void TSchedulingSegmentManager::UpdateSchedulingSegments(TUpdateSchedulingSegmen
         Reset(context);
     }
 
+    context->SerializedSchedulingSegmentsInfo = GetSerializedSchedulingSegmentsInfo(context);
+
     PreviousMode_ = Config_->Mode;
 
     LogAndProfileSegments(context);
     BuildPersistentState(context);
 }
 
-void TSchedulingSegmentManager::InitOrUpdateOperationSchedulingSegment(
+TError TSchedulingSegmentManager::InitOrUpdateOperationSchedulingSegment(
     TOperationId operationId,
     const TFairShareTreeAllocationSchedulerOperationStatePtr& operationState) const
 {
+    TError error;
+
     if (!operationState->AggregatedInitialMinNeededResources) {
         // May happen if we're updating segments config, and there's an operation that hasn't materialized yet.
-        return;
+        return error;
     }
 
     auto segment = [&] {
@@ -198,10 +208,27 @@ void TSchedulingSegmentManager::InitOrUpdateOperationSchedulingSegment(
 
         operationState->SchedulingSegment = segment;
         operationState->SpecifiedSchedulingSegmentModules = operationState->Spec->SchedulingSegmentModules;
-        if (!IsModuleAwareSchedulingSegment(segment)) {
+        if (IsModuleAwareSchedulingSegment(segment)) {
+            YT_LOG_INFO("XXX (SpecifiedSchedulingSegmentModules: %v, AllModules: %v)", operationState->SpecifiedSchedulingSegmentModules, Config_->GetModules());
+            if (operationState->SpecifiedSchedulingSegmentModules) {
+                bool hasKnownModule = false;
+                for (const auto& module : *operationState->SpecifiedSchedulingSegmentModules) {
+                    if (Config_->GetModules().contains(module)) {
+                        hasKnownModule = true;
+                        break;
+                    }
+                }
+                if (!hasKnownModule) {
+                    error = TError("Segment modules %v are not found in the tree", *operationState->SpecifiedSchedulingSegmentModules)
+                        << TErrorAttribute("modules", Config_->GetModules());
+                }
+            }
+        } else {
             operationState->SchedulingSegmentModule.reset();
         }
     }
+
+    return error;
 }
 
 void TSchedulingSegmentManager::UpdateConfig(TFairShareStrategySchedulingSegmentsConfigPtr config)
@@ -226,7 +253,7 @@ void TSchedulingSegmentManager::DoUpdateSchedulingSegments(TUpdateSchedulingSegm
 void TSchedulingSegmentManager::Reset(TUpdateSchedulingSegmentsContext* context)
 {
     PreviousMode_ = ESegmentedSchedulingMode::Disabled;
-    UnsatisfiedSince_.reset();
+    ImbalancedSince_.reset();
 
     for (auto& [_, operation] : context->OperationStates) {
         operation->SchedulingSegmentModule.reset();
@@ -520,9 +547,12 @@ void TSchedulingSegmentManager::CollectFairResourceAmountPerSegment(TUpdateSched
     for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
         if (IsModuleAwareSchedulingSegment(segment)) {
             for (const auto& schedulingSegmentModule : Config_->GetModules()) {
-                auto reserve = std::min(
-                    Config_->ReserveFairResourceAmount.At(segment).GetOrDefaultAt(schedulingSegmentModule),
-                    context->RemainingCapacityPerModule[schedulingSegmentModule]);
+                // NB(eshcherbin): Remaining capacity may be negative due to fair resource amount overcommit when nodes go offline.
+                auto reserve = std::max(
+                    0.0,
+                    std::min(
+                        Config_->ReserveFairResourceAmount.At(segment).GetOrDefaultAt(schedulingSegmentModule),
+                        context->RemainingCapacityPerModule[schedulingSegmentModule]));
                 context->FairResourceAmountPerSegment.At(segment).MutableAt(schedulingSegmentModule) += reserve;
                 context->RemainingCapacityPerModule[schedulingSegmentModule] -= reserve;
             }
@@ -833,53 +863,68 @@ void TSchedulingSegmentManager::ApplySpecifiedSegments(TUpdateSchedulingSegments
 
 void TSchedulingSegmentManager::CheckAndRebalanceSegments(TUpdateSchedulingSegmentsContext* context)
 {
-    auto [isSegmentUnsatisfied, hasUnsatisfiedSegment] = FindUnsatisfiedSegments(context);
-    if (hasUnsatisfiedSegment) {
-        if (!UnsatisfiedSince_) {
-            UnsatisfiedSince_ = context->Now;
+    TSchedulingSegmentMap<bool> segmentUnsatisfied;
+    TSchedulingSegmentMap<bool> segmentOversatisfied;
+    if (!CheckSegmentBalance(context, &segmentUnsatisfied, &segmentOversatisfied)) {
+        if (!ImbalancedSince_) {
+            ImbalancedSince_ = context->Now;
         }
 
         YT_LOG_DEBUG(
-            "Found unsatisfied scheduling segments in tree "
-            "(IsSegmentUnsatisfied: %v, UnsatisfiedFor: %v, Timeout: %v, InitializationDeadline: %v)",
-            isSegmentUnsatisfied,
-            context->Now - *UnsatisfiedSince_,
+            "Found scheduling segments imbalance in tree "
+            "(SegmentUnsatisfied: %v, SegmentOversatisfied: %v, ImbalancedFor: %v, Timeout: %v, InitializationDeadline: %v)",
+            segmentUnsatisfied,
+            segmentOversatisfied,
+            context->Now - *ImbalancedSince_,
             Config_->UnsatisfiedSegmentsRebalancingTimeout,
             InitializationDeadline_);
 
         auto deadline = std::max(
-            *UnsatisfiedSince_ + Config_->UnsatisfiedSegmentsRebalancingTimeout,
+            *ImbalancedSince_ + Config_->UnsatisfiedSegmentsRebalancingTimeout,
             InitializationDeadline_);
         if (context->Now > deadline) {
             DoRebalanceSegments(context);
-            UnsatisfiedSince_.reset();
+            ImbalancedSince_.reset();
         }
     } else {
-        UnsatisfiedSince_.reset();
+        ImbalancedSince_.reset();
     }
 }
 
-std::pair<TSchedulingSegmentMap<bool>, bool> TSchedulingSegmentManager::FindUnsatisfiedSegments(const TUpdateSchedulingSegmentsContext* context) const
+bool TSchedulingSegmentManager::CheckSegmentBalance(
+    const TUpdateSchedulingSegmentsContext* context,
+    TSchedulingSegmentMap<bool> *segmentUnsatisfied,
+    TSchedulingSegmentMap<bool> *segmentOversatisfied) const
 {
-    TSchedulingSegmentMap<bool> isSegmentUnsatisfied;
-    bool hasUnsatisfiedSegment = false;
+    bool balanced = true;
     for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
         const auto& fairResourceAmount = context->FairResourceAmountPerSegment.At(segment);
         const auto& currentResourceAmount = context->CurrentResourceAmountPerSegment.At(segment);
         if (IsModuleAwareSchedulingSegment(segment)) {
             for (const auto& schedulingSegmentModule : Config_->GetModules()) {
-                if (currentResourceAmount.GetOrDefaultAt(schedulingSegmentModule) < fairResourceAmount.GetOrDefaultAt(schedulingSegmentModule)) {
-                    hasUnsatisfiedSegment = true;
-                    isSegmentUnsatisfied.At(segment).SetAt(schedulingSegmentModule, true);
+                bool unsatisfied = currentResourceAmount.GetOrDefaultAt(schedulingSegmentModule) + ResourceAmountPrecision <
+                    fairResourceAmount.GetOrDefaultAt(schedulingSegmentModule);
+                if (unsatisfied) {
+                    balanced = false;
+                    segmentUnsatisfied->At(segment).SetAt(schedulingSegmentModule, true);
+                }
+
+                const auto& threshold = Config_->ModuleOversatisfactionThreshold;
+                bool oversatisfied = threshold && (
+                    fairResourceAmount.GetOrDefaultAt(schedulingSegmentModule) + *threshold + ResourceAmountPrecision <
+                    currentResourceAmount.GetOrDefaultAt(schedulingSegmentModule));
+                if (oversatisfied) {
+                    balanced = false;
+                    segmentOversatisfied->At(segment).SetAt(schedulingSegmentModule, true);
                 }
             }
         } else if (currentResourceAmount.GetOrDefault() < fairResourceAmount.GetOrDefault()) {
-            hasUnsatisfiedSegment = true;
-            isSegmentUnsatisfied.At(segment).Set(true);
+            balanced = false;
+            segmentUnsatisfied->At(segment).Set(true);
         }
     }
 
-    return {std::move(isSegmentUnsatisfied), hasUnsatisfiedSegment};
+    return balanced;
 }
 
 void TSchedulingSegmentManager::DoRebalanceSegments(TUpdateSchedulingSegmentsContext* context) const
@@ -893,13 +938,12 @@ void TSchedulingSegmentManager::DoRebalanceSegments(TUpdateSchedulingSegmentsCon
     TNodeMovePenalty totalPenalty;
     std::vector<std::pair<TNodeWithMovePenalty, ESchedulingSegment>> movedNodes;
 
-    auto trySatisfySegment = [&] (
-        ESchedulingSegment segment,
-        double& currentResourceAmount,
-        double fairResourceAmount,
+    auto tryRebalanceSegment = [&] (
+        ESchedulingSegment newSegment,
+        auto checkBalance,
         TNodeWithMovePenaltyList& availableNodes)
     {
-        while (currentResourceAmount < fairResourceAmount) {
+        while (checkBalance()) {
             if (availableNodes.empty()) {
                 break;
             }
@@ -914,22 +958,23 @@ void TSchedulingSegmentManager::DoRebalanceSegments(TUpdateSchedulingSegmentsCon
             YT_LOG_DEBUG("Moving node to a new scheduling segment (Address: %v, OldSegment: %v, NewSegment: %v, Module: %v, Penalty: %v)",
                 nextAvailableNode->Descriptor->Address,
                 nextAvailableNode->SchedulingSegment,
-                segment,
+                newSegment,
                 GetNodeModule(*nextAvailableNode),
                 nextAvailableNodeMovePenalty);
 
-            SetNodeSegment(nextAvailableNode, segment, context);
+            SetNodeSegment(nextAvailableNode, newSegment, context);
             movedNodes.emplace_back(
                 TNodeWithMovePenalty{.Node = nextAvailableNode, .MovePenalty = nextAvailableNodeMovePenalty},
-                segment);
+                newSegment);
             totalPenalty += nextAvailableNodeMovePenalty;
 
             const auto& schedulingSegmentModule = GetNodeModule(*nextAvailableNode);
-            currentResourceAmount += resourceAmountOnNode;
-            if (IsModuleAwareSchedulingSegment(segment)) {
-                ++addedNodeCountPerSegment.At(segment).MutableAt(schedulingSegmentModule);
+            if (IsModuleAwareSchedulingSegment(newSegment)) {
+                context->CurrentResourceAmountPerSegment.At(newSegment).MutableAt(schedulingSegmentModule) += resourceAmountOnNode;
+                ++addedNodeCountPerSegment.At(newSegment).MutableAt(schedulingSegmentModule);
             } else {
-                ++addedNodeCountPerSegment.At(segment).Mutable();
+                context->CurrentResourceAmountPerSegment.At(newSegment).Mutable() += resourceAmountOnNode;
+                ++addedNodeCountPerSegment.At(newSegment).Mutable();
             }
 
             if (IsModuleAwareSchedulingSegment(oldSegment)) {
@@ -966,8 +1011,21 @@ void TSchedulingSegmentManager::DoRebalanceSegments(TUpdateSchedulingSegmentsCon
 
             auto& currentResourceAmount = context->CurrentResourceAmountPerSegment.At(segment).MutableAt(schedulingSegmentModule);
             auto fairResourceAmount = context->FairResourceAmountPerSegment.At(segment).GetOrDefaultAt(schedulingSegmentModule);
-            trySatisfySegment(segment, currentResourceAmount, fairResourceAmount, movableNodesPerModule[schedulingSegmentModule]);
-            trySatisfySegment(segment, currentResourceAmount, fairResourceAmount, aggressivelyMovableNodesPerModule[schedulingSegmentModule]);
+
+            // NB(eshcherbin): We heavily rely on the fact that we have two segments, so |movableNodesPerModule| only contains nodes from the oversatisfied segment.
+            // Ideally, we should make the logic less generic and more GPU-specific, but this is unnecessary in the light of the upcoming new GPU scheduler.
+            if (auto threshold = Config_->ModuleOversatisfactionThreshold;
+                threshold && fairResourceAmount + *threshold < currentResourceAmount)
+            {
+                tryRebalanceSegment(
+                    ESchedulingSegment::Default,
+                    [&] { return fairResourceAmount + *threshold + ResourceAmountPrecision < currentResourceAmount; },
+                    movableNodesPerModule[schedulingSegmentModule]);
+            }
+
+            auto isUnsatisfied = [&] { return currentResourceAmount + ResourceAmountPrecision < fairResourceAmount; };
+            tryRebalanceSegment(segment, isUnsatisfied, movableNodesPerModule[schedulingSegmentModule]);
+            tryRebalanceSegment(segment, isUnsatisfied, aggressivelyMovableNodesPerModule[schedulingSegmentModule]);
         }
     }
 
@@ -988,23 +1046,29 @@ void TSchedulingSegmentManager::DoRebalanceSegments(TUpdateSchedulingSegmentsCon
 
         auto& currentResourceAmount = context->CurrentResourceAmountPerSegment.At(segment).Mutable();
         auto fairResourceAmount = context->FairResourceAmountPerSegment.At(segment).GetOrDefault();
-        trySatisfySegment(segment, currentResourceAmount, fairResourceAmount, movableNodes);
+        auto isUnsatisfied = [&] { return currentResourceAmount + ResourceAmountPrecision < fairResourceAmount; };
+
+        tryRebalanceSegment(segment, isUnsatisfied, movableNodes);
     }
 
     LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::MovedNodes)
         .Item("nodes").BeginMap()
-            .DoFor(context->MovedNodes, [&] (NYTree::TFluentMap fluent, const TSetNodeSchedulingSegmentOptions& nodeOptions) {
+            .DoFor(context->MovedNodes, [&] (TFluentMap fluent, const TSetNodeSchedulingSegmentOptions& nodeOptions) {
                 fluent
                     .Item("node_id").Value(nodeOptions.NodeId)
+                    .Item("node_address").Value(nodeOptions.NodeAddress)
                     .Item("old_segment").Value(nodeOptions.OldSegment)
                     .Item("new_segment").Value(nodeOptions.NewSegment);
             })
         .EndMap();
 
-    auto [isSegmentUnsatisfied, hasUnsatisfiedSegment] = FindUnsatisfiedSegments(context);
-    YT_LOG_WARNING_IF(hasUnsatisfiedSegment,
-        "Failed to satisfy all scheduling segments during rebalancing (IsSegmentUnsatisfied: %v)",
-        isSegmentUnsatisfied);
+    TSchedulingSegmentMap<bool> segmentUnsatisfied;
+    TSchedulingSegmentMap<bool> segmentOversatisfied;
+    bool imbalanced = !CheckSegmentBalance(context, &segmentUnsatisfied, &segmentOversatisfied);
+    YT_LOG_WARNING_IF(imbalanced,
+        "Failed to satisfy all scheduling segments during rebalancing (SegmentUnsatisfied: %v, SegmnetOversatisfied: %v)",
+        segmentUnsatisfied,
+        segmentOversatisfied);
 
     YT_LOG_DEBUG(
         "Finished node scheduling segments rebalancing "
@@ -1178,6 +1242,7 @@ void TSchedulingSegmentManager::SetNodeSegment(
 
     context->MovedNodes.push_back(TSetNodeSchedulingSegmentOptions{
         .NodeId = node->Descriptor->Id,
+        .NodeAddress = node->Descriptor->Address,
         .OldSegment = node->SchedulingSegment,
         .NewSegment = segment,
     });
@@ -1192,17 +1257,21 @@ void TSchedulingSegmentManager::LogAndProfileSegments(const TUpdateSchedulingSeg
         YT_LOG_DEBUG(
             "Scheduling segments state in tree "
             "(Mode: %v, Modules: %v, KeyResource: %v, FairSharePerSegment: %v, TotalKeyResourceLimit: %v, "
-            "TotalCapacityPerModule: %v, FairResourceAmountPerSegment: %v, CurrentResourceAmountPerSegment: %v)",
+            "TotalCapacityPerModule: %v, RemainingCapacityPerModule: %v, "
+            "FairResourceAmountPerSegment: %v, CurrentResourceAmountPerSegment: %v)",
             mode,
             Config_->GetModules(),
             GetSegmentBalancingKeyResource(mode),
             context->FairSharePerSegment,
             context->NodesTotalKeyResourceLimit,
             context->TotalCapacityPerModule,
+            context->RemainingCapacityPerModule,
             context->FairResourceAmountPerSegment,
             context->CurrentResourceAmountPerSegment);
 
-        LogSegmentsStructured(context);
+        YT_VERIFY(context->SerializedSchedulingSegmentsInfo);
+        LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::SchedulingSegmentsInfo)
+            .Items(context->SerializedSchedulingSegmentsInfo);
     } else {
         YT_LOG_DEBUG("Segmented scheduling is disabled in tree, skipping");
     }
@@ -1249,25 +1318,47 @@ void TSchedulingSegmentManager::LogAndProfileSegments(const TUpdateSchedulingSeg
     SensorProducer_->Update(std::move(sensorBuffer));
 }
 
-void TSchedulingSegmentManager::LogSegmentsStructured(const TUpdateSchedulingSegmentsContext* context) const
+TYsonString TSchedulingSegmentManager::GetSerializedSchedulingSegmentsInfo(const TUpdateSchedulingSegmentsContext* context) const
 {
-    LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::SchedulingSegmentsInfo)
-        .Item("operations_info").DoMapFor(context->OperationStates, [this] (NYTree::TFluentMap fluent, const auto& item) {
-            const auto& [operationId, operationState] = item;
-            fluent
-                .Do(std::bind(&TSchedulingSegmentManager::BuildGpuOperationInfo, this, operationId, operationState, std::placeholders::_1));
-        })
-        .Item("nodes_info").DoMapFor(context->NodeStates, [this] (NYTree::TFluentMap fluent, const auto& item) {
-            const auto& [_, nodeState] = item;
-            fluent
-                .Do(std::bind(&TSchedulingSegmentManager::BuildGpuNodeInfo, this, nodeState, std::placeholders::_1));
-        });
+    auto fluent = BuildYsonStringFluently<EYsonType::MapFragment>()
+        .Item("mode").Value(Config_->Mode);
+
+    if (Config_->Mode != ESegmentedSchedulingMode::Disabled) {
+        fluent
+            .Item("operations").DoMapFor(context->OperationStates, [this] (TFluentMap fluent, const auto& item) {
+                const auto& [operationId, operationState] = item;
+                fluent
+                    .Do(std::bind(&TSchedulingSegmentManager::BuildGpuOperationInfo, this, operationId, operationState, std::placeholders::_1));
+            })
+            .Item("nodes").DoMapFor(context->NodeStates, [this] (TFluentMap fluent, const auto& item) {
+                const auto& [_, nodeState] = item;
+                fluent
+                    .Do(std::bind(&TSchedulingSegmentManager::BuildGpuNodeInfo, this, nodeState, std::placeholders::_1));
+            })
+            .Item("scheduling_segment_modules").Value(Config_->GetModules())
+            .Item("fair_share_per_segment").Value(context->FairSharePerSegment)
+            .Item("nodes_total_key_resource_limit").Value(context->NodesTotalKeyResourceLimit)
+            .Item("fair_resource_amount_per_segment").Value(context->FairResourceAmountPerSegment)
+            .Item("current_resource_amount_per_segment").Value(context->CurrentResourceAmountPerSegment)
+            .Item("remaining_capacity_per_module").Value(context->RemainingCapacityPerModule)
+            .Item("total_capacity_per_module").Value(context->TotalCapacityPerModule);
+    }
+
+    return fluent.Finish();
+}
+
+TOneShotFluentLogEvent TSchedulingSegmentManager::LogStructuredGpuEventFluently(EGpuSchedulingLogEventType eventType) const
+{
+    return NLogging::LogStructuredEventFluently(SchedulerGpuEventLogger(), NLogging::ELogLevel::Info)
+        .Item("timestamp").Value(TInstant::Now())
+        .Item("event_type").Value(eventType)
+        .Item(EventLogPoolTreeKey).Value(TreeId_);
 }
 
 void TSchedulingSegmentManager::BuildGpuOperationInfo(
     TOperationId operationId,
     const TFairShareTreeAllocationSchedulerOperationStatePtr& operationState,
-    NYTree::TFluentMap fluent) const
+    TFluentMap fluent) const
 {
     fluent
         .Item(ToString(operationId)).BeginMap()
@@ -1283,7 +1374,7 @@ void TSchedulingSegmentManager::BuildGpuOperationInfo(
 
 void TSchedulingSegmentManager::BuildGpuNodeInfo(
     const TFairShareTreeAllocationSchedulerNodeState& nodeState,
-    NYTree::TFluentMap fluent) const
+    TFluentMap fluent) const
 {
     if (!nodeState.Descriptor) {
         return;
@@ -1291,6 +1382,7 @@ void TSchedulingSegmentManager::BuildGpuNodeInfo(
 
     fluent
         .Item(nodeState.Descriptor->Address).BeginMap()
+            .Item("id").Value(nodeState.Descriptor->Id)
             .Item("scheduling_segment").Value(nodeState.SchedulingSegment)
             .Item("specified_scheduling_segment").Value(nodeState.SpecifiedSchedulingSegment)
             .Item("scheduling_segment_module").Value(GetNodeModule(nodeState))

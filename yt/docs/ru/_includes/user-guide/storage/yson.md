@@ -116,6 +116,114 @@ Entity представляет собой атомарное скалярное
 
 На любой литерал в YSON можно установить атрибуты. Формат записи: `<key = value; ...; key = value> value`. Внутри угловых скобок синтаксис аналогичен словарю. Например, `<a = 10; b = [7,7,8]>"some-string"` или `<"44" = 44>44`. Но чаще всего атрибуты можно встретить на литералах типа `entity`, например, `<id="aaad6921-b5704588-17990259-7b88bad3">#`.
 
+## Грамматика {#grammar}
+
+YSON-данные бывают трех типов:
+
+  1. **Node** (одно дерево, в примере — `<tree>`)
+  2. **ListFragment** (значения, разделенные `;`, в примере — `<list-fragment>`)
+  3. **MapFragment** (пары ключ-значение, разделенные `;`, в примере — `<map-fragment>`)
+
+
+Грамматика (определяется с точностью до пробельных символов, которые могут быть в произвольном количестве добавлены и удалены между токенами):
+
+```antlr
+          <tree> = [ <attributes> ], <object>;
+        <object> = <scalar> | <map> | <list> | <entity>;
+
+        <scalar> = <string> | <int64> | <uint64> | <double> | <boolean>;
+          <list> = "[", <list-fragment>, "]";
+           <map> = "{", <map-fragment>, "}";
+        <entity> = "#";
+    <attributes> = "<", <map-fragment>, ">";
+
+ <list-fragment> = { <list-item>, ";" }, [ <list-item> ];
+     <list-item> = <tree>;
+
+  <map-fragment> = { <key-value-pair>, ";" }, [ <key-value-pair> ];
+<key-value-pair> = <string>, "=", <tree>;  % Key cannot be empty
+```
+
+Символ `;` после последнего элемента внутри `<list-fragment>`  и `<map-fragment>`  может быть опущен. Следующие конструкции следует считать валидными при чтении:
+
+#|
+|| C `;` на конце | Сокращенная запись ||
+||
+
+```yson
+<a=b;>c
+{a=b;}
+1;2;3;
+```
+
+|
+
+```yson
+<a=b>c
+{a=b}
+1;2;3
+```
+
+ ||
+|#
+
+
+## Примеры {#examples}
+
+- Map (Node)
+
+  ```yson
+  { performance = 1 ; precision = 0.78 ; recall = 0.21 }
+  ```
+
+- Map (Node)
+
+  ```yson
+  { cv-precision = [ 0.85 ; 0.24 ; 0.71 ; 0.70 ] }
+  ```
+
+
+- List (Node)
+
+  ```yson
+  [ 1; 2; 3; 4; 5 ]
+  ```
+
+
+- String (Node)
+
+  ```yson
+  foobar
+  ```
+
+  ```yson
+  "hello world"
+  ```
+
+- Int64 (Node) `42`
+
+- Double (Node) `3.1415926`
+
+- ListFragment
+
+  ```yson
+  { key = a; value = 0 };
+  { key = b; value = 1 };
+  { key = c; value = 2; unknown_value = [] }
+  ```
+
+- MapFragment
+
+  ```yson
+  do = create; type = table; scheme = {}
+  ```
+
+- HomeDirectory (Node)
+
+  ```yson
+  { home = { sandello = { mytable = <type = table> # ; anothertable = <type = table> # } ; monster = { } } }
+  ```
+
 ## Работа с YSON из кода { #working_from_code }
 
 Обычно пользователям не приходится работать напрямую с YSON. При использовании одного из официальных {{product-name}}-клиентов YSON-структуры будут выражаться в одном из перечисленных ниже видов:
