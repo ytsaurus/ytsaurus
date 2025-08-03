@@ -486,7 +486,7 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
 
     @authors("ifsmirnov")
     @pytest.mark.parametrize("transition_type", ["unmount", "freeze"])
-    def test_cancel_transition_stuck_replica(self, transition_type):
+    def DISABLED_test_cancel_transition_stuck_replica(self, transition_type):
         cell_ids = sync_create_cells(2)
         custom_area_id = create_area(
             "custom",

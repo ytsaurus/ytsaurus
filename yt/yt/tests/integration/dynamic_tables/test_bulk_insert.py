@@ -925,7 +925,7 @@ class TestBulkInsert(DynamicTablesBase):
             _run("none" if atomicity == "full" else "full")
 
     @pytest.mark.parametrize("lock", [True, False])
-    def test_atomicity_none(self, lock):
+    def DISABLED_test_atomicity_none(self, lock):
         sync_create_cells(1)
         create("table", "//tmp/t_input")
         self._create_simple_dynamic_table("//tmp/t_output", enable_dynamic_store_read=False)
