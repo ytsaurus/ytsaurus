@@ -374,6 +374,10 @@ private:
                     << TErrorAttribute("subrequest_index", index);
             }
 
+            if (RpcContext_->IsRetry()) {
+                header.set_retry(true);
+            }
+
             const auto& ypathExt = header.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
             auto mutatingSubrequest = ypathExt.mutating();
 
