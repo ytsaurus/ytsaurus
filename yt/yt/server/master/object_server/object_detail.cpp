@@ -136,7 +136,7 @@ IAttributeDictionary* TObjectProxyBase::MutableAttributes()
 
 void TObjectProxyBase::SetModified(EModificationType modificationType)
 {
-    if (ModificationTrackingSuppressed_) {
+    if (ModificationTrackingSuppressed_.test(std::memory_order::relaxed)) {
         return;
     }
 
@@ -145,11 +145,6 @@ void TObjectProxyBase::SetModified(EModificationType modificationType)
     }
 
     Object_->SetModified(modificationType);
-}
-
-void TObjectProxyBase::SuppressModificationTracking()
-{
-    ModificationTrackingSuppressed_ = true;
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
@@ -411,7 +406,11 @@ void TObjectProxyBase::BeforeInvoke(const IYPathServiceContextPtr& context)
         context->SetRawRequestInfo(builder.Flush(), true);
     }
 
-    ModificationTrackingSuppressed_ = GetSuppressModificationTracking(requestHeader);
+    if (GetSuppressModificationTracking(requestHeader)) {
+        // Reads of this value occur only in the same thread it was set in, thus
+        // relaxed memory order is fine. See declaration for details.
+        ModificationTrackingSuppressed_.test_and_set(std::memory_order::relaxed);
+    }
 }
 
 bool TObjectProxyBase::DoInvoke(const IYPathServiceContextPtr& context)

@@ -62,7 +62,10 @@ protected:
     NCellMaster::TBootstrap* const Bootstrap_;
     TObjectTypeMetadata* const Metadata_;
     TObject* const Object_;
-    bool ModificationTrackingSuppressed_ = false;
+    // NB: the only cases of using the same object proxy from different threads
+    // is master object proxy. This flag is meaningless for it but we have to
+    // use atomic here to make TSAN happy.
+    std::atomic_flag ModificationTrackingSuppressed_ = {};
     NYTree::IAttributeDictionary* CustomAttributes_ = nullptr;
 
     struct TGetBasicAttributesContext
@@ -82,7 +85,6 @@ protected:
     };
 
     virtual void SetModified(EModificationType modificationType);
-    void SuppressModificationTracking();
 
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetBasicAttributes);
     virtual void GetBasicAttributes(TGetBasicAttributesContext* context);
