@@ -309,11 +309,20 @@ void TInputCluster::LockTables()
     auto proxy = CreateObjectServiceWriteProxy(Client_);
     auto batchReq = proxy.ExecuteBatchWithRetries(Client_->GetNativeConnection()->GetConfig()->ChunkFetchRetries);
 
+    // Making sure to lock only unique tables to avoid redundant lock requests.
+    // It's not unusual for a table to occur multiple times as input in the spec.
+    // (A typical scenario is working with multiple ranges of the same table.)
+    // NB: Assuming table->Path is normalized.
+    THashMap<std::pair<TYPath, TTransactionId>, std::vector<TInputTable*>> pathToInputTables(std::ssize(InputTables_));
     for (const auto& table : InputTables_) {
-        auto req = TTableYPathProxy::Lock(table->GetPath());
-        req->Tag() = table;
+        pathToInputTables[std::pair{table->GetPath(), *table->TransactionId}].push_back(table.Get());
+    }
+
+    for (const auto& [pathTransactionIdPair, tables] : pathToInputTables) {
+        auto req = TTableYPathProxy::Lock(pathTransactionIdPair.first);
+        req->Tag() = &pathTransactionIdPair;
         req->set_mode(ToProto(ELockMode::Snapshot));
-        SetTransactionId(req, *table->TransactionId);
+        SetTransactionId(req, pathTransactionIdPair.second);
         GenerateMutationId(req);
         batchReq->AddRequest(req);
     }
@@ -324,14 +333,19 @@ void TInputCluster::LockTables()
     const auto& batchRsp = batchRspOrError.Value();
     for (const auto& rspOrError : batchRsp->GetResponses<TCypressYPathProxy::TRspLock>()) {
         const auto& rsp = rspOrError.Value();
-        auto table = std::any_cast<TInputTablePtr>(rsp->Tag());
-        table->ObjectId = FromProto<TObjectId>(rsp->node_id());
-        table->Revision = FromProto<NHydra::TRevision>(rsp->revision());
-        table->ExternalCellTag = FromProto<TCellTag>(rsp->external_cell_tag());
-        table->ExternalTransactionId = rsp->has_external_transaction_id()
-            ? FromProto<TTransactionId>(rsp->external_transaction_id())
-            : *table->TransactionId;
-        PathToInputTables_[table->GetPath()].push_back(table);
+        const auto& pathTransactionIdPair = *std::any_cast<const std::pair<TYPath, TTransactionId>*>(rsp->Tag());
+        auto& inputTables = GetOrCrash(pathToInputTables, pathTransactionIdPair);
+        auto objectId = FromProto<TObjectId>(rsp->node_id());
+        auto revision = FromProto<NHydra::TRevision>(rsp->revision());
+        auto externalCellTag = FromProto<TCellTag>(rsp->external_cell_tag());
+        auto optionalExternalTransactionId = YT_OPTIONAL_FROM_PROTO(*rsp, external_transaction_id, TTransactionId);
+        for (auto& table : inputTables) {
+            table->ObjectId = objectId;
+            table->Revision = revision;
+            table->ExternalCellTag = externalCellTag;
+            table->ExternalTransactionId = optionalExternalTransactionId.value_or(*table->TransactionId);
+            PathToInputTables_[table->GetPath()].push_back(table);
+        }
     }
 }
 
