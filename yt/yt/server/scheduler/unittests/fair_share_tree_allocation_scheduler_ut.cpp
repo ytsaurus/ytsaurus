@@ -553,7 +553,7 @@ public:
         minSpareAllocationResources->Memory = 1;
 
         SchedulerConfig_->MinSpareAllocationResourcesOnNode = minSpareAllocationResources;
-        DefaultMinSpareResources = ToJobResources(minSpareAllocationResources, TJobResources());
+        DefaultMinSpareResources_ = ToJobResources(minSpareAllocationResources, TJobResources());
 
         TreeConfig_->AggressivePreemptionSatisfactionThreshold = 0.5;
         TreeConfig_->MinChildHeapSize = 3;
@@ -577,7 +577,7 @@ protected:
     int SlotIndex_ = 0;
     NNodeTrackerClient::TNodeId ExecNodeId_ = NNodeTrackerClient::TNodeId(0);
 
-    TJobResources DefaultMinSpareResources;
+    TJobResources DefaultMinSpareResources_;
 
     TFairShareTreeAllocationSchedulerPtr DisposablePtrToTreeAllocationScheduler_;
 
@@ -879,7 +879,7 @@ protected:
             execNode,
             /*runningAllocations*/ {},
             strategyHost->GetMediumDirectory(),
-            DefaultMinSpareResources);
+            DefaultMinSpareResources_);
 
         auto scheduleAllocationsContext = New<TScheduleAllocationsContext>(
             schedulingContext,
