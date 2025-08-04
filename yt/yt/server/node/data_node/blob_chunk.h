@@ -81,7 +81,6 @@ private:
             i64 EndOffset = -1;
         };
 
-        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock);
         IInvokerPtr Invoker;
         std::optional<NProfiling::TWallTimer> ReadTimer;
         std::unique_ptr<TBlockEntry[]> Entries;
@@ -91,7 +90,7 @@ private:
         TPromise<std::vector<NChunkClient::TBlock>> SessionPromise = NewPromise<std::vector<NChunkClient::TBlock>>();
         TPromise<void> DiskFetchPromise;
         NIO::TBlocksExtPtr BlocksExt;
-        TLocationMemoryGuard LocationMemoryGuard;
+        NThreading::TAtomicObject<TLocationMemoryGuard> LocationMemoryGuard;
         std::atomic<bool> Finished = false;
         TLocationFairShareSlotPtr FairShareSlot = nullptr;
     };
