@@ -6,10 +6,9 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/yt/ytlib/object_client/object_ypath_proxy.h>
-
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/core/ypath/helpers.h>
 
@@ -193,46 +192,21 @@ TFuture<void> TCypressKeyWriter::DoRegisterKey(TCypressKeyWriterConfigPtr config
         return meta.ExpiresAt;
     }, keyInfo->Meta());
 
-    // Use object service proxy with batch requests.
-    auto proxy = CreateObjectServiceWriteProxy(Client_);
-
-    // TODO(pavook): with retries.
-    auto batchReq = proxy.ExecuteBatch();
-
-    // Always initialize the owner node first.
-    {
-        auto req = TCypressYPathProxy::Create(ownerNodePath);
-        req->set_type(ToProto(EObjectType::MapNode));
-        req->set_ignore_existing(true);
-        batchReq->AddRequest(req, "create_owner");
-    }
-
-    // Create the key document node.
-    {
-        auto req = TCypressYPathProxy::Create(keyNodePath);
-        req->set_type(ToProto(EObjectType::Document));
-        auto attributes = CreateEphemeralAttributes();
-        attributes->Set("expiration_time", keyExpirationTime + config->KeyDeletionDelay);
-        ToProto(req->mutable_node_attributes(), *attributes);
-        batchReq->AddRequest(req, "create_key");
-    }
-
-    // Set the key content.
-    {
-        auto req = TObjectYPathProxy::Set(keyNodePath);
-        req->set_value(ConvertToYsonString(keyInfo).ToString());
-        batchReq->AddRequest(req, "set_key_content");
-    }
-
-    return batchReq->Invoke().ApplyUnique(BIND(
-        [ownerId = std::move(ownerId), keyId = std::move(keyId)] (TErrorOr<TObjectServiceProxy::TRspExecuteBatchPtr>&& batchRsp) -> TError {
-            auto cumulativeError = GetCumulativeError(batchRsp);
-            if (!cumulativeError.IsOK()) {
-                return cumulativeError.Wrap("Failed to register key (OwnerId: %v, KeyId: %v)", ownerId, keyId);
+    TCreateNodeOptions options;
+    auto attributes = CreateEphemeralAttributes();
+    attributes->Set("expiration_time", keyExpirationTime + config->KeyDeletionDelay);
+    options.Attributes = std::move(attributes);
+    options.Recursive = true;
+    return Client_->CreateNode(keyNodePath, EObjectType::Document, options)
+        .ApplyUnique(BIND([this, keyInfoYson = ConvertToYsonString(keyInfo), keyNodePath = std::move(keyNodePath), this_ = MakeStrong(this)] (TNodeId&& /*nodeId*/) {
+            return Client_->SetNode(keyNodePath, keyInfoYson);
+        }))
+        .Apply(BIND([ownerId = std::move(ownerId), keyId = std::move(keyId)] (const TError& error) {
+            if (!error.IsOK()) {
+                return error.Wrap("Failed to register key (OwnerId: %v, KeyId: %v)", ownerId, keyId);
             }
-
             YT_LOG_DEBUG("Successfully registered key (OwnerId: %v, KeyId: %v)", ownerId, keyId);
-            return {};
+            return TError();
         }));
 }
 
