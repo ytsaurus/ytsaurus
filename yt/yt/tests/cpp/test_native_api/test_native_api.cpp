@@ -1516,15 +1516,20 @@ TEST_F(TCypressKeyWriterTest, RegisterKey)
         EXPECT_TRUE(
             WaitFor(Client_->GetNode(YPathJoin(Config->Path, "test")))
                 .IsOK());
+        auto keyNode = YPathJoin(Config->Path, "test", "4-3-2-1");
         EXPECT_EQ(
-            ConvertTo<TKeyInfo>(WaitFor(Client_->GetNode(YPathJoin(Config->Path, "test", "4-3-2-1")))
+            ConvertTo<TKeyInfo>(WaitFor(Client_->GetNode(keyNode))
                 .ValueOrThrow()),
             *keyInfo);
         EXPECT_EQ(
             ConvertTo<TInstant>(
-                WaitFor(Client_->GetNode(YPathJoin(Config->Path, "test", "4-3-2-1") + "/@expiration_time"))
+                WaitFor(Client_->GetNode(keyNode + "/@expiration_time"))
                     .ValueOrThrow()),
             ExpiresAt + Config->KeyDeletionDelay);
+        EXPECT_EQ(
+            WaitFor(Client_->GetNode(keyNode + "/@type"))
+                .ValueOrThrow(),
+            ConvertToYsonString(EObjectType::Document));
 
         // Second registration should fail.
         EXPECT_THROW_WITH_SUBSTRING(
@@ -1536,14 +1541,15 @@ TEST_F(TCypressKeyWriterTest, RegisterKey)
 
 TEST_F(TCypressKeyWriterTest, RegisterKeyFailed)
 {
-    Config->Path = "//sys/nonexistent/path";
+    Config->Path = "not/a/path";
+
     auto keyInfo = New<TKeyInfo>(TPublicKey{}, MetaValid);
 
     // Registration should fail gracefully.
     EXPECT_THROW_WITH_SUBSTRING(
         WaitFor(Writer->RegisterKey(keyInfo))
             .ThrowOnError(),
-        "no child with key");
+        "Unexpected \"literal\" token");
 }
 
 TEST_F(TCypressKeyWriterTest, RegisterExpiredKey)
@@ -1824,7 +1830,7 @@ TEST_F(TSignatureComponentsTest, DontCrashOnCypressFailure)
         .ThrowOnError();
 
     // Imitate read-only mode with an invalid path.
-    Config->Generation->CypressKeyWriter->Path = Config->Validation->CypressKeyReader->Path = "//sys/nonexistent/path";
+    Config->Generation->CypressKeyWriter->Path = Config->Validation->CypressKeyReader->Path = "not/a/path";
 
     YT_UNUSED_FUTURE(Components->StartRotation());
 
@@ -1839,7 +1845,7 @@ TEST_F(TSignatureComponentsTest, DontCrashOnCypressFailure)
     EXPECT_THROW_WITH_SUBSTRING(
         WaitFor(validator->Validate(signature))
             .ThrowOnError(),
-        "no child with key");
+        "Unexpected \"literal\" token");
 }
 
 TEST_F(TSignatureComponentsTest, ReconfigureEnableGeneration)
