@@ -239,10 +239,7 @@ void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
     }
 
     session->SessionPromise.TrySet(std::move(blocks));
-    {
-        auto guard = Guard(session->SpinLock);
-        session->LocationMemoryGuard.Release();
-    }
+    session->LocationMemoryGuard.Transform(std::mem_fn(&TLocationMemoryGuard::Release));
 }
 
 void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const TError& error)
@@ -276,10 +273,7 @@ void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const T
         session->DiskFetchPromise.TrySet(error);
     }
 
-    {
-        auto guard = Guard(session->SpinLock);
-        session->LocationMemoryGuard.Release();
-    }
+    session->LocationMemoryGuard.Transform(std::mem_fn(&TLocationMemoryGuard::Release));
 }
 
 void TBlobChunkBase::DoReadMeta(
@@ -539,15 +533,12 @@ void TBlobChunkBase::DoReadSession(
 
     session->FairShareSlot = fairShareSlotOrError.Value();
 
-    {
-        auto guard = Guard(session->SpinLock);
-        session->LocationMemoryGuard = Location_->AcquireLocationMemory(
-            /*useLegacyUsedMemory*/ false,
-            std::move(memoryGuardOrError.Value()),
-            EIODirection::Read,
-            session->Options.WorkloadDescriptor,
-            pendingDataSize);
-    }
+    session->LocationMemoryGuard.Store(Location_->AcquireLocationMemory(
+        /*useLegacyUsedMemory*/ false,
+        std::move(memoryGuardOrError.Value()),
+        EIODirection::Read,
+        session->Options.WorkloadDescriptor,
+        pendingDataSize));
 
     DoReadBlockSet(session);
 }
@@ -750,12 +741,11 @@ void TBlobChunkBase::DoReadBlockSet(const TReadBlockSetSessionPtr& session)
         additionalMemory += entry.EndOffset - entry.BeginOffset;
     }
 
-    {
-        auto guard = Guard(session->SpinLock);
-        if (session->LocationMemoryGuard) {
-            session->LocationMemoryGuard.IncreaseSize(additionalMemory);
+    session->LocationMemoryGuard.Transform([additionalMemory] (TLocationMemoryGuard& guard) {
+        if (guard) {
+            guard.IncreaseSize(additionalMemory);
         }
-    }
+    });
 
     YT_LOG_DEBUG("Started reading blob chunk blocks ("
         "ChunkId: %v, Blocks: %v, "
