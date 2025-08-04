@@ -1472,7 +1472,7 @@ bool TNontemplateCypressNodeProxyBase::ValidatePrimaryMediumChange(
 
 void TNontemplateCypressNodeProxyBase::SetModified(EModificationType modificationType)
 {
-    if (ModificationTrackingSuppressed_) {
+    if (ModificationTrackingSuppressed_.test(std::memory_order::relaxed)) {
         return;
     }
 
