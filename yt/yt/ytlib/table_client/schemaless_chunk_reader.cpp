@@ -602,7 +602,7 @@ protected:
     const bool UnpackAny_;
 
     // TODO(coteeq): Include this in reader memory estimation.
-    TRowBufferPtr EphemeralRowBuffer_ = New<TRowBuffer>();
+    const TRowBufferPtr EphemeralRowBuffer_ = New<TRowBuffer>();
     TColumnEvaluatorPtr ColumnEvaluator_;
 
     int GetChunkKeyColumnCount() const
@@ -1686,7 +1686,7 @@ protected:
     ISchemalessColumnReader* SchemalessReader_ = nullptr;
 
     // TODO(coteeq): Include this in reader memory estimation.
-    TRowBufferPtr EphemeralRowBuffer_ = New<TRowBuffer>();
+    const TRowBufferPtr EphemeralRowBuffer_ = New<TRowBuffer>();
     TColumnEvaluatorPtr ColumnEvaluator_;
 
     TChunkedMemoryPool MemoryPool_;
