@@ -286,8 +286,9 @@ class TScheduleAllocationsContext
 public:
     DEFINE_BYREF_RO_PROPERTY(ISchedulingContextPtr, SchedulingContext);
     DEFINE_BYREF_RO_PROPERTY(TFairShareTreeSnapshotPtr, TreeSnapshot);
-    DEFINE_BYVAL_RO_PROPERTY(bool, SsdPriorityPreemptionEnabled);
+    DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(SsdPriorityPreemptionEnabled);
 
+    DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(SchedulingInfoLoggingEnabled);
     DEFINE_BYREF_RW_PROPERTY(TScheduleAllocationsStatistics, SchedulingStatistics);
 
     // NB(eshcherbin): The following properties are public for testing purposes.
@@ -378,7 +379,6 @@ private:
     const ESchedulingSegment NodeSchedulingSegment_;
     const TOperationCountByPreemptionPriority OperationCountByPreemptionPriority_;
     const THashSet<int> SsdPriorityPreemptionMedia_;
-    const bool SchedulingInfoLoggingEnabled_;
     const TDynamicAttributesListSnapshotPtr DynamicAttributesListSnapshot_;
 
     ISchedulerStrategyHost* const StrategyHost_;
