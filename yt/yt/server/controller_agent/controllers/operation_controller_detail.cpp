@@ -10856,38 +10856,20 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(9, TeleportedOutputRowCount_,
         .SinceVersion(ESnapshotVersion::TeleportedOutputRowCount));
 
-    // COMPAT(coteeq)
-    PHOENIX_REGISTER_FIELD(10, InputManager_,
-        .SinceVersion(ESnapshotVersion::InputManagerIntroduction)
-        .WhenMissing([] (TThis* this_, auto& context) {
-            this_->InputManager_->PrepareToBeLoadedFromAncientVersion();
-            this_->InputManager_->InitializeClients(this_->InputClient_);
-            this_->InputManager_->LoadInputNodeDirectory(context);
-            this_->OutputNodeDirectory_ = this_->InputManager_->GetNodeDirectory(LocalClusterName);
-            this_->InputManager_->LoadInputTables(context);
-        }));
-    PHOENIX_REGISTER_FIELD(11, OutputNodeDirectory_,
-        .SinceVersion(ESnapshotVersion::OutputNodeDirectory)
-        .WhenMissing([] (TThis* this_, auto& /*context*/) {
-            this_->OutputNodeDirectory_ = this_->InputManager_->GetNodeDirectory(LocalClusterName);
-        }));
+    PHOENIX_REGISTER_FIELD(10, InputManager_);
+    PHOENIX_REGISTER_FIELD(11, OutputNodeDirectory_);
     PHOENIX_REGISTER_FIELD(12, InputStreamDirectory_);
     PHOENIX_REGISTER_FIELD(13, OutputTables_);
     PHOENIX_REGISTER_FIELD(14, StderrTable_);
     PHOENIX_REGISTER_FIELD(15, CoreTable_);
-    PHOENIX_REGISTER_FIELD(16, OutputNodeDirectory_,
-        .SinceVersion(ESnapshotVersion::RemoteInputForOperations));
+    // COMPAT(coteeq)
+    PHOENIX_REGISTER_DELETED_FIELD(16, TNodeDirectoryPtr, OutputNodeDirectory_, ESnapshotVersion::DropDuplicateOutputNodeDirectory);
     PHOENIX_REGISTER_FIELD(17, IntermediateTable_);
     PHOENIX_REGISTER_FIELD(18, UserJobFiles_,
         .template Serializer<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>());
     PHOENIX_REGISTER_FIELD(19, LivePreviewChunks_,
         .template Serializer<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>());
     PHOENIX_REGISTER_FIELD(20, Tasks_);
-    registrar
-        .template VirtualField<21>("InputChunkMap_", [] (TThis* this_, auto& context) {
-            this_->InputManager_->LoadInputChunkMap(context);
-        })
-        .BeforeVersion(ESnapshotVersion::InputManagerIntroduction)();
     PHOENIX_REGISTER_FIELD(22, IntermediateOutputCellTagList_);
     PHOENIX_REGISTER_FIELD(23, CellTagToRequiredOutputChunkListCount_);
     PHOENIX_REGISTER_FIELD(24, CellTagToRequiredDebugChunkListCount_);
@@ -10937,20 +10919,10 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(51, AcoName_,
         .SinceVersion(ESnapshotVersion::AcoName));
     PHOENIX_REGISTER_FIELD(52, BannedTreeIds_);
-    registrar
-        .template VirtualField<53>("PathToInputTables_", [] (TThis* this_, auto& context) {
-            this_->InputManager_->LoadPathToInputTables(context);
-        })
-        .BeforeVersion(ESnapshotVersion::InputManagerIntroduction)();
     PHOENIX_REGISTER_FIELD(54, JobMetricsDeltaPerTree_);
     PHOENIX_REGISTER_FIELD(55, TotalTimePerTree_);
     PHOENIX_REGISTER_FIELD(56, CompletedRowCount_);
     PHOENIX_REGISTER_FIELD(57, AutoMergeEnabled_);
-    registrar
-        .template VirtualField<58>("InputHasOrderedDynamicStores_", [] (TThis* this_, auto& context) {
-            this_->InputManager_->LoadInputHasOrderedDynamicStores(context);
-        })
-        .BeforeVersion(ESnapshotVersion::InputManagerIntroduction)();
     PHOENIX_REGISTER_FIELD(59, StandardStreamDescriptors_);
     PHOENIX_REGISTER_FIELD(60, MainResourceConsumptionPerTree_);
     PHOENIX_REGISTER_FIELD(61, EnableMasterResourceUsageAccounting_);
