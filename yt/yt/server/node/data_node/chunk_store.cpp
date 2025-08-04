@@ -15,6 +15,8 @@
 
 #include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
 
+#include <yt/yt/library/random/discrete_distribution.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/misc/fs.h>
@@ -888,6 +890,17 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
             options.PlacementId,
             sessionId,
             location->GetId());
+    } else if (ShouldChooseLocationBasedOnIOWeight()) {
+        std::vector<double> weights;
+        weights.reserve(candidateIndices.size());
+        for (int index : candidateIndices) {
+            weights.push_back(Locations_[index]->GetIOWeight());
+        }
+
+        location = Locations_[candidateIndices[DiscreteDistribution(std::move(weights))]];
+        YT_LOG_DEBUG("Random location is chosen for chunk (ChunkId: %v, LocationId: %v)",
+            sessionId,
+            location->GetId());
     } else {
         location = Locations_[candidateIndices[RandomNumber(candidateIndices.size())]];
         YT_LOG_DEBUG("Random location is chosen for chunk (ChunkId: %v, LocationId: %v)",
@@ -1014,6 +1027,13 @@ bool TChunkStore::ShouldPublishDisabledLocations()
     return DynamicConfig_
         ? DynamicConfig_->PublishDisabledLocations.value_or(Config_->PublishDisabledLocations)
         : Config_->PublishDisabledLocations;
+}
+
+bool TChunkStore::ShouldChooseLocationBasedOnIOWeight()
+{
+    return DynamicConfig_
+        ? DynamicConfig_->ChooseLocationBasedOnIOWeight.value_or(Config_->ChooseLocationBasedOnIOWeight)
+        : Config_->ChooseLocationBasedOnIOWeight;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
