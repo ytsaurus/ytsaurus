@@ -614,7 +614,7 @@ void TRemoteCopyOperationOptions::Register(TRegistrar registrar)
 void TGangManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("job_reincarnation_timeout", &TThis::JobReincarnationTimeout)
-        .Default(TDuration::Minutes(1))
+        .Default(TDuration::Minutes(20))
         .GreaterThan(TDuration::Zero());
 }
 
