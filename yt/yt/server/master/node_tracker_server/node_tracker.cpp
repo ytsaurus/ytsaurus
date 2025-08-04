@@ -1819,16 +1819,6 @@ private:
         RackMap_.LoadKeys(context);
         DataCenterMap_.LoadKeys(context);
         HostMap_.LoadKeys(context);
-
-        // COMPAT(kvk1920)
-        if (context.GetVersion() < EMasterReign::DropImaginaryChunkLocations) {
-            auto useImaginaryLocationsMap = Load<THashMap<TObjectId, bool>>(context);
-            for (auto [nodeId, useImaginaryLocations] : useImaginaryLocationsMap) {
-                if (useImaginaryLocations) {
-                    NodesWithImaginaryLocations_.push_back(nodeId);
-                }
-            }
-        }
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
