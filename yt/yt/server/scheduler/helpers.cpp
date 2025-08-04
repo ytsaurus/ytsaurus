@@ -396,8 +396,7 @@ void BuildSupportedFeatures(TFluentMap fluent)
                 .Item("description").Value(description.Description)
                 .Item("unit").Value(description.Unit)
             .EndMap();
-        })
-        .Item("scheduler_estimated_guarantee_attribute_name").Value("estimated_guarantee_resources");
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
