@@ -333,6 +333,38 @@ protected:
         }
     }
 
+    void CheckDataSliceDataWeights(
+        const std::vector<TChunkStripeListPtr>& stripeLists,
+        const std::vector<std::vector<i64>>& dataSliceDataWeightLists)
+    {
+        ASSERT_EQ(dataSliceDataWeightLists.size(), stripeLists.size());
+
+        for (
+            ssize_t stripeListIndex = 0;
+            stripeListIndex < std::ssize(stripeLists);
+            ++stripeListIndex
+        ) {
+            const auto& stripeList = stripeLists[stripeListIndex];
+            const auto& dataSliceDataWeights = dataSliceDataWeightLists[stripeListIndex];
+
+            ssize_t dataSliceIndex = 0;
+
+            for (
+                ssize_t stripeIndex = 0;
+                stripeIndex < std::ssize(stripeList->Stripes);
+                ++stripeIndex
+            ) {
+                for (const auto& dataSlice : stripeList->Stripes[stripeIndex]->DataSlices) {
+                    ASSERT_LT(dataSliceIndex, std::ssize(dataSliceDataWeights));
+                    EXPECT_EQ(dataSlice->GetDataWeight(), dataSliceDataWeights[dataSliceIndex]);
+                    ++dataSliceIndex;
+                }
+            }
+
+            EXPECT_EQ(dataSliceIndex, std::ssize(dataSliceDataWeights));
+        }
+    }
+
     std::vector<std::vector<TChunkId>> OriginalChunks_;
 
     IOrderedChunkPoolPtr ChunkPool_;
@@ -428,6 +460,85 @@ TEST_P(TOrderedChunkPoolTest, OrderedMergeSimple)
     EXPECT_EQ(2u, stripeLists.size());
 
     CheckEverything(stripeLists);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_P(TOrderedChunkPoolTest, OrderedMergeExactSlices)
+{
+    InitTables(
+        /*isTeleportable*/ {true, true, true},
+        /*isVersioned*/ {false, false, false});
+
+    DataWeightPerJob_ = 10_KB;
+    InputSliceDataWeight_ = 2_KB;
+    InputSliceRowCount_ = 200;
+
+    InitJobConstraints();
+
+    auto chunkA = CreateChunk(0, 16_KB, 1600);
+    auto chunkB = CreateChunk(0, 12_KB, 1200);
+    auto chunkC = CreateChunk(0, 2_KB, 200);
+
+    CreateChunkPool();
+
+    AddChunk(chunkA);
+    AddChunk(chunkB);
+    AddChunk(chunkC);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
+    EXPECT_EQ(stripeLists.size(), 3u);
+
+    CheckEverything(stripeLists);
+
+    std::vector<std::vector<i64>> dataSliceDataWeightLists;
+    if (!Options_.UseNewSlicingImplementation) {
+        dataSliceDataWeightLists = {
+            {
+                // chunkA, job0
+                2_KB, 2_KB, 2_KB, 2_KB, 2_KB
+            },
+            {
+                // chunkA, job1
+                2_KB, 2_KB, 2_KB,
+                // chunkB, job1
+                2_KB, 2_KB
+            },
+            {
+                // chunkB, job2
+                2_KB, 2_KB, 2_KB, 2_KB,
+                // chunkC, job2
+                2_KB
+            }
+        };
+    } else {
+        // Check that slices are not split unnecessarily.
+        dataSliceDataWeightLists = {
+            {
+                // chunkA, job0
+                10_KB
+            },
+            {
+                // chunkA, job1
+                6_KB,
+                // chunkB, job1
+                4_KB
+            },
+            {
+                // chunkB, job2
+                8_KB,
+                // chunkC, job2
+                2_KB
+            }
+        };
+    }
+
+    CheckDataSliceDataWeights(stripeLists, dataSliceDataWeightLists);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
