@@ -250,6 +250,8 @@ private:
         const TStoreLocationPtr& location,
         int mediumIndex);
 
+    bool ShouldChooseLocationBasedOnIOWeight();
+
     void DoRegisterExistingChunk(const IChunkPtr& chunk);
 
     void DoRegisterExistingJournalChunk(const IChunkPtr& chunk);

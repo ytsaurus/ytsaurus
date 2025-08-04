@@ -995,6 +995,9 @@ struct TDataNodeConfig
     //! This is a per-location limit.
     i64 DiskReadThrottlingLimit;
 
+    //! If |true| then location on StartChunk is randomly chosen based on io_weight.
+    bool ChooseLocationBasedOnIOWeight;
+
     //! Regular storage locations.
     std::vector<TStoreLocationConfigPtr> StoreLocations;
 
@@ -1160,6 +1163,8 @@ struct TDataNodeDynamicConfig
 
     std::optional<i64> DiskWriteThrottlingLimit;
     std::optional<i64> DiskReadThrottlingLimit;
+
+    std::optional<bool> ChooseLocationBasedOnIOWeight;
 
     std::optional<bool> EnableSendBlocksNetThrottling;
 
