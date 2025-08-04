@@ -25,7 +25,7 @@ void TDynamicTableManagerConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("yson_table_schema_cache", &TThis::YsonTableSchemaCache)
         .DefaultNew();
-    registrar.Parameter("disable_table_schema_cache", &TThis::DisableTableSchemaCache)
+    registrar.Parameter("disable_table_schema_cache_refresh", &TThis::DisableTableSchemaCacheRefresh)
         .Default(false)
         .DontSerializeDefault();
 
@@ -39,7 +39,7 @@ void TDynamicTableManagerConfig::Register(TRegistrar registrar)
         config->YsonTableSchemaCache->ExpireAfterFailedUpdateTime = TDuration::Minutes(5);
     });
     registrar.Postprocessor([] (TThis* config) {
-        if (config->DisableTableSchemaCache) {
+        if (config->DisableTableSchemaCacheRefresh) {
             config->TableSchemaCache->RefreshTime = std::nullopt;
             config->YsonTableSchemaCache->RefreshTime = std::nullopt;
         }

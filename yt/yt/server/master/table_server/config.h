@@ -31,7 +31,7 @@ struct TDynamicTableManagerConfig
     TYsonTableSchemaCacheConfigPtr YsonTableSchemaCache;
 
     // COMPAT(cherepashka).
-    bool DisableTableSchemaCache;
+    bool DisableTableSchemaCacheRefresh;
     // COMPAT(cherepashka, aleksandra-zh).
     bool MakeSchemaAttributeOpaque;
     // COMPAT(babenko)
