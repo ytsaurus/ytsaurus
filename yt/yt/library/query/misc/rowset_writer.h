@@ -4,25 +4,21 @@
 
 namespace NYT::NQueryClient {
 
-using namespace NTableClient;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TSimpleRowsetWriter)
-
 class TSimpleRowsetWriter
-    : public IUnversionedRowsetWriter
+    : public NTableClient::IUnversionedRowsetWriter
 {
 public:
     explicit TSimpleRowsetWriter(IMemoryChunkProviderPtr chunkProvider);
 
-    TSharedRange<TUnversionedRow> GetRows() const;
+    TSharedRange<NTableClient::TUnversionedRow> GetRows() const;
 
-    TFuture<TSharedRange<TUnversionedRow>> GetResult() const;
+    TFuture<TSharedRange<NTableClient::TUnversionedRow>> GetResult() const;
 
     TFuture<void> Close() override;
 
-    bool Write(TRange<TUnversionedRow> rows) override;
+    bool Write(TRange<NTableClient::TUnversionedRow> rows) override;
 
     TFuture<void> GetReadyEvent() override;
 
@@ -34,9 +30,9 @@ private:
     struct TSchemafulRowsetWriterBufferTag
     { };
 
-    const TPromise<TSharedRange<TUnversionedRow>> Result_ = NewPromise<TSharedRange<TUnversionedRow>>();
-    const TRowBufferPtr RowBuffer_;
-    std::vector<TUnversionedRow> Rows_;
+    const TPromise<TSharedRange<NTableClient::TUnversionedRow>> Result_ = NewPromise<TSharedRange<NTableClient::TUnversionedRow>>();
+    const NTableClient::TRowBufferPtr RowBuffer_;
+    std::vector<NTableClient::TUnversionedRow> Rows_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSimpleRowsetWriter)

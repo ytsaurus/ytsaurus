@@ -617,7 +617,7 @@ void MultiJoinOpHelper(
             TPIValue* lastForeignKey = nullptr;
 
             TRowBatchReadOptions readOptions{
-                .MaxRowsPerRead = context->RowsetProcessingBatchSize
+                .MaxRowsPerRead = context->RowsetProcessingBatchSize,
             };
 
             std::vector<TPIValue*> foreignValues;
