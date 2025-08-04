@@ -48,9 +48,7 @@ class TestDistributedWriteRPC(TestDistributedWrite):
             },
             "generation": {
                 "cypress_key_writer": dict(),
-                "key_rotator": {
-                    "key_rotation_interval": "2h",
-                },
+                "key_rotator": dict(),
                 "generator": dict(),
             },
         },

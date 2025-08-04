@@ -548,7 +548,9 @@ class TestJobProxySignatures(YTEnvSetup):
                     "cypress_key_writer": dict(),
                     "generator": dict(),
                     "key_rotator": {
-                        "key_rotation_interval": "1s",
+                        "key_rotation_options": {
+                            "period": "1s",
+                        },
                     },
                 },
             },

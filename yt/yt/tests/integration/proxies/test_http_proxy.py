@@ -1934,9 +1934,7 @@ class TestHttpProxySignaturesBase(HttpProxyTestBase):
             },
             "generation": {
                 "cypress_key_writer": dict(),
-                "key_rotator": {
-                    "key_rotation_interval": "2h",
-                },
+                "key_rotator": dict(),
                 "generator": dict(),
             },
         },
@@ -2049,7 +2047,9 @@ class TestHttpProxySignaturesKeyRotation(TestHttpProxySignaturesBase):
         "signature_components": {
             "generation": {
                 "key_rotator": {
-                    "key_rotation_interval": "200ms",
+                    "key_rotation_options": {
+                        "period": "200ms",
+                    },
                 },
             },
         },
@@ -2076,7 +2076,9 @@ class TestHttpProxySignaturesKeyRotation(TestHttpProxySignaturesBase):
                             "path": new_path,
                         },
                         "key_rotator": {
-                            "key_rotation_interval": "5s",
+                            "key_rotation_options": {
+                                "period": "5s",
+                            },
                         },
                     },
                 },

@@ -7,6 +7,7 @@ namespace NYT::NSignature {
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NApi;
+using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYPath;
 
@@ -28,9 +29,20 @@ void TSignatureGeneratorConfig::Register(TRegistrar registrar)
 
 void TKeyRotatorConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("key_rotation_interval", &TThis::KeyRotationInterval)
-        .Default(TDuration::Days(1))
-        .GreaterThan(TDuration::MilliSeconds(100));
+    registrar.Parameter("key_rotation_options", &TThis::KeyRotationOptions)
+        .Default(TRetryingPeriodicExecutorOptions(
+            TPeriodicExecutorOptions{
+                .Period = TDuration::Days(1),
+                .Jitter = 0.1,
+            },
+            TExponentialBackoffOptions{
+                .MinBackoff = TDuration::Seconds(1),
+                .MaxBackoff = TDuration::Minutes(5),
+                .BackoffMultiplier = 5.0,
+            }))
+        .CheckThat([] (const auto& options) {
+            return options.Period && *options.Period > TDuration::MilliSeconds(100);
+        });
 
     registrar.Parameter("key_expiration_delta", &TThis::KeyExpirationDelta)
         .Default(TDuration::Days(2))
@@ -67,9 +79,8 @@ void TCypressKeyWriterConfig::Register(TRegistrar registrar)
         .Default(TDuration::Days(1))
         .GreaterThanOrEqual(TDuration::Zero());
 
-    // TODO(pavook) implement.
     registrar.Parameter("max_key_count", &TThis::MaxKeyCount)
-        .Default(100)
+        .Default(10)
         .GreaterThan(0);
 }
 
