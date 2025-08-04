@@ -993,7 +993,7 @@ void TJob::OnResultReceived(TJobResult jobResult)
                             // Save the first found NBD error.
                             if (nbdError.IsOK()) {
                                 nbdError = std::move(error);
-                                nbdError <<= TErrorAttribute("abort_reason", EAbortReason::NbdErrors);
+                                nbdError <<= TErrorAttribute("abort_reason", EAbortReason::NbdError);
                                 nbdError <<= TErrorAttribute("debug_info", device->DebugString());
                                 // Save job error as well.
                                 if (auto jobError = FromProto<TError>(jobResult.error()); !jobError.IsOK()) {

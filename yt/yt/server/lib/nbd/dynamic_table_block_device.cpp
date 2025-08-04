@@ -284,7 +284,7 @@ class TDynamicTableBlockDevice
     : public TBaseBlockDevice
 {
 public:
-    explicit TDynamicTableBlockDevice(
+    TDynamicTableBlockDevice(
         TString deviceId,
         TDynamicTableBlockDeviceConfigPtr deviceConfig,
         NApi::NNative::IClientPtr client,
