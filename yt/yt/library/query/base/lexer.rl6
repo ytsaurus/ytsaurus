@@ -178,8 +178,7 @@ typedef TParser::token_type TToken;
         };
         string_literal => {
             type = TToken::StringLiteral;
-            // NB(sabdenovch): Implicit TString construction.
-            value->build(UnescapeC(ts + 1, te - ts - 2));
+            value->build(std::string(UnescapeC(ts + 1, te - ts - 2)));
             fbreak;
         };
         placeholder_literal => {

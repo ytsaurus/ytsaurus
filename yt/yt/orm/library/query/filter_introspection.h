@@ -98,7 +98,7 @@ bool IsAttributeReference(
 ////////////////////////////////////////////////////////////////////////////////
 
 //! If #exprList is a string literal value, return it, otherwise return null.
-std::optional<TString> TryCastToStringValue(
+std::optional<std::string> TryCastToStringValue(
     const NQueryClient::NAst::TExpressionList& exprList) noexcept;
 
 ////////////////////////////////////////////////////////////////////////////////

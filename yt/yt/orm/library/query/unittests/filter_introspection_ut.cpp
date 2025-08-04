@@ -39,17 +39,17 @@ TEST(TFilterIntrospectionTest, DefinedAttributeValue)
     EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id]=(1+2+3,2)", "/meta/id").Value, std::nullopt);
 
     // Equality.
-    EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id]=\"aba\"", "/meta/id").TryMoveAs<TString>(), "aba");
+    EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id]=\"aba\"", "/meta/id").TryMoveAs<std::string>(), "aba");
 
     // And.
-    EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id]=\"aba\" and [/meta/creation_time] > 100", "/meta/id").TryMoveAs<TString>(), "aba");
-    EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id]=\"aba\" and not ([/meta/id]=\"aba\")", "/meta/id").TryMoveAs<TString>(), "aba");
-    EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id]=\"aba\" and [/meta/id]=\"cde\"", "/meta/id").TryMoveAs<TString>(), "aba");
-    EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id]=\"aba\" and 123", "/meta/id").TryMoveAs<TString>(), "aba");
+    EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id]=\"aba\" and [/meta/creation_time] > 100", "/meta/id").TryMoveAs<std::string>(), "aba");
+    EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id]=\"aba\" and not ([/meta/id]=\"aba\")", "/meta/id").TryMoveAs<std::string>(), "aba");
+    EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id]=\"aba\" and [/meta/id]=\"cde\"", "/meta/id").TryMoveAs<std::string>(), "aba");
+    EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id]=\"aba\" and 123", "/meta/id").TryMoveAs<std::string>(), "aba");
 
     // Or.
     EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id]=\"aba\" or [/meta/id]=\"cde\"", "/meta/id").Value, std::nullopt);
-    EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id]=\"aba\" or [/meta/id]=\"aba\"", "/meta/id").TryMoveAs<TString>(), "aba");
+    EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id]=\"aba\" or [/meta/id]=\"aba\"", "/meta/id").TryMoveAs<std::string>(), "aba");
     EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id]=\"aba\" or 123", "/meta/id").Value, std::nullopt);
 
     // Too complex for now.
