@@ -290,9 +290,9 @@ void FormatLiteralValue(TStringBuilderBase* builder, const TLiteralValue& value)
         [&] (bool value) {
             builder->AppendFormat("%v", value ? "true" : "false");
         },
-        [&] (const TString& value) {
+        [&] (const std::string& value) {
             builder->AppendChar('"');
-            builder->AppendString(EscapeC(value));
+            builder->AppendString(EscapeC(TString(value)));
             builder->AppendChar('"');
         });
 }
