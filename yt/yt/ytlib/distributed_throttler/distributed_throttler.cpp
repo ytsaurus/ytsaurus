@@ -1098,7 +1098,7 @@ public:
                     MemberClient_->SetPriority(RandomNumber<ui64>());
                     break;
                 default:
-                    THROW_ERROR_EXCEPTION("Unsupported priority generator: %v",
+                    THROW_ERROR_EXCEPTION("Unsupported member priority generator: %Qlv",
                         conf->MemberPriorityGenerator);
                     break;
             }
