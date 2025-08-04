@@ -40,11 +40,7 @@ void TTableCollocation::Load(TLoadContext& context)
     Load(context, ExternalCellTag_);
     Load(context, Tables_);
     Load(context, Type_);
-
-    // COMPAT(akozhikhov)
-    if (context.GetVersion() >= EMasterReign::ReplicationCollocationOptions) {
-        Load(context, *ReplicationCollocationOptions_);
-    }
+    Load(context, *ReplicationCollocationOptions_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

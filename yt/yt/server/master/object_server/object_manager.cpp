@@ -359,8 +359,6 @@ private:
     //! Stores schemas (for serialization mostly).
     TEntityMap<TSchemaObject> SchemaMap_;
 
-    // COMPAT(babenko)
-    bool DropLegacyClusterNodeMap_ = false;
     // COMPAT(cherepashka)
     bool DropLegacyZookeeperShard_ = false;
 
@@ -1178,7 +1176,6 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
 
     GarbageCollector_->LoadValues(context);
 
-    DropLegacyClusterNodeMap_ = context.GetVersion() < EMasterReign::DropLegacyClusterNodeMap;
     DropLegacyZookeeperShard_ = context.GetVersion() < EMasterReign::DropLegacyZookeeperShard;
 }
 
@@ -1194,11 +1191,6 @@ void TObjectManager::OnAfterSnapshotLoaded()
             SchemaMap_.Remove(schemaId);
         }
     };
-
-    if (DropLegacyClusterNodeMap_) {
-        // ClusterNodeMap
-        dropSchema(EObjectType(804));
-    }
 
     if (DropLegacyZookeeperShard_) {
         // ZookeeperShard
@@ -1224,7 +1216,6 @@ void TObjectManager::Clear()
     CreatedObjects_ = 0;
     DestroyedObjects_ = 0;
 
-    DropLegacyClusterNodeMap_ = false;
     DropLegacyZookeeperShard_ = false;
 
     GarbageCollector_->Clear();

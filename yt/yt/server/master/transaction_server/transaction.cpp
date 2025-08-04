@@ -335,19 +335,11 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, SequoiaTransaction_);
     Load(context, SequoiaWriteSet_);
 
-    // COMPAT(kvk1920)
-    if (context.GetVersion() >= EMasterReign::FixCypressTransactionMirroring) {
-        Load(context, AuthenticationIdentity_.User);
-        Load(context, AuthenticationIdentity_.UserTag);
-    }
+    Load(context, AuthenticationIdentity_.User);
+    Load(context, AuthenticationIdentity_.UserTag);
 
     if (IsCypressTransactionType(GetType())) {
-        // COMPAT(kvk1920)
-        if (context.GetVersion() >= EMasterReign::NativeTransactionExternalization) {
-            Load(context, NativeTxExternalizationEnabled_);
-        } else {
-            NativeTxExternalizationEnabled_ = false;
-        }
+        Load(context, NativeTxExternalizationEnabled_);
     }
 }
 

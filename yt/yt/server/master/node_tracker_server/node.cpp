@@ -699,20 +699,6 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     // loading |TRealChunkLocationRawptr|.
     TVectorSerializer<TRealChunkLocationPtrSerializer>::Load(context, ChunkLocations_);
 
-    // COMPAT(kvk1920)
-    if (context.GetVersion() < EMasterReign::DropImaginaryChunkLocations) {
-        auto imaginaryLocationCount = TSizeSerializer::Load(context);
-
-        // Just drop it.
-        for (size_t i = 0; i < imaginaryLocationCount; ++i) {
-            // Medium index.
-            Load<int>(context);
-
-            auto* owningNode = TChunkLocation::SkipImaginaryChunkLocation(context);
-            YT_VERIFY(owningNode == this);
-        }
-    }
-
     Load(context, RegisterTime_);
     Load(context, LastSeenTime_);
     Load(context, ClusterNodeStatistics_);
@@ -766,10 +752,6 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, ConsistentReplicaPlacementTokenCount_);
     Load(context, NextDisposedLocationIndex_);
     Load(context, LastGossipState_);
-
-    if (context.GetVersion() < EMasterReign::RemoveStuckAttributes && Attributes_) {
-        Attributes_->TryRemove(EInternedAttributeKey::MaintenanceRequests.Unintern());
-    }
 
     ComputeDefaultAddress();
     ComputeFillFactorsAndTotalSpace();

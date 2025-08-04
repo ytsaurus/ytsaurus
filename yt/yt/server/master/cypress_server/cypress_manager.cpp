@@ -2727,9 +2727,6 @@ private:
     using TRecursiveResourceUsageCachePtr = TIntrusivePtr<TRecursiveResourceUsageCache>;
     const TRecursiveResourceUsageCachePtr RecursiveResourceUsageCache_;
 
-    // COMPAT(danilalexeev)
-    bool RecomputeNodeReachability_ = false;
-
     // COMPAT(shakurov)
     bool NeedResetHunkSpecificMediaOnTrunkNodes_ = false;
     // COMPAT(shakurov)
@@ -2794,11 +2791,6 @@ private:
             object->Namespace()->RegisterMember(object);
         }
 
-        // COMPAT(danilalexeev)
-        if (context.GetVersion() < EMasterReign::CypressNodeReachability) {
-            RecomputeNodeReachability_ = true;
-        }
-
         // COMPAT(shakurov)
         YT_VERIFY(EMasterReign::ResetHunkMediaOnBranchedNodes < EMasterReign::ResetHunkMediaOnBranchedNodesOnly);
         if (context.GetVersion() < EMasterReign::ResetHunkMediaOnBranchedNodes) {
@@ -2837,7 +2829,6 @@ private:
 
         RecursiveResourceUsageCache_->Clear();
 
-        RecomputeNodeReachability_ = false;
         NeedResetHunkSpecificMediaOnTrunkNodes_ = false;
         NeedResetHunkSpecificMediaOnBranchedNodes_ = false;
         ValidateLegacyCellMapsEmptyOnSnapshotLoaded_ = false;
@@ -2931,22 +2922,6 @@ private:
         YT_LOG_INFO("Finished initializing nodes");
 
         InitBuiltins();
-
-        // COMPAT(danilalexeev)
-        if (RecomputeNodeReachability_) {
-            YT_LOG_INFO("Determining Cypress nodes reachability");
-            for (auto [nodeId, node] : NodeMap_) {
-                if ((node->IsTrunk() && !IsObjectAlive(node)) || node->IsForeign()) {
-                    continue;
-                }
-                auto pathRootType = EPathRootType::Other;
-                GetNodePath(node->GetTrunkNode(), node->GetTransaction(), &pathRootType);
-                node->SetReachable(
-                    pathRootType != EPathRootType::SequoiaNode &&
-                    pathRootType != EPathRootType::Other);
-            }
-            YT_LOG_INFO("Finished determining Cypress nodes reachability");
-        }
 
         // COMPAT(shakurov)
         YT_VERIFY(!NeedResetHunkSpecificMediaOnTrunkNodes_ || NeedResetHunkSpecificMediaOnBranchedNodes_);

@@ -158,13 +158,7 @@ public:
 
         THistogramSnapshot snapshot;
         Load(context, snapshot.Bounds);
-        // COMPAT(babenko)
-        if (context.GetVersion() >= EMasterReign::Int64InHistogramSnapshot) {
-            Load(context, snapshot.Values);
-        } else {
-            auto values = NYT::Load<std::vector<int>>(context);
-            snapshot.Values = {values.begin(), values.end()};
-        }
+        Load(context, snapshot.Values);
         Histogram_.LoadSnapshot(std::move(snapshot));
     }
 
