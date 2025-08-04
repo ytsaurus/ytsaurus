@@ -1503,67 +1503,13 @@ void TInputManager::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Host_);
-
     Persist(context, Logger);
-
     Persist(context, InputTables_);
-    if (context.GetVersion() < ESnapshotVersion::RemoteInputForOperations) {
-        const auto& emplacedIterator = EmplaceOrCrash(
-            Clusters_,
-            LocalClusterName,
-            New<TInputCluster>(LocalClusterName, Logger));
-        emplacedIterator->second->InputTables() = InputTables_;
-    }
-
-    if (context.GetVersion() < ESnapshotVersion::RemoteInputForOperations) {
-        Persist(context, GetClusterOrCrash(LocalClusterName)->NodeDirectory());
-    }
     Persist(context, InputChunkMap_);
-    if (context.GetVersion() < ESnapshotVersion::RemoteInputForOperations) {
-        Persist(context, GetClusterOrCrash(LocalClusterName)->UnavailableInputChunkIds());
-    }
     Persist(context, InputHasStaticTableWithHunks_);
     Persist(context, InputHasOrderedDynamicStores_);
-    if (context.GetVersion() >= ESnapshotVersion::RemoteInputForOperations) {
-        Persist(context, Clusters_);
-        Persist(context, ClusterResolver_);
-    }
-}
-
-void TInputManager::PrepareToBeLoadedFromAncientVersion()
-{
-    Clusters_[LocalClusterName] = New<TInputCluster>(LocalClusterName, Logger);
-}
-
-void TInputManager::LoadInputNodeDirectory(const TPersistenceContext& context)
-{
-    YT_VERIFY(context.IsLoad() && context.GetVersion() < ESnapshotVersion::InputManagerIntroduction);
-    NYT::Persist(context, GetClusterOrCrash(LocalClusterName)->NodeDirectory());
-}
-
-void TInputManager::LoadInputChunkMap(const TPersistenceContext& context)
-{
-    YT_VERIFY(context.IsLoad() && context.GetVersion() < ESnapshotVersion::InputManagerIntroduction);
-    NYT::Persist(context, InputChunkMap_);
-}
-
-void TInputManager::LoadPathToInputTables(const TPersistenceContext& context)
-{
-    YT_VERIFY(context.IsLoad() && context.GetVersion() < ESnapshotVersion::InputManagerIntroduction);
-    NYT::Persist(context, GetClusterOrCrash(LocalClusterName)->PathToInputTables());
-}
-
-void TInputManager::LoadInputTables(const TPersistenceContext& context)
-{
-    YT_VERIFY(context.IsLoad() && context.GetVersion() < ESnapshotVersion::InputManagerIntroduction);
-    NYT::Persist(context, InputTables_);
-    GetClusterOrCrash(LocalClusterName)->InputTables() = InputTables_;
-}
-
-void TInputManager::LoadInputHasOrderedDynamicStores(const TPersistenceContext& context)
-{
-    YT_VERIFY(context.IsLoad() && context.GetVersion() < ESnapshotVersion::InputManagerIntroduction);
-    NYT::Persist(context, InputHasOrderedDynamicStores_);
+    Persist(context, Clusters_);
+    Persist(context, ClusterResolver_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
