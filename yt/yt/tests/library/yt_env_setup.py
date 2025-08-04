@@ -1660,9 +1660,10 @@ class YTEnvSetup(object):
             yt_commands.gc_collect(driver=driver)
 
             if self._is_ground_cluster(cluster_index):
-
                 for table in DESCRIPTORS.get_group("transactions"):
                     wait(lambda: yt_commands.select_rows(f"* from [{table.get_default_path()}]", driver=driver) == [])
+
+                wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.doomed_transactions.get_default_path()}]", driver=driver) == [])
 
                 mangled_sys_operations = yt_sequoia_helpers.mangle_sequoia_path("//sys/operations")
 

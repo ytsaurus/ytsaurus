@@ -210,6 +210,7 @@ DEFINE_ENUM(EMasterReign,
     ((DropEnableFixRequisitionUpdateCompat)                         (3005))  // kvk1920
     ((SequoiaPrerequisiteRevisions)                                 (3006))  // cherepashka
     ((DropHydraRemoveExpiredNodes)                                  (3007))  // danilalexeev
+    ((TransactionsCanNowFeelImpendingDoom)                          (3008))  // h0pless
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

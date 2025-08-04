@@ -2,6 +2,8 @@
 
 #include "path_resolver.h"
 
+#include <yt/yt/server/lib/transaction_server/helpers.h>
+
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
@@ -15,6 +17,7 @@
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 #include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
 
+#include <yt/yt/ytlib/sequoia_client/records/doomed_transactions.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/transactions.record.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -36,6 +39,7 @@ using namespace NCypressClient::NProto;
 using namespace NObjectClient;
 using namespace NRpc;
 using namespace NSequoiaClient;
+using namespace NTransactionServer;
 using namespace NYPath;
 using namespace NYTree;
 
@@ -232,16 +236,29 @@ void ValidatePrerequisiteTransactions(
     }
 
     std::vector<NRecords::TTransactionKey> transactionKeys;
+    std::vector<NRecords::TDoomedTransactionKey> doomedTransactionKeys;
     transactionKeys.reserve(prerequisiteTransactionIds.size());
-    for (const auto& transactionId : prerequisiteTransactionIds) {
+    doomedTransactionKeys.reserve(prerequisiteTransactionIds.size());
+    for (auto transactionId : prerequisiteTransactionIds) {
         if (!IsCypressTransactionMirroredToSequoia(transactionId)) {
             THROW_ERROR_EXCEPTION("Non-mirrored transaction %v found in prerequisites", transactionId);
         }
+
         transactionKeys.push_back({.TransactionId = transactionId});
+        doomedTransactionKeys.push_back({.TransactionId = transactionId});
     }
 
     auto transactionRowsOrError = WaitFor(sequoiaClient->LookupRows(transactionKeys));
     THROW_ERROR_EXCEPTION_IF_FAILED(transactionRowsOrError, "Failed to check prerequisite transactions");
+
+    auto doomedTransactionRowsOrError = WaitFor(sequoiaClient->LookupRows(doomedTransactionKeys));
+    THROW_ERROR_EXCEPTION_IF_FAILED(doomedTransactionRowsOrError, "Failed to check prerequisite transactions");
+    auto doomedTransactionRows = doomedTransactionRowsOrError.Value();
+    for (int index = 0; index < std::ssize(doomedTransactionRows); ++index) {
+        if (doomedTransactionRows[index].has_value()) {
+            ThrowTransactionIsDoomed(prerequisiteTransactionIds[index], /*isPrerequisite*/ true);
+        }
+    }
 
     auto transactionRows = transactionRowsOrError.Value();
     for (const auto& [key, row] : Zip(transactionKeys, transactionRows)) {

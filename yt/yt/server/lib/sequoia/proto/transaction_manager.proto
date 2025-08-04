@@ -84,6 +84,11 @@ message TReqMarkCypressTransactionsReplicatedToCells
     repeated NYT.NProto.TGuid transaction_ids = 2;
 }
 
+message TReqRevokeCypressTransactionLeases
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+}
+
 message TReqMaterializeCypressTransactionReplicas
 {
     repeated TReqStartForeignTransaction transactions = 1;

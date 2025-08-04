@@ -328,12 +328,6 @@ public:
             .Table = table,
         };
         WriteRow(descriptor, row, lockType);
-
-        YT_LOG_DEBUG_IF(SequoiaTransactionOptions_.EnableVerboseLogging,
-            "Row written (SequoiaTable: %v, Row: %v, LockType: %v)",
-            table,
-            row,
-            lockType);
     }
 
     void WriteRow(
