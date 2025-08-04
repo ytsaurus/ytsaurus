@@ -8804,7 +8804,7 @@ f2py_start_clock();
     } else {
         x = (float *)(PyArray_DATA(capi_x_as_array));
 
-    CHECKARRAY(len(x)>offx+(trans==0?m-1:n-1)*abs(incx),"len(x)>offx+(trans==0?m-1:n-1)*abs(incx)","7th argument x") {
+    CHECKARRAY(len(x)>offx+(trans==0?n-1:m-1)*abs(incx),"len(x)>offx+(trans==0?n-1:m-1)*abs(incx)","7th argument x") {
     CHECKARRAY(offx>=0 && offx<len(x),"offx>=0 && offx<len(x)","7th argument x") {
 /*end of frompyobj*/
 #ifdef F2PY_REPORT_ATEXIT
@@ -8829,7 +8829,7 @@ f2py_stop_call_clock();
         } /*if (f2py_success) after callfortranroutine*/
 /*cleanupfrompyobj*/
     } /*CHECKARRAY(offx>=0 && offx<len(x))*/
-    } /*CHECKARRAY(len(x)>offx+(trans==0?m-1:n-1)*abs(incx))*/
+    } /*CHECKARRAY(len(x)>offx+(trans==0?n-1:m-1)*abs(incx))*/
     if((PyObject *)capi_x_as_array!=x_capi) {
         Py_XDECREF(capi_x_as_array); }
     }  /* if (capi_x_as_array == NULL) ... else of x */
@@ -9068,7 +9068,7 @@ f2py_start_clock();
     } else {
         x = (double *)(PyArray_DATA(capi_x_as_array));
 
-    CHECKARRAY(len(x)>offx+(trans==0?m-1:n-1)*abs(incx),"len(x)>offx+(trans==0?m-1:n-1)*abs(incx)","7th argument x") {
+    CHECKARRAY(len(x)>offx+(trans==0?n-1:m-1)*abs(incx),"len(x)>offx+(trans==0?n-1:m-1)*abs(incx)","7th argument x") {
     CHECKARRAY(offx>=0 && offx<len(x),"offx>=0 && offx<len(x)","7th argument x") {
 /*end of frompyobj*/
 #ifdef F2PY_REPORT_ATEXIT
@@ -9093,7 +9093,7 @@ f2py_stop_call_clock();
         } /*if (f2py_success) after callfortranroutine*/
 /*cleanupfrompyobj*/
     } /*CHECKARRAY(offx>=0 && offx<len(x))*/
-    } /*CHECKARRAY(len(x)>offx+(trans==0?m-1:n-1)*abs(incx))*/
+    } /*CHECKARRAY(len(x)>offx+(trans==0?n-1:m-1)*abs(incx))*/
     if((PyObject *)capi_x_as_array!=x_capi) {
         Py_XDECREF(capi_x_as_array); }
     }  /* if (capi_x_as_array == NULL) ... else of x */
@@ -9332,7 +9332,7 @@ f2py_start_clock();
     } else {
         x = (complex_float *)(PyArray_DATA(capi_x_as_array));
 
-    CHECKARRAY(len(x)>offx+(trans==0?m-1:n-1)*abs(incx),"len(x)>offx+(trans==0?m-1:n-1)*abs(incx)","7th argument x") {
+    CHECKARRAY(len(x)>offx+(trans==0?n-1:m-1)*abs(incx),"len(x)>offx+(trans==0?n-1:m-1)*abs(incx)","7th argument x") {
     CHECKARRAY(offx>=0 && offx<len(x),"offx>=0 && offx<len(x)","7th argument x") {
 /*end of frompyobj*/
 #ifdef F2PY_REPORT_ATEXIT
@@ -9357,7 +9357,7 @@ f2py_stop_call_clock();
         } /*if (f2py_success) after callfortranroutine*/
 /*cleanupfrompyobj*/
     } /*CHECKARRAY(offx>=0 && offx<len(x))*/
-    } /*CHECKARRAY(len(x)>offx+(trans==0?m-1:n-1)*abs(incx))*/
+    } /*CHECKARRAY(len(x)>offx+(trans==0?n-1:m-1)*abs(incx))*/
     if((PyObject *)capi_x_as_array!=x_capi) {
         Py_XDECREF(capi_x_as_array); }
     }  /* if (capi_x_as_array == NULL) ... else of x */
@@ -9596,7 +9596,7 @@ f2py_start_clock();
     } else {
         x = (complex_double *)(PyArray_DATA(capi_x_as_array));
 
-    CHECKARRAY(len(x)>offx+(trans==0?m-1:n-1)*abs(incx),"len(x)>offx+(trans==0?m-1:n-1)*abs(incx)","7th argument x") {
+    CHECKARRAY(len(x)>offx+(trans==0?n-1:m-1)*abs(incx),"len(x)>offx+(trans==0?n-1:m-1)*abs(incx)","7th argument x") {
     CHECKARRAY(offx>=0 && offx<len(x),"offx>=0 && offx<len(x)","7th argument x") {
 /*end of frompyobj*/
 #ifdef F2PY_REPORT_ATEXIT
@@ -9621,7 +9621,7 @@ f2py_stop_call_clock();
         } /*if (f2py_success) after callfortranroutine*/
 /*cleanupfrompyobj*/
     } /*CHECKARRAY(offx>=0 && offx<len(x))*/
-    } /*CHECKARRAY(len(x)>offx+(trans==0?m-1:n-1)*abs(incx))*/
+    } /*CHECKARRAY(len(x)>offx+(trans==0?n-1:m-1)*abs(incx))*/
     if((PyObject *)capi_x_as_array!=x_capi) {
         Py_XDECREF(capi_x_as_array); }
     }  /* if (capi_x_as_array == NULL) ... else of x */

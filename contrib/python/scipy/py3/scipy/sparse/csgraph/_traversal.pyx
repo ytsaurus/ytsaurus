@@ -149,6 +149,11 @@ def breadth_first_tree(csgraph, i_start, directed=True):
         The N x N directed compressed-sparse representation of the breadth-
         first tree drawn from csgraph, starting at the specified node.
 
+    Notes
+    -----
+    If multiple valid solutions are possible, output may vary with SciPy and
+    Python version.
+
     Examples
     --------
     The following example shows the computation of a depth-first tree
@@ -185,7 +190,7 @@ def breadth_first_tree(csgraph, i_start, directed=True):
     the graph.  A breadth-first tree from a given node is unique.
     """
     _node_list, predecessors = breadth_first_order(csgraph, i_start,
-                                                  directed, True)
+                                                   directed, True)
     return reconstruct_path(csgraph, predecessors, directed)
 
 
@@ -219,6 +224,11 @@ def depth_first_tree(csgraph, i_start, directed=True):
     cstree : csr matrix
         The N x N directed compressed-sparse representation of the depth-
         first tree drawn from csgraph, starting at the specified node.
+
+    Notes
+    -----
+    If multiple valid solutions are possible, output may vary with SciPy and
+    Python version.
 
     Examples
     --------
@@ -259,7 +269,7 @@ def depth_first_tree(csgraph, i_start, directed=True):
     been different.
     """
     _node_list, predecessors = depth_first_order(csgraph, i_start,
-                                                directed, True)
+                                                 directed, True)
     return reconstruct_path(csgraph, predecessors, directed)
 
 
@@ -289,7 +299,7 @@ cpdef breadth_first_order(csgraph, i_start,
         algorithm can progress from point i to j along csgraph[i, j] or
         csgraph[j, i].
     return_predecessors : bool, optional
-        If True (default), then return the predecesor array (see below).
+        If True (default), then return the predecessor array (see below).
 
     Returns
     -------
@@ -303,6 +313,11 @@ cpdef breadth_first_order(csgraph, i_start,
         tree.  If node i is in the tree, then its parent is given by
         predecessors[i]. If node i is not in the tree (and for the parent
         node) then predecessors[i] = -9999.
+
+    Notes
+    -----
+    If multiple valid solutions are possible, output may vary with SciPy and
+    Python version.
 
     Examples
     --------
@@ -490,7 +505,7 @@ cpdef depth_first_order(csgraph, i_start,
         algorithm can progress from point i to j along csgraph[i, j] or
         csgraph[j, i].
     return_predecessors : bool, optional
-        If True (default), then return the predecesor array (see below).
+        If True (default), then return the predecessor array (see below).
 
     Returns
     -------
@@ -504,6 +519,11 @@ cpdef depth_first_order(csgraph, i_start,
         tree.  If node i is in the tree, then its parent is given by
         predecessors[i]. If node i is not in the tree (and for the parent
         node) then predecessors[i] = -9999.
+
+    Notes
+    -----
+    If multiple valid solutions are possible, output may vary with SciPy and
+    Python version.
 
     Examples
     --------
