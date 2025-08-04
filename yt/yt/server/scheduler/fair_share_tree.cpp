@@ -207,13 +207,13 @@ void TFairShareStrategyOperationState::UpdateConfig(const TFairShareStrategyOper
 
 void TAccumulatedResourceDistribution::AppendPeriod(const TJobResources& fairResources, const TJobResources& usage, TDuration period)
 {
-  auto fairResourcesVolume = TResourceVolume(fairResources, period);
-  FairResources_ += fairResourcesVolume;
+    auto fairResourcesVolume = TResourceVolume(fairResources, period);
+    FairResources_ += fairResourcesVolume;
 
-  auto usageVolume = TResourceVolume(usage, period);
-  Usage_ += usageVolume;
+    auto usageVolume = TResourceVolume(usage, period);
+    Usage_ += usageVolume;
 
-  UsageDeficit_ = Max(fairResourcesVolume - usageVolume, TResourceVolume());
+    UsageDeficit_ += Max(fairResourcesVolume - usageVolume, TResourceVolume());
 }
 
 TAccumulatedResourceDistribution& TAccumulatedResourceDistribution::operator+=(const TAccumulatedResourceDistribution& other)

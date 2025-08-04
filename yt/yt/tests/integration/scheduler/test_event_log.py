@@ -422,7 +422,7 @@ class TestEventLog(YTEnvSetup):
 
         assert accumulated_fair_resources >= 5.0
         assert accumulated_usage >= 5.0
-        assert accumulated_usage_deficit >= 0.0
+        assert accumulated_usage_deficit >= accumulated_fair_resources - accumulated_usage
 
     @authors("ignat")
     def test_trimmed_annotations(self):
