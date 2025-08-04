@@ -1601,6 +1601,7 @@ class TestRpcProxySignaturesBase(TestRpcProxyBase):
             },
             "generation": {
                 "cypress_key_writer": dict(),
+                "key_rotator": dict(),
                 "generator": dict(),
             },
         },
@@ -1629,15 +1630,6 @@ def deep_update(source: dict[Any, Any], overrides: dict[Any, Any]) -> dict[Any, 
 @pytest.mark.enabled_multidaemon
 class TestRpcProxySignaturesKeyCreation(TestRpcProxySignaturesBase):
     ENABLE_MULTIDAEMON = True
-    DELTA_RPC_PROXY_CONFIG = deep_update(TestRpcProxySignaturesBase.DELTA_RPC_PROXY_CONFIG, {
-        "signature_components": {
-            "generation": {
-                "key_rotator": {
-                    "key_rotation_interval": "2h",
-                },
-            },
-        },
-    })
 
     @authors("pavook")
     @pytest.mark.timeout(60)
@@ -1654,7 +1646,9 @@ class TestRpcProxySignaturesKeyRotation(TestRpcProxySignaturesBase):
         "signature_components": {
             "generation": {
                 "key_rotator": {
-                    "key_rotation_interval": "200ms",
+                    "key_rotation_options": {
+                        "period": "200ms",
+                    },
                 },
             },
         },
@@ -1682,7 +1676,9 @@ class TestRpcProxySignaturesKeyRotation(TestRpcProxySignaturesBase):
                             "path": new_path,
                         },
                         "key_rotator": {
-                            "key_rotation_interval": "5s",
+                            "key_rotation_options": {
+                                "period": "5s",
+                            },
                         },
                     },
                 },
