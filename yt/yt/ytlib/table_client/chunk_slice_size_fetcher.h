@@ -41,7 +41,7 @@ private:
     THashMap<int, int> ChunkColumnFilterIds_;
     TColumnStableNameFilterDictionary ColumnFilterDictionary_;
 
-    const std::optional<std::vector<TColumnStableName>> GetColumnStableNames(int chunkIndex) const;
+    const std::vector<TColumnStableName>* FindColumnStableNames(int chunkIndex) const;
 
     void ProcessDynamicStore(int chunkIndex) override;
 
