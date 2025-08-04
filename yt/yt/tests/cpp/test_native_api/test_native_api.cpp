@@ -1819,7 +1819,7 @@ TEST_F(TSignatureComponentsTest, Validation)
 TEST_F(TSignatureComponentsTest, DontCrashOnCypressFailure)
 {
     Config->Generation = GenerationConfig;
-    Config->Generation->KeyRotator->KeyRotationInterval = TDuration::MilliSeconds(200);
+    Config->Generation->KeyRotator->KeyRotationOptions.Period = TDuration::MilliSeconds(200);
     Config->Validation = ValidationConfig;
     Components = New<TSignatureComponents>(Config, OwnerId, NativeClient, GetCurrentInvoker());
 
@@ -1984,7 +1984,7 @@ TEST_F(TSignatureComponentsTest, ReconfigureMultipleTimes)
 TEST_F(TSignatureComponentsTest, ReconfigureWhileRotating)
 {
     // Start with fast rotation.
-    GenerationConfig->KeyRotator->KeyRotationInterval = TDuration::MilliSeconds(10);
+    GenerationConfig->KeyRotator->KeyRotationOptions.Period= TDuration::MilliSeconds(10);
     Config->Generation = GenerationConfig;
     Components = New<TSignatureComponents>(Config, OwnerId, NativeClient, GetCurrentInvoker());
     auto generator = Components->GetSignatureGenerator();
@@ -1999,7 +1999,7 @@ TEST_F(TSignatureComponentsTest, ReconfigureWhileRotating)
     }
 
     // Reconfigure with slower rotation.
-    Config->Generation->KeyRotator->KeyRotationInterval = TDuration::Hours(10);
+    Config->Generation->KeyRotator->KeyRotationOptions.Period = TDuration::Hours(10);
     YT_UNUSED_FUTURE(Components->Reconfigure(Config));
 
     // Should be still working perfectly fine.

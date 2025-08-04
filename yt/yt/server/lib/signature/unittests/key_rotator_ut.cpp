@@ -14,6 +14,7 @@ namespace {
 using namespace NConcurrency;
 
 using testing::_;
+using testing::AtLeast;
 using testing::Between;
 using testing::Ne;
 using testing::NotNull;
@@ -86,29 +87,33 @@ TEST_F(TKeyRotatorTest, PeriodicRotate)
         .Times(Between(3, 50))
         .WillRepeatedly(Return(VoidFuture));
 
-    Config->KeyRotationInterval = TDuration::MilliSeconds(10);
+    Config->KeyRotationOptions.Period = TDuration::MilliSeconds(10);
     Rotator = New<TKeyRotator>(Config, GetCurrentInvoker(), Store, Generator);
     WaitFor(Rotator->Start())
         .ThrowOnError();
-    Sleep(Config->KeyRotationInterval * 20);
+    Sleep(*Config->KeyRotationOptions.Period * 20);
     WaitFor(Rotator->Stop())
         .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TKeyRotatorTest, RotateNoErrorPropagation)
+TEST_F(TKeyRotatorTest, RotateRetry)
 {
     EXPECT_CALL(*Store, RegisterKey(_))
-        .WillRepeatedly(Return(MakeFuture<void>(TError("error"))));
+        .Times(AtLeast(2))
+        .WillOnce(Return(MakeFuture<void>(TError("error"))))
+        .WillRepeatedly(Return(VoidFuture));
 
-    Config->KeyRotationInterval = TDuration::MilliSeconds(10);
+    Config->KeyRotationOptions.Period = TDuration::Hours(10);
+    Config->KeyRotationOptions.MinBackoff = TDuration::MilliSeconds(1);
+    Config->KeyRotationOptions.MaxBackoff = TDuration::MilliSeconds(300);
     Rotator = New<TKeyRotator>(Config, GetCurrentInvoker(), Store, Generator);
 
     // Rotation errors should not propagate.
     EXPECT_NO_THROW(WaitFor(Rotator->Start())
         .ThrowOnError());
-    EXPECT_NO_THROW(Sleep(Config->KeyRotationInterval * 10));
+    Sleep(Config->KeyRotationOptions.Splay + Config->KeyRotationOptions.MaxBackoff * 5);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -119,16 +124,16 @@ TEST_F(TKeyRotatorTest, ReconfigureChangesRotationInterval)
         .Times(Between(5, 30))
         .WillRepeatedly(Return(VoidFuture));
 
-    Config->KeyRotationInterval = TDuration::Hours(10);
+    Config->KeyRotationOptions.Period = TDuration::Hours(10);
     Rotator = New<TKeyRotator>(Config, GetCurrentInvoker(), Store, Generator);
     // Shouldn't do any rotations.
     YT_UNUSED_FUTURE(Rotator->Start());
 
     // Reconfigure with a shorter interval.
     auto newConfig = New<TKeyRotatorConfig>();
-    newConfig->KeyRotationInterval = TDuration::MilliSeconds(20);
+    newConfig->KeyRotationOptions.Period = TDuration::MilliSeconds(20);
     Rotator->Reconfigure(newConfig);
-    Sleep(newConfig->KeyRotationInterval * 15);
+    Sleep(*newConfig->KeyRotationOptions.Period * 15);
 
     WaitFor(Rotator->Stop())
         .ThrowOnError();
@@ -150,11 +155,11 @@ TEST_F(TKeyRotatorTest, ReconfigureWhileStopped)
         .ThrowOnError();
 
     auto newConfig = New<TKeyRotatorConfig>();
-    newConfig->KeyRotationInterval = TDuration::MilliSeconds(10);
+    newConfig->KeyRotationOptions.Period = TDuration::MilliSeconds(10);
     Rotator->Reconfigure(newConfig);
     WaitFor(Rotator->Start())
         .ThrowOnError();
-    Sleep(newConfig->KeyRotationInterval * 15);
+    Sleep(*newConfig->KeyRotationOptions.Period * 15);
     WaitFor(Rotator->Stop())
         .ThrowOnError();
 }
@@ -171,7 +176,7 @@ TEST_F(TKeyRotatorTest, MultipleReconfigures)
         .Times(Between(50, 500))
         .WillRepeatedly(Return(VoidFuture));
 
-    Config->KeyRotationInterval = TDuration::Hours(10);
+    Config->KeyRotationOptions.Period = TDuration::Hours(10);
     Rotator = New<TKeyRotator>(Config, GetCurrentInvoker(), Store, Generator);
 
     WaitFor(Rotator->Start())
@@ -180,15 +185,15 @@ TEST_F(TKeyRotatorTest, MultipleReconfigures)
     for (int i = 0; i < 5; ++i) {
         auto newConfig = New<TKeyRotatorConfig>();
         // Gradually decreases: 5s -> 2s -> 1s -> 500ms -> 200ms.
-        newConfig->KeyRotationInterval = TDuration::Seconds(5) / (1 << i);
+        newConfig->KeyRotationOptions.Period = TDuration::Seconds(5) / (1 << i);
         Rotator->Reconfigure(newConfig);
     }
 
     // Final reconfiguration with a very short interval to overshadow everything that has been before.
     auto finalConfig = New<TKeyRotatorConfig>();
-    finalConfig->KeyRotationInterval = TDuration::MilliSeconds(10);
+    finalConfig->KeyRotationOptions.Period = TDuration::MilliSeconds(10);
     Rotator->Reconfigure(finalConfig);
-    Sleep(finalConfig->KeyRotationInterval * 300);
+    Sleep(*finalConfig->KeyRotationOptions.Period * 300);
 
     WaitFor(Rotator->Stop())
         .ThrowOnError();
@@ -202,7 +207,7 @@ TEST_F(TKeyRotatorTest, GetNextRotation)
         .Times(Between(2, 5))
         .WillRepeatedly(Return(VoidFuture));
 
-    Config->KeyRotationInterval = TDuration::MilliSeconds(50);
+    Config->KeyRotationOptions.Period = TDuration::MilliSeconds(50);
     Rotator = New<TKeyRotator>(Config, GetCurrentInvoker(), Store, Generator);
 
     WaitFor(Rotator->Start())
@@ -225,7 +230,7 @@ TEST_F(TKeyRotatorTest, GetNextRotationWithReconfigure)
         .Times(2)
         .WillRepeatedly(Return(VoidFuture));
 
-    Config->KeyRotationInterval = TDuration::Hours(1);
+    Config->KeyRotationOptions.Period = TDuration::Hours(1);
     Rotator = New<TKeyRotator>(Config, GetCurrentInvoker(), Store, Generator);
 
     WaitFor(Rotator->Start())
@@ -235,12 +240,22 @@ TEST_F(TKeyRotatorTest, GetNextRotationWithReconfigure)
 
     // Reconfigure with short interval should trigger immediate rotation.
     auto newConfig = New<TKeyRotatorConfig>();
-    newConfig->KeyRotationInterval = TDuration::MilliSeconds(10);
+    newConfig->KeyRotationOptions.Period = TDuration::MilliSeconds(10);
     Rotator->Reconfigure(newConfig);
 
     // Should complete quickly, not wait for an hour.
     WaitFor(nextRotationFuture)
         .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TKeyRotatorTest, Splay)
+{
+    // No expectations: we test that it doesn't start rotation immediately.
+    Config->KeyRotationOptions.Splay = TDuration::Hours(1);
+    Rotator = New<TKeyRotator>(Config, GetCurrentInvoker(), Store, Generator);
+    YT_UNUSED_FUTURE(Rotator->Start());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
