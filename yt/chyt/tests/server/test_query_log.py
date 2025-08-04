@@ -192,7 +192,7 @@ class TestQueryLog(ClickHouseTestBase):
                 return True
             filter = {"initial_query_id": query_id, "type": "QueryFinish"}
 
-            wait(lambda: len(read_table(table_path)) > 0)
+            wait(lambda: len([r for r in read_table(table_path) if match(r, filter, 0)]) == 2)
 
             query_log_rows = read_table(table_path)
             assert len([r for r in query_log_rows if match(r, filter, 1)]) == 1
