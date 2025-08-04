@@ -38,6 +38,7 @@ DEFINE_ENUM(ESequoiaTable,
     (TransactionDescendants)
     (TransactionReplicas)
     (DependentTransactions)
+    (DoomedTransactions)
     (NodeForks)
     (NodeSnapshots)
     (PathForks)

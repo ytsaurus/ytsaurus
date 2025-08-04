@@ -22,6 +22,18 @@ TFuture<NTransactionClient::TTransactionId> StartCypressTransaction(
     IInvokerPtr invoker,
     NLogging::TLogger logger);
 
+//! Mark Cypress transaction and its successor transactions as doomed;
+//! revoke leases of those transactions.
+//! This should be done before Abort/Commit to avoid write starvation
+//! in "transactions" table in Sequoia.
+//! See TDoomCypressTransaction for details.
+TFuture<void> DoomCypressTransaction(
+    NSequoiaClient::ISequoiaClientPtr sequoiaClient,
+    NObjectClient::TCellId cypressTransactionCoordinatorCellId,
+    NCypressClient::TTransactionId transactionId,
+    IInvokerPtr invoker,
+    NLogging::TLogger logger);
+
 //! Aborts Cypress transaction when abort is requested by user. Returns
 //! serialized |TRspAbortTransaction|.
 /*!

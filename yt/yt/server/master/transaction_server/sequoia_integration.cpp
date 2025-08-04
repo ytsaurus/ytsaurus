@@ -51,6 +51,18 @@ void StartCypressTransactionInSequoiaAndReply(
         .Apply(CreateStartTransactionResponse));
 }
 
+TFuture<void> DoomCypressTransactionInSequoia(
+    TBootstrap* bootstrap,
+    TTransactionId transactionId)
+{
+    return DoomCypressTransaction(
+        bootstrap->GetSequoiaClient(),
+        bootstrap->GetCellId(),
+        transactionId,
+        TDispatcher::Get()->GetHeavyInvoker(),
+        TransactionServerLogger());
+}
+
 TFuture<TSharedRefArray> AbortCypressTransactionInSequoia(
     TBootstrap* bootstrap,
     TTransactionId transactionId,
