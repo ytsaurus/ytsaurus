@@ -1651,6 +1651,18 @@ TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnecti
     queryOptions.UseOrderByInJoinSubqueries = options.UseOrderByInJoinSubqueries;
     queryOptions.StatisticsAggregation = options.StatisticsAggregation;
 
+    THROW_ERROR_EXCEPTION_UNLESS(queryOptions.RowsetProcessingBatchSize > 0,
+        "Expected \"rowset_processing_batch_size\" > 0, found %v",
+        queryOptions.RowsetProcessingBatchSize);
+
+    THROW_ERROR_EXCEPTION_UNLESS(queryOptions.WriteRowsetSize > 0,
+        "Expected \"write_rowset_size\" > 0, found %v",
+        queryOptions.WriteRowsetSize);
+
+    THROW_ERROR_EXCEPTION_UNLESS(queryOptions.MaxJoinBatchSize > 0,
+        "Expected \"max_join_batch_size\" > 0, found %v",
+        queryOptions.MaxJoinBatchSize);
+
     return queryOptions;
 }
 
