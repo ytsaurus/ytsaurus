@@ -992,6 +992,9 @@ void TDataNodeConfig::Register(TRegistrar registrar)
         .LessThan(64)
         .Default(8);
 
+    registrar.Parameter("choose_location_based_on_io_weight", &TThis::ChooseLocationBasedOnIOWeight)
+        .Default(false);
+
     registrar.Parameter("background_artifact_validation_delay", &TThis::BackgroundArtifactValidationDelay)
         .Default(TDuration::Minutes(5));
 
@@ -1178,6 +1181,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("disk_write_throttling_limit", &TThis::DiskWriteThrottlingLimit)
         .Default();
     registrar.Parameter("disk_read_throttling_limit", &TThis::DiskReadThrottlingLimit)
+        .Default();
+
+    registrar.Parameter("choose_location_based_on_io_weight", &TThis::ChooseLocationBasedOnIOWeight)
         .Default();
 
     registrar.Parameter("testing_options", &TThis::TestingOptions)
