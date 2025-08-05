@@ -28,6 +28,7 @@ using namespace NApi;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NObjectClient;
+using namespace NRpc;
 using namespace NSequoiaClient;
 using namespace NSequoiaServer;
 using namespace NTableClient;
@@ -263,9 +264,10 @@ DEFINE_YPATH_SERVICE_METHOD(TMasterProxy, MaterializeNode)
 
 INodeProxyPtr CreateMasterProxy(
     IBootstrap* bootstrap,
-    TSequoiaSessionPtr session)
+    TSequoiaSessionPtr session,
+    const TAuthenticationIdentity& authenticationIdentity)
 {
-    return New<TMasterProxy>(bootstrap, std::move(session));
+    return New<TMasterProxy>(bootstrap, std::move(session), authenticationIdentity);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

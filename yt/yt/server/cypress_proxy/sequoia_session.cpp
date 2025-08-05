@@ -40,6 +40,7 @@ using namespace NApi;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NObjectClient;
+using namespace NRpc;
 using namespace NSequoiaClient;
 using namespace NSequoiaServer;
 using namespace NTableClient;
@@ -422,6 +423,7 @@ TTransactionId TSequoiaSession::GetCurrentCypressTransactionId() const
 
 TSequoiaSessionPtr TSequoiaSession::Start(
     IBootstrap* bootstrap,
+    TAuthenticationIdentity authenticationIdentity,
     TTransactionId cypressTransactionId,
     const std::vector<TTransactionId>& cypressPrerequisiteTransactionIds)
 {
@@ -438,6 +440,7 @@ TSequoiaSessionPtr TSequoiaSession::Start(
         StartCypressProxyTransaction(
             sequoiaClient,
             ESequoiaTransactionType::CypressModification,
+            std::move(authenticationIdentity),
             cypressPrerequisiteTransactionIds))
         .ValueOrThrow();
 

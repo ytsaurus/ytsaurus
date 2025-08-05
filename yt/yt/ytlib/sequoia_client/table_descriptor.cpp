@@ -184,7 +184,14 @@ NYPath::TYPath GetSequoiaTablePath(
     const NApi::NNative::IClientPtr& client,
     const TSequoiaTablePathDescriptor& tablePathDescriptor)
 {
-    const auto& rootPath = client->GetNativeConnection()->GetConfig()->SequoiaConnection->SequoiaRootPath;
+    return GetSequoiaTablePath(client->GetNativeConnection(), tablePathDescriptor);
+}
+
+NYPath::TYPath GetSequoiaTablePath(
+    const NApi::NNative::IConnectionPtr& connection,
+    const TSequoiaTablePathDescriptor& tablePathDescriptor)
+{
+    const auto& rootPath = connection->GetConfig()->SequoiaConnection->SequoiaRootPath;
     const auto* tableDescriptor = ITableDescriptor::Get(tablePathDescriptor.Table);
     auto path = rootPath + "/" + NYPath::ToYPathLiteral(tableDescriptor->GetTableName());
     if (tablePathDescriptor.MasterCellTag) {

@@ -166,11 +166,6 @@ public:
         return NativeRootClient_;
     }
 
-    const ISequoiaServicePtr& GetSequoiaService() const override
-    {
-        return SequoiaService_;
-    }
-
     const ISequoiaResponseKeeperPtr& GetResponseKeeper() const override
     {
         return ResponseKeeper_;
@@ -220,8 +215,6 @@ private:
     NApi::NNative::IConnectionPtr NativeConnection_;
     NApi::NNative::IClientPtr NativeRootClient_;
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
-
-    ISequoiaServicePtr SequoiaService_;
 
     ISequoiaResponseKeeperPtr ResponseKeeper_;
 
@@ -309,7 +302,6 @@ private:
             ServiceLocator_->FindService<NCoreDump::ICoreDumperPtr>(),
             /*authenticator*/ nullptr));
 
-        SequoiaService_ = CreateSequoiaService(this);
         ResponseKeeper_ = CreateSequoiaResponseKeeper(GetDynamicConfigManager()->GetConfig()->ResponseKeeper, Logger());
         ObjectService_ = CreateObjectService(this);
         RpcServer_->RegisterService(ObjectService_->GetService());

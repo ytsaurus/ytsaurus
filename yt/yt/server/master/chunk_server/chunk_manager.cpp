@@ -3419,7 +3419,10 @@ private:
 
         return Bootstrap_
             ->GetSequoiaClient()
-            ->StartTransaction(ESequoiaTransactionType::ChunkConfirmation, {.CellTag = Bootstrap_->GetCellTag()})
+            ->StartTransaction(
+                ESequoiaTransactionType::ChunkConfirmation,
+                {.CellTag = Bootstrap_->GetCellTag()},
+                {.AuthenticationIdentity = GetRootAuthenticationIdentity()})
             .Apply(BIND([=, request = std::move(request), sequoiaReplicas = std::move(sequoiaReplicas), nonSequoiaReplicas = std::move(nonSequoiaReplicas), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
@@ -3482,7 +3485,10 @@ private:
 
         return Bootstrap_
             ->GetSequoiaClient()
-            ->StartTransaction(transactionType, {.CellTag = Bootstrap_->GetCellTag()})
+            ->StartTransaction(
+                transactionType,
+                {.CellTag = Bootstrap_->GetCellTag()},
+                {.AuthenticationIdentity = GetRootAuthenticationIdentity()})
             .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) mutable {
                 auto& profile = SequoiaReplicaModificationProfiles_[transactionType];
                 profile.CumulativeTime[ESequoiaReplicaModificationPhase::StartTransaction].Add(timer.GetElapsedTime());
@@ -5880,7 +5886,10 @@ private:
     {
         return Bootstrap_
             ->GetSequoiaClient()
-            ->StartTransaction(ESequoiaTransactionType::DeadChunkReplicaRemoval, {.CellTag = Bootstrap_->GetCellTag()})
+            ->StartTransaction(
+                ESequoiaTransactionType::DeadChunkReplicaRemoval,
+                {.CellTag = Bootstrap_->GetCellTag()},
+                {.AuthenticationIdentity = GetRootAuthenticationIdentity()})
             .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 YT_LOG_DEBUG("Removing dead Sequoia chunk replicas (ChunkCount: %v)", request->chunk_ids_size());
                 for (const auto& protoChunkId : request->chunk_ids()) {
