@@ -24,6 +24,7 @@ public:
     bool IsEmpty() const;
     std::span<const ui8> AsSpan() const;
     std::string_view AsStringView() const;
+
     static TWireStringPart FromStringView(std::string_view view);
 
 private:
@@ -54,8 +55,8 @@ public:
 
     static TWireString FromSerialized(std::string_view serializedProto);
     static TWireString FromSerialized(const std::vector<std::string_view>& serializedProtos);
-    static TWireString FromSerialized(const std::vector<std::string>& serializedProtos);
-    static TWireString FromSerialized(const std::vector<TString>& serializedProtos);
+    static TWireString FromSerialized(const std::vector<std::string>& serializedProtos Y_LIFETIME_BOUND);
+    static TWireString FromSerialized(const std::vector<TString>& serializedProtos Y_LIFETIME_BOUND);
 
     bool operator==(const TWireString& other) const;
 
@@ -69,14 +70,14 @@ public:
     // and treating as wire string may result in silent data corruption.
     std::string PrettyPrint() const;
 
-    TWireStringPart LastOrEmptyPart() const;
+    TWireStringPart LastOrEmptyPart() const Y_LIFETIME_BOUND;
 
     // Splits wire string and groups by field number.
     // For field numbers in `extractValuesFor` resulting parts
     // will not contain tag in the beginning.
     THashMap<int, TWireString> Unpack(
         const NProtoBuf::Descriptor* descriptor,
-        const THashSet<int>& extractValuesFor = {}) const;
+        const THashSet<int>& extractValuesFor = {}) const Y_LIFETIME_BOUND;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,7 +92,7 @@ bool ParseInt64(i64* value, NYson::TProtobufElementType type, TWireStringPart wi
 bool ParseDouble(double* value, NYson::TProtobufElementType type, TWireStringPart wireStringPart);
 bool ParseBoolean(bool* value, NYson::TProtobufElementType type, TWireStringPart wireStringPart);
 
-std::pair<TWireStringPart, TWireStringPart> ParseKeyValuePair(TWireStringPart wireStringPart);
+std::pair<TWireStringPart, TWireStringPart> ParseKeyValuePair(TWireStringPart wireStringPart Y_LIFETIME_BOUND);
 NYTree::IAttributeDictionaryPtr ParseAttributeDictionary(const TWireString& wireString);
 
 std::string SerializeUint64(ui64 value, NYson::TProtobufElementType type);
