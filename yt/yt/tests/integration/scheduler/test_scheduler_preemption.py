@@ -2180,7 +2180,7 @@ class TestDiskQuotaInRegularPreemption(BaseTestDiskPreemption):
     @pytest.mark.parametrize("use_default_medium_in_starving_op", [False, True])
     def test_consider_disk_quota_discount_in_regular_preemption(self, use_default_medium_in_blocking_op, use_default_medium_in_starving_op):
         create_pool("first", attributes={"strong_guarantee_resources": {"cpu": 2.0}})
-        create_pool("second", attributes={"strong_guarantee_resources": {"cpu": 6.0}})
+        create_pool("second", attributes={"strong_guarantee_resources": {"cpu": 2.0}})
 
         medium_name = TestDiskQuotaInRegularPreemption.SSD_MEDIUM
         if use_default_medium_in_blocking_op:
