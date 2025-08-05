@@ -43,6 +43,7 @@ RECURSE(
     ytdiscovery
     ythttp
     ytjaeger
+    ytotel
     ytrpc
 )
 
