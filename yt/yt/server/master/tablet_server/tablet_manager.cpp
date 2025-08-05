@@ -1073,15 +1073,26 @@ public:
         const auto& tableManager = Bootstrap_->GetTableManager();
         auto schema = tableManager->GetHeavyTableSchemaSync(table->GetSchema());
 
-        if (table->GetReplicationCardId() && !table->IsSorted()) {
-            if (table->GetCommitOrdering() != ECommitOrdering::Strong) {
-                THROW_ERROR_EXCEPTION("Ordered dynamic table bound for chaos replication should have %Qlv commit ordering",
-                    ECommitOrdering::Strong);
+        const auto& dynamicConfig = GetDynamicConfig();
+
+        if (table->GetReplicationCardId()) {
+            if (!table->IsSorted()) {
+                if (table->GetCommitOrdering() != ECommitOrdering::Strong) {
+                    THROW_ERROR_EXCEPTION("Ordered dynamic table bound for chaos replication should have %Qlv commit ordering",
+                        ECommitOrdering::Strong);
+                }
+
+                if (!schema->FindColumn(TimestampColumnName)) {
+                    THROW_ERROR_EXCEPTION("Ordered dynamic table bound for chaos replication should have %Qlv column",
+                        TimestampColumnName);
+                }
             }
 
-            if (!schema->FindColumn(TimestampColumnName)) {
-                THROW_ERROR_EXCEPTION("Ordered dynamic table bound for chaos replication should have %Qlv column",
-                    TimestampColumnName);
+            const auto& bundle = table->TabletCellBundle();
+
+            if (dynamicConfig->EnableClockCellTagValidationOnChaosReplicaMount && bundle->GetOptions()->ClockClusterTag == InvalidCellTag) {
+                THROW_ERROR_EXCEPTION("Chaos replicas should be part of tablet cell bundle configured with relevant clock cell tag."
+                    " Please reconfigure bundle or move table to bundle properly configured with respect to clock source.");
             }
         }
 
@@ -1099,8 +1110,6 @@ public:
             THROW_ERROR_EXCEPTION("Cannot mount table since it has invalid backup state %Qlv",
                 backupState);
         }
-
-        const auto& dynamicConfig = GetDynamicConfig();
 
         auto maxChunkCount = dynamicConfig->MaxChunksPerMountedTablet;
         auto maxChunkSize = dynamicConfig->MaxUnversionedChunkSize;

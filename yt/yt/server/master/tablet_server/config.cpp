@@ -266,6 +266,9 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_unversioned_chunk_constraint_validation", &TThis::EnableUnversionedChunkConstraintValidation)
         .Default(false);
 
+    registrar.Parameter("enable_clock_cell_tag_validation_on_chaos_replica_mount", &TThis::EnableClockCellTagValidationOnChaosReplicaMount)
+        .Default(false);
+
     registrar.Preprocessor([] (TThis* config) {
         config->StoreChunkReader->SuspiciousNodeGracePeriod = TDuration::Minutes(5);
         config->StoreChunkReader->BanPeersPermanently = false;

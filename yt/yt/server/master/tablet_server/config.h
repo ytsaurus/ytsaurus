@@ -340,6 +340,8 @@ struct TDynamicTabletManagerConfig
 
     bool EnableSmoothTabletMovement;
 
+    bool EnableClockCellTagValidationOnChaosReplicaMount;
+
     REGISTER_YSON_STRUCT(TDynamicTabletManagerConfig);
 
     static void Register(TRegistrar registrar);
