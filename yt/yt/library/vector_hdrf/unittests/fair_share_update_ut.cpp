@@ -1563,6 +1563,34 @@ TEST_F(TFairShareUpdateTest, TestStrongGuaranteeAdjustmentToTotalResources)
     }
 }
 
+TEST_F(TFairShareUpdateTest, TestStrongGuaranteeAdjustmentToTotalResourcesWithLargePool)
+{
+    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
+    auto rootElement = CreateRootElement();
+
+    auto strongPoolA = CreateSimplePool("strongA", /*strongGuaranteeCpu*/ 30.0);
+    strongPoolA->AttachParent(rootElement.Get());
+
+    auto strongPoolB = CreateSimplePool("strongB", /*strongGuaranteeCpu*/ 120.0);
+    strongPoolB->AttachParent(rootElement.Get());
+
+    auto strongOperationA = CreateOperation(strongPoolA.Get(), totalResourceLimits);
+    auto strongOperationB = CreateOperation(strongPoolB.Get(), totalResourceLimits);
+
+    {
+        DoFairShareUpdate(totalResourceLimits, rootElement);
+
+        TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
+        EXPECT_EQ(unit * 2, strongPoolA->Attributes().FairShare.StrongGuarantee);
+        EXPECT_RV_NEAR(unit * 0, strongPoolA->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(unit * 0, strongPoolA->Attributes().FairShare.WeightProportional);
+
+        EXPECT_EQ(unit * 8, strongPoolB->Attributes().FairShare.StrongGuarantee);
+        EXPECT_EQ(unit * 0, strongPoolB->Attributes().FairShare.IntegralGuarantee);
+        EXPECT_RV_NEAR(unit * 0, strongPoolB->Attributes().FairShare.WeightProportional);
+    }
+}
+
 TEST_F(TFairShareUpdateTest, TestStrongGuaranteePlusBurstGuaranteeAdjustmentToTotalResources)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();

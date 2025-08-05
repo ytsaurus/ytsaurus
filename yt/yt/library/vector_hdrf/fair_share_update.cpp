@@ -135,11 +135,6 @@ void TElement::UpdateAttributes(const TFairShareUpdateContext* context)
 
     Attributes().StrongGuaranteeShare = TResourceVector::FromJobResources(Attributes().EffectiveStrongGuaranteeResources, context->TotalResourceLimits);
 
-    // NB: We need to ensure that |FairShareByFitFactor_(0.0)| is less than or equal to |LimitsShare| so that there exists a feasible fit factor and |MaxFitFactorBySuggestion_| is well defined.
-    // To achieve this we limit |StrongGuarantee| with |LimitsShare| here, and later adjust the sum of children's |StrongGuarantee| to fit into the parent's |StrongGuarantee|.
-    // This way children can't ask more than parent's |LimitsShare| when given a zero suggestion.
-    Attributes().StrongGuaranteeShare = TResourceVector::Min(Attributes().StrongGuaranteeShare, Attributes().LimitsShare);
-
     if (GetResourceUsageAtUpdate() == TJobResources()) {
         Attributes().DominantResource = GetDominantResource(GetResourceDemand(), context->TotalResourceLimits);
     } else {
@@ -497,7 +492,13 @@ void TCompositeElement::AdjustStrongGuarantees(const TFairShareUpdateContext* co
 {
     const auto& Logger = GetLogger();
 
-    //! We adjust strong guarantees of children, when their sum is greater than the parent's.
+    //! First we adjust pool's strong guarantees so that they do not exceed pool's resource limits.
+    // We need to ensure that |FairShareByFitFactor_(0.0)| is less than or equal to |LimitsShare| so that there exists a feasible fit factor and |MaxFitFactorBySuggestion_| is well defined.
+    // To achieve this we limit |StrongGuarantee| with |LimitsShare| here, and later adjust the sum of children's |StrongGuarantee| to fit into the parent's |StrongGuarantee|.
+    // This way children can't ask more than parent's |LimitsShare| when given a zero suggestion.
+    Attributes().StrongGuaranteeShare = TResourceVector::Min(Attributes().StrongGuaranteeShare, Attributes().LimitsShare);
+
+    //! Then we adjust strong guarantees of children, if their sum is greater than the parent's.
     //! This process starts at the root, when total resource limits are not big enough, and proceeds recursively.
     //! In the simple case, adjustment is done by decreasing children's guarantees proportionally until their sum becomes feasible.
     //!
