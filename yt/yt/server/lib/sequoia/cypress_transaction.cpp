@@ -911,6 +911,7 @@ protected:
     const TCellId CoordinatorCellId_;
     const IInvokerPtr Invoker_;
     const TLogger Logger;
+    const TAuthenticationIdentity AuthenticationIdentity_;
 
     // Initialized once per class lifetime.
     ISequoiaTransactionPtr SequoiaTransaction_;
@@ -921,11 +922,13 @@ protected:
         TStringBuf description,
         std::string title,
         IInvokerPtr invoker,
-        TLogger logger)
+        TLogger logger,
+        TAuthenticationIdentity authenticationIdentity)
         : SequoiaClient_(std::move(sequoiaClient))
         , CoordinatorCellId_(coordinatorCellId)
         , Invoker_(std::move(invoker))
         , Logger(std::move(logger))
+        , AuthenticationIdentity_(std::move(authenticationIdentity))
         , Description_(description)
         , Title_(std::move(title))
     {
@@ -979,6 +982,7 @@ private:
                 TransactionType,
                 options,
                 {
+                    .AuthenticationIdentity = AuthenticationIdentity_,
                     .SequenceTabletCommitSessions = true,
                     .EnableVerboseLogging = true,
                 })
@@ -1064,7 +1068,8 @@ public:
             "start",
             "Sequoia transaction: start Cypress transaction",
             std::move(invoker),
-            std::move(logger))
+            std::move(logger),
+            std::move(authenticationIdentity))
         , ParentId_(FromProto<TTransactionId>(request.parent_id()))
         , ReplicateToCellTags_(BuildReplicateToCellTags(
             CellTagFromId(coordinatorCellId),
@@ -1073,7 +1078,7 @@ public:
             FromProto<std::vector<TTransactionId>>(request.prerequisite_transaction_ids())))
         , Request_(BuildStartCypressTransactionRequest(
             std::move(request),
-            std::move(authenticationIdentity)))
+            AuthenticationIdentity_))
     { }
 
 protected:
@@ -1725,7 +1730,6 @@ class TFinishCypressTransaction
 {
 protected:
     const TTransactionId TransactionId_;
-    const TAuthenticationIdentity AuthenticationIdentity_;
     // NB: this field muast by set by derived classes during construction.
     TSharedRefArray Response_;
 
@@ -1746,9 +1750,9 @@ protected:
             description,
             std::move(title),
             std::move(invoker),
-            std::move(logger))
+            std::move(logger),
+            std::move(authenticationIdentity))
         , TransactionId_(transactionId)
-        , AuthenticationIdentity_(std::move(authenticationIdentity))
         , MutationId_(mutationId)
         , Retry_(retry)
     { }
@@ -2189,7 +2193,9 @@ protected:
                 transactionIds,
                 destinationCellTags),
             std::move(invoker),
-            std::move(logger))
+            std::move(logger),
+            // TODO(shakurov): consider issuing replication request from authenticated user.
+            GetRootAuthenticationIdentity())
         , TransactionIds_(std::move(transactionIds))
         , DestinationCellTags_(std::move(destinationCellTags))
     {

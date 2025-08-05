@@ -261,6 +261,7 @@ public:
         EMasterChannelKind masterChannelKind)
         : Owner_(std::move(owner))
         , RpcContext_(std::move(rpcContext))
+        , AuthenticationIdentity_(GetCurrentAuthenticationIdentity())
         , TargetCellTag_(targetCellTag)
         , MasterChannelKind_(masterChannelKind)
         , ForceUseTargetCellTag_(
@@ -280,6 +281,7 @@ public:
 private:
     const TObjectServicePtr Owner_;
     const TCtxExecutePtr RpcContext_;
+    const TAuthenticationIdentity AuthenticationIdentity_;
 
     const TCellTag TargetCellTag_;
     const EMasterChannelKind MasterChannelKind_;
@@ -884,6 +886,7 @@ private:
         try {
             session = TSequoiaSession::Start(
                 Owner_->Bootstrap_,
+                AuthenticationIdentity_,
                 cypressTransactionId,
                 prerequisiteTransactionIds);
             // TODO(cherepashka): add resolve cache YT-25661.
@@ -924,7 +927,7 @@ private:
             return response;
         }
 
-        auto invokeResult = CreateSequoiaService(Owner_->Bootstrap_)
+        auto invokeResult = CreateSequoiaService(Owner_->Bootstrap_, AuthenticationIdentity_)
             ->TryInvoke(context, session, resolveResult, resolvedPrerequisiteRevisions);
         // TODO(kvk1920): check prerequisite transaction liveness after read
         // request.

@@ -998,7 +998,7 @@ public:
 
         auto sequoiaClient = NSequoiaClient::CreateSequoiaClient(
             config,
-            std::move(localClient),
+            this,
             std::move(groundClientFuture));
 
         if (auto existingSequoiaClient = CachedSequoiaClient_.Exchange(sequoiaClient)) {

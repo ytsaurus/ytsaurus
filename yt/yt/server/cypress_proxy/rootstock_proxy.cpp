@@ -32,6 +32,7 @@ using namespace NApi;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NObjectClient;
+using namespace NRpc;
 using namespace NSequoiaClient;
 using namespace NTransactionClient;
 
@@ -46,8 +47,12 @@ public:
     TRootstockProxy(
         IBootstrap* bootstrap,
         TSequoiaSessionPtr sequoiaSession,
-        TAbsolutePath resolvedPath)
-        : TNodeProxyBase(bootstrap, std::move(sequoiaSession))
+        TAbsolutePath resolvedPath,
+        const TAuthenticationIdentity& authenticationIdentity)
+        : TNodeProxyBase(
+            bootstrap,
+            std::move(sequoiaSession),
+            std::move(authenticationIdentity))
         , Path_(std::move(resolvedPath))
     { }
 
@@ -159,9 +164,10 @@ private:
 INodeProxyPtr CreateRootstockProxy(
     IBootstrap* bootstrap,
     TSequoiaSessionPtr sequoiaSession,
-    NSequoiaClient::TAbsolutePath resolvedPath)
+    NSequoiaClient::TAbsolutePath resolvedPath,
+    const TAuthenticationIdentity& authenticationIdentity)
 {
-    return New<TRootstockProxy>(bootstrap, std::move(sequoiaSession), std::move(resolvedPath));
+    return New<TRootstockProxy>(bootstrap, std::move(sequoiaSession), std::move(resolvedPath), authenticationIdentity);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
