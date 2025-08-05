@@ -9,5 +9,6 @@ RECURSE(
     query-tracker
     schema
     table-usage
+    tracing
     vanilla-example
 )
