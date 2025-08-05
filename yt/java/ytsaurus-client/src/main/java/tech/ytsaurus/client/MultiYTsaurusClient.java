@@ -183,6 +183,10 @@ public class MultiYTsaurusClient implements ImmutableTransactionalClient, Closea
         return executor.execute((client) -> client.selectRows(request, serializer, consumer));
     }
 
+    public <R> CompletableFuture<R> execute(Function<ApiServiceClient, CompletableFuture<R>> callback) {
+        return executor.execute(callback::apply);
+    }
+
     /**
      * YTsaurus client with initial penalty.
      * Initial penalty is needed to prioritize clusters.
