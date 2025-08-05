@@ -1,18 +1,30 @@
 package NYT.NObjectClient.NProto;
 
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
+
+message TSubjectDescriptor
+{
+    required NYT.NProto.TGuid subject_id = 1;
+    required string name = 2;
+    repeated string aliases = 3;
+    repeated string recursve_memeber_of = 4;
+}
 
 message TUserDescriptor
 {
-    required string user_name = 1;
-    optional int32 read_request_rate_limit = 2;
-    optional int32 write_request_rate_limit = 3;
-    optional int32 request_queue_size_limit = 4;
+    required TSubjectDescriptor subject_descriptor = 1;
+    repeated string tags = 2;
+    optional int32 read_request_rate_limit = 3;
+    optional int32 write_request_rate_limit = 4;
+    optional int32 request_queue_size_limit = 5;
 }
 
 message TUserDirectory
 {
-    repeated TUserDescriptor limits = 1;
+    repeated TUserDescriptor users = 1;
+    repeated TSubjectDescriptor groups = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
