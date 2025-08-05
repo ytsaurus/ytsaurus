@@ -32,7 +32,7 @@ DEFINE_ENUM(EFilterPlace,
 struct TFilterType
 {
     EFilterPlace Place = EFilterPlace::Unknown;
-    TString JoinName;
+    std::string JoinName;
 
     bool operator==(const TFilterType& other) const = default;
 };
@@ -278,7 +278,7 @@ private:
 
     TExpressionPtr Where_ = nullptr;
     TExpressionPtr Having_ = nullptr;
-    THashMap<TString, TExpressionPtr> JoinPredicates_;
+    THashMap<std::string, TExpressionPtr> JoinPredicates_;
 
     TExpressionPtr FilterExpression_ = nullptr;
 
