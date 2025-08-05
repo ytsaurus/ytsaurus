@@ -125,7 +125,7 @@ class TableInfo:
 def get_item(other_columns, key, default_value=None):
     if other_columns is None:
         return default_value
-    if key not in other_columns:
+    if key not in other_columns or other_columns[key] is None:
         return default_value
     return other_columns[key]
 
