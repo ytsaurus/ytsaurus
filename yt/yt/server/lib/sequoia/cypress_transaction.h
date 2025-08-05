@@ -31,6 +31,7 @@ TFuture<void> DoomCypressTransaction(
     NSequoiaClient::ISequoiaClientPtr sequoiaClient,
     NObjectClient::TCellId cypressTransactionCoordinatorCellId,
     NCypressClient::TTransactionId transactionId,
+    NRpc::TAuthenticationIdentity authenticationIdentity,
     IInvokerPtr invoker,
     NLogging::TLogger logger);
 

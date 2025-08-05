@@ -3576,7 +3576,7 @@ private:
     TFuture<void> RevokeTransactionLeases(TTransactionId transactionId)
     {
         if (IsCypressTransactionMirroredToSequoia(transactionId) && IsMirroringToSequoiaEnabled()) {
-            return DoomCypressTransactionInSequoia(Bootstrap_, transactionId)
+            return DoomCypressTransactionInSequoia(Bootstrap_, transactionId, NRpc::GetRootAuthenticationIdentity())
                 .Apply(BIND(
                     &TTransactionManager::GetLeaseRevocationFuture,
                     MakeStrong(this),

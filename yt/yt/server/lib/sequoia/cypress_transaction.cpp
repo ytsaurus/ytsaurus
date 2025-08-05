@@ -1592,6 +1592,7 @@ public:
         ISequoiaClientPtr sequoiaClient,
         TCellId coordinatorCellId,
         TTransactionId transactionId,
+        TAuthenticationIdentity authenticationIdentity,
         IInvokerPtr invoker,
         TLogger logger)
         : TSequoiaMutation(
@@ -1600,7 +1601,8 @@ public:
             "doom",
             "Sequoia transaction: mark Cypress transaction as doomed",
             std::move(invoker),
-            std::move(logger)),
+            std::move(logger),
+            std::move(authenticationIdentity)),
         TransactionId_(transactionId)
     { }
 
@@ -2305,6 +2307,7 @@ TFuture<void> DoomCypressTransaction(
     ISequoiaClientPtr sequoiaClient,
     TCellId cypressTransactionCoordinatorCellId,
     TTransactionId transactionId,
+    TAuthenticationIdentity authenticationIdentity,
     IInvokerPtr invoker,
     TLogger logger)
 {
@@ -2312,6 +2315,7 @@ TFuture<void> DoomCypressTransaction(
         sequoiaClient,
         cypressTransactionCoordinatorCellId,
         transactionId,
+        std::move(authenticationIdentity),
         std::move(invoker),
         std::move(logger))
         ->Apply();
