@@ -39,17 +39,7 @@ TString HmacSha256(TStringBuf key, TStringBuf message)
 
 TString Trim(const TString& string)
 {
-    int start = 0;
-    int end = string.size();
-    while (start < std::ssize(string) && string[start] == ' ') {
-        ++start;
-    }
-    while (end > start && string[end - 1] == ' ') {
-        --end;
-    }
-
-    const auto* data = string.data();
-    return TString(data + start, data + end);
+    return TString(NYT::Trim(string));
 }
 
 TString UriEncode(const TString& string, bool isObjectPath)
