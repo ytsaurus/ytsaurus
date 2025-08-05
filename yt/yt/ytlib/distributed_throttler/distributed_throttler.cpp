@@ -1035,7 +1035,8 @@ public:
         TString address,
         const NLogging::TLogger& logger,
         IAuthenticatorPtr authenticator,
-        TProfiler profiler)
+        TProfiler profiler,
+        std::optional<i64> memberPriority)
         : ChannelFactory_(std::move(channelFactory))
         , Connection_(std::move(connection))
         , GroupId_(std::move(groupId))
@@ -1078,6 +1079,7 @@ public:
             Throttlers_,
             Logger,
             std::move(authenticator)))
+        , MemberPriority_(std::move(memberPriority))
     {
         YT_LOG_INFO("Starting distributed throttler factory");
 
@@ -1087,8 +1089,8 @@ public:
 
         auto conf = Config_.Acquire();
 
-        if (conf->MemberPriority) {
-            MemberClient_->SetPriority(conf->MemberPriority.value());
+        if (MemberPriority_) {
+            MemberClient_->SetPriority(MemberPriority_.value());
         } else {
             switch (conf->MemberPriorityGenerator) {
                 case EDistributedThrottlerMemberPriorityGenerator::StartTime:
@@ -1279,6 +1281,7 @@ private:
 
     const TThrottlersPtr Throttlers_ = New<TThrottlers>();
     const TDistributedThrottlerServicePtr DistributedThrottlerService_;
+    const std::optional<i64> MemberPriority_;
 
     std::atomic<bool> Active_ = false;
 
@@ -1640,7 +1643,8 @@ IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
     TString address,
     NLogging::TLogger logger,
     IAuthenticatorPtr authenticator,
-    TProfiler profiler)
+    TProfiler profiler,
+    std::optional<i64> memberPriority)
 {
     return New<TDistributedThrottlerFactory>(
         CloneYsonStruct(std::move(config)),
@@ -1653,7 +1657,8 @@ IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
         std::move(address),
         std::move(logger),
         std::move(authenticator),
-        std::move(profiler));
+        std::move(profiler),
+        std::move(memberPriority));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
