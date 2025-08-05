@@ -141,7 +141,7 @@ void LogAccess(
             fluent.Item("mutation_id").Value(NHydra::GetCurrentMutationContext()->Request().MutationId);
         })
         .Do([&] (auto fluent) {
-            const TProtoStringType* originalPath = nullptr;
+            const TProtobufString* originalPath = nullptr;
             if (targetSuffixIsForDestinationPath) {
                 // COMPAT(shakurov)
                 if (ypathExt.original_additional_paths_size() == 1) {
