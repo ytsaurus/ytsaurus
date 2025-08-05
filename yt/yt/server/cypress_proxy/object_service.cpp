@@ -187,7 +187,7 @@ private:
 
             // TODO(danilalexeev): Support queue size limit reconfiguration.
             const auto& userDirectory = bootstrap->GetUserDirectory();
-            const auto descriptor = userDirectory->FindByName(userNameAndWorkloadType.first);
+            const auto descriptor = userDirectory->FindUserByName(userNameAndWorkloadType.first);
             if (!descriptor) {
                 return;
             }

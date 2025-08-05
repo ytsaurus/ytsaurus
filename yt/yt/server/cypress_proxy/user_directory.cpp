@@ -1,31 +1,38 @@
 #include "user_directory.h"
+#include "private.h"
 
 #include <util/generic/scope.h>
 
 namespace NYT::NCypressProxy {
 
+using namespace NSecurityClient;
+
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
+
+constinit const auto Logger = CypressProxyLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FromProto(TSubjectDescriptor* subjectDescriptor, const NObjectClient::NProto::TSubjectDescriptor& proto)
+{
+    FromProto(&subjectDescriptor->SubjectId, proto.subject_id());
+    subjectDescriptor->Name = proto.name();
+    subjectDescriptor->Aliases = FromProto<THashSet<std::string>>(proto.aliases());
+    subjectDescriptor->RecursiveMemberOf = FromProto<THashSet<std::string>>(proto.recursve_memeber_of());
+}
 
 void FromProto(TUserDescriptor* userDescriptor, const NObjectClient::NProto::TUserDescriptor& proto)
 {
-    userDescriptor->Name = proto.user_name();
+    FromProto(userDescriptor, proto.subject_descriptor());
+
+    auto newTags = FromProto<THashSet<std::string>>(proto.tags());
+    userDescriptor->Tags = TBooleanFormulaTags(std::move(newTags));
+
     userDescriptor->QueueSizeLimit = YT_OPTIONAL_FROM_PROTO(proto, request_queue_size_limit);
     userDescriptor->ReadRequestRateLimit = YT_OPTIONAL_FROM_PROTO(proto, read_request_rate_limit);
     userDescriptor->WriteRequestRateLimit = YT_OPTIONAL_FROM_PROTO(proto, write_request_rate_limit);
-}
-
-void ToProto(NObjectClient::NProto::TUserDescriptor* proto, const TUserDescriptor& userLimits)
-{
-    NYT::ToProto(proto->mutable_user_name(), userLimits.Name);
-    if (userLimits.ReadRequestRateLimit) {
-        proto->set_read_request_rate_limit(*userLimits.ReadRequestRateLimit);
-    }
-    if (userLimits.WriteRequestRateLimit) {
-        proto->set_write_request_rate_limit(*userLimits.WriteRequestRateLimit);
-    }
-    if (userLimits.QueueSizeLimit) {
-        proto->set_request_queue_size_limit(*userLimits.QueueSizeLimit);
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,18 +51,53 @@ std::optional<int> GetUserRequestRateLimit(const TUserDescriptor& descriptor, EU
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUserDirectory::TUserDescriptorPtr TUserDirectory::FindByName(const std::string& name) const
+TUserDescriptorPtr TUserDirectory::FindUserByName(const std::string& name) const
 {
-    auto guard = ReaderGuard(SpinLock_);
-    auto it = NameToDescriptor_.find(name);
-    return it == NameToDescriptor_.end() ? nullptr : it->second;
+    auto result = FindUserByNameOrAlias(name);
+    return result && result->Name == name ? result : nullptr;
 }
 
-TUserDirectory::TUserDescriptorPtr TUserDirectory::GetUserByNameOrThrow(const std::string& name) const
+TUserDescriptorPtr TUserDirectory::FindUserByNameOrAlias(const std::string& name) const
 {
-    auto result = FindByName(name);
+    auto guard = ReaderGuard(SpinLock_);
+    auto it = NameOrAliasToUserDescriptor_.find(name);
+    return it != NameOrAliasToUserDescriptor_.end() ? it->second : nullptr;
+}
+
+TUserDescriptorPtr TUserDirectory::GetUserByNameOrAliasOrThrow(const std::string& name) const
+{
+    auto result = FindUserByNameOrAlias(name);
     if (!result) {
-        THROW_ERROR_EXCEPTION("No such user %Qv", name);
+        THROW_ERROR_EXCEPTION(
+            NSecurityClient::EErrorCode::AuthenticationError,
+            "No such user %Qv",
+            name);
+    }
+    return result;
+}
+
+TGroupDescriptorPtr TUserDirectory::FindGroupByNameOrAlias(const std::string& name) const
+{
+    auto guard = ReaderGuard(SpinLock_);
+    auto it = NameOrAliasToGroupDescriptor_.find(name);
+    return it != NameOrAliasToGroupDescriptor_.end() ? it->second : nullptr;
+}
+
+TSubjectDescriptorPtr TUserDirectory::FindSubjectByIdOrThrow(NSecurityClient::TSubjectId subjectId) const
+{
+    auto guard = ReaderGuard(SpinLock_);
+    auto it = SubjectIdToDescriptor_.find(subjectId);
+    return it != SubjectIdToDescriptor_.end() ? it->second : nullptr;
+}
+
+TSubjectDescriptorPtr TUserDirectory::GetSubjectByIdOrThrow(NSecurityClient::TSubjectId subjectId) const
+{
+    auto result = FindSubjectByIdOrThrow(subjectId);
+    if (!result) {
+        THROW_ERROR_EXCEPTION(
+            NSecurityClient::EErrorCode::NoSuchSubject,
+            "No such subject %v",
+            subjectId);
     }
     return result;
 }
@@ -64,27 +106,68 @@ void TUserDirectory::Clear()
 {
     auto guard = WriterGuard(SpinLock_);
 
-    NameToDescriptor_.clear();
+    NameOrAliasToUserDescriptor_.clear();
+    NameOrAliasToGroupDescriptor_.clear();
+    SubjectIdToDescriptor_.clear();
 }
 
-std::vector<std::string> TUserDirectory::LoadFrom(const std::vector<TUserDescriptor>& sourceDirectory)
+std::vector<std::string> TUserDirectory::LoadFrom(
+    std::vector<TUserDescriptor> users,
+    std::vector<TGroupDescriptor> groups)
 {
-    THashMap<std::string, TUserDescriptorPtr> userDescriptors;
-    for (const auto& descriptor : sourceDirectory) {
-        auto descriptorHolder = std::make_shared<TUserDescriptor>(descriptor);
-        EmplaceOrCrash(userDescriptors, descriptor.Name, std::move(descriptorHolder));
-    }
+    THashMap<TSubjectId, TSubjectDescriptorPtr> subjectDescriptors;
+
+    auto convertToMap = [&] <class TDescriptor> (std::vector<TDescriptor>&& descriptors) {
+        THashMap<std::string, std::shared_ptr<const TDescriptor>> result;
+        auto emplaceOrAlert = [&] (
+            const std::string& alias,
+            const std::shared_ptr<const TDescriptor>& descriptor)
+        {
+            auto [it, inserted] = result.emplace(alias, descriptor);
+            if (!inserted) {
+                YT_LOG_ALERT("Detected  name collision in user directory (SubjectIds: [%v, %v], Alias: %v)",
+                    it->second->SubjectId,
+                    descriptor->SubjectId,
+                    alias);
+            }
+        };
+
+        for (auto&& descriptor : descriptors) {
+            auto descriptorHolder = std::make_shared<const TDescriptor>(std::move(descriptor));
+
+            auto inserted = subjectDescriptors.emplace(descriptorHolder->SubjectId, descriptorHolder).second;
+            if (!inserted) {
+                YT_LOG_ALERT("Received multiple occurrences of subject descriptor (SubjectId: %v)",
+                    descriptorHolder->SubjectId);
+                continue;
+            }
+
+            for (const auto& alias : descriptorHolder->Aliases) {
+                // Master guarantees that no duplicates occur.
+                emplaceOrAlert(alias, descriptorHolder);
+            }
+            emplaceOrAlert(descriptorHolder->Name, descriptorHolder);
+        }
+        return result;
+    };
+
+    auto userDescriptors = convertToMap(std::move(users));
+    auto groupDescriptors = convertToMap(std::move(groups));
+
+    auto newUserDescriptors = GetValues(userDescriptors);
 
     {
         auto guard = WriterGuard(SpinLock_);
-        std::swap(NameToDescriptor_, userDescriptors);
+        std::swap(NameOrAliasToUserDescriptor_, userDescriptors);
+        std::swap(NameOrAliasToGroupDescriptor_, groupDescriptors);
+        std::swap(SubjectIdToDescriptor_, subjectDescriptors);
     }
 
     std::vector<std::string> updatedUsers;
-    for (const auto& newDescriptor : sourceDirectory) {
-        auto it = userDescriptors.find(newDescriptor.Name);
-        if (it == userDescriptors.end() || *it->second != newDescriptor) {
-            updatedUsers.push_back(newDescriptor.Name);
+    for (const auto& descriptor : newUserDescriptors) {
+        auto it = userDescriptors.find(descriptor->Name);
+        if (it == userDescriptors.end() || *it->second != *descriptor) {
+            updatedUsers.push_back(descriptor->Name);
         }
     }
 
