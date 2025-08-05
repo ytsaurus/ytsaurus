@@ -100,6 +100,7 @@ PEERDIR(
     library/cpp/lwtrace/mon
     library/cpp/random_provider
     library/cpp/time_provider
+    contrib/ydb/core/audit/audit_config
     contrib/ydb/core/base/generated
     contrib/ydb/core/base/services
     contrib/ydb/core/debug
