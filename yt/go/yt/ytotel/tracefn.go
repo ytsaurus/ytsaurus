@@ -22,8 +22,7 @@ func TraceFn(ctx context.Context) (traceID guid.GUID, spanID uint64, flags byte,
 		return
 	}
 
-	spanCtx := otSpan.Context()
-	bridgeSpanCtx, ok := spanCtx.(spanContextProvider)
+	bridgeSpanCtx, ok := otSpan.Context().(spanContextProvider)
 	if !ok {
 		return
 	}
