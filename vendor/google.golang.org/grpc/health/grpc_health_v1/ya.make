@@ -7,6 +7,7 @@ VERSION(v1.71.0)
 SRCS(
     health.pb.go
     health_grpc.pb.go
+    mocked_types.go
 )
 
 END()
