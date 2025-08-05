@@ -61,7 +61,6 @@ public:
 
 private:
     NClusterNode::IBootstrap* const Bootstrap_;
-    const bool SetMinimumMemberPriority_ = false;
     // Fields from bootstrap.
     const NRpc::IAuthenticatorPtr Authenticator_;
     const NApi::NNative::IConnectionPtr Connection_;
@@ -310,9 +309,18 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
 
         ClusterThrottlersConfig_ = std::move(newConfig);
 
-        if (SetMinimumMemberPriority_) {
-            // The higher the value, the lower the priority.
-            ClusterThrottlersConfig_->DistributedThrottler->MemberPriority = std::numeric_limits<i64>::max();
+        std::optional<i64> memberPriority;
+        if (!ClusterThrottlersConfig_->LeaderNodeTagFilter.IsSatisfiedBy(Bootstrap_->GetLocalDescriptor().GetTags())) {
+            YT_LOG_INFO("Leader node tag filter is not satisfied, set the lowest member priority (LeaderNodeTagFilter: %v, NodeTags: %v)",
+                ClusterThrottlersConfig_->LeaderNodeTagFilter,
+                Bootstrap_->GetLocalDescriptor().GetTags());
+
+            // Set the lowest member priority. The higher the value, the lower the priority.
+            memberPriority = std::numeric_limits<i64>::max();
+        } else {
+            YT_LOG_INFO("Leader node tag filter is satisfied (LeaderNodeTagFilter: %v, NodeTags: %v)",
+                ClusterThrottlersConfig_->LeaderNodeTagFilter,
+                Bootstrap_->GetLocalDescriptor().GetTags());
         }
 
         ClusterThrottlersConfigUpdater_->SetPeriod(ClusterThrottlersConfig_->UpdatePeriod);
@@ -338,7 +346,8 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
                     LocalAddress_,
                     this->Logger,
                     Authenticator_,
-                    Profiler_.WithPrefix("/distributed_throttler"));
+                    Profiler_.WithPrefix("/distributed_throttler"),
+                    std::move(memberPriority));
             }
 
             UpdateClusterLimits(ClusterThrottlersConfig_->ClusterLimits);
@@ -482,7 +491,6 @@ TThrottlerManager::TThrottlerManager(
     NClusterNode::IBootstrap* bootstrap,
     TThrottlerManagerOptions options)
     : Bootstrap_(bootstrap)
-    , SetMinimumMemberPriority_(std::count(Bootstrap_->GetConfig()->Tags.begin(), Bootstrap_->GetConfig()->Tags.end(), "cloud"))
     , Authenticator_(std::move(Bootstrap_->GetNativeAuthenticator()))
     , Connection_(Bootstrap_->GetConnection())
     , Client_(Connection_->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName)))

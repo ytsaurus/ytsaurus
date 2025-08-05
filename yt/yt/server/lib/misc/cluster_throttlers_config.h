@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/concurrency/public.h>
 
+#include <yt/yt/core/misc/arithmetic_formula.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <util/generic/string.h>
@@ -32,6 +34,8 @@ struct TClusterThrottlersConfig
     double RateLimitRatioSoftThreshold;
     //! How often cluster throttlers config is updated.
     TDuration UpdatePeriod;
+    //! Defines a set of nodes where a leader could reside.
+    TBooleanFormula LeaderNodeTagFilter;
     bool Enabled;
 
     REGISTER_YSON_STRUCT(TClusterThrottlersConfig);
