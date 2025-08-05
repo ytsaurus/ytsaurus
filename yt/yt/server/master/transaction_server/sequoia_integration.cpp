@@ -53,12 +53,14 @@ void StartCypressTransactionInSequoiaAndReply(
 
 TFuture<void> DoomCypressTransactionInSequoia(
     TBootstrap* bootstrap,
-    TTransactionId transactionId)
+    TTransactionId transactionId,
+    TAuthenticationIdentity authenticationIdentity)
 {
     return DoomCypressTransaction(
         bootstrap->GetSequoiaClient(),
         bootstrap->GetCellId(),
         transactionId,
+        std::move(authenticationIdentity),
         TDispatcher::Get()->GetHeavyInvoker(),
         TransactionServerLogger());
 }

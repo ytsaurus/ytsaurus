@@ -15,7 +15,8 @@ void StartCypressTransactionInSequoiaAndReply(
 
 TFuture<void> DoomCypressTransactionInSequoia(
     NCellMaster::TBootstrap* bootstrap,
-    TTransactionId transactionId);
+    TTransactionId transactionId,
+    NRpc::TAuthenticationIdentity authenticationIdentity);
 
 TFuture<TSharedRefArray> AbortCypressTransactionInSequoia(
     NCellMaster::TBootstrap* bootstrap,
