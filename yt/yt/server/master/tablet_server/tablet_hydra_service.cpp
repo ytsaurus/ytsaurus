@@ -222,7 +222,7 @@ private:
                 if (auto attribute = table->FindAttribute(userAttributeKey)) {
                     protoTable->add_user_attributes(attribute->ToString());
                 } else {
-                    protoTable->add_user_attributes(TProtoStringType());
+                    protoTable->add_user_attributes(TProtobufString());
                 }
             }
         }
