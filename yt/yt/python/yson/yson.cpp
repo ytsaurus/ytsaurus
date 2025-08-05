@@ -795,7 +795,7 @@ private:
         auto* descriptor = GetDescriptorPool()->FindMessageTypeByName(fullName);
         auto* messageType = ReflectProtobufMessageType(descriptor);
 
-        TProtobufString result;
+        TProtoStringType result;
         ::google::protobuf::io::StringOutputStream outputStream(&result);
 
         TProtobufWriterOptions options;
