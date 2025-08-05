@@ -811,7 +811,7 @@ private:
                 ypathExt->set_original_target_path(ypathExt->target_path());
             }
 
-            ypathExt->set_target_path(ToProto<TProtobufString>(newPath));
+            ypathExt->set_target_path(ToProto<TProtoStringType>(newPath));
         }
 
         subrequest->RequestMessage = SetRequestHeader(

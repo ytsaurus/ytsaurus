@@ -41,8 +41,8 @@ TSchedulingTagFilter operator&(const TSchedulingTagFilter& lhs, const TSchedulin
 TSchedulingTagFilter operator|(const TSchedulingTagFilter& lhs, const TSchedulingTagFilter& rhs);
 TSchedulingTagFilter operator!(const TSchedulingTagFilter& filter);
 
-void ToProto(TProtobufString* protoFilter, const TSchedulingTagFilter& filter);
-void FromProto(TSchedulingTagFilter* filter, const TProtobufString& protoFilter);
+void ToProto(TProtoStringType* protoFilter, const TSchedulingTagFilter& filter);
+void FromProto(TSchedulingTagFilter* filter, const TProtoStringType& protoFilter);
 
 void Serialize(const TSchedulingTagFilter& filter, NYson::IYsonConsumer* consumer);
 void Deserialize(TSchedulingTagFilter& filter, NYTree::INodePtr node);

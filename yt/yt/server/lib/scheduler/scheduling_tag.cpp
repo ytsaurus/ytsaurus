@@ -68,12 +68,12 @@ TSchedulingTagFilter operator!(const TSchedulingTagFilter& filter)
     return TSchedulingTagFilter(!filter.GetBooleanFormula());
 }
 
-void ToProto(TProtobufString* protoFilter, const TSchedulingTagFilter& filter)
+void ToProto(TProtoStringType* protoFilter, const TSchedulingTagFilter& filter)
 {
     *protoFilter = filter.GetBooleanFormula().GetFormula();
 }
 
-void FromProto(TSchedulingTagFilter* filter, const TProtobufString& protoFilter)
+void FromProto(TSchedulingTagFilter* filter, const TProtoStringType& protoFilter)
 {
     *filter = TSchedulingTagFilter(MakeBooleanFormula(protoFilter));
 }
