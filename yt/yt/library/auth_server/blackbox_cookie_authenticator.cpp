@@ -9,10 +9,6 @@
 
 #include <yt/yt/core/crypto/crypto.h>
 
-#include <yt/yt/core/misc/sync_cache.h>
-
-#include <yt/yt/library/re2/re2.h>
-
 #include <util/string/split.h>
 
 namespace NYT::NAuth {
@@ -28,17 +24,6 @@ static constexpr auto& Logger = AuthLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static std::string StripSchema(const std::string& hostWithSchema)
-{
-    const std::string_view delimiter = "://";
-    auto pos = hostWithSchema.find(delimiter);
-    if (pos == TString::npos) {
-        return hostWithSchema;
-    } else {
-        return hostWithSchema.substr(pos + delimiter.size());
-    }
-}
-
 // TODO(sandello): Indicate to end-used that cookie must be resigned.
 class TBlackboxCookieAuthenticator
     : public ICookieAuthenticator
@@ -49,7 +34,6 @@ public:
         IBlackboxServicePtr blackboxService)
         : Config_(std::move(config))
         , BlackboxService_(std::move(blackboxService))
-        , SessguardOriginCache_(Config_->SessguardOriginCacheSize)
     { }
 
     const std::vector<TStringBuf>& GetCookieNames() const override
@@ -97,32 +81,20 @@ public:
             sessguard = cookieIt->second;
             sessguardMD5 = GetMD5HexDigestUpperCase(*sessguard);;
             errorAttributes.emplace_back("sessguard_md5", sessguardMD5);
-
-            if (credentials.Origin) {
-                origin = StripSchema(*credentials.Origin);
-                errorAttributes.emplace_back("origin", origin);
-                if (!CheckSessguardOrigin(origin)) {
-                    return MakeFuture<TAuthenticationResult>(TError("Sessguard cookie from disallowed origin: %Qv",
-                        origin)
-                        << errorAttributes);
-                }
-            }
         }
 
-        auto authArgs = Format("SessionIdMD5: %v, SslSessionIdMD5: %v, SessguardMD5: %v, UserIP: %v, Origin: %v, OriginHeader: %v",
+        auto authArgs = Format("SessionIdMD5: %v, SslSessionIdMD5: %v, SessguardMD5: %v, UserIP: %v",
             sessionIdMD5,
             sslSessionIdMD5,
             sessguardMD5,
-            userIP,
-            origin,
-            credentials.Origin);
+            userIP);
 
         YT_LOG_DEBUG("Authenticating user via session cookie (%v)",
             authArgs);
 
         THashMap<TString, TString> params{
             {"sessionid", sessionId},
-            {"host", TString(origin)},
+            {"host", Config_->Domain},
             {"userip", userIP},
         };
 
@@ -149,9 +121,6 @@ public:
 private:
     const TBlackboxCookieAuthenticatorConfigPtr Config_;
     const IBlackboxServicePtr BlackboxService_;
-
-    TSimpleLruCache<std::string, bool> SessguardOriginCache_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SessguardOriginCacheLock_);
 
 private:
     TFuture<TAuthenticationResult> OnCallResult(
@@ -205,31 +174,6 @@ private:
             result.UserTicket = userTicket.Value();
         } else if (Config_->GetUserTicket) {
             return TError("Failed to retrieve user ticket");
-        }
-        return result;
-    }
-
-    bool CheckSessguardOrigin(const std::string& origin)
-    {
-        {
-            auto g = Guard(SessguardOriginCacheLock_);
-
-            auto result = SessguardOriginCache_.Find(origin);
-            if (result) {
-                return *result;
-            }
-        }
-
-        bool result = false;
-        for (const auto& re : Config_->SessguardOriginPatterns) {
-            if (re && RE2::FullMatch(origin, *re)) {
-                result = true;
-            }
-        }
-
-        {
-            auto g = Guard(SessguardOriginCacheLock_);
-            SessguardOriginCache_.Insert(origin, result);
         }
         return result;
     }

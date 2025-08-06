@@ -199,12 +199,10 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
     constexpr TStringBuf CookieHeaderName = "Cookie";
     if (auto cookieHeader = request->GetHeaders()->Find(CookieHeaderName)) {
         auto cookies = ParseCookies(*cookieHeader);
-        auto origin = request->GetHeaders()->Find("Origin");
         TCookieCredentials credentials{
             // TODO(babenko): switch to std::string
             .Cookies = {cookies.begin(), cookies.end()},
             .UserIP = userIP,
-            .Origin = origin ? std::optional<std::string>(*origin) : std::nullopt,
         };
         if (CookieAuthenticator_->CanAuthenticate(credentials)) {
             auto authResult = WaitFor(CookieAuthenticator_->Authenticate(credentials));
