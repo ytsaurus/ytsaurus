@@ -153,64 +153,17 @@ public:
 
     // COMPAT(danilalexeev): YT-23781.
     template <class TFullHeartbeatContextPtr>
-    void DoProcessFullHeartbeat(TFullHeartbeatContextPtr context, TRange<TChunkLocation*> locationDirectory)
+    void DoProcessFullHeartbeat(
+        TFullHeartbeatContextPtr context,
+        TRange<TChunkLocationIndex> locationDirectory)
     {
         static_assert(
             std::is_same_v<TFullHeartbeatContextPtr, TCtxFullHeartbeatPtr> ||
             std::is_same_v<TFullHeartbeatContextPtr, TCtxLocationFullHeartbeatPtr>);
 
-        using TFullHeartbeatRequest = TFullHeartbeatRequest<
-            typename TFullHeartbeatContextPtr::TUnderlying::TTypedRequest::TMessage,
-            typename TFullHeartbeatContextPtr::TUnderlying::TTypedResponse::TMessage>;
+        auto preparedRequest = SplitRequest(context, locationDirectory);
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
-
-        const auto& originalRequest = context->Request();
-        THashSet<int> sequoiaLocationDirectoryIndices;
-        THashMap<int, TChunkLocationIndex> locationDirectoryIndexToLocationIndex;
-        for (int i = 0; i < std::ssize(locationDirectory); ++i) {
-            auto* location = locationDirectory[i];
-            if (chunkReplicaFetcher->CanHaveSequoiaReplicas(location)) {
-                InsertOrCrash(sequoiaLocationDirectoryIndices, i);
-                locationDirectoryIndexToLocationIndex[i] = location->GetIndex();
-            }
-        }
-
-        const auto& sequoiaChunkReplicasConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->SequoiaChunkReplicas;
-        auto isSequoiaEnabled = sequoiaChunkReplicasConfig->Enable;
-        auto sequoiaChunkProbability = sequoiaChunkReplicasConfig->ReplicasPercentage;
-
-        auto splitRequest = BIND([&, sequoiaLocationDirectoryIndices = std::move(sequoiaLocationDirectoryIndices)] {
-            auto preparedRequest = NewWithOffloadedDtor<TFullHeartbeatRequest>(NRpc::TDispatcher::Get()->GetHeavyInvoker());
-            preparedRequest->NonSequoiaRequest.CopyFrom(originalRequest);
-            if (!isSequoiaEnabled) {
-                return preparedRequest;
-            }
-
-            preparedRequest->NonSequoiaRequest.mutable_chunks()->Clear();
-
-            preparedRequest->SequoiaRequest->set_node_id(originalRequest.node_id());
-
-            for (auto chunkInfo : originalRequest.chunks()) {
-                auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
-                auto locationDirectoryIndex = chunkInfo.location_directory_index();
-                if (sequoiaLocationDirectoryIndices.contains(locationDirectoryIndex) && chunkReplicaFetcher->CanHaveSequoiaReplicas(chunkIdWithIndex.Id, sequoiaChunkProbability)) {
-                    chunkInfo.set_location_index(ToProto(GetOrCrash(locationDirectoryIndexToLocationIndex, locationDirectoryIndex)));
-                    *preparedRequest->SequoiaRequest->add_added_chunks() = std::move(chunkInfo);
-                } else {
-                    *preparedRequest->NonSequoiaRequest.add_chunks() = std::move(chunkInfo);
-                }
-            }
-
-            return preparedRequest;
-        });
-
-        auto preparedRequest = WaitFor(splitRequest
-            .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
-            .Run())
-            .ValueOrThrow();
-
         if (preparedRequest->SequoiaRequest->removed_chunks_size() + preparedRequest->SequoiaRequest->added_chunks_size() > 0) {
             auto modifyDeadChunks = BIND([&] {
                 for (const auto& protoChunkInfo : preparedRequest->SequoiaRequest->removed_chunks()) {
@@ -287,7 +240,8 @@ public:
         const TNode* node,
         const TCtxFullHeartbeatPtr& context) override
     {
-        auto locationDirectory = ParseLocationDirectoryOrThrow(node, this, context->Request());
+        ValidateHeartbeatRequest(node, context->Request());
+        auto locationDirectory = ParseLocationDirectory(node, context->Request());
         DoProcessFullHeartbeat(context, locationDirectory);
     }
 
@@ -299,8 +253,12 @@ public:
             THROW_ERROR_EXCEPTION("Per-location full data node heartbeats are disabled");
         }
 
-        auto* location = ParseLocationOrThrow(node, this, context->Request());
-        DoProcessFullHeartbeat(context, {location});
+        ValidateHeartbeatRequest(node, context->Request());
+
+        auto locationUuid = FromProto<TChunkLocationUuid>(context->Request().location_uuid());
+        auto* location = FindAndValidateLocation<true>(node, locationUuid);
+
+        DoProcessFullHeartbeat(context, {location->GetIndex()});
     }
 
     void FinalizeFullHeartbeatSession(
@@ -345,69 +303,18 @@ public:
 
     void ProcessIncrementalHeartbeat(TCtxIncrementalHeartbeatPtr context) override
     {
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
         const auto& originalRequest = context->Request();
         auto nodeId = FromProto<TNodeId>(originalRequest.node_id());
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
-        auto locationDirectory = ParseLocationDirectoryOrThrow(node, this, originalRequest);
-        THashSet<int> sequoiaLocationDirectoryIndices;
-        THashMap<int, TChunkLocationIndex> locationDirectoryIndexToLocationIndex;
-        for (int i = 0; i < std::ssize(locationDirectory); ++i) {
-            auto* location = locationDirectory[i];
-            if (chunkReplicaFetcher->CanHaveSequoiaReplicas(location)) {
-                InsertOrCrash(sequoiaLocationDirectoryIndices, i);
-                locationDirectoryIndexToLocationIndex[i] = location->GetIndex();
-            }
-        }
 
-        const auto& sequoiaChunkReplicasConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->SequoiaChunkReplicas;
-        auto isSequoiaEnabled = sequoiaChunkReplicasConfig->Enable;
-        auto sequoiaChunkProbability = sequoiaChunkReplicasConfig->ReplicasPercentage;
+        ValidateHeartbeatRequest(node, originalRequest);
+        auto locationDirectory = ParseLocationDirectory(node, originalRequest);
 
-        auto splitRequest = BIND([=, sequoiaLocationDirectoryIndices = std::move(sequoiaLocationDirectoryIndices)] {
-            auto preparedRequest = NewWithOffloadedDtor<TIncrementalHeartbeatRequest>(NRpc::TDispatcher::Get()->GetHeavyInvoker());
-            preparedRequest->NonSequoiaRequest.CopyFrom(originalRequest);
-            if (!isSequoiaEnabled) {
-                return preparedRequest;
-            }
+        auto preparedRequest = SplitRequest(context, locationDirectory);
 
-            preparedRequest->NonSequoiaRequest.mutable_added_chunks()->Clear();
-            preparedRequest->NonSequoiaRequest.mutable_removed_chunks()->Clear();
-
-            preparedRequest->SequoiaRequest->set_node_id(originalRequest.node_id());
-
-            for (auto chunkInfo : originalRequest.added_chunks()) {
-                auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
-                auto locationDirectoryIndex = chunkInfo.location_directory_index();
-                if (sequoiaLocationDirectoryIndices.contains(locationDirectoryIndex) && chunkReplicaFetcher->CanHaveSequoiaReplicas(chunkIdWithIndex.Id, sequoiaChunkProbability)) {
-                    chunkInfo.set_location_index(ToProto(GetOrCrash(locationDirectoryIndexToLocationIndex, locationDirectoryIndex)));
-                    *preparedRequest->SequoiaRequest->add_added_chunks() = std::move(chunkInfo);
-                } else {
-                    *preparedRequest->NonSequoiaRequest.add_added_chunks() = std::move(chunkInfo);
-                }
-            }
-
-            for (auto chunkInfo : originalRequest.removed_chunks()) {
-                auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
-                auto locationDirectoryIndex = chunkInfo.location_directory_index();
-                if (sequoiaLocationDirectoryIndices.contains(locationDirectoryIndex) && chunkReplicaFetcher->CanHaveSequoiaReplicas(chunkIdWithIndex.Id, sequoiaChunkProbability)) {
-                    chunkInfo.set_location_index(ToProto(GetOrCrash(locationDirectoryIndexToLocationIndex, locationDirectoryIndex)));
-                    *preparedRequest->SequoiaRequest->add_removed_chunks() = std::move(chunkInfo);
-                } else {
-                    *preparedRequest->NonSequoiaRequest.add_removed_chunks() = std::move(chunkInfo);
-                }
-            }
-
-            return preparedRequest;
-        });
-
-        auto preparedRequest = WaitFor(splitRequest
-            .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
-            .Run())
-            .ValueOrThrow();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         if (preparedRequest->SequoiaRequest->removed_chunks_size() + preparedRequest->SequoiaRequest->added_chunks_size() > 0) {
             YT_LOG_TRACE("There are Sequoia replicas for this request (NodeId: %v)", nodeId);
@@ -645,24 +552,24 @@ public:
         return &ChunkLocationMap_;
     }
 
-    TChunkLocation* FindChunkLocationByUuid(TChunkLocationUuid locationUuid) override
+    TChunkLocation* FindChunkLocationByUuid(TChunkLocationUuid locationUuid) const override
     {
         auto it = ChunkLocationUuidToLocation_.find(locationUuid);
         return it == ChunkLocationUuidToLocation_.end() ? nullptr : it->second;
     }
 
-    TChunkLocation* GetChunkLocationByUuid(TChunkLocationUuid locationUuid) override
+    TChunkLocation* GetChunkLocationByUuid(TChunkLocationUuid locationUuid) const override
     {
         return GetOrCrash(ChunkLocationUuidToLocation_, locationUuid);
     }
 
-    TChunkLocation* FindChunkLocationByIndex(TChunkLocationIndex locationIndex) override
+    TChunkLocation* FindChunkLocationByIndex(TChunkLocationIndex locationIndex) const override
     {
         auto locationId = ObjectIdFromChunkLocationIndex(locationIndex);
         return ChunkLocationMap_.Find(locationId);
     }
 
-    TChunkLocation* GetChunkLocationByIndex(TChunkLocationIndex locationIndex) override
+    TChunkLocation* GetChunkLocationByIndex(TChunkLocationIndex locationIndex) const override
     {
         auto location = FindChunkLocationByIndex(locationIndex);
         YT_VERIFY(IsObjectAlive(location));
@@ -676,7 +583,7 @@ public:
         return GenerateCounterId(ChunkLocationIdGenerator_, InvalidChunkLocationIndex, MaxChunkLocationIndex);
     }
 
-    TObjectId ObjectIdFromChunkLocationIndex(TChunkLocationIndex chunkLocationIndex)
+    TObjectId ObjectIdFromChunkLocationIndex(TChunkLocationIndex chunkLocationIndex) const
     {
         return NNodeTrackerClient::ObjectIdFromChunkLocationIndex(
             chunkLocationIndex,
@@ -774,21 +681,15 @@ private:
     // COMPAT(koloshmet)
     TInstant DanglingLocationsDefaultLastSeenTime_;
 
-    template <class TReqFullHeartbeat, class TRspFullHeartbeat>
-    struct TFullHeartbeatRequest
+    template<class THeartbeatContextPtr>
+    struct THeartbeatRequest
         : public TRefCounted
     {
-        TReqFullHeartbeat NonSequoiaRequest;
-        TRspFullHeartbeat NonSequoiaResponse;
+        using TReqHeartbeat = THeartbeatContextPtr::TUnderlying::TTypedRequest::TMessage;
+        using TRspHeartbeat = THeartbeatContextPtr::TUnderlying::TTypedResponse::TMessage;
 
-        std::unique_ptr<TReqModifyReplicas> SequoiaRequest = std::make_unique<TReqModifyReplicas>();
-    };
-
-    struct TIncrementalHeartbeatRequest
-        : public TRefCounted
-    {
-        TReqIncrementalHeartbeat NonSequoiaRequest;
-        TRspIncrementalHeartbeat NonSequoiaResponse;
+        TReqHeartbeat NonSequoiaRequest;
+        TRspHeartbeat NonSequoiaResponse;
 
         std::unique_ptr<TReqModifyReplicas> SequoiaRequest = std::make_unique<TReqModifyReplicas>();
     };
@@ -833,30 +734,14 @@ private:
         return DanglingLocationsDefaultLastSeenTime_;
     }
 
-    void ValidateLocationDirectory(
-        const TNode* node,
-        const google::protobuf::RepeatedPtrField<NYT::NProto::TGuid>& protoDirectory,
-        bool fullHeartbeat)
-    {
-        auto locationDirectory = FromProto<TChunkLocationDirectory>(protoDirectory);
-        YT_ASSERT(locationDirectory.IsValid());
-
-        for (auto uuid : locationDirectory.Uuids()) {
-            ValidateLocationUuid(node, uuid, fullHeartbeat);
-        }
-    }
-
-    void ValidateLocationUuid(
-        const TNode* node,
-        TGuid uuid,
-        bool fullHeartbeat)
-    {
+    template <bool FullHeartbeat>
+    TChunkLocation* FindAndValidateLocation(const TNode* node, TGuid uuid) const {
         auto* location = FindChunkLocationByUuid(uuid);
-        if (!location) {
+        if (!IsObjectAlive(location)) {
             YT_LOG_ALERT(
                 "Data node reported %v heartbeat with invalid location directory: "
                 "location does not exist (NodeAddress: %v, LocationUuid: %v)",
-                fullHeartbeat ? "full" : "incremental",
+                FullHeartbeat ? "full" : "incremental",
                 node->GetDefaultAddress(),
                 uuid);
             THROW_ERROR_EXCEPTION(
@@ -870,7 +755,7 @@ private:
                 "Data node reported %v heartbeat with invalid location directory: "
                 "location does not have owning node "
                 "(NodeAddress: %v, LocationUuid: %v)",
-                fullHeartbeat ? "full" : "incremental",
+                FullHeartbeat ? "full" : "incremental",
                 node->GetDefaultAddress(),
                 uuid);
             THROW_ERROR_EXCEPTION(
@@ -883,7 +768,7 @@ private:
                 "Data node reported %v heartbeat with invalid location directory: "
                 "location belongs to another node "
                 "(NodeAddress: %v, LocationUuid: %v, AnotherNodeAddress: %v)",
-                fullHeartbeat ? "full" : "incremental",
+                FullHeartbeat ? "full" : "incremental",
                 node->GetDefaultAddress(),
                 uuid,
                 locationNode->GetDefaultAddress());
@@ -892,6 +777,169 @@ private:
                 << TErrorAttribute("location_uuid", uuid)
                 << TErrorAttribute("node", locationNode->GetDefaultAddress());
         }
+        return location;
+    }
+
+    template <bool FullHeartbeat>
+    void AlertAndThrowOnInvalidLocationIndex(
+        const auto& chunkInfo,
+        const TNode* node,
+        int locationDirectorySize) const
+    {
+        using NYT::FromProto;
+
+        // Heartbeats should no longer contain location uuids but if node was
+        // registered before master server update it still can send heartbeats
+        // with location uuids.
+        YT_ASSERT(!chunkInfo.has_location_uuid());
+
+        using TChunkInfo = std::decay_t<decltype(chunkInfo)>;
+        static_assert(std::is_same_v<TChunkInfo, NChunkClient::NProto::TChunkAddInfo> || std::is_same_v<TChunkInfo, NChunkClient::NProto::TChunkRemoveInfo>,
+            "TChunkInfo must be either TChunkAddInfo or TChunkRemoveInfo");
+
+        constexpr bool isRemoval = !FullHeartbeat &&
+            std::is_same_v<std::decay_t<decltype(chunkInfo)>, NYT::NRpc::TTypedServiceRequest<NYT::NDataNodeTrackerClient::NProto::TReqFullHeartbeat>>;
+
+        auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
+
+        if (chunkInfo.location_directory_index() < 0 || chunkInfo.location_directory_index() >= locationDirectorySize) {
+            const auto& Logger = ChunkServerLogger();
+            YT_LOG_ALERT(
+                "Data node reported %v heartbeat with invalid location index "
+                "(%vChunkId: %v, NodeAddress: %v, LocationIndex: %v)",
+                FullHeartbeat ? "full" : "incremental",
+                FullHeartbeat ? "" : (isRemoval ? "Removed" : "Added"),
+                chunkId,
+                node->GetDefaultAddress(),
+                chunkInfo.location_directory_index());
+
+            THROW_ERROR_EXCEPTION("%v heartbeat contains an incorrect location index",
+                FullHeartbeat ? "Full" : "Incremental");
+        }
+    }
+
+    template <class TRequest>
+    void ValidateHeartbeatRequest(
+        const TNode* node,
+        const TRequest& request) const
+    {
+        static_assert(
+            std::is_same_v<TRequest, NYT::NRpc::TTypedServiceRequest<NYT::NDataNodeTrackerClient::NProto::TReqFullHeartbeat>> ||
+            std::is_same_v<TRequest, NYT::NRpc::TTypedServiceRequest<NYT::NDataNodeTrackerClient::NProto::TReqIncrementalHeartbeat>> ||
+            std::is_same_v<TRequest, NYT::NRpc::TTypedServiceRequest<NYT::NDataNodeTrackerClient::NProto::TReqLocationFullHeartbeat>>,
+            "TRequest must be either TReqFullHeartbeat, TReqIncrementalHeartbeat or TReqLocationFullHeartbeat");
+
+        constexpr bool fullHeartbeat = !std::is_same_v<TRequest, NYT::NRpc::TTypedServiceRequest<NYT::NDataNodeTrackerClient::NProto::TReqIncrementalHeartbeat>>;
+
+        auto checkLocationIndices = [&] (const auto& chunkInfos, int locationDirectorySize) {
+            for (const auto& chunkInfo : chunkInfos) {
+                AlertAndThrowOnInvalidLocationIndex<fullHeartbeat>(chunkInfo, node, locationDirectorySize);
+            }
+        };
+
+        if constexpr (std::is_same_v<TRequest, NYT::NRpc::TTypedServiceRequest<NYT::NDataNodeTrackerClient::NProto::TReqFullHeartbeat>>) {
+            checkLocationIndices(request.chunks(), request.location_directory_size());
+        } else if constexpr (std::is_same_v<TRequest, NYT::NRpc::TTypedServiceRequest<NYT::NDataNodeTrackerClient::NProto::TReqLocationFullHeartbeat>>) {
+            checkLocationIndices(request.chunks(), 1);
+        } else {
+            checkLocationIndices(request.added_chunks(), request.location_directory_size());
+            checkLocationIndices(request.removed_chunks(), request.location_directory_size());
+        }
+    }
+
+    template<class TRequest>
+    TCompactVector<TChunkLocationIndex, TypicalChunkLocationCount> ParseLocationDirectory(
+        const TNode* node,
+        const TRequest& request) const
+    {
+        static_assert(
+            std::is_same_v<TRequest, NYT::NRpc::TTypedServiceRequest<NYT::NDataNodeTrackerClient::NProto::TReqFullHeartbeat>> ||
+            std::is_same_v<TRequest, NYT::NRpc::TTypedServiceRequest<NYT::NDataNodeTrackerClient::NProto::TReqIncrementalHeartbeat>>,
+            "TRequest must be either TReqFullHeartbeat or TReqIncrementalHeartbeat");
+
+        constexpr bool fullHeartbeat = !std::is_same_v<TRequest, NYT::NRpc::TTypedServiceRequest<NYT::NDataNodeTrackerClient::NProto::TReqIncrementalHeartbeat>>;
+
+        auto rawLocationDirectory = FromProto<NDataNodeTrackerClient::TChunkLocationDirectory>(request.location_directory());
+
+        TCompactVector<TChunkLocationIndex, TypicalChunkLocationCount> locationDirectoryIndexes;
+        locationDirectoryIndexes.resize(request.location_directory_size());
+
+        for (size_t index = 0; index < rawLocationDirectory.Uuids().size(); index++) {
+            const auto& uuid = rawLocationDirectory.Uuids()[index];
+            auto* location = FindAndValidateLocation<fullHeartbeat>(node, uuid);
+            locationDirectoryIndexes[index] = location->GetIndex();
+        }
+        return locationDirectoryIndexes;
+    }
+
+    template<class THeartbeatContextPtr>
+    TIntrusivePtr<THeartbeatRequest<THeartbeatContextPtr>> SplitRequest(
+        THeartbeatContextPtr context,
+        TRange<TChunkLocationIndex> locationDirectory) const
+    {
+        static_assert(
+            std::is_same_v<THeartbeatContextPtr, TCtxFullHeartbeatPtr> ||
+            std::is_same_v<THeartbeatContextPtr, TCtxLocationFullHeartbeatPtr> ||
+            std::is_same_v<THeartbeatContextPtr, TCtxIncrementalHeartbeatPtr>
+        );
+        const auto& originalRequest = context->Request();
+
+        const auto& sequoiaChunkReplicasConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->SequoiaChunkReplicas;
+        auto isSequoiaEnabled = sequoiaChunkReplicasConfig->Enable;
+        const auto sequoiaChunkProbability = sequoiaChunkReplicasConfig->ReplicasPercentage;
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
+
+        auto doSplitRequest = BIND([=] () {
+            auto preparedRequest = NewWithOffloadedDtor<THeartbeatRequest<THeartbeatContextPtr>>(NRpc::TDispatcher::Get()->GetHeavyInvoker());
+            preparedRequest->NonSequoiaRequest.CopyFrom(originalRequest);
+
+            auto splitChunks = [&] (const auto& chunkInfos) {
+                preparedRequest->SequoiaRequest->set_node_id(originalRequest.node_id());
+                for (auto chunkInfo : chunkInfos) {
+                    using TChunkInfo = std::decay_t<decltype(chunkInfo)>;
+                    auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
+                    auto locationDirectoryIndex = chunkInfo.location_directory_index();
+                    chunkInfo.set_location_index(ToProto(locationDirectory[locationDirectoryIndex]));
+
+                    if (isSequoiaEnabled && chunkReplicaFetcher->CanHaveSequoiaReplicas(chunkIdWithIndex.Id, sequoiaChunkProbability)) {
+                        if constexpr (std::is_same_v<TChunkInfo, NChunkClient::NProto::TChunkAddInfo>) {
+                            *preparedRequest->SequoiaRequest->add_added_chunks() = std::move(chunkInfo);
+                        } else {
+                            *preparedRequest->SequoiaRequest->add_removed_chunks() = std::move(chunkInfo);
+                        }
+                    } else {
+                        if constexpr (std::is_same_v<THeartbeatContextPtr, TCtxIncrementalHeartbeatPtr>) {
+                            if constexpr (std::is_same_v<TChunkInfo, NChunkClient::NProto::TChunkAddInfo>) {
+                                *preparedRequest->NonSequoiaRequest.add_added_chunks() = std::move(chunkInfo);
+                            } else {
+                                *preparedRequest->NonSequoiaRequest.add_removed_chunks() = std::move(chunkInfo);
+                            }
+                        } else {
+                            *preparedRequest->NonSequoiaRequest.add_chunks() = std::move(chunkInfo);
+                        }
+                    }
+                }
+            };
+
+            if constexpr (std::is_same_v<THeartbeatContextPtr, TCtxIncrementalHeartbeatPtr>) {
+                preparedRequest->NonSequoiaRequest.mutable_added_chunks()->Clear();
+                preparedRequest->NonSequoiaRequest.mutable_removed_chunks()->Clear();
+                splitChunks(originalRequest.added_chunks());
+                splitChunks(originalRequest.removed_chunks());
+            } else {
+                preparedRequest->NonSequoiaRequest.mutable_chunks()->Clear();
+                splitChunks(originalRequest.chunks());
+            }
+
+            return preparedRequest;
+        });
+
+        return WaitFor(doSplitRequest
+            .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+            .Run())
+            .ValueOrThrow();
     }
 
     void HydraIncrementalDataNodeHeartbeat(
@@ -911,11 +959,6 @@ private:
                 NNodeTrackerClient::EErrorCode::InvalidState,
                 "Cannot process an incremental data node heartbeat until full data node heartbeat is sent");
         }
-
-        ValidateLocationDirectory(
-            node,
-            request->location_directory(),
-            /*fullHeartbeat*/ false);
 
         YT_PROFILE_TIMING("/node_tracker/incremental_data_node_heartbeat_time") {
             YT_LOG_DEBUG("Processing incremental data node heartbeat (NodeId: %v, Address: %v, State: %v)",
@@ -949,11 +992,6 @@ private:
                 "Full data node heartbeat is already sent");
         }
 
-        ValidateLocationDirectory(
-            node,
-            request->location_directory(),
-            /*fullHeartbeat*/ true);
-
         YT_PROFILE_TIMING("/node_tracker/full_data_node_heartbeat_time") {
             YT_LOG_DEBUG("Processing full data node heartbeat (NodeId: %v, Address: %v, State: %v)",
                 nodeId,
@@ -986,10 +1024,6 @@ private:
         }
 
         auto locationUuid = FromProto<TChunkLocationUuid>(request->location_uuid());
-        ValidateLocationUuid(
-            node,
-            locationUuid,
-            /*fullHeartbeat*/ true);
 
         YT_PROFILE_TIMING("/node_tracker/data_node_location_full_heartbeat_time") {
             YT_LOG_DEBUG("Processing data node location full heartbeat"
