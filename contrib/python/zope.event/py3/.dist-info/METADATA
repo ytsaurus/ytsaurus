@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: zope.event
-Version: 5.1
+Version: 5.1.1
 Summary: Very basic event publishing system
 Home-page: https://github.com/zopefoundation/zope.event
 Author: Zope Foundation and Contributors
@@ -25,7 +25,7 @@ Classifier: Framework :: Zope :: 3
 Classifier: Topic :: Software Development :: Libraries :: Python Modules
 Requires-Python: >=3.9
 License-File: LICENSE.txt
-Requires-Dist: setuptools
+Requires-Dist: setuptools>=75.8.2
 Provides-Extra: docs
 Requires-Dist: Sphinx; extra == "docs"
 Provides-Extra: test
@@ -73,6 +73,14 @@ Please see http://zopeevent.readthedocs.io/ for the documentation.
 ==========================
  ``zope.event`` Changelog
 ==========================
+
+5.1.1 (2025-07-22)
+==================
+
+- Require ``setuptools >= 75.8.2`` to prevent problems with the new packaging
+  standard.
+  (`#30 <https://github.com/zopefoundation/zope.event/issues/30>`_)
+
 
 5.1 (2025-06-26)
 ================
