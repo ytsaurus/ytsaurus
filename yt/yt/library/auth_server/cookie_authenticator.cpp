@@ -19,7 +19,6 @@ struct TCookieAuthenticatorCacheKey
 {
     THashMap<TString, TString> Cookies;
     TString UserIPFactor;
-    std::optional<std::string> Origin;
 
     operator size_t() const
     {
@@ -32,7 +31,6 @@ struct TCookieAuthenticatorCacheKey
         }
 
         HashCombine(result, UserIPFactor);
-        HashCombine(result, Origin);
 
         return result;
     }
@@ -70,7 +68,6 @@ public:
             TCookieAuthenticatorCacheKey{
                 credentials.Cookies,
                 GetBlackboxCacheKeyFactorFromUserIP(Config_->CacheKeyMode, credentials.UserIP),
-                credentials.Origin,
             },
             credentials.UserIP);
     }
@@ -83,7 +80,7 @@ private:
         const TCookieAuthenticatorCacheKey& key,
         const NNet::TNetworkAddress& userIP) noexcept override
     {
-        return UnderlyingAuthenticator_->Authenticate(TCookieCredentials{key.Cookies, userIP, key.Origin});
+        return UnderlyingAuthenticator_->Authenticate(TCookieCredentials{key.Cookies, userIP});
     }
 };
 
@@ -136,7 +133,7 @@ public:
     {
         for (const auto& authenticator : Authenticators_) {
             if (authenticator->CanAuthenticate(credentials)) {
-                TCookieCredentials filteredCredentials{/*Cookies*/ {}, credentials.UserIP, credentials.Origin};
+                TCookieCredentials filteredCredentials{/*Cookies*/ {}, credentials.UserIP};
                 const auto& cookies = credentials.Cookies;
                 for (const auto& cookie : authenticator->GetCookieNames()) {
                     auto cookieIt = cookies.find(cookie);
