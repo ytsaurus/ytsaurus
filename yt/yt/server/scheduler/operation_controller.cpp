@@ -19,10 +19,6 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constinit const auto Logger = SchedulerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TError CheckControllerRuntimeData(const TControllerRuntimeDataPtr& runtimeData)
 {
     auto compositeNeededResources = runtimeData->GetNeededResources();
@@ -58,37 +54,9 @@ TError CheckControllerRuntimeData(const TControllerRuntimeDataPtr& runtimeData)
 
 void FromProto(
     TOperationControllerInitializeResult* result,
-    const NControllerAgent::NProto::TInitializeOperationResult& resultProto,
-    TOperationId operationId,
-    TBootstrap* bootstrap,
-    TDuration operationTransactionPingPeriod)
+    const NControllerAgent::NProto::TInitializeOperationResult& resultProto)
 {
-    TForbidContextSwitchGuard contextSwitchGuard;
-
-    auto attachTransaction = [&] (TTransactionId transactionId, const TString& /*name*/) -> ITransactionPtr {
-        if (!transactionId) {
-            return nullptr;
-        }
-
-        try {
-            auto client = bootstrap->GetRemoteClient(CellTagFromId(transactionId));
-
-            TTransactionAttachOptions options;
-            options.Ping = true;
-            options.PingAncestors = false;
-            options.PingPeriod = operationTransactionPingPeriod;
-
-            auto transaction = client->AttachTransaction(transactionId, options);
-            return transaction;
-        } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Error attaching operation transaction (OperationId: %v, TransactionId: %v)", operationId, transactionId);
-        }
-
-        return nullptr;
-    };
-
-    auto transactionIds = FromProto<TControllerTransactionIds>(resultProto.transaction_ids());
-    result->Transactions = AttachControllerTransactions(attachTransaction, std::move(transactionIds));
+    result->TransactionIds = FromProto<TControllerTransactionIds>(resultProto.transaction_ids());
 
     result->Attributes = TOperationControllerInitializeAttributes{
         TYsonString(resultProto.brief_spec(), EYsonType::MapFragment),

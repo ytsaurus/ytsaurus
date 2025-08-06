@@ -622,8 +622,6 @@ public:
             response->mutable_agent_to_scheduler_operation_events());
 
         agent->GetCancelableControlInvoker()->Invoke(BIND([
-                this,
-                this_ = MakeStrong(this),
                 agent,
                 scheduler,
                 eventsToProcess = std::move(eventsToProcess)
@@ -676,16 +674,7 @@ public:
                                 TErrorOr<TOperationControllerInitializeResult> resultOrError;
                                 if (error.IsOK()) {
                                     YT_ASSERT(protoEvent.has_initialize_result());
-
-                                    TOperationControllerInitializeResult result;
-                                    FromProto(
-                                        &result,
-                                        protoEvent.initialize_result(),
-                                        operationId,
-                                        Bootstrap_,
-                                        SchedulerConfig_->OperationTransactionPingPeriod);
-
-                                    resultOrError = std::move(result);
+                                    resultOrError = FromProto<TOperationControllerInitializeResult>(protoEvent.initialize_result());
                                 } else {
                                     resultOrError = std::move(error);
                                 }
