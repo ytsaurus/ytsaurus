@@ -95,7 +95,7 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
         auto req = TYPathProxy::Get(userObject.GetObjectIdPath() + "/@");
         SetCachingHeader(req, connection, masterReadOptions);
         SetSuppressAccessTracking(req, false);
-        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<std::string>{
             "chunk_count",
             "dynamic",
             "schema",

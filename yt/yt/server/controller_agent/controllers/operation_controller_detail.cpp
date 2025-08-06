@@ -2232,7 +2232,7 @@ void TOperationControllerBase::CommitOutputCompletionTransaction()
 
     auto fetchAttributeAsObjectId = [&, this] (
         const TYPath& path,
-        const TString& attribute,
+        TStringBuf attribute,
         TTransactionId transactionId = NullTransactionId)
     {
         auto getRequest = TYPathProxy::Get(Format("%v/@%v", path, attribute));
@@ -6810,7 +6810,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
 
             for (const auto& table : tables) {
                 auto req = TTableYPathProxy::Get(table->GetObjectIdPath() + "/@");
-                ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+                ToProto(req->mutable_attributes()->mutable_keys(), std::vector<std::string>{
                     "schema_id",
                     "account",
                     "chunk_writer",
@@ -6875,7 +6875,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
 
         for (const auto& table : UpdatingTables_) {
             auto req = TTableYPathProxy::Get(table->GetObjectIdPath() + "/@");
-            ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+            ToProto(req->mutable_attributes()->mutable_keys(), std::vector<std::string>{
                 "effective_acl",
                 "tablet_state",
                 "backup_state",
@@ -7593,7 +7593,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
             {
                 auto req = TYPathProxy::Get(file.Path.GetPath() + "&/@");
                 SetTransactionId(req, *file.TransactionId);
-                ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+                ToProto(req->mutable_attributes()->mutable_keys(), std::vector<std::string>{
                     "key",
                     "file_name"
                 });
