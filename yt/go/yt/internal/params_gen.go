@@ -1000,10 +1000,18 @@ func writeTabletReadOptions(w *yson.Writer, o *yt.TabletReadOptions) {
 	}
 }
 
+func writeMultiplexingBandOptions(w *yson.Writer, o *yt.MultiplexingBandOptions) {
+	if o == nil {
+		return
+	}
+}
+
 func writeMultiLookupRowsOptions(w *yson.Writer, o *yt.MultiLookupRowsOptions) {
 	if o == nil {
 		return
 	}
+	writeMultiplexingBandOptions(w, o.MultiplexingBandOptions)
+	writeTabletReadOptions(w, o.TabletReadOptions)
 	writeTransactionOptions(w, o.TransactionOptions)
 }
 
