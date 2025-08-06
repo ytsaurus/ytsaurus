@@ -1828,7 +1828,7 @@ void TChunkLocation::SubscribeDiskCheckFailed(const TCallback<void(const TError&
 
 void TChunkLocation::UpdateMediumTag()
 {
-    LocationProfiler().RenameDynamicTag(MediumTag_, "medium", GetMediumName());
+    Profiler_.RenameDynamicTag(MediumTag_, "medium", GetMediumName());
 }
 
 void TChunkLocation::UpdateMediumDescriptor(const NChunkClient::TMediumDescriptor& newDescriptor, bool onInitialize)
