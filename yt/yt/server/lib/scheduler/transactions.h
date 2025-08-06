@@ -46,7 +46,6 @@ struct TControllerTransactionIds
     NTransactionClient::TTransactionId DebugId;
     NTransactionClient::TTransactionId OutputCompletionId;
     NTransactionClient::TTransactionId DebugCompletionId;
-    std::vector<NTransactionClient::TTransactionId> NestedInputIds;
     std::vector<TRichTransactionId> InputIds;
 
     static const std::vector<TString> AttributeKeys;
@@ -69,7 +68,6 @@ struct TOperationTransactions
     NApi::ITransactionPtr DebugTransaction;
     NApi::ITransactionPtr OutputCompletionTransaction;
     NApi::ITransactionPtr DebugCompletionTransaction;
-    std::vector<NApi::ITransactionPtr> NestedInputTransactions;
     std::vector<NApi::ITransactionPtr> InputTransactions;
 
     TControllerTransactionIds ControllerTransactionIds;
