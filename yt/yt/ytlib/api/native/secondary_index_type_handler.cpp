@@ -42,7 +42,7 @@ public:
         auto tablePath = attributes->GetAndRemove<TYPath>("table_path");
         auto indexTablePath = attributes->GetAndRemove<TYPath>("index_table_path");
         auto kind = attributes->Get<ESecondaryIndexKind>("kind");
-        auto predicate = attributes->Find<TString>("predicate");
+        auto predicate = attributes->Find<std::string>("predicate");
         auto evaluatedColumnsSchema = attributes->Find<TTableSchemaPtr>("evaluated_columns_schema");
 
         auto mountInfos = WaitFor(AllSucceeded(std::vector{
@@ -81,7 +81,7 @@ public:
         }
 
         auto unfoldedColumnName = (kind == ESecondaryIndexKind::Unfolding)
-            ? std::optional<TString>(attributes->Get<TString>("unfolded_column"))
+            ? std::optional<std::string>(attributes->Get<std::string>("unfolded_column"))
             : std::nullopt;
 
         ValidateIndexSchema(
