@@ -986,7 +986,7 @@ void TJob::OnResultReceived(TJobResult jobResult)
             TError nbdError;
             if (auto nbdServer = Bootstrap_->GetNbdServer()) {
                 for (const auto& exportId : NbdExportIds_) {
-                    if (auto device = nbdServer->GetDevice(exportId)) {
+                    if (auto device = nbdServer->FindDevice(exportId)) {
                         if (auto error = device->GetError(); !error.IsOK()) {
                             YT_LOG_ERROR(error, "NBD error occured during job execution (ExportId: %v)", exportId);
 
