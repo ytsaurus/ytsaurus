@@ -78,7 +78,7 @@ struct TSchedulableAttributes
     TResourceVolume AcceptedFreeVolume;
     TResourceVolume ChildrenVolumeOverflow;
 
-    TJobResources EffectiveStrongGuaranteeResources;
+    TJobResources InferredStrongGuaranteeResources;
 
     double BurstRatio = 0.0;
     double TotalBurstRatio = 0.0;
@@ -159,7 +159,7 @@ private:
     virtual void PrepareFairShareByFitFactor(TFairShareUpdateContext* context) = 0;
     void PrepareMaxFitFactorBySuggestion(TFairShareUpdateContext* context);
 
-    virtual void DetermineEffectiveStrongGuaranteeResources(TFairShareUpdateContext* context);
+    virtual void DetermineInferredStrongGuaranteeResources(TFairShareUpdateContext* context);
     virtual void UpdateCumulativeAttributes(TFairShareUpdateContext* context);
 
     virtual void ComputeAndSetFairShare(double suggestion, EFairShareType fairShareType, TFairShareUpdateContext* context) = 0;
@@ -242,8 +242,8 @@ private:
     void ComputeEstimatedGuaranteeShare(const TFairShareUpdateContext* context) override;
 
     void InitIntegralPoolLists(TFairShareUpdateContext* context) override;
-    void DetermineEffectiveStrongGuaranteeResources(TFairShareUpdateContext* context) override;
-    void DetermineImplicitEffectiveStrongGuaranteeResources(
+    void DetermineInferredStrongGuaranteeResources(TFairShareUpdateContext* context) override;
+    void DetermineImplicitInferredStrongGuaranteeResources(
         const TJobResources& totalExplicitChildrenGuaranteeResources,
         TFairShareUpdateContext* context);
     void UpdateCumulativeAttributes(TFairShareUpdateContext* context) override;
@@ -322,7 +322,7 @@ public:
     bool IsRoot() const override;
 
 private:
-    void DetermineEffectiveStrongGuaranteeResources(TFairShareUpdateContext* context) override;
+    void DetermineInferredStrongGuaranteeResources(TFairShareUpdateContext* context) override;
     void UpdateCumulativeAttributes(TFairShareUpdateContext* context) override;
     void TruncateFairShareInFifoPools(EFairShareType type) override;
 

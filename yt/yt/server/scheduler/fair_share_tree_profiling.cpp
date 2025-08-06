@@ -448,6 +448,8 @@ void TFairShareTreeProfileManager::ProfilePool(
 {
     YT_ASSERT_INVOKER_AFFINITY(ProfilingInvoker_);
 
+    const auto& attributes = element->Attributes();
+
     TSensorBuffer buffer;
     ProfileElement(
         &buffer,
@@ -464,7 +466,8 @@ void TFairShareTreeProfileManager::ProfilePool(
     buffer.AddGauge("/schedulable_operation_count", element->SchedulableOperationCount());
 
     ProfileResources(&buffer, element->GetSpecifiedStrongGuaranteeResources(), "/strong_guarantee_resources");
-    ProfileResources(&buffer, element->Attributes().EffectiveStrongGuaranteeResources, "/effective_strong_guarantee_resources");
+    ProfileResources(&buffer, element->GetTotalResourceLimits() * attributes.StrongGuaranteeShare, "/effective_strong_guarantee_resources");
+    ProfileResources(&buffer, attributes.InferredStrongGuaranteeResources, "/inferred_strong_guarantee_resources");
 
     auto integralGuaranteesConfig = element->GetIntegralGuaranteesConfig();
     if (integralGuaranteesConfig->GuaranteeType != EIntegralGuaranteeType::None) {
@@ -475,11 +478,11 @@ void TFairShareTreeProfileManager::ProfilePool(
     if (integralGuaranteesConfig->ResourceFlow->IsNonTrivial()) {
         ProfileResourceVolume(
             &buffer,
-            element->Attributes().AcceptedFreeVolume,
+            attributes.AcceptedFreeVolume,
             "/accepted_free_volume");
         ProfileResourceVolume(
             &buffer,
-            element->Attributes().VolumeOverflow,
+            attributes.VolumeOverflow,
             "/volume_overflow");
     }
 
