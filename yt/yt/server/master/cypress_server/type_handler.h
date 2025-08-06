@@ -7,7 +7,7 @@
 #include <yt/yt/server/master/security_server/cluster_resources.h>
 
 #include <yt/yt/server/master/object_server/public.h>
-#include <yt/yt/server/master/object_server/type_handler.h>
+#include <yt/yt/server/master/object_server/type_handler_detail.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
 

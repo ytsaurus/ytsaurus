@@ -370,19 +370,22 @@ private:
             parentId);
         scionNode->MutableSequoiaProperties() = std::make_unique<TCypressNode::TMutableSequoiaProperties>();
 
-        scionNode->Acd().SetEntries(effectiveAcl);
-        scionNode->Acd().SetInherit(inheritAcl);
-        if (directAcl) {
-            scionNode->DirectAcd().SetEntries(*directAcl);
-        }
+        {
+            auto acd = securityManager->GetAcd(scionNode).AsMutable();
+            acd->SetEntries(effectiveAcl);
+            acd->SetInherit(inheritAcl);
+            if (directAcl) {
+                scionNode->DirectAcd().SetEntries(*directAcl);
+            }
 
-        if (auto ownerName = explicitAttributes->FindAndRemove<std::string>(EInternedAttributeKey::Owner.Unintern())) {
-            if (auto* owner = securityManager->FindSubjectByNameOrAlias(*ownerName, /*activeLifeStageOnly*/ true)) {
-                scionNode->Acd().SetOwner(owner);
-            } else {
-                YT_LOG_ALERT("Scion owner subject is missing (ScionNodeId: %v, SubjectName: %v)",
-                    scionNode->GetId(),
-                    ownerName);
+            if (auto ownerName = explicitAttributes->FindAndRemove<std::string>(EInternedAttributeKey::Owner.Unintern())) {
+                if (auto* owner = securityManager->FindSubjectByNameOrAlias(*ownerName, /*activeLifeStageOnly*/ true)) {
+                    acd->SetOwner(owner);
+                } else {
+                    YT_LOG_ALERT("Scion owner subject is missing (ScionNodeId: %v, SubjectName: %v)",
+                        scionNode->GetId(),
+                        ownerName);
+                }
             }
         }
 

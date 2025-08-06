@@ -27,6 +27,8 @@ struct TObjectTypeMetadata
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TAcdList = TCompactVector<NSecurityServer::TAccessControlDescriptor*, TypicalAcdCount>;
+
 template <class TImpl>
 class TObjectTypeHandlerBase
     : public IObjectTypeHandler
@@ -117,14 +119,18 @@ public:
         return std::nullopt;
     }
 
-    NSecurityServer::TAccessControlDescriptor* FindAcd(TObject* object) override
+    NSecurityServer::TWrappedAccessControlDescriptorPtr FindAcd(TObject* object) override
     {
-        return DoFindAcd(object->As<TImpl>());
+        return {DoFindAcd(object->As<TImpl>()), Bootstrap_->GetSecurityManager().Get()};
     }
 
-    TAcdList ListAcds(TObject* object) override
+    TWrappedAcdList ListAcds(TObject* object) override
     {
-        return DoListAcds(object->As<TImpl>());
+        TWrappedAcdList result;
+        for (auto* acd : DoListAcds(object->As<TImpl>())) {
+            result.emplace_back(acd, Bootstrap_->GetSecurityManager().Get());
+        }
+        return result;
     }
 
     std::optional<std::vector<std::string>> ListColumns(TObject* object) override
@@ -179,9 +185,9 @@ protected:
     virtual void DoDestroyObject(TImpl* object) noexcept
     {
         // Clear ACD, if any.
-        for (auto* acd : ListAcds(object)) {
+        for (auto& acd : ListAcds(object)) {
             YT_VERIFY(acd);
-            acd->Clear();
+            acd.AsMutable()->Clear();
         }
     }
 

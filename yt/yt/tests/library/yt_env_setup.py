@@ -1529,7 +1529,26 @@ class YTEnvSetup(object):
             assert self.get_param("USE_SEQUOIA", cluster_index)
 
             yt_commands.remove("//tmp", force=True, driver=driver)
-            yt_commands.create("rootstock", "//tmp", force=True, driver=driver)
+            yt_commands.create(
+                "rootstock",
+                "//tmp",
+                attributes={
+                    "account": "tmp",
+                    "acl": [
+                        {
+                            "action": "allow",
+                            "permissions": ["read", "write", "remove"],
+                            "subjects": ["users"],
+                        },
+                        {
+                            "action": "allow",
+                            "permissions": ["read"],
+                            "subjects": ["everyone"],
+                        },
+                    ],
+                },
+                force=True,
+                driver=driver)
         elif self.ENABLE_TMP_PORTAL and cluster_index == 0:
             yt_commands.remove("//tmp", force=True, driver=driver)
             yt_commands.create(

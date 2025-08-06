@@ -128,11 +128,14 @@ void TNontemplateCypressNodeTypeHandlerBase::DestroyCorePrologue(TCypressNode* n
         // Reset reference to shard.
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->ResetShard(node);
-    }
 
-    // Clear ACDs to unregister the node from linked objects.
-    for (auto& acd : ListAcds(node)) {
-        acd->Clear();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        const auto& handler = objectManager->GetHandler(node);
+
+        // Clear ACDs to unregister the node from linked objects.
+        for (auto acd : handler->ListAcds(node)) {
+            acd.AsMutable()->Clear();
+        }
     }
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -225,17 +228,20 @@ TCypressNode* TNontemplateCypressNodeTypeHandlerBase::MaterializeNodeCore(
         clonedAccount,
         /*transaction*/ nullptr);
 
-    if (factory->ShouldPreserveAcl(context->GetMode()) && trunkNode->GetType() != EObjectType::PortalExit) {
-        trunkNode->Acd().SetInherit(sourceAcd.Inherit());
-        trunkNode->Acd().SetEntries(sourceAcd.Acl());
-    }
+    {
+        auto destinationAcd = securityManager->GetAcd(trunkNode).AsMutable();
+        if (factory->ShouldPreserveAcl(context->GetMode()) && trunkNode->GetType() != EObjectType::PortalExit) {
+            destinationAcd->SetInherit(sourceAcd.Inherit());
+            destinationAcd->SetEntries(sourceAcd.Acl());
+        }
 
-    // Set owner.
-    if (factory->ShouldPreserveOwner()) {
-        trunkNode->Acd().SetOwner(sourceAcd.GetOwner());
-    } else {
-        auto* user = securityManager->GetAuthenticatedUser();
-        trunkNode->Acd().SetOwner(user);
+        // Set owner.
+        if (factory->ShouldPreserveOwner()) {
+            destinationAcd->SetOwner(sourceAcd.GetOwner());
+        } else {
+            auto* user = securityManager->GetAuthenticatedUser();
+            destinationAcd->SetOwner(user);
+        }
     }
 
     // Copy opaque.

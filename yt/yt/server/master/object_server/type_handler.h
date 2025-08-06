@@ -32,7 +32,7 @@ DEFINE_ENUM(EObjectAccountMode,
 );
 
 static constexpr int TypicalAcdCount = 1;
-using TAcdList = TCompactVector<NSecurityServer::TAccessControlDescriptor*, TypicalAcdCount>;
+using TWrappedAcdList = TCompactVector<NSecurityServer::TWrappedAccessControlDescriptorPtr, TypicalAcdCount>;
 
 //! Provides a bridge between TObjectManager and concrete object implementations.
 struct IObjectTypeHandler
@@ -109,14 +109,14 @@ struct IObjectTypeHandler
     virtual void UnstageObject(TObject* object, bool recursive) = 0;
 
     //! Returns the object ACD or |nullptr| if access is not controlled.
-    virtual NSecurityServer::TAccessControlDescriptor* FindAcd(TObject* object) = 0;
+    virtual NSecurityServer::TWrappedAccessControlDescriptorPtr FindAcd(TObject* object) = 0;
 
     //! Returns a list of all ACDs associated with the object.
     /*!
      *  The list may be empty.
      *  An object needs to know all its associated ACDs in order to handle subject removal properly.
      */
-    virtual TAcdList ListAcds(TObject* object) = 0;
+    virtual TWrappedAcdList ListAcds(TObject* object) = 0;
 
     //! Returns the full set of columns (entities referenced by columnar ACEs)
     //! for this object, or null if this type of object has no columns.

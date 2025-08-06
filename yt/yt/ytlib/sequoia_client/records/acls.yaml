@@ -1,0 +1,33 @@
+namespace: NYT::NSequoiaClient::NRecords
+
+types:
+  - table_name: acls
+    table_group: resolve_tables
+    type_name: TAcls
+    fields:
+      - cpp_name: NodeIdHash
+        cpp_type: ui64
+        column_name: node_id_hash
+        column_type: Uint64
+        sort_order: Ascending
+        expression: farm_hash(node_id)
+
+      - cpp_name: NodeId
+        cpp_type: NCypressClient::TNodeId
+        column_name: node_id
+        column_type: String
+        sort_order: Ascending
+
+      - cpp_name: Acl
+        cpp_type: NYson::TYsonString
+        column_name: acl
+        column_type: Any
+
+      - cpp_name: Inherit
+        cpp_type: bool
+        column_name: inherit
+        column_type: Boolean
+
+    verbatim: |
+        static constexpr auto Queue = EGroundUpdateQueue::Sequoia;
+        static constexpr auto Table = ESequoiaTable::Acls;

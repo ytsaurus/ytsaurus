@@ -48,6 +48,7 @@
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
 #include <yt/yt/server/master/sequoia_server/context.h>
+#include <yt/yt/server/master/sequoia_server/ground_update_queue_manager.h>
 
 #include <yt/yt/server/master/security_server/proto/security_manager.pb.h>
 
@@ -67,6 +68,8 @@
 #include <yt/yt/server/lib/security_server/helpers.h>
 
 #include <yt/yt/ytlib/security_client/group_ypath_proxy.h>
+
+#include <yt/yt/ytlib/sequoia_client/records/acls.record.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -103,6 +106,7 @@ using namespace NObjectServer;
 using namespace NProfiling;
 using namespace NSecurityClient;
 using namespace NSequoiaServer;
+using namespace NSequoiaClient;
 using namespace NTableServer;
 using namespace NTransactionServer;
 using namespace NYPath;
@@ -1577,8 +1581,8 @@ public:
         }
 
         for (auto [object, counter] : subject->LinkedObjects()) {
-            for (auto* acd : ListAcds(object)) {
-                acd->OnSubjectDestroyed(subject, GuestUser_);
+            for (auto acd : ListAcds(object)) {
+                acd.AsMutable()->OnSubjectDestroyed(subject, GuestUser_);
             }
         }
         subject->LinkedObjects().clear();
@@ -2116,23 +2120,23 @@ public:
         subject->SetName(newName);
     }
 
-    TAccessControlDescriptor* FindAcd(TObject* object) override
+    TWrappedAccessControlDescriptorPtr FindAcd(TObject* object) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto& handler = objectManager->GetHandler(object);
         return handler->FindAcd(object);
     }
 
-    TAcdList ListAcds(TObject* object)
+    TWrappedAcdList ListAcds(TObject* object)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto& handler = objectManager->GetHandler(object);
         return handler->ListAcds(object);
     }
 
-    TAccessControlDescriptor* GetAcd(TObject* object) override
+    TWrappedAccessControlDescriptorPtr GetAcd(TObject* object) override
     {
-        auto* acd = FindAcd(object);
+        auto acd = FindAcd(object);
         YT_VERIFY(acd);
         return acd;
     }
@@ -2144,7 +2148,7 @@ public:
         int depth = 0;
         while (object) {
             const auto& handler = objectManager->GetHandler(object);
-            auto* acd = handler->FindAcd(object);
+            const auto acd = handler->FindAcd(object);
             if (acd) {
                 for (auto entry : acd->Acl().Entries) {
                     auto inheritedMode = GetInheritedInheritanceMode(entry.InheritanceMode, depth);
@@ -2312,9 +2316,7 @@ public:
             return *ownerOverride;
         }
 
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        const auto& handler = objectManager->GetHandler(object);
-        auto* acd = handler->FindAcd(object);
+        const auto acd = FindAcd(object);
         return acd ? acd->GetOwner() : nullptr;
     }
 
@@ -2810,6 +2812,34 @@ public:
                     << TErrorAttribute("ace", ConvertToYsonString(ace));
             }
         }
+    }
+
+    void OnObjectAcdUpdated(TAccessControlDescriptor* acd) override
+    {
+        auto object = acd->GetObject();
+        if (!object->IsSequoia() ||
+            !IsVersionedType(object->GetType()) ||
+            object->IsForeign())
+        {
+            return;
+        }
+
+        const auto& queueManager = Bootstrap_->GetGroundUpdateQueueManager();
+        if (IsObjectAlive(object)) {
+            queueManager->EnqueueWrite(NRecords::TAcls{
+                .Key = {.NodeId = object->GetId()},
+                .Acl = ConvertToYsonString(acd->Acl()),
+                .Inherit = acd->Inherit(),
+            });
+        } else {
+            // Object is being removed.
+            queueManager->EnqueueDelete(NRecords::TAclsKey{
+                .NodeId = object->GetId(),
+            });
+        }
+
+        YT_LOG_DEBUG("Scheduled ACLs table update (ObjectId: %v)",
+            object->GetId());
     }
 
     DEFINE_SIGNAL_OVERRIDE(void(TUser*, const TUserWorkload&), UserCharged);
@@ -3747,7 +3777,7 @@ private:
         for (auto type : objectManager->GetRegisteredTypes()) {
             if (HasSchema(type)) {
                 auto* schema = objectManager->GetSchema(type);
-                auto* acd = GetAcd(schema);
+                auto acd = GetAcd(schema).AsMutable();
                 // TODO(renadeen): giving read, write, remove for object schema to all users looks like a bad idea.
                 if (!IsVersionedType(type)) {
                     acd->AddEntry(TAccessControlEntry(

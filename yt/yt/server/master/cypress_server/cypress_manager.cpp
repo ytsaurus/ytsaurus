@@ -89,6 +89,8 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/yt/server/lib/security_server/helpers.h>
+
 #include <yt/yt/server/lib/sequoia/helpers.h>
 
 #include <yt/yt/ytlib/api/native/proto/transaction_actions.pb.h>
@@ -874,7 +876,7 @@ private:
 
     TAcdList DoListAcds(TCypressNode* node) override
     {
-        return UnderlyingHandler_->ListAcds(node);
+        return UnderlyingHandler_->ListAcds(node->GetTrunkNode());
     }
 
     std::optional<std::vector<std::string>> DoListColumns(TCypressNode* node) override
@@ -1399,7 +1401,10 @@ public:
         auto* node = RegisterNode(std::move(nodeHolder));
 
         // Set owner.
-        node->Acd().SetOwner(user);
+        {
+            auto acd = securityManager->GetAcd(node).AsMutable();
+            acd->SetOwner(user);
+        }
 
         NodeCreated_.Fire(node);
 
@@ -1478,7 +1483,11 @@ public:
         context->SetExternalCellTag(externalCellTag);
 
         const auto& handler = GetHandler(type);
-        return handler->MaterializeNode(context, factory);
+        auto clonedNode = handler->MaterializeNode(context, factory);
+
+        NodeCreated_.Fire(clonedNode);
+
+        return clonedNode;
     }
 
     TCypressMapNode* GetRootNode() const override
@@ -4241,12 +4250,16 @@ private:
         auto* sourceTrunkNode = sourceNode->GetTrunkNode();
 
         // Set owner.
-        if (factory->ShouldPreserveOwner()) {
-            clonedTrunkNode->Acd().SetOwner(sourceTrunkNode->Acd().GetOwner());
-        } else {
+        {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
-            auto* user = securityManager->GetAuthenticatedUser();
-            clonedTrunkNode->Acd().SetOwner(user);
+            auto clonedAcd = securityManager->GetAcd(clonedTrunkNode).AsMutable();
+            if (factory->ShouldPreserveOwner()) {
+                const auto sourceAcd = securityManager->GetAcd(sourceTrunkNode);
+                clonedAcd->SetOwner(sourceAcd->GetOwner());
+            } else {
+                auto* user = securityManager->GetAuthenticatedUser();
+                clonedAcd->SetOwner(user);
+            }
         }
 
         // Copy creation time.
