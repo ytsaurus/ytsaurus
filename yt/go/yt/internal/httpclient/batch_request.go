@@ -132,10 +132,14 @@ func (r *batchRequest) GetNode(
 	result any,
 	options *yt.GetNodeOptions,
 ) (yt.VoidBatchResponse, error) {
+	decoder, err := internal.GetNodeResultDecoder(options)
+	if err != nil {
+		return nil, err
+	}
 	return r.registerSubrequestWithOutResult(
 		requestInfo{params: internal.NewGetNodeParams(path, options)},
 		result,
-		internal.GetNodeResultDecoder,
+		decoder,
 	)
 }
 

@@ -68,6 +68,11 @@ func (res *CallResult) decodeJSON(value any) (err error) {
 	return
 }
 
+func (res *CallResult) decodeSingleJSON(key string, value any) (err error) {
+	err = json.Unmarshal(res.YSONValue, &jsonUnmapper{key: key, value: value})
+	return
+}
+
 type CallInvoker func(ctx context.Context, call *Call) (res *CallResult, err error)
 
 func (c CallInvoker) Wrap(interceptor CallInterceptor) CallInvoker {
