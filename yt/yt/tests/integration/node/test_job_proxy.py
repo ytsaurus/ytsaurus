@@ -258,7 +258,7 @@ class TestJobProxyUserJobFlagRedirectStdoutToStderr(YTEnvSetup):
 
 class TestRpcProxyInJobProxyBase(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 2
+    NUM_NODES = 1
     NUM_SCHEDULERS = 1
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
@@ -277,8 +277,8 @@ class TestRpcProxyInJobProxyBase(YTEnvSetup):
         },
         "job_resource_manager": {
             "resource_limits": {
-                "user_slots": 4,
-                "cpu": 4,
+                "user_slots": 3,
+                "cpu": 3,
             },
         },
         "solomon_exporter": {
@@ -366,7 +366,33 @@ class TestRpcProxyInJobProxySingleCluster(TestRpcProxyInJobProxyBase):
         profiler = profiler_factory().at_job_proxy(node, fixed_tags={'yt_service': 'ApiService', 'method': 'ListNode'})
         wait(lambda: check_sensor_values(profiler.get_all("rpc/server/request_count")))
 
-    @authors("hiddenpath")
+
+class TestRpcProxyInJobProxySingleClusterSeveralNodes(TestRpcProxyInJobProxyBase):
+    NUM_NODES = 2
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_proxy": {
+                "job_proxy_authentication_manager": {
+                    "enable_authentication": True,
+                    "cypress_token_authenticator": {
+                        "secure": True,
+                    },
+                },
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 4,
+                "cpu": 4,
+            },
+        },
+        "solomon_exporter": {
+            "host": "node.yt.test",
+        },
+    }
+
+    @authors("hiddenpath", "nadya73")
     def test_rpc_proxy_count_metrics(self):
         nodes = ls("//sys/cluster_nodes")
         rpc_proxy_in_job_proxy_gauges = [
