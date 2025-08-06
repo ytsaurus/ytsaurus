@@ -91,29 +91,6 @@ public:
         : Bootstrap_(bootstrap)
     { }
 
-    bool CanHaveSequoiaReplicas(TChunkLocation* location) const override
-    {
-        VerifyPersistentStateRead();
-
-        if (!IsObjectAlive(location)) {
-            return false;
-        }
-
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        int mediumIndex = location->GetEffectiveMediumIndex();
-        auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-        if (!medium || !medium->IsDomestic()) {
-            return false;
-        }
-
-        auto domesticMedium = medium->AsDomestic();
-        if (!domesticMedium->GetEnableSequoiaReplicas()) {
-            return false;
-        }
-
-        return true;
-    }
-
     bool CanHaveSequoiaReplicas(TChunkId chunkId, int probability) const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -136,30 +113,6 @@ public:
 
         auto probability = config->ReplicasPercentage;
         return CanHaveSequoiaReplicas(chunkId, probability);
-    }
-
-    bool IsSequoiaChunkReplica(TChunkId chunkId, TChunkLocationUuid locationUuid) const override
-    {
-        VerifyPersistentStateRead();
-
-        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-        auto* location = dataNodeTracker->FindChunkLocationByUuid(locationUuid);
-        if (!IsObjectAlive(location)) {
-            return false;
-        }
-
-        return IsSequoiaChunkReplica(chunkId, location);
-    }
-
-    bool IsSequoiaChunkReplica(TChunkId chunkId, TChunkLocation* location) const override
-    {
-        VerifyPersistentStateRead();
-
-        if (!CanHaveSequoiaReplicas(chunkId)) {
-            return false;
-        }
-
-        return CanHaveSequoiaReplicas(location);
     }
 
 

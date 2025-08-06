@@ -101,13 +101,8 @@ class TestSequoiaReplicas(YTEnvSetup):
     def setup_class(cls):
         super(TestSequoiaReplicas, cls).setup_class()
 
-        for media in ls("//sys/media"):
-            set("//sys/media/{}/@enable_sequoia_replicas".format(media), False)
-
         create_domestic_medium(cls.TABLE_MEDIUM_1)
         create_domestic_medium(cls.TABLE_MEDIUM_2)
-        set("//sys/media/{}/@enable_sequoia_replicas".format(cls.TABLE_MEDIUM_1), True)
-        set("//sys/media/{}/@enable_sequoia_replicas".format(cls.TABLE_MEDIUM_2), False)
 
         mediums = [cls.TABLE_MEDIUM_1, cls.TABLE_MEDIUM_2, "default"]
         iter_mediums = 0
@@ -286,7 +281,6 @@ class TestSequoiaReplicas(YTEnvSetup):
 
     @authors("kvk1920")
     def test_last_seen_replicas_fairness(self):
-
         create("table", "//tmp/t")
         write_table("//tmp/t", [{"key": 42, "value": "hello!"}])
         chunk_id = get_singular_chunk_id("//tmp/t")
@@ -445,8 +439,8 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
         write_table("<append=%true>" + table, {"foo": "bar"}, table_writer={"upload_replication_factor": 1})
 
         chunk_id = get_singular_chunk_id(table)
-        wait(lambda: len(get("#{}/@stored_sequoia_replicas".format(chunk_id))) == 0)
-        wait(lambda: len(get("#{}/@stored_master_replicas".format(chunk_id))) > 0)
+        wait(lambda: len(get("#{}/@stored_sequoia_replicas".format(chunk_id))) > 0)
+        wait(lambda: len(get("#{}/@stored_master_replicas".format(chunk_id))) == 0)
         remove(table)
 
     @authors("aleksandra-zh")
@@ -473,35 +467,25 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
             json_data = yson.yson_to_json(data)
             return json_data['$attributes']['medium']
 
-        def process_yson_locations(data):
-            json_data = yson.yson_to_json(data)
-            return json_data['$attributes']['location_uuid']
-
-        def check_sequoia_replicas(chunk_id):
+        def check_sequoia_replicas(chunk_id, medium):
             stored_sequoia_replicas = get("#{}/@stored_sequoia_replicas".format(chunk_id))
-            results = [process_yson_medium(data) == self.TABLE_MEDIUM_1 for data in stored_sequoia_replicas]
-            return all(results) and len(results) > 0
+            results = [data for data in stored_sequoia_replicas if process_yson_medium(data) == medium]
+            return len(results) > 0
 
-        wait(lambda: check_sequoia_replicas(chunk_id))
-
-        def check_master_replicas(chunk_id):
-            stored_master_replicas = get("#{}/@stored_master_replicas".format(chunk_id))
-            results = [process_yson_medium(data) == self.TABLE_MEDIUM_2 for data in stored_master_replicas]
-            return all(results) and len(results) > 0
-
-        wait(lambda: check_master_replicas(chunk_id))
+        wait(lambda: check_sequoia_replicas(chunk_id, self.TABLE_MEDIUM_1))
+        wait(lambda: check_sequoia_replicas(chunk_id, self.TABLE_MEDIUM_2))
 
         def check_stored_replicas(chunk_id):
             stored_replicas = get("#{}/@stored_replicas".format(chunk_id))
             stored_sequoia_replicas = get("#{}/@stored_sequoia_replicas".format(chunk_id))
             stored_master_replicas = get("#{}/@stored_master_replicas".format(chunk_id))
 
-            if len(stored_replicas) != 2 or len(stored_sequoia_replicas) != 1 or len(stored_master_replicas) != 1:
+            if len(stored_replicas) != 2 or len(stored_sequoia_replicas) != 2 or len(stored_master_replicas) != 0:
                 return False
 
             for replica in stored_replicas:
                 if (process_yson_medium(replica) == self.TABLE_MEDIUM_1 and replica not in stored_sequoia_replicas) or \
-                        (process_yson_medium(replica) == self.TABLE_MEDIUM_2 and replica not in stored_master_replicas):
+                        (process_yson_medium(replica) == self.TABLE_MEDIUM_2 and replica not in stored_sequoia_replicas):
                     return False
             return True
 

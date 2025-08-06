@@ -77,10 +77,10 @@ struct IDataNodeTracker
     virtual void MakeLocationsOnline(TNode* node) = 0;
 
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(ChunkLocation, TChunkLocation);
-    virtual TChunkLocation* FindChunkLocationByUuid(TChunkLocationUuid locationUuid) = 0;
-    virtual TChunkLocation* GetChunkLocationByUuid(TChunkLocationUuid locationUuid) = 0;
-    virtual TChunkLocation* FindChunkLocationByIndex(NNodeTrackerClient::TChunkLocationIndex locationIndex) = 0;
-    virtual TChunkLocation* GetChunkLocationByIndex(NNodeTrackerClient::TChunkLocationIndex locationIndex) = 0;
+    virtual TChunkLocation* FindChunkLocationByUuid(TChunkLocationUuid locationUuid) const = 0;
+    virtual TChunkLocation* GetChunkLocationByUuid(TChunkLocationUuid locationUuid) const = 0;
+    virtual TChunkLocation* FindChunkLocationByIndex(NNodeTrackerClient::TChunkLocationIndex locationIndex) const = 0;
+    virtual TChunkLocation* GetChunkLocationByIndex(NNodeTrackerClient::TChunkLocationIndex locationIndex) const = 0;
 
     virtual const TChunkLocationUuidMap& ChunkLocationUuidMap() const = 0;
     virtual const TChunkLocationUuidMap& ChunkLocationUuidMapShard(int shardIndex) const = 0;

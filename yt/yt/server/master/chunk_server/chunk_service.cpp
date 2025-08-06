@@ -957,11 +957,8 @@ private:
                 return false;
             }
 
-            for (const auto& replica : request->replicas()) {
-                auto locationUuid = FromProto<TChunkLocationUuid>(replica.location_uuid());
-                if (chunkReplicaFetcher->IsSequoiaChunkReplica(chunkId, locationUuid)) {
-                    return true;
-                }
+            if (chunkReplicaFetcher->CanHaveSequoiaReplicas(chunkId)) {
+                return true;
             }
             return false;
         };
