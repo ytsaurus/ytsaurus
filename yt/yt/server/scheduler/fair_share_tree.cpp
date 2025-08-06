@@ -3488,9 +3488,8 @@ private:
             // COMPAT(ignat): remove it after UI and other tools migration.
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "min_share_resources", element->GetSpecifiedStrongGuaranteeResources())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "strong_guarantee_resources", element->GetSpecifiedStrongGuaranteeResources())
-            // COMPAT(ignat): remove it after UI and other tools migration.
-            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "effective_min_share_resources", attributes.EffectiveStrongGuaranteeResources)
-            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "effective_strong_guarantee_resources", attributes.EffectiveStrongGuaranteeResources)
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "effective_strong_guarantee_resources", element->GetTotalResourceLimits() * attributes.StrongGuaranteeShare)
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "inferred_strong_guarantee_resources", attributes.InferredStrongGuaranteeResources)
             // COMPAT(ignat): remove it after UI and other tools migration.
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "min_share_ratio", MaxComponent(attributes.StrongGuaranteeShare))
 
