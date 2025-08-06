@@ -1,5 +1,6 @@
 #include "table_descriptor.h"
 
+#include <yt/yt/ytlib/sequoia_client/records/acls.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/child_node.record.h>
@@ -156,6 +157,7 @@ const ITableDescriptor* ITableDescriptor::Get(ESequoiaTable table)
             return T##TableName##TableDescriptor::Get();
 
     switch (table) {
+        XX(Acls, "acls", Acls)
         XX(PathToNodeId, "path_to_node_id", PathToNodeId)
         XX(NodeIdToPath, "node_id_to_path", NodeIdToPath)
         XX(ChunkReplicas, "chunk_replicas", ChunkReplicas)

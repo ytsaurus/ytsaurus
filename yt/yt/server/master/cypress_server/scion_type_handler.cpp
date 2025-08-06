@@ -32,6 +32,11 @@ public:
         return ETypeFlags::None;
     }
 
+    TAcdList ListAcds(TCypressNode* trunkNode) const override
+    {
+        return {&trunkNode->Acd(), &trunkNode->As<TScionNode>()->DirectAcd()};
+    }
+
 private:
     ICypressNodeProxyPtr DoGetProxy(
         TScionNode* trunkNode,

@@ -14,6 +14,7 @@ PY_SRCS(
 )
 
 RESOURCE_FILES(
+    yt/yt/ytlib/sequoia_client/records/acls.yaml
     yt/yt/ytlib/sequoia_client/records/child_node.yaml
     yt/yt/ytlib/sequoia_client/records/chunk_replicas.yaml
     yt/yt/ytlib/sequoia_client/records/dependent_transactions.yaml

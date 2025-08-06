@@ -21,6 +21,8 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, DirectAcd);
 
 public:
+    explicit TScionNode(TVersionedNodeId nodeId);
+
     void Save(NCellMaster::TSaveContext& context) const override;
     void Load(NCellMaster::TLoadContext& context) override;
 };

@@ -162,6 +162,7 @@ DEFINE_ENUM(EMasterReign,
     ((DropHydraRemoveExpiredNodes)                                  (3007))  // danilalexeev
     ((TransactionsCanNowFeelImpendingDoom)                          (3008))  // h0pless
     ((ValidateClockCellTagOnChaosMount)                             (3009))  // ponasneko-rs
+    ((WriteAclToSequoiaTable)                                       (3010))  // danilalexeev
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

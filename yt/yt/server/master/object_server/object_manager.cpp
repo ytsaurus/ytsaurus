@@ -1626,9 +1626,8 @@ TObject* TObjectManager::CreateObject(
         throw;
     }
 
-    auto* acd = securityManager->FindAcd(object);
-    if (acd) {
-        acd->SetOwner(user);
+    if (auto acd = handler->FindAcd(object)) {
+        acd.AsMutable()->SetOwner(user);
     }
 
     if (replicate) {

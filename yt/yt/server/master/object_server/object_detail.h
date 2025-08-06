@@ -96,9 +96,6 @@ protected:
     //! versioned ones.
     virtual TVersionedObjectId GetVersionedId() const = 0;
 
-    //! Returns the ACD for the object or |nullptr| is none exists.
-    virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() = 0;
-
     void BeforeInvoke(const NYTree::IYPathServiceContextPtr& context) override;
     bool DoInvoke(const NYTree::IYPathServiceContextPtr& context) override;
 
@@ -264,7 +261,6 @@ protected:
     void RemoveSelf(TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context) override;
 
     TVersionedObjectId GetVersionedId() const override;
-    NSecurityServer::TAccessControlDescriptor* FindThisAcd() override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

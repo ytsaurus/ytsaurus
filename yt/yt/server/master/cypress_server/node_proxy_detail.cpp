@@ -573,13 +573,6 @@ TVersionedObjectId TNontemplateCypressNodeProxyBase::GetVersionedId() const
     return VersionedId_;
 }
 
-TAccessControlDescriptor* TNontemplateCypressNodeProxyBase::FindThisAcd()
-{
-    const auto& securityManager = Bootstrap_->GetSecurityManager();
-    auto* node = GetThisImpl();
-    return securityManager->FindAcd(node);
-}
-
 void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
     TObjectProxyBase::ListSystemAttributes(descriptors);

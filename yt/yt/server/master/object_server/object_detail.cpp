@@ -488,7 +488,9 @@ ISystemAttributeProvider* TObjectProxyBase::GetBuiltinAttributeProvider()
 
 void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
-    auto* acd = FindThisAcd();
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+
+    const auto acd = securityManager->FindAcd(Object_);
     bool hasAcd = acd;
     bool hasOwner = acd && acd->GetOwner();
     bool isForeign = Object_->IsForeign();
@@ -544,7 +546,7 @@ bool TObjectProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
     const auto& securityManager = Bootstrap_->GetSecurityManager();
 
     bool isForeign = Object_->IsForeign();
-    auto* acd = FindThisAcd();
+    const auto acd = securityManager->FindAcd(Object_);
 
     switch (key) {
         case EInternedAttributeKey::Id:
@@ -714,7 +716,7 @@ TFuture<TYsonString> TObjectProxyBase::GetBuiltinAttributeAsync(TInternedAttribu
 bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force)
 {
     auto securityManager = Bootstrap_->GetSecurityManager();
-    auto* acd = FindThisAcd();
+    auto acd = securityManager->FindAcd(Object_).AsMutable();
     if (!acd) {
         return false;
     }
@@ -1196,12 +1198,6 @@ void TNontemplateNonversionedObjectProxyBase::RemoveSelf(
 TVersionedObjectId TNontemplateNonversionedObjectProxyBase::GetVersionedId() const
 {
     return TVersionedObjectId(Object_->GetId());
-}
-
-TAccessControlDescriptor* TNontemplateNonversionedObjectProxyBase::FindThisAcd()
-{
-    const auto& securityManager = Bootstrap_->GetSecurityManager();
-    return securityManager->FindAcd(Object_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
