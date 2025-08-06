@@ -34,6 +34,12 @@ class ChaosTestBase(DynamicTablesBase):
         }
     }
 
+    DELTA_MASTER_CACHE_CONFIG = {
+        "cluster_connection": {
+            "use_find_chaos_object": True
+        },
+    }
+
     def _get_drivers(self):
         return [get_driver(cluster=cluster_name) for cluster_name in self.get_cluster_names()]
 
