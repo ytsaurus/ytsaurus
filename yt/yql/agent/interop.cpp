@@ -273,9 +273,10 @@ TYqlRowset BuildRowsetFromYson(
 
     TTypeBuilder typeBuilder;
     NYql::NResult::ParseType(*write.Type, typeBuilder);
-    const auto schema = BuildSchema(*typeBuilder.PullResult());
+    auto typeResult = typeBuilder.PullResult();
+    const auto schema = BuildSchema(*typeResult);
     TBuildingValueConsumer consumer(schema, YqlAgentLogger(), true);
-    TDataBuilder dataBuilder(&consumer);
+    TDataBuilder dataBuilder(&consumer, typeResult);
     NYql::NResult::ParseData(*write.Type, *write.Data, dataBuilder);
     return BuildRowset(consumer, resultIndex, write.IsTruncated, {}, rowCountLimit);
 }

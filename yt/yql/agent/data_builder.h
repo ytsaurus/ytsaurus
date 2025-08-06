@@ -2,6 +2,7 @@
 
 #include <yql/essentials/public/result_format/yql_result_format_data.h>
 
+#include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/value_consumer.h>
 
 #include <stack>
@@ -14,7 +15,7 @@ class TDataBuilder
     : public NYql::NResult::IDataVisitor
 {
 public:
-    explicit TDataBuilder(NTableClient::IValueConsumer* consumer);
+    explicit TDataBuilder(NTableClient::IValueConsumer* consumer, NTableClient::TLogicalTypePtr type);
 
 private:
     NTableClient::IValueConsumer* const ValueConsumer_;
@@ -24,6 +25,23 @@ private:
     int Depth_ = -2; // Starts from table level: -2 List< -1 Struct< 0 ... >>
     int ColumnIndex_ = 0;
     std::stack<int> OptionalLevels_;
+
+    struct TTupleTypes {
+        std::vector<NTableClient::TLogicalTypePtr> Types_;
+        size_t Index_;
+    };
+    struct TStructTypes {
+        std::vector<NTableClient::TStructField> Types_;
+        size_t Index_;
+    };
+    struct TDictType {
+        NTableClient::TLogicalTypePtr Key_;
+        NTableClient::TLogicalTypePtr Value_;
+    };
+    std::stack<NTableClient::TLogicalTypePtr> Type_;
+    std::stack<TTupleTypes> TupleTypes_;
+    std::stack<TStructTypes> StructTypes_;
+    std::stack<TDictType> DictType_;
 
     void OnVoid() final;
     void OnNull() final;
