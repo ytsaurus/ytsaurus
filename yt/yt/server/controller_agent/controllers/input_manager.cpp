@@ -836,7 +836,7 @@ void TInputManager::FetchInputTablesAttributes()
         auto batchReq = proxy.ExecuteBatch();
         for (const auto& table : tables) {
             auto req = TTableYPathProxy::Get(table->GetObjectIdPath() + "/@");
-            ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+            ToProto(req->mutable_attributes()->mutable_keys(), std::vector<std::string>{
                 "dynamic",
                 "chunk_count",
                 "retained_timestamp",

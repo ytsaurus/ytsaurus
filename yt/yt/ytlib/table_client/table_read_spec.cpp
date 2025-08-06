@@ -72,7 +72,7 @@ TTableReadSpec FetchRegularTableReadSpec(
         SetSuppressExpirationTimeoutRenewal(req, suppressExpirationTimeoutRenewal);
         // TODO(danilalexeev): Figure out why request ignores the Sequoia resolve.
         SetAllowResolveFromSequoiaObject(req, true);
-        NYT::ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+        NYT::ToProto(req->mutable_attributes()->mutable_keys(), std::vector<std::string>{
             "chunk_count",
             "dynamic",
             "retained_timestamp",

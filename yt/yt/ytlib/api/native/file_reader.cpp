@@ -166,7 +166,7 @@ private:
                 EMasterChannelKind::Follower,
                 userObject.ExternalCellTag);
             auto req = TYPathProxy::Get(userObject.GetObjectIdPath() + "/@");
-            ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+            ToProto(req->mutable_attributes()->mutable_keys(), std::vector<std::string>{
                 "account",
                 "revision",
             });

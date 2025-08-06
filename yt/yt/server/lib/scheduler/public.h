@@ -254,7 +254,7 @@ static constexpr TControllerEpoch InvalidControllerEpoch = TControllerEpoch(-1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const TString CommittedAttribute;
+extern const std::string CommittedAttribute;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -262,13 +262,14 @@ using TNetworkPriority = i8;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const TString DefaultTreeAttributeName;
-extern const TString TreeConfigAttributeName;
-extern const TString IdAttributeName;
-extern const TString ParentIdAttributeName;
-extern const TString StrategyStatePath;
-extern const TString OldSegmentsStatePath;
-extern const TString LastMeteringLogTimePath;
+extern const std::string DefaultTreeAttributeName;
+extern const std::string TreeConfigAttributeName;
+extern const std::string IdAttributeName;
+extern const std::string ParentIdAttributeName;
+
+extern const NYPath::TYPath StrategyStatePath;
+extern const NYPath::TYPath OldSegmentsStatePath;
+extern const NYPath::TYPath LastMeteringLogTimePath;
 
 ////////////////////////////////////////////////////////////////////////////////
 

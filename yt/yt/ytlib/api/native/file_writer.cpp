@@ -184,7 +184,7 @@ private:
             auto req = TCypressYPathProxy::Get(objectIdPath + "/@");
             AddCellTagToSyncWith(req, ObjectId_);
             SetTransactionId(req, Transaction_);
-            ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+            ToProto(req->mutable_attributes()->mutable_keys(), std::vector<std::string>{
                 "account",
                 "compression_codec",
                 "erasure_codec",

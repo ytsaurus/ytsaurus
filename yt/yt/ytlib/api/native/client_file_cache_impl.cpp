@@ -83,7 +83,7 @@ TGetFileFromCacheResult TClient::DoGetFileFromCache(
     auto req = TYPathProxy::Get(destination + "/@");
     NCypressClient::SetTransactionId(req, options.TransactionId);
 
-    ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+    ToProto(req->mutable_attributes()->mutable_keys(), std::vector<std::string>{
         "md5"
     });
 
@@ -196,7 +196,7 @@ TPutFileToCacheResult TClient::DoAttemptPutFileToCache(
         auto proxy = CreateObjectServiceReadProxy(options);
         auto req = TYPathProxy::Get(objectIdPath + "/@");
 
-        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<std::string>{
             "md5"
         });
 

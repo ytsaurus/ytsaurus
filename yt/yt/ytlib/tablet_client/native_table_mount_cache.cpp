@@ -238,7 +238,7 @@ private:
 
             {
                 auto req = TTableYPathProxy::Get(Path_ + "/@");
-                ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+                ToProto(req->mutable_attributes()->mutable_keys(), std::vector<std::string>{
                     "id",
                     "dynamic",
                     "external_cell_tag",

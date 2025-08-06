@@ -749,7 +749,7 @@ protected:
 
         auto batchReq = proxy.ExecuteBatch();
         auto req = TYPathProxy::Get(srcPath + "/@");
-        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{"id", "path"});
+        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<std::string>{"id", "path"});
         SetTransactionId(req, Transaction_->GetId());
         batchReq->AddRequest(req);
 
