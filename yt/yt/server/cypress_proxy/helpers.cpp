@@ -172,7 +172,6 @@ TErrorOr<std::vector<TResolvedPrerequisiteRevision>> ResolvePrerequisiteRevision
 
         auto* resolvedPrerequisiteRevision = std::get_if<TSequoiaResolveResult>(&prerequisiteRevisionResolveResult);
         if (resolvedPrerequisiteRevision) {
-            // YT_LOG_DEBUG("KEK: resolved %v")
             if (resolvedPrerequisiteRevision->UnresolvedSuffix.empty() || resolvedPrerequisiteRevision->UnresolvedSuffix == AmpersandYPath) {
                 resolvedPrerequisiteRevisions.push_back(
                 TResolvedPrerequisiteRevision{

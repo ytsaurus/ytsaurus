@@ -39,4 +39,4 @@ TEST_F(TChaosReplicatedNodeProxyTest, GetMinimalTabletCountTest)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NChunkServer
+} // namespace NYT::NChaosServer

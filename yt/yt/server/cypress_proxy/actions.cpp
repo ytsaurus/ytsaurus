@@ -536,7 +536,7 @@ void ImplicitlyLockNodeInMaster(
     NCypressClient::ELockMode lockMode,
     const std::optional<std::string>& childKey,
     const std::optional<std::string>& attributeKey,
-    const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction)
+    const ISequoiaTransactionPtr& sequoiaTransaction)
 {
     YT_VERIFY(nodeId.IsBranched());
 
