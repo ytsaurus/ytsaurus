@@ -4,8 +4,6 @@ package NYql.NConnector.NApi;
 
 import "contrib/ydb/library/yql/providers/generic/connector/api/service/protos/error.proto";
 import "contrib/ydb/public/api/protos/ydb_value.proto";
-import "contrib/ydb/public/api/protos/ydb_status_codes.proto";
-import "contrib/ydb/public/api/protos/ydb_issue_message.proto";
 import "yql/essentials/providers/common/proto/gateways_config.proto";
 
 option go_package = "go.ytsaurus.tech/contrib/ydb/library/yql/providers/generic/connector/libgo/service/protos";
