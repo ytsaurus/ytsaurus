@@ -724,15 +724,6 @@ private:
                 chunkId,
                 dataFileName);
 
-            TClientChunkReadOptions chunkReadOptions{
-                .WorkloadDescriptor = TWorkloadDescriptor(
-                    EWorkloadCategory::Idle,
-                    /*band*/ 0,
-                    TInstant::Zero(),
-                    {"Validate chunk length"}),
-                .ReadSessionId = TReadSessionId::Create(),
-            };
-
             auto metaOrError = WaitFor(chunkReader->GetMeta(chunkReadOptions, {}));
             THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Failed to read cached chunk meta");
 
