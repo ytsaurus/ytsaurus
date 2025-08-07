@@ -23,6 +23,7 @@
 #include <Analyzer/InDepthQueryTreeVisitor.h>
 #include <Analyzer/QueryTreeBuilder.h>
 #include <Analyzer/ArrayJoinNode.h>
+#include <Analyzer/ColumnNode.h>
 #include <Analyzer/MatcherNode.h>
 #include <Analyzer/JoinNode.h>
 #include <Analyzer/SortNode.h>
@@ -880,6 +881,67 @@ private:
     bool HasInOperator_ = false;
 };
 
+class TCheckSimpleDistinctVisitor
+    : public DB::InDepthQueryTreeVisitor<TCheckSimpleDistinctVisitor>
+{
+public:
+    TCheckSimpleDistinctVisitor(bool isDistinct)
+        :  IsDistinct_(isDistinct)
+    { }
+
+    static bool IsAllowedAggregationFunction(const DB::FunctionNode& node)
+    {
+        return (
+            node.getFunctionName() == "min" ||
+            node.getFunctionName() == "max" ||
+            node.getFunctionName() == "uniq" ||
+            node.getFunctionName() == "uniqExact" ||
+            node.getFunctionName() == "uniqCombined"
+        );
+    }
+
+     void visitImpl(const DB::QueryTreeNodePtr& node)
+    {
+        if (auto* functionNode = node->as<DB::FunctionNode>()) {
+            if (functionNode->isAggregateFunction()) {
+                IsAggregated_ = true;
+                OnlyAllowedAggregationFunctions_ &= IsAllowedAggregationFunction(*functionNode);
+            } else if (auto function = functionNode->getFunction()) {
+                OnlyDeterministicFunctions_ &= function->isDeterministic();
+            }
+        }
+        if (auto* columnNode = node->as<DB::ColumnNode>()) {
+            Columns_.insert(columnNode->getColumnName());
+        }
+        if (node->getNodeType() == DB::QueryTreeNodeType::JOIN || node->getNodeType() == DB::QueryTreeNodeType::ARRAY_JOIN) {
+            HasJoin_ = true;
+        }
+    }
+
+    bool needChildVisit(VisitQueryTreeNodeType& /*parent*/, VisitQueryTreeNodeType& /*child*/)
+    {
+        return Columns_.size() <= 1 && OnlyDeterministicFunctions_ && OnlyAllowedAggregationFunctions_ && !HasJoin_;
+    }
+
+    bool IsSimpleDistinctCase() const
+    {
+        return Columns_.size() == 1 &&
+            (IsDistinct_ || IsAggregated_) &&
+            OnlyDeterministicFunctions_ &&
+            OnlyAllowedAggregationFunctions_ &&
+            !HasJoin_;
+    }
+
+private:
+    bool IsDistinct_;
+
+    THashSet<std::string> Columns_;
+    bool IsAggregated_ = false;
+    bool OnlyDeterministicFunctions_ = true;
+    bool OnlyAllowedAggregationFunctions_ = true;
+    bool HasJoin_ = false;
+};
+
 void TQueryAnalyzer::ParseQuery()
 {
     YT_LOG_DEBUG("Analyzing query (Query: %v)", QueryInfo_.query_tree->toAST());
@@ -904,6 +966,10 @@ void TQueryAnalyzer::ParseQuery()
     TCheckInFunctionExistsVisitor visitor(selectQuery->getJoinTree());
     visitor.visit(QueryInfo_.query_tree);
     HasInOperator_ = visitor.HasInOperator();
+
+    TCheckSimpleDistinctVisitor simpleDistinctVisitor(selectQuery->isDistinct());
+    simpleDistinctVisitor.visit(QueryInfo_.query_tree);
+    NeedOnlyDistinct_ = simpleDistinctVisitor.IsSimpleDistinctCase();
 
     auto tableExpressionsStack = DB::buildTableExpressionsStack(selectQuery->getJoinTree());
     for (int index = 0; index < std::ssize(tableExpressionsStack); ++index) {
@@ -1429,6 +1495,11 @@ bool TQueryAnalyzer::IsJoinedByKeyColumns() const
             "this is a bug; please, file an issue in CHYT queue");
     }
     return JoinedByKeyColumns_;
+}
+
+bool TQueryAnalyzer::NeedOnlyDistinct() const
+{
+    return NeedOnlyDistinct_;
 }
 
 void TQueryAnalyzer::Prepare()

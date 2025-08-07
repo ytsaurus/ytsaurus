@@ -540,6 +540,7 @@ private:
         SpecTemplate_.InitialQuery = DB::serializeAST(*QueryInfo_.query);
         SpecTemplate_.QuerySettings = StorageContext_->Settings;
         SpecTemplate_.QuerySettings->Execution->EnableInputSpecsPulling = SuitableForPullInputSpecsMode();
+        SpecTemplate_.QuerySettings->NeedOnlyDistinct = QueryAnalyzer_->NeedOnlyDistinct();
 
         QueryContext_->SetRuntimeVariable("pool_kind", QueryAnalysisResult_->PoolKind);
         QueryContext_->SetRuntimeVariable("read_in_order_mode", QueryAnalysisResult_->ReadInOrderMode);

@@ -116,6 +116,7 @@ public:
     bool HasRightOrFullJoin() const;
     bool HasGlobalJoin() const;
     bool HasInOperator() const;
+    bool NeedOnlyDistinct() const;
 
     bool IsJoinedByKeyColumns() const;
 
@@ -140,6 +141,8 @@ private:
     bool TwoYTTableJoin_ = false;
     //! If the query has in operator with subquery or table.
     bool HasInOperator_ = false;
+    //! If the query needs only distinct values of one column for execution.
+    bool NeedOnlyDistinct_ = false;
 
     bool Prepared_ = false;
     bool OnlyAnalyze_;

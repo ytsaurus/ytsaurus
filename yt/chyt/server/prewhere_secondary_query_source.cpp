@@ -87,7 +87,8 @@ std::vector<TDataSliceDescriptor> FilterDataSliceDescriptorsByPrewhereInfo(
         storageContext->Settings,
         Logger.WithTag("ReadSessionId: %v", chunkReadOptions.ReadSessionId),
         chunkReadOptions.ChunkReaderStatistics,
-        std::move(statisticsCallback));
+        std::move(statisticsCallback),
+        subquerySpec.QuerySettings->NeedOnlyDistinct);
 
     return WaitFor(BIND(&GetFilteredDataSliceDescriptors, std::move(source) , std::move(reader))
         .AsyncVia(queryContext->Host->GetClickHouseWorkerInvoker())
