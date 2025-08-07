@@ -184,6 +184,108 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert get("//tmp/test_table/@chunk_count") == 2
             assert clique.make_query('select distinct value from "//tmp/test_table" where value = 1') == [{"value": 1}]
 
+    @authors("a-dyu")
+    @pytest.mark.timeout(150)
+    def test_simple_distinct_optimization(self):
+        root_dir = "//tmp/exporter"
+        create("map_node", root_dir)
+        patch = {"yt": {
+            "system_log_table_exporters": {
+                "cypress_root_directory": root_dir,
+                "default": {
+                    "enabled": True,
+                    "max_rows_to_keep": 100000,
+                    },
+                },
+            }
+        }
+        query_log_path = root_dir + "/query_log/0"
+
+        table_schema = [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}]
+        create("table", "//tmp/dictionary_encoded_table", attributes={"schema": table_schema, "optimize_for": "scan"})
+        create("table", "//tmp/rle_encoded_table", attributes={"schema": table_schema, "optimize_for": "scan"})
+
+        arr = []
+        for _ in range(1000):
+            arr.append({"a": 1, "b": "a"})
+            arr.append({"a": 1, "b": "b"})
+            arr.append({"a": 2, "b": "c"})
+
+        write_table("//tmp/dictionary_encoded_table", arr)
+
+        arr = []
+        for _ in range(1000):
+            arr.append({"a": 1, "b": "a"})
+
+        for _ in range(1000):
+            arr.append({"a": 1, "b": "b"})
+
+        for _ in range(1000):
+            arr.append({"a": 2, "b": "c"})
+
+        write_table("//tmp/rle_encoded_table", arr)
+
+        with Clique(1, config_patch=patch, export_query_log=True) as clique:
+            def make_query_and_check_block_rows(query, expected_block_rows, expected_result):
+                result = clique.make_query(query, full_response=True)
+                assert (result.json()["data"] == expected_result)
+                query_id = result.headers["X-ClickHouse-Query-Id"]
+                wait(lambda: exists(query_log_path))
+
+                def match(row):
+                    return row["initial_query_id"] == query_id and row["is_initial_query"] == 0 and row["type"] == "QueryFinish"
+
+                wait(lambda: len([r for r in read_table(query_log_path) if match(r)]) > 0)
+
+                rows = [r for r in read_table(query_log_path) if match(r)]
+                block_rows = sum([
+                    row["chyt_query_statistics"]["secondary_query_source"]["steps"]["0"]["block_rows"]["sum"]
+                    for row in rows
+                ])
+                assert (block_rows == expected_block_rows)
+
+            def send_simple_distinct_queries(table_name):
+                # Queries that are optimized by simple distinct optimization.
+
+                make_query_and_check_block_rows('select distinct a from ' + table_name, 2, [{"a": 1}, {"a": 2}])
+                make_query_and_check_block_rows('select distinct b from ' + table_name, 3, [{"b": "a"}, {"b": "b"}, {"b": "c"}])
+                make_query_and_check_block_rows('select uniqExact(a) from ' + table_name, 2, [{'uniqExact(a)': 2}])
+                make_query_and_check_block_rows('select uniq(a) from ' + table_name, 2, [{'uniq(a)': 2}])
+                make_query_and_check_block_rows('select uniqCombined(a) from ' + table_name, 2, [{'uniqCombined(a)': 2}])
+                make_query_and_check_block_rows('select max(a) from ' + table_name, 2, [{"max(a)": 2}])
+                make_query_and_check_block_rows('select min(b) from ' + table_name, 3, [{"min(b)": "a"}])
+                make_query_and_check_block_rows('select max(a), min(a) from ' + table_name, 2, [{"max(a)": 2, "min(a)": 1}])
+                make_query_and_check_block_rows('select distinct a, a * a, abs(a) from ' + table_name, 2, [
+                    {"a": 1, "multiply(a, a)": 1, "abs(a)": 1},
+                    {"a": 2, "multiply(a, a)": 4, "abs(a)": 2},
+                ])
+                make_query_and_check_block_rows('select min(a) * max(a) from ' + table_name, 2, [{"multiply(min(a), max(a))": 2}])
+                make_query_and_check_block_rows('select max(abs(a)) from ' + table_name, 2, [{"max(abs(a))": 2}])
+                make_query_and_check_block_rows('select distinct a from ' + table_name + ' where a < 2', 2, [{"a": 1}])
+                make_query_and_check_block_rows('select max(a) from ' + table_name + ' where a < 2', 2, [{"max(a)": 1}])
+                make_query_and_check_block_rows('select distinct a from ' + table_name + ' group by a having a < 2', 2, [{"a": 1}])
+
+                # Queries that are not optimized by simple distinct optimization.
+
+                assert (len(clique.make_query('select a from ' + table_name)) == 3000)
+                assert (len(clique.make_query('select a * a from ' + table_name)) == 3000)
+                assert (clique.make_query('select count(a) from ' + table_name) == [{"count(a)": 3000}])
+                make_query_and_check_block_rows('select distinct a, b from ' + table_name, 3000, [{"a": 1, "b": "a"}, {"a": 1, "b": "b"}, {"a": 2, "b": "c"}])
+
+                assert (len(clique.make_query('select distinct a * rand() from ' + table_name)) == 3000)
+                assert (clique.make_query('select count(a * rand()) from ' + table_name) == [{'count(multiply(a, rand()))': 3000}])
+
+            send_simple_distinct_queries('"//tmp/dictionary_encoded_table"')
+            send_simple_distinct_queries('"//tmp/rle_encoded_table"')
+
+            make_query_and_check_block_rows('select distinct a from concatYtTables("//tmp/dictionary_encoded_table", "//tmp/dictionary_encoded_table")', 4, [{"a": 1}, {"a": 2}])
+            assert (clique.make_query("""
+                select distinct a from
+                    "//tmp/dictionary_encoded_table" as t1
+                    inner join (select * from "//tmp/dictionary_encoded_table") as t2
+                    on true
+                """) == [{"a": 1}, {"a": 2}])
+
     @authors("evgenstf")
     def test_acl(self):
         with Clique(1) as clique:

@@ -14,7 +14,8 @@ public:
     TYTToCHBlockConverter(
         const std::vector<NTableClient::TColumnSchema>& columnSchemas,
         const NTableClient::TNameTablePtr& nameTable,
-        const TCompositeSettingsPtr& compositeSettings);
+        const TCompositeSettingsPtr& compositeSettings,
+        bool needOnlyDistinct);
 
     TYTToCHBlockConverter(TYTToCHBlockConverter&& other);
 

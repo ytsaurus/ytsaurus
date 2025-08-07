@@ -380,6 +380,8 @@ public:
 
     TPrewhereSettingsPtr Prewhere;
 
+    bool NeedOnlyDistinct;
+
     REGISTER_YSON_STRUCT(TQuerySettings);
 
     static void Register(TRegistrar registrar);

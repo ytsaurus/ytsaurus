@@ -265,6 +265,9 @@ void TQuerySettings::Register(TRegistrar registrar)
     registrar.Parameter("prewhere", &TThis::Prewhere)
         .DefaultNew();
 
+    registrar.Parameter("need_only_distinct", &TThis::NeedOnlyDistinct)
+        .Default(false);
+
     registrar.Preprocessor([] (TThis* config) {
         config->TableReader->GroupSize = 20_MB;
         config->TableReader->WindowSize = 70_MB;
