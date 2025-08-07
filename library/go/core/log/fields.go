@@ -51,6 +51,8 @@ const (
 	FieldTypeLazyCall
 	// FieldTypeStringer is for fmt.Stringer
 	FieldTypeStringer
+	// FieldTypeSkip is for not logged fields
+	FieldTypeSkip
 
 	fieldTypeLast // service type for testing purposes
 )
@@ -169,6 +171,8 @@ func (f Field) Any() interface{} {
 	case FieldTypeLazyCall:
 		return f.Interface()
 	case FieldTypeStringer:
+		return f.Interface()
+	case FieldTypeSkip:
 		return f.Interface()
 	default:
 		// For when new field type is not added to this func
@@ -406,6 +410,11 @@ type LazyEvaluator interface {
 // Lazy constructs field with lazy evaluation type
 func Lazy[T LazyEvaluator](key string, fn T) Field {
 	return Field{key: key, ftype: FieldTypeLazyCall, iface: fn}
+}
+
+// Skip constructs field for not logged values
+func Skip(key string, value interface{}) Field {
+	return Field{key: key, ftype: FieldTypeSkip, iface: value}
 }
 
 // Any tries to deduce interface{} underlying type and constructs Field from it.
