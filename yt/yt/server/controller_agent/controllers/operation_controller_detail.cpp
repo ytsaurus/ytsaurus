@@ -7660,13 +7660,15 @@ void TOperationControllerBase::GetUserFilesAttributes()
                                     THROW_ERROR_EXCEPTION("File %v is empty", file.Path);
                                 }
 
-                                auto access_method = file.Path.GetAccessMethod();
-                                if (!access_method) {
-                                    access_method = attributes.Find<TString>("access_method");
+                                auto accessMethod = file.Path.GetAccessMethod();
+                                if (!accessMethod) {
+                                    accessMethod = attributes.Find<TString>("access_method");
                                 }
 
+                                // We deliberately do not support filesystem in file.Path
+                                // since filesystem is the property of the actual file not its path.
                                 std::tie(file.AccessMethod, file.Filesystem) = GetAccessMethodAndFilesystemFromStrings(
-                                    access_method.value_or(ToString(ELayerAccessMethod::Local)),
+                                    accessMethod.value_or(ToString(ELayerAccessMethod::Local)),
                                     attributes.Find<TString>("filesystem").value_or(ToString(ELayerFilesystem::Archive)));
                             }
                             break;
