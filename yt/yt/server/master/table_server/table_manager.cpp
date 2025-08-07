@@ -90,6 +90,7 @@ constinit const auto Logger = TableServerLogger;
 class TTableManager;
 
 ////////////////////////////////////////////////////////////////////////////////
+
 class TMasterTableSchemaTypeHandler
     : public TObjectTypeHandlerWithMapBase<TMasterTableSchema>
 {

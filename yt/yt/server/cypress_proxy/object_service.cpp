@@ -853,7 +853,7 @@ private:
             subrequest->Target == ERequestTarget::Undetermined ||
             subrequest->Target == ERequestTarget::Sequoia);
 
-        auto& header = *subrequest->RequestHeader;
+        const auto& header = *subrequest->RequestHeader;
 
         auto originalTargetPath = ValidateAndMakeYPath(
             TRawYPath(GetRequestTargetYPath(header))
