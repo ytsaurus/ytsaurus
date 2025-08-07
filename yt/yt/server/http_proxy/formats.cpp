@@ -86,10 +86,10 @@ TFormat InferFormat(
     const std::optional<std::string>& ytHeader,
     const std::string& mimeHeaderName,
     const std::string* mimeHeader,
-    bool isOutput,
+    EFormatTarget target,
     EDataType dataType)
 {
-    if (isOutput && (
+    if (target == EFormatTarget::Output && (
         dataType == EDataType::Null ||
         dataType == EDataType::Binary))
     {
@@ -117,8 +117,7 @@ TFormat InferFormat(
         }
     }
     formatNode = GetDefaultFormatNodeForDataType(dataType);
-    auto direction = isOutput ? "output" : "input";
-    return formatManager.ConvertToFormat(formatNode, Format("%v format inferred from data type %Qlv", direction, dataType));
+    return formatManager.ConvertToFormat(formatNode, Format("%lv format inferred from data type %Qlv", target, dataType));
 }
 
 TFormat InferHeaderFormat(const TFormatManager& formatManager, const std::string* ytHeader)

@@ -105,6 +105,7 @@ bool TContext::TryPrepare()
         TryGetInputCompression() &&
         TryGetOutputFormat() &&
         TryGetOutputCompression() &&
+        TryGetErrorFormat() &&
         TryAcquireConcurrencySemaphore();
 }
 
@@ -326,7 +327,7 @@ bool TContext::TryGetInputFormat()
         ytHeader,
         "Content-Type",
         contentTypeHeader,
-        /*isOutput*/ false,
+        EFormatTarget::Input,
         Descriptor_->InputType);
     return true;
 }
@@ -368,7 +369,7 @@ bool TContext::TryGetOutputFormat()
         ytHeader,
         "Accept",
         acceptHeader,
-        /*isOutput*/ true,
+        EFormatTarget::Output,
         Descriptor_->OutputType);
     return true;
 }
@@ -390,6 +391,29 @@ bool TContext::TryGetOutputCompression()
         OutputContentEncoding_ = IdentityContentEncoding;
     }
 
+    return true;
+}
+
+bool TContext::TryGetErrorFormat()
+{
+    static const TString YtHeaderName = "X-YT-Error-Format";
+    std::optional<TString> ytHeader;
+    try {
+        ytHeader = GatherHeader(Request_->GetHeaders(), YtHeaderName);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Unable to parse %v header", YtHeaderName)
+            << ex;
+    }
+    ErrorFormat_ = InferFormat(
+        *FormatManager_,
+        YtHeaderName,
+        *HeadersFormat_,
+        ytHeader,
+        /*mimeHeaderName*/ "",
+        /*mimeHeader*/ nullptr,
+        EFormatTarget::Error,
+        EDataType::Structured);
+    ErrorFormatFactory_ = CreateFactoryForFormat(*ErrorFormat_, EDataType::Structured);
     return true;
 }
 
@@ -555,14 +579,15 @@ void TContext::LogRequest()
     Parameters_ = ConvertToYsonString(
         HideSecretParameters(Descriptor_->CommandName, DriverRequest_.Parameters),
         EYsonFormat::Text).ToString();
-    YT_LOG_INFO("Gathered request parameters (Command: %v, User: %v, Parameters: %v, InputFormat: %v, InputCompression: %v, OutputFormat: %v, OutputCompression: %v)",
+    YT_LOG_INFO("Gathered request parameters (Command: %v, User: %v, Parameters: %v, InputFormat: %v, InputCompression: %v, OutputFormat: %v, OutputCompression: %v, ErrorFormat: %v)",
         Descriptor_->CommandName,
         DriverRequest_.AuthenticatedUser,
         Parameters_,
         ConvertToYsonString(InputFormat_, EYsonFormat::Text).AsStringBuf(),
         InputContentEncoding_,
         ConvertToYsonString(OutputFormat_, EYsonFormat::Text).AsStringBuf(),
-        OutputContentEncoding_);
+        OutputContentEncoding_,
+        ConvertToYsonString(ErrorFormat_, EYsonFormat::Text).AsStringBuf());
 }
 
 void TContext::LogStructuredRequest()
@@ -1065,14 +1090,24 @@ void TContext::Finalize()
             Response_->GetHeaders()->Remove("Vary");
             Response_->GetHeaders()->Remove("X-YT-Framing");
 
-            FillYTErrorHeaders(Response_, Error_);
+            if (ErrorFormat_) {
+                FillYTErrorHeaders(Response_, Error_, ErrorFormatFactory_);
+                Response_->GetHeaders()->Add("X-YT-Error-Content-Type", FormatToMime(*ErrorFormat_));
+            } else {
+                FillYTErrorHeaders(Response_, Error_);
+            }
             DispatchJson([&] (auto producer) {
                 BuildYsonFluently(producer).Value(Error_);
             });
         }
     } else {
         if (!Error_.IsOK()) {
-            FillYTErrorTrailers(Response_, Error_);
+            if (ErrorFormat_) {
+                FillYTErrorTrailers(Response_, Error_, ErrorFormatFactory_);
+                Response_->GetHeaders()->Add("X-YT-Error-Content-Type", FormatToMime(*ErrorFormat_));
+            } else {
+                FillYTErrorTrailers(Response_, Error_);
+            }
             Y_UNUSED(WaitFor(Response_->Close()));
         }
     }
