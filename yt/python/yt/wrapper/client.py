@@ -23,7 +23,7 @@ Exiting.
 """.format(error, FEEDBACK_URL))
 
     # Generate client program should ignore mismatch error.
-    if os.environ["GENERATE_CLIENT"] != "YES":
+    if os.environ.get("GENERATE_CLIENT") != "YES":
         sys.exit(1)
 
 
@@ -45,7 +45,7 @@ except ImportError:
 try:
     for name in client_api.all_names:
         if not are_signatures_equal(getattr(YtClient, name), create_class_method(getattr(client_api, name))):
-            report_and_exit("Difference in signature for {}".format(name))
+            report_and_exit("Difference in signature for \"{}\"".format(name))
 except AttributeError as e:
     report_and_exit(str(e))
 

@@ -2410,3 +2410,66 @@ class VanillaSpecBuilder(SpecBuilder):
     def supports_user_job_spec(self):
         """Whether operation has some user job sections."""
         return True
+
+
+class SpecCommonType(typing.TypedDict):
+    pool: typing.Optional[str]
+    weight: typing.Optional[float]
+    pool_trees: typing.Optional[typing.List[str]]
+    resource_limits: typing.Dict[str, typing.Any]
+    time_limit: typing.Optional[int]
+    acl: typing.Optional[typing.List[typing.Dict[str, typing.Any]]]
+    max_stderr_count: typing.Optional[int]
+    max_failed_job_count: typing.Optional[int]
+    unavailable_chunk_strategy: typing.Optional[typing.Literal["wait", "fail", "skip"]]
+    unavailable_chunk_tactics: typing.Optional[typing.Literal["wait", "fail", "skip"]]
+    chunk_availability_policy: typing.Optional[typing.Literal["data_parts_available", "repairable", "all_parts_available"]]
+    scheduling_tag_filter: typing.Optional[str]
+    max_data_weight_per_job: typing.Optional[int]
+    data_weight_per_job: typing.Optional[int]
+    secure_vault: typing.Optional[typing.Dict[str, str]]
+    stderr_table_path: typing.Optional[str]
+    redirect_stdout_to_stderr: typing.Optional[bool]
+    core_table_path: typing.Optional[str]
+    input_query: typing.Optional[str]
+    omit_inaccessible_columns: typing.Optional[bool]
+    alias: typing.Optional[str]
+    job_node_account: typing.Optional[str]
+    suspend_operation_if_account_limit_exceeded: typing.Optional[bool]
+    enable_job_splitting: typing.Optional[bool]
+    fail_on_job_restart: typing.Optional[bool]
+    title: typing.Optional[str]
+    started_by: typing.Optional[typing.Dict[str, str]]
+    annotations: typing.Optional[typing.Dict[str, typing.Any]]
+    description: typing.Optional[typing.Dict[str, str]]
+    use_columnar_statistics: typing.Optional[bool]
+    sampling: typing.Optional[typing.Dict[str, typing.Union[int, float]]]
+    max_speculative_job_count_per_task: typing.Optional[int]
+    job_speculation_timeout: typing.Optional[int]
+    try_avoid_duplicating_jobs: typing.Optional[bool]
+
+
+class SpecMapType(SpecCommonType):
+    class SpecMapMapperType(typing.TypedDict):
+        command: typing.Optional[str]
+        memory_limit: typing.Optional[int]
+
+    mapper: typing.Optional[SpecMapMapperType]
+    input_table_paths: typing.Optional[typing.List[str]]
+    output_table_paths: typing.Optional[typing.List[str]]
+    job_count: typing.Optional[int]
+    data_weight_per_job: typing.Optional[int]
+    ordered: typing.Optional[bool]
+    auto_merge: typing.Optional[typing.Dict[str, typing.Any]]
+
+
+class SpecSortType(SpecCommonType):
+    pass
+
+
+class SpecReduceType(SpecCommonType):
+    pass
+
+
+class SpecMapReduceType(SpecCommonType):
+    pass
