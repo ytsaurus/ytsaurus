@@ -1101,6 +1101,7 @@ def create_tables_latest_version(client, override_tablet_cell_bundle="default", 
     )
 
 
+# NB(bystrovserg): Do not forget to update args in luigi.
 def build_arguments_parser():
     parser = argparse.ArgumentParser(description="Transform operations archive")
     parser.add_argument("--force", action="store_true", default=False)
