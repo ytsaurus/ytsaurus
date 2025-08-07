@@ -10,6 +10,7 @@ PEERDIR(
     contrib/ydb/core/kqp/runtime
     contrib/ydb/core/sys_view/auth
     contrib/ydb/core/sys_view/common
+    contrib/ydb/core/sys_view/compile_cache
     contrib/ydb/core/sys_view/nodes
     contrib/ydb/core/sys_view/partition_stats
     contrib/ydb/core/sys_view/pg_tables

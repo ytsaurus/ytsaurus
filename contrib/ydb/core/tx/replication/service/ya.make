@@ -6,7 +6,6 @@ PEERDIR(
     contrib/ydb/core/change_exchange
     contrib/ydb/core/fq/libs/row_dispatcher/events
     contrib/ydb/core/io_formats/cell_maker
-    contrib/ydb/core/persqueue/purecalc
     contrib/ydb/core/protos
     contrib/ydb/core/scheme
     contrib/ydb/core/scheme_types

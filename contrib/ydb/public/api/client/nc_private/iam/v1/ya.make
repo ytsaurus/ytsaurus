@@ -1,4 +1,5 @@
 PROTO_LIBRARY()
+PROTOC_FATAL_WARNINGS()
 
 EXCLUDE_TAGS(GO_PROTO)
 
@@ -20,7 +21,6 @@ PEERDIR(
     contrib/ydb/public/api/client/nc_private
     contrib/ydb/public/api/client/nc_private/audit
     contrib/ydb/public/api/client/nc_private/audit/v1/common
-    contrib/ydb/public/api/client/nc_private/buf/validate
     contrib/ydb/public/api/client/nc_private/common/v1
 )
 
