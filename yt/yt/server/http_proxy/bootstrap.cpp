@@ -414,12 +414,13 @@ void TBootstrap::OnDynamicConfigChanged(
     }
 
     auto role = Coordinator_->GetSelf()->Role;
-    const auto& roleToMemoryLimitRatiosIt = newConfig->Api->RoleToMemoryLimitRatios.find(role);
-    if (roleToMemoryLimitRatiosIt != newConfig->Api->RoleToMemoryLimitRatios.end()) {
-        ReconfigureMemoryUsageTracker(memoryLimit, roleToMemoryLimitRatiosIt->second);
-    } else {
-        ReconfigureMemoryUsageTracker(memoryLimit, newConfig->Api->DefaultMemoryLimitRatios);
-    }
+
+    ReconfigureMemoryUsageTracker(
+        memoryLimit,
+        GetOrDefault(
+            newConfig->Api->RoleToMemoryLimitRatios,
+            role,
+            newConfig->Api->DefaultMemoryLimitRatios));
 
     DynamicConfig_.Store(newConfig);
 
