@@ -4218,8 +4218,14 @@ private:
         }
 
         for (auto it : GetIteratorsSortedByKey(tablet->Replicas())) {
-            auto replica = it->first;
-            auto& replicaInfo = it->second;
+            auto& [weakReplica, replicaInfo] = *it;
+            if (!IsObjectAlive(weakReplica)) {
+                YT_LOG_ALERT("Found zombie replica during tablet mount (TabletId: %v, ReplicaId: %v)",
+                    tablet->GetId(),
+                    weakReplica->GetId());
+                continue;
+            }
+            auto* replica = weakReplica.Get();
             switch (replica->GetState()) {
                 case ETableReplicaState::Enabled:
                 case ETableReplicaState::Enabling: {
@@ -6516,8 +6522,14 @@ private:
         }
 
         for (auto it : GetIteratorsSortedByKey(tablet->Replicas())) {
-            auto replica = it->first;
-            auto& replicaInfo = it->second;
+            auto& [weakReplica, replicaInfo] = *it;
+            if (!IsObjectAlive(weakReplica)) {
+                YT_LOG_ALERT("Found zombie replica during handling tablet unmounted notification (TabletId: %v, ReplicaId: %v)",
+                    tablet->GetId(),
+                    weakReplica->GetId());
+                continue;
+            }
+            auto* replica = weakReplica.Get();
             if (replica->TransitioningTablets().erase(tablet) == 1) {
                 YT_LOG_ALERT("Table replica is still transitioning (TableId: %v, TabletId: %v, ReplicaId: %v, State: %v)",
                     tablet->GetTable()->GetId(),
@@ -7485,9 +7497,15 @@ private:
         hiveManager->PostMessage(mailbox, request);
 
         for (auto it : GetIteratorsSortedByKey(tablet->Replicas())) {
-            auto replica = it->first;
-            auto& replicaInfo = it->second;
-            if (replica->TransitioningTablets().count(tablet) > 0) {
+            auto& [weakReplica, replicaInfo] = *it;
+            if (!IsObjectAlive(weakReplica)) {
+                YT_LOG_ALERT("Found zombie replica during tablet unmount (TabletId: %v, ReplicaId: %v)",
+                    tablet->GetId(),
+                    weakReplica->GetId());
+                continue;
+            }
+            auto* replica = weakReplica.Get();
+            if (replica->TransitioningTablets().contains(tablet)) {
                 StopReplicaTransition(tablet, replica, &replicaInfo, ETableReplicaState::None);
             }
             CheckTransitioningReplicaTablets(replica);

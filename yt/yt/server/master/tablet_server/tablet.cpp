@@ -3,6 +3,7 @@
 #include "tablet_cell.h"
 #include "table_replica.h"
 #include "tablet_action.h"
+#include "private.h"
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
@@ -40,6 +41,10 @@ using namespace NYTree;
 using namespace NYson;
 
 using NYT::FromProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+constinit const auto Logger = TabletServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -353,9 +358,15 @@ void TTablet::ValidateUnmount()
     TTabletBase::ValidateUnmount();
 
     for (auto it : GetIteratorsSortedByKey(Replicas())) {
-        auto replica = it->first;
-        const auto& replicaInfo = it->second;
-        if (replica->TransitioningTablets().count(this) > 0) {
+        const auto& [weakReplica, replicaInfo] = *it;
+        if (!IsObjectAlive(weakReplica)) {
+            YT_LOG_ALERT("Found zombie replica during tablet unmount validation (TabletId: %v, ReplicaId: %v)",
+                GetId(),
+                weakReplica->GetId());
+            continue;
+        }
+        auto* replica = weakReplica.Get();
+        if (replica->TransitioningTablets().contains(this)) {
             THROW_ERROR_EXCEPTION("Cannot unmount tablet %v since replica %v is in %Qlv state",
                 Id_,
                 replica->GetId(),
