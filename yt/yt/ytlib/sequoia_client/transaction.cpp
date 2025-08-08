@@ -436,7 +436,7 @@ public:
             NCellMasterClient::EMasterCellRole::SequoiaNodeHost);
     }
 
-    TThreadSafeRowBuffer GetGuardedRowBuffer() override
+    TThreadSafeRowBuffer GetRowBuffer() override
     {
         return TThreadSafeRowBuffer(&Lock_, RowBuffer_);
     }

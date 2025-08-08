@@ -109,7 +109,7 @@ struct ISequoiaTransaction
 
     virtual NObjectClient::TCellTag GetRandomSequoiaNodeHostCellTag() const = 0;
 
-    virtual TThreadSafeRowBuffer GetGuardedRowBuffer() = 0;
+    virtual TThreadSafeRowBuffer GetRowBuffer() = 0;
     virtual const ISequoiaClientPtr& GetClient() const = 0;
 
     virtual NObjectClient::TTransactionId GetId() const = 0;
