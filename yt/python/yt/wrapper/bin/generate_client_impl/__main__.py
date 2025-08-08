@@ -222,6 +222,8 @@ def main():
     modules_registry = defaultdict(set)
     for name in sorted(client_api.all_names):
         func = getattr(client_api, name)
+        if not func.__doc__:
+            raise RuntimeError(f"Public method \"{name}\" should described with docstring")
         doc = _fix_indentation(func.__doc__, 8)
 
         is_class = False

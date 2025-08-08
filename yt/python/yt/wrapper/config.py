@@ -11,10 +11,15 @@ import yt.yson as yson
 import os
 import sys
 import types
+import typing
 
 # NB: Magic!
 # To support backward compatibility we must translate uppercase fields as config values.
 # To implement this translation we replace config module with special class Config!
+
+if typing.TYPE_CHECKING:
+    def get_config(client) -> default_config.DefaultConfigType:
+        pass
 
 
 class Config(types.ModuleType, client_state.ClientState):

@@ -1,10 +1,17 @@
+from .default_config import DefaultConfigType
 from .system_random import SystemRandom
 
 from copy import deepcopy
 
+import typing
+
+if typing.TYPE_CHECKING:
+    import yt.packages.requests as requests  # noqa
+
 
 class ClientState(object):
     def __init__(self, other=None):
+        self.config: DefaultConfigType = None
         if other is None:
             self._init_state()
         else:
@@ -36,7 +43,7 @@ class ClientState(object):
 
         self._transaction_stack = None
         self._driver = None
-        self._requests_session = None  # type: requests.Session
+        self._requests_session = None  # type: typing.Optional[requests.Session]
         self._requests_session_origin_id = None
         self._heavy_proxy_provider_state = None
 
