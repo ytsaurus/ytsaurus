@@ -947,25 +947,60 @@ private:
         const auto& masterConnector = Owner_->Bootstrap_->GetMasterConnector();
         masterConnector->ValidateRegistration();
 
-        auto processInitialSync = true;
-        for (int index = 0; index < std::ssize(Subrequests_); ++index) {
-            auto& subrequest = Subrequests_[index];
-            auto target = subrequest.Target;
-            if (target != ERequestTarget::Undetermined && target != ERequestTarget::Sequoia) {
+        auto isSubrequestRelevant = [] (const TSubrequest& subrequest) {
+            return subrequest.Target == ERequestTarget::Undetermined ||
+                subrequest.Target == ERequestTarget::Sequoia;
+        };
+
+        auto relevantSubrequestCount = std::ranges::count_if(Subrequests_, isSubrequestRelevant);
+        if (relevantSubrequestCount != 0) {
+            MaybeSyncWithMaster();
+        }
+
+        const auto& invoker = Owner_->GetDefaultInvoker();
+        std::vector<TFuture<std::optional<TSharedRefArray>>> asyncSubresponses;
+        asyncSubresponses.reserve(relevantSubrequestCount);
+        for (int subrequestIndex = 0; subrequestIndex < std::ssize(Subrequests_); ++subrequestIndex) {
+            if (!isSubrequestRelevant(Subrequests_[subrequestIndex])) {
                 continue;
             }
 
-            if (std::exchange(processInitialSync, false)) {
-                MaybeSyncWithMaster();
+            auto future = BIND([subrequestIndex, this, this_ = MakeStrong(this)] {
+                YT_LOG_DEBUG("Executing subrequest in Sequoia (SubrequestIndex: %v)",
+                    subrequestIndex);
+                auto& subrequest = Subrequests_[subrequestIndex];
+                return ExecuteSequoiaSubrequest(&subrequest);
+            })
+                .AsyncVia(invoker)
+                .Run();
+
+            asyncSubresponses.push_back(std::move(future));
+        }
+
+        auto subresponses = WaitFor(AllSet(std::move(asyncSubresponses)))
+            .ValueOrThrow();
+
+        YT_VERIFY(std::ssize(subresponses) == relevantSubrequestCount);
+
+        for (auto subrequestIndex = 0, subresponseIndex = 0; subrequestIndex < std::ssize(Subrequests_); ++subrequestIndex) {
+            auto& subrequest = Subrequests_[subrequestIndex];
+
+            if (!isSubrequestRelevant(subrequest)) {
+                continue;
             }
 
-            YT_LOG_DEBUG("Executing subrequest in Sequoia (SubrequestIndex: %v)",
-                index);
+            subrequest.Target = ERequestTarget::None;
 
-            if (auto subresponse = ExecuteSequoiaSubrequest(&subrequest)) {
-                subrequest.Target = ERequestTarget::None;
-                ReplyOnSubrequest(index, std::move(*subresponse));
+            if (auto subresponseOrError = subresponses[subresponseIndex]; subresponseOrError.IsOK()) {
+                if (auto& subresponse = subresponseOrError.Value()) {
+                    ReplyOnSubrequest(subrequestIndex, *subresponse);
+                }
+            } else {
+                YT_LOG_DEBUG("Subrequest offloading failed (SubrequestIndex: %v)", subrequestIndex);
+                ReplyOnSubrequest(subrequestIndex, subresponseOrError);
             }
+
+            ++subresponseIndex;
         }
     }
 
@@ -995,6 +1030,11 @@ private:
             response.Attachments().end(),
             subresponseMessage.Begin(),
             subresponseMessage.End());
+    }
+
+    void ReplyOnSubrequest(int subrequestIndex, const TError& error)
+    {
+        ReplyOnSubrequest(subrequestIndex, CreateErrorResponseMessage(error));
     }
 
     // Performs selective synchronization with
