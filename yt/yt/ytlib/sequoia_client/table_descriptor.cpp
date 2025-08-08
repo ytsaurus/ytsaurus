@@ -49,7 +49,7 @@ void ITableDescriptor::ScheduleInitialization()
     ThreadPool = CreateThreadPool(TEnumTraits<ESequoiaTable>::GetDomainSize(), "SequoiaInit");
 
     for (auto table : TEnumTraits<ESequoiaTable>::GetDomainValues()) {
-        YT_UNUSED_FUTURE(BIND(ITableDescriptor::Get, table).AsyncVia(ThreadPool->GetInvoker()).Run());
+        ThreadPool->GetInvoker()->Invoke(BIND([table] { ITableDescriptor::Get(table); }));
     }
 }
 

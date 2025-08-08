@@ -1,5 +1,4 @@
 #include "helpers.h"
-#include "transaction_manager.h"
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -10,6 +9,8 @@
 #include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/core/rpc/client.h>
+
+#include <library/cpp/iterator/enumerate.h>
 
 namespace NYT::NTransactionClient {
 
@@ -55,7 +56,7 @@ std::vector<TTransactionId> GetPrerequisiteTransactionIds(const NRpc::NProto::TR
 
     const auto& prerequisiteTransactions = header.GetExtension(extensionId).transactions();
     std::vector<TTransactionId> transactionIds(prerequisiteTransactions.size());
-    for (int i : std::views::iota(0, prerequisiteTransactions.size())) {
+    for (const auto& [i, proto] : SEnumerate(prerequisiteTransactions)) {
         FromProto(&transactionIds[i], prerequisiteTransactions[i].transaction_id());
     }
     return transactionIds;

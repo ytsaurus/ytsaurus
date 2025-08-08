@@ -560,7 +560,6 @@ protected:
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
 
-
         auto limit = YT_OPTIONAL_FROM_PROTO(*request, limit);
 
         context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
