@@ -410,7 +410,7 @@ TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(int inputStreamsPer
             "scalarName"}};
     }
 
-    auto secondaryQueryAst = DB::queryNodeToSelectQuery(Query_);
+    auto secondaryQueryAst = DB::queryNodeToDistributedSelectQuery(Query_);
 
     YT_LOG_DEBUG("Query was created (NewQuery: %v)", *secondaryQueryAst);
 
@@ -502,7 +502,7 @@ TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(
         secondaryQuery = AddBoundConditionToJoinedSubquery(secondaryQuery, BoundJoinOptions_.JoinRightTableExpression, lowerBound, upperBound);
     }
 
-    auto secondaryQueryAst = DB::queryNodeToSelectQuery(secondaryQuery);
+    auto secondaryQueryAst = DB::queryNodeToDistributedSelectQuery(secondaryQuery);
 
     YT_LOG_DEBUG("Query was created (NewQuery: %v)", *secondaryQueryAst);
 
