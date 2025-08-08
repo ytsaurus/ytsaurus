@@ -812,6 +812,8 @@ DECLARE_REFCOUNTED_CLASS(TGangJoblet)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGangTask;
+
 class TGangRankPool
 {
 public:
@@ -839,10 +841,12 @@ private:
     TSerializableLogger Logger;
 
     THashSet<int> RankPool_;
-    // Intentionally not persistent.
     int CompletedRankCount_ = 0;
 
     PHOENIX_DECLARE_TYPE(TGangRankPool, 0x99c08734);
+
+    // COMPAT(pogprelov)
+    friend class TGangTask;
 };
 
 PHOENIX_DEFINE_TYPE(TGangRankPool);
@@ -1094,6 +1098,8 @@ void TGangRankPool::RegisterMetadata(auto&& registrar)
 {
     PHOENIX_REGISTER_FIELD(1, GangSize_);
     PHOENIX_REGISTER_FIELD(2, Logger);
+    // COMPAT(pogorelov)
+    PHOENIX_REGISTER_FIELD(3, CompletedRankCount_, .SinceVersion(ESnapshotVersion::PersistentCompletedRankCount));
     PHOENIX_REGISTER_FIELD(4, RankPool_);
 }
 
@@ -1291,6 +1297,15 @@ void TGangTask::RegisterMetadata(auto&& registrar)
     registrar.template BaseType<TVanillaTask>();
 
     PHOENIX_REGISTER_FIELD(1, RankPool_);
+
+    registrar.template VirtualField<2>("CompletedRankCount_", [] (TThis* this_, auto& /*context*/) {
+            const auto& Logger = this_->Logger;
+            if (this_->VanillaChunkPool_->IsCompleted()) {
+                YT_LOG_DEBUG("Gang task is completed when operation reviving, setting CompletedRankCount to gang size");
+                this_->RankPool_.CompletedRankCount_ = this_->GetGangSize();
+            }
+        })
+        .BeforeVersion(ESnapshotVersion::PersistentCompletedRankCount)();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
