@@ -1302,7 +1302,7 @@ public:
             // TODO(eshcherbin): Perhaps we need to add a configurable main resource for each tree and compare the shares of this resource.
             double currentReserveRatio = std::numeric_limits<double>::max();
             #define XX(name, Name) \
-                if (totalResourceLimits.Get##Name() > 0) { \
+                if (totalResourceLimits.Get##Name() > static_cast<std::decay_t<decltype(totalResourceLimits.Get##Name())>>(0L)) { \
                     currentReserveRatio = std::min(currentReserveRatio, reserveShare[EJobResourceType::Name]); \
                 }
             ITERATE_JOB_RESOURCES(XX)

@@ -3678,17 +3678,17 @@ private:
 
     TCpuResource GetPartitionCpuLimit() const override
     {
-        return 1;
+        return TCpuResource(1L);
     }
 
     TCpuResource GetSortCpuLimit() const override
     {
-        return 1;
+        return TCpuResource(1L);
     }
 
     TCpuResource GetMergeCpuLimit() const override
     {
-        return 1;
+        return TCpuResource(1L);
     }
 
     TExtendedJobResources GetPartitionResources(
@@ -4664,7 +4664,7 @@ private:
     TCpuResource GetSortCpuLimit() const override
     {
         // At least one CPU, may be more in PartitionReduce job.
-        return 1;
+        return TCpuResource(1L);
     }
 
     TCpuResource GetMergeCpuLimit() const override

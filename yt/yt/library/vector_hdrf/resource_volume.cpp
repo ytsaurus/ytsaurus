@@ -41,7 +41,7 @@ bool TResourceVolume::IsZero() const
 {
     bool result = true;
     TResourceVolume::ForEachResource([&] (EJobResourceType /*resourceType*/, auto TResourceVolume::* resourceDataMember) {
-        result = result && this->*resourceDataMember == 0;
+        result = result && this->*resourceDataMember == static_cast<std::decay_t<decltype(this->*resourceDataMember)>>(0L);
     });
     return result;
 }

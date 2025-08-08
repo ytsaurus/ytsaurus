@@ -519,7 +519,7 @@ protected:
 
     virtual TCpuResource GetCpuLimit() const
     {
-        return 1;
+        return TCpuResource(1L);
     }
 
     void InitJobIOConfig()
