@@ -72,6 +72,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((BumpTo_25_3)                           (301900))
     ((DropRedundantFieldsInSortedChunkPool)  (301901))
     ((DropDuplicateOutputNodeDirectory)      (301902))
+    ((PersistentCompletedRankCount)          (301903))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
