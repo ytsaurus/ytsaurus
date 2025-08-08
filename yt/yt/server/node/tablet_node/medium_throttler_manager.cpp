@@ -13,6 +13,7 @@ namespace NYT::NTabletNode {
 using namespace NConcurrency;
 using namespace NCellarNode;
 using namespace NDistributedThrottler;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -104,7 +105,7 @@ public:
         Data_->insert(value);
     }
 
-    std::shared_ptr<const THashSet<T>> Snapshot() const
+    std::shared_ptr<const THashSet<T>> MakeSnapshot() const
     {
         auto guard = Guard(SpinLock_);
 
@@ -129,14 +130,14 @@ public:
         TBundleDynamicConfigManagerPtr dynamicConfigManager,
         IDistributedThrottlerManagerPtr distributedThrottlerManager)
         : BundleName_(std::move(bundleName))
-        , BundlePath_(Format("//sys/tablet_cell_bundles/%v", BundleName_))
+        , BundlePath_(Format("//sys/tablet_cell_bundles/%v", ToYPathLiteral(BundleName_)))
         , DynamicConfigManager_(std::move(dynamicConfigManager))
         , DistributedThrottlerManager_(std::move(distributedThrottlerManager))
         , Profiler_(TabletNodeProfiler().WithPrefix("/distributed_throttlers")
             .WithRequiredTag("tablet_cell_bundle", BundleName_))
+        , DynamicConfigCallback_(BIND(&TMediumThrottlerManager::OnDynamicConfigChanged, MakeWeak(this)))
     {
-        DynamicConfigCallback_ = BIND(&TMediumThrottlerManager::OnDynamicConfigChanged, MakeWeak(this));
-        DynamicConfigCallback_.Run(nullptr, DynamicConfigManager_->GetConfig());
+        OnDynamicConfigChanged(nullptr, DynamicConfigManager_->GetConfig());
 
         DynamicConfigManager_->SubscribeConfigChanged(DynamicConfigCallback_);
     }
@@ -146,24 +147,22 @@ public:
         DynamicConfigManager_->UnsubscribeConfigChanged(DynamicConfigCallback_);
     }
 
-    IReconfigurableThroughputThrottlerPtr GetMediumWriteThrottler(const std::string& mediumName)
+    IReconfigurableThroughputThrottlerPtr GetOrCreateMediumWriteThrottler(const std::string& mediumName)
     {
-        auto direction = EMediumLoadDirection::Write;
         RegisteredWriteThrottlers_.Insert(mediumName);
 
         return GetOrCreateThrottler(
-            direction,
+            EMediumLoadDirection::Write,
             mediumName,
             DynamicConfigManager_->GetConfig());
     }
 
-    IReconfigurableThroughputThrottlerPtr GetMediumReadThrottler(const std::string& mediumName)
+    IReconfigurableThroughputThrottlerPtr GetOrCreateMediumReadThrottler(const std::string& mediumName)
     {
-        auto direction = EMediumLoadDirection::Read;
         RegisteredReadThrottlers_.Insert(mediumName);
 
         return GetOrCreateThrottler(
-            direction,
+            EMediumLoadDirection::Read,
             mediumName,
             DynamicConfigManager_->GetConfig());
     }
@@ -179,14 +178,14 @@ private:
     const IDistributedThrottlerManagerPtr DistributedThrottlerManager_;
     const NProfiling::TProfiler Profiler_;
 
-    TCopyOnWriteSet<std::string> RegisteredWriteThrottlers_ = {};
-    TCopyOnWriteSet<std::string> RegisteredReadThrottlers_ = {};
+    TCopyOnWriteSet<std::string> RegisteredWriteThrottlers_;
+    TCopyOnWriteSet<std::string> RegisteredReadThrottlers_;
 
     TEnumIndexedArray<EMediumLoadDirection, THashMap<std::string, NProfiling::TGauge>> ConfiguredLimits_ = {
         {EMediumLoadDirection::Write, { }},
         {EMediumLoadDirection::Read, { }}
     };
-    TDynamicConfigCallback DynamicConfigCallback_;
+    const TDynamicConfigCallback DynamicConfigCallback_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -219,11 +218,11 @@ private:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         // In order to apply new parameters we have to just call GetOrCreateThrottler with a new config.
-        for (const auto& mediumName : *RegisteredWriteThrottlers_.Snapshot()) {
+        for (const auto& mediumName : *RegisteredWriteThrottlers_.MakeSnapshot()) {
             GetOrCreateThrottler(EMediumLoadDirection::Write, mediumName, newConfig);
         }
 
-        for (const auto& mediumName : *RegisteredReadThrottlers_.Snapshot()) {
+        for (const auto& mediumName : *RegisteredReadThrottlers_.MakeSnapshot()) {
             GetOrCreateThrottler(EMediumLoadDirection::Read, mediumName, newConfig);
         }
 
@@ -328,4 +327,4 @@ IMediumThrottlerManagerFactoryPtr CreateMediumThrottlerManagerFactory(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode::NYT
+} // namespace NYT::NTabletNode

@@ -56,7 +56,7 @@ public:
 
         TKey key(tablePath, mode);
 
-        IDistributedThrottlerFactoryPtr factory = nullptr;
+        IDistributedThrottlerFactoryPtr factory;
 
         // Fast path.
         {
@@ -68,7 +68,7 @@ public:
         }
 
         // Slow path.
-        if (factory == nullptr) {
+        if (!factory) {
             auto guard = WriterGuard(SpinLock_);
 
             auto [it, inserted] = Factories_.emplace(key, nullptr);
