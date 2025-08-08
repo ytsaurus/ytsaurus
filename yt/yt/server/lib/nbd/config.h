@@ -14,6 +14,8 @@ DEFINE_ENUM(EFilesystemType,
     ((Ext4)         (3)     ("ext4"))
 );
 
+DEFINE_ENUM_UNKNOWN_VALUE(EFilesystemType, Unknown);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkBlockDeviceConfig
