@@ -190,13 +190,23 @@ struct IJobProxyEnvironment
     virtual std::optional<i64> GetJobOomKillCount() const noexcept = 0;
 
     virtual bool UseExecFromLayer() const = 0;
+
+    virtual void StartSidecars(const NControllerAgent::NProto::TJobSpecExt& jobSpecExt) = 0;
+    virtual void KillSidecars() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobProxyEnvironment)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobProxyEnvironmentPtr CreateJobProxyEnvironment(TJobEnvironmentConfig config);
+//! Creates a job proxy environment.
+//! #failedSidecarCallback is invoked when a fatal error occurs in the sidecar(s),
+//! and it is expected to fail the job.
+IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
+    const TJobProxyInternalConfigPtr& config,
+    IInvokerPtr invoker,
+    const std::string& jobProxySlotPath,
+    std::function<void(TError)> failedSidecarCallback);
 
 ////////////////////////////////////////////////////////////////////////////////
 
