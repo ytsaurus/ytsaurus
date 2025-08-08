@@ -180,7 +180,7 @@ public:
         if (auto cpuGuarantee = resourceManager->GetCpuGuarantee()) {
             protoCpu->set_total_guarantee(*cpuGuarantee);
         }
-        protoCpu->set_total_used(resourceManager->GetCpuUsage());
+        protoCpu->set_total_used(static_cast<double>(resourceManager->GetCpuUsage()));
         protoCpu->set_jobs(resourceManager->GetJobsCpuLimit());
         protoCpu->set_tablet_slots(resourceManager->GetTabletSlotCpu());
         protoCpu->set_dedicated(resourceManager->GetNodeDedicatedCpu());

@@ -573,7 +573,7 @@ protected:
     TResourceVolume GetHugeVolume()
     {
         TResourceVolume hugeVolume;
-        hugeVolume.SetCpu(10000000000);
+        hugeVolume.SetCpu(TCpuResource(10000000000L));
         hugeVolume.SetUserSlots(10000000000);
         hugeVolume.SetMemory(10000000000_MB);
         return hugeVolume;
@@ -1946,7 +1946,7 @@ TEST_P(TFairShareUpdateParametrizedTest, TestProposedIntegralSharePrecisionError
     // Don't think we need exact amounts, because any large enough accumulated volume should work.
     TResourceVolume burstPoolAccumulatedVolume;
     burstPoolAccumulatedVolume.SetUserSlots(413098315.744941);
-    burstPoolAccumulatedVolume.SetCpu(45360000.00);
+    burstPoolAccumulatedVolume.SetCpu(TCpuResource(45360000.00));
     burstPoolAccumulatedVolume.SetMemory(2.1341920521797664e+17);
     burstPoolAccumulatedVolume.SetNetwork(91794223.939665511);
     burstPoolAccumulatedVolume.SetGpu(0);
@@ -1954,7 +1954,7 @@ TEST_P(TFairShareUpdateParametrizedTest, TestProposedIntegralSharePrecisionError
 
     TResourceVolume relaxedPoolAccumulatedVolume;
     relaxedPoolAccumulatedVolume.SetUserSlots(2541466175.1648531);
-    relaxedPoolAccumulatedVolume.SetCpu(302400000.00);
+    relaxedPoolAccumulatedVolume.SetCpu(TCpuResource(302400000.00));
     relaxedPoolAccumulatedVolume.SetMemory(1.3032554324247532e+18);
     relaxedPoolAccumulatedVolume.SetNetwork(564751061.14774621);
     relaxedPoolAccumulatedVolume.SetGpu(0);

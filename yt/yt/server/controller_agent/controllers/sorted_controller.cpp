@@ -875,7 +875,7 @@ public:
 
     TCpuResource GetCpuLimit() const override
     {
-        return 1;
+        return TCpuResource(1L);
     }
 
     std::vector<TRichYPath> GetInputTablePaths() const override

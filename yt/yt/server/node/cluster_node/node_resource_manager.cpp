@@ -28,6 +28,8 @@
 
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 
+#include <yt/yt/library/numeric/serialize/fixed_point_number.h>
+
 #include <tcmalloc/malloc_extension.h>
 
 #include <limits>
@@ -134,14 +136,6 @@ void FormatResources(
         limits.ReincarnationSlots);
 }
 
-TJobResources TJobResources::Epsilon()
-{
-    return TJobResources{
-        .Cpu = 0.01,
-        .VCpu = 0.01,
-    };
-}
-
 TString FormatResourceUsage(
     const TJobResources& usage,
     const TJobResources& limits)
@@ -196,7 +190,15 @@ void FormatValue(TStringBuilderBase* builder, const TJobResources& resources, TS
 
 void ProfileResources(ISensorWriter* writer, const TJobResources& resources)
 {
-    #define XX(name, Name) writer->AddGauge("/" #name, resources.Name);
+    auto f = [&](std::string str, auto res) {
+        if constexpr (std::is_same_v<std::decay_t<decltype(res)>, TCpu>) {
+            writer->AddGauge(str, static_cast<double>(res));
+        } else {
+            writer->AddGauge(str, res);
+        }
+    };
+
+    #define XX(name, Name) f("/" #name, resources.Name);
     ITERATE_JOB_RESOURCE_FIELDS(XX)
     #undef XX
 }
@@ -204,7 +206,7 @@ void ProfileResources(ISensorWriter* writer, const TJobResources& resources)
 TJobResources GetZeroJobResources()
 {
     TJobResources result;
-    #define XX(name, Name) result.Name = 0;
+    #define XX(name, Name) result.Name = static_cast<decltype(result.Name)>(0L);
     ITERATE_JOB_RESOURCE_FIELDS(XX)
     #undef XX
 
@@ -235,8 +237,16 @@ const TJobResources& InfiniteJobResources()
 
 NNodeTrackerClient::NProto::TNodeResources ToNodeResources(const TJobResources& jobResources)
 {
+    auto f = [&](auto res) -> auto {
+        if constexpr (std::is_same_v<std::decay_t<decltype(res)>, TCpu>) {
+            return static_cast<double>(res);
+        } else {
+            return res;
+        }
+    };
+
     TNodeResources result;
-    #define XX(name, Name) result.set_##name(jobResources.Name);
+    #define XX(name, Name) result.set_##name(f(jobResources.Name));
     ITERATE_JOB_RESOURCE_PROTO_FIELDS(XX)
     #undef XX
     return result;
@@ -245,7 +255,7 @@ NNodeTrackerClient::NProto::TNodeResources ToNodeResources(const TJobResources& 
 TJobResources FromNodeResources(const NNodeTrackerClient::NProto::TNodeResources& jobResources)
 {
     TJobResources result;
-    #define XX(name, Name) result.Name = jobResources.name();
+    #define XX(name, Name) result.Name = static_cast<decltype(result.Name)>(jobResources.name());
     ITERATE_JOB_RESOURCE_PROTO_FIELDS(XX)
     #undef XX
     return result;
@@ -302,7 +312,7 @@ TJobResources operator * (const TJobResources& lhs, i64 rhs)
 TJobResources operator * (const TJobResources& lhs, double rhs)
 {
     TJobResources result;
-    #define XX(name, Name) result.Name = static_cast<decltype(lhs.Name)>(lhs.Name * rhs + 0.5);
+    #define XX(name, Name) result.Name = static_cast<decltype(lhs.Name)>(lhs.Name * rhs + static_cast<decltype(lhs.Name * rhs)>(0.5));
     ITERATE_JOB_RESOURCE_FIELDS(XX)
     #undef XX
 
@@ -320,7 +330,7 @@ TJobResources& operator *= (TJobResources& lhs, i64 rhs)
 
 TJobResources& operator *= (TJobResources& lhs, double rhs)
 {
-    #define XX(name, Name) lhs.Name = static_cast<decltype(lhs.Name)>(lhs.Name * rhs + 0.5);
+    #define XX(name, Name) lhs.Name = static_cast<decltype(lhs.Name)>(lhs.Name * rhs + static_cast<decltype(lhs.Name * rhs)>(0.5));
     ITERATE_JOB_RESOURCE_FIELDS(XX)
     #undef XX
 
@@ -349,7 +359,7 @@ bool operator == (const TJobResources& lhs, const TJobResources& rhs)
 TJobResources MakeNonnegative(const TJobResources& resources)
 {
     TJobResources result;
-    #define XX(name, Name) result.Name = std::max(resources.Name, static_cast<decltype(resources.Name)>(0));
+    #define XX(name, Name) result.Name = std::max(resources.Name, static_cast<decltype(resources.Name)>(0L));
     ITERATE_JOB_RESOURCE_FIELDS(XX)
     #undef XX
 
@@ -397,7 +407,7 @@ TError VerifyEquals(const TJobResources& lhs, const TJobResources& rhs, TStringB
 
 TError VerifyNonNegative(const TJobResources& resources, TStringBuf failMessage)
 {
-    #define XX(name, Name) if (resources.Name < 0) { \
+    #define XX(name, Name) if (resources.Name < static_cast<decltype(resources.Name)>(0L)) { \
             return TError(TRuntimeFormat(failMessage)) \
                 << TErrorAttribute("resource_name", PP_STRINGIZE(name)) \
                 << TErrorAttribute("value", resources.Name); \
@@ -507,23 +517,23 @@ double TNodeResourceManager::GetJobsCpuLimit() const
     return JobsCpuLimit_;
 }
 
-double TNodeResourceManager::GetCpuUsage() const
+TCpu TNodeResourceManager::GetCpuUsage() const
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     auto config = Bootstrap_->GetConfig()->ResourceLimits;
     auto dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->ResourceLimits;
 
-    double cpuUsage = 0;
+    TCpu cpuUsage{0L};
 
     // Node dedicated CPU.
-    cpuUsage += dynamicConfig->NodeDedicatedCpu.value_or(*config->NodeDedicatedCpu);
+    cpuUsage += TCpu(dynamicConfig->NodeDedicatedCpu.value_or(*config->NodeDedicatedCpu));
 
     // User jobs.
-    cpuUsage += GetJobResourceUsage().Cpu;
+    cpuUsage += TCpu(GetJobResourceUsage().Cpu);
 
     // Tablet cells.
-    cpuUsage += GetTabletSlotCpu();
+    cpuUsage += TCpu(GetTabletSlotCpu());
 
     return cpuUsage;
 }

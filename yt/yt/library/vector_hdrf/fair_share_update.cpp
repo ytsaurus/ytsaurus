@@ -1284,12 +1284,12 @@ void TCompositeElement::UpdateOverflowAndAcceptableVolumesRecursively()
 
     TResourceVolume::ForEachResource([&] (EJobResourceType /*resourceType*/, auto TResourceVolume::* resourceDataMember) {
         auto diff = attributes.ChildrenVolumeOverflow.*resourceDataMember - childrenAcceptableVolume.*resourceDataMember;
-        if (diff > 0) {
+        if (diff > static_cast<decltype(diff)>(0L)) {
             attributes.VolumeOverflow.*resourceDataMember = diff;
-            attributes.AcceptableVolume.*resourceDataMember = 0;
+            attributes.AcceptableVolume.*resourceDataMember = static_cast<std::decay_t<decltype(attributes.AcceptableVolume.*resourceDataMember)>>(0L);
         } else {
-            attributes.VolumeOverflow.*resourceDataMember = 0;
-            attributes.AcceptableVolume.*resourceDataMember = canAcceptFreeVolume ? -diff : 0;
+            attributes.VolumeOverflow.*resourceDataMember = static_cast<std::decay_t<decltype(attributes.VolumeOverflow.*resourceDataMember)>>(0L);
+            attributes.AcceptableVolume.*resourceDataMember = canAcceptFreeVolume ? -diff : static_cast<decltype(diff)>(0L);
         }
     });
 
@@ -1330,15 +1330,17 @@ void TCompositeElement::DistributeFreeVolume()
         };
 
         TResourceVolume::ForEachResource([&] (EJobResourceType /*resourceType*/, auto TResourceVolume::* resourceDataMember) {
-            if (freeVolume.*resourceDataMember  == 0) {
+            if (freeVolume.*resourceDataMember == static_cast<std::decay_t<decltype(freeVolume.*resourceDataMember)>>(0L)) {
                 return;
             }
             std::vector<TChildAttributes> hungryChildren;
             auto weightSum = 0.0;
             for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
                 auto& childAttributes = GetChild(childIndex)->Attributes();
-                if (childAttributes.AcceptableVolume.*resourceDataMember > RatioComputationPrecision &&
-                    childAttributes.TotalResourceFlowRatio > RatioComputationPrecision)
+                if (childAttributes.AcceptableVolume.*resourceDataMember >
+                        static_cast<std::decay_t<decltype(childAttributes.AcceptableVolume.*resourceDataMember)>>(RatioComputationPrecision) &&
+                    childAttributes.TotalResourceFlowRatio >
+                        static_cast<std::decay_t<decltype(childAttributes.TotalResourceFlowRatio)>>(RatioComputationPrecision))
                 {
                     // Resource flow is taken as weight.
                     auto weight = childAttributes.TotalResourceFlowRatio;
@@ -1365,7 +1367,7 @@ void TCompositeElement::DistributeFreeVolume()
             for (; it != hungryChildren.end(); ++it) {
                 const auto suggestedFreeVolume = static_cast<double>(freeVolume.*resourceDataMember) * (it->Weight / weightSum);
                 const auto acceptableVolume = it->Attributes->AcceptableVolume.*resourceDataMember;
-                if (suggestedFreeVolume < acceptableVolume) {
+                if (static_cast<decltype(acceptableVolume)>(suggestedFreeVolume) < acceptableVolume) {
                     break;
                 }
                 it->Attributes->AcceptedFreeVolume.*resourceDataMember = acceptableVolume;

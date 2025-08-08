@@ -363,7 +363,7 @@ void TSlotManager::UpdateAliveLocations()
     }
 }
 
-IUserSlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest, NScheduler::NProto::TCpuRequest cpuRequest)
+IUserSlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest, NClusterNode::TCpu requestedCpu, bool allowIdleCpuPolicy)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -427,11 +427,11 @@ IUserSlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequ
     }
 
     auto slotType = ESlotType::Common;
-    if (cpuRequest.allow_idle_cpu_policy() &&
-        IdlePolicyRequestedCpu_ + cpuRequest.cpu() <= JobEnvironment_->GetCpuLimit(ESlotType::Idle))
+    if (allowIdleCpuPolicy &&
+        IdlePolicyRequestedCpu_ + requestedCpu <= static_cast<NClusterNode::TCpu>(JobEnvironment_->GetCpuLimit(ESlotType::Idle)))
     {
         slotType = ESlotType::Idle;
-        IdlePolicyRequestedCpu_ += cpuRequest.cpu();
+        IdlePolicyRequestedCpu_ += requestedCpu;
         ++UsedIdleSlotCount_;
     }
 
@@ -444,9 +444,9 @@ IUserSlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequ
                 return lhs.FreeCpuCount < rhs.FreeCpuCount;
             });
 
-        if (bestNumaNodeIt->FreeCpuCount >= cpuRequest.cpu()) {
+        if (bestNumaNodeIt->FreeCpuCount >= requestedCpu) {
             numaNodeAffinity = bestNumaNodeIt->NumaNodeInfo;
-            bestNumaNodeIt->FreeCpuCount -= cpuRequest.cpu();
+            bestNumaNodeIt->FreeCpuCount -= requestedCpu;
         }
     }
 
@@ -458,14 +458,14 @@ IUserSlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequ
         Bootstrap_,
         NodeTag_,
         slotType,
-        cpuRequest.cpu(),
+        requestedCpu,
         std::move(diskRequest),
         numaNodeAffinity);
 }
 
 std::unique_ptr<TSlotManager::TSlotGuard> TSlotManager::AcquireSlot(
     ESlotType slotType,
-    double requestedCpu,
+    NClusterNode::TCpu requestedCpu,
     const std::optional<TNumaNodeInfo>& numaNodeAffinity
 ) {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -1266,7 +1266,7 @@ void TSlotManager::AsyncInitialize()
                 .NumaNodeId = numaNode->NumaNodeId,
                 .CpuSet = numaNode->CpuSet
             },
-            .FreeCpuCount = static_cast<double>(numaNode->CpuCount),
+            .FreeCpuCount = static_cast<NClusterNode::TCpu>(numaNode->CpuCount),
         });
     }
 
@@ -1321,7 +1321,7 @@ int TSlotManager::PopSlot()
     return slotIndex;
 }
 
-void TSlotManager::ReleaseSlot(ESlotType slotType, int slotIndex, double requestedCpu, const std::optional<i64>& numaNodeIdAffinity)
+void TSlotManager::ReleaseSlot(ESlotType slotType, int slotIndex, NClusterNode::TCpu requestedCpu, const std::optional<i64>& numaNodeIdAffinity)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -1384,7 +1384,7 @@ NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskResources()
 TSlotManager::TSlotGuard::TSlotGuard(
     TSlotManagerPtr slotManager,
     ESlotType slotType,
-    double requestedCpu,
+    NClusterNode::TCpu requestedCpu,
     std::optional<i64> numaNodeIdAffinity)
     : SlotManager_(std::move(slotManager))
     , RequestedCpu_(requestedCpu)
