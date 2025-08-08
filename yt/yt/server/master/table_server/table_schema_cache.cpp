@@ -34,6 +34,11 @@ TTableSchemaCache::TTableSchemaCache(TAsyncExpiringCacheConfigPtr config)
         TableServerProfiler().WithPrefix("/table_schema_cache"))
 { }
 
+bool TTableSchemaCache::CanCacheError(const TError& /*error*/) noexcept
+{
+    return false;
+}
+
 TErrorOr<TTableSchemaPtr> TTableSchemaCache::ConvertToHeavyTableSchemaAndCache(const TCompactTableSchemaPtr& compactTableSchema)
 {
     auto schemaOrError = ConvertToHeavyTableSchema(compactTableSchema);
@@ -91,6 +96,11 @@ TYsonTableSchemaCache::TYsonTableSchemaCache(const TWeakPtr<ITableManager>& weak
     , WeakTableManager_(weakTableManager)
     , EnableTableSchemaCache_(config->CacheTableSchemaAfterConvertionToYson)
 { }
+
+bool TYsonTableSchemaCache::CanCacheError(const TError& /*error*/) noexcept
+{
+    return false;
+}
 
 void TYsonTableSchemaCache::Reconfigure(const TYsonTableSchemaCacheConfigPtr& config)
 {
