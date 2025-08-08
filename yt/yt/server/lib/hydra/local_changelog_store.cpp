@@ -358,6 +358,11 @@ public:
             .Run();
     }
 
+    using TAsyncSlruCacheBase::Reconfigure;
+
+    virtual void Reconfigure(const TDynamicRemoteChangelogStoreConfigPtr& /*config*/) override
+    { }
+
 private:
     const NIO::IIOEnginePtr IOEngine_;
     const TFileChangelogStoreConfigPtr Config_;
