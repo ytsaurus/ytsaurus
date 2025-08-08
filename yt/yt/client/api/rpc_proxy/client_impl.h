@@ -412,6 +412,10 @@ public:
         const std::string& address,
         const NApi::TKillProcessOptions& options) override;
 
+    TFuture<TPingNodeResult> PingNode(
+        const std::string& nodeAddress,
+        const NApi::TPingNodeOptions& options) override;
+
     TFuture<TString> WriteCoreDump(
         const std::string& address,
         const NApi::TWriteCoreDumpOptions& options) override;

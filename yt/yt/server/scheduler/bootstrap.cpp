@@ -187,6 +187,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateAdminService(
         GetControlInvoker(EControlQueue::Default),
         ServiceLocator_->FindService<NCoreDump::ICoreDumperPtr>(),
+        Connection_->GetChannelFactory(),
         NativeAuthenticator_));
     RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,

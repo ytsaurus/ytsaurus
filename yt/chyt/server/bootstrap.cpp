@@ -19,6 +19,9 @@
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/config.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
 #include <yt/yt/core/concurrency/thread_pool.h>
@@ -140,10 +143,6 @@ void TBootstrap::DoRun()
 
     RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
 
-    RpcServer_->RegisterService(CreateAdminService(
-        GetControlInvoker(),
-        CoreDumper_,
-        /*authenticator*/ nullptr));
     RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,
         GetControlInvoker(),
@@ -159,6 +158,12 @@ void TBootstrap::DoRun()
         // NB: Host_ should be set only after it becomes ready to handle crash signals.
         Host_ = std::move(host);
     }
+
+    RpcServer_->RegisterService(CreateAdminService(
+        GetControlInvoker(),
+        CoreDumper_,
+        Host_->GetRootClient()->GetNativeConnection()->GetChannelFactory(),
+        /*authenticator*/ nullptr));
 
     RpcServer_->RegisterService(CreateClickHouseService(Host_.Get()));
     RpcServer_->RegisterService(CreateQueryService(Host_.Get(), RpcQueryServiceThreadPool_->GetInvoker()));

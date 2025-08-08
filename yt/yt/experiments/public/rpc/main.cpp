@@ -106,6 +106,7 @@ void RunRpcServer(int port)
     rpcServer->RegisterService(CreateAdminService(
         queue->GetInvoker(),
         std::move(coreDumper),
+        /*channelFactory*/ nullptr,
         /*authenticator*/ nullptr));
     rpcServer->Start();
 
