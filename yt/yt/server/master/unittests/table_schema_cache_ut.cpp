@@ -60,6 +60,10 @@ TEST_F(TTableSchemaCacheTest, DontCacheCorruptedSchema)
     auto corruptedSchema = New<TCompactTableSchema>(protoSchema);
 
     auto schemaOrError = NConcurrency::WaitFor(tableSchemaCache->Get(corruptedSchema));
+    Cerr << Format(
+        "Put compact table schema into cache (CompactTableSchema: %v, ParsedResult: %v)",
+        corruptedSchema,
+        schemaOrError);
     EXPECT_FALSE(schemaOrError.IsOK());
     EXPECT_EQ(schemaOrError.GetCode(), NCellServer::EErrorCode::CompactSchemaParseError);
     // Schema shouldn't be cached.
