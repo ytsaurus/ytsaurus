@@ -1049,26 +1049,31 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
             YT_VERIFY(selectQuery);
 
             std::shared_ptr<const DB::ActionsDAG> filterActionsDAG;
-            if (settings->EnableComputedColumnDeduction && selectQuery->hasWhere()) {
+
+            auto currentWhere = selectQuery->getWhere();
+            DB::QueryTreeNodePtr modifiedWhere;
+
+            if (settings->EnableComputedColumnDeduction && currentWhere) {
                 // Query may not contain deducible values for computed columns.
                 // We populate query with deducible equations on computed columns,
                 // so key condition is able to properly filter ranges with computed
                 // key columns.
-                auto modifiedWhere = PopulatePredicateWithComputedColumns(
-                    selectQuery->getWhere(),
+                modifiedWhere = PopulatePredicateWithComputedColumns(
+                    currentWhere,
                     schema,
                     getContext(),
                     *QueryInfo_.prepared_sets,
                     settings,
                     Logger);
+            }
 
+            if (modifiedWhere && modifiedWhere != currentWhere) {
                 // modifiedWhere contains unresolved identifiers only for the currently processed table expression.
                 // Therefore, we use this table expression as a source for query analysis.
                 DB::QueryAnalysisPass query_analysis_pass(TableExpressions_[index]);
                 query_analysis_pass.run(modifiedWhere, getContext());
 
-                auto prevWhere = std::move(selectQuery->getWhere());
-                selectQuery->getWhere() = modifiedWhere;
+                selectQuery->getWhere() = std::move(modifiedWhere);
 
                 // During construction Planner collects query filters to analyze.
                 // Since we changed the query, we need to get new filters to create a KeyCondition with calculated columns.
@@ -1083,7 +1088,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
                     filterActionsDAG = std::make_shared<const DB::ActionsDAG>(filters.filter_actions->clone());
                 }
 
-                selectQuery->getWhere() = std::move(prevWhere);
+                selectQuery->getWhere() = std::move(currentWhere);
             } else {
                 auto* tableExpressionDataPtr = TableExpressionDataPtrs_[index];
                 YT_VERIFY(tableExpressionDataPtr);
@@ -1222,7 +1227,7 @@ TSecondaryQuery TQueryAnalyzer::CreateSecondaryQuery(
         AddBoundConditionToJoinedSubquery(lowerBound, upperBound);
     }
 
-    auto secondaryQueryAst = DB::queryNodeToSelectQuery(QueryInfo_.query_tree);
+    auto secondaryQueryAst = DB::queryNodeToDistributedSelectQuery(QueryInfo_.query_tree);
 
     RollbackModifications();
 

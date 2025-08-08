@@ -827,8 +827,7 @@ class TestJoinAndIn(ClickHouseTestBase):
 
     # CHYT-1300
     @authors("buyval01")
-    @pytest.mark.timeout(0)
-    def test_global_join_missing_aliases(self):
+    def test_global_missing_aliases(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]})
         write_table("<append=%true>//tmp/t1", [{"a": 1}, {"a": 2}])
         write_table("<append=%true>//tmp/t1", [{"a": 3}, {"a": 4}])
@@ -838,24 +837,56 @@ class TestJoinAndIn(ClickHouseTestBase):
         write_table("<append=%true>//tmp/t2", [{"b": 1}, {"b": 4}])
 
         with Clique(1) as clique:
-            query_template = '''
+            query_join_template = '''
                 SELECT a, b
-                FROM(
-                    select t1.a, t2.b
-                    from {lhs_table} t1
+                FROM (
+                    SELECT t1.a, t2.b
+                    FROM {lhs_table} t1
                     GLOBAL LEFT JOIN {rhs_table} t2 ON t1.a = t2.b
                 )
-                order by a
+                ORDER BY a
+            '''
+            query_in_template = '''
+                SELECT a
+                FROM {lhs_table}
+                WHERE a GLOBAL IN {rhs_table}
+                ORDER BY a
             '''
             for lhs_table in ['"//tmp/t1"', '(select * from "//tmp/t1")']:
                 for rhs_table in ['"//tmp/t2"', '(select * from "//tmp/t2")']:
-                    query = query_template.format(lhs_table=lhs_table, rhs_table=rhs_table)
+                    query = query_join_template.format(lhs_table=lhs_table, rhs_table=rhs_table)
                     assert clique.make_query(query) == [
                         {"a": 1, "b": 1},
                         {"a": 2, "b": None},
                         {"a": 3, "b": None},
                         {"a": 4, "b": 4},
                     ]
+
+                    query = query_in_template.format(lhs_table=lhs_table, rhs_table=rhs_table)
+                    assert clique.make_query(query) == [
+                        {"a": 1}, {"a": 4},
+                    ]
+
+    # CHYT-1311
+    @authors("buyval01")
+    def test_in_with_cte(self):
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("<append=%true>//tmp/t1", [{"a": 1}, {"a": 2}])
+        write_table("<append=%true>//tmp/t1", [{"a": 3}, {"a": 4}])
+
+        create("table", "//tmp/t2", attributes={"schema": [{"name": "b", "type": "int64"}]})
+        write_table("<append=%true>//tmp/t2", [{"b": 2}, {"b": 4}])
+
+        with Clique(1) as clique:
+            query = '''
+                WITH even_values as (
+                    select * from "//tmp/t1" where a % 2 == 0
+                ), filtered_values as (
+                    select * from "//tmp/t2" where b in even_values
+                )
+                select * from filtered_values order by b
+            '''
+            assert clique.make_query(query) == [{"b": 2}, {"b": 4}]
 
 
 class TestJoinAndInStress(ClickHouseTestBase):
