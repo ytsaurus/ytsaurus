@@ -51,7 +51,8 @@ void TClient::DoSetUserPassword(
         "Password change",
         user,
         currentPasswordSha256,
-        options);
+        options,
+        Options_.RequireAdministerForPasswordSet);
 
     constexpr int PasswordSaltLength = 16;
     auto newPasswordSaltBytes = GenerateCryptoStrongRandomString(PasswordSaltLength);
@@ -91,7 +92,8 @@ TIssueTokenResult TClient::DoIssueToken(
         "Token issuance",
         user,
         passwordSha256,
-        options);
+        options,
+        /*requireAdminister*/ false);
 
     YT_LOG_DEBUG("Issuing new token for user (User: %v)",
         user);
@@ -291,7 +293,8 @@ void TClient::DoRevokeToken(
         "Token revocation",
         tokenUser,
         passwordSha256,
-        options);
+        options,
+        /*requireAdminister*/ false);
 
     TRemoveNodeOptions removeOptions;
     static_cast<TTimeoutOptions&>(removeOptions) = options;
@@ -319,7 +322,8 @@ TListUserTokensResult TClient::DoListUserTokens(
         "Tokens listing",
         user,
         passwordSha256,
-        options);
+        options,
+        /*requireAdminister*/ false);
 
     YT_LOG_DEBUG("Listing tokens for user (User: %v, WithMetadata: %v)",
         user,
@@ -389,7 +393,8 @@ void TClient::ValidateAuthenticationCommandPermissions(
     TStringBuf action,
     const std::string& user,
     const TString& passwordSha256,
-    const TTimeoutOptions& options)
+    const TTimeoutOptions& options,
+    bool requireAdminister)
 {
     static const std::string HashedPasswordAttribute = "hashed_password";
     static const std::string PasswordSaltAttribute = "password_salt";
@@ -408,6 +413,15 @@ void TClient::ValidateAuthenticationCommandPermissions(
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to check %Qlv permission for user", EPermission::Administer);
 
         canAdminister = (rspOrError.Value().Action == ESecurityAction::Allow);
+    }
+
+    if (requireAdminister && !canAdminister) {
+        THROW_ERROR_EXCEPTION(
+            "%v can be performed only by a user having %Qlv permission on the user",
+            action,
+            EPermission::Administer)
+            << TErrorAttribute("user", user)
+            << TErrorAttribute("authenticated_user", Options_.User);
     }
 
     if (!canAdminister) {
