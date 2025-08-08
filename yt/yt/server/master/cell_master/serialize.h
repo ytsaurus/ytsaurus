@@ -163,6 +163,7 @@ DEFINE_ENUM(EMasterReign,
     ((TransactionsCanNowFeelImpendingDoom)                          (3008))  // h0pless
     ((ValidateClockCellTagOnChaosMount)                             (3009))  // ponasneko-rs
     ((WriteAclToSequoiaTable)                                       (3010))  // danilalexeev
+    ((WeakPtrInTableReplicas)                                       (3011))  // babenko
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
