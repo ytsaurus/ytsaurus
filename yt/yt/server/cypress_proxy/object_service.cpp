@@ -187,7 +187,7 @@ private:
 
             // TODO(danilalexeev): Support queue size limit reconfiguration.
             const auto& userDirectory = bootstrap->GetUserDirectory();
-            const auto descriptor = userDirectory->FindByName(userNameAndWorkloadType.first);
+            const auto descriptor = userDirectory->FindUserByName(userNameAndWorkloadType.first);
             if (!descriptor) {
                 return;
             }
@@ -200,8 +200,7 @@ private:
             // TODO(danilalexeev): Implement public methods to explicitly set request queue's throttlers.
             auto queueName = GetRequestQueueNameForKey(userNameAndWorkloadType);
             auto throttlerId = GetDistributedWeightThrottlerId(queueName);
-            // TODO(babenko): migrate to std::string
-            throttlerFactory->GetOrCreateThrottler(TString(throttlerId), newConfig);
+            throttlerFactory->GetOrCreateThrottler(throttlerId, newConfig);
         });
     }
 
@@ -262,6 +261,7 @@ public:
         EMasterChannelKind masterChannelKind)
         : Owner_(std::move(owner))
         , RpcContext_(std::move(rpcContext))
+        , AuthenticationIdentity_(GetCurrentAuthenticationIdentity())
         , TargetCellTag_(targetCellTag)
         , MasterChannelKind_(masterChannelKind)
         , ForceUseTargetCellTag_(
@@ -281,6 +281,7 @@ public:
 private:
     const TObjectServicePtr Owner_;
     const TCtxExecutePtr RpcContext_;
+    const TAuthenticationIdentity AuthenticationIdentity_;
 
     const TCellTag TargetCellTag_;
     const EMasterChannelKind MasterChannelKind_;
@@ -373,6 +374,10 @@ private:
                     NRpc::EErrorCode::ProtocolError,
                     "Could not parse subrequest header")
                     << TErrorAttribute("subrequest_index", index);
+            }
+
+            if (RpcContext_->IsRetry()) {
+                header.set_retry(true);
             }
 
             const auto& ypathExt = header.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
@@ -848,7 +853,7 @@ private:
             subrequest->Target == ERequestTarget::Undetermined ||
             subrequest->Target == ERequestTarget::Sequoia);
 
-        auto& header = *subrequest->RequestHeader;
+        const auto& header = *subrequest->RequestHeader;
 
         auto originalTargetPath = ValidateAndMakeYPath(
             TRawYPath(GetRequestTargetYPath(header))
@@ -881,6 +886,7 @@ private:
         try {
             session = TSequoiaSession::Start(
                 Owner_->Bootstrap_,
+                AuthenticationIdentity_,
                 cypressTransactionId,
                 prerequisiteTransactionIds);
             // TODO(cherepashka): add resolve cache YT-25661.
@@ -921,7 +927,7 @@ private:
             return response;
         }
 
-        auto invokeResult = CreateSequoiaService(Owner_->Bootstrap_)
+        auto invokeResult = CreateSequoiaService(Owner_->Bootstrap_, AuthenticationIdentity_)
             ->TryInvoke(context, session, resolveResult, resolvedPrerequisiteRevisions);
         // TODO(kvk1920): check prerequisite transaction liveness after read
         // request.
@@ -941,25 +947,60 @@ private:
         const auto& masterConnector = Owner_->Bootstrap_->GetMasterConnector();
         masterConnector->ValidateRegistration();
 
-        auto processInitialSync = true;
-        for (int index = 0; index < std::ssize(Subrequests_); ++index) {
-            auto& subrequest = Subrequests_[index];
-            auto target = subrequest.Target;
-            if (target != ERequestTarget::Undetermined && target != ERequestTarget::Sequoia) {
+        auto isSubrequestRelevant = [] (const TSubrequest& subrequest) {
+            return subrequest.Target == ERequestTarget::Undetermined ||
+                subrequest.Target == ERequestTarget::Sequoia;
+        };
+
+        auto relevantSubrequestCount = std::ranges::count_if(Subrequests_, isSubrequestRelevant);
+        if (relevantSubrequestCount != 0) {
+            MaybeSyncWithMaster();
+        }
+
+        const auto& invoker = Owner_->GetDefaultInvoker();
+        std::vector<TFuture<std::optional<TSharedRefArray>>> asyncSubresponses;
+        asyncSubresponses.reserve(relevantSubrequestCount);
+        for (int subrequestIndex = 0; subrequestIndex < std::ssize(Subrequests_); ++subrequestIndex) {
+            if (!isSubrequestRelevant(Subrequests_[subrequestIndex])) {
                 continue;
             }
 
-            if (std::exchange(processInitialSync, false)) {
-                MaybeSyncWithMaster();
+            auto future = BIND([subrequestIndex, this, this_ = MakeStrong(this)] {
+                YT_LOG_DEBUG("Executing subrequest in Sequoia (SubrequestIndex: %v)",
+                    subrequestIndex);
+                auto& subrequest = Subrequests_[subrequestIndex];
+                return ExecuteSequoiaSubrequest(&subrequest);
+            })
+                .AsyncVia(invoker)
+                .Run();
+
+            asyncSubresponses.push_back(std::move(future));
+        }
+
+        auto subresponses = WaitFor(AllSet(std::move(asyncSubresponses)))
+            .ValueOrThrow();
+
+        YT_VERIFY(std::ssize(subresponses) == relevantSubrequestCount);
+
+        for (auto subrequestIndex = 0, subresponseIndex = 0; subrequestIndex < std::ssize(Subrequests_); ++subrequestIndex) {
+            auto& subrequest = Subrequests_[subrequestIndex];
+
+            if (!isSubrequestRelevant(subrequest)) {
+                continue;
             }
 
-            YT_LOG_DEBUG("Executing subrequest in Sequoia (SubrequestIndex: %v)",
-                index);
+            subrequest.Target = ERequestTarget::None;
 
-            if (auto subresponse = ExecuteSequoiaSubrequest(&subrequest)) {
-                subrequest.Target = ERequestTarget::None;
-                ReplyOnSubrequest(index, std::move(*subresponse));
+            if (auto subresponseOrError = subresponses[subresponseIndex]; subresponseOrError.IsOK()) {
+                if (auto& subresponse = subresponseOrError.Value()) {
+                    ReplyOnSubrequest(subrequestIndex, *subresponse);
+                }
+            } else {
+                YT_LOG_DEBUG("Subrequest offloading failed (SubrequestIndex: %v)", subrequestIndex);
+                ReplyOnSubrequest(subrequestIndex, subresponseOrError);
             }
+
+            ++subresponseIndex;
         }
     }
 
@@ -989,6 +1030,11 @@ private:
             response.Attachments().end(),
             subresponseMessage.Begin(),
             subresponseMessage.End());
+    }
+
+    void ReplyOnSubrequest(int subrequestIndex, const TError& error)
+    {
+        ReplyOnSubrequest(subrequestIndex, CreateErrorResponseMessage(error));
     }
 
     // Performs selective synchronization with

@@ -136,7 +136,7 @@ IAttributeDictionary* TObjectProxyBase::MutableAttributes()
 
 void TObjectProxyBase::SetModified(EModificationType modificationType)
 {
-    if (ModificationTrackingSuppressed_) {
+    if (ModificationTrackingSuppressed_.test(std::memory_order::relaxed)) {
         return;
     }
 
@@ -145,11 +145,6 @@ void TObjectProxyBase::SetModified(EModificationType modificationType)
     }
 
     Object_->SetModified(modificationType);
-}
-
-void TObjectProxyBase::SuppressModificationTracking()
-{
-    ModificationTrackingSuppressed_ = true;
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
@@ -411,7 +406,11 @@ void TObjectProxyBase::BeforeInvoke(const IYPathServiceContextPtr& context)
         context->SetRawRequestInfo(builder.Flush(), true);
     }
 
-    ModificationTrackingSuppressed_ = GetSuppressModificationTracking(requestHeader);
+    if (GetSuppressModificationTracking(requestHeader)) {
+        // Reads of this value occur only in the same thread it was set in, thus
+        // relaxed memory order is fine. See declaration for details.
+        ModificationTrackingSuppressed_.test_and_set(std::memory_order::relaxed);
+    }
 }
 
 bool TObjectProxyBase::DoInvoke(const IYPathServiceContextPtr& context)
@@ -489,7 +488,9 @@ ISystemAttributeProvider* TObjectProxyBase::GetBuiltinAttributeProvider()
 
 void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
-    auto* acd = FindThisAcd();
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+
+    const auto acd = securityManager->FindAcd(Object_);
     bool hasAcd = acd;
     bool hasOwner = acd && acd->GetOwner();
     bool isForeign = Object_->IsForeign();
@@ -545,7 +546,7 @@ bool TObjectProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
     const auto& securityManager = Bootstrap_->GetSecurityManager();
 
     bool isForeign = Object_->IsForeign();
-    auto* acd = FindThisAcd();
+    const auto acd = securityManager->FindAcd(Object_);
 
     switch (key) {
         case EInternedAttributeKey::Id:
@@ -715,7 +716,7 @@ TFuture<TYsonString> TObjectProxyBase::GetBuiltinAttributeAsync(TInternedAttribu
 bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force)
 {
     auto securityManager = Bootstrap_->GetSecurityManager();
-    auto* acd = FindThisAcd();
+    auto acd = securityManager->FindAcd(Object_).AsMutable();
     if (!acd) {
         return false;
     }
@@ -1197,12 +1198,6 @@ void TNontemplateNonversionedObjectProxyBase::RemoveSelf(
 TVersionedObjectId TNontemplateNonversionedObjectProxyBase::GetVersionedId() const
 {
     return TVersionedObjectId(Object_->GetId());
-}
-
-TAccessControlDescriptor* TNontemplateNonversionedObjectProxyBase::FindThisAcd()
-{
-    const auto& securityManager = Bootstrap_->GetSecurityManager();
-    return securityManager->FindAcd(Object_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -251,7 +251,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        resources.VCpu = static_cast<double>(NVectorHdrf::TCpuResource(resources.Cpu * GetCpuToVCpuFactor()));
+        resources.VCpu = resources.Cpu * GetCpuToVCpuFactor();
     }
 
     TJobResources GetResourceLimits(bool considerUserJobFreeMemoryWatermark) const final
@@ -263,8 +263,8 @@ public:
 
         #define XX(name, Name) \
             result.Name = (resourceLimitsOverrides.has_##name() \
-                ? resourceLimitsOverrides.name() \
-                : StaticConfig_->ResourceLimits->Name);
+                ? static_cast<decltype(result.Name)>(resourceLimitsOverrides.name()) \
+                : static_cast<decltype(result.Name)>(StaticConfig_->ResourceLimits->Name));
         ITERATE_NODE_RESOURCE_LIMITS_OVERRIDES(XX)
         #undef XX
 
@@ -321,7 +321,7 @@ public:
         }
 
         const auto& nodeResourceManager = Bootstrap_->GetNodeResourceManager();
-        result.Cpu = nodeResourceManager->GetJobsCpuLimit();
+        result.Cpu = static_cast<decltype(result.Cpu)>(nodeResourceManager->GetJobsCpuLimit());
         SetActualVcpu(result);
 
         return result;
@@ -506,7 +506,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        jobResources->VCpu = static_cast<double>(NVectorHdrf::TCpuResource(jobResources->Cpu * GetCpuToVCpuFactor()));
+        jobResources->VCpu = jobResources->Cpu * GetCpuToVCpuFactor();
     }
 
     ISlotPtr AcquireUserSlot(
@@ -525,17 +525,14 @@ public:
             diskRequest.set_medium_index(allocationDiskRequest.MediumIndex.value());
         }
 
-        NScheduler::NProto::TCpuRequest cpuRequest;
-        cpuRequest.set_cpu(neededResources.Cpu);
-        cpuRequest.set_allow_idle_cpu_policy(allocationAttributes.AllowIdleCpuPolicy);
-
         YT_LOG_INFO(
-            "Acquiring slot (DiskRequest: %v, CpuRequest: %v)",
+            "Acquiring slot (DiskRequest: %v, RequestedCpu: %v, AllowIdleCpuPolicy: %v)",
             diskRequest,
-            cpuRequest);
+            neededResources.Cpu,
+            allocationAttributes.AllowIdleCpuPolicy);
 
         auto slotManager = Bootstrap_->GetExecNodeBootstrap()->GetSlotManager();
-        auto userSlot = slotManager->AcquireSlot(diskRequest, cpuRequest);
+        auto userSlot = slotManager->AcquireSlot(diskRequest, neededResources.Cpu, allocationAttributes.AllowIdleCpuPolicy);
 
         YT_VERIFY(userSlot);
 
@@ -1520,7 +1517,7 @@ private:
         // JRM doesn't track disk resources
         // TODO(pogorelov): Add disk resources support
         spareResources.DiskSpaceRequest = InfiniteJobResources().DiskSpaceRequest;
-        return VerifyDominates(spareResources + TJobResources::Epsilon(), neededResources, "Not enough resources");
+        return VerifyDominates(spareResources, neededResources, "Not enough resources");
     }
 
     TError CheckResourceOverdraft(const TJobResources& usage, const TJobResources& limits)
@@ -1532,7 +1529,7 @@ private:
 
         spareResources.DiskSpaceRequest = InfiniteJobResources().DiskSpaceRequest;
 
-        return VerifyNonNegative(spareResources + TJobResources::Epsilon(), "Resource overdraft detected");
+        return VerifyNonNegative(spareResources, "Resource overdraft detected");
     }
 
     friend class TResourceHolder;

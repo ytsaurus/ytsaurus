@@ -8,17 +8,17 @@ namespace NYT::NOrm::NAttributes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsAttributePath(const NYPath::TYPath& path);
+bool IsAttributePath(TStringBuf path);
 
-void ValidateAttributePath(const NYPath::TYPath& path);
+void ValidateAttributePath(NYPath::TYPathBuf path);
 
 //! One of them is an ancestor of the another.
 //! The attribute paths are supposed to be valid.
-bool AreAttributesRelated(const NYPath::TYPath& lhs, const NYPath::TYPath& rhs);
+bool AreAttributesRelated(NYPath::TYPathBuf lhs, NYPath::TYPathBuf rhs);
 
 //! |pattern| may contain asterisks.
 //! |path| must be free of asterisks.
-EAttributePathMatchResult MatchAttributePathToPattern(const NYPath::TYPath& pattern, const NYPath::TYPath& path);
+EAttributePathMatchResult MatchAttributePathToPattern(NYPath::TYPathBuf pattern, NYPath::TYPathBuf path);
 
 ////////////////////////////////////////////////////////////////////////////////
 

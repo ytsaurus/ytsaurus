@@ -665,7 +665,6 @@ TEST_F(TSequoiaTest, TestTransactionAbortConflict)
             .ValueOrThrow());
     }
 
-
     WaitFor(Client_->GCCollect())
         .ThrowOnError();
 
@@ -673,6 +672,88 @@ TEST_F(TSequoiaTest, TestTransactionAbortConflict)
         EXPECT_FALSE(WaitFor(Client_->NodeExists(FromObjectId(nodeId)))
             .ValueOrThrow());
     }
+}
+
+TEST_F(TSequoiaTest, TestTransactionAbortNoStarvation)
+{
+    std::vector<NApi::ITransactionPtr> transactions;
+    std::vector<TTransactionId> transactionIds;
+
+    const auto tmpNodePath = "//sequoia/tmp";
+    WaitFor(Client_->CreateNode(tmpNodePath, EObjectType::MapNode))
+        .ThrowOnError();
+
+    auto topmostTransaction = StartCypressTransaction();
+    transactions.push_back(topmostTransaction);
+    for (int i = 0; i < 10; ++i) {
+        auto parentTransaction = StartCypressTransaction({.ParentId = topmostTransaction->GetId()});
+        transactions.push_back(parentTransaction);
+        transactionIds.push_back(parentTransaction->GetId());
+
+        for (int j = 0; j < 10; ++j) {
+            auto childTransaction = StartCypressTransaction({.ParentId = parentTransaction->GetId()});
+            transactions.push_back(childTransaction);
+            transactionIds.push_back(childTransaction->GetId());
+        }
+
+        auto dependentTransaction = StartCypressTransaction({.PrerequisiteTransactionIds = {topmostTransaction->GetId()}});
+        transactions.push_back(dependentTransaction);
+        transactionIds.push_back(dependentTransaction->GetId());
+        for (int j = 0; j < 10; ++j) {
+            auto dependentChildTransaction = StartCypressTransaction({.ParentId = dependentTransaction->GetId()});
+            transactions.push_back(dependentChildTransaction);
+            transactionIds.push_back(dependentChildTransaction->GetId());
+        }
+    }
+
+    std::vector<TFuture<void>> setNodeRequests;
+    for (int i = 0; i < std::ssize(transactions); ++i) {
+        auto setResult = Client_->SetNode(Format("%v/%v", tmpNodePath, i), ConvertToYsonString("some_value"));
+        setNodeRequests.push_back(setResult);
+    }
+
+    WaitFor(AllSucceeded(setNodeRequests))
+        .ThrowOnError();
+
+    auto threadPool = CreateThreadPool(25, "ConcurrentSet");
+    auto barrierPromise = NewPromise<void>();
+    std::vector<TFuture<void>> resultFutures;
+    for (int i = 0; i < std::ssize(transactions); ++i) {
+        auto transaction = transactions[i];
+        resultFutures.push_back(
+            BIND([barrierFuture = barrierPromise.ToFuture(), tmpNodePath, i, transaction] () {
+                WaitFor(barrierFuture)
+                    .ThrowOnError();
+
+                while(true) {
+                    TSetNodeOptions options;
+                    options.TransactionId = transaction->GetId();
+                    auto result = WaitFor(Client_->SetNode(
+                        Format("%v/%v", tmpNodePath, i),
+                        ConvertToYsonString("some_new_value"),
+                        options));
+
+                    if (!result.IsOK()) {
+                        EXPECT_TRUE(result.FindMatching([] (const TError& error) { return error.GetMessage().contains("No such transaction"); }).has_value());
+                        return;
+                    }
+                }
+            })
+                .AsyncVia(threadPool->GetInvoker())
+                .Run());
+    }
+
+    YT_LOG_DEBUG("Started setting node values");
+    barrierPromise.Set();
+
+    YT_LOG_DEBUG("Aborting topmost transaction (TransactionId: %v)",
+        topmostTransaction->GetId());
+    WaitFor(topmostTransaction->Abort())
+        .ThrowOnError();
+    YT_LOG_DEBUG("Topmost transaction aborted");
+
+    WaitFor(AllSet(resultFutures))
+        .ThrowOnError();
 }
 
 TEST_F(TSequoiaTest, TestResponseKeeper)

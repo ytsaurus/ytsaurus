@@ -10,7 +10,6 @@ import "contrib/ydb/library/yql/dq/proto/dq_transport.proto";
 import "contrib/ydb/library/yql/dq/proto/dq_tasks.proto";
 import "contrib/ydb/library/yql/providers/dq/api/protos/service.proto";
 import "contrib/ydb/public/api/protos/ydb_issue_message.proto";
-import "contrib/ydb/public/api/protos/ydb_value.proto";
 import "contrib/ydb/library/actors/protos/actors.proto";
 
 message TAllocateWorkersRequest {

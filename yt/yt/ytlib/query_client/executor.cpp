@@ -264,7 +264,6 @@ class TQueryResponseReader
 {
 public:
     TQueryResponseReader(
-        TFuture<TQueryServiceProxy::TRspExecutePtr> asyncResponse,
         TGuid id,
         TTableSchemaPtr schema,
         NCompression::ECodec codecId,
@@ -275,6 +274,9 @@ public:
         , CodecId_(codecId)
         , Logger(std::move(logger))
         , MemoryChunkProvider_(std::move(memoryChunkProvider))
+    { }
+
+    void Initialize(TFuture<TQueryServiceProxy::TRspExecutePtr> asyncResponse)
     {
         // NB: Don't move this assignment to initializer list as
         // OnResponse will access "this", which is not fully constructed yet.
@@ -769,12 +771,13 @@ private:
             req->ByteSize());
 
         auto resultReader = New<TQueryResponseReader>(
-            req->Invoke(),
             query->Id,
             query->GetTableSchema(),
             config->SelectRowsResponseCodec,
             MemoryChunkProvider_,
             Logger);
+
+        resultReader->Initialize(req->Invoke());
 
         return {resultReader, resultReader->GetQueryResult(), resultReader->GetResponseFeatureFlags()};
     }

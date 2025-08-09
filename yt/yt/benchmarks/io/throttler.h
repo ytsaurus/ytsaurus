@@ -41,7 +41,7 @@ struct TThrottlerConfig
 
 DEFINE_REFCOUNTED_TYPE(TThrottlerConfig)
 
-using TCombinedThrottlerConfig = THashMap<TString, TThrottlerConfigPtr>;
+using TCombinedThrottlerConfig = THashMap<std::string, TThrottlerConfigPtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

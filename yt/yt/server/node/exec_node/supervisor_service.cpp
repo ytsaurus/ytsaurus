@@ -169,7 +169,7 @@ private:
         validateJobPhase(newJobPhase);
 
         auto* resourceUsageProto = response->mutable_resource_usage();
-        resourceUsageProto->set_cpu(resourceUsage.Cpu);
+        resourceUsageProto->set_cpu(static_cast<double>(resourceUsage.Cpu));
         resourceUsageProto->set_memory(resourceUsage.UserMemory);
         resourceUsageProto->set_network(resourceUsage.Network);
 
@@ -366,7 +366,7 @@ private:
         const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
         auto resourceUsage = job->GetResourceUsage();
         resourceUsage.UserMemory = reportedResourceUsage.memory();
-        resourceUsage.Cpu = reportedResourceUsage.cpu();
+        resourceUsage.Cpu = static_cast<TCpuResource>(reportedResourceUsage.cpu());
         resourceUsage.Network = reportedResourceUsage.network();
         resourceUsage.VCpu = resourceUsage.Cpu * jobResourceManager->GetCpuToVCpuFactor();
 

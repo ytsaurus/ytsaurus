@@ -47,6 +47,12 @@ class OperationInfo:
     accumulated_resource_usage_cpu: typing.Optional[float]
     accumulated_resource_usage_memory: typing.Optional[float]
     accumulated_resource_usage_gpu: typing.Optional[float]
+    accumulated_fair_resources_cpu: typing.Optional[float]
+    accumulated_fair_resources_memory: typing.Optional[float]
+    accumulated_fair_resources_gpu: typing.Optional[float]
+    accumulated_resource_usage_deficit_cpu: typing.Optional[float]
+    accumulated_resource_usage_deficit_memory: typing.Optional[float]
+    accumulated_resource_usage_deficit_gpu: typing.Optional[float]
     cumulative_memory: typing.Optional[float]
     cumulative_max_memory: typing.Optional[float]
     cumulative_used_cpu: typing.Optional[float]
@@ -101,6 +107,9 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
     def _check_operation_info(self, rows, op_id):
         stat = defaultdict(float)
         columns = ["accumulated_resource_usage_cpu", "accumulated_resource_usage_memory", "cumulative_memory",
+                   "accumulated_fair_resources_cpu", "accumulated_fair_resources_memory",
+                   "accumulated_fair_resources_gpu", "accumulated_resource_usage_deficit_gpu",
+                   "accumulated_resource_usage_deficit_cpu", "accumulated_resource_usage_deficit_memory",
                    "cumulative_max_memory", "cumulative_used_cpu", "tmpfs_max_usage", "tmpfs_limit", "time_total",
                    "time_prepare", "data_input_chunk_count", "data_input_data_weight",  "data_output_chunk_count",
                    "data_output_data_weight", "accumulated_resource_usage_gpu", "cumulative_gpu_utilization",
@@ -112,7 +121,7 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
         for index, row in enumerate(rows):
             for key in columns:
                 assert key in row
-                stat[key] += row[key]
+                stat[key] += 0 if isinstance(row[key], yson.yson_types.YsonEntity) else row[key]
             assert row["operation_id"] == op_id
             assert row["cluster"] == "local_cluster"
             assert row["pool_path"] == "/parent_pool/test_pool"

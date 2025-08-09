@@ -110,6 +110,10 @@ public:
 
         DeclareServerFeature(ETabletServiceFeatures::WriteGenerations);
         DeclareServerFeature(ETabletServiceFeatures::SharedWriteLocks);
+    }
+
+    void Initialize()
+    {
         SubscribeLoadAdjusted();
     }
 
@@ -501,7 +505,9 @@ private:
 
 IServicePtr CreateTabletService(ITabletSlotPtr slot, IBootstrap* bootstrap)
 {
-    return New<TTabletService>(slot, bootstrap);
+    auto service = New<TTabletService>(std::move(slot), bootstrap);
+    service->Initialize();
+    return service;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

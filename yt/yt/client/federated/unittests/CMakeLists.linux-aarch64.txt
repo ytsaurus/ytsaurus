@@ -28,6 +28,7 @@ target_link_libraries(unittester-federated-client PUBLIC
   cpp-testing-hook
   library-profiling-solomon
   yt-yt-core
+  yt-core-test_framework
   yt-client-federated
   client-unittests-mock
 )

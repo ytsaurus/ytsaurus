@@ -18,7 +18,7 @@ namespace NYT::NCellarAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename EQueue>
-TAutomatonInvokerHood<EQueue>::TAutomatonInvokerHood(const TString& threadName)
+TAutomatonInvokerHood<EQueue>::TAutomatonInvokerHood(std::string threadName)
     : AutomatonQueue_(NConcurrency::CreateEnumIndexedFairShareActionQueue<EQueue>(threadName))
 {
     ResetEpochInvokers();

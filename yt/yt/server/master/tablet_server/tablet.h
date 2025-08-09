@@ -91,7 +91,7 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(i64, ReplicationErrorCount);
 
-    using TReplicaMap = THashMap<TTableReplicaRawPtr, TTableReplicaInfo>;
+    using TReplicaMap = THashMap<NObjectServer::TWeakObjectPtr<TTableReplica>, TTableReplicaInfo>;
     DEFINE_BYREF_RW_PROPERTY(TReplicaMap, Replicas);
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp);

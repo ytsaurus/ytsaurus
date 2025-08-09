@@ -33,7 +33,7 @@ class TGroupCoordinator
     : public IGroupCoordinator
 {
 public:
-    TGroupCoordinator(TString groupId, TGroupCoordinatorConfigPtr config)
+    TGroupCoordinator(TGroupId groupId, TGroupCoordinatorConfigPtr config)
         : GroupId_(std::move(groupId))
         , DynamicConfig_(std::move(config))
     { }
@@ -65,21 +65,19 @@ public:
             return std::make_optional(TRspJoinGroup{.ErrorCode = NKafka::EErrorCode::RebalanceInProgress});
         };
 
-        auto checkStateResponse = checkState();
-        if (checkStateResponse) {
+        if (auto checkStateResponse = checkState()) {
             return *checkStateResponse;
         }
 
         TDuration waitDuration = TDuration::Zero();
-        TString memberId;
+        TMemberId memberId;
         bool isLeader = false;
 
         {
             auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&Lock_))
                 .ValueOrThrow();
 
-            auto checkStateResponse = checkState();
-            if (checkStateResponse) {
+            if (auto checkStateResponse = checkState()) {
                 return *checkStateResponse;
             }
 
@@ -140,7 +138,7 @@ public:
 
         YT_LOG_DEBUG("Making JoinGroup response (MemberId: %v)", memberId);
 
-        std::optional<TString> commonProtocolName;
+        std::optional<std::string> commonProtocolName;
         for (const auto& [protocolName, memberCount] : ProtocolNameToMemberCount_) {
             if (memberCount == std::ssize(JoinedMembers_)) {
                 commonProtocolName = protocolName;
@@ -163,7 +161,7 @@ public:
 
         response.Members.reserve(JoinedMembers_.size());
         for (const auto& [memberId, member] : JoinedMembers_) {
-            TString metadata;
+            std::string metadata;
             for (const auto& protocol : member.Protocols) {
                 if (protocol.Name == *commonProtocolName) {
                     metadata = protocol.Metadata;
@@ -403,12 +401,12 @@ private:
 
     int GenerationId_ = 0;
 
-    TString LeaderMemberId_;
+    TMemberId LeaderMemberId_;
     THashMap<TMemberId, TMember> JoinedMembers_;
-    THashMap<TString, i64> ProtocolNameToMemberCount_;
+    THashMap<std::string, i64> ProtocolNameToMemberCount_;
 
     THashSet<TMemberId> SyncedMembers_;
-    THashMap<TMemberId, TString> Assignments_;
+    THashMap<TMemberId, std::string> Assignments_;
 
     void Reset()
     {
@@ -428,7 +426,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IGroupCoordinatorPtr CreateGroupCoordinator(TString groupId, TGroupCoordinatorConfigPtr config)
+IGroupCoordinatorPtr CreateGroupCoordinator(
+    TGroupId groupId,
+    TGroupCoordinatorConfigPtr config)
 {
     return New<TGroupCoordinator>(std::move(groupId), std::move(config));
 }

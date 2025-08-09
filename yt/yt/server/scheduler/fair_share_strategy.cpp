@@ -1302,7 +1302,7 @@ public:
             // TODO(eshcherbin): Perhaps we need to add a configurable main resource for each tree and compare the shares of this resource.
             double currentReserveRatio = std::numeric_limits<double>::max();
             #define XX(name, Name) \
-                if (totalResourceLimits.Get##Name() > 0) { \
+                if (totalResourceLimits.Get##Name() > static_cast<std::decay_t<decltype(totalResourceLimits.Get##Name())>>(0L)) { \
                     currentReserveRatio = std::min(currentReserveRatio, reserveShare[EJobResourceType::Name]); \
                 }
             ITERATE_JOB_RESOURCES(XX)
@@ -2558,15 +2558,13 @@ private:
         TJobResources GetMinSpareResourcesForScheduling() const override
         {
             if (Tree_) {
-                if (auto treeConfig = Tree_->GetSnapshottedConfig();
-                    treeConfig->MinSpareAllocationResourcesOnNode)
-                {
-                    return ToJobResources(*treeConfig->MinSpareAllocationResourcesOnNode, TJobResources());
+                if (const auto& minSpareResourcesConfig = Tree_->GetSnapshottedConfig()->MinSpareAllocationResourcesOnNode) {
+                    return ToJobResources(minSpareResourcesConfig, TJobResources());
                 }
             }
 
             return Config_->MinSpareAllocationResourcesOnNode
-                ? ToJobResources(*Config_->MinSpareAllocationResourcesOnNode, TJobResources())
+                ? ToJobResources(Config_->MinSpareAllocationResourcesOnNode, TJobResources())
                 : TJobResources();
         }
 

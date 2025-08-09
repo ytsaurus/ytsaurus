@@ -10,8 +10,6 @@
 
 namespace NYT::NCellMaster {
 
-using namespace NConcurrency;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 template <CMulticellStatisticsValue... TMulticellStatisticsValues>
@@ -60,10 +58,10 @@ void TMulticellStatisticsCollectorCommon<TMulticellStatisticsValues...>::Registe
 
 template <CMulticellStatisticsValue... TMulticellStatisticsValues>
 template <CMulticellStatisticsValue TMulticellStatisticsValue>
-TPeriodicExecutorPtr TMulticellStatisticsCollectorCommon<TMulticellStatisticsValues...>::MakeUpdatePeriodic(
+NConcurrency::TPeriodicExecutorPtr TMulticellStatisticsCollectorCommon<TMulticellStatisticsValues...>::MakeUpdatePeriodic(
     TMulticellStatisticsValue* node)
 {
-    return New<TPeriodicExecutor>(
+    return New<NConcurrency::TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Periodic),
         BIND(&TMulticellStatisticsCollectorCommon::OnPushUpdates<TMulticellStatisticsValue>, Unretained(this), node),
         node->GetUpdatePeriod());
@@ -78,7 +76,7 @@ void TMulticellStatisticsCollectorCommon<TMulticellStatisticsValues...>::OnPushU
         return;
     }
 
-    auto requestOrError = WaitFor(node->GetLocalCellUpdate());
+    auto requestOrError = NConcurrency::WaitFor(node->GetLocalCellUpdate());
     if (!requestOrError.IsOK()) {
         NDetail::LogGetLocalCellUpdateError(requestOrError);
         return;
@@ -143,7 +141,7 @@ void TMulticellStatisticsCollectorCommon<TMulticellStatisticsValues...>::OnStopL
 {
     TMasterAutomatonPart::OnStopLeading();
 
-    auto stopPeriodic = [] (TPeriodicExecutorPtr& periodic) {
+    auto stopPeriodic = [] (NConcurrency::TPeriodicExecutorPtr& periodic) {
         if (periodic) {
             YT_UNUSED_FUTURE(periodic->Stop());
             periodic.Reset();

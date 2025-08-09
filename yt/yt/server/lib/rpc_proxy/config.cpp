@@ -62,6 +62,8 @@ void TQueryFeatureToggles::Register(TRegistrar registrar)
 {
     registrar.Parameter("use_order_by_in_join_subqueries_override", &TThis::UseOrderByInJoinSubqueries)
         .Optional();
+    registrar.Parameter("statistics_aggregation", &TThis::StatisticsAggregation)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

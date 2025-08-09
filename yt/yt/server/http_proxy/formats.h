@@ -10,6 +10,12 @@ namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EFormatTarget,
+    ((Input)  (0))
+    ((Output) (1))
+    ((Error)  (2))
+);
+
 NFormats::TFormat InferFormat(
     const NServer::TFormatManager& formatManager,
     const std::string& ytHeaderName,
@@ -17,7 +23,7 @@ NFormats::TFormat InferFormat(
     const std::optional<std::string>& ytHeader,
     const std::string& mimeHeaderName,
     const std::string* mimeHeader,
-    bool isOutput,
+    EFormatTarget target,
     NFormats::EDataType dataType);
 
 NFormats::TFormat InferHeaderFormat(

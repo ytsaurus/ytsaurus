@@ -261,8 +261,7 @@ TSessionId GenerateSessionId(int mediumIndex)
 {
     return TSessionId(
         MakeRandomId(EObjectType::NbdChunk, InvalidCellTag),
-        mediumIndex
-    );
+        mediumIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

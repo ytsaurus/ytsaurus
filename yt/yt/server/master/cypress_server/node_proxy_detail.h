@@ -119,7 +119,6 @@ protected:
     TLockResult DoLock(const TLockRequest& request, bool waitable, TLockId lockIdHint);
 
     NObjectServer::TVersionedObjectId GetVersionedId() const override;
-    NSecurityServer::TAccessControlDescriptor* FindThisAcd() override;
 
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;

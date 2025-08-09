@@ -160,7 +160,7 @@ class TPortoExecutor
 public:
     TPortoExecutor(
         TPortoExecutorDynamicConfigPtr config,
-        const TString& threadNameSuffix,
+        std::string threadNameSuffix,
         const NProfiling::TProfiler& profiler)
         : Config_(std::move(config))
         , Queue_(New<TActionQueue>(Format("Porto:%v", threadNameSuffix)))
@@ -1163,7 +1163,7 @@ const std::vector<TString> TPortoExecutor::ContainerRequestVars_ = {
 
 IPortoExecutorPtr CreatePortoExecutor(
     TPortoExecutorDynamicConfigPtr config,
-    const TString& threadNameSuffix,
+    std::string threadNameSuffix,
     const NProfiling::TProfiler& profiler)
 {
     return New<TPortoExecutor>(
@@ -1177,9 +1177,9 @@ IPortoExecutorPtr CreatePortoExecutor(
 #else
 
 IPortoExecutorPtr CreatePortoExecutor(
-    TPortoExecutorDynamicConfigPtr /* config */,
-    const TString& /* threadNameSuffix */,
-    const NProfiling::TProfiler& /* profiler */)
+    TPortoExecutorDynamicConfigPtr /*config*/,
+    std::string /*threadNameSuffix*/,
+    const NProfiling::TProfiler& /*profiler*/)
 {
     THROW_ERROR_EXCEPTION("Porto executor is not available on this platform");
 }

@@ -74,16 +74,13 @@ DEFINE_REFCOUNTED_TYPE(IOperationControllerStrategyHost)
 struct TOperationControllerInitializeResult
 {
     TOperationControllerInitializeAttributes Attributes;
-    TOperationTransactions Transactions;
+    TControllerTransactionIds TransactionIds;
     bool EraseOffloadingTrees;
 };
 
 void FromProto(
     TOperationControllerInitializeResult* result,
-    const NControllerAgent::NProto::TInitializeOperationResult& resultProto,
-    TOperationId operationId,
-    TBootstrap* bootstrap,
-    TDuration operationTransactionPingPeriod);
+    const NControllerAgent::NProto::TInitializeOperationResult& resultProto);
 
 ////////////////////////////////////////////////////////////////////////////////
 

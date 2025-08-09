@@ -29,6 +29,7 @@
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/subject.h>
 #include <yt/yt/server/master/security_server/acl.h>
+#include <yt/yt/server/master/security_server/group.h>
 #include <yt/yt/server/master/security_server/user.h>
 
 #include <yt/yt/server/master/table_server/table_manager.h>
@@ -300,22 +301,42 @@ private:
             const auto& securityManager = Bootstrap_->GetSecurityManager();
             auto* protoUserDirectory = response->mutable_user_directory();
 
-            auto addUser = [&] (TUser* user) {
-                auto* protoLimits = protoUserDirectory->add_limits();
-                protoLimits->set_user_name(ToProto(user->GetName()));
+            static auto toProtoSubject = [] (
+                NObjectClient::NProto::TSubjectDescriptor* protoSubject,
+                TSubject* subject)
+            {
+                ToProto(protoSubject->mutable_subject_id(), subject->GetId());
+                protoSubject->set_name(ToProto(subject->GetName()));
+                ToProto(protoSubject->mutable_aliases(), subject->Aliases());
+                for (auto group : subject->RecursiveMemberOf()) {
+                    ToProto(protoSubject->add_recursve_memeber_of(), group->GetName());
+                }
+            };
+
+            static auto toProtoUser = [] (
+                NObjectClient::NProto::TUserDescriptor* protoUser,
+                TUser* user)
+            {
+                toProtoSubject(protoUser->mutable_subject_descriptor(), user);
+
+                ToProto(protoUser->mutable_tags(), user->Tags().GetSourceTags());
 
                 auto limits = user->GetObjectServiceRequestLimits();
                 if (auto limit = limits->ReadRequestRateLimits->Default) {
-                    protoLimits->set_read_request_rate_limit(*limit);
+                    protoUser->set_read_request_rate_limit(*limit);
                 }
                 if (auto limit = limits->WriteRequestRateLimits->Default) {
-                    protoLimits->set_write_request_rate_limit(*limit);
+                    protoUser->set_write_request_rate_limit(*limit);
                 }
-                protoLimits->set_request_queue_size_limit(limits->RequestQueueSizeLimits->Default);
+                protoUser->set_request_queue_size_limit(limits->RequestQueueSizeLimits->Default);
             };
 
-            for (auto [userId, user] : securityManager->Users()) {
-                addUser(user);
+            for (auto [_, user] : securityManager->Users()) {
+                toProtoUser(protoUserDirectory->add_users(), user);
+            }
+
+            for (auto [_, group] : securityManager->Groups()) {
+                toProtoSubject(protoUserDirectory->add_groups(), group);
             }
         }
 

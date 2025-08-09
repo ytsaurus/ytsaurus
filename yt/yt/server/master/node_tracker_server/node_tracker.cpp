@@ -527,12 +527,12 @@ public:
 
     void UpdateLastDataHeartbeatTime(TNode* node) override
     {
-        node->SetLastDataHeartbeatTime(GetCpuInstant());
+        node->SetLastDataHeartbeatTime(GetInstant());
     }
 
     void UpdateLastJobHeartbeatTime(TNode* node) override
     {
-        node->SetLastJobHeartbeatTime(GetCpuInstant());
+        node->SetLastJobHeartbeatTime(GetInstant());
     }
 
     void OnNodeMaintenanceUpdated(TNode* node, EMaintenanceType type) override
@@ -1094,7 +1094,7 @@ private:
     {
         LogNodeState(Bootstrap_, node);
 
-        node->SetLastStateChangeTime(GetCpuInstant());
+        node->SetLastStateChangeTime(GetInstant());
     }
 
     TNodeId GenerateNodeId()
@@ -1819,16 +1819,6 @@ private:
         RackMap_.LoadKeys(context);
         DataCenterMap_.LoadKeys(context);
         HostMap_.LoadKeys(context);
-
-        // COMPAT(kvk1920)
-        if (context.GetVersion() < EMasterReign::DropImaginaryChunkLocations) {
-            auto useImaginaryLocationsMap = Load<THashMap<TObjectId, bool>>(context);
-            for (auto [nodeId, useImaginaryLocations] : useImaginaryLocationsMap) {
-                if (useImaginaryLocations) {
-                    NodesWithImaginaryLocations_.push_back(nodeId);
-                }
-            }
-        }
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -2037,7 +2027,7 @@ private:
     }
 
     void OnNodesRecoveryComplete() {
-        auto now = GetCpuInstant();
+        auto now = GetInstant();
         for (auto [nodeId, node] : NodeMap_) {
             if (!IsObjectAlive(node)) {
                 continue;
@@ -2694,10 +2684,10 @@ private:
 
     void OnNodeAlertsCheck()
     {
-        auto now = GetCpuInstant();
-        auto minLastDataHeartbeatTime = now - DurationToCpuDuration(GetDynamicConfig()->NodeDataHeartbeatOutdateDuration);
-        auto minLastJobHeartbeatTime = now - DurationToCpuDuration(GetDynamicConfig()->NodeJobHeartbeatOutdateDuration);
-        auto minLastIncompleteStateChangeTime = now - DurationToCpuDuration(GetDynamicConfig()->MaxNodeIncompleteStateDuration);
+        auto now = GetInstant();
+        auto minLastDataHeartbeatTime = now - GetDynamicConfig()->NodeDataHeartbeatOutdateDuration;
+        auto minLastJobHeartbeatTime = now - GetDynamicConfig()->NodeJobHeartbeatOutdateDuration;
+        auto minLastIncompleteStateChangeTime = now - GetDynamicConfig()->MaxNodeIncompleteStateDuration;
 
         std::vector<TError> alerts;
         for (auto [nodeId, node] : NodeMap_) {
@@ -2714,29 +2704,29 @@ private:
                     if (node->GetLastDataHeartbeatTime() < minLastDataHeartbeatTime) {
                         YT_LOG_ALERT("Node had no data heartbeat for too long (NodeId: %v, LastDataHeartbeatTime: %v)",
                             nodeId,
-                            CpuInstantToInstant(node->GetLastDataHeartbeatTime()));
-                        alerts.emplace_back(TError("Node had no data heartbeat for too long")
+                            node->GetLastDataHeartbeatTime());
+                        alerts.push_back(TError("Node had no data heartbeat for too long")
                             << TErrorAttribute("node_id", nodeId)
-                            << TErrorAttribute("last_data_heartbeat_time", CpuInstantToInstant(node->GetLastDataHeartbeatTime())));
+                            << TErrorAttribute("last_data_heartbeat_time", node->GetLastDataHeartbeatTime()));
                     }
 
                     if (std::max(node->GetLastJobHeartbeatTime(), node->GetLastStateChangeTime()) < minLastJobHeartbeatTime) {
                         YT_LOG_ALERT("Node had no job heartbeat for too long (NodeId: %v, LastJobHeartbeatTime: %v)",
                             nodeId,
-                            CpuInstantToInstant(node->GetLastJobHeartbeatTime()));
-                        alerts.emplace_back(TError("Node had no job heartbeat for too long")
+                            node->GetLastJobHeartbeatTime());
+                        alerts.push_back(TError("Node had no job heartbeat for too long")
                             << TErrorAttribute("node_id", nodeId)
-                            << TErrorAttribute("last_data_heartbeat_time", CpuInstantToInstant(node->GetLastDataHeartbeatTime())));
+                            << TErrorAttribute("last_data_heartbeat_time", node->GetLastDataHeartbeatTime()));
                     }
                 }
             } else {
                 if (node->GetLastStateChangeTime() < minLastIncompleteStateChangeTime) {
                     YT_LOG_ALERT("Node had no state change for too long (NodeId: %v, State: %v, LastStateChangeTime: %v)",
                         nodeId,
-                        node->GetAggregatedState(), CpuInstantToInstant(node->GetLastStateChangeTime()));
-                    alerts.emplace_back(TError("Node had no state change for too long")
+                        node->GetAggregatedState(), node->GetLastStateChangeTime());
+                    alerts.push_back(TError("Node had no state change for too long")
                         << TErrorAttribute("node_id", nodeId)
-                        << TErrorAttribute("last_state_change_time", CpuInstantToInstant(node->GetLastStateChangeTime()))
+                        << TErrorAttribute("last_state_change_time", node->GetLastStateChangeTime())
                         << TErrorAttribute("current_state", node->GetAggregatedState()));
                 }
             }

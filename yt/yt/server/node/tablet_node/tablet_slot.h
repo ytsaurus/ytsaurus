@@ -133,9 +133,9 @@ struct ITabletSlot
     virtual bool IsTabletEpochActive() const = 0;
 
     virtual i64 EstimateChangelogMediumBytes(i64 payloadBytes) const = 0;
-    virtual NConcurrency::IReconfigurableThroughputThrottlerPtr GetChangelogMediumWriteThrottler() const = 0;
-    virtual NConcurrency::IReconfigurableThroughputThrottlerPtr GetMediumWriteThrottler(const std::string& mediumName) const = 0;
-    virtual NConcurrency::IReconfigurableThroughputThrottlerPtr GetMediumReadThrottler(const std::string& mediumName) const = 0;
+    virtual NConcurrency::IReconfigurableThroughputThrottlerPtr GetOrCreateChangelogMediumWriteThrottler() const = 0;
+    virtual NConcurrency::IReconfigurableThroughputThrottlerPtr GetOrCreateMediumWriteThrottler(const std::string& mediumName) const = 0;
+    virtual NConcurrency::IReconfigurableThroughputThrottlerPtr GetOrCreateMediumReadThrottler(const std::string& mediumName) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITabletSlot)

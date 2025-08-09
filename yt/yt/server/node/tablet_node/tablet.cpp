@@ -2352,11 +2352,11 @@ void TTablet::ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot)
             /*admitUnlimitedThrottler*/ false);
 
     DistributedThrottlers_[ETabletDistributedThrottlerKind::ChangelogMediumWrite] =
-        slot->GetChangelogMediumWriteThrottler();
+        slot->GetOrCreateChangelogMediumWriteThrottler();
     DistributedThrottlers_[ETabletDistributedThrottlerKind::BlobMediumWrite] =
-        slot->GetMediumWriteThrottler(Settings_.StoreWriterOptions->MediumName);
+        slot->GetOrCreateMediumWriteThrottler(Settings_.StoreWriterOptions->MediumName);
     DistributedThrottlers_[ETabletDistributedThrottlerKind::BlobMediumRead] =
-        slot->GetMediumReadThrottler(Settings_.StoreWriterOptions->MediumName);
+        slot->GetOrCreateMediumReadThrottler(Settings_.StoreWriterOptions->MediumName);
 
     YT_VERIFY(DistributedThrottlers_[ETabletDistributedThrottlerKind::ChangelogMediumWrite]);
     YT_VERIFY(DistributedThrottlers_[ETabletDistributedThrottlerKind::BlobMediumWrite]);

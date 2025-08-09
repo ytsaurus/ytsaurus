@@ -32,7 +32,9 @@ struct INbdServer
 
     virtual bool IsDeviceRegistered(const TString& name) const = 0;
 
-    virtual IBlockDevicePtr GetDevice(const TString& name) const = 0;
+    virtual IBlockDevicePtr GetDeviceOrThrow(const TString& name) const = 0;
+
+    virtual IBlockDevicePtr FindDevice(const TString& name) const = 0;
 
     virtual const NLogging::TLogger& GetLogger() const = 0;
 

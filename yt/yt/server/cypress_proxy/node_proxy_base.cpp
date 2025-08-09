@@ -37,12 +37,15 @@ EInvokeResult TNodeProxyBase::Invoke(const ISequoiaServiceContextPtr& context)
     return InvokeResult_;
 }
 
-TNodeProxyBase::TNodeProxyBase(IBootstrap* bootstrap, TSequoiaSessionPtr sequoiaSession)
+TNodeProxyBase::TNodeProxyBase(
+    IBootstrap* bootstrap,
+    TSequoiaSessionPtr sequoiaSession,
+    const TAuthenticationIdentity& authenticationIdentity)
     : Bootstrap_(bootstrap)
     , SequoiaSession_(std::move(sequoiaSession))
     , NativeAuthenticatedClient_(
             Bootstrap_->GetNativeConnection()->CreateNativeClient(
-                TClientOptions::FromAuthenticationIdentity(GetCurrentAuthenticationIdentity())))
+                TClientOptions::FromAuthenticationIdentity(authenticationIdentity)))
 { }
 
 void TNodeProxyBase::BeforeInvoke(const ISequoiaServiceContextPtr& /*context*/)

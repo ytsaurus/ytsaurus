@@ -750,28 +750,28 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    IReconfigurableThroughputThrottlerPtr GetChangelogMediumWriteThrottler() const override
+    IReconfigurableThroughputThrottlerPtr GetOrCreateChangelogMediumWriteThrottler() const override
     {
         YT_VERIFY(MediumThrottlerManager_);
 
         auto options = GetOptions();
         YT_VERIFY(options);
 
-        return MediumThrottlerManager_->GetMediumWriteThrottler(options->ChangelogPrimaryMedium);
+        return MediumThrottlerManager_->GetOrCreateMediumWriteThrottler(options->ChangelogPrimaryMedium);
     }
 
-    IReconfigurableThroughputThrottlerPtr GetMediumWriteThrottler(const std::string& mediumName) const override
+    IReconfigurableThroughputThrottlerPtr GetOrCreateMediumWriteThrottler(const std::string& mediumName) const override
     {
         YT_VERIFY(MediumThrottlerManager_);
 
-        return MediumThrottlerManager_->GetMediumWriteThrottler(mediumName);
+        return MediumThrottlerManager_->GetOrCreateMediumWriteThrottler(mediumName);
     }
 
-    IReconfigurableThroughputThrottlerPtr GetMediumReadThrottler(const std::string& mediumName) const override
+    IReconfigurableThroughputThrottlerPtr GetOrCreateMediumReadThrottler(const std::string& mediumName) const override
     {
         YT_VERIFY(MediumThrottlerManager_);
 
-        return MediumThrottlerManager_->GetMediumReadThrottler(mediumName);
+        return MediumThrottlerManager_->GetOrCreateMediumReadThrottler(mediumName);
     }
 };
 

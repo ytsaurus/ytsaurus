@@ -642,7 +642,7 @@ struct TThreadPoolIOEngineConfig
 
         registrar.Parameter("min_request_size_to_use_huge_pages", &TThis::MinRequestSizeToUseHugePages)
             .GreaterThanOrEqual(0)
-            .Default(512);
+            .Default(2_MB);
 
         registrar.Parameter("enable_pwritev", &TThis::EnablePwritev)
             .Default(true);

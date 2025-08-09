@@ -20,7 +20,6 @@ struct TJobSizeTrackerOptions
 };
 
 struct IJobSizeTracker
-    : public TRefCounted
 {
     //! Account slice resource vector.
     virtual void AccountSlice(TResourceVector vector) = 0;
@@ -36,13 +35,16 @@ struct IJobSizeTracker
 
     //! Called to indicate the fact currently building job was flushed.
     virtual void Flush(const std::optional<std::any>& overflowToken) = 0;
-};
 
-DEFINE_REFCOUNTED_TYPE(IJobSizeTracker)
+    virtual ~IJobSizeTracker() = default;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobSizeTrackerPtr CreateJobSizeTracker(TResourceVector limitVector, TJobSizeTrackerOptions options, const NLogging::TLogger& logger);
+std::unique_ptr<IJobSizeTracker> CreateJobSizeTracker(
+    TResourceVector limitVector,
+    TJobSizeTrackerOptions options,
+    const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

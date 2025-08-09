@@ -197,7 +197,7 @@ struct IChangelogStoreFactory
     //! obtained from IChangelogStore prior to this #Lock call may penetrate.
     virtual TFuture<IChangelogStorePtr> Lock() = 0;
 
-    virtual void Reconfigure(const TDynamicRemoteChangelogStoreConfigPtr& config);
+    virtual void Reconfigure(const TDynamicRemoteChangelogStoreConfigPtr& config) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChangelogStoreFactory)

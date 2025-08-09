@@ -38,6 +38,7 @@ using namespace NYPath;
 using namespace NRpc;
 using namespace NRpc::NBus;
 using namespace NYTree;
+using namespace NYson;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////

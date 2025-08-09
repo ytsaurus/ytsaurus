@@ -139,8 +139,8 @@ DEFINE_REFCOUNTED_TYPE(TExternalCGInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString FunctionDescriptorAttribute("function_descriptor");
-static const TString AggregateDescriptorAttribute("aggregate_descriptor");
+static const std::string FunctionDescriptorAttribute("function_descriptor");
+static const std::string AggregateDescriptorAttribute("aggregate_descriptor");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -180,7 +180,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
         auto path = GetUdfDescriptorPath(item.first, item.second);
 
         auto getReq = TYPathProxy::Get(path);
-        ToProto(getReq->mutable_attributes()->mutable_keys(), std::vector<TString>{
+        ToProto(getReq->mutable_attributes()->mutable_keys(), std::vector<std::string>{
             FunctionDescriptorAttribute,
             AggregateDescriptorAttribute
         });

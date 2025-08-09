@@ -36,15 +36,19 @@ class TestQueriesYqlBase(YTEnvSetup):
     }
 
     def _run_simple_query(self, query, **kwargs):
+        result_format_kwargs = {}
+        if "result_output_format" in kwargs:
+            result_format_kwargs["output_format"] = kwargs["result_output_format"]
+
         query = start_query("yql", query, **kwargs)
         query.track()
         query_info = query.get()
         if query_info["result_count"] == 0:
             return None
         elif query_info["result_count"] == 1:
-            return query.read_result(0)
+            return query.read_result(0, **result_format_kwargs)
         else:
-            return [query.read_result(i) for i in range(query_info["result_count"])]
+            return [query.read_result(i, **result_format_kwargs) for i in range(query_info["result_count"])]
 
     def _test_simple_query(self, query, expected, **kwargs):
         result = self._run_simple_query(query, **kwargs)
@@ -256,10 +260,29 @@ class TestTypes(TestQueriesYqlBase):
                "Set": [[["Two", 2], None], [["One", 1], None]],
                "Variant": ["var", 88],
                "Tagged": 123,
-               "Decimal": "123456.789",
+               "Decimal": b"\x80\0\0\0\7[\xCD\x15",
                "Json": '[1, "text", 3.14]',
                "Yson": [7, 'str', -3.14]
                }])
+
+    @authors("mpereskokova")
+    def test_web_json_decimal(self, query_tracker, yql_agent):
+        format = yson.loads(b'<value_format=yql>web_json')
+        self._test_simple_query(
+            """select Decimal("123456.789", 13, 3) as `Decimal`""",
+            b'{"rows":[{"Decimal":["123456.789","8"]}],"incomplete_columns":"false","incomplete_all_column_names":"false","all_column_names":["Decimal"],"yql_type_registry":[["NullType"],'
+            b'["DataType","Int64"],["DataType","Uint64"],["DataType","Double"],["DataType","Boolean"],["DataType","String"],["DataType","Yson"],["DataType","Yson"],["DataType","Decimal","13","3"]]}',
+            result_output_format=format)
+
+    @authors("mpereskokova")
+    def test_optional_and_tagged(self, query_tracker, yql_agent):
+        self._test_simple_query("""
+            select
+                Just(2) as `SimpleOptional`,
+                Just(Just(2)) as `DoubleOptional`,
+                AsTagged(AsTuple(AsTagged(1, "tag1"), Just(Just(2))), "tag2") as `TaggedTupple`,
+                AsTagged(AsTagged(1, "tag1"), "tag2") as `NestedTagged`\
+            """, [{"SimpleOptional": 2, "DoubleOptional": [2], "TaggedTupple": [1, [2]], "NestedTagged": 1}])
 
     @authors("a-romanov")
     def test_double_optional(self, query_tracker, yql_agent):

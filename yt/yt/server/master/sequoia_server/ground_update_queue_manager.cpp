@@ -362,7 +362,10 @@ private:
 
         Y_UNUSED(WaitFor(Bootstrap_
             ->GetSequoiaClient()
-            ->StartTransaction(ESequoiaTransactionType::GroundUpdateQueueFlush)
+            ->StartTransaction(
+                ESequoiaTransactionType::GroundUpdateQueueFlush,
+                {},
+                {.AuthenticationIdentity = NRpc::GetRootAuthenticationIdentity()})
             .Apply(BIND([queue, this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 auto& queueState = QueueStates_[queue];
 

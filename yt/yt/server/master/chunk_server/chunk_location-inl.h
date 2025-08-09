@@ -23,18 +23,6 @@ void TSerializerTraits<NChunkServer::TChunkLocationRawPtr, C>::TSerializer::Load
     NCellMaster::TLoadContext& context,
     NChunkServer::TChunkLocationRawPtr& location)
 {
-    using namespace NCellMaster;
-
-    // COMPAT(kvk1920)
-    if (context.GetVersion() < EMasterReign::DropImaginaryChunkLocations) {
-        constexpr auto& Logger = NChunkServer::ChunkServerLogger;
-
-        auto isImaginary = Load<bool>(context);
-        YT_LOG_FATAL_IF(isImaginary,
-            "Snapshot cannot be loaded because imaginary chunk locations still "
-            "exist");
-    }
-
     LoadWith<NCellMaster::TRawNonversionedObjectPtrSerializer>(context, location);
 }
 

@@ -354,5 +354,61 @@ void TAccessControlDescriptor::Persist(const NCypressServer::TCopyPersistenceCon
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+TMutableAccessControlDescriptorPtr::TMutableAccessControlDescriptorPtr(
+    TAccessControlDescriptor* acd,
+    ISecurityManager* securityManager)
+    : Underlying_(acd)
+    , SecurityManager_(securityManager)
+{ }
+
+TAccessControlDescriptor* TMutableAccessControlDescriptorPtr::operator->()
+{
+    Modified_ = true;
+    return Underlying_;
+}
+
+TMutableAccessControlDescriptorPtr::~TMutableAccessControlDescriptorPtr()
+{
+    if (Modified_) {
+        SecurityManager_->OnObjectAcdUpdated(Underlying_);
+    }
+}
+
+TMutableAccessControlDescriptorPtr::operator bool() const
+{
+    return Underlying_;
+}
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
+TWrappedAccessControlDescriptorPtr::TWrappedAccessControlDescriptorPtr(
+    TAccessControlDescriptor* acd,
+    ISecurityManager* securityManager)
+    : Underlying_(acd)
+    , SecurityManager_(securityManager)
+{ }
+
+const TAccessControlDescriptor* TWrappedAccessControlDescriptorPtr::operator->() const
+{
+    return Underlying_;
+}
+
+NDetail::TMutableAccessControlDescriptorPtr TWrappedAccessControlDescriptorPtr::AsMutable()
+{
+    YT_VERIFY(NHydra::HasHydraContext());
+    return NDetail::TMutableAccessControlDescriptorPtr(Underlying_, SecurityManager_);
+}
+
+TWrappedAccessControlDescriptorPtr::operator bool() const
+{
+    return Underlying_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NSecurityServer
 

@@ -23,7 +23,9 @@ DEFINE_REFCOUNTED_TYPE(IGroupCoordinator)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IGroupCoordinatorPtr CreateGroupCoordinator(TString groupId, TGroupCoordinatorConfigPtr config);
+IGroupCoordinatorPtr CreateGroupCoordinator(
+    NKafka::TGroupId groupId,
+    TGroupCoordinatorConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

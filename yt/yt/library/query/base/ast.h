@@ -71,7 +71,7 @@ using TLiteralValue = std::variant<
     ui64,
     double,
     bool,
-    TString // TODO(sabdenovch): migrate to std::string.
+    std::string
 >;
 
 using TLiteralValueList = std::vector<TLiteralValue>;

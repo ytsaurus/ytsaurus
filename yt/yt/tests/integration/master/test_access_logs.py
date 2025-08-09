@@ -568,15 +568,21 @@ class TestAccessLog(YTEnvSetup):
         set(document_path, 2)
         set(document_path, 3)
         get(document_path)
-        mutation_id_to_line = collections.defaultdict(list)
-        for line in self._filtered_log_lines(10, "//tmp/access_log/document"):
-            mutation_id_to_line[line.get("mutation_id")].append(line)
-        for mutation_id in mutation_id_to_line:
-            if mutation_id is None:
-                assert len(mutation_id_to_line[mutation_id]) == 1
-                assert mutation_id_to_line[mutation_id][0]["method"] == "Get"
-            else:
-                assert len(mutation_id_to_line[mutation_id]) % (self.NUM_MASTERS - 1) == 0, str(mutation_id_to_line[mutation_id])
+
+        def check():
+            mutation_id_to_line = collections.defaultdict(list)
+            for cell_tag in self.CELL_TAG_TO_LOG_FILTER.keys():
+                for line in self._filtered_log_lines(cell_tag, "//tmp/access_log/document"):
+                    mutation_id_to_line[line.get("mutation_id")].append(line)
+            for mutation_id in mutation_id_to_line:
+                if mutation_id is None:
+                    return len(mutation_id_to_line[mutation_id]) == 1 and \
+                        mutation_id_to_line[mutation_id][0]["method"] == "Get"
+                else:
+                    return len(mutation_id_to_line[mutation_id]) % (self.NUM_MASTERS - 1) == 0
+            return False
+
+        wait(check, iter=30, sleep_backoff=1.0, timeout=30)
 
     @authors("kvk1920")
     def test_transaction_actions_log(self):

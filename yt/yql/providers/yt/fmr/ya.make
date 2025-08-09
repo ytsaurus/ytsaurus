@@ -9,6 +9,7 @@ RECURSE(
     proto
     request_options
     table_data_service
+    test_tools
     utils
     worker
     yt_job_service

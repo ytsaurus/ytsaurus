@@ -58,7 +58,7 @@ public:
         NExecNode::IBootstrap* bootstrap,
         const TString& nodeTag,
         ESlotType slotType,
-        double requestedCpu,
+        NClusterNode::TCpu requestedCpu,
         NScheduler::NProto::TDiskRequest diskRequest,
         const std::optional<TNumaNodeInfo>& numaNodeAffinity)
         : JobEnvironment_(std::move(environment))
@@ -573,7 +573,7 @@ IUserSlotPtr CreateSlot(
     NExecNode::IBootstrap* bootstrap,
     const TString& nodeTag,
     ESlotType slotType,
-    double requestedCpu,
+    NClusterNode::TCpu requestedCpu,
     NScheduler::NProto::TDiskRequest diskRequest,
     const std::optional<TNumaNodeInfo>& numaNodeAffinity)
 {

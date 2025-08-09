@@ -6236,6 +6236,50 @@ class TestChaosClock(ChaosClockBase):
         with pytest.raises(YtError, match="Transaction timestamp is generated from unexpected clock"):
             insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
 
+    @authors("ponasenko-rs")
+    @pytest.mark.parametrize("clock_tag_valid", [True, False])
+    def test_check_on_mount_with_invalid_clock_tag(self, clock_tag_valid):
+        drivers = self._get_drivers()
+
+        for driver in drivers:
+            set("//sys/@config/tablet_manager/enable_clock_cell_tag_validation_on_chaos_replica_mount", True, driver=driver)
+
+        def _set_default_bundle_clock_cluster_tag(clock_cluster_tag):
+            for driver in drivers:
+                set("//sys/tablet_cell_bundles/default/@options/clock_cluster_tag", clock_cluster_tag, driver=driver)
+
+        if clock_tag_valid:
+            _set_default_bundle_clock_cluster_tag(get("//sys/@primary_cell_tag"))
+        else:
+            invalid_cell_tag = 0xf004
+            _set_default_bundle_clock_cluster_tag(invalid_cell_tag)
+
+        cell_id = self._create_single_peer_chaos_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"}
+        ]
+
+        card_id, _ = self._create_chaos_tables(cell_id, replicas, sync_replication_era=False, mount_tables=False)
+
+        if clock_tag_valid:
+            for replica in replicas:
+                sync_mount_table(replica["replica_path"], driver=get_driver(cluster=replica["cluster_name"]))
+
+            self._sync_replication_era(card_id, replicas)
+
+            values = [{"key": 0, "value": "0"}]
+            insert_rows("//tmp/t", values)
+            wait(lambda: lookup_rows("//tmp/t", [{"key": 0}]) == values)
+        else:
+            for replica in replicas:
+                with raises_yt_error(
+                    "Chaos replicas should be part of tablet cell bundle configured with relevant clock cell tag."
+                    " Please reconfigure bundle or move table to bundle properly configured with respect to clock source."
+                ):
+                    sync_mount_table(replica["replica_path"], driver=get_driver(cluster=replica["cluster_name"]))
+
     @authors("savrus")
     @pytest.mark.parametrize("mode", ["sync", "async"])
     @pytest.mark.parametrize("primary", [True, False])

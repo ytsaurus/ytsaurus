@@ -1529,7 +1529,26 @@ class YTEnvSetup(object):
             assert self.get_param("USE_SEQUOIA", cluster_index)
 
             yt_commands.remove("//tmp", force=True, driver=driver)
-            yt_commands.create("rootstock", "//tmp", force=True, driver=driver)
+            yt_commands.create(
+                "rootstock",
+                "//tmp",
+                attributes={
+                    "account": "tmp",
+                    "acl": [
+                        {
+                            "action": "allow",
+                            "permissions": ["read", "write", "remove"],
+                            "subjects": ["users"],
+                        },
+                        {
+                            "action": "allow",
+                            "permissions": ["read"],
+                            "subjects": ["everyone"],
+                        },
+                    ],
+                },
+                force=True,
+                driver=driver)
         elif self.ENABLE_TMP_PORTAL and cluster_index == 0:
             yt_commands.remove("//tmp", force=True, driver=driver)
             yt_commands.create(
@@ -1660,9 +1679,10 @@ class YTEnvSetup(object):
             yt_commands.gc_collect(driver=driver)
 
             if self._is_ground_cluster(cluster_index):
-
                 for table in DESCRIPTORS.get_group("transactions"):
                     wait(lambda: yt_commands.select_rows(f"* from [{table.get_default_path()}]", driver=driver) == [])
+
+                wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.doomed_transactions.get_default_path()}]", driver=driver) == [])
 
                 mangled_sys_operations = yt_sequoia_helpers.mangle_sequoia_path("//sys/operations")
 

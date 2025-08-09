@@ -31,9 +31,9 @@ public:
         return ETypeFlags::None;
     }
 
-    TAcdList ListAcds(TCypressNode* node) const override
+    TAcdList ListAcds(TCypressNode* trunkNode) const override
     {
-        return TAcdList{&node->Acd(), &node->As<TPortalExitNode>()->DirectAcd()};
+        return {&trunkNode->Acd(), &trunkNode->As<TPortalExitNode>()->DirectAcd()};
     }
 
 private:

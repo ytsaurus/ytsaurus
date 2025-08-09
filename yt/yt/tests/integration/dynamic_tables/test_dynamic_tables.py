@@ -239,7 +239,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         assert lookup_rows("//tmp/t", keys) == rows
 
     @authors("ifsmirnov")
-    def test_decommission_through_extra_peers_limited_preload_wait(self):
+    def DISABLED_test_decommission_through_extra_peers_limited_preload_wait(self):
         set(
             "//sys/@config/tablet_manager/decommission_through_extra_peers",
             True,

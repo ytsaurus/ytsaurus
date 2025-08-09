@@ -89,6 +89,8 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/yt/server/lib/security_server/helpers.h>
+
 #include <yt/yt/server/lib/sequoia/helpers.h>
 
 #include <yt/yt/ytlib/api/native/proto/transaction_actions.pb.h>
@@ -874,7 +876,7 @@ private:
 
     TAcdList DoListAcds(TCypressNode* node) override
     {
-        return UnderlyingHandler_->ListAcds(node);
+        return UnderlyingHandler_->ListAcds(node->GetTrunkNode());
     }
 
     std::optional<std::vector<std::string>> DoListColumns(TCypressNode* node) override
@@ -1399,7 +1401,10 @@ public:
         auto* node = RegisterNode(std::move(nodeHolder));
 
         // Set owner.
-        node->Acd().SetOwner(user);
+        {
+            auto acd = securityManager->GetAcd(node).AsMutable();
+            acd->SetOwner(user);
+        }
 
         NodeCreated_.Fire(node);
 
@@ -1478,7 +1483,11 @@ public:
         context->SetExternalCellTag(externalCellTag);
 
         const auto& handler = GetHandler(type);
-        return handler->MaterializeNode(context, factory);
+        auto clonedNode = handler->MaterializeNode(context, factory);
+
+        NodeCreated_.Fire(clonedNode);
+
+        return clonedNode;
     }
 
     TCypressMapNode* GetRootNode() const override
@@ -2727,9 +2736,6 @@ private:
     using TRecursiveResourceUsageCachePtr = TIntrusivePtr<TRecursiveResourceUsageCache>;
     const TRecursiveResourceUsageCachePtr RecursiveResourceUsageCache_;
 
-    // COMPAT(danilalexeev)
-    bool RecomputeNodeReachability_ = false;
-
     // COMPAT(shakurov)
     bool NeedResetHunkSpecificMediaOnTrunkNodes_ = false;
     // COMPAT(shakurov)
@@ -2794,11 +2800,6 @@ private:
             object->Namespace()->RegisterMember(object);
         }
 
-        // COMPAT(danilalexeev)
-        if (context.GetVersion() < EMasterReign::CypressNodeReachability) {
-            RecomputeNodeReachability_ = true;
-        }
-
         // COMPAT(shakurov)
         YT_VERIFY(EMasterReign::ResetHunkMediaOnBranchedNodes < EMasterReign::ResetHunkMediaOnBranchedNodesOnly);
         if (context.GetVersion() < EMasterReign::ResetHunkMediaOnBranchedNodes) {
@@ -2837,7 +2838,6 @@ private:
 
         RecursiveResourceUsageCache_->Clear();
 
-        RecomputeNodeReachability_ = false;
         NeedResetHunkSpecificMediaOnTrunkNodes_ = false;
         NeedResetHunkSpecificMediaOnBranchedNodes_ = false;
         ValidateLegacyCellMapsEmptyOnSnapshotLoaded_ = false;
@@ -2931,22 +2931,6 @@ private:
         YT_LOG_INFO("Finished initializing nodes");
 
         InitBuiltins();
-
-        // COMPAT(danilalexeev)
-        if (RecomputeNodeReachability_) {
-            YT_LOG_INFO("Determining Cypress nodes reachability");
-            for (auto [nodeId, node] : NodeMap_) {
-                if ((node->IsTrunk() && !IsObjectAlive(node)) || node->IsForeign()) {
-                    continue;
-                }
-                auto pathRootType = EPathRootType::Other;
-                GetNodePath(node->GetTrunkNode(), node->GetTransaction(), &pathRootType);
-                node->SetReachable(
-                    pathRootType != EPathRootType::SequoiaNode &&
-                    pathRootType != EPathRootType::Other);
-            }
-            YT_LOG_INFO("Finished determining Cypress nodes reachability");
-        }
 
         // COMPAT(shakurov)
         YT_VERIFY(!NeedResetHunkSpecificMediaOnTrunkNodes_ || NeedResetHunkSpecificMediaOnBranchedNodes_);
@@ -4266,12 +4250,16 @@ private:
         auto* sourceTrunkNode = sourceNode->GetTrunkNode();
 
         // Set owner.
-        if (factory->ShouldPreserveOwner()) {
-            clonedTrunkNode->Acd().SetOwner(sourceTrunkNode->Acd().GetOwner());
-        } else {
+        {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
-            auto* user = securityManager->GetAuthenticatedUser();
-            clonedTrunkNode->Acd().SetOwner(user);
+            auto clonedAcd = securityManager->GetAcd(clonedTrunkNode).AsMutable();
+            if (factory->ShouldPreserveOwner()) {
+                const auto sourceAcd = securityManager->GetAcd(sourceTrunkNode);
+                clonedAcd->SetOwner(sourceAcd->GetOwner());
+            } else {
+                auto* user = securityManager->GetAuthenticatedUser();
+                clonedAcd->SetOwner(user);
+            }
         }
 
         // Copy creation time.

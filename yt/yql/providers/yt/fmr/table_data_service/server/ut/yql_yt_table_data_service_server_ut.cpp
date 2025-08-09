@@ -3,11 +3,13 @@
 #include <library/cpp/testing/unittest/tests_data.h>
 #include <util/stream/file.h>
 #include <util/system/tempfile.h>
-#include <yt/yql/providers/yt/fmr/table_data_service/helpers/yql_yt_table_data_service_helpers.h>
+#include <yt/yql/providers/yt/fmr/test_tools/table_data_service/yql_yt_table_data_service_helpers.h>
 
 namespace NYql::NFmr {
 
-TString Key = "table_id_part_id:0";
+const TString Group = "table_id_part_id:";
+const TString ChunkId = "0";
+const TString Value = "test_content";
 
 Y_UNIT_TEST_SUITE(TableDataServiceWorkerTests) {
     Y_UNIT_TEST(SendGetRequestNonExistentKey) {
@@ -16,7 +18,7 @@ Y_UNIT_TEST_SUITE(TableDataServiceWorkerTests) {
         auto tableDataServiceServer = MakeTableDataServiceServer(port);
         auto tableDataServiceClient = MakeTableDataServiceClient(port);
 
-        auto gottenTableContent = tableDataServiceClient->Get(Key).GetValueSync();
+        auto gottenTableContent = tableDataServiceClient->Get(Group, ChunkId).GetValueSync();
         UNIT_ASSERT(!gottenTableContent);
     }
     Y_UNIT_TEST(SendGetRequestExistingKey) {
@@ -25,11 +27,10 @@ Y_UNIT_TEST_SUITE(TableDataServiceWorkerTests) {
         auto tableDataServiceServer = MakeTableDataServiceServer(port);
         auto tableDataServiceClient = MakeTableDataServiceClient(port);
 
-        TString tableContent = "test_content";
-        tableDataServiceClient->Put(Key, tableContent).Wait();
-        auto gottenTableContent = tableDataServiceClient->Get(Key).GetValueSync();
+        tableDataServiceClient->Put(Group, ChunkId, Value).Wait();
+        auto gottenTableContent = tableDataServiceClient->Get(Group, ChunkId).GetValueSync();
         UNIT_ASSERT(gottenTableContent);
-        UNIT_ASSERT_NO_DIFF(*gottenTableContent, tableContent);
+        UNIT_ASSERT_NO_DIFF(*gottenTableContent, Value);
     }
     Y_UNIT_TEST(SendDeleteRequestExistingKey) {
         TPortManager pm;
@@ -37,11 +38,10 @@ Y_UNIT_TEST_SUITE(TableDataServiceWorkerTests) {
         auto tableDataServiceServer = MakeTableDataServiceServer(port);
         auto tableDataServiceClient = MakeTableDataServiceClient(port);
 
-        TString tableContent = "test_content";
-        tableDataServiceClient->Put(Key, tableContent).Wait();
-        tableDataServiceClient->Delete(Key).Wait();
+        tableDataServiceClient->Put(Group, ChunkId, Value).Wait();
+        tableDataServiceClient->Delete(Group, ChunkId).Wait();
         Sleep(TDuration::Seconds(2)); // future returns only when deletion is registered, not completed, so have to sleep
-        auto gottenTableContent = tableDataServiceClient->Get(Key).GetValueSync();
+        auto gottenTableContent = tableDataServiceClient->Get(Group, ChunkId).GetValueSync();
         UNIT_ASSERT(!gottenTableContent);
     }
     Y_UNIT_TEST(SeveralTableDataSerivceServerNodes) {
@@ -67,18 +67,17 @@ Y_UNIT_TEST_SUITE(TableDataServiceWorkerTests) {
 
         auto tableDataServiceDiscovery = MakeFileTableDataServiceDiscovery({.Path=path});
         auto tableDataServiceClient = MakeTableDataServiceClient(tableDataServiceDiscovery);
-        TString tableContent = "test_content";
         std::vector<NThreading::TFuture<void>> putFutures;
         for (size_t i = 0; i < workersNum; ++i) {
-            auto key = "table_id_part_id:" + ToString(i);
-            putFutures.emplace_back(tableDataServiceClient->Put(key, tableContent + ToString(i)));
+            auto curGroup = Group + ToString(i), curChunkId = ChunkId + ToString(i);
+            putFutures.emplace_back(tableDataServiceClient->Put(curGroup, curChunkId, Value + ToString(i)));
         }
         NThreading::WaitAll(putFutures).Wait();
         for (size_t i = 0; i < workersNum; ++i) {
-            auto key = "table_id_part_id:" + ToString(i);
-            auto gottenTableContent = tableDataServiceClient->Get(key).GetValueSync();
+            auto curGroup = Group + ToString(i), curChunkId = ChunkId + ToString(i);
+            auto gottenTableContent = tableDataServiceClient->Get(curGroup, curChunkId).GetValueSync();
             UNIT_ASSERT(gottenTableContent);
-            UNIT_ASSERT_NO_DIFF(*gottenTableContent, tableContent + ToString(i));
+            UNIT_ASSERT_NO_DIFF(*gottenTableContent, Value + ToString(i));
         }
     }
     Y_UNIT_TEST(RegisterDeletion) {
@@ -87,18 +86,34 @@ Y_UNIT_TEST_SUITE(TableDataServiceWorkerTests) {
         auto tableDataServiceServer = MakeTableDataServiceServer(port);
         auto tableDataServiceClient = MakeTableDataServiceClient(port);
 
-        TString group = "table_id_part_id";
-        TString content = "test_content";
         ui64 keysNum = 10000;
         for (ui64 i = 0; i < keysNum; ++i) {
-            TString key = group + ":" + ToString(i);
-            tableDataServiceClient->Put(key, content +  ToString(i)).GetValueSync();
+            TString chunkId = ToString(i);
+            tableDataServiceClient->Put(Group, chunkId, Value + ToString(i)).GetValueSync();
         }
-        tableDataServiceClient->RegisterDeletion({group}).GetValueSync();
+        tableDataServiceClient->RegisterDeletion({Group}).GetValueSync();
 
         for (ui64 i = 0; i < keysNum; ++i) {
-            TString key = group + ":" + ToString(i);
-            UNIT_ASSERT(!tableDataServiceClient->Get(key).GetValueSync());
+            UNIT_ASSERT(!tableDataServiceClient->Get(Group, ToString(i)).GetValueSync());
+        }
+    }
+    Y_UNIT_TEST(Clear) {
+        TPortManager pm;
+        const ui16 port = pm.GetPort();
+        auto tableDataServiceServer = MakeTableDataServiceServer(port);
+        auto tableDataServiceClient = MakeTableDataServiceClient(port);
+
+        ui64 requestNum = 100;
+        for (ui64 i = 0; i < requestNum; ++i) {
+            for (ui64 j = 0; j < requestNum; ++j) {
+                tableDataServiceClient->Put(Group + ToString(i), ChunkId + ToString(j), "value" + ToString(i + j)).GetValueSync();
+            }
+        }
+        tableDataServiceClient->Clear().GetValueSync();
+        for (ui64 i = 0; i < requestNum; ++i) {
+            for (ui64 j = 0; j < requestNum; ++j) {
+                UNIT_ASSERT(!tableDataServiceClient->Get(Group + ToString(i), ChunkId + ToString(j)).GetValueSync());
+            }
         }
     }
 }

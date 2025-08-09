@@ -6,7 +6,6 @@
 
 #include <yt/yt/ytlib/object_client/proto/master_ypath.pb.h>
 
-#include <yt/yt/ytlib/sequoia_client/public.h>
 #include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
 
 #include <yt/yt/core/ytree/public.h>

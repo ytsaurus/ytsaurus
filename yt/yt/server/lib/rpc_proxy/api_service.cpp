@@ -4143,6 +4143,8 @@ private:
         }
         if (request->has_statistics_aggregation()) {
             options.StatisticsAggregation = CheckedEnumCast<EStatisticsAggregation>(request->statistics_aggregation());
+        } else if (config->QueryFeatureToggles->StatisticsAggregation) {
+            options.StatisticsAggregation = *config->QueryFeatureToggles->StatisticsAggregation;
         }
 
         auto detailedProfilingInfo = New<TDetailedProfilingInfo>();

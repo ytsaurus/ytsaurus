@@ -388,6 +388,60 @@ class TestHttpProxy(HttpProxyTestBase):
 
         wait(lambda: requests.get(self._get_proxy_address() + "/ping").ok)
 
+    @authors("rp-1")
+    def test_error_format(self):
+        proxy_address = self._get_proxy_address()
+
+        url = proxy_address + "/api/v4/get?path=//does_not_exist/@"
+
+        headers = {
+            "X-YT-Header-Format": "<format=text>yson",
+            "X-YT-Error-Format": "<annotate_with_types=%true>json",
+        }
+
+        rsp = requests.get(url, headers=headers)
+
+        error_json = json.loads(rsp.headers["X-YT-Error"])
+
+        assert "$type" in error_json["attributes"]["tid"]
+        assert "$value" in error_json["attributes"]["tid"]
+
+    @authors("rp-1")
+    def test_error_format_type(self):
+        proxy_address = self._get_proxy_address()
+
+        url = proxy_address + "/api/v4/get?path=//does_not_exist/@"
+
+        headers = {
+            "X-YT-Header-Format": "<format=text>yson",
+            "X-YT-Error-Format": "<format=text>yson",
+        }
+
+        rsp = requests.get(url, headers=headers)
+
+        assert rsp.headers["X-YT-Error-Content-Type"] == "application/x-yt-yson-text"
+
+    @authors("rp-1")
+    def test_error_web_json(self):
+        proxy_address = self._get_proxy_address()
+
+        url = proxy_address + "/api/v4/get?path=//does_not_exist/@"
+
+        headers = {
+            "X-YT-Header-Format": "<format=text>yson",
+            "X-YT-Error-Format": "web_json",
+        }
+
+        rsp = requests.get(url, headers=headers)
+
+        tid = json.loads(rsp.headers["X-YT-Error"])["attributes"]["tid"]
+
+        if isinstance(tid, int):
+            assert tid <= 2 ** 53 - 1
+        else:
+            assert "$type" in tid
+            assert "$value" in tid
+
 
 @pytest.mark.enabled_multidaemon
 class TestHttpProxyMemoryDrop(HttpProxyTestBase):
@@ -1938,9 +1992,7 @@ class TestHttpProxySignaturesBase(HttpProxyTestBase):
             },
             "generation": {
                 "cypress_key_writer": dict(),
-                "key_rotator": {
-                    "key_rotation_interval": "2h",
-                },
+                "key_rotator": dict(),
                 "generator": dict(),
             },
         },
@@ -2053,7 +2105,9 @@ class TestHttpProxySignaturesKeyRotation(TestHttpProxySignaturesBase):
         "signature_components": {
             "generation": {
                 "key_rotator": {
-                    "key_rotation_interval": "200ms",
+                    "key_rotation_options": {
+                        "period": "200ms",
+                    },
                 },
             },
         },
@@ -2080,7 +2134,9 @@ class TestHttpProxySignaturesKeyRotation(TestHttpProxySignaturesBase):
                             "path": new_path,
                         },
                         "key_rotator": {
-                            "key_rotation_interval": "5s",
+                            "key_rotation_options": {
+                                "period": "5s",
+                            },
                         },
                     },
                 },

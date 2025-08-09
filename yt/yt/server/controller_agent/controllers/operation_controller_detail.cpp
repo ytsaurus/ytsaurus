@@ -2232,7 +2232,7 @@ void TOperationControllerBase::CommitOutputCompletionTransaction()
 
     auto fetchAttributeAsObjectId = [&, this] (
         const TYPath& path,
-        const TString& attribute,
+        TStringBuf attribute,
         TTransactionId transactionId = NullTransactionId)
     {
         auto getRequest = TYPathProxy::Get(Format("%v/@%v", path, attribute));
@@ -2979,9 +2979,6 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
                     *req->mutable_statistics() = table->DataStatistics;
 
                     if (!table->IsFile()) {
-                        // COMPAT(h0pless): remove this when all masters are 24.2.
-                        req->set_schema_mode(ToProto(table->TableUploadOptions.SchemaMode));
-
                         req->set_optimize_for(ToProto(table->TableUploadOptions.OptimizeFor));
                         if (table->TableUploadOptions.ChunkFormat) {
                             req->set_chunk_format(ToProto(*table->TableUploadOptions.ChunkFormat));
@@ -6813,7 +6810,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
 
             for (const auto& table : tables) {
                 auto req = TTableYPathProxy::Get(table->GetObjectIdPath() + "/@");
-                ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+                ToProto(req->mutable_attributes()->mutable_keys(), std::vector<std::string>{
                     "schema_id",
                     "account",
                     "chunk_writer",
@@ -6878,7 +6875,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
 
         for (const auto& table : UpdatingTables_) {
             auto req = TTableYPathProxy::Get(table->GetObjectIdPath() + "/@");
-            ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+            ToProto(req->mutable_attributes()->mutable_keys(), std::vector<std::string>{
                 "effective_acl",
                 "tablet_state",
                 "backup_state",
@@ -7596,7 +7593,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
             {
                 auto req = TYPathProxy::Get(file.Path.GetPath() + "&/@");
                 SetTransactionId(req, *file.TransactionId);
-                ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+                ToProto(req->mutable_attributes()->mutable_keys(), std::vector<std::string>{
                     "key",
                     "file_name"
                 });
@@ -7663,13 +7660,15 @@ void TOperationControllerBase::GetUserFilesAttributes()
                                     THROW_ERROR_EXCEPTION("File %v is empty", file.Path);
                                 }
 
-                                auto access_method = file.Path.GetAccessMethod();
-                                if (!access_method) {
-                                    access_method = attributes.Find<TString>("access_method");
+                                auto accessMethod = file.Path.GetAccessMethod();
+                                if (!accessMethod) {
+                                    accessMethod = attributes.Find<TString>("access_method");
                                 }
 
+                                // We deliberately do not support filesystem in file.Path
+                                // since filesystem is the property of the actual file not its path.
                                 std::tie(file.AccessMethod, file.Filesystem) = GetAccessMethodAndFilesystemFromStrings(
-                                    access_method.value_or(ToString(ELayerAccessMethod::Local)),
+                                    accessMethod.value_or(ToString(ELayerAccessMethod::Local)),
                                     attributes.Find<TString>("filesystem").value_or(ToString(ELayerFilesystem::Archive)));
                             }
                             break;
@@ -10859,38 +10858,20 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(9, TeleportedOutputRowCount_,
         .SinceVersion(ESnapshotVersion::TeleportedOutputRowCount));
 
-    // COMPAT(coteeq)
-    PHOENIX_REGISTER_FIELD(10, InputManager_,
-        .SinceVersion(ESnapshotVersion::InputManagerIntroduction)
-        .WhenMissing([] (TThis* this_, auto& context) {
-            this_->InputManager_->PrepareToBeLoadedFromAncientVersion();
-            this_->InputManager_->InitializeClients(this_->InputClient_);
-            this_->InputManager_->LoadInputNodeDirectory(context);
-            this_->OutputNodeDirectory_ = this_->InputManager_->GetNodeDirectory(LocalClusterName);
-            this_->InputManager_->LoadInputTables(context);
-        }));
-    PHOENIX_REGISTER_FIELD(11, OutputNodeDirectory_,
-        .SinceVersion(ESnapshotVersion::OutputNodeDirectory)
-        .WhenMissing([] (TThis* this_, auto& /*context*/) {
-            this_->OutputNodeDirectory_ = this_->InputManager_->GetNodeDirectory(LocalClusterName);
-        }));
+    PHOENIX_REGISTER_FIELD(10, InputManager_);
+    PHOENIX_REGISTER_FIELD(11, OutputNodeDirectory_);
     PHOENIX_REGISTER_FIELD(12, InputStreamDirectory_);
     PHOENIX_REGISTER_FIELD(13, OutputTables_);
     PHOENIX_REGISTER_FIELD(14, StderrTable_);
     PHOENIX_REGISTER_FIELD(15, CoreTable_);
-    PHOENIX_REGISTER_FIELD(16, OutputNodeDirectory_,
-        .SinceVersion(ESnapshotVersion::RemoteInputForOperations));
+    // COMPAT(coteeq)
+    PHOENIX_REGISTER_DELETED_FIELD(16, TNodeDirectoryPtr, OutputNodeDirectory_, ESnapshotVersion::DropDuplicateOutputNodeDirectory);
     PHOENIX_REGISTER_FIELD(17, IntermediateTable_);
     PHOENIX_REGISTER_FIELD(18, UserJobFiles_,
         .template Serializer<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>());
     PHOENIX_REGISTER_FIELD(19, LivePreviewChunks_,
         .template Serializer<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>());
     PHOENIX_REGISTER_FIELD(20, Tasks_);
-    registrar
-        .template VirtualField<21>("InputChunkMap_", [] (TThis* this_, auto& context) {
-            this_->InputManager_->LoadInputChunkMap(context);
-        })
-        .BeforeVersion(ESnapshotVersion::InputManagerIntroduction)();
     PHOENIX_REGISTER_FIELD(22, IntermediateOutputCellTagList_);
     PHOENIX_REGISTER_FIELD(23, CellTagToRequiredOutputChunkListCount_);
     PHOENIX_REGISTER_FIELD(24, CellTagToRequiredDebugChunkListCount_);
@@ -10940,20 +10921,10 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(51, AcoName_,
         .SinceVersion(ESnapshotVersion::AcoName));
     PHOENIX_REGISTER_FIELD(52, BannedTreeIds_);
-    registrar
-        .template VirtualField<53>("PathToInputTables_", [] (TThis* this_, auto& context) {
-            this_->InputManager_->LoadPathToInputTables(context);
-        })
-        .BeforeVersion(ESnapshotVersion::InputManagerIntroduction)();
     PHOENIX_REGISTER_FIELD(54, JobMetricsDeltaPerTree_);
     PHOENIX_REGISTER_FIELD(55, TotalTimePerTree_);
     PHOENIX_REGISTER_FIELD(56, CompletedRowCount_);
     PHOENIX_REGISTER_FIELD(57, AutoMergeEnabled_);
-    registrar
-        .template VirtualField<58>("InputHasOrderedDynamicStores_", [] (TThis* this_, auto& context) {
-            this_->InputManager_->LoadInputHasOrderedDynamicStores(context);
-        })
-        .BeforeVersion(ESnapshotVersion::InputManagerIntroduction)();
     PHOENIX_REGISTER_FIELD(59, StandardStreamDescriptors_);
     PHOENIX_REGISTER_FIELD(60, MainResourceConsumptionPerTree_);
     PHOENIX_REGISTER_FIELD(61, EnableMasterResourceUsageAccounting_);

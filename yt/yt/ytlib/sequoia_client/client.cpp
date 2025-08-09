@@ -36,10 +36,10 @@ class TSequoiaClient
 public:
     TSequoiaClient(
         NNative::TSequoiaConnectionConfigPtr config,
-        NNative::IClientPtr localClient,
+        NNative::IConnectionPtr localConnection,
         TFuture<NNative::IClientPtr> groundClientFuture)
         : Config_(std::move(config))
-        , LocalClient_(std::move(localClient))
+        , LocalConnection_(std::move(localConnection))
         , GroundClientFuture_(std::move(groundClientFuture))
     { }
 
@@ -108,7 +108,7 @@ public:
 
 private:
     const NNative::TSequoiaConnectionConfigPtr Config_;
-    const NNative::IClientPtr LocalClient_;
+    const NNative::IConnectionPtr LocalConnection_;
     const TFuture<NNative::IClientPtr> GroundClientFuture_;
 
     NNative::IClientPtr GetGroundClientOrThrow()
@@ -119,7 +119,7 @@ private:
 
     NYPath::TYPath GetSequoiaTablePath(const TSequoiaTablePathDescriptor& tablePathDescriptor)
     {
-        return NSequoiaClient::GetSequoiaTablePath(LocalClient_, tablePathDescriptor);
+        return NSequoiaClient::GetSequoiaTablePath(LocalConnection_, tablePathDescriptor);
     }
 
     TFuture<TUnversionedLookupRowsResult> DoLookupRows(
@@ -208,7 +208,7 @@ private:
         return NDetail::StartSequoiaTransaction(
             this,
             type,
-            LocalClient_,
+            LocalConnection_,
             GetGroundClientOrThrow(),
             transactionStartOptions,
             sequoiaTransactionOptions);
@@ -219,12 +219,12 @@ private:
 
 ISequoiaClientPtr CreateSequoiaClient(
     NNative::TSequoiaConnectionConfigPtr config,
-    NNative::IClientPtr localClient,
+    NNative::IConnectionPtr localConnection,
     TFuture<NNative::IClientPtr> groundClientFuture)
 {
     return New<TSequoiaClient>(
         std::move(config),
-        std::move(localClient),
+        std::move(localConnection),
         std::move(groundClientFuture));
 }
 

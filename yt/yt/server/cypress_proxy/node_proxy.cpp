@@ -163,8 +163,9 @@ public:
         IBootstrap* bootstrap,
         TSequoiaSessionPtr session,
         TSequoiaResolveResult resolveResult,
-        std::vector<TResolvedPrerequisiteRevision> resolvedPrerequisiteRevisions)
-        : TNodeProxyBase(bootstrap, std::move(session))
+        std::vector<TResolvedPrerequisiteRevision> resolvedPrerequisiteRevisions,
+        const TAuthenticationIdentity& authenticationIdentity)
+        : TNodeProxyBase(bootstrap, std::move(session), authenticationIdentity)
         , Id_(resolveResult.Id)
         , Path_(resolveResult.Path)
         , ParentId_(resolveResult.ParentId)
@@ -558,7 +559,6 @@ protected:
         auto attributeFilter = request->has_attributes()
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
-
 
         auto limit = YT_OPTIONAL_FROM_PROTO(*request, limit);
 
@@ -2047,7 +2047,8 @@ INodeProxyPtr CreateNodeProxy(
     IBootstrap* bootstrap,
     TSequoiaSessionPtr session,
     TSequoiaResolveResult resolveResult,
-    std::vector<TResolvedPrerequisiteRevision> resolvedPrerequisiteRevisions)
+    std::vector<TResolvedPrerequisiteRevision> resolvedPrerequisiteRevisions,
+    const TAuthenticationIdentity& authenticationIdentity)
 {
     auto type = TypeFromId(resolveResult.Id);
     ValidateSupportedSequoiaType(type);
@@ -2057,15 +2058,22 @@ INodeProxyPtr CreateNodeProxy(
             bootstrap,
             std::move(session),
             std::move(resolveResult),
-            std::move(resolvedPrerequisiteRevisions));
+            std::move(resolvedPrerequisiteRevisions),
+            authenticationIdentity);
     } else if (IsSequoiaCompositeNodeType(type)) {
-        return New<TMapLikeNodeProxy>(bootstrap, std::move(session), std::move(resolveResult), std::move(resolvedPrerequisiteRevisions));
+        return New<TMapLikeNodeProxy>(
+            bootstrap,
+            std::move(session),
+            std::move(resolveResult),
+            std::move(resolvedPrerequisiteRevisions),
+            authenticationIdentity);
     } else {
         return New<TNodeProxy>(
             bootstrap,
             std::move(session),
             std::move(resolveResult),
-            std::move(resolvedPrerequisiteRevisions));
+            std::move(resolvedPrerequisiteRevisions),
+            authenticationIdentity);
     }
 }
 

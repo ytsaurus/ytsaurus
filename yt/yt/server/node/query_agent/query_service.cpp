@@ -414,7 +414,7 @@ private:
                 ToString(requestFeatureFlags));
         }
 
-        auto memoryChunkProvider = MemoryProvider_->GetProvider(
+        auto memoryChunkProvider = MemoryProvider_->GetOrCreateProvider(
             ToString(queryOptions.ReadSessionId),
             queryOptions.MemoryLimitPerNode,
             MemoryTracker_);
@@ -1813,7 +1813,7 @@ private:
 
         auto memoryLimitPerNode = YT_OPTIONAL_FROM_PROTO(*request, memory_limit_per_node);
 
-        auto memoryChunkProvider = MemoryProvider_->GetProvider(
+        auto memoryChunkProvider = MemoryProvider_->GetOrCreateProvider(
             ToString(sessionId),
             memoryLimitPerNode.value_or(std::numeric_limits<ui64>::max()),
             MemoryTracker_);

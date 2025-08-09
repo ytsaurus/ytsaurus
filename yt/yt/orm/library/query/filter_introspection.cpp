@@ -445,9 +445,9 @@ bool IsAttributeReference(const TExpressionList& exprList, TYPathBuf attributePa
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<TString> TryCastToStringValue(const TExpressionList& exprList) noexcept
+std::optional<std::string> TryCastToStringValue(const TExpressionList& exprList) noexcept
 {
-    return TryCastToLiteralValue(exprList).TryMoveAs<TString>();
+    return TryCastToLiteralValue(exprList).TryMoveAs<std::string>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

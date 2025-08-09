@@ -61,6 +61,10 @@ NYPath::TYPath GetSequoiaTablePath(
     const NApi::NNative::IClientPtr& client,
     const TSequoiaTablePathDescriptor& tablePathDescriptor);
 
+NYPath::TYPath GetSequoiaTablePath(
+    const NApi::NNative::IConnectionPtr& connection,
+    const TSequoiaTablePathDescriptor& tablePathDescriptor);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSequoiaClient

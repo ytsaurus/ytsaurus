@@ -38,12 +38,14 @@ DEFINE_ENUM(ESequoiaTable,
     (TransactionDescendants)
     (TransactionReplicas)
     (DependentTransactions)
+    (DoomedTransactions)
     (NodeForks)
     (NodeSnapshots)
     (PathForks)
     (ChildForks)
     (ResponseKeeper)
     (ChunkRefreshQueue)
+    (Acls)
 );
 
 DEFINE_ENUM(EGroundUpdateQueue,
@@ -53,6 +55,8 @@ DEFINE_ENUM(EGroundUpdateQueue,
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NRecords {
+
+struct TAcls;
 
 struct TPathToNodeId;
 struct TNodeIdToPath;

@@ -148,15 +148,20 @@ public:
         return NameToDevice_.contains(name);
     }
 
-    IBlockDevicePtr GetDevice(const TString& name) const override
+    IBlockDevicePtr GetDeviceOrThrow(const TString& name) const override
+    {
+        auto device = FindDevice(name);
+        if (!device) {
+            THROW_ERROR_EXCEPTION("No such device %Qv",
+                name);
+        }
+        return device;
+    }
+
+    IBlockDevicePtr FindDevice(const TString& name) const override
     {
         auto guard = ReaderGuard(NameToDeviceLock_);
-        auto it = NameToDevice_.find(name);
-        if (it == NameToDevice_.end()) {
-            return nullptr;
-        }
-
-        return it->second;
+        return GetOrDefault(NameToDevice_, name);
     }
 
     const NLogging::TLogger& GetLogger() const override
@@ -194,23 +199,6 @@ private:
         auto guard = ReaderGuard(NameToDeviceLock_);
         return {NameToDevice_.begin(), NameToDevice_.end()};
     }
-
-    IBlockDevicePtr FindDevice(const TString& name)
-    {
-        auto guard = ReaderGuard(NameToDeviceLock_);
-        return GetOrDefault(NameToDevice_, name);
-    }
-
-    IBlockDevicePtr GetDeviceOrThrow(const TString& name)
-    {
-        auto device = FindDevice(name);
-        if (!device) {
-            THROW_ERROR_EXCEPTION("No such device %Qv",
-                name);
-        }
-        return device;
-    }
-
 
     class TConnectionHandler
         : public TRefCounted

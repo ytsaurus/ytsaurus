@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/core/rpc/authentication_identity.h>
+
 namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,7 +47,9 @@ DEFINE_REFCOUNTED_TYPE(ISequoiaService);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISequoiaServicePtr CreateSequoiaService(IBootstrap* bootstrap);
+ISequoiaServicePtr CreateSequoiaService(
+    IBootstrap* bootstrap,
+    const NRpc::TAuthenticationIdentity authenticationIdentity);
 
 ////////////////////////////////////////////////////////////////////////////////
 

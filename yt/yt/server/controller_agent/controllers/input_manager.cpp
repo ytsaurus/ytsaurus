@@ -309,11 +309,20 @@ void TInputCluster::LockTables()
     auto proxy = CreateObjectServiceWriteProxy(Client_);
     auto batchReq = proxy.ExecuteBatchWithRetries(Client_->GetNativeConnection()->GetConfig()->ChunkFetchRetries);
 
+    // Making sure to lock only unique tables to avoid redundant lock requests.
+    // It's not unusual for a table to occur multiple times as input in the spec.
+    // (A typical scenario is working with multiple ranges of the same table.)
+    // NB: Assuming table->Path is normalized.
+    THashMap<std::pair<TYPath, TTransactionId>, std::vector<TInputTable*>> pathToInputTables(std::ssize(InputTables_));
     for (const auto& table : InputTables_) {
-        auto req = TTableYPathProxy::Lock(table->GetPath());
-        req->Tag() = table;
+        pathToInputTables[std::pair{table->GetPath(), *table->TransactionId}].push_back(table.Get());
+    }
+
+    for (const auto& [pathTransactionIdPair, tables] : pathToInputTables) {
+        auto req = TTableYPathProxy::Lock(pathTransactionIdPair.first);
+        req->Tag() = &pathTransactionIdPair;
         req->set_mode(ToProto(ELockMode::Snapshot));
-        SetTransactionId(req, *table->TransactionId);
+        SetTransactionId(req, pathTransactionIdPair.second);
         GenerateMutationId(req);
         batchReq->AddRequest(req);
     }
@@ -324,14 +333,19 @@ void TInputCluster::LockTables()
     const auto& batchRsp = batchRspOrError.Value();
     for (const auto& rspOrError : batchRsp->GetResponses<TCypressYPathProxy::TRspLock>()) {
         const auto& rsp = rspOrError.Value();
-        auto table = std::any_cast<TInputTablePtr>(rsp->Tag());
-        table->ObjectId = FromProto<TObjectId>(rsp->node_id());
-        table->Revision = FromProto<NHydra::TRevision>(rsp->revision());
-        table->ExternalCellTag = FromProto<TCellTag>(rsp->external_cell_tag());
-        table->ExternalTransactionId = rsp->has_external_transaction_id()
-            ? FromProto<TTransactionId>(rsp->external_transaction_id())
-            : *table->TransactionId;
-        PathToInputTables_[table->GetPath()].push_back(table);
+        const auto& pathTransactionIdPair = *std::any_cast<const std::pair<TYPath, TTransactionId>*>(rsp->Tag());
+        auto& inputTables = GetOrCrash(pathToInputTables, pathTransactionIdPair);
+        auto objectId = FromProto<TObjectId>(rsp->node_id());
+        auto revision = FromProto<NHydra::TRevision>(rsp->revision());
+        auto externalCellTag = FromProto<TCellTag>(rsp->external_cell_tag());
+        auto optionalExternalTransactionId = YT_OPTIONAL_FROM_PROTO(*rsp, external_transaction_id, TTransactionId);
+        for (auto& table : inputTables) {
+            table->ObjectId = objectId;
+            table->Revision = revision;
+            table->ExternalCellTag = externalCellTag;
+            table->ExternalTransactionId = optionalExternalTransactionId.value_or(*table->TransactionId);
+            PathToInputTables_[table->GetPath()].push_back(table);
+        }
     }
 }
 
@@ -822,7 +836,7 @@ void TInputManager::FetchInputTablesAttributes()
         auto batchReq = proxy.ExecuteBatch();
         for (const auto& table : tables) {
             auto req = TTableYPathProxy::Get(table->GetObjectIdPath() + "/@");
-            ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+            ToProto(req->mutable_attributes()->mutable_keys(), std::vector<std::string>{
                 "dynamic",
                 "chunk_count",
                 "retained_timestamp",
@@ -1489,67 +1503,13 @@ void TInputManager::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Host_);
-
     Persist(context, Logger);
-
     Persist(context, InputTables_);
-    if (context.GetVersion() < ESnapshotVersion::RemoteInputForOperations) {
-        const auto& emplacedIterator = EmplaceOrCrash(
-            Clusters_,
-            LocalClusterName,
-            New<TInputCluster>(LocalClusterName, Logger));
-        emplacedIterator->second->InputTables() = InputTables_;
-    }
-
-    if (context.GetVersion() < ESnapshotVersion::RemoteInputForOperations) {
-        Persist(context, GetClusterOrCrash(LocalClusterName)->NodeDirectory());
-    }
     Persist(context, InputChunkMap_);
-    if (context.GetVersion() < ESnapshotVersion::RemoteInputForOperations) {
-        Persist(context, GetClusterOrCrash(LocalClusterName)->UnavailableInputChunkIds());
-    }
     Persist(context, InputHasStaticTableWithHunks_);
     Persist(context, InputHasOrderedDynamicStores_);
-    if (context.GetVersion() >= ESnapshotVersion::RemoteInputForOperations) {
-        Persist(context, Clusters_);
-        Persist(context, ClusterResolver_);
-    }
-}
-
-void TInputManager::PrepareToBeLoadedFromAncientVersion()
-{
-    Clusters_[LocalClusterName] = New<TInputCluster>(LocalClusterName, Logger);
-}
-
-void TInputManager::LoadInputNodeDirectory(const TPersistenceContext& context)
-{
-    YT_VERIFY(context.IsLoad() && context.GetVersion() < ESnapshotVersion::InputManagerIntroduction);
-    NYT::Persist(context, GetClusterOrCrash(LocalClusterName)->NodeDirectory());
-}
-
-void TInputManager::LoadInputChunkMap(const TPersistenceContext& context)
-{
-    YT_VERIFY(context.IsLoad() && context.GetVersion() < ESnapshotVersion::InputManagerIntroduction);
-    NYT::Persist(context, InputChunkMap_);
-}
-
-void TInputManager::LoadPathToInputTables(const TPersistenceContext& context)
-{
-    YT_VERIFY(context.IsLoad() && context.GetVersion() < ESnapshotVersion::InputManagerIntroduction);
-    NYT::Persist(context, GetClusterOrCrash(LocalClusterName)->PathToInputTables());
-}
-
-void TInputManager::LoadInputTables(const TPersistenceContext& context)
-{
-    YT_VERIFY(context.IsLoad() && context.GetVersion() < ESnapshotVersion::InputManagerIntroduction);
-    NYT::Persist(context, InputTables_);
-    GetClusterOrCrash(LocalClusterName)->InputTables() = InputTables_;
-}
-
-void TInputManager::LoadInputHasOrderedDynamicStores(const TPersistenceContext& context)
-{
-    YT_VERIFY(context.IsLoad() && context.GetVersion() < ESnapshotVersion::InputManagerIntroduction);
-    NYT::Persist(context, InputHasOrderedDynamicStores_);
+    Persist(context, Clusters_);
+    Persist(context, ClusterResolver_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

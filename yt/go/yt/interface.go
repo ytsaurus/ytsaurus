@@ -174,6 +174,14 @@ type GetNodeOptions struct {
 	Attributes []string `http:"attributes,omitnil"`
 	MaxSize    *int64   `http:"max_size,omitnil"`
 
+	// Format is YSON-serializable output format. If not specified "yson" will be used.
+	//
+	// This option is supported only by the HTTP client.
+	//
+	// Possible values:
+	//   - "json".
+	Format any `http:"output_format,omitnil"`
+
 	*TransactionOptions
 	*AccessTrackingOptions
 	*PrerequisiteOptions

@@ -8,17 +8,14 @@
 
 namespace NYT::NTabletNode {
 
-using namespace NConcurrency;
-using namespace NCellarNode;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IMediumThrottlerManager
     : public TRefCounted
 {
-    virtual IReconfigurableThroughputThrottlerPtr GetMediumWriteThrottler(const std::string& mediumName) = 0;
+    virtual NConcurrency::IReconfigurableThroughputThrottlerPtr GetOrCreateMediumWriteThrottler(const std::string& mediumName) = 0;
 
-    virtual IReconfigurableThroughputThrottlerPtr GetMediumReadThrottler(const std::string& mediumName) = 0;
+    virtual NConcurrency::IReconfigurableThroughputThrottlerPtr GetOrCreateMediumReadThrottler(const std::string& mediumName) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMediumThrottlerManager)
@@ -36,9 +33,9 @@ DEFINE_REFCOUNTED_TYPE(IMediumThrottlerManagerFactory)
 ////////////////////////////////////////////////////////////////////////////////
 
 IMediumThrottlerManagerFactoryPtr CreateMediumThrottlerManagerFactory(
-    TBundleDynamicConfigManagerPtr dynamicConfigManager,
+    NCellarNode::TBundleDynamicConfigManagerPtr dynamicConfigManager,
     IDistributedThrottlerManagerPtr distributedThrottlerManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode::NYT
+} // namespace NYT::NTabletNode

@@ -8,8 +8,6 @@
 
 namespace NYT::NLogging {
 
-using namespace NTableClient;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStructuredCategoryRegistry
@@ -17,18 +15,18 @@ class TStructuredCategoryRegistry
 public:
     static TStructuredCategoryRegistry* Get();
 
-    void RegisterStructuredCategory(TString category, TTableSchemaPtr schema);
+    void RegisterStructuredCategory(TString category, NTableClient::TTableSchemaPtr schema);
 
     void DumpCategories(NYson::IYsonConsumer* consumer);
 
 private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
-    THashMap<TString, TTableSchemaPtr> Categories_;
+    THashMap<TString, NTableClient::TTableSchemaPtr> Categories_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLogger CreateSchemafulLogger(TString category, TTableSchemaPtr schema);
+TLogger CreateSchemafulLogger(TString category, NTableClient::TTableSchemaPtr schema);
 
 ////////////////////////////////////////////////////////////////////////////////
 

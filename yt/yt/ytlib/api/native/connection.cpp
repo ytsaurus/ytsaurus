@@ -998,7 +998,7 @@ public:
 
         auto sequoiaClient = NSequoiaClient::CreateSequoiaClient(
             config,
-            std::move(localClient),
+            this,
             std::move(groundClientFuture));
 
         if (auto existingSequoiaClient = CachedSequoiaClient_.Exchange(sequoiaClient)) {
@@ -1478,15 +1478,9 @@ TStickyGroupSizeCache::TKey::operator size_t() const
 
 bool TStickyGroupSizeCache::TKey::operator == (const TKey& other) const
 {
-    if (Key != other.Key || Message.Size() != other.Message.Size()) {
-        return false;
-    }
-    for (int i = 0; i < std::ssize(Message); ++i) {
-        if (!TRef::AreBitwiseEqual(Message[i], other.Message[i])) {
-            return false;
-        }
-    }
-    return true;
+    return
+        Key == other.Key &&
+        TSharedRefArray::AreBitwiseEqual(Message, other.Message);
 }
 
 TStickyGroupSizeCache::TStickyGroupSizeCache(TDuration expirationTimeout)

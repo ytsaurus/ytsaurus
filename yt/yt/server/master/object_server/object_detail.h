@@ -62,7 +62,10 @@ protected:
     NCellMaster::TBootstrap* const Bootstrap_;
     TObjectTypeMetadata* const Metadata_;
     TObject* const Object_;
-    bool ModificationTrackingSuppressed_ = false;
+    // NB: the only cases of using the same object proxy from different threads
+    // is master object proxy. This flag is meaningless for it but we have to
+    // use atomic here to make TSAN happy.
+    std::atomic_flag ModificationTrackingSuppressed_ = {};
     NYTree::IAttributeDictionary* CustomAttributes_ = nullptr;
 
     struct TGetBasicAttributesContext
@@ -82,7 +85,6 @@ protected:
     };
 
     virtual void SetModified(EModificationType modificationType);
-    void SuppressModificationTracking();
 
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetBasicAttributes);
     virtual void GetBasicAttributes(TGetBasicAttributesContext* context);
@@ -93,9 +95,6 @@ protected:
     //! for non-versioned objects and additionally includes transaction id for
     //! versioned ones.
     virtual TVersionedObjectId GetVersionedId() const = 0;
-
-    //! Returns the ACD for the object or |nullptr| is none exists.
-    virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() = 0;
 
     void BeforeInvoke(const NYTree::IYPathServiceContextPtr& context) override;
     bool DoInvoke(const NYTree::IYPathServiceContextPtr& context) override;
@@ -262,7 +261,6 @@ protected:
     void RemoveSelf(TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context) override;
 
     TVersionedObjectId GetVersionedId() const override;
-    NSecurityServer::TAccessControlDescriptor* FindThisAcd() override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -75,21 +75,7 @@ void TChaosReplicatedTableNode::Load(TLoadContext& context)
     Load(context, ReplicationCardId_);
     Load(context, OwnsReplicationCard_);
     Load(context, TreatAsQueueConsumer_);
-
-    // COMPAT(apachee): Remove user attributes conflicting with new producer attributes.
-    if (context.GetVersion() >= EMasterReign::QueueProducers) {
-        Load(context, TreatAsQueueProducer_);
-    } else if (Attributes_) {
-        static constexpr std::array producerRelatedAttributes = {
-            EInternedAttributeKey::TreatAsQueueProducer,
-            EInternedAttributeKey::QueueProducerStatus,
-            EInternedAttributeKey::QueueProducerPartitions,
-        };
-        for (const auto& attribute : producerRelatedAttributes) {
-            Attributes_->TryRemove(attribute.Unintern());
-        }
-    }
-
+    Load(context, TreatAsQueueProducer_);
     Load(context, QueueAgentStage_);
 }
 

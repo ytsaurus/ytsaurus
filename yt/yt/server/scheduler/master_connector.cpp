@@ -1680,7 +1680,7 @@ private:
                 for (auto transactionId : possibleTransactions)
                 {
                     auto req = TYPathProxy::Get(GetOperationPath(operation->GetId()) + "/@");
-                    ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{CommittedAttribute});
+                    ToProto(req->mutable_attributes()->mutable_keys(), std::vector<std::string>{CommittedAttribute});
                     SetTransactionId(req, transactionId);
                     batchReq->AddRequest(req, getBatchKey(operation));
                 }

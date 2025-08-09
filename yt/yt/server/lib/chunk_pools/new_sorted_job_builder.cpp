@@ -423,7 +423,7 @@ private:
     TBernoulliSampler JobSampler_;
 
     const std::optional<TResourceVector> LimitVector_;
-    const IJobSizeTrackerPtr JobSizeTracker_;
+    const std::unique_ptr<IJobSizeTracker> JobSizeTracker_;
 
     const TRowBufferPtr RowBuffer_;
 
@@ -469,7 +469,7 @@ private:
     //! Used for structured logging.
     std::vector<TLegacyDataSlicePtr> InputDataSlices_;
 
-    ISortedStagingAreaPtr StagingArea_;
+    std::unique_ptr<ISortedStagingArea> StagingArea_;
 
     void AddPivotKeysEndpoints()
     {
@@ -1083,10 +1083,13 @@ private:
 
         AttachForeignSlices(TKeyBound::MakeUniversal(/*isUpper*/ true), periodicYielder);
 
-        StagingArea_->Finish();
-        StagingArea_->PutBarrier();
+        // XXX(apollo1321): Is adding +1 to the total data slice count really necessary?
+        TotalDataSliceCount_ = StagingArea_->GetTotalDataSliceCount() + 1;
+        auto preparedJobs = std::move(*StagingArea_).Finish();
 
-        for (auto& preparedJob : StagingArea_->PreparedJobs()) {
+        preparedJobs.emplace_back().SetIsBarrier(true);
+
+        for (auto& preparedJob : preparedJobs) {
             periodicYielder.TryYield();
 
             if (preparedJob.GetIsBarrier()) {
@@ -1099,8 +1102,6 @@ private:
         JobSizeConstraints_->UpdateInputDataWeight(TotalDataWeight_);
 
         YT_LOG_DEBUG("Jobs created (Count: %v)", Jobs_.size());
-
-        TotalDataSliceCount_ = StagingArea_->GetTotalDataSliceCount();
     }
 };
 

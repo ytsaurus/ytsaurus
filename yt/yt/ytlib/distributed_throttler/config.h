@@ -43,7 +43,6 @@ struct TDistributedThrottlerConfig
 
     EDistributedThrottlerMode Mode;
     EDistributedThrottlerMemberPriorityGenerator MemberPriorityGenerator;
-    std::optional<i64> MemberPriority;
     double ExtraLimitRatio;
 
     int HeartbeatThrottlerCountLimit;

@@ -78,6 +78,7 @@ class TSubject;
 struct TAccessControlEntry;
 struct TAccessControlList;
 class TAccessControlDescriptor;
+class TWrappedAccessControlDescriptorPtr;
 
 struct TAcdOverride;
 

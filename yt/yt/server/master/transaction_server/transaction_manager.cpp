@@ -66,6 +66,9 @@
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 
+#include <yt/yt/ytlib/sequoia_client/records/doomed_transactions.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/transactions.record.h>
+
 #include <yt/yt/ytlib/tablet_client/bulk_insert_locking.h>
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
@@ -313,6 +316,14 @@ public:
         RegisterTransactionActionHandlers<NProto::TReqMaterializeCypressTransactionReplicas>({
             .Commit = BIND_NO_PROPAGATE(
                 &TTransactionManager::HydraCommitMaterializeCypressTransactionReplicas,
+                Unretained(this)),
+        });
+
+        // Revoke leases of a Cypress Tx
+        // Coordinator: TReqRevokeCypressTransactionLeases, late prepare
+        RegisterTransactionActionHandlers<NProto::TReqRevokeCypressTransactionLeases>({
+            .Prepare = BIND_NO_PROPAGATE(
+                &TTransactionManager::HydraPrepareAndCommitRevokeLeases,
                 Unretained(this)),
         });
     }
@@ -926,7 +937,7 @@ public:
 
         if (transaction->GetSuccessorTransactionLeaseCount() > 0) {
             if (options.Force) {
-                RevokeLeases(transaction, /*force*/ true);
+                DoRevokeLeases(transaction, /*force*/ true);
                 YT_VERIFY(transaction->GetSuccessorTransactionLeaseCount() == 0);
             } else {
                 ThrowTransactionSuccessorHasLeases(transaction);
@@ -2887,12 +2898,10 @@ private:
         bulkInsertState.AddLockableDynamicTables(std::move(lockableDynamicTablesToAdd));
     }
 
-    void HydraRevokeLeases(NProto::TReqRevokeLeases* request)
+    void RevokeLeases(TTransactionId transactionId)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
-        YT_VERIFY(HasHydraContext());
 
-        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto* transaction = FindTransaction(transactionId);
         if (!transaction) {
             YT_LOG_DEBUG(
@@ -2901,10 +2910,30 @@ private:
             return;
         }
 
-        RevokeLeases(transaction, /*force*/ false);
+        DoRevokeLeases(transaction, /*force*/ false);
     }
 
-    void RevokeLeases(TTransaction* transaction, bool force)
+    void HydraPrepareAndCommitRevokeLeases(
+        TTransaction* /*sequoiaTransaction*/,
+        NProto::TReqRevokeCypressTransactionLeases* request,
+        const TTransactionPrepareOptions& options)
+    {
+        YT_VERIFY(options.LatePrepare);
+
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        RevokeLeases(transactionId);
+    }
+
+    void HydraRevokeLeases(NProto::TReqRevokeLeases* request)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasHydraContext());
+
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        RevokeLeases(transactionId);
+    }
+
+    void DoRevokeLeases(TTransaction* transaction, bool force)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
@@ -3515,39 +3544,56 @@ private:
         }
     }
 
+    TFuture<void> GetLeaseRevocationFuture(TTransactionId transactionId)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        auto* transaction = FindTransaction(transactionId);
+        // Transaction was already committed or aborted. Let commit and abort
+        // handlers deal with it.
+        if (!transaction) {
+            return VoidFuture;
+        }
+
+        if (transaction->GetTransactionLeasesState() == ETransactionLeasesState::Active) {
+            YT_LOG_ALERT(
+                "Attempted to subscribe to lease revocation for a transaction in active leasing state"
+                "(TransactionId: %v, LeasesState: %v)",
+                transaction->GetId(),
+                transaction->GetTransactionLeasesState());
+            return VoidFuture;
+        }
+
+        if (GetDynamicConfig()->ThrowOnLeaseRevocation) {
+            auto error = TError("Testing error");
+            return MakeFuture<void>(error);
+        }
+
+        auto leaseRevocationFuture = transaction->LeasesRevokedPromise().ToFuture();
+        return leaseRevocationFuture.ToUncancelable();
+    }
+
     TFuture<void> RevokeTransactionLeases(TTransactionId transactionId)
     {
+        if (IsCypressTransactionMirroredToSequoia(transactionId) && IsMirroringToSequoiaEnabled()) {
+            return DoomCypressTransactionInSequoia(Bootstrap_, transactionId, NRpc::GetRootAuthenticationIdentity())
+                .Apply(BIND(
+                    &TTransactionManager::GetLeaseRevocationFuture,
+                    MakeStrong(this),
+                    transactionId)
+                        .AsyncVia(EpochAutomatonInvoker_));
+        }
+
         NProto::TReqRevokeLeases request;
         ToProto(request.mutable_transaction_id(), transactionId);
         auto mutation = CreateMutation(HydraManager_, request);
         mutation->SetCurrentTraceContext();
-        return mutation->Commit().AsVoid().Apply(BIND([=, this, this_ = MakeStrong(this)] {
-            YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
-
-            auto* transaction = FindTransaction(transactionId);
-            // Transaction was already committed or aborted. Let commit and abort handler
-            // deal with it.
-            if (!transaction) {
-                return VoidFuture;
-            }
-
-            if (transaction->GetTransactionLeasesState() == ETransactionLeasesState::Active) {
-                YT_LOG_ALERT(
-                    "Transaction has unexpected leases state after lease revocation "
-                    "(TransactionId: %v, LeasesState: %v)",
-                    transaction->GetId(),
-                    transaction->GetTransactionLeasesState());
-                return VoidFuture;
-            }
-
-            if (GetDynamicConfig()->ThrowOnLeaseRevocation) {
-                auto error = TError("Testing error");
-                return MakeFuture<void>(error);
-            }
-
-            auto leaseRevocationFuture = transaction->LeasesRevokedPromise().ToFuture();
-            return leaseRevocationFuture.ToUncancelable();
-        }).AsyncVia(EpochAutomatonInvoker_));
+        return mutation->Commit().AsVoid()
+            .Apply(BIND(
+                &TTransactionManager::GetLeaseRevocationFuture,
+                MakeStrong(this),
+                transactionId)
+                    .AsyncVia(EpochAutomatonInvoker_));
     }
 
     void OnLeaseRevoked(TLeaseId leaseId, TCellId cellId)

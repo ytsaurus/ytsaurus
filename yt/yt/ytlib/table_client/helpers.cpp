@@ -354,7 +354,7 @@ std::tuple<std::vector<NChunkClient::TInputChunkPtr>, TTableSchemaPtr, bool> Col
         auto req = TYPathProxy::Get(userObject.GetObjectIdPath() + "/@");
         AddCellTagToSyncWith(req, userObject.ObjectId);
         SetTransactionId(req, userObject.ExternalTransactionId);
-        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<std::string>{
             "chunk_count",
             "dynamic",
             "schema"

@@ -95,7 +95,7 @@ TResourceVector AdjustProposedIntegralShare(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TElement::DetermineEffectiveStrongGuaranteeResources(TFairShareUpdateContext* /* context */)
+void TElement::DetermineInferredStrongGuaranteeResources(TFairShareUpdateContext* /* context */)
 { }
 
 bool TElement::IsOperation() const
@@ -133,12 +133,7 @@ void TElement::UpdateAttributes(const TFairShareUpdateContext* context)
     YT_VERIFY(Dominates(TResourceVector::Ones(), Attributes().LimitsShare));
     YT_VERIFY(Dominates(Attributes().LimitsShare, TResourceVector::Zero()));
 
-    Attributes().StrongGuaranteeShare = TResourceVector::FromJobResources(Attributes().EffectiveStrongGuaranteeResources, context->TotalResourceLimits);
-
-    // NB: We need to ensure that |FairShareByFitFactor_(0.0)| is less than or equal to |LimitsShare| so that there exists a feasible fit factor and |MaxFitFactorBySuggestion_| is well defined.
-    // To achieve this we limit |StrongGuarantee| with |LimitsShare| here, and later adjust the sum of children's |StrongGuarantee| to fit into the parent's |StrongGuarantee|.
-    // This way children can't ask more than parent's |LimitsShare| when given a zero suggestion.
-    Attributes().StrongGuaranteeShare = TResourceVector::Min(Attributes().StrongGuaranteeShare, Attributes().LimitsShare);
+    Attributes().StrongGuaranteeShare = TResourceVector::FromJobResources(Attributes().InferredStrongGuaranteeResources, context->TotalResourceLimits);
 
     if (GetResourceUsageAtUpdate() == TJobResources()) {
         Attributes().DominantResource = GetDominantResource(GetResourceDemand(), context->TotalResourceLimits);
@@ -314,45 +309,45 @@ TResourceVector TElement::GetTotalTruncatedFairShare(EFairShareType type) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCompositeElement::DetermineEffectiveStrongGuaranteeResources(TFairShareUpdateContext* context)
+void TCompositeElement::DetermineInferredStrongGuaranteeResources(TFairShareUpdateContext* context)
 {
     TJobResources totalExplicitChildrenGuaranteeResources;
     for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         auto* child = GetChild(childIndex);
 
-        auto& childEffectiveGuaranteeResources = child->Attributes().EffectiveStrongGuaranteeResources;
-        childEffectiveGuaranteeResources = ToJobResources(
+        auto& childInferredGuaranteeResources = child->Attributes().InferredStrongGuaranteeResources;
+        childInferredGuaranteeResources = ToJobResources(
             *child->GetStrongGuaranteeResourcesConfig(),
             /* defaultValue */ {});
-        totalExplicitChildrenGuaranteeResources += childEffectiveGuaranteeResources;
+        totalExplicitChildrenGuaranteeResources += childInferredGuaranteeResources;
     }
 
-    const auto& effectiveStrongGuaranteeResources = Attributes().EffectiveStrongGuaranteeResources;
-    if (!IsRoot() && !Dominates(effectiveStrongGuaranteeResources, totalExplicitChildrenGuaranteeResources)) {
+    const auto& inferredStrongGuaranteeResources = Attributes().InferredStrongGuaranteeResources;
+    if (!IsRoot() && !Dominates(inferredStrongGuaranteeResources, totalExplicitChildrenGuaranteeResources)) {
         const auto& Logger = GetLogger();
         // NB: This should never happen because we validate the guarantees at master.
         YT_LOG_WARNING(
             "Total children's explicit strong guarantees exceeds the effective strong guarantee at pool "
-            "(EffectiveStrongGuarantees: %v, TotalExplicitChildrenGuarantees: %v)",
-            effectiveStrongGuaranteeResources,
+            "(InferredStrongGuarantees: %v, TotalExplicitChildrenGuarantees: %v)",
+            inferredStrongGuaranteeResources,
             totalExplicitChildrenGuaranteeResources);
     }
 
-    DetermineImplicitEffectiveStrongGuaranteeResources(totalExplicitChildrenGuaranteeResources, context);
+    DetermineImplicitInferredStrongGuaranteeResources(totalExplicitChildrenGuaranteeResources, context);
 
     for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
-        GetChild(childIndex)->DetermineEffectiveStrongGuaranteeResources(context);
+        GetChild(childIndex)->DetermineInferredStrongGuaranteeResources(context);
     }
 }
 
-void TCompositeElement::DetermineImplicitEffectiveStrongGuaranteeResources(
+void TCompositeElement::DetermineImplicitInferredStrongGuaranteeResources(
     const TJobResources& totalExplicitChildrenGuaranteeResources,
     TFairShareUpdateContext* context)
 {
-    const auto& effectiveStrongGuaranteeResources = Attributes().EffectiveStrongGuaranteeResources;
-    auto residualGuaranteeResources = Max(effectiveStrongGuaranteeResources - totalExplicitChildrenGuaranteeResources, TJobResources{});
+    const auto& inferredStrongGuaranteeResources = Attributes().InferredStrongGuaranteeResources;
+    auto residualGuaranteeResources = Max(inferredStrongGuaranteeResources - totalExplicitChildrenGuaranteeResources, TJobResources{});
     auto mainResourceType = context->Options.MainResource;
-    auto parentMainResourceGuarantee = GetResource(effectiveStrongGuaranteeResources, mainResourceType);
+    auto parentMainResourceGuarantee = GetResource(inferredStrongGuaranteeResources, mainResourceType);
     auto doDetermineImplicitGuarantees = [&] (const auto TJobResourcesConfig::* resourceDataMember, EJobResourceType resourceType) {
         if (resourceType == mainResourceType) {
             return;
@@ -362,7 +357,7 @@ void TCompositeElement::DetermineImplicitEffectiveStrongGuaranteeResources(
         implicitGuarantees.resize(GetChildCount());
 
         auto residualGuarantee = GetResource(residualGuaranteeResources, resourceType);
-        auto parentResourceGuarantee = GetResource(effectiveStrongGuaranteeResources, resourceType);
+        auto parentResourceGuarantee = GetResource(inferredStrongGuaranteeResources, resourceType);
         double totalImplicitGuarantee = 0.0;
         for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
             auto* child = GetChild(childIndex);
@@ -370,7 +365,7 @@ void TCompositeElement::DetermineImplicitEffectiveStrongGuaranteeResources(
                 continue;
             }
 
-            auto childMainResourceGuarantee = GetResource(child->Attributes().EffectiveStrongGuaranteeResources, mainResourceType);
+            auto childMainResourceGuarantee = GetResource(child->Attributes().InferredStrongGuaranteeResources, mainResourceType);
             double mainResourceRatio = parentMainResourceGuarantee > 0
                 ? childMainResourceGuarantee / parentMainResourceGuarantee
                 : 0.0;
@@ -394,7 +389,7 @@ void TCompositeElement::DetermineImplicitEffectiveStrongGuaranteeResources(
         for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
             auto* child = GetChild(childIndex);
             if (const auto& childImplicitGuarantee = implicitGuarantees[childIndex]) {
-                SetResource(child->Attributes().EffectiveStrongGuaranteeResources, resourceType, *childImplicitGuarantee);
+                SetResource(child->Attributes().InferredStrongGuaranteeResources, resourceType, *childImplicitGuarantee);
             }
         }
     };
@@ -497,7 +492,13 @@ void TCompositeElement::AdjustStrongGuarantees(const TFairShareUpdateContext* co
 {
     const auto& Logger = GetLogger();
 
-    //! We adjust strong guarantees of children, when their sum is greater than the parent's.
+    //! First we adjust pool's strong guarantees so that they do not exceed pool's resource limits.
+    // We need to ensure that |FairShareByFitFactor_(0.0)| is less than or equal to |LimitsShare| so that there exists a feasible fit factor and |MaxFitFactorBySuggestion_| is well defined.
+    // To achieve this we limit |StrongGuarantee| with |LimitsShare| here, and later adjust the sum of children's |StrongGuarantee| to fit into the parent's |StrongGuarantee|.
+    // This way children can't ask more than parent's |LimitsShare| when given a zero suggestion.
+    Attributes().StrongGuaranteeShare = TResourceVector::Min(Attributes().StrongGuaranteeShare, Attributes().LimitsShare);
+
+    //! Then we adjust strong guarantees of children, if their sum is greater than the parent's.
     //! This process starts at the root, when total resource limits are not big enough, and proceeds recursively.
     //! In the simple case, adjustment is done by decreasing children's guarantees proportionally until their sum becomes feasible.
     //!
@@ -1283,12 +1284,12 @@ void TCompositeElement::UpdateOverflowAndAcceptableVolumesRecursively()
 
     TResourceVolume::ForEachResource([&] (EJobResourceType /*resourceType*/, auto TResourceVolume::* resourceDataMember) {
         auto diff = attributes.ChildrenVolumeOverflow.*resourceDataMember - childrenAcceptableVolume.*resourceDataMember;
-        if (diff > 0) {
+        if (diff > static_cast<decltype(diff)>(0L)) {
             attributes.VolumeOverflow.*resourceDataMember = diff;
-            attributes.AcceptableVolume.*resourceDataMember = 0;
+            attributes.AcceptableVolume.*resourceDataMember = static_cast<std::decay_t<decltype(attributes.AcceptableVolume.*resourceDataMember)>>(0L);
         } else {
-            attributes.VolumeOverflow.*resourceDataMember = 0;
-            attributes.AcceptableVolume.*resourceDataMember = canAcceptFreeVolume ? -diff : 0;
+            attributes.VolumeOverflow.*resourceDataMember = static_cast<std::decay_t<decltype(attributes.VolumeOverflow.*resourceDataMember)>>(0L);
+            attributes.AcceptableVolume.*resourceDataMember = canAcceptFreeVolume ? -diff : static_cast<decltype(diff)>(0L);
         }
     });
 
@@ -1329,15 +1330,17 @@ void TCompositeElement::DistributeFreeVolume()
         };
 
         TResourceVolume::ForEachResource([&] (EJobResourceType /*resourceType*/, auto TResourceVolume::* resourceDataMember) {
-            if (freeVolume.*resourceDataMember  == 0) {
+            if (freeVolume.*resourceDataMember == static_cast<std::decay_t<decltype(freeVolume.*resourceDataMember)>>(0L)) {
                 return;
             }
             std::vector<TChildAttributes> hungryChildren;
             auto weightSum = 0.0;
             for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
                 auto& childAttributes = GetChild(childIndex)->Attributes();
-                if (childAttributes.AcceptableVolume.*resourceDataMember > RatioComputationPrecision &&
-                    childAttributes.TotalResourceFlowRatio > RatioComputationPrecision)
+                if (childAttributes.AcceptableVolume.*resourceDataMember >
+                        static_cast<std::decay_t<decltype(childAttributes.AcceptableVolume.*resourceDataMember)>>(RatioComputationPrecision) &&
+                    childAttributes.TotalResourceFlowRatio >
+                        static_cast<std::decay_t<decltype(childAttributes.TotalResourceFlowRatio)>>(RatioComputationPrecision))
                 {
                     // Resource flow is taken as weight.
                     auto weight = childAttributes.TotalResourceFlowRatio;
@@ -1364,7 +1367,7 @@ void TCompositeElement::DistributeFreeVolume()
             for (; it != hungryChildren.end(); ++it) {
                 const auto suggestedFreeVolume = static_cast<double>(freeVolume.*resourceDataMember) * (it->Weight / weightSum);
                 const auto acceptableVolume = it->Attributes->AcceptableVolume.*resourceDataMember;
-                if (suggestedFreeVolume < acceptableVolume) {
+                if (static_cast<decltype(acceptableVolume)>(suggestedFreeVolume) < acceptableVolume) {
                     break;
                 }
                 it->Attributes->AcceptedFreeVolume.*resourceDataMember = acceptableVolume;
@@ -1454,11 +1457,11 @@ void TPool::UpdateAccumulatedResourceVolume(TFairShareUpdateContext* context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TRootElement::DetermineEffectiveStrongGuaranteeResources(TFairShareUpdateContext* context)
+void TRootElement::DetermineInferredStrongGuaranteeResources(TFairShareUpdateContext* context)
 {
-    Attributes().EffectiveStrongGuaranteeResources = context->TotalResourceLimits;
+    Attributes().InferredStrongGuaranteeResources = context->TotalResourceLimits;
 
-    TCompositeElement::DetermineEffectiveStrongGuaranteeResources(context);
+    TCompositeElement::DetermineInferredStrongGuaranteeResources(context);
 }
 
 bool TRootElement::IsRoot() const
@@ -1529,7 +1532,7 @@ void TRootElement::ValidateAndAdjustSpecifiedGuarantees(TFairShareUpdateContext*
     TJobResources totalStrongGuaranteeResources;
     for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         const auto* child = GetChild(childIndex);
-        totalStrongGuaranteeResources += child->Attributes().EffectiveStrongGuaranteeResources;
+        totalStrongGuaranteeResources += child->Attributes().InferredStrongGuaranteeResources;
     }
 
     if (!Dominates(context->TotalResourceLimits, totalStrongGuaranteeResources + totalResourceFlow)) {
@@ -1555,7 +1558,7 @@ void TRootElement::ValidateAndAdjustSpecifiedGuarantees(TFairShareUpdateContext*
 
         double fitFactor = FloatingPointInverseLowerBound(0.0, 1.0, checkSum);
 
-        // NB(eshcherbin): Note that we validate the sum of EffectiveStrongGuaranteeResources but adjust StrongGuaranteeShare.
+        // NB(eshcherbin): Note that we validate the sum of InferredStrongGuaranteeResources but adjust StrongGuaranteeShare.
         // During validation we need to check the absolute values to handle corner cases correctly and always show the alert. See: YT-14758.
         // During adjustment we need to assure the invariants required for vector fair share computation.
         Attributes().StrongGuaranteeShare = Attributes().StrongGuaranteeShare * fitFactor;
@@ -1757,7 +1760,7 @@ void TFairShareUpdateExecutor::Run()
 
     RootElement_->ValidatePoolConfigs(Context_);
 
-    RootElement_->DetermineEffectiveStrongGuaranteeResources(Context_);
+    RootElement_->DetermineInferredStrongGuaranteeResources(Context_);
     RootElement_->InitIntegralPoolLists(Context_);
     RootElement_->UpdateCumulativeAttributes(Context_);
     ConsumeAndRefillIntegralPools();

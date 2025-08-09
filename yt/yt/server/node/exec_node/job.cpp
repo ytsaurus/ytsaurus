@@ -986,14 +986,14 @@ void TJob::OnResultReceived(TJobResult jobResult)
             TError nbdError;
             if (auto nbdServer = Bootstrap_->GetNbdServer()) {
                 for (const auto& exportId : NbdExportIds_) {
-                    if (auto device = nbdServer->GetDevice(exportId)) {
+                    if (auto device = nbdServer->FindDevice(exportId)) {
                         if (auto error = device->GetError(); !error.IsOK()) {
                             YT_LOG_ERROR(error, "NBD error occured during job execution (ExportId: %v)", exportId);
 
                             // Save the first found NBD error.
                             if (nbdError.IsOK()) {
                                 nbdError = std::move(error);
-                                nbdError <<= TErrorAttribute("abort_reason", EAbortReason::NbdErrors);
+                                nbdError <<= TErrorAttribute("abort_reason", EAbortReason::NbdError);
                                 nbdError <<= TErrorAttribute("debug_info", device->DebugString());
                                 // Save job error as well.
                                 if (auto jobError = FromProto<TError>(jobResult.error()); !jobError.IsOK()) {

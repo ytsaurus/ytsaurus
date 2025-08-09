@@ -5,6 +5,8 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 
+#include <yt/yt/core/rpc/authentication_identity.h>
+
 #include <yt/yt/core/ytree/ypath_detail.h>
 
 namespace NYT::NCypressProxy {
@@ -29,7 +31,10 @@ protected:
     //! has to be handeled by master. This override exists for such cases.
     EInvokeResult InvokeResult_ = EInvokeResult::Executed;
 
-    TNodeProxyBase(IBootstrap* bootstrap, TSequoiaSessionPtr sequoiaSession);
+    TNodeProxyBase(
+        IBootstrap* bootstrap,
+        TSequoiaSessionPtr sequoiaSession,
+        const NRpc::TAuthenticationIdentity& authenticationIdentity);
 
     virtual void BeforeInvoke(const ISequoiaServiceContextPtr& context);
     virtual bool DoInvoke(const ISequoiaServiceContextPtr& context);

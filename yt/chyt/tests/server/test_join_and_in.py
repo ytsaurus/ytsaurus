@@ -867,6 +867,27 @@ class TestJoinAndIn(ClickHouseTestBase):
                         {"a": 1}, {"a": 4},
                     ]
 
+    # CHYT-1311
+    @authors("buyval01")
+    def test_in_with_cte(self):
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("<append=%true>//tmp/t1", [{"a": 1}, {"a": 2}])
+        write_table("<append=%true>//tmp/t1", [{"a": 3}, {"a": 4}])
+
+        create("table", "//tmp/t2", attributes={"schema": [{"name": "b", "type": "int64"}]})
+        write_table("<append=%true>//tmp/t2", [{"b": 2}, {"b": 4}])
+
+        with Clique(1) as clique:
+            query = '''
+                WITH even_values as (
+                    select * from "//tmp/t1" where a % 2 == 0
+                ), filtered_values as (
+                    select * from "//tmp/t2" where b in even_values
+                )
+                select * from filtered_values order by b
+            '''
+            assert clique.make_query(query) == [{"b": 2}, {"b": 4}]
+
 
 class TestJoinAndInStress(ClickHouseTestBase):
     @authors("max42")

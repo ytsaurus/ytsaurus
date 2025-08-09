@@ -45,7 +45,8 @@ from .exceptions_catcher import KeyboardInterruptsCatcher
 from .operation_commands import Operation
 from .spec_builders import (ReduceSpecBuilder, MergeSpecBuilder, SortSpecBuilder,
                             EraseSpecBuilder, MapReduceSpecBuilder, RemoteCopySpecBuilder,
-                            JoinReduceSpecBuilder, MapSpecBuilder)
+                            JoinReduceSpecBuilder, MapSpecBuilder, SpecCommonType, SpecMapType,
+                            SpecSortType, SpecMapReduceType, SpecReduceType)
 from .table_commands import create_temp_table, get_sorted_by
 from .table_helpers import _prepare_job_io, _prepare_operation_files
 from .transaction import Transaction
@@ -55,12 +56,14 @@ from .driver import get_api_version
 import yt.logger as logger
 from yt.common import YT_NULL_TRANSACTION_ID as null_transaction_id, _pretty_format_for_logging
 
+from typing import Union, Dict
+
 import sys
 import time
 
 
 @forbidden_inside_job
-def run_erase(table, spec=None, sync=True, client=None):
+def run_erase(table, spec: Union[SpecCommonType, Dict, None] = None, sync=True, client=None):
     """Erases table or part of it.
 
     Erase differs from remove command.
@@ -81,7 +84,7 @@ def run_erase(table, spec=None, sync=True, client=None):
 @forbidden_inside_job
 def run_merge(source_table, destination_table, mode=None,
               sync=True, job_io=None, table_writer=None,
-              job_count=None, spec=None, merge_by=None,
+              job_count=None, spec: Union[SpecCommonType, Dict, None] = None, merge_by=None,
               client=None):
     """Merges source tables to destination table.
 
@@ -118,7 +121,7 @@ def run_merge(source_table, destination_table, mode=None,
 @forbidden_inside_job
 def run_sort(source_table, destination_table=None, sort_by=None,
              sync=True, job_io=None, table_writer=None,
-             spec=None, client=None):
+             spec: Union[SpecSortType, Dict, None] = None, client=None):
     """Sorts source tables to destination table.
 
     If destination table is not specified, than it equals to source table.
@@ -143,7 +146,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                    format=None,
                    map_input_format=None, map_output_format=None,
                    reduce_input_format=None, reduce_output_format=None,
-                   sync=True, job_io=None, table_writer=None, spec=None,
+                   sync=True, job_io=None, table_writer=None, spec: Union[SpecMapReduceType, Dict, None] = None,
                    map_local_files=None, map_yt_files=None,
                    reduce_local_files=None, reduce_yt_files=None,
                    mapper_memory_limit=None, reducer_memory_limit=None,
@@ -262,7 +265,7 @@ def run_map(binary, source_table, destination_table=None,
             table_writer=None,
             job_count=None,
             memory_limit=None,
-            spec=None,
+            spec: Union[SpecMapType, Dict, None] = None,
             ordered=None,
             stderr_table=None,
             client=None):
@@ -303,7 +306,7 @@ def run_reduce(binary, source_table, destination_table=None,
                table_writer=None,
                job_count=None,
                memory_limit=None,
-               spec=None,
+               spec: Union[SpecReduceType, Dict, None] = None,
                sort_by=None,
                reduce_by=None,
                join_by=None,
@@ -348,7 +351,7 @@ def run_join_reduce(binary, source_table, destination_table,
                     table_writer=None,
                     job_count=None,
                     memory_limit=None,
-                    spec=None,
+                    spec: Union[SpecCommonType, Dict, None] = None,
                     sort_by=None,
                     reduce_by=None,
                     join_by=None,
@@ -386,7 +389,7 @@ def run_join_reduce(binary, source_table, destination_table,
 
 def run_remote_copy(source_table, destination_table,
                     cluster_name=None, network_name=None, cluster_connection=None, copy_attributes=None,
-                    spec=None, sync=True, client=None):
+                    spec: Union[SpecCommonType, Dict, None] = None, sync=True, client=None):
     """Copies source table from remote cluster to destination table on current cluster.
 
     :param source_table: source table to copy (or list of tables).

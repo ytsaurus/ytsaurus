@@ -40,9 +40,9 @@ private:
     {
         auto channel = Client_->GetChaosChannelByCellId(GetChaosCellId(chaosLeaseId));
         auto proxy = TChaosNodeServiceProxy(std::move(channel));
-        // TODO(nadya02): Set the correct timeout here.
-        proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
+
         auto req = proxy.GetChaosLease();
+        req->SetTimeout(Client_->GetNativeConnection()->GetConfig()->DefaultChaosNodeServiceTimeout);
         ToProto(req->mutable_chaos_lease_id(), chaosLeaseId);
 
         auto rsp = WaitFor(req->Invoke())
@@ -60,22 +60,22 @@ private:
 
     std::optional<TObjectId> DoCreateObject(const TCreateObjectOptions& options) override
     {
+        const auto& connectionConfig = Client_->GetNativeConnection()->GetConfig();
         auto attributes = options.Attributes ? options.Attributes->Clone() : EmptyAttributes().Clone();
 
         // TOOD(gryzlov-ad): Use chaos bundle name. Unify different chaos type handlers with some base class
         auto chaosCellId = attributes->Get<TCellId>("chaos_cell_id");
         auto parentId = attributes->FindAndRemove<TChaosLeaseId>("parent_id");
-        auto timeout = attributes->GetAndRemove<TDuration>(
+        auto chaosLeaseTiemout = attributes->GetAndRemove<TDuration>(
             "timeout",
-            Client_->GetNativeConnection()->GetConfig()->DefaultChaosLeaseTimeout);
+            connectionConfig->DefaultChaosLeaseTimeout);
 
         auto channel = Client_->GetChaosChannelByCellId(chaosCellId);
         auto proxy = TChaosNodeServiceProxy(std::move(channel));
-        // TODO(nadya02): Set the correct timeout here.
-        proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
 
         auto req = proxy.CreateChaosLease();
-        req->set_timeout(ToProto(timeout));
+        req->SetTimeout(options.Timeout.value_or(connectionConfig->DefaultChaosNodeServiceTimeout));
+        req->set_timeout(ToProto(chaosLeaseTiemout));
         ToProto(req->mutable_attributes(), *attributes);
         if (parentId) {
             ToProto(req->mutable_parent_id(), *parentId);
@@ -99,6 +99,7 @@ private:
         proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
 
         auto req = proxy.RemoveChaosLease();
+        req->SetTimeout(options.Timeout.value_or(Client_->GetNativeConnection()->GetConfig()->DefaultChaosNodeServiceTimeout));
         Client_->SetMutationId(req, options);
         ToProto(req->mutable_chaos_lease_id(), chaosLeaseId);
 

@@ -507,12 +507,12 @@ TConstExpressionPtr TExprBuilderV2::OnFunction(const NAst::TFunctionExpression* 
 
         auto* literalArgument = functionExpr->Arguments[1]->As<NAst::TLiteralExpression>();
 
-        THROW_ERROR_EXCEPTION_UNLESS(literalArgument && std::holds_alternative<TString>(literalArgument->Value),
+        THROW_ERROR_EXCEPTION_UNLESS(literalArgument && std::holds_alternative<std::string>(literalArgument->Value),
             "Misuse of function %Qv",
             functionName);
 
         return New<TFunctionExpression>(
-            NTableClient::ParseType(std::get<TString>(literalArgument->Value)),
+            NTableClient::ParseType(std::get<std::string>(literalArgument->Value)),
             functionName,
             std::vector<TConstExpressionPtr>{OnExpression(functionExpr->Arguments[0])});
     }

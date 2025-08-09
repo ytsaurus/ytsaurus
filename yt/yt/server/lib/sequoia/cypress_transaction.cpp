@@ -18,17 +18,18 @@
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 #include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
 
-#include <yt/yt/ytlib/sequoia_client/records/child_node.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/child_forks.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/child_node.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/dependent_transactions.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/doomed_transactions.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/node_forks.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/node_snapshots.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/path_forks.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
-#include <yt/yt/ytlib/sequoia_client/records/transactions.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/transaction_descendants.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/transaction_replicas.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/transactions.record.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -66,15 +67,16 @@ std::vector<T> MakeSortedAndUnique(std::vector<T>&& items)
     return items;
 }
 
-std::vector<NRecords::TTransactionKey> ToTransactionKeys(
+template <class T>
+std::vector<T> ToTransactionKeys(
     const std::vector<TTransactionId>& cypressTransactionIds)
 {
-    std::vector<NRecords::TTransactionKey> keys(cypressTransactionIds.size());
+    std::vector<T> keys(cypressTransactionIds.size());
     std::transform(
         cypressTransactionIds.begin(),
         cypressTransactionIds.end(),
         keys.begin(),
-        [] (auto transactionId) -> NRecords::TTransactionKey {
+        [] (auto transactionId) -> T {
             return {.TransactionId = transactionId};
         });
     return keys;
@@ -161,7 +163,7 @@ concept CResolveRecordType =
     std::same_as<T, NRecords::TChildNode>;
 
 template <class T>
-using TRecordKey = std::decay_t<decltype(std::declval<T>().Key)>;
+using TRecordKey = T::TRecordDescriptor::TKey;
 
 template <CForkRecordType TForkRecord>
 auto MakeResolveRecordKey(const TForkRecord& forkRecord);
@@ -784,8 +786,7 @@ private:
             return std::nullopt;
         }
 
-        auto keys = ToTransactionKeys(AncestorIds_);
-
+        auto keys = ToTransactionKeys<NRecords::TTransactionKey>(AncestorIds_);
         return SequoiaTransaction_->LookupRows(keys);
     }
 
@@ -910,6 +911,7 @@ protected:
     const TCellId CoordinatorCellId_;
     const IInvokerPtr Invoker_;
     const TLogger Logger;
+    const TAuthenticationIdentity AuthenticationIdentity_;
 
     // Initialized once per class lifetime.
     ISequoiaTransactionPtr SequoiaTransaction_;
@@ -920,11 +922,13 @@ protected:
         TStringBuf description,
         std::string title,
         IInvokerPtr invoker,
-        TLogger logger)
+        TLogger logger,
+        TAuthenticationIdentity authenticationIdentity)
         : SequoiaClient_(std::move(sequoiaClient))
         , CoordinatorCellId_(coordinatorCellId)
         , Invoker_(std::move(invoker))
         , Logger(std::move(logger))
+        , AuthenticationIdentity_(std::move(authenticationIdentity))
         , Description_(description)
         , Title_(std::move(title))
     {
@@ -941,6 +945,22 @@ protected:
             .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
             .StronglyOrdered = true,
         });
+    }
+
+    template <class T>
+    TFuture<std::optional<T>> FetchTransaction(TTransactionId transactionId) const
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return SequoiaTransaction_->LookupRows<TRecordKey<T>>(
+            {{.TransactionId = transactionId}})
+            .ApplyUnique(
+                BIND([] (std::vector<std::optional<T>>&& lookupResult) {
+                    YT_ASSERT_THREAD_AFFINITY_ANY();
+                    YT_ASSERT(lookupResult.size() == 1);
+
+                    return lookupResult.front();
+                }));
     }
 
     virtual TFuture<TResult> ApplySequoiaTransaction() = 0;
@@ -962,6 +982,7 @@ private:
                 TransactionType,
                 options,
                 {
+                    .AuthenticationIdentity = AuthenticationIdentity_,
                     .SequenceTabletCommitSessions = true,
                     .EnableVerboseLogging = true,
                 })
@@ -1001,7 +1022,7 @@ private:
             // Ensure that you actually know what are you doing.
             YT_LOG_ALERT(
                 *error,
-                "Failed to %v Cypress transaction on Sequoia",
+                "Failed to %v Cypress transaction in Sequoia",
                 Description_);
         }
 
@@ -1014,17 +1035,21 @@ private:
 //! Starts Cypress transaction mirrored to Sequoia tables.
 /*!
  *   1. Generate new transaction id;
- *   2. If there is no parent transaction then go to step 6;
- *   3. Lock parent transaction in "transactions" Sequoia table;
- *   4. Fetch parent's ancestors;
- *   5. Write (ancestor_id, transaction_id) to table "transaction_descendants" for
+ *   2. If there is no prerequisite transactions then go to step 5;
+ *   3. For each prerequisite transaction validate it's not doomed yet;
+ *   4. For each prerequisite transaction validate presence and lock it;
+ *   5. If there is no parent transaction then go to step 10;
+ *   6. Validate parent transaction is not doomed;
+ *   7. Lock parent transaction in "transactions" Sequoia table;
+ *   8. Fetch parent's ancestors;
+ *   9. Write (ancestor_id, transaction_id) to table "transaction_descendants" for
  *      every ancestor;
- *   6. Write (transaction_id, ancestor_ids) to table "transactions";
- *   7. Write (prerequisite_id, transaction_id) to table "dependent_transactions";
- *   8. Execute StartCypressTransaction tx action on coordinator;
- *   9. Execute StartForeignTransaction tx action on every cell which this
+ *  10. Write (transaction_id, ancestor_ids) to table "transactions";
+ *  11. Write (prerequisite_id, transaction_id) to table "dependent_transactions";
+ *  12. Execute StartCypressTransaction tx action on coordinator;
+ *  13. Execute StartForeignTransaction tx action on every cell which this
  *      transaction should be replicated to;
- *  10. Reply with transaction id generated in step 1.
+ *  14. Reply with transaction id generated in step 1.
  */
 class TStartCypressTransaction
     : public TSequoiaMutation<TTransactionId, ESequoiaTransactionType::CypressTransactionMirroring>
@@ -1043,7 +1068,8 @@ public:
             "start",
             "Sequoia transaction: start Cypress transaction",
             std::move(invoker),
-            std::move(logger))
+            std::move(logger),
+            std::move(authenticationIdentity))
         , ParentId_(FromProto<TTransactionId>(request.parent_id()))
         , ReplicateToCellTags_(BuildReplicateToCellTags(
             CellTagFromId(coordinatorCellId),
@@ -1052,7 +1078,7 @@ public:
             FromProto<std::vector<TTransactionId>>(request.prerequisite_transaction_ids())))
         , Request_(BuildStartCypressTransactionRequest(
             std::move(request),
-            std::move(authenticationIdentity)))
+            AuthenticationIdentity_))
     { }
 
 protected:
@@ -1084,6 +1110,10 @@ protected:
 
         return HandlePrerequisiteTransactions()
             .Apply(BIND(
+                &TStartCypressTransaction::ValidateParentTransactionNotDoomed,
+                MakeStrong(this))
+                    .AsyncVia(Invoker_))
+            .Apply(BIND(
                 &TStartCypressTransaction::LockParentAndCollectAncestors,
                 MakeStrong(this))
                     .AsyncVia(Invoker_))
@@ -1111,6 +1141,20 @@ private:
         cellTags.erase(std::remove(cellTags.begin(), cellTags.end(), thisCellTag), cellTags.end());
         Sort(cellTags);
         return cellTags;
+    }
+
+    TFuture<void> ValidateParentTransactionNotDoomed() const
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return FetchTransaction<NRecords::TDoomedTransaction>(ParentId_)
+            .ApplyUnique(BIND([this, this_ = MakeStrong(this)] (std::optional<NRecords::TDoomedTransaction>&& record) {
+                YT_ASSERT_THREAD_AFFINITY_ANY();
+
+                if (record) {
+                    ThrowTransactionIsDoomed(ParentId_);
+                }
+            }));
     }
 
     TFuture<void> ModifyTablesAndRegisterActions(
@@ -1243,6 +1287,20 @@ private:
                     .AsyncVia(Invoker_));
     }
 
+    void ValidatePrerequisiteTransactionsNotDoomed(
+        std::vector<std::optional<NRecords::TDoomedTransaction>>&& records)
+    {
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
+        YT_VERIFY(PrerequisiteTransactionIds_.size() == records.size());
+
+        for (int i = 0; i < std::ssize(records); ++i) {
+            if (records[i]) {
+                ThrowTransactionIsDoomed(PrerequisiteTransactionIds_[i], /*isPrerequisite*/ true);
+            }
+        }
+    }
+
     void ValidateAndLockPrerequisiteTransactions(
         std::vector<std::optional<NRecords::TTransaction>>&& records)
     {
@@ -1271,7 +1329,16 @@ private:
             return VoidFuture;
         }
 
-        return SequoiaTransaction_->LookupRows(ToTransactionKeys(PrerequisiteTransactionIds_))
+        return SequoiaTransaction_->LookupRows(ToTransactionKeys<NRecords::TDoomedTransactionKey>(PrerequisiteTransactionIds_))
+            .ApplyUnique(BIND(
+                &TStartCypressTransaction::ValidatePrerequisiteTransactionsNotDoomed,
+                MakeStrong(this))
+                    .AsyncVia(Invoker_))
+            .Apply(
+                BIND([this, this_ = MakeStrong(this)] {
+                    return SequoiaTransaction_->LookupRows(ToTransactionKeys<NRecords::TTransactionKey>(PrerequisiteTransactionIds_));
+                })
+                    .AsyncVia(Invoker_))
             .ApplyUnique(BIND(
                 &TStartCypressTransaction::ValidateAndLockPrerequisiteTransactions,
                 MakeStrong(this))
@@ -1290,31 +1357,31 @@ private:
  *  and find progenitor ones: it's sufficient to abort only subtree's root because
  *  it leads to abortion of all subtree.
  *
- *  "dependent_transactions" Sequoia table does not contains transitive closure
+ *  "dependent_transactions" Sequoia table does not contain transitive closure
  *  of all dependent transactions (in opposite to "transaction_descendants")
  *  because there is no any sane bound for number of dependent transactions.
  *  So the collection of all dependent transactions is a bit non-trivial:
  *
  *  collectedTransactions -- set of fetched transactions;
- *  currentTransaction -- set of transaction IDs with unchecked dependent
+ *  currentTransactions -- set of transaction IDs with unchecked dependent
  *      transactions and descendants;
  *
  *  collectedTransactions := {targetTransaction}
- *  currentTransaction := {targetTransaction.Id}
- *  while not currentTransaction.empty():
+ *  currentTransactions := {targetTransaction.Id}
+ *  while not currentTransactions.empty():
  *      nextTransaction :=
  *          select descendant_id
  *              from transaction_descendants
- *              where transaction_id in currentTransaction
+ *              where transaction_id in currentTransactions
  *          +
  *          select dependent_transactions_id
  *              from dependent_transactions
- *              where transaction_id in currentTransaction
+ *              where transaction_id in currentTransactions
  *
- *      currentTransaction := {}
+ *      currentTransactions := {}
  *      for transaction in nextTransaction:
  *          if transaction not in collectedTransactions:
- *              currentTransaction.add(transaction.Id)
+ *              currentTransactions.add(transaction.Id)
  *              collectedTransactions.add(transaction)
  *  return collectedTransactions
  */
@@ -1482,6 +1549,157 @@ private:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+//! This class protects from certain live locks during transaction commits and
+//! aborts.
+/*!
+ *  When a transaction is finished (because of commit or abort), every
+ *  successor transaction has to be aborted. The process of finishing a
+ *  transaction includes deleting its row in the "transactions" table, which
+ *  requires an exclusive lock on the corresponding row.
+ *  Unfortunately for us, said row is used by read / write requests as a
+ *  synchronization point, and pretty much every single request will attempt
+ *  to take a shared read lock on it.
+ *  This problem is known as "write starvation".
+ *  If requests are plentiful, all read locks might not leave any chance for
+ *  commit or abort to take an exclusive lock, prolonging transaction's life
+ *  to, in the worst case, an infinitely faraway moment in time.
+ *
+ *  To avoid it, this class does the following:
+ *  1. Check the "transactions" Sequoia table;
+ *     1.1. If nothing is found, then there is no chance for write starvation
+ *          to occur, it's safe to revoke leases as usual (go to 5).
+ *  2. Check the "doomed_transactions" Sequoia table;
+ *     2.1.  If transaction is already present there, then it's already being
+ *           finished, it's safe to revoke leases as usual (go to 5).
+ *  3. Fetch all descendant and dependent (successor) transactions;
+ *  4. For each transaction that was fetched:
+ *     4.1. Write a corresponding row to "doomed_transactions";
+ *     4.2. Take a shared read lock in the "transactions" table.
+ *  5. Add master transaction action to revoke transaction leases;
+ *  6. Commit Sequoia transaction.
+ *
+ *  It's important to check the "doomed_transactions" table on Cypress proxy
+ *  when receiving a new request involving or using a transaction and ensure
+ *  that transaction is not currently being finished.
+ */
+class TDoomCypressTransaction
+    : public TSequoiaMutation<void, ESequoiaTransactionType::CypressTransactionMirroring>
+{
+public:
+    TDoomCypressTransaction(
+        ISequoiaClientPtr sequoiaClient,
+        TCellId coordinatorCellId,
+        TTransactionId transactionId,
+        TAuthenticationIdentity authenticationIdentity,
+        IInvokerPtr invoker,
+        TLogger logger)
+        : TSequoiaMutation(
+            std::move(sequoiaClient),
+            coordinatorCellId,
+            "doom",
+            "Sequoia transaction: mark Cypress transaction as doomed",
+            std::move(invoker),
+            std::move(logger),
+            std::move(authenticationIdentity)),
+        TransactionId_(transactionId)
+    { }
+
+private:
+    const TTransactionId TransactionId_;
+
+    TFuture<void> ApplySequoiaTransaction() final
+    {
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
+        return FetchTransaction<NRecords::TTransaction>(TransactionId_)
+            .ApplyUnique(BIND(
+                &TDoomCypressTransaction::MaybeDoomTransactionSubtree,
+                MakeStrong(this)))
+            .Apply(BIND(
+                &TDoomCypressTransaction::RevokeTragetTransactionLeases,
+                MakeStrong(this))
+                    .AsyncVia(Invoker_))
+            .Apply(BIND(
+                &TDoomCypressTransaction::CommitSequoiaTransaction,
+                MakeStrong(this))
+                    .AsyncVia(Invoker_));
+    }
+
+    TFuture<void> MaybeDoomTransactionSubtree(std::optional<NRecords::TTransaction>&& target)
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        // Fast path; transaction is missing.
+        if (!target) {
+            return VoidFuture;
+        }
+
+        auto transaction = *target;
+
+        return FetchTransaction<NRecords::TDoomedTransaction>(transaction.Key.TransactionId)
+            .ApplyUnique(
+                BIND(&TDoomCypressTransaction::OnDoomedTransactionFetched, MakeStrong(this), transaction)
+                    .AsyncVia(Invoker_));
+    }
+
+    TFuture<void> OnDoomedTransactionFetched(
+        NRecords::TTransaction transaction,
+        std::optional<NRecords::TDoomedTransaction>&& target)
+    {
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
+        // Fast path; transaction is already doomed, no need to mark it as doomed again.
+        if (target) {
+            return VoidFuture;
+        }
+
+        return New<TDependentTransactionCollector>(
+            SequoiaTransaction_,
+            std::move(transaction),
+            Invoker_)
+                ->Run()
+                .ApplyUnique(
+                    BIND(&TDoomCypressTransaction::MarkTrasactionSubtreeDoomed, MakeStrong(this))
+                        .AsyncVia(Invoker_));
+    }
+
+    void MarkTrasactionSubtreeDoomed(TDependentTransactionCollector::TResult&& transactionInfos)
+    {
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
+        for (const auto& transaction : transactionInfos.Transactions) {
+            auto transactionId = transaction.first;
+
+            SequoiaTransaction_->WriteRow(NRecords::TDoomedTransaction{
+                .Key = {.TransactionId = transactionId},
+            });
+
+            // Lock row in the main transaction table to detect concurrent tx commits / aborts.
+            SequoiaTransaction_->LockRow(
+                NRecords::TTransactionKey{.TransactionId = transactionId},
+                ELockType::SharedStrong);
+        }
+    }
+
+    void RevokeTragetTransactionLeases()
+    {
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+        NTransactionServer::NProto::TReqRevokeCypressTransactionLeases action;
+        ToProto(action.mutable_transaction_id(), TransactionId_);
+
+        auto coordinatorCellTag = CellTagFromId(TransactionId_);
+
+        // Sanity check.
+        YT_VERIFY(CellTagFromId(CoordinatorCellId_) == coordinatorCellTag);
+
+        SequoiaTransaction_->AddTransactionAction(coordinatorCellTag, MakeTransactionActionData(action));
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! This class is responsible for finishing transactions: commit and abort are
 //! handled in a similar way.
 /*!
@@ -1514,7 +1732,6 @@ class TFinishCypressTransaction
 {
 protected:
     const TTransactionId TransactionId_;
-    const TAuthenticationIdentity AuthenticationIdentity_;
     // NB: this field muast by set by derived classes during construction.
     TSharedRefArray Response_;
 
@@ -1535,9 +1752,9 @@ protected:
             description,
             std::move(title),
             std::move(invoker),
-            std::move(logger))
+            std::move(logger),
+            std::move(authenticationIdentity))
         , TransactionId_(transactionId)
-        , AuthenticationIdentity_(std::move(authenticationIdentity))
         , MutationId_(mutationId)
         , Retry_(retry)
     { }
@@ -1554,7 +1771,7 @@ protected:
                     return VoidFuture;
                 }
 
-                return FetchTargetTransaction()
+                return FetchTransaction<NRecords::TTransaction>(TransactionId_)
                     .ApplyUnique(BIND(
                         &TFinishCypressTransaction::ValidateAndFinishTargetTransaction,
                         MakeStrong(this))
@@ -1675,6 +1892,11 @@ private:
             }
             // "transactions"
             SequoiaTransaction_->DeleteRow(transactionInfo.Key);
+
+            // "doomed_transactions"
+            SequoiaTransaction_->DeleteRow(NRecords::TDoomedTransactionKey{
+                .TransactionId = transactionId,
+            });
         }
     }
 
@@ -1692,33 +1914,23 @@ private:
         return TRange(replicas).Slice(begin - replicas.begin(), end - replicas.begin());
     }
 
-    TFuture<std::vector<std::optional<NRecords::TTransaction>>> FetchTargetTransaction()
-    {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        return SequoiaTransaction_->LookupRows<NRecords::TTransactionKey>(
-            {{.TransactionId = TransactionId_}});
-    }
-
     TFuture<void> ValidateAndFinishTargetTransaction(
-        std::vector<std::optional<NRecords::TTransaction>>&& target)
+        std::optional<NRecords::TTransaction>&& target)
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        YT_VERIFY(target.size() == 1);
-
         // Fast path.
-        if (TransactionFinishIsNoop(target.front())) {
+        if (TransactionFinishIsNoop(target)) {
             return VoidFuture;
         }
 
         // Case of absence target transaction is handled in
         // TransactionFinishIsNoop().
-        YT_VERIFY(target.front());
+        YT_VERIFY(target);
 
-        ValidateTransactionAncestors(*target.front());
+        ValidateTransactionAncestors(*target);
 
-        return CollectDependentAndNestedTransactionsAndFinishThem(std::move(*target.front()));
+        return CollectDependentAndNestedTransactionsAndFinishThem(std::move(*target));
     }
 
     TFuture<void> CollectDependentAndNestedTransactionsAndFinishThem(
@@ -1983,7 +2195,9 @@ protected:
                 transactionIds,
                 destinationCellTags),
             std::move(invoker),
-            std::move(logger))
+            std::move(logger),
+            // TODO(shakurov): consider issuing replication request from authenticated user.
+            GetRootAuthenticationIdentity())
         , TransactionIds_(std::move(transactionIds))
         , DestinationCellTags_(std::move(destinationCellTags))
     {
@@ -1994,7 +2208,7 @@ protected:
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        return SequoiaTransaction_->LookupRows(ToTransactionKeys(TransactionIds_))
+        return SequoiaTransaction_->LookupRows(ToTransactionKeys<NRecords::TTransactionKey>(TransactionIds_))
             .ApplyUnique(BIND(&TThis::ReplicateTransactions, MakeStrong(this))
                 .AsyncVia(Invoker_))
             .Apply(
@@ -2083,6 +2297,24 @@ TFuture<TTransactionId> StartCypressTransaction(
         std::move(sequoiaClient),
         cypressTransactionCoordinatorCellId,
         std::move(*request),
+        std::move(authenticationIdentity),
+        std::move(invoker),
+        std::move(logger))
+        ->Apply();
+}
+
+TFuture<void> DoomCypressTransaction(
+    ISequoiaClientPtr sequoiaClient,
+    TCellId cypressTransactionCoordinatorCellId,
+    TTransactionId transactionId,
+    TAuthenticationIdentity authenticationIdentity,
+    IInvokerPtr invoker,
+    TLogger logger)
+{
+    return New<TDoomCypressTransaction>(
+        sequoiaClient,
+        cypressTransactionCoordinatorCellId,
+        transactionId,
         std::move(authenticationIdentity),
         std::move(invoker),
         std::move(logger))

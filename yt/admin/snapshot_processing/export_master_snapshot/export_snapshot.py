@@ -23,11 +23,6 @@ import subprocess
 
 schema_columns = [
     # -------------COLUMN NAME-----------------|---TYPE---|---REQUIRED---|--ATTRIBUTE--#
-    ("_read_schema",                            "any",          False,      False),
-    ("_read_schema_attributes",                 "any",          False,      False),
-    ("_yql_read_udf",                           "string",       False,      False),
-    ("_yql_row_spec",                           "any",          False,      False),
-    ("_yql_row_spec_attributes",                "any",          False,      False),
     ("access_time",                             "string",       True,       True),
     ("account",                                 "string",       True,       True),
     ("acl",                                     "any",          False,      True),
@@ -276,6 +271,7 @@ class MasterSnapshotExporter():
                         "max_failed_job_count": self._max_failed_job_count,
                         "mapper": {
                             "copy_files": True,
+                            "cpu_limit": self._job_cpu_limit,
                             "job_time_limit": self._job_execution_time_limit,
                             "user_job_memory_digest_default_value": 1,
                         },
@@ -351,6 +347,7 @@ def run():
     parser.add_argument("--master-binary-subpath-prefix", default="master_binary")
     parser.add_argument("--attributes", default=None)
     parser.add_argument("--job-count", type=int, default=10)
+    parser.add_argument("--job-cpu-limit", type=int, default=2)
     parser.add_argument("--memory-limit-gbs", type=float, default=1.5)  # Most small clusters use 1.5 GiB
     parser.add_argument("--job-execution-time-limit", type=int, default=90 * 60 * 1000)  # 90m
     parser.add_argument("--max-failed-job-count", type=int, default=3)
@@ -425,6 +422,7 @@ def run():
         master_binary_path=master_binary_path,
         attributes=args.attributes,
         job_count=args.job_count,
+        job_cpu_limit=args.job_cpu_limit,
         memory_limit_gbs=args.memory_limit_gbs,
         job_execution_time_limit=args.job_execution_time_limit,
         max_failed_job_count=args.max_failed_job_count,

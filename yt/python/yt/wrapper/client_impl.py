@@ -7,7 +7,12 @@ from .default_config import DefaultConfigType
 from .mappings import VerifiedDict
 from . import client_api
 
-from typing import Union, Dict, Any
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
+from .auth_commands import DictCurrentUser
+from .format import Format
+from .query_commands import Query
+from .spec_builders import SpecCommonType, SpecMapReduceType, SpecMapType, SpecReduceType, SpecSortType
+from .ypath import YPath
 
 
 class YtClient(ClientState):
@@ -450,7 +455,7 @@ class YtClient(ClientState):
 
     def concatenate(
             self,
-            source_paths, destination_path):
+            source_paths: Union[str, YPath], destination_path: Union[str, YPath]):
         """
         Concatenates cypress nodes. This command applicable only to files and tables.
 
@@ -466,11 +471,11 @@ class YtClient(ClientState):
 
     def copy(
             self,
-            source_path, destination_path,
-            recursive=None, force=None, ignore_existing=None, lock_existing=None, preserve_account=None,
-            preserve_owner=None, preserve_acl=None, preserve_expiration_time=None, preserve_expiration_timeout=None,
-            preserve_creation_time=None, preserve_modification_time=None, pessimistic_quota_check=None,
-            enable_cross_cell_copying=None):
+            source_path: Union[str, YPath], destination_path: Union[str, YPath],
+            recursive: bool = None, force: bool = None, ignore_existing: bool = None, lock_existing: bool = None,
+            preserve_account: bool = None, preserve_owner: bool = None, preserve_acl: bool = None,
+            preserve_expiration_time: bool = None, preserve_expiration_timeout: bool = None, preserve_creation_time: bool = None,
+            preserve_modification_time: bool = None, pessimistic_quota_check: bool = None, enable_cross_cell_copying: bool = None):
         """
         Copies Cypress node.
 
@@ -506,9 +511,10 @@ class YtClient(ClientState):
 
     def create(
             self,
-            type,
-            path=None, recursive=False, ignore_existing=False, lock_existing=None, force=None,
-            attributes=None, ignore_type_mismatch=False):
+            type: Literal["table", "file", "map_node", "list_node", "document"],
+            path: Union[str, YPath, None] = None, recursive: bool = False, ignore_existing: bool = False,
+            lock_existing: bool = None, force: bool = None, attributes: Optional[Dict[str, Any]] = None,
+            ignore_type_mismatch: bool = False):
         """
         Creates Cypress node.
 
@@ -563,7 +569,7 @@ class YtClient(ClientState):
 
     def create_revision_parameter(
             self,
-            path,
+            path: Union[str, YPath],
             transaction_id=None, revision=None):
         """
         Creates revision parameter of the path.
@@ -786,8 +792,8 @@ class YtClient(ClientState):
 
     def exists(
             self,
-            path,
-            read_from=None, cache_sticky_group_size=None, suppress_transaction_coordinator_sync=None):
+            path: Union[str, YPath],
+            read_from: str = None, cache_sticky_group_size: int = None, suppress_transaction_coordinator_sync: bool = None):
         """
         Checks if Cypress node exists.
 
@@ -832,7 +838,7 @@ class YtClient(ClientState):
 
     def externalize(
             self,
-            path, cell_tag):
+            path: Union[str, YPath], cell_tag: int):
         """
         Externalize cypress node
 
@@ -847,7 +853,7 @@ class YtClient(ClientState):
 
     def find_free_subpath(
             self,
-            path):
+            path: Union[str, YPath]):
         """
         Generates some free random subpath.
 
@@ -875,7 +881,7 @@ class YtClient(ClientState):
 
     def flow_execute(
             self,
-            pipeline_path, flow_command,
+            pipeline_path: str, flow_command: str,
             flow_argument=None, input_format=None, output_format=None):
         """
         Execute YT Flow specific command
@@ -917,9 +923,10 @@ class YtClient(ClientState):
 
     def get(
             self,
-            path,
-            max_size=None, attributes=None, format=None, read_from=None, cache_sticky_group_size=None,
-            suppress_transaction_coordinator_sync=None, suppress_upstream_sync=None):
+            path: Union[str, YPath],
+            max_size: Optional[int] = None, attributes: Union[List[str], Tuple, None] = None, format: Union[str, Format, None] = None,
+            read_from: Optional[Literal["cache"]] = None, cache_sticky_group_size: Optional[bool] = None,
+            suppress_transaction_coordinator_sync: Optional[bool] = None, suppress_upstream_sync: Optional[bool] = None):
         """
         Gets Cypress node content (attribute tree).
 
@@ -943,7 +950,7 @@ class YtClient(ClientState):
 
     def get_attribute(
             self,
-            path, attribute,
+            path: Union[str, YPath], attribute: str,
             default=_KwargSentinelClass()):
         """
         Gets attribute of Cypress node.
@@ -966,7 +973,7 @@ class YtClient(ClientState):
         """
         return client_api.get_current_transaction_id(client=self)
 
-    def get_current_user(self):
+    def get_current_user(self) -> Optional[DictCurrentUser]:
         """
         Get current user info
         """
@@ -1266,7 +1273,7 @@ class YtClient(ClientState):
 
     def get_table_schema(
             self,
-            table_path):
+            table_path: Union[str, YPath]):
         """
         Gets schema of table.
 
@@ -1338,7 +1345,7 @@ class YtClient(ClientState):
 
     def has_attribute(
             self,
-            path, attribute):
+            path: Union[str, YPath], attribute: str):
         """
         Checks if Cypress node has attribute.
 
@@ -1377,7 +1384,7 @@ class YtClient(ClientState):
 
     def internalize(
             self,
-            path):
+            path: Union[str, YPath]):
         """
         Internalize cypress node
 
@@ -1449,8 +1456,9 @@ class YtClient(ClientState):
 
     def link(
             self,
-            target_path, link_path,
-            recursive=False, ignore_existing=False, lock_existing=None, force=False, attributes=None):
+            target_path: Union[str, YPath], link_path: Union[str, YPath],
+            recursive: bool = False, ignore_existing: bool = False, lock_existing: bool = None, force: bool = False,
+            attributes: Optional[Dict[str, Any]] = None):
         """
         Makes link to Cypress node.
 
@@ -1474,9 +1482,10 @@ class YtClient(ClientState):
 
     def list(
             self,
-            path,
-            max_size=None, format=None, absolute=None, attributes=None, sort=True, read_from=None,
-            cache_sticky_group_size=None, suppress_transaction_coordinator_sync=None, suppress_upstream_sync=None):
+            path: Union[str, YPath],
+            max_size: Optional[int] = None, format: Optional[Format] = None, absolute: bool = None,
+            attributes: Union[List[str], Tuple, None] = None, sort: bool = True, read_from=None, cache_sticky_group_size: int = None,
+            suppress_transaction_coordinator_sync: bool = None, suppress_upstream_sync: bool = None):
         """
         Lists directory (map_node) content. Node type must be "map_node".
 
@@ -1667,8 +1676,8 @@ class YtClient(ClientState):
 
     def mkdir(
             self,
-            path,
-            recursive=None):
+            path: Union[str, YPath],
+            recursive: bool = None):
         """
         Makes directory (Cypress node of map_node type).
 
@@ -1709,10 +1718,11 @@ class YtClient(ClientState):
 
     def move(
             self,
-            source_path, destination_path,
-            recursive=None, force=None, preserve_account=None, preserve_owner=None, preserve_acl=None,
-            preserve_expiration_time=None, preserve_expiration_timeout=None, preserve_creation_time=None,
-            preserve_modification_time=None, pessimistic_quota_check=None, enable_cross_cell_copying=None):
+            source_path: Union[str, YPath], destination_path: Union[str, YPath],
+            recursive: bool = None, force: bool = None, preserve_account: bool = None, preserve_owner: bool = None,
+            preserve_acl: bool = None, preserve_expiration_time: bool = None, preserve_expiration_timeout: bool = None,
+            preserve_creation_time: bool = None, preserve_modification_time: bool = None, pessimistic_quota_check: bool = None,
+            enable_cross_cell_copying: bool = None):
         """
         Moves (renames) Cypress node.
 
@@ -2099,8 +2109,8 @@ class YtClient(ClientState):
 
     def remove(
             self,
-            path,
-            recursive=False, force=False):
+            path: Union[str, YPath],
+            recursive: bool = False, force: bool = False):
         """
         Removes Cypress node.
 
@@ -2119,7 +2129,7 @@ class YtClient(ClientState):
 
     def remove_attribute(
             self,
-            path, attribute):
+            path: Union[str, YPath], attribute: str):
         """
         Removes Cypress node `attribute`
 
@@ -2376,7 +2386,7 @@ class YtClient(ClientState):
     def run_erase(
             self,
             table,
-            spec=None, sync=True):
+            spec: Union[SpecCommonType, Dict, None] = None, sync=True):
         """
         Erases table or part of it.
 
@@ -2415,7 +2425,7 @@ class YtClient(ClientState):
             self,
             binary, source_table, destination_table,
             local_files=None, yt_files=None, format=None, input_format=None, output_format=None,
-            sync=True, job_io=None, table_writer=None, job_count=None, memory_limit=None, spec=None,
+            sync=True, job_io=None, table_writer=None, job_count=None, memory_limit=None, spec: Union[SpecCommonType, Dict, None] = None,
             sort_by=None, reduce_by=None, join_by=None, stderr_table=None):
         """
         Runs join-reduce operation.
@@ -2438,7 +2448,7 @@ class YtClient(ClientState):
             binary, source_table,
             destination_table=None, local_files=None, yt_files=None, format=None, input_format=None,
             output_format=None, sync=True, job_io=None, table_writer=None, job_count=None, memory_limit=None,
-            spec=None, ordered=None, stderr_table=None):
+            spec: Union[SpecMapType, Dict, None] = None, ordered=None, stderr_table=None):
         """
         Runs map operation.
 
@@ -2458,11 +2468,11 @@ class YtClient(ClientState):
             self,
             mapper, reducer, source_table, destination_table,
             format=None, map_input_format=None, map_output_format=None, reduce_input_format=None,
-            reduce_output_format=None, sync=True, job_io=None, table_writer=None, spec=None, map_local_files=None,
-            map_yt_files=None, reduce_local_files=None, reduce_yt_files=None, mapper_memory_limit=None,
-            reducer_memory_limit=None, sort_by=None, reduce_by=None, reduce_combiner=None, reduce_combiner_input_format=None,
-            reduce_combiner_output_format=None, reduce_combiner_local_files=None, reduce_combiner_yt_files=None,
-            reduce_combiner_memory_limit=None, stderr_table=None):
+            reduce_output_format=None, sync=True, job_io=None, table_writer=None, spec: Union[SpecMapReduceType, Dict, None] = None,
+            map_local_files=None, map_yt_files=None, reduce_local_files=None, reduce_yt_files=None,
+            mapper_memory_limit=None, reducer_memory_limit=None, sort_by=None, reduce_by=None, reduce_combiner=None,
+            reduce_combiner_input_format=None, reduce_combiner_output_format=None, reduce_combiner_local_files=None,
+            reduce_combiner_yt_files=None, reduce_combiner_memory_limit=None, stderr_table=None):
         """
         Runs map (optionally), sort, reduce and reduce-combine (optionally) operations.
 
@@ -2531,7 +2541,8 @@ class YtClient(ClientState):
     def run_merge(
             self,
             source_table, destination_table,
-            mode=None, sync=True, job_io=None, table_writer=None, job_count=None, spec=None, merge_by=None):
+            mode=None, sync=True, job_io=None, table_writer=None, job_count=None, spec: Union[SpecCommonType, Dict, None] = None,
+            merge_by=None):
         """
         Merges source tables to destination table.
 
@@ -2579,9 +2590,9 @@ class YtClient(ClientState):
 
     def run_query(
             self,
-            engine, query,
-            settings=None, files=None, stage=None, annotations=None, access_control_objects=None,
-            sync=True):
+            engine: str, query: str,
+            settings: Optional[Dict] = None, files: Optional[List] = None, stage: Optional[str] = None,
+            annotations: Optional[Dict] = None, access_control_objects: Optional[List] = None, sync: bool = True) -> Query:
         """
         Run query and track its progress (unless sync = false).
 
@@ -2614,7 +2625,8 @@ class YtClient(ClientState):
             binary, source_table,
             destination_table=None, local_files=None, yt_files=None, format=None, input_format=None,
             output_format=None, sync=True, job_io=None, table_writer=None, job_count=None, memory_limit=None,
-            spec=None, sort_by=None, reduce_by=None, join_by=None, stderr_table=None, enable_key_guarantee=None):
+            spec: Union[SpecReduceType, Dict, None] = None, sort_by=None, reduce_by=None, join_by=None,
+            stderr_table=None, enable_key_guarantee=None):
         """
         Runs reduce operation.
 
@@ -2633,7 +2645,7 @@ class YtClient(ClientState):
             self,
             source_table, destination_table,
             cluster_name=None, network_name=None, cluster_connection=None, copy_attributes=None,
-            spec=None, sync=True):
+            spec: Union[SpecCommonType, Dict, None] = None, sync=True):
         """
         Copies source table from remote cluster to destination table on current cluster.
 
@@ -2660,7 +2672,7 @@ class YtClient(ClientState):
     def run_sort(
             self,
             source_table,
-            destination_table=None, sort_by=None, sync=True, job_io=None, table_writer=None, spec=None):
+            destination_table=None, sort_by=None, sync=True, job_io=None, table_writer=None, spec: Union[SpecSortType, Dict, None] = None):
         """
         Sorts source tables to destination table.
 
@@ -2695,9 +2707,12 @@ class YtClient(ClientState):
 
     def search(
             self,
-            root='', node_type=None, path_filter=None, object_filter=None, subtree_filter=None,
-            map_node_order=_MapOrderSorted(), list_node_order=None, attributes=None, exclude=None,
-            depth_bound=None, follow_links=False, read_from=None, cache_sticky_group_size=None, enable_batch_mode=None):
+            root: Union[str, YPath, Literal[""]] = '', node_type: List[str] = None, path_filter: Callable[[str], bool] = None,
+            object_filter: Callable[[Any], bool] = None, subtree_filter: Callable[[str, Any], bool] = None,
+            map_node_order: Callable[[str, List[Any]], List[int]] = _MapOrderSorted(), list_node_order: Callable[[str, List[Any]], List[int]] = None,
+            attributes: Union[List[str], Tuple, None] = None, exclude: Union[List[str], Tuple, None] = None,
+            depth_bound: int = None, follow_links: bool = False, read_from: Literal["cache"] = None,
+            cache_sticky_group_size: int = None, enable_batch_mode: bool = None):
         """
         Searches for some nodes in Cypress subtree.
 
@@ -2763,9 +2778,9 @@ class YtClient(ClientState):
 
     def set(
             self,
-            path, value,
-            format=None, recursive=False, force=None, suppress_transaction_coordinator_sync=None,
-            suppress_upstream_sync=None):
+            path: Union[str, YPath], value,
+            format=None, recursive: bool = False, force: bool = None, suppress_transaction_coordinator_sync: bool = None,
+            suppress_upstream_sync: bool = None):
         """
         Sets new value to Cypress node.
 
@@ -2786,7 +2801,7 @@ class YtClient(ClientState):
 
     def set_attribute(
             self,
-            path, attribute, value):
+            path: Union[str, YPath], attribute: str, value):
         """
         Sets Cypress node `attribute` to `value`.
 

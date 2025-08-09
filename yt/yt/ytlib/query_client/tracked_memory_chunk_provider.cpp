@@ -38,11 +38,11 @@ struct TTrackedMemoryChunkProvider::THolder
 ////////////////////////////////////////////////////////////////////////////////
 
 TTrackedMemoryChunkProvider::TTrackedMemoryChunkProvider(
-    TString key,
+    TStringBuf key,
     TMemoryProviderMapByTagPtr parent,
     size_t limit,
     IMemoryUsageTrackerPtr memoryTracker)
-    : Key_(std::move(key))
+    : Key_(key)
     , Parent_(std::move(parent))
     , Limit_(limit)
     , MemoryTracker_(std::move(memoryTracker))
@@ -98,8 +98,8 @@ TTrackedMemoryChunkProvider::~TTrackedMemoryChunkProvider()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTrackedMemoryChunkProviderPtr TMemoryProviderMapByTag::GetProvider(
-    const TString& tag,
+TTrackedMemoryChunkProviderPtr TMemoryProviderMapByTag::GetOrCreateProvider(
+    TStringBuf tag,
     size_t limit,
     IMemoryUsageTrackerPtr memoryTracker)
 {

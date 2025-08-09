@@ -17,6 +17,7 @@ SRCS(
     helpers.cpp
     incumbent_scheduler_ut.cpp
     interned_pool_attributes_ut.cpp
+    table_schema_cache_ut.cpp
     tablet_cell_balancer_ut.cpp
 )
 

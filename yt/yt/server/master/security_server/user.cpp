@@ -356,11 +356,7 @@ void TUser::Load(TLoadContext& context)
     Load(context, Tags_);
     Load(context, LastSeenTime_);
     Load(context, PendingRemoval_);
-
-    // COMPAT(sabdenovch)
-    if (context.GetVersion() >= EMasterReign::SecondaryIndexPerUserValidation) {
-        Load(context, AllowCreateSecondaryIndices_);
-    }
+    Load(context, AllowCreateSecondaryIndices_);
 
     TNullableIntrusivePtrSerializer<>::Load(context, ChunkServiceUserRequestWeightThrottlerConfig_);
     TNullableIntrusivePtrSerializer<>::Load(context, ChunkServiceUserRequestBytesThrottlerConfig_);

@@ -160,15 +160,16 @@ public:
     TSequoiaTransaction(
         ISequoiaClientPtr sequoiaClient,
         ESequoiaTransactionType type,
-        IClientPtr localClient,
+        const NNative::IConnectionPtr& localConnection,
         IClientPtr groundClient,
         const TSequoiaTransactionOptions& sequoiaTransactionOptions)
         : SequoiaClient_(std::move(sequoiaClient))
         , Type_(type)
-        , LocalClient_(std::move(localClient))
+        , AuthenticatedLocalClient_(
+            localConnection->CreateNativeClient(
+                TClientOptions::FromAuthenticationIdentity(sequoiaTransactionOptions.AuthenticationIdentity)))
         , GroundClient_(std::move(groundClient))
-        , SerializedInvoker_(CreateSerializedInvoker(
-            LocalClient_->GetConnection()->GetInvoker()))
+        , SerializedInvoker_(CreateSerializedInvoker(localConnection->GetInvoker()))
         , SequoiaTransactionOptions_(sequoiaTransactionOptions)
         , Logger(SequoiaClient_->GetLogger())
     { }
@@ -208,11 +209,11 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        const auto& transactionManager = LocalClient_->GetTransactionManager();
+        const auto& transactionManager = AuthenticatedLocalClient_->GetTransactionManager();
 
         StartOptions_ = options;
         if (!StartOptions_.Timeout) {
-            const auto& config = LocalClient_->GetNativeConnection()->GetConfig();
+            const auto& config = AuthenticatedLocalClient_->GetNativeConnection()->GetConfig();
             StartOptions_.Timeout = config->SequoiaConnection->SequoiaTransactionTimeout;
         }
 
@@ -328,12 +329,6 @@ public:
             .Table = table,
         };
         WriteRow(descriptor, row, lockType);
-
-        YT_LOG_DEBUG_IF(SequoiaTransactionOptions_.EnableVerboseLogging,
-            "Row written (SequoiaTable: %v, Row: %v, LockType: %v)",
-            table,
-            row,
-            lockType);
     }
 
     void WriteRow(
@@ -431,7 +426,7 @@ public:
 
     TCellTag GetRandomSequoiaNodeHostCellTag() const override
     {
-        auto connection = LocalClient_->GetNativeConnection();
+        auto connection = AuthenticatedLocalClient_->GetNativeConnection();
 
         const auto& cellDirectorySynchronizer = connection->GetMasterCellDirectorySynchronizer();
         WaitFor(cellDirectorySynchronizer->RecentSync())
@@ -441,7 +436,7 @@ public:
             NCellMasterClient::EMasterCellRole::SequoiaNodeHost);
     }
 
-    TThreadSafeRowBuffer GetGuardedRowBuffer() override
+    TThreadSafeRowBuffer GetRowBuffer() override
     {
         return TThreadSafeRowBuffer(&Lock_, RowBuffer_);
     }
@@ -454,7 +449,7 @@ public:
 private:
     const ISequoiaClientPtr SequoiaClient_;
     const ESequoiaTransactionType Type_;
-    const NApi::NNative::IClientPtr LocalClient_;
+    const NApi::NNative::IClientPtr AuthenticatedLocalClient_;
     const NApi::NNative::IClientPtr GroundClient_;
     const IInvokerPtr SerializedInvoker_;
     const TSequoiaTransactionOptions SequoiaTransactionOptions_;
@@ -485,8 +480,6 @@ private:
         THashSet<TTabletCellId> TabletCellIds;
 
         TWriteSet WriteSet;
-
-        TAuthenticationIdentity UserIdentity;
     };
     using TMasterCellCommitSessionPtr = TIntrusivePtr<TMasterCellCommitSession>;
 
@@ -526,9 +519,8 @@ private:
         if (it == MasterCellCommitSessions_.end()) {
             auto session = New<TMasterCellCommitSession>();
             session->CellTag = cellTag;
-            session->UserIdentity = GetCurrentAuthenticationIdentity();
             EmplaceOrCrash(MasterCellCommitSessions_, cellTag, session);
-            Transaction_->RegisterParticipant(LocalClient_->GetNativeConnection()->GetMasterCellId(cellTag));
+            Transaction_->RegisterParticipant(AuthenticatedLocalClient_->GetNativeConnection()->GetMasterCellId(cellTag));
             return session;
         } else {
             return it->second;
@@ -603,7 +595,7 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
-        auto path = GetSequoiaTablePath(LocalClient_, session->SequoiaTableDescriptor);
+        auto path = GetSequoiaTablePath(AuthenticatedLocalClient_, session->SequoiaTableDescriptor);
 
         const auto& tableMountCache = GroundClient_->GetTableMountCache();
         return tableMountCache->GetTableInfo(path)
@@ -882,7 +874,7 @@ private:
         std::vector<TFuture<void>> futures;
         futures.reserve(MasterCellCommitSessions_.size());
         for (const auto& [cellTag, session] : MasterCellCommitSessions_) {
-            auto channel = LocalClient_->GetNativeConnection()->GetMasterChannelOrThrow(
+            auto channel = AuthenticatedLocalClient_->GetNativeConnection()->GetMasterChannelOrThrow(
                 EMasterChannelKind::Leader,
                 cellTag);
             TSequoiaTransactionServiceProxy proxy(std::move(channel));
@@ -898,7 +890,9 @@ private:
             for (const auto& action : session->TransactionActions) {
                 ToProto(req->add_actions(), action);
             }
-            WriteAuthenticationIdentityToProto(req->mutable_identity(), session->UserIdentity);
+            WriteAuthenticationIdentityToProto(
+                req->mutable_identity(),
+                AuthenticatedLocalClient_->GetOptions().GetAuthenticationIdentity());
             req->set_sequoia_reign(NYT::ToProto(GetCurrentSequoiaReign()));
             ToProto(req->mutable_prerequisite_transaction_ids(), SequoiaTransactionOptions_.CypressPrerequisiteTransactionIds);
 
@@ -966,20 +960,22 @@ namespace NDetail {
 TFuture<ISequoiaTransactionPtr> StartSequoiaTransaction(
     ISequoiaClientPtr sequoiaClient,
     ESequoiaTransactionType type,
-    IClientPtr localClient,
+    const NNative::IConnectionPtr& localConnection,
     IClientPtr groundClient,
     TTransactionStartOptions transactionStartOptions,
     const TSequoiaTransactionOptions& sequoiaTransactionOptions)
 {
+    YT_VERIFY(!sequoiaTransactionOptions.AuthenticationIdentity.User.empty());
+
     if (!transactionStartOptions.Timeout.has_value()) {
-        auto connectionConfig = localClient->GetNativeConnection()->GetConfig();
+        const auto& connectionConfig = localConnection->GetConfig();
         transactionStartOptions.Timeout = connectionConfig->SequoiaTransactionTypeToTimeout[type];
     }
 
     auto transaction = New<TSequoiaTransaction>(
         std::move(sequoiaClient),
         type,
-        std::move(localClient),
+        localConnection,
         std::move(groundClient),
         sequoiaTransactionOptions);
     return transaction->Start(transactionStartOptions);

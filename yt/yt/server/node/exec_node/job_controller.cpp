@@ -1837,7 +1837,7 @@ private:
             NJobAgent::EResourcesState::Acquired,
             NJobAgent::EResourcesState::Releasing,
         });
-        auto limits = JobResourceManager_->GetResourceLimits(/*considerUserJobFreeMemoryWatermark*/ false) + NClusterNode::TJobResources::Epsilon();
+        auto limits = JobResourceManager_->GetResourceLimits(/*considerUserJobFreeMemoryWatermark*/ false);
 
         bool preemptMemoryOverdraft = false;
         bool preemptCpuOverdraft = false;

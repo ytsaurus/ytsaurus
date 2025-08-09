@@ -1490,8 +1490,7 @@ struct TCypressKeyWriterTest
 
     TCypressKeyWriterTest()
     {
-        static int testId = 0;
-        Config->Path = YPathJoin("//sys/public_keys", ++testId);
+        Config->Path = Format("//sys/public_keys/%v", TGuid::Create());
         WaitFor(Client_->CreateNode(Config->Path, EObjectType::MapNode))
             .ThrowOnError();
         Writer = New<TCypressKeyWriter>(Config, OwnerId, NativeClient);
@@ -1517,15 +1516,20 @@ TEST_F(TCypressKeyWriterTest, RegisterKey)
         EXPECT_TRUE(
             WaitFor(Client_->GetNode(YPathJoin(Config->Path, "test")))
                 .IsOK());
+        auto keyNode = YPathJoin(Config->Path, "test", "4-3-2-1");
         EXPECT_EQ(
-            ConvertTo<TKeyInfo>(WaitFor(Client_->GetNode(YPathJoin(Config->Path, "test", "4-3-2-1")))
+            ConvertTo<TKeyInfo>(WaitFor(Client_->GetNode(keyNode))
                 .ValueOrThrow()),
             *keyInfo);
         EXPECT_EQ(
             ConvertTo<TInstant>(
-                WaitFor(Client_->GetNode(YPathJoin(Config->Path, "test", "4-3-2-1") + "/@expiration_time"))
+                WaitFor(Client_->GetNode(keyNode + "/@expiration_time"))
                     .ValueOrThrow()),
             ExpiresAt + Config->KeyDeletionDelay);
+        EXPECT_EQ(
+            WaitFor(Client_->GetNode(keyNode + "/@type"))
+                .ValueOrThrow(),
+            ConvertToYsonString(EObjectType::Document));
 
         // Second registration should fail.
         EXPECT_THROW_WITH_SUBSTRING(
@@ -1537,14 +1541,15 @@ TEST_F(TCypressKeyWriterTest, RegisterKey)
 
 TEST_F(TCypressKeyWriterTest, RegisterKeyFailed)
 {
-    Config->Path = "//sys/nonexistent/path";
+    Config->Path = "not/a/path";
+
     auto keyInfo = New<TKeyInfo>(TPublicKey{}, MetaValid);
 
     // Registration should fail gracefully.
     EXPECT_THROW_WITH_SUBSTRING(
         WaitFor(Writer->RegisterKey(keyInfo))
             .ThrowOnError(),
-        "no child with key");
+        "Unexpected \"literal\" token");
 }
 
 TEST_F(TCypressKeyWriterTest, RegisterExpiredKey)
@@ -1680,6 +1685,65 @@ TEST_F(TCypressKeyWriterTest, Reconfigure)
         *keyInfoExpired);
 }
 
+TEST_F(TCypressKeyWriterTest, CleanupSoonExpiringKeysWhenLimitExceeded)
+{
+    Config->MaxKeyCount = 3;
+    Writer->Reconfigure(Config);
+
+    for (int i = 0; i < 5; ++i) {
+        auto meta = TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>{
+            .OwnerId = OwnerId,
+            .KeyId = TKeyId(TGuid(i, 0, 0, 0)),
+            .CreatedAt = NowTime - TDuration::Seconds(10),
+            .ValidAfter = NowTime,
+            .ExpiresAt = NowTime + TDuration::Hours(1) + TDuration::Seconds(i),
+        };
+        WaitFor(Writer->RegisterKey(New<TKeyInfo>(TPublicKey{}, meta)))
+            .ThrowOnError();
+    }
+
+    // Verify keys with nearest expiration time were deleted, others remain.
+    auto ownerPath = YPathJoin(Config->Path, "test");
+    EXPECT_FALSE(WaitFor(Client_->NodeExists(YPathJoin(ownerPath, "0-0-0-0")))
+        .ValueOrThrow());
+    EXPECT_FALSE(WaitFor(Client_->NodeExists(YPathJoin(ownerPath, "0-0-0-1")))
+        .ValueOrThrow());
+    EXPECT_TRUE(WaitFor(Client_->NodeExists(YPathJoin(ownerPath, "0-0-0-2")))
+        .ValueOrThrow());
+    EXPECT_TRUE(WaitFor(Client_->NodeExists(YPathJoin(ownerPath, "0-0-0-3")))
+        .ValueOrThrow());
+    EXPECT_TRUE(WaitFor(Client_->NodeExists(YPathJoin(ownerPath, "0-0-0-4")))
+        .ValueOrThrow());
+}
+
+TEST_F(TCypressKeyWriterTest, NoCleanupWhenMaxKeyCountNotSet)
+{
+    Config->MaxKeyCount = std::nullopt;
+    Writer->Reconfigure(Config);
+
+    std::vector<TFuture<void>> registerFutures;
+    int keyCount = 20;
+    for (int i = 0; i < keyCount; ++i) {
+        auto meta = TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>{
+            .OwnerId = OwnerId,
+            .KeyId = TKeyId(TGuid(i, 0, 0, 0)),
+            .CreatedAt = NowTime,
+            .ValidAfter = NowTime,
+            .ExpiresAt = ExpiresAt,
+        };
+        registerFutures.push_back(Writer->RegisterKey(New<TKeyInfo>(TPublicKey{}, std::move(meta))));
+    }
+    WaitFor(AllSucceeded(registerFutures))
+        .ThrowOnError();
+
+    // All keys should exist
+    auto ownerPath = YPathJoin(Config->Path, "test");
+    for (int i = 0; i < keyCount; ++i) {
+        EXPECT_TRUE(WaitFor(Client_->NodeExists(Format("%v/%v", ownerPath, TGuid(i, 0, 0, 0))))
+            .ValueOrThrow());
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSignatureComponentsTest
@@ -1755,7 +1819,7 @@ TEST_F(TSignatureComponentsTest, Validation)
 TEST_F(TSignatureComponentsTest, DontCrashOnCypressFailure)
 {
     Config->Generation = GenerationConfig;
-    Config->Generation->KeyRotator->KeyRotationInterval = TDuration::MilliSeconds(200);
+    Config->Generation->KeyRotator->KeyRotationOptions.Period = TDuration::MilliSeconds(200);
     Config->Validation = ValidationConfig;
     Components = New<TSignatureComponents>(Config, OwnerId, NativeClient, GetCurrentInvoker());
 
@@ -1766,7 +1830,7 @@ TEST_F(TSignatureComponentsTest, DontCrashOnCypressFailure)
         .ThrowOnError();
 
     // Imitate read-only mode with an invalid path.
-    Config->Generation->CypressKeyWriter->Path = Config->Validation->CypressKeyReader->Path = "//sys/nonexistent/path";
+    Config->Generation->CypressKeyWriter->Path = Config->Validation->CypressKeyReader->Path = "not/a/path";
 
     YT_UNUSED_FUTURE(Components->StartRotation());
 
@@ -1781,7 +1845,7 @@ TEST_F(TSignatureComponentsTest, DontCrashOnCypressFailure)
     EXPECT_THROW_WITH_SUBSTRING(
         WaitFor(validator->Validate(signature))
             .ThrowOnError(),
-        "no child with key");
+        "Unexpected \"literal\" token");
 }
 
 TEST_F(TSignatureComponentsTest, ReconfigureEnableGeneration)
@@ -1920,7 +1984,7 @@ TEST_F(TSignatureComponentsTest, ReconfigureMultipleTimes)
 TEST_F(TSignatureComponentsTest, ReconfigureWhileRotating)
 {
     // Start with fast rotation.
-    GenerationConfig->KeyRotator->KeyRotationInterval = TDuration::MilliSeconds(10);
+    GenerationConfig->KeyRotator->KeyRotationOptions.Period= TDuration::MilliSeconds(10);
     Config->Generation = GenerationConfig;
     Components = New<TSignatureComponents>(Config, OwnerId, NativeClient, GetCurrentInvoker());
     auto generator = Components->GetSignatureGenerator();
@@ -1935,7 +1999,7 @@ TEST_F(TSignatureComponentsTest, ReconfigureWhileRotating)
     }
 
     // Reconfigure with slower rotation.
-    Config->Generation->KeyRotator->KeyRotationInterval = TDuration::Hours(10);
+    Config->Generation->KeyRotator->KeyRotationOptions.Period = TDuration::Hours(10);
     YT_UNUSED_FUTURE(Components->Reconfigure(Config));
 
     // Should be still working perfectly fine.

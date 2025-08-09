@@ -142,7 +142,7 @@ NClusterNode::TJobResources PatchJobResources(
 void RecalculateCpu(TNonNullPtr<NClusterNode::TJobResources> jobResources, double cpuToVCpuFactor)
 {
     jobResources->VCpu = jobResources->Cpu;
-    jobResources->Cpu = static_cast<double>(NVectorHdrf::TCpuResource(jobResources->VCpu / cpuToVCpuFactor));
+    jobResources->Cpu = NVectorHdrf::TCpuResource(jobResources->VCpu / cpuToVCpuFactor);
 }
 
 } // namespace

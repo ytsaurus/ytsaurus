@@ -266,10 +266,10 @@ public:
     virtual const THashMap<std::string, TProxyRole*>& GetProxyRolesWithProxyKind(NApi::EProxyKind proxyKind) const = 0;
 
     //! Returns the object ACD or |nullptr| if access is not controlled.
-    virtual TAccessControlDescriptor* FindAcd(NObjectServer::TObject* object) = 0;
+    virtual TWrappedAccessControlDescriptorPtr FindAcd(NObjectServer::TObject* object) = 0;
 
     //! Returns the object ACD. Fails if no ACD exists.
-    virtual TAccessControlDescriptor* GetAcd(NObjectServer::TObject* object) = 0;
+    virtual TWrappedAccessControlDescriptorPtr GetAcd(NObjectServer::TObject* object) = 0;
 
     //! Returns the ACL obtained by combining ACLs of the object and its parents.
     //! The returned ACL is a fake one, i.e. does not exist explicitly anywhere.
@@ -407,6 +407,9 @@ public:
     virtual NYTProf::TProfilerTagPtr GetUserCpuProfilerTag(TUser* user) = 0;
 
     virtual void ValidateAclSubjectTagFilters(TAccessControlList& acl) = 0;
+
+    //! Updates Sequoia tables on ACD change. Is not expected to be called manually.
+    virtual void OnObjectAcdUpdated(TAccessControlDescriptor* acd) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISecurityManager)

@@ -17,7 +17,7 @@ TFuture<std::vector<std::optional<typename TRecordKey::TRecordDescriptor::TRecor
     const std::vector<TRecordKey>& recordKeys,
     const NTableClient::TColumnFilter& columnFilter)
 {
-    auto keys = FromRecordKeys<TRecordKey>(recordKeys, GetGuardedRowBuffer().Get());
+    auto keys = FromRecordKeys<TRecordKey>(recordKeys, GetRowBuffer().Get());
     auto rowsetFuture = LookupRows(
         TRecordKey::Table,
         keys,
@@ -43,7 +43,7 @@ void ISequoiaTransaction::DatalessLockRow(
     const TRecord& record,
     NTableClient::ELockType lockType)
 {
-    auto key = record.ToKey(GetGuardedRowBuffer().Get());
+    auto key = record.ToKey(GetRowBuffer().Get());
     DatalessLockRow(
         masterCellTag,
         TRecord::Table,
@@ -56,7 +56,7 @@ void ISequoiaTransaction::LockRow(
     const TRecord& record,
     NTableClient::ELockType lockType)
 {
-    auto key = record.ToKey(GetGuardedRowBuffer().Get());
+    auto key = record.ToKey(GetRowBuffer().Get());
     LockRow(
         TRecord::Table,
         key,
@@ -71,7 +71,7 @@ void ISequoiaTransaction::WriteRow(
 {
     auto row = NTableClient::FromRecord(
         record,
-        GetGuardedRowBuffer().Get(),
+        GetRowBuffer().Get(),
         TRecord::TRecordDescriptor::Get()->GetPartialIdMapping(),
         flags);
     WriteRow(
@@ -93,7 +93,7 @@ void ISequoiaTransaction::WriteRow(
     };
     auto row = NTableClient::FromRecord(
         record,
-        GetGuardedRowBuffer().Get(),
+        GetRowBuffer().Get(),
         TRecord::TRecordDescriptor::Get()->GetPartialIdMapping(),
         flags);
     WriteRow(
@@ -105,7 +105,7 @@ void ISequoiaTransaction::WriteRow(
 template <class TRecordKey>
 void ISequoiaTransaction::DeleteRow(const TRecordKey& recordKey)
 {
-    auto key = NTableClient::FromRecordKey(recordKey, GetGuardedRowBuffer().Get());
+    auto key = NTableClient::FromRecordKey(recordKey, GetRowBuffer().Get());
     DeleteRow(TRecordKey::Table, key);
 }
 

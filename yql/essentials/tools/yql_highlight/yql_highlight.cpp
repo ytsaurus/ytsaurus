@@ -1,4 +1,6 @@
+#include "generator_highlight_js.h"
 #include "generator_json.h"
+#include "generator_monarch.h"
 #include "generator_textmate.h"
 #include "generator_vim.h"
 #include "yqls_highlight.h"
@@ -27,9 +29,11 @@ const THighlightingMap highlightings = {
 
 const TGeneratorMap generators = {
     {"json", MakeJsonGenerator},
+    {"monarch", MakeMonarchGenerator},
     {"tmlanguage", MakeTextMateJsonGenerator},
     {"tmbundle", MakeTextMateBundleGenerator},
     {"vim", MakeVimGenerator},
+    {"highlightjs", MakeHighlightJSGenerator},
 };
 
 template <class TMap>

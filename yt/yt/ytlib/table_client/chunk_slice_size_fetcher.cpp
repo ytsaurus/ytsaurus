@@ -87,7 +87,7 @@ TFuture<void> TChunkSliceSizeFetcher::DoFetchFromNode(
             ToProto(weightedChunkRequest->mutable_upper_limit(), *chunk->UpperLimit());
         }
 
-        if (auto columnStableNames = GetColumnStableNames(index)) {
+        if (const auto *columnStableNames = FindColumnStableNames(index)) {
             for (const auto& columnName : *columnStableNames) {
                 auto columnId = nameTable->GetIdOrRegisterName(columnName.Underlying());
                 weightedChunkRequest->mutable_column_filter()->add_indexes(columnId);
@@ -153,13 +153,13 @@ void TChunkSliceSizeFetcher::OnFetchingStarted()
     WeightedChunks_.resize(Chunks_.size());
 }
 
-const std::optional<std::vector<TColumnStableName>> TChunkSliceSizeFetcher::GetColumnStableNames(int chunkIndex) const
+const std::vector<TColumnStableName>* TChunkSliceSizeFetcher::FindColumnStableNames(int chunkIndex) const
 {
     if (auto columnFilterIdIt = ChunkColumnFilterIds_.find(chunkIndex); columnFilterIdIt != ChunkColumnFilterIds_.end()) {
-        return ColumnFilterDictionary_.GetAdmittedColumns(columnFilterIdIt->second);
+        return &ColumnFilterDictionary_.GetAdmittedColumns(columnFilterIdIt->second);
     }
 
-    return {};
+    return nullptr;
 }
 
 void TChunkSliceSizeFetcher::ApplyBlockSelectivityFactors() const

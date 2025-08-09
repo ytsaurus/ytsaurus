@@ -213,7 +213,7 @@ message TLocalAttributeMigration
     optional string old_lock_group = 4;
 }
 
-// Next field number 55.
+// Next field number 56.
 message TObjectTypeOption
 {
     reserved 6, 7, 15, 17, 20, 21, 28, 29, 35, 37, 38, 46;
@@ -271,6 +271,7 @@ message TObjectTypeOption
     optional bool custom_type_handler = 16;
     optional bool custom_cpp_object = 44;
     optional bool custom_type_handler_needs_descriptors = 49;
+    optional bool custom_type_handler_dynamic_config = 55;
 
     // See FileOptions.skip_store_without_changes.
     optional bool skip_store_without_changes = 18;

@@ -38,8 +38,6 @@ void TDistributedThrottlerConfig::Register(TRegistrar registrar)
         .Default(EDistributedThrottlerMode::Adaptive);
     registrar.Parameter("member_priority_generator", &TThis::MemberPriorityGenerator)
         .Default(EDistributedThrottlerMemberPriorityGenerator::StartTime);
-    registrar.Parameter("member_priority", &TThis::MemberPriority)
-        .Default();
     registrar.Parameter("extra_limit_ratio", &TThis::ExtraLimitRatio)
         .Default(0.1)
         .LessThanOrEqual(1.0)

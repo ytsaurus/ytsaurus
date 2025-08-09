@@ -512,7 +512,7 @@ public:
         , ClusterIncomingReplicationChecker_(Config_->ClusterStateCache, ClusterClientCache_)
         , BundleHealthChecker_(Config_->BundleHealthCache, ClusterClientCache_)
     {
-        YT_LOG_DEBUG("TNewReplicatedTableTracker created (Config: %v)",
+        YT_LOG_INFO("Replicated table tracker created (Config: %v)",
             ConvertToYsonString(config, EYsonFormat::Text));
 
         MaxActionQueueSize_.store(Config_->MaxActionQueueSize);

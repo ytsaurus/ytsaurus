@@ -495,7 +495,7 @@ struct TFairShareStrategyTreeConfig
     // TODO(eshcherbin): Remove when 24.2 is finalized.
     bool AllowSingleJobLargeGpuOperationsInMultipleTrees;
 
-    std::optional<TJobResourcesConfigPtr> MinSpareAllocationResourcesOnNode;
+    TJobResourcesConfigPtr MinSpareAllocationResourcesOnNode;
 
     REGISTER_YSON_STRUCT(TFairShareStrategyTreeConfig);
 
@@ -607,7 +607,7 @@ struct TFairShareStrategyConfig
     bool RequireSpecifiedOperationPoolsExistence;
 
     //! Minimum amount of resources to continue schedule allocation attempts.
-    std::optional<TJobResourcesConfigPtr> MinSpareAllocationResourcesOnNode;
+    TJobResourcesConfigPtr MinSpareAllocationResourcesOnNode;
 
     REGISTER_YSON_STRUCT(TFairShareStrategyConfig);
 

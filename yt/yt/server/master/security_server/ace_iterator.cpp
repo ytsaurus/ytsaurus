@@ -37,7 +37,7 @@ TAclInheritanceIterator& TAclInheritanceIterator::DoIncrement(bool ignoreInherit
     YT_VERIFY(ObjectTypeHandler_);
     YT_VERIFY(Object_);
 
-    auto* acd = ObjectTypeHandler_->FindAcd(Object_);
+    const auto acd = ObjectTypeHandler_->FindAcd(Object_);
     if (ignoreInheritAcl || !acd || acd->Inherit()) {
         Object_ = ObjectTypeHandler_->GetParent(Object_);
         OnObjectUpdated();
@@ -64,7 +64,7 @@ TAclInheritanceIterator::TValue TAclInheritanceIterator::operator*() const
     YT_VERIFY(ObjectTypeHandler_);
     YT_VERIFY(Object_);
 
-    auto* acd = ObjectTypeHandler_->FindAcd(Object_);
+    const auto acd = ObjectTypeHandler_->FindAcd(Object_);
 
     return {
         .Object = Object_,

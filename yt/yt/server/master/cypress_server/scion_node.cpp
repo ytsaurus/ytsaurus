@@ -10,6 +10,11 @@ using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TScionNode::TScionNode(TVersionedNodeId nodeId)
+    : TSequoiaMapNode(nodeId)
+    , DirectAcd_(this)
+{ }
+
 void TScionNode::Save(TSaveContext& context) const
 {
     TSequoiaMapNode::Save(context);

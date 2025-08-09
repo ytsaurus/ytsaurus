@@ -1,5 +1,6 @@
 #include "table_descriptor.h"
 
+#include <yt/yt/ytlib/sequoia_client/records/acls.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/child_node.record.h>
@@ -9,6 +10,7 @@
 #include <yt/yt/ytlib/sequoia_client/records/transaction_descendants.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/transaction_replicas.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/dependent_transactions.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/doomed_transactions.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/unapproved_chunk_replicas.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/node_forks.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/path_forks.record.h>
@@ -47,7 +49,7 @@ void ITableDescriptor::ScheduleInitialization()
     ThreadPool = CreateThreadPool(TEnumTraits<ESequoiaTable>::GetDomainSize(), "SequoiaInit");
 
     for (auto table : TEnumTraits<ESequoiaTable>::GetDomainValues()) {
-        YT_UNUSED_FUTURE(BIND(ITableDescriptor::Get, table).AsyncVia(ThreadPool->GetInvoker()).Run());
+        ThreadPool->GetInvoker()->Invoke(BIND([table] { ITableDescriptor::Get(table); }));
     }
 }
 
@@ -155,6 +157,7 @@ const ITableDescriptor* ITableDescriptor::Get(ESequoiaTable table)
             return T##TableName##TableDescriptor::Get();
 
     switch (table) {
+        XX(Acls, "acls", Acls)
         XX(PathToNodeId, "path_to_node_id", PathToNodeId)
         XX(NodeIdToPath, "node_id_to_path", NodeIdToPath)
         XX(ChunkReplicas, "chunk_replicas", ChunkReplicas)
@@ -164,6 +167,7 @@ const ITableDescriptor* ITableDescriptor::Get(ESequoiaTable table)
         XX(TransactionDescendant, "transaction_descendants", TransactionDescendants)
         XX(TransactionReplica, "transaction_replicas", TransactionReplicas)
         XX(DependentTransaction, "dependent_transactions", DependentTransactions)
+        XX(DoomedTransaction, "doomed_transactions", DoomedTransactions)
         XX(UnapprovedChunkReplicas, "unapproved_chunk_replicas", UnapprovedChunkReplicas)
         XX(NodeFork, "node_forks", NodeForks)
         XX(PathFork, "path_forks", PathForks)
@@ -182,7 +186,14 @@ NYPath::TYPath GetSequoiaTablePath(
     const NApi::NNative::IClientPtr& client,
     const TSequoiaTablePathDescriptor& tablePathDescriptor)
 {
-    const auto& rootPath = client->GetNativeConnection()->GetConfig()->SequoiaConnection->SequoiaRootPath;
+    return GetSequoiaTablePath(client->GetNativeConnection(), tablePathDescriptor);
+}
+
+NYPath::TYPath GetSequoiaTablePath(
+    const NApi::NNative::IConnectionPtr& connection,
+    const TSequoiaTablePathDescriptor& tablePathDescriptor)
+{
+    const auto& rootPath = connection->GetConfig()->SequoiaConnection->SequoiaRootPath;
     const auto* tableDescriptor = ITableDescriptor::Get(tablePathDescriptor.Table);
     auto path = rootPath + "/" + NYPath::ToYPathLiteral(tableDescriptor->GetTableName());
     if (tablePathDescriptor.MasterCellTag) {
