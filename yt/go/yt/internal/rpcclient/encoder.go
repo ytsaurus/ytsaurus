@@ -186,11 +186,6 @@ func (e *Encoder) GetNode(
 	if opts == nil {
 		opts = &yt.GetNodeOptions{}
 	}
-	if opts.Format != nil {
-		// TODO(tinarsky): support format here by manually converting values from YSON,
-		// similar to the approach in https://github.com/ytsaurus/ytsaurus/blob/9b772a777c98a6635c4b9f1c862637ec31a1276b/yt/yt/client/driver/driver.cpp#L709
-		return xerrors.New("format is not supported by the RPC client")
-	}
 
 	req := &rpc_proxy.TReqGetNode{
 		Path: []byte(path.YPath().String()),
