@@ -63,9 +63,7 @@ private:
             .BeginAttributes()
                 .Item("id").Value(replicationCardId)
                 .Item("type").Value(EObjectType::ReplicationCard)
-                .DoIf(residencyCellDescriptor != nullptr, [&] (auto fluent) {
-                    Serialize(*residencyCellDescriptor, fluent.Item("residency_cell").GetConsumer());
-                })
+                .Item("residency_cell").Value(residencyCellDescriptor)
                 .Do([&] (auto fluent) {
                     Serialize(
                         *card,
