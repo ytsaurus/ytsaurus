@@ -3,8 +3,8 @@ package yson2json
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"io"
 	"sort"
 	"strconv"
 
@@ -16,27 +16,230 @@ const (
 	attributesKey = "$attributes"
 )
 
-// RawMessage is type that wraps raw JSON message and marshals it directly to YSON using streaming API.
+// RawMessage wraps raw JSON data and provides bidirectional conversion between YSON and JSON.
+// It supports both marshalling JSON to YSON and unmarshalling YSON to JSON using streaming API.
 type RawMessage struct {
 	JSON json.RawMessage
 
-	// UseInt64 controls conversion of JSON numbers.
+	// UseInt64 controls conversion of JSON numbers during marshalling to YSON.
 	//
-	// When UseInt64 is set to true, json numbers that can be represented as int64
-	// are converted to int64 in yson.
+	// When UseInt64 is true, JSON numbers that can be represented as int64
+	// are converted to int64 in YSON instead of float64.
 	UseInt64 bool
 
-	// UseUint64 controls conversion of JSON numbers.
+	// UseUint64 controls conversion of JSON numbers during marshalling to YSON.
 	//
-	// When UseUint64 is set to true, json numbers that can be represented as uint64
-	// are converted to uint64 in yson.
+	// When UseUint64 is true, JSON numbers that can be represented as uint64
+	// are converted to uint64 in YSON instead of float64.
 	//
-	// When both UseInt64 and UseUint64 are set to true, conversion to int64 tried first.
+	// When both UseInt64 and UseUint64 are true, conversion to int64 is tried first.
 	UseUint64 bool
 }
 
 func (m *RawMessage) UnmarshalYSON(r *yson.Reader) error {
-	return errors.New("yson2json: unmarshal is not implemented")
+	var buf bytes.Buffer
+
+	err := m.writeValue(r, &buf)
+	if err != nil {
+		return err
+	}
+
+	m.JSON = buf.Bytes()
+	return nil
+}
+
+func (m *RawMessage) writeValue(r *yson.Reader, w io.Writer) error {
+	event, err := r.Next(false)
+	if err != nil {
+		return err
+	}
+
+	switch event {
+	case yson.EventBeginAttrs:
+		return m.writeValueWithAttributes(r, w)
+
+	case yson.EventLiteral:
+		return m.writeLiteral(r, w)
+
+	case yson.EventBeginList:
+		return m.writeList(r, w)
+
+	case yson.EventBeginMap:
+		return m.writeMap(r, w)
+
+	default:
+		return fmt.Errorf("unexpected event: %v", event)
+	}
+}
+
+func (m *RawMessage) writeLiteral(r *yson.Reader, w io.Writer) error {
+	switch r.Type() {
+	case yson.TypeEntity:
+		_, err := w.Write([]byte("null"))
+		return err
+	case yson.TypeBool:
+		if r.Bool() {
+			_, err := w.Write([]byte("true"))
+			return err
+		} else {
+			_, err := w.Write([]byte("false"))
+			return err
+		}
+	case yson.TypeString:
+		return m.marshalJSONAndWrite(r.String(), w)
+	case yson.TypeInt64:
+		return m.marshalJSONAndWrite(r.Int64(), w)
+	case yson.TypeUint64:
+		return m.marshalJSONAndWrite(r.Uint64(), w)
+	case yson.TypeFloat64:
+		return m.marshalJSONAndWrite(r.Float64(), w)
+	default:
+		return fmt.Errorf("unexpected literal type: %v", r.Type())
+	}
+}
+
+// marshalJSONAndWrite marshals a value to JSON and writes it to the writer.
+func (m *RawMessage) marshalJSONAndWrite(value any, w io.Writer) error {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(data)
+	return err
+}
+
+func (m *RawMessage) writeList(r *yson.Reader, w io.Writer) error {
+	if _, err := w.Write([]byte("[")); err != nil {
+		return err
+	}
+
+	isFirst := true
+	for {
+		hasItem, err := r.NextListItem()
+		if err != nil {
+			return err
+		}
+		if !hasItem {
+			break
+		}
+
+		if !isFirst {
+			if _, err := w.Write([]byte(",")); err != nil {
+				return err
+			}
+		}
+		isFirst = false
+
+		if err := m.writeValue(r, w); err != nil {
+			return err
+		}
+	}
+
+	event, err := r.Next(false)
+	if err != nil {
+		return err
+	}
+	if event != yson.EventEndList {
+		return fmt.Errorf("expected end list, got: %v", event)
+	}
+
+	_, err = w.Write([]byte("]"))
+	return err
+}
+
+func (m *RawMessage) writeMap(r *yson.Reader, w io.Writer) error {
+	if _, err := w.Write([]byte("{")); err != nil {
+		return err
+	}
+
+	if err := m.writeKeyValuePairs(r, w); err != nil {
+		return err
+	}
+
+	event, err := r.Next(false)
+	if err != nil {
+		return err
+	}
+	if event != yson.EventEndMap {
+		return fmt.Errorf("expected end map, got: %v", event)
+	}
+
+	_, err = w.Write([]byte("}"))
+	return err
+}
+
+// writeKeyValuePairs writes a sequence of key-value pairs from YSON reader to JSON writer.
+func (m *RawMessage) writeKeyValuePairs(r *yson.Reader, w io.Writer) error {
+	isFirst := true
+	for {
+		hasKey, err := r.NextKey()
+		if err != nil {
+			return err
+		}
+		if !hasKey {
+			break
+		}
+
+		if !isFirst {
+			if _, err := w.Write([]byte(",")); err != nil {
+				return err
+			}
+		}
+		isFirst = false
+
+		if err := m.writeKeyValue(r, w); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// writeKeyValue writes a single key-value pair from YSON reader to JSON writer.
+func (m *RawMessage) writeKeyValue(r *yson.Reader, w io.Writer) error {
+	key := r.String()
+	keyData, err := json.Marshal(key)
+	if err != nil {
+		return err
+	}
+	if _, err := w.Write(keyData); err != nil {
+		return err
+	}
+
+	if _, err := w.Write([]byte(":")); err != nil {
+		return err
+	}
+
+	return m.writeValue(r, w)
+}
+
+func (m *RawMessage) writeValueWithAttributes(r *yson.Reader, w io.Writer) error {
+	if _, err := w.Write([]byte("{\"" + attributesKey + "\":{")); err != nil {
+		return err
+	}
+
+	if err := m.writeKeyValuePairs(r, w); err != nil {
+		return err
+	}
+
+	if _, err := w.Write([]byte("}," + "\"" + valueKey + "\"" + ":")); err != nil {
+		return err
+	}
+
+	// Consume end attrs event.
+	event, err := r.Next(false)
+	if err != nil {
+		return err
+	}
+	if event != yson.EventEndAttrs {
+		return fmt.Errorf("expected end attrs, got: %v", event)
+	}
+
+	if err := m.writeValue(r, w); err != nil {
+		return err
+	}
+
+	_, err = w.Write([]byte("}"))
+	return err
 }
 
 func (m RawMessage) MarshalYSON(w *yson.Writer) error {
