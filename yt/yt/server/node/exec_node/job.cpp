@@ -1563,8 +1563,8 @@ IYPathServicePtr TJob::GetOrchidService()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    return New<TServiceCombiner>(
-        std::vector{
+    return CreateServiceCombiner(
+        {
             CreateStaticOrchidService(),
             CreateDynamicOrchidService()
         });
