@@ -180,10 +180,6 @@ func writeGetNodeOptions(w *yson.Writer, o *yt.GetNodeOptions) {
 		w.MapKeyString("max_size")
 		w.Any(o.MaxSize)
 	}
-	if o.Format != nil {
-		w.MapKeyString("output_format")
-		w.Any(o.Format)
-	}
 	writeTransactionOptions(w, o.TransactionOptions)
 	writeAccessTrackingOptions(w, o.AccessTrackingOptions)
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)

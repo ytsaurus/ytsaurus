@@ -111,11 +111,7 @@ func (e *Encoder) GetNode(
 	options *yt.GetNodeOptions,
 ) (err error) {
 	call := e.newCall(NewGetNodeParams(path, options))
-	decoder, err := GetNodeResultDecoder(options)
-	if err != nil {
-		return err
-	}
-	err = e.do(ctx, call, decoder(result))
+	err = e.do(ctx, call, GetNodeResultDecoder(result))
 	return
 }
 
