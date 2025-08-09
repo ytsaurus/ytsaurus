@@ -1523,12 +1523,7 @@ NYTree::IYPathServicePtr TJob::CreateStaticOrchidService()
             jobInfoOrError,
             "Failed to get brief job info for static orchid");
 
-        BuildYsonFluently(consumer).BeginMap()
-            .Do(std::bind(
-                &TBriefJobInfo::BuildOrchid,
-                std::move(jobInfoOrError).Value(),
-                std::placeholders::_1))
-        .EndMap();
+        Serialize(jobInfoOrError.Value(), consumer);
     });
 
     return NYTree::IYPathService::FromProducer(std::move(producer));
