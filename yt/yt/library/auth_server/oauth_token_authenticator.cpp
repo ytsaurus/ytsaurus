@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/crypto/crypto.h>
 
+#include <yt/yt/core/rpc/dispatcher.h>
+
 namespace NYT::NAuth {
 
 using namespace NYTree;
@@ -54,7 +56,8 @@ public:
             .Apply(BIND(
                 &TOAuthTokenAuthenticator::OnGetUserInfo,
                 MakeStrong(this),
-                std::move(tokenHash)));
+                std::move(tokenHash))
+                .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker()));
     }
 
 private:
