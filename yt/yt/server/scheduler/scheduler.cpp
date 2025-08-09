@@ -358,8 +358,8 @@ public:
         auto strategyDynamicOrchidService = Strategy_->GetOrchidService()
             ->Via(GetControlInvoker(EControlQueue::DynamicOrchid));
 
-        auto combinedOrchidService = New<TServiceCombiner>(
-            std::vector<IYPathServicePtr>{
+        auto combinedOrchidService = CreateServiceCombiner(
+            {
                 staticOrchidService,
                 std::move(lightStaticOrchidService),
                 std::move(dynamicOrchidService),
@@ -1846,8 +1846,8 @@ private:
 
     std::optional<NSecurityClient::TSerializableAccessControlList> OperationBaseAcl_;
 
-    TIntrusivePtr<NYTree::ICachedYPathService> StaticOrchidService_;
-    TIntrusivePtr<NYTree::TServiceCombiner> CombinedOrchidService_;
+    NYTree::ICachedYPathServicePtr StaticOrchidService_;
+    NYTree::IServiceCombinerPtr CombinedOrchidService_;
 
     THashMap<std::string, TString> UserToDefaultPoolMap_;
 
@@ -3016,7 +3016,7 @@ private:
                 ->Via(GetControlInvoker(EControlQueue::DynamicOrchid))
             : IYPathService::FromProducer(BIND(&TImpl::BuildOperationOrchid, MakeStrong(this), operation))
                 ->Via(GetControlInvoker(EControlQueue::DynamicOrchid));
-        return New<TServiceCombiner>(
+        return CreateServiceCombiner(
             std::vector<IYPathServicePtr>{
                 NewWithOffloadedDtor<TOperationService>(GetBackgroundInvoker(), this, operation),
                 operationAttributesOrchidService,

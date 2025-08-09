@@ -286,8 +286,8 @@ public:
 
         auto jobTrackerOrchidService = GetJobTrackerOrchidService();
 
-        return New<TServiceCombiner>(
-            std::vector<IYPathServicePtr>{
+        return CreateServiceCombiner(
+            {
                 staticOrchidService->Via(Bootstrap_->GetControlInvoker()),
                 std::move(dynamicOrchidService),
                 std::move(jobTrackerOrchidService),

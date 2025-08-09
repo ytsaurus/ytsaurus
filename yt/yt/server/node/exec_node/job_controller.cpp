@@ -2331,10 +2331,11 @@ private:
 
         auto dynamicOrchidService = GetDynamicOrchidService();
 
-        return New<TServiceCombiner>(
-            std::vector{
+        return CreateServiceCombiner(
+            {
                 std::move(staticOrchidService),
-                std::move(dynamicOrchidService)});
+                std::move(dynamicOrchidService),
+            });
     }
 
     static std::vector<TDuration> GetJobCleanupTimerBounds()

@@ -677,8 +677,8 @@ IYPathServicePtr TAllocation::GetOrchidService()
 
     auto staticAllocationService = GetStaticOrchidService();
 
-    return New<TServiceCombiner>(
-        std::vector<IYPathServicePtr>{
+    return CreateServiceCombiner(
+        {
             std::move(jobService),
             std::move(staticAllocationService),
         });
