@@ -47,6 +47,7 @@ target_link_libraries(contrib-libs-nghttp3 PUBLIC
 target_sources(contrib-libs-nghttp3 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp3/lib/nghttp3_balloc.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp3/lib/nghttp3_buf.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp3/lib/nghttp3_callbacks.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp3/lib/nghttp3_conn.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp3/lib/nghttp3_conv.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp3/lib/nghttp3_debug.c
@@ -67,6 +68,7 @@ target_sources(contrib-libs-nghttp3 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp3/lib/nghttp3_range.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp3/lib/nghttp3_rcbuf.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp3/lib/nghttp3_ringbuf.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp3/lib/nghttp3_settings.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp3/lib/nghttp3_str.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp3/lib/nghttp3_stream.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp3/lib/nghttp3_tnode.c
