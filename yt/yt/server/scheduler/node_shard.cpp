@@ -1528,7 +1528,7 @@ TExecNodePtr TNodeShard::RegisterNode(TNodeId nodeId, const TNodeDescriptor& des
     {
         auto lease = TLeaseManager::CreateLease(
             Config_->NodeRegistrationTimeout,
-            BIND(&TNodeShard::OnNodeRegistrationLeaseExpired, MakeWeak(this), node->GetId())
+            BIND_NO_PROPAGATE(&TNodeShard::OnNodeRegistrationLeaseExpired, MakeWeak(this), node->GetId())
                 .Via(GetInvoker()));
         node->SetRegistrationLease(lease);
     }
@@ -1536,7 +1536,7 @@ TExecNodePtr TNodeShard::RegisterNode(TNodeId nodeId, const TNodeDescriptor& des
     {
         auto lease = TLeaseManager::CreateLease(
             Config_->NodeHeartbeatTimeout,
-            BIND(&TNodeShard::OnNodeHeartbeatLeaseExpired, MakeWeak(this), node->GetId())
+            BIND_NO_PROPAGATE(&TNodeShard::OnNodeHeartbeatLeaseExpired, MakeWeak(this), node->GetId())
                 .Via(GetInvoker()));
         node->SetHeartbeatLease(lease);
     }
