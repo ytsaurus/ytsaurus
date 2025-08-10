@@ -436,6 +436,12 @@ TVirtualMulticellMapBase::TVirtualMulticellMapBase(
     , IgnoreForeignObjects_(ignoreForeignObjects)
 { }
 
+IYPathServicePtr TVirtualMulticellMapBase::CreateLocalItemService(TObject* object)
+{
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+    return objectManager->GetProxy(object, /*transaction*/ nullptr);
+}
+
 bool TVirtualMulticellMapBase::DoInvoke(const IYPathServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(Get);
@@ -473,8 +479,8 @@ IYPathService::TResolveResult TVirtualMulticellMapBase::ResolveRecursive(
             proxy = objectManager->CreateRemoteProxy(cellTag);
         } else {
             auto* object = objectManager->FindObject(objectId);
-            if (IsObjectAlive(object) && IsValid(object)) {
-                proxy = objectManager->GetProxy(object, nullptr);
+            if (IsObjectAlive(object) && IsValidItem(object)) {
+                proxy = CreateLocalItemService(object);
             }
         }
     } // Else it's a garbage guid. Treat it as a non-existent object ID.

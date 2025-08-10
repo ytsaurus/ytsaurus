@@ -30,7 +30,7 @@ private:
         return MakeFuture(ToObjectIds(GetValues(graftingManager->RootstockNodes(), limit)));
     }
 
-    bool IsValid(TObject* object) const override
+    bool IsValidItem(TObject* object) const override
     {
         return object->GetType() == EObjectType::Rootstock;
     }

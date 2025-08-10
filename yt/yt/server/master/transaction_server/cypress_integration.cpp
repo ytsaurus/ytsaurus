@@ -41,7 +41,7 @@ private:
         return MakeFuture(ToObjectIds(Transactions(), limit));
     }
 
-    bool IsValid(TObject* object) const override
+    bool IsValidItem(TObject* object) const override
     {
         return IsObjectAlive(object);
     }
