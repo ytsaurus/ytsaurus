@@ -26,7 +26,7 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
 ////////////////////////////////////////////////////////////////////////////////
 
 IChunkReaderAllowingRepairPtr CreateReplicationReaderThrottlingAdapter(
-    const IChunkReaderPtr& underlyingReader,
+    IChunkReaderPtr underlyingReader,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
     NConcurrency::IThroughputThrottlerPtr rpsThrottler,
     NConcurrency::IThroughputThrottlerPtr mediumThrottler);

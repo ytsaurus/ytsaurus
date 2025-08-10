@@ -509,8 +509,10 @@ public:
         return BIND(&TRepairingErasureReaderSession::RepairBlocks, MakeStrong(this))
             .AsyncVia(ReaderInvoker_)
             .Run()
-            .Apply(BIND(&TRepairingErasureReaderSession::ReadRemainingBlocks, MakeStrong(this)))
-            .Apply(BIND(&TRepairingErasureReaderSession::BuildResult, MakeStrong(this)));
+            .Apply(BIND(&TRepairingErasureReaderSession::ReadRemainingBlocks, MakeStrong(this))
+                .AsyncVia(ReaderInvoker_))
+            .Apply(BIND(&TRepairingErasureReaderSession::BuildResult, MakeStrong(this))
+                .AsyncVia(ReaderInvoker_));
     }
 
 private:
@@ -782,23 +784,27 @@ TFuture<void> AdaptiveRepairErasedParts(
                 readOptions,
                 writeOptions);
 
-            return future.Apply(BIND([writers, Logger = logger] (const TError& error) {
-                if (error.IsOK()) {
-                    return MakeFuture(error);
+            return future.Apply(BIND([=/*, writers = std::move(writers)*/] (const TError& repairError) {
+                if (repairError.IsOK()) {
+                    return VoidFuture;
                 }
 
-                auto cancelResults = WaitFor(CancelWriters(writers));
-                if (!cancelResults.IsOK()) {
-                    YT_LOG_WARNING(cancelResults, "Failed to cancel chunk writers");
-                    return MakeFuture(TError(
-                        NChunkClient::EErrorCode::UnrecoverableRepairError,
-                        "Failed to cancel chunk writers")
-                        << cancelResults);
-                }
+                Cerr << "Failed to repair erased parts: " << ToString(repairError) << Endl;
 
-                return MakeFuture(error);
+                return CancelWriters(writers)
+                    .Apply(BIND([=] (const TError& cancelError) {
+                        if (!cancelError.IsOK()) {
+                            const auto& Logger = logger;
+                            YT_LOG_WARNING(cancelError, "Failed to cancel chunk writers");
+                            return TError(
+                                NChunkClient::EErrorCode::UnrecoverableRepairError,
+                                "Failed to cancel chunk writers")
+                                << cancelError;
+                        }
+                        return repairError;
+                    }));
             }));
-    });
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
