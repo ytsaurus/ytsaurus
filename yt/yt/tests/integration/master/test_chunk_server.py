@@ -2011,7 +2011,7 @@ class TestChunkServerCypressIntegration(YTEnvSetup):
         set_node_banned(node, True)
         wait(lambda: chunk_id in get("//sys/lost_chunks"))
 
-        with raises_yt_error("Mutating request through virtual map is forbidden"):
+        with raises_yt_error("Mutating requests through filtered virtual maps are forbidden"):
             set(f"//sys/lost_chunks/{chunk_id}/@a", "a")
 
         # Should not raise

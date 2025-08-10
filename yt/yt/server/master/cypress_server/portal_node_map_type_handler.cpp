@@ -55,7 +55,7 @@ private:
         return MakeFuture(std::move(result));
     }
 
-    bool IsValid(TObject* /*object*/) const override
+    bool IsValidItem(TObject* /*object*/) const override
     {
         return true;
     }

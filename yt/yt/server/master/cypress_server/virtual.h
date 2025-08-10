@@ -108,7 +108,8 @@ protected:
 
     virtual TFuture<std::vector<NObjectClient::TObjectId>> GetKeys(i64 sizeLimit = std::numeric_limits<i64>::max()) const = 0;
     virtual TFuture<i64> GetSize() const = 0;
-    virtual bool IsValid(NObjectServer::TObject* object) const = 0;
+    virtual bool IsValidItem(NObjectServer::TObject* object) const = 0;
+    virtual NYTree::IYPathServicePtr CreateLocalItemService(NObjectServer::TObject* object);
     virtual NYPath::TYPath GetWellKnownPath() const = 0;
 
     bool DoInvoke(const NYTree::IYPathServiceContextPtr& context) override;
