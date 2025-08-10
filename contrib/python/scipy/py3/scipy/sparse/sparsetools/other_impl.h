@@ -505,31 +505,31 @@ static PY_LONG_LONG cs_graph_components_thunk(int I_typenum, int T_typenum, void
     }
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 coo_tocsr_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iiiIIT*I*I*T", coo_tocsr_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 coo_todense_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iilIIT*Ti", coo_todense_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 coo_matvec_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "lIITT*T", coo_matvec_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 dia_matvec_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iiiiITT*T", dia_matvec_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 cs_graph_components_method(PyObject *self, PyObject *args)
 {
     return call_thunk('i', "iII*I", cs_graph_components_thunk, args);

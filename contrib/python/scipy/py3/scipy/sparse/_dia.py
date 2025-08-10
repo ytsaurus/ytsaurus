@@ -6,6 +6,7 @@ __all__ = ['dia_array', 'dia_matrix', 'isspmatrix_dia']
 
 import numpy as np
 
+from .._lib._util import copy_if_needed
 from ._matrix import spmatrix
 from ._base import issparse, _formats, _spbase, sparray
 from ._data import _data_matrix
@@ -54,6 +55,8 @@ class _dia_base(_data_matrix):
                 else:
                     if shape is None:
                         raise ValueError('expected a shape argument')
+                    if not copy:
+                        copy = copy_if_needed
                     self.data = np.atleast_2d(np.array(arg1[0], dtype=dtype, copy=copy))
                     offsets = np.array(arg1[1],
                                        dtype=self._get_index_dtype(maxval=max(shape)),
@@ -67,6 +70,8 @@ class _dia_base(_data_matrix):
             except Exception as e:
                 raise ValueError("unrecognized form for"
                         " %s_matrix constructor" % self.format) from e
+            if isinstance(self, sparray) and arg1.ndim != 2:
+                raise ValueError(f"DIA arrays don't support {arg1.ndim}D input. Use 2D")
             A = self._coo_container(arg1, dtype=dtype, shape=shape).todia()
             self.data = A.data
             self.offsets = A.offsets
@@ -197,7 +202,7 @@ class _dia_base(_data_matrix):
                 m.setdiag(other.diagonal(d), d)
         return m
 
-    def _mul_vector(self, other):
+    def _matmul_vector(self, other):
         x = other
 
         y = np.zeros(self.shape[0], dtype=upcast_char(self.dtype.char,
@@ -211,9 +216,6 @@ class _dia_base(_data_matrix):
                    x.ravel(), y.ravel())
 
         return y
-
-    def _mul_multimatrix(self, other):
-        return np.hstack([self._mul_vector(col).reshape(-1,1) for col in other.T])
 
     def _setdiag(self, values, k=0):
         M, N = self.shape

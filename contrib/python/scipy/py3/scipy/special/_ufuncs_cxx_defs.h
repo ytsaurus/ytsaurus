@@ -1,7 +1,9 @@
 #ifndef UFUNCS_PROTO_H
 #define UFUNCS_PROTO_H 1
 #include "_special.h"
+npy_cdouble ccospi(npy_cdouble);
 npy_cdouble lambertw_scalar(npy_cdouble, npy_long, npy_double);
+npy_cdouble csinpi(npy_cdouble);
 #include "stirling2.h"
 npy_double _stirling2_inexact(npy_double, npy_double);
 #include "boost_special_functions.h"
@@ -40,18 +42,24 @@ npy_double erfinv_double(npy_double);
 npy_double expit(npy_double);
 npy_float expitf(npy_float);
 npy_longdouble expitl(npy_longdouble);
+npy_cdouble cgamma(npy_cdouble);
 npy_double hyp1f1_double(npy_double, npy_double, npy_double);
 npy_double log_expit(npy_double);
 npy_float log_expitf(npy_float);
 npy_longdouble log_expitl(npy_longdouble);
 npy_double faddeeva_log_ndtr(npy_double);
 npy_cdouble faddeeva_log_ndtr_complex(npy_cdouble);
+npy_double loggamma_real(npy_double);
+npy_cdouble loggamma(npy_cdouble);
 npy_double logit(npy_double);
 npy_float logitf(npy_float);
 npy_longdouble logitl(npy_longdouble);
 npy_cdouble faddeeva_ndtr(npy_cdouble);
 npy_float powm1_float(npy_float, npy_float);
 npy_double powm1_double(npy_double, npy_double);
+npy_cdouble cdigamma(npy_cdouble);
+npy_double digamma(npy_double);
+npy_cdouble crgamma(npy_cdouble);
 npy_double faddeeva_voigt_profile(npy_double, npy_double, npy_double);
 npy_cdouble faddeeva_w(npy_cdouble);
 #include "_wright.h"
