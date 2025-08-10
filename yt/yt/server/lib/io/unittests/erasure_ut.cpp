@@ -207,9 +207,7 @@ TEST(TErasureCodingTest, RandomText)
                 std::vector<TSharedRef> recoveredBlocks = codec->Decode(aliveBlocks, erasedIndices);
                 EXPECT_TRUE(recoveredBlocks.size() == erasedIndices.size());
                 for (int i = 0; i < std::ssize(erasedIndices); ++i) {
-                    EXPECT_EQ(
-                        ToString(allBlocks[erasedIndices[i]]),
-                        ToString(recoveredBlocks[i]));
+                    EXPECT_TRUE(TRef::AreBitwiseEqual(allBlocks[erasedIndices[i]], recoveredBlocks[i]));
                 }
             }
         }
@@ -281,8 +279,8 @@ public:
 
     static void RemoveErasedParts(const TPartIndexList& erasedIndices)
     {
-        for (int i = 0; i < std::ssize(erasedIndices); ++i) {
-            auto filename = "part" + ToString(erasedIndices[i] + 1);
+        for (int erasedIndex : erasedIndices) {
+            auto filename = "part" + ToString(erasedIndex + 1);
             NFs::Remove(filename);
             NFs::Remove(filename + ".meta");
         }
@@ -440,8 +438,7 @@ public:
             for (int i = 0; i < std::ssize(indexes); ++i) {
                 auto resultRef = result[i];
                 auto dataRef = dataRefs[indexes[i]];
-                EXPECT_EQ(std::ssize(dataRef), resultRef.Size());
-                EXPECT_EQ(ToString(dataRef), ToString(resultRef.Data));
+                EXPECT_TRUE(TRef::AreBitwiseEqual(dataRef, resultRef.Data));
             }
         };
 
@@ -490,10 +487,8 @@ public:
                 /*options*/ {},
                 std::vector<int>(1, index++))
                 .Get();
-            EXPECT_TRUE(result.IsOK());
             auto resultRef = result.ValueOrThrow().front();
-
-            ASSERT_EQ(ToString(ref), ToString(resultRef.Data));
+            ASSERT_TRUE(TRef::AreBitwiseEqual(ref, resultRef.Data));
         }
     }
 
@@ -501,8 +496,8 @@ public:
     {
         for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
             auto filename = "part" + ToString(i + 1);
-            NFs::Remove(filename.c_str());
-            NFs::Remove((filename + ".meta").c_str());
+            NFs::Remove(filename);
+            NFs::Remove(filename + ".meta");
         }
     }
 
@@ -559,11 +554,12 @@ TEST_P(TErasureMixtureTest, Writer)
     }
 
     // Prepare data
-    std::vector<TString> dataStrings = {
+    std::vector<TString> dataStrings{
         "a",
         "b",
         "",
-        "Hello world"};
+        "Hello world",
+    };
     auto dataRefs = ToSharedRefs(dataStrings);
 
     WriteErasureChunk(codecId, codec, dataRefs);
@@ -594,7 +590,7 @@ TEST_P(TErasureMixtureTest, WriterStriped)
     }
 
     // Prepare data
-    std::vector<TString> dataStrings = {
+    std::vector<TString> dataStrings{
         // Stripe 0
         "0123",
         "a",
@@ -603,7 +599,8 @@ TEST_P(TErasureMixtureTest, WriterStriped)
         "012345678",
         // Stripe 1
         "x12",
-        "x34"};
+        "x34",
+    };
     auto dataRefs = ToSharedRefs(dataStrings);
 
     WriteErasureChunk(codecId, codec, dataRefs, 64, false, 1);
@@ -639,11 +636,12 @@ TEST_P(TErasureMixtureTest, Reader)
     }
 
     // Prepare data
-    std::vector<TString> dataStrings = {
+    std::vector<TString> dataStrings{
         "a",
         "b",
         "",
-        "Hello world"};
+        "Hello world",
+    };
     auto dataRefs = ToSharedRefs(dataStrings);
 
     WriteErasureChunk(codecId, codec, dataRefs);
@@ -692,7 +690,7 @@ TEST_P(TErasureMixtureTest, ReaderStriped)
     }
 
     // Prepare data
-    std::vector<TString> dataStrings = {
+    std::vector<TString> dataStrings{
         // Stripe 0
         "0123",
         "a",
@@ -701,7 +699,8 @@ TEST_P(TErasureMixtureTest, ReaderStriped)
         "012345678",
         // Stripe 1
         "x12",
-        "x34"};
+        "x34",
+    };
     auto dataRefs = ToSharedRefs(dataStrings);
 
     WriteErasureChunk(codecId, codec, dataRefs, 64, false, 1);
@@ -791,11 +790,12 @@ TEST_P(TErasureMixtureTest, Repair2)
     }
 
     // Prepare data
-    std::vector<TString> dataStrings = {
+    std::vector<TString> dataStrings{
         "a",
         "b",
         "",
-        "Hello world"};
+        "Hello world",
+    };
     auto dataRefs = ToSharedRefs(dataStrings);
 
     WriteErasureChunk(codecId, codec, dataRefs);
@@ -1068,7 +1068,7 @@ TEST_P(TErasureMixtureTest, RepairStriped1)
     }
 
     // Prepare data
-    std::vector<TString> dataStrings = {
+    std::vector<TString> dataStrings{
         // Stripe 0
         "0123",
         "a",
@@ -1077,7 +1077,8 @@ TEST_P(TErasureMixtureTest, RepairStriped1)
         "012345678",
         // Stripe 1
         "x12",
-        "x34"};
+        "x34",
+    };
     auto dataRefs = ToSharedRefs(dataStrings);
 
     WriteErasureChunk(codecId, codec, dataRefs, 64, true, 1);
@@ -1318,9 +1319,9 @@ TEST_P(TErasureMixtureTest, TestAdaptiveRepair1)
 
     // Prepare data.
     auto data = ToSharedRefs(GetRandomData(Gen_, 20, 100));
-    TPartIndexList erasedIndices = {2};
+    TPartIndexList erasedIndices{2};
     YT_VERIFY(erasedIndices.size() == 1 && erasedIndices.front() == 2);
-    TPartIndexList failingIndices = {1, 4};
+    TPartIndexList failingIndices{1, 4};
 
     ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices);
 }
@@ -1333,13 +1334,14 @@ TEST_P(TErasureMixtureTest, TestAdaptiveRepair2)
     }
 
     // Prepare data.
-    std::vector<TString> dataStrings = {
+    std::vector<TString> dataStrings{
         "a",
         "b",
         "",
-        "Hello world"};
-    TPartIndexList erasedIndices = {0, 13};
-    TPartIndexList failingIndices = {1, 14};
+        "Hello world",
+    };
+    TPartIndexList erasedIndices{0, 13};
+    TPartIndexList failingIndices{1, 14};
 
     ExecAdaptiveRepairTest(codec, ToSharedRefs(dataStrings), erasedIndices, failingIndices);
 }
@@ -1353,8 +1355,8 @@ TEST_P(TErasureMixtureTest, TestAdaptiveRepair3)
 
     auto data = GetRandomTextBlocks(20, 100, 100);
 
-    TPartIndexList erasedIndices = {1, 8, 13};
-    TPartIndexList failingIndices = {15};
+    TPartIndexList erasedIndices{1, 8, 13};
+    TPartIndexList failingIndices{15};
 
     ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices);
 }
@@ -1368,8 +1370,8 @@ TEST_P(TErasureMixtureTest, TestAdaptiveRepair4)
 
     auto data = GetRandomTextBlocks(2000, 100, 100);
 
-    TPartIndexList erasedIndices = {1};
-    TPartIndexList failingIndices = {8, 13, 15};
+    TPartIndexList erasedIndices{1};
+    TPartIndexList failingIndices{8, 13, 15};
 
     ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices);
 }
@@ -1383,8 +1385,8 @@ TEST_P(TErasureMixtureTest, TestAdaptiveRepair5)
 
     auto data = GetRandomTextBlocks(2000, 100, 100);
 
-    TPartIndexList erasedIndices = {1};
-    TPartIndexList failingIndices = {};
+    TPartIndexList erasedIndices{1};
+    TPartIndexList failingIndices{};
 
     ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices);
 }
@@ -1398,8 +1400,8 @@ TEST_P(TErasureMixtureTest, TestAdaptiveRepair6)
 
     auto data = GetRandomTextBlocks(2000, 100, 100);
 
-    TPartIndexList erasedIndices = {};
-    TPartIndexList failingIndices = {8, 13, 15};
+    TPartIndexList erasedIndices{};
+    TPartIndexList failingIndices{8, 13, 15};
 
     ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices);
 }
@@ -1416,36 +1418,36 @@ TEST_P(TErasureMixtureTest, TestAdaptiveRepairFailingMeta)
     static const bool FailMeta = true;
 
     {
-        TPartIndexList erasedIndices = {1, 13};
-        TPartIndexList failingIndices = {0, 14};
+        TPartIndexList erasedIndices{1, 13};
+        TPartIndexList failingIndices{0, 14};
 
         ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices, FailMeta);
     }
 
     {
-        TPartIndexList erasedIndices = {};
-        TPartIndexList failingIndices = {8, 13, 15};
+        TPartIndexList erasedIndices{};
+        TPartIndexList failingIndices{8, 13, 15};
 
         ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices, FailMeta);
     }
 
     {
-        TPartIndexList erasedIndices = {2};
-        TPartIndexList failingIndices = {1, 4};
+        TPartIndexList erasedIndices{2};
+        TPartIndexList failingIndices{1, 4};
 
         ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices, FailMeta);
     }
 
     {
-        TPartIndexList erasedIndices = {1, 8, 13};
-        TPartIndexList failingIndices = {15};
+        TPartIndexList erasedIndices{1, 8, 13};
+        TPartIndexList failingIndices{15};
 
         ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices, FailMeta);
     }
 
     {
-        TPartIndexList erasedIndices = {1};
-        TPartIndexList failingIndices = {8, 13, 15};
+        TPartIndexList erasedIndices{1};
+        TPartIndexList failingIndices{8, 13, 15};
 
         ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices, FailMeta);
     }
