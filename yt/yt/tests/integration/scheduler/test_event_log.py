@@ -1,7 +1,7 @@
 from yt_env_setup import (
     YTEnvSetup)
 from yt_commands import (
-    authors, extract_statistic_v2, extract_deprecated_statistic,
+    authors, extract_statistic_v2, extract_deprecated_statistic, print_debug,
     wait, wait_no_assert,
     create, ls, get, create_pool, read_table, write_table,
     map, run_test_vanilla, run_sleeping_vanilla,
@@ -10,6 +10,8 @@ from yt_commands import (
     set_node_banned)
 
 from yt_helpers import read_structured_log, write_log_barrier
+
+from yt.test_helpers import are_almost_equal
 
 from yt.common import YtError
 
@@ -47,6 +49,7 @@ class TestEventLog(YTEnvSetup):
                 "enable": True,
                 "flush_period": 1000,
             },
+            "safe_online_node_count": 6
         },
     }
 
@@ -422,7 +425,61 @@ class TestEventLog(YTEnvSetup):
 
         assert accumulated_fair_resources >= 5.0
         assert accumulated_usage >= 5.0
-        assert accumulated_usage_deficit >= accumulated_fair_resources - accumulated_usage
+        assert are_almost_equal(accumulated_usage_deficit, accumulated_fair_resources - accumulated_usage)
+
+    @authors("renadeen")
+    def test_accumulated_usage_deficit(self):
+        scheduler_address = ls("//sys/scheduler/instances")[0]
+        from_barrier = write_log_barrier(scheduler_address)
+
+        nodes = ls("//sys/cluster_nodes")
+
+        print_debug(nodes)
+        print_debug(get("//sys/cluster_nodes/{}/orchid/exec_node/job_resource_manager/resource_limits".format(nodes[0])))
+
+        op = run_test_vanilla(":", pool="test_pool", task_patch={"cpu_limit": 2}, track=False)
+        op.wait_for_state("running")
+
+        time.sleep(5)
+
+        op.abort()
+
+        scheduler_log_file = self.path_to_run + "/logs/scheduler-0.json.log"
+
+        time.sleep(self.LOG_WRITE_WAIT_TIME)
+
+        to_barrier = write_log_barrier(scheduler_address)
+
+        structured_log = read_structured_log(scheduler_log_file, from_barrier=from_barrier, to_barrier=to_barrier,
+                                             row_filter=lambda e: "event_type" in e)
+
+        found_accumulated_usage_event_with_op = False
+        found_aborted_event = False
+        accumulated_fair_resources = 0.0
+        accumulated_usage = 0.0
+        accumulated_usage_deficit = 0.0
+        for event in structured_log:
+            if event["event_type"] == "accumulated_usage_info":
+                assert "operations" in event
+                if op.id in event["operations"]:
+                    found_accumulated_usage_event_with_op = True
+                    accumulated_fair_resources += event["operations"][op.id]["accumulated_resource_distribution"]["fair_resources"]["cpu"]
+                    accumulated_usage += event["operations"][op.id]["accumulated_resource_distribution"]["usage"]["cpu"]
+                    accumulated_usage_deficit += event["operations"][op.id]["accumulated_resource_distribution"]["usage_deficit"]["cpu"]
+
+            if event["event_type"] == "operation_aborted":
+                assert event["operation_id"] == op.id
+                accumulated_fair_resources += event["accumulated_resource_distribution_per_tree"]["default"]["fair_resources"]["cpu"]
+                accumulated_usage += event["accumulated_resource_distribution_per_tree"]["default"]["usage"]["cpu"]
+                accumulated_usage_deficit += event["accumulated_resource_distribution_per_tree"]["default"]["usage_deficit"]["cpu"]
+                found_aborted_event = True
+
+        assert found_accumulated_usage_event_with_op
+        assert found_aborted_event
+
+        assert accumulated_fair_resources >= 5.0
+        assert accumulated_usage == 0.0
+        assert accumulated_usage_deficit >= 5.0
 
     @authors("ignat")
     def test_trimmed_annotations(self):
