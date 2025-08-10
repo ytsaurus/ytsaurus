@@ -1301,9 +1301,6 @@ cdef extern from r"_ufuncs_defs.h":
     cdef double _func_cosine_invcdf "cosine_invcdf"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_cospi "cospi"(double) noexcept nogil
-from ._trig cimport ccospi as _func_ccospi
-ctypedef double complex _proto_ccospi_t(double complex) noexcept nogil
-cdef _proto_ccospi_t *_proto_ccospi_t_var = &_func_ccospi
 from ._ellip_harm cimport ellip_harmonic as _func_ellip_harmonic
 ctypedef double _proto_ellip_harmonic_t(double, double, int, int, double, double, double) noexcept nogil
 cdef _proto_ellip_harmonic_t *_proto_ellip_harmonic_t_var = &_func_ellip_harmonic
@@ -1336,9 +1333,6 @@ ctypedef int _proto__sf_error_test_function_t(int) noexcept nogil
 cdef _proto__sf_error_test_function_t *_proto__sf_error_test_function_t_var = &_func__sf_error_test_function
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_sinpi "sinpi"(double) noexcept nogil
-from ._trig cimport csinpi as _func_csinpi
-ctypedef double complex _proto_csinpi_t(double complex) noexcept nogil
-cdef _proto_csinpi_t *_proto_csinpi_t_var = &_func_csinpi
 from ._legacy cimport smirnovc_unsafe as _func_smirnovc_unsafe
 ctypedef double _proto_smirnovc_unsafe_t(double, double) noexcept nogil
 cdef _proto_smirnovc_unsafe_t *_proto_smirnovc_unsafe_t_var = &_func_smirnovc_unsafe
@@ -1436,10 +1430,12 @@ ctypedef double _proto_bdtri_unsafe_t(double, double, double) noexcept nogil
 cdef _proto_bdtri_unsafe_t *_proto_bdtri_unsafe_t_var = &_func_bdtri_unsafe
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_bdtri "bdtri"(double, int, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfbin2_wrap "cdfbin2_wrap"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfbin3_wrap "cdfbin3_wrap"(double, double, double) noexcept nogil
+from ._cdflib_wrappers cimport bdtrik as _func_bdtrik
+ctypedef double _proto_bdtrik_t(double, double, double) noexcept nogil
+cdef _proto_bdtrik_t *_proto_bdtrik_t_var = &_func_bdtrik
+from ._cdflib_wrappers cimport bdtrin as _func_bdtrin
+ctypedef double _proto_bdtrin_t(double, double, double) noexcept nogil
+cdef _proto_bdtrin_t *_proto_bdtrin_t_var = &_func_bdtrin
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_bei_wrap "bei_wrap"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
@@ -1464,10 +1460,12 @@ cdef extern from r"_ufuncs_defs.h":
     cdef double _func_btdtr "btdtr"(double, double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_incbi "incbi"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfbet3_wrap "cdfbet3_wrap"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfbet4_wrap "cdfbet4_wrap"(double, double, double) noexcept nogil
+from ._cdflib_wrappers cimport btdtria as _func_btdtria
+ctypedef double _proto_btdtria_t(double, double, double) noexcept nogil
+cdef _proto_btdtria_t *_proto_btdtria_t_var = &_func_btdtria
+from ._cdflib_wrappers cimport btdtrib as _func_btdtrib
+ctypedef double _proto_btdtrib_t(double, double, double) noexcept nogil
+cdef _proto_btdtrib_t *_proto_btdtrib_t_var = &_func_btdtrib
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_cbrt "cbrt"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
@@ -1476,16 +1474,21 @@ cdef extern from r"_ufuncs_defs.h":
     cdef double _func_chdtrc "chdtrc"(double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_chdtri "chdtri"(double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfchi3_wrap "cdfchi3_wrap"(double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfchn1_wrap "cdfchn1_wrap"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfchn3_wrap "cdfchn3_wrap"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfchn4_wrap "cdfchn4_wrap"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfchn2_wrap "cdfchn2_wrap"(double, double, double) noexcept nogil
+from ._cdflib_wrappers cimport chdtriv as _func_chdtriv
+ctypedef double _proto_chdtriv_t(double, double) noexcept nogil
+cdef _proto_chdtriv_t *_proto_chdtriv_t_var = &_func_chdtriv
+from ._cdflib_wrappers cimport chndtr as _func_chndtr
+ctypedef double _proto_chndtr_t(double, double, double) noexcept nogil
+cdef _proto_chndtr_t *_proto_chndtr_t_var = &_func_chndtr
+from ._cdflib_wrappers cimport chndtridf as _func_chndtridf
+ctypedef double _proto_chndtridf_t(double, double, double) noexcept nogil
+cdef _proto_chndtridf_t *_proto_chndtridf_t_var = &_func_chndtridf
+from ._cdflib_wrappers cimport chndtrinc as _func_chndtrinc
+ctypedef double _proto_chndtrinc_t(double, double, double) noexcept nogil
+cdef _proto_chndtrinc_t *_proto_chndtrinc_t_var = &_func_chndtrinc
+from ._cdflib_wrappers cimport chndtrix as _func_chndtrix
+ctypedef double _proto_chndtrix_t(double, double, double) noexcept nogil
+cdef _proto_chndtrix_t *_proto_chndtrix_t_var = &_func_chndtrix
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_cosdg "cosdg"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
@@ -1668,15 +1671,13 @@ cdef extern from r"_ufuncs_defs.h":
     cdef double _func_fdtrc "fdtrc"(double, double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_fdtri "fdtri"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdff4_wrap "cdff4_wrap"(double, double, double) noexcept nogil
+from ._cdflib_wrappers cimport fdtridfd as _func_fdtridfd
+ctypedef double _proto_fdtridfd_t(double, double, double) noexcept nogil
+cdef _proto_fdtridfd_t *_proto_fdtridfd_t_var = &_func_fdtridfd
 cdef extern from r"_ufuncs_defs.h":
     cdef int _func_fresnl "fresnl"(double, double *, double *) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
     cdef int _func_cfresnl_wrap "cfresnl_wrap"(double complex, double complex *, double complex *) noexcept nogil
-from ._loggamma cimport cgamma as _func_cgamma
-ctypedef double complex _proto_cgamma_t(double complex) noexcept nogil
-cdef _proto_cgamma_t *_proto_cgamma_t_var = &_func_cgamma
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_Gamma "Gamma"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
@@ -1695,12 +1696,15 @@ cdef extern from r"_ufuncs_defs.h":
     cdef double _func_gdtr "gdtr"(double, double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_gdtrc "gdtrc"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfgam4_wrap "cdfgam4_wrap"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfgam3_wrap "cdfgam3_wrap"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfgam2_wrap "cdfgam2_wrap"(double, double, double) noexcept nogil
+from ._cdflib_wrappers cimport gdtria as _func_gdtria
+ctypedef double _proto_gdtria_t(double, double, double) noexcept nogil
+cdef _proto_gdtria_t *_proto_gdtria_t_var = &_func_gdtria
+from ._cdflib_wrappers cimport gdtrib as _func_gdtrib
+ctypedef double _proto_gdtrib_t(double, double, double) noexcept nogil
+cdef _proto_gdtrib_t *_proto_gdtrib_t_var = &_func_gdtrib
+from ._cdflib_wrappers cimport gdtrix as _func_gdtrix
+ctypedef double _proto_gdtrix_t(double, double, double) noexcept nogil
+cdef _proto_gdtrix_t *_proto_gdtrix_t_var = &_func_gdtrix
 cdef extern from r"_ufuncs_defs.h":
     cdef double complex _func_cbesh_wrap1 "cbesh_wrap1"(double, double complex) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
@@ -1821,12 +1825,6 @@ ctypedef double complex _proto_clog1p_t(double complex) noexcept nogil
 cdef _proto_clog1p_t *_proto_clog1p_t_var = &_func_clog1p
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_log1p "log1p"(double) noexcept nogil
-from ._loggamma cimport loggamma_real as _func_loggamma_real
-ctypedef double _proto_loggamma_real_t(double) noexcept nogil
-cdef _proto_loggamma_real_t *_proto_loggamma_real_t_var = &_func_loggamma_real
-from ._loggamma cimport loggamma as _func_loggamma
-ctypedef double complex _proto_loggamma_t(double complex) noexcept nogil
-cdef _proto_loggamma_t *_proto_loggamma_t_var = &_func_loggamma
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_pmv_wrap "pmv_wrap"(double, double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
@@ -1866,28 +1864,39 @@ ctypedef double _proto_nbdtri_unsafe_t(double, double, double) noexcept nogil
 cdef _proto_nbdtri_unsafe_t *_proto_nbdtri_unsafe_t_var = &_func_nbdtri_unsafe
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_nbdtri "nbdtri"(int, int, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfnbn2_wrap "cdfnbn2_wrap"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfnbn3_wrap "cdfnbn3_wrap"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdffnc1_wrap "cdffnc1_wrap"(double, double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdffnc2_wrap "cdffnc2_wrap"(double, double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdffnc4_wrap "cdffnc4_wrap"(double, double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdffnc3_wrap "cdffnc3_wrap"(double, double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdffnc5_wrap "cdffnc5_wrap"(double, double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdftnc1_wrap "cdftnc1_wrap"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdftnc3_wrap "cdftnc3_wrap"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdftnc4_wrap "cdftnc4_wrap"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdftnc2_wrap "cdftnc2_wrap"(double, double, double) noexcept nogil
+from ._cdflib_wrappers cimport nbdtrik as _func_nbdtrik
+ctypedef double _proto_nbdtrik_t(double, double, double) noexcept nogil
+cdef _proto_nbdtrik_t *_proto_nbdtrik_t_var = &_func_nbdtrik
+from ._cdflib_wrappers cimport nbdtrin as _func_nbdtrin
+ctypedef double _proto_nbdtrin_t(double, double, double) noexcept nogil
+cdef _proto_nbdtrin_t *_proto_nbdtrin_t_var = &_func_nbdtrin
+from ._cdflib_wrappers cimport ncfdtr as _func_ncfdtr
+ctypedef double _proto_ncfdtr_t(double, double, double, double) noexcept nogil
+cdef _proto_ncfdtr_t *_proto_ncfdtr_t_var = &_func_ncfdtr
+from ._cdflib_wrappers cimport ncfdtri as _func_ncfdtri
+ctypedef double _proto_ncfdtri_t(double, double, double, double) noexcept nogil
+cdef _proto_ncfdtri_t *_proto_ncfdtri_t_var = &_func_ncfdtri
+from ._cdflib_wrappers cimport ncfdtridfd as _func_ncfdtridfd
+ctypedef double _proto_ncfdtridfd_t(double, double, double, double) noexcept nogil
+cdef _proto_ncfdtridfd_t *_proto_ncfdtridfd_t_var = &_func_ncfdtridfd
+from ._cdflib_wrappers cimport ncfdtridfn as _func_ncfdtridfn
+ctypedef double _proto_ncfdtridfn_t(double, double, double, double) noexcept nogil
+cdef _proto_ncfdtridfn_t *_proto_ncfdtridfn_t_var = &_func_ncfdtridfn
+from ._cdflib_wrappers cimport ncfdtrinc as _func_ncfdtrinc
+ctypedef double _proto_ncfdtrinc_t(double, double, double, double) noexcept nogil
+cdef _proto_ncfdtrinc_t *_proto_ncfdtrinc_t_var = &_func_ncfdtrinc
+from ._cdflib_wrappers cimport nctdtr as _func_nctdtr
+ctypedef double _proto_nctdtr_t(double, double, double) noexcept nogil
+cdef _proto_nctdtr_t *_proto_nctdtr_t_var = &_func_nctdtr
+from ._cdflib_wrappers cimport nctdtridf as _func_nctdtridf
+ctypedef double _proto_nctdtridf_t(double, double, double) noexcept nogil
+cdef _proto_nctdtridf_t *_proto_nctdtridf_t_var = &_func_nctdtridf
+from ._cdflib_wrappers cimport nctdtrinc as _func_nctdtrinc
+ctypedef double _proto_nctdtrinc_t(double, double, double) noexcept nogil
+cdef _proto_nctdtrinc_t *_proto_nctdtrinc_t_var = &_func_nctdtrinc
+from ._cdflib_wrappers cimport nctdtrit as _func_nctdtrit
+ctypedef double _proto_nctdtrit_t(double, double, double) noexcept nogil
+cdef _proto_nctdtrit_t *_proto_nctdtrit_t_var = &_func_nctdtrit
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_ndtr "ndtr"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
@@ -1895,10 +1904,12 @@ cdef extern from r"_ufuncs_defs.h":
 from ._ndtri_exp cimport ndtri_exp as _func_ndtri_exp
 ctypedef double _proto_ndtri_exp_t(double) noexcept nogil
 cdef _proto_ndtri_exp_t *_proto_ndtri_exp_t_var = &_func_ndtri_exp
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfnor3_wrap "cdfnor3_wrap"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfnor4_wrap "cdfnor4_wrap"(double, double, double) noexcept nogil
+from ._cdflib_wrappers cimport nrdtrimn as _func_nrdtrimn
+ctypedef double _proto_nrdtrimn_t(double, double, double) noexcept nogil
+cdef _proto_nrdtrimn_t *_proto_nrdtrimn_t_var = &_func_nrdtrimn
+from ._cdflib_wrappers cimport nrdtrisd as _func_nrdtrisd
+ctypedef double _proto_nrdtrisd_t(double, double, double) noexcept nogil
+cdef _proto_nrdtrisd_t *_proto_nrdtrisd_t_var = &_func_nrdtrisd
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_oblate_aswfa_nocv_wrap "oblate_aswfa_nocv_wrap"(double, double, double, double, double *) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
@@ -1930,8 +1941,9 @@ ctypedef double _proto_pdtri_unsafe_t(double, double) noexcept nogil
 cdef _proto_pdtri_unsafe_t *_proto_pdtri_unsafe_t_var = &_func_pdtri_unsafe
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_pdtri "pdtri"(int, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfpoi2_wrap "cdfpoi2_wrap"(double, double) noexcept nogil
+from ._cdflib_wrappers cimport pdtrik as _func_pdtrik
+ctypedef double _proto_pdtrik_t(double, double) noexcept nogil
+cdef _proto_pdtrik_t *_proto_pdtrik_t_var = &_func_pdtrik
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_poch "poch"(double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
@@ -1951,20 +1963,11 @@ cdef extern from r"_ufuncs_defs.h":
 from ._convex_analysis cimport pseudo_huber as _func_pseudo_huber
 ctypedef double _proto_pseudo_huber_t(double, double) noexcept nogil
 cdef _proto_pseudo_huber_t *_proto_pseudo_huber_t_var = &_func_pseudo_huber
-from ._digamma cimport cdigamma as _func_cdigamma
-ctypedef double complex _proto_cdigamma_t(double complex) noexcept nogil
-cdef _proto_cdigamma_t *_proto_cdigamma_t_var = &_func_cdigamma
-from ._digamma cimport digamma as _func_digamma
-ctypedef double _proto_digamma_t(double) noexcept nogil
-cdef _proto_digamma_t *_proto_digamma_t_var = &_func_digamma
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_radian "radian"(double, double, double) noexcept nogil
 from ._convex_analysis cimport rel_entr as _func_rel_entr
 ctypedef double _proto_rel_entr_t(double, double) noexcept nogil
 cdef _proto_rel_entr_t *_proto_rel_entr_t_var = &_func_rel_entr
-from ._loggamma cimport crgamma as _func_crgamma
-ctypedef double complex _proto_crgamma_t(double complex) noexcept nogil
-cdef _proto_crgamma_t *_proto_crgamma_t_var = &_func_crgamma
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_rgamma "rgamma"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
@@ -2002,12 +2005,15 @@ cdef _proto_sph_harmonic_unsafe_t *_proto_sph_harmonic_unsafe_t_var = &_func_sph
 from .sph_harm cimport sph_harmonic as _func_sph_harmonic
 ctypedef double complex _proto_sph_harmonic_t(int, int, double, double) noexcept nogil
 cdef _proto_sph_harmonic_t *_proto_sph_harmonic_t_var = &_func_sph_harmonic
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdft1_wrap "cdft1_wrap"(double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdft3_wrap "cdft3_wrap"(double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdft2_wrap "cdft2_wrap"(double, double) noexcept nogil
+from ._cdflib_wrappers cimport stdtr as _func_stdtr
+ctypedef double _proto_stdtr_t(double, double) noexcept nogil
+cdef _proto_stdtr_t *_proto_stdtr_t_var = &_func_stdtr
+from ._cdflib_wrappers cimport stdtridf as _func_stdtridf
+ctypedef double _proto_stdtridf_t(double, double) noexcept nogil
+cdef _proto_stdtridf_t *_proto_stdtridf_t_var = &_func_stdtridf
+from ._cdflib_wrappers cimport stdtrit as _func_stdtrit
+ctypedef double _proto_stdtrit_t(double, double) noexcept nogil
+cdef _proto_stdtrit_t *_proto_stdtrit_t_var = &_func_stdtrit
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_struve_h "struve_h"(double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
@@ -2146,9 +2152,9 @@ ufunc__cospi_ptr[2*0] = <void*>_func_cospi
 ufunc__cospi_ptr[2*0+1] = <void*>(<char*>"_cospi")
 ufunc__cospi_ptr[2*1] = <void*>_func_cospi
 ufunc__cospi_ptr[2*1+1] = <void*>(<char*>"_cospi")
-ufunc__cospi_ptr[2*2] = <void*>_func_ccospi
+ufunc__cospi_ptr[2*2] = <void*>scipy.special._ufuncs_cxx._export_ccospi
 ufunc__cospi_ptr[2*2+1] = <void*>(<char*>"_cospi")
-ufunc__cospi_ptr[2*3] = <void*>_func_ccospi
+ufunc__cospi_ptr[2*3] = <void*>scipy.special._ufuncs_cxx._export_ccospi
 ufunc__cospi_ptr[2*3+1] = <void*>(<char*>"_cospi")
 ufunc__cospi_data[0] = &ufunc__cospi_ptr[2*0]
 ufunc__cospi_data[1] = &ufunc__cospi_ptr[2*1]
@@ -2499,9 +2505,9 @@ ufunc__sinpi_ptr[2*0] = <void*>_func_sinpi
 ufunc__sinpi_ptr[2*0+1] = <void*>(<char*>"_sinpi")
 ufunc__sinpi_ptr[2*1] = <void*>_func_sinpi
 ufunc__sinpi_ptr[2*1+1] = <void*>(<char*>"_sinpi")
-ufunc__sinpi_ptr[2*2] = <void*>_func_csinpi
+ufunc__sinpi_ptr[2*2] = <void*>scipy.special._ufuncs_cxx._export_csinpi
 ufunc__sinpi_ptr[2*2+1] = <void*>(<char*>"_sinpi")
-ufunc__sinpi_ptr[2*3] = <void*>_func_csinpi
+ufunc__sinpi_ptr[2*3] = <void*>scipy.special._ufuncs_cxx._export_csinpi
 ufunc__sinpi_ptr[2*3+1] = <void*>(<char*>"_sinpi")
 ufunc__sinpi_data[0] = &ufunc__sinpi_ptr[2*0]
 ufunc__sinpi_data[1] = &ufunc__sinpi_ptr[2*1]
@@ -3490,9 +3496,9 @@ ufunc_bdtrik_types[4] = <char>NPY_DOUBLE
 ufunc_bdtrik_types[5] = <char>NPY_DOUBLE
 ufunc_bdtrik_types[6] = <char>NPY_DOUBLE
 ufunc_bdtrik_types[7] = <char>NPY_DOUBLE
-ufunc_bdtrik_ptr[2*0] = <void*>_func_cdfbin2_wrap
+ufunc_bdtrik_ptr[2*0] = <void*>_func_bdtrik
 ufunc_bdtrik_ptr[2*0+1] = <void*>(<char*>"bdtrik")
-ufunc_bdtrik_ptr[2*1] = <void*>_func_cdfbin2_wrap
+ufunc_bdtrik_ptr[2*1] = <void*>_func_bdtrik
 ufunc_bdtrik_ptr[2*1+1] = <void*>(<char*>"bdtrik")
 ufunc_bdtrik_data[0] = &ufunc_bdtrik_ptr[2*0]
 ufunc_bdtrik_data[1] = &ufunc_bdtrik_ptr[2*1]
@@ -3560,9 +3566,9 @@ ufunc_bdtrin_types[4] = <char>NPY_DOUBLE
 ufunc_bdtrin_types[5] = <char>NPY_DOUBLE
 ufunc_bdtrin_types[6] = <char>NPY_DOUBLE
 ufunc_bdtrin_types[7] = <char>NPY_DOUBLE
-ufunc_bdtrin_ptr[2*0] = <void*>_func_cdfbin3_wrap
+ufunc_bdtrin_ptr[2*0] = <void*>_func_bdtrin
 ufunc_bdtrin_ptr[2*0+1] = <void*>(<char*>"bdtrin")
-ufunc_bdtrin_ptr[2*1] = <void*>_func_cdfbin3_wrap
+ufunc_bdtrin_ptr[2*1] = <void*>_func_bdtrin
 ufunc_bdtrin_ptr[2*1+1] = <void*>(<char*>"bdtrin")
 ufunc_bdtrin_data[0] = &ufunc_bdtrin_ptr[2*0]
 ufunc_bdtrin_data[1] = &ufunc_bdtrin_ptr[2*1]
@@ -4804,9 +4810,9 @@ ufunc_btdtria_types[4] = <char>NPY_DOUBLE
 ufunc_btdtria_types[5] = <char>NPY_DOUBLE
 ufunc_btdtria_types[6] = <char>NPY_DOUBLE
 ufunc_btdtria_types[7] = <char>NPY_DOUBLE
-ufunc_btdtria_ptr[2*0] = <void*>_func_cdfbet3_wrap
+ufunc_btdtria_ptr[2*0] = <void*>_func_btdtria
 ufunc_btdtria_ptr[2*0+1] = <void*>(<char*>"btdtria")
-ufunc_btdtria_ptr[2*1] = <void*>_func_cdfbet3_wrap
+ufunc_btdtria_ptr[2*1] = <void*>_func_btdtria
 ufunc_btdtria_ptr[2*1+1] = <void*>(<char*>"btdtria")
 ufunc_btdtria_data[0] = &ufunc_btdtria_ptr[2*0]
 ufunc_btdtria_data[1] = &ufunc_btdtria_ptr[2*1]
@@ -4877,9 +4883,9 @@ ufunc_btdtrib_types[4] = <char>NPY_DOUBLE
 ufunc_btdtrib_types[5] = <char>NPY_DOUBLE
 ufunc_btdtrib_types[6] = <char>NPY_DOUBLE
 ufunc_btdtrib_types[7] = <char>NPY_DOUBLE
-ufunc_btdtrib_ptr[2*0] = <void*>_func_cdfbet4_wrap
+ufunc_btdtrib_ptr[2*0] = <void*>_func_btdtrib
 ufunc_btdtrib_ptr[2*0+1] = <void*>(<char*>"btdtrib")
-ufunc_btdtrib_ptr[2*1] = <void*>_func_cdfbet4_wrap
+ufunc_btdtrib_ptr[2*1] = <void*>_func_btdtrib
 ufunc_btdtrib_ptr[2*1+1] = <void*>(<char*>"btdtrib")
 ufunc_btdtrib_data[0] = &ufunc_btdtrib_ptr[2*0]
 ufunc_btdtrib_data[1] = &ufunc_btdtrib_ptr[2*1]
@@ -5195,9 +5201,9 @@ ufunc_chdtriv_types[2] = <char>NPY_FLOAT
 ufunc_chdtriv_types[3] = <char>NPY_DOUBLE
 ufunc_chdtriv_types[4] = <char>NPY_DOUBLE
 ufunc_chdtriv_types[5] = <char>NPY_DOUBLE
-ufunc_chdtriv_ptr[2*0] = <void*>_func_cdfchi3_wrap
+ufunc_chdtriv_ptr[2*0] = <void*>_func_chdtriv
 ufunc_chdtriv_ptr[2*0+1] = <void*>(<char*>"chdtriv")
-ufunc_chdtriv_ptr[2*1] = <void*>_func_cdfchi3_wrap
+ufunc_chdtriv_ptr[2*1] = <void*>_func_chdtriv
 ufunc_chdtriv_ptr[2*1+1] = <void*>(<char*>"chdtriv")
 ufunc_chdtriv_data[0] = &ufunc_chdtriv_ptr[2*0]
 ufunc_chdtriv_data[1] = &ufunc_chdtriv_ptr[2*1]
@@ -5252,9 +5258,9 @@ ufunc_chndtr_types[4] = <char>NPY_DOUBLE
 ufunc_chndtr_types[5] = <char>NPY_DOUBLE
 ufunc_chndtr_types[6] = <char>NPY_DOUBLE
 ufunc_chndtr_types[7] = <char>NPY_DOUBLE
-ufunc_chndtr_ptr[2*0] = <void*>_func_cdfchn1_wrap
+ufunc_chndtr_ptr[2*0] = <void*>_func_chndtr
 ufunc_chndtr_ptr[2*0+1] = <void*>(<char*>"chndtr")
-ufunc_chndtr_ptr[2*1] = <void*>_func_cdfchn1_wrap
+ufunc_chndtr_ptr[2*1] = <void*>_func_chndtr
 ufunc_chndtr_ptr[2*1+1] = <void*>(<char*>"chndtr")
 ufunc_chndtr_data[0] = &ufunc_chndtr_ptr[2*0]
 ufunc_chndtr_data[1] = &ufunc_chndtr_ptr[2*1]
@@ -5301,9 +5307,9 @@ ufunc_chndtridf_types[4] = <char>NPY_DOUBLE
 ufunc_chndtridf_types[5] = <char>NPY_DOUBLE
 ufunc_chndtridf_types[6] = <char>NPY_DOUBLE
 ufunc_chndtridf_types[7] = <char>NPY_DOUBLE
-ufunc_chndtridf_ptr[2*0] = <void*>_func_cdfchn3_wrap
+ufunc_chndtridf_ptr[2*0] = <void*>_func_chndtridf
 ufunc_chndtridf_ptr[2*0+1] = <void*>(<char*>"chndtridf")
-ufunc_chndtridf_ptr[2*1] = <void*>_func_cdfchn3_wrap
+ufunc_chndtridf_ptr[2*1] = <void*>_func_chndtridf
 ufunc_chndtridf_ptr[2*1+1] = <void*>(<char*>"chndtridf")
 ufunc_chndtridf_data[0] = &ufunc_chndtridf_ptr[2*0]
 ufunc_chndtridf_data[1] = &ufunc_chndtridf_ptr[2*1]
@@ -5350,9 +5356,9 @@ ufunc_chndtrinc_types[4] = <char>NPY_DOUBLE
 ufunc_chndtrinc_types[5] = <char>NPY_DOUBLE
 ufunc_chndtrinc_types[6] = <char>NPY_DOUBLE
 ufunc_chndtrinc_types[7] = <char>NPY_DOUBLE
-ufunc_chndtrinc_ptr[2*0] = <void*>_func_cdfchn4_wrap
+ufunc_chndtrinc_ptr[2*0] = <void*>_func_chndtrinc
 ufunc_chndtrinc_ptr[2*0+1] = <void*>(<char*>"chndtrinc")
-ufunc_chndtrinc_ptr[2*1] = <void*>_func_cdfchn4_wrap
+ufunc_chndtrinc_ptr[2*1] = <void*>_func_chndtrinc
 ufunc_chndtrinc_ptr[2*1+1] = <void*>(<char*>"chndtrinc")
 ufunc_chndtrinc_data[0] = &ufunc_chndtrinc_ptr[2*0]
 ufunc_chndtrinc_data[1] = &ufunc_chndtrinc_ptr[2*1]
@@ -5401,9 +5407,9 @@ ufunc_chndtrix_types[4] = <char>NPY_DOUBLE
 ufunc_chndtrix_types[5] = <char>NPY_DOUBLE
 ufunc_chndtrix_types[6] = <char>NPY_DOUBLE
 ufunc_chndtrix_types[7] = <char>NPY_DOUBLE
-ufunc_chndtrix_ptr[2*0] = <void*>_func_cdfchn2_wrap
+ufunc_chndtrix_ptr[2*0] = <void*>_func_chndtrix
 ufunc_chndtrix_ptr[2*0+1] = <void*>(<char*>"chndtrix")
-ufunc_chndtrix_ptr[2*1] = <void*>_func_cdfchn2_wrap
+ufunc_chndtrix_ptr[2*1] = <void*>_func_chndtrix
 ufunc_chndtrix_ptr[2*1+1] = <void*>(<char*>"chndtrix")
 ufunc_chndtrix_data[0] = &ufunc_chndtrix_ptr[2*0]
 ufunc_chndtrix_data[1] = &ufunc_chndtrix_ptr[2*1]
@@ -9730,9 +9736,9 @@ ufunc_fdtridfd_types[4] = <char>NPY_DOUBLE
 ufunc_fdtridfd_types[5] = <char>NPY_DOUBLE
 ufunc_fdtridfd_types[6] = <char>NPY_DOUBLE
 ufunc_fdtridfd_types[7] = <char>NPY_DOUBLE
-ufunc_fdtridfd_ptr[2*0] = <void*>_func_cdff4_wrap
+ufunc_fdtridfd_ptr[2*0] = <void*>_func_fdtridfd
 ufunc_fdtridfd_ptr[2*0+1] = <void*>(<char*>"fdtridfd")
-ufunc_fdtridfd_ptr[2*1] = <void*>_func_cdff4_wrap
+ufunc_fdtridfd_ptr[2*1] = <void*>_func_fdtridfd
 ufunc_fdtridfd_ptr[2*1+1] = <void*>(<char*>"fdtridfd")
 ufunc_fdtridfd_data[0] = &ufunc_fdtridfd_ptr[2*0]
 ufunc_fdtridfd_data[1] = &ufunc_fdtridfd_ptr[2*1]
@@ -9925,9 +9931,9 @@ ufunc_gamma_ptr[2*0] = <void*>_func_Gamma
 ufunc_gamma_ptr[2*0+1] = <void*>(<char*>"gamma")
 ufunc_gamma_ptr[2*1] = <void*>_func_Gamma
 ufunc_gamma_ptr[2*1+1] = <void*>(<char*>"gamma")
-ufunc_gamma_ptr[2*2] = <void*>_func_cgamma
+ufunc_gamma_ptr[2*2] = <void*>scipy.special._ufuncs_cxx._export_cgamma
 ufunc_gamma_ptr[2*2+1] = <void*>(<char*>"gamma")
-ufunc_gamma_ptr[2*3] = <void*>_func_cgamma
+ufunc_gamma_ptr[2*3] = <void*>scipy.special._ufuncs_cxx._export_cgamma
 ufunc_gamma_ptr[2*3+1] = <void*>(<char*>"gamma")
 ufunc_gamma_data[0] = &ufunc_gamma_ptr[2*0]
 ufunc_gamma_data[1] = &ufunc_gamma_ptr[2*1]
@@ -10529,7 +10535,7 @@ cdef char *ufunc_gdtr_doc = (
     ">>> for parameter_set in parameters_list:\n"
     "...     a, b, style = parameter_set\n"
     "...     gdtr_vals = gdtr(a, b, x)\n"
-    "...     ax.plot(x, gdtr_vals, label=f\"$a= {a},\\, b={b}$\", ls=style)\n"
+    "...     ax.plot(x, gdtr_vals, label=fr\"$a= {a},\\, b={b}$\", ls=style)\n"
     ">>> ax.legend()\n"
     ">>> ax.set_xlabel(\"$x$\")\n"
     ">>> ax.set_title(\"Gamma distribution cumulative distribution function\")\n"
@@ -10667,7 +10673,7 @@ cdef char *ufunc_gdtrc_doc = (
     ">>> for parameter_set in parameters_list:\n"
     "...     a, b, style = parameter_set\n"
     "...     gdtrc_vals = gdtrc(a, b, x)\n"
-    "...     ax.plot(x, gdtrc_vals, label=f\"$a= {a},\\, b={b}$\", ls=style)\n"
+    "...     ax.plot(x, gdtrc_vals, label=fr\"$a= {a},\\, b={b}$\", ls=style)\n"
     ">>> ax.legend()\n"
     ">>> ax.set_xlabel(\"$x$\")\n"
     ">>> ax.set_title(\"Gamma distribution survival function\")\n"
@@ -10785,9 +10791,9 @@ ufunc_gdtria_types[4] = <char>NPY_DOUBLE
 ufunc_gdtria_types[5] = <char>NPY_DOUBLE
 ufunc_gdtria_types[6] = <char>NPY_DOUBLE
 ufunc_gdtria_types[7] = <char>NPY_DOUBLE
-ufunc_gdtria_ptr[2*0] = <void*>_func_cdfgam4_wrap
+ufunc_gdtria_ptr[2*0] = <void*>_func_gdtria
 ufunc_gdtria_ptr[2*0+1] = <void*>(<char*>"gdtria")
-ufunc_gdtria_ptr[2*1] = <void*>_func_cdfgam4_wrap
+ufunc_gdtria_ptr[2*1] = <void*>_func_gdtria
 ufunc_gdtria_ptr[2*1+1] = <void*>(<char*>"gdtria")
 ufunc_gdtria_data[0] = &ufunc_gdtria_ptr[2*0]
 ufunc_gdtria_data[1] = &ufunc_gdtria_ptr[2*1]
@@ -10873,9 +10879,9 @@ ufunc_gdtrib_types[4] = <char>NPY_DOUBLE
 ufunc_gdtrib_types[5] = <char>NPY_DOUBLE
 ufunc_gdtrib_types[6] = <char>NPY_DOUBLE
 ufunc_gdtrib_types[7] = <char>NPY_DOUBLE
-ufunc_gdtrib_ptr[2*0] = <void*>_func_cdfgam3_wrap
+ufunc_gdtrib_ptr[2*0] = <void*>_func_gdtrib
 ufunc_gdtrib_ptr[2*0+1] = <void*>(<char*>"gdtrib")
-ufunc_gdtrib_ptr[2*1] = <void*>_func_cdfgam3_wrap
+ufunc_gdtrib_ptr[2*1] = <void*>_func_gdtrib
 ufunc_gdtrib_ptr[2*1+1] = <void*>(<char*>"gdtrib")
 ufunc_gdtrib_data[0] = &ufunc_gdtrib_ptr[2*0]
 ufunc_gdtrib_data[1] = &ufunc_gdtrib_ptr[2*1]
@@ -10962,9 +10968,9 @@ ufunc_gdtrix_types[4] = <char>NPY_DOUBLE
 ufunc_gdtrix_types[5] = <char>NPY_DOUBLE
 ufunc_gdtrix_types[6] = <char>NPY_DOUBLE
 ufunc_gdtrix_types[7] = <char>NPY_DOUBLE
-ufunc_gdtrix_ptr[2*0] = <void*>_func_cdfgam2_wrap
+ufunc_gdtrix_ptr[2*0] = <void*>_func_gdtrix
 ufunc_gdtrix_ptr[2*0+1] = <void*>(<char*>"gdtrix")
-ufunc_gdtrix_ptr[2*1] = <void*>_func_cdfgam2_wrap
+ufunc_gdtrix_ptr[2*1] = <void*>_func_gdtrix
 ufunc_gdtrix_ptr[2*1+1] = <void*>(<char*>"gdtrix")
 ufunc_gdtrix_data[0] = &ufunc_gdtrix_ptr[2*0]
 ufunc_gdtrix_data[1] = &ufunc_gdtrix_ptr[2*1]
@@ -11325,10 +11331,10 @@ cdef char *ufunc_huber_doc = (
     ">>> fig, ax = plt.subplots()\n"
     ">>> combined_plot_parameters = list(zip(deltas, linestyles))\n"
     ">>> for delta, style in combined_plot_parameters:\n"
-    "...     ax.plot(x, huber(delta, x), label=f\"$\\delta={delta}$\", ls=style)\n"
+    "...     ax.plot(x, huber(delta, x), label=fr\"$\\delta={delta}$\", ls=style)\n"
     ">>> ax.legend(loc=\"upper center\")\n"
     ">>> ax.set_xlabel(\"$x$\")\n"
-    ">>> ax.set_title(\"Huber loss function $h_{\\delta}(x)$\")\n"
+    ">>> ax.set_title(r\"Huber loss function $h_{\\delta}(x)$\")\n"
     ">>> ax.set_xlim(-4, 4)\n"
     ">>> ax.set_ylim(0, 8)\n"
     ">>> plt.show()")
@@ -12540,10 +12546,10 @@ cdef char *ufunc_itairy_doc = (
     ">>> x = np.linspace(-10, 10, 500)\n"
     ">>> apt, bpt, ant, bnt = itairy(x)\n"
     ">>> fig, ax = plt.subplots(figsize=(6, 5))\n"
-    ">>> ax.plot(x, apt, label=\"$\\int_0^x\\, Ai(t)\\, dt$\")\n"
-    ">>> ax.plot(x, bpt, ls=\"dashed\", label=\"$\\int_0^x\\, Bi(t)\\, dt$\")\n"
-    ">>> ax.plot(x, ant, ls=\"dashdot\", label=\"$\\int_0^x\\, Ai(-t)\\, dt$\")\n"
-    ">>> ax.plot(x, bnt, ls=\"dotted\", label=\"$\\int_0^x\\, Bi(-t)\\, dt$\")\n"
+    ">>> ax.plot(x, apt, label=r\"$\\int_0^x\\, Ai(t)\\, dt$\")\n"
+    ">>> ax.plot(x, bpt, ls=\"dashed\", label=r\"$\\int_0^x\\, Bi(t)\\, dt$\")\n"
+    ">>> ax.plot(x, ant, ls=\"dashdot\", label=r\"$\\int_0^x\\, Ai(-t)\\, dt$\")\n"
+    ">>> ax.plot(x, bnt, ls=\"dotted\", label=r\"$\\int_0^x\\, Bi(-t)\\, dt$\")\n"
     ">>> ax.set_ylim(-2, 1.5)\n"
     ">>> ax.legend(loc=\"lower right\")\n"
     ">>> plt.show()")
@@ -12628,8 +12634,8 @@ cdef char *ufunc_iti0k0_doc = (
     ">>> fig, ax = plt.subplots()\n"
     ">>> x = np.linspace(0., 5., 1000)\n"
     ">>> int_i, int_k = iti0k0(x)\n"
-    ">>> ax.plot(x, int_i, label=\"$\\int_0^x I_0(t)\\,dt$\")\n"
-    ">>> ax.plot(x, int_k, label=\"$\\int_0^x K_0(t)\\,dt$\")\n"
+    ">>> ax.plot(x, int_i, label=r\"$\\int_0^x I_0(t)\\,dt$\")\n"
+    ">>> ax.plot(x, int_k, label=r\"$\\int_0^x K_0(t)\\,dt$\")\n"
     ">>> ax.legend()\n"
     ">>> plt.show()")
 ufunc_iti0k0_loops[0] = <np.PyUFuncGenericFunction>loop_i_d_dd_As_f_ff
@@ -12709,8 +12715,8 @@ cdef char *ufunc_itj0y0_doc = (
     ">>> fig, ax = plt.subplots()\n"
     ">>> x = np.linspace(0., 10., 1000)\n"
     ">>> int_j, int_y = itj0y0(x)\n"
-    ">>> ax.plot(x, int_j, label=\"$\\int_0^x J_0(t)\\,dt$\")\n"
-    ">>> ax.plot(x, int_y, label=\"$\\int_0^x Y_0(t)\\,dt$\")\n"
+    ">>> ax.plot(x, int_j, label=r\"$\\int_0^x J_0(t)\\,dt$\")\n"
+    ">>> ax.plot(x, int_y, label=r\"$\\int_0^x Y_0(t)\\,dt$\")\n"
     ">>> ax.legend()\n"
     ">>> plt.show()")
 ufunc_itj0y0_loops[0] = <np.PyUFuncGenericFunction>loop_i_d_dd_As_f_ff
@@ -13136,7 +13142,7 @@ cdef char *ufunc_ive_doc = (
     ">>> fig, ax = plt.subplots()\n"
     ">>> x = np.linspace(-5., 5., 1000)\n"
     ">>> for i in range(4):\n"
-    "...     ax.plot(x, ive(i, x), label=f'$I_{i!r}(z)\\cdot e^{{-|z|}}$')\n"
+    "...     ax.plot(x, ive(i, x), label=fr'$I_{i!r}(z)\\cdot e^{{-|z|}}$')\n"
     ">>> ax.legend()\n"
     ">>> ax.set_xlabel(r\"$z$\")\n"
     ">>> plt.show()")
@@ -14708,7 +14714,7 @@ cdef char *ufunc_kve_doc = (
     ">>> fig, ax = plt.subplots()\n"
     ">>> x = np.linspace(0., 5., 1000)\n"
     ">>> for i in range(4):\n"
-    "...     ax.plot(x, kve(i, x), label=f'$K_{i!r}(z)\\cdot e^z$')\n"
+    "...     ax.plot(x, kve(i, x), label=fr'$K_{i!r}(z)\\cdot e^z$')\n"
     ">>> ax.legend()\n"
     ">>> ax.set_xlabel(r\"$z$\")\n"
     ">>> ax.set_ylim(0, 4)\n"
@@ -15048,13 +15054,13 @@ ufunc_loggamma_types[4] = <char>NPY_CFLOAT
 ufunc_loggamma_types[5] = <char>NPY_CFLOAT
 ufunc_loggamma_types[6] = <char>NPY_CDOUBLE
 ufunc_loggamma_types[7] = <char>NPY_CDOUBLE
-ufunc_loggamma_ptr[2*0] = <void*>_func_loggamma_real
+ufunc_loggamma_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_loggamma_real
 ufunc_loggamma_ptr[2*0+1] = <void*>(<char*>"loggamma")
-ufunc_loggamma_ptr[2*1] = <void*>_func_loggamma_real
+ufunc_loggamma_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_loggamma_real
 ufunc_loggamma_ptr[2*1+1] = <void*>(<char*>"loggamma")
-ufunc_loggamma_ptr[2*2] = <void*>_func_loggamma
+ufunc_loggamma_ptr[2*2] = <void*>scipy.special._ufuncs_cxx._export_loggamma
 ufunc_loggamma_ptr[2*2+1] = <void*>(<char*>"loggamma")
-ufunc_loggamma_ptr[2*3] = <void*>_func_loggamma
+ufunc_loggamma_ptr[2*3] = <void*>scipy.special._ufuncs_cxx._export_loggamma
 ufunc_loggamma_ptr[2*3+1] = <void*>(<char*>"loggamma")
 ufunc_loggamma_data[0] = &ufunc_loggamma_ptr[2*0]
 ufunc_loggamma_data[1] = &ufunc_loggamma_ptr[2*1]
@@ -16381,9 +16387,9 @@ ufunc_nbdtrik_types[4] = <char>NPY_DOUBLE
 ufunc_nbdtrik_types[5] = <char>NPY_DOUBLE
 ufunc_nbdtrik_types[6] = <char>NPY_DOUBLE
 ufunc_nbdtrik_types[7] = <char>NPY_DOUBLE
-ufunc_nbdtrik_ptr[2*0] = <void*>_func_cdfnbn2_wrap
+ufunc_nbdtrik_ptr[2*0] = <void*>_func_nbdtrik
 ufunc_nbdtrik_ptr[2*0+1] = <void*>(<char*>"nbdtrik")
-ufunc_nbdtrik_ptr[2*1] = <void*>_func_cdfnbn2_wrap
+ufunc_nbdtrik_ptr[2*1] = <void*>_func_nbdtrik
 ufunc_nbdtrik_ptr[2*1+1] = <void*>(<char*>"nbdtrik")
 ufunc_nbdtrik_data[0] = &ufunc_nbdtrik_ptr[2*0]
 ufunc_nbdtrik_data[1] = &ufunc_nbdtrik_ptr[2*1]
@@ -16475,9 +16481,9 @@ ufunc_nbdtrin_types[4] = <char>NPY_DOUBLE
 ufunc_nbdtrin_types[5] = <char>NPY_DOUBLE
 ufunc_nbdtrin_types[6] = <char>NPY_DOUBLE
 ufunc_nbdtrin_types[7] = <char>NPY_DOUBLE
-ufunc_nbdtrin_ptr[2*0] = <void*>_func_cdfnbn3_wrap
+ufunc_nbdtrin_ptr[2*0] = <void*>_func_nbdtrin
 ufunc_nbdtrin_ptr[2*0+1] = <void*>(<char*>"nbdtrin")
-ufunc_nbdtrin_ptr[2*1] = <void*>_func_cdfnbn3_wrap
+ufunc_nbdtrin_ptr[2*1] = <void*>_func_nbdtrin
 ufunc_nbdtrin_ptr[2*1+1] = <void*>(<char*>"nbdtrin")
 ufunc_nbdtrin_data[0] = &ufunc_nbdtrin_ptr[2*0]
 ufunc_nbdtrin_data[1] = &ufunc_nbdtrin_ptr[2*1]
@@ -16589,9 +16595,9 @@ ufunc_ncfdtr_types[6] = <char>NPY_DOUBLE
 ufunc_ncfdtr_types[7] = <char>NPY_DOUBLE
 ufunc_ncfdtr_types[8] = <char>NPY_DOUBLE
 ufunc_ncfdtr_types[9] = <char>NPY_DOUBLE
-ufunc_ncfdtr_ptr[2*0] = <void*>_func_cdffnc1_wrap
+ufunc_ncfdtr_ptr[2*0] = <void*>_func_ncfdtr
 ufunc_ncfdtr_ptr[2*0+1] = <void*>(<char*>"ncfdtr")
-ufunc_ncfdtr_ptr[2*1] = <void*>_func_cdffnc1_wrap
+ufunc_ncfdtr_ptr[2*1] = <void*>_func_ncfdtr
 ufunc_ncfdtr_ptr[2*1+1] = <void*>(<char*>"ncfdtr")
 ufunc_ncfdtr_data[0] = &ufunc_ncfdtr_ptr[2*0]
 ufunc_ncfdtr_data[1] = &ufunc_ncfdtr_ptr[2*1]
@@ -16661,9 +16667,9 @@ ufunc_ncfdtri_types[6] = <char>NPY_DOUBLE
 ufunc_ncfdtri_types[7] = <char>NPY_DOUBLE
 ufunc_ncfdtri_types[8] = <char>NPY_DOUBLE
 ufunc_ncfdtri_types[9] = <char>NPY_DOUBLE
-ufunc_ncfdtri_ptr[2*0] = <void*>_func_cdffnc2_wrap
+ufunc_ncfdtri_ptr[2*0] = <void*>_func_ncfdtri
 ufunc_ncfdtri_ptr[2*0+1] = <void*>(<char*>"ncfdtri")
-ufunc_ncfdtri_ptr[2*1] = <void*>_func_cdffnc2_wrap
+ufunc_ncfdtri_ptr[2*1] = <void*>_func_ncfdtri
 ufunc_ncfdtri_ptr[2*1+1] = <void*>(<char*>"ncfdtri")
 ufunc_ncfdtri_data[0] = &ufunc_ncfdtri_ptr[2*0]
 ufunc_ncfdtri_data[1] = &ufunc_ncfdtri_ptr[2*1]
@@ -16741,9 +16747,9 @@ ufunc_ncfdtridfd_types[6] = <char>NPY_DOUBLE
 ufunc_ncfdtridfd_types[7] = <char>NPY_DOUBLE
 ufunc_ncfdtridfd_types[8] = <char>NPY_DOUBLE
 ufunc_ncfdtridfd_types[9] = <char>NPY_DOUBLE
-ufunc_ncfdtridfd_ptr[2*0] = <void*>_func_cdffnc4_wrap
+ufunc_ncfdtridfd_ptr[2*0] = <void*>_func_ncfdtridfd
 ufunc_ncfdtridfd_ptr[2*0+1] = <void*>(<char*>"ncfdtridfd")
-ufunc_ncfdtridfd_ptr[2*1] = <void*>_func_cdffnc4_wrap
+ufunc_ncfdtridfd_ptr[2*1] = <void*>_func_ncfdtridfd
 ufunc_ncfdtridfd_ptr[2*1+1] = <void*>(<char*>"ncfdtridfd")
 ufunc_ncfdtridfd_data[0] = &ufunc_ncfdtridfd_ptr[2*0]
 ufunc_ncfdtridfd_data[1] = &ufunc_ncfdtridfd_ptr[2*1]
@@ -16821,9 +16827,9 @@ ufunc_ncfdtridfn_types[6] = <char>NPY_DOUBLE
 ufunc_ncfdtridfn_types[7] = <char>NPY_DOUBLE
 ufunc_ncfdtridfn_types[8] = <char>NPY_DOUBLE
 ufunc_ncfdtridfn_types[9] = <char>NPY_DOUBLE
-ufunc_ncfdtridfn_ptr[2*0] = <void*>_func_cdffnc3_wrap
+ufunc_ncfdtridfn_ptr[2*0] = <void*>_func_ncfdtridfn
 ufunc_ncfdtridfn_ptr[2*0+1] = <void*>(<char*>"ncfdtridfn")
-ufunc_ncfdtridfn_ptr[2*1] = <void*>_func_cdffnc3_wrap
+ufunc_ncfdtridfn_ptr[2*1] = <void*>_func_ncfdtridfn
 ufunc_ncfdtridfn_ptr[2*1+1] = <void*>(<char*>"ncfdtridfn")
 ufunc_ncfdtridfn_data[0] = &ufunc_ncfdtridfn_ptr[2*0]
 ufunc_ncfdtridfn_data[1] = &ufunc_ncfdtridfn_ptr[2*1]
@@ -16894,9 +16900,9 @@ ufunc_ncfdtrinc_types[6] = <char>NPY_DOUBLE
 ufunc_ncfdtrinc_types[7] = <char>NPY_DOUBLE
 ufunc_ncfdtrinc_types[8] = <char>NPY_DOUBLE
 ufunc_ncfdtrinc_types[9] = <char>NPY_DOUBLE
-ufunc_ncfdtrinc_ptr[2*0] = <void*>_func_cdffnc5_wrap
+ufunc_ncfdtrinc_ptr[2*0] = <void*>_func_ncfdtrinc
 ufunc_ncfdtrinc_ptr[2*0+1] = <void*>(<char*>"ncfdtrinc")
-ufunc_ncfdtrinc_ptr[2*1] = <void*>_func_cdffnc5_wrap
+ufunc_ncfdtrinc_ptr[2*1] = <void*>_func_ncfdtrinc
 ufunc_ncfdtrinc_ptr[2*1+1] = <void*>(<char*>"ncfdtrinc")
 ufunc_ncfdtrinc_data[0] = &ufunc_ncfdtrinc_ptr[2*0]
 ufunc_ncfdtrinc_data[1] = &ufunc_ncfdtrinc_ptr[2*1]
@@ -16964,9 +16970,9 @@ ufunc_nctdtr_types[4] = <char>NPY_DOUBLE
 ufunc_nctdtr_types[5] = <char>NPY_DOUBLE
 ufunc_nctdtr_types[6] = <char>NPY_DOUBLE
 ufunc_nctdtr_types[7] = <char>NPY_DOUBLE
-ufunc_nctdtr_ptr[2*0] = <void*>_func_cdftnc1_wrap
+ufunc_nctdtr_ptr[2*0] = <void*>_func_nctdtr
 ufunc_nctdtr_ptr[2*0+1] = <void*>(<char*>"nctdtr")
-ufunc_nctdtr_ptr[2*1] = <void*>_func_cdftnc1_wrap
+ufunc_nctdtr_ptr[2*1] = <void*>_func_nctdtr
 ufunc_nctdtr_ptr[2*1+1] = <void*>(<char*>"nctdtr")
 ufunc_nctdtr_data[0] = &ufunc_nctdtr_ptr[2*0]
 ufunc_nctdtr_data[1] = &ufunc_nctdtr_ptr[2*1]
@@ -16996,15 +17002,31 @@ cdef char *ufunc_nctdtridf_doc = (
     "\n"
     "Returns\n"
     "-------\n"
-    "cdf : scalar or ndarray\n"
-    "    The calculated CDF. If all inputs are scalar, the return will be a\n"
+    "df : scalar or ndarray\n"
+    "    The degrees of freedom. If all inputs are scalar, the return will be a\n"
     "    float. Otherwise, it will be an array.\n"
     "\n"
     "See Also\n"
     "--------\n"
     "nctdtr :  CDF of the non-central `t` distribution.\n"
     "nctdtrit : Inverse CDF (iCDF) of the non-central t distribution.\n"
-    "nctdtrinc : Calculate non-centrality parameter, given CDF iCDF values.")
+    "nctdtrinc : Calculate non-centrality parameter, given CDF iCDF values.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from scipy.special import nctdtr, nctdtridf\n"
+    "\n"
+    "Compute the CDF for several values of `df`:\n"
+    "\n"
+    ">>> df = [1, 2, 3]\n"
+    ">>> p = nctdtr(df, 0.25, 1)\n"
+    ">>> p\n"
+    "array([0.67491974, 0.716464  , 0.73349456])\n"
+    "\n"
+    "Compute the inverse. We recover the values of `df`, as expected:\n"
+    "\n"
+    ">>> nctdtridf(p, 0.25, 1)\n"
+    "array([1., 2., 3.])")
 ufunc_nctdtridf_loops[0] = <np.PyUFuncGenericFunction>loop_d_ddd__As_fff_f
 ufunc_nctdtridf_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
 ufunc_nctdtridf_types[0] = <char>NPY_FLOAT
@@ -17015,9 +17037,9 @@ ufunc_nctdtridf_types[4] = <char>NPY_DOUBLE
 ufunc_nctdtridf_types[5] = <char>NPY_DOUBLE
 ufunc_nctdtridf_types[6] = <char>NPY_DOUBLE
 ufunc_nctdtridf_types[7] = <char>NPY_DOUBLE
-ufunc_nctdtridf_ptr[2*0] = <void*>_func_cdftnc3_wrap
+ufunc_nctdtridf_ptr[2*0] = <void*>_func_nctdtridf
 ufunc_nctdtridf_ptr[2*0+1] = <void*>(<char*>"nctdtridf")
-ufunc_nctdtridf_ptr[2*1] = <void*>_func_cdftnc3_wrap
+ufunc_nctdtridf_ptr[2*1] = <void*>_func_nctdtridf
 ufunc_nctdtridf_ptr[2*1+1] = <void*>(<char*>"nctdtridf")
 ufunc_nctdtridf_data[0] = &ufunc_nctdtridf_ptr[2*0]
 ufunc_nctdtridf_data[1] = &ufunc_nctdtridf_ptr[2*1]
@@ -17054,7 +17076,23 @@ cdef char *ufunc_nctdtrinc_doc = (
     "--------\n"
     "nctdtr :  CDF of the non-central `t` distribution.\n"
     "nctdtrit : Inverse CDF (iCDF) of the non-central t distribution.\n"
-    "nctdtridf : Calculate degrees of freedom, given CDF and iCDF values.")
+    "nctdtridf : Calculate degrees of freedom, given CDF and iCDF values.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from scipy.special import nctdtr, nctdtrinc\n"
+    "\n"
+    "Compute the CDF for several values of `nc`:\n"
+    "\n"
+    ">>> nc = [0.5, 1.5, 2.5]\n"
+    ">>> p = nctdtr(3, nc, 1.5)\n"
+    ">>> p\n"
+    "array([0.77569497, 0.45524533, 0.1668691 ])\n"
+    "\n"
+    "Compute the inverse. We recover the values of `nc`, as expected:\n"
+    "\n"
+    ">>> nctdtrinc(3, p, 1.5)\n"
+    "array([0.5, 1.5, 2.5])")
 ufunc_nctdtrinc_loops[0] = <np.PyUFuncGenericFunction>loop_d_ddd__As_fff_f
 ufunc_nctdtrinc_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
 ufunc_nctdtrinc_types[0] = <char>NPY_FLOAT
@@ -17065,9 +17103,9 @@ ufunc_nctdtrinc_types[4] = <char>NPY_DOUBLE
 ufunc_nctdtrinc_types[5] = <char>NPY_DOUBLE
 ufunc_nctdtrinc_types[6] = <char>NPY_DOUBLE
 ufunc_nctdtrinc_types[7] = <char>NPY_DOUBLE
-ufunc_nctdtrinc_ptr[2*0] = <void*>_func_cdftnc4_wrap
+ufunc_nctdtrinc_ptr[2*0] = <void*>_func_nctdtrinc
 ufunc_nctdtrinc_ptr[2*0+1] = <void*>(<char*>"nctdtrinc")
-ufunc_nctdtrinc_ptr[2*1] = <void*>_func_cdftnc4_wrap
+ufunc_nctdtrinc_ptr[2*1] = <void*>_func_nctdtrinc
 ufunc_nctdtrinc_ptr[2*1+1] = <void*>(<char*>"nctdtrinc")
 ufunc_nctdtrinc_data[0] = &ufunc_nctdtrinc_ptr[2*0]
 ufunc_nctdtrinc_data[1] = &ufunc_nctdtrinc_ptr[2*1]
@@ -17104,7 +17142,23 @@ cdef char *ufunc_nctdtrit_doc = (
     "--------\n"
     "nctdtr :  CDF of the non-central `t` distribution.\n"
     "nctdtridf : Calculate degrees of freedom, given CDF and iCDF values.\n"
-    "nctdtrinc : Calculate non-centrality parameter, given CDF iCDF values.")
+    "nctdtrinc : Calculate non-centrality parameter, given CDF iCDF values.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from scipy.special import nctdtr, nctdtrit\n"
+    "\n"
+    "Compute the CDF for several values of `t`:\n"
+    "\n"
+    ">>> t = [0.5, 1, 1.5]\n"
+    ">>> p = nctdtr(3, 1, t)\n"
+    ">>> p\n"
+    "array([0.29811049, 0.46922687, 0.6257559 ])\n"
+    "\n"
+    "Compute the inverse. We recover the values of `t`, as expected:\n"
+    "\n"
+    ">>> nctdtrit(3, 1, p)\n"
+    "array([0.5, 1. , 1.5])")
 ufunc_nctdtrit_loops[0] = <np.PyUFuncGenericFunction>loop_d_ddd__As_fff_f
 ufunc_nctdtrit_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
 ufunc_nctdtrit_types[0] = <char>NPY_FLOAT
@@ -17115,9 +17169,9 @@ ufunc_nctdtrit_types[4] = <char>NPY_DOUBLE
 ufunc_nctdtrit_types[5] = <char>NPY_DOUBLE
 ufunc_nctdtrit_types[6] = <char>NPY_DOUBLE
 ufunc_nctdtrit_types[7] = <char>NPY_DOUBLE
-ufunc_nctdtrit_ptr[2*0] = <void*>_func_cdftnc2_wrap
+ufunc_nctdtrit_ptr[2*0] = <void*>_func_nctdtrit
 ufunc_nctdtrit_ptr[2*0+1] = <void*>(<char*>"nctdtrit")
-ufunc_nctdtrit_ptr[2*1] = <void*>_func_cdftnc2_wrap
+ufunc_nctdtrit_ptr[2*1] = <void*>_func_nctdtrit
 ufunc_nctdtrit_ptr[2*1+1] = <void*>(<char*>"nctdtrit")
 ufunc_nctdtrit_data[0] = &ufunc_nctdtrit_ptr[2*0]
 ufunc_nctdtrit_data[1] = &ufunc_nctdtrit_ptr[2*1]
@@ -17180,7 +17234,7 @@ cdef char *ufunc_ndtr_doc = (
     ">>> x = np.linspace(-5, 5, 100)\n"
     ">>> fig, ax = plt.subplots()\n"
     ">>> ax.plot(x, ndtr(x))\n"
-    ">>> ax.set_title(\"Standard normal cumulative distribution function $\\Phi$\")\n"
+    ">>> ax.set_title(r\"Standard normal cumulative distribution function $\\Phi$\")\n"
     ">>> plt.show()")
 ufunc_ndtr_loops[0] = <np.PyUFuncGenericFunction>loop_d_d__As_f_f
 ufunc_ndtr_loops[1] = <np.PyUFuncGenericFunction>loop_d_d__As_d_d
@@ -17353,7 +17407,7 @@ cdef void *ufunc_nrdtrimn_ptr[4]
 cdef void *ufunc_nrdtrimn_data[2]
 cdef char ufunc_nrdtrimn_types[8]
 cdef char *ufunc_nrdtrimn_doc = (
-    "nrdtrimn(p, x, std, out=None)\n"
+    "nrdtrimn(p, std, x, out=None)\n"
     "\n"
     "Calculate mean of normal distribution given other params.\n"
     "\n"
@@ -17361,10 +17415,10 @@ cdef char *ufunc_nrdtrimn_doc = (
     "----------\n"
     "p : array_like\n"
     "    CDF values, in range (0, 1].\n"
-    "x : array_like\n"
-    "    Quantiles, i.e. the upper limit of integration.\n"
     "std : array_like\n"
     "    Standard deviation.\n"
+    "x : array_like\n"
+    "    Quantiles, i.e. the upper limit of integration.\n"
     "out : ndarray, optional\n"
     "    Optional output array for the function results\n"
     "\n"
@@ -17375,7 +17429,32 @@ cdef char *ufunc_nrdtrimn_doc = (
     "\n"
     "See Also\n"
     "--------\n"
-    "nrdtrimn, ndtr")
+    "scipy.stats.norm : Normal distribution\n"
+    "ndtr : Standard normal cumulative probability distribution\n"
+    "ndtri : Inverse of standard normal CDF with respect to quantile\n"
+    "nrdtrisd : Inverse of normal distribution CDF with respect to\n"
+    "           standard deviation\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "`nrdtrimn` can be used to recover the mean of a normal distribution\n"
+    "if we know the CDF value `p` for a given quantile `x` and the\n"
+    "standard deviation `std`. First, we calculate\n"
+    "the normal distribution CDF for an exemplary parameter set.\n"
+    "\n"
+    ">>> from scipy.stats import norm\n"
+    ">>> mean = 3.\n"
+    ">>> std = 2.\n"
+    ">>> x = 6.\n"
+    ">>> p = norm.cdf(x, loc=mean, scale=std)\n"
+    ">>> p\n"
+    "0.9331927987311419\n"
+    "\n"
+    "Verify that `nrdtrimn` returns the original value for `mean`.\n"
+    "\n"
+    ">>> from scipy.special import nrdtrimn\n"
+    ">>> nrdtrimn(p, std, x)\n"
+    "3.0000000000000004")
 ufunc_nrdtrimn_loops[0] = <np.PyUFuncGenericFunction>loop_d_ddd__As_fff_f
 ufunc_nrdtrimn_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
 ufunc_nrdtrimn_types[0] = <char>NPY_FLOAT
@@ -17386,9 +17465,9 @@ ufunc_nrdtrimn_types[4] = <char>NPY_DOUBLE
 ufunc_nrdtrimn_types[5] = <char>NPY_DOUBLE
 ufunc_nrdtrimn_types[6] = <char>NPY_DOUBLE
 ufunc_nrdtrimn_types[7] = <char>NPY_DOUBLE
-ufunc_nrdtrimn_ptr[2*0] = <void*>_func_cdfnor3_wrap
+ufunc_nrdtrimn_ptr[2*0] = <void*>_func_nrdtrimn
 ufunc_nrdtrimn_ptr[2*0+1] = <void*>(<char*>"nrdtrimn")
-ufunc_nrdtrimn_ptr[2*1] = <void*>_func_cdfnor3_wrap
+ufunc_nrdtrimn_ptr[2*1] = <void*>_func_nrdtrimn
 ufunc_nrdtrimn_ptr[2*1+1] = <void*>(<char*>"nrdtrimn")
 ufunc_nrdtrimn_data[0] = &ufunc_nrdtrimn_ptr[2*0]
 ufunc_nrdtrimn_data[1] = &ufunc_nrdtrimn_ptr[2*1]
@@ -17399,18 +17478,19 @@ cdef void *ufunc_nrdtrisd_ptr[4]
 cdef void *ufunc_nrdtrisd_data[2]
 cdef char ufunc_nrdtrisd_types[8]
 cdef char *ufunc_nrdtrisd_doc = (
-    "nrdtrisd(p, x, mn, out=None)\n"
+    "nrdtrisd(mn, p, x, out=None)\n"
     "\n"
     "Calculate standard deviation of normal distribution given other params.\n"
     "\n"
     "Parameters\n"
     "----------\n"
+    "mn : scalar or ndarray\n"
+    "    The mean of the normal distribution.\n"
     "p : array_like\n"
     "    CDF values, in range (0, 1].\n"
     "x : array_like\n"
     "    Quantiles, i.e. the upper limit of integration.\n"
-    "mn : scalar or ndarray\n"
-    "    The mean of the normal distribution.\n"
+    "\n"
     "out : ndarray, optional\n"
     "    Optional output array for the function results\n"
     "\n"
@@ -17421,7 +17501,32 @@ cdef char *ufunc_nrdtrisd_doc = (
     "\n"
     "See Also\n"
     "--------\n"
-    "ndtr")
+    "scipy.stats.norm : Normal distribution\n"
+    "ndtr : Standard normal cumulative probability distribution\n"
+    "ndtri : Inverse of standard normal CDF with respect to quantile\n"
+    "nrdtrimn : Inverse of normal distribution CDF with respect to\n"
+    "           mean\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "`nrdtrisd` can be used to recover the standard deviation of a normal\n"
+    "distribution if we know the CDF value `p` for a given quantile `x` and\n"
+    "the mean `mn`. First, we calculate the normal distribution CDF for an\n"
+    "exemplary parameter set.\n"
+    "\n"
+    ">>> from scipy.stats import norm\n"
+    ">>> mean = 3.\n"
+    ">>> std = 2.\n"
+    ">>> x = 6.\n"
+    ">>> p = norm.cdf(x, loc=mean, scale=std)\n"
+    ">>> p\n"
+    "0.9331927987311419\n"
+    "\n"
+    "Verify that `nrdtrisd` returns the original value for `std`.\n"
+    "\n"
+    ">>> from scipy.special import nrdtrisd\n"
+    ">>> nrdtrisd(mean, p, x)\n"
+    "2.0000000000000004")
 ufunc_nrdtrisd_loops[0] = <np.PyUFuncGenericFunction>loop_d_ddd__As_fff_f
 ufunc_nrdtrisd_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
 ufunc_nrdtrisd_types[0] = <char>NPY_FLOAT
@@ -17432,9 +17537,9 @@ ufunc_nrdtrisd_types[4] = <char>NPY_DOUBLE
 ufunc_nrdtrisd_types[5] = <char>NPY_DOUBLE
 ufunc_nrdtrisd_types[6] = <char>NPY_DOUBLE
 ufunc_nrdtrisd_types[7] = <char>NPY_DOUBLE
-ufunc_nrdtrisd_ptr[2*0] = <void*>_func_cdfnor4_wrap
+ufunc_nrdtrisd_ptr[2*0] = <void*>_func_nrdtrisd
 ufunc_nrdtrisd_ptr[2*0+1] = <void*>(<char*>"nrdtrisd")
-ufunc_nrdtrisd_ptr[2*1] = <void*>_func_cdfnor4_wrap
+ufunc_nrdtrisd_ptr[2*1] = <void*>_func_nrdtrisd
 ufunc_nrdtrisd_ptr[2*1+1] = <void*>(<char*>"nrdtrisd")
 ufunc_nrdtrisd_data[0] = &ufunc_nrdtrisd_ptr[2*0]
 ufunc_nrdtrisd_data[1] = &ufunc_nrdtrisd_ptr[2*1]
@@ -18270,9 +18375,9 @@ ufunc_pdtrik_types[2] = <char>NPY_FLOAT
 ufunc_pdtrik_types[3] = <char>NPY_DOUBLE
 ufunc_pdtrik_types[4] = <char>NPY_DOUBLE
 ufunc_pdtrik_types[5] = <char>NPY_DOUBLE
-ufunc_pdtrik_ptr[2*0] = <void*>_func_cdfpoi2_wrap
+ufunc_pdtrik_ptr[2*0] = <void*>_func_pdtrik
 ufunc_pdtrik_ptr[2*0+1] = <void*>(<char*>"pdtrik")
-ufunc_pdtrik_ptr[2*1] = <void*>_func_cdfpoi2_wrap
+ufunc_pdtrik_ptr[2*1] = <void*>_func_pdtrik
 ufunc_pdtrik_ptr[2*1+1] = <void*>(<char*>"pdtrik")
 ufunc_pdtrik_data[0] = &ufunc_pdtrik_ptr[2*0]
 ufunc_pdtrik_data[1] = &ufunc_pdtrik_ptr[2*1]
@@ -18922,11 +19027,11 @@ cdef char *ufunc_pseudo_huber_doc = (
     ">>> fig, ax = plt.subplots()\n"
     ">>> combined_plot_parameters = list(zip(deltas, linestyles))\n"
     ">>> for delta, style in combined_plot_parameters:\n"
-    "...     ax.plot(x, pseudo_huber(delta, x), label=f\"$\\delta={delta}$\",\n"
+    "...     ax.plot(x, pseudo_huber(delta, x), label=rf\"$\\delta={delta}$\",\n"
     "...             ls=style)\n"
     ">>> ax.legend(loc=\"upper center\")\n"
     ">>> ax.set_xlabel(\"$x$\")\n"
-    ">>> ax.set_title(\"Pseudo-Huber loss function $h_{\\delta}(x)$\")\n"
+    ">>> ax.set_title(r\"Pseudo-Huber loss function $h_{\\delta}(x)$\")\n"
     ">>> ax.set_xlim(-4, 4)\n"
     ">>> ax.set_ylim(0, 8)\n"
     ">>> plt.show()\n"
@@ -19039,13 +19144,13 @@ ufunc_psi_types[4] = <char>NPY_CFLOAT
 ufunc_psi_types[5] = <char>NPY_CFLOAT
 ufunc_psi_types[6] = <char>NPY_CDOUBLE
 ufunc_psi_types[7] = <char>NPY_CDOUBLE
-ufunc_psi_ptr[2*0] = <void*>_func_digamma
+ufunc_psi_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_digamma
 ufunc_psi_ptr[2*0+1] = <void*>(<char*>"psi")
-ufunc_psi_ptr[2*1] = <void*>_func_digamma
+ufunc_psi_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_digamma
 ufunc_psi_ptr[2*1+1] = <void*>(<char*>"psi")
-ufunc_psi_ptr[2*2] = <void*>_func_cdigamma
+ufunc_psi_ptr[2*2] = <void*>scipy.special._ufuncs_cxx._export_cdigamma
 ufunc_psi_ptr[2*2+1] = <void*>(<char*>"psi")
-ufunc_psi_ptr[2*3] = <void*>_func_cdigamma
+ufunc_psi_ptr[2*3] = <void*>scipy.special._ufuncs_cxx._export_cdigamma
 ufunc_psi_ptr[2*3+1] = <void*>(<char*>"psi")
 ufunc_psi_data[0] = &ufunc_psi_ptr[2*0]
 ufunc_psi_data[1] = &ufunc_psi_ptr[2*1]
@@ -19270,9 +19375,9 @@ ufunc_rgamma_ptr[2*0] = <void*>_func_rgamma
 ufunc_rgamma_ptr[2*0+1] = <void*>(<char*>"rgamma")
 ufunc_rgamma_ptr[2*1] = <void*>_func_rgamma
 ufunc_rgamma_ptr[2*1+1] = <void*>(<char*>"rgamma")
-ufunc_rgamma_ptr[2*2] = <void*>_func_crgamma
+ufunc_rgamma_ptr[2*2] = <void*>scipy.special._ufuncs_cxx._export_crgamma
 ufunc_rgamma_ptr[2*2+1] = <void*>(<char*>"rgamma")
-ufunc_rgamma_ptr[2*3] = <void*>_func_crgamma
+ufunc_rgamma_ptr[2*3] = <void*>scipy.special._ufuncs_cxx._export_crgamma
 ufunc_rgamma_ptr[2*3+1] = <void*>(<char*>"rgamma")
 ufunc_rgamma_data[0] = &ufunc_rgamma_ptr[2*0]
 ufunc_rgamma_data[1] = &ufunc_rgamma_ptr[2*1]
@@ -20204,9 +20309,9 @@ ufunc_stdtr_types[2] = <char>NPY_FLOAT
 ufunc_stdtr_types[3] = <char>NPY_DOUBLE
 ufunc_stdtr_types[4] = <char>NPY_DOUBLE
 ufunc_stdtr_types[5] = <char>NPY_DOUBLE
-ufunc_stdtr_ptr[2*0] = <void*>_func_cdft1_wrap
+ufunc_stdtr_ptr[2*0] = <void*>_func_stdtr
 ufunc_stdtr_ptr[2*0+1] = <void*>(<char*>"stdtr")
-ufunc_stdtr_ptr[2*1] = <void*>_func_cdft1_wrap
+ufunc_stdtr_ptr[2*1] = <void*>_func_stdtr
 ufunc_stdtr_ptr[2*1+1] = <void*>(<char*>"stdtr")
 ufunc_stdtr_data[0] = &ufunc_stdtr_ptr[2*0]
 ufunc_stdtr_data[1] = &ufunc_stdtr_ptr[2*1]
@@ -20267,9 +20372,9 @@ ufunc_stdtridf_types[2] = <char>NPY_FLOAT
 ufunc_stdtridf_types[3] = <char>NPY_DOUBLE
 ufunc_stdtridf_types[4] = <char>NPY_DOUBLE
 ufunc_stdtridf_types[5] = <char>NPY_DOUBLE
-ufunc_stdtridf_ptr[2*0] = <void*>_func_cdft3_wrap
+ufunc_stdtridf_ptr[2*0] = <void*>_func_stdtridf
 ufunc_stdtridf_ptr[2*0+1] = <void*>(<char*>"stdtridf")
-ufunc_stdtridf_ptr[2*1] = <void*>_func_cdft3_wrap
+ufunc_stdtridf_ptr[2*1] = <void*>_func_stdtridf
 ufunc_stdtridf_ptr[2*1+1] = <void*>(<char*>"stdtridf")
 ufunc_stdtridf_data[0] = &ufunc_stdtridf_ptr[2*0]
 ufunc_stdtridf_data[1] = &ufunc_stdtridf_ptr[2*1]
@@ -20383,9 +20488,9 @@ ufunc_stdtrit_types[2] = <char>NPY_FLOAT
 ufunc_stdtrit_types[3] = <char>NPY_DOUBLE
 ufunc_stdtrit_types[4] = <char>NPY_DOUBLE
 ufunc_stdtrit_types[5] = <char>NPY_DOUBLE
-ufunc_stdtrit_ptr[2*0] = <void*>_func_cdft2_wrap
+ufunc_stdtrit_ptr[2*0] = <void*>_func_stdtrit
 ufunc_stdtrit_ptr[2*0+1] = <void*>(<char*>"stdtrit")
-ufunc_stdtrit_ptr[2*1] = <void*>_func_cdft2_wrap
+ufunc_stdtrit_ptr[2*1] = <void*>_func_stdtrit
 ufunc_stdtrit_ptr[2*1+1] = <void*>(<char*>"stdtrit")
 ufunc_stdtrit_data[0] = &ufunc_stdtrit_ptr[2*0]
 ufunc_stdtrit_data[1] = &ufunc_stdtrit_ptr[2*1]
@@ -20624,9 +20729,9 @@ cdef char *ufunc_tklmbda_doc = (
     ">>> x = np.linspace(-12, 12, 500)\n"
     ">>> for k, lmbda in enumerate([-1.0, -0.5, 0.0]):\n"
     "...     y = tklmbda(x, lmbda)\n"
-    "...     ax.plot(x, y, styles[k], label=f'$\\lambda$ = {lmbda:-4.1f}')\n"
+    "...     ax.plot(x, y, styles[k], label=rf'$\\lambda$ = {lmbda:-4.1f}')\n"
     "\n"
-    ">>> ax.set_title('tklmbda(x, $\\lambda$)')\n"
+    ">>> ax.set_title(r'tklmbda(x, $\\lambda$)')\n"
     ">>> ax.set_label('x')\n"
     ">>> ax.legend(framealpha=1, shadow=True)\n"
     ">>> ax.grid(True)\n"
@@ -20639,13 +20744,13 @@ cdef char *ufunc_tklmbda_doc = (
     ">>> lmbdas = [0.25, 0.5, 1.0, 1.5]\n"
     ">>> for k, lmbda in enumerate(lmbdas):\n"
     "...     y = tklmbda(x, lmbda)\n"
-    "...     ax.plot(x, y, styles[k], label=f'$\\lambda$ = {lmbda}')\n"
+    "...     ax.plot(x, y, styles[k], label=fr'$\\lambda$ = {lmbda}')\n"
     "\n"
     ">>> ax.set_prop_cycle(None)\n"
     ">>> for lmbda in lmbdas:\n"
     "...     ax.plot([-1/lmbda, 1/lmbda], [0, 1], '.', ms=8)\n"
     "\n"
-    ">>> ax.set_title('tklmbda(x, $\\lambda$)')\n"
+    ">>> ax.set_title(r'tklmbda(x, $\\lambda$)')\n"
     ">>> ax.set_xlabel('x')\n"
     ">>> ax.legend(framealpha=1, shadow=True)\n"
     ">>> ax.grid(True)\n"

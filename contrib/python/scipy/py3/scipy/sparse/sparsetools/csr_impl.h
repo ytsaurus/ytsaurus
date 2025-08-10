@@ -3375,223 +3375,223 @@ static PY_LONG_LONG csr_has_canonical_format_thunk(int I_typenum, int T_typenum,
     }
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_matmat_maxnnz_method(PyObject *self, PyObject *args)
 {
     return call_thunk('l', "iiIIII", csr_matmat_maxnnz_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_matmat_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iiIITIIT*I*I*T", csr_matmat_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_diagonal_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iiiIIT*T", csr_diagonal_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_tocsc_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iiIIT*I*I*T", csr_tocsc_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_tobsr_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iiiiIIT*I*I*T", csr_tobsr_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_todense_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iiIIT*T", csr_todense_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_matvec_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iiIITT*T", csr_matvec_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_matvecs_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iiiIITT*T", csr_matvecs_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_elmul_csr_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iiIITIIT*I*I*T", csr_elmul_csr_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_eldiv_csr_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iiIITIIT*I*I*T", csr_eldiv_csr_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_plus_csr_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iiIITIIT*I*I*T", csr_plus_csr_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_minus_csr_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iiIITIIT*I*I*T", csr_minus_csr_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_maximum_csr_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iiIITIIT*I*I*T", csr_maximum_csr_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_minimum_csr_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iiIITIIT*I*I*T", csr_minimum_csr_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_ne_csr_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iiIITIIT*I*I*B", csr_ne_csr_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_lt_csr_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iiIITIIT*I*I*B", csr_lt_csr_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_gt_csr_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iiIITIIT*I*I*B", csr_gt_csr_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_le_csr_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iiIITIIT*I*I*B", csr_le_csr_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_ge_csr_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iiIITIIT*I*I*B", csr_ge_csr_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_scale_rows_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iiII*TT", csr_scale_rows_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_scale_columns_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iiII*TT", csr_scale_columns_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_sort_indices_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iI*I*T", csr_sort_indices_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_eliminate_zeros_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "ii*I*I*T", csr_eliminate_zeros_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_sum_duplicates_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "ii*I*I*T", csr_sum_duplicates_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 get_csr_submatrix_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iiIITiiii*V*V*W", get_csr_submatrix_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_row_index_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iIIIT*I*T", csr_row_index_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_row_slice_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iiiIIT*I*T", csr_row_slice_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_column_index1_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iIiiII*I*I", csr_column_index1_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_column_index2_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "IIiIT*I*T", csr_column_index2_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_sample_values_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iiIITiII*T", csr_sample_values_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_count_blocks_method(PyObject *self, PyObject *args)
 {
     return call_thunk('i', "iiiiII", csr_count_blocks_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_sample_offsets_method(PyObject *self, PyObject *args)
 {
     return call_thunk('i', "iiIIiII*I", csr_sample_offsets_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_hstack_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iiIIIT*I*I*T", csr_hstack_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 expandptr_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iI*I", expandptr_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 test_throw_error_method(PyObject *self, PyObject *args)
 {
     return call_thunk('i', "", test_throw_error_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_has_sorted_indices_method(PyObject *self, PyObject *args)
 {
     return call_thunk('i', "iII", csr_has_sorted_indices_thunk, args);
 }
 
-NPY_VISIBILITY_HIDDEN PyObject *
+PyObject *
 csr_has_canonical_format_method(PyObject *self, PyObject *args)
 {
     return call_thunk('i', "iII", csr_has_canonical_format_thunk, args);

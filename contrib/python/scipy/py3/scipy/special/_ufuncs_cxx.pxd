@@ -1,6 +1,8 @@
 from . cimport sf_error
 cdef void _set_action(sf_error.sf_error_t, sf_error.sf_action_t) noexcept nogil
+cdef void *_export_ccospi
 cdef void *_export_lambertw_scalar
+cdef void *_export_csinpi
 cdef void *_export__stirling2_inexact
 cdef void *_export_ibeta_float
 cdef void *_export_ibeta_double
@@ -34,18 +36,24 @@ cdef void *_export_erfinv_double
 cdef void *_export_expit
 cdef void *_export_expitf
 cdef void *_export_expitl
+cdef void *_export_cgamma
 cdef void *_export_hyp1f1_double
 cdef void *_export_log_expit
 cdef void *_export_log_expitf
 cdef void *_export_log_expitl
 cdef void *_export_faddeeva_log_ndtr
 cdef void *_export_faddeeva_log_ndtr_complex
+cdef void *_export_loggamma_real
+cdef void *_export_loggamma
 cdef void *_export_logit
 cdef void *_export_logitf
 cdef void *_export_logitl
 cdef void *_export_faddeeva_ndtr
 cdef void *_export_powm1_float
 cdef void *_export_powm1_double
+cdef void *_export_cdigamma
+cdef void *_export_digamma
+cdef void *_export_crgamma
 cdef void *_export_faddeeva_voigt_profile
 cdef void *_export_faddeeva_w
 cdef void *_export_wrightomega

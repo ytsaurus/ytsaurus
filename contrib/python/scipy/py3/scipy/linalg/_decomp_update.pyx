@@ -45,8 +45,8 @@ cimport numpy as cnp
 
 from numpy.linalg import LinAlgError
 
-# This is used in place of, e.g., cnp.NPY_C_CONTIGUOUS, to indicate that a C
-# F or non contiguous array is acceptable.
+# This is used in place of, e.g., cnp.NPY_ARRAY_C_CONTIGUOUS, to indicate that
+# a C F or non contiguous array is acceptable.
 DEF ARRAY_ANYORDER = 0
 
 cdef int MEMORY_ERROR = libc.limits.INT_MAX
@@ -1091,7 +1091,7 @@ cdef int reorth(int m, int n, blas_t* q, int* qs, bint qisF, blas_t* u,
        length and orthogonal to the columns of q.
 
        This function returns 0 or 1 on success, and 2 if the recipercal
-       condition number of [q, u/||u||] is less than RCOND. This condition is
+       condition number of ``[q, u/||u||]`` is less than RCOND. This condition is
        important when inserting columns, because updating may not be meaningful
        if u is a linear combination of the columns of q.
 
@@ -1224,8 +1224,7 @@ def _form_qTu(object a, object b):
     form_qTu(q, u, qTuvoid, qTus, 0)
     return qTu
 
-cdef form_qTu(cnp.ndarray q, cnp.ndarray u, void* qTuvoid, int* qTus,
-              int k) noexcept:
+cdef form_qTu(cnp.ndarray q, cnp.ndarray u, void* qTuvoid, int* qTus, int k):
     """ assuming here that q and u have compatible shapes, and are the same
         type + Q is contiguous.  This function is preferable over simply
         calling np.dot for two reasons: 1) this output is always in F order, 2)
@@ -1248,7 +1247,7 @@ cdef form_qTu(cnp.ndarray q, cnp.ndarray u, void* qTuvoid, int* qTus,
     cdef int us[2]
     cdef int ldu, p
 
-    if cnp.PyArray_CHKFLAGS(q, cnp.NPY_F_CONTIGUOUS):
+    if cnp.PyArray_CHKFLAGS(q, cnp.NPY_ARRAY_F_CONTIGUOUS):
         qvoid = extract(q, qs)
         if u.ndim == 1:
             uvoid = extract(u, us)
@@ -1268,16 +1267,16 @@ cdef form_qTu(cnp.ndarray q, cnp.ndarray u, void* qTuvoid, int* qTus,
                         col(<double_complex*>qTuvoid, qTus, k), qTus[0])
         elif u.ndim == 2:
             p = u.shape[1]
-            if cnp.PyArray_CHKFLAGS(u, cnp.NPY_F_CONTIGUOUS):
+            if cnp.PyArray_CHKFLAGS(u, cnp.NPY_ARRAY_F_CONTIGUOUS):
                 utrans = N
                 uvoid = extract(u, us)
                 ldu = u.shape[0]
-            elif cnp.PyArray_CHKFLAGS(u, cnp.NPY_C_CONTIGUOUS):
+            elif cnp.PyArray_CHKFLAGS(u, cnp.NPY_ARRAY_C_CONTIGUOUS):
                 utrans = T
                 uvoid = extract(u, us)
                 ldu = u.shape[1]
             else:
-                u = PyArray_FromArray(u, NULL, cnp.NPY_F_CONTIGUOUS)
+                u = PyArray_FromArray(u, NULL, cnp.NPY_ARRAY_F_CONTIGUOUS)
                 utrans = N
                 uvoid = extract(u, us)
                 ldu = u.shape[0]
@@ -1296,7 +1295,7 @@ cdef form_qTu(cnp.ndarray q, cnp.ndarray u, void* qTuvoid, int* qTus,
                         <double_complex*>uvoid, ldu, 0,
                         col(<double_complex*>qTuvoid, qTus, k), m)
 
-    elif cnp.PyArray_CHKFLAGS(q, cnp.NPY_C_CONTIGUOUS):
+    elif cnp.PyArray_CHKFLAGS(q, cnp.NPY_ARRAY_C_CONTIGUOUS):
         qvoid = extract(q, qs)
         if u.ndim == 1:
             uvoid = extract(u, us)
@@ -1320,16 +1319,16 @@ cdef form_qTu(cnp.ndarray q, cnp.ndarray u, void* qTuvoid, int* qTus,
                 blas_t_conj(m, col(<double_complex*>qTuvoid, qTus, k), qTus)
         elif u.ndim == 2:
             p = u.shape[1]
-            if cnp.PyArray_CHKFLAGS(u, cnp.NPY_F_CONTIGUOUS):
+            if cnp.PyArray_CHKFLAGS(u, cnp.NPY_ARRAY_F_CONTIGUOUS):
                 utrans = N
                 uvoid = extract(u, us)
                 ldu = u.shape[0]
-            elif cnp.PyArray_CHKFLAGS(u, cnp.NPY_C_CONTIGUOUS):
+            elif cnp.PyArray_CHKFLAGS(u, cnp.NPY_ARRAY_C_CONTIGUOUS):
                 utrans = T
                 uvoid = extract(u, us)
                 ldu = u.shape[1]
             else:
-                u = PyArray_FromArray(u, NULL, cnp.NPY_F_CONTIGUOUS)
+                u = PyArray_FromArray(u, NULL, cnp.NPY_ARRAY_F_CONTIGUOUS)
                 utrans = N
                 uvoid = extract(u, us)
                 ldu = u.shape[0]
@@ -1356,7 +1355,7 @@ cdef form_qTu(cnp.ndarray q, cnp.ndarray u, void* qTuvoid, int* qTus,
     else:
         raise ValueError('q must be either F or C contiguous')
 
-cdef validate_array(cnp.ndarray a, bint chkfinite) noexcept:
+cdef validate_array(cnp.ndarray a, bint chkfinite):
     # here we check that a has positive strides and that its size is small
     # enough to fit in into an int, as BLAS/LAPACK require
     cdef bint copy = False
@@ -1365,7 +1364,7 @@ cdef validate_array(cnp.ndarray a, bint chkfinite) noexcept:
     for j in range(a.ndim):
         if a.strides[j] <= 0:
             copy = True
-        if (a.strides[j] / a.descr.itemsize) >= libc.limits.INT_MAX:
+        if (a.strides[j] / cnp.PyArray_ITEMSIZE(a)) >= libc.limits.INT_MAX:
             copy = True
         if a.shape[j] >= libc.limits.INT_MAX:
             raise ValueError('Input array too large for use with BLAS')
@@ -1375,24 +1374,24 @@ cdef validate_array(cnp.ndarray a, bint chkfinite) noexcept:
             raise ValueError('array must not contain infs or NaNs')
 
     if copy:
-        return PyArray_FromArray(a, NULL, cnp.NPY_F_CONTIGUOUS)
+        return PyArray_FromArray(a, NULL, cnp.NPY_ARRAY_F_CONTIGUOUS)
     return a
 
 cdef tuple validate_qr(object q0, object r0, bint overwrite_q, int q_order,
-                       bint overwrite_r, int r_order, bint chkfinite) noexcept:
+                       bint overwrite_r, int r_order, bint chkfinite):
     cdef cnp.ndarray Q
     cdef cnp.ndarray R
     cdef int typecode
     cdef bint economic = False
 
-    q_order |= cnp.NPY_BEHAVED_NS | cnp.NPY_ELEMENTSTRIDES
-    r_order |= cnp.NPY_BEHAVED_NS | cnp.NPY_ELEMENTSTRIDES
+    q_order |= cnp.NPY_ARRAY_BEHAVED_NS | cnp.NPY_ARRAY_ELEMENTSTRIDES
+    r_order |= cnp.NPY_ARRAY_BEHAVED_NS | cnp.NPY_ARRAY_ELEMENTSTRIDES
 
     if not overwrite_q:
-        q_order |= cnp.NPY_ENSURECOPY
+        q_order |= cnp.NPY_ARRAY_ENSURECOPY
 
     if not overwrite_r:
-        r_order |= cnp.NPY_ENSURECOPY
+        r_order |= cnp.NPY_ARRAY_ENSURECOPY
 
     # in the interests of giving better error messages take any number of
     # dimensions here.
@@ -1580,9 +1579,9 @@ def qr_delete(Q, R, k, int p=1, which='row', overwrite_qr=False,
                 norm = np.linalg.norm(qnew)
                 return qnew / norm, r1 * norm
             if not cnp.PyArray_ISONESEGMENT(q1):
-                q1 = PyArray_FromArray(q1, NULL, cnp.NPY_F_CONTIGUOUS)
+                q1 = PyArray_FromArray(q1, NULL, cnp.NPY_ARRAY_F_CONTIGUOUS)
                 qisF = True
-            elif cnp.PyArray_CHKFLAGS(q1, cnp.NPY_F_CONTIGUOUS):
+            elif cnp.PyArray_CHKFLAGS(q1, cnp.NPY_ARRAY_F_CONTIGUOUS):
                 qisF = True
             else:
                 qisF = False
@@ -1635,7 +1634,7 @@ def qr_delete(Q, R, k, int p=1, which='row', overwrite_qr=False,
         # inputs and to avoid allocating a work array for that case.
         if p1 > 1:
             q1, r1, typecode, m, n, economic = validate_qr(Q, R, overwrite,
-                    cnp.NPY_F_CONTIGUOUS, overwrite, cnp.NPY_F_CONTIGUOUS,
+                    cnp.NPY_ARRAY_F_CONTIGUOUS, overwrite, cnp.NPY_ARRAY_F_CONTIGUOUS,
                     chkfinite)
         else:
             q1, r1, typecode, m, n, economic = validate_qr(Q, R, overwrite,
@@ -1733,7 +1732,7 @@ def qr_insert(Q, R, u, k, which='row', rcond=None, overwrite_qru=False, check_fi
     ------
     LinAlgError :
         If updating a (M,N) (N,N) factorization and the reciprocal condition
-        number of Q augmented with u/||u|| is smaller than rcond.
+        number of Q augmented with ``u/||u||`` is smaller than rcond.
 
     See Also
     --------
@@ -1829,10 +1828,10 @@ def qr_insert(Q, R, u, k, which='row', rcond=None, overwrite_qru=False, check_fi
     else:
         raise ValueError("'which' must be either 'row' or 'col'")
 
-cdef qr_insert_row(Q, R, u, int k, bint overwrite_qru, bint check_finite) noexcept:
+cdef qr_insert_row(Q, R, u, int k, bint overwrite_qru, bint check_finite):
     cdef cnp.ndarray q1, r1, u1, qnew, rnew
     cdef int j
-    cdef int u_flags = cnp.NPY_BEHAVED_NS | cnp.NPY_ELEMENTSTRIDES
+    cdef int u_flags = cnp.NPY_ARRAY_BEHAVED_NS | cnp.NPY_ARRAY_ELEMENTSTRIDES
     cdef int typecode, m, n, p, info
     cdef void* qptr
     cdef void* rptr
@@ -1881,9 +1880,9 @@ cdef qr_insert_row(Q, R, u, int k, bint overwrite_qru, bint check_finite) noexce
     if economic:
         if not overwrite_qru:
             r1 = PyArray_FromArray(r1, NULL,
-                    cnp.NPY_F_CONTIGUOUS | cnp.NPY_ENSURECOPY)
+                    cnp.NPY_ARRAY_F_CONTIGUOUS | cnp.NPY_ARRAY_ENSURECOPY)
             u1 = PyArray_FromArray(u1, NULL,
-                    cnp.NPY_F_CONTIGUOUS | cnp.NPY_ENSURECOPY)
+                    cnp.NPY_ARRAY_F_CONTIGUOUS | cnp.NPY_ARRAY_ENSURECOPY)
 
         shape[0] = m + p
         shape[1] = n + p
@@ -1911,8 +1910,8 @@ cdef qr_insert_row(Q, R, u, int k, bint overwrite_qru, bint check_finite) noexce
                         <double_complex*>rptr, rs, <double_complex*>uptr, us, k)
         else:
             # only copies if necessary.
-            r1 = PyArray_FromArray(r1, NULL, cnp.NPY_F_CONTIGUOUS)
-            u1 = PyArray_FromArray(u1, NULL, cnp.NPY_F_CONTIGUOUS)
+            r1 = PyArray_FromArray(r1, NULL, cnp.NPY_ARRAY_F_CONTIGUOUS)
+            u1 = PyArray_FromArray(u1, NULL, cnp.NPY_ARRAY_F_CONTIGUOUS)
             qptr = extract(qnew, qs)
             rptr = extract(r1, rs)
             uptr = extract(u1, us)
@@ -1977,11 +1976,11 @@ cdef qr_insert_row(Q, R, u, int k, bint overwrite_qru, bint check_finite) noexce
                 raise MemoryError('Unable to allocate memory for array')
         return qnew, rnew
 
-cdef qr_insert_col(Q, R, u, int k, rcond, bint overwrite_qru, bint check_finite) noexcept:
+cdef qr_insert_col(Q, R, u, int k, rcond, bint overwrite_qru, bint check_finite):
     cdef cnp.ndarray q1, r1, u1, qnew, rnew
     cdef int j
     cdef int q_flags = ARRAY_ANYORDER
-    cdef int u_flags = cnp.NPY_BEHAVED_NS | cnp.NPY_ELEMENTSTRIDES
+    cdef int u_flags = cnp.NPY_ARRAY_BEHAVED_NS | cnp.NPY_ARRAY_ELEMENTSTRIDES
     cdef int typecode, m, n, p, info, p_eco, p_full
     cdef void* qptr
     cdef void* rptr
@@ -2004,7 +2003,7 @@ cdef qr_insert_col(Q, R, u, int k, rcond, bint overwrite_qru, bint check_finite)
     q1, r1, typecode, m, n, economic = validate_qr(Q, R, True, ARRAY_ANYORDER,
             True, ARRAY_ANYORDER, check_finite)
     if not overwrite_qru:
-        u_flags |= cnp.NPY_ENSURECOPY | cnp.NPY_F_CONTIGUOUS
+        u_flags |= cnp.NPY_ARRAY_ENSURECOPY | cnp.NPY_ARRAY_F_CONTIGUOUS
     u1 = PyArray_CheckFromAny(u, NULL, 0, 0, u_flags, NULL)
 
     if cnp.PyArray_TYPE(u1) != typecode:
@@ -2051,8 +2050,8 @@ cdef qr_insert_col(Q, R, u, int k, rcond, bint overwrite_qru, bint check_finite)
         else:
             p_eco = m-n
             p_full = p - p_eco
-            if not cnp.PyArray_CHKFLAGS(u1, cnp.NPY_F_CONTIGUOUS):
-                u1 = PyArray_FromArray(u1, NULL, cnp.NPY_F_CONTIGUOUS)
+            if not cnp.PyArray_CHKFLAGS(u1, cnp.NPY_ARRAY_F_CONTIGUOUS):
+                u1 = PyArray_FromArray(u1, NULL, cnp.NPY_ARRAY_F_CONTIGUOUS)
         shape[0] = m
         shape[1] = n+p_eco
         qnew = cnp.PyArray_ZEROS(2, shape, typecode, 1)
@@ -2093,10 +2092,10 @@ cdef qr_insert_col(Q, R, u, int k, rcond, bint overwrite_qru, bint check_finite)
         return qnew, rnew
     else:
         if (not cnp.PyArray_ISONESEGMENT(q1)) or u1.ndim == 2:
-            q1 = PyArray_FromArray(q1, NULL, cnp.NPY_F_CONTIGUOUS)
-        if (not overwrite_qru and cnp.PyArray_CHKFLAGS(q1, cnp.NPY_C_CONTIGUOUS)
+            q1 = PyArray_FromArray(q1, NULL, cnp.NPY_ARRAY_F_CONTIGUOUS)
+        if (not overwrite_qru and cnp.PyArray_CHKFLAGS(q1, cnp.NPY_ARRAY_C_CONTIGUOUS)
             and (typecode == cnp.NPY_CFLOAT or typecode == cnp.NPY_CDOUBLE)):
-            u_flags |= cnp.NPY_ENSURECOPY
+            u_flags |= cnp.NPY_ARRAY_ENSURECOPY
             u1 = PyArray_FromArray(u1, NULL, u_flags)
 
         shape[0] = m
@@ -2308,7 +2307,7 @@ def qr_update(Q, R, u, v, overwrite_qruv=False, check_finite=True):
 
     """
     cdef cnp.ndarray q1, r1, u1, v1, qTu, s
-    cdef int uv_flags = cnp.NPY_BEHAVED_NS | cnp.NPY_ELEMENTSTRIDES
+    cdef int uv_flags = cnp.NPY_ARRAY_BEHAVED_NS | cnp.NPY_ARRAY_ELEMENTSTRIDES
     cdef int typecode, p, m, n, info
     cdef void* qptr
     cdef void* rptr
@@ -2332,7 +2331,7 @@ def qr_update(Q, R, u, v, overwrite_qruv=False, check_finite=True):
             overwrite, ARRAY_ANYORDER, chkfinite)
 
     if not overwrite:
-        uv_flags |= cnp.NPY_ENSURECOPY
+        uv_flags |= cnp.NPY_ARRAY_ENSURECOPY
     u1 = PyArray_CheckFromAny(u, NULL, 0, 0, uv_flags, NULL)
     v1 = PyArray_CheckFromAny(v, NULL, 0, 0, uv_flags, NULL)
 
@@ -2386,9 +2385,9 @@ def qr_update(Q, R, u, v, overwrite_qruv=False, check_finite=True):
         length = 2*n
         s = cnp.PyArray_ZEROS(ndim, &length, typecode, 1)
         if not cnp.PyArray_ISONESEGMENT(q1):
-            q1 = PyArray_FromArray(q1, NULL, cnp.NPY_F_CONTIGUOUS)
+            q1 = PyArray_FromArray(q1, NULL, cnp.NPY_ARRAY_F_CONTIGUOUS)
             qisF = True
-        elif cnp.PyArray_CHKFLAGS(q1, cnp.NPY_F_CONTIGUOUS):
+        elif cnp.PyArray_CHKFLAGS(q1, cnp.NPY_ARRAY_F_CONTIGUOUS):
             qisF = True
         else:
             qisF = False
@@ -2443,7 +2442,7 @@ def qr_update(Q, R, u, v, overwrite_qruv=False, check_finite=True):
         qTuptr = extract(qTu, qTus)
         if p == 1:
             if not cnp.PyArray_ISONESEGMENT(q1):
-                q1 = PyArray_FromArray(q1, NULL, cnp.NPY_F_CONTIGUOUS)
+                q1 = PyArray_FromArray(q1, NULL, cnp.NPY_ARRAY_F_CONTIGUOUS)
             form_qTu(q1, u1, qTuptr, qTus, 0)
             qptr = extract(q1, qs)
             rptr = extract(r1, rs)
@@ -2466,15 +2465,15 @@ def qr_update(Q, R, u, v, overwrite_qruv=False, check_finite=True):
                         <double_complex*>rptr, rs, <double_complex*>qTuptr, qTus,
                         <double_complex*>vptr, vs)
         else:
-            if not cnp.PyArray_CHKFLAGS(q1, cnp.NPY_F_CONTIGUOUS):
-                q1 = PyArray_FromArray(q1, NULL, cnp.NPY_F_CONTIGUOUS)
-            if not cnp.PyArray_CHKFLAGS(r1, cnp.NPY_F_CONTIGUOUS):
-                r1 = PyArray_FromArray(r1, NULL, cnp.NPY_F_CONTIGUOUS)
+            if not cnp.PyArray_CHKFLAGS(q1, cnp.NPY_ARRAY_F_CONTIGUOUS):
+                q1 = PyArray_FromArray(q1, NULL, cnp.NPY_ARRAY_F_CONTIGUOUS)
+            if not cnp.PyArray_CHKFLAGS(r1, cnp.NPY_ARRAY_F_CONTIGUOUS):
+                r1 = PyArray_FromArray(r1, NULL, cnp.NPY_ARRAY_F_CONTIGUOUS)
             if not cnp.PyArray_ISONESEGMENT(u1):
-                u1 = PyArray_FromArray(u1, NULL, cnp.NPY_F_CONTIGUOUS)
+                u1 = PyArray_FromArray(u1, NULL, cnp.NPY_ARRAY_F_CONTIGUOUS)
             # v.T must be F contiguous --> v must be C contiguous
-            if not cnp.PyArray_CHKFLAGS(v1, cnp.NPY_C_CONTIGUOUS):
-                v1 = PyArray_FromArray(v1, NULL, cnp.NPY_C_CONTIGUOUS)
+            if not cnp.PyArray_CHKFLAGS(v1, cnp.NPY_ARRAY_C_CONTIGUOUS):
+                v1 = PyArray_FromArray(v1, NULL, cnp.NPY_ARRAY_C_CONTIGUOUS)
             v1 = v1.T
             form_qTu(q1, u1, qTuptr, qTus, 0)
             qptr = extract(q1, qs)

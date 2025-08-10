@@ -2294,7 +2294,10 @@ cdef class Rotation:
     @cython.embedsignature(True)
     @classmethod
     def concatenate(cls, rotations):
-        """Concatenate a sequence of `Rotation` objects.
+        """Concatenate a sequence of `Rotation` objects into a single object.
+
+        This is useful if you want to, for example, take the mean of a set of
+        rotations and need to pack them into a single object to do so.
 
         Parameters
         ----------
@@ -2305,6 +2308,26 @@ cdef class Rotation:
         -------
         concatenated : `Rotation` instance
             The concatenated rotations.
+
+        Examples
+        --------
+        >>> from scipy.spatial.transform import Rotation as R
+        >>> r1 = R.from_rotvec([0, 0, 1])
+        >>> r2 = R.from_rotvec([0, 0, 2])
+        >>> rc = R.concatenate([r1, r2])
+        >>> rc.as_rotvec()
+        array([[0., 0., 1.],
+               [0., 0., 2.]])
+        >>> rc.mean().as_rotvec()
+        array([0., 0., 1.5])
+
+        Note that it may be simpler to create the desired rotations by passing
+        in a single list of the data during initialization, rather then by
+        concatenating:
+
+        >>> R.from_rotvec([[0, 0, 1], [0, 0, 2]]).as_rotvec()
+        array([[0., 0., 1.],
+               [0., 0., 2.]])
 
         Notes
         -----
@@ -2619,11 +2642,14 @@ cdef class Rotation:
 
         # Exact short-cuts
         if n == 0:
-            return Rotation.identity(len(self._quat))
+            return Rotation.identity(None if self._single else len(self._quat))
         elif n == -1:
             return self.inv()
         elif n == 1:
-            return self.__class__(self._quat.copy())
+            if self._single:
+                return self.__class__(self._quat[0], copy=True)
+            else:
+                return self.__class__(self._quat, copy=True)
         else:  # general scaling of rotation angle
             return Rotation.from_rotvec(n * self.as_rotvec())
 
@@ -3405,13 +3431,32 @@ cdef class Rotation:
             # We first find the minimum angle rotation between the primary
             # vectors.
             cross = np.cross(b_pri[0], a_pri[0])
-            theta = atan2(_norm3(cross), np.dot(a_pri[0], b_pri[0]))
-            if theta < 1e-3:  # small angle Taylor series approximation
+            cross_norm = _norm3(cross)
+            theta = atan2(cross_norm, _dot3(a_pri[0], b_pri[0]))
+            tolerance = 1e-3  # tolerance for small angle approximation (rad)
+            R_flip = cls.identity()
+            if (np.pi - theta) < tolerance:
+                # Near pi radians, the Taylor series appoximation of x/sin(x)
+                # diverges, so for numerical stability we flip pi and then
+                # rotate back by the small angle pi - theta
+                if cross_norm == 0:
+                    # For antiparallel vectors, cross = [0, 0, 0] so we need to
+                    # manually set an arbitrary orthogonal axis of rotation
+                    i = np.argmin(np.abs(a_pri[0]))
+                    r = np.zeros(3)
+                    r[i - 1], r[i - 2] = a_pri[0][i - 2], -a_pri[0][i - 1]
+                else:
+                    r = cross  # Shortest angle orthogonal axis of rotation
+                R_flip = Rotation.from_rotvec(r / np.linalg.norm(r) * np.pi)
+                theta = np.pi - theta
+                cross = -cross
+            if abs(theta) < tolerance:
+                # Small angle Taylor series approximation for numerical stability
                 theta2 = theta * theta
                 r = cross * (1 + theta2 / 6 + theta2 * theta2 * 7 / 360)
             else:
                 r = cross * theta / np.sin(theta)
-            R_pri = cls.from_rotvec(r)
+            R_pri = cls.from_rotvec(r) * R_flip
 
             if N == 1:
                 # No secondary vectors, so we are done

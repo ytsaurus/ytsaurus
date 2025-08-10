@@ -6,8 +6,14 @@ from libc.math cimport NAN
 include "_ufuncs_extra_code_common.pxi"
 
 cdef extern from r"_ufuncs_cxx_defs.h":
+    cdef double complex _func_ccospi "ccospi"(double complex) noexcept nogil
+cdef void *_export_ccospi = <void*>_func_ccospi
+cdef extern from r"_ufuncs_cxx_defs.h":
     cdef double complex _func_lambertw_scalar "lambertw_scalar"(double complex, long, double) noexcept nogil
 cdef void *_export_lambertw_scalar = <void*>_func_lambertw_scalar
+cdef extern from r"_ufuncs_cxx_defs.h":
+    cdef double complex _func_csinpi "csinpi"(double complex) noexcept nogil
+cdef void *_export_csinpi = <void*>_func_csinpi
 cdef extern from r"_ufuncs_cxx_defs.h":
     cdef double _func__stirling2_inexact "_stirling2_inexact"(double, double) noexcept nogil
 cdef void *_export__stirling2_inexact = <void*>_func__stirling2_inexact
@@ -108,6 +114,9 @@ cdef extern from r"_ufuncs_cxx_defs.h":
     cdef long double _func_expitl "expitl"(long double) noexcept nogil
 cdef void *_export_expitl = <void*>_func_expitl
 cdef extern from r"_ufuncs_cxx_defs.h":
+    cdef double complex _func_cgamma "cgamma"(double complex) noexcept nogil
+cdef void *_export_cgamma = <void*>_func_cgamma
+cdef extern from r"_ufuncs_cxx_defs.h":
     cdef double _func_hyp1f1_double "hyp1f1_double"(double, double, double) noexcept nogil
 cdef void *_export_hyp1f1_double = <void*>_func_hyp1f1_double
 cdef extern from r"_ufuncs_cxx_defs.h":
@@ -126,6 +135,12 @@ cdef extern from r"_ufuncs_cxx_defs.h":
     cdef double complex _func_faddeeva_log_ndtr_complex "faddeeva_log_ndtr_complex"(double complex) noexcept nogil
 cdef void *_export_faddeeva_log_ndtr_complex = <void*>_func_faddeeva_log_ndtr_complex
 cdef extern from r"_ufuncs_cxx_defs.h":
+    cdef double _func_loggamma_real "loggamma_real"(double) noexcept nogil
+cdef void *_export_loggamma_real = <void*>_func_loggamma_real
+cdef extern from r"_ufuncs_cxx_defs.h":
+    cdef double complex _func_loggamma "loggamma"(double complex) noexcept nogil
+cdef void *_export_loggamma = <void*>_func_loggamma
+cdef extern from r"_ufuncs_cxx_defs.h":
     cdef double _func_logit "logit"(double) noexcept nogil
 cdef void *_export_logit = <void*>_func_logit
 cdef extern from r"_ufuncs_cxx_defs.h":
@@ -143,6 +158,15 @@ cdef void *_export_powm1_float = <void*>_func_powm1_float
 cdef extern from r"_ufuncs_cxx_defs.h":
     cdef double _func_powm1_double "powm1_double"(double, double) noexcept nogil
 cdef void *_export_powm1_double = <void*>_func_powm1_double
+cdef extern from r"_ufuncs_cxx_defs.h":
+    cdef double complex _func_cdigamma "cdigamma"(double complex) noexcept nogil
+cdef void *_export_cdigamma = <void*>_func_cdigamma
+cdef extern from r"_ufuncs_cxx_defs.h":
+    cdef double _func_digamma "digamma"(double) noexcept nogil
+cdef void *_export_digamma = <void*>_func_digamma
+cdef extern from r"_ufuncs_cxx_defs.h":
+    cdef double complex _func_crgamma "crgamma"(double complex) noexcept nogil
+cdef void *_export_crgamma = <void*>_func_crgamma
 cdef extern from r"_ufuncs_cxx_defs.h":
     cdef double _func_faddeeva_voigt_profile "faddeeva_voigt_profile"(double, double, double) noexcept nogil
 cdef void *_export_faddeeva_voigt_profile = <void*>_func_faddeeva_voigt_profile

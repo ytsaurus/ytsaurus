@@ -295,7 +295,7 @@ static int *nextforcomb(void) {
 #ifdef HAVE_ILP64
 typedef npy_int64 F_INT;
 #else
-typedef npy_int32 F_INT;
+typedef int F_INT;
 #endif
 
 static double dmax(double* seq, F_INT len) {
