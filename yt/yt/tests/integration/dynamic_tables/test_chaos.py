@@ -4537,6 +4537,7 @@ class TestChaos(ChaosTestBase):
                 {"cluster_name": "remote_0", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": f"{prefix}.data"},
                 {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": f"{prefix}.queue_incompatible", "catchup": False},
                 {"cluster_name": "remote_1", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": f"{prefix}.data_incompatible", "catchup": False},
+                {"cluster_name": "primary", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": f"{prefix}.aqueue"},
             ]
             replica_ids = self._create_chaos_table_replicas(replicas, table_path=f"{prefix}.crt")
 
@@ -4544,8 +4545,23 @@ class TestChaos(ChaosTestBase):
             self._create_replica_tables(replicas[2:], replica_ids[2:], schema=hash_schema)
             self._sync_replication_era(card_id, replicas)
 
-        _create("//tmp/t1", ["sorted_simple", "sorted_hash"])
-        _create("//tmp/t2", ["sorted_value1", "sorted_hash_value1"])
+            return (card_id, replicas, replica_ids)
+
+        t1_card_id, t1_replicas, t1_replica_ids = _create("//tmp/t1", ["sorted_simple", "sorted_hash"])
+        t2_card_id, t2_replicas, t2_replica_ids = _create("//tmp/t2", ["sorted_value1", "sorted_hash_value1"])
+
+        # wait until replication card is updated on chaos nodes
+        timestamp = generate_timestamp()
+        wait(lambda: get(f"//tmp/t1.crt/@replicas/{t1_replica_ids[1]}/replication_lag_timestamp") > timestamp)
+        wait(lambda: get(f"//tmp/t1.crt/@replicas/{t1_replica_ids[3]}/replication_lag_timestamp") > timestamp)
+        wait(lambda: get(f"//tmp/t2.crt/@replicas/{t2_replica_ids[1]}/replication_lag_timestamp") > timestamp)
+        wait(lambda: get(f"//tmp/t2.crt/@replicas/{t2_replica_ids[3]}/replication_lag_timestamp") > timestamp)
+
+        # Trigger era change and wait this exact replication card to reach all nodes
+        alter_table_replica(t1_replica_ids[4], enabled=False)
+        alter_table_replica(t2_replica_ids[4], enabled=False)
+        self._sync_alter_replica(t1_card_id, t1_replicas, t1_replica_ids, 4, enabled=True)
+        self._sync_alter_replica(t2_card_id, t2_replicas, t2_replica_ids, 4, enabled=True)
 
         insert_rows("//tmp/t1.crt", [{"key": 0, "value": str(0)}])
         insert_rows("//tmp/t2.crt", [{"key": 0, "value1": str(1)}])
