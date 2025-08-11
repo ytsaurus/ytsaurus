@@ -164,7 +164,7 @@ protected:
 
     TCompressingAdapterBase(const TCompressingAdapterBase&) = delete;
 
-    void Finish(TWallTimer* timer)
+    TFuture<void> Finish(TWallTimer* timer)
     {
         HunksDecodingTime_ = timer->GetElapsedTime();
 
@@ -174,6 +174,7 @@ protected:
             Codec_->Compress(Writer_->Finish())));
         ResponseCompressionTime_ = timer->GetElapsedTime();
         timer->Restart();
+        return VoidFuture;
     }
 };
 
@@ -316,8 +317,7 @@ protected:
 
     TFuture<void> PostprocessTabletLookup(TRefCountedPtr /*owner*/, TWallTimer* timer)
     {
-        TRowAdapter::Finish(timer);
-        return VoidFuture;
+        return TRowAdapter::Finish(timer);
     }
 
 private:
@@ -623,8 +623,7 @@ protected:
 
     TFuture<void> PostprocessTabletLookup(TRefCountedPtr /*owner*/, TWallTimer* timer)
     {
-        TRowAdapter::Finish(timer);
-        return VoidFuture;
+        return TRowAdapter::Finish(timer);
     }
 
 private:
@@ -2462,15 +2461,17 @@ protected:
         }
     }
 
-    void Finish(TWallTimer* timer)
+    TFuture<void> Finish(TWallTimer* timer)
     {
         HunksDecodingTime_ = timer->GetElapsedTime();
         timer->Restart();
-        auto error = WaitFor(Writer_->Close());
-        if (error.IsOK()) {
-            Pipe_->SetDataStatistics(std::move(DataStatistics_));
-        }
-        ResultPromise_.TrySet();
+        return Writer_->Close().Apply(
+            BIND([pipe = Pipe_, resultPromise = ResultPromise_, dataStatistics = std::move(DataStatistics_)] (const TError& error) mutable {
+                if (error.IsOK()) {
+                    pipe->SetDataStatistics(std::move(dataStatistics));
+                }
+                resultPromise.TrySet(error);
+            }));
     }
 };
 
