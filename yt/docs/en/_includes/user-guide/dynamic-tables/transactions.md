@@ -66,7 +66,7 @@ Even with non-atomic modifications within a row, the uniqueness and monotony of 
 
 Non-atomic transactions do not take locks, so the transaction that is committed last (last write wins) is counted for concurrent writes. Successful completion of a non-atomic transaction means that all changes are applied on the server.
 
-In case of non-atomic transactions, outside observers may see only partially applied changes during commit time. For atomic transactions, visibility of a part of the changes at any time by anyone means visibility of all the changes. Once commit is complete (in any mode), all changes are guaranteed to be visible to all.
+In case of non-atomic transactions, outside observers may see only partially applied changes during commit time. For atomic transactions, visibility of a part of the changes at any time by anyone means visibility of all the changes. Once the commit is complete in any mode except `atomicity=none` + `durability=async` (you can read about `durability` [here](#durability)), all changes are guaranteed to be visible to all.
 
 To use non-atomic transactions, you need to:
 
@@ -91,11 +91,17 @@ In non-atomic transaction mode, the system behaves almost identically to [Apache
 
 ## Durability { #durability }
 
+{% note warning "Attention" %}
+
+The `durabilty` parameter has been deprecated. When removed, the behavior will be equivalent to the behavior with `durability=sync`. As an alternative way to obtain guarantees provided by the `durability=async` mode, we suggest not waiting for the response to CommitTransaction.
+
+{% endnote %}
+
 Transaction durability means that if the user at time `t` successfully commits a `T` transaction (receives confirmation from the server), then at any subsequent `t'` time, they observe all the effects of a `T` transaction.
 
 For non-atomic transactions, there is also a way to drastically reduce their latency to units of milliseconds at the cost of preservation. When starting a transaction, you can specify the `durability` parameter that has the following values:
 
-- async: The transaction was accepted by the server, saved to memory, and, if there are no failures, will once be written to the disk (for non-atomic transactions only).
+- async: The transaction was accepted by the server, saved to memory, and, if there are no failures, will at some point be written to the disk (for non-atomic transactions only). In this mode, the read-after-write guarantee is also lost.
 - sync: The transaction was accepted by the server, validated by the server quorum, and saved to the logs on the disk. If replication settings are correct and there are no serious problems, it survives failures (default mode).
 
 ## Supported operations { #methods }
