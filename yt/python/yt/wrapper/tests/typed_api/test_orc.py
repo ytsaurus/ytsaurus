@@ -53,6 +53,33 @@ class TestOrc(object):
 
     @authors("nadya02")
     @pytest.mark.parametrize("enable_parallel", [True, False])
+    def test_zlib_orc(self, enable_parallel):
+        with tempfile.NamedTemporaryFile() as temp_file:
+            filename = temp_file.name
+            table = TEST_DIR + "/table"
+            schema = TableSchema() \
+                .add_column("key", type_info.Optional[type_info.Int64]) \
+                .add_column("value", type_info.Optional[type_info.String]) \
+                .add_column("bool", type_info.Optional[type_info.Bool])
+
+            yt.create("table", table, attributes={"schema": schema})
+            row = {"key": 1, "value": "one", "bool" : True}
+            yt.write_table(table, [row])
+
+            with set_config_option("read_parallel/enable", enable_parallel):
+                yt.dump_orc(table, filename, file_compression_codec="zlib")
+
+            output_table = TEST_DIR + "/output_table"
+
+            yt.upload_orc(output_table, filename)
+
+            schema_from_attr = TableSchema.from_yson_type(yt.get(output_table + "/@schema"))
+            assert schema == schema_from_attr
+
+            assert list(yt.read_table(output_table)) == list(yt.read_table(table))
+
+    @authors("nadya02")
+    @pytest.mark.parametrize("enable_parallel", [True, False])
     def test_multi_chunks_upload_orc(self, enable_parallel):
         with tempfile.NamedTemporaryFile() as temp_file:
             filename = temp_file.name

@@ -728,7 +728,7 @@ class YtClient(ClientState):
     def dump_orc(
             self,
             table,
-            output_file=None, output_path=None, enable_several_files=False, unordered=False):
+            output_file=None, output_path=None, enable_several_files=False, unordered=False, file_compression_codec=None):
         """
         Dump table with a strict schema as `ORC <https://orc.apache.org/>` file
 
@@ -750,12 +750,12 @@ class YtClient(ClientState):
             table,
             client=self,
             output_file=output_file, output_path=output_path, enable_several_files=enable_several_files,
-            unordered=unordered)
+            unordered=unordered, file_compression_codec=file_compression_codec)
 
     def dump_parquet(
             self,
             table,
-            output_file=None, output_path=None, enable_several_files=False, unordered=False):
+            output_file=None, output_path=None, enable_several_files=False, unordered=False, file_compression_codec=None):
         """
         Dump table with a strict schema as `Parquet <https://parquet.apache.org/docs>` file
 
@@ -777,7 +777,7 @@ class YtClient(ClientState):
             table,
             client=self,
             output_file=output_file, output_path=output_path, enable_several_files=enable_several_files,
-            unordered=unordered)
+            unordered=unordered, file_compression_codec=file_compression_codec)
 
     def execute_batch(
             self,
