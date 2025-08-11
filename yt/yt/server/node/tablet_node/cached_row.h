@@ -201,7 +201,7 @@ TCachedRowPtr CopyCachedRow(TAlloc* allocator, const TCachedRow* source)
     cachedRow->Reallocated = source->Reallocated;
     cachedRow->InsertTime = source->InsertTime;
     cachedRow->UpdateTime = source->UpdateTime;
-    cachedRow->Outdated.store(source->Outdated.load(std::memory_order_acquire), std::memory_order_release);
+    cachedRow->Outdated.store(source->Outdated.load(std::memory_order::acquire), std::memory_order::release);
 
     return cachedRow;
 }
