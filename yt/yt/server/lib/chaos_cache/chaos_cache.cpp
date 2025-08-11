@@ -1,7 +1,5 @@
 #include "chaos_cache.h"
 
-#include "private.h"
-
 #include <yt/yt/server/lib/chaos_cache/config.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -10,7 +8,7 @@
 
 #include <util/digest/multi.h>
 
-namespace NYT::NMasterCache {
+namespace NYT::NChaosCache {
 
 using namespace NConcurrency;
 using namespace NRpc;
@@ -21,10 +19,8 @@ using namespace NYTree::NProto;
 using namespace NObjectClient;
 using namespace NChaosClient;
 using namespace NChaosCache;
-
-////////////////////////////////////////////////////////////////////////////////
-
-const auto static& Logger = MasterCacheLogger;
+using namespace NProfiling;
+using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,7 +43,7 @@ void FormatValue(TStringBuilderBase* builder, const TChaosCacheKey& key, TString
 TChaosCacheEntry::TChaosCacheEntry(
     const TChaosCacheKey& key,
     TInstant timestamp,
-    TErrorOr<NChaosClient::TReplicationCardPtr> replicationCard)
+    TErrorOr<TReplicationCardPtr> replicationCard)
     : TAsyncCacheValueBase(key)
     , Timestamp_(timestamp)
     , ReplicationCard_(replicationCard)
@@ -60,7 +56,7 @@ bool TChaosCacheEntry::GetSuccess() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCacheProfilingCounters::TCacheProfilingCounters(const NProfiling::TProfiler& profiler)
+TCacheProfilingCounters::TCacheProfilingCounters(const TProfiler& profiler)
     : HitRequestCount(profiler.Counter("/hit_request_count"))
     , HitResponseBytes(profiler.Counter("/hit_response_bytes"))
     , MissRequestCount(profiler.Counter("/miss_request_count"))
@@ -70,8 +66,10 @@ TCacheProfilingCounters::TCacheProfilingCounters(const NProfiling::TProfiler& pr
 
 TChaosCache::TChaosCache(
     TChaosCacheConfigPtr config,
-    const NProfiling::TProfiler& profiler)
+    const TProfiler& profiler,
+    const TLogger& logger)
     : TAsyncSlruCacheBase(config)
+    , Logger(logger)
     , Profiler_(profiler)
 { }
 
@@ -127,9 +125,9 @@ TChaosCache::TCookie TChaosCache::BeginLookup(
 }
 
 void TChaosCache::EndLookup(
-    NRpc::TRequestId requestId,
+    TRequestId requestId,
     TCookie cookie,
-    TErrorOr<NChaosClient::TReplicationCardPtr> replicationCard)
+    TErrorOr<TReplicationCardPtr> replicationCard)
 {
     const auto& key = cookie.GetKey();
 
@@ -215,4 +213,4 @@ bool TChaosCache::IsExpired(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NMasterCache
+} // namespace NYT::NChaosCache

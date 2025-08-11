@@ -1,6 +1,6 @@
 #pragma once
 
-#include "private.h"
+#include "public.h"
 
 #include <yt/yt/server/lib/chaos_cache/public.h>
 
@@ -10,7 +10,7 @@
 
 #include <yt/yt/core/rpc/public.h>
 
-namespace NYT::NMasterCache {
+namespace NYT::NChaosCache {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,8 +19,9 @@ NRpc::IServicePtr CreateChaosCacheService(
     IInvokerPtr invoker,
     NApi::NNative::IClientPtr client,
     TChaosCachePtr cache,
-    NRpc::IAuthenticatorPtr authenticator);
+    NRpc::IAuthenticatorPtr authenticator,
+    NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NMasterCache
+} // namespace NYT::NChaosCache

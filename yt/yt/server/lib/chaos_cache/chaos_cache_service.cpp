@@ -1,7 +1,6 @@
 #include "chaos_cache_service.h"
 
 #include "chaos_cache.h"
-#include "private.h"
 
 #include <yt/yt/server/lib/chaos_cache/config.h>
 
@@ -24,7 +23,7 @@
 
 #include <yt/yt/core/rpc/service_detail.h>
 
-namespace NYT::NMasterCache {
+namespace NYT::NChaosCache {
 
 using namespace NConcurrency;
 using namespace NProfiling;
@@ -173,11 +172,12 @@ public:
         IInvokerPtr invoker,
         IClientPtr client,
         TChaosCachePtr cache,
-        IAuthenticatorPtr authenticator)
+        IAuthenticatorPtr authenticator,
+        TLogger logger)
         : TServiceBase(
             invoker,
             TChaosNodeServiceProxy::GetDescriptor(),
-            MasterCacheLogger(),
+            std::move(logger),
             TServiceOptions{
                 .Authenticator = std::move(authenticator),
             })
@@ -492,16 +492,18 @@ IServicePtr CreateChaosCacheService(
     IInvokerPtr invoker,
     IClientPtr client,
     TChaosCachePtr cache,
-    IAuthenticatorPtr authenticator)
+    IAuthenticatorPtr authenticator,
+    TLogger logger)
 {
     return New<TChaosCacheService>(
         std::move(config),
         std::move(invoker),
         std::move(client),
         std::move(cache),
-        std::move(authenticator));
+        std::move(authenticator),
+        std::move(logger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NMasterCache
+} // namespace NYT::NChaosCache

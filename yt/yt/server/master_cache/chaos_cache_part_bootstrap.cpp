@@ -1,11 +1,11 @@
 #include "chaos_cache_part_bootstrap.h"
 
-#include "chaos_cache_service.h"
-#include "part_bootstrap_detail.h"
-#include "chaos_cache.h"
 #include "config.h"
+#include "part_bootstrap_detail.h"
 #include "private.h"
 
+#include <yt/yt/server/lib/chaos_cache/chaos_cache.h>
+#include <yt/yt/server/lib/chaos_cache/chaos_cache_service.h>
 #include <yt/yt/server/lib/chaos_cache/config.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -18,6 +18,7 @@
 namespace NYT::NMasterCache {
 
 using namespace NApi;
+using namespace NChaosCache;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,14 +41,16 @@ public:
 
         ChaosCache_ = New<TChaosCache>(
             GetConfig()->ChaosCache,
-            MasterCacheProfiler().WithPrefix("/chaos_cache"));
+            MasterCacheProfiler().WithPrefix("/chaos_cache"),
+            MasterCacheLogger());
 
         ChaosCacheService_ = CreateChaosCacheService(
             GetConfig()->ChaosCache,
             WorkerPool_->GetInvoker(),
             client,
             ChaosCache_,
-            GetNativeAuthenticator());
+            GetNativeAuthenticator(),
+            MasterCacheLogger());
 
         GetRpcServer()->RegisterService(ChaosCacheService_);
     }

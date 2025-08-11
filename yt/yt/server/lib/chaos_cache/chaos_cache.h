@@ -1,6 +1,6 @@
 #pragma once
 
-#include "private.h"
+#include "public.h"
 
 #include <yt/yt/server/lib/chaos_cache/public.h>
 
@@ -8,7 +8,7 @@
 
 #include <yt/yt/core/misc/async_slru_cache.h>
 
-namespace NYT::NMasterCache {
+namespace NYT::NChaosCache {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,7 +69,8 @@ class TChaosCache
 public:
     TChaosCache(
         NChaosCache::TChaosCacheConfigPtr config,
-        const NProfiling::TProfiler& profiler);
+        const NProfiling::TProfiler& profiler,
+        const NLogging::TLogger& logger);
 
     using TCookie = TAsyncSlruCacheBase<TChaosCacheKey, TChaosCacheEntry>::TInsertCookie;
     TCookie BeginLookup(
@@ -86,6 +87,7 @@ public:
         TErrorOr<NChaosClient::TReplicationCardPtr> replicationCard);
 
 private:
+    const NLogging::TLogger Logger;
     const NProfiling::TProfiler Profiler_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
@@ -110,4 +112,4 @@ DEFINE_REFCOUNTED_TYPE(TChaosCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NMasterCache
+} // namespace NYT::NChaosCache
