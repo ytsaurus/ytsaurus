@@ -166,6 +166,21 @@ DEFINE_REFCOUNTED_TYPE(TStoreBackgroundActivityOrchidConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCompactionHintFetcherConfig
+    : public NYTree::TYsonStruct
+{
+    TDuration FetchPeriod;
+    NConcurrency::TThroughputThrottlerConfigPtr RequestThrottler;
+
+    REGISTER_YSON_STRUCT(TCompactionHintFetcherConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCompactionHintFetcherConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TStoreFlusherConfig
     : public NYTree::TYsonStruct
 {
@@ -229,12 +244,16 @@ struct TStoreCompactorDynamicConfig
     std::optional<int> MaxConcurrentCompactions;
     std::optional<int> MaxConcurrentPartitionings;
 
+    // TODO(dave11ar): Migrate to TCompactionHintFetcherConfig
     TDuration ChunkViewSizeFetchPeriod;
     NConcurrency::TThroughputThrottlerConfigPtr ChunkViewSizeRequestThrottler;
 
+    // TODO(dave11ar): Migrate to TCompactionHintFetcherConfig
     TDuration RowDigestFetchPeriod;
     NConcurrency::TThroughputThrottlerConfigPtr RowDigestRequestThrottler;
     bool UseRowDigests;
+
+    TCompactionHintFetcherConfigPtr MinHashDigestFetcher;
 
     int MaxCompactionStructuredLogEvents;
     int MaxPartitioningStructuredLogEvents;

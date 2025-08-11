@@ -149,6 +149,10 @@ private:
         std::vector<TInputChunkPtr> inputChunks;
         std::vector<TSortedChunkStorePtr> locatedStores;
         for (const auto& [store, errorOrRsp] : Zip(stores, errorOrRsps)) {
+            if (!ShouldConsumeRequestResultForStore(store, RequestStep)) {
+                continue;
+            }
+
             auto sortedChunkStore = store->AsSortedChunk();
 
             if (!errorOrRsp.IsOK()) {
@@ -161,12 +165,9 @@ private:
                 continue;
             }
 
-            auto& fetchingStatus = GetFetchStatus(store);
-            if (IsValidStoreState(store) && fetchingStatus.ShouldConsumeRequestResult(RequestStep)) {
-                inputChunks.push_back(ChunkViewToInputChunk(sortedChunkStore, errorOrRsp.Value()));
-                locatedStores.push_back(std::move(sortedChunkStore));
-                fetchingStatus.RequestStep = RequestStep;
-            }
+            inputChunks.push_back(ChunkViewToInputChunk(sortedChunkStore, errorOrRsp.Value()));
+            locatedStores.push_back(std::move(sortedChunkStore));
+            GetFetchStatus(store).RequestStep = RequestStep;
         }
 
         if (inputChunks.empty()) {
@@ -215,26 +216,28 @@ private:
             for (const auto& [store, weightedChunk] : Zip(stores, sizeFetcher->WeightedChunks())) {
                 YT_VERIFY(weightedChunk->GetInputChunk()->GetChunkId() == store->GetChunkId());
 
-                if (IsValidStoreState(store) && GetFetchStatus(store).ShouldConsumeRequestResult(RequestStep)) {
-                    auto miscExt = GetProtoExtension<TMiscExt>(store->GetChunkMeta().extensions());
-                    i64 chunkDataWeight = miscExt.data_weight();
-                    i64 chunkViewDataWeight = weightedChunk->GetDataWeight();
-
-                    double share = static_cast<double>(chunkViewDataWeight) / chunkDataWeight;
-                    double maxChunkViewSizeRatio = store->GetTablet()->GetSettings().MountConfig->MaxChunkViewSizeRatio;
-
-                    auto& compactionHint = store->AsSortedChunk()->CompactionHints().ChunkViewSize;
-                    compactionHint.FetchStatus.RequestStep = RequestStep;
-                    compactionHint.CompactionHint = share <= maxChunkViewSizeRatio
-                        ? EChunkViewSizeStatus::CompactionRequired
-                        : EChunkViewSizeStatus::CompactionNotRequired;
-
-                    ++finishedRequestCount;
-                    YT_LOG_DEBUG("Finished fetching chunk view size (StoreId: %v, ChunkId: %v, CompactionHint: %v)",
-                        store->GetId(),
-                        store->GetChunkId(),
-                        compactionHint.CompactionHint);
+                if (!ShouldConsumeRequestResultForStore(store, RequestStep)) {
+                    continue;
                 }
+
+                auto miscExt = GetProtoExtension<TMiscExt>(store->GetChunkMeta().extensions());
+                i64 chunkDataWeight = miscExt.data_weight();
+                i64 chunkViewDataWeight = weightedChunk->GetDataWeight();
+
+                double share = static_cast<double>(chunkViewDataWeight) / chunkDataWeight;
+                double maxChunkViewSizeRatio = store->GetTablet()->GetSettings().MountConfig->MaxChunkViewSizeRatio;
+
+                auto& compactionHint = store->AsSortedChunk()->CompactionHints().ChunkViewSize;
+                compactionHint.FetchStatus.RequestStep = RequestStep;
+                compactionHint.CompactionHint = share <= maxChunkViewSizeRatio
+                    ? EChunkViewSizeStatus::CompactionRequired
+                    : EChunkViewSizeStatus::CompactionNotRequired;
+
+                ++finishedRequestCount;
+                YT_LOG_DEBUG("Finished fetching chunk view size (StoreId: %v, ChunkId: %v, CompactionHint: %v)",
+                    store->GetId(),
+                    store->GetChunkId(),
+                    compactionHint.CompactionHint);
             }
 
             FinishedRequestCount_.Increment(finishedRequestCount);

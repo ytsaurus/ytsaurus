@@ -97,7 +97,7 @@ protected:
         const IStorePtr& store,
         int requestStep);
 
-    bool IsValidStoreState(const IStorePtr& store);
+    bool ShouldConsumeRequestResultForStore(const IStorePtr& store, int requestStep);
 
 private:
     const NProfiling::TCounter RequestCount_;
@@ -107,6 +107,8 @@ private:
     TFetchCandidateQueue StoresQueue_;
 
     friend TFetchCandidateQueue;
+
+    bool IsValidStoreState(const IStorePtr& store);
 
     void GetStoresFromQueueAndMakeRequest();
 

@@ -8,6 +8,7 @@
 #include "versioned_block_writer.h"
 #include "versioned_row_digest.h"
 #include "key_filter.h"
+#include "min_hash_digest_builder.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -96,6 +97,7 @@ public:
         , SamplingRowMerger_(New<TRowBuffer>(TVersionedChunkWriterBaseTag()), Schema_)
         , ColumnarStatistics_(TColumnarStatistics::MakeEmpty(Schema_->GetColumnCount(), Options_->EnableColumnarValueStatistics, Config_->EnableLargeColumnarStatistics))
         , RowDigestBuilder_(CreateVersionedRowDigestBuilder(Config_->VersionedRowDigest))
+        , MinHashDigestBuilder_(CreateMinHashDigestBuilder(Config_->MinHashDigest))
         , KeyFilterBuilder_(CreateXorFilterBuilder(Config_, Schema_->GetKeyColumnCount()))
         , TraceContext_(CreateTraceContextFromCurrent("ChunkWriter"))
         , FinishGuard_(TraceContext_)
@@ -145,6 +147,12 @@ public:
         if (RowDigestBuilder_) {
             for (auto row : rows) {
                 RowDigestBuilder_->OnRow(row);
+            }
+        }
+
+        if (MinHashDigestBuilder_) {
+            for (auto row : rows) {
+                MinHashDigestBuilder_->OnRow(row);
             }
         }
 
@@ -261,6 +269,7 @@ protected:
     TColumnarStatistics ColumnarStatistics_;
 
     IVersionedRowDigestBuilderPtr RowDigestBuilder_;
+    IMinHashDigestBuilderPtr MinHashDigestBuilder_;
     IKeyFilterBuilderPtr KeyFilterBuilder_;
 
     const TTraceContextPtr TraceContext_;
@@ -340,6 +349,15 @@ protected:
             for (auto& block : blocks) {
                 EncodingChunkWriter_->WriteBlock(std::move(block), KeyFilterBuilder_->GetBlockType());
             }
+        }
+    }
+
+    void MaybeWriteMinHashDigestBlock()
+    {
+        if (MinHashDigestBuilder_) {
+            EncodingChunkWriter_->WriteBlock(
+                MinHashDigestBuilder_->SerializeBlock(&SystemBlockMetaExt_),
+                MinHashDigestBuilder_->GetBlockType());
         }
     }
 
@@ -651,6 +669,7 @@ private:
 
         OnDataBlocksWritten(LastKey_.Elements(), &SystemBlockMetaExt_, EncodingChunkWriter_);
 
+        MaybeWriteMinHashDigestBlock();
         MaybeWriteKeyFilterBlocks();
 
         PrepareChunkMeta();
@@ -934,6 +953,7 @@ private:
             }
         }
 
+        MaybeWriteMinHashDigestBlock();
         MaybeWriteKeyFilterBlocks();
 
         PrepareChunkMeta();

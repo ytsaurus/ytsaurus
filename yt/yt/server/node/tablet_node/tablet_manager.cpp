@@ -8,6 +8,7 @@
 #include "config.h"
 #include "hunk_chunk.h"
 #include "hunk_lock_manager.h"
+#include "min_hash_digest_fetcher.h"
 #include "ordered_chunk_store.h"
 #include "ordered_dynamic_store.h"
 #include "ordered_store_manager.h"
@@ -203,10 +204,6 @@ public:
         , BackupManager_(CreateBackupManager(
             Slot_,
             Bootstrap_))
-        , RowDigestFetcher_(CreateRowDigestFetcher(
-            slot->GetCellId(),
-            Slot_->GetAutomatonInvoker(),
-            Bootstrap_->GetDynamicConfigManager()->GetConfig()))
         , ChunkViewSizeFetcher_(CreateChunkViewSizeFetcher(
             slot->GetCellId(),
             Bootstrap_->GetNodeDirectory(),
@@ -215,6 +212,16 @@ public:
             Bootstrap_->GetClient(),
             Bootstrap_->GetConnection()->GetChunkReplicaCache(),
             Bootstrap_->GetDynamicConfigManager()->GetConfig()))
+        , RowDigestFetcher_(CreateRowDigestFetcher(
+            slot->GetCellId(),
+            Slot_->GetAutomatonInvoker(),
+            Bootstrap_->GetDynamicConfigManager()->GetConfig()))
+        , MinHashDigestFetcher_(CreateMinHashDigestFetcher(
+            slot->GetCellId(),
+            Slot_->GetAutomatonInvoker(),
+            Bootstrap_->GetNodeMemoryUsageTracker(),
+            Bootstrap_->GetDynamicConfigManager()->GetConfig()))
+        , CompactionHintFetchers_{ChunkViewSizeFetcher_, RowDigestFetcher_, MinHashDigestFetcher_}
     {
         YT_ASSERT_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
@@ -860,8 +867,10 @@ private:
 
     IBackupManagerPtr BackupManager_;
 
-    const TCompactionHintFetcherPtr RowDigestFetcher_;
     const TCompactionHintFetcherPtr ChunkViewSizeFetcher_;
+    const TCompactionHintFetcherPtr RowDigestFetcher_;
+    const TCompactionHintFetcherPtr MinHashDigestFetcher_;
+    const std::vector<TCompactionHintFetcherPtr> CompactionHintFetchers_;
 
     const TCallback<void(TClusterTableConfigPatchSetPtr, TClusterTableConfigPatchSetPtr)> TableDynamicConfigChangedCallback_ =
         BIND(&TTabletManager::OnTableDynamicConfigChanged, MakeWeak(this));
@@ -1446,8 +1455,9 @@ private:
         std::vector<TError> configErrors;
         auto settings = rawSettings.BuildEffectiveSettings(&configErrors, nullptr);
 
-        ChunkViewSizeFetcher_->ReconfigureTablet(tablet, settings);
-        RowDigestFetcher_->ReconfigureTablet(tablet, settings);
+        for (const auto& compactionHintFetcher : CompactionHintFetchers_) {
+            compactionHintFetcher->ReconfigureTablet(tablet, settings);
+        }
 
         const auto& storeManager = tablet->GetStoreManager();
         storeManager->Remount(settings);
@@ -5135,8 +5145,9 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        RowDigestFetcher_->Reconfigure(newConfig);
-        ChunkViewSizeFetcher_->Reconfigure(newConfig);
+        for (const auto& compactionHintFetcher : CompactionHintFetchers_) {
+            compactionHintFetcher->Reconfigure(newConfig);
+        }
 
         if (!IsRecovery() &&
             IsLeader() &&
@@ -5384,13 +5395,16 @@ private:
         if (IsLeader()) {
             ChunkViewSizeFetcher_->FetchStoreInfos(tablet, stores);
             RowDigestFetcher_->FetchStoreInfos(tablet, stores);
+            // TODO(dave11ar): Just for proof of work.
+            MinHashDigestFetcher_->FetchStoreInfos(tablet, stores);
         }
     }
 
     void ResetCompactionHints(TTablet* tablet)
     {
-        ChunkViewSizeFetcher_->ResetCompactionHints(tablet);
-        RowDigestFetcher_->ResetCompactionHints(tablet);
+        for (const auto& compactionHintFetcher : CompactionHintFetchers_) {
+            compactionHintFetcher->ResetCompactionHints(tablet);
+        }
     }
 };
 

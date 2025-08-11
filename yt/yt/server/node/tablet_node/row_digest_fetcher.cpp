@@ -184,51 +184,53 @@ private:
 
         i64 finishedRequestCount = 0;
         for (const auto& [store, errorOrRsp] : Zip(stores, errorOrRsps)) {
+            if (!ShouldConsumeRequestResultForStore(store, RequestStep)) {
+                continue;
+            }
+
             if (!errorOrRsp.IsOK()) {
                 OnRequestFailed(store, RequestStep - 1);
-                YT_LOG_WARNING(errorOrRsp, "Failed to receive row digest for chunk (StoreId: %v)",
+                YT_LOG_WARNING(errorOrRsp, "Failed to receive row digest for store (StoreId: %v)",
                     store->GetId());
                 continue;
             }
 
-            if (IsValidStoreState(store) && GetFetchStatus(store).ShouldConsumeRequestResult(RequestStep)) {
-                auto sortedChunkStore = store->AsSortedChunk();
+            auto sortedChunkStore = store->AsSortedChunk();
+            GetFetchStatus(store).RequestStep = RequestStep;
 
-                auto rowDigestExt = FindProtoExtension<TVersionedRowDigestExt>(
-                    errorOrRsp.Value()->extensions());
+            auto rowDigestExt = FindProtoExtension<TVersionedRowDigestExt>(
+                errorOrRsp.Value()->extensions());
 
-                if (!rowDigestExt) {
-                    YT_LOG_DEBUG(errorOrRsp, "Chunk meta does not contain row digest (StoreId: %v, ChunkId: %v)",
-                        sortedChunkStore->GetId(),
-                        sortedChunkStore->GetChunkId());
-                    continue;
-                }
-
-                TVersionedRowDigest digest;
-
-                TWallTimer timer;
-                FromProto(&digest, rowDigestExt.value());
-                RowDigestParseCumulativeTime_.Add(timer.GetElapsedTime());
-
-                auto& compactionHints = sortedChunkStore->CompactionHints().RowDigest;
-                compactionHints.FetchStatus.RequestStep = RequestStep;
-                YT_VERIFY(!store->GetTablet()->GetTableSchema()->HasAggregateColumns());
-                compactionHints.CompactionHint = GetUpcomingCompactionInfo(
-                    store->GetId(),
-                    store->GetTablet()->GetSettings().MountConfig,
-                    digest);
-
-                ++finishedRequestCount;
-                YT_LOG_DEBUG("Finished fetching row digest (StoreId: %v, ChunkId: %v, "
-                    "CompactionHintReason: %v, CompactionHintTimestamp: %v)",
+            if (!rowDigestExt) {
+                YT_LOG_DEBUG(errorOrRsp, "Chunk meta does not contain row digest (StoreId: %v, ChunkId: %v)",
                     sortedChunkStore->GetId(),
-                    sortedChunkStore->GetChunkId(),
-                    compactionHints.CompactionHint->Reason,
-                    compactionHints.CompactionHint->Timestamp);
+                    sortedChunkStore->GetChunkId());
+                continue;
             }
 
-            FinishedRequestCount_.Increment(finishedRequestCount);
+            TVersionedRowDigest digest;
+
+            TWallTimer timer;
+            FromProto(&digest, rowDigestExt.value());
+            RowDigestParseCumulativeTime_.Add(timer.GetElapsedTime());
+
+            auto& compactionHints = sortedChunkStore->CompactionHints().RowDigest;
+            YT_VERIFY(!store->GetTablet()->GetTableSchema()->HasAggregateColumns());
+            compactionHints.CompactionHint = GetUpcomingCompactionInfo(
+                store->GetId(),
+                store->GetTablet()->GetSettings().MountConfig,
+                digest);
+
+            ++finishedRequestCount;
+            YT_LOG_DEBUG("Finished fetching row digest (StoreId: %v, ChunkId: %v, "
+                "CompactionHintReason: %v, CompactionHintTimestamp: %v)",
+                sortedChunkStore->GetId(),
+                sortedChunkStore->GetChunkId(),
+                compactionHints.CompactionHint->Reason,
+                compactionHints.CompactionHint->Timestamp);
         }
+
+        FinishedRequestCount_.Increment(finishedRequestCount);
     }
 };
 
