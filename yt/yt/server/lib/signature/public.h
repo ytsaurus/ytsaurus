@@ -11,8 +11,8 @@ namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_STRONG_TYPEDEF(TKeyId, TGuid)
-YT_DEFINE_STRONG_TYPEDEF(TOwnerId, std::string)
+YT_DEFINE_STRONG_TYPEDEF(TKeyId, TGuid);
+YT_DEFINE_STRONG_TYPEDEF(TOwnerId, std::string);
 
 ////////////////////////////////////////////////////////////////////////////////
 
