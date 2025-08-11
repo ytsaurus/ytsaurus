@@ -220,7 +220,24 @@ def test_environment_with_framing(request):
 
 @pytest.fixture(scope="class", params=["v3", "v4", "native_v4", "rpc"])
 def test_environment_with_rpc(request):
-    environment = init_environment_for_test_session(request, request.param)
+    environment = init_environment_for_test_session(
+        request,
+        request.param,
+        delta_proxy_config={
+            "signature_components": {
+                "validation": {
+                    "cypress_key_reader": {},
+                },
+                "generation": {
+                    "cypress_key_writer": {
+                        "owner_id": "root",
+                    },
+                    "generator": {},
+                    "key_rotator": {},
+                },
+            },
+        },
+    )
     return environment
 
 

@@ -7,8 +7,9 @@ from .default_config import DefaultConfigType
 from .mappings import VerifiedDict
 from . import client_api
 
-from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, BinaryIO, Callable, Dict, Iterable, List, Literal, Optional, Tuple, Union
 from .auth_commands import DictCurrentUser
+from .distributed_commands import DistributedWriteCookePacketType, DistributedWriteFragmentPacketType, DistributedWriteSessionPacketType
 from .format import Format
 from .query_commands import Query
 from .spec_builders import SpecCommonType, SpecMapReduceType, SpecMapType, SpecReduceType, SpecSortType
@@ -878,6 +879,17 @@ class YtClient(ClientState):
         return client_api.find_spark_cluster(
             client=self,
             discovery_path=discovery_path)
+
+    def finish_distributed_write_session(
+            self,
+            session: DistributedWriteSessionPacketType, results: List[object]):
+        """
+        Finish distribution write session
+
+        """
+        return client_api.finish_distributed_write_session(
+            session, results,
+            client=self)
 
     def flow_execute(
             self,
@@ -1797,6 +1809,19 @@ class YtClient(ClientState):
         return client_api.pause_pipeline(
             pipeline_path,
             client=self)
+
+    def ping_distributed_write_session(
+            self,
+            session: DistributedWriteSessionPacketType,
+            timeout: Optional[int] = None):
+        """
+        Ping distribution write session
+
+        """
+        return client_api.ping_distributed_write_session(
+            session,
+            client=self,
+            timeout=timeout)
 
     def ping_transaction(
             self,
@@ -2919,6 +2944,19 @@ class YtClient(ClientState):
             destination=destination, yt_filename=yt_filename, placement_strategy=placement_strategy,
             ignore_set_attributes_error=ignore_set_attributes_error, hash=hash)
 
+    def start_distributed_write_session(
+            self,
+            path: Union[str, YPath],
+            fragments_count: Optional[int] = None, timeout: Optional[int] = None) -> Tuple[DistributedWriteSessionPacketType, DistributedWriteCookePacketType]:
+        """
+        Start distribution write session
+
+        """
+        return client_api.start_distributed_write_session(
+            path,
+            client=self,
+            fragments_count=fragments_count, timeout=timeout)
+
     def start_pipeline(
             self,
             pipeline_path,
@@ -3272,6 +3310,19 @@ class YtClient(ClientState):
             client=self,
             format=format, table_writer=table_writer, max_row_buffer_size=max_row_buffer_size, is_stream_compressed=is_stream_compressed,
             force_create=force_create, raw=raw)
+
+    def write_table_fragment(
+            self,
+            cookie: DistributedWriteSessionPacketType, input_stream: Union[str, bytes, Iterable, BinaryIO],
+            format: Optional[str] = None, raw: Optional[bool] = None, max_row_buffer_size: Optional[int] = None) -> DistributedWriteFragmentPacketType:
+        """
+        Write distribution table fragment
+
+        """
+        return client_api.write_table_fragment(
+            cookie, input_stream,
+            client=self,
+            format=format, raw=raw, max_row_buffer_size=max_row_buffer_size)
 
     def write_table_structured(
             self,

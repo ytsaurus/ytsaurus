@@ -155,8 +155,8 @@ def create_temp_table(path=None, prefix=None, attributes=None, expiration_timeou
 
 def write_table(
     table,  # type: str | TablePath
-    input_stream,  # type: str | bytes | "filelike" | typing.Iterable
-    format=None,  # type: Format | None
+    input_stream,  # type: str | bytes | typing.BinaryIO | typing.Iterable
+    format=None,  # type: str | Format | None
     table_writer=None,  # type: dict[str, typing.Any] | None
     max_row_buffer_size=None,  # type: int | None
     is_stream_compressed=False,  # type: bool | None
