@@ -317,12 +317,12 @@ i64 TIOEngineBase::GetTotalRequestLimit() const
 
 bool TIOEngineBase::IsInFlightReadRequestLimitExceeded() const
 {
-    return InFlightReadRequestCount_.load(std::memory_order_relaxed) >= Config_.Acquire()->ReadRequestLimit;
+    return InFlightReadRequestCount_.load(std::memory_order::relaxed) >= Config_.Acquire()->ReadRequestLimit;
 }
 
 i64 TIOEngineBase::GetInFlightReadRequestCount() const
 {
-    return InFlightReadRequestCount_.load(std::memory_order_relaxed);
+    return InFlightReadRequestCount_.load(std::memory_order::relaxed);
 }
 
 i64 TIOEngineBase::GetReadRequestLimit() const
@@ -332,12 +332,12 @@ i64 TIOEngineBase::GetReadRequestLimit() const
 
 bool TIOEngineBase::IsInFlightWriteRequestLimitExceeded() const
 {
-    return InFlightWriteRequestCount_.load(std::memory_order_relaxed) >= Config_.Acquire()->WriteRequestLimit;
+    return InFlightWriteRequestCount_.load(std::memory_order::relaxed) >= Config_.Acquire()->WriteRequestLimit;
 }
 
 i64 TIOEngineBase::GetInFlightWriteRequestCount() const
 {
-    return InFlightWriteRequestCount_.load(std::memory_order_relaxed);
+    return InFlightWriteRequestCount_.load(std::memory_order::relaxed);
 }
 
 i64 TIOEngineBase::GetWriteRequestLimit() const

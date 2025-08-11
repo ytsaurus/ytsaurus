@@ -818,7 +818,7 @@ void TDecoratedAutomaton::TLogicalClock::Initialize(
 {
     LastTickTime_ = lastTickTime;
     LastKnownTerm_ = lastKnownTerm;
-    Time_.store(time, std::memory_order_release);
+    Time_.store(time, std::memory_order::release);
 }
 
 void TDecoratedAutomaton::TLogicalClock::AdvanceClock()
@@ -828,15 +828,15 @@ void TDecoratedAutomaton::TLogicalClock::AdvanceClock()
 
 TInstant TDecoratedAutomaton::TLogicalClock::GetTime() const
 {
-    return Time_.load(std::memory_order_acquire);
+    return Time_.load(std::memory_order::acquire);
 }
 
 void TDecoratedAutomaton::TLogicalClock::ProcessTick(TInstant mutationTime, int mutationTerm)
 {
     if (mutationTerm == LastKnownTerm_) {
         auto timePassed = mutationTime - LastTickTime_;
-        auto newTime = Time_.load(std::memory_order_relaxed) + timePassed;
-        Time_.store(newTime, std::memory_order_release);
+        auto newTime = Time_.load(std::memory_order::relaxed) + timePassed;
+        Time_.store(newTime, std::memory_order::release);
     }
 
     LastTickTime_ = mutationTime;
