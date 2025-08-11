@@ -55,7 +55,7 @@ public:
         TMasterTableSchemaId schemaId,
         TChunkListId parentChunkListId,
         NNative::IClientPtr client,
-        TString localHostName,
+        std::string localHostName,
         IBlockCachePtr blockCache,
         IThroughputThrottlerPtr throttler,
         TTrafficMeterPtr trafficMeter,
@@ -213,7 +213,7 @@ private:
     const TTransactionId TransactionId_;
     const TChunkListId ParentChunkListId_;
     const NNative::IClientPtr Client_;
-    const TString LocalHostName_;
+    const std::string LocalHostName_;
     const TMasterTableSchemaId SchemaId_;
     const IBlockCachePtr BlockCache_;
     const IThroughputThrottlerPtr Throttler_;
@@ -392,7 +392,7 @@ IChunkWriterPtr CreateConfirmingWriter(
     TMasterTableSchemaId schemaId,
     TChunkListId parentChunkListId,
     NNative::IClientPtr client,
-    TString localHostName,
+    std::string localHostName,
     IBlockCachePtr blockCache,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,

@@ -1019,7 +1019,7 @@ void ToProto(
     if (statistics.ColumnHyperLogLogDigests.empty()) {
         return;
     }
-    TString allDigests;
+    std::string allDigests;
     allDigests.reserve(TColumnarHyperLogLogDigest::RegisterCount);
     for (const auto& digest : statistics.ColumnHyperLogLogDigests) {
         allDigests += TStringBuf(

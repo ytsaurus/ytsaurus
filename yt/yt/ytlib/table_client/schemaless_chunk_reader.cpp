@@ -117,10 +117,10 @@ static std::vector<int> BuildColumnIdMapping(
     if (columnFilter.IsUniversal()) {
         for (int chunkColumnId = 0; chunkColumnId < chunkNamesCount; ++chunkColumnId) {
             auto stableName = chunkNameTable->GetName(chunkColumnId);
-            if (readerSchema->GetNameMapping().IsDeleted(TColumnStableName(TString(stableName)))) {
+            if (readerSchema->GetNameMapping().IsDeleted(TColumnStableName(std::string(stableName)))) {
                 continue;
             }
-            auto name = readerSchema->GetNameMapping().StableNameToName(TColumnStableName(TString(stableName)));
+            auto name = readerSchema->GetNameMapping().StableNameToName(TColumnStableName(std::string(stableName)));
 
             if (omittedInaccessibleColumnSet.contains(name)) {
                 continue;
@@ -140,7 +140,7 @@ static std::vector<int> BuildColumnIdMapping(
             if (readerSchema) {
                 if (auto* column = readerSchema->FindColumn(name)) {
                     stableName = column->StableName().Underlying();
-                } else if (readerSchema->FindColumnByStableName(TColumnStableName{TString{name}})) {
+                } else if (readerSchema->FindColumnByStableName(TColumnStableName{std::string{name}})) {
                     // Column was renamed. We don't want to fetch it by old name.
                     continue;
                 }

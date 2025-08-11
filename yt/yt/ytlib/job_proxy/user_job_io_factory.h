@@ -44,7 +44,7 @@ DEFINE_REFCOUNTED_TYPE(IUserJobWriterFactory)
 IUserJobWriterFactoryPtr CreateUserJobWriterFactory(
     const IJobSpecHelperPtr& jobSpecHelper,
     NChunkClient::TChunkReaderHostPtr chunkReaderHost,
-    TString localHostName,
+    std::string localHostName,
     NConcurrency::IThroughputThrottlerPtr outBandwidthThrottler);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -23,7 +23,7 @@ bool TryOptimizeJoin(NQueryClient::NAst::TQuery* query);
 bool TryOptimizeGroupByWithUniquePrefix(
     NQueryClient::NAst::TExpressionPtr filterExpression,
     const std::vector<std::string>& prefixReferences,
-    const TString& tableName);
+    const std::string& tableName);
 
 //! Adds push_down_group_by hint to join statements where supported.
 bool TryHintPushDownGroupBy(NQueryClient::NAst::TQuery* query);

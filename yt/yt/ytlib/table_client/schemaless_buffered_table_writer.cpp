@@ -258,7 +258,7 @@ private:
                     richPath,
                     NameTable_,
                     Client_,
-                    /*localHostName*/ TString(), // Locality is not important during table upload.
+                    /*localHostName*/ std::string(), // Locality is not important during table upload.
                     /*transaction*/ nullptr,
                     WriteBlocksOptions_);
 

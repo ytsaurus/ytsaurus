@@ -36,10 +36,6 @@ NYTree::INodePtr ConvertBytesToNode(
     TStringBuf bytes,
     const NFormats::TFormat& format);
 
-std::optional<TString> GetBestAcceptedType(
-    NFormats::EDataType outputType,
-    const TString& clientAcceptHeader);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NHttpProxy

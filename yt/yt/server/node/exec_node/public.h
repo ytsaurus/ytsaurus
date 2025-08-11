@@ -162,7 +162,7 @@ DEFINE_ENUM(ESlotType,
 struct TNumaNodeInfo
 {
     i64 NumaNodeId;
-    TString CpuSet;
+    std::string CpuSet;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

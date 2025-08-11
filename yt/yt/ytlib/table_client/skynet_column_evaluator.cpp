@@ -51,7 +51,7 @@ private:
 void ValidateSkynetSchema(const TTableSchema& schema)
 {
     std::vector<TError> validationErrors;
-    auto checkColumn = [&] (const TString& name, ESimpleLogicalValueType type, const TString& group) {
+    auto checkColumn = [&] (TStringBuf name, ESimpleLogicalValueType type, TStringBuf group) {
         auto columnSchema = schema.FindColumn(name);
         if (!columnSchema) {
             validationErrors.push_back(TError("Table is missing %Qv column", name));

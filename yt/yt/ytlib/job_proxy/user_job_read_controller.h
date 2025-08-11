@@ -53,9 +53,9 @@ IUserJobReadControllerPtr CreateUserJobReadController(
     NChunkClient::TMultiChunkReaderHostPtr chunkReaderHost,
     IInvokerPtr invoker,
     TClosure onNetworkRelease,
-    std::optional<TString> udfDirectory,
+    std::optional<std::string> udfDirectory,
     NChunkClient::TClientChunkReadOptions chunkReadOptions,
-    TString localHostName,
+    std::string localHostName,
     TDuration adaptiveConfigTimeoutThreshold = TDuration::Zero(),
     i64 adaptiveRowCountUpperBound = std::numeric_limits<i64>::max(),
     TInstant ioStartTime = GetInstant());

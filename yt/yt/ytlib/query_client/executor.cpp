@@ -114,7 +114,7 @@ TRow GetPivotKey(const TTabletInfoPtr& shard)
     return shard->PivotKey;
 }
 
-std::vector<std::pair<TDataSource, TString>> CoordinateDataSources(
+std::vector<std::pair<TDataSource, std::string>> CoordinateDataSources(
     const NHiveClient::ICellDirectoryPtr& cellDirectory,
     const NNodeTrackerClient::TNetworkPreferenceList& networks,
     const TTableMountInfoPtr& tableInfo,
@@ -141,7 +141,7 @@ std::vector<std::pair<TDataSource, TString>> CoordinateDataSources(
         return peerDescriptor.GetAddressOrThrow(networks);
     };
 
-    std::vector<std::pair<TDataSource, TString>> subsources;
+    std::vector<std::pair<TDataSource, std::string>> subsources;
     auto makeSubsource = [&] (TShardIt it) {
         // `.Slice(1, tablets.size())`, `*(it - 1)` and `(*shardIt)->PivotKey` are related.
         // If there would be (*shardIt)->NextPivotKey then no .Slice(1, tablets.size()) and *(it - 1) are needed.
@@ -504,7 +504,7 @@ private:
             VerifyIdsInKeys(dataSource.first.Keys);
         }
 
-        std::vector<std::pair<std::vector<TDataSource>, TString>> groupedDataSplits;
+        std::vector<std::pair<std::vector<TDataSource>, std::string>> groupedDataSplits;
 
         if (coordinatedQuery->IsOrdered(options.AllowUnorderedGroupByWithLimit)) {
             // Splits are ordered by tablet bounds.
@@ -622,7 +622,7 @@ private:
         const TQueryOptions& options,
         const TFeatureFlags& requestFeatureFlags,
         const IUnversionedRowsetWriterPtr& writer,
-        std::vector<std::pair<std::vector<TDataSource>, TString>> groupedDataSplits)
+        std::vector<std::pair<std::vector<TDataSource>, std::string>> groupedDataSplits)
     {
         auto Logger = MakeQueryLogger(query);
 

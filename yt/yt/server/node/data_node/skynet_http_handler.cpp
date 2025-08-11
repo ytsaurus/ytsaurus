@@ -231,8 +231,8 @@ private:
         auto apiReader = CreateApiFromSchemalessChunkReaderAdapter(std::move(schemalessReader));
         auto blobReader = NTableClient::CreateBlobTableReader(
             apiReader,
-            TString("part_index"),
-            TString("data"),
+            std::string("part_index"),
+            std::string("data"),
             startPartIndex);
 
         if (httpRange) {

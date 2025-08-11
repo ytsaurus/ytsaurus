@@ -593,7 +593,7 @@ bool TryOptimizeJoin(TQuery* query)
 bool TryOptimizeGroupByWithUniquePrefix(
     TExpressionPtr filterExpression,
     const std::vector<std::string>& prefixReferences,
-    const TString& tableName)
+    const std::string& tableName)
 {
     YT_VERIFY(!prefixReferences.empty());
     if (prefixReferences.size() != 1) {
