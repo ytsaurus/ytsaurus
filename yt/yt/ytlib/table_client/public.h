@@ -8,6 +8,7 @@ namespace NYT::NTableClient {
 
 namespace NProto {
 
+class TSystemBlockMetaExt;
 class TVirtualValueDirectory;
 
 } // namespace NProto
@@ -97,6 +98,8 @@ DECLARE_REFCOUNTED_STRUCT(TTabletSnapshot)
 DECLARE_REFCOUNTED_STRUCT(TVirtualValueDirectory)
 
 DECLARE_REFCOUNTED_STRUCT(IVersionedRowDigestBuilder)
+
+DECLARE_REFCOUNTED_STRUCT(IMinHashDigestBuilder)
 
 struct TOwningBoundaryKeys;
 

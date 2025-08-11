@@ -115,6 +115,8 @@ DEFINE_BIT_ENUM(EBlockType,
     ((XorFilter)                   (0x0008))
     //! Blocks used by chunk fragment reader cache.
     ((ChunkFragmentsData)          (0x0010))
+    //! Min hash row digest system block.
+    ((MinHashDigest)               (0x0020))
 );
 
 DEFINE_ENUM(EChunkType,

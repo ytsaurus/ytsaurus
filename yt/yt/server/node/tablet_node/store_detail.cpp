@@ -839,6 +839,26 @@ DEFINE_REFCOUNTED_TYPE(TPreloadedBlockCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TMinHashDigestBlockIndex::TMinHashDigestBlockIndex(int blockIndex)
+    : BlockIndex_(blockIndex)
+{ }
+
+bool TMinHashDigestBlockIndex::IsFetched()
+{
+    return BlockIndex_ != NotFetched;
+}
+
+bool TMinHashDigestBlockIndex::IsFound()
+{
+    return BlockIndex_ >= 0;
+}
+
+int TMinHashDigestBlockIndex::GetBlockIndex()
+{
+    YT_VERIFY(BlockIndex_ >= 0);
+    return BlockIndex_;
+}
+
 TChunkStoreBase::TChunkStoreBase(
     TStoreId id,
     TChunkId chunkId,
@@ -947,6 +967,11 @@ i64 TChunkStoreBase::GetMemoryUsage() const
 i64 TChunkStoreBase::GetRowCount() const
 {
     return MiscExt_.row_count();
+}
+
+NCompression::ECodec TChunkStoreBase::GetCompressionCodecId() const
+{
+    return FromProto<NCompression::ECodec>(MiscExt_.compression_codec());
 }
 
 NErasure::ECodec TChunkStoreBase::GetErasureCodecId() const
@@ -1151,7 +1176,11 @@ TFuture<TCachedVersionedChunkMetaPtr> TChunkStoreBase::GetCachedVersionedChunkMe
                 guard.Release();
             }
 
-            return entry->Meta();
+            const auto& meta = entry->Meta();
+
+            MinHashDigestBlockIndex_.store(meta->GetMinHashDigestBlockIndex().value_or(TMinHashDigestBlockIndex::NotFound));
+
+            return meta;
         })
         .AsyncVia(GetCurrentInvoker()));
 }
@@ -1277,6 +1306,11 @@ IBlockCachePtr TChunkStoreBase::GetBlockCache()
 
     auto guard = ReaderGuard(SpinLock_);
     return DoGetBlockCache();
+}
+
+TMinHashDigestBlockIndex TChunkStoreBase::GetMinHashDigestBlockIndex() const
+{
+    return MinHashDigestBlockIndex_.load();
 }
 
 IBlockCachePtr TChunkStoreBase::DoGetBlockCache()

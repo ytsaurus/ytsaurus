@@ -467,6 +467,11 @@ private:
         StoreWriterConfig_->WorkloadDescriptor = TWorkloadDescriptor(ChunkReadOptions_.WorkloadDescriptor.Category);
         StoreWriterConfig_->EnableLocalThrottling = enableCollocatedDatNodeThrottling;
 
+        const auto& minHashDigestConfig = TabletSnapshot_->Settings.MountConfig->MinHashDigestCompaction;
+        if (minHashDigestConfig->Enable) {
+            StoreWriterConfig_->MinHashDigest = minHashDigestConfig->ChunkWriter;
+        }
+
         StoreWriterOptions_ = CloneYsonStruct(TabletSnapshot_->Settings.StoreWriterOptions);
         StoreWriterOptions_->ChunksEden = ResultsInEden_;
         StoreWriterOptions_->ValidateResourceUsageIncrease = false;

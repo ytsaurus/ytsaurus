@@ -308,6 +308,7 @@ public:
         initType(EBlockType::HashTableChunkIndex, StaticConfig_->HashTableChunkIndex);
         initType(EBlockType::XorFilter, StaticConfig_->XorFilter);
         initType(EBlockType::ChunkFragmentsData, StaticConfig_->ChunkFragmentsData);
+        initType(EBlockType::MinHashDigest, StaticConfig_->MinHashDigest);
 
         // NB: We simply override the limit as underlying per-type caches are unaware of this cascading structure.
         MemoryUsageTracker_->SetLimit(capacity);
@@ -410,6 +411,7 @@ public:
         reconfigureType(EBlockType::HashTableChunkIndex, config->HashTableChunkIndex);
         reconfigureType(EBlockType::XorFilter, config->XorFilter);
         reconfigureType(EBlockType::ChunkFragmentsData, config->ChunkFragmentsData);
+        reconfigureType(EBlockType::MinHashDigest, config->MinHashDigest);
 
         // NB: We simply override the limit as underlying per-type caches know nothing about this cascading structure.
         MemoryUsageTracker_->SetLimit(newCapacity);

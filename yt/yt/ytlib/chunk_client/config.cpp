@@ -117,6 +117,8 @@ void TBlockCacheConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("chunk_fragments_data", &TThis::ChunkFragmentsData)
         .DefaultNew();
+    registrar.Parameter("min_hash_digest", &TThis::MinHashDigest)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -132,6 +134,8 @@ void TBlockCacheDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("xor_filter", &TThis::XorFilter)
         .DefaultNew();
     registrar.Parameter("chunk_fragments_data", &TThis::ChunkFragmentsData)
+        .DefaultNew();
+    registrar.Parameter("min_hash_digest", &TThis::MinHashDigest)
         .DefaultNew();
 }
 

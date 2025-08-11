@@ -80,6 +80,7 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   yt-library-quantile_digest
   library-tvm-service
   yt-library-xor_filter
+  yt-library-min_hash_digest
   yt-client-logging
   yt-library-formats
   library-query-base
@@ -508,6 +509,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/indexed_versioned_chunk_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/key_filter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/key_set.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/min_hash_digest_builder.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/nested_row_merger.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/overlapping_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/partition_chunk_reader.cpp
@@ -1665,6 +1667,7 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   yt-library-quantile_digest
   library-tvm-service
   yt-library-xor_filter
+  yt-library-min_hash_digest
   yt-client-logging
   yt-library-formats
   library-query-base

@@ -63,9 +63,23 @@ struct TRowDigestCompactionConfig
     static void Register(TRegistrar registrar);
 };
 
-bool operator==(const TRowDigestCompactionConfig& lhs, const TRowDigestCompactionConfig& rhs);
-
 DEFINE_REFCOUNTED_TYPE(TRowDigestCompactionConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TMinHashDigestCompactionConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enable;
+
+    NTableClient::TMinHashDigestConfigPtr ChunkWriter;
+
+    REGISTER_YSON_STRUCT(TMinHashDigestCompactionConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMinHashDigestCompactionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -210,6 +224,7 @@ struct TCustomTableMountConfig
     double AutoCompactionPeriodSplayRatio;
     EPeriodicCompactionMode PeriodicCompactionMode;
     TRowDigestCompactionConfigPtr RowDigestCompaction;
+    TMinHashDigestCompactionConfigPtr MinHashDigestCompaction;
 
     bool EnableLookupHashTable;
 

@@ -88,6 +88,7 @@ TCachedVersionedChunkMeta::TCachedVersionedChunkMeta(
     if (auto optionalSystemBlockMetaExt = FindProtoExtension<TSystemBlockMetaExt>(chunkMeta.extensions())) {
         ParseHashTableChunkIndexMeta(*optionalSystemBlockMetaExt);
         ParseXorFilterMeta(*optionalSystemBlockMetaExt);
+        ParseMinHashDigestMeta(*optionalSystemBlockMetaExt);
     }
 
     if (ColumnarMetaPrepared_) {
@@ -251,6 +252,18 @@ void TCachedVersionedChunkMeta::ParseXorFilterMeta(
             xorFilterMeta.BlockMetas.emplace_back(
                 DataBlockMeta()->data_blocks_size() + blockIndex,
                 xorFilterBlockExt);
+        }
+    }
+}
+
+void TCachedVersionedChunkMeta::ParseMinHashDigestMeta(
+    const TSystemBlockMetaExt& systemBlockMetaExt)
+{
+    for (int blockIndex = 0; blockIndex < systemBlockMetaExt.system_blocks_size(); ++blockIndex) {
+        const auto& systemBlockMeta = systemBlockMetaExt.system_blocks(blockIndex);
+        if (systemBlockMeta.HasExtension(TMinHashDigestSystemBlockMeta::min_hash_digest_block_meta)) {
+            MinHashDigestBlockIndex_ = DataBlockMeta()->data_blocks_size() + blockIndex;
+            break;
         }
     }
 }
