@@ -256,6 +256,8 @@ DEFINE_ENUM(EChunkLocationState,
     ((Online)  (1))
     // Belongs to a node that is online but does not report presence of this location.
     ((Dangling)(2))
+    // The location is disposed. Can belong to any node, should be treated same way as Dangling.
+    ((Disposed)(3))
 );
 
 DEFINE_ENUM(EChunkTreeBalancerMode,

@@ -67,7 +67,6 @@ public:
             BIND_NO_PROPAGATE(&TNodeDisposalManager::Save, Unretained(this)));
 
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeDisposalManager::HydraStartNodeDisposal, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TNodeDisposalManager::HydraFinishNodeDisposal, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeDisposalManager::HydraDisposeLocation, Unretained(this)));
     }
 
@@ -115,7 +114,15 @@ public:
         YT_PROFILE_TIMING("/node_tracker/node_dispose_time") {
             // Node was being disposed location by location, but smth needs it to be disposed right now.
             if (node->GetLocalState() == ENodeState::BeingDisposed) {
-                EraseFromDisposalQueue(node->GetId());
+                for (const auto& location : node->ChunkLocations()) {
+                    if (ChunkLocationsBeingDisposed_.contains(location->GetIndex())) {
+                        YT_LOG_WARNING(
+                            "Chunk location was being disposed but it was forcibly disposed (LocationIndex: %v, NodeId: %v)",
+                            location->GetIndex(),
+                            node->GetId());
+                        EraseFromDisposalQueue(location->GetIndex());
+                    }
+                }
                 const auto& nodeTracker = Bootstrap_->GetNodeTracker();
                 nodeTracker->SetNodeLocalState(node, ENodeState::Unregistered);
             }
@@ -132,8 +139,8 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        buffer->AddGauge("/data_nodes_being_disposed", DataNodesBeingDisposed_.size());
-        buffer->AddGauge("/data_nodes_awaiting_for_being_disposed", DataNodesAwaitingForBeingDisposed_.size());
+        buffer->AddGauge("/chunk_locations_being_disposed", ChunkLocationsBeingDisposed_.size());
+        buffer->AddGauge("/chunk_locations_awaiting_disposal", ChunkLocationsAwaitingDisposal_.size());
     }
 
 private:
@@ -142,7 +149,11 @@ private:
     // This is still shared between all nodes.
     const TAsyncSemaphorePtr DisposeNodeSemaphore_ = New<TAsyncSemaphore>(0);
 
-    TPeriodicExecutorPtr NodeDisposalExecutor_;
+    TPeriodicExecutorPtr LocationDisposalExecutor_;
+    THashSet<TChunkLocationIndex> ChunkLocationsBeingDisposed_;
+    std::deque<TChunkLocationIndex> ChunkLocationsAwaitingDisposal_;
+
+    // COMPAT(grphil)
     THashSet<TNodeId> DataNodesBeingDisposed_;
     std::deque<TNodeId> DataNodesAwaitingForBeingDisposed_;
 
@@ -153,11 +164,11 @@ private:
         TMasterAutomatonPart::OnLeaderActive();
 
         const auto& config = GetDynamicConfig();
-        NodeDisposalExecutor_ = New<TPeriodicExecutor>(
+        LocationDisposalExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::NodeTracker),
-            BIND(&TNodeDisposalManager::NodeDisposalTick, MakeWeak(this)),
+            BIND(&TNodeDisposalManager::LocationDisposalTick, MakeWeak(this)),
             config->NodeDisposalTickPeriod);
-        NodeDisposalExecutor_->Start();
+        LocationDisposalExecutor_->Start();
     }
 
     void OnStopLeading() override
@@ -165,19 +176,9 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnStopLeading();
-        if (NodeDisposalExecutor_) {
-            YT_UNUSED_FUTURE(NodeDisposalExecutor_->Stop());
-            NodeDisposalExecutor_.Reset();
-        }
-
-        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        for (auto nodeId : DataNodesBeingDisposed_) {
-            auto* node = nodeTracker->FindNode(nodeId);
-            if (!IsObjectAlive(node)) {
-                continue;
-            }
-
-            node->SetDisposalTickScheduled(false);
+        if (LocationDisposalExecutor_) {
+            YT_UNUSED_FUTURE(LocationDisposalExecutor_->Stop());
+            LocationDisposalExecutor_.Reset();
         }
     }
 
@@ -185,16 +186,50 @@ private:
     {
         using NYT::Load;
 
-        Load(context, DataNodesBeingDisposed_);
-        Load(context, DataNodesAwaitingForBeingDisposed_);
+        // COMPAT(grphil)
+        if (context.GetVersion() < EMasterReign::ChunkLocationDisposal) {
+            Load(context, DataNodesBeingDisposed_);
+            Load(context, DataNodesAwaitingForBeingDisposed_);
+        } else {
+            Load(context, ChunkLocationsBeingDisposed_);
+            Load(context, ChunkLocationsAwaitingDisposal_);
+        }
     }
 
     void Save(NCellMaster::TSaveContext& context) const
     {
         using NYT::Save;
 
-        Save(context, DataNodesBeingDisposed_);
-        Save(context, DataNodesAwaitingForBeingDisposed_);
+        Save(context, ChunkLocationsBeingDisposed_);
+        Save(context, ChunkLocationsAwaitingDisposal_);
+    }
+
+    void OnAfterSnapshotLoaded() override
+    {
+        TMasterAutomatonPart::OnAfterSnapshotLoaded();
+
+        // COMPAT(grphil)
+        for (auto nodeId : DataNodesBeingDisposed_) {
+            DataNodesAwaitingForBeingDisposed_.push_back(nodeId);
+        }
+
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        for (auto nodeId : DataNodesAwaitingForBeingDisposed_) {
+            auto* node = nodeTracker->FindNode(nodeId);
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+
+            for (auto localLocationIndex = node->GetNextDisposedLocationIndex(); localLocationIndex < std::ssize(node->ChunkLocations()); ++localLocationIndex) {
+                ChunkLocationsAwaitingDisposal_.push_back(node->ChunkLocations()[localLocationIndex]->GetIndex());
+            }
+
+            for (auto localLocationIndex = 0; localLocationIndex < node->GetNextDisposedLocationIndex(); ++localLocationIndex) {
+                node->ChunkLocations()[localLocationIndex]->SetState(NChunkServer::EChunkLocationState::Disposed);
+            }
+        }
+        DataNodesAwaitingForBeingDisposed_.clear();
+        DataNodesBeingDisposed_.clear();
     }
 
     void Clear() override
@@ -203,6 +238,8 @@ private:
 
         TMasterAutomatonPart::Clear();
 
+        ChunkLocationsBeingDisposed_.clear();
+        ChunkLocationsAwaitingDisposal_.clear();
         DataNodesBeingDisposed_.clear();
         DataNodesAwaitingForBeingDisposed_.clear();
     }
@@ -212,12 +249,12 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& config = GetDynamicConfig();
-        if (NodeDisposalExecutor_) {
-            NodeDisposalExecutor_->SetPeriod(config->NodeDisposalTickPeriod);
+        if (LocationDisposalExecutor_) {
+            LocationDisposalExecutor_->SetPeriod(config->NodeDisposalTickPeriod);
         }
 
         DisposeNodeSemaphore_->SetTotal(config->MaxConcurrentNodeUnregistrations);
-        TopUpNodesBeingDisposed();
+        TopUpLocationsBeingDisposed();
     }
 
     const TDynamicNodeTrackerConfigPtr& GetDynamicConfig()
@@ -227,58 +264,18 @@ private:
         return Bootstrap_->GetConfigManager()->GetConfig()->NodeTracker;
     }
 
-    void FinishNodeDisposal(TNodeId nodeId)
+    void LocationDisposalTick()
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         YT_VERIFY(IsLeader());
 
-        TReqFinishNodeDisposal request;
-        request.set_node_id(ToProto(nodeId));
-
-        auto mutation = CreateMutation(
-            Bootstrap_->GetHydraFacade()->GetHydraManager(),
-            request,
-            &TNodeDisposalManager::HydraFinishNodeDisposal,
-            this);
-        YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger()));
-    }
-
-    void NodeDisposalTick()
-    {
-        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
-
-        YT_VERIFY(IsLeader());
-
-        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-
-        // NB: Take a copy; context switches are possible below.
-        auto config = GetDynamicConfig();
-
-        for (auto nodeId : DataNodesBeingDisposed_) {
-            auto* node = nodeTracker->FindNode(nodeId);
-            if (!IsObjectAlive(node)) {
-                // TODO(aleksandra-zh): ensure there are no replicas left.
-                FinishNodeDisposal(nodeId);
-                continue;
-            }
-
-            YT_VERIFY(node->GetLocalState() == ENodeState::BeingDisposed);
-            auto locationIndex = node->GetNextDisposedLocationIndex();
-            if (locationIndex < std::ssize(node->ChunkLocations())) {
-                StartLocationDisposal(node, locationIndex);
-            } else {
-                YT_VERIFY(locationIndex == std::ssize(node->ChunkLocations()));
-                if (config->Testing->DisableDisposalFinishing) {
-                    continue;
-                }
-
-                FinishNodeDisposal(nodeId);
-            }
+        for (auto locationIndex : ChunkLocationsBeingDisposed_) {
+            StartLocationDisposal(locationIndex);
         }
     }
 
-    void StartLocationDisposal(TNode* node, int locationIndex)
+    void StartLocationDisposal(TChunkLocationIndex locationIndex)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -286,15 +283,18 @@ private:
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
+        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
 
-        auto location = node->ChunkLocations()[locationIndex];
-        if (location->GetBeingDisposed()) {
+        auto* location = dataNodeTracker->FindChunkLocationByIndex(locationIndex);
+        if (!IsObjectAlive(location) || location->GetBeingDisposed()) {
             return;
         }
+
         location->SetBeingDisposed(true);
 
-        auto globalLocationIndex = location->GetIndex();
-        chunkReplicaFetcher->GetSequoiaLocationReplicas(node->GetId(), globalLocationIndex)
+        auto node = location->GetNode();
+
+        chunkReplicaFetcher->GetSequoiaLocationReplicas(node->GetId(), locationIndex)
             .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<NRecords::TLocationReplicas>>& replicasOrError) {
                 if (!replicasOrError.IsOK()) {
                     location->SetBeingDisposed(false);
@@ -304,12 +304,11 @@ private:
 
                 const auto& sequoiaReplicas = replicasOrError.Value();
 
-                YT_LOG_INFO("Disposing location (NodeId: %v, Address: %v, LocalLocationIndex: %v, LocationUuid: %v, LocationIndex: %v)",
+                YT_LOG_INFO("Disposing location (NodeId: %v, Address: %v LocationUuid: %v, LocationIndex: %v)",
                     node->GetId(),
                     node->GetDefaultAddress(),
-                    locationIndex,
                     location->GetUuid(),
-                    globalLocationIndex);
+                    locationIndex);
 
                 auto sequoiaRequest = std::make_unique<TReqModifyReplicas>();
                 sequoiaRequest->set_node_id(ToProto(node->GetId()));
@@ -322,14 +321,14 @@ private:
                     idWithIndex.ReplicaIndex = replica.Key.ReplicaIndex;
 
                     ToProto(chunkRemoveInfo.mutable_chunk_id(), EncodeChunkId(idWithIndex));
-                    chunkRemoveInfo.set_location_index(ToProto(globalLocationIndex));
+                    chunkRemoveInfo.set_location_index(ToProto(locationIndex));
 
                     *sequoiaRequest->add_removed_chunks() = chunkRemoveInfo;
                 }
 
                 TReqDisposeLocation request;
                 request.set_node_id(ToProto(node->GetId()));
-                request.set_location_index(locationIndex);
+                request.set_global_location_index(ToProto(locationIndex));
                 auto mutation = CreateMutation(
                     Bootstrap_->GetHydraFacade()->GetHydraManager(),
                     request,
@@ -343,15 +342,15 @@ private:
 
                 chunkManager
                     ->ModifySequoiaReplicas(ESequoiaTransactionType::ChunkLocationDisposal, std::move(sequoiaRequest))
-                    .Subscribe(BIND([=, mutation = std::move(mutation), nodeId = node->GetId(), this, this_ = MakeStrong(this)] (const TErrorOr<TRspModifyReplicas>& rspOrError) {
+                    .Subscribe(BIND([=, mutation = std::move(mutation), this, this_ = MakeStrong(this)] (const TErrorOr<TRspModifyReplicas>& rspOrError) {
                         if (!rspOrError.IsOK()) {
-                            const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-                            auto* node = nodeTracker->FindNode(nodeId);
-                            if (!IsObjectAlive(node)) {
+                            const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+
+                            auto* location = dataNodeTracker->FindChunkLocationByIndex(locationIndex);
+                            if (!IsObjectAlive(location)) {
                                 return;
                             }
 
-                            auto location = node->ChunkLocations()[locationIndex];
                             location->SetBeingDisposed(false);
                             return;
                         }
@@ -399,20 +398,20 @@ private:
             node->GetDefaultAddress());
     }
 
-    void TopUpNodesBeingDisposed()
+    void TopUpLocationsBeingDisposed()
     {
-        while (std::ssize(DataNodesBeingDisposed_) < GetDynamicConfig()->MaxNodesBeingDisposed &&
-            !DataNodesAwaitingForBeingDisposed_.empty())
+        while (std::ssize(ChunkLocationsBeingDisposed_) < GetDynamicConfig()->MaxLocationsBeingDisposed &&
+            !ChunkLocationsAwaitingDisposal_.empty())
         {
-            InsertOrCrash(DataNodesBeingDisposed_, DataNodesAwaitingForBeingDisposed_.front());
-            DataNodesAwaitingForBeingDisposed_.pop_front();
+            InsertOrCrash(ChunkLocationsBeingDisposed_, ChunkLocationsAwaitingDisposal_.front());
+            ChunkLocationsAwaitingDisposal_.pop_front();
         }
     }
 
-    void EraseFromDisposalQueue(TNodeId nodeId)
+    void EraseFromDisposalQueue(TChunkLocationIndex locationIndex)
     {
-        EraseOrCrash(DataNodesBeingDisposed_, nodeId);
-        TopUpNodesBeingDisposed();
+        EraseOrCrash(ChunkLocationsBeingDisposed_, locationIndex);
+        TopUpLocationsBeingDisposed();
     }
 
     void HydraStartNodeDisposal(TReqStartNodeDisposal* request)
@@ -433,12 +432,13 @@ private:
         if (node->Flavors().contains(ENodeFlavor::Data) || !config->ImmediatelyDisposeNondataNodes) {
             DoStartNodeDisposal(node);
             nodeTracker->SetNodeLocalState(node, ENodeState::BeingDisposed);
-            node->SetNextDisposedLocationIndex(0);
 
-            if (std::ssize(DataNodesBeingDisposed_) < config->MaxNodesBeingDisposed) {
-                InsertOrCrash(DataNodesBeingDisposed_, node->GetId());
-            } else {
-                DataNodesAwaitingForBeingDisposed_.push_back(node->GetId());
+            for (const auto& location : node->ChunkLocations()) {
+                if (std::ssize(ChunkLocationsBeingDisposed_) < config->MaxLocationsBeingDisposed) {
+                    InsertOrCrash(ChunkLocationsBeingDisposed_, location->GetIndex());
+                } else {
+                    ChunkLocationsAwaitingDisposal_.push_back(location->GetIndex());
+                }
             }
         } else {
             DisposeNodeCompletely(node);
@@ -456,19 +456,17 @@ private:
                 return;
             }
 
-            node->SetDisposalTickScheduled(false);
+            auto locationIndex = FromProto<TChunkLocationIndex>(request->global_location_index());
+            const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+            auto* location = dataNodeTracker->FindChunkLocationByIndex(locationIndex);
+            YT_VERIFY(IsObjectAlive(location));
 
-            if (!DataNodesBeingDisposed_.contains(nodeId)) {
-                YT_VERIFY(node->GetLocalState() != ENodeState::BeingDisposed);
-                return;
-            }
+            auto finallyGuard = Finally([&] {
+                if (ChunkLocationsBeingDisposed_.contains(locationIndex)) {
+                    EraseFromDisposalQueue(locationIndex);
+                }
+            });
 
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
-            auto locationIndex = node->GetNextDisposedLocationIndex();
-            YT_VERIFY(locationIndex == request->location_index());
-            YT_VERIFY(locationIndex < std::ssize(node->ChunkLocations()));
-
-            auto location = node->ChunkLocations()[locationIndex];
             if (IsLeader()) {
                 YT_VERIFY(location->GetBeingDisposed());
             }
@@ -477,34 +475,27 @@ private:
                 nodeId,
                 node->GetDefaultAddress(),
                 location->GetUuid());
+
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
             chunkManager->DisposeLocation(location);
 
             location->SetBeingDisposed(false);
+            location->SetState(NChunkServer::EChunkLocationState::Disposed);
 
-            node->SetNextDisposedLocationIndex(locationIndex + 1);
+            MaybeFinishNodeDisposal(node);
         }
     }
 
-    void HydraFinishNodeDisposal(TReqFinishNodeDisposal* request)
+    void MaybeFinishNodeDisposal(TNode* node)
     {
-        auto nodeId = FromProto<NNodeTrackerClient::TNodeId>(request->node_id());
-        auto finalyGuard = Finally([&] {
-            if (DataNodesBeingDisposed_.contains(nodeId)) {
-                EraseFromDisposalQueue(nodeId);
-            }
-        });
+        YT_VERIFY(HasMutationContext());
 
-        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        auto* node = nodeTracker->FindNode(nodeId);
-        if (!IsObjectAlive(node)) {
-            return;
+        if (node->GetLocalState() == ENodeState::BeingDisposed && std::ranges::all_of(
+            node->ChunkLocations(),
+            [] (const auto& location) { return location->GetState() == NChunkServer::EChunkLocationState::Disposed; }))
+        {
+            DoFinishNodeDisposal(node);
         }
-
-        if (node->GetLocalState() != ENodeState::BeingDisposed) {
-            return;
-        }
-
-        DoFinishNodeDisposal(node);
     }
 };
 

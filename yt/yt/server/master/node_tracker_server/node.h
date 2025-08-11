@@ -261,6 +261,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, LastGossipState, ENodeState::Unknown);
     DEFINE_BYVAL_RW_PROPERTY(ECellAggregatedStateReliability, LastCellAggregatedStateReliability, ECellAggregatedStateReliability::Unknown);
 
+    // COMPAT(grphil)
     DEFINE_BYVAL_RW_PROPERTY(int, NextDisposedLocationIndex);
     DEFINE_BYVAL_RW_PROPERTY(bool, DisposalTickScheduled);
 
