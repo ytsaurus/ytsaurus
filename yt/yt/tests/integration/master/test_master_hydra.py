@@ -174,6 +174,9 @@ class TestLamportClock(YTEnvSetup):
 class TestHydraLogicalTime(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
 
+    # Hydra logical time is measured in microseconds, and 1 second is 1kk microseconds.
+    SECOND = 1000000
+
     @authors("h0pless")
     def test_hydra_logical_time(self):
         initial_time = get("//sys/@hydra_logical_time")
@@ -181,7 +184,7 @@ class TestHydraLogicalTime(YTEnvSetup):
         build_master_snapshots(set_read_only=True)
 
         read_only_time = get("//sys/@hydra_logical_time")
-        assert read_only_time - initial_time > 0.5 * 1000
+        assert read_only_time - initial_time > 0.5 * self.SECOND
 
         time.sleep(5.0)
         assert read_only_time == get("//sys/@hydra_logical_time")
@@ -190,8 +193,8 @@ class TestHydraLogicalTime(YTEnvSetup):
         time.sleep(5.0)
 
         time_passed_since_read_only = get("//sys/@hydra_logical_time") - read_only_time
-        assert 4 * 1000 < time_passed_since_read_only
-        assert time_passed_since_read_only < 9 * 1000
+        assert 4 * self.SECOND < time_passed_since_read_only
+        assert time_passed_since_read_only < 9 * self.SECOND
 
     @authors("h0pless")
     def test_hydra_logical_time_restart(self):

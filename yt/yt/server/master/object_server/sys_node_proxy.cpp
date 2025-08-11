@@ -208,9 +208,7 @@ private:
 
             case EInternedAttributeKey::HydraLogicalTime:
                 BuildYsonFluently(consumer)
-                    // Converting TInstatnt to TDuration because seeing that cluster was able to
-                    // accept mutations for 1 year is better than seeing 1971-01-01:00-00-00.
-                    .Value(hydraManager->GetLogicalTime() - TInstant());
+                    .Value(hydraManager->GetLogicalTime());
                 return true;
 
             case EInternedAttributeKey::HydraReadOnly:
