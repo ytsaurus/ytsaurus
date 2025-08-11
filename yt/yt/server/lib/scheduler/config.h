@@ -225,28 +225,15 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategySchedulingSegmentsConfig)
 struct TGpuAllocationSchedulerConfig
     : public NYTree::TYsonStruct
 {
-    TDuration InitializationTimeout;
-
     TDuration ModuleReconsiderationTimeout;
 
-    TDuration PreemptForLargeOperationTimeout;
+    std::vector<std::string> Modules;
 
-    THashSet<std::string> DataCenters;
+    TDuration PriorityModuleBindingTimeout;
 
-    THashSet<std::string> InfinibandClusters;
+    TDuration FullHostAggressivePreemptionTimeout;
 
-    ESchedulingSegmentModuleAssignmentHeuristic ModuleAssignmentHeuristic;
-
-    ESchedulingSegmentModulePreemptionHeuristic ModulePreemptionHeuristic;
-
-    // TODO(omgronny): Refactor modules config.
-    ESchedulingSegmentModuleType ModuleType;
-
-    bool EnableDetailedLogs;
-
-    TDuration PriorityModuleAssignmentTimeout;
-
-    const THashSet<std::string>& GetModules() const;
+    TDuration MinAssignmentPreemptibleDuration;
 
     REGISTER_YSON_STRUCT(TGpuAllocationSchedulerConfig);
 

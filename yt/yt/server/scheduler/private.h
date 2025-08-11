@@ -37,6 +37,11 @@ DECLARE_REFCOUNTED_CLASS(TFairShareTreeSetSnapshot)
 DECLARE_REFCOUNTED_CLASS(TFairShareTreeSchedulingSnapshot)
 DECLARE_REFCOUNTED_CLASS(TFairShareTreeProfileManager)
 
+DECLARE_REFCOUNTED_STRUCT(TGpuSchedulerAssignment)
+
+DECLARE_REFCOUNTED_CLASS(TGpuSchedulerOperation)
+DECLARE_REFCOUNTED_CLASS(TGpuSchedulerNode)
+
 class TAllocationMetrics;
 
 DECLARE_REFCOUNTED_STRUCT(TDynamicAttributesListSnapshot)
@@ -130,6 +135,9 @@ DEFINE_ENUM(EAllocationPreemptionReason,
     (ResourceOvercommit)
     (ResourceLimitsViolated)
     (IncompatibleSchedulingSegment)
+    (FullHostAggressivePreemption)
+    (EvictionFromSchedulingModule)
+    (OperationBoundToOtherModule)
 );
 
 DEFINE_ENUM(EGpuSchedulingLogEventType,
@@ -180,7 +188,7 @@ inline constexpr char DefaultOperationTag[] = "default";
 
 constexpr int UndefinedSchedulingIndex = -1;
 
-static constexpr int LargeGpuAllocationGpuDemand = 8;
+static constexpr int FullHostGpuAllocationGpuDemand = 8;
 
 static constexpr int CypressNodeLimit = 1'000'000;
 
