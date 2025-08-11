@@ -113,7 +113,7 @@ def create_http_response_error(underlying_error, url, request_headers, response_
         "url": url,
         "request_headers": PrettyPrintableDict(get_value(request_headers, {})),
         "response_headers": PrettyPrintableDict(get_value(response_headers, {})),
-        "params": PrettyPrintableDict(yson_to_json(get_value(params, {}))),
+        "params": PrettyPrintableDict(yson_to_json(get_value(params, {}), use_byte_strings=True)),
         "transparent": True})
     error.attributes.update(attributes)
     return error
