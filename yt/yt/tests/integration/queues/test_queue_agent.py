@@ -5,7 +5,8 @@ from yt_queue_agent_test_base import (OrchidWithRegularPasses, QueueStaticExport
 
 from yt.environment.init_queue_agent_state import run_migration, prepare_migration
 
-from yt_commands import (authors, commit_transaction, get, get_batch_output, get_driver, set, ls, wait, assert_yt_error, create, sync_mount_table, insert_rows,
+from yt_commands import (alter_table_replica, authors, commit_transaction, generate_timestamp, get, get_batch_output,
+                         get_driver, set, ls, wait, assert_yt_error, create, sync_mount_table, insert_rows,
                          delete_rows, remove, raises_yt_error, exists, start_transaction, select_rows,
                          sync_unmount_table, trim_rows, print_debug, alter_table, register_queue_consumer,
                          unregister_queue_consumer, mount_table, wait_for_tablet_state, sync_freeze_table,
@@ -2533,12 +2534,39 @@ class TestMultiClusterReplicatedTableObjectsBase(TestQueueAgentBase, ReplicatedO
             {"cluster_name": "remote_1", "content_type": "queue", "mode": "sync", "enabled": True,
              "replica_path": f"{consumer_queue_replica_path}"},
         ]
-        self._create_chaos_replicated_table_base(
+
+        replica_ids, card_id = self._create_chaos_replicated_table_base(
             path,
             chaos_replicated_consumer_replicas,
             init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA,
             replicated_table_attributes={"treat_as_queue_consumer": True})
+
+        self._wait_for_chaos_replicated_consumer_ready(
+            path,
+            card_id,
+            chaos_replicated_consumer_replicas,
+            replica_ids,
+            4,
+            0)
+
         return chaos_replicated_consumer_replicas
+
+    def _wait_for_chaos_replicated_consumer_ready(
+            self,
+            path,
+            card_id,
+            replicas,
+            replica_ids,
+            sync_replica_idx,
+            async_replica_idx):
+
+        # wait for replica to report its progress
+        timestamp = generate_timestamp()
+        wait(lambda: get(f"{path}/@replicas/{replica_ids[sync_replica_idx]}/replication_lag_timestamp") > timestamp)
+
+        # Trigger replication era change to reset rpc_proxies caches
+        alter_table_replica(replica_ids[async_replica_idx], enabled=False)
+        self._sync_alter_replica(card_id, replicas, replica_ids, async_replica_idx, enabled=True)
 
     def _create_replicated_consumer(self, path):
         consumer_replica_path = f"{path}_replica"
