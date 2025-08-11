@@ -50,7 +50,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <CDistinctTypes TKeys, template <COneOfTypes<TKeys>> class TValue>
+// Ideally, template template parameter TValue would be constrained:
+// template <COneOfTypes<TKeys>> class TValue. Unfortunately, clang 19+ makes
+// constrained template template parameters really difficult to work with.
+// See https://st.yandex-team.ru/YTORM-1431 for details.
+template <CDistinctTypes TKeys, template <class> class TValue>
 class TTypeToTemplateValueMap
 {
 public:
