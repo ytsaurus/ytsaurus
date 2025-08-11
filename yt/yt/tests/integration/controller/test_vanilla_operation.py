@@ -3181,7 +3181,7 @@ fi
 
         # Wait here a little bit; if the code is faulty, the sidecar is going to start for the 2nd time
         # during this wait.
-        time.sleep(5)
+        time.sleep(2)
 
         events_on_fs().notify_event("finish")
 
@@ -3266,7 +3266,7 @@ fi
 
         # Wait here a little bit; if the code is faulty, the sidecar is going to start for the 2nd time
         # during this wait.
-        time.sleep(5)
+        time.sleep(2)
 
         events_on_fs().notify_event("finish")
 

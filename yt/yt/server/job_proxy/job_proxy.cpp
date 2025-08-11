@@ -785,13 +785,13 @@ TJobResult TJobProxy::RunJob()
             Config_,
             JobThread_->GetInvoker(),
             GetSlotPath(),
-            [this] (TError sidecarError) {
+            /*failedSidecarCallback*/ [this] (TError sidecarError) {
                 auto job = FindJob();
                 if (!job) {
                     YT_LOG_FATAL("Job is missing within sidecar failure (SidecarError: %v)", sidecarError);
                 }
                 job->Fail(std::move(sidecarError));
-        });
+            });
         SetJobProxyEnvironment(environment);
 
         LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(Config_->Addresses, Config_->LocalHostName, Config_->Rack, Config_->DataCenter);

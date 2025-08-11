@@ -42,6 +42,7 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 
 #include <library/cpp/yt/assert/assert.h>
+
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 #include <library/cpp/yt/system/exit.h>
@@ -1238,141 +1239,145 @@ public:
         return New<TCriUserJobEnvironment>(this);
     }
 
+    void PrepareSidecar(
+        const std::string& sidecarName,
+        const NControllerAgent::NProto::TSidecarJobSpec& sidecarJobSpecProto)
+    {
+        const auto& podDescriptor = CriJobEnvironmentConfig_->PodDescriptor;
+        const auto& podSpec = CriJobEnvironmentConfig_->PodSpec;
+
+        // Prepare the sidecar job spec.
+        auto sidecarSpec = New<TSidecarJobSpec>();
+        FromProto(sidecarSpec.Get(), sidecarJobSpecProto);
+
+        // Prepare the sidecar container spec.
+        auto containerSpec = New<NCri::TCriContainerSpec>();
+
+        containerSpec->Name = Format("sidecar-%v-%v-%v", podDescriptor->Name, podSpec->Name, sidecarName);
+
+        // If no Docker image is provided, use the one from the main job; fallback to the
+        // job proxy image if none is available.
+        containerSpec->Image.Image = sidecarSpec->DockerImage.value_or(
+            CriJobProxyConfig_.DockerImage.value_or(
+                CriJobEnvironmentConfig_->JobProxyImage));
+
+        containerSpec->Resources.CpuLimit = sidecarSpec->CpuLimit;
+        containerSpec->Resources.MemoryLimit = sidecarSpec->MemoryLimit;
+
+        if (const auto& cpusetCpu = podSpec->Resources.CpusetCpus; cpusetCpu != EmptyCpuSet) {
+            containerSpec->Resources.CpusetCpus = cpusetCpu;
+        }
+
+        containerSpec->CapabilitiesToAdd.push_back("SYS_PTRACE");
+
+        containerSpec->BindMounts.push_back(NCri::TCriBindMount{
+            .ContainerPath = CriJobProxyConfig_.SlotPath,
+            .HostPath = CriJobProxyConfig_.SlotPath,
+            .ReadOnly = false,
+        });
+
+        containerSpec->BindMounts.push_back(NCri::TCriBindMount{
+            .ContainerPath = "/slot",
+            .HostPath = CriJobProxyConfig_.SlotPath,
+            .ReadOnly = false,
+        });
+
+        for (const auto& bindMount: CriJobEnvironmentConfig_->JobProxyBindMounts) {
+            containerSpec->BindMounts.push_back(NCri::TCriBindMount{
+                .ContainerPath = bindMount->InternalPath,
+                .HostPath = bindMount->ExternalPath,
+                .ReadOnly = bindMount->ReadOnly,
+            });
+        }
+
+        for (const auto& bind : CriJobProxyConfig_.Binds) {
+            containerSpec->BindMounts.push_back(NCri::TCriBindMount{
+                .ContainerPath = bind->InternalPath,
+                .HostPath = bind->ExternalPath,
+                .ReadOnly = bind->ReadOnly,
+            });
+        }
+
+        containerSpec->Credentials.Uid = ::getuid();
+        containerSpec->Credentials.Gid = ::getgid();
+
+        // More or less the same logic as in spawning of the job proxy, but it may change
+        // pretty drastically when we get to the actual resource management implementation step.
+        if (CriJobEnvironmentConfig_->GpuConfig != nullptr) {
+            const auto& gpuContainerConfig = CriJobEnvironmentConfig_->GpuConfig;
+            containerSpec->Environment["NVIDIA_DRIVER_CAPABILITIES"] = gpuContainerConfig->NvidiaDriverCapabilities;
+            containerSpec->Environment["NVIDIA_VISIBLE_DEVICES"] = gpuContainerConfig->NvidiaVisibleDevices;
+
+            for (const auto& devicePath : gpuContainerConfig->InfinibandDevices) {
+                containerSpec->BindDevices.push_back(NCri::TCriBindDevice{
+                    .ContainerPath = TString(devicePath),
+                    .HostPath = TString(devicePath),
+                    .Permissions = NCri::ECriBindDevicePermissions::Read | NCri::ECriBindDevicePermissions::Write,
+                });
+            }
+
+            if (!gpuContainerConfig->InfinibandDevices.empty()) {
+                YT_LOG_DEBUG(
+                    "Binding InfiniBand devices to sidecar container (Devices: %v)",
+                    gpuContainerConfig->InfinibandDevices);
+
+                // Code using InfiniBand devices usually requires CAP_IPC_LOCK.
+                // See https://catalog.ngc.nvidia.com/orgs/hpc/containers/preflightcheck.
+                containerSpec->CapabilitiesToAdd.push_back("IPC_LOCK");
+            }
+        }
+
+        // Save them for later use.
+        RunningSidecars_[sidecarName] = TRunningSidecar{
+            .Config = TSidecarCriConfig{
+                sidecarSpec,
+                std::move(containerSpec),
+                sidecarSpec->Command,
+            },
+        };
+    }
+
     void StartSidecars(const NControllerAgent::NProto::TJobSpecExt& jobSpecExt) override
     {
         if (!jobSpecExt.has_user_job_spec()) {
             return;
         }
 
-        const auto& podDescriptor = CriJobEnvironmentConfig_->PodDescriptor;
-        const auto& podSpec = CriJobEnvironmentConfig_->PodSpec;
         for (const auto& [name, sidecar]: jobSpecExt.user_job_spec().sidecars()) {
-            // Prepare the sidecar job spec.
-            auto sidecarSpec = New<TSidecarJobSpec>();
-            FromProto(sidecarSpec.Get(), sidecar);
-
-            // Prepare the sidecar container spec.
-            auto containerSpec = New<NCri::TCriContainerSpec>();
-
-            containerSpec->Name = Format("sidecar-%v-%v-%v", podDescriptor->Name, podSpec->Name, name);
-
-            // If no Docker image is provided, use the one from the main job; fallback to the
-            // job proxy image if none is available.
-            containerSpec->Image.Image = sidecarSpec->DockerImage.value_or(
-                CriJobProxyConfig_.DockerImage.value_or(
-                    CriJobEnvironmentConfig_->JobProxyImage));
-
-            containerSpec->Resources.CpuLimit = sidecarSpec->CpuLimit;
-            containerSpec->Resources.MemoryLimit = sidecarSpec->MemoryLimit;
-
-            const auto& cpusetCpu = podSpec->Resources.CpusetCpus;
-            if (cpusetCpu != EmptyCpuSet) {
-                containerSpec->Resources.CpusetCpus = cpusetCpu;
-            }
-
-            containerSpec->CapabilitiesToAdd.push_back("SYS_PTRACE");
-
-            containerSpec->BindMounts.push_back(NCri::TCriBindMount{
-                .ContainerPath = CriJobProxyConfig_.SlotPath,
-                .HostPath = CriJobProxyConfig_.SlotPath,
-                .ReadOnly = false,
-            });
-
-            containerSpec->BindMounts.push_back(NCri::TCriBindMount{
-                .ContainerPath = "/slot",
-                .HostPath = CriJobProxyConfig_.SlotPath,
-                .ReadOnly = false,
-            });
-
-            for (const auto& bindMount: CriJobEnvironmentConfig_->JobProxyBindMounts) {
-                containerSpec->BindMounts.push_back(NCri::TCriBindMount{
-                    .ContainerPath = bindMount->InternalPath,
-                    .HostPath = bindMount->ExternalPath,
-                    .ReadOnly = bindMount->ReadOnly,
-                });
-            }
-
-            for (const auto& bind : CriJobProxyConfig_.Binds) {
-                containerSpec->BindMounts.push_back(NCri::TCriBindMount{
-                    .ContainerPath = bind->InternalPath,
-                    .HostPath = bind->ExternalPath,
-                    .ReadOnly = bind->ReadOnly,
-                });
-            }
-
-            containerSpec->Credentials.Uid = ::getuid();
-            containerSpec->Credentials.Gid = ::getgid();
-
-            // More or less the same logic as in spawning of the job proxy, but it may change
-            // pretty drastically when we get to the actual resource management implementation step.
-            if (CriJobEnvironmentConfig_->GpuConfig != nullptr) {
-                const auto& gpuContainerConfig = CriJobEnvironmentConfig_->GpuConfig;
-                containerSpec->Environment["NVIDIA_DRIVER_CAPABILITIES"] = gpuContainerConfig->NvidiaDriverCapabilities;
-                containerSpec->Environment["NVIDIA_VISIBLE_DEVICES"] = gpuContainerConfig->NvidiaVisibleDevices;
-
-                for (const auto& devicePath : gpuContainerConfig->InfinibandDevices) {
-                    containerSpec->BindDevices.push_back(NCri::TCriBindDevice{
-                        .ContainerPath = TString(devicePath),
-                        .HostPath = TString(devicePath),
-                        .Permissions = NCri::ECriBindDevicePermissions::Read | NCri::ECriBindDevicePermissions::Write,
-                    });
-                }
-
-                if (!gpuContainerConfig->InfinibandDevices.empty()) {
-                    YT_LOG_DEBUG(
-                        "Binding InfiniBand devices to sidecar container (Devices: %v)",
-                        gpuContainerConfig->InfinibandDevices);
-
-                    // Code using InfiniBand devices usually requires CAP_IPC_LOCK.
-                    // See https://catalog.ngc.nvidia.com/orgs/hpc/containers/preflightcheck.
-                    containerSpec->CapabilitiesToAdd.push_back("IPC_LOCK");
-                }
-            }
-
-
-            // Save them for later use.
-            RunningSidecars_[name] = TRunningSidecar{
-                .Config = TSidecarCriConfig{
-                    sidecarSpec,
-                    std::move(containerSpec),
-                    sidecarSpec->Command,
-                },
-            };
+            PrepareSidecar(name, sidecar);
             StartSidecar(name);
         }
     }
 
     void StartSidecar(const std::string& name)
     {
-        auto sidecarIt = RunningSidecars_.find(name);
-        YT_VERIFY(sidecarIt != RunningSidecars_.end());
-        const auto& sidecarConfig = sidecarIt->second.Config;
+        auto& sidecar = GetOrCrash(RunningSidecars_, name);
 
         // The given command is passed into the containerd as:
         // - Command: /bin/bash
         // - Args: ["-c", "THE_COMMAND"]
         auto process = Executor_->CreateProcess(
             "/bin/bash",
-            sidecarConfig.ContainerSpec,
+            sidecar.Config.ContainerSpec,
             CriJobEnvironmentConfig_->PodDescriptor,
             CriJobEnvironmentConfig_->PodSpec
         );
-        process->AddArguments(std::vector<TString>{"-c", sidecarConfig.Command});
+        process->AddArguments(std::vector<TString>{"-c", sidecar.Config.Command});
         process->SetWorkingDirectory(ProcessWorkingDirectory_);
-        sidecarIt->second.Process = process;
+        sidecar.Process = process;
 
-        auto sidecarFuture = BIND([=] {
+        auto sidecarFuture = BIND([process = std::move(process)] {
                 return process->Spawn();
             })
             // This Invoker is cached in Spawn via CurrentInvoker().
             .AsyncVia(Invoker_)
             .Run();
-        sidecarIt->second.FutureCallbackCookie = sidecarFuture.Subscribe(BIND_NO_PROPAGATE(
+        sidecar.FutureCallbackCookie = sidecarFuture.Subscribe(BIND_NO_PROPAGATE(
             &TCriJobProxyEnvironment::OnSidecarFinished,
             MakeStrong(this),
             name
         ));
-        sidecarIt->second.Future = std::move(sidecarFuture);
+        sidecar.Future = std::move(sidecarFuture);
     }
 
     void OnSidecarFinished(const std::string& sidecarName, const TErrorOr<void> &exitValue)
@@ -1380,12 +1385,13 @@ public:
         YT_LOG_INFO("Sidecar has finished the execution (SidecarName: %v, ExitValue: %v)", sidecarName, exitValue);
 
         // When a sidecar exits, we need to take an appropriate action depending on the RestartPolicy.
-        auto sidecarIt = RunningSidecars_.find(sidecarName);
-        YT_VERIFY(sidecarIt != RunningSidecars_.end());
-        const auto restartPolicy = sidecarIt->second.Config.JobSpec->RestartPolicy;
+        const auto restartPolicy = GetOrCrash(RunningSidecars_, sidecarName).Config.JobSpec->RestartPolicy;
         auto restartSidecar = [this, &sidecarName, restartPolicy, &exitValue] {
             YT_LOG_DEBUG("Restarting the sidecar as part of the exit event processing (SidecarName: %v, RestartPolicy: %v, ExitValue: %v)",
-                sidecarName, restartPolicy, exitValue);
+                sidecarName,
+                restartPolicy,
+                exitValue
+            );
             StartSidecar(sidecarName);
         };
 
@@ -1410,7 +1416,10 @@ public:
                 }
 
                 YT_LOG_DEBUG("Sidecar has failed, exiting the main job (SidecarName: %v, RestartPolicy: %v, ExitValue: %v)",
-                    sidecarName, restartPolicy, exitValue);
+                    sidecarName,
+                    restartPolicy,
+                    exitValue
+                );
                 KillSidecars();
                 FailedSidecarCallback_(TError("Failing the job because sidecar with FailOnError policy has failed")
                     << TErrorAttribute("sidecar_name", sidecarName)

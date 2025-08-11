@@ -1241,10 +1241,10 @@ private:
             ->DefaultNvidiaDriverCapabilities;
         config->NvidiaVisibleDevices = JoinSeq(",", jobProxyConfig->GpuIndexes);
 
-        const auto infinibandDevices = ListInfinibandDevices();
+        auto infinibandDevices = ListInfinibandDevices();
         config->InfinibandDevices.reserve(infinibandDevices.size());
-        for (const auto& infinibandDevice: infinibandDevices) {
-            config->InfinibandDevices.push_back(infinibandDevice);
+        for (auto& infinibandDevice: infinibandDevices) {
+            config->InfinibandDevices.push_back(std::move(infinibandDevice));
         }
         return config;
     }
