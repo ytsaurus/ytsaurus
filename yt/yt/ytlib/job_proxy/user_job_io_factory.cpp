@@ -64,7 +64,7 @@ ISchemalessMultiChunkWriterPtr CreateTableWriter(
     NNative::IClientPtr client,
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
-    TString localHostName,
+    std::string localHostName,
     TChunkListId chunkListId,
     TTransactionId transactionId,
     TTableSchemaPtr tableSchema,
@@ -236,7 +236,7 @@ struct TSimpleJobWriterFactory
 {
     TSimpleJobWriterFactory(
         TChunkReaderHostPtr chunkReaderHost,
-        TString localHostName,
+        std::string localHostName,
         IThroughputThrottlerPtr outBandwidthThrottler)
         : ChunkReaderHost_(std::move(chunkReaderHost))
         , LocalHostName_(std::move(localHostName))
@@ -274,7 +274,7 @@ struct TSimpleJobWriterFactory
 
 protected:
     const TChunkReaderHostPtr ChunkReaderHost_;
-    const TString LocalHostName_;
+    const std::string LocalHostName_;
     const IThroughputThrottlerPtr OutBandwidthThrottler_;
 };
 
@@ -563,7 +563,7 @@ public:
     explicit TPartitionMapJobWriterFactory(
         const IJobSpecHelperPtr& jobSpecHelper,
         TChunkReaderHostPtr chunkReaderHost,
-        TString localHostName,
+        std::string localHostName,
         IThroughputThrottlerPtr outBandwidthThrottler)
         : TSimpleJobWriterFactory(
             std::move(chunkReaderHost),
@@ -735,7 +735,7 @@ TCreateUserJobReaderResult CreatePartitionReduceJobReader(
 IUserJobWriterFactoryPtr CreateUserJobWriterFactory(
     const IJobSpecHelperPtr& jobSpecHelper,
     TChunkReaderHostPtr chunkReaderHost,
-    TString localHostName,
+    std::string localHostName,
     IThroughputThrottlerPtr outBandwidthThrottler)
 {
     const auto jobType = jobSpecHelper->GetJobType();

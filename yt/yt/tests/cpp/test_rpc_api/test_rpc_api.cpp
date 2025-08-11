@@ -885,12 +885,12 @@ TEST_F(TArrowTest, YTADMINREQ_33599)
 
 TEST_F(TArrowTest, ReadWithSystemColumns)
 {
-    WaitFor(Client_->SetNode("//sys/rpc_proxies/@config", ConvertToYsonString(THashMap<TString, int>{})))
+    WaitFor(Client_->SetNode("//sys/rpc_proxies/@config", ConvertToYsonString(THashMap<std::string, int>{})))
         .ThrowOnError();
 
     WaitFor(Client_->SetNode(
         "//sys/rpc_proxies/@config/api",
-        ConvertToYsonString(THashMap<TString, int>{{"read_buffer_row_count", 1}}))).ThrowOnError();
+        ConvertToYsonString(THashMap<std::string, int>{{"read_buffer_row_count", 1}}))).ThrowOnError();
 
     Sleep(TDuration::Seconds(0.5));
 

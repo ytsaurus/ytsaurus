@@ -159,7 +159,7 @@ private:
 
     IChannelPtr CreateChannelByInstance(IAttributeDictionaryPtr attributes)
     {
-        auto host = attributes->Get<TString>("host");
+        auto host = attributes->Get<std::string>("host");
         auto rpcPort = attributes->Get<ui64>("rpc_port");
         return ChannelFactory_->CreateChannel(Format("%v:%v", host, rpcPort));
     }

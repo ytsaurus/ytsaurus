@@ -26,7 +26,7 @@ IChunkWriterPtr CreateConfirmingWriter(
     NTableClient::TMasterTableSchemaId schemaId,
     TChunkListId parentChunkListId,
     NApi::NNative::IClientPtr client,
-    TString localHostName,
+    std::string localHostName,
     IBlockCachePtr blockCache = GetNullBlockCache(),
     TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
@@ -36,4 +36,3 @@ IChunkWriterPtr CreateConfirmingWriter(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient
-

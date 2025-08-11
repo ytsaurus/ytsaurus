@@ -125,7 +125,7 @@ IClientPtr TApiTestBase::CreateClient(const std::string& userName)
 
 void TApiTestBase::WaitUntil(
     std::function<bool()> predicate,
-    const TString& errorMessage)
+    TStringBuf errorMessage)
 {
     auto start = Now();
     bool reached = false;
@@ -144,7 +144,7 @@ void TApiTestBase::WaitUntil(
     }
 }
 
-void TApiTestBase::WaitUntilEqual(const TYPath& path, const TString& expected)
+void TApiTestBase::WaitUntilEqual(const TYPath& path, TStringBuf expected)
 {
     WaitUntil(
         [&] {
@@ -304,7 +304,7 @@ void TDynamicTablesTestBase::SyncFlushTable(const NYPath::TYPath& path)
 
 std::tuple<TSharedRange<TUnversionedRow>, TNameTablePtr> TDynamicTablesTestBase::PrepareUnversionedRow(
     const std::vector<std::string>& names,
-    const TString& rowString)
+    TStringBuf rowString)
 {
     auto nameTable = New<TNameTable>();
     for (const auto& name : names) {
@@ -319,7 +319,7 @@ std::tuple<TSharedRange<TUnversionedRow>, TNameTablePtr> TDynamicTablesTestBase:
 
 void TDynamicTablesTestBase::WriteUnversionedRow(
     const std::vector<std::string>& names,
-    const TString& rowString,
+    TStringBuf rowString,
     const IClientPtr& client)
 {
     auto preparedRow = PrepareUnversionedRow(names, rowString);
@@ -352,8 +352,8 @@ void TDynamicTablesTestBase::WriteRows(
 
 std::tuple<TSharedRange<TVersionedRow>, TNameTablePtr> TDynamicTablesTestBase::PrepareVersionedRow(
     const std::vector<std::string>& names,
-    const TString& keyYson,
-    const TString& valueYson)
+    TStringBuf keyYson,
+    TStringBuf valueYson)
 {
     auto nameTable = New<TNameTable>();
     for (const auto& name : names) {
@@ -368,8 +368,8 @@ std::tuple<TSharedRange<TVersionedRow>, TNameTablePtr> TDynamicTablesTestBase::P
 
 void TDynamicTablesTestBase::WriteVersionedRow(
     const std::vector<std::string>& names,
-    const TString& keyYson,
-    const TString& valueYson,
+    TStringBuf keyYson,
+    TStringBuf valueYson,
     const IClientPtr& client)
 {
     auto preparedRow = PrepareVersionedRow(names, keyYson, valueYson);
@@ -424,7 +424,7 @@ void TDynamicTablesTestBase::RemoveSystemObjects(const TYPath& path)
 }
 
 void TDynamicTablesTestBase::RemoveTabletCells(
-    std::function<bool(const TString&)> filter)
+    std::function<bool(TStringBuf)> filter)
 {
     TYPath path = "//sys/tablet_cells";
     auto items = WaitFor(Client_->ListNode(path))

@@ -951,7 +951,7 @@ private:
         auto attributes = options.Attributes
             ? options.Attributes->Clone()
             : CreateEphemeralAttributes();
-        auto optionalTitle = attributes->FindAndRemove<TString>("title");
+        auto optionalTitle = attributes->FindAndRemove<std::string>("title");
         if (optionalTitle) {
             request->set_title(*optionalTitle);
         }

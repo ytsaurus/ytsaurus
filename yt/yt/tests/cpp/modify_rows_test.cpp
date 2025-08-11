@@ -124,9 +124,11 @@ void TModifyRowsTest::ValidateTableContent(
     EXPECT_EQ(expectedSchema, actualSchema);
 }
 
-TString TModifyRowsTest::MakeRowString(i64 key, i64 value)
+std::string TModifyRowsTest::MakeRowString(i64 key, i64 value)
 {
-    return "<id=0> " + ToString(key) + "; <id=1> " + ToString(value);
+    TStringBuilder builder;
+    builder.AppendFormat("<id=0> %v; <id=1> %v", key, value);
+    return builder.Flush();
 }
 
 ITransactionPtr TModifyRowsTest::Transaction_;

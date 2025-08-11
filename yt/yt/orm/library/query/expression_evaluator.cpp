@@ -262,7 +262,7 @@ TExpressionPtr CreateFakeTableAttributeSelector(
                 CreateFakeTableColumnReference(dataAttributePath, holder),
                 holder->New<TLiteralExpression>(
                     NQueryClient::NullSourceLocation,
-                    TString(queryAttributePathSuffix))});
+                    std::string(queryAttributePathSuffix))});
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error creating query selector for attribute path %Qv",
             queryAttributePath)

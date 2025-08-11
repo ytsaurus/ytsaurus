@@ -45,7 +45,7 @@ void RunQuery(
     const TQuerySpec& querySpec,
     const TSchemalessReaderFactory& readerFactory,
     const TSchemalessWriterFactory& writerFactory,
-    const std::optional<TString>& udfDirectory)
+    const std::optional<std::string>& udfDirectory)
 {
     auto query = FromProto<TConstQueryPtr>(querySpec.query());
     auto resultSchema = query->GetTableSchema();

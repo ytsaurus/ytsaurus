@@ -40,7 +40,7 @@ TTableSchemaPtr InferInputSchema(const std::vector<TTableSchemaPtr>& schemas, bo
 
     std::vector<TColumnSchema> columns;
     THashMap<TColumnStableName, int> stableNameToColumnIndex;
-    THashMap<TString, int> nameToColumnIndex;
+    THashMap<std::string, int> nameToColumnIndex;
     for (const auto& schema : schemas) {
         for (int columnIndex = 0; columnIndex < schema->GetColumnCount(); ++columnIndex) {
             auto column = schema->Columns()[columnIndex];

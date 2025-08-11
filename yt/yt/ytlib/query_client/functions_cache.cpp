@@ -727,14 +727,14 @@ void FetchFunctionImplementationsFromFiles(
     const TFunctionProfilerMapPtr& functionProfilers,
     const TAggregateProfilerMapPtr& aggregateProfilers,
     const TConstExternalCGInfoPtr& externalCGInfo,
-    const TString& rootPath)
+    TStringBuf rootPath)
 {
     for (const auto& function : externalCGInfo->Functions) {
         const auto& name = function.Name;
 
         YT_LOG_DEBUG("Fetching UDF implementation (Name: %v)", name);
 
-        auto path = rootPath + "/" + function.Name;
+        auto path = TString(rootPath) + "/" + function.Name;
         auto file = TUnbufferedFileInput(path);
         auto impl = TSharedRef::FromString(file.ReadAll());
 

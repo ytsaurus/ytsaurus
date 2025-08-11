@@ -70,7 +70,7 @@ TBlobTableWriter::TBlobTableWriter(
         tableSchema,
         TLegacyOwningKey(),
         client,
-        /*localHostName*/ TString(), // Locality is not important for table upload.
+        /*localHostName*/ std::string(), // Locality is not important for table upload.
         NObjectClient::CellTagFromId(chunkListId),
         transactionId,
         schemaId,

@@ -24,7 +24,7 @@ void UpdateCellarFromHeartbeatResponse(
 TError UpdateSolomonTags(
     const ICellarManagerPtr& cellarManager,
     NCellarClient::ECellarType cellarType,
-    const TString& tagName);
+    const std::string& tagName);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -517,8 +517,8 @@ void TContext::SetContentDispositionAndMimeType()
             disposition = "inline";
             if (operationIdNode && jobIdNode) {
                 filename = Format("job_stderr_%v_%v",
-                    operationIdNode->GetValue<TString>(),
-                    jobIdNode->GetValue<TString>());
+                    operationIdNode->GetValue<std::string>(),
+                    jobIdNode->GetValue<std::string>());
             }
         } else if (Descriptor_->CommandName == "get_job_fail_context") {
             auto operationIdNode = DriverRequest_.Parameters->FindChild("operation_id");
@@ -527,8 +527,8 @@ void TContext::SetContentDispositionAndMimeType()
             disposition = "inline";
             if (operationIdNode && jobIdNode) {
                 filename = Format("fail_context_%v_%v",
-                    operationIdNode->GetValue<TString>(),
-                    jobIdNode->GetValue<TString>());
+                    operationIdNode->GetValue<std::string>(),
+                    jobIdNode->GetValue<std::string>());
             }
         }
 
