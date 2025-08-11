@@ -214,7 +214,7 @@ struct IHydraManager
     /*!
      *  \note Thread affinity: any
      */
-    virtual TInstant GetLogicalTime() const = 0;
+    virtual TLogicalTime GetLogicalTime() const = 0;
 
     virtual bool IsDiscombobulated() const = 0;
 
