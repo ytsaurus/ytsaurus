@@ -171,23 +171,26 @@ DEFINE_ENUM(ESegmentedSchedulingMode,
     (LargeGpu)
 );
 
-DEFINE_ENUM(ESchedulingSegmentModuleAssignmentHeuristic,
-    (MaxRemainingCapacity)
-    (MinRemainingFeasibleCapacity)
+DEFINE_ENUM(EGpuSchedulingModuleType,
+    (DataCenter)
+    (InfinibandCluster)
 );
+
+// TODO(eshcherbin): Scheduling segments algorithm will be deprecated.
+using ESchedulingSegmentModuleType = EGpuSchedulingModuleType;
 
 DEFINE_ENUM(ESchedulingSegmentModulePreemptionHeuristic,
     (Greedy)
 );
 
-DEFINE_ENUM(ESchedulingSegmentModuleType,
-    (DataCenter)
-    (InfinibandCluster)
-);
-
 DEFINE_ENUM(EOperationPreemptionPriorityScope,
     (OperationOnly)
     (OperationAndAncestors)
+);
+
+DEFINE_ENUM(ESchedulingSegmentModuleAssignmentHeuristic,
+    (MaxRemainingCapacity)
+    (MinRemainingFeasibleCapacity)
 );
 
 static constexpr int MaxNodeShardCount = 64;

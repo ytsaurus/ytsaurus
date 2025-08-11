@@ -58,10 +58,10 @@ TSerializableAccessControlList MakeOperationArtifactAcl(const TSerializableAcces
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateInfinibandClusterName(TStringBuf name)
+void ValidateGpuSchedulingModuleName(TStringBuf name)
 {
     if (name.empty()) {
-        THROW_ERROR_EXCEPTION("Infiniband cluster name cannot be empty");
+        THROW_ERROR_EXCEPTION("GPU scheduling module name cannot be empty");
     }
 }
 

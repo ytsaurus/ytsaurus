@@ -95,8 +95,10 @@ TJobResources  operator -  (const TJobResources& lhs, const TJobResources& rhs);
 TJobResources& operator -= (TJobResources& lhs, const TJobResources& rhs);
 
 TJobResources  operator *  (const TJobResources& lhs, i64 rhs);
+TJobResources  operator *  (const TJobResources& lhs, int rhs);
 TJobResources  operator *  (const TJobResources& lhs, double rhs);
 TJobResources& operator *= (TJobResources& lhs, i64 rhs);
+TJobResources& operator *= (TJobResources& lhs, int rhs);
 TJobResources& operator *= (TJobResources& lhs, double rhs);
 
 TJobResources  operator -  (const TJobResources& resources);
