@@ -1184,7 +1184,7 @@ class FileFormat(enum.Enum):
     PARQUET = 1
 
 
-def _dump_file(table, output_file, output_path, enable_several_files, unordered, format, client):
+def _dump_file(table, output_file, output_path, enable_several_files, unordered, file_compression_codec, format, client):
     if not output_path:
         if output_file:
             output_path = output_file
@@ -1194,6 +1194,9 @@ def _dump_file(table, output_file, output_path, enable_several_files, unordered,
 
     enable_parallel = get_config(client)["read_parallel"]["enable"]
     min_batch_row_count = get_config(client)["dump_table_options"]["min_batch_row_count"]
+
+    if not file_compression_codec:
+        file_compression_codec = "snappy"
 
     if enable_parallel:
         max_thread_count = get_config(client)["read_parallel"]["max_thread_count"]
@@ -1269,7 +1272,8 @@ def _dump_file(table, output_file, output_path, enable_several_files, unordered,
                 thread_count=c_thread_count,
                 data_size_per_thread=data_size_per_thread,
                 stream=response,
-                min_batch_row_count=min_batch_row_count)
+                min_batch_row_count=min_batch_row_count,
+                file_compression_codec=file_compression_codec)
         elif format == FileFormat.PARQUET:
             yson.async_dump_parquet(
                 output_path=output_path,
@@ -1277,21 +1281,22 @@ def _dump_file(table, output_file, output_path, enable_several_files, unordered,
                 thread_count=c_thread_count,
                 data_size_per_thread=data_size_per_thread,
                 stream=response,
-                min_batch_row_count=min_batch_row_count)
+                min_batch_row_count=min_batch_row_count,
+                file_compression_codec=file_compression_codec)
         else:
             raise YtError('The format "{0}" is not supported for dumping table'.format(format.name))
 
     else:
         stream = read_table(table, raw=True, format="arrow", enable_read_parallel=False, client=client)
         if format == FileFormat.ORC:
-            yson.dump_orc(output_path, stream, min_batch_row_count)
+            yson.dump_orc(output_path, stream, min_batch_row_count, file_compression_codec=file_compression_codec)
         elif format == FileFormat.PARQUET:
-            yson.dump_parquet(output_path, stream, min_batch_row_count)
+            yson.dump_parquet(output_path, stream, min_batch_row_count, file_compression_codec=file_compression_codec)
         else:
             raise YtError('The format "{0}" is not supported for dumping table'.format(format.name))
 
 
-def dump_parquet(table, output_file=None, output_path=None, enable_several_files=False, unordered=False, client=None):
+def dump_parquet(table, output_file=None, output_path=None, enable_several_files=False, unordered=False, file_compression_codec=None, client=None):
     """Dump table with a strict schema as `Parquet <https://parquet.apache.org/docs>` file
 
     :param table: table
@@ -1313,7 +1318,7 @@ def dump_parquet(table, output_file=None, output_path=None, enable_several_files
             'Bindings are shipped as additional package and '
             'can be installed ' + YSON_PACKAGE_INSTALLATION_TEXT)
 
-    _dump_file(table, output_file, output_path, enable_several_files, unordered, FileFormat.PARQUET, client)
+    _dump_file(table, output_file, output_path, enable_several_files, unordered, file_compression_codec, FileFormat.PARQUET, client)
 
 
 def _merge_items_into_chunks(items, chunk_size, next_chunk):
@@ -1369,7 +1374,7 @@ def upload_parquet(table, input_file, client=None):
     write_table(table,  ItemStreamForArrowFormat(stream), raw=True, format="arrow", client=client)
 
 
-def dump_orc(table, output_file=None, output_path=None, enable_several_files=False, unordered=False, client=None):
+def dump_orc(table, output_file=None, output_path=None, enable_several_files=False, unordered=False, file_compression_codec=None, client=None):
     """Dump table with a strict schema as `ORC <https://orc.apache.org/>` file
 
     :param table: table
@@ -1390,7 +1395,7 @@ def dump_orc(table, output_file=None, output_path=None, enable_several_files=Fal
             'YSON bindings required.'
             'Bindings are shipped as additional package and '
             'can be installed ' + YSON_PACKAGE_INSTALLATION_TEXT)
-    _dump_file(table, output_file, output_path, enable_several_files, unordered, FileFormat.ORC, client)
+    _dump_file(table, output_file, output_path, enable_several_files, unordered, file_compression_codec, FileFormat.ORC, client)
 
 
 def upload_orc(table, input_file, client=None):

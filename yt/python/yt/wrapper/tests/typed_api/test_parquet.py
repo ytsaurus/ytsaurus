@@ -68,7 +68,7 @@ def check_table(table, chunks):
 class TestParquet(object):
     @authors("nadya02")
     @pytest.mark.parametrize("enable_parallel", [True, False])
-    def test_dump_parquet(self, enable_parallel):
+    def test_dump_parquet_snappy(self, enable_parallel):
         with tempfile.NamedTemporaryFile() as temp_file:
             filename = temp_file.name
             table = TEST_DIR + "/table"
@@ -82,6 +82,15 @@ class TestParquet(object):
             with set_config_option("read_parallel/enable", enable_parallel):
                 yt.dump_parquet(table, filename, enable_several_files=False)
 
+            parquet_file = pyarrow.parquet.ParquetFile(filename)
+
+            metadata = parquet_file.metadata
+            row_group = metadata.row_group(0)
+
+            for column_index in range(row_group.num_columns):
+                col = row_group.column(column_index)
+                assert col.compression == "SNAPPY"
+
             table = pyarrow.parquet.read_table(filename)
             column_names = table.column_names
 
@@ -89,6 +98,31 @@ class TestParquet(object):
             assert table[column_names[0]].to_pylist() == ["one", "two", "three"]
             assert column_names[1] == "value"
             assert table[column_names[1]].to_pylist() == [1, 2, 3]
+
+    @authors("nadya02")
+    @pytest.mark.parametrize("enable_parallel", [False])
+    def test_dump_parquet_gzip(self, enable_parallel):
+        with tempfile.NamedTemporaryFile() as temp_file:
+            filename = temp_file.name
+            table = TEST_DIR + "/table"
+
+            yt.write_table_structured(table, Row, [
+                Row(key="one", value=1),
+                Row(key="two", value=2),
+                Row(key="three", value=3),
+            ])
+
+            with set_config_option("read_parallel/enable", enable_parallel):
+                yt.dump_parquet(table, filename, enable_several_files=False, file_compression_codec="gzip")
+
+            parquet_file = pyarrow.parquet.ParquetFile(filename)
+
+            metadata = parquet_file.metadata
+            row_group = metadata.row_group(0)
+
+            for column_index in range(row_group.num_columns):
+                col = row_group.column(column_index)
+                assert col.compression == "GZIP"
 
     @authors("nadya02")
     @pytest.mark.parametrize("enable_parallel", [True, False])
