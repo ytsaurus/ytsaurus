@@ -2184,7 +2184,7 @@ void TTablet::Initialize()
 
 void TTablet::ReconfigureRowCache(const ITabletSlotPtr& slot)
 {
-    if (!slot || !slot->GetHydraManager()->IsLeader()) {
+    if (!slot) {
         return;
     }
 
@@ -3222,6 +3222,13 @@ void TTablet::BuildOrchidYson(TFluentMap fluent) const
                     .Item("building_in_progress").Value(info.BuildingInProgress)
                     .EndMap();
             });
+}
+
+void TTablet::ResetRowCache(const ITabletSlotPtr& slot)
+{
+    RowCache_.Reset();
+
+    ReconfigureRowCache(slot);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

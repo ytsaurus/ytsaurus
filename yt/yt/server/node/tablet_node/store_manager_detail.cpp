@@ -295,12 +295,13 @@ bool TStoreManagerBase::IsStoreFlushable(IStorePtr store) const
 TStoreFlushCallback TStoreManagerBase::BeginStoreFlush(
     IDynamicStorePtr store,
     TTabletSnapshotPtr tabletSnapshot,
-    bool isUnmountWorkflow)
+    bool isUnmountWorkflow,
+    bool onlyUpdateRowCache)
 {
     YT_VERIFY(store->GetFlushState() == EStoreFlushState::None);
     store->SetFlushState(EStoreFlushState::Running);
     StructuredLogger_->OnStoreFlushStateChanged(store);
-    return MakeStoreFlushCallback(store, tabletSnapshot, isUnmountWorkflow);
+    return MakeStoreFlushCallback(store, tabletSnapshot, isUnmountWorkflow, onlyUpdateRowCache);
 }
 
 void TStoreManagerBase::EndStoreFlush(IDynamicStorePtr store)

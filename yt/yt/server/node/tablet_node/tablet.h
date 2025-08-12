@@ -894,6 +894,8 @@ public:
 
     void BuildOrchidYson(NYTree::TFluentMap fluent) const;
 
+    void ResetRowCache(const ITabletSlotPtr& slot);
+
 private:
     struct TTabletSizeMetrics
     {
