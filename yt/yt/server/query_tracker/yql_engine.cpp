@@ -38,6 +38,12 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static NLogging::TLogger Logger("YqlEngine");
+
+const std::string DefaultYqlAgentStageName = "production";
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TYqlSettings
     : public TYsonStruct
 {
@@ -332,9 +338,37 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TYqlEngineInfoProvider
+    : public IQueryEngineInfoProvider
+{
+public:
+    TYqlEngineInfoProvider(IClientPtr stateClient, TYPath stateRoot)
+        : StateClient_(std::move(stateClient))
+        , StateRoot_(std::move(stateRoot))
+    { }
+
+    NYson::TYsonString GetEngineInfo(IMapNodePtr /*settingsMap*/) override
+    {
+        return TYsonString(TString("{}"));
+    }
+
+private:
+    const IClientPtr StateClient_;
+    const TYPath StateRoot_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 IQueryEnginePtr CreateYqlEngine(const IClientPtr& stateClient, const TYPath& stateRoot)
 {
     return New<TYqlEngine>(stateClient, stateRoot);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IQueryEngineInfoProviderPtr CreateYqlEngineInfoProvider(const IClientPtr& stateClient, const TYPath& stateRoot)
+{
+    return New<TYqlEngineInfoProvider>(stateClient, stateRoot);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
