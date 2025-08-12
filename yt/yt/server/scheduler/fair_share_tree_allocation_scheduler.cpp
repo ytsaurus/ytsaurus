@@ -1482,7 +1482,7 @@ const TDynamicAttributes& TScheduleAllocationsContext::DynamicAttributesOf(const
 bool TScheduleAllocationsContext::CheckScheduleAllocationTimeoutExpired() const
 {
     if (SchedulingContext_->GetNow() >= SchedulingDeadline_) {
-        SchedulingContext_->SetSchedulingStopReason(ESchedulingStopReason::Timeout);
+        SchedulingContext_->SetHeartbeatTimeoutExpired();
         return true;
     }
     return false;
@@ -2667,11 +2667,11 @@ void TFairShareTreeAllocationScheduler::ScheduleAllocations(TScheduleAllocations
     YT_LOG_DEBUG_IF(context->IsSchedulingInfoLoggingEnabled(),
         "Finished scheduling allocations on node "
         "(NodeAddress: %v, ResourceUsage: %v, ResourceLimits: %v, "
-        "ScheduledResources: %v, PreemptedResources: %v, StopReason: %v, Duration: %v)",
+        "ScheduledResources: %v, PreemptedResources: %v, HeartbeatTimeoutExpired: %v, Duration: %v)",
         schedulingContext->GetNodeDescriptor()->GetDefaultAddress(),
         schedulingContext->ResourceUsage(),
         schedulingContext->ResourceLimits(),
-        schedulingContext->GetSchedulingStopReason(),
+        schedulingContext->IsHeartbeatTimeoutExpired(),
         computeTotalAllocationResources(schedulingContext->StartedAllocations(), std::identity{}),
         computeTotalAllocationResources(schedulingContext->PreemptedAllocations(), [] (const auto& allocation) { return allocation.Allocation; }),
         elapsedTime);

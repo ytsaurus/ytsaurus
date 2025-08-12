@@ -61,14 +61,6 @@ struct TPreemptedAllocation
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(ESchedulingStopReason,
-    (FullyScheduled)
-    (Timeout)
-    (Throttling)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct ISchedulingContext
     : public virtual TRefCounted
 {
@@ -135,8 +127,8 @@ struct ISchedulingContext
     virtual void StoreScheduleAllocationExecDurationEstimate(TDuration duration) = 0;
     virtual TDuration ExtractScheduleAllocationExecDurationEstimate() = 0;
 
-    virtual ESchedulingStopReason GetSchedulingStopReason() const = 0;
-    virtual void SetSchedulingStopReason(ESchedulingStopReason result) = 0;
+    virtual bool IsHeartbeatTimeoutExpired() const = 0;
+    virtual void SetHeartbeatTimeoutExpired() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchedulingContext)

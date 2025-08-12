@@ -319,14 +319,14 @@ TDuration TSchedulingContextBase::ExtractScheduleAllocationExecDurationEstimate(
     return *std::exchange(ScheduleAllocationExecDurationEstimate_, {});
 }
 
-ESchedulingStopReason TSchedulingContextBase::GetSchedulingStopReason() const
+bool TSchedulingContextBase::IsHeartbeatTimeoutExpired() const
 {
-    return SchedulingStopReason_;
+    return HeartbeatTimeoutExpired_;
 }
 
-void TSchedulingContextBase::SetSchedulingStopReason(ESchedulingStopReason result)
+void TSchedulingContextBase::SetHeartbeatTimeoutExpired()
 {
-    SchedulingStopReason_ = result;
+    HeartbeatTimeoutExpired_ = true;
 }
 
 void TSchedulingContextBase::InitializeConditionalDiscounts(int capacity)
