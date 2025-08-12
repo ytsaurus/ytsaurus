@@ -249,7 +249,12 @@ public:
         // User job usually runs by per-slot users: yt_slot_{N}.
         // Which is not available for single-user, non-privileged or testing setup.
         if (!Config_->DoNotSetUserId && JobEnvironmentType_ == EJobEnvironmentType::Porto) {
-            UserId_ = Config_->JobEnvironment->StartUid + Config_->SlotIndex;
+            if (UserJobSpec_.enable_fixed_user_id()) {
+                // TODO(ignat): use root or introduce special uid for this case.
+                UserId_ = Config_->JobEnvironment->StartUid;
+            } else {
+                UserId_ = Config_->JobEnvironment->StartUid + Config_->SlotIndex;
+            }
         }
 
         if (!Config_->BusServer->UnixDomainSocketPath) {

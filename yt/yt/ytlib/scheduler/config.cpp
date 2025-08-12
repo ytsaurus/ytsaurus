@@ -1341,6 +1341,9 @@ void TUserJobSpec::Register(TRegistrar registrar)
     registrar.Parameter("archive_ttl", &TThis::ArchiveTtl)
         .Default();
 
+    registrar.Parameter("enable_fixed_user_id", &TThis::EnableFixedUserId)
+        .Default(false);
+
     registrar.Postprocessor([] (TUserJobSpec* spec) {
         if ((spec->TmpfsSize || spec->TmpfsPath) && !spec->TmpfsVolumes.empty()) {
             THROW_ERROR_EXCEPTION(

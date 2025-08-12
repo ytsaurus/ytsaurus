@@ -1475,6 +1475,8 @@ struct TUserJobSpec
 
     std::optional<TDuration> ArchiveTtl;
 
+    bool EnableFixedUserId;
+
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);
 
     REGISTER_YSON_STRUCT(TUserJobSpec);

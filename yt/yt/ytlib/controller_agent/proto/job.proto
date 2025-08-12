@@ -326,6 +326,8 @@ message TUserJobSpec
     reserved 38, 48, 54, 61, 62;
 
     optional TNetworkProject network_project = 80;
+
+    optional bool enable_fixed_user_id = 83;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
