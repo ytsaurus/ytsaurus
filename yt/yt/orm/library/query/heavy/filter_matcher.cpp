@@ -1,7 +1,8 @@
 #include "filter_matcher.h"
 
 #include "expression_evaluator.h"
-#include "helpers.h"
+
+#include <yt/yt/orm/library/query/helpers.h>
 
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/row_buffer.h>
@@ -15,13 +16,14 @@
 #include <util/string/cast.h>
 
 namespace NYT::NOrm::NQuery {
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
 
 using namespace NTableClient;
 using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace {
 
 class TFilterMatcher
     : public IFilterMatcher
@@ -92,7 +94,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace
 
 IFilterMatcherPtr CreateFilterMatcher(
     TStringBuf filterQuery,
