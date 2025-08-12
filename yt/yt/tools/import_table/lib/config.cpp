@@ -16,6 +16,8 @@ void TImportConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("max_row_weight", &TThis::MaxRowWeight)
         .Default(16_MB);
+    registrar.Parameter("max_metadata_row_weight", &TThis::MaxMetadataRowWeight)
+        .Default(10_MB);
     registrar.Parameter("parquet_file_regex", &TThis::ParquetFileRegex)
         .DefaultNew("\\.par(quet)?");
     registrar.Parameter("orc_file_regex", &TThis::ORCFileRegex)

@@ -775,6 +775,31 @@ TEST_F(TBigHuggingfaceServerTest, ImportBigTableFromHuggingface)
     Generator->VerifyAnswer(client, resultTable);
 }
 
+TEST_F(TBigHuggingfaceServerTest, SplitMetadataRow)
+{
+    NTesting::TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    TString resultTable = workingDir + "/result_table";
+    TConfig::Get()->RemoteTempTablesDirectory = workingDir + "/table_storage";
+
+    TString proxy = GetEnv("YT_PROXY");
+    auto config = New<TImportConfig>();
+    config->MaxMetadataRowWeight = 100;
+
+    NTools::NImporter::ImportFilesFromHuggingface(
+        proxy,
+        Dataset,
+        /*subset*/ "default",
+        Split,
+        resultTable,
+        EFileFormat::Parquet,
+        TestUrl,
+        config);
+
+    Generator->VerifyAnswer(client, resultTable);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class T3ServerTestBase
