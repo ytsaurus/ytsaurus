@@ -10323,6 +10323,8 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
             GenerateDockerAuthFromToken(SecureVault_, AuthenticatedUser_, jobSpec);
         }
     }
+
+    jobSpec->set_enable_fixed_user_id(jobSpecConfig->EnableFixedUserId);
 }
 
 const std::vector<TUserFile>& TOperationControllerBase::GetUserFiles(const TUserJobSpecPtr& userJobSpec) const

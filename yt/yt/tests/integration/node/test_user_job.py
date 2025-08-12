@@ -1448,6 +1448,58 @@ class TestUserJobIsolation(YTEnvSetup):
         wait(lambda: check_command_ended())
 
 
+class TestFixedUser(YTEnvSetup):
+    USE_PORTO = True
+
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                    "do_not_set_user_id": False,
+                    "start_uid": 19500,
+                },
+            },
+            "job_proxy": {
+                "test_root_fs": True,
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 2,
+                "cpu": 2,
+                "memory": 2 * 1024 ** 3,
+            },
+        },
+    }
+
+    @authors("ignat")
+    def test_fixed_user(self):
+        create("file", "//tmp/base_layer", attributes={"replication_factor": 1})
+        write_file("//tmp/base_layer", open("layers/static-bin.tar", "rb").read())
+
+        op = run_test_vanilla(
+            command=with_breakpoint("id -u >&2; BREAKPOINT"),
+            job_count=2,
+            task_patch={
+                "enable_fixed_user_id": True,
+                "layer_paths": ["//tmp/base_layer"],
+            })
+
+        job_ids = wait_breakpoint(job_count=2)
+        assert len(job_ids) == 2
+
+        for job_id in job_ids:
+            assert int(op.read_stderr(job_id)) == 19500
+
+        release_breakpoint()
+
+        op.track()
+
+
 ##################################################################
 
 
