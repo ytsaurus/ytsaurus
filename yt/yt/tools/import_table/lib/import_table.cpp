@@ -70,9 +70,9 @@ static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Importer");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr int BufferSize = 4_MB;
+constexpr int DefaultRingBufferMetadataWeight = 4_MB;
 constexpr int DefaultFooterReadSize = 64_KB;
-constexpr int SizeOfMetadataSize = 4;
+constexpr int SizeOfMetadataWeight = 4;
 constexpr int SizeOfMagicBytes = 4;
 
 const std::string MetadataColumnName = "metadata";
@@ -304,14 +304,12 @@ class TDownloadMapper
     : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
 public:
-    TDownloadMapper()
-        : RingBuffer_(BufferSize)
-    { }
+    TDownloadMapper() = default;
 
-    explicit TDownloadMapper(TSourceConfig sourceConfig, TString serializedSingletonsConfig)
+    explicit TDownloadMapper(TSourceConfig sourceConfig, i64 maxMetadataRowWeight, TString serializedSingletonsConfig)
         : SourceConfig_(std::move(sourceConfig))
+        , MaxMetadataRowWeight_(maxMetadataRowWeight)
         , SerializedSingletonsConfig_(std::move(serializedSingletonsConfig))
-        , RingBuffer_(BufferSize)
     { }
 
     void Start(TWriter* /*writer*/) override
@@ -337,63 +335,66 @@ public:
             TNode keyNode = TNode::CreateMap();
             keyNode[FileIndexColumnName] = fileIndex;
 
+            FileSize_ = 0;
+
+            auto metadataWeight = GetMetadataWeight(fileId);
+            auto firstDataPartIndex = (metadataWeight / MaxMetadataRowWeight_) + 2;
+            auto stream = Downloader_->GetFile(fileId);
+            // A ring buffer in which we save the current end of the file.
+            TRingBuffer ringBuffer(metadataWeight);
+
             BlobTableWriter_ = CreateBlobTableWriter(
                 writer,
                 keyNode,
                 blobTableSchema,
-                /*firstPartIndex*/ 2,
+                /*firstPartIndex*/ firstDataPartIndex,
                 /*autoFinishOfWriter*/ false);
 
-            FileSize_ = 0;
-
-            auto stream = Downloader_->GetFile(fileId);
             while (auto data = WaitFor(stream->Read()).ValueOrThrow()) {
-                DownloadFilePart(data);
+                DownloadFilePart(data, ringBuffer);
             }
 
             BlobTableWriter_->Finish();
 
-            writer->AddRow(MakeOutputMetadataRow(fileIndex), /*tableIndex*/ 1);
+            MakeOutputMetadataRow(fileIndex, metadataWeight, writer, ringBuffer);
         }
     }
 
-    Y_SAVELOAD_JOB(SourceConfig_, SerializedSingletonsConfig_);
+    Y_SAVELOAD_JOB(SourceConfig_, SerializedSingletonsConfig_, MaxMetadataRowWeight_);
 
 private:
-    int FileSize_;
+    i64 FileSize_;
     IFileWriterPtr BlobTableWriter_;
     TSourceConfig SourceConfig_;
+    i64 MaxMetadataRowWeight_;
     TString SerializedSingletonsConfig_;
     IDownloaderPtr Downloader_;
 
-    // A ring buffer in which we save the current end of the file.
-    TRingBuffer RingBuffer_;
     int BufferPosition_;
 
-    void DownloadFilePart(TSharedRef data)
+    i64 GetMetadataWeight(const TString& fileId)
     {
-        auto size = std::ssize(data);
-        BlobTableWriter_->Write(data.Begin(), size);
-        FileSize_ += size;
+        auto stream = Downloader_->GetFile(fileId);
+        i64 fileSize = 0;
+        TRingBuffer metadataRingBuffer(DefaultRingBufferMetadataWeight);
+        while (auto data = WaitFor(stream->Read()).ValueOrThrow()) {
+            fileSize += std::ssize(data);
+            NArrow::ThrowOnError(metadataRingBuffer.Write(data));
+        }
 
-        NArrow::ThrowOnError(RingBuffer_.Write(data));
-    }
-
-    int GetMetadataSize()
-    {
         switch (SourceConfig_.Format) {
             case EFileFormat::Parquet: {
-                char metadataSizeData[SizeOfMetadataSize];
-                RingBuffer_.Read(FileSize_ - (SizeOfMagicBytes + SizeOfMetadataSize), SizeOfMetadataSize, metadataSizeData);
-                int metadataSize = *(reinterpret_cast<int*>(metadataSizeData)) + (SizeOfMagicBytes + SizeOfMetadataSize);
-                metadataSize = std::max(DefaultFooterReadSize + SizeOfMagicBytes + SizeOfMetadataSize, metadataSize);
-                return metadataSize;
+                char metadataWeightData[SizeOfMetadataWeight];
+                metadataRingBuffer.Read(fileSize - (SizeOfMagicBytes + SizeOfMetadataWeight), SizeOfMetadataWeight, metadataWeightData);
+                i64 metadataWeight = *(reinterpret_cast<int*>(metadataWeightData)) + (SizeOfMagicBytes + SizeOfMetadataWeight);
+                metadataWeight = std::max(static_cast<i64>(DefaultFooterReadSize + SizeOfMagicBytes + SizeOfMetadataWeight), metadataWeight);
+                return metadataWeight;
             }
             case EFileFormat::ORC: {
-                std::unique_ptr<orc::InputStream> stream = std::make_unique<TOrcInputStreamAdapter>(&RingBuffer_);
+                std::unique_ptr<orc::InputStream> stream = std::make_unique<TOrcInputStreamAdapter>(&metadataRingBuffer);
                 orc::ReaderOptions option;
                 auto reader = orc::createReader(std::move(stream), option);
-                return std::max(static_cast<ui64>(DefaultFooterReadSize), FileSize_ - reader->getContentLength());
+                return std::max(static_cast<ui64>(DefaultFooterReadSize), fileSize - reader->getContentLength());
             }
             default: {
                 YT_ABORT();
@@ -401,25 +402,41 @@ private:
         }
     }
 
-    TNode MakeOutputMetadataRow(int fileIndex)
+    void DownloadFilePart(TSharedRef data, TRingBuffer& ringBuffer)
     {
-        int metadataSize = std::min(FileSize_, GetMetadataSize());
+        auto size = std::ssize(data);
+        BlobTableWriter_->Write(data.Begin(), size);
+        FileSize_ += size;
 
-        if (metadataSize > BufferSize) {
-            THROW_ERROR_EXCEPTION("Metadata size of Parquet file is too big");
-        }
+        NArrow::ThrowOnError(ringBuffer.Write(data));
+    }
+
+    void MakeOutputMetadataRow(int fileIndex, i64 metadataWeight, TWriter* writer, TRingBuffer& ringBuffer)
+    {
+        metadataWeight = std::min(FileSize_, metadataWeight);
 
         TString metadata;
-        metadata.resize(metadataSize);
-        RingBuffer_.Read(std::max(0, FileSize_ - metadataSize), std::min(metadataSize, FileSize_), metadata.begin());
+        metadata.resize(metadataWeight);
+        ringBuffer.Read(std::max(static_cast<i64>(0), FileSize_ - metadataWeight), std::min(metadataWeight, FileSize_), metadata.begin());
 
-        TNode outMetadataRow;
-        outMetadataRow[FileIndexColumnName] = fileIndex;
-        outMetadataRow[MetadataColumnName] = metadata;
-        outMetadataRow[StartMetadataOffsetColumnName] = FileSize_ - metadataSize;
-        outMetadataRow[PartIndexColumnName] = 0;
+        i64 partIndex = 0;
+        i64 currentSize = metadataWeight;
+        i64 metadataOffset = 0;
+        while (currentSize > 0) {
+            i64 partSize = std::min(static_cast<i64>(MaxMetadataRowWeight_), currentSize);
+            TNode outMetadataRow;
 
-        return outMetadataRow;
+            outMetadataRow[FileIndexColumnName] = fileIndex;
+            outMetadataRow[MetadataColumnName] = metadata.substr(metadataOffset, partSize);
+            outMetadataRow[StartMetadataOffsetColumnName] = FileSize_ - metadataWeight;
+            outMetadataRow[PartIndexColumnName] = partIndex;
+
+            writer->AddRow(outMetadataRow, /*tableIndex*/ 1);
+
+            currentSize -= partSize;
+            metadataOffset += partSize;
+            ++partIndex;
+        }
     }
 };
 
@@ -567,11 +584,16 @@ public:
         while (reader.IsValid()) {
             const auto& row = reader.GetRow();
             YT_VERIFY(reader.GetTableIndex() == 0);
-
-            TString metadata = row[MetadataColumnName].AsString();
+            TString metadata;
             auto startIndex = row[StartMetadataOffsetColumnName].AsInt64();
 
-            reader.Next();
+            while (reader.GetTableIndex() == 0) {
+                const auto& currentRow = reader.GetRow();
+                metadata += currentRow[MetadataColumnName].AsString();
+
+                reader.Next();
+            }
+
             const auto& outputTableInformationRow = reader.GetRow();
             YT_VERIFY(reader.GetTableIndex() == 1);
             auto outputTableIndex = outputTableInformationRow[OutputTableIndexColumnName].AsInt64();
@@ -712,10 +734,19 @@ std::vector<TTempTable> CreateOutputParserTables(
     auto outputInformationTableWriter = ytClient->CreateTableWriter<TNode>(outputInformationTablePath);
     int currentOutputTableIndexColumnName;
 
-    for (; reader->IsValid(); reader->Next()) {
+    while (reader->IsValid()) {
         const auto& row = reader->GetRow();
-        auto metadata = row[MetadataColumnName].AsString();
+        TString metadata;
+        auto currentFileIndex = row[FileIndexColumnName].AsInt64();
         auto metadataStartOffset = row[StartMetadataOffsetColumnName].AsInt64();
+        i64 lastDataPartIndex = 0;
+        while (reader->IsValid() && currentFileIndex == (reader->GetRow())[FileIndexColumnName].AsInt64()) {
+            const auto& currentRow = reader->GetRow();
+            metadata += currentRow[MetadataColumnName].AsString();
+            lastDataPartIndex = currentRow[PartIndexColumnName].AsInt64();
+            reader->Next();
+        }
+
         TArrowSchemaPtr arrowSchema;
         switch (fileFormat) {
             case EFileFormat::ORC:
@@ -741,8 +772,8 @@ std::vector<TTempTable> CreateOutputParserTables(
             outputParserTables.push_back(std::move(outputTable));
         }
         TNode outputRow;
-        outputRow[FileIndexColumnName] = row[FileIndexColumnName].AsInt64();
-        outputRow[PartIndexColumnName] = 1;
+        outputRow[FileIndexColumnName] = currentFileIndex;
+        outputRow[PartIndexColumnName] = lastDataPartIndex + 1;
         outputRow[OutputTableIndexColumnName] = currentOutputTableIndexColumnName;
 
         outputInformationTableWriter->AddRow(std::move(outputRow));
@@ -814,7 +845,9 @@ void ImportFilesFromSource(
 
     TBlobTableSchema blobTableSchema;
     // TODO(babenko): migrate to std::string
-    blobTableSchema.BlobIdColumns({TColumnSchema().Name(TString(FileIndexColumnName)).Type(VT_INT64)});
+    blobTableSchema.BlobIdColumns({
+        TColumnSchema().Name(TString(FileIndexColumnName)).Type(VT_INT64),
+    });
 
     auto createOptions = TCreateOptions().Attributes(
         TNode()("schema", blobTableSchema.CreateYtSchema().ToNode()));
@@ -890,7 +923,7 @@ void ImportFilesFromSource(
 
         ytClient->Map(
             spec,
-            new TDownloadMapper(sourceConfig, ConvertToYsonString(config->JobSingletons).ToString()),
+            new TDownloadMapper(sourceConfig, config->MaxMetadataRowWeight, ConvertToYsonString(config->JobSingletons).ToString()),
             operationOptions);
     }
 

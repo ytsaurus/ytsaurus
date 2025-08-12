@@ -23,6 +23,9 @@ struct TImportConfig
     //! Maximum weight of a single row in the imported table.
     i64 MaxRowWeight;
 
+    //! Maximum weight of a single row in the metadata table.
+    i64 MaxMetadataRowWeight;
+
     //! Regex for filtering out non-parquet files like successful commit markers in S3 and other unrelated stuff.
     NRe2::TRe2Ptr ParquetFileRegex;
 
