@@ -151,6 +151,16 @@ DEFINE_ENUM(EGpuSchedulingLogEventType,
     (MovedNodes)
 );
 
+DEFINE_ENUM(EUnutilizedResourceReason,
+    (Unknown)
+    (Timeout)
+    (Throttling)
+    (FinishedJobs)
+    (NodeHasWaitingAllocations)
+    (AcceptableFragmentation)
+    (ExcessiveFragmentation)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using TOperationElementsBySchedulingPriority = TEnumIndexedArray<EOperationSchedulingPriority, TNonOwningOperationElementList>;

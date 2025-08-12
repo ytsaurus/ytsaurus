@@ -183,10 +183,10 @@ TNodeShard::TNodeShard(
     HeartbeatRegisteredControllerAgentsBytes_ = SchedulerProfiler()
         .Counter("/node_heartbeat/response/proto_registered_controller_agents_bytes");
 
-    for (auto reason : TEnumTraitsImpl<ESchedulingStopReason>::GetDomainValues()) {
-        UnscheduledResourcesCounterByStopReason_[reason].Init(
+    for (auto reason : TEnumTraitsImpl<EUnutilizedResourceReason>::GetDomainValues()) {
+        UnutilizedResourcesCounterByReason_[reason].Init(
             SchedulerProfiler()
-                .WithPrefix("/unscheduled_node_resources")
+                .WithPrefix("/unutilized_node_resources")
                 .WithTag("reason", FormatEnum(reason)),
             EMetricType::Counter);
     }
@@ -481,15 +481,15 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
     auto nodeId = FromProto<TNodeId>(request->node_id());
     auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
-    const auto& resourceLimits = request->resource_limits();
-    const auto& resourceUsage = request->resource_usage();
+    auto resourceLimits = ToJobResources(request->resource_limits());
+    auto resourceUsage = ToJobResources(request->resource_usage());
 
     context->SetRequestInfo("NodeId: %v, NodeAddress: %v, ResourceUsage: %v, AllocationCount: %v",
         nodeId,
         descriptor.GetDefaultAddress(),
         ManagerHost_->FormatHeartbeatResourceUsage(
-            ToJobResources(resourceUsage),
-            ToJobResources(resourceLimits),
+            resourceUsage,
+            resourceLimits,
             request->disk_resources()),
         request->allocations_size());
 
@@ -516,8 +516,8 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         // when node becomes online.
         UpdateNodeResources(
             node,
-            ToJobResources(request->resource_limits()),
-            ToJobResources(request->resource_usage()),
+            resourceLimits,
+            resourceUsage,
             FromProto<TDiskResources>(request->disk_resources()));
     }
 
@@ -561,6 +561,8 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
         response->set_operations_archive_version(ManagerHost_->GetOperationsArchiveVersion());
 
+        UpdateUnutilizedResourcesOnHeartbeatStart(node);
+
         BeginNodeHeartbeatProcessing(node);
     }
     auto finallyGuard = Finally([&, this, cancelableContext = CancelableContext_] {
@@ -571,7 +573,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         HeartbeatResponseProtoMessageBytes_.Increment(response->ByteSizeLong());
     });
 
-    if (resourceLimits.user_slots()) {
+    if (resourceLimits.GetUserSlots() > 0) {
         MaybeDelay(Config_->TestingOptions->NodeHeartbeatProcessingDelay);
     }
 
@@ -588,22 +590,20 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     }
 
     bool skipScheduleAllocations = false;
-    if (hasWaitingAllocations || isThrottlingActive) {
-        if (hasWaitingAllocations) {
-            YT_LOG_DEBUG(
-                "Waiting allocations found (NodeAddress: %v, SuppressingScheduling: %v)",
-                node->GetDefaultAddress(),
-                Config_->DisableSchedulingOnNodeWithWaitingAllocations);
-            if (Config_->DisableSchedulingOnNodeWithWaitingAllocations) {
-                skipScheduleAllocations = true;
-            }
-        }
-        if (isThrottlingActive) {
-            YT_LOG_DEBUG(
-                "Throttling is active, suppressing new allocations scheduling (NodeAddress: %v)",
-                node->GetDefaultAddress());
+    if (hasWaitingAllocations) {
+        YT_LOG_DEBUG(
+            "Waiting allocations found (NodeAddress: %v, SuppressingScheduling: %v)",
+            node->GetDefaultAddress(),
+            Config_->DisableSchedulingOnNodeWithWaitingAllocations);
+        if (Config_->DisableSchedulingOnNodeWithWaitingAllocations) {
             skipScheduleAllocations = true;
         }
+    }
+    if (isThrottlingActive) {
+        YT_LOG_DEBUG(
+            "Throttling is active, suppressing new allocations scheduling (NodeAddress: %v)",
+            node->GetDefaultAddress());
+        skipScheduleAllocations = true;
     }
 
     response->set_scheduling_skipped(skipScheduleAllocations);
@@ -652,11 +652,13 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
     ToProto(response->mutable_min_spare_resources(), minSpareResources);
 
-    if (isThrottlingActive) {
-        schedulingContext->SetSchedulingStopReason(ESchedulingStopReason::Throttling);
-    }
-
-    UpdateUnscheduledNodeCounters(schedulingContext, node, minSpareResources);
+    UpdateUnutilizedResourcesOnHeartbeatEnd(
+        schedulingContext,
+        node,
+        minSpareResources,
+        isThrottlingActive,
+        hasWaitingAllocations && skipScheduleAllocations
+    );
 
     auto now = TInstant::Now();
     auto shouldSendRegisteredControllerAgents = ShouldSendRegisteredControllerAgents(request);
@@ -2376,31 +2378,70 @@ void TNodeShard::ProcessOperationInfoHeartbeat(
     }
 }
 
-void TNodeShard::UpdateUnscheduledNodeCounters(
-    const ISchedulingContextPtr& schedulingContext,
-    const TExecNodePtr& node,
-    const TJobResources& minSpareResources)
+void TNodeShard::UpdateUnutilizedResourceCounters(const TExecNodePtr& node)
 {
     auto now = TInstant::Now();
+    auto secondsSinceLastUpdate = (now - node->LastUnutilisedCountersUpdateTime()).SecondsFloat();
 
+    const auto& unutilizedResources = node->UnutilizedResourcesByReason();
+    for (auto reason : TEnumTraits<EUnutilizedResourceReason>::GetDomainValues()) {
+        if (unutilizedResources[reason]) {
+            auto unutilizedVolume = unutilizedResources[reason].value() * secondsSinceLastUpdate;
+            UnutilizedResourcesCounterByReason_[reason].Update(unutilizedVolume);
+        }
+    }
+
+    node->LastUnutilisedCountersUpdateTime() = now;
+}
+
+void TNodeShard::UpdateUnutilizedResourcesOnHeartbeatStart(
+    const TExecNodePtr& node)
+{
+    UpdateUnutilizedResourceCounters(node);
+
+    auto freeResources = node->ResourceLimits() - node->ResourceUsage();
+    auto freedSinceLastHeartbeat = Max(freeResources - node->LastHeartbeatUnutilizedResources(), TJobResources());
+    if (freedSinceLastHeartbeat != TJobResources()) {
+        node->UnutilizedResourcesByReason()[EUnutilizedResourceReason::FinishedJobs] = freedSinceLastHeartbeat;
+    }
+}
+
+void TNodeShard::UpdateUnutilizedResourcesOnHeartbeatEnd(
+    const ISchedulingContextPtr& schedulingContext,
+    const TExecNodePtr& node,
+    const TJobResources& minSpareResources,
+    bool isThrottlingActive,
+    bool hasWaitingAllocations)
+{
+    // Update counters.
+    UpdateUnutilizedResourceCounters(node);
+
+    // Reset all resource reasons.
+    node->UnutilizedResourcesByReason() = {};
+
+    // Prepare unutilized resources for the next heartbeat.
     auto nodeFreeResources = schedulingContext->GetNodeFreeResourcesWithoutDiscount();
+    EUnutilizedResourceReason reason;
+    if (Dominates(nodeFreeResources, minSpareResources)) {
+        if (isThrottlingActive) {
+            reason = EUnutilizedResourceReason::Throttling;
+        } else if (hasWaitingAllocations) {
+            reason = EUnutilizedResourceReason::NodeHasWaitingAllocations;
+        } else if (schedulingContext->IsHeartbeatTimeoutExpired()) {
+            reason = EUnutilizedResourceReason::Timeout;
+        } else {
+            reason = EUnutilizedResourceReason::Unknown;
+        }
+        node->UnutilizedResourcesByReason()[reason] = nodeFreeResources;
+    } else {
+        auto acceptableFragmentation = Min(nodeFreeResources, minSpareResources);
+        auto excessiveFragmentation = nodeFreeResources - acceptableFragmentation;
 
-    auto finally = Finally([&] {
-        node->LastHeartbeatUnscheduledResources() = nodeFreeResources;
-        node->LastHeartbeatTime() = now;
-    });
-
-    auto schedulingStopReason = schedulingContext->GetSchedulingStopReason();
-    if (schedulingStopReason == ESchedulingStopReason::FullyScheduled) {
-        return;
+        node->UnutilizedResourcesByReason()[EUnutilizedResourceReason::AcceptableFragmentation] = acceptableFragmentation;
+        node->UnutilizedResourcesByReason()[EUnutilizedResourceReason::ExcessiveFragmentation] = excessiveFragmentation;
     }
 
-    if (Dominates(node->LastHeartbeatUnscheduledResources(), minSpareResources)) {
-        auto secondsSinceLastHeartbeat = (now - node->LastHeartbeatTime()).SecondsFloat();
-        auto unscheduledResourceTime = node->LastHeartbeatUnscheduledResources() * secondsSinceLastHeartbeat;
-
-        UnscheduledResourcesCounterByStopReason_[schedulingStopReason].Update(unscheduledResourceTime);
-    }
+    node->LastHeartbeatUnutilizedResources() = nodeFreeResources;
 }
 
 bool TNodeShard::ShouldSendRegisteredControllerAgents(TScheduler::TCtxNodeHeartbeat::TTypedRequest* request)
