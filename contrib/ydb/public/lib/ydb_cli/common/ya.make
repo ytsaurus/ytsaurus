@@ -16,7 +16,6 @@ SRCS(
     parameter_stream.cpp
     parameters.cpp
     pg_dump_parser.cpp
-    plan2svg.cpp
     pretty_table.cpp
     print_operation.cpp
     print_utils.cpp
@@ -57,6 +56,7 @@ PEERDIR(
     contrib/ydb/public/sdk/cpp/src/client/types/credentials
     contrib/ydb/public/sdk/cpp/src/client/types/credentials/oauth2_token_exchange
     contrib/ydb/library/arrow_parquet
+    contrib/ydb/library/plan2svg
     contrib/ydb/public/lib/ydb_cli/common/ini_config
     contrib/ydb/public/lib/ydb_cli/common/yql_parser
 )
