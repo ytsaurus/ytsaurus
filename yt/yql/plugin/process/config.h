@@ -1,35 +1,15 @@
 #pragma once
 
 #include "private.h"
-#include "public.h"
-
-#include <yt/yt/core/logging/config.h>
-#include <yt/yt/library/server_program/config.h>
-#include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yql/plugin/plugin.h>
+#include <yt/yql/plugin/public.h>
 
-namespace NYT::NYqlPlugin {
-namespace NProcess {
+#include <yt/yt/server/lib/misc/config.h>
 
-struct TYqlProcessPluginConfig
-    : public NYTree::TYsonStruct
-{
+#include <yt/yt/library/server_program/config.h>
 
-    bool Enabled;
-    int SlotsCount;
-    TString SlotsRootPath;
-
-    TDuration CheckProcessActiveDelay;
-
-    NLogging::TLogManagerConfigPtr LogManagerTemplate;
-
-    REGISTER_YSON_STRUCT(TYqlProcessPluginConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TYqlProcessPluginConfig)
+namespace NYT::NYqlPlugin::NProcess {
 
 ////////////////////////////////////////////////////////////////////////////////
 struct TYqlProcessPluginOptions
@@ -60,10 +40,11 @@ struct TYqlPluginProcessInternalConfig
     : public NServer::TNativeServerBootstrapConfig
     , public TServerProgramConfig
 {
-
     int SlotIndex;
 
-    TYqlProcessPluginOptionsPtr PluginOptions;
+    TYqlPluginConfigPtr PluginConfig;
+
+    TString MaxSupportedYqlVersion;
 
     REGISTER_YSON_STRUCT(TYqlPluginProcessInternalConfig);
 
@@ -72,6 +53,4 @@ struct TYqlPluginProcessInternalConfig
 
 DEFINE_REFCOUNTED_TYPE(TYqlPluginProcessInternalConfig)
 
-} // namespace NProcess
-
-} // namespace NYT::NYqlPlugin
+} // namespace NYT::NYqlPlugin::NProcess
