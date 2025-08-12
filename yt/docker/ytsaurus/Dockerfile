@@ -20,7 +20,7 @@ ARG ROOT_IMAGE="ubuntu-base"
 
 ##########################################################################################
 
-FROM mirror.gcr.io/ubuntu:nobel AS ubuntu-base
+FROM mirror.gcr.io/ubuntu:noble AS ubuntu-base
 
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
