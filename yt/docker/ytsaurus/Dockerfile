@@ -5,7 +5,7 @@ ARG BASE_REPOSITORY="ghcr.io/ytsaurus/ytsaurus-nightly"
 ARG BASE_IMAGE="latest"
 
 # Args for odin.
-ARG PYTHON_RUNTIME_VERSION="3.12"
+ARG PYTHON_RUNTIME_VERSION="3.11"
 
 ARG ODIN_ROOT="/ytsaurus"
 ARG ODIN_VIRTUAL_ENV="${ODIN_ROOT}/virtualenv"
@@ -22,11 +22,11 @@ ARG ROOT_IMAGE="ubuntu-base"
 
 FROM mirror.gcr.io/ubuntu:noble AS ubuntu-base
 
-RUN apt-get update \
+RUN add-apt-repository ppa:deadsnakes/ppa && apt-get update \
     && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
       python3-pip \
-      python3.12  \
-      python3.12-distutils \
+      python3.8  \
+      python3.8-distutils \
       linux-tools-generic
 
 ##########################################################################################
@@ -68,8 +68,8 @@ RUN apt-get update \
       libidn11-dev \
       lsb-release \
       lsof \
-      python3.12 \
-      python3.12-venv \
+      python3.11 \
+      python3.11-venv \
       strace \
       telnet \
       tini \
@@ -110,7 +110,7 @@ COPY ./artifacts/libyson_lib.so ${BUILD_ROOT}/yt/yt/python/yson_shared/libyson_l
 COPY ./artifacts/libdriver_lib.so ${BUILD_ROOT}/yt/yt/python/driver/native_shared/libdriver_lib.so
 COPY ./artifacts/libdriver_rpc_lib.so ${BUILD_ROOT}/yt/yt/python/driver/rpc_shared/libdriver_rpc_lib.so
 
-RUN python3.12 -m venv package-env
+RUN python3.11 -m venv package-env
 RUN . package-env/bin/activate; \
     ${SOURCE_ROOT}/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path ${SOURCE_ROOT} --ytsaurus-build-path ${BUILD_ROOT} --apply-auditwheel
 
@@ -128,7 +128,7 @@ RUN for package in client yson local native_driver; \
   do \
     dist_dir="/tmp/ytsaurus_python/ytsaurus_${package}_dist"; \
     wheel_path="${dist_dir}/$(ls ${dist_dir} | grep "^ytsaurus_$package.*whl$")"; \
-    python3.12 -m pip install ${wheel_path}; \
+    python3.8 -m pip install ${wheel_path}; \
   done
 
 RUN ln -s /usr/local/bin/yt /usr/bin/yt -f
@@ -146,9 +146,9 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
 RUN ln -s /usr/lib/jvm/java-11-openjdk-amd64 /opt/jdk11
 
 # Default python to be used by python3 jobs, for compatibility with jupyter tutorial.
-RUN ln -s /usr/bin/python3.12 /usr/bin/python3 -f
+RUN ln -s /usr/bin/python3.8 /usr/bin/python3 -f
 # Force lsb_release to use python it was born to use.
-RUN sed -i 's/python3/python3.12/' /usr/bin/lsb_release
+RUN sed -i 's/python3/python3.8/' /usr/bin/lsb_release
 
 ##########################################################################################
 
@@ -195,7 +195,7 @@ COPY ./ytserver-clickhouse /usr/bin/ytserver-clickhouse
 COPY ./credits/ytserver-clickhouse.CREDITS /usr/bin/ytserver-clickhouse.CREDITS
 
 # Install YT client for setup script.
-RUN python3.12 -m pip install ytsaurus-client
+RUN python3.8 -m pip install ytsaurus-client
 RUN ln -s /usr/local/bin/yt /usr/bin/yt -f
 
 # Setup script.
@@ -209,6 +209,10 @@ FROM base-ytsaurus-python-packages AS base-query-tracker
 # Libpython shared objects that are needed for YQL system python UDFs to work.
 # TODO(aleksandr.gaev) use stubs instead. We don't need working libpythons here.
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
+  libpython3.8 \
+  libpython3.9 \
+  libpython3.10 \
+  libpython3.11 \
   libpython3.12
 
 ##########################################################################################
@@ -260,6 +264,10 @@ COPY ./yql/* /usr/bin
 # Libpython shared objects that are needed for YQL system python UDFs to work.
 # TODO(aleksandr.gaev) use stubs instead. We don't need working libpythons here.
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
+  libpython3.8 \
+  libpython3.9 \
+  libpython3.10 \
+  libpython3.11 \
   libpython3.12
 
 FROM scratch AS local
