@@ -2,7 +2,7 @@
 
 #include "disk_location.h"
 
-#include <yt/yt/orm/library/query/public.h>
+#include <yt/yt/orm/library/query/heavy/public.h>
 
 #include <yt/yt/server/node/data_node/public.h>
 

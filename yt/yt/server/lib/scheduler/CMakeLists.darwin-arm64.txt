@@ -44,7 +44,7 @@ target_include_directories(server-lib-scheduler PUBLIC
 target_link_libraries(server-lib-scheduler PUBLIC
   contrib-libs-cxxsupp
   yutil
-  orm-library-query
+  library-query-heavy
   yt-yt-ytlib
   server-lib-node_tracker_server
   yt_proto-yt-client

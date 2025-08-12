@@ -34,7 +34,7 @@ target_link_libraries(server-lib-tablet_balancer PUBLIC
   yutil
   yt-yt-client
   yt-yt-core
-  orm-library-query
+  library-query-heavy
   yt-yt-ytlib
 )
 

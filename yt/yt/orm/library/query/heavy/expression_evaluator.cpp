@@ -1,8 +1,9 @@
 #include "expression_evaluator.h"
 
-#include "helpers.h"
 #include "query_evaluator.h"
-#include "query_rewriter.h"
+
+#include <yt/yt/orm/library/query/helpers.h>
+#include <yt/yt/orm/library/query/query_rewriter.h>
 
 #include <yt/yt/orm/library/attributes/attribute_path.h>
 
@@ -280,6 +281,8 @@ std::vector<TColumnSchema> CreateColumnsFromPaths(const std::vector<TTypedAttrib
     }
     return columns;
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 
