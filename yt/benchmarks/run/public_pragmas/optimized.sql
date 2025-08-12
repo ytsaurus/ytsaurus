@@ -9,7 +9,6 @@ pragma config.flags(
     "OptimizerFlags",
     "EmitPruneKeys",
     "FilterPushdownEnableMultiusage",
-    "EarlyExpandSkipNull",
     "PushdownComplexFiltersOverAggregate",
     "ExtractCommonPredicatesFromLogicalOps",
     "PullUpExtendOverEquiJoin",
