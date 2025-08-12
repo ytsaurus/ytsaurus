@@ -9,7 +9,5 @@ extern const TString YqlAgentProgramName;
 extern const TString YqlPluginSubcommandName;
 extern const TString YqlPluginConfigFilename;
 
-DECLARE_REFCOUNTED_STRUCT(TYqlProcessPluginConfig)
-
 } // namespace NProcess
 } // namespace NYT::NYqlPlugin

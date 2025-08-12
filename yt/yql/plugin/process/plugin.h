@@ -1,24 +1,21 @@
 #pragma once
 
-#include "config.h"
-
 #include <yt/yql/agent/bootstrap.h>
-#include <yt/yql/agent/config.h>
 
+#include <yt/yql/plugin/config.h>
 #include <yt/yql/plugin/plugin.h>
 
-namespace NYT::NYqlPlugin {
-namespace NProcess {
+namespace NYT::NYqlPlugin::NProcess {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IYqlPlugin> CreateProcessYqlPlugin(
     NYqlAgent::TBootstrap* bootstrap,
-    TYqlPluginOptions options,
-    NYqlPlugin::NProcess::TYqlProcessPluginConfigPtr config,
-    const NProfiling::TProfiler& profiler);
+    TYqlPluginConfigPtr pluginConfig,
+    TYqlProcessPluginConfigPtr config,
+    const NProfiling::TProfiler& profiler,
+    TString maxSupportedYqlVersion);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NProcess
-} // namespace NYT::NYqlPlugin
+} // namespace NYT::NYqlPlugin::NProcess

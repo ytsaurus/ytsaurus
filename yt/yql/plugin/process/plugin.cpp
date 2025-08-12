@@ -1,11 +1,12 @@
-#include "plugin.h"
-
 #include "private.h"
 
-#include <library/cpp/retry/retry.h>
-#include <library/cpp/yson/node/node_io.h>
-#include <library/cpp/yson/parser.h>
-#include <library/cpp/yson/writer.h>
+#include "config.h"
+
+#include "plugin.h"
+
+#include <yt/yql/plugin/config.h>
+
+#include <yt/cpp/mapreduce/common/helpers.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/yql_plugin/yql_plugin_proxy.h>
@@ -23,7 +24,10 @@
 #include <yt/yt/core/rpc/client.h>
 #include <yt/yt/core/ytree/convert.h>
 
-#include <yt/cpp/mapreduce/common/helpers.h>
+#include <library/cpp/retry/retry.h>
+#include <library/cpp/yson/node/node_io.h>
+#include <library/cpp/yson/parser.h>
+#include <library/cpp/yson/writer.h>
 
 namespace NYT::NYqlPlugin {
 namespace NProcess {
@@ -32,6 +36,7 @@ static constexpr auto& Logger = YqlProcessPluginLogger;
 
 using namespace NConcurrency;
 using namespace NYson;
+using namespace NYTree;
 
 using NYqlClient::NProto::TYqlQueryFile_EContentType;
 using NYqlClient::NProto::TYqlResponse;
@@ -80,14 +85,15 @@ class TYqlProcessPlugin
 public:
     explicit TYqlProcessPlugin(
         NYqlAgent::TBootstrap* bootstrap,
-        TYqlPluginOptions options,
+        TYqlPluginConfigPtr pluginConfig,
         TYqlProcessPluginConfigPtr config,
-        const NProfiling::TProfiler& profiler)
+        const NProfiling::TProfiler& profiler,
+        TString maxSupportedYqlVersion)
         : Config_(std::move(config))
         , Queue_(New<TActionQueue>("YqlProcessPlugin"))
         , Invoker_(Queue_->GetInvoker())
         , YqlProcesses_(Config_->SlotsCount)
-        , ConfigTemplate_(BuildPluginConfigTemplate(Config_, std::move(options), bootstrap))
+        , ConfigTemplate_(BuildPluginConfigTemplate(Config_, std::move(pluginConfig), bootstrap, std::move(maxSupportedYqlVersion)))
         , StandbyProcessesGauge_(profiler.Gauge("/standby_processes"))
         , ActiveProcessesGauge_(profiler.Gauge("/active_processes"))
         , ProcessesLimitGauge_(profiler.Gauge("/processes_limit"))
@@ -590,10 +596,11 @@ private:
         config->SlotIndex = slotIndex;
         config->BusServer = serverConfig;
 
-        auto fileStorageConfig = NodeFromYsonString(config->PluginOptions->FileStorageConfig.ToString());
-        fileStorageConfig.AsMap()["path"] = NFS::CombinePaths(GetSlotPath(slotIndex), "tmp");
-        config->PluginOptions->FileStorageConfig = NYson::TYsonString(NodeToYsonString(fileStorageConfig));
-
+        auto fileStoragePath = BuildYsonNodeFluently()
+            .Value(NFS::CombinePaths(GetSlotPath(slotIndex), "tmp"));
+        
+        config->PluginConfig->FileStorageConfig->AsMap()->AddChild("path", fileStoragePath);
+        
         auto logManagerConfig = config->GetSingletonConfig<NLogging::TLogManagerConfig>();
         logManagerConfig->UpdateWriters([&](const NYTree::IMapNodePtr& writerConfigNode) {
             auto writerConfig = ConvertTo<NLogging::TLogWriterConfigPtr>(writerConfigNode);
@@ -633,38 +640,24 @@ private:
         NYson::TProtobufWriterOptions protobufWriterOptions;
         protobufWriterOptions.ConvertSnakeToCamelCase = true;
 
-        auto dynamicGatewaysConfig = NodeFromYsonString(config.GatewaysConfig.AsStringBuf());
-        auto templateGatewaysConfig = NodeFromYsonString(ConfigTemplate_->PluginOptions->GatewayConfig.AsStringBuf());
-
-        MergeNodes(templateGatewaysConfig, dynamicGatewaysConfig);
-
-        ConfigTemplate_->PluginOptions->GatewayConfig = NYson::TYsonString(NodeToYsonString(templateGatewaysConfig));
+        ConfigTemplate_->PluginConfig->GatewayConfig = PatchNode(
+            ConfigTemplate_->PluginConfig->GatewayConfig, 
+            ConvertTo<INodePtr>(config.GatewaysConfig));
     }
 
     static TYqlPluginProcessInternalConfigPtr BuildPluginConfigTemplate(
         TYqlProcessPluginConfigPtr config,
-        TYqlPluginOptions options,
-        NYqlAgent::TBootstrap* bootstrap)
+        TYqlPluginConfigPtr pluginConfig,
+        NYqlAgent::TBootstrap* bootstrap,
+        TString maxSupportedYqlVersion)
     {
         TYqlPluginProcessInternalConfigPtr result = New<TYqlPluginProcessInternalConfig>();
 
         result->SetSingletonConfig(config->LogManagerTemplate);
         result->ClusterConnection = bootstrap->GetNativeServerBootstrapConfig()->ClusterConnection->Clone();
 
-        result->PluginOptions = New<TYqlProcessPluginOptions>();
-        result->PluginOptions->GatewayConfig = options.GatewayConfig;
-        if (options.DqGatewayConfig) {
-            result->PluginOptions->DqGatewayConfig = options.DqGatewayConfig;
-        }
-        if (options.DqManagerConfig) {
-            result->PluginOptions->DqManagerConfig = options.DqManagerConfig;
-        }
-        result->PluginOptions->FileStorageConfig = options.FileStorageConfig;
-        result->PluginOptions->SingletonsConfig = options.SingletonsConfig;
-        result->PluginOptions->YqlPluginSharedLibrary = options.YqlPluginSharedLibrary;
-        result->PluginOptions->Libraries = options.Libraries;
-        result->PluginOptions->OperationAttributes = options.OperationAttributes;
-        result->PluginOptions->YTTokenPath = options.YTTokenPath;
+        result->PluginConfig = pluginConfig;
+        result->MaxSupportedYqlVersion = maxSupportedYqlVersion;
 
         return result;
     }
@@ -701,11 +694,12 @@ TString TYqlProcessPlugin::SocketName = "yql-plugin.sock";
 
 std::unique_ptr<IYqlPlugin> CreateProcessYqlPlugin(
     NYqlAgent::TBootstrap* bootstrap,
-    TYqlPluginOptions options,
-    NYqlPlugin::NProcess::TYqlProcessPluginConfigPtr config,
-    const NProfiling::TProfiler& profiler)
+    TYqlPluginConfigPtr pluginConfig,
+    TYqlProcessPluginConfigPtr config,
+    const NProfiling::TProfiler& profiler,
+    TString maxSupportedYqlVersion)
 {
-    return std::make_unique<TYqlProcessPlugin>(bootstrap, std::move(options), config, profiler);
+    return std::make_unique<TYqlProcessPlugin>(bootstrap, std::move(pluginConfig), std::move(config), profiler, maxSupportedYqlVersion);
 }
 
 } // namespace NProcess

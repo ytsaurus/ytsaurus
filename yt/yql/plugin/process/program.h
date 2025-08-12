@@ -3,6 +3,7 @@
 #include "config.h"
 #include "plugin_service.h"
 
+#include <yt/yql/plugin/config.h>
 #include <yt/yql/plugin/bridge/plugin.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
@@ -67,18 +68,12 @@ protected:
 
         YT_VERIFY(config->BusServer->UnixDomainSocketPath);
 
-        TYqlPluginOptions options{
-            .SingletonsConfig = config->PluginOptions->SingletonsConfig,
-            .GatewayConfig = config->PluginOptions->GatewayConfig,
-            .DqGatewayConfig = config->PluginOptions->DqGatewayConfig.value_or(NYson::TYsonString()),
-            .DqManagerConfig = config->PluginOptions->DqManagerConfig.value_or(NYson::TYsonString()),
-            .FileStorageConfig = config->PluginOptions->FileStorageConfig,
-            .OperationAttributes = config->PluginOptions->OperationAttributes,
-            .Libraries = config->PluginOptions->Libraries,
-            .YTTokenPath = config->PluginOptions->YTTokenPath,
-            .LogBackend = NLogging::CreateArcadiaLogBackend(NLogging::TLogger("YqlPlugin")),
-            .YqlPluginSharedLibrary = config->PluginOptions->YqlPluginSharedLibrary,
-        };
+        auto options = ConvertToOptions(
+            config->PluginConfig,
+            NYson::ConvertToYsonString(ConvertTo<TSingletonsConfigPtr>(config)),
+            NLogging::CreateArcadiaLogBackend(NLogging::TLogger("YqlPlugin")), 
+            config->MaxSupportedYqlVersion
+        );
 
         auto YqlPlugin = CreateBridgeYqlPlugin(std::move(options));
         auto YqlPluginService = CreateYqlPluginService(ControlInvoker_, std::move(YqlPlugin));

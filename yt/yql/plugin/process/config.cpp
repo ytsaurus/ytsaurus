@@ -1,25 +1,9 @@
 #include "config.h"
 
+#include <yt/yql/plugin/config.h>
+
 namespace NYT::NYqlPlugin {
 namespace NProcess {
-
-void TYqlProcessPluginConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("enabled", &TThis::Enabled)
-        .Default(false);
-
-    registrar.Parameter("slots_count", &TThis::SlotsCount)
-        .Default(32);
-
-    registrar.Parameter("slots_root_path", &TThis::SlotsRootPath)
-        .Default("/yt/plugin_slots");
-
-    registrar.Parameter("check_process_active_delay", &TThis::CheckProcessActiveDelay)
-        .Default(TDuration::Minutes(1));
-
-    registrar.Parameter("log_manager_template", &TThis::LogManagerTemplate)
-        .DefaultNew();
-}
 
 void TYqlProcessPluginOptions::Register(TRegistrar registrar)
 {
@@ -46,8 +30,10 @@ void TYqlProcessPluginOptions::Register(TRegistrar registrar)
 void TYqlPluginProcessInternalConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("slot_index", &TThis::SlotIndex);
-    registrar.Parameter("plugin_options", &TThis::PluginOptions)
+    registrar.Parameter("plugin_options", &TThis::PluginConfig)
         .DefaultNew();
+
+    registrar.Parameter("max_supported_yql_version", &TThis::MaxSupportedYqlVersion);
 }
 
 } // namespace NProcess

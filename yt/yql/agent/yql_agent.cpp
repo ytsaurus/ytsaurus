@@ -279,34 +279,27 @@ public:
         NYql::FormatLangVersion(std::min(NYql::GetMaxReleasedLangVersion(), maxYqlLangVersion), buffer, defaultVersionStringBuf);
         DefaultYqlUILangVersion_ = defaultVersionStringBuf;
         YT_LOG_INFO("Deafult YQL version for UI is set (Version: %v)", DefaultYqlUILangVersion_);
-
-
-        NYqlPlugin::TYqlPluginOptions options{
-            .SingletonsConfig = singletonsConfigString,
-            .GatewayConfig = ConvertToYsonString(Config_->GatewayConfig),
-            .DqGatewayConfig = Config_->EnableDQ ? ConvertToYsonString(Config_->DQGatewayConfig) : TYsonString(),
-            .YtflowGatewayConfig = ConvertToYsonString(Config_->YtflowGatewayConfig),
-            .DqManagerConfig = Config_->EnableDQ ? ConvertToYsonString(Config_->DQManagerConfig) : TYsonString(),
-            .FileStorageConfig = ConvertToYsonString(Config_->FileStorageConfig),
-            .OperationAttributes = ConvertToYsonString(Config_->OperationAttributes),
-            .Libraries = ConvertToYsonString(Config_->Libraries),
-            .YTTokenPath = Config_->YTTokenPath,
-            .UIOrigin = Config_->UIOrigin,
-            .LogBackend = NYT::NLogging::CreateArcadiaLogBackend(TLogger("YqlPlugin")),
-            .YqlPluginSharedLibrary = Config_->YqlPluginSharedLibrary,
-            .MaxYqlLangVersion = MaxSupportedYqlVersion_,
-        };
+        auto options = NYqlPlugin::ConvertToOptions(
+            Config_, 
+            singletonsConfigString, 
+            NYT::NLogging::CreateArcadiaLogBackend(TLogger("YqlPlugin")), 
+            MaxSupportedYqlVersion_);
 
         // NB: under debug build this method does not fit in regular fiber stack
         // due to python udf loading
         using TSignature = void(NYqlPlugin::TYqlPluginOptions);
         auto coroutine = TCoroutine<TSignature>(
-            BIND([this, bootstrap](
+            BIND([this, bootstrap, maxVersionStringBuf](
                 TCoroutine<TSignature>& /*self*/,
                 NYqlPlugin::TYqlPluginOptions options
             ) {
                 YqlPlugin_ = Config_->ProcessPluginConfig->Enabled 
-                    ? NYqlPlugin::NProcess::CreateProcessYqlPlugin(bootstrap, std::move(options), Config_->ProcessPluginConfig, YqlAgentProfiler().WithPrefix("/yql_plugin"))
+                    ? NYqlPlugin::NProcess::CreateProcessYqlPlugin(
+                        bootstrap, 
+                        Config_, 
+                        Config_->ProcessPluginConfig, 
+                        YqlAgentProfiler().WithPrefix("/yql_plugin"),
+                        TString(maxVersionStringBuf))
                     : NYqlPlugin::CreateBridgeYqlPlugin(std::move(options));
             }),
             EExecutionStackKind::Large);
