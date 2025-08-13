@@ -24,7 +24,7 @@ FROM mirror.gcr.io/ubuntu:focal AS ubuntu-base
 
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
-      software-properties-common &&
+      software-properties-common && \
       add-apt-repository ppa:deadsnakes/ppa
 
 RUN apt-get update \
