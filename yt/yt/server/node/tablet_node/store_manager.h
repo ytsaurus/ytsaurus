@@ -101,8 +101,7 @@ struct IStoreManager
     virtual TStoreFlushCallback BeginStoreFlush(
         IDynamicStorePtr store,
         TTabletSnapshotPtr tabletSnapshot,
-        bool isUnmountWorkflow,
-        bool onlyUpdateRowCache) = 0;
+        bool isUnmountWorkflow) = 0;
     virtual void EndStoreFlush(IDynamicStorePtr store) = 0;
     virtual void BackoffStoreFlush(IDynamicStorePtr store) = 0;
 

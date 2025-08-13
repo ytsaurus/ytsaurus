@@ -196,8 +196,8 @@ private:
     TStoreFlushCallback MakeStoreFlushCallback(
         IDynamicStorePtr store,
         TTabletSnapshotPtr tabletSnapshot,
-        bool isUnmountWorkflow,
-        bool onlyUpdateRowCache) override;
+        bool isUnmountWorkflow) override;
+
 
     bool CheckInactiveStoresLocks(
         TUnversionedRow row,

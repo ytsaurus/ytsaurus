@@ -3,7 +3,6 @@
 #include "automaton.h"
 #include "config.h"
 #include "in_memory_manager.h"
-#include "private.h"
 #include "sorted_chunk_store.h"
 #include "sorted_dynamic_store.h"
 #include "store_flusher.h"
@@ -819,8 +818,7 @@ void TSortedStoreManager::OnActiveStoreRotated()
 TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
     IDynamicStorePtr store,
     TTabletSnapshotPtr tabletSnapshot,
-    bool isUnmountWorkflow,
-    bool onlyUpdateRowCache)
+    bool isUnmountWorkflow)
 {
     auto sortedDynamicStore = store->AsSortedDynamic();
     auto reader = sortedDynamicStore->CreateFlushReader();
@@ -1097,14 +1095,12 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                 cacheUpdateStatistics.FailedByMemoryRows += statistics.FailedByMemoryRows;
             }
 
-            if (!onlyUpdateRowCache) {
-                if (!storeWriter->Write(rows)) {
-                    WaitFor(storeWriter->GetReadyEvent())
-                        .ThrowOnError();
-                }
-
-                updateWriterStatistics();
+            if (!storeWriter->Write(rows)) {
+                WaitFor(storeWriter->GetReadyEvent())
+                    .ThrowOnError();
             }
+
+            updateWriterStatistics();
 
             onFlushRowMerger->Reset();
             compactionRowMerger->Reset();

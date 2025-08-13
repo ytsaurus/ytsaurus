@@ -2817,14 +2817,9 @@ class TestSelectWithRowCache(TestLookupCache):
     COUNTER_NAME = "select"
 
     def _read(self, table, keys, column_names=None, **kwargs):
-        order = ",".join(str(i) for i in range(len(keys)))
         keys = str(list(keys))[1:-1]
-        column_names = "*" if column_names is None else ", ".join(map(lambda x: f"`{x}`", column_names))
-        return select_rows(
-            f"""{column_names} from [{table}]
-            where key in ({keys})
-            order by transform(key, ({keys}), ({order})) limit 10000""",
-            **kwargs)
+        column_names = "*" if column_names is None else ", ".join(column_names)
+        return select_rows(column_names + f" from [{table}] where key in ({keys})", **kwargs)
 
 
 @pytest.mark.enabled_multidaemon

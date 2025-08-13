@@ -268,10 +268,10 @@ class DynamicTablesBase(YTEnvSetup):
             set_node_decommissioned(addr, True)
         return addresses
 
-    def _get_table_profiling(self, table, user=None, tablet_cell_bundle="default"):
+    def _get_table_profiling(self, table, user=None):
         class Profiling:
             def __init__(self):
-                self.profiler = profiler_factory().at_tablet_node(table, tablet_cell_bundle)
+                self.profiler = profiler_factory().at_tablet_node(table)
                 self.tags = {
                     "table_path": table,
                 }

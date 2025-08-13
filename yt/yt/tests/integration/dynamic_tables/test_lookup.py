@@ -11,8 +11,7 @@ from yt_commands import (
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_reshard_table,
     sync_flush_table, sync_compact_table, update_nodes_dynamic_config, set_node_banned,
     get_cell_leader_address, get_tablet_leader_address, WaitFailed, raises_yt_error,
-    wait_for_cells, build_snapshot, sort, merge, create_tablet_cell_bundle,
-    AsyncLastCommittedTimestamp)
+    wait_for_cells, build_snapshot, sort, merge)
 
 from yt_type_helpers import make_schema
 
@@ -1619,20 +1618,12 @@ class TestLookupCache(TestSortedDynamicTablesBase):
     }
 
     COUNTER_NAME = "lookup"
-    TABLET_CELL_BUNDLE = "cauchy"
 
     def _performance_counter_type(self):
         return self.COUNTER_NAME if self.COUNTER_NAME == "lookup" else "read"
 
     def _read(self, table, keys, column_names=None, **kwargs):
-        if "timestamp" not in kwargs:
-            kwargs["timestamp"] = AsyncLastCommittedTimestamp
-        return lookup_rows(
-            table,
-            [{"key": key} for key in keys],
-            column_names=column_names,
-            read_from="follower",
-            **kwargs)
+        return lookup_rows(table, [{"key": key} for key in keys], column_names=column_names, **kwargs)
 
     def _create_simple_table(self, path, hunks, **kwargs):
         value_column_schema = {"name": "value", "type": "string"}
@@ -1647,25 +1638,15 @@ class TestLookupCache(TestSortedDynamicTablesBase):
             ],
             **kwargs)
 
-    def _setup_cell(self, peer_count):
-        create_tablet_cell_bundle(self.TABLET_CELL_BUNDLE, attributes={"options": {"peer_count": peer_count}})
-        return sync_create_cells(1, tablet_cell_bundle=self.TABLET_CELL_BUNDLE)[0]
-
     @authors("lukyan")
     @pytest.mark.parametrize("hunks", [False, True])
-    @pytest.mark.parametrize("peer_count", [1, 2])
-    def test_lookup_cache(self, hunks, peer_count):
-        self._setup_cell(peer_count)
+    def test_lookup_cache(self, hunks):
+        sync_create_cells(1)
 
         def _make_value(i):
             return str(i) + ("payload" * (i % 5) if hunks else "")
 
-        self._create_simple_table(
-            "//tmp/t",
-            hunks,
-            lookup_cache_rows_per_tablet=50,
-            tablet_cell_bundle=self.TABLET_CELL_BUNDLE,
-        )
+        self._create_simple_table("//tmp/t", hunks, lookup_cache_rows_per_tablet=50)
         set("//tmp/t/@mount_config/insert_meta_upon_store_update", False)
         sync_mount_table("//tmp/t")
 
@@ -1682,10 +1663,9 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         # Lookup key without polluting cache to increment static_chunk_row_{lookup/read}_count.
         self._read("//tmp/t", [2])
 
-        if peer_count == 1:
-            path = f"//tmp/t/@tablets/0/performance_counters/static_chunk_row_{self._performance_counter_type()}_count"
-            wait(lambda: get(path) > 50)
-            assert get(path) == 51
+        path = f"//tmp/t/@tablets/0/performance_counters/static_chunk_row_{self._performance_counter_type()}_count"
+        wait(lambda: get(path) > 50)
+        assert get(path) == 51
 
         # Modify some rows.
         rows = [{"key": i, "value": _make_value(i + 1)} for i in range(100, 200, 2)]
@@ -1705,9 +1685,8 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         # Lookup key without cache.
         self._read("//tmp/t", [2])
 
-        if peer_count == 1:
-            wait(lambda: get(path) > 51)
-            assert get(path) == 52
+        wait(lambda: get(path) > 51)
+        assert get(path) == 52
 
         node = get_tablet_leader_address(get("//tmp/t/@tablets/0/tablet_id"))
         sync_unmount_table("//tmp/t")
@@ -1715,18 +1694,13 @@ class TestLookupCache(TestSortedDynamicTablesBase):
 
     @authors("lukyan")
     @pytest.mark.parametrize("hunks", [False, True])
-    @pytest.mark.parametrize("peer_count", [1, 2])
-    def test_lookup_cache_options(self, hunks, peer_count):
-        self._setup_cell(peer_count)
+    def test_lookup_cache_options(self, hunks):
+        sync_create_cells(1)
 
         def _make_value(i):
             return str(i) + ("payload" * (i % 5) if hunks else "")
 
-        self._create_simple_table(
-            "//tmp/t",
-            hunks,
-            tablet_cell_bundle=self.TABLET_CELL_BUNDLE,
-        )
+        self._create_simple_table("//tmp/t", hunks)
 
         sync_mount_table("//tmp/t")
 
@@ -1743,10 +1717,9 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         # Lookup key without polluting cache to increment static_chunk_row_{lookup/read}_count.
         self._read("//tmp/t", [2])
 
-        if peer_count == 1:
-            path = f"//tmp/t/@tablets/0/performance_counters/static_chunk_row_{self._performance_counter_type()}_count"
-            wait(lambda: get(path) > 50)
-            assert get(path) == 51
+        path = f"//tmp/t/@tablets/0/performance_counters/static_chunk_row_{self._performance_counter_type()}_count"
+        wait(lambda: get(path) > 50)
+        assert get(path) == 51
 
         set("//tmp/t/@lookup_cache_rows_ratio", 0.1)
         set("//tmp/t/@enable_lookup_cache_by_default", True)
@@ -1770,26 +1743,19 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         # Lookup key without cache.
         self._read("//tmp/t", [2], use_lookup_cache=False)
 
-        if peer_count == 1:
-            path = f"//tmp/t/@tablets/0/performance_counters/static_chunk_row_{self._performance_counter_type()}_count"
-            wait(lambda: get(path) > 101)
-            assert get(path) == 102
+        path = f"//tmp/t/@tablets/0/performance_counters/static_chunk_row_{self._performance_counter_type()}_count"
+        wait(lambda: get(path) > 101)
+        assert get(path) == 102
 
     @authors("lukyan")
     @pytest.mark.parametrize("hunks", [False, True])
-    @pytest.mark.parametrize("peer_count", [1, 2])
-    def test_lookup_cache_flush(self, hunks, peer_count):
-        self._setup_cell(peer_count)
+    def test_lookup_cache_flush(self, hunks):
+        sync_create_cells(1)
 
         def _make_value(i):
             return str(i) + ("payload" * (i % 5) if hunks else "")
 
-        self._create_simple_table(
-            "//tmp/t",
-            hunks,
-            lookup_cache_rows_per_tablet=50,
-            tablet_cell_bundle=self.TABLET_CELL_BUNDLE,
-        )
+        self._create_simple_table("//tmp/t", hunks, lookup_cache_rows_per_tablet=50)
 
         sync_mount_table("//tmp/t")
 
@@ -1814,16 +1780,15 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         # Lookup key without cache.
         self._read("//tmp/t", [2])
 
-        if peer_count == 1:
-            path = f"//tmp/t/@tablets/0/performance_counters/static_chunk_row_{self._performance_counter_type()}_count"
-            wait(lambda: get(path) > 0)
-            assert get(path) == 1
+        path = f"//tmp/t/@tablets/0/performance_counters/static_chunk_row_{self._performance_counter_type()}_count"
+        wait(lambda: get(path) > 0)
+        assert get(path) == 1
 
     @authors("lukyan")
     @pytest.mark.timeout(200)
     @pytest.mark.parametrize("hunks", [False, True])
     def test_lookup_cache_stress(self, hunks):
-        self._setup_cell(1)
+        sync_create_cells(1)
 
         def _make_value(i):
             return str(i) + ("payload" * (i % 5) if hunks else "")
@@ -1838,9 +1803,7 @@ class TestLookupCache(TestSortedDynamicTablesBase):
                 {"name": "c", "type": "int64"},
                 {"name": "s", "type": "string", "max_inline_hunk_size": 12 if hunks else None},
                 {"name": "t", "type": "string", "max_inline_hunk_size": 12 if hunks else None}],
-            lookup_cache_rows_per_tablet=100,
-            tablet_cell_bundle=self.TABLET_CELL_BUNDLE,
-        )
+            lookup_cache_rows_per_tablet=100)
 
         sync_mount_table("//tmp/t")
 
@@ -1874,16 +1837,15 @@ class TestLookupCache(TestSortedDynamicTablesBase):
 
             sync_flush_table("//tmp/t")
 
-        tablet_profiling = self._get_table_profiling("//tmp/t", tablet_cell_bundle=self.TABLET_CELL_BUNDLE)
+        tablet_profiling = self._get_table_profiling("//tmp/t")
         assert tablet_profiling.get_counter(f"{self.COUNTER_NAME}/cache_hits") > 0
         assert tablet_profiling.get_counter(f"{self.COUNTER_NAME}/cache_misses") > 0
 
     @authors("lukyan")
     @pytest.mark.timeout(200)
     @pytest.mark.parametrize("hunks", [False, True])
-    @pytest.mark.parametrize("peer_count", [1, 2])
-    def test_lookup_cache_stress2(self, hunks, peer_count):
-        self._setup_cell(peer_count)
+    def test_lookup_cache_stress2(self, hunks):
+        sync_create_cells(1)
 
         def _make_value(i):
             return str(i) + ("payload" * (i % 5) if hunks else "")
@@ -1900,9 +1862,7 @@ class TestLookupCache(TestSortedDynamicTablesBase):
                 {"name": "s", "type": "string", "max_inline_hunk_size": 12 if hunks else None},
                 {"name": "t", "type": "string", "max_inline_hunk_size": 12 if hunks else None},
                 {"name": "md5", "type": "string"}],
-            lookup_cache_rows_per_tablet=100,
-            tablet_cell_bundle=self.TABLET_CELL_BUNDLE,
-        )
+            lookup_cache_rows_per_tablet=100)
 
         sync_mount_table("//tmp/t")
 
@@ -1977,25 +1937,18 @@ class TestLookupCache(TestSortedDynamicTablesBase):
 
             sync_flush_table("//tmp/t")
 
-        if peer_count == 1:
-            tablet_profiling = self._get_table_profiling("//tmp/t", tablet_cell_bundle=self.TABLET_CELL_BUNDLE)
-            assert tablet_profiling.get_counter(f"{self.COUNTER_NAME}/cache_hits") > 0
-            assert tablet_profiling.get_counter(f"{self.COUNTER_NAME}/cache_misses") > 0
+        tablet_profiling = self._get_table_profiling("//tmp/t")
+        assert tablet_profiling.get_counter(f"{self.COUNTER_NAME}/cache_hits") > 0
+        assert tablet_profiling.get_counter(f"{self.COUNTER_NAME}/cache_misses") > 0
 
     @authors("lukyan")
-    @pytest.mark.parametrize("peer_count", [1, 2])
-    def test_lookup_cache_hunks_cell_restart(self, peer_count):
-        self._setup_cell(peer_count)
+    def test_lookup_cache_hunks_cell_restart(self):
+        sync_create_cells(1)
 
         def _make_value(i):
             return str(i) + ("payload" * (i % 5))
 
-        self._create_simple_table(
-            "//tmp/t",
-            True,  # hunks
-            lookup_cache_rows_per_tablet=50,
-            tablet_cell_bundle=self.TABLET_CELL_BUNDLE,
-        )
+        self._create_simple_table("//tmp/t", True, lookup_cache_rows_per_tablet=50)
 
         sync_mount_table("//tmp/t")
 
@@ -2019,11 +1972,10 @@ class TestLookupCache(TestSortedDynamicTablesBase):
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("hunks", [False, True])
     @pytest.mark.parametrize("test_size", [30])
-    @pytest.mark.parametrize("peer_count", [1, 2])
-    def test_lookup_with_timestamp_columns_row_cache(self, optimize_for, hunks, test_size, peer_count):
+    def test_lookup_with_timestamp_columns_row_cache(self, optimize_for, hunks, test_size):
         path = "//tmp/t"
 
-        self._setup_cell(peer_count)
+        sync_create_cells(1)
 
         def decision(probability):
             return random.random() < probability
@@ -2042,7 +1994,7 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         create_dynamic_table(
             path,
             schema=[
-                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "k", "type": "int64", "sort_order": "ascending"},
                 _make_value_schema("v0"),
                 _make_value_schema("v1"),
                 _make_value_schema("v2"),
@@ -2051,20 +2003,20 @@ class TestLookupCache(TestSortedDynamicTablesBase):
             ],
             optimize_for=optimize_for,
             lookup_cache_rows_per_tablet=int(test_size / 2),
-            tablet_cell_bundle=self.TABLET_CELL_BUNDLE,
         )
 
         sync_mount_table(path)
 
         different_values = test_size * 2
-        columns = ["key", "v0", "v1", "v2", "$timestamp:v0", "$timestamp:v1", "$timestamp:v2"]
-        keys = list(range(0, test_size))
+        columns = ["k", "v0", "v1", "v2", "$timestamp:v0", "$timestamp:v1", "$timestamp:v2"]
+        keys = [k for k in range(0, test_size)]
+        keys_for_lookup = [{"k": k} for k in keys]
 
         for k in keys:
             insert_rows(
                 path,
                 [{
-                    "key": k,
+                    "k": k,
                     "v0": _make_value(randint(0, different_values)),
                     "v1": _make_value(randint(0, different_values)),
                     "v2": _make_value(randint(0, different_values)),
@@ -2079,7 +2031,7 @@ class TestLookupCache(TestSortedDynamicTablesBase):
                     insert_rows(
                         path,
                         [{
-                            "key": k,
+                            "k": k,
                             column: _make_value(randint(0, test_size)),
                         }],
                         update=True,
@@ -2092,10 +2044,10 @@ class TestLookupCache(TestSortedDynamicTablesBase):
 
         sync_flush_table(path)
 
-        rows = self._read(path, keys, with_timestamps=True)
-        rows_map = {row["key"]: row for row in rows}
+        rows = lookup_rows(path, keys_for_lookup, with_timestamps=True)
+        rows_map = {row["k"]: row for row in rows}
 
-        assert rows == self._read(path, keys, with_timestamps=True, use_lookup_cache=True)
+        assert rows == lookup_rows(path, keys_for_lookup, with_timestamps=True, use_lookup_cache=True)
 
         for _ in range(test_size * 3):
             test_keys = []
@@ -2103,22 +2055,19 @@ class TestLookupCache(TestSortedDynamicTablesBase):
 
             for key in keys:
                 if decision(0.2):
-                    test_keys.append(key)
+                    test_keys.append({"k": key})
 
             for column in columns:
                 if decision(2 / 3):
                     test_columns.append(column)
 
-            if not test_columns:
-                continue
-
             shuffle(test_keys)
             shuffle(test_columns)
 
-            test_rows = self._read(path, test_keys, column_names=test_columns, use_lookup_cache=True, with_timestamps=True)
+            test_rows = lookup_rows(path, test_keys, column_names=test_columns, use_lookup_cache=True, with_timestamps=True)
 
             for i in range(len(test_keys)):
-                row = rows_map[test_keys[i]]
+                row = rows_map[test_keys[i]["k"]]
 
                 for column, value in test_rows[i].items():
                     assert value == row[column]
