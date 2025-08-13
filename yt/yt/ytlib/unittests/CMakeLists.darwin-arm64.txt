@@ -39,6 +39,7 @@ target_link_libraries(unittester-ytlib PUBLIC
   yt-yt-core
   yt-core-test_framework
   yt-yt-ytlib
+  yt-ytlib-test_framework
   contrib-libs-sparsehash
   cpp-http-server
 )
@@ -56,7 +57,6 @@ target_link_options(unittester-ytlib PRIVATE
 )
 
 target_sources(unittester-ytlib PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/misc/test_connection.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/arrow_writer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/absolute_limit_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/chunk_client_fetcher_ut.cpp

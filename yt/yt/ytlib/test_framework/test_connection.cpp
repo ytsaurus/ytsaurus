@@ -8,7 +8,7 @@
 
 #include <yt/yt/core/misc/error.h>
 
-namespace NYT::NApi::NNative {
+namespace NYT {
 
 using ::testing::_;
 using ::testing::Return;
@@ -24,8 +24,8 @@ TTestConnection::TTestConnection(
     INodeMemoryTrackerPtr nodeMemoryTracker)
     : ChannelFactory_(std::move(channelFactory))
     , NetworkPreferenceList_(std::move(networkPreferenceList))
-    , Config_(New<TConnectionStaticConfig>())
-    , DynamicConfig_(New<TConnectionDynamicConfig>())
+    , Config_(New<NApi::NNative::TConnectionStaticConfig>())
+    , DynamicConfig_(New<NApi::NNative::TConnectionDynamicConfig>())
     , Invoker_(std::move(invoker))
     , NodeMemoryTracker_(std::move(nodeMemoryTracker))
     , NodeDirectory_(std::move(nodeDirectory))
@@ -34,12 +34,12 @@ TTestConnection::TTestConnection(
     , MediumDirectory_(New<NChunkClient::TMediumDirectory>())
 { }
 
-const TConnectionStaticConfigPtr& TTestConnection::GetStaticConfig() const
+const NApi::NNative::TConnectionStaticConfigPtr& TTestConnection::GetStaticConfig() const
 {
     return Config_;
 }
 
-TConnectionDynamicConfigPtr TTestConnection::GetConfig() const
+NApi::NNative::TConnectionDynamicConfigPtr TTestConnection::GetConfig() const
 {
     return DynamicConfig_;
 }
@@ -57,11 +57,6 @@ NRpc::IChannelPtr TTestConnection::CreateChannelByAddress(const std::string& add
 IInvokerPtr TTestConnection::GetInvoker()
 {
     return Invoker_;
-}
-
-IClientPtr TTestConnection::CreateNativeClient(const TClientOptions& options)
-{
-    return New<TClient>(this, options, NodeMemoryTracker_);
 }
 
 bool TTestConnection::IsSequoiaConfigured()
@@ -85,28 +80,28 @@ const NNodeTrackerClient::TNodeDirectoryPtr& TTestConnection::GetNodeDirectory()
 }
 
 NRpc::IChannelPtr TTestConnection::FindMasterChannel(
-    EMasterChannelKind kind,
+    NApi::EMasterChannelKind kind,
     NObjectClient::TCellTag cellTag)
 {
     return ChannelFactory_->CreateChannel(Format("master-%v-tag-%v", kind, cellTag));
 }
 
 NRpc::IChannelPtr TTestConnection::GetMasterChannelOrThrow(
-    EMasterChannelKind kind,
+    NApi::EMasterChannelKind kind,
     NObjectClient::TCellTag cellTag)
 {
     return ChannelFactory_->CreateChannel(Format("master-%v-tag-%v", kind, cellTag));
 }
 
 NRpc::IChannelPtr TTestConnection::GetMasterChannelOrThrow(
-    EMasterChannelKind kind,
+    NApi::EMasterChannelKind kind,
     NObjectClient::TCellId cellId)
 {
     return ChannelFactory_->CreateChannel(Format("master-%v-id-%v", kind, cellId));
 }
 
 NRpc::IChannelPtr TTestConnection::GetCypressChannelOrThrow(
-    EMasterChannelKind kind,
+    NApi::EMasterChannelKind kind,
     NObjectClient::TCellTag cellTag)
 {
     return ChannelFactory_->CreateChannel(Format("cypress-%v-%v", kind, cellTag));
