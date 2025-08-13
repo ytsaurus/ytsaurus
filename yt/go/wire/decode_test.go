@@ -45,8 +45,6 @@ type testResponseRow struct {
 
 	TaggedEmbedded     `yson:"tagged"`
 	*TaggedEmbeddedPtr `yson:"tagged_ptr"`
-
-	List []int `yson:"list"`
 }
 
 type structWithUnexportedEmbeddedStructPointer struct {
