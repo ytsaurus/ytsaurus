@@ -338,7 +338,7 @@ private:
 
     private:
         TInstant LastTickTime_;
-        int LastKnownTerm_ = -1;
+        int LastKnownTerm_ = InvalidTerm;
         std::atomic<TLogicalTime> Time_;
     };
     TLogicalClock LogicalClock_;

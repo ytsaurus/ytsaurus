@@ -823,7 +823,7 @@ void TDecoratedAutomaton::TLogicalClock::Initialize(
 
 void TDecoratedAutomaton::TLogicalClock::AdvanceClock()
 {
-    LastKnownTerm_ = -1;
+    LastKnownTerm_ = InvalidTerm;
 }
 
 TLogicalTime TDecoratedAutomaton::TLogicalClock::GetTime() const
