@@ -39,6 +39,8 @@ struct TYqlPluginOptions
     std::optional<TString> YqlPluginSharedLibrary;
 
     std::string MaxYqlLangVersion;
+
+    bool StartDqManager;
 };
 
 struct TYqlPluginDynamicConfig
@@ -135,7 +137,8 @@ TYqlPluginOptions ConvertToOptions(
     TYqlPluginConfigPtr config,
     NYson::TYsonString singletonsConfigString,
     THolder<TLogBackend> logBackend,
-    std::string maxSupportedYqlVersion);
+    std::string maxSupportedYqlVersion,
+    bool startDqManager = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 
