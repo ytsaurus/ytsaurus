@@ -15,6 +15,7 @@ PEERDIR(
     yt/yt/ytlib
     library/cpp/getopt/small
     yt/yt/library/coredumper
+    yt/yt/library/signals
 )
 
 END()

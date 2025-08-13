@@ -18,6 +18,9 @@
 
 #include <yt/yt/library/coredumper/coredumper.h>
 
+#include <yt/yt/library/signals/signal_registry.h>
+
+#include <yt/yt/core/misc/crash_handler.h>
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/ref_counted_tracker.h>
@@ -44,6 +47,7 @@ using namespace NYT::NEventLog;
 using namespace NYT::NScheduler;
 using namespace NYT::NCoreDump;
 using namespace NYT::NServer;
+using namespace NYT::NSignals;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -460,6 +464,9 @@ TOfflineOperation DownloadOperation(const TString& token, const TString& proxy, 
 
 void GuardedMain(int argc, char** argv)
 {
+    TSignalRegistry::Get()->PushCallback(NSignals::AllCrashSignals, CrashSignalHandler);
+    TSignalRegistry::Get()->PushDefaultSignalHandler(NSignals::AllCrashSignals);
+
     auto mode = TString("load");
     TString loadFromFiles;
     TString storeToFiles;
