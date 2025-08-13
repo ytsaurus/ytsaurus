@@ -36,7 +36,7 @@ struct IBootstrap
 
     virtual const NServer::TJobReporterPtr& GetJobReporter() const = 0;
 
-    virtual const NJobProxy::TJobProxyInternalConfigPtr& GetJobProxyConfigTemplate() const = 0;
+    virtual NJobProxy::TJobProxyInternalConfigPtr GetJobProxyConfigTemplate() const = 0;
 
     virtual const TChunkCachePtr& GetChunkCache() const = 0;
 
