@@ -1083,6 +1083,9 @@ public:
     {
         YT_LOG_INFO("Starting distributed throttler factory");
 
+        IsLeader_ = Profiler_.Gauge("/leader");
+        IsLeader_.Update(0);
+
         auto* attributes = MemberClient_->GetAttributes();
         attributes->Set(RealmIdAttributeKey, RealmId_);
         attributes->Set(AddressAttributeKey, address);
@@ -1276,6 +1279,7 @@ private:
 
     const NLogging::TLogger Logger;
     TProfiler Profiler_;
+    TGauge IsLeader_;
 
     TAtomicIntrusivePtr<TDistributedThrottlerConfig> Config_;
 
@@ -1555,7 +1559,10 @@ private:
         }
 
         if (leaderId == MemberId_) {
+            IsLeader_.Update(1);
             DistributedThrottlerService_->Initialize();
+        } else {
+            IsLeader_.Update(0);
         }
     }
 
