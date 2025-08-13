@@ -4,7 +4,6 @@ SRCS(
     GLOBAL plugin.cpp
     error_helpers.cpp
     progress_merger.cpp
-    dq_manager.cpp
     provider_load.cpp
 )
 

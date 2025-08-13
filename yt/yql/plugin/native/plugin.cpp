@@ -1,10 +1,11 @@
-#include "dq_manager.h"
 #include "plugin.h"
 
 #include "error_helpers.h"
 #include "progress_merger.h"
 #include "provider_load.h"
 #include "secret_masker.h"
+
+#include <yt/yql/plugin/dq_manager.h>
 
 #include <yt/yql/providers/yt/common/yql_names.h>
 #include <yt/yql/providers/yt/comp_nodes/dq/dq_yt_factory.h>
@@ -409,7 +410,7 @@ public:
             }
             FuncRegistry_->SetSystemModulePaths(systemModules);
 
-            if (DqManagerConfig_) {
+            if (DqManagerConfig_ && options.StartDqManager) {
                 DqManagerConfig_->FileStorage = FileStorage_;
                 DqManager_ = New<TDqManager>(DqManagerConfig_);
             }

@@ -5,13 +5,14 @@
 #include "plugin.h"
 
 #include <yt/yql/plugin/config.h>
-
-#include <yt/cpp/mapreduce/common/helpers.h>
+#include <yt/yql/plugin/dq_manager.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/yql_plugin/yql_plugin_proxy.h>
 
 #include <yt/yt/library/process/process.h>
+
+#include <yt/cpp/mapreduce/common/helpers.h>
 
 #include <yt/yt/core/bus/tcp/client.h>
 #include <yt/yt/core/bus/tcp/config.h>
@@ -98,6 +99,9 @@ public:
         , ActiveProcessesGauge_(profiler.Gauge("/active_processes"))
         , ProcessesLimitGauge_(profiler.Gauge("/processes_limit"))
     {
+        if (pluginConfig->EnableDQ) {
+            DqManager_ = New<TDqManager>(ConvertTo<TDqManagerConfigPtr>(ConvertToYsonString(pluginConfig->DQManagerConfig)));
+        }
         ProcessesLimitGauge_.Update(Config_->SlotsCount);
         InitializeProcessPool();
     }
@@ -113,6 +117,10 @@ public:
                     .Run());
         }
         guard.Release();
+
+        if (DqManager_) {
+            DqManager_->Start();
+        }
 
         WaitFor(AllSucceeded(futures)).ThrowOnError();
     }
@@ -340,6 +348,8 @@ private:
 
     TActionQueuePtr Queue_;
     IInvokerPtr Invoker_;
+
+    TDqManagerPtr DqManager_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ProcessesLock_);
     THashMap<TQueryId, int> RunningYqlQueries_;
