@@ -1580,7 +1580,7 @@ std::vector<EIOEngineType> GetSupportedIOEngineTypes()
 {
     std::vector<EIOEngineType> result;
     result.push_back(EIOEngineType::ThreadPool);
-    if (IsUringIOEngineSupported()) {
+    if (IsUringIOEngineSupported() && IsUringIOEngineEnabled()) {
         result.push_back(EIOEngineType::Uring);
         result.push_back(EIOEngineType::FairShareUring);
     }

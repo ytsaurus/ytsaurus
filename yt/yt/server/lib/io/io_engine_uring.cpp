@@ -11,6 +11,7 @@
 #include <yt/yt/core/threading/thread.h>
 
 #include <yt/yt/core/misc/mpsc_fair_share_queue.h>
+#include <yt/yt/core/misc/proc.h>
 
 #include <library/cpp/yt/containers/intrusive_linked_list.h>
 
@@ -1910,6 +1911,21 @@ IIOEnginePtr CreateIOEngineUring(
 bool IsUringIOEngineSupported()
 {
 #ifdef _linux_
+    return ParseLinuxKernelVersion() >= std::vector{5, 4};
+
+#endif
+    return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsUringIOEngineEnabled()
+{
+#ifdef _linux_
+    if (!IsUringEnabled()) {
+        return false;
+    }
+
     io_uring uring;
     auto result = io_uring_queue_init(MaxUringConcurrentRequestsPerThread, &uring, /*flags*/ 0);
     if (result < 0) {

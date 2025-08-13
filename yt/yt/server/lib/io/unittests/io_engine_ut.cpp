@@ -61,8 +61,7 @@ protected:
     {
         auto supportedTypes = GetSupportedIOEngineTypes();
         auto type = GetIOEngineType();
-        // YT-23971: uring tests are failing on ubuntu 20.04
-        if (std::find(supportedTypes.begin(), supportedTypes.end(), type) == supportedTypes.end() || type == EIOEngineType::Uring || type == EIOEngineType::FairShareUring) {
+        if (std::find(supportedTypes.begin(), supportedTypes.end(), type) == supportedTypes.end()) {
             GTEST_SKIP() << Format("Skipping Test: IOEngine %v is not supported.", type);
         }
     }
