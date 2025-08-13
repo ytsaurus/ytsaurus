@@ -34,7 +34,7 @@ struct TClusterThrottlersConfig
     double RateLimitRatioSoftThreshold;
     //! How often cluster throttlers config is updated.
     TDuration UpdatePeriod;
-    //! Defines a set of nodes where a leader could reside.
+    //! Defines a set of nodes where a leader should reside.
     TBooleanFormula LeaderNodeTagFilter;
     bool Enabled;
 

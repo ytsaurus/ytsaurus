@@ -39,6 +39,7 @@ class TMasterConnector
     , public TMasterHeartbeatReporterBase
 {
 public:
+    DEFINE_SIGNAL_OVERRIDE(void(bool), JobsDisabledByMasterUpdated);
     DEFINE_SIGNAL_OVERRIDE(void(), MasterConnected);
     DEFINE_SIGNAL_OVERRIDE(void(), MasterDisconnected);
 
@@ -162,6 +163,8 @@ private:
 
         bool disableSchedulerJobs = response->disable_scheduler_jobs() || Bootstrap_->IsDecommissioned();
         Bootstrap_->GetJobController()->SetJobsDisabledByMaster(disableSchedulerJobs);
+
+        JobsDisabledByMasterUpdated_.Fire(disableSchedulerJobs);
     }
 
     void OnMasterConnected(TNodeId /*nodeId*/)
