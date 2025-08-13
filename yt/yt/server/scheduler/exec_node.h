@@ -133,8 +133,10 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(TMatchingTreeCookie, MatchingTreeCookie);
 
-    DEFINE_BYREF_RW_PROPERTY(TJobResources, LastHeartbeatUnscheduledResources);
-    DEFINE_BYREF_RW_PROPERTY(TInstant, LastHeartbeatTime);
+    using TUnutilizedResourcesByReason = TEnumIndexedArray<EUnutilizedResourceReason, std::optional<TJobResources>>;
+    DEFINE_BYREF_RW_PROPERTY(TUnutilizedResourcesByReason, UnutilizedResourcesByReason);
+    DEFINE_BYREF_RW_PROPERTY(TInstant, LastUnutilisedCountersUpdateTime);
+    DEFINE_BYREF_RW_PROPERTY(TJobResources, LastHeartbeatUnutilizedResources);
 
 public:
     TExecNode(
