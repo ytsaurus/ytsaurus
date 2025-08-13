@@ -216,9 +216,9 @@ std::vector<int64_t> ReadIntegerDateArray(const std::shared_ptr<arrow::Array>& a
 
 std::vector<int64_t> ReadIntegerDate64Array(const std::shared_ptr<arrow::Array>& array)
 {
-    auto int32Array = std::dynamic_pointer_cast<arrow::Date64Array>(array);
-    YT_VERIFY(int32Array);
-    return  {int32Array->raw_values(), int32Array->raw_values() + array->length()};
+    auto timestampArray = std::dynamic_pointer_cast<arrow::TimestampArray>(array);
+    YT_VERIFY(timestampArray);
+    return  {timestampArray->raw_values(), timestampArray->raw_values() + array->length()};
 }
 
 std::vector<int64_t> ReadTimestampArray(const std::shared_ptr<arrow::Array>& array)
@@ -728,8 +728,7 @@ TEST(TArrowWriterTest, SimpleDatatime)
     auto batch = MakeBatch(outputStream);
     CheckColumnNames(batch, columnNames);
 
-    ColumnInteger columnRes = {1586966302000, 5000};
-    EXPECT_EQ(ReadIntegerDate64Array(batch->column(0)), columnRes);
+    EXPECT_EQ(ReadIntegerDate64Array(batch->column(0)), column);
 }
 
 TEST(TArrowWriterTest, SimpleTimestamp)
