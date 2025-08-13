@@ -45,6 +45,8 @@ type testResponseRow struct {
 
 	TaggedEmbedded     `yson:"tagged"`
 	*TaggedEmbeddedPtr `yson:"tagged_ptr"`
+
+	List []int `yson:"list"`
 }
 
 type structWithUnexportedEmbeddedStructPointer struct {
@@ -330,6 +332,87 @@ func TestDecoder_UnmarshalRow(t *testing.T) {
 			},
 			in:       Row{Value{ID: 0, Type: TypeNull}},
 			expected: &testResponseRow{},
+		},
+		{
+			name: "composite_struct",
+			nameTable: NameTable{
+				{Name: "struct"},
+			},
+			in: Row{
+				NewComposite(0, []byte(`{id=88;name=foo;}`)),
+			},
+			expected: &testResponseRow{
+				Struct: innterStruct{
+					ID:   88,
+					Name: "foo",
+				},
+			},
+		},
+		{
+			name: "composite_map",
+			nameTable: NameTable{
+				{Name: "struct"},
+			},
+			in: Row{
+				NewComposite(0, []byte(`{id=88;name=foo;}`)),
+			},
+			expected: &map[string]any{
+				"struct": map[string]any{
+					"id":   int64(88),
+					"name": "foo",
+				},
+			},
+		},
+		{
+			name: "composite_null",
+			nameTable: NameTable{
+				{Name: "struct"},
+			},
+			in:       Row{Value{ID: 0, Type: TypeNull}},
+			expected: &testResponseRow{},
+		},
+		{
+			name: "composite_list",
+			nameTable: NameTable{
+				{Name: "list"},
+			},
+			in: Row{
+				NewComposite(0, []byte(`[1;2;3;4;5]`)),
+			},
+			expected: &map[string]any{
+				"list": []any{
+					int64(1),
+					int64(2),
+					int64(3),
+					int64(4),
+					int64(5),
+				},
+			},
+		},
+		{
+			name: "composite_list_of_structs",
+			nameTable: NameTable{
+				{Name: "list"},
+			},
+			in: Row{
+				NewComposite(0, []byte(`[{id=1;name=alice;};{id=2;name=bob;};{id=3;name=charlie;}]`)),
+			},
+			expected: &map[string]any{
+				"list": []any{
+					map[string]any{
+						"id":   int64(1),
+						"name": "alice",
+					},
+					map[string]any{
+						"id":   int64(2),
+						"name": "bob",
+					},
+					map[string]any{
+						"id":   int64(3),
+						"name": "charlie",
+					},
+				},
+			},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

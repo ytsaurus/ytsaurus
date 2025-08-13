@@ -265,7 +265,7 @@ func (d *WireDecoder) decodeValueGeneric(value Value, v *any) (err error) {
 		*v = value.Bool()
 	case TypeBytes:
 		*v = value.Bytes()
-	case TypeAny:
+	case TypeAny, TypeComposite:
 		return yson.Unmarshal(value.Any(), v)
 	}
 
@@ -542,7 +542,7 @@ func decodeReflect(value Value, v reflect.Value) error {
 		return nil
 
 	default:
-		if err := validateWireType(TypeAny, value.Type); err != nil {
+		if err := validateWireTypes([]ValueType{TypeAny, TypeComposite}, value.Type); err != nil {
 			return err
 		}
 
@@ -683,6 +683,15 @@ func validateWireType(expected, actual ValueType) error {
 		return xerrors.Errorf("wire: unable to deserialize value of type %v into %v", actual, expected)
 	}
 	return nil
+}
+
+func validateWireTypes(expected []ValueType, actual ValueType) error {
+	for _, expectedType := range expected {
+		if expectedType == actual {
+			return nil
+		}
+	}
+	return xerrors.Errorf("wire: unable to deserialize value of type %v into any of %v", actual, expected)
 }
 
 func checkWireTypeScalar(typ ValueType) error {
