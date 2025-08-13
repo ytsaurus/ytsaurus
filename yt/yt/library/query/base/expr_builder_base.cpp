@@ -690,12 +690,6 @@ TExprBuilder::TExprBuilder(
     , Functions_(functions)
 { }
 
-TConstExpressionPtr TExprBuilder::BuildTypedExpression(
-    const NAst::TExpression* expr, TRange<EValueType> resultTypes)
-{
-    return DoBuildTypedExpression(expr, resultTypes);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryClient

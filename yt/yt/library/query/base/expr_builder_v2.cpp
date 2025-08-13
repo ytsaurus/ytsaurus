@@ -113,8 +113,20 @@ public:
         AliasResolvers_.back()->ColumnResolver.PopulateAllColumns();
     }
 
-    TConstExpressionPtr DoBuildTypedExpression(
-        const NAst::TExpression* expr, TRange<EValueType> /*resultTypes*/) override;
+    TConstExpressionPtr BuildTypedExpression(
+        const NAst::TExpression* expr, TRange<EValueType> /*resultTypes*/) override
+    {
+        auto result = OnExpression(expr);
+
+        for (const auto& aliasResolver : AliasResolvers_) {
+            if (aliasResolver->NeedSubstitute) {
+                THROW_ERROR_EXCEPTION("Expression or its parts are not in GROUP BY keys")
+                    << TErrorAttribute("expression", InferName(result));
+            }
+        }
+
+        return result;
+    }
 
     void Finish() override
     {
@@ -301,22 +313,6 @@ TConstExpressionPtr TExprBuilderV2::OnExpression(
     }
 
     return result;
-}
-
-TConstExpressionPtr TExprBuilderV2::DoBuildTypedExpression(
-    const NAst::TExpression* expr, TRange<EValueType> /*resultTypes*/)
-{
-    auto result = OnExpression(expr);
-
-    for (const auto& aliasResolver : AliasResolvers_) {
-        if (aliasResolver->NeedSubstitute) {
-            THROW_ERROR_EXCEPTION("Expression or its parts are not in GROUP BY keys")
-                << TErrorAttribute("expression", InferName(result));
-        }
-    }
-
-    // TODO(lukyan): Rewrite inplace.
-    return ApplyRewriters(result);
 }
 
 TExprBuilderV2::ResolveNestedTypesResult TExprBuilderV2::ResolveNestedTypes(
@@ -1161,7 +1157,7 @@ TConstExpressionPtr BuildPredicate(
     }
 
     // TODO(lukyan): BuildTypedExpression(expressionAst.front(), {EValueType::Boolean}) ?
-    auto typedPredicate = builder->BuildTypedExpression(expressionAst.front());
+    auto typedPredicate = builder->BuildTypedExpression(expressionAst.front(), {});
 
     auto actualType = typedPredicate->GetWireType();
     EValueType expectedType(EValueType::Boolean);
@@ -1172,7 +1168,7 @@ TConstExpressionPtr BuildPredicate(
             << TErrorAttribute("expected_type", expectedType);
     }
 
-    return typedPredicate;
+    return ApplyRewriters(typedPredicate);
 }
 
 TGroupClausePtr BuildGroupClause(
@@ -1186,7 +1182,7 @@ TGroupClausePtr BuildGroupClause(
     for (const auto& expressionAst : expressionsAst) {
         auto typedExpr = builder->BuildTypedExpression(expressionAst);
 
-        groupClause->AddGroupItem(typedExpr, builder->InferGroupItemName(typedExpr, *expressionAst));
+        groupClause->AddGroupItem(ApplyRewriters(typedExpr), builder->InferGroupItemName(typedExpr, *expressionAst));
     }
 
     builder->SetGroupData(
@@ -1216,7 +1212,7 @@ TConstExpressionPtr TExprBuilderV2::OnQueryOp(const NAst::TQueryExpression* quer
     std::vector<TColumnSchema> columns;
 
     for (const auto& expressionAst : fromExpressions) {
-        auto typedExpr = BuildTypedExpression(expressionAst);
+        auto typedExpr = ApplyRewriters(BuildTypedExpression(expressionAst, {}));
         auto columnName = InferColumnName(*expressionAst);
 
         typedFromExpressions.emplace_back(typedExpr, columnName);
@@ -1254,7 +1250,7 @@ TConstExpressionPtr TExprBuilderV2::OnQueryOp(const NAst::TQueryExpression* quer
     if (queryExpr->Query.SelectExprs) {
         projectClause = New<TProjectClause>();
         for (const auto& expressionAst : *queryExpr->Query.SelectExprs) {
-            auto typedExpr = BuildTypedExpression(expressionAst);
+            auto typedExpr = ApplyRewriters(BuildTypedExpression(expressionAst, {}));
             auto name = InferColumnName(*expressionAst);
 
             projectClause->AddProjection(typedExpr, name);
