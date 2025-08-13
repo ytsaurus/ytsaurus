@@ -198,7 +198,7 @@ TConstExpressionPtr BuildPredicate(
             << TErrorAttribute("expected_type", expectedType);
     }
 
-    return typedPredicate;
+    return ApplyRewriters(typedPredicate);
 }
 
 TGroupClausePtr BuildGroupClause(
@@ -211,7 +211,7 @@ TGroupClausePtr BuildGroupClause(
 
     for (const auto& expressionAst : expressionsAst) {
         auto typedExpr = builder->BuildTypedExpression(expressionAst, ComparableTypes);
-        groupClause->AddGroupItem(typedExpr, builder->InferGroupItemName(typedExpr, *expressionAst));
+        groupClause->AddGroupItem(ApplyRewriters(typedExpr), builder->InferGroupItemName(typedExpr, *expressionAst));
     }
 
     builder->SetGroupData(
@@ -333,7 +333,7 @@ void PrepareQuery(
                     expressionAst,
                     ComparableTypes);
 
-                orderClause->OrderItems.push_back({typedExpr, orderExpr.Descending});
+                orderClause->OrderItems.push_back({ApplyRewriters(typedExpr), orderExpr.Descending});
             }
         }
 
@@ -350,7 +350,7 @@ void PrepareQuery(
         for (const auto& expressionAst : *ast.SelectExprs) {
             auto typedExpr = builder->BuildTypedExpression(expressionAst);
 
-            projectClause->AddProjection(typedExpr, InferColumnName(*expressionAst));
+            projectClause->AddProjection(ApplyRewriters(typedExpr), InferColumnName(*expressionAst));
         }
 
         query->ProjectClause = projectClause;
@@ -735,12 +735,12 @@ TJoinClausePtr BuildJoinClause(
 
     for (const auto& argument : tableJoin.Lhs) {
         selfEquations.push_back({
-            .Expression=builder->BuildTypedExpression(argument, ComparableTypes),
+            .Expression=ApplyRewriters(builder->BuildTypedExpression(argument, ComparableTypes)),
             .Evaluated=false,
         });
     }
     for (const auto& argument : tableJoin.Rhs) {
-        foreignEquations.push_back(foreignBuilder->BuildTypedExpression(argument, ComparableTypes));
+        foreignEquations.push_back(ApplyRewriters(foreignBuilder->BuildTypedExpression(argument, ComparableTypes)));
     }
 
     if (selfEquations.size() != foreignEquations.size()) {
@@ -910,9 +910,9 @@ TJoinClausePtr BuildArrayJoinClause(
 
         const auto& typedExpression =
             arrayJoinClause->ArrayExpressions[index] =
-                builder->BuildTypedExpression(
+                ApplyRewriters(builder->BuildTypedExpression(
                     aliasExpression->Expression,
-                    {EValueType::Composite});
+                    {EValueType::Composite}));
 
         auto logicalType = typedExpression->LogicalType;
         auto metatype = logicalType->GetMetatype();
@@ -1269,7 +1269,7 @@ TConstExpressionPtr PrepareExpression(
         .Mapping = &mapping,
     });
 
-    auto result = builder->BuildTypedExpression(expr);
+    auto result = ApplyRewriters(builder->BuildTypedExpression(expr));
 
     if (references) {
         for (const auto& item : mapping) {
