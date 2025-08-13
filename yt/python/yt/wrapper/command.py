@@ -1,5 +1,7 @@
 """YT command misc"""
 
+import typing
+
 
 class Command(object):
     """Properties of YT command."""
@@ -19,7 +21,7 @@ class Command(object):
             return "GET"
 
 
-def parse_commands(description):
+def parse_commands(description: typing.Dict[str, typing.Union[str, bool]]) -> typing.Dict[str, Command]:
     """Parse tree-like description from /api response into commands dictionary."""
     commands = {}
     for elem in description:

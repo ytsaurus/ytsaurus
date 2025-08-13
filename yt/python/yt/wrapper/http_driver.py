@@ -266,7 +266,7 @@ def make_request(command_name,
 
     # prepare url.
     url_pattern = "{proxy}/{api}/{command}"
-    if use_heavy_proxy:
+    if use_heavy_proxy or command.is_heavy:
         proxy_provider_state = get_option("_heavy_proxy_provider_state", client)
         if proxy_provider_state is None:
             proxy_provider_state = HeavyProxyProviderState()
