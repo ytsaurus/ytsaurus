@@ -542,7 +542,7 @@ std::string MakeDateArrow(
 
     auto date32Array = date32Builder.Finish();
 
-    arrow::Date64Builder date64Builder;
+    arrow::TimestampBuilder date64Builder(arrow::timestamp(arrow::TimeUnit::TimeUnit::SECOND), arrow::default_memory_pool());
 
     for (const auto& value : date64Column) {
         Verify(date64Builder.Append(value));
@@ -560,7 +560,7 @@ std::string MakeDateArrow(
 
     auto arrowSchema = arrow::schema({
         arrow::field("date", arrow::date32()),
-        arrow::field("datetime", arrow::date64()),
+        arrow::field("datetime",arrow::timestamp(arrow::TimeUnit::SECOND)),
         arrow::field("timestamp", arrow::timestamp(arrow::TimeUnit::MICRO)),
     });
     std::vector<std::shared_ptr<arrow::Array>> columns = {*date32Array, *date64Array, *timestampArray};
@@ -572,7 +572,7 @@ std::string MakeDatetimeListArrow(const std::vector<std::vector<i64>>& date64Col
 {
     auto* pool = arrow::default_memory_pool();
 
-    auto valueBuilder = std::make_shared<arrow::Date64Builder>(pool);
+    auto valueBuilder = std::make_shared<arrow::TimestampBuilder>(arrow::timestamp(arrow::TimeUnit::TimeUnit::SECOND), arrow::default_memory_pool());
     auto listBuilder = std::make_unique<arrow::ListBuilder>(pool, valueBuilder);
 
     for (const auto& list : date64Column) {
@@ -1005,7 +1005,7 @@ TEST(TArrowParserTest, Datetime)
 
     auto parser = CreateParserForArrow(&collectedRows);
 
-    parser->Read(MakeDateArrow({18367}, {1586966302000}, {1586966302504185}));
+    parser->Read(MakeDateArrow({18367}, {1586966302}, {1586966302504185}));
     parser->Finish();
 
     ASSERT_EQ(collectedRows.Size(), 1);
@@ -1027,7 +1027,7 @@ TEST(TArrowParserTest, Datetime64)
 
     auto parser = CreateParserForArrow(&collectedRows);
 
-    parser->Read(MakeDateArrow({-18367}, {-1586966302000}, {-1586966302504185}));
+    parser->Read(MakeDateArrow({-18367}, {-1586966302}, {-1586966302504185}));
     parser->Finish();
 
     ASSERT_EQ(collectedRows.Size(), 1);
@@ -1180,7 +1180,7 @@ TEST(TArrowParserTest, ListOfDatetimes)
 
     auto parser = CreateParserForArrow(&collectedRows);
 
-    auto data = MakeDatetimeListArrow({{18367000, 1586966302000}, {}});
+    auto data = MakeDatetimeListArrow({{18367, 1586966302}, {}});
     parser->Read(data);
     parser->Finish();
 
