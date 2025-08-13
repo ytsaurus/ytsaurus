@@ -549,6 +549,11 @@ public:
         return Underlying_->GetMonitoredUserJobCount();
     }
 
+    TControllerEpoch GetControllerEpoch() const override
+    {
+        return Underlying_->GetControllerEpoch();
+    }
+
 private:
     const TOperationId Id_;
     const IOperationControllerPtr Underlying_;

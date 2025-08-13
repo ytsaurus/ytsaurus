@@ -1793,12 +1793,20 @@ private:
     {
         auto outbox = ScheduleAllocationResponsesOutbox_;
 
-        auto replyWithFailure = [=] (TOperationId operationId, TAllocationId allocationId, EScheduleFailReason reason) {
+        auto replyWithFailure = [=] (
+            TOperationId operationId,
+            TAllocationId allocationId,
+            EScheduleFailReason reason,
+            std::optional<TControllerEpoch> controllerEpoch = {})
+        {
             TAgentToSchedulerScheduleAllocationResponse response;
             response.AllocationId = allocationId;
             response.OperationId = operationId;
             response.Result = New<TControllerScheduleAllocationResult>();
             response.Result->RecordFail(reason);
+            if (controllerEpoch) {
+                response.Result->ControllerEpoch = *controllerEpoch;
+            }
             outbox->Enqueue(std::move(response));
         };
 
@@ -1811,7 +1819,7 @@ private:
             EScheduleFailReason reason,
             IOperationControllerPtr controller)
         {
-            replyWithFailure(operationId, allocationId, reason);
+            replyWithFailure(operationId, allocationId, reason, controller->GetControllerEpoch());
             controller->RecordScheduleAllocationFailure(reason);
         };
 
@@ -1904,21 +1912,6 @@ private:
                                 operationId,
                                 allocationId,
                                 EScheduleFailReason::UnknownNode,
-                                controller);
-                            return;
-                        }
-
-                        const auto& execNodeDescriptor = *descriptorIt->second;
-                        if (!execNodeDescriptor.CanSchedule({})) {
-                            YT_LOG_DEBUG(
-                                "Failed to schedule allocation due to node is offline (OperationId: %v, AllocationId: %v, NodeId: %v)",
-                                operationId,
-                                allocationId,
-                                nodeId);
-                            replyWithFailureAndRecordInController(
-                                operationId,
-                                allocationId,
-                                EScheduleFailReason::NodeOffline,
                                 controller);
                             return;
                         }
