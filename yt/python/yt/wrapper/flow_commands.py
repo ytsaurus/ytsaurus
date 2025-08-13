@@ -305,6 +305,7 @@ def flow_execute(pipeline_path: str, flow_command: str, flow_argument=None, inpu
         params,
         data=flow_argument,
         format=output_format,
+        use_heavy_proxy=True,
         client=client)
 
 
