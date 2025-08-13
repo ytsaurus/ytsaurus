@@ -1432,11 +1432,13 @@ private:
         // NB: Root volume quota is independent from sandbox quota but enforces the same limits.
         if (options.EnableRootVolumeDiskQuota) {
             if (options.DiskSpaceLimit) {
-                volumeProperties["space_limit"] = ToString(*options.DiskSpaceLimit);
+                // TODO(yuryalekseev): Do not set "space_limit" for now, see RTCSUPPORT-43697.
+                // volumeProperties["space_limit"] = ToString(*options.DiskSpaceLimit);
             }
 
             if (options.InodeLimit) {
-                volumeProperties["inode_limit"] = ToString(*options.InodeLimit);
+                // TODO(yuryalekseev): Do not set "inode_limit" for now, see RTCSUPPORT-43697.
+                // volumeProperties["inode_limit"] = ToString(*options.InodeLimit);
             }
         }
 
