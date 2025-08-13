@@ -3095,7 +3095,7 @@ class TestSidecarVanilla(YTEnvSetup):
 
         docker_image = self.Env.yt_config.default_docker_image
         with pytest.raises(YtError):
-            op = vanilla(
+            vanilla(
                 track=False,
                 spec={
                     "tasks": {
