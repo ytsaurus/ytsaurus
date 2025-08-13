@@ -1300,14 +1300,16 @@ void TGangTask::RegisterMetadata(auto&& registrar)
 
     PHOENIX_REGISTER_FIELD(1, RankPool_);
 
-    registrar.template VirtualField<2>("CompletedRankCount_", [] (TThis* this_, auto& /*context*/) {
-            const auto& Logger = this_->Logger;
-            if (this_->VanillaChunkPool_->IsCompleted()) {
-                YT_LOG_DEBUG("Gang task is completed when operation reviving, setting CompletedRankCount to gang size");
-                this_->RankPool_.CompletedRankCount_ = this_->GetGangSize();
+    registrar.AfterLoad([] (TThis* this_, auto& context) {
+            // COMPAT(pogorelov)
+            if (context.GetVersion() < ESnapshotVersion::PersistentCompletedRankCount) {
+                if (this_->VanillaChunkPool_->IsCompleted()) {
+                    const auto& Logger = this_->Logger;
+                    YT_LOG_DEBUG("Gang task is completed when operation reviving, setting CompletedRankCount to gang size");
+                    this_->RankPool_.CompletedRankCount_ = this_->GetGangSize();
+                }
             }
-        })
-        .BeforeVersion(ESnapshotVersion::PersistentCompletedRankCount)();
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
