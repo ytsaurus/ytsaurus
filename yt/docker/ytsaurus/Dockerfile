@@ -22,7 +22,7 @@ ARG ROOT_IMAGE="ubuntu-base"
 
 FROM mirror.gcr.io/ubuntu:noble AS ubuntu-base
 
-RUN add-apt-repository ppa:deadsnakes/ppa && apt-get update \
+RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
       python3-pip \
       python3.12  \
