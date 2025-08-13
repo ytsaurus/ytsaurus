@@ -33,7 +33,7 @@ class MonitoringProjectDashboardParameter:
 
 
 class MonitoringLabelDashboardParameter:
-    def __init__(self, project_id, label_key, default_value, selectors=None):
+    def __init__(self, project_id, label_key, default_value, selectors=None, hidden=None):
         values = {
             "projectId": project_id,
             "labelKey": label_key,
@@ -42,6 +42,8 @@ class MonitoringLabelDashboardParameter:
         if selectors:
             values["selectors"] = selectors
         self.dict = {"labelValues": values}
+        if hidden is not None:
+            self.dict["hidden"] = hidden
 
 
 ##################################################################

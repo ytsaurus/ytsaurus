@@ -39,6 +39,7 @@ PY_SRCS(
     yt_dashboards/scheduler_internal.py
     yt_dashboards/scheduler_pool.py
     yt_dashboards/scheduler_operation.py
+    yt_dashboards/jobs_monitor.py
     yt_dashboards/exe_nodes.py
     yt_dashboards/data_nodes.py
     yt_dashboards/queue_and_consumer_metrics.py
