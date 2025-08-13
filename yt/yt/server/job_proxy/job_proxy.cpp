@@ -884,7 +884,7 @@ TJobResult TJobProxy::RunJob()
             TString jobProxyDescriptor = jobSpecExt.user_job_spec().monitoring_config().job_descriptor();
             NProfiling::TSolomonRegistry::Get()->SetDynamicTags({
                 NProfiling::TTag{"job_descriptor", jobProxyDescriptor},
-                NProfiling::TTag{"slot_index", ToString(Config_->SlotIndex)}});
+            });
         }
         if (jobSpecExt.has_user_job_spec()) {
             const auto& userJobSpec = jobSpecExt.user_job_spec();
