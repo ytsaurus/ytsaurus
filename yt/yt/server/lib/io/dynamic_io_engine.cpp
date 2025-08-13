@@ -193,6 +193,11 @@ public:
         return GetCurrentEngine()->UseDirectIOForReads();
     }
 
+    bool IsInFlightRequestLimitExceeded() const override
+    {
+        return GetCurrentEngine()->IsInFlightRequestLimitExceeded();
+    }
+
     bool IsInFlightReadRequestLimitExceeded() const override
     {
         return GetCurrentEngine()->IsInFlightReadRequestLimitExceeded();
@@ -201,6 +206,16 @@ public:
     bool IsInFlightWriteRequestLimitExceeded() const override
     {
         return GetCurrentEngine()->IsInFlightWriteRequestLimitExceeded();
+    }
+
+    i64 GetInFlightRequestCount() const override
+    {
+        return GetCurrentEngine()->GetInFlightRequestCount();
+    }
+
+    i64 GetTotalRequestLimit() const override
+    {
+        return GetCurrentEngine()->GetTotalRequestLimit();
     }
 
     i64 GetInFlightReadRequestCount() const override
@@ -225,8 +240,8 @@ public:
 
 private:
     const TString LocationId_;
-    const TFairShareHierarchicalSlotQueuePtr<std::string> FairShareQueue_ = nullptr;
-    const IHugePageManagerPtr HugePageManager_ = nullptr;
+    const TFairShareHierarchicalSlotQueuePtr<std::string> FairShareQueue_;
+    const IHugePageManagerPtr HugePageManager_;
     const NProfiling::TProfiler Profiler_;
     const NLogging::TLogger Logger;
 

@@ -32,6 +32,14 @@ struct TDynamicConfigManagerOptions
     //! Type of the master channel that is used for dynamic
     //! config fetching.
     NApi::EMasterChannelKind ReadFrom = NApi::EMasterChannelKind::Cache;
+
+    //! Allows configs to be fetched without syncing with the
+    //! transaction coordinator cell. This makes it slightly
+    //! faster, but most importantly allows configs to be
+    //! fetched when the master is in read-only mode, but at
+    //! a cost of inconsistent data if configs are changed
+    //! under a transaction.
+    bool SuppressTransactionCoordinatorSync = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

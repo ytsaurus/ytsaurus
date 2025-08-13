@@ -18,6 +18,7 @@
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/ytlib/sequoia_client/client.h>
+#include <yt/yt/ytlib/sequoia_client/prerequisite_revision.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -188,14 +189,18 @@ class TSequoiaService
     : public ISequoiaService
 {
 public:
-    explicit TSequoiaService(IBootstrap* bootstrap)
+    explicit TSequoiaService(
+        IBootstrap* bootstrap,
+        TAuthenticationIdentity authenticationIdentity)
         : Bootstrap_(bootstrap)
+        , AuthenticationIdentity_(std::move(authenticationIdentity))
     { }
 
     EInvokeResult TryInvoke(
         const ISequoiaServiceContextPtr& context,
         const TSequoiaSessionPtr& session,
-        const TResolveResult& resolveResult) override
+        const TResolveResult& resolveResult,
+        const std::vector<TResolvedPrerequisiteRevision>& resolvedPrerequisiteRevisions) override
     {
         static_assert(std::variant_size<std::decay_t<decltype(resolveResult)>>() == 3);
 
@@ -222,7 +227,8 @@ public:
                             Bootstrap_,
                             session,
                             TAbsolutePath::MakeCanonicalPathOrThrow(
-                                cypressResolveResult->Path));
+                                cypressResolveResult->Path),
+                            AuthenticationIdentity_);
                     } catch (const std::exception& ex) {
                         // TODO(danilalexeev): Implement the top-level #GuardedTryInvoke.
                         context->Reply(ex);
@@ -256,10 +262,10 @@ public:
                     return EInvokeResult::ForwardToMaster;
             }
         } else if (std::holds_alternative<TMasterResolveResult>(resolveResult)) {
-            proxy = CreateMasterProxy(Bootstrap_, session);
+            proxy = CreateMasterProxy(Bootstrap_, session, AuthenticationIdentity_);
         } else {
             const auto& sequoiaResolveResult = std::get<TSequoiaResolveResult>(resolveResult);
-            proxy = CreateNodeProxy(Bootstrap_, session, sequoiaResolveResult);
+            proxy = CreateNodeProxy(Bootstrap_, session, sequoiaResolveResult, resolvedPrerequisiteRevisions, AuthenticationIdentity_);
         }
 
         return proxy->Invoke(context);
@@ -267,13 +273,16 @@ public:
 
 private:
     IBootstrap* const Bootstrap_;
+    TAuthenticationIdentity AuthenticationIdentity_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISequoiaServicePtr CreateSequoiaService(IBootstrap* bootstrap)
+ISequoiaServicePtr CreateSequoiaService(
+    IBootstrap* bootstrap,
+    TAuthenticationIdentity authenticationIdentity)
 {
-    return New<TSequoiaService>(bootstrap);
+    return New<TSequoiaService>(bootstrap, std::move(authenticationIdentity));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -23,7 +23,7 @@ struct IEvaluator
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         const IMemoryChunkProviderPtr& memoryChunkProvider,
-        const TQueryBaseOptions& options,
+        const TQueryOptions& options,
         const TFeatureFlags& requestFeatureFlags,
         TFuture<TFeatureFlags> responseFeatureFlags) = 0;
 };

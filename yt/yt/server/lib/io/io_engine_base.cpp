@@ -64,6 +64,8 @@ void TIOEngineConfigBase::Register(TRegistrar registrar)
     registrar.Parameter("use_direct_io_for_reads", &TThis::UseDirectIOForReads)
         .Default(EDirectIOPolicy::Never);
 
+    registrar.Parameter("total_request_limit", &TThis::TotalRequestLimit)
+        .Default(std::numeric_limits<i64>::max());
     registrar.Parameter("write_request_limit", &TThis::WriteRequestLimit)
         .Default(std::numeric_limits<i64>::max());
     registrar.Parameter("read_request_limit", &TThis::ReadRequestLimit)
@@ -298,14 +300,29 @@ EDirectIOPolicy TIOEngineBase::UseDirectIOForReads() const
     return Config_.Acquire()->UseDirectIOForReads;
 }
 
+bool TIOEngineBase::IsInFlightRequestLimitExceeded() const
+{
+    return GetInFlightRequestCount() >= GetTotalRequestLimit();
+}
+
+i64 TIOEngineBase::GetInFlightRequestCount() const
+{
+    return GetInFlightWriteRequestCount() + GetInFlightReadRequestCount();
+}
+
+i64 TIOEngineBase::GetTotalRequestLimit() const
+{
+    return Config_.Acquire()->TotalRequestLimit;
+}
+
 bool TIOEngineBase::IsInFlightReadRequestLimitExceeded() const
 {
-    return InFlightReadRequestCount_.load(std::memory_order_relaxed) >= Config_.Acquire()->ReadRequestLimit;
+    return InFlightReadRequestCount_.load(std::memory_order::relaxed) >= Config_.Acquire()->ReadRequestLimit;
 }
 
 i64 TIOEngineBase::GetInFlightReadRequestCount() const
 {
-    return InFlightReadRequestCount_.load(std::memory_order_relaxed);
+    return InFlightReadRequestCount_.load(std::memory_order::relaxed);
 }
 
 i64 TIOEngineBase::GetReadRequestLimit() const
@@ -315,12 +332,12 @@ i64 TIOEngineBase::GetReadRequestLimit() const
 
 bool TIOEngineBase::IsInFlightWriteRequestLimitExceeded() const
 {
-    return InFlightWriteRequestCount_.load(std::memory_order_relaxed) >= Config_.Acquire()->WriteRequestLimit;
+    return InFlightWriteRequestCount_.load(std::memory_order::relaxed) >= Config_.Acquire()->WriteRequestLimit;
 }
 
 i64 TIOEngineBase::GetInFlightWriteRequestCount() const
 {
-    return InFlightWriteRequestCount_.load(std::memory_order_relaxed);
+    return InFlightWriteRequestCount_.load(std::memory_order::relaxed);
 }
 
 i64 TIOEngineBase::GetWriteRequestLimit() const
@@ -447,9 +464,7 @@ TSharedMutableRef TIOEngineBase::AllocateHugeBlob()
         if (hugePageBlobReservingResult.IsOK()) {
             hugePageBlob = hugePageBlobReservingResult.Value();
         } else {
-            YT_LOG_DEBUG(
-                "Failed to reserve huge page blob: %v",
-                hugePageBlobReservingResult);
+            YT_LOG_DEBUG(hugePageBlobReservingResult, "Failed to reserve huge page blob");
         }
     }
     return hugePageBlob;

@@ -6,9 +6,13 @@
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 
+#include <yt/yt/server/node/cluster_node/node_resource_manager.h>
+
 #include <yt/yt/server/node/data_node/public.h>
 
 #include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
+
+#include <yt/yt/library/numeric/serialize/fixed_point_number.h>
 
 #include <yt/yt/core/actions/public.h>
 
@@ -57,7 +61,7 @@ DEFINE_ENUM(ESlotManagerState,
 struct TNumaNodeState
 {
     TNumaNodeInfo NumaNodeInfo;
-    double FreeCpuCount;
+    NClusterNode::TCpu FreeCpuCount;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -88,7 +92,7 @@ public:
         const TSlotManagerDynamicConfigPtr& newConfig);
 
     //! Acquires a free slot, throws on error.
-    IUserSlotPtr AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest, NScheduler::NProto::TCpuRequest cpuRequest);
+    IUserSlotPtr AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest, NClusterNode::TCpu requestedCpu, bool allow_idle_cpu_policy);
 
     class TSlotGuard
     {
@@ -96,13 +100,13 @@ public:
         TSlotGuard(
             TSlotManagerPtr slotManager,
             ESlotType slotType,
-            double requestedCpu,
+            NClusterNode::TCpu requestedCpu,
             std::optional<i64> numaNodeIdAffinity);
         ~TSlotGuard();
 
     private:
         const TSlotManagerPtr SlotManager_;
-        const double RequestedCpu_;
+        const NClusterNode::TCpu RequestedCpu_;
         const std::optional<i64> NumaNodeIdAffinity_;
 
         DEFINE_BYVAL_RO_PROPERTY(ESlotType, SlotType);
@@ -110,7 +114,7 @@ public:
     };
     std::unique_ptr<TSlotGuard> AcquireSlot(
         ESlotType slotType,
-        double requestedCpu,
+        NClusterNode::TCpu requestedCpu,
         const std::optional<TNumaNodeInfo>& numaNodeAffinity);
 
     int GetSlotCount() const;
@@ -243,7 +247,7 @@ private:
     int UsedIdleSlotCount_ = 0;
     ui64 InitializationEpoch_ = 0;
 
-    double IdlePolicyRequestedCpu_ = 0;
+    NClusterNode::TCpu IdlePolicyRequestedCpu_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, AlertsLock_);
 
@@ -322,7 +326,7 @@ private:
         int FreeSlotCount;
         int UsedIdleSlotCount;
 
-        double IdlePolicyRequestedCpu;
+        NClusterNode::TCpu IdlePolicyRequestedCpu;
 
         std::vector<TNumaNodeState> NumaNodeStates;
 
@@ -371,7 +375,7 @@ private:
     void ReleaseSlot(
         ESlotType slotType,
         int slotIndex,
-        double requestedCpu,
+        NClusterNode::TCpu requestedCpu,
         const std::optional<i64>& numaNodeIdAffinity);
 
     /*!

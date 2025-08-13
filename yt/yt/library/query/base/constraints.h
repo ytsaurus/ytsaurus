@@ -118,7 +118,7 @@ struct TConstraintsHolder
         const TConstConstraintExtractorMapPtr& constraintExtractors = GetBuiltinConstraintExtractors());
 };
 
-TString ToString(const TConstraintsHolder& constraints, TConstraintRef root);
+std::string ToString(const TConstraintsHolder& constraints, TConstraintRef root);
 
 class TReadRangesGenerator
 {

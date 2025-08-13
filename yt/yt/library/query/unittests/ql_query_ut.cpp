@@ -18,9 +18,6 @@
 #include <yt/yt/library/query/engine/folding_profiler.h>
 #include <yt/yt/library/query/engine/functions_cg.h>
 
-#include <yt/yt/library/query/proto/query.pb.h>
-
-#include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unordered_schemaful_reader.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
@@ -34,8 +31,6 @@
 #include <yt/yt/core/misc/range_formatters.h>
 
 #include <yt/yt/core/ytree/convert.h>
-
-#include <library/cpp/resource/resource.h>
 
 #include <util/system/sanitizers.h>
 
@@ -83,8 +78,8 @@ static void SumCodegenExecute(
     TDuration* codegen,
     TDuration* execute)
 {
-    *codegen += statistics.CodegenTime;
-    *execute += statistics.ExecuteTime;
+    *codegen += statistics.CodegenTime.GetTotal();
+    *execute += statistics.ExecuteTime.GetTotal();
 
     for (auto& inner : statistics.InnerStatistics) {
         SumCodegenExecute(inner, codegen, execute);
@@ -268,7 +263,7 @@ TEST_F(TQueryPrepareTest, AnyInNull)
 
 TEST_F(TQueryPrepareTest, TooBigQuery)
 {
-    TString query = "k from [//t] where a ";
+    std::string query = "k from [//t] where a ";
     for (int i = 0; i < 50; ++i) {
         query += "+ " + std::to_string(i);
     }
@@ -487,7 +482,7 @@ TEST_F(TQueryPrepareTest, SelectColumns)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillRepeatedly(Return(MakeFuture(MakeSplit({
             TColumnSchema("h", EValueType::Int64, ESortOrder::Ascending)
-                .SetExpression(TString("a")),
+                .SetExpression(std::string("a")),
             TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("b", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("c", EValueType::Int64),
@@ -522,7 +517,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//bids"))
         .WillRepeatedly(Return(MakeFuture(MakeSplit({
         TColumnSchema("hash", EValueType::Int64, ESortOrder::Ascending)
-            .SetExpression(TString("int64(farm_hash(cid))")),
+            .SetExpression(std::string("int64(farm_hash(cid))")),
         TColumnSchema("cid", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("pid", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("id", EValueType::Int64),
@@ -534,7 +529,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//DirectPhraseStat"))
         .WillRepeatedly(Return(MakeFuture(MakeSplit({
         TColumnSchema("ExportIDHash", EValueType::Int64, ESortOrder::Ascending)
-            .SetExpression(TString("int64(farm_hash(ExportID))")),
+            .SetExpression(std::string("int64(farm_hash(ExportID))")),
         TColumnSchema("ExportID", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("GroupExportID", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("PhraseID", EValueType::Uint64, ESortOrder::Ascending),
@@ -546,7 +541,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//phrases"))
         .WillRepeatedly(Return(MakeFuture(MakeSplit({
         TColumnSchema("hash", EValueType::Int64, ESortOrder::Ascending)
-            .SetExpression(TString("int64(farm_hash(pid))")),
+            .SetExpression(std::string("int64(farm_hash(pid))")),
         TColumnSchema("pid", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("__shard__", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("status", EValueType::Int64),
@@ -555,7 +550,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//campaigns"))
         .WillRepeatedly(Return(MakeFuture(MakeSplit({
         TColumnSchema("hash", EValueType::Int64, ESortOrder::Ascending)
-            .SetExpression(TString("int64(farm_hash(cid))")),
+            .SetExpression(std::string("int64(farm_hash(cid))")),
         TColumnSchema("cid", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("__shard__", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("value", EValueType::Int64),
@@ -708,6 +703,10 @@ TEST_F(TQueryPrepareTest, ArrayJoin)
 
     EXPECT_ANY_THROW(ParseAndPreparePlanFragment(
         &PrepareMock_, "key, nested, N FROM [//t] ARRAY JOIN nested AS N, nested AS N"));
+
+    ParseAndPreparePlanFragment(
+        &PrepareMock_,
+        "* FROM [//t] AS T ARRAY JOIN T.nested AS N JOIN [//t] AS D ON N = D.key");
 }
 
 TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
@@ -856,7 +855,7 @@ TEST_F(TQueryPrepareTest, GroupByPrimaryKey)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillRepeatedly(Return(MakeFuture(MakeSplit({
             TColumnSchema("hash", EValueType::Int64, ESortOrder::Ascending)
-                .SetExpression(TString("int64(farm_hash(a))")),
+                .SetExpression(std::string("int64(farm_hash(a))")),
             TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("b", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("v", EValueType::Int64),
@@ -887,7 +886,7 @@ TEST_F(TQueryPrepareTest, OrderByPrimaryKeyPrefix)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillRepeatedly(Return(MakeFuture(MakeSplit({
             TColumnSchema("hash", EValueType::Int64, ESortOrder::Ascending)
-                .SetExpression(TString("int64(farm_hash(a))")),
+                .SetExpression(std::string("int64(farm_hash(a))")),
             TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("b", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("v", EValueType::Int64),
@@ -1401,7 +1400,7 @@ TQueryStatistics DoExecuteQuery(
     TAggregateProfilerMapPtr aggregateProfilers,
     TConstQueryPtr query,
     IUnversionedRowsetWriterPtr writer,
-    const TQueryBaseOptions& options,
+    const TQueryOptions& options,
     const std::vector<IJoinProfilerPtr>& joinProfilers = {})
 {
     std::vector<TOwningRow> owningSourceRows;
@@ -1436,7 +1435,7 @@ TQueryStatistics DoExecuteQuery(
         }
 
         if (isFirstRead && query->IsOrdered(/*allowUnorderedGroupByWithLimit*/ true)) {
-            EXPECT_EQ(options.MaxRowsPerRead, std::min(RowsetProcessingBatchSize, query->Offset + query->Limit));
+            EXPECT_EQ(options.MaxRowsPerRead, std::min(DefaultRowsetProcessingBatchSize, query->Offset + query->Limit));
             isFirstRead = false;
         }
 
@@ -1804,7 +1803,7 @@ protected:
         const TDataSplit& dataSplit,
         const TSource& owningSourceRows,
         TEvaluateOptions evaluateOptions = {},
-        TString expectedError = {})
+        std::string expectedError = {})
     {
         std::vector<TSource> owningSources = {
             owningSourceRows
@@ -1866,7 +1865,7 @@ protected:
         const std::vector<TSource>& owningSources,
         const TResultMatcher& resultMatcher,
         TEvaluateOptions evaluateOptions,
-        std::optional<TString> expectedError)
+        std::optional<std::string> expectedError)
     {
         SCOPED_TRACE(query);
 
@@ -1948,6 +1947,7 @@ protected:
                 std::move(consumeSubqueryStatistics),
                 std::move(getPrefetchJoinDataSource),
                 GetDefaultMemoryChunkProvider(),
+                /*useOrderByInJoinSubqueries=*/ true,
                 Logger()));
         }
 
@@ -2060,7 +2060,7 @@ protected:
                 FunctionProfilers_,
                 AggregateProfilers_,
                 GetDefaultMemoryChunkProvider(),
-                TQueryBaseOptions{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true},
+                TQueryOptions{{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true}},
                 MostFreshFeatureFlags(),
                 MakeFuture(MostFreshFeatureFlags()));
 
@@ -2083,7 +2083,7 @@ protected:
             FunctionProfilers_,
             AggregateProfilers_,
             GetDefaultMemoryChunkProvider(),
-            TQueryBaseOptions{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true},
+            TQueryOptions{{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true}},
             MostFreshFeatureFlags(),
             MakeFuture(MostFreshFeatureFlags()));
 
@@ -2153,7 +2153,7 @@ protected:
             FunctionProfilers_,
             AggregateProfilers_,
             GetDefaultMemoryChunkProvider(),
-            TQueryBaseOptions{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true},
+            TQueryOptions{{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true}},
             MostFreshFeatureFlags(),
             MakeFuture(MostFreshFeatureFlags()));
 
@@ -2200,7 +2200,7 @@ protected:
             FunctionProfilers_,
             AggregateProfilers_,
             GetDefaultMemoryChunkProvider(),
-            TQueryBaseOptions{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true},
+            TQueryOptions{{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true}},
             MostFreshFeatureFlags(),
             MakeFuture(MostFreshFeatureFlags()));
 
@@ -2244,7 +2244,7 @@ protected:
             FunctionProfilers_,
             AggregateProfilers_,
             GetDefaultMemoryChunkProvider(),
-            TQueryBaseOptions{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true},
+            TQueryOptions{{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true}},
             MostFreshFeatureFlags(),
             MakeFuture(MostFreshFeatureFlags()));
 
@@ -4156,7 +4156,7 @@ TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithTotalsTotalRowCount)
             sources,
             AnyMatcher);
 
-        EXPECT_EQ(std::ssize(cardinality), statistics.TotalGroupedRowCount);
+        EXPECT_EQ(std::ssize(cardinality), statistics.GroupedRowCount.GetTotal());
     }
 
     {
@@ -4166,7 +4166,7 @@ TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithTotalsTotalRowCount)
             sources,
             AnyMatcher);
 
-        EXPECT_EQ(std::ssize(cardinality), statistics.TotalGroupedRowCount);
+        EXPECT_EQ(std::ssize(cardinality), statistics.GroupedRowCount.GetTotal());
     }
 
     {
@@ -4176,7 +4176,7 @@ TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithTotalsTotalRowCount)
             sources,
             AnyMatcher);
 
-        EXPECT_EQ(std::ssize(cardinality), statistics.TotalGroupedRowCount);
+        EXPECT_EQ(std::ssize(cardinality), statistics.GroupedRowCount.GetTotal());
     }
 }
 
@@ -4636,7 +4636,7 @@ TEST_F(TQueryEvaluateTest, GroupByWithLimitFirst)
         "first(b) as f FROM [//t] group by a limit 1",
         split,
         source,
-        ResultMatcher(result)).second.RowsRead;
+        ResultMatcher(result)).second.RowsRead.GetTotal();
     EXPECT_EQ(rowsRead, 3);
 
     SUCCEED();
@@ -4668,7 +4668,7 @@ TEST_F(TQueryEvaluateTest, GroupByWithLimitFirstString)
         split,
         source,
         ResultMatcher(result)).second;
-    EXPECT_EQ(queryStatistics.RowsRead, 3);
+    EXPECT_EQ(queryStatistics.RowsRead.GetTotal(), 3);
 
     SUCCEED();
 }
@@ -4943,7 +4943,7 @@ TEST_F(TQueryEvaluateTest, GroupByDisjointTotalsLimit)
 
     std::vector<TOwningRow> result;
     for (auto [a, b] : orderedKeys) {
-        TString resultRow = Format("x=%v;y=%v;s=%v", a, b, groupedValues[std::pair(a, b)]);
+        std::string resultRow = Format("x=%v;y=%v;s=%v", a, b, groupedValues[std::pair(a, b)]);
         result.push_back(YsonToRow(resultRow, resultSplit, false));
     }
     // TODO(lukyan): Try to make stable order of totals row
@@ -5337,7 +5337,7 @@ TEST_F(TQueryEvaluateTest, OutputRowLimit2)
 
     TSource source;
     for (size_t i = 0; i < 10000; ++i) {
-        source.push_back(TString());
+        source.push_back(std::string());
     }
 
     auto resultSplit = MakeSplit({
@@ -5345,7 +5345,7 @@ TEST_F(TQueryEvaluateTest, OutputRowLimit2)
     });
 
     std::vector<TOwningRow> result;
-    result.push_back(YsonToRow(TString() + "x=" + std::to_string(10000), resultSplit, false));
+    result.push_back(YsonToRow(std::string() + "x=" + std::to_string(10000), resultSplit, false));
 
     Evaluate("sum(1) as x FROM [//t] group by 0 as q", split, source, ResultMatcher(result), {.OutputRowLimit=100});
 
@@ -5817,7 +5817,7 @@ TEST_F(TQueryEvaluateTest, JoinWithComplexEvaluatedColumn)
 
     splits["//B"] = MakeSplit({
         TColumnSchema("bk0", EValueType::Int64, ESortOrder::Ascending)
-            .SetExpression(TString("bk1 + bk3")),
+            .SetExpression(std::string("bk1 + bk3")),
         TColumnSchema("bk1", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("bk2", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("bk3", EValueType::Int64, ESortOrder::Ascending),
@@ -6804,7 +6804,7 @@ TEST_F(TQueryEvaluateTest, TwoLeftJoinOneToMany)
 
     splits["//tag_group"] = MakeSplit({
         TColumnSchema("__hash__", EValueType::Int64, ESortOrder::Ascending)
-            .SetExpression(TString("int64(farm_hash(pid) % 64)")),
+            .SetExpression(std::string("int64(farm_hash(pid) % 64)")),
         TColumnSchema("pid", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("tag_id", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("value", EValueType::Int64),
@@ -6817,7 +6817,7 @@ TEST_F(TQueryEvaluateTest, TwoLeftJoinOneToMany)
 
     splits["//DirectPhraseStatV2"] = MakeSplit({
         TColumnSchema("YTHash", EValueType::Int64, ESortOrder::Ascending)
-            .SetExpression(TString("int64(farm_hash(ExportID))")),
+            .SetExpression(std::string("int64(farm_hash(ExportID))")),
         TColumnSchema("ExportID", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("GroupExportID", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("UpdateTime", EValueType::Int64, ESortOrder::Ascending),
@@ -6883,12 +6883,12 @@ TEST_F(TQueryEvaluateTest, OrderBy)
 
     for (int i = 0; i < 10000; ++i) {
         auto value = std::rand() % 100000 + 10000;
-        source.push_back(TString() + "a=" + std::to_string(value) + ";b=" + std::to_string(value * 10));
+        source.push_back(std::string() + "a=" + std::to_string(value) + ";b=" + std::to_string(value * 10));
     }
 
     for (int i = 0; i < 10000; ++i) {
         auto value = 10000 - i;
-        source.push_back(TString() + "a=" + std::to_string(value) + ";b=" + std::to_string(value * 10));
+        source.push_back(std::string() + "a=" + std::to_string(value) + ";b=" + std::to_string(value * 10));
     }
 
     std::vector<TOwningRow> result;
@@ -6913,7 +6913,7 @@ TEST_F(TQueryEvaluateTest, OrderBy)
     source.clear();
     for (int i = 0; i < 10; ++i) {
         auto value = 10 - i;
-        source.push_back(TString() + "a=" + std::to_string(i % 3) + ";b=" + std::to_string(value));
+        source.push_back(std::string() + "a=" + std::to_string(i % 3) + ";b=" + std::to_string(value));
     }
 
     result.clear();
@@ -6999,7 +6999,7 @@ TEST_F(TQueryEvaluateTest, GroupByTotalsOrderBy)
 
     TSource source;
     for (const auto& row : sourceValues) {
-        source.push_back(TString() + "a=" + std::to_string(row.first) + ";b=" + std::to_string(row.second));
+        source.push_back(std::string() + "a=" + std::to_string(row.first) + ";b=" + std::to_string(row.second));
     }
 
     auto resultSplit = MakeSplit({
@@ -7011,7 +7011,7 @@ TEST_F(TQueryEvaluateTest, GroupByTotalsOrderBy)
     result.push_back(YsonToRow("y=" + std::to_string(totalSum), resultSplit, true));
 
     for (const auto& row : groupedValues) {
-        TString resultRow = TString() + "x=" + std::to_string(row.first) + ";y=" + std::to_string(row.second);
+        std::string resultRow = std::string() + "x=" + std::to_string(row.first) + ";y=" + std::to_string(row.second);
         result.push_back(YsonToRow(resultRow, resultSplit, false));
     }
 
@@ -10196,7 +10196,7 @@ TEST_F(TQueryEvaluateTest, DataWeightRead)
     i64 secondRowWeight = rowWeight + int64Weight + booleanWeight + secondStringWeight;
     i64 expectedWeight = firstRowWeight + secondRowWeight;
 
-    EXPECT_EQ(queryStatistics.DataWeightRead, expectedWeight);
+    EXPECT_EQ(queryStatistics.DataWeightRead.GetTotal(), expectedWeight);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

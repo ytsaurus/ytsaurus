@@ -465,6 +465,10 @@ struct TDistributedHydraManagerConfig
     //! after recovery is complete.
     i64 MaxTotalChangelogSizeForRecovery;
 
+    //! If the difference between current and target sequence numbers during recovery does not exceed this value,
+    //! recovery is done using only changelogs without snapshots.
+    i64 MaxSequenceNumberGapForChangelogOnlyRecovery;
+
     //! Interval between checkpoint checks.
     TDuration CheckpointCheckPeriod;
 

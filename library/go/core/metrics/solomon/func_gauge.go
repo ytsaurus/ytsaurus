@@ -21,6 +21,13 @@ type FuncGauge struct {
 	memOnly    bool
 }
 
+func (g *FuncGauge) getID() string {
+	if g.timestamp != nil {
+		return g.name + "(" + g.timestamp.Format(time.RFC3339) + ")"
+	}
+	return g.name
+}
+
 func (g *FuncGauge) Name() string {
 	return g.name
 }
@@ -74,7 +81,7 @@ func (g *FuncGauge) MarshalJSON() ([]byte, error) {
 		Value: g.function(),
 		Labels: func() map[string]string {
 			labels := make(map[string]string, len(g.tags)+1)
-			labels[g.getNameTag()] = g.Name()
+			labels[g.getNameTag()] = g.name
 			for k, v := range g.tags {
 				labels[k] = v
 			}

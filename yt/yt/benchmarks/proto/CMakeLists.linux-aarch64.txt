@@ -39,8 +39,7 @@ target_link_libraries(proto PUBLIC
 )
 
 target_allocator(proto
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
+  system_allocator
 )
 
 target_link_options(proto PRIVATE

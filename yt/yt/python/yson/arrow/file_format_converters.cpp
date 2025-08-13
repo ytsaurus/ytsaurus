@@ -64,6 +64,52 @@ TString GenerateFileName(int index, int fileNameWidth, EFileFormat format)
     }
 }
 
+arrow::Compression::type GetParquetFileCompression(const std::string& compressionCodec)
+{
+    if (compressionCodec == "uncompressed") {
+        return arrow::Compression::UNCOMPRESSED;
+    } else if (compressionCodec == "snappy") {
+        return arrow::Compression::SNAPPY;
+    } else if (compressionCodec == "gzip") {
+        return arrow::Compression::GZIP;
+    } else if (compressionCodec == "brotli") {
+        return arrow::Compression::BROTLI;
+    } else if (compressionCodec == "zstd") {
+        return arrow::Compression::ZSTD;
+    } else if (compressionCodec == "lz4") {
+        return arrow::Compression::LZ4;
+    } else if (compressionCodec == "lz4_frame") {
+        return arrow::Compression::LZ4_FRAME;
+    } else if (compressionCodec == "lzo") {
+        return arrow::Compression::LZO;
+    } else if (compressionCodec == "bz2") {
+        return arrow::Compression::BZ2;
+    } else if (compressionCodec == "lz4_hadoop") {
+        return arrow::Compression::LZ4_HADOOP;
+    } else {
+        throw Py::TypeError(Format("Unexpected compression codec %Qv", compressionCodec));
+    }
+}
+
+orc::CompressionKind GetORCFileCompression(const std::string& compressionCodec)
+{
+    if (compressionCodec == "none") {
+        return orc::CompressionKind::CompressionKind_NONE;
+    } else if (compressionCodec == "snappy") {
+       return orc::CompressionKind::CompressionKind_SNAPPY;
+    } else if (compressionCodec == "zlib") {
+        return orc::CompressionKind::CompressionKind_ZLIB;
+    } else if (compressionCodec == "lz4") {
+        return orc::CompressionKind::CompressionKind_LZ4;
+    } else if (compressionCodec == "lzo") {
+        return orc::CompressionKind::CompressionKind_LZO;
+    } else if (compressionCodec == "zstd") {
+        return orc::CompressionKind::CompressionKind_ZSTD;
+    } else {
+        throw Py::TypeError(Format("Unexpected compression codec %Qv", compressionCodec));
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TAsyncDumpFileInputArguments
@@ -140,6 +186,24 @@ TAsyncDumpFileInputArguments ExtractAsyncDumpFileArguments(Py::Tuple& args, Py::
     };
 }
 
+struct TParquetConfig
+{
+    arrow::Compression::type FileCompression;
+};
+
+struct TOrcConfig
+{
+    orc::CompressionKind FileCompression;
+};
+
+struct TFormatConfig
+{
+    std::optional<TOrcConfig> OrcConfig;
+    std::optional<TParquetConfig> ParquetConfig;
+    EFileFormat Format;
+    i64 MinBatchRowCount;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IFormatWriter
@@ -156,7 +220,8 @@ public:
     TParquetWriter(
         const arrow::Schema& schema,
         const std::string& outputFilePath,
-        TArrowStatusCallback arrowStatusCallback)
+        TArrowStatusCallback arrowStatusCallback,
+        const TParquetConfig& config)
         : ArrowStatusCallback_(std::move(arrowStatusCallback))
     {
         auto outputFileOrError = arrow::io::FileOutputStream::Open(outputFilePath);
@@ -166,7 +231,7 @@ public:
         auto outputFile = outputFileOrError.ValueOrDie();
 
         auto properties =
-            parquet::WriterProperties::Builder().compression(arrow::Compression::SNAPPY)->build();
+            parquet::WriterProperties::Builder().compression(config.FileCompression)->build();
 
         ArrowStatusCallback_(parquet::arrow::FileWriter::Open(
             schema,
@@ -201,14 +266,17 @@ public:
     TOrcWriter(
         const arrow::Schema& schema,
         const std::string& outputFilePath,
-        TArrowStatusCallback arrowStatusCallback)
+        TArrowStatusCallback arrowStatusCallback,
+        const TOrcConfig& config)
         : OutputStream_(liborc::writeLocalFile(outputFilePath))
         , ArrowStatusCallback_(arrowStatusCallback)
     {
         auto orcSchemaOrError = arrow::adapters::orc::GetOrcType(schema);
         ArrowStatusCallback_(orcSchemaOrError.status());
         OrcSchema_ = std::move(orcSchemaOrError.ValueOrDie());
-        Writer_ = liborc::createWriter(*OrcSchema_, OutputStream_.get(), liborc::WriterOptions{});
+        liborc::WriterOptions options;
+        options.setCompression(config.FileCompression);
+        Writer_ = liborc::createWriter(*OrcSchema_, OutputStream_.get(), options);
     }
 
     arrow::Status WriteTable(const arrow::Table& table, int64_t chunkSize) override
@@ -506,8 +574,7 @@ std::shared_ptr<arrow::RecordBatch> GetNextBatch(
 void DoDumpFile(
     const std::shared_ptr<arrow::io::InputStream>& pipe,
     TString outputFilePath,
-    EFileFormat format,
-    i64 minBatchRowCount,
+    const TFormatConfig& config,
     const TArrowStatusCallback& arrowStatusCallback)
 {
     std::shared_ptr<arrow::ipc::RecordBatchStreamReader> batchReader = GetNextBatchReader(pipe, arrowStatusCallback);
@@ -523,12 +590,13 @@ void DoDumpFile(
     auto schema = ConvertDictionarySchema(batchReader->schema());
 
     std::unique_ptr<IFormatWriter> formatWriter;
-    switch (format) {
-        case EFileFormat::Parquet:
-            formatWriter = std::make_unique<TParquetWriter>(*schema, outputFilePath, arrowStatusCallback);
-            break;
-        case EFileFormat::ORC:
-            formatWriter = std::make_unique<TOrcWriter>(*schema, outputFilePath, arrowStatusCallback);
+
+    if (config.ParquetConfig) {
+        formatWriter = std::make_unique<TParquetWriter>(*schema, outputFilePath, arrowStatusCallback, *config.ParquetConfig);
+    } else if (config.OrcConfig) {
+        formatWriter = std::make_unique<TOrcWriter>(*schema, outputFilePath, arrowStatusCallback, *config.OrcConfig);
+    } else {
+        throw Py::TypeError("Unexpected format");
     }
 
     std::vector<std::shared_ptr<arrow::RecordBatch>> batches;
@@ -550,7 +618,7 @@ void DoDumpFile(
             batchesRowCount += batch->num_rows();
             batches.push_back(std::move(batch));
 
-            if (batchesRowCount >= minBatchRowCount) {
+            if (batchesRowCount >= config.MinBatchRowCount) {
                 writeBatches();
                 batches.clear();
                 batchesRowCount = 0;
@@ -567,7 +635,7 @@ void DoDumpFile(
     arrowStatusCallback(formatWriter->Close());
 }
 
-Py::Object DoAsyncDumpFile(TAsyncDumpFileInputArguments&& inputArquments, EFileFormat format)
+Py::Object DoAsyncDumpFile(TAsyncDumpFileInputArguments&& inputArquments, const TFormatConfig& config)
 {
     auto threadPool = CreateThreadPool(inputArquments.ThreadCount, "ParquetDumperPool");
 
@@ -597,20 +665,19 @@ Py::Object DoAsyncDumpFile(TAsyncDumpFileInputArguments&& inputArquments, EFileF
 
     // Сreate handlers that turn blocks into parquet format and write the result to a file.
     for (int fileIndex = 0; fileIndex < inputArquments.ThreadCount; ++fileIndex) {
-        auto fileName = GetFileName(inputArquments, fileIndex, inputArquments.ThreadCount, format);
+        auto fileName = GetFileName(inputArquments, fileIndex, inputArquments.ThreadCount, config.Format);
 
         asyncResults.push_back(BIND([
             pipe = pipes[fileIndex],
             fileName = std::move(fileName),
-            format, onArrowStatusCallback,
-            minBatchRowCount = inputArquments.MinBatchRowCount
+            onArrowStatusCallback,
+            &config
         ] {
             pipe->Start();
             DoDumpFile(
                 pipe,
                 fileName,
-                format,
-                minBatchRowCount,
+                config,
                 onArrowStatusCallback);
         })
             .AsyncVia(threadPool->GetInvoker())
@@ -656,10 +723,22 @@ Py::Object DoAsyncDumpFile(TAsyncDumpFileInputArguments&& inputArquments, EFileF
 Py::Object AsyncDumpParquet(Py::Tuple& args, Py::Dict& kwargs)
 {
     auto inputArguments = ExtractAsyncDumpFileArguments(args, kwargs);
+    auto fileCompression = arrow::Compression::SNAPPY;
+    if (HasArgument(args, kwargs, "file_compression_codec")) {
+        fileCompression = GetParquetFileCompression(Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "file_compression_codec")));
+    }
+
     if (!AreArgumentsEmpty(args, kwargs)) {
         YT_LOG_WARNING("The AsyncDumpParquet function received unrecognized arguments");
     }
-    return DoAsyncDumpFile(std::move(inputArguments), EFileFormat::Parquet);
+    auto config = TFormatConfig{
+        .ParquetConfig = TParquetConfig{
+            .FileCompression = fileCompression,
+        },
+        .Format = EFileFormat::Parquet,
+        .MinBatchRowCount = inputArguments.MinBatchRowCount,
+    };
+    return DoAsyncDumpFile(std::move(inputArguments), config);
 }
 
 Py::Object DumpParquet(Py::Tuple& args, Py::Dict& kwargs)
@@ -675,12 +754,26 @@ Py::Object DumpParquet(Py::Tuple& args, Py::Dict& kwargs)
         minBatchRowCount = Py::ConvertToLongLong(ExtractArgument(args, kwargs, "min_batch_row_count"));
     }
 
+    auto fileCompression = arrow::Compression::SNAPPY;
+    if (HasArgument(args, kwargs, "file_compression_codec")) {
+        fileCompression = GetParquetFileCompression(Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "file_compression_codec")));
+    }
+
+    auto config = TFormatConfig{
+        .ParquetConfig = TParquetConfig{
+            .FileCompression = fileCompression,
+        },
+        .Format = EFileFormat::Parquet,
+        .MinBatchRowCount = minBatchRowCount,
+    };
+
     if (!AreArgumentsEmpty(args, kwargs)) {
         YT_LOG_WARNING("The DumpParquet function received unrecognized arguments");
     }
 
     auto pipe = std::make_shared<TArrowInputStreamAdapter>(stream.get());
-    DoDumpFile(pipe, outputFilePath, EFileFormat::Parquet, minBatchRowCount, [] (const arrow::Status& status) {
+
+    DoDumpFile(pipe, outputFilePath, config, [] (const arrow::Status& status) {
         if (!status.ok()) {
             throw Py::TypeError(status.message());
         }
@@ -694,10 +787,22 @@ Py::Object DumpParquet(Py::Tuple& args, Py::Dict& kwargs)
 Py::Object AsyncDumpOrc(Py::Tuple& args, Py::Dict& kwargs)
 {
     auto inputArguments = ExtractAsyncDumpFileArguments(args, kwargs);
+
+    auto fileCompression = orc::CompressionKind::CompressionKind_SNAPPY;
+    if (HasArgument(args, kwargs, "file_compression_codec")) {
+        fileCompression = GetORCFileCompression(Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "file_compression_codec")));
+    }
     if (!AreArgumentsEmpty(args, kwargs)) {
         YT_LOG_WARNING("The AsyncDumpOrc function received unrecognized arguments");
     }
-    return DoAsyncDumpFile(std::move(inputArguments), EFileFormat::ORC);
+    auto config = TFormatConfig{
+        .OrcConfig = TOrcConfig{
+            .FileCompression = fileCompression,
+        },
+        .Format = EFileFormat::ORC,
+        .MinBatchRowCount = inputArguments.MinBatchRowCount,
+    };
+    return DoAsyncDumpFile(std::move(inputArguments), config);
 }
 
 Py::Object DumpORC(Py::Tuple& args, Py::Dict& kwargs)
@@ -713,12 +818,25 @@ Py::Object DumpORC(Py::Tuple& args, Py::Dict& kwargs)
         minBatchRowCount = Py::ConvertToLongLong(ExtractArgument(args, kwargs, "min_batch_row_count"));
     }
 
+    auto fileCompression = orc::CompressionKind::CompressionKind_SNAPPY;
+    if (HasArgument(args, kwargs, "file_compression_codec")) {
+        fileCompression = GetORCFileCompression(Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "file_compression_codec")));
+    }
+
     if (!AreArgumentsEmpty(args, kwargs)) {
         YT_LOG_WARNING("The DumpORC function received unrecognized arguments");
     }
 
+    auto config = TFormatConfig{
+        .OrcConfig = TOrcConfig{
+            .FileCompression = fileCompression,
+        },
+        .Format = EFileFormat::ORC,
+        .MinBatchRowCount = minBatchRowCount,
+    };
+
     auto pipe = std::make_shared<TArrowInputStreamAdapter>(stream.get());
-    DoDumpFile(pipe, outputFilePath, EFileFormat::ORC, minBatchRowCount, [] (const arrow::Status& status) {
+    DoDumpFile(pipe, outputFilePath, config, [] (const arrow::Status& status) {
         if (!status.ok()) {
             throw Py::TypeError(status.message());
         }

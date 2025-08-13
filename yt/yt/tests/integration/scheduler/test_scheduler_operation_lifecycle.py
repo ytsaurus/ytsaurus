@@ -838,9 +838,9 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         create_pool("unique_pool")
         pool_path = "//sys/pools/unique_pool"
         set(pool_path + "/@max_operation_count", 50)
-        wait(lambda: get(scheduler_orchid_pool_path("unique_pool") + "/max_operation_count") == 50)
         set(pool_path + "/@max_running_operation_count", 8)
-        wait(lambda: get(scheduler_orchid_pool_path("unique_pool") + "/max_running_operation_count") == 8)
+        set(pool_path + "/@strong_guarantee_resources", {"cpu": 1.0})
+        wait(lambda: get(scheduler_orchid_pool_path("unique_pool") + "/strong_guarantee_resources/cpu", default=None) == 1.0)
 
         profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default", "pool": "unique_pool"})
 
@@ -862,6 +862,8 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         strong_guarantee_resources_cpu_sensor = profiler.gauge(metric_prefix + "strong_guarantee_resources/cpu")
         strong_guarantee_resources_memory_sensor = profiler.gauge(metric_prefix + "strong_guarantee_resources/user_memory")
         strong_guarantee_resources_user_slots_sensor = profiler.gauge(metric_prefix + "strong_guarantee_resources/user_slots")
+        effective_strong_guarantee_resources_cpu_sensor = profiler.gauge(metric_prefix + "effective_strong_guarantee_resources/cpu")
+        effective_strong_guarantee_resources_user_slots_sensor = profiler.gauge(metric_prefix + "effective_strong_guarantee_resources/user_slots")
 
         op = run_sleeping_vanilla(spec={"pool": "unique_pool"})
 
@@ -880,9 +882,11 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         # pool guaranties metrics
         wait(lambda: max_operation_count_sensor.get() == 50)
         wait(lambda: max_running_operation_count_sensor.get() == 8)
-        wait(lambda: strong_guarantee_resources_cpu_sensor.get() == 0)
+        wait(lambda: strong_guarantee_resources_cpu_sensor.get() == 1.0)
         wait(lambda: strong_guarantee_resources_memory_sensor.get() == 0)
         wait(lambda: strong_guarantee_resources_user_slots_sensor.get() == 0)
+        wait(lambda: effective_strong_guarantee_resources_cpu_sensor.get() == 1.0)
+        wait(lambda: effective_strong_guarantee_resources_user_slots_sensor.get() == 1)
         op.complete()
 
         wait(lambda: finished_operation_count_sensor.get(tags={"state": "completed"}) == 1)
@@ -1316,6 +1320,11 @@ class TestSchedulerErrorTruncate(YTEnvSetup):
             "enable_job_spec_reporter": True,
             "enable_job_stderr_reporter": True,
         }
+    }
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
     }
 
     @classmethod

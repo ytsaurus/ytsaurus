@@ -55,6 +55,11 @@ std::vector<std::pair<int, int>> GetCommonKeyIndices(
         }
     }
 
+    // First pivot of both tables must be empty
+    YT_VERIFY(!indices.empty());
+    YT_VERIFY(indices.front() == std::pair(0, 0));
+    indices.emplace_back(std::ssize(majorTableKeys), std::ssize(minorTableKeys));
+
     YT_LOG_DEBUG_IF(enableVerboseLogging,
         "Found common key indices (CommonIndices: %v, MajorKeys: %v, MinorKeys: %v)",
         indices,
@@ -170,11 +175,6 @@ std::vector<double> CalculateMajorMetrics(
         Logger,
         enableVerboseLogging);
 
-    // First pivot of both tables must be empty
-    YT_VERIFY(!commonPivotKeys.empty());
-    YT_VERIFY(commonPivotKeys.front() == std::pair(0, 0));
-    commonPivotKeys.emplace_back(std::ssize(majorTablePivotKeys), std::ssize(minorTablePivotKeys));
-
     std::vector<double> metrics;
     for (auto rightCommonPivotIndex = 1; rightCommonPivotIndex < std::ssize(commonPivotKeys); ++rightCommonPivotIndex) {
         auto [majorLeftPivotIndex, minorLeftPivotIndex] = commonPivotKeys[rightCommonPivotIndex - 1];
@@ -191,6 +191,76 @@ std::vector<double> CalculateMajorMetrics(
         "Calculated major table metrics by minor table (Metrics: %v)",
         metrics);
     return metrics;
+}
+
+std::vector<std::pair<int, std::vector<TLegacyOwningKey>>> ReshardByReferencePivots(
+    const TRange<TLegacyOwningKey>& keys,
+    const TRange<TLegacyOwningKey>& referenceKeys,
+    int maxTabletCountPerAction,
+    const NLogging::TLogger& Logger,
+    bool enableVerboseLogging)
+{
+    YT_LOG_DEBUG_IF(enableVerboseLogging,
+        "Building reshard descriptors to split table by reference table between same pivots "
+        "(Keys: %v, ReferenceKeys: %v, MaxTabletCountPerAction: %v)",
+        MakeFormattableView(keys, TDefaultFormatter{}),
+        MakeFormattableView(referenceKeys, TDefaultFormatter{}),
+        maxTabletCountPerAction);
+
+    std::vector<std::pair<int, std::vector<TLegacyOwningKey>>> actions;
+    int leftIndex = 0;
+    int rightIndex = 0;
+    auto referencePivot = referenceKeys.begin();
+    YT_VERIFY(referencePivot != referenceKeys.end());
+
+    while (rightIndex < std::ssize(keys)) {
+        while (referencePivot != referenceKeys.end() && *referencePivot <= keys[leftIndex]) {
+            YT_LOG_DEBUG_IF(enableVerboseLogging,
+                "Shifting reference pivot iterator to right to skip extra pivots "
+                "(NextFirstPivot: %v, ReferenceTablePivot: %v)",
+                keys[leftIndex],
+                *referencePivot);
+            ++referencePivot;
+        }
+
+        // Tablet action first pivot key must be the same as the key of the first tablet in it.
+        std::vector<TLegacyOwningKey> pivotKeys{keys[leftIndex]};
+
+        while (rightIndex - leftIndex < maxTabletCountPerAction &&
+            std::ssize(pivotKeys) < maxTabletCountPerAction &&
+            (referencePivot != referenceKeys.end() || rightIndex < std::ssize(keys)))
+        {
+            if (referencePivot == referenceKeys.end() ||
+                rightIndex < std::ssize(keys) && keys[rightIndex] < *referencePivot)
+            {
+                YT_LOG_DEBUG_IF(enableVerboseLogging,
+                    "Added minor tablet to descriptor "
+                    "(FirstIndex: %v, LastIndex: %v, Pivot: %v, ReferencePivot: %v)",
+                    leftIndex,
+                    rightIndex,
+                    keys[rightIndex],
+                    referencePivot != referenceKeys.end() ? std::optional(*referencePivot) : std::nullopt);
+                ++rightIndex;
+            } else {
+                YT_LOG_DEBUG_IF(enableVerboseLogging,
+                    "Added pivot key to descriptor "
+                    "(FirstIndex: %v, LastIndex: %v, Pivot: %v, AddedPivot: %v)",
+                    leftIndex,
+                    rightIndex,
+                    rightIndex < std::ssize(keys) ? std::optional(keys[rightIndex]) : std::nullopt,
+                    *referencePivot);
+
+                YT_VERIFY(pivotKeys.back() != *referencePivot);
+                pivotKeys.push_back(*referencePivot);
+                ++referencePivot;
+            }
+        }
+
+        actions.emplace_back(rightIndex - leftIndex, std::move(pivotKeys));
+        leftIndex = rightIndex;
+    }
+
+    return actions;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

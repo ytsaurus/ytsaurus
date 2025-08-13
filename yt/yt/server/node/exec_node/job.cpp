@@ -41,6 +41,8 @@
 
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
+#include <yt/yt/server/lib/signature/config.h>
+
 #include <yt/yt/server/lib/job_agent/structs.h>
 
 #include <yt/yt/server/lib/job_proxy/job_probe.h>
@@ -984,14 +986,14 @@ void TJob::OnResultReceived(TJobResult jobResult)
             TError nbdError;
             if (auto nbdServer = Bootstrap_->GetNbdServer()) {
                 for (const auto& exportId : NbdExportIds_) {
-                    if (auto device = nbdServer->GetDevice(exportId)) {
+                    if (auto device = nbdServer->FindDevice(exportId)) {
                         if (auto error = device->GetError(); !error.IsOK()) {
                             YT_LOG_ERROR(error, "NBD error occured during job execution (ExportId: %v)", exportId);
 
                             // Save the first found NBD error.
                             if (nbdError.IsOK()) {
                                 nbdError = std::move(error);
-                                nbdError <<= TErrorAttribute("abort_reason", EAbortReason::NbdErrors);
+                                nbdError <<= TErrorAttribute("abort_reason", EAbortReason::NbdError);
                                 nbdError <<= TErrorAttribute("debug_info", device->DebugString());
                                 // Save job error as well.
                                 if (auto jobError = FromProto<TError>(jobResult.error()); !jobError.IsOK()) {
@@ -1505,34 +1507,24 @@ TBriefJobInfo TJob::GetBriefInfo() const
         JobResendBackoffStartTime_);
 }
 
-NYTree::IYPathServicePtr TJob::CreateStaticOrchidService()
+IYPathServicePtr TJob::CreateStaticOrchidService()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    auto producer = BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
-        auto jobInfoOrError = WaitFor(BIND_NO_PROPAGATE(
-            &TJob::GetBriefInfo,
-            MakeStrong(this))
-                .AsyncVia(Invoker_)
-                .Run());
-
-        YT_LOG_FATAL_UNLESS(
-            jobInfoOrError.IsOK(),
-            jobInfoOrError,
-            "Failed to get brief job info for static orchid");
-
-        BuildYsonFluently(consumer).BeginMap()
-            .Do(std::bind(
-                &TBriefJobInfo::BuildOrchid,
-                std::move(jobInfoOrError).Value(),
-                std::placeholders::_1))
-        .EndMap();
-    });
-
-    return NYTree::IYPathService::FromProducer(std::move(producer));
+    return IYPathService::FromProducer(
+        BIND([this, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
+            try {
+                auto briefInfo = GetBriefInfo();
+                Serialize(briefInfo, consumer);
+            } catch (const std::exception& ex) {
+                YT_LOG_FATAL(
+                    ex,
+                    "Failed to get brief job info for static orchid");
+            }
+        }))->Via(Invoker_);
 }
 
-NYTree::IYPathServicePtr TJob::CreateJobProxyOrchidService()
+IYPathServicePtr TJob::CreateJobProxyOrchidService()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -1554,11 +1546,11 @@ NYTree::IYPathServicePtr TJob::CreateJobProxyOrchidService()
     });
 }
 
-NYTree::IYPathServicePtr TJob::CreateDynamicOrchidService()
+IYPathServicePtr TJob::CreateDynamicOrchidService()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    return New<NYTree::TCompositeMapService>()
+    return New<TCompositeMapService>()
         ->AddChild("job_proxy", CreateJobProxyOrchidService());
 }
 
@@ -1566,8 +1558,8 @@ IYPathServicePtr TJob::GetOrchidService()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    return New<TServiceCombiner>(
-        std::vector{
+    return CreateServiceCombiner(
+        {
             CreateStaticOrchidService(),
             CreateDynamicOrchidService()
         });
@@ -1830,7 +1822,9 @@ void TJob::DoInterrupt(
             << TErrorAttribute("interruption_reason", InterruptionReason_)
             << ex;
 
-        if (error.FindMatching(NJobProxy::EErrorCode::InterruptionFailed)) {
+        if (error.FindMatching(NJobProxy::EErrorCode::InterruptionFailed) ||
+            error.FindMatching(NJobProxy::EErrorCode::JobNotPrepared))
+        {
             Abort(error);
         } else {
             THROW_ERROR error;
@@ -2654,13 +2648,12 @@ void TJob::OnJobProxyFinished(const TError& error)
     if (!currentError.IsOK() && NeedsGpuCheck()) {
         SetJobPhase(EJobPhase::RunningExtraGpuCheckCommand);
 
+        YT_VERIFY(GpuCheckVolume_);
+
         auto context = TJobGpuCheckerContext{
             .Slot = GetUserSlot(),
             .Job = MakeStrong(this),
-            .RootFS = GpuCheckVolume_
-                ? MakeWritableGpuCheckRootFS()
-                // COMPAT(ignat)
-                : MakeWritableRootFS(),
+            .RootFS = MakeWritableGpuCheckRootFS(),
             .CommandUser = CommonConfig_->SetupCommandUser,
             .Type = EGpuCheckType::Extra,
             .Options = GetGpuCheckOptions(),
@@ -3213,8 +3206,8 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     }
 
     // TODO(pavook): configure this dynamically (YT-25354).
-    proxyInternalConfig->EnableSignatureGeneration = static_cast<bool>(Bootstrap_->GetConfig()->ExecNode->SignatureGeneration);
-    proxyInternalConfig->EnableSignatureValidation = static_cast<bool>(Bootstrap_->GetConfig()->ExecNode->SignatureValidation);
+    proxyInternalConfig->EnableSignatureGeneration = static_cast<bool>(Bootstrap_->GetConfig()->ExecNode->SignatureComponents->Generation);
+    proxyInternalConfig->EnableSignatureValidation = static_cast<bool>(Bootstrap_->GetConfig()->ExecNode->SignatureComponents->Validation);
 
     if (auto proxyDynamicConfig = Bootstrap_->GetJobController()->GetJobProxyDynamicConfig()) {
         if (auto jaegerConfig = proxyInternalConfig->TryGetSingletonConfig<NTracing::TJaegerTracerConfig>()) {
@@ -3239,7 +3232,6 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         proxyInternalConfig->UseNewDeliveryFencedConnection = proxyDynamicConfig->UseNewDeliveryFencedConnection;
         proxyInternalConfig->EnablePerClusterChunkReaderStatistics = proxyDynamicConfig->EnablePerClusterChunkReaderStatistics;
 
-        proxyInternalConfig->EnableCudaProfileEventStreaming = proxyDynamicConfig->EnableCudaProfileEventStreaming;
         proxyInternalConfig->JobTraceEventProcessor = proxyDynamicConfig->JobTraceEventProcessor;
 
         if (proxyDynamicConfig->MemoryProfileDumpPath) {
@@ -3363,6 +3355,11 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
         // COMPAT(ignat).
         if (UserJobSpec_->has_inode_limit()) {
             options.InodeLimit = UserJobSpec_->inode_limit();
+        }
+
+        // Place upper directory of overlayfs on requested disk.
+        if (UserJobSpec_->has_disk_request()) {
+            options.SlotPath = GetUserSlot()->GetSlotPath();
         }
 
         // Do not set space and inode limits if root volume is used.

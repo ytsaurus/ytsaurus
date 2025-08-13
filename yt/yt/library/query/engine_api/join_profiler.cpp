@@ -115,12 +115,14 @@ public:
         TConsumeSubqueryStatistics consumeSubqueryStatistics,
         TGetPrefetchJoinDataSource getPrefetchJoinDataSource,
         IMemoryChunkProviderPtr memoryChunkProvider,
+        bool useOrderByInJoinSubqueries,
         TLogger logger)
         : JoinClause_(std::move(joinClause))
         , ExecutePlan_(std::move(executeForeign))
         , ConsumeSubqueryStatistics_(std::move(consumeSubqueryStatistics))
         , GetPrefetchJoinDataSource_(std::move(getPrefetchJoinDataSource))
         , MemoryChunkProvider_(std::move(memoryChunkProvider))
+        , UseOrderByInJoinSubqueries_(useOrderByInJoinSubqueries)
         , Logger(std::move(logger))
     { }
 
@@ -132,7 +134,9 @@ public:
 
             auto joinSubquery = JoinClause_->GetJoinSubquery();
             joinSubquery->InferRanges = false;
-            // COMPAT(lukyan): Use ordered read without modification of protocol
+            if (UseOrderByInJoinSubqueries_) {
+                joinSubquery->OrderClause = MakeOrderByPrefixClause(*JoinClause_);
+            }
             joinSubquery->Limit = OrderedReadWithPrefetchHint;
 
             YT_LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", joinSubquery->Id);
@@ -167,7 +171,7 @@ public:
             return ISchemafulUnversionedReaderPtr{};
         }
 
-        auto joinFragment = GetForeignQuery(std::move(keys), std::move(permanentBuffer), *JoinClause_, Logger);
+        auto joinFragment = GetForeignQuery(std::move(keys), std::move(permanentBuffer));
 
         YT_LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", joinFragment.Query->Id);
 
@@ -192,33 +196,32 @@ private:
     const TConsumeSubqueryStatistics ConsumeSubqueryStatistics_;
     const TGetPrefetchJoinDataSource GetPrefetchJoinDataSource_;
     const IMemoryChunkProviderPtr MemoryChunkProvider_;
+    const bool UseOrderByInJoinSubqueries_;
 
     const TLogger Logger;
 
-    static TPlanFragment GetForeignQuery(
+    TPlanFragment GetForeignQuery(
         std::vector<TRow> keys,
-        TRowBufferPtr buffer,
-        const TJoinClause& joinClause,
-        const NLogging::TLogger& Logger)
+        TRowBufferPtr buffer)
     {
         TDataSource dataSource;
-        dataSource.ObjectId = joinClause.ForeignObjectId;
-        dataSource.CellId = joinClause.ForeignCellId;
+        dataSource.ObjectId = JoinClause_->ForeignObjectId;
+        dataSource.CellId = JoinClause_->ForeignCellId;
 
-        const auto& foreignEquations = joinClause.ForeignEquations;
-        auto foreignKeyPrefix = joinClause.ForeignKeyPrefix;
-        auto newQuery = joinClause.GetJoinSubquery();
+        const auto& foreignEquations = JoinClause_->ForeignEquations;
+        auto foreignKeyPrefix = JoinClause_->ForeignKeyPrefix;
+        auto newQuery = JoinClause_->GetJoinSubquery();
 
         auto predicateRefines = false;
 
-        if (joinClause.Predicate) {
-            auto keyColumns = joinClause.Schema.GetKeyColumns();
+        if (JoinClause_->Predicate) {
+            auto keyColumns = JoinClause_->Schema.GetKeyColumns();
 
             auto dummyInClause = New<TInExpression>(
                 foreignEquations,
                 nullptr);
 
-            auto dummyWhereClause = MakeAndExpression(std::move(dummyInClause), joinClause.Predicate);
+            auto dummyWhereClause = MakeAndExpression(std::move(dummyInClause), JoinClause_->Predicate);
 
             auto signature = GetExpressionConstraintSignature(std::move(dummyWhereClause), keyColumns);
 
@@ -249,13 +252,16 @@ private:
                 ? MakeAndExpression(inClause, newQuery->WhereClause)
                 : inClause;
 
-            if (joinClause.Schema.Original->HasComputedColumns() &&
-                AllComputedColumnsEvaluated(joinClause))
+            if (JoinClause_->Schema.Original->HasComputedColumns() &&
+                AllComputedColumnsEvaluated(*JoinClause_))
             {
                 newQuery->ForceLightRangeInference = true;
             }
 
             if (foreignKeyPrefix > 0) {
+                if (UseOrderByInJoinSubqueries_) {
+                    newQuery->OrderClause = MakeOrderByPrefixClause(*JoinClause_);
+                }
                 // COMPAT(lukyan): Use ordered read without modification of protocol
                 newQuery->Limit = OrderedReadWithPrefetchHint;
             }
@@ -277,11 +283,13 @@ private:
             }
 
             newQuery->InferRanges = false;
-            // COMPAT(lukyan): Use ordered read without modification of protocol
-            newQuery->Limit = OrderedReadWithPrefetchHint;
+            if (foreignKeyPrefix > 0) {
+                newQuery->OrderClause = MakeOrderByPrefixClause(*JoinClause_);
+                newQuery->Limit = OrderedReadWithPrefetchHint;
+            }
         }
 
-        newQuery->GroupClause = joinClause.GroupClause;
+        newQuery->GroupClause = JoinClause_->GroupClause;
 
         return {
             .Query = std::move(newQuery),
@@ -320,6 +328,42 @@ private:
 
         return true;
     }
+
+    static TConstOrderClausePtr MakeOrderByPrefixClause(const TJoinClause& joinClause)
+    {
+        YT_VERIFY(joinClause.ForeignKeyPrefix > 0);
+
+        auto order = New<TOrderClause>();
+
+        if (joinClause.GroupClause) {
+            YT_VERIFY(joinClause.GroupClause->GroupItems.size() >= joinClause.ForeignKeyPrefix);
+
+            for (size_t index = 0; index < joinClause.ForeignKeyPrefix; ++index) {
+                const auto& item = joinClause.GroupClause->GroupItems[index];
+
+                YT_VERIFY(Compare(item.Expression, joinClause.ForeignEquations[index]));
+
+                order->OrderItems.push_back(TOrderItem{
+                    .Expression = New<TReferenceExpression>(
+                        item.Expression->LogicalType,
+                        item.Name),
+                    .Descending = false,
+                });
+            }
+        } else {
+            auto renamedSchema = joinClause.Schema.GetRenamedSchema();
+
+            for (size_t index = 0; index < joinClause.ForeignKeyPrefix; ++index) {
+                const auto& column = renamedSchema->Columns()[index];
+                order->OrderItems.push_back(TOrderItem{
+                    .Expression = New<TReferenceExpression>(column.LogicalType(), column.Name()),
+                    .Descending = false,
+                });
+            }
+        }
+
+        return order;
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TJoinSubqueryProfiler)
@@ -332,6 +376,7 @@ IJoinProfilerPtr CreateJoinSubqueryProfiler(
     TConsumeSubqueryStatistics consumeSubqueryStatistics,
     TGetPrefetchJoinDataSource getPrefetchJoinDataSource,
     IMemoryChunkProviderPtr memoryChunkProvider,
+    bool useOrderByInJoinSubqueries,
     TLogger logger)
 {
     return New<TJoinSubqueryProfiler>(
@@ -340,6 +385,7 @@ IJoinProfilerPtr CreateJoinSubqueryProfiler(
         std::move(consumeSubqueryStatistics),
         std::move(getPrefetchJoinDataSource),
         std::move(memoryChunkProvider),
+        useOrderByInJoinSubqueries,
         std::move(logger));
 }
 

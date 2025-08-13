@@ -34,7 +34,7 @@ void TJobNodeDescriptor::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(1, Id);
     PHOENIX_REGISTER_FIELD(2, Addresses);
     PHOENIX_REGISTER_FIELD(3, IOWeight);
-    // COMPAT(aleksandr.gaev): index 4 is reserved for deleted field `Address`
+    PHOENIX_REGISTER_DELETED_FIELD(4, std::string, Address, ESnapshotVersion::RemoveAddressFromJob);
 }
 
 PHOENIX_DEFINE_TYPE(TJobNodeDescriptor);

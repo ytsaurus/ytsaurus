@@ -225,28 +225,15 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategySchedulingSegmentsConfig)
 struct TGpuAllocationSchedulerConfig
     : public NYTree::TYsonStruct
 {
-    TDuration InitializationTimeout;
-
     TDuration ModuleReconsiderationTimeout;
 
-    TDuration PreemptForLargeOperationTimeout;
+    std::vector<std::string> Modules;
 
-    THashSet<std::string> DataCenters;
+    TDuration PriorityModuleBindingTimeout;
 
-    THashSet<std::string> InfinibandClusters;
+    TDuration FullHostAggressivePreemptionTimeout;
 
-    ESchedulingSegmentModuleAssignmentHeuristic ModuleAssignmentHeuristic;
-
-    ESchedulingSegmentModulePreemptionHeuristic ModulePreemptionHeuristic;
-
-    // TODO(omgronny): Refactor modules config.
-    ESchedulingSegmentModuleType ModuleType;
-
-    bool EnableDetailedLogs;
-
-    TDuration PriorityModuleAssignmentTimeout;
-
-    const THashSet<std::string>& GetModules() const;
+    TDuration MinAssignmentPreemptibleDuration;
 
     REGISTER_YSON_STRUCT(TGpuAllocationSchedulerConfig);
 
@@ -447,7 +434,7 @@ struct TFairShareStrategyTreeConfig
     int MaxEventLogPoolBatchSize;
     int MaxEventLogOperationBatchSize;
 
-    TDuration AccumulatedResourceUsageUpdatePeriod;
+    TDuration AccumulatedResourceDistributionUpdatePeriod;
 
     bool AllowAggressivePreemptionForGangOperations;
 
@@ -480,15 +467,22 @@ struct TFairShareStrategyTreeConfig
 
     bool EnableGuaranteePriorityScheduling;
 
+    bool EnableStepFunctionForGangOperations;
+    bool EnableImprovedFairShareByFitFactorComputation;
+    bool EnableImprovedFairShareByFitFactorComputationDistributionGap;
+
     TJobResourcesConfigPtr MinJobResourceLimits;
     TJobResourcesConfigPtr MaxJobResourceLimits;
+    TJobResourcesConfigPtr MinNodeResourceLimits;
+
+    TDuration MinNodeResourceLimitsCheckPeriod;
 
     bool AllowGangOperationsOnlyInFifoPools;
 
     // TODO(eshcherbin): Remove when 24.2 is finalized.
     bool AllowSingleJobLargeGpuOperationsInMultipleTrees;
 
-    std::optional<TJobResourcesConfigPtr> MinSpareAllocationResourcesOnNode;
+    TJobResourcesConfigPtr MinSpareAllocationResourcesOnNode;
 
     REGISTER_YSON_STRUCT(TFairShareStrategyTreeConfig);
 
@@ -600,7 +594,7 @@ struct TFairShareStrategyConfig
     bool RequireSpecifiedOperationPoolsExistence;
 
     //! Minimum amount of resources to continue schedule allocation attempts.
-    std::optional<TJobResourcesConfigPtr> MinSpareAllocationResourcesOnNode;
+    TJobResourcesConfigPtr MinSpareAllocationResourcesOnNode;
 
     REGISTER_YSON_STRUCT(TFairShareStrategyConfig);
 
@@ -741,6 +735,9 @@ struct TOperationsCleanerConfig
     //! Disconnect from master in case of finished operation fetch failure.
     //! This option does not affect fetching after cleaner is re-enabled.
     bool DisconnectOnFinishedOperationFetchFailure;
+
+    //! Timeout to remove operation from Cypress before setting an alert.
+    TDuration OperationRemovalTimeoutStuckThreshold;
 
     REGISTER_YSON_STRUCT(TOperationsCleanerConfig);
 

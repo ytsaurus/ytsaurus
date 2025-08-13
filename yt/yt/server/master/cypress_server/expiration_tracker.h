@@ -33,7 +33,6 @@ public:
     void OnNodeTouched(TCypressNode* trunkNode);
 
     void OnNodeDestroyed(TCypressNode* trunkNode);
-    void OnNodeRemovalFailed(TCypressNode* trunkNode);
 
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
@@ -51,6 +50,8 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
+    void OnNodeRemovalFailed(TCypressNode* trunkNode);
+
     void RegisterNodeExpirationTime(TCypressNode* trunkNode, TInstant expirationTime);
     void RegisterNodeExpirationTimeout(TCypressNode* trunkNode, std::optional<TInstant> touchTimeOverride = {});
     void UnregisterNodeExpirationTime(TCypressNode* trunkNode);
@@ -63,7 +64,6 @@ private:
     void UpdateProfiling(TInstant checkTime);
 
     void RemoveExpiredNodesViaClient(const std::vector<NObjectServer::TEphemeralObjectPtr<TCypressNode>>& trunkNodes);
-    void RemoveExpiredNodesViaMutation(const std::vector<TCypressNode*>& trunkNodes);
 
     bool IsRecovery() const;
 

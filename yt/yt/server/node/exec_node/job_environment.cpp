@@ -870,6 +870,9 @@ private:
         auto launcher = CreatePortoInstanceLauncher(
             GetFullJobContainerName(slotIndex, slotType, JobProxyContainerPrefix, jobId),
             PortoExecutor_);
+        if (ConcreteConfig_->JobProxyCpuWeight) {
+            launcher->SetCpuWeight(*ConcreteConfig_->JobProxyCpuWeight);
+        }
         launcher->SetEnablePorto(EEnablePorto::Full);
         launcher->SetIsolate(false);
         return launcher;

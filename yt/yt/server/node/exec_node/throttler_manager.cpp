@@ -50,7 +50,7 @@ public:
     IThroughputThrottlerPtr GetOrCreateThrottler(
         EExecNodeThrottlerKind kind,
         EThrottlerTrafficType trafficType,
-        std::optional<TClusterName> remoteClusterName) override;
+        TClusterName clusterName) override;
 
     void Reconfigure(TClusterNodeDynamicConfigPtr dynamicConfig) override;
 
@@ -76,6 +76,9 @@ private:
 
     const TPeriodicExecutorPtr ClusterThrottlersConfigUpdater_;
     const TPromise<void> ClusterThrottlersConfigInitializedPromise_ = NewPromise<void>();
+
+    const TCallback<void()> MasterConnectedCallback_;
+    const TCallback<void()> MasterDisconnectedCallback_;
 
     // The following members are protected by Lock_.
     bool MasterConnected_ = false;
@@ -109,12 +112,12 @@ private:
     //! Lock_ has to be taken prior to calling this method.
     IThroughputThrottlerPtr GetLocalThrottler(EExecNodeThrottlerKind kind, EThrottlerTrafficType trafficType) const;
     //! Lock_ has to be taken prior to calling this method.
-    IThroughputThrottlerPtr GetOrCreateDistributedThrottler(EExecNodeThrottlerKind kind, EThrottlerTrafficType trafficType, std::optional<TClusterName> remoteClusterName);
+    IThroughputThrottlerPtr GetOrCreateDistributedThrottler(EExecNodeThrottlerKind kind, EThrottlerTrafficType trafficType, TClusterName clusterName);
     //! Lock_ has to be taken prior to calling this method.
     IThroughputThrottlerPtr DoGetOrCreateThrottler(
         EExecNodeThrottlerKind kind,
         EThrottlerTrafficType trafficType,
-        std::optional<TClusterName> remoteClusterName);
+        NScheduler::TClusterName clusterName);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -178,11 +181,13 @@ void TThrottlerManager::OnMasterDisconnected()
 
     YT_LOG_INFO("Disable cluster throttlers on master disconnect");
 
-    auto guard = Guard(Lock_);
-    MasterConnected_ = false;
-    ClusterThrottlersConfig_.Reset();
-    DistributedThrottlersHolder_.clear();
-    DistributedThrottlerFactory_.Reset();
+    {
+        auto guard = Guard(Lock_);
+        MasterConnected_ = false;
+        ClusterThrottlersConfig_.Reset();
+        DistributedThrottlersHolder_.clear();
+        DistributedThrottlerFactory_.Reset();
+    }
 }
 
 void TThrottlerManager::UpdateDistributedThrottlers()
@@ -304,6 +309,20 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
 
         ClusterThrottlersConfig_ = std::move(newConfig);
 
+        std::optional<i64> memberPriority;
+        if (!ClusterThrottlersConfig_->LeaderNodeTagFilter.IsSatisfiedBy(Bootstrap_->GetLocalDescriptor().GetTags())) {
+            YT_LOG_INFO("Leader node tag filter is not satisfied, set the lowest member priority (LeaderNodeTagFilter: %v, NodeTags: %v)",
+                ClusterThrottlersConfig_->LeaderNodeTagFilter,
+                Bootstrap_->GetLocalDescriptor().GetTags());
+
+            // Set the lowest member priority. The higher the value, the lower the priority.
+            memberPriority = std::numeric_limits<i64>::max();
+        } else {
+            YT_LOG_INFO("Leader node tag filter is satisfied (LeaderNodeTagFilter: %v, NodeTags: %v)",
+                ClusterThrottlersConfig_->LeaderNodeTagFilter,
+                Bootstrap_->GetLocalDescriptor().GetTags());
+        }
+
         ClusterThrottlersConfigUpdater_->SetPeriod(ClusterThrottlersConfig_->UpdatePeriod);
 
         if (NeedDistributedThrottlerFactory(ClusterThrottlersConfig_)) {
@@ -327,7 +346,8 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
                     LocalAddress_,
                     this->Logger,
                     Authenticator_,
-                    Profiler_.WithPrefix("/distributed_throttler"));
+                    Profiler_.WithPrefix("/distributed_throttler"),
+                    std::move(memberPriority));
             }
 
             UpdateClusterLimits(ClusterThrottlersConfig_->ClusterLimits);
@@ -385,20 +405,20 @@ IThroughputThrottlerPtr TThrottlerManager::GetLocalThrottler(EExecNodeThrottlerK
     return Throttlers_[kind];
 }
 
-IThroughputThrottlerPtr TThrottlerManager::GetOrCreateDistributedThrottler(EExecNodeThrottlerKind, EThrottlerTrafficType trafficType, std::optional<TClusterName> remoteClusterName)
+IThroughputThrottlerPtr TThrottlerManager::GetOrCreateDistributedThrottler(EExecNodeThrottlerKind, EThrottlerTrafficType trafficType, TClusterName clusterName)
 {
-    if (!remoteClusterName || !DistributedThrottlerFactory_ || !ClusterThrottlersConfig_) {
+    if (IsLocal(clusterName) || !DistributedThrottlerFactory_ || !ClusterThrottlersConfig_) {
         YT_LOG_DEBUG("Distributed throttler is not required (ClusterName: %v, HasDistributedThrottlerFactory: %v, HasClusterThrottlersConfig: %v)",
-            remoteClusterName,
+            clusterName,
             !!DistributedThrottlerFactory_,
             !!ClusterThrottlersConfig_);
         return nullptr;
     }
 
-    auto it = ClusterThrottlersConfig_->ClusterLimits.find(remoteClusterName->Underlying());
+    auto it = ClusterThrottlersConfig_->ClusterLimits.find(*clusterName.Underlying());
     if (it == ClusterThrottlersConfig_->ClusterLimits.end()) {
         YT_LOG_WARNING("Could not find remote cluster in cluster limits (ClusterName: %v)",
-            remoteClusterName->Underlying());
+            clusterName);
         return nullptr;
     }
 
@@ -441,18 +461,18 @@ IThroughputThrottlerPtr TThrottlerManager::GetOrCreateDistributedThrottler(EExec
 IThroughputThrottlerPtr TThrottlerManager::DoGetOrCreateThrottler(
     EExecNodeThrottlerKind kind,
     EThrottlerTrafficType trafficType,
-    std::optional<TClusterName> remoteClusterName)
+    TClusterName clusterName)
 {
-    auto Logger = this->Logger.WithTag("Kind: %v, TrafficType: %v, RemoteClusterName: %v",
+    auto Logger = this->Logger.WithTag("Kind: %v, TrafficType: %v, ClusterName: %v",
         kind,
         trafficType,
-        remoteClusterName);
+        clusterName);
 
     IThroughputThrottlerPtr localThrottler;
     IThroughputThrottlerPtr distributedThrottler;
     {
         localThrottler = GetLocalThrottler(kind, trafficType);
-        distributedThrottler = GetOrCreateDistributedThrottler(kind, trafficType, remoteClusterName);
+        distributedThrottler = GetOrCreateDistributedThrottler(kind, trafficType, clusterName);
         if (!MasterConnected_ || !distributedThrottler) {
             YT_LOG_DEBUG("Distributed throttler is missing; falling back to local throttler (MasterConnected: %v)",
                 MasterConnected_);
@@ -486,6 +506,8 @@ TThrottlerManager::TThrottlerManager(
         BIND(&TThrottlerManager::TryUpdateClusterThrottlersConfig, MakeWeak(this)),
         // Default period will be updated once config has been retrieved.
         TDuration::Seconds(10)))
+    , MasterConnectedCallback_(BIND_NO_PROPAGATE(&TThrottlerManager::OnMasterConnected, MakeWeak(this)))
+    , MasterDisconnectedCallback_(BIND_NO_PROPAGATE(&TThrottlerManager::OnMasterDisconnected, MakeWeak(this)))
 {
     YT_LOG_INFO("Constructing throttler manager");
 
@@ -515,13 +537,17 @@ TThrottlerManager::TThrottlerManager(
     }
 
     const auto& masterConnector = Bootstrap_->GetExecNodeBootstrap()->GetMasterConnector();
-    masterConnector->SubscribeMasterConnected(BIND_NO_PROPAGATE(&TThrottlerManager::OnMasterConnected, MakeWeak(this)));
-    masterConnector->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(&TThrottlerManager::OnMasterDisconnected, MakeWeak(this)));
+    masterConnector->SubscribeMasterConnected(MasterConnectedCallback_);
+    masterConnector->SubscribeMasterDisconnected(MasterDisconnectedCallback_);
 }
 
 TThrottlerManager::~TThrottlerManager()
 {
     YT_LOG_INFO("Destructing throttler manager");
+
+    const auto& masterConnector = Bootstrap_->GetExecNodeBootstrap()->GetMasterConnector();
+    masterConnector->UnsubscribeMasterConnected(MasterConnectedCallback_);
+    masterConnector->UnsubscribeMasterDisconnected(MasterDisconnectedCallback_);
 }
 
 TFuture<void> TThrottlerManager::Start()
@@ -532,10 +558,10 @@ TFuture<void> TThrottlerManager::Start()
     return ClusterThrottlersConfigInitializedPromise_.ToFuture();
 }
 
-IThroughputThrottlerPtr TThrottlerManager::GetOrCreateThrottler(EExecNodeThrottlerKind kind, EThrottlerTrafficType trafficType, std::optional<TClusterName> remoteClusterName)
+IThroughputThrottlerPtr TThrottlerManager::GetOrCreateThrottler(EExecNodeThrottlerKind kind, EThrottlerTrafficType trafficType, TClusterName clusterName)
 {
     auto guard = Guard(Lock_);
-    return DoGetOrCreateThrottler(kind, trafficType, remoteClusterName);
+    return DoGetOrCreateThrottler(kind, trafficType, clusterName);
 }
 
 void TThrottlerManager::Reconfigure(TClusterNodeDynamicConfigPtr dynamicConfig)

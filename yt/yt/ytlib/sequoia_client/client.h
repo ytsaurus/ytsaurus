@@ -33,6 +33,7 @@ struct TSequoiaTransactionRequestPriorities
 
 struct TSequoiaTransactionOptions
 {
+    NRpc::TAuthenticationIdentity AuthenticationIdentity;
     const ISequoiaTransactionActionSequencer* TransactionActionSequencer = nullptr;
     std::optional<TSequoiaTransactionRequestPriorities> RequestPriorities = std::nullopt;
     std::vector<NObjectClient::TTransactionId> CypressPrerequisiteTransactionIds = {};
@@ -95,7 +96,7 @@ DEFINE_REFCOUNTED_TYPE(ISequoiaClient)
 
 ISequoiaClientPtr CreateSequoiaClient(
     NApi::NNative::TSequoiaConnectionConfigPtr config,
-    NApi::NNative::IClientPtr localClient,
+    NApi::NNative::IConnectionPtr localConnection,
     TFuture<NApi::NNative::IClientPtr> groundClientFuture);
 
 ////////////////////////////////////////////////////////////////////////////////

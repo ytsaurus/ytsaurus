@@ -24,4 +24,3 @@ REGISTER_FUNCTION(JSON)
 }
 
 }
-

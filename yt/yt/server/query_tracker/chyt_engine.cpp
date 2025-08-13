@@ -15,6 +15,7 @@
 #include <yt/yt/library/clickhouse_discovery/helpers.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
@@ -43,6 +44,7 @@ using namespace NClickHouseServer;
 using namespace NRpc;
 using namespace NRpc::NBus;
 using namespace NYTree;
+using namespace NYson;
 using namespace NConcurrency;
 using namespace NScheduler;
 
@@ -56,6 +58,8 @@ public:
 
     std::optional<TString> Clique;
 
+    std::optional<ui64> Instance;
+
     THashMap<TString, TString> QuerySettings;
 
     REGISTER_YSON_STRUCT(TChytSettings);
@@ -65,6 +69,8 @@ public:
         registrar.Parameter("cluster", &TThis::Cluster)
             .Default();
         registrar.Parameter("clique", &TThis::Clique)
+            .Default();
+        registrar.Parameter("instance", &TThis::Instance)
             .Default();
         registrar.Parameter("query_settings", &TThis::QuerySettings)
             .Default();
@@ -151,15 +157,36 @@ private:
         "clique_incarnation",
     };
 
+    IChannelPtr CreateChannelByInstance(IAttributeDictionaryPtr attributes)
+    {
+        auto host = attributes->Get<std::string>("host");
+        auto rpcPort = attributes->Get<ui64>("rpc_port");
+        return ChannelFactory_->CreateChannel(Format("%v:%v", host, rpcPort));
+    }
+
+
     IChannelPtr GetChannelForRandomInstance()
     {
         auto instanceIterator = Instances_.begin();
         std::advance(instanceIterator, RandomNumber(Instances_.size()));
+        return CreateChannelByInstance(instanceIterator->second);
+    }
 
-        auto attributes = instanceIterator->second;
-        auto host = attributes->Get<TString>("host");
-        auto rpcPort = attributes->Get<ui64>("rpc_port");
-        return ChannelFactory_->CreateChannel(Format("%v:%v", host, rpcPort));
+    IChannelPtr GetChannelForInstanceByJobCookie(const ui64& jobCookie)
+    {
+        for (auto& instance : Instances_) {
+            if (instance.second->Get<ui64>("job_cookie") == jobCookie) {
+                return CreateChannelByInstance(instance.second);
+            }
+        }
+        THROW_ERROR_EXCEPTION("No instance was found for job cookie %Qv", jobCookie);
+    }
+
+    IChannelPtr GetChannelForInstance()
+    {
+        return  Settings_->Instance.has_value() ?
+                GetChannelForInstanceByJobCookie(Settings_->Instance.value()) :
+                GetChannelForRandomInstance();
     }
 
     void CheckPermission()
@@ -266,7 +293,7 @@ private:
         CheckPermission();
         InitializeInstances();
 
-        auto instanceChannel = GetChannelForRandomInstance();
+        auto instanceChannel = GetChannelForInstance();
         TQueryServiceProxy proxy(instanceChannel);
         // TODO(nadya02): Set the correct timeout here.
         proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
@@ -400,12 +427,13 @@ class TChytEngine
     : public IQueryEngine
 {
 public:
-    TChytEngine(IClientPtr stateClient, TYPath stateRoot)
+    TChytEngine(NNative::IClientPtr stateClient, TYPath stateRoot)
         : StateClient_(std::move(stateClient))
         , StateRoot_(std::move(stateRoot))
         , ControlQueue_(New<TActionQueue>("MockEngineControl"))
-        , ClusterDirectory_(DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection())->GetClusterDirectory())
-        , ChannelFactory_(CreateCachingChannelFactory(CreateTcpBusChannelFactory(New<NYT::NBus::TBusConfig>())))
+        , ClusterDirectory_(StateClient_->GetNativeConnection()->GetClusterDirectory())
+        , ChannelFactory_(CreateCachingChannelFactory(CreateTcpBusChannelFactory(
+            StateClient_->GetNativeConnection()->GetConfig()->BusClient)))
     { }
 
     IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
@@ -419,7 +447,7 @@ public:
     }
 
 private:
-    const IClientPtr StateClient_;
+    const NNative::IClientPtr StateClient_;
     const TYPath StateRoot_;
     const TActionQueuePtr ControlQueue_;
     TChytEngineConfigPtr ChytConfig_;
@@ -429,7 +457,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IQueryEnginePtr CreateChytEngine(const IClientPtr& stateClient, const TYPath& stateRoot)
+IQueryEnginePtr CreateChytEngine(const NNative::IClientPtr& stateClient, const TYPath& stateRoot)
 {
     return New<TChytEngine>(stateClient, stateRoot);
 }

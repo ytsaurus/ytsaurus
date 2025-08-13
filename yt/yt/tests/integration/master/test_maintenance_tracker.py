@@ -28,7 +28,7 @@ class TestMaintenanceTracker(YTEnvSetup):
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
 
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "coordinator": {
             "heartbeat_interval": 100,
             "death_age": 500,
@@ -327,6 +327,11 @@ class TestMaintenanceTracker(YTEnvSetup):
 class TestMaintenanceTrackerMulticell(TestMaintenanceTracker):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host", "cypress_node_host"]},
+    }
 
     @classmethod
     def setup_class(cls):

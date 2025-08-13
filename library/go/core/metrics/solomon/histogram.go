@@ -99,6 +99,13 @@ func (h *Histogram) Reset() {
 	h.infValue.Store(0)
 }
 
+func (h *Histogram) getID() string {
+	if h.timestamp != nil {
+		return h.name + "(" + h.timestamp.Format(time.RFC3339) + ")"
+	}
+	return h.name
+}
+
 func (h *Histogram) Name() string {
 	return h.name
 }
@@ -160,7 +167,7 @@ func (h *Histogram) MarshalJSON() ([]byte, error) {
 		},
 		Labels: func() map[string]string {
 			labels := make(map[string]string, len(h.tags)+1)
-			labels[h.getNameTag()] = h.Name()
+			labels[h.getNameTag()] = h.name
 			for k, v := range h.tags {
 				labels[k] = v
 			}

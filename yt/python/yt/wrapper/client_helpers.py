@@ -3,6 +3,8 @@ from __future__ import print_function
 from .common import update, get_arg_spec
 from .default_config import get_default_config, RemotePatchableValueBase, _get_settings_from_cluster_callback, _update_from_env_vars, FORCED_SHORTCUTS
 
+import yt.logger as logger
+
 from copy import deepcopy
 import functools
 import inspect
@@ -97,14 +99,20 @@ def {name}({method_signature}):
     wrapped_func.__doc__ = func.__doc__
     wrapped_func.__dict__ = func.__dict__.copy()
     wrapped_func.__defaults__ = defaults
-    wrapped_func.__annotations__ = getattr(func, "annotations", None)
+    wrapped_func.__annotations__ = getattr(func, "__annotations__", None)
     wrapped_func.__module__ = func.__module__
     wrapped_func.__dict__["__source__"] = src
     return wrapped_func
 
 
 def are_signatures_equal(lhs, rhs):
-    return get_arg_spec(lhs) == get_arg_spec(rhs)
+    l_spec = get_arg_spec(lhs)
+    r_spec = get_arg_spec(rhs)
+    if l_spec == r_spec:
+        return True
+    else:
+        logger.debug(f"Different signatures: left - {l_spec}, right - {r_spec}")
+        return False
 
 
 def initialize_client(client, proxy, token, config):

@@ -4043,7 +4043,7 @@ class TestVectorStrongGuarantees(YTEnvSetup):
             get(scheduler_orchid_pool_path("pool") + "/strong_guarantee_resources"),
             {"cpu": 30, "user_slots": 30}))
         wait(lambda: self._are_almost_equal_vec(
-            get(scheduler_orchid_pool_path("pool") + "/effective_strong_guarantee_resources"),
+            get(scheduler_orchid_pool_path("pool") + "/inferred_strong_guarantee_resources"),
             {"cpu": 30, "user_slots": 30, "network": 300}))
         wait(lambda: self._are_almost_equal_vec(
             get(scheduler_orchid_pool_path("pool") + "/strong_guarantee_share"),
@@ -4053,13 +4053,13 @@ class TestVectorStrongGuarantees(YTEnvSetup):
         create_pool("subpool2", parent_name="pool", attributes={"strong_guarantee_resources": {"cpu": 20, "user_slots": 10}})
 
         wait(lambda: self._are_almost_equal_vec(
-            get(scheduler_orchid_pool_path("subpool1") + "/effective_strong_guarantee_resources"),
+            get(scheduler_orchid_pool_path("subpool1") + "/inferred_strong_guarantee_resources"),
             {"cpu": 10, "user_slots": 20, "network": 100}))
         wait(lambda: self._are_almost_equal_vec(
             get(scheduler_orchid_pool_path("subpool1") + "/strong_guarantee_share"),
             {"cpu": 1.0 / 3.0, "user_slots": 2.0 / 3.0, "network": 1.0 / 3.0}))
         wait(lambda: self._are_almost_equal_vec(
-            get(scheduler_orchid_pool_path("subpool2") + "/effective_strong_guarantee_resources"),
+            get(scheduler_orchid_pool_path("subpool2") + "/inferred_strong_guarantee_resources"),
             {"cpu": 20, "user_slots": 10, "network": 200}))
         wait(lambda: self._are_almost_equal_vec(
             get(scheduler_orchid_pool_path("subpool2") + "/strong_guarantee_share"),
@@ -4084,19 +4084,19 @@ class TestVectorStrongGuarantees(YTEnvSetup):
         create_pool("subpool3", parent_name="pool", attributes={"strong_guarantee_resources": {"cpu": 10}})
 
         wait(lambda: self._are_almost_equal_vec(
-            get(scheduler_orchid_pool_path("subpool1") + "/effective_strong_guarantee_resources"),
+            get(scheduler_orchid_pool_path("subpool1") + "/inferred_strong_guarantee_resources"),
             {"cpu": 10, "user_slots": 15, "network": 100}))
         wait(lambda: self._are_almost_equal_vec(
             get(scheduler_orchid_pool_path("subpool1") + "/strong_guarantee_share"),
             {"cpu": 1.0 / 3.0, "user_slots": 1.0 / 2.0, "network": 1.0 / 3.0}))
         wait(lambda: self._are_almost_equal_vec(
-            get(scheduler_orchid_pool_path("subpool2") + "/effective_strong_guarantee_resources"),
+            get(scheduler_orchid_pool_path("subpool2") + "/inferred_strong_guarantee_resources"),
             {"cpu": 5, "user_slots": 5, "network": 50}))
         wait(lambda: self._are_almost_equal_vec(
             get(scheduler_orchid_pool_path("subpool2") + "/strong_guarantee_share"),
             {"cpu": 1.0 / 6.0, "user_slots": 1.0 / 6.0, "network": 1.0 / 6.0}))
         wait(lambda: self._are_almost_equal_vec(
-            get(scheduler_orchid_pool_path("subpool3") + "/effective_strong_guarantee_resources"),
+            get(scheduler_orchid_pool_path("subpool3") + "/inferred_strong_guarantee_resources"),
             {"cpu": 10, "user_slots": 10, "network": 100}))
         wait(lambda: self._are_almost_equal_vec(
             get(scheduler_orchid_pool_path("subpool3") + "/strong_guarantee_share"),
@@ -4110,19 +4110,19 @@ class TestVectorStrongGuarantees(YTEnvSetup):
         create_pool("subpool3", parent_name="pool", attributes={"strong_guarantee_resources": {"cpu": 10}})
 
         wait(lambda: self._are_almost_equal_vec(
-            get(scheduler_orchid_pool_path("subpool1") + "/effective_strong_guarantee_resources"),
+            get(scheduler_orchid_pool_path("subpool1") + "/inferred_strong_guarantee_resources"),
             {"cpu": 10, "user_slots": 25, "network": 100}))
         wait(lambda: self._are_almost_equal_vec(
             get(scheduler_orchid_pool_path("subpool1") + "/strong_guarantee_share"),
             {"cpu": 1.0 / 3.0, "user_slots": 5.0 / 6.0, "network": 1.0 / 3.0}))
         wait(lambda: self._are_almost_equal_vec(
-            get(scheduler_orchid_pool_path("subpool2") + "/effective_strong_guarantee_resources"),
+            get(scheduler_orchid_pool_path("subpool2") + "/inferred_strong_guarantee_resources"),
             {"cpu": 5, "user_slots": 1, "network": 50}))
         wait(lambda: self._are_almost_equal_vec(
             get(scheduler_orchid_pool_path("subpool2") + "/strong_guarantee_share"),
             {"cpu": 1.0 / 6.0, "user_slots": 1.0 / 30.0, "network": 1.0 / 6.0}))
         wait(lambda: self._are_almost_equal_vec(
-            get(scheduler_orchid_pool_path("subpool3") + "/effective_strong_guarantee_resources"),
+            get(scheduler_orchid_pool_path("subpool3") + "/inferred_strong_guarantee_resources"),
             {"cpu": 10, "user_slots": 3, "network": 100}))
         wait(lambda: self._are_almost_equal_vec(
             get(scheduler_orchid_pool_path("subpool3") + "/strong_guarantee_share"),
@@ -4139,13 +4139,13 @@ class TestVectorStrongGuarantees(YTEnvSetup):
         create_pool("pool2", attributes={"strong_guarantee_resources": {"cpu": 20}})
 
         wait(lambda: self._are_almost_equal_vec(
-            get(scheduler_orchid_pool_path("pool1") + "/effective_strong_guarantee_resources"),
+            get(scheduler_orchid_pool_path("pool1") + "/inferred_strong_guarantee_resources"),
             {"cpu": 15, "user_slots": 20, "network": 150}))
         wait(lambda: self._are_almost_equal_vec(
             get(scheduler_orchid_pool_path("pool1") + "/strong_guarantee_share"),
             {"cpu": 3.0 / 8.0, "user_slots": 1.0 / 2.0, "network": 3.0 / 8.0}))
         wait(lambda: self._are_almost_equal_vec(
-            get(scheduler_orchid_pool_path("pool2") + "/effective_strong_guarantee_resources"),
+            get(scheduler_orchid_pool_path("pool2") + "/inferred_strong_guarantee_resources"),
             {"cpu": 20, "user_slots": 20, "network": 200}))
         wait(lambda: self._are_almost_equal_vec(
             get(scheduler_orchid_pool_path("pool2") + "/strong_guarantee_share"),
@@ -4160,13 +4160,13 @@ class TestVectorStrongGuarantees(YTEnvSetup):
             create_pool("pool2", attributes={"strong_guarantee_resources": {"cpu": 20}})
 
             wait(lambda: self._are_almost_equal_vec(
-                get(scheduler_orchid_pool_path("pool1") + "/effective_strong_guarantee_resources"),
+                get(scheduler_orchid_pool_path("pool1") + "/inferred_strong_guarantee_resources"),
                 {"cpu": 15, "user_slots": 20, "network": 0}))
             wait(lambda: self._are_almost_equal_vec(
                 get(scheduler_orchid_pool_path("pool1") + "/strong_guarantee_share"),
                 {"cpu": 0.0, "user_slots": 0.0, "network": 0.0}))
             wait(lambda: self._are_almost_equal_vec(
-                get(scheduler_orchid_pool_path("pool2") + "/effective_strong_guarantee_resources"),
+                get(scheduler_orchid_pool_path("pool2") + "/inferred_strong_guarantee_resources"),
                 {"cpu": 20, "user_slots": 0, "network": 0}))
             wait(lambda: self._are_almost_equal_vec(
                 get(scheduler_orchid_pool_path("pool2") + "/strong_guarantee_share"),
@@ -4179,7 +4179,7 @@ class TestVectorStrongGuarantees(YTEnvSetup):
         create_pool("pool", attributes={"strong_guarantee_resources": {"cpu": 40}})
 
         wait(lambda: self._are_almost_equal_vec(
-            get(scheduler_orchid_pool_path("pool") + "/effective_strong_guarantee_resources"),
+            get(scheduler_orchid_pool_path("pool") + "/inferred_strong_guarantee_resources"),
             {"cpu": 40, "user_slots": 40, "network": 400}))
         wait(lambda: self._are_almost_equal_vec(
             get(scheduler_orchid_pool_path("pool") + "/strong_guarantee_share"),
@@ -4495,6 +4495,9 @@ class TestFifoPools(YTEnvSetup):
     def test_truncate_unsatisfied_child_fair_share_in_fifo_pools(self, gang, allocation_count):
         create_pool("fifo", attributes={"mode": "fifo"})
         create_pool("normal")
+
+        # COMPAT: Intentilonally test old logic for gang operations.
+        update_pool_tree_config_option("default", "enable_step_function_for_gang_operations", False)
 
         blocking_op1 = run_sleeping_vanilla(task_patch={"cpu_limit": 3.0}, spec={"pool": "fifo"})
         blocking_op1.wait_for_state("running")

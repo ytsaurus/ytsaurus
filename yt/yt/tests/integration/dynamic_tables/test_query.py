@@ -64,6 +64,9 @@ class TestQuery(DynamicTablesBase):
     DELTA_RPC_DRIVER_CONFIG = DELTA_DRIVER_CONFIG
 
     def _sample_data(self, path="//tmp/t", chunks=3, stripe=3):
+        pivot_keys = [[]]
+        if chunks > 1:
+            pivot_keys += [[stripe * i] for i in range(1, chunks)]
         create(
             "table",
             path,
@@ -74,6 +77,7 @@ class TestQuery(DynamicTablesBase):
                     {"name": "a", "type": "int64", "sort_order": "ascending"},
                     {"name": "b", "type": "int64"},
                 ],
+                "pivot_keys": pivot_keys
             },
         )
 
@@ -137,7 +141,7 @@ class TestQuery(DynamicTablesBase):
 
     @authors("lukyan")
     def test_response_parameters(self):
-        sync_create_cells(1)
+        sync_create_cells(3)
         self._sample_data(path="//tmp/t")
         response_parameters = {}
         select_rows(
@@ -145,7 +149,18 @@ class TestQuery(DynamicTablesBase):
             response_parameters=response_parameters,
             enable_statistics=True)
         assert "read_time" in response_parameters
-        assert "total_grouped_row_count" in response_parameters
+        assert "grouped_row_count" in response_parameters
+
+        response_parameters = {}
+        select_rows(
+            "sum(1) from [//tmp/t] join [//tmp/t] J on (b / 10) % 3 * 3 = J.a group by 1",
+            response_parameters=response_parameters,
+            enable_statistics=True,
+            statistics_aggregation="depth")
+
+        while "inner_statistics" in response_parameters:
+            assert len(response_parameters["inner_statistics"]) == 1
+            response_parameters = response_parameters["inner_statistics"][0]
 
     @authors("lukyan")
     def test_full_scan(self):
@@ -2817,9 +2832,14 @@ class TestSelectWithRowCache(TestLookupCache):
     COUNTER_NAME = "select"
 
     def _read(self, table, keys, column_names=None, **kwargs):
+        order = ",".join(str(i) for i in range(len(keys)))
         keys = str(list(keys))[1:-1]
-        column_names = "*" if column_names is None else ", ".join(column_names)
-        return select_rows(column_names + f" from [{table}] where key in ({keys})", **kwargs)
+        column_names = "*" if column_names is None else ", ".join(map(lambda x: f"`{x}`", column_names))
+        return select_rows(
+            f"""{column_names} from [{table}]
+            where key in ({keys})
+            order by transform(key, ({keys}), ({order})) limit 10000""",
+            **kwargs)
 
 
 @pytest.mark.enabled_multidaemon
@@ -2834,4 +2854,24 @@ class TestQuerySequoia(TestQuery):
         "10": {"roles": ["cypress_node_host"]},
         "11": {"roles": ["cypress_node_host", "sequoia_node_host"]},
         "12": {"roles": ["chunk_host"]},
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "chunk_manager": {
+            "sequoia_chunk_replicas": {
+                "enable": True,
+                "replicas_percentage": 100,
+                "fetch_replicas_from_sequoia": True,
+            }
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "cluster_connection": {
+            "chunk_replica_cache": {
+                "enable_sequoia_replicas_locate": True,
+                "enable_sequoia_replicas_refresh": True,
+                "sequoia_replicas_refresh_period": 1000,
+            },
+        },
     }

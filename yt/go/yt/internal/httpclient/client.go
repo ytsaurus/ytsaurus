@@ -50,7 +50,6 @@ type httpClient struct {
 	readRetrier     *internal.Retrier
 
 	clusterURL yt.ClusterURL
-	netDialer  *net.Dialer
 	httpClient *http.Client
 	log        log.Structured
 	tracer     opentracing.Tracer
@@ -273,6 +272,16 @@ func (c *httpClient) requestCredentials(ctx context.Context) (yt.Credentials, er
 		return creds, nil
 	}
 
+	// Check for general credentials provider first.
+	if c.config.CredentialsProviderFn != nil {
+		credentials, err := c.config.CredentialsProviderFn(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return credentials, nil
+	}
+
+	// Fallback to TVM for backward compatibility.
 	if c.config.TVMFn != nil {
 		ticket, err := c.config.TVMFn(ctx)
 		if err != nil {
@@ -699,9 +708,9 @@ func (c *httpClient) Stop() {
 	c.httpClient.CloseIdleConnections()
 }
 
-func (c *httpClient) dialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+func dialContext(ctx context.Context, netDialer *net.Dialer, network, addr string) (net.Conn, error) {
 	for i := 0; ; i++ {
-		conn, err := c.netDialer.DialContext(ctx, network, addr)
+		conn, err := netDialer.DialContext(ctx, network, addr)
 		if err != nil {
 			var temporary interface{ Temporary() bool }
 			if errors.As(err, &temporary) && temporary.Temporary() && i < 3 {
@@ -720,12 +729,9 @@ func (c *httpClient) dialContext(ctx context.Context, network, addr string) (net
 	}
 }
 
-func NewHTTPClient(c *yt.Config) (yt.Client, error) {
-	var client httpClient
-
-	clusterURL, err := c.GetClusterURL()
-	if err != nil {
-		return nil, err
+func BuildHTTPClient(c *yt.Config) (*http.Client, error) {
+	if c.HTTPClient != nil {
+		return c.HTTPClient, nil
 	}
 
 	certPool, err := internal.NewCertPool()
@@ -739,22 +745,20 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 		}
 	}
 
-	client.log = c.GetLogger()
-	client.tracer = c.GetTracer()
-
-	client.config = c
-	client.clusterURL = clusterURL
-
-	client.netDialer = &net.Dialer{
+	netDialer := &net.Dialer{
 		Timeout:   30 * time.Second,
 		KeepAlive: 30 * time.Second,
 	}
-	client.httpClient = &http.Client{
+
+	httpClient := &http.Client{
 		Transport: &http.Transport{
-			DialContext: client.dialContext,
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				return dialContext(ctx, netDialer, network, addr)
+			},
 
 			MaxIdleConns:        0,
 			MaxIdleConnsPerHost: 100,
+			MaxConnsPerHost:     100,
 			IdleConnTimeout:     30 * time.Second,
 
 			TLSHandshakeTimeout: 10 * time.Second,
@@ -765,6 +769,27 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 			DisableCompression: c.GetClientCompressionCodec() != yt.ClientCodecGZIP,
 		},
 	}
+
+	return httpClient, nil
+}
+
+func NewHTTPClient(c *yt.Config) (yt.Client, error) {
+	var client httpClient
+
+	clusterURL, err := c.GetClusterURL()
+	if err != nil {
+		return nil, err
+	}
+
+	client.log = c.GetLogger()
+	client.tracer = c.GetTracer()
+	client.httpClient, err = BuildHTTPClient(c)
+	if err != nil {
+		return nil, err
+	}
+
+	client.config = c
+	client.clusterURL = clusterURL
 	client.stop = internal.NewStopGroup()
 	client.proxySet = &internal.ProxySet{UpdateFn: client.listHeavyProxies}
 
@@ -808,7 +833,7 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 		Wrap(client.readRetrier.Write).
 		Wrap(errorWrapper.Write)
 
-	if c.TVMFn == nil {
+	if c.CredentialsProviderFn == nil && c.TVMFn == nil {
 		if c.Credentials != nil {
 			client.credentials = c.Credentials
 		} else if token := c.GetToken(); token != "" {

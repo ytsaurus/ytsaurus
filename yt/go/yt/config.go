@@ -3,6 +3,7 @@ package yt
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"os/user"
@@ -91,6 +92,16 @@ type Config struct {
 	// Only relevant for HTTP client.
 	ImpersonationUser string
 
+	// CredentialsProviderFn is used to dynamically generate authentication credentials for YT API requests.
+	//
+	// This is a general mechanism that can be used for any type of authentication
+	// (Bearer tokens, user tickets, etc.).
+	//
+	// If CredentialsProviderFn is not set, TVMFn, Credentials or OAuth token are used.
+	//
+	// The function should return appropriate Credentials implementation.
+	CredentialsProviderFn CredentialsProviderFn
+
 	// TVMFn is used to issue service tickets for YT API requests.
 	//
 	// TVM is a preferred way of service authentication.
@@ -132,6 +143,9 @@ type Config struct {
 	// This function is extracted into config in order to avoid direct dependency on jaeger client.
 	//
 	// Assign ytjaeger.TraceFn to this field, if you wish to enable tracing.
+	//
+	// Use ytotel.TraceFn if you are using bridge between opentelemetry and opentracing.
+	// See example on how to use yt client with opentelemetry in yt/go/examples/tracing/main.go
 	TraceFn TraceFn
 
 	// LightRequestTimeout specifies default timeout for light requests. Timeout includes all retries and backoffs.
@@ -171,6 +185,13 @@ type Config struct {
 	//
 	// NOTE: this codec has nothing to do with codec used for storing table chunks.
 	CompressionCodec ClientCompressionCodec
+
+	// HTTPClient allows to override default http.Client.
+	//
+	// If this option is provided, http client is not configured using other config options,
+	// including CertificateAuthorityData. The user is responsible for full http.Client configuration.
+	// You can use ythttp.BuildHTTPClient or ytrpc.BuildHTTPClient to build http.Client with default settings and then use it as base.
+	HTTPClient *http.Client
 }
 
 func (c *Config) GetProxy() (string, error) {
@@ -413,5 +434,7 @@ func (c ClientCompressionCodec) BlockCodec() (string, bool) {
 }
 
 type TVMFn func(ctx context.Context) (string, error)
+
+type CredentialsProviderFn func(ctx context.Context) (Credentials, error)
 
 type TraceFn func(ctx context.Context) (traceID guid.GUID, spanID uint64, flags byte, ok bool)

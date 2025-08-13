@@ -32,8 +32,8 @@ INewSortedJobBuilderPtr CreateNewSortedJobBuilder(
     const std::vector<NChunkClient::TInputChunkPtr>& teleportChunks,
     int retryIndex,
     const TInputStreamDirectory& inputStreamDirectory,
-    const NLogging::TLogger& logger,
-    const NLogging::TLogger& structuredLogger);
+    NLogging::TLogger logger,
+    NLogging::TLogger structuredLogger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

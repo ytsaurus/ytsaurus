@@ -280,6 +280,7 @@ struct TPortoJobEnvironmentConfig
     THashMap<TString, TString> ExternalBinds;
 
     double JobsIOWeight;
+    std::optional<double> JobProxyCpuWeight;
     double NodeDedicatedCpu;
 
     bool UseShortContainerNames;
@@ -483,8 +484,6 @@ struct TJobProxyInternalConfig
 
     NRpc::TRetryingChannelConfigPtr RetryingChannel;
 
-    bool EnableCudaProfileEventStreaming;
-
     TJobTraceEventProcessorConfigPtr JobTraceEventProcessor;
 
     std::optional<int> OperationsArchiveVersion;
@@ -541,8 +540,6 @@ struct TJobProxyDynamicConfig
     NRpc::TRetryingChannelConfigPtr RetryingChannel;
 
     TDuration PipeReaderTimeoutThreshold;
-
-    bool EnableCudaProfileEventStreaming;
 
     NJobProxy::TJobTraceEventProcessorConfigPtr JobTraceEventProcessor;
 

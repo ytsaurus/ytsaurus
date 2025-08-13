@@ -254,7 +254,7 @@ public:
             entry.RangeCount = ranges ? ranges->size() : 0;
         }
 
-        auto optionsOverride = GetOptionsOverride(Options_, TableIndex_);
+        auto optionsOverride = GetOptionsOverride(Options_, entry.TableIndex);
         entry.Reader = Client_->CreateTableReader<TRow>(std::move(path), optionsOverride);
         return entry;
     }

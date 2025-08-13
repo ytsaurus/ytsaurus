@@ -48,7 +48,7 @@ public:
     virtual NConcurrency::IThroughputThrottlerPtr GetOrCreateThrottler(
         EExecNodeThrottlerKind kind,
         EThrottlerTrafficType trafficType,
-        std::optional<NScheduler::TClusterName> remoteClusterName) = 0;
+        NScheduler::TClusterName clusterName) = 0;
 
     virtual void Reconfigure(NClusterNode::TClusterNodeDynamicConfigPtr dynamicConfig) = 0;
 

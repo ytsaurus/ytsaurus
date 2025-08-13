@@ -161,8 +161,6 @@ void TBootstrap::DoInitialize()
         Logger(),
         HttpProxyProfiler().WithPrefix("/memory_usage"));
 
-    ReconfigureMemoryLimits(Config_->MemoryLimits);
-
     Connection_ = CreateConnection(
         Config_->ClusterConnection,
         connectionOptions,
@@ -245,13 +243,12 @@ void TBootstrap::DoInitialize()
     ClickHouseHandler_->Start();
 
     AccessChecker_ = CreateAccessChecker(this);
-
+    auto ownerId = TOwnerId(Coordinator_->GetSelf()->Endpoint);
     SignatureComponents_ = New<TSignatureComponents>(
         Config_->SignatureComponents,
-        RootClient_,
+        std::move(ownerId),
+        DynamicPointerCast<NNative::IClient>(RootClient_),
         GetControlInvoker());
-    // NB(pavook): proxy bootstrap should be possible even in master read-only mode. :(
-    YT_UNUSED_FUTURE(SignatureComponents_->Initialize());
     Connection_->SetSignatureGenerator(SignatureComponents_->GetSignatureGenerator());
 
     auto driverV3Config = CloneYsonStruct(Config_->Driver);
@@ -394,18 +391,15 @@ void TBootstrap::SetupClients()
     NLogging::GetDynamicTableLogWriterFactory()->SetClient(RootClient_);
 }
 
-void TBootstrap::ReconfigureMemoryLimits(const TMemoryLimitsConfigPtr& memoryLimits)
+void TBootstrap::ReconfigureMemoryUsageTracker(i64 memoryLimit, const TMemoryLimitRatiosConfigPtr& memoryLimitRatios)
 {
-    if (memoryLimits->Total) {
-        MemoryUsageTracker_->SetTotalLimit(*memoryLimits->Total);
-    }
+    auto totalMemoryLimit = static_cast<i64>(memoryLimit * memoryLimitRatios->TotalMemoryLimitRatio);
+    MemoryUsageTracker_->SetTotalLimit(totalMemoryLimit);
 
-    const auto& staticLimits = Config_->MemoryLimits;
-    auto totalLimit = MemoryUsageTracker_->GetTotalLimit();
-
+    auto heavyRequestMemoryLimit = static_cast<i64>(memoryLimit * memoryLimitRatios->HeavyRequestMemoryLimitRatio);
     MemoryUsageTracker_->SetCategoryLimit(
         EMemoryCategory::HeavyRequest,
-        memoryLimits->HeavyRequest.value_or(staticLimits->HeavyRequest.value_or(totalLimit)));
+        heavyRequestMemoryLimit);
 }
 
 void TBootstrap::OnDynamicConfigChanged(
@@ -413,13 +407,30 @@ void TBootstrap::OnDynamicConfigChanged(
     const TProxyDynamicConfigPtr& newConfig)
 {
     TSingletonManager::Reconfigure(newConfig);
-    ReconfigureMemoryLimits(newConfig->MemoryLimits);
+
+    i64 memoryLimit = Config_->MemoryLimits->Total.value_or(std::numeric_limits<i64>::max());
+    if (newConfig->MemoryLimits->Total) {
+        memoryLimit = *newConfig->MemoryLimits->Total;
+    }
+
+    auto role = Coordinator_->GetSelf()->Role;
+
+    ReconfigureMemoryUsageTracker(
+        memoryLimit,
+        GetOrDefault(
+            newConfig->Api->RoleToMemoryLimitRatios,
+            role,
+            newConfig->Api->DefaultMemoryLimitRatios));
 
     DynamicConfig_.Store(newConfig);
 
     BusServer_->OnDynamicConfigChanged(newConfig->BusServer);
 
     Coordinator_->GetTraceSampler()->UpdateConfig(newConfig->Tracing);
+
+    if (newConfig->SignatureComponents) {
+        YT_UNUSED_FUTURE(SignatureComponents_->Reconfigure(newConfig->SignatureComponents));
+    }
 }
 
 void TBootstrap::HandleRequest(

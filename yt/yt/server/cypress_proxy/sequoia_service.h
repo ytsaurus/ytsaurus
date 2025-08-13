@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/core/rpc/authentication_identity.h>
+
 namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,14 +39,17 @@ struct ISequoiaService
     virtual EInvokeResult TryInvoke(
         const ISequoiaServiceContextPtr& context,
         const TSequoiaSessionPtr& sequoiaSession,
-        const TResolveResult& resolveResult) = 0;
+        const TResolveResult& resolveResult,
+        const std::vector<NSequoiaClient::TResolvedPrerequisiteRevision>& resolvedPrerequisiteRevisions) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISequoiaService);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISequoiaServicePtr CreateSequoiaService(IBootstrap* bootstrap);
+ISequoiaServicePtr CreateSequoiaService(
+    IBootstrap* bootstrap,
+    const NRpc::TAuthenticationIdentity authenticationIdentity);
 
 ////////////////////////////////////////////////////////////////////////////////
 

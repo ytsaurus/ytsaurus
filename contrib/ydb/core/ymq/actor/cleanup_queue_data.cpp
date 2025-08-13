@@ -1,6 +1,6 @@
 #include "cleanup_queue_data.h"
 
-#include <contrib/ydb/core/ymq/actor/cfg.h>
+#include <contrib/ydb/core/ymq/actor/cfg/cfg.h>
 #include <contrib/ydb/core/ymq/base/run_query.h>
 #include <contrib/ydb/core/ymq/queues/common/key_hashes.h>
 

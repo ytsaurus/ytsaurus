@@ -57,6 +57,7 @@ SRCS(
     api/native/pick_replica_session.cpp
     api/native/pipeline_type_handler.cpp
     api/native/queue_producer_type_handler.cpp
+    api/native/register_transaction_actions_request_factory.cpp
     api/native/replicated_table_replica_type_handler.cpp
     api/native/replication_card_collocation_type_handler.cpp
     api/native/replication_card_type_handler.cpp
@@ -403,6 +404,8 @@ SRCS(
 
     sequoia_client/client.cpp
     sequoia_client/helpers.cpp
+    sequoia_client/ground_channel_wrapper.cpp
+    sequoia_client/prerequisite_revision.cpp
     sequoia_client/record_helpers.cpp
     sequoia_client/sequoia_reign.cpp
     sequoia_client/table_descriptor.cpp
@@ -461,6 +464,7 @@ SRCS(
     table_client/indexed_versioned_chunk_reader.cpp
     table_client/key_filter.cpp
     table_client/key_set.cpp
+    table_client/min_hash_digest_builder.cpp
     table_client/nested_row_merger.cpp
     table_client/overlapping_reader.cpp
     table_client/partition_chunk_reader.cpp
@@ -546,6 +550,12 @@ SRCS(
 )
 
 GENERATE_YT_RECORD(
+    sequoia_client/records/acls.yaml
+    OUTPUT_INCLUDES
+        yt/yt/ytlib/sequoia_client/public.h
+)
+
+GENERATE_YT_RECORD(
     sequoia_client/records/chunk_replicas.yaml
     OUTPUT_INCLUDES
         yt/yt/ytlib/sequoia_client/public.h
@@ -614,6 +624,12 @@ GENERATE_YT_RECORD(
 
 GENERATE_YT_RECORD(
     sequoia_client/records/dependent_transactions.yaml
+    OUTPUT_INCLUDES
+        yt/yt/ytlib/sequoia_client/public.h
+)
+
+GENERATE_YT_RECORD(
+    sequoia_client/records/doomed_transactions.yaml
     OUTPUT_INCLUDES
         yt/yt/ytlib/sequoia_client/public.h
 )
@@ -764,6 +780,7 @@ PEERDIR(
     yt/yt/library/quantile_digest
     yt/yt/library/tvm/service
     yt/yt/library/xor_filter
+    yt/yt/library/min_hash_digest
     yt/yt/client
     yt/yt/client/logging
     yt/yt/library/formats
@@ -792,6 +809,7 @@ RECURSE(
 IF (NOT OPENSOURCE)
     RECURSE(
         benchmarks
+        fuzz
     )
 ENDIF()
 

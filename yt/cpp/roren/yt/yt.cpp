@@ -87,19 +87,19 @@ TPipeline MakeYtPipeline(TYtPipelineConfig config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYtWriteTransform YtWrite(const NYT::TRichYPath& path, const NYT::TTableSchema& schema)
+TYtWriteApplicator YtWrite(const NYT::TRichYPath& path, const NYT::TTableSchema& schema)
 {
-    return TYtWriteTransform{path, schema};
+    return TYtWriteApplicator{path, schema};
 }
 
-TYtAutoSchemaWriteTransform YtWrite(const NYT::TRichYPath& path)
+TYtAutoSchemaWriteApplicator YtWrite(const NYT::TRichYPath& path)
 {
-    return TYtAutoSchemaWriteTransform(path);
+    return TYtAutoSchemaWriteApplicator(path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYtSortedWriteTransform YtSortedWrite(
+TYtSortedWriteApplicator YtSortedWrite(
     const NYT::TRichYPath& path,
     const NYT::TTableSchema& schema,
     const NYT::TSortColumns& columnsToSort)
@@ -107,19 +107,19 @@ TYtSortedWriteTransform YtSortedWrite(
     auto resortedSchema = schema;
     resortedSchema.SortBy(columnsToSort);
 
-    return TYtSortedWriteTransform(path, resortedSchema);
+    return TYtSortedWriteApplicator(path, resortedSchema);
 }
 
-TYtSortedWriteTransform YtSortedWrite(
+TYtSortedWriteApplicator YtSortedWrite(
     const NYT::TRichYPath& path,
     const NYT::TTableSchema& sortedSchema)
 {
-    return TYtSortedWriteTransform(path, sortedSchema);
+    return TYtSortedWriteApplicator(path, sortedSchema);
 }
 
-TYtAutoSchemaSortedWriteTransform YtSortedWrite(const NYT::TRichYPath& path, const NYT::TSortColumns& columnsToSort)
+TYtAutoSchemaSortedWriteApplicator YtSortedWrite(const NYT::TRichYPath& path, const NYT::TSortColumns& columnsToSort)
 {
-    return TYtAutoSchemaSortedWriteTransform(path, columnsToSort);
+    return TYtAutoSchemaSortedWriteApplicator(path, columnsToSort);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

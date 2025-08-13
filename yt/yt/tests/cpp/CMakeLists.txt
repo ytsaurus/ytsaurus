@@ -12,6 +12,7 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+add_subdirectory(library)
 add_subdirectory(test_base)
 add_subdirectory(test_cypress_election)
 add_subdirectory(test_data_node_rpc)

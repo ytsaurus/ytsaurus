@@ -16,7 +16,6 @@ SRCS(
     parameter_stream.cpp
     parameters.cpp
     pg_dump_parser.cpp
-    plan2svg.cpp
     pretty_table.cpp
     print_operation.cpp
     print_utils.cpp
@@ -39,7 +38,6 @@ SRCS(
 PEERDIR(
     contrib/libs/aws-sdk-cpp/aws-cpp-sdk-s3
     contrib/libs/openssl
-    library/cpp/config
     library/cpp/getopt
     library/cpp/json/writer
     library/cpp/yaml/as
@@ -58,6 +56,8 @@ PEERDIR(
     contrib/ydb/public/sdk/cpp/src/client/types/credentials
     contrib/ydb/public/sdk/cpp/src/client/types/credentials/oauth2_token_exchange
     contrib/ydb/library/arrow_parquet
+    contrib/ydb/library/plan2svg
+    contrib/ydb/public/lib/ydb_cli/common/ini_config
     contrib/ydb/public/lib/ydb_cli/common/yql_parser
 )
 
@@ -67,6 +67,7 @@ GENERATE_ENUM_SERIALIZATION(parameters.h)
 END()
 
 RECURSE(
+    ini_config
     yql_parser
 )
 

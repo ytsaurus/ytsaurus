@@ -4,10 +4,12 @@ RECURSE(
     gc_service
     job
     job_factory
+    job_launcher
     process
     proto
     request_options
     table_data_service
+    test_tools
     utils
     worker
     yt_job_service

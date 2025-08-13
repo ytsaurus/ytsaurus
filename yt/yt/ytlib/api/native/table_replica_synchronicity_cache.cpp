@@ -64,10 +64,13 @@ TFuture<TReplicaSynchronicityList> FetchChaosTableReplicaSynchronicities(
                 tableReplicaInfo->ReplicaPath = replica.ReplicaPath;
                 tableReplicaInfo->Mode = replica.Mode;
 
+                auto minReplicationTimestamp = GetReplicationProgressMinTimestamp(replica.ReplicationProgress);
+
                 replicas.push_back(TReplicaSynchronicity{
                     .ReplicaInfo = std::move(tableReplicaInfo),
-                    .MinReplicationTimestamp = GetReplicationProgressMinTimestamp(replica.ReplicationProgress),
-                    .IsInSync = IsReplicaReallySync(replica.Mode, replica.State, replica.History),
+                    .MinReplicationTimestamp = minReplicationTimestamp,
+                    .IsInSync = IsReplicaReallySync(replica.Mode, replica.State, replica.History) &&
+                        minReplicationTimestamp >= replica.History.back().Timestamp,
                 });
             }
 
@@ -158,16 +161,20 @@ TFuture<TReplicaSynchronicityList> FetchReplicatedTableReplicaSynchronicities(
             auto replicaSynchronicities = TReplicaSynchronicityList();
             replicaSynchronicities.reserve(tableMountInfo->Replicas.size());
             for (const auto& replicaInfo : tableMountInfo->Replicas) {
-                auto it = replicaIdToSyncTabletCount.find(replicaInfo->ReplicaId);
-                auto isInSync = (it == replicaIdToSyncTabletCount.end())
-                    ? false
-                    : (it->second == std::ssize(tableMountInfo->Tablets));
+                if (auto timestampIt = replicationTimestamps.find(replicaInfo->ReplicaId);
+                    timestampIt != replicationTimestamps.end())
+                {
+                    auto it = replicaIdToSyncTabletCount.find(replicaInfo->ReplicaId);
+                    auto isInSync = (it == replicaIdToSyncTabletCount.end())
+                        ? false
+                        : (it->second == std::ssize(tableMountInfo->Tablets));
 
-                replicaSynchronicities.push_back(TReplicaSynchronicity{
-                    .ReplicaInfo = replicaInfo,
-                    .MinReplicationTimestamp = GetOrCrash(replicationTimestamps, replicaInfo->ReplicaId),
-                    .IsInSync = isInSync,
-                });
+                    replicaSynchronicities.push_back(TReplicaSynchronicity{
+                        .ReplicaInfo = replicaInfo,
+                        .MinReplicationTimestamp = timestampIt->second,
+                        .IsInSync = isInSync,
+                    });
+                }
             }
 
             return replicaSynchronicities;

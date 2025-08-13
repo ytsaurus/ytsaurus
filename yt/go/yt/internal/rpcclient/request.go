@@ -1,6 +1,8 @@
 package rpcclient
 
 import (
+	"strings"
+
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy"
 	"go.ytsaurus.tech/yt/go/yt"
@@ -1280,6 +1282,35 @@ func (r *LookupRowsRequest) SetTxOptions(opts *TransactionOptions) {
 	r.Timestamp = convertTimestamp(&opts.TxStartTimestamp)
 }
 
+var _ TransactionalRequest = (*MultiLookupRequest)(nil)
+
+type MultiLookupRequest struct {
+	*rpc_proxy.TReqMultiLookup
+}
+
+func NewMultiLookupRequest(r *rpc_proxy.TReqMultiLookup) *MultiLookupRequest {
+	return &MultiLookupRequest{TReqMultiLookup: r}
+}
+
+func (r MultiLookupRequest) Log() []log.Field {
+	path, _ := r.Path()
+	return []log.Field{
+		log.String("path", path),
+	}
+}
+
+func (r MultiLookupRequest) Path() (string, bool) {
+	paths := make([]string, 0, len(r.GetSubrequests()))
+	for _, subreq := range r.GetSubrequests() {
+		paths = append(paths, string(subreq.GetPath()))
+	}
+	return strings.Join(paths, ", "), true
+}
+
+func (r *MultiLookupRequest) SetTxOptions(opts *TransactionOptions) {
+	r.Timestamp = convertTimestamp(&opts.TxStartTimestamp)
+}
+
 var _ TransactionalRequest = (*LockRowsRequest)(nil)
 
 type LockRowsRequest struct {
@@ -1379,6 +1410,7 @@ func (r CreateQueueProducerSessionRequest) Log() []log.Field {
 		log.String("producer_path", string(r.GetProducerPath())),
 		log.String("queue_path", string(r.GetQueuePath())),
 		log.String("session_id", r.GetSessionId()),
+		log.String("mutation_id", r.GetMutatingOptions().GetMutationId().String()),
 	}
 }
 

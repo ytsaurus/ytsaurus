@@ -980,6 +980,19 @@ public: \
         std::optional<int> writerIndex,
         const TShuffleWriterOptions& options) override;
 
+
+    IMPLEMENT_METHOD(TDistributedWriteSessionWithCookies, StartDistributedWriteSession, (
+        const NYPath::TRichYPath& path,
+        const TDistributedWriteSessionStartOptions& options),
+        (path, options))
+    IMPLEMENT_METHOD(void, FinishDistributedWriteSession, (
+        const TDistributedWriteSessionWithResults& sessionWithResults,
+        const TDistributedWriteSessionFinishOptions& options),
+        (sessionWithResults, options))
+    TFuture<ITableFragmentWriterPtr> CreateTableFragmentWriter(
+        const TSignedWriteFragmentCookiePtr& cookie,
+        const TTableFragmentWriterOptions& options) override;
+
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
 
@@ -1241,7 +1254,7 @@ private:
     NRpc::IChannelPtr GetChaosChannelByCellTag(
         NObjectClient::TCellTag cellTag,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
-    NRpc::IChannelPtr GetChaosChannelByCardId(
+    NRpc::IChannelPtr GetChaosChannelByCardIdOrThrow(
         NChaosClient::TReplicationCardId replicationCardId,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
 
@@ -1519,22 +1532,6 @@ private:
     TString DiscoverPipelineControllerLeader(const NYPath::TYPath& pipelinePath);
 
     NFlow::NController::TControllerServiceProxy CreatePipelineControllerLeaderProxy(const NYPath::TYPath& pipelinePath);
-
-    //
-    // Distributed table client
-    //
-
-    TFuture<TDistributedWriteSessionWithCookies> StartDistributedWriteSession(
-        const NYPath::TRichYPath& path,
-        const TDistributedWriteSessionStartOptions& options) override;
-
-    TFuture<void> FinishDistributedWriteSession(
-        const TDistributedWriteSessionWithResults& sessionWithResults,
-        const TDistributedWriteSessionFinishOptions& options) override;
-
-    TFuture<ITableFragmentWriterPtr> CreateTableFragmentWriter(
-        const TSignedWriteFragmentCookiePtr& cookie,
-        const TTableFragmentWriterOptions& options) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TClient)

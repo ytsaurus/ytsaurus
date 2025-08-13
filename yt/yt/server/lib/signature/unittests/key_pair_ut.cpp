@@ -21,7 +21,8 @@ TEST(TKeyPairTest, Construct)
     EXPECT_TRUE(std::copy_constructible<TKeyPair>);
     EXPECT_TRUE(std::move_constructible<TKeyPair>);
 
-    InitializeCryptography();
+    WaitFor(InitializeCryptography(GetCurrentInvoker()))
+        .ThrowOnError();
 
     auto metaOk = SimpleMetadata(0h, -1h, 10h);
     auto keyPair = New<TKeyPair>(metaOk);
@@ -36,7 +37,8 @@ TEST(TKeyPairTest, Construct)
 
 TEST(TKeyPairTest, Sign)
 {
-    InitializeCryptography();
+    WaitFor(InitializeCryptography(GetCurrentInvoker()))
+        .ThrowOnError();
 
     auto metaOk = SimpleMetadata(0h, -1h, 10h);
     auto keyPair = New<TKeyPair>(metaOk);

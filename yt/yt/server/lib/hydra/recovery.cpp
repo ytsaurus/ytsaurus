@@ -87,6 +87,28 @@ void TRecovery::DoRun()
         }
     }
 
+    YT_LOG_INFO("Running recovery (CurrentState: %v, TargetState: %v)",
+        currentState,
+        TargetState_);
+
+    auto failedChangelogOnlyRecovery = false;
+
+    if (TargetState_.SequenceNumber - currentState.SequenceNumber < Config_->MaxSequenceNumberGapForChangelogOnlyRecovery) {
+        try {
+            YT_LOG_INFO("Sequence number gap is small enough to recover only from changelogs");
+            RecoverFromCurrentStateUsingChangelog(currentState.SegmentId);
+        } catch (std::exception& ex) {
+            YT_LOG_INFO(ex, "Failed to recover only from changelog, will use snapshot recovery");
+            currentState = DecoratedAutomaton_->GetReachableState();
+            failedChangelogOnlyRecovery = true;
+        }
+        if (!failedChangelogOnlyRecovery) {
+            YT_LOG_INFO("Recovered from changelog only (CurrentState: %v)", DecoratedAutomaton_->GetReachableState());
+            FinishRecovery();
+            return;
+        }
+    }
+
     int snapshotId = InvalidSegmentId;
     if (TargetState_.SegmentId > currentState.SegmentId) {
         auto snapshotParamsOrError = WaitFor(DiscoverLatestSnapshot(Config_, epochContext->CellManager));
@@ -95,10 +117,6 @@ void TRecovery::DoRun()
             .ValueOrThrow();
         snapshotId = std::max(snapshotParamsOrError.Value().SnapshotId, localLatestSnapshotId);
     }
-
-    YT_LOG_INFO("Running recovery (CurrentState: %v, TargetState: %v)",
-        currentState,
-        TargetState_);
 
     int initialChangelogId;
     if (snapshotId > currentState.SegmentId) {
@@ -157,8 +175,8 @@ void TRecovery::DoRun()
         auto snapshotLastMutationReign = YT_OPTIONAL_FROM_PROTO(snapshotMeta, last_mutation_reign)
             .value_or(InvalidReign);
         auto snapshotReadOnly = snapshotMeta.read_only();
-        auto logicalTime = YT_APPLY_PROTO_OPTIONAL(snapshotMeta, logical_time, FromProto<TInstant>)
-            .value_or(TInstant());
+        auto logicalTime = YT_OPTIONAL_FROM_PROTO(snapshotMeta, logical_time, TLogicalTime)
+            .value_or(TLogicalTime(0));
 
         YT_VERIFY(snapshotSegmentId >= currentState.SegmentId);
         YT_VERIFY(snapshotSequenceNumber >= currentState.SequenceNumber);
@@ -197,6 +215,10 @@ void TRecovery::DoRun()
 
         initialChangelogId = snapshotId;
     } else {
+        if (failedChangelogOnlyRecovery) {
+            THROW_ERROR_EXCEPTION("Failed to recover from state %v using either changelog or snapshot", currentState);
+        }
+
         // Recover using changelogs only.
         YT_LOG_INFO("Not using snapshots for recovery (CurrentState: %v, SnapshotId: %v)",
             currentState,
@@ -204,6 +226,12 @@ void TRecovery::DoRun()
         initialChangelogId = currentState.SegmentId;
     }
 
+    RecoverFromCurrentStateUsingChangelog(initialChangelogId);
+    FinishRecovery();
+}
+
+void TRecovery::RecoverFromCurrentStateUsingChangelog(int changelogId)
+{
     auto isPersistenceEnabled = IsPersistenceEnabled(EpochContext_->CellManager, Options_);
 
     // Shortcut for observer startup.
@@ -214,10 +242,9 @@ void TRecovery::DoRun()
 
     YT_LOG_INFO("Replaying changelogs (TargetState: %v, ChangelogIds: %v-%v)",
         TargetState_,
-        initialChangelogId,
+        changelogId,
         TargetState_.SegmentId);
 
-    auto changelogId = initialChangelogId;
     while (changelogId <= TargetState_.SegmentId) {
         YT_LOG_INFO("Opening changelog (ChangelogId: %v)",
             changelogId);
@@ -252,6 +279,11 @@ void TRecovery::DoRun()
         WaitFor(changelog->Close())
             .ThrowOnError();
     }
+}
+
+void TRecovery::FinishRecovery()
+{
+    auto isPersistenceEnabled = IsPersistenceEnabled(EpochContext_->CellManager, Options_);
 
     if (!IsLeader_ && isPersistenceEnabled) {
         int latestChangelogId = ChangelogStore_->GetLatestChangelogIdOrThrow();

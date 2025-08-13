@@ -216,8 +216,8 @@ TEST_P(TExtractSubexpressionPredicateTest, Simple)
     const auto& predicateString = std::get<2>(args);
     const auto& extractedString = std::get<3>(args);
 
-    auto tableSchema = ConvertTo<TTableSchema>(TYsonString(TString(schemaString)));
-    auto tableSubschema = ConvertTo<TTableSchema>(TYsonString(TString(subschemaString)));
+    auto tableSchema = ConvertTo<TTableSchema>(TYsonString(TStringBuf(schemaString)));
+    auto tableSubschema = ConvertTo<TTableSchema>(TYsonString(TStringBuf(subschemaString)));
 
     auto predicate = ParseAndPrepareExpression(predicateString, tableSchema);
     auto expected = ParseAndPrepareExpression(extractedString, tableSubschema);
@@ -315,22 +315,22 @@ protected:
 TEST_P(TEliminateLookupPredicateTest, Simple)
 {
     const auto& args = GetParam();
-    const auto& schemaString = std::get<0>(args);
-    const auto& keyString = std::get<1>(args);
-    const auto& predicateString = std::get<2>(args);
-    const auto& refinedString = std::get<3>(args);
+    const auto& schemaString = TStringBuf(std::get<0>(args));
+    const auto& keyString = TStringBuf(std::get<1>(args));
+    const auto& predicateString = TStringBuf(std::get<2>(args));
+    const auto& refinedString = TStringBuf(std::get<3>(args));
     const auto& keyStrings = std::get<4>(args);
 
     TTableSchema tableSchema;
     TKeyColumns keyColumns;
-    Deserialize(tableSchema, ConvertToNode(TYsonString(TString(schemaString))));
-    Deserialize(keyColumns, ConvertToNode(TYsonString(TString(keyString))));
+    Deserialize(tableSchema, ConvertToNode(TYsonString(schemaString)));
+    Deserialize(keyColumns, ConvertToNode(TYsonString(keyString)));
 
     std::vector<TLegacyOwningKey> keys;
-    TString keysString;
+    std::string keysString;
     for (const auto& keyString : keyStrings) {
         keys.push_back(YsonToKey(keyString));
-        keysString += TString(keysString.size() > 0 ? ", " : "") + "[" + keyString + "]";
+        keysString += std::string(keysString.size() > 0 ? ", " : "") + "[" + keyString + "]";
     }
 
     auto predicate = ParseAndPrepareExpression(predicateString, tableSchema);
@@ -460,10 +460,10 @@ protected:
 TEST_P(TEliminatePredicateTest, Simple)
 {
     const auto& args = GetParam();
-    const auto& schemaString = std::get<0>(args);
-    const auto& keyString = std::get<1>(args);
-    const auto& predicateString = std::get<2>(args);
-    const auto& refinedString = std::get<3>(args);
+    const auto& schemaString = TStringBuf(std::get<0>(args));
+    const auto& keyString = TStringBuf(std::get<1>(args));
+    const auto& predicateString = TStringBuf(std::get<2>(args));
+    const auto& refinedString = TStringBuf(std::get<3>(args));
     const auto& keyStrings = std::get<4>(args);
 
     const auto& lowerString = keyStrings[0];
@@ -471,8 +471,8 @@ TEST_P(TEliminatePredicateTest, Simple)
 
     TTableSchema tableSchema;
     TKeyColumns keyColumns;
-    Deserialize(tableSchema, ConvertToNode(TYsonString(TString(schemaString))));
-    Deserialize(keyColumns, ConvertToNode(TYsonString(TString(keyString))));
+    Deserialize(tableSchema, ConvertToNode(TYsonString(schemaString)));
+    Deserialize(keyColumns, ConvertToNode(TYsonString(keyString)));
 
     auto predicate = ParseAndPrepareExpression(predicateString, tableSchema);
     auto expected = ParseAndPrepareExpression(refinedString, tableSchema);
@@ -678,28 +678,28 @@ TEST_F(TParseAndPrepareExpressionTest, Basic)
     auto schema = GetSampleTableSchema();
 
     auto expr1 = Make<TReferenceExpression>("k");
-    auto expr2 = ParseAndPrepareExpression(TString("k"), *schema);
+    auto expr2 = ParseAndPrepareExpression("k", *schema);
 
     EXPECT_TRUE(Equal(expr1, expr2))
         << "expr1: " << ::testing::PrintToString(expr1) << std::endl
         << "expr2: " << ::testing::PrintToString(expr2);
 
     expr1 = Make<TLiteralExpression>(MakeInt64(90));
-    expr2 = ParseAndPrepareExpression(TString("90"), *schema);
+    expr2 = ParseAndPrepareExpression("90", *schema);
 
     EXPECT_TRUE(Equal(expr1, expr2))
         << "expr1: " << ::testing::PrintToString(expr1) << std::endl
         << "expr2: " << ::testing::PrintToString(expr2);
 
     expr1 = Make<TReferenceExpression>("a"),
-    expr2 = ParseAndPrepareExpression(TString("k"), *schema);
+    expr2 = ParseAndPrepareExpression("k", *schema);
 
     EXPECT_FALSE(Equal(expr1, expr2))
         << "expr1: " << ::testing::PrintToString(expr1) << std::endl
         << "expr2: " << ::testing::PrintToString(expr2);
 
-    auto str1 = TString("k + 3 - a > 4 * l and (k <= m or k + 1 < 3* l)");
-    auto str2 = TString("k + 3 - a > 4 * l and (k <= m or k + 2 < 3* l)");
+    const auto* str1 = "k + 3 - a > 4 * l and (k <= m or k + 1 < 3* l)";
+    const auto* str2 = "k + 3 - a > 4 * l and (k <= m or k + 2 < 3* l)";
 
     expr1 = ParseAndPrepareExpression(str1, *schema);
     expr2 = ParseAndPrepareExpression(str1, *schema);
@@ -832,7 +832,7 @@ INSTANTIATE_TEST_SUITE_P(
             "not ((a < 3) and (a >= 2))")
 ));
 
-TSharedRange<TRow> MakeRows(const TString& yson)
+TSharedRange<TRow> MakeRows(TStringBuf yson)
 {
     TUnversionedRowBuilder keyBuilder;
     auto keyParts = ConvertTo<std::vector<INodePtr>>(
@@ -877,41 +877,41 @@ TEST_F(TParseAndPrepareExpressionTest, Negative1)
     auto schema = GetSampleTableSchema();
 
     EXPECT_THROW_THAT(
-        ParseAndPrepareExpression(TString("ki in (1, 2u, \"abc\")"), *schema),
+        ParseAndPrepareExpression("ki in (1, 2u, \"abc\")", *schema),
         HasSubstr("Types mismatch in tuple"));
 
     EXPECT_THROW_THAT(
-        ParseAndPrepareExpression(TString("ku = \"abc\""), *schema),
+        ParseAndPrepareExpression("ku = \"abc\"", *schema),
         HasSubstr("Type mismatch in expression"));
 
     EXPECT_THROW_THAT(
-        ParseAndPrepareExpression(TString("kd = 4611686018427387903"), *schema),
+        ParseAndPrepareExpression("kd = 4611686018427387903", *schema),
         HasSubstr("to double: inaccurate conversion"));
 
     EXPECT_THROW_THAT(
-        ParseAndPrepareExpression(TString("kd = 9223372036854775807u"), *schema),
+        ParseAndPrepareExpression("kd = 9223372036854775807u", *schema),
         HasSubstr("to double: inaccurate conversion"));
 
     if (NYT::NQueryClient::DefaultExpressionBuilderVersion == 1) {
         EXPECT_THROW_THAT(
-            ParseAndPrepareExpression(TString("ki = 18446744073709551606u"), *schema),
+            ParseAndPrepareExpression("ki = 18446744073709551606u", *schema),
             HasSubstr("Type mismatch in expression"));
 
         EXPECT_THROW_THAT(
-            ParseAndPrepareExpression(TString("ku = 1.5"), *schema),
+            ParseAndPrepareExpression("ku = 1.5", *schema),
             HasSubstr("Type mismatch in expression"));
 
         EXPECT_THROW_THAT(
-            ParseAndPrepareExpression(TString("ki = 1.5"), *schema),
+            ParseAndPrepareExpression("ki = 1.5", *schema),
             HasSubstr("Type mismatch in expression"));
     }
 
     EXPECT_THROW_THAT(
-        ParseAndPrepareExpression(TString("(1u - 2) / 3.0"), *schema),
+        ParseAndPrepareExpression("(1u - 2) / 3.0", *schema),
         HasSubstr("to double: inaccurate conversion"));
 
     EXPECT_THROW_THAT(
-        ParseAndPrepareExpression(TString("k = 1 and ku"), *schema),
+        ParseAndPrepareExpression("k = 1 and ku", *schema),
         HasSubstr("Type mismatch in expression"));
 }
 
@@ -1075,7 +1075,7 @@ TEST_P(TExpressionTest, ConstantFolding)
     auto& rhs = std::get<3>(param);
     auto expected = Make<TLiteralExpression>(std::get<4>(param));
 
-    auto got = ParseAndPrepareExpression(TString(lhs) + " " + op + " " + rhs, *schema);
+    auto got = ParseAndPrepareExpression(std::string(lhs) + " " + op + " " + rhs, *schema);
 
     EXPECT_TRUE(Equal(got, expected))
         << "got: " <<  ::testing::PrintToString(got) << std::endl
@@ -1246,9 +1246,9 @@ TEST_P(TExpressionTest, Evaluate)
     columns[1].SetLogicalType(OptionalLogicalType(SimpleLogicalType(GetLogicalType(rhsType))));
     auto schema = New<TTableSchema>(std::move(columns));
 
-    auto expr = ParseAndPrepareExpression(TString("k") + " " + op + " " + "l", *schema);
+    auto expr = ParseAndPrepareExpression(std::string("k") + " " + op + " " + "l", *schema);
     auto buffer = New<TRowBuffer>();
-    auto row = YsonToSchemafulRow(TString("k=") + lhs + ";l=" + rhs, *schema, true);
+    auto row = YsonToSchemafulRow(std::string("k=") + lhs + ";l=" + rhs, *schema, true);
 
     Evaluate(expr, schema, buffer, row, [&] (const TUnversionedValue& result) {
         EXPECT_EQ(result, expected)
@@ -1276,8 +1276,8 @@ TEST_P(TExpressionTest, EvaluateLhsValueRhsLiteral)
     columns[1].SetLogicalType(OptionalLogicalType(SimpleLogicalType(GetLogicalType(rhsType))));
     auto schema = New<TTableSchema>(std::move(columns));
 
-    auto expr = ParseAndPrepareExpression(TString("k") + " " + op + " " + rhs, *schema);
-    auto row = YsonToSchemafulRow(TString("k=") + lhs, *schema, true);
+    auto expr = ParseAndPrepareExpression(std::string("k") + " " + op + " " + rhs, *schema);
+    auto row = YsonToSchemafulRow(std::string("k=") + lhs, *schema, true);
     auto buffer = New<TRowBuffer>();
 
     Evaluate(expr, schema, buffer, row, [&] (const TUnversionedValue& result) {
@@ -1306,8 +1306,8 @@ TEST_P(TExpressionTest, EvaluateLhsLiteralRhsValue)
     columns[1].SetLogicalType(OptionalLogicalType(SimpleLogicalType(GetLogicalType(rhsType))));
     auto schema = New<TTableSchema>(std::move(columns));
 
-    auto expr = ParseAndPrepareExpression(TString(lhs) + " " + op + " " + "l", *schema);
-    auto row = YsonToSchemafulRow(TString("l=") + rhs, *schema, true);
+    auto expr = ParseAndPrepareExpression(std::string(lhs) + " " + op + " " + "l", *schema);
+    auto row = YsonToSchemafulRow(std::string("l=") + rhs, *schema, true);
     auto buffer = New<TRowBuffer>();
 
     Evaluate(expr, schema, buffer, row, [&] (const TUnversionedValue& result) {
@@ -2395,7 +2395,7 @@ INSTANTIATE_TEST_SUITE_P(
 
 void EvaluateExpression(
     TConstExpressionPtr expr,
-    const TString& rowString,
+    TStringBuf rowString,
     const TTableSchemaPtr& schema,
     TUnversionedValue* result,
     TRowBufferPtr buffer,
@@ -2463,7 +2463,8 @@ TEST_P(TEvaluateExpressionTest, Basic)
         function && (
             function->FunctionName == "is_finite" ||
             function->FunctionName.ends_with("_localtime") ||
-            function->FunctionName.ends_with("_tz")))
+            function->FunctionName.ends_with("_tz") ||
+            function->FunctionName.ends_with("_valid_utf8")))
     {
         return;
     }
@@ -2484,6 +2485,18 @@ INSTANTIATE_TEST_SUITE_P(
             "",
             "lower('ПрИвЕт, КаК ДеЛа?')",
             MakeString("привет, как дела?")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "s1=\"\x61\xF0\x80\x80\x80 \"",
+            "to_valid_utf8(s1)",
+            MakeString("a� ")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "s1=\"\xFF\"",
+            "to_valid_utf8(s1)",
+            MakeString("�")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "s1=\"\xFF\"",
+            "is_valid_utf8(s1)",
+            MakeBoolean(false)),
         std::tuple<const char*, const char*, TUnversionedValue>(
             "",
             "length('abc')",

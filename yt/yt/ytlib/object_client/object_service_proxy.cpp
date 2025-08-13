@@ -627,10 +627,12 @@ void TObjectServiceProxy::TReqExecuteBatch::InvokeNextBatch()
 
     for (int index : PendingIndexes_) {
         auto& descriptor = InnerRequestDescriptors_[index];
-        descriptor.Message = PatchMutationId(
-            descriptor.Message,
-            CurrentRetry_ > 0,
-            RegenerateMutationIdForRetries_);
+        if (descriptor.Mutating) {
+            descriptor.Message = PatchMutationId(
+                descriptor.Message,
+                CurrentRetry_ > 0,
+                RegenerateMutationIdForRetries_);
+        }
         innerRequestDescriptors.push_back(descriptor);
     }
 

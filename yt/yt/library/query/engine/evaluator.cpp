@@ -39,12 +39,12 @@ using NCodegen::EExecutionBackend;
 struct TCachedCGQueryImage
     : public TAsyncCacheValueBase<llvm::FoldingSetNodeID, TCachedCGQueryImage>
 {
-    const TString Fingerprint;
+    const std::string Fingerprint;
     const TCGQueryImage Image;
 
     TCachedCGQueryImage(
         const llvm::FoldingSetNodeID& id,
-        TString fingerprint,
+        std::string fingerprint,
         TCGQueryImage image)
         : TAsyncCacheValueBase(id)
         , Fingerprint(std::move(fingerprint))
@@ -73,7 +73,7 @@ public:
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         const IMemoryChunkProviderPtr& memoryChunkProvider,
-        const TQueryBaseOptions& options,
+        const TQueryOptions& options,
         const TFeatureFlags& requestFeatureFlags,
         TFuture<TFeatureFlags> responseFeatureFlags) override
     {
@@ -95,7 +95,7 @@ public:
             *query->GetTableSchema(),
             options.ExecutionBackend);
 
-        TQueryStatistics statistics;
+        TExecutionStatistics statistics;
         NProfiling::TWallTimer wallTime;
         NProfiling::TFiberWallTimer syncTime;
 
@@ -115,7 +115,8 @@ public:
                 options.EnableCodeCache,
                 options.UseCanonicalNullRelations,
                 options.ExecutionBackend,
-                options.AllowUnorderedGroupByWithLimit);
+                options.AllowUnorderedGroupByWithLimit,
+                options.MaxJoinBatchSize);
 
             // NB: Function contexts need to be destroyed before queryInstance since it hosts destructors.
             auto finalizer = Finally([&] {
@@ -130,6 +131,9 @@ public:
                 .OutputRowLimit = options.OutputRowLimit,
                 .GroupRowLimit = options.OutputRowLimit,
                 .JoinRowLimit = options.OutputRowLimit,
+                .RowsetProcessingBatchSize = options.RowsetProcessingBatchSize,
+                .WriteRowsetSize = options.WriteRowsetSize,
+                .MaxJoinBatchSize = options.MaxJoinBatchSize,
                 .Offset = query->Offset,
                 .Limit = query->Limit,
                 .Ordered = query->IsOrdered(options.AllowUnorderedGroupByWithLimit),
@@ -156,21 +160,11 @@ public:
         statistics.ExecuteTime =
             statistics.SyncTime - statistics.ReadTime - statistics.WriteTime - statistics.CodegenTime;
 
-        YT_LOG_DEBUG("Query statistics (%v)", statistics);
+        auto queryStatistics = TQueryStatistics::FromExecutionStatistics(statistics);
 
-        // TODO(prime): place these into trace log
-        //    TRACE_ANNOTATION("rows_read", statistics.RowsRead);
-        //    TRACE_ANNOTATION("rows_written", statistics.RowsWritten);
-        //    TRACE_ANNOTATION("sync_time", statistics.SyncTime);
-        //    TRACE_ANNOTATION("async_time", statistics.AsyncTime);
-        //    TRACE_ANNOTATION("execute_time", statistics.ExecuteTime);
-        //    TRACE_ANNOTATION("read_time", statistics.ReadTime);
-        //    TRACE_ANNOTATION("write_time", statistics.WriteTime);
-        //    TRACE_ANNOTATION("codegen_time", statistics.CodegenTime);
-        //    TRACE_ANNOTATION("incomplete_input", statistics.IncompleteInput);
-        //    TRACE_ANNOTATION("incomplete_output", statistics.IncompleteOutput);
+        YT_LOG_DEBUG("Query statistics (%v)", queryStatistics);
 
-        return statistics;
+        return queryStatistics;
     }
 
 private:
@@ -180,11 +174,12 @@ private:
         const std::vector<IJoinProfilerPtr>& joinProfilers,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
-        TQueryStatistics& statistics,
+        TExecutionStatistics& statistics,
         bool enableCodeCache,
         bool useCanonicalNullRelations,
         EExecutionBackend executionBackend,
-        bool allowUnorderedGroupByWithLimit)
+        bool allowUnorderedGroupByWithLimit,
+        i64 maxJoinBatchSize)
     {
         llvm::FoldingSetNodeID id;
 
@@ -197,7 +192,8 @@ private:
             executionBackend,
             functionProfilers,
             aggregateProfilers,
-            allowUnorderedGroupByWithLimit);
+            allowUnorderedGroupByWithLimit,
+            maxJoinBatchSize);
 
         auto Logger = MakeQueryLogger(query);
 

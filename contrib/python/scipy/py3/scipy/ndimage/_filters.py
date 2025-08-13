@@ -33,7 +33,8 @@ import numbers
 import warnings
 import numpy
 import operator
-from numpy.core.multiarray import normalize_axis_index
+
+from scipy._lib._util import normalize_axis_index
 from . import _ni_support
 from . import _nd_image
 from . import _ni_docstrings
@@ -99,6 +100,11 @@ def correlate1d(input, weights, axis=-1, output=None, mode="reflect",
     %(mode_reflect)s
     %(cval)s
     %(origin)s
+
+    Returns
+    -------
+    result : ndarray
+        Correlation result. Has the same shape as `input`.
 
     Examples
     --------
@@ -396,19 +402,44 @@ def prewitt(input, axis=-1, output=None, mode="reflect", cval=0.0):
     %(mode_multiple)s
     %(cval)s
 
+    Returns
+    -------
+    prewitt : ndarray
+        Filtered array. Has the same shape as `input`.
+
+    See Also
+    --------
+    sobel: Sobel filter
+
+    Notes
+    -----
+    This function computes the one-dimensional Prewitt filter.
+    Horizontal edges are emphasised with the horizontal transform (axis=0),
+    vertical edges with the vertical transform (axis=1), and so on for higher
+    dimensions. These can be combined to give the magnitude.
+
     Examples
     --------
     >>> from scipy import ndimage, datasets
     >>> import matplotlib.pyplot as plt
-    >>> fig = plt.figure()
-    >>> plt.gray()  # show the filtered result in grayscale
-    >>> ax1 = fig.add_subplot(121)  # left side
-    >>> ax2 = fig.add_subplot(122)  # right side
+    >>> import numpy as np
     >>> ascent = datasets.ascent()
-    >>> result = ndimage.prewitt(ascent)
-    >>> ax1.imshow(ascent)
-    >>> ax2.imshow(result)
+    >>> prewitt_h = ndimage.prewitt(ascent, axis=0)
+    >>> prewitt_v = ndimage.prewitt(ascent, axis=1)
+    >>> magnitude = np.sqrt(prewitt_h ** 2 + prewitt_v ** 2)
+    >>> magnitude *= 255 / np.max(magnitude) # Normalization
+    >>> fig, axes = plt.subplots(2, 2, figsize = (8, 8))
+    >>> plt.gray()
+    >>> axes[0, 0].imshow(ascent)
+    >>> axes[0, 1].imshow(prewitt_h)
+    >>> axes[1, 0].imshow(prewitt_v)
+    >>> axes[1, 1].imshow(magnitude)
+    >>> titles = ["original", "horizontal", "vertical", "magnitude"]
+    >>> for i, ax in enumerate(axes.ravel()):
+    ...     ax.set_title(titles[i])
+    ...     ax.axis("off")
     >>> plt.show()
+
     """
     input = numpy.asarray(input)
     axis = normalize_axis_index(axis, input.ndim)
@@ -433,10 +464,15 @@ def sobel(input, axis=-1, output=None, mode="reflect", cval=0.0):
     %(mode_multiple)s
     %(cval)s
 
+    Returns
+    -------
+    sobel : ndarray
+        Filtered array. Has the same shape as `input`.
+
     Notes
     -----
     This function computes the axis-specific Sobel gradient.
-    The horizontal edges can emphasised with the horizontal trasform (axis=0),
+    The horizontal edges can be emphasised with the horizontal transform (axis=0),
     the vertical edges with the vertical transform (axis=1) and so on for higher
     dimensions. These can be combined to give the magnitude.
 
@@ -497,6 +533,12 @@ def generic_laplace(input, derivative2, output=None, mode="reflect",
     %(cval)s
     %(extra_keywords)s
     %(extra_arguments)s
+
+    Returns
+    -------
+    generic_laplace : ndarray
+        Filtered array. Has the same shape as `input`.
+
     """
     if extra_keywords is None:
         extra_keywords = {}
@@ -526,6 +568,11 @@ def laplace(input, output=None, mode="reflect", cval=0.0):
     %(output)s
     %(mode_multiple)s
     %(cval)s
+
+    Returns
+    -------
+    laplace : ndarray
+        Filtered array. Has the same shape as `input`.
 
     Examples
     --------
@@ -562,6 +609,11 @@ def gaussian_laplace(input, sigma, output=None, mode="reflect",
     %(mode_multiple)s
     %(cval)s
     Extra keyword arguments will be passed to gaussian_filter().
+
+    Returns
+    -------
+    gaussian_laplace : ndarray
+        Filtered array. Has the same shape as `input`.
 
     Examples
     --------
@@ -618,6 +670,12 @@ def generic_gradient_magnitude(input, derivative, output=None,
     %(cval)s
     %(extra_keywords)s
     %(extra_arguments)s
+
+    Returns
+    -------
+    generic_gradient_matnitude : ndarray
+        Filtered array. Has the same shape as `input`.
+
     """
     if extra_keywords is None:
         extra_keywords = {}
@@ -937,6 +995,11 @@ def uniform_filter1d(input, size, axis=-1, output=None,
     %(cval)s
     %(origin)s
 
+    Returns
+    -------
+    result : ndarray
+        Filtered array. Has same shape as `input`.
+
     Examples
     --------
     >>> from scipy.ndimage import uniform_filter1d
@@ -1053,6 +1116,11 @@ def minimum_filter1d(input, size, axis=-1, output=None,
     %(cval)s
     %(origin)s
 
+    Returns
+    -------
+    result : ndarray.
+        Filtered image. Has the same shape as `input`.
+
     Notes
     -----
     This function implements the MINLIST algorithm [1]_, as described by
@@ -1146,7 +1214,8 @@ def maximum_filter1d(input, size, axis=-1, output=None,
 def _min_or_max_filter(input, size, footprint, structure, output, mode,
                        cval, origin, minimum, axes=None):
     if (size is not None) and (footprint is not None):
-        warnings.warn("ignoring size because footprint is set", UserWarning, stacklevel=3)
+        warnings.warn("ignoring size because footprint is set",
+                      UserWarning, stacklevel=3)
     if structure is None:
         if footprint is None:
             if size is None:
@@ -1197,7 +1266,7 @@ def _min_or_max_filter(input, size, footprint, structure, output, mode,
         else:
             output[...] = input[...]
     else:
-        origins = _ni_support._normalize_sequence(origin, input.ndim)
+        origins = _ni_support._normalize_sequence(origin, num_axes)
         if num_axes < input.ndim:
             if footprint.ndim != num_axes:
                 raise RuntimeError("footprint array has incorrect shape")
@@ -1205,17 +1274,23 @@ def _min_or_max_filter(input, size, footprint, structure, output, mode,
                 footprint,
                 tuple(ax for ax in range(input.ndim) if ax not in axes)
             )
+            # set origin = 0 for any axes not being filtered
+            origins_temp = [0,] * input.ndim
+            for o, ax in zip(origins, axes):
+                origins_temp[ax] = o
+            origins = origins_temp
+
         fshape = [ii for ii in footprint.shape if ii > 0]
         if len(fshape) != input.ndim:
             raise RuntimeError('footprint array has incorrect shape.')
         for origin, lenf in zip(origins, fshape):
             if (lenf // 2 + origin < 0) or (lenf // 2 + origin >= lenf):
-                raise ValueError('invalid origin')
+                raise ValueError("invalid origin")
         if not footprint.flags.contiguous:
             footprint = footprint.copy()
         if structure is not None:
             if len(structure.shape) != input.ndim:
-                raise RuntimeError('structure array has incorrect shape')
+                raise RuntimeError("structure array has incorrect shape")
             if num_axes != structure.ndim:
                 structure = numpy.expand_dims(
                     structure,
@@ -1337,7 +1412,8 @@ def _rank_filter(input, rank, size=None, footprint=None, output=None,
                  mode="reflect", cval=0.0, origin=0, operation='rank',
                  axes=None):
     if (size is not None) and (footprint is not None):
-        warnings.warn("ignoring size because footprint is set", UserWarning, stacklevel=3)
+        warnings.warn("ignoring size because footprint is set",
+                      UserWarning, stacklevel=3)
     input = numpy.asarray(input)
     if numpy.iscomplexobj(input):
         raise TypeError('Complex type not supported')
@@ -1591,6 +1667,11 @@ def generic_filter1d(input, function, filter_size, axis=-1,
     %(extra_arguments)s
     %(extra_keywords)s
 
+    Returns
+    -------
+    generic_filter1d : ndarray
+        Filtered array. Has the same shape as `input`.
+
     Notes
     -----
     This function also accepts low-level callback functions with one of
@@ -1669,6 +1750,11 @@ def generic_filter(input, function, size=None, footprint=None,
     %(extra_arguments)s
     %(extra_keywords)s
 
+    Returns
+    -------
+    generic_filter : ndarray
+        Filtered array. Has the same shape as `input`.
+
     Notes
     -----
     This function also accepts low-level callback functions with one of
@@ -1742,7 +1828,8 @@ def generic_filter(input, function, size=None, footprint=None,
 
     """
     if (size is not None) and (footprint is not None):
-        warnings.warn("ignoring size because footprint is set", UserWarning, stacklevel=2)
+        warnings.warn("ignoring size because footprint is set",
+                      UserWarning, stacklevel=2)
     if extra_keywords is None:
         extra_keywords = {}
     input = numpy.asarray(input)

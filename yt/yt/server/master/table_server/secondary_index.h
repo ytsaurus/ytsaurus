@@ -32,13 +32,6 @@ public:
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
-
-    // COMPAT(sabdenovch)
-    void SetIdsFromCompat();
-
-private:
-    TTableNodeRawPtr CompatTable_;
-    TTableNodeRawPtr CompatIndexTable_;
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TSecondaryIndex)

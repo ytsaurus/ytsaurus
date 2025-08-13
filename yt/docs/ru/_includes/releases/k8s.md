@@ -8,12 +8,41 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 
 **Releases:**
 
+{% cut "**0.25.0**" %}
+
+**Release date:** 2025-07-23
+
+
+#### Features
+* Support for [YTsaurus Server 25.1.0](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fytsaurus%2F25.1.0)
+* Native RPC mTLS by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/493
+* Add ability to override http proxy ports by @imakunin in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/505
+* Support new exe node config format by @k-pogorelov in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/511
+* Support HydraPersistenceUploader sidecar by @ilyaibraev in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/489
+
+#### Minor
+* Sync exec node if containerd config changes by @sanchosancho in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/480
+* Fix atomic status update in update plan logic by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/496
+* Fix non-idempotent CreateUser by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/515
+
+
+#### New Contributors
+* @sanchosancho made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/480
+* @kirillgrachoff made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/492
+* @ilyaibraev made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/489
+* @k-pogorelov made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/511
+
+**Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/release/0.24.0...release/0.25.0
+
+{% endcut %}
+
+
 {% cut "**0.24.0**" %}
 
 **Release date:** 2025-05-20
 
 
-## Minor
+#### Minor
 * Rerun init queue agent script during QA update by @savnadya in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/479
 
 **Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/release/0.23.1...release/0.24.0
@@ -26,7 +55,7 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 **Release date:** 2025-04-04
 
 
-## Minor
+#### Minor
 * Revert "Disable stockpile by default" in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/477
 
 The change introduced in 0.23.0 was reverted due to the fact it ends up in updating all components of all existing clusters on the operator update, but change is not important. We'll consider making it opt-in in the next releases.
@@ -40,7 +69,7 @@ The change introduced in 0.23.0 was reverted due to the fact it ends up in updat
 **Release date:** 2025-04-02
 
 
-## Minor
+#### Minor
 * Fix bug in blocked components column by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/464
 * Deleted the `stderr` logger for JobProxy. by @imakunin in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/465
 * Set init quota for user-defined mediums by @futujaos in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/466
@@ -49,11 +78,11 @@ The change introduced in 0.23.0 was reverted due to the fact it ends up in updat
 * Create ROADMAP.md by @AMRivkin in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/473
 * Configure yqla mrjob syslibs V2 by @Krisha11 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/475
 
-## Release notes
+#### Release notes
 * `configureMrJobSystemLibs` field was removed https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/475 and now system libs for YQL agent are being added unconditionally.
 * stockpile/thread_count is set to zero in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/467 to remove non-relevant warnings in logs, as a downside it will trigger all components update.
 
-## New Contributors
+#### New Contributors
 * @futujaos made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/466
 * @AMRivkin made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/473
 
@@ -67,18 +96,18 @@ The change introduced in 0.23.0 was reverted due to the fact it ends up in updat
 **Release date:** 2025-03-07
 
 
-## Features
+#### Features
 * Update to YTsaurus 24.2 is supported
 
-## Minor
+#### Minor
 * Add lost CA bundle and TLS secrets VolumeMounts for jobs container by @imakunin in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/449
 * Add bus client configuration by @imakunin in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/450
 
-## Experimental
+#### Experimental
 * Add multiple update selectors by @wilwell in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/383
 * Add blocked components column to kubectl output by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/459
 
-## New Contributors
+#### New Contributors
 * @imakunin made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/449
 
 **Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/release/0.21.0...release/0.22.0
@@ -91,13 +120,13 @@ The change introduced in 0.23.0 was reverted due to the fact it ends up in updat
 **Release date:** 2025-02-10
 
 
-## Features
+#### Features
 * Support the ability to deploy a Kafka proxy by @savnadya in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/407
 
-## Minor
+#### Minor
 * Add config for kind with audit log by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/441
 
-## Bugfix
+#### Bugfix
 * Preserve object finalizers by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/440
 * Set quota and min_disk_space for locations by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/445
 * Fix zero port if no monitoring port configured by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/447
@@ -111,13 +140,13 @@ The change introduced in 0.23.0 was reverted due to the fact it ends up in updat
 **Release date:** 2025-01-20
 
 
-## Minor
+#### Minor
 * Support not creating non-existing users by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/416
 * Added DNSConfig into Instance and YTsaurusSpec by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/420
 * Enable real chunks job by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/412
 * Add log_manager_template for job proxy by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/428
 
-## Release notes
+#### Release notes
 This release makes yt operator compatible with ytsaurus 24.2. 
 Update to this version will launch job for setting correct enable_real_chunks_value values in cypress and exec nodes will be updated with a new config.
 
@@ -131,9 +160,9 @@ Update to this version will launch job for setting correct enable_real_chunks_va
 **Release date:** 2025-01-09
 
 
-## Minor
+#### Minor
 * Configure yqla mrjob syslibs by @Krisha11 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/409
-## Bugfix
+#### Bugfix
 * Add yqla update job by @Krisha11 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/387
 
 **Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/release/0.18.1...release/0.19.0
@@ -146,9 +175,9 @@ Update to this version will launch job for setting correct enable_real_chunks_va
 **Release date:** 2024-12-13
 
 
-## Minor
+#### Minor
 * more validation by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/393
-## Bugfix
+#### Bugfix
 * Fix updates for named cluster components @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/401
 
 **Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/release/0.18.0...release/0.18.1
@@ -161,14 +190,14 @@ Update to this version will launch job for setting correct enable_real_chunks_va
 **Release date:** 2024-11-26
 
 
-## Warning
+#### Warning
 This release has known bug, which broke update for YTsaurus components with non-empty names (names can be set for data/tablet/exec nodes) and roles (can be set for proxies).
 The bug was fixed in [0.18.1](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release%2F0.18.1).
 
-## Features
+#### Features
 * Implemented RemoteTabletNodes api by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/372
 
-## Minor
+#### Minor
 * Update sample config for cluster with TLS by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/369
 * Remove DataNodes from StatelesOnly update by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/371
 * Added namespacedScope value to the helm chart by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/376
@@ -179,14 +208,14 @@ The bug was fixed in [0.18.1](https://github.com/ytsaurus/ytsaurus-k8s-operator/
 * Support OAuth login transformations by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/397
 * Add diff for static config update case by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/398
 
-## Bugfix
+#### Bugfix
 * Fix observed generation by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/373
 * Fix YQL agent dynamic config creation by @savnadya in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/377
 * Fix logging in chyt_controller by @dmi-feo in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/370
 * Fix strawberry container name by @dmi-feo in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/375
 * Use expected instance count as default for minimal ready count by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/395
 
-## New Contributors
+#### New Contributors
 * @dmi-feo made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/370
 
 **Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/release/0.17.0...release/0.18.0
@@ -199,9 +228,9 @@ The bug was fixed in [0.18.1](https://github.com/ytsaurus/ytsaurus-k8s-operator/
 **Release date:** 2024-10-11
 
 
-## Minor
+#### Minor
 * Separate CHYT init options into makeDefault and createPublicClique by @achulkov2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/347
-## Bugfix
+#### Bugfix
 * Fix queue agent init script usage for 24.* by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/356
 
 
@@ -213,7 +242,7 @@ The bug was fixed in [0.18.1](https://github.com/ytsaurus/ytsaurus-k8s-operator/
 **Release date:** 2024-09-13
 
 
-## Bugfix
+#### Bugfix
 * Fix strawberry controller image for 2nd job by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/345
 
 
@@ -225,11 +254,11 @@ The bug was fixed in [0.18.1](https://github.com/ytsaurus/ytsaurus-k8s-operator/
 **Release date:** 2024-09-13
 
 
-## Warning
+#### Warning
 This release has a bug if Strawberry components is enabled.
 Use 0.16.2 instead.
 
-## Bugfix
+#### Bugfix
 * Revert job image override for UI/strawberry by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/344 — the bug was introduced in 0.16.0
 
 
@@ -241,18 +270,18 @@ Use 0.16.2 instead.
 **Release date:** 2024-09-12
 
 
-## Warning
+#### Warning
 This release has a bug for a configuration where UI or Strawberry components are enabled and some of their images were overridden (k8s init jobs will fail for such components).
 Use 0.16.2 instead.
 
-## Minor
+#### Minor
 * Add observedGeneration field to the YtsaurusStatus by @wilwell in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/333
 * Set statistics for job low cpu usage alerts by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/335
 * Add nodeSelector for UI and Strawberry by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/338
 * Init job creates from InstanceSpec image if specified by @wilwell in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/336
 * Add tolerations and nodeselectors to jobs by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/342
 
-## New Contributors
+#### New Contributors
 * @wilwell made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/333
 
 
@@ -264,7 +293,7 @@ Use 0.16.2 instead.
 **Release date:** 2024-09-04
 
 
-## Backward incompatible changes
+#### Backward incompatible changes
 1. Component pod labels were refactored in #326 and changes are:
 - `app.kubernetes.io/instance` was removed
 - `app.kubernetes.io/name` was Ytsaurus before, now it contains component type
@@ -272,11 +301,11 @@ Use 0.16.2 instead.
 
 2. Deprecated `chyt` field in the main [YTsaurus spec](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/docs/api.md#ytsaurusspec) was removed, use `strawberry` field with the same schema instead.
 
-## Minor
+#### Minor
 * Added tolerations for Strawberry by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/328
 * Refactor label names for components by @achulkov2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/326
 
-## Experimental
+#### Experimental
 * RemoteDataNodes by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/330
 
 
@@ -288,7 +317,7 @@ Use 0.16.2 instead.
 **Release date:** 2024-08-22
 
 
-## Backward incompatible changes
+#### Backward incompatible changes
 Before this release `StrawberryController` was unconditionally configured with `{address_resolver={enable_ipv4=%true;enable_ipv6=%true}}` in its static config. From now on it respects common `useIpv6` and `useIpv4` fields, which can be set in the [YtsaurusSpec](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/docs/api.md#ytsaurusspec).
 If for some reason it is required to have configuration different from 
 ```yaml
@@ -311,15 +340,15 @@ data:
     }
 ``` 
 
-## Minor
+#### Minor
 * Add no more than one ytsaurus spec per namespace validation by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/305
 * Add strategy, nodeSelector, affinity, tolerations by @sgburtsev in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/321
 * Add forceTcp and keepSocket options by @leo-astorsky in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/324
 
-## Bugfixes
+#### Bugfixes
 * Fix empty volumes array in sample config by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/318
 
-## New Contributors
+#### New Contributors
 * @leo-astorsky made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/324
 
 
@@ -331,7 +360,7 @@ data:
 **Release date:** 2024-07-30
 
 
-### Bugfixes
+#### Bugfixes
 * Revert deprecation of useInsecureCookies in #310 by @sgburtsev in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/317
 
 The field `useInsecureCookies` was deprecated in the previous release in a not backwards compatible way, this release fixes it. It is now possible to configure the secureness of UI cookies (via the `useInsecureCookies` field) and the secureness of UI and HTTP proxy interaction (via the `secure` field) independently.
@@ -345,16 +374,16 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 **Release date:** 2024-07-23
 
 
-## Features
+#### Features
 * Add per-component terminationGracePeriodSeconds by @koct9i in https://github.com/ytsaurus/yt-k8s-operator/pull/304
 * Added externalProxy parameter for UI by @sgburtsev in https://github.com/ytsaurus/yt-k8s-operator/pull/308
 * Size as Quantity in LogRotationPolicy by @sgburtsev in https://github.com/ytsaurus/yt-k8s-operator/pull/309
 * Use `secure` instead of `useInsecureCookies`, pass caBundle to UI by @sgburtsev in https://github.com/ytsaurus/yt-k8s-operator/pull/310
 
-## Minor 
+#### Minor 
 * Add all YTsaurus CRD into category "ytsaurus-all" "yt-all" by @koct9i in https://github.com/ytsaurus/yt-k8s-operator/pull/311
 
-## Bugfixes
+#### Bugfixes
 * Operator should detect configOverrides updates by @l0kix2 in https://github.com/ytsaurus/yt-k8s-operator/pull/314
 
 
@@ -367,7 +396,7 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 **Release date:** 2024-06-28
 
 
-## Features
+#### Features
 * More options for store locations. by @sgburtsev in https://github.com/ytsaurus/yt-k8s-operator/pull/294
   * data nodes upper limit for `low_watermark` increased from 5 to 25Gib;
   * data nodes' `trash_cleanup_watermark` will be set equal to the `lowWatermark` value from spec
@@ -375,7 +404,7 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 * Add support for directDownload to UI Spec by @kozubaeff in https://github.com/ytsaurus/yt-k8s-operator/pull/257
   * `directDownload` for UI can be configured in the spec now. If omitted or set to `true`, UI will have current default behaviour (use proxies for download), if set to `false` — UI backend will be used for downloading.
 
-## New Contributors
+#### New Contributors
 * @sgburtsev made their first contribution in https://github.com/ytsaurus/yt-k8s-operator/pull/294
 
 
@@ -387,11 +416,11 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 **Release date:** 2024-06-27
 
 
-### Features
+#### Features
 * SetHostnameAsFQDN option is added to all components. Default is true by @qurname2 in https://github.com/ytsaurus/yt-k8s-operator/pull/302
 * Add per-component option hostNetwork by @koct9i in https://github.com/ytsaurus/yt-k8s-operator/pull/287
 
-### Minor 
+#### Minor 
 * Add option for per location disk space quota by @koct9i in https://github.com/ytsaurus/yt-k8s-operator/pull/279
 * Add into exec node pods environment variables for CRI tools by @koct9i in https://github.com/ytsaurus/yt-k8s-operator/pull/283
 * Add per-instance-group podLabels and podAnnotations by @koct9i in https://github.com/ytsaurus/yt-k8s-operator/pull/289
@@ -400,7 +429,7 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 * Add loglevel "warning" by @koct9i in https://github.com/ytsaurus/yt-k8s-operator/pull/292
 * Remove mutating/defaulter webhooks by @koct9i in https://github.com/ytsaurus/yt-k8s-operator/pull/296
 
-### Bugfixes
+#### Bugfixes
 * fix exec node resource calculation on non-isolated CRI-powered job environment by @kruftik in https://github.com/ytsaurus/yt-k8s-operator/pull/277
 
 
@@ -413,12 +442,12 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 **Release date:** 2024-06-07
 
 
-### Features
-### Minor 
+#### Features
+#### Minor 
  - Add everyone-share QT ACO by @Krisha11 in #272
  - Add channel in qt config by @Krisha11 in #273 
  - Add option for per location disk space quota #279
-### Bugfixes
+#### Bugfixes
 - Fix exec node resource calculation on non-isolated CRI-powered job environment #277
 
 
@@ -431,14 +460,14 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 **Release date:** 2024-05-30
 
 
-### Features
-### Minor 
+#### Features
+#### Minor 
  - Add 'physical_host' to cypress_annotations for CMS and UI сompatibility #252
  - added WATCH_NAMESPACE env and LeaderElectionNamespace #168
  - Add configuration for solomon exporter: specify host and some instance tags #258
  - Add sidecars support to primary masters containers #259 
  - Add option for containerd registry config path #264
-### Bugfixes
+#### Bugfixes
  - Fix CRI job environment for remote exec nodes #261
 
 
@@ -450,13 +479,13 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 **Release date:** 2024-04-23
 
 
-### Features
+#### Features
 - Add experimental (behaviour may change) UpdateSelector field #211 to be able to update components separately
-### Minor 
+#### Minor 
 - Enable TmpFS when possible #235
 - Disable disk quota for slot locations #236
 - Forward docker image environment variables to user job #248
-### Bugfixes
+#### Bugfixes
 - Fix flag doNotSetUserId #243
 
 
@@ -468,12 +497,12 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 **Release date:** 2024-04-12
 
 
-### Features
-### Minor 
+#### Features
+#### Minor 
 - Increased default value for MaxSnapshotCountToKeep and MaxChangelogCountToKeep
 - Tune default bundle replication factor #210
 - Set EnableServiceLinks=false for all pods #218
-### Bugfixes
+#### Bugfixes
 - Fix authentication configuration for RPC Proxy #207 
 - Job script updated on restart #224
 - Use secure random and base64 for tokens #202
@@ -487,13 +516,13 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 **Release date:** 2024-04-04
 
 
-### Features
+#### Features
   * Add Remote exec nodes support #75
   * Add MasterCaches support #122
   * Enable TLS certificate auto-update for http proxies #167
   * CRI containerd job environment #105
 
-### Minor 
+#### Minor 
   * Support RuntimeClassName in InstanceSpec
   * Configurable monitoring port #146
   * Not triggering full update for data nodes update
@@ -509,7 +538,7 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
   * Enable rpc proxy in job proxy #197
   * Add yqla token file in container #140
 
-### Bugfixes
+#### Bugfixes
   * Replace YQL Agent default monitoring port 10029 -> 10019
 
 
@@ -521,7 +550,7 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 **Release date:** 2024-02-26
 
 
-### Features
+#### Features
 - Added support for updating masters of 23.2 versions
 - Added the ability to bind masters to the set of nodes by node hostnames.
 - Added the ability to configure the number of stored snapshots and changelogs in master spec
@@ -532,18 +561,18 @@ The field `useInsecureCookies` was deprecated in the previous release in a not b
 - Added the creation of a group for admins (admins).
 - Added readiness probes to component statefulset specs
 
-### Fixes
+#### Fixes
 - Improved ACLs on master schemas
 - Master and scheduler init jobs do not overwrite existing dynamic configs anymore.
 
-### Tests
+#### Tests
 - Added flow to run tests on Github resources
 - Added e2e to check that updating from 23.1 to 23.2 works
 - Added config generator tests for all components
 - Added respect KIND_CLUSTER_NAME env variable in e2e tests
 - Supported local k8s port forwarding in e2e
 
-### Backward Incompatible Changes
+#### Backward Incompatible Changes
 - `exec_agent` was renamed to `exec_node` in exec node config, if your specs have `configOverrides` please rename fields accordingly.
 
 

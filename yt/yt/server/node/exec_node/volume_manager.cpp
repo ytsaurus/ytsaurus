@@ -548,12 +548,12 @@ public:
     {
         return BIND(
             &TLayerLocation::DoCreateNbdVolume,
-                MakeStrong(this),
-                tag,
-                Passed(std::move(tagSet)),
-                Passed(std::move(volumeCreateTimeGuard)),
-                Passed(std::move(nbdConfig)),
-                Passed(std::move(options)))
+            MakeStrong(this),
+            tag,
+            Passed(std::move(tagSet)),
+            Passed(std::move(volumeCreateTimeGuard)),
+            Passed(std::move(nbdConfig)),
+            Passed(std::move(options)))
             .AsyncVia(LocationQueue_->GetInvoker())
             .Run();
     }
@@ -567,12 +567,12 @@ public:
     {
         return BIND(
             &TLayerLocation::DoCreateOverlayVolume,
-                MakeStrong(this),
-                tag,
-                Passed(std::move(tagSet)),
-                Passed(std::move(volumeCreateTimeGuard)),
-                options,
-                overlayDataArray)
+            MakeStrong(this),
+            tag,
+            Passed(std::move(tagSet)),
+            Passed(std::move(volumeCreateTimeGuard)),
+            options,
+            overlayDataArray)
             .AsyncVia(LocationQueue_->GetInvoker())
             .Run();
     }
@@ -586,12 +586,12 @@ public:
     {
         return BIND(
             &TLayerLocation::DoCreateSquashFSVolume,
-                MakeStrong(this),
-                tag,
-                Passed(std::move(tagSet)),
-                Passed(std::move(volumeCreateTimeGuard)),
-                artifactKey,
-                squashFSFilePath)
+            MakeStrong(this),
+            tag,
+            Passed(std::move(tagSet)),
+            Passed(std::move(volumeCreateTimeGuard)),
+            artifactKey,
+            squashFSFilePath)
             .AsyncVia(LocationQueue_->GetInvoker())
             .Run();
     }
@@ -1401,7 +1401,7 @@ private:
         ValidateEnabled();
 
         // Place overlayfs (upper and work directories) in root volume, if it is present.
-        TString placePath;
+        std::optional<TString> placePath;
         for (const auto& overlayData : overlayDataArray) {
             if (overlayData.IsVolume() && overlayData.GetVolume()->IsRootVolume()) {
                 if (placePath) {
@@ -1409,34 +1409,37 @@ private:
                         << TErrorAttribute("first_root_volume", placePath)
                         << TErrorAttribute("second_root_volume", overlayData.GetPath());
                 }
+                // See PORTO-460 for "//" prefix.
                 placePath = "//" + overlayData.GetPath();
+            }
+        }
+
+        if (!placePath) {
+            if (options.SlotPath && options.EnableRootVolumeDiskQuota) {
+                // Place overlayfs (upper and work directories) in user slot.
+                placePath = "//" + NFS::CombinePaths(ToString(options.SlotPath.value()), "overlay");
+            } else {
+                placePath = PlacePath_;
             }
         }
 
         THashMap<TString, TString> volumeProperties = {
             {"backend", "overlay"},
+            {"user", ToString(options.UserId)},
+            {"permissions", "0777"},
+            {"place", placePath.value()},
         };
-
-        if (placePath) {
-            // Set write permissions for everyone if root volume is used.
-            volumeProperties["permissions"] = "0777";
-        } else {
-            placePath = PlacePath_;
-        }
-
-        volumeProperties["place"] = placePath;
 
         // NB: Root volume quota is independent from sandbox quota but enforces the same limits.
         if (options.EnableRootVolumeDiskQuota) {
-            volumeProperties["user"] = ToString(options.UserId);
-            volumeProperties["permissions"] = "0777";
-
             if (options.DiskSpaceLimit) {
-                volumeProperties["space_limit"] = ToString(*options.DiskSpaceLimit);
+                // TODO(yuryalekseev): Do not set "space_limit" for now, see RTCSUPPORT-43697.
+                // volumeProperties["space_limit"] = ToString(*options.DiskSpaceLimit);
             }
 
             if (options.InodeLimit) {
-                volumeProperties["inode_limit"] = ToString(*options.InodeLimit);
+                // TODO(yuryalekseev): Do not set "inode_limit" for now, see RTCSUPPORT-43697.
+                // volumeProperties["inode_limit"] = ToString(*options.InodeLimit);
             }
         }
 
@@ -2591,12 +2594,12 @@ public:
                 nbdExportId = NbdExportId_,
                 nbdServer = NbdServer_,
                 volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)
-            ] () {
+            ] {
                 YT_LOG_DEBUG("Removed NBD volume (VolumeId: %v, ExportId: %v)",
                     volumeId,
                     nbdExportId);
 
-                if (auto device = nbdServer->GetDevice(nbdExportId)) {
+                if (auto device = nbdServer->FindDevice(nbdExportId)) {
                     nbdServer->TryUnregisterDevice(nbdExportId);
                     return device->Finalize();
                 }
@@ -3424,7 +3427,7 @@ private:
 
         return ChunkCache_->DownloadArtifact(artifactKey, downloadOptions)
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& chunkCacheArtifact) {
-                auto tagSet = TVolumeProfilerCounters::MakeTagSet(/*volumeType*/ "squashfs", /*volumeFilePath*/ artifactKey.data_source().path());
+                auto tagSet = TVolumeProfilerCounters::MakeTagSet(/*volumeType*/ "squashfs", /*volumeFilePath*/ "n/a");
                 TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
                 TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
 
@@ -3511,11 +3514,11 @@ private:
                 options.IsReadOnly,
                 options.IsRoot);
 
-                if (auto device = nbdServer->GetDevice(options.ExportId)) {
+                if (auto device = nbdServer->FindDevice(options.ExportId)) {
                     nbdServer->TryUnregisterDevice(options.ExportId);
                     auto error = WaitFor(device->Finalize());
                     if (!error.IsOK()) {
-                        YT_LOG_ERROR("Failed to finalize NBD export (ExportId: %v)",
+                        YT_LOG_ERROR(error, "Failed to finalize NBD export (ExportId: %v)",
                             options.ExportId);
                     }
                 }
@@ -3769,10 +3772,10 @@ private:
 
                 return BIND(
                     &TPortoVolumeManager::TryOpenNbdSession,
-                        MakeStrong(this),
-                        sessionId,
-                        Passed(std::move(dataNodeAddresses)),
-                        Passed(std::move(data)))
+                    MakeStrong(this),
+                    sessionId,
+                    Passed(std::move(dataNodeAddresses)),
+                    Passed(std::move(data)))
                     // TODO(yuryalekseev): use more appropriate invoker.
                     .AsyncVia(ControlInvoker_)
                     .Run();

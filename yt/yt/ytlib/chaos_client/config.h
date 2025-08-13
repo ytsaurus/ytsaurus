@@ -39,12 +39,31 @@ struct TChaosResidencyCacheConfig
 {
     bool EnableClientMode;
 
+    TChaosResidencyCacheConfigPtr ApplyDynamic(const TChaosResidencyCacheDynamicConfigPtr& dynamicConfig) const;
+
     REGISTER_YSON_STRUCT(TChaosResidencyCacheConfig);
 
     static void Register(TRegistrar);
+
+protected:
+    void ApplyDynamicInplace(const TChaosResidencyCacheDynamicConfigPtr& dynamicConfig);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChaosResidencyCacheConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TChaosResidencyCacheDynamicConfig
+    : public TAsyncExpiringCacheDynamicConfig
+{
+    std::optional<bool> EnableClientMode;
+
+    REGISTER_YSON_STRUCT(TChaosResidencyCacheDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TChaosResidencyCacheDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

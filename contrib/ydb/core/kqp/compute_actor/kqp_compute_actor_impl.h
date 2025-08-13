@@ -1,10 +1,7 @@
 #pragma once
 
-#include "kqp_compute_actor.h"
-
 #include <contrib/ydb/library/yql/dq/actors/compute/dq_task_runner_exec_ctx.h>
 #include <contrib/ydb/core/kqp/runtime/kqp_tasks_runner.h>
-
 
 namespace NKikimr {
 namespace NKqp {

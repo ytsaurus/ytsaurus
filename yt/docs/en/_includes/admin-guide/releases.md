@@ -313,9 +313,22 @@ Publishes as docker images.
 
 Publishes as docker images.
 
-**Current release:** 2.6.5 (`ghcr.io/ytsaurus/spyt:2.6.5`)
+**Current release:** 2.7.0 (`ghcr.io/ytsaurus/spyt:2.7.0`)
 
 **All releases:**
+
+{% cut "**2.7.0**" %}
+
+- YTsaurus shuffle service support
+- Metrics refactoring for inner cluster and direct submit modes
+- Dynamic table queries via SQL API doesn't require explicit timestamp
+- Bugs and stability fixes:
+-- Fix OutOfMemory errors for optimized-for scan sorted tables
+-- Fix casting types to uint64 in codegen
+-- Fix "Manually specified and authenticated users mismatch" YT error in direct submit
+-- Other minor fixes
+
+{% endcut %}
 
 {% cut "**2.6.5**" %}
 

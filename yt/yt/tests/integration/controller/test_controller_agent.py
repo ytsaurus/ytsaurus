@@ -116,7 +116,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # Checks memory usage.
     NUM_SCHEDULERS = 1
 
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "heap_profiler": {
             "snapshot_update_period": 5,
         }
@@ -264,7 +264,7 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
         }
     }
 
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "heap_profiler": {
             "snapshot_update_period": 10,
         }
@@ -702,7 +702,7 @@ class TestOperationControllerLimit(YTEnvSetup):
         }
     }
 
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "heap_profiler": {
             "snapshot_update_period": 20,
         }
@@ -737,7 +737,7 @@ class TestMemoryOverconsumptionThreshold(YTEnvSetup):
         }
     }
 
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "heap_profiler": {
             "snapshot_update_period": 10,
         }
@@ -782,7 +782,7 @@ class TestTotalControllerMemoryLimit(YTEnvSetup):
         }
     }
 
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "heap_profiler": {
             "snapshot_update_period": 10,
         }
@@ -832,7 +832,7 @@ class TestTotalControllerMemoryExceedLimit(YTEnvSetup):
         }
     }
 
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "heap_profiler": {
             "snapshot_update_period": 10,
         }
@@ -889,7 +889,7 @@ class TestControllerAgentMemoryAlert(YTEnvSetup):
         }
     }
 
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "heap_profiler": {
             "snapshot_update_period": 10,
         }
@@ -977,7 +977,7 @@ class TestMemoryWatchdog(YTEnvSetup):
         }
     }
 
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "heap_profiler": {
             "snapshot_update_period": 20,
         }
@@ -1079,6 +1079,11 @@ class TestLivePreview(YTEnvSetup):
             "map_reduce_operation_options": {},
             "snapshot_period": 500,
         }
+    }
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
     }
 
     @authors("galtsev")

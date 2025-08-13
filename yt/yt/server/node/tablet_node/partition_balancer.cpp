@@ -598,6 +598,7 @@ private:
         auto chunkScraper = CreateFetcherChunkScraper(
             config->ChunkScraper,
             Bootstrap_->GetControlInvoker(),
+            Bootstrap_->GetControlInvoker(),
             ThrottlerManager_,
             Bootstrap_->GetClient(),
             nodeDirectory,
@@ -612,7 +613,7 @@ private:
             nodeDirectory,
             GetCurrentInvoker(),
             rowBuffer,
-            chunkScraper,
+            std::move(chunkScraper),
             Bootstrap_->GetClient(),
             Logger);
 

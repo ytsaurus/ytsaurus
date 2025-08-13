@@ -444,7 +444,7 @@ class TestDataCenters(TestDataCentersBase):
         set("//sys/@config/chunk_manager/banned_storage_data_centers", ["d0"])
         wait(lambda: has_alert("Banned data center \"d0\" is not a storage data center"))
 
-    @authors("gritukan")
+    @authors("koloshmet")
     @pytest.mark.parametrize("erasure", [False, True])
     def test_replicate_unsafely_placed_chunk(self, erasure):
         self._init_data_center_aware_replicator()
@@ -697,6 +697,11 @@ class TestDataCentersMulticell(TestDataCenters):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
 ##################################################################
 
 
@@ -704,3 +709,8 @@ class TestDataCentersMulticell(TestDataCenters):
 class TestFaultyDataCentersMulticell(TestFaultyDataCenters):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }

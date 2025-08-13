@@ -11,8 +11,9 @@ else:
 
     try:
         from cryptography.fernet import Fernet, InvalidToken
-    except ImportError:
-        pass
+        fernet_import_error = None
+    except ImportError as ex:
+        fernet_import_error = ex.msg
 
 from yt.wrapper.errors import YtError
 
@@ -120,8 +121,8 @@ class Pickler(object):
             return None
         self._cypher = _EncryptBase.create(classes=(_EncryptFernet, ))
         if not self._cypher:
-            raise YtError("Cannot encrypt pickled file, missing module: \"cryptography\"."
-                          "Either install one or disable encryption in config (pickling/encrypt_pickle_files).")
+            raise YtError(f"Cannot encrypt pickled file, missing module: \"cryptography\" ({fernet_import_error})."
+                          " Either install one or disable encryption in config (pickling/encrypt_pickle_files).")
         return self._cypher.set_key(key.encode()).decode() if self._cypher else None
 
     def dumps(self, obj: object, *args, **kwargs) -> bytes:
@@ -148,8 +149,8 @@ class Unpickler(object):
             return None
         self._cypher = _EncryptBase.create(classes=(_EncryptFernet, ))
         if not self._cypher:
-            raise YtError("Cannot encrypt pickled file, missing module: \"cryptography\"."
-                          "Either install one or disable encryption in config (pickling/encrypt_pickle_files).")
+            raise YtError(f"Cannot encrypt pickled file, missing module: \"cryptography\" ({fernet_import_error})."
+                          " Either install one or disable encryption in config (pickling/encrypt_pickle_files).")
         return self._cypher.set_key(key.encode()).decode() if self._cypher else None
 
     def loads(self, data: bytes, *args, **kwargs):

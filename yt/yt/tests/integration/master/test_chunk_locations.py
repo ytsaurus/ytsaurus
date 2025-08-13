@@ -25,18 +25,27 @@ class TestChunkLocations(YTEnvSetup):
                 assert get("//sys/chunk_locations/{}/@node_address".format(location_uuid)) == node_address
                 assert get("//sys/chunk_locations/{}/@uuid".format(location_uuid)) == location_uuid
 
-    @authors("babenko")
-    def test_location_offline_state(self):
+    @authors("grphil")
+    def test_location_disposed_state(self):
         node_address = ls("//sys/cluster_nodes")[0]
 
         def check_locations_state(state):
             for location_uuid, _ in get("//sys/cluster_nodes/{}/@chunk_locations".format(node_address)).items():
-                assert get("//sys/chunk_locations/{}/@state".format(location_uuid)) == state
+                if get("//sys/chunk_locations/{}/@state".format(location_uuid)) != state:
+                    return False
+            return True
 
-        check_locations_state("online")
-        set_node_banned(node_address, True)
+        wait(lambda: check_locations_state("online"))
+
+        set("//sys/@config/node_tracker/max_locations_being_disposed", 0)
+        set_node_banned(node_address, True, wait_for_master=False)
+
+        wait(lambda: check_locations_state("offline"))
+
+        set("//sys/@config/node_tracker/max_locations_being_disposed", 10)
+
         wait(lambda: get("//sys/cluster_nodes/{0}/@state".format(node_address)) == "offline")
-        check_locations_state("offline")
+        wait(lambda: check_locations_state("disposed"))
 
     @authors("babenko")
     def test_removing_node_destroys_locations(self):
@@ -197,9 +206,9 @@ class TestPerLocationNodeDisposal(YTEnvSetup):
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "node_tracker": {
-            "enable_per_location_node_disposal": True,
             "node_disposal_tick_period": 100,
             "max_concurrent_node_unregistrations": 100,
+            "profiling_period": 100,
         }
     }
 
@@ -212,13 +221,19 @@ class TestPerLocationNodeDisposal(YTEnvSetup):
         ["exec", "tablet"],
     ]
 
-    def _get_nodes_being_disposed_count(self):
+    def _get_profiler_gauge(self, name):
         leader_address = get_active_primary_master_leader_address(self)
         profiler = profiler_factory().at_primary_master(leader_address)
-        return profiler.gauge("node_tracker/data_nodes_being_disposed").get()
+        return profiler.gauge(name).get()
 
-    def _no_nodes_being_disposed(self):
-        return self._get_nodes_being_disposed_count() == 0
+    def _wait_for_profiler_ready(self):
+        wait(lambda: self._get_profiler_gauge("node_tracker/chunk_locations_being_disposed") is not None)
+
+    def _get_locations_being_disposed_count(self):
+        return self._get_profiler_gauge("node_tracker/chunk_locations_being_disposed") + self._get_profiler_gauge("node_tracker/chunk_locations_awaiting_disposal")
+
+    def _no_locations_being_disposed(self):
+        return self._get_locations_being_disposed_count() == 0
 
     def _get_immediatety_dispose_nondata_nodes(self):
         config = get("//sys/@config/node_tracker")
@@ -229,34 +244,43 @@ class TestPerLocationNodeDisposal(YTEnvSetup):
         for node in ls("//sys/cluster_nodes"):
             state = get("//sys/cluster_nodes/{}/@state".format(node))
             if "data" in get("//sys/cluster_nodes/{}/@flavors".format(node)) or not dispose_nondata_immediately:
-                return state == "being_disposed"
+                if state != "being_disposed":
+                    return False
             else:
-                return state == "offline"
+                if state != "offline":
+                    return False
+        return True
 
     @authors("aleksandra-zh")
     def test_nodes_dispose(self):
+        self._wait_for_profiler_ready()
+
         with Restarter(self.Env, NODES_SERVICE):
             pass
 
-        wait(self._no_nodes_being_disposed)
+        wait(self._no_locations_being_disposed)
 
     @authors("aleksandra-zh")
     def test_nodes_enter_being_disposed_state(self):
-        set("//sys/@config/node_tracker/testing/disable_disposal_finishing", True)
+        self._wait_for_profiler_ready()
+
+        set("//sys/@config/node_tracker/max_locations_being_disposed", 0)
 
         with Restarter(self.Env, NODES_SERVICE, wait_offline=False):
             wait(self._check_data_nodes_are_being_disposed)
 
-            set("//sys/@config/node_tracker/testing/disable_disposal_finishing", False)
+            set("//sys/@config/node_tracker/max_locations_being_disposed", 10)
 
             for node in ls("//sys/cluster_nodes"):
                 wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")
 
-        wait(self._no_nodes_being_disposed)
+        wait(self._no_locations_being_disposed)
 
     @authors("aleksandra-zh")
     def test_nodes_dispose_after_snapshot(self):
-        set("//sys/@config/node_tracker/testing/disable_disposal_finishing", True)
+        self._wait_for_profiler_ready()
+
+        set("//sys/@config/node_tracker/max_locations_being_disposed", 0)
         dispose_nondata_immediately = self._get_immediatety_dispose_nondata_nodes()
 
         node_count = 0
@@ -267,41 +291,40 @@ class TestPerLocationNodeDisposal(YTEnvSetup):
         with Restarter(self.Env, NODES_SERVICE, wait_offline=False):
             wait(self._check_data_nodes_are_being_disposed)
 
-            wait(lambda: self._get_nodes_being_disposed_count() == node_count)
+            wait(lambda: self._get_locations_being_disposed_count() == node_count)
 
             build_snapshot(cell_id=None)
 
             with Restarter(self.Env, MASTERS_SERVICE):
                 pass
 
-            wait(lambda: self._get_nodes_being_disposed_count() == node_count)
+            wait(lambda: self._get_locations_being_disposed_count() == node_count)
 
             wait(self._check_data_nodes_are_being_disposed)
 
-            set("//sys/@config/node_tracker/testing/disable_disposal_finishing", False)
+            set("//sys/@config/node_tracker/max_locations_being_disposed", 10)
 
             for node in ls("//sys/cluster_nodes"):
                 wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")
 
-        wait(self._no_nodes_being_disposed)
+        wait(self._no_locations_being_disposed)
 
     @authors("aleksandra-zh")
     def test_nondata_nodes_dispose_seperately(self):
+        self._wait_for_profiler_ready()
         set("//sys/@config/node_tracker/immediatety_dispose_nondata_nodes", True)
 
-        set("//sys/@config/node_tracker/max_nodes_being_disposed", 0)
-        set("//sys/@config/node_tracker/testing/disable_disposal_finishing", True)
+        set("//sys/@config/node_tracker/max_locations_being_disposed", 0)
 
         with Restarter(self.Env, NODES_SERVICE, wait_offline=False):
             wait(self._check_data_nodes_are_being_disposed)
 
-            set("//sys/@config/node_tracker/testing/disable_disposal_finishing", False)
-            set("//sys/@config/node_tracker/max_nodes_being_disposed", 10)
+            set("//sys/@config/node_tracker/max_locations_being_disposed", 10)
 
             for node in ls("//sys/cluster_nodes"):
                 wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")
 
-        wait(self._no_nodes_being_disposed)
+        wait(self._no_locations_being_disposed)
 
 
 ##################################################################

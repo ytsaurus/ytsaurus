@@ -36,8 +36,7 @@ target_link_libraries(unittester-client-signature PUBLIC
 )
 
 target_allocator(unittester-client-signature
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
+  system_allocator
 )
 
 target_link_options(unittester-client-signature PRIVATE

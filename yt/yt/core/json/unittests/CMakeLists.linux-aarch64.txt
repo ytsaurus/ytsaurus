@@ -36,8 +36,7 @@ target_link_libraries(unittester-core-json PUBLIC
 )
 
 target_allocator(unittester-core-json
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
+  system_allocator
 )
 
 target_link_options(unittester-core-json PRIVATE
@@ -53,6 +52,7 @@ target_link_options(unittester-core-json PRIVATE
 
 target_sources(unittester-core-json PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/json/unittests/parser_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/json/unittests/web_json_consumer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/json/unittests/writer_ut.cpp
 )
 

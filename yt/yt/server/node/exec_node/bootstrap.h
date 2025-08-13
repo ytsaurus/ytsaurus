@@ -51,7 +51,7 @@ struct IBootstrap
     virtual NConcurrency::IThroughputThrottlerPtr GetThrottler(
         EExecNodeThrottlerKind kind,
         EThrottlerTrafficType trafficType = EThrottlerTrafficType::Bandwidth,
-        std::optional<NScheduler::TClusterName> remoteClusterName = std::nullopt) const = 0;
+        NScheduler::TClusterName clusterName = NScheduler::LocalClusterName) const = 0;
 
     virtual const NProfiling::TSolomonExporterPtr& GetJobProxySolomonExporter() const = 0;
 

@@ -31,6 +31,9 @@ public:
         , Proxy_(Channel_)
     { }
 
+private:
+    TChaosNodeServiceProxy Proxy_;
+
     TFuture<void> DoPing(const TPrerequisitePingOptions& /*options*/ = {}) override
     {
         auto req = Proxy_.PingChaosLease();
@@ -43,8 +46,6 @@ public:
         return req->Invoke().AsVoid();
     }
 
-private:
-    TChaosNodeServiceProxy Proxy_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChaosLease)
@@ -59,15 +60,13 @@ NApi::IPrerequisitePtr CreateChaosLease(
     bool pingAncestors,
     const NLogging::TLogger& logger)
 {
-    auto chaosLease = New<TChaosLease>(
+    return New<TChaosLease>(
         std::move(client),
         std::move(channel),
         id,
         timeout,
         pingAncestors,
         logger);
-
-    return chaosLease;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

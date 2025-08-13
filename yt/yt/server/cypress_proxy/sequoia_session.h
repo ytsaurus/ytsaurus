@@ -95,6 +95,7 @@ public:
     //! Initializes Sequoia session and starts Sequoia tx.
     static TSequoiaSessionPtr Start(
         IBootstrap* bootstrap,
+        NRpc::TAuthenticationIdentity authenticationIdentity,
         NCypressClient::TTransactionId cypressTransactionId = NCypressClient::NullTransactionId,
         const std::vector<NCypressClient::TTransactionId>& cypressPrerequisiteTransactionIds = {});
 
@@ -127,6 +128,7 @@ public:
         const TSubtree& sourceSubtree,
         NSequoiaClient::TAbsolutePathBuf destinationRoot,
         NCypressClient::TNodeId destinationParentId,
+        const std::vector<NSequoiaClient::TResolvedPrerequisiteRevision>& prerequisiteRevisions,
         const TCopyOptions& options);
 
     //! Removes only the content of map-node.

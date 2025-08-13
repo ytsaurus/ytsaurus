@@ -1537,7 +1537,11 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_aggressive_preemption_for_gang_operations(self):
-        set("//sys/pool_trees/default/@config/enable_aggressive_starvation", True)
+        # COMPAT: Intentionally test old logic for gang operations.
+        # Note: due to trimming we cannot satisfy both gang operations.
+        update_pool_tree_config_option("default", "enable_step_function_for_gang_operations", False)
+
+        update_pool_tree_config_option("default", "enable_aggressive_starvation", True)
         update_pool_tree_config_option("default", "allow_aggressive_preemption_for_gang_operations", False)
 
         gang_ops = []
@@ -1831,7 +1835,7 @@ class BaseTestDiskPreemption(YTEnvSetup):
 
     DEFAULT_POOL_TREE_CONFIG = {
         "aggressive_preemption_satisfaction_threshold": 0.2,
-        "preemption_satisfaction_threshold": 1.0,
+        "preemption_satisfaction_threshold": 0.99,
         "fair_share_starvation_tolerance": 0.9,
         "non_preemptible_resource_usage_threshold": {"user_slots": 0},
         "fair_share_starvation_timeout": 100,
@@ -2176,7 +2180,7 @@ class TestDiskQuotaInRegularPreemption(BaseTestDiskPreemption):
     @pytest.mark.parametrize("use_default_medium_in_starving_op", [False, True])
     def test_consider_disk_quota_discount_in_regular_preemption(self, use_default_medium_in_blocking_op, use_default_medium_in_starving_op):
         create_pool("first", attributes={"strong_guarantee_resources": {"cpu": 2.0}})
-        create_pool("second", attributes={"strong_guarantee_resources": {"cpu": 6.0}})
+        create_pool("second", attributes={"strong_guarantee_resources": {"cpu": 2.0}})
 
         medium_name = TestDiskQuotaInRegularPreemption.SSD_MEDIUM
         if use_default_medium_in_blocking_op:

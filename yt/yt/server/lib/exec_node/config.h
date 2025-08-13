@@ -44,6 +44,9 @@ struct TSlotLocationConfig
     //! Enforce disk space limits using disk quota.
     bool EnableDiskQuota;
 
+    //! Watchdog threshold for heavy location queue.
+    TDuration HeavyLocationQueueWatchdogThreshold;
+
     NServer::TDiskHealthCheckerConfigPtr DiskHealthChecker;
 
     REGISTER_YSON_STRUCT(TSlotLocationConfig);
@@ -60,7 +63,7 @@ struct TNumaNodeConfig
 {
     i64 NumaNodeId;
     i64 CpuCount;
-    TString CpuSet;
+    std::string CpuSet;
 
     REGISTER_YSON_STRUCT(TNumaNodeConfig);
 
@@ -805,9 +808,7 @@ struct TExecNodeConfig
 
     TJobProxyLogManagerConfigPtr JobProxyLogManager;
 
-    NSignature::TSignatureGenerationConfigPtr SignatureGeneration;
-
-    NSignature::TSignatureValidationConfigPtr SignatureValidation;
+    NSignature::TSignatureComponentsConfigPtr SignatureComponents;
 
     REGISTER_YSON_STRUCT(TExecNodeConfig);
 
@@ -848,6 +849,8 @@ struct TExecNodeDynamicConfig
     // NB(yuryalekseev): At the moment dynamic NBD config is used only to create
     // NBD server during startup or to dynamically enable/disable creation of NBD volumes.
     TNbdConfigPtr Nbd;
+
+    NSignature::TSignatureComponentsConfigPtr SignatureComponents;
 
     REGISTER_YSON_STRUCT(TExecNodeDynamicConfig);
 

@@ -121,7 +121,7 @@ TReqExecuteBatchRetriesConfigPtr TSequoiaRetriesConfig::ToRetriesConfig() const
 void TSequoiaConnectionConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("ground_cluster_name", &TThis::GroundClusterName)
-        // COMPAT(babenko): drop once trunk_vs_25_1 and trunk_vs_25_2 are no more.
+        // COMPAT(babenko): drop once trunk_vs_25_2 are no more.
         .Default("<invalid>");
     registrar.Parameter("ground_cluster_connection_update_period", &TThis::GroundClusterConnectionUpdatePeriod)
         .Default(TDuration::Seconds(5));
@@ -147,9 +147,13 @@ void TConnectionStaticConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("chaos_cell_directory_synchronizer", &TThis::ChaosCellDirectorySynchronizer)
         .DefaultNew();
+    registrar.Parameter("chaos_residency_cache", &TThis::ChaosResidencyCache)
+        .DefaultNew();
     registrar.Parameter("clock_manager", &TThis::ClockManager)
         .DefaultNew();
     registrar.Parameter("sync_replica_cache", &TThis::SyncReplicaCache)
+        .DefaultNew();
+    registrar.Parameter("chunk_replica_cache", &TThis::ChunkReplicaCache)
         .DefaultNew();
     registrar.Parameter("connection_name", &TThis::ConnectionName)
         .Alias("name")
@@ -359,7 +363,7 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(60));
 
     registrar.Parameter("cypress_write_yson_nesting_level_limit", &TThis::CypressWriteYsonNestingLevelLimit)
-        .Default(NYson::OriginalNestingLevelLimit)
+        .Default(NYson::CypressWriteNestingLevelLimit)
         .LessThanOrEqual(NYson::NewNestingLevelLimit);
 
     registrar.Parameter("job_prober_rpc_timeout", &TThis::JobProberRpcTimeout)
@@ -426,6 +430,8 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("sequoia_retries", &TThis::SequoiaRetries)
         .DefaultNew();
+    registrar.Parameter("sequoia_transaction_type_to_timeout", &TThis::SequoiaTransactionTypeToTimeout)
+        .Default();
 
     registrar.Parameter("use_followers_for_write_targets_allocation", &TThis::UseFollowersForWriteTargetsAllocation)
         .Default(true);
@@ -498,6 +504,9 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("banned_in_sync_replica_clusters", &TThis::BannedInSyncReplicaClusters)
+        .Default();
+
+    registrar.Parameter("preferred_in_sync_replica_clusters", &TThis::PreferredInSyncReplicaClusters)
         .Default();
 
     registrar.Parameter("request_full_statistics_for_brief_statistics_in_list_jobs", &TThis::RequestFullStatisticsForBriefStatisticsInListJobs)

@@ -27,6 +27,20 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         ECallingConvention::Simple);
 
     builder->RegisterFunction(
+        "to_valid_utf8",
+        std::vector<TType>{EValueType::String},
+        EValueType::String,
+        "to_valid_utf8",
+        ECallingConvention::Simple);
+
+    builder->RegisterFunction(
+        "is_valid_utf8",
+        std::vector<TType>{EValueType::String},
+        EValueType::Boolean,
+        "to_valid_utf8",
+        ECallingConvention::Simple);
+
+    builder->RegisterFunction(
         "length",
         std::vector<TType>{EValueType::String},
         EValueType::Int64,
@@ -549,7 +563,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         "abs");
 
     struct TMathFunction {
-        TString Name;
+        std::string Name;
         std::vector<TType> ArgumentTypes;
         EValueType ResultType;
     };

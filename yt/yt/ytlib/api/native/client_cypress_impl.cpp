@@ -749,7 +749,7 @@ protected:
 
         auto batchReq = proxy.ExecuteBatch();
         auto req = TYPathProxy::Get(srcPath + "/@");
-        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{"id", "path"});
+        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<std::string>{"id", "path"});
         SetTransactionId(req, Transaction_->GetId());
         batchReq->AddRequest(req);
 
@@ -2460,11 +2460,6 @@ private:
 
         auto req = TChunkOwnerYPathProxy::EndUpload(DstObject_.GetObjectIdPath());
         *req->mutable_statistics() = DataStatistics_;
-
-        // COMPAT(h0pless): remove this when all masters are 24.2.
-        if (CommonType_ == EObjectType::Table) {
-            req->set_schema_mode(ToProto(OutputTableSchemaMode_));
-        }
 
         std::vector<TSecurityTag> inferredSecurityTags;
         for (const auto& srcObject : SrcObjects_) {

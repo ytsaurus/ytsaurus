@@ -18,6 +18,8 @@
 
 #include <yt/yt/server/master/cypress_server/virtual.h>
 
+#include <yt/yt/server/master/object_server/object_service.h>
+
 #include <yt/yt/server/lib/object_server/helpers.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -25,6 +27,8 @@
 #include <yt/yt/core/misc/collection_helpers.h>
 
 #include <yt/yt/core/yson/string.h>
+
+#include <yt/yt/core/ytree/node_detail.h>
 
 namespace NYT::NChunkServer {
 
@@ -292,15 +296,17 @@ private:
         }
     }
 
-    bool FilteredChunksContain(TChunk* chunk) const
+    bool CheckChunkFilter(const TEphemeralObjectPtr<TChunk>& ephemeralChunk)
     {
-        if (NHydra::HasMutationContext()) {
-            THROW_ERROR_EXCEPTION("Mutating request through virtual map is forbidden");
+        if (!IsObjectAlive(ephemeralChunk)) {
+            return false;
+        }
+        auto* chunk = ephemeralChunk.Get();
+
+        if (Type_ == EObjectType::ChunkMap) {
+            return true;
         }
 
-        auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(chunk);
-
-        Bootstrap_->GetHydraFacade()->RequireLeader();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& chunkReplicator = chunkManager->GetChunkReplicator();
         const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
@@ -507,23 +513,102 @@ private:
         }
     }
 
-    bool IsValid(TObject* object) const override
+    bool IsValidItem(TObject* object) const override
     {
         auto type = object->GetType();
-        if (type != EObjectType::Chunk &&
-            type != EObjectType::ErasureChunk &&
-            type != EObjectType::JournalChunk &&
-            type != EObjectType::ErasureJournalChunk)
+        return
+            type == EObjectType::Chunk ||
+            type == EObjectType::ErasureChunk ||
+            type == EObjectType::JournalChunk ||
+            type == EObjectType::ErasureJournalChunk;
+    }
+
+    IYPathServicePtr CreateLocalItemService(TObject* object) override
+    {
+        // The reason for this layer of indirection is as follows:
+        // 1. IYPathService::Resolve must not switch fiber context
+        // 2. CheckChunkFilter involves context switches
+        class TFilteringService
+            : public TYPathServiceBase
         {
-            return false;
-        }
+        public:
+            TFilteringService(
+                TIntrusivePtr<TVirtualChunkMap> map,
+                TChunk* chunk,
+                IInvokerPtr invoker,
+                IYPathServicePtr underlying)
+                : Map_(std::move(map))
+                , ChunkId_(chunk->GetId())
+                , EphemeralChunk_(chunk)
+                , Invoker_(std::move(invoker))
+                , Underlying_(underlying)
+            { }
+
+            void Invoke(const IYPathServiceContextPtr& context) override
+            {
+                Invoker_->Invoke(BIND([=, this, this_ = MakeStrong(this)] {
+                    try {
+                        if (!Map_->CheckChunkFilter(EphemeralChunk_)) {
+                            if (context->GetMethod() == "Exists") {
+                                TNonexistingService::Get()->Invoke(context);
+                                return;
+                            }
+                            THROW_ERROR_EXCEPTION(
+                                NYTree::EErrorCode::ResolveError,
+                                "Chunk %v does not satisfy filtering criterion",
+                                ChunkId_);
+                        }
+                        Underlying_->Invoke(context);
+                    } catch (const std::exception& ex) {
+                        context->Reply(ex);
+                    }
+                }));
+            }
+
+            TResolveResult Resolve(
+                const TYPath& path,
+                const IYPathServiceContextPtr& /*context*/) override
+            {
+                return TResolveResultHere{path};
+            }
+
+        private:
+            const TIntrusivePtr<TVirtualChunkMap> Map_;
+            const TChunkId ChunkId_;
+            const TEphemeralObjectPtr<TChunk> EphemeralChunk_;
+            const IInvokerPtr Invoker_;
+            const IYPathServicePtr Underlying_;
+        };
+
+        auto underlying = TVirtualMulticellMapBase::CreateLocalItemService(object);
 
         if (Type_ == EObjectType::ChunkMap) {
-            return true;
+            return underlying;
         }
 
+        if (NHydra::HasMutationContext()) {
+            THROW_ERROR_EXCEPTION("Mutating requests through filtered virtual maps are forbidden");
+        }
+
+        Bootstrap_->GetHydraFacade()->RequireLeader();
+
+        YT_VERIFY(IsValidItem(object));
         auto* chunk = object->As<TChunk>();
-        return FilteredChunksContain(chunk);
+
+        auto readInvoker = Bootstrap_
+            ->GetObjectService()
+            ->CreateLocalReadInvoker(NRpc::GetCurrentAuthenticationIdentity().User);
+
+        // Protect from possible epoch switch rendering |RequireLeader| check above useless.
+        auto epochInvoker = Bootstrap_
+            ->GetHydraFacade()
+            ->CreateEpochInvoker(std::move(readInvoker));
+
+        return New<TFilteringService>(
+            this,
+            chunk,
+            std::move(epochInvoker),
+            std::move(underlying));
     }
 
     TFuture<i64> GetSize() const override
@@ -768,7 +853,7 @@ private:
         return MakeFuture(ToObjectIds(GetValues(chunkManager->ChunkViews(), limit)));
     }
 
-    bool IsValid(TObject* object) const override
+    bool IsValidItem(TObject* object) const override
     {
         return object->GetType() == EObjectType::ChunkView;
     }
@@ -813,7 +898,7 @@ private:
         return MakeFuture(ToObjectIds(GetValues(chunkManager->ChunkLists(), limit)));
     }
 
-    bool IsValid(TObject* object) const override
+    bool IsValidItem(TObject* object) const override
     {
         return object->GetType() == EObjectType::ChunkList;
     }

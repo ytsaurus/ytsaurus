@@ -392,12 +392,14 @@ private:
         }
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* sourceAcd = securityManager->FindAcd(sourceNode);
-        auto* destinationAcd = securityManager->FindAcd(destinationNode);
+        const auto sourceAcd = securityManager->GetAcd(sourceNode);
+        {
+            auto destinationAcd = securityManager->GetAcd(destinationNode).AsMutable();
+            destinationAcd->SetEntries(sourceAcd->Acl());
+            destinationAcd->SetOwner(sourceAcd->GetOwner());
+            destinationAcd->SetInherit(sourceAcd->Inherit());
+        }
 
-        destinationAcd->SetEntries(sourceAcd->Acl());
-        destinationAcd->SetOwner(sourceAcd->GetOwner());
-        destinationAcd->SetInherit(sourceAcd->Inherit());
         if (auto annotation = sourceNode->TryGetAnnotation()) {
             destinationNode->SetAnnotation(std::move(*annotation));
         } else {

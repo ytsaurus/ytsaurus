@@ -63,9 +63,23 @@ struct TRowDigestCompactionConfig
     static void Register(TRegistrar registrar);
 };
 
-bool operator==(const TRowDigestCompactionConfig& lhs, const TRowDigestCompactionConfig& rhs);
-
 DEFINE_REFCOUNTED_TYPE(TRowDigestCompactionConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TMinHashDigestCompactionConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enable;
+
+    NTableClient::TMinHashDigestConfigPtr ChunkWriter;
+
+    REGISTER_YSON_STRUCT(TMinHashDigestCompactionConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMinHashDigestCompactionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -190,7 +204,7 @@ struct TCustomTableMountConfig
     NConcurrency::TThroughputThrottlerConfigPtr CompactionThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr FlushThrottler;
 
-    THashMap<TString, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
+    THashMap<std::string, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
 
     int SamplesPerPartition;
 
@@ -210,6 +224,7 @@ struct TCustomTableMountConfig
     double AutoCompactionPeriodSplayRatio;
     EPeriodicCompactionMode PeriodicCompactionMode;
     TRowDigestCompactionConfigPtr RowDigestCompaction;
+    TMinHashDigestCompactionConfigPtr MinHashDigestCompaction;
 
     bool EnableLookupHashTable;
 
@@ -298,6 +313,8 @@ struct TCustomTableMountConfig
     //! In case of non-block reads will open partition readers instantly at the start of the lookup session
     //! so chunk read sessions corresponding to this amount of keys will be opened.
     std::optional<int> PartitionReaderPrefetchKeyLimit;
+
+    i64 MaxEdenDataSizeForSplitting;
 
     TTestingTableMountConfig Testing;
 

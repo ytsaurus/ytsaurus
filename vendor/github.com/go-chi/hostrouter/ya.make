@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
-VERSION(v0.2.0)
+VERSION(v0.3.0)
 
 SRCS(
     hostrouter.go

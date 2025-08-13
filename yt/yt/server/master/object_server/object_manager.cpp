@@ -359,8 +359,6 @@ private:
     //! Stores schemas (for serialization mostly).
     TEntityMap<TSchemaObject> SchemaMap_;
 
-    // COMPAT(babenko)
-    bool DropLegacyClusterNodeMap_ = false;
     // COMPAT(cherepashka)
     bool DropLegacyZookeeperShard_ = false;
 
@@ -1178,7 +1176,6 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
 
     GarbageCollector_->LoadValues(context);
 
-    DropLegacyClusterNodeMap_ = context.GetVersion() < EMasterReign::DropLegacyClusterNodeMap;
     DropLegacyZookeeperShard_ = context.GetVersion() < EMasterReign::DropLegacyZookeeperShard;
 }
 
@@ -1194,11 +1191,6 @@ void TObjectManager::OnAfterSnapshotLoaded()
             SchemaMap_.Remove(schemaId);
         }
     };
-
-    if (DropLegacyClusterNodeMap_) {
-        // ClusterNodeMap
-        dropSchema(EObjectType(804));
-    }
 
     if (DropLegacyZookeeperShard_) {
         // ZookeeperShard
@@ -1224,7 +1216,6 @@ void TObjectManager::Clear()
     CreatedObjects_ = 0;
     DestroyedObjects_ = 0;
 
-    DropLegacyClusterNodeMap_ = false;
     DropLegacyZookeeperShard_ = false;
 
     GarbageCollector_->Clear();
@@ -1635,9 +1626,8 @@ TObject* TObjectManager::CreateObject(
         throw;
     }
 
-    auto* acd = securityManager->FindAcd(object);
-    if (acd) {
-        acd->SetOwner(user);
+    if (auto acd = handler->FindAcd(object)) {
+        acd.AsMutable()->SetOwner(user);
     }
 
     if (replicate) {
@@ -2342,7 +2332,10 @@ TFuture<void> TObjectManager::DestroySequoiaObjects(std::unique_ptr<NProto::TReq
 {
     return Bootstrap_
         ->GetSequoiaClient()
-        ->StartTransaction(ESequoiaTransactionType::ObjectDestruction)
+        ->StartTransaction(
+            ESequoiaTransactionType::ObjectDestruction,
+            {},
+            {.AuthenticationIdentity = NRpc::GetRootAuthenticationIdentity()})
         .Apply(BIND([request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) mutable {
             for (const auto& protoId : request->object_ids()) {
                 auto id = FromProto<TObjectId>(protoId);

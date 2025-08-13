@@ -396,8 +396,7 @@ void BuildSupportedFeatures(TFluentMap fluent)
                 .Item("description").Value(description.Description)
                 .Item("unit").Value(description.Unit)
             .EndMap();
-        })
-        .Item("scheduler_estimated_guarantee_attribute_name").Value("estimated_guarantee_resources");
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -495,6 +494,10 @@ const std::vector<TSchedulerTreeAlertDescriptor>& GetSchedulerTreeAlertDescripto
             .Type = ESchedulerAlertType::UnrecognizedPoolTreeConfigOptions,
             .Message = "Pool tree configs contain unrecognized options",
         },
+        TSchedulerTreeAlertDescriptor{
+            .Type = ESchedulerAlertType::NodesWithInsufficientResourceLimits,
+            .Message = "Found nodes with insufficient resource limits",
+        },
     };
 
     return SchedulerTreeAlertDescriptors;
@@ -515,7 +518,7 @@ bool IsSchedulerTreeAlertType(ESchedulerAlertType alertType)
 
 bool IsFullHostGpuAllocation(const TJobResources& allocationResources)
 {
-    return allocationResources.GetGpu() == LargeGpuAllocationGpuDemand;
+    return allocationResources.GetGpu() == FullHostGpuAllocationGpuDemand;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

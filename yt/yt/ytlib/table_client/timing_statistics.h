@@ -20,6 +20,8 @@ struct TTimingStatistics
     TDuration IdleTime;
 };
 
+TTimingStatistics& operator += (TTimingStatistics& lhs, const TTimingStatistics& rhs);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void FormatValue(TStringBuilderBase* builder, const TTimingStatistics& statistics, TStringBuf spec);

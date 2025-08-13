@@ -33,6 +33,8 @@ void TClusterThrottlersConfig::Register(TRegistrar registrar)
         .InRange(0.0, 1.0);
     registrar.Parameter("update_period", &TThis::UpdatePeriod)
         .Default(TDuration::Seconds(10));
+    registrar.Parameter("leader_node_tag_filter", &TThis::LeaderNodeTagFilter)
+        .Default();
     registrar.Parameter("enabled", &TThis::Enabled)
         .Default(false);
 }

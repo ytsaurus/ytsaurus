@@ -1515,12 +1515,12 @@ protected:
     void DoGroupsLimitsAndSchemaChange()
     {
         auto writeColumnSchemas = ColumnSchemas_;
-        writeColumnSchemas[5].SetGroup(TString("G1"));
-        writeColumnSchemas[9].SetGroup(TString("G1"));
+        writeColumnSchemas[5].SetGroup("G1");
+        writeColumnSchemas[9].SetGroup("G1");
 
-        writeColumnSchemas[6].SetGroup(TString("G2"));
-        writeColumnSchemas[7].SetGroup(TString("G2"));
-        writeColumnSchemas[8].SetGroup(TString("G2"));
+        writeColumnSchemas[6].SetGroup("G2");
+        writeColumnSchemas[7].SetGroup("G2");
+        writeColumnSchemas[8].SetGroup("G2");
         auto writeSchema = New<TTableSchema>(writeColumnSchemas);
 
         auto readColumnSchemas = ColumnSchemas_;

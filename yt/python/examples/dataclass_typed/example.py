@@ -97,6 +97,11 @@ def main():
     for taxi_ride in client.read_table_structured(table, TaxiRide):
         print("  {}".format(taxi_ride))
 
+    # Или выведем датакласс автоматически.
+    print("\n*** Third read ***")
+    for taxi_ride_auto in client.read_table_structured(table):
+        print("  {}".format(taxi_ride_auto))
+
 
 if __name__ == "__main__":
     main()

@@ -4,7 +4,10 @@
 #include "client_impl.h"
 #include "config.h"
 
+#include <yt/yt/ytlib/chaos_client/chaos_residency_cache.h>
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
+
+#include <yt/yt/ytlib/hive/cell_directory.h>
 
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
@@ -42,15 +45,25 @@ private:
         getCardOptions.IncludeProgress = true;
         getCardOptions.IncludeHistory = true;
         getCardOptions.BypassCache = true;
-        auto card = WaitFor(Client_->GetReplicationCard(replicationCardId, getCardOptions))
+        auto futureCard = Client_->GetReplicationCard(replicationCardId, getCardOptions);
+
+        const auto& nativeConnection = Client_->GetNativeConnection();
+        const auto& residencyCache = nativeConnection->GetChaosResidencyCache();
+        auto futureResidencyCellDescriptor = residencyCache->GetChaosResidency(replicationCardId)
+            .Apply(BIND([cellDirectory = nativeConnection->GetCellDirectory()] (const TCellTag& cellTag) {
+                return cellDirectory->FindDescriptorByCellTag(cellTag);
+            }));
+
+        auto card = WaitFor(futureCard)
             .ValueOrThrow();
-        auto channel = Client_->GetChaosChannelByCardId(replicationCardId, EPeerKind::Leader);
+        auto residencyCellDescriptor = WaitForFast(futureResidencyCellDescriptor)
+            .ValueOrDefault(nullptr); // Null is OK.
 
         return BuildYsonStringFluently()
             .BeginAttributes()
                 .Item("id").Value(replicationCardId)
                 .Item("type").Value(EObjectType::ReplicationCard)
-                .Item("residency_host").Value(channel->GetEndpointDescription())
+                .Item("residency_cell").Value(residencyCellDescriptor)
                 .Do([&] (auto fluent) {
                     Serialize(
                         *card,
@@ -90,7 +103,7 @@ private:
         TReplicationCardId replicationCardId,
         const TRemoveNodeOptions& options) override
     {
-        auto channel = Client_->GetChaosChannelByCardId(replicationCardId, EPeerKind::Leader);
+        auto channel = Client_->GetChaosChannelByCardIdOrThrow(replicationCardId, EPeerKind::Leader);
         auto proxy = TChaosNodeServiceProxy(std::move(channel));
 
         auto req = proxy.RemoveReplicationCard();

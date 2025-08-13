@@ -3,7 +3,6 @@
 
 #include <contrib/ydb/library/services/services.pb.h>
 
-#include <contrib/ydb/library/actors/core/actorsystem.h>
 #include <contrib/ydb/library/actors/core/hfunc.h>
 #include <contrib/ydb/library/actors/core/mon.h>
 #include <contrib/ydb/library/actors/core/log.h>

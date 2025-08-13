@@ -27,11 +27,11 @@ protected:
 
     static NApi::IClientPtr CreateClient(const std::string& userName);
 
-    static void WaitUntilEqual(const NYPath::TYPath& path, const TString& expected);
+    static void WaitUntilEqual(const NYPath::TYPath& path, TStringBuf expected);
 
     static void WaitUntil(
         std::function<bool()> predicate,
-        const TString& errorMessage);
+        TStringBuf errorMessage);
 
     static void AbortCypressTransactions();
 };
@@ -64,11 +64,11 @@ protected:
 
     static std::tuple<TSharedRange<NTableClient::TUnversionedRow>, NTableClient::TNameTablePtr> PrepareUnversionedRow(
         const std::vector<std::string>& names,
-        const TString& rowString);
+        TStringBuf rowString);
 
     static void WriteUnversionedRow(
         const std::vector<std::string>& names,
-        const TString& rowString,
+        TStringBuf rowString,
         const NApi::IClientPtr& client = Client_);
 
     static void WriteRows(
@@ -78,13 +78,13 @@ protected:
 
     static std::tuple<TSharedRange<NTableClient::TVersionedRow>, NTableClient::TNameTablePtr> PrepareVersionedRow(
         const std::vector<std::string>& names,
-        const TString& keyYson,
-        const TString& valueYson);
+        TStringBuf keyYson,
+        TStringBuf valueYson);
 
     static void WriteVersionedRow(
         const std::vector<std::string>& names,
-        const TString& keyYson,
-        const TString& valueYson,
+        TStringBuf keyYson,
+        TStringBuf valueYson,
         const NApi::IClientPtr& client = Client_);
 
     static void WriteRows(
@@ -96,7 +96,7 @@ private:
     static void RemoveSystemObjects(const NYPath::TYPath& path);
 
     static void RemoveTabletCells(
-        std::function<bool(const TString&)> filter = [] (const TString&) { return true; });
+        std::function<bool(TStringBuf)> filter = [] (TStringBuf) { return true; });
 };
 
 ////////////////////////////////////////////////////////////////////////////////

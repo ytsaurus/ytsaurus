@@ -22,14 +22,15 @@ class THiveProfilingManager
 public:
     explicit THiveProfilingManager(TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
+        , ProfilingExecutor_(
+            New<TPeriodicExecutor>(
+                Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
+                BIND(&THiveProfilingManager::OnProfiling, MakeWeak(this)),
+                TDynamicCellMasterConfig::DefaultHiveProfilingPeriod))
     { }
 
     void Initialize() override
     {
-        ProfilingExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
-            BIND(&THiveProfilingManager::OnProfiling, MakeWeak(this)),
-            TDynamicCellMasterConfig::DefaultHiveProfilingPeriod);
         ProfilingExecutor_->Start();
 
         const auto& configManager = Bootstrap_->GetConfigManager();
@@ -39,16 +40,15 @@ public:
 
 private:
     TBootstrap* const Bootstrap_;
-    TPeriodicExecutorPtr ProfilingExecutor_;
+    const TPeriodicExecutorPtr ProfilingExecutor_;
 
     void OnProfiling()
     {
         const auto& masterCellTags = Bootstrap_->GetMulticellManager()->GetRegisteredMasterCellTags();
-        auto cellIdFilter = std::function(
-            [&] (NElection::TCellId cellId) {
-                auto cellTag = NObjectClient::CellTagFromId(cellId);
-                return std::ranges::find(masterCellTags, cellTag) != masterCellTags.end();
-            });
+        auto cellIdFilter = [&] (NElection::TCellId cellId) {
+            auto cellTag = NObjectClient::CellTagFromId(cellId);
+            return std::ranges::find(masterCellTags, cellTag) != masterCellTags.end();
+        };
 
         Bootstrap_->GetHiveManager()->OnProfiling(cellIdFilter);
     }

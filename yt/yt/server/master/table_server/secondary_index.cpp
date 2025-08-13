@@ -44,25 +44,12 @@ void TSecondaryIndex::Load(TLoadContext& context)
     TObject::Load(context);
 
     using NYT::Load;
-    // COMPAT(sabdenovch)
-    if (context.GetVersion() >= EMasterReign::SecondaryIndexExternalCellTag) {
-        Load(context, TableId_);
-        Load(context, IndexTableId_);
-    } else {
-        Load(context, CompatTable_);
-        Load(context, CompatIndexTable_);
-    }
+    Load(context, TableId_);
+    Load(context, IndexTableId_);
     Load(context, Kind_);
     Load(context, ExternalCellTag_);
-    // COMPAT(sabdenovch)
-    if (context.GetVersion() >= EMasterReign::SecondaryIndexPredicate) {
-        Load(context, Predicate_);
-    }
-    // COMPAT(sabdenovch)
-    // For older snapshots, this field is filled in TTableManager::OnAfterSnapshotLoaded.
-    if (context.GetVersion() >= EMasterReign::SecondaryIndexUnfoldedColumnApi) {
-        Load(context, UnfoldedColumn_);
-    }
+    Load(context, Predicate_);
+    Load(context, UnfoldedColumn_);
     // COMPAT(sabdenovch)
     if (context.GetVersion() >= EMasterReign::SecondaryIndexStates) {
         Load(context, TableToIndexCorrespondence_);
@@ -74,12 +61,6 @@ void TSecondaryIndex::Load(TLoadContext& context)
     if (context.GetVersion() >= EMasterReign::SecondaryIndexEvaluated) {
         TNullableIntrusivePtrSerializer<>::Load(context, EvaluatedColumnsSchema_);
     }
-}
-
-void TSecondaryIndex::SetIdsFromCompat()
-{
-    TableId_ = CompatTable_->GetId();
-    IndexTableId_ = CompatIndexTable_->GetId();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

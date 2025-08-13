@@ -56,22 +56,23 @@ public:
         const TString& schema);
 
     static void WriteTable(
-        std::vector<TString> columnNames,
-        std::vector<TString> rowStrings,
+        std::vector<std::string> columnNames,
+        std::vector<std::string> rowStrings,
         bool append);
 
-    static std::vector<TString> ReadTable();
+    static std::vector<std::string> ReadTable();
 
     static NApi::TDistributedWriteSessionWithCookies StartDistributedWriteSession(
         bool append,
         int cookieCount,
-        std::optional<NCypressClient::TTransactionId> txId = {});
+        std::optional<NCypressClient::TTransactionId> txId = {},
+        std::optional<TDuration> timeout = std::nullopt);
 
     // Append is decided upon session opening.
     static NApi::TSignedWriteFragmentResultPtr DistributedWriteTable(
         const NApi::TSignedWriteFragmentCookiePtr& cookie,
-        std::vector<TString> columnNames,
-        std::vector<TString> rowStrings);
+        std::vector<std::string> columnNames,
+        std::vector<std::string> rowStrings);
 
     static void PingDistributedWriteSession(
         const NApi::TSignedDistributedWriteSessionPtr& session);
@@ -87,18 +88,18 @@ private:
     static NYPath::TRichYPath MakeRichPath(bool append);
 
     static TSharedRange<NTableClient::TUnversionedRow> YsonRowsToUnversionedRows(
-        std::vector<TString> rowStrings);
+        std::vector<std::string> rowStrings);
 
     static void DoWriteTable(
-        std::vector<TString> columnNames,
+        std::vector<std::string> columnNames,
         TSharedRange<NTableClient::TUnversionedRow> rows,
         bool append);
 
-    static std::vector<TString> DoReadTable();
+    static std::vector<std::string> DoReadTable();
 
     static NApi::TSignedWriteFragmentResultPtr DoDistributedWriteTable(
         const NApi::TSignedWriteFragmentCookiePtr& cookie,
-        std::vector<TString> columnNames,
+        std::vector<std::string> columnNames,
         TSharedRange<NTableClient::TUnversionedRow> rows);
 };
 

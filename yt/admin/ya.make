@@ -1,6 +1,7 @@
 RECURSE(
     dashboard_generator
     dashboards
+    snapshot_processing
     timbertruck
 )
 
@@ -24,7 +25,6 @@ IF (NOT OPENSOURCE)
         scheduler_codicils
         sevenpct
         shiva2
-        snapshot_processing
         stateless-service-controller
         trash_recovery
         yt-tag-table

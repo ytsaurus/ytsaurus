@@ -5,7 +5,7 @@ from libc.math cimport NAN
 
 include "_ufuncs_extra_code_common.pxi"
 include "_ufuncs_extra_code.pxi"
-__all__ = ['agm', 'airy', 'airye', 'bdtr', 'bdtrc', 'bdtri', 'bdtrik', 'bdtrin', 'bei', 'beip', 'ber', 'berp', 'besselpoly', 'beta', 'betainc', 'betaincinv', 'betaln', 'binom', 'boxcox', 'boxcox1p', 'btdtr', 'btdtri', 'btdtria', 'btdtrib', 'cbrt', 'chdtr', 'chdtrc', 'chdtri', 'chdtriv', 'chndtr', 'chndtridf', 'chndtrinc', 'chndtrix', 'cosdg', 'cosm1', 'cotdg', 'dawsn', 'ellipe', 'ellipeinc', 'ellipj', 'ellipk', 'ellipkinc', 'ellipkm1', 'elliprc', 'elliprd', 'elliprf', 'elliprg', 'elliprj', 'entr', 'erf', 'erfc', 'erfcinv', 'erfcx', 'erfi', 'erfinv', 'eval_chebyc', 'eval_chebys', 'eval_chebyt', 'eval_chebyu', 'eval_gegenbauer', 'eval_genlaguerre', 'eval_hermite', 'eval_hermitenorm', 'eval_jacobi', 'eval_laguerre', 'eval_legendre', 'eval_sh_chebyt', 'eval_sh_chebyu', 'eval_sh_jacobi', 'eval_sh_legendre', 'exp1', 'exp10', 'exp2', 'expi', 'expit', 'expm1', 'expn', 'exprel', 'fdtr', 'fdtrc', 'fdtri', 'fdtridfd', 'fresnel', 'gamma', 'gammainc', 'gammaincc', 'gammainccinv', 'gammaincinv', 'gammaln', 'gammasgn', 'gdtr', 'gdtrc', 'gdtria', 'gdtrib', 'gdtrix', 'hankel1', 'hankel1e', 'hankel2', 'hankel2e', 'huber', 'hyp0f1', 'hyp1f1', 'hyp2f1', 'hyperu', 'i0', 'i0e', 'i1', 'i1e', 'inv_boxcox', 'inv_boxcox1p', 'it2i0k0', 'it2j0y0', 'it2struve0', 'itairy', 'iti0k0', 'itj0y0', 'itmodstruve0', 'itstruve0', 'iv', 'ive', 'j0', 'j1', 'jv', 'jve', 'k0', 'k0e', 'k1', 'k1e', 'kei', 'keip', 'kelvin', 'ker', 'kerp', 'kl_div', 'kn', 'kolmogi', 'kolmogorov', 'kv', 'kve', 'log1p', 'log_expit', 'log_ndtr', 'loggamma', 'logit', 'lpmv', 'mathieu_a', 'mathieu_b', 'mathieu_cem', 'mathieu_modcem1', 'mathieu_modcem2', 'mathieu_modsem1', 'mathieu_modsem2', 'mathieu_sem', 'modfresnelm', 'modfresnelp', 'modstruve', 'nbdtr', 'nbdtrc', 'nbdtri', 'nbdtrik', 'nbdtrin', 'ncfdtr', 'ncfdtri', 'ncfdtridfd', 'ncfdtridfn', 'ncfdtrinc', 'nctdtr', 'nctdtridf', 'nctdtrinc', 'nctdtrit', 'ndtr', 'ndtri', 'ndtri_exp', 'nrdtrimn', 'nrdtrisd', 'obl_ang1', 'obl_ang1_cv', 'obl_cv', 'obl_rad1', 'obl_rad1_cv', 'obl_rad2', 'obl_rad2_cv', 'owens_t', 'pbdv', 'pbvv', 'pbwa', 'pdtr', 'pdtrc', 'pdtri', 'pdtrik', 'poch', 'powm1', 'pro_ang1', 'pro_ang1_cv', 'pro_cv', 'pro_rad1', 'pro_rad1_cv', 'pro_rad2', 'pro_rad2_cv', 'pseudo_huber', 'psi', 'radian', 'rel_entr', 'rgamma', 'round', 'shichi', 'sici', 'sindg', 'smirnov', 'smirnovi', 'spence', 'sph_harm', 'stdtr', 'stdtridf', 'stdtrit', 'struve', 'tandg', 'tklmbda', 'voigt_profile', 'wofz', 'wright_bessel', 'wrightomega', 'xlog1py', 'xlogy', 'y0', 'y1', 'yn', 'yv', 'yve', 'zetac', 'geterr', 'seterr', 'errstate', 'jn']
+__all__ = ['agm', 'airy', 'airye', 'bdtr', 'bdtrc', 'bdtri', 'bdtrik', 'bdtrin', 'bei', 'beip', 'ber', 'berp', 'besselpoly', 'beta', 'betainc', 'betaincc', 'betainccinv', 'betaincinv', 'betaln', 'binom', 'boxcox', 'boxcox1p', 'btdtr', 'btdtri', 'btdtria', 'btdtrib', 'cbrt', 'chdtr', 'chdtrc', 'chdtri', 'chdtriv', 'chndtr', 'chndtridf', 'chndtrinc', 'chndtrix', 'cosdg', 'cosm1', 'cotdg', 'dawsn', 'ellipe', 'ellipeinc', 'ellipj', 'ellipk', 'ellipkinc', 'ellipkm1', 'elliprc', 'elliprd', 'elliprf', 'elliprg', 'elliprj', 'entr', 'erf', 'erfc', 'erfcinv', 'erfcx', 'erfi', 'erfinv', 'eval_chebyc', 'eval_chebys', 'eval_chebyt', 'eval_chebyu', 'eval_gegenbauer', 'eval_genlaguerre', 'eval_hermite', 'eval_hermitenorm', 'eval_jacobi', 'eval_laguerre', 'eval_legendre', 'eval_sh_chebyt', 'eval_sh_chebyu', 'eval_sh_jacobi', 'eval_sh_legendre', 'exp1', 'exp10', 'exp2', 'expi', 'expit', 'expm1', 'expn', 'exprel', 'fdtr', 'fdtrc', 'fdtri', 'fdtridfd', 'fresnel', 'gamma', 'gammainc', 'gammaincc', 'gammainccinv', 'gammaincinv', 'gammaln', 'gammasgn', 'gdtr', 'gdtrc', 'gdtria', 'gdtrib', 'gdtrix', 'hankel1', 'hankel1e', 'hankel2', 'hankel2e', 'huber', 'hyp0f1', 'hyp1f1', 'hyp2f1', 'hyperu', 'i0', 'i0e', 'i1', 'i1e', 'inv_boxcox', 'inv_boxcox1p', 'it2i0k0', 'it2j0y0', 'it2struve0', 'itairy', 'iti0k0', 'itj0y0', 'itmodstruve0', 'itstruve0', 'iv', 'ive', 'j0', 'j1', 'jv', 'jve', 'k0', 'k0e', 'k1', 'k1e', 'kei', 'keip', 'kelvin', 'ker', 'kerp', 'kl_div', 'kn', 'kolmogi', 'kolmogorov', 'kv', 'kve', 'log1p', 'log_expit', 'log_ndtr', 'loggamma', 'logit', 'lpmv', 'mathieu_a', 'mathieu_b', 'mathieu_cem', 'mathieu_modcem1', 'mathieu_modcem2', 'mathieu_modsem1', 'mathieu_modsem2', 'mathieu_sem', 'modfresnelm', 'modfresnelp', 'modstruve', 'nbdtr', 'nbdtrc', 'nbdtri', 'nbdtrik', 'nbdtrin', 'ncfdtr', 'ncfdtri', 'ncfdtridfd', 'ncfdtridfn', 'ncfdtrinc', 'nctdtr', 'nctdtridf', 'nctdtrinc', 'nctdtrit', 'ndtr', 'ndtri', 'ndtri_exp', 'nrdtrimn', 'nrdtrisd', 'obl_ang1', 'obl_ang1_cv', 'obl_cv', 'obl_rad1', 'obl_rad1_cv', 'obl_rad2', 'obl_rad2_cv', 'owens_t', 'pbdv', 'pbvv', 'pbwa', 'pdtr', 'pdtrc', 'pdtri', 'pdtrik', 'poch', 'powm1', 'pro_ang1', 'pro_ang1_cv', 'pro_cv', 'pro_rad1', 'pro_rad1_cv', 'pro_rad2', 'pro_rad2_cv', 'pseudo_huber', 'psi', 'radian', 'rel_entr', 'rgamma', 'round', 'shichi', 'sici', 'sindg', 'smirnov', 'smirnovi', 'spence', 'sph_harm', 'stdtr', 'stdtridf', 'stdtrit', 'struve', 'tandg', 'tklmbda', 'voigt_profile', 'wofz', 'wright_bessel', 'wrightomega', 'xlog1py', 'xlogy', 'y0', 'y1', 'yn', 'yv', 'yve', 'zetac', 'geterr', 'seterr', 'errstate', 'jn']
 cdef void loop_D_DDDD__As_DDDD_D(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
     cdef np.npy_intp i, n = dims[0]
     cdef void *func = (<void**>data)[0]
@@ -789,6 +789,24 @@ cdef void loop_f_ff__As_ff_f(char **args, np.npy_intp *dims, np.npy_intp *steps,
         op0 += steps[2]
     sf_error.check_fpe(func_name)
 
+cdef void loop_f_fff__As_fff_f(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
+    cdef np.npy_intp i, n = dims[0]
+    cdef void *func = (<void**>data)[0]
+    cdef char *func_name = <char*>(<void**>data)[1]
+    cdef char *ip0 = args[0]
+    cdef char *ip1 = args[1]
+    cdef char *ip2 = args[2]
+    cdef char *op0 = args[3]
+    cdef float ov0
+    for i in range(n):
+        ov0 = (<float(*)(float, float, float) noexcept nogil>func)(<float>(<float*>ip0)[0], <float>(<float*>ip1)[0], <float>(<float*>ip2)[0])
+        (<float *>op0)[0] = <float>ov0
+        ip0 += steps[0]
+        ip1 += steps[1]
+        ip2 += steps[2]
+        op0 += steps[3]
+    sf_error.check_fpe(func_name)
+
 cdef void loop_g_g__As_g_g(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
     cdef np.npy_intp i, n = dims[0]
     cdef void *func = (<void**>data)[0]
@@ -1283,9 +1301,6 @@ cdef extern from r"_ufuncs_defs.h":
     cdef double _func_cosine_invcdf "cosine_invcdf"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_cospi "cospi"(double) noexcept nogil
-from ._trig cimport ccospi as _func_ccospi
-ctypedef double complex _proto_ccospi_t(double complex) noexcept nogil
-cdef _proto_ccospi_t *_proto_ccospi_t_var = &_func_ccospi
 from ._ellip_harm cimport ellip_harmonic as _func_ellip_harmonic
 ctypedef double _proto_ellip_harmonic_t(double, double, int, int, double, double, double) noexcept nogil
 cdef _proto_ellip_harmonic_t *_proto_ellip_harmonic_t_var = &_func_ellip_harmonic
@@ -1303,9 +1318,6 @@ cdef extern from r"_ufuncs_defs.h":
     cdef double _func_kolmogci "kolmogci"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_kolmogp "kolmogp"(double) noexcept nogil
-from ._lambertw cimport lambertw_scalar as _func_lambertw_scalar
-ctypedef double complex _proto_lambertw_scalar_t(double complex, long, double) noexcept nogil
-cdef _proto_lambertw_scalar_t *_proto_lambertw_scalar_t_var = &_func_lambertw_scalar
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_lanczos_sum_expg_scaled "lanczos_sum_expg_scaled"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
@@ -1321,9 +1333,6 @@ ctypedef int _proto__sf_error_test_function_t(int) noexcept nogil
 cdef _proto__sf_error_test_function_t *_proto__sf_error_test_function_t_var = &_func__sf_error_test_function
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_sinpi "sinpi"(double) noexcept nogil
-from ._trig cimport csinpi as _func_csinpi
-ctypedef double complex _proto_csinpi_t(double complex) noexcept nogil
-cdef _proto_csinpi_t *_proto_csinpi_t_var = &_func_csinpi
 from ._legacy cimport smirnovc_unsafe as _func_smirnovc_unsafe
 ctypedef double _proto_smirnovc_unsafe_t(double, double) noexcept nogil
 cdef _proto_smirnovc_unsafe_t *_proto_smirnovc_unsafe_t_var = &_func_smirnovc_unsafe
@@ -1421,10 +1430,12 @@ ctypedef double _proto_bdtri_unsafe_t(double, double, double) noexcept nogil
 cdef _proto_bdtri_unsafe_t *_proto_bdtri_unsafe_t_var = &_func_bdtri_unsafe
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_bdtri "bdtri"(double, int, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfbin2_wrap "cdfbin2_wrap"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfbin3_wrap "cdfbin3_wrap"(double, double, double) noexcept nogil
+from ._cdflib_wrappers cimport bdtrik as _func_bdtrik
+ctypedef double _proto_bdtrik_t(double, double, double) noexcept nogil
+cdef _proto_bdtrik_t *_proto_bdtrik_t_var = &_func_bdtrik
+from ._cdflib_wrappers cimport bdtrin as _func_bdtrin
+ctypedef double _proto_bdtrin_t(double, double, double) noexcept nogil
+cdef _proto_bdtrin_t *_proto_bdtrin_t_var = &_func_bdtrin
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_bei_wrap "bei_wrap"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
@@ -1438,14 +1449,7 @@ cdef extern from r"_ufuncs_defs.h":
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_beta "beta"(double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_incbet "incbet"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_incbi "incbi"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
     cdef double _func_lbeta "lbeta"(double, double) noexcept nogil
-from .orthogonal_eval cimport binom as _func_binom
-ctypedef double _proto_binom_t(double, double) noexcept nogil
-cdef _proto_binom_t *_proto_binom_t_var = &_func_binom
 from ._boxcox cimport boxcox as _func_boxcox
 ctypedef double _proto_boxcox_t(double, double) noexcept nogil
 cdef _proto_boxcox_t *_proto_boxcox_t_var = &_func_boxcox
@@ -1456,10 +1460,12 @@ cdef extern from r"_ufuncs_defs.h":
     cdef double _func_btdtr "btdtr"(double, double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_incbi "incbi"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfbet3_wrap "cdfbet3_wrap"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfbet4_wrap "cdfbet4_wrap"(double, double, double) noexcept nogil
+from ._cdflib_wrappers cimport btdtria as _func_btdtria
+ctypedef double _proto_btdtria_t(double, double, double) noexcept nogil
+cdef _proto_btdtria_t *_proto_btdtria_t_var = &_func_btdtria
+from ._cdflib_wrappers cimport btdtrib as _func_btdtrib
+ctypedef double _proto_btdtrib_t(double, double, double) noexcept nogil
+cdef _proto_btdtrib_t *_proto_btdtrib_t_var = &_func_btdtrib
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_cbrt "cbrt"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
@@ -1468,16 +1474,21 @@ cdef extern from r"_ufuncs_defs.h":
     cdef double _func_chdtrc "chdtrc"(double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_chdtri "chdtri"(double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfchi3_wrap "cdfchi3_wrap"(double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfchn1_wrap "cdfchn1_wrap"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfchn3_wrap "cdfchn3_wrap"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfchn4_wrap "cdfchn4_wrap"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfchn2_wrap "cdfchn2_wrap"(double, double, double) noexcept nogil
+from ._cdflib_wrappers cimport chdtriv as _func_chdtriv
+ctypedef double _proto_chdtriv_t(double, double) noexcept nogil
+cdef _proto_chdtriv_t *_proto_chdtriv_t_var = &_func_chdtriv
+from ._cdflib_wrappers cimport chndtr as _func_chndtr
+ctypedef double _proto_chndtr_t(double, double, double) noexcept nogil
+cdef _proto_chndtr_t *_proto_chndtr_t_var = &_func_chndtr
+from ._cdflib_wrappers cimport chndtridf as _func_chndtridf
+ctypedef double _proto_chndtridf_t(double, double, double) noexcept nogil
+cdef _proto_chndtridf_t *_proto_chndtridf_t_var = &_func_chndtridf
+from ._cdflib_wrappers cimport chndtrinc as _func_chndtrinc
+ctypedef double _proto_chndtrinc_t(double, double, double) noexcept nogil
+cdef _proto_chndtrinc_t *_proto_chndtrinc_t_var = &_func_chndtrinc
+from ._cdflib_wrappers cimport chndtrix as _func_chndtrix
+ctypedef double _proto_chndtrix_t(double, double, double) noexcept nogil
+cdef _proto_chndtrix_t *_proto_chndtrix_t_var = &_func_chndtrix
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_cosdg "cosdg"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
@@ -1660,15 +1671,13 @@ cdef extern from r"_ufuncs_defs.h":
     cdef double _func_fdtrc "fdtrc"(double, double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_fdtri "fdtri"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdff4_wrap "cdff4_wrap"(double, double, double) noexcept nogil
+from ._cdflib_wrappers cimport fdtridfd as _func_fdtridfd
+ctypedef double _proto_fdtridfd_t(double, double, double) noexcept nogil
+cdef _proto_fdtridfd_t *_proto_fdtridfd_t_var = &_func_fdtridfd
 cdef extern from r"_ufuncs_defs.h":
     cdef int _func_fresnl "fresnl"(double, double *, double *) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
     cdef int _func_cfresnl_wrap "cfresnl_wrap"(double complex, double complex *, double complex *) noexcept nogil
-from ._loggamma cimport cgamma as _func_cgamma
-ctypedef double complex _proto_cgamma_t(double complex) noexcept nogil
-cdef _proto_cgamma_t *_proto_cgamma_t_var = &_func_cgamma
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_Gamma "Gamma"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
@@ -1687,12 +1696,15 @@ cdef extern from r"_ufuncs_defs.h":
     cdef double _func_gdtr "gdtr"(double, double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_gdtrc "gdtrc"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfgam4_wrap "cdfgam4_wrap"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfgam3_wrap "cdfgam3_wrap"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfgam2_wrap "cdfgam2_wrap"(double, double, double) noexcept nogil
+from ._cdflib_wrappers cimport gdtria as _func_gdtria
+ctypedef double _proto_gdtria_t(double, double, double) noexcept nogil
+cdef _proto_gdtria_t *_proto_gdtria_t_var = &_func_gdtria
+from ._cdflib_wrappers cimport gdtrib as _func_gdtrib
+ctypedef double _proto_gdtrib_t(double, double, double) noexcept nogil
+cdef _proto_gdtrib_t *_proto_gdtrib_t_var = &_func_gdtrib
+from ._cdflib_wrappers cimport gdtrix as _func_gdtrix
+ctypedef double _proto_gdtrix_t(double, double, double) noexcept nogil
+cdef _proto_gdtrix_t *_proto_gdtrix_t_var = &_func_gdtrix
 cdef extern from r"_ufuncs_defs.h":
     cdef double complex _func_cbesh_wrap1 "cbesh_wrap1"(double, double complex) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
@@ -1813,12 +1825,6 @@ ctypedef double complex _proto_clog1p_t(double complex) noexcept nogil
 cdef _proto_clog1p_t *_proto_clog1p_t_var = &_func_clog1p
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_log1p "log1p"(double) noexcept nogil
-from ._loggamma cimport loggamma_real as _func_loggamma_real
-ctypedef double _proto_loggamma_real_t(double) noexcept nogil
-cdef _proto_loggamma_real_t *_proto_loggamma_real_t_var = &_func_loggamma_real
-from ._loggamma cimport loggamma as _func_loggamma
-ctypedef double complex _proto_loggamma_t(double complex) noexcept nogil
-cdef _proto_loggamma_t *_proto_loggamma_t_var = &_func_loggamma
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_pmv_wrap "pmv_wrap"(double, double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
@@ -1858,28 +1864,39 @@ ctypedef double _proto_nbdtri_unsafe_t(double, double, double) noexcept nogil
 cdef _proto_nbdtri_unsafe_t *_proto_nbdtri_unsafe_t_var = &_func_nbdtri_unsafe
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_nbdtri "nbdtri"(int, int, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfnbn2_wrap "cdfnbn2_wrap"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfnbn3_wrap "cdfnbn3_wrap"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdffnc1_wrap "cdffnc1_wrap"(double, double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdffnc2_wrap "cdffnc2_wrap"(double, double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdffnc4_wrap "cdffnc4_wrap"(double, double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdffnc3_wrap "cdffnc3_wrap"(double, double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdffnc5_wrap "cdffnc5_wrap"(double, double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdftnc1_wrap "cdftnc1_wrap"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdftnc3_wrap "cdftnc3_wrap"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdftnc4_wrap "cdftnc4_wrap"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdftnc2_wrap "cdftnc2_wrap"(double, double, double) noexcept nogil
+from ._cdflib_wrappers cimport nbdtrik as _func_nbdtrik
+ctypedef double _proto_nbdtrik_t(double, double, double) noexcept nogil
+cdef _proto_nbdtrik_t *_proto_nbdtrik_t_var = &_func_nbdtrik
+from ._cdflib_wrappers cimport nbdtrin as _func_nbdtrin
+ctypedef double _proto_nbdtrin_t(double, double, double) noexcept nogil
+cdef _proto_nbdtrin_t *_proto_nbdtrin_t_var = &_func_nbdtrin
+from ._cdflib_wrappers cimport ncfdtr as _func_ncfdtr
+ctypedef double _proto_ncfdtr_t(double, double, double, double) noexcept nogil
+cdef _proto_ncfdtr_t *_proto_ncfdtr_t_var = &_func_ncfdtr
+from ._cdflib_wrappers cimport ncfdtri as _func_ncfdtri
+ctypedef double _proto_ncfdtri_t(double, double, double, double) noexcept nogil
+cdef _proto_ncfdtri_t *_proto_ncfdtri_t_var = &_func_ncfdtri
+from ._cdflib_wrappers cimport ncfdtridfd as _func_ncfdtridfd
+ctypedef double _proto_ncfdtridfd_t(double, double, double, double) noexcept nogil
+cdef _proto_ncfdtridfd_t *_proto_ncfdtridfd_t_var = &_func_ncfdtridfd
+from ._cdflib_wrappers cimport ncfdtridfn as _func_ncfdtridfn
+ctypedef double _proto_ncfdtridfn_t(double, double, double, double) noexcept nogil
+cdef _proto_ncfdtridfn_t *_proto_ncfdtridfn_t_var = &_func_ncfdtridfn
+from ._cdflib_wrappers cimport ncfdtrinc as _func_ncfdtrinc
+ctypedef double _proto_ncfdtrinc_t(double, double, double, double) noexcept nogil
+cdef _proto_ncfdtrinc_t *_proto_ncfdtrinc_t_var = &_func_ncfdtrinc
+from ._cdflib_wrappers cimport nctdtr as _func_nctdtr
+ctypedef double _proto_nctdtr_t(double, double, double) noexcept nogil
+cdef _proto_nctdtr_t *_proto_nctdtr_t_var = &_func_nctdtr
+from ._cdflib_wrappers cimport nctdtridf as _func_nctdtridf
+ctypedef double _proto_nctdtridf_t(double, double, double) noexcept nogil
+cdef _proto_nctdtridf_t *_proto_nctdtridf_t_var = &_func_nctdtridf
+from ._cdflib_wrappers cimport nctdtrinc as _func_nctdtrinc
+ctypedef double _proto_nctdtrinc_t(double, double, double) noexcept nogil
+cdef _proto_nctdtrinc_t *_proto_nctdtrinc_t_var = &_func_nctdtrinc
+from ._cdflib_wrappers cimport nctdtrit as _func_nctdtrit
+ctypedef double _proto_nctdtrit_t(double, double, double) noexcept nogil
+cdef _proto_nctdtrit_t *_proto_nctdtrit_t_var = &_func_nctdtrit
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_ndtr "ndtr"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
@@ -1887,10 +1904,12 @@ cdef extern from r"_ufuncs_defs.h":
 from ._ndtri_exp cimport ndtri_exp as _func_ndtri_exp
 ctypedef double _proto_ndtri_exp_t(double) noexcept nogil
 cdef _proto_ndtri_exp_t *_proto_ndtri_exp_t_var = &_func_ndtri_exp
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfnor3_wrap "cdfnor3_wrap"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfnor4_wrap "cdfnor4_wrap"(double, double, double) noexcept nogil
+from ._cdflib_wrappers cimport nrdtrimn as _func_nrdtrimn
+ctypedef double _proto_nrdtrimn_t(double, double, double) noexcept nogil
+cdef _proto_nrdtrimn_t *_proto_nrdtrimn_t_var = &_func_nrdtrimn
+from ._cdflib_wrappers cimport nrdtrisd as _func_nrdtrisd
+ctypedef double _proto_nrdtrisd_t(double, double, double) noexcept nogil
+cdef _proto_nrdtrisd_t *_proto_nrdtrisd_t_var = &_func_nrdtrisd
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_oblate_aswfa_nocv_wrap "oblate_aswfa_nocv_wrap"(double, double, double, double, double *) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
@@ -1922,8 +1941,9 @@ ctypedef double _proto_pdtri_unsafe_t(double, double) noexcept nogil
 cdef _proto_pdtri_unsafe_t *_proto_pdtri_unsafe_t_var = &_func_pdtri_unsafe
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_pdtri "pdtri"(int, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdfpoi2_wrap "cdfpoi2_wrap"(double, double) noexcept nogil
+from ._cdflib_wrappers cimport pdtrik as _func_pdtrik
+ctypedef double _proto_pdtrik_t(double, double) noexcept nogil
+cdef _proto_pdtrik_t *_proto_pdtrik_t_var = &_func_pdtrik
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_poch "poch"(double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
@@ -1943,20 +1963,11 @@ cdef extern from r"_ufuncs_defs.h":
 from ._convex_analysis cimport pseudo_huber as _func_pseudo_huber
 ctypedef double _proto_pseudo_huber_t(double, double) noexcept nogil
 cdef _proto_pseudo_huber_t *_proto_pseudo_huber_t_var = &_func_pseudo_huber
-from ._digamma cimport cdigamma as _func_cdigamma
-ctypedef double complex _proto_cdigamma_t(double complex) noexcept nogil
-cdef _proto_cdigamma_t *_proto_cdigamma_t_var = &_func_cdigamma
-from ._digamma cimport digamma as _func_digamma
-ctypedef double _proto_digamma_t(double) noexcept nogil
-cdef _proto_digamma_t *_proto_digamma_t_var = &_func_digamma
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_radian "radian"(double, double, double) noexcept nogil
 from ._convex_analysis cimport rel_entr as _func_rel_entr
 ctypedef double _proto_rel_entr_t(double, double) noexcept nogil
 cdef _proto_rel_entr_t *_proto_rel_entr_t_var = &_func_rel_entr
-from ._loggamma cimport crgamma as _func_crgamma
-ctypedef double complex _proto_crgamma_t(double complex) noexcept nogil
-cdef _proto_crgamma_t *_proto_crgamma_t_var = &_func_crgamma
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_rgamma "rgamma"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
@@ -1994,12 +2005,15 @@ cdef _proto_sph_harmonic_unsafe_t *_proto_sph_harmonic_unsafe_t_var = &_func_sph
 from .sph_harm cimport sph_harmonic as _func_sph_harmonic
 ctypedef double complex _proto_sph_harmonic_t(int, int, double, double) noexcept nogil
 cdef _proto_sph_harmonic_t *_proto_sph_harmonic_t_var = &_func_sph_harmonic
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdft1_wrap "cdft1_wrap"(double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdft3_wrap "cdft3_wrap"(double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cdft2_wrap "cdft2_wrap"(double, double) noexcept nogil
+from ._cdflib_wrappers cimport stdtr as _func_stdtr
+ctypedef double _proto_stdtr_t(double, double) noexcept nogil
+cdef _proto_stdtr_t *_proto_stdtr_t_var = &_func_stdtr
+from ._cdflib_wrappers cimport stdtridf as _func_stdtridf
+ctypedef double _proto_stdtridf_t(double, double) noexcept nogil
+cdef _proto_stdtridf_t *_proto_stdtridf_t_var = &_func_stdtridf
+from ._cdflib_wrappers cimport stdtrit as _func_stdtrit
+ctypedef double _proto_stdtrit_t(double, double) noexcept nogil
+cdef _proto_stdtrit_t *_proto_stdtrit_t_var = &_func_stdtrit
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_struve_h "struve_h"(double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
@@ -2138,9 +2152,9 @@ ufunc__cospi_ptr[2*0] = <void*>_func_cospi
 ufunc__cospi_ptr[2*0+1] = <void*>(<char*>"_cospi")
 ufunc__cospi_ptr[2*1] = <void*>_func_cospi
 ufunc__cospi_ptr[2*1+1] = <void*>(<char*>"_cospi")
-ufunc__cospi_ptr[2*2] = <void*>_func_ccospi
+ufunc__cospi_ptr[2*2] = <void*>scipy.special._ufuncs_cxx._export_ccospi
 ufunc__cospi_ptr[2*2+1] = <void*>(<char*>"_cospi")
-ufunc__cospi_ptr[2*3] = <void*>_func_ccospi
+ufunc__cospi_ptr[2*3] = <void*>scipy.special._ufuncs_cxx._export_ccospi
 ufunc__cospi_ptr[2*3+1] = <void*>(<char*>"_cospi")
 ufunc__cospi_data[0] = &ufunc__cospi_ptr[2*0]
 ufunc__cospi_data[1] = &ufunc__cospi_ptr[2*1]
@@ -2305,7 +2319,7 @@ ufunc__lambertw_types[0] = <char>NPY_CDOUBLE
 ufunc__lambertw_types[1] = <char>NPY_LONG
 ufunc__lambertw_types[2] = <char>NPY_DOUBLE
 ufunc__lambertw_types[3] = <char>NPY_CDOUBLE
-ufunc__lambertw_ptr[2*0] = <void*>_func_lambertw_scalar
+ufunc__lambertw_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_lambertw_scalar
 ufunc__lambertw_ptr[2*0+1] = <void*>(<char*>"_lambertw")
 ufunc__lambertw_data[0] = &ufunc__lambertw_ptr[2*0]
 _lambertw = np.PyUFunc_FromFuncAndData(ufunc__lambertw_loops, ufunc__lambertw_data, ufunc__lambertw_types, 1, 3, 1, 0, "_lambertw", ufunc__lambertw_doc, 0)
@@ -2491,9 +2505,9 @@ ufunc__sinpi_ptr[2*0] = <void*>_func_sinpi
 ufunc__sinpi_ptr[2*0+1] = <void*>(<char*>"_sinpi")
 ufunc__sinpi_ptr[2*1] = <void*>_func_sinpi
 ufunc__sinpi_ptr[2*1+1] = <void*>(<char*>"_sinpi")
-ufunc__sinpi_ptr[2*2] = <void*>_func_csinpi
+ufunc__sinpi_ptr[2*2] = <void*>scipy.special._ufuncs_cxx._export_csinpi
 ufunc__sinpi_ptr[2*2+1] = <void*>(<char*>"_sinpi")
-ufunc__sinpi_ptr[2*3] = <void*>_func_csinpi
+ufunc__sinpi_ptr[2*3] = <void*>scipy.special._ufuncs_cxx._export_csinpi
 ufunc__sinpi_ptr[2*3+1] = <void*>(<char*>"_sinpi")
 ufunc__sinpi_data[0] = &ufunc__sinpi_ptr[2*0]
 ufunc__sinpi_data[1] = &ufunc__sinpi_ptr[2*1]
@@ -2766,6 +2780,28 @@ ufunc__spherical_yn_d_data[0] = &ufunc__spherical_yn_d_ptr[2*0]
 ufunc__spherical_yn_d_data[1] = &ufunc__spherical_yn_d_ptr[2*1]
 _spherical_yn_d = np.PyUFunc_FromFuncAndData(ufunc__spherical_yn_d_loops, ufunc__spherical_yn_d_data, ufunc__spherical_yn_d_types, 2, 2, 1, 0, "_spherical_yn_d", ufunc__spherical_yn_d_doc, 0)
 
+cdef np.PyUFuncGenericFunction ufunc__stirling2_inexact_loops[2]
+cdef void *ufunc__stirling2_inexact_ptr[4]
+cdef void *ufunc__stirling2_inexact_data[2]
+cdef char ufunc__stirling2_inexact_types[6]
+cdef char *ufunc__stirling2_inexact_doc = (
+    "Internal function, do not use.")
+ufunc__stirling2_inexact_loops[0] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
+ufunc__stirling2_inexact_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
+ufunc__stirling2_inexact_types[0] = <char>NPY_FLOAT
+ufunc__stirling2_inexact_types[1] = <char>NPY_FLOAT
+ufunc__stirling2_inexact_types[2] = <char>NPY_FLOAT
+ufunc__stirling2_inexact_types[3] = <char>NPY_DOUBLE
+ufunc__stirling2_inexact_types[4] = <char>NPY_DOUBLE
+ufunc__stirling2_inexact_types[5] = <char>NPY_DOUBLE
+ufunc__stirling2_inexact_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export__stirling2_inexact
+ufunc__stirling2_inexact_ptr[2*0+1] = <void*>(<char*>"_stirling2_inexact")
+ufunc__stirling2_inexact_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export__stirling2_inexact
+ufunc__stirling2_inexact_ptr[2*1+1] = <void*>(<char*>"_stirling2_inexact")
+ufunc__stirling2_inexact_data[0] = &ufunc__stirling2_inexact_ptr[2*0]
+ufunc__stirling2_inexact_data[1] = &ufunc__stirling2_inexact_ptr[2*1]
+_stirling2_inexact = np.PyUFunc_FromFuncAndData(ufunc__stirling2_inexact_loops, ufunc__stirling2_inexact_data, ufunc__stirling2_inexact_types, 2, 2, 1, 0, "_stirling2_inexact", ufunc__stirling2_inexact_doc, 0)
+
 cdef np.PyUFuncGenericFunction ufunc__struve_asymp_large_z_loops[1]
 cdef void *ufunc__struve_asymp_large_z_ptr[2]
 cdef void *ufunc__struve_asymp_large_z_data[1]
@@ -2961,6 +2997,10 @@ cdef char *ufunc_airy_doc = (
     "Ai, Aip, Bi, Bip : 4-tuple of scalar or ndarray\n"
     "    Airy functions Ai and Bi, and their derivatives Aip and Bip.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "airye : exponentially scaled Airy functions.\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "The Airy functions Ai and Bi are two independent solutions of\n"
@@ -2985,10 +3025,6 @@ cdef char *ufunc_airy_doc = (
     "    Bi(z) = \\sqrt{\\frac{z}{3}} \\left(I_{-1/3}(t) + I_{1/3}(t) \\right)\n"
     "\n"
     "    Bi'(z) = \\frac{z}{\\sqrt{3}} \\left(I_{-2/3}(t) + I_{2/3}(t)\\right)\n"
-    "\n"
-    "See also\n"
-    "--------\n"
-    "airye : exponentially scaled Airy functions.\n"
     "\n"
     "References\n"
     "----------\n"
@@ -3083,13 +3119,13 @@ cdef char *ufunc_airye_doc = (
     "    Exponentially scaled Airy functions eAi and eBi, and their derivatives\n"
     "    eAip and eBip\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "airy\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "Wrapper for the AMOS [1]_ routines `zairy` and `zbiry`.\n"
-    "\n"
-    "See also\n"
-    "--------\n"
-    "airy\n"
     "\n"
     "References\n"
     "----------\n"
@@ -3185,7 +3221,8 @@ cdef char *ufunc_bdtr_doc = (
     "Sum of the terms 0 through `floor(k)` of the Binomial probability density.\n"
     "\n"
     ".. math::\n"
-    "    \\mathrm{bdtr}(k, n, p) = \\sum_{j=0}^{\\lfloor k \\rfloor} {{n}\\choose{j}} p^j (1-p)^{n-j}\n"
+    "    \\mathrm{bdtr}(k, n, p) =\n"
+    "    \\sum_{j=0}^{\\lfloor k \\rfloor} {{n}\\choose{j}} p^j (1-p)^{n-j}\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -3210,7 +3247,8 @@ cdef char *ufunc_bdtr_doc = (
     "function is employed, according to the formula,\n"
     "\n"
     ".. math::\n"
-    "    \\mathrm{bdtr}(k, n, p) = I_{1 - p}(n - \\lfloor k \\rfloor, \\lfloor k \\rfloor + 1).\n"
+    "    \\mathrm{bdtr}(k, n, p) =\n"
+    "    I_{1 - p}(n - \\lfloor k \\rfloor, \\lfloor k \\rfloor + 1).\n"
     "\n"
     "Wrapper for the Cephes [1]_ routine `bdtr`.\n"
     "\n"
@@ -3257,7 +3295,8 @@ cdef char *ufunc_bdtrc_doc = (
     "density,\n"
     "\n"
     ".. math::\n"
-    "    \\mathrm{bdtrc}(k, n, p) = \\sum_{j=\\lfloor k \\rfloor +1}^n {{n}\\choose{j}} p^j (1-p)^{n-j}\n"
+    "    \\mathrm{bdtrc}(k, n, p) =\n"
+    "    \\sum_{j=\\lfloor k \\rfloor +1}^n {{n}\\choose{j}} p^j (1-p)^{n-j}\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -3276,7 +3315,7 @@ cdef char *ufunc_bdtrc_doc = (
     "    Probability of `floor(k) + 1` or more successes in `n` independent\n"
     "    events with success probabilities of `p`.\n"
     "\n"
-    "See also\n"
+    "See Also\n"
     "--------\n"
     "bdtr\n"
     "betainc\n"
@@ -3351,7 +3390,7 @@ cdef char *ufunc_bdtri_doc = (
     "p : scalar or ndarray\n"
     "    The event probability such that `bdtr(\\lfloor k \\rfloor, n, p) = y`.\n"
     "\n"
-    "See also\n"
+    "See Also\n"
     "--------\n"
     "bdtr\n"
     "betaincinv\n"
@@ -3425,7 +3464,7 @@ cdef char *ufunc_bdtrik_doc = (
     "k : scalar or ndarray\n"
     "    The number of successes `k` such that `bdtr(k, n, p) = y`.\n"
     "\n"
-    "See also\n"
+    "See Also\n"
     "--------\n"
     "bdtr\n"
     "\n"
@@ -3457,9 +3496,9 @@ ufunc_bdtrik_types[4] = <char>NPY_DOUBLE
 ufunc_bdtrik_types[5] = <char>NPY_DOUBLE
 ufunc_bdtrik_types[6] = <char>NPY_DOUBLE
 ufunc_bdtrik_types[7] = <char>NPY_DOUBLE
-ufunc_bdtrik_ptr[2*0] = <void*>_func_cdfbin2_wrap
+ufunc_bdtrik_ptr[2*0] = <void*>_func_bdtrik
 ufunc_bdtrik_ptr[2*0+1] = <void*>(<char*>"bdtrik")
-ufunc_bdtrik_ptr[2*1] = <void*>_func_cdfbin2_wrap
+ufunc_bdtrik_ptr[2*1] = <void*>_func_bdtrik
 ufunc_bdtrik_ptr[2*1+1] = <void*>(<char*>"bdtrik")
 ufunc_bdtrik_data[0] = &ufunc_bdtrik_ptr[2*0]
 ufunc_bdtrik_data[1] = &ufunc_bdtrik_ptr[2*1]
@@ -3495,7 +3534,7 @@ cdef char *ufunc_bdtrin_doc = (
     "n : scalar or ndarray\n"
     "    The number of events `n` such that `bdtr(k, n, p) = y`.\n"
     "\n"
-    "See also\n"
+    "See Also\n"
     "--------\n"
     "bdtr\n"
     "\n"
@@ -3527,9 +3566,9 @@ ufunc_bdtrin_types[4] = <char>NPY_DOUBLE
 ufunc_bdtrin_types[5] = <char>NPY_DOUBLE
 ufunc_bdtrin_types[6] = <char>NPY_DOUBLE
 ufunc_bdtrin_types[7] = <char>NPY_DOUBLE
-ufunc_bdtrin_ptr[2*0] = <void*>_func_cdfbin3_wrap
+ufunc_bdtrin_ptr[2*0] = <void*>_func_bdtrin
 ufunc_bdtrin_ptr[2*0+1] = <void*>(<char*>"bdtrin")
-ufunc_bdtrin_ptr[2*1] = <void*>_func_cdfbin3_wrap
+ufunc_bdtrin_ptr[2*1] = <void*>_func_bdtrin
 ufunc_bdtrin_ptr[2*1+1] = <void*>(<char*>"bdtrin")
 ufunc_bdtrin_data[0] = &ufunc_bdtrin_ptr[2*0]
 ufunc_bdtrin_data[1] = &ufunc_bdtrin_ptr[2*1]
@@ -3941,6 +3980,9 @@ cdef char *ufunc_betainc_doc = (
     "\n"
     "for :math:`0 \\leq x \\leq 1`.\n"
     "\n"
+    "This function is the cumulative distribution function for the beta\n"
+    "distribution; its range is [0, 1].\n"
+    "\n"
     "Parameters\n"
     "----------\n"
     "a, b : array_like\n"
@@ -3960,6 +4002,8 @@ cdef char *ufunc_betainc_doc = (
     "--------\n"
     "beta : beta function\n"
     "betaincinv : inverse of the regularized incomplete beta function\n"
+    "betaincc : complement of the regularized incomplete beta function\n"
+    "scipy.stats.beta : beta distribution\n"
     "\n"
     "Notes\n"
     "-----\n"
@@ -4009,7 +4053,7 @@ cdef char *ufunc_betainc_doc = (
     "0.49339638807619446\n"
     ">>> 1 - sc.betainc(3.1, 2.2, 1 - 0.4)\n"
     "0.49339638807619446")
-ufunc_betainc_loops[0] = <np.PyUFuncGenericFunction>loop_d_ddd__As_fff_f
+ufunc_betainc_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
 ufunc_betainc_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
 ufunc_betainc_types[0] = <char>NPY_FLOAT
 ufunc_betainc_types[1] = <char>NPY_FLOAT
@@ -4019,13 +4063,179 @@ ufunc_betainc_types[4] = <char>NPY_DOUBLE
 ufunc_betainc_types[5] = <char>NPY_DOUBLE
 ufunc_betainc_types[6] = <char>NPY_DOUBLE
 ufunc_betainc_types[7] = <char>NPY_DOUBLE
-ufunc_betainc_ptr[2*0] = <void*>_func_incbet
+ufunc_betainc_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_ibeta_float
 ufunc_betainc_ptr[2*0+1] = <void*>(<char*>"betainc")
-ufunc_betainc_ptr[2*1] = <void*>_func_incbet
+ufunc_betainc_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_ibeta_double
 ufunc_betainc_ptr[2*1+1] = <void*>(<char*>"betainc")
 ufunc_betainc_data[0] = &ufunc_betainc_ptr[2*0]
 ufunc_betainc_data[1] = &ufunc_betainc_ptr[2*1]
 betainc = np.PyUFunc_FromFuncAndData(ufunc_betainc_loops, ufunc_betainc_data, ufunc_betainc_types, 2, 3, 1, 0, "betainc", ufunc_betainc_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc_betaincc_loops[2]
+cdef void *ufunc_betaincc_ptr[4]
+cdef void *ufunc_betaincc_data[2]
+cdef char ufunc_betaincc_types[8]
+cdef char *ufunc_betaincc_doc = (
+    "betaincc(a, b, x, out=None)\n"
+    "\n"
+    "Complement of the regularized incomplete beta function.\n"
+    "\n"
+    "Computes the complement of the regularized incomplete beta function,\n"
+    "defined as [1]_:\n"
+    "\n"
+    ".. math::\n"
+    "\n"
+    "    \\bar{I}_x(a, b) = 1 - I_x(a, b)\n"
+    "                    = 1 - \\frac{\\Gamma(a+b)}{\\Gamma(a)\\Gamma(b)} \\int_0^x\n"
+    "                              t^{a-1}(1-t)^{b-1}dt,\n"
+    "\n"
+    "for :math:`0 \\leq x \\leq 1`.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "a, b : array_like\n"
+    "       Positive, real-valued parameters\n"
+    "x : array_like\n"
+    "    Real-valued such that :math:`0 \\leq x \\leq 1`,\n"
+    "    the upper limit of integration\n"
+    "out : ndarray, optional\n"
+    "    Optional output array for the function values\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray\n"
+    "    Value of the regularized incomplete beta function\n"
+    "\n"
+    "See Also\n"
+    "--------\n"
+    "betainc : regularized incomplete beta function\n"
+    "betaincinv : inverse of the regularized incomplete beta function\n"
+    "betainccinv :\n"
+    "    inverse of the complement of the regularized incomplete beta function\n"
+    "beta : beta function\n"
+    "scipy.stats.beta : beta distribution\n"
+    "\n"
+    "Notes\n"
+    "-----\n"
+    ".. versionadded:: 1.11.0\n"
+    "\n"
+    "References\n"
+    "----------\n"
+    ".. [1] NIST Digital Library of Mathematical Functions\n"
+    "       https://dlmf.nist.gov/8.17\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from scipy.special import betaincc, betainc\n"
+    "\n"
+    "The naive calculation ``1 - betainc(a, b, x)`` loses precision when\n"
+    "the values of ``betainc(a, b, x)`` are close to 1:\n"
+    "\n"
+    ">>> 1 - betainc(0.5, 8, [0.9, 0.99, 0.999])\n"
+    "array([2.0574632e-09, 0.0000000e+00, 0.0000000e+00])\n"
+    "\n"
+    "By using ``betaincc``, we get the correct values:\n"
+    "\n"
+    ">>> betaincc(0.5, 8, [0.9, 0.99, 0.999])\n"
+    "array([2.05746321e-09, 1.97259354e-17, 1.96467954e-25])")
+ufunc_betaincc_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc_betaincc_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc_betaincc_types[0] = <char>NPY_FLOAT
+ufunc_betaincc_types[1] = <char>NPY_FLOAT
+ufunc_betaincc_types[2] = <char>NPY_FLOAT
+ufunc_betaincc_types[3] = <char>NPY_FLOAT
+ufunc_betaincc_types[4] = <char>NPY_DOUBLE
+ufunc_betaincc_types[5] = <char>NPY_DOUBLE
+ufunc_betaincc_types[6] = <char>NPY_DOUBLE
+ufunc_betaincc_types[7] = <char>NPY_DOUBLE
+ufunc_betaincc_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_ibetac_float
+ufunc_betaincc_ptr[2*0+1] = <void*>(<char*>"betaincc")
+ufunc_betaincc_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_ibetac_double
+ufunc_betaincc_ptr[2*1+1] = <void*>(<char*>"betaincc")
+ufunc_betaincc_data[0] = &ufunc_betaincc_ptr[2*0]
+ufunc_betaincc_data[1] = &ufunc_betaincc_ptr[2*1]
+betaincc = np.PyUFunc_FromFuncAndData(ufunc_betaincc_loops, ufunc_betaincc_data, ufunc_betaincc_types, 2, 3, 1, 0, "betaincc", ufunc_betaincc_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc_betainccinv_loops[2]
+cdef void *ufunc_betainccinv_ptr[4]
+cdef void *ufunc_betainccinv_data[2]
+cdef char ufunc_betainccinv_types[8]
+cdef char *ufunc_betainccinv_doc = (
+    "betainccinv(a, b, y, out=None)\n"
+    "\n"
+    "Inverse of the complemented regularized incomplete beta function.\n"
+    "\n"
+    "Computes :math:`x` such that:\n"
+    "\n"
+    ".. math::\n"
+    "\n"
+    "    y = 1 - I_x(a, b) = 1 - \\frac{\\Gamma(a+b)}{\\Gamma(a)\\Gamma(b)}\n"
+    "    \\int_0^x t^{a-1}(1-t)^{b-1}dt,\n"
+    "\n"
+    "where :math:`I_x` is the normalized incomplete beta function `betainc`\n"
+    "and :math:`\\Gamma` is the `gamma` function [1]_.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "a, b : array_like\n"
+    "    Positive, real-valued parameters\n"
+    "y : array_like\n"
+    "    Real-valued input\n"
+    "out : ndarray, optional\n"
+    "    Optional output array for function values\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray\n"
+    "    Value of the inverse of the regularized incomplete beta function\n"
+    "\n"
+    "See Also\n"
+    "--------\n"
+    "betainc : regularized incomplete beta function\n"
+    "betaincc : complement of the regularized incomplete beta function\n"
+    "\n"
+    "Notes\n"
+    "-----\n"
+    ".. versionadded:: 1.11.0\n"
+    "\n"
+    "References\n"
+    "----------\n"
+    ".. [1] NIST Digital Library of Mathematical Functions\n"
+    "       https://dlmf.nist.gov/8.17\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from scipy.special import betainccinv, betaincc\n"
+    "\n"
+    "This function is the inverse of `betaincc` for fixed\n"
+    "values of :math:`a` and :math:`b`.\n"
+    "\n"
+    ">>> a, b = 1.2, 3.1\n"
+    ">>> y = betaincc(a, b, 0.2)\n"
+    ">>> betainccinv(a, b, y)\n"
+    "0.2\n"
+    "\n"
+    ">>> a, b = 7, 2.5\n"
+    ">>> x = betainccinv(a, b, 0.875)\n"
+    ">>> betaincc(a, b, x)\n"
+    "0.875")
+ufunc_betainccinv_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc_betainccinv_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc_betainccinv_types[0] = <char>NPY_FLOAT
+ufunc_betainccinv_types[1] = <char>NPY_FLOAT
+ufunc_betainccinv_types[2] = <char>NPY_FLOAT
+ufunc_betainccinv_types[3] = <char>NPY_FLOAT
+ufunc_betainccinv_types[4] = <char>NPY_DOUBLE
+ufunc_betainccinv_types[5] = <char>NPY_DOUBLE
+ufunc_betainccinv_types[6] = <char>NPY_DOUBLE
+ufunc_betainccinv_types[7] = <char>NPY_DOUBLE
+ufunc_betainccinv_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_ibetac_inv_float
+ufunc_betainccinv_ptr[2*0+1] = <void*>(<char*>"betainccinv")
+ufunc_betainccinv_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_ibetac_inv_double
+ufunc_betainccinv_ptr[2*1+1] = <void*>(<char*>"betainccinv")
+ufunc_betainccinv_data[0] = &ufunc_betainccinv_ptr[2*0]
+ufunc_betainccinv_data[1] = &ufunc_betainccinv_ptr[2*1]
+betainccinv = np.PyUFunc_FromFuncAndData(ufunc_betainccinv_loops, ufunc_betainccinv_data, ufunc_betainccinv_types, 2, 3, 1, 0, "betainccinv", ufunc_betainccinv_doc, 0)
 
 cdef np.PyUFuncGenericFunction ufunc_betaincinv_loops[2]
 cdef void *ufunc_betaincinv_ptr[4]
@@ -4043,9 +4253,8 @@ cdef char *ufunc_betaincinv_doc = (
     "    y = I_x(a, b) = \\frac{\\Gamma(a+b)}{\\Gamma(a)\\Gamma(b)}\n"
     "    \\int_0^x t^{a-1}(1-t)^{b-1}dt,\n"
     "\n"
-    "where :math:`I_x` is the normalized incomplete beta\n"
-    "function `betainc` and\n"
-    ":math:`\\Gamma` is the `gamma` function [1]_.\n"
+    "where :math:`I_x` is the normalized incomplete beta function `betainc`\n"
+    "and :math:`\\Gamma` is the `gamma` function [1]_.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -4087,7 +4296,7 @@ cdef char *ufunc_betaincinv_doc = (
     ">>> x = sc.betaincinv(a, b, 0.5)\n"
     ">>> sc.betainc(a, b, x)\n"
     "0.5")
-ufunc_betaincinv_loops[0] = <np.PyUFuncGenericFunction>loop_d_ddd__As_fff_f
+ufunc_betaincinv_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
 ufunc_betaincinv_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
 ufunc_betaincinv_types[0] = <char>NPY_FLOAT
 ufunc_betaincinv_types[1] = <char>NPY_FLOAT
@@ -4097,9 +4306,9 @@ ufunc_betaincinv_types[4] = <char>NPY_DOUBLE
 ufunc_betaincinv_types[5] = <char>NPY_DOUBLE
 ufunc_betaincinv_types[6] = <char>NPY_DOUBLE
 ufunc_betaincinv_types[7] = <char>NPY_DOUBLE
-ufunc_betaincinv_ptr[2*0] = <void*>_func_incbi
+ufunc_betaincinv_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_ibeta_inv_float
 ufunc_betaincinv_ptr[2*0+1] = <void*>(<char*>"betaincinv")
-ufunc_betaincinv_ptr[2*1] = <void*>_func_incbi
+ufunc_betaincinv_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_ibeta_inv_double
 ufunc_betaincinv_ptr[2*1+1] = <void*>(<char*>"betaincinv")
 ufunc_betaincinv_data[0] = &ufunc_betaincinv_ptr[2*0]
 ufunc_betaincinv_data[1] = &ufunc_betaincinv_ptr[2*1]
@@ -4270,9 +4479,9 @@ ufunc_binom_types[2] = <char>NPY_FLOAT
 ufunc_binom_types[3] = <char>NPY_DOUBLE
 ufunc_binom_types[4] = <char>NPY_DOUBLE
 ufunc_binom_types[5] = <char>NPY_DOUBLE
-ufunc_binom_ptr[2*0] = <void*>_func_binom
+ufunc_binom_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_binom
 ufunc_binom_ptr[2*0+1] = <void*>(<char*>"binom")
-ufunc_binom_ptr[2*1] = <void*>_func_binom
+ufunc_binom_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_binom
 ufunc_binom_ptr[2*1+1] = <void*>(<char*>"binom")
 ufunc_binom_data[0] = &ufunc_binom_ptr[2*0]
 ufunc_binom_data[1] = &ufunc_binom_ptr[2*1]
@@ -4413,6 +4622,10 @@ cdef char *ufunc_btdtr_doc = (
     "\n"
     "where :math:`\\Gamma` is the gamma function.\n"
     "\n"
+    ".. deprecated:: 1.12.0\n"
+    "    This function is deprecated and will be removed from SciPy 1.14.0.\n"
+    "    Use `scipy.special.betainc` instead.\n"
+    "\n"
     "Parameters\n"
     "----------\n"
     "a : array_like\n"
@@ -4477,6 +4690,10 @@ cdef char *ufunc_btdtri_doc = (
     "\n"
     ".. math::\n"
     "    p = \\int_0^x \\frac{\\Gamma(a + b)}{\\Gamma(a)\\Gamma(b)} t^{a-1} (1-t)^{b-1}\\,dt\n"
+    "\n"
+    ".. deprecated:: 1.12.0\n"
+    "    This function is deprecated and will be removed from SciPy 1.14.0.\n"
+    "    Use `scipy.special.betaincinv` instead.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -4593,9 +4810,9 @@ ufunc_btdtria_types[4] = <char>NPY_DOUBLE
 ufunc_btdtria_types[5] = <char>NPY_DOUBLE
 ufunc_btdtria_types[6] = <char>NPY_DOUBLE
 ufunc_btdtria_types[7] = <char>NPY_DOUBLE
-ufunc_btdtria_ptr[2*0] = <void*>_func_cdfbet3_wrap
+ufunc_btdtria_ptr[2*0] = <void*>_func_btdtria
 ufunc_btdtria_ptr[2*0+1] = <void*>(<char*>"btdtria")
-ufunc_btdtria_ptr[2*1] = <void*>_func_cdfbet3_wrap
+ufunc_btdtria_ptr[2*1] = <void*>_func_btdtria
 ufunc_btdtria_ptr[2*1+1] = <void*>(<char*>"btdtria")
 ufunc_btdtria_data[0] = &ufunc_btdtria_ptr[2*0]
 ufunc_btdtria_data[1] = &ufunc_btdtria_ptr[2*1]
@@ -4666,9 +4883,9 @@ ufunc_btdtrib_types[4] = <char>NPY_DOUBLE
 ufunc_btdtrib_types[5] = <char>NPY_DOUBLE
 ufunc_btdtrib_types[6] = <char>NPY_DOUBLE
 ufunc_btdtrib_types[7] = <char>NPY_DOUBLE
-ufunc_btdtrib_ptr[2*0] = <void*>_func_cdfbet4_wrap
+ufunc_btdtrib_ptr[2*0] = <void*>_func_btdtrib
 ufunc_btdtrib_ptr[2*0+1] = <void*>(<char*>"btdtrib")
-ufunc_btdtrib_ptr[2*1] = <void*>_func_cdfbet4_wrap
+ufunc_btdtrib_ptr[2*1] = <void*>_func_btdtrib
 ufunc_btdtrib_ptr[2*1+1] = <void*>(<char*>"btdtrib")
 ufunc_btdtrib_data[0] = &ufunc_btdtrib_ptr[2*0]
 ufunc_btdtrib_data[1] = &ufunc_btdtrib_ptr[2*1]
@@ -4984,9 +5201,9 @@ ufunc_chdtriv_types[2] = <char>NPY_FLOAT
 ufunc_chdtriv_types[3] = <char>NPY_DOUBLE
 ufunc_chdtriv_types[4] = <char>NPY_DOUBLE
 ufunc_chdtriv_types[5] = <char>NPY_DOUBLE
-ufunc_chdtriv_ptr[2*0] = <void*>_func_cdfchi3_wrap
+ufunc_chdtriv_ptr[2*0] = <void*>_func_chdtriv
 ufunc_chdtriv_ptr[2*0+1] = <void*>(<char*>"chdtriv")
-ufunc_chdtriv_ptr[2*1] = <void*>_func_cdfchi3_wrap
+ufunc_chdtriv_ptr[2*1] = <void*>_func_chdtriv
 ufunc_chdtriv_ptr[2*1+1] = <void*>(<char*>"chdtriv")
 ufunc_chdtriv_data[0] = &ufunc_chdtriv_ptr[2*0]
 ufunc_chdtriv_data[1] = &ufunc_chdtriv_ptr[2*1]
@@ -5041,9 +5258,9 @@ ufunc_chndtr_types[4] = <char>NPY_DOUBLE
 ufunc_chndtr_types[5] = <char>NPY_DOUBLE
 ufunc_chndtr_types[6] = <char>NPY_DOUBLE
 ufunc_chndtr_types[7] = <char>NPY_DOUBLE
-ufunc_chndtr_ptr[2*0] = <void*>_func_cdfchn1_wrap
+ufunc_chndtr_ptr[2*0] = <void*>_func_chndtr
 ufunc_chndtr_ptr[2*0+1] = <void*>(<char*>"chndtr")
-ufunc_chndtr_ptr[2*1] = <void*>_func_cdfchn1_wrap
+ufunc_chndtr_ptr[2*1] = <void*>_func_chndtr
 ufunc_chndtr_ptr[2*1+1] = <void*>(<char*>"chndtr")
 ufunc_chndtr_data[0] = &ufunc_chndtr_ptr[2*0]
 ufunc_chndtr_data[1] = &ufunc_chndtr_ptr[2*1]
@@ -5090,9 +5307,9 @@ ufunc_chndtridf_types[4] = <char>NPY_DOUBLE
 ufunc_chndtridf_types[5] = <char>NPY_DOUBLE
 ufunc_chndtridf_types[6] = <char>NPY_DOUBLE
 ufunc_chndtridf_types[7] = <char>NPY_DOUBLE
-ufunc_chndtridf_ptr[2*0] = <void*>_func_cdfchn3_wrap
+ufunc_chndtridf_ptr[2*0] = <void*>_func_chndtridf
 ufunc_chndtridf_ptr[2*0+1] = <void*>(<char*>"chndtridf")
-ufunc_chndtridf_ptr[2*1] = <void*>_func_cdfchn3_wrap
+ufunc_chndtridf_ptr[2*1] = <void*>_func_chndtridf
 ufunc_chndtridf_ptr[2*1+1] = <void*>(<char*>"chndtridf")
 ufunc_chndtridf_data[0] = &ufunc_chndtridf_ptr[2*0]
 ufunc_chndtridf_data[1] = &ufunc_chndtridf_ptr[2*1]
@@ -5139,9 +5356,9 @@ ufunc_chndtrinc_types[4] = <char>NPY_DOUBLE
 ufunc_chndtrinc_types[5] = <char>NPY_DOUBLE
 ufunc_chndtrinc_types[6] = <char>NPY_DOUBLE
 ufunc_chndtrinc_types[7] = <char>NPY_DOUBLE
-ufunc_chndtrinc_ptr[2*0] = <void*>_func_cdfchn4_wrap
+ufunc_chndtrinc_ptr[2*0] = <void*>_func_chndtrinc
 ufunc_chndtrinc_ptr[2*0+1] = <void*>(<char*>"chndtrinc")
-ufunc_chndtrinc_ptr[2*1] = <void*>_func_cdfchn4_wrap
+ufunc_chndtrinc_ptr[2*1] = <void*>_func_chndtrinc
 ufunc_chndtrinc_ptr[2*1+1] = <void*>(<char*>"chndtrinc")
 ufunc_chndtrinc_data[0] = &ufunc_chndtrinc_ptr[2*0]
 ufunc_chndtrinc_data[1] = &ufunc_chndtrinc_ptr[2*1]
@@ -5190,9 +5407,9 @@ ufunc_chndtrix_types[4] = <char>NPY_DOUBLE
 ufunc_chndtrix_types[5] = <char>NPY_DOUBLE
 ufunc_chndtrix_types[6] = <char>NPY_DOUBLE
 ufunc_chndtrix_types[7] = <char>NPY_DOUBLE
-ufunc_chndtrix_ptr[2*0] = <void*>_func_cdfchn2_wrap
+ufunc_chndtrix_ptr[2*0] = <void*>_func_chndtrix
 ufunc_chndtrix_ptr[2*0+1] = <void*>(<char*>"chndtrix")
-ufunc_chndtrix_ptr[2*1] = <void*>_func_cdfchn2_wrap
+ufunc_chndtrix_ptr[2*1] = <void*>_func_chndtrix
 ufunc_chndtrix_ptr[2*1+1] = <void*>(<char*>"chndtrix")
 ufunc_chndtrix_data[0] = &ufunc_chndtrix_ptr[2*0]
 ufunc_chndtrix_data[1] = &ufunc_chndtrix_ptr[2*1]
@@ -5447,6 +5664,15 @@ cdef char *ufunc_ellipe_doc = (
     "E : scalar or ndarray\n"
     "    Value of the elliptic integral.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "ellipkm1 : Complete elliptic integral of the first kind, near `m` = 1\n"
+    "ellipk : Complete elliptic integral of the first kind\n"
+    "ellipkinc : Incomplete elliptic integral of the first kind\n"
+    "ellipeinc : Incomplete elliptic integral of the second kind\n"
+    "elliprd : Symmetric elliptic integral of the second kind.\n"
+    "elliprg : Completely-symmetric elliptic integral of the second kind.\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "Wrapper for the Cephes [1]_ routine `ellpe`.\n"
@@ -5472,15 +5698,6 @@ cdef char *ufunc_ellipe_doc = (
     "functions in multiple ways [3]_. For example,\n"
     "\n"
     ".. math:: E(m) = 2 R_G(0, 1-k^2, 1) .\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "ellipkm1 : Complete elliptic integral of the first kind, near `m` = 1\n"
-    "ellipk : Complete elliptic integral of the first kind\n"
-    "ellipkinc : Incomplete elliptic integral of the first kind\n"
-    "ellipeinc : Incomplete elliptic integral of the second kind\n"
-    "elliprd : Symmetric elliptic integral of the second kind.\n"
-    "elliprg : Completely-symmetric elliptic integral of the second kind.\n"
     "\n"
     "References\n"
     "----------\n"
@@ -5559,6 +5776,16 @@ cdef char *ufunc_ellipeinc_doc = (
     "E : scalar or ndarray\n"
     "    Value of the elliptic integral.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "ellipkm1 : Complete elliptic integral of the first kind, near `m` = 1\n"
+    "ellipk : Complete elliptic integral of the first kind\n"
+    "ellipkinc : Incomplete elliptic integral of the first kind\n"
+    "ellipe : Complete elliptic integral of the second kind\n"
+    "elliprd : Symmetric elliptic integral of the second kind.\n"
+    "elliprf : Completely-symmetric elliptic integral of the first kind.\n"
+    "elliprg : Completely-symmetric elliptic integral of the second kind.\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "Wrapper for the Cephes [1]_ routine `ellie`.\n"
@@ -5578,16 +5805,6 @@ cdef char *ufunc_ellipeinc_doc = (
     ".. math::\n"
     "  E(\\phi, m) = R_F(c-1, c-k^2, c)\n"
     "    - \\frac{1}{3} k^2 R_D(c-1, c-k^2, c) .\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "ellipkm1 : Complete elliptic integral of the first kind, near `m` = 1\n"
-    "ellipk : Complete elliptic integral of the first kind\n"
-    "ellipkinc : Incomplete elliptic integral of the first kind\n"
-    "ellipe : Complete elliptic integral of the second kind\n"
-    "elliprd : Symmetric elliptic integral of the second kind.\n"
-    "elliprf : Completely-symmetric elliptic integral of the first kind.\n"
-    "elliprg : Completely-symmetric elliptic integral of the second kind.\n"
     "\n"
     "References\n"
     "----------\n"
@@ -5646,6 +5863,11 @@ cdef char *ufunc_ellipj_doc = (
     "    The value `ph` is such that if `u = ellipkinc(ph, m)`,\n"
     "    then `sn(u|m) = sin(ph)` and `cn(u|m) = cos(ph)`.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "ellipk : Complete elliptic integral of the first kind\n"
+    "ellipkinc : Incomplete elliptic integral of the first kind\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "Wrapper for the Cephes [1]_ routine `ellpj`.\n"
@@ -5660,11 +5882,6 @@ cdef char *ufunc_ellipj_doc = (
     "Computation is by means of the arithmetic-geometric mean algorithm,\n"
     "except when `m` is within 1e-9 of 0 or 1. In the latter case with `m`\n"
     "close to 1, the approximation applies only for `phi < pi/2`.\n"
-    "\n"
-    "See also\n"
-    "--------\n"
-    "ellipk : Complete elliptic integral of the first kind\n"
-    "ellipkinc : Incomplete elliptic integral of the first kind\n"
     "\n"
     "References\n"
     "----------\n"
@@ -5717,6 +5934,14 @@ cdef char *ufunc_ellipk_doc = (
     "K : scalar or ndarray\n"
     "    Value of the elliptic integral.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "ellipkm1 : Complete elliptic integral of the first kind around m = 1\n"
+    "ellipkinc : Incomplete elliptic integral of the first kind\n"
+    "ellipe : Complete elliptic integral of the second kind\n"
+    "ellipeinc : Incomplete elliptic integral of the second kind\n"
+    "elliprf : Completely-symmetric elliptic integral of the first kind.\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "For more precision around point m = 1, use `ellipkm1`, which this\n"
@@ -5732,14 +5957,6 @@ cdef char *ufunc_ellipk_doc = (
     "function by [2]_:\n"
     "\n"
     ".. math:: K(m) = R_F(0, 1-k^2, 1) .\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "ellipkm1 : Complete elliptic integral of the first kind around m = 1\n"
-    "ellipkinc : Incomplete elliptic integral of the first kind\n"
-    "ellipe : Complete elliptic integral of the second kind\n"
-    "ellipeinc : Incomplete elliptic integral of the second kind\n"
-    "elliprf : Completely-symmetric elliptic integral of the first kind.\n"
     "\n"
     "References\n"
     "----------\n"
@@ -5792,6 +6009,14 @@ cdef char *ufunc_ellipkinc_doc = (
     "K : scalar or ndarray\n"
     "    Value of the elliptic integral\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "ellipkm1 : Complete elliptic integral of the first kind, near `m` = 1\n"
+    "ellipk : Complete elliptic integral of the first kind\n"
+    "ellipe : Complete elliptic integral of the second kind\n"
+    "ellipeinc : Incomplete elliptic integral of the second kind\n"
+    "elliprf : Completely-symmetric elliptic integral of the first kind.\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "Wrapper for the Cephes [1]_ routine `ellik`.  The computation is\n"
@@ -5808,14 +6033,6 @@ cdef char *ufunc_ellipkinc_doc = (
     "Setting :math:`c = \\csc^2\\phi`,\n"
     "\n"
     ".. math:: F(\\phi, m) = R_F(c-1, c-k^2, c) .\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "ellipkm1 : Complete elliptic integral of the first kind, near `m` = 1\n"
-    "ellipk : Complete elliptic integral of the first kind\n"
-    "ellipe : Complete elliptic integral of the second kind\n"
-    "ellipeinc : Incomplete elliptic integral of the second kind\n"
-    "elliprf : Completely-symmetric elliptic integral of the first kind.\n"
     "\n"
     "References\n"
     "----------\n"
@@ -5870,6 +6087,14 @@ cdef char *ufunc_ellipkm1_doc = (
     "K : scalar or ndarray\n"
     "    Value of the elliptic integral.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "ellipk : Complete elliptic integral of the first kind\n"
+    "ellipkinc : Incomplete elliptic integral of the first kind\n"
+    "ellipe : Complete elliptic integral of the second kind\n"
+    "ellipeinc : Incomplete elliptic integral of the second kind\n"
+    "elliprf : Completely-symmetric elliptic integral of the first kind.\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "Wrapper for the Cephes [1]_ routine `ellpk`.\n"
@@ -5886,14 +6111,6 @@ cdef char *ufunc_ellipkm1_doc = (
     ".. math:: K(p) = K(1/p)/\\sqrt(p)\n"
     "\n"
     "is used.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "ellipk : Complete elliptic integral of the first kind\n"
-    "ellipkinc : Incomplete elliptic integral of the first kind\n"
-    "ellipe : Complete elliptic integral of the second kind\n"
-    "ellipeinc : Incomplete elliptic integral of the second kind\n"
-    "elliprf : Completely-symmetric elliptic integral of the first kind.\n"
     "\n"
     "References\n"
     "----------\n"
@@ -5945,6 +6162,13 @@ cdef char *ufunc_elliprc_doc = (
     "    principal value is returned. If both of `x` and `y` are real, the\n"
     "    return value is real. Otherwise, the return value is complex.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "elliprf : Completely-symmetric elliptic integral of the first kind.\n"
+    "elliprd : Symmetric elliptic integral of the second kind.\n"
+    "elliprg : Completely-symmetric elliptic integral of the second kind.\n"
+    "elliprj : Symmetric elliptic integral of the third kind.\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "RC is a degenerate case of the symmetric integral RF: ``elliprc(x, y) ==\n"
@@ -5955,13 +6179,6 @@ cdef char *ufunc_elliprc_doc = (
     "and series expansion up to the 7th order. [2]_\n"
     "\n"
     ".. versionadded:: 1.8.0\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "elliprf : Completely-symmetric elliptic integral of the first kind.\n"
-    "elliprd : Symmetric elliptic integral of the second kind.\n"
-    "elliprg : Completely-symmetric elliptic integral of the second kind.\n"
-    "elliprj : Symmetric elliptic integral of the third kind.\n"
     "\n"
     "References\n"
     "----------\n"
@@ -6091,6 +6308,13 @@ cdef char *ufunc_elliprd_doc = (
     "    Value of the integral. If all of `x`, `y`, and `z` are real, the\n"
     "    return value is real. Otherwise, the return value is complex.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "elliprc : Degenerate symmetric elliptic integral.\n"
+    "elliprf : Completely-symmetric elliptic integral of the first kind.\n"
+    "elliprg : Completely-symmetric elliptic integral of the second kind.\n"
+    "elliprj : Symmetric elliptic integral of the third kind.\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "RD is a degenerate case of the elliptic integral RJ: ``elliprd(x, y, z) ==\n"
@@ -6100,13 +6324,6 @@ cdef char *ufunc_elliprd_doc = (
     "and series expansion up to the 7th order. [2]_\n"
     "\n"
     ".. versionadded:: 1.8.0\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "elliprc : Degenerate symmetric elliptic integral.\n"
-    "elliprf : Completely-symmetric elliptic integral of the first kind.\n"
-    "elliprg : Completely-symmetric elliptic integral of the second kind.\n"
-    "elliprj : Symmetric elliptic integral of the third kind.\n"
     "\n"
     "References\n"
     "----------\n"
@@ -6217,6 +6434,13 @@ cdef char *ufunc_elliprf_doc = (
     "    Value of the integral. If all of `x`, `y`, and `z` are real, the return\n"
     "    value is real. Otherwise, the return value is complex.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "elliprc : Degenerate symmetric integral.\n"
+    "elliprd : Symmetric elliptic integral of the second kind.\n"
+    "elliprg : Completely-symmetric elliptic integral of the second kind.\n"
+    "elliprj : Symmetric elliptic integral of the third kind.\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "The code implements Carlson's algorithm based on the duplication theorems\n"
@@ -6225,13 +6449,6 @@ cdef char *ufunc_elliprf_doc = (
     "integral. [2]_\n"
     "\n"
     ".. versionadded:: 1.8.0\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "elliprc : Degenerate symmetric integral.\n"
-    "elliprd : Symmetric elliptic integral of the second kind.\n"
-    "elliprg : Completely-symmetric elliptic integral of the second kind.\n"
-    "elliprj : Symmetric elliptic integral of the third kind.\n"
     "\n"
     "References\n"
     "----------\n"
@@ -6343,6 +6560,13 @@ cdef char *ufunc_elliprg_doc = (
     "    Value of the integral. If all of `x`, `y`, and `z` are real, the return\n"
     "    value is real. Otherwise, the return value is complex.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "elliprc : Degenerate symmetric integral.\n"
+    "elliprd : Symmetric elliptic integral of the second kind.\n"
+    "elliprf : Completely-symmetric elliptic integral of the first kind.\n"
+    "elliprj : Symmetric elliptic integral of the third kind.\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "The implementation uses the relation [1]_\n"
@@ -6360,13 +6584,6 @@ cdef char *ufunc_elliprg_doc = (
     "[2]_\n"
     "\n"
     ".. versionadded:: 1.8.0\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "elliprc : Degenerate symmetric integral.\n"
-    "elliprd : Symmetric elliptic integral of the second kind.\n"
-    "elliprf : Completely-symmetric elliptic integral of the first kind.\n"
-    "elliprj : Symmetric elliptic integral of the third kind.\n"
     "\n"
     "References\n"
     "----------\n"
@@ -6497,6 +6714,13 @@ cdef char *ufunc_elliprj_doc = (
     "    non-negative, and at most one of them is zero, the Cauchy principal\n"
     "    value is returned. [1]_ [2]_\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "elliprc : Degenerate symmetric integral.\n"
+    "elliprd : Symmetric elliptic integral of the second kind.\n"
+    "elliprf : Completely-symmetric elliptic integral of the first kind.\n"
+    "elliprg : Completely-symmetric elliptic integral of the second kind.\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "The code implements Carlson's algorithm based on the duplication theorems\n"
@@ -6507,7 +6731,7 @@ cdef char *ufunc_elliprj_doc = (
     "widely in the order of magnitude. [5]_\n"
     "\n"
     "The input values are subject to certain sufficient but not necessary\n"
-    "constaints when input arguments are complex. Notably, ``x``, ``y``, and\n"
+    "constraints when input arguments are complex. Notably, ``x``, ``y``, and\n"
     "``z`` must have non-negative real parts, unless two of them are\n"
     "non-negative and complex-conjugates to each other while the other is a real\n"
     "non-negative number. [1]_ If the inputs do not satisfy the sufficient\n"
@@ -6519,13 +6743,6 @@ cdef char *ufunc_elliprj_doc = (
     "domain.\n"
     "\n"
     ".. versionadded:: 1.8.0\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "elliprc : Degenerate symmetric integral.\n"
-    "elliprd : Symmetric elliptic integral of the second kind.\n"
-    "elliprf : Completely-symmetric elliptic integral of the first kind.\n"
-    "elliprg : Completely-symmetric elliptic integral of the second kind.\n"
     "\n"
     "References\n"
     "----------\n"
@@ -6634,7 +6851,8 @@ cdef char *ufunc_entr_doc = (
     "\n"
     "Elementwise function for computing entropy.\n"
     "\n"
-    ".. math:: \\text{entr}(x) = \\begin{cases} - x \\log(x) & x > 0  \\\\ 0 & x = 0 \\\\ -\\infty & \\text{otherwise} \\end{cases}\n"
+    ".. math:: \\text{entr}(x) = \\begin{cases} - x \\log(x) & x > 0  \\\\ 0 & x = 0\n"
+    "          \\\\ -\\infty & \\text{otherwise} \\end{cases}\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -8676,6 +8894,11 @@ cdef char *ufunc_expi_doc = (
     "scalar or ndarray\n"
     "    Values of the exponential integral\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "exp1 : Exponential integral :math:`E_1`\n"
+    "expn : Generalized exponential integral :math:`E_n`\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "The exponential integrals :math:`E_1` and :math:`Ei` satisfy the\n"
@@ -8686,11 +8909,6 @@ cdef char *ufunc_expi_doc = (
     "    E_1(x) = -Ei(-x)\n"
     "\n"
     "for :math:`x > 0`.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "exp1 : Exponential integral :math:`E_1`\n"
-    "expn : Generalized exponential integral :math:`E_n`\n"
     "\n"
     "References\n"
     "----------\n"
@@ -9518,9 +9736,9 @@ ufunc_fdtridfd_types[4] = <char>NPY_DOUBLE
 ufunc_fdtridfd_types[5] = <char>NPY_DOUBLE
 ufunc_fdtridfd_types[6] = <char>NPY_DOUBLE
 ufunc_fdtridfd_types[7] = <char>NPY_DOUBLE
-ufunc_fdtridfd_ptr[2*0] = <void*>_func_cdff4_wrap
+ufunc_fdtridfd_ptr[2*0] = <void*>_func_fdtridfd
 ufunc_fdtridfd_ptr[2*0+1] = <void*>(<char*>"fdtridfd")
-ufunc_fdtridfd_ptr[2*1] = <void*>_func_cdff4_wrap
+ufunc_fdtridfd_ptr[2*1] = <void*>_func_fdtridfd
 ufunc_fdtridfd_ptr[2*1+1] = <void*>(<char*>"fdtridfd")
 ufunc_fdtridfd_data[0] = &ufunc_fdtridfd_ptr[2*0]
 ufunc_fdtridfd_data[1] = &ufunc_fdtridfd_ptr[2*1]
@@ -9713,9 +9931,9 @@ ufunc_gamma_ptr[2*0] = <void*>_func_Gamma
 ufunc_gamma_ptr[2*0+1] = <void*>(<char*>"gamma")
 ufunc_gamma_ptr[2*1] = <void*>_func_Gamma
 ufunc_gamma_ptr[2*1+1] = <void*>(<char*>"gamma")
-ufunc_gamma_ptr[2*2] = <void*>_func_cgamma
+ufunc_gamma_ptr[2*2] = <void*>scipy.special._ufuncs_cxx._export_cgamma
 ufunc_gamma_ptr[2*2+1] = <void*>(<char*>"gamma")
-ufunc_gamma_ptr[2*3] = <void*>_func_cgamma
+ufunc_gamma_ptr[2*3] = <void*>scipy.special._ufuncs_cxx._export_cgamma
 ufunc_gamma_ptr[2*3+1] = <void*>(<char*>"gamma")
 ufunc_gamma_data[0] = &ufunc_gamma_ptr[2*0]
 ufunc_gamma_data[1] = &ufunc_gamma_ptr[2*1]
@@ -9754,6 +9972,12 @@ cdef char *ufunc_gammainc_doc = (
     "scalar or ndarray\n"
     "    Values of the lower incomplete gamma function\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "gammaincc : regularized upper incomplete gamma function\n"
+    "gammaincinv : inverse of the regularized lower incomplete gamma function\n"
+    "gammainccinv : inverse of the regularized upper incomplete gamma function\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "The function satisfies the relation ``gammainc(a, x) +\n"
@@ -9761,12 +9985,6 @@ cdef char *ufunc_gammainc_doc = (
     "incomplete gamma function.\n"
     "\n"
     "The implementation largely follows that of [boost]_.\n"
-    "\n"
-    "See also\n"
-    "--------\n"
-    "gammaincc : regularized upper incomplete gamma function\n"
-    "gammaincinv : inverse of the regularized lower incomplete gamma function\n"
-    "gammainccinv : inverse of the regularized upper incomplete gamma function\n"
     "\n"
     "References\n"
     "----------\n"
@@ -9839,6 +10057,12 @@ cdef char *ufunc_gammaincc_doc = (
     "scalar or ndarray\n"
     "    Values of the upper incomplete gamma function\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "gammainc : regularized lower incomplete gamma function\n"
+    "gammaincinv : inverse of the regularized lower incomplete gamma function\n"
+    "gammainccinv : inverse of the regularized upper incomplete gamma function\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "The function satisfies the relation ``gammainc(a, x) +\n"
@@ -9846,12 +10070,6 @@ cdef char *ufunc_gammaincc_doc = (
     "incomplete gamma function.\n"
     "\n"
     "The implementation largely follows that of [boost]_.\n"
-    "\n"
-    "See also\n"
-    "--------\n"
-    "gammainc : regularized lower incomplete gamma function\n"
-    "gammaincinv : inverse of the regularized lower incomplete gamma function\n"
-    "gammainccinv : inverse of the regularized upper incomplete gamma function\n"
     "\n"
     "References\n"
     "----------\n"
@@ -10165,16 +10383,16 @@ cdef char *ufunc_gammasgn_doc = (
     "scalar or ndarray\n"
     "    Sign of the gamma function\n"
     "\n"
-    "Notes\n"
-    "-----\n"
-    "The gamma function can be computed as ``gammasgn(x) *\n"
-    "np.exp(gammaln(x))``.\n"
-    "\n"
     "See Also\n"
     "--------\n"
     "gamma : the gamma function\n"
     "gammaln : log of the absolute value of the gamma function\n"
     "loggamma : analytic continuation of the log of the gamma function\n"
+    "\n"
+    "Notes\n"
+    "-----\n"
+    "The gamma function can be computed as ``gammasgn(x) *\n"
+    "np.exp(gammaln(x))``.\n"
     "\n"
     "References\n"
     "----------\n"
@@ -10249,16 +10467,16 @@ cdef char *ufunc_gdtr_doc = (
     "out : ndarray, optional\n"
     "    Optional output array for the function values\n"
     "\n"
-    "See also\n"
-    "--------\n"
-    "gdtrc : 1 - CDF of the gamma distribution.\n"
-    "scipy.stats.gamma: Gamma distribution\n"
-    "\n"
     "Returns\n"
     "-------\n"
     "F : scalar or ndarray\n"
     "    The CDF of the gamma distribution with parameters `a` and `b`\n"
     "    evaluated at `x`.\n"
+    "\n"
+    "See Also\n"
+    "--------\n"
+    "gdtrc : 1 - CDF of the gamma distribution.\n"
+    "scipy.stats.gamma: Gamma distribution\n"
     "\n"
     "Notes\n"
     "-----\n"
@@ -10317,7 +10535,7 @@ cdef char *ufunc_gdtr_doc = (
     ">>> for parameter_set in parameters_list:\n"
     "...     a, b, style = parameter_set\n"
     "...     gdtr_vals = gdtr(a, b, x)\n"
-    "...     ax.plot(x, gdtr_vals, label=f\"$a= {a},\\, b={b}$\", ls=style)\n"
+    "...     ax.plot(x, gdtr_vals, label=fr\"$a= {a},\\, b={b}$\", ls=style)\n"
     ">>> ax.legend()\n"
     ">>> ax.set_xlabel(\"$x$\")\n"
     ">>> ax.set_title(\"Gamma distribution cumulative distribution function\")\n"
@@ -10455,7 +10673,7 @@ cdef char *ufunc_gdtrc_doc = (
     ">>> for parameter_set in parameters_list:\n"
     "...     a, b, style = parameter_set\n"
     "...     gdtrc_vals = gdtrc(a, b, x)\n"
-    "...     ax.plot(x, gdtrc_vals, label=f\"$a= {a},\\, b={b}$\", ls=style)\n"
+    "...     ax.plot(x, gdtrc_vals, label=fr\"$a= {a},\\, b={b}$\", ls=style)\n"
     ">>> ax.legend()\n"
     ">>> ax.set_xlabel(\"$x$\")\n"
     ">>> ax.set_title(\"Gamma distribution survival function\")\n"
@@ -10573,9 +10791,9 @@ ufunc_gdtria_types[4] = <char>NPY_DOUBLE
 ufunc_gdtria_types[5] = <char>NPY_DOUBLE
 ufunc_gdtria_types[6] = <char>NPY_DOUBLE
 ufunc_gdtria_types[7] = <char>NPY_DOUBLE
-ufunc_gdtria_ptr[2*0] = <void*>_func_cdfgam4_wrap
+ufunc_gdtria_ptr[2*0] = <void*>_func_gdtria
 ufunc_gdtria_ptr[2*0+1] = <void*>(<char*>"gdtria")
-ufunc_gdtria_ptr[2*1] = <void*>_func_cdfgam4_wrap
+ufunc_gdtria_ptr[2*1] = <void*>_func_gdtria
 ufunc_gdtria_ptr[2*1+1] = <void*>(<char*>"gdtria")
 ufunc_gdtria_data[0] = &ufunc_gdtria_ptr[2*0]
 ufunc_gdtria_data[1] = &ufunc_gdtria_ptr[2*1]
@@ -10661,9 +10879,9 @@ ufunc_gdtrib_types[4] = <char>NPY_DOUBLE
 ufunc_gdtrib_types[5] = <char>NPY_DOUBLE
 ufunc_gdtrib_types[6] = <char>NPY_DOUBLE
 ufunc_gdtrib_types[7] = <char>NPY_DOUBLE
-ufunc_gdtrib_ptr[2*0] = <void*>_func_cdfgam3_wrap
+ufunc_gdtrib_ptr[2*0] = <void*>_func_gdtrib
 ufunc_gdtrib_ptr[2*0+1] = <void*>(<char*>"gdtrib")
-ufunc_gdtrib_ptr[2*1] = <void*>_func_cdfgam3_wrap
+ufunc_gdtrib_ptr[2*1] = <void*>_func_gdtrib
 ufunc_gdtrib_ptr[2*1+1] = <void*>(<char*>"gdtrib")
 ufunc_gdtrib_data[0] = &ufunc_gdtrib_ptr[2*0]
 ufunc_gdtrib_data[1] = &ufunc_gdtrib_ptr[2*1]
@@ -10750,9 +10968,9 @@ ufunc_gdtrix_types[4] = <char>NPY_DOUBLE
 ufunc_gdtrix_types[5] = <char>NPY_DOUBLE
 ufunc_gdtrix_types[6] = <char>NPY_DOUBLE
 ufunc_gdtrix_types[7] = <char>NPY_DOUBLE
-ufunc_gdtrix_ptr[2*0] = <void*>_func_cdfgam2_wrap
+ufunc_gdtrix_ptr[2*0] = <void*>_func_gdtrix
 ufunc_gdtrix_ptr[2*0+1] = <void*>(<char*>"gdtrix")
-ufunc_gdtrix_ptr[2*1] = <void*>_func_cdfgam2_wrap
+ufunc_gdtrix_ptr[2*1] = <void*>_func_gdtrix
 ufunc_gdtrix_ptr[2*1+1] = <void*>(<char*>"gdtrix")
 ufunc_gdtrix_data[0] = &ufunc_gdtrix_ptr[2*0]
 ufunc_gdtrix_data[1] = &ufunc_gdtrix_ptr[2*1]
@@ -10781,12 +10999,18 @@ cdef char *ufunc_hankel1_doc = (
     "scalar or ndarray\n"
     "    Values of the Hankel function of the first kind.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "hankel1e : ndarray\n"
+    "    This function with leading exponential behavior stripped off.\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "A wrapper for the AMOS [1]_ routine `zbesh`, which carries out the\n"
     "computation using the relation,\n"
     "\n"
-    ".. math:: H^{(1)}_v(z) = \\frac{2}{\\imath\\pi} \\exp(-\\imath \\pi v/2) K_v(z \\exp(-\\imath\\pi/2))\n"
+    ".. math:: H^{(1)}_v(z) =\n"
+    "          \\frac{2}{\\imath\\pi} \\exp(-\\imath \\pi v/2) K_v(z \\exp(-\\imath\\pi/2))\n"
     "\n"
     "where :math:`K_v` is the modified Bessel function of the second kind.\n"
     "For negative orders, the relation\n"
@@ -10794,11 +11018,6 @@ cdef char *ufunc_hankel1_doc = (
     ".. math:: H^{(1)}_{-v}(z) = H^{(1)}_v(z) \\exp(\\imath\\pi v)\n"
     "\n"
     "is used.\n"
-    "\n"
-    "See also\n"
-    "--------\n"
-    "hankel1e : ndarray\n"
-    "    This function with leading exponential behavior stripped off.\n"
     "\n"
     "References\n"
     "----------\n"
@@ -10853,7 +11072,8 @@ cdef char *ufunc_hankel1e_doc = (
     "A wrapper for the AMOS [1]_ routine `zbesh`, which carries out the\n"
     "computation using the relation,\n"
     "\n"
-    ".. math:: H^{(1)}_v(z) = \\frac{2}{\\imath\\pi} \\exp(-\\imath \\pi v/2) K_v(z \\exp(-\\imath\\pi/2))\n"
+    ".. math:: H^{(1)}_v(z) =\n"
+    "          \\frac{2}{\\imath\\pi} \\exp(-\\imath \\pi v/2) K_v(z \\exp(-\\imath\\pi/2))\n"
     "\n"
     "where :math:`K_v` is the modified Bessel function of the second kind.\n"
     "For negative orders, the relation\n"
@@ -10906,12 +11126,17 @@ cdef char *ufunc_hankel2_doc = (
     "scalar or ndarray\n"
     "    Values of the Hankel function of the second kind.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "hankel2e : this function with leading exponential behavior stripped off.\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "A wrapper for the AMOS [1]_ routine `zbesh`, which carries out the\n"
     "computation using the relation,\n"
     "\n"
-    ".. math:: H^{(2)}_v(z) = -\\frac{2}{\\imath\\pi} \\exp(\\imath \\pi v/2) K_v(z \\exp(\\imath\\pi/2))\n"
+    ".. math:: H^{(2)}_v(z) =\n"
+    "          -\\frac{2}{\\imath\\pi} \\exp(\\imath \\pi v/2) K_v(z \\exp(\\imath\\pi/2))\n"
     "\n"
     "where :math:`K_v` is the modified Bessel function of the second kind.\n"
     "For negative orders, the relation\n"
@@ -10919,10 +11144,6 @@ cdef char *ufunc_hankel2_doc = (
     ".. math:: H^{(2)}_{-v}(z) = H^{(2)}_v(z) \\exp(-\\imath\\pi v)\n"
     "\n"
     "is used.\n"
-    "\n"
-    "See also\n"
-    "--------\n"
-    "hankel2e : this function with leading exponential behavior stripped off.\n"
     "\n"
     "References\n"
     "----------\n"
@@ -10977,7 +11198,8 @@ cdef char *ufunc_hankel2e_doc = (
     "A wrapper for the AMOS [1]_ routine `zbesh`, which carries out the\n"
     "computation using the relation,\n"
     "\n"
-    ".. math:: H^{(2)}_v(z) = -\\frac{2}{\\imath\\pi} \\exp(\\frac{\\imath \\pi v}{2}) K_v(z exp(\\frac{\\imath\\pi}{2}))\n"
+    ".. math:: H^{(2)}_v(z) = -\\frac{2}{\\imath\\pi}\n"
+    "          \\exp(\\frac{\\imath \\pi v}{2}) K_v(z exp(\\frac{\\imath\\pi}{2}))\n"
     "\n"
     "where :math:`K_v` is the modified Bessel function of the second kind.\n"
     "For negative orders, the relation\n"
@@ -11016,7 +11238,9 @@ cdef char *ufunc_huber_doc = (
     "\n"
     "Huber loss function.\n"
     "\n"
-    ".. math:: \\text{huber}(\\delta, r) = \\begin{cases} \\infty & \\delta < 0  \\\\ \\frac{1}{2}r^2 & 0 \\le \\delta, | r | \\le \\delta \\\\ \\delta ( |r| - \\frac{1}{2}\\delta ) & \\text{otherwise} \\end{cases}\n"
+    ".. math:: \\text{huber}(\\delta, r) = \\begin{cases} \\infty & \\delta < 0  \\\\\n"
+    "          \\frac{1}{2}r^2 & 0 \\le \\delta, | r | \\le \\delta \\\\\n"
+    "          \\delta ( |r| - \\frac{1}{2}\\delta ) & \\text{otherwise} \\end{cases}\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -11032,7 +11256,7 @@ cdef char *ufunc_huber_doc = (
     "scalar or ndarray\n"
     "    The computed Huber loss function values.\n"
     "\n"
-    "See also\n"
+    "See Also\n"
     "--------\n"
     "pseudo_huber : smooth approximation of this function\n"
     "\n"
@@ -11107,10 +11331,10 @@ cdef char *ufunc_huber_doc = (
     ">>> fig, ax = plt.subplots()\n"
     ">>> combined_plot_parameters = list(zip(deltas, linestyles))\n"
     ">>> for delta, style in combined_plot_parameters:\n"
-    "...     ax.plot(x, huber(delta, x), label=f\"$\\delta={delta}$\", ls=style)\n"
+    "...     ax.plot(x, huber(delta, x), label=fr\"$\\delta={delta}$\", ls=style)\n"
     ">>> ax.legend(loc=\"upper center\")\n"
     ">>> ax.set_xlabel(\"$x$\")\n"
-    ">>> ax.set_title(\"Huber loss function $h_{\\delta}(x)$\")\n"
+    ">>> ax.set_title(r\"Huber loss function $h_{\\delta}(x)$\")\n"
     ">>> ax.set_xlim(-4, 4)\n"
     ">>> ax.set_ylim(0, 8)\n"
     ">>> plt.show()")
@@ -11259,7 +11483,7 @@ cdef char *ufunc_hyp1f1_doc = (
     "scalar or ndarray\n"
     "    Values of the confluent hypergeometric function\n"
     "\n"
-    "See also\n"
+    "See Also\n"
     "--------\n"
     "hyperu : another confluent hypergeometric function\n"
     "hyp0f1 : confluent hypergeometric limit function\n"
@@ -11356,7 +11580,7 @@ cdef char *ufunc_hyp2f1_doc = (
     "hyp2f1 : scalar or ndarray\n"
     "    The values of the gaussian hypergeometric function.\n"
     "\n"
-    "See also\n"
+    "See Also\n"
     "--------\n"
     "hyp0f1 : confluent hypergeometric limit function.\n"
     "hyp1f1 : Kummer's (confluent hypergeometric) function.\n"
@@ -11592,17 +11816,17 @@ cdef char *ufunc_i0_doc = (
     "I : scalar or ndarray\n"
     "    Value of the modified Bessel function of order 0 at `x`.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "iv: Modified Bessel function of any order\n"
+    "i0e: Exponentially scaled modified Bessel function of order 0\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "The range is partitioned into the two intervals [0, 8] and (8, infinity).\n"
     "Chebyshev polynomial expansions are employed in each interval.\n"
     "\n"
     "This function is a wrapper for the Cephes [1]_ routine `i0`.\n"
-    "\n"
-    "See also\n"
-    "--------\n"
-    "iv: Modified Bessel function of any order\n"
-    "i0e: Exponentially scaled modified Bessel function of order 0\n"
     "\n"
     "References\n"
     "----------\n"
@@ -11671,6 +11895,11 @@ cdef char *ufunc_i0e_doc = (
     "    Value of the exponentially scaled modified Bessel function of order 0\n"
     "    at `x`.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "iv: Modified Bessel function of the first kind\n"
+    "i0: Modified Bessel function of order 0\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "The range is partitioned into the two intervals [0, 8] and (8, infinity).\n"
@@ -11680,11 +11909,6 @@ cdef char *ufunc_i0e_doc = (
     "\n"
     "This function is a wrapper for the Cephes [1]_ routine `i0e`. `i0e`\n"
     "is useful for large arguments `x`: for these, `i0` quickly overflows.\n"
-    "\n"
-    "See also\n"
-    "--------\n"
-    "iv: Modified Bessel function of the first kind\n"
-    "i0: Modified Bessel function of order 0\n"
     "\n"
     "References\n"
     "----------\n"
@@ -11758,17 +11982,17 @@ cdef char *ufunc_i1_doc = (
     "I : scalar or ndarray\n"
     "    Value of the modified Bessel function of order 1 at `x`.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "iv: Modified Bessel function of the first kind\n"
+    "i1e: Exponentially scaled modified Bessel function of order 1\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "The range is partitioned into the two intervals [0, 8] and (8, infinity).\n"
     "Chebyshev polynomial expansions are employed in each interval.\n"
     "\n"
     "This function is a wrapper for the Cephes [1]_ routine `i1`.\n"
-    "\n"
-    "See also\n"
-    "--------\n"
-    "iv: Modified Bessel function of the first kind\n"
-    "i1e: Exponentially scaled modified Bessel function of order 1\n"
     "\n"
     "References\n"
     "----------\n"
@@ -11837,6 +12061,11 @@ cdef char *ufunc_i1e_doc = (
     "    Value of the exponentially scaled modified Bessel function of order 1\n"
     "    at `x`.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "iv: Modified Bessel function of the first kind\n"
+    "i1: Modified Bessel function of order 1\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "The range is partitioned into the two intervals [0, 8] and (8, infinity).\n"
@@ -11846,11 +12075,6 @@ cdef char *ufunc_i1e_doc = (
     "\n"
     "This function is a wrapper for the Cephes [1]_ routine `i1e`. `i1e`\n"
     "is useful for large arguments `x`: for these, `i1` quickly overflows.\n"
-    "\n"
-    "See also\n"
-    "--------\n"
-    "iv: Modified Bessel function of the first kind\n"
-    "i1: Modified Bessel function of order 1\n"
     "\n"
     "References\n"
     "----------\n"
@@ -12195,7 +12419,7 @@ cdef char *ufunc_it2struve0_doc = (
     "I : scalar or ndarray\n"
     "    The value of the integral.\n"
     "\n"
-    "See also\n"
+    "See Also\n"
     "--------\n"
     "struve\n"
     "\n"
@@ -12322,10 +12546,10 @@ cdef char *ufunc_itairy_doc = (
     ">>> x = np.linspace(-10, 10, 500)\n"
     ">>> apt, bpt, ant, bnt = itairy(x)\n"
     ">>> fig, ax = plt.subplots(figsize=(6, 5))\n"
-    ">>> ax.plot(x, apt, label=\"$\\int_0^x\\, Ai(t)\\, dt$\")\n"
-    ">>> ax.plot(x, bpt, ls=\"dashed\", label=\"$\\int_0^x\\, Bi(t)\\, dt$\")\n"
-    ">>> ax.plot(x, ant, ls=\"dashdot\", label=\"$\\int_0^x\\, Ai(-t)\\, dt$\")\n"
-    ">>> ax.plot(x, bnt, ls=\"dotted\", label=\"$\\int_0^x\\, Bi(-t)\\, dt$\")\n"
+    ">>> ax.plot(x, apt, label=r\"$\\int_0^x\\, Ai(t)\\, dt$\")\n"
+    ">>> ax.plot(x, bpt, ls=\"dashed\", label=r\"$\\int_0^x\\, Bi(t)\\, dt$\")\n"
+    ">>> ax.plot(x, ant, ls=\"dashdot\", label=r\"$\\int_0^x\\, Ai(-t)\\, dt$\")\n"
+    ">>> ax.plot(x, bnt, ls=\"dotted\", label=r\"$\\int_0^x\\, Bi(-t)\\, dt$\")\n"
     ">>> ax.set_ylim(-2, 1.5)\n"
     ">>> ax.legend(loc=\"lower right\")\n"
     ">>> plt.show()")
@@ -12410,8 +12634,8 @@ cdef char *ufunc_iti0k0_doc = (
     ">>> fig, ax = plt.subplots()\n"
     ">>> x = np.linspace(0., 5., 1000)\n"
     ">>> int_i, int_k = iti0k0(x)\n"
-    ">>> ax.plot(x, int_i, label=\"$\\int_0^x I_0(t)\\,dt$\")\n"
-    ">>> ax.plot(x, int_k, label=\"$\\int_0^x K_0(t)\\,dt$\")\n"
+    ">>> ax.plot(x, int_i, label=r\"$\\int_0^x I_0(t)\\,dt$\")\n"
+    ">>> ax.plot(x, int_k, label=r\"$\\int_0^x K_0(t)\\,dt$\")\n"
     ">>> ax.legend()\n"
     ">>> plt.show()")
 ufunc_iti0k0_loops[0] = <np.PyUFuncGenericFunction>loop_i_d_dd_As_f_ff
@@ -12491,8 +12715,8 @@ cdef char *ufunc_itj0y0_doc = (
     ">>> fig, ax = plt.subplots()\n"
     ">>> x = np.linspace(0., 10., 1000)\n"
     ">>> int_j, int_y = itj0y0(x)\n"
-    ">>> ax.plot(x, int_j, label=\"$\\int_0^x J_0(t)\\,dt$\")\n"
-    ">>> ax.plot(x, int_y, label=\"$\\int_0^x Y_0(t)\\,dt$\")\n"
+    ">>> ax.plot(x, int_j, label=r\"$\\int_0^x J_0(t)\\,dt$\")\n"
+    ">>> ax.plot(x, int_y, label=r\"$\\int_0^x Y_0(t)\\,dt$\")\n"
     ">>> ax.legend()\n"
     ">>> plt.show()")
 ufunc_itj0y0_loops[0] = <np.PyUFuncGenericFunction>loop_i_d_dd_As_f_ff
@@ -12535,14 +12759,14 @@ cdef char *ufunc_itmodstruve0_doc = (
     "I : scalar or ndarray\n"
     "    The integral of :math:`L_0` from 0 to `x`.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "modstruve: Modified Struve function which is integrated by this function\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "Wrapper for a Fortran routine created by Shanjie Zhang and Jianming\n"
     "Jin [1]_.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "modstruve: Modified Struve function which is integrated by this function\n"
     "\n"
     "References\n"
     "----------\n"
@@ -12614,7 +12838,7 @@ cdef char *ufunc_itstruve0_doc = (
     "I : scalar or ndarray\n"
     "    The integral of :math:`H_0` from 0 to `x`.\n"
     "\n"
-    "See also\n"
+    "See Also\n"
     "--------\n"
     "struve: Function which is integrated by this function\n"
     "\n"
@@ -12693,6 +12917,12 @@ cdef char *ufunc_iv_doc = (
     "scalar or ndarray\n"
     "    Values of the modified Bessel function.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "ive : This function with leading exponential behavior stripped off.\n"
+    "i0 : Faster version of this function for order 0.\n"
+    "i1 : Faster version of this function for order 1.\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "For real `z` and :math:`v \\in [-50, 50]`, the evaluation is carried out\n"
@@ -12719,12 +12949,6 @@ cdef char *ufunc_iv_doc = (
     "\n"
     "is used, where :math:`K_v(z)` is the modified Bessel function of the\n"
     "second kind, evaluated using the AMOS routine `zbesk`.\n"
-    "\n"
-    "See also\n"
-    "--------\n"
-    "ive : This function with leading exponential behavior stripped off.\n"
-    "i0 : Faster version of this function for order 0.\n"
-    "i1 : Faster version of this function for order 1.\n"
     "\n"
     "References\n"
     "----------\n"
@@ -12841,6 +13065,12 @@ cdef char *ufunc_ive_doc = (
     "scalar or ndarray\n"
     "    Values of the exponentially scaled modified Bessel function.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "iv: Modified Bessel function of the first kind\n"
+    "i0e: Faster implementation of this function for order 0\n"
+    "i1e: Faster implementation of this function for order 1\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "For positive `v`, the AMOS [1]_ `zbesi` routine is called. It uses a\n"
@@ -12866,12 +13096,6 @@ cdef char *ufunc_ive_doc = (
     "\n"
     "`ive` is useful for large arguments `z`: for these, `iv` easily overflows,\n"
     "while `ive` does not due to the exponential scaling.\n"
-    "\n"
-    "See also\n"
-    "--------\n"
-    "iv: Modified Bessel function of the first kind\n"
-    "i0e: Faster implementation of this function for order 0\n"
-    "i1e: Faster implementation of this function for order 1\n"
     "\n"
     "References\n"
     "----------\n"
@@ -12918,7 +13142,7 @@ cdef char *ufunc_ive_doc = (
     ">>> fig, ax = plt.subplots()\n"
     ">>> x = np.linspace(-5., 5., 1000)\n"
     ">>> for i in range(4):\n"
-    "...     ax.plot(x, ive(i, x), label=f'$I_{i!r}(z)\\cdot e^{{-|z|}}$')\n"
+    "...     ax.plot(x, ive(i, x), label=fr'$I_{i!r}(z)\\cdot e^{{-|z|}}$')\n"
     ">>> ax.legend()\n"
     ">>> ax.set_xlabel(r\"$z$\")\n"
     ">>> plt.show()")
@@ -12973,6 +13197,11 @@ cdef char *ufunc_j0_doc = (
     "J : scalar or ndarray\n"
     "    Value of the Bessel function of the first kind of order 0 at `x`.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "jv : Bessel function of real order and complex argument.\n"
+    "spherical_jn : spherical Bessel functions.\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "The domain is divided into the intervals [0, 5] and (5, infinity). In the\n"
@@ -12992,11 +13221,6 @@ cdef char *ufunc_j0_doc = (
     "This function is a wrapper for the Cephes [1]_ routine `j0`.\n"
     "It should not be confused with the spherical Bessel functions (see\n"
     "`spherical_jn`).\n"
-    "\n"
-    "See also\n"
-    "--------\n"
-    "jv : Bessel function of real order and complex argument.\n"
-    "spherical_jn : spherical Bessel functions.\n"
     "\n"
     "References\n"
     "----------\n"
@@ -13060,6 +13284,11 @@ cdef char *ufunc_j1_doc = (
     "J : scalar or ndarray\n"
     "    Value of the Bessel function of the first kind of order 1 at `x`.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "jv: Bessel function of the first kind\n"
+    "spherical_jn: spherical Bessel functions.\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "The domain is divided into the intervals [0, 8] and (8, infinity). In the\n"
@@ -13070,11 +13299,6 @@ cdef char *ufunc_j1_doc = (
     "This function is a wrapper for the Cephes [1]_ routine `j1`.\n"
     "It should not be confused with the spherical Bessel functions (see\n"
     "`spherical_jn`).\n"
-    "\n"
-    "See also\n"
-    "--------\n"
-    "jv: Bessel function of the first kind\n"
-    "spherical_jn: spherical Bessel functions.\n"
     "\n"
     "References\n"
     "----------\n"
@@ -13140,7 +13364,7 @@ cdef char *ufunc_jv_doc = (
     "J : scalar or ndarray\n"
     "    Value of the Bessel function, :math:`J_v(z)`.\n"
     "\n"
-    "See also\n"
+    "See Also\n"
     "--------\n"
     "jve : :math:`J_v` with leading exponential behavior stripped off.\n"
     "spherical_jn : spherical Bessel functions.\n"
@@ -13280,7 +13504,7 @@ cdef char *ufunc_jve_doc = (
     "J : scalar or ndarray\n"
     "    Value of the exponentially scaled Bessel function.\n"
     "\n"
-    "See also\n"
+    "See Also\n"
     "--------\n"
     "jv: Unscaled Bessel function of the first kind\n"
     "\n"
@@ -13415,17 +13639,17 @@ cdef char *ufunc_k0_doc = (
     "K : scalar or ndarray\n"
     "    Value of the modified Bessel function :math:`K_0` at `x`.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "kv: Modified Bessel function of the second kind of any order\n"
+    "k0e: Exponentially scaled modified Bessel function of the second kind\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "The range is partitioned into the two intervals [0, 2] and (2, infinity).\n"
     "Chebyshev polynomial expansions are employed in each interval.\n"
     "\n"
     "This function is a wrapper for the Cephes [1]_ routine `k0`.\n"
-    "\n"
-    "See also\n"
-    "--------\n"
-    "kv: Modified Bessel function of the second kind of any order\n"
-    "k0e: Exponentially scaled modified Bessel function of the second kind\n"
     "\n"
     "References\n"
     "----------\n"
@@ -13494,6 +13718,11 @@ cdef char *ufunc_k0e_doc = (
     "    Value of the exponentially scaled modified Bessel function K of order\n"
     "    0 at `x`.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "kv: Modified Bessel function of the second kind of any order\n"
+    "k0: Modified Bessel function of the second kind\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "The range is partitioned into the two intervals [0, 2] and (2, infinity).\n"
@@ -13501,11 +13730,6 @@ cdef char *ufunc_k0e_doc = (
     "\n"
     "This function is a wrapper for the Cephes [1]_ routine `k0e`. `k0e` is\n"
     "useful for large arguments: for these, `k0` easily underflows.\n"
-    "\n"
-    "See also\n"
-    "--------\n"
-    "kv: Modified Bessel function of the second kind of any order\n"
-    "k0: Modified Bessel function of the second kind\n"
     "\n"
     "References\n"
     "----------\n"
@@ -13571,17 +13795,17 @@ cdef char *ufunc_k1_doc = (
     "K : scalar or ndarray\n"
     "    Value of the modified Bessel function K of order 1 at `x`.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "kv: Modified Bessel function of the second kind of any order\n"
+    "k1e: Exponentially scaled modified Bessel function K of order 1\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "The range is partitioned into the two intervals [0, 2] and (2, infinity).\n"
     "Chebyshev polynomial expansions are employed in each interval.\n"
     "\n"
     "This function is a wrapper for the Cephes [1]_ routine `k1`.\n"
-    "\n"
-    "See also\n"
-    "--------\n"
-    "kv: Modified Bessel function of the second kind of any order\n"
-    "k1e: Exponentially scaled modified Bessel function K of order 1\n"
     "\n"
     "References\n"
     "----------\n"
@@ -13650,17 +13874,17 @@ cdef char *ufunc_k1e_doc = (
     "    Value of the exponentially scaled modified Bessel function K of order\n"
     "    1 at `x`.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "kv: Modified Bessel function of the second kind of any order\n"
+    "k1: Modified Bessel function of the second kind of order 1\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "The range is partitioned into the two intervals [0, 2] and (2, infinity).\n"
     "Chebyshev polynomial expansions are employed in each interval.\n"
     "\n"
     "This function is a wrapper for the Cephes [1]_ routine `k1e`.\n"
-    "\n"
-    "See also\n"
-    "--------\n"
-    "kv: Modified Bessel function of the second kind of any order\n"
-    "k1: Modified Bessel function of the second kind of order 1\n"
     "\n"
     "References\n"
     "----------\n"
@@ -14066,15 +14290,15 @@ cdef char *ufunc_kn_doc = (
     "    Value of the Modified Bessel function of the second kind,\n"
     "    :math:`K_n(x)`.\n"
     "\n"
-    "Notes\n"
-    "-----\n"
-    "Wrapper for AMOS [1]_ routine `zbesk`.  For a discussion of the\n"
-    "algorithm used, see [2]_ and the references therein.\n"
-    "\n"
     "See Also\n"
     "--------\n"
     "kv : Same function, but accepts real order and complex argument\n"
     "kvp : Derivative of this function\n"
+    "\n"
+    "Notes\n"
+    "-----\n"
+    "Wrapper for AMOS [1]_ routine `zbesk`.  For a discussion of the\n"
+    "algorithm used, see [2]_ and the references therein.\n"
     "\n"
     "References\n"
     "----------\n"
@@ -14151,19 +14375,19 @@ cdef char *ufunc_kolmogi_doc = (
     "scalar or ndarray\n"
     "    The value(s) of kolmogi(p)\n"
     "\n"
-    "Notes\n"
-    "-----\n"
-    "`kolmogorov` is used by `stats.kstest` in the application of the\n"
-    "Kolmogorov-Smirnov Goodness of Fit test. For historial reasons this\n"
-    "function is exposed in `scpy.special`, but the recommended way to achieve\n"
-    "the most accurate CDF/SF/PDF/PPF/ISF computations is to use the\n"
-    "`stats.kstwobign` distribution.\n"
-    "\n"
     "See Also\n"
     "--------\n"
     "kolmogorov : The Survival Function for the distribution\n"
     "scipy.stats.kstwobign : Provides the functionality as a continuous distribution\n"
     "smirnov, smirnovi : Functions for the one-sided distribution\n"
+    "\n"
+    "Notes\n"
+    "-----\n"
+    "`kolmogorov` is used by `stats.kstest` in the application of the\n"
+    "Kolmogorov-Smirnov Goodness of Fit test. For historical reasons this\n"
+    "function is exposed in `scpy.special`, but the recommended way to achieve\n"
+    "the most accurate CDF/SF/PDF/PPF/ISF computations is to use the\n"
+    "`stats.kstwobign` distribution.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -14214,19 +14438,19 @@ cdef char *ufunc_kolmogorov_doc = (
     "scalar or ndarray\n"
     "    The value(s) of kolmogorov(y)\n"
     "\n"
-    "Notes\n"
-    "-----\n"
-    "`kolmogorov` is used by `stats.kstest` in the application of the\n"
-    "Kolmogorov-Smirnov Goodness of Fit test. For historial reasons this\n"
-    "function is exposed in `scpy.special`, but the recommended way to achieve\n"
-    "the most accurate CDF/SF/PDF/PPF/ISF computations is to use the\n"
-    "`stats.kstwobign` distribution.\n"
-    "\n"
     "See Also\n"
     "--------\n"
     "kolmogi : The Inverse Survival Function for the distribution\n"
     "scipy.stats.kstwobign : Provides the functionality as a continuous distribution\n"
     "smirnov, smirnovi : Functions for the one-sided distribution\n"
+    "\n"
+    "Notes\n"
+    "-----\n"
+    "`kolmogorov` is used by `stats.kstest` in the application of the\n"
+    "Kolmogorov-Smirnov Goodness of Fit test. For historical reasons this\n"
+    "function is exposed in `scpy.special`, but the recommended way to achieve\n"
+    "the most accurate CDF/SF/PDF/PPF/ISF computations is to use the\n"
+    "`stats.kstwobign` distribution.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -14260,8 +14484,10 @@ cdef char *ufunc_kolmogorov_doc = (
     ">>> print('Dn=%f, sqrt(n)*Dn=%f' % (Dn, Kn))\n"
     "Dn=0.043363, sqrt(n)*Dn=1.371265\n"
     ">>> print(chr(10).join(['For a sample of size n drawn from a N(0, 1) distribution:',\n"
-    "...   ' the approximate Kolmogorov probability that sqrt(n)*Dn>=%f is %f' %  (Kn, kolmogorov(Kn)),\n"
-    "...   ' the approximate Kolmogorov probability that sqrt(n)*Dn<=%f is %f' %  (Kn, kstwobign.cdf(Kn))]))\n"
+    "...   ' the approximate Kolmogorov probability that sqrt(n)*Dn>=%f is %f' %\n"
+    "...    (Kn, kolmogorov(Kn)),\n"
+    "...   ' the approximate Kolmogorov probability that sqrt(n)*Dn<=%f is %f' %\n"
+    "...    (Kn, kstwobign.cdf(Kn))]))\n"
     "For a sample of size n drawn from a N(0, 1) distribution:\n"
     " the approximate Kolmogorov probability that sqrt(n)*Dn>=1.371265 is 0.046533\n"
     " the approximate Kolmogorov probability that sqrt(n)*Dn<=1.371265 is 0.953467\n"
@@ -14275,8 +14501,10 @@ cdef char *ufunc_kolmogorov_doc = (
     ">>> plt.ylim([0, 1]); plt.grid(True); plt.legend();\n"
     ">>> # Add vertical lines marking Dn+ and Dn-\n"
     ">>> iminus, iplus = np.argmax(gaps, axis=0)\n"
-    ">>> plt.vlines([x[iminus]], ecdfs[iminus], cdfs[iminus], color='r', linestyle='dashed', lw=4)\n"
-    ">>> plt.vlines([x[iplus]], cdfs[iplus], ecdfs[iplus+1], color='r', linestyle='dashed', lw=4)\n"
+    ">>> plt.vlines([x[iminus]], ecdfs[iminus], cdfs[iminus],\n"
+    "...            color='r', linestyle='dashed', lw=4)\n"
+    ">>> plt.vlines([x[iplus]], cdfs[iplus], ecdfs[iplus+1],\n"
+    "...            color='r', linestyle='dashed', lw=4)\n"
     ">>> plt.show()")
 ufunc_kolmogorov_loops[0] = <np.PyUFuncGenericFunction>loop_d_d__As_f_f
 ufunc_kolmogorov_loops[1] = <np.PyUFuncGenericFunction>loop_d_d__As_d_d
@@ -14328,15 +14556,15 @@ cdef char *ufunc_kv_doc = (
     "    The results. Note that input must be of complex type to get complex\n"
     "    output, e.g. ``kv(3, -2+0j)`` instead of ``kv(3, -2)``.\n"
     "\n"
-    "Notes\n"
-    "-----\n"
-    "Wrapper for AMOS [1]_ routine `zbesk`.  For a discussion of the\n"
-    "algorithm used, see [2]_ and the references therein.\n"
-    "\n"
     "See Also\n"
     "--------\n"
     "kve : This function with leading exponential behavior stripped off.\n"
     "kvp : Derivative of this function\n"
+    "\n"
+    "Notes\n"
+    "-----\n"
+    "Wrapper for AMOS [1]_ routine `zbesk`.  For a discussion of the\n"
+    "algorithm used, see [2]_ and the references therein.\n"
     "\n"
     "References\n"
     "----------\n"
@@ -14427,16 +14655,16 @@ cdef char *ufunc_kve_doc = (
     "scalar or ndarray\n"
     "    The exponentially scaled modified Bessel function of the second kind.\n"
     "\n"
-    "Notes\n"
-    "-----\n"
-    "Wrapper for AMOS [1]_ routine `zbesk`.  For a discussion of the\n"
-    "algorithm used, see [2]_ and the references therein.\n"
-    "\n"
     "See Also\n"
     "--------\n"
     "kv : This function without exponential scaling.\n"
     "k0e : Faster version of this function for order 0.\n"
     "k1e : Faster version of this function for order 1.\n"
+    "\n"
+    "Notes\n"
+    "-----\n"
+    "Wrapper for AMOS [1]_ routine `zbesk`.  For a discussion of the\n"
+    "algorithm used, see [2]_ and the references therein.\n"
     "\n"
     "References\n"
     "----------\n"
@@ -14486,7 +14714,7 @@ cdef char *ufunc_kve_doc = (
     ">>> fig, ax = plt.subplots()\n"
     ">>> x = np.linspace(0., 5., 1000)\n"
     ">>> for i in range(4):\n"
-    "...     ax.plot(x, kve(i, x), label=f'$K_{i!r}(z)\\cdot e^z$')\n"
+    "...     ax.plot(x, kve(i, x), label=fr'$K_{i!r}(z)\\cdot e^z$')\n"
     ">>> ax.legend()\n"
     ">>> ax.set_xlabel(r\"$z$\")\n"
     ">>> ax.set_ylim(0, 4)\n"
@@ -14781,6 +15009,11 @@ cdef char *ufunc_loggamma_doc = (
     "loggamma : scalar or ndarray\n"
     "    Values of ``loggamma`` at z.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "gammaln : logarithm of the absolute value of the gamma function\n"
+    "gammasgn : sign of the gamma function\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "It is not generally true that :math:`\\log\\Gamma(z) =\n"
@@ -14804,11 +15037,6 @@ cdef char *ufunc_loggamma_doc = (
     "\n"
     "The implementation here is based on [hare1997]_.\n"
     "\n"
-    "See also\n"
-    "--------\n"
-    "gammaln : logarithm of the absolute value of the gamma function\n"
-    "gammasgn : sign of the gamma function\n"
-    "\n"
     "References\n"
     "----------\n"
     ".. [hare1997] D.E.G. Hare,\n"
@@ -14826,13 +15054,13 @@ ufunc_loggamma_types[4] = <char>NPY_CFLOAT
 ufunc_loggamma_types[5] = <char>NPY_CFLOAT
 ufunc_loggamma_types[6] = <char>NPY_CDOUBLE
 ufunc_loggamma_types[7] = <char>NPY_CDOUBLE
-ufunc_loggamma_ptr[2*0] = <void*>_func_loggamma_real
+ufunc_loggamma_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_loggamma_real
 ufunc_loggamma_ptr[2*0+1] = <void*>(<char*>"loggamma")
-ufunc_loggamma_ptr[2*1] = <void*>_func_loggamma_real
+ufunc_loggamma_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_loggamma_real
 ufunc_loggamma_ptr[2*1+1] = <void*>(<char*>"loggamma")
-ufunc_loggamma_ptr[2*2] = <void*>_func_loggamma
+ufunc_loggamma_ptr[2*2] = <void*>scipy.special._ufuncs_cxx._export_loggamma
 ufunc_loggamma_ptr[2*2+1] = <void*>(<char*>"loggamma")
-ufunc_loggamma_ptr[2*3] = <void*>_func_loggamma
+ufunc_loggamma_ptr[2*3] = <void*>scipy.special._ufuncs_cxx._export_loggamma
 ufunc_loggamma_ptr[2*3+1] = <void*>(<char*>"loggamma")
 ufunc_loggamma_data[0] = &ufunc_loggamma_ptr[2*0]
 ufunc_loggamma_data[1] = &ufunc_loggamma_ptr[2*1]
@@ -15523,6 +15751,10 @@ cdef char *ufunc_modstruve_doc = (
     "L : scalar or ndarray\n"
     "    Value of the modified Struve function of order `v` at `x`.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "struve\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "Three methods discussed in [1]_ are used to evaluate the function:\n"
@@ -15533,10 +15765,6 @@ cdef char *ufunc_modstruve_doc = (
     "\n"
     "Rounding errors are estimated based on the largest terms in the sums, and\n"
     "the result associated with the smallest error is returned.\n"
-    "\n"
-    "See also\n"
-    "--------\n"
-    "struve\n"
     "\n"
     "References\n"
     "----------\n"
@@ -15642,7 +15870,7 @@ cdef char *ufunc_nbdtr_doc = (
     "    The probability of `k` or fewer failures before `n` successes in a\n"
     "    sequence of events with individual success probability `p`.\n"
     "\n"
-    "See also\n"
+    "See Also\n"
     "--------\n"
     "nbdtrc : Negative binomial survival function\n"
     "nbdtrik : Negative binomial quantile function\n"
@@ -15795,7 +16023,7 @@ cdef char *ufunc_nbdtrc_doc = (
     "    The probability of `k + 1` or more failures before `n` successes in a\n"
     "    sequence of events with individual success probability `p`.\n"
     "\n"
-    "See also\n"
+    "See Also\n"
     "--------\n"
     "nbdtr : Negative binomial cumulative distribution function\n"
     "nbdtrik : Negative binomial percentile function\n"
@@ -15939,7 +16167,7 @@ cdef char *ufunc_nbdtri_doc = (
     "    Probability of success in a single event (float) such that\n"
     "    `nbdtr(k, n, p) = y`.\n"
     "\n"
-    "See also\n"
+    "See Also\n"
     "--------\n"
     "nbdtr : Cumulative distribution function of the negative binomial.\n"
     "nbdtrc : Negative binomial survival function.\n"
@@ -16071,7 +16299,7 @@ cdef char *ufunc_nbdtrik_doc = (
     "k : scalar or ndarray\n"
     "    The maximum number of allowed failures such that `nbdtr(k, n, p) = y`.\n"
     "\n"
-    "See also\n"
+    "See Also\n"
     "--------\n"
     "nbdtr : Cumulative distribution function of the negative binomial.\n"
     "nbdtrc : Survival function of the negative binomial.\n"
@@ -16086,7 +16314,8 @@ cdef char *ufunc_nbdtrik_doc = (
     "Formula 26.5.26 of [2]_,\n"
     "\n"
     ".. math::\n"
-    "    \\sum_{j=k + 1}^\\infty {{n + j - 1}\\choose{j}} p^n (1 - p)^j = I_{1 - p}(k + 1, n),\n"
+    "    \\sum_{j=k + 1}^\\infty {{n + j - 1}\n"
+    "    \\choose{j}} p^n (1 - p)^j = I_{1 - p}(k + 1, n),\n"
     "\n"
     "is used to reduce calculation of the cumulative distribution function to\n"
     "that of a regularized incomplete beta :math:`I`.\n"
@@ -16158,9 +16387,9 @@ ufunc_nbdtrik_types[4] = <char>NPY_DOUBLE
 ufunc_nbdtrik_types[5] = <char>NPY_DOUBLE
 ufunc_nbdtrik_types[6] = <char>NPY_DOUBLE
 ufunc_nbdtrik_types[7] = <char>NPY_DOUBLE
-ufunc_nbdtrik_ptr[2*0] = <void*>_func_cdfnbn2_wrap
+ufunc_nbdtrik_ptr[2*0] = <void*>_func_nbdtrik
 ufunc_nbdtrik_ptr[2*0+1] = <void*>(<char*>"nbdtrik")
-ufunc_nbdtrik_ptr[2*1] = <void*>_func_cdfnbn2_wrap
+ufunc_nbdtrik_ptr[2*1] = <void*>_func_nbdtrik
 ufunc_nbdtrik_ptr[2*1+1] = <void*>(<char*>"nbdtrik")
 ufunc_nbdtrik_data[0] = &ufunc_nbdtrik_ptr[2*0]
 ufunc_nbdtrik_data[1] = &ufunc_nbdtrik_ptr[2*1]
@@ -16195,7 +16424,7 @@ cdef char *ufunc_nbdtrin_doc = (
     "n : scalar or ndarray\n"
     "    The number of successes `n` such that `nbdtr(k, n, p) = y`.\n"
     "\n"
-    "See also\n"
+    "See Also\n"
     "--------\n"
     "nbdtr : Cumulative distribution function of the negative binomial.\n"
     "nbdtri : Inverse with respect to `p` of `nbdtr(k, n, p)`.\n"
@@ -16208,7 +16437,8 @@ cdef char *ufunc_nbdtrin_doc = (
     "Formula 26.5.26 of [2]_,\n"
     "\n"
     ".. math::\n"
-    "    \\sum_{j=k + 1}^\\infty {{n + j - 1}\\choose{j}} p^n (1 - p)^j = I_{1 - p}(k + 1, n),\n"
+    "    \\sum_{j=k + 1}^\\infty {{n + j - 1}\n"
+    "    \\choose{j}} p^n (1 - p)^j = I_{1 - p}(k + 1, n),\n"
     "\n"
     "is used to reduce calculation of the cumulative distribution function to\n"
     "that of a regularized incomplete beta :math:`I`.\n"
@@ -16251,9 +16481,9 @@ ufunc_nbdtrin_types[4] = <char>NPY_DOUBLE
 ufunc_nbdtrin_types[5] = <char>NPY_DOUBLE
 ufunc_nbdtrin_types[6] = <char>NPY_DOUBLE
 ufunc_nbdtrin_types[7] = <char>NPY_DOUBLE
-ufunc_nbdtrin_ptr[2*0] = <void*>_func_cdfnbn3_wrap
+ufunc_nbdtrin_ptr[2*0] = <void*>_func_nbdtrin
 ufunc_nbdtrin_ptr[2*0+1] = <void*>(<char*>"nbdtrin")
-ufunc_nbdtrin_ptr[2*1] = <void*>_func_cdfnbn3_wrap
+ufunc_nbdtrin_ptr[2*1] = <void*>_func_nbdtrin
 ufunc_nbdtrin_ptr[2*1+1] = <void*>(<char*>"nbdtrin")
 ufunc_nbdtrin_data[0] = &ufunc_nbdtrin_ptr[2*0]
 ufunc_nbdtrin_data[1] = &ufunc_nbdtrin_ptr[2*1]
@@ -16312,7 +16542,8 @@ cdef char *ufunc_ncfdtr_doc = (
     "[2]_:\n"
     "\n"
     ".. math::\n"
-    "    F(d_n, d_d, n_c, f) = \\sum_{j=0}^\\infty e^{-n_c/2} \\frac{(n_c/2)^j}{j!} I_{x}(\\frac{d_n}{2} + j, \\frac{d_d}{2}),\n"
+    "    F(d_n, d_d, n_c, f) = \\sum_{j=0}^\\infty e^{-n_c/2}\n"
+    "    \\frac{(n_c/2)^j}{j!} I_{x}(\\frac{d_n}{2} + j, \\frac{d_d}{2}),\n"
     "\n"
     "where :math:`I` is the regularized incomplete beta function, and\n"
     ":math:`x = f d_n/(f d_n + d_d)`.\n"
@@ -16364,9 +16595,9 @@ ufunc_ncfdtr_types[6] = <char>NPY_DOUBLE
 ufunc_ncfdtr_types[7] = <char>NPY_DOUBLE
 ufunc_ncfdtr_types[8] = <char>NPY_DOUBLE
 ufunc_ncfdtr_types[9] = <char>NPY_DOUBLE
-ufunc_ncfdtr_ptr[2*0] = <void*>_func_cdffnc1_wrap
+ufunc_ncfdtr_ptr[2*0] = <void*>_func_ncfdtr
 ufunc_ncfdtr_ptr[2*0+1] = <void*>(<char*>"ncfdtr")
-ufunc_ncfdtr_ptr[2*1] = <void*>_func_cdffnc1_wrap
+ufunc_ncfdtr_ptr[2*1] = <void*>_func_ncfdtr
 ufunc_ncfdtr_ptr[2*1+1] = <void*>(<char*>"ncfdtr")
 ufunc_ncfdtr_data[0] = &ufunc_ncfdtr_ptr[2*0]
 ufunc_ncfdtr_data[1] = &ufunc_ncfdtr_ptr[2*1]
@@ -16436,9 +16667,9 @@ ufunc_ncfdtri_types[6] = <char>NPY_DOUBLE
 ufunc_ncfdtri_types[7] = <char>NPY_DOUBLE
 ufunc_ncfdtri_types[8] = <char>NPY_DOUBLE
 ufunc_ncfdtri_types[9] = <char>NPY_DOUBLE
-ufunc_ncfdtri_ptr[2*0] = <void*>_func_cdffnc2_wrap
+ufunc_ncfdtri_ptr[2*0] = <void*>_func_ncfdtri
 ufunc_ncfdtri_ptr[2*0+1] = <void*>(<char*>"ncfdtri")
-ufunc_ncfdtri_ptr[2*1] = <void*>_func_cdffnc2_wrap
+ufunc_ncfdtri_ptr[2*1] = <void*>_func_ncfdtri
 ufunc_ncfdtri_ptr[2*1+1] = <void*>(<char*>"ncfdtri")
 ufunc_ncfdtri_data[0] = &ufunc_ncfdtri_ptr[2*0]
 ufunc_ncfdtri_data[1] = &ufunc_ncfdtri_ptr[2*1]
@@ -16516,9 +16747,9 @@ ufunc_ncfdtridfd_types[6] = <char>NPY_DOUBLE
 ufunc_ncfdtridfd_types[7] = <char>NPY_DOUBLE
 ufunc_ncfdtridfd_types[8] = <char>NPY_DOUBLE
 ufunc_ncfdtridfd_types[9] = <char>NPY_DOUBLE
-ufunc_ncfdtridfd_ptr[2*0] = <void*>_func_cdffnc4_wrap
+ufunc_ncfdtridfd_ptr[2*0] = <void*>_func_ncfdtridfd
 ufunc_ncfdtridfd_ptr[2*0+1] = <void*>(<char*>"ncfdtridfd")
-ufunc_ncfdtridfd_ptr[2*1] = <void*>_func_cdffnc4_wrap
+ufunc_ncfdtridfd_ptr[2*1] = <void*>_func_ncfdtridfd
 ufunc_ncfdtridfd_ptr[2*1+1] = <void*>(<char*>"ncfdtridfd")
 ufunc_ncfdtridfd_data[0] = &ufunc_ncfdtridfd_ptr[2*0]
 ufunc_ncfdtridfd_data[1] = &ufunc_ncfdtridfd_ptr[2*1]
@@ -16596,9 +16827,9 @@ ufunc_ncfdtridfn_types[6] = <char>NPY_DOUBLE
 ufunc_ncfdtridfn_types[7] = <char>NPY_DOUBLE
 ufunc_ncfdtridfn_types[8] = <char>NPY_DOUBLE
 ufunc_ncfdtridfn_types[9] = <char>NPY_DOUBLE
-ufunc_ncfdtridfn_ptr[2*0] = <void*>_func_cdffnc3_wrap
+ufunc_ncfdtridfn_ptr[2*0] = <void*>_func_ncfdtridfn
 ufunc_ncfdtridfn_ptr[2*0+1] = <void*>(<char*>"ncfdtridfn")
-ufunc_ncfdtridfn_ptr[2*1] = <void*>_func_cdffnc3_wrap
+ufunc_ncfdtridfn_ptr[2*1] = <void*>_func_ncfdtridfn
 ufunc_ncfdtridfn_ptr[2*1+1] = <void*>(<char*>"ncfdtridfn")
 ufunc_ncfdtridfn_data[0] = &ufunc_ncfdtridfn_ptr[2*0]
 ufunc_ncfdtridfn_data[1] = &ufunc_ncfdtridfn_ptr[2*1]
@@ -16669,9 +16900,9 @@ ufunc_ncfdtrinc_types[6] = <char>NPY_DOUBLE
 ufunc_ncfdtrinc_types[7] = <char>NPY_DOUBLE
 ufunc_ncfdtrinc_types[8] = <char>NPY_DOUBLE
 ufunc_ncfdtrinc_types[9] = <char>NPY_DOUBLE
-ufunc_ncfdtrinc_ptr[2*0] = <void*>_func_cdffnc5_wrap
+ufunc_ncfdtrinc_ptr[2*0] = <void*>_func_ncfdtrinc
 ufunc_ncfdtrinc_ptr[2*0+1] = <void*>(<char*>"ncfdtrinc")
-ufunc_ncfdtrinc_ptr[2*1] = <void*>_func_cdffnc5_wrap
+ufunc_ncfdtrinc_ptr[2*1] = <void*>_func_ncfdtrinc
 ufunc_ncfdtrinc_ptr[2*1+1] = <void*>(<char*>"ncfdtrinc")
 ufunc_ncfdtrinc_data[0] = &ufunc_ncfdtrinc_ptr[2*0]
 ufunc_ncfdtrinc_data[1] = &ufunc_ncfdtrinc_ptr[2*1]
@@ -16739,9 +16970,9 @@ ufunc_nctdtr_types[4] = <char>NPY_DOUBLE
 ufunc_nctdtr_types[5] = <char>NPY_DOUBLE
 ufunc_nctdtr_types[6] = <char>NPY_DOUBLE
 ufunc_nctdtr_types[7] = <char>NPY_DOUBLE
-ufunc_nctdtr_ptr[2*0] = <void*>_func_cdftnc1_wrap
+ufunc_nctdtr_ptr[2*0] = <void*>_func_nctdtr
 ufunc_nctdtr_ptr[2*0+1] = <void*>(<char*>"nctdtr")
-ufunc_nctdtr_ptr[2*1] = <void*>_func_cdftnc1_wrap
+ufunc_nctdtr_ptr[2*1] = <void*>_func_nctdtr
 ufunc_nctdtr_ptr[2*1+1] = <void*>(<char*>"nctdtr")
 ufunc_nctdtr_data[0] = &ufunc_nctdtr_ptr[2*0]
 ufunc_nctdtr_data[1] = &ufunc_nctdtr_ptr[2*1]
@@ -16771,15 +17002,31 @@ cdef char *ufunc_nctdtridf_doc = (
     "\n"
     "Returns\n"
     "-------\n"
-    "cdf : scalar or ndarray\n"
-    "    The calculated CDF. If all inputs are scalar, the return will be a\n"
+    "df : scalar or ndarray\n"
+    "    The degrees of freedom. If all inputs are scalar, the return will be a\n"
     "    float. Otherwise, it will be an array.\n"
     "\n"
     "See Also\n"
     "--------\n"
     "nctdtr :  CDF of the non-central `t` distribution.\n"
     "nctdtrit : Inverse CDF (iCDF) of the non-central t distribution.\n"
-    "nctdtrinc : Calculate non-centrality parameter, given CDF iCDF values.")
+    "nctdtrinc : Calculate non-centrality parameter, given CDF iCDF values.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from scipy.special import nctdtr, nctdtridf\n"
+    "\n"
+    "Compute the CDF for several values of `df`:\n"
+    "\n"
+    ">>> df = [1, 2, 3]\n"
+    ">>> p = nctdtr(df, 0.25, 1)\n"
+    ">>> p\n"
+    "array([0.67491974, 0.716464  , 0.73349456])\n"
+    "\n"
+    "Compute the inverse. We recover the values of `df`, as expected:\n"
+    "\n"
+    ">>> nctdtridf(p, 0.25, 1)\n"
+    "array([1., 2., 3.])")
 ufunc_nctdtridf_loops[0] = <np.PyUFuncGenericFunction>loop_d_ddd__As_fff_f
 ufunc_nctdtridf_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
 ufunc_nctdtridf_types[0] = <char>NPY_FLOAT
@@ -16790,9 +17037,9 @@ ufunc_nctdtridf_types[4] = <char>NPY_DOUBLE
 ufunc_nctdtridf_types[5] = <char>NPY_DOUBLE
 ufunc_nctdtridf_types[6] = <char>NPY_DOUBLE
 ufunc_nctdtridf_types[7] = <char>NPY_DOUBLE
-ufunc_nctdtridf_ptr[2*0] = <void*>_func_cdftnc3_wrap
+ufunc_nctdtridf_ptr[2*0] = <void*>_func_nctdtridf
 ufunc_nctdtridf_ptr[2*0+1] = <void*>(<char*>"nctdtridf")
-ufunc_nctdtridf_ptr[2*1] = <void*>_func_cdftnc3_wrap
+ufunc_nctdtridf_ptr[2*1] = <void*>_func_nctdtridf
 ufunc_nctdtridf_ptr[2*1+1] = <void*>(<char*>"nctdtridf")
 ufunc_nctdtridf_data[0] = &ufunc_nctdtridf_ptr[2*0]
 ufunc_nctdtridf_data[1] = &ufunc_nctdtridf_ptr[2*1]
@@ -16829,7 +17076,23 @@ cdef char *ufunc_nctdtrinc_doc = (
     "--------\n"
     "nctdtr :  CDF of the non-central `t` distribution.\n"
     "nctdtrit : Inverse CDF (iCDF) of the non-central t distribution.\n"
-    "nctdtridf : Calculate degrees of freedom, given CDF and iCDF values.")
+    "nctdtridf : Calculate degrees of freedom, given CDF and iCDF values.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from scipy.special import nctdtr, nctdtrinc\n"
+    "\n"
+    "Compute the CDF for several values of `nc`:\n"
+    "\n"
+    ">>> nc = [0.5, 1.5, 2.5]\n"
+    ">>> p = nctdtr(3, nc, 1.5)\n"
+    ">>> p\n"
+    "array([0.77569497, 0.45524533, 0.1668691 ])\n"
+    "\n"
+    "Compute the inverse. We recover the values of `nc`, as expected:\n"
+    "\n"
+    ">>> nctdtrinc(3, p, 1.5)\n"
+    "array([0.5, 1.5, 2.5])")
 ufunc_nctdtrinc_loops[0] = <np.PyUFuncGenericFunction>loop_d_ddd__As_fff_f
 ufunc_nctdtrinc_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
 ufunc_nctdtrinc_types[0] = <char>NPY_FLOAT
@@ -16840,9 +17103,9 @@ ufunc_nctdtrinc_types[4] = <char>NPY_DOUBLE
 ufunc_nctdtrinc_types[5] = <char>NPY_DOUBLE
 ufunc_nctdtrinc_types[6] = <char>NPY_DOUBLE
 ufunc_nctdtrinc_types[7] = <char>NPY_DOUBLE
-ufunc_nctdtrinc_ptr[2*0] = <void*>_func_cdftnc4_wrap
+ufunc_nctdtrinc_ptr[2*0] = <void*>_func_nctdtrinc
 ufunc_nctdtrinc_ptr[2*0+1] = <void*>(<char*>"nctdtrinc")
-ufunc_nctdtrinc_ptr[2*1] = <void*>_func_cdftnc4_wrap
+ufunc_nctdtrinc_ptr[2*1] = <void*>_func_nctdtrinc
 ufunc_nctdtrinc_ptr[2*1+1] = <void*>(<char*>"nctdtrinc")
 ufunc_nctdtrinc_data[0] = &ufunc_nctdtrinc_ptr[2*0]
 ufunc_nctdtrinc_data[1] = &ufunc_nctdtrinc_ptr[2*1]
@@ -16879,7 +17142,23 @@ cdef char *ufunc_nctdtrit_doc = (
     "--------\n"
     "nctdtr :  CDF of the non-central `t` distribution.\n"
     "nctdtridf : Calculate degrees of freedom, given CDF and iCDF values.\n"
-    "nctdtrinc : Calculate non-centrality parameter, given CDF iCDF values.")
+    "nctdtrinc : Calculate non-centrality parameter, given CDF iCDF values.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from scipy.special import nctdtr, nctdtrit\n"
+    "\n"
+    "Compute the CDF for several values of `t`:\n"
+    "\n"
+    ">>> t = [0.5, 1, 1.5]\n"
+    ">>> p = nctdtr(3, 1, t)\n"
+    ">>> p\n"
+    "array([0.29811049, 0.46922687, 0.6257559 ])\n"
+    "\n"
+    "Compute the inverse. We recover the values of `t`, as expected:\n"
+    "\n"
+    ">>> nctdtrit(3, 1, p)\n"
+    "array([0.5, 1. , 1.5])")
 ufunc_nctdtrit_loops[0] = <np.PyUFuncGenericFunction>loop_d_ddd__As_fff_f
 ufunc_nctdtrit_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
 ufunc_nctdtrit_types[0] = <char>NPY_FLOAT
@@ -16890,9 +17169,9 @@ ufunc_nctdtrit_types[4] = <char>NPY_DOUBLE
 ufunc_nctdtrit_types[5] = <char>NPY_DOUBLE
 ufunc_nctdtrit_types[6] = <char>NPY_DOUBLE
 ufunc_nctdtrit_types[7] = <char>NPY_DOUBLE
-ufunc_nctdtrit_ptr[2*0] = <void*>_func_cdftnc2_wrap
+ufunc_nctdtrit_ptr[2*0] = <void*>_func_nctdtrit
 ufunc_nctdtrit_ptr[2*0+1] = <void*>(<char*>"nctdtrit")
-ufunc_nctdtrit_ptr[2*1] = <void*>_func_cdftnc2_wrap
+ufunc_nctdtrit_ptr[2*1] = <void*>_func_nctdtrit
 ufunc_nctdtrit_ptr[2*1+1] = <void*>(<char*>"nctdtrit")
 ufunc_nctdtrit_data[0] = &ufunc_nctdtrit_ptr[2*0]
 ufunc_nctdtrit_data[1] = &ufunc_nctdtrit_ptr[2*1]
@@ -16955,7 +17234,7 @@ cdef char *ufunc_ndtr_doc = (
     ">>> x = np.linspace(-5, 5, 100)\n"
     ">>> fig, ax = plt.subplots()\n"
     ">>> ax.plot(x, ndtr(x))\n"
-    ">>> ax.set_title(\"Standard normal cumulative distribution function $\\Phi$\")\n"
+    ">>> ax.set_title(r\"Standard normal cumulative distribution function $\\Phi$\")\n"
     ">>> plt.show()")
 ufunc_ndtr_loops[0] = <np.PyUFuncGenericFunction>loop_d_d__As_f_f
 ufunc_ndtr_loops[1] = <np.PyUFuncGenericFunction>loop_d_d__As_d_d
@@ -17077,6 +17356,12 @@ cdef char *ufunc_ndtri_exp_doc = (
     "    Inverse of the log CDF of the standard normal distribution, evaluated\n"
     "    at y.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "log_ndtr : log of the standard normal cumulative distribution function\n"
+    "ndtr : standard normal cumulative distribution function\n"
+    "ndtri : standard normal percentile function\n"
+    "\n"
     "Examples\n"
     "--------\n"
     ">>> import numpy as np\n"
@@ -17102,11 +17387,7 @@ cdef char *ufunc_ndtri_exp_doc = (
     ">>> sc.ndtri_exp(-800)\n"
     "-39.88469483825668\n"
     ">>> sc.ndtri_exp(-1e-20)\n"
-    "9.262340089798409\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "log_ndtr, ndtri, ndtr")
+    "9.262340089798409")
 ufunc_ndtri_exp_loops[0] = <np.PyUFuncGenericFunction>loop_d_d__As_f_f
 ufunc_ndtri_exp_loops[1] = <np.PyUFuncGenericFunction>loop_d_d__As_d_d
 ufunc_ndtri_exp_types[0] = <char>NPY_FLOAT
@@ -17126,7 +17407,7 @@ cdef void *ufunc_nrdtrimn_ptr[4]
 cdef void *ufunc_nrdtrimn_data[2]
 cdef char ufunc_nrdtrimn_types[8]
 cdef char *ufunc_nrdtrimn_doc = (
-    "nrdtrimn(p, x, std, out=None)\n"
+    "nrdtrimn(p, std, x, out=None)\n"
     "\n"
     "Calculate mean of normal distribution given other params.\n"
     "\n"
@@ -17134,10 +17415,10 @@ cdef char *ufunc_nrdtrimn_doc = (
     "----------\n"
     "p : array_like\n"
     "    CDF values, in range (0, 1].\n"
-    "x : array_like\n"
-    "    Quantiles, i.e. the upper limit of integration.\n"
     "std : array_like\n"
     "    Standard deviation.\n"
+    "x : array_like\n"
+    "    Quantiles, i.e. the upper limit of integration.\n"
     "out : ndarray, optional\n"
     "    Optional output array for the function results\n"
     "\n"
@@ -17148,7 +17429,32 @@ cdef char *ufunc_nrdtrimn_doc = (
     "\n"
     "See Also\n"
     "--------\n"
-    "nrdtrimn, ndtr")
+    "scipy.stats.norm : Normal distribution\n"
+    "ndtr : Standard normal cumulative probability distribution\n"
+    "ndtri : Inverse of standard normal CDF with respect to quantile\n"
+    "nrdtrisd : Inverse of normal distribution CDF with respect to\n"
+    "           standard deviation\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "`nrdtrimn` can be used to recover the mean of a normal distribution\n"
+    "if we know the CDF value `p` for a given quantile `x` and the\n"
+    "standard deviation `std`. First, we calculate\n"
+    "the normal distribution CDF for an exemplary parameter set.\n"
+    "\n"
+    ">>> from scipy.stats import norm\n"
+    ">>> mean = 3.\n"
+    ">>> std = 2.\n"
+    ">>> x = 6.\n"
+    ">>> p = norm.cdf(x, loc=mean, scale=std)\n"
+    ">>> p\n"
+    "0.9331927987311419\n"
+    "\n"
+    "Verify that `nrdtrimn` returns the original value for `mean`.\n"
+    "\n"
+    ">>> from scipy.special import nrdtrimn\n"
+    ">>> nrdtrimn(p, std, x)\n"
+    "3.0000000000000004")
 ufunc_nrdtrimn_loops[0] = <np.PyUFuncGenericFunction>loop_d_ddd__As_fff_f
 ufunc_nrdtrimn_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
 ufunc_nrdtrimn_types[0] = <char>NPY_FLOAT
@@ -17159,9 +17465,9 @@ ufunc_nrdtrimn_types[4] = <char>NPY_DOUBLE
 ufunc_nrdtrimn_types[5] = <char>NPY_DOUBLE
 ufunc_nrdtrimn_types[6] = <char>NPY_DOUBLE
 ufunc_nrdtrimn_types[7] = <char>NPY_DOUBLE
-ufunc_nrdtrimn_ptr[2*0] = <void*>_func_cdfnor3_wrap
+ufunc_nrdtrimn_ptr[2*0] = <void*>_func_nrdtrimn
 ufunc_nrdtrimn_ptr[2*0+1] = <void*>(<char*>"nrdtrimn")
-ufunc_nrdtrimn_ptr[2*1] = <void*>_func_cdfnor3_wrap
+ufunc_nrdtrimn_ptr[2*1] = <void*>_func_nrdtrimn
 ufunc_nrdtrimn_ptr[2*1+1] = <void*>(<char*>"nrdtrimn")
 ufunc_nrdtrimn_data[0] = &ufunc_nrdtrimn_ptr[2*0]
 ufunc_nrdtrimn_data[1] = &ufunc_nrdtrimn_ptr[2*1]
@@ -17172,18 +17478,19 @@ cdef void *ufunc_nrdtrisd_ptr[4]
 cdef void *ufunc_nrdtrisd_data[2]
 cdef char ufunc_nrdtrisd_types[8]
 cdef char *ufunc_nrdtrisd_doc = (
-    "nrdtrisd(p, x, mn, out=None)\n"
+    "nrdtrisd(mn, p, x, out=None)\n"
     "\n"
     "Calculate standard deviation of normal distribution given other params.\n"
     "\n"
     "Parameters\n"
     "----------\n"
+    "mn : scalar or ndarray\n"
+    "    The mean of the normal distribution.\n"
     "p : array_like\n"
     "    CDF values, in range (0, 1].\n"
     "x : array_like\n"
     "    Quantiles, i.e. the upper limit of integration.\n"
-    "mn : scalar or ndarray\n"
-    "    The mean of the normal distribution.\n"
+    "\n"
     "out : ndarray, optional\n"
     "    Optional output array for the function results\n"
     "\n"
@@ -17194,7 +17501,32 @@ cdef char *ufunc_nrdtrisd_doc = (
     "\n"
     "See Also\n"
     "--------\n"
-    "ndtr")
+    "scipy.stats.norm : Normal distribution\n"
+    "ndtr : Standard normal cumulative probability distribution\n"
+    "ndtri : Inverse of standard normal CDF with respect to quantile\n"
+    "nrdtrimn : Inverse of normal distribution CDF with respect to\n"
+    "           mean\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "`nrdtrisd` can be used to recover the standard deviation of a normal\n"
+    "distribution if we know the CDF value `p` for a given quantile `x` and\n"
+    "the mean `mn`. First, we calculate the normal distribution CDF for an\n"
+    "exemplary parameter set.\n"
+    "\n"
+    ">>> from scipy.stats import norm\n"
+    ">>> mean = 3.\n"
+    ">>> std = 2.\n"
+    ">>> x = 6.\n"
+    ">>> p = norm.cdf(x, loc=mean, scale=std)\n"
+    ">>> p\n"
+    "0.9331927987311419\n"
+    "\n"
+    "Verify that `nrdtrisd` returns the original value for `std`.\n"
+    "\n"
+    ">>> from scipy.special import nrdtrisd\n"
+    ">>> nrdtrisd(mean, p, x)\n"
+    "2.0000000000000004")
 ufunc_nrdtrisd_loops[0] = <np.PyUFuncGenericFunction>loop_d_ddd__As_fff_f
 ufunc_nrdtrisd_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
 ufunc_nrdtrisd_types[0] = <char>NPY_FLOAT
@@ -17205,9 +17537,9 @@ ufunc_nrdtrisd_types[4] = <char>NPY_DOUBLE
 ufunc_nrdtrisd_types[5] = <char>NPY_DOUBLE
 ufunc_nrdtrisd_types[6] = <char>NPY_DOUBLE
 ufunc_nrdtrisd_types[7] = <char>NPY_DOUBLE
-ufunc_nrdtrisd_ptr[2*0] = <void*>_func_cdfnor4_wrap
+ufunc_nrdtrisd_ptr[2*0] = <void*>_func_nrdtrisd
 ufunc_nrdtrisd_ptr[2*0+1] = <void*>(<char*>"nrdtrisd")
-ufunc_nrdtrisd_ptr[2*1] = <void*>_func_cdfnor4_wrap
+ufunc_nrdtrisd_ptr[2*1] = <void*>_func_nrdtrisd
 ufunc_nrdtrisd_ptr[2*1+1] = <void*>(<char*>"nrdtrisd")
 ufunc_nrdtrisd_data[0] = &ufunc_nrdtrisd_ptr[2*0]
 ufunc_nrdtrisd_data[1] = &ufunc_nrdtrisd_ptr[2*1]
@@ -17649,18 +17981,18 @@ cdef char *ufunc_owens_t_doc = (
     "    Probability of the event (X > h and 0 < Y < a * X),\n"
     "    where X and Y are independent standard normal random variables.\n"
     "\n"
+    "References\n"
+    "----------\n"
+    ".. [1] M. Patefield and D. Tandy, \"Fast and accurate calculation of\n"
+    "       Owen's T Function\", Statistical Software vol. 5, pp. 1-25, 2000.\n"
+    "\n"
     "Examples\n"
     "--------\n"
     ">>> from scipy import special\n"
     ">>> a = 3.5\n"
     ">>> h = 0.78\n"
     ">>> special.owens_t(h, a)\n"
-    "0.10877216734852274\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] M. Patefield and D. Tandy, \"Fast and accurate calculation of\n"
-    "       Owen's T Function\", Statistical Software vol. 5, pp. 1-25, 2000.")
+    "0.10877216734852274")
 ufunc_owens_t_loops[0] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
 ufunc_owens_t_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
 ufunc_owens_t_types[0] = <char>NPY_FLOAT
@@ -17977,7 +18309,7 @@ cdef char *ufunc_pdtri_doc = (
     "Returns\n"
     "-------\n"
     "scalar or ndarray\n"
-    "    Values of the shape paramter `m` such that ``pdtr(k, m) = p``\n"
+    "    Values of the shape parameter `m` such that ``pdtr(k, m) = p``\n"
     "\n"
     "See Also\n"
     "--------\n"
@@ -18043,9 +18375,9 @@ ufunc_pdtrik_types[2] = <char>NPY_FLOAT
 ufunc_pdtrik_types[3] = <char>NPY_DOUBLE
 ufunc_pdtrik_types[4] = <char>NPY_DOUBLE
 ufunc_pdtrik_types[5] = <char>NPY_DOUBLE
-ufunc_pdtrik_ptr[2*0] = <void*>_func_cdfpoi2_wrap
+ufunc_pdtrik_ptr[2*0] = <void*>_func_pdtrik
 ufunc_pdtrik_ptr[2*0+1] = <void*>(<char*>"pdtrik")
-ufunc_pdtrik_ptr[2*1] = <void*>_func_cdfpoi2_wrap
+ufunc_pdtrik_ptr[2*1] = <void*>_func_pdtrik
 ufunc_pdtrik_ptr[2*1+1] = <void*>(<char*>"pdtrik")
 ufunc_pdtrik_data[0] = &ufunc_pdtrik_ptr[2*0]
 ufunc_pdtrik_data[1] = &ufunc_pdtrik_ptr[2*1]
@@ -18601,7 +18933,8 @@ cdef char *ufunc_pseudo_huber_doc = (
     "\n"
     "Pseudo-Huber loss function.\n"
     "\n"
-    ".. math:: \\mathrm{pseudo\\_huber}(\\delta, r) = \\delta^2 \\left( \\sqrt{ 1 + \\left( \\frac{r}{\\delta} \\right)^2 } - 1 \\right)\n"
+    ".. math:: \\mathrm{pseudo\\_huber}(\\delta, r) =\n"
+    "          \\delta^2 \\left( \\sqrt{ 1 + \\left( \\frac{r}{\\delta} \\right)^2 } - 1 \\right)\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -18617,7 +18950,7 @@ cdef char *ufunc_pseudo_huber_doc = (
     "res : scalar or ndarray\n"
     "    The computed Pseudo-Huber loss function values.\n"
     "\n"
-    "See also\n"
+    "See Also\n"
     "--------\n"
     "huber: Similar function which this function approximates\n"
     "\n"
@@ -18694,11 +19027,11 @@ cdef char *ufunc_pseudo_huber_doc = (
     ">>> fig, ax = plt.subplots()\n"
     ">>> combined_plot_parameters = list(zip(deltas, linestyles))\n"
     ">>> for delta, style in combined_plot_parameters:\n"
-    "...     ax.plot(x, pseudo_huber(delta, x), label=f\"$\\delta={delta}$\",\n"
+    "...     ax.plot(x, pseudo_huber(delta, x), label=rf\"$\\delta={delta}$\",\n"
     "...             ls=style)\n"
     ">>> ax.legend(loc=\"upper center\")\n"
     ">>> ax.set_xlabel(\"$x$\")\n"
-    ">>> ax.set_title(\"Pseudo-Huber loss function $h_{\\delta}(x)$\")\n"
+    ">>> ax.set_title(r\"Pseudo-Huber loss function $h_{\\delta}(x)$\")\n"
     ">>> ax.set_xlim(-4, 4)\n"
     ">>> ax.set_ylim(0, 8)\n"
     ">>> plt.show()\n"
@@ -18811,13 +19144,13 @@ ufunc_psi_types[4] = <char>NPY_CFLOAT
 ufunc_psi_types[5] = <char>NPY_CFLOAT
 ufunc_psi_types[6] = <char>NPY_CDOUBLE
 ufunc_psi_types[7] = <char>NPY_CDOUBLE
-ufunc_psi_ptr[2*0] = <void*>_func_digamma
+ufunc_psi_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_digamma
 ufunc_psi_ptr[2*0+1] = <void*>(<char*>"psi")
-ufunc_psi_ptr[2*1] = <void*>_func_digamma
+ufunc_psi_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_digamma
 ufunc_psi_ptr[2*1+1] = <void*>(<char*>"psi")
-ufunc_psi_ptr[2*2] = <void*>_func_cdigamma
+ufunc_psi_ptr[2*2] = <void*>scipy.special._ufuncs_cxx._export_cdigamma
 ufunc_psi_ptr[2*2+1] = <void*>(<char*>"psi")
-ufunc_psi_ptr[2*3] = <void*>_func_cdigamma
+ufunc_psi_ptr[2*3] = <void*>scipy.special._ufuncs_cxx._export_cdigamma
 ufunc_psi_ptr[2*3+1] = <void*>(<char*>"psi")
 ufunc_psi_data[0] = &ufunc_psi_ptr[2*0]
 ufunc_psi_data[1] = &ufunc_psi_ptr[2*1]
@@ -18990,16 +19323,16 @@ cdef char *ufunc_rgamma_doc = (
     "scalar or ndarray\n"
     "    Function results\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "gamma, gammaln, loggamma\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "The gamma function has no zeros and has simple poles at\n"
     "nonpositive integers, so `rgamma` is an entire function with zeros\n"
     "at the nonpositive integers. See the discussion in [dlmf]_ for\n"
     "more details.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "gamma, gammaln, loggamma\n"
     "\n"
     "References\n"
     "----------\n"
@@ -19042,9 +19375,9 @@ ufunc_rgamma_ptr[2*0] = <void*>_func_rgamma
 ufunc_rgamma_ptr[2*0+1] = <void*>(<char*>"rgamma")
 ufunc_rgamma_ptr[2*1] = <void*>_func_rgamma
 ufunc_rgamma_ptr[2*1+1] = <void*>(<char*>"rgamma")
-ufunc_rgamma_ptr[2*2] = <void*>_func_crgamma
+ufunc_rgamma_ptr[2*2] = <void*>scipy.special._ufuncs_cxx._export_crgamma
 ufunc_rgamma_ptr[2*2+1] = <void*>(<char*>"rgamma")
-ufunc_rgamma_ptr[2*3] = <void*>_func_crgamma
+ufunc_rgamma_ptr[2*3] = <void*>scipy.special._ufuncs_cxx._export_crgamma
 ufunc_rgamma_ptr[2*3+1] = <void*>(<char*>"rgamma")
 ufunc_rgamma_data[0] = &ufunc_rgamma_ptr[2*0]
 ufunc_rgamma_data[1] = &ufunc_rgamma_ptr[2*1]
@@ -19478,7 +19811,7 @@ cdef char *ufunc_smirnov_doc = (
     "Notes\n"
     "-----\n"
     "`smirnov` is used by `stats.kstest` in the application of the\n"
-    "Kolmogorov-Smirnov Goodness of Fit test. For historial reasons this\n"
+    "Kolmogorov-Smirnov Goodness of Fit test. For historical reasons this\n"
     "function is exposed in `scpy.special`, but the recommended way to achieve\n"
     "the most accurate CDF/SF/PDF/PPF/ISF computations is to use the\n"
     "`stats.ksone` distribution.\n"
@@ -19612,7 +19945,7 @@ cdef char *ufunc_smirnovi_doc = (
     "Notes\n"
     "-----\n"
     "`smirnov` is used by `stats.kstest` in the application of the\n"
-    "Kolmogorov-Smirnov Goodness of Fit test. For historial reasons this\n"
+    "Kolmogorov-Smirnov Goodness of Fit test. For historical reasons this\n"
     "function is exposed in `scpy.special`, but the recommended way to achieve\n"
     "the most accurate CDF/SF/PDF/PPF/ISF computations is to use the\n"
     "`stats.ksone` distribution.\n"
@@ -19976,9 +20309,9 @@ ufunc_stdtr_types[2] = <char>NPY_FLOAT
 ufunc_stdtr_types[3] = <char>NPY_DOUBLE
 ufunc_stdtr_types[4] = <char>NPY_DOUBLE
 ufunc_stdtr_types[5] = <char>NPY_DOUBLE
-ufunc_stdtr_ptr[2*0] = <void*>_func_cdft1_wrap
+ufunc_stdtr_ptr[2*0] = <void*>_func_stdtr
 ufunc_stdtr_ptr[2*0+1] = <void*>(<char*>"stdtr")
-ufunc_stdtr_ptr[2*1] = <void*>_func_cdft1_wrap
+ufunc_stdtr_ptr[2*1] = <void*>_func_stdtr
 ufunc_stdtr_ptr[2*1+1] = <void*>(<char*>"stdtr")
 ufunc_stdtr_data[0] = &ufunc_stdtr_ptr[2*0]
 ufunc_stdtr_data[1] = &ufunc_stdtr_ptr[2*1]
@@ -20039,9 +20372,9 @@ ufunc_stdtridf_types[2] = <char>NPY_FLOAT
 ufunc_stdtridf_types[3] = <char>NPY_DOUBLE
 ufunc_stdtridf_types[4] = <char>NPY_DOUBLE
 ufunc_stdtridf_types[5] = <char>NPY_DOUBLE
-ufunc_stdtridf_ptr[2*0] = <void*>_func_cdft3_wrap
+ufunc_stdtridf_ptr[2*0] = <void*>_func_stdtridf
 ufunc_stdtridf_ptr[2*0+1] = <void*>(<char*>"stdtridf")
-ufunc_stdtridf_ptr[2*1] = <void*>_func_cdft3_wrap
+ufunc_stdtridf_ptr[2*1] = <void*>_func_stdtridf
 ufunc_stdtridf_ptr[2*1+1] = <void*>(<char*>"stdtridf")
 ufunc_stdtridf_data[0] = &ufunc_stdtridf_ptr[2*0]
 ufunc_stdtridf_data[1] = &ufunc_stdtridf_ptr[2*1]
@@ -20155,9 +20488,9 @@ ufunc_stdtrit_types[2] = <char>NPY_FLOAT
 ufunc_stdtrit_types[3] = <char>NPY_DOUBLE
 ufunc_stdtrit_types[4] = <char>NPY_DOUBLE
 ufunc_stdtrit_types[5] = <char>NPY_DOUBLE
-ufunc_stdtrit_ptr[2*0] = <void*>_func_cdft2_wrap
+ufunc_stdtrit_ptr[2*0] = <void*>_func_stdtrit
 ufunc_stdtrit_ptr[2*0+1] = <void*>(<char*>"stdtrit")
-ufunc_stdtrit_ptr[2*1] = <void*>_func_cdft2_wrap
+ufunc_stdtrit_ptr[2*1] = <void*>_func_stdtrit
 ufunc_stdtrit_ptr[2*1+1] = <void*>(<char*>"stdtrit")
 ufunc_stdtrit_data[0] = &ufunc_stdtrit_ptr[2*0]
 ufunc_stdtrit_data[1] = &ufunc_stdtrit_ptr[2*1]
@@ -20176,7 +20509,8 @@ cdef char *ufunc_struve_doc = (
     "function is defined as,\n"
     "\n"
     ".. math::\n"
-    "    H_v(x) = (z/2)^{v + 1} \\sum_{n=0}^\\infty \\frac{(-1)^n (z/2)^{2n}}{\\Gamma(n + \\frac{3}{2}) \\Gamma(n + v + \\frac{3}{2})},\n"
+    "    H_v(x) = (z/2)^{v + 1} \\sum_{n=0}^\\infty\n"
+    "    \\frac{(-1)^n (z/2)^{2n}}{\\Gamma(n + \\frac{3}{2}) \\Gamma(n + v + \\frac{3}{2})},\n"
     "\n"
     "where :math:`\\Gamma` is the gamma function.\n"
     "\n"
@@ -20195,6 +20529,10 @@ cdef char *ufunc_struve_doc = (
     "H : scalar or ndarray\n"
     "    Value of the Struve function of order `v` at `x`.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "modstruve: Modified Struve function\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "Three methods discussed in [1]_ are used to evaluate the Struve function:\n"
@@ -20205,10 +20543,6 @@ cdef char *ufunc_struve_doc = (
     "\n"
     "Rounding errors are estimated based on the largest terms in the sums, and\n"
     "the result associated with the smallest error is returned.\n"
-    "\n"
-    "See also\n"
-    "--------\n"
-    "modstruve: Modified Struve function\n"
     "\n"
     "References\n"
     "----------\n"
@@ -20395,9 +20729,9 @@ cdef char *ufunc_tklmbda_doc = (
     ">>> x = np.linspace(-12, 12, 500)\n"
     ">>> for k, lmbda in enumerate([-1.0, -0.5, 0.0]):\n"
     "...     y = tklmbda(x, lmbda)\n"
-    "...     ax.plot(x, y, styles[k], label=f'$\\lambda$ = {lmbda:-4.1f}')\n"
+    "...     ax.plot(x, y, styles[k], label=rf'$\\lambda$ = {lmbda:-4.1f}')\n"
     "\n"
-    ">>> ax.set_title('tklmbda(x, $\\lambda$)')\n"
+    ">>> ax.set_title(r'tklmbda(x, $\\lambda$)')\n"
     ">>> ax.set_label('x')\n"
     ">>> ax.legend(framealpha=1, shadow=True)\n"
     ">>> ax.grid(True)\n"
@@ -20410,13 +20744,13 @@ cdef char *ufunc_tklmbda_doc = (
     ">>> lmbdas = [0.25, 0.5, 1.0, 1.5]\n"
     ">>> for k, lmbda in enumerate(lmbdas):\n"
     "...     y = tklmbda(x, lmbda)\n"
-    "...     ax.plot(x, y, styles[k], label=f'$\\lambda$ = {lmbda}')\n"
+    "...     ax.plot(x, y, styles[k], label=fr'$\\lambda$ = {lmbda}')\n"
     "\n"
     ">>> ax.set_prop_cycle(None)\n"
     ">>> for lmbda in lmbdas:\n"
     "...     ax.plot([-1/lmbda, 1/lmbda], [0, 1], '.', ms=8)\n"
     "\n"
-    ">>> ax.set_title('tklmbda(x, $\\lambda$)')\n"
+    ">>> ax.set_title(r'tklmbda(x, $\\lambda$)')\n"
     ">>> ax.set_xlabel('x')\n"
     ">>> ax.legend(framealpha=1, shadow=True)\n"
     ">>> ax.grid(True)\n"
@@ -20477,7 +20811,8 @@ cdef char *ufunc_voigt_profile_doc = (
     "\n"
     "If ``sigma = 0``, PDF of Cauchy distribution is returned.\n"
     "Conversely, if ``gamma = 0``, PDF of Normal distribution is returned.\n"
-    "If ``sigma = gamma = 0``, the return value is ``Inf`` for ``x = 0``, and ``0`` for all other ``x``.\n"
+    "If ``sigma = gamma = 0``, the return value is ``Inf`` for ``x = 0``,\n"
+    "and ``0`` for all other ``x``.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -20495,6 +20830,10 @@ cdef char *ufunc_voigt_profile_doc = (
     "scalar or ndarray\n"
     "    The Voigt profile at the given arguments\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "wofz : Faddeeva function\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "It can be expressed in terms of Faddeeva function\n"
@@ -20503,10 +20842,6 @@ cdef char *ufunc_voigt_profile_doc = (
     ".. math:: z = \\frac{x + i\\gamma}{\\sqrt{2}\\sigma}\n"
     "\n"
     "where :math:`w(z)` is the Faddeeva function.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "wofz : Faddeeva function\n"
     "\n"
     "References\n"
     "----------\n"
@@ -20661,7 +20996,7 @@ cdef char *ufunc_wright_bessel_doc = (
     "\n"
     ".. math:: \\Phi(a, b; x) = \\sum_{k=0}^\\infty \\frac{x^k}{k! \\Gamma(a k + b)}\n"
     "\n"
-    "See also [1].\n"
+    "See Also [1].\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -20681,8 +21016,13 @@ cdef char *ufunc_wright_bessel_doc = (
     "\n"
     "Notes\n"
     "-----\n"
-    "Due to the compexity of the function with its three parameters, only\n"
+    "Due to the complexity of the function with its three parameters, only\n"
     "non-negative arguments are implemented.\n"
+    "\n"
+    "References\n"
+    "----------\n"
+    ".. [1] Digital Library of Mathematical Functions, 10.46.\n"
+    "       https://dlmf.nist.gov/10.46.E1\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -20696,12 +21036,7 @@ cdef char *ufunc_wright_bessel_doc = (
     ".. math:: \\Phi(a, b-1; x) = a x \\Phi(a, b+a; x) + (b-1) \\Phi(a, b; x)\n"
     "\n"
     ">>> a * x * wright_bessel(a, b+a, x) + (b-1) * wright_bessel(a, b, x)\n"
-    "4.5314465939443025\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] Digital Library of Mathematical Functions, 10.46.\n"
-    "       https://dlmf.nist.gov/10.46.E1")
+    "4.5314465939443025")
 ufunc_wright_bessel_loops[0] = <np.PyUFuncGenericFunction>loop_d_ddd__As_fff_f
 ufunc_wright_bessel_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
 ufunc_wright_bessel_types[0] = <char>NPY_FLOAT
@@ -20749,6 +21084,10 @@ cdef char *ufunc_wrightomega_doc = (
     "omega : scalar or ndarray\n"
     "    Values of the Wright Omega function\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "lambertw : The Lambert W function\n"
+    "\n"
     "Notes\n"
     "-----\n"
     ".. versionadded:: 0.19.0\n"
@@ -20763,10 +21102,6 @@ cdef char *ufunc_wrightomega_doc = (
     "unwinding number and :math:`W` is the Lambert W function.\n"
     "\n"
     "The implementation here is taken from [1]_.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "lambertw : The Lambert W function\n"
     "\n"
     "References\n"
     "----------\n"
@@ -20982,7 +21317,7 @@ cdef char *ufunc_xlogy_doc = (
     "\n"
     "A lower loss is usually better as it indicates that the predictions are\n"
     "similar to the actual labels. In this example since our predicted\n"
-    "probabilties are close to the actual labels, we get an overall loss\n"
+    "probabilities are close to the actual labels, we get an overall loss\n"
     "that is reasonably low and appropriate.")
 ufunc_xlogy_loops[0] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
 ufunc_xlogy_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
@@ -21035,9 +21370,13 @@ cdef char *ufunc_y0_doc = (
     "Y : scalar or ndarray\n"
     "    Value of the Bessel function of the second kind of order 0 at `x`.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "j0: Bessel function of the first kind of order 0\n"
+    "yv: Bessel function of the first kind\n"
+    "\n"
     "Notes\n"
     "-----\n"
-    "\n"
     "The domain is divided into the intervals [0, 5] and (5, infinity). In the\n"
     "first interval a rational approximation :math:`R(x)` is employed to\n"
     "compute,\n"
@@ -21052,11 +21391,6 @@ cdef char *ufunc_y0_doc = (
     "two rational functions of degree 6/6 and 7/7.\n"
     "\n"
     "This function is a wrapper for the Cephes [1]_ routine `y0`.\n"
-    "\n"
-    "See also\n"
-    "--------\n"
-    "j0: Bessel function of the first kind of order 0\n"
-    "yv: Bessel function of the first kind\n"
     "\n"
     "References\n"
     "----------\n"
@@ -21120,9 +21454,14 @@ cdef char *ufunc_y1_doc = (
     "Y : scalar or ndarray\n"
     "    Value of the Bessel function of the second kind of order 1 at `x`.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "j1: Bessel function of the first kind of order 1\n"
+    "yn: Bessel function of the second kind\n"
+    "yv: Bessel function of the second kind\n"
+    "\n"
     "Notes\n"
     "-----\n"
-    "\n"
     "The domain is divided into the intervals [0, 8] and (8, infinity). In the\n"
     "first interval a 25 term Chebyshev expansion is used, and computing\n"
     ":math:`J_1` (the Bessel function of the first kind) is required. In the\n"
@@ -21130,12 +21469,6 @@ cdef char *ufunc_y1_doc = (
     "rational functions of degree 5/5.\n"
     "\n"
     "This function is a wrapper for the Cephes [1]_ routine `y1`.\n"
-    "\n"
-    "See also\n"
-    "--------\n"
-    "j1: Bessel function of the first kind of order 1\n"
-    "yn: Bessel function of the second kind\n"
-    "yv: Bessel function of the second kind\n"
     "\n"
     "References\n"
     "----------\n"
@@ -21201,6 +21534,12 @@ cdef char *ufunc_yn_doc = (
     "Y : scalar or ndarray\n"
     "    Value of the Bessel function, :math:`Y_n(x)`.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "yv : For real order and real or complex argument.\n"
+    "y0: faster implementation of this function for order 0\n"
+    "y1: faster implementation of this function for order 1\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "Wrapper for the Cephes [1]_ routine `yn`.\n"
@@ -21208,12 +21547,6 @@ cdef char *ufunc_yn_doc = (
     "The function is evaluated by forward recurrence on `n`, starting with\n"
     "values computed by the Cephes routines `y0` and `y1`. If `n = 0` or 1,\n"
     "the routine for `y0` or `y1` is called directly.\n"
-    "\n"
-    "See also\n"
-    "--------\n"
-    "yv : For real order and real or complex argument.\n"
-    "y0: faster implementation of this function for order 0\n"
-    "y1: faster implementation of this function for order 1\n"
     "\n"
     "References\n"
     "----------\n"
@@ -21315,6 +21648,12 @@ cdef char *ufunc_yv_doc = (
     "Y : scalar or ndarray\n"
     "    Value of the Bessel function of the second kind, :math:`Y_v(x)`.\n"
     "\n"
+    "See Also\n"
+    "--------\n"
+    "yve : :math:`Y_v` with leading exponential behavior stripped off.\n"
+    "y0: faster implementation of this function for order 0\n"
+    "y1: faster implementation of this function for order 1\n"
+    "\n"
     "Notes\n"
     "-----\n"
     "For positive `v` values, the computation is carried out using the\n"
@@ -21331,12 +21670,6 @@ cdef char *ufunc_yv_doc = (
     "computed using the AMOS routine `zbesj`.  Note that the second term is\n"
     "exactly zero for integer `v`; to improve accuracy the second term is\n"
     "explicitly omitted for `v` values such that `v = floor(v)`.\n"
-    "\n"
-    "See also\n"
-    "--------\n"
-    "yve : :math:`Y_v` with leading exponential behavior stripped off.\n"
-    "y0: faster implementation of this function for order 0\n"
-    "y1: faster implementation of this function for order 1\n"
     "\n"
     "References\n"
     "----------\n"
@@ -21593,6 +21926,11 @@ cdef char *ufunc_zetac_doc = (
     "--------\n"
     "zeta\n"
     "\n"
+    "References\n"
+    "----------\n"
+    ".. [dlmf] NIST Digital Library of Mathematical Functions\n"
+    "          https://dlmf.nist.gov/25\n"
+    "\n"
     "Examples\n"
     "--------\n"
     ">>> import numpy as np\n"
@@ -21609,12 +21947,7 @@ cdef char *ufunc_zetac_doc = (
     "Compare ``zetac(x)`` to ``zeta(x) - 1`` for large `x`:\n"
     "\n"
     ">>> zetac(60), zeta(60) - 1\n"
-    "(8.673617380119933e-19, 0.0)\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [dlmf] NIST Digital Library of Mathematical Functions\n"
-    "          https://dlmf.nist.gov/25")
+    "(8.673617380119933e-19, 0.0)")
 ufunc_zetac_loops[0] = <np.PyUFuncGenericFunction>loop_d_d__As_f_f
 ufunc_zetac_loops[1] = <np.PyUFuncGenericFunction>loop_d_d__As_d_d
 ufunc_zetac_types[0] = <char>NPY_FLOAT

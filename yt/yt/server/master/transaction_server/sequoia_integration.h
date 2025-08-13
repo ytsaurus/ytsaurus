@@ -13,6 +13,11 @@ void StartCypressTransactionInSequoiaAndReply(
     NCellMaster::TBootstrap* bootstrap,
     const ITransactionManager::TCtxStartCypressTransactionPtr& context);
 
+TFuture<void> DoomCypressTransactionInSequoia(
+    NCellMaster::TBootstrap* bootstrap,
+    TTransactionId transactionId,
+    NRpc::TAuthenticationIdentity authenticationIdentity);
+
 TFuture<TSharedRefArray> AbortCypressTransactionInSequoia(
     NCellMaster::TBootstrap* bootstrap,
     TTransactionId transactionId,

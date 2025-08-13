@@ -217,13 +217,14 @@ void SortAndValidateDistributedWriteResults(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<TDistributedWriteSessionWithCookies> TClient::StartDistributedWriteSession(
+TDistributedWriteSessionWithCookies TClient::DoStartDistributedWriteSession(
     const TRichYPath& richPath,
     const TDistributedWriteSessionStartOptions& options)
 {
     const auto& path = richPath.GetPath();
 
     TTransactionStartOptions transactionStartOptions;
+    transactionStartOptions.Timeout = options.Timeout;
     if (options.TransactionId) {
         transactionStartOptions.ParentId = options.TransactionId;
         transactionStartOptions.Ping = true;
@@ -234,7 +235,7 @@ TFuture<TDistributedWriteSessionWithCookies> TClient::StartDistributedWriteSessi
         StartTransaction(
             NTransactionClient::ETransactionType::Master,
             transactionStartOptions))
-                .ValueOrThrow();
+        .ValueOrThrow();
 
     TUserObject userObject(path);
 
@@ -343,10 +344,10 @@ TFuture<TDistributedWriteSessionWithCookies> TClient::StartDistributedWriteSessi
     // so it shouldn't be auto-aborted anymore.
     transaction->Detach();
 
-    return MakeFuture(std::move(result));
+    return result;
 }
 
-TFuture<void> TClient::FinishDistributedWriteSession(
+void TClient::DoFinishDistributedWriteSession(
     const TDistributedWriteSessionWithResults& sessionWithResults,
     const TDistributedWriteSessionFinishOptions& options)
 {
@@ -495,7 +496,8 @@ TFuture<void> TClient::FinishDistributedWriteSession(
         tableUploadOptions,
         std::move(dataStatistics));
 
-    return transaction->Commit().AsVoid();
+    WaitFor(transaction->Commit())
+        .ThrowOnError();
 }
 
 TFuture<ITableFragmentWriterPtr> TClient::CreateTableFragmentWriter(

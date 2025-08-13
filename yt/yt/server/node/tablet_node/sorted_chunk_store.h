@@ -17,6 +17,8 @@
 
 #include <yt/yt/library/xor_filter/xor_filter.h>
 
+#include <yt/yt/library/min_hash_digest/public.h>
+
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,6 +27,7 @@ struct TCompactionHints
 {
     TCompactionHint<EChunkViewSizeStatus> ChunkViewSize;
     TCompactionHint<NLsm::TRowDigestUpcomingCompactionInfo> RowDigest;
+    TCompactionHint<TMinHashDigestPtr> MinHashDigest;
 };
 
 void Serialize(

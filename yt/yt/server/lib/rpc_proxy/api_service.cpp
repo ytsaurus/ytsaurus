@@ -122,6 +122,7 @@ using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NQueryTrackerClient;
 using namespace NQueueClient;
+using namespace NQueryClient;
 using namespace NRpc;
 using namespace NScheduler;
 using namespace NSecurityClient;
@@ -4046,6 +4047,8 @@ private:
 
         const auto& query = request->query();
 
+        const auto config = Config_.Acquire();
+
         TSelectRowsOptions options;
         SetTimeoutOptions(&options, context.Get());
         FillSelectRowsOptionsBaseFromRequest(request, &options);
@@ -4124,6 +4127,25 @@ private:
         if (request->has_min_row_count_per_subquery()) {
             options.MinRowCountPerSubquery = request->min_row_count_per_subquery();
         }
+        if (request->has_rowset_processing_batch_size()) {
+            options.RowsetProcessingBatchSize = request->rowset_processing_batch_size();
+        }
+        if (request->has_write_rowset_size()) {
+            options.WriteRowsetSize = request->write_rowset_size();
+        }
+        if (request->has_max_join_batch_size()) {
+            options.MaxJoinBatchSize = request->max_join_batch_size();
+        }
+        if (request->has_use_order_by_in_join_subqueries()) {
+            options.UseOrderByInJoinSubqueries = request->use_order_by_in_join_subqueries();
+        } else if (config->QueryFeatureToggles->UseOrderByInJoinSubqueries) {
+            options.UseOrderByInJoinSubqueries = *config->QueryFeatureToggles->UseOrderByInJoinSubqueries;
+        }
+        if (request->has_statistics_aggregation()) {
+            options.StatisticsAggregation = CheckedEnumCast<EStatisticsAggregation>(request->statistics_aggregation());
+        } else if (config->QueryFeatureToggles->StatisticsAggregation) {
+            options.StatisticsAggregation = *config->QueryFeatureToggles->StatisticsAggregation;
+        }
 
         auto detailedProfilingInfo = New<TDetailedProfilingInfo>();
         options.DetailedProfilingInfo = detailedProfilingInfo;
@@ -4158,8 +4180,8 @@ private:
 
                 context->SetResponseInfo("RowCount: %v", rows.Size());
 
-                SelectConsumeDataWeight_.Increment(result.Statistics.DataWeightRead);
-                SelectConsumeRowCount_.Increment(result.Statistics.RowsRead);
+                SelectConsumeDataWeight_.Increment(result.Statistics.DataWeightRead.GetTotal());
+                SelectConsumeRowCount_.Increment(result.Statistics.RowsRead.GetTotal());
                 SelectOutputDataWeight_.Increment(GetDataWeight(rows));
                 SelectOutputRowCount_.Increment(rows.Size());
 
@@ -4830,9 +4852,16 @@ private:
     {
         const auto& path = request.path();
 
-        auto rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
-            request.rowset_descriptor(),
-            MergeRefsToRef<TApiServiceBufferTag>(attachments));
+        IUnversionedRowsetPtr rowset;
+        try {
+            rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
+                request.rowset_descriptor(),
+                MergeRefsToRef<TApiServiceBufferTag>(attachments));
+        } catch (const TErrorException& ex) {
+            THROW_ERROR_EXCEPTION("Error sending rows for table %v",
+                path)
+                << TError(ex);
+        }
 
         auto rowsetRows = rowset->GetRows();
         auto rowsetSize = std::ssize(rowset->GetRows());
@@ -7076,7 +7105,7 @@ private:
                 << TErrorAttribute("shuffle_handle", shuffleHandle);
         }
 
-        std::optional<std::pair<int, int>> writerIndexRange;
+        std::optional<IShuffleClient::TIndexRange> writerIndexRange;
         if (request->has_writer_index_range()) {
             auto writerIndexBegin = YT_OPTIONAL_FROM_PROTO(request->writer_index_range(), begin);
             auto writerIndexEnd = YT_OPTIONAL_FROM_PROTO(request->writer_index_range(), end);

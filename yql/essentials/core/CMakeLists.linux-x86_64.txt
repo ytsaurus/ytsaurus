@@ -92,6 +92,7 @@ target_sources(yql-essentials-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_library_compiler.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_hopping.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_match_recognize.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_normalize_depends_on.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_proposed_by_data.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_range.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_rewrite_io.cpp
@@ -119,6 +120,7 @@ target_sources(yql-essentials-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_holding_file_storage.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_join.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_match_recognize.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_normalize_depends_on.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_proposed_by_data.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_range.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_rewrite_io.h

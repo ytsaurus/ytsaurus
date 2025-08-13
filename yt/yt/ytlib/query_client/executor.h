@@ -25,7 +25,7 @@ std::pair<TDataSource, TConstQueryPtr> InferRanges(
     const IMemoryChunkProviderPtr& memoryChunkProvider,
     const NLogging::TLogger& Logger);
 
-std::vector<std::pair<TDataSource, TString>> CoordinateDataSources(
+std::vector<std::pair<TDataSource, std::string>> CoordinateDataSources(
     const NHiveClient::ICellDirectoryPtr& cellDirectory,
     const NNodeTrackerClient::TNetworkPreferenceList& networks,
     const NTabletClient::TTableMountInfoPtr& tableInfo,

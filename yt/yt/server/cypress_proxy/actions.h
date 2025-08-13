@@ -134,6 +134,10 @@ void RemoveSnapshotLockFromSequoia(
     NCypressClient::TVersionedNodeId nodeId,
     const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
 
+void AddValidatePrerequisiteRevisionsTransactionActions(
+    const std::vector<NSequoiaClient::TResolvedPrerequisiteRevision>& resolvedPrerequisiteRevisions,
+    const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(

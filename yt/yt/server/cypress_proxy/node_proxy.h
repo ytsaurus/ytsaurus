@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/sequoia_client/public.h>
 
+#include <yt/yt/core/rpc/authentication_identity.h>
+
 namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -21,7 +23,10 @@ DEFINE_REFCOUNTED_TYPE(INodeProxy)
 INodeProxyPtr CreateNodeProxy(
     IBootstrap* bootstrap,
     TSequoiaSessionPtr session,
-    TSequoiaResolveResult resolveResult);
+    TSequoiaResolveResult resolveResult,
+    std::vector<NSequoiaClient::TResolvedPrerequisiteRevision> resolvedPrerequisiteRevisions,
+    const NRpc::TAuthenticationIdentity& authenticationIdentity);
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

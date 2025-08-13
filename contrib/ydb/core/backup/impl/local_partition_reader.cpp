@@ -2,6 +2,7 @@
 #include "logging.h"
 
 #include <contrib/ydb/core/persqueue/events/global.h>
+#include <contrib/ydb/core/persqueue/writer/common.h>
 #include <contrib/ydb/core/protos/grpc_pq_old.pb.h>
 #include <contrib/ydb/core/tx/replication/service/worker.h>
 #include <contrib/ydb/core/tx/replication/ydb_proxy/topic_message.h>
@@ -122,11 +123,16 @@ private:
         auto& record = ev->Get()->Record;
         LOG_D("Handle " << ev->Get()->ToString());
 
-        const auto& readResult = record.GetPartitionResponse().GetCmdReadResult();
-
-        if (!readResult.ResultSize()) {
+        TString error;
+        if (!NPQ::BasicCheck(record, error)) {
             Y_ABORT_UNLESS(PQTablet);
             Send(PQTablet, CreateReadRequest().Release());
+            return;
+        }
+
+        const auto& readResult = record.GetPartitionResponse().GetCmdReadResult();
+        if (!readResult.ResultSize()) {
+            Send(Worker, new TEvWorker::TEvDataEnd(Partition, {}, {}));
             return;
         }
 

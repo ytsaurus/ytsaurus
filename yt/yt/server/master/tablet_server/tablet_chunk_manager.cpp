@@ -1753,7 +1753,17 @@ private:
 
         // NB(dave11ar): Subtrees from bulk insert can have any rank.
         // Subtrees contain only chunks, chunk views and sorted dynamic subtablets.
-        if (store->GetType() == EObjectType::ChunkView) {
+        auto storeType = store->GetType();
+
+        if (IsChunkTabletStoreType(storeType)) {
+            for (auto [parent, refCount] : store->AsChunk()->Parents()) {
+                if (IsSubtabletInTabletChunkTree(tabletChunkList, parent)) {
+                    return;
+                }
+            }
+        }
+
+        if (storeType == EObjectType::ChunkView) {
             for (auto parent : store->AsChunkView()->Parents()) {
                 if (IsSubtabletInTabletChunkTree(tabletChunkList, parent)) {
                     return;

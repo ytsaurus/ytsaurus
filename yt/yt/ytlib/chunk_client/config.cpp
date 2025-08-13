@@ -117,6 +117,8 @@ void TBlockCacheConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("chunk_fragments_data", &TThis::ChunkFragmentsData)
         .DefaultNew();
+    registrar.Parameter("min_hash_digest", &TThis::MinHashDigest)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -132,6 +134,8 @@ void TBlockCacheDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("xor_filter", &TThis::XorFilter)
         .DefaultNew();
     registrar.Parameter("chunk_fragments_data", &TThis::ChunkFragmentsData)
+        .DefaultNew();
+    registrar.Parameter("min_hash_digest", &TThis::MinHashDigest)
         .DefaultNew();
 }
 
@@ -164,14 +168,60 @@ void TMediumDirectorySynchronizerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TChunkReplicaCacheDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("expiration_time", &TThis::ExpirationTime)
+        .Default();
+    registrar.Parameter("expiration_sweep_period", &TThis::ExpirationSweepPeriod)
+        .Default();
+    registrar.Parameter("max_chunks_per_master_locate", &TThis::MaxChunksPerMasterLocate)
+        .GreaterThan(0)
+        .Default();
+    registrar.Parameter("enable_sequoia_replicas_locate", &TThis::EnableSequoiaReplicasLocate)
+        .Default();
+    registrar.Parameter("enable_sequoia_replicas_refresh", &TThis::EnableSequoiaReplicasRefresh)
+        .Default();
+    registrar.Parameter("sequoia_replicas_refresh_period", &TThis::SequoiaReplicasRefreshPeriod)
+        .Default();
+    registrar.Parameter("max_chunks_per_sequoia_refresh_round", &TThis::MaxChunksPerSequoiaRefreshRound)
+        .GreaterThan(0)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChunkReplicaCacheConfigPtr TChunkReplicaCacheConfig::ApplyDynamic(const TChunkReplicaCacheDynamicConfigPtr& dynamicConfig) const
+{
+    auto mergedConfig = CloneYsonStruct(MakeStrong(this));
+    UpdateYsonStructField(mergedConfig->ExpirationTime, dynamicConfig->ExpirationTime);
+    UpdateYsonStructField(mergedConfig->ExpirationSweepPeriod, dynamicConfig->ExpirationSweepPeriod);
+    UpdateYsonStructField(mergedConfig->MaxChunksPerMasterLocate, dynamicConfig->MaxChunksPerMasterLocate);
+    UpdateYsonStructField(mergedConfig->EnableSequoiaReplicasLocate, dynamicConfig->EnableSequoiaReplicasLocate);
+    UpdateYsonStructField(mergedConfig->EnableSequoiaReplicasRefresh, dynamicConfig->EnableSequoiaReplicasRefresh);
+    UpdateYsonStructField(mergedConfig->SequoiaReplicasRefreshPeriod, dynamicConfig->SequoiaReplicasRefreshPeriod);
+    UpdateYsonStructField(mergedConfig->MaxChunksPerSequoiaRefreshRound, dynamicConfig->MaxChunksPerSequoiaRefreshRound);
+    mergedConfig->Postprocess();
+    return mergedConfig;
+}
+
 void TChunkReplicaCacheConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("expiration_time", &TThis::ExpirationTime)
         .Default(TDuration::Minutes(15));
     registrar.Parameter("expiration_sweep_period", &TThis::ExpirationSweepPeriod)
         .Default(TDuration::Minutes(15));
-    registrar.Parameter("max_chunks_per_locate", &TThis::MaxChunksPerLocate)
+    registrar.Parameter("max_chunks_per_master_locate", &TThis::MaxChunksPerMasterLocate)
+        .GreaterThan(0)
         .Default(1'000);
+    registrar.Parameter("enable_sequoia_replicas_locate", &TThis::EnableSequoiaReplicasLocate)
+        .Default(false);
+    registrar.Parameter("enable_sequoia_replicas_refresh", &TThis::EnableSequoiaReplicasRefresh)
+        .Default(false);
+    registrar.Parameter("sequoia_replicas_refresh_period", &TThis::SequoiaReplicasRefreshPeriod)
+        .Default(TDuration::Minutes(1));
+    registrar.Parameter("max_chunks_per_sequoia_refresh_round", &TThis::MaxChunksPerSequoiaRefreshRound)
+        .GreaterThan(0)
+        .Default(10'000);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -8,35 +8,39 @@ using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 static constexpr double HysteresisFactor = 1.5;
 static constexpr i64 SafeInf64 = std::numeric_limits<i64>::max() / 4;
 
 //! Make sure all components of a vector belong to [-SafeInf64, SafeInf64].
-void SafeClamp(TResourceVector& vector)
+[[nodiscard]] TResourceVector SafeClamp(TResourceVector vector)
 {
     for (auto kind : TEnumTraits<EResourceKind>::GetDomainValues()) {
         vector.Values[kind] = std::clamp(vector.Values[kind], -SafeInf64, SafeInf64);
     }
+    return vector;
 }
 
-class TJobSizeTracker
+////////////////////////////////////////////////////////////////////////////////
+
+class TJobSizeTracker final
     : public IJobSizeTracker
 {
 public:
     TJobSizeTracker(TResourceVector limitVector, TJobSizeTrackerOptions options, TLogger logger)
         : Options_(std::move(options))
-        , LocalLimitVector_(limitVector)
-        , HysteresizedLocalLimitVector_(limitVector * HysteresisFactor)
+        , LocalLimitVector_(SafeClamp(limitVector))
+        , HysteresizedLocalLimitVector_(SafeClamp(limitVector * HysteresisFactor))
+        , CumulativeLimitVector_(LocalLimitVector_)
         , Logger(logger)
     {
-        SafeClamp(LocalLimitVector_);
-        SafeClamp(HysteresizedLocalLimitVector_);
-        YT_LOG_TRACE(
-            "Job size tracker instantiated (LocalLimitVector: %v, HysteresizedLocalLimitVector: %v)",
-            LocalLimitVector_,
-            HysteresizedLocalLimitVector_);
         SwitchDominantResource(EResourceKind::DataWeight);
-        CumulativeLimitVector_ = LocalLimitVector_;
+        YT_LOG_DEBUG(
+            "Job size tracker instantiated (LocalLimitVector: %v, HysteresizedLocalLimitVector: %v, CumulativeLimitVector: %v)",
+            LocalLimitVector_,
+            HysteresizedLocalLimitVector_,
+            CumulativeLimitVector_);
     }
 
     void AccountSlice(TResourceVector vector) override
@@ -49,7 +53,7 @@ public:
             CumulativeVector_);
     }
 
-    double SuggestRowSplitFraction(TResourceVector vector) override
+    double SuggestRowSplitFraction(TResourceVector vector) const override
     {
         auto combinedGap = GetCombinedGap();
 
@@ -59,7 +63,10 @@ public:
 
         double fraction = 1.0;
         for (auto kind : TEnumTraits<EResourceKind>::GetDomainValues()) {
-            fraction = std::min(fraction, static_cast<double>(combinedGap.Values[kind]) / vector.Values[kind]);
+            // NB: std::min(1.0, NaN) is UB.
+            if (vector.Values[kind] > 0.0) {
+                fraction = std::min(fraction, static_cast<double>(combinedGap.Values[kind]) / vector.Values[kind]);
+            }
         }
 
         return fraction;
@@ -69,34 +76,23 @@ public:
     {
         EResourceKind OverflownResource;
         bool IsLocal;
+        i64 FlushIndex;
     };
 
-    // NB: We friend declare function here so that it is visible
-    // to our static analysis and therefore can be actually found
-    // during the lookup.
-    friend void FormatValue(
-        TStringBuilderBase* builder,
-        const TJobSizeTracker::TOverflowToken& token,
-        TStringBuf /*spec*/)
+    static TString FormatToken(const TJobSizeTracker::TOverflowToken& token)
     {
-        Format(builder, "{R: %v, L: %v}", token.OverflownResource, token.IsLocal);
+        return Format("{R: %v, L: %v, I: %v}", token.OverflownResource, token.IsLocal, token.FlushIndex);
     }
 
-    std::optional<std::any> CheckOverflow(TResourceVector extraVector) override
+    std::optional<std::any> CheckOverflow(TResourceVector extraVector) const override
     {
         std::optional<TOverflowToken> result;
         if (auto localViolatedResources = extraVector.ViolatedResources(GetLocalGap()); !localViolatedResources.empty()) {
-            if (localViolatedResources.contains(DominantResource_)) {
-                result = TOverflowToken{
-                    .OverflownResource = DominantResource_,
-                    .IsLocal = true,
-                };
-            } else {
-                result = TOverflowToken{
-                    .OverflownResource = *localViolatedResources.begin(),
-                    .IsLocal = true,
-                };
-            }
+            YT_VERIFY(!localViolatedResources.contains(DominantResource_));
+            result = TOverflowToken{
+                .OverflownResource = *localViolatedResources.begin(),
+                .IsLocal = true,
+            };
         } else if (auto cumulativeViolatedResources = extraVector.ViolatedResources(GetCumulativeGap()); !cumulativeViolatedResources.empty()) {
             if (cumulativeViolatedResources.contains(DominantResource_)) {
                 result = TOverflowToken{
@@ -104,7 +100,6 @@ public:
                     .IsLocal = false,
                 };
             } else {
-                // This should normally be impossible, but still let's form a proper overflow token.
                 result = TOverflowToken{
                     .OverflownResource = *cumulativeViolatedResources.begin(),
                     .IsLocal = false,
@@ -113,10 +108,12 @@ public:
         }
 
         if (result) {
+            result->FlushIndex = FlushIndex_;
+
             YT_LOG_TRACE(
                 "Overflow detected (ExtraVector: %v, LocalVector: %v, CumulativeVector: %v, LocalLimitVector: %v, "
                 "HysteresizedLocalLimitVector: %v, CumulativeLimitVector: %v, LocalGap: %v, CumulativeGap: %v, OverflowIsLocal: %v, "
-                "OverflowResource: %v)",
+                "OverflowResource: %v, FlushIndex: %v)",
                 extraVector,
                 LocalVector_,
                 CumulativeVector_,
@@ -126,24 +123,33 @@ public:
                 GetLocalGap(),
                 GetCumulativeGap(),
                 result->IsLocal,
-                result->OverflownResource);
+                result->OverflownResource,
+                FlushIndex_);
             return *result;
         }
 
         return std::nullopt;
     }
 
-    void Flush(std::optional<std::any> overflowToken) override
+    void Flush(const std::optional<std::any>& overflowToken) override
     {
         std::optional<TOverflowToken> typedToken;
         if (overflowToken) {
             typedToken = std::any_cast<TOverflowToken>(*overflowToken);
         }
 
-        YT_LOG_TRACE("Flushing job size tracker (LocalVector: %v, OverflowToken: %v)", LocalVector_, typedToken);
+        YT_LOG_TRACE(
+            "Flushing job size tracker (LocalVector: %v, OverflowToken: %v, FlushIndex: %v)",
+            LocalVector_,
+            typedToken.has_value() ? std::optional(FormatToken(*typedToken)) : std::nullopt,
+            FlushIndex_);
+
+        YT_VERIFY(!typedToken.has_value() || typedToken->FlushIndex == FlushIndex_);
+
+        ++FlushIndex_;
 
         if (!typedToken) {
-            DropRun(DominantResource_);
+            StartNewRun(DominantResource_);
             return;
         }
 
@@ -153,6 +159,8 @@ public:
                 // This method also takes care of clamping.
                 LocalLimitVector_.PartialMultiply(*Options_.LimitProgressionRatio, Options_.GeometricResources, /*clampValue*/ SafeInf64);
                 HysteresizedLocalLimitVector_.PartialMultiply(*Options_.LimitProgressionRatio, Options_.GeometricResources, /*clampValue*/ SafeInf64);
+                // NB(apollo1321): PartialMultiply should not change the dominant resource inf limit value.
+                HysteresizedLocalLimitVector_.Values[DominantResource_] = std::numeric_limits<i64>::max();
             } else {
                 ++LimitProgressionOffset_;
             }
@@ -167,31 +175,38 @@ public:
                 HysteresizedLocalLimitVector_);
         }
 
-        if (!typedToken->IsLocal && typedToken->OverflownResource == DominantResource_) {
+        YT_VERIFY(!typedToken->IsLocal || typedToken->OverflownResource != DominantResource_);
+
+        if (typedToken->OverflownResource == DominantResource_) {
             LocalVector_ = TResourceVector::Zero();
-            CumulativeLimitVector_ += LocalLimitVector_;
-            SafeClamp(CumulativeLimitVector_);
+            CumulativeLimitVector_ = SafeClamp(CumulativeLimitVector_ + LocalLimitVector_);
         } else {
-            DropRun(typedToken->OverflownResource);
+            StartNewRun(typedToken->OverflownResource);
         }
     }
 
 private:
     const TJobSizeTrackerOptions Options_;
 
-    TResourceVector CumulativeVector_ = TResourceVector::Zero();
-    TResourceVector CumulativeLimitVector_;
-    TResourceVector LocalVector_ = TResourceVector::Zero();
+    // Limits.
     TResourceVector LocalLimitVector_;
-    EResourceKind DominantResource_ = static_cast<EResourceKind>(-1);
     TResourceVector HysteresizedLocalLimitVector_;
+    TResourceVector CumulativeLimitVector_;
+
+    // Usage.
+    TResourceVector CumulativeVector_ = TResourceVector::Zero();
+    TResourceVector LocalVector_ = TResourceVector::Zero();
+
+    EResourceKind DominantResource_ = static_cast<EResourceKind>(-1);
 
     int LimitProgressionLength_ = 1;
     int LimitProgressionOffset_ = 0;
 
+    i64 FlushIndex_ = 0;
+
     TLogger Logger;
 
-    void DropRun(EResourceKind dominantResource)
+    void StartNewRun(EResourceKind dominantResource)
     {
         CumulativeLimitVector_ = LocalLimitVector_;
         CumulativeVector_ = TResourceVector::Zero();
@@ -201,7 +216,7 @@ private:
             SwitchDominantResource(dominantResource);
         }
 
-        YT_LOG_TRACE("Run dropped (DominantResource: %v, CumulativeLimitVector: %v)", DominantResource_, CumulativeLimitVector_);
+        YT_LOG_TRACE("New run started (DominantResource: %v, CumulativeLimitVector: %v)", DominantResource_, CumulativeLimitVector_);
     }
 
     void SwitchDominantResource(EResourceKind dominantResource)
@@ -210,7 +225,7 @@ private:
         DominantResource_ = dominantResource;
         HysteresizedLocalLimitVector_ = LocalLimitVector_ * HysteresisFactor;
         HysteresizedLocalLimitVector_.Values[DominantResource_] = std::numeric_limits<i64>::max();
-        SafeClamp(HysteresizedLocalLimitVector_);
+        HysteresizedLocalLimitVector_ = SafeClamp(HysteresizedLocalLimitVector_);
         YT_LOG_DEBUG(
             "Switching dominant resource (Resource: %v -> %v, HysteresizedLocalLimitVector: %v)",
             oldDominantResource,
@@ -242,9 +257,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobSizeTrackerPtr CreateJobSizeTracker(TResourceVector limitVector, TJobSizeTrackerOptions options, const TLogger& logger)
+} // namespace
+
+std::unique_ptr<IJobSizeTracker> CreateJobSizeTracker(
+    TResourceVector limitVector,
+    TJobSizeTrackerOptions options,
+    const TLogger& logger)
 {
-    return New<TJobSizeTracker>(limitVector, std::move(options), logger);
+    return std::make_unique<TJobSizeTracker>(limitVector, std::move(options), logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

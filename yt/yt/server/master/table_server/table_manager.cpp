@@ -90,6 +90,7 @@ constinit const auto Logger = TableServerLogger;
 class TTableManager;
 
 ////////////////////////////////////////////////////////////////////////////////
+
 class TMasterTableSchemaTypeHandler
     : public TObjectTypeHandlerWithMapBase<TMasterTableSchema>
 {
@@ -1433,11 +1434,6 @@ private:
     TPeriodicExecutorPtr StatisticsGossipExecutor_;
     IReconfigurableThroughputThrottlerPtr StatisticsGossipThrottler_;
 
-    // COMPAT(sabdenovch)
-    bool NeedToFillTableIdsForSecondaryIndices_ = false;
-    // COMPAT(sabdenovch)
-    bool NeedToFindUnfoldedColumnName_ = false;
-
     //! Contains native trunk nodes for which IsQueue() is true.
     THashSet<TTableNodeRawPtr> Queues_;
     //! Contains native trunk nodes for which IsQueueConsumer() is true.
@@ -1776,8 +1772,6 @@ private:
         Queues_.clear();
         QueueConsumers_.clear();
         QueueProducers_.clear();
-        NeedToFillTableIdsForSecondaryIndices_ = false;
-        NeedToFindUnfoldedColumnName_ = false;
     }
 
     void SetZeroState() override
@@ -1794,12 +1788,6 @@ private:
         MasterTableSchemaMap_.LoadKeys(context);
         TableCollocationMap_.LoadKeys(context);
         SecondaryIndexMap_.LoadKeys(context);
-
-        // COMPAT(sabdenovch)
-        NeedToFillTableIdsForSecondaryIndices_ = context.GetVersion() < EMasterReign::SecondaryIndexExternalCellTag;
-
-        // COMPAT(sabdenovch)
-        NeedToFindUnfoldedColumnName_ = context.GetVersion() < EMasterReign::SecondaryIndexUnfoldedColumnApi;
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -1815,11 +1803,7 @@ private:
 
         Load(context, Queues_);
         Load(context, QueueConsumers_);
-
-        // COMPAT(apachee)
-        if (context.GetVersion() >= EMasterReign::QueueProducers) {
-            Load(context, QueueProducers_);
-        }
+        Load(context, QueueProducers_);
     }
 
     THashMap<TMasterTableSchema*, THashMap<TAccount*, int>> ComputeMasterTableSchemaReferencingAccounts()
@@ -1997,31 +1981,6 @@ private:
         //   - on old snapshots that don't contain schema map (or this automaton
         //     part altogether) this initialization is crucial.
         InitBuiltins();
-
-        // COMPAT(sabdenovch)
-        if (NeedToFillTableIdsForSecondaryIndices_) {
-            for (const auto& [id, secondaryIndex] : SecondaryIndexMap_) {
-                secondaryIndex->SetIdsFromCompat();
-            }
-        }
-
-        if (NeedToFindUnfoldedColumnName_) {
-            for (const auto& [id, secondaryIndex] : SecondaryIndexMap_) {
-                if (secondaryIndex->GetKind() == ESecondaryIndexKind::Unfolding) {
-                    auto secondaryIndexTableNode = GetTableNodeOrThrow(secondaryIndex->GetTableId());
-                    auto secondaryIndexSchema = GetHeavyTableSchemaSync(secondaryIndexTableNode->GetSchema());
-                    auto indexTableNodeForSecondaryIndex = GetTableNodeOrThrow(secondaryIndex->GetIndexTableId());
-                    auto secondaryIndexTableSchema = GetHeavyTableSchemaSync(indexTableNodeForSecondaryIndex->GetSchema());
-                    const auto& indexUnfoldedColumn = FindUnfoldingColumnAndValidate(
-                        *secondaryIndexSchema,
-                        *secondaryIndexTableSchema,
-                        secondaryIndex->Predicate(),
-                        secondaryIndex->EvaluatedColumnsSchema());
-
-                    secondaryIndex->UnfoldedColumn() = indexUnfoldedColumn.Name();
-                }
-            }
-        }
     }
 
     void CheckInvariants() override

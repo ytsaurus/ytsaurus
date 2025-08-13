@@ -6,7 +6,8 @@ from yt_commands import (
     authors, set, get, ls, update, wait, sync_mount_table, sync_reshard_table,
     insert_rows, sync_create_cells, sync_flush_table, remove, get_driver,
     sync_compact_table, wait_for_tablet_state, create_tablet_cell_bundle,
-    sync_unmount_table, print_debug, select_rows)
+    sync_unmount_table, print_debug, select_rows,
+    create, create_table_replica, sync_enable_table_replica)
 
 from yt.common import update_inplace
 
@@ -56,10 +57,8 @@ class TestStandaloneTabletBalancerBase:
 
     def _enable_parameterized_reshard(self, group):
         set(
-            f"//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups/{group}/parameterized",
-            {
-                "enable_reshard": True,
-            }
+            f"//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups/{group}/parameterized/enable_reshard",
+            True
         )
 
     def _set_group_config(self, group, config):
@@ -592,10 +591,12 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         sync_reshard_table("//tmp/t", [[]] + [[i * 100] for i in range(1, 3)])
         sync_mount_table("//tmp/t")
 
-        insert_rows("//tmp/t", [{"key": i * 100, "value": str(i)} for i in range(3)])
-        insert_rows("//tmp/t", [{"key": 201, "value": "201"}])
+        insert_rows("//tmp/t", [{"key": i * 100, "value": "value" * 100 + str(i)} for i in range(3)])
+        insert_rows("//tmp/t", [{"key": 201, "value": "value" * 100 + "201"}])
         sync_flush_table("//tmp/t")
 
+        for i in range(3):
+            wait(lambda: get(f"//tmp/t/@tablets/{i}/performance_counters/dynamic_row_write_count") > 0)
         set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", True)
 
         wait(lambda: get("//tmp/t/@tablet_count") == 2)
@@ -710,17 +711,32 @@ class TestStandaloneTabletBalancerMulticell(TestStandaloneTabletBalancer):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
 
 @pytest.mark.enabled_multidaemon
 class TestStandaloneTabletBalancerSlowMulticell(TestStandaloneTabletBalancerSlow):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
 
 @pytest.mark.enabled_multidaemon
 class TestParameterizedBalancingMulticell(TestParameterizedBalancing):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
 
 
 ##################################################################
@@ -751,12 +767,16 @@ class TestReplicaBalancing(TestStandaloneTabletBalancerBase, TestStatisticsRepor
             remove(self.statistics_path, driver=driver)
         super(TestReplicaBalancing, self).teardown_method(method)
 
+    def _set_allowed_replica_clusters(self, clusters):
+        self._apply_dynamic_config_patch({
+            "allowed_replica_clusters": clusters,
+        })
+
     @authors("alexelexa")
     def test_balancing_one_table_by_another(self):
         self._set_default_metric("double([/statistics/uncompressed_data_size])")
-        print_debug([self.get_cluster_names()])
+        self._set_allowed_replica_clusters(self.get_cluster_names())
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups/default/parameterized/replica_clusters", self.get_cluster_names())
-        print_debug(get("//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups/default/parameterized"))
 
         self.statistics_path = "//sys/tablet_balancer/performance_counters"
 
@@ -806,6 +826,108 @@ class TestReplicaBalancing(TestStandaloneTabletBalancerBase, TestStatisticsRepor
         tablets = get("//tmp/t/@tablets")
         assert tablets[0]["cell_id"] == tablets[1]["cell_id"]
         assert tablets[2]["cell_id"] == tablets[3]["cell_id"]
+
+    @authors("alexelexa")
+    def test_replica_reshard(self):
+        self.statistics_path = "//sys/tablet_balancer/performance_counters"
+        self._set_default_metric("double([/statistics/uncompressed_data_size])")
+        self._set_allowed_replica_clusters(self.get_cluster_names())
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups/default/parameterized/replica_clusters", self.get_cluster_names())
+
+        self._apply_dynamic_config_patch({
+            "action_manager": {"max_tablet_count_per_action": 3}
+        })
+
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"}]
+
+        create("replicated_table", "//tmp/replicated", attributes={"schema": schema, "dynamic": True}, driver=self.remote_driver)
+        self._disable_table_balancing("//tmp/replicated", driver=self.remote_driver)
+
+        modes = ["async", "sync"]
+        replicas = []
+        for i, mode in enumerate(modes):
+            replicas.append(create_table_replica(
+                "//tmp/replicated",
+                self.get_cluster_name(i),
+                "//tmp/t",
+                attributes={"mode": mode},
+                driver=self.remote_driver,
+            ))
+
+        self._create_sorted_table("//tmp/t", schema=schema, upstream_replica_id=replicas[0])
+        self._create_sorted_table("//tmp/t", driver=self.remote_driver, schema=schema, upstream_replica_id=replicas[1])
+
+        tables = []
+        for driver in (self.remote_driver, None):
+            tables.append((get("//tmp/t/@id", driver=driver), driver))
+            self._disable_table_balancing("//tmp/t", driver=driver)
+
+        major_pivot_keys = [[], [100], [200], [300]]
+        sync_reshard_table("//tmp/t", [[], [10], [100], [200], [300]])
+        sync_reshard_table("//tmp/t", major_pivot_keys, driver=self.remote_driver)
+
+        for driver in (self.remote_driver, None):
+            sync_create_cells(1, driver=driver)
+            sync_mount_table("//tmp/t", driver=driver)
+            self._setup_statistics_reporter(self.statistics_path, driver=driver, tablet_cell_bundle="system")
+            self._apply_dynamic_config_patch({
+                "use_statistics_reporter": True,
+            }, driver=driver)
+
+        for replica in replicas:
+            sync_enable_table_replica(replica, driver=self.remote_driver)
+
+        sync_mount_table("//tmp/replicated", driver=self.remote_driver)
+
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_parameterized_by_default", True)
+        set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", True)
+
+        for table_id, driver in tables:
+            def select():
+                return select_rows(f"* from [{self.statistics_path}] where table_id = \"{table_id}\"", driver=driver)
+            wait(lambda: len(select()) > 0)
+
+        def _check_replica_modes():
+            for replica, mode in zip(replicas, modes):
+                assert get(f"#{replica}/@mode", driver=self.remote_driver) == mode
+
+        _check_replica_modes()
+        wait(lambda: major_pivot_keys == get("//tmp/t/@pivot_keys"))
+
+        major_pivot_keys_list = [
+            [[], [10], [100], [200], [300]],
+            [[], [200]],
+            [[], [10], [100], [200], [300]],
+            [[]],
+        ]
+
+        for major_pivot_keys in major_pivot_keys_list:
+            assert get("//tmp/t/@pivot_keys") != major_pivot_keys
+            sync_unmount_table("//tmp/t", driver=self.remote_driver)
+            sync_reshard_table("//tmp/t", major_pivot_keys, driver=self.remote_driver)
+            sync_mount_table("//tmp/t", driver=self.remote_driver)
+
+            _check_replica_modes()
+
+            wait(lambda: major_pivot_keys == get("//tmp/t/@pivot_keys"))
+
+        minor_pivot_keys = [[], [1], [2], [3], [6]]
+        major_pivot_keys = [[], [4]]
+        expected_pivot_keys_after_first_action = [[], [3], [4]]
+
+        sync_unmount_table("//tmp/t", driver=self.remote_driver)
+        sync_unmount_table("//tmp/t")
+
+        sync_reshard_table("//tmp/t", minor_pivot_keys)
+        sync_reshard_table("//tmp/t", major_pivot_keys, driver=self.remote_driver)
+
+        sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t", driver=self.remote_driver)
+
+        wait(lambda: expected_pivot_keys_after_first_action == get("//tmp/t/@pivot_keys"))
+        wait(lambda: major_pivot_keys == get("//tmp/t/@pivot_keys"))
 
 
 ##################################################################

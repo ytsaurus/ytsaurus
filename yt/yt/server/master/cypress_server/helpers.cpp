@@ -39,6 +39,20 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+void FormatValue(TStringBuilderBase* builder, const TAccessTrackingOptions& options, TStringBuf /*spec*/)
+{
+    builder->AppendFormat("SuppressAccessTracking: %v, SuppressModificationTracking: %v, SuppressExpirationTimeoutRenewal: %v",
+        options.suppress_access_tracking(),
+        options.suppress_modification_tracking(),
+        options.suppress_expiration_timeout_renewal());
+}
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 template <class TImpl, class TChild>

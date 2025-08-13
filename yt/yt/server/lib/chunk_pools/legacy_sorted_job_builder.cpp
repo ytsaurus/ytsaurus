@@ -368,7 +368,10 @@ private:
 
         THashMap<TLegacyDataSlicePtr, TLegacyKey> openedSlicesLowerLimits;
 
-        auto yielder = CreatePeriodicYielder();
+        auto yielder = CreatePeriodicYielder(
+            Options_.EnablePeriodicYielder
+                ? std::optional(PrepareYieldPeriod)
+                : std::nullopt);
 
         // An index of a closest teleport chunk to the right of current endpoint.
         int nextTeleportChunk = 0;
@@ -534,7 +537,10 @@ private:
 
     void AttachForeignSlices()
     {
-        auto yielder = CreatePeriodicYielder();
+        auto yielder = CreatePeriodicYielder(
+            Options_.EnablePeriodicYielder
+                ? std::optional(PrepareYieldPeriod)
+                : std::nullopt);
         for (auto& ForeignDataSlice : ForeignDataSlices_) {
             yielder.TryYield();
 
@@ -593,15 +599,6 @@ private:
                 }
             }
             ValidateTotalSliceCountLimit();
-        }
-    }
-
-    TPeriodicYielder CreatePeriodicYielder()
-    {
-        if (Options_.EnablePeriodicYielder) {
-            return TPeriodicYielder(PrepareYieldPeriod);
-        } else {
-            return TPeriodicYielder();
         }
     }
 

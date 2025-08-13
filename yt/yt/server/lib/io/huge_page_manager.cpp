@@ -44,7 +44,7 @@ static TErrorOr<void*> MapHugePageBlob(i64 size)
     return page;
 }
 
-static void UnmapHugePageBlob(TMutableRef hugePageBlob)
+static void UnmapHugePageBlob(const TMutableRef& hugePageBlob)
 {
 #ifdef _linux_
     auto result = munmap(hugePageBlob.Begin(), hugePageBlob.Size());
@@ -109,14 +109,10 @@ public:
         });
     }
 
-    TErrorOr<TSharedMutableRef> ReserveHugePageBlob()
+    TErrorOr<TSharedMutableRef> ReserveHugePageBlob() override
     {
-        if (HugePageCount_ == 0) {
-            return TError("Huge pages are not supported on this system, huge page count = 0");
-        }
-
-        if (HugePageSize_ == 0) {
-            return TError("Huge pages are not supported on this system, huge page size = 0");
+        if (HugePageCount_ == 0 || HugePageSize_ == 0) {
+            return TError("Huge pages are not supported on this system");
         }
 
         auto guard = Guard(Lock_);
@@ -145,40 +141,23 @@ public:
         return hugeBlob;
     }
 
-    int GetHugePagePerBlob() const
-    {
-        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
-        return DynamicConfig_->PagesPerBlob.value_or(StaticConfig_->PagesPerBlob);
-    }
-
-    size_t GetHugeBlobSize() const
-    {
-        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
-        return GetHugePagePerBlob() * HugePageSize_;
-    }
-
-    int GetHugePageCount() const
+    int GetHugePageCount() const override
     {
         return HugePageCount_;
     }
 
-    int GetUsedHugePageCount() const
-    {
-        return UsedHugePageCount_;
-    }
-
-    int GetHugePageSize() const
+    int GetHugePageSize() const override
     {
         return HugePageSize_;
     }
 
-    bool IsEnabled() const
+    bool IsEnabled() const override
     {
         auto guard = Guard(Lock_);
         return DynamicConfig_->Enabled.value_or(StaticConfig_->Enabled);
     }
 
-    void Reconfigure(const THugePageManagerDynamicConfigPtr& config)
+    void Reconfigure(const THugePageManagerDynamicConfigPtr& config) override
     {
         YT_VERIFY(config);
 
@@ -210,13 +189,13 @@ private:
             if (auto lockedManager = Manager_.Lock()) {
                 lockedManager->UnlockHugePageBlob(Data_);
             } else {
-                UnmapHugePageBlob(std::move(Data_));
+                UnmapHugePageBlob(Data_);
             }
         }
 
     private:
-        TMutableRef Data_;
-        TWeakPtr<THugePageManager> Manager_;
+        const TMutableRef Data_;
+        const TWeakPtr<THugePageManager> Manager_;
     };
 
     const THugePageManagerConfigPtr StaticConfig_;
@@ -231,11 +210,28 @@ private:
 
     THashMap<i64, THashMap<char*, TMutableRef>> HugePageSizeToFreeBlobs_;
 
+    int GetUsedHugePageCount() const
+    {
+        return UsedHugePageCount_;
+    }
+
+    int GetHugePagePerBlob() const
+    {
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
+        return DynamicConfig_->PagesPerBlob.value_or(StaticConfig_->PagesPerBlob);
+    }
+
+    i64 GetHugeBlobSize() const
+    {
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
+        return GetHugePagePerBlob() * HugePageSize_;
+    }
+
     void UnlockHugePageBlob(TMutableRef blob)
     {
         auto guard = Guard(Lock_);
 
-        if (blob.Size() == GetHugeBlobSize()) {
+        if (std::ssize(blob) == GetHugeBlobSize()) {
             HugePageSizeToFreeBlobs_[blob.Size()].emplace(blob.Begin(), blob);
         } else {
             UsedHugePageCount_ -= blob.Size() / HugePageSize_;

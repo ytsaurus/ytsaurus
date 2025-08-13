@@ -965,8 +965,8 @@ private:
 
         BlockCache_ = ClientBlockCache_ = CreateClientBlockCache(
             Config_->DataNode->BlockCache,
-            EBlockType::UncompressedData | EBlockType::CompressedData |
-                EBlockType::HashTableChunkIndex | EBlockType::XorFilter | EBlockType::ChunkFragmentsData,
+            EBlockType::UncompressedData | EBlockType::CompressedData | EBlockType::HashTableChunkIndex |
+                EBlockType::XorFilter | EBlockType::ChunkFragmentsData | EBlockType::MinHashDigest,
             NodeMemoryUsageTracker_->WithCategory(EMemoryCategory::BlockCache),
             DataNodeProfiler().WithPrefix("/block_cache"));
 
@@ -1526,8 +1526,8 @@ private:
             service->Reconfigure(newConfig->CachingObjectService);
         }
 
-        if (auto hugePageManager = HugePageManager_) {
-            hugePageManager->Reconfigure(newConfig->HugePageManager);
+        if (HugePageManager_) {
+            HugePageManager_->Reconfigure(newConfig->HugePageManager);
         }
 
         IOTracker_->SetConfig(newConfig->IOTracker);
@@ -1566,22 +1566,16 @@ private:
             oldConfig,
             newConfig);
 
-        auto newChunkReplicaCacheConfig = CloneYsonStruct(Config_->ClusterConnection->Dynamic->ChunkReplicaCache);
-        UpdateYsonStructField(
-            newChunkReplicaCacheConfig->ExpirationTime,
-            newConfig->ChunkReplicaCache->ExpirationTime);
+        auto newChunkReplicaCacheConfig = Config_->ClusterConnection->Static->ChunkReplicaCache->ApplyDynamic(
+            newConfig->ChunkReplicaCache);
         Connection_->GetChunkReplicaCache()->Reconfigure(std::move(newChunkReplicaCacheConfig));
 
-        auto newChaosResidencyCacheConfig = CloneYsonStruct(Config_->ClusterConnection->Dynamic->ChaosResidencyCache);
-        UpdateYsonStructField(
-            newChaosResidencyCacheConfig->EnableClientMode,
-            newConfig->ChaosResidencyCache->EnableClientMode);
+        auto newChaosResidencyCacheConfig = Config_->ClusterConnection->Static->ChaosResidencyCache->ApplyDynamic(
+            newConfig->ChaosResidencyCache);
         Connection_->GetChaosResidencyCache()->Reconfigure(std::move(newChaosResidencyCacheConfig));
 
         if (Connection_->GetStaticConfig()->ReplicationCardCache) {
-            auto newReplicationCardCacheConfig = CloneYsonStruct(Config_->ClusterConnection->Dynamic->ReplicationCardCache);
-            UpdateYsonStructField(
-                newReplicationCardCacheConfig,
+            auto newReplicationCardCacheConfig = Config_->ClusterConnection->Static->ReplicationCardCache->ApplyDynamic(
                 newConfig->ReplicationCardCache);
             Connection_->GetReplicationCardCache()->Reconfigure(std::move(newReplicationCardCacheConfig));
         }

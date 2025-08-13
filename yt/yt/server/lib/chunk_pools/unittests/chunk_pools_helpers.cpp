@@ -5,9 +5,10 @@
 
 #include <yt/yt/client/node_tracker_client/public.h>
 
-#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
+#include <yt/yt/core/logging/config.h>
+#include <yt/yt/core/logging/log_manager.h>
 
 namespace NYT {
 
@@ -15,12 +16,13 @@ using namespace NChunkClient;
 using namespace NControllerAgent;
 using namespace NLogging;
 using namespace NNodeTrackerClient;
-using namespace NTableClient;
+
+using testing::UnitTest;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <>
-void PrintTo(const TIntrusivePtr<NChunkClient::TInputChunk>& chunk, std::ostream* os)
+void PrintTo(const TInputChunkPtr& chunk, std::ostream* os)
 {
     *os << ToString(chunk->GetChunkId());
 }
@@ -28,18 +30,6 @@ void PrintTo(const TIntrusivePtr<NChunkClient::TInputChunk>& chunk, std::ostream
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NChunkPools {
-
-////////////////////////////////////////////////////////////////////////////////
-
-TLogger GetTestLogger()
-{
-    const auto* testInfo =
-        testing::UnitTest::GetInstance()->current_test_info();
-
-    return ChunkPoolLogger()
-        .WithTag("OperationId: %v, Name: %v::%v", TGuid::Create(), testInfo->name(), testInfo->test_suite_name())
-        .WithMinLevel(ELogLevel::Trace);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -93,37 +83,22 @@ void CheckUnsuccessfulSplitMarksJobUnsplittable(IPersistentChunkPoolPtr chunkPoo
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkSlice::TChunkSlice(
-    const TInputChunkSlicePtr& chunkSlice,
-    const TLegacyDataSlicePtr& dataSlice,
-    const TComparator& comparator)
-    : ChunkId_(chunkSlice->GetInputChunk()->GetChunkId())
-    , LowerLimit_(chunkSlice->LowerLimit())
-    , UpperLimit_(chunkSlice->UpperLimit())
-    , RowBuffer_(New<TRowBuffer>())
+void TChunkPoolTestBase::SetUp()
 {
-    YT_VERIFY(comparator);
-
-    LowerLimit_.KeyBound = ShortenKeyBound(LowerLimit_.KeyBound, comparator.GetLength(), RowBuffer_);
-    UpperLimit_.KeyBound = ShortenKeyBound(UpperLimit_.KeyBound, comparator.GetLength(), RowBuffer_);
-
-    TInputSliceLimit lowerLimit = dataSlice->LowerLimit();
-    TInputSliceLimit upperLimit = dataSlice->UpperLimit();
-    lowerLimit.KeyBound = ShortenKeyBound(lowerLimit.KeyBound, comparator.GetLength(), RowBuffer_);
-    upperLimit.KeyBound = ShortenKeyBound(upperLimit.KeyBound, comparator.GetLength(), RowBuffer_);
-
-    LowerLimit_.MergeLower(lowerLimit, comparator);
-    UpperLimit_.MergeUpper(upperLimit, comparator);
+    auto config = TLogManagerConfig::CreateStderrLogger(EnableDebugOutput ? ELogLevel::Trace : ELogLevel::Error);
+    config->AbortOnAlert = true;
+    TLogManager::Get()->Configure(config, /*sync*/ true);
 }
 
-bool IsNonEmptyIntersection(
-    const TChunkSlice& lhs,
-    const TChunkSlice& rhs,
-    const TComparator& comparator)
+TLogger TChunkPoolTestBase::GetTestLogger()
 {
-    return !comparator.IsRangeEmpty(lhs.LowerLimit().KeyBound, rhs.UpperLimit().KeyBound) &&
-        !comparator.IsRangeEmpty(rhs.LowerLimit().KeyBound, lhs.UpperLimit().KeyBound);
+    const auto* testInfo = UnitTest::GetInstance()->current_test_info();
+
+    return ChunkPoolLogger()
+        .WithTag("OperationId: %v, Name: %v::%v", TGuid::Create(), testInfo->name(), testInfo->test_suite_name());
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
 

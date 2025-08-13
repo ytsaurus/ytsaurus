@@ -601,7 +601,8 @@ NScheduler::TAllocationStartDescriptor TTask::CreateAllocationStartDescriptor(
         auto& attributes = startDescriptor.AllocationAttributes;
 
         attributes.CudaToolkitVersion = userJobSpec->CudaToolkitVersion;
-        if (auto& diskRequest = userJobSpec->DiskRequest) {
+        // Do not set disk_request allocation attributes in case of NBD disk.
+        if (auto& diskRequest = userJobSpec->DiskRequest; diskRequest && !diskRequest->NbdDisk) {
             attributes.DiskRequest.MediumIndex = diskRequest->MediumIndex;
             attributes.DiskRequest.DiskSpace = diskRequest->DiskSpace;
             attributes.DiskRequest.InodeCount = diskRequest->InodeCount;

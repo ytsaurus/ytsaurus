@@ -281,7 +281,7 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
         config,
         options,
         client,
-        /*localHostName*/ TString(), // Locality is not important for files.
+        /*localHostName*/ std::string(), // Locality is not important for files.
         cellTag,
         transactionId,
         NullTableSchemaId, // Schema is inapplicable to file chunks.

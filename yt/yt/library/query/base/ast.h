@@ -71,7 +71,7 @@ using TLiteralValue = std::variant<
     ui64,
     double,
     bool,
-    TString
+    std::string
 >;
 
 using TLiteralValueList = std::vector<TLiteralValue>;
@@ -83,7 +83,7 @@ using TLiteralValueRangeList = std::vector<std::pair<TLiteralValueTuple, TLitera
 
 struct TDoubleOrDotIntToken
 {
-    TString Representation;
+    std::string Representation;
 
     TTupleItemIndexAccessor AsDotInt() const;
     double AsDouble() const;
@@ -94,11 +94,11 @@ struct TDoubleOrDotIntToken
 struct TColumnReference
 {
     std::string ColumnName;
-    std::optional<TString> TableName;
+    std::optional<std::string> TableName;
 
     explicit TColumnReference(
         TStringBuf columnName,
-        const std::optional<TString>& tableName = {})
+        const std::optional<std::string>& tableName = {})
         : ColumnName(columnName)
         , TableName(tableName)
     { }
@@ -142,7 +142,7 @@ struct TReference
 
     explicit TReference(
         TStringBuf columnName,
-        const std::optional<TString>& tableName = {},
+        const std::optional<std::string>& tableName = {},
         const TCompositeTypeMemberAccessor& compositeTypeAccessor = {})
         : TColumnReference(columnName, tableName)
         , CompositeTypeAccessor(compositeTypeAccessor)
@@ -221,7 +221,7 @@ struct TReferenceExpression
     TReferenceExpression(
         const TSourceLocation& sourceLocation,
         TStringBuf columnName,
-        std::optional<TString> tableName = {},
+        std::optional<std::string> tableName = {},
         TCompositeTypeMemberAccessor compositeTypeAccessor = {})
         : TExpression(sourceLocation)
         , Reference(columnName, std::move(tableName), std::move(compositeTypeAccessor))
@@ -241,7 +241,7 @@ struct TAliasExpression
     : public TExpression
 {
     TExpressionPtr Expression;
-    TString Name;
+    std::string Name;
 
     TAliasExpression(
         const TSourceLocation& sourceLocation,
@@ -437,14 +437,14 @@ DEFINE_REFCOUNTED_TYPE(TTableHint)
 struct TTableDescriptor
 {
     NYPath::TYPath Path;
-    std::optional<TString> Alias;
+    std::optional<std::string> Alias;
     TTableHintPtr Hint = New<TTableHint>();
 
     TTableDescriptor() = default;
 
     explicit TTableDescriptor(
         NYPath::TYPath path,
-        std::optional<TString> alias = std::nullopt,
+        std::optional<std::string> alias = std::nullopt,
         TTableHintPtr hint = New<TTableHint>())
         : Path(std::move(path))
         , Alias(std::move(alias))
@@ -558,7 +558,7 @@ struct TQueryAstHead
 {
     TQuery Ast;
     TAliasMap AliasMap;
-    std::optional<TString> Alias;
+    std::optional<std::string> Alias;
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueryAstHead);
@@ -586,16 +586,16 @@ struct TQueryExpression
 TStringBuf GetSource(TSourceLocation sourceLocation, TStringBuf source);
 
 void FormatIdFinal(TStringBuilderBase* builder, TStringBuf id);
-TString FormatId(TStringBuf id);
-TString FormatLiteralValue(const TLiteralValue& value);
-TString FormatReference(const TReference& ref);
-TString FormatExpression(const TExpression& expr);
-TString FormatExpression(const TExpressionList& exprs);
-TString FormatJoin(const TJoin& join);
-TString FormatArrayJoin(const TArrayJoin& join);
-TString FormatQuery(const TQuery& query);
-TString InferColumnName(const TExpression& expr);
-TString InferColumnName(const TColumnReference& ref);
+std::string FormatId(TStringBuf id);
+std::string FormatLiteralValue(const TLiteralValue& value);
+std::string FormatReference(const TReference& ref);
+std::string FormatExpression(const TExpression& expr);
+std::string FormatExpression(const TExpressionList& exprs);
+std::string FormatJoin(const TJoin& join);
+std::string FormatArrayJoin(const TArrayJoin& join);
+std::string FormatQuery(const TQuery& query);
+std::string InferColumnName(const TExpression& expr);
+std::string InferColumnName(const TColumnReference& ref);
 void FormatValue(TStringBuilderBase* builder, const TTableHint& hint, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -618,7 +618,7 @@ NAst::TExpressionPtr BuildConcatenationExpression(
     TObjectsHolder* holder,
     NAst::TExpressionPtr lhs,
     NAst::TExpressionPtr rhs,
-    const TString& separator);
+    TStringBuf separator);
 
 //! For commutative operations only.
 NAst::TExpressionPtr BuildBinaryOperationTree(

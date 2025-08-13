@@ -450,11 +450,11 @@ public:
             TStringBuf versionStringBuf;
 
             ParseLangVersion(options.MaxYqlLangVersion, MaxYqlLangVersion_);
-            YQL_LOG(INFO) << Format("Maximum supported YQL version is set to '%v'", options.MaxYqlLangVersion);
+            YQL_LOG(INFO) << Format("Maximum supported YQL version is set (Version: %v)", options.MaxYqlLangVersion);
 
             DefaultYqlApiLangVersion_ = MinLangVersion;
             FormatLangVersion(DefaultYqlApiLangVersion_, buf, versionStringBuf);
-            YQL_LOG(INFO) << Format("Deafult YQL version for API and CLI is set to '%v'", versionStringBuf);
+            YQL_LOG(INFO) << Format("Deafult YQL version for API and CLI is set (Version: %v)", versionStringBuf);
 
         } catch (const std::exception& ex) {
             // NB: YQL_LOG may be not initialized yet (for example, during singletons config parse),
@@ -1006,7 +1006,7 @@ private:
             if (ParseLangVersion(version->AsString(), parsedVersion)) {
                 program->SetLanguageVersion(parsedVersion);
             } else {
-                ythrow yexception() << Format("Invalid YQL language version: '%v'", version->AsString());
+                ythrow yexception() << Format("Invalid YQL language version (Version: %v)", version->AsString());
             }
         } else {
             program->SetLanguageVersion(DefaultYqlApiLangVersion_);

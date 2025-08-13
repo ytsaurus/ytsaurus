@@ -672,7 +672,7 @@ func (c *Client) GetPoolTrees(ctx context.Context) (PoolTrees, error) {
 		p := PoolTreesPath.Child(tree)
 
 		options := &yt.ListNodeOptions{
-			Attributes: []string{"min_share_resources"},
+			Attributes: []string{"strong_guarantee_resources"},
 			MaxSize:    ptr.Int64(listResultMaxSize),
 		}
 
@@ -685,7 +685,11 @@ func (c *Client) GetPoolTrees(ctx context.Context) (PoolTrees, error) {
 		for _, n := range nodes {
 			t.Nodes[n.Name] = n
 			if n.Resources == nil {
-				n.Resources = &PoolTreeResourceLimits{}
+				if n.OldResources != nil {
+					n.Resources = n.OldResources
+				} else {
+					n.Resources = &PoolTreeResourceLimits{}
+				}
 			}
 		}
 		ret[tree] = t
@@ -919,7 +923,7 @@ func (c *Client) GetDisableBundleBalancer(ctx context.Context) (bool, error) {
 	return out, err
 }
 
-// GetLVC returns number of lost vital chunks.
+// GetChunkCount returns total number of chunks.
 func (c *Client) GetChunkCount(ctx context.Context) (int64, error) {
 	return c.getInt64Attr(ctx, ChunksCountPath)
 }
@@ -1028,12 +1032,15 @@ func (c *Client) Unban(ctx context.Context, component Component) error {
 	defer func() { _ = tx.Abort() }()
 
 	// For queue agents, banned attr is bannedQueueAgentAttr
-	banned := bannedAttr
+	// TODO: After YT-25647 remove and leave only simple "banned" attr.
 	if component.GetRole() == RoleQueueAgent {
-		banned = bannedQueueAgentAttr
+		err = tx.SetNode(ctx, p.Attr(bannedQueueAgentAttr), false, nil)
+		if err != nil {
+			return err
+		}
 	}
 
-	err = tx.SetNode(ctx, p.Attr(banned), false, nil)
+	err = tx.SetNode(ctx, p.Attr(bannedAttr), false, nil)
 	if err != nil {
 		return err
 	}

@@ -21,6 +21,7 @@ using namespace NQueryClient;
 using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
+
 //! Validates the column schema update.
 /*!
  *  \pre{oldColumn and newColumn should have the same stable name.}
@@ -151,7 +152,7 @@ static void ValidateColumnRemoval(
 }
 
 //! Validates that all columns from the new schema are present in the old schema.
-void ValidateColumnsNotInserted(const TTableSchema& oldSchema, const TTableSchema& newSchema)
+static void ValidateColumnsNotInserted(const TTableSchema& oldSchema, const TTableSchema& newSchema)
 {
     YT_VERIFY(!oldSchema.IsStrict());
     for (const auto& newColumn : newSchema.Columns()) {
@@ -169,7 +170,7 @@ void ValidateColumnsNotInserted(const TTableSchema& oldSchema, const TTableSchem
  *  - Key columns are not removed (but they may become non-key).
  *  - If any key columns are removed, the unique_keys is set to false.
  */
-void ValidateColumnsMatch(const TTableSchema& oldSchema, const TTableSchema& newSchema)
+static void ValidateColumnsMatch(const TTableSchema& oldSchema, const TTableSchema& newSchema)
 {
     int commonKeyColumnPrefix = 0;
     for (int oldColumnIndex = 0; oldColumnIndex < oldSchema.GetColumnCount(); ++oldColumnIndex) {
@@ -209,7 +210,7 @@ void ValidateColumnsMatch(const TTableSchema& oldSchema, const TTableSchema& new
     }
 }
 
-void ValidateNoRequiredColumnsAdded(const TTableSchema& oldSchema, const TTableSchema& newSchema)
+static void ValidateNoRequiredColumnsAdded(const TTableSchema& oldSchema, const TTableSchema& newSchema)
 {
     for (const auto& newColumn : newSchema.Columns()) {
         if (newColumn.Required()) {
@@ -222,7 +223,7 @@ void ValidateNoRequiredColumnsAdded(const TTableSchema& oldSchema, const TTableS
     }
 }
 
-void ValidateKeyColumnWasNotAlteredToAny(const TTableSchema& oldSchema, const TTableSchema& newSchema)
+static void ValidateKeyColumnWasNotAlteredToAny(const TTableSchema& oldSchema, const TTableSchema& newSchema)
 {
     for (int oldColumnIndex = 0; oldColumnIndex < oldSchema.GetKeyColumnCount(); ++oldColumnIndex) {
         const auto& oldColumn = oldSchema.Columns()[oldColumnIndex];
@@ -257,7 +258,7 @@ static bool IsPhysicalType(ESimpleLogicalValueType logicalType)
  *  - Aggregate function appears in a list of pre-defined aggregate functions.
  *  - Type of an aggregated column matches the type of an aggregate function.
  */
-void ValidateAggregatedColumns(const TTableSchema& schema)
+static void ValidateAggregatedColumns(const TTableSchema& schema)
 {
     for (int index = 0; index < schema.GetColumnCount(); ++index) {
         const auto& columnSchema = schema.Columns()[index];

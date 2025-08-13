@@ -167,15 +167,7 @@ TFuture<TOperationControllerInitializeResult> TOperationControllerImpl::Initiali
 
             auto rsp = rspOrError.Value();
             if (rsp->has_result()) {
-                TOperationControllerInitializeResult result;
-                FromProto(
-                    &result,
-                    rsp->result(),
-                    OperationId_,
-                    Bootstrap_,
-                    Config_->OperationTransactionPingPeriod);
-
-                OnInitializationFinished(result);
+                OnInitializationFinished(FromProto<TOperationControllerInitializeResult>(rsp->result()));
             }
         })
         .Via(agent->GetCancelableControlInvoker()));

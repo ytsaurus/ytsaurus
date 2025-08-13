@@ -37,15 +37,11 @@ message TReqUnregisterNode
 message TReqDisposeLocation
 {
     required uint32 node_id = 1;
-    required int32 location_index = 2;
+    optional uint32 global_location_index = 3;
+    reserved 2;
 }
 
 message TReqStartNodeDisposal
-{
-    required uint32 node_id = 1;
-}
-
-message TReqFinishNodeDisposal
 {
     required uint32 node_id = 1;
 }

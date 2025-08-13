@@ -615,6 +615,8 @@ struct TThreadPoolIOEngineConfig
     bool AsyncFlushAfterWrite;
     bool EnableSyncOnCloseWithWrite;
 
+    i64 MinRequestSizeToUseHugePages;
+
     // Request size in bytes.
     i64 DesiredRequestSize;
     i64 MinRequestSize;
@@ -637,6 +639,10 @@ struct TThreadPoolIOEngineConfig
         registrar.Parameter("fair_share_thread_count", &TThis::FairShareThreadCount)
             .GreaterThanOrEqual(1)
             .Default(4);
+
+        registrar.Parameter("min_request_size_to_use_huge_pages", &TThis::MinRequestSizeToUseHugePages)
+            .GreaterThanOrEqual(0)
+            .Default(2_MB);
 
         registrar.Parameter("enable_pwritev", &TThis::EnablePwritev)
             .Default(true);
@@ -863,7 +869,7 @@ public:
                         category,
                         sessionId,
                         std::move(requestCounterGuard),
-                        request.Handle->IsOpenForDirectIO() ? AllocateHugeBlob() : TSharedMutableRef(),
+                        request.Size > config->MinRequestSizeToUseHugePages && request.Handle->IsOpenForDirectIO() ? AllocateHugeBlob() : TSharedMutableRef(),
                         Sensors_,
                         Logger);
                 })
@@ -1102,7 +1108,7 @@ public:
                         category,
                         sessionId,
                         std::move(requestCounterGuard),
-                        request.Handle->IsOpenForDirectIO() ? AllocateHugeBlob() : TSharedMutableRef(),
+                        request.Size > config->MinRequestSizeToUseHugePages && request.Handle->IsOpenForDirectIO() ? AllocateHugeBlob() : TSharedMutableRef(),
                         Sensors_,
                         Logger);
                 });

@@ -34,8 +34,7 @@ target_link_libraries(gdbtest PUBLIC
 )
 
 target_allocator(gdbtest
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
+  system_allocator
 )
 
 target_link_options(gdbtest PRIVATE

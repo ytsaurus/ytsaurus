@@ -11,6 +11,8 @@ from yt_env_setup import YTEnvSetup
 
 from yt_helpers import profiler_factory
 
+from yt_queries import get_query_tracker_info
+
 from yt.wrapper import yson
 
 import yt_error_codes
@@ -34,15 +36,19 @@ class TestQueriesYqlBase(YTEnvSetup):
     }
 
     def _run_simple_query(self, query, **kwargs):
+        result_format_kwargs = {}
+        if "result_output_format" in kwargs:
+            result_format_kwargs["output_format"] = kwargs["result_output_format"]
+
         query = start_query("yql", query, **kwargs)
         query.track()
         query_info = query.get()
         if query_info["result_count"] == 0:
             return None
         elif query_info["result_count"] == 1:
-            return query.read_result(0)
+            return query.read_result(0, **result_format_kwargs)
         else:
-            return [query.read_result(i) for i in range(query_info["result_count"])]
+            return [query.read_result(i, **result_format_kwargs) for i in range(query_info["result_count"])]
 
     def _test_simple_query(self, query, expected, **kwargs):
         result = self._run_simple_query(query, **kwargs)
@@ -254,10 +260,29 @@ class TestTypes(TestQueriesYqlBase):
                "Set": [[["Two", 2], None], [["One", 1], None]],
                "Variant": ["var", 88],
                "Tagged": 123,
-               "Decimal": "123456.789",
+               "Decimal": b"\x80\0\0\0\7[\xCD\x15",
                "Json": '[1, "text", 3.14]',
                "Yson": [7, 'str', -3.14]
                }])
+
+    @authors("mpereskokova")
+    def test_web_json_decimal(self, query_tracker, yql_agent):
+        format = yson.loads(b'<value_format=yql>web_json')
+        self._test_simple_query(
+            """select Decimal("123456.789", 13, 3) as `Decimal`""",
+            b'{"rows":[{"Decimal":["123456.789","8"]}],"incomplete_columns":"false","incomplete_all_column_names":"false","all_column_names":["Decimal"],"yql_type_registry":[["NullType"],'
+            b'["DataType","Int64"],["DataType","Uint64"],["DataType","Double"],["DataType","Boolean"],["DataType","String"],["DataType","Yson"],["DataType","Yson"],["DataType","Decimal","13","3"]]}',
+            result_output_format=format)
+
+    @authors("mpereskokova")
+    def test_optional_and_tagged(self, query_tracker, yql_agent):
+        self._test_simple_query("""
+            select
+                Just(2) as `SimpleOptional`,
+                Just(Just(2)) as `DoubleOptional`,
+                AsTagged(AsTuple(AsTagged(1, "tag1"), Just(Just(2))), "tag2") as `TaggedTupple`,
+                AsTagged(AsTagged(1, "tag1"), "tag2") as `NestedTagged`\
+            """, [{"SimpleOptional": 2, "DoubleOptional": [2], "TaggedTupple": [1, [2]], "NestedTagged": 1}])
 
     @authors("a-romanov")
     def test_double_optional(self, query_tracker, yql_agent):
@@ -806,7 +831,7 @@ class TestYqlAgent(TestQueriesYqlBase):
             assert not gateway_config["execute_udf_locally_if_possible"]
             assert len(gateway_config["cluster_mapping"]) == 1
             assert len(gateway_config["cluster_mapping"][0]["settings"]) == 2
-            assert len(gateway_config["default_settings"]) == 59
+            assert len(gateway_config["default_settings"]) == 61
 
             setting_found = False
             for setting in gateway_config["default_settings"]:
@@ -849,14 +874,12 @@ class TestQueriesYqlLimitedResult(TestQueriesYqlBase):
         result = query.read_result(0)
         assert_items_equal(result, [{"a": 42}])
         assert query.get_result(0)["is_truncated"]
-        assert_full_result(query.get_result(0))
 
         query = start_query("yql", "select * from `//tmp/t1` limit 1")
         query.track()
         result = query.read_result(0)
         assert_items_equal(result, [{"a": 42}])
         assert not query.get_result(0)["is_truncated"]
-        assert "full_result" not in query.get_result(0)
 
 
 class TestQueriesYqlResultTruncation(TestQueriesYqlBase):
@@ -960,7 +983,7 @@ class TestQueriesYqlResultTruncation(TestQueriesYqlBase):
 
 
 class TestQueriesYqlAuth(TestQueriesYqlBase):
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "auth" : {"enable_authentication": True}
     }
 
@@ -1387,3 +1410,107 @@ class TestAgentWithUndefinedMaxYqlVersion(TestSimpleQueriesBase):
     @authors("kirsiv40")
     def test_default_yql_query(self, query_tracker, yql_agent):
         self._test_simple_yql_query_versions(query_tracker, yql_agent)
+
+
+class TestGetQueryTrackerInfoBase(TestQueriesYqlBase):
+    NUM_YQL_AGENTS = 2
+
+    def _check_qt_info(self, qt_info):
+        assert "engines_info" in qt_info
+        assert "yql" in qt_info["engines_info"]
+        yql_info = qt_info["engines_info"]["yql"]
+
+        assert "available_yql_versions" in yql_info
+        assert "default_yql_ui_version" in yql_info
+        yql_versions = yql_info["available_yql_versions"]
+        default_version = yql_info["default_yql_ui_version"]
+
+        assert len(yql_versions) != 0
+        for version in yql_versions:
+            assert re.fullmatch(r'\d\d\d\d\.\d\d', version)
+
+        assert re.fullmatch(r'\d\d\d\d\.\d\d', default_version)
+
+        assert default_version in yql_versions
+
+    def _test_qt_info_with_incorrect_yqla_stage(self):
+        qt_info = get_query_tracker_info(attributes=["engines_info"], settings={"yql_agent_stage": "unavailable yqla stage name"})
+        assert qt_info["engines_info"] == {}
+
+        qt_info = get_query_tracker_info(settings={"yql_agent_stage": "unavailable yqla stage name"})
+        assert qt_info["engines_info"] == {}
+
+
+class TestGetQueryTrackerInfoWithMaxYqlVersion(TestGetQueryTrackerInfoBase):
+    MAX_YQL_VERSION = "2025.01"
+
+    def _check_specific_qt_info(self, qt_info):
+        self._check_qt_info(qt_info)
+        assert qt_info["engines_info"]["yql"] == \
+            {
+                "available_yql_versions": ["2025.01",],
+                "default_yql_ui_version": "2025.01",
+            }
+
+    @authors("kirsiv40")
+    def test_qt_info(self, query_tracker, yql_agent):
+        self._check_specific_qt_info(get_query_tracker_info())
+        self._check_specific_qt_info(get_query_tracker_info(settings={"yql_agent_stage": "production"}))
+        self._check_specific_qt_info(get_query_tracker_info(settings={"some_unused_settings": "some_unused_settings"}))
+        self._check_specific_qt_info(get_query_tracker_info(attributes=["engines_info"]))
+        self._check_specific_qt_info(get_query_tracker_info(attributes=["engines_info"], settings={"yql_agent_stage": "production"}))
+        self._check_specific_qt_info(get_query_tracker_info(attributes=["engines_info"], settings={"some_unused_settings": "some_unused_settings"}))
+        self._test_qt_info_with_incorrect_yqla_stage()
+
+
+class TestGetQueryTrackerInfoWithoutMaxYqlVersion(TestGetQueryTrackerInfoBase):
+    @authors("kirsiv40")
+    def test_qt_info(self, query_tracker, yql_agent):
+        self._check_qt_info(get_query_tracker_info())
+        self._check_qt_info(get_query_tracker_info(settings={"yql_agent_stage": "production"}))
+        self._check_qt_info(get_query_tracker_info(settings={"some_unused_settings": "some_unused_settings"}))
+        self._check_qt_info(get_query_tracker_info(attributes=["engines_info"]))
+        self._check_qt_info(get_query_tracker_info(attributes=["engines_info"], settings={"yql_agent_stage": "production"}))
+        self._check_qt_info(get_query_tracker_info(attributes=["engines_info"], settings={"some_unused_settings": "some_unused_settings"}))
+        self._test_qt_info_with_incorrect_yqla_stage()
+
+
+class TestGetQueryTrackerInfoWithInvalidMaxYqlVersion(TestGetQueryTrackerInfoBase):
+    MAX_YQL_VERSION = "some invalid version name. should be set to maximum availible in facade"
+
+    @authors("kirsiv40")
+    def test_qt_info(self, query_tracker, yql_agent):
+        self._check_qt_info(get_query_tracker_info())
+        self._check_qt_info(get_query_tracker_info(settings={"yql_agent_stage": "production"}))
+        self._check_qt_info(get_query_tracker_info(settings={"some_unused_settings": "some_unused_settings"}))
+        self._check_qt_info(get_query_tracker_info(attributes=["engines_info"]))
+        self._check_qt_info(get_query_tracker_info(attributes=["engines_info"], settings={"yql_agent_stage": "production"}))
+        self._check_qt_info(get_query_tracker_info(attributes=["engines_info"], settings={"some_unused_settings": "some_unused_settings"}))
+        self._test_qt_info_with_incorrect_yqla_stage()
+
+
+@authors("kirsiv40")
+@pytest.mark.enabled_multidaemon
+class TestGetQueryTrackerInfoWithMaxYqlVersionRpcProxy(TestGetQueryTrackerInfoWithMaxYqlVersion):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
+    ENABLE_MULTIDAEMON = True
+
+
+@authors("kirsiv40")
+@pytest.mark.enabled_multidaemon
+class TestGetQueryTrackerInfoWithoutMaxYqlVersionRpcProxy(TestGetQueryTrackerInfoWithoutMaxYqlVersion):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
+    ENABLE_MULTIDAEMON = True
+
+
+@authors("kirsiv40")
+@pytest.mark.enabled_multidaemon
+class TestGetQueryTrackerInfoWithInvalidMaxYqlVersionRpcProxy(TestGetQueryTrackerInfoWithInvalidMaxYqlVersion):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
+    ENABLE_MULTIDAEMON = True

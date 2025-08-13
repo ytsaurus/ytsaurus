@@ -476,7 +476,7 @@ protected:
         YT_PROFILE_TIMING("/operations/merge/input_processing_time") {
             YT_LOG_INFO("Processing inputs");
 
-            TPeriodicYielder yielder(PrepareYieldPeriod);
+            auto yielder = CreatePeriodicYielder(PrepareYieldPeriod);
 
             SortedTask_->SetIsInput(true);
 
@@ -875,7 +875,7 @@ public:
 
     TCpuResource GetCpuLimit() const override
     {
-        return 1;
+        return TCpuResource(1L);
     }
 
     std::vector<TRichYPath> GetInputTablePaths() const override

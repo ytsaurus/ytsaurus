@@ -79,7 +79,7 @@ TEST(OperationCommands, GetBriefProgress)
 
     WaitOperationHasBriefProgress(operation);
 
-    // Request brief progress directly
+    // Request brief progress directly.
     auto briefProgress = operation->GetBriefProgress();
     EXPECT_TRUE(briefProgress.Defined());
     EXPECT_TRUE(briefProgress->Total > 0);
@@ -354,6 +354,12 @@ TEST(OperationCommands, GetOperationAlert)
     WaitOperationIsRunning(op);
 
     op->CompleteOperation();
+
+    EXPECT_NO_THROW(
+        WaitForPredicate([&] {
+            auto alerts = op->GetAlerts();
+            return alerts.Defined() && alerts->size() == 1 && alerts->contains("operation_completed_by_user_request");
+        }));
 
     EXPECT_NO_THROW(
         WaitForPredicate([&] {

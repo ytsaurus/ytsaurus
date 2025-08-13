@@ -386,7 +386,7 @@ private:
             volumeProperties["storage"] = GetDirectoryName(toolPathOrError.Value());
 
             auto pathOrError = WaitFor(PortoExecutor_->CreateVolume(toolDirectory, volumeProperties));
-            THROW_ERROR_EXCEPTION_IF_FAILED(pathOrError, "Failed to bind tools inside job shell")
+            THROW_ERROR_EXCEPTION_IF_FAILED(pathOrError, "Failed to bind tools inside job shell");
         }
     }
 #endif

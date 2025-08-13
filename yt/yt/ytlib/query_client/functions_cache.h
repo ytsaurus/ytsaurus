@@ -98,7 +98,7 @@ void FetchFunctionImplementationsFromFiles(
     const TFunctionProfilerMapPtr& functionProfilers,
     const TAggregateProfilerMapPtr& aggregateProfilers,
     const TConstExternalCGInfoPtr& externalCGInfo,
-    const TString& rootPath);
+    TStringBuf rootPath);
 
 ////////////////////////////////////////////////////////////////////////////////
 

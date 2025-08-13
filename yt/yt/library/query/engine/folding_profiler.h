@@ -40,7 +40,8 @@ TCGQueryGenerator Profile(
     NCodegen::EExecutionBackend executionBackend = NCodegen::EExecutionBackend::Native,
     const TConstFunctionProfilerMapPtr& functionProfilers = GetBuiltinFunctionProfilers().Get(),
     const TConstAggregateProfilerMapPtr& aggregateProfilers = GetBuiltinAggregateProfilers().Get(),
-    bool allowUnorderedGroupByWithLimit = true);
+    bool allowUnorderedGroupByWithLimit = true,
+    i64 maxJoinBatchSize = DefaultMaxJoinBatchSize);
 
 ////////////////////////////////////////////////////////////////////////////////
 

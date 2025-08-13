@@ -111,6 +111,8 @@ void TChunkLocationConfig::ApplyDynamicInplace(const TChunkLocationDynamicConfig
 
     UpdateYsonStructField(ReadMemoryLimit, dynamicConfig.ReadMemoryLimit);
 
+    UpdateYsonStructField(TotalMemoryLimit, dynamicConfig.TotalMemoryLimit);
+
     for (auto category : TEnumTraits<EWorkloadCategory>::GetDomainValues()) {
         auto priority = dynamicConfig.FairShareWorkloadCategoryWeights[category];
         if (priority) {
@@ -159,6 +161,8 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
         .Default(10_GB);
     registrar.Parameter("write_memory_limit", &TThis::WriteMemoryLimit)
         .Default(10_GB);
+    registrar.Parameter("total_memory_limit", &TThis::TotalMemoryLimit)
+        .Default(20_GB);
 
     registrar.Parameter("session_count_limit", &TThis::SessionCountLimit)
         .Default(1000);
@@ -227,6 +231,8 @@ void TChunkLocationDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("read_memory_limit", &TThis::ReadMemoryLimit)
         .Optional();
     registrar.Parameter("write_memory_limit", &TThis::WriteMemoryLimit)
+        .Optional();
+    registrar.Parameter("total_memory_limit", &TThis::TotalMemoryLimit)
         .Optional();
 
     registrar.Parameter("memory_limit_fraction_for_starting_new_sessions", &TThis::MemoryLimitFractionForStartingNewSessions)
@@ -994,6 +1000,9 @@ void TDataNodeConfig::Register(TRegistrar registrar)
         .LessThan(64)
         .Default(8);
 
+    registrar.Parameter("choose_location_based_on_io_weight", &TThis::ChooseLocationBasedOnIOWeight)
+        .Default(false);
+
     registrar.Parameter("background_artifact_validation_delay", &TThis::BackgroundArtifactValidationDelay)
         .Default(TDuration::Minutes(5));
 
@@ -1180,6 +1189,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("disk_write_throttling_limit", &TThis::DiskWriteThrottlingLimit)
         .Default();
     registrar.Parameter("disk_read_throttling_limit", &TThis::DiskReadThrottlingLimit)
+        .Default();
+
+    registrar.Parameter("choose_location_based_on_io_weight", &TThis::ChooseLocationBasedOnIOWeight)
         .Default();
 
     registrar.Parameter("testing_options", &TThis::TestingOptions)

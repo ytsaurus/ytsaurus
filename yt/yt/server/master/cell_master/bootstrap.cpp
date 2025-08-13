@@ -660,9 +660,10 @@ TFuture<void> TBootstrap::Run()
 void TBootstrap::LoadSnapshot(
     const TString& fileName,
     ESerializationDumpMode dumpMode,
-    TSerializationDumpScopeFilter dumpScopeFilter)
+    TSerializationDumpScopeFilter dumpScopeFilter,
+    bool checkInvariants)
 {
-    BIND(&TBootstrap::DoLoadSnapshot, MakeStrong(this), fileName, dumpMode, std::move(dumpScopeFilter))
+    BIND(&TBootstrap::DoLoadSnapshot, MakeStrong(this), fileName, dumpMode, std::move(dumpScopeFilter), checkInvariants)
         .AsyncVia(GetControlInvoker())
         .Run()
         .Get()
@@ -672,6 +673,15 @@ void TBootstrap::LoadSnapshot(
 void TBootstrap::ReplayChangelogs(std::vector<TString> changelogFileNames)
 {
     BIND(&TBootstrap::DoReplayChangelogs, MakeStrong(this), Passed(std::move(changelogFileNames)))
+        .AsyncVia(GetControlInvoker())
+        .Run()
+        .Get()
+        .ThrowOnError();
+}
+
+void TBootstrap::FinishRecoveryDryRun()
+{
+    BIND(&TBootstrap::DoFinishRecoveryDryRun, MakeStrong(this))
         .AsyncVia(GetControlInvoker())
         .Run()
         .Get()
@@ -1200,6 +1210,10 @@ void TBootstrap::DoStart()
         CreateVirtualNode(TabletManager_->GetOrchidService()));
     SetNodeByYPath(
         orchidRoot,
+        "/ground_update_queue_manager",
+        CreateVirtualNode(GroundUpdateQueueManager_->GetOrchidService()));
+    SetNodeByYPath(
+        orchidRoot,
         "/reign",
         ConvertTo<INodePtr>(GetCurrentReign()));
     SetNodeByYPath(
@@ -1220,7 +1234,8 @@ void TBootstrap::DoStart()
 void TBootstrap::DoLoadSnapshot(
     const TString& fileName,
     ESerializationDumpMode dumpMode,
-    TSerializationDumpScopeFilter dumpScopeFilter)
+    TSerializationDumpScopeFilter dumpScopeFilter,
+    bool checkInvariants)
 {
     auto snapshotId = TryFromString<int>(NFS::GetFileNameWithoutExtension(fileName));
     if (snapshotId.Empty()) {
@@ -1244,7 +1259,7 @@ void TBootstrap::DoLoadSnapshot(
         *snapshotId,
         /*prepareState*/ dumpMode == ESerializationDumpMode::None);
 
-    if (dumpMode == ESerializationDumpMode::None) {
+    if (checkInvariants) {
         dryRunHydraManager->DryRunCheckInvariants();
     }
 }
@@ -1280,6 +1295,14 @@ void TBootstrap::DoReplayChangelogs(const std::vector<TString>& changelogFileNam
             .ValueOrThrow();
         dryRunHydraManager->DryRunReplayChangelog(changelog);
     }
+}
+
+void TBootstrap::DoFinishRecoveryDryRun()
+{
+    const auto& hydraManager = HydraFacade_->GetHydraManager();
+    auto dryRunHydraManager = StaticPointerCast<IDryRunHydraManager>(hydraManager);
+    dryRunHydraManager->Initialize();
+    dryRunHydraManager->DryRunCompleteRecovery();
 }
 
 void TBootstrap::DoBuildSnapshot()

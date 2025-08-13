@@ -3,10 +3,11 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
+    components.cpp
     config.cpp
     crypto.cpp
     cypress_key_store.cpp
-    components.cpp
+    dynamic.cpp
     key_info.cpp
     key_pair.cpp
     key_rotator.cpp

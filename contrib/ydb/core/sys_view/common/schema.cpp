@@ -307,6 +307,8 @@ private:
         RegisterSystemView<Schema::QueryStats>(TopQueriesByRequestUnits1MinuteName, ESysViewType::ETopQueriesByRequestUnitsOneMinute);
         RegisterSystemView<Schema::QueryStats>(TopQueriesByRequestUnits1HourName, ESysViewType::ETopQueriesByRequestUnitsOneHour);
         RegisterSystemView<Schema::QuerySessions>(QuerySessions, ESysViewType::EQuerySessions);
+        // don't have approved schema yet
+        // RegisterSystemView<Schema::CompileCacheQueries>(CompileCacheQueries, ESysViewType::ECompileCacheQueries);
 
         RegisterDomainSystemView<Schema::PDisks>(PDisksName, ESysViewType::EPDisks);
         RegisterDomainSystemView<Schema::VSlots>(VSlotsName, ESysViewType::EVSlots);
@@ -319,10 +321,12 @@ private:
         RegisterSystemView<Schema::QueryMetrics>(QueryMetricsName, ESysViewType::EQueryMetricsOneMinute);
 
         RegisterOlapStoreSystemView<Schema::PrimaryIndexStats>(StorePrimaryIndexStatsName);
+        RegisterOlapStoreSystemView<Schema::PrimaryIndexSchemaStats>(StorePrimaryIndexSchemaStatsName);
         RegisterOlapStoreSystemView<Schema::PrimaryIndexPortionStats>(StorePrimaryIndexPortionStatsName);
         RegisterOlapStoreSystemView<Schema::PrimaryIndexGranuleStats>(StorePrimaryIndexGranuleStatsName);
         RegisterOlapStoreSystemView<Schema::PrimaryIndexOptimizerStats>(StorePrimaryIndexOptimizerStatsName);
         RegisterColumnTableSystemView<Schema::PrimaryIndexStats>(TablePrimaryIndexStatsName);
+        RegisterColumnTableSystemView<Schema::PrimaryIndexSchemaStats>(TablePrimaryIndexSchemaStatsName);
         RegisterColumnTableSystemView<Schema::PrimaryIndexPortionStats>(TablePrimaryIndexPortionStatsName);
         RegisterColumnTableSystemView<Schema::PrimaryIndexGranuleStats>(TablePrimaryIndexGranuleStatsName);
         RegisterColumnTableSystemView<Schema::PrimaryIndexOptimizerStats>(TablePrimaryIndexOptimizerStatsName);
@@ -411,12 +415,12 @@ private:
     THashMap<TString, ESysViewType> SystemViewTypes;
 };
 
-ISystemViewResolver* CreateSystemViewResolver() {
-    return new TSystemViewResolver();
+THolder<ISystemViewResolver> CreateSystemViewResolver() {
+    return MakeHolder<TSystemViewResolver>();
 }
 
-ISystemViewResolver* CreateSystemViewRewrittenResolver() {
-    return new TSystemViewRewrittenResolver();
+THolder<ISystemViewResolver> CreateSystemViewRewrittenResolver() {
+    return MakeHolder<TSystemViewRewrittenResolver>();
 }
 
 } // NSysView

@@ -1,7 +1,7 @@
 #include "auth_multi_factory.h"
 
 #include <contrib/ydb/core/base/ticket_parser.h>
-#include <contrib/ydb/core/ymq/actor/cfg.h>
+#include <contrib/ydb/core/ymq/actor/cfg/cfg.h>
 #include <contrib/ydb/core/ymq/actor/error.h>
 #include <contrib/ydb/core/ymq/actor/proxy_actor.h>
 #include <contrib/ydb/core/ymq/actor/serviceid.h>

@@ -18,6 +18,7 @@ using namespace NApi;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NObjectClient;
+using namespace NRpc;
 using namespace NSequoiaClient;
 using namespace NYPath;
 
@@ -37,15 +38,16 @@ struct TSequoiaTransactionActionSequencer
                 return priority; \
             }
 
-        HANDLE_ACTION_TYPE(TReqCloneNode, 100)
-        HANDLE_ACTION_TYPE(TReqDetachChild, 200)
-        HANDLE_ACTION_TYPE(TReqRemoveNode, 300)
-        HANDLE_ACTION_TYPE(TReqCreateNode, 400)
-        HANDLE_ACTION_TYPE(TReqFinishNodeMaterialization, 500)
-        HANDLE_ACTION_TYPE(TReqAttachChild, 600)
-        HANDLE_ACTION_TYPE(TReqSetNode, 700)
-        HANDLE_ACTION_TYPE(TReqMultisetAttributes, 800)
-        HANDLE_ACTION_TYPE(TReqImplicitlyLockNode, 900)
+        HANDLE_ACTION_TYPE(TReqValidatePrerequisiteRevisions, 100)
+        HANDLE_ACTION_TYPE(TReqCloneNode, 200)
+        HANDLE_ACTION_TYPE(TReqDetachChild, 300)
+        HANDLE_ACTION_TYPE(TReqRemoveNode, 400)
+        HANDLE_ACTION_TYPE(TReqCreateNode, 500)
+        HANDLE_ACTION_TYPE(TReqFinishNodeMaterialization, 600)
+        HANDLE_ACTION_TYPE(TReqAttachChild, 700)
+        HANDLE_ACTION_TYPE(TReqSetNode, 800)
+        HANDLE_ACTION_TYPE(TReqMultisetAttributes, 900)
+        HANDLE_ACTION_TYPE(TReqImplicitlyLockNode, 1000)
 
         #undef HANDLE_ACTION_TYPE
 
@@ -71,11 +73,15 @@ static const TSequoiaTransactionOptions SequoiaTransactionOptionsTemplate = {
 TFuture<ISequoiaTransactionPtr> StartCypressProxyTransaction(
     const ISequoiaClientPtr& sequoiaClient,
     ESequoiaTransactionType type,
+    TAuthenticationIdentity authenticationIdentity,
     const std::vector<TTransactionId>& cypressPrerequisiteTransactionIds,
     const TTransactionStartOptions& options)
 {
+    YT_VERIFY(!authenticationIdentity.User.empty());
+
     auto sequoiaTransactionOptions = SequoiaTransactionOptionsTemplate;
     sequoiaTransactionOptions.CypressPrerequisiteTransactionIds = cypressPrerequisiteTransactionIds;
+    sequoiaTransactionOptions.AuthenticationIdentity = std::move(authenticationIdentity);
     return sequoiaClient->StartTransaction(type, options, sequoiaTransactionOptions);
 }
 

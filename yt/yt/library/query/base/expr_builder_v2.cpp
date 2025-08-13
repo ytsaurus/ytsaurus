@@ -68,7 +68,7 @@ struct TAliasResolver
     const TNamedItemList* GroupItems = nullptr;
     TAggregateItemList* AggregateItems = nullptr;
 
-    THashMap<TString, TConstExpressionPtr> AggregateLookup;
+    THashMap<std::string, TConstExpressionPtr> AggregateLookup;
 
     explicit TAliasResolver(const NAst::TAliasMap& aliasMap)
         : AliasMap(aliasMap)
@@ -121,7 +121,7 @@ public:
         AliasResolvers_.back()->ColumnResolver.Finish();
     }
 
-    TString InferGroupItemName(
+    std::string InferGroupItemName(
         const TConstExpressionPtr& typedExpression,
         const NAst::TExpression& /*expressionsAst*/) override
     {
@@ -497,7 +497,7 @@ TConstExpressionPtr TExprBuilderV2::OnReference(const NAst::TReference& referenc
 
 TConstExpressionPtr TExprBuilderV2::OnFunction(const NAst::TFunctionExpression* functionExpr)
 {
-    auto functionName = to_lower(TString(functionExpr->FunctionName));
+    auto functionName = ToLower(functionExpr->FunctionName);
 
     if (functionName == "cast_operator") {
         THROW_ERROR_EXCEPTION_IF(functionExpr->Arguments.size() != 2,
@@ -507,12 +507,12 @@ TConstExpressionPtr TExprBuilderV2::OnFunction(const NAst::TFunctionExpression* 
 
         auto* literalArgument = functionExpr->Arguments[1]->As<NAst::TLiteralExpression>();
 
-        THROW_ERROR_EXCEPTION_UNLESS(literalArgument && std::holds_alternative<TString>(literalArgument->Value),
+        THROW_ERROR_EXCEPTION_UNLESS(literalArgument && std::holds_alternative<std::string>(literalArgument->Value),
             "Misuse of function %Qv",
             functionName);
 
         return New<TFunctionExpression>(
-            NTableClient::ParseType(std::get<TString>(literalArgument->Value)),
+            NTableClient::ParseType(std::get<std::string>(literalArgument->Value)),
             functionName,
             std::vector<TConstExpressionPtr>{OnExpression(functionExpr->Arguments[0])});
     }

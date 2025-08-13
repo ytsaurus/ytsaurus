@@ -414,7 +414,7 @@ private:
                 ToString(requestFeatureFlags));
         }
 
-        auto memoryChunkProvider = MemoryProvider_->GetProvider(
+        auto memoryChunkProvider = MemoryProvider_->GetOrCreateProvider(
             ToString(queryOptions.ReadSessionId),
             queryOptions.MemoryLimitPerNode,
             MemoryTracker_);
@@ -423,7 +423,9 @@ private:
 
         YT_LOG_DEBUG("Query deserialized (FragmentId: %v, InputRowLimit: %v, OutputRowLimit: %v, "
             "RangeExpansionLimit: %v, MaxSubqueries: %v, EnableCodeCache: %v, WorkloadDescriptor: %v, "
-            "ReadSessionId: %v, MemoryLimitPerNode: %v, DataRangeCount: %v, TableId: %v)",
+            "ReadSessionId: %v, MemoryLimitPerNode: %v, "
+            "RowsetProcessingBatchSize: %v, WriteRowsetSize: %v, MaxJoinBatchSize: %v, "
+            "DataRangeCount: %v, RandomTabletId: %v, StatisticsAggregation: %Qlv)",
             query->Id,
             queryOptions.InputRowLimit,
             queryOptions.OutputRowLimit,
@@ -433,8 +435,12 @@ private:
             queryOptions.WorkloadDescriptor,
             queryOptions.ReadSessionId,
             queryOptions.MemoryLimitPerNode,
+            queryOptions.RowsetProcessingBatchSize,
+            queryOptions.WriteRowsetSize,
+            queryOptions.MaxJoinBatchSize,
             dataSources.size(),
-            dataSources.begin()->ObjectId);
+            dataSources.begin()->ObjectId,
+            queryOptions.StatisticsAggregation);
 
         if (RejectUponThrottlerOverdraft_.load(std::memory_order::relaxed)) {
             TClientChunkReadOptions chunkReadOptions{
@@ -486,7 +492,7 @@ private:
                 statistics.MemoryUsage = memoryChunkProvider->GetMaxAllocated();
 
                 YT_LOG_DEBUG("Query evaluation finished (TotalMemoryUsage: %v)",
-                    statistics.MemoryUsage);
+                    statistics.MemoryUsage.GetTotal());
 
                 auto responseFeatureFlags = MostFreshFeatureFlags();
                 ToProto(response->mutable_feature_flags(), responseFeatureFlags);
@@ -1807,7 +1813,7 @@ private:
 
         auto memoryLimitPerNode = YT_OPTIONAL_FROM_PROTO(*request, memory_limit_per_node);
 
-        auto memoryChunkProvider = MemoryProvider_->GetProvider(
+        auto memoryChunkProvider = MemoryProvider_->GetOrCreateProvider(
             ToString(sessionId),
             memoryLimitPerNode.value_or(std::numeric_limits<ui64>::max()),
             MemoryTracker_);

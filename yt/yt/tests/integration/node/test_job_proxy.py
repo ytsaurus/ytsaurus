@@ -5,7 +5,7 @@ from yt_helpers import profiler_factory
 from yt_commands import (
     ls, get, set, print_debug, authors, wait, run_test_vanilla, create_user,
     wait_breakpoint, with_breakpoint, release_breakpoint, create, remove, read_table,
-    raises_yt_error, get_driver
+    raises_yt_error, get_driver, update_nodes_dynamic_config
 )
 
 from yt.common import update_inplace
@@ -155,7 +155,7 @@ class TestJobProxyBinary(JobProxyTestBase):
         wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/user_slots") == 1)
 
     @authors("ermolovd")
-    @pytest.mark.parametrize('spec,expected_env_presence', [
+    @pytest.mark.parametrize("spec,expected_env_presence", [
         ({"enable_rpc_proxy_in_job_proxy": False}, False),
         ({"enable_rpc_proxy_in_job_proxy": True}, True),
     ])
@@ -183,7 +183,7 @@ class TestJobProxyUserJobFlagRedirectStdoutToStderr(YTEnvSetup):
     NUM_HTTP_PROXIES = 1
 
     @authors("apachee")
-    @pytest.mark.parametrize('env_variable_value,spec', [
+    @pytest.mark.parametrize("env_variable_value,spec", [
         ("1", {}),
         ("1", {"redirect_stdout_to_stderr": False}),
         ("4", {"redirect_stdout_to_stderr": True}),
@@ -250,7 +250,7 @@ class TestJobProxyUserJobFlagRedirectStdoutToStderr(YTEnvSetup):
 
         assert len(job_ids) == 1
         job_id = job_ids[0]
-        content = op.read_stderr(job_id).decode('ascii').strip()
+        content = op.read_stderr(job_id).decode("ascii").strip()
         assert content == "content"
 
         release_breakpoint()
@@ -281,6 +281,9 @@ class TestRpcProxyInJobProxyBase(YTEnvSetup):
                 "cpu": 3,
             },
         },
+        "solomon_exporter": {
+            "host": "node.yt.test",
+        },
     }
 
     def setup_method(self, method):
@@ -305,11 +308,11 @@ class TestRpcProxyInJobProxyBase(YTEnvSetup):
             update_inplace(default_config, config)
         return YtClient(proxy=None, config=default_config)
 
-    def run_job_proxy(self, enable_rpc_proxy, rpc_proxy_thread_pool_size=None, monitoring=False, time_limit=2000):
+    def run_job_proxy(self, enable_rpc_proxy, rpc_proxy_thread_pool_size=None, enable_monitoring=False, time_limit=2000):
         task_patch = {
             "enable_rpc_proxy_in_job_proxy": enable_rpc_proxy,
             "monitoring": {
-                "enable": monitoring
+                "enable": enable_monitoring,
             }
         }
         if rpc_proxy_thread_pool_size is not None:
@@ -352,25 +355,52 @@ class TestRpcProxyInJobProxySingleCluster(TestRpcProxyInJobProxyBase):
     @authors("ermolovd")
     def test_metrics(self):
         def check_sensor_values(projections):
-            return any('job_descriptor' in projection['tags'] and
-                       'slot_index' in projection['tags'] and
-                       projection['value'] > 0 for projection in projections)
+            return any("job_descriptor" in projection["tags"] and
+                       "slot_index" in projection["tags"] and
+                       projection["value"] > 0 for projection in projections)
 
-        socket_file = self.run_job_proxy(enable_rpc_proxy=True, monitoring=True)
+        socket_file = self.run_job_proxy(enable_rpc_proxy=True, enable_monitoring=True)
         client = self.create_client_from_uds(socket_file, config={"token": "tester_token"})
         client.list("/")
         node = ls("//sys/cluster_nodes")[0]
-        profiler = profiler_factory().at_job_proxy(node, fixed_tags={'yt_service': 'ApiService', 'method': 'ListNode'})
+        profiler = profiler_factory().at_job_proxy(node, fixed_tags={"yt_service": "ApiService", "method": "ListNode"})
         wait(lambda: check_sensor_values(profiler.get_all("rpc/server/request_count")))
 
-    @authors("hiddenpath")
+
+class TestRpcProxyInJobProxySingleClusterSeveralNodes(TestRpcProxyInJobProxyBase):
+    NUM_NODES = 2
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_proxy": {
+                "job_proxy_authentication_manager": {
+                    "enable_authentication": True,
+                    "cypress_token_authenticator": {
+                        "secure": True,
+                    },
+                },
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 4,
+                "cpu": 4,
+            },
+        },
+        "solomon_exporter": {
+            "host": "node.yt.test",
+        },
+    }
+
+    @authors("hiddenpath", "nadya73")
     def test_rpc_proxy_count_metrics(self):
         nodes = ls("//sys/cluster_nodes")
-        rpc_proxy_in_job_proxy_gauge = (
+        rpc_proxy_in_job_proxy_gauges = [
             profiler_factory()
-            .at_node(nodes[0])
+            .at_node(nodes[node_index])
             .gauge(name="exec_node/rpc_proxy_in_job_proxy_count")
-        )
+            for node_index in range(self.NUM_NODES)
+        ]
 
         create_user("u1")
         create_user("u2")
@@ -379,35 +409,44 @@ class TestRpcProxyInJobProxySingleCluster(TestRpcProxyInJobProxyBase):
 
         run_test_vanilla(
             with_breakpoint("BREAKPOINT", breakpoint_name="op1"),
-            job_count=2,
+            job_count=5,
             task_patch=task_patch,
             authenticated_user="u1",
         )
-        job_ids1 = wait_breakpoint(breakpoint_name="op1", job_count=2)
-        assert len(job_ids1) == 2
+        job_ids1 = wait_breakpoint(breakpoint_name="op1", job_count=5)
+        assert len(job_ids1) == 5
 
         run_test_vanilla(
             with_breakpoint("BREAKPOINT", breakpoint_name="op2"),
-            job_count=1,
+            job_count=3,
             task_patch=task_patch,
             authenticated_user="u2",
         )
-        job_ids2 = wait_breakpoint(breakpoint_name="op2", job_count=1)
-        assert len(job_ids2) == 1
+        job_ids2 = wait_breakpoint(breakpoint_name="op2", job_count=3)
+        assert len(job_ids2) == 3
 
-        wait(lambda: rpc_proxy_in_job_proxy_gauge.get(tags={"user": "u1"}) == 2)
-        wait(lambda: rpc_proxy_in_job_proxy_gauge.get(tags={"user": "u2"}) == 1)
+        wait(lambda: rpc_proxy_in_job_proxy_gauges[0].get(tags={"user": "u1"}) is not None)
+
+        wait(lambda: sum([gauge.get(tags={"user": "u1"}, default=0.0) for gauge in rpc_proxy_in_job_proxy_gauges]) == 5)
+        wait(lambda: sum([gauge.get(tags={"user": "u2"}, default=0.0) for gauge in rpc_proxy_in_job_proxy_gauges]) == 3)
+
+        for node_index in range(self.NUM_NODES):
+            monitoring_port = self.Env.configs["node"][node_index]["monitoring_port"]
+            sensors = requests.get(f"http://localhost:{monitoring_port}/solomon/all").json()["sensors"]
+            sensors = [sensor for sensor in sensors if sensor.get("labels", {}).get("sensor") == "yt.exec_node.rpc_proxy_in_job_proxy_count"]
+            assert sensors[0]["labels"]["host"] == "node.yt.test"
 
         release_breakpoint(breakpoint_name="op1", job_id=job_ids1[0])
 
-        wait(lambda: rpc_proxy_in_job_proxy_gauge.get(tags={"user": "u1"}) == 1)
-        wait(lambda: rpc_proxy_in_job_proxy_gauge.get(tags={"user": "u2"}) == 1)
+        wait(lambda: sum([gauge.get(tags={"user": "u1"}, default=0.0) for gauge in rpc_proxy_in_job_proxy_gauges]) == 4)
+        wait(lambda: sum([gauge.get(tags={"user": "u2"}, default=0.0) for gauge in rpc_proxy_in_job_proxy_gauges]) == 3)
 
-        release_breakpoint(breakpoint_name="op1", job_id=job_ids1[1])
+        release_breakpoint(breakpoint_name="op1")
         release_breakpoint(breakpoint_name="op2")
 
-        wait(lambda: rpc_proxy_in_job_proxy_gauge.get(tags={"user": "u1"}) is None)
-        wait(lambda: rpc_proxy_in_job_proxy_gauge.get(tags={"user": "u2"}) is None)
+        for gauge in rpc_proxy_in_job_proxy_gauges:
+            wait(lambda: gauge.get(tags={"user": "u1"}) is None)
+            wait(lambda: gauge.get(tags={"user": "u2"}) is None)
 
 
 class TestRpcProxyInJobProxyMultiCluster(TestRpcProxyInJobProxyBase):
@@ -515,7 +554,7 @@ class TestJobProxyProfiling(YTEnvSetup):
         node = ls("//sys/cluster_nodes")[0]
         profiler = profiler_factory().at_job_proxy(node)
 
-        wait(lambda: sum(projection['value'] for projection in profiler.get_all("resource_tracker/thread_count")) > 0)
+        wait(lambda: sum(projection["value"] for projection in profiler.get_all("resource_tracker/thread_count")) > 0)
 
         op.abort()
 
@@ -524,20 +563,22 @@ class TestJobProxyProfiling(YTEnvSetup):
 
 @pytest.mark.enabled_multidaemon
 class TestJobProxySignatures(YTEnvSetup):
+    OWNERS_PATH = "//sys/public_keys/by_owner"
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "signature_validation": {
-                "cypress_key_reader": dict(),
-                "validator": dict(),
-            },
-            "signature_generation": {
-                "cypress_key_writer": {
-                    "owner_id": "test-job-proxy",
+            "signature_components": {
+                "validation": {
+                    "cypress_key_reader": dict(),
                 },
-                "generator": dict(),
-                "key_rotator": {
-                    "key_rotation_interval": "1s",
-                }
+                "generation": {
+                    "cypress_key_writer": dict(),
+                    "generator": dict(),
+                    "key_rotator": {
+                        "key_rotation_options": {
+                            "period": "1s",
+                        },
+                    },
+                },
             },
             "job_proxy": {
                 "job_proxy_authentication_manager": {
@@ -552,4 +593,17 @@ class TestJobProxySignatures(YTEnvSetup):
 
     @authors("pavook")
     def test_key_rotates(self):
-        wait(lambda: len(ls("//sys/public_keys/by_owner/test-job-proxy")) > 1)
+        wait(lambda: ls(self.OWNERS_PATH))
+        owner = ls(self.OWNERS_PATH)[0]
+        wait(lambda: len(ls(f"{self.OWNERS_PATH}/{owner}")) > 1)
+
+    @authors("pavook")
+    def test_dynamic_config(self):
+        wait(lambda: ls(self.OWNERS_PATH))
+        new_path = "//tmp/dynamic_test_public_keys"
+        create("map_node", new_path)
+        new_config = self.DELTA_NODE_CONFIG["exec_node"]["signature_components"]
+        new_config["generation"]["cypress_key_writer"]["path"] = new_path
+        new_config["validation"]["cypress_key_reader"]["path"] = new_path
+        update_nodes_dynamic_config(path="exec_node/signature_components", value=new_config)
+        wait(lambda: ls(new_path))

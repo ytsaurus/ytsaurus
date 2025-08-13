@@ -142,7 +142,7 @@ NClusterNode::TJobResources PatchJobResources(
 void RecalculateCpu(TNonNullPtr<NClusterNode::TJobResources> jobResources, double cpuToVCpuFactor)
 {
     jobResources->VCpu = jobResources->Cpu;
-    jobResources->Cpu = static_cast<double>(NVectorHdrf::TCpuResource(jobResources->VCpu / cpuToVCpuFactor));
+    jobResources->Cpu = NVectorHdrf::TCpuResource(jobResources->VCpu / cpuToVCpuFactor);
 }
 
 } // namespace
@@ -677,8 +677,8 @@ IYPathServicePtr TAllocation::GetOrchidService()
 
     auto staticAllocationService = GetStaticOrchidService();
 
-    return New<TServiceCombiner>(
-        std::vector<IYPathServicePtr>{
+    return CreateServiceCombiner(
+        {
             std::move(jobService),
             std::move(staticAllocationService),
         });
@@ -691,7 +691,7 @@ NYTree::IYPathServicePtr TAllocation::GetStaticOrchidService()
     return IYPathService::FromProducer(BIND([this, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
             auto [baseResourceUsage, additionalResourceUsage] = ResourceHolder_
                 ? ResourceHolder_->GetDetailedResourceUsage()
-                : std::make_pair(NClusterNode::TJobResources(), NClusterNode::TJobResources());
+                : std::pair(NClusterNode::TJobResources(), NClusterNode::TJobResources());
             BuildYsonFluently(consumer).BeginMap()
                 .Item("initial_resource_demand").Value(InitialResourceDemand_)
                 .Item("base_resource_usage").Value(baseResourceUsage)

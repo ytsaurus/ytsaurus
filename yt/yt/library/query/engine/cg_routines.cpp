@@ -9,12 +9,14 @@
 #include <yt/yt/library/web_assembly/engine/intrinsics.h>
 #include <yt/yt/library/web_assembly/engine/wavm_private_imports.h>
 
+#include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/private.h>
 
 #include <yt/yt/library/query/engine/time/dates.h>
 
 #include <yt/yt/library/query/engine_api/position_independent_value.h>
 #include <yt/yt/library/query/engine_api/position_independent_value_transfer.h>
+#include <yt/yt/library/query/engine_api/top_collector.h>
 
 #include <yt/yt/client/security_client/acl.h>
 #include <yt/yt/client/security_client/helpers.h>
@@ -23,18 +25,15 @@
 
 #include <yt/yt/client/table_client/composite_compare.h>
 #include <yt/yt/client/table_client/logical_type.h>
-#include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
-#include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/validate_logical_type.h>
 
 #include <yt/yt/client/node_tracker_client/public.h>
 
 #include <yt/yt/core/yson/lexer.h>
-#include <yt/yt/core/yson/parser.h>
 #include <yt/yt/core/yson/pull_parser.h>
 #include <yt/yt/core/yson/token.h>
 #include <yt/yt/core/yson/writer.h>
@@ -42,8 +41,6 @@
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/ypath_resolver.h>
-
-#include <yt/yt/core/concurrency/scheduler.h>
 
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/hyperloglog.h>
@@ -58,14 +55,10 @@
 
 #include <library/cpp/yt/farmhash/farm_hash.h>
 
-#include <library/cpp/yt/string/guid.h>
-
 #include <library/cpp/xdelta3/state/merge.h>
 
 #include <util/charset/utf8.h>
 #include <util/digest/multi.h>
-
-#include <mutex>
 
 #include <string.h>
 
@@ -176,7 +169,7 @@ bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TPIValue* va
 
     auto& outputContext = closure->OutputContext;
 
-    YT_ASSERT(batch.size() < WriteRowsetSize);
+    YT_ASSERT(std::ssize(batch) < context->WriteRowsetSize);
 
     batch.push_back(
         CopyAndConvertFromPI(
@@ -196,7 +189,7 @@ bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TPIValue* va
         }
     }
 
-    if (batch.size() == WriteRowsetSize) {
+    if (std::ssize(batch) == context->WriteRowsetSize) {
         const auto& writer = context->Writer;
         bool shouldNotWait;
         {
@@ -239,8 +232,8 @@ void ScanOpHelper(
 
     TRowBatchReadOptions readOptions{
         .MaxRowsPerRead = context->Ordered
-            ? std::min(startBatchSize, RowsetProcessingBatchSize)
-            : RowsetProcessingBatchSize
+            ? std::min(startBatchSize, context->RowsetProcessingBatchSize)
+            : context->RowsetProcessingBatchSize
     };
 
     std::vector<const TValue*> values;
@@ -340,7 +333,7 @@ void ScanOpHelper(
         scanContext.Clear();
 
         if (!context->IsMerge) {
-            readOptions.MaxRowsPerRead = std::min(2 * readOptions.MaxRowsPerRead, RowsetProcessingBatchSize);
+            readOptions.MaxRowsPerRead = std::min(2 * readOptions.MaxRowsPerRead, context->RowsetProcessingBatchSize);
         }
     }
 }
@@ -436,7 +429,7 @@ bool StorePrimaryRow(
     }
 
     if (closure->PrimaryRows.size() >= closure->BatchSize) {
-        closure->BatchSize = std::min<size_t>(2 * closure->BatchSize, MaxJoinBatchSize);
+        closure->BatchSize = std::min<size_t>(2 * closure->BatchSize, context->MaxJoinBatchSize);
 
         if (closure->ProcessJoinBatch()) {
             return true;
@@ -624,7 +617,7 @@ void MultiJoinOpHelper(
             TPIValue* lastForeignKey = nullptr;
 
             TRowBatchReadOptions readOptions{
-                .MaxRowsPerRead = RowsetProcessingBatchSize
+                .MaxRowsPerRead = context->RowsetProcessingBatchSize,
             };
 
             std::vector<TPIValue*> foreignValues;
@@ -835,7 +828,7 @@ void MultiJoinOpHelper(
 
                 joinedRows.push_back(joinedRow.Begin());
 
-                if (joinedRows.size() >= RowsetProcessingBatchSize) {
+                if (std::ssize(joinedRows) >= context->RowsetProcessingBatchSize) {
                     if (consumeJoinedRows()) {
                         return true;
                     }
@@ -891,7 +884,7 @@ std::vector<TPIValue*> UnpackRows(TExpressionContext* context, std::vector<EValu
         }
 
         TMemoryInput memoryInput;
-        TString buffer;
+        std::string buffer;
         if (compartment) {
             buffer = arrayAtHost->AsStringBuf();
             memoryInput = TMemoryInput(TStringBuf(buffer));
@@ -1442,7 +1435,7 @@ void TGroupByClosure::Flush(const TExecutionContext* context, EStreamTag incomin
             if (Y_UNLIKELY(CurrentSegment_ == EGroupOpProcessingStage::LeftBorder)) {
                 FlushIntermediate(context, Intermediate_.data(), Intermediate_.data() + Intermediate_.size());
                 Intermediate_.clear();
-            } else if (Y_UNLIKELY(Intermediate_.size() >= RowsetProcessingBatchSize)) {
+            } else if (Y_UNLIKELY(std::ssize(Intermediate_) >= context->RowsetProcessingBatchSize)) {
                 // When group key contains full primary key (used with joins), flush will be called on each grouped row.
                 // Thus, we batch calls to Flusher.
                 FlushDelta(context, Intermediate_.data(), Intermediate_.data() + Intermediate_.size());
@@ -1527,7 +1520,7 @@ i64 TGroupByClosure::GetGroupedRowCount() const
 
 template <typename TFlushFunction>
 void TGroupByClosure::FlushWithBatching(
-    const TExecutionContext* /*context*/,
+    const TExecutionContext* context,
     const TPIValue** begin,
     const TPIValue** end,
     const TFlushFunction& flush)
@@ -1548,7 +1541,7 @@ void TGroupByClosure::FlushWithBatching(
     // can be grouped with rows of the previous range.
 
     while (!finished && begin < end) {
-        i64 size = std::min(begin + RowsetProcessingBatchSize, end) - begin;
+        i64 size = std::min(begin + context->RowsetProcessingBatchSize, end) - begin;
         ProcessedRows_ += size;
         finished = flush(&FlushContext_, begin, size);
         FlushContext_.Clear();
@@ -1752,7 +1745,7 @@ void GroupOpHelper(
 
     closure.Flush(context, EStreamTag::Totals); // Dummy tag.
 
-    context->Statistics->TotalGroupedRowCount += closure.GetGroupedRowCount();
+    context->Statistics->GroupedRowCount += closure.GetGroupedRowCount();
 
     YT_VERIFY(closure.IsFlushed());
 }
@@ -1825,8 +1818,8 @@ void OrderOpHelper(
     }
 
     auto rowCount = std::ssize(rows);
-    for (i64 index = context->Offset; index < rowCount; index += RowsetProcessingBatchSize) {
-        auto size = std::min(RowsetProcessingBatchSize, rowCount - index);
+    for (i64 index = context->Offset; index < rowCount; index += context->RowsetProcessingBatchSize) {
+        auto size = std::min(context->RowsetProcessingBatchSize, rowCount - index);
         processedRows += size;
 
         bool finished = consumeRows(consumeRowsClosure, &consumerContext, begin + index, size);
@@ -2421,7 +2414,7 @@ int XdeltaMerge(
         \
         auto value = NYTree::TryGet ## TYPE( \
             TStringBuf(anyValueDataAtHost, anyValueAtHost->Length), \
-            TString(ypathDataAtHost, ypathAtHost->Length)); \
+            std::string(ypathDataAtHost, ypathAtHost->Length)); \
         if (value) { \
             STATEMENT_OK \
         } else { \
@@ -2683,6 +2676,7 @@ extern "C" void MakeMap(
 
     auto arguments = TRange(PtrFromVM(compartment, args, argCount), argCount);
 
+    // TODO(sabdenovch): migrate to std::string.
     TString resultYson;
     TStringOutput output(resultYson);
     NYson::TYsonWriter writer(&output);
@@ -2751,6 +2745,7 @@ extern "C" void MakeList(
 
     auto arguments = TRange(PtrFromVM(compartment, args, argCount), argCount);
 
+    // TODO(sabdenovch): migrate to std::string.
     TString resultYson;
     TStringOutput output(resultYson);
     NYson::TYsonWriter writer(&output);
@@ -2841,7 +2836,7 @@ void ListContains(
     bool found = false;
     switch (whatAtHost.Type) {
         case EValueType::String:
-            found = ListContainsImpl<ENodeType::String, TString>(node, TStringBuf(whatAtHost.Data.String, whatAtHost.Length));
+            found = ListContainsImpl<ENodeType::String, std::string>(node, TStringBuf(whatAtHost.Data.String, whatAtHost.Length));
             break;
         case EValueType::Int64:
             found = ListContainsImpl<ENodeType::Int64, i64>(node, whatAtHost.Data.Int64);
@@ -2984,6 +2979,7 @@ void AnyToYsonString(
 
 TString NumericToStringImpl(TValue* valueAtHost)
 {
+    // TODO(sabdenovch): migrate to std::string.
     auto resultYson = TString();
     auto output = TStringOutput(resultYson);
     auto writer = TYsonWriter(&output, EYsonFormat::Text);
@@ -3544,6 +3540,7 @@ void ArrayAggFinalize(TExpressionContext* context, TUnversionedValue* result, TU
     auto* resultAtHost = PtrFromVM(compartment, result);
     auto* stateAtHost = PtrFromVM(compartment, state);
 
+    // TODO(sabdenovch): migrate to std::string.
     TString resultYson;
     TStringOutput output(resultYson);
     NYson::TYsonWriter writer(&output);
@@ -3993,6 +3990,7 @@ bool SubqueryWriteRow(TNestedExecutionContext* context, TSubqueryWriteOpClosure*
 // Build yson list from values.
 TUnversionedValue PackValues(TRange<TUnversionedValue> values, TRowBuffer* rowBuffer)
 {
+    // TODO(sabdenovch): migrate to std::string.
     TString resultYson;
     TStringOutput output(resultYson);
     NYson::TYsonWriter writer(&output);

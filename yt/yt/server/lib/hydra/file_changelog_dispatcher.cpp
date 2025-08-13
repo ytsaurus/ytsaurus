@@ -353,7 +353,7 @@ public:
         NIO::IIOEnginePtr ioEngine,
         IMemoryUsageTrackerPtr memoryUsageTracker,
         TFileChangelogDispatcherConfigPtr config,
-        TString threadName,
+        std::string threadName,
         TProfiler profiler)
         : IOEngine_(std::move(ioEngine))
         , MemoryUsageTracker_(std::move(memoryUsageTracker))
@@ -775,7 +775,7 @@ IFileChangelogDispatcherPtr CreateFileChangelogDispatcher(
     NIO::IIOEnginePtr ioEngine,
     IMemoryUsageTrackerPtr memoryUsageTracker,
     TFileChangelogDispatcherConfigPtr config,
-    TString threadName,
+    std::string threadName,
     TProfiler profiler)
 {
     return New<TFileChangelogDispatcher>(

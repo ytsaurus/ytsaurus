@@ -2,6 +2,7 @@
 
 #include "private.h"
 
+#include "actions.h"
 #include "bootstrap.h"
 #include "config.h"
 #include "cypress_proxy_service_base.h"
@@ -31,6 +32,7 @@
 
 #include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
 
+#include <yt/yt/ytlib/sequoia_client/prerequisite_revision.h>
 #include <yt/yt/ytlib/sequoia_client/transaction_service_proxy.h>
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
@@ -185,7 +187,7 @@ private:
 
             // TODO(danilalexeev): Support queue size limit reconfiguration.
             const auto& userDirectory = bootstrap->GetUserDirectory();
-            const auto descriptor = userDirectory->FindByName(userNameAndWorkloadType.first);
+            const auto descriptor = userDirectory->FindUserByName(userNameAndWorkloadType.first);
             if (!descriptor) {
                 return;
             }
@@ -198,8 +200,7 @@ private:
             // TODO(danilalexeev): Implement public methods to explicitly set request queue's throttlers.
             auto queueName = GetRequestQueueNameForKey(userNameAndWorkloadType);
             auto throttlerId = GetDistributedWeightThrottlerId(queueName);
-            // TODO(babenko): migrate to std::string
-            throttlerFactory->GetOrCreateThrottler(TString(throttlerId), newConfig);
+            throttlerFactory->GetOrCreateThrottler(throttlerId, newConfig);
         });
     }
 
@@ -260,6 +261,7 @@ public:
         EMasterChannelKind masterChannelKind)
         : Owner_(std::move(owner))
         , RpcContext_(std::move(rpcContext))
+        , AuthenticationIdentity_(GetCurrentAuthenticationIdentity())
         , TargetCellTag_(targetCellTag)
         , MasterChannelKind_(masterChannelKind)
         , ForceUseTargetCellTag_(
@@ -279,6 +281,7 @@ public:
 private:
     const TObjectServicePtr Owner_;
     const TCtxExecutePtr RpcContext_;
+    const TAuthenticationIdentity AuthenticationIdentity_;
 
     const TCellTag TargetCellTag_;
     const EMasterChannelKind MasterChannelKind_;
@@ -329,9 +332,7 @@ private:
     {
         ParseSubrequests();
 
-        if (Owner_->GetDynamicConfig()->AllowBypassMasterResolve) {
-            PredictNonSequoia();
-        } else {
+        if (!Owner_->GetDynamicConfig()->AllowBypassMasterResolve) {
             PredictNonMaster();
             InvokeMasterRequests(/*beforeSequoiaResolve*/ true);
         }
@@ -375,6 +376,10 @@ private:
                     << TErrorAttribute("subrequest_index", index);
             }
 
+            if (RpcContext_->IsRetry()) {
+                header.set_retry(true);
+            }
+
             const auto& ypathExt = header.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
             auto mutatingSubrequest = ypathExt.mutating();
 
@@ -407,6 +412,20 @@ private:
             YT_VERIFY(subrequest.RequestHeader);
             YT_VERIFY(subrequest.Target == ERequestTarget::Undetermined);
 
+            // '&' at the begin of YPath means suppression of redirect to
+            // object's native cell.
+            if (auto path = GetRequestTargetYPath(*subrequest.RequestHeader); path && !path.StartsWith("&")) {
+                auto rootDesignator = GetRootDesignator(GetRequestTargetYPath(*subrequest.RequestHeader)).first;
+                // Don't bother master server with Sequoia object IDs, check IDs
+                // in Sequoia tables first.
+                if (const auto* objectId = std::get_if<TObjectId>(&rootDesignator)) {
+                    if (*objectId && IsSequoiaId(*objectId) && IsVersionedType(TypeFromId(*objectId))) {
+                        subrequest.Target = ERequestTarget::Sequoia;
+                        continue;
+                    }
+                }
+            }
+
             // If this is a rootstock creation request then don't bother master
             // with it.
             if (subrequest.RequestHeader->method() != "Create") {
@@ -424,23 +443,6 @@ private:
 
             if (reqCreate->Type == EObjectType::Rootstock) {
                 subrequest.Target = ERequestTarget::Sequoia;
-            }
-        }
-    }
-
-    void PredictNonSequoia()
-    {
-        for (int index = 0; index < std::ssize(Subrequests_); ++index) {
-            auto& subrequest = Subrequests_[index];
-
-            YT_VERIFY(subrequest.RequestHeader.has_value());
-            YT_VERIFY(subrequest.Target == ERequestTarget::Undetermined);
-
-            const auto& method = subrequest.RequestHeader->method();
-            // Such requests already contain information about target cell
-            // inside the TReqExecute message.
-            if (IsMethodHandledByMaster(method)) {
-                subrequest.Target = ERequestTarget::Master;
             }
         }
     }
@@ -851,11 +853,27 @@ private:
             subrequest->Target == ERequestTarget::Undetermined ||
             subrequest->Target == ERequestTarget::Sequoia);
 
+        const auto& header = *subrequest->RequestHeader;
+
         auto originalTargetPath = ValidateAndMakeYPath(
-            TRawYPath(GetRequestTargetYPath(*subrequest->RequestHeader))
+            TRawYPath(GetRequestTargetYPath(header))
         );
-        auto cypressTransactionId = GetTransactionId(*subrequest->RequestHeader);
-        auto prerequisiteTransactionIds = GetPrerequisiteTransactionIds(*subrequest->RequestHeader);
+        auto cypressTransactionId = GetTransactionId(header);
+        auto prerequisiteTransactionIds = GetPrerequisiteTransactionIds(header);
+        auto prerequisiteRevisions = GetPrerequisiteRevisions(header);
+
+        auto error = ValidatePrerequisiteRevisionsPaths(header, originalTargetPath, prerequisiteRevisions);
+        if (!error.IsOK()) {
+            return CreateErrorResponseMessage(error);
+        }
+
+        // TODO(cherepashka): YT-25409.
+        auto isMutating = IsRequestMutating(header);
+        YT_LOG_ALERT_IF(
+            !isMutating && !prerequisiteRevisions.empty(),
+            "Received read requests with prerequisite revisions in Sequoia (TargetPath: %v, PrerequisiteRevisions: %v)",
+            originalTargetPath,
+            prerequisiteRevisions);
 
         if (cypressTransactionId && !IsCypressTransactionType(TypeFromId(cypressTransactionId))) {
             // Requests with system transactions cannot be handled in Sequoia.
@@ -866,19 +884,36 @@ private:
         TSequoiaSessionPtr session;
         TResolveResult resolveResult;
         try {
-            session = TSequoiaSession::Start(Owner_->Bootstrap_, cypressTransactionId, prerequisiteTransactionIds);
+            session = TSequoiaSession::Start(
+                Owner_->Bootstrap_,
+                AuthenticationIdentity_,
+                cypressTransactionId,
+                prerequisiteTransactionIds);
+            // TODO(cherepashka): add resolve cache YT-25661.
             resolveResult = ResolvePath(
                 session,
-                std::move(originalTargetPath),
+                originalTargetPath,
                 /*pathIsAdditional*/ false,
-                subrequest->RequestHeader->service(),
-                subrequest->RequestHeader->method());
+                header.service(),
+                header.method());
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(ex, "Subrequest resolve failed (SubrequestIndex: %v)",
                 subrequest->Index);
             return CreateErrorResponseMessage(ex);
         }
 
+        std::vector<TResolvedPrerequisiteRevision> resolvedPrerequisiteRevisions;
+        // Otherwise request will be forwarded to master,
+        // where prerequisite revisions will be validated before invokation.
+        if (std::holds_alternative<TSequoiaResolveResult>(resolveResult)) {
+            auto resolvedPrerequisiteRevisionsOrError = ResolvePrerequisiteRevisions(header, session, originalTargetPath, prerequisiteRevisions);
+            if (!resolvedPrerequisiteRevisionsOrError.IsOK()) {
+                return CreateErrorResponseMessage(resolvedPrerequisiteRevisionsOrError);
+            }
+
+            resolvedPrerequisiteRevisions = resolvedPrerequisiteRevisionsOrError.Value();
+            AddValidatePrerequisiteRevisionsTransactionActions(resolvedPrerequisiteRevisions, session->SequoiaTransaction());
+        }
         PatchRequestAfterResolve(subrequest, resolveResult);
 
         // NB: This can crash on invalid request header but it has been already
@@ -892,8 +927,8 @@ private:
             return response;
         }
 
-        auto invokeResult = CreateSequoiaService(Owner_->Bootstrap_)
-            ->TryInvoke(context, session, resolveResult);
+        auto invokeResult = CreateSequoiaService(Owner_->Bootstrap_, AuthenticationIdentity_)
+            ->TryInvoke(context, session, resolveResult, resolvedPrerequisiteRevisions);
         // TODO(kvk1920): check prerequisite transaction liveness after read
         // request.
         switch (invokeResult) {
@@ -912,25 +947,60 @@ private:
         const auto& masterConnector = Owner_->Bootstrap_->GetMasterConnector();
         masterConnector->ValidateRegistration();
 
-        auto processInitialSync = true;
-        for (int index = 0; index < std::ssize(Subrequests_); ++index) {
-            auto& subrequest = Subrequests_[index];
-            auto target = subrequest.Target;
-            if (target != ERequestTarget::Undetermined && target != ERequestTarget::Sequoia) {
+        auto isSubrequestRelevant = [] (const TSubrequest& subrequest) {
+            return subrequest.Target == ERequestTarget::Undetermined ||
+                subrequest.Target == ERequestTarget::Sequoia;
+        };
+
+        auto relevantSubrequestCount = std::ranges::count_if(Subrequests_, isSubrequestRelevant);
+        if (relevantSubrequestCount != 0) {
+            MaybeSyncWithMaster();
+        }
+
+        const auto& invoker = Owner_->GetDefaultInvoker();
+        std::vector<TFuture<std::optional<TSharedRefArray>>> asyncSubresponses;
+        asyncSubresponses.reserve(relevantSubrequestCount);
+        for (int subrequestIndex = 0; subrequestIndex < std::ssize(Subrequests_); ++subrequestIndex) {
+            if (!isSubrequestRelevant(Subrequests_[subrequestIndex])) {
                 continue;
             }
 
-            if (std::exchange(processInitialSync, false)) {
-                MaybeSyncWithMaster();
+            auto future = BIND([subrequestIndex, this, this_ = MakeStrong(this)] {
+                YT_LOG_DEBUG("Executing subrequest in Sequoia (SubrequestIndex: %v)",
+                    subrequestIndex);
+                auto& subrequest = Subrequests_[subrequestIndex];
+                return ExecuteSequoiaSubrequest(&subrequest);
+            })
+                .AsyncVia(invoker)
+                .Run();
+
+            asyncSubresponses.push_back(std::move(future));
+        }
+
+        auto subresponses = WaitFor(AllSet(std::move(asyncSubresponses)))
+            .ValueOrThrow();
+
+        YT_VERIFY(std::ssize(subresponses) == relevantSubrequestCount);
+
+        for (auto subrequestIndex = 0, subresponseIndex = 0; subrequestIndex < std::ssize(Subrequests_); ++subrequestIndex) {
+            auto& subrequest = Subrequests_[subrequestIndex];
+
+            if (!isSubrequestRelevant(subrequest)) {
+                continue;
             }
 
-            YT_LOG_DEBUG("Executing subrequest in Sequoia (SubrequestIndex: %v)",
-                index);
+            subrequest.Target = ERequestTarget::None;
 
-            if (auto subresponse = ExecuteSequoiaSubrequest(&subrequest)) {
-                subrequest.Target = ERequestTarget::None;
-                ReplyOnSubrequest(index, std::move(*subresponse));
+            if (auto subresponseOrError = subresponses[subresponseIndex]; subresponseOrError.IsOK()) {
+                if (auto& subresponse = subresponseOrError.Value()) {
+                    ReplyOnSubrequest(subrequestIndex, *subresponse);
+                }
+            } else {
+                YT_LOG_DEBUG("Subrequest offloading failed (SubrequestIndex: %v)", subrequestIndex);
+                ReplyOnSubrequest(subrequestIndex, subresponseOrError);
             }
+
+            ++subresponseIndex;
         }
     }
 
@@ -960,6 +1030,11 @@ private:
             response.Attachments().end(),
             subresponseMessage.Begin(),
             subresponseMessage.End());
+    }
+
+    void ReplyOnSubrequest(int subrequestIndex, const TError& error)
+    {
+        ReplyOnSubrequest(subrequestIndex, CreateErrorResponseMessage(error));
     }
 
     // Performs selective synchronization with

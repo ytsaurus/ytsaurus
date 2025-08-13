@@ -27,6 +27,7 @@ PEERDIR(
     yt/yql/providers/yt/codec/codegen
     yt/yql/providers/yt/comp_nodes/llvm16
     yt/yql/providers/yt/fmr/fmr_tool_lib
+    yt/yql/providers/yt/fmr/test_tools/table_data_service
     yql/essentials/minikql/comp_nodes/llvm16
     yql/essentials/minikql/invoke_builtins/llvm16
     yql/essentials/sql/pg

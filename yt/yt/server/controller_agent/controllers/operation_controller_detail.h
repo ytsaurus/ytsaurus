@@ -265,6 +265,8 @@ public:
     i64 GetFailedJobCount() const override;
     NScheduler::TCompositeNeededResources GetNeededResources() const override;
 
+    NScheduler::TControllerEpoch GetControllerEpoch() const override;
+
     bool ShouldUpdateLightOperationAttributes() const override;
     void SetLightOperationAttributesUpdated() override;
 
@@ -305,7 +307,7 @@ public:
 
     // ITaskHost implementation.
 
-    IInvokerPtr GetChunkScraperInvoker() const override;
+    IInvokerPtr GetChunkScraperHeavyInvoker() const override;
     IInvokerPtr GetCancelableInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const override;
     IInvokerPtr GetJobSpecBuildInvoker() const override;
     TDiagnosableInvokerPool::TInvokerStatistics GetInvokerStatistics(
@@ -516,7 +518,7 @@ protected:
     std::optional<std::string> AcoName_;
 
     // Intentionally transient.
-    NScheduler::TControllerEpoch ControllerEpoch_;
+    const NScheduler::TControllerEpoch ControllerEpoch_;
 
     THashMap<TAllocationId, TAllocation> AllocationMap_;
     int RunningJobCount_ = 0;
@@ -535,7 +537,7 @@ protected:
     NApi::NNative::IClientPtr SchedulerOutputClient_;
 
     TCancelableContextPtr CancelableContext_;
-    const IInvokerPtr ChunkScraperInvoker_;
+    const IInvokerPtr ChunkScraperHeavyInvoker_;
     TDiagnosableInvokerPoolPtr DiagnosableInvokerPool_;
     IInvokerPoolPtr InvokerPool_;
     ISuspendableInvokerPoolPtr SuspendableInvokerPool_;
@@ -734,6 +736,7 @@ protected:
     void GetUserFilesAttributes();
     virtual void CustomPrepare();
     void InferInputRanges();
+    NYTree::EPermission GetInputTablePermission() const override;
 
     // Materialization.
     void FetchUserFiles();

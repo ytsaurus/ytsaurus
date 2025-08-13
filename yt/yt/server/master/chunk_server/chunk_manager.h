@@ -19,6 +19,8 @@
 
 #include <yt/yt/server/lib/chunk_server/proto/job_tracker_service.pb.h>
 
+#include <yt/yt/ytlib/chunk_client/proto/chunk_service.pb.h>
+
 #include <yt/yt/ytlib/journal_client/helpers.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
@@ -371,8 +373,8 @@ struct IChunkManager
     virtual TFuture<NDataNodeTrackerClient::NProto::TRspModifyReplicas> ModifySequoiaReplicas(
         NSequoiaClient::ESequoiaTransactionType transactionType,
         std::unique_ptr<NDataNodeTrackerClient::NProto::TReqModifyReplicas> request) = 0;
-    virtual TFuture<void> AddSequoiaConfirmReplicas(
-        std::unique_ptr<NChunkServer::NProto::TReqAddConfirmReplicas> request) = 0;
+    virtual TFuture<void> ConfirmSequoiaChunk(
+        NChunkClient::NProto::TReqConfirmChunk* request) = 0;
 
 private:
     friend class TChunkTypeHandler;

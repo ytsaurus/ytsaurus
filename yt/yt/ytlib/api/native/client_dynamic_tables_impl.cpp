@@ -698,56 +698,99 @@ TGetTabletErrorsResult TClient::DoGetTabletErrors(
     auto req = TTableYPathProxy::Get(path + "/@tablets");
     SetCachingHeader(req, masterReadOptions);
 
-    auto tablets = WaitFor(proxy.Execute(req))
+    auto rsp = WaitFor(proxy.Execute(req))
         .ValueOrThrow();
-    auto tabletsNode = ConvertToNode(TYsonString(tablets->value()))->AsList();
+    auto tabletsNode = ConvertToNode(TYsonString(rsp->value()))->AsList();
 
-    i64 errorCount = 0;
-    i64 replicationErrorCount = 0;
     i64 limit = options.Limit.value_or(Connection_->GetConfig()->DefaultGetTabletErrorsLimit);
-    bool incomplete = false;
-    std::vector<TTabletId> tabletIdsToRequest;
-    for (const auto& tablet : tabletsNode->GetChildren()) {
-        auto tabletNode = tablet->AsMap();
-        if (ConvertTo<ETabletState>(tabletNode->GetChildOrThrow("state")) == ETabletState::Unmounted) {
-            continue;
-        }
+    i64 tabletIndex = 0;
+    auto tablets = tabletsNode->GetChildren();
 
-        auto tabletId = ConvertTo<TTabletId>(tabletNode->GetChildOrThrow("tablet_id"));
+    auto getTabletIdsToRequest = [&] {
+        i64 errorCount = 0;
+        i64 replicationErrorCount = 0;
+        bool incomplete = false;
 
-        if (errorCount <= limit &&
-            tabletNode->GetChildOrThrow("error_count")->AsInt64()->GetValue() > 0)
-        {
-            if (errorCount < limit) {
-                tabletIdsToRequest.push_back(tabletId);
-            } else {
-                incomplete = true;
+        std::vector<TTabletId> tabletIdsToRequest;
+        for (; tabletIndex < std::ssize(tablets); ++tabletIndex) {
+            auto tabletNode = tablets[tabletIndex]->AsMap();
+            if (ConvertTo<ETabletState>(tabletNode->GetChildOrThrow("state")) == ETabletState::Unmounted) {
+                continue;
             }
-            ++errorCount;
-        }
 
-        if (replicationErrorCount <= limit &&
-            tabletNode->GetChildOrThrow("replication_error_count")->AsInt64()->GetValue() > 0)
-        {
-            if (replicationErrorCount < limit) {
-                if (tabletIdsToRequest.empty() || tabletIdsToRequest.back() != tabletId) {
+            auto tabletId = ConvertTo<TTabletId>(tabletNode->GetChildOrThrow("tablet_id"));
+
+            if (errorCount <= limit &&
+                tabletNode->GetChildOrThrow("error_count")->AsInt64()->GetValue() > 0)
+            {
+                if (errorCount < limit) {
                     tabletIdsToRequest.push_back(tabletId);
+                } else {
+                    incomplete = true;
                 }
-            } else {
-                incomplete = true;
+                ++errorCount;
             }
-            ++replicationErrorCount;
+
+            if (replicationErrorCount <= limit &&
+                tabletNode->GetChildOrThrow("replication_error_count")->AsInt64()->GetValue() > 0)
+            {
+                if (replicationErrorCount < limit) {
+                    if (tabletIdsToRequest.empty() || tabletIdsToRequest.back() != tabletId) {
+                        tabletIdsToRequest.push_back(tabletId);
+                    }
+                } else {
+                    incomplete = true;
+                }
+                ++replicationErrorCount;
+            }
+
+            if (replicationErrorCount >= limit && errorCount >= limit && incomplete) {
+                break;
+            }
         }
 
-        if (replicationErrorCount >= limit && errorCount >= limit && incomplete) {
-            break;
-        }
-    }
+        ++tabletIndex;
 
-    auto tabletInfos = GetTabletInfosByTabletIds(
-        path,
-        tabletIdsToRequest,
-        TGetTabletInfosOptions{{.Timeout = options.Timeout}, /*RequestErrors*/ true});
+        return std::tuple(tabletIdsToRequest, incomplete);
+    };
+
+    auto hasAnyReportedTabletErrors = [&] (const std::vector<TTabletInfo>& tabletInfos) {
+        for (const auto& tabletInfo : tabletInfos) {
+            if (!tabletInfo.TabletErrors.empty()) {
+                return true;
+            }
+
+            if (!tabletInfo.TableReplicaInfos) {
+                continue;
+            }
+
+            for (const auto& replicaInfo : *tabletInfo.TableReplicaInfos) {
+                if (!replicaInfo.ReplicationError.IsOK()) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    };
+
+    constexpr int RetryCount = 5;
+    int retryIndex = 0;
+
+    bool incomplete = false;
+    std::vector<TTabletInfo> tabletInfos;
+    std::vector<TTabletId> tabletIdsToRequest;
+    TGetTabletInfosOptions getTabletInfosOptions{{.Timeout = options.Timeout}, /*RequestErrors*/ true};
+    do {
+        std::tie(tabletIdsToRequest, incomplete) = getTabletIdsToRequest();
+
+        tabletInfos = GetTabletInfosByTabletIds(
+            path,
+            tabletIdsToRequest,
+            getTabletInfosOptions);
+
+        ++retryIndex;
+    } while (incomplete && !hasAnyReportedTabletErrors(tabletInfos) && retryIndex < RetryCount);
 
     TGetTabletErrorsResult result{.Incomplete = incomplete};
     for (int resultIndex = 0; resultIndex < std::ssize(tabletInfos); ++resultIndex) {
@@ -1602,6 +1645,23 @@ TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnecti
     queryOptions.UseCanonicalNullRelations = options.UseCanonicalNullRelations;
     queryOptions.MergeVersionedRows = options.MergeVersionedRows;
     queryOptions.UseLookupCache = options.UseLookupCache;
+    queryOptions.RowsetProcessingBatchSize = options.RowsetProcessingBatchSize.value_or(DefaultRowsetProcessingBatchSize);
+    queryOptions.WriteRowsetSize = options.WriteRowsetSize.value_or(DefaultWriteRowsetSize);
+    queryOptions.MaxJoinBatchSize = options.MaxJoinBatchSize.value_or(DefaultMaxJoinBatchSize);
+    queryOptions.UseOrderByInJoinSubqueries = options.UseOrderByInJoinSubqueries;
+    queryOptions.StatisticsAggregation = options.StatisticsAggregation;
+
+    THROW_ERROR_EXCEPTION_UNLESS(queryOptions.RowsetProcessingBatchSize > 0,
+        "Expected \"rowset_processing_batch_size\" > 0, found %v",
+        queryOptions.RowsetProcessingBatchSize);
+
+    THROW_ERROR_EXCEPTION_UNLESS(queryOptions.WriteRowsetSize > 0,
+        "Expected \"write_rowset_size\" > 0, found %v",
+        queryOptions.WriteRowsetSize);
+
+    THROW_ERROR_EXCEPTION_UNLESS(queryOptions.MaxJoinBatchSize > 0,
+        "Expected \"max_join_batch_size\" > 0, found %v",
+        queryOptions.MaxJoinBatchSize);
 
     return queryOptions;
 }
@@ -1668,7 +1728,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     auto queryOptions = GetQueryOptions(options, dynamicConfig);
     queryOptions.ReadSessionId = TReadSessionId::Create();
 
-    auto memoryChunkProvider = MemoryProvider_->GetProvider(
+    auto memoryChunkProvider = MemoryProvider_->GetOrCreateProvider(
         ToString(queryOptions.ReadSessionId),
         options.MemoryLimitPerNode,
         HeavyRequestMemoryUsageTracker_);
@@ -1840,7 +1900,7 @@ NYson::TYsonString TClient::DoExplainQuery(
         options.ExpressionBuilderVersion,
         HeavyRequestMemoryUsageTracker_);
 
-    auto memoryChunkProvider = MemoryProvider_->GetProvider(
+    auto memoryChunkProvider = MemoryProvider_->GetOrCreateProvider(
         ToString(TReadSessionId::Create()),
         ExplainQueryMemoryLimit,
         HeavyRequestMemoryUsageTracker_);
@@ -3577,9 +3637,9 @@ IChannelPtr TClient::GetChaosChannelByCellTag(TCellTag cellTag, EPeerKind peerKi
     return GetNativeConnection()->GetChaosChannelByCellTag(cellTag, peerKind);
 }
 
-IChannelPtr TClient::GetChaosChannelByCardId(TReplicationCardId replicationCardId, EPeerKind peerKind)
+IChannelPtr TClient::GetChaosChannelByCardIdOrThrow(TReplicationCardId replicationCardId, EPeerKind peerKind)
 {
-    return GetNativeConnection()->GetChaosChannelByCardId(replicationCardId, peerKind);
+    return GetNativeConnection()->GetChaosChannelByCardIdOrThrow(replicationCardId, peerKind);
 }
 
 TReplicationCardPtr TClient::DoGetReplicationCard(
@@ -3596,7 +3656,7 @@ TReplicationCardPtr TClient::DoGetReplicationCard(
             .ValueOrThrow();
     }
 
-    auto channel = GetChaosChannelByCardId(replicationCardId, EPeerKind::LeaderOrFollower);
+    auto channel = GetChaosChannelByCardIdOrThrow(replicationCardId, EPeerKind::LeaderOrFollower);
     auto proxy = TChaosNodeServiceProxy(std::move(channel));
     proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
 
@@ -3622,7 +3682,7 @@ void TClient::DoUpdateChaosTableReplicaProgress(
     const TUpdateChaosTableReplicaProgressOptions& options)
 {
     auto replicationCardId = ReplicationCardIdFromReplicaId(replicaId);
-    auto channel = GetChaosChannelByCardId(replicationCardId);
+    auto channel = GetChaosChannelByCardIdOrThrow(replicationCardId);
     auto proxy = TChaosNodeServiceProxy(std::move(channel));
     proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
 
@@ -3648,7 +3708,7 @@ void TClient::DoAlterReplicationCard(
             replicationCardId);
     }
 
-    auto channel = GetChaosChannelByCardId(replicationCardId);
+    auto channel = GetChaosChannelByCardIdOrThrow(replicationCardId);
     auto proxy = TChaosNodeServiceProxy(std::move(channel));
     proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
 
@@ -3780,13 +3840,10 @@ IPrerequisitePtr TClient::DoAttachChaosLease(
     proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
 
     auto req = proxy.GetChaosLease();
-    auto timeoutPath = Format("#%v/@timeout", chaosLeaseId);
-
+    auto timeoutPath = Format("%v/@timeout", FromObjectId(chaosLeaseId));
     auto timeoutNode = WaitFor(GetNode(timeoutPath, {}))
         .ValueOrThrow();
-
-    auto timeoutValue = ConvertTo<i64>(timeoutNode);
-    auto timeout = TDuration::MilliSeconds(timeoutValue);
+    auto timeout = ConvertTo<TDuration>(timeoutNode);
 
     auto chaosLease = CreateChaosLease(
         this,
@@ -3807,7 +3864,7 @@ IPrerequisitePtr TClient::DoAttachChaosLease(
 IPrerequisitePtr TClient::DoStartChaosLease(
     const TChaosLeaseStartOptions& /*options*/)
 {
-    THROW_ERROR_EXCEPTION("Use CreateNode to start chaos leases.");
+    THROW_ERROR_EXCEPTION("Use CreateNode to start chaos leases");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

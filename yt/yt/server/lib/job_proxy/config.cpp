@@ -186,6 +186,8 @@ void TPortoJobEnvironmentConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("jobs_io_weight", &TThis::JobsIOWeight)
         .Default(0.05);
+    registrar.Parameter("job_proxy_cpu_weight", &TThis::JobProxyCpuWeight)
+        .Default();
     registrar.Parameter("node_dedicated_cpu", &TThis::NodeDedicatedCpu)
         .GreaterThanOrEqual(0)
         .Default(2);
@@ -397,9 +399,6 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("retrying_channel", &TThis::RetryingChannel)
         .DefaultNew();
 
-    registrar.Parameter("enable_cuda_profile_event_streaming", &TThis::EnableCudaProfileEventStreaming)
-        .Default(false);
-
     registrar.Parameter("job_trace_event_processor", &TThis::JobTraceEventProcessor)
         .DefaultNew();
 
@@ -471,9 +470,6 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("use_retrying_channels", &TThis::UseRetryingChannels)
-        .Default(false);
-
-    registrar.Parameter("enable_cuda_profile_event_streaming", &TThis::EnableCudaProfileEventStreaming)
         .Default(false);
 
     registrar.Parameter("job_trace_event_processor", &TThis::JobTraceEventProcessor)

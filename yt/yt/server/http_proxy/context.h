@@ -47,6 +47,7 @@ public:
     bool TryGetInputCompression();
     bool TryGetOutputFormat();
     bool TryGetOutputCompression();
+    bool TryGetErrorFormat();
     bool TryAcquireConcurrencySemaphore();
 
     void CaptureParameters();
@@ -103,6 +104,9 @@ private:
     std::optional<NFormats::TFormat> OutputFormat_;
     std::optional<TString> ContentType_;
     std::optional<NHttp::TContentEncoding> OutputContentEncoding_;
+
+    std::optional<NFormats::TFormat> ErrorFormat_;
+    NFormats::IFormatFactoryPtr ErrorFormatFactory_;
 
     std::optional<NDriver::TEtag> IfNoneMatch_;
 

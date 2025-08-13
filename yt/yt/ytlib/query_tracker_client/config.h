@@ -43,7 +43,7 @@ DEFINE_REFCOUNTED_TYPE(TQueryTrackerStageConfig)
 struct TQueryTrackerConnectionConfig
     : public NYTree::TYsonStruct
 {
-    THashMap<TString, TQueryTrackerStageConfigPtr> Stages;
+    THashMap<std::string, TQueryTrackerStageConfigPtr, THash<TStringBuf>, TEqualTo<>> Stages;
 
     REGISTER_YSON_STRUCT(TQueryTrackerConnectionConfig);
 

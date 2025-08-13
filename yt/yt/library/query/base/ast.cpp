@@ -290,9 +290,9 @@ void FormatLiteralValue(TStringBuilderBase* builder, const TLiteralValue& value)
         [&] (bool value) {
             builder->AppendFormat("%v", value ? "true" : "false");
         },
-        [&] (const TString& value) {
+        [&] (const std::string& value) {
             builder->AppendChar('"');
-            builder->AppendString(EscapeC(value));
+            builder->AppendString(EscapeC(TString(value)));
             builder->AppendChar('"');
         });
 }
@@ -403,7 +403,7 @@ bool IsValidId(TStringBuf str)
     return true;
 }
 
-TString EscapeBackticks(TStringBuf data)
+std::string EscapeBackticks(TStringBuf data)
 {
     TStringBuilder builder;
     builder.Reserve(data.size());
@@ -814,63 +814,63 @@ void FormatQuery(TStringBuilderBase* builder, const TQuery& query)
     }
 }
 
-TString FormatLiteralValue(const TLiteralValue& value)
+std::string FormatLiteralValue(const TLiteralValue& value)
 {
     TStringBuilder builder;
     FormatLiteralValue(&builder, value);
     return builder.Flush();
 }
 
-TString FormatId(TStringBuf id)
+std::string FormatId(TStringBuf id)
 {
     TStringBuilder builder;
     FormatId(&builder, id);
     return builder.Flush();
 }
 
-TString FormatReference(const TReference& ref)
+std::string FormatReference(const TReference& ref)
 {
     TStringBuilder builder;
     FormatReference(&builder, ref);
     return builder.Flush();
 }
 
-TString FormatExpression(const TExpression& expr)
+std::string FormatExpression(const TExpression& expr)
 {
     TStringBuilder builder;
     FormatExpression(&builder, expr);
     return builder.Flush();
 }
 
-TString FormatExpression(const TExpressionList& exprs)
+std::string FormatExpression(const TExpressionList& exprs)
 {
     TStringBuilder builder;
     FormatExpression(&builder, exprs);
     return builder.Flush();
 }
 
-TString FormatJoin(const TJoin& join)
+std::string FormatJoin(const TJoin& join)
 {
     TStringBuilder builder;
     FormatJoin(&builder, join);
     return builder.Flush();
 }
 
-TString FormatQuery(const TQuery& query)
+std::string FormatQuery(const TQuery& query)
 {
     TStringBuilder builder;
     FormatQuery(&builder, query);
     return builder.Flush();
 }
 
-TString InferColumnName(const TExpression& expr)
+std::string InferColumnName(const TExpression& expr)
 {
     TStringBuilder builder;
     FormatExpression(&builder, expr, /*depth*/ 0, /*expandAliases*/ false, /*isFinal*/ true);
     return builder.Flush();
 }
 
-TString InferColumnName(const TColumnReference& ref)
+std::string InferColumnName(const TColumnReference& ref)
 {
     TStringBuilder builder;
     FormatColumnReference(&builder, ref, /*isFinal*/ true);
@@ -941,7 +941,7 @@ NAst::TExpressionPtr BuildConcatenationExpression(
     TObjectsHolder* holder,
     NAst::TExpressionPtr lhs,
     NAst::TExpressionPtr rhs,
-    const TString& separator)
+    TStringBuf separator)
 {
     if (lhs && !rhs) {
         return lhs;
@@ -953,7 +953,7 @@ NAst::TExpressionPtr BuildConcatenationExpression(
         return holder->New<NAst::TLiteralExpression>(TSourceLocation(), NAst::TLiteralValue(""));
     }
 
-    auto keySeparator = holder->New<NAst::TLiteralExpression>(TSourceLocation(), separator);
+    auto keySeparator = holder->New<NAst::TLiteralExpression>(TSourceLocation(), std::string(separator));
     lhs = holder->New<NAst::TBinaryOpExpression>(
         TSourceLocation(),
         NQueryClient::EBinaryOp::Concatenate,

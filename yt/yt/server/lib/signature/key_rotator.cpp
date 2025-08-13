@@ -5,6 +5,8 @@
 #include "private.h"
 #include "signature_generator.h"
 
+#include <yt/yt/core/concurrency/retrying_periodic_executor.h>
+
 namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -21,13 +23,17 @@ TKeyRotator::TKeyRotator(
     : Config_(std::move(config))
     , KeyWriter_(std::move(keyWriter))
     , Generator_(std::move(generator))
-    , Executor_(New<TPeriodicExecutor>(
+    , Executor_(New<TRetryingPeriodicExecutor>(
         std::move(invoker),
-        BIND_NO_PROPAGATE(&TKeyRotator::DoRotate, MakeWeak(this)),
-        Config_->KeyRotationInterval))
+        BIND([weakSelf = MakeWeak(this)] {
+            if (auto self = weakSelf.Lock()) {
+                return self->DoRotate();
+            }
+            return TError();
+        }),
+        Config_.Acquire()->KeyRotationOptions))
 {
-    InitializeCryptography();
-    YT_LOG_INFO("Key rotator initialized (KeyRotationInterval %v)", Config_->KeyRotationInterval);
+    YT_LOG_INFO("Key rotator initialized (KeyRotationInterval: %v)", Config_.Acquire()->KeyRotationOptions.Period);
 }
 
 
@@ -50,9 +56,21 @@ TFuture<void> TKeyRotator::Rotate()
     return event;
 }
 
+void TKeyRotator::Reconfigure(TKeyRotatorConfigPtr config)
+{
+    YT_VERIFY(config);
+    auto keyRotationOptions = config->KeyRotationOptions;
+    {
+        auto guard = Guard(ReconfigureSpinLock_);
+        Config_.Store(std::move(config));
+        Executor_->SetOptions(keyRotationOptions);
+    }
+    YT_LOG_INFO("Key rotator reconfigured (KeyRotationInterval: %v)", keyRotationOptions.Period);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-void TKeyRotator::DoRotate()
+TError TKeyRotator::DoRotate()
 {
     auto currentKeyInfo = Generator_->KeyInfo();
     YT_LOG_INFO(
@@ -61,26 +79,34 @@ void TKeyRotator::DoRotate()
 
     auto now = Now();
     auto newKeyId = TGuid::Create();
+    auto config = Config_.Acquire();
     auto newKeyPair = New<TKeyPair>(TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>{
         .OwnerId = KeyWriter_->GetOwner(),
         .KeyId = TKeyId(newKeyId),
         .CreatedAt = now,
-        .ValidAfter = now - Config_->TimeSyncMargin,
-        .ExpiresAt = now + Config_->KeyExpirationDelta,
+        .ValidAfter = now - config->TimeSyncMargin,
+        .ExpiresAt = now + config->KeyExpirationDelta,
     });
 
     auto keyInfo = newKeyPair->KeyInfo();
 
     auto error = WaitFor(KeyWriter_->RegisterKey(keyInfo));
     if (!error.IsOK()) {
-       // TODO(pavook): add proper retries here (either via retrying channel or retrying periodic).
        YT_LOG_ERROR(error, "Failed to register new keypair (NewKeyPair: %v), rotation failed", GetKeyId(keyInfo->Meta()));
-       return;
+       return error;
     }
 
     Generator_->SetKeyPair(std::move(newKeyPair));
 
     YT_LOG_INFO("Rotated keypair (NewKeyPair: %v)", GetKeyId(keyInfo->Meta()));
+    return {};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<void> TKeyRotator::GetNextRotation()
+{
+    return Executor_->GetExecutedEvent();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

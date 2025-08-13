@@ -1,6 +1,5 @@
 #pragma once
 
-#include <contrib/ydb/library/actors/core/actorsystem.h>
 #include <contrib/ydb/library/actors/core/log.h>
 #include <contrib/ydb/library/grpc/server/logger.h>
 

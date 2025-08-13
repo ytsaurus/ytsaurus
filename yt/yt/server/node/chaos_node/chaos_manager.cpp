@@ -445,7 +445,14 @@ public:
             context,
             &TChaosManager::HydraRemoveChaosLease,
             this);
-        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
+
+        auto chaosLeaseId = FromProto<TChaosLeaseId>(context->Request().chaos_lease_id());
+
+        auto removeFuture = mutation->Commit().AsVoid().Apply(BIND([this, this_ = MakeStrong(this), chaosLeaseId] {
+            auto chaosLease = GetChaosLeaseOrThrow(chaosLeaseId);
+            return chaosLease->RemovePromise().ToFuture();
+        }));
+        context->ReplyFrom(removeFuture);
     }
 
     void PingChaosLease(const TCtxPingChaosLeasePtr& context) override
@@ -456,7 +463,6 @@ public:
         auto pingFuture = ChaosLeaseTracker_->PingTransaction(chaosLeaseId, pingAncestors);
         context->Reply();
     }
-
 
     TChaosLease* GetChaosLeaseOrThrow(TChaosLeaseId chaosLeaseId) override
     {
@@ -658,13 +664,13 @@ private:
         ChaosLeaseTracker_->Start();
 
         // Recreate chaos leases.
-        for (auto [chaosLeaseId, chaosLease] : ChaosLeaseMap_) {
+        for (const auto& [chaosLeaseId, chaosLease] : ChaosLeaseMap_) {
             ChaosLeaseTracker_->RegisterTransaction(
                 chaosLeaseId,
                 chaosLease->GetParentId(),
                 chaosLease->GetTimeout(),
                 std::nullopt,
-                BIND(&TChaosManager::OnLeaseExpired, MakeStrong(this))
+                BIND(&TChaosManager::OnLeaseExpired, MakeWeak(this))
                     .Via(Slot_->GetAutomatonInvoker()));
         }
     }
@@ -1549,6 +1555,21 @@ private:
                 replicationCardIds.push_back(chaosObjectId);
                 HandleReplicationCardStateTransition(static_cast<TReplicationCard*>(chaosObject));
             }
+
+            // TODO(gryzlov-ad): Add common logic for removal to TChaosObjectBase
+            if (IsChaosLeaseType(TypeFromId(chaosObjectId))) {
+                auto chaosLease = static_cast<TChaosLease*>(chaosObject);
+                if (chaosLease->GetState() == EChaosLeaseState::RevokingShortcutsForRemoval && chaosLease->Coordinators().empty()) {
+                    YT_LOG_DEBUG("Chaos object removed after revoking all shortcuts (ChaosObjectId: %v, Type: %v)",
+                        chaosObjectId,
+                        TypeFromId(chaosObjectId));
+
+                    ChaosLeaseTracker_->UnregisterTransaction(chaosObjectId);
+                    auto chaosLeaseHolder = ChaosLeaseMap_.Release(chaosObjectId);
+
+                    chaosLeaseHolder->RemovePromise().Set();
+                }
+            }
         }
 
         YT_LOG_DEBUG("Shortcuts revoked (CoordinatorCellId: %v, ReplicationCardIds: %v)",
@@ -1558,45 +1579,72 @@ private:
         NotifyWatchers(std::move(replicationCardIds));
     }
 
-    void RevokeShortcuts(TChaosObjectBase* chaosObject)
+    std::vector<std::pair<TCellId, NChaosNode::NProto::TReqRevokeShortcuts>> BuildRevokeShortcutsRequests(
+        TRange<TChaosObjectBase*> chaosObjects)
     {
         YT_VERIFY(HasMutationContext());
 
-        const auto& hiveManager = Slot_->GetHiveManager();
-        NChaosNode::NProto::TReqRevokeShortcuts req;
-        ToProto(req.mutable_chaos_cell_id(), Slot_->GetCellId());
-        auto* shortcut = req.add_shortcuts();
-        ToProto(shortcut->mutable_chaos_object_id(), chaosObject->GetId());
-        shortcut->set_era(chaosObject->GetEra());
+        THashMap<TCellId, NChaosNode::NProto::TReqRevokeShortcuts> coordinatorToRequest;
 
-        for (auto [cellId, coordinator] : GetValuesSortedByKey(chaosObject->Coordinators())) {
-            if (coordinator->State == EShortcutState::Revoking) {
-                YT_LOG_DEBUG("Will not revoke shortcut since it already is revoking "
-                    "(ChaosObjectId: %v, Type: %v, Era: %v CoordinatorCellId: %v)",
+        for (const auto& chaosObject : chaosObjects) {
+            for (auto [cellId, coordinator] : GetValuesSortedByKey(chaosObject->Coordinators())) {
+                if (coordinator->State == EShortcutState::Revoking) {
+                    YT_LOG_DEBUG("Will not revoke shortcut since it already is revoking "
+                        "(ChaosObjectId: %v, Type: %v, Era: %v CoordinatorCellId: %v)",
+                        chaosObject->GetId(),
+                        TypeFromId(chaosObject->GetId()),
+                        chaosObject->GetEra(),
+                        cellId);
+
+                    continue;
+                }
+
+                coordinator->State = EShortcutState::Revoking;
+
+                auto& request = coordinatorToRequest[cellId];
+                if (!request.has_chaos_cell_id()) {
+                    ToProto(request.mutable_chaos_cell_id(), Slot_->GetCellId());
+                }
+
+                auto* shortcut = request.add_shortcuts();
+                ToProto(shortcut->mutable_chaos_object_id(), chaosObject->GetId());
+                shortcut->set_era(chaosObject->GetEra());
+
+                YT_LOG_DEBUG("Preparing to revoke shortcut (ChaosObjectId: %v, Type: %v, Era: %v CoordinatorCellId: %v)",
                     chaosObject->GetId(),
                     TypeFromId(chaosObject->GetId()),
                     chaosObject->GetEra(),
                     cellId);
-
-                continue;
             }
-
-            coordinator->State = EShortcutState::Revoking;
-
-            auto mailbox = hiveManager->GetMailbox(cellId);
-            hiveManager->PostMessage(mailbox, req);
-
-            YT_LOG_DEBUG("Revoking shortcut (ChaosObjectId: %v, Type: %v, Era: %v CoordinatorCellId: %v)",
-                chaosObject->GetId(),
-                TypeFromId(chaosObject->GetId()),
-                chaosObject->GetEra(),
-                cellId);
         }
 
-        YT_LOG_DEBUG("Finished revoking shortcuts (ChaosObjectId: %v, Type: %v, Era: %v)",
-            chaosObject->GetId(),
-            TypeFromId(chaosObject->GetId()),
-            chaosObject->GetEra());
+        return SortHashMapByKeys(coordinatorToRequest);
+    }
+
+    void RevokeShortcuts(TRange<TChaosObjectBase*> chaosObjects)
+    {
+        YT_VERIFY(HasMutationContext());
+
+        auto revokeShortcutsRequests = BuildRevokeShortcutsRequests(chaosObjects);
+
+        const auto& hiveManager = Slot_->GetHiveManager();
+
+        for (const auto& [coordinatorCellId, request] : revokeShortcutsRequests) {
+            auto mailbox = hiveManager->GetMailbox(coordinatorCellId);
+            hiveManager->PostMessage(mailbox, request);
+        }
+
+        for (const auto& chaosObject : chaosObjects) {
+            YT_LOG_DEBUG("Finished revoking shortcuts (ChaosObjectId: %v, Type: %v, Era: %v)",
+                chaosObject->GetId(),
+                TypeFromId(chaosObject->GetId()),
+                chaosObject->GetEra());
+        }
+    }
+
+    void RevokeShortcuts(TChaosObjectBase* chaosObject)
+    {
+        RevokeShortcuts(TRange(&chaosObject, 1));
     }
 
     void GrantShortcuts(TChaosObjectBase* chaosObject, const std::vector<TCellId> coordinatorCellIds, bool strict = true)
@@ -2724,22 +2772,32 @@ private:
     {
         auto chaosLeaseId = GenerateNewChaosLeaseId();
         auto timeout = FromProto<TDuration>(request->timeout());
-        auto parentId = request->has_parent_id()
-            ? FromProto<TChaosLeaseId>(request->parent_id())
-            : TChaosLeaseId{};
+        auto parentId = FromProto<TChaosLeaseId>(request->parent_id());
+
+        auto chaosLease = std::make_unique<TChaosLease>(chaosLeaseId);
+        if (parentId) {
+            auto parent = GetChaosLeaseOrThrow(parentId);
+
+            if (parent->GetState() == EChaosLeaseState::RevokingShortcutsForRemoval) {
+                THROW_ERROR_EXCEPTION("Failed to create chaos lease, since its parent is being removed")
+                    << TErrorAttribute("parent_chaos_lease_id", parentId);
+            }
+
+            chaosLease->SetParentId(parentId);
+            InsertOrCrash(parent->NestedLeases(), chaosLeaseId);
+        }
+
+        chaosLease->SetTimeout(timeout);
+        auto* chaosLeasePtr = ChaosLeaseMap_.Insert(chaosLeaseId, std::move(chaosLease));
 
         ChaosLeaseTracker_->RegisterTransaction(
             chaosLeaseId,
             parentId,
             timeout,
             std::nullopt,
-            BIND(&TChaosManager::OnLeaseExpired, MakeStrong(this))
+            BIND(&TChaosManager::OnLeaseExpired, MakeWeak(this))
                 .Via(Slot_->GetAutomatonInvoker()));
 
-        auto chaosLease = std::make_unique<TChaosLease>(chaosLeaseId);
-        chaosLease->SetParentId(parentId);
-        chaosLease->SetTimeout(timeout);
-        auto* chaosLeasePtr = ChaosLeaseMap_.Insert(chaosLeaseId, std::move(chaosLease));
 
         YT_LOG_DEBUG("Created chaos lease (LeaseId: %v)",
             chaosLeaseId);
@@ -2764,29 +2822,32 @@ private:
     }
 
     void HydraRemoveChaosLease(
-        const TCtxRemoveChaosLeasePtr& context,
+        const TCtxRemoveChaosLeasePtr& /*context*/,
         NChaosClient::NProto::TReqRemoveChaosLease* request,
         NChaosClient::NProto::TRspRemoveChaosLease* /*response*/)
     {
-        auto chaosLeaseId = FromProto<TChaosLeaseId>(request->chaos_lease_id());
-        auto* chaosLease = GetChaosLeaseOrThrow(chaosLeaseId);
+        auto rootChaosLeaseId = FromProto<TChaosLeaseId>(request->chaos_lease_id());
+        auto* rootChaosLease = GetChaosLeaseOrThrow(rootChaosLeaseId);
 
-        // TODO(gryzlov-ad): Add option to wait for full shortcut revocation and not just hive enqueue.
-        RevokeShortcuts(chaosLease);
-
-        // TODO(gryzlov-ad): Handle lease migration.
-        ChaosLeaseMap_.Remove(chaosLeaseId);
-
-        ChaosLeaseTracker_->UnregisterTransaction(
-            chaosLeaseId);
-
-        YT_LOG_DEBUG("Chaos lease removed (ChaosLeaseId: %v)",
-            chaosLeaseId);
-
-        if (context) {
-            context->SetResponseInfo("ChaosLeaseId: %v",
-                chaosLeaseId);
+        if (rootChaosLease->GetState() == EChaosLeaseState::RevokingShortcutsForRemoval) {
+            return;
         }
+
+        std::vector<TChaosObjectBase*> chaosLeases;
+        chaosLeases.push_back(rootChaosLease);
+
+        for (int bfsPointer = 0; bfsPointer < std::ssize(chaosLeases); ++bfsPointer) {
+            auto* chaosLease = static_cast<TChaosLease*>(chaosLeases[bfsPointer]);
+            chaosLease->RemovePromise() = NewPromise<void>();
+            chaosLease->SetState(EChaosLeaseState::RevokingShortcutsForRemoval);
+
+            for (const auto& nestedChaosLeaseId : chaosLease->NestedLeases()) {
+                auto* nestedChaosLease = GetChaosLeaseOrThrow(nestedChaosLeaseId);
+                chaosLeases.push_back(nestedChaosLease);
+            }
+        }
+
+        RevokeShortcuts(chaosLeases);
     }
 
     void UpdateReplicationCardCollocation(

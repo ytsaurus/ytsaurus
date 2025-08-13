@@ -38,19 +38,25 @@ DEFINE_ENUM(ESequoiaTable,
     (TransactionDescendants)
     (TransactionReplicas)
     (DependentTransactions)
+    (DoomedTransactions)
     (NodeForks)
     (NodeSnapshots)
     (PathForks)
     (ChildForks)
     (ResponseKeeper)
     (ChunkRefreshQueue)
+    (Acls)
 );
 
 DEFINE_ENUM(EGroundUpdateQueue,
     ((Sequoia)            (0))
 );
 
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NRecords {
+
+struct TAcls;
 
 struct TPathToNodeId;
 struct TNodeIdToPath;
@@ -98,6 +104,11 @@ using TRelativePathBuf = TBasicPathBuf<false>;
 //! An absolute path is a canonical path that starts with a slash root designator.
 class TAbsolutePath;
 using TAbsolutePathBuf = TBasicPathBuf<true>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TPrerequisiteRevision;
+struct TResolvedPrerequisiteRevision;
 
 ////////////////////////////////////////////////////////////////////////////////
 

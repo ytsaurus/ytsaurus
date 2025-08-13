@@ -14,12 +14,13 @@ namespace NYT::NYqlAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ReorderAndSaveRows(
+bool ReorderAndSaveRows(
     NTableClient::TRowBufferPtr rowBuffer,
     NTableClient::TNameTablePtr sourceNameTable,
     NTableClient::TNameTablePtr targetNameTable,
     TRange<NTableClient::TUnversionedRow> rows,
-    std::vector<NTableClient::TUnversionedRow>& resultRows);
+    std::vector<NTableClient::TUnversionedRow>& resultRows,
+    std::optional<i64> rowCountLimit = std::nullopt);
 
 struct TYqlRef
     : public NYTree::TYsonStruct

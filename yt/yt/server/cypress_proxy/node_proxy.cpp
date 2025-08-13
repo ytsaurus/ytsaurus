@@ -30,6 +30,7 @@
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
+#include <yt/yt/ytlib/sequoia_client/prerequisite_revision.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
@@ -103,6 +104,7 @@ IMPLEMENT_SUPPORTS_METHOD(List)
 IMPLEMENT_SUPPORTS_METHOD_RESOLVE(
     Exists,
     {
+        // TODO(kvk1920): it would be great to log target object ID here.
         context->SetRequestInfo();
         Reply(context, /*exists*/ false);
     })
@@ -113,6 +115,7 @@ void TSupportsExists::ExistsAttribute(
     TRspExists* /*response*/,
     const TCtxExistsPtr& context)
 {
+    // TODO(kvk1920): it would be great to log target object ID here.
     context->SetRequestInfo();
 
     Reply(context, /*exists*/ false);
@@ -123,6 +126,7 @@ void TSupportsExists::ExistsSelf(
     TRspExists* /*response*/,
     const TCtxExistsPtr& context)
 {
+    // TODO(kvk1920): it would be great to log target object ID here.
     context->SetRequestInfo();
 
     Reply(context, /*exists*/ true);
@@ -134,6 +138,7 @@ void TSupportsExists::ExistsRecursive(
     TRspExists* /*response*/,
     const TCtxExistsPtr& context)
 {
+    // TODO(kvk1920): it would be great to log target object ID here.
     context->SetRequestInfo();
 
     Reply(context, /*exists*/ false);
@@ -157,12 +162,15 @@ public:
     TNodeProxy(
         IBootstrap* bootstrap,
         TSequoiaSessionPtr session,
-        TSequoiaResolveResult resolveResult)
-        : TNodeProxyBase(bootstrap, std::move(session))
+        TSequoiaResolveResult resolveResult,
+        std::vector<TResolvedPrerequisiteRevision> resolvedPrerequisiteRevisions,
+        const TAuthenticationIdentity& authenticationIdentity)
+        : TNodeProxyBase(bootstrap, std::move(session), authenticationIdentity)
         , Id_(resolveResult.Id)
         , Path_(resolveResult.Path)
         , ParentId_(resolveResult.ParentId)
         , ResolveResult_(std::move(resolveResult))
+        , ResolvedPrerequisiteRevisions_(std::move(resolvedPrerequisiteRevisions))
     {
         auto nodeType = TypeFromId(Id_);
         YT_VERIFY(
@@ -178,6 +186,7 @@ protected:
     // Can be null only if |Id_| is a scion, Cypress link or snapshot branch.
     const TNodeId ParentId_;
     const TSequoiaResolveResult ResolveResult_;
+    const std::vector<TResolvedPrerequisiteRevision> ResolvedPrerequisiteRevisions_;
 
     TSuppressableAccessTrackingOptions AccessTrackingOptions_;
 
@@ -190,6 +199,10 @@ protected:
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Lock);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Unlock);
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Fetch);
+    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, BeginUpload);
+    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, GetUploadParams);
+    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, EndUpload);
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, GetMountInfo);
 
     // Used for cross-cell copy.
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, LockCopyDestination);
@@ -234,6 +247,10 @@ protected:
         DISPATCH_YPATH_SERVICE_METHOD(LockCopySource);
         DISPATCH_YPATH_SERVICE_METHOD(CalculateInheritedAttributes);
         DISPATCH_YPATH_SERVICE_METHOD(AssembleTreeCopy);
+        DISPATCH_YPATH_SERVICE_METHOD(BeginUpload);
+        DISPATCH_YPATH_SERVICE_METHOD(GetUploadParams);
+        DISPATCH_YPATH_SERVICE_METHOD(EndUpload);
+        DISPATCH_YPATH_SERVICE_METHOD(GetMountInfo);
 
         DISPATCH_YPATH_SERVICE_METHOD(BeginCopy);
 
@@ -470,7 +487,7 @@ protected:
         TRspExists* /*response*/,
         const TCtxExistsPtr& context) override
     {
-        context->SetRequestInfo();
+        context->SetRequestInfo("TargetObjectId: %v", Id_);
         AbortSequoiaSessionForLaterForwardingToMaster();
     }
 
@@ -480,7 +497,7 @@ protected:
         TRspExists* /*response*/,
         const TCtxExistsPtr& context) override
     {
-        context->SetRequestInfo();
+        context->SetRequestInfo("TargetObjectId: %v", Id_);
         AbortSequoiaSessionForLaterForwardingToMaster();
     }
 
@@ -490,7 +507,7 @@ protected:
         TRspGet* /*response*/,
         const TCtxGetPtr& context) override
     {
-        context->SetRequestInfo();
+        context->SetRequestInfo("TargetObjectId: %v", Id_);
         AbortSequoiaSessionForLaterForwardingToMaster();
     }
 
@@ -543,7 +560,6 @@ protected:
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
 
-
         auto limit = YT_OPTIONAL_FROM_PROTO(*request, limit);
 
         context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
@@ -562,9 +578,16 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, MultisetAttributes)
         request->subrequests_size(),
         force);
 
-    auto subrequests = FromProto<std::vector<TMultisetAttributesSubrequest>>(request->subrequests());
-
     auto targetPath = TYPath(GetRequestTargetYPath(context->GetRequestHeader()));
+    NYPath::TTokenizer tokenizer(targetPath);
+    tokenizer.Advance();
+    tokenizer.Expect(NYPath::ETokenType::Slash);
+    tokenizer.Advance();
+    if (tokenizer.GetType() == NYPath::ETokenType::Literal) {
+        ThrowNoSuchChild(Path_, tokenizer.GetLiteralValue());
+    }
+
+    auto subrequests = FromProto<std::vector<TMultisetAttributesSubrequest>>(request->subrequests());
     SequoiaSession_->MultisetNodeAttributes(
         Id_,
         targetPath,
@@ -577,7 +600,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, MultisetAttributes)
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetBasicAttributes)
 {
-    context->SetRequestInfo();
+    context->SetRequestInfo("TargetObjectId: %v", Id_);
 
     auto unresolvedSuffix = TYPath(GetRequestTargetYPath(context->GetRequestHeader()));
     auto unresolvedSuffixTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
@@ -614,7 +637,31 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, CheckPermission)
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Fetch)
 {
-    context->SetRequestInfo();
+    context->SetRequestInfo("TargetObjectId: %v", Id_);
+    AbortSequoiaSessionForLaterForwardingToMaster();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, BeginUpload)
+{
+    context->SetRequestInfo("TargetObjectId: %v", Id_);
+    AbortSequoiaSessionForLaterForwardingToMaster();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetUploadParams)
+{
+    context->SetRequestInfo("TargetObjectId: %v", Id_);
+    AbortSequoiaSessionForLaterForwardingToMaster();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, EndUpload)
+{
+    context->SetRequestInfo("TargetObjectId: %v", Id_);
+    AbortSequoiaSessionForLaterForwardingToMaster();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetMountInfo)
+{
+    context->SetRequestInfo("TargetObjectId: %v", Id_);
     AbortSequoiaSessionForLaterForwardingToMaster();
 }
 
@@ -903,6 +950,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
         nodesToCopy,
         destinationRootPath,
         destinationParentId,
+        ResolvedPrerequisiteRevisions_,
         options);
 
     ToProto(response->mutable_node_id(), destinationId);
@@ -914,7 +962,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Unlock)
 {
-    context->SetRequestInfo();
+    context->SetRequestInfo("TargetObjectId: %v", Id_);
 
     SequoiaSession_->ValidateTransactionPresence();
 
@@ -1998,20 +2046,34 @@ private:
 INodeProxyPtr CreateNodeProxy(
     IBootstrap* bootstrap,
     TSequoiaSessionPtr session,
-    TSequoiaResolveResult resolveResult)
+    TSequoiaResolveResult resolveResult,
+    std::vector<TResolvedPrerequisiteRevision> resolvedPrerequisiteRevisions,
+    const TAuthenticationIdentity& authenticationIdentity)
 {
     auto type = TypeFromId(resolveResult.Id);
     ValidateSupportedSequoiaType(type);
 
     if (type == EObjectType::Document || type == EObjectType::Orchid) {
-        return New<TOpaqueNodeProxy>(bootstrap, std::move(session), std::move(resolveResult));
+        return New<TOpaqueNodeProxy>(
+            bootstrap,
+            std::move(session),
+            std::move(resolveResult),
+            std::move(resolvedPrerequisiteRevisions),
+            authenticationIdentity);
     } else if (IsSequoiaCompositeNodeType(type)) {
-        return New<TMapLikeNodeProxy>(bootstrap, std::move(session), std::move(resolveResult));
+        return New<TMapLikeNodeProxy>(
+            bootstrap,
+            std::move(session),
+            std::move(resolveResult),
+            std::move(resolvedPrerequisiteRevisions),
+            authenticationIdentity);
     } else {
         return New<TNodeProxy>(
             bootstrap,
             std::move(session),
-            std::move(resolveResult));
+            std::move(resolveResult),
+            std::move(resolvedPrerequisiteRevisions),
+            authenticationIdentity);
     }
 }
 

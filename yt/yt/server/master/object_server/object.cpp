@@ -358,9 +358,6 @@ void TObject::Load(NCellMaster::TLoadContext& context)
     if (Load<bool>(context)) {
         SetForeign();
     }
-    if (context.GetVersion() < EMasterReign::RipAevum) {
-        Load<int>(context);
-    }
     Load(context, AttributeRevision_);
     Load(context, ContentRevision_);
 }

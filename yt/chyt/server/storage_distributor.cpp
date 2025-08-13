@@ -391,7 +391,8 @@ public:
                 Context_->getExternalTables(),
                 ProcessingStage_,
                 blockHeader,
-                Logger);
+                Logger,
+                TaskIterator_);
 
             // In the case of processing up to the FetchColumns stage,
             // PlannerJoinTree expects that pipe outputs header will have unqualified column names.
@@ -439,6 +440,14 @@ public:
     {
         YT_VERIFY(QueryAnalyzer_);
         return QueryAnalyzer_->GetReadInOrderMode() != EReadInOrderMode::None;
+    }
+
+    bool SuitableForPullInputSpecsMode() const
+    {
+        YT_VERIFY(QueryAnalyzer_);
+        // In the case of a right or full join, we need to filter the joined query by the sort key,
+        // which is not possible when pulling input specs.
+        return StorageContext_->Settings->Execution->EnableInputSpecsPulling && !QueryAnalyzer_->HasRightOrFullJoin();
     }
 
     DB::QueryPipelineBuilderPtr ExtractPipeline(std::function<void()> commitCallback)
@@ -519,15 +528,19 @@ private:
     std::vector<TSecondaryQuery> SecondaryQueries_;
     DB::Pipes Pipes_;
 
+    TSecondaryQueryReadTaskIteratorPtr TaskIterator_ = nullptr;
+
     void PrepareInput()
     {
-        SpecTemplate_ = TSubquerySpec();
-        SpecTemplate_.InitialQuery = DB::serializeAST(*QueryInfo_.query);
-        SpecTemplate_.QuerySettings = StorageContext_->Settings;
-
         QueryAnalyzer_.emplace(Context_, StorageContext_, QueryInfo_, Logger);
         QueryAnalyzer_->Prepare();
         QueryAnalysisResult_.emplace(QueryAnalyzer_->Analyze());
+
+        SpecTemplate_ = TSubquerySpec();
+        SpecTemplate_.InitialQuery = DB::serializeAST(*QueryInfo_.query);
+        SpecTemplate_.QuerySettings = StorageContext_->Settings;
+        SpecTemplate_.QuerySettings->Execution->EnableInputSpecsPulling = SuitableForPullInputSpecsMode();
+        SpecTemplate_.QuerySettings->NeedOnlyDistinct = QueryAnalyzer_->NeedOnlyDistinct();
 
         QueryContext_->SetRuntimeVariable("pool_kind", QueryAnalysisResult_->PoolKind);
         QueryContext_->SetRuntimeVariable("read_in_order_mode", QueryAnalysisResult_->ReadInOrderMode);
@@ -643,10 +656,19 @@ private:
             "chyt.input_streams_per_secondary_query",
             inputStreamsPerSecondaryQuery);
 
+        i64 taskCount = std::max<int>(1, secondaryQueryCount * inputStreamsPerSecondaryQuery);
+        if (SuitableForPullInputSpecsMode()) {
+            taskCount = std::round(taskCount * QueryContext_->Settings->Execution->TaskCountIncreaseFactor);
+            YT_LOG_DEBUG(
+                "Jobs count for secondary queries was increased due to pull distribution mode (NewJobCount: %v, TaskCountIncreaseFactor: %v)",
+                taskCount,
+                QueryContext_->Settings->Execution->TaskCountIncreaseFactor);
+        }
+
         ThreadSubqueries_ = BuildThreadSubqueries(
             QueryInput_,
             *QueryAnalysisResult_,
-            std::max<int>(1, secondaryQueryCount * inputStreamsPerSecondaryQuery),
+            taskCount,
             SamplingRate_,
             StorageContext_,
             QueryContext_->Host->GetConfig()->Subquery);
@@ -682,28 +704,8 @@ private:
         NTracing::GetCurrentTraceContext()->AddTag("chyt.total_chunk_count", totalChunkCount);
     }
 
-    void PrepareSecondaryQueryAsts()
+    void PrepareSecondaryQueriesForPush(std::shared_ptr<TSecondaryQueryBuilder> secondaryQueryBuilder, int secondaryQueryCount)
     {
-        int secondaryQueryCount = ThreadSubqueries_.size();
-
-        // When reading in order we produce intentionally small thread subqueries
-        // which should not be combined at this point.
-        if (!ReadInOrder()) {
-            secondaryQueryCount = std::min<int>(secondaryQueryCount, CliqueNodes_.size());
-        }
-
-        if (secondaryQueryCount == 0) {
-            // NB: if we make no secondary queries, there will be a tricky issue around schemas.
-            // Namely, we return an empty vector of streams, so the resulting schema will
-            // be taken from columns of this storage (which are set via setColumns).
-            // Such schema will be incorrect as it will lack aggregates in mergeable state
-            // which should normally return from our distributed storage.
-            // In order to overcome this, we forcefully make at least one stream, even though it
-            // will return empty result for sure.
-            secondaryQueryCount = 1;
-        }
-
-        auto secondaryQueryBuilder = QueryAnalyzer_->GetSecondaryQueryBuilder(SpecTemplate_);
         for (int index = 0; index < secondaryQueryCount; ++index) {
             int firstSubqueryIndex = index * ThreadSubqueries_.size() / secondaryQueryCount;
             int lastSubqueryIndex = (index + 1) * ThreadSubqueries_.size() / secondaryQueryCount;
@@ -745,6 +747,48 @@ private:
                 secondaryQuery.Query);
 
             SecondaryQueries_.emplace_back(std::move(secondaryQuery));
+        }
+    }
+
+    void PrepareSecondaryQueriesForPull(std::shared_ptr<TSecondaryQueryBuilder> secondaryQueryBuilder, int secondaryQueryCount)
+    {
+        i64 inputStreamsPerSecondaryQuery = (std::ssize(ThreadSubqueries_) + secondaryQueryCount - 1) / secondaryQueryCount;
+        auto secondaryQuery = secondaryQueryBuilder->CreateSecondaryQuery(inputStreamsPerSecondaryQuery);
+        SecondaryQueries_.assign(secondaryQueryCount, secondaryQuery);
+
+        TaskIterator_ = New<TSecondaryQueryReadTaskIterator>(
+            QueryInput_.OperandCount,
+            ThreadSubqueries_,
+            QueryInput_.MiscExtMap);
+    }
+
+    void PrepareSecondaryQueryAsts()
+    {
+        int secondaryQueryCount = ThreadSubqueries_.size();
+
+        // When reading in order we produce intentionally small thread subqueries
+        // which should not be combined at this point.
+        if (!ReadInOrder()) {
+            secondaryQueryCount = std::min<int>(secondaryQueryCount, CliqueNodes_.size());
+        }
+
+        if (secondaryQueryCount == 0) {
+            // NB: if we make no secondary queries, there will be a tricky issue around schemas.
+            // Namely, we return an empty vector of streams, so the resulting schema will
+            // be taken from columns of this storage (which are set via setColumns).
+            // Such schema will be incorrect as it will lack aggregates in mergeable state
+            // which should normally return from our distributed storage.
+            // In order to overcome this, we forcefully make at least one stream, even though it
+            // will return empty result for sure.
+            secondaryQueryCount = 1;
+        }
+
+        auto secondaryQueryBuilder = QueryAnalyzer_->GetSecondaryQueryBuilder(SpecTemplate_);
+
+        if (SuitableForPullInputSpecsMode()) {
+            PrepareSecondaryQueriesForPull(secondaryQueryBuilder, secondaryQueryCount);
+        } else {
+            PrepareSecondaryQueriesForPush(secondaryQueryBuilder, secondaryQueryCount);
         }
     }
 };
@@ -886,7 +930,7 @@ public:
                 toString(toStage));
         }
 
-        TQueryAnalyzer analyzer(context, storageContext, queryInfo, Logger);
+        TQueryAnalyzer analyzer(context, storageContext, queryInfo, Logger, /*onlyAnalyze*/ true);
 
         bool isDistributedJoin = DB::hasJoin(select);
 

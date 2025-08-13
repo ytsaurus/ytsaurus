@@ -78,12 +78,11 @@ int main(int argc, char** argv)
             isErasure = true;
         }
 
-        THashMap<TString, std::optional<TString>> columnGroupMapping;
-        THashMap<TString, THashSet<int>> groupBlockIds;
+        THashMap<std::string, THashSet<int>> groupBlockIds;
 
         struct TColumnInfo
         {
-            TString Name;
+            std::string Name;
             i64 UncompressedSize = 0;
             double UncompressedRatio = 0;
             i64 CompressedSize = 0;

@@ -23,6 +23,7 @@
 #include <Analyzer/InDepthQueryTreeVisitor.h>
 #include <Analyzer/QueryTreeBuilder.h>
 #include <Analyzer/ArrayJoinNode.h>
+#include <Analyzer/ColumnNode.h>
 #include <Analyzer/MatcherNode.h>
 #include <Analyzer/JoinNode.h>
 #include <Analyzer/SortNode.h>
@@ -379,14 +380,46 @@ TSecondaryQueryBuilder::TSecondaryQueryBuilder(
     DB::ContextPtr context,
     const NLogging::TLogger& logger,
     DB::QueryTreeNodePtr query,
-    const std::vector<TSubquerySpec>& specs,
+    const std::vector<TSubquerySpec>& operandSpecs,
     TBoundJoinOptions boundJoinOptions)
     : Logger(logger)
     , Context_(std::move(context))
     , Query_(std::move(query))
-    , TableSpecs_(specs)
+    , OperandSpecs_(operandSpecs)
     , BoundJoinOptions_(std::move(boundJoinOptions))
 { }
+
+TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(int inputStreamsPerSecondaryQuery)
+{
+    YT_LOG_DEBUG("Creating secondary query for pull distribution mode");
+
+    DB::Scalars scalars;
+    for (int index = 0; index < std::ssize(OperandSpecs_); ++index) {
+        auto spec = OperandSpecs_[index];
+        spec.DataSliceDescriptors.resize(inputStreamsPerSecondaryQuery);
+
+        auto protoSpec = NYT::ToProto<NProto::TSubquerySpec>(spec);
+        auto encodedSpec = protoSpec.SerializeAsString();
+
+        YT_LOG_DEBUG("Serializing subquery spec (TableIndex: %v, SpecLength: %v)", index, encodedSpec.size());
+
+        std::string scalarName = Format("yt_table_%d", index);
+        scalars[scalarName] = DB::Block{{
+            DB::DataTypeString().createColumnConst(1, std::string(encodedSpec)),
+            std::make_shared<DB::DataTypeString>(),
+            "scalarName"}};
+    }
+
+    auto secondaryQueryAst = DB::queryNodeToDistributedSelectQuery(Query_);
+
+    YT_LOG_DEBUG("Query was created (NewQuery: %v)", *secondaryQueryAst);
+
+    return {
+        std::move(secondaryQueryAst),
+        std::move(scalars),
+        /*TotalRowsToRead*/ 0,
+        /*TotalBytesToRead*/0};
+}
 
 TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(
     const TRange<TSubquery>& threadSubqueries,
@@ -414,13 +447,13 @@ TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(
         totalChunkCount);
 
     DB::Scalars scalars;
-    for (int index = 0; index < std::ssize(TableSpecs_); ++index) {
+    for (int index = 0; index < std::ssize(OperandSpecs_); ++index) {
         std::vector<TChunkStripePtr> stripes;
         for (const auto& subquery : threadSubqueries) {
             stripes.emplace_back(subquery.StripeList->Stripes[index]);
         }
 
-        auto spec = TableSpecs_[index];
+        auto spec = OperandSpecs_[index];
         spec.SubqueryIndex = subqueryIndex;
 
         FillDataSliceDescriptors(spec.DataSliceDescriptors, miscExtMap, TRange(stripes));
@@ -433,8 +466,11 @@ TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(
             index,
             encodedSpec.size());
 
-        std::string scalarName = "yt_table_" + std::to_string(index);
-        scalars[scalarName] = DB::Block{{DB::DataTypeString().createColumnConst(1, std::string(encodedSpec)), std::make_shared<DB::DataTypeString>(), "scalarName"}};
+        std::string scalarName = Format("yt_table_%d", index);
+        scalars[scalarName] = DB::Block{{
+            DB::DataTypeString().createColumnConst(1, std::string(encodedSpec)),
+            std::make_shared<DB::DataTypeString>(),
+            "scalarName"}};
     }
 
     auto secondaryQuery = Query_;
@@ -466,7 +502,7 @@ TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(
         secondaryQuery = AddBoundConditionToJoinedSubquery(secondaryQuery, BoundJoinOptions_.JoinRightTableExpression, lowerBound, upperBound);
     }
 
-    auto secondaryQueryAst = DB::queryNodeToSelectQuery(secondaryQuery);
+    auto secondaryQueryAst = DB::queryNodeToDistributedSelectQuery(secondaryQuery);
 
     YT_LOG_DEBUG("Query was created (NewQuery: %v)", *secondaryQueryAst);
 
@@ -574,11 +610,13 @@ TQueryAnalyzer::TQueryAnalyzer(
     DB::ContextPtr context,
     const TStorageContext* storageContext,
     const DB::SelectQueryInfo& queryInfo,
-    const TLogger& logger)
+    const TLogger& logger,
+    bool onlyAnalyze)
     : DB::WithContext(std::move(context))
     , StorageContext_(storageContext)
     , QueryInfo_(queryInfo)
     , Logger(logger)
+    , OnlyAnalyze_(onlyAnalyze)
 {
     // When the query is not processed by InterpreterSelectQueryAnalyzer,
     // SelectQueryInfo does not contain query_tree and planner_context.
@@ -843,18 +881,95 @@ private:
     bool HasInOperator_ = false;
 };
 
+class TCheckSimpleDistinctVisitor
+    : public DB::InDepthQueryTreeVisitor<TCheckSimpleDistinctVisitor>
+{
+public:
+    TCheckSimpleDistinctVisitor(bool isDistinct)
+        :  IsDistinct_(isDistinct)
+    { }
+
+    static bool IsAllowedAggregationFunction(const DB::FunctionNode& node)
+    {
+        return (
+            node.getFunctionName() == "min" ||
+            node.getFunctionName() == "max" ||
+            node.getFunctionName() == "uniq" ||
+            node.getFunctionName() == "uniqExact" ||
+            node.getFunctionName() == "uniqCombined"
+        );
+    }
+
+     void visitImpl(const DB::QueryTreeNodePtr& node)
+    {
+        if (auto* functionNode = node->as<DB::FunctionNode>()) {
+            if (functionNode->isAggregateFunction()) {
+                IsAggregated_ = true;
+                OnlyAllowedAggregationFunctions_ &= IsAllowedAggregationFunction(*functionNode);
+            } else if (auto function = functionNode->getFunction()) {
+                OnlyDeterministicFunctions_ &= function->isDeterministic();
+            }
+        }
+        if (auto* columnNode = node->as<DB::ColumnNode>()) {
+            Columns_.insert(columnNode->getColumnName());
+        }
+        if (node->getNodeType() == DB::QueryTreeNodeType::JOIN || node->getNodeType() == DB::QueryTreeNodeType::ARRAY_JOIN) {
+            HasJoin_ = true;
+        }
+    }
+
+    bool needChildVisit(VisitQueryTreeNodeType& /*parent*/, VisitQueryTreeNodeType& /*child*/)
+    {
+        return Columns_.size() <= 1 && OnlyDeterministicFunctions_ && OnlyAllowedAggregationFunctions_ && !HasJoin_;
+    }
+
+    bool IsSimpleDistinctCase() const
+    {
+        return Columns_.size() == 1 &&
+            (IsDistinct_ || IsAggregated_) &&
+            OnlyDeterministicFunctions_ &&
+            OnlyAllowedAggregationFunctions_ &&
+            !HasJoin_;
+    }
+
+private:
+    bool IsDistinct_;
+
+    THashSet<std::string> Columns_;
+    bool IsAggregated_ = false;
+    bool OnlyDeterministicFunctions_ = true;
+    bool OnlyAllowedAggregationFunctions_ = true;
+    bool HasJoin_ = false;
+};
+
 void TQueryAnalyzer::ParseQuery()
 {
+    YT_LOG_DEBUG("Analyzing query (Query: %v)", QueryInfo_.query_tree->toAST());
+
+    // We need to collect the table expression data before calling buildQueryTreeForShard,
+    // because the pointers to the table expression nodes will change and we won't be able to find them.
+    auto tableExpressionNodes = DB::extractTableExpressions(
+        QueryInfo_.query_tree->as<DB::QueryNode&>().getJoinTree());
+    for (auto& tableExpression : tableExpressionNodes) {
+        auto* tableExpressionData = QueryInfo_.planner_context->getTableExpressionDataOrNull(tableExpression);
+        YT_VERIFY(tableExpressionData);
+        TableExpressionDataPtrs_.emplace_back(tableExpressionData);
+    }
+
+    if (!OnlyAnalyze_) {
+        QueryInfo_.query_tree = DB::buildQueryTreeForShard(QueryInfo_.planner_context, QueryInfo_.query_tree);
+        QueryInfo_.query = DB::queryNodeToSelectQuery(QueryInfo_.query_tree);
+    }
+
     auto* selectQuery = QueryInfo_.query_tree->as<DB::QueryNode>();
-    YT_VERIFY(selectQuery);
-
-    YT_LOG_DEBUG("Analyzing query (Query: %v)", selectQuery->toAST());
-
-    YT_VERIFY(selectQuery->getJoinTree());
 
     TCheckInFunctionExistsVisitor visitor(selectQuery->getJoinTree());
     visitor.visit(QueryInfo_.query_tree);
     HasInOperator_ = visitor.HasInOperator();
+
+    TCheckSimpleDistinctVisitor simpleDistinctVisitor(selectQuery->isDistinct());
+    simpleDistinctVisitor.visit(QueryInfo_.query_tree);
+    NeedOnlyDistinct_ = simpleDistinctVisitor.IsSimpleDistinctCase();
 
     auto tableExpressionsStack = DB::buildTableExpressionsStack(selectQuery->getJoinTree());
     for (int index = 0; index < std::ssize(tableExpressionsStack); ++index) {
@@ -892,11 +1007,9 @@ void TQueryAnalyzer::ParseQuery()
         }
 
         TableExpressions_.emplace_back(tableExpression);
-        TableExpressionDataPtrs_.emplace_back(QueryInfo_.planner_context->getTableExpressionDataOrNull(tableExpression));
     }
 
-    YT_VERIFY(TableExpressions_.size() >= 1);
-    YT_VERIFY(TableExpressions_.size() <= 2);
+    YT_VERIFY(TableExpressions_.size() >= 1 && TableExpressions_.size() <= 2);
     for (size_t tableExpressionIndex = 0; tableExpressionIndex < TableExpressions_.size(); ++tableExpressionIndex) {
         const auto& tableExpression = TableExpressions_[tableExpressionIndex];
 
@@ -929,11 +1042,11 @@ void TQueryAnalyzer::ParseQuery()
             YtTableCount_ = 1;
             TwoYTTableJoin_ = false;
             TableExpressions_.pop_back();
-            TableExpressionDataPtrs_.pop_back();
             Storages_.pop_back();
         }
     }
     SecondaryQueryOperandCount_ = YtTableCount_;
+    TableExpressionDataPtrs_.resize(TableExpressions_.size());
 
     YT_LOG_DEBUG(
         "Extracted table expressions from query (Query: %v, TableExpressionCount: %v, YtTableCount: %v, "
@@ -1034,9 +1147,6 @@ void TQueryAnalyzer::OptimizeQueryProcessingStage()
     };
 
     bool hasAggregates = hasAggregateFunctionNodes(QueryInfo_.query_tree);
-    if (QueryInfo_.syntax_analyzer_result) {
-        hasAggregates = hasAggregates || !QueryInfo_.syntax_analyzer_result->aggregates.empty();
-    }
 
     // Simple aggregation without groupBy, e.g. 'select avg(x) from table'.
     if (hasAggregates && !queryNode.hasGroupBy()) {
@@ -1207,32 +1317,38 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
             YT_VERIFY(selectQuery);
 
             std::shared_ptr<const DB::ActionsDAG> filterActionsDAG;
-            if (settings->EnableComputedColumnDeduction && selectQuery->hasWhere()) {
+
+            auto currentWhere = selectQuery->getWhere();
+            DB::QueryTreeNodePtr modifiedWhere;
+
+            if (settings->EnableComputedColumnDeduction && currentWhere) {
                 // Query may not contain deducible values for computed columns.
                 // We populate query with deducible equations on computed columns,
                 // so key condition is able to properly filter ranges with computed
                 // key columns.
-                auto modifiedWhere = PopulatePredicateWithComputedColumns(
-                    selectQuery->getWhere(),
+                modifiedWhere = PopulatePredicateWithComputedColumns(
+                    currentWhere,
                     schema,
                     getContext(),
                     *QueryInfo_.prepared_sets,
                     settings,
                     Logger);
+            }
 
+            if (modifiedWhere && modifiedWhere != currentWhere) {
                 // modifiedWhere contains unresolved identifiers only for the currently processed table expression.
                 // Therefore, we use this table expression as a source for query analysis.
                 DB::QueryAnalysisPass query_analysis_pass(TableExpressions_[index]);
                 query_analysis_pass.run(modifiedWhere, getContext());
 
-                auto prevWhere = std::move(selectQuery->getWhere());
-                selectQuery->getWhere() = modifiedWhere;
+                selectQuery->getWhere() = std::move(modifiedWhere);
 
                 // During construction Planner collects query filters to analyze.
                 // Since we changed the query, we need to get new filters to create a KeyCondition with calculated columns.
                 DB::SelectQueryOptions options;
                 DB::Planner planner(QueryInfo_.query_tree, options);
                 const auto & table_filters = planner.getPlannerContext()->getGlobalPlannerContext()->filters_for_table_expressions;
+                // TODO (buyval01): investigate that computed filter action was added
                 auto it = table_filters.find(TableExpressions_[index]);
                 if (it != table_filters.end()) {
                     const auto& filters = it->second;
@@ -1240,7 +1356,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
                     filterActionsDAG = std::make_shared<const DB::ActionsDAG>(filters.filter_actions->clone());
                 }
 
-                selectQuery->getWhere() = std::move(prevWhere);
+                selectQuery->getWhere() = std::move(currentWhere);
             } else {
                 auto* tableExpressionDataPtr = TableExpressionDataPtrs_[index];
                 YT_VERIFY(tableExpressionDataPtr);
@@ -1269,30 +1385,15 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
     return result;
 }
 
-void TQueryAnalyzer::LazyProcessQueryTree()
-{
-    if (GlobalJoin_) {
-        QueryInfo_.query_tree = DB::buildQueryTreeForShard(QueryInfo_.planner_context, QueryInfo_.query_tree);
-        QueryInfo_.query = DB::queryNodeToSelectQuery(QueryInfo_.query_tree);
-    }
-
-    auto* selectQuery = QueryInfo_.query_tree->as<DB::QueryNode>();
-    TableExpressions_ = extractTableExpressionSequentially(selectQuery->getJoinTree());
-
-    QueryTreeProcessed_ = true;
-}
-
 std::shared_ptr<TSecondaryQueryBuilder> TQueryAnalyzer::GetSecondaryQueryBuilder(
     TSubquerySpec specTemplate)
 {
     if (!Prepared_) {
-        THROW_ERROR_EXCEPTION("Query analyzer is not prepared but CreateSecondaryQuery method is already called; "
+        THROW_ERROR_EXCEPTION("Query analyzer is not prepared but GetSecondaryQueryBuilder method is already called; "
             "this is a bug; please, file an issue in CHYT queue");
     }
 
-    if (!QueryTreeProcessed_) {
-        LazyProcessQueryTree();
-    }
+    YT_VERIFY(!OnlyAnalyze_);
 
     std::vector<TSubquerySpec> tableSpecs;
     tableSpecs.reserve(SecondaryQueryOperandCount_);
@@ -1327,7 +1428,9 @@ std::shared_ptr<TSecondaryQueryBuilder> TQueryAnalyzer::GetSecondaryQueryBuilder
 
     TBoundJoinOptions boundJoinOptions{};
     const auto& executionSettings = StorageContext_->Settings->Execution;
-    if (!TwoYTTableJoin_ && (executionSettings->FilterJoinedSubqueryBySortKey || RightOrFullJoin_) && JoinedByKeyColumns_) {
+    if (!TwoYTTableJoin_
+            && (executionSettings->FilterJoinedSubqueryBySortKey || RightOrFullJoin_)
+            && JoinedByKeyColumns_) {
         auto newTableExpressions = extractTableExpressionSequentially(queryTreeToDistribute->as<DB::QueryNode>()->getJoinTree());
 
         boundJoinOptions.FilterJoinedSubqueryBySortKey = true;
@@ -1392,6 +1495,11 @@ bool TQueryAnalyzer::IsJoinedByKeyColumns() const
             "this is a bug; please, file an issue in CHYT queue");
     }
     return JoinedByKeyColumns_;
+}
+
+bool TQueryAnalyzer::NeedOnlyDistinct() const
+{
+    return NeedOnlyDistinct_;
 }
 
 void TQueryAnalyzer::Prepare()

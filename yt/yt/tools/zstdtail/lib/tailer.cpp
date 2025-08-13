@@ -261,16 +261,20 @@ private:
 
         for (;;) {
             if (zstdInBuffer.pos == zstdInBuffer.size) {
-                zstdInBuffer.size = file->Pread(inBuffer.data(), inBuffer.size(), offset);
-                YT_LOG_DEBUG("Input buffer refilled (Offset: %v, BytesRead: %v)",
-                    offset,
-                    zstdInBuffer.size);
+                for (;;) {
+                    zstdInBuffer.pos = 0;
+                    zstdInBuffer.size = file->Pread(inBuffer.data(), inBuffer.size(), offset);
+                    if (zstdInBuffer.size != 0) {
+                        YT_LOG_DEBUG("Input buffer refilled (Offset: %v, BytesRead: %v)",
+                            offset,
+                            zstdInBuffer.size);
+                        offset += zstdInBuffer.size;
+                        break;
+                    }
 
-                zstdInBuffer.pos = 0;
-                offset += zstdInBuffer.size;
-
-                if (zstdInBuffer.size == 0) {
-                    break;
+                    YT_LOG_DEBUG("Empty read, sleeping and retrying (Offset: %v)",
+                        offset);
+                    Sleep();
                 }
             }
 

@@ -153,6 +153,12 @@ void TExecutionSettings::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("assume_no_nan_keys", &TThis::AssumeNoNanKeys)
         .Default(false);
+
+    registrar.Parameter("task_count_increase_factor", &TThis::TaskCountIncreaseFactor)
+        .GreaterThanOrEqual(1)
+        .Default(1.5);
+    registrar.Parameter("enable_input_specs_pulling", &TThis::EnableInputSpecsPulling)
+        .Default(false);
 }
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -258,6 +264,9 @@ void TQuerySettings::Register(TRegistrar registrar)
 
     registrar.Parameter("prewhere", &TThis::Prewhere)
         .DefaultNew();
+
+    registrar.Parameter("need_only_distinct", &TThis::NeedOnlyDistinct)
+        .Default(false);
 
     registrar.Preprocessor([] (TThis* config) {
         config->TableReader->GroupSize = 20_MB;

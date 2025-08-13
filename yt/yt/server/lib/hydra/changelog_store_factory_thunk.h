@@ -14,6 +14,8 @@ class TChangelogStoreFactoryThunk
 public:
     TFuture<IChangelogStorePtr> Lock() override;
 
+    void Reconfigure(const TDynamicRemoteChangelogStoreConfigPtr& config) override;
+
     void SetUnderlying(IChangelogStoreFactoryPtr underlying);
 
 private:

@@ -318,7 +318,7 @@ protected:
 
     virtual TCpuResource GetCpuLimit() const
     {
-        return 1;
+        return TCpuResource(1L);
     }
 
     virtual TUserJobSpecPtr GetUserJobSpec() const
@@ -385,7 +385,7 @@ protected:
             OrderedTask_->SetIsInput(true);
 
             int sliceCount = 0;
-            TPeriodicYielder yielder(PrepareYieldPeriod);
+            auto yielder = CreatePeriodicYielder(PrepareYieldPeriod);
             for (auto& slice : CollectPrimaryInputDataSlices(InputSliceDataWeight_)) {
                 ValidateInputDataSlice(slice);
                 OrderedTask_->AddInput(CreateChunkStripe(std::move(slice)));

@@ -22,7 +22,7 @@ class TestCypressCookieAuth(YTEnvSetup):
     ENABLE_HTTP_PROXY = True
     NUM_HTTP_PROXIES = 1
 
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "auth": {
             "enable_authentication": True,
             "cypress_cookie_manager": {

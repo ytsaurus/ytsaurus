@@ -128,6 +128,7 @@ func newTx(
 	tx.Encoder.Invoke = tx.Encoder.Invoke.Wrap(tx.Intercept)
 	tx.Encoder.InvokeInTx = tx.Encoder.InvokeInTx.Wrap(tx.Intercept)
 	tx.Encoder.InvokeReadRow = tx.Encoder.InvokeReadRow.Wrap(tx.ReadRow)
+	tx.Encoder.InvokeMultiLookup = tx.Encoder.InvokeMultiLookup.Wrap(tx.MultiLookup)
 
 	return tx, nil
 }
@@ -209,6 +210,19 @@ func (t *TxInterceptor) ReadRow(
 	next ReadRowInvoker,
 	rsp ProtoRowset,
 ) (r yt.TableReader, err error) {
+	if err = t.setTxID(call); err != nil {
+		return
+	}
+
+	return next(ctx, call, rsp)
+}
+
+func (t *TxInterceptor) MultiLookup(
+	ctx context.Context,
+	call *Call,
+	next MultiLookupInvoker,
+	rsp ProtoMultiLookupResp,
+) (readers []yt.TableReader, err error) {
 	if err = t.setTxID(call); err != nil {
 		return
 	}

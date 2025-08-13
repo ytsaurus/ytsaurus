@@ -70,10 +70,6 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t MaxRowsPerFlushRead = 1024;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TOrderedStoreManager::TOrderedStoreManager(
     TTabletManagerConfigPtr config,
     TTablet* tablet,
@@ -258,7 +254,8 @@ IDynamicStore* TOrderedStoreManager::GetActiveStore() const
 TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
     IDynamicStorePtr store,
     TTabletSnapshotPtr tabletSnapshot,
-    bool isUnmountWorkflow)
+    bool isUnmountWorkflow,
+    bool /*onlyUpdateRowCache*/)
 {
     auto orderedDynamicStore = store->AsOrderedDynamic();
     auto reader = orderedDynamicStore->CreateFlushReader();

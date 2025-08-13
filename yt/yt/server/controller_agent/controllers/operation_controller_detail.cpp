@@ -255,7 +255,7 @@ TOperationControllerBase::TOperationControllerBase(
     , AcoName_(operation->GetAcoName())
     , ControllerEpoch_(operation->GetControllerEpoch())
     , CancelableContext_(New<TCancelableContext>())
-    , ChunkScraperInvoker_(Host_->GetChunkScraperThreadPoolInvoker())
+    , ChunkScraperHeavyInvoker_(Host_->GetChunkScraperHeavyThreadPoolInvoker())
     , DiagnosableInvokerPool_(CreateEnumIndexedProfiledFairShareInvokerPool<EOperationControllerQueue>(
         CreateCodicilGuardedInvoker(
             CreateSerializedInvoker(Host_->GetControllerThreadPoolInvoker(), "operation_controller_base"),
@@ -532,7 +532,7 @@ void TOperationControllerBase::InitializeInputTransactions()
             filesAndTables.push_back(path);
         }
 
-        if (Options_->GpuCheck->UseSeparateRootVolume && userJobSpec->EnableGpuCheck) {
+        if (userJobSpec->EnableGpuCheck) {
             for (const auto& path : Options_->GpuCheck->LayerPaths) {
                 filesAndTables.push_back(path);
             }
@@ -852,6 +852,10 @@ void TOperationControllerBase::InitializeStructures()
 
         // Add regular files.
         for (const auto& path : userJobSpec->FilePaths) {
+            if (auto filename = path.GetFileName(); filename && filename->Contains('\0')) {
+                THROW_ERROR_EXCEPTION("File name must not contain NUL byte")
+                    << TErrorAttribute("file_name", *filename);
+            }
             files.push_back(TUserFile(
                 path,
                 InputTransactions_->GetTransactionIdForObject(path),
@@ -868,7 +872,7 @@ void TOperationControllerBase::InitializeStructures()
         }
 
         // Add gpu check layers.
-        if (Options_->GpuCheck->UseSeparateRootVolume && userJobSpec->EnableGpuCheck) {
+        if (userJobSpec->EnableGpuCheck) {
             for (const auto& path : Options_->GpuCheck->LayerPaths) {
                 auto file = TUserFile(
                     path,
@@ -1302,7 +1306,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
                     EOperationAlertType::InvalidDataWeightPerJob,
                     TError("\"data_weight_per_job\"  cannot be greater than \"max_data_weight_per_job\". "
                        "Please specify a \"data_weight_per_job\" value less than or equal to \"max_data_weight_per_job\". "
-                       "This constraint will be strictly enforced in future releases.")
+                       "This constraint will be strictly enforced in future releases")
                         << TErrorAttribute("data_weight_per_job", spec->DataWeightPerJob)
                         << TErrorAttribute("max_data_weight_per_job", spec->MaxDataWeightPerJob));
             }
@@ -1902,7 +1906,7 @@ void TOperationControllerBase::InitIntermediateChunkScraper()
         Config_->ChunkScraper,
         GetCancelableInvoker(),
         CancelableInvokerPool_,
-        ChunkScraperInvoker_,
+        ChunkScraperHeavyInvoker_,
         Host_->GetChunkLocationThrottlerManager(),
         OutputClient_,
         OutputNodeDirectory_,
@@ -2099,6 +2103,8 @@ std::vector<TOutputStreamDescriptorPtr> TOperationControllerBase::GetAutoMergeSt
 
 THashSet<TChunkId> TOperationControllerBase::GetAliveIntermediateChunks() const
 {
+    YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool_);
+
     THashSet<TChunkId> intermediateChunks;
 
     for (const auto& [chunkId, job] : ChunkOriginMap_) {
@@ -2226,7 +2232,7 @@ void TOperationControllerBase::CommitOutputCompletionTransaction()
 
     auto fetchAttributeAsObjectId = [&, this] (
         const TYPath& path,
-        const TString& attribute,
+        TStringBuf attribute,
         TTransactionId transactionId = NullTransactionId)
     {
         auto getRequest = TYPathProxy::Get(Format("%v/@%v", path, attribute));
@@ -2973,9 +2979,6 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
                     *req->mutable_statistics() = table->DataStatistics;
 
                     if (!table->IsFile()) {
-                        // COMPAT(h0pless): remove this when all masters are 24.2.
-                        req->set_schema_mode(ToProto(table->TableUploadOptions.SchemaMode));
-
                         req->set_optimize_for(ToProto(table->TableUploadOptions.OptimizeFor));
                         if (table->TableUploadOptions.ChunkFormat) {
                             req->set_chunk_format(ToProto(*table->TableUploadOptions.ChunkFormat));
@@ -4814,7 +4817,7 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
     jobSpecExt->set_use_cluster_throttlers(Spec_->UseClusterThrottlers);
 
     for (auto& [clusterName, protoRemoteCluster] : *(jobSpecExt->mutable_remote_input_clusters())) {
-        auto clusterConfigIt = Config_->RemoteOperations.find(TClusterName(clusterName));
+        auto clusterConfigIt = Config_->RemoteOperations.find(clusterName);
         if (clusterConfigIt != Config_->RemoteOperations.end()) {
             const auto& networks = clusterConfigIt->second->Networks;
             if (networks) {
@@ -5185,11 +5188,11 @@ IInvokerPoolPtr TOperationControllerBase::GetCancelableInvokerPool() const
     return CancelableInvokerPool_;
 }
 
-IInvokerPtr TOperationControllerBase::GetChunkScraperInvoker() const
+IInvokerPtr TOperationControllerBase::GetChunkScraperHeavyInvoker() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return ChunkScraperInvoker_;
+    return ChunkScraperHeavyInvoker_;
 }
 
 IInvokerPtr TOperationControllerBase::GetCancelableInvoker(EOperationControllerQueue queue) const
@@ -5423,6 +5426,11 @@ void TOperationControllerBase::SafeUpdateGroupedNeededResources()
     CachedGroupedNeededResources_.Store(std::move(groupedNeededResources));
 }
 
+TControllerEpoch TOperationControllerBase::GetControllerEpoch() const
+{
+    return ControllerEpoch_;
+}
+
 void TOperationControllerBase::FlushOperationNode(bool checkFlushResult)
 {
     YT_LOG_DEBUG("Flushing operation node");
@@ -5450,15 +5458,14 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 
     State_ = EControllerState::Completed;
 
-    // XXX(namorniradnug): is this a right place for this alert?
     if (auto simpleSpec = DynamicPointerCast<TSimpleOperationSpecBase>(Spec_);
         !interrupted && simpleSpec && simpleSpec->CompressedDataSizePerJob)
     {
         constexpr int EstimationInaccuracyThreshold = 2;
 
         i64 actualCompressedData = [&] {
-            struct TInputCompressedDataSizeCollector
-                : public IDataFlowGraphVisitor
+            struct TInputCompressedDataSizeCollector final
+                : public TDataFlowGraphVisitor
             {
                 i64 InputCompressedDataSize = 0;
 
@@ -5475,7 +5482,7 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
             };
 
             TInputCompressedDataSizeCollector collector;
-            DataFlowGraph_->Traverse(collector);
+            DataFlowGraph_->Traverse(&collector);
             return collector.InputCompressedDataSize;
         }();
 
@@ -6808,7 +6815,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
 
             for (const auto& table : tables) {
                 auto req = TTableYPathProxy::Get(table->GetObjectIdPath() + "/@");
-                ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+                ToProto(req->mutable_attributes()->mutable_keys(), std::vector<std::string>{
                     "schema_id",
                     "account",
                     "chunk_writer",
@@ -6873,7 +6880,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
 
         for (const auto& table : UpdatingTables_) {
             auto req = TTableYPathProxy::Get(table->GetObjectIdPath() + "/@");
-            ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+            ToProto(req->mutable_attributes()->mutable_keys(), std::vector<std::string>{
                 "effective_acl",
                 "tablet_state",
                 "backup_state",
@@ -7315,7 +7322,7 @@ void TOperationControllerBase::ValidateUserFileSizes()
     }
 
     auto columnarStatisticsFetcher = New<TColumnarStatisticsFetcher>(
-        ChunkScraperInvoker_,
+        GetCancelableInvoker(),
         InputManager_->GetClient(LocalClusterName),
         TColumnarStatisticsFetcher::TOptions{
             .Config = Config_->Fetcher,
@@ -7591,7 +7598,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
             {
                 auto req = TYPathProxy::Get(file.Path.GetPath() + "&/@");
                 SetTransactionId(req, *file.TransactionId);
-                ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+                ToProto(req->mutable_attributes()->mutable_keys(), std::vector<std::string>{
                     "key",
                     "file_name"
                 });
@@ -7658,13 +7665,15 @@ void TOperationControllerBase::GetUserFilesAttributes()
                                     THROW_ERROR_EXCEPTION("File %v is empty", file.Path);
                                 }
 
-                                auto access_method = file.Path.GetAccessMethod();
-                                if (!access_method) {
-                                    access_method = attributes.Find<TString>("access_method");
+                                auto accessMethod = file.Path.GetAccessMethod();
+                                if (!accessMethod) {
+                                    accessMethod = attributes.Find<TString>("access_method");
                                 }
 
+                                // We deliberately do not support filesystem in file.Path
+                                // since filesystem is the property of the actual file not its path.
                                 std::tie(file.AccessMethod, file.Filesystem) = GetAccessMethodAndFilesystemFromStrings(
-                                    access_method.value_or(ToString(ELayerAccessMethod::Local)),
+                                    accessMethod.value_or(ToString(ELayerAccessMethod::Local)),
                                     attributes.Find<TString>("filesystem").value_or(ToString(ELayerFilesystem::Archive)));
                             }
                             break;
@@ -7907,7 +7916,8 @@ void TOperationControllerBase::CollectTotals()
         if (IsLocal(clusterName)) {
             continue;
         }
-        auto clusterConfig = GetOrCrash(Config_->RemoteOperations, clusterName);
+        const auto& remoteClusterName = *clusterName.Underlying();
+        auto clusterConfig = GetOrCrash(Config_->RemoteOperations, remoteClusterName);
         if (clusterConfig->MaxTotalDataWeight && *clusterConfig->MaxTotalDataWeight < dataWeight) {
             THROW_ERROR_EXCEPTION(
                 "Total estimated input data weight from cluster %Qv is too large",
@@ -8006,7 +8016,7 @@ void TOperationControllerBase::CustomMaterialize()
 
 void TOperationControllerBase::InferInputRanges()
 {
-    TPeriodicYielder yielder(PrepareYieldPeriod);
+    auto yielder = CreatePeriodicYielder(PrepareYieldPeriod);
 
     if (!InputQuery_) {
         return;
@@ -8083,6 +8093,11 @@ void TOperationControllerBase::InferInputRanges()
             ranges.size(),
             resultRanges.size());
     }
+}
+
+EPermission TOperationControllerBase::GetInputTablePermission() const
+{
+    return EPermission::Read;
 }
 
 TError TOperationControllerBase::GetAutoMergeError() const
@@ -9838,7 +9853,7 @@ void TOperationControllerBase::UpdateAggregatedRunningJobStatistics()
 
         static const auto AggregationYieldPeriod = TDuration::MilliSeconds(10);
 
-        TPeriodicYielder yielder(AggregationYieldPeriod);
+        auto yielder = CreatePeriodicYielder(AggregationYieldPeriod);
 
         for (const auto& [jobStatistics, controllerStatistics, tags] : snapshots) {
             SafeUpdateAggregatedJobStatistics(
@@ -10232,30 +10247,17 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpec->set_cuda_toolkit_version(*jobSpecConfig->CudaToolkitVersion);
     }
 
-    if (const auto& options = Options_->GpuCheck; options->UseSeparateRootVolume) {
-        if (jobSpecConfig->EnableGpuCheck && jobSpecConfig->GpuLimit > 0) {
-            jobSpec->set_gpu_check_binary_path(options->BinaryPath);
-            ToProto(jobSpec->mutable_gpu_check_binary_args(), options->BinaryArgs);
-            if (options->NetworkProject) {
-                auto networkProject = GetNetworkProject(Host_->GetClient(), AuthenticatedUser_, *(options->NetworkProject));
-                ToProto(jobSpec->mutable_gpu_check_network_project(), networkProject);
-            }
+    if (jobSpecConfig->EnableGpuCheck && jobSpecConfig->GpuLimit > 0) {
+        const auto& options = Options_->GpuCheck;
+        jobSpec->set_gpu_check_binary_path(options->BinaryPath);
+        ToProto(jobSpec->mutable_gpu_check_binary_args(), options->BinaryArgs);
+        if (options->NetworkProject) {
+            auto networkProject = GetNetworkProject(Host_->GetClient(), AuthenticatedUser_, *(options->NetworkProject));
+            ToProto(jobSpec->mutable_gpu_check_network_project(), networkProject);
+        }
 
-            auto* protoEnvironment = jobSpec->mutable_gpu_check_environment();
-            (*protoEnvironment)["YT_OPERATION_ID"] = ToString(OperationId_);
-        }
-    } else {
-        // COMPAT(ignat)
-        if (Config_->GpuCheckLayerDirectoryPath &&
-            jobSpecConfig->GpuCheckBinaryPath &&
-            jobSpecConfig->GpuCheckLayerName &&
-            jobSpecConfig->EnableGpuLayers)
-        {
-            jobSpec->set_gpu_check_binary_path(*jobSpecConfig->GpuCheckBinaryPath);
-            if (auto gpuCheckBinaryArgs = jobSpecConfig->GpuCheckBinaryArgs) {
-                ToProto(jobSpec->mutable_gpu_check_binary_args(), *gpuCheckBinaryArgs);
-            }
-        }
+        auto* protoEnvironment = jobSpec->mutable_gpu_check_environment();
+        (*protoEnvironment)["YT_OPERATION_ID"] = ToString(OperationId_);
     }
 
     if (jobSpecConfig->NetworkProject) {
@@ -10337,6 +10339,8 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         }
     }
 
+    jobSpec->set_enable_fixed_user_id(jobSpecConfig->EnableFixedUserId);
+
     auto* protoSidecars = jobSpec->mutable_sidecars();
     for (const auto& [sidecarName, sidecarSpec]: jobSpecConfig->Sidecars) {
         auto& protoSidecar = (*protoSidecars)[sidecarName];
@@ -10412,7 +10416,7 @@ void TOperationControllerBase::InitUserJobSpec(
         jobSpec->add_environment(Format("YT_START_ROW_INDEX=%v", joblet->StartRowIndex));
     }
 
-    if (const auto& options = Options_->GpuCheck; options->UseSeparateRootVolume && jobSpec->has_gpu_check_binary_path()) {
+    if (jobSpec->has_gpu_check_binary_path()) {
         auto* protoEnvironment = jobSpec->mutable_gpu_check_environment();
         fillEnvironment([protoEnvironment] (TStringBuf key, TStringBuf value) {
             (*protoEnvironment)[key] = value;
@@ -10894,38 +10898,20 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(9, TeleportedOutputRowCount_,
         .SinceVersion(ESnapshotVersion::TeleportedOutputRowCount));
 
-    // COMPAT(coteeq)
-    PHOENIX_REGISTER_FIELD(10, InputManager_,
-        .SinceVersion(ESnapshotVersion::InputManagerIntroduction)
-        .WhenMissing([] (TThis* this_, auto& context) {
-            this_->InputManager_->PrepareToBeLoadedFromAncientVersion();
-            this_->InputManager_->InitializeClients(this_->InputClient_);
-            this_->InputManager_->LoadInputNodeDirectory(context);
-            this_->OutputNodeDirectory_ = this_->InputManager_->GetNodeDirectory(LocalClusterName);
-            this_->InputManager_->LoadInputTables(context);
-        }));
-    PHOENIX_REGISTER_FIELD(11, OutputNodeDirectory_,
-        .SinceVersion(ESnapshotVersion::OutputNodeDirectory)
-        .WhenMissing([] (TThis* this_, auto& /*context*/) {
-            this_->OutputNodeDirectory_ = this_->InputManager_->GetNodeDirectory(LocalClusterName);
-        }));
+    PHOENIX_REGISTER_FIELD(10, InputManager_);
+    PHOENIX_REGISTER_FIELD(11, OutputNodeDirectory_);
     PHOENIX_REGISTER_FIELD(12, InputStreamDirectory_);
     PHOENIX_REGISTER_FIELD(13, OutputTables_);
     PHOENIX_REGISTER_FIELD(14, StderrTable_);
     PHOENIX_REGISTER_FIELD(15, CoreTable_);
-    PHOENIX_REGISTER_FIELD(16, OutputNodeDirectory_,
-        .SinceVersion(ESnapshotVersion::RemoteInputForOperations));
+    // COMPAT(coteeq)
+    PHOENIX_REGISTER_DELETED_FIELD(16, TNodeDirectoryPtr, OutputNodeDirectory_, ESnapshotVersion::DropDuplicateOutputNodeDirectory);
     PHOENIX_REGISTER_FIELD(17, IntermediateTable_);
     PHOENIX_REGISTER_FIELD(18, UserJobFiles_,
         .template Serializer<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>());
     PHOENIX_REGISTER_FIELD(19, LivePreviewChunks_,
         .template Serializer<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>());
     PHOENIX_REGISTER_FIELD(20, Tasks_);
-    registrar
-        .template VirtualField<21>("InputChunkMap_", [] (TThis* this_, auto& context) {
-            this_->InputManager_->LoadInputChunkMap(context);
-        })
-        .BeforeVersion(ESnapshotVersion::InputManagerIntroduction)();
     PHOENIX_REGISTER_FIELD(22, IntermediateOutputCellTagList_);
     PHOENIX_REGISTER_FIELD(23, CellTagToRequiredOutputChunkListCount_);
     PHOENIX_REGISTER_FIELD(24, CellTagToRequiredDebugChunkListCount_);
@@ -10975,20 +10961,10 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(51, AcoName_,
         .SinceVersion(ESnapshotVersion::AcoName));
     PHOENIX_REGISTER_FIELD(52, BannedTreeIds_);
-    registrar
-        .template VirtualField<53>("PathToInputTables_", [] (TThis* this_, auto& context) {
-            this_->InputManager_->LoadPathToInputTables(context);
-        })
-        .BeforeVersion(ESnapshotVersion::InputManagerIntroduction)();
     PHOENIX_REGISTER_FIELD(54, JobMetricsDeltaPerTree_);
     PHOENIX_REGISTER_FIELD(55, TotalTimePerTree_);
     PHOENIX_REGISTER_FIELD(56, CompletedRowCount_);
     PHOENIX_REGISTER_FIELD(57, AutoMergeEnabled_);
-    registrar
-        .template VirtualField<58>("InputHasOrderedDynamicStores_", [] (TThis* this_, auto& context) {
-            this_->InputManager_->LoadInputHasOrderedDynamicStores(context);
-        })
-        .BeforeVersion(ESnapshotVersion::InputManagerIntroduction)();
     PHOENIX_REGISTER_FIELD(59, StandardStreamDescriptors_);
     PHOENIX_REGISTER_FIELD(60, MainResourceConsumptionPerTree_);
     PHOENIX_REGISTER_FIELD(61, EnableMasterResourceUsageAccounting_);
@@ -11472,18 +11448,6 @@ std::vector<TRichYPath> TOperationControllerBase::GetLayerPaths(
         auto path = *Config_->CudaToolkitLayerDirectoryPath + "/" + *userJobSpec->CudaToolkitVersion;
         layerPaths.insert(layerPaths.begin(), path);
     }
-    // COMPAT(ignat)
-    if (!Options_->GpuCheck->UseSeparateRootVolume &&
-        Config_->GpuCheckLayerDirectoryPath &&
-        userJobSpec->GpuCheckLayerName &&
-        userJobSpec->GpuCheckBinaryPath &&
-        !layerPaths.empty() &&
-        userJobSpec->EnableGpuLayers)
-    {
-        // If cuda toolkit is requested, add the layer as the topmost user layer.
-        auto path = *Config_->GpuCheckLayerDirectoryPath + "/" + *userJobSpec->GpuCheckLayerName;
-        layerPaths.insert(layerPaths.begin(), path);
-    }
     if (userJobSpec->Profilers) {
         for (const auto& profilerSpec : *userJobSpec->Profilers) {
             auto cudaProfilerLayerPath = Spec_->CudaProfilerLayerPath
@@ -11809,7 +11773,7 @@ void TOperationControllerBase::BuildControllerInfoYson(TFluentMap fluent) const
     fluent
         .Item("network_bandwidth_availability")
             .DoMapFor(networkBandwidthAvailability, [] (TFluentMap fluent, const TClusterName& clusterName) {
-                fluent.Item(clusterName.Underlying()).Value(false);
+                fluent.Item(*clusterName.Underlying()).Value(false);
             });
 }
 

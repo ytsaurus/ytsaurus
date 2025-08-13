@@ -85,6 +85,8 @@ constexpr auto DefaultGatewaySettings = std::to_array<std::pair<TStringBuf, TStr
     {"_EnableYtPartitioning", "true"},
     {"HybridDqExecution", "true"},
     {"DQRPCReaderInflight", "1"},
+    {"UseNativeYtTypes", "true"},
+    {"UseNativeDynamicTableRead", "true"},
 });
 
 constexpr auto DefaultDQGatewaySettings = std::to_array<std::pair<TStringBuf, TStringBuf>>({
@@ -116,6 +118,7 @@ constexpr auto DefaultClusterSettings = std::to_array<std::pair<TStringBuf, TStr
 });
 
 constexpr auto DefaultYtflowGatewaySettings = std::to_array<std::pair<TStringBuf, TStringBuf>>({
+    {"FiniteStreams", "0"},
     {"GatewayThreads", "16"},
     {"GracefulUpdate", "1"},
     {"ControllerCount", "1"},
@@ -414,7 +417,7 @@ void TYqlAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("yql_thread_count", &TThis::YqlThreadCount)
         .Default(256);
     registrar.Parameter("max_supported_yql_version", &TThis::MaxSupportedYqlVersion)
-        .Default("");
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

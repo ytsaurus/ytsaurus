@@ -199,6 +199,10 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("memory_limits", &TThis::MemoryLimits)
         .DefaultNew();
+
+    // NB(pavook): Static config is used when the dynamic is missing.
+    registrar.Parameter("signature_components", &TThis::SignatureComponents)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

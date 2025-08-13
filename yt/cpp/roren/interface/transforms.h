@@ -105,7 +105,7 @@ auto ParDo(NYT::TIntrusivePtr<TFunc> func);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TGroupByKeyTransform GroupByKey();
+class TGroupByKeyApplicator GroupByKey();
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -119,7 +119,7 @@ auto CombinePerKey(TFnPtr combineFn);
 /// Create transform that takes PCollection of any type and does nothing with it.
 ///
 /// Useful in some situations when we want to avoid hanging PCollection nodes.
-TNullWriteTransform NullWrite();
+TNullWriteApplicator NullWrite();
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -205,13 +205,13 @@ TTransformApplicator<TInputType, TOutputType> MakeTransformApplicator(Ts&&... ar
 
 }  // namespace NPrivate
 
-class TWriteApplicator
+class TMetaWriteApplicator
     : public NRoren::NPrivate::TAttributes
 {
 public:
     inline TString GetName() const
     {
-        return "TWriteApplicator";
+        return "TMetaWriteApplicator";
     }
 
     template <class T>
@@ -221,16 +221,16 @@ public:
         ::NRoren::NPrivate::MergeAttributes(writeApplicator, *this);
         pCollection | writeApplicator;
     }
-};  // class TWriteApplicator
+};  // class TMetaWriteApplicator
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TOutputRow>
-class TReadTransform
+class TReadApplicator
     : public NPrivate::IWithAttributes
 {
 public:
-    explicit TReadTransform(NPrivate::IRawReadPtr rawRead, const TString& name = "")
+    explicit TReadApplicator(NPrivate::IRawReadPtr rawRead, const TString& name = "")
         : RawRead_(rawRead)
         , Name_(!name.empty() ? name : "Read")
     { }
@@ -266,20 +266,20 @@ private:
 };
 
 template <typename T>
-TReadTransform<T> DummyRead(const TString& name = "")
+TReadApplicator<T> DummyRead(const TString& name = "")
 {
-    return TReadTransform<T>{NYT::New<NPrivate::TRawDummyRead>(NPrivate::MakeRowVtable<T>()), name};
+    return TReadApplicator<T>{NYT::New<NPrivate::TRawDummyRead>(NPrivate::MakeRowVtable<T>()), name};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TInputRow>
-class TWriteTransform
+class TWriteApplicator
     : public NPrivate::IWithAttributes
 {
 public:
-    explicit TWriteTransform(NPrivate::IRawWritePtr rawWriteTransform)
-        : RawWrite_(std::move(rawWriteTransform))
+    explicit TWriteApplicator(NPrivate::IRawWritePtr rawWriteApplicator)
+        : RawWrite_(std::move(rawWriteApplicator))
     { }
 
     TString GetName() const
@@ -311,9 +311,9 @@ private:
 };
 
 template <typename T>
-TWriteTransform<T> DummyWrite()
+TWriteApplicator<T> DummyWrite()
 {
-    return TWriteTransform<T>{NYT::New<NPrivate::TRawDummyWriter>(NPrivate::MakeRowVtable<T>())};
+    return TWriteApplicator<T>{NYT::New<NPrivate::TRawDummyWriter>(NPrivate::MakeRowVtable<T>())};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -323,14 +323,14 @@ TWriteTransform<T> DummyWrite()
 //
 
 template <typename TInput, typename TOutput>
-class TParDoTransform
+class TParDoApplicator
     : public NPrivate::IWithAttributes
 {
     static_assert(CRow<TInput>);
     static_assert(CRow<TOutput> || CMultiRow<TOutput>);
 
 public:
-    explicit TParDoTransform(NPrivate::IRawParDoPtr rawParDo)
+    explicit TParDoApplicator(NPrivate::IRawParDoPtr rawParDo)
         : RawParDo_(std::move(rawParDo))
     { }
 
@@ -396,7 +396,7 @@ auto ParDo(NYT::TIntrusivePtr<TFunc> func)
     using TInputRow = std::decay_t<typename TFunc::TInputRow>;
     using TOutputRow = typename TFunc::TOutputRow;
     auto rawParDo = NPrivate::MakeRawParDo(std::move(func));
-    return TParDoTransform<TInputRow, TOutputRow>(std::move(rawParDo));
+    return TParDoApplicator<TInputRow, TOutputRow>(std::move(rawParDo));
 }
 
 template <NPrivate::CDoFn F, typename... TArgs>
@@ -447,11 +447,11 @@ auto ParDo(F&& func, TArgs&&... args)
 //
 
 template <typename TInput, typename TOutput, typename TState>
-class TStatefulParDoTransform
+class TStatefulParDoApplicator
     : public NPrivate::IWithAttributes
 {
 public:
-    TStatefulParDoTransform(NPrivate::IRawStatefulParDoPtr fn, NPrivate::TRawPStateNodePtr pState)
+    TStatefulParDoApplicator(NPrivate::IRawStatefulParDoPtr fn, NPrivate::TRawPStateNodePtr pState)
         : RawStatefulParDo_(std::move(fn))
         , RawPStateNode_(pState)
     { }
@@ -508,7 +508,7 @@ auto StatefulParDo(TPState<TKey, TState> pState, NYT::TIntrusivePtr<TFunc> func)
     static_assert(std::is_same_v<typename TInputRow::TKey, TKey>, "Key of input row must match key of PState");
     auto rawFn = NPrivate::MakeRawStatefulParDo(std::move(func));
     auto rawState = NPrivate::GetRawPStateNode(pState);
-    return TStatefulParDoTransform<TInputRow, TOutputRow, TState>(rawFn, rawState);
+    return TStatefulParDoApplicator<TInputRow, TOutputRow, TState>(rawFn, rawState);
 }
 
 template <typename T, typename... TArgs>
@@ -538,10 +538,10 @@ auto StatefulParDo(TPState<TKey, TState> pState, F&& func, TArgs&&... args)
 //
 
 template <typename TInput, typename TOutput, typename TState>
-class TStatefulTimerParDoTransform
+class TStatefulTimerParDoApplicator
 {
 public:
-    TStatefulTimerParDoTransform(NPrivate::IRawStatefulTimerParDoPtr fn, NPrivate::TRawPStateNodePtr pState)
+    TStatefulTimerParDoApplicator(NPrivate::IRawStatefulTimerParDoPtr fn, NPrivate::TRawPStateNodePtr pState)
         : RawStatefulTimerParDo_(std::move(fn))
         , RawPStateNode_(pState)
     { }
@@ -585,7 +585,7 @@ auto StatefulTimerParDo(TPState<TKey, TState> pState, TFn fn, const TFnAttribute
         using TOutput = typename TDecayedF::TUnderlying::TOutputRow;
         auto rawFn = NPrivate::MakeRawStatefulTimerParDo(fn, attributes);
         auto rawState = NPrivate::GetRawPStateNode(pState);
-        return TStatefulTimerParDoTransform<TInput, TOutput, TState>{rawFn, rawState};
+        return TStatefulTimerParDoApplicator<TInput, TOutput, TState>{rawFn, rawState};
     } else {
         static_assert(TDependentFalse<TFn>, "not supported yet");
     }
@@ -603,11 +603,11 @@ auto MakeStatefulTimerParDo(TPState<typename T::TInputRow::TKey, typename T::TSt
 // GroupByKey
 //
 
-class TGroupByKeyTransform
+class TGroupByKeyApplicator
     : public NPrivate::IWithAttributes
 {
 public:
-    TGroupByKeyTransform() = default;
+    TGroupByKeyApplicator() = default;
 
     TString GetName() const
     {
@@ -619,9 +619,9 @@ public:
     {
         const auto& rawPipeline = NPrivate::GetRawPipeline(pCollection);
         auto* rawInputNode = NPrivate::GetRawDataNode(pCollection).Get();
-        auto rawTransform = NPrivate::MakeRawGroupByKey<TKey, TValue>();
-        MergeAttributes(*rawTransform, Attributes_);
-        auto transformNode = rawPipeline->AddTransform(rawTransform, {rawInputNode});
+        auto rawApplicator = NPrivate::MakeRawGroupByKey<TKey, TValue>();
+        MergeAttributes(*rawApplicator, Attributes_);
+        auto transformNode = rawPipeline->AddTransform(rawApplicator, {rawInputNode});
 
         const auto& taggedSinkNodeList = transformNode->GetTaggedSinkNodeList();
         Y_ABORT_UNLESS(taggedSinkNodeList.size() == 1);
@@ -644,7 +644,7 @@ private:
     NPrivate::TAttributes Attributes_;
 };
 
-TGroupByKeyTransform GroupByKey();
+TGroupByKeyApplicator GroupByKey();
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -653,7 +653,7 @@ TGroupByKeyTransform GroupByKey();
 //
 
 template <typename TCombineFn>
-class TCombinePerKeyTransform
+class TCombinePerKeyApplicator
     : public NPrivate::IWithAttributes
 {
 public:
@@ -661,7 +661,7 @@ public:
     using TCombineOutput = typename TCombineFn::TOutputRow;
 
 public:
-    explicit TCombinePerKeyTransform(NYT::TIntrusivePtr<TCombineFn> combineFn)
+    explicit TCombinePerKeyApplicator(NYT::TIntrusivePtr<TCombineFn> combineFn)
         : CombineFn_(std::move(combineFn))
     { }
 
@@ -714,7 +714,7 @@ private:
 template <CCombineFnPtr TFnPtr>
 auto CombinePerKey(TFnPtr combineFn)
 {
-    return TCombinePerKeyTransform{std::move(combineFn)};
+    return TCombinePerKeyApplicator{std::move(combineFn)};
 }
 
 template <typename F, typename... TArgs>
@@ -731,7 +731,7 @@ auto CombinePerKey(F&& func, TArgs&&... args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCoGroupByKeyTransform
+class TCoGroupByKeyApplicator
     : public NPrivate::IWithAttributes
 {
 public:
@@ -739,7 +739,7 @@ public:
     using TOutputRow = TCoGbkResult;
 
 public:
-    TCoGroupByKeyTransform() = default;
+    TCoGroupByKeyApplicator() = default;
 
     TString GetName() const;
 
@@ -761,7 +761,7 @@ private:
 };
 
 
-TCoGroupByKeyTransform CoGroupByKey();
+TCoGroupByKeyApplicator CoGroupByKey();
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -772,7 +772,7 @@ TCoGroupByKeyTransform CoGroupByKey();
 ///
 /// PCollections MUST belong to the same pipeline.
 /// At least one input PCollection MUST be provided.
-class TFlattenTransform
+class TFlattenApplicator
     : public NPrivate::IWithAttributes
 {
 public:
@@ -828,7 +828,7 @@ private:
     NPrivate::TAttributes Attributes_;
 };
 
-TFlattenTransform Flatten();
+TFlattenApplicator Flatten();
 
 /// TODO: remove in favour of previous `Flatten` definition.
 template <typename TRow>
@@ -840,31 +840,31 @@ TPCollection<TRow> Flatten(const std::vector<TPCollection<TRow>>& pCollectionLis
 ////////////////////////////////////////////////////////////////////////////////
 
 ///
-/// @brief Generic transform
+/// @brief Generic applicator
 ///
-/// Is meant to returned by functions creating composite transforms providing
+/// Is meant to returned by functions creating composite applicator providing
 /// possibility to hide implementation details in `.cpp` file.
 ///
 /// Example of usage:
 ///
 ///     // header
-///     TTransform<int, int> MyTransform();
+///     TApplicator<int, int> MyTransform();
 ///
 ///     // source
 ///     // N.B. `TMyTransform` is hidden inside source file and doesn't pollute header.
-///     class TMyTransform
+///     class TMyApplicator
 ///     {
 ///     public:
 ///         ...
 ///         TPCollection<int> ApplyTo(const TPCollection<int>& pCollection) const { ... }
 ///     };
 ///
-///     TTransform<int, int> MyTransform()
+///     TApplicator<int, int> MyTransform()
 ///     {
-///         return TMyTransform{ ... }
+///         return TMyApplicator{ ... }
 ///     }
 template <typename TInputRow, typename... TOutputRows>
-class TTransform
+class TApplicator
 {
     template <typename TFirst_, typename... TTypes>
     struct TTypesHolder
@@ -884,7 +884,7 @@ public:
 public:
     template <typename T>
         requires CApplicableTo<T, TArgument>
-    TTransform(T t)
+    TApplicator(T t)
         : Name_(t.GetName())
         , Applier_([t=t] (const TArgument& input) {
             return t.ApplyTo(input);
@@ -893,15 +893,15 @@ public:
 
     template <typename T>
         requires std::is_convertible_v<T, std::function<TResult(const TArgument&)>>
-    TTransform(TString name, T&& applier)
+    TApplicator(TString name, T&& applier)
         : Name_(std::move(name))
         , Applier_(std::forward<T>(applier))
     { }
 
     template <typename T>
         requires std::is_convertible_v<T, std::function<TResult(const TArgument&)>>
-    TTransform(T&& applier)
-        : Name_("UserDefinedTransform")
+    TApplicator(T&& applier)
+        : Name_("UserDefinedApplicator")
         , Applier_(std::forward<T>(applier))
     { }
 
@@ -924,11 +924,11 @@ private:
 
 /// Easy way to build transform from lambda function.
 template <typename TFunction>
-class TGenericTransform
+class TGenericApplicator
 {
 public:
     template <typename TFunctionArg>
-    explicit TGenericTransform(const TString& name, TFunctionArg&& function)
+    explicit TGenericApplicator(const TString& name, TFunctionArg&& function)
         : Name_(name)
         , Function_(std::forward<TFunctionArg>(function))
     { }
@@ -949,11 +949,11 @@ private:
 };
 
 template <typename TFunctionArg>
-TGenericTransform(const TString& name, TFunctionArg&& function) -> TGenericTransform<std::remove_cvref_t<TFunctionArg>>;
+TGenericApplicator(const TString& name, TFunctionArg&& function) -> TGenericApplicator<std::remove_cvref_t<TFunctionArg>>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNullWriteTransform
+class TNullWriteApplicator
 {
 public:
     TString GetName() const
@@ -968,6 +968,43 @@ public:
         });
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TApplicator>
+class TRenamedApplicator
+{
+public:
+    TRenamedApplicator(TString newName, TApplicator applicator)
+        : Name_(std::move(newName))
+        , Applicator_(applicator)
+    { }
+
+    TString GetName() const
+    {
+        return Name_;
+    }
+
+    template <typename TGraphItem>
+    auto ApplyTo(const TGraphItem& item) const
+    {
+        return Applicator_.ApplyTo(item);
+    }
+
+private:
+    const TString Name_;
+    const TApplicator Applicator_;
+};
+
+template <typename TApplicator>
+TRenamedApplicator<TApplicator> operator>>(TString name, TApplicator applicator);
+
+template <typename TApplicator>
+TRenamedApplicator<TApplicator> operator>>(TString name, TApplicator applicator)
+{
+    NRoren::NPrivate::SetAttribute(applicator, TransformNameTag, name);
+    return TRenamedApplicator{std::move(name), std::move(applicator)};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

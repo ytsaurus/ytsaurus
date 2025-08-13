@@ -47,6 +47,23 @@ struct TPoolsUpdateResult
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAccumulatedResourceDistribution
+{
+public:
+    TAccumulatedResourceDistribution() = default;
+
+    DEFINE_BYREF_RO_PROPERTY(TResourceVolume, FairResources);
+    DEFINE_BYREF_RO_PROPERTY(TResourceVolume, Usage);
+    DEFINE_BYREF_RO_PROPERTY(TResourceVolume, UsageDeficit);
+
+    void AppendPeriod(const TJobResources& fairResources, const TJobResources& usage, TDuration period);
+    TAccumulatedResourceDistribution& operator+=(const TAccumulatedResourceDistribution& other);
+};
+
+void Serialize(const TAccumulatedResourceDistribution& volume, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TSchedulerElementStateSnapshot
 {
     TResourceVector DemandShare;
@@ -107,7 +124,7 @@ struct IFairShareTree
     virtual void UpdateResourceUsages() = 0;
 
     // Extracts accumulated usage for operation.
-    virtual TResourceVolume ExtractAccumulatedUsageForLogging(TOperationId operationId) = 0;
+    virtual TAccumulatedResourceDistribution ExtractAccumulatedResourceDistributionForLogging(TOperationId operationId) = 0;
 
     //! Updates fair share attributes of tree elements and saves it as tree snapshot.
     virtual TFuture<std::pair<IFairShareTreePtr, TError>> OnFairShareUpdateAt(TInstant now) = 0;

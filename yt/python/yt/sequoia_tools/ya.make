@@ -14,6 +14,7 @@ PY_SRCS(
 )
 
 RESOURCE_FILES(
+    yt/yt/ytlib/sequoia_client/records/acls.yaml
     yt/yt/ytlib/sequoia_client/records/child_node.yaml
     yt/yt/ytlib/sequoia_client/records/chunk_replicas.yaml
     yt/yt/ytlib/sequoia_client/records/dependent_transactions.yaml
@@ -21,6 +22,7 @@ RESOURCE_FILES(
     yt/yt/ytlib/sequoia_client/records/unapproved_chunk_replicas.yaml
     yt/yt/ytlib/sequoia_client/records/node_id_to_path.yaml
     yt/yt/ytlib/sequoia_client/records/path_to_node_id.yaml
+    yt/yt/ytlib/sequoia_client/records/doomed_transactions.yaml
     yt/yt/ytlib/sequoia_client/records/transactions.yaml
     yt/yt/ytlib/sequoia_client/records/transaction_descendants.yaml
     yt/yt/ytlib/sequoia_client/records/transaction_replicas.yaml

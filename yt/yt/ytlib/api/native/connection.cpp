@@ -139,6 +139,7 @@ using namespace NScheduler;
 using namespace NSecurityClient;
 using namespace NSignature;
 using namespace NTabletClient;
+using namespace NThreading;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NYson;
@@ -361,7 +362,7 @@ public:
         }
 
         ChaosResidencyCache_ = CreateChaosResidencyCache(
-            config->ChaosResidencyCache,
+            StaticConfig_->ChaosResidencyCache,
             StaticConfig_->ReplicationCardCache, // Nullptr is ok
             this,
             Options_.ChaosResidencyCacheMode,
@@ -668,7 +669,7 @@ public:
         return WrapChaosChannel(ChaosCellChannelFactory_->CreateChannel(cellTag, peerKind));
     }
 
-    IChannelPtr GetChaosChannelByCardId(TReplicationCardId replicationCardId, EPeerKind peerKind) override
+    IChannelPtr GetChaosChannelByCardIdOrThrow(TReplicationCardId replicationCardId, EPeerKind peerKind) override
     {
         if (TypeFromId(replicationCardId) != EObjectType::ReplicationCard) {
             THROW_ERROR_EXCEPTION("Malformed replication card id %v",
@@ -789,7 +790,7 @@ public:
 
     NHiveClient::TClusterDirectoryPtr GetClusterDirectory() const override
     {
-        if (auto strongOverride = ClusterDirectoryOverride_.Lock()) {
+        if (auto strongOverride = ClusterDirectoryOverride_.Load().Lock()) {
             return strongOverride;
         }
         return ClusterDirectory_;
@@ -893,7 +894,7 @@ public:
         QueueConsumerRegistrationManager_->StopSync();
 
         ClusterDirectory_->Clear();
-        ClusterDirectoryOverride_.Reset();
+        ClusterDirectoryOverride_.Store(nullptr);
         ClusterDirectorySynchronizer_->Stop();
 
         CellDirectory_->Clear();
@@ -954,10 +955,10 @@ public:
         SyncReplicaCache_->Reconfigure(StaticConfig_->SyncReplicaCache->ApplyDynamic(dynamicConfig->SyncReplicaCache));
         TableMountCache_->Reconfigure(StaticConfig_->TableMountCache->ApplyDynamic(dynamicConfig->TableMountCache));
         ClockManager_->Reconfigure(StaticConfig_->ClockManager->ApplyDynamic(dynamicConfig->ClockManager));
-        ChunkReplicaCache_->Reconfigure(dynamicConfig->ChunkReplicaCache);
-        ChaosResidencyCache_->Reconfigure(dynamicConfig->ChaosResidencyCache);
+        ChunkReplicaCache_->Reconfigure(StaticConfig_->ChunkReplicaCache->ApplyDynamic(dynamicConfig->ChunkReplicaCache));
+        ChaosResidencyCache_->Reconfigure(StaticConfig_->ChaosResidencyCache->ApplyDynamic(dynamicConfig->ChaosResidencyCache));
         if (ReplicationCardCache_ && dynamicConfig->ReplicationCardCache) {
-            ReplicationCardCache_->Reconfigure(dynamicConfig->ReplicationCardCache);
+            ReplicationCardCache_->Reconfigure(StaticConfig_->ReplicationCardCache->ApplyDynamic(dynamicConfig->ReplicationCardCache));
         }
 
         Config_.Store(dynamicConfig);
@@ -997,7 +998,7 @@ public:
 
         auto sequoiaClient = NSequoiaClient::CreateSequoiaClient(
             config,
-            std::move(localClient),
+            this,
             std::move(groundClientFuture));
 
         if (auto existingSequoiaClient = CachedSequoiaClient_.Exchange(sequoiaClient)) {
@@ -1083,7 +1084,7 @@ private:
     const INodeMemoryTrackerPtr MemoryTracker_;
 
     TClusterDirectoryPtr ClusterDirectory_;
-    TWeakPtr<TClusterDirectory> ClusterDirectoryOverride_;
+    TAtomicObject<TWeakPtr<TClusterDirectory>> ClusterDirectoryOverride_;
     IClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer_;
 
     TMediumDirectoryPtr MediumDirectory_;
@@ -1477,15 +1478,9 @@ TStickyGroupSizeCache::TKey::operator size_t() const
 
 bool TStickyGroupSizeCache::TKey::operator == (const TKey& other) const
 {
-    if (Key != other.Key || Message.Size() != other.Message.Size()) {
-        return false;
-    }
-    for (int i = 0; i < std::ssize(Message); ++i) {
-        if (!TRef::AreBitwiseEqual(Message[i], other.Message[i])) {
-            return false;
-        }
-    }
-    return true;
+    return
+        Key == other.Key &&
+        TSharedRefArray::AreBitwiseEqual(Message, other.Message);
 }
 
 TStickyGroupSizeCache::TStickyGroupSizeCache(TDuration expirationTimeout)

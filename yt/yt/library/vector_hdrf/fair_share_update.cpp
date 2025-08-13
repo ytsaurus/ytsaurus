@@ -95,7 +95,7 @@ TResourceVector AdjustProposedIntegralShare(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TElement::DetermineEffectiveStrongGuaranteeResources(TFairShareUpdateContext* /* context */)
+void TElement::DetermineInferredStrongGuaranteeResources(TFairShareUpdateContext* /* context */)
 { }
 
 bool TElement::IsOperation() const
@@ -133,12 +133,7 @@ void TElement::UpdateAttributes(const TFairShareUpdateContext* context)
     YT_VERIFY(Dominates(TResourceVector::Ones(), Attributes().LimitsShare));
     YT_VERIFY(Dominates(Attributes().LimitsShare, TResourceVector::Zero()));
 
-    Attributes().StrongGuaranteeShare = TResourceVector::FromJobResources(Attributes().EffectiveStrongGuaranteeResources, context->TotalResourceLimits);
-
-    // NB: We need to ensure that |FairShareByFitFactor_(0.0)| is less than or equal to |LimitsShare| so that there exists a feasible fit factor and |MaxFitFactorBySuggestion_| is well defined.
-    // To achieve this we limit |StrongGuarantee| with |LimitsShare| here, and later adjust the sum of children's |StrongGuarantee| to fit into the parent's |StrongGuarantee|.
-    // This way children can't ask more than parent's |LimitsShare| when given a zero suggestion.
-    Attributes().StrongGuaranteeShare = TResourceVector::Min(Attributes().StrongGuaranteeShare, Attributes().LimitsShare);
+    Attributes().StrongGuaranteeShare = TResourceVector::FromJobResources(Attributes().InferredStrongGuaranteeResources, context->TotalResourceLimits);
 
     if (GetResourceUsageAtUpdate() == TJobResources()) {
         Attributes().DominantResource = GetDominantResource(GetResourceDemand(), context->TotalResourceLimits);
@@ -314,45 +309,45 @@ TResourceVector TElement::GetTotalTruncatedFairShare(EFairShareType type) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCompositeElement::DetermineEffectiveStrongGuaranteeResources(TFairShareUpdateContext* context)
+void TCompositeElement::DetermineInferredStrongGuaranteeResources(TFairShareUpdateContext* context)
 {
     TJobResources totalExplicitChildrenGuaranteeResources;
     for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         auto* child = GetChild(childIndex);
 
-        auto& childEffectiveGuaranteeResources = child->Attributes().EffectiveStrongGuaranteeResources;
-        childEffectiveGuaranteeResources = ToJobResources(
+        auto& childInferredGuaranteeResources = child->Attributes().InferredStrongGuaranteeResources;
+        childInferredGuaranteeResources = ToJobResources(
             *child->GetStrongGuaranteeResourcesConfig(),
             /* defaultValue */ {});
-        totalExplicitChildrenGuaranteeResources += childEffectiveGuaranteeResources;
+        totalExplicitChildrenGuaranteeResources += childInferredGuaranteeResources;
     }
 
-    const auto& effectiveStrongGuaranteeResources = Attributes().EffectiveStrongGuaranteeResources;
-    if (!IsRoot() && !Dominates(effectiveStrongGuaranteeResources, totalExplicitChildrenGuaranteeResources)) {
+    const auto& inferredStrongGuaranteeResources = Attributes().InferredStrongGuaranteeResources;
+    if (!IsRoot() && !Dominates(inferredStrongGuaranteeResources, totalExplicitChildrenGuaranteeResources)) {
         const auto& Logger = GetLogger();
         // NB: This should never happen because we validate the guarantees at master.
         YT_LOG_WARNING(
             "Total children's explicit strong guarantees exceeds the effective strong guarantee at pool "
-            "(EffectiveStrongGuarantees: %v, TotalExplicitChildrenGuarantees: %v)",
-            effectiveStrongGuaranteeResources,
+            "(InferredStrongGuarantees: %v, TotalExplicitChildrenGuarantees: %v)",
+            inferredStrongGuaranteeResources,
             totalExplicitChildrenGuaranteeResources);
     }
 
-    DetermineImplicitEffectiveStrongGuaranteeResources(totalExplicitChildrenGuaranteeResources, context);
+    DetermineImplicitInferredStrongGuaranteeResources(totalExplicitChildrenGuaranteeResources, context);
 
     for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
-        GetChild(childIndex)->DetermineEffectiveStrongGuaranteeResources(context);
+        GetChild(childIndex)->DetermineInferredStrongGuaranteeResources(context);
     }
 }
 
-void TCompositeElement::DetermineImplicitEffectiveStrongGuaranteeResources(
+void TCompositeElement::DetermineImplicitInferredStrongGuaranteeResources(
     const TJobResources& totalExplicitChildrenGuaranteeResources,
     TFairShareUpdateContext* context)
 {
-    const auto& effectiveStrongGuaranteeResources = Attributes().EffectiveStrongGuaranteeResources;
-    auto residualGuaranteeResources = Max(effectiveStrongGuaranteeResources - totalExplicitChildrenGuaranteeResources, TJobResources{});
+    const auto& inferredStrongGuaranteeResources = Attributes().InferredStrongGuaranteeResources;
+    auto residualGuaranteeResources = Max(inferredStrongGuaranteeResources - totalExplicitChildrenGuaranteeResources, TJobResources{});
     auto mainResourceType = context->Options.MainResource;
-    auto parentMainResourceGuarantee = GetResource(effectiveStrongGuaranteeResources, mainResourceType);
+    auto parentMainResourceGuarantee = GetResource(inferredStrongGuaranteeResources, mainResourceType);
     auto doDetermineImplicitGuarantees = [&] (const auto TJobResourcesConfig::* resourceDataMember, EJobResourceType resourceType) {
         if (resourceType == mainResourceType) {
             return;
@@ -362,7 +357,7 @@ void TCompositeElement::DetermineImplicitEffectiveStrongGuaranteeResources(
         implicitGuarantees.resize(GetChildCount());
 
         auto residualGuarantee = GetResource(residualGuaranteeResources, resourceType);
-        auto parentResourceGuarantee = GetResource(effectiveStrongGuaranteeResources, resourceType);
+        auto parentResourceGuarantee = GetResource(inferredStrongGuaranteeResources, resourceType);
         double totalImplicitGuarantee = 0.0;
         for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
             auto* child = GetChild(childIndex);
@@ -370,7 +365,7 @@ void TCompositeElement::DetermineImplicitEffectiveStrongGuaranteeResources(
                 continue;
             }
 
-            auto childMainResourceGuarantee = GetResource(child->Attributes().EffectiveStrongGuaranteeResources, mainResourceType);
+            auto childMainResourceGuarantee = GetResource(child->Attributes().InferredStrongGuaranteeResources, mainResourceType);
             double mainResourceRatio = parentMainResourceGuarantee > 0
                 ? childMainResourceGuarantee / parentMainResourceGuarantee
                 : 0.0;
@@ -394,7 +389,7 @@ void TCompositeElement::DetermineImplicitEffectiveStrongGuaranteeResources(
         for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
             auto* child = GetChild(childIndex);
             if (const auto& childImplicitGuarantee = implicitGuarantees[childIndex]) {
-                SetResource(child->Attributes().EffectiveStrongGuaranteeResources, resourceType, *childImplicitGuarantee);
+                SetResource(child->Attributes().InferredStrongGuaranteeResources, resourceType, *childImplicitGuarantee);
             }
         }
     };
@@ -497,7 +492,13 @@ void TCompositeElement::AdjustStrongGuarantees(const TFairShareUpdateContext* co
 {
     const auto& Logger = GetLogger();
 
-    //! We adjust strong guarantees of children, when their sum is greater than the parent's.
+    //! First we adjust pool's strong guarantees so that they do not exceed pool's resource limits.
+    // We need to ensure that |FairShareByFitFactor_(0.0)| is less than or equal to |LimitsShare| so that there exists a feasible fit factor and |MaxFitFactorBySuggestion_| is well defined.
+    // To achieve this we limit |StrongGuarantee| with |LimitsShare| here, and later adjust the sum of children's |StrongGuarantee| to fit into the parent's |StrongGuarantee|.
+    // This way children can't ask more than parent's |LimitsShare| when given a zero suggestion.
+    Attributes().StrongGuaranteeShare = TResourceVector::Min(Attributes().StrongGuaranteeShare, Attributes().LimitsShare);
+
+    //! Then we adjust strong guarantees of children, if their sum is greater than the parent's.
     //! This process starts at the root, when total resource limits are not big enough, and proceeds recursively.
     //! In the simple case, adjustment is done by decreasing children's guarantees proportionally until their sum becomes feasible.
     //!
@@ -753,7 +754,94 @@ void TCompositeElement::PrepareFairShareByFitFactorNormal(TFairShareUpdateContex
         childrenFunctions.push_back(std::move(childFunction));
     }
 
-    FairShareByFitFactor_ = TVectorPiecewiseLinearFunction::Sum(childrenFunctions);
+    if (context->Options.EnableImprovedFairShareByFitFactorComputation) {
+        ComputeImprovedFairShareByFitFactor(childrenFunctions);
+    } else {
+        FairShareByFitFactor_ = TVectorPiecewiseLinearFunction::Sum(childrenFunctions);
+    }
+}
+
+void TCompositeElement::ComputeImprovedFairShareByFitFactor(const std::vector<TVectorPiecewiseLinearFunction>& childrenFunctions)
+{
+    struct TChildSuggestion
+    {
+        double Suggestion = 0.0;
+        int Index = -1;
+    };
+
+    std::vector<TChildSuggestion> criticalPoints;
+    for (int index = 0; index < std::ssize(childrenFunctions); ++index) {
+        const auto& func = childrenFunctions[index];
+        criticalPoints.push_back(TChildSuggestion{.Suggestion = func.LeftFunctionBound(), .Index = index});
+
+        double lastAdded = func.LeftFunctionBound();
+        for (const auto& segment : func.Segments()) {
+            if (segment.RightBound() > lastAdded) {
+                criticalPoints.push_back(TChildSuggestion{.Suggestion = segment.RightBound(), .Index = index});
+                lastAdded = segment.RightBound();
+            }
+        }
+    }
+
+    // XXX(ignat): is it efficient?
+    // Original SortOrMerge uses merge pivots optimization.
+    std::ranges::sort(
+        criticalPoints,
+        [] (const auto& lhs, const auto& rhs) {
+            if (lhs.Suggestion != rhs.Suggestion) {
+                return lhs.Suggestion < rhs.Suggestion;
+            }
+            return lhs.Index < rhs.Index;
+        });
+
+    ChildFairSharesByFitFactor_.emplace();
+
+    std::vector<TPiecewiseLinearFunction<TResourceVector>::TLeftToRightTraverser> traversers;
+    for (const auto& child : childrenFunctions) {
+        traversers.push_back(child.GetLeftToRightTraverser());
+    }
+
+    TVectorPiecewiseLinearFunction::TBuilder builder;
+    std::vector<TVectorPiecewiseLinearFunction::TBuilder> childFairShareByFitFactorBuilders(childrenFunctions.size());
+
+    double fitFactor = 0.0;
+    for (auto point : criticalPoints) {
+        auto leftLimit = TResourceVector::Zero();
+        auto rightLimit = TResourceVector::Zero();
+
+        for (int index = 0; index < std::ssize(childrenFunctions); ++index) {
+            auto [childLeftLimit, childRightLimit] = traversers[index].LeftRightLimitAt(point.Suggestion);
+
+            if (index < point.Index) {
+                // All children before |point.Index| contribute their right limit.
+                leftLimit += childRightLimit;
+                rightLimit += childRightLimit;
+                childFairShareByFitFactorBuilders[index].AddPoint({fitFactor, childRightLimit});
+            } else if (index > point.Index) {
+                // All children after |point.Index| contribute their left limit.
+                leftLimit += childLeftLimit;
+                rightLimit += childLeftLimit;
+                childFairShareByFitFactorBuilders[index].AddPoint({fitFactor, childLeftLimit});
+            } else {
+                // Child |point.Index| switches from contributing its left limit to its right limit.
+                leftLimit += childLeftLimit;
+                rightLimit += childRightLimit;
+                childFairShareByFitFactorBuilders[index].AddPoint({fitFactor, childLeftLimit});
+                childFairShareByFitFactorBuilders[index].AddPoint({fitFactor, childRightLimit});
+            }
+        }
+
+        builder.AddPoint({fitFactor, leftLimit});
+        builder.AddPoint({fitFactor, rightLimit});
+
+        fitFactor += 1.0;
+    }
+
+    for (auto& childBuilder : childFairShareByFitFactorBuilders) {
+        ChildFairSharesByFitFactor_->push_back(childBuilder.Finish());
+    }
+
+    FairShareByFitFactor_ = builder.Finish();
 }
 
 double TCompositeElement::GetMinChildWeight() const
@@ -788,6 +876,25 @@ TCompositeElement::TChildSuggestions TCompositeElement::GetChildSuggestionsFifo(
     return childSuggestions;
 }
 
+TCompositeElement::TChildSuggestionShares TCompositeElement::GetChildSuggestionSharesFifo(double fitFactor)
+{
+    YT_VERIFY(fitFactor <= SortedChildren_.size());
+
+    int satisfiedChildCount = static_cast<int>(fitFactor);
+    double unsatisfiedChildSuggestion = fitFactor - satisfiedChildCount;
+
+    TChildSuggestionShares childFairShares(SortedChildren_.size(), TResourceVector::Zero());
+    for (int index = 0; index < satisfiedChildCount; index++) {
+        childFairShares[index] = SortedChildren_[index]->FairShareBySuggestion_->ValueAt(1.0);
+    }
+
+    if (unsatisfiedChildSuggestion != 0.0) {
+        childFairShares[satisfiedChildCount] = SortedChildren_[satisfiedChildCount]->FairShareBySuggestion_->ValueAt(unsatisfiedChildSuggestion);
+    }
+
+    return childFairShares;
+}
+
 // Returns a vector of suggestions for children from |EnabledChildren_| based on the given fit factor.
 TCompositeElement::TChildSuggestions TCompositeElement::GetChildSuggestionsNormal(double fitFactor)
 {
@@ -798,8 +905,18 @@ TCompositeElement::TChildSuggestions TCompositeElement::GetChildSuggestionsNorma
         const auto* child = GetChild(childIndex);
         childSuggestions.push_back(std::min(1.0, fitFactor * (child->GetWeight() / minWeight)));
     }
-
     return childSuggestions;
+}
+
+TCompositeElement::TChildSuggestionShares TCompositeElement::GetChildSuggestionSharesNormal(double fitFactor)
+{
+    YT_VERIFY(ChildFairSharesByFitFactor_);
+
+    TChildSuggestionShares childFairShares;
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
+        childFairShares.push_back((*ChildFairSharesByFitFactor_)[childIndex].ValueAt(fitFactor));
+    }
+    return childFairShares;
 }
 
 void TCompositeElement::ComputeAndSetFairShare(double suggestion, EFairShareType fairShareType, TFairShareUpdateContext* context)
@@ -863,7 +980,6 @@ void TCompositeElement::ComputeAndSetFairShare(double suggestion, EFairShareType
     }
 
     // Propagate suggestions to children and collect the total used fair share.
-
     auto childSuggestions = getEnabledChildSuggestions(fitFactor);
     YT_VERIFY(childSuggestions.size() == children.size());
 
@@ -904,6 +1020,127 @@ void TCompositeElement::ComputeAndSetFairShare(double suggestion, EFairShareType
         fitFactor,
         FairShareByFitFactor_->ValueAt(fitFactor),
         getChildrenSuggestedFairShare(fitFactor),
+        GetChildCount());
+
+    YT_VERIFY(suggestedShareNearlyDominatesChildrenUsedShare);
+
+    // Set fair share.
+    Attributes().SetDetailedFairShare(suggestedFairShare, fairShareType);
+    CheckFairShareFeasibility(fairShareType);
+}
+
+void TCompositeElement::ComputeAndSetFairShare(TResourceVector suggestedFairShare, EFairShareType fairShareType, TFairShareUpdateContext* context)
+{
+    const auto& Logger = GetLogger();
+
+    if (GetChildCount() == 0) {
+        Attributes().SetDetailedFairShare(TResourceVector::Zero(), fairShareType);
+        return;
+    }
+
+    // Find the right fit factor to use when computing suggestions for children.
+
+    // NB(eshcherbin): Vector of suggestions returned by |getEnabledChildSuggestedFairShares| must be consistent
+    // with |children|, i.e. i-th suggestion is meant to be given to i-th enabled child.
+    // This implicit correspondence between children and suggestions is done for optimization purposes.
+    std::vector<TElement*> children;
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
+        children.push_back(
+            GetMode() == ESchedulingMode::Fifo
+                ? SortedChildren_[childIndex]
+                : GetChild(childIndex));
+    }
+
+    auto getEnabledChildSuggestedFairShares = (GetMode() == ESchedulingMode::Fifo)
+        ? std::bind(&TCompositeElement::GetChildSuggestionSharesFifo, this, std::placeholders::_1)
+        : std::bind(&TCompositeElement::GetChildSuggestionSharesNormal, this, std::placeholders::_1);
+
+    auto getChildrenSuggestedFairShare = [&] (double fitFactor) {
+        auto childSuggestedFairShares = getEnabledChildSuggestedFairShares(fitFactor);
+        YT_VERIFY(childSuggestedFairShares.size() == children.size());
+
+        TResourceVector childrenSuggestedFairShare;
+        for (int childIndex = 0; childIndex < std::ssize(children); ++childIndex) {
+            childrenSuggestedFairShare += childSuggestedFairShares[childIndex];
+        }
+
+        return childrenSuggestedFairShare;
+    };
+    auto checkFitFactor = [&] (double fitFactor) {
+        // Check that we can safely use the given fit factor to compute suggestions for children.
+        return Dominates(suggestedFairShare, getChildrenSuggestedFairShare(fitFactor));
+    };
+
+    YT_ASSERT(checkFitFactor(0.0));
+
+    auto fitFactor = FloatingPointInverseLowerBound(
+        /*lo*/ 0.0,
+        /*hi*/ FairShareByFitFactor_->RightFunctionBound(),
+        /*predicate*/ checkFitFactor);
+
+    if (!Dominates(TResourceVector::SmallEpsilon(), suggestedFairShare - getChildrenSuggestedFairShare(fitFactor))) {
+        YT_LOG_INFO(
+            "Children suggested fair share significantly differs from suggested fair share in pool, "
+            "trying to distribute it with gap (SuggestedFairShare: %v, ChildrenSuggestedFairShare: %v, "
+            "EnableImprovedFairShareByFitFactorComputationDistributionGap: %v)",
+            suggestedFairShare,
+            getChildrenSuggestedFairShare(fitFactor),
+            context->Options.EnableImprovedFairShareByFitFactorComputationDistributionGap);
+
+        if (context->Options.EnableImprovedFairShareByFitFactorComputationDistributionGap) {
+            auto checkFitFactorWithGap = [&] (double fitFactor) {
+                // Check that we can safely use the given fit factor to compute suggestions for children.
+                return Dominates(suggestedFairShare + TResourceVector::SmallEpsilon(), getChildrenSuggestedFairShare(fitFactor));
+            };
+
+            fitFactor = FloatingPointInverseLowerBound(
+                /*lo*/ fitFactor,
+                /*hi*/ FairShareByFitFactor_->RightFunctionBound(),
+                /*predicate*/ checkFitFactorWithGap);
+        }
+    }
+
+    // This rounding is necessary to avoid negligibly small fair shares instead of zero fair shares.
+    if (fitFactor < RatioComputationPrecision) {
+        fitFactor = 0.0;
+    }
+
+    // Propagate suggestions to children and collect the total used fair share.
+    auto childSuggestedFairShares = getEnabledChildSuggestedFairShares(fitFactor);
+    YT_VERIFY(childSuggestedFairShares.size() == children.size());
+
+    TResourceVector childrenUsedFairShare;
+    for (int childIndex = 0; childIndex < std::ssize(children); ++childIndex) {
+        const auto& child = children[childIndex];
+        childrenUsedFairShare += childSuggestedFairShares[childIndex];
+        child->ComputeAndSetFairShare(childSuggestedFairShares[childIndex], fairShareType, context);
+    }
+
+    // Validate children total fair share.
+    bool suggestedShareNearlyDominatesChildrenUsedShare =
+        Dominates(suggestedFairShare + TResourceVector::SmallEpsilon(), childrenUsedFairShare);
+    bool usedShareNearSuggestedShare =
+        TResourceVector::Near(childrenUsedFairShare, suggestedFairShare, 1e-4 * MaxComponent(childrenUsedFairShare));
+
+    YT_LOG_WARNING_UNLESS(usedShareNearSuggestedShare && suggestedShareNearlyDominatesChildrenUsedShare,
+        "Fair share significantly differs from predicted in pool ("
+        "FairShareType: %v, "
+        "Mode: %v, "
+        "SuggestedFairShare: %.20v, "
+        "ChildrenUsedFairShare: %.20v, "
+        "Difference: %.20v, "
+        "FitFactor: %.20v, "
+        "FSBFFPredicted: %.20v, "
+        "ChildrenSuggestedFairShare: %.20v, "
+        "ChildrenCount: %v)",
+        fairShareType,
+        GetMode(),
+        suggestedFairShare,
+        childrenUsedFairShare,
+        suggestedFairShare - childrenUsedFairShare,
+        fitFactor,
+        FairShareByFitFactor_->ValueAt(fitFactor),
+        getEnabledChildSuggestedFairShares(fitFactor),
         GetChildCount());
 
     YT_VERIFY(suggestedShareNearlyDominatesChildrenUsedShare);
@@ -975,7 +1212,12 @@ void TCompositeElement::DoTruncateFairShareInFifoPool(EFairShareType fairShareTy
 void TCompositeElement::ComputePromisedGuaranteeFairShare(TFairShareUpdateContext* context)
 {
     if (ShouldComputePromisedGuaranteeFairShare()) {
-        ComputeAndSetFairShare(/*suggestion*/ 0.0, EFairShareType::PromisedGuarantee, context);
+        if (context->Options.EnableImprovedFairShareByFitFactorComputation) {
+            ComputeAndSetFairShare(FairShareBySuggestion_->ValueAt(0.0), EFairShareType::PromisedGuarantee, context);
+        } else {
+            ComputeAndSetFairShare(/*suggestion*/ 0.0, EFairShareType::PromisedGuarantee, context);
+        }
+
         TruncateFairShareInFifoPools(EFairShareType::PromisedGuarantee);
 
         return;
@@ -1042,12 +1284,12 @@ void TCompositeElement::UpdateOverflowAndAcceptableVolumesRecursively()
 
     TResourceVolume::ForEachResource([&] (EJobResourceType /*resourceType*/, auto TResourceVolume::* resourceDataMember) {
         auto diff = attributes.ChildrenVolumeOverflow.*resourceDataMember - childrenAcceptableVolume.*resourceDataMember;
-        if (diff > 0) {
+        if (diff > static_cast<decltype(diff)>(0L)) {
             attributes.VolumeOverflow.*resourceDataMember = diff;
-            attributes.AcceptableVolume.*resourceDataMember = 0;
+            attributes.AcceptableVolume.*resourceDataMember = static_cast<std::decay_t<decltype(attributes.AcceptableVolume.*resourceDataMember)>>(0L);
         } else {
-            attributes.VolumeOverflow.*resourceDataMember = 0;
-            attributes.AcceptableVolume.*resourceDataMember = canAcceptFreeVolume ? -diff : 0;
+            attributes.VolumeOverflow.*resourceDataMember = static_cast<std::decay_t<decltype(attributes.VolumeOverflow.*resourceDataMember)>>(0L);
+            attributes.AcceptableVolume.*resourceDataMember = canAcceptFreeVolume ? -diff : static_cast<decltype(diff)>(0L);
         }
     });
 
@@ -1088,15 +1330,17 @@ void TCompositeElement::DistributeFreeVolume()
         };
 
         TResourceVolume::ForEachResource([&] (EJobResourceType /*resourceType*/, auto TResourceVolume::* resourceDataMember) {
-            if (freeVolume.*resourceDataMember  == 0) {
+            if (freeVolume.*resourceDataMember == static_cast<std::decay_t<decltype(freeVolume.*resourceDataMember)>>(0L)) {
                 return;
             }
             std::vector<TChildAttributes> hungryChildren;
             auto weightSum = 0.0;
             for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
                 auto& childAttributes = GetChild(childIndex)->Attributes();
-                if (childAttributes.AcceptableVolume.*resourceDataMember > RatioComputationPrecision &&
-                    childAttributes.TotalResourceFlowRatio > RatioComputationPrecision)
+                if (childAttributes.AcceptableVolume.*resourceDataMember >
+                        static_cast<std::decay_t<decltype(childAttributes.AcceptableVolume.*resourceDataMember)>>(RatioComputationPrecision) &&
+                    childAttributes.TotalResourceFlowRatio >
+                        static_cast<std::decay_t<decltype(childAttributes.TotalResourceFlowRatio)>>(RatioComputationPrecision))
                 {
                     // Resource flow is taken as weight.
                     auto weight = childAttributes.TotalResourceFlowRatio;
@@ -1123,7 +1367,7 @@ void TCompositeElement::DistributeFreeVolume()
             for (; it != hungryChildren.end(); ++it) {
                 const auto suggestedFreeVolume = static_cast<double>(freeVolume.*resourceDataMember) * (it->Weight / weightSum);
                 const auto acceptableVolume = it->Attributes->AcceptableVolume.*resourceDataMember;
-                if (suggestedFreeVolume < acceptableVolume) {
+                if (static_cast<decltype(acceptableVolume)>(suggestedFreeVolume) < acceptableVolume) {
                     break;
                 }
                 it->Attributes->AcceptedFreeVolume.*resourceDataMember = acceptableVolume;
@@ -1213,11 +1457,11 @@ void TPool::UpdateAccumulatedResourceVolume(TFairShareUpdateContext* context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TRootElement::DetermineEffectiveStrongGuaranteeResources(TFairShareUpdateContext* context)
+void TRootElement::DetermineInferredStrongGuaranteeResources(TFairShareUpdateContext* context)
 {
-    Attributes().EffectiveStrongGuaranteeResources = context->TotalResourceLimits;
+    Attributes().InferredStrongGuaranteeResources = context->TotalResourceLimits;
 
-    TCompositeElement::DetermineEffectiveStrongGuaranteeResources(context);
+    TCompositeElement::DetermineInferredStrongGuaranteeResources(context);
 }
 
 bool TRootElement::IsRoot() const
@@ -1288,7 +1532,7 @@ void TRootElement::ValidateAndAdjustSpecifiedGuarantees(TFairShareUpdateContext*
     TJobResources totalStrongGuaranteeResources;
     for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         const auto* child = GetChild(childIndex);
-        totalStrongGuaranteeResources += child->Attributes().EffectiveStrongGuaranteeResources;
+        totalStrongGuaranteeResources += child->Attributes().InferredStrongGuaranteeResources;
     }
 
     if (!Dominates(context->TotalResourceLimits, totalStrongGuaranteeResources + totalResourceFlow)) {
@@ -1314,7 +1558,7 @@ void TRootElement::ValidateAndAdjustSpecifiedGuarantees(TFairShareUpdateContext*
 
         double fitFactor = FloatingPointInverseLowerBound(0.0, 1.0, checkSum);
 
-        // NB(eshcherbin): Note that we validate the sum of EffectiveStrongGuaranteeResources but adjust StrongGuaranteeShare.
+        // NB(eshcherbin): Note that we validate the sum of InferredStrongGuaranteeResources but adjust StrongGuaranteeShare.
         // During validation we need to check the absolute values to handle corner cases correctly and always show the alert. See: YT-14758.
         // During adjustment we need to assure the invariants required for vector fair share computation.
         Attributes().StrongGuaranteeShare = Attributes().StrongGuaranteeShare * fitFactor;
@@ -1352,31 +1596,37 @@ void TOperationElement::PrepareFairShareByFitFactor(TFairShareUpdateContext* con
 
     TVectorPiecewiseLinearFunction::TBuilder builder;
 
-    // First we try to satisfy the current usage by giving equal fair share for each resource.
-    // More precisely, for fit factor 0 <= f <= 1, fair share for resource r will be equal to min(usage[r], f * maxUsage).
-    double maxUsage = MaxComponent(Attributes().UsageShare);
-    if (maxUsage == 0.0) {
+    if (context->Options.EnableStepFunctionForGangOperations && IsGang()) {
         builder.PushSegment({0.0, TResourceVector::Zero()}, {1.0, TResourceVector::Zero()});
+        builder.PushSegment({1.0, TResourceVector::Zero()}, {1.0, Attributes().DemandShare});
+        builder.PushSegment({1.0, Attributes().DemandShare}, {2.0, Attributes().DemandShare});
     } else {
-        TCompactVector<double, ResourceCount> sortedUsage(Attributes().UsageShare.begin(), Attributes().UsageShare.end());
-        std::sort(sortedUsage.begin(), sortedUsage.end());
+        // First we try to satisfy the current usage by giving equal fair share for each resource.
+        // More precisely, for fit factor 0 <= f <= 1, fair share for resource r will be equal to min(usage[r], f * maxUsage).
+        double maxUsage = MaxComponent(Attributes().UsageShare);
+        if (maxUsage == 0.0) {
+            builder.PushSegment({0.0, TResourceVector::Zero()}, {1.0, TResourceVector::Zero()});
+        } else {
+            TCompactVector<double, ResourceCount> sortedUsage(Attributes().UsageShare.begin(), Attributes().UsageShare.end());
+            std::sort(sortedUsage.begin(), sortedUsage.end());
 
-        builder.AddPoint({0.0, TResourceVector::Zero()});
-        double previousUsageFitFactor = 0.0;
-        for (auto usage : sortedUsage) {
-            double currentUsageFitFactor = usage / maxUsage;
-            if (currentUsageFitFactor > previousUsageFitFactor) {
-                builder.AddPoint({
-                    currentUsageFitFactor,
-                    TResourceVector::Min(TResourceVector::FromDouble(usage), Attributes().UsageShare)});
-                previousUsageFitFactor = currentUsageFitFactor;
+            builder.AddPoint({0.0, TResourceVector::Zero()});
+            double previousUsageFitFactor = 0.0;
+            for (auto usage : sortedUsage) {
+                double currentUsageFitFactor = usage / maxUsage;
+                if (currentUsageFitFactor > previousUsageFitFactor) {
+                    builder.AddPoint({
+                        currentUsageFitFactor,
+                        TResourceVector::Min(TResourceVector::FromDouble(usage), Attributes().UsageShare)});
+                    previousUsageFitFactor = currentUsageFitFactor;
+                }
             }
+            YT_VERIFY(previousUsageFitFactor == 1.0);
         }
-        YT_VERIFY(previousUsageFitFactor == 1.0);
-    }
 
-    // After that we just give fair share proportionally to the remaining demand.
-    builder.PushSegment({{1.0, Attributes().UsageShare}, {2.0, Attributes().DemandShare}});
+        // After that we just give fair share proportionally to the remaining demand.
+        builder.PushSegment({{1.0, Attributes().UsageShare}, {2.0, Attributes().DemandShare}});
+    }
 
     FairShareByFitFactor_ = builder.Finish();
 }
@@ -1412,6 +1662,26 @@ void TOperationElement::ComputeAndSetFairShare(double suggestion, EFairShareType
             fitFactor,
             fsbffSegment.LeftBound(), fsbffSegment.RightBound(),
             fsbffSegment.LeftValue(), fsbffSegment.RightValue());
+    }
+}
+
+void TOperationElement::ComputeAndSetFairShare(TResourceVector suggestedFairShare, EFairShareType fairShareType, TFairShareUpdateContext* /*context*/)
+{
+    Attributes().SetDetailedFairShare(suggestedFairShare, fairShareType);
+    CheckFairShareFeasibility(fairShareType);
+
+    if (AreDetailedLogsEnabled()) {
+        const auto& Logger = GetLogger();
+
+        YT_LOG_DEBUG(
+            "Updated operation fair share "
+            "(FairShareType: %v, SuggestedFairShare: %v, FairShareBySuggestion: %v, "
+            "MaxFitFactorBySuggestion: %v, FairShareByFitFactor: %v)",
+            fairShareType,
+            suggestedFairShare,
+            FairShareBySuggestion_,
+            MaxFitFactorBySuggestion_,
+            FairShareByFitFactor_);
     }
 }
 
@@ -1490,7 +1760,7 @@ void TFairShareUpdateExecutor::Run()
 
     RootElement_->ValidatePoolConfigs(Context_);
 
-    RootElement_->DetermineEffectiveStrongGuaranteeResources(Context_);
+    RootElement_->DetermineInferredStrongGuaranteeResources(Context_);
     RootElement_->InitIntegralPoolLists(Context_);
     RootElement_->UpdateCumulativeAttributes(Context_);
     ConsumeAndRefillIntegralPools();
@@ -1500,13 +1770,15 @@ void TFairShareUpdateExecutor::Run()
     UpdateRelaxedPoolIntegralShares();
 
     RootElement_->PrepareFairShareFunctions(Context_);
-
     {
         TWallTimer timer;
-        RootElement_->ComputeAndSetFairShare(/*suggestion*/ 1.0, EFairShareType::Regular, Context_);
+        if (Context_->Options.EnableImprovedFairShareByFitFactorComputation) {
+            RootElement_->ComputeAndSetFairShare(RootElement_->FairShareBySuggestion_->ValueAt(1.0), EFairShareType::Regular, Context_);
+        } else {
+            RootElement_->ComputeAndSetFairShare(/*suggestion*/ 1.0, EFairShareType::Regular, Context_);
+        }
         Context_->ComputeAndSetFairShareTotalTime = timer.GetElapsedCpuTime();
     }
-
     RootElement_->TruncateFairShareInFifoPools(EFairShareType::Regular);
 
     RootElement_->ComputePromisedGuaranteeFairShare(Context_);

@@ -101,6 +101,7 @@ inline TJobResources operator*(const TJobResources& lhs, const TResourceVector& 
 }
 
 void Serialize(const TResourceVector& resourceVector, NYson::IYsonConsumer* consumer);
+void Deserialize(TResourceVector& resourceVector, NYTree::INodePtr node);
 
 void FormatValue(TStringBuilderBase* builder, const TResourceVector& resourceVector, TStringBuf spec);
 

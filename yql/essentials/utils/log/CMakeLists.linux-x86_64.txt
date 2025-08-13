@@ -27,12 +27,16 @@ target_link_libraries(essentials-utils-log PUBLIC
   library-cpp-logger
   cpp-logger-global
   cpp-deprecated-atomic
+  library-cpp-json
   utils-log-proto
   essentials-utils-backtrace
+  yql-essentials-utils
 )
 
 target_sources(essentials-utils-log PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/log/context.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/log/format.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/log/fwd_backend.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/log/log.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/log/profile.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/log/tls_backend.cpp

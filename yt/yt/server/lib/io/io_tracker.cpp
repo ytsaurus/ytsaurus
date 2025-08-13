@@ -406,6 +406,9 @@ public:
         , Config_(std::move(config))
         , EventsDropped_(Profiler_.Counter("/events_dropped"))
         , EventsProcessed_(Profiler_.Counter("/events_processed"))
+    { }
+
+    void Initialize()
     {
         // NB. Passing MakeStrong here causes a memory leak because of cyclic reference. But it doesn't bother
         // us since this class is used as a singleton and is not intended to be destroyed.
@@ -503,7 +506,7 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        TPeriodicYielder yielder(TDuration::MilliSeconds(50));
+        auto periodicYielder = CreatePeriodicYielder(TDuration::MilliSeconds(50));
         while (true) {
             if (!GetConfig()->EnableEventDequeue) {
                 TDelayedExecutor::WaitForDuration(PeriodQuant_);
@@ -526,7 +529,7 @@ private:
             PathAggregateSink_.TryFlush();
             EventsProcessed_.Increment(ssize(events));
 
-            yielder.TryYield();
+            periodicYielder.TryYield();
         }
     }
 };
@@ -566,7 +569,9 @@ void IIOTracker::Enqueue(TIOCounters counters, THashMap<std::string, std::string
 
 IIOTrackerPtr CreateIOTracker(TIOTrackerConfigPtr config)
 {
-    return New<TIOTracker>(std::move(config));
+    auto tracker = New<TIOTracker>(std::move(config));
+    tracker->Initialize();
+    return tracker;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

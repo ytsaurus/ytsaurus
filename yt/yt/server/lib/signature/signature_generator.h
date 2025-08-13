@@ -30,14 +30,19 @@ public:
     */
     void SetKeyPair(TKeyPairPtr keyPair);
 
+    /*!
+    *  \note Thread affinity: any
+    */
+    void Reconfigure(TSignatureGeneratorConfigPtr config);
+
 private:
-    const TSignatureGeneratorConfigPtr Config_;
+    TAtomicIntrusivePtr<TSignatureGeneratorConfig> Config_;
     TAtomicIntrusivePtr<TKeyPair> KeyPair_;
 
     /*!
     *  \note Thread affinity: any
     */
-    void DoSign(const TSignaturePtr& signature) const final;
+    void Resign(const TSignaturePtr& signature) const final;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSignatureGenerator)

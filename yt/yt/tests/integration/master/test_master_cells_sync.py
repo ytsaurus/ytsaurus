@@ -30,6 +30,11 @@ class TestMasterCellsSync(YTEnvSetup):
         },
     }
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
     @classmethod
     def setup_class(cls, delayed_secondary_cells_start=False):
         super(TestMasterCellsSync, cls).setup_class()
@@ -325,6 +330,11 @@ class TestMasterHiveProfiling(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
     NUM_MASTERS = 1
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
 
     @authors("h0pless")
     def test_master_hive_sync(self):

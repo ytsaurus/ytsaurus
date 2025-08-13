@@ -4,6 +4,8 @@
 
 #include <yt/yt/client/api/public.h>
 
+#include <yt/yt/core/concurrency/config.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NSignature {
@@ -31,7 +33,8 @@ DEFINE_REFCOUNTED_TYPE(TSignatureGeneratorConfig)
 struct TKeyRotatorConfig
     : public NYTree::TYsonStruct
 {
-    TDuration KeyRotationInterval;
+    //! Options of key rotation executor (period, etc.).
+    NConcurrency::TRetryingPeriodicExecutorOptions KeyRotationOptions;
 
     //! Delta between key creation and expiration.
     TDuration KeyExpirationDelta;
@@ -70,8 +73,6 @@ struct TCypressKeyWriterConfig
 {
     //! Prefix path for public keys (will be stored as <Path>/<Owner>/<KeyId>).
     NYPath::TYPath Path;
-
-    TOwnerId OwnerId;
 
     //! Time to wait after expiration before deleting keys from Cypress.
     TDuration KeyDeletionDelay;

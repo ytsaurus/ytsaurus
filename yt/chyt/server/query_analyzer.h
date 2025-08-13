@@ -57,8 +57,10 @@ public:
         DB::ContextPtr context,
         const NLogging::TLogger& logger,
         DB::QueryTreeNodePtr query,
-        const std::vector<TSubquerySpec>& specs,
+        const std::vector<TSubquerySpec>& operandSpecs,
         TBoundJoinOptions boundJoinOptions = {});
+
+    TSecondaryQuery CreateSecondaryQuery(int inputStreamsPerSecondaryQuery);
 
     TSecondaryQuery CreateSecondaryQuery(
         const TRange<TSubquery>& subqueries,
@@ -70,7 +72,7 @@ private:
     NLogging::TLogger Logger;
     const DB::ContextPtr Context_;
     const DB::QueryTreeNodePtr Query_;
-    const std::vector<TSubquerySpec> TableSpecs_;
+    const std::vector<TSubquerySpec> OperandSpecs_;
     const TBoundJoinOptions BoundJoinOptions_;
 
     NTableClient::TOwningKeyBound PreviousUpperBound_;
@@ -90,7 +92,8 @@ public:
         DB::ContextPtr context,
         const TStorageContext* storageContext,
         const DB::SelectQueryInfo& queryInfo,
-        const NLogging::TLogger& logger);
+        const NLogging::TLogger& logger,
+        bool onlyAnalyze = false);
 
     //! TQueryAnalyzer should be prepared before CreateSecondaryQuery,
     //! GetOptimizedQueryProcessingStage and Analyze methods are called.
@@ -113,6 +116,7 @@ public:
     bool HasRightOrFullJoin() const;
     bool HasGlobalJoin() const;
     bool HasInOperator() const;
+    bool NeedOnlyDistinct() const;
 
     bool IsJoinedByKeyColumns() const;
 
@@ -137,9 +141,11 @@ private:
     bool TwoYTTableJoin_ = false;
     //! If the query has in operator with subquery or table.
     bool HasInOperator_ = false;
+    //! If the query needs only distinct values of one column for execution.
+    bool NeedOnlyDistinct_ = false;
 
     bool Prepared_ = false;
-    bool QueryTreeProcessed_ = false;
+    bool OnlyAnalyze_;
 
     int KeyColumnCount_ = 0;
     bool JoinedByKeyColumns_ = false;
@@ -162,8 +168,6 @@ private:
     void InferReadInOrderMode(bool assumeNoNullKeys, bool assumeNoNanKeys);
 
     IStorageDistributorPtr GetStorage(const DB::QueryTreeNodePtr& tableExpression) const;
-
-    void LazyProcessQueryTree();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

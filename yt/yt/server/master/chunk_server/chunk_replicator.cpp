@@ -682,8 +682,9 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
 
         auto maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk);
 
+        auto& mediumStatistics = result.PerMediumStatistics[mediumIndex];
         ComputeErasureChunkStatisticsForMedium(
-            result.PerMediumStatistics[mediumIndex],
+            mediumStatistics,
             codec,
             replicationPolicy,
             maxReplicasPerRack,
@@ -691,6 +692,21 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
             unsafelyPlacedSealedReplicas[mediumIndex],
             mediumToErasedIndexes[mediumIndex],
             totallySealed);
+
+        YT_LOG_TRACE("Computed erasure chunk statistics for medium "
+            "(ChunkId: %v, MediumIndex: %v, MediumName: %v, DataPartsOnly: %v, Status: %v, "
+            "ReplicationFactor: %v, ReplicaCount: %v, MaxReplicasPerRack: %v, "
+            "DecommissionedReplicaCount: %v, TemporarilyUnavailableReplicaCount: %v)",
+            chunk->GetId(),
+            mediumIndex,
+            medium->GetName(),
+            dataPartsOnly,
+            mediumStatistics.Status,
+            mediumReplicationFactor,
+            replicaCount[mediumIndex],
+            maxReplicasPerRack,
+            decommissionedReplicaCount[mediumIndex],
+            temporarilyUnavailableReplicaCount[mediumIndex]);
     }
 
     ComputeErasureChunkStatisticsCrossMedia(
@@ -1017,6 +1033,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
     TMediumMap<int> decommissionedReplicaCount;
     TMediumMap<int> temporarilyUnavailableReplicaCount;
     TMediumMap<TChunkLocationPtrWithReplicaIndexList> decommissionedReplicas;
+    TMediumMap<TChunkLocationPtrWithReplicaIndexList> temporarilyUnavailableReplicas;
     int totalReplicaCount = 0;
     int totalDecommissionedReplicaCount = 0;
 
@@ -1062,6 +1079,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
             ++totalDecommissionedReplicaCount;
         } else if (IsReplicaOnPendingRestartNode(replica.GetPtr())) {
             ++temporarilyUnavailableReplicaCount[mediumIndex];
+            temporarilyUnavailableReplicas[mediumIndex].emplace_back(replica.GetPtr(), replica.GetReplicaIndex());
         } else {
             ++replicaCount[mediumIndex];
             ++totalReplicaCount;
@@ -1170,6 +1188,20 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
             hasMediumOnWhichPresent = true;
             precarious = precarious && mediumTransient;
         }
+
+        YT_LOG_TRACE("Computed regular chunk statistics for medium "
+            "(ChunkId: %v, MediumIndex: %v, MediumName: %v, Status: %v, ReplicationFactor: %v, "
+            "ReplicaCount: %v, MaxReplicasPerRack: %v, DecommissionedReplicas: %v, "
+            "TemporarilyUnavailableReplicas: %v)",
+            chunk->GetId(),
+            mediumIndex,
+            medium->GetName(),
+            mediumStatistics.Status,
+            mediumReplicationPolicy.GetReplicationFactor(),
+            mediumReplicaCount,
+            maxReplicasPerRack,
+            MakeFormattableView(decommissionedReplicas[mediumIndex], TDefaultFormatter{}),
+            MakeFormattableView(temporarilyUnavailableReplicas[mediumIndex], TDefaultFormatter{}));
     }
 
     ComputeRegularChunkStatisticsCrossMedia(
@@ -2363,6 +2395,10 @@ void TChunkReplicator::RefreshChunk(
 
     auto allMediaStatistics = ComputeChunkStatistics(chunk, chunkReplicas);
 
+    YT_LOG_TRACE("Computed chunk statistics on refresh (ChunkId: %v, Status: %v)",
+        chunk->GetId(),
+        allMediaStatistics.Status);
+
     auto durabilityRequired = IsDurabilityRequired(chunk, chunkReplicas);
 
     for (auto entry : replication) {
@@ -2721,7 +2757,12 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk, std::optional<TDurati
     auto adjustedDelay = delay
         ? std::make_optional(DurationToCpuDuration(*delay))
         : std::nullopt;
-    GetChunkRefreshScanner(chunk)->EnqueueChunk({chunk, /*errorCount*/ 0}, adjustedDelay);
+    auto enqueued = GetChunkRefreshScanner(chunk)->EnqueueChunk({chunk, /*errorCount*/ 0}, adjustedDelay);
+
+    YT_LOG_TRACE("Chunk refresh scheduled (ChunkId: %v, Delay: %v, Enqueued: %v)",
+        chunk->GetId(),
+        delay,
+        enqueued);
 }
 
 void TChunkReplicator::ScheduleNodeRefresh(TNode* node)

@@ -16,6 +16,7 @@
 
 namespace NYT::NTabletNode {
 
+using namespace NConcurrency;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -126,6 +127,16 @@ void TStoreBackgroundActivityOrchidConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TCompactionHintFetcherConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("fetch_period", &TThis::FetchPeriod)
+        .Default(TDuration::MilliSeconds(10));
+    registrar.Parameter("request_throttler", &TThis::RequestThrottler)
+        .DefaultCtor([] { return TThroughputThrottlerConfig::Create(/*limit*/ 300); });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TStoreFlusherConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("thread_pool_size", &TThis::ThreadPoolSize)
@@ -203,6 +214,9 @@ void TStoreCompactorDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("use_row_digests", &TThis::UseRowDigests)
         .Default(false);
+
+    registrar.Parameter("min_hash_digest_fetcher", &TThis::MinHashDigestFetcher)
+        .DefaultNew();
 
     registrar.Parameter("max_compaction_structured_log_events", &TThis::MaxCompactionStructuredLogEvents)
         .GreaterThanOrEqual(0)
@@ -701,11 +715,11 @@ void TTabletNodeConfig::Register(TRegistrar registrar)
             switch (kind) {
                 case ETabletNodeThrottlerKind::StaticStorePreloadIn:
                 case ETabletNodeThrottlerKind::DynamicStoreReadOut:
-                    config->Throttlers[kind] = NConcurrency::TRelativeThroughputThrottlerConfig::Create(100_MB);
+                    config->Throttlers[kind] = TRelativeThroughputThrottlerConfig::Create(100_MB);
                     break;
 
                 default:
-                    config->Throttlers[kind] = New<NConcurrency::TRelativeThroughputThrottlerConfig>();
+                    config->Throttlers[kind] = New<TRelativeThroughputThrottlerConfig>();
             }
         }
 

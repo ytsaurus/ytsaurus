@@ -115,4 +115,56 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+//! RAII wrapper for TAccessControlDescriptor that tracks modifications and notifies ISecurityManager.
+class TMutableAccessControlDescriptorPtr
+{
+public:
+    TMutableAccessControlDescriptorPtr(
+        TAccessControlDescriptor* acd,
+        ISecurityManager* securityManager);
+
+    TMutableAccessControlDescriptorPtr(const TMutableAccessControlDescriptorPtr&) = delete;
+    TMutableAccessControlDescriptorPtr& operator=(const TMutableAccessControlDescriptorPtr&) = delete;
+
+    TMutableAccessControlDescriptorPtr(TMutableAccessControlDescriptorPtr&&) noexcept = default;
+    TMutableAccessControlDescriptorPtr& operator=(TMutableAccessControlDescriptorPtr&&) noexcept = default;
+
+    TAccessControlDescriptor* operator->();
+
+    ~TMutableAccessControlDescriptorPtr();
+
+    operator bool() const;
+
+private:
+    TAccessControlDescriptor* Underlying_;
+    ISecurityManager* SecurityManager_;
+    bool Modified_ = false;
+};
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TWrappedAccessControlDescriptorPtr
+{
+public:
+    TWrappedAccessControlDescriptorPtr(
+        TAccessControlDescriptor* acd,
+        ISecurityManager* securityManager);
+
+    const TAccessControlDescriptor* operator->() const;
+
+    [[nodiscard]] NDetail::TMutableAccessControlDescriptorPtr AsMutable();
+
+    operator bool() const;
+
+private:
+    TAccessControlDescriptor* Underlying_;
+    ISecurityManager* SecurityManager_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NSecurityServer

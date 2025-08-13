@@ -814,6 +814,8 @@ DECLARE_REFCOUNTED_CLASS(TGangJoblet)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGangTask;
+
 class TGangRankPool
 {
 public:
@@ -841,10 +843,12 @@ private:
     TSerializableLogger Logger;
 
     THashSet<int> RankPool_;
-    // Intentionally not persistent.
     int CompletedRankCount_ = 0;
 
     PHOENIX_DECLARE_TYPE(TGangRankPool, 0x99c08734);
+
+    // COMPAT(pogprelov)
+    friend class TGangTask;
 };
 
 PHOENIX_DEFINE_TYPE(TGangRankPool);
@@ -865,7 +869,7 @@ public:
     void TrySwitchToNewOperationIncarnation(
         const TGangJobletPtr& joblet,
         bool operationIsReviving,
-        EOperationIncarnationSwitchReason reason);
+        TIncarnationSwitchData data);
 
     int GetGangSize() const;
 
@@ -918,7 +922,7 @@ public:
     void TrySwitchToNewOperationIncarnation(
         const TGangJobletPtr& joblet,
         bool operationIsReviving,
-        EOperationIncarnationSwitchReason reason);
+        TIncarnationSwitchData data);
 
     void OnOperationIncarnationChanged(bool operationIsReviving, TIncarnationSwitchData data);
 
@@ -953,7 +957,7 @@ private:
 
     std::optional<TIncarnationSwitchData> ShouldRestartJobsOnRevival() const;
 
-    void TrySwitchToNewOperationIncarnation(bool operationIsReviving, EOperationIncarnationSwitchReason reason);
+    void TrySwitchToNewOperationIncarnation(bool operationIsReviving, TIncarnationSwitchData data);
 
     void VerifyJobsIncarnationsEqual() const;
 
@@ -1096,6 +1100,8 @@ void TGangRankPool::RegisterMetadata(auto&& registrar)
 {
     PHOENIX_REGISTER_FIELD(1, GangSize_);
     PHOENIX_REGISTER_FIELD(2, Logger);
+    // COMPAT(pogorelov)
+    PHOENIX_REGISTER_FIELD(3, CompletedRankCount_, .SinceVersion(ESnapshotVersion::PersistentCompletedRankCount));
     PHOENIX_REGISTER_FIELD(4, RankPool_);
 }
 
@@ -1117,12 +1123,12 @@ TGangTask::TGangTask(
 void TGangTask::TrySwitchToNewOperationIncarnation(
     const TGangJobletPtr& joblet,
     bool operationIsReviving,
-    EOperationIncarnationSwitchReason reason)
+    TIncarnationSwitchData data)
 {
     if (IsGangPolicyEnabled()) {
         YT_LOG_DEBUG("Trying to switch operation to new incarnation");
 
-        GetOperationController().TrySwitchToNewOperationIncarnation(joblet, operationIsReviving, reason);
+        GetOperationController().TrySwitchToNewOperationIncarnation(joblet, operationIsReviving, std::move(data));
     } else {
         YT_LOG_DEBUG("Operation incarnation switch skipped due to task gang options");
     }
@@ -1293,6 +1299,15 @@ void TGangTask::RegisterMetadata(auto&& registrar)
     registrar.template BaseType<TVanillaTask>();
 
     PHOENIX_REGISTER_FIELD(1, RankPool_);
+
+    registrar.template VirtualField<2>("CompletedRankCount_", [] (TThis* this_, auto& /*context*/) {
+            const auto& Logger = this_->Logger;
+            if (this_->VanillaChunkPool_->IsCompleted()) {
+                YT_LOG_DEBUG("Gang task is completed when operation reviving, setting CompletedRankCount to gang size");
+                this_->RankPool_.CompletedRankCount_ = this_->GetGangSize();
+            }
+        })
+        .BeforeVersion(ESnapshotVersion::PersistentCompletedRankCount)();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1345,6 +1360,7 @@ bool TGangOperationController::OnJobCompleted(
     }
 
     auto interruptionReason = jobSummary->InterruptionReason;
+    auto jobError = jobSummary->Error;
 
     YT_LOG_DEBUG(
         "Gang job completed (JobId: %v, Rank: %v, InterruptionReason: %v)",
@@ -1359,10 +1375,18 @@ bool TGangOperationController::OnJobCompleted(
     if (auto& gangTask = static_cast<TGangTask&>(*joblet->Task);
         rank && interruptionReason != EInterruptionReason::None)
     {
+        auto incarnationData = TIncarnationSwitchData{
+            .IncarnationSwitchReason = EOperationIncarnationSwitchReason::JobInterrupted,
+            .IncarnationSwitchInfo{
+                .TriggerJobId = joblet->JobId,
+                .InterruptionReason = interruptionReason,
+                .TriggerJobError = std::move(jobError),
+            },
+        };
         gangTask.TrySwitchToNewOperationIncarnation(
             StaticPointerCast<TGangJoblet>(std::move(joblet)),
             /*operationIsReviving*/ false,
-            EOperationIncarnationSwitchReason::JobInterrupted);
+            std::move(incarnationData));
     }
 
     return true;
@@ -1376,6 +1400,7 @@ bool TGangOperationController::OnJobFailed(
 
     const auto& gangJoblet = static_cast<const TGangJoblet&>(*joblet);
     auto rank = gangJoblet.Rank;
+    auto jobError = jobSummary->Error;
 
     if (!TOperationControllerBase::OnJobFailed(joblet, std::move(jobSummary))) {
         return false;
@@ -1383,10 +1408,17 @@ bool TGangOperationController::OnJobFailed(
 
     if (rank) {
         auto& gangTask = static_cast<TGangTask&>(*joblet->Task);
+        auto incarnationData = TIncarnationSwitchData{
+            .IncarnationSwitchReason = EOperationIncarnationSwitchReason::JobFailed,
+            .IncarnationSwitchInfo{
+                .TriggerJobId = joblet->JobId,
+                .TriggerJobError = std::move(jobError),
+            },
+        };
         gangTask.TrySwitchToNewOperationIncarnation(
             StaticPointerCast<TGangJoblet>(std::move(joblet)),
             /*operationIsReviving*/ false,
-            EOperationIncarnationSwitchReason::JobFailed);
+            std::move(incarnationData));
     }
 
     return true;
@@ -1400,16 +1432,29 @@ bool TGangOperationController::OnJobAborted(
 
     const auto& gangJoblet = static_cast<const TGangJoblet&>(*joblet);
 
+    auto abortReason = jobSummary->AbortReason;
+    auto jobError = jobSummary->Error;
+
     if (!TOperationControllerBase::OnJobAborted(joblet, std::move(jobSummary))) {
         return false;
     }
 
     if (gangJoblet.Rank) {
         auto& gangTask = static_cast<TGangTask&>(*joblet->Task);
+
+        auto incarnationData = TIncarnationSwitchData{
+            .IncarnationSwitchReason = EOperationIncarnationSwitchReason::JobAborted,
+            .IncarnationSwitchInfo{
+                .TriggerJobId = joblet->JobId,
+                .AbortReason = abortReason,
+                .TriggerJobError = std::move(jobError),
+            },
+        };
+
         gangTask.TrySwitchToNewOperationIncarnation(
             StaticPointerCast<TGangJoblet>(std::move(joblet)),
             /*operationIsReviving*/ false,
-            EOperationIncarnationSwitchReason::JobAborted);
+            std::move(incarnationData));
     }
 
     return true;
@@ -1444,7 +1489,7 @@ TJobletPtr TGangOperationController::CreateJoblet(
 void TGangOperationController::TrySwitchToNewOperationIncarnation(
     const TGangJobletPtr& joblet,
     bool operationIsReviving,
-    EOperationIncarnationSwitchReason reason)
+    TIncarnationSwitchData data)
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config_->JobEventsControllerQueue));
 
@@ -1454,12 +1499,6 @@ void TGangOperationController::TrySwitchToNewOperationIncarnation(
     }
 
     if (joblet->OperationIncarnation == Incarnation_) {
-        TIncarnationSwitchData data{
-            .IncarnationSwitchReason = reason,
-            .IncarnationSwitchInfo{
-                .TriggerJobId = joblet->JobId,
-            },
-        };
         SwitchToNewOperationIncarnation(operationIsReviving, std::move(data));
     }
 }
@@ -1672,8 +1711,7 @@ void TGangOperationController::InitUserJobSpec(
         jobSpec->add_environment(Format("%v=%v", key, value));
     });
 
-    if (const auto& options = Options_->GpuCheck;
-        options->UseSeparateRootVolume && jobSpec->has_gpu_check_binary_path())
+    if (jobSpec->has_gpu_check_binary_path())
     {
         auto* protoEnvironment = jobSpec->mutable_gpu_check_environment();
         fillEnvironment([protoEnvironment] (TStringBuf key, TStringBuf value) {

@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
 namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,10 +20,10 @@ public:
 
     TFuture<TKeyInfoPtr> FindKey(const TOwnerId& ownerId, const TKeyId& keyId) const final;
 
-    void Reconfigure(const TCypressKeyReaderConfigPtr& config);
+    void Reconfigure(TCypressKeyReaderConfigPtr config);
 
 private:
-    TCypressKeyReaderConfigPtr Config_;
+    TAtomicIntrusivePtr<TCypressKeyReaderConfig> Config_;
     const NApi::IClientPtr Client_;
 };
 
@@ -33,29 +35,27 @@ class TCypressKeyWriter
     : public IKeyStoreWriter
 {
 public:
-    TCypressKeyWriter(TCypressKeyWriterConfigPtr config, NApi::IClientPtr client);
+    TCypressKeyWriter(TCypressKeyWriterConfigPtr config, TOwnerId owner, NApi::NNative::IClientPtr client);
 
-    //! Initialize() should be called before all other calls.
-    TFuture<void> Initialize();
-
-    const TOwnerId& GetOwner() const final;
+    TOwnerId GetOwner() const final;
 
     TFuture<void> RegisterKey(const TKeyInfoPtr& keyInfo) final;
 
-    TFuture<void> Reconfigure(const TCypressKeyWriterConfigPtr& config);
+    void Reconfigure(TCypressKeyWriterConfigPtr config);
 
 private:
-    const TCypressKeyWriterConfigPtr Config_;
-    const NApi::IClientPtr Client_;
+    TAtomicIntrusivePtr<TCypressKeyWriterConfig> Config_;
+    const TOwnerId OwnerId_;
+    const NApi::NNative::IClientPtr Client_;
+
+    TFuture<void> CleanUpKeysIfLimitReached(TCypressKeyWriterConfigPtr config);
+
+    TFuture<void> DoCleanUpOnReachedLimit(TCypressKeyWriterConfigPtr config, const TErrorOr<NYson::TYsonString>& ownerNode);
+
+    TFuture<void> DoRegisterKey(TCypressKeyWriterConfigPtr config, TKeyInfoPtr keyInfo, TOwnerId ownerId, TKeyId keyId);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCypressKeyWriter)
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFuture<TCypressKeyWriterPtr> CreateCypressKeyWriter(
-    TCypressKeyWriterConfigPtr config,
-    NApi::IClientPtr client);
 
 ////////////////////////////////////////////////////////////////////////////////
 

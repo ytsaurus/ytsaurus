@@ -249,7 +249,12 @@ public:
         // User job usually runs by per-slot users: yt_slot_{N}.
         // Which is not available for single-user, non-privileged or testing setup.
         if (!Config_->DoNotSetUserId && JobEnvironmentType_ == EJobEnvironmentType::Porto) {
-            UserId_ = Config_->JobEnvironment->StartUid + Config_->SlotIndex;
+            if (UserJobSpec_.enable_fixed_user_id()) {
+                // TODO(ignat): use root or introduce special uid for this case.
+                UserId_ = Config_->JobEnvironment->StartUid;
+            } else {
+                UserId_ = Config_->JobEnvironment->StartUid + Config_->SlotIndex;
+            }
         }
 
         if (!Config_->BusServer->UnixDomainSocketPath) {
@@ -1301,11 +1306,10 @@ private:
                     return nullptr;
                 }
 
-                if (Config_->EnableCudaProfileEventStreaming &&
-                    JobProfiler_->GetUserJobProfilerSpec()->Type == NScheduler::EProfilerType::Cuda)
-                {
+                if (JobProfiler_->GetUserJobProfilerSpec()->Type == NScheduler::EProfilerType::Cuda) {
                     return TraceEventOutput_.get();
                 }
+
                 return JobProfiler_->GetUserJobProfileOutput();
             }();
 
@@ -1592,11 +1596,7 @@ private:
             return false;
         }
 
-        if (Config_->EnableCudaProfileEventStreaming) {
-            return TraceConsumer_.GetHasTrace();
-        }
-
-        return JobProfiler_->GetUserJobProfilerSpec()->Type == NScheduler::EProfilerType::Cuda;
+        return TraceConsumer_.GetHasTrace();
     }
 
     void OnIOErrorOrFinished(const TError& error, const TString& message)

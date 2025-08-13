@@ -14,11 +14,17 @@
 
 #include <yt/yt/library/containers/public.h>
 
+#include <yt/yt/library/numeric/fixed_point_number.h>
+
 #include <library/cpp/yt/containers/enum_indexed_array.h>
 
 #include <library/cpp/yt/threading/atomic_object.h>
 
 namespace NYT::NClusterNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TCpu = TFixedPointNumber<i64, 2>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,8 +67,8 @@ DEFINE_REFCOUNTED_TYPE(ISlot)
 
 struct TJobResources
 {
-    double Cpu = 0.0;
-    double VCpu = 0.0;
+    TCpu Cpu;
+    TCpu VCpu;
 
     i32 Gpu = 0;
     i32 Network = 0;
@@ -86,8 +92,6 @@ struct TJobResources
     i64 ReplicationDataSize = 0;
     i64 RepairDataSize = 0;
     i64 MergeDataSize = 0;
-
-    static TJobResources Epsilon();
 };
 
 TString FormatResourceUsage(
@@ -152,7 +156,7 @@ public:
     double GetTabletSlotCpu() const;
     double GetNodeDedicatedCpu() const;
 
-    double GetCpuUsage() const;
+    TCpu GetCpuUsage() const;
     i64 GetMemoryUsage() const;
 
     double GetCpuDemand() const;

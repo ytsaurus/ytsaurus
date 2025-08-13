@@ -635,18 +635,18 @@ TMutableRowRanges GetRangesFromTrieWithinRange(
     return result;
 }
 
-TString ToString(const TKeyTriePtr& node) {
+std::string ToString(const TKeyTriePtr& node) {
     auto printOffset = [] (int offset) {
-        TString str;
+        std::string str;
         for (int i = 0; i < offset; ++i) {
             str += "  ";
         }
         return str;
     };
 
-    std::function<TString(TKeyTriePtr, size_t)> printNode =
+    std::function<std::string(TKeyTriePtr, size_t)> printNode =
         [&] (TKeyTriePtr node, size_t offset) {
-            TString str;
+            std::string str;
             str += printOffset(offset);
 
             if (!node) {

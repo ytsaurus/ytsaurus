@@ -38,6 +38,8 @@
 
 #include <yt/yt/ytlib/chaos_client/public.h>
 
+#include <yt/yt/ytlib/sequoia_client/public.h>
+
 #include <yt/yt/library/auth_server/public.h>
 
 #include <yt/yt/core/bus/tcp/public.h>
@@ -188,6 +190,10 @@ struct TConnectionStaticConfig
 
     TAsyncExpiringCacheConfigPtr SyncReplicaCache;
 
+    NChunkClient::TChunkReplicaCacheConfigPtr ChunkReplicaCache;
+
+    NChaosClient::TChaosResidencyCacheConfigPtr ChaosResidencyCache;
+
     //! Visible in profiling as tag `connection_name`.
     TString ConnectionName;
 
@@ -235,7 +241,7 @@ struct TConnectionDynamicConfig
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NChunkClient::TBlockCacheConfigPtr BlockCache;
     NChunkClient::TClientChunkMetaCacheConfigPtr ChunkMetaCache;
-    NChunkClient::TChunkReplicaCacheConfigPtr ChunkReplicaCache;
+    NChunkClient::TChunkReplicaCacheDynamicConfigPtr ChunkReplicaCache;
     NChaosClient::TReplicationCardCacheDynamicConfigPtr ReplicationCardCache;
     NHiveClient::TClusterDirectorySynchronizerConfigPtr ClusterDirectorySynchronizer;
     NChunkClient::TMediumDirectorySynchronizerConfigPtr MediumDirectorySynchronizer;
@@ -339,6 +345,7 @@ struct TConnectionDynamicConfig
 
     TSequoiaConnectionConfigPtr SequoiaConnection;
     TSequoiaRetriesConfigPtr SequoiaRetries;
+    THashMap<NSequoiaClient::ESequoiaTransactionType, std::optional<TDuration>> SequoiaTransactionTypeToTimeout;
 
     bool UseFollowersForWriteTargetsAllocation;
 
@@ -346,7 +353,7 @@ struct TConnectionDynamicConfig
     //! If set, should (and hopefully will) be used for authentication in all native protocol RPC requests.
     std::optional<NAuth::TTvmId> TvmId;
 
-    NChaosClient::TChaosResidencyCacheConfigPtr ChaosResidencyCache;
+    NChaosClient::TChaosResidencyCacheDynamicConfigPtr ChaosResidencyCache;
 
     TDuration ObjectLifeStageCheckPeriod;
     int ObjectLifeStageCheckRetryCount;
@@ -381,7 +388,9 @@ struct TConnectionDynamicConfig
 
     bool EnableReadFromInSyncAsyncReplicas;
 
+    // COMPAT(sabdenovch)
     THashSet<std::string> BannedInSyncReplicaClusters;
+    THashSet<std::string> PreferredInSyncReplicaClusters;
 
     bool RequestFullStatisticsForBriefStatisticsInListJobs;
 

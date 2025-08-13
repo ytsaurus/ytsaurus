@@ -1,9 +1,9 @@
 #include "folding_profiler.h"
-#include "cg_fragment_compiler.h"
-#include "functions_cg.h"
-#include "llvm_folding_set.h"
 
-#include <yt/yt/library/query/base/functions.h>
+#include "cg_fragment_compiler.h"
+#include "llvm_folding_set.h"
+#include "functions_cg.h"
+
 #include <yt/yt/library/query/base/helpers.h>
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_helpers.h>
@@ -417,7 +417,7 @@ struct TExpressionFragments
     THashMap<llvm::FoldingSetNodeID, size_t> Fingerprints;
     std::vector<TDebugInfo> DebugInfos;
 
-    TCodegenFragmentInfosPtr ToFragmentInfos(const TString& namePrefix)
+    TCodegenFragmentInfosPtr ToFragmentInfos(TStringBuf namePrefix)
     {
         if (IsDumpExprsEnabled()) {
             Cerr << "\n" << namePrefix << "\n";
@@ -1548,8 +1548,10 @@ public:
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         bool useCanonicalNullRelations,
         EExecutionBackend executionBackend,
-        bool allowUnorderedGroupByWithLimit)
+        bool allowUnorderedGroupByWithLimit,
+        i64 maxJoinBatchSize)
         : TExpressionProfiler(id, variables, functionProfilers, aggregateProfilers, useCanonicalNullRelations, executionBackend)
+        , MaxJoinBatchSize_(maxJoinBatchSize)
         , AllowUnorderedGroupByWithLimit_(allowUnorderedGroupByWithLimit)
     { }
 
@@ -1573,6 +1575,7 @@ public:
         size_t* slotCount);
 
 protected:
+    const i64 MaxJoinBatchSize_;
 
     // COMPAT(sabdenovch)
     const bool AllowUnorderedGroupByWithLimit_;
@@ -2531,7 +2534,7 @@ void TQueryProfiler::Profile(
         Fold(EFoldingObjectType::JoinOp);
         TExpressionFragments equationFragments;
 
-        size_t joinBatchSize = MaxJoinBatchSize;
+        size_t joinBatchSize = MaxJoinBatchSize_;
 
         if (query->IsOrdered(AllowUnorderedGroupByWithLimit_) && query->Offset + query->Limit < static_cast<ssize_t>(joinBatchSize)) {
             joinBatchSize = query->Offset + query->Limit;
@@ -2732,7 +2735,8 @@ TCGQueryGenerator Profile(
     EExecutionBackend executionBackend,
     const TConstFunctionProfilerMapPtr& functionProfilers,
     const TConstAggregateProfilerMapPtr& aggregateProfilers,
-    bool allowUnorderedGroupByWithLimit)
+    bool allowUnorderedGroupByWithLimit,
+    i64 maxJoinBatchSize)
 {
     auto profiler = TQueryProfiler(
         id,
@@ -2741,7 +2745,8 @@ TCGQueryGenerator Profile(
         aggregateProfilers,
         useCanonicalNullRelations,
         executionBackend,
-        allowUnorderedGroupByWithLimit);
+        allowUnorderedGroupByWithLimit,
+        maxJoinBatchSize);
 
     size_t slotCount = 0;
     TCodegenSource codegenSource = &CodegenEmptyOp;

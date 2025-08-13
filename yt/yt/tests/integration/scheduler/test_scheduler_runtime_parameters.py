@@ -6,8 +6,8 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, wait, ls, get, set, remove,
-    exists, create_user,
+    authors, wait, wait_no_assert, ls, get, set, remove,
+    exists, create_user, print_debug,
     create_pool, add_member, map, run_test_vanilla, run_sleeping_vanilla,
     update_op_parameters, create_test_tables, execute_command, make_ace)
 
@@ -603,7 +603,7 @@ class TestOperationDetailedLogs(YTEnvSetup):
         }
     }
 
-    def get_scheduled_allocation_log_entries(self):
+    def _get_schedule_allocation_attempt_log_entries(self):
         writers = self.Env.configs["scheduler"][0]["logging"]["writers"]
         scheduler_debug_logs_filename = None
         for writer_name in writers:
@@ -622,9 +622,9 @@ class TestOperationDetailedLogs(YTEnvSetup):
         else:
             logfile = open(scheduler_debug_logs_filename, "b")
 
-        return [line for line in logfile if "Scheduled an allocation" in line]
+        return [line for line in logfile if "Trying to schedule allocation" in line]
 
-    @authors("antonkikh")
+    @authors("antonkikh", "eshcherbin")
     def test_enable_detailed_logs(self):
         create_pool("fake_pool")
         set("//sys/pool_trees/default/fake_pool/@resource_limits", {"user_slots": 1})
@@ -634,7 +634,7 @@ class TestOperationDetailedLogs(YTEnvSetup):
 
         # Check that there are no detailed logs by default.
 
-        assert len(self.get_scheduled_allocation_log_entries()) == 0
+        assert len(self._get_schedule_allocation_attempt_log_entries()) == 0
 
         # Enable detailed logging and check that expected the expected log entries are produced.
 
@@ -652,8 +652,8 @@ class TestOperationDetailedLogs(YTEnvSetup):
         set("//sys/pool_trees/default/fake_pool/@resource_limits/user_slots", 3)
         wait(lambda: len(op.get_running_jobs()) == 3)
 
-        wait(lambda: len(self.get_scheduled_allocation_log_entries()) == 2)
-        log_entries = self.get_scheduled_allocation_log_entries()
+        wait(lambda: len(self._get_schedule_allocation_attempt_log_entries()) >= 2)
+        log_entries = self._get_schedule_allocation_attempt_log_entries()
         for log_entry in log_entries:
             assert "OperationId: {}".format(op.id) in log_entry
             assert "TreeId: default" in log_entry
@@ -674,10 +674,16 @@ class TestOperationDetailedLogs(YTEnvSetup):
         set("//sys/pool_trees/default/fake_pool/@resource_limits/user_slots", 4)
         wait(lambda: len(op.get_running_jobs()) == 4)
 
-        log_entries = self.get_scheduled_allocation_log_entries()
-        assert len(log_entries) == 2
+        last_log_entry_count = len(log_entries)
 
-        op.abort()
+        @wait_no_assert
+        def check():
+            nonlocal last_log_entry_count
+            log_entries = self._get_schedule_allocation_attempt_log_entries()
+            print_debug(len(log_entries))
+            if len(log_entries) != last_log_entry_count:
+                last_log_entry_count = len(log_entries)
+                assert False
 
     @authors("antonkikh")
     def test_enable_detailed_logs_requires_administer_permission(self):

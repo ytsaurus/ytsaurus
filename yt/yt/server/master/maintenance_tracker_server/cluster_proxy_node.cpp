@@ -20,10 +20,6 @@ void TClusterProxyNode::Load(TLoadContext& context)
 {
     TCypressMapNode::Load(context);
     TMaintenanceTarget::Load(context);
-
-    if (context.GetVersion() < EMasterReign::RemoveStuckAttributes && TObject::Attributes_) {
-        TObject::Attributes_->TryRemove(EInternedAttributeKey::MaintenanceRequests.Unintern());
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

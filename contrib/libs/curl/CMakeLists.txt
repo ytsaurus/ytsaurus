@@ -49,6 +49,7 @@ target_link_libraries(contrib-libs-curl PUBLIC
   contrib-libs-nghttp2
   contrib-libs-nghttp3
   contrib-libs-ngtcp2
+  ngtcp2-crypto-quictls
   contrib-libs-openssl
   contrib-libs-zlib
   contrib-libs-zstd

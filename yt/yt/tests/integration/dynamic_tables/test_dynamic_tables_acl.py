@@ -269,6 +269,11 @@ class TestSortedDynamicTablesAclMulticell(TestSortedDynamicTablesAcl):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
 
 @pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesAclRpcProxy(TestSortedDynamicTablesAcl):
@@ -281,6 +286,11 @@ class TestSortedDynamicTablesAclRpcProxy(TestSortedDynamicTablesAcl):
 class TestSortedDynamicTablesAclPortal(TestSortedDynamicTablesAclMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
 
 
 ################################################################################
@@ -353,6 +363,11 @@ class TestOrderedDynamicTablesAclMulticell(TestOrderedDynamicTablesAcl):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
 
 @pytest.mark.enabled_multidaemon
 class TestOrderedDynamicTablesAclRpcProxy(TestOrderedDynamicTablesAcl):
@@ -365,3 +380,8 @@ class TestOrderedDynamicTablesAclRpcProxy(TestOrderedDynamicTablesAcl):
 class TestOrderedDynamicTablesAclPortal(TestOrderedDynamicTablesAclMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }

@@ -14,6 +14,8 @@ protected:
     virtual IYtGateway::TPtr CreateYtGateway() override;
 
     virtual NYql::IOptimizerFactory::TPtr CreateCboFactory() override;
+protected:
+    TString TableDataServiceDiscoveryFilePath_;
 
 private:
     NFmr::IFmrWorker::TPtr FmrWorker_;

@@ -29,6 +29,8 @@ using namespace NControllerAgent;
 using namespace NLogging;
 using namespace NTableClient;
 
+namespace {
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EPrimaryEndpointType,
@@ -48,6 +50,75 @@ DEFINE_ENUM(ERowSliceabilityDecision,
     (TooMuchForeignData)
 );
 
+struct TPrimaryEndpoint
+{
+    EPrimaryEndpointType Type;
+    TLegacyDataSlicePtr DataSlice;
+    TKeyBound KeyBound;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<TResourceVector> BuildLimitVector(
+    const TSortedJobOptions& options,
+    const IJobSizeConstraintsPtr& jobSizeConstraints,
+    int retryIndex)
+{
+    if (!options.PivotKeys.empty()) {
+        // Pivot keys provide guarantee that we won't introduce more jobs than
+        // defined by them, so we do not try to flush by ourself if they are present.
+        return std::nullopt;
+    }
+
+    double retryFactor = std::pow(jobSizeConstraints->GetDataWeightPerJobRetryFactor(), retryIndex);
+
+    i64 dataWeightPerJob = jobSizeConstraints->GetSamplingRate()
+        ? jobSizeConstraints->GetSamplingDataWeightPerJob()
+        : jobSizeConstraints->GetDataWeightPerJob();
+
+    i64 primaryDataWeightPerJob = jobSizeConstraints->GetSamplingRate()
+            ? jobSizeConstraints->GetSamplingPrimaryDataWeightPerJob()
+            : jobSizeConstraints->GetPrimaryDataWeightPerJob();
+
+    TResourceVector limitVector;
+
+    limitVector.Values[EResourceKind::DataWeight] = static_cast<i64>(std::min<double>(
+        std::numeric_limits<i64>::max() / 2,
+        dataWeightPerJob * retryFactor));
+
+    limitVector.Values[EResourceKind::PrimaryDataWeight] = static_cast<i64>(std::min<double>(
+        std::numeric_limits<i64>::max() / 2,
+        primaryDataWeightPerJob * retryFactor));
+
+    if (options.ConsiderOnlyPrimarySize) {
+        limitVector.Values[EResourceKind::DataWeight] = std::numeric_limits<i64>::max() / 2;
+    }
+
+    limitVector.Values[EResourceKind::DataSliceCount] = jobSizeConstraints->GetMaxDataSlicesPerJob();
+
+    return limitVector;
+}
+
+std::vector<TKeyBound> BuildTeleportChunkUpperBounds(
+    const TSortedJobOptions& options,
+    const std::vector<TInputChunkPtr>& teleportChunks,
+    const TRowBufferPtr& rowBuffer)
+{
+    // We divide key space into segments between teleport chunks. Then we build jobs independently
+    // on each segment.
+    std::vector<TKeyBound> teleportChunkUpperBounds;
+    teleportChunkUpperBounds.reserve(std::ssize(teleportChunks));
+
+    for (const auto& chunk : teleportChunks) {
+        auto maxKey = rowBuffer->CaptureRow(TRange(chunk->BoundaryKeys()->MaxKey.Begin(), options.PrimaryComparator.GetLength()));
+        teleportChunkUpperBounds.emplace_back(TKeyBound::FromRow() <= maxKey);
+    }
+
+    return teleportChunkUpperBounds;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNewSortedJobBuilder
     : public INewSortedJobBuilder
 {
@@ -59,52 +130,31 @@ public:
         const std::vector<TInputChunkPtr>& teleportChunks,
         int retryIndex,
         const TInputStreamDirectory& inputStreamDirectory,
-        const TLogger& logger,
-        const TLogger& structuredLogger)
+        TLogger logger,
+        TLogger structuredLogger)
         : Options_(options)
-        , PrimaryComparator_(options.PrimaryComparator)
-        , ForeignComparator_(options.ForeignComparator)
+        , Logger(std::move(logger))
+        , StructuredLogger(std::move(structuredLogger))
         , JobSizeConstraints_(std::move(jobSizeConstraints))
         , JobSampler_(JobSizeConstraints_->GetSamplingRate())
+        , LimitVector_(BuildLimitVector(Options_, JobSizeConstraints_, retryIndex))
+        , JobSizeTracker_(Options_.PivotKeys.empty()
+            ? CreateJobSizeTracker(*LimitVector_, Options_.JobSizeTrackerOptions, Logger)
+            : nullptr)
         , RowBuffer_(std::move(rowBuffer))
-        , RetryIndex_(retryIndex)
         , InputStreamDirectory_(inputStreamDirectory)
-        , Logger(logger)
-        , StructuredLogger(structuredLogger)
+        , TeleportChunkUpperBounds_(BuildTeleportChunkUpperBounds(Options_, teleportChunks, RowBuffer_))
     {
-        double retryFactor = std::pow(JobSizeConstraints_->GetDataWeightPerJobRetryFactor(), RetryIndex_);
-
-        // Pivot keys provide guarantee that we won't introduce more jobs than
-        // defined by them, so we do not try to flush by ourself if they are present.
-        if (Options_.PivotKeys.empty()) {
-            LimitVector_.Values[EResourceKind::DataWeight] = static_cast<i64>(std::min<double>(
-                std::numeric_limits<i64>::max() / 2,
-                GetDataWeightPerJob() * retryFactor));
-            LimitVector_.Values[EResourceKind::PrimaryDataWeight] = static_cast<i64>(std::min<double>(
-                std::numeric_limits<i64>::max() / 2,
-                GetPrimaryDataWeightPerJob() * retryFactor));
-
-            if (Options_.ConsiderOnlyPrimarySize) {
-                LimitVector_.Values[EResourceKind::DataWeight] = std::numeric_limits<i64>::max() / 2;
-            }
-
-            LimitVector_.Values[EResourceKind::DataSliceCount] = JobSizeConstraints_->GetMaxDataSlicesPerJob();
-
-            JobSizeTracker_ = CreateJobSizeTracker(LimitVector_, Options_.JobSizeTrackerOptions, Logger);
-        }
-
-        if (Options_.EnablePeriodicYielder) {
-            PeriodicYielder_ = TPeriodicYielder(PrepareYieldPeriod);
-        }
-
-        // We divide key space into segments between teleport chunks. Then we build jobs independently
-        // on each segment.
-        for (const auto& chunk : teleportChunks) {
-            auto maxKey = RowBuffer_->CaptureRow(TRange(chunk->BoundaryKeys()->MaxKey.Begin(), PrimaryComparator_.GetLength()));
-            TeleportChunkUpperBounds_.emplace_back(TKeyBound::FromRow() <= maxKey);
-        }
-
         SegmentPrimaryEndpoints_.resize(teleportChunks.size() + 1);
+
+        if (auto samplingRate = JobSizeConstraints_->GetSamplingRate()) {
+            YT_LOG_DEBUG(
+                "Building jobs with sampling "
+                "(SamplingRate: %v, SamplingDataWeightPerJob: %v, SamplingPrimaryDataWeightPerJob: %v)",
+                *samplingRate,
+                JobSizeConstraints_->GetSamplingDataWeightPerJob(),
+                JobSizeConstraints_->GetSamplingPrimaryDataWeightPerJob());
+        }
     }
 
     void AddDataSlice(const TLegacyDataSlicePtr& originalDataSlice) override
@@ -123,7 +173,7 @@ public:
         int inputStreamIndex = dataSlice->GetInputStreamIndex();
         bool isPrimary = InputStreamDirectory_.GetDescriptor(inputStreamIndex).IsPrimary();
 
-        const auto& comparator = isPrimary ? PrimaryComparator_ : ForeignComparator_;
+        const auto& comparator = isPrimary ? Options_.PrimaryComparator : Options_.ForeignComparator;
 
         if (comparator.IsRangeEmpty(dataSlice->LowerLimit().KeyBound, dataSlice->UpperLimit().KeyBound)) {
             // This can happen if ranges were specified.
@@ -195,6 +245,10 @@ public:
             if (endpoints.empty()) {
                 continue;
             }
+            // TODO(apollo1321): Refactor to use separate TSegmentJobBuilder instances for each segment
+            // since segments are processed independently. This would eliminate the need to share
+            // StagingArea_ between segments, remove the need to pass periodicYielder between segments,
+            // and improve overall code modularity and maintainability.
             YT_LOG_TRACE("Processing segment (SegmentIndex: %v, EndpointCount: %v)", index, endpoints.size());
             SortPrimaryEndpoints(endpoints);
             LogDetails(endpoints);
@@ -224,40 +278,42 @@ public:
 
     void ValidateJob(const TNewJobStub* job)
     {
-        // These are user-facing checks.
-        if (job->GetDataWeight() > JobSizeConstraints_->GetMaxDataWeightPerJob()) {
-            YT_LOG_DEBUG("Maximum allowed data weight per sorted job exceeds the limit (DataWeight: %v, MaxDataWeightPerJob: %v, "
+        auto validateConstraint = [&] (i64 size, i64 maxSize, EErrorCode errorCode, TStringBuf message) {
+            if (size <= maxSize) {
+                return;
+            }
+
+            YT_LOG_DEBUG(
+                "Maximum allowed size per sorted job exceeds the limit (ErrorCode: %v, Size: %v, MaxSize: %v, "
                 "PrimaryLowerBound: %v, PrimaryUpperBound: %v, JobDebugString: %v)",
-                job->GetDataWeight(),
-                JobSizeConstraints_->GetMaxDataWeightPerJob(),
+                errorCode,
+                size,
+                maxSize,
                 job->GetPrimaryLowerBound(),
                 job->GetPrimaryUpperBound(),
                 job->GetDebugString());
 
             THROW_ERROR_EXCEPTION(
-                EErrorCode::MaxDataWeightPerJobExceeded, "Maximum allowed data weight per sorted job exceeds the limit: %v > %v",
-                job->GetDataWeight(),
-                JobSizeConstraints_->GetMaxDataWeightPerJob())
+                errorCode,
+                "%v: %v > %v",
+                message,
+                size,
+                maxSize)
                 << TErrorAttribute("lower_bound", job->GetPrimaryLowerBound())
                 << TErrorAttribute("upper_bound", job->GetPrimaryUpperBound());
-        }
+        };
 
-        if (job->GetPrimaryDataWeight() > JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob()) {
-            YT_LOG_DEBUG("Maximum allowed primary data weight per sorted job exceeds the limit (PrimaryDataWeight: %v, MaxPrimaryDataWeightPerJob: %v, "
-                "PrimaryLowerBound: %v, PrimaryUpperBound: %v, JobDebugString: %v)",
-                job->GetPrimaryDataWeight(),
-                JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob(),
-                job->GetPrimaryLowerBound(),
-                job->GetPrimaryUpperBound(),
-                job->GetDebugString());
+        validateConstraint(
+            job->GetDataWeight(),
+            JobSizeConstraints_->GetMaxDataWeightPerJob(),
+            EErrorCode::MaxDataWeightPerJobExceeded,
+            "Maximum allowed data weight per sorted job exceeds the limit");
 
-            THROW_ERROR_EXCEPTION(
-                EErrorCode::MaxPrimaryDataWeightPerJobExceeded, "Maximum allowed primary data weight per sorted job exceeds the limit: %v > %v",
-                job->GetPrimaryDataWeight(),
-                JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob())
-                << TErrorAttribute("lower_bound", job->GetPrimaryLowerBound())
-                << TErrorAttribute("upper_bound", job->GetPrimaryUpperBound());
-        }
+        validateConstraint(
+            job->GetPrimaryDataWeight(),
+            JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob(),
+            EErrorCode::MaxPrimaryDataWeightPerJobExceeded,
+            "Maximum allowed primary data weight per sorted job exceeds the limit");
 
         // These are internal assertions.
         if (Options_.ValidateOrder) {
@@ -318,8 +374,8 @@ public:
                     validatePair(
                         inputStreamIndex,
                         InputStreamDirectory_.GetDescriptor(inputStreamIndex).IsPrimary()
-                            ? PrimaryComparator_
-                            : ForeignComparator_,
+                            ? Options_.PrimaryComparator
+                            : Options_.ForeignComparator,
                         stripe->DataSlices[index],
                         stripe->DataSlices[index + 1]);
                 }
@@ -343,7 +399,7 @@ public:
                 if (lastDataSlice) {
                     validatePair(
                         inputStreamIndex,
-                        PrimaryComparator_,
+                        Options_.PrimaryComparator,
                         lastDataSlice,
                         firstDataSlice);
                 }
@@ -358,28 +414,22 @@ public:
     }
 
 private:
-    TSortedJobOptions Options_;
+    const TSortedJobOptions& Options_;
 
-    std::vector<TKeyBound> TeleportChunkUpperBounds_;
+    const TLogger Logger;
+    const TLogger StructuredLogger;
 
-    TComparator PrimaryComparator_;
-    TComparator ForeignComparator_;
-
-    IJobSizeConstraintsPtr JobSizeConstraints_;
-    IJobSizeTrackerPtr JobSizeTracker_;
-    ISortedStagingAreaPtr StagingArea_;
+    const IJobSizeConstraintsPtr JobSizeConstraints_;
     TBernoulliSampler JobSampler_;
 
-    TResourceVector LimitVector_;
+    const std::optional<TResourceVector> LimitVector_;
+    const std::unique_ptr<IJobSizeTracker> JobSizeTracker_;
 
-    TRowBufferPtr RowBuffer_;
+    const TRowBufferPtr RowBuffer_;
 
-    struct TPrimaryEndpoint
-    {
-        EPrimaryEndpointType Type;
-        TLegacyDataSlicePtr DataSlice;
-        TKeyBound KeyBound;
-    };
+    const TInputStreamDirectory& InputStreamDirectory_;
+
+    const std::vector<TKeyBound> TeleportChunkUpperBounds_;
 
     //! Consider teleport chunks. They divide key space into segments. Each segment may be processed
     //! independently. Some segments may remain empty.
@@ -410,10 +460,6 @@ private:
 
     i64 TotalDataSliceCount_ = 0;
 
-    int RetryIndex_;
-
-    const TInputStreamDirectory& InputStreamDirectory_;
-
     //! Contains last data slice for each input stream in order to validate important requirement
     //! for sorted pool: lower bounds and upper bounds must be monotonic among each input stream.
     //! Used in two contexts: in order to validate added input data slices and in order to validate
@@ -423,9 +469,7 @@ private:
     //! Used for structured logging.
     std::vector<TLegacyDataSlicePtr> InputDataSlices_;
 
-    TPeriodicYielder PeriodicYielder_;
-    const TLogger& Logger;
-    const TLogger& StructuredLogger;
+    std::unique_ptr<ISortedStagingArea> StagingArea_;
 
     void AddPivotKeysEndpoints()
     {
@@ -455,7 +499,7 @@ private:
             ForeignSlices_.begin(),
             ForeignSlices_.end(),
             [&] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
-                return ForeignComparator_.CompareKeyBounds(lhs->LowerLimit().KeyBound, rhs->LowerLimit().KeyBound) < 0;
+                return Options_.ForeignComparator.CompareKeyBounds(lhs->LowerLimit().KeyBound, rhs->LowerLimit().KeyBound) < 0;
             });
     }
 
@@ -463,7 +507,7 @@ private:
     //! primary upper bound. It works correctly under assumption that StagingArea_->GetPrimaryUpperBound()
     //! monotonically increases.
     //! This method is idempotent and cheap to call (on average).
-    void AttachForeignSlices(TKeyBound primaryUpperBound)
+    void AttachForeignSlices(TKeyBound primaryUpperBound, const TPeriodicYielderGuard& periodicYielder)
     {
         if (!Options_.EnableKeyGuarantee && !primaryUpperBound.IsInclusive) {
             primaryUpperBound = primaryUpperBound.ToggleInclusiveness();
@@ -477,7 +521,7 @@ private:
         auto shouldBeStaged = [&] (size_t index) {
             return
                 index < ForeignSlices_.size() &&
-                !PrimaryComparator_.IsRangeEmpty(ForeignSlices_[index]->LowerLimit().KeyBound, primaryUpperBound);
+                !Options_.PrimaryComparator.IsRangeEmpty(ForeignSlices_[index]->LowerLimit().KeyBound, primaryUpperBound);
         };
 
         if (!shouldBeStaged(FirstUnstagedForeignIndex_)) {
@@ -485,8 +529,8 @@ private:
         }
 
         while (shouldBeStaged(FirstUnstagedForeignIndex_)) {
-            PeriodicYielder_.TryYield();
-            Stage(ForeignSlices_[FirstUnstagedForeignIndex_], ESliceType::Foreign);
+            periodicYielder.TryYield();
+            Stage(ForeignSlices_[FirstUnstagedForeignIndex_], ESliceType::Foreign, periodicYielder);
             FirstUnstagedForeignIndex_++;
         }
 
@@ -504,7 +548,7 @@ private:
             endpoints.begin(),
             endpoints.end(),
             [&] (const TPrimaryEndpoint& lhs, const TPrimaryEndpoint& rhs) {
-                auto result = PrimaryComparator_.CompareKeyBounds(lhs.KeyBound, rhs.KeyBound);
+                auto result = Options_.PrimaryComparator.CompareKeyBounds(lhs.KeyBound, rhs.KeyBound);
                 if (result != 0) {
                     return result < 0;
                 }
@@ -548,7 +592,7 @@ private:
         }
 
         {
-            TKeyBoundCompressor compressor(PrimaryComparator_);
+            TKeyBoundCompressor compressor(Options_.PrimaryComparator);
 
             for (const auto& job : Jobs_) {
                 if (job.GetIsBarrier()) {
@@ -617,22 +661,6 @@ private:
             }
         }
 
-    }
-
-    i64 GetDataWeightPerJob() const
-    {
-        return
-            JobSizeConstraints_->GetSamplingRate()
-            ? JobSizeConstraints_->GetSamplingDataWeightPerJob()
-            : JobSizeConstraints_->GetDataWeightPerJob();
-    }
-
-    i64 GetPrimaryDataWeightPerJob() const
-    {
-        return
-            JobSizeConstraints_->GetSamplingRate()
-            ? JobSizeConstraints_->GetSamplingPrimaryDataWeightPerJob()
-            : JobSizeConstraints_->GetPrimaryDataWeightPerJob();
     }
 
     void AddJob(TNewJobStub& job)
@@ -711,11 +739,11 @@ private:
             const auto& dataSlice = endpoint.DataSlice;
             auto lowerBound = dataSlice->LowerLimit().KeyBound;
             auto upperBound = dataSlice->UpperLimit().KeyBound;
-            YT_VERIFY(!PrimaryComparator_.IsRangeEmpty(lowerBound, upperBound));
-            if (!PrimaryComparator_.TryAsSingletonKey(lowerBound, upperBound)) {
+            YT_VERIFY(!Options_.PrimaryComparator.IsRangeEmpty(lowerBound, upperBound));
+            if (!Options_.PrimaryComparator.TryAsSingletonKey(lowerBound, upperBound)) {
                 ++nonSingletonCount;
             }
-            if (!maxUpperBound || PrimaryComparator_.CompareKeyBounds(maxUpperBound, upperBound) < 0) {
+            if (!maxUpperBound || Options_.PrimaryComparator.CompareKeyBounds(maxUpperBound, upperBound) < 0) {
                 maxUpperBound = upperBound;
             }
         }
@@ -731,15 +759,15 @@ private:
 
         // If next primary data slice is too close to us, we also cannot use row slicing.
         if (nextPrimaryLowerBound &&
-            !PrimaryComparator_.IsInteriorEmpty(nextPrimaryLowerBound, maxUpperBound))
+            !Options_.PrimaryComparator.IsInteriorEmpty(nextPrimaryLowerBound, maxUpperBound))
         {
             return ERowSliceabilityDecision::NextPrimaryLowerBoundTooClose;
         }
 
         // Finally, if some of the already staged data slices overlaps with us, we also discard row slicing.
         if (stagedUpperBound &&
-            !PrimaryComparator_.IsInteriorEmpty(currentLowerBound, stagedUpperBound) &&
-            !PrimaryComparator_.IsInteriorEmpty(currentLowerBound, maxUpperBound))
+            !Options_.PrimaryComparator.IsInteriorEmpty(currentLowerBound, stagedUpperBound) &&
+            !Options_.PrimaryComparator.IsInteriorEmpty(currentLowerBound, maxUpperBound))
         {
             return ERowSliceabilityDecision::OverlapsWithStagedDataSlice;
         }
@@ -751,12 +779,13 @@ private:
         // by Jupiter.
         auto foreignVector = StagingArea_->GetForeignResourceVector();
         for (const auto& dataSlice : ForeignSlices_) {
-            if (PrimaryComparator_.IsRangeEmpty(dataSlice->LowerLimit().KeyBound, maxUpperBound)) {
+            if (Options_.PrimaryComparator.IsRangeEmpty(dataSlice->LowerLimit().KeyBound, maxUpperBound)) {
                 break;
             }
             foreignVector += TResourceVector::FromDataSlice(dataSlice, /*isPrimary*/ false);
         }
-        if (LimitVector_.GetDataWeight() < foreignVector.GetDataWeight()) {
+        YT_VERIFY(LimitVector_.has_value());
+        if (LimitVector_->GetDataWeight() < foreignVector.GetDataWeight()) {
             return ERowSliceabilityDecision::TooMuchForeignData;
         }
 
@@ -764,23 +793,23 @@ private:
     }
 
     // Flush job size tracker (if it is present) and staging area.
-    void Flush(std::optional<std::any> overflowToken = std::nullopt)
+    void Flush(const std::optional<std::any>& overflowToken = std::nullopt)
     {
         YT_LOG_TRACE("Flushing job");
         if (JobSizeTracker_) {
-            JobSizeTracker_->Flush(std::move(overflowToken));
+            JobSizeTracker_->Flush(overflowToken);
         }
         StagingArea_->Flush();
     }
 
-    void PromoteUpperBound(TKeyBound newUpperBound)
+    void PromoteUpperBound(TKeyBound newUpperBound, const TPeriodicYielderGuard& periodicYielder)
     {
         StagingArea_->PromoteUpperBound(newUpperBound);
-        AttachForeignSlices(std::move(newUpperBound));
+        AttachForeignSlices(std::move(newUpperBound), periodicYielder);
     }
 
     //! Put data slice to staging area.
-    void Stage(TLegacyDataSlicePtr dataSlice, ESliceType sliceType)
+    void Stage(TLegacyDataSlicePtr dataSlice, ESliceType sliceType, const TPeriodicYielderGuard& periodicYielder)
     {
         if (JobSizeTracker_) {
             auto vector = TResourceVector::FromDataSlice(
@@ -791,9 +820,9 @@ private:
         StagingArea_->Put(dataSlice, sliceType);
 
         if (sliceType == ESliceType::Solid) {
-            AttachForeignSlices(dataSlice->UpperLimit().KeyBound);
+            AttachForeignSlices(dataSlice->UpperLimit().KeyBound, periodicYielder);
         } else if (sliceType == ESliceType::Buffer) {
-            AttachForeignSlices(dataSlice->LowerLimit().KeyBound.Invert());
+            AttachForeignSlices(dataSlice->LowerLimit().KeyBound.Invert(), periodicYielder);
         }
     }
 
@@ -801,14 +830,14 @@ private:
     void PartitionSingletonAndLongDataSlices(TKeyBound lowerBound, std::deque<TLegacyDataSlicePtr>& dataSlices)
     {
         std::stable_sort(dataSlices.begin(), dataSlices.end(), [&] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
-            bool lhsToEnd = !PrimaryComparator_.IsInteriorEmpty(lowerBound, lhs->UpperLimit().KeyBound);
-            bool rhsToEnd = !PrimaryComparator_.IsInteriorEmpty(lowerBound, rhs->UpperLimit().KeyBound);
+            bool lhsToEnd = !Options_.PrimaryComparator.IsInteriorEmpty(lowerBound, lhs->UpperLimit().KeyBound);
+            bool rhsToEnd = !Options_.PrimaryComparator.IsInteriorEmpty(lowerBound, rhs->UpperLimit().KeyBound);
             return lhsToEnd < rhsToEnd;
         });
     }
 
     //! Stage several data slices using row slicing for better job size constraints meeting.
-    void StageRangeWithRowSlicing(TRange<TPrimaryEndpoint> endpoints)
+    void StageRangeWithRowSlicing(TRange<TPrimaryEndpoint> endpoints, const TPeriodicYielderGuard& periodicYielder)
     {
         YT_LOG_TRACE("Processing endpoint range with row slicing (EndpointCount: %v)", endpoints.size());
 
@@ -816,9 +845,9 @@ private:
 
         // TODO(coteeq): Do Max's todo.
         // TODO(max42): describe this situation, refer to RowSlicingCorrectnessCustom unittest.
-        if (!lowerBound.Invert().IsInclusive && lowerBound.Prefix.GetCount() == static_cast<ui32>(PrimaryComparator_.GetLength())) {
+        if (!lowerBound.Invert().IsInclusive && lowerBound.Prefix.GetCount() == static_cast<ui32>(Options_.PrimaryComparator.GetLength())) {
             YT_LOG_TRACE("Weird max42 case (LowerBound: %v)", lowerBound);
-            PromoteUpperBound(endpoints[0].KeyBound.Invert().ToggleInclusiveness());
+            PromoteUpperBound(endpoints[0].KeyBound.Invert().ToggleInclusiveness(), periodicYielder);
         }
 
         YT_VERIFY(JobSizeTracker_);
@@ -836,7 +865,7 @@ private:
         // under no circumstances staging area would try to cut solid slice by key.
 
         while (!dataSlices.empty()) {
-            PeriodicYielder_.TryYield();
+            periodicYielder.TryYield();
 
             auto dataSlice = std::move(dataSlices.front());
             dataSlices.pop_front();
@@ -847,7 +876,7 @@ private:
 
             // First, check if we may put this data slice without producing overflow.
             if (!overflowToken) {
-                Stage(dataSlice, ESliceType::Solid);
+                Stage(dataSlice, ESliceType::Solid, periodicYielder);
                 continue;
             }
 
@@ -862,7 +891,7 @@ private:
                 // Due to rounding issues, we still decided to take data slice as a whole. This is ok.
                 if (fraction == 1.0) {
                     YT_LOG_TRACE("Fraction for the remaining data slice is high enough to take it as a whole (Fraction: %v)", fraction);
-                    Stage(std::move(dataSlice), ESliceType::Solid);
+                    Stage(std::move(dataSlice), ESliceType::Solid, periodicYielder);
                     return;
                 }
 
@@ -885,15 +914,16 @@ private:
 
                 if (rowCount == upperRowIndex - lowerRowIndex) {
                     // In some borderline cases this may still happen... just put the original data slice.
-                    Stage(std::move(dataSlice), ESliceType::Solid);
+                    Stage(std::move(dataSlice), ESliceType::Solid, periodicYielder);
                 } else if (rowCount == 0) {
                     dataSlices.emplace_front(std::move(dataSlice));
                 } else {
-                    Stage(std::move(leftDataSlice), ESliceType::Solid);
+                    Stage(std::move(leftDataSlice), ESliceType::Solid, periodicYielder);
                     dataSlices.emplace_front(std::move(rightDataSlice));
                 }
             }();
 
+            // XXX(apollo1321): Is it ok that we use possibly outdated token here? Some foreign slices could be added.
             Flush(overflowToken);
         }
     }
@@ -902,7 +932,8 @@ private:
     void StageRangeWithoutRowSlicing(
         TRange<TPrimaryEndpoint> endpoints,
         TKeyBound nextPrimaryLowerBound,
-        ERowSliceabilityDecision decision)
+        ERowSliceabilityDecision decision,
+        const TPeriodicYielderGuard& periodicYielder)
     {
         YT_LOG_TRACE(
             "Processing endpoint range without row slicing (EndpointCount: %v, Decision: %v)",
@@ -925,7 +956,7 @@ private:
         bool haveSolids = false;
 
         for (const auto& dataSlice : dataSlices) {
-            if (!PrimaryComparator_.IsInteriorEmpty(dataSlice->LowerLimit().KeyBound, dataSlice->UpperLimit().KeyBound)) {
+            if (!Options_.PrimaryComparator.IsInteriorEmpty(dataSlice->LowerLimit().KeyBound, dataSlice->UpperLimit().KeyBound)) {
                 inLong = true;
                 if (haveSolids) {
                     Flush();
@@ -939,10 +970,10 @@ private:
                     Flush(overflowToken);
                     haveSolids = false;
                 }
-                Stage(dataSlice, ESliceType::Solid);
+                Stage(dataSlice, ESliceType::Solid, periodicYielder);
                 haveSolids = true;
             } else {
-                Stage(dataSlice, ESliceType::Buffer);
+                Stage(dataSlice, ESliceType::Buffer, periodicYielder);
             }
         }
 
@@ -959,38 +990,34 @@ private:
             }
         };
 
-        AttachForeignSlices(endpoints[0].KeyBound.Invert());
+        AttachForeignSlices(endpoints[0].KeyBound.Invert(), periodicYielder);
         tryFlush();
 
         for (size_t foreignDataSliceIndex = FirstUnstagedForeignIndex_; foreignDataSliceIndex < ForeignSlices_.size(); ++foreignDataSliceIndex) {
             const auto& dataSlice = ForeignSlices_[foreignDataSliceIndex];
-            if (PrimaryComparator_.CompareKeyBounds(dataSlice->LowerLimit().KeyBound, nextPrimaryLowerBound) >= 0) {
+            if (Options_.PrimaryComparator.CompareKeyBounds(dataSlice->LowerLimit().KeyBound, nextPrimaryLowerBound) >= 0) {
                 break;
             }
 
             auto upperBound = dataSlice->LowerLimit().KeyBound.Invert();
-            PromoteUpperBound(upperBound);
+            PromoteUpperBound(upperBound, periodicYielder);
             tryFlush();
         }
     }
 
     void BuildJobs(const std::vector<TPrimaryEndpoint>& endpoints)
     {
-        if (auto samplingRate = JobSizeConstraints_->GetSamplingRate()) {
-            YT_LOG_DEBUG(
-                "Building jobs with sampling "
-                "(SamplingRate: %v, SamplingDataWeightPerJob: %v, SamplingPrimaryDataWeightPerJob: %v)",
-                *samplingRate,
-                JobSizeConstraints_->GetSamplingDataWeightPerJob(),
-                JobSizeConstraints_->GetSamplingPrimaryDataWeightPerJob());
-        }
+        auto periodicYielder = CreatePeriodicYielder(
+            Options_.EnablePeriodicYielder
+                ? std::optional(PrepareYieldPeriod)
+                : std::nullopt);
 
         FirstUnstagedForeignIndex_ = 0;
 
         StagingArea_ = CreateSortedStagingArea(
             Options_.EnableKeyGuarantee,
-            PrimaryComparator_,
-            ForeignComparator_,
+            Options_.PrimaryComparator,
+            Options_.ForeignComparator,
             RowBuffer_,
             /*initialTotalDataSliceCount*/ TotalDataSliceCount_,
             Options_.MaxTotalSliceCount,
@@ -1000,25 +1027,24 @@ private:
         // Recall that coinciding endpoints are ordered by their type as follows:
         // Barrier < Foreign < Primary.
         for (int startIndex = 0, endIndex = 0; startIndex < std::ssize(endpoints); startIndex = endIndex) {
-            PeriodicYielder_.TryYield();
+            periodicYielder.TryYield();
 
             YT_LOG_TRACE("Moving to next endpoint (Endpoint: %v)", endpoints[startIndex].KeyBound);
-            PromoteUpperBound(endpoints[startIndex].KeyBound.Invert());
+            PromoteUpperBound(endpoints[startIndex].KeyBound.Invert(), periodicYielder);
 
             int primaryIndex = startIndex;
 
             // Extract contiguous group of barrier & foreign endpoints.
             while (
                 primaryIndex != std::ssize(endpoints) &&
-                PrimaryComparator_.CompareKeyBounds(endpoints[startIndex].KeyBound, endpoints[primaryIndex].KeyBound) == 0 &&
+                Options_.PrimaryComparator.CompareKeyBounds(endpoints[startIndex].KeyBound, endpoints[primaryIndex].KeyBound) == 0 &&
                 endpoints[primaryIndex].Type != EPrimaryEndpointType::Primary)
             {
                 ++primaryIndex;
             }
 
             // No need to add more than one barrier at the same point.
-            bool barriersPresent = (primaryIndex != startIndex);
-            if (barriersPresent) {
+            if (bool barriersPresent = (primaryIndex != startIndex); barriersPresent) {
                 YT_LOG_TRACE("Putting barrier");
                 Flush();
                 StagingArea_->PutBarrier();
@@ -1028,7 +1054,7 @@ private:
 
             while (
                 endIndex != std::ssize(endpoints) &&
-                PrimaryComparator_.CompareKeyBounds(endpoints[startIndex].KeyBound, endpoints[endIndex].KeyBound) == 0)
+                Options_.PrimaryComparator.CompareKeyBounds(endpoints[startIndex].KeyBound, endpoints[endIndex].KeyBound) == 0)
             {
                 ++endIndex;
             }
@@ -1049,19 +1075,22 @@ private:
 
             auto decision = DecideRowSliceability(primaryEndpoints, nextPrimaryLowerBound);
             if (decision == ERowSliceabilityDecision::SliceByRows) {
-                StageRangeWithRowSlicing(primaryEndpoints);
+                StageRangeWithRowSlicing(primaryEndpoints, periodicYielder);
             } else {
-                StageRangeWithoutRowSlicing(primaryEndpoints, nextPrimaryLowerBound, decision);
+                StageRangeWithoutRowSlicing(primaryEndpoints, nextPrimaryLowerBound, decision, periodicYielder);
             }
         }
 
-        AttachForeignSlices(TKeyBound::MakeUniversal(/*isUpper*/ true));
+        AttachForeignSlices(TKeyBound::MakeUniversal(/*isUpper*/ true), periodicYielder);
 
-        StagingArea_->Finish();
-        StagingArea_->PutBarrier();
+        // XXX(apollo1321): Is adding +1 to the total data slice count really necessary?
+        TotalDataSliceCount_ = StagingArea_->GetTotalDataSliceCount() + 1;
+        auto preparedJobs = std::move(*StagingArea_).Finish();
 
-        for (auto& preparedJob : StagingArea_->PreparedJobs()) {
-            PeriodicYielder_.TryYield();
+        preparedJobs.emplace_back().SetIsBarrier(true);
+
+        for (auto& preparedJob : preparedJobs) {
+            periodicYielder.TryYield();
 
             if (preparedJob.GetIsBarrier()) {
                 Jobs_.emplace_back(std::move(preparedJob));
@@ -1073,12 +1102,12 @@ private:
         JobSizeConstraints_->UpdateInputDataWeight(TotalDataWeight_);
 
         YT_LOG_DEBUG("Jobs created (Count: %v)", Jobs_.size());
-
-        TotalDataSliceCount_ = StagingArea_->GetTotalDataSliceCount();
     }
 };
 
 DEFINE_REFCOUNTED_TYPE(TNewSortedJobBuilder)
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1089,8 +1118,8 @@ INewSortedJobBuilderPtr CreateNewSortedJobBuilder(
     const std::vector<TInputChunkPtr>& teleportChunks,
     int retryIndex,
     const TInputStreamDirectory& inputStreamDirectory,
-    const TLogger& logger,
-    const TLogger& structuredLogger)
+    TLogger logger,
+    TLogger structuredLogger)
 {
     return New<TNewSortedJobBuilder>(
         options,
@@ -1099,8 +1128,8 @@ INewSortedJobBuilderPtr CreateNewSortedJobBuilder(
         teleportChunks,
         retryIndex,
         inputStreamDirectory,
-        logger,
-        structuredLogger);
+        std::move(logger),
+        std::move(structuredLogger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

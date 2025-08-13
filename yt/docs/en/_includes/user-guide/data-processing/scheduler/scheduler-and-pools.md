@@ -62,6 +62,6 @@ There may be operations to which the scheduler allocated less resources than it 
 
 {% note info "Note" %}
 
-The operation and pool characteristics considered during scheduling are global and do not depend on a particular cluster node. For example, an important characteristic is the share of cluster resources that are already taken up by running operation jobs (usage_ratio). (`usage_ratio`).
+The operation and pool characteristics considered during scheduling are global and do not depend on a particular cluster node. For example, an important characteristic is the share of cluster resources that are already taken up by running operation jobs (`usage_share`).
 
 {% endnote %}

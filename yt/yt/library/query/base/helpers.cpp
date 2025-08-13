@@ -250,4 +250,19 @@ bool CanOmitOrderBy(int keyPrefix, TRange<TOrderItem> orderItems, TRange<std::st
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::string ToLower(TStringBuf original)
+{
+    auto lower = std::string(original);
+
+    std::transform(
+        lower.begin(),
+        lower.end(),
+        lower.begin(),
+        [] (unsigned char c) { return std::tolower(c); });
+
+    return lower;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NQueryClient

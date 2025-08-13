@@ -2,8 +2,6 @@
 
 #include <yt/yt/library/query/proto/query.pb.h>
 
-#include <yt/yt/client/table_client/row_buffer.h>
-#include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 #include <yt/yt/client/table_client/helpers.h>
 
@@ -228,7 +226,7 @@ TFeatureFlags MostArchaicFeatureFlags()
     };
 }
 
-TString ToString(const TFeatureFlags& featureFlags)
+std::string ToString(const TFeatureFlags& featureFlags)
 {
     return Format(
         "{WithTotalsFinalizesAggregatedOnCoordinator: %v, GroupByWithLimitIsUnordered: %v}",
@@ -348,6 +346,11 @@ void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
     }
     serialized->set_min_row_count_per_subquery(original.MinRowCountPerSubquery);
     serialized->set_allow_unordered_group_by_with_limit(original.AllowUnorderedGroupByWithLimit);
+    serialized->set_rowset_processing_batch_size(original.RowsetProcessingBatchSize);
+    serialized->set_write_rowset_size(original.WriteRowsetSize);
+    serialized->set_max_join_batch_size(original.MaxJoinBatchSize);
+    serialized->set_use_order_by_in_join_subqueries(original.UseOrderByInJoinSubqueries);
+    serialized->set_statistics_aggregation(ToProto(original.StatisticsAggregation));
 }
 
 void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
@@ -407,6 +410,21 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
     }
     if (serialized.has_allow_unordered_group_by_with_limit()) {
         original->AllowUnorderedGroupByWithLimit = serialized.allow_unordered_group_by_with_limit();
+    }
+    if (serialized.has_rowset_processing_batch_size()) {
+        original->RowsetProcessingBatchSize = serialized.rowset_processing_batch_size();
+    }
+    if (serialized.has_write_rowset_size()) {
+        original->WriteRowsetSize = serialized.write_rowset_size();
+    }
+    if (serialized.has_max_join_batch_size()) {
+        original->MaxJoinBatchSize = serialized.max_join_batch_size();
+    }
+    if (serialized.has_use_order_by_in_join_subqueries()) {
+        original->UseOrderByInJoinSubqueries = serialized.use_order_by_in_join_subqueries();
+    }
+    if (serialized.has_statistics_aggregation()) {
+        original->StatisticsAggregation = FromProto<EStatisticsAggregation>(serialized.statistics_aggregation());
     }
 }
 

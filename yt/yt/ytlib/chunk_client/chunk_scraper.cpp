@@ -38,7 +38,8 @@ class TScraperTask
 public:
     TScraperTask(
         TChunkScraperConfigPtr config,
-        IInvokerPtr invoker,
+        IInvokerPtr serializedInvoker,
+        IInvokerPtr heavyInvoker,
         IThroughputThrottlerPtr throttler,
         IChannelPtr masterChannel,
         TNodeDirectoryPtr nodeDirectory,
@@ -51,7 +52,8 @@ public:
     , NodeDirectory_(std::move(nodeDirectory))
     , CellTag_(cellTag)
     , OnChunkBatchLocated_(std::move(onChunkBatchLocated))
-    , Invoker_(std::move(invoker))
+    , SerializedInvoker_(std::move(serializedInvoker))
+    , HeavyInvoker_(std::move(heavyInvoker))
     , ChunkIds_(std::move(chunkIds))
     , Logger(std::move(logger).WithTag("ScraperTaskId: %v, CellTag: %v",
         TGuid::Create(),
@@ -60,20 +62,16 @@ public:
     {
         Shuffle(ChunkIds_.begin(), ChunkIds_.end());
         Looper_ = New<TAsyncLooper>(
-            Invoker_,
+            SerializedInvoker_,
             // There should be called BIND_NO_PROPAGATE, but currently we store allocation tags in trace context :(
-            /*asyncStart*/ BIND([weakThis = MakeWeak(this)] (bool cleanStart) {
+            /*asyncStart*/ BIND([weakThis = MakeWeak(this)] {
                 if (auto strongThis = weakThis.Lock()) {
-                    return strongThis->LocateChunksAsync(cleanStart);
+                    return strongThis->LocateChunksAsync();
                 }
                 // Break loop.
                 return TFuture<void>();
             }),
-            /*syncFinish*/ BIND([weakThis = MakeWeak(this)] (bool cleanStart) {
-                if (auto strongThis = weakThis.Lock()) {
-                    strongThis->LocateChunksSync(cleanStart);
-                }
-            }),
+            /*syncFinish*/ BIND(&TScraperTask::LocateChunksSync, MakeWeak(this)),
             Logger.WithTag("AsyncLooper: %v", "ScraperTask"));
     }
 
@@ -103,7 +101,8 @@ private:
     const TNodeDirectoryPtr NodeDirectory_;
     const TCellTag CellTag_;
     const TChunkBatchLocatedHandler OnChunkBatchLocated_;
-    const IInvokerPtr Invoker_;
+    const IInvokerPtr SerializedInvoker_;
+    const IInvokerPtr HeavyInvoker_;
 
     TAsyncLooperPtr Looper_;
 
@@ -117,9 +116,10 @@ private:
 
     int NextChunkIndex_ = 0;
 
-
-    TFuture<void> LocateChunksAsync(bool /*cleanStart*/)
+    TFuture<void> LocateChunksAsync()
     {
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(SerializedInvoker_);
+
         auto chunkCount = std::min<int>(ChunkIds_.size(), Config_->MaxChunksPerRequest);
 
         if (chunkCount == 0) {
@@ -129,17 +129,10 @@ private:
         return Throttler_->Throttle(chunkCount);
     }
 
-    void LocateChunksSync(bool cleanStart)
+    void LocateChunksSync()
     {
-        if (cleanStart) {
-            NextChunkIndex_ = 0;
-        }
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(SerializedInvoker_);
 
-        DoLocateChunks();
-    }
-
-    void DoLocateChunks()
-    {
         if (NextChunkIndex_ >= std::ssize(ChunkIds_)) {
             NextChunkIndex_ = 0;
         }
@@ -181,10 +174,8 @@ private:
             return;
         }
 
-        const auto& rsp = rspOrError.Value();
+        auto& rsp = rspOrError.Value();
         YT_VERIFY(req->subrequests_size() == rsp->subresponses_size());
-
-        NodeDirectory_->MergeFrom(rsp->node_directory());
 
         std::vector<TScrapedChunkInfo> chunkInfos;
         chunkInfos.reserve(req->subrequests_size());
@@ -210,6 +201,11 @@ private:
             });
         }
 
+        WaitFor(BIND([this, rsp = std::move(rsp)] { NodeDirectory_->MergeFrom(rsp->node_directory()); })
+            .AsyncVia(HeavyInvoker_)
+            .Run())
+            .ThrowOnError();
+
         YT_LOG_DEBUG(
             "Chunks located (Count: %v, MissingCount: %v, SampleChunkIds: %v)",
             req->subrequests_size(),
@@ -220,13 +216,20 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TScraperTask)
+DECLARE_REFCOUNTED_TYPE(TScraperTask);
+DEFINE_REFCOUNTED_TYPE(TScraperTask);
+
+struct TChunkScraper::TScraperTaskWrapper
+{
+    TScraperTaskPtr Impl;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkScraper::TChunkScraper(
     TChunkScraperConfigPtr config,
-    IInvokerPtr invoker,
+    IInvokerPtr serializedInvoker,
+    IInvokerPtr heavyInvoker_,
     TThrottlerManagerPtr throttlerManager,
     NApi::NNative::IClientPtr client,
     TNodeDirectoryPtr nodeDirectory,
@@ -234,13 +237,15 @@ TChunkScraper::TChunkScraper(
     TChunkBatchLocatedHandler onChunkBatchLocated,
     TLogger logger)
     : Config_(std::move(config))
-    , Invoker_(std::move(invoker))
+    , SerializedInvoker_(std::move(serializedInvoker))
+    , HeavyInvoker_(std::move(heavyInvoker_))
     , ThrottlerManager_(std::move(throttlerManager))
     , Client_(std::move(client))
     , NodeDirectory_(std::move(nodeDirectory))
     , OnChunkBatchLocated_(std::move(onChunkBatchLocated))
     , Logger(std::move(logger))
 {
+    YT_ASSERT(SerializedInvoker_->IsSerialized());
     CreateTasks(chunkIds);
 }
 
@@ -252,14 +257,14 @@ TChunkScraper::~TChunkScraper()
 void TChunkScraper::Start()
 {
     for (const auto& task : ScraperTasks_) {
-        task->Start();
+        task.Impl->Start();
     }
 }
 
 void TChunkScraper::Stop()
 {
     for (const auto& task : ScraperTasks_) {
-        task->Stop();
+        task.Impl->Stop();
     }
 }
 
@@ -290,7 +295,8 @@ void TChunkScraper::CreateTasks(const THashSet<TChunkId>& chunkIds)
         auto masterChannel = Client_->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Follower, cellTag);
         auto task = New<TScraperTask>(
             Config_,
-            Invoker_,
+            SerializedInvoker_,
+            HeavyInvoker_,
             throttler,
             masterChannel,
             NodeDirectory_,
@@ -298,7 +304,7 @@ void TChunkScraper::CreateTasks(const THashSet<TChunkId>& chunkIds)
             std::move(cellChunks.second),
             OnChunkBatchLocated_,
             Logger);
-        ScraperTasks_.push_back(std::move(task));
+        ScraperTasks_.emplace_back(std::move(task));
     }
 }
 

@@ -68,6 +68,10 @@ private:
      *  The method ensures that no mutation is applied twice.
      */
     void ReplayChangelog(const IChangelogPtr& changelog, i64 sequenceNumber);
+
+    void RecoverFromCurrentStateUsingChangelog(int changelogId);
+
+    void FinishRecovery();
 };
 
 DEFINE_REFCOUNTED_TYPE(TRecovery)

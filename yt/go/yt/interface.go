@@ -1262,6 +1262,34 @@ type LookupRowsOptions struct {
 	*TransactionOptions
 }
 
+type MultiLookupSubrequest struct {
+	Path                ypath.Path
+	KeepMissingRows     *bool
+	EnablePartialResult *bool
+	UseLookupCache      *bool
+	Columns             []string
+	Keys                []any
+}
+
+type TabletReadOptions struct {
+	ReadFrom                  *TabletReadKind
+	CachedSyncReplicasTimeout *uint64
+}
+
+type MultiplexingBandOptions struct {
+	MultiplexingBand *MultiplexingBand
+}
+
+type MultiLookupRowsOptions struct {
+	Timestamp          *Timestamp
+	RetentionTimestamp *Timestamp
+	ReplicaConsistency *ReplicaConsistency
+
+	*MultiplexingBandOptions
+	*TabletReadOptions
+	*TransactionOptions
+}
+
 type InsertRowsOptions struct {
 	Atomicity          *Atomicity `http:"atomicity,omitnil"`
 	RequireSyncReplica *bool      `http:"require_sync_replica,omitnil"`
@@ -1346,6 +1374,19 @@ type TabletClient interface {
 		keys []any,
 		options *LookupRowsOptions,
 	) (r TableReader, err error)
+
+	// MultiLookupRows performs lookup by key across multiple tables.
+	//
+	// This method allows performing lookup operations on multiple tables in a single request,
+	// which can be more efficient than making separate LookupRows calls.
+	//
+	// Returns a slice of TableReaders, one for each subrequest in the same order.
+	// Each TableReader contains the lookup results for the corresponding table.
+	MultiLookupRows(
+		ctx context.Context,
+		subrequests []MultiLookupSubrequest,
+		options *MultiLookupRowsOptions,
+	) (readers []TableReader, err error)
 
 	// LockRows acquires lock for given keys, without changing row values.
 	//
@@ -1569,6 +1610,13 @@ type QueryTrackerOptions struct {
 	Stage *string `http:"stage,omitnil"`
 }
 
+type Secret struct {
+	Id          string      `yson:"id"`
+	Category    string      `yson:"category"`
+	Subcategory string      `yson:"subcategory"`
+	YPath       ypath.YPath `yson:"ypath"`
+}
+
 type StartQueryOptions struct {
 	Settings             any       `http:"settings,omitnil"`
 	Draft                *bool     `http:"draft,omitnil"`
@@ -1577,6 +1625,8 @@ type StartQueryOptions struct {
 
 	// COMPAT(mpereskokova)
 	AccessControlObject *string `http:"access_control_object,omitnil"`
+
+	Secrets []Secret `http:"secrets,omitnil"`
 
 	*QueryTrackerOptions
 }

@@ -36,6 +36,7 @@ public:
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortQuery));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQueryProgress));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetYqlAgentInfo));
     }
 
 private:
@@ -113,6 +114,16 @@ private:
         context->SetResponseInfo("QueryId: %v", queryId);
 
         response->MergeFrom(YqlAgent_->GetQueryProgress(queryId));
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NYqlClient::NProto, GetYqlAgentInfo)
+    {
+        response->MergeFrom(YqlAgent_->GetYqlAgentInfo());
+
+        context->SetRequestInfo();
+        context->SetResponseInfo();
+
         context->Reply();
     }
 

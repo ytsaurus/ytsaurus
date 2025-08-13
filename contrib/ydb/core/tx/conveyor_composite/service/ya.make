@@ -14,8 +14,9 @@ SRCS(
 )
 
 PEERDIR(
-    contrib/ydb/core/tx/conveyor_composite/usage
     contrib/ydb/core/protos
+    contrib/ydb/core/tx/conveyor_composite/tracing
+    contrib/ydb/core/tx/conveyor_composite/usage
 )
 
 END()

@@ -18,7 +18,8 @@ DB::Pipe CreateRemoteSource(
     const DB::Tables& externalTables,
     DB::QueryProcessingStage::Enum processingStage,
     const DB::Block& blockHeader,
-    NLogging::TLogger logger);
+    NLogging::TLogger logger,
+    TSecondaryQueryReadTaskIteratorPtr taskIterator = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

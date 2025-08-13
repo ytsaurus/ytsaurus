@@ -22,7 +22,10 @@ var (
 	prerequisiteCheckFailedRE = regexp.MustCompile("[Pp]rerequisite check failed")
 )
 
-const AccessControlNamespacesPath = ypath.Path("//sys/access_control_object_namespaces")
+const (
+	AccessControlNamespacesPath = ypath.Path("//sys/access_control_object_namespaces")
+	OpAliasFamilyDelimiter      = "::"
+)
 
 func toOperationACL(acl []yt.ACE) []yt.ACE {
 	if acl == nil {

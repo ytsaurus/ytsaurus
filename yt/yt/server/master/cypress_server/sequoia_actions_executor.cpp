@@ -15,6 +15,8 @@
 
 #include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
 
+#include <yt/yt/ytlib/sequoia_client/prerequisite_revision.h>
+
 #include <yt/yt/core/ypath/helpers.h>
 
 #include <yt/yt/core/ytree/ypath_detail.h>
@@ -90,7 +92,7 @@ public:
             .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareAndCommitUnlockNode, Unretained(this)),
         });
         transactionManager->RegisterTransactionActionHandlers<TReqRemoveNodeAttribute>({
-            .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPerpareAndCommitRemoveNodeAttribute, Unretained(this)),
+            .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareAndCommitRemoveNodeAttribute, Unretained(this)),
         });
         transactionManager->RegisterTransactionActionHandlers<TReqMaterializeNode>({
             .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareAndCommitMaterializeNode, Unretained(this)),
@@ -98,12 +100,43 @@ public:
         transactionManager->RegisterTransactionActionHandlers<TReqFinishNodeMaterialization>({
             .Commit = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareAndCommitFinishNodeMaterialization, Unretained(this)),
         });
+        transactionManager->RegisterTransactionActionHandlers<TReqValidatePrerequisiteRevisions>({
+            .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareAndCommitValidatePrerequisites, Unretained(this)),
+        });
     }
 
 private:
+    enum class ELogStage
+    {
+        Preparing,
+        Prepared,
+        Committing,
+        Committed,
+        PreparingCommitting,
+        PreparedCommitted
+    };
+
     TBootstrap* const Bootstrap_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
+    static TStringBuf FormatLogStage(ELogStage logStage)
+    {
+        switch (logStage) {
+            case ELogStage::Preparing:
+                return "Preparing";
+            case ELogStage::Prepared:
+                return "Prepared";
+            case ELogStage::Committing:
+                return "Committing";
+            case ELogStage::Committed:
+                return "Committed";
+            case ELogStage::PreparingCommitting:
+                return "Preparing and committing";
+            case ELogStage::PreparedCommitted:
+                return "Prepared and committed";
+        }
+    }
 
     static void VerifySequoiaNode(TCypressNode* node)
     {
@@ -229,7 +262,7 @@ private:
     // TODO(kvk1920): implement proper UnstageNode() and use it here.
     // See YT-14219.
     void HydraPrepareCreateNode(
-        TTransaction* /*transaction*/,
+        TTransaction* sequoiaTransaction,
         NProto::TReqCreateNode* request,
         TCreateNodeActionState* state,
         const TTransactionPrepareOptions& options)
@@ -237,9 +270,18 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(options.Persistent);
 
+        DoLog(*request, ELogStage::Preparing, sequoiaTransaction->GetId(), sequoiaTransaction->GetAuthenticationIdentity());
+
+        auto type = FromProto<EObjectType>(request->type());
         auto nodeId = FromProto<TNodeId>(request->node_id());
         auto parentId = FromProto<TNodeId>(request->parent_id());
         auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
+
+        const auto& path = request->path();
+        IAttributeDictionaryPtr explicitAttributes;
+        if (request->has_node_attributes()) {
+            explicitAttributes = FromProto(request->node_attributes());
+        }
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* cypressTransaction = cypressTransactionId
@@ -252,14 +294,8 @@ private:
             THROW_ERROR_EXCEPTION("This cell cannot host Sequoia nodes");
         }
 
-        auto type = FromProto<EObjectType>(request->type());
         if (!CanCreateSequoiaType(type)) {
             THROW_ERROR_EXCEPTION("Type %Qlv is not supported in Sequoia", type);
-        }
-
-        IAttributeDictionaryPtr explicitAttributes;
-        if (request->has_node_attributes()) {
-            explicitAttributes = FromProto(request->node_attributes());
         }
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -283,25 +319,62 @@ private:
         PrepareSequoiaNodeCreation(
             node,
             parentId,
-            /*key*/ NYPath::DirNameAndBaseName(request->path()).second,
+            /*key*/ NYPath::DirNameAndBaseName(path).second,
             /*path*/ request->path());
 
         nodeFactory->Commit();
+
+        DoLog(*request, ELogStage::Prepared, sequoiaTransaction->GetId(), sequoiaTransaction->GetAuthenticationIdentity());
     }
 
     void HydraCommitCreateNode(
-        TTransaction* /*transaction*/,
-        NProto::TReqCreateNode* /*request*/,
+        TTransaction* sequoiaTransaction,
+        NProto::TReqCreateNode* request,
         TCreateNodeActionState* state,
         const TTransactionCommitOptions& /*options*/)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
+        DoLog(*request, ELogStage::Committing, sequoiaTransaction->GetId(), sequoiaTransaction->GetAuthenticationIdentity());
+
         CommitSequoiaNodeCreation(state->Node);
+
+        DoLog(*request, ELogStage::Committed, sequoiaTransaction->GetId(), sequoiaTransaction->GetAuthenticationIdentity());
+    }
+
+    void DoLog(const NProto::TReqCreateNode& request, ELogStage logStage, TTransactionId sequoiaTransactionId, const NRpc::TAuthenticationIdentity& auth)
+    {
+        auto type = FromProto<EObjectType>(request.type());
+        auto nodeId = FromProto<TNodeId>(request.node_id());
+        auto parentId = FromProto<TNodeId>(request.parent_id());
+        auto cypressTransactionId = FromProto<TTransactionId>(request.transaction_id());
+        const auto& path = request.path();
+        IAttributeDictionaryPtr explicitAttributes;
+        if (request.has_node_attributes()) {
+            explicitAttributes = FromProto(request.node_attributes());
+        }
+
+        YT_LOG_DEBUG("%v CreateNode "
+            "(SequoiaTransactionId: %v, Type: %v, NodeId: %v, Path: %v, ParentNodeId: %v, Attributes: %v, CypressTransactionId: %v, Auth: %v)",
+            FormatLogStage(logStage),
+            sequoiaTransactionId,
+            type,
+            nodeId,
+            path,
+            parentId,
+            MakeFormatterWrapper([&] (TStringBuilderBase* builder) {
+                if (explicitAttributes) {
+                    builder->AppendString(ConvertToYsonString(*explicitAttributes, EYsonFormat::Text).AsStringBuf());
+                } else {
+                    builder->AppendString("<null>");
+                }
+            }),
+            cypressTransactionId,
+            auth);
     }
 
     void HydraPrepareAttachChild(
-        TTransaction* /*transaction*/,
+        TTransaction* sequoiaTransaction,
         NProto::TReqAttachChild* request,
         const TTransactionPrepareOptions& options)
     {
@@ -309,12 +382,16 @@ private:
         YT_VERIFY(options.Persistent);
 
         auto parentId = FromProto<TNodeId>(request->parent_id());
+        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
+        const auto& key = request->key();
+
+        DoLog(*request, ELogStage::Preparing, sequoiaTransaction->GetId());
+
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* parent = cypressManager->GetNodeOrThrow(TVersionedNodeId(parentId));
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
         TTransaction* cypressTransaction = cypressTransactionId
             ? transactionManager->GetTransactionOrThrow(cypressTransactionId)
             : nullptr;
@@ -329,7 +406,7 @@ private:
             cypressManager->LockNode(
                 parent,
                 cypressTransaction,
-                TLockRequest::MakeSharedChild(request->key()));
+                TLockRequest::MakeSharedChild(key));
         } else {
             YT_LOG_ALERT_AND_THROW_UNLESS(
                 parent->MutableSequoiaProperties()->BeingCreated,
@@ -337,12 +414,14 @@ private:
                 "parent node is not marked as BeingCreated (ParentId: %v, TransactionId: %v, ChildKey: %v)",
                 parentId,
                 cypressTransactionId,
-                request->key());
+                key);
         }
+
+        DoLog(*request, ELogStage::Prepared, sequoiaTransaction->GetId());
     }
 
     void HydraCommitAttachChild(
-        TTransaction* /*transaction*/,
+        TTransaction* sequoiaTransaction,
         NProto::TReqAttachChild* request,
         const TTransactionCommitOptions& /*options*/)
     {
@@ -352,10 +431,12 @@ private:
         YT_VERIFY(
             TypeFromId(parentId) == EObjectType::SequoiaMapNode ||
             TypeFromId(parentId) == EObjectType::Scion);
-
         auto childId = FromProto<TNodeId>(request->child_id());
-        auto key = request->key();
+        const auto& key = request->key();
         auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
+        const auto& accessTrackingOptions = request->access_tracking_options();
+
+        DoLog(*request, ELogStage::Committing, sequoiaTransaction->GetId());
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -377,7 +458,7 @@ private:
         auto* parent = cypressManager->LockNode(
             trunkParent,
             cypressTransaction,
-            TLockRequest::MakeSharedChild(request->key()));
+            TLockRequest::MakeSharedChild(key));
 
         VerifySequoiaNode(parent);
         AttachChildToSequoiaNodeOrThrow(parent, key, childId);
@@ -386,20 +467,42 @@ private:
             cypressManager,
             parent,
             EModificationType::Content,
-            request->access_tracking_options());
+            accessTrackingOptions);
+
+        DoLog(*request, ELogStage::Committed, sequoiaTransaction->GetId());
+    }
+
+    void DoLog(const NProto::TReqAttachChild& request, ELogStage logStage, TTransactionId sequoiaTransactionId)
+    {
+        auto parentId = FromProto<TNodeId>(request.parent_id());
+        auto childId = FromProto<TNodeId>(request.child_id());
+        auto cypressTransactionId = FromProto<TTransactionId>(request.transaction_id());
+        const auto& key = request.key();
+        const auto& accessTrackingOptions = request.access_tracking_options();
+
+        YT_LOG_DEBUG("%v AttachChild "
+            "(SequoiaTransactionId: %v, ChildNodeId: %v, ParentNodeId: %v, Key: %v, CypressTransactionId: %v, %v)",
+            FormatLogStage(logStage),
+            sequoiaTransactionId,
+            childId,
+            parentId,
+            key,
+            cypressTransactionId,
+            accessTrackingOptions);
     }
 
     void HydraPrepareDetachChild(
-        TTransaction* /*transaction*/,
+        TTransaction* sequoiaTransaction,
         NProto::TReqDetachChild* request,
         const TTransactionPrepareOptions& /*options*/)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-
         auto parentId = FromProto<TNodeId>(request->parent_id());
         auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
         const auto& key = request->key();
+
+        DoLog(*request, ELogStage::Preparing, sequoiaTransaction->GetId());
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -432,10 +535,12 @@ private:
         // prepare and commit due to Sequoia table lock. DetachChild acquires
         // exclusive lock on (nodeId, topmostTx, key) in "child_node" Sequoia
         // table.
+
+        DoLog(*request, ELogStage::Prepared, sequoiaTransaction->GetId());
     }
 
     void HydraCommitDetachChild(
-        TTransaction* /*transaction*/,
+        TTransaction* sequoiaTransaction,
         NProto::TReqDetachChild* request,
         const TTransactionCommitOptions& /*options*/)
     {
@@ -443,7 +548,10 @@ private:
 
         auto parentId = FromProto<TNodeId>(request->parent_id());
         auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto key = request->key();
+        const auto& key = request->key();
+        const auto& accessTrackingOptions = request->access_tracking_options();
+
+        DoLog(*request, ELogStage::Committing, sequoiaTransaction->GetId());
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -468,8 +576,8 @@ private:
 
         auto& children = parent->MutableChildren();
         if (parent->IsTrunk()) {
-            auto childIt = children.KeyToChild().find(request->key());
-            children.Remove(request->key(), childIt->second);
+            auto childIt = children.KeyToChild().find(key);
+            children.Remove(key, childIt->second);
         } else {
             children.Set(key, NullObjectId);
         }
@@ -480,11 +588,30 @@ private:
             cypressManager,
             parent,
             EModificationType::Content,
-            request->access_tracking_options());
+            accessTrackingOptions);
+
+        DoLog(*request, ELogStage::Committed, sequoiaTransaction->GetId());
+    }
+
+    void DoLog(const NProto::TReqDetachChild& request, ELogStage logStage, TTransactionId sequoiaTransactionId)
+    {
+        auto parentId = FromProto<TNodeId>(request.parent_id());
+        auto cypressTransactionId = FromProto<TTransactionId>(request.transaction_id());
+        const auto& key = request.key();
+        const auto& accessTrackingOptions = request.access_tracking_options();
+
+        YT_LOG_DEBUG("%v DetachChild "
+            "(SequoiaTransactionId: %v, ParentNodeId: %v, Key: %v, CypressTransactionId: %v, %v)",
+            FormatLogStage(logStage),
+            sequoiaTransactionId,
+            parentId,
+            key,
+            cypressTransactionId,
+            accessTrackingOptions);
     }
 
     void HydraPrepareRemoveNode(
-        TTransaction* /*transaction*/,
+        TTransaction* sequoiaTransaction,
         NProto::TReqRemoveNode* request,
         const TTransactionPrepareOptions& options)
     {
@@ -492,12 +619,15 @@ private:
         YT_VERIFY(options.Persistent);
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
+        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
+
+        DoLog(*request, ELogStage::Preparing, sequoiaTransaction->GetId());
+
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* trunkNode = cypressManager->GetNodeOrThrow(TVersionedNodeId(nodeId));
         VerifySequoiaNode(trunkNode);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
         TTransaction* cypressTransaction = cypressTransactionId
             ? transactionManager->GetTransactionOrThrow(cypressTransactionId)
             : nullptr;
@@ -509,20 +639,24 @@ private:
         cypressManager
             ->CheckLock(trunkNode, cypressTransaction, ELockMode::Exclusive)
             .ThrowOnError();
+
+        DoLog(*request, ELogStage::Prepared, sequoiaTransaction->GetId());
     }
 
     void HydraCommitRemoveNode(
-        TTransaction* /*transaction*/,
+        TTransaction* sequoiaTransaction,
         NProto::TReqRemoveNode* request,
         const TTransactionCommitOptions& /*options*/)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
+        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
+
+        DoLog(*request, ELogStage::Committing, sequoiaTransaction->GetId());
+
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* trunkNode = cypressManager->GetNode(TVersionedObjectId(nodeId));
-
-        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* cypressTransaction = cypressTransactionId
             ? transactionManager->GetTransaction(cypressTransactionId)
@@ -566,10 +700,25 @@ private:
 
         const auto& handler = cypressManager->GetHandler(trunkNode);
         handler->SetUnreachable(node);
+
+        DoLog(*request, ELogStage::Committed, sequoiaTransaction->GetId());
+    }
+
+    void DoLog(const NProto::TReqRemoveNode& request, ELogStage logStage, TTransactionId sequoiaTransactionId)
+    {
+        auto nodeId = FromProto<TNodeId>(request.node_id());
+        auto cypressTransactionId = FromProto<TTransactionId>(request.transaction_id());
+
+        YT_LOG_DEBUG("%v RemoveNode "
+            "(SequoiaTransactionId: %v, NodeId: %v, CypressTransactionId: %v)",
+            FormatLogStage(logStage),
+            sequoiaTransactionId,
+            nodeId,
+            cypressTransactionId);
     }
 
     void HydraPrepareAndCommitSetNode(
-        TTransaction* /*transaction*/,
+        TTransaction* sequoiaTransaction,
         NProto::TReqSetNode* request,
         const TTransactionPrepareOptions& options)
     {
@@ -577,28 +726,55 @@ private:
         YT_VERIFY(options.Persistent);
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
+        const auto& path = request->path();
+        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto force = request->force();
+        const auto& accessTrackingOptions = request->access_tracking_options();
+
+        DoLog(*request, ELogStage::PreparingCommitting, sequoiaTransaction->GetId());
+
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* trunkNode = cypressManager->GetNodeOrThrow(TVersionedObjectId(nodeId));
         VerifySequoiaNode(trunkNode);
 
-        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* cypressTransaction = cypressTransactionId
             ? transactionManager->GetTransactionOrThrow(cypressTransactionId)
             : nullptr;
 
-        auto innerRequest = TCypressYPathProxy::Set(request->path());
+        auto innerRequest = TCypressYPathProxy::Set(path);
         innerRequest->set_value(request->value());
-        innerRequest->set_force(request->force());
-        SetAccessTrackingOptions(innerRequest, request->access_tracking_options());
+        innerRequest->set_force(force);
+        SetAccessTrackingOptions(innerRequest, accessTrackingOptions);
 
         SyncExecuteVerb(
             cypressManager->GetNodeProxy(trunkNode, cypressTransaction),
             innerRequest);
+
+        DoLog(*request, ELogStage::PreparedCommitted, sequoiaTransaction->GetId());
+    }
+
+    void DoLog(const NProto::TReqSetNode& request, ELogStage logStage, TTransactionId sequoiaTransactionId)
+    {
+        auto nodeId = FromProto<TNodeId>(request.node_id());
+        const auto& path = request.path();
+        auto cypressTransactionId = FromProto<TTransactionId>(request.transaction_id());
+        auto force = request.force();
+        const auto& accessTrackingOptions = request.access_tracking_options();
+
+        YT_LOG_DEBUG("%v SetNode "
+            "(SequoiaTransactionId: %v, NodeId: %v, CypressTransactionId: %v, Path: %v, Force: %v, %v)",
+            FormatLogStage(logStage),
+            sequoiaTransactionId,
+            nodeId,
+            cypressTransactionId,
+            path,
+            force,
+            accessTrackingOptions);
     }
 
     void HydraPrepareAndCommitMultisetAttributes(
-        TTransaction* /*transaction*/,
+        TTransaction* sequoiaTransaction,
         NProto::TReqMultisetAttributes* request,
         const TTransactionPrepareOptions& options)
     {
@@ -606,28 +782,56 @@ private:
         YT_VERIFY(options.Persistent);
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
+        const auto& path = request->path();
+        auto force = request->force();
+        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
+        const auto& accessTrackingOptions = request->access_tracking_options();
+
+        DoLog(*request, ELogStage::PreparingCommitting, sequoiaTransaction->GetId());
+
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* trunkNode = cypressManager->GetNodeOrThrow(TVersionedObjectId(nodeId));
         VerifySequoiaNode(trunkNode);
 
-        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* cypressTransaction = cypressTransactionId
             ? transactionManager->GetTransactionOrThrow(cypressTransactionId)
             : nullptr;
 
-        auto innerRequest = TYPathProxy::MultisetAttributes(request->path());
+        auto innerRequest = TYPathProxy::MultisetAttributes(path);
         *innerRequest->mutable_subrequests() = request->subrequests();
-        innerRequest->set_force(request->force());
-        SetAccessTrackingOptions(innerRequest, request->access_tracking_options());
+        innerRequest->set_force(force);
+        SetAccessTrackingOptions(innerRequest, accessTrackingOptions);
 
         SyncExecuteVerb(
             cypressManager->GetNodeProxy(trunkNode, cypressTransaction),
             innerRequest);
+
+        DoLog(*request, ELogStage::PreparedCommitted, sequoiaTransaction->GetId());
     }
 
-    void HydraPerpareAndCommitRemoveNodeAttribute(
-        TTransaction* /*transaction*/,
+    void DoLog(const NProto::TReqMultisetAttributes& request, ELogStage logStage, TTransactionId sequoiaTransactionId)
+    {
+        auto nodeId = FromProto<TNodeId>(request.node_id());
+        const auto& path = request.path();
+        auto force = request.force();
+        auto cypressTransactionId = FromProto<TTransactionId>(request.transaction_id());
+        const auto& accessTrackingOptions = request.access_tracking_options();
+
+        YT_LOG_DEBUG("%v MultisetAttributes "
+            "(SequoiaTransactionId: %v, NodeId: %v, CypressTransactionId: %v, Path: %v, SubrequestCount: %v, Force: %v, %v)",
+            FormatLogStage(logStage),
+            sequoiaTransactionId,
+            nodeId,
+            cypressTransactionId,
+            path,
+            request.subrequests_size(),
+            force,
+            accessTrackingOptions);
+    }
+
+    void HydraPrepareAndCommitRemoveNodeAttribute(
+        TTransaction* sequoiaTransaction,
         NProto::TReqRemoveNodeAttribute* request,
         const TTransactionPrepareOptions& options)
     {
@@ -636,6 +840,11 @@ private:
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
         auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto force = request->force();
+        const auto& path = request->path();
+
+        DoLog(*request, ELogStage::PreparingCommitting, sequoiaTransaction->GetId());
+
         YT_LOG_ALERT_AND_THROW_UNLESS(
             options.LatePrepare,
             "An attempt to remove node attribute with non late prepare mode was made (NodeId: %v, TransactionId: %v)",
@@ -655,12 +864,31 @@ private:
             ? transactionManager->GetTransaction(cypressTransactionId)
             : nullptr;
 
-        auto innerRequest = TCypressYPathProxy::Remove(request->path());
-        innerRequest->set_force(request->force());
+        auto innerRequest = TCypressYPathProxy::Remove(path);
+        innerRequest->set_force(force);
 
         SyncExecuteVerb(
             cypressManager->GetNodeProxy(trunkNode, cypressTransaction),
             innerRequest);
+
+        DoLog(*request, ELogStage::PreparedCommitted, sequoiaTransaction->GetId());
+    }
+
+    void DoLog(const NProto::TReqRemoveNodeAttribute& request, ELogStage logStage, TTransactionId sequoiaTransactionId)
+    {
+        auto nodeId = FromProto<TNodeId>(request.node_id());
+        auto cypressTransactionId = FromProto<TTransactionId>(request.transaction_id());
+        auto force = request.force();
+        const auto& path = request.path();
+
+        YT_LOG_DEBUG("%v RemoveNodeAttribute "
+            "(SequoiaTransactionId: %v, NodeId: %v, CypressTransactionId: %v, Path: %v, Force: %v)",
+            FormatLogStage(logStage),
+            sequoiaTransactionId,
+            nodeId,
+            cypressTransactionId,
+            path,
+            force);
     }
 
     struct TCloneNodeActionState
@@ -678,7 +906,7 @@ private:
 
     // NB: See PrepareCreateNode.
     void HydraPrepareCloneNode(
-        TTransaction* /*transaction*/,
+        TTransaction* sequoiaTransaction,
         TReqCloneNode* request,
         TCloneNodeActionState* state,
         const TTransactionPrepareOptions& options)
@@ -686,10 +914,14 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(options.Persistent);
 
+        DoLog(*request, ELogStage::Preparing, sequoiaTransaction->GetId());
+
         auto sourceNodeId = FromProto<TNodeId>(request->src_id());
         auto destinationNodeId = FromProto<TNodeId>(request->dst_id());
         auto destinationParentId = FromProto<TNodeId>(request->dst_parent_id());
         auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
+        const auto& destinationPath = request->dst_path();
+        const auto& cloneOptions = request->options();
 
         // TODO(h0pless): Think about throwing an error if this cell is not sequoia_node_host anymore.
         const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -707,18 +939,17 @@ private:
             THROW_ERROR_EXCEPTION("Type %Qlv is not supported in Sequoia", type);
         }
 
-        auto* requestOptions = request->mutable_options();
-        auto mode = FromProto<ENodeCloneMode>(requestOptions->mode());
+        auto mode = FromProto<ENodeCloneMode>(cloneOptions.mode());
         TNodeFactoryOptions factoryOptions{
-            .PreserveAccount = requestOptions->preserve_account(),
-            .PreserveCreationTime = requestOptions->preserve_creation_time(),
-            .PreserveModificationTime = requestOptions->preserve_modification_time(),
-            .PreserveExpirationTime = requestOptions->preserve_expiration_time(),
-            .PreserveExpirationTimeout = requestOptions->preserve_expiration_timeout(),
-            .PreserveOwner = requestOptions->preserve_owner(),
-            .PreserveAcl = requestOptions->preserve_acl(),
-            .PessimisticQuotaCheck = requestOptions->pessimistic_quota_check(),
-            .AllowSecondaryIndexAbandonment = requestOptions->allow_secondary_index_abandonment(),
+            .PreserveAccount = cloneOptions.preserve_account(),
+            .PreserveCreationTime = cloneOptions.preserve_creation_time(),
+            .PreserveModificationTime = cloneOptions.preserve_modification_time(),
+            .PreserveExpirationTime = cloneOptions.preserve_expiration_time(),
+            .PreserveExpirationTimeout = cloneOptions.preserve_expiration_timeout(),
+            .PreserveOwner = cloneOptions.preserve_owner(),
+            .PreserveAcl = cloneOptions.preserve_acl(),
+            .PessimisticQuotaCheck = cloneOptions.pessimistic_quota_check(),
+            .AllowSecondaryIndexAbandonment = cloneOptions.allow_secondary_index_abandonment(),
         };
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -737,21 +968,25 @@ private:
         PrepareSequoiaNodeCreation(
             destinationNode,
             destinationParentId,
-            NYPath::DirNameAndBaseName(request->dst_path()).second,
-            request->dst_path());
+            NYPath::DirNameAndBaseName(destinationPath).second,
+            destinationPath);
 
         nodeFactory->Commit();
+
+        DoLog(*request, ELogStage::Prepared, sequoiaTransaction->GetId());
     }
 
     void HydraCommitCloneNode(
-        TTransaction* /*transaction*/,
-        NProto::TReqCloneNode* /*request*/,
+        TTransaction* sequoiaTransaction,
+        NProto::TReqCloneNode* request,
         TCloneNodeActionState* state,
         const TTransactionCommitOptions& /*options*/)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        // TODO(danilalexeev): Sequoia transaction has to lock |sourceNodeId| to conflict
+        DoLog(*request, ELogStage::Committing, sequoiaTransaction->GetId());
+
+        // TODO(danilalexeev): Sequoia transaction has to lock |request->src_id()| to conflict
         // with an expired nodes removal.
         if (auto* trunkSourceNode = state->TrunkSourceNode.Get(); IsObjectAlive(trunkSourceNode)) {
             const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -759,15 +994,47 @@ private:
         }
 
         CommitSequoiaNodeCreation(state->DestinationNode);
+
+        DoLog(*request, ELogStage::Committed, sequoiaTransaction->GetId());
+    }
+
+    void DoLog(const TReqCloneNode& request, ELogStage logStage, TTransactionId sequoiaTransactionId)
+    {
+        auto sourceNodeId = FromProto<TNodeId>(request.src_id());
+        auto destinationNodeId = FromProto<TNodeId>(request.dst_id());
+        auto destinationParentId = FromProto<TNodeId>(request.dst_parent_id());
+        auto cypressTransactionId = FromProto<TTransactionId>(request.transaction_id());
+        const auto& destinationPath = request.dst_path();
+        const auto& cloneOptions = request.options();
+
+        YT_LOG_DEBUG("%v CloneNode "
+            "(SequoiaTransactionId: %v, SourceNodeId: %v, CypressTransactionId: %v, DestinationNodeId: %v, DestinationPath: %v, DestinationParentId: %v, Options: %v)",
+            FormatLogStage(logStage),
+            sequoiaTransactionId,
+            sourceNodeId,
+            cypressTransactionId,
+            destinationNodeId,
+            destinationPath,
+            destinationParentId,
+            cloneOptions);
     }
 
     void HydraPrepareAndCommitExplicitlyLockNode(
-        TTransaction* /*transaction*/,
+        TTransaction* sequoiaTransaction,
         NProto::TReqExplicitlyLockNode* request,
         const TTransactionPrepareOptions& options)
     {
+        DoLog(*request, ELogStage::PreparingCommitting, sequoiaTransaction->GetId());
+
         auto nodeId = FromProto<TNodeId>(request->node_id());
         auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto mode = FromProto<ELockMode>(request->mode());
+        auto childKey = YT_OPTIONAL_FROM_PROTO(*request, child_key);
+        auto attributeKey = YT_OPTIONAL_FROM_PROTO(*request, attribute_key);
+        auto timestamp = request->timestamp();
+        auto waitable = request->waitable();
+        auto lockId = FromProto<TLockId>(request->lock_id());
+
         YT_LOG_ALERT_AND_THROW_UNLESS(
             options.LatePrepare,
             "An attempt to explicitly lock node with non late prepare mode was made (NodeId: %v, TransactionId: %v)",
@@ -786,12 +1053,6 @@ private:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* cypressTransaction = transactionManager->GetTransactionOrThrow(cypressTransactionId);
 
-        auto mode = FromProto<ELockMode>(request->mode());
-        auto childKey = YT_OPTIONAL_FROM_PROTO(*request, child_key);
-        auto attributeKey = YT_OPTIONAL_FROM_PROTO(*request, attribute_key);
-        auto timestamp = request->timestamp();
-        bool waitable = request->waitable();
-
         YT_LOG_ALERT_AND_THROW_UNLESS(
             CheckLockRequest(mode, childKey, attributeKey).IsOK(),
             "Explicit lock request is malformed "
@@ -803,60 +1064,91 @@ private:
             attributeKey);
 
         auto proxy = cypressManager->GetNodeProxy(trunkNode, cypressTransaction);
-        auto lockId = FromProto<TLockId>(request->lock_id());
         auto lockRequest = CreateLockRequest(mode, childKey, attributeKey, timestamp);
         proxy->Lock(lockRequest, waitable, lockId);
 
         MaybeTouchNode(cypressManager, trunkNode);
+
+        DoLog(*request, ELogStage::PreparedCommitted, sequoiaTransaction->GetId());
     }
 
+    void DoLog(const NProto::TReqExplicitlyLockNode& request, ELogStage logStage, TTransactionId sequoiaTransactionId)
+    {
+        auto nodeId = FromProto<TNodeId>(request.node_id());
+        auto cypressTransactionId = FromProto<TTransactionId>(request.transaction_id());
+        auto mode = FromProto<ELockMode>(request.mode());
+        auto childKey = YT_OPTIONAL_FROM_PROTO(request, child_key);
+        auto attributeKey = YT_OPTIONAL_FROM_PROTO(request, attribute_key);
+        auto timestamp = request.timestamp();
+        auto waitable = request.waitable();
+        auto lockId = FromProto<TLockId>(request.lock_id());
+
+        YT_LOG_DEBUG("%v ExplicitlyLockNode "
+            "(SequoiaTransactionId: %v, NodeId: %v, CypressTransactionId: %v, Mode: %v, ChildKey: %v, AttributeKey: %v, Timestamp: %v, Waitable: %v, LockId: %v)",
+            FormatLogStage(logStage),
+            sequoiaTransactionId,
+            nodeId,
+            cypressTransactionId,
+            mode,
+            childKey,
+            attributeKey,
+            timestamp,
+            waitable,
+            lockId);
+    }
+
+
     void HydraPrepareImplicitlyLockNode(
-        TTransaction* /*transaction*/,
+        TTransaction* sequoiaTransaction,
         NProto::TReqImplicitlyLockNode* request,
         const TTransactionPrepareOptions& /*options*/)
     {
+        DoLog(*request, ELogStage::Preparing, sequoiaTransaction->GetId());
+
         auto nodeId = FromProto<TNodeId>(request->node_id());
+        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto mode = FromProto<ELockMode>(request->mode());
+        auto childKey = YT_OPTIONAL_FROM_PROTO(*request, child_key);
+        auto attributeKey = YT_OPTIONAL_FROM_PROTO(*request, attribute_key);
+
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* trunkNode = cypressManager->GetNodeOrThrow(TVersionedNodeId(nodeId));
         VerifySequoiaNode(trunkNode);
 
-        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
         YT_LOG_ALERT_AND_THROW_UNLESS(
             cypressTransactionId,
             "Received a request to implicitly lock node with unspecified Cypress transaction (NodeId: %v)",
             nodeId);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        auto* transaction = transactionManager->GetTransactionOrThrow(cypressTransactionId);
-
-        auto mode = FromProto<ELockMode>(request->mode());
-        auto childKey = YT_OPTIONAL_FROM_PROTO(*request, child_key);
-        auto attributeKey = YT_OPTIONAL_FROM_PROTO(*request, attribute_key);
-
+        auto* cypressTransaction = transactionManager->GetTransactionOrThrow(cypressTransactionId);
         auto lockRequest = CreateLockRequest(
             mode,
             childKey,
             attributeKey,
             /*timestamp*/ 0);
-        cypressManager->CheckLock(trunkNode, transaction, lockRequest).ThrowOnError();
+        cypressManager->CheckLock(trunkNode, cypressTransaction, lockRequest).ThrowOnError();
+
+        DoLog(*request, ELogStage::Prepared, sequoiaTransaction->GetId());
     }
 
     void HydraCommitImplicitlyLockNode(
-        TTransaction* /*transaction*/,
+        TTransaction* sequoiaTransaction,
         NProto::TReqImplicitlyLockNode* request,
         const TTransactionCommitOptions& /*options*/)
     {
+        DoLog(*request, ELogStage::Committing, sequoiaTransaction->GetId());
+
         auto nodeId = FromProto<TNodeId>(request->node_id());
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* trunkNode = cypressManager->GetNode(TVersionedNodeId(nodeId));
-
         auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
-        const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        auto* cypressTransaction = transactionManager->GetTransaction(cypressTransactionId);
-
         auto mode = FromProto<ELockMode>(request->mode());
         auto childKey = YT_OPTIONAL_FROM_PROTO(*request, child_key);
         auto attributeKey = YT_OPTIONAL_FROM_PROTO(*request, attribute_key);
+
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto* trunkNode = cypressManager->GetNode(TVersionedNodeId(nodeId));
+        auto* cypressTransaction = transactionManager->GetTransaction(cypressTransactionId);
 
         auto lockRequest = CreateLockRequest(
             mode,
@@ -864,15 +1156,39 @@ private:
             attributeKey,
             /*timestamp*/ 0);
         cypressManager->LockNode(trunkNode, cypressTransaction, lockRequest);
+
+        DoLog(*request, ELogStage::Committed, sequoiaTransaction->GetId());
+    }
+
+    void DoLog(const NProto::TReqImplicitlyLockNode& request, ELogStage logStage, TTransactionId sequoiaTransactionId)
+    {
+        auto nodeId = FromProto<TNodeId>(request.node_id());
+        auto cypressTransactionId = FromProto<TTransactionId>(request.transaction_id());
+        auto mode = FromProto<ELockMode>(request.mode());
+        auto childKey = YT_OPTIONAL_FROM_PROTO(request, child_key);
+        auto attributeKey = YT_OPTIONAL_FROM_PROTO(request, attribute_key);
+
+        YT_LOG_DEBUG("%v ImplicitlyLockNode "
+            "(SequoiaTransactionId: %v, NodeId: %v, CypressTransactionId: %v, Mode: %v, ChildKey: %v, AttributeKey: %v)",
+            FormatLogStage(logStage),
+            sequoiaTransactionId,
+            nodeId,
+            cypressTransactionId,
+            mode,
+            childKey,
+            attributeKey);
     }
 
     void HydraPrepareAndCommitUnlockNode(
-        TTransaction* /*transaction*/,
+        TTransaction* sequoiaTransaction,
         NProto::TReqUnlockNode* request,
         const TTransactionPrepareOptions& options)
     {
         auto nodeId = FromProto<TNodeId>(request->node_id());
         auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
+
+        DoLog(*request, ELogStage::PreparingCommitting, sequoiaTransaction->GetId());
+
         YT_LOG_ALERT_AND_THROW_UNLESS(
             options.LatePrepare,
             "An attempt to unlock node with non late prepare mode was made (NodeId: %v, TransactionId: %v)",
@@ -889,7 +1205,6 @@ private:
         auto* trunkNode = cypressManager->GetNodeOrThrow(TVersionedNodeId(nodeId));
         VerifySequoiaNode(trunkNode);
 
-
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* cypressTransaction = transactionManager->GetTransaction(cypressTransactionId);
 
@@ -897,15 +1212,46 @@ private:
         proxy->Unlock();
 
         MaybeTouchNode(cypressManager, trunkNode);
+
+        DoLog(*request, ELogStage::PreparedCommitted, sequoiaTransaction->GetId());
+    }
+
+    void DoLog(const NProto::TReqUnlockNode& request, ELogStage logStage, TTransactionId sequoiaTransactionId)
+    {
+        auto nodeId = FromProto<TNodeId>(request.node_id());
+        auto cypressTransactionId = FromProto<TTransactionId>(request.transaction_id());
+
+        YT_LOG_DEBUG("%v UnlockNode "
+            "(SequoiaTransactionId: %v, NodeId: %v, CypressTransactionId: %v)",
+            FormatLogStage(logStage),
+            sequoiaTransactionId,
+            nodeId,
+            cypressTransactionId);
     }
 
     void HydraPrepareAndCommitMaterializeNode(
-        TTransaction* /*transaction*/,
+        TTransaction* sequoiaTransaction,
         NProto::TReqMaterializeNode* request,
         const TTransactionPrepareOptions& options)
     {
+        DoLog(*request, ELogStage::PreparingCommitting, sequoiaTransaction->GetId());
+
         auto nodeId = FromProto<TNodeId>(request->node_id());
         auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto version = request->version();
+        auto mode = FromProto<ENodeCloneMode>(request->mode());
+        auto existingNodeId = FromProto<TNodeId>(request->existing_node_id());
+        auto newAccountId = request->has_new_account_id()
+            ? std::make_optional(FromProto<TAccountId>(request->new_account_id()))
+            : std::nullopt;
+        auto preserveCreationTime = request->preserve_creation_time();
+        auto preserveExpirationTime = request->preserve_expiration_time();
+        auto preserveExpirationTimeout = request->preserve_expiration_timeout();
+        auto preserveOwner = request->preserve_owner();
+        auto inheritedAttributes = request->has_inherited_attributes_override()
+            ? FromProto(request->inherited_attributes_override())
+            : New<TInheritedAttributeDictionary>(Bootstrap_);
+
         YT_LOG_ALERT_AND_THROW_UNLESS(
             options.LatePrepare,
             "An attempt to materialize node with non late prepare mode was made (NodeId: %v, TransactionId: %v)",
@@ -920,19 +1266,15 @@ private:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* cypressTransaction = transactionManager->GetTransactionOrThrow(cypressTransactionId);
 
-        auto version = request->version();
         if (version != NCellMaster::GetCurrentReign()) {
             THROW_ERROR_EXCEPTION("Invalid node metadata format version: expected %v, actual %v",
                 NCellMaster::GetCurrentReign(),
                 version);
         }
 
-        // Presence of a new account means that user does not want to preserve an old one.
-        auto newAccountId = request->has_new_account_id()
-            ? std::make_optional(FromProto<TAccountId>(request->new_account_id()))
-            : std::nullopt;
         TAccount* account = nullptr;
         const auto& securityManager = Bootstrap_->GetSecurityManager();
+        // Presence of a new account means that user does not want to preserve an old one.
         if (newAccountId) {
             account = securityManager->GetAccountOrThrow(*newAccountId, /*activeLifeStageOnly*/ true);
             const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -946,11 +1288,11 @@ private:
             account,
             TNodeFactoryOptions{
                 .PreserveAccount = !newAccountId.has_value(),
-                .PreserveCreationTime = request->preserve_creation_time(),
+                .PreserveCreationTime = preserveCreationTime,
                 .PreserveModificationTime = true, // Modification time will be changed when assembling subtree, if needed.
-                .PreserveExpirationTime = request->preserve_expiration_time(),
-                .PreserveExpirationTimeout = request->preserve_expiration_timeout(),
-                .PreserveOwner = request->preserve_owner(),
+                .PreserveExpirationTime = preserveExpirationTime,
+                .PreserveExpirationTimeout = preserveExpirationTimeout,
+                .PreserveOwner = preserveOwner,
                 .PreserveAcl = true, // Same as modification time.
                 .PessimisticQuotaCheck = false // This is checked on the cypress proxy.
             },
@@ -960,16 +1302,12 @@ private:
         const auto& serializedNode = request->serialized_node();
         TMaterializeNodeContext copyContext(
             Bootstrap_,
-            FromProto<ENodeCloneMode>(request->mode()),
+            mode,
             TRef::FromString(serializedNode.data()),
-            FromProto<TNodeId>(request->node_id()),
+            nodeId,
             /*materializeAsSequoiaNode*/ true,
             FromProto<TMasterTableSchemaId>(serializedNode.schema_id()),
-            FromProto<TNodeId>(request->existing_node_id()));
-
-        auto inheritedAttributes = request->has_inherited_attributes_override()
-            ? FromProto(request->inherited_attributes_override())
-            : New<TInheritedAttributeDictionary>(Bootstrap_);
+            existingNodeId);
 
         auto* node = factory->MaterializeNode(inheritedAttributes.Get(), &copyContext);
 
@@ -980,6 +1318,44 @@ private:
         // setter code should be written somewhere here.
         // Since only chunk_merger_mode is supported right now it's fine to leave it as-is.
         factory->Commit();
+
+        DoLog(*request, ELogStage::PreparedCommitted, sequoiaTransaction->GetId());
+    }
+
+    void DoLog(const NProto::TReqMaterializeNode& request, ELogStage logStage, TTransactionId sequoiaTransactionId)
+    {
+        auto nodeId = FromProto<TNodeId>(request.node_id());
+        auto cypressTransactionId = FromProto<TTransactionId>(request.transaction_id());
+        auto version = request.version();
+        auto mode = FromProto<ENodeCloneMode>(request.mode());
+        auto existingNodeId = FromProto<TNodeId>(request.existing_node_id());
+        auto newAccountId = request.has_new_account_id()
+            ? std::make_optional(FromProto<TAccountId>(request.new_account_id()))
+            : std::nullopt;
+        auto preserveCreationTime = request.preserve_creation_time();
+        auto preserveExpirationTime = request.preserve_expiration_time();
+        auto preserveExpirationTimeout = request.preserve_expiration_timeout();
+        auto preserveOwner = request.preserve_owner();
+        auto inheritedAttributes = request.has_inherited_attributes_override()
+            ? FromProto(request.inherited_attributes_override())
+            : New<TInheritedAttributeDictionary>(Bootstrap_);
+
+        YT_LOG_DEBUG("%v MaterializeNode "
+            "(SequoiaTransactionId: %v, NodeId: %v, CypressTransactionId: %v, Version: %v, Mode: %v, ExistingNodeId: %v, SerializedNodeSize: %v, NewAccountId: %v, PreserveCreationTime: %v, PreserveExpirationTime: %v, PreserveExpirationTimeout: %v, PreserveOwner: %v, InheritedAttributesOverride: %v)",
+            FormatLogStage(logStage),
+            sequoiaTransactionId,
+            nodeId,
+            cypressTransactionId,
+            version,
+            mode,
+            existingNodeId,
+            request.serialized_node().data().size(),
+            newAccountId,
+            preserveCreationTime,
+            preserveExpirationTime,
+            preserveExpirationTimeout,
+            preserveOwner,
+            ConvertToYsonString(*inheritedAttributes, EYsonFormat::Text));
     }
 
     /*
@@ -996,25 +1372,27 @@ private:
      *    See TTransactionSupervisor::WaitUntilPreparedTransactionsFinished().
      */
     void HydraPrepareAndCommitFinishNodeMaterialization(
-        TTransaction* /*transaction*/,
+        TTransaction* sequoiaTransaction,
         NProto::TReqFinishNodeMaterialization* request,
         const TTransactionCommitOptions& /*options*/)
     {
+        DoLog(*request, ELogStage::PreparingCommitting, sequoiaTransaction->GetId());
+
         auto nodeId = FromProto<TNodeId>(request->node_id());
+        auto parentId = FromProto<TNodeId>(request->parent_id());
+        const auto& path = request->path();
         auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto preserveAcl = request->preserve_acl();
+        auto preserveModificationTime = request->preserve_modification_time();
+
         YT_LOG_ALERT_AND_THROW_UNLESS(
             cypressTransactionId,
             "Received a request to finish node materialization with unspecified Cypress transaction (NodeId: %v)",
             nodeId);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        auto* cypressTransaction = transactionManager->GetTransactionOrThrow(cypressTransactionId);
-
-        auto preserveAcl = request->preserve_acl();
-        auto preserveModificationTime = request->preserve_modification_time();
-        auto path = request->path();
-        auto parentId = FromProto<TNodeId>(request->parent_id());
         const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto* cypressTransaction = transactionManager->GetTransactionOrThrow(cypressTransactionId);
         auto* trunkNode = cypressManager->GetNode(TVersionedNodeId(nodeId));
         auto* node = cypressManager->GetVersionedNode(trunkNode, cypressTransaction);
         if (!preserveAcl) {
@@ -1029,6 +1407,60 @@ private:
         }
 
         FinishSequoiaNodeMaterialization(node, parentId, path);
+
+        DoLog(*request, ELogStage::PreparedCommitted, sequoiaTransaction->GetId());
+    }
+
+    void DoLog(const NProto::TReqFinishNodeMaterialization& request, ELogStage logStage, TTransactionId sequoiaTransactionId)
+    {
+        auto nodeId = FromProto<TNodeId>(request.node_id());
+        auto parentId = FromProto<TNodeId>(request.parent_id());
+        const auto& path = request.path();
+        auto cypressTransactionId = FromProto<TTransactionId>(request.transaction_id());
+        auto preserveAcl = request.preserve_acl();
+        auto preserveModificationTime = request.preserve_modification_time();
+
+        YT_LOG_DEBUG("%v FinishNodeMaterialization "
+            "(SequoiaTransactionId: %v, NodeId: %v, CypressTransactionId: %v, ParentNodeId: %v, Path: %v, PreserveModificationTime: %v, PreserveAcl: %v)",
+            FormatLogStage(logStage),
+            sequoiaTransactionId,
+            nodeId,
+            cypressTransactionId,
+            parentId,
+            path,
+            preserveModificationTime,
+            preserveAcl);
+    }
+
+    //! NB: Cypress proxy acquires locks in dynamic tables for request target and additional paths,
+    // and we do not support prerequisite revisions different from those paths.
+    void HydraPrepareAndCommitValidatePrerequisites(
+        TTransaction* /*transaction*/,
+        NProto::TReqValidatePrerequisiteRevisions* request,
+        const TTransactionPrepareOptions& /*options*/)
+    {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+        auto revisions = FromProto<std::vector<NSequoiaClient::TResolvedPrerequisiteRevision>>(request->prerequisite_revisions());
+
+        for (const auto& revision : revisions) {
+            YT_LOG_ALERT_IF(
+                CellTagFromId(revision.NodeId) != multicellManager->GetCellTag(),
+                "Node from foreign cell occured in prerequisite revisions (NodeId: %v, CellTag: %v)",
+                revision.NodeId,
+                multicellManager->GetCellTag());
+
+            auto* trunkNode = cypressManager->GetNodeOrThrow(TVersionedObjectId(revision.NodeId));
+            if (trunkNode->GetRevision() != revision.Revision) {
+                THROW_ERROR_EXCEPTION(
+                    NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+                    "Prerequisite check failed: node %v revision mismatch: expected %x, found %x",
+                    revision.NodePath,
+                    revision.Revision,
+                    trunkNode->GetRevision());
+            }
+        }
     }
 };
 

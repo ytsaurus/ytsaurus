@@ -6,6 +6,8 @@
 
 #include <yt/yt/client/object_client/public.h>
 
+#include <yt/yt/client/sequoia_client/public.h>
+
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
 #include <yt/yt/core/profiling/timing.h>
@@ -36,17 +38,21 @@ void ThrowNoSuchTransaction(TTransactionId transactionId)
     THROW_ERROR(CreateNoSuchTransactionError(transactionId));
 }
 
-static TError CreatePrerequisiteCheckFailedNoSuchTransactionError(TTransactionId transactionId)
+[[noreturn]] void ThrowPrerequisiteCheckFailedNoSuchTransaction(TTransactionId transactionId)
 {
-    return TError(
+    THROW_ERROR_EXCEPTION(
         NObjectClient::EErrorCode::PrerequisiteCheckFailed,
         "Prerequisite check failed: transaction %v is missing",
         transactionId);
 }
 
-[[noreturn]] void ThrowPrerequisiteCheckFailedNoSuchTransaction(TTransactionId transactionId)
+[[noreturn]] void ThrowTransactionIsDoomed(TTransactionId transactionId, bool isPrerequisite)
 {
-    THROW_ERROR(CreatePrerequisiteCheckFailedNoSuchTransactionError(transactionId));
+    THROW_ERROR_EXCEPTION(
+        NSequoiaClient::EErrorCode::SequoiaRetriableError,
+        "%v %v is marked as doomed",
+        isPrerequisite ? "Prerequisite transaction" : "Transaction",
+        transactionId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

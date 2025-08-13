@@ -585,7 +585,7 @@ public:
 
         const auto& operationState = GetOperationState(operation->GetId());
         const auto& pools = operationState->TreeIdToPoolNameMap();
-        auto accumulatedUsagePerTree = ExtractAccumulatedUsageForLogging(operation->GetId());
+        auto accumulatedResourceDistributionPerTree = ExtractAccumulatedResourceDistributionForLogging(operation->GetId());
 
         fluent
             .DoIf(DefaultTreeId_.operator bool(), [&] (TFluentMap fluent) {
@@ -603,7 +603,13 @@ public:
                         .Do(std::bind(&IFairShareTree::BuildOperationAttributes, tree, operation->GetId(), std::placeholders::_1))
                     .EndMap();
             })
-            .Item("accumulated_resource_usage_per_tree").Value(accumulatedUsagePerTree);
+            .Item("accumulated_resource_distribution_per_tree").Value(accumulatedResourceDistributionPerTree)
+            .Item("accumulated_resource_usage_per_tree").DoMapFor(
+                accumulatedResourceDistributionPerTree,
+                [] (TFluentMap fluent, const std::pair<TString, TAccumulatedResourceDistribution>& pair) {
+                    const auto& [treeId, distribution] = pair;
+                    fluent.Item(treeId).Value(distribution.Usage());
+                });
     }
 
     void ApplyOperationRuntimeParameters(IOperationStrategyHost* operation) override
@@ -1026,14 +1032,17 @@ public:
         }
     }
 
-    THashMap<TString, TResourceVolume> ExtractAccumulatedUsageForLogging(TOperationId operationId)
+    THashMap<TString, TAccumulatedResourceDistribution> ExtractAccumulatedResourceDistributionForLogging(TOperationId operationId)
     {
-        THashMap<TString, TResourceVolume> treeIdToUsage;
+        THashMap<TString, TAccumulatedResourceDistribution> result;
+
         const auto& state = GetOperationState(operationId);
         for (const auto& [treeId, _] : state->TreeIdToPoolNameMap()) {
-            treeIdToUsage.emplace(treeId, GetTree(treeId)->ExtractAccumulatedUsageForLogging(operationId));
+            const auto& accumulatedVolume = GetTree(treeId)->ExtractAccumulatedResourceDistributionForLogging(operationId);
+            result.emplace(treeId, accumulatedVolume);
         }
-        return treeIdToUsage;
+
+        return result;
     }
 
     void ProcessAllocationUpdates(
@@ -1293,7 +1302,7 @@ public:
             // TODO(eshcherbin): Perhaps we need to add a configurable main resource for each tree and compare the shares of this resource.
             double currentReserveRatio = std::numeric_limits<double>::max();
             #define XX(name, Name) \
-                if (totalResourceLimits.Get##Name() > 0) { \
+                if (totalResourceLimits.Get##Name() > static_cast<std::decay_t<decltype(totalResourceLimits.Get##Name())>>(0L)) { \
                     currentReserveRatio = std::min(currentReserveRatio, reserveShare[EJobResourceType::Name]); \
                 }
             ITERATE_JOB_RESOURCES(XX)
@@ -2549,15 +2558,13 @@ private:
         TJobResources GetMinSpareResourcesForScheduling() const override
         {
             if (Tree_) {
-                if (auto treeConfig = Tree_->GetSnapshottedConfig();
-                    treeConfig->MinSpareAllocationResourcesOnNode)
-                {
-                    return ToJobResources(*treeConfig->MinSpareAllocationResourcesOnNode, TJobResources());
+                if (const auto& minSpareResourcesConfig = Tree_->GetSnapshottedConfig()->MinSpareAllocationResourcesOnNode) {
+                    return ToJobResources(minSpareResourcesConfig, TJobResources());
                 }
             }
 
             return Config_->MinSpareAllocationResourcesOnNode
-                ? ToJobResources(*Config_->MinSpareAllocationResourcesOnNode, TJobResources())
+                ? ToJobResources(Config_->MinSpareAllocationResourcesOnNode, TJobResources())
                 : TJobResources();
         }
 

@@ -34,8 +34,7 @@ target_link_libraries(operation_tracker PUBLIC
 )
 
 target_allocator(operation_tracker
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
+  system_allocator
 )
 
 target_link_options(operation_tracker PRIVATE

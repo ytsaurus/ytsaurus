@@ -62,7 +62,7 @@ void Serialize(const TRichTransactionId& transaction, NYson::IYsonConsumer* cons
                         // NB(coteeq): Underlying is intentional here.
                         // Value in Cypress should be raw (unformatted) string,
                         // rather than human-intended "<local>" notation.
-                        fluent.Value(transaction.Cluster.Underlying());
+                        fluent.Value(*transaction.Cluster.Underlying());
                     }
                 })
         .EndAttributes()
@@ -73,14 +73,18 @@ void ToProto(NProto::TRichTransactionId* transactionIdProto, const TRichTransact
 {
     ToProto(transactionIdProto->mutable_id(), transactionId.Id);
     ToProto(transactionIdProto->mutable_parent_id(), transactionId.ParentId);
-    ToProto(transactionIdProto->mutable_cluster(), transactionId.Cluster);
+    YT_OPTIONAL_TO_PROTO(transactionIdProto, cluster, transactionId.Cluster.Underlying());
 }
 
 void FromProto(TRichTransactionId* transactionId, const NProto::TRichTransactionId& transactionIdProto)
 {
     transactionId->Id = FromProto<TTransactionId>(transactionIdProto.id());
     transactionId->ParentId = FromProto<TTransactionId>(transactionIdProto.parent_id());
-    transactionId->Cluster = FromProto<TClusterName>(transactionIdProto.cluster());
+    transactionId->Cluster = TClusterName(YT_OPTIONAL_FROM_PROTO(transactionIdProto, cluster));
+    // COMPAT(coteeq): Remove in 25.4
+    if (const auto& underlying = transactionId->Cluster.Underlying(); underlying && underlying->empty()) {
+        transactionId->Cluster = LocalClusterName;
+    }
 }
 
 IAttributeDictionaryPtr TControllerTransactionIds::ToCypressAttributes() const
@@ -92,7 +96,6 @@ IAttributeDictionaryPtr TControllerTransactionIds::ToCypressAttributes() const
         .Item("debug_transaction_id").Value(DebugId)
         .Item("output_completion_transaction_id").Value(OutputCompletionId)
         .Item("debug_completion_transaction_id").Value(DebugCompletionId)
-        .Item("nested_input_transaction_ids").Value(NestedInputIds)
         .Item("input_transaction_ids").Value(InputIds)
         .Finish();
 }
@@ -106,7 +109,6 @@ TControllerTransactionIds TControllerTransactionIds::FromCypressAttributes(NYTre
         .DebugId = attributes->Get<TTransactionId>("debug_transaction_id", NullTransactionId),
         .OutputCompletionId = attributes->Get<TTransactionId>("output_completion_transaction_id", NullTransactionId),
         .DebugCompletionId = attributes->Get<TTransactionId>("debug_completion_transaction_id", NullTransactionId),
-        .NestedInputIds = attributes->Get<std::vector<TTransactionId>>("nested_input_transaction_ids", {}),
         .InputIds = attributes->Get<std::vector<TRichTransactionId>>("input_transaction_ids", {}),
     };
 }
@@ -118,7 +120,6 @@ const std::vector<TString> TControllerTransactionIds::AttributeKeys = {
     "debug_transaction_id",
     "output_completion_transaction_id",
     "debug_completion_transaction_id",
-    "nested_input_transaction_ids",
     "input_transaction_ids",
 };
 
@@ -130,7 +131,6 @@ void ToProto(NControllerAgent::NProto::TControllerTransactionIds* transactionIds
     ToProto(transactionIdsProto->mutable_debug_id(), transactionIds.DebugId);
     ToProto(transactionIdsProto->mutable_output_completion_id(), transactionIds.OutputCompletionId);
     ToProto(transactionIdsProto->mutable_debug_completion_id(), transactionIds.DebugCompletionId);
-    ToProto(transactionIdsProto->mutable_nested_input_ids(), transactionIds.NestedInputIds);
     ToProto(transactionIdsProto->mutable_input_ids(), transactionIds.InputIds);
 }
 
@@ -142,7 +142,6 @@ void FromProto(TControllerTransactionIds* transactionIds, const NControllerAgent
     transactionIds->DebugId = FromProto<TTransactionId>(transactionIdsProto.debug_id());
     transactionIds->OutputCompletionId = FromProto<TTransactionId>(transactionIdsProto.output_completion_id());
     transactionIds->DebugCompletionId = FromProto<TTransactionId>(transactionIdsProto.debug_completion_id());
-    transactionIds->NestedInputIds = FromProto<std::vector<TTransactionId>>(transactionIdsProto.nested_input_ids());
     transactionIds->InputIds = FromProto<std::vector<TRichTransactionId>>(transactionIdsProto.input_ids());
 }
 
@@ -153,7 +152,6 @@ TOperationTransactions AttachControllerTransactions(
     TControllerTransactionIds transactionIds)
 {
     TOperationTransactions transactions;
-    // NB: For both InputTransactions and NestedInputTransactions.
     THashMap<TTransactionId, ITransactionPtr> transactionIdToTransaction;
 
     // NB(coteeq): This could've been a bare noexcept in callback signature,
@@ -184,10 +182,6 @@ TOperationTransactions AttachControllerTransactions(
         "input");
     for (const auto& transaction : transactionIds.InputIds) {
         transactions.InputTransactions.push_back(attachIfNotAttached(transaction.Id, "input"));
-    }
-    for (auto transactionId : transactionIds.NestedInputIds) {
-        transactions.NestedInputTransactions.push_back(
-            attachIfNotAttached(transactionId, "nested input transaction"));
     }
     transactions.OutputTransaction = attachIfNotAttached(
         transactionIds.OutputId,

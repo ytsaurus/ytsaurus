@@ -709,8 +709,6 @@ private:
         auto proxy = CreateObjectServiceWriteProxy(Client_, CellTagFromId(DestinationObject_.ObjectId));
 
         auto req = TChunkOwnerYPathProxy::EndUpload(DestinationObject_.GetObjectIdPath());
-        // COMPAT(h0pless): remove this when all masters are 24.2.
-        req->set_schema_mode(ToProto(ETableSchemaMode::Strong));
         *req->mutable_statistics() = DataStatistics_;
 
         std::vector<TSecurityTag> inferredSecurityTags;

@@ -69,7 +69,7 @@ void SkipCommonTokensWithPattern(TTokenizer& patternTokenizer, TTokenizer& pathT
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsAttributePath(const NYPath::TYPath& path)
+bool IsAttributePath(TStringBuf path)
 {
     NYson::TTokenizer ysonTokenizer(path);
     ysonTokenizer.ParseNext();
@@ -115,7 +115,7 @@ bool IsAttributePath(const NYPath::TYPath& path)
     return true;
 }
 
-void ValidateAttributePath(const TYPath& path)
+void ValidateAttributePath(TYPathBuf path)
 {
     TTokenizer tokenizer(path);
     while (tokenizer.Advance() != ETokenType::EndOfStream) {
@@ -125,7 +125,7 @@ void ValidateAttributePath(const TYPath& path)
     }
 }
 
-bool AreAttributesRelated(const TYPath& lhs, const TYPath& rhs)
+bool AreAttributesRelated(TYPathBuf lhs, TYPathBuf rhs)
 {
     TTokenizer lhsTokenizer(lhs);
     TTokenizer rhsTokenizer(rhs);
@@ -134,7 +134,7 @@ bool AreAttributesRelated(const TYPath& lhs, const TYPath& rhs)
         rhsTokenizer.GetType() == ETokenType::EndOfStream;
 }
 
-EAttributePathMatchResult MatchAttributePathToPattern(const NYPath::TYPath& pattern, const NYPath::TYPath& path)
+EAttributePathMatchResult MatchAttributePathToPattern(NYPath::TYPathBuf pattern, NYPath::TYPathBuf path)
 {
     TTokenizer patternTokenizer(pattern);
     TTokenizer pathTokenizer(path);

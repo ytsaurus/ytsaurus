@@ -57,6 +57,7 @@
 | `spark.ytsaurus.executors.annotations` | - | Аннотации для операции с экзекьюторами | 2.2.0 |
 | `spark.ytsaurus.driver.watch` | true | Флаг для выполнения мониторинга операции с драйвером при выполнении в кластерном режиме | 2.4.2 |
 | `spark.ytsaurus.network.project` | - | Название сетевого проекта, в котором запускается Spark приложения | 2.4.3 |
+| `spark.hadoop.yt.mtn.enabled` | false | Флаг включения поддержки MTN | 2.4.3 |
 | `spark.ytsaurus.squashfs.enabled` | false | Использование squashFS слоёв в {{product-name}} джобе вместо porto слоёв | 2.6.0 |
 | `spark.ytsaurus.client.rpc.timeout` | - | Таймаут, используемый в rpc клиенте для старта {{product-name}} операций | 2.6.0 |
 | `spark.ytsaurus.rpc.job.proxy.enabled` | true | Флаг использования rpc прокси, встроенной в job прокси | 2.6.0 |

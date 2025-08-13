@@ -69,7 +69,9 @@ struct IBlockDevice
 
     virtual TFuture<void> Flush() = 0;
 
+    //! Get the latest error set for device.
     virtual const TError& GetError() const = 0;
+    //! Set an error (error.IsOK() == false) for device.
     virtual void SetError(TError error) = 0;
 
     virtual void OnShouldStopUsingDevice() const = 0;
@@ -91,6 +93,7 @@ public:
     DEFINE_SIGNAL_OVERRIDE(void(), ShouldStopUsingDevice);
 
 private:
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     TError Error_;
 };
 

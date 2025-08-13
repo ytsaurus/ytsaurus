@@ -768,6 +768,12 @@ class TestMasterSnapshotsMulticell(TestMasterSnapshots):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SECONDARY_MASTER_CELLS = 3
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host", "cypress_node_host"]},
+        "13": {"roles": ["chunk_host", "cypress_node_host"]},
+    }
+
 
 ##################################################################
 
@@ -910,3 +916,8 @@ class TestMastersSnapshotsMirroredTx(TestMastersSnapshotsShardedTx):
 class TestMastersPersistentReadOnlyMulticell(TestMastersPersistentReadOnly):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }

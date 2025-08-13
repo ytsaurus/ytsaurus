@@ -119,7 +119,7 @@ struct IConnection
     virtual NRpc::IChannelPtr GetChaosChannelByCellTag(
         NObjectClient::TCellTag cellTag,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader) = 0;
-    virtual NRpc::IChannelPtr GetChaosChannelByCardId(
+    virtual NRpc::IChannelPtr GetChaosChannelByCardIdOrThrow(
         NChaosClient::TReplicationCardId replicationCardId,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader) = 0;
 

@@ -8,7 +8,6 @@
 
 #include <yt/yt/library/query/base/builtin_function_registry.h>
 #include <yt/yt/library/query/base/constraints.h>
-#include <yt/yt/library/query/base/functions.h>
 #include <yt/yt/library/query/base/functions_builder.h>
 #include <yt/yt/library/query/base/helpers.h>
 #include <yt/yt/library/query/base/query.h>
@@ -19,7 +18,7 @@
 
 #include <llvm/ADT/FoldingSet.h>
 
-#define UDF_BC(name) TSharedRef::FromString(::NResource::Find(TString("/llvm_bc/") + (name)))
+#define UDF_BC(name) TSharedRef::FromString(::NResource::Find(std::string("/llvm_bc/") + std::string(name)))
 
 namespace NYT::NQueryClient {
 namespace NBuiltins {

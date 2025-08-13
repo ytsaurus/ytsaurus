@@ -264,11 +264,11 @@ RUN ln -s /usr/bin/ytserver-all /usr/bin/ytserver-master && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-tablet-balancer
 
 # YTsaurus credits files.
-COPY ./credits/ytserver-all.CREDITS /usr/bin/ytserver-all.CREDITS
+COPY ./credits/*.CREDITS /usr/bin/
 
 # Scripts for init jobs.
-COPY ./init_queue_agent_state.py /usr/bin/init_queue_agent_state
-COPY ./init_operations_archive.py /usr/bin/init_operations_archive
+COPY ./init_queue_agent_state /usr/bin/init_queue_agent_state
+COPY ./init-operations-archive /usr/bin/init_operations_archive
 RUN ln -s /usr/bin/init_operations_archive /usr/bin/init_operation_archive
 
 FROM scratch AS ytsaurus
@@ -279,11 +279,12 @@ COPY --from=ytsaurus-bloated / /
 FROM base AS chyt
 
 # CHYT binaries.
-COPY ./clickhouse-trampoline.py /usr/bin/clickhouse-trampoline
+COPY ./clickhouse-trampoline /usr/bin/clickhouse-trampoline
 COPY ./ytserver-clickhouse /usr/bin/ytserver-clickhouse
 
 # CHYT credits files.
 COPY ./credits/ytserver-clickhouse.CREDITS /usr/bin/ytserver-clickhouse.CREDITS
+COPY ./credits/clickhouse-trampoline.CREDITS /usr/bin/clickhouse-trampoline.CREDITS
 
 # Install YT client for setup script.
 RUN python3.8 -m pip install ytsaurus-client
@@ -321,10 +322,11 @@ COPY ./dq_vanilla_job.lite /usr/bin/dq_vanilla_job.lite
 COPY ./yql /usr/lib/yql
 
 # Scripts for init jobs.
-COPY ./init_query_tracker_state.py /usr/bin/init_query_tracker_state
+COPY ./init_query_tracker_state /usr/bin/init_query_tracker_state
 
 # Query tracker credits files.
 COPY ./credits/ytserver-all.CREDITS /usr/bin/ytserver-all.CREDITS
+COPY ./credits/init_query_tracker_state.CREDITS /usr/bin/init_query_tracker_state.CREDITS
 
 FROM scratch AS query-tracker
 COPY --from=query-tracker-bloated / /
@@ -385,8 +387,8 @@ USER root
 
 # Override binaries built from source.
 COPY ./ytserver-all /usr/bin/ytserver-all
-COPY ./init_queue_agent_state.py /usr/bin/init_queue_agent_state
-COPY ./init_operations_archive.py /usr/bin/init_operations_archive
+COPY ./init_queue_agent_state /usr/bin/init_queue_agent_state
+COPY ./init-operations-archive /usr/bin/init_operations_archive
 
 FROM scratch AS ytsaurus-server-override
 COPY --from=ytsaurus-server-override-bloated / /

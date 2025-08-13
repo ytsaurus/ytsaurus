@@ -1213,7 +1213,7 @@ std::vector<TJobTraceEvent> TClient::DoGetJobTraceFromTraceEventsTable(
         .ValueOrThrow()
         .Rowset;
 
-    auto idMapping = NRecords::TJobTraceEvent::TRecordDescriptor::TIdMapping(rowset->GetNameTable());
+    auto idMapping = NRecords::TJobTraceEvent::TRecordDescriptor::TPartialIdMapping(rowset->GetNameTable());
     auto records = ToRecords<NRecords::TJobTraceEvent>(rowset->GetRows(), idMapping);
 
     std::vector<TJobTraceEvent> traceEvents;
@@ -1312,9 +1312,10 @@ TSharedRef TClient::DoGetJobFailContextFromArchive(
 
         auto keys = FromRecordKeys(TRange(std::array{recordKey}));
 
-        TLookupRowsOptions lookupOptions;
         const auto& idMapping = NRecords::TJobFailContextDescriptor::Get()->GetIdMapping();
-        lookupOptions.ColumnFilter = NTableClient::TColumnFilter({*idMapping.FailContext});
+
+        TLookupRowsOptions lookupOptions;
+        lookupOptions.ColumnFilter = {idMapping.FailContext};
         lookupOptions.KeepMissingRows = true;
 
         auto rowset = WaitFor(GetOperationsArchiveClient()->LookupRows(
@@ -1408,9 +1409,8 @@ static TQueryBuilder GetListJobsQueryBuilder(
         operationIdAsGuid.Parts64[0],
         operationIdAsGuid.Parts64[1]));
 
-    // TODO(bystrovserg): Switch node_state to transient_state.
     auto runningJobsLookbehindPeriodExpression = Format(
-        "node_state IN (%v) "
+        "transient_state IN (%v) "
         "OR ((NOT is_null(update_time)) AND update_time >= %v)",
         FinishedJobStatesString,
         (TInstant::Now() - options.RunningJobsLookbehindPeriod).MicroSeconds());
@@ -1522,13 +1522,13 @@ TFuture<TListJobsStatistics> TClient::ListJobsStatisticsFromArchiveAsync(
     if (DoesArchiveContainAttribute("controller_state", archiveVersion)) {
         jobStateIndex = builder.AddSelectExpression(
             Format(
-                "if(NOT is_null(if(is_null(state), transient_state, state) AS node_state) AND NOT is_null(controller_state),"
+                "if(NOT is_null(transient_state AS node_state) AND NOT is_null(controller_state),"
                 "   if(node_state IN (%v), node_state, controller_state),"
                 "   if(is_null(node_state), controller_state, node_state))",
                 FinishedJobStatesString),
             "job_state");
     } else {
-        jobStateIndex = builder.AddSelectExpression("(if(is_null(state), transient_state, state) AS node_state)", "job_state");
+        jobStateIndex = builder.AddSelectExpression("transient_state", "job_state");
     }
     auto countIndex = builder.AddSelectExpression("sum(1)", "count");
 
@@ -1575,7 +1575,7 @@ TFuture<TListJobsStatistics> TClient::ListJobsStatisticsFromArchiveAsync(
 static std::vector<TJob> ParseJobsFromArchiveResponse(
     TOperationId operationId,
     const std::vector<NRecords::TJobPartial>& records,
-    const NRecords::TJobPartial::TRecordDescriptor::TIdMapping& responseIdMapping,
+    const NRecords::TJobPartial::TRecordDescriptor::TPartialIdMapping& responseIdMapping,
     bool needFullStatistics)
 {
     std::vector<TJob> jobs;
@@ -1586,9 +1586,11 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             jobType = record.JobType;
         }
 
-        auto nodeState = record.TransientState;
+        auto nodeState = record.NodeState;
+        // TODO(bystrovserg): We do not have alieses in lookup-rows which is used in GetJob.
+        // So transient_state is used instead of node_state.
         if (!nodeState) {
-            nodeState = record.NodeState;
+            nodeState = record.TransientState;
         }
 
         bool needType = responseIdMapping.Type || responseIdMapping.JobType;
@@ -1765,7 +1767,9 @@ void TClient::AddSelectExpressions(
                 builder->AddSelectExpression("brief_statistics");
             }
         } else if (attribute == "state") {
-            builder->AddSelectExpression("if(is_null(state), transient_state, state)", "node_state");
+            // NB(bystrovserg): We use the alias for "transient_state" here
+            // just to highlight that this is job state according to the node.
+            builder->AddSelectExpression("transient_state", "node_state");
             if (DoesArchiveContainAttribute("controller_state", archiveVersion)) {
                 builder->AddSelectExpression("controller_state");
                 builder->AddSelectExpression(
@@ -1850,7 +1854,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
     auto selectOptions = GetDefaultSelectRowsOptions(deadline, AsyncLastCommittedTimestamp);
     return GetOperationsArchiveClient()->SelectRows(builder.Build(), selectOptions).Apply(BIND(
         [operationId, attributes = std::move(attributes), this_ = MakeStrong(this)] (const TSelectRowsResult& result) {
-        auto idMapping = NRecords::TJobPartial::TRecordDescriptor::TIdMapping(result.Rowset->GetNameTable());
+        auto idMapping = NRecords::TJobPartial::TRecordDescriptor::TPartialIdMapping(result.Rowset->GetNameTable());
         auto records = ToRecords<NRecords::TJobPartial>(result.Rowset->GetRows(), idMapping);
         return ParseJobsFromArchiveResponse(
             operationId,
@@ -2527,7 +2531,6 @@ static std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& at
             result.push_back(attribute + "_hi");
             result.push_back(attribute + "_lo");
         } else if (attribute == "state") {
-            result.emplace_back("state");
             result.emplace_back("transient_state");
             if (DoesArchiveContainAttribute("controller_state", archiveVersion)) {
                 result.emplace_back("controller_state");
@@ -2598,7 +2601,7 @@ std::optional<TJob> TClient::DoGetJobFromArchive(
         return {};
     }
 
-    auto idMapping = NRecords::TJobPartial::TRecordDescriptor::TIdMapping(rowset->GetNameTable());
+    auto idMapping = NRecords::TJobPartial::TRecordDescriptor::TPartialIdMapping(rowset->GetNameTable());
     auto records = ToRecords<NRecords::TJobPartial>(rowset->GetRows(), idMapping);
     auto jobs = ParseJobsFromArchiveResponse(
         operationId,

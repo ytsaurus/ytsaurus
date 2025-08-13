@@ -15,7 +15,7 @@ struct IDistributedThrottlerManager
         const NYPath::TYPath& tablePath,
         NObjectClient::TCellTag cellTag,
         const NConcurrency::TThroughputThrottlerConfigPtr& config,
-        const TString& throttlerId,
+        const NDistributedThrottler::TThrottlerId& throttlerId,
         NDistributedThrottler::EDistributedThrottlerMode mode,
         TDuration rpcTimeout,
         bool admitUnlimitedThrottler,

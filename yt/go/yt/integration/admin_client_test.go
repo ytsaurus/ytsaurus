@@ -24,8 +24,8 @@ func TestAdminClient(t *testing.T) {
 		{Name: "CheckPermission", Test: suite.TestCheckPermission},
 		{Name: "CheckPermissionByACL", Test: suite.TestCheckPermissionByACL},
 		{Name: "CheckColumnPermission", Test: suite.TestCheckColumnPermission},
-		{Name: "BuildMasterSnapshots", Test: suite.TestBuildMasterSnapshots},
-		{Name: "BuildSnapshot", Test: suite.TestBuildSnapshot},
+		{Name: "BuildMasterSnapshots", Test: suite.TestBuildMasterSnapshots, SkipRPC: true},
+		{Name: "BuildSnapshot", Test: suite.TestBuildSnapshot, SkipRPC: true},
 	})
 }
 

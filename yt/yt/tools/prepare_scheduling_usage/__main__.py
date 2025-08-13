@@ -101,6 +101,12 @@ def extract_data_output_stat(job_statistics, stat):
     return sum([extract_statistic(job_statistics, path, default=0) for path in statistic_paths])
 
 
+def get_info_from_accumulated_usage(info, part, resource):
+    try_extract_new = info.get("accumulated_resource_distribution", {}).get(part, {}).get(resource)
+    extraxt_old = info["accumulated_resource_usage"][resource] if part == "usage" else None
+    return try_extract_new or extraxt_old
+
+
 class YsonEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, yson.YsonEntity):
@@ -119,7 +125,7 @@ class TableInfo:
 def get_item(other_columns, key, default_value=None):
     if other_columns is None:
         return default_value
-    if key not in other_columns:
+    if key not in other_columns or other_columns[key] is None:
         return default_value
     return other_columns[key]
 
@@ -182,6 +188,12 @@ class OperationInfo:
     accumulated_resource_usage_cpu: typing.Optional[float]
     accumulated_resource_usage_memory: typing.Optional[float]
     accumulated_resource_usage_gpu: typing.Optional[float]
+    accumulated_fair_resources_cpu: typing.Optional[float]
+    accumulated_fair_resources_memory: typing.Optional[float]
+    accumulated_fair_resources_gpu: typing.Optional[float]
+    accumulated_resource_usage_deficit_cpu: typing.Optional[float]
+    accumulated_resource_usage_deficit_memory: typing.Optional[float]
+    accumulated_resource_usage_deficit_gpu: typing.Optional[float]
     cumulative_memory: typing.Optional[float]
     cumulative_max_memory: typing.Optional[float]
     cumulative_used_cpu: typing.Optional[float]
@@ -312,12 +324,43 @@ def aggregate_tags_for_ancestor_pools(rows):
     )
 
 
+def add_optional(base, update):
+    if base and update:
+        return base + update
+    else:
+        return base or update
+
+
 def merge_info(info_base, info_update):
     # TODO(ignat): what if pools don't match?
     assert info_update.timestamp >= info_base.timestamp
     info_base.accumulated_resource_usage_cpu += info_update.accumulated_resource_usage_cpu
     info_base.accumulated_resource_usage_memory += info_update.accumulated_resource_usage_memory
     info_base.accumulated_resource_usage_gpu += info_update.accumulated_resource_usage_gpu
+    info_base.accumulated_fair_resources_cpu = add_optional(
+        info_base.accumulated_fair_resources_cpu,
+        info_update.accumulated_fair_resources_cpu
+    )
+    info_base.accumulated_fair_resources_memory = add_optional(
+        info_base.accumulated_fair_resources_memory,
+        info_update.accumulated_fair_resources_memory
+    )
+    info_base.accumulated_fair_resources_gpu = add_optional(
+        info_base.accumulated_fair_resources_gpu,
+        info_update.accumulated_fair_resources_gpu
+    )
+    info_base.accumulated_resource_usage_deficit_cpu = add_optional(
+        info_base.accumulated_resource_usage_deficit_cpu,
+        info_update.accumulated_resource_usage_deficit_cpu
+    )
+    info_base.accumulated_resource_usage_deficit_memory = add_optional(
+        info_base.accumulated_resource_usage_deficit_memory,
+        info_update.accumulated_resource_usage_deficit_memory
+    )
+    info_base.accumulated_resource_usage_deficit_gpu = add_optional(
+        info_base.accumulated_resource_usage_deficit_gpu,
+        info_update.accumulated_resource_usage_deficit_gpu
+    )
 
     info_base.cumulative_memory += info_update.cumulative_memory
     info_base.cumulative_max_memory += info_update.cumulative_max_memory
@@ -468,9 +511,15 @@ class FilterAndNormalizeEvents(TypedJob):
                 annotations=yson.dumps(info.get("trimmed_annotations")),
                 aborted_time_total=0.0,
                 aborted_cumulative_used_cpu=0.0,
-                accumulated_resource_usage_cpu=info["accumulated_resource_usage"]["cpu"],
-                accumulated_resource_usage_memory=info["accumulated_resource_usage"]["user_memory"],
-                accumulated_resource_usage_gpu=info["accumulated_resource_usage"]["gpu"],
+                accumulated_resource_usage_cpu=get_info_from_accumulated_usage(info, "usage", "cpu"),
+                accumulated_resource_usage_memory=get_info_from_accumulated_usage(info, "usage", "user_memory"),
+                accumulated_resource_usage_gpu=get_info_from_accumulated_usage(info, "usage", "gpu"),
+                accumulated_fair_resources_cpu=get_info_from_accumulated_usage(info, "fair_resources", "cpu"),
+                accumulated_fair_resources_memory=get_info_from_accumulated_usage(info, "fair_resources", "user_memory"),
+                accumulated_fair_resources_gpu=get_info_from_accumulated_usage(info, "fair_resources", "gpu"),
+                accumulated_resource_usage_deficit_cpu=get_info_from_accumulated_usage(info, "usage_deficit", "cpu"),
+                accumulated_resource_usage_deficit_memory=get_info_from_accumulated_usage(info, "usage_deficit", "user_memory"),
+                accumulated_resource_usage_deficit_gpu=get_info_from_accumulated_usage(info, "usage_deficit", "gpu"),
                 cumulative_used_cpu=0.0,
                 cumulative_gpu_utilization=0.0,
                 cumulative_sm_utilization=0,
@@ -496,7 +545,10 @@ class FilterAndNormalizeEvents(TypedJob):
             )
 
     def _process_operation_finished_or_started(self, input_row):
-        accumulated_resource_usage_per_tree = input_row["accumulated_resource_usage_per_tree"]
+        accumulated_resource_usage_per_tree = get_item(input_row, "accumulated_resource_distribution_per_tree", {}).get(
+            "usage",
+            input_row["accumulated_resource_usage_per_tree"]
+        )
         if accumulated_resource_usage_per_tree is None:
             return
 
@@ -532,7 +584,12 @@ class FilterAndNormalizeEvents(TypedJob):
             if len(annotations_dict) == 0:
                 annotations_dict = None
             annotations_yson = yson.dumps(annotations_dict)
-            usage = input_row["accumulated_resource_usage_per_tree"][pool_tree]
+            usage = get_item(input_row, "accumulated_resource_distribution_per_tree", {}) \
+                .get("usage", {}).get(pool_tree, input_row["accumulated_resource_usage_per_tree"][pool_tree])
+            fair_resources = get_item(input_row, "accumulated_resource_distribution_per_tree", {}) \
+                .get("fair_resources", {}).get(pool_tree, {})
+            usage_deficit = get_item(input_row, "accumulated_resource_distribution_per_tree", {}) \
+                .get("usage_deficit", {}).get(pool_tree, {})
             ms_multiplier = 1.0 / 1000
             operation_state = "running" \
                 if input_row["event_type"] == "operation_started" \
@@ -563,6 +620,12 @@ class FilterAndNormalizeEvents(TypedJob):
                 accumulated_resource_usage_cpu=usage["cpu"],
                 accumulated_resource_usage_memory=usage["user_memory"],
                 accumulated_resource_usage_gpu=usage["gpu"],
+                accumulated_fair_resources_cpu=fair_resources.get("cpu"),
+                accumulated_fair_resources_memory=fair_resources.get("user_memory"),
+                accumulated_fair_resources_gpu=fair_resources.get("gpu"),
+                accumulated_resource_usage_deficit_cpu=usage_deficit.get("cpu"),
+                accumulated_resource_usage_deficit_memory=usage_deficit.get("user_memory"),
+                accumulated_resource_usage_deficit_gpu=usage_deficit.get("gpu"),
                 cumulative_gpu_utilization=extract_statistic(
                     job_statistics,
                     "user_job/gpu/cumulative_utilization_gpu",

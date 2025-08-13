@@ -27,10 +27,6 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr i64 RowsetProcessingBatchSize = 256;
-constexpr i64 WriteRowsetSize = 256 * RowsetProcessingBatchSize;
-constexpr i64 MaxJoinBatchSize = 512 * RowsetProcessingBatchSize;
-
 class TInterruptedIncompleteException
 { };
 
@@ -118,7 +114,7 @@ struct TLikeExpressionContext
     { }
 };
 
-TString ConvertLikePatternToRegex(
+std::string ConvertLikePatternToRegex(
     TStringBuf pattern,
     EStringMatchOp matchOp,
     TStringBuf escapeCharacter,
@@ -216,13 +212,16 @@ struct TExecutionContext
     ISchemafulUnversionedReaderPtr Reader;
     IUnversionedRowsetWriterPtr Writer;
 
-    TQueryStatistics* Statistics = nullptr;
+    TExecutionStatistics* Statistics = nullptr;
 
     // These limits prevent full scan.
     i64 InputRowLimit = std::numeric_limits<i64>::max();
     i64 OutputRowLimit = std::numeric_limits<i64>::max();
     i64 GroupRowLimit = std::numeric_limits<i64>::max();
     i64 JoinRowLimit = std::numeric_limits<i64>::max();
+    i64 RowsetProcessingBatchSize = DefaultRowsetProcessingBatchSize;
+    i64 WriteRowsetSize = DefaultWriteRowsetSize;
+    i64 MaxJoinBatchSize = DefaultMaxJoinBatchSize;
 
     // Offset from OFFSET clause.
     i64 Offset = 0;

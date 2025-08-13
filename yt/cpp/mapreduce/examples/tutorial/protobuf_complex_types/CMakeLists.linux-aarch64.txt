@@ -48,8 +48,7 @@ target_link_libraries(protobuf_complex_types PUBLIC
 )
 
 target_allocator(protobuf_complex_types
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
+  system_allocator
 )
 
 target_link_options(protobuf_complex_types PRIVATE

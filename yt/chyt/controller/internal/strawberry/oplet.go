@@ -9,6 +9,7 @@ import (
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yt/ythttp"
 	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
@@ -18,14 +19,16 @@ type AgentInfo struct {
 	Hostname           string
 	Stage              string
 	Proxy              string
+	ServiceToken       string // TODO: move me somewhere
 	Family             string
 	OperationNamespace string
 	// RobotUsername is needed for a temporary workaround to add the robot to the operation acl.
 	//
 	// TODO(dakovalkov): remove after YT-17557
-	RobotUsername         string
-	DefaultNetworkProject *string
-	ClusterURL            string
+	RobotUsername            string
+	DefaultNetworkProject    *string
+	ClusterURL               string
+	UseFamilyPrefixInOpAlias bool
 }
 
 func DescribeOptions(a AgentInfo, speclet Speclet) []OptionGroupDescriptor {
@@ -866,6 +869,21 @@ func (oplet *Oplet) getOpACL() (acl []yt.ACE) {
 	return
 }
 
+func (oplet *Oplet) getUserClient() (yt.Client, error) {
+	client, err := ythttp.NewClient(
+		&yt.Config{
+			Proxy:             oplet.agentInfo.Proxy,
+			Token:             oplet.agentInfo.ServiceToken,
+			ImpersonationUser: oplet.persistentState.Creator,
+		},
+	)
+	if err != nil {
+		oplet.setError(err)
+		return nil, err
+	}
+	return client, nil
+}
+
 func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 	oplet.l.Info("restarting operation",
 		log.Int("next_incarnation_index", oplet.NextIncarnationIndex()),
@@ -886,7 +904,7 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 		defer cancel()
 	}
 
-	spec, description, annotations, err := oplet.c.Prepare(ctx, oplet)
+	spec, description, annotations, runAsUser, err := oplet.c.Prepare(ctx, oplet)
 
 	if err != nil {
 		oplet.setError(err)
@@ -906,7 +924,13 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 	// TODO(gudqeit): move speclet patching to a separate method.
 	spec["annotations"] = annotations
 	spec["description"] = description
-	spec["alias"] = "*" + oplet.alias
+
+	if oplet.agentInfo.UseFamilyPrefixInOpAlias {
+		spec["alias"] = "*" + oplet.c.Family() + OpAliasFamilyDelimiter + oplet.alias
+	} else {
+		spec["alias"] = "*" + oplet.alias
+	}
+
 	if oplet.strawberrySpeclet.Pool != nil {
 		spec["pool"] = *oplet.strawberrySpeclet.Pool
 	}
@@ -964,7 +988,18 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 		}
 	}
 
-	opID, err := oplet.userClient.StartOperation(ctx, yt.OperationVanilla, spec, nil)
+	var ytClientForOpStart yt.Client
+	if runAsUser {
+		ytClientForOpStart, err = oplet.getUserClient()
+		if err != nil {
+			oplet.setError(err)
+			return err
+		}
+	} else {
+		ytClientForOpStart = oplet.systemClient
+	}
+
+	opID, err := ytClientForOpStart.StartOperation(ctx, yt.OperationVanilla, spec, nil)
 
 	// TODO(dakovalkov): Add GetOperationByAlias in go yt api and eliminate this.
 	if yterrors.ContainsMessageRE(err, aliasAlreadyUsedRE) {
@@ -977,7 +1012,7 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 			oplet.setError(abortErr)
 			return abortErr
 		}
-		opID, err = oplet.userClient.StartOperation(ctx, yt.OperationVanilla, spec, nil)
+		opID, err = ytClientForOpStart.StartOperation(ctx, yt.OperationVanilla, spec, nil)
 	}
 
 	if err != nil {

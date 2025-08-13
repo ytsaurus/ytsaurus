@@ -167,6 +167,11 @@ TJobResources operator * (const TJobResources& lhs, i64 rhs)
     return result;
 }
 
+TJobResources operator * (const TJobResources& lhs, int rhs)
+{
+    return lhs * static_cast<i64>(rhs);
+}
+
 TJobResources operator * (const TJobResources& lhs, double rhs)
 {
     TJobResources result;
@@ -181,6 +186,12 @@ TJobResources& operator *= (TJobResources& lhs, i64 rhs)
     #define XX(name, Name) lhs.Set##Name(lhs.Get##Name() * rhs);
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
+    return lhs;
+}
+
+TJobResources& operator *= (TJobResources& lhs, int rhs)
+{
+    lhs *= static_cast<i64>(rhs);
     return lhs;
 }
 
@@ -263,9 +274,6 @@ void Serialize(const TJobResources& resources, IYsonConsumer* consumer)
 
 void Deserialize(TJobResources& resources, INodePtr node)
 {
-    TCpuResource x{};
-    Deserialize(x, node);
-
     auto mapNode = node->AsMap();
     #define XX(name, Name) \
         if (auto child = mapNode->FindChild(#name)) { \

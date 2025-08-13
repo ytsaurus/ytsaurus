@@ -1132,8 +1132,12 @@ private:
             JobSpecExt_.use_cluster_throttlers());
 
         auto clusterName = LocalClusterName;
-        if (RemoteCopyJobSpecExt_.has_remote_cluster_name() && JobSpecExt_.use_cluster_throttlers()) {
-            clusterName = FromProto<TClusterName>(RemoteCopyJobSpecExt_.remote_cluster_name());
+        if (JobSpecExt_.use_cluster_throttlers()) {
+            clusterName = TClusterName(YT_OPTIONAL_FROM_PROTO(RemoteCopyJobSpecExt_, remote_cluster_name));
+            // COMPAT(coteeq): Remove in 25.4
+            if (const auto& underlying = clusterName.Underlying(); underlying && underlying->empty()) {
+                clusterName = LocalClusterName;
+            }
         }
 
         return New<TChunkReaderHost>(

@@ -20,6 +20,7 @@ from collections import defaultdict
 
 from yt.yson import YsonEntity
 
+from yt.wrapper.common import generate_uuid
 from yt.wrapper.ypath import escape_ypath_literal
 
 import yt.environment.init_queue_agent_state as init_queue_agent_state
@@ -828,6 +829,15 @@ class TestQueueAgentBase(YTEnvSetup):
 
     def _drop_tables(self):
         init_queue_agent_state.delete_all_tables(self.client)
+
+    def create_queue_path(self):
+        return f"//tmp/queue-{generate_uuid()}"
+
+    def create_producer_path(self):
+        return f"//tmp/producer-{generate_uuid()}"
+
+    def create_consumer_path(self):
+        return f"//tmp/consumer-{generate_uuid()}"
 
     @staticmethod
     def _create_queue(path, partition_count=1, enable_timestamp_column=True,

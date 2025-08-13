@@ -124,7 +124,16 @@ public:
     }
 };
 
-class TOperationsManager {
+class IResolveWriteIdToLockId {
+protected:
+    virtual ~IResolveWriteIdToLockId() {
+    }
+
+public:
+    virtual std::optional<ui64> ResolveWriteIdToLockId(const TInsertWriteId& writeId) const = 0;
+};
+
+class TOperationsManager: public IResolveWriteIdToLockId {
     NOlap::NTxInteractions::TInteractionsContext InteractionsContext;
 
     THashMap<ui64, ui64> Tx2Lock;
@@ -132,6 +141,16 @@ class TOperationsManager {
     THashMap<ui64, TLockFeatures> LockFeatures;
     THashMap<TOperationWriteId, TWriteOperation::TPtr> Operations;
     TOperationWriteId LastWriteId = TOperationWriteId(0);
+
+public:   //IResolveWriteIdToLockId
+    virtual std::optional<ui64> ResolveWriteIdToLockId(const TInsertWriteId& writeId) const override {
+        if (const auto operationWriteId = InsertWriteIdToOpWriteId.FindPtr(writeId)) {
+            if (const auto* operation = Operations.FindPtr(*operationWriteId)) {
+                return (*operation)->GetLockId();
+            }
+        }
+        return std::nullopt;
+    }
 
 public:
 
@@ -208,7 +227,7 @@ public:
     }
 
     TWriteOperation::TPtr CreateWriteOperation(const TUnifiedPathId& pathId, const ui64 lockId, const ui64 cookie, const std::optional<ui32> granuleShardingVersionId,
-        const NEvWrite::EModificationType mType);
+        const NEvWrite::EModificationType mType, const bool isBulk);
     bool RegisterLock(const ui64 lockId, const ui64 generationId) {
         if (LockFeatures.contains(lockId)) {
             return false;

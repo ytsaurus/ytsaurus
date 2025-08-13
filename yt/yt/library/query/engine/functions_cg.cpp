@@ -36,12 +36,12 @@ static const char* UnversionedValueStructName = "struct.TUnversionedValue";
 
 namespace {
 
-TString ToString(llvm::Type* tp)
+std::string ToString(llvm::Type* tp)
 {
     std::string str;
     llvm::raw_string_ostream stream(str);
     tp->print(stream);
-    return TString(stream.str());
+    return str;
 }
 
 Type* GetOpaqueType(
@@ -557,7 +557,7 @@ void LoadLlvmBitcode(
 
     for (auto& function : implementationModule->getFunctionList()) {
         auto name = function.getName();
-        auto nameString = TString(name.begin(), name.size());
+        auto nameString = std::string(name.begin(), name.size());
         if (builder.Module->IsSymbolLoaded(nameString)) {
             THROW_ERROR_EXCEPTION(
                 "LLVM bitcode for function %Qv redefines already defined symbol %Qv",

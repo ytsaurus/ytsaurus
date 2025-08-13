@@ -184,16 +184,7 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, HunkStorage);
     Load(context, SecondaryIndices);
     Load(context, IndexTo);
-
-    // COMPAT(ponasenko-rs)
-    if (context.GetVersion() < EMasterReign::RemoveEnableSharedWriteLocksFlag) {
-        Load<bool>(context);
-    }
-
-    // COMPAT(apachee)
-    if (context.GetVersion() >= EMasterReign::QueueProducers) {
-        Load(context, TreatAsQueueProducer);
-    }
+    Load(context, TreatAsQueueProducer);
 
     // COMPAT(ponasenko-rs)
     if (context.GetVersion() >= EMasterReign::TabletTransactionSerializationType) {
@@ -424,11 +415,7 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
         Load(context, retainedTimestamp);
         Load(context, unflushedTimestamp);
         Load(context, replicationCollocation);
-
-        // COMPAT(gryzlov-ad)
-        if (context.GetVersion() >= EMasterReign::AddTableNodeCustomRuntimeData) {
-            Load(context, customRuntimeData);
-        }
+        Load(context, customRuntimeData);
     }
 
     // COMPAT(gritukan): Use TUniquePtrSerializer.
@@ -444,26 +431,8 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
         SetRetainedTimestamp(retainedTimestamp);
         SetUnflushedTimestamp(unflushedTimestamp);
         SetReplicationCollocation(replicationCollocation);
-
-        // COMPAT(gryzlov-ad)
-        if (context.GetVersion() >= EMasterReign::AddTableNodeCustomRuntimeData) {
-            if (customRuntimeData) {
-                MutableCustomRuntimeData() = std::move(customRuntimeData);
-            }
-        }
-    }
-
-    // COMPAT(apachee): Remove user attributes conflicting with new producer attributes.
-    if (context.GetVersion() < EMasterReign::QueueProducers) {
-        if (Attributes_) {
-            static constexpr std::array producerRelatedAttributes = {
-                EInternedAttributeKey::TreatAsQueueProducer,
-                EInternedAttributeKey::QueueProducerStatus,
-                EInternedAttributeKey::QueueProducerPartitions,
-            };
-            for (const auto& attribute : producerRelatedAttributes) {
-                Attributes_->TryRemove(attribute.Unintern());
-            }
+        if (customRuntimeData) {
+            MutableCustomRuntimeData() = std::move(customRuntimeData);
         }
     }
 }

@@ -1,8 +1,13 @@
 items:
   - name: Custom aggregate functions in YQL
     href: udaf.md
+  - name: Recipes for code generation
+    href: codegen.md
+  - name: Metaprogramming practices in YQL
+    href: metaprogramming.md
   - name: Accessing values inside JSON with YQL
     href: accessing-json.md
   - name: Modifying JSON with YQL
     href: modifying-json.md
 
+    

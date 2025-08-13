@@ -33,8 +33,7 @@ target_link_libraries(proxy-example PUBLIC
 )
 
 target_allocator(proxy-example
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
+  system_allocator
 )
 
 target_link_options(proxy-example PRIVATE

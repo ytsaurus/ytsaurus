@@ -681,6 +681,16 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
         assert memory_reserve >= (100 + 42) * 1024 ** 2
 
+    @authors("coteeq")
+    def test_no_nul_in_file_name(self):
+        skip_if_component_old(self.Env, (25, 2), "controller-agent")
+
+        with raises_yt_error("must not contain"):
+            run_sleeping_vanilla(
+                track=True,
+                task_patch={"file_paths": ['<file_name="with_\0_byte">//some/path']}
+            )
+
 
 @pytest.mark.enabled_multidaemon
 class TestYTDiscoveryServiceInVanilla(YTEnvSetup):
@@ -705,6 +715,11 @@ class TestYTDiscoveryServiceInVanilla(YTEnvSetup):
 class TestSchedulerVanillaCommandsMulticell(TestSchedulerVanillaCommands):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
 
 
 ##################################################################
@@ -833,8 +848,8 @@ class TestVanillaOperationRevival(YTEnvSetup):
 
         op.track()
 
-        assert incarnation_switch_counter.get() == 0
-        assert started_job_profiler.get() == 3 - jobs_were_scheduled
+        wait(lambda: incarnation_switch_counter.get() == 0)
+        wait(lambda: started_job_profiler.get(default=0) == 3 - jobs_were_scheduled)
 
 
 ##################################################################
@@ -1401,6 +1416,97 @@ class TestGangOperations(YTEnvSetup):
         op.track()
 
         wait(lambda: incarnation_switch_counter.get() == 1)
+
+    @authors("pogorelov")
+    @pytest.mark.parametrize("with_gang_policy", [False, True])
+    def test_revive_with_completed_task(self, with_gang_policy):
+        incarnation_switch_counter = _get_controller_profiler().with_tags({"reason": "job_lack_after_revival"}).counter(
+            "controller_agent/gang_operations/incarnation_switch_count")
+
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "task_a": {
+                        "job_count": 1,
+                        "command": with_breakpoint("BREAKPOINT", breakpoint_name="task_a"),
+                    },
+                    "task_b": {
+                        "job_count": 1,
+                        "command": with_breakpoint("BREAKPOINT", breakpoint_name="task_b"),
+                        "gang_options": {},
+                    },
+                },
+                "fail_on_job_restart": False,
+            },
+        )
+
+        job_id_a, = wait_breakpoint(job_count=1, breakpoint_name="task_a")
+        job_id_b, = wait_breakpoint(job_count=1, breakpoint_name="task_b")
+
+        print_debug(f"Job ids are task_a: {job_id_a}, task_b: {job_id_b}")
+
+        first_incarnation_id = self._get_operation_incarnation(op)
+
+        if with_gang_policy:
+            release_breakpoint(job_id=job_id_b, breakpoint_name="task_b")
+            task_to_wait_for_job_completed = "task_b"
+            print_debug(f"Releasing breakpoint for job {job_id_b} (task_b)")
+        else:
+            release_breakpoint(job_id=job_id_a, breakpoint_name="task_a")
+            task_to_wait_for_job_completed = "task_a"
+            print_debug(f"Releasing breakpoint for job {job_id_a} (task_a)")
+
+        def check_task_completed(task_name):
+            tasks_progress = get(op.get_path() + "/controller_orchid/progress/tasks", verbose=True)
+
+            for task in tasks_progress:
+                if task["task_name"] != task_name:
+                    continue
+
+                return task["job_counter"]["completed"]["total"] == 1
+
+            assert False, f"Task {task_name} not found"
+
+        wait(lambda: check_task_completed(task_to_wait_for_job_completed))
+
+        op.wait_for_fresh_snapshot()
+
+        assert incarnation_switch_counter.get_delta() == 0
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        incarnation_switch_counter = _get_controller_profiler().with_tags({"reason": "job_lack_after_revival"}).counter(
+            "controller_agent/gang_operations/incarnation_switch_count")
+
+        # if with_gang_policy:
+        #     release_breakpoint(job_id=job_id_a, breakpoint_name="task_a")
+        # else:
+        #     release_breakpoint(job_id=job_id_b, breakpoint_name="task_b")
+
+        if with_gang_policy:
+            job_id_a, = wait_breakpoint(job_count=1, breakpoint_name="task_a")
+        job_id_b, = wait_breakpoint(job_count=1, breakpoint_name="task_b")
+
+        second_incarnation_id = self._get_operation_incarnation(op)
+
+        print_debug(f"First incarnation id: {first_incarnation_id}, second incarnation id: {second_incarnation_id}")
+
+        if with_gang_policy:
+            assert first_incarnation_id != second_incarnation_id
+        else:
+            assert first_incarnation_id == second_incarnation_id
+
+        release_breakpoint(breakpoint_name="task_a")
+        release_breakpoint(breakpoint_name="task_b")
+
+        op.track()
+
+        if with_gang_policy:
+            wait(lambda: incarnation_switch_counter.get() == 1)
+        else:
+            assert incarnation_switch_counter.get() == 0
 
     @authors("pogorelov")
     def test_restart_completed_jobs(self):

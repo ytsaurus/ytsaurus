@@ -310,8 +310,6 @@ DEFINE_REFCOUNTED_TYPE(TUserJobOptions)
 struct TGpuCheckOptions
     : public NYTree::TYsonStruct
 {
-    bool UseSeparateRootVolume;
-
     //! Path to layers for separate volume of GPU check.
     std::vector<NYPath::TRichYPath> LayerPaths;
 
@@ -940,8 +938,8 @@ struct TControllerAgentConfig
     //! Number of threads for hosting controllers' invokers.
     int ControllerThreadCount;
 
-    //! Number of thread for hosting chunk scrapers' invokers.
-    int ChunkScraperThreadCount;
+    //! Number of threads for hosting chunk scrapers' heavy job invoker.
+    int ChunkScraperHeavyThreadCount;
 
     //! Number of threads for running job spec build callbacks.
     int JobSpecBuildThreadCount;
@@ -1162,10 +1160,6 @@ struct TControllerAgentConfig
     // present.
     std::optional<TString> CudaToolkitLayerDirectoryPath;
 
-    // Cypress path to the directory with GPU check layers.  This layer is used to perform GPU check before user job start.
-    // The layer is applied as an additional user layer on top of the other layers (if they are present).
-    std::optional<TString> GpuCheckLayerDirectoryPath;
-
     //! Controls handling docker images specified in user spec.
     TDockerRegistryConfigPtr DockerRegistry;
 
@@ -1302,7 +1296,8 @@ struct TControllerAgentConfig
     //! How many initial successive job aborts are needed to fail operation.
     THashMap<EAbortReason, int> MaxJobAbortsUntilOperationFailure;
 
-    THashMap<NScheduler::TClusterName, TRemoteOperationsConfigPtr> RemoteOperations;
+    //! Mapping of remote cluster name to that cluster's settings.
+    THashMap<std::string, TRemoteOperationsConfigPtr> RemoteOperations;
 
     bool EnableMergeSchemasDuringSchemaInfer;
 

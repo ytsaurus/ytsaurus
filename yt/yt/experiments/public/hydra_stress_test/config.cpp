@@ -24,6 +24,10 @@ void TConfig::Register(TRegistrar registrar)
         .Default(5);
     registrar.Parameter("random_partition_delay", &TThis::RandomPartitionDelay)
         .Default(TDuration::Seconds(10));
+    registrar.Parameter("max_split_into_two_groups_iterations", &TThis::MaxSplitIntoTwoGroupsIterations)
+        .Default(1000);
+    registrar.Parameter("max_split_into_two_groups_delay", &TThis::MaxSplitIntoTwoGroupsDelay)
+        .Default(TDuration::Seconds(1));
     registrar.Parameter("quorum_partition_delay", &TThis::QuorumPartitionDelay)
         .Default(TDuration::Seconds(600));
 

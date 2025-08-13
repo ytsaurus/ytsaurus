@@ -8,8 +8,7 @@ from yt_commands import (
     sort, list_jobs, get_job_input,
     get_job_stderr, get_job_stderr_paged, get_job_spec, get_job_input_paths,
     clean_operations, sync_create_cells, update_op_parameters, raises_yt_error,
-    gc_collect, run_test_vanilla)
-
+    gc_collect, run_test_vanilla, wait_no_assert)
 
 import yt.environment.init_operations_archive as init_operations_archive
 from yt.wrapper.common import uuid_hash_pair
@@ -1038,12 +1037,6 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
         }
     }
 
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "gpu_check_layer_directory_path": "//tmp/gpu_check"
-        }
-    }
-
     def setup_method(self, method):
         super(TestGetJobStderrGpuChecker, self).setup_method(method)
         sync_create_cells(1)
@@ -1057,7 +1050,8 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
 
     @pytest.mark.timeout(180)
     def test_gpu_check_stderr_on_fail(self):
-        self.setup_gpu_layer_and_reset_nodes()
+        self.setup_gpu_layer_and_reset_nodes(prepare_gpu_base_layer=True)
+        self.setup_gpu_check_options(binary_path="/gpu_check/gpu_check_fail")
 
         op = run_test_vanilla(
             command="echo 1",
@@ -1066,9 +1060,9 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
             },
             task_patch={
                 "layer_paths": ["//tmp/base_layer"],
+                "gpu_limit": 1,
                 "enable_gpu_layers": True,
-                "gpu_check_layer_name": "0",
-                "gpu_check_binary_path": "/gpu_check/gpu_check_fail",
+                "enable_gpu_check": True,
             },
             track=False,
         )
@@ -1079,20 +1073,25 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
         print_debug("Check gpu check stderr")
         wait(lambda: len(get_job_stderr(op.id, job_id, type="gpu_check_stderr")) != 0, ignore_exceptions=True)
 
+        # We abort operation here, as for running jobs get-job-stderr returns empty error.
+        print_debug("Aborting operation")
+        op.abort()
+
         print_debug("Check job stderr")
-        with raises_yt_error("Stderr is not found"):
-            get_job_stderr(op.id, job_id)
+
+        @wait_no_assert
+        def wait_error():
+            with raises_yt_error("Stderr is not found"):
+                get_job_stderr(op.id, job_id)
 
         with raises_yt_error("Stderr is not found"):
             get_job_stderr(op.id, job_id, type="user_job_stderr")
 
-        print_debug("Aborting operation")
-        op.abort()
-
     @authors("bystrovserg")
     @pytest.mark.timeout(180)
     def test_gpu_check_success_with_job_error(self):
-        self.setup_gpu_layer_and_reset_nodes()
+        self.setup_gpu_layer_and_reset_nodes(prepare_gpu_base_layer=True)
+        self.setup_gpu_check_options(binary_path="/gpu_check/gpu_check_success")
 
         op = run_test_vanilla(
             command="echo AAA >&2",
@@ -1101,9 +1100,9 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
             },
             task_patch={
                 "layer_paths": ["//tmp/base_layer"],
+                "gpu_limit": 1,
                 "enable_gpu_layers": True,
-                "gpu_check_layer_name": "0",
-                "gpu_check_binary_path": "/gpu_check/gpu_check_success",
+                "enable_gpu_check": True,
             },
             track=True,
         )

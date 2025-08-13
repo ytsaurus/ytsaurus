@@ -400,10 +400,14 @@ public:
             artifactDownloadOptions,
             /*bypassArtifactCache*/ false);
 
-        auto Logger = ExecNodeLogger().WithTag(
-            "Key: %v, ReadSessionId: %v",
-            key,
-            chunkReadOptions.ReadSessionId);
+        auto Logger = ExecNodeLogger()
+            .WithTag("ReadSessionId: %v", chunkReadOptions.ReadSessionId);
+
+        // NB: Artifact key is being formatted as prototext and is pretty verbose.
+        // We avoid annotating each relevant line with the full key and log the key
+        // only once. Other lines are tagged read session id, which seems sufficient.
+        YT_LOG_INFO("Downloading artifact (ArtifactKey: %v)",
+            key);
 
         auto cookie = BeginInsert(key);
         auto cookieValue = cookie.GetValue();
@@ -614,15 +618,14 @@ private:
         const TArtifactKey& key,
         const TArtifactDownloadOptions& artifactDownloadOptions,
         const TClientChunkReadOptions& chunkReadOptions,
-        const NLogging::TLogger& Logger)
+        NLogging::TLogger Logger)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        YT_LOG_INFO("Loading artifact into cache");
 
         auto cookieValue = cookie.GetValue();
         auto canPrepareSingleChunk = CanPrepareSingleChunk(key);
         auto chunkId = GetOrCreateArtifactId(key, canPrepareSingleChunk);
+        Logger.AddTag("ChunkId: %v", chunkId);
 
         auto [location, lockedChunkGuard] = AcquireNewChunkLocation(chunkId);
         if (!location) {
@@ -631,6 +634,10 @@ private:
             YT_LOG_ERROR(error);
             return;
         }
+
+        Logger.AddTag("LocationId: %v", location->GetId());
+
+        YT_LOG_INFO("Loading artifact into cache");
 
         decltype(&TImpl::DownloadChunk) downloader;
         if (canPrepareSingleChunk) {
@@ -662,7 +669,8 @@ private:
             Passed(std::move(lockedChunkGuard)),
             artifactDownloadOptions,
             chunkReadOptions,
-            Passed(std::move(cookie))));
+            Passed(std::move(cookie)),
+            Logger));
     }
 
     void DoValidateArtifact(
@@ -678,7 +686,9 @@ private:
         auto chunkId = descriptor.Descriptor.Id;
         const auto& location = descriptor.Location;
 
-        Logger = std::move(Logger).WithTag("ChunkId: %v", chunkId);
+        Logger.AddTag("ChunkId: %v, LocationId: %v",
+            chunkId,
+            location->GetId());
 
         if (!CanPrepareSingleChunk(key)) {
             YT_LOG_INFO("Skipping validation for multi-chunk artifact");
@@ -723,15 +733,6 @@ private:
                 location->GetIOEngine(),
                 chunkId,
                 dataFileName);
-
-            TClientChunkReadOptions chunkReadOptions{
-                .WorkloadDescriptor = TWorkloadDescriptor(
-                    EWorkloadCategory::Idle,
-                    /*band*/ 0,
-                    TInstant::Zero(),
-                    {"Validate chunk length"}),
-                .ReadSessionId = TReadSessionId::Create(),
-            };
 
             auto metaOrError = WaitFor(chunkReader->GetMeta(chunkReadOptions, {}));
             THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Failed to read cached chunk meta");
@@ -1011,17 +1012,13 @@ private:
         TLockedChunkGuard lockedChunkGuard,
         const TArtifactDownloadOptions& artifactDownloadOptions,
         const TClientChunkReadOptions& chunkReadOptions,
-        TInsertCookie cookie)
+        TInsertCookie cookie,
+        const NLogging::TLogger& Logger)
     {
         YT_ASSERT_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
         const auto& chunkSpec = key.chunk_specs(0);
         auto seedReplicas = GetReplicasFromChunkSpec(chunkSpec);
-
-        auto Logger = ExecNodeLogger().WithTag("ChunkId: %v, ReadSessionId: %v, Location: %v",
-            chunkId,
-            chunkReadOptions.ReadSessionId,
-            location->GetId());
 
         try {
             auto remoteReaderOptions = New<TRemoteReaderOptions>();
@@ -1180,7 +1177,8 @@ private:
         TLockedChunkGuard lockedChunkGuard,
         const TArtifactDownloadOptions& artifactDownloadOptions,
         const TClientChunkReadOptions& chunkReadOptions,
-        TInsertCookie cookie)
+        TInsertCookie cookie,
+        const NLogging::TLogger& Logger)
     {
         YT_ASSERT_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
@@ -1196,7 +1194,8 @@ private:
                 location,
                 chunkId,
                 std::move(lockedChunkGuard),
-                producer);
+                producer,
+                Logger);
             cookie.EndInsert(chunk);
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading file artifact into cache")
@@ -1267,7 +1266,8 @@ private:
         TLockedChunkGuard lockedChunkGuard,
         const TArtifactDownloadOptions& artifactDownloadOptions,
         const TClientChunkReadOptions& chunkReadOptions,
-        TInsertCookie cookie)
+        TInsertCookie cookie,
+        const NLogging::TLogger& Logger)
     {
         YT_ASSERT_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
@@ -1283,7 +1283,8 @@ private:
                 location,
                 chunkId,
                 std::move(lockedChunkGuard),
-                producer);
+                producer,
+                Logger);
             cookie.EndInsert(std::move(chunk));
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading table artifact into cache")
@@ -1429,14 +1430,12 @@ private:
         const TCacheLocationPtr& location,
         TChunkId chunkId,
         TLockedChunkGuard lockedChunkGuard,
-        const std::function<void(IOutputStream*)>& producer)
+        const std::function<void(IOutputStream*)>& producer,
+        const NLogging::TLogger& Logger)
     {
         YT_ASSERT_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
-        YT_LOG_INFO(
-            "Producing artifact file (ChunkId: %v, Location: %v)",
-            chunkId,
-            location->GetId());
+        YT_LOG_INFO("Producing artifact file");
 
         auto dataFileName = location->GetChunkPath(chunkId);
         auto metaFileName = dataFileName + ArtifactMetaSuffix;

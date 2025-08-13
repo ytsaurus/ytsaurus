@@ -16,6 +16,8 @@ using namespace NApi;
 using namespace NConcurrency;
 using namespace NObjectClient;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 constinit const auto Logger = CypressProxyLogger;
@@ -127,15 +129,16 @@ private:
             auto meta = WaitFor(Client_->GetClusterMeta(options))
                 .ValueOrThrow();
 
-            std::vector<TUserDescriptor> userLimits;
-            NYT::FromProto(&userLimits, meta.UserDirectory->limits());
-
             auto userDirectory = UserDirectory_.Lock();
             if (!userDirectory) {
                 THROW_ERROR_EXCEPTION("User directory is not available");
             }
 
-            auto updatedUsers = userDirectory->LoadFrom(userLimits);
+            auto users = FromProto<std::vector<TUserDescriptor>>(meta.UserDirectory->users());
+            auto groups = FromProto<std::vector<TGroupDescriptor>>(meta.UserDirectory->groups());
+            auto updatedUsers = userDirectory->LoadFrom(
+                std::move(users),
+                std::move(groups));
 
             for (const auto& userName : updatedUsers) {
                 UserDescriptorUpdated_.Fire(userName);

@@ -57,8 +57,7 @@ For a better understanding of job stats, you should be familiar with the notions
 | `user_job/cpu/*` | Similar to `job_proxy/cpu/*` but applies to the user job processes. |
 | `user_job/block_io/bytes_read`, `user_job/block_io/bytes_written`, `user_job/block_io/io_read`, `user_job/block_io/io_write`, `user_job/block_io/io_total` | Block IO statistics for a user job. Similar to `job_proxy/block_io/*`. |
 | `user_job/cumulative_memory_mb_sec` | Integral of memory used, MB*s |
-| `user_job/current_memory/major_page_faults` | Number of [major page faults](https://en.wikipedia.org/wiki/Page_fault#Major) in a user process. Value |
-| Derived from the `pgmajfault` section of `memory.stat` from cgroup `memory` May assist in investigating the elevated `user_job/block_io/read` statistic. Pieces. |
+| `user_job/current_memory/major_page_faults` | Number of [major page faults](https://en.wikipedia.org/wiki/Page_fault#Major) in a user process. The value is derived from the `pgmajfault` section of `memory.stat` from cgroup `memory`. May assist in investigating the elevated `user_job/block_io/read` statistic. Pieces. |
 | `user_job/current_memory/rss` | RSS size at job end. The value is derived from the `rss` section of `memory.stat` for the relevant cgroup. Bytes. |
 | `user_job/current_memory/mapped_file` | Memory mapped files size at job end. The value is derived from the `mapped_file` section of `memory.stat` for the relevant cgroup. Bytes. |
 | `user_job/tmpfs_size` | `tmpfs` currently being **used** by the running job. Computed as the difference between the values of `total` and `free` returned by a call to `statfs` on tmpfs mount point. Bytes. |
@@ -85,6 +84,12 @@ For a better understanding of job stats, you should be familiar with the notions
 | `user_job/gpu/cumulative_clocks_sm` | Integral of utilized GPU frequency. Added up across all the GPUs used by a job. Milliseconds * frequency. |
 | `user_job/gpu/max_memory_used` | Maximum recorded GPU memory utilization. Added up across all the GPUs used by a job. Bytes. |
 | `user_job/gpu/memory_total` | Total available GPU memory. Added up across all the GPUs used by a job. Bytes. |
+| `user_job/gpu/cumulative_slowdown/hw` | Time during which GPU experienced hardware slowdown. Added up across all the GPUs used by a job. Milliseconds. |
+| `user_job/gpu/cumulative_slowdown/hw_power_brake` | Time during which GPU experienced hardware slowdown due to power break. Added up across all the GPUs used by a job. Milliseconds. |
+| `user_job/gpu/cumulative_slowdown/hw_thermal` | Time during which GPU experienced hardware slowdown due to overheating. Added up across all the GPUs used by a job. Milliseconds. |
+| `user_job/gpu/cumulative_slowdown/sw_thermal` | Time during which GPU experienced software slowdown due to overheating. Added up across all the GPUs used by a job. Milliseconds. |
+| `user_job/gpu/cumulative_tensor_activity"` | Time during which the GPU tensor pipeline (HMMA) was active. Added up across all the GPUs used by a job. Milliseconds. |
+| `user_job/gpu/cumulative_dram_activity"` | Time during which the GPU memory interface was active, sending or receiving data. Added up across all the GPUs used by a job. Milliseconds. |
 | `codec/cpu/decode` | Wall time spent uncompressing data. Milliseconds. |
 | `codec/cpu/encode` | Wall time spent compressing data. Milliseconds. |
 | `job_proxy/memory_reserve_factor_x10000`, `user_job/memory_reserve_factor_x10000` | Housekeeping parameters used to analyze the operation of the `memory_reserve` computational algorithm. |
@@ -164,7 +169,7 @@ Operations exceed memory limitations. Steps to resolve this issue:
 You must review the `user_job/block_io/io_read` statistic. If a job makes tens of thousands of reads, it is harming both itself and other users.
 You should check the `major page faults` counter. A large value is an indication of possible memory mapping use.
 
-{% note warning "Attention!" %}
+{% note warning "Attention" %}
 
 The use of **memory mapping** in jobs is **strongly discouraged** while jobs doing this create heavy disk load with random reads and writes. Please remember that a conventional hard drive is capable of no more than 100 random access operations per second while there are several dozen jobs running concurrently on a cluster node.
 

@@ -3,8 +3,6 @@
 #include "private.h"
 #include "resource.h"
 
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
-
 #include <yt/yt/client/table_client/key_bound.h>
 
 namespace NYT::NChunkPools {
@@ -21,7 +19,6 @@ DEFINE_ENUM(ESliceType,
 //! area for data slices; it reacts on events like "promote current job upper bound to the
 //! next interesting endpoint" of "flush".
 struct ISortedStagingArea
-    : public TRefCounted
 {
     //! Promote upper bound for currently built job.
     virtual void PromoteUpperBound(NTableClient::TKeyBound upperBound) = 0;
@@ -44,10 +41,8 @@ struct ISortedStagingArea
     virtual void Flush() = 0;
 
     //! Called at the end of processing to finalize some stuff and flush the remaining job (if any).
-    virtual void Finish() = 0;
-
-    //! Returns reference to all prepared jobs.
-    virtual std::vector<TNewJobStub>& PreparedJobs() = 0;
+    //! Must be called exactly once.
+    virtual std::vector<TNewJobStub> Finish() && = 0;
 
     //! Total number of data slices in all created jobs.
     //! Used for internal bookkeeping by the outer code.
@@ -59,13 +54,13 @@ struct ISortedStagingArea
 
     //! Returns total resource vector of all staged foreign data slices.
     virtual TResourceVector GetForeignResourceVector() const = 0;
-};
 
-DEFINE_REFCOUNTED_TYPE(ISortedStagingArea)
+    virtual ~ISortedStagingArea() = default;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISortedStagingAreaPtr CreateSortedStagingArea(
+std::unique_ptr<ISortedStagingArea> CreateSortedStagingArea(
     bool enableKeyGuarantee,
     NTableClient::TComparator primaryComparator,
     NTableClient::TComparator foreignComparator,

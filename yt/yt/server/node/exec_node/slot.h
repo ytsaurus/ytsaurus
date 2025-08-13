@@ -152,7 +152,7 @@ IUserSlotPtr CreateSlot(
     NExecNode::IBootstrap* bootstrap,
     const TString& nodeTag,
     ESlotType slotType,
-    double requestedCpu,
+    NClusterNode::TCpu requestedCpu,
     NScheduler::NProto::TDiskRequest diskRequest,
     const std::optional<TNumaNodeInfo>& numaNodeAffinity);
 

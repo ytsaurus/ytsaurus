@@ -35,6 +35,8 @@
 
 #include <yt/yt/ytlib/object_client/public.h>
 
+#include <yt/yt/ytlib/chaos_client/public.h>
+
 #include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/library/dynamic_config/public.h>
@@ -137,34 +139,6 @@ struct TResourceLimitsOverrides
 };
 
 DEFINE_REFCOUNTED_TYPE(TResourceLimitsOverrides)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TChunkReplicaCacheDynamicConfig
-    : public NYTree::TYsonStruct
-{
-    std::optional<TDuration> ExpirationTime;
-
-    REGISTER_YSON_STRUCT(TChunkReplicaCacheDynamicConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TChunkReplicaCacheDynamicConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TChaosResidencyCacheDynamicConfig
-    : public NYTree::TYsonStruct
-{
-    std::optional<bool> EnableClientMode;
-
-    REGISTER_YSON_STRUCT(TChaosResidencyCacheDynamicConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TChaosResidencyCacheDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -407,10 +381,10 @@ struct TClusterNodeBootstrapConfig
     NIO::THugePageManagerConfigPtr HugePageManager;
 
     //! Bucket configuration for in network throttlers.
-    THashMap<TString, NConcurrency::TFairThrottlerBucketConfigPtr> InThrottlers;
+    THashMap<std::string, NConcurrency::TFairThrottlerBucketConfigPtr> InThrottlers;
 
     //! Bucket configuration for out network throttlers.
-    THashMap<TString, NConcurrency::TFairThrottlerBucketConfigPtr> OutThrottlers;
+    THashMap<std::string, NConcurrency::TFairThrottlerBucketConfigPtr> OutThrottlers;
 
     std::optional<TString> Rack;
     std::optional<TString> DataCenter;
@@ -483,10 +457,10 @@ struct TClusterNodeDynamicConfig
     TMasterConnectorDynamicConfigPtr MasterConnector;
 
     //! Bucket configuration for in network throttlers.
-    THashMap<TString, NConcurrency::TFairThrottlerBucketConfigPtr> InThrottlers;
+    THashMap<std::string, NConcurrency::TFairThrottlerBucketConfigPtr> InThrottlers;
 
     //! Bucket configuration for out network throttlers.
-    THashMap<TString, NConcurrency::TFairThrottlerBucketConfigPtr> OutThrottlers;
+    THashMap<std::string, NConcurrency::TFairThrottlerBucketConfigPtr> OutThrottlers;
 
     //! Cluster node porto environment config.
     TTopLevelPortoEnvironmentConfigPtr PortoEnvironment;
@@ -502,10 +476,10 @@ struct TClusterNodeDynamicConfig
     std::optional<double> ThrottlerFreeBandwidthRatio;
 
     //! Chunk replica cache config overrides.
-    TChunkReplicaCacheDynamicConfigPtr ChunkReplicaCache;
+    NChunkClient::TChunkReplicaCacheDynamicConfigPtr ChunkReplicaCache;
 
     //! Chaos residency cache config overrides.
-    TChaosResidencyCacheDynamicConfigPtr ChaosResidencyCache;
+    NChaosClient::TChaosResidencyCacheDynamicConfigPtr ChaosResidencyCache;
 
     //! Chaos replication card cache config overrides.
     NChaosClient::TReplicationCardCacheDynamicConfigPtr ReplicationCardCache;

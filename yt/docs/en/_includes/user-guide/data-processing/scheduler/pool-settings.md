@@ -71,6 +71,6 @@ The `resource_limits` and other settings can be specified independently for diff
 * `Demand ratio` is a characteristic that shows the share of all cluster resources that an operation or pool needs to complete computation.
 * `Dominant resource` is the dominant resource of an operation or pool - the resource whose share in the resources of the entire cluster is the largest.
 
-Dynamic characteristics of operations are calculated for each tree separately. Consequently, an operation can have several `usage_ratios` and so on.
+Dynamic characteristics of operations are calculated for each tree separately. Consequently, an operation can have several `usage_share` values and so on.
 
 The amount of resources that an operation needs to be executed is calculated by summing up the needs of all the operation jobs by each resource type.

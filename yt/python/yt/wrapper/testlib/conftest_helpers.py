@@ -102,6 +102,12 @@ def test_function_setup():
     yt.mkdir(TEST_DIR, recursive=True)
 
 
+def setup_secondary_master_cell_roles():
+    registered_master_cell_tags = yt.get("//sys/@registered_master_cell_tags")
+    registered_master_cell_roles = {str(cell_tag): {"roles": ["chunk_host", "cypress_node_host"]} for cell_tag in registered_master_cell_tags}
+    yt.set("//sys/@config/multicell_manager/cell_descriptors", registered_master_cell_roles)
+
+
 def register_test_function_finalizer(request, remove_operations_archive=True):
     request.addfinalizer(lambda: yt.remove(TEST_DIR, recursive=True, force=True))
     request.addfinalizer(lambda: test_method_teardown(remove_operations_archive=remove_operations_archive))
@@ -214,12 +220,28 @@ def test_environment_with_framing(request):
 
 @pytest.fixture(scope="class", params=["v3", "v4", "native_v4", "rpc"])
 def test_environment_with_rpc(request):
-    environment = init_environment_for_test_session(request, request.param)
+    environment = init_environment_for_test_session(
+        request,
+        request.param,
+        delta_proxy_config={
+            "signature_components": {
+                "validation": {
+                    "cypress_key_reader": {},
+                },
+                "generation": {
+                    "cypress_key_writer": {
+                        "owner_id": "root",
+                    },
+                    "generator": {},
+                    "key_rotator": {},
+                },
+            },
+        },
+    )
     return environment
 
 
-@pytest.fixture(scope="class", params=["v3", "v4"])
-def test_environment_with_authentication(request):
+def _test_environment_with_authentication(request):
     environment = init_environment_for_test_session(
         request,
         request.param,
@@ -248,6 +270,16 @@ def test_environment_with_authentication(request):
     )
     environment.env.create_client().set("//sys/tokens/toor", "root")  # toor
     return environment
+
+
+@pytest.fixture(scope="class", params=["v3", "v4"])
+def test_environment_with_authentication(request):
+    return _test_environment_with_authentication(request)
+
+
+@pytest.fixture(scope="class", params=["rpc"])
+def test_environment_with_authentication_rpc(request):
+    return _test_environment_with_authentication(request)
 
 
 @pytest.fixture(scope="class", params=["v4"])
@@ -440,6 +472,11 @@ def yt_env_with_authentication(request, test_environment_with_authentication):
 
 
 @pytest.fixture(scope="function")
+def yt_env_with_authentication_rpc(request, test_environment_with_authentication_rpc):
+    return _yt_env(request, test_environment_with_authentication_rpc)
+
+
+@pytest.fixture(scope="function")
 def yt_env_chaos(request, test_environment_chaos):
     return _yt_env(request, test_environment_chaos)
 
@@ -514,6 +551,7 @@ def yt_env_multicell(request, test_environment_multicell):
     test_environment_multicell.reload_global_configuration()
     test_function_setup()
     register_test_function_finalizer(request)
+    setup_secondary_master_cell_roles()
     return test_environment_multicell
 
 

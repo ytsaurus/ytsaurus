@@ -144,7 +144,7 @@ class TableInfo(object):
         logging.info("Creating dynamic table %s with attributes %s", path, attributes)
         client.create("table", path, recursive=True, attributes=attributes, ignore_existing=ignore_existing)
 
-    def to_dynamic_table(self, client, path):
+    def to_dynamic_table(self, client, path, pool=None):
         attributes = _make_dynamic_table_attributes(self.schema, self.key_columns, self.optimize_for)
 
         # add unique_keys to schema
@@ -153,14 +153,17 @@ class TableInfo(object):
         logging.info("Sorting table %s with attributes %s", path, attributes)
         primary_medium = client.get(path + "/@primary_medium")
         account = client.get(path + "/@account")
-        client.run_sort(path, TablePath(path, attributes=attributes), sort_by=self.key_columns, spec={
+        spec = {
             "merge_job_io": {"table_writer": {"block_size": 256 * 2**10, "desired_chunk_size": 100 * 2**20}},
             "force_transform": True,
             "intermediate_data_medium": primary_medium,
             "intermediate_data_account": account,
             "use_new_partitions_heuristic": True,
             "max_speculative_job_count_per_task": 20,
-        })
+        }
+        if pool is not None:
+            spec["pool"] = pool
+        client.run_sort(path, TablePath(path, attributes=attributes), sort_by=self.key_columns, spec=spec)
         logging.info("Converting table to dynamic %s", path)
         client.alter_table(path, dynamic=True)
         for attr, value in self.attributes.items():
@@ -223,7 +226,7 @@ class Conversion(object):
         if self.remove_table:
             assert self.table_info is None
 
-    def __call__(self, client, table_info, target_table, source_table, tables_path, shard_count):
+    def __call__(self, client, table_info, target_table, source_table, tables_path, shard_count, pool=None):
         if self.table_info:
             table_info = self.table_info
 
@@ -258,8 +261,11 @@ class Conversion(object):
                 logging.info("Run mapper '%s': %s -> %s", mapper.__name__, source_table, target_table)
                 # If need_sort == False, we already created target table sorted and we need to run ordered map
                 # to avoid sort order violation error during map.
-                client.run_map(mapper, source_table, target_table, spec={"data_size_per_job": 2 * 2**30}, ordered=not need_sort)
-                table_info.to_dynamic_table(client, target_table)
+                spec = {"data_size_per_job": 2 * 2**30}
+                if pool is not None:
+                    spec["pool"] = pool
+                client.run_map(mapper, source_table, target_table, spec=spec, ordered=not need_sort)
+                table_info.to_dynamic_table(client, target_table, pool)
                 client.set(target_table + "/@forced_compaction_revision", 1)
         else:
             logging.info("Creating dynamic table %s", target_table)
@@ -351,7 +357,8 @@ class Migration(object):
                     lambda: client.get(ypath_join(tables_path, table_name) + "/@tablet_state") == "mounted",
                     "table {} becomes mounted".format(table_name))
 
-    def _transform(self, client, transform_begin, transform_end, force, retransform, tables_path, shard_count):
+    def _transform(self, client, transform_begin, transform_end, force, retransform, tables_path, shard_count, pool):
+        # TODO(bystrovserg): Mount tables back in case we fail to transform
         logging.info("Transforming from %s to %s version", transform_begin - 1, transform_end)
         table_infos = copy.deepcopy(self.initial_table_infos)
         for version in range(self.initial_version, transform_begin):
@@ -403,6 +410,7 @@ class Migration(object):
                         source_table=table if (table in table_infos and table_exists) else None,
                         tables_path=tables_path,
                         shard_count=shard_count,
+                        pool=pool,
                     )
                     if not in_place:
                         swap_tasks.append((table_path, tmp_path))
@@ -490,7 +498,7 @@ class Migration(object):
 
         client.set(tables_path + "/@version", target_version)
 
-    def run(self, client, tables_path, target_version, shard_count, force, retransform):
+    def run(self, client, tables_path, target_version, shard_count, force, retransform, pool):
         """Migrate tables to the given version"""
         assert target_version == self.initial_version or target_version in self.transforms
         assert target_version >= self.initial_version
@@ -508,4 +516,4 @@ class Migration(object):
 
         next_version = current_version + 1
 
-        self._transform(client, next_version, target_version, force, retransform, tables_path, shard_count)
+        self._transform(client, next_version, target_version, force, retransform, tables_path, shard_count, pool)

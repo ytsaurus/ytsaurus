@@ -90,7 +90,7 @@ private:
         TPromise<std::vector<NChunkClient::TBlock>> SessionPromise = NewPromise<std::vector<NChunkClient::TBlock>>();
         TPromise<void> DiskFetchPromise;
         NIO::TBlocksExtPtr BlocksExt;
-        TLocationMemoryGuard LocationMemoryGuard;
+        NThreading::TAtomicObject<TLocationMemoryGuard> LocationMemoryGuard;
         std::atomic<bool> Finished = false;
         TLocationFairShareSlotPtr FairShareSlot = nullptr;
     };

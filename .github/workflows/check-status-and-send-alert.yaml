@@ -51,5 +51,4 @@ jobs:
                   --tg-chat-id ${{ secrets.TELEGRAM_CHAT_ID }} \
                   --current-job-conclusion $CURRENT_JOB_CONCLUSION \
                   --current-job-id ${{ github.run_id }} \
-                  --commit-message "${{ github.event.head_commit.message }}" \
                   --git-server-url "${{ github.api_url }}"

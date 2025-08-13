@@ -23,7 +23,9 @@ public:
     TImpl(
         const std::vector<TColumnSchema>& readColumnSchemas,
         const TNameTablePtr& nameTable,
-        const TCompositeSettingsPtr& compositeSettings)
+        const TCompositeSettingsPtr& compositeSettings,
+        bool needOnlyDistinct)
+        : NeedOnlyDistinct_(needOnlyDistinct)
     {
         int columnCount = readColumnSchemas.size();
 
@@ -33,7 +35,9 @@ public:
         headerColumnTypeAndNames.reserve(columnCount);
 
         for (const auto& columnSchema : readColumnSchemas) {
-            const auto& converter = ColumnConverters_.emplace_back(TComplexTypeFieldDescriptor(columnSchema), compositeSettings);
+            const auto& converter = ColumnConverters_.emplace_back(
+                TComplexTypeFieldDescriptor(columnSchema),
+                compositeSettings);
             headerColumnTypeAndNames.emplace_back(converter.GetDataType(), columnSchema.Name());
         }
 
@@ -80,6 +84,14 @@ public:
             for (const auto* ytColumn : batchColumns) {
                 auto id = ytColumn->Id;
                 auto columnIndex = (id < std::ssize(IdToColumnIndex_)) ? IdToColumnIndex_[id] : -1;
+                if (NeedOnlyDistinct_) {
+                    if (ytColumn->Rle) {
+                        ytColumn = ytColumn->Rle->ValueColumn;
+                    }
+                    if (ytColumn->Dictionary) {
+                        ytColumn = ytColumn->Dictionary->ValueColumn;
+                    }
+                }
                 if (columnIndex != -1) {
                     YT_VERIFY(columnIndex < columnCount);
                     YT_VERIFY(!presentColumnMask[columnIndex]);
@@ -140,7 +152,7 @@ public:
         auto block = HeaderBlock_.cloneEmpty();
         for (const auto& [columnIndex, converter] : Enumerate(ColumnConverters_)) {
             auto column = converter.FlushColumn();
-            YT_VERIFY(std::ssize(*column) == batch->GetRowCount());
+            YT_VERIFY(NeedOnlyDistinct_ || std::ssize(*column) == batch->GetRowCount());
             block.getByPosition(columnIndex).column = std::move(column);
         }
 
@@ -151,6 +163,7 @@ private:
     DB::Block HeaderBlock_;
     std::vector<TYTToCHColumnConverter> ColumnConverters_;
     std::vector<int> IdToColumnIndex_;
+    bool NeedOnlyDistinct_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -158,8 +171,9 @@ private:
 TYTToCHBlockConverter::TYTToCHBlockConverter(
     const std::vector<TColumnSchema>& readColumnSchemas,
     const TNameTablePtr& nameTable,
-    const TCompositeSettingsPtr& compositeSettings)
-    : Impl_(std::make_unique<TImpl>(readColumnSchemas, nameTable, compositeSettings))
+    const TCompositeSettingsPtr& compositeSettings,
+    bool needOnlyDistinct)
+    : Impl_(std::make_unique<TImpl>(readColumnSchemas, nameTable, compositeSettings, needOnlyDistinct))
 { }
 
 TYTToCHBlockConverter::TYTToCHBlockConverter(TYTToCHBlockConverter&& other) = default;

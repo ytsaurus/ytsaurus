@@ -139,8 +139,8 @@ DEFINE_REFCOUNTED_TYPE(TExternalCGInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString FunctionDescriptorAttribute("function_descriptor");
-static const TString AggregateDescriptorAttribute("aggregate_descriptor");
+static const std::string FunctionDescriptorAttribute("function_descriptor");
+static const std::string AggregateDescriptorAttribute("aggregate_descriptor");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -180,7 +180,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
         auto path = GetUdfDescriptorPath(item.first, item.second);
 
         auto getReq = TYPathProxy::Get(path);
-        ToProto(getReq->mutable_attributes()->mutable_keys(), std::vector<TString>{
+        ToProto(getReq->mutable_attributes()->mutable_keys(), std::vector<std::string>{
             FunctionDescriptorAttribute,
             AggregateDescriptorAttribute
         });
@@ -727,14 +727,14 @@ void FetchFunctionImplementationsFromFiles(
     const TFunctionProfilerMapPtr& functionProfilers,
     const TAggregateProfilerMapPtr& aggregateProfilers,
     const TConstExternalCGInfoPtr& externalCGInfo,
-    const TString& rootPath)
+    TStringBuf rootPath)
 {
     for (const auto& function : externalCGInfo->Functions) {
         const auto& name = function.Name;
 
         YT_LOG_DEBUG("Fetching UDF implementation (Name: %v)", name);
 
-        auto path = rootPath + "/" + function.Name;
+        auto path = TString(rootPath) + "/" + function.Name;
         auto file = TUnbufferedFileInput(path);
         auto impl = TSharedRef::FromString(file.ReadAll());
 

@@ -18,5 +18,21 @@ add_library(cpp-dwarf_backtrace-registry INTERFACE)
 target_link_libraries(cpp-dwarf_backtrace-registry INTERFACE
   contrib-libs-cxxsupp
   yutil
+  library-cpp-dwarf_backtrace
+)
+
+
+add_global_library_for(cpp-dwarf_backtrace-registry.global
+  cpp-dwarf_backtrace-registry)
+
+
+target_link_libraries(cpp-dwarf_backtrace-registry.global PUBLIC
+  contrib-libs-cxxsupp
+  yutil
+  library-cpp-dwarf_backtrace
+)
+
+target_sources(cpp-dwarf_backtrace-registry.global PRIVATE
+  ${PROJECT_SOURCE_DIR}/library/cpp/dwarf_backtrace/registry/set_format_backtrace.cpp
 )
 

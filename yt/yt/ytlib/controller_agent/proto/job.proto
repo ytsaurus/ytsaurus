@@ -344,7 +344,9 @@ message TUserJobSpec
 
     optional TNetworkProject network_project = 80;
 
-    map<string, TSidecarJobSpec> sidecars = 83;
+    optional bool enable_fixed_user_id = 83;
+
+    map<string, TSidecarJobSpec> sidecars = 84;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

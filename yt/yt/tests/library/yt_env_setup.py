@@ -351,7 +351,7 @@ class YTEnvSetup(object):
             },
         },
     }
-    DELTA_PROXY_CONFIG = {}
+    DELTA_HTTP_PROXY_CONFIG = {}
     DELTA_RPC_PROXY_CONFIG = {
         "api_service": {
             "enable_large_columnar_statistics": True,
@@ -634,6 +634,11 @@ class YTEnvSetup(object):
             update_inplace(delta_global_cluster_connection_config, {
                 "sequoia_retries": {
                     "enable": True,
+                },
+                "sequoia_transaction_type_to_timeout": {
+                    "cypress_modification": 5000,
+                    "cypress_transaction_mirroring": 5000,
+                    "response_keeper": 5000,
                 },
             })
         if cls._is_ground_cluster(index):
@@ -965,6 +970,10 @@ class YTEnvSetup(object):
 
         yt_commands.wait_drivers()
 
+        # Set proper master dynamic config with master roles before creating any objects at the cluster.
+        dynamic_master_config = cls._apply_master_dynamic_config_patches(get_dynamic_master_config(), cluster_index=0)
+        yt_commands.set("//sys/@config", dynamic_master_config)
+
         for env in cls.combined_envs:
             if env is None:
                 continue
@@ -1238,6 +1247,7 @@ class YTEnvSetup(object):
                 config["flavors"] = cls.DELTA_NODE_FLAVORS[index]
 
             cls.update_timestamp_provider_config(config, cluster_index)
+            cls.update_sequoia_connection_config(config, cluster_index)
             cls.modify_node_config(config, cluster_index)
 
         for index, config in enumerate(configs["chaos_node"]):
@@ -1250,7 +1260,7 @@ class YTEnvSetup(object):
             # COMPAT(pogorelov)
             config["cluster_connection"]["scheduler"]["use_scheduler_job_prober_service"] = False
 
-            update_inplace(config, cls.get_param("DELTA_PROXY_CONFIG", cluster_index))
+            update_inplace(config, cls.get_param("DELTA_HTTP_PROXY_CONFIG", cluster_index))
             cls.update_timestamp_provider_config(config, cluster_index)
             cls.modify_http_proxy_config(config, multidaemon_config, index)
             multidaemon_config["daemons"][f"http_proxy_{index}"]["config"] = config
@@ -1326,7 +1336,8 @@ class YTEnvSetup(object):
     @classmethod
     def teardown_class(cls):
         if cls.liveness_checkers:
-            map(lambda c: c.stop(), cls.liveness_checkers)
+            for checker in cls.liveness_checkers:
+                checker.stop()
 
         for env in cls.ground_envs + [cls.Env] + cls.remote_envs:
             if env is None:
@@ -1518,7 +1529,26 @@ class YTEnvSetup(object):
             assert self.get_param("USE_SEQUOIA", cluster_index)
 
             yt_commands.remove("//tmp", force=True, driver=driver)
-            yt_commands.create("rootstock", "//tmp", force=True, driver=driver)
+            yt_commands.create(
+                "rootstock",
+                "//tmp",
+                attributes={
+                    "account": "tmp",
+                    "acl": [
+                        {
+                            "action": "allow",
+                            "permissions": ["read", "write", "remove"],
+                            "subjects": ["users"],
+                        },
+                        {
+                            "action": "allow",
+                            "permissions": ["read"],
+                            "subjects": ["everyone"],
+                        },
+                    ],
+                },
+                force=True,
+                driver=driver)
         elif self.ENABLE_TMP_PORTAL and cluster_index == 0:
             yt_commands.remove("//tmp", force=True, driver=driver)
             yt_commands.create(
@@ -1600,7 +1630,7 @@ class YTEnvSetup(object):
 
         yt_commands._zombie_responses[:] = []
 
-        for cluster_index, env in enumerate(self.ground_envs + [self.Env] + self.remote_envs):
+        for cluster_index, env in enumerate([self.Env] + self.remote_envs + self.ground_envs):
             if env is None:
                 continue
 
@@ -1649,9 +1679,10 @@ class YTEnvSetup(object):
             yt_commands.gc_collect(driver=driver)
 
             if self._is_ground_cluster(cluster_index):
-
                 for table in DESCRIPTORS.get_group("transactions"):
                     wait(lambda: yt_commands.select_rows(f"* from [{table.get_default_path()}]", driver=driver) == [])
+
+                wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.doomed_transactions.get_default_path()}]", driver=driver) == [])
 
                 mangled_sys_operations = yt_sequoia_helpers.mangle_sequoia_path("//sys/operations")
 

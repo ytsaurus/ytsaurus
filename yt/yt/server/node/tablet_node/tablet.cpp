@@ -2186,7 +2186,7 @@ void TTablet::Initialize()
 
 void TTablet::ReconfigureRowCache(const ITabletSlotPtr& slot)
 {
-    if (!slot || !slot->GetHydraManager()->IsLeader()) {
+    if (!slot) {
         return;
     }
 
@@ -2352,11 +2352,11 @@ void TTablet::ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot)
             /*admitUnlimitedThrottler*/ false);
 
     DistributedThrottlers_[ETabletDistributedThrottlerKind::ChangelogMediumWrite] =
-        slot->GetChangelogMediumWriteThrottler();
+        slot->GetOrCreateChangelogMediumWriteThrottler();
     DistributedThrottlers_[ETabletDistributedThrottlerKind::BlobMediumWrite] =
-        slot->GetMediumWriteThrottler(Settings_.StoreWriterOptions->MediumName);
+        slot->GetOrCreateMediumWriteThrottler(Settings_.StoreWriterOptions->MediumName);
     DistributedThrottlers_[ETabletDistributedThrottlerKind::BlobMediumRead] =
-        slot->GetMediumReadThrottler(Settings_.StoreWriterOptions->MediumName);
+        slot->GetOrCreateMediumReadThrottler(Settings_.StoreWriterOptions->MediumName);
 
     YT_VERIFY(DistributedThrottlers_[ETabletDistributedThrottlerKind::ChangelogMediumWrite]);
     YT_VERIFY(DistributedThrottlers_[ETabletDistributedThrottlerKind::BlobMediumWrite]);
@@ -3223,6 +3223,13 @@ void TTablet::BuildOrchidYson(TFluentMap fluent) const
                     .Item("building_in_progress").Value(info.BuildingInProgress)
                     .EndMap();
             });
+}
+
+void TTablet::ResetRowCache(const ITabletSlotPtr& slot)
+{
+    RowCache_.Reset();
+
+    ReconfigureRowCache(slot);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

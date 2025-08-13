@@ -16,6 +16,8 @@
 #include <contrib/ydb/library/yql/providers/solomon/actors/dq_solomon_read_actor.h>
 #include <contrib/ydb/library/yql/providers/pq/async_io/dq_pq_read_actor.h>
 #include <contrib/ydb/library/yql/providers/pq/async_io/dq_pq_write_actor.h>
+#include <contrib/ydb/library/yql/dq/comp_nodes/dq_block_hash_join.h>
+#include <contrib/ydb/library/yql/dq/comp_nodes/dq_hash_combine.h>
 
 namespace NKikimr {
 namespace NMiniKQL {
@@ -59,6 +61,14 @@ TComputationNodeFactory GetKqpActorComputeFactory(TKqpScanComputeContext* comput
 
             if (name == "KqpIndexLookupJoin"sv) {
                 return WrapKqpIndexLookupJoin(callable, ctx);
+            }
+
+            if (name == "DqBlockHashJoin"sv) {
+                return WrapDqBlockHashJoin(callable, ctx);
+            }
+
+            if (name == "DqHashCombine"sv) {
+                return WrapDqHashCombine(callable, ctx);
             }
 
             return nullptr;
@@ -155,7 +165,7 @@ using namespace NYql::NDqProto;
 IActor* CreateKqpScanComputeActor(const TActorId& executerId, ui64 txId,
     TDqTask* task, IDqAsyncIoFactory::TPtr asyncIoFactory,
     const NYql::NDq::TComputeRuntimeSettings& settings, const TComputeMemoryLimits& memoryLimits, NWilson::TTraceId traceId,
-    TIntrusivePtr<NActors::TProtoArenaHolder> arena, TSchedulableOptions schedulableOptions,
+    TIntrusivePtr<NActors::TProtoArenaHolder> arena, NScheduler::TSchedulableActorOptions schedulableOptions,
     NKikimrConfig::TTableServiceConfig::EBlockTrackingMode mode)
 {
     return new NScanPrivate::TKqpScanComputeActor(std::move(schedulableOptions), executerId, txId, task, std::move(asyncIoFactory),
@@ -163,11 +173,11 @@ IActor* CreateKqpScanComputeActor(const TActorId& executerId, ui64 txId,
 }
 
 IActor* CreateKqpScanFetcher(const NKikimrKqp::TKqpSnapshot& snapshot, std::vector<NActors::TActorId>&& computeActors,
-    const NKikimrTxDataShard::TKqpTransaction::TScanTaskMeta& meta, const NYql::NDq::TComputeRuntimeSettings& settings,
-    const ui64 txId, TMaybe<ui64> lockTxId, ui32 lockNodeId, TMaybe<NKikimrDataEvents::ELockMode> lockMode,
-    const TShardsScanningPolicy& shardsScanningPolicy, TIntrusivePtr<TKqpCounters> counters, NWilson::TTraceId traceId,
-    const TCPULimits& cpuLimits) {
-    return new NScanPrivate::TKqpScanFetcherActor(snapshot, settings, std::move(computeActors), txId, lockTxId, lockNodeId, lockMode, meta, shardsScanningPolicy, counters, std::move(traceId), cpuLimits);
+    const NKikimrTxDataShard::TKqpTransaction::TScanTaskMeta& meta, const NYql::NDq::TComputeRuntimeSettings& settings, const ui64 txId,
+    TMaybe<ui64> lockTxId, ui32 lockNodeId, TMaybe<NKikimrDataEvents::ELockMode> lockMode, const TShardsScanningPolicy& shardsScanningPolicy,
+    TIntrusivePtr<TKqpCounters> counters, NWilson::TTraceId traceId, const TCPULimits& cpuLimits) {
+    return new NScanPrivate::TKqpScanFetcherActor(snapshot, settings, std::move(computeActors), txId, lockTxId, lockNodeId, lockMode, meta,
+        shardsScanningPolicy, counters, std::move(traceId), cpuLimits);
 }
 
 } // namespace NKikimr::NKqp

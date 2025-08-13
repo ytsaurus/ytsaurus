@@ -1,8 +1,4 @@
-#include <yt/yt/core/test_framework/framework.h>
-
 #include <yt/yt/server/lib/chunk_pools/mock/chunk_pool.h>
-
-#include <yt/yt/server/scheduler/public.h>
 
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/input_chunk_mapping.h>
@@ -14,8 +10,6 @@
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe_key.h>
-
-#include <yt/yt/core/logging/log.h>
 
 #include <random>
 
@@ -30,6 +24,8 @@ using ::testing::_;
 
 using namespace NChunkClient;
 using namespace NControllerAgent;
+using namespace NLogging;
+using namespace NNodeTrackerClient;
 using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -125,7 +121,7 @@ TEST_F(TMultiChunkPoolInputTest, TestResume)
 
 TEST_F(TMultiChunkPoolInputTest, TestReset)
 {
-    NLogging::TLogger logger("InputChunkMapping");
+    TLogger logger("InputChunkMapping");
     auto mapping = New<TInputChunkMapping>(EChunkMappingMode::Sorted, logger);
 
     InSequence sequence;
@@ -245,7 +241,7 @@ protected:
 
         for (int index = 0; index < std::ssize(Mocks_); ++index) {
             if (stripeCounts[index]) {
-                EXPECT_CALL(*Mocks_[index], Extract(NNodeTrackerClient::TNodeId(0)))
+                EXPECT_CALL(*Mocks_[index], Extract(TNodeId(0)))
                     .Times(stripeCounts[index])
                     .WillRepeatedly(InvokeWithoutArgs([this, index] {
                         auto& mock = Mocks_[index];
@@ -375,7 +371,7 @@ TEST_F(TMultiChunkPoolOutputTest, TestGetLocality)
 {
     InitPools({0});
 
-    EXPECT_EQ(Pool_->GetLocality(NNodeTrackerClient::TNodeId(42)), 0);
+    EXPECT_EQ(Pool_->GetLocality(TNodeId(42)), 0);
     EXPECT_TRUE(Pool_->IsCompleted());
 }
 

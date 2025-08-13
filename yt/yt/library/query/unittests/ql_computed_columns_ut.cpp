@@ -37,7 +37,7 @@ protected:
         ColumnEvaluatorCache_ = CreateColumnEvaluatorCache(config);
     }
 
-    TSharedRange<TRowRange> Coordinate(const TString& source, ui64 rangeExpansionLimit = 1000)
+    TSharedRange<TRowRange> Coordinate(TStringBuf source, ui64 rangeExpansionLimit = 1000)
     {
         auto fragment = ParseAndPreparePlanFragment(
             &PrepareMock_,
@@ -62,7 +62,7 @@ protected:
             GetDefaultMemoryChunkProvider());
     }
 
-    TSharedRange<TRowRange> CoordinateForeign(const TString& source)
+    TSharedRange<TRowRange> CoordinateForeign(TStringBuf source)
     {
         auto fragment = ParseAndPreparePlanFragment(
             &PrepareMock_,
@@ -111,7 +111,7 @@ private:
         TTableSchema tableSchema({
             TColumnSchema("k", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression(TString("l * 2")),
+                .SetExpression(std::string("l * 2")),
             TColumnSchema("l", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("m", EValueType::Int64)
@@ -143,7 +143,7 @@ private:
 
 TEST_F(TComputedColumnTest, NoKeyColumnsInPredicate)
 {
-    auto query = TString("k from [//t] where a = 10");
+    auto query = std::string("k from [//t] where a = 10");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1u, result.size());
@@ -154,7 +154,7 @@ TEST_F(TComputedColumnTest, NoKeyColumnsInPredicate)
 
 TEST_F(TComputedColumnTest, Simple)
 {
-    auto query = TString("a from [//t] where l = 10");
+    auto query = std::string("a from [//t] where l = 10");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1u, result.size());
@@ -165,7 +165,7 @@ TEST_F(TComputedColumnTest, Simple)
 
 TEST_F(TComputedColumnTest, Inequality)
 {
-    auto query = TString("a from [//t] where l < 10");
+    auto query = std::string("a from [//t] where l < 10");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1u, result.size());
@@ -176,7 +176,7 @@ TEST_F(TComputedColumnTest, Inequality)
 
 TEST_F(TComputedColumnTest, Composite)
 {
-    auto query = TString("a from [//t] where l = 10 and m > 0 and m < 50");
+    auto query = std::string("a from [//t] where l = 10 and m > 0 and m < 50");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1u, result.size());
@@ -187,7 +187,7 @@ TEST_F(TComputedColumnTest, Composite)
 
 TEST_F(TComputedColumnTest, Vector)
 {
-    auto query = TString("a from [//t] where l in (1,2,3)");
+    auto query = std::string("a from [//t] where l in (1,2,3)");
     auto result = Coordinate(query);
 
     EXPECT_EQ(3u, result.size());
@@ -202,7 +202,7 @@ TEST_F(TComputedColumnTest, Vector)
 
 TEST_F(TComputedColumnTest, ComputedKeyInPredicate)
 {
-    auto query = TString("a from [//t] where (k,l) >= (10,20) ");
+    auto query = std::string("a from [//t] where (k,l) >= (10,20) ");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1u, result.size());
@@ -216,7 +216,7 @@ TEST_F(TComputedColumnTest, ConstantBeforeReferenceInExpression)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("2 * l")),
+            .SetExpression(std::string("2 * l")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64),
@@ -224,7 +224,7 @@ TEST_F(TComputedColumnTest, ConstantBeforeReferenceInExpression)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where l = 10");
+    auto query = std::string("a from [//t] where l = 10");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1u, result.size());
@@ -240,13 +240,13 @@ TEST_F(TComputedColumnTest, ComputedColumnLast)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("k + 3")),
+            .SetExpression(std::string("k + 3")),
         TColumnSchema("a", EValueType::Int64),
     });
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where k = 10");
+    auto query = std::string("a from [//t] where k = 10");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1u, result.size());
@@ -262,10 +262,10 @@ TEST_F(TComputedColumnTest, Complex1)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("n + 1")),
+            .SetExpression(std::string("n + 1")),
         TColumnSchema("m", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("o + 2")),
+            .SetExpression(std::string("o + 2")),
         TColumnSchema("n", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("o", EValueType::Int64)
@@ -275,7 +275,7 @@ TEST_F(TComputedColumnTest, Complex1)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where k = 10 and n = 20");
+    auto query = std::string("a from [//t] where k = 10 and n = 20");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1u, result.size());
@@ -291,10 +291,10 @@ TEST_F(TComputedColumnTest, Complex2)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("n + 1")),
+            .SetExpression(std::string("n + 1")),
         TColumnSchema("m", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("o + 2")),
+            .SetExpression(std::string("o + 2")),
         TColumnSchema("n", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("o", EValueType::Int64)
@@ -304,7 +304,7 @@ TEST_F(TComputedColumnTest, Complex2)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where (k,n) in ((10,20),(50,60))");
+    auto query = std::string("a from [//t] where (k,n) in ((10,20),(50,60))");
     auto result = Coordinate(query);
 
     EXPECT_EQ(2u, result.size());
@@ -322,10 +322,10 @@ TEST_F(TComputedColumnTest, Complex3)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("o + 1")),
+            .SetExpression(std::string("o + 1")),
         TColumnSchema("m", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("o + 2")),
+            .SetExpression(std::string("o + 2")),
         TColumnSchema("n", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("o", EValueType::Int64)
@@ -335,7 +335,7 @@ TEST_F(TComputedColumnTest, Complex3)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where k = 10 and n = 20");
+    auto query = std::string("a from [//t] where k = 10 and n = 20");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1u, result.size());
@@ -349,7 +349,7 @@ TEST_F(TComputedColumnTest, Far0)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("l + 1")),
+            .SetExpression(std::string("l + 1")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("m", EValueType::Int64)
@@ -359,7 +359,7 @@ TEST_F(TComputedColumnTest, Far0)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where m = 10");
+    auto query = std::string("a from [//t] where m = 10");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1u, result.size());
@@ -373,7 +373,7 @@ TEST_F(TComputedColumnTest, Far1)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("m + 1")),
+            .SetExpression(std::string("m + 1")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("m", EValueType::Int64)
@@ -383,7 +383,7 @@ TEST_F(TComputedColumnTest, Far1)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where m = 10");
+    auto query = std::string("a from [//t] where m = 10");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1u, result.size());
@@ -397,7 +397,7 @@ TEST_F(TComputedColumnTest, Far2)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("n + 1")),
+            .SetExpression(std::string("n + 1")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("m", EValueType::Int64)
@@ -409,7 +409,7 @@ TEST_F(TComputedColumnTest, Far2)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where n = 10 and l = 20");
+    auto query = std::string("a from [//t] where n = 10 and l = 20");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1u, result.size());
@@ -423,7 +423,7 @@ TEST_F(TComputedColumnTest, Far3)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("n + 1")),
+            .SetExpression(std::string("n + 1")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("m", EValueType::Int64)
@@ -435,7 +435,7 @@ TEST_F(TComputedColumnTest, Far3)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where (n,l) in ((10,20), (30,40))");
+    auto query = std::string("a from [//t] where (n,l) in ((10,20), (30,40))");
     auto result = Coordinate(query);
 
     EXPECT_EQ(2u, result.size());
@@ -451,7 +451,7 @@ TEST_F(TComputedColumnTest, Far4)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("n + 1")),
+            .SetExpression(std::string("n + 1")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("m", EValueType::Int64)
@@ -463,7 +463,7 @@ TEST_F(TComputedColumnTest, Far4)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where n in (10,30) and l in (20,40)");
+    auto query = std::string("a from [//t] where n in (10,30) and l in (20,40)");
     auto result = Coordinate(query);
 
     EXPECT_EQ(4u, result.size());
@@ -490,7 +490,7 @@ TEST_F(TComputedColumnTest, NoComputedColumns)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where a = 0");
+    auto query = std::string("a from [//t] where a = 0");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1u, result.size());
@@ -504,7 +504,7 @@ TEST_F(TComputedColumnTest, Modulo0)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("l % 2")),
+            .SetExpression(std::string("l % 2")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -512,7 +512,7 @@ TEST_F(TComputedColumnTest, Modulo0)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where a = 0");
+    auto query = std::string("a from [//t] where a = 0");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1u, result.size());
@@ -526,7 +526,7 @@ TEST_F(TComputedColumnTest, Modulo1)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("l % 2")),
+            .SetExpression(std::string("l % 2")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -534,7 +534,7 @@ TEST_F(TComputedColumnTest, Modulo1)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where l > 0 and l <= 2000");
+    auto query = std::string("a from [//t] where l > 0 and l <= 2000");
     auto result = Coordinate(query);
 
     EXPECT_EQ(4u, result.size());
@@ -554,10 +554,10 @@ TEST_F(TComputedColumnTest, Modulo2)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("n % 1u")),
+            .SetExpression(std::string("n % 1u")),
         TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("n % 1u")),
+            .SetExpression(std::string("n % 1u")),
         TColumnSchema("m", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("n", EValueType::Uint64)
@@ -567,7 +567,7 @@ TEST_F(TComputedColumnTest, Modulo2)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where m = 1");
+    auto query = std::string("a from [//t] where m = 1");
     auto result = Coordinate(query);
 
     EXPECT_EQ(4u, result.size());
@@ -587,10 +587,10 @@ TEST_F(TComputedColumnTest, Modulo3)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("m % 1u")),
+            .SetExpression(std::string("m % 1u")),
         TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("m % 1u")),
+            .SetExpression(std::string("m % 1u")),
         TColumnSchema("m", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -598,7 +598,7 @@ TEST_F(TComputedColumnTest, Modulo3)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t]");
+    auto query = std::string("a from [//t]");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1u, result.size());
@@ -612,7 +612,7 @@ TEST_F(TComputedColumnTest, Modulo4)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("m % 2")),
+            .SetExpression(std::string("m % 2")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("m", EValueType::Int64)
@@ -622,7 +622,7 @@ TEST_F(TComputedColumnTest, Modulo4)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where l in (0,1,2)");
+    auto query = std::string("a from [//t] where l in (0,1,2)");
     auto result = Coordinate(query, 10);
 
     EXPECT_EQ(4u, result.size());
@@ -642,10 +642,10 @@ TEST_F(TComputedColumnTest, Modulo5)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("n % 2")),
+            .SetExpression(std::string("n % 2")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("m + 1")),
+            .SetExpression(std::string("m + 1")),
         TColumnSchema("m", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("n", EValueType::Uint64)
@@ -655,7 +655,7 @@ TEST_F(TComputedColumnTest, Modulo5)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where m = 1");
+    auto query = std::string("a from [//t] where m = 1");
     auto result = Coordinate(query);
 
     EXPECT_EQ(3u, result.size());
@@ -675,7 +675,7 @@ TEST_F(TComputedColumnTest, Divide0)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("l / 2")),
+            .SetExpression(std::string("l / 2")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -683,7 +683,7 @@ TEST_F(TComputedColumnTest, Divide0)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where l >= 3 and l < 6");
+    auto query = std::string("a from [//t] where l >= 3 and l < 6");
     auto result = Coordinate(query);
 
     EXPECT_EQ(2u, result.size());
@@ -699,7 +699,7 @@ TEST_F(TComputedColumnTest, Divide1)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("l / 2")),
+            .SetExpression(std::string("l / 2")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -707,7 +707,7 @@ TEST_F(TComputedColumnTest, Divide1)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where l > 3 and l < 6");
+    auto query = std::string("a from [//t] where l > 3 and l < 6");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1u, result.size());
@@ -721,10 +721,10 @@ TEST_F(TComputedColumnTest, Divide2)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("m / 3")),
+            .SetExpression(std::string("m / 3")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("m / 4")),
+            .SetExpression(std::string("m / 4")),
         TColumnSchema("m", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -732,7 +732,7 @@ TEST_F(TComputedColumnTest, Divide2)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where m > 0 and m <= 6");
+    auto query = std::string("a from [//t] where m > 0 and m <= 6");
     auto result = Coordinate(query);
 
     EXPECT_EQ(4u, result.size());
@@ -752,10 +752,10 @@ TEST_F(TComputedColumnTest, Divide3)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("m / 2u")),
+            .SetExpression(std::string("m / 2u")),
         TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("n % 1u")),
+            .SetExpression(std::string("n % 1u")),
         TColumnSchema("m", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("n", EValueType::Uint64)
@@ -765,7 +765,7 @@ TEST_F(TComputedColumnTest, Divide3)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where m >= 0u and m < 3u");
+    auto query = std::string("a from [//t] where m >= 0u and m < 3u");
     auto result = Coordinate(query);
 
     EXPECT_EQ(4u, result.size());
@@ -785,7 +785,7 @@ TEST_F(TComputedColumnTest, Divide4)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("l / -9223372036854775808")),
+            .SetExpression(std::string("l / -9223372036854775808")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -793,7 +793,7 @@ TEST_F(TComputedColumnTest, Divide4)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where l >= -9223372036854775808 and l <= 9223372036854775807");
+    auto query = std::string("a from [//t] where l >= -9223372036854775808 and l <= 9223372036854775807");
     auto result = Coordinate(query);
 
     EXPECT_EQ(2u, result.size());
@@ -809,7 +809,7 @@ TEST_F(TComputedColumnTest, Divide5)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("l / -1")),
+            .SetExpression(std::string("l / -1")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -817,7 +817,7 @@ TEST_F(TComputedColumnTest, Divide5)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where l >= -9223372036854775808 and l < -9223372036854775805");
+    auto query = std::string("a from [//t] where l >= -9223372036854775808 and l < -9223372036854775805");
     EXPECT_THROW_THAT(
         Coordinate(query),
         HasSubstr("Division of INT_MIN by -1"));
@@ -828,7 +828,7 @@ TEST_F(TComputedColumnTest, Divide6)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("l / -1")),
+            .SetExpression(std::string("l / -1")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -836,7 +836,7 @@ TEST_F(TComputedColumnTest, Divide6)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where l > -9223372036854775808 and l < -9223372036854775805");
+    auto query = std::string("a from [//t] where l > -9223372036854775808 and l < -9223372036854775805");
     auto result = Coordinate(query);
 
     EXPECT_EQ(2u, result.size());
@@ -853,7 +853,7 @@ TEST_F(TComputedColumnTest, DivideEmptyRange)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("l")),
+            .SetExpression(std::string("l")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -861,7 +861,7 @@ TEST_F(TComputedColumnTest, DivideEmptyRange)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where l > 1 and l < 2");
+    auto query = std::string("a from [//t] where l > 1 and l < 2");
     auto result = Coordinate(query);
 
     EXPECT_EQ(0u, result.size());
@@ -872,7 +872,7 @@ TEST_F(TComputedColumnTest, DivideSingleRange)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("l")),
+            .SetExpression(std::string("l")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -880,7 +880,7 @@ TEST_F(TComputedColumnTest, DivideSingleRange)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where l > 1 and l < 3");
+    auto query = std::string("a from [//t] where l > 1 and l < 3");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1u, result.size());
@@ -894,7 +894,7 @@ TEST_F(TComputedColumnTest, DivideComplex)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("l / 3 + l / 5")),
+            .SetExpression(std::string("l / 3 + l / 5")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -902,7 +902,7 @@ TEST_F(TComputedColumnTest, DivideComplex)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where l >= -5 and l < 7");
+    auto query = std::string("a from [//t] where l >= -5 and l < 7");
     auto result = Coordinate(query);
 
     EXPECT_EQ(6u, result.size());
@@ -933,7 +933,7 @@ TEST_F(TComputedColumnTest, DivideComplex2)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("l / 6148914691236517205u + l / 9223372036854775808u")),
+            .SetExpression(std::string("l / 6148914691236517205u + l / 9223372036854775808u")),
         TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -941,7 +941,7 @@ TEST_F(TComputedColumnTest, DivideComplex2)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where l >= 0");
+    auto query = std::string("a from [//t] where l >= 0");
     auto result = Coordinate(query);
 
     EXPECT_EQ(5u, result.size());
@@ -972,7 +972,7 @@ TEST_F(TComputedColumnTest, DivideNull)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("l / 7")),
+            .SetExpression(std::string("l / 7")),
         TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -980,7 +980,7 @@ TEST_F(TComputedColumnTest, DivideNull)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where l >= null and l < 16");
+    auto query = std::string("a from [//t] where l >= null and l < 16");
     auto result = Coordinate(query);
 
     EXPECT_EQ(4u, result.size());
@@ -1003,7 +1003,7 @@ TEST_F(TComputedColumnTest, DivideOneBound)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("l / 7")),
+            .SetExpression(std::string("l / 7")),
         TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -1011,7 +1011,7 @@ TEST_F(TComputedColumnTest, DivideOneBound)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where l < 16");
+    auto query = std::string("a from [//t] where l < 16");
     auto result = Coordinate(query);
 
     EXPECT_EQ(4u, result.size());
@@ -1034,7 +1034,7 @@ TEST_F(TComputedColumnTest, DivideTypeCast)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("l / -1")),
+            .SetExpression(std::string("l / -1")),
         TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -1042,7 +1042,7 @@ TEST_F(TComputedColumnTest, DivideTypeCast)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where l < 16");
+    auto query = std::string("a from [//t] where l < 16");
     auto result = Coordinate(query);
 
     EXPECT_EQ(2u, result.size());
@@ -1059,7 +1059,7 @@ TEST_F(TComputedColumnTest, EstimationOverflow)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("farm_hash(l / 1, m)")),
+            .SetExpression(std::string("farm_hash(l / 1, m)")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("m", EValueType::Int64)
@@ -1069,7 +1069,7 @@ TEST_F(TComputedColumnTest, EstimationOverflow)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where l >= -9223372036854775808 and l <= 9223372036854775807 and m >= -9223372036854775808 and m <= 9223372036854775807");
+    auto query = std::string("a from [//t] where l >= -9223372036854775808 and l <= 9223372036854775807 and m >= -9223372036854775808 and m <= 9223372036854775807");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1u, result.size());
@@ -1083,7 +1083,7 @@ TEST_F(TComputedColumnTest, FarDivide1)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("m / 2")),
+            .SetExpression(std::string("m / 2")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("m", EValueType::Int64)
@@ -1093,7 +1093,7 @@ TEST_F(TComputedColumnTest, FarDivide1)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where m >= 3 and m < 5");
+    auto query = std::string("a from [//t] where m >= 3 and m < 5");
     auto result = Coordinate(query);
 
     EXPECT_EQ(2u, result.size());
@@ -1109,10 +1109,10 @@ TEST_F(TComputedColumnTest, ModuloDivide)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("m % 2")),
+            .SetExpression(std::string("m % 2")),
         TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("m / 3")),
+            .SetExpression(std::string("m / 3")),
         TColumnSchema("m", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -1120,7 +1120,7 @@ TEST_F(TComputedColumnTest, ModuloDivide)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where m >= 4 and m < 7");
+    auto query = std::string("a from [//t] where m >= 4 and m < 7");
     auto result = Coordinate(query);
 
     EXPECT_EQ(6u, result.size());
@@ -1146,7 +1146,7 @@ TEST_F(TComputedColumnTest, ModuloDivide2)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("(l / 3) % 2")),
+            .SetExpression(std::string("(l / 3) % 2")),
         TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -1154,7 +1154,7 @@ TEST_F(TComputedColumnTest, ModuloDivide2)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where l >= 0 and l < 5");
+    auto query = std::string("a from [//t] where l >= 0 and l < 5");
     auto result = Coordinate(query);
 
     EXPECT_EQ(2u, result.size());
@@ -1171,7 +1171,7 @@ TEST_F(TComputedColumnTest, ModuloDivide3)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("(l / 3) % 2")),
+            .SetExpression(std::string("(l / 3) % 2")),
         TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
@@ -1179,7 +1179,7 @@ TEST_F(TComputedColumnTest, ModuloDivide3)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where l >= 0 and l < 10");
+    auto query = std::string("a from [//t] where l >= 0 and l < 10");
     auto result = Coordinate(query);
 
     EXPECT_EQ(3u, result.size());
@@ -1197,7 +1197,7 @@ TEST_F(TComputedColumnTest, ContianuationKeyToken)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("l")),
+            .SetExpression(std::string("l")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("m", EValueType::Int64)
@@ -1207,7 +1207,7 @@ TEST_F(TComputedColumnTest, ContianuationKeyToken)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where (k, l, m) > (1, 1, 2) and l = 1");
+    auto query = std::string("a from [//t] where (k, l, m) > (1, 1, 2) and l = 1");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1u, result.size());
@@ -1221,7 +1221,7 @@ TEST_F(TComputedColumnTest, ContianuationKeyToken2)
     TTableSchema tableSchema({
         TColumnSchema("h", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("farm_hash(k)")),
+            .SetExpression(std::string("farm_hash(k)")),
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("l", EValueType::Int64)
@@ -1231,7 +1231,7 @@ TEST_F(TComputedColumnTest, ContianuationKeyToken2)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where (h, k, l) > (147449605462316706u, 225350873616724758, 155984532810876166)");
+    auto query = std::string("a from [//t] where (h, k, l) > (147449605462316706u, 225350873616724758, 155984532810876166)");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1u, result.size());
@@ -1245,7 +1245,7 @@ TEST_F(TComputedColumnTest, ContianuationKeyTokenModulo)
     TTableSchema tableSchema({
         TColumnSchema("h", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("farm_hash(k) % 10")),
+            .SetExpression(std::string("farm_hash(k) % 10")),
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("l", EValueType::Int64)
@@ -1255,7 +1255,7 @@ TEST_F(TComputedColumnTest, ContianuationKeyTokenModulo)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where k between 1 and 15 and h between 2 and 5");
+    auto query = std::string("a from [//t] where k between 1 and 15 and h between 2 and 5");
     auto result = Coordinate(query);
 
     EXPECT_EQ(4u, result.size());
@@ -1287,7 +1287,7 @@ TEST_F(TComputedColumnTest, ContianuationKeyTokenRepeatedField)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where k = 3 and (l, k, l, m) > (4, 3, 4, 5)");
+    auto query = std::string("a from [//t] where k = 3 and (l, k, l, m) > (4, 3, 4, 5)");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1u, result.size());
@@ -1310,7 +1310,7 @@ TEST_F(TComputedColumnTest, ContianuationKeyTokenRepeatedField2)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where k = 3 and (m, k, l, m) > (5, 3, 4, 5)");
+    auto query = std::string("a from [//t] where k = 3 and (m, k, l, m) > (5, 3, 4, 5)");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1u, result.size());
@@ -1324,7 +1324,7 @@ TEST_F(TComputedColumnTest, RangeExpansionLimit)
     TTableSchema tableSchema({
         TColumnSchema("h", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("k + 1")),
+            .SetExpression(std::string("k + 1")),
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("l", EValueType::Int64)
@@ -1336,7 +1336,7 @@ TEST_F(TComputedColumnTest, RangeExpansionLimit)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where k in (10, 20, 30, 40, 50) and l in (1, 3, 5, 7)");
+    auto query = std::string("a from [//t] where k in (10, 20, 30, 40, 50) and l in (1, 3, 5, 7)");
     auto result = Coordinate(query, 6);
 
 
@@ -1372,7 +1372,7 @@ TEST_F(TComputedColumnTest, RangeExpansionLimitSimple)
 
     SetSchema(tableSchema);
 
-    auto query = TString("a from [//t] where k in (10, 20, 30, 40, 50) and l in (1, 3, 5, 7)");
+    auto query = std::string("a from [//t] where k in (10, 20, 30, 40, 50) and l in (1, 3, 5, 7)");
     auto result = Coordinate(query, 6);
 
     EXPECT_EQ(5u, result.size());
@@ -1396,18 +1396,18 @@ TEST_F(TComputedColumnTest, RangeExpansionLimitSimple)
 TEST_P(TComputedColumnTest, Join)
 {
     const auto& args = GetParam();
-    const auto& schemaString1 = args[0];
-    const auto& schemaString2 = args[1];
+    const auto& schemaString1 = TStringBuf(args[0]);
+    const auto& schemaString2 = TStringBuf(args[1]);
 
     TTableSchema tableSchema1;
     TTableSchema tableSchema2;
-    Deserialize(tableSchema1, ConvertToNode(TYsonString(TString(schemaString1))));
-    Deserialize(tableSchema2, ConvertToNode(TYsonString(TString(schemaString2))));
+    Deserialize(tableSchema1, ConvertToNode(TYsonString(schemaString1)));
+    Deserialize(tableSchema2, ConvertToNode(TYsonString(schemaString2)));
 
     SetSchema(tableSchema1);
     SetSecondarySchema(tableSchema2);
 
-    auto query = TString("l from [//t] join [//t1] using l where l in (0, 1)");
+    auto query = std::string("l from [//t] join [//t1] using l where l in (0, 1)");
     auto result = CoordinateForeign(query);
 
     EXPECT_EQ(2u, result.size());
@@ -1472,7 +1472,7 @@ TEST_F(TComputedColumnTest, BigBKeySchema)
     TTableSchema tableSchema({
         TColumnSchema("Hash", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("bigb_hash(UniqID) % 768")),
+            .SetExpression(std::string("bigb_hash(UniqID) % 768")),
         TColumnSchema("UniqID", EValueType::String)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("Value", EValueType::Int64)
@@ -1480,7 +1480,7 @@ TEST_F(TComputedColumnTest, BigBKeySchema)
 
     SetSchema(tableSchema);
 
-    auto query = TString("Value from [//t] where ((Hash,UniqID) > (628,\"duid/1692118319191641157\")) AND (Hash BETWEEN 628 AND 628)");
+    auto query = std::string("Value from [//t] where ((Hash,UniqID) > (628,\"duid/1692118319191641157\")) AND (Hash BETWEEN 628 AND 628)");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1u, result.size());
@@ -1494,10 +1494,10 @@ TEST_F(TComputedColumnTest, TwoComputedColumns)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("n")),
+            .SetExpression(std::string("n")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("m")),
+            .SetExpression(std::string("m")),
         TColumnSchema("m", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("n", EValueType::Int64)
@@ -1507,7 +1507,7 @@ TEST_F(TComputedColumnTest, TwoComputedColumns)
 
     SetSchema(tableSchema);
 
-    auto query = TString("v from [//t] where k = 1 and m between 3 and 5");
+    auto query = std::string("v from [//t] where k = 1 and m between 3 and 5");
     auto result = Coordinate(query);
 
     EXPECT_EQ(3u, result.size());
@@ -1527,7 +1527,7 @@ TEST_F(TComputedColumnTest, YabsGoodEvent)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("farm_hash(l)")),
+            .SetExpression(std::string("farm_hash(l)")),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("v", EValueType::Int64)
@@ -1535,7 +1535,7 @@ TEST_F(TComputedColumnTest, YabsGoodEvent)
 
     SetSchema(tableSchema);
 
-    auto query = TString("v from [//t] where l <= 0");
+    auto query = std::string("v from [//t] where l <= 0");
     auto result = Coordinate(query);
 
     EXPECT_EQ(1u, result.size());
@@ -1549,7 +1549,7 @@ TEST_F(TComputedColumnTest, Null)
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(TString("farm_hash(l)")),
+            .SetExpression(std::string("farm_hash(l)")),
         TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("v", EValueType::Int64)
@@ -1558,7 +1558,7 @@ TEST_F(TComputedColumnTest, Null)
     SetSchema(tableSchema);
 
     {
-        auto query = TString("v from [//t] where l <= null");
+        auto query = std::string("v from [//t] where l <= null");
         auto result = Coordinate(query);
 
         EXPECT_EQ(1u, result.size());
@@ -1568,14 +1568,14 @@ TEST_F(TComputedColumnTest, Null)
     }
 
     {
-        auto query = TString("v from [//t] where l < null");
+        auto query = std::string("v from [//t] where l < null");
         auto result = Coordinate(query);
 
         EXPECT_EQ(0u, result.size());
     }
 
     {
-        auto query = TString("v from [//t] where l != null");
+        auto query = std::string("v from [//t] where l != null");
         auto result = Coordinate(query);
 
         EXPECT_EQ(1u, result.size());
@@ -1585,14 +1585,14 @@ TEST_F(TComputedColumnTest, Null)
     }
 
     {
-        auto query = TString("v from [//t] where l > null and l < null");
+        auto query = std::string("v from [//t] where l > null and l < null");
         auto result = Coordinate(query);
 
         EXPECT_EQ(0u, result.size());
     }
 
     {
-        auto query = TString("v from [//t] where l > null and l < 0");
+        auto query = std::string("v from [//t] where l > null and l < 0");
         auto result = Coordinate(query);
 
         EXPECT_EQ(1u, result.size());
@@ -1603,7 +1603,7 @@ TEST_F(TComputedColumnTest, Null)
     }
 
     {
-        auto query = TString("v from [//t] where l >= null and l < 0");
+        auto query = std::string("v from [//t] where l >= null and l < 0");
         auto result = Coordinate(query);
 
         EXPECT_EQ(1u, result.size());
@@ -1613,7 +1613,7 @@ TEST_F(TComputedColumnTest, Null)
     }
 
     {
-        auto query = TString("v from [//t] where l >= null and l <= 0");
+        auto query = std::string("v from [//t] where l >= null and l <= 0");
         auto result = Coordinate(query);
 
         EXPECT_EQ(1u, result.size());
@@ -1624,7 +1624,7 @@ TEST_F(TComputedColumnTest, Null)
     }
 
     {
-        auto query = TString("v from [//t] where l > null and l <= 0");
+        auto query = std::string("v from [//t] where l > null and l <= 0");
         auto result = Coordinate(query);
 
         EXPECT_EQ(1u, result.size());

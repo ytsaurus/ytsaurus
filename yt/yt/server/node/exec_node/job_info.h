@@ -14,9 +14,6 @@ namespace NYT::NExecNode {
 
 class TBriefJobInfo
 {
-public:
-    void BuildOrchid(NYTree::TFluentMap fluent) const;
-
 private:
     TJobId JobId_;
     TOperationId OperationId_;
@@ -78,6 +75,9 @@ private:
         const NServer::TExecAttributes& jobExecAttributes,
         std::optional<std::string> monitoringDescriptor,
         TInstant jobResendBackoffStartTime);
+
+public:
+    friend void Serialize(const TBriefJobInfo& value, NYson::IYsonConsumer* consumer);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

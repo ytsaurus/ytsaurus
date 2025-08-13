@@ -43,6 +43,7 @@ TEST_SRCS(
     test_log_tailer.py
     test_mutations.py
     test_prewhere.py
+    test_pull_distribution.py
     test_query_log.py
     test_query_registry.py
     test_query_tracker.py

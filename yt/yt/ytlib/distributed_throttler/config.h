@@ -18,7 +18,7 @@ DEFINE_ENUM(EDistributedThrottlerMode,
     (Precise)
 );
 
-DEFINE_ENUM(EDistributedThrottlerMemberPriority,
+DEFINE_ENUM(EDistributedThrottlerMemberPriorityGenerator,
     (StartTime)
     (Random)
 );
@@ -34,13 +34,15 @@ struct TDistributedThrottlerConfig
     TDuration LimitUpdatePeriod;
     TDuration LeaderUpdatePeriod;
     TDuration ThrottlersAttributesUpdatePeriod;
+    TDuration ObsoleteMembersRemovalPeriod;
 
     TDuration ThrottlerExpirationTime;
+    TDuration MemberExpirationTime;
 
     TDuration AdjustedEmaHalflife;
 
     EDistributedThrottlerMode Mode;
-    EDistributedThrottlerMemberPriority MemberPriority;
+    EDistributedThrottlerMemberPriorityGenerator MemberPriorityGenerator;
     double ExtraLimitRatio;
 
     int HeartbeatThrottlerCountLimit;

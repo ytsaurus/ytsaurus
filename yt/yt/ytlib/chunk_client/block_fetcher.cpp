@@ -28,6 +28,22 @@ using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+void UpdateMax(std::atomic<i64>& value, i64 candidate)
+{
+    auto current = value.load();
+    while (current < candidate) {
+        if (value.compare_exchange_weak(current, candidate)) {
+            break;
+        }
+    }
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TBlockFetcher::TBlockFetcher(
     TBlockFetcherConfigPtr config,
     std::vector<TBlockInfo> blockInfos,
@@ -55,6 +71,7 @@ TBlockFetcher::TBlockFetcher(
     , Logger(ChunkClientLogger())
     , Chunks_(chunkReaders.size())
 {
+    YT_VERIFY(SessionInvoker_ != GetSyncInvoker());
     YT_VERIFY(!chunkReaders.empty());
     YT_VERIFY(BlockCache_);
     YT_VERIFY(!BlockInfos_.empty());
@@ -92,15 +109,18 @@ TBlockFetcher::TBlockFetcher(
 
     int windowSize = 1;
     i64 totalRemainingSize = 0;
+    i64 maxBlockSize = BlockInfos_.back().UncompressedDataSize;
     for (int index = 0; index + 1 < std::ssize(BlockInfos_); ++index) {
         if (getBlockDescriptor(BlockInfos_[index]) != getBlockDescriptor(BlockInfos_[index + 1])) {
             ++windowSize;
         }
         totalRemainingSize += BlockInfos_[index].UncompressedDataSize;
+        maxBlockSize = std::max(maxBlockSize, BlockInfos_[index].UncompressedDataSize);
         ++Chunks_[BlockInfos_[index].ReaderIndex].RemainingBlockCount;
     }
     totalRemainingSize += BlockInfos_.back().UncompressedDataSize;
     ++Chunks_[BlockInfos_.back().ReaderIndex].RemainingBlockCount;
+    UpdateMax(ChunkReadOptions_.ChunkReaderStatistics->MaxBlockSize, maxBlockSize);
 
     Window_ = std::make_unique<TWindowSlot[]>(windowSize);
     TotalRemainingFetches_ = BlockInfos_.size();
@@ -402,7 +422,7 @@ void TBlockFetcher::DecompressBlocks(
 {
     YT_VERIFY(windowIndexes.size() == compressedBlocks.size());
 
-    TPeriodicYielder yielder(TDuration::MilliSeconds(30));
+    auto periodicYielder = CreatePeriodicYielder(TDuration::MilliSeconds(30));
 
     std::vector<int> windowIndexesToRelease;
     for (int i = 0; i < std::ssize(compressedBlocks); ++i) {
@@ -442,9 +462,9 @@ void TBlockFetcher::DecompressBlocks(
                 compressedBlock.Size(),
                 uncompressedBlock.Size(),
                 Codec_->GetId());
-        }
 
-        yielder.TryYield();
+            periodicYielder.TryYield();
+        }
 
         UncompressedDataSize_ += uncompressedBlock.Size();
         CompressedDataSize_ += compressedBlockSize;

@@ -614,6 +614,12 @@ private:
         }
     }
 
+    // NB: RemoteCopy cannot copy a set of columns, so the user needs full_read.
+    EPermission GetInputTablePermission() const override
+    {
+        return EPermission::FullRead;
+    }
+
     std::vector<TString> BuildSystemAttributeKeys() const
     {
         if (!Spec_->ForceCopySystemAttributes) {
@@ -820,7 +826,7 @@ private:
 
     int AddInputSlices()
     {
-        TPeriodicYielder yielder(PrepareYieldPeriod);
+        auto yielder = CreatePeriodicYielder(PrepareYieldPeriod);
 
         std::vector<TLegacyDataSlicePtr> hunkChunkSlices;
         std::vector<TLegacyDataSlicePtr> compressionDictionarySlices;
@@ -953,7 +959,13 @@ private:
                 auto* subrequest = req->add_subrequests();
                 subrequest->set_attribute(ToYPathLiteral(attribute));
                 auto value = InputTableAttributes_->GetYson(attribute);
-                ValidateYson(value, GetYsonNestingLevelLimit());
+                try {
+                    ValidateYson(value, GetYsonNestingLevelLimit());
+                } catch (const std::exception& ex) {
+                    THROW_ERROR_EXCEPTION("Error validating value of copied attribute")
+                        << TErrorAttribute("attribute_key", attribute)
+                        << ex;
+                }
                 subrequest->set_value(ToProto(value));
             }
 

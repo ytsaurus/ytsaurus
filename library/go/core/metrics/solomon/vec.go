@@ -13,6 +13,7 @@ type metricsVector struct {
 	mtx          sync.RWMutex // Protects metrics.
 	metrics      map[uint64]Metric
 	rated        bool
+	memOnly      bool
 	newMetric    func(map[string]string) Metric
 	removeMetric func(m Metric)
 }
@@ -36,6 +37,9 @@ func (v *metricsVector) with(tags map[string]string) Metric {
 	metric, ok = v.metrics[hv]
 	if !ok {
 		metric = v.newMetric(tags)
+		if v.memOnly {
+			MemOnly(metric)
+		}
 		v.metrics[hv] = metric
 	}
 
@@ -92,6 +96,10 @@ func (v *CounterVec) Reset() {
 	v.vec.reset()
 }
 
+func (v *CounterVec) setMemOnly() {
+	v.vec.memOnly = true
+}
+
 var _ metrics.GaugeVec = (*GaugeVec)(nil)
 
 // GaugeVec stores gauges and
@@ -126,6 +134,10 @@ func (v *GaugeVec) With(tags map[string]string) metrics.Gauge {
 // Reset deletes all metrics in this vector.
 func (v *GaugeVec) Reset() {
 	v.vec.reset()
+}
+
+func (v *GaugeVec) setMemOnly() {
+	v.vec.memOnly = true
 }
 
 var _ metrics.IntGaugeVec = (*IntGaugeVec)(nil)
@@ -164,6 +176,10 @@ func (v *IntGaugeVec) Reset() {
 	v.vec.reset()
 }
 
+func (v *IntGaugeVec) setMemOnly() {
+	v.vec.memOnly = true
+}
+
 var _ metrics.TimerVec = (*TimerVec)(nil)
 
 // TimerVec stores timers and
@@ -198,6 +214,10 @@ func (v *TimerVec) With(tags map[string]string) metrics.Timer {
 // Reset deletes all metrics in this vector.
 func (v *TimerVec) Reset() {
 	v.vec.reset()
+}
+
+func (v *TimerVec) setMemOnly() {
+	v.vec.memOnly = true
 }
 
 var _ metrics.HistogramVec = (*HistogramVec)(nil)
@@ -239,6 +259,10 @@ func (v *HistogramVec) Reset() {
 	v.vec.reset()
 }
 
+func (v *HistogramVec) setMemOnly() {
+	v.vec.memOnly = true
+}
+
 var _ metrics.TimerVec = (*DurationHistogramVec)(nil)
 
 // DurationHistogramVec stores duration histograms and
@@ -276,4 +300,8 @@ func (v *DurationHistogramVec) With(tags map[string]string) metrics.Timer {
 // Reset deletes all metrics in this vector.
 func (v *DurationHistogramVec) Reset() {
 	v.vec.reset()
+}
+
+func (v *DurationHistogramVec) setMemOnly() {
+	v.vec.memOnly = true
 }

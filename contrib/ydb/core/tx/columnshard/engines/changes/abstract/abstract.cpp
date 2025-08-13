@@ -10,6 +10,7 @@
 namespace NKikimr::NOlap {
 
 void TColumnEngineChanges::SetStage(const NChanges::EStage stage) {
+    AFL_DEBUG(NKikimrServices::TX_COLUMNSHARD)("event", "new_stage")("stage", ::ToString(stage))("task_id", GetTaskIdentifier());
     StateGuard.SetState(stage);
 }
 
@@ -62,7 +63,7 @@ void TColumnEngineChanges::Compile(TFinalizationContext& context) noexcept {
     AFL_VERIFY(StateGuard.GetStage() != NChanges::EStage::Aborted);
 
     DoCompile(context);
-    DoOnAfterCompile();
+    DoOnAfterCompile(context);
 
     SetStage(NChanges::EStage::Compiled);
 }

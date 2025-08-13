@@ -23,6 +23,8 @@
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 
+#include <yt/yt/library/profiling/producer.h>
+
 namespace NYT::NSequoiaServer {
 
 using namespace NCellMaster;
@@ -33,6 +35,8 @@ using namespace NYTree;
 using namespace NProto;
 using namespace NSequoiaClient;
 using namespace NTableClient;
+using namespace NProfiling;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -113,6 +117,43 @@ public:
 
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TGroundUpdateQueueManager::OnDynamicConfigChanged, MakeWeak(this)));
+
+        BufferedProducer_ = New<TBufferedProducer>();
+        SequoiaServerProfiler()
+            .WithGlobal()
+            .WithPrefix("/ground_update_queue_manager")
+            .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetCellTag()))
+            .AddProducer("", BufferedProducer_);
+
+        ProfilingExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
+            BIND(&TGroundUpdateQueueManager::OnProfiling, MakeWeak(this)),
+            TDynamicGroundUpdateQueueManagerConfig::DefaultProfilingPeriod);
+        ProfilingExecutor_->Start();
+    }
+
+    IYPathServicePtr GetOrchidService() override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return IYPathService::FromProducer(BIND(&TGroundUpdateQueueManager::BuildOrchid, MakeStrong(this)))
+            ->Via(Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::GroundUpdateQueueManager));
+    }
+
+    void BuildOrchid(IYsonConsumer* consumer) const
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        BuildYsonFluently(consumer)
+            .DoMapFor(TEnumTraits<EGroundUpdateQueue>::GetDomainValues(), [&] (TFluentMap fluent, const auto& queue) {
+                const auto& state = QueueStates_[queue];
+                fluent.Item(FormatEnum(queue)).BeginMap()
+                    .Item("record_count").Value(state.Records.size())
+                    .Item("ongoing_flush_transaction_id").Value(state.OngoingFlushTransactionId)
+                    .Item("next_record_sequence_number").Value(state.NextRecordSequenceNumber)
+                    .Item("last_flushed_sequence_number").Value(state.LastFlushedSequenceNumber)
+                .EndMap();
+            });
     }
 
     void EnqueueRow(
@@ -165,6 +206,10 @@ private:
     TEnumIndexedArray<EGroundUpdateQueue, TPeriodicExecutorPtr> FlushExecutors_;
     TEnumIndexedArray<EGroundUpdateQueue, TTableUpdateQueueState> QueueStates_;
 
+    TPeriodicExecutorPtr ProfilingExecutor_;
+    TBufferedProducerPtr BufferedProducer_;
+
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     void HydraPrepareFlushTableUpdateQueue(
         TTransaction* transaction,
@@ -317,7 +362,10 @@ private:
 
         Y_UNUSED(WaitFor(Bootstrap_
             ->GetSequoiaClient()
-            ->StartTransaction(ESequoiaTransactionType::GroundUpdateQueueFlush)
+            ->StartTransaction(
+                ESequoiaTransactionType::GroundUpdateQueueFlush,
+                {},
+                {.AuthenticationIdentity = NRpc::GetRootAuthenticationIdentity()})
             .Apply(BIND([queue, this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 auto& queueState = QueueStates_[queue];
 
@@ -389,9 +437,32 @@ private:
             }).AsyncVia(EpochAutomatonInvoker_))));
     }
 
+    void OnProfiling()
+    {
+        if (!IsLeader()) {
+            BufferedProducer_->SetEnabled(false);
+            return;
+        }
+
+        BufferedProducer_->SetEnabled(true);
+
+        TSensorBuffer buffer;
+        for (auto queue : TEnumTraits<EGroundUpdateQueue>::GetDomainValues()) {
+            TWithTagGuard tagGuard(&buffer, "queue", FormatEnum(queue));
+
+            const auto& queueState = QueueStates_[queue];
+            buffer.AddGauge("/record_count", queueState.Records.size());
+        }
+
+        BufferedProducer_->Update(buffer);
+    }
+
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
         const auto& config = GetDynamicConfig();
+
+        ProfilingExecutor_->SetPeriod(GetDynamicConfig()->ProfilingPeriod);
+
         for (auto queue : TEnumTraits<EGroundUpdateQueue>::GetDomainValues()) {
             const auto& queueConfig = config->GetQueueConfig(queue);
             if (const auto& executor = FlushExecutors_[queue]) {

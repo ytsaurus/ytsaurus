@@ -34,7 +34,7 @@ from scipy import stats
 
 from numpy import (arange, putmask, ones, shape, ndarray, zeros, floor,
                    logical_and, log, sqrt, place, argmax, vectorize, asarray,
-                   nan, inf, isinf, NINF, empty)
+                   nan, inf, isinf, empty)
 
 import numpy as np
 from ._constants import _XMAX, _LOGXMAX
@@ -79,7 +79,7 @@ logcdf(x, %(shapes)s, loc=0, scale=1)
 _doc_sf = """\
 sf(x, %(shapes)s, loc=0, scale=1)
     Survival function  (also defined as ``1 - cdf``, but `sf` is sometimes more accurate).
-"""
+"""  # noqa: E501
 _doc_logsf = """\
 logsf(x, %(shapes)s, loc=0, scale=1)
     Log of the survival function.
@@ -109,11 +109,11 @@ fit(data)
     Parameter estimates for generic data.
     See `scipy.stats.rv_continuous.fit <https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.rv_continuous.fit.html#scipy.stats.rv_continuous.fit>`__ for detailed documentation of the
     keyword arguments.
-"""
+"""  # noqa: E501
 _doc_expect = """\
 expect(func, args=(%(shapes_)s), loc=0, scale=1, lb=None, ub=None, conditional=False, **kwds)
     Expected value of a function (of one argument) with respect to the distribution.
-"""
+"""  # noqa: E501
 _doc_expect_discrete = """\
 expect(func, args=(%(shapes_)s), loc=0, lb=None, ub=None, conditional=False)
     Expected value of a function (of one argument) with respect to the distribution.
@@ -441,6 +441,8 @@ def _sum_finite(x):
 
     Examples
     --------
+    >>> import numpy as np
+    >>> from scipy.stats._distn_infrastructure import _sum_finite
     >>> tot, nbad = _sum_finite(np.array([-2, -np.inf, 5, 1]))
     >>> tot
     4.0
@@ -568,6 +570,7 @@ def argsreduce(cond, *args):
     Examples
     --------
     >>> import numpy as np
+    >>> from scipy.stats._distn_infrastructure import argsreduce
     >>> rng = np.random.default_rng()
     >>> A = rng.random((4, 5))
     >>> B = 2
@@ -595,8 +598,8 @@ def argsreduce(cond, *args):
 
     # np.atleast_1d returns an array if only one argument, or a list of arrays
     # if more than one argument.
-    if not isinstance(newargs, list):
-        newargs = [newargs, ]
+    if not isinstance(newargs, (list, tuple)):
+        newargs = (newargs,)
 
     if np.all(cond):
         # broadcast arrays with cond
@@ -809,8 +812,7 @@ class rv_generic:
                 self.__doc__ = doccer.docformat(self.__doc__, tempdict)
             except TypeError as e:
                 raise Exception("Unable to construct docstring for "
-                                "distribution \"%s\": %s" %
-                                (self.name, repr(e))) from e
+                                f"distribution \"{self.name}\": {repr(e)}") from e
 
         # correct for empty shapes
         self.__doc__ = self.__doc__.replace('(, ', '(').replace(', )', ')')
@@ -1152,7 +1154,8 @@ class rv_generic:
                         mu = self._munp(1, *goodargs)
                     if mu2 is None:
                         mu2p = self._munp(2, *goodargs)
-                        mu2 = mu2p - mu * mu
+                        with np.errstate(invalid='ignore'):
+                            mu2 = mu2p - mu * mu
                     with np.errstate(invalid='ignore'):
                         mu3 = (-mu*mu - 3*mu2)*mu + mu3p
                         g1 = mu3 / np.power(mu2, 1.5)
@@ -1167,7 +1170,8 @@ class rv_generic:
                         mu = self._munp(1, *goodargs)
                     if mu2 is None:
                         mu2p = self._munp(2, *goodargs)
-                        mu2 = mu2p - mu * mu
+                        with np.errstate(invalid='ignore'):
+                            mu2 = mu2p - mu * mu
                     if g1 is None:
                         mu3 = None
                     else:
@@ -1210,6 +1214,7 @@ class rv_generic:
         Entropy is defined base `e`:
 
         >>> import numpy as np
+        >>> from scipy.stats._distn_infrastructure import rv_discrete
         >>> drv = rv_discrete(values=((0, 1), (0.5, 0.5)))
         >>> np.allclose(drv.entropy(), np.log(2.0))
         True
@@ -2026,7 +2031,7 @@ class rv_continuous(rv_generic):
         cond1 = self._support_mask(x, *args) & (scale > 0)
         cond = cond0 & cond1
         output = empty(shape(cond), dtyp)
-        output.fill(NINF)
+        output.fill(-inf)
         putmask(output, (1-cond0)+np.isnan(x), self.badvalue)
         if np.any(cond):
             goodargs = argsreduce(cond, *((x,)+args+(scale,)))
@@ -2110,7 +2115,7 @@ class rv_continuous(rv_generic):
         cond2 = (x >= _b) & cond0
         cond = cond0 & cond1
         output = empty(shape(cond), dtyp)
-        output.fill(NINF)
+        output.fill(-inf)
         place(output, (1-cond0)*(cond1 == cond1)+np.isnan(x), self.badvalue)
         place(output, cond2, 0.0)
         if np.any(cond):  # call only if at least 1 entry
@@ -2196,7 +2201,7 @@ class rv_continuous(rv_generic):
         cond2 = cond0 & (x <= _a)
         cond = cond0 & cond1
         output = empty(shape(cond), dtyp)
-        output.fill(NINF)
+        output.fill(-inf)
         place(output, (1-cond0)+np.isnan(x), self.badvalue)
         place(output, cond2, 0.0)
         if np.any(cond):
@@ -2410,8 +2415,8 @@ class rv_continuous(rv_generic):
         elif method == "mle":
             objective = self._penalized_nnlf
         else:
-            raise ValueError("Method '{}' not available; must be one of {}"
-                             .format(method, methods))
+            raise ValueError(f"Method '{method}' not available; "
+                             f"must be one of {methods}")
 
         if len(fixedn) == 0:
             func = objective
@@ -2454,7 +2459,7 @@ class rv_continuous(rv_generic):
                  np.maximum(np.abs(data_moments), 1e-8))**2).sum()
 
     def fit(self, data, *args, **kwds):
-        """
+        r"""
         Return estimates of shape (if applicable), location, and scale
         parameters from data. The default estimation method is Maximum
         Likelihood Estimation (MLE), but Method of Moments (MM)
@@ -2497,8 +2502,9 @@ class rv_continuous(rv_generic):
             - optimizer : The optimizer to use.  The optimizer must take
               ``func`` and starting position as the first two arguments,
               plus ``args`` (for extra arguments to pass to the
-              function to be optimized) and ``disp=0`` to suppress
-              output as keyword arguments.
+              function to be optimized) and ``disp``. 
+              The ``fit`` method calls the optimizer with ``disp=0`` to suppress output.
+              The optimizer must return the estimated parameters.
 
             - method : The method to use. The default is "MLE" (Maximum
               Likelihood Estimate); "MM" (Method of Moments)
@@ -2548,20 +2554,59 @@ class rv_continuous(rv_generic):
         If the data contain any of ``np.nan``, ``np.inf``, or ``-np.inf``,
         the `fit` method will raise a ``RuntimeError``.
 
+        When passing a ``CensoredData`` instance to ``data``, the log-likelihood
+        function is defined as:
+
+        .. math::
+
+            l(\pmb{\theta}; k) & = \sum
+                                    \log(f(k_u; \pmb{\theta}))
+                                + \sum
+                                    \log(F(k_l; \pmb{\theta})) \\
+                                & + \sum 
+                                    \log(1 - F(k_r; \pmb{\theta})) \\
+                                & + \sum
+                                    \log(F(k_{\text{high}, i}; \pmb{\theta})
+                                    - F(k_{\text{low}, i}; \pmb{\theta}))
+
+        where :math:`f` and :math:`F` are the pdf and cdf, respectively, of the
+        function being fitted, :math:`\pmb{\theta}` is the parameter vector,
+        :math:`u` are the indices of uncensored observations,
+        :math:`l` are the indices of left-censored observations,
+        :math:`r` are the indices of right-censored observations,
+        subscripts "low"/"high" denote endpoints of interval-censored observations, and
+        :math:`i` are the indices of interval-censored observations.
+
         Examples
         --------
 
         Generate some data to fit: draw random variates from the `beta`
         distribution
 
+        >>> import numpy as np
         >>> from scipy.stats import beta
         >>> a, b = 1., 2.
-        >>> x = beta.rvs(a, b, size=1000)
+        >>> rng = np.random.default_rng(172786373191770012695001057628748821561)
+        >>> x = beta.rvs(a, b, size=1000, random_state=rng)
 
         Now we can fit all four parameters (``a``, ``b``, ``loc`` and
         ``scale``):
 
         >>> a1, b1, loc1, scale1 = beta.fit(x)
+        >>> a1, b1, loc1, scale1
+        (1.0198945204435628, 1.9484708982737828, 4.372241314917588e-05, 0.9979078845964814)
+
+        The fit can be done also using a custom optimizer:
+
+        >>> from scipy.optimize import minimize
+        >>> def custom_optimizer(func, x0, args=(), disp=0):
+        ...     res = minimize(func, x0, args, method="slsqp", options={"disp": disp})
+        ...     if res.success:
+        ...         return res.x
+        ...     raise RuntimeError('optimization routine failed')
+        >>> a1, b1, loc1, scale1 = beta.fit(x, method="MLE", optimizer=custom_optimizer)
+        >>> a1, b1, loc1, scale1
+        (1.0198821087258905, 1.948484145914738, 4.3705304486881485e-05, 0.9979104663953395)
 
         We can also use some prior knowledge about the dataset: let's keep
         ``loc`` and ``scale`` fixed:
@@ -2586,7 +2631,7 @@ class rv_continuous(rv_generic):
         >>> loc1, scale1 = norm.fit(x)
         >>> loc1, scale1
         (0.92087172783841631, 2.0015750750324668)
-        """
+        """ # noqa: E501
         method = kwds.get('method', "mle").lower()
 
         censored = isinstance(data, CensoredData)
@@ -3042,7 +3087,7 @@ class rv_discrete(rv_generic):
     values : tuple of two array_like, optional
         ``(xk, pk)`` where ``xk`` are integers and ``pk`` are the non-zero
         probabilities between 0 and 1 with ``sum(pk) = 1``. ``xk``
-        and ``pk`` must have the same shape.
+        and ``pk`` must have the same shape, and ``xk`` must be unique.
     inc : integer, optional
         Increment for the support of the distribution.
         Default is 1. (other values have not been tested)
@@ -3098,14 +3143,17 @@ class rv_discrete(rv_generic):
     This class is similar to `rv_continuous`. Whether a shape parameter is
     valid is decided by an ``_argcheck`` method (which defaults to checking
     that its arguments are strictly positive.)
-    The main differences are:
+    The main differences are as follows.
 
-    - the support of the distribution is a set of integers
-    - instead of the probability density function, ``pdf`` (and the
+    - The support of the distribution is a set of integers.
+    - Instead of the probability density function, ``pdf`` (and the
       corresponding private ``_pdf``), this class defines the
       *probability mass function*, `pmf` (and the corresponding
       private ``_pmf``.)
-    - scale parameter is not defined.
+    - There is no ``scale`` parameter.
+    - The default implementations of methods (e.g. ``_cdf``) are not designed
+      for distributions with support that is unbounded below (i.e.
+      ``a=-np.inf``), so they must be overridden.
 
     To create a new discrete distribution, we would do the following:
 
@@ -3410,7 +3458,7 @@ class rv_discrete(rv_generic):
             cond1 = cond1 & self._nonzero(k, *args)
         cond = cond0 & cond1
         output = empty(shape(cond), 'd')
-        output.fill(NINF)
+        output.fill(-inf)
         place(output, (1-cond0) + np.isnan(k), self.badvalue)
         if np.any(cond):
             goodargs = argsreduce(cond, *((k,)+args))
@@ -3490,7 +3538,7 @@ class rv_discrete(rv_generic):
         cond2 = (k >= _b)
         cond = cond0 & cond1
         output = empty(shape(cond), 'd')
-        output.fill(NINF)
+        output.fill(-inf)
         place(output, (1-cond0) + np.isnan(k), self.badvalue)
         place(output, cond2*(cond0 == cond0), 0.0)
 
@@ -3571,7 +3619,7 @@ class rv_discrete(rv_generic):
         cond2 = (k < _a) & cond0
         cond = cond0 & cond1
         output = empty(shape(cond), 'd')
-        output.fill(NINF)
+        output.fill(-inf)
         place(output, (1-cond0) + np.isnan(k), self.badvalue)
         place(output, cond2, 0.0)
         if np.any(cond):
@@ -3797,7 +3845,8 @@ def _expect(fun, lb, ub, x0, inc, maxcount=1000, tolerance=1e-10,
         if abs(delta) < tolerance * x.size:
             break
         if count > maxcount:
-            warnings.warn('expect(): sum did not converge', RuntimeWarning)
+            warnings.warn('expect(): sum did not converge',
+                          RuntimeWarning, stacklevel=3)
             return tot
 
     # iterate over [lb, x0)
@@ -3808,7 +3857,8 @@ def _expect(fun, lb, ub, x0, inc, maxcount=1000, tolerance=1e-10,
         if abs(delta) < tolerance * x.size:
             break
         if count > maxcount:
-            warnings.warn('expect(): sum did not converge', RuntimeWarning)
+            warnings.warn('expect(): sum did not converge',
+                          RuntimeWarning, stacklevel=3)
             break
 
     return tot
@@ -3822,6 +3872,7 @@ def _iter_chunked(x0, x1, chunksize=4, inc=1):
     Handles both x0 < x1 and x0 > x1. In the latter case, iterates downwards
     (make sure to set inc < 0.)
 
+    >>> from scipy.stats._distn_infrastructure import _iter_chunked
     >>> [x for x in _iter_chunked(2, 5, inc=2)]
     [array([2, 4])]
     >>> [x for x in _iter_chunked(2, 11, inc=2)]
@@ -3886,6 +3937,8 @@ class rv_sample(rv_discrete):
             raise ValueError("All elements of pk must be non-negative.")
         if not np.allclose(np.sum(pk), 1):
             raise ValueError("The sum of provided pk is not 1.")
+        if not len(set(np.ravel(xk))) == np.size(xk):
+            raise ValueError("xk may not contain duplicate values.")
 
         indx = np.argsort(np.ravel(xk))
         self.xk = np.take(np.ravel(xk), indx, 0)

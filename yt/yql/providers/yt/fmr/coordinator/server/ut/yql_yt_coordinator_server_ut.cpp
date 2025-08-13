@@ -1,4 +1,5 @@
 #include <library/cpp/testing/unittest/registar.h>
+#include <library/cpp/testing/unittest/tests_data.h>
 
 #include <yt/yql/providers/yt/fmr/coordinator/client/yql_yt_coordinator_client.h>
 #include <yt/yql/providers/yt/fmr/coordinator/impl/yql_yt_coordinator_impl.h>
@@ -10,7 +11,7 @@
 namespace NYql::NFmr {
 
 TDownloadOperationParams downloadOperationParams{
-    .Input = TYtTableRef{"Path","Cluster", "FilePath"},
+    .Input = TYtTableRef{.RichPath = NYT::TRichYPath().Path("Path").Cluster("Cluster"), .FilePath = "FilePath"},
     .Output = TFmrTableRef{{"Cluster", "Path"}}
 };
 
@@ -28,7 +29,8 @@ TStartOperationRequest CreateOperationRequest(ETaskType taskType = ETaskType::Do
 Y_UNIT_TEST_SUITE(CoordinatorServerTests) {
     Y_UNIT_TEST(SendStartOperationRequestToCoordinatorServer) {
         auto coordinator = MakeFmrCoordinator(TFmrCoordinatorSettings(), MakeFileYtCoordinatorService());
-        ui16 port = 7001;
+        TPortManager pm;
+        const ui16 port = pm.GetPort();
         TFmrCoordinatorServerSettings coordinatorServerSettings{.Port = port};
         auto coordinatorServer = MakeFmrCoordinatorServer(coordinator, coordinatorServerSettings);
         coordinatorServer->Start();
@@ -43,7 +45,8 @@ Y_UNIT_TEST_SUITE(CoordinatorServerTests) {
 
     Y_UNIT_TEST(SendGetOperationRequestToCoordinatorServer) {
         auto coordinator = MakeFmrCoordinator(TFmrCoordinatorSettings(), MakeFileYtCoordinatorService());
-        ui16 port = 7002;
+        TPortManager pm;
+        const ui16 port = pm.GetPort();
         TFmrCoordinatorServerSettings coordinatorServerSettings{.Port = port};
         auto coordinatorServer = MakeFmrCoordinatorServer(coordinator, coordinatorServerSettings);
         coordinatorServer->Start();
@@ -59,7 +62,8 @@ Y_UNIT_TEST_SUITE(CoordinatorServerTests) {
 
     Y_UNIT_TEST(SendDeleteOperationRequestToCoordinatorServer) {
         auto coordinator = MakeFmrCoordinator(TFmrCoordinatorSettings(), MakeFileYtCoordinatorService());
-        ui16 port = 7003;
+        TPortManager pm;
+        const ui16 port = pm.GetPort();
         TFmrCoordinatorServerSettings coordinatorServerSettings{.Port = port};
         auto coordinatorServer = MakeFmrCoordinatorServer(coordinator, coordinatorServerSettings);
         coordinatorServer->Start();

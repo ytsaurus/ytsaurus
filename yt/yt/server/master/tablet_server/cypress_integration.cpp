@@ -37,7 +37,7 @@ private:
         return MakeFuture(ToObjectIds(GetValues(tabletManager->Tablets(), limit)));
     }
 
-    bool IsValid(TObject* object) const override
+    bool IsValidItem(TObject* object) const override
     {
         return IsTabletType(object->GetType());
     }
@@ -88,7 +88,7 @@ private:
         return MakeFuture(ToObjectIds(GetValues(tabletManager->TabletActions(), limit)));
     }
 
-    bool IsValid(TObject* object) const override
+    bool IsValidItem(TObject* object) const override
     {
         return object->GetType() == EObjectType::TabletAction;
     }

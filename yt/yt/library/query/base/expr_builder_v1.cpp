@@ -46,7 +46,7 @@ TTypeSet GetTypes(const NAst::TLiteralValue& literalValue)
                 EValueType::Boolean
             });
         },
-        [] (const TString&) {
+        [] (const std::string&) {
             return TTypeSet({
                 EValueType::String
             });
@@ -560,7 +560,7 @@ public:
         AfterGroupBy_ = true;
     }
 
-    TString InferGroupItemName(
+    std::string InferGroupItemName(
         const TConstExpressionPtr& /*typedExpression*/,
         const NAst::TExpression& expressionsAst) override
     {
@@ -579,7 +579,7 @@ private:
     std::set<std::string> UsedAliases_;
     int Depth_ = 0;
 
-    THashMap<std::pair<TString, EValueType>, TConstExpressionPtr> AggregateLookup_;
+    THashMap<std::pair<std::string, EValueType>, TConstExpressionPtr> AggregateLookup_;
 
     TReferenceResolver ColumnResolver_;
 
@@ -906,7 +906,7 @@ TUntypedExpression TExprBuilderV1::OnReference(const NAst::TReference& reference
 
 TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* functionExpr)
 {
-    auto functionName = to_lower(TString(functionExpr->FunctionName));
+    auto functionName = ToLower(functionExpr->FunctionName);
 
     const auto& descriptor = Functions_->GetFunction(functionName);
 

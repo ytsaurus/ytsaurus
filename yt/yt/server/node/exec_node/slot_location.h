@@ -137,6 +137,7 @@ private:
 
     const NConcurrency::TActionQueuePtr HeavyLocationQueue_;
     const NConcurrency::TActionQueuePtr LightLocationQueue_;
+    const NConcurrency::TActionQueuePtr ToolLocationQueue_;
 
     //! This invoker is used for heavy IO actions e.g. copying file to disk.
     const IInvokerPtr HeavyInvoker_;
@@ -144,6 +145,9 @@ private:
     //! This invoker is used for light IO actions e.g. copying file to tmpfs,
     //! creating job proxy config on disk.
     const IInvokerPtr LightInvoker_;
+
+    //! This invoker is used for invoking tools in a child process.
+    const IInvokerPtr ToolInvoker_;
 
     const NServer::TDiskHealthCheckerPtr HealthChecker_;
     const NConcurrency::TPeriodicExecutorPtr DiskResourcesUpdateExecutor_;

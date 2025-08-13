@@ -405,17 +405,13 @@ void TExpirationTracker::CollectAndRemoveExpiredNodes(TInstant checkTime)
         *isSequoia ? "Sequoia" : "Cypress",
         std::ssize(expiredTrunkNodes));
 
-    if (*isSequoia || GetDynamicConfig()->RemoveExpiredMasterNodesViaClient) {
-        std::vector<TEphemeralObjectPtr<TCypressNode>> trunkNodes;
-        trunkNodes.reserve(expiredTrunkNodes.size());
-        for (auto* trunkNode : expiredTrunkNodes) {
-            trunkNodes.emplace_back(trunkNode);
-        }
-
-        RemoveExpiredNodesViaClient(trunkNodes);
-    } else {
-        RemoveExpiredNodesViaMutation(expiredTrunkNodes);
+    std::vector<TEphemeralObjectPtr<TCypressNode>> trunkNodes;
+    trunkNodes.reserve(expiredTrunkNodes.size());
+    for (auto* trunkNode : expiredTrunkNodes) {
+        trunkNodes.emplace_back(trunkNode);
     }
+
+    RemoveExpiredNodesViaClient(trunkNodes);
 }
 
 void TExpirationTracker::RemoveExpiredNodesViaClient(const std::vector<TEphemeralObjectPtr<TCypressNode>>& trunkNodes)
@@ -458,21 +454,12 @@ void TExpirationTracker::RemoveExpiredNodesViaClient(const std::vector<TEphemera
         }
 
         if (IsObjectAlive(trunkNode)) {
+            YT_LOG_DEBUG(rspOrError,
+                "Cannot remove an expired node; backing off and retrying (NodeId: %v)",
+                trunkNode->GetId());
             OnNodeRemovalFailed(trunkNode.Get());
         }
     }
-}
-
-void TExpirationTracker::RemoveExpiredNodesViaMutation(const std::vector<TCypressNode*>& trunkNodes)
-{
-    NProto::TReqRemoveExpiredNodes request;
-    for (auto* trunkNode : trunkNodes) {
-        ToProto(request.add_node_ids(), trunkNode->GetId());
-    }
-
-    const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-    YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
-        ->CommitAndLog(Logger()));
 }
 
 bool TExpirationTracker::IsRecovery() const

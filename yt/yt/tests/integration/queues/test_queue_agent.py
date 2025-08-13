@@ -3,9 +3,10 @@ from yt_queue_agent_test_base import (OrchidWithRegularPasses, QueueStaticExport
                                       CypressSynchronizerOrchid, AlertManagerOrchid, QueueAgentShardingManagerOrchid,
                                       ObjectAlertHelper)
 
-from yt.environment.init_queue_agent_state import get_latest_version, run_migration, prepare_migration
+from yt.environment.init_queue_agent_state import run_migration, prepare_migration
 
-from yt_commands import (authors, commit_transaction, get, get_batch_output, get_driver, set, ls, wait, assert_yt_error, create, sync_mount_table, insert_rows,
+from yt_commands import (alter_table_replica, authors, commit_transaction, generate_timestamp, get, get_batch_output,
+                         get_driver, set, ls, wait, assert_yt_error, create, sync_mount_table, insert_rows,
                          delete_rows, remove, raises_yt_error, exists, start_transaction, select_rows,
                          sync_unmount_table, trim_rows, print_debug, alter_table, register_queue_consumer,
                          unregister_queue_consumer, mount_table, wait_for_tablet_state, sync_freeze_table,
@@ -52,54 +53,58 @@ class TestQueueAgent(TestQueueAgentBase):
     def test_other_stages_are_ignored(self):
         queue_orchid = QueueAgentOrchid()
 
-        self._create_queue("//tmp/q")
+        queue_path = self.create_queue_path()
+        self._create_queue(queue_path)
 
         self._wait_for_component_passes()
 
-        status = queue_orchid.get_queue_orchid("primary://tmp/q").get_status()
+        status = queue_orchid.get_queue_orchid(f"primary:{queue_path}").get_status()
         assert status["partition_count"] == 1
 
-        set("//tmp/q/@queue_agent_stage", "testing")
+        set(f"{queue_path}/@queue_agent_stage", "testing")
 
         self._wait_for_component_passes()
 
         with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
-            queue_orchid.get_queue_orchid("primary://tmp/q").get_status()
+            queue_orchid.get_queue_orchid(f"primary:{queue_path}").get_status()
 
-        set("//tmp/q/@queue_agent_stage", "production")
+        set(f"{queue_path}/@queue_agent_stage", "production")
 
         self._wait_for_component_passes()
 
-        status = queue_orchid.get_queue_orchid("primary://tmp/q").get_status()
+        status = queue_orchid.get_queue_orchid(f"primary:{queue_path}").get_status()
         assert status["partition_count"] == 1
 
     @authors("cherepashka", "nadya73")
     def test_frozen_tablets_do_not_contain_errors(self):
         queue_orchid = QueueAgentOrchid()
-        self._create_queue("//tmp/q")
+
+        queue_path = self.create_queue_path()
+        self._create_queue(queue_path)
         self._wait_for_component_passes()
 
         # Frozen queue doesn't have errors.
-        sync_freeze_table("//tmp/q")
+        sync_freeze_table(queue_path)
         self._wait_for_component_passes()
-        partitions = queue_orchid.get_queue_orchid("primary://tmp/q").get_partitions()
+        partitions = queue_orchid.get_queue_orchid(f"primary:{queue_path}").get_partitions()
         for partition in partitions:
             assert "error" not in partition
 
+        consumer_path = self.create_consumer_path()
         # Consumer of frozen queue doesn't have errors.
-        self._create_consumer("//tmp/c", mount=True)
+        self._create_consumer(consumer_path, mount=True)
         insert_rows("//sys/queue_agents/consumer_registrations", [
             {
                 "queue_cluster": "primary",
-                "queue_path": "//tmp/q",
+                "queue_path": queue_path,
                 "consumer_cluster": "primary",
-                "consumer_path": "//tmp/c",
+                "consumer_path": consumer_path,
                 "vital": False,
             }
         ])
         self._wait_for_component_passes()
-        consumer_registrations = get("//tmp/c/@queue_consumer_status/registrations")
-        consumer_queues = get("//tmp/c/@queue_consumer_status/queues")
+        consumer_registrations = get(f"{consumer_path}/@queue_consumer_status/registrations")
+        consumer_queues = get(f"{consumer_path}/@queue_consumer_status/queues")
         for registration in consumer_registrations:
             assert "error" not in consumer_queues[registration["queue"]]
 
@@ -117,6 +122,8 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
     @authors("max42", "nadya73")
     def test_polling_loop(self):
         orchid = QueueAgentOrchid()
+
+        queue_path = self.create_queue_path()
 
         self._drop_tables()
 
@@ -138,7 +145,7 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
         })
         sync_mount_table("//sys/queue_agents/queues")
 
-        insert_rows("//sys/queue_agents/queues", [{"path": "//tmp/q"}])
+        insert_rows("//sys/queue_agents/queues", [{"path": queue_path}])
 
         orchid.wait_fresh_pass()
         assert_yt_error(orchid.get_pass_error(), "No such column")
@@ -156,58 +163,60 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
     def test_queue_state(self):
         orchid = QueueAgentOrchid()
 
+        queue_path = self.create_queue_path()
+
         self._wait_for_component_passes(skip_cypress_synchronizer=True)
         queues = orchid.list_queues()
         assert len(queues) == 0
 
         # Missing row revision.
         insert_rows("//sys/queue_agents/queues",
-                    [{"cluster": "primary", "path": "//tmp/q", "queue_agent_stage": "production"}])
+                    [{"cluster": "primary", "path": queue_path, "queue_agent_stage": "production"}])
         self._wait_for_component_passes(skip_cypress_synchronizer=True)
-        status = orchid.get_queue_orchid("primary://tmp/q").get_status()
+        status = orchid.get_queue_orchid(f"primary:{queue_path}").get_status()
         assert_yt_error(YtError.from_dict(status["error"]), "Queue is not in-sync yet")
         assert "type" not in status
 
         # Wrong object type.
         insert_rows("//sys/queue_agents/queues",
-                    [{"cluster": "primary", "path": "//tmp/q", "queue_agent_stage": "production",
+                    [{"cluster": "primary", "path": queue_path, "queue_agent_stage": "production",
                       "row_revision": YsonUint64(2345), "object_type": "map_node"}],
                     update=True)
         orchid.wait_fresh_pass()
-        status = orchid.get_queue_orchid("primary://tmp/q").get_status()
+        status = orchid.get_queue_orchid(f"primary:{queue_path}").get_status()
         assert_yt_error(YtError.from_dict(status["error"]), 'Invalid queue object type "map_node"')
 
         # Sorted dynamic table.
         insert_rows("//sys/queue_agents/queues",
-                    [{"cluster": "primary", "path": "//tmp/q", "queue_agent_stage": "production",
+                    [{"cluster": "primary", "path": queue_path, "queue_agent_stage": "production",
                       "row_revision": YsonUint64(3456), "object_type": "table", "dynamic": True, "sorted": True}],
                     update=True)
         orchid.wait_fresh_pass()
-        status = orchid.get_queue_orchid("primary://tmp/q").get_status()
+        status = orchid.get_queue_orchid(f"primary:{queue_path}").get_status()
         assert_yt_error(YtError.from_dict(status["error"]), "Only ordered dynamic tables are supported as queues")
 
         # Proper ordered dynamic table.
         insert_rows("//sys/queue_agents/queues",
-                    [{"cluster": "primary", "path": "//tmp/q", "queue_agent_stage": "production",
+                    [{"cluster": "primary", "path": queue_path, "queue_agent_stage": "production",
                       "row_revision": YsonUint64(4567), "object_type": "table", "dynamic": True, "sorted": False}],
                     update=True)
         orchid.wait_fresh_pass()
-        status = orchid.get_queue_orchid("primary://tmp/q").get_status()
-        # This error means that controller is instantiated and works properly (note that //tmp/q does not exist yet).
+        status = orchid.get_queue_orchid(f"primary:{queue_path}").get_status()
+        # This error means that controller is instantiated and works properly (note that queue_path does not exist yet).
         assert_yt_error(YtError.from_dict(status["error"]), code=yt_error_codes.ResolveErrorCode)
 
         # Switch back to sorted dynamic table.
         insert_rows("//sys/queue_agents/queues",
-                    [{"cluster": "primary", "path": "//tmp/q", "queue_agent_stage": "production",
+                    [{"cluster": "primary", "path": queue_path, "queue_agent_stage": "production",
                       "row_revision": YsonUint64(5678), "object_type": "table", "dynamic": False, "sorted": False}],
                     update=True)
         orchid.wait_fresh_pass()
-        status = orchid.get_queue_orchid("primary://tmp/q").get_status()
+        status = orchid.get_queue_orchid(f"primary:{queue_path}").get_status()
         assert_yt_error(YtError.from_dict(status["error"]), "Only ordered dynamic tables are supported as queues")
         assert "family" not in status
 
         # Remove row; queue should be unregistered.
-        delete_rows("//sys/queue_agents/queues", [{"cluster": "primary", "path": "//tmp/q"}])
+        delete_rows("//sys/queue_agents/queues", [{"cluster": "primary", "path": queue_path}])
         self._wait_for_component_passes(skip_cypress_synchronizer=True)
 
         queues = orchid.list_queues()
@@ -217,6 +226,8 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
     def test_consumer_state(self):
         orchid = QueueAgentOrchid()
 
+        consumer_path = self.create_consumer_path()
+
         self._wait_for_component_passes(skip_cypress_synchronizer=True)
         queues = orchid.list_queues()
         consumers = orchid.list_consumers()
@@ -225,9 +236,9 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
 
         # Missing row revision.
         insert_rows("//sys/queue_agents/consumers",
-                    [{"cluster": "primary", "path": "//tmp/c", "queue_agent_stage": "production"}])
+                    [{"cluster": "primary", "path": consumer_path, "queue_agent_stage": "production"}])
         self._wait_for_component_passes(skip_cypress_synchronizer=True)
-        status = orchid.get_consumer_orchid("primary://tmp/c").get_status()
+        status = orchid.get_consumer_orchid(f"primary:{consumer_path}").get_status()
         assert_yt_error(YtError.from_dict(status["error"]), "Consumer is not in-sync yet")
         assert "target" not in status
 
@@ -254,6 +265,8 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
     def test_controller_reuse(self):
         orchid = QueueAgentOrchid()
 
+        consumer_path = self.create_consumer_path()
+
         self._wait_for_component_passes(skip_cypress_synchronizer=True)
         queues = orchid.list_queues()
         consumers = orchid.list_consumers()
@@ -261,27 +274,27 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
         assert len(consumers) == 0
 
         insert_rows("//sys/queue_agents/consumers",
-                    [{"cluster": "primary", "path": "//tmp/c", "queue_agent_stage": "production",
+                    [{"cluster": "primary", "path": consumer_path, "queue_agent_stage": "production",
                       "row_revision": YsonUint64(1234), "revision": YsonUint64(100)}])
         self._wait_for_component_passes(skip_cypress_synchronizer=True)
-        orchid.get_consumer_orchid("primary://tmp/c").wait_fresh_pass()
-        row = orchid.get_consumer_orchid("primary://tmp/c").get_row()
+        orchid.get_consumer_orchid(f"primary:{consumer_path}").wait_fresh_pass()
+        row = orchid.get_consumer_orchid(f"primary:{consumer_path}").get_row()
         assert row["revision"] == 100
 
         # Make sure pass index is large enough.
         time.sleep(3)
-        pass_index = orchid.get_consumer_orchid("primary://tmp/c").get_pass_index()
+        pass_index = orchid.get_consumer_orchid(f"primary:{consumer_path}").get_pass_index()
 
         insert_rows("//sys/queue_agents/consumers",
-                    [{"cluster": "primary", "path": "//tmp/c", "queue_agent_stage": "production",
+                    [{"cluster": "primary", "path": consumer_path, "queue_agent_stage": "production",
                       "row_revision": YsonUint64(2345), "revision": YsonUint64(200)}])
         orchid.wait_fresh_pass()
-        orchid.get_consumer_orchid("primary://tmp/c").wait_fresh_pass()
-        row = orchid.get_consumer_orchid("primary://tmp/c").get_row()
+        orchid.get_consumer_orchid(f"primary:{consumer_path}").wait_fresh_pass()
+        row = orchid.get_consumer_orchid(f"primary:{consumer_path}").get_row()
         assert row["revision"] == 200
 
         # Make sure controller was not recreated.
-        assert orchid.get_consumer_orchid("primary://tmp/c").get_pass_index() > pass_index
+        assert orchid.get_consumer_orchid(f"primary:{consumer_path}").get_pass_index() > pass_index
 
 
 @pytest.mark.enabled_multidaemon
@@ -304,18 +317,21 @@ class TestQueueController(TestQueueAgentBase):
     def test_queue_status(self, without_meta):
         orchid = QueueAgentOrchid()
 
-        schema, _ = self._create_queue("//tmp/q", partition_count=2, enable_cumulative_data_weight_column=False)
+        queue_path = self.create_queue_path()
+        consumer_path = self.create_consumer_path()
+
+        schema, _ = self._create_queue(queue_path, partition_count=2, enable_cumulative_data_weight_column=False)
         schema_with_cumulative_data_weight = schema + [{"name": "$cumulative_data_weight", "type": "int64"}]
-        self._create_registered_consumer("//tmp/c", "//tmp/q", without_meta=without_meta)
+        self._create_registered_consumer(consumer_path, queue_path, without_meta=without_meta)
 
         self._wait_for_component_passes()
-        orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+        orchid.get_queue_orchid(f"primary:{queue_path}").wait_fresh_pass()
 
-        queue_status = orchid.get_queue_orchid("primary://tmp/q").get_status()
+        queue_status = orchid.get_queue_orchid(f"primary:{queue_path}").get_status()
         assert queue_status["family"] == "ordered_dynamic_table"
         assert queue_status["partition_count"] == 2
         assert queue_status["registrations"] == [
-            {"queue": "primary://tmp/q", "consumer": "primary://tmp/c", "vital": False}
+            {"queue": f"primary:{queue_path}", "consumer": f"primary:{consumer_path}", "vital": False}
         ]
 
         def assert_partition(partition, lower_row_index, upper_row_index):
@@ -325,56 +341,56 @@ class TestQueueController(TestQueueAgentBase):
 
         null_time = "1970-01-01T00:00:00.000000Z"
 
-        queue_partitions = orchid.get_queue_orchid("primary://tmp/q").get_partitions()
+        queue_partitions = orchid.get_queue_orchid(f"primary:{queue_path}").get_partitions()
         for partition in queue_partitions:
             assert_partition(partition, 0, 0)
             assert partition["last_row_commit_time"] == null_time
 
-        insert_rows("//tmp/q", [{"data": "foo", "$tablet_index": 0}])
-        orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+        insert_rows(queue_path, [{"data": "foo", "$tablet_index": 0}])
+        orchid.get_queue_orchid(f"primary:{queue_path}").wait_fresh_pass()
 
-        queue_partitions = orchid.get_queue_orchid("primary://tmp/q").get_partitions()
+        queue_partitions = orchid.get_queue_orchid(f"primary:{queue_path}").get_partitions()
         assert_partition(queue_partitions[0], 0, 1)
         assert queue_partitions[0]["last_row_commit_time"] != null_time
         assert_partition(queue_partitions[1], 0, 0)
 
-        sync_unmount_table("//tmp/q")
-        alter_table("//tmp/q", schema=schema_with_cumulative_data_weight)
-        sync_mount_table("//tmp/q")
+        sync_unmount_table(queue_path)
+        alter_table(queue_path, schema=schema_with_cumulative_data_weight)
+        sync_mount_table(queue_path)
 
-        orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
-        queue_partitions = orchid.get_queue_orchid("primary://tmp/q").get_partitions()
+        orchid.get_queue_orchid(f"primary:{queue_path}").wait_fresh_pass()
+        queue_partitions = orchid.get_queue_orchid(f"primary:{queue_path}").get_partitions()
         assert_partition(queue_partitions[0], 0, 1)
         assert_partition(queue_partitions[1], 0, 0)
         assert queue_partitions[0]["cumulative_data_weight"] == YsonEntity()
 
-        trim_rows("//tmp/q", 0, 1)
+        trim_rows(queue_path, 0, 1)
 
-        self._wait_for_row_count("//tmp/q", 0, 0)
+        self._wait_for_row_count(queue_path, 0, 0)
 
-        orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+        orchid.get_queue_orchid(f"primary:{queue_path}").wait_fresh_pass()
 
-        queue_partitions = orchid.get_queue_orchid("primary://tmp/q").get_partitions()
+        queue_partitions = orchid.get_queue_orchid(f"primary:{queue_path}").get_partitions()
         assert_partition(queue_partitions[0], 1, 1)
         assert queue_partitions[0]["last_row_commit_time"] != null_time
         assert_partition(queue_partitions[1], 0, 0)
 
-        insert_rows("//tmp/q", [{"data": "foo", "$tablet_index": 0}] * 100)
+        insert_rows(queue_path, [{"data": "foo", "$tablet_index": 0}] * 100)
 
-        orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+        orchid.get_queue_orchid(f"primary:{queue_path}").wait_fresh_pass()
 
-        queue_partitions = orchid.get_queue_orchid("primary://tmp/q").get_partitions()
+        queue_partitions = orchid.get_queue_orchid(f"primary:{queue_path}").get_partitions()
 
         assert_partition(queue_partitions[0], 1, 101)
         assert queue_partitions[0]["cumulative_data_weight"] == 2012
         assert queue_partitions[0]["trimmed_data_weight"] <= 2 * 20
 
-        trim_rows("//tmp/q", 0, 91)
-        self._wait_for_row_count("//tmp/q", 0, 10)
+        trim_rows(queue_path, 0, 91)
+        self._wait_for_row_count(queue_path, 0, 10)
 
-        orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+        orchid.get_queue_orchid(f"primary:{queue_path}").wait_fresh_pass()
 
-        queue_partitions = orchid.get_queue_orchid("primary://tmp/q").get_partitions()
+        queue_partitions = orchid.get_queue_orchid(f"primary:{queue_path}").get_partitions()
 
         assert_partition(queue_partitions[0], 91, 101)
         assert queue_partitions[0]["cumulative_data_weight"] == 2012
@@ -387,28 +403,31 @@ class TestQueueController(TestQueueAgentBase):
     def test_consumer_status(self, trim, without_meta):
         orchid = QueueAgentOrchid()
 
-        self._create_queue("//tmp/q", partition_count=2)
-        self._create_registered_consumer("//tmp/c", "//tmp/q", without_meta=without_meta)
+        queue_path = self.create_queue_path()
+        consumer_path = self.create_consumer_path()
+
+        self._create_queue(queue_path, partition_count=2)
+        self._create_registered_consumer(consumer_path, queue_path, without_meta=without_meta)
 
         self._wait_for_component_passes()
 
-        insert_rows("//tmp/q", [{"data": "foo", "$tablet_index": 0}, {"data": "bar", "$tablet_index": 1}])
+        insert_rows(queue_path, [{"data": "foo", "$tablet_index": 0}, {"data": "bar", "$tablet_index": 1}])
         time.sleep(1.5)
-        insert_rows("//tmp/q", [{"data": "foo", "$tablet_index": 0}, {"data": "bar", "$tablet_index": 1}])
-        timestamps = [row["ts"] for row in select_rows("[$timestamp] as ts from [//tmp/q]")]
+        insert_rows(queue_path, [{"data": "foo", "$tablet_index": 0}, {"data": "bar", "$tablet_index": 1}])
+        timestamps = [row["ts"] for row in select_rows(f"[$timestamp] as ts from [{queue_path}]")]
         timestamps = sorted(timestamps)
         assert timestamps[0] == timestamps[1] and timestamps[2] == timestamps[3]
         timestamps = [timestamps[0], timestamps[2]]
         print_debug(self._timestamp_to_iso_str(timestamps[0]), self._timestamp_to_iso_str(timestamps[1]))
 
-        orchid.get_consumer_orchid("primary://tmp/c").wait_fresh_pass()
-        consumer_status = orchid.get_consumer_orchid("primary://tmp/c").get_status()["queues"]["primary://tmp/q"]
+        orchid.get_consumer_orchid(f"primary:{consumer_path}").wait_fresh_pass()
+        consumer_status = orchid.get_consumer_orchid(f"primary:{consumer_path}").get_status()["queues"][f"primary:{queue_path}"]
         assert consumer_status["partition_count"] == 2
 
         time.sleep(1.5)
-        self._advance_consumer("//tmp/c", "//tmp/q", 0, 0)
+        self._advance_consumer(consumer_path, queue_path, 0, 0)
         time.sleep(1.5)
-        self._advance_consumer("//tmp/c", "//tmp/q", 1, 0)
+        self._advance_consumer(consumer_path, queue_path, 1, 0)
 
         def assert_partition(partition, next_row_index):
             assert partition["next_row_index"] == next_row_index
@@ -418,31 +437,31 @@ class TestQueueController(TestQueueAgentBase):
                                                          if next_row_index < 2 else YsonEntity())
             assert (partition["processing_lag"] > 0) == (next_row_index < 2)
 
-        orchid.get_consumer_orchid("primary://tmp/c").wait_fresh_pass()
-        consumer_partitions = orchid.get_consumer_orchid("primary://tmp/c").get_partitions()["primary://tmp/q"]
+        orchid.get_consumer_orchid(f"primary:{consumer_path}").wait_fresh_pass()
+        consumer_partitions = orchid.get_consumer_orchid(f"primary:{consumer_path}").get_partitions()[f"primary:{queue_path}"]
         assert_partition(consumer_partitions[0], 0)
         assert_partition(consumer_partitions[1], 0)
 
-        self._advance_consumer("//tmp/c", "//tmp/q", 0, 1)
+        self._advance_consumer(consumer_path, queue_path, 0, 1)
 
-        orchid.get_consumer_orchid("primary://tmp/c").wait_fresh_pass()
+        orchid.get_consumer_orchid(f"primary:{consumer_path}").wait_fresh_pass()
 
         if trim:
-            trim_rows("//tmp/q", 0, 1)
+            trim_rows(queue_path, 0, 1)
 
-        orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
-        orchid.get_consumer_orchid("primary://tmp/c").wait_fresh_pass()
-        consumer_partitions = orchid.get_consumer_orchid("primary://tmp/c").get_partitions()["primary://tmp/q"]
+        orchid.get_queue_orchid(f"primary:{queue_path}").wait_fresh_pass()
+        orchid.get_consumer_orchid(f"primary:{consumer_path}").wait_fresh_pass()
+        consumer_partitions = orchid.get_consumer_orchid(f"primary:{consumer_path}").get_partitions()[f"primary:{queue_path}"]
         assert_partition(consumer_partitions[0], 1)
 
-        self._advance_consumer("//tmp/c", "//tmp/q", 1, 2)
+        self._advance_consumer(consumer_path, queue_path, 1, 2)
 
         if trim:
-            trim_rows("//tmp/q", 1, 1)
+            trim_rows(queue_path, 1, 1)
 
-        orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
-        orchid.get_consumer_orchid("primary://tmp/c").wait_fresh_pass()
-        consumer_partitions = orchid.get_consumer_orchid("primary://tmp/c").get_partitions()["primary://tmp/q"]
+        orchid.get_queue_orchid(f"primary:{queue_path}").wait_fresh_pass()
+        orchid.get_consumer_orchid(f"primary:{consumer_path}").wait_fresh_pass()
+        consumer_partitions = orchid.get_consumer_orchid(f"primary:{consumer_path}").get_partitions()[f"primary:{queue_path}"]
 
         assert_partition(consumer_partitions[1], 2)
 
@@ -451,41 +470,47 @@ class TestQueueController(TestQueueAgentBase):
     def test_null_columns(self, without_meta):
         orchid = QueueAgentOrchid()
 
-        schema, _ = self._create_queue("//tmp/q", enable_timestamp_column=False, enable_cumulative_data_weight_column=False)
-        insert_rows("//tmp/q", [{"data": "foo"}] * 3)
+        queue_path = self.create_queue_path()
+        consumer_path = self.create_consumer_path()
+
+        schema, _ = self._create_queue(queue_path, enable_timestamp_column=False, enable_cumulative_data_weight_column=False)
+        insert_rows(queue_path, [{"data": "foo"}] * 3)
 
         schema += [{"name": "$timestamp", "type": "uint64"}]
         schema += [{"name": "$cumulative_data_weight", "type": "int64"}]
-        sync_unmount_table("//tmp/q")
-        alter_table("//tmp/q", schema=schema)
-        sync_mount_table("//tmp/q")
+        sync_unmount_table(queue_path)
+        alter_table(queue_path, schema=schema)
+        sync_mount_table(queue_path)
 
-        self._create_registered_consumer("//tmp/c", "//tmp/q", without_meta=without_meta)
+        self._create_registered_consumer(consumer_path, queue_path, without_meta=without_meta)
 
         self._wait_for_component_passes()
 
-        assert orchid.get_queue_orchid("primary://tmp/q").get_status()["partition_count"] == 1
-        assert orchid.get_consumer_orchid("primary://tmp/c").get_status()["queues"]["primary://tmp/q"]["partition_count"] == 1
+        assert orchid.get_queue_orchid(f"primary:{queue_path}").get_status()["partition_count"] == 1
+        assert orchid.get_consumer_orchid(f"primary:{consumer_path}").get_status()["queues"][f"primary:{queue_path}"]["partition_count"] == 1
 
     @authors("max42", "nadya73")
     @pytest.mark.parametrize("without_meta", [True, False])
     def test_consumer_partition_disposition(self, without_meta):
         orchid = QueueAgentOrchid()
 
-        self._create_queue("//tmp/q")
-        self._create_registered_consumer("//tmp/c", "//tmp/q", without_meta=without_meta)
+        queue_path = self.create_queue_path()
+        consumer_path = self.create_consumer_path()
+
+        self._create_queue(queue_path)
+        self._create_registered_consumer(consumer_path, queue_path, without_meta=without_meta)
 
         self._wait_for_component_passes()
 
-        insert_rows("//tmp/q", [{"data": "foo"}] * 3)
-        trim_rows("//tmp/q", 0, 1)
-        orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+        insert_rows(queue_path, [{"data": "foo"}] * 3)
+        trim_rows(queue_path, 0, 1)
+        orchid.get_queue_orchid(f"primary:{queue_path}").wait_fresh_pass()
 
         expected_dispositions = ["expired", "pending_consumption", "pending_consumption", "up_to_date", "ahead"]
         for offset, expected_disposition in enumerate(expected_dispositions):
-            self._advance_consumer("//tmp/c", "//tmp/q", 0, offset)
-            orchid.get_consumer_orchid("primary://tmp/c").wait_fresh_pass()
-            partition = orchid.get_consumer_orchid("primary://tmp/c").get_partitions()["primary://tmp/q"][0]
+            self._advance_consumer(consumer_path, queue_path, 0, offset)
+            orchid.get_consumer_orchid(f"primary:{consumer_path}").wait_fresh_pass()
+            partition = orchid.get_consumer_orchid(f"primary:{consumer_path}").get_partitions()[f"primary:{queue_path}"][0]
             assert partition["disposition"] == expected_disposition
             assert partition["unread_row_count"] == 3 - offset
 
@@ -494,21 +519,24 @@ class TestQueueController(TestQueueAgentBase):
     def test_inconsistent_partitions_in_consumer_table(self, without_meta):
         orchid = QueueAgentOrchid()
 
-        self._create_queue("//tmp/q", partition_count=2)
-        self._create_registered_consumer("//tmp/c", "//tmp/q", without_meta=without_meta)
+        queue_path = self.create_queue_path()
+        consumer_path = self.create_consumer_path()
+
+        self._create_queue(queue_path, partition_count=2)
+        self._create_registered_consumer(consumer_path, queue_path, without_meta=without_meta)
 
         self._wait_for_component_passes()
 
-        insert_rows("//tmp/q", [{"data": "foo"}] * 2)
-        orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+        insert_rows(queue_path, [{"data": "foo"}] * 2)
+        orchid.get_queue_orchid(f"primary:{queue_path}").wait_fresh_pass()
 
-        self._advance_consumer("//tmp/c", "//tmp/q", 1, 1, via_insert=True)
-        self._advance_consumer("//tmp/c", "//tmp/q", 2 ** 63 - 1, 1, via_insert=True)
-        self._advance_consumer("//tmp/c", "//tmp/q", 2 ** 64 - 1, 1, via_insert=True)
+        self._advance_consumer(consumer_path, queue_path, 1, 1, via_insert=True)
+        self._advance_consumer(consumer_path, queue_path, 2 ** 63 - 1, 1, via_insert=True)
+        self._advance_consumer(consumer_path, queue_path, 2 ** 64 - 1, 1, via_insert=True)
 
-        orchid.get_consumer_orchid("primary://tmp/c").wait_fresh_pass()
+        orchid.get_consumer_orchid(f"primary:{consumer_path}").wait_fresh_pass()
 
-        partitions = orchid.get_consumer_orchid("primary://tmp/c").get_partitions()["primary://tmp/q"]
+        partitions = orchid.get_consumer_orchid(f"primary:{consumer_path}").get_partitions()[f"primary:{queue_path}"]
         assert len(partitions) == 2
         assert partitions[0]["next_row_index"] == 0
 
@@ -2506,12 +2534,39 @@ class TestMultiClusterReplicatedTableObjectsBase(TestQueueAgentBase, ReplicatedO
             {"cluster_name": "remote_1", "content_type": "queue", "mode": "sync", "enabled": True,
              "replica_path": f"{consumer_queue_replica_path}"},
         ]
-        self._create_chaos_replicated_table_base(
+
+        replica_ids, card_id = self._create_chaos_replicated_table_base(
             path,
             chaos_replicated_consumer_replicas,
             init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA,
             replicated_table_attributes={"treat_as_queue_consumer": True})
+
+        self._wait_for_chaos_replicated_consumer_ready(
+            path,
+            card_id,
+            chaos_replicated_consumer_replicas,
+            replica_ids,
+            4,
+            0)
+
         return chaos_replicated_consumer_replicas
+
+    def _wait_for_chaos_replicated_consumer_ready(
+            self,
+            path,
+            card_id,
+            replicas,
+            replica_ids,
+            sync_replica_idx,
+            async_replica_idx):
+
+        # wait for replica to report its progress
+        timestamp = generate_timestamp()
+        wait(lambda: get(f"{path}/@replicas/{replica_ids[sync_replica_idx]}/replication_lag_timestamp") > timestamp)
+
+        # Trigger replication era change to reset rpc_proxies caches
+        alter_table_replica(replica_ids[async_replica_idx], enabled=False)
+        self._sync_alter_replica(card_id, replicas, replica_ids, async_replica_idx, enabled=True)
 
     def _create_replicated_consumer(self, path):
         consumer_replica_path = f"{path}_replica"
@@ -2534,8 +2589,8 @@ class TestMultiClusterReplicatedTableObjectsBase(TestQueueAgentBase, ReplicatedO
         cell_id = self._sync_create_chaos_bundle_and_cell()
         set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
 
-        chaos_replicated_queue = "//tmp/crq"
-        chaos_replicated_consumer = "//tmp/crc"
+        chaos_replicated_queue = self.create_queue_path() + "-cr"
+        chaos_replicated_consumer = self.create_consumer_path() + "-cr"
 
         return (chaos_replicated_queue, self._create_chaos_replicated_queue(chaos_replicated_queue),
                 chaos_replicated_consumer, self._create_chaos_replicated_consumer(chaos_replicated_consumer))
@@ -2543,8 +2598,8 @@ class TestMultiClusterReplicatedTableObjectsBase(TestQueueAgentBase, ReplicatedO
     def _create_replicated_queue_consumer_pair(self):
         self._create_cells()
 
-        replicated_queue = "//tmp/rq"
-        replicated_consumer = "//tmp/rc"
+        replicated_queue = self.create_queue_path() + "-r"
+        replicated_consumer = self.create_consumer_path() + "-r"
 
         return (replicated_queue, self._create_replicated_queue(replicated_queue),
                 replicated_consumer, self._create_replicated_consumer(replicated_consumer))
@@ -3031,6 +3086,11 @@ class TestQueueStaticExportBase(TestQueueAgentBase, QueueStaticExportHelpers):
         },
     }
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
     QUEUE_AGENT_DO_WAIT_FOR_GLOBAL_SYNC_ON_SETUP = True
 
     # NB: We rely on manual flushing in almost all of the static export tests. Override if necessary.
@@ -3084,29 +3144,31 @@ class TestQueueAgentBannedAttribute(TestQueueStaticExportBase):
     def test_queue_agent_banned_attribute_for_queue(self):
         orchid = QueueAgentOrchid()
 
-        self._create_queue("//tmp/q")
+        queue_path = self.create_queue_path()
+
+        self._create_queue(queue_path)
         self._wait_for_component_passes()
-        queue_orchid = orchid.get_queue_orchid("primary://tmp/q")
+        queue_orchid = orchid.get_queue_orchid(f"primary:{queue_path}")
 
         def wait_for_banned_attribute_update():
             self._wait_for_banned_attribute_update(queue_orchid)
 
-        set("//tmp/q/@queue_agent_banned", True)
+        set(f"{queue_path}/@queue_agent_banned", True)
         wait_for_banned_attribute_update()
         assert queue_orchid.get_row()["queue_agent_banned"]
         assert "Queue is banned" in queue_orchid.get_status()["error"]["message"]
 
-        set("//tmp/q/@queue_agent_banned", False)
+        set(f"{queue_path}/@queue_agent_banned", False)
         wait_for_banned_attribute_update()
         assert not queue_orchid.get_row()["queue_agent_banned"]
         assert "error" not in queue_orchid.get_status()
 
-        set("//tmp/q/@queue_agent_banned", True)
+        set(f"{queue_path}/@queue_agent_banned", True)
         wait_for_banned_attribute_update()
         assert queue_orchid.get_row()["queue_agent_banned"]
         assert "Queue is banned" in queue_orchid.get_status()["error"]["message"]
 
-        remove("//tmp/q/@queue_agent_banned")
+        remove(f"{queue_path}/@queue_agent_banned")
         wait_for_banned_attribute_update()
         assert not queue_orchid.get_row()["queue_agent_banned"]
         assert "error" not in queue_orchid.get_status()
@@ -3115,29 +3177,31 @@ class TestQueueAgentBannedAttribute(TestQueueStaticExportBase):
     def test_queue_agent_banned_attribute_for_consumer(self):
         orchid = QueueAgentOrchid()
 
-        create("queue_consumer", "//tmp/c")
+        consumer_path = self.create_consumer_path()
+
+        create("queue_consumer", consumer_path)
         self._wait_for_component_passes()
-        consumer_orchid = orchid.get_consumer_orchid("primary://tmp/c")
+        consumer_orchid = orchid.get_consumer_orchid(f"primary:{consumer_path}")
 
         def wait_for_banned_attribute_update():
             self._wait_for_banned_attribute_update(consumer_orchid)
 
-        set("//tmp/c/@queue_agent_banned", True)
+        set(f"{consumer_path}/@queue_agent_banned", True)
         wait_for_banned_attribute_update()
         assert consumer_orchid.get_row()["queue_agent_banned"]
         assert "Consumer is banned" in consumer_orchid.get_status()["error"]["message"]
 
-        set("//tmp/c/@queue_agent_banned", False)
+        set(f"{consumer_path}/@queue_agent_banned", False)
         wait_for_banned_attribute_update()
         assert not consumer_orchid.get_row()["queue_agent_banned"]
         assert "error" not in consumer_orchid.get_status()
 
-        set("//tmp/c/@queue_agent_banned", True)
+        set(f"{consumer_path}/@queue_agent_banned", True)
         wait_for_banned_attribute_update()
         assert consumer_orchid.get_row()["queue_agent_banned"]
         assert "Consumer is banned" in consumer_orchid.get_status()["error"]["message"]
 
-        remove("//tmp/c/@queue_agent_banned")
+        remove(f"{consumer_path}/@queue_agent_banned")
         wait_for_banned_attribute_update()
         assert not consumer_orchid.get_row()["queue_agent_banned"]
         assert "error" not in consumer_orchid.get_status()
@@ -3147,88 +3211,93 @@ class TestQueueAgentBannedAttribute(TestQueueStaticExportBase):
     def test_disabled_trims_for_queues(self):
         orchid = QueueAgentOrchid()
 
-        self._create_queue("//tmp/q", partition_count=1)
-        self._create_registered_consumer("//tmp/c", "//tmp/q", vital=True)
-        set("//tmp/q/@auto_trim_config", {"enable": True})
+        queue_path = self.create_queue_path()
+        consumer_path = self.create_consumer_path()
+
+        self._create_queue(queue_path, partition_count=1)
+        self._create_registered_consumer(consumer_path, queue_path, vital=True)
+        set(f"{queue_path}/@auto_trim_config", {"enable": True})
 
         self._wait_for_component_passes()
 
-        queue_orchid = orchid.get_queue_orchid("primary://tmp/q")
-        consumer_orchid = orchid.get_consumer_orchid("primary://tmp/c")
+        queue_orchid = orchid.get_queue_orchid(f"primary:{queue_path}")
+        consumer_orchid = orchid.get_consumer_orchid(f"primary:{consumer_path}")
 
-        set("//tmp/q/@queue_agent_banned", True)
+        set(f"{queue_path}/@queue_agent_banned", True)
         self._wait_for_banned_attribute_update(queue_orchid)
 
-        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 5)
-        self._advance_consumer("//tmp/c", "//tmp/q", 0, 1)
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}] * 5)
+        self._advance_consumer(consumer_path, queue_path, 0, 1)
 
         time.sleep(10)
-        assert len(select_rows("* from [//tmp/q]")) == 5
+        assert len(select_rows(f"* from [{queue_path}]")) == 5
 
-        set("//tmp/q/@queue_agent_banned", False)
-        self._wait_for_banned_attribute_update(queue_orchid)
-
-        time.sleep(10)
-        assert len(select_rows("* from [//tmp/q]")) == 4
-
-        set("//tmp/q/@queue_agent_banned", True)
+        set(f"{queue_path}/@queue_agent_banned", False)
         self._wait_for_banned_attribute_update(queue_orchid)
 
         time.sleep(10)
-        assert len(select_rows("* from [//tmp/q]")) == 4
+        assert len(select_rows(f"* from [{queue_path}]")) == 4
 
-        self._advance_consumer("//tmp/c", "//tmp/q", 0, 2)
+        set(f"{queue_path}/@queue_agent_banned", True)
+        self._wait_for_banned_attribute_update(queue_orchid)
+
+        time.sleep(10)
+        assert len(select_rows(f"* from [{queue_path}]")) == 4
+
+        self._advance_consumer(consumer_path, queue_path, 0, 2)
         consumer_orchid.wait_fresh_pass()  # Wait for consumer status update.
-        remove("//tmp/q/@queue_agent_banned")
+        remove(f"{queue_path}/@queue_agent_banned")
         self._wait_for_banned_attribute_update(queue_orchid)
 
         time.sleep(10)
-        assert len(select_rows("* from [//tmp/q]")) == 3
+        assert len(select_rows(f"* from [{queue_path}]")) == 3
 
     @authors("apachee")
     @pytest.mark.timeout(120)
     def test_disabled_exports_for_queues(self):
         orchid = QueueAgentOrchid()
 
-        _, queue_id = self._create_queue("//tmp/q", partition_count=1)
-        export_dir = "//tmp/export"
+        queue_path = self.create_queue_path()
+        export_dir = queue_path + "-export"
+
+        _, queue_id = self._create_queue(queue_path, partition_count=1)
         self._create_export_destination(export_dir, queue_id)
 
         self._wait_for_component_passes()
-        queue_orchid = orchid.get_queue_orchid("primary://tmp/q")
+        queue_orchid = orchid.get_queue_orchid(f"primary:{queue_path}")
 
-        set("//tmp/q/@static_export_config", {
+        set(f"{queue_path}/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
                 "export_period": 1000,
             }
         })
-        set("//tmp/q/@queue_agent_banned", True)
+        set(f"{queue_path}/@queue_agent_banned", True)
 
         self._wait_for_banned_attribute_update(queue_orchid)
 
-        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 2)
-        self._flush_table("//tmp/q")
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}] * 2)
+        self._flush_table(queue_path)
 
         time.sleep(5)
         assert len(ls(export_dir)) == 0
 
-        set("//tmp/q/@queue_agent_banned", False)
+        set(f"{queue_path}/@queue_agent_banned", False)
         self._wait_for_banned_attribute_update(queue_orchid)
 
         time.sleep(5)
         assert len(ls(export_dir)) == 1
 
-        set("//tmp/q/@queue_agent_banned", True)
+        set(f"{queue_path}/@queue_agent_banned", True)
         self._wait_for_banned_attribute_update(queue_orchid)
 
-        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 2)
-        self._flush_table("//tmp/q")
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}] * 2)
+        self._flush_table(queue_path)
 
         time.sleep(5)
         assert len(ls(export_dir)) == 1
 
-        remove("//tmp/q/@queue_agent_banned")
+        remove(f"{queue_path}/@queue_agent_banned")
         self._wait_for_banned_attribute_update(queue_orchid)
 
         time.sleep(5)
@@ -3253,18 +3322,20 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         queue_agent_orchid = QueueAgentOrchid()
         cypress_orchid = CypressSynchronizerOrchid()
 
-        _, queue_id = self._create_queue("//tmp/q", external_cell_tag=queue_external_cell_tag)
+        queue_path = self.create_queue_path()
+        export_dir = queue_path + "-export"
 
-        export_dir = "//tmp/export"
+        _, queue_id = self._create_queue(queue_path, external_cell_tag=queue_external_cell_tag)
+
         self._create_export_destination(export_dir, queue_id)
 
         tx_external = start_transaction()
         lock(export_dir, mode="shared", tx=tx_external)
 
-        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "bar"}] * 7)
-        self._flush_table("//tmp/q")
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "bar"}] * 7)
+        self._flush_table(queue_path)
 
-        set("//tmp/q/@static_export_config", {
+        set(f"{queue_path}/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
                 "export_period": 3 * 1000,
@@ -3273,19 +3344,19 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         cypress_orchid.wait_fresh_pass()
         queue_agent_orchid.wait_fresh_pass()
-        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+        queue_agent_orchid.get_queue_orchid(f"primary:{queue_path}").wait_fresh_pass()
 
         wait(lambda: len(ls(export_dir)) == 1)
         self._check_export(export_dir, [["bar"] * 7])
 
-        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 5)
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}] * 5)
         # NB: No flush.
-        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+        queue_agent_orchid.get_queue_orchid(f"primary:{queue_path}").wait_fresh_pass()
 
         time.sleep(5)
         self._check_export(export_dir, [["bar"] * 7])
 
-        self._flush_table("//tmp/q")
+        self._flush_table(queue_path)
         wait(lambda: len(ls(export_dir)) == 2)
         self._check_export(export_dir, [["bar"] * 7, ["foo"] * 5])
 
@@ -3303,14 +3374,16 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         if use_cron and getattr(self, "USE_OLD_QUEUE_EXPORTER_IMPL"):
             pytest.skip()
 
-        _, queue_id = self._create_queue("//tmp/q")
+        queue_path = self.create_queue_path()
+        export_dir = queue_path + "-export"
 
-        export_dir = "//tmp/export"
+        _, queue_id = self._create_queue(queue_path)
+
         self._create_export_destination(export_dir, queue_id)
 
         export_period_seconds = 15
 
-        set("//tmp/q/@static_export_config", {
+        set(f"{queue_path}/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
                 **self.get_export_schedule(use_cron, export_period_seconds),
@@ -3319,16 +3392,16 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         orchid = QueueAgentOrchid()
         self._wait_for_component_passes()
-        orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+        orchid.get_queue_orchid(f"primary:{queue_path}").wait_fresh_pass()
 
         self._sleep_until_next_export_instant(export_period_seconds, 1)
         offseted_iteration_start = time.time()
 
-        insert_rows("//tmp/q", [{"data": "vim"}] * 2)
-        self._flush_table("//tmp/q")
+        insert_rows(queue_path, [{"data": "vim"}] * 2)
+        self._flush_table(queue_path)
 
-        insert_rows("//tmp/q", [{"data": "notepad"}] * 2)
-        self._flush_table("//tmp/q")
+        insert_rows(queue_path, [{"data": "notepad"}] * 2)
+        self._flush_table(queue_path)
 
         iterations = 0
         assert export_period_seconds >= 10
@@ -3355,13 +3428,15 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         queue_agent_orchid = QueueAgentOrchid()
 
-        _, queue_id = self._create_queue("//tmp/q")
+        queue_path = self.create_queue_path()
+        export_dir = queue_path + "-export"
 
-        export_dir = "//tmp/export"
+        _, queue_id = self._create_queue(queue_path)
+
         self._create_export_destination(export_dir, queue_id)
 
         export_period_seconds = 5
-        set("//tmp/q/@static_export_config", {
+        set(f"{queue_path}/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
                 "export_period": export_period_seconds * 1000,
@@ -3371,24 +3446,24 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         tx = start_transaction()
         lock(export_dir, mode="shared", tx=tx, attribute_key="queue_static_exporter")
 
-        insert_rows("//tmp/q", [{"data": "sample"}] * 2)
-        self._flush_table("//tmp/q")
+        insert_rows(queue_path, [{"data": "sample"}] * 2)
+        self._flush_table(queue_path)
 
         self._sleep_until_next_export_instant(export_period_seconds, offset=1.5)
         self._sleep_until_next_export_instant(export_period_seconds)
 
-        alerts = queue_agent_orchid.get_queue_orchid("primary://tmp/q").get_alerts()
+        alerts = queue_agent_orchid.get_queue_orchid(f"primary:{queue_path}").get_alerts()
         alerts.assert_matching(
             "queue_agent_queue_controller_static_export_failed",
-            text="Cannot take lock for attribute \"queue_static_exporter\" of node //tmp/export since this attribute is locked by concurrent transaction",
+            text=f"Cannot take lock for attribute \"queue_static_exporter\" of node {export_dir} since this attribute is locked by concurrent transaction",
             attributes={"export_name": "default"}
         )
 
         assert len(ls(export_dir)) == 0
 
         if should_export_second_table:
-            insert_rows("//tmp/q", [{"data": "second sample"}] * 2)
-            self._flush_table("//tmp/q")
+            insert_rows(queue_path, [{"data": "second sample"}] * 2)
+            self._flush_table(queue_path)
 
         self._sleep_until_next_export_instant(export_period_seconds, offset=1.5)
         self._sleep_until_next_export_instant(export_period_seconds)
@@ -3414,20 +3489,22 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         if getattr(self, "USE_OLD_QUEUE_EXPORTER_IMPL"):
             pytest.skip()
 
-        _, queue_id = self._create_queue("//tmp/q")
+        queue_path = self.create_queue_path()
+        export_dir = queue_path + "-export"
 
-        export_dir = "//tmp/export"
+        _, queue_id = self._create_queue(queue_path)
+
         self._create_export_destination(export_dir, queue_id)
 
         dummy_strings = ["notepad", "vim", "far"]
 
         for dummy_string in dummy_strings:
-            insert_rows("//tmp/q", [{"data": dummy_string}] * 2)
-            self._flush_table("//tmp/q")
+            insert_rows(queue_path, [{"data": dummy_string}] * 2)
+            self._flush_table(queue_path)
             # Sleep to make sure inserted rows are exported in different tables.
             time.sleep(2)
 
-        set("//tmp/q/@static_export_config", {
+        set(f"{queue_path}/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
                 "export_period": 1 * 1000,
@@ -3441,13 +3518,15 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
     @authors("apachee")
     def test_late_flush(self):
-        _, queue_id = self._create_queue("//tmp/q")
+        queue_path = self.create_queue_path()
+        export_dir = queue_path + "-export"
 
-        export_dir = "//tmp/export"
+        _, queue_id = self._create_queue(queue_path)
+
         self._create_export_destination(export_dir, queue_id)
 
         export_period_seconds = 10
-        set("//tmp/q/@static_export_config", {
+        set(f"{queue_path}/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
                 "export_period": export_period_seconds * 1000,
@@ -3456,16 +3535,16 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         self._sleep_until_next_export_instant(export_period_seconds)
 
-        insert_rows("//tmp/q", [{"data": "42"}] * 2)
-        self._flush_table("//tmp/q")
-        insert_rows("//tmp/q", [{"data": "13"}] * 2)
+        insert_rows(queue_path, [{"data": "42"}] * 2)
+        self._flush_table(queue_path)
+        insert_rows(queue_path, [{"data": "13"}] * 2)
 
         self._sleep_until_next_export_instant(export_period_seconds)
 
         wait(lambda: len(ls(export_dir)) == 1)
         self._check_export(export_dir, [["42"] * 2])
 
-        self._flush_table("//tmp/q")
+        self._flush_table(queue_path)
         wait(lambda: len(ls(export_dir)) == 2)
         self._check_export(export_dir, [["42"] * 2, ["13"] * 2])
 
@@ -3473,9 +3552,11 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
     @authors("cherepashka", "achulkov2", "nadya73")
     def test_export_order(self):
-        _, queue_id = self._create_queue("//tmp/q", partition_count=3)
+        queue_path = self.create_queue_path()
+        export_dir = queue_path + "-export"
 
-        export_dir = "//tmp/export"
+        _, queue_id = self._create_queue(queue_path, partition_count=3)
+
         self._create_export_destination(export_dir, queue_id)
 
         tx_external = start_transaction()
@@ -3483,16 +3564,16 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         self._sleep_until_next_export_instant(15, 1)
 
-        insert_rows("//tmp/q", [{"$tablet_index": 2, "data": "third chunk"}] * 2)
-        self._flush_table("//tmp/q")
+        insert_rows(queue_path, [{"$tablet_index": 2, "data": "third chunk"}] * 2)
+        self._flush_table(queue_path)
 
-        insert_rows("//tmp/q", [{"$tablet_index": 1, "data": "second chunk"}] * 2)
-        self._flush_table("//tmp/q")
+        insert_rows(queue_path, [{"$tablet_index": 1, "data": "second chunk"}] * 2)
+        self._flush_table(queue_path)
 
-        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "first chunk"}] * 2)
-        self._flush_table("//tmp/q")
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "first chunk"}] * 2)
+        self._flush_table(queue_path)
 
-        set("//tmp/q/@static_export_config", {
+        set(f"{queue_path}/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
                 "export_period": 15 * 1000,
@@ -3508,7 +3589,8 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
     @authors("cherepashka", "achulkov2", "nadya73")
     def test_export_to_the_same_folder(self):
-        export_dir = "//tmp/export"
+        export_dir = self.create_queue_path() + "-export"
+
         create("map_node", export_dir)
 
         queue_path = f"{export_dir}/q"
@@ -3541,14 +3623,15 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         queue_agent_orchid = QueueAgentOrchid()
         cypress_orchid = CypressSynchronizerOrchid()
 
-        export_dir_1 = "//tmp/export1"
-        export_dir_2 = "//tmp/export2"
-        export_dir_3 = "//tmp/export3"
+        queue_path = self.create_queue_path()
+
+        export_dir_1 = queue_path + "-export1"
+        export_dir_2 = queue_path + "-export2"
+        export_dir_3 = queue_path + "-export3"
         create("map_node", export_dir_1)
         create("map_node", export_dir_2)
         create("map_node", export_dir_3)
 
-        queue_path = "//tmp/q"
         _, queue_id = self._create_queue(queue_path)
 
         self._create_export_destination(export_dir_1, queue_id)
@@ -3651,19 +3734,22 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         queue_agent_orchid = QueueAgentOrchid()
         cypress_orchid = CypressSynchronizerOrchid()
 
-        self._create_queue("//tmp/q")
-        _, queue_id = self._create_queue("//tmp/q1")
+        queue_path = self.create_queue_path()
+        queue_path_1 = self.create_queue_path()
 
-        export_dir = "//tmp/export"
+        self._create_queue(queue_path)
+        _, queue_id = self._create_queue(queue_path_1)
+
+        export_dir = queue_path + "-export"
         self._create_export_destination(export_dir, queue_id)
 
         tx_external = start_transaction()
         lock(export_dir, mode="shared", tx=tx_external)
 
-        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "some data for export"}] * 2)
-        self._flush_table("//tmp/q")
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "some data for export"}] * 2)
+        self._flush_table(queue_path)
 
-        set("//tmp/q/@static_export_config", {
+        set(f"{queue_path}/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
                 "export_period": 2 * 1000,
@@ -3672,15 +3758,15 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         cypress_orchid.wait_fresh_pass()
         queue_agent_orchid.wait_fresh_pass()
-        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+        queue_agent_orchid.get_queue_orchid(f"primary:{queue_path}").wait_fresh_pass()
 
         #  We perform exports with a period of 2 seconds, so we wait for 4.
         time.sleep(4)
 
-        # The export directory is not configured to accept exports from //tmp/q, so none should have been performed.
+        # The export directory is not configured to accept exports from queue_path, so none should have been performed.
         assert len(ls(export_dir)) == 0
 
-        alerts = queue_agent_orchid.get_queue_orchid("primary://tmp/q").get_alerts()
+        alerts = queue_agent_orchid.get_queue_orchid(f"primary:{queue_path}").get_alerts()
         alerts.assert_matching("queue_agent_queue_controller_static_export_failed", text="does not match queue id", attributes={"export_name": "default"})
         assert alerts.get_alert_count() == 1
 
@@ -3693,13 +3779,14 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         if use_cron and getattr(self, "USE_OLD_QUEUE_EXPORTER_IMPL"):
             pytest.skip()
 
-        export_dir = "//tmp/export"
+        queue_path = self.create_queue_path()
+        export_dir = queue_path + "-export"
         export_period_seconds = 3
 
-        _, queue_id = self._create_queue("//tmp/q")
+        _, queue_id = self._create_queue(queue_path)
         self._create_export_destination(export_dir, queue_id)
 
-        set("//tmp/q/@static_export_config", {
+        set(f"{queue_path}/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
                 "output_table_name_pattern": "%ISO-period-is-%PERIOD-fmt-%Y.%m.%d.%H.%M.%S",
@@ -3710,8 +3797,8 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         start = datetime.datetime.now(datetime.timezone.utc)
 
-        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 6)
-        self._flush_table("//tmp/q")
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}] * 6)
+        self._flush_table(queue_path)
         time.sleep(1)
 
         end = datetime.datetime.now(datetime.timezone.utc)
@@ -3743,14 +3830,16 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         if use_cron and getattr(self, "USE_OLD_QUEUE_EXPORTER_IMPL"):
             pytest.skip()
 
-        _, queue_id = self._create_queue("//tmp/q")
+        queue_path = self.create_queue_path()
 
-        export_dir = "//tmp/export"
+        _, queue_id = self._create_queue(queue_path)
+
+        export_dir = queue_path + "-export"
         self._create_export_destination(export_dir, queue_id)
 
         export_period_seconds = 10
 
-        set("//tmp/q/@static_export_config", {
+        set(f"{queue_path}/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
                 "use_upper_bound_for_table_names": False,
@@ -3760,8 +3849,8 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         # This way we assure that we write the rows at the beginning of the period, so that all rows are physically written and flushed before the next export instant arrives.
         mid_export = self._sleep_until_next_export_instant(period=10, offset=0.5)
-        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 2)
-        self._flush_table("//tmp/q")
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}] * 2)
+        self._flush_table(queue_path)
 
         next_export = self._sleep_until_next_export_instant(period=10)
         # Flush should be fast enough. Increase period if this turns out to be flaky.
@@ -3775,12 +3864,14 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
     @authors("achulkov2", "nadya73")
     def test_export_ttl(self):
-        _, queue_id = self._create_queue("//tmp/q")
+        queue_path = self.create_queue_path()
 
-        export_dir = "//tmp/export"
+        _, queue_id = self._create_queue(queue_path)
+
+        export_dir = queue_path + "-export"
         self._create_export_destination(export_dir, queue_id)
 
-        set("//tmp/q/@static_export_config", {
+        set(f"{queue_path}/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
                 "export_period": 3 * 1000,
@@ -3788,8 +3879,8 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
             }
         })
 
-        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 2)
-        self._flush_table("//tmp/q")
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}] * 2)
+        self._flush_table(queue_path)
 
         # Something should be exported.
         wait(lambda: len(ls(export_dir)) == 1)
@@ -3806,18 +3897,20 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         if getattr(self, "USE_OLD_QUEUE_EXPORTER_IMPL"):
             pytest.skip()
 
-        _, queue_id = self._create_queue("//tmp/q")
+        queue_path = self.create_queue_path()
+        export_dir = queue_path + "-export"
 
-        export_dir = "//tmp/export"
+        _, queue_id = self._create_queue(queue_path)
+
         self._create_export_destination(export_dir, queue_id)
 
-        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 3)
-        self._flush_table("//tmp/q")
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}] * 3)
+        self._flush_table(queue_path)
 
         self._sleep_until_next_export_instant(period=3)
         time.sleep(12)
 
-        set("//tmp/q/@static_export_config", {
+        set(f"{queue_path}/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
                 "export_period": 1 * 1000,
@@ -3825,10 +3918,10 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
             }
         })
 
-        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "bar"}] * 2)
-        self._flush_table("//tmp/q")
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "bar"}] * 2)
+        self._flush_table(queue_path)
 
-        chunk_id = get("//tmp/q/@chunk_ids")[-1]
+        chunk_id = get(f"{queue_path}/@chunk_ids")[-1]
         progress_path = f"{export_dir}/@queue_static_export_progress"
         wait(lambda: exists(progress_path) and get(progress_path).get("tablets", {}).get("0", {}).get("last_chunk", None) == chunk_id)
 
@@ -3847,12 +3940,14 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         Logfeller relies on these watermarks to assess data completeness.
         """
 
-        _, queue_id = self._create_queue("//tmp/q")
+        queue_path = self.create_queue_path()
+        export_dir = queue_path + "-export"
 
-        export_dir = "//tmp/export"
+        _, queue_id = self._create_queue(queue_path)
+
         self._create_export_destination(export_dir, queue_id)
 
-        set("//tmp/q/@static_export_config", {
+        set(f"{queue_path}/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
                 "export_period": 2 * 1000,
@@ -3862,11 +3957,11 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         # COMPAT(apachee): We check "last_successful_export_iteration_instant" until third parties stop relying on this field.
 
         # Writing something so that all attributes are properly set by at least one iteration.
-        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}])
-        self._flush_table("//tmp/q")
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}])
+        self._flush_table(queue_path)
 
         wait(lambda: len(ls(export_dir)) == 1)
-        export_progress = get("//tmp/export/@queue_static_export_progress")
+        export_progress = get(f"{export_dir}/@queue_static_export_progress")
         last_export_task_instant = datetime.datetime.fromisoformat(export_progress["last_export_task_instant"])
         last_successful_export_task_instant = datetime.datetime.fromisoformat(export_progress["last_successful_export_task_instant"])
         assert last_successful_export_task_instant == datetime.datetime.fromisoformat(export_progress["last_successful_export_iteration_instant"])  # Compat.
@@ -3877,7 +3972,7 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         time.sleep(10)
 
-        export_progress = get("//tmp/export/@queue_static_export_progress")
+        export_progress = get(f"{export_dir}/@queue_static_export_progress")
         last_export_task_instant = datetime.datetime.fromisoformat(export_progress["last_export_task_instant"])
         last_successful_export_task_instant = datetime.datetime.fromisoformat(export_progress["last_successful_export_task_instant"])
         assert last_successful_export_task_instant == datetime.datetime.fromisoformat(export_progress["last_successful_export_iteration_instant"])  # Compat.
@@ -3897,10 +3992,11 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         # FIXME(apachee): Remove skip after crash issue get resolved
         pytest.skip()
 
-        export_dir = "//tmp/export"
+        queue_path = self.create_queue_path()
+        export_dir = queue_path + "-export"
 
-        _, queue_id = self._create_queue("//tmp/q")
-        set("//tmp/q/@static_export_config", {
+        _, queue_id = self._create_queue(queue_path)
+        set(f"{queue_path}/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
                 "export_period": 1 * 1000,
@@ -3909,14 +4005,14 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         self._create_export_destination(export_dir, queue_id)
 
-        insert_rows("//tmp/q", [{"data": str(i)} for i in range(100)])
-        self._flush_table("//tmp/q")
+        insert_rows(queue_path, [{"data": str(i)} for i in range(100)])
+        self._flush_table(queue_path)
 
         wait(lambda: len(ls(export_dir)) == 1)
 
-        remove("//tmp/q")
-        _, queue_id = self._create_queue("//tmp/q")
-        set("//tmp/q/@static_export_config", {
+        remove(queue_path)
+        _, queue_id = self._create_queue(queue_path)
+        set(f"{queue_path}/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
                 "export_period": 1 * 1000,
@@ -3925,13 +4021,13 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         set(f"{export_dir}/@queue_static_export_destination/originating_queue_id", queue_id)
 
-        insert_rows("//tmp/q", [{"data": str(i)} for i in range(10)])
-        self._flush_table("//tmp/q")
+        insert_rows(queue_path, [{"data": str(i)} for i in range(10)])
+        self._flush_table(queue_path)
 
         wait(lambda: len(ls(export_dir)) == 2)  # Queue agent crashes after this line prior to YT-23930
 
-        insert_rows("//tmp/q", [{"data": str(i)} for i in range(10)])
-        self._flush_table("//tmp/q")
+        insert_rows(queue_path, [{"data": str(i)} for i in range(10)])
+        self._flush_table(queue_path)
 
         wait(lambda: len(ls(export_dir)) == 3)
 
@@ -3939,10 +4035,11 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
     @authors("apachee")
     def test_compat_yt_23930(self):
-        export_dir = "//tmp/export"
+        queue_path = self.create_queue_path()
+        export_dir = queue_path + "-export"
 
-        _, queue_id = self._create_queue("//tmp/q")
-        set("//tmp/q/@static_export_config", {
+        _, queue_id = self._create_queue(queue_path)
+        set(f"{queue_path}/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
                 "export_period": 1 * 1000,
@@ -3951,8 +4048,8 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         self._create_export_destination(export_dir, queue_id)
 
-        insert_rows("//tmp/q", [{"data": "test_123"}])
-        self._flush_table("//tmp/q")
+        insert_rows(queue_path, [{"data": "test_123"}])
+        self._flush_table(queue_path)
         wait(lambda: len(ls(export_dir)) == 1)
 
         expected_data = [["test_123"]]
@@ -3967,8 +4064,8 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         remove(f"{export_dir}/@queue_static_export_progress/queue_object_id", tx=tx)
         commit_transaction(tx)
 
-        insert_rows("//tmp/q", [{"data": "test_456"}])
-        self._flush_table("//tmp/q")
+        insert_rows(queue_path, [{"data": "test_456"}])
+        self._flush_table(queue_path)
         wait(lambda: len(ls(export_dir)) == 2)
 
         expected_data.append(["test_456"])
@@ -3985,10 +4082,10 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         queue_agent_orchid = QueueAgentOrchid()
 
-        queue_path = "//tmp/q"
-        _, queue_id = self._create_queue(queue_path)
+        queue_path = self.create_queue_path()
+        export_dir = queue_path + "-export"
 
-        export_dir = "//tmp/export"
+        _, queue_id = self._create_queue(queue_path)
 
         self._create_export_destination(export_dir, queue_id, account="export")
 
@@ -3999,7 +4096,7 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
             self._flush_table(queue_path)
             time.sleep(export_period_seconds + 0.5)
 
-        chunk_ids = get("//tmp/q/@chunk_ids")
+        chunk_ids = get(f"{queue_path}/@chunk_ids")
         export_unix_tses = [get(f"#{chunk_id}/@max_timestamp") >> 30 for chunk_id in chunk_ids]
         assert len(export_unix_tses) == num_exports, "Test setup invariant failed: expected 3 chunks"
 
@@ -4014,7 +4111,7 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
             exported_table_names.append(exported_table_name)
             create("document", f"{export_dir}/{exported_table_name}")
 
-        set("//tmp/q/@static_export_config", {
+        set(f"{queue_path}/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
                 "export_period": export_period_seconds * 1000,
@@ -4022,13 +4119,13 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
             },
         })
 
-        wait(lambda: queue_agent_orchid.get_queue_orchid("primary://tmp/q").get_alerts().check_matching(
+        wait(lambda: queue_agent_orchid.get_queue_orchid(f"primary:{queue_path}").get_alerts().check_matching(
             "queue_agent_queue_controller_static_export_failed",
-            text=f"Node //tmp/export/{exported_table_names[0]} already exist",
+            text=f"Node {export_dir}/{exported_table_names[0]} already exist",
             attributes={"export_name": "default"}
         ), timeout=5, ignore_exceptions=True)
 
-        export_progress = get("//tmp/export/@queue_static_export_progress")
+        export_progress = get(f"{export_dir}/@queue_static_export_progress")
         export_task_instant = datetime.datetime.fromisoformat(export_progress["last_export_task_instant"])
         last_successful_export_task_instant = datetime.datetime.fromisoformat(export_progress["last_successful_export_task_instant"])
 
@@ -4040,13 +4137,13 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         remove(f"{export_dir}/{exported_table_names[0]}")
 
-        wait(lambda: queue_agent_orchid.get_queue_orchid("primary://tmp/q").get_alerts().check_matching(
+        wait(lambda: queue_agent_orchid.get_queue_orchid(f"primary:{queue_path}").get_alerts().check_matching(
             "queue_agent_queue_controller_static_export_failed",
-            text=f"Node //tmp/export/{exported_table_names[1]} already exist",
+            text=f"Node {export_dir}/{exported_table_names[1]} already exist",
             attributes={"export_name": "default"}
         ), timeout=5, ignore_exceptions=True)
 
-        export_progress = get("//tmp/export/@queue_static_export_progress")
+        export_progress = get(f"{export_dir}/@queue_static_export_progress")
         new_export_task_instant = datetime.datetime.fromisoformat(export_progress["last_export_task_instant"])
         new_last_successful_export_task_instant = datetime.datetime.fromisoformat(export_progress["last_successful_export_task_instant"])
 
@@ -4064,9 +4161,9 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         remove(f"{export_dir}/{exported_table_names[1]}")
         remove(f"{export_dir}/{exported_table_names[0]}")
 
-        wait(lambda: len(queue_agent_orchid.get_queue_orchid("primary://tmp/q").get_alerts()) == 0, timeout=5)
+        wait(lambda: len(queue_agent_orchid.get_queue_orchid(f"primary:{queue_path}").get_alerts()) == 0, timeout=5)
 
-        export_progress = get("//tmp/export/@queue_static_export_progress")
+        export_progress = get(f"{export_dir}/@queue_static_export_progress")
         new_export_task_instant = datetime.datetime.fromisoformat(export_progress["last_export_task_instant"])
         new_last_successful_export_task_instant = datetime.datetime.fromisoformat(export_progress["last_successful_export_task_instant"])
 
@@ -4087,15 +4184,17 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         if getattr(self, "USE_OLD_QUEUE_EXPORTER_IMPL"):
             pytest.skip()
 
-        _, queue_id = self._create_queue("//tmp/q")
+        queue_path = self.create_queue_path()
+        export_dir = queue_path + "-export"
 
-        export_dir = "//tmp/export"
+        _, queue_id = self._create_queue(queue_path)
+
         self._create_export_destination(export_dir, queue_id)
 
         export_seconds = [0, 14, 27, 44]  # Every ~15 seconds.
         export_cron_expression = f"{','.join(str(s) for s in export_seconds)} * * * * *"
 
-        set("//tmp/q/@static_export_config", {
+        set(f"{queue_path}/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
                 "export_cron_schedule": export_cron_expression,
@@ -4104,17 +4203,17 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         })
 
         self._wait_for_component_passes()
-        queue_orchid = QueueAgentOrchid().get_queue_orchid("primary://tmp/q")
+        queue_orchid = QueueAgentOrchid().get_queue_orchid(f"primary:{queue_path}")
         queue_orchid.wait_fresh_pass()
 
         self._sleep_until_next_export_instant(period=15, offset=1)
 
-        insert_rows("//tmp/q", [{"data": "vim"}])
-        self._flush_table("//tmp/q")
+        insert_rows(queue_path, [{"data": "vim"}])
+        self._flush_table(queue_path)
         wait(lambda: len(ls(export_dir)) == 1)
 
-        insert_rows("//tmp/q", [{"data": "nano"}])
-        self._flush_table("//tmp/q")
+        insert_rows(queue_path, [{"data": "nano"}])
+        self._flush_table(queue_path)
         wait(lambda: len(ls(export_dir)) == 2)
 
         @dataclass
@@ -4152,21 +4251,23 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         if not getattr(self, "USE_OLD_QUEUE_EXPORTER_IMPL"):
             pytest.skip()
 
+        queue_path = self.create_queue_path()
+        export_dir = queue_path + "-export"
+
         queue_agent_orchid = QueueAgentOrchid()
 
-        _, queue_id = self._create_queue("//tmp/q")
+        _, queue_id = self._create_queue(queue_path)
 
-        export_dir = "//tmp/export"
         self._create_export_destination(export_dir, queue_id)
 
-        set("//tmp/q/@static_export_config", {
+        set(f"{queue_path}/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
                 "export_cron_schedule": "* * * * *",
             }
         })
         self._wait_for_component_passes()
-        queue_orchid = queue_agent_orchid.get_queue_orchid("primary://tmp/q")
+        queue_orchid = queue_agent_orchid.get_queue_orchid(f"primary:{queue_path}")
         queue_orchid.wait_fresh_pass()
         alerts = queue_orchid.get_alerts()
         alerts.assert_matching(
@@ -4199,12 +4300,14 @@ class TestQueueStaticExportOldImpl(TestQueueStaticExport):
         Logfeller relies on these watermarks to assess data completeness.
         """
 
-        _, queue_id = self._create_queue("//tmp/q")
+        queue_path = self.create_queue_path()
+        export_dir = queue_path + "-export"
 
-        export_dir = "//tmp/export"
+        _, queue_id = self._create_queue(queue_path)
+
         self._create_export_destination(export_dir, queue_id)
 
-        set("//tmp/q/@static_export_config", {
+        set(f"{queue_path}/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
                 "export_period": 2 * 1000,
@@ -4212,11 +4315,11 @@ class TestQueueStaticExportOldImpl(TestQueueStaticExport):
         })
 
         # Writing something so that all attributes are properly set by at least one iteration.
-        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}])
-        self._flush_table("//tmp/q")
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}])
+        self._flush_table(queue_path)
 
         wait(lambda: len(ls(export_dir)) == 1)
-        export_progress = get("//tmp/export/@queue_static_export_progress")
+        export_progress = get(f"{export_dir}/@queue_static_export_progress")
         last_exported_fragment_iteration_instant = datetime.datetime.fromisoformat(export_progress["last_exported_fragment_iteration_instant"])
         last_successful_export_iteration_instant = datetime.datetime.fromisoformat(export_progress["last_successful_export_iteration_instant"])
         assert last_exported_fragment_iteration_instant == last_successful_export_iteration_instant
@@ -4225,7 +4328,7 @@ class TestQueueStaticExportOldImpl(TestQueueStaticExport):
 
         time.sleep(10)
 
-        export_progress = get("//tmp/export/@queue_static_export_progress")
+        export_progress = get(f"{export_dir}/@queue_static_export_progress")
         last_exported_fragment_iteration_instant = datetime.datetime.fromisoformat(export_progress["last_exported_fragment_iteration_instant"])
         last_successful_export_iteration_instant = datetime.datetime.fromisoformat(export_progress["last_successful_export_iteration_instant"])
 
@@ -4244,14 +4347,15 @@ class TestQueueStaticExportOldImpl(TestQueueStaticExport):
         queue_agent_orchid = QueueAgentOrchid()
         cypress_orchid = CypressSynchronizerOrchid()
 
-        export_dir_1 = "//tmp/export1"
-        export_dir_2 = "//tmp/export2"
-        export_dir_3 = "//tmp/export3"
+        queue_path = self.create_queue_path()
+        export_dir_1 = queue_path + "-export1"
+        export_dir_2 = queue_path + "-export2"
+        export_dir_3 = queue_path + "-export3"
+
         create("map_node", export_dir_1)
         create("map_node", export_dir_2)
         create("map_node", export_dir_3)
 
-        queue_path = "//tmp/q"
         _, queue_id = self._create_queue(queue_path)
 
         self._create_export_destination(export_dir_1, queue_id)
@@ -5018,6 +5122,11 @@ class TestQueueStaticExportPortals(TestQueueStaticExport):
     ENABLE_TMP_PORTAL = True
 
     ENABLE_MULTIDAEMON = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
 
     @authors("achulkov2", "nadya73")
     def test_different_native_cells(self):
@@ -5859,6 +5968,35 @@ class TestMigration(YTEnvSetup):
 
     QUEUE_AGENT_STATE_ROOT = "//sys/queue_agents"
 
+    def _check_table_schema(self, table_path, expected_schema):
+        actual_schema = get(f"{table_path}/@schema")
+
+        expected_schema_by_column_name = {
+            i["name"]: i
+            for i in expected_schema
+        }
+        actual_schema_by_column_name = {
+            i["name"]: i
+            for i in actual_schema
+        }
+
+        assert builtins.set(actual_schema_by_column_name.keys()) == builtins.set(expected_schema_by_column_name.keys())
+
+        fields = ["name", "type"]
+        fields_with_default = [("required", False), ("sort_order", None)]
+
+        for column_name in expected_schema_by_column_name.keys():
+            expected_column = expected_schema_by_column_name[column_name]
+            actual_column = actual_schema_by_column_name[column_name]
+            for field in fields:
+                assert actual_column[field] == expected_column[field]
+            for field, field_default in fields_with_default:
+                assert actual_column.get(field, field_default) == expected_column.get(field, field_default)
+
+    def _check_table_schemas(self, root, migration):
+        for table_name, table_schema in migration.get_schemas().items():
+            self._check_table_schema(f"{root}/{table_name}", expected_schema=table_schema)
+
     @classmethod
     def setup_class(cls):
         super(cls, TestMigration).setup_class()
@@ -5874,10 +6012,23 @@ class TestMigration(YTEnvSetup):
         client = self.Env.create_native_client()
         migration = prepare_migration(client)
         run_migration(
-            migration,
-            client,
-            tables_path=self.QUEUE_AGENT_STATE_ROOT,
-            target_version=get_latest_version(),
-            shard_count=1,
-            force=False,
+            client=client,
+            root=self.QUEUE_AGENT_STATE_ROOT,
+            migration=migration
         )
+
+        self._check_table_schemas(self.QUEUE_AGENT_STATE_ROOT, migration)
+
+    @authors("apachee")
+    def test_run_migration_on_existing_directory(self):
+        create("map_node", self.QUEUE_AGENT_STATE_ROOT)
+
+        client = self.Env.create_native_client()
+        migration = prepare_migration(client)
+        run_migration(
+            client=client,
+            root=self.QUEUE_AGENT_STATE_ROOT,
+            migration=migration
+        )
+
+        self._check_table_schemas(self.QUEUE_AGENT_STATE_ROOT, migration)

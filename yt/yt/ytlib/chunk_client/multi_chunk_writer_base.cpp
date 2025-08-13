@@ -47,7 +47,7 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     TMultiChunkWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
     NNative::IClientPtr client,
-    TString localHostName,
+    std::string localHostName,
     TCellTag cellTag,
     TTransactionId transactionId,
     TMasterTableSchemaId schemaId,

@@ -299,7 +299,7 @@ struct TCompactionSessionFinalizeResult
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void MaybeYieldFiber(const TPeriodicYielder& yielder, const NLogging::TLogger& Logger)
+void MaybeYieldFiber(const TPeriodicYielderGuard& yielder, const NLogging::TLogger& Logger)
 {
     if (yielder.NeedYield()) {
         YT_LOG_DEBUG("Yielding fiber (SyncTime: %v)",
@@ -466,6 +466,11 @@ private:
         StoreWriterConfig_->MinUploadReplicationFactor = StoreWriterConfig_->UploadReplicationFactor;
         StoreWriterConfig_->WorkloadDescriptor = TWorkloadDescriptor(ChunkReadOptions_.WorkloadDescriptor.Category);
         StoreWriterConfig_->EnableLocalThrottling = enableCollocatedDatNodeThrottling;
+
+        const auto& minHashDigestConfig = TabletSnapshot_->Settings.MountConfig->MinHashDigestCompaction;
+        if (minHashDigestConfig->Enable) {
+            StoreWriterConfig_->MinHashDigest = minHashDigestConfig->ChunkWriter;
+        }
 
         StoreWriterOptions_ = CloneYsonStruct(TabletSnapshot_->Settings.StoreWriterOptions);
         StoreWriterOptions_->ChunksEden = ResultsInEden_;
@@ -676,7 +681,7 @@ public:
         TCompactionTask* task)
     {
         return DoRun([&] {
-            TPeriodicYielder yielder(TDuration::MilliSeconds(30));
+            auto periodicYielder = CreatePeriodicYielder(TDuration::MilliSeconds(30));
 
             int currentPartitionIndex = 0;
             TLegacyOwningKey currentPivotKey;
@@ -731,7 +736,7 @@ public:
                     WaitFor(currentWriter->GetReadyEvent())
                         .ThrowOnError();
                 } else {
-                    MaybeYieldFiber(yielder, Logger);
+                    MaybeYieldFiber(periodicYielder, Logger);
                 }
 
                 outputRows.clear();
@@ -779,7 +784,7 @@ public:
                     flushOutputRows();
                     inputBatch = ReadRowBatch(reader, readOptions);
 
-                    MaybeYieldFiber(yielder, Logger);
+                    MaybeYieldFiber(periodicYielder, Logger);
 
                     if (inputBatch) {
                         readRowCount += inputBatch->GetRowCount();
@@ -890,7 +895,7 @@ public:
                 .MaxRowsPerRead = MaxRowsPerRead
             };
 
-            TPeriodicYielder yielder(TDuration::MilliSeconds(30));
+            auto yielder = CreatePeriodicYielder(TDuration::MilliSeconds(30));
 
             while (auto batch = ReadRowBatch(reader, readOptions)) {
                 rowCount += batch->GetRowCount();

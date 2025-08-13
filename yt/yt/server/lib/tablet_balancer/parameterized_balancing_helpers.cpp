@@ -10,7 +10,7 @@
 #include "tablet_cell.h"
 #include "tablet.h"
 
-#include <yt/yt/orm/library/query/expression_evaluator.h>
+#include <yt/yt/orm/library/query/heavy/expression_evaluator.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -157,7 +157,7 @@ public:
             Metric_,
             newMetric);
         Evaluator_ = NOrm::NQuery::CreateOrmExpressionEvaluator(
-            std::move(newMetric),
+            newMetric,
             ParameterizedBalancingAttributes);
     }
 

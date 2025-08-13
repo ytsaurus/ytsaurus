@@ -316,12 +316,7 @@ void TCypressNode::Load(NCellMaster::TLoadContext& context)
     Load(context, Account_);
     Load(context, Acd_);
     Load(context, Opaque_);
-
-    // COMPAT(danilalexeev)
-    if (context.GetVersion() >= EMasterReign::CypressNodeReachability) {
-        Load(context, Reachable_);
-    }
-
+    Load(context, Reachable_);
     Load(context, AccessTime_);
     Load(context, TouchTime_);
     Load(context, AccessCounter_);
@@ -392,13 +387,7 @@ void TCypressNode::TMutableSequoiaProperties::Load(NCellMaster::TLoadContext& co
     using NYT::Load;
 
     Load(context, BeingCreated);
-
-    // COMPAT(kvk1920)
-    if (context.GetVersion() >= EMasterReign::CypressLocksInSequoia) {
-        Load(context, Tombstone);
-    } else {
-        Tombstone = false;
-    }
+    Load(context, Tombstone);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

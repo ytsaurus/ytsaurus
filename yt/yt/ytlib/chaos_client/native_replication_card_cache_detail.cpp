@@ -125,9 +125,7 @@ public:
     void ForceRefresh(const TReplicationCardCacheKey& key, const TReplicationCardPtr& replicationCard) override;
     void Clear() override;
 
-    IChannelPtr GetChaosCacheChannel();
-
-    void Reconfigure(const TReplicationCardCacheDynamicConfigPtr& config) override;
+    void Reconfigure(const TReplicationCardCacheConfigPtr& config) override;
 
 protected:
     class TGetSession;
@@ -139,6 +137,8 @@ protected:
     const NLogging::TLogger Logger;
 
     void OnRemoved(const TReplicationCardCacheKey& key) noexcept override;
+
+    IChannelPtr GetChaosCacheChannel();
 
 private:
     std::atomic<bool> EnableWatching_ = false;
@@ -329,13 +329,11 @@ void TReplicationCardCache::OnRemoved(const TReplicationCardCacheKey& key) noexc
     }
 }
 
-void TReplicationCardCache::Reconfigure(const TReplicationCardCacheDynamicConfigPtr& config)
+void TReplicationCardCache::Reconfigure(const TReplicationCardCacheConfigPtr& config)
 {
-    if (config->EnableWatching) {
-        EnableWatching_.store(*config->EnableWatching);
-    }
+    EnableWatching_.store(config->EnableWatching);
 
-    TAsyncExpiringCache<TReplicationCardCacheKey, TReplicationCardPtr>::Reconfigure(Config_->ApplyDynamic(config));
+    TAsyncExpiringCache<TReplicationCardCacheKey, TReplicationCardPtr>::Reconfigure(config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

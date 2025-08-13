@@ -38,6 +38,7 @@ using namespace NYPath;
 using namespace NRpc;
 using namespace NRpc::NBus;
 using namespace NYTree;
+using namespace NYson;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -410,7 +411,7 @@ private:
 
     TSpytQueryResult ExtractTableBytes(const TString& queryResult) const
     {
-        auto encodedChunks = StringSplitter(queryResult).Split('\n').ToList<TString>();
+        auto encodedChunks = StringSplitter(queryResult).Split('\n').ToList<std::string>();
         YT_LOG_DEBUG("Raw result received (LineCount: %v)", encodedChunks.size());
 
         bool IsTruncated = encodedChunks[0] == "T";

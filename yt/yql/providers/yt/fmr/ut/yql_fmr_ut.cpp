@@ -1,5 +1,6 @@
 #include <yql/essentials/minikql/invoke_builtins/mkql_builtins.h>
 #include <yt/yql/providers/yt/fmr/fmr_tool_lib/yql_yt_fmr_initializer.h>
+#include <yt/yql/providers/yt/fmr/test_tools/table_data_service/yql_yt_table_data_service_helpers.h>
 #include <yt/yql/providers/yt/provider/yql_yt_provider.h>
 #include <yt/yql/providers/yt/gateway/file/yql_yt_file.h>
 #include <yt/yql/providers/yt/gateway/file/yql_yt_file_services.h>
@@ -12,6 +13,7 @@
 #include <library/cpp/yson/node/node_io.h>
 
 #include <library/cpp/testing/unittest/registar.h>
+#include <library/cpp/testing/unittest/tests_data.h>
 
 #include <util/stream/file.h>
 #include <util/system/user.h>
@@ -65,7 +67,21 @@ bool RunProgram(const TString& query, const TRunSettings& runSettings) {
     auto yqlNativeServices = NFile::TYtFileServices::Make(functionRegistry.Get(), runSettings.Tables, {}, "");
     auto ytGateway = CreateYtFileGateway(yqlNativeServices);
 
-    auto [fmrGateway, worker] = InitializeFmrGateway(ytGateway, false, TString(), true);
+    auto fmrServices = MakeIntrusive<NFmr::TFmrServices>();
+    fmrServices->FunctionRegistry = functionRegistry.Get();
+    fmrServices->JobLauncher = MakeIntrusive<NFmr::TFmrUserJobLauncher>(false);
+    fmrServices->DisableLocalFmrWorker = false;
+    fmrServices->YtJobService = NFmr::MakeFileYtJobSerivce();
+    fmrServices->YtCoordinatorService = NFmr::MakeFileYtCoordinatorService();
+
+    TTempFileHandle discoveryFile;
+    TPortManager pm;
+    const ui16 port = pm.GetPort();
+    SetupTableDataServiceDiscovery(discoveryFile, port);
+    auto tableDataServiceServer = MakeTableDataServiceServer(port);
+    fmrServices->TableDataServiceDiscoveryFilePath = discoveryFile.Name();
+
+    auto [fmrGateway, worker] = InitializeFmrGateway(ytGateway, fmrServices);
 
     TVector<TDataProviderInitializer> dataProvidersInit;
     dataProvidersInit.push_back(GetYtNativeDataProviderInitializer(fmrGateway, MakeSimpleCBOOptimizerFactory(), {}));
@@ -132,5 +148,17 @@ Y_UNIT_TEST_SUITE(FastMapReduceTests) {
         auto expected = NYT::NodeToCanonicalYsonString(NYT::NodeFromYsonString(filteredInputData, NYT::NYson::EYsonType::ListFragment));
         UNIT_ASSERT_NO_DIFF(sqlQueryResult, expected);
     }
-}
 
+    Y_UNIT_TEST(SelectFixedColumn) {
+        auto query = "use plato; insert into Output with truncate select key from Input where Cast(key As Uint32) > 700";
+        TTempFileHandle outputFile;
+        auto sqlQueryResult = WithTables([&](const auto& tables) {
+            TRunSettings runSettings;
+            runSettings.Tables = tables;
+            UNIT_ASSERT(RunProgram(query, runSettings));
+        });
+        TStringBuf filteredInputData = "{\"key\"=\"800\";};\n"sv;
+        auto expected = NYT::NodeToCanonicalYsonString(NYT::NodeFromYsonString(filteredInputData, NYT::NYson::EYsonType::ListFragment));
+        UNIT_ASSERT_NO_DIFF(sqlQueryResult, expected);
+    }
+}

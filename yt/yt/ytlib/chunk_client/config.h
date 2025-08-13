@@ -175,6 +175,7 @@ struct TBlockCacheConfig
     TSlruCacheConfigPtr HashTableChunkIndex;
     TSlruCacheConfigPtr XorFilter;
     TSlruCacheConfigPtr ChunkFragmentsData;
+    TSlruCacheConfigPtr MinHashDigest;
 
     REGISTER_YSON_STRUCT(TBlockCacheConfig);
 
@@ -206,6 +207,7 @@ struct TBlockCacheDynamicConfig
     TSlruCacheDynamicConfigPtr HashTableChunkIndex;
     TSlruCacheDynamicConfigPtr XorFilter;
     TSlruCacheDynamicConfigPtr ChunkFragmentsData;
+    TSlruCacheDynamicConfigPtr MinHashDigest;
 
     REGISTER_YSON_STRUCT(TBlockCacheDynamicConfig);
 
@@ -261,12 +263,38 @@ DEFINE_REFCOUNTED_TYPE(TMediumDirectorySynchronizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TChunkReplicaCacheDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    std::optional<TDuration> ExpirationTime;
+    std::optional<TDuration> ExpirationSweepPeriod;
+    std::optional<int> MaxChunksPerMasterLocate;
+    std::optional<bool> EnableSequoiaReplicasLocate;
+    std::optional<bool> EnableSequoiaReplicasRefresh;
+    std::optional<TDuration> SequoiaReplicasRefreshPeriod;
+    std::optional<int> MaxChunksPerSequoiaRefreshRound;
+
+    REGISTER_YSON_STRUCT(TChunkReplicaCacheDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TChunkReplicaCacheDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TChunkReplicaCacheConfig
     : public virtual NYTree::TYsonStruct
 {
     TDuration ExpirationTime;
     TDuration ExpirationSweepPeriod;
-    int MaxChunksPerLocate;
+    int MaxChunksPerMasterLocate;
+    bool EnableSequoiaReplicasLocate;
+    bool EnableSequoiaReplicasRefresh;
+    TDuration SequoiaReplicasRefreshPeriod;
+    int MaxChunksPerSequoiaRefreshRound;
+
+    TChunkReplicaCacheConfigPtr ApplyDynamic(const TChunkReplicaCacheDynamicConfigPtr& dynamicConfig) const;
 
     REGISTER_YSON_STRUCT(TChunkReplicaCacheConfig);
 

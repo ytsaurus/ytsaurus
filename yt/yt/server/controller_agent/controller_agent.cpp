@@ -201,7 +201,7 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , ControllerThreadPool_(CreateThreadPool(Config_->ControllerThreadCount, "Controller"))
-        , ChunkScraperThreadPool_(CreateThreadPool(Config_->ChunkScraperThreadCount, "ChunkScraper"))
+        , ChunkScraperHeavyThreadPool_(CreateThreadPool(Config_->ChunkScraperHeavyThreadCount, "ChunkScraperHeavy"))
         , JobSpecBuildPool_(CreateThreadPool(Config_->JobSpecBuildThreadCount, "JobSpec"))
         , StatisticsOffloadPool_(CreateThreadPool(Config_->StatisticsOffloadThreadCount, "StatsOffload"))
         , ExecNodesUpdateQueue_(New<TActionQueue>("ExecNodes"))
@@ -242,7 +242,13 @@ public:
         , JobMonitoringIndexManager_(Config_->UserJobMonitoring->MaxMonitoredUserJobsPerAgent)
         , ThrottledScheduleAllocationRequestCount_(ControllerAgentProfiler().WithHot().Counter("/throttled_schedule_allocation_request_count"))
     {
-        ControllerAgentProfiler().AddFuncGauge("/monitored_user_job_count", MakeStrong(this), [this] {
+        ControllerAgentProfiler().AddFuncGauge("/user_job_monitoring/used_descriptor_count", MakeStrong(this), [this] {
+            return JobMonitoringIndexManager_.GetSize();
+        });
+        ControllerAgentProfiler().AddFuncGauge("/user_job_monitoring/total_descriptor_count", MakeStrong(this), [this] {
+            return JobMonitoringIndexManager_.GetMaxSize();
+        });
+        ControllerAgentProfiler().AddFuncGauge("/user_job_monitoring/monitored_job_count", MakeStrong(this), [this] {
             return WaitFor(BIND([&] {
                 int sum = 0;
                 for (const auto& [_, operation] : IdToOperation_) {
@@ -280,8 +286,8 @@ public:
 
         auto jobTrackerOrchidService = GetJobTrackerOrchidService();
 
-        return New<TServiceCombiner>(
-            std::vector<IYPathServicePtr>{
+        return CreateServiceCombiner(
+            {
                 staticOrchidService->Via(Bootstrap_->GetControlInvoker()),
                 std::move(dynamicOrchidService),
                 std::move(jobTrackerOrchidService),
@@ -348,11 +354,11 @@ public:
         return ControllerThreadPool_->GetInvoker();
     }
 
-    const IInvokerPtr& GetChunkScraperThreadPoolInvoker()
+    const IInvokerPtr& GetChunkScraperHeavyThreadPoolInvoker()
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return ChunkScraperThreadPool_->GetInvoker();
+        return ChunkScraperHeavyThreadPool_->GetInvoker();
     }
 
     const IInvokerPtr& GetJobSpecBuildPoolInvoker()
@@ -429,7 +435,7 @@ public:
         Bootstrap_->OnDynamicConfigChanged(Config_);
 
         ControllerThreadPool_->SetThreadCount(Config_->ControllerThreadCount);
-        ChunkScraperThreadPool_->SetThreadCount(Config_->ChunkScraperThreadCount);
+        ChunkScraperHeavyThreadPool_->SetThreadCount(Config_->ChunkScraperHeavyThreadCount);
 
         JobTracker_->UpdateConfig(Config_);
 
@@ -1114,7 +1120,7 @@ private:
     TBootstrap* const Bootstrap_;
 
     const IThreadPoolPtr ControllerThreadPool_;
-    const IThreadPoolPtr ChunkScraperThreadPool_;
+    const IThreadPoolPtr ChunkScraperHeavyThreadPool_;
     const IThreadPoolPtr JobSpecBuildPool_;
     const IThreadPoolPtr StatisticsOffloadPool_;
     const TActionQueuePtr ExecNodesUpdateQueue_;
@@ -1787,12 +1793,20 @@ private:
     {
         auto outbox = ScheduleAllocationResponsesOutbox_;
 
-        auto replyWithFailure = [=] (TOperationId operationId, TAllocationId allocationId, EScheduleFailReason reason) {
+        auto replyWithFailure = [=] (
+            TOperationId operationId,
+            TAllocationId allocationId,
+            EScheduleFailReason reason,
+            std::optional<TControllerEpoch> controllerEpoch = {})
+        {
             TAgentToSchedulerScheduleAllocationResponse response;
             response.AllocationId = allocationId;
             response.OperationId = operationId;
             response.Result = New<TControllerScheduleAllocationResult>();
             response.Result->RecordFail(reason);
+            if (controllerEpoch) {
+                response.Result->ControllerEpoch = *controllerEpoch;
+            }
             outbox->Enqueue(std::move(response));
         };
 
@@ -1805,7 +1819,7 @@ private:
             EScheduleFailReason reason,
             IOperationControllerPtr controller)
         {
-            replyWithFailure(operationId, allocationId, reason);
+            replyWithFailure(operationId, allocationId, reason, controller->GetControllerEpoch());
             controller->RecordScheduleAllocationFailure(reason);
         };
 
@@ -1898,21 +1912,6 @@ private:
                                 operationId,
                                 allocationId,
                                 EScheduleFailReason::UnknownNode,
-                                controller);
-                            return;
-                        }
-
-                        const auto& execNodeDescriptor = *descriptorIt->second;
-                        if (!execNodeDescriptor.CanSchedule({})) {
-                            YT_LOG_DEBUG(
-                                "Failed to schedule allocation due to node is offline (OperationId: %v, AllocationId: %v, NodeId: %v)",
-                                operationId,
-                                allocationId,
-                                nodeId);
-                            replyWithFailureAndRecordInController(
-                                operationId,
-                                allocationId,
-                                EScheduleFailReason::NodeOffline,
                                 controller);
                             return;
                         }
@@ -2329,9 +2328,9 @@ const IInvokerPtr& TControllerAgent::GetControllerThreadPoolInvoker()
     return Impl_->GetControllerThreadPoolInvoker();
 }
 
-const IInvokerPtr& TControllerAgent::GetChunkScraperThreadPoolInvoker()
+const IInvokerPtr& TControllerAgent::GetChunkScraperHeavyThreadPoolInvoker()
 {
-    return Impl_->GetChunkScraperThreadPoolInvoker();
+    return Impl_->GetChunkScraperHeavyThreadPoolInvoker();
 }
 
 const IInvokerPtr& TControllerAgent::GetJobSpecBuildPoolInvoker()

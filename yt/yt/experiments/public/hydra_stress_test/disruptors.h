@@ -110,6 +110,7 @@ private:
     std::vector<TPeerPtr> Peers_;
 
     void SplitIntoGroups(int groupCount, bool keepQuorum);
+    void SplitIntoTwoGroups();
     void SplitRandomly();
 
     void DoRun();

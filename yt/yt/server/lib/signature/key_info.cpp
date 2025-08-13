@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <contrib/libs/libsodium/include/sodium/crypto_sign.h>
+
 namespace NYT::NSignature {
 
 using namespace NLogging;
@@ -131,6 +133,8 @@ bool TKeyInfo::Verify(
     std::span<const char> data,
     std::span<const char, SignatureSize> signature) const
 {
+    EnsureCryptographyInitialized();
+
     return IsKeyPairMetadataValid(Meta()) && crypto_sign_verify_detached(
         reinterpret_cast<const unsigned char*>(signature.data()),
         reinterpret_cast<const unsigned char*>(data.data()),

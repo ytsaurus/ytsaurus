@@ -180,7 +180,7 @@ public:
         if (auto cpuGuarantee = resourceManager->GetCpuGuarantee()) {
             protoCpu->set_total_guarantee(*cpuGuarantee);
         }
-        protoCpu->set_total_used(resourceManager->GetCpuUsage());
+        protoCpu->set_total_used(static_cast<double>(resourceManager->GetCpuUsage()));
         protoCpu->set_jobs(resourceManager->GetJobsCpuLimit());
         protoCpu->set_tablet_slots(resourceManager->GetTabletSlotCpu());
         protoCpu->set_dedicated(resourceManager->GetNodeDedicatedCpu());
@@ -341,11 +341,13 @@ protected:
         YT_VERIFY(!rspOrError.IsOK());
     }
 
-    void ResetState(TCellTag cellTag) override
+    void ResetStates(const THashSet<TCellTag>& masterCellTags) override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        CellTagToHeartbeatRspFuture_.erase(cellTag);
+        for (auto cellTag : masterCellTags) {
+            CellTagToHeartbeatRspFuture_.erase(cellTag);
+        }
     }
 
     TErrorOr<TNodeTrackerServiceProxy::TRspHeartbeatPtr> GetHeartbeatResponseOrError(TCellTag cellTag)

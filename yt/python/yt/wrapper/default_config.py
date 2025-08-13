@@ -116,6 +116,8 @@ class DefaultConfigType(TypedDict, total=False):
     enable_passing_request_id_to_driver: bool
     driver_user_name: Optional[str]
     driver_config: Optional[Dict[str, Any]]
+    enable_rpc_proxy_in_job_proxy: bool
+    cluster_name_for_rpc_proxy_in_job_proxy: Optional[str]
     driver_logging_config: Optional[Any]
     enable_driver_logging_to_stderr: Optional[Any]
     driver_address_resolver_config: Optional[Any]
@@ -248,6 +250,11 @@ class DefaultConfigType(TypedDict, total=False):
         use_tmp_dir_for_intermediate_data: bool
 
     write_parallel: DefaultConfigWriteParallelType
+
+    class DistributedWriteType(TypedDict, total=False):
+        session_timeout: Optional[str]
+
+    distributed_write: DistributedWriteType
     read_buffer_size: int
     read_omit_inaccessible_columns: Optional[Any]
     spec_defaults: Dict[str, Any]
@@ -585,8 +592,12 @@ default_config = {
     # Username for native driver requests.
     "driver_user_name": None,
 
-    # Driver configuration.
+    # RPC/native driver configuration.
     "driver_config": None,
+    # Use local rpc proxy in job (instead of regular rpc proxy)
+    "enable_rpc_proxy_in_job_proxy": False,
+    # Target cluster name (in case it differs from proxy): None | str
+    "cluster_name_for_rpc_proxy_in_job_proxy": None,
 
     # Logging configuration.
     "driver_logging_config": None,
@@ -853,6 +864,10 @@ default_config = {
         "concatenate_size": 20,
         # This option allows to save intermediate data in remote_temp_files_directory / remote_temp_tables_directory.
         "use_tmp_dir_for_intermediate_data": True
+    },
+
+    "distributed_write": {
+        "session_timeout": 60 * 1000,
     },
 
     # Size of block to read from response stream.

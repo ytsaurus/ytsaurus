@@ -104,6 +104,7 @@ TabNodeInternal =  ProjectSensor("tab_node_internal",   "yt-tablet-node.*")  # n
 TabNodePorto =     ProjectSensor("tab_node_porto",      "yt-tablet-node.*")  # noqa: E222
 TabNodeRpc =       ProjectSensor("tab_node_rpc",        "yt-tablet-node.*", base=RpcBase)  # noqa: E222
 TabNodeRpcClient = ProjectSensor("tab_node_rpc_client", "yt-tablet-node.*", base=RpcBase)  # noqa: E222
+TabNodeYtcfgen =   ProjectSensor("tab_node_ytcfgen",    "yt-tablet-node.*")  # noqa: E222
 
 # Generic sensor for tablet metrics.
 NodeTablet =       ProjectSensor("node_tablet",         "yt-tablet-node.*")  # noqa: E222
@@ -114,16 +115,21 @@ MasterCpu =        ProjectSensor("master_cpu",        "yt-master")  # noqa: E222
 MasterMemory =     ProjectSensor("master_memory",     "yt-master")  # noqa: E222
 MasterInternal =   ProjectSensor("master_internal",   "yt-master")  # noqa: E222
 MasterRpc =        ProjectSensor("master_rpc",        "yt-master")  # noqa: E222
-MasterRpcClient =  ProjectSensor("master_rpc_client", "yt-master")  # noqa: E222
+MasterRpcClient =  ProjectSensor("master_rpc_client", "yt-master", base=RpcBase)  # noqa: E222
 
 # Misc.
-HttpProxy = ProjectSensor("http_proxy", "yt_proxies")
-RpcProxy = ProjectSensor("rpc_proxy", "yt_rpc_proxies")
-RpcProxyRpc = ProjectSensor("rpc_proxy_rpc", "yt_rpc_proxies", base=RpcBase)
-RpcProxyInternal = ProjectSensor("rpc_proxy_internal", "yt_rpc_proxies")
-RpcProxyCpu = ProjectSensor("rpc_proxy_cpu", "yt_rpc_proxies")
-RpcProxyMemory =  ProjectSensor("rpc_proxy_memory", "yt_rpc_proxies")  # noqa: E222
-RpcProxyPorto =  ProjectSensor("rpc_proxy_porto", base=RpcBase)  # noqa: E222
+HttpProxy =           ProjectSensor("http_proxy",             "yt-http-proxy.*")  # noqa: E222
+HttpProxyPorto =      ProjectSensor("http_proxy_porto",       "yt-http-proxy.*")  # noqa: E222
+HttpProxyCpu =        ProjectSensor("http_proxy_cpu",         "yt-http-proxy.*")  # noqa: E222
+HttpProxyMemory =     ProjectSensor("http_proxy_memory",      "yt-http-proxy.*")  # noqa: E222
+HttpProxyRpcClient =  ProjectSensor("http_proxy_rpc_client",  "yt-http-proxy.*", base=RpcBase)  # noqa: E222
+RpcProxy =            ProjectSensor("rpc_proxy",              "yt-rpc-proxy.*")  # noqa: E222
+RpcProxyRpc =         ProjectSensor("rpc_proxy_rpc",          "yt-rpc-proxy.*",  base=RpcBase)  # noqa: E222
+RpcProxyInternal =    ProjectSensor("rpc_proxy_internal",     "yt-rpc-proxy.*")  # noqa: E222
+RpcProxyCpu =         ProjectSensor("rpc_proxy_cpu",          "yt-rpc-proxy.*")  # noqa: E222
+RpcProxyMemory =      ProjectSensor("rpc_proxy_memory",       "yt-rpc-proxy.*")  # noqa: E222
+RpcProxyPorto =       ProjectSensor("rpc_proxy_porto",        "yt-rpc-proxy.*")  # noqa: E222
+RpcProxyYtcfgen =     ProjectSensor("rpc_proxy_ytcfgen",      "yt-rpc-proxy.*")  # noqa: E222
 
 # BundleController.
 BundleController = ProjectSensor("bundle_controller", "yt_bundle_controller")  # noqa: E222

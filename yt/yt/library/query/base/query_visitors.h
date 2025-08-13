@@ -769,8 +769,8 @@ struct TAbstractExpressionPrinter
             }
         };
 
-        std::vector<TString> clauses;
-        TString str;
+        std::vector<std::string> clauses;
+        std::string str;
 
         if (subqueryExpr->ProjectClause) {
             str = JoinToString(subqueryExpr->ProjectClause->Projections, namedItemFormatter);
@@ -780,10 +780,10 @@ struct TAbstractExpressionPrinter
 
         clauses.emplace_back("SELECT " + str);
 
-        clauses.push_back(TString("FROM (") + JoinToString(subqueryExpr->FromExpressions, namedItemFormatter) + ")");
+        clauses.push_back(std::string("FROM (") + JoinToString(subqueryExpr->FromExpressions, namedItemFormatter) + ")");
 
         if (subqueryExpr->WhereClause) {
-            clauses.push_back(TString("WHERE ") + InferName(subqueryExpr->WhereClause, OmitValues));
+            clauses.push_back(std::string("WHERE ") + InferName(subqueryExpr->WhereClause, OmitValues));
         }
 
         if (subqueryExpr->GroupClause) {
@@ -821,7 +821,7 @@ struct TSelfifyRewriter
 struct TAddAliasRewriter
     : public TRewriter<TAddAliasRewriter>
 {
-    const std::optional<TString>& Alias;
+    const std::optional<std::string>& Alias;
 
     TConstExpressionPtr OnReference(const TReferenceExpression* reference);
 };

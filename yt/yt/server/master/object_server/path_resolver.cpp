@@ -289,8 +289,7 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
         }
     }
 
-    ValidateYPathResolutionDepth(Path_, MaxYPathResolveIterations + 1);
-    YT_UNREACHABLE();
+    ThrowYPathResolutionDepthExceeded(Path_);
 }
 
 TTransaction* TPathResolver::GetTransaction()
@@ -387,7 +386,6 @@ TPathResolver::TResolvePayload TPathResolver::ResolveRoot(
             if (IsSequoiaId(objectId) &&
                 IsVersionedType(TypeFromId(objectId)) &&
                 !options.AllowResolveFromSequoiaObject &&
-                !NSequoiaClient::IsMethodHandledByMaster(Method_) && // TODO(kvk1920): drop IsMethodHandledByMaster().
                 CellTagFromId(objectId) == Bootstrap_->GetCellTag() &&
                 (!TransactionId_ || IsCypressTransactionType(TypeFromId(TransactionId_))))
             {

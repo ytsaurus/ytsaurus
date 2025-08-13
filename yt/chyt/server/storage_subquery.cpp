@@ -225,11 +225,18 @@ public:
             readPlan = BuildSimpleReadPlan(columnSchemas);
         }
 
+        bool enableInputSpecsPulling = SubquerySpec_.QuerySettings->Execution->EnableInputSpecsPulling;
+        if (enableInputSpecsPulling) {
+            // As part of the native clickhouse protocol, tcp handler hooks a callback to the context,
+            // which sends a Protocol::Server::ReadTaskRequest packet to the coordinator
+            QueryContext_->SetReadTaskCallback(context->getReadTaskCallback());
+        }
+
         for (int threadIndex = 0; threadIndex < std::ssize(perThreadDataSliceDescriptors); ++threadIndex) {
             const auto& threadDataSliceDescriptors = perThreadDataSliceDescriptors[threadIndex];
 
             DB::SourcePtr sourcePtr;
-            if (StorageContext_->Settings->Prewhere->PrefilterDataSlices && readPlan->SuitableForTwoStagePrewhere()) {
+            if (StorageContext_->Settings->Prewhere->PrefilterDataSlices && !enableInputSpecsPulling && readPlan->SuitableForTwoStagePrewhere()) {
                 sourcePtr = CreatePrewhereSecondaryQuerySource(
                     StorageContext_,
                     SubquerySpec_,
@@ -274,8 +281,9 @@ public:
                 }
             }
             YT_LOG_DEBUG(
-                "Thread table reader stream created (ThreadIndex: %v, RowCount: %v, DataWeight: %v, DataSliceCount: %v)",
+                "Thread table reader stream created (ThreadIndex: %v, EnablePullInputSpecsMode: %v, RowCount: %v, DataWeight: %v, DataSliceCount: %v)",
                 threadIndex,
+                enableInputSpecsPulling,
                 rowCount,
                 dataWeight,
                 dataSliceCount);

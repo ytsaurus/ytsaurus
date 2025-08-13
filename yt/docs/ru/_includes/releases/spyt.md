@@ -8,6 +8,23 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**2.7.0**" %}
+
+**Release date:** 2025-07-24
+
+
+- YTsaurus shuffle service support
+- Metrics refactoring for inner cluster and direct submit modes
+- Dynamic table queries via SQL API doesn't require explicit timestamp
+- Bugs and stability fixes:
+- - Fix OutOfMemory errors for optimized-for scan sorted tables
+- - Fix casting types to uint64 in codegen
+- - Fix "Manually specified and authenticated users mismatch" YT error in direct submit
+- - Other minor fixes
+
+{% endcut %}
+
+
 {% cut "**2.6.5**" %}
 
 **Release date:** 2025-06-08

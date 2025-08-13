@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v0.4.3)
+VERSION(v0.4.4)
 
 IF (OS_LINUX)
     SRCS(

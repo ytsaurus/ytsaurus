@@ -186,4 +186,17 @@ message TReqFinishNodeMaterialization
     optional NYT.NProto.TGuid transaction_id = 6;
 }
 
+// Describes resolved node revision that must match in order for the request to be executed.
+message TResolvedPrerequisiteRevision
+{
+    required NYT.NProto.TGuid node_id = 1;
+    required uint64 revision = 2;
+    required string node_path = 3;
+}
+
+message TReqValidatePrerequisiteRevisions
+{
+    repeated TResolvedPrerequisiteRevision prerequisite_revisions = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////

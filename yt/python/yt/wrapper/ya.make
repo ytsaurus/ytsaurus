@@ -84,6 +84,7 @@ ELSE()
         cypress_fuse.py
         default_config.py
         dirtable_commands.py
+        distributed_commands.py
         download_core_dump.py
         driver.py
         dynamic_table_commands.py
@@ -163,7 +164,6 @@ ELSE()
             idm_cli_helpers.py
             idm_client_helpers.py
             idm_client.py
-            ml_helpers.py
             sky_share.py
             yandex_constants.py
         )

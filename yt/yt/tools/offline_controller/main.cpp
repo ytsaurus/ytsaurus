@@ -197,7 +197,7 @@ public:
         return ActionQueue_->GetInvoker();
     }
 
-    const IInvokerPtr& GetChunkScraperThreadPoolInvoker() override
+    const IInvokerPtr& GetChunkScraperHeavyThreadPoolInvoker() override
     {
         return ActionQueue_->GetInvoker();
     }

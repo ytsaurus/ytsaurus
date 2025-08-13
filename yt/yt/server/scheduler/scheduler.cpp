@@ -358,8 +358,8 @@ public:
         auto strategyDynamicOrchidService = Strategy_->GetOrchidService()
             ->Via(GetControlInvoker(EControlQueue::DynamicOrchid));
 
-        auto combinedOrchidService = New<TServiceCombiner>(
-            std::vector<IYPathServicePtr>{
+        auto combinedOrchidService = CreateServiceCombiner(
+            {
                 staticOrchidService,
                 std::move(lightStaticOrchidService),
                 std::move(dynamicOrchidService),
@@ -1846,8 +1846,8 @@ private:
 
     std::optional<NSecurityClient::TSerializableAccessControlList> OperationBaseAcl_;
 
-    TIntrusivePtr<NYTree::ICachedYPathService> StaticOrchidService_;
-    TIntrusivePtr<NYTree::TServiceCombiner> CombinedOrchidService_;
+    NYTree::ICachedYPathServicePtr StaticOrchidService_;
+    NYTree::IServiceCombinerPtr CombinedOrchidService_;
 
     THashMap<std::string, TString> UserToDefaultPoolMap_;
 
@@ -2258,7 +2258,7 @@ private:
 
         auto req = TYPathProxy::List(GetExecNodesPath());
         req->set_limit(CypressNodeLimit);
-        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<std::string>{
             "id",
             "tags",
             "state",
@@ -2773,6 +2773,34 @@ private:
         return briefSpec;
     }
 
+    ITransactionPtr AttachTransaction(TOperationId operationId, TTransactionId transactionId, const TString& name)
+    {
+        if (!transactionId) {
+            return nullptr;
+        }
+
+        try {
+            auto client = Bootstrap_->GetRemoteClient(CellTagFromId(transactionId));
+
+            TTransactionAttachOptions options;
+            options.Ping = true;
+            options.PingAncestors = false;
+            options.PingPeriod = Config_->OperationTransactionPingPeriod;
+
+            auto transaction = client->AttachTransaction(transactionId, options);
+            return transaction;
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(
+                ex,
+                "Error attaching operation transaction (TransactionType: %v, OperationId: %v, TransactionId: %v)",
+                name,
+                operationId,
+                transactionId);
+        }
+
+        return nullptr;
+    };
+
     void DoInitializeOperation(const TOperationPtr& operation)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
@@ -2793,7 +2821,9 @@ private:
 
             ValidateOperationState(operation, EOperationState::Initializing);
 
-            operation->Transactions() = initializeResult.Transactions;
+            operation->Transactions() = AttachControllerTransactions(
+                BIND(&TScheduler::TImpl::AttachTransaction, MakeStrong(this), operation->GetId()),
+                initializeResult.TransactionIds);
             operation->ControllerAttributes().InitializeAttributes = std::move(initializeResult.Attributes);
             operation->BriefSpecString() = BuildBriefSpec(operation);
 
@@ -2881,7 +2911,9 @@ private:
                     /*cumulativeSpecPatch*/ operation->CumulativeSpecPatch()))
                     .ValueOrThrow();
 
-                operation->Transactions() = std::move(result.Transactions);
+                operation->Transactions() = AttachControllerTransactions(
+                    BIND(&TScheduler::TImpl::AttachTransaction, MakeStrong(this), operation->GetId()),
+                    result.TransactionIds);
                 operation->ControllerAttributes().InitializeAttributes = std::move(result.Attributes);
                 operation->BriefSpecString() = BuildBriefSpec(operation);
             }
@@ -2984,7 +3016,7 @@ private:
                 ->Via(GetControlInvoker(EControlQueue::DynamicOrchid))
             : IYPathService::FromProducer(BIND(&TImpl::BuildOperationOrchid, MakeStrong(this), operation))
                 ->Via(GetControlInvoker(EControlQueue::DynamicOrchid));
-        return New<TServiceCombiner>(
+        return CreateServiceCombiner(
             std::vector<IYPathServicePtr>{
                 NewWithOffloadedDtor<TOperationService>(GetBackgroundInvoker(), this, operation),
                 operationAttributesOrchidService,

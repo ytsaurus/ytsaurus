@@ -293,11 +293,13 @@ public:
             BIND(&TWorkloadModelManager::OnLatenciesReportingRound, MakeWeak(this)),
             RequestLatenciesModelingPeriod))
         , Model_(std::make_unique<TPerCpuWorkloadModel>())
-    {
-        YT_LOG_DEBUG("Initialized workload model manager");
+    { }
 
+    void Initialize()
+    {
         ModelCreationRoundExecutor_->Start();
         LatenciesMeasuringExecutor_->Start();
+        YT_LOG_DEBUG("Initialized workload model manager");
     }
 
     ~TWorkloadModelManager()
@@ -366,12 +368,17 @@ public:
         : Underlying_(std::move(underlying))
         , Logger(std::move(logger))
         , ModelManager_(New<TWorkloadModelManager>(std::move(locationId), Logger))
+    { }
+
+    void Initialize()
     {
         ModelManager_->SubscribeRequestSizesSignal(
             BIND(&TIOModelInterceptor::OnUpdateRequestSizes, MakeWeak(this)));
 
         ModelManager_->SubscribeRequestLatenciesSignal(
             BIND(&TIOModelInterceptor::OnUpdateRequestLatencies, MakeWeak(this)));
+
+        ModelManager_->Initialize();
     }
 
     TFuture<TReadResponse> Read(
@@ -515,6 +522,11 @@ public:
         return Underlying_->UseDirectIOForReads();
     }
 
+    bool IsInFlightRequestLimitExceeded() const override
+    {
+        return Underlying_->IsInFlightRequestLimitExceeded();
+    }
+
     bool IsInFlightReadRequestLimitExceeded() const override
     {
         return Underlying_->IsInFlightReadRequestLimitExceeded();
@@ -523,6 +535,16 @@ public:
     bool IsInFlightWriteRequestLimitExceeded() const override
     {
         return Underlying_->IsInFlightWriteRequestLimitExceeded();
+    }
+
+    i64 GetInFlightRequestCount() const override
+    {
+        return Underlying_->GetInFlightRequestCount();
+    }
+
+    i64 GetTotalRequestLimit() const override
+    {
+        return Underlying_->GetTotalRequestLimit();
     }
 
     i64 GetInFlightReadRequestCount() const override
@@ -574,10 +596,14 @@ IIOEngineWorkloadModelPtr CreateIOModelInterceptor(
     IIOEnginePtr underlying,
     NLogging::TLogger logger)
 {
-    return New<TIOModelInterceptor>(
+    auto interceptor = New<TIOModelInterceptor>(
         std::move(locationId),
         std::move(underlying),
         std::move(logger));
+
+    interceptor->Initialize();
+
+    return interceptor;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

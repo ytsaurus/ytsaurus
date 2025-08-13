@@ -97,7 +97,7 @@ TSchemafulDsvFormatConfigPtr GetSchemafulDsvConfig()
     return config;
 }
 
-void BenchmarkConsume(const std::vector<std::string>& keys, const std::vector<TString>& values, NYson::IYsonConsumer* consumer)
+void BenchmarkConsume(const std::vector<std::string>& keys, const std::vector<std::string>& values, NYson::IYsonConsumer* consumer)
 {
     NProfiling::TWallTimer timer;
     {
@@ -220,7 +220,7 @@ int main(int argc, char** argv)
                 0); // keyColumnCount
             BenchmarkSchemalessWrite(writer);
         } else if (format == "yamred_dsv") {
-            std::vector<TString> columnNames;
+            std::vector<std::string> columnNames;
             for (int i = 0; i < ColumnCount; ++i) {
                 columnNames.push_back(GenerateString(ValueLength));
                 nameTable->RegisterName(columnNames.back());
@@ -255,7 +255,7 @@ int main(int argc, char** argv)
             }
         }
 
-        std::vector<TString> values;
+        std::vector<std::string> values;
         for (size_t i = 0; i < keys.size(); ++i) {
             values.push_back(GenerateString(ValueLength));
         }
@@ -310,4 +310,3 @@ int main(int argc, char** argv)
 
     return 0;
 }
-

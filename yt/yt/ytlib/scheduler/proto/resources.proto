@@ -44,12 +44,6 @@ message TDiskRequest
     optional TNbdDisk nbd_disk = 4;
 }
 
-message TCpuRequest
-{
-    optional double cpu = 1;
-    optional bool allow_idle_cpu_policy = 2 [default = false];
-}
-
 // TODO(babenko): consider renaming
 message TJobResourcesWithQuota
 {

@@ -267,6 +267,11 @@ class TestReplicatedDynamicTablesProfilingMulticell(TestReplicatedDynamicTablesP
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
     @authors("savrus")
     @pytest.mark.parametrize("mode", ["sync", "async"])
     @parametrize_external

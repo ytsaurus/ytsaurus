@@ -8,6 +8,7 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
+#include <contrib/libs/libsodium/include/sodium/crypto_sign.h>
 #include <contrib/libs/libsodium/include/sodium/randombytes.h>
 
 namespace NYT::NSignature {
@@ -99,7 +100,8 @@ TEST(TKeyInfoTest, DeserializeWrongLength)
 
 TEST(TKeyInfoTest, Verify)
 {
-    InitializeCryptography();
+    WaitFor(InitializeCryptography(GetCurrentInvoker()))
+        .ThrowOnError();
 
     auto metaOk = SimpleMetadata(-10h, -10h, 10h);
     EXPECT_TRUE(IsKeyPairMetadataValid(metaOk));

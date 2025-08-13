@@ -1,7 +1,7 @@
 #include "node_tracker.h"
 
 #include <contrib/ydb/core/base/path.h>
-#include <contrib/ydb/core/ymq/actor/cfg.h>
+#include <contrib/ydb/core/ymq/actor/cfg/cfg.h>
 #include <contrib/ydb/core/ymq/actor/serviceid.h>
 #include <contrib/ydb/core/ymq/queues/common/key_hashes.h>
 

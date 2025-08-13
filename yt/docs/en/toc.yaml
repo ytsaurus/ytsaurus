@@ -132,6 +132,8 @@ items:
            href: user-guide/dynamic-tables/mapreduce.md
          - name: Inserting from operations into dynamic tables
            href: user-guide/dynamic-tables/bulk-insert.md
+         - name: Versioned format for dynamic table interaction
+           href: user-guide/dynamic-tables/versioned-format.md
          - name: Query language
            href: user-guide/dynamic-tables/dyn-query-language.md
          - name: Secondary indexes

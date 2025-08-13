@@ -16,16 +16,21 @@ class TAstFormatTest
     : public ::testing::Test
 {
 protected:
-    void TestExpression(const TString& source)
+    void TestExpression(TStringBuf source)
     {
         auto parsedSource1 = ParseSource(source, EParseMode::Expression);
+        if (auto lit = std::get<TExpressionPtr>(parsedSource1->AstHead.Ast)->As<TLiteralExpression>()) {
+            if (auto* s = std::get_if<std::string>(&lit->Value)) {
+                Cout << "Found: " << *s << Endl;
+            }
+        }
         auto formattedSource = FormatExpression(*std::get<TExpressionPtr>(parsedSource1->AstHead.Ast));
         auto parsedSource2 = ParseSource(formattedSource, EParseMode::Expression);
         EXPECT_TRUE(*std::get<TExpressionPtr>(parsedSource1->AstHead.Ast) == *std::get<TExpressionPtr>(parsedSource2->AstHead.Ast))
             << source << " -> " << formattedSource;
     }
 
-    void TestQuery(const TString& source)
+    void TestQuery(TStringBuf source)
     {
         auto parsedSource1 = ParseSource(source, EParseMode::Query);
         auto formattedSource = FormatQuery(std::get<NAst::TQuery>(parsedSource1->AstHead.Ast));
@@ -34,7 +39,7 @@ protected:
             << source << " -> " << formattedSource;
     }
 
-    TString ParseAndFormat(const TString& source)
+    std::string ParseAndFormat(TStringBuf source)
     {
         auto parsedSource = ParseSource(source, EParseMode::Query);
         return FormatQuery(std::get<NAst::TQuery>(parsedSource->AstHead.Ast));
@@ -56,12 +61,12 @@ TEST_F(TAstFormatTest, Id)
 
 TEST_F(TAstFormatTest, Reference)
 {
-    EXPECT_EQ("column", FormatReference(TReference(TString("column"))));
-    EXPECT_EQ("table.column", FormatReference(TReference(TString("column"), TString("table"))));
-    EXPECT_EQ("`my.column`", FormatReference(TReference(TString("my.column"))));
-    EXPECT_EQ("table.`my.column`", FormatReference(TReference(TString("my.column"), TString("table"))));
-    EXPECT_EQ("my.column", InferColumnName(TReference(TString("my.column"))));
-    EXPECT_EQ("table.my.column", InferColumnName(TReference(TString("my.column"), TString("table"))));
+    EXPECT_EQ("column", FormatReference(TReference(std::string("column"))));
+    EXPECT_EQ("table.column", FormatReference(TReference(std::string("column"), std::string("table"))));
+    EXPECT_EQ("`my.column`", FormatReference(TReference(std::string("my.column"))));
+    EXPECT_EQ("table.`my.column`", FormatReference(TReference(std::string("my.column"), std::string("table"))));
+    EXPECT_EQ("my.column", InferColumnName(TReference(std::string("my.column"))));
+    EXPECT_EQ("table.my.column", InferColumnName(TReference(std::string("my.column"), std::string("table"))));
 }
 
 TEST_F(TAstFormatTest, LiteralValue)
@@ -76,9 +81,9 @@ TEST_F(TAstFormatTest, LiteralValue)
     EXPECT_EQ("123u", FormatLiteralValue(TLiteralValue(std::in_place_type_t<ui64>(), 123)));
     EXPECT_EQ("18446744073709551615u", FormatLiteralValue(TLiteralValue(std::in_place_type_t<ui64>(), std::numeric_limits<ui64>::max())));
     EXPECT_EQ("3.140000", FormatLiteralValue(TLiteralValue(std::in_place_type_t<double>(), 3.14)));
-    EXPECT_EQ("\"\"", FormatLiteralValue(TLiteralValue(std::in_place_type_t<TString>(), "")));
-    EXPECT_EQ("\"\\\\\"", FormatLiteralValue(TLiteralValue(std::in_place_type_t<TString>(), "\\")));
-    EXPECT_EQ("\"hello\"", FormatLiteralValue(TLiteralValue(std::in_place_type_t<TString>(), "hello")));
+    EXPECT_EQ("\"\"", FormatLiteralValue(TLiteralValue(std::in_place_type_t<std::string>(), "")));
+    EXPECT_EQ("\"\\\\\"", FormatLiteralValue(TLiteralValue(std::in_place_type_t<std::string>(), "\\")));
+    EXPECT_EQ("\"hello\"", FormatLiteralValue(TLiteralValue(std::in_place_type_t<std::string>(), "hello")));
 }
 
 TEST_F(TAstFormatTest, Expression)

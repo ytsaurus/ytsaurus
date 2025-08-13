@@ -26,6 +26,8 @@ public:
 private:
     friend class TYsonTableSchemaCache;
 
+    bool CanCacheError(const TError& error) noexcept override;
+
     TFuture<NTableClient::TTableSchemaPtr> DoGet(
         const TCompactTableSchemaPtr& schema,
         bool /*isPeriodicUpdate*/) noexcept override;
@@ -51,7 +53,9 @@ public:
 
 private:
     const TWeakPtr<ITableManager> WeakTableManager_;
-    bool EnableTableSchemaCache_;
+    std::atomic<bool> EnableTableSchemaCache_;
+
+    bool CanCacheError(const TError& error) noexcept override;
 
     TFuture<NYson::TYsonString> DoGet(
         const TCompactTableSchemaPtr& schema,

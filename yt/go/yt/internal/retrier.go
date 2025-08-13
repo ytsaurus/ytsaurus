@@ -71,6 +71,11 @@ func (r *Retrier) shouldRetry(isRead bool, hasStickyProxy bool, err error) bool 
 		return true
 	}
 
+	if yterrors.ContainsErrorCode(err, yterrors.CodeRequestQueueSizeLimitExceeded) ||
+		yterrors.ContainsErrorCode(err, yterrors.CodeRPCRequestQueueSizeLimitExceeded) {
+		return true
+	}
+
 	if isProxyBannedError(err) && !hasStickyProxy {
 		return true
 	}

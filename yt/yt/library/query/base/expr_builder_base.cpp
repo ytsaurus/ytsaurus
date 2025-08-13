@@ -37,7 +37,7 @@ EValueType GetType(const NAst::TLiteralValue& literalValue)
         [] (bool) {
             return EValueType::Boolean;
         },
-        [] (const TString&) {
+        [] (const std::string&) {
             return EValueType::String;
         });
 }
@@ -60,8 +60,8 @@ TValue GetValue(const NAst::TLiteralValue& literalValue)
         [] (bool value) {
             return MakeUnversionedBooleanValue(value);
         },
-        [] (const TString& value) {
-            return MakeUnversionedStringValue(TStringBuf(value.c_str(), value.length()));
+        [] (const std::string& value) {
+            return MakeUnversionedStringValue(value);
         });
 }
 

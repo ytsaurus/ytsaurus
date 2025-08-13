@@ -1060,7 +1060,7 @@ class TestListJobs(TestListJobsCommon):
         assert len(jobs_with_attr["jobs"]) == 2
         assert jobs_with_attr["jobs"][0].keys() == {"id", "start_time"}
 
-    @authors("eshcherbin", "pogorelov")
+    @authors("bystrovserg")
     def test_operation_incarnation(self):
         def get_operation_incarnation(op):
             wait(lambda: exists(op.get_orchid_path() + "/controller/operation_incarnation"))
@@ -1143,7 +1143,12 @@ class TestListJobs(TestListJobsCommon):
             assert event_job_aborted["incarnation"] == new_incarnation
 
             event_info_job_aborted = event_job_aborted["incarnation_switch_info"]
+            event_info_operation_started = event_operation_started["incarnation_switch_info"]
+            assert len(event_info_operation_started) == 0
             assert event_info_job_aborted["trigger_job_id"] == first_job_id
+            assert event_info_job_aborted["abort_reason"] == "user_request"
+            assert event_info_job_aborted["trigger_job_error"] is not None
+            assert event_info_job_aborted["trigger_job_error"]["message"] is not None
 
             event_after = list_operation_events(op.id, event_type="incarnation_started", limit=1)
             assert len(event_after) == 1
@@ -1210,30 +1215,18 @@ class TestListJobs(TestListJobsCommon):
 
     @authors("bystrovserg")
     def test_with_interruption_info(self):
-        create_pool("research", attributes={"strong_guarantee_resources": {"cpu": 1}})
-        create_pool("prod", attributes={"strong_guarantee_resources": {"cpu": 2}})
+        create_pool("research")
+        create_pool("prod", attributes={"strong_guarantee_resources": {"cpu": 3}})
 
-        op1 = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=3, spec={"pool": "research"})
-        wait_breakpoint(job_count=3)
+        op1 = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool": "research"})
+        wait_breakpoint()
 
-        wait(lambda: len(list_jobs(op1.id, with_interruption_info=True)["jobs"]) == 0)
+        op2 = run_sleeping_vanilla(spec={"pool": "prod"}, job_count=3)
 
-        op2 = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool": "prod"}, job_count=3)
-        wait_breakpoint(job_count=3)
-
-        wait(lambda: op1.get_job_count(state="aborted") == 2)
-
-        wait(lambda: len(list_jobs(op2.id, with_interruption_info=False)["jobs"]) == 2)
-        wait(lambda: len(list_jobs(op1.id, with_interruption_info=True)["jobs"]) == 2)
-        wait(lambda: len(list_jobs(op1.id, with_interruption_info=False)["jobs"]) == 1)
-
-        release_breakpoint()
-        op1.track()
-        op2.track()
+        wait(lambda: op1.get_job_count(state="aborted", verbose=True) == 1)
 
         wait(lambda: len(list_jobs(op2.id, with_interruption_info=False)["jobs"]) == 3)
-        wait(lambda: len(list_jobs(op1.id, with_interruption_info=True)["jobs"]) == 2)
-        wait(lambda: len(list_jobs(op1.id, with_interruption_info=False)["jobs"]) == 3)
+        wait(lambda: len(list_jobs(op1.id, with_interruption_info=True)["jobs"]) == 1)
 
     @authors("aleksandr.gaev")
     def test_job_addresses(self):

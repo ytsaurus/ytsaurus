@@ -8,6 +8,8 @@ namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// The first pivot keys must be the same.
+// Returns a list of common key indices, including the first one and next-to-last ones, assuming they are also the same.
 std::vector<std::pair<int, int>> GetCommonKeyIndices(
     const std::vector<NTableClient::TLegacyOwningKey>& majorTablePivotKeys,
     const std::vector<NTableClient::TLegacyOwningKey>& minorTablePivotKeys,
@@ -39,6 +41,16 @@ std::vector<double> CalculateMajorMetrics(
     const std::vector<i64>& minorTabletSizes,
     const std::vector<NTableClient::TLegacyOwningKey>& majorTablePivotKeys,
     const std::vector<NTableClient::TLegacyOwningKey>& minorTablePivotKeys,
+    const NLogging::TLogger& logger = {},
+    bool enableVerboseLogging = false);
+
+// Reshard tablets of table as close as possible to the reference table's pivot keys,
+// respecting the per-action tablet limit.
+// All pivot keys except the first and the last must be different.
+std::vector<std::pair<int, std::vector<NTableClient::TLegacyOwningKey>>> ReshardByReferencePivots(
+    const TRange<NTableClient::TLegacyOwningKey>& keys,
+    const TRange<NTableClient::TLegacyOwningKey>& referenceKeys,
+    int maxTabletCountPerAction,
     const NLogging::TLogger& logger = {},
     bool enableVerboseLogging = false);
 

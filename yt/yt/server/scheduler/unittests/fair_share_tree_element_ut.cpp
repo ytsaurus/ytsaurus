@@ -710,7 +710,7 @@ private:
 TResourceVolume GetHugeVolume()
 {
     TResourceVolume hugeVolume;
-    hugeVolume.SetCpu(10000000000);
+    hugeVolume.SetCpu(TCpuResource(10000000000L));
     hugeVolume.SetUserSlots(10000000000);
     hugeVolume.SetMemory(10000000000_MB);
     return hugeVolume;
@@ -719,7 +719,7 @@ TResourceVolume GetHugeVolume()
 TJobResources GetOnePercentOfCluster()
 {
     TJobResources onePercentOfCluster;
-    onePercentOfCluster.SetCpu(1);
+    onePercentOfCluster.SetCpu(TCpuResource(1L));
     onePercentOfCluster.SetUserSlots(1);
     onePercentOfCluster.SetMemory(10_MB);
     return onePercentOfCluster;

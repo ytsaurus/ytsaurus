@@ -1170,7 +1170,11 @@ std::string GenerateShortNameForBundle(
 
     shortName.resize(maxLength - 1);
 
-    for (int index = 1; index < 10; ++index) {
+    for (int index = 1; index < 100; ++index) {
+        if (index == 10) {
+            shortName.resize(maxLength - 2);
+        }
+
         auto proposed = Format("%v%v", shortName, index);
 
         if (shortNameToBundle.count(proposed) == 0) {

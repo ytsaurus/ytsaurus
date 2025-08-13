@@ -23,7 +23,7 @@ class TestTracing(YTEnvSetup):
     ENABLE_RPC_PROXY = True
     USE_DYNAMIC_TABLES = True
 
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "api": {
             "force_tracing": True,
         },
@@ -33,6 +33,10 @@ class TestTracing(YTEnvSetup):
         "api_service": {
             "force_tracing": True,
         },
+    }
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
     }
 
     @classmethod

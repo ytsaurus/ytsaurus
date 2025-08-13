@@ -64,6 +64,8 @@ DEFINE_ENUM(ESchedulerAlertType,
     ((ArchiveIsOutdated)                            (18))
     ((ExperimentAssignmentError)                    (19))
     ((UnrecognizedPoolTreeConfigOptions)            (20))
+    ((NodesWithInsufficientResourceLimits)          (21))
+    ((OperationStuckInRemoval)                      (22))
 );
 
 DEFINE_ENUM(EOperationAlertType,
@@ -169,23 +171,26 @@ DEFINE_ENUM(ESegmentedSchedulingMode,
     (LargeGpu)
 );
 
-DEFINE_ENUM(ESchedulingSegmentModuleAssignmentHeuristic,
-    (MaxRemainingCapacity)
-    (MinRemainingFeasibleCapacity)
+DEFINE_ENUM(EGpuSchedulingModuleType,
+    (DataCenter)
+    (InfinibandCluster)
 );
+
+// TODO(eshcherbin): Scheduling segments algorithm will be deprecated.
+using ESchedulingSegmentModuleType = EGpuSchedulingModuleType;
 
 DEFINE_ENUM(ESchedulingSegmentModulePreemptionHeuristic,
     (Greedy)
 );
 
-DEFINE_ENUM(ESchedulingSegmentModuleType,
-    (DataCenter)
-    (InfinibandCluster)
-);
-
 DEFINE_ENUM(EOperationPreemptionPriorityScope,
     (OperationOnly)
     (OperationAndAncestors)
+);
+
+DEFINE_ENUM(ESchedulingSegmentModuleAssignmentHeuristic,
+    (MaxRemainingCapacity)
+    (MinRemainingFeasibleCapacity)
 );
 
 static constexpr int MaxNodeShardCount = 64;
@@ -252,7 +257,7 @@ static constexpr TControllerEpoch InvalidControllerEpoch = TControllerEpoch(-1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const TString CommittedAttribute;
+extern const std::string CommittedAttribute;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -260,13 +265,14 @@ using TNetworkPriority = i8;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const TString DefaultTreeAttributeName;
-extern const TString TreeConfigAttributeName;
-extern const TString IdAttributeName;
-extern const TString ParentIdAttributeName;
-extern const TString StrategyStatePath;
-extern const TString OldSegmentsStatePath;
-extern const TString LastMeteringLogTimePath;
+extern const std::string DefaultTreeAttributeName;
+extern const std::string TreeConfigAttributeName;
+extern const std::string IdAttributeName;
+extern const std::string ParentIdAttributeName;
+
+extern const NYPath::TYPath StrategyStatePath;
+extern const NYPath::TYPath OldSegmentsStatePath;
+extern const NYPath::TYPath LastMeteringLogTimePath;
 
 ////////////////////////////////////////////////////////////////////////////////
 

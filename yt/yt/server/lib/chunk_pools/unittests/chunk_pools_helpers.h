@@ -1,31 +1,23 @@
+#pragma once
+
 #include <yt/yt/server/lib/chunk_pools/public.h>
 
 #include <yt/yt/server/lib/controller_agent/structs.h>
 
-#include <yt/yt/client/table_client/row_buffer.h>
-
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/ytlib/chunk_client/input_chunk.h>
-#include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
-#include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
-
-#pragma once
+#include <util/stream/null.h>
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <>
-void PrintTo(const TIntrusivePtr<NChunkClient::TInputChunk>& chunk, std::ostream* os);
+void PrintTo(const NChunkClient::TInputChunkPtr& chunk, std::ostream* os);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NChunkPools {
-
-////////////////////////////////////////////////////////////////////////////////
-
-NLogging::TLogger GetTestLogger();
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,32 +26,25 @@ NControllerAgent::TCompletedJobSummary SummaryWithSplitJobCount(
     int splitJobCount,
     std::optional<int> readRowCount = {});
 
-////////////////////////////////////////////////////////////////////////////////
-
 void CheckUnsuccessfulSplitMarksJobUnsplittable(IPersistentChunkPoolPtr chunkPool);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkSlice
+class TChunkPoolTestBase
+    : public testing::Test
 {
-public:
-    DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TChunkId, ChunkId);
-    DEFINE_BYREF_RO_PROPERTY(NChunkClient::TInputSliceLimit, LowerLimit);
-    DEFINE_BYREF_RO_PROPERTY(NChunkClient::TInputSliceLimit, UpperLimit);
+protected:
+    void SetUp() override;
 
-    TChunkSlice(
-        const NChunkClient::TInputChunkSlicePtr& chunkSlice,
-        const NChunkClient::TLegacyDataSlicePtr& dataSlice,
-        const NTableClient::TComparator& comparator);
+    static NLogging::TLogger GetTestLogger();
 
-private:
-    NTableClient::TRowBufferPtr RowBuffer_;
+    //! A unit to measure all sizes in this file.
+    static constexpr i32 Inf32 = std::numeric_limits<i32>::max();
+    static constexpr i64 Inf64 = std::numeric_limits<i64>::max();
+
+    static constexpr bool EnableDebugOutput = false;
+    IOutputStream& Cdebug = EnableDebugOutput ? Cerr : Cnull;
 };
-
-bool IsNonEmptyIntersection(
-    const TChunkSlice& lhs,
-    const TChunkSlice& rhs,
-    const NTableClient::TComparator& comparator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -205,7 +205,7 @@ struct IOperationControllerHost
     virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() = 0;
     virtual const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() = 0;
     virtual const IInvokerPtr& GetControllerThreadPoolInvoker() = 0;
-    virtual const IInvokerPtr& GetChunkScraperThreadPoolInvoker() = 0;
+    virtual const IInvokerPtr& GetChunkScraperHeavyThreadPoolInvoker() = 0;
     virtual const IInvokerPtr& GetJobSpecBuildPoolInvoker() = 0;
     virtual const IInvokerPtr& GetStatisticsOffloadInvoker() = 0;
     virtual const IInvokerPtr& GetExecNodesUpdateInvoker() = 0;
@@ -668,6 +668,12 @@ struct IOperationController
      *  \note Invoker affinity: any.
      */
     virtual int GetMonitoredUserJobCount() const = 0;
+
+    //! Return current controller epoch.
+    /*!
+     *  \note Invoker affinity: any.
+     */
+    virtual NScheduler::TControllerEpoch GetControllerEpoch() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

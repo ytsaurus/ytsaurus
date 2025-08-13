@@ -40,6 +40,10 @@ THashMap<NObjectClient::TCellTag, TCellTagRequest> FetchTableAttributes(
     const THashMap<TTableId, NObjectClient::TCellTag>& tableIdToCellTag,
     std::function<void(const NTabletClient::TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr&)> prepareRequestProto);
 
+THashMap<NTabletClient::TTableReplicaId, NTabletClient::ETableReplicaMode> FetchChaosTableReplicaModes(
+    const NApi::NNative::IClientPtr& client,
+    const THashSet<NTabletClient::TTableReplicaId>& replicaIds);
+
 //! Fetch attributes using CellTag from ObjectId.
 THashMap<NObjectClient::TObjectId, NYTree::IAttributeDictionaryPtr> FetchAttributes(
     const NApi::NNative::IClientPtr& client,

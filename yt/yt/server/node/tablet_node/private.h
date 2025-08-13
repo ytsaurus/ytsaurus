@@ -51,6 +51,8 @@ static constexpr auto SelectThrottlerRpcTimeout = TDuration::Seconds(15);
 static constexpr auto CompactionReadThrottlerRpcTimeout = TDuration::Minutes(1);
 static constexpr auto WriteThrottlerRpcTimeout = TDuration::Seconds(15);
 
+static constexpr int MaxRowsPerFlushRead = 1024;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 inline const TErrorAttribute HardErrorAttribute("hard", true);

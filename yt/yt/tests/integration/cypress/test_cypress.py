@@ -2764,39 +2764,50 @@ class TestCypress(YTEnvSetup):
         set("//tmp/test_node", {}, prerequisite_transaction_ids=[tx])
         remove("//tmp/test_node", prerequisite_transaction_ids=[tx])
 
-    @authors("ignat")
-    @not_implemented_in_sequoia
+    @authors("ignat", "cherepashka")
     def test_prerequisite_revisions(self):
         set("//tmp/test_node/inner_node", "value", recursive=True)
         revision = get("//tmp/test_node/inner_node/@revision")
 
-        with raises_yt_error("Prerequisite check failed"):
+        with raises_yt_error("revision mismatch"):
             set(
                 "//tmp/test_node/inner_node",
-                "another value",
+                "another value 1",
                 prerequisite_revisions=[
                     {
                         "path": "//tmp/test_node/inner_node",
-                        "transaction_id": "0-0-0-0",
                         "revision": revision + 1,
+                    }
+                ],
+            )
+
+        with raises_yt_error("Prerequisite check failed: failed to resolve path"):
+            copy(
+                "//tmp/test_node/inner_node",
+                "//tmp/unexisting_node",
+                prerequisite_revisions=[
+                    {
+                        "path": "//tmp/unexisting_node",
+                        "revision": 0,
                     }
                 ],
             )
 
         set(
             "//tmp/test_node/inner_node",
-            "another value",
+            "another value 3",
             prerequisite_revisions=[
                 {
                     "path": "//tmp/test_node/inner_node",
-                    "transaction_id": "0-0-0-0",
                     "revision": revision,
                 }
             ],
         )
 
+        assert get("//tmp/test_node/inner_node") == "another value 3"
+        assert revision < get("//tmp/test_node/inner_node/@revision")
+
     @authors("cherepashka")
-    @not_implemented_in_sequoia
     @pytest.mark.parametrize("make_link", [False, True])
     def test_prerequisite_revisions_restriction(self, make_link):
         set("//sys/@config/object_manager/prohibit_prerequisite_revisions_differ_from_execution_paths", True)
@@ -2858,9 +2869,8 @@ class TestCypress(YTEnvSetup):
             # Shouldn't throw.
             get(path, prerequisite_revisions=prerequisite_revisions)
 
-        # Cross-cell copy-move with prerequisite revision is prohibited.
-        if make_link and get("//home/@native_cell_tag") == get("//tmp/@native_cell_tag"):
-            # There is bug in resolve of prerequisite path now.
+        # There is bug in resolve on masters of prerequisite path now. Cross-cell copy-move with prerequisite revision is prohibited.
+        if make_link and get("//home/@native_cell_tag") == get("//tmp/@native_cell_tag") and not self.ENABLE_TMP_ROOTSTOCK:
             with raises_yt_error("Requests with prerequisite paths different from target paths are prohibited in Cypress"):
                 copy(
                     "//home/revision_node",
@@ -3925,7 +3935,7 @@ class TestCypress(YTEnvSetup):
         with raises_yt_error("has unexpected suffix"):
             copy("//tmp/m/t1/@attr", "//tmp/t2", force=True)
 
-    @authors("gritukan")
+    @authors("kvk1920")
     def test_multiset_attributes(self):
         multiset_attributes("//tmp/@", {"a": 1, "b": 2})
         assert get("//tmp/@a") == 1
@@ -3956,6 +3966,8 @@ class TestCypress(YTEnvSetup):
             multiset_attributes("//tmp/@", {"a/b": 3})
         with raises_yt_error("Builtin attribute \"ref_counter\" cannot be set"):
             multiset_attributes("//tmp/@", {"ref_counter": 5})
+        with raises_yt_error("Node //tmp has no child with key \"unexisting_node\""):
+            multiset_attributes("//tmp/unexisting_node/@", {"m/y": 7, "m/z": 8})
 
     @authors("gritukan")
     def test_multiset_attributes_nonatomicity(self):
@@ -4015,8 +4027,7 @@ class TestCypress(YTEnvSetup):
         multiset_attributes("//tmp/doc/@", {"a": 3})
         assert get("//tmp/doc/@a") == 3
 
-    @authors("gritukan")
-    @not_implemented_in_sequoia
+    @authors("kvk1920")
     def test_multiset_attributes_transaction(self):
         tx1 = start_transaction()
         tx2 = start_transaction()
@@ -4355,6 +4366,11 @@ class TestCypressMulticell(TestCypress):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
     @authors("kvk1920")
     def test_invalid_external_cell_bias(self):
         with raises_yt_error("\"external_cell_bias\" must be in range"):
@@ -4429,6 +4445,12 @@ class TestCypressPortal(TestCypressMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
     NUM_SECONDARY_MASTER_CELLS = 3
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["cypress_node_host"]},
+        "12": {"roles": ["chunk_host", "cypress_node_host"]},
+        "13": {"roles": ["chunk_host"]},
+    }
 
     @authors("h0pless")
     def test_cyclic_link_through_portal(self):
@@ -4592,6 +4614,8 @@ class TestCypressShardedTx(TestCypressPortal):
     NUM_SECONDARY_MASTER_CELLS = 4
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host"]},
+        "12": {"roles": ["chunk_host", "cypress_node_host"]},
         "13": {"roles": ["transaction_coordinator", "chunk_host"]},
         "14": {"roles": ["transaction_coordinator"]},
     }
@@ -4618,7 +4642,11 @@ class TestCypressRpcProxy(TestCypress):
 @pytest.mark.enabled_multidaemon
 class TestCypressMulticellRpcProxy(TestCypressMulticell, TestCypressRpcProxy):
     ENABLE_MULTIDAEMON = True
-    pass
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
 
 
 ##################################################################
@@ -4941,7 +4969,7 @@ class TestCypressNestingLevelLimitHttpProxy(TestCypressNestingLevelLimit):
     ENABLE_HTTP_PROXY = True
     NUM_HTTP_PROXIES = 1
 
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "cluster_connection": {
             "cypress_write_yson_nesting_level_limit": TestCypressNestingLevelLimit.DEPTH_LIMIT,
         }

@@ -12,6 +12,7 @@
 #include "chunk_reader_allowing_repair.h"
 #include "chunk_reader_options.h"
 #include "chunk_replica_cache.h"
+#include "dispatcher.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -373,7 +374,9 @@ private:
     {
         auto guard = Guard(PeersSpinLock_);
 
-        if (FreshSeedsRevision_ >= seedReplicas.Revision) {
+        // NB: Sequoia replicas always use TAllyReplicasInfo::SequoiaRevision;
+        // in case of a tie, consider these to be fresh replicas.
+        if (FreshSeedsRevision_ > seedReplicas.Revision) {
             return;
         }
 
@@ -584,7 +587,7 @@ protected:
         IThroughputThrottlerPtr bandwidthThrottler,
         IThroughputThrottlerPtr rpsThrottler,
         IThroughputThrottlerPtr mediumThrottler,
-        IInvokerPtr sessionInvoker = {})
+        IInvokerPtr sessionInvoker)
         : Reader_(reader)
         , ReaderConfig_(reader->Config_)
         , ReaderOptions_(reader->Options_)
@@ -594,7 +597,7 @@ protected:
         , WorkloadDescriptor_(ReaderConfig_->EnableWorkloadFifoScheduling
             ? SessionOptions_.WorkloadDescriptor.SetCurrentInstant()
             : SessionOptions_.WorkloadDescriptor)
-        , SessionInvoker_(sessionInvoker ? std::move(sessionInvoker) : GetCompressionInvoker(WorkloadDescriptor_))
+        , SessionInvoker_(std::move(sessionInvoker))
         , NodeDirectory_(reader->NodeDirectory_)
         , MediumDirectory_(reader->MediumDirectory_)
         , Networks_(reader->Networks_)
@@ -608,6 +611,9 @@ protected:
             SessionOptions_.ReadSessionId,
             ChunkId_))
     {
+        YT_VERIFY(SessionInvoker_);
+        YT_VERIFY(SessionInvoker_ != GetSyncInvoker());
+
         if (WorkloadDescriptor_.CompressionFairShareTag) {
             Logger.AddTag("CompressionFairShareTag: %v", WorkloadDescriptor_.CompressionFairShareTag);
         }
@@ -1787,24 +1793,26 @@ public:
     TReadBlockSetSession(
         TReplicationReader* reader,
         const IChunkReader::TReadBlocksOptions& options,
-        const std::vector<int>& blockIndexes,
+        std::vector<int> blockIndexes,
         IThroughputThrottlerPtr bandwidthThrottler,
         IThroughputThrottlerPtr rpsThrottler,
         IThroughputThrottlerPtr mediumThrottler)
         : TSessionBase(
             reader,
             options.ClientOptions,
-            std::move(options.DisableBandwidthThrottler
+            options.DisableBandwidthThrottler
                 ? GetUnlimitedThrottler()
-                : std::move(bandwidthThrottler)),
+                : std::move(bandwidthThrottler),
             std::move(rpsThrottler),
             std::move(mediumThrottler),
-            options.SessionInvoker)
-        , BlockIndexes_(blockIndexes)
+            options.SessionInvoker
+                ? options.SessionInvoker
+                : GetCompressionInvoker(options.ClientOptions.WorkloadDescriptor))
+        , BlockIndexes_(std::move(blockIndexes))
         , EstimatedSize_(options.EstimatedSize)
     {
         YT_LOG_DEBUG("Will read block set (Blocks: %v)",
-            MakeCompactIntervalView(blockIndexes));
+            MakeCompactIntervalView(BlockIndexes_));
     }
 
     ~TReadBlockSetSession()
@@ -2141,7 +2149,7 @@ private:
             }
 
             std::vector<std::vector<TBlockWithCookie>> subrequests;
-            int totalElements = blocks.size();
+            int totalElements = std::ssize(blocks);
             int chunkSize = totalElements / batchCount;
             int remainder = totalElements % batchCount;
             int start = 0;
@@ -2405,7 +2413,7 @@ private:
                 .BackupPeer = backupPeer,
             },
             // If hedging is enabled, then get block batching is not allowed.
-            hedgingOptions.has_value() /*hedgingEnabled*/);
+            /*hedgingEnabled*/ hedgingOptions.has_value());
 
         SetSessionFuture(getBlockSetResponseFuture.As<void>());
         return getBlockSetResponseFuture
@@ -2589,7 +2597,10 @@ public:
                 ? GetUnlimitedThrottler()
                 : std::move(bandwidthThrottler),
             std::move(rpsThrottler),
-            std::move(mediumThrottler))
+            std::move(mediumThrottler),
+            options.SessionInvoker
+                ? options.SessionInvoker
+                : GetCompressionInvoker(options.ClientOptions.WorkloadDescriptor))
         , FirstBlockIndex_(firstBlockIndex)
         , BlockCount_(blockCount)
         , EstimatedSize_(options.EstimatedSize)
@@ -2881,7 +2892,7 @@ public:
             std::move(bandwidthThrottler),
             std::move(rpsThrottler),
             std::move(mediumThrottler),
-            GetCurrentInvoker())
+            TDispatcher::Get()->GetReaderInvoker())
         , MetaSize_(options.MetaSize)
         , PartitionTag_(partitionTag)
         , ExtensionTags_(extensionTags)
@@ -4092,16 +4103,16 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
 ////////////////////////////////////////////////////////////////////////////////
 
 IChunkReaderAllowingRepairPtr CreateReplicationReaderThrottlingAdapter(
-    const IChunkReaderPtr& underlyingReader,
+    IChunkReaderPtr underlyingReader,
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler,
     IThroughputThrottlerPtr mediumThrottler)
 {
-    auto* underlyingReplicationReader = dynamic_cast<TReplicationReader*>(underlyingReader.Get());
+    auto underlyingReplicationReader = DynamicPointerCast<TReplicationReader>(underlyingReader);
     YT_VERIFY(underlyingReplicationReader);
 
     return New<TReplicationReaderWithOverriddenThrottlers>(
-        underlyingReplicationReader,
+        std::move(underlyingReplicationReader),
         std::move(bandwidthThrottler),
         std::move(rpsThrottler),
         std::move(mediumThrottler));

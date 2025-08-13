@@ -21,6 +21,8 @@ SRCS(
     fair_share_tree_scheduling_snapshot.cpp
     fair_share_tree_snapshot.cpp
     fields_filter.cpp
+    gpu_allocation_assignment_plan_update.cpp
+    gpu_allocation_scheduler_structs.cpp
     helpers.cpp
     job_resources_helpers.cpp
     master_connector.cpp

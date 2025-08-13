@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/crypto/crypto.h>
 
+#include <yt/yt/core/rpc/dispatcher.h>
+
 namespace NYT::NAuth {
 
 using namespace NApi;
@@ -104,7 +106,8 @@ private:
     TFuture<TAuthenticationResult> OnGotCookie(const TCypressCookiePtr& cookie)
     {
         return GetUserPasswordRevision(cookie->User)
-            .Apply(BIND(&TCypressCookieAuthenticator::OnGotPasswordRevision, MakeStrong(this), cookie));
+            .Apply(BIND(&TCypressCookieAuthenticator::OnGotPasswordRevision, MakeStrong(this), cookie)
+                .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker()));
     }
 
     TAuthenticationResult OnGotPasswordRevision(

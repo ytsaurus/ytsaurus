@@ -583,11 +583,7 @@ private:
 
         Load(context, Queues_);
         Load(context, Consumers_);
-
-        // COMPAT(apachee)
-        if (context.GetVersion() >= EMasterReign::QueueProducers) {
-            Load(context, Producers_);
-        }
+        Load(context, Producers_);
     }
 
     void OnAfterSnapshotLoaded() override

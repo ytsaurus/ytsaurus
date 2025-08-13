@@ -197,15 +197,13 @@ void TBootstrap::DoInitialize()
             RootClient_);
     }
 
+    auto ownerId = TOwnerId(BuildServiceAddress(GetLocalHostName(), Config_->RpcPort));
     SignatureComponents_ = New<TSignatureComponents>(
         Config_->SignatureComponents,
+        std::move(ownerId),
         RootClient_,
         GetControlInvoker());
 
-    // NB(pavook):
-    // We can't wait for initialization anywhere in bootstrap, because proxy bootstrap
-    // should be possible even in master read-only mode.
-    YT_UNUSED_FUTURE(SignatureComponents_->Initialize());
     Connection_->SetSignatureGenerator(SignatureComponents_->GetSignatureGenerator());
 
     ProxyCoordinator_ = CreateProxyCoordinator();
@@ -513,6 +511,10 @@ void TBootstrap::OnDynamicConfigChanged(
     ReconfigureMemoryLimits(newConfig->MemoryLimits);
 
     ReconfigureConnection(newConfig, BundleDynamicConfigManager_->GetConfig());
+
+    if (newConfig->SignatureComponents) {
+        YT_UNUSED_FUTURE(SignatureComponents_->Reconfigure(newConfig->SignatureComponents));
+    }
 }
 
 void TBootstrap::OnBundleDynamicConfigChanged(

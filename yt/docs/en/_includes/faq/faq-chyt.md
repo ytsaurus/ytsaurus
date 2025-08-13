@@ -1,30 +1,30 @@
 # FAQ
 
-#### **Q: Why does CHYT have cliques, while regular ClickHouse has nothing analogous? What is a clique?**
+#### **Q: Why does CHYT have cliques, while regular ClickHouse has nothing analogous? What is a clique?** {#chyt-cliques-explanation}
 
 **A:** There is a dedicated [article](../../user-guide/data-processing/chyt/general.md) about this.
 
 ------
 
-#### **Q: I am getting the "DB::NetException: Connection refused" or the "DB::Exception: Attempt to read after eof: while receiving packet" error. What does it mean?**
+#### **Q: I am getting the "DB::NetException: Connection refused" or the "DB::Exception: Attempt to read after eof: while receiving packet" error. What does it mean?** {#connection-refused-error}
 
 **A:** This normally means that the CHYT process inside the Vanilla transaction crashed. You can view the aborted/failed job [counters](../../user-guide/data-processing/chyt/cliques/ui.md) in the operation UI. If there are recent jobs aborted due to preemption, it means that the clique is short on resources. If there are recent failed jobs, please contact your system administrator.
 
 ------
 
-#### **Q: I am getting the "Subquery exceeds data weight limit: XXX > YYY" error. What does it mean?**
+#### **Q: I am getting the "Subquery exceeds data weight limit: XXX > YYY" error. What does it mean?** {#subquery-data-weight-limit}
 
 <!-- **A:** смотрите опцию `max_data_weight_per_subquery` в документации по [конфигурации](../../user-guide/data-processing/chyt/reference/configuration.md#yt) клики. -->
 
 ------
 
-#### **Q: How do I save to a table?**
+#### **Q: How do I save to a table?** {#save-to-table}
 
 **A:** There are **INSERT INTO** and **CREATE TABLE** functions. Learn more in the section on [Differences from ClickHouse.](../../user-guide/data-processing/chyt/yt-tables.md#save)
 
 ------
 
-#### **Q: How do I load geo-dicts in my own clique?**
+#### **Q: How do I load geo-dicts in my own clique?** {#load-geodictionaries-chyt}
 
 **A:** When starting any clique, you can specify the `--cypress-geodata-path` option that enables you to specify the path to geo-dicts in [Cypress](../../user-guide/storage/cypress.md).
 
@@ -32,7 +32,7 @@
 
 ------
 
-#### **Q: Can CHYT handle dates in TzDatetime format?**
+#### **Q: Can CHYT handle dates in TzDatetime format?** {#chyt-tzdatetime-handling}
 
 **A:**  CHYT can handle dates in TzDatetime format just as well as conventional ClickHouse. You will have to store data as strings or numbers and convert them for reading and writing. Example date extraction by **@gri201**:
 
@@ -42,7 +42,7 @@ toDate(reinterpretAsInt64(reverse(unhex(substring(hex(payment_dt), 1, 8)))))
 
 ------
 
-#### **Q: How do I move a table to an SSD?**
+#### **Q: How do I move a table to an SSD?** {#how-to-set-ssd}
 
 **A:** First, make sure that your {{product-name}} account has a quota for the **ssd_blobs** medium. To do this, go to the account page, switch your medium type to **ssd_blobs**, and enter your account name. If you have no quota for the **ssd_blobs** medium, you can request it via a special form.
 
@@ -68,6 +68,7 @@ You can speed up the move further with [forced_compaction](../../user-guide/dyna
 
 To verify that the table has in fact changed its medium, use the command below:
 
+
 ```bash
 $ yt get //home/dev/test_table/@chunk_media_statistics
 
@@ -84,7 +85,7 @@ $ yt get //home/dev/test_table/@chunk_media_statistics
 
 ------
 
-#### **Q: Is the SAMPLE construct of the ClickHouse language supported?**
+#### **Q: Is the SAMPLE construct of the ClickHouse language supported?** {#chyt-sample-support}
 
 **A:** CHYT supports the Sample construction. The difference is that CHYT ignores the `OFFSET ...` command, so you cannot get a sample from another part of the selected data.
 
@@ -100,6 +101,6 @@ SELECT count(*) FROM "//tmp/sample_table" SAMPLE 100500;
 
 ------
 
-#### **Q: How do I get the table name in a query?**
+#### **Q: How do I get the table name in a query?** {#get-table-name-query}
 
 **A:** You can use the `$table_name` and `$table_path` virtual columns. For more information about the virtual columns, see [Working with {{product-name}} tables](../../user-guide/data-processing/chyt/yt-tables.md##virtual_columns).

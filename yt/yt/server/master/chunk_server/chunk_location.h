@@ -119,10 +119,6 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
-    // COMPAT(kvk1920): remove after 24.2.
-    // NB: See comment for TSerializerTraits<NChunkServer::TChunkLocation*, C>.
-    static TNode* SkipImaginaryChunkLocation(NCellMaster::TLoadContext& context);
-
 private:
     // TODO(kvk1920): TStrongObjectPtr<TDomesticMedium> EffectiveMedium.
     TReplicaSet::iterator RandomReplicaIter_;

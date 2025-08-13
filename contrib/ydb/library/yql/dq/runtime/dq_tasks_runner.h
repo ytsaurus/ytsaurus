@@ -400,6 +400,10 @@ public:
         return Task_->HasEnableSpilling() && Task_->GetEnableSpilling();
     }
 
+    NYql::NDqProto::EValuePackerVersion GetValuePackerVersion() const {
+        return Task_->GetValuePackerVersion();
+    }
+
 private:
 
     // external callback to retrieve parameter value.
@@ -455,6 +459,7 @@ public:
     virtual const NKikimr::NMiniKQL::TWatermark& GetWatermark() const = 0;
 
     virtual void SetSpillerFactory(std::shared_ptr<NKikimr::NMiniKQL::ISpillerFactory> spillerFactory) = 0;
+    virtual TString GetOutputDebugString() = 0;
 };
 
 TIntrusivePtr<IDqTaskRunner> MakeDqTaskRunner(

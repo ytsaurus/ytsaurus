@@ -4,7 +4,7 @@ from yt_commands import (
     authors, create, ls, get, remove, build_master_snapshots, raises_yt_error,
     exists, set, copy, move, gc_collect, write_table, read_table, create_user,
     start_transaction, abort_transaction, commit_transaction, wait, lock,
-    execute_batch, make_batch_request, get_batch_output, print_debug,
+    execute_batch, make_batch_request, get_batch_output, print_debug, make_ace,
 )
 
 from yt_sequoia_helpers import (
@@ -12,7 +12,7 @@ from yt_sequoia_helpers import (
     select_paths_from_ground,
     lookup_cypress_transaction, select_cypress_transaction_replicas,
     select_cypress_transaction_descendants, clear_table_in_ground,
-    select_cypress_transaction_prerequisites,
+    select_cypress_transaction_prerequisites, lookup_rows_in_ground,
     mangle_sequoia_path, demangle_sequoia_path, insert_rows_to_ground,
 )
 
@@ -82,6 +82,7 @@ class TestSequoiaInternals(YTEnvSetup):
         # Master cell with tag 11 is reserved for portals.
         "11": {"roles": ["cypress_node_host"]},
         "12": {"roles": ["sequoia_node_host"]},
+        "13": {"roles": ["chunk_host"]},
     }
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
@@ -547,6 +548,36 @@ class TestSequoiaInternals(YTEnvSetup):
         sleep(1)
 
         assert measure_read_time() < 2
+
+    def lookup_acls(self, node_id):
+        return lookup_rows_in_ground(DESCRIPTORS.acls.get_default_path(), [{"node_id": node_id}])
+
+    @authors("danilalexeev")
+    def test_acl_simple(self):
+        create_user("u")
+
+        expected_acl = [make_ace("allow", "u", "write")]
+        node_id = create("table", "//tmp/t", attributes={
+            "inherit_acl": False,
+            "acl": expected_acl,
+        })
+
+        wait(lambda: len(self.lookup_acls(node_id)) == 1)
+        rows = self.lookup_acls(node_id)
+        assert len(rows) == 1
+
+        row = rows[0]
+        assert not row["inherit"]
+        assert row["acl"] == expected_acl
+
+        set("//tmp/t/@inherit_acl", True)
+        wait(lambda: self.lookup_acls(node_id)[0]["inherit"])
+
+        set("//tmp/t/@acl/end", make_ace("deny", "everyone", "read"))
+        wait(lambda: len(self.lookup_acls(node_id)[0]["acl"]) == 2)
+
+        remove("//tmp/t")
+        wait(lambda: len(self.lookup_acls(node_id)) == 0)
 
 
 @pytest.mark.enabled_multidaemon

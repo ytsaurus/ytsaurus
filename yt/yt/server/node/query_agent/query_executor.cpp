@@ -497,9 +497,9 @@ public:
 
         AccountCpuTimeToTablets(statistics);
 
-        auto cpuTime = statistics.SyncTime;
+        auto cpuTime = statistics.SyncTime.GetTotal();
         for (const auto& innerStatistics : statistics.InnerStatistics) {
-            cpuTime += innerStatistics.SyncTime;
+            cpuTime += innerStatistics.SyncTime.GetTotal();
         }
         counters->CpuTime.Add(cpuTime);
 
@@ -642,6 +642,7 @@ private:
                             return getPrefetchJoinDataSource(subqueryIndex, joinIndex);
                         },
                         MemoryChunkProvider_,
+                        QueryOptions_.UseOrderByInJoinSubqueries,
                         Logger));
                 }
 
@@ -659,7 +660,10 @@ private:
                         RequestFeatureFlags_,
                         responseFeatureFlags);
 
-                asyncStatistics = asyncStatistics.ApplyUnique(BIND([=, Logger = Logger] (TErrorOr<TQueryStatistics>&& result) {
+                asyncStatistics = asyncStatistics.ApplyUnique(BIND([
+                    =,
+                    Logger = Logger
+                ] (TErrorOr<TQueryStatistics>&& result) {
                     if (!result.IsOK()) {
                         pipe->Fail(result);
                         YT_LOG_DEBUG(result, "Bottom query failed (SubqueryId: %v)", bottomQuery->Id);
@@ -1602,16 +1606,19 @@ private:
             for (const auto& [_, ratio] : (*TabletRatios_)[subqueryIndex]) {
                 ratioSums[subqueryIndex] += ratio;
             }
-            totalRowsWrittenBySubqueries += statistics.InnerStatistics[subqueryIndex].RowsWritten;
+            const auto& innerStatistics = statistics.InnerStatistics[subqueryIndex];
+            totalRowsWrittenBySubqueries += innerStatistics.RowsWritten.GetTotal();
+            // Statistics must reach this function unaggregated.
+            YT_ASSERT(innerStatistics.RowsWritten.GetTotal() == innerStatistics.RowsWritten.GetMax());
         }
 
         for (int subqueryIndex = 0; subqueryIndex < subqueryCount; ++subqueryIndex) {
             const auto& innerStatistics = statistics.InnerStatistics[subqueryIndex];
 
             auto subqueryCpuTime = (
-                (innerStatistics.SyncTime - innerStatistics.CodegenTime) +
-                (statistics.SyncTime - statistics.CodegenTime) *
-                    safeDiv(innerStatistics.RowsWritten, totalRowsWrittenBySubqueries))
+                (innerStatistics.SyncTime.GetTotal() - innerStatistics.CodegenTime.GetTotal()) +
+                (statistics.SyncTime.GetTotal() - statistics.CodegenTime.GetTotal()) *
+                    safeDiv(innerStatistics.RowsWritten.GetTotal(), totalRowsWrittenBySubqueries))
                 .MicroSeconds();
 
 
@@ -1680,7 +1687,15 @@ TQueryStatistics ExecuteSubquery(
         std::move(queryOptions),
         std::move(requestFeatureFlags));
 
-    return execution->Execute(profilerGuard);
+    auto statistics = execution->Execute(profilerGuard);
+
+    if (queryOptions.StatisticsAggregation == EStatisticsAggregation::Depth) {
+        TQueryStatistics aggregated;
+        aggregated.Merge(statistics);
+        return aggregated;
+    }
+
+    return statistics;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

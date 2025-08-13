@@ -645,7 +645,11 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        for (const auto& [transactionId, writeState] : TransactionIdToPersistentWriteState_) {
+        for (const auto& [_, writeState] : TransactionIdToTransientWriteState_) {
+            writeState->PreparedBarrierCookie = InvalidAsyncBarrierCookie;
+        }
+
+        for (const auto& [_, writeState] : TransactionIdToPersistentWriteState_) {
             writeState->PreparedBarrierCookie = InvalidAsyncBarrierCookie;
         }
 

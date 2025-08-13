@@ -48,6 +48,8 @@ class TestChaos(ChaosTestBase):
     NUM_REMOTE_CLUSTERS = 2
     NUM_TEST_PARTITIONS = 40
     NUM_SCHEDULERS = 1
+    NUM_SECONDARY_MASTER_CELLS_REMOTE_0 = 1
+    NUM_SECONDARY_MASTER_CELLS_REMOTE_1 = 1
 
     DELTA_DRIVER_CONFIG = {
         "enable_read_from_async_replicas": True,
@@ -74,6 +76,14 @@ class TestChaos(ChaosTestBase):
         "chaos_node": {
             "replication_card_automaton_cache_expiration_time": 100
         },
+    }
+
+    MASTER_CELL_DESCRIPTORS_REMOTE_0 = {
+        "21": {"roles": ["chunk_host", "cypress_node_host"]},
+    }
+
+    MASTER_CELL_DESCRIPTORS_REMOTE_1 = {
+        "31": {"roles": ["chunk_host", "cypress_node_host"]},
     }
 
     def setup_method(self, method):
@@ -4527,6 +4537,7 @@ class TestChaos(ChaosTestBase):
                 {"cluster_name": "remote_0", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": f"{prefix}.data"},
                 {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": f"{prefix}.queue_incompatible", "catchup": False},
                 {"cluster_name": "remote_1", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": f"{prefix}.data_incompatible", "catchup": False},
+                {"cluster_name": "primary", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": f"{prefix}.aqueue"},
             ]
             replica_ids = self._create_chaos_table_replicas(replicas, table_path=f"{prefix}.crt")
 
@@ -4534,8 +4545,23 @@ class TestChaos(ChaosTestBase):
             self._create_replica_tables(replicas[2:], replica_ids[2:], schema=hash_schema)
             self._sync_replication_era(card_id, replicas)
 
-        _create("//tmp/t1", ["sorted_simple", "sorted_hash"])
-        _create("//tmp/t2", ["sorted_value1", "sorted_hash_value1"])
+            return (card_id, replicas, replica_ids)
+
+        t1_card_id, t1_replicas, t1_replica_ids = _create("//tmp/t1", ["sorted_simple", "sorted_hash"])
+        t2_card_id, t2_replicas, t2_replica_ids = _create("//tmp/t2", ["sorted_value1", "sorted_hash_value1"])
+
+        # wait until replication card is updated on chaos nodes
+        timestamp = generate_timestamp()
+        wait(lambda: get(f"//tmp/t1.crt/@replicas/{t1_replica_ids[1]}/replication_lag_timestamp") > timestamp)
+        wait(lambda: get(f"//tmp/t1.crt/@replicas/{t1_replica_ids[3]}/replication_lag_timestamp") > timestamp)
+        wait(lambda: get(f"//tmp/t2.crt/@replicas/{t2_replica_ids[1]}/replication_lag_timestamp") > timestamp)
+        wait(lambda: get(f"//tmp/t2.crt/@replicas/{t2_replica_ids[3]}/replication_lag_timestamp") > timestamp)
+
+        # Trigger era change and wait this exact replication card to reach all nodes
+        alter_table_replica(t1_replica_ids[4], enabled=False)
+        alter_table_replica(t2_replica_ids[4], enabled=False)
+        self._sync_alter_replica(t1_card_id, t1_replicas, t1_replica_ids, 4, enabled=True)
+        self._sync_alter_replica(t2_card_id, t2_replicas, t2_replica_ids, 4, enabled=True)
 
         insert_rows("//tmp/t1.crt", [{"key": 0, "value": str(0)}])
         insert_rows("//tmp/t2.crt", [{"key": 0, "value1": str(1)}])
@@ -4997,10 +5023,36 @@ class TestChaos(ChaosTestBase):
             return original_id[:-1] + "a" if original_id[-1] != "a" else original_id[:-1] + "b"
 
         with raises_yt_error(yt_error_codes.ChaosLeaseNotKnown):
+            create_chaos_lease(cell_id, attributes={"parent_id": corrupt_id(lease_id)})
+
+        with raises_yt_error(yt_error_codes.ChaosLeaseNotKnown):
             ping_chaos_lease(corrupt_id(lease_id))
 
         with raises_yt_error(yt_error_codes.ChaosLeaseNotKnown):
             remove(f"#{corrupt_id(lease_id)}")
+
+    @authors("gryzlov-ad")
+    def test_chaos_lease_hierarchy(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        root_lease_id = create_chaos_lease(cell_id, attributes={"timeout": 10000})
+        child_lease_id = create_chaos_lease(cell_id, attributes={"timeout": 10000, "parent_id": root_lease_id})
+
+        first_ping_time = get(f"#{root_lease_id}/@last_ping_time")
+        ping_chaos_lease(child_lease_id, ping_ancestors=True)
+        last_ping_time = get(f"#{root_lease_id}/@last_ping_time")
+
+        assert first_ping_time < last_ping_time
+
+        ping_chaos_lease(child_lease_id, ping_ancestors=False)
+        unchanged_ping_time = get(f"#{root_lease_id}/@last_ping_time")
+
+        assert unchanged_ping_time == last_ping_time
+
+        remove(f"#{root_lease_id}")
+        assert not self._chaos_lease_exists(child_lease_id)
+        assert not self._chaos_lease_exists(root_lease_id)
+
 
 ##################################################################
 
@@ -5429,6 +5481,11 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
 
 class TestChaosMulticell(TestChaos):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
 
 
 ##################################################################
@@ -6194,6 +6251,50 @@ class TestChaosClock(ChaosClockBase):
 
         with pytest.raises(YtError, match="Transaction timestamp is generated from unexpected clock"):
             insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
+
+    @authors("ponasenko-rs")
+    @pytest.mark.parametrize("clock_tag_valid", [True, False])
+    def test_check_on_mount_with_invalid_clock_tag(self, clock_tag_valid):
+        drivers = self._get_drivers()
+
+        for driver in drivers:
+            set("//sys/@config/tablet_manager/enable_clock_cell_tag_validation_on_chaos_replica_mount", True, driver=driver)
+
+        def _set_default_bundle_clock_cluster_tag(clock_cluster_tag):
+            for driver in drivers:
+                set("//sys/tablet_cell_bundles/default/@options/clock_cluster_tag", clock_cluster_tag, driver=driver)
+
+        if clock_tag_valid:
+            _set_default_bundle_clock_cluster_tag(get("//sys/@primary_cell_tag"))
+        else:
+            invalid_cell_tag = 0xf004
+            _set_default_bundle_clock_cluster_tag(invalid_cell_tag)
+
+        cell_id = self._create_single_peer_chaos_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"}
+        ]
+
+        card_id, _ = self._create_chaos_tables(cell_id, replicas, sync_replication_era=False, mount_tables=False)
+
+        if clock_tag_valid:
+            for replica in replicas:
+                sync_mount_table(replica["replica_path"], driver=get_driver(cluster=replica["cluster_name"]))
+
+            self._sync_replication_era(card_id, replicas)
+
+            values = [{"key": 0, "value": "0"}]
+            insert_rows("//tmp/t", values)
+            wait(lambda: lookup_rows("//tmp/t", [{"key": 0}]) == values)
+        else:
+            for replica in replicas:
+                with raises_yt_error(
+                    "Chaos replicas should be part of tablet cell bundle configured with relevant clock cell tag."
+                    " Please reconfigure bundle or move table to bundle properly configured with respect to clock source."
+                ):
+                    sync_mount_table(replica["replica_path"], driver=get_driver(cluster=replica["cluster_name"]))
 
     @authors("savrus")
     @pytest.mark.parametrize("mode", ["sync", "async"])

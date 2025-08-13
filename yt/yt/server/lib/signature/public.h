@@ -11,8 +11,8 @@ namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_STRONG_TYPEDEF(TKeyId, TGuid)
-YT_DEFINE_STRONG_TYPEDEF(TOwnerId, std::string)
+YT_DEFINE_STRONG_TYPEDEF(TKeyId, TGuid);
+YT_DEFINE_STRONG_TYPEDEF(TOwnerId, std::string);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,6 +33,8 @@ DECLARE_REFCOUNTED_CLASS(TSignatureGenerator)
 DECLARE_REFCOUNTED_CLASS(TSignatureValidator)
 DECLARE_REFCOUNTED_CLASS(TCypressKeyReader)
 DECLARE_REFCOUNTED_CLASS(TCypressKeyWriter)
+DECLARE_REFCOUNTED_CLASS(TDynamicSignatureGenerator)
+DECLARE_REFCOUNTED_CLASS(TDynamicSignatureValidator)
 DECLARE_REFCOUNTED_CLASS(TSignatureComponents)
 
 ////////////////////////////////////////////////////////////////////////////////

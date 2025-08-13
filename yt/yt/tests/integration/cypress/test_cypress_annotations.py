@@ -45,7 +45,7 @@ class TestCypressAnnotations(YTEnvSetup):
         }
     }
 
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "cypress_annotations": {
             "whoami": "proxy"
         }

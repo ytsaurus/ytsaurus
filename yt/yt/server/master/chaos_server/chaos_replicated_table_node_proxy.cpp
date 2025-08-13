@@ -586,9 +586,8 @@ private:
         TReplicationCardId replicationCardId,
         NNative::IConnectionPtr connection)
     {
-        auto proxy = TChaosNodeServiceProxy(connection->GetChaosChannelByCardId(replicationCardId));
-        // TODO(nadya02): Set the correct timeout here.
-        proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
+        auto proxy = TChaosNodeServiceProxy(connection->GetChaosChannelByCardIdOrThrow(replicationCardId));
+        proxy.SetDefaultTimeout(connection->GetConfig()->DefaultChaosNodeServiceTimeout);
         auto req = proxy.GetReplicationCardCollocation();
         ToProto(req->mutable_replication_card_collocation_id(), collocationId);
         return req->Invoke()

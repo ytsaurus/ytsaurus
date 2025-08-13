@@ -7,9 +7,6 @@
 #include "web_assembly_caller.h"
 
 #include <yt/yt/library/codegen/module.h>
-#include <yt/yt/library/codegen/public.h>
-
-#include <yt/yt/core/logging/log.h>
 
 #include <llvm/IR/Module.h>
 
@@ -1463,7 +1460,7 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
     EUnaryOp opcode,
     size_t operandId,
     EValueType type,
-    TString name)
+    std::string name)
 {
     return [
         =,
@@ -1535,7 +1532,7 @@ TCodegenExpression MakeCodegenLogicalBinaryOpExpr(
     size_t lhsId,
     size_t rhsId,
     EValueType type,
-    TString name)
+    std::string name)
 {
     return [
         =,
@@ -1589,7 +1586,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
     size_t lhsId,
     size_t rhsId,
     EValueType type,
-    TString name,
+    std::string name,
     bool useCanonicalNullRelations)
 {
     return [
@@ -1945,7 +1942,7 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
     size_t lhsId,
     size_t rhsId,
     EValueType type,
-    TString name)
+    std::string name)
 {
     return [
         =,
@@ -2104,7 +2101,7 @@ TCodegenExpression MakeCodegenStringBinaryOpExpr(
     size_t lhsId,
     size_t rhsId,
     EValueType type,
-    TString name)
+    std::string name)
 {
     YT_VERIFY(type == EValueType::String);
     YT_VERIFY(opcode == EBinaryOp::Concatenate);
@@ -2181,7 +2178,7 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
     size_t lhsId,
     size_t rhsId,
     EValueType type,
-    TString name,
+    std::string name,
     bool useCanonicalNullRelations)
 {
     if (IsLogicalBinaryOp(opcode)) {
@@ -4315,7 +4312,7 @@ TCGQueryImage CodegenQuery(
     EExecutionBackend executionBackend)
 {
     auto cgModule = TCGModule::Create(GetQueryRoutineRegistry(executionBackend), executionBackend);
-    const auto entryFunctionName = TString("EvaluateQuery");
+    const auto entryFunctionName = std::string("EvaluateQuery");
 
     auto* queryFunction = MakeFunction<TCGPIQuerySignature>(cgModule, entryFunctionName.c_str(), [&] (
         TCGBaseContext& baseBuilder,
@@ -4352,7 +4349,7 @@ TCGExpressionImage CodegenStandaloneExpression(
     EExecutionBackend executionBackend)
 {
     auto cgModule = TCGModule::Create(GetQueryRoutineRegistry(executionBackend), executionBackend);
-    const auto entryFunctionName = TString("EvaluateExpression");
+    const auto entryFunctionName = std::string("EvaluateExpression");
 
     CodegenFragmentBodies(cgModule, *fragmentInfos);
 
@@ -4394,7 +4391,7 @@ TCGAggregateImage CodegenAggregate(
 {
     auto cgModule = TCGModule::Create(GetQueryRoutineRegistry(executionBackend), executionBackend);
 
-    static const auto initName = TString("init");
+    static const auto initName = std::string("init");
     {
         auto* initFunction = MakeFunction<TCGPIAggregateInitSignature>(cgModule, initName.c_str(), [&] (
             TCGBaseContext& builder,
@@ -4412,7 +4409,7 @@ TCGAggregateImage CodegenAggregate(
         }
     }
 
-    static const auto updateName = TString("update");
+    static const auto updateName = std::string("update");
     {
         auto* updateFunction = MakeFunction<TCGPIAggregateUpdateSignature>(cgModule, updateName.c_str(), [&] (
             TCGBaseContext& builder,
@@ -4440,7 +4437,7 @@ TCGAggregateImage CodegenAggregate(
         }
     }
 
-    static const auto mergeName = TString("merge");
+    static const auto mergeName = std::string("merge");
     {
         auto* mergeFunction = MakeFunction<TCGPIAggregateMergeSignature>(cgModule, mergeName.c_str(), [&] (
             TCGBaseContext& builder,
@@ -4462,7 +4459,7 @@ TCGAggregateImage CodegenAggregate(
         }
     }
 
-    static const auto finalizeName = TString("finalize");
+    static const auto finalizeName = std::string("finalize");
     {
         auto* finalizeFunction = MakeFunction<TCGPIAggregateFinalizeSignature>(cgModule, finalizeName.c_str(), [&] (
             TCGBaseContext& builder,

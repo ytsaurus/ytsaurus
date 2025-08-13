@@ -1,0 +1,3 @@
+RECURSE(
+    test_framework
+)

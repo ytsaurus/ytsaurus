@@ -56,7 +56,7 @@ std::optional<TValue> FoldConstants(
 struct TNameSource
 {
     const TTableSchema& Schema;
-    std::optional<TString> Alias;
+    std::optional<std::string> Alias;
     std::vector<TColumnDescriptor>* Mapping = nullptr;
 
     // Columns inherited from previous sources.
@@ -110,7 +110,7 @@ public:
 
     virtual void SetGroupData(const TNamedItemList* groupItems, TAggregateItemList* aggregateItems) = 0;
 
-    virtual TString InferGroupItemName(
+    virtual std::string InferGroupItemName(
         const TConstExpressionPtr& typedExpression,
         const NAst::TExpression& expressionsAst) = 0;
 

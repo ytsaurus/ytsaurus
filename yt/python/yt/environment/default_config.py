@@ -128,7 +128,6 @@ def get_dynamic_master_config():
             "statistics_flush_period": 200,
             "expiration_check_period": 200,
             "expiration_backoff_time": 200,
-            "remove_expired_master_nodes_using_client": True,
             "scion_removal_period": 1000,
             "virtual_map_read_offload_batch_size": 2,
             "enable_preserve_acl_during_move": False,
@@ -244,6 +243,9 @@ def get_scheduler_config():
                     "filter": ".*",
                     "priority": -117,
                     "config": {
+                        # COMPAT(ignat)
+                        "enable_step_function_for_gang_operations": True,
+                        "enable_improved_fair_share_by_fit_factor_computation": True,
                     },
                 },
             },

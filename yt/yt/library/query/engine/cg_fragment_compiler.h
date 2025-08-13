@@ -42,7 +42,7 @@ struct TCodegenFragmentInfos
 {
     std::vector<TCodegenFragmentInfo> Items;
     std::vector<Function*> Functions;
-    TString NamePrefix;
+    std::string NamePrefix;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCodegenFragmentInfos)
@@ -108,14 +108,14 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
     EUnaryOp opcode,
     size_t operandId,
     EValueType type,
-    TString name);
+    std::string name);
 
 TCodegenExpression MakeCodegenBinaryOpExpr(
     EBinaryOp opcode,
     size_t lhsId,
     size_t rhsId,
     EValueType type,
-    TString name,
+    std::string name,
     bool useCanonicalNullRelations);
 
 TCodegenExpression MakeCodegenInExpr(

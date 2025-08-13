@@ -39,17 +39,17 @@ TEST(TFilterIntrospectionTest, DefinedAttributeValue)
     EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id]=(1+2+3,2)", "/meta/id").Value, std::nullopt);
 
     // Equality.
-    EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id]=\"aba\"", "/meta/id").TryMoveAs<TString>(), "aba");
+    EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id]=\"aba\"", "/meta/id").TryMoveAs<std::string>(), "aba");
 
     // And.
-    EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id]=\"aba\" and [/meta/creation_time] > 100", "/meta/id").TryMoveAs<TString>(), "aba");
-    EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id]=\"aba\" and not ([/meta/id]=\"aba\")", "/meta/id").TryMoveAs<TString>(), "aba");
-    EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id]=\"aba\" and [/meta/id]=\"cde\"", "/meta/id").TryMoveAs<TString>(), "aba");
-    EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id]=\"aba\" and 123", "/meta/id").TryMoveAs<TString>(), "aba");
+    EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id]=\"aba\" and [/meta/creation_time] > 100", "/meta/id").TryMoveAs<std::string>(), "aba");
+    EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id]=\"aba\" and not ([/meta/id]=\"aba\")", "/meta/id").TryMoveAs<std::string>(), "aba");
+    EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id]=\"aba\" and [/meta/id]=\"cde\"", "/meta/id").TryMoveAs<std::string>(), "aba");
+    EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id]=\"aba\" and 123", "/meta/id").TryMoveAs<std::string>(), "aba");
 
     // Or.
     EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id]=\"aba\" or [/meta/id]=\"cde\"", "/meta/id").Value, std::nullopt);
-    EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id]=\"aba\" or [/meta/id]=\"aba\"", "/meta/id").TryMoveAs<TString>(), "aba");
+    EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id]=\"aba\" or [/meta/id]=\"aba\"", "/meta/id").TryMoveAs<std::string>(), "aba");
     EXPECT_EQ(IntrospectFilterForDefinedAttributeValue("[/meta/id]=\"aba\" or 123", "/meta/id").Value, std::nullopt);
 
     // Too complex for now.
@@ -67,7 +67,7 @@ TEST(TFilterIntrospectionTest, DefinedAttributeValue)
 
 bool RunIntrospectFilterForDefinedReference(
     const TString& expressionString,
-    const std::string& referenceName,
+    NYPath::TYPathBuf referenceName,
     const std::optional<TString>& tableName = std::nullopt,
     bool allowValueRange = true)
 {
@@ -200,53 +200,53 @@ TEST(TFilterIntrospectionTest, ExtractAllReferences)
             "is_substr(\"Intel\", \"Intel(R) Xeon(R) CPU E5-2660 0 @ 2.20GHz\")",
         })
     {
-        THashSet<std::string> result;
+        THashSet<NYPath::TYPath> result;
         ExtractFilterAttributeReferences(
             nodeFilter,
-            [&result] (const std::string& attribute) {
-                result.insert(attribute);
+            [&result] (NYPath::TYPathBuf attribute) {
+                result.emplace(attribute);
             });
-        EXPECT_EQ(result, THashSet<std::string>());
+        EXPECT_EQ(result, THashSet<NYPath::TYPath>());
     }
 
     // Check simple expressions.
     for (const auto& opString : {"=", "!=", ">", "<", "<=", ">="})
     {
-        THashSet<std::string> result;
+        THashSet<NYPath::TYPath> result;
         ExtractFilterAttributeReferences(
             Format("[/spec/weight] %v 152", opString),
-            [&result] (const std::string& attribute) {
-                result.insert(attribute);
+            [&result] (NYPath::TYPathBuf attribute) {
+                result.emplace(attribute);
             });
-        EXPECT_EQ(result, THashSet<std::string>{"/spec/weight"});
+        EXPECT_EQ(result, THashSet<NYPath::TYPath>{"/spec/weight"});
     }
 
     // Check complex expression with repetition.
     {
-        THashSet<std::string> result;
+        THashSet<NYPath::TYPath> result;
         ExtractFilterAttributeReferences(
             "[/labels/position] = 153 OR is_substr(\"disabled\", [/status/state/raw])"
             "OR list_contains([/spec/supported_modes], \"CMP\") AND NOT ([/status/disabled] = %true"
             "OR is_substr(\"disabled\", [/status/state/raw]))",
-            [&result] (const std::string& attribute) {
-                result.insert(attribute);
+            [&result] (NYPath::TYPathBuf attribute) {
+                result.emplace(attribute);
             });
         EXPECT_EQ(
             result,
-            THashSet<std::string>({"/labels/position", "/spec/supported_modes", "/status/disabled", "/status/state/raw"}));
+            THashSet<NYPath::TYPath>({"/labels/position", "/spec/supported_modes", "/status/disabled", "/status/state/raw"}));
     }
 
     // Check expression with repetition, extraction to vector
     {
-        std::vector<std::string> result;
+        std::vector<NYPath::TYPath> result;
         ExtractFilterAttributeReferences(
             "[/labels/position] > 153 OR is_substr(\"disabled\", [/status/state/raw]) or [/labels/position] < 152",
-            [&result] (const std::string& attribute) {
-                result.push_back(attribute);
+            [&result] (NYPath::TYPathBuf attribute) {
+                result.emplace_back(attribute);
             });
         EXPECT_EQ(
             result,
-            std::vector<std::string>({"/labels/position", "/status/state/raw", "/labels/position"}));
+            std::vector<NYPath::TYPath>({"/labels/position", "/status/state/raw", "/labels/position"}));
     }
 }
 

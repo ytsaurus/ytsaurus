@@ -108,9 +108,9 @@ private:
 };
 
 /// @brief Apply Flatten-like transform to a vector of PCollections
-template <typename TRow, typename TTransform>
-    requires CApplicableTo<TTransform, std::vector<TPCollection<TRow>>>
-TPCollection<TRow> operator|(const std::vector<TPCollection<TRow>>& pCollectionList, const TTransform& transform);
+template <typename TRow, typename TApplicator>
+    requires CApplicableTo<TApplicator, std::vector<TPCollection<TRow>>>
+TPCollection<TRow> operator|(const std::vector<TPCollection<TRow>>& pCollectionList, const TApplicator& applicator);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -260,11 +260,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 ///
-/// @brief Set name for given transform
+/// @brief Set name for given Transform
 extern TTypeTag<TString> TransformNameTag;
-
-template <typename TTransform>
-TRenamedTransform<TTransform> operator>>(TString name, TTransform transform);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -330,53 +327,7 @@ TPState<K, S>::TPState(NPrivate::TRawPStateNodePtr rawPStateNode, NPrivate::TRaw
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename TTransform>
-class TRenamedTransform
-{
-public:
-    TRenamedTransform(TString newName, TTransform transform)
-        : Name_(std::move(newName))
-        , Transform_(transform)
-    { }
-
-    TString GetName() const
-    {
-        return Name_;
-    }
-
-    template <typename TGraphItem>
-    auto ApplyTo(const TGraphItem& item) const
-    {
-        return Transform_.ApplyTo(item);
-    }
-
-private:
-    const TString Name_;
-    const TTransform Transform_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <typename TTransform>
-TRenamedTransform<TTransform> operator>>(TString name, TTransform transform)
-{
-    NRoren::NPrivate::SetAttribute(transform, TransformNameTag, name);
-    return TRenamedTransform{std::move(name), std::move(transform)};
-}
-
 NPrivate::TAttributeSetter Name(TString trnasformName);
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <typename TRow, typename TTransform>
-    requires CApplicableTo<TTransform, std::vector<TPCollection<TRow>>>
-TPCollection<TRow> operator|(const std::vector<TPCollection<TRow>>& pCollectionList, const TTransform& transform)
-{
-    Y_ABORT_IF(pCollectionList.empty(), "Cannot apply transform to an empty list of PCollections");
-    const auto& rawPipeline = NPrivate::GetRawPipeline(pCollectionList[0]);
-    auto guard = rawPipeline->StartTransformGuard(transform.GetName());
-    return transform.ApplyTo(pCollectionList);
-}
 
 template <CRow TInputRow, class TTransformApplicator>
     requires CApplicableTo<TTransformApplicator, TPCollection<TInputRow>>
@@ -385,6 +336,16 @@ auto operator|(const TPCollection<TInputRow>& pCollection, const TTransformAppli
     const auto& rawPipeline = NPrivate::GetRawPipeline(pCollection);
     auto guard = rawPipeline->StartTransformGuard(transformApplicator.GetName());
     return transformApplicator.ApplyTo(pCollection);
+}
+
+template <typename TRow, typename TApplicator>
+    requires CApplicableTo<TApplicator, std::vector<TPCollection<TRow>>>
+TPCollection<TRow> operator|(const std::vector<TPCollection<TRow>>& pCollectionList, const TApplicator& applicator)
+{
+    Y_ABORT_IF(pCollectionList.empty(), "Cannot apply transform to an empty list of PCollections");
+    const auto& rawPipeline = NPrivate::GetRawPipeline(pCollectionList[0]);
+    auto guard = rawPipeline->StartTransformGuard(applicator.GetName());
+    return applicator.ApplyTo(pCollectionList);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

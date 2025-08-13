@@ -952,31 +952,33 @@ private:
             request->location_uuids_supported(),
             "Chunk confirmation request without location uuids is received");
 
-        if (chunkManagerConfig->SequoiaChunkReplicas->Enable) {
-            auto allReplicas = request->replicas();
-            context->Request().mutable_replicas()->Clear();
-
-            auto addSequoiaReplicas = std::make_unique<NProto::TReqAddConfirmReplicas>();
-            ToProto(addSequoiaReplicas->mutable_chunk_id(), chunkId);
-
-            for (const auto& replica : allReplicas) {
-                auto locationUuid = FromProto<TChunkLocationUuid>(replica.location_uuid());
-                if (!chunkReplicaFetcher->IsSequoiaChunkReplica(chunkId, locationUuid)) {
-                    *context->Request().add_replicas() = replica;
-                } else {
-                    *addSequoiaReplicas->add_replicas() = replica;
-                }
+        auto isSequoia = [&] {
+            if (!chunkManagerConfig->SequoiaChunkReplicas->Enable) {
+                return false;
             }
 
-            if (addSequoiaReplicas->replicas_size() > 0) {
-                WaitFor(chunkManager->AddSequoiaConfirmReplicas(std::move(addSequoiaReplicas)))
-                    .ThrowOnError();
+            if (chunkReplicaFetcher->CanHaveSequoiaReplicas(chunkId)) {
+                return true;
             }
+            return false;
+        };
+
+        if (isSequoia()) {
+            auto requestStatistics = context->Request().request_statistics();
+            WaitFor(chunkManager->ConfirmSequoiaChunk(&context->Request()))
+                .ThrowOnError();
+
+            auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
+            if (requestStatistics) {
+                ToProto(context->Response().mutable_statistics(), chunk->GetStatistics().ToDataStatistics());
+                // Do not set revision as ally replicas do not work for Sequoia anyway.
+            }
+            context->Reply();
+        } else {
+            auto mutation = chunkManager->CreateConfirmChunkMutation(&context->Request(), &context->Response());
+            mutation->SetCurrentTraceContext();
+            YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
         }
-
-        auto mutation = chunkManager->CreateConfirmChunkMutation(&context->Request(), &context->Response());
-        mutation->SetCurrentTraceContext();
-        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
     void SyncWithTransactionCoordinatorCell(const IServiceContextPtr& context, TTransactionId transactionId)

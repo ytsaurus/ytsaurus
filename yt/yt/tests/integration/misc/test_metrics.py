@@ -34,7 +34,7 @@ class MetricsTestBase(YTEnvSetup):
     NUM_HTTP_PROXIES = 1
     NUM_RPC_PROXIES = 2
 
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "coordinator": {
             "heartbeat_interval": 100,
             "death_age": 500,
@@ -49,6 +49,11 @@ class MetricsTestBase(YTEnvSetup):
                 "expire_after_access_time": 100,
             },
         },
+    }
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
     }
 
     def _get_proxy_address(self):
@@ -75,7 +80,7 @@ class TestPortoMetrics(MetricsTestBase):
     SUSPENDING_TABLE = "//tmp/suspending_table"
     DELAY_BEFORE_COMMAND = 10 * 1000
     KEEP_ALIVE_PERIOD = 1 * 1000
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "enable_porto_resource_tracker": True,
         "api": {
             "testing": {

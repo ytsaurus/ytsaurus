@@ -18,7 +18,7 @@ from yt.yson import is_unicode, get_bytes
 import builtins
 import string
 from copy import deepcopy, copy as shallowcopy
-from typing import Union, Optional, Literal, Callable, Any, List, Dict
+from typing import Union, Optional, Literal, Callable, Any, List, Dict, Tuple
 
 
 # XXX(asaitgalin): Used in get_attribute function for `default` argument
@@ -61,7 +61,7 @@ def _is_batch_client(client):
 def get(
     path: Union[str, YPath],
     max_size: Optional[int] = None,
-    attributes: Optional[List[str]] = None,
+    attributes: Union[List[str], Tuple, None] = None,
     format: Optional[Union[str, Format]] = None,
     read_from: Optional[Literal["cache"]] = None,
     cache_sticky_group_size: Optional[bool] = None,
@@ -404,7 +404,7 @@ def list(
     max_size: Optional[int] = None,
     format: Optional[Format] = None,
     absolute: bool = None,
-    attributes: Optional[List[str]] = None,
+    attributes: Union[List[str], Tuple, None] = None,
     sort: bool = True,
     read_from=None,
     cache_sticky_group_size: int = None,
@@ -518,7 +518,7 @@ def remove(
 
 
 def create(
-    type: Literal["table", "file", "map_node", "list_node"],
+    type: Literal["table", "file", "map_node", "list_node", "document"],
     path: Union[str, YPath, None] = None,
     recursive: bool = False,
     ignore_existing: bool = False,
@@ -714,8 +714,8 @@ def search(
     subtree_filter: Callable[[str, Any], bool] = None,
     map_node_order: Callable[[str, List[Any]], List[int]] = MAP_ORDER_SORTED,
     list_node_order: Callable[[str, List[Any]], List[int]] = None,
-    attributes: List[str] = None,
-    exclude: List[str] = None,
+    attributes: Union[List[str], Tuple, None] = None,
+    exclude: Union[List[str], Tuple, None] = None,
     depth_bound: int = None,
     follow_links: bool = False,
     read_from: Literal["cache"] = None,

@@ -657,19 +657,14 @@ private:
         if (Context_.GpuCheckOptions) {
             SetJobPhase(EJobPhase::RunningGpuCheckCommand);
 
+            YT_VERIFY(ResultHolder_.GpuCheckVolume);
+
             auto options = *Context_.GpuCheckOptions;
-            // COMPAT(ignat): do not perform setup commands in case of running GPU check in user job volume.
-            if (!ResultHolder_.GpuCheckVolume) {
-                options.SetupCommands.clear();
-            }
 
             auto context = TJobGpuCheckerContext{
                 .Slot = Context_.Slot,
                 .Job = Context_.Job,
-                .RootFS = ResultHolder_.GpuCheckVolume
-                    ? MakeWritableGpuCheckRootFS()
-                    // COMPAT(ignat)
-                    : MakeWritableRootFS(),
+                .RootFS = MakeWritableGpuCheckRootFS(),
                 .CommandUser = Context_.CommandUser,
                 .Type = EGpuCheckType::Preliminary,
                 .Options = options,

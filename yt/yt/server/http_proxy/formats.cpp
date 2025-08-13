@@ -43,27 +43,6 @@ static INodePtr MimeTypeToFormatNode(TStringBuf mimeType)
     return ConvertToNode(TYsonString(format->second));
 }
 
-static const std::vector<TString> OutputMimeTypePriorityForStructuredType = {
-    "application/json",
-    "application/x-yt-yson-pretty",
-    "application/x-yt-yson-text",
-    "application/x-yt-yson-binary",
-};
-
-static const std::vector<TString> OutputMimeTypePriorityForTabularType = {
-    "application/json",
-    "application/x-yamr-delimited",
-    "application/x-yamr-lenval",
-    "application/x-yamr-subkey-delimited",
-    "application/x-yamr-subkey-lenval",
-    "application/x-yt-yson-binary",
-    "application/x-yt-yson-text",
-    "application/x-yt-yson-pretty",
-    "text/csv",
-    "text/tab-separated-values",
-    "text/x-tskv",
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 static INodePtr GetDefaultFormatNodeForDataType(EDataType dataType)
@@ -86,10 +65,10 @@ TFormat InferFormat(
     const std::optional<std::string>& ytHeader,
     const std::string& mimeHeaderName,
     const std::string* mimeHeader,
-    bool isOutput,
+    EFormatTarget target,
     EDataType dataType)
 {
-    if (isOutput && (
+    if (target == EFormatTarget::Output && (
         dataType == EDataType::Null ||
         dataType == EDataType::Binary))
     {
@@ -117,8 +96,7 @@ TFormat InferFormat(
         }
     }
     formatNode = GetDefaultFormatNodeForDataType(dataType);
-    auto direction = isOutput ? "output" : "input";
-    return formatManager.ConvertToFormat(formatNode, Format("%v format inferred from data type %Qlv", direction, dataType));
+    return formatManager.ConvertToFormat(formatNode, Format("%lv format inferred from data type %Qlv", target, dataType));
 }
 
 TFormat InferHeaderFormat(const TFormatManager& formatManager, const std::string* ytHeader)
@@ -163,13 +141,13 @@ TString FormatToMime(const NFormats::TFormat& format)
             }
         }
         case EFormatType::Dsv: {
-            auto recordSeparator = format.Attributes().Find<TString>("record_separator");
-            auto keyValueSeparator = format.Attributes().Find<TString>("key_value_separator");
-            auto linePrefix = format.Attributes().Find<TString>("line_prefix");
+            auto recordSeparator = format.Attributes().Find<std::string>("record_separator");
+            auto keyValueSeparator = format.Attributes().Find<std::string>("key_value_separator");
+            auto linePrefix = format.Attributes().Find<std::string>("line_prefix");
 
-            if (TString{","} == recordSeparator && TString{":"} == keyValueSeparator) {
+            if (std::string{","} == recordSeparator && std::string{":"} == keyValueSeparator) {
                 return "text/csv";
-            } else if (TString{"tskv"} == linePrefix) {
+            } else if (std::string{"tskv"} == linePrefix) {
                 return "text/x-tskv";
             } else {
                 return "text/tab-separated-values";
@@ -214,44 +192,6 @@ NYTree::INodePtr ConvertBytesToNode(
         &stream));
 }
 
-std::optional<TString> GetBestAcceptedType(
-    NFormats::EDataType outputType,
-    const TString& clientAcceptHeader)
-{
-    if (clientAcceptHeader.Contains(";q=")) {
-        return {};
-    }
-
-    if (clientAcceptHeader.Contains(",")) {
-        return {};
-    }
-
-    if (outputType == EDataType::Structured) {
-        if (clientAcceptHeader == "*/*") {
-            return OutputMimeTypePriorityForStructuredType[0];
-        }
-
-        for (const auto& mimeType : OutputMimeTypePriorityForStructuredType) {
-            if (mimeType == clientAcceptHeader) {
-                return clientAcceptHeader;
-            }
-        }
-    } else if (outputType == EDataType::Tabular) {
-        if (clientAcceptHeader == "*/*") {
-            return OutputMimeTypePriorityForTabularType[0];
-        }
-
-        for (const auto& mimeType : OutputMimeTypePriorityForTabularType) {
-            if (mimeType == clientAcceptHeader) {
-                return clientAcceptHeader;
-            }
-        }
-    }
-
-    return {};
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NHttpProxy
-

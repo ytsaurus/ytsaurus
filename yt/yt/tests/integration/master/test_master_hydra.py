@@ -174,6 +174,9 @@ class TestLamportClock(YTEnvSetup):
 class TestHydraLogicalTime(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
 
+    # Hydra logical time is measured in microseconds, and 1 second is 1kk microseconds.
+    SECOND = 1000000
+
     @authors("h0pless")
     def test_hydra_logical_time(self):
         initial_time = get("//sys/@hydra_logical_time")
@@ -181,7 +184,7 @@ class TestHydraLogicalTime(YTEnvSetup):
         build_master_snapshots(set_read_only=True)
 
         read_only_time = get("//sys/@hydra_logical_time")
-        assert read_only_time - initial_time > 0.5 * 1000
+        assert read_only_time - initial_time > 0.5 * self.SECOND
 
         time.sleep(5.0)
         assert read_only_time == get("//sys/@hydra_logical_time")
@@ -190,8 +193,8 @@ class TestHydraLogicalTime(YTEnvSetup):
         time.sleep(5.0)
 
         time_passed_since_read_only = get("//sys/@hydra_logical_time") - read_only_time
-        assert 4 * 1000 < time_passed_since_read_only
-        assert time_passed_since_read_only < 9 * 1000
+        assert 4 * self.SECOND < time_passed_since_read_only
+        assert time_passed_since_read_only < 9 * self.SECOND
 
     @authors("h0pless")
     def test_hydra_logical_time_restart(self):
@@ -240,3 +243,37 @@ class TestLocalJanitor(YTEnvSetup):
         build_n_snapshots(3)
         time.sleep(1)
         assert len(os.listdir(snapshot_dir)) == 4
+
+
+class TestChangelogRecovery(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    NUM_MASTERS = 5
+    DELTA_MASTER_CONFIG = {
+        "hydra_manager": {
+            "max_sequence_number_gap_for_changelog_only_recovery": 100000,
+        },
+    }
+
+    @authors("grphil")
+    @pytest.mark.parametrize("read_only", [True, False])
+    def test_changelog_recovery(self, read_only):
+        self.Env.kill_service("master", indexes=[1])
+
+        set("//tmp/a", "b")
+
+        primary_master_config = self.Env.configs["master"][0]["primary_master"]
+
+        build_snapshot(cell_id=primary_master_config["cell_id"], set_read_only=read_only)
+
+        time.sleep(3)
+
+        self.Env.start_master_cell(set_config=False)
+        address = primary_master_config["addresses"][1]
+
+        def get_monitoring_param(param, default=None):
+            return get("{}/{}/orchid/monitoring/hydra/{}".format("//sys/primary_masters", address, param), default=default)
+
+        wait(lambda: get_monitoring_param("active", default=False), ignore_exceptions=True)
+
+        assert get_monitoring_param("last_snapshot_id_used_for_recovery", 1) == -1
+        assert get_monitoring_param("read_only", 2) == read_only

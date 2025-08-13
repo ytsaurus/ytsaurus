@@ -35,8 +35,6 @@
 #include <yt/yt/ytlib/auth/native_authentication_manager.h>
 #include <yt/yt/ytlib/auth/tvm_bridge.h>
 
-#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
-
 #include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
@@ -688,7 +686,6 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
     if (Config_->StartQueueConsumerRegistrationManager) {
         connection->GetQueueConsumerRegistrationManager()->StartSync();
     }
-    connection->GetMasterCellDirectorySynchronizer()->Start();
 
     ApiServiceThreadPool_ = CreateThreadPool(rpcProxyWorkerThreadPoolSize, "RpcProxy");
 
@@ -851,7 +848,6 @@ TJobResult TJobProxy::RunJob()
         RetrieveJobSpec();
 
         auto clusterConnection = CreateNativeConnection(Config_->ClusterConnection);
-        clusterConnection->GetMasterCellDirectorySynchronizer()->Start();
         Client_ = clusterConnection->CreateNativeClient(TClientOptions::FromUser(GetAuthenticatedUser()));
 
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(Client_);
@@ -1111,11 +1107,11 @@ void TJobProxy::InitializeChunkReaderHost()
             .ChunkReaderStatistics = New<TChunkReaderStatistics>(),
         },
     };
-    for (const auto& [clusterName, protoRemoteCluster] : GetJobSpecHelper()->GetJobSpecExt().remote_input_clusters()) {
+    for (const auto& [remoteClusterName, protoRemoteCluster] : GetJobSpecHelper()->GetJobSpecExt().remote_input_clusters()) {
         auto remoteConnection = Client_
             ->GetNativeConnection()
             ->GetClusterDirectory()
-            ->GetConnectionOrThrow(clusterName);
+            ->GetConnectionOrThrow(remoteClusterName);
 
         if (!protoRemoteCluster.networks().empty()) {
             auto connectionConfig = remoteConnection
@@ -1130,7 +1126,7 @@ void TJobProxy::InitializeChunkReaderHost()
 
         clusterContextList.push_back(
             TMultiChunkReaderHost::TClusterContext{
-                .Name = TClusterName(clusterName),
+                .Name = TClusterName(remoteClusterName),
                 .Client = remoteConnection->CreateNativeClient(Client_->GetOptions()),
                 .ChunkReaderStatistics = New<TChunkReaderStatistics>(),
             });
@@ -1372,6 +1368,23 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
             rootFS.Binds.push_back(TBind{
                 .SourcePath = GetPreparationPath(),
                 .TargetPath = GetSlotPath(),
+                .ReadOnly = false,
+            });
+
+            // Temporary workaround for nirvana - make tmp directories writable.
+            auto tmpPath = NFS::CombinePaths(
+                NFs::CurrentWorkingDirectory(),
+                GetSandboxRelPath(ESandboxKind::Tmp));
+
+            rootFS.Binds.push_back(TBind{
+                .SourcePath = tmpPath,
+                .TargetPath = "/tmp",
+                .ReadOnly = false,
+            });
+
+            rootFS.Binds.push_back(TBind{
+                .SourcePath = tmpPath,
+                .TargetPath = "/var/tmp",
                 .ReadOnly = false,
             });
         }

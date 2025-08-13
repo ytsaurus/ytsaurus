@@ -29,9 +29,9 @@ private:
         return MakeFuture(NYT::GetKeys(Locks(), limit));
     }
 
-    bool IsValid(TObject* object) const override
+    bool IsValidItem(TObject* object) const override
     {
-        return IsObjectAlive(object);
+        return object->GetType() == EObjectType::Lock;
     }
 
     bool NeedSuppressUpstreamSync() const override

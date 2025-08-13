@@ -21,7 +21,7 @@ void TQueryAgentConfig::Register(TRegistrar registrar)
         .Default(4);
     registrar.Parameter("pull_rows_thread_pool_size", &TThis::PullRowsThreadPoolSize)
         .GreaterThan(0)
-        .Default(4);
+        .Default(2);
     registrar.Parameter("max_subsplits_per_tablet", &TThis::MaxSubsplitsPerTablet)
         .GreaterThan(0)
         .Default(4096);
@@ -57,7 +57,7 @@ void TQueryAgentConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("use_dedicated_pool_for_pull_rows", &TThis::UseDedicatedPoolForPullRows)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("pull_rows_read_data_weight_limit", &TThis::PullRowsReadDataWeightLimit)
         .GreaterThan(0)

@@ -14,6 +14,8 @@ TError CreateNoSuchTransactionError(TTransactionId transactionId);
 
 [[noreturn]] void ThrowPrerequisiteCheckFailedNoSuchTransaction(TTransactionId transactionId);
 
+[[noreturn]] void ThrowTransactionIsDoomed(TTransactionId transactionId, bool isPrerequisite = false);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void LockNodeWithWait(

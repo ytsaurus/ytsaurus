@@ -33,8 +33,7 @@ target_link_libraries(check_schema_compatibility PUBLIC
 )
 
 target_allocator(check_schema_compatibility
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
+  system_allocator
 )
 
 target_link_options(check_schema_compatibility PRIVATE

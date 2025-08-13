@@ -13,7 +13,7 @@ import yt.logger as logger
 from collections import defaultdict
 from datetime import datetime
 from time import time
-from typing import Iterator, Optional, Tuple
+from typing import Iterator, Optional, Tuple, List, Dict
 import logging
 
 
@@ -286,7 +286,7 @@ class QueryResult:
         self.client = client
         self._cached_query_result = None
 
-    def get_meta(self) -> dict:
+    def get_meta(self) -> Dict:
         """Returns query result attributes."""
         if self._cached_query_result is None:
             self._cached_query_result = get_query_result(self.query_id, self.result_index, stage=self.query_tracker_stage, client=self.client)
@@ -304,7 +304,7 @@ class QueryResult:
         """Returns whether the result is truncated."""
         return self.get_meta().get("is_truncated", False)
 
-    def full_result(self) -> Optional[dict]:
+    def full_result(self) -> Optional[Dict]:
         """Returns table with full result. For yql it's yson containing 'cluster' and 'table_path'"""
         return self.get_meta().get("full_result")
 
@@ -402,11 +402,11 @@ class Query:
         return get_query_state_monitor(
             self.id, time_watcher, stage=self.query_tracker_stage, client=self.client)
 
-    def get_meta(self, attributes=None) -> dict:
+    def get_meta(self, attributes=None) -> Dict:
         """Returns query attributes, possibly with given attribute filter."""
         return get_query(self.id, attributes=attributes, stage=self.query_tracker_stage, client=self.client)
 
-    def get_progress(self) -> dict:
+    def get_progress(self) -> Dict:
         """Returns dictionary that represents the query execution progress."""
         return self.get_meta(attributes=["progress"]).get("progress", {})
 
@@ -418,7 +418,7 @@ class Query:
         """Returns query result with the given index."""
         return QueryResult(self.id, result_index, query_tracker_stage=self.query_tracker_stage, client=self.client)
 
-    def get_results(self) -> list:
+    def get_results(self) -> List:
         """Returns list of query results."""
         result_count = self.get_meta(attributes=["result_count"])["result_count"]
         return [self.get_result(i) for i in range(result_count)]
@@ -492,8 +492,8 @@ class Query:
 
 
 def run_query(
-        engine: str, query: str, settings: Optional[dict] = None, files: Optional[list] = None, stage: Optional[str] = None,
-        annotations: Optional[dict] = None, access_control_objects: Optional[list] = None, sync: bool = True,
+        engine: str, query: str, settings: Optional[Dict] = None, files: Optional[List] = None, stage: Optional[str] = None,
+        annotations: Optional[Dict] = None, access_control_objects: Optional[List] = None, sync: bool = True,
         client=None) -> Query:
     """Run query and track its progress (unless sync = false).
 

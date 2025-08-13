@@ -220,6 +220,10 @@ func convertObjectType(typ yt.NodeType) (ObjectType, error) {
 		ret = ObjectTypeSchedulerPoolTree
 	case yt.NodeNetworkProject:
 		ret = ObjectTypeNetworkProject
+	case yt.NodeQueueProducer:
+		ret = ObjectTypeQueueProducer
+	case yt.NodeQueueConsumer:
+		ret = ObjectTypeQueueConsumer
 	default:
 		return 0, xerrors.Errorf("unsupported node type %q", typ)
 	}

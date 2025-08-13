@@ -4,20 +4,12 @@
 #include "functions.h"
 #include "helpers.h"
 #include "lexer.h"
-#include "private.h"
 #include "push_down_group_by.h"
 #include "query_helpers.h"
 #include "query_visitors.h"
 #include "expr_builder_base.h"
 
-#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
-
-#include <yt/yt/client/tablet_client/public.h>
-
-#include <yt/yt/core/ytree/convert.h>
-
 #include <yt/yt/core/misc/collection_helpers.h>
-#include <yt/yt/core/misc/finally.h>
 
 #include <library/cpp/yt/misc/variant.h>
 
@@ -62,7 +54,7 @@ void ExtractFunctionNames(
     std::vector<std::string>* functions)
 {
     if (auto functionExpr = expr->As<NAst::TFunctionExpression>()) {
-        functions->push_back(to_lower(TString(functionExpr->FunctionName)));
+        functions->push_back(ToLower(functionExpr->FunctionName));
         ExtractFunctionNames(functionExpr->Arguments, functions);
     } else if (auto unaryExpr = expr->As<NAst::TUnaryOpExpression>()) {
         ExtractFunctionNames(unaryExpr->Operand, functions);
@@ -469,7 +461,7 @@ void YsonParseError(TStringBuf message, TYsonStringBuf source)
         << TErrorAttribute("context", Format("%v", source.AsStringBuf()));
 }
 
-THashMap<TString, TString> ConvertYsonPlaceholdersToQueryLiterals(TYsonStringBuf placeholders)
+THashMap<std::string, std::string> ConvertYsonPlaceholdersToQueryLiterals(TYsonStringBuf placeholders)
 {
     TMemoryInput input{placeholders.AsStringBuf()};
     TYsonPullParser ysonParser{&input, EYsonType::Node};
@@ -481,12 +473,12 @@ THashMap<TString, TString> ConvertYsonPlaceholdersToQueryLiterals(TYsonStringBuf
 
     ysonCursor.Next();
 
-    THashMap<TString, TString> queryLiterals;
+    THashMap<std::string, std::string> queryLiterals;
     while (ysonCursor->GetType() != EYsonItemType::EndMap) {
         if (ysonCursor->GetType() != EYsonItemType::StringValue) {
             YsonParseError("Incorrect YSON map placeholder: keys should be strings", placeholders);
         }
-        auto key = TString(ysonCursor->UncheckedAsString());
+        auto key = std::string(ysonCursor->UncheckedAsString());
 
         ysonCursor.Next();
         switch (ysonCursor->GetType()) {
@@ -519,7 +511,7 @@ NAst::TAstHead ParseQueryString(
 {
     auto head = NAst::TAstHead();
 
-    THashMap<TString, TString> queryLiterals;
+    THashMap<std::string, std::string> queryLiterals;
     if (placeholderValues) {
         queryLiterals = ConvertYsonPlaceholdersToQueryLiterals(placeholderValues);
     }
@@ -622,7 +614,7 @@ THashMap<std::string, int> BuildReferenceToIndexMap(const std::vector<TConstExpr
     for (int index = 0; index < std::ssize(equations); ++index) {
         auto& expression = equations[index];
         if (auto* ref = expression->As<TReferenceExpression>()) {
-            auto [_, inserted] = map.insert(std::make_pair(ref->ColumnName, index));
+            auto [_, inserted] = map.insert(std::pair(ref->ColumnName, index));
             THROW_ERROR_EXCEPTION_IF(!inserted, "Foreign key column %Qv occurs more than once in a join clause",
                 ref->ColumnName);
         }
@@ -634,7 +626,7 @@ THashMap<std::string, int> BuildReferenceToIndexMap(const std::vector<TConstExpr
 std::vector<std::pair<TConstExpressionPtr, int>> MakeExpressionsFromComputedColumns(
     const TTableSchemaPtr& schema,
     const TConstTypeInferrerMapPtr& functions,
-    const std::optional<TString>& alias)
+    const std::optional<std::string>& alias)
 {
     std::vector<std::pair<TConstExpressionPtr, int>> expressionsAndColumnIndices;
 
@@ -679,7 +671,7 @@ TJoinClausePtr BuildJoinClause(
     const TConstTypeInferrerMapPtr& functions,
     size_t* globalCommonKeyPrefix,
     const TTableSchemaPtr& tableSchema,
-    const std::optional<TString>& tableAlias,
+    const std::optional<std::string>& tableAlias,
     TExprBuilder* builder,
     int builderVersion,
     const NLogging::TLogger& Logger)
@@ -697,7 +689,8 @@ TJoinClausePtr BuildJoinClause(
     foreignBuilder->AddTable({
         *joinClause->Schema.Original,
         tableJoin.Table.Alias,
-        &joinClause->Schema.Mapping});
+        &joinClause->Schema.Mapping,
+    });
 
     std::vector<TSelfEquation> selfEquations;
     selfEquations.reserve(tableJoin.Fields.size() + tableJoin.Lhs.size());
@@ -889,7 +882,8 @@ TJoinClausePtr BuildJoinClause(
         &joinClause->Schema.Mapping,
         &joinClause->SelfJoinedColumns,
         &joinClause->ForeignJoinedColumns,
-        commonColumnNames});
+        commonColumnNames,
+    });
 
     return joinClause;
 }
@@ -946,9 +940,10 @@ TJoinClausePtr BuildArrayJoinClause(
         builderVersion);
 
     arrayBuilder->AddTable({
-        *arrayJoinClause->Schema.Original,
-        std::nullopt,
-        &arrayJoinClause->Schema.Mapping});
+        .Schema = *arrayJoinClause->Schema.Original,
+        .Alias = std::nullopt,
+        .Mapping = &arrayJoinClause->Schema.Mapping,
+    });
 
     for (const auto& nestedTableColumn : arrayJoinClause->Schema.Original->Columns()) {
         auto type = arrayBuilder->ResolveColumn(NAst::TReference(nestedTableColumn.Name()));
@@ -963,11 +958,12 @@ TJoinClausePtr BuildArrayJoinClause(
     }
 
     builder->AddTable({
-        *arrayJoinClause->Schema.Original,
-        std::nullopt,
-        &arrayJoinClause->Schema.Mapping,
-        &arrayJoinClause->SelfJoinedColumns,
-        &arrayJoinClause->ForeignJoinedColumns});
+        .Schema = *arrayJoinClause->Schema.Original,
+        .Alias = std::nullopt,
+        .Mapping = &arrayJoinClause->Schema.Mapping,
+        .SelfJoinedColumns = &arrayJoinClause->SelfJoinedColumns,
+        .ForeignJoinedColumns = &arrayJoinClause->ForeignJoinedColumns,
+    });
 
     return arrayJoinClause;
 }
@@ -1070,7 +1066,7 @@ TPlanFragmentPtr PreparePlanFragment(
         [&] (const NAst::TQueryAstHeadPtr& subquery) {
             return subquery->Alias;
         },
-        [&] (const NAst::TExpressionList&) -> std::optional<TString> {
+        [&] (const NAst::TExpressionList&) -> std::optional<std::string> {
             return std::nullopt;
         });
 
@@ -1081,9 +1077,10 @@ TPlanFragmentPtr PreparePlanFragment(
         builderVersion);
 
     builder->AddTable({
-        *query->Schema.Original,
-        alias,
-        &query->Schema.Mapping});
+        .Schema = *query->Schema.Original,
+        .Alias = alias,
+        .Mapping = &query->Schema.Mapping,
+    });
 
     std::vector<TJoinClausePtr> joinClauses;
     size_t commonKeyPrefix = std::numeric_limits<size_t>::max();
@@ -1217,7 +1214,10 @@ TQueryPtr PrepareJobQuery(
     auto builder = CreateExpressionBuilder(source, functions, aliasMap, 1);
 
     builder->AddTable({
-        *tableSchema, std::nullopt, &query->Schema.Mapping});
+        .Schema = *tableSchema,
+        .Alias = std::nullopt,
+        .Mapping = &query->Schema.Mapping,
+    });
 
     PrepareQuery(
         query,
@@ -1264,7 +1264,10 @@ TConstExpressionPtr PrepareExpression(
     auto builder = CreateExpressionBuilder(parsedSource.Source, functions, aliasMap, builderVersion);
 
     builder->AddTable({
-        tableSchema, std::nullopt, &mapping});
+        .Schema = tableSchema,
+        .Alias = std::nullopt,
+        .Mapping = &mapping,
+    });
 
     auto result = builder->BuildTypedExpression(expr);
 

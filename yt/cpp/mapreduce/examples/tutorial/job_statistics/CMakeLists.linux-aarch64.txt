@@ -33,8 +33,7 @@ target_link_libraries(job_statistics PUBLIC
 )
 
 target_allocator(job_statistics
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
+  system_allocator
 )
 
 target_link_options(job_statistics PRIVATE

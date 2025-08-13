@@ -437,6 +437,7 @@ DEFINE_REFCOUNTED_TYPE(TProjectClause)
 // IsMerge is always true for front Query and false for Bottom Query
 
 constexpr i64 UnorderedReadHint = std::numeric_limits<i64>::max();
+// TODO(sabdenovch): Deprecate this.
 constexpr i64 OrderedReadWithPrefetchHint = std::numeric_limits<i64>::max() - 1;
 
 struct TBaseQuery
@@ -535,8 +536,8 @@ struct TInferNameOptions
     bool OmitOffsetAndLimit = false;
 };
 
-TString InferName(TConstExpressionPtr expr, bool omitValues = false);
-TString InferName(TConstBaseQueryPtr query, TInferNameOptions options = {});
+std::string InferName(TConstExpressionPtr expr, bool omitValues = false);
+std::string InferName(TConstBaseQueryPtr query, TInferNameOptions options = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

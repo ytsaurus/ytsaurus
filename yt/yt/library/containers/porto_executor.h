@@ -42,6 +42,7 @@ struct TRunnableContainerSpec
 
     bool EnableCoreDumps = true;
 
+    std::optional<double> CpuWeight;
     std::optional<i64> ThreadLimit;
 
     std::optional<TString> NetworkInterface;
@@ -139,7 +140,7 @@ DEFINE_REFCOUNTED_TYPE(IPortoExecutor)
 
 IPortoExecutorPtr CreatePortoExecutor(
     TPortoExecutorDynamicConfigPtr config,
-    const TString& threadNameSuffix,
+    std::string threadNameSuffix,
     const NProfiling::TProfiler& profiler = {});
 
 ////////////////////////////////////////////////////////////////////////////////

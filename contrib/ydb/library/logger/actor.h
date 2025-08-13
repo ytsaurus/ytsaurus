@@ -1,6 +1,6 @@
 #pragma once
 
-#include <contrib/ydb/library/actors/core/actorsystem.h>
+#include <contrib/ydb/library/actors/core/actorsystem_fwd.h>
 #include <contrib/ydb/library/actors/core/log.h>
 #include <library/cpp/logger/backend.h>
 #include <library/cpp/logger/record.h>

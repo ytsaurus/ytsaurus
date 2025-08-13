@@ -16,7 +16,7 @@ struct TShufflePart
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashMap<TString, TShufflePart> Shuffle(
+THashMap<std::string, TShufflePart> Shuffle(
     const TShuffleNavigator& shuffleNavigator,
     TRange<TRow> rows);
 

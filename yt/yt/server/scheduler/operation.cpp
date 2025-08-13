@@ -604,9 +604,6 @@ TFuture<void> TOperation::AbortCommonTransactions()
     for (const auto& transaction : Transactions_->InputTransactions) {
         scheduleAbort(transaction, "Input");
     }
-    for (const auto& transaction : Transactions_->NestedInputTransactions) {
-        scheduleAbort(transaction, "NestedInput");
-    }
 
     return AllSucceeded(
         asyncResults,

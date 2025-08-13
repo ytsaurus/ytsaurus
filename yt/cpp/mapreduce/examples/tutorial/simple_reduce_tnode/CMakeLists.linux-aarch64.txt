@@ -33,8 +33,7 @@ target_link_libraries(simple_reduce_tnode PUBLIC
 )
 
 target_allocator(simple_reduce_tnode
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
+  system_allocator
 )
 
 target_link_options(simple_reduce_tnode PRIVATE

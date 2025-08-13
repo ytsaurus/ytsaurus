@@ -7,9 +7,7 @@ PROTO_NAMESPACE(yt)
 SRCS(
     bootstrap.cpp
     part_bootstrap_detail.cpp
-    chaos_cache.cpp
     chaos_cache_part_bootstrap.cpp
-    chaos_cache_service.cpp
     config.cpp
     dynamic_config_manager.cpp
     master_cache_part_bootstrap.cpp

@@ -587,7 +587,7 @@ public:
 
             controlInvoker->Invoke(BIND([this, weakThis = MakeWeak(this), cellTag] {
                 if (auto strongThis = weakThis.Lock()) {
-                    StartNodeHeartbeatsToCell(cellTag);
+                    StartNodeHeartbeatsToCells({cellTag});
                 }
             }));
         }
@@ -757,12 +757,14 @@ protected:
         }
     }
 
-    void ResetState(TCellTag cellTag) override
+    void ResetStates(const THashSet<TCellTag>& masterCellTags) override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        CellTagToVariantHeartbeatRspFuture_.erase(cellTag);
-        CellTagToMasterConnectorState_.erase(cellTag);
+        for (auto cellTag : masterCellTags) {
+            CellTagToVariantHeartbeatRspFuture_.erase(cellTag);
+            CellTagToMasterConnectorState_.erase(cellTag);
+        }
     }
 
 private:
@@ -1288,7 +1290,7 @@ private:
                 result.FinalizeResponse = WaitFor(finalizeRequest->Invoke())
                     .ValueOrThrow();
                 return result;
-            }));
+            }).AsyncVia(Bootstrap_->GetControlInvoker()));
     }
 
     TFuture<TDataNodeRspIncrementalHeartbeat> InvokeIncrementalHeartbeatRequest(

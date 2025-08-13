@@ -43,13 +43,38 @@ type client struct {
 	stop     *internal.StopGroup
 }
 
-func NewClient(conf *yt.Config) (*client, error) {
-	clusterURL, err := conf.GetClusterURL()
+func BuildHTTPClient(c *yt.Config) (*http.Client, error) {
+	if c.HTTPClient != nil {
+		return c.HTTPClient, nil
+	}
+
+	certPool, err := internal.NewCertPool()
 	if err != nil {
 		return nil, err
 	}
 
-	certPool, err := internal.NewCertPool()
+	tlsConfig := tls.Config{
+		RootCAs: certPool,
+	}
+
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			MaxIdleConns:        0,
+			MaxIdleConnsPerHost: 100,
+			MaxConnsPerHost:     100,
+			IdleConnTimeout:     30 * time.Second,
+
+			TLSHandshakeTimeout: 10 * time.Second,
+			TLSClientConfig:     &tlsConfig,
+		},
+		Timeout: 60 * time.Second,
+	}
+
+	return httpClient, nil
+}
+
+func NewClient(conf *yt.Config) (*client, error) {
+	clusterURL, err := conf.GetClusterURL()
 	if err != nil {
 		return nil, err
 	}
@@ -62,20 +87,14 @@ func NewClient(conf *yt.Config) (*client, error) {
 		stop:       internal.NewStopGroup(),
 	}
 
-	tlsConfig := tls.Config{
-		RootCAs: certPool,
+	c.httpClient, err = BuildHTTPClient(conf)
+	if err != nil {
+		return nil, err
 	}
 
-	c.httpClient = &http.Client{
-		Transport: &http.Transport{
-			MaxIdleConns:        0,
-			MaxIdleConnsPerHost: 100,
-			IdleConnTimeout:     30 * time.Second,
-
-			TLSHandshakeTimeout: 10 * time.Second,
-			TLSClientConfig:     &tlsConfig,
-		},
-		Timeout: 60 * time.Second,
+	transport, ok := c.httpClient.Transport.(*http.Transport)
+	if !ok {
+		return nil, xerrors.Errorf("expected *http.Transport, got %T: rpc client does not support other transports", c.httpClient.Transport)
 	}
 
 	if conf.Credentials != nil {
@@ -91,8 +110,8 @@ func NewClient(conf *yt.Config) (*client, error) {
 			bus.WithLogger(c.log.Logger()),
 			bus.WithDefaultProtocolVersionMajor(ProtocolVersionMajor),
 		}
-		if conf.UseTLS {
-			busTLSConfig := tlsConfig.Clone()
+		if conf.UseTLS && transport.TLSClientConfig != nil {
+			busTLSConfig := transport.TLSClientConfig.Clone()
 			if conf.PeerAlternativeHostName != "" {
 				// TODO(khlebnikov) use custom VerifyPeerCertificate.
 				busTLSConfig.ServerName = conf.PeerAlternativeHostName
@@ -112,6 +131,7 @@ func NewClient(conf *yt.Config) (*client, error) {
 	c.Encoder.Invoke = c.invoke
 	c.Encoder.InvokeInTx = c.invokeInTx
 	c.Encoder.InvokeReadRow = c.doReadRow
+	c.Encoder.InvokeMultiLookup = c.doMultiLookup
 
 	proxyBouncer := &ProxyBouncer{Log: c.log, ProxySet: c.proxySet, ConnPool: c.connPool}
 	requestLogger := &LoggingInterceptor{Structured: c.log}
@@ -153,6 +173,52 @@ func (c *client) doReadRow(
 	}
 
 	return newTableReader(rows, rsp.GetRowsetDescriptor())
+}
+
+func (c *client) doMultiLookup(
+	ctx context.Context,
+	call *Call,
+	rsp ProtoMultiLookupResp,
+) ([]yt.TableReader, error) {
+	var rspAttachments [][]byte
+
+	err := c.Invoke(ctx, call, rsp, bus.WithResponseAttachments(&rspAttachments))
+	if err != nil {
+		return nil, err
+	}
+
+	readers := make([]yt.TableReader, len(rsp.GetSubresponses()))
+	attachmentOffset := 0
+
+	defer func() {
+		if err != nil {
+			for _, reader := range readers {
+				if reader != nil {
+					_ = reader.Close()
+				}
+			}
+		}
+	}()
+
+	for i, subresponse := range rsp.GetSubresponses() {
+		attachmentCount := int(subresponse.GetAttachmentCount())
+		subAttachments := rspAttachments[attachmentOffset : attachmentOffset+attachmentCount]
+		attachmentOffset += attachmentCount
+
+		rows, err := decodeFromWire(subAttachments)
+		if err != nil {
+			return nil, xerrors.Errorf("unable to decode subresponse %d from wire format: %w", i, err)
+		}
+
+		reader, err := newTableReader(rows, subresponse.GetRowsetDescriptor())
+		if err != nil {
+			return nil, xerrors.Errorf("unable to create table reader for subresponse %d: %w", i, err)
+		}
+
+		readers[i] = reader
+	}
+
+	return readers, nil
 }
 
 func (c *client) invoke(
@@ -271,6 +337,16 @@ func (c *client) requestCredentials(ctx context.Context) (yt.Credentials, error)
 		return creds, nil
 	}
 
+	// Check for general credentials provider first.
+	if c.conf.CredentialsProviderFn != nil {
+		credentials, err := c.conf.CredentialsProviderFn(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return credentials, nil
+	}
+
+	// Fallback to TVM for backward compatibility.
 	if c.conf.TVMFn != nil {
 		ticket, err := c.conf.TVMFn(ctx)
 		if err != nil {

@@ -14,9 +14,8 @@ const TEnumIndexedArray<ESandboxKind, TString> SandboxDirectoryNames{
     {ESandboxKind::Logs, "logs"},
 };
 
-const TString EmptyCpuSet("");
+const std::string EmptyCpuSet("");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecNode
-

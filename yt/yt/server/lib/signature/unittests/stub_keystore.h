@@ -20,7 +20,7 @@ struct TStubKeyStore
 
     THashMap<TOwnerId, std::vector<TKeyInfoPtr>> Data;
 
-    const TOwnerId& GetOwner() const final;
+    TOwnerId GetOwner() const final;
 
     TFuture<TKeyInfoPtr> FindKey(const TOwnerId& ownerId, const TKeyId& keyId) const final;
 

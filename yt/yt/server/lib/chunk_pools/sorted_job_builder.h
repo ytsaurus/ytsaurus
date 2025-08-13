@@ -14,12 +14,19 @@ namespace NYT::NChunkPools {
 
 struct TSortedJobOptions
 {
+    //! Guarantee that each key goes to the single job.
     bool EnableKeyGuarantee = false;
+
     // COMPAT(max42): we are keeping both comparator and prefix length in order
     // to maintain single TSortedJobOptions instead of two almost duplicating classes
     // with almost duplicating filling code in sorted task.
+
+    //! Comparator corresponding to the primary merge or reduce key.
     NTableClient::TComparator PrimaryComparator;
+
+    //! Comparator corresponding to the foreign reduce key.
     NTableClient::TComparator ForeignComparator;
+
     int PrimaryPrefixLength = 0;
     int ForeignPrefixLength = 0;
     bool EnablePeriodicYielder = true;
@@ -35,6 +42,7 @@ struct TSortedJobOptions
     //! is exceeded, an exception is thrown.
     i64 MaxTotalSliceCount;
 
+    // Not persisted.
     TJobSizeTrackerOptions JobSizeTrackerOptions;
 
     PHOENIX_DECLARE_TYPE(TSortedJobOptions, 0x54c67649);

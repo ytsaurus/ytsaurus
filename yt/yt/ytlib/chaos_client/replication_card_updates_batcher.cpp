@@ -73,6 +73,8 @@ public:
         TBarrierLockGuardPtr barrierLockGuard,
         const TLogger& logger)
     {
+        YT_VERIFY(barrierLockGuard);
+
         return StateLock_->AsyncAcquire(1)
             .ApplyUnique(BIND(
                 [
@@ -81,6 +83,8 @@ public:
                     Logger = logger,
                     this
                 ] (TAsyncSemaphoreGuard&& /*guard*/) {
+                    YT_VERIFY(barrierLockGuard);
+
                     if (Progress_.Segments.empty()) {
                         Progress_ = std::move(progressUpdate);
                     } else {
@@ -130,12 +134,12 @@ public:
                 replicaId,
                 std::move(progressUpdate),
                 logger,
-                std::move(barrierLockGuard),
+                barrierLockGuard,
                 guard));
         }
 
         guard.Release();
-        return ToReplicationCardFuture(AllSet(std::move(futures)).AsVoid());
+        return ToReplicationCardFuture(AllSet(std::move(futures)).AsVoid(), std::move(barrierLockGuard));
     }
 
     TFuture<TReplicationCardPtr> AddReplicaUpdate(
@@ -149,11 +153,11 @@ public:
             replicaId,
             std::move(progressUpdate),
             logger,
-            std::move(barrierLockGuard),
+            barrierLockGuard,
             guard);
 
         guard.Release();
-        return ToReplicationCardFuture(std::move(updateFuture));
+        return ToReplicationCardFuture(std::move(updateFuture), std::move(barrierLockGuard));
     }
 
     TPromise<TReplicationCardPtr> ExtractCardPromise()
@@ -220,8 +224,12 @@ private:
         return VoidFuture;
     }
 
-    TFuture<TReplicationCardPtr> ToReplicationCardFuture(TFuture<void>&& prerequisite) const
+    TFuture<TReplicationCardPtr> ToReplicationCardFuture(
+        TFuture<void>&& prerequisite,
+        TBarrierLockGuardPtr barrierLockGuard) const
     {
+        YT_VERIFY(barrierLockGuard);
+
         return prerequisite.Apply(BIND([future = CardPromise_.ToFuture()] {
             return future;
         }));
@@ -629,7 +637,7 @@ private:
         const IConnectionPtr& connection,
         const TMultipleReplicationCardProgressesUpdates& batch) const
     {
-        const auto residencyCache = connection->GetChaosResidencyCache();
+        const auto& residencyCache = connection->GetChaosResidencyCache();
 
         std::vector<std::pair<TReplicationCardId, TFuture<TCellTag>>> futureTagById;
         std::vector<TFuture<TCellTag>> futures;

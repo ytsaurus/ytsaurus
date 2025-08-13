@@ -359,7 +359,10 @@ public:
 
     void OnReference(TReferenceExpressionPtr referenceExpr)
     {
-        YT_VERIFY(!referenceExpr->Reference.TableName);
+        THROW_ERROR_EXCEPTION_IF(
+            referenceExpr->Reference.TableName,
+            "Invalid attribute reference %Qv",
+            FormatExpression(*referenceExpr));
         Inserter_(referenceExpr->Reference.ColumnName);
     }
 
@@ -415,7 +418,7 @@ bool IntrospectFilterForDefinedReference(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExtractFilterAttributeReferences(const std::string& filterQuery, std::function<void(const std::string&)> inserter)
+void ExtractFilterAttributeReferences(TStringBuf filterQuery, std::function<void(TYPathBuf)> inserter)
 {
     if (filterQuery.empty()) {
         return;
@@ -428,7 +431,7 @@ void ExtractFilterAttributeReferences(const std::string& filterQuery, std::funct
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsAttributeReference(const TExpressionList& exprList, const TYPath& attributePath) noexcept
+bool IsAttributeReference(const TExpressionList& exprList, TYPathBuf attributePath) noexcept
 {
     if (exprList.size() == 1) {
         if (auto* typedExpr = exprList[0]->As<TReferenceExpression>()) {
@@ -442,9 +445,9 @@ bool IsAttributeReference(const TExpressionList& exprList, const TYPath& attribu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<TString> TryCastToStringValue(const TExpressionList& exprList) noexcept
+std::optional<std::string> TryCastToStringValue(const TExpressionList& exprList) noexcept
 {
-    return TryCastToLiteralValue(exprList).TryMoveAs<TString>();
+    return TryCastToLiteralValue(exprList).TryMoveAs<std::string>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

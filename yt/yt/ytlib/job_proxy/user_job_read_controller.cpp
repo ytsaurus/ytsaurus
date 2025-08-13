@@ -63,7 +63,7 @@ public:
         TClientChunkReadOptions chunkReadOptions,
         TMultiChunkReaderHostPtr chunkReaderHost,
         TClosure onNetworkRelease,
-        std::optional<TString> udfDirectory,
+        std::optional<std::string> udfDirectory,
         TDuration threshold,
         i64 adaptiveRowCountUpperBound,
         TInstant ioStartTime)
@@ -251,7 +251,7 @@ private:
     IProfilingMultiChunkReaderPtr Reader_;
     std::optional<NChunkClient::NProto::TDataStatistics> PreparationDataStatistics_;
     std::vector<IProfilingSchemalessFormatWriterPtr> FormatWriters_;
-    std::optional<TString> UdfDirectory_;
+    std::optional<std::string> UdfDirectory_;
     std::atomic<bool> ReaderInitialized_ = false;
     std::atomic<bool> WriterInitialized_ = false;
     std::atomic<bool> Interrupted_ = false;
@@ -567,9 +567,9 @@ IUserJobReadControllerPtr CreateUserJobReadController(
     TMultiChunkReaderHostPtr chunkReaderHost,
     IInvokerPtr invoker,
     TClosure onNetworkRelease,
-    std::optional<TString> udfDirectory,
+    std::optional<std::string> udfDirectory,
     TClientChunkReadOptions chunkReadOptions,
-    TString /*localHostName*/,
+    std::string /*localHostName*/,
     TDuration adaptiveConfigTimeoutThreshold,
     i64 adaptiveRowCountUpperBound,
     TInstant ioStartTime)

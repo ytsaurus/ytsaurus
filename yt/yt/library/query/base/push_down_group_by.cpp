@@ -209,7 +209,7 @@ std::pair<TJoinClausePtr, TGroupClausePtr> MakeGroupAndJoinClauses(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString MakeDebugString(const TGroupClause& groupClause)
+std::string MakeDebugString(const TGroupClause& groupClause)
 {
     return Format("(GroupKey: %v, Aggregates: %v, TotalsMode: %Qlv, CommonPrefixWithPrimaryKey: %v)",
         MakeFormattableView(groupClause.GroupItems, [] (TStringBuilderBase* builder, const TNamedItem& item) {
@@ -230,7 +230,7 @@ TString MakeDebugString(const TGroupClause& groupClause)
         groupClause.CommonPrefixWithPrimaryKey);
 }
 
-TString MakeDebugString(const TJoinClause& joinClause)
+std::string MakeDebugString(const TJoinClause& joinClause)
 {
     YT_VERIFY(joinClause.GroupClause);
 

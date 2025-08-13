@@ -20,7 +20,6 @@ struct TJobSizeTrackerOptions
 };
 
 struct IJobSizeTracker
-    : public TRefCounted
 {
     //! Account slice resource vector.
     virtual void AccountSlice(TResourceVector vector) = 0;
@@ -29,20 +28,23 @@ struct IJobSizeTracker
     //! be included in current job without overflow. This method is intended for using before
     //! calling #AccountSlice.
     //! After doing so, you must still call #AccountSlice for newly formed data slices.
-    virtual double SuggestRowSplitFraction(TResourceVector vector) = 0;
+    virtual double SuggestRowSplitFraction(TResourceVector vector) const = 0;
 
     //! If current job plus possible extraStatistics is large enough to be flushed, returns true; false otherwise.
-    virtual std::optional<std::any> CheckOverflow(TResourceVector extraVector = TResourceVector()) = 0;
+    virtual std::optional<std::any> CheckOverflow(TResourceVector extraVector = TResourceVector()) const = 0;
 
     //! Called to indicate the fact currently building job was flushed.
-    virtual void Flush(std::optional<std::any> overflowToken) = 0;
-};
+    virtual void Flush(const std::optional<std::any>& overflowToken) = 0;
 
-DEFINE_REFCOUNTED_TYPE(IJobSizeTracker)
+    virtual ~IJobSizeTracker() = default;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobSizeTrackerPtr CreateJobSizeTracker(TResourceVector limitVector, TJobSizeTrackerOptions options, const NLogging::TLogger& logger);
+std::unique_ptr<IJobSizeTracker> CreateJobSizeTracker(
+    TResourceVector limitVector,
+    TJobSizeTrackerOptions options,
+    const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

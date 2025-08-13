@@ -114,7 +114,7 @@ TRow GetPivotKey(const TTabletInfoPtr& shard)
     return shard->PivotKey;
 }
 
-std::vector<std::pair<TDataSource, TString>> CoordinateDataSources(
+std::vector<std::pair<TDataSource, std::string>> CoordinateDataSources(
     const NHiveClient::ICellDirectoryPtr& cellDirectory,
     const NNodeTrackerClient::TNetworkPreferenceList& networks,
     const TTableMountInfoPtr& tableInfo,
@@ -141,7 +141,7 @@ std::vector<std::pair<TDataSource, TString>> CoordinateDataSources(
         return peerDescriptor.GetAddressOrThrow(networks);
     };
 
-    std::vector<std::pair<TDataSource, TString>> subsources;
+    std::vector<std::pair<TDataSource, std::string>> subsources;
     auto makeSubsource = [&] (TShardIt it) {
         // `.Slice(1, tablets.size())`, `*(it - 1)` and `(*shardIt)->PivotKey` are related.
         // If there would be (*shardIt)->NextPivotKey then no .Slice(1, tablets.size()) and *(it - 1) are needed.
@@ -264,7 +264,6 @@ class TQueryResponseReader
 {
 public:
     TQueryResponseReader(
-        TFuture<TQueryServiceProxy::TRspExecutePtr> asyncResponse,
         TGuid id,
         TTableSchemaPtr schema,
         NCompression::ECodec codecId,
@@ -275,6 +274,9 @@ public:
         , CodecId_(codecId)
         , Logger(std::move(logger))
         , MemoryChunkProvider_(std::move(memoryChunkProvider))
+    { }
+
+    void Initialize(TFuture<TQueryServiceProxy::TRspExecutePtr> asyncResponse)
     {
         // NB: Don't move this assignment to initializer list as
         // OnResponse will access "this", which is not fully constructed yet.
@@ -502,7 +504,7 @@ private:
             VerifyIdsInKeys(dataSource.first.Keys);
         }
 
-        std::vector<std::pair<std::vector<TDataSource>, TString>> groupedDataSplits;
+        std::vector<std::pair<std::vector<TDataSource>, std::string>> groupedDataSplits;
 
         if (coordinatedQuery->IsOrdered(options.AllowUnorderedGroupByWithLimit)) {
             // Splits are ordered by tablet bounds.
@@ -620,7 +622,7 @@ private:
         const TQueryOptions& options,
         const TFeatureFlags& requestFeatureFlags,
         const IUnversionedRowsetWriterPtr& writer,
-        std::vector<std::pair<std::vector<TDataSource>, TString>> groupedDataSplits)
+        std::vector<std::pair<std::vector<TDataSource>, std::string>> groupedDataSplits)
     {
         auto Logger = MakeQueryLogger(query);
 
@@ -645,7 +647,7 @@ private:
 
         int splitCount = std::ssize(groupedDataSplits);
 
-        return CoordinateAndExecute(
+        auto statistics = CoordinateAndExecute(
             query->IsOrdered(options.AllowUnorderedGroupByWithLimit),
             query->IsPrefetching(),
             splitCount,
@@ -698,6 +700,14 @@ private:
                     requestFeatureFlags,
                     responseFeatureFlags);
             });
+
+        if (options.StatisticsAggregation == EStatisticsAggregation::Depth) {
+            auto aggregated = TQueryStatistics();
+            aggregated.Merge(statistics);
+            return aggregated;
+        }
+
+        return statistics;
     }
 
     TEvaluateResult Delegate(
@@ -760,17 +770,14 @@ private:
             serializationTime,
             req->ByteSize());
 
-        // TODO(prime): put these into the trace log
-        // TRACE_ANNOTATION("serialization_time", serializationTime);
-        // TRACE_ANNOTATION("request_size", req->ByteSize());
-
         auto resultReader = New<TQueryResponseReader>(
-            req->Invoke(),
             query->Id,
             query->GetTableSchema(),
             config->SelectRowsResponseCodec,
             MemoryChunkProvider_,
             Logger);
+
+        resultReader->Initialize(req->Invoke());
 
         return {resultReader, resultReader->GetQueryResult(), resultReader->GetResponseFeatureFlags()};
     }

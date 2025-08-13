@@ -53,6 +53,11 @@ bool TTable::IsSortedDynamic() const
     return Dynamic && Schema->IsSorted();
 }
 
+bool TTable::IsOrderedDynamic() const
+{
+    return Dynamic && !Schema->IsSorted();
+}
+
 void FormatValue(TStringBuilderBase* builder, const TTablePtr& table, TStringBuf spec)
 {
     FormatValue(builder, table->Path, spec);

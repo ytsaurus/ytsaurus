@@ -453,19 +453,19 @@ TTableProfilerPtr CreateTableProfiler(
 
 using TChunkWriteCountersVector = TEnumIndexedArray<
     EChunkWriteProfilingMethod,
-    std::array<TChunkWriteCounters, 2>>;
+    std::array<std::optional<TChunkWriteCounters>, 2>>;
 
 using TChunkReadCountersVector = TEnumIndexedArray<
     EChunkReadProfilingMethod,
-    std::array<TChunkReadCounters, 2>>;
+    std::array<std::optional<TChunkReadCounters>, 2>>;
 
 using TTabletDistributedThrottlerTimersVector = TEnumIndexedArray<
     ETabletDistributedThrottlerKind,
-    NProfiling::TEventTimer>;
+    std::optional<NProfiling::TEventTimer>>;
 
 using TTabletDistributedThrottlerCounters = TEnumIndexedArray<
     ETabletDistributedThrottlerKind,
-    NProfiling::TCounter>;
+    std::optional<NProfiling::TCounter>>;
 
 class TTableProfiler
     : public TRefCounted
@@ -512,6 +512,7 @@ private:
     const NProfiling::TProfiler Profiler_ = {};
     const NProfiling::TProfiler MediumProfiler_ = {};
     const NProfiling::TProfiler MediumHistogramProfiler_ = {};
+    const NProfiling::TProfiler DiskProfiler_ = {};
     const NTableClient::TTableSchemaPtr Schema_;
 
     template <class TCounter>
@@ -543,16 +544,18 @@ private:
     TUserTaggedCounter<TPullRowsCounters> PullRowsCounters_;
     TUserTaggedCounter<TFetchTableRowsCounters> FetchTableRowsCounters_;
 
-    TTablePullerCounters TablePullerCounters_;
+    std::optional<TTablePullerCounters> TablePullerCounters_;
     TChunkWriteCountersVector ChunkWriteCounters_;
     TChunkReadCountersVector ChunkReadCounters_;
     TTabletDistributedThrottlerTimersVector ThrottlerWaitTimers_;
     TTabletDistributedThrottlerCounters ThrottlerCounters_;
-    TLsmCounters LsmCounters_;
+    std::optional<TLsmCounters> LsmCounters_;
     std::optional<TSmoothMovementCounters> SmoothMovementCounters_;
 
-    template <class TCounter>
-    TCounter* GetCounterUnlessDisabled(TCounter* counter);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+
+    template <class TCounter, class TCallback = std::monostate>
+    TCounter* GetOrCreateCounter(std::optional<TCounter>* counter, TCallback&& callback = {});
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableProfiler)

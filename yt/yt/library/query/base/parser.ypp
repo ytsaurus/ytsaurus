@@ -118,13 +118,13 @@
 %token KwFalse "keyword `TRUE`"
 %token KwTrue "keyword `FALSE`"
 
-%token <TString> Identifier "identifier"
+%token <std::string> Identifier "identifier"
 
 %token <i64> Int64Literal "int64 literal"
 %token <ui64> Uint64Literal "uint64 literal"
 %token <TDoubleOrDotIntToken> DoubleOrDotIntToken "double or dot int token"
-%token <TString> StringLiteral "string literal"
-%token <TString> PlaceholderLiteral "placeholder literal"
+%token <std::string> StringLiteral "string literal"
+%token <std::string> PlaceholderLiteral "placeholder literal"
 
 
 
@@ -172,7 +172,7 @@
 %type <std::optional<i64>> limit-clause
 
 %type <TTableDescriptor> table-descriptor
-%type <std::optional<TString>> optional-alias
+%type <std::optional<std::string>> optional-alias
 %type <TTableHintPtr> optional-hint
 
 %type <bool> is-desc
@@ -336,7 +336,7 @@ optional-hint
 table-descriptor
     : Identifier[path] optional-alias[alias] optional-hint[hint]
         {
-            $$ = TTableDescriptor(std::move($path), std::move($alias), std::move($hint));
+            $$ = TTableDescriptor(NYPath::TYPath($path), std::move($alias), std::move($hint));
         }
 ;
 
@@ -390,7 +390,7 @@ from-clause-tail
 with-index-clause
     : KwWithIndex Identifier[path] optional-alias[alias]
         {
-            $$ = TTableDescriptor($path, std::move($alias));
+            $$ = TTableDescriptor(NYPath::TYPath($path), std::move($alias));
         }
     |
         {

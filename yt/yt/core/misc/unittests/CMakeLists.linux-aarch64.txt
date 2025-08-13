@@ -51,8 +51,7 @@ target_link_libraries(unittester-core-misc PUBLIC
 )
 
 target_allocator(unittester-core-misc
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
+  system_allocator
 )
 
 target_link_options(unittester-core-misc PRIVATE
@@ -84,6 +83,7 @@ target_sources(unittester-core-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/concurrent_cache_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/configurable_singleton_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/consistent_hashing_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/crash_handler_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/default_map_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/digest_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/ema_counter_ut.cpp

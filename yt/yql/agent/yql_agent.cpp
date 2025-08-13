@@ -257,20 +257,27 @@ public:
             }
         }
 
-        NYql::TLangVersionBuffer buf;
+        NYql::TLangVersionBuffer buffer;
         TStringBuf maxVersionStringBuf;
         NYql::TLangVersion maxYqlLangVersion;
-        if (!NYql::ParseLangVersion(Config_->MaxSupportedYqlVersion, maxYqlLangVersion) || !NYql::IsValidLangVersion(maxYqlLangVersion)) {
+        if (!Config_->MaxSupportedYqlVersion || !NYql::ParseLangVersion(Config_->MaxSupportedYqlVersion.value(), maxYqlLangVersion) || !NYql::IsValidLangVersion(maxYqlLangVersion)) {
             maxYqlLangVersion = NYql::GetMaxLangVersion();
-            NYql::FormatLangVersion(maxYqlLangVersion, buf, maxVersionStringBuf);
-            if (!Config_->MaxSupportedYqlVersion.empty()) {
-                YT_LOG_ERROR("Max YQL version '%v' set via config or flag is not valid. Setting '%v' as maximum available version.", Config_->MaxSupportedYqlVersion, maxVersionStringBuf);
+            NYql::FormatLangVersion(maxYqlLangVersion, buffer, maxVersionStringBuf);
+            if (Config_->MaxSupportedYqlVersion) {
+                YT_LOG_ERROR("Max YQL version set via config or flag is not valid. Setting default version as maximum available (VersionFromConfig: %v)", Config_->MaxSupportedYqlVersion);
             }
         } else {
-            NYql::FormatLangVersion(maxYqlLangVersion, buf, maxVersionStringBuf);
+            NYql::FormatLangVersion(maxYqlLangVersion, buffer, maxVersionStringBuf);
         }
 
-        YT_LOG_INFO("Maximum supported YQL version is set to '%v'", maxVersionStringBuf);
+        MaxSupportedYqlVersion_ = maxVersionStringBuf;
+        YT_LOG_INFO("Maximum supported YQL version is set (Version: %v)", MaxSupportedYqlVersion_);
+
+        TStringBuf defaultVersionStringBuf;
+        NYql::FormatLangVersion(std::min(NYql::GetMaxReleasedLangVersion(), maxYqlLangVersion), buffer, defaultVersionStringBuf);
+        DefaultYqlUILangVersion_ = defaultVersionStringBuf;
+        YT_LOG_INFO("Deafult YQL version for UI is set (Version: %v)", DefaultYqlUILangVersion_);
+
 
         NYqlPlugin::TYqlPluginOptions options{
             .SingletonsConfig = singletonsConfigString,
@@ -285,7 +292,7 @@ public:
             .UIOrigin = Config_->UIOrigin,
             .LogBackend = NYT::NLogging::CreateArcadiaLogBackend(TLogger("YqlPlugin")),
             .YqlPluginSharedLibrary = Config_->YqlPluginSharedLibrary,
-            .MaxYqlLangVersion = TString(maxVersionStringBuf),
+            .MaxYqlLangVersion = MaxSupportedYqlVersion_,
         };
 
         // NB: under debug build this method does not fit in regular fiber stack
@@ -387,6 +394,29 @@ public:
         }
     }
 
+    TRspGetYqlAgentInfo GetYqlAgentInfo() override
+    {
+        YT_LOG_DEBUG("Getting yql agent info");
+
+        TRspGetYqlAgentInfo response;
+
+        std::vector<std::pair<ui32, ui32>> versions {
+            #include "yql/essentials/public/langver/yql_langver_list.inc"
+        };
+
+        NYql::TLangVersionBuffer buffer;
+        TStringBuf formattedVersion;
+        for (const auto& version : versions) {
+            NYql::FormatLangVersion(NYql::MakeLangVersion(version.first, version.second), buffer, formattedVersion);
+            if (formattedVersion <= MaxSupportedYqlVersion_) {
+                response.add_available_yql_versions(formattedVersion);
+            }
+        }
+        response.set_default_ui_yql_version(DefaultYqlUILangVersion_);
+
+        return response;
+    }
+
 private:
     const TSingletonsConfigPtr SingletonsConfig_;
     const TYqlAgentConfigPtr Config_;
@@ -394,6 +424,9 @@ private:
     const TClientDirectoryPtr ClientDirectory_;
     const IInvokerPtr ControlInvoker_;
     const TString AgentId_;
+
+    std::string MaxSupportedYqlVersion_;
+    std::string DefaultYqlUILangVersion_;
 
     TYqlAgentDynamicConfigPtr DynamicConfig_;
 
@@ -426,7 +459,7 @@ private:
 
         std::vector<TSharedRef> wireRowsets;
         try {
-            auto query = Format("pragma yt.UseNativeYtTypes;\npragma yt.UseNativeDynamicTableRead;\npragma ResultRowsLimit=\"%v\";\n%v", request.row_count_limit(), yqlRequest.query());
+            auto query = TString(yqlRequest.query());
             auto settings = yqlRequest.has_settings() ? TYsonString(yqlRequest.settings()) : EmptyMap;
 
             std::vector<NYqlPlugin::TQueryFile> files;

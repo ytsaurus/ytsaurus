@@ -12,12 +12,14 @@
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/sequoia_client/prerequisite_revision.h>
 #include <yt/yt/ytlib/sequoia_client/record_helpers.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 
 #include <yt/yt/ytlib/sequoia_client/records/child_node.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/doomed_transactions.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/transactions.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/transaction_replicas.record.h>
 
@@ -38,6 +40,7 @@ using namespace NApi;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NObjectClient;
+using namespace NRpc;
 using namespace NSequoiaClient;
 using namespace NSequoiaServer;
 using namespace NTableClient;
@@ -413,13 +416,14 @@ void TraverseSelectedSubtree(
 
 DEFINE_REFCOUNTED_TYPE(TSequoiaSession)
 
-NCypressClient::TTransactionId TSequoiaSession::GetCurrentCypressTransactionId() const
+TTransactionId TSequoiaSession::GetCurrentCypressTransactionId() const
 {
     return CypressTransactionAncestry_.back();
 }
 
 TSequoiaSessionPtr TSequoiaSession::Start(
     IBootstrap* bootstrap,
+    TAuthenticationIdentity authenticationIdentity,
     TTransactionId cypressTransactionId,
     const std::vector<TTransactionId>& cypressPrerequisiteTransactionIds)
 {
@@ -432,7 +436,12 @@ TSequoiaSessionPtr TSequoiaSession::Start(
         ValidatePrerequisiteTransactions(sequoiaClient, cypressPrerequisiteTransactionIds);
     }
 
-    auto sequoiaTransaction = WaitFor(StartCypressProxyTransaction(sequoiaClient, ESequoiaTransactionType::CypressModification, cypressPrerequisiteTransactionIds))
+    auto sequoiaTransaction = WaitFor(
+        StartCypressProxyTransaction(
+            sequoiaClient,
+            ESequoiaTransactionType::CypressModification,
+            std::move(authenticationIdentity),
+            cypressPrerequisiteTransactionIds))
         .ValueOrThrow();
 
     std::vector<TTransactionId> cypressTransactions;
@@ -444,9 +453,18 @@ TSequoiaSessionPtr TSequoiaSession::Start(
         YT_VERIFY(cypressTransactionRecords.size() == 1);
 
         const auto& record = cypressTransactionRecords[0];
-
         if (!record.has_value()) {
             NTransactionServer::ThrowNoSuchTransaction(cypressTransactionId);
+        }
+
+        auto doomedTransactionRecords = WaitFor(sequoiaTransaction->LookupRows(
+            std::vector<NRecords::TDoomedTransactionKey>{{.TransactionId = cypressTransactionId}}))
+            .ValueOrThrow();
+        YT_VERIFY(doomedTransactionRecords.size() == 1);
+        if (doomedTransactionRecords[0].has_value()) {
+            THROW_ERROR_EXCEPTION(
+                NSequoiaClient::EErrorCode::SequoiaRetriableError,
+                "Transaction is marked as doomed");
         }
 
         cypressTransactions.resize(2 + record->AncestorIds.size());
@@ -924,6 +942,7 @@ TNodeId TSequoiaSession::CopySubtree(
     const TSubtree& subtree,
     TAbsolutePathBuf destinationRoot,
     TNodeId destinationParentId,
+    const std::vector<TResolvedPrerequisiteRevision>& prerequisiteRevisions,
     const TCopyOptions& options)
 {
     // To copy simlinks properly we have to fetch their target paths.
@@ -933,6 +952,9 @@ TNodeId TSequoiaSession::CopySubtree(
         if (IsLinkType(TypeFromId(node.Id))) {
             linkIds.push_back(node.Id);
         }
+    }
+    for (const auto& revision : prerequisiteRevisions) {
+        AcquireCypressLockInSequoia(revision.NodeId, ELockMode::Exclusive);
     }
 
     auto links = GetLinkTargetPaths(linkIds);
@@ -1204,6 +1226,8 @@ TNodeId TSequoiaSession::CreateNode(
     const TSuppressableAccessTrackingOptions& options)
 {
     auto createdNodeId = SequoiaTransaction_->GenerateObjectId(type);
+
+    AcquireCypressLockInSequoia(createdNodeId, ELockMode::Exclusive);
 
     NCypressProxy::CreateNode(
         {createdNodeId, GetCurrentCypressTransactionId()},

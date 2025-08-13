@@ -19,7 +19,7 @@ from yt_commands import (
     start_transaction, abort_transaction, sync_mount_table, sync_unmount_table,
     sync_compact_table, set_nodes_banned, set_node_banned,
     get_account_disk_space_limit, set_account_disk_space_limit,
-    get_active_primary_master_leader_address, gc_collect,
+    get_active_primary_master_leader_address, gc_collect, copy,
 )
 
 from yt.wrapper import yson
@@ -101,13 +101,8 @@ class TestSequoiaReplicas(YTEnvSetup):
     def setup_class(cls):
         super(TestSequoiaReplicas, cls).setup_class()
 
-        for media in ls("//sys/media"):
-            set("//sys/media/{}/@enable_sequoia_replicas".format(media), False)
-
         create_domestic_medium(cls.TABLE_MEDIUM_1)
         create_domestic_medium(cls.TABLE_MEDIUM_2)
-        set("//sys/media/{}/@enable_sequoia_replicas".format(cls.TABLE_MEDIUM_1), True)
-        set("//sys/media/{}/@enable_sequoia_replicas".format(cls.TABLE_MEDIUM_2), False)
 
         mediums = [cls.TABLE_MEDIUM_1, cls.TABLE_MEDIUM_2, "default"]
         iter_mediums = 0
@@ -286,7 +281,6 @@ class TestSequoiaReplicas(YTEnvSetup):
 
     @authors("kvk1920")
     def test_last_seen_replicas_fairness(self):
-
         create("table", "//tmp/t")
         write_table("//tmp/t", [{"key": 42, "value": "hello!"}])
         chunk_id = get_singular_chunk_id("//tmp/t")
@@ -445,8 +439,8 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
         write_table("<append=%true>" + table, {"foo": "bar"}, table_writer={"upload_replication_factor": 1})
 
         chunk_id = get_singular_chunk_id(table)
-        wait(lambda: len(get("#{}/@stored_sequoia_replicas".format(chunk_id))) == 0)
-        wait(lambda: len(get("#{}/@stored_master_replicas".format(chunk_id))) > 0)
+        wait(lambda: len(get("#{}/@stored_sequoia_replicas".format(chunk_id))) > 0)
+        wait(lambda: len(get("#{}/@stored_master_replicas".format(chunk_id))) == 0)
         remove(table)
 
     @authors("aleksandra-zh")
@@ -473,35 +467,25 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
             json_data = yson.yson_to_json(data)
             return json_data['$attributes']['medium']
 
-        def process_yson_locations(data):
-            json_data = yson.yson_to_json(data)
-            return json_data['$attributes']['location_uuid']
-
-        def check_sequoia_replicas(chunk_id):
+        def check_sequoia_replicas(chunk_id, medium):
             stored_sequoia_replicas = get("#{}/@stored_sequoia_replicas".format(chunk_id))
-            results = [process_yson_medium(data) == self.TABLE_MEDIUM_1 for data in stored_sequoia_replicas]
-            return all(results) and len(results) > 0
+            results = [data for data in stored_sequoia_replicas if process_yson_medium(data) == medium]
+            return len(results) > 0
 
-        wait(lambda: check_sequoia_replicas(chunk_id))
-
-        def check_master_replicas(chunk_id):
-            stored_master_replicas = get("#{}/@stored_master_replicas".format(chunk_id))
-            results = [process_yson_medium(data) == self.TABLE_MEDIUM_2 for data in stored_master_replicas]
-            return all(results) and len(results) > 0
-
-        wait(lambda: check_master_replicas(chunk_id))
+        wait(lambda: check_sequoia_replicas(chunk_id, self.TABLE_MEDIUM_1))
+        wait(lambda: check_sequoia_replicas(chunk_id, self.TABLE_MEDIUM_2))
 
         def check_stored_replicas(chunk_id):
             stored_replicas = get("#{}/@stored_replicas".format(chunk_id))
             stored_sequoia_replicas = get("#{}/@stored_sequoia_replicas".format(chunk_id))
             stored_master_replicas = get("#{}/@stored_master_replicas".format(chunk_id))
 
-            if len(stored_replicas) != 2 or len(stored_sequoia_replicas) != 1 or len(stored_master_replicas) != 1:
+            if len(stored_replicas) != 2 or len(stored_sequoia_replicas) != 2 or len(stored_master_replicas) != 0:
                 return False
 
             for replica in stored_replicas:
                 if (process_yson_medium(replica) == self.TABLE_MEDIUM_1 and replica not in stored_sequoia_replicas) or \
-                        (process_yson_medium(replica) == self.TABLE_MEDIUM_2 and replica not in stored_master_replicas):
+                        (process_yson_medium(replica) == self.TABLE_MEDIUM_2 and replica not in stored_sequoia_replicas):
                     return False
             return True
 
@@ -527,6 +511,12 @@ class TestSequoiaReplicasMulticell(TestSequoiaReplicas):
     ENABLE_MULTIDAEMON = False  # There are components restarts.
     NUM_SECONDARY_MASTER_CELLS = 3
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["chunk_host"]},
+    }
+
     @classmethod
     def modify_node_config(cls, config, cluster_index):
         super(TestSequoiaReplicasMulticell, cls).modify_node_config(config, cluster_index)
@@ -551,6 +541,9 @@ class TestSequoiaQueues(YTEnvSetup):
         "sequoia_manager": {
             "enable_ground_update_queues": True
         },
+        "ground_update_queue_manager": {
+            "profiling_period": 100
+        }
     }
 
     def _pause_sequoia_queue(self):
@@ -605,6 +598,15 @@ class TestSequoiaQueues(YTEnvSetup):
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
+        master = get_active_primary_master_leader_address(self)
+        master_orchid_path = "//sys/primary_masters/{0}/orchid/ground_update_queue_manager/sequoia".format(master)
+        profiler = profiler_factory().at_primary_master(master)
+
+        wait(lambda: get(master_orchid_path + "/record_count") > 0)
+        wait(lambda: profiler.with_tags({"queue": "sequoia"}).gauge("sequoia_server/ground_update_queue_manager/record_count").get() > 0, ignore_exceptions=True)
+
+        old_orchid_value = get(master_orchid_path)
+
         self._resume_sequoia_queue()
 
         def get_row(path):
@@ -621,9 +623,15 @@ class TestSequoiaQueues(YTEnvSetup):
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
+        # Leader might've changed, update orchid path and profiler.
+        master = get_active_primary_master_leader_address(self)
+        master_orchid_path = "//sys/primary_masters/{0}/orchid/ground_update_queue_manager/sequoia".format(master)
+        profiler = profiler_factory().at_primary_master(master)
+
         self._resume_sequoia_queue()
 
         wait(lambda: len(get_row('//tmp/m2')) == 0)
+        assert get(master_orchid_path + "/last_flushed_sequence_number") > old_orchid_value["last_flushed_sequence_number"]
 
     @authors("aleksandra-zh")
     def test_branched_link(self):
@@ -647,7 +655,7 @@ class TestSequoiaObjects(YTEnvSetup):
 
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
-        # Master cell with tag 11 is reserved for portals.
+        "11": {"roles": ["chunk_host"]},
         "12": {"roles": ["sequoia_node_host", "chunk_host", "transaction_coordinator"]},
         "13": {"roles": ["sequoia_node_host", "chunk_host", "transaction_coordinator"]},
     }
@@ -666,7 +674,7 @@ class TestSequoiaObjects(YTEnvSetup):
 
     @authors("kvk1920")
     @pytest.mark.parametrize("finish_tx", [commit_transaction, abort_transaction])
-    def test_read_with_prerequisites(self, finish_tx):
+    def test_read_with_prerequisite_tx(self, finish_tx):
         tx = start_transaction()
         t = create("table", "//tmp/t")
 
@@ -681,7 +689,7 @@ class TestSequoiaObjects(YTEnvSetup):
 
     @authors("cherepashka", "kvk1920")
     @pytest.mark.parametrize("finish_tx", [commit_transaction, abort_transaction])
-    def test_write_with_prerequisites(self, finish_tx):
+    def test_write_with_prerequisite_tx(self, finish_tx):
         tx = start_transaction()
         create("table", "//tmp/t", prerequisite_transaction_ids=[tx])
         tx2 = start_transaction(prerequisite_transaction_ids=[tx])
@@ -731,3 +739,45 @@ class TestSequoiaObjects(YTEnvSetup):
         assert get_cell_tag(tx1) == 11 and get_cell_tag(tx2) == 12
         with raises_yt_error("Multiple prerequisite transactions from different cells specified"):
             start_transaction(prerequisite_transaction_ids=[tx1, tx2])
+
+    @authors("cherepashka")
+    def test_copy_with_prerequisite_revision(self):
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 11})
+        set("//tmp/t2", "aba", attributes={"external_cell_tag": 12})
+        revision = get("//tmp/t1/@revision")
+        copy(
+            "//tmp/t1",
+            "//tmp/t2",
+            force=True,
+            prerequisite_revisions=[
+                {
+                    "path": "//tmp/t1",
+                    "revision": revision,
+                }
+            ])
+        write_table("<append=%true>//tmp/t1", {"foo": "bar"})
+        new_revision = get("//tmp/t1/@revision")
+        assert new_revision > revision
+
+        with raises_yt_error("revision mismatch"):
+            copy(
+                "//tmp/t1",
+                "//tmp/t2",
+                force=True,
+                prerequisite_revisions=[
+                    {
+                        "path": "//tmp/t1",
+                        "revision": revision,
+                    }
+                ])
+
+        copy(
+            "//tmp/t1",
+            "//tmp/t2",
+            force=True,
+            prerequisite_revisions=[
+                {
+                    "path": "//tmp/t1",
+                    "revision": new_revision,
+                }
+            ])

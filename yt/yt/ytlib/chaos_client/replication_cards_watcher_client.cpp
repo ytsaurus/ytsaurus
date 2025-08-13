@@ -61,6 +61,7 @@ public:
             return;
         }
 
+        timestamp = MinTimestamp;
         future = WatchUpstream(replicationCardId, timestamp);
     }
 
@@ -76,6 +77,9 @@ public:
             localFuture = std::move(it->second.first);
             WatchingFutures_.erase(it);
         }
+
+        YT_LOG_DEBUG("Stopped watching replication card (ReplicationCardId: %v)",
+            replicationCardId);
 
         localFuture.Cancel(TError("Stopped watching"));
     }
@@ -98,7 +102,7 @@ private:
 
         auto channel = ChaosCacheChannel_;
         if (!channel) {
-            channel = connection->GetChaosChannelByCardId(replicationCardId, EPeerKind::Leader);
+            channel = connection->GetChaosChannelByCardIdOrThrow(replicationCardId, EPeerKind::Leader);
         }
 
         auto proxy = TChaosNodeServiceProxy(std::move(channel));
@@ -165,12 +169,13 @@ private:
             auto replicationCard = New<TReplicationCard>();
             FromProto(replicationCard.Get(), newCardResponse.replication_card());
 
-            auto future = WatchUpstream(replicationCardId, responseTimestamp);
-            if (it == WatchingFutures_.end()) {
-                EmplaceOrCrash(WatchingFutures_, replicationCardId, std::pair(std::move(future), responseTimestamp));
-            } else {
-                it->second.first = std::move(future);
+            if (it != WatchingFutures_.end()) {
+                it->second.first = WatchUpstream(replicationCardId, responseTimestamp);
                 it->second.second = responseTimestamp;
+            } else {
+                YT_LOG_DEBUG("Changed response received but card was already removed from cache "
+                    "(ReplicationCardId: %v)",
+                    replicationCardId);
             }
 
             guard.Release();
@@ -187,7 +192,8 @@ private:
             if (it != WatchingFutures_.end()) {
                 it->second.first = WatchUpstream(replicationCardId, it->second.second);
             } else {
-                YT_LOG_ALERT("Unexpected nothing changed response (ReplicationCardId: %v)",
+                YT_LOG_DEBUG("Nothing changed response received but card was already removed from cache "
+                    "(ReplicationCardId: %v)",
                     replicationCardId);
             }
 
@@ -212,7 +218,8 @@ private:
             if (it != WatchingFutures_.end()) {
                 it->second.first = WatchUpstream(replicationCardId, it->second.second);
             } else {
-                YT_LOG_ALERT("Unexpected card migrated response (ReplicationCardId: %v)",
+                YT_LOG_DEBUG("Replication card migrated response received but card was already removed from cache "
+                    "(ReplicationCardId: %v)",
                     replicationCardId);
             }
 
@@ -230,7 +237,8 @@ private:
             if (it != WatchingFutures_.end()) {
                 it->second.first = WatchUpstream(replicationCardId, it->second.second);
             } else {
-                YT_LOG_ALERT("Unexpected leader switch response (ReplicationCardId: %v)",
+                YT_LOG_DEBUG("Leaded switch response received but card was already removed from cache "
+                    "(ReplicationCardId: %v)",
                     replicationCardId);
             }
 

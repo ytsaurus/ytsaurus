@@ -334,9 +334,6 @@ void TUserJobOptions::Register(TRegistrar registrar)
 
 void TGpuCheckOptions::Register(TRegistrar registrar)
 {
-    registrar.Parameter("use_separate_root_volume", &TThis::UseSeparateRootVolume)
-        // COMPAT(ignat): change default to true and then delete this option.
-        .Default(false);
     registrar.Parameter("layer_paths", &TThis::LayerPaths)
         .Default();
     registrar.Parameter("binary_path", &TThis::BinaryPath)
@@ -614,7 +611,7 @@ void TRemoteCopyOperationOptions::Register(TRegistrar registrar)
 void TGangManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("job_reincarnation_timeout", &TThis::JobReincarnationTimeout)
-        .Default(TDuration::Minutes(1))
+        .Default(TDuration::Minutes(20))
         .GreaterThan(TDuration::Zero());
 }
 
@@ -912,7 +909,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default(16)
         .GreaterThan(0);
 
-    registrar.Parameter("chunk_scraper_thread_count", &TThis::ChunkScraperThreadCount)
+    registrar.Parameter("chunk_scraper_thread_count", &TThis::ChunkScraperHeavyThreadCount)
         .Default(4)
         .GreaterThan(0);
 
@@ -1178,10 +1175,6 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("cuda_toolkit_layer_directory_path", &TThis::CudaToolkitLayerDirectoryPath)
         .Default();
 
-    // COMPAT(ignat)
-    registrar.Parameter("gpu_check_layer_directory_path", &TThis::GpuCheckLayerDirectoryPath)
-        .Default();
-
     registrar.Parameter("docker_registry", &TThis::DockerRegistry)
         .DefaultNew();
 
@@ -1384,7 +1377,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("max_job_aborts_until_operation_failure", &TThis::MaxJobAbortsUntilOperationFailure)
-        .Default(THashMap<EAbortReason, int>({{EAbortReason::RootVolumePreparationFailed, 1000}, {EAbortReason::NbdErrors, 10}}));
+        .Default(THashMap<EAbortReason, int>({{EAbortReason::RootVolumePreparationFailed, 1000}, {EAbortReason::NbdError, 10}}));
 
     registrar.Parameter("remote_operations", &TThis::RemoteOperations)
         .Default();

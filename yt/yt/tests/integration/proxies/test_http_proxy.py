@@ -65,7 +65,7 @@ class HttpProxyTestBase(YTEnvSetup):
     NUM_HTTP_PROXIES = 1
     NUM_RPC_PROXIES = 2
 
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "coordinator": {
             "heartbeat_interval": 100,
             "death_age": 500,
@@ -80,6 +80,11 @@ class HttpProxyTestBase(YTEnvSetup):
                 "expire_after_access_time": 100,
             },
         },
+    }
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
     }
 
     USER = "root"
@@ -200,6 +205,23 @@ class TestHttpProxy(HttpProxyTestBase):
         hosts = requests.get(self._get_proxy_address() + "/hosts/all").json()
         assert len(hosts) == 1
         assert not hosts[0]["banned"]
+
+    @authors("rp-1", "nadya73")
+    def test_symbolic_error_code(self):
+        proxy = ls("//sys/http_proxies")[0]
+
+        profiler = profiler_factory().at_http_proxy(proxy)
+        api_error_count_counter = profiler.counter(
+            "http_proxy/api_error_count",
+            tags={"error_code": "NYT::NYTree::EErrorCode::AlreadyExists"})
+
+        url = self._get_proxy_address() + "/api/v4/create?path=//some_table&type=table"
+        # Create table.
+        requests.post(url)
+        # Table with this name already exists.
+        requests.post(url)
+
+        wait(lambda: api_error_count_counter.get_delta() > 0)
 
     @authors("aleksandr.gaev")
     def test_cluster_connection(self):
@@ -366,40 +388,113 @@ class TestHttpProxy(HttpProxyTestBase):
 
         wait(lambda: requests.get(self._get_proxy_address() + "/ping").ok)
 
+    @authors("rp-1")
+    def test_error_format(self):
+        proxy_address = self._get_proxy_address()
+
+        url = proxy_address + "/api/v4/get?path=//does_not_exist/@"
+
+        headers = {
+            "X-YT-Header-Format": "<format=text>yson",
+            "X-YT-Error-Format": "<annotate_with_types=%true>json",
+        }
+
+        rsp = requests.get(url, headers=headers)
+
+        error_json = json.loads(rsp.headers["X-YT-Error"])
+
+        assert "$type" in error_json["attributes"]["tid"]
+        assert "$value" in error_json["attributes"]["tid"]
+
+    @authors("rp-1")
+    def test_error_format_type(self):
+        proxy_address = self._get_proxy_address()
+
+        url = proxy_address + "/api/v4/get?path=//does_not_exist/@"
+
+        headers = {
+            "X-YT-Header-Format": "<format=text>yson",
+            "X-YT-Error-Format": "<format=text>yson",
+        }
+
+        rsp = requests.get(url, headers=headers)
+
+        assert rsp.headers["X-YT-Error-Content-Type"] == "application/x-yt-yson-text"
+
+    @authors("rp-1")
+    def test_error_web_json(self):
+        proxy_address = self._get_proxy_address()
+
+        url = proxy_address + "/api/v4/get?path=//does_not_exist/@"
+
+        headers = {
+            "X-YT-Header-Format": "<format=text>yson",
+            "X-YT-Error-Format": "web_json",
+        }
+
+        rsp = requests.get(url, headers=headers)
+
+        tid = json.loads(rsp.headers["X-YT-Error"])["attributes"]["tid"]
+
+        if isinstance(tid, int):
+            assert tid <= 2 ** 53 - 1
+        else:
+            assert "$type" in tid
+            assert "$value" in tid
+
 
 @pytest.mark.enabled_multidaemon
 class TestHttpProxyMemoryDrop(HttpProxyTestBase):
     ENABLE_MULTIDAEMON = True
+
+    DELTA_HTTP_PROXY_CONFIG = {
+        "memory_limits": {
+            "total": 1000000000,
+        }
+    }
 
     @authors("nadya73")
     def test_basic(self):
         monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
         config_url = "http://localhost:{}/orchid/dynamic_config_manager/effective_config".format(monitoring_port)
 
-        def config_updated(expected_total_memory_limit):
+        def config_updated(expected_total_memory_limit_ratio):
             config = requests.get(config_url).json()
-            return config.get("memory_limits", {}).get("total", 0) == expected_total_memory_limit
+            return config.get("api", {}).get("default_memory_limit_ratios", {}).get("total_memory_limit_ratio", 0.0) == expected_total_memory_limit_ratio
 
         create("table", "//tmp/test")
 
         wait(lambda: requests.get(f"{self._get_proxy_address()}/api/v4/get?path=//@").ok)
 
-        # No memory limits.
+        # Total memory limit was not reached.
         self._execute_command("GET", "get", {"path": "//@"})
         self._execute_command("GET", "read_table", {"path": "//tmp/test"})
 
-        total_memory_limit = 1000000
-        set("//sys/http_proxies/@config", {"memory_limits": {"total": total_memory_limit}})
-        wait(lambda: config_updated(total_memory_limit))
+        total_memory_limit_ratio = 0.001
+        set("//sys/http_proxies/@config", {
+            "api": {
+                "default_memory_limit_ratios": {
+                    "total_memory_limit_ratio": total_memory_limit_ratio
+                }
+            }
+        })
+        wait(lambda: config_updated(total_memory_limit_ratio))
 
         # Total memory limit was not reached.
         self._execute_command("GET", "get", {"path": "//@"})
         self._execute_command("GET", "read_table", {"path": "//tmp/test"})
 
-        total_memory_limit = 2000000
-        heavy_request_memory_limit = 0
-        set("//sys/http_proxies/@config", {"memory_limits": {"total": total_memory_limit, "heavy_request": heavy_request_memory_limit}})
-        wait(lambda: config_updated(total_memory_limit))
+        total_memory_limit_ratio = 0.0005
+        heavy_request_memory_limit_ratio = 0.0
+        set("//sys/http_proxies/@config", {
+            "api": {
+                "default_memory_limit_ratios": {
+                    "total_memory_limit_ratio": total_memory_limit_ratio,
+                    "heavy_request_memory_limit_ratio": heavy_request_memory_limit_ratio,
+                }
+            }
+        })
+        wait(lambda: config_updated(total_memory_limit_ratio))
 
         # Heavy request limit does not affect get request.
         self._execute_command("GET", "get", {"path": "//@"})
@@ -409,9 +504,15 @@ class TestHttpProxyMemoryDrop(HttpProxyTestBase):
             self._execute_command("GET", "read_table", {"path": "//tmp/test"})
         assert err[0].is_rpc_unavailable()
 
-        total_memory_limit = 100
-        set("//sys/http_proxies/@config", {"memory_limits": {"total": total_memory_limit}})
-        wait(lambda: config_updated(total_memory_limit))
+        total_memory_limit_ratio = 0.0000001
+        set("//sys/http_proxies/@config", {
+            "api": {
+                "default_memory_limit_ratios": {
+                    "total_memory_limit_ratio": total_memory_limit_ratio
+                }
+            }
+        })
+        wait(lambda: config_updated(total_memory_limit_ratio))
 
         with raises_yt_error("Request is dropped due to high memory pressure") as err:
             self._execute_command("GET", "get", {"path": "//@"})
@@ -420,6 +521,31 @@ class TestHttpProxyMemoryDrop(HttpProxyTestBase):
         with raises_yt_error("Request is dropped due to high memory pressure") as err:
             self._execute_command("GET", "read_table", {"path": "//tmp/test"})
         assert err[0].is_rpc_unavailable()
+
+        def role_config_updated(expected_total_memory_limit_ratio):
+            config = requests.get(config_url).json()
+            return config.get("api", {}).get("role_to_memory_limit_ratios", {}).get("data", {}).get("total_memory_limit_ratio", 0.0) == expected_total_memory_limit_ratio
+
+        total_memory_limit_ratio = 0.001
+        heavy_request_memory_limit_ratio = 0.001
+        set("//sys/http_proxies/@config", {
+            "api": {
+                "default_memory_limit_ratios": {
+                    "total_memory_limit_ratio": 0.0000001
+                },
+                "role_to_memory_limit_ratios": {
+                    "data": {
+                        "total_memory_limit_ratio": total_memory_limit_ratio,
+                        "heavy_request_memory_limit_ratio": heavy_request_memory_limit_ratio,
+                    }
+                }
+            }
+        })
+        wait(lambda: role_config_updated(total_memory_limit_ratio))
+
+        # Total memory limit for data role was not reached.
+        self._execute_command("GET", "get", {"path": "//@"})
+        self._execute_command("GET", "read_table", {"path": "//tmp/test"})
 
 
 @pytest.mark.enabled_multidaemon
@@ -455,19 +581,91 @@ class TestHttpProxyUserMemoryDrop(HttpProxyTestBase):
 
         set("//sys/http_proxies/@config", {
             "api": {
-                "role_to_memory_limit_ratios" : {
-                    "ml" : {
-                        "user_to_memory_limit_ratio": {"nadya" : 0.0}
-                    }
+                "default_memory_limit_ratios": {
+                    "total_memory_limit_ratio": 0.98
                 }
             }
         })
 
-        def config_updated():
+        def empty_config_updated():
             config = get("//sys/http_proxies/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
-            return config.get("api", {}).get("role_to_memory_limit_ratios") != {}
+            # Default value - 0.9.
+            return config.get("api", {}).get("default_memory_limit_ratios", {}).get("total_memory_limit_ratio", None) == 0.98
 
-        wait(config_updated)
+        wait(empty_config_updated)
+
+        # No limits.
+        self._execute_command("GET", "read_table", {"path": "//tmp/test"}, user="nadya")
+
+        set("//sys/http_proxies/@config", {
+            "api": {
+                "role_to_memory_limit_ratios" : {
+                    "ml" : {
+                        "user_to_memory_limit_ratio": {
+                            "nadya": 0.0,
+                        }
+                    },
+                },
+            }
+        })
+
+        def role_config_updated(expected):
+            config = get("//sys/http_proxies/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
+            return config.get("api", {}).get("role_to_memory_limit_ratios") == expected
+
+        wait(lambda: role_config_updated({
+            "ml": {
+                "user_to_memory_limit_ratio": {
+                    "nadya": 0.0,
+                },
+                "total_memory_limit_ratio": 0.9,
+                "heavy_request_memory_limit_ratio": 0.9,
+            }
+        }))
+
+        with raises_yt_error("Request is dropped due to high memory pressure"):
+            self._execute_command("GET", "read_table", {"path": "//tmp/test"}, user="nadya")
+
+        set("//sys/http_proxies/@config", {
+            "api": {
+                "default_memory_limit_ratios": {
+                    "user_to_memory_limit_ratio": {
+                        "nadya": 1.0,
+                    },
+                },
+                "role_to_memory_limit_ratios" : {
+                },
+            }
+        })
+
+        wait(lambda: role_config_updated({}))
+
+        # No limits.
+        self._execute_command("GET", "read_table", {"path": "//tmp/test"}, user="nadya")
+
+        set("//sys/http_proxies/@config", {
+            "api": {
+                "default_memory_limit_ratios": {
+                    "user_to_memory_limit_ratio": {
+                        "nadya": 0.0,
+                    },
+                },
+                "role_to_memory_limit_ratios": {
+                },
+            }
+        })
+
+        def default_config_updated(expected):
+            config = get("//sys/http_proxies/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
+            return config.get("api", {}).get("default_memory_limit_ratios") == expected
+
+        wait(lambda: default_config_updated({
+            "user_to_memory_limit_ratio": {
+                "nadya": 0.0,
+            },
+            "total_memory_limit_ratio": 0.9,
+            "heavy_request_memory_limit_ratio": 0.9,
+        }))
 
         with raises_yt_error("Request is dropped due to high memory pressure"):
             self._execute_command("GET", "read_table", {"path": "//tmp/test"}, user="nadya")
@@ -524,13 +722,15 @@ class TestHttpProxyUserMemoryDrop(HttpProxyTestBase):
 
         set("//sys/http_proxies/@config", {
             "api": {
-                "default_user_memory_limit_ratio": 0.0,
+                "default_memory_limit_ratios": {
+                    "default_user_memory_limit_ratio": 0.0,
+                },
             },
         })
 
         def config_updated():
             config = get("//sys/http_proxies/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
-            return config.get("api", {}).get("default_user_memory_limit_ratio", None) == 0.0
+            return config.get("api", {}).get("default_memory_limit_ratios", {}).get("default_user_memory_limit_ratio", None) == 0.0
 
         wait(config_updated)
 
@@ -700,7 +900,7 @@ class TestSolomonProxy(HttpProxyTestBase):
     # Just to make the test run faster.
     NUM_SECONDARY_MASTER_CELLS = 0
 
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "solomon_proxy": {
             "public_component_names": ["rpc_proxy", "primary_master", "http_proxy"],
             # We will configure the endpoint providers later, since monitoring ports are not yet generated at this point.
@@ -847,7 +1047,7 @@ class TestSolomonProxy(HttpProxyTestBase):
 
 @pytest.mark.enabled_multidaemon
 class HttpProxyAccessCheckerTestBase(HttpProxyTestBase):
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "access_checker": {
             "enabled": True,
             "cache": {
@@ -952,7 +1152,7 @@ class TestHttpProxyAccessCheckerWithAco(HttpProxyAccessCheckerTestBase):
 
     @classmethod
     def setup_class(cls):
-        cls.DELTA_PROXY_CONFIG["access_checker"].update({
+        cls.DELTA_HTTP_PROXY_CONFIG["access_checker"].update({
             "use_access_control_objects": True,
             "path_prefix": "//sys/access_control_object_namespaces/http_proxy_roles",
         })
@@ -970,7 +1170,7 @@ class TestHttpProxyAccessCheckerWithAco(HttpProxyAccessCheckerTestBase):
 
 @pytest.mark.enabled_multidaemon
 class TestHttpProxyRoleFromStaticConfig(HttpProxyTestBase):
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "role": "ab"
     }
 
@@ -1000,7 +1200,7 @@ class TestHttpProxyAuth(HttpProxyTestBase):
 
     @classmethod
     def setup_class(cls):
-        cls.DELTA_PROXY_CONFIG["auth"] = {
+        cls.DELTA_HTTP_PROXY_CONFIG["auth"] = {
             "enable_authentication": True,
         }
         super(TestHttpProxyAuth, cls).setup_class()
@@ -1080,7 +1280,7 @@ class TestHttpProxyFraming(HttpProxyTestBase):
     # CLIENT_TIMEOUT << DELAY_BEFORE_COMMAND to catch framing bugs
     # CLIENT_TIMEOUT >> KEEP_ALIVE_PERIOD to avoid false test failures
     CLIENT_TIMEOUT = 1 * 1000
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "api": {
             "testing": {
                 "delay_before_command": {
@@ -1538,7 +1738,7 @@ class TestHttpProxyBuildSnapshotBase(HttpProxyTestBase):
         },
     }
 
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "coordinator": {
             "heartbeat_interval": 100,
             "cypress_timeout": 50,
@@ -1704,7 +1904,7 @@ class TestHttpProxyHeapUsageStatisticsBase(HttpProxyTestBase):
 
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
 class TestHttpProxyHeapUsageStatistics(TestHttpProxyHeapUsageStatisticsBase):
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "heap_profiler": {
             "snapshot_update_period": 50,
         },
@@ -1769,7 +1969,7 @@ class TestHttpProxyHeapUsageStatistics(TestHttpProxyHeapUsageStatisticsBase):
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
 @pytest.mark.enabled_multidaemon
 class TestHttpProxyNullApiTestingOptions(TestHttpProxyHeapUsageStatisticsBase):
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "heap_profiler": {
             "snapshot_update_period": 50,
         },
@@ -1785,19 +1985,14 @@ class TestHttpProxyNullApiTestingOptions(TestHttpProxyHeapUsageStatisticsBase):
 
 
 class TestHttpProxySignaturesBase(HttpProxyTestBase):
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "signature_components": {
             "validation": {
                 "cypress_key_reader": dict(),
-                "validator": dict(),
             },
             "generation": {
-                "cypress_key_writer": {
-                    "owner_id": "test-http-proxy",
-                },
-                "key_rotator": {
-                    "key_rotation_interval": "2h",
-                },
+                "cypress_key_writer": dict(),
+                "key_rotator": dict(),
                 "generator": dict(),
             },
         },
@@ -1807,7 +2002,6 @@ class TestHttpProxySignaturesBase(HttpProxyTestBase):
     NUM_HTTP_PROXIES = 1
 
     OWNERS_PATH = "//sys/public_keys/by_owner"
-    KEYS_PATH = f"{OWNERS_PATH}/test-http-proxy"
 
 
 def deep_update(source: dict[Any, Any], overrides: dict[Any, Any]) -> dict[Any, Any]:
@@ -1833,7 +2027,7 @@ class TestHttpProxySignatures(TestHttpProxySignaturesBase):
         # commit and actual key emplace, this won't be enough: the key still won't be available.
         # But this probability should be neglectable, as some network packeting should happen before the signatures
         # even start generating.
-        wait(lambda: len(ls(cls.KEYS_PATH)) > 0)
+        wait(lambda: len(ls(cls.OWNERS_PATH)) > 0)
 
     @authors("ermolovd")
     def test_partition_tables_with_modified_cookie(self):
@@ -1907,11 +2101,13 @@ class TestHttpProxySignatures(TestHttpProxySignaturesBase):
 
 
 class TestHttpProxySignaturesKeyRotation(TestHttpProxySignaturesBase):
-    DELTA_PROXY_CONFIG = deep_update(TestHttpProxySignaturesBase.DELTA_PROXY_CONFIG, {
+    DELTA_HTTP_PROXY_CONFIG = deep_update(TestHttpProxySignaturesBase.DELTA_HTTP_PROXY_CONFIG, {
         "signature_components": {
             "generation": {
                 "key_rotator": {
-                    "key_rotation_interval": "200ms",
+                    "key_rotation_options": {
+                        "period": "200ms",
+                    },
                 },
             },
         },
@@ -1920,13 +2116,38 @@ class TestHttpProxySignaturesKeyRotation(TestHttpProxySignaturesBase):
     @authors("pavook")
     @pytest.mark.timeout(60)
     def test_public_key_rotates(self):
-        wait(lambda: len(ls(self.KEYS_PATH)) > 1)
+        wait(lambda: ls(self.OWNERS_PATH))
+        owner = ls(self.OWNERS_PATH)[0]
+        wait(lambda: len(ls(f"{self.OWNERS_PATH}/{owner}")) > 1)
+
+    @authors("pavook")
+    def test_dynamic_config(self):
+        wait(lambda: ls(self.OWNERS_PATH))
+        new_path = "//tmp/dynamic_test_public_keys"
+        create("map_node", new_path)
+        set(
+            "//sys/http_proxies/@config",
+            deep_update(self.DELTA_HTTP_PROXY_CONFIG, {
+                "signature_components": {
+                    "generation": {
+                        "cypress_key_writer": {
+                            "path": new_path,
+                        },
+                        "key_rotator": {
+                            "key_rotation_options": {
+                                "period": "5s",
+                            },
+                        },
+                    },
+                },
+            }))
+        wait(lambda: ls(new_path))
 
 
 class TestHttpsProxy(HttpProxyTestBase):
     ENABLE_TLS = True
 
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "https_server": {
             "credentials": {
                 "update_period": 1000,
@@ -2067,7 +2288,7 @@ class TestHttpProxyDiscoveryRoleFromStaticConfig(YTEnvSetup):
     NUM_HTTP_PROXIES = 2
     NUM_RPC_PROXIES = 1
 
-    DELTA_PROXY_CONFIG = {
+    DELTA_HTTP_PROXY_CONFIG = {
         "role": "ab",
     }
 

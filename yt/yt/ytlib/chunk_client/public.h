@@ -115,6 +115,8 @@ DEFINE_BIT_ENUM(EBlockType,
     ((XorFilter)                   (0x0008))
     //! Blocks used by chunk fragment reader cache.
     ((ChunkFragmentsData)          (0x0010))
+    //! Min hash row digest system block.
+    ((MinHashDigest)               (0x0020))
 );
 
 DEFINE_ENUM(EChunkType,
@@ -189,6 +191,7 @@ DECLARE_REFCOUNTED_STRUCT(TChunkScraperConfig)
 DECLARE_REFCOUNTED_STRUCT(TChunkTeleporterConfig)
 DECLARE_REFCOUNTED_STRUCT(TMediumDirectorySynchronizerConfig)
 DECLARE_REFCOUNTED_STRUCT(TChunkReplicaCacheConfig)
+DECLARE_REFCOUNTED_STRUCT(TChunkReplicaCacheDynamicConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IFetcherChunkScraper)
 
@@ -228,7 +231,6 @@ DECLARE_REFCOUNTED_CLASS(TDataSourceDirectory)
 DECLARE_REFCOUNTED_CLASS(TDataSinkDirectory)
 
 DECLARE_REFCOUNTED_CLASS(TChunkScraper)
-DECLARE_REFCOUNTED_CLASS(TScraperTask)
 DECLARE_REFCOUNTED_CLASS(TThrottlerManager)
 DECLARE_REFCOUNTED_CLASS(TChunkTeleporter)
 DECLARE_REFCOUNTED_CLASS(TMediumDirectory)

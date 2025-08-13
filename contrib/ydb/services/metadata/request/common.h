@@ -3,7 +3,6 @@
 #include <contrib/ydb/library/actors/core/actorid.h>
 #include <contrib/ydb/library/actors/core/events.h>
 #include <contrib/ydb/library/actors/core/actor_virtual.h>
-#include <contrib/ydb/library/actors/core/actorsystem.h>
 #include <contrib/ydb/library/actors/core/actor_bootstrapped.h>
 #include <contrib/ydb/library/accessor/accessor.h>
 #include <contrib/ydb/public/api/protos/ydb_table.pb.h>

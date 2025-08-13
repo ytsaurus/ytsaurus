@@ -1,6 +1,8 @@
 #include "controller.h"
 #include "events.h"
 
+#include <contrib/ydb/library/actors/core/actorsystem.h>
+
 namespace NKikimr::NKqp {
 
 TKqpShutdownController::TKqpShutdownController(NActors::TActorId kqpProxyActorId, const NKikimrConfig::TTableServiceConfig& tableServiceConfig, bool enableGraceful)

@@ -8,7 +8,7 @@ from yt_commands import (
     create_user, start_transaction, abort_transaction, commit_transaction, lock,
     insert_rows, select_rows, lookup_rows, alter_table, read_table, wait_for_tablet_state, write_table,
     map, reduce, map_reduce, merge, sort, generate_timestamp, get_tablet_leader_address, sync_create_cells,
-    sync_mount_table, sync_unmount_table, sync_freeze_table,
+    sync_mount_table, sync_unmount_table, sync_freeze_table, remount_table,
     sync_reshard_table, sync_flush_table, sync_compact_table, get_account_disk_space,
     create_dynamic_table, raises_yt_error, sorted_dicts, print_debug,
     disable_write_sessions_on_node, disable_tablet_cells_on_node, get_singular_chunk_id)
@@ -925,7 +925,7 @@ class TestBulkInsert(DynamicTablesBase):
             _run("none" if atomicity == "full" else "full")
 
     @pytest.mark.parametrize("lock", [True, False])
-    def test_atomicity_none(self, lock):
+    def DISABLED_test_atomicity_none(self, lock):
         sync_create_cells(1)
         create("table", "//tmp/t_input")
         self._create_simple_dynamic_table("//tmp/t_output", enable_dynamic_store_read=False)
@@ -2204,6 +2204,33 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
                 mode="ordered",
                 spec={"input_query": "1u as [$change_type], key"})
 
+    # YT-25759
+    @authors("dave11ar")
+    def test_compaction_after_output_timestamp(self):
+        input = "//tmp/t_input"
+        output = "//tmp/t_output"
+
+        sync_create_cells(1)
+        create("table", input)
+        self._create_simple_dynamic_table(output)
+        sync_mount_table(output)
+
+        rows = [{"key": 1, "value": "1"}]
+        write_table(input, rows)
+
+        map(
+            in_=input,
+            out=f"<output_timestamp=123;append=%true>{output}",
+            command="cat",
+        )
+
+        chunk_id = get_singular_chunk_id(output)
+
+        set(f"{output}/@forced_compaction_revision", 1)
+        remount_table(output)
+
+        wait(lambda: not exists(f"#{chunk_id}"))
+
 
 ##################################################################
 
@@ -2213,11 +2240,21 @@ class TestBulkInsertMulticell(TestBulkInsert):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
 
 @pytest.mark.enabled_multidaemon
 class TestBulkInsertPortal(TestBulkInsertMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
 
 
 @pytest.mark.enabled_multidaemon

@@ -30,7 +30,7 @@ struct TDataSplit
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TStructMemberAccessor = TString;
+using TStructMemberAccessor = std::string;
 using TTupleItemIndexAccessor = int;
 
 using TSourceLocation = std::pair<int, int>;
@@ -183,7 +183,7 @@ struct TQueryOptions
         .RetentionTimestamp = NTransactionClient::NullTimestamp,
     };
 
-    std::optional<TString> ExecutionPool;
+    std::optional<std::string> ExecutionPool;
     TWorkloadDescriptor WorkloadDescriptor;
 
     std::optional<bool> UseLookupCache;
@@ -195,6 +195,12 @@ struct TQueryOptions
     i64 MinRowCountPerSubquery = 100'000;
     int MaxSubqueries = std::numeric_limits<int>::max();
 
+    i64 RowsetProcessingBatchSize = DefaultRowsetProcessingBatchSize;
+    i64 WriteRowsetSize = DefaultWriteRowsetSize;
+    i64 MaxJoinBatchSize = DefaultMaxJoinBatchSize;
+
+    EStatisticsAggregation StatisticsAggregation = EStatisticsAggregation::None;
+
     bool VerboseLogging = false;
     bool AllowFullScan = true;
     bool SuppressAccessTracking = false;
@@ -202,6 +208,8 @@ struct TQueryOptions
     bool NewRangeInference = true;
     // COMPAT(dtorilov)
     bool AdaptiveOrderedSchemafulReader = false;
+    // COMPAT(sabdenovch)
+    bool UseOrderByInJoinSubqueries = false;
 };
 
 void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original);
@@ -220,7 +228,7 @@ struct TFeatureFlags
 TFeatureFlags MostFreshFeatureFlags();
 TFeatureFlags MostArchaicFeatureFlags();
 
-TString ToString(const TFeatureFlags& featureFlags);
+std::string ToString(const TFeatureFlags& featureFlags);
 
 void ToProto(NProto::TFeatureFlags* serialized, const TFeatureFlags& original);
 void FromProto(TFeatureFlags* original, const NProto::TFeatureFlags& serialized);
@@ -229,7 +237,7 @@ void FromProto(TFeatureFlags* original, const NProto::TFeatureFlags& serialized)
 
 struct TShuffleNavigator
 {
-    THashMap<TString, TSharedRange<TKeyRange>> DestinationMap;
+    THashMap<std::string, TSharedRange<TKeyRange>> DestinationMap;
     int PrefixHint;
 };
 

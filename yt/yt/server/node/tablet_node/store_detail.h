@@ -182,6 +182,24 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
+class TMinHashDigestBlockIndex
+{
+public:
+    static constexpr int NotFetched = -1;
+    static constexpr int NotFound = -2;
+
+    TMinHashDigestBlockIndex(int blockIndex);
+
+    bool IsFetched();
+    bool IsFound();
+    int GetBlockIndex();
+
+private:
+    int BlockIndex_ = NotFetched;
+};
+
+
 class TChunkStoreBase
     : public TStoreBase
     , public IChunkStore
@@ -202,6 +220,7 @@ public:
     TTimestamp GetMinTimestamp() const override;
     TTimestamp GetMaxTimestamp() const override;
 
+    NCompression::ECodec GetCompressionCodecId() const;
     NErasure::ECodec GetErasureCodecId() const;
     bool IsStripedErasure() const;
 
@@ -262,6 +281,8 @@ public:
 
     NChunkClient::IBlockCachePtr GetBlockCache();
 
+    TMinHashDigestBlockIndex GetMinHashDigestBlockIndex() const;
+
     // Fast path.
     NTableClient::TCachedVersionedChunkMetaPtr FindCachedVersionedChunkMeta(
         bool prepareColumnarMeta);
@@ -296,6 +317,8 @@ protected:
     NChunkClient::TChunkId ChunkId_;
 
     TTimestamp OverrideTimestamp_;
+
+    std::atomic<int> MinHashDigestBlockIndex_;
 
     void OnLocalReaderFailed();
 

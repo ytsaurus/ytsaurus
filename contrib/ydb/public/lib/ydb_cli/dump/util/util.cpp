@@ -2,7 +2,7 @@
 
 #include <contrib/ydb/public/api/protos/ydb_table.pb.h>
 #include <contrib/ydb/public/lib/ydb_cli/common/retry_func.h>
-#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/proto/accessor.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/draft/accessor.h>
 
 namespace NYdb::NDump {
 

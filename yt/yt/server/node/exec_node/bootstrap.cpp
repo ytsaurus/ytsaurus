@@ -32,11 +32,8 @@
 #include <yt/yt/server/lib/nbd/config.h>
 #include <yt/yt/server/lib/nbd/server.h>
 
-#include <yt/yt/server/lib/signature/cypress_key_store.h>
+#include <yt/yt/server/lib/signature/components.h>
 #include <yt/yt/server/lib/signature/config.h>
-#include <yt/yt/server/lib/signature/key_rotator.h>
-#include <yt/yt/server/lib/signature/signature_generator.h>
-#include <yt/yt/server/lib/signature/signature_validator.h>
 
 #include <yt/yt/ytlib/auth/native_authentication_manager.h>
 #include <yt/yt/ytlib/auth/tvm_bridge_service.h>
@@ -178,32 +175,12 @@ public:
             NNet::TAddressResolver::Get()->GetDnsResolver(),
             DnsOverRpcActionQueue_->GetInvoker()));
 
-        if (auto signatureValidationConfig = GetConfig()->ExecNode->SignatureValidation) {
-            auto cypressKeyReader = New<TCypressKeyReader>(
-                signatureValidationConfig->CypressKeyReader,
-                GetClient());
-            SignatureValidator_ = New<TSignatureValidator>(std::move(cypressKeyReader));
-        } else {
-            // NB(pavook): we cannot do any meaningful signature operations safely.
-            SignatureValidator_ = CreateAlwaysThrowingSignatureValidator();
-        }
-
-        if (auto signatureGenerationConfig = GetConfig()->ExecNode->SignatureGeneration) {
-            auto cypressKeyWriter = WaitFor(CreateCypressKeyWriter(
-                signatureGenerationConfig->CypressKeyWriter,
-                GetClient()))
-                .ValueOrThrow();
-            auto signatureGenerator = New<TSignatureGenerator>(signatureGenerationConfig->Generator);
-            SignatureKeyRotator_ = New<TKeyRotator>(
-                signatureGenerationConfig->KeyRotator,
-                GetControlInvoker(),
-                std::move(cypressKeyWriter),
-                signatureGenerator);
-            SignatureGenerator_ = std::move(signatureGenerator);
-        } else {
-            // NB(pavook): we cannot do any meaningful signature operations safely.
-            SignatureGenerator_ = CreateAlwaysThrowingSignatureGenerator();
-        }
+        auto ownerId = TOwnerId(NNet::BuildServiceAddress(GetLocalHostName(), GetConfig()->RpcPort));
+        SignatureComponents_ = New<TSignatureComponents>(
+            GetConfig()->ExecNode->SignatureComponents,
+            std::move(ownerId),
+            GetClient(),
+            GetControlInvoker());
 
         // NB(psushin): initialize chunk cache first because slot manager (and root
         // volume manager inside it) can start using it to populate tmpfs layers cache.
@@ -303,10 +280,8 @@ public:
                 CreateVirtualNode(hotswapManager->GetOrchidService()));
         }
 
-        if (SignatureKeyRotator_) {
-            WaitFor(SignatureKeyRotator_->Start())
-                .ThrowOnError();
-        }
+        WaitFor(SignatureComponents_->StartRotation())
+            .ThrowOnError();
 
         // COMPAT(pogorelov)
         if (JobProxyLogManager_) {
@@ -377,9 +352,9 @@ public:
     IThroughputThrottlerPtr GetThrottler(
         EExecNodeThrottlerKind kind,
         EThrottlerTrafficType trafficType,
-        std::optional<TClusterName> remoteClusterName) const override
+        TClusterName clusterName) const override
     {
-        return ThrottlerManager_->GetOrCreateThrottler(kind, trafficType, std::move(remoteClusterName));
+        return ThrottlerManager_->GetOrCreateThrottler(kind, trafficType, std::move(clusterName));
     }
 
     const TSolomonExporterPtr& GetJobProxySolomonExporter() const override
@@ -441,12 +416,12 @@ public:
 
     ISignatureGeneratorPtr GetSignatureGenerator() const override
     {
-        return SignatureGenerator_;
+        return SignatureComponents_->GetSignatureGenerator();
     }
 
     ISignatureValidatorPtr GetSignatureValidator() const override
     {
-        return SignatureValidator_;
+        return SignatureComponents_->GetSignatureValidator();
     }
 
 private:
@@ -490,9 +465,7 @@ private:
 
     IJobProxyLogManagerPtr JobProxyLogManager_;
 
-    ISignatureGeneratorPtr SignatureGenerator_;
-    ISignatureValidatorPtr SignatureValidator_;
-    TKeyRotatorPtr SignatureKeyRotator_;
+    TSignatureComponentsPtr SignatureComponents_;
 
     void BuildJobProxyConfigTemplate()
     {
@@ -599,6 +572,9 @@ private:
         JobReporter_->OnDynamicConfigChanged(
             oldConfig->ExecNode->JobReporter,
             newConfig->ExecNode->JobReporter);
+        if (newConfig->ExecNode->SignatureComponents) {
+            YT_UNUSED_FUTURE(SignatureComponents_->Reconfigure(newConfig->ExecNode->SignatureComponents));
+        }
 
         DynamicConfig_.Store(newConfig);
 

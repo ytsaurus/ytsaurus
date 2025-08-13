@@ -54,6 +54,7 @@ IJoinProfilerPtr CreateJoinSubqueryProfiler(
     TConsumeSubqueryStatistics consumeSubqueryStatistics,
     TGetPrefetchJoinDataSource getPrefetchJoinDataSource,
     IMemoryChunkProviderPtr memoryChunkProvider,
+    bool useOrderByInJoinSubqueries,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////

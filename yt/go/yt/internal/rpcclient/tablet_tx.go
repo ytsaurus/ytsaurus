@@ -49,6 +49,7 @@ func (c *client) BeginTabletTx(
 	tx.StartCall = c.StartCall
 	tx.Invoke = tx.do
 	tx.InvokeReadRow = tx.doReadRow
+	tx.InvokeMultiLookup = tx.doMultiLookup
 
 	tx.c = c
 
@@ -133,6 +134,24 @@ func (tx *tabletTx) doReadRow(ctx context.Context, call *Call, rsp ProtoRowset) 
 	}
 
 	return tx.c.InvokeReadRow(ctx, call, rsp)
+}
+
+func (tx *tabletTx) doMultiLookup(
+	ctx context.Context,
+	call *Call,
+	rsp ProtoMultiLookupResp,
+) ([]yt.TableReader, error) {
+	if err := tx.pinger.CheckAlive(); err != nil {
+		return nil, err
+	}
+
+	call.RequestedProxy = tx.coordinator
+	call.DisableRetries = true
+	if err := tx.setTxID(call); err != nil {
+		return nil, err
+	}
+
+	return tx.c.InvokeMultiLookup(ctx, call, rsp)
 }
 
 func (tx *tabletTx) doWriteRows(ctx context.Context, call *Call, rsp proto.Message, opts ...bus.SendOption) (err error) {

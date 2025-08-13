@@ -91,29 +91,6 @@ public:
         : Bootstrap_(bootstrap)
     { }
 
-    bool CanHaveSequoiaReplicas(TChunkLocation* location) const override
-    {
-        VerifyPersistentStateRead();
-
-        if (!IsObjectAlive(location)) {
-            return false;
-        }
-
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        int mediumIndex = location->GetEffectiveMediumIndex();
-        auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-        if (!medium || !medium->IsDomestic()) {
-            return false;
-        }
-
-        auto domesticMedium = medium->AsDomestic();
-        if (!domesticMedium->GetEnableSequoiaReplicas()) {
-            return false;
-        }
-
-        return true;
-    }
-
     bool CanHaveSequoiaReplicas(TChunkId chunkId, int probability) const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -136,30 +113,6 @@ public:
 
         auto probability = config->ReplicasPercentage;
         return CanHaveSequoiaReplicas(chunkId, probability);
-    }
-
-    bool IsSequoiaChunkReplica(TChunkId chunkId, TChunkLocationUuid locationUuid) const override
-    {
-        VerifyPersistentStateRead();
-
-        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-        auto* location = dataNodeTracker->FindChunkLocationByUuid(locationUuid);
-        if (!IsObjectAlive(location)) {
-            return false;
-        }
-
-        return IsSequoiaChunkReplica(chunkId, location);
-    }
-
-    bool IsSequoiaChunkReplica(TChunkId chunkId, TChunkLocation* location) const override
-    {
-        VerifyPersistentStateRead();
-
-        if (!CanHaveSequoiaReplicas(chunkId)) {
-            return false;
-        }
-
-        return CanHaveSequoiaReplicas(location);
     }
 
 
@@ -333,8 +286,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         const auto& idMapping = NRecords::TChunkReplicasDescriptor::Get()->GetIdMapping();
-        YT_VERIFY(idMapping.ChunkId && idMapping.StoredReplicas);
-        TColumnFilter columnFilter{*idMapping.ChunkId, *idMapping.StoredReplicas};
+        TColumnFilter columnFilter{idMapping.ChunkId, idMapping.StoredReplicas};
         return DoGetSequoiaReplicas(chunkIds, columnFilter, [] (const NRecords::TChunkReplicas& replicaRecord) {
             return replicaRecord.StoredReplicas;
         });
@@ -367,22 +319,26 @@ public:
         if (!config->Enable) {
             return MakeFuture<std::vector<TSequoiaChunkReplica>>({});
         }
+
         const auto& retriableErrorCodes = config->RetriableErrorCodes;
 
-        std::vector<NRecords::TUnapprovedChunkReplicasKey> keys;
+        std::vector<NRecords::TUnapprovedChunkReplicasKey> recordKeys;
+        recordKeys.reserve(chunkIds.size());
         for (auto chunkId : chunkIds) {
             NRecords::TUnapprovedChunkReplicasKey chunkReplicasKey{
                 .ChunkId = chunkId,
             };
-            keys.push_back(chunkReplicasKey);
+            recordKeys.push_back(chunkReplicasKey);
         }
 
-        auto lastOKConfirmationTime = TInstant::Now() - Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->ReplicaApproveTimeout;
         const auto& idMapping = NRecords::TUnapprovedChunkReplicasDescriptor::Get()->GetIdMapping();
-        TColumnFilter columnFilter{*idMapping.ChunkId, *idMapping.StoredReplicas, *idMapping.ConfirmationTime};
+        TColumnFilter columnFilter{idMapping.ChunkId, idMapping.StoredReplicas, idMapping.ConfirmationTime};
+
+        auto lastOKConfirmationTime = TInstant::Now() - Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->ReplicaApproveTimeout;
+
         return Bootstrap_
             ->GetSequoiaClient()
-            ->LookupRows<NRecords::TUnapprovedChunkReplicasKey>(keys, columnFilter)
+            ->LookupRows<NRecords::TUnapprovedChunkReplicasKey>(recordKeys, columnFilter)
             .Apply(BIND([retriableErrorCodes, lastOKConfirmationTime] (const TErrorOr<std::vector<std::optional<NRecords::TUnapprovedChunkReplicas>>>& replicaRecordsOrError) {
                 ThrowOnSequoiaReplicasError(replicaRecordsOrError, retriableErrorCodes);
                 const auto& replicaRecords = replicaRecordsOrError.ValueOrThrow();
@@ -589,8 +545,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         const auto& idMapping = NRecords::TChunkReplicasDescriptor::Get()->GetIdMapping();
-        YT_VERIFY(idMapping.ChunkId && idMapping.LastSeenReplicas);
-        TColumnFilter columnFilter{*idMapping.ChunkId, *idMapping.LastSeenReplicas};
+        TColumnFilter columnFilter{idMapping.ChunkId, idMapping.LastSeenReplicas};
         return DoGetSequoiaReplicas({chunkId}, columnFilter, [] (const NRecords::TChunkReplicas& replicaRecord) {
             return replicaRecord.LastSeenReplicas;
         });

@@ -57,6 +57,8 @@ public:
 
     virtual bool IsSupportedInheritableAttribute(const std::string& /*key*/) const;
 
+    // Updating ACDs using this method is prohibited, prefer #IObjectTypeHandler::ListAcds instead.
+    // TODO(danilalexeev): YT-24575. Explicitly forbid this.
     NObjectServer::TAcdList ListAcds(TCypressNode* trunkNode) const override;
 
 protected:

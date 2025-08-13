@@ -553,7 +553,7 @@ public:
         minSpareAllocationResources->Memory = 1;
 
         SchedulerConfig_->MinSpareAllocationResourcesOnNode = minSpareAllocationResources;
-        DefaultMinSpareResources = ToJobResources(minSpareAllocationResources, TJobResources());
+        DefaultMinSpareResources_ = ToJobResources(minSpareAllocationResources, TJobResources());
 
         TreeConfig_->AggressivePreemptionSatisfactionThreshold = 0.5;
         TreeConfig_->MinChildHeapSize = 3;
@@ -577,17 +577,21 @@ protected:
     int SlotIndex_ = 0;
     NNodeTrackerClient::TNodeId ExecNodeId_ = NNodeTrackerClient::TNodeId(0);
 
-    TJobResources DefaultMinSpareResources;
+    TJobResources DefaultMinSpareResources_;
+
+    TFairShareTreeAllocationSchedulerPtr DisposablePtrToTreeAllocationScheduler_;
 
     void TearDown() override
     {
-        // NB(eshcherbin): To prevent "Promise abandoned" exceptions in tree allocation scheduler's periodic activities.
-        BIND([] { }).AsyncVia(NodeShardActionQueue_->GetInvoker()).Run().Get().ThrowOnError();
+        // NB(renadeen): To prevent "use after free" and "Promise abandoned" problems in tree allocation scheduler's periodic activities.
+        NConcurrency::WaitFor(DisposablePtrToTreeAllocationScheduler_->Stop()).ThrowOnError();
+        DisposablePtrToTreeAllocationScheduler_.Reset();
     }
 
     TFairShareTreeAllocationSchedulerPtr CreateTestTreeScheduler(TWeakPtr<IFairShareTreeAllocationSchedulerHost> host, ISchedulerStrategyHost* strategyHost)
     {
-        return New<TFairShareTreeAllocationScheduler>(
+        YT_VERIFY(!DisposablePtrToTreeAllocationScheduler_);
+        DisposablePtrToTreeAllocationScheduler_ = New<TFairShareTreeAllocationScheduler>(
             /*treeId*/ "default",
             StrategyLogger(),
             std::move(host),
@@ -595,6 +599,8 @@ protected:
             strategyHost,
             TreeConfig_,
             NProfiling::TProfiler());
+
+        return DisposablePtrToTreeAllocationScheduler_;
     }
 
     TFairShareTreeAllocationSchedulerHostMockPtr CreateTestTreeAllocationSchedulerHost(TSchedulerStrategyHostMockPtr strategyHost)
@@ -873,7 +879,7 @@ protected:
             execNode,
             /*runningAllocations*/ {},
             strategyHost->GetMediumDirectory(),
-            DefaultMinSpareResources);
+            DefaultMinSpareResources_);
 
         auto scheduleAllocationsContext = New<TScheduleAllocationsContext>(
             schedulingContext,

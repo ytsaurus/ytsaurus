@@ -1,4 +1,4 @@
-#include <yt/yt/orm/library/query/expression_evaluator.h>
+#include <yt/yt/orm/library/query/heavy/expression_evaluator.h>
 #include <yt/yt/orm/library/query/helpers.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
@@ -11,12 +11,15 @@
 namespace NYT::NOrm::NQuery::NTests {
 namespace {
 
+////////////////////////////////////////////////////////////////////////////////
+
 using namespace NYT;
 using namespace NYT::NYTree;
 using namespace NYT::NConcurrency;
 
-using NTableClient::EValueType;
+////////////////////////////////////////////////////////////////////////////////
 
+using NTableClient::EValueType;
 
 ////////////////////////////////////////////////////////////////////////////////
 

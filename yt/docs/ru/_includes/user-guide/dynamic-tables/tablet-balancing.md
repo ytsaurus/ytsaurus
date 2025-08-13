@@ -241,10 +241,14 @@
 Ниже перечислены потаблетные метрики, которые могут быть полезны.
 
 - Объём записи
-  `double([/performance_counters/dynamic_row_write_data_weight_10m_rate])`
-- Количество данных, читаемых lookup-запросами
+  `write_10m`
+- Количество данных, читаемых lookup-запросами, с учетом чтений из ханковых чанков
+  `lookup_10m`
+- Количество данных, читаемых select-запросами, с учетом чтений из ханковых чанков
+  `read_10m`
+- Количество данных, читаемых lookup-запросами, без учета чтений из ханковых чанков
   `double([/performance_counters/dynamic_row_lookup_data_weight_10m_rate]) + double([/performance_counters/static_chunk_row_lookup_data_weight_10m_rate])`
-- Количество данных, читаемых select-запросами
+- Количество данных, читаемых select-запросами, без учета чтений из ханковых чанков
   `double([/performance_counters/dynamic_row_read_data_weight_10m_rate]) + double([/performance_counters/static_chunk_row_read_data_weight_10m_rate])`
 - Uncompressed size
   `double([/statistics/uncompressed_data_size])`
@@ -253,7 +257,9 @@
 - Memory size (объём данных, занимаемых таблицей в памяти; в зависимости от `in_memory_mode` равен либо compressed, либо uncompressed size)
   `double([/statistics/memory_size])`
 - CPU time, потребляемое lookup-запросами
-  `double([/performance_counters/lookup_cpu_time_10m_rate])` |
+  `lookup_cpu_10m`
+- CPU time, потребляемое select-запросами
+  `select_cpu_10m`
 - Количество таблетов (имеет смысл, если таблеты необходимо разложить по нодам поровну без учёта нагрузки)
   `1`
 
@@ -265,6 +271,16 @@
 - для группы до 50000 таблетов — 250;
 - для группы до 100000 таблетов — 500;
 Если все таблицы бандла балансируются параметризованно и существует лишь одна параметризованная группа для балансировки, то количество таблетов во всех таблицах можно посмотреть на странице бандла.
+
+{% cut "Полный список алиасов метрик балансировки" %}
+
+- `write_10m`, `write_1h`
+- `lookup_10m`, `lookup_1h`
+- `read_10m`, `read_1h`
+- `lookup_cpu_10m`, `lookup_cpu_1h`
+- `select_cpu_10m`, `select_cpu_1h`
+
+{% endcut %}
 
 ### Конфигурация решардирования
 

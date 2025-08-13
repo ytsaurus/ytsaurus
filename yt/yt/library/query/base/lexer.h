@@ -55,7 +55,7 @@ public:
     TLexer(
         TStringBuf source,
         TParser::token_type strayToken,
-        THashMap<TString, TString> placeholderValues,
+        THashMap<std::string, std::string> placeholderValues,
         int syntaxVersion);
 
     TParser::token_type GetNextToken(
@@ -72,7 +72,7 @@ private:
     TBaseLexer QueryLexer_;
     std::optional<TPlaceholderLexerData> Placeholder_;
 
-    THashMap<TString, TString> PlaceholderValues_;
+    THashMap<std::string, std::string> PlaceholderValues_;
     const int SyntaxVersion_;
 
     std::optional<TParser::token_type> GetNextTokenFromPlaceholder(
@@ -87,4 +87,3 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryClient::NAst
-

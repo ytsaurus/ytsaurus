@@ -83,6 +83,7 @@ struct TUserSandboxOptions
     int UserId = 0;
     std::optional<TVirtualSandboxData> VirtualSandboxData;
     std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData;
+    std::optional<std::string> SlotPath;
 
     TCallback<void(const TError&)> DiskOverdraftCallback;
 };
@@ -161,7 +162,7 @@ DEFINE_ENUM(ESlotType,
 struct TNumaNodeInfo
 {
     i64 NumaNodeId;
-    TString CpuSet;
+    std::string CpuSet;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

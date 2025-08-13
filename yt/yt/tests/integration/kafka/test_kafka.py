@@ -108,6 +108,7 @@ class KafkaProxyBase(TestQueueAgentBase, YTEnvSetup):
     }
 
     def _create_cells(self):
+        set("//sys/tablet_cell_bundles/default/@cell_balancer_config/enable_tablet_cell_smoothing", False)
         sync_create_cells(1)
 
     @staticmethod

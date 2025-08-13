@@ -25,7 +25,7 @@ void RunQuery(
     const NControllerAgent::NProto::TQuerySpec& querySpec,
     const NTableClient::TSchemalessReaderFactory& readerFactory,
     const NTableClient::TSchemalessWriterFactory& writerFactory,
-    const std::optional<TString>& udfDirectory);
+    const std::optional<std::string>& udfDirectory);
 
 std::vector<NChunkClient::TDataSliceDescriptor> UnpackDataSliceDescriptors(const NControllerAgent::NProto::TTableInputSpec& inputTableSpec);
 std::vector<NChunkClient::TDataSliceDescriptor> UnpackDataSliceDescriptors(

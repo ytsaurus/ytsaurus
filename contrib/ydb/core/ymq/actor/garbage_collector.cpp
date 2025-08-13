@@ -1,6 +1,6 @@
 #include "garbage_collector.h"
 
-#include "cfg.h"
+#include <contrib/ydb/core/ymq/actor/cfg/cfg.h>
 #include "log.h"
 #include "events.h"
 #include "executor.h"
