@@ -998,6 +998,9 @@ struct TDataNodeConfig
     //! If |true| then location on StartChunk is randomly chosen based on io_weight.
     bool ChooseLocationBasedOnIOWeight;
 
+    //! If |true| then IO requests in one session are proccessed sequentially.
+    bool EnableSequentialIORequests;
+
     //! Regular storage locations.
     std::vector<TStoreLocationConfigPtr> StoreLocations;
 
@@ -1165,6 +1168,8 @@ struct TDataNodeDynamicConfig
     std::optional<i64> DiskReadThrottlingLimit;
 
     std::optional<bool> ChooseLocationBasedOnIOWeight;
+
+    std::optional<bool> EnableSequentialIORequests;
 
     std::optional<bool> EnableSendBlocksNetThrottling;
 

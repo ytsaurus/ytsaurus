@@ -129,12 +129,12 @@
 
 #include <library/cpp/testing/gtest_extensions/gtest_extensions.h>
 
-namespace NYT::NApi::NNative {
+namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTestConnection
-    : public IConnection
+    : public NApi::NNative::IConnection
 {
 public:
     MOCK_METHOD(void, SubscribeReconfigured, (const TCallback<TReconfiguredSignature>& newConfig), (override));
@@ -148,7 +148,7 @@ public:
         IInvokerPtr invoker,
         INodeMemoryTrackerPtr nodeMemoryTracker);
 
-    MOCK_METHOD(TConnectionCompoundConfigPtr, GetCompoundConfig, (), (const, override));
+    MOCK_METHOD(NApi::NNative::TConnectionCompoundConfigPtr, GetCompoundConfig, (), (const, override));
     MOCK_METHOD(NObjectClient::TCellId, GetPrimaryMasterCellId, (), (const, override));
     MOCK_METHOD(NObjectClient::TCellTag, GetPrimaryMasterCellTag, (), (const, override));
     MOCK_METHOD(NObjectClient::TCellTagList, GetSecondaryMasterCellTags, (), (const, override));
@@ -168,7 +168,7 @@ public:
     MOCK_METHOD(const NChunkClient::TMediumDirectorySynchronizerPtr&, GetMediumDirectorySynchronizer, (), (override));
     MOCK_METHOD(const NNodeTrackerClient::INodeDirectorySynchronizerPtr&, GetNodeDirectorySynchronizer, (), (override));
     MOCK_METHOD(const NChunkClient::IChunkReplicaCachePtr&, GetChunkReplicaCache, (), (override));
-    MOCK_METHOD((std::pair<IClientPtr, NYPath::TYPath>), GetQueryTrackerStage, (TStringBuf), (override));
+    MOCK_METHOD((std::pair<NApi::NNative::IClientPtr, NYPath::TYPath>), GetQueryTrackerStage, (TStringBuf), (override));
     MOCK_METHOD(NRpc::IChannelPtr, GetQueryTrackerChannelOrThrow, (TStringBuf), (override));
     MOCK_METHOD(NRpc::IChannelPtr, GetChaosChannelByCellId, (NObjectClient::TCellId, NHydra::EPeerKind), (override));
     MOCK_METHOD(NRpc::IChannelPtr, GetChaosChannelByCellTag, (NObjectClient::TCellTag, NHydra::EPeerKind), (override));
@@ -183,11 +183,11 @@ public:
     MOCK_METHOD(const NJobProberClient::TJobShellDescriptorCachePtr&, GetJobShellDescriptorCache, (), (override));
     MOCK_METHOD(const NSecurityClient::TPermissionCachePtr&, GetPermissionCache, (), (override));
     MOCK_METHOD(const NSecurityClient::TUserAttributeCachePtr&, GetUserAttributeCache, (), (override));
-    MOCK_METHOD(const TStickyGroupSizeCachePtr&, GetStickyGroupSizeCache, (), (override));
-    MOCK_METHOD(const TSyncReplicaCachePtr&, GetSyncReplicaCache, (), (override));
-    MOCK_METHOD(const TTabletSyncReplicaCachePtr&, GetTabletSyncReplicaCache, (), (override));
+    MOCK_METHOD(const NApi::NNative::TStickyGroupSizeCachePtr&, GetStickyGroupSizeCache, (), (override));
+    MOCK_METHOD(const NApi::NNative::TSyncReplicaCachePtr&, GetSyncReplicaCache, (), (override));
+    MOCK_METHOD(const NApi::NNative::TTabletSyncReplicaCachePtr&, GetTabletSyncReplicaCache, (), (override));
     MOCK_METHOD(const NChaosClient::IBannedReplicaTrackerCachePtr&, GetBannedReplicaTrackerCache, (), (override));
-    MOCK_METHOD(const ITableReplicaSynchronicityCachePtr&, GetTableReplicaSynchronicityCache, (), (override));
+    MOCK_METHOD(const NApi::NNative::ITableReplicaSynchronicityCachePtr&, GetTableReplicaSynchronicityCache, (), (override));
     MOCK_METHOD(std::vector<std::string>, GetDiscoveryServerAddresses, (), (const, override));
     MOCK_METHOD(NDiscoveryClient::IDiscoveryClientPtr, CreateDiscoveryClient, (NDiscoveryClient::TDiscoveryClientConfigPtr, NRpc::IChannelFactoryPtr), (override));
     MOCK_METHOD(NDiscoveryClient::IMemberClientPtr, CreateMemberClient, (NDiscoveryClient::TMemberClientConfigPtr, NRpc::IChannelFactoryPtr, IInvokerPtr, NDiscoveryClient::TMemberId, NDiscoveryClient::TGroupId), (override));
@@ -198,8 +198,8 @@ public:
     MOCK_METHOD(TFuture<void>, SyncHiveCellWithOthers, (const std::vector<NElection::TCellId>&, NElection::TCellId), (override));
     MOCK_METHOD(const NLogging::TLogger&, GetLogger, (), (override));
     MOCK_METHOD(NRpc::IChannelPtr, CreateChannel, (bool), ());
-    MOCK_METHOD(const TConnectionConfigPtr&, GetConfig, (), ());
-    MOCK_METHOD(TClusterTag, GetClusterTag, (), (const, override));
+    MOCK_METHOD(const NApi::TConnectionConfigPtr&, GetConfig, (), ());
+    MOCK_METHOD(NApi::TClusterTag, GetClusterTag, (), (const, override));
     MOCK_METHOD(const std::string&, GetLoggingTag, (), (const, override));
     MOCK_METHOD(const std::string&, GetClusterId, (), (const, override));
     MOCK_METHOD(const std::optional<std::string>&, GetClusterName, (), (const, override));
@@ -208,17 +208,17 @@ public:
     MOCK_METHOD(void, ClearMetadataCaches, (), (override));
     MOCK_METHOD(NYson::TYsonString, GetConfigYson, (), (const, override));
     MOCK_METHOD(NApi::IClientPtr, CreateClient, (const NApi::TClientOptions&), (override));
-    MOCK_METHOD(void, Reconfigure, (const TConnectionDynamicConfigPtr&), (override));
+    MOCK_METHOD(void, Reconfigure, (const NApi::NNative::TConnectionDynamicConfigPtr&), (override));
     MOCK_METHOD(NRpc::IChannelPtr, GetShuffleServiceChannelOrThrow, (), (override));
     MOCK_METHOD(void, RegisterShuffleService, (const std::string&), (override));
     MOCK_METHOD(NSignature::ISignatureGeneratorPtr, GetSignatureGenerator, (), (const, override));
     MOCK_METHOD(void, SetSignatureGenerator, (NSignature::ISignatureGeneratorPtr), (override));
+    MOCK_METHOD(NApi::NNative::IClientPtr, CreateNativeClient, (const NApi::TClientOptions& options), (override));
 
-    const TConnectionStaticConfigPtr& GetStaticConfig() const override;
+    const NApi::NNative::TConnectionStaticConfigPtr& GetStaticConfig() const override;
     const NNodeTrackerClient::TNetworkPreferenceList& GetNetworks() const override;
-    TConnectionDynamicConfigPtr GetConfig() const override;
+    NApi::NNative::TConnectionDynamicConfigPtr GetConfig() const override;
     NRpc::IChannelPtr CreateChannelByAddress(const std::string& address) override;
-    IClientPtr CreateNativeClient(const TClientOptions& options) override;
     bool IsSequoiaConfigured() override;
     NSequoiaClient::ISequoiaClientPtr GetSequoiaClient() override;
     const NRpc::IChannelFactoryPtr& GetChannelFactory() override;
@@ -234,16 +234,16 @@ public:
     const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() override;
 
     NRpc::IChannelPtr FindMasterChannel(
-        EMasterChannelKind kind,
+        NApi::EMasterChannelKind kind,
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) override;
     NRpc::IChannelPtr GetMasterChannelOrThrow(
-        EMasterChannelKind kind,
+        NApi::EMasterChannelKind kind,
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) override;
     NRpc::IChannelPtr GetMasterChannelOrThrow(
-        EMasterChannelKind kind,
+        NApi::EMasterChannelKind kind,
         NObjectClient::TCellId cellId) override;
     NRpc::IChannelPtr GetCypressChannelOrThrow(
-        EMasterChannelKind kind,
+        NApi::EMasterChannelKind kind,
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) override;
 
     IInvokerPtr GetInvoker() override;
@@ -251,8 +251,8 @@ public:
 private:
     const NRpc::IChannelFactoryPtr ChannelFactory_;
     const NNodeTrackerClient::TNetworkPreferenceList NetworkPreferenceList_;
-    const TConnectionStaticConfigPtr Config_;
-    const TConnectionDynamicConfigPtr DynamicConfig_;
+    const NApi::NNative::TConnectionStaticConfigPtr Config_;
+    const NApi::NNative::TConnectionDynamicConfigPtr DynamicConfig_;
     const IInvokerPtr Invoker_;
     const INodeMemoryTrackerPtr NodeMemoryTracker_;
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;

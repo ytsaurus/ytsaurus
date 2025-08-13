@@ -6,6 +6,7 @@
 #include "private.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/server/lib/io/chunk_file_reader.h>
 #include <yt/yt/server/lib/io/chunk_file_writer.h>
@@ -21,6 +22,7 @@
 #include <yt/yt/client/misc/workload.h>
 
 #include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/random.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
@@ -543,59 +545,17 @@ void TBlobChunkBase::DoReadSession(
     DoReadBlockSet(session);
 }
 
-void TBlobChunkBase::DoReadBlockSet(const TReadBlockSetSessionPtr& session)
+int TBlobChunkBase::FindLastEntryWithinReadGap(
+    const TReadBlockSetSessionPtr& session,
+    int beginEntryIndex)
 {
-    YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
-
-    if (session->CurrentEntryIndex > 0 && TInstant::Now() > session->Options.ReadBlocksDeadline) {
-        YT_LOG_DEBUG(
-            "Read session trimmed due to deadline (Deadline: %v, TrimmedBlockCount: %v)",
-            session->Options.ReadBlocksDeadline,
-            session->CurrentEntryIndex);
-        auto error = TError(NChunkClient::EErrorCode::ReaderTimeout, "Read session trimmed due to deadline");
-        for (auto i = session->CurrentEntryIndex; i < session->EntryCount; ++i) {
-            if (!session->Entries[i].Cached && session->Entries[i].Cookie) {
-                session->Entries[i].Cookie->SetBlock(error);
-            }
-        }
-        session->DiskFetchPromise.TrySet();
-        return;
-    }
-
-    while (true) {
-        if (session->CurrentEntryIndex >= session->EntryCount) {
-            session->DiskFetchPromise.TrySet();
-            return;
-        }
-
-        if (!session->Entries[session->CurrentEntryIndex].Cached) {
-            break;
-        }
-
-        ++session->CurrentEntryIndex;
-    }
-
-    YT_VERIFY(session->CurrentEntryIndex < session->EntryCount);
-    YT_VERIFY(!session->Entries[session->CurrentEntryIndex].Cached);
-
-    // Extract the maximum run of block. Blocks should be contiguous or at least have pretty small gap between them
-    // (if gap is small enough, coalesced read including gap blocks is more efficient than making two separate runs).
-
-    int beginEntryIndex = session->CurrentEntryIndex;
-    int endEntryIndex = session->CurrentEntryIndex + 1;
+    int endEntryIndex = beginEntryIndex + 1;
     int firstBlockIndex = session->Entries[beginEntryIndex].BlockIndex;
-    const TReadBlockSetSession::TBlockEntry* previousEntry = &session->Entries[beginEntryIndex];
+    const auto* previousEntry = &session->Entries[beginEntryIndex];
 
     YT_LOG_TRACE("Starting run at block (EntryIndex: %v, Block: %v)",
         beginEntryIndex,
         firstBlockIndex);
-
-    THashMap<int, TReadBlockSetSession::TBlockEntry> blockIndexToEntry;
-
-    i64 readSize = previousEntry->EndOffset - previousEntry->BeginOffset;
-
-    const auto& blocksExt = session->BlocksExt;
-    const auto& blockCache = session->Options.BlockCache;
 
     while (endEntryIndex < session->EntryCount) {
         const auto& entry = session->Entries[endEntryIndex];
@@ -618,110 +578,195 @@ void TBlobChunkBase::DoReadBlockSet(const TReadBlockSetSessionPtr& session)
                 entry.BlockIndex - previousEntry->BlockIndex - 1,
                 readGapSize);
             break;
-        } else if (readGapSize > 0) {
-            YT_LOG_TRACE("Coalesced read gap ("
-                "GapBlocks: %v, GapBlockOffsets: [%v,%v), "
-                "GapBlockCount: %v, GapSize: %v)",
-                FormatBlocks(previousEntry->BlockIndex + 1, entry.BlockIndex),
-                previousEntry->EndOffset,
-                entry.BeginOffset,
-                entry.BlockIndex - previousEntry->BlockIndex - 1,
-                readGapSize);
-            for (int index = previousEntry->BlockIndex + 1; index < entry.BlockIndex; index++) {
-                const auto& info = blocksExt->Blocks[index];
-
-                auto blockId = TBlockId(Id_, index);
-                auto cookie = blockCache->GetBlockCookie(blockId, EBlockType::CompressedData);
-
-                EmplaceOrCrash(blockIndexToEntry, index, TReadBlockSetSession::TBlockEntry{
-                    .BlockIndex = index,
-                    .Cached = !cookie->IsActive(),
-                    .Cookie = std::move(cookie),
-                    .BeginOffset = info.Offset,
-                    .EndOffset = info.Offset + info.Size,
-                });
-
-                readSize += info.Size;
-            }
         }
 
-        readSize += entry.EndOffset - entry.BeginOffset;
         previousEntry = &entry;
         ++endEntryIndex;
     }
 
-    int blocksToRead = previousEntry->BlockIndex - firstBlockIndex + 1;
+    return endEntryIndex;
+}
 
-    int leftBlock = firstBlockIndex;
-    int rightBlock = previousEntry->BlockIndex;
+void TBlobChunkBase::DoReadBlockSet(
+    const TReadBlockSetSessionPtr& session)
+{
+    YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
 
-    if (readSize < Location_->GetCoalescedReadMaxGapSize()) {
-        auto diff = Location_->GetCoalescedReadMaxGapSize() - readSize;
-        auto cachedBlocks = blockCache->GetCachedBlocksByChunkId(Id_, NChunkClient::EBlockType::CompressedData);
+    YT_VERIFY(session->EntryCount > 0);
 
-        THashSet<int> cachedBlockIndexes;
-        cachedBlockIndexes.reserve(cachedBlocks.size());
+    auto readBlocksRequests = CalculateReadBlocksRequests(session);
 
-        for (const auto& info : cachedBlocks) {
-            cachedBlockIndexes.emplace(info.BlockIndex);
-        }
+    if (session->Options.EnableSequentialIORequests) {
+        DoReadBlockSetSequentially(session, std::move(readBlocksRequests), 0);
+    } else {
+        DoReadBlockSetInParallel(session, std::move(readBlocksRequests));
+    }
+}
 
-        int leftSize = 0;
-        int rightSize = 0;
+TFuture<void> TBlobChunkBase::ReadBlocks(
+    const TReadBlockSetSessionPtr& session,
+    TReadBlocksRequest readBlocksRequest)
+{
+    YT_LOG_DEBUG("Started reading blob chunk blocks ("
+        "ChunkId: %v, Blocks: %v, "
+        "LocationId: %v, WorkloadDescriptor: %v, "
+        "ReadSessionId: %v, GapBlockCount: %v, "
+        "LeftBorder: %v, RightBorder: %v)",
+        Id_,
+        FormatBlocks(readBlocksRequest.FirstBlockIndex, readBlocksRequest.FirstBlockIndex + readBlocksRequest.BlocksToRead - 1),
+        Location_->GetId(),
+        session->Options.WorkloadDescriptor,
+        session->Options.ReadSessionId,
+        readBlocksRequest.BlocksToRead - (readBlocksRequest.EndEntryIndex - readBlocksRequest.BeginEntryIndex),
+        readBlocksRequest.FirstBlockIndex,
+        readBlocksRequest.FirstBlockIndex + readBlocksRequest.BlocksToRead - 1);
 
-        while (leftSize < diff) {
-            if (leftBlock - 1 >= 0) {
-                leftBlock--;
-                leftSize += blocksExt->Blocks[leftBlock].Size;
-            } else {
-                break;
+    YT_VERIFY(readBlocksRequest.FirstBlockIndex >= 0);
+    YT_VERIFY(readBlocksRequest.BlocksToRead > 0);
+    YT_VERIFY(readBlocksRequest.BlocksToRead >= readBlocksRequest.EndEntryIndex - readBlocksRequest.BeginEntryIndex);
+
+    auto reader = GetReader();
+
+    YT_VERIFY(session->FairShareSlot);
+    auto asyncBlocks = reader->ReadBlocks(
+        session->Options,
+        readBlocksRequest.FirstBlockIndex,
+        readBlocksRequest.BlocksToRead,
+        session->FairShareSlot->GetSlot()->GetSlotId(),
+        session->BlocksExt);
+
+    return asyncBlocks.Apply(
+        BIND(
+            &TBlobChunkBase::OnBlocksRead,
+            MakeStrong(this),
+            session,
+            TWallTimer(),
+            readBlocksRequest.FirstBlockIndex,
+            readBlocksRequest.BlocksToRead,
+            readBlocksRequest.BeginEntryIndex,
+            readBlocksRequest.EndEntryIndex,
+            Passed(std::move(readBlocksRequest.BlockIndexToEntry)))
+            .AsyncVia(session->Invoker));
+}
+
+void TBlobChunkBase::DoReadBlockSetSequentially(
+    const TReadBlockSetSessionPtr& session,
+    std::vector<TReadBlocksRequest> requests,
+    int currentRequestIndex)
+{
+    YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
+
+    if (currentRequestIndex >= std::ssize(requests)) {
+        session->DiskFetchPromise.TrySet();
+        return;
+    }
+
+    if (session->DiskFetchPromise.IsCanceled() || TInstant::Now() > session->Options.ReadBlocksDeadline) {
+        YT_LOG_DEBUG(
+            "Read session trimmed due to deadline or cancellation (Deadline: %v, IsCanceled: %v)",
+            session->Options.ReadBlocksDeadline,
+            session->DiskFetchPromise.IsCanceled());
+        auto error = TError(NChunkClient::EErrorCode::ReaderTimeout, "Read session trimmed due to deadline");
+        for (auto i = requests[currentRequestIndex].BeginEntryIndex; i < session->EntryCount; ++i) {
+            if (!session->Entries[i].Cached && session->Entries[i].Cookie) {
+                session->Entries[i].Cookie->SetBlock(error);
             }
         }
+        session->DiskFetchPromise.TrySet();
+        return;
+    }
 
-        while (rightSize < diff) {
-            if (rightBlock + 1 < std::ssize(blocksExt->Blocks)) {
-                rightBlock++;
-                rightSize += blocksExt->Blocks[rightBlock].Size;
-            } else {
-                break;
-            }
+    auto& currentRequest = requests[currentRequestIndex];
+    YT_UNUSED_FUTURE(ReadBlocks(session, std::move(currentRequest))
+        .Apply(
+            BIND(&TBlobChunkBase::DoReadBlockSetSequentially, MakeStrong(this), session, Passed(std::move(requests)), currentRequestIndex + 1)
+                .AsyncVia(session->Invoker)));
+}
+
+void TBlobChunkBase::DoReadBlockSetInParallel(
+    const TReadBlockSetSessionPtr& session,
+    std::vector<TReadBlocksRequest> requests)
+{
+    YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
+
+    std::vector<TFuture<void>> readRequests;
+
+    for (auto& readBlocksRequest : requests) {
+        readRequests.push_back(ReadBlocks(session, std::move(readBlocksRequest)));
+    }
+
+    session->DiskFetchPromise.TrySetFrom(AllSucceeded(readRequests));
+}
+
+std::vector<TBlobChunkBase::TReadBlocksRequest> TBlobChunkBase::CalculateReadBlocksRequests(
+    const TReadBlockSetSessionPtr& session)
+{
+    std::vector<TBlobChunkBase::TReadBlocksRequest> result;
+
+    for (int beginEntryIndex = 0; beginEntryIndex < session->EntryCount;) {
+        auto readBlocksRequest = NextReadBlocksRequest(session, beginEntryIndex);
+        if (readBlocksRequest) {
+            YT_VERIFY(readBlocksRequest->BeginEntryIndex >= beginEntryIndex);
+            YT_VERIFY(readBlocksRequest->EndEntryIndex > beginEntryIndex);
+            beginEntryIndex = readBlocksRequest->EndEntryIndex;
+            result.push_back(std::move(*readBlocksRequest));
+        } else {
+            break;
         }
+    }
 
-        auto collapseLeft = [&] {
-            leftSize -= blocksExt->Blocks[leftBlock].Size;
-            leftBlock++;
-        };
+    return result;
+}
 
-        auto collapseRight = [&] {
-            rightSize += blocksExt->Blocks[rightBlock].Size;
-            rightBlock--;
-        };
+std::optional<TBlobChunkBase::TReadBlocksRequest> TBlobChunkBase::NextReadBlocksRequest(
+    const TReadBlockSetSessionPtr& session,
+    int startEntryIndex)
+{
+    YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
 
-        while (diff < leftSize + rightSize && (leftBlock < firstBlockIndex || previousEntry->BlockIndex < rightBlock)) {
-            if (leftBlock >= firstBlockIndex) {
-                collapseRight();
-            } else if (rightBlock <= previousEntry->BlockIndex) {
-                collapseLeft();
-            } else if (cachedBlockIndexes.contains(rightBlock)) {
-                collapseRight();
-            } else if (cachedBlockIndexes.contains(leftBlock)) {
-                collapseLeft();
-            } else if (blocksExt->Blocks[leftBlock].Size < blocksExt->Blocks[rightBlock].Size) {
-                collapseRight();
-            } else {
-                collapseLeft();
-            }
-        }
+    auto firstNotCachedEntryIndex = std::find_if(
+        session->Entries.get() + startEntryIndex,
+        session->Entries.get() + session->EntryCount,
+        [] (const auto& entry) { return !entry.Cached; }) - session->Entries.get();
 
-        for (int index = leftBlock; index <= rightBlock; index++) {
-            if (index >= firstBlockIndex && index <= previousEntry->BlockIndex) {
-                continue;
-            }
+    if (firstNotCachedEntryIndex >= session->EntryCount) {
+        return std::nullopt;
+    }
 
-            const auto& info = blocksExt->Blocks[index];
+    YT_VERIFY(firstNotCachedEntryIndex < session->EntryCount);
+    YT_VERIFY(!session->Entries[firstNotCachedEntryIndex].Cached);
+
+    const int beginEntryIndex = firstNotCachedEntryIndex;
+    const int firstBlockIndex = session->Entries[beginEntryIndex].BlockIndex;
+
+    // Extract the maximum run of block. Blocks should be contiguous or at least have pretty small gap between them
+    // (if gap is small enough, coalesced read including gap blocks is more efficient than making two separate runs).
+    const int endEntryIndex = FindLastEntryWithinReadGap(session, beginEntryIndex);
+    YT_VERIFY(endEntryIndex <= session->EntryCount && endEntryIndex > beginEntryIndex);
+    const auto lastBlockIndex = session->Entries[endEntryIndex - 1].BlockIndex;
+    YT_VERIFY(lastBlockIndex >= firstBlockIndex);
+
+    THashMap<int, TReadBlockSetSession::TBlockEntry> blockIndexToEntry;
+
+    for (int entryIndex = beginEntryIndex; entryIndex < endEntryIndex - 1; ++entryIndex) {
+        auto& entry = session->Entries[entryIndex];
+        auto& nextEntry = session->Entries[entryIndex + 1];
+        auto readGapSize = nextEntry.BeginOffset - entry.EndOffset;
+        // Non-cached blocks are following in ascending order of block index.
+        YT_VERIFY(readGapSize >= 0);
+        YT_LOG_TRACE("Coalesced read gap ("
+            "GapBlocks: %v, GapBlockOffsets: [%v,%v), "
+            "GapBlockCount: %v, GapSize: %v)",
+            FormatBlocks(entry.BlockIndex + 1, nextEntry.BlockIndex),
+            entry.EndOffset,
+            nextEntry.BeginOffset,
+            nextEntry.BlockIndex - entry.BlockIndex - 1,
+            readGapSize);
+        for (int index = session->Entries[entryIndex].BlockIndex + 1; index < session->Entries[entryIndex + 1].BlockIndex; index++) {
+            const auto& info = session->BlocksExt->Blocks[index];
 
             auto blockId = TBlockId(Id_, index);
-            auto cookie = blockCache->GetBlockCookie(blockId, EBlockType::CompressedData);
+            auto cookie = session->Options.BlockCache->GetBlockCookie(blockId, EBlockType::CompressedData);
 
             EmplaceOrCrash(blockIndexToEntry, index, TReadBlockSetSession::TBlockEntry{
                 .BlockIndex = index,
@@ -730,8 +775,6 @@ void TBlobChunkBase::DoReadBlockSet(const TReadBlockSetSessionPtr& session)
                 .BeginOffset = info.Offset,
                 .EndOffset = info.Offset + info.Size,
             });
-
-            readSize += info.Size;
         }
     }
 
@@ -747,55 +790,19 @@ void TBlobChunkBase::DoReadBlockSet(const TReadBlockSetSessionPtr& session)
         }
     });
 
-    YT_LOG_DEBUG("Started reading blob chunk blocks ("
-        "ChunkId: %v, Blocks: %v, "
-        "LocationId: %v, WorkloadDescriptor: %v, "
-        "ReadSessionId: %v, GapBlockCount: %v, "
-        "LeftBorder: %v, RightBorder: %v, Size: %v)",
-        Id_,
-        FormatBlocks(firstBlockIndex, previousEntry->BlockIndex),
-        Location_->GetId(),
-        session->Options.WorkloadDescriptor,
-        session->Options.ReadSessionId,
-        blocksToRead - (endEntryIndex - beginEntryIndex),
-        leftBlock,
-        rightBlock,
-        readSize);
-
-    firstBlockIndex = leftBlock;
-    blocksToRead = rightBlock - leftBlock + 1;
-
-    session->ReadTimer.emplace();
-
-    try {
-        auto reader = GetReader();
-
-        YT_VERIFY(session->FairShareSlot);
-        auto asyncBlocks = reader->ReadBlocks(
-            session->Options,
-            firstBlockIndex,
-            blocksToRead,
-            session->FairShareSlot->GetSlot()->GetSlotId(),
-            session->BlocksExt);
-
-        asyncBlocks.Subscribe(
-            BIND(
-                &TBlobChunkBase::OnBlocksRead,
-                MakeStrong(this),
-                session,
-                firstBlockIndex,
-                blocksToRead,
-                beginEntryIndex,
-                endEntryIndex,
-                Passed(std::move(blockIndexToEntry)))
-                .Via(session->Invoker));
-    } catch (const std::exception& ex) {
-        FailSession(session, ex);
-    }
+    const int blocksToRead = lastBlockIndex - firstBlockIndex + 1;
+    return TReadBlocksRequest{
+        .FirstBlockIndex = firstBlockIndex,
+        .BlocksToRead = blocksToRead,
+        .BeginEntryIndex = beginEntryIndex,
+        .EndEntryIndex = endEntryIndex,
+        .BlockIndexToEntry = std::move(blockIndexToEntry),
+    };
 }
 
 void TBlobChunkBase::OnBlocksRead(
     const TReadBlockSetSessionPtr& session,
+    NProfiling::TWallTimer readTimer,
     int firstBlockIndex,
     int blocksToRead,
     int beginEntryIndex,
@@ -828,11 +835,12 @@ void TBlobChunkBase::OnBlocksRead(
         } else if (blocksOrError.FindMatching(NFS::EErrorCode::IOError)) {
             Location_->ScheduleDisable(error);
         }
-        FailSession(session, error);
+
+        session->DiskFetchPromise.TrySet(error);
         return;
     }
 
-    auto readTime = session->ReadTimer->GetElapsedTime();
+    auto readTime = readTimer.GetElapsedTime();
 
     const auto& blocks = blocksOrError.Value();
     YT_VERIFY(std::ssize(blocks) == blocksToRead);
@@ -847,6 +855,7 @@ void TBlobChunkBase::OnBlocksRead(
         if (!entry.Cached) {
             auto relativeBlockIndex = entry.BlockIndex - firstBlockIndex;
             auto block = blocks[relativeBlockIndex];
+            YT_VERIFY(block.Size() > 0);
 
             entry.Block = block;
 
@@ -909,10 +918,6 @@ void TBlobChunkBase::OnBlocksRead(
     performanceCounters.BlobBlockReadCount.Increment(blocksToRead);
 
     Location_->IncreaseCompletedIOSize(EIODirection::Read, session->Options.WorkloadDescriptor, bytesRead);
-
-    session->CurrentEntryIndex = endEntryIndex;
-
-    DoReadBlockSet(session);
 }
 
 bool TBlobChunkBase::ShouldSyncOnClose()

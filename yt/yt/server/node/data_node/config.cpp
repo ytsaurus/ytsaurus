@@ -935,6 +935,9 @@ void TDataNodeConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .Default(512_MB);
 
+    registrar.Parameter("enable_sequential_io_requests", &TThis::EnableSequentialIORequests)
+        .Default(true);
+
     registrar.Parameter("store_locations", &TThis::StoreLocations)
         .Default();
 
@@ -1193,6 +1196,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("choose_location_based_on_io_weight", &TThis::ChooseLocationBasedOnIOWeight)
         .Default();
+
+    registrar.Parameter("enable_sequential_io_requests", &TThis::EnableSequentialIORequests)
+        .Optional();
 
     registrar.Parameter("testing_options", &TThis::TestingOptions)
         .DefaultNew();

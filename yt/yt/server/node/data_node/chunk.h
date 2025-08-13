@@ -23,6 +23,7 @@ struct TChunkReadOptions
     bool PopulateCache = false;
     bool FetchFromCache = true;
     bool FetchFromDisk = true;
+    bool EnableSequentialIORequests = true;
     //! By this moment read routine is advised to return at least anything in best-effort manner.
     //! Failure to do so may result in RPC timeout or other kind of lower-level error.
     TInstant ReadBlocksDeadline = TInstant::Max();

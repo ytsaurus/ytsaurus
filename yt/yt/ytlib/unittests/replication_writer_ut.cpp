@@ -15,7 +15,7 @@
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
-#include <yt/yt/ytlib/unittests/misc/test_connection.h>
+#include <yt/yt/ytlib/test_framework/test_connection.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 #include <yt/yt/core/test_framework/test_proxy_service.h>
@@ -404,7 +404,7 @@ public:
     std::vector<TIntrusivePtr<TTestDataNodeService>> Services;
     std::vector<TBlock> GeneratedBlocks;
     IChunkWriterPtr Writer;
-    NApi::NNative::TTestConnectionPtr Connection;
+    TTestConnectionPtr Connection;
     TActionQueuePtr ActionQueue;
     IInvokerPtr Invoker;
     TIntrusivePtr<NNodeTrackerClient::TNodeDirectory> NodeDirectory;
@@ -468,13 +468,17 @@ public:
             service->SetChannelFactory(channelFactory.Get());
         }
 
-        Connection = NApi::NNative::CreateConnection(
+        Connection = CreateConnection(
             std::move(channelFactory),
             {"default"},
             std::move(NodeDirectory),
             Invoker,
             MemoryTracker);
 
+        EXPECT_CALL(*Connection, CreateNativeClient).WillRepeatedly([this] (const NApi::TClientOptions& options) -> NApi::NNative::IClientPtr
+            {
+                return New<NApi::NNative::TClient>(Connection, options, MemoryTracker);
+            });
         EXPECT_CALL(*Connection, GetPrimaryMasterCellId).Times(testing::AtLeast(1));
         EXPECT_CALL(*Connection, GetClusterDirectory).Times(testing::AtLeast(1));
         EXPECT_CALL(*Connection, SubscribeReconfigured).Times(testing::AtLeast(1));
