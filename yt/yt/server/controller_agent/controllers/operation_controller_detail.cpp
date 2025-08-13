@@ -5396,6 +5396,11 @@ void TOperationControllerBase::SafeUpdateGroupedNeededResources()
     CachedGroupedNeededResources_.Store(std::move(groupedNeededResources));
 }
 
+TControllerEpoch TOperationControllerBase::GetControllerEpoch() const
+{
+    return ControllerEpoch_;
+}
+
 void TOperationControllerBase::FlushOperationNode(bool checkFlushResult)
 {
     YT_LOG_DEBUG("Flushing operation node");

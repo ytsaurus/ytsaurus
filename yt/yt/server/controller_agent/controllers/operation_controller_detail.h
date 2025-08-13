@@ -265,6 +265,8 @@ public:
     i64 GetFailedJobCount() const override;
     NScheduler::TCompositeNeededResources GetNeededResources() const override;
 
+    NScheduler::TControllerEpoch GetControllerEpoch() const override;
+
     bool ShouldUpdateLightOperationAttributes() const override;
     void SetLightOperationAttributesUpdated() override;
 
@@ -516,7 +518,7 @@ protected:
     std::optional<TString> AcoName_;
 
     // Intentionally transient.
-    NScheduler::TControllerEpoch ControllerEpoch_;
+    const NScheduler::TControllerEpoch ControllerEpoch_;
 
     THashMap<TAllocationId, TAllocation> AllocationMap_;
     int RunningJobCount_ = 0;
