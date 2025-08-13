@@ -147,11 +147,13 @@ private:
     TReplicationCardPtr ReplicationCard_;
     bool ReplicationCardReconfigured_ = false;
 
-
     TFuture<void> FiberFuture_;
     TFuture<void> ProgressReporterFiberFuture_;
     TAsyncSemaphorePtr ConfigurationLock_;
     TWeakPtr<IInvoker> SelfInvoker_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, RefreshEraFutureLock_);
+    TFuture<void> RefreshEraFuture_;
 
     void FiberMain(TCallback<void()> callback, TDuration period)
     {
@@ -304,10 +306,21 @@ private:
         YT_LOG_DEBUG("Refreshing replication card era (NewEra: %v)",
             newEra);
 
-        WaitFor(BIND_NO_PROPAGATE(&TChaosAgent::UpdateReplicationCardAndReconfigure, MakeWeak(this), newEra)
-            .AsyncVia(Tablet_->GetEpochAutomatonInvoker())
-            .Run())
-        .ThrowOnError();
+        auto guard = TGuard(RefreshEraFutureLock_);
+        if (!RefreshEraFuture_ || RefreshEraFuture_.IsSet()) {
+            RefreshEraFuture_ = BIND(
+                &TChaosAgent::UpdateReplicationCardAndReconfigure,
+                MakeWeak(this),
+                newEra)
+                .AsyncVia(Tablet_->GetEpochAutomatonInvoker())
+                .Run();
+        }
+
+        auto future = RefreshEraFuture_;
+        guard.Release();
+
+        WaitFor(future)
+            .ThrowOnError();
 
         YT_LOG_DEBUG("Finished refreshing replication card era (NewEra: %v)",
             newEra);
