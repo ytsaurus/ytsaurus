@@ -103,6 +103,7 @@ class MappedClassProtocol(Protocol[_O]):
 
 class _DeclMappedClassProtocol(MappedClassProtocol[_O], Protocol):
     "Internal more detailed version of ``MappedClassProtocol``."
+
     metadata: MetaData
     __tablename__: str
     __mapper_args__: _MapperKwArgs
@@ -1223,9 +1224,9 @@ class _ClassScanMapperConfig(_MapperConfig):
             restored = None
 
         try:
-            dataclass_callable(
+            dataclass_callable(  # type: ignore[call-overload]
                 klass,
-                **{
+                **{  # type: ignore[call-overload,unused-ignore]
                     k: v
                     for k, v in dataclass_setup_arguments.items()
                     if v is not _NoArg.NO_ARG and k != "dataclass_callable"
@@ -1599,9 +1600,15 @@ class _ClassScanMapperConfig(_MapperConfig):
                                 "default_factory",
                                 "repr",
                                 "default",
+                                "dataclass_metadata",
                             ]
                         else:
-                            argnames = ["init", "default_factory", "repr"]
+                            argnames = [
+                                "init",
+                                "default_factory",
+                                "repr",
+                                "dataclass_metadata",
+                            ]
 
                         args = {
                             a
@@ -2016,8 +2023,7 @@ class _DeferredMapperConfig(_ClassScanMapperConfig):
     def _early_mapping(self, mapper_kw: _MapperKwArgs) -> None:
         pass
 
-    # mypy disallows plain property override of variable
-    @property  # type: ignore
+    @property
     def cls(self) -> Type[Any]:
         return self._cls()  # type: ignore
 
