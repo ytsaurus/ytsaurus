@@ -108,9 +108,9 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: cmake
-      build-ytsaurus: true
+      build-ytsaurus: false
       build-chyt: ${{ github.ref_name == 'stable/25.1' }}
-      build-python: true
+      build-python: false
       update-remote-cache: true
     secrets:
       BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
