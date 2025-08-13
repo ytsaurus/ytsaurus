@@ -5,7 +5,7 @@ ARG BASE_REPOSITORY="ghcr.io/ytsaurus/ytsaurus-nightly"
 ARG BASE_IMAGE="latest"
 
 # Args for odin.
-ARG PYTHON_RUNTIME_VERSION="3.11"
+ARG PYTHON_RUNTIME_VERSION="3.12"
 
 ARG ODIN_ROOT="/ytsaurus"
 ARG ODIN_VIRTUAL_ENV="${ODIN_ROOT}/virtualenv"
@@ -55,7 +55,6 @@ RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
       software-properties-common \
       python3-launchpadlib
-RUN add-apt-repository ppa:deadsnakes/ppa
 
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
