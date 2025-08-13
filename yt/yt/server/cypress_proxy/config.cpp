@@ -26,7 +26,11 @@ void TCypressProxyBootstrapConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("dynamic_config_manager", &TThis::DynamicConfigManager)
-        .DefaultNew();
+        .DefaultCtor([] {
+            auto config = New<NDynamicConfig::TDynamicConfigManagerConfig>();
+            config->IgnoreConfigAbsence = true;
+            return config;
+        });
 
     registrar.Parameter("user_directory_synchronizer", &TThis::UserDirectorySynchronizer)
         .DefaultNew();
