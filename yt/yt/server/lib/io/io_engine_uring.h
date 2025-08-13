@@ -21,6 +21,7 @@ IIOEnginePtr CreateIOEngineUring(
     NLogging::TLogger logger);
 
 bool IsUringIOEngineSupported();
+bool IsUringIOEngineEnabled();
 
 ////////////////////////////////////////////////////////////////////////////////
 
