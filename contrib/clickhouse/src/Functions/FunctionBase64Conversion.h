@@ -8,7 +8,7 @@
 #    include <Functions/FunctionHelpers.h>
 #    include <Functions/IFunction.h>
 #    include <Interpreters/Context_fwd.h>
-#    error #include <libbase64.h>
+#    include <libbase64.h>
 #    include <Common/MemorySanitizer.h>
 
 #    include <cstddef>

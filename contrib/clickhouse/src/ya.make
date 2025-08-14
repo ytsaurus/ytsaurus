@@ -52,6 +52,7 @@ PEERDIR(
     contrib/libs/wyhash
     contrib/libs/xxhash
     contrib/libs/zstd
+    contrib/restricted/aklomp-base64
     contrib/restricted/aws/aws-c-auth
     contrib/restricted/aws/aws-c-common
     contrib/restricted/aws/aws-c-io
@@ -121,6 +122,7 @@ ADDINCL(
     contrib/libs/simdjson/include
     contrib/libs/sparsehash/src
     contrib/libs/zstd/include
+    contrib/restricted/aklomp-base64
     contrib/restricted/cityhash-1.0.2
     contrib/restricted/fast_float/include
     library/cpp/clickhouse_deps/h3_compat
