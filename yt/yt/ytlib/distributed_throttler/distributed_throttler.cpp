@@ -557,7 +557,7 @@ public:
 
                 auto optionalTotalLimit = totalLimitIt->second;
                 if (!optionalTotalLimit) {
-                    YT_VERIFY(result.emplace(throttlerId, std::nullopt).second);
+                    EmplaceOrCrash(result, throttlerId, std::nullopt);
                 }
             }
 
@@ -572,7 +572,7 @@ public:
                             throttlerId,
                             memberId);
                     } else {
-                        YT_VERIFY(result.emplace(throttlerId, limitIt->second).second);
+                        EmplaceOrCrash(result, throttlerId, limitIt->second);
                     }
                 }
             };
@@ -773,7 +773,7 @@ private:
                     }
 
                     auto uniformLimit = std::max<double>(0, *optionalTotalLimit / totalCount);
-                    YT_VERIFY(throttlerIdToUniformLimit.emplace(throttlerId, uniformLimit).second);
+                    EmplaceOrCrash(throttlerIdToUniformLimit, throttlerId, uniformLimit);
                     YT_LOG_TRACE("Uniform distribution limit updated (ThrottlerId: %v, UniformLimit: %v)",
                         throttlerId,
                         uniformLimit);
@@ -1007,7 +1007,7 @@ private:
                     usageRate,
                     newLimit,
                     extraLimit);
-                YT_VERIFY(memberIdToLimit[GetShardIndex(memberId)][memberId].emplace(throttlerId, newLimit).second);
+                EmplaceOrCrash(memberIdToLimit[GetShardIndex(memberId)][memberId], throttlerId, newLimit);
                 (*throttlerToGlobalUsage)[throttlerId].Limit += newLimit;
             }
         }
