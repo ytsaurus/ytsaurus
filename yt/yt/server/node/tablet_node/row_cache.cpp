@@ -134,6 +134,20 @@ void TRowCache::SetFlushIndex(ui32 storeFlushIndex)
     FlushIndex_.store(storeFlushIndex);
 }
 
+ui32 TRowCache::GetLastFlushedIndex() const
+{
+    return LastFlushedIndex_.load(std::memory_order::acquire);
+}
+
+void TRowCache::SetLastFlushedIndex(ui32 storeFlushIndex)
+{
+    auto currentFlushIndex = LastFlushedIndex_.load(std::memory_order::acquire);
+    // Check that stores are flushed in proper order.
+    // Revisions are equal if retrying flush.
+    YT_VERIFY(currentFlushIndex <= storeFlushIndex);
+    LastFlushedIndex_.store(storeFlushIndex);
+}
+
 TUpdateCacheStatistics TRowCache::UpdateItems(
     TRange<NTableClient::TVersionedRow> rows,
     NTableClient::TTimestamp retainedTimestamp,
