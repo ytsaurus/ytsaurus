@@ -11,7 +11,7 @@
 
 #include <DataTypes/DataTypeNullable.h>
 #include <DataTypes/IDataType.h>
-#include <Interpreters/InterpreterSelectWithUnionQuery.h>
+#include <Interpreters/InterpreterSelectQueryAnalyzer.h>
 #include <Interpreters/SelectQueryOptions.h>
 #include <Parsers/ASTFunction.h>
 #include <Parsers/ASTSubquery.h>
@@ -71,7 +71,7 @@ std::vector<TString> ExtractPathsFromSubquery(
     subquerySettings.extremes = false;
     subqueryContext->setSettings(std::move(subquerySettings));
 
-    auto interpreter = DB::InterpreterSelectWithUnionQuery(
+    auto interpreter = DB::InterpreterSelectQueryAnalyzer(
         subquerySelect,
         subqueryContext,
         DB::SelectQueryOptions());
