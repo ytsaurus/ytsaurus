@@ -56,41 +56,47 @@ func TestErrorsInterop(t *testing.T) {
 
 func TestErrorPrinting(t *testing.T) {
 	for _, testCase := range []struct {
-		err   error
-		brief string
-		full  string
+		err      error
+		errorStr string
+		brief    string
+		full     string
 	}{
 		{
-			err:   Err("Tablet not found"),
-			brief: "tablet not found",
+			err:      Err("Tablet not found"),
+			errorStr: "tablet not found",
+			brief:    "tablet not found",
 			full: `
 tablet not found`,
 		},
 		{
-			err:   Err(ErrorCode(500), "Tablet not found"),
-			brief: "tablet not found",
+			err:      Err(ErrorCode(500), "Tablet not found"),
+			errorStr: "tablet not found",
+			brief:    "tablet not found (code: 500)",
 			full: `
 tablet not found:
       code: 500`,
 		},
 		{
-			err:   Err("Tablet not found", Err("Cypress error")),
-			brief: "tablet not found: cypress error",
+			err:      Err("Tablet not found", Err("Cypress error")),
+			errorStr: "tablet not found: cypress error",
+			brief:    "tablet not found: cypress error",
 			full: `
 tablet not found:
     cypress error`,
 		},
 		{
-			err:   Err("Tablet not found", Err("Cypress error", Err("Rpc error"))),
-			brief: "tablet not found: cypress error: rpc error",
+			err:      Err("Tablet not found", Err("Cypress error", Err("Rpc error"))),
+			errorStr: "tablet not found: cypress error: rpc error",
+			brief:    "tablet not found: cypress error: rpc error",
 			full: `
 tablet not found:
     cypress error
     rpc error`,
 		},
 		{
-			err:   Err("Tablet not found", Err("Retry error", ErrorAttr{"foo", "bar"}), Err("Cypress error", ErrorAttr{"zog", "zog"})),
-			brief: "tablet not found: cypress error",
+			err:      Err("Tablet not found", Err("Retry error", ErrorAttr{"foo", "bar"}), Err("Cypress error", ErrorAttr{"zog", "zog"})),
+			errorStr: "tablet not found: cypress error",
+			brief:    "tablet not found: [retry error (foo: bar); cypress error (zog: zog)]",
 			full: `
 tablet not found:
     retry error
@@ -99,14 +105,16 @@ tablet not found:
       zog: zog`,
 		},
 		{
-			err:   Err("Retry error", ErrorAttr{"foo", "bar"}, ErrorAttr{"a", "b"}),
-			brief: "retry error",
+			err:      Err("Retry error", ErrorAttr{"foo", "bar"}, ErrorAttr{"a", "b"}),
+			errorStr: "retry error",
+			brief:    "retry error (a: b, foo: bar)",
 			full: `
 retry error:
       a:   b
       foo: bar`,
 		},
 	} {
+		assert.Equal(t, testCase.errorStr, testCase.err.Error())
 		assert.Equal(t, testCase.brief, fmt.Sprintf("%v", testCase.err))
 		assert.Equal(t, testCase.full[1:], fmt.Sprintf("%+v", testCase.err))
 	}
@@ -136,4 +144,16 @@ func TestJSON(t *testing.T) {
 
 	require.Equal(t, ytErr.(*Error).Message, out.Message)
 	require.Equal(t, ytErr.(*Error).Attributes, out.Attributes)
+}
+
+func TestFmtErrorfWrapping(t *testing.T) {
+	originalErr := Err(ErrorCode(404), "Node not found", Attr("path", "//tmp/test"))
+
+	wrappedErr := fmt.Errorf("failed to get node: %w", originalErr)
+
+	wrappedStr := wrappedErr.Error()
+	require.Contains(t, wrappedStr, "failed to get node: node not found (code: 404, path: \"//tmp/test\")")
+
+	wrappedFormatted := fmt.Sprintf("%v", wrappedErr)
+	require.Contains(t, wrappedFormatted, "failed to get node: node not found (code: 404, path: \"//tmp/test\")")
 }

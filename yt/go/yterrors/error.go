@@ -130,10 +130,95 @@ func (yt *Error) Error() string {
 		return yt.origError.Error()
 	}
 
-	return fmt.Sprint(yt)
+	var buf strings.Builder
+	yt.formatOneLine(&buf, false)
+	return buf.String()
 }
 
-func (yt *Error) Format(s fmt.State, v rune) { xerrors.FormatError(yt, s, v) }
+// formatOneLine formats the error as a single line string.
+func (yt *Error) formatOneLine(result *strings.Builder, includeDetails bool) {
+	result.WriteString(uncapitalize(yt.Message))
+
+	if includeDetails {
+		var attrsBuf strings.Builder
+		yt.formatAttributes(&attrsBuf)
+		attrs := attrsBuf.String()
+		if attrs != "" {
+			result.WriteString(" (")
+			result.WriteString(attrs)
+			result.WriteString(")")
+		}
+	}
+
+	if len(yt.InnerErrors) == 0 {
+		return
+	}
+
+	result.WriteString(": ")
+
+	if !includeDetails {
+		yt.InnerErrors[len(yt.InnerErrors)-1].formatOneLine(result, includeDetails)
+		return
+	}
+
+	var innerStrings []string
+	for _, inner := range yt.InnerErrors {
+		var innerBuf strings.Builder
+		inner.formatOneLine(&innerBuf, includeDetails)
+		innerStrings = append(innerStrings, innerBuf.String())
+	}
+
+	if len(yt.InnerErrors) > 1 {
+		result.WriteString("[")
+		result.WriteString(strings.Join(innerStrings, "; "))
+		result.WriteString("]")
+	} else {
+		result.WriteString(innerStrings[0])
+	}
+}
+
+func (yt *Error) formatAttributes(result *strings.Builder) {
+	if len(yt.Attributes) == 0 && yt.Code == CodeGeneric {
+		return
+	}
+
+	isFirstAttribute := true
+
+	if yt.Code != CodeGeneric {
+		result.WriteString(fmt.Sprintf("code: %d", yt.Code))
+		isFirstAttribute = false
+	}
+
+	var names []string
+	for name := range yt.Attributes {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	formatAttr := func(v any) string {
+		b, _ := yson.MarshalFormat(v, yson.FormatText)
+		return string(b)
+	}
+
+	for _, name := range names {
+		if !isFirstAttribute {
+			result.WriteString(", ")
+		}
+		result.WriteString(fmt.Sprintf("%s: %s", name, formatAttr(yt.Attributes[name])))
+		isFirstAttribute = false
+	}
+}
+
+func (yt *Error) Format(s fmt.State, v rune) {
+	if !s.Flag('+') {
+		// Print the full error with all attributes in a single line.
+		var buf strings.Builder
+		yt.formatOneLine(&buf, true)
+		_, _ = fmt.Fprint(s, buf.String())
+		return
+	}
+	xerrors.FormatError(yt, s, v)
+}
 
 func (yt *Error) FormatError(p xerrors.Printer) (next error) {
 	p.Printf("%s", uncapitalize(yt.Message))
