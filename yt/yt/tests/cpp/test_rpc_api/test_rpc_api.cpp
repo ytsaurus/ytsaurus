@@ -33,11 +33,11 @@
 
 #include <yt/yt/library/named_value/named_value.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/api.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/ipc/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/io/memory.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/io/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/ipc/api.h>
 
 #include <util/generic/cast.h>
 
@@ -754,33 +754,33 @@ class TArrowTest
     : public TClearTmpTestBase
 {
 protected:
-    static std::shared_ptr<arrow::RecordBatch> MakeBatch(TStringBuf buf)
+    static std::shared_ptr<arrow20::RecordBatch> MakeBatch(TStringBuf buf)
     {
-        auto buffer = arrow::Buffer(reinterpret_cast<const ui8*>(buf.data()), buf.size());
-        arrow::io::BufferReader bufferReader(buffer);
-        auto batchReader = (arrow::ipc::RecordBatchStreamReader::Open(&bufferReader)).ValueOrDie();
+        auto buffer = std::make_shared<arrow20::Buffer>(reinterpret_cast<const ui8*>(buf.data()), buf.size());
+        arrow20::io::BufferReader bufferReader(buffer);
+        auto batchReader = (arrow20::ipc::RecordBatchStreamReader::Open(&bufferReader)).ValueOrDie();
         auto batch = batchReader->Next().ValueOrDie();
         return batch;
     }
 
-    static std::vector<i64> ReadIntegerArray(const std::shared_ptr<arrow::Array>& array)
+    static std::vector<i64> ReadIntegerArray(const std::shared_ptr<arrow20::Array>& array)
     {
-        auto int64Array = std::dynamic_pointer_cast<arrow::Int64Array>(array);
+        auto int64Array = std::dynamic_pointer_cast<arrow20::Int64Array>(array);
         YT_VERIFY(int64Array);
         return {int64Array->raw_values(), int64Array->raw_values() + int64Array->length()};
     }
 
-    static std::vector<ui32> ReadInterger32Array(const std::shared_ptr<arrow::Array>& array)
+    static std::vector<ui32> ReadInterger32Array(const std::shared_ptr<arrow20::Array>& array)
     {
-        auto int32Array = std::dynamic_pointer_cast<arrow::UInt32Array>(array);
+        auto int32Array = std::dynamic_pointer_cast<arrow20::UInt32Array>(array);
         YT_VERIFY(int32Array);
         return {int32Array->raw_values(), int32Array->raw_values() + int32Array->length()};
     }
 
-    static std::vector<std::string> ReadStringArray(const std::shared_ptr<arrow::Array>& array)
+    static std::vector<std::string> ReadStringArray(const std::shared_ptr<arrow20::Array>& array)
     {
         auto arraySize = array->length();
-        auto binArray = std::dynamic_pointer_cast<arrow::BinaryArray>(array);
+        auto binArray = std::dynamic_pointer_cast<arrow20::BinaryArray>(array);
         YT_VERIFY(binArray);
 
         std::vector<std::string> stringArray;
@@ -790,9 +790,9 @@ protected:
         return stringArray;
     }
 
-    static std::vector<std::string> ReadStringArrayFromDictionaryArray(const std::shared_ptr<arrow::Array>& array)
+    static std::vector<std::string> ReadStringArrayFromDictionaryArray(const std::shared_ptr<arrow20::Array>& array)
     {
-        auto dictArray = std::dynamic_pointer_cast<arrow::DictionaryArray>(array);
+        auto dictArray = std::dynamic_pointer_cast<arrow20::DictionaryArray>(array);
         YT_VERIFY(dictArray);
 
         auto indices = ReadInterger32Array(dictArray->indices());
@@ -808,9 +808,9 @@ protected:
         return result;
     }
 
-    static std::vector<float> ReadFloatArray(const std::shared_ptr<arrow::Array>& array)
+    static std::vector<float> ReadFloatArray(const std::shared_ptr<arrow20::Array>& array)
     {
-        auto floatArray = std::dynamic_pointer_cast<arrow::FloatArray>(array);
+        auto floatArray = std::dynamic_pointer_cast<arrow20::FloatArray>(array);
         YT_VERIFY(floatArray);
         return  {floatArray->raw_values(), floatArray->raw_values() + array->length()};
     }
@@ -1082,10 +1082,10 @@ TEST_F(TArrowTest, NullColumns)
             auto batch = MakeBatch(payloadRef.ToStringBuf());
             EXPECT_EQ(batch->num_columns(), 2);
             EXPECT_EQ(batch->column_name(0),"NullColumn");
-            EXPECT_TRUE(std::dynamic_pointer_cast<arrow::NullArray>(batch->column(0)));
+            EXPECT_TRUE(std::dynamic_pointer_cast<arrow20::NullArray>(batch->column(0)));
 
             EXPECT_EQ(batch->column_name(1),"VoidColumn");
-            EXPECT_TRUE(std::dynamic_pointer_cast<arrow::NullArray>(batch->column(1)));
+            EXPECT_TRUE(std::dynamic_pointer_cast<arrow20::NullArray>(batch->column(1)));
         }
     }
 }

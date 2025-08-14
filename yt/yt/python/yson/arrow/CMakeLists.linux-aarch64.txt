@@ -40,7 +40,7 @@ target_link_libraries(python-yson-arrow INTERFACE
   mapreduce-library-table_schema
   cpp-yson-node
   contrib-libs-pycxx
-  libs-apache-arrow
+  libs-apache-arrow_next
   Python3::Module
 )
 
@@ -68,7 +68,7 @@ target_link_libraries(python-yson-arrow.global PUBLIC
   mapreduce-library-table_schema
   cpp-yson-node
   contrib-libs-pycxx
-  libs-apache-arrow
+  libs-apache-arrow_next
   Python3::Module
 )
 

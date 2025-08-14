@@ -8,18 +8,18 @@
 #include <yt/yt/python/common/helpers.h>
 #include <yt/yt/python/common/stream.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/adapters/orc/adapter.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/adapters/orc/adapter_util.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/adapters/orc/adapter.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/adapters/orc/util.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/api.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/compute/cast.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/compute/cast.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/io/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/io/file.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/ipc/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/ipc/api.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/writer.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/parquet/arrow/writer.h>
 
 #include <contrib/libs/apache/orc/c++/include/orc/OrcFile.hh>
 
@@ -33,7 +33,7 @@ namespace {
 
 using namespace NConcurrency;
 
-using TArrowStatusCallback = std::function<void(arrow::Status)>;
+using TArrowStatusCallback = std::function<void(arrow20::Status)>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,28 +64,28 @@ TString GenerateFileName(int index, int fileNameWidth, EFileFormat format)
     }
 }
 
-arrow::Compression::type GetParquetFileCompression(const std::string& compressionCodec)
+arrow20::Compression::type GetParquetFileCompression(const std::string& compressionCodec)
 {
     if (compressionCodec == "uncompressed") {
-        return arrow::Compression::UNCOMPRESSED;
+        return arrow20::Compression::UNCOMPRESSED;
     } else if (compressionCodec == "snappy") {
-        return arrow::Compression::SNAPPY;
+        return arrow20::Compression::SNAPPY;
     } else if (compressionCodec == "gzip") {
-        return arrow::Compression::GZIP;
+        return arrow20::Compression::GZIP;
     } else if (compressionCodec == "brotli") {
-        return arrow::Compression::BROTLI;
+        return arrow20::Compression::BROTLI;
     } else if (compressionCodec == "zstd") {
-        return arrow::Compression::ZSTD;
+        return arrow20::Compression::ZSTD;
     } else if (compressionCodec == "lz4") {
-        return arrow::Compression::LZ4;
+        return arrow20::Compression::LZ4;
     } else if (compressionCodec == "lz4_frame") {
-        return arrow::Compression::LZ4_FRAME;
+        return arrow20::Compression::LZ4_FRAME;
     } else if (compressionCodec == "lzo") {
-        return arrow::Compression::LZO;
+        return arrow20::Compression::LZO;
     } else if (compressionCodec == "bz2") {
-        return arrow::Compression::BZ2;
+        return arrow20::Compression::BZ2;
     } else if (compressionCodec == "lz4_hadoop") {
-        return arrow::Compression::LZ4_HADOOP;
+        return arrow20::Compression::LZ4_HADOOP;
     } else {
         throw Py::TypeError(Format("Unexpected compression codec %Qv", compressionCodec));
     }
@@ -188,7 +188,7 @@ TAsyncDumpFileInputArguments ExtractAsyncDumpFileArguments(Py::Tuple& args, Py::
 
 struct TParquetConfig
 {
-    arrow::Compression::type FileCompression;
+    arrow20::Compression::type FileCompression;
 };
 
 struct TOrcConfig
@@ -208,8 +208,8 @@ struct TFormatConfig
 
 struct IFormatWriter
 {
-    virtual arrow::Status WriteTable(const arrow::Table& table, int64_t chunkSize) = 0;
-    virtual arrow::Status Close() = 0;
+    virtual arrow20::Status WriteTable(const arrow20::Table& table, int64_t chunkSize) = 0;
+    virtual arrow20::Status Close() = 0;
     virtual ~IFormatWriter() = default;
 };
 
@@ -218,35 +218,35 @@ class TParquetWriter
 {
 public:
     TParquetWriter(
-        const arrow::Schema& schema,
+        const arrow20::Schema& schema,
         const std::string& outputFilePath,
         TArrowStatusCallback arrowStatusCallback,
         const TParquetConfig& config)
         : ArrowStatusCallback_(std::move(arrowStatusCallback))
     {
-        auto outputFileOrError = arrow::io::FileOutputStream::Open(outputFilePath);
-        if (!outputFileOrError.ok()) {
-            throw Py::TypeError(outputFileOrError.status().message());
-        }
+        auto outputFileOrError = arrow20::io::FileOutputStream::Open(outputFilePath);
+        ArrowStatusCallback_(outputFileOrError.status());
         auto outputFile = outputFileOrError.ValueOrDie();
 
         auto properties =
-            parquet::WriterProperties::Builder().compression(config.FileCompression)->build();
+            parquet20::WriterProperties::Builder().compression(config.FileCompression)->build();
 
-        ArrowStatusCallback_(parquet::arrow::FileWriter::Open(
+        auto writerOrError = parquet20::arrow20::FileWriter::Open(
             schema,
-            arrow::default_memory_pool(),
+            arrow20::default_memory_pool(),
             outputFile,
-            properties,
-            &Writer_));
+            properties);
+
+        ArrowStatusCallback_(writerOrError.status());
+        Writer_ = std::move(writerOrError.ValueOrDie());
     }
 
-    arrow::Status WriteTable(const arrow::Table& table, int64_t chunkSize) override
+    arrow20::Status WriteTable(const arrow20::Table& table, int64_t chunkSize) override
     {
         return Writer_->WriteTable(table, chunkSize);
     }
 
-    arrow::Status Close() override
+    arrow20::Status Close() override
     {
         return Writer_->Close();
     }
@@ -256,7 +256,7 @@ public:
 private:
     const TArrowStatusCallback ArrowStatusCallback_;
 
-    std::unique_ptr<parquet::arrow::FileWriter> Writer_;
+    std::unique_ptr<parquet20::arrow20::FileWriter> Writer_;
 };
 
 class TOrcWriter
@@ -264,14 +264,14 @@ class TOrcWriter
 {
 public:
     TOrcWriter(
-        const arrow::Schema& schema,
+        const arrow20::Schema& schema,
         const std::string& outputFilePath,
         TArrowStatusCallback arrowStatusCallback,
         const TOrcConfig& config)
         : OutputStream_(liborc::writeLocalFile(outputFilePath))
         , ArrowStatusCallback_(arrowStatusCallback)
     {
-        auto orcSchemaOrError = arrow::adapters::orc::GetOrcType(schema);
+        auto orcSchemaOrError = arrow20::adapters::orc::GetOrcType(schema);
         ArrowStatusCallback_(orcSchemaOrError.status());
         OrcSchema_ = std::move(orcSchemaOrError.ValueOrDie());
         liborc::WriterOptions options;
@@ -279,7 +279,7 @@ public:
         Writer_ = liborc::createWriter(*OrcSchema_, OutputStream_.get(), options);
     }
 
-    arrow::Status WriteTable(const arrow::Table& table, int64_t chunkSize) override
+    arrow20::Status WriteTable(const arrow20::Table& table, int64_t chunkSize) override
     {
         const int columnCount = table.num_columns();
         i64 rowCount = table.num_rows();
@@ -289,11 +289,11 @@ public:
 
         auto batch = Writer_->createRowBatch(chunkSize);
 
-        auto* root = arrow::internal::checked_cast<liborc::StructVectorBatch*>(batch.get());
+        auto* root = arrow20::internal::checked_cast<liborc::StructVectorBatch*>(batch.get());
 
         while (rowCount > 0) {
             for (int columnIndex = 0; columnIndex < columnCount; columnIndex++) {
-                ArrowStatusCallback_(arrow::adapters::orc::WriteBatch(
+                ArrowStatusCallback_(arrow20::adapters::orc::WriteBatch(
                     *(table.column(columnIndex)),
                     chunkSize,
                     &chunkOffsets[columnIndex],
@@ -305,13 +305,13 @@ public:
             batch->clear();
             rowCount -= chunkSize;
         }
-        return arrow::Status::OK();
+        return arrow20::Status::OK();
     }
 
-    arrow::Status Close() override
+    arrow20::Status Close() override
     {
         Writer_->close();
-        return arrow::Status::OK();
+        return arrow20::Status::OK();
     }
 
     ~TOrcWriter() = default;
@@ -327,7 +327,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TArrowInputStreamAdapter
-    : public arrow::io::InputStream
+    : public arrow20::io::InputStream
 {
 public:
     explicit TArrowInputStreamAdapter(IInputStream* stream)
@@ -336,9 +336,9 @@ public:
         IsClosed_ = !Stream_->ReadChar(PreviousElement_);
     }
 
-    arrow::Status Close() override
+    arrow20::Status Close() override
     {
-        return arrow::Status::OK();
+        return arrow20::Status::OK();
     }
 
     bool closed() const override
@@ -346,22 +346,22 @@ public:
         return IsClosed_;
     }
 
-    arrow::Result<int64_t> Tell() const override
+    arrow20::Result<int64_t> Tell() const override
     {
         return Position_;
     }
 
-    arrow::Result<int64_t> Read(int64_t nBytes, void* out) override
+    arrow20::Result<int64_t> Read(int64_t nBytes, void* out) override
     {
         return DoLoad(out, nBytes);
     }
 
-    arrow::Result<std::shared_ptr<arrow::Buffer>> Read(int64_t nBytes) override
+    arrow20::Result<std::shared_ptr<arrow20::Buffer>> Read(int64_t nBytes) override
     {
         std::string buffer;
         buffer.resize(nBytes);
         buffer.resize(DoLoad(buffer.data(), buffer.size()));
-        return arrow::Buffer::FromString(buffer);
+        return arrow20::Buffer::FromString(buffer);
     }
 
 private:
@@ -386,7 +386,7 @@ private:
 };
 
 class TArrowStreamPipe
-    : public arrow::io::InputStream
+    : public arrow20::io::InputStream
 {
 public:
     explicit TArrowStreamPipe(i64 dataSizePerThread)
@@ -409,13 +409,13 @@ public:
         Pipe_->Abort(error);
     }
 
-    arrow::Status Close() override
+    arrow20::Status Close() override
     {
         auto error = WaitFor(Pipe_->Close());
         if (error.IsOK()) {
-            return arrow::Status::OK();
+            return arrow20::Status::OK();
         }
-        return arrow::Status::Invalid(error.GetMessage());
+        return arrow20::Status::Invalid(error.GetMessage());
     }
 
     bool closed() const override
@@ -423,12 +423,12 @@ public:
         return LastBlock_.size() == 0;
     }
 
-    arrow::Result<int64_t> Tell() const override
+    arrow20::Result<int64_t> Tell() const override
     {
         return Position_;
     }
 
-    arrow::Result<int64_t> Read(int64_t nBytes, void* out) override
+    arrow20::Result<int64_t> Read(int64_t nBytes, void* out) override
     {
         char* outputChar = reinterpret_cast<char*>(out);
         auto bytesCountLeft = nBytes;
@@ -453,7 +453,7 @@ public:
         return nBytes - bytesCountLeft;
     }
 
-    arrow::Result<std::shared_ptr<arrow::Buffer>> Read(int64_t nBytes) override
+    arrow20::Result<std::shared_ptr<arrow20::Buffer>> Read(int64_t nBytes) override
     {
         std::string buffer;
         buffer.resize(nBytes);
@@ -462,7 +462,7 @@ public:
             return resultBytesOrError.status();
         }
         buffer.resize(*resultBytesOrError);
-        return arrow::Buffer::FromString(buffer);
+        return arrow20::Buffer::FromString(buffer);
     }
 
 private:
@@ -480,50 +480,50 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<arrow::Array> ConvertDictionaryToDense(
-    const arrow::Array& array,
+std::shared_ptr<arrow20::Array> ConvertDictionaryToDense(
+    const arrow20::Array& array,
     const TArrowStatusCallback& arrowStatusCallback)
 {
-    const arrow::DictionaryType& dictType =
-        static_cast<const arrow::DictionaryType&>(*array.type());
+    const arrow20::DictionaryType& dictType =
+        static_cast<const arrow20::DictionaryType&>(*array.type());
 
     auto castOutputOrError =
-        arrow::compute::Cast(array.data(), dictType.value_type(), arrow::compute::CastOptions());
+        arrow20::compute::Cast(array.data(), dictType.value_type(), arrow20::compute::CastOptions());
     arrowStatusCallback(castOutputOrError.status());
 
     auto castOutput = castOutputOrError.ValueOrDie();
     return castOutput.make_array();
 }
 
-std::shared_ptr<arrow::Schema> ConvertDictionarySchema(const std::shared_ptr<arrow::Schema>& schema)
+std::shared_ptr<arrow20::Schema> ConvertDictionarySchema(const std::shared_ptr<arrow20::Schema>& schema)
 {
     if (schema == nullptr) {
         return nullptr;
     }
-    std::vector<std::shared_ptr<arrow::Field>> fields;
+    std::vector<std::shared_ptr<arrow20::Field>> fields;
     for (auto&& field : schema->fields()) {
-        if (field->type()->id() == arrow::Type::DICTIONARY) {
-            auto& dictionaryType = static_cast<const arrow::DictionaryType&>(*field->type());
+        if (field->type()->id() == arrow20::Type::DICTIONARY) {
+            auto& dictionaryType = static_cast<const arrow20::DictionaryType&>(*field->type());
             fields.emplace_back(field->WithType(dictionaryType.value_type()));
         } else {
             fields.emplace_back(field);
         }
     }
-    return std::make_shared<arrow::Schema>(fields);
+    return std::make_shared<arrow20::Schema>(fields);
 }
 
-std::shared_ptr<arrow::RecordBatch> ConvertDictionaryArrays(
-    const std::shared_ptr<arrow::RecordBatch>& data,
+std::shared_ptr<arrow20::RecordBatch> ConvertDictionaryArrays(
+    const std::shared_ptr<arrow20::RecordBatch>& data,
     const TArrowStatusCallback& arrowStatusCallback)
 {
     if (!data) {
         return nullptr;
     }
-    std::vector<std::shared_ptr<arrow::Field>> fields;
+    std::vector<std::shared_ptr<arrow20::Field>> fields;
     bool hasDict = false;
     for (auto&& field : data->schema()->fields()) {
-        if (field->type()->id() == arrow::Type::DICTIONARY) {
-            auto& dictionaryType = static_cast<const arrow::DictionaryType&>(*field->type());
+        if (field->type()->id() == arrow20::Type::DICTIONARY) {
+            auto& dictionaryType = static_cast<const arrow20::DictionaryType&>(*field->type());
             fields.emplace_back(field->WithType(dictionaryType.value_type()));
             hasDict = true;
         } else {
@@ -533,35 +533,35 @@ std::shared_ptr<arrow::RecordBatch> ConvertDictionaryArrays(
     if (!hasDict) {
         return data;
     }
-    std::vector<std::shared_ptr<arrow::Array>> columns;
+    std::vector<std::shared_ptr<arrow20::Array>> columns;
     for (auto&& column : data->columns()) {
-        if (column->type_id() == arrow::Type::DICTIONARY) {
+        if (column->type_id() == arrow20::Type::DICTIONARY) {
             columns.emplace_back(ConvertDictionaryToDense(*column, arrowStatusCallback));
         } else {
             columns.emplace_back(column);
         }
     }
-    std::shared_ptr<arrow::Schema> schema = std::make_shared<arrow::Schema>(fields);
-    return arrow::RecordBatch::Make(schema, data->num_rows(), columns);
+    std::shared_ptr<arrow20::Schema> schema = std::make_shared<arrow20::Schema>(fields);
+    return arrow20::RecordBatch::Make(schema, data->num_rows(), columns);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<arrow::ipc::RecordBatchStreamReader> GetNextBatchReader(
-    const std::shared_ptr<arrow::io::InputStream>& pipe,
+std::shared_ptr<arrow20::ipc::RecordBatchStreamReader> GetNextBatchReader(
+    const std::shared_ptr<arrow20::io::InputStream>& pipe,
     const TArrowStatusCallback& arrowStatusCallback)
 {
     if (pipe->closed()) {
         return nullptr;
     }
-    auto batchReaderOrError = arrow::ipc::RecordBatchStreamReader::Open(pipe);
+    auto batchReaderOrError = arrow20::ipc::RecordBatchStreamReader::Open(pipe);
     arrowStatusCallback(batchReaderOrError.status());
 
     return batchReaderOrError.ValueOrDie();
 }
 
-std::shared_ptr<arrow::RecordBatch> GetNextBatch(
-    const std::shared_ptr<arrow::ipc::RecordBatchStreamReader>& batchReader,
+std::shared_ptr<arrow20::RecordBatch> GetNextBatch(
+    const std::shared_ptr<arrow20::ipc::RecordBatchStreamReader>& batchReader,
     const TArrowStatusCallback& arrowStatusCallback)
 {
     auto batchOrError = batchReader->Next();
@@ -572,17 +572,17 @@ std::shared_ptr<arrow::RecordBatch> GetNextBatch(
 ////////////////////////////////////////////////////////////////////////////////
 
 void DoDumpFile(
-    const std::shared_ptr<arrow::io::InputStream>& pipe,
+    const std::shared_ptr<arrow20::io::InputStream>& pipe,
     TString outputFilePath,
     const TFormatConfig& config,
     const TArrowStatusCallback& arrowStatusCallback)
 {
-    std::shared_ptr<arrow::ipc::RecordBatchStreamReader> batchReader = GetNextBatchReader(pipe, arrowStatusCallback);
+    std::shared_ptr<arrow20::ipc::RecordBatchStreamReader> batchReader = GetNextBatchReader(pipe, arrowStatusCallback);
     if (!batchReader) {
         return;
     }
 
-    auto outputFileOrError = arrow::io::FileOutputStream::Open(outputFilePath);
+    auto outputFileOrError = arrow20::io::FileOutputStream::Open(outputFilePath);
     arrowStatusCallback(outputFileOrError.status());
 
     auto outputFile = outputFileOrError.ValueOrDie();
@@ -599,12 +599,12 @@ void DoDumpFile(
         throw Py::TypeError("Unexpected format");
     }
 
-    std::vector<std::shared_ptr<arrow::RecordBatch>> batches;
+    std::vector<std::shared_ptr<arrow20::RecordBatch>> batches;
     int batchesRowCount = 0;
 
     auto writeBatches = [&] () {
         YT_VERIFY(batches.size() > 0);
-        auto tableOrError = arrow::Table::FromRecordBatches(batches[0]->schema(), batches);
+        auto tableOrError = arrow20::Table::FromRecordBatches(batches[0]->schema(), batches);
 
         arrowStatusCallback(tableOrError.status());
         auto table = tableOrError.ValueOrDie();
@@ -650,7 +650,7 @@ Py::Object DoAsyncDumpFile(TAsyncDumpFileInputArguments&& inputArquments, const 
     std::atomic<bool> isError = false;
     TString errorMessage;
 
-    auto onArrowStatusCallback = [&] (const arrow::Status& status) {
+    auto onArrowStatusCallback = [&] (const arrow20::Status& status) {
         if (!status.ok()) {
             bool expected = false;
             if (isError.compare_exchange_strong(expected, true)) {
@@ -723,7 +723,7 @@ Py::Object DoAsyncDumpFile(TAsyncDumpFileInputArguments&& inputArquments, const 
 Py::Object AsyncDumpParquet(Py::Tuple& args, Py::Dict& kwargs)
 {
     auto inputArguments = ExtractAsyncDumpFileArguments(args, kwargs);
-    auto fileCompression = arrow::Compression::SNAPPY;
+    auto fileCompression = arrow20::Compression::SNAPPY;
     if (HasArgument(args, kwargs, "file_compression_codec")) {
         fileCompression = GetParquetFileCompression(Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "file_compression_codec")));
     }
@@ -754,7 +754,7 @@ Py::Object DumpParquet(Py::Tuple& args, Py::Dict& kwargs)
         minBatchRowCount = Py::ConvertToLongLong(ExtractArgument(args, kwargs, "min_batch_row_count"));
     }
 
-    auto fileCompression = arrow::Compression::SNAPPY;
+    auto fileCompression = arrow20::Compression::SNAPPY;
     if (HasArgument(args, kwargs, "file_compression_codec")) {
         fileCompression = GetParquetFileCompression(Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "file_compression_codec")));
     }
@@ -773,7 +773,7 @@ Py::Object DumpParquet(Py::Tuple& args, Py::Dict& kwargs)
 
     auto pipe = std::make_shared<TArrowInputStreamAdapter>(stream.get());
 
-    DoDumpFile(pipe, outputFilePath, config, [] (const arrow::Status& status) {
+    DoDumpFile(pipe, outputFilePath, config, [] (const arrow20::Status& status) {
         if (!status.ok()) {
             throw Py::TypeError(status.message());
         }
@@ -836,7 +836,7 @@ Py::Object DumpORC(Py::Tuple& args, Py::Dict& kwargs)
     };
 
     auto pipe = std::make_shared<TArrowInputStreamAdapter>(stream.get());
-    DoDumpFile(pipe, outputFilePath, config, [] (const arrow::Status& status) {
+    DoDumpFile(pipe, outputFilePath, config, [] (const arrow20::Status& status) {
         if (!status.ok()) {
             throw Py::TypeError(status.message());
         }
@@ -851,7 +851,7 @@ Py::Object UploadParquet(Py::Tuple& args, Py::Dict& kwargs)
 {
     auto inputFilePath = Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "input_file"));
 
-    int arrowBatchSize = parquet::kArrowDefaultBatchSize;
+    int arrowBatchSize = parquet20::kArrowDefaultBatchSize;
     if (HasArgument(args, kwargs, "arrow_batch_size")) {
         arrowBatchSize = Py::ConvertToLongLong(ExtractArgument(args, kwargs, "arrow_batch_size"));
     }
@@ -872,7 +872,7 @@ Py::Object UploadORC(Py::Tuple& args, Py::Dict& kwargs)
 {
     auto inputFilePath = Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "input_file"));
 
-    int arrowBatchSize = parquet::kArrowDefaultBatchSize;
+    int arrowBatchSize = parquet20::kArrowDefaultBatchSize;
     if (HasArgument(args, kwargs, "arrow_batch_size")) {
         arrowBatchSize = Py::ConvertToLongLong(ExtractArgument(args, kwargs, "arrow_batch_size"));
     }

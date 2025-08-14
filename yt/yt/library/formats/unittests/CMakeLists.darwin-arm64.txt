@@ -57,7 +57,6 @@ target_link_libraries(unittester-formats PUBLIC
   yt-library-formats
   yt-library-named_value
   tests-cpp-library
-  libs-apache-arrow
   library-cpp-resource
   contrib-libs-protobuf
 )

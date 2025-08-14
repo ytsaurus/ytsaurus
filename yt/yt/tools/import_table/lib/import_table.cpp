@@ -46,12 +46,12 @@
 #include <util/system/env.h>
 #include <util/system/execpath.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/ipc/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/ipc/api.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/reader.h>
-#include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/writer.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/parquet/arrow/reader.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/parquet/arrow/writer.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/adapters/orc/adapter.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/adapters/orc/adapter.h>
 
 #include <contrib/libs/apache/orc/c++/include/orc/OrcFile.hh>
 
@@ -445,52 +445,55 @@ REGISTER_MAPPER(TDownloadMapper);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRecordBatchReaderOrcAdapter
-    : public arrow::RecordBatchReader
+    : public arrow20::RecordBatchReader
 {
 public:
-    TRecordBatchReaderOrcAdapter(const TArrowRandomAccessFilePtr& stream, arrow::MemoryPool* pool)
+    TRecordBatchReaderOrcAdapter(const TArrowRandomAccessFilePtr& stream, arrow20::MemoryPool* pool)
     {
-        ThrowOnError(arrow::adapters::orc::ORCFileReader::Open(
+        auto readerOrError = arrow20::adapters::orc::ORCFileReader::Open(
             stream,
-            pool,
-            &Reader_));
+            pool);
+        ThrowOnError(readerOrError.status());
+        Reader_ = std::move(readerOrError.ValueOrDie());
         StripeCount_ = Reader_->NumberOfStripes();
     }
 
     TArrowSchemaPtr schema() const override
     {
-        TArrowSchemaPtr resultSchema;
-        NArrow::ThrowOnError(Reader_->ReadSchema(&resultSchema));
-        return resultSchema;
+        auto resultSchemaOrError = Reader_->ReadSchema();
+        ThrowOnError(resultSchemaOrError.status());
+        return resultSchemaOrError.ValueOrDie();
     }
 
-    arrow::Status ReadNext(std::shared_ptr<arrow::RecordBatch>* batch) override
+    arrow20::Status ReadNext(std::shared_ptr<arrow20::RecordBatch>* batch) override
     {
         if (CurrentStripeIndex_ < StripeCount_) {
-            NArrow::ThrowOnError(Reader_->ReadStripe(CurrentStripeIndex_, batch));
+            auto batchOrError = Reader_->ReadStripe(CurrentStripeIndex_);
+            ThrowOnError(batchOrError.status());
+            *batch = batchOrError.ValueOrDie();
             ++CurrentStripeIndex_;
         } else {
             *batch = nullptr;
         }
-        return arrow::Status::OK();
+        return arrow20::Status::OK();
     }
 
 private:
-    std::unique_ptr<arrow::adapters::orc::ORCFileReader> Reader_;
+    std::unique_ptr<arrow20::adapters::orc::ORCFileReader> Reader_;
     int StripeCount_ = 0;
     int CurrentStripeIndex_ = 0;
 };
 
 class TRecordBatchReaderParquetAdapter
-    : public arrow::RecordBatchReader
+    : public arrow20::RecordBatchReader
 {
 public:
-    TRecordBatchReaderParquetAdapter(const TArrowRandomAccessFilePtr& stream, arrow::MemoryPool* pool)
+    TRecordBatchReaderParquetAdapter(const TArrowRandomAccessFilePtr& stream, arrow20::MemoryPool* pool)
     {
-        NArrow::ThrowOnError(parquet::arrow::FileReader::Make(
+        NArrow::ThrowOnError(parquet20::arrow20::FileReader::Make(
             pool,
-            parquet::ParquetFileReader::Open(stream),
-            parquet::ArrowReaderProperties{},
+            parquet20::ParquetFileReader::Open(stream),
+            parquet20::ArrowReaderProperties{},
             &ArrowFileReader_));
 
         NArrow::ThrowOnError(ArrowFileReader_->GetSchema(&ArrowSchema_));
@@ -498,7 +501,7 @@ public:
         if (RowGroupCount_ > 0) {
             std::vector<int> rowGroup = {CurrentRowGroupIndex_};
             NArrow::ThrowOnError(ArrowFileReader_->ReadRowGroups(rowGroup, &Table_));
-            TableBatchReader_ = std::make_shared<arrow::TableBatchReader>(*Table_);
+            TableBatchReader_ = std::make_shared<arrow20::TableBatchReader>(*Table_);
             ++CurrentRowGroupIndex_;
         }
     }
@@ -508,33 +511,33 @@ public:
         return ArrowSchema_;
     }
 
-    arrow::Status ReadNext(std::shared_ptr<arrow::RecordBatch>* batch) override
+    arrow20::Status ReadNext(std::shared_ptr<arrow20::RecordBatch>* batch) override
     {
         if (RowGroupCount_ > 0) {
             NArrow::ThrowOnError(TableBatchReader_->ReadNext(batch));
             if (!(*batch) && CurrentRowGroupIndex_ < RowGroupCount_) {
                 std::vector<int> rowGroup = {CurrentRowGroupIndex_};
                 NArrow::ThrowOnError(ArrowFileReader_->ReadRowGroups(rowGroup, &Table_));
-                TableBatchReader_ = std::make_shared<arrow::TableBatchReader>(*Table_);
+                TableBatchReader_ = std::make_shared<arrow20::TableBatchReader>(*Table_);
                 NArrow::ThrowOnError(TableBatchReader_->ReadNext(batch));
                 ++CurrentRowGroupIndex_;
             }
         }
-        return arrow::Status::OK();
+        return arrow20::Status::OK();
     }
 
 private:
-    std::unique_ptr<parquet::arrow::FileReader> ArrowFileReader_;
+    std::unique_ptr<parquet20::arrow20::FileReader> ArrowFileReader_;
     TArrowSchemaPtr ArrowSchema_;
-    std::shared_ptr<arrow::TableBatchReader> TableBatchReader_;
-    std::shared_ptr<arrow::Table> Table_;
+    std::shared_ptr<arrow20::TableBatchReader> TableBatchReader_;
+    std::shared_ptr<arrow20::Table> Table_;
     int RowGroupCount_;
     int CurrentRowGroupIndex_ = 0;
 };
 
-std::shared_ptr<arrow::RecordBatchReader> MakeRecordBatchReaderAdapter(
+std::shared_ptr<arrow20::RecordBatchReader> MakeRecordBatchReaderAdapter(
     const TArrowRandomAccessFilePtr& stream,
-    arrow::MemoryPool* pool,
+    arrow20::MemoryPool* pool,
     EFileFormat fileFormat)
 {
     switch (fileFormat) {
@@ -603,17 +606,17 @@ public:
 
             auto stream = std::make_shared<TFileReader>(&reader);
             auto formatAdapter = MakeFormatStreamAdapter(&metadata, startIndex, stream, SourceConfig_.Format);
-            auto* pool = arrow::default_memory_pool();
+            auto* pool = arrow20::default_memory_pool();
 
             auto batchReader = MakeRecordBatchReaderAdapter(formatAdapter, pool, SourceConfig_.Format);
 
             TArrowOutputStream outputStream(&output);
 
-            auto recordBatchWriterOrError = arrow::ipc::MakeStreamWriter(&outputStream, batchReader->schema());
+            auto recordBatchWriterOrError = arrow20::ipc::MakeStreamWriter(&outputStream, batchReader->schema());
             NArrow::ThrowOnError(recordBatchWriterOrError.status());
             auto recordBatchWriter = recordBatchWriterOrError.ValueOrDie();
 
-            std::shared_ptr<arrow::RecordBatch> batch;
+            std::shared_ptr<arrow20::RecordBatch> batch;
             NArrow::ThrowOnError(batchReader->ReadNext(&batch));
 
             while (batch) {
@@ -670,34 +673,34 @@ private:
     };
 
     class TArrowOutputStream
-        : public arrow::io::OutputStream
+        : public arrow20::io::OutputStream
     {
     public:
         TArrowOutputStream(IOutputStream* outputStream)
             : OutputStream_(outputStream)
         { }
 
-        arrow::Status Write(const void* data, int64_t nbytes) override
+        arrow20::Status Write(const void* data, int64_t nbytes) override
         {
             Position_ += nbytes;
             OutputStream_->Write(data, nbytes);
-            return arrow::Status::OK();
+            return arrow20::Status::OK();
         }
 
-        arrow::Status Flush() override
+        arrow20::Status Flush() override
         {
             OutputStream_->Flush();
             Position_ = 0;
-            return arrow::Status::OK();
+            return arrow20::Status::OK();
         }
 
-        arrow::Status Close() override
+        arrow20::Status Close() override
         {
             IsClosed_ = true;
-            return arrow::Status::OK();
+            return arrow20::Status::OK();
         }
 
-        arrow::Result<int64_t> Tell() const override
+        arrow20::Result<int64_t> Tell() const override
         {
             return Position_;
         }

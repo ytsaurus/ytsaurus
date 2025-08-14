@@ -34,7 +34,7 @@ target_link_libraries(yt-library-formats PUBLIC
   yt-yt-client
   yt-client-formats
   yt-library-column_converters
-  libs-apache-arrow
+  libs-apache-arrow_next
   contrib-libs-yaml
 )
 
