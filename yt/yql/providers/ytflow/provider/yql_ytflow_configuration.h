@@ -19,12 +19,12 @@ public:
 
 private:
     static constexpr NCommon::EConfSettingType Static = NCommon::EConfSettingType::Static;
+
 public:
     NCommon::TConfSetting<TString, Static> Auth;
 
     NCommon::TConfSetting<TString, Static> Cluster;
     NCommon::TConfSetting<TString, Static> PathPrefix;
-    NCommon::TConfSetting<TString, Static> PipelinePath;
 
     NCommon::TConfSetting<TString, Static> TabletCellBundle;
     NCommon::TConfSetting<TString, Static> Account;
@@ -43,15 +43,32 @@ public:
     NCommon::TConfSetting<uint64_t, Static> WorkerRpcPort;
     NCommon::TConfSetting<uint64_t, Static> WorkerMonitoringPort;
 
-    NCommon::TConfSetting<TString, Static> YtConsumerPath;
-    NCommon::TConfSetting<TString, Static> YtProducerPath;
     NCommon::TConfSetting<uint64_t, Static> YtPartitionCount;
+
+public:
+    TString GetPipelinePath() const;
+    TString GetYtConsumerPath() const;
+    TString GetYtProducerPath() const;
+
+protected:
+    NCommon::TConfSetting<TString, Static> PipelineDirectory;
+    NCommon::TConfSetting<TString, Static> PipelineName;
+    NCommon::TConfSetting<TString, Static> PipelinePath;
+
+    NCommon::TConfSetting<TString, Static> YtConsumerDirectory;
+    NCommon::TConfSetting<TString, Static> YtConsumerName;
+    NCommon::TConfSetting<TString, Static> YtConsumerPath;
+
+    NCommon::TConfSetting<TString, Static> YtProducerDirectory;
+    NCommon::TConfSetting<TString, Static> YtProducerName;
+    NCommon::TConfSetting<TString, Static> YtProducerPath;
 };
 
 struct TYtflowConfiguration
     : public TYtflowSettings
     , public NCommon::TSettingDispatcher
 {
+public:
     using TPtr = TIntrusivePtr<TYtflowConfiguration>;
 
     TYtflowConfiguration();
