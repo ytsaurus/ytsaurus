@@ -158,6 +158,12 @@ public:
         }
     }
 
+    bool HasSidecars() const override
+    {
+        const auto& jobSpecExt = GetJobSpecExt();
+        return jobSpecExt.has_user_job_spec() && !jobSpecExt.user_job_spec().sidecars().empty();
+    }
+
 private:
     const TJobSpec JobSpec_;
 
