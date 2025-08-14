@@ -736,9 +736,6 @@ struct TOperationsCleanerConfig
     //! This option does not affect fetching after cleaner is re-enabled.
     bool DisconnectOnFinishedOperationFetchFailure;
 
-    //! Timeout to remove operation from Cypress before setting an alert.
-    TDuration OperationRemovalTimeoutStuckThreshold;
-
     REGISTER_YSON_STRUCT(TOperationsCleanerConfig);
 
     static void Register(TRegistrar registrar);
