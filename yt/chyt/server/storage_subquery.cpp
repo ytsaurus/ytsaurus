@@ -136,11 +136,6 @@ public:
 
         StorageContext_ = QueryContext_->GetOrRegisterStorageContext(this, context);
 
-        if (StorageContext_->Settings->Testing->ThrowExceptionInSubquery) {
-            THROW_ERROR_EXCEPTION("Testing exception in subquery")
-                << TErrorAttribute("storage_index", StorageContext_->Index);
-        }
-
         if (StorageContext_->Settings->Testing->SubqueryAllocationSize > 0) {
             // Make an intentional memory leak.
             auto* leakedMemory = new char[StorageContext_->Settings->Testing->SubqueryAllocationSize];
@@ -298,6 +293,11 @@ public:
                 "Thread debug string (ThreadIndex: %v, DebugString: %v)",
                 threadIndex,
                 debugString.Flush());
+        }
+
+        if (StorageContext_->Settings->Testing->ThrowExceptionInSubquery) {
+            THROW_ERROR_EXCEPTION("Testing exception in subquery")
+                << TErrorAttribute("storage_index", StorageContext_->Index);
         }
 
         return DB::Pipe::unitePipes(std::move(pipes));

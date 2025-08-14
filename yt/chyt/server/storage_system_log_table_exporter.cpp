@@ -254,9 +254,10 @@ public:
         queryIds.reserve(rows.size());
 
         static constexpr auto typeQueryFinish = "QueryFinish";
+        static constexpr auto typeQueryException = "ExceptionWhileProcessing";
 
         for (const auto& rowInfo : rowInfos) {
-            if (rowInfo.Type == typeQueryFinish) {
+            if (rowInfo.Type == typeQueryFinish || rowInfo.Type == typeQueryException) {
                 queryIds.push_back(TQueryId::FromString(rowInfo.QueryId));
             }
         }
@@ -272,7 +273,7 @@ public:
         int httpHeadersColumnId = nameTable->GetIdOrThrow("http_headers");
 
         for (size_t rowIndex = 0; rowIndex < rows.size(); ++rowIndex) {
-            if (rowInfos[rowIndex].Type == typeQueryFinish) {
+            if (rowInfos[rowIndex].Type == typeQueryFinish || rowInfos[rowIndex].Type == typeQueryException) {
                 if (queryInfos[queryIndex].has_value()) {
                     auto ysonStatistics = ConvertToYsonString(
                         queryInfos[queryIndex]->Statistics);

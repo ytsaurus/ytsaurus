@@ -227,6 +227,14 @@ public:
         }
     }
 
+    ~TSecondaryQuerySource()
+    {
+        if (IsFinished_) {
+            return;
+        }
+        Finish();
+    }
+
 private:
     ISchemalessMultiChunkReaderPtr CurrentReader_;
     TReaderFactoryPtr ReaderFactory_;
