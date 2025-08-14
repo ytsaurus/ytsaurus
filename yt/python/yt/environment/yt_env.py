@@ -577,11 +577,19 @@ class YTInstance(object):
             makedirp(dir_)
         return service_dirs
 
-    def _wait_or_skip(self, function, sync):
+    def _wait_for_component(self, name, check_function, sync, max_wait_time=30):
+        def wait_function():
+            try:
+                self._wait_for(check_function, name, max_wait_time=max_wait_time)
+            except YtError:
+                for process in self._service_processes[name]:
+                    self._dump_backtraces(process.pid)
+                raise
+
         if sync:
-            function()
+            wait_function()
         else:
-            self._wait_functions.append(function)
+            self._wait_functions.append(wait_function)
 
     def remove_runtime_data(self):
         if os.path.exists(self.runtime_data_path):
@@ -1318,6 +1326,20 @@ class YTInstance(object):
 
             return p
 
+    def _dump_backtraces(self, pid):
+        gdb_output = subprocess.check_output(
+            [
+                "gdb",
+                "-p",
+                str(pid),
+                "--batch",
+                "-ex",
+                "thr apply all bt",
+            ])
+        logger.info(f"Process {pid} backtraces:")
+        for line in gdb_output.splitlines():
+            logger.info(line.decode("utf-8"))
+
     def run_yt_component(self, component, config_paths, name=None, indexes=None, config_option=None, custom_paths=None):
         if config_option is None:
             config_option = "--config"
@@ -1486,7 +1508,10 @@ class YTInstance(object):
 
             cell_ready = quorum_ready_and_cell_registered
 
-        self._wait_or_skip(lambda: self._wait_for(cell_ready, master_name, max_wait_time=30), sync)
+        self._wait_for_component(
+            master_name,
+            cell_ready,
+            sync)
 
     def start_all_masters(self, start_secondary_master_cells, sync=True, set_config=True):
         self.start_master_cell(sync=sync, set_config=set_config)
@@ -1533,7 +1558,10 @@ class YTInstance(object):
             except (requests.exceptions.RequestException, socket.error):
                 return False, traceback.format_exc()
 
-        self._wait_or_skip(lambda: self._wait_for(quorum_ready, "clock", max_wait_time=30), sync)
+        self._wait_for_component(
+            "clock",
+            quorum_ready,
+            sync)
 
     def _prepare_discovery_servers(self, discovery_server_configs):
         for discovery_server_index in xrange(self.yt_config.discovery_server_count):
@@ -1595,8 +1623,9 @@ class YTInstance(object):
 
             return True
 
-        self._wait_or_skip(
-            lambda: self._wait_for(queue_agents_ready, "queue_agent", max_wait_time=20),
+        self._wait_for_component(
+            "queue_agent",
+            queue_agents_ready,
             sync)
 
     def _prepare_timestamp_providers(self, timestamp_provider_configs, force_overwrite=False):
@@ -1637,8 +1666,9 @@ class YTInstance(object):
 
             return True
 
-        self._wait_or_skip(
-            lambda: self._wait_for(timestamp_providers_ready, "timestamp_provider", max_wait_time=20),
+        self._wait_for_component(
+            "timestamp_provider",
+            timestamp_providers_ready,
             sync)
 
     def _prepare_cell_balancers(self, cell_balancer_configs):
@@ -1696,8 +1726,9 @@ class YTInstance(object):
                 return False, err
             return True
 
-        self._wait_or_skip(
-            lambda: self._wait_for(cell_balancers_ready, "cell_balancer", max_wait_time=20),
+        self._wait_for_component(
+            "cell_balancer",
+            cell_balancers_ready,
             sync)
 
     def _list_nodes(self, pick_chaos=False):
@@ -1747,10 +1778,11 @@ class YTInstance(object):
             return len(nodes) == self.yt_config.node_count and \
                 all(node.attributes["state"] in target_states for node in nodes)
 
-        self._wait_or_skip(
-            lambda:
-                self._wait_for(nodes_ready, "node", max_wait_time=max(self.yt_config.node_count * 6.0, 60)),
-            sync)
+        self._wait_for_component(
+            "node",
+            nodes_ready,
+            sync,
+            max_wait_time=max(self.yt_config.node_count * 6.0, 60))
 
     def _prepare_chaos_nodes(self, chaos_node_configs, force_overwrite=False):
         if force_overwrite:
@@ -1783,8 +1815,11 @@ class YTInstance(object):
             nodes = self._list_nodes(pick_chaos=True)
             return len(nodes) == self.yt_config.chaos_node_count and all(node.attributes["state"] == "online" for node in nodes)
 
-        wait_function = lambda: self._wait_for(chaos_nodes_ready, "chaos_node", max_wait_time=max(self.yt_config.chaos_node_count * 6.0, 60))  # noqa
-        self._wait_or_skip(wait_function, sync)
+        self._wait_for_component(
+            "chaos_node",
+            chaos_nodes_ready,
+            sync,
+            max_wait_time=max(self.yt_config.chaos_node_count * 6.0, 60))
 
     def _prepare_master_caches(self, master_cache_configs):
         for master_cache_index in xrange(self.yt_config.master_cache_count):
@@ -1819,7 +1854,10 @@ class YTInstance(object):
 
             return True
 
-        self._wait_or_skip(lambda: self._wait_for(master_caches_ready, "master_cache", max_wait_time=20), sync)
+        self._wait_for_component(
+            "master_cache",
+            master_caches_ready,
+            sync)
 
     def _prepare_schedulers(self, scheduler_configs, force_overwrite=False):
         if force_overwrite:
@@ -1958,7 +1996,10 @@ class YTInstance(object):
                     raise
                 return False, err
 
-        self._wait_or_skip(lambda: self._wait_for(schedulers_ready, "scheduler"), sync)
+        self._wait_for_component(
+            "scheduler",
+            schedulers_ready,
+            sync)
 
     def start_controller_agents(self, sync=True, custom_paths=None):
         self._run_builtin_yt_component("controller-agent", name="controller_agent", custom_paths=custom_paths)
@@ -1993,7 +2034,10 @@ class YTInstance(object):
                     raise
                 return False, err
 
-        self._wait_or_skip(lambda: self._wait_for(controller_agents_ready, "controller_agent"), sync)
+        self._wait_for_component(
+            "controller_agent",
+            controller_agents_ready,
+            sync)
 
     def create_client(self):
         if self.yt_config.http_proxy_count > 0:
@@ -2204,7 +2248,10 @@ class YTInstance(object):
 
             return True
 
-        self._wait_or_skip(lambda: self._wait_for(proxy_ready, "http_proxy"), sync)
+        self._wait_for_component(
+            "http_proxy",
+            proxy_ready,
+            sync)
 
     def start_kafka_proxy(self, sync=True):
         self._run_builtin_yt_component("kafka-proxy", name="kafka_proxy")
@@ -2214,7 +2261,10 @@ class YTInstance(object):
             # TODO(nadya73): add wait condition.
             return True
 
-        self._wait_or_skip(lambda: self._wait_for(proxy_ready, "kafka_proxy"), sync)
+        self._wait_for_component(
+            "kafka_proxy",
+            proxy_ready,
+            sync)
 
     def start_rpc_proxy(self, sync=True):
         self._run_builtin_yt_component("proxy", name="rpc_proxy")
@@ -2244,7 +2294,10 @@ class YTInstance(object):
 
             return proxies_discovery_ready and proxies_ports_ready
 
-        self._wait_or_skip(lambda: self._wait_for(rpc_proxy_ready, "rpc_proxy"), sync)
+        self._wait_for_component(
+            "rpc_proxy",
+            rpc_proxy_ready,
+            sync)
 
     def _prepare_tablet_balancers(self, tablet_balancer_configs):
         for tablet_balancer_index in xrange(self.yt_config.tablet_balancer_count):
@@ -2270,8 +2323,9 @@ class YTInstance(object):
             self._validate_processes_are_running("tablet_balancer")
             return True
 
-        self._wait_or_skip(
-            lambda: self._wait_for(tablet_balancer_ready, "tablet_balancer"),
+        self._wait_for_component(
+            "tablet_balancer",
+            tablet_balancer_ready,
             sync)
 
     def _prepare_cypress_proxies(self, cypress_proxy_configs, force_overwrite=False):
@@ -2303,8 +2357,9 @@ class YTInstance(object):
             self._validate_processes_are_running("cypress_proxy")
             return True
 
-        self._wait_or_skip(
-            lambda: self._wait_for(cypress_proxy_ready, "cypress_proxy"),
+        self._wait_for_component(
+            "cypress_proxy",
+            cypress_proxy_ready,
             sync)
 
     def _prepare_replicated_table_trackers(self, replicated_table_tracker_configs):
@@ -2331,8 +2386,9 @@ class YTInstance(object):
             self._validate_processes_are_running("replicated_table_tracker")
             return True
 
-        self._wait_or_skip(
-            lambda: self._wait_for(replicated_table_tracker_ready, "replicated_table_tracker"),
+        self._wait_for_component(
+            "replicated_table_tracker",
+            replicated_table_tracker_ready,
             sync)
 
     def _validate_process_is_running(self, process, name, number=None):
