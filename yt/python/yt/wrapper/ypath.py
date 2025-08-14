@@ -18,6 +18,8 @@ _APPEND_INCOMPATIBLE_ATTRIBUTES = frozenset({"erasure_codec", "compression_codec
 # All storage attributes
 _STORAGE_ATTRIBUTES = frozenset({*_WRITABLE_STORAGE_ATTRIBUTES, "primary_medium"})
 
+NODE_TYPES_TABLE_LIKE = ("table", "replicated_table", "chaos_replicated_table")
+
 
 class TokensByPath(object):
     def __init__(self, path):

@@ -5,7 +5,7 @@ from .errors import YtResponseError
 from .driver import make_request, make_formatted_request, set_master_read_params, get_api_version, get_structured_format
 from .format import Format
 from .transaction import Transaction
-from .ypath import YPath, escape_ypath_literal, ypath_join, ypath_dirname
+from .ypath import YPath, NODE_TYPES_TABLE_LIKE, escape_ypath_literal, ypath_join, ypath_dirname
 from .batch_response import apply_function_to_result
 from .retries import Retrier, default_chaos_monkey
 from .http_helpers import get_retriable_errors
@@ -1009,7 +1009,7 @@ def get_table_schema(table_path: Union[str, YPath], client=None):
     attributes = attributes_tree.attributes
 
     node_type = attributes["type"]
-    if node_type != "table":
+    if node_type not in NODE_TYPES_TABLE_LIKE:
         raise YtError("Can't get schema for node '{path}' with type '{node_type}' ('table' is expected)".format(
             path=table_path,
             node_type=node_type,
