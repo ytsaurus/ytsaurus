@@ -196,8 +196,6 @@ public:
             AbsorbAnotherMeta(meta, chunkId);
         }
 
-        InputChunkMetaExtensions_.insert(chunkExtensions.begin(), chunkExtensions.end());
-
         if (FindProtoExtension<TPartitionsExt>(meta->extensions())) {
             THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::IncompatibleChunkMetas,
                 "Cannot absorb meta of partitioned chunk %v",
@@ -347,6 +345,9 @@ public:
             auto maxTs = miscExt.max_timestamp();
             MaxTimestamp_ = MaxTimestamp_ == NullTimestamp ? maxTs : std::max(maxTs, MaxTimestamp_);
         }
+
+        // Add chunk extensions after chunk was successfully processed.
+        InputChunkMetaExtensions_.insert(chunkExtensions.begin(), chunkExtensions.end());
     }
 
     const TDeferredChunkMetaPtr& GetChunkMeta() const override
