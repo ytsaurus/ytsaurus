@@ -14,6 +14,8 @@ from base import ClickHouseTestBase, Clique
 
 from yt.wrapper import yson
 
+import time
+
 
 class TestQueriesChyt(ClickHouseTestBase):
     NUM_TEST_PARTITIONS = 6
@@ -374,3 +376,24 @@ class TestQueriesChyt(ClickHouseTestBase):
                 rows = clique.wait_and_get_query_log_rows(query.id, include_secondary_queries=False)
                 assert len(rows) == 1
                 assert rows[0]["chyt_instance_cookie"] == instance_job_cookie
+
+    @authors("denmogilevec")
+    def test_query_cancel(self, query_tracker):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        for _ in range(10):
+            write_table("<append=%true>//tmp/t", [{"a": i} for i in range(100)])
+        with Clique(1, export_query_log=True, alias="*ch_alias") as clique:
+            settings = {"clique": "ch_alias", "cluster": "primary"}
+            query = """ SELECT * FROM `//tmp/t` WHERE NOT ignore(sleep(1));"""
+            query = start_query("chyt", query, settings=settings)
+            time.sleep(2)
+            query.abort()
+
+            def match(row):
+                return row["initial_query_id"] == query.id and row["type"] != 'QueryStart'
+
+            wait(lambda: exists(clique.query_log_table_path))
+            wait(lambda: len([r for r in read_table(clique.query_log_table_path) if match(r)]) > 0)
+            rows = [r for r in read_table(clique.query_log_table_path) if match(r)]
+            print(rows)
+            assert all(row["type"] == "ExceptionWhileProcessing" for row in rows)
