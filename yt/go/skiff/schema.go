@@ -181,18 +181,21 @@ type schemaOptions struct {
 
 type schemaOption func(s *schemaOptions)
 
+// withKeySwitch adds $key_switch system column to the schema.
 func withKeySwitch() schemaOption {
 	return func(s *schemaOptions) {
 		s.enableKeySwitch = true
 	}
 }
 
+// withRowIndex adds $row_index system column to the schema.
 func withRowIndex() schemaOption {
 	return func(s *schemaOptions) {
 		s.enableRowIndex = true
 	}
 }
 
+// withRangeIndex adds $range_index system column to the schema.
 func withRangeIndex() schemaOption {
 	return func(s *schemaOptions) {
 		s.enableRangeIndex = true
@@ -286,6 +289,24 @@ func MustInferFormat(value any) Format {
 		panic(err)
 	}
 	return s
+}
+
+// MustInferSchema infers skiff schema from Go struct and panics on error.
+func MustInferSchema(value any) Schema {
+	s, err := inferSchema(value)
+	if err != nil {
+		panic(err)
+	}
+	return s
+}
+
+func inferSchema(value any) (s Schema, err error) {
+	tableSchema, err := schema.Infer(value)
+	if err != nil {
+		return
+	}
+	s = FromTableSchema(tableSchema)
+	return
 }
 
 func fromTableSchemaColumn(column schema.Column) Schema {

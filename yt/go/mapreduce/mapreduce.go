@@ -40,28 +40,36 @@ func (mr *client) prepare(spec *spec.Spec) *prepare {
 func (mr *client) Map(mapper Job, s *spec.Spec, opts ...OperationOption) (Operation, error) {
 	p := mr.prepare(s)
 	p.mapperState = new(jobState)
-	p.addJobCommand(mapper, &p.spec.Mapper, p.mapperState, len(p.spec.OutputTablePaths))
+	if err := p.addJobCommand(mapper, &p.spec.Mapper, p.mapperState, len(p.spec.OutputTablePaths), opts); err != nil {
+		return nil, err
+	}
 	return p.start(opts)
 }
 
 func (mr *client) RawMap(mapper RawJob, s *spec.Spec, opts ...OperationOption) (Operation, error) {
 	p := mr.prepare(s)
 	p.mapperState = new(jobState)
-	p.addJobCommand(mapper, &p.spec.Mapper, p.mapperState, len(p.spec.OutputTablePaths))
+	if err := p.addJobCommand(mapper, &p.spec.Mapper, p.mapperState, len(p.spec.OutputTablePaths), opts); err != nil {
+		return nil, err
+	}
 	return p.start(opts)
 }
 
 func (mr *client) Reduce(reducer Job, s *spec.Spec, opts ...OperationOption) (Operation, error) {
 	p := mr.prepare(s)
 	p.reducerState = new(jobState)
-	p.addJobCommand(reducer, &p.spec.Reducer, p.reducerState, len(p.spec.OutputTablePaths))
+	if err := p.addJobCommand(reducer, &p.spec.Reducer, p.reducerState, len(p.spec.OutputTablePaths), opts); err != nil {
+		return nil, err
+	}
 	return p.start(opts)
 }
 
 func (mr *client) JoinReduce(reducer Job, s *spec.Spec, opts ...OperationOption) (Operation, error) {
 	p := mr.prepare(s)
 	p.reducerState = new(jobState)
-	p.addJobCommand(reducer, &p.spec.Reducer, p.reducerState, len(p.spec.OutputTablePaths))
+	if err := p.addJobCommand(reducer, &p.spec.Reducer, p.reducerState, len(p.spec.OutputTablePaths), opts); err != nil {
+		return nil, err
+	}
 	return p.start(opts)
 }
 
@@ -69,11 +77,22 @@ func (mr *client) MapReduce(mapper, reducer Job, s *spec.Spec, opts ...Operation
 	p := mr.prepare(s)
 	if mapper != nil {
 		p.mapperState = new(jobState)
-		p.addJobCommand(mapper, &p.spec.Mapper, p.mapperState, 1+p.spec.MapperOutputTableCount)
+		if err := p.addJobCommand(mapper, &p.spec.Mapper, p.mapperState, 1+p.spec.MapperOutputTableCount, opts); err != nil {
+			return nil, err
+		}
 	}
 
 	p.reducerState = new(jobState)
-	p.addJobCommand(reducer, &p.spec.Reducer, p.reducerState, len(p.spec.OutputTablePaths)-p.spec.MapperOutputTableCount)
+	err := p.addJobCommand(
+		reducer,
+		&p.spec.Reducer,
+		p.reducerState,
+		len(p.spec.OutputTablePaths)-p.spec.MapperOutputTableCount,
+		append(opts, disableIndexControlAttributes(), disableGetInputTablesSchema()), // Reduce phase does not support indexes (table, row and range).
+	)
+	if err != nil {
+		return nil, err
+	}
 	return p.start(opts)
 }
 
@@ -81,13 +100,33 @@ func (mr *client) MapCombineReduce(mapper, combiner, reducer Job, s *spec.Spec, 
 	p := mr.prepare(s)
 
 	p.mapperState = new(jobState)
-	p.addJobCommand(mapper, &p.spec.Mapper, p.mapperState, 1+p.spec.MapperOutputTableCount)
+	if err := p.addJobCommand(mapper, &p.spec.Mapper, p.mapperState, 1+p.spec.MapperOutputTableCount, opts); err != nil {
+		return nil, err
+	}
 
 	p.combinerState = new(jobState)
-	p.addJobCommand(mapper, &p.spec.ReduceCombiner, p.combinerState, 1)
+	err := p.addJobCommand(
+		combiner,
+		&p.spec.ReduceCombiner,
+		p.combinerState,
+		1,
+		append(opts, disableIndexControlAttributes(), disableGetInputTablesSchema()), // Reduce phase does not support indexes (table, row and range).
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	p.reducerState = new(jobState)
-	p.addJobCommand(reducer, &p.spec.Reducer, p.reducerState, len(p.spec.OutputTablePaths)-p.spec.MapperOutputTableCount)
+	err = p.addJobCommand(
+		reducer,
+		&p.spec.Reducer,
+		p.reducerState,
+		len(p.spec.OutputTablePaths)-p.spec.MapperOutputTableCount,
+		append(opts, disableIndexControlAttributes(), disableGetInputTablesSchema()), // Reduce phase does not support indexes (table, row and range).
+	)
+	if err != nil {
+		return nil, err
+	}
 	return p.start(opts)
 }
 
@@ -120,7 +159,9 @@ func (mr *client) Vanilla(s *spec.Spec, jobs map[string]Job, opts ...OperationOp
 		state := new(jobState)
 		p.tasksState[name] = state
 
-		p.addJobCommand(job, &us, state, len(us.OutputTablePaths))
+		if err := p.addJobCommand(job, &us, state, len(us.OutputTablePaths), opts); err != nil {
+			return nil, err
+		}
 	}
 
 	return p.start(opts)

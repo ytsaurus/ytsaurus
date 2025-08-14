@@ -19,6 +19,7 @@ import (
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/mapreduce/spec"
 	"go.ytsaurus.tech/yt/go/schema"
+	"go.ytsaurus.tech/yt/go/skiff"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yterrors"
@@ -88,15 +89,174 @@ func (p *prepare) uploadJobState(userScript *spec.UserScript, state *jobState) p
 	}
 }
 
-func (p *prepare) addJobCommand(job any, userScript **spec.UserScript, state *jobState, tableCount int) {
+func (p *prepare) addJobCommand(
+	job any,
+	userScript **spec.UserScript,
+	state *jobState,
+	outputTableCount int,
+	opts []OperationOption,
+) error {
 	if *userScript == nil {
 		*userScript = &spec.UserScript{}
 	}
-	(*userScript).Command = jobCommand(job, tableCount)
+	(*userScript).Command = jobCommand(job, outputTableCount)
 	p.setGoMaxProc(*userScript)
+	if err := p.setupInputOutputFormat(job, userScript, state, opts); err != nil {
+		return err
+	}
 
 	state.Job = job
 	p.actions = append(p.actions, p.uploadJobState(*userScript, state))
+	return nil
+}
+
+func (p *prepare) setupInputOutputFormat(job any, userScript **spec.UserScript, state *jobState, opts []OperationOption) error {
+	typedJob, ok := job.(Job)
+	if !ok {
+		return nil
+	}
+
+	if containsSkiffSchemas(typedJob.InputTypes()) {
+		if err := p.setupSkiffInputFormat(typedJob, userScript, state, opts); err != nil {
+			return xerrors.Errorf("failed to setup skiff input format: %w", err)
+		}
+	}
+
+	if containsSkiffSchemas(typedJob.OutputTypes()) {
+		if err := setupSkiffOutputFormat(typedJob, userScript, state); err != nil {
+			return xerrors.Errorf("failed to setup skiff output format: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (p *prepare) setupSkiffInputFormat(job Job, userScript **spec.UserScript, state *jobState, opts []OperationOption) error {
+	enableIndexControlAttributes := true
+	shouldGetInputTablesSchema := true
+	for _, opt := range opts {
+		switch opt.(type) {
+		case *disableIndexControlAttributesOption:
+			enableIndexControlAttributes = false
+		case *disableGetInputTablesSchemaOption:
+			shouldGetInputTablesSchema = false
+		}
+	}
+
+	systemColumns := []skiff.Schema{{Type: skiff.TypeBoolean, Name: "$key_switch"}}
+	if enableIndexControlAttributes {
+		systemColumns = append(systemColumns,
+			skiff.Schema{Type: skiff.TypeVariant8, Name: "$row_index", Children: []skiff.Schema{{Type: skiff.TypeNothing}, {Type: skiff.TypeInt64}}},
+			skiff.Schema{Type: skiff.TypeVariant8, Name: "$range_index", Children: []skiff.Schema{{Type: skiff.TypeNothing}, {Type: skiff.TypeInt64}}},
+		)
+	}
+	inputTypes := job.InputTypes()
+	skiffSchemas := make([]skiff.Schema, len(inputTypes))
+	for i, inputType := range inputTypes {
+		skiffSchema, ok := inputType.(skiff.Schema)
+		if !ok {
+			return fmt.Errorf("all input types must be *skiff.Schema or none of them, got %T", inputType)
+		}
+		skiffSchemas[i] = skiff.Schema{
+			Type:     skiffSchema.Type,
+			Name:     skiffSchema.Name,
+			Children: append(systemColumns, skiffSchema.Children...),
+		}
+	}
+
+	var tableSchemas []*schema.Schema
+	if shouldGetInputTablesSchema {
+		var err error
+		tableSchemas, err = p.getInputTableSchemas()
+		if err != nil {
+			return err
+		}
+		if len(tableSchemas) != len(skiffSchemas) {
+			return fmt.Errorf("number of tables (%d) does not match number of skiff schemas (%d)", len(tableSchemas), len(skiffSchemas))
+		}
+	}
+
+	state.InputTablesInfo = make([]TableInfo, len(skiffSchemas))
+	for i, schema := range skiffSchemas {
+		info := TableInfo{SkiffSchema: &schema}
+		if shouldGetInputTablesSchema && i < len(tableSchemas) {
+			info.TableSchema = tableSchemas[i]
+		}
+		state.InputTablesInfo[i] = info
+	}
+
+	(*userScript).InputFormat = createSkiffFormat(skiffSchemas)
+	return nil
+}
+
+func setupSkiffOutputFormat(job Job, userScript **spec.UserScript, state *jobState) error {
+	outputTypes := job.OutputTypes()
+	outputSchemas := make([]skiff.Schema, len(outputTypes))
+	for i, outputType := range outputTypes {
+		skiffSchema, ok := outputType.(skiff.Schema)
+		if !ok {
+			return fmt.Errorf("all input types must be *skiff.Schema or none of them, got %T", outputType)
+		}
+		outputSchemas[i] = skiffSchema
+	}
+
+	state.OutputTablesInfo = make([]TableInfo, len(outputSchemas))
+	for i, schema := range outputSchemas {
+		state.OutputTablesInfo[i] = TableInfo{SkiffSchema: &schema}
+	}
+
+	(*userScript).OutputFormat = createSkiffFormat(outputSchemas)
+	return nil
+}
+
+func containsSkiffSchemas(types []any) bool {
+	for _, t := range types {
+		if _, ok := t.(skiff.Schema); ok {
+			return true
+		}
+	}
+	return false
+}
+
+func createSkiffFormat(schemas []skiff.Schema) skiff.Format {
+	tableSchemas := make([]any, len(schemas))
+	for i, schema := range schemas {
+		tableSchemas[i] = &schema
+	}
+	return skiff.Format{
+		Name:         "skiff",
+		TableSchemas: tableSchemas,
+	}
+}
+
+func (p *prepare) getInputTableSchemas() ([]*schema.Schema, error) {
+	var yc yt.CypressClient = p.mr.yc
+	if p.mr.tx != nil {
+		yc = p.mr.tx
+	}
+
+	schemas := make([]*schema.Schema, len(p.spec.InputTablePaths))
+	for i, inputTablePath := range p.spec.InputTablePaths {
+		var attrs struct {
+			Schema     schema.Schema `yson:"schema"`
+			SchemaMode string        `yson:"schema_mode"`
+		}
+
+		err := yc.GetNode(p.ctx, inputTablePath.YPath().Attrs(), &attrs, &yt.GetNodeOptions{
+			Attributes: []string{"schema", "schema_mode"},
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("failed to get schema for table %v: %w", inputTablePath.YPath(), err)
+		}
+
+		if attrs.SchemaMode == "weak" {
+			schemas[i] = nil
+		} else {
+			schemas[i] = &attrs.Schema
+		}
+	}
+
+	return schemas, nil
 }
 
 func (p *prepare) setGoMaxProc(spec *spec.UserScript) {
@@ -132,6 +292,9 @@ func (p *prepare) prepare(opts []OperationOption) error {
 		case *skipSelfUploadOption:
 			skipSelfUpload = true
 		case *startOperationOptsOption:
+			// This option is handled in start.
+		case *disableIndexControlAttributesOption:
+			// This option is handled in addJobCommand.
 		default:
 			panic(fmt.Sprintf("unsupported option type %T", opt))
 		}
