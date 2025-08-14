@@ -1,8 +1,11 @@
 from base import ClickHouseTestBase, Clique
 
-from yt_commands import (authors, create, exists, read_table, sync_unmount_table, get, alter_table, write_table, print_debug)
+from yt_commands import (authors, create, exists, read_table, sync_unmount_table, get, alter_table, write_table, print_debug,
+                         raises_yt_error)
 
 from yt.common import wait
+
+import yt.yson as yson
 
 
 class TestQueryLog(ClickHouseTestBase):
@@ -197,3 +200,24 @@ class TestQueryLog(ClickHouseTestBase):
             query_log_rows = read_table(table_path)
             assert len([r for r in query_log_rows if match(r, filter, 1)]) == 1
             assert len([r for r in query_log_rows if match(r, filter, 0)]) == 2
+
+    @authors("denmogielevec")
+    def test_failed_statistics(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("//tmp/t", [{"a": 1}])
+        with Clique(1, export_query_log=True) as clique:
+            settings = {
+                "chyt.testing.throw_exception_in_subquery": 1
+            }
+            with raises_yt_error("Testing exception in subquery"):
+                clique.make_query("select * from `//tmp/t`", settings=settings)
+
+            def match(row):
+                return row["type"] == "ExceptionWhileProcessing"
+
+            wait(lambda: exists(clique.query_log_table_path))
+            wait(lambda: len([r for r in read_table(clique.query_log_table_path) if match(r)]) > 0)
+            rows = [r for r in read_table(clique.query_log_table_path) if match(r)]
+
+            for row in rows:
+                assert yson.dumps(row["chyt_query_statistics"]) != b'#'
