@@ -63,9 +63,6 @@ struct TDynamicSecurityManagerConfig
     //! Period between user statistics commits.
     TDuration UserStatisticsFlushPeriod;
 
-    //! COMPAT(cherepashka)
-    bool DisableUpdateUserLastSeen;
-
     // This is a panic button.
     bool EnableSubjectTagFilters;
 

@@ -2890,14 +2890,8 @@ class TestTables(YTEnvSetup):
     def test_opaque_schema_attribute(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "x", "type": "int64"}]})
         create_user("u")
-
-        set("//sys/@config/table_manager/make_schema_attribute_opaque", False)
-        assert get("//tmp/t/@")["schema"][0]["name"] == "x"
-
-        set("//sys/@config/table_manager/make_schema_attribute_opaque", True)
-        set("//sys/@config/table_manager/non_opaque_schema_attribute_user_whitelist", ["u"])
         assert get("//tmp/t/@", authenticated_user="root")["schema"] == yson.YsonEntity()
-        assert get("//tmp/t/@", authenticated_user="u")["schema"][0]["name"] == "x"
+        assert get("//tmp/t/@", authenticated_user="u")["schema"] == yson.YsonEntity()
 
     @authors("h0pless")
     def test_virtual_map(self):
