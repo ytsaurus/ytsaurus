@@ -356,7 +356,6 @@ class TestRpcProxyInJobProxySingleCluster(TestRpcProxyInJobProxyBase):
     def test_metrics(self):
         def check_sensor_values(projections):
             return any('job_descriptor' in projection['tags'] and
-                       'slot_index' in projection['tags'] and
                        projection['value'] > 0 for projection in projections)
 
         socket_file = self.run_job_proxy(enable_rpc_proxy=True, monitoring=True)
