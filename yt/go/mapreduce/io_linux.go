@@ -5,53 +5,16 @@ package mapreduce
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"syscall"
 
 	"golang.org/x/xerrors"
 
+	"go.ytsaurus.tech/yt/go/schema"
 	"go.ytsaurus.tech/yt/go/skiff"
 	"go.ytsaurus.tech/yt/go/yson"
 )
-
-type skiffReader struct {
-	d   *skiff.Decoder
-	ctx *jobContext
-}
-
-func (r *skiffReader) TableIndex() int {
-	return r.d.TableIndex()
-}
-
-func (r *skiffReader) KeySwitch() bool {
-	return r.d.KeySwitch()
-}
-
-func (r *skiffReader) RowIndex() int64 {
-	return r.d.RowIndex()
-}
-
-func (r *skiffReader) RangeIndex() int {
-	return r.d.RangeIndex()
-}
-
-func (r *skiffReader) Scan(value any) error {
-	return r.d.Scan(value)
-}
-
-func (r *skiffReader) MustScan(value any) {
-	if err := r.d.Scan(value); err != nil {
-		r.ctx.onError(err)
-	}
-}
-
-func (r *skiffReader) Next() bool {
-	return r.d.Next()
-}
-
-func (r *skiffReader) Err() error {
-	return r.d.Err()
-}
 
 func (c *jobContext) initPipes(nOutputPipes int) error {
 	c.in = os.Stdin
@@ -84,27 +47,73 @@ func (c *jobContext) initPipes(nOutputPipes int) error {
 }
 
 func (c *jobContext) createReader(state *jobState) (Reader, error) {
-	if state.InputSkiffFormat == nil {
-		return newReader(c.in, c), nil
+	if len(state.InputTablesInfo) > 0 {
+		skiffSchemas := make([]any, len(state.InputTablesInfo))
+		tableSchemas := make([]*schema.Schema, len(state.InputTablesInfo))
+		for i, info := range state.InputTablesInfo {
+			if info.SkiffSchema == nil {
+				return nil, xerrors.Errorf("input table at index %d is configured for skiff format but schema is missing", i)
+			}
+			skiffSchemas[i] = info.SkiffSchema
+			tableSchemas[i] = info.TableSchema
+		}
+
+		inputFormat := skiff.Format{
+			Name:         "skiff",
+			TableSchemas: skiffSchemas,
+		}
+		return newSkiffReader(c.in, c, &inputFormat, tableSchemas)
 	}
-	in, err := skiff.NewDecoder(c.in, *state.InputSkiffFormat)
-	if err != nil {
-		return nil, err
-	}
-	return &skiffReader{d: in, ctx: c}, nil
+
+	return newYSONReader(c.in, c), nil
 }
 
-func (c *jobContext) createWriters() []Writer {
-	writers := make([]Writer, len(c.out))
-	for i, file := range c.out {
-		writers[i] = &writer{
-			out: file,
-			ctx: c,
-			writer: yson.NewWriterConfig(file, yson.WriterConfig{
-				Format: yson.FormatBinary,
-				Kind:   yson.StreamListFragment,
-			}),
+func (c *jobContext) createWriter(out io.WriteCloser, skiffSchema *skiff.Schema) (Writer, error) {
+	if skiffSchema != nil {
+		encoder, err := skiff.NewEncoder(out, *skiffSchema)
+		if err != nil {
+			return nil, xerrors.Errorf("failed to create skiff encoder: %w", err)
+		}
+		return newWriter(&skiffEncoder{encoder: encoder}, c, out), nil
+	}
+
+	ysonWriter := yson.NewWriterConfig(out, yson.WriterConfig{
+		Format: yson.FormatBinary,
+		Kind:   yson.StreamListFragment,
+	})
+	return newWriter(&ysonEncoder{writer: ysonWriter}, c, out), nil
+}
+
+func (c *jobContext) createWriters(state *jobState) ([]Writer, error) {
+	useSkiffFormat := len(state.OutputTablesInfo) > 0 && state.OutputTablesInfo[0].SkiffSchema != nil
+	var schemas []*skiff.Schema
+	if useSkiffFormat {
+		schemas = make([]*skiff.Schema, len(state.OutputTablesInfo))
+		for i, info := range state.OutputTablesInfo {
+			if info.SkiffSchema == nil {
+				return nil, xerrors.Errorf("output table at index %d is configured for skiff format but schema is missing", i)
+			}
+			schemas[i] = info.SkiffSchema
+		}
+		if len(schemas) != len(c.out) {
+			return nil, xerrors.Errorf(
+				"number of output types (%d) does not match number of output tables (%d)",
+				len(schemas), len(c.out),
+			)
 		}
 	}
-	return writers
+
+	writers := make([]Writer, len(c.out))
+	for i, file := range c.out {
+		var skiffSchema *skiff.Schema
+		if useSkiffFormat {
+			skiffSchema = schemas[i]
+		}
+		writer, err := c.createWriter(file, skiffSchema)
+		if err != nil {
+			return nil, xerrors.Errorf("failed to create writer (index: %d): %w", i, err)
+		}
+		writers[i] = writer
+	}
+	return writers, nil
 }

@@ -4,6 +4,9 @@ import (
 	"io"
 	"reflect"
 
+	"go.ytsaurus.tech/library/go/core/xerrors"
+	"go.ytsaurus.tech/yt/go/schema"
+	"go.ytsaurus.tech/yt/go/skiff"
 	"go.ytsaurus.tech/yt/go/yson"
 )
 
@@ -44,7 +47,7 @@ type Reader interface {
 	Err() error
 }
 
-type reader struct {
+type ysonReader struct {
 	in     io.Reader
 	reader *yson.Reader
 	ctx    *jobContext
@@ -70,7 +73,7 @@ type valueWithControlAttrs struct {
 	Value yson.RawValue `yson:",value"`
 }
 
-func (r *reader) TableIndex() int {
+func (r *ysonReader) TableIndex() int {
 	if !r.hasValue {
 		panic("TableIndex() called out of sequence")
 	}
@@ -78,7 +81,7 @@ func (r *reader) TableIndex() int {
 	return r.lastTableIndex
 }
 
-func (r *reader) KeySwitch() bool {
+func (r *ysonReader) KeySwitch() bool {
 	if !r.hasValue {
 		panic("KeySwitch() called out of sequence")
 	}
@@ -86,7 +89,7 @@ func (r *reader) KeySwitch() bool {
 	return r.lastKeySwitch
 }
 
-func (r *reader) RowIndex() int64 {
+func (r *ysonReader) RowIndex() int64 {
 	if !r.hasValue {
 		panic("RowIndex() called out of sequence")
 	}
@@ -94,7 +97,7 @@ func (r *reader) RowIndex() int64 {
 	return r.lastRowIndex
 }
 
-func (r *reader) RangeIndex() int {
+func (r *ysonReader) RangeIndex() int {
 	if !r.hasValue {
 		panic("RangeIndex() called out of sequence")
 	}
@@ -102,7 +105,7 @@ func (r *reader) RangeIndex() int {
 	return r.lastRangeIndex
 }
 
-func (r *reader) Scan(value any) error {
+func (r *ysonReader) Scan(value any) error {
 	if !r.hasValue {
 		panic("Scan() called out of sequence")
 	}
@@ -110,18 +113,18 @@ func (r *reader) Scan(value any) error {
 	return yson.Unmarshal(r.value.Value, value)
 }
 
-func (r *reader) MustScan(value any) {
+func (r *ysonReader) MustScan(value any) {
 	err := r.Scan(value)
 	if err != nil {
 		r.ctx.onError(err)
 	}
 }
 
-func (r *reader) Err() error {
+func (r *ysonReader) Err() error {
 	return r.err
 }
 
-func (r *reader) Next() bool {
+func (r *ysonReader) Next() bool {
 	r.hasValue = false
 
 	if r.eof || r.err != nil {
@@ -175,12 +178,36 @@ func (r *reader) Next() bool {
 	}
 }
 
-func newReader(r io.Reader, ctx *jobContext) *reader {
-	return &reader{
+func newYSONReader(r io.Reader, ctx *jobContext) *ysonReader {
+	return &ysonReader{
 		in:     r,
 		ctx:    ctx,
 		reader: yson.NewReaderKind(r, yson.StreamListFragment),
 		eof:    false,
+	}
+}
+
+type skiffReader struct {
+	*skiff.Decoder
+	ctx *jobContext
+}
+
+func newSkiffReader(
+	r io.Reader,
+	ctx *jobContext,
+	inputSkiffFormat *skiff.Format,
+	tableSchemas []*schema.Schema,
+) (*skiffReader, error) {
+	in, err := skiff.NewDecoder(r, *inputSkiffFormat, skiff.WithDecoderTableSchemas(tableSchemas...))
+	if err != nil {
+		return nil, xerrors.Errorf("failed to create skiff decoder: %w", err)
+	}
+	return &skiffReader{Decoder: in, ctx: ctx}, nil
+}
+
+func (r *skiffReader) MustScan(value any) {
+	if err := r.Scan(value); err != nil {
+		r.ctx.onError(err)
 	}
 }
 

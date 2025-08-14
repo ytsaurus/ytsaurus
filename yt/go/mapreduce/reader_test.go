@@ -23,7 +23,7 @@ var testJobInput = `
 
 func TestReadControlAttributes(t *testing.T) {
 	buf := bytes.NewBufferString(testJobInput)
-	r := newReader(buf, nil)
+	r := newYSONReader(buf, nil)
 
 	var row struct {
 		A int `yson:"a"`
@@ -66,7 +66,7 @@ func TestReader_SimpleInput(t *testing.T) {
 	require.NoError(t, err)
 
 	input := bytes.NewBuffer(ys)
-	r := newReader(input, nil)
+	r := newYSONReader(input, nil)
 
 	var row struct {
 		A int

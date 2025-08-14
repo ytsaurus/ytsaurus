@@ -74,7 +74,11 @@ func JobMain() int {
 			_, _ = fmt.Fprintf(os.Stderr, "job: %+v\n", err)
 			return 3
 		}
-		writers := ctx.createWriters()
+		writers, err := ctx.createWriters(state)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "job: %+v\n", err)
+			return 3
+		}
 		for i, w := range writers {
 			outs[i] = w
 		}
