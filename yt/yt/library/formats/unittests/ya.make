@@ -38,8 +38,6 @@ PEERDIR(
     yt/yt/library/formats
     yt/yt/library/named_value
     yt/yt/tests/cpp/library
-
-    contrib/libs/apache/arrow
 )
 
 RESOURCE(

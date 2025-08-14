@@ -11,7 +11,7 @@ SRCS(
 PEERDIR(
     yt/cpp/mapreduce/interface
 
-    contrib/libs/apache/arrow
+    contrib/libs/apache/arrow_next
 )
 
 END()

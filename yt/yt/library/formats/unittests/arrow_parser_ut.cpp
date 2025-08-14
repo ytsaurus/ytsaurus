@@ -10,11 +10,13 @@
 #include <yt/yt/client/table_client/validate_logical_type.h>
 #include <yt/yt/library/formats/format.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/api.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/io/api.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/io/memory.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/ipc/api.h>
-#include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/writer.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/api.h>
+
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/io/memory.h>
+
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/ipc/api.h>
+
+#include <contrib/libs/apache/arrow_next/cpp/src/parquet/arrow/writer.h>
 
 namespace NYT::NFormats {
 namespace {
@@ -34,17 +36,17 @@ std::string GetEos()
     return eos;
 }
 
-void Verify(const arrow::Status& status)
+void Verify(const arrow20::Status& status)
 {
     YT_VERIFY(status.ok());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string MakeOutputFromRecordBatch(const std::shared_ptr<arrow::RecordBatch>& recordBatch)
+std::string MakeOutputFromRecordBatch(const std::shared_ptr<arrow20::RecordBatch>& recordBatch)
 {
-    auto outputStream = arrow::io::BufferOutputStream::Create().ValueOrDie();
-    auto arrowWriter = arrow::ipc::MakeStreamWriter(outputStream, recordBatch->schema()).ValueOrDie();
+    auto outputStream = arrow20::io::BufferOutputStream::Create().ValueOrDie();
+    auto arrowWriter = arrow20::ipc::MakeStreamWriter(outputStream, recordBatch->schema()).ValueOrDie();
     Verify(arrowWriter->WriteRecordBatch(*recordBatch));
     auto buffer = outputStream->Finish().ValueOrDie();
     return buffer->ToString();
@@ -52,7 +54,7 @@ std::string MakeOutputFromRecordBatch(const std::shared_ptr<arrow::RecordBatch>&
 
 std::string MakeIntegerArrow(const std::vector<int8_t>& data)
 {
-    arrow::Int8Builder builder;
+    arrow20::Int8Builder builder;
 
     for (const auto& value : data) {
         Verify(builder.Append(value));
@@ -60,15 +62,15 @@ std::string MakeIntegerArrow(const std::vector<int8_t>& data)
 
     auto intArray = builder.Finish();
 
-    auto arrowSchema = arrow::schema({arrow::field("integer", arrow::int8())});
-    std::vector<std::shared_ptr<arrow::Array>> columns = {*intArray};
-    auto recordBatch = arrow::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
+    auto arrowSchema = arrow20::schema({arrow20::field("integer", arrow20::int8())});
+    std::vector<std::shared_ptr<arrow20::Array>> columns = {*intArray};
+    auto recordBatch = arrow20::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
 std::string MakeOptionalIntegerArrow()
 {
-    arrow::Int8Builder builder;
+    arrow20::Int8Builder builder;
 
     Verify(builder.Append(1));
     Verify(builder.AppendNull());
@@ -76,15 +78,15 @@ std::string MakeOptionalIntegerArrow()
 
     auto data = builder.Finish();
 
-    auto arrowSchema = arrow::schema({arrow::field("opt", arrow::int8())});
-    std::vector<std::shared_ptr<arrow::Array>> columns = {*data};
-    auto recordBatch = arrow::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
+    auto arrowSchema = arrow20::schema({arrow20::field("opt", arrow20::int8())});
+    std::vector<std::shared_ptr<arrow20::Array>> columns = {*data};
+    auto recordBatch = arrow20::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
 std::string MakeBooleanArrow(const std::vector<bool>& data)
 {
-    arrow::BooleanBuilder builder;
+    arrow20::BooleanBuilder builder;
 
     for (const auto& value : data) {
         Verify(builder.Append(value));
@@ -92,22 +94,22 @@ std::string MakeBooleanArrow(const std::vector<bool>& data)
 
     auto boolArray = builder.Finish();
 
-    auto arrowSchema = arrow::schema({arrow::field("bool", arrow::boolean())});
-    std::vector<std::shared_ptr<arrow::Array>> columns = {*boolArray};
-    auto recordBatch = arrow::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
+    auto arrowSchema = arrow20::schema({arrow20::field("bool", arrow20::boolean())});
+    std::vector<std::shared_ptr<arrow20::Array>> columns = {*boolArray};
+    auto recordBatch = arrow20::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
 std::string MakeIntAndStringArrow(const std::vector<int8_t>& data, const std::vector<std::string>& stringData)
 {
-    arrow::Int8Builder builder;
+    arrow20::Int8Builder builder;
 
     for (const auto& value : data) {
         Verify(builder.Append(value));
     }
     auto intArray = builder.Finish();
 
-    arrow::StringBuilder stringBuilder;
+    arrow20::StringBuilder stringBuilder;
 
     for (const auto& value : stringData) {
         Verify(stringBuilder.Append(value));
@@ -115,22 +117,22 @@ std::string MakeIntAndStringArrow(const std::vector<int8_t>& data, const std::ve
 
     auto stringArray = stringBuilder.Finish();
 
-    auto arrowSchema = arrow::schema({
-        arrow::field("integer", arrow::int8()),
-        arrow::field("string", arrow::binary()),
+    auto arrowSchema = arrow20::schema({
+        arrow20::field("integer", arrow20::int8()),
+        arrow20::field("string", arrow20::binary()),
     });
 
-    std::vector<std::shared_ptr<arrow::Array>> columns = {*intArray, *stringArray};
-    auto recordBatch = arrow::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
+    std::vector<std::shared_ptr<arrow20::Array>> columns = {*intArray, *stringArray};
+    auto recordBatch = arrow20::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
 
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
 std::string MakeIntListArrow(const std::vector<std::optional<std::vector<int32_t>>>& data)
 {
-    auto* pool = arrow::default_memory_pool();
-    auto valueBuilder = std::make_shared<arrow::Int32Builder>(pool);
-    auto listBuilder = std::make_unique<arrow::ListBuilder>(pool, valueBuilder);
+    auto* pool = arrow20::default_memory_pool();
+    auto valueBuilder = std::make_shared<arrow20::Int32Builder>(pool);
+    auto listBuilder = std::make_unique<arrow20::ListBuilder>(pool, valueBuilder);
 
     for (const auto& list : data) {
         if (list) {
@@ -143,13 +145,13 @@ std::string MakeIntListArrow(const std::vector<std::optional<std::vector<int32_t
         }
     }
 
-    auto arrowSchema = arrow::schema({arrow::field("list", listBuilder->type())});
+    auto arrowSchema = arrow20::schema({arrow20::field("list", listBuilder->type())});
 
-    std::shared_ptr<arrow::Array> listArray;
+    std::shared_ptr<arrow20::Array> listArray;
     Verify(listBuilder->Finish(&listArray));
-    std::vector<std::shared_ptr<arrow::Array>> columns = {listArray};
+    std::vector<std::shared_ptr<arrow20::Array>> columns = {listArray};
 
-    auto recordBatch = arrow::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
+    auto recordBatch = arrow20::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
 
     return MakeOutputFromRecordBatch(recordBatch);
 }
@@ -157,40 +159,40 @@ std::string MakeIntListArrow(const std::vector<std::optional<std::vector<int32_t
 std::string MakeIntListDictionaryArrow(
     const std::vector<int32_t>& listValues, int64_t numRows)
 {
-    auto* pool = arrow::default_memory_pool();
+    auto* pool = arrow20::default_memory_pool();
 
-    auto valueBuilder = std::make_shared<arrow::Int32Builder>(pool);
-    auto listBuilder = std::make_unique<arrow::ListBuilder>(pool, valueBuilder);
+    auto valueBuilder = std::make_shared<arrow20::Int32Builder>(pool);
+    auto listBuilder = std::make_unique<arrow20::ListBuilder>(pool, valueBuilder);
 
     Verify(listBuilder->Append());
     for (int32_t value : listValues) {
         Verify(valueBuilder->Append(value));
     }
-    std::shared_ptr<arrow::Array> dictArray;
+    std::shared_ptr<arrow20::Array> dictArray;
     Verify(listBuilder->Finish(&dictArray));
 
-    arrow::Int8Builder indicesBuilder(pool);
+    arrow20::Int8Builder indicesBuilder(pool);
     Verify(indicesBuilder.AppendValues(std::vector<int8_t>(numRows, 0)));
-    std::shared_ptr<arrow::Array> indicesArray;
+    std::shared_ptr<arrow20::Array> indicesArray;
     Verify(indicesBuilder.Finish(&indicesArray));
 
-    auto dictType = arrow::dictionary(arrow::int8(), dictArray->type());
-    auto dictColumn = std::make_shared<arrow::DictionaryArray>(dictType, indicesArray, dictArray);
+    auto dictType = arrow20::dictionary(arrow20::int8(), dictArray->type());
+    auto dictColumn = std::make_shared<arrow20::DictionaryArray>(dictType, indicesArray, dictArray);
 
-    std::vector<std::shared_ptr<arrow::Array>> columns = {dictColumn};
+    std::vector<std::shared_ptr<arrow20::Array>> columns = {dictColumn};
 
-    auto arrowSchema = arrow::schema({arrow::field("list", dictColumn->type())});
-    auto recordBatch = arrow::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
+    auto arrowSchema = arrow20::schema({arrow20::field("list", dictColumn->type())});
+    auto recordBatch = arrow20::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
 
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
 std::string MakeStringListArrow(const std::vector<std::vector<std::string>>& data)
 {
-    auto* pool = arrow::default_memory_pool();
+    auto* pool = arrow20::default_memory_pool();
 
-    auto valueBuilder = std::make_shared<arrow::StringBuilder>(pool);
-    auto listBuilder = std::make_unique<arrow::ListBuilder>(pool, valueBuilder);
+    auto valueBuilder = std::make_shared<arrow20::StringBuilder>(pool);
+    auto listBuilder = std::make_unique<arrow20::ListBuilder>(pool, valueBuilder);
 
     for (const auto& list : data) {
         Verify(listBuilder->Append());
@@ -199,24 +201,24 @@ std::string MakeStringListArrow(const std::vector<std::vector<std::string>>& dat
         }
     }
 
-    auto arrowSchema = arrow::schema({arrow::field("list", listBuilder->type())});
+    auto arrowSchema = arrow20::schema({arrow20::field("list", listBuilder->type())});
 
-    std::shared_ptr<arrow::Array> listArray;
+    std::shared_ptr<arrow20::Array> listArray;
     Verify(listBuilder->Finish(&listArray));
-    std::vector<std::shared_ptr<arrow::Array>> columns = {listArray};
+    std::vector<std::shared_ptr<arrow20::Array>> columns = {listArray};
 
-    auto recordBatch = arrow::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
+    auto recordBatch = arrow20::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
 
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
 std::string MakeMapArrow(const std::vector<std::vector<int32_t>>& key, const std::vector<std::vector<int32_t>>& value)
 {
-    auto* pool = arrow::default_memory_pool();
+    auto* pool = arrow20::default_memory_pool();
 
-    auto keyBuilder = std::make_shared<arrow::Int32Builder>(pool);
-    auto valueBuilder = std::make_shared<arrow::UInt32Builder>(pool);
-    auto mapBuilder = std::make_unique<arrow::MapBuilder>(pool, keyBuilder, valueBuilder);
+    auto keyBuilder = std::make_shared<arrow20::Int32Builder>(pool);
+    auto valueBuilder = std::make_shared<arrow20::UInt32Builder>(pool);
+    auto mapBuilder = std::make_unique<arrow20::MapBuilder>(pool, keyBuilder, valueBuilder);
 
     for (ssize_t mapIndex = 0; mapIndex < std::ssize(key); mapIndex++) {
         Verify(mapBuilder->Append());
@@ -226,22 +228,22 @@ std::string MakeMapArrow(const std::vector<std::vector<int32_t>>& key, const std
         }
     }
 
-    auto arrowSchema = arrow::schema({arrow::field("map", mapBuilder->type())});
+    auto arrowSchema = arrow20::schema({arrow20::field("map", mapBuilder->type())});
 
-    std::shared_ptr<arrow::Array> mapArray;
+    std::shared_ptr<arrow20::Array> mapArray;
     Verify(mapBuilder->Finish(&mapArray));
-    std::vector<std::shared_ptr<arrow::Array>> columns = {mapArray};
+    std::vector<std::shared_ptr<arrow20::Array>> columns = {mapArray};
 
-    auto recordBatch = arrow::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
+    auto recordBatch = arrow20::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
 
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
 std::string MakeDictionaryArrow(bool addExtraValues = false)
 {
-    auto* pool = arrow::default_memory_pool();
+    auto* pool = arrow20::default_memory_pool();
 
-    arrow::DictionaryBuilder<arrow::Int32Type> dictionaryBuilder(pool);
+    arrow20::DictionaryBuilder<arrow20::Int32Type> dictionaryBuilder(pool);
 
     std::vector<int32_t> values = {1, 2, 1};
 
@@ -250,7 +252,7 @@ std::string MakeDictionaryArrow(bool addExtraValues = false)
     }
 
     if (addExtraValues) {
-        arrow::Int32Builder builder;
+        arrow20::Int32Builder builder;
         Verify(builder.Append(3));
         Verify(builder.Append(4));
         Verify(builder.Append(5));
@@ -258,32 +260,32 @@ std::string MakeDictionaryArrow(bool addExtraValues = false)
         Verify(dictionaryBuilder.InsertMemoValues(*intArray));
     }
 
-    auto arrowSchema = arrow::schema({arrow::field("integer", dictionaryBuilder.type())});
+    auto arrowSchema = arrow20::schema({arrow20::field("integer", dictionaryBuilder.type())});
 
-    std::shared_ptr<arrow::Array> array;
+    std::shared_ptr<arrow20::Array> array;
     Verify(dictionaryBuilder.Finish(&array));
 
-    std::vector<std::shared_ptr<arrow::Array>> columns = {array};
+    std::vector<std::shared_ptr<arrow20::Array>> columns = {array};
 
-    auto recordBatch = arrow::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
+    auto recordBatch = arrow20::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
 
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
 std::string MakeStructArrow(const std::vector<std::string>& stringData, const std::vector<int64_t>& intData)
 {
-    auto* pool = arrow::default_memory_pool();
+    auto* pool = arrow20::default_memory_pool();
 
-    auto stringBuilder = std::make_shared<arrow::StringBuilder>(pool);
-    auto intBuilder = std::make_shared<arrow::Int64Builder>(pool);
+    auto stringBuilder = std::make_shared<arrow20::StringBuilder>(pool);
+    auto intBuilder = std::make_shared<arrow20::Int64Builder>(pool);
 
-    std::vector<std::shared_ptr<arrow::Field>> fields = {
-        std::make_shared<arrow::Field>("bar", std::make_shared<arrow::StringType>()),
-        std::make_shared<arrow::Field>("foo", std::make_shared<arrow::Int64Type>())
+    std::vector<std::shared_ptr<arrow20::Field>> fields = {
+        std::make_shared<arrow20::Field>("bar", std::make_shared<arrow20::StringType>()),
+        std::make_shared<arrow20::Field>("foo", std::make_shared<arrow20::Int64Type>())
     };
 
-    arrow::StructBuilder structBuilder(
-        std::make_shared<arrow::StructType>(fields),
+    arrow20::StructBuilder structBuilder(
+        std::make_shared<arrow20::StructType>(fields),
         pool,
         {stringBuilder, intBuilder});
 
@@ -293,13 +295,13 @@ std::string MakeStructArrow(const std::vector<std::string>& stringData, const st
         Verify(intBuilder->Append(intData[index]));
     }
 
-    std::shared_ptr<arrow::Schema> arrowSchema = arrow::schema({arrow::field("struct", structBuilder.type())});
+    std::shared_ptr<arrow20::Schema> arrowSchema = arrow20::schema({arrow20::field("struct", structBuilder.type())});
 
-    std::shared_ptr<arrow::Array> structArray;
+    std::shared_ptr<arrow20::Array> structArray;
     Verify(structBuilder.Finish(&structArray));
-    std::vector<std::shared_ptr<arrow::Array>> columns = {structArray};
+    std::vector<std::shared_ptr<arrow20::Array>> columns = {structArray};
 
-    auto recordBatch = arrow::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
+    auto recordBatch = arrow20::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
 
     return MakeOutputFromRecordBatch(recordBatch);
 }
@@ -317,71 +319,71 @@ struct TTzRow
 
 std::string MakeTzTypeArrow(const std::vector<TTzRow>& dateValue)
 {
-    auto* pool = arrow::default_memory_pool();
+    auto* pool = arrow20::default_memory_pool();
 
-    auto dateBuilder = std::make_shared<arrow::UInt16Builder>(pool);
-    auto dateTzIndexBuilder = std::make_shared<arrow::UInt16Builder>(pool);
-    std::vector<std::shared_ptr<arrow::Field>> dateFields = {
-        std::make_shared<arrow::Field>("Timestamp", std::make_shared<arrow::UInt16Type>()),
-        std::make_shared<arrow::Field>("TzIndex", std::make_shared<arrow::UInt16Type>()),
+    auto dateBuilder = std::make_shared<arrow20::UInt16Builder>(pool);
+    auto dateTzIndexBuilder = std::make_shared<arrow20::UInt16Builder>(pool);
+    std::vector<std::shared_ptr<arrow20::Field>> dateFields = {
+        std::make_shared<arrow20::Field>("Timestamp", std::make_shared<arrow20::UInt16Type>()),
+        std::make_shared<arrow20::Field>("TzIndex", std::make_shared<arrow20::UInt16Type>()),
     };
-    arrow::StructBuilder tzDateBuilder(
-        std::make_shared<arrow::StructType>(dateFields),
+    arrow20::StructBuilder tzDateBuilder(
+        std::make_shared<arrow20::StructType>(dateFields),
         pool,
         {dateBuilder, dateTzIndexBuilder});
 
-    auto datetimeBuilder = std::make_shared<arrow::UInt32Builder>(pool);
-    auto datetimeTzIndexBuilder = std::make_shared<arrow::UInt16Builder>(pool);
-    std::vector<std::shared_ptr<arrow::Field>> datetimeFields = {
-        std::make_shared<arrow::Field>("Timestamp", std::make_shared<arrow::UInt32Type>()),
-        std::make_shared<arrow::Field>("TzIndex", std::make_shared<arrow::UInt16Type>()),
+    auto datetimeBuilder = std::make_shared<arrow20::UInt32Builder>(pool);
+    auto datetimeTzIndexBuilder = std::make_shared<arrow20::UInt16Builder>(pool);
+    std::vector<std::shared_ptr<arrow20::Field>> datetimeFields = {
+        std::make_shared<arrow20::Field>("Timestamp", std::make_shared<arrow20::UInt32Type>()),
+        std::make_shared<arrow20::Field>("TzIndex", std::make_shared<arrow20::UInt16Type>()),
     };
-    arrow::StructBuilder tzDatetimeBuilder(
-        std::make_shared<arrow::StructType>(datetimeFields),
+    arrow20::StructBuilder tzDatetimeBuilder(
+        std::make_shared<arrow20::StructType>(datetimeFields),
         pool,
         {datetimeBuilder, datetimeTzIndexBuilder});
 
-    auto timestampBuilder = std::make_shared<arrow::UInt64Builder>(pool);
-    auto timestampTzIndexBuilder = std::make_shared<arrow::UInt16Builder>(pool);
-    std::vector<std::shared_ptr<arrow::Field>> timestampFields = {
-        std::make_shared<arrow::Field>("Timestamp", std::make_shared<arrow::UInt64Type>()),
-        std::make_shared<arrow::Field>("TzIndex", std::make_shared<arrow::UInt16Type>()),
+    auto timestampBuilder = std::make_shared<arrow20::UInt64Builder>(pool);
+    auto timestampTzIndexBuilder = std::make_shared<arrow20::UInt16Builder>(pool);
+    std::vector<std::shared_ptr<arrow20::Field>> timestampFields = {
+        std::make_shared<arrow20::Field>("Timestamp", std::make_shared<arrow20::UInt64Type>()),
+        std::make_shared<arrow20::Field>("TzIndex", std::make_shared<arrow20::UInt16Type>()),
     };
-    arrow::StructBuilder tzTimestampBuilder(
-        std::make_shared<arrow::StructType>(timestampFields),
+    arrow20::StructBuilder tzTimestampBuilder(
+        std::make_shared<arrow20::StructType>(timestampFields),
         pool,
         {timestampBuilder, timestampTzIndexBuilder});
 
-    auto date32Builder = std::make_shared<arrow::Int32Builder>(pool);
-    auto date32TzIndexBuilder = std::make_shared<arrow::UInt16Builder>(pool);
-    std::vector<std::shared_ptr<arrow::Field>> date32Fields = {
-        std::make_shared<arrow::Field>("Timestamp", std::make_shared<arrow::Int32Type>()),
-        std::make_shared<arrow::Field>("TzIndex", std::make_shared<arrow::UInt16Type>()),
+    auto date32Builder = std::make_shared<arrow20::Int32Builder>(pool);
+    auto date32TzIndexBuilder = std::make_shared<arrow20::UInt16Builder>(pool);
+    std::vector<std::shared_ptr<arrow20::Field>> date32Fields = {
+        std::make_shared<arrow20::Field>("Timestamp", std::make_shared<arrow20::Int32Type>()),
+        std::make_shared<arrow20::Field>("TzIndex", std::make_shared<arrow20::UInt16Type>()),
     };
-    arrow::StructBuilder tzDate32Builder(
-        std::make_shared<arrow::StructType>(date32Fields),
+    arrow20::StructBuilder tzDate32Builder(
+        std::make_shared<arrow20::StructType>(date32Fields),
         pool,
         {date32Builder, date32TzIndexBuilder});
 
-    auto datetime64Builder = std::make_shared<arrow::Int64Builder>(pool);
-    auto datetime64TzIndexBuilder = std::make_shared<arrow::UInt16Builder>(pool);
-    std::vector<std::shared_ptr<arrow::Field>> datetime64Fields = {
-        std::make_shared<arrow::Field>("Timestamp", std::make_shared<arrow::Int64Type>()),
-        std::make_shared<arrow::Field>("TzIndex", std::make_shared<arrow::UInt16Type>()),
+    auto datetime64Builder = std::make_shared<arrow20::Int64Builder>(pool);
+    auto datetime64TzIndexBuilder = std::make_shared<arrow20::UInt16Builder>(pool);
+    std::vector<std::shared_ptr<arrow20::Field>> datetime64Fields = {
+        std::make_shared<arrow20::Field>("Timestamp", std::make_shared<arrow20::Int64Type>()),
+        std::make_shared<arrow20::Field>("TzIndex", std::make_shared<arrow20::UInt16Type>()),
     };
-    arrow::StructBuilder tzDatetime64Builder(
-        std::make_shared<arrow::StructType>(datetime64Fields),
+    arrow20::StructBuilder tzDatetime64Builder(
+        std::make_shared<arrow20::StructType>(datetime64Fields),
         pool,
         {datetime64Builder, datetime64TzIndexBuilder});
 
-    auto timestamp64Builder = std::make_shared<arrow::Int64Builder>(pool);
-    auto timestamp64TzIndexBuilder = std::make_shared<arrow::UInt16Builder>(pool);
-    std::vector<std::shared_ptr<arrow::Field>> timestamp64Fields = {
-        std::make_shared<arrow::Field>("Timestamp", std::make_shared<arrow::Int64Type>()),
-        std::make_shared<arrow::Field>("TzIndex", std::make_shared<arrow::UInt16Type>()),
+    auto timestamp64Builder = std::make_shared<arrow20::Int64Builder>(pool);
+    auto timestamp64TzIndexBuilder = std::make_shared<arrow20::UInt16Builder>(pool);
+    std::vector<std::shared_ptr<arrow20::Field>> timestamp64Fields = {
+        std::make_shared<arrow20::Field>("Timestamp", std::make_shared<arrow20::Int64Type>()),
+        std::make_shared<arrow20::Field>("TzIndex", std::make_shared<arrow20::UInt16Type>()),
     };
-    arrow::StructBuilder tzTimestamp64Builder(
-        std::make_shared<arrow::StructType>(timestamp64Fields),
+    arrow20::StructBuilder tzTimestamp64Builder(
+        std::make_shared<arrow20::StructType>(timestamp64Fields),
         pool,
         {timestamp64Builder, timestamp64TzIndexBuilder});
 
@@ -411,31 +413,31 @@ std::string MakeTzTypeArrow(const std::vector<TTzRow>& dateValue)
         Verify(timestamp64TzIndexBuilder->Append(dateValue[index].TzIndex));
     }
 
-    std::shared_ptr<arrow::Schema> arrowSchema = arrow::schema({
-        arrow::field("tzDateColumn", tzDateBuilder.type()),
-        arrow::field("tzDatetimeColumn", tzDatetimeBuilder.type()),
-        arrow::field("tzTimestampColumn", tzTimestampBuilder.type()),
-        arrow::field("tzDate32Column", tzDate32Builder.type()),
-        arrow::field("tzDatetime64Column", tzDatetime64Builder.type()),
-        arrow::field("tzTimestamp64Column", tzTimestamp64Builder.type()),
+    std::shared_ptr<arrow20::Schema> arrowSchema = arrow20::schema({
+        arrow20::field("tzDateColumn", tzDateBuilder.type()),
+        arrow20::field("tzDatetimeColumn", tzDatetimeBuilder.type()),
+        arrow20::field("tzTimestampColumn", tzTimestampBuilder.type()),
+        arrow20::field("tzDate32Column", tzDate32Builder.type()),
+        arrow20::field("tzDatetime64Column", tzDatetime64Builder.type()),
+        arrow20::field("tzTimestamp64Column", tzTimestamp64Builder.type()),
     });
 
-    std::shared_ptr<arrow::Array> dateArray;
+    std::shared_ptr<arrow20::Array> dateArray;
     Verify(tzDateBuilder.Finish(&dateArray));
 
-    std::shared_ptr<arrow::Array> datetimeArray;
+    std::shared_ptr<arrow20::Array> datetimeArray;
     Verify(tzDatetimeBuilder.Finish(&datetimeArray));
 
-    std::shared_ptr<arrow::Array> timestampArray;
+    std::shared_ptr<arrow20::Array> timestampArray;
     Verify(tzTimestampBuilder.Finish(&timestampArray));
 
-    std::shared_ptr<arrow::Array> date32Array;
+    std::shared_ptr<arrow20::Array> date32Array;
     Verify(tzDate32Builder.Finish(&date32Array));
 
-    std::shared_ptr<arrow::Array> datetime64Array;
+    std::shared_ptr<arrow20::Array> datetime64Array;
     Verify(tzDatetime64Builder.Finish(&datetime64Array));
 
-    std::shared_ptr<arrow::Array> timestamp64Array;
+    std::shared_ptr<arrow20::Array> timestamp64Array;
     Verify(tzTimestamp64Builder.Finish(&timestamp64Array));
 
     auto columns = std::vector{
@@ -447,24 +449,24 @@ std::string MakeTzTypeArrow(const std::vector<TTzRow>& dateValue)
         timestamp64Array
     };
 
-    auto recordBatch = arrow::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
+    auto recordBatch = arrow20::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
 
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
 std::string MakeTzDateTypeArrow(const std::vector<int>& dateValue)
 {
-    auto* pool = arrow::default_memory_pool();
+    auto* pool = arrow20::default_memory_pool();
 
-    auto dateBuilder = std::make_shared<arrow::UInt16Builder>(pool);
-    auto dateTzNameBuilder = std::make_shared<arrow::BinaryBuilder>(pool);
+    auto dateBuilder = std::make_shared<arrow20::UInt16Builder>(pool);
+    auto dateTzNameBuilder = std::make_shared<arrow20::BinaryBuilder>(pool);
 
-    std::vector<std::shared_ptr<arrow::Field>> dateFields = {
-        std::make_shared<arrow::Field>("Timestamp", std::make_shared<arrow::UInt16Type>()),
-        std::make_shared<arrow::Field>("TzIndex", std::make_shared<arrow::BinaryType>()),
+    std::vector<std::shared_ptr<arrow20::Field>> dateFields = {
+        std::make_shared<arrow20::Field>("Timestamp", std::make_shared<arrow20::UInt16Type>()),
+        std::make_shared<arrow20::Field>("TzIndex", std::make_shared<arrow20::BinaryType>()),
     };
-    arrow::StructBuilder tzDateBuilder(
-        std::make_shared<arrow::StructType>(dateFields),
+    arrow20::StructBuilder tzDateBuilder(
+        std::make_shared<arrow20::StructType>(dateFields),
         pool,
         {dateBuilder, dateTzNameBuilder});
 
@@ -474,40 +476,40 @@ std::string MakeTzDateTypeArrow(const std::vector<int>& dateValue)
         Verify(dateTzNameBuilder->Append("Europe/Moscow"));
     }
 
-    std::shared_ptr<arrow::Schema> arrowSchema = arrow::schema({
-        arrow::field("tzDateColumn", tzDateBuilder.type()),
+    std::shared_ptr<arrow20::Schema> arrowSchema = arrow20::schema({
+        arrow20::field("tzDateColumn", tzDateBuilder.type()),
     });
 
-    std::shared_ptr<arrow::Array> dateArray;
+    std::shared_ptr<arrow20::Array> dateArray;
     Verify(tzDateBuilder.Finish(&dateArray));
 
-    std::vector<std::shared_ptr<arrow::Array>> columns = {
+    std::vector<std::shared_ptr<arrow20::Array>> columns = {
         dateArray
     };
 
-    auto recordBatch = arrow::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
+    auto recordBatch = arrow20::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
 
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
 std::string MakeTzTypesListArrow(const std::vector<std::vector<i64>>& dateColumn)
 {
-    auto* pool = arrow::default_memory_pool();
+    auto* pool = arrow20::default_memory_pool();
 
-    auto dateBuilder = std::make_shared<arrow::UInt16Builder>(pool);
-    auto dateTzIndexBuilder = std::make_shared<arrow::UInt16Builder>(pool);
-    std::vector<std::shared_ptr<arrow::Field>> dateFields = {
-        std::make_shared<arrow::Field>("Timestamp", std::make_shared<arrow::UInt16Type>()),
-        std::make_shared<arrow::Field>("TzIndex", std::make_shared<arrow::UInt16Type>()),
+    auto dateBuilder = std::make_shared<arrow20::UInt16Builder>(pool);
+    auto dateTzIndexBuilder = std::make_shared<arrow20::UInt16Builder>(pool);
+    std::vector<std::shared_ptr<arrow20::Field>> dateFields = {
+        std::make_shared<arrow20::Field>("Timestamp", std::make_shared<arrow20::UInt16Type>()),
+        std::make_shared<arrow20::Field>("TzIndex", std::make_shared<arrow20::UInt16Type>()),
     };
-    arrow::StructBuilder tzDateBuilder(
-        std::make_shared<arrow::StructType>(dateFields),
+    arrow20::StructBuilder tzDateBuilder(
+        std::make_shared<arrow20::StructType>(dateFields),
         pool,
         {dateBuilder, dateTzIndexBuilder});
 
-    auto aa = std::make_shared<arrow::StructBuilder>(std::move(tzDateBuilder));
+    auto aa = std::make_shared<arrow20::StructBuilder>(std::move(tzDateBuilder));
 
-    auto listBuilder = std::make_unique<arrow::ListBuilder>(pool, aa);
+    auto listBuilder = std::make_unique<arrow20::ListBuilder>(pool, aa);
 
     for (const auto& list : dateColumn) {
         Verify(listBuilder->Append());
@@ -518,13 +520,13 @@ std::string MakeTzTypesListArrow(const std::vector<std::vector<i64>>& dateColumn
         }
     }
 
-    auto arrowSchema = arrow::schema({arrow::field("listOfTzTypes", listBuilder->type())});
+    auto arrowSchema = arrow20::schema({arrow20::field("listOfTzTypes", listBuilder->type())});
 
-    std::shared_ptr<arrow::Array> listArray;
+    std::shared_ptr<arrow20::Array> listArray;
     Verify(listBuilder->Finish(&listArray));
-    std::vector<std::shared_ptr<arrow::Array>> columns = {listArray};
+    std::vector<std::shared_ptr<arrow20::Array>> columns = {listArray};
 
-    auto recordBatch = arrow::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
+    auto recordBatch = arrow20::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
 
     return MakeOutputFromRecordBatch(recordBatch);
 }
@@ -534,7 +536,7 @@ std::string MakeDateArrow(
     const std::vector<i64>& date64Column,
     const std::vector<i64>& timestampColumn)
 {
-    arrow::Date32Builder date32Builder;
+    arrow20::Date32Builder date32Builder;
 
     for (const auto& value : date32Column) {
         Verify(date32Builder.Append(value));
@@ -542,7 +544,7 @@ std::string MakeDateArrow(
 
     auto date32Array = date32Builder.Finish();
 
-    arrow::TimestampBuilder date64Builder(arrow::timestamp(arrow::TimeUnit::TimeUnit::SECOND), arrow::default_memory_pool());
+    arrow20::TimestampBuilder date64Builder(arrow20::timestamp(arrow20::TimeUnit::TimeUnit::SECOND), arrow20::default_memory_pool());
 
     for (const auto& value : date64Column) {
         Verify(date64Builder.Append(value));
@@ -550,7 +552,7 @@ std::string MakeDateArrow(
 
     auto date64Array = date64Builder.Finish();
 
-    arrow::TimestampBuilder timestampBuilder(arrow::timestamp(arrow::TimeUnit::TimeUnit::MICRO), arrow::default_memory_pool());
+    arrow20::TimestampBuilder timestampBuilder(arrow20::timestamp(arrow20::TimeUnit::TimeUnit::MICRO), arrow20::default_memory_pool());
 
     for (const auto& value : timestampColumn) {
         Verify(timestampBuilder.Append(value));
@@ -558,22 +560,22 @@ std::string MakeDateArrow(
 
     auto timestampArray = timestampBuilder.Finish();
 
-    auto arrowSchema = arrow::schema({
-        arrow::field("date", arrow::date32()),
-        arrow::field("datetime",arrow::timestamp(arrow::TimeUnit::SECOND)),
-        arrow::field("timestamp", arrow::timestamp(arrow::TimeUnit::MICRO)),
+    auto arrowSchema = arrow20::schema({
+        arrow20::field("date", arrow20::date32()),
+        arrow20::field("datetime",arrow20::timestamp(arrow20::TimeUnit::SECOND)),
+        arrow20::field("timestamp", arrow20::timestamp(arrow20::TimeUnit::MICRO)),
     });
-    std::vector<std::shared_ptr<arrow::Array>> columns = {*date32Array, *date64Array, *timestampArray};
-    auto recordBatch = arrow::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
+    std::vector<std::shared_ptr<arrow20::Array>> columns = {*date32Array, *date64Array, *timestampArray};
+    auto recordBatch = arrow20::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
 std::string MakeDatetimeListArrow(const std::vector<std::vector<i64>>& date64Column)
 {
-    auto* pool = arrow::default_memory_pool();
+    auto* pool = arrow20::default_memory_pool();
 
-    auto valueBuilder = std::make_shared<arrow::TimestampBuilder>(arrow::timestamp(arrow::TimeUnit::TimeUnit::SECOND), arrow::default_memory_pool());
-    auto listBuilder = std::make_unique<arrow::ListBuilder>(pool, valueBuilder);
+    auto valueBuilder = std::make_shared<arrow20::TimestampBuilder>(arrow20::timestamp(arrow20::TimeUnit::TimeUnit::SECOND), arrow20::default_memory_pool());
+    auto listBuilder = std::make_unique<arrow20::ListBuilder>(pool, valueBuilder);
 
     for (const auto& list : date64Column) {
         Verify(listBuilder->Append());
@@ -582,20 +584,20 @@ std::string MakeDatetimeListArrow(const std::vector<std::vector<i64>>& date64Col
         }
     }
 
-    auto arrowSchema = arrow::schema({arrow::field("list", listBuilder->type())});
+    auto arrowSchema = arrow20::schema({arrow20::field("list", listBuilder->type())});
 
-    std::shared_ptr<arrow::Array> listArray;
+    std::shared_ptr<arrow20::Array> listArray;
     Verify(listBuilder->Finish(&listArray));
-    std::vector<std::shared_ptr<arrow::Array>> columns = {listArray};
+    std::vector<std::shared_ptr<arrow20::Array>> columns = {listArray};
 
-    auto recordBatch = arrow::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
+    auto recordBatch = arrow20::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
 
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
 std::string MakeDecimalArrows(std::vector<TString> values, std::vector<std::tuple<int, int, int>> columnParameters)
 {
-    auto* pool = arrow::default_memory_pool();
+    auto* pool = arrow20::default_memory_pool();
 
     auto makeColumn = [&]<class TBuilder, class TType, class TValue>(int precision, int scale) {
         auto builder = std::make_shared<TBuilder>(std::make_shared<TType>(precision, scale), pool);
@@ -605,31 +607,31 @@ std::string MakeDecimalArrows(std::vector<TString> values, std::vector<std::tupl
         return builder->Finish().ValueOrDie();
     };
 
-    std::vector<std::shared_ptr<arrow::Array>> columns;
+    std::vector<std::shared_ptr<arrow20::Array>> columns;
     for (const auto& [bitness, precision, scale] : columnParameters) {
         if (bitness == 128) {
-            columns.push_back(makeColumn.template operator()<arrow::Decimal128Builder, arrow::Decimal128Type, arrow::Decimal128>(precision, scale));
+            columns.push_back(makeColumn.template operator()<arrow20::Decimal128Builder, arrow20::Decimal128Type, arrow20::Decimal128>(precision, scale));
         } else if (bitness == 256) {
-            columns.push_back(makeColumn.template operator()<arrow::Decimal256Builder, arrow::Decimal256Type, arrow::Decimal256>(precision, scale));
+            columns.push_back(makeColumn.template operator()<arrow20::Decimal256Builder, arrow20::Decimal256Type, arrow20::Decimal256>(precision, scale));
         } else {
             YT_ABORT();
         }
     }
 
-    arrow::FieldVector fields;
+    arrow20::FieldVector fields;
     for (const auto& [bitness, precision, scale] : columnParameters) {
-        std::shared_ptr<arrow::DataType> type;
+        std::shared_ptr<arrow20::DataType> type;
         if (bitness == 128) {
-            type = std::make_shared<arrow::Decimal128Type>(precision, scale);
+            type = std::make_shared<arrow20::Decimal128Type>(precision, scale);
         } else if (bitness == 256) {
-            type = std::make_shared<arrow::Decimal256Type>(precision, scale);
+            type = std::make_shared<arrow20::Decimal256Type>(precision, scale);
         } else {
             YT_ABORT();
         }
-        fields.push_back(std::make_shared<arrow::Field>(Format("decimal%v_%v_%v", bitness, precision, scale), type));
+        fields.push_back(std::make_shared<arrow20::Field>(Format("decimal%v_%v_%v", bitness, precision, scale), type));
     }
 
-    auto recordBatch = arrow::RecordBatch::Make(arrow::schema(std::move(fields)), columns[0]->length(), columns);
+    auto recordBatch = arrow20::RecordBatch::Make(arrow20::schema(std::move(fields)), columns[0]->length(), columns);
 
     return MakeOutputFromRecordBatch(recordBatch);
 }
@@ -638,19 +640,19 @@ std::string MakeDecimalListArrow(std::vector<TString> values)
 {
     // Create a single column with one value, which is a list containing all the #values.
     // Type of the list is Decimal128(10, 3).
-    auto* pool = arrow::default_memory_pool();
-    auto decimalBuilder = std::make_shared<arrow::Decimal128Builder>(std::make_shared<arrow::Decimal128Type>(10, 3), pool);
-    auto listBuilder = std::make_unique<arrow::ListBuilder>(pool, decimalBuilder);
+    auto* pool = arrow20::default_memory_pool();
+    auto decimalBuilder = std::make_shared<arrow20::Decimal128Builder>(std::make_shared<arrow20::Decimal128Type>(10, 3), pool);
+    auto listBuilder = std::make_unique<arrow20::ListBuilder>(pool, decimalBuilder);
 
     Verify(listBuilder->Append());
     for (const auto& value : values) {
-        Verify(decimalBuilder->Append(arrow::Decimal128(std::string(value))));
+        Verify(decimalBuilder->Append(arrow20::Decimal128(std::string(value))));
     }
-    std::shared_ptr<arrow::Array> listArray;
+    std::shared_ptr<arrow20::Array> listArray;
     Verify(listBuilder->Finish(&listArray));
-    auto arrowSchema = arrow::schema({arrow::field("list", listArray->type())});
-    std::vector<std::shared_ptr<arrow::Array>> columns = {listArray};
-    auto recordBatch = arrow::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
+    auto arrowSchema = arrow20::schema({arrow20::field("list", listArray->type())});
+    std::vector<std::shared_ptr<arrow20::Array>> columns = {listArray};
+    auto recordBatch = arrow20::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
     return MakeOutputFromRecordBatch(recordBatch);
 }
 

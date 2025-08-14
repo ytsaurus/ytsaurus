@@ -12,15 +12,13 @@
 #include <util/generic/string.h>
 #include <util/generic/hash.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/api.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/compute/cast.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/compute/cast.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/io/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/ipc/api.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/ipc/api.h>
-
-#include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/writer.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/parquet/arrow/writer.h>
 
 #include <queue>
 
@@ -34,16 +32,16 @@ DEFINE_ENUM(EFileFormat,
 );
 
 class TArrowOutputStream
-    : public arrow::io::OutputStream
+    : public arrow20::io::OutputStream
 {
 public:
-    arrow::Status Write(const void* data, int64_t nbytes) override;
+    arrow20::Status Write(const void* data, int64_t nbytes) override;
 
-    arrow::Status Flush() override;
+    arrow20::Status Flush() override;
 
-    arrow::Status Close() override;
+    arrow20::Status Close() override;
 
-    arrow::Result<int64_t> Tell() const override;
+    arrow20::Result<int64_t> Tell() const override;
 
     bool closed() const override;
 
@@ -80,9 +78,9 @@ public:
     PYCXX_KEYWORDS_METHOD_DECL(TArrowRawIterator, NextChunk)
 
 private:
-    std::shared_ptr<arrow::ipc::RecordBatchWriter> RecordBatchWriter_;
-    std::shared_ptr<arrow::RecordBatchReader> RecordBatchReader_;
-    std::unique_ptr<parquet::arrow::FileReader> ArrowFileReader_;
+    std::shared_ptr<arrow20::ipc::RecordBatchWriter> RecordBatchWriter_;
+    std::shared_ptr<arrow20::RecordBatchReader> RecordBatchReader_;
+    std::unique_ptr<parquet20::arrow20::FileReader> ArrowFileReader_;
     TArrowOutputStream Pipe_;
 };
 

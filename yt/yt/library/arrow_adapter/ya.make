@@ -7,7 +7,7 @@ SRCS(
 PEERDIR(
     library/cpp/yt/assert
 
-    contrib/libs/apache/arrow
+    contrib/libs/apache/arrow_next
 )
 
 END()

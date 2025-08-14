@@ -6,15 +6,19 @@
 
 #include <library/cpp/yson/node/node.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/reader.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/array/array_base.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/filesystem/filesystem.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/parquet/arrow/reader.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/adapters/orc/adapter.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/filesystem/filesystem.h>
+
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/adapters/orc/adapter.h>
+
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/io/file.h>
 
 namespace NYT::NPython {
 
-using namespace arrow;
+using namespace arrow20;
 
 namespace {
 
@@ -30,42 +34,47 @@ void ThrowOnError(const Status& status)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRecordBatchReaderOrcAdapter
-    : public arrow::RecordBatchReader
+    : public arrow20::RecordBatchReader
 {
 public:
     TRecordBatchReaderOrcAdapter(const TString& inputFilePath, MemoryPool* pool, int arrowBatchSize)
         : ArrowBatchSize_(arrowBatchSize)
     {
-        auto fileReaderOrError = arrow::io::MemoryMappedFile::Open(inputFilePath, arrow::io::FileMode::READ);
+        auto fileReaderOrError = arrow20::io::MemoryMappedFile::Open(inputFilePath, arrow20::io::FileMode::READ);
         ThrowOnError(fileReaderOrError.status());
-        ThrowOnError(arrow::adapters::orc::ORCFileReader::Open(
+        auto orcReaderOrError = arrow20::adapters::orc::ORCFileReader::Open(
             fileReaderOrError.ValueOrDie(),
-            pool,
-            &Reader_));
-        ThrowOnError(Reader_->NextStripeReader(ArrowBatchSize_, &BatchReader_));
+            pool);
+        ThrowOnError(orcReaderOrError.status());
+        Reader_ = std::move(orcReaderOrError.ValueOrDie());
+        auto batchReaderOrError = Reader_->NextStripeReader(ArrowBatchSize_);
+        ThrowOnError(batchReaderOrError.status());
+        BatchReader_ = batchReaderOrError.ValueOrDie();
     }
 
-    std::shared_ptr<arrow::Schema> schema() const override
+    std::shared_ptr<arrow20::Schema> schema() const override
     {
         return BatchReader_->schema();
     }
 
-    arrow::Status ReadNext(std::shared_ptr<arrow::RecordBatch>* batch) override
+    arrow20::Status ReadNext(std::shared_ptr<arrow20::RecordBatch>* batch) override
     {
         ThrowOnError(BatchReader_->ReadNext(batch));
         if (!(*batch)) {
-            ThrowOnError(Reader_->NextStripeReader(ArrowBatchSize_, &BatchReader_));
+            auto batchReaderOrError = Reader_->NextStripeReader(ArrowBatchSize_);
+            ThrowOnError(batchReaderOrError.status());
+            BatchReader_ = batchReaderOrError.ValueOrDie();
             if (BatchReader_) {
                 ThrowOnError(BatchReader_->ReadNext(batch));
             }
         }
-        return arrow::Status::OK();
+        return arrow20::Status::OK();
     }
 
 private:
     const int ArrowBatchSize_;
 
-    std::unique_ptr<arrow::adapters::orc::ORCFileReader> Reader_;
+    std::unique_ptr<arrow20::adapters::orc::ORCFileReader> Reader_;
     std::shared_ptr<RecordBatchReader> BatchReader_;
 };
 
@@ -79,18 +88,18 @@ Status TArrowOutputStream::Write(const void* data, int64_t nbytes)
     DataWeight_ += nbytes;
     auto ptr = reinterpret_cast<const char*>(data);
     Data_.push(TString(ptr, nbytes));
-    return arrow::Status::OK();
+    return arrow20::Status::OK();
 }
 
 Status TArrowOutputStream::Flush()
 {
-    return arrow::Status::OK();
+    return arrow20::Status::OK();
 }
 
 Status TArrowOutputStream::Close()
 {
     IsClosed_ = true;
-    return arrow::Status::OK();
+    return arrow20::Status::OK();
 }
 
 Result<int64_t> TArrowOutputStream::Tell() const
@@ -132,7 +141,7 @@ TArrowRawIterator::TArrowRawIterator(Py::PythonClassInstance* self, Py::Tuple& a
 
 void TArrowRawIterator::Initialize(const TString& inputFilePath, EFileFormat format, int arrowBatchSize)
 {
-    auto* pool = arrow::default_memory_pool();
+    auto* pool = arrow20::default_memory_pool();
 
     switch (format) {
         case EFileFormat::ORC: {
@@ -140,15 +149,15 @@ void TArrowRawIterator::Initialize(const TString& inputFilePath, EFileFormat for
             break;
         }
         case EFileFormat::Parquet: {
-            parquet::ReaderProperties readerProperties;
+            parquet20::ReaderProperties readerProperties;
             readerProperties.enable_buffered_stream();
 
-            auto parquetFileReader = parquet::ParquetFileReader::OpenFile(inputFilePath, /*memory_map*/ true, readerProperties);
+            auto parquetFileReader = parquet20::ParquetFileReader::OpenFile(inputFilePath, /*memory_map*/ true, readerProperties);
 
-            parquet::ArrowReaderProperties arrowProperties;
+            parquet20::ArrowReaderProperties arrowProperties;
             arrowProperties.set_batch_size(arrowBatchSize);
 
-            ThrowOnError(parquet::arrow::FileReader::Make(
+            ThrowOnError(parquet20::arrow20::FileReader::Make(
                 pool,
                 std::move(parquetFileReader),
                 std::move(arrowProperties),
@@ -161,7 +170,7 @@ void TArrowRawIterator::Initialize(const TString& inputFilePath, EFileFormat for
         }
     }
 
-    auto recordBatchWriterOrError = arrow::ipc::MakeStreamWriter(&Pipe_, RecordBatchReader_->schema());
+    auto recordBatchWriterOrError = arrow20::ipc::MakeStreamWriter(&Pipe_, RecordBatchReader_->schema());
     ThrowOnError(recordBatchWriterOrError.status());
     RecordBatchWriter_ = recordBatchWriterOrError.ValueOrDie();
 }
@@ -198,7 +207,7 @@ Py::Object TArrowRawIterator::GetSchema(Py::Tuple& /*args*/, Py::Dict& /*kwargs*
 
 Py::Object TArrowRawIterator::NextChunk(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
 {
-    auto recordBatchWriterOrError = arrow::ipc::MakeStreamWriter(&Pipe_, RecordBatchReader_->schema());
+    auto recordBatchWriterOrError = arrow20::ipc::MakeStreamWriter(&Pipe_, RecordBatchReader_->schema());
     ThrowOnError(recordBatchWriterOrError.status());
     RecordBatchWriter_ = recordBatchWriterOrError.ValueOrDie();
     return Py::None();

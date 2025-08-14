@@ -31,16 +31,15 @@
 #include <util/stream/null.h>
 #include <util/string/hex.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/api.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/compute/cast.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/compute/cast.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/io/api.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/io/memory.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/io/memory.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/ipc/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/ipc/api.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/generated/Message.fbs.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/generated/Message.fbs.h>
 
 #include <limits>
 #include <stdlib.h>
@@ -167,29 +166,29 @@ ISchemalessFormatWriterPtr CreateArrowWriteWithSystemColumns(TNameTablePtr nameT
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<arrow::RecordBatch> MakeBatch(const TStringStream& outputStream)
+std::shared_ptr<arrow20::RecordBatch> MakeBatch(const TStringStream& outputStream)
 {
-    auto buffer = arrow::Buffer(reinterpret_cast<const uint8_t*>(outputStream.Data()), outputStream.Size());
-    arrow::io::BufferReader bufferReader(buffer);
+    auto buffer = std::make_shared<arrow20::Buffer>(reinterpret_cast<const uint8_t*>(outputStream.Data()), outputStream.Size());
+    arrow20::io::BufferReader bufferReader(buffer);
 
-    std::shared_ptr<arrow::ipc::RecordBatchStreamReader> batchReader = (arrow::ipc::RecordBatchStreamReader::Open(&bufferReader)).ValueOrDie();
+    std::shared_ptr<arrow20::ipc::RecordBatchStreamReader> batchReader = (arrow20::ipc::RecordBatchStreamReader::Open(&bufferReader)).ValueOrDie();
 
     auto batch = batchReader->Next().ValueOrDie();
     return batch;
 }
 
-std::vector<std::shared_ptr<arrow::RecordBatch>> MakeAllBatch(const TStringStream& outputStream, int batchCount)
+std::vector<std::shared_ptr<arrow20::RecordBatch>> MakeAllBatch(const TStringStream& outputStream, int batchCount)
 {
-    auto buffer = arrow::Buffer(reinterpret_cast<const uint8_t*>(outputStream.Data()), outputStream.Size());
-    arrow::io::BufferReader bufferReader(buffer);
+    auto buffer = std::make_shared<arrow20::Buffer>(reinterpret_cast<const uint8_t*>(outputStream.Data()), outputStream.Size());
+    arrow20::io::BufferReader bufferReader(buffer);
 
-    std::shared_ptr<arrow::ipc::RecordBatchStreamReader> batchReader = (arrow::ipc::RecordBatchStreamReader::Open(&bufferReader)).ValueOrDie();
+    std::shared_ptr<arrow20::ipc::RecordBatchStreamReader> batchReader = (arrow20::ipc::RecordBatchStreamReader::Open(&bufferReader)).ValueOrDie();
 
-    std::vector<std::shared_ptr<arrow::RecordBatch>> batches;
+    std::vector<std::shared_ptr<arrow20::RecordBatch>> batches;
     for (int i = 0; i < batchCount; i++) {
         auto batch = batchReader->Next().ValueOrDie();
         if (batch == nullptr) {
-            batchReader = (arrow::ipc::RecordBatchStreamReader::Open(&bufferReader)).ValueOrDie();
+            batchReader = (arrow20::ipc::RecordBatchStreamReader::Open(&bufferReader)).ValueOrDie();
             batchCount++;
         } else {
             batches.push_back(batch);
@@ -200,45 +199,45 @@ std::vector<std::shared_ptr<arrow::RecordBatch>> MakeAllBatch(const TStringStrea
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<int64_t> ReadInteger64Array(const std::shared_ptr<arrow::Array>& array)
+std::vector<int64_t> ReadInteger64Array(const std::shared_ptr<arrow20::Array>& array)
 {
-    auto int64Array = std::dynamic_pointer_cast<arrow::Int64Array>(array);
+    auto int64Array = std::dynamic_pointer_cast<arrow20::Int64Array>(array);
     YT_VERIFY(int64Array);
     return  {int64Array->raw_values(), int64Array->raw_values() + array->length()};
 }
 
-std::vector<int64_t> ReadIntegerDateArray(const std::shared_ptr<arrow::Array>& array)
+std::vector<int64_t> ReadIntegerDateArray(const std::shared_ptr<arrow20::Array>& array)
 {
-    auto int32Array = std::dynamic_pointer_cast<arrow::Date32Array>(array);
+    auto int32Array = std::dynamic_pointer_cast<arrow20::Date32Array>(array);
     YT_VERIFY(int32Array);
     return  {int32Array->raw_values(), int32Array->raw_values() + array->length()};
 }
 
-std::vector<int64_t> ReadIntegerDate64Array(const std::shared_ptr<arrow::Array>& array)
+std::vector<int64_t> ReadIntegerDate64Array(const std::shared_ptr<arrow20::Array>& array)
 {
-    auto timestampArray = std::dynamic_pointer_cast<arrow::TimestampArray>(array);
+    auto timestampArray = std::dynamic_pointer_cast<arrow20::TimestampArray>(array);
     YT_VERIFY(timestampArray);
     return  {timestampArray->raw_values(), timestampArray->raw_values() + array->length()};
 }
 
-std::vector<int64_t> ReadTimestampArray(const std::shared_ptr<arrow::Array>& array)
+std::vector<int64_t> ReadTimestampArray(const std::shared_ptr<arrow20::Array>& array)
 {
-    auto int64Array = std::dynamic_pointer_cast<arrow::TimestampArray>(array);
+    auto int64Array = std::dynamic_pointer_cast<arrow20::TimestampArray>(array);
     YT_VERIFY(int64Array);
     return  {int64Array->raw_values(), int64Array->raw_values() + int64Array->length()};
 }
 
-std::vector<uint32_t> ReadInteger32Array(const std::shared_ptr<arrow::Array>& array)
+std::vector<uint32_t> ReadInteger32Array(const std::shared_ptr<arrow20::Array>& array)
 {
-    auto int32Array = std::dynamic_pointer_cast<arrow::UInt32Array>(array);
+    auto int32Array = std::dynamic_pointer_cast<arrow20::UInt32Array>(array);
     YT_VERIFY(int32Array);
     return  {int32Array->raw_values(), int32Array->raw_values() + array->length()};
 }
 
-std::vector<std::string> ReadStringArray(const std::shared_ptr<arrow::Array>& array)
+std::vector<std::string> ReadStringArray(const std::shared_ptr<arrow20::Array>& array)
 {
     auto arraySize = array->length();
-    auto binArray = std::dynamic_pointer_cast<arrow::BinaryArray>(array);
+    auto binArray = std::dynamic_pointer_cast<arrow20::BinaryArray>(array);
     YT_VERIFY(binArray);
     std::vector<std::string> stringArray;
     for (int i = 0; i < arraySize; i++) {
@@ -247,10 +246,10 @@ std::vector<std::string> ReadStringArray(const std::shared_ptr<arrow::Array>& ar
     return stringArray;
 }
 
-std::vector<bool> ReadboolArrayray(const std::shared_ptr<arrow::Array>& array)
+std::vector<bool> ReadboolArrayray(const std::shared_ptr<arrow20::Array>& array)
 {
     auto arraySize = array->length();
-    auto boolArrayray = std::dynamic_pointer_cast<arrow::BooleanArray>(array);
+    auto boolArrayray = std::dynamic_pointer_cast<arrow20::BooleanArray>(array);
     YT_VERIFY(boolArrayray);
     std::vector<bool> result;
     for (int i = 0; i < arraySize; i++) {
@@ -259,23 +258,23 @@ std::vector<bool> ReadboolArrayray(const std::shared_ptr<arrow::Array>& array)
     return result;
 }
 
-std::vector<double> ReaddoubleArrayray(const std::shared_ptr<arrow::Array>& array)
+std::vector<double> ReaddoubleArrayray(const std::shared_ptr<arrow20::Array>& array)
 {
-    auto doubleArray = std::dynamic_pointer_cast<arrow::DoubleArray>(array);
+    auto doubleArray = std::dynamic_pointer_cast<arrow20::DoubleArray>(array);
     YT_VERIFY(doubleArray);
     return  {doubleArray->raw_values(), doubleArray->raw_values() + array->length()};
 }
 
-std::vector<float> ReadFloatArray(const std::shared_ptr<arrow::Array>& array)
+std::vector<float> ReadFloatArray(const std::shared_ptr<arrow20::Array>& array)
 {
-    auto floatArray = std::dynamic_pointer_cast<arrow::FloatArray>(array);
+    auto floatArray = std::dynamic_pointer_cast<arrow20::FloatArray>(array);
     YT_VERIFY(floatArray);
     return  {floatArray->raw_values(), floatArray->raw_values() + array->length()};
 }
 
-std::vector<std::string> ReadStringArrayFromDict(const std::shared_ptr<arrow::Array>& array)
+std::vector<std::string> ReadStringArrayFromDict(const std::shared_ptr<arrow20::Array>& array)
 {
-    auto dictAr = std::dynamic_pointer_cast<arrow::DictionaryArray>(array);
+    auto dictAr = std::dynamic_pointer_cast<arrow20::DictionaryArray>(array);
     YT_VERIFY(dictAr);
     auto indices = ReadInteger32Array(dictAr->indices());
 
@@ -295,19 +294,19 @@ std::vector<std::string> ReadStringArrayFromDict(const std::shared_ptr<arrow::Ar
     return result;
 }
 
-std::vector<std::string> ReadAnyStringArray(const std::shared_ptr<arrow::Array>& array)
+std::vector<std::string> ReadAnyStringArray(const std::shared_ptr<arrow20::Array>& array)
 {
-    if (std::dynamic_pointer_cast<arrow::BinaryArray>(array)) {
+    if (std::dynamic_pointer_cast<arrow20::BinaryArray>(array)) {
         return ReadStringArray(array);
-    } else if (std::dynamic_pointer_cast<arrow::DictionaryArray>(array)) {
+    } else if (std::dynamic_pointer_cast<arrow20::DictionaryArray>(array)) {
         return ReadStringArrayFromDict(array);
     }
     YT_ABORT();
 }
 
-bool IsDictColumn(const std::shared_ptr<arrow::Array>& array)
+bool IsDictColumn(const std::shared_ptr<arrow20::Array>& array)
 {
-    return std::dynamic_pointer_cast<arrow::DictionaryArray>(array) != nullptr;
+    return std::dynamic_pointer_cast<arrow20::DictionaryArray>(array) != nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -493,7 +492,7 @@ std::string MakeRandomString(int stringSize)
 ////////////////////////////////////////////////////////////////////////////////
 
 void CheckColumnNames(
-    std::shared_ptr<arrow::RecordBatch> batch,
+    std::shared_ptr<arrow20::RecordBatch> batch,
     const std::vector<std::string>& columnNames)
 {
     EXPECT_EQ(batch->num_columns(), std::ssize(columnNames));
@@ -599,7 +598,7 @@ TEST(TArrowWriterTest, YT_20699_WrongAlign)
         ptr += 4;
         uint32_t fbSize = *(reinterpret_cast<const uint32_t*>(ptr));
         ptr += 4;
-        auto message = org::apache::arrow::flatbuf::GetMessage(ptr);
+        auto message = org::apache::arrow20::flatbuf::GetMessage(ptr);
         ptr += fbSize;
         ptr += message->bodyLength();
         restSize -= (8 + fbSize + message->bodyLength());
@@ -1118,49 +1117,49 @@ TEST(TArrowWriterTest, TzTypeIndex)
     CheckColumnNames(batch, columnNames);
 
     {
-        auto structArrowArray = std::dynamic_pointer_cast<arrow::StructArray>(batch->column(0));
-        auto timestampArray = std::dynamic_pointer_cast<arrow::UInt16Array>(structArrowArray->field(0));
-        auto tzNameArray = std::dynamic_pointer_cast<arrow::UInt16Array>(structArrowArray->field(1));
+        auto structArrowArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(0));
+        auto timestampArray = std::dynamic_pointer_cast<arrow20::UInt16Array>(structArrowArray->field(0));
+        auto tzNameArray = std::dynamic_pointer_cast<arrow20::UInt16Array>(structArrowArray->field(1));
         EXPECT_EQ(timestampArray->Value(0), 42);
         EXPECT_EQ(tzNameArray->Value(0), 1);
     }
 
     {
-        auto structArrowArray = std::dynamic_pointer_cast<arrow::StructArray>(batch->column(1));
-        auto timestampArray = std::dynamic_pointer_cast<arrow::UInt32Array>(structArrowArray->field(0));
-        auto tzNameArray = std::dynamic_pointer_cast<arrow::UInt16Array>(structArrowArray->field(1));
+        auto structArrowArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(1));
+        auto timestampArray = std::dynamic_pointer_cast<arrow20::UInt32Array>(structArrowArray->field(0));
+        auto tzNameArray = std::dynamic_pointer_cast<arrow20::UInt16Array>(structArrowArray->field(1));
         EXPECT_EQ(timestampArray->Value(0), static_cast<ui32>(42));
         EXPECT_EQ(tzNameArray->Value(0), 1);
     }
 
     {
-        auto structArrowArray = std::dynamic_pointer_cast<arrow::StructArray>(batch->column(2));
-        auto timestampArray = std::dynamic_pointer_cast<arrow::UInt64Array>(structArrowArray->field(0));
-        auto tzNameArray = std::dynamic_pointer_cast<arrow::UInt16Array>(structArrowArray->field(1));
+        auto structArrowArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(2));
+        auto timestampArray = std::dynamic_pointer_cast<arrow20::UInt64Array>(structArrowArray->field(0));
+        auto tzNameArray = std::dynamic_pointer_cast<arrow20::UInt16Array>(structArrowArray->field(1));
         EXPECT_EQ(timestampArray->Value(0), static_cast<ui64>(42));
         EXPECT_EQ(tzNameArray->Value(0), 1);
     }
 
     {
-        auto structArrowArray = std::dynamic_pointer_cast<arrow::StructArray>(batch->column(3));
-        auto timestampArray = std::dynamic_pointer_cast<arrow::Int32Array>(structArrowArray->field(0));
-        auto tzNameArray = std::dynamic_pointer_cast<arrow::UInt16Array>(structArrowArray->field(1));
+        auto structArrowArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(3));
+        auto timestampArray = std::dynamic_pointer_cast<arrow20::Int32Array>(structArrowArray->field(0));
+        auto tzNameArray = std::dynamic_pointer_cast<arrow20::UInt16Array>(structArrowArray->field(1));
         EXPECT_EQ(timestampArray->Value(0), static_cast<i32>(42));
         EXPECT_EQ(tzNameArray->Value(0), 1);
     }
 
     {
-        auto structArrowArray = std::dynamic_pointer_cast<arrow::StructArray>(batch->column(4));
-        auto timestampArray = std::dynamic_pointer_cast<arrow::Int64Array>(structArrowArray->field(0));
-        auto tzNameArray = std::dynamic_pointer_cast<arrow::UInt16Array>(structArrowArray->field(1));
+        auto structArrowArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(4));
+        auto timestampArray = std::dynamic_pointer_cast<arrow20::Int64Array>(structArrowArray->field(0));
+        auto tzNameArray = std::dynamic_pointer_cast<arrow20::UInt16Array>(structArrowArray->field(1));
         EXPECT_EQ(timestampArray->Value(0), 42);
         EXPECT_EQ(tzNameArray->Value(0), 1);
     }
 
     {
-        auto structArrowArray = std::dynamic_pointer_cast<arrow::StructArray>(batch->column(5));
-        auto timestampArray = std::dynamic_pointer_cast<arrow::Int64Array>(structArrowArray->field(0));
-        auto tzNameArray = std::dynamic_pointer_cast<arrow::UInt16Array>(structArrowArray->field(1));
+        auto structArrowArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(5));
+        auto timestampArray = std::dynamic_pointer_cast<arrow20::Int64Array>(structArrowArray->field(0));
+        auto tzNameArray = std::dynamic_pointer_cast<arrow20::UInt16Array>(structArrowArray->field(1));
         EXPECT_EQ(timestampArray->Value(0), 42);
         EXPECT_EQ(tzNameArray->Value(0), 1);
     }
@@ -1211,49 +1210,49 @@ TEST(TArrowWriterTest, TzTypeName)
     CheckColumnNames(batch, columnNames);
 
     {
-        auto structArrowArray = std::dynamic_pointer_cast<arrow::StructArray>(batch->column(0));
-        auto timestampArray = std::dynamic_pointer_cast<arrow::UInt16Array>(structArrowArray->field(0));
-        auto tzNameArray = std::dynamic_pointer_cast<arrow::BinaryArray>(structArrowArray->field(1));
+        auto structArrowArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(0));
+        auto timestampArray = std::dynamic_pointer_cast<arrow20::UInt16Array>(structArrowArray->field(0));
+        auto tzNameArray = std::dynamic_pointer_cast<arrow20::BinaryArray>(structArrowArray->field(1));
         EXPECT_EQ(timestampArray->Value(0), 42);
         EXPECT_EQ(tzNameArray->Value(0), "Europe/Moscow");
     }
 
     {
-        auto structArrowArray = std::dynamic_pointer_cast<arrow::StructArray>(batch->column(1));
-        auto timestampArray = std::dynamic_pointer_cast<arrow::UInt32Array>(structArrowArray->field(0));
-        auto tzNameArray = std::dynamic_pointer_cast<arrow::BinaryArray>(structArrowArray->field(1));
+        auto structArrowArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(1));
+        auto timestampArray = std::dynamic_pointer_cast<arrow20::UInt32Array>(structArrowArray->field(0));
+        auto tzNameArray = std::dynamic_pointer_cast<arrow20::BinaryArray>(structArrowArray->field(1));
         EXPECT_EQ(timestampArray->Value(0), static_cast<ui32>(42));
         EXPECT_EQ(tzNameArray->Value(0), "Europe/Moscow");
     }
 
     {
-        auto structArrowArray = std::dynamic_pointer_cast<arrow::StructArray>(batch->column(2));
-        auto timestampArray = std::dynamic_pointer_cast<arrow::UInt64Array>(structArrowArray->field(0));
-        auto tzNameArray = std::dynamic_pointer_cast<arrow::BinaryArray>(structArrowArray->field(1));
+        auto structArrowArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(2));
+        auto timestampArray = std::dynamic_pointer_cast<arrow20::UInt64Array>(structArrowArray->field(0));
+        auto tzNameArray = std::dynamic_pointer_cast<arrow20::BinaryArray>(structArrowArray->field(1));
         EXPECT_EQ(timestampArray->Value(0), static_cast<ui64>(42));
         EXPECT_EQ(tzNameArray->Value(0), "Europe/Moscow");
     }
 
     {
-        auto structArrowArray = std::dynamic_pointer_cast<arrow::StructArray>(batch->column(3));
-        auto timestampArray = std::dynamic_pointer_cast<arrow::Int32Array>(structArrowArray->field(0));
-        auto tzNameArray = std::dynamic_pointer_cast<arrow::BinaryArray>(structArrowArray->field(1));
+        auto structArrowArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(3));
+        auto timestampArray = std::dynamic_pointer_cast<arrow20::Int32Array>(structArrowArray->field(0));
+        auto tzNameArray = std::dynamic_pointer_cast<arrow20::BinaryArray>(structArrowArray->field(1));
         EXPECT_EQ(timestampArray->Value(0), static_cast<i32>(42));
         EXPECT_EQ(tzNameArray->Value(0), "Europe/Moscow");
     }
 
     {
-        auto structArrowArray = std::dynamic_pointer_cast<arrow::StructArray>(batch->column(4));
-        auto timestampArray = std::dynamic_pointer_cast<arrow::Int64Array>(structArrowArray->field(0));
-        auto tzNameArray = std::dynamic_pointer_cast<arrow::BinaryArray>(structArrowArray->field(1));
+        auto structArrowArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(4));
+        auto timestampArray = std::dynamic_pointer_cast<arrow20::Int64Array>(structArrowArray->field(0));
+        auto tzNameArray = std::dynamic_pointer_cast<arrow20::BinaryArray>(structArrowArray->field(1));
         EXPECT_EQ(timestampArray->Value(0), 42);
         EXPECT_EQ(tzNameArray->Value(0), "Europe/Moscow");
     }
 
     {
-        auto structArrowArray = std::dynamic_pointer_cast<arrow::StructArray>(batch->column(5));
-        auto timestampArray = std::dynamic_pointer_cast<arrow::Int64Array>(structArrowArray->field(0));
-        auto tzNameArray = std::dynamic_pointer_cast<arrow::BinaryArray>(structArrowArray->field(1));
+        auto structArrowArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(5));
+        auto timestampArray = std::dynamic_pointer_cast<arrow20::Int64Array>(structArrowArray->field(0));
+        auto tzNameArray = std::dynamic_pointer_cast<arrow20::BinaryArray>(structArrowArray->field(1));
         EXPECT_EQ(timestampArray->Value(0), 42);
         EXPECT_EQ(tzNameArray->Value(0), "Europe/Moscow");
     }
@@ -1292,11 +1291,11 @@ TEST(TArrowWriterTest, TzRle)
 
     {
         EXPECT_TRUE(IsDictColumn(batch->column(0)));
-        auto dictArray = std::dynamic_pointer_cast<arrow::DictionaryArray>(batch->column(0));
+        auto dictArray = std::dynamic_pointer_cast<arrow20::DictionaryArray>(batch->column(0));
 
-        auto structArrowArray = std::dynamic_pointer_cast<arrow::StructArray>(dictArray->dictionary());
-        auto timestampArray = std::dynamic_pointer_cast<arrow::UInt16Array>(structArrowArray->field(0));
-        auto tzNameArray = std::dynamic_pointer_cast<arrow::BinaryArray>(structArrowArray->field(1));
+        auto structArrowArray = std::dynamic_pointer_cast<arrow20::StructArray>(dictArray->dictionary());
+        auto timestampArray = std::dynamic_pointer_cast<arrow20::UInt16Array>(structArrowArray->field(0));
+        auto tzNameArray = std::dynamic_pointer_cast<arrow20::BinaryArray>(structArrowArray->field(1));
         EXPECT_EQ(timestampArray->Value(0), 42);
         EXPECT_EQ(tzNameArray->Value(0), "Europe/Moscow");
     }
