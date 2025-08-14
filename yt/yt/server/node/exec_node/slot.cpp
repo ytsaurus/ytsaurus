@@ -20,6 +20,8 @@
 
 #include <yt/yt/core/misc/proc.h>
 
+#include <library/cpp/yt/assert/assert.h>
+
 #include <util/folder/dirut.h>
 
 #include <util/system/fs.h>
@@ -162,6 +164,9 @@ public:
                     YT_LOG_DEBUG("Testing delay before run job proxy");
                     TDelayedExecutor::WaitForDuration(*delay);
                 }
+
+                // Enrich the configuration with the environment-specific parameters.
+                JobEnvironment_->EnrichJobEnvironmentConfig(SlotIndex_, config);
 
                 YT_LOG_DEBUG("Start making job proxy config (JobId: %v)", jobId);
 
