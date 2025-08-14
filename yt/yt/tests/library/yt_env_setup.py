@@ -2355,11 +2355,13 @@ class YTEnvSetup(object):
                 for node in exec_nodes
             ]
 
-            responses = yt_commands.execute_batch(requests, driver=driver)
+            responses = yt_commands.execute_batch(requests, driver=driver, verbose=False)
             for node, response in zip(exec_nodes, responses):
                 response = yt_commands.get_batch_output(response)
 
                 def verify_resources_are_zero(type):
+                    if not yt_commands.are_job_resources_are_zero(response[type]):
+                        yt_commands.print_debug(responses)
                     assert yt_commands.are_job_resources_are_zero(response[type]), f"Node {node} has non-zero {type}: {response[type]}"
 
                 for type in resource_types:
