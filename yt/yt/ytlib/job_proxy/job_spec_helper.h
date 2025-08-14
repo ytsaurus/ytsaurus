@@ -28,6 +28,7 @@ struct IJobSpecHelper
     virtual int GetKeySwitchColumnCount() const = 0;
     virtual bool IsReaderInterruptionSupported() const = 0;
     virtual TJobTestingOptionsPtr GetJobTestingOptions() const = 0;
+    virtual bool HasSidecars() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobSpecHelper)

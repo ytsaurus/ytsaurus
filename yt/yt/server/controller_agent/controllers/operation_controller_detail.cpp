@@ -10323,18 +10323,51 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     jobSpec->set_start_queue_consumer_registration_manager(jobSpecConfig->StartQueueConsumerRegistrationManager);
 
-    // Pass normalized docker image reference into job spec.
-    if (jobSpecConfig->DockerImage) {
-        TDockerImageSpec dockerImageSpec(*jobSpecConfig->DockerImage, Config_->DockerRegistry);
+    auto normalizeDockerImage = [this] (const std::string& dockerImage, bool& needDockerAuth) {
+        std::optional<TString> normalizedImage;
+
+        TDockerImageSpec dockerImageSpec(TString(dockerImage), Config_->DockerRegistry);
         if (!dockerImageSpec.IsInternal || Config_->DockerRegistry->ForwardInternalImagesToJobSpecs) {
-            jobSpec->set_docker_image(dockerImageSpec.GetDockerImage());
+            normalizedImage = dockerImageSpec.GetDockerImage();
         }
-        if (dockerImageSpec.IsInternal && Config_->DockerRegistry->UseYtTokenForInternalRegistry) {
-            GenerateDockerAuthFromToken(SecureVault_, AuthenticatedUser_, jobSpec);
+
+        needDockerAuth |= dockerImageSpec.IsInternal && Config_->DockerRegistry->UseYtTokenForInternalRegistry;
+        return normalizedImage;
+    };
+
+    // Pass normalized docker image reference into job spec.
+    auto needDockerAuth = false;
+    if (jobSpecConfig->DockerImage) {
+        auto normalizedImageOpt = normalizeDockerImage(*jobSpecConfig->DockerImage, needDockerAuth);
+        if (normalizedImageOpt) {
+            jobSpec->set_docker_image(*normalizedImageOpt);
         }
     }
 
     jobSpec->set_enable_fixed_user_id(jobSpecConfig->EnableFixedUserId);
+
+    auto* protoSidecars = jobSpec->mutable_sidecars();
+    for (const auto& [sidecarName, sidecarSpec]: jobSpecConfig->Sidecars) {
+        auto& protoSidecar = (*protoSidecars)[sidecarName];
+        ToProto(&protoSidecar, *sidecarSpec);
+
+        if (sidecarSpec->DockerImage) {
+            auto normalizedImageOpt = normalizeDockerImage(*sidecarSpec->DockerImage, needDockerAuth);
+            if (normalizedImageOpt) {
+                protoSidecar.set_docker_image(*normalizedImageOpt);
+            } else {
+                // ToProto(..) sets the docker_image as-is, but we want either the normalized one,
+                // or no image at all (same as with the main job), so we clear it in this case.
+                protoSidecar.clear_docker_image();
+            }
+        }
+    }
+
+    // If any of the Docker images from the main job or from the sidecars requires Docker auth,
+    // generate it now.
+    if (needDockerAuth) {
+        GenerateDockerAuthFromToken(SecureVault_, AuthenticatedUser_, jobSpec);
+    }
 }
 
 const std::vector<TUserFile>& TOperationControllerBase::GetUserFiles(const TUserJobSpecPtr& userJobSpec) const

@@ -1,18 +1,24 @@
 #include "environment.h"
 #include "private.h"
+#include "job.h"
 
 #include <yt/yt/server/lib/exec_node/config.h>
 #include <yt/yt/server/lib/exec_node/gpu_helpers.h>
+#include <yt/yt/server/lib/exec_node/helpers.h>
 
 #include <yt/yt/server/tools/proc.h>
 #include <yt/yt/server/tools/tools.h>
 
 #include <yt/yt/ytlib/job_proxy/private.h>
+#include <yt/yt/ytlib/job_proxy/job_spec_helper.h>
+
+#include <yt/yt/ytlib/scheduler/config.h>
 
 #include <yt/yt/library/containers/public.h>
 
 #include <util/system/fs.h>
 #include <util/system/user.h>
+#include <util/string/split.h>
 
 #ifdef _linux_
 #include <yt/yt/library/containers/cgroup.h>
@@ -22,6 +28,7 @@
 #endif
 
 #include <yt/yt/library/containers/cri/config.h>
+#include <yt/yt/library/containers/cri/image_cache.h>
 
 #include <yt/yt/library/process/process.h>
 
@@ -31,6 +38,10 @@
 #include <yt/yt/core/misc/proc.h>
 
 #include <yt/yt/core/ytree/convert.h>
+
+#include <yt/yt/core/concurrency/action_queue.h>
+
+#include <library/cpp/yt/assert/assert.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
@@ -45,6 +56,7 @@ using namespace NContainers;
 using namespace NExecNode;
 using namespace NJobAgent;
 using namespace NNet;
+using namespace NScheduler;
 using namespace NTools;
 using namespace NYTree;
 
@@ -387,14 +399,16 @@ public:
                 "mkfifo " + slotCorePipeFile + " && " +
                 "cat >" + slotCorePipeFile;
             auto coreHandler = "bash -c \'" + bashCoreHandler + "\'";
-            YT_LOG_DEBUG("Enabling core forwarding for Porto container (CoreHandler: %v)",
+            YT_LOG_DEBUG(
+                "Enabling core forwarding for Porto container (CoreHandler: %v)",
                 coreHandler);
             launcher->SetCoreDumpHandler(coreHandler);
 
             if (Options_.EnableCudaGpuCoreDump) {
                 auto slotGpuCorePipeFile = NFS::CombinePaths(slotCoreDirectory, CudaGpuCoreDumpPipeName);
                 auto gpuCorePipeFile = NFS::CombinePaths(coreDirectory, CudaGpuCoreDumpPipeName);
-                YT_LOG_DEBUG("Creating pipe for GPU core dumps (SlotGpuCorePipeFile: %v, GpuCorePipeFile: %v)",
+                YT_LOG_DEBUG(
+                    "Creating pipe for GPU core dumps (SlotGpuCorePipeFile: %v, GpuCorePipeFile: %v)",
                     slotGpuCorePipeFile,
                     gpuCorePipeFile);
                 if (mkfifo(gpuCorePipeFile.c_str(), 0666) == -1) {
@@ -428,7 +442,7 @@ public:
         launcher->SetNetworkInterface(TString(JobNetworkInterface));
 
         launcher->SetEnablePorto(Options_.EnablePorto);
-        launcher->SetIsolate(Options_.EnablePorto != EEnablePorto::Full);
+        launcher->SetIsolate(Options_.EnablePorto != NContainers::EEnablePorto::Full);
 
         if (Options_.EnablePortoMemoryTracking) {
             // NB(psushin): typically we don't use memory cgroups for memory usage tracking, since memory cgroups are expensive and
@@ -643,6 +657,16 @@ public:
             options,
             SlotContainerName_,
             PortoExecutor_);
+    }
+
+    void StartSidecars(const NControllerAgent::NProto::TJobSpecExt& /*jobSpecExt*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void KillSidecars() override
+    {
+        YT_UNIMPLEMENTED();
     }
 
 private:
@@ -869,6 +893,16 @@ public:
 
         return New<TSimpleUserJobEnvironment>();
     }
+
+    void StartSidecars(const NControllerAgent::NProto::TJobSpecExt& /*jobSpecExt*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void KillSidecars() override
+    {
+        YT_UNIMPLEMENTED();
+    }
 };
 
 DECLARE_REFCOUNTED_CLASS(TSimpleJobProxyEnvironment)
@@ -1076,12 +1110,44 @@ DEFINE_REFCOUNTED_TYPE(TCriUserJobEnvironment)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCriJobProxyConfig
+{
+    TCriJobProxyConfig() = default;
+    explicit TCriJobProxyConfig(const TJobProxyInternalConfigPtr& config)
+        : DockerImage(config->DockerImage)
+        , SlotPath(config->SlotPath)
+        , Binds(config->Binds)
+    { }
+
+    std::optional<TString> DockerImage;
+    TString SlotPath;
+    std::vector<TBindConfigPtr> Binds;
+};
+
+struct TSidecarCriConfig
+{
+    TSidecarJobSpecPtr JobSpec;
+    NCri::TCriContainerSpecPtr ContainerSpec;
+    TString Command;
+};
+
 class TCriJobProxyEnvironment
     : public IJobProxyEnvironment
 {
 public:
-    explicit TCriJobProxyEnvironment(TCriJobEnvironmentConfigPtr config)
-        : Config_(std::move(config))
+    TCriJobProxyEnvironment(
+        TCriJobProxyConfig criJobProxyConfig,
+        TCriJobEnvironmentConfigPtr criJobEnvironmentConfig,
+        IInvokerPtr invoker,
+        const std::string& jobProxySlotPath,
+        std::function<void(TError)> failedSidecarCallback)
+        : CriJobProxyConfig_(std::move(criJobProxyConfig))
+        , CriJobEnvironmentConfig_(std::move(criJobEnvironmentConfig))
+        , Invoker_(std::move(invoker))
+        , ProcessWorkingDirectory_(NFS::CombinePaths(TString(jobProxySlotPath), GetSandboxRelPath(ESandboxKind::User)))
+        , FailedSidecarCallback_(std::move(failedSidecarCallback))
+        , Executor_(CreateCriExecutor(CriJobEnvironmentConfig_->CriExecutor))
+        , ImageCache_(NContainers::NCri::CreateCriImageCache(CriJobEnvironmentConfig_->CriImageCache, Executor_))
     { }
 
     void SetCpuGuarantee(double /*value*/) override
@@ -1175,8 +1241,233 @@ public:
         return New<TCriUserJobEnvironment>(this);
     }
 
+    void PrepareSidecar(
+        const std::string& sidecarName,
+        const NControllerAgent::NProto::TSidecarJobSpec& sidecarJobSpecProto)
+    {
+        const auto& podDescriptor = CriJobEnvironmentConfig_->PodDescriptor;
+        const auto& podSpec = CriJobEnvironmentConfig_->PodSpec;
+
+        // Prepare the sidecar job spec.
+        auto sidecarSpec = New<TSidecarJobSpec>();
+        FromProto(sidecarSpec.Get(), sidecarJobSpecProto);
+
+        // Prepare the sidecar container spec.
+        auto containerSpec = New<NCri::TCriContainerSpec>();
+
+        containerSpec->Name = Format("sidecar-%v-%v-%v", podDescriptor->Name, podSpec->Name, sidecarName);
+
+        // If no Docker image is provided, use the one from the main job; fallback to the
+        // job proxy image if none is available.
+        containerSpec->Image.Image = sidecarSpec->DockerImage.value_or(
+            CriJobProxyConfig_.DockerImage.value_or(
+                CriJobEnvironmentConfig_->JobProxyImage));
+
+        containerSpec->Resources.CpuLimit = sidecarSpec->CpuLimit;
+        containerSpec->Resources.MemoryLimit = sidecarSpec->MemoryLimit;
+
+        if (const auto& cpusetCpu = podSpec->Resources.CpusetCpus; cpusetCpu != EmptyCpuSet) {
+            containerSpec->Resources.CpusetCpus = cpusetCpu;
+        }
+
+        containerSpec->CapabilitiesToAdd.push_back("SYS_PTRACE");
+
+        containerSpec->BindMounts.push_back(NCri::TCriBindMount{
+            .ContainerPath = CriJobProxyConfig_.SlotPath,
+            .HostPath = CriJobProxyConfig_.SlotPath,
+            .ReadOnly = false,
+        });
+
+        containerSpec->BindMounts.push_back(NCri::TCriBindMount{
+            .ContainerPath = "/slot",
+            .HostPath = CriJobProxyConfig_.SlotPath,
+            .ReadOnly = false,
+        });
+
+        for (const auto& bindMount: CriJobEnvironmentConfig_->JobProxyBindMounts) {
+            containerSpec->BindMounts.push_back(NCri::TCriBindMount{
+                .ContainerPath = bindMount->InternalPath,
+                .HostPath = bindMount->ExternalPath,
+                .ReadOnly = bindMount->ReadOnly,
+            });
+        }
+
+        for (const auto& bind : CriJobProxyConfig_.Binds) {
+            containerSpec->BindMounts.push_back(NCri::TCriBindMount{
+                .ContainerPath = bind->InternalPath,
+                .HostPath = bind->ExternalPath,
+                .ReadOnly = bind->ReadOnly,
+            });
+        }
+
+        containerSpec->Credentials.Uid = ::getuid();
+        containerSpec->Credentials.Gid = ::getgid();
+
+        // More or less the same logic as in spawning of the job proxy, but it may change
+        // pretty drastically when we get to the actual resource management implementation step.
+        if (CriJobEnvironmentConfig_->GpuConfig != nullptr) {
+            const auto& gpuContainerConfig = CriJobEnvironmentConfig_->GpuConfig;
+            containerSpec->Environment["NVIDIA_DRIVER_CAPABILITIES"] = gpuContainerConfig->NvidiaDriverCapabilities;
+            containerSpec->Environment["NVIDIA_VISIBLE_DEVICES"] = gpuContainerConfig->NvidiaVisibleDevices;
+
+            for (const auto& devicePath : gpuContainerConfig->InfinibandDevices) {
+                containerSpec->BindDevices.push_back(NCri::TCriBindDevice{
+                    .ContainerPath = TString(devicePath),
+                    .HostPath = TString(devicePath),
+                    .Permissions = NCri::ECriBindDevicePermissions::Read | NCri::ECriBindDevicePermissions::Write,
+                });
+            }
+
+            if (!gpuContainerConfig->InfinibandDevices.empty()) {
+                YT_LOG_DEBUG(
+                    "Binding InfiniBand devices to sidecar container (Devices: %v)",
+                    gpuContainerConfig->InfinibandDevices);
+
+                // Code using InfiniBand devices usually requires CAP_IPC_LOCK.
+                // See https://catalog.ngc.nvidia.com/orgs/hpc/containers/preflightcheck.
+                containerSpec->CapabilitiesToAdd.push_back("IPC_LOCK");
+            }
+        }
+
+        // Save them for later use.
+        RunningSidecars_[sidecarName] = TRunningSidecar{
+            .Config = TSidecarCriConfig{
+                sidecarSpec,
+                std::move(containerSpec),
+                sidecarSpec->Command,
+            },
+        };
+    }
+
+    void StartSidecars(const NControllerAgent::NProto::TJobSpecExt& jobSpecExt) override
+    {
+        if (!jobSpecExt.has_user_job_spec()) {
+            return;
+        }
+
+        for (const auto& [name, sidecar]: jobSpecExt.user_job_spec().sidecars()) {
+            PrepareSidecar(name, sidecar);
+            StartSidecar(name);
+        }
+    }
+
+    void StartSidecar(const std::string& name)
+    {
+        auto& sidecar = GetOrCrash(RunningSidecars_, name);
+
+        // The given command is passed into the containerd as:
+        // - Command: /bin/bash
+        // - Args: ["-c", "THE_COMMAND"]
+        auto process = Executor_->CreateProcess(
+            "/bin/bash",
+            sidecar.Config.ContainerSpec,
+            CriJobEnvironmentConfig_->PodDescriptor,
+            CriJobEnvironmentConfig_->PodSpec
+        );
+        process->AddArguments(std::vector<TString>{"-c", sidecar.Config.Command});
+        process->SetWorkingDirectory(ProcessWorkingDirectory_);
+        sidecar.Process = process;
+
+        auto sidecarFuture = BIND([process = std::move(process)] {
+                return process->Spawn();
+            })
+            // This Invoker is cached in Spawn via CurrentInvoker().
+            .AsyncVia(Invoker_)
+            .Run();
+        sidecar.FutureCallbackCookie = sidecarFuture.Subscribe(BIND_NO_PROPAGATE(
+            &TCriJobProxyEnvironment::OnSidecarFinished,
+            MakeStrong(this),
+            name
+        ));
+        sidecar.Future = std::move(sidecarFuture);
+    }
+
+    void OnSidecarFinished(const std::string& sidecarName, const TErrorOr<void> &exitValue)
+    {
+        YT_LOG_INFO(
+            "Sidecar has finished the execution (SidecarName: %v, ExitValue: %v)",
+            sidecarName,
+            exitValue);
+
+        // When a sidecar exits, we need to take an appropriate action depending on the RestartPolicy.
+        const auto restartPolicy = GetOrCrash(RunningSidecars_, sidecarName).Config.JobSpec->RestartPolicy;
+        auto restartSidecar = [this, &sidecarName, restartPolicy, &exitValue] {
+            YT_LOG_DEBUG(
+                "Restarting the sidecar as part of the exit event processing (SidecarName: %v, RestartPolicy: %v, ExitValue: %v)",
+                sidecarName,
+                restartPolicy,
+                exitValue
+            );
+            StartSidecar(sidecarName);
+        };
+
+        switch (restartPolicy) {
+            case ESidecarRestartPolicy::Always:
+                // Restart in any case.
+                restartSidecar();
+                break;
+            case ESidecarRestartPolicy::OnFailure:
+                // Restart only if sidecar failed.
+                if (exitValue.IsOK()) {
+                    YT_LOG_DEBUG(
+                        "Not restarting the sidecar (SidecarName: %v)",
+                        sidecarName);
+                } else {
+                    restartSidecar();
+                }
+                break;
+            case ESidecarRestartPolicy::FailOnError:
+                // Do not restart in case of success, fail the whole job otherwise.
+                if (exitValue.IsOK()) {
+                    YT_LOG_DEBUG(
+                        "Not restarting the sidecar (SidecarName: %v)",
+                        sidecarName);
+                    break;
+                }
+
+                YT_LOG_DEBUG(
+                    "Sidecar has failed, exiting the main job (SidecarName: %v, RestartPolicy: %v, ExitValue: %v)",
+                    sidecarName,
+                    restartPolicy,
+                    exitValue
+                );
+                KillSidecars();
+                FailedSidecarCallback_(TError("Failing the job because sidecar with FailOnError policy has failed")
+                    << TErrorAttribute("sidecar_name", sidecarName)
+                    << TErrorAttribute("sidecar_exit_value", exitValue));
+                break;
+        }
+    }
+
+    void KillSidecars() override
+    {
+        for (auto& [name, sidecar]: RunningSidecars_) {
+            if (!sidecar.Process->IsFinished()) {
+                YT_LOG_DEBUG("Killing a CRI sidecar (Name: %v)", name);
+                sidecar.Future.Unsubscribe(sidecar.FutureCallbackCookie);
+                sidecar.Process->Kill(SIGKILL);
+            }
+        }
+    }
+
 private:
-    const TCriJobEnvironmentConfigPtr Config_;
+    const TCriJobProxyConfig CriJobProxyConfig_;
+    const TCriJobEnvironmentConfigPtr CriJobEnvironmentConfig_;
+    const IInvokerPtr Invoker_;
+    const TString ProcessWorkingDirectory_;
+    const std::function<void(TError)> FailedSidecarCallback_;
+    const NContainers::NCri::ICriExecutorPtr Executor_;
+    const NContainers::NCri::ICriImageCachePtr ImageCache_;
+
+    struct TRunningSidecar
+    {
+        TSidecarCriConfig Config;
+        TProcessBasePtr Process;
+        TFuture<void> Future;
+        TFutureCallbackCookie FutureCallbackCookie;
+    };
+
+    THashMap<TString, TRunningSidecar> RunningSidecars_;
 
     NCGroups::TSelfCGroupsStatisticsFetcher StatisticsFetcher_;
 };
@@ -1186,26 +1477,35 @@ DEFINE_REFCOUNTED_TYPE(TCriJobProxyEnvironment)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobProxyEnvironmentPtr CreateJobProxyEnvironment(TJobEnvironmentConfig config)
+IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
+    const TJobProxyInternalConfigPtr& config,
+    IInvokerPtr invoker,
+    const std::string& jobProxySlotPath,
+    std::function<void(TError)> failedSidecarCallback)
 {
-    switch (config.GetCurrentType()) {
+    switch (config->JobEnvironment.GetCurrentType()) {
 #ifdef _linux_
         case EJobEnvironmentType::Porto:
-            return New<TPortoJobProxyEnvironment>(config.TryGetConcrete<TPortoJobEnvironmentConfig>());
+            return New<TPortoJobProxyEnvironment>(config->JobEnvironment.TryGetConcrete<TPortoJobEnvironmentConfig>());
 #endif
 
         case EJobEnvironmentType::Simple:
             return New<TSimpleJobProxyEnvironment>();
 
         case EJobEnvironmentType::Testing:
-            return New<TTestingJobProxyEnvironment>(config.TryGetConcrete<TTestingJobEnvironmentConfig>());
+            return New<TTestingJobProxyEnvironment>(config->JobEnvironment.TryGetConcrete<TTestingJobEnvironmentConfig>());
 
         case EJobEnvironmentType::Cri:
-            return New<TCriJobProxyEnvironment>(config.TryGetConcrete<TCriJobEnvironmentConfig>());
+            return New<TCriJobProxyEnvironment>(
+                TCriJobProxyConfig(config),
+                config->JobEnvironment.TryGetConcrete<TCriJobEnvironmentConfig>(),
+                std::move(invoker),
+                jobProxySlotPath,
+                std::move(failedSidecarCallback));
 
         default:
             THROW_ERROR_EXCEPTION("Unable to create resource controller for %Qlv environment",
-                config.GetCurrentType());
+                config->JobEnvironment.GetCurrentType());
     }
 }
 

@@ -167,6 +167,23 @@ message TNetworkProject
     required bool disable_network = 3;
 }
 
+// Specification of the job which will be running in a sidecar with the main job.
+message TSidecarJobSpec
+{
+    // The user command to be executed.
+    required string command = 1;
+
+    // CPU limit; not supported yet.
+    optional double cpu_limit = 2 [default = 0];
+
+    // Hard memory limit for user process, in bytes; not supported yet.
+    optional int64 memory_limit = 3 [default = 0];
+
+    optional string docker_image = 4;
+
+    required int32 restart_policy = 5; // ESidecarRestartPolicy
+}
+
 // Specification for starting user code during a job.
 message TUserJobSpec
 {
@@ -328,6 +345,8 @@ message TUserJobSpec
     optional TNetworkProject network_project = 80;
 
     optional bool enable_fixed_user_id = 83;
+
+    map<string, TSidecarJobSpec> sidecars = 84;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
