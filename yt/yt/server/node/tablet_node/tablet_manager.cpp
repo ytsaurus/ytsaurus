@@ -2672,13 +2672,30 @@ private:
             }
         }
 
-        std::vector<std::pair<TStoreId, EStoreFlushState>> incompleteStoreFlushStates;
+        const auto& rowCache = tablet->GetRowCache();
+        bool needResetRowCache = false;
+
         std::vector<TStoreId> removedStoreIds;
         for (const auto& descriptor : request->stores_to_remove()) {
             auto storeId = FromProto<TStoreId>(descriptor.store_id());
             removedStoreIds.push_back(storeId);
 
             auto store = tablet->GetStore(storeId);
+            if (store->IsDynamic() && store->IsSorted() && rowCache) {
+                auto sortedDynamicStore = store->AsSortedDynamic();
+                auto storeFlushIndex = sortedDynamicStore->GetFlushIndex();
+                auto lastFlushedIndex = rowCache->GetLastFlushedIndex();
+                if (lastFlushedIndex < storeFlushIndex) {
+                    YT_LOG_DEBUG("Store has not been flushed to row cache (%v, StoreId: %v, LastFlushedIndex: %v, StoreFlushIndex: %v)",
+                        tablet->GetLoggingTag(),
+                        storeId,
+                        lastFlushedIndex,
+                        storeFlushIndex);
+
+                    needResetRowCache = true;
+                }
+            }
+
             storeManager->RemoveStore(store);
 
             YT_LOG_DEBUG("Store removed (%v, StoreId: %v, DynamicMemoryUsage: %v)",
@@ -2700,20 +2717,10 @@ private:
                         hunkChunk->GetStoreRefCount());
                 }
             }
-            if (store->IsDynamic()) {
-                auto dynamicStore = store->AsDynamic();
-                if (dynamicStore->GetFlushState() != EStoreFlushState::Complete) {
-                    incompleteStoreFlushStates.push_back({dynamicStore->GetId(), dynamicStore->GetFlushState()});
-                }
-            }
         }
 
-        if (const auto& rowCache = tablet->GetRowCache(); rowCache && !incompleteStoreFlushStates.empty()) {
+        if (needResetRowCache) {
             YT_VERIFY(!IsLeader());
-
-            YT_LOG_DEBUG("Some stores had not been flushed to row cache before their destruction was due on follower (StoreFlushStates: %v)",
-                incompleteStoreFlushStates);
-
             tablet->ResetRowCache(Slot_);
         }
 
