@@ -13,8 +13,9 @@ namespace NYT::NChunkServer {
 NCypressServer::INodeTypeHandlerPtr CreateChunkLocationMapTypeHandler(
     NCellMaster::TBootstrap* bootstrap);
 
-NCypressServer::INodeTypeHandlerPtr CreateLostVitalChunksSampleMapTypeHandler(
-    NCellMaster::TBootstrap* bootstrap);
+NCypressServer::INodeTypeHandlerPtr CreateChunksSampleMapTypeHandler(
+    NCellMaster::TBootstrap* bootstrap,
+    NObjectClient::EObjectType type);
 
 NCypressServer::INodeTypeHandlerPtr CreateChunkMapTypeHandler(
     NCellMaster::TBootstrap* bootstrap,

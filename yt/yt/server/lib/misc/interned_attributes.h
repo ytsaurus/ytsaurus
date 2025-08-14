@@ -138,6 +138,7 @@
     XX(CustomRuntimeData, custom_runtime_data) \
     XX(CypressTransaction, cypress_transaction) \
     XX(DataCenter, data_center) \
+    XX(DataMissingChunkCount, data_missing_chunk_count) \
     XX(DataWeight, data_weight) \
     XX(Deadline, deadline) \
     XX(Decommissioned, decommissioned) \
@@ -384,6 +385,7 @@
     XX(ParentId, parent_id) \
     XX(ParentIds, parent_ids) \
     XX(ParentName, parent_name) \
+    XX(ParityMissingChunkCount, parity_missing_chunk_count) \
     XX(PartLossTime, part_loss_time) \
     XX(PartitionedBy, partitioned_by) \
     XX(Partitions, partitions) \

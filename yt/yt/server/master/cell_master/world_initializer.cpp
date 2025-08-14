@@ -578,11 +578,19 @@ private:
 
             // COMPAT(koloshmet)
             const auto& dynamicConfig = Bootstrap_->GetConfigManager()->GetConfig();
-            if (dynamicConfig->CellMaster->CreateLostVitalChunksSampleMap) {
+            if (dynamicConfig->CellMaster->CreateVirtualChunksSampleMaps) {
                 ScheduleCreateNode(
                     "//sys/lost_vital_chunks_sample",
                     transactionId,
                     EObjectType::LostVitalChunksSampleMap);
+                ScheduleCreateNode(
+                    "//sys/data_missing_chunks_sample",
+                    transactionId,
+                    EObjectType::DataMissingChunksSampleMap);
+                ScheduleCreateNode(
+                    "//sys/parity_missing_chunks_sample",
+                    transactionId,
+                    EObjectType::ParityMissingChunksSampleMap);
             }
 
             ScheduleCreateNode(

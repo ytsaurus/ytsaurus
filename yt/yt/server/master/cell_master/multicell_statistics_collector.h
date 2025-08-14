@@ -58,7 +58,7 @@ class TMulticellNodeStatistics;
 
 namespace NYT::NChunkServer {
 
-class TLostVitalChunksSample;
+class TChunksSamples;
 
 } // namespace NYT::NChunkServer
 
@@ -74,8 +74,8 @@ struct IMulticellStatisticsCollector
     virtual const TMulticellNodeStatistics& GetMulticellNodeStatistics() = 0;
     virtual TMulticellNodeStatistics& GetMutableMulticellNodeStatistics() = 0;
 
-    virtual const NChunkServer::TLostVitalChunksSample& GetLostVitalChunksSample() = 0;
-    virtual NChunkServer::TLostVitalChunksSample& GetMutableLostVitalChunksSample() = 0;
+    virtual const NChunkServer::TChunksSamples& GetChunksSamples() = 0;
+    virtual NChunkServer::TChunksSamples& GetMutableChunksSamples() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMulticellStatisticsCollector);

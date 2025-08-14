@@ -956,8 +956,8 @@ class TestPendingRestartNodeDisposal(TestNodePendingRestartBase):
 
         # general statistics
         assert chunk_id in ls("//sys/replica_temporarily_unavailable_chunks")
-        assert len(ls("//sys/data_missing_chunks")) == 0
-        assert len(ls("//sys/parity_missing_chunks")) == 0
+        assert get("//sys/@data_missing_chunk_count") == 0
+        assert get("//sys/@parity_missing_chunk_count") == 0
 
         for node in nodes:
             wait(lambda: get(f"//sys/cluster_nodes/{node}/@state") == "online")
@@ -972,8 +972,8 @@ class TestPendingRestartNodeDisposal(TestNodePendingRestartBase):
 
         # general statistics
         assert chunk_id in ls("//sys/replica_temporarily_unavailable_chunks")
-        assert len(ls("//sys/data_missing_chunks")) == 0
-        assert len(ls("//sys/parity_missing_chunks")) == 0
+        assert get("//sys/@data_missing_chunk_count") == 0
+        assert get("//sys/@parity_missing_chunk_count") == 0
 
         wait(lambda: chunk_id not in ls("//sys/replica_temporarily_unavailable_chunks"))
 
@@ -1174,84 +1174,6 @@ class TestChunkServerMulticell(TestChunkServer):
                 for chunk_id in get("{0}/@chunk_ids".format(changelog_path)):
                     assert get("#{}/@native_cell_tag".format(chunk_id)) == expected_cell_tag
 
-    @authors("koloshmet")
-    def test_lost_vital_chunks_sample(self):
-        if self.ENABLE_TMP_PORTAL:
-            # TODO(koloshmet): fix me.
-            pytest.skip("Test is broken with portals")
-
-        set("//sys/@config/chunk_manager/lost_vital_chunks_sample_update_period", 1000)
-
-        create("table", "//tmp/t0", attributes={"external": False})
-        create("table", "//tmp/t1", attributes={"external_cell_tag": 11})
-        create("table", "//tmp/t2", attributes={"external_cell_tag": 12})
-        create("table", "//tmp/t3", attributes={"external_cell_tag": 11})
-
-        write_table("//tmp/t0", {"a": "b"})
-        write_table("//tmp/t1", {"c": "d"})
-        write_table("//tmp/t2", {"e": "f"})
-        write_table("//tmp/t3", {"g": "h"})
-
-        chunk_id0 = get_singular_chunk_id("//tmp/t0")
-        chunk_id1 = get_singular_chunk_id("//tmp/t1")
-        chunk_id2 = get_singular_chunk_id("//tmp/t2")
-        chunk_id3 = get_singular_chunk_id("//tmp/t3")
-
-        nodes = list(get("//sys/cluster_nodes"))
-        for node in nodes:
-            set_node_banned(node, True)
-
-        wait(lambda: get("//sys/@lost_vital_chunk_count") == 4)
-        wait(lambda: get("//sys/lost_vital_chunks_sample/@count") == 4)
-
-        lost_vital_chunks_sample = ls("//sys/lost_vital_chunks_sample")
-        assert chunk_id0 in lost_vital_chunks_sample
-        assert chunk_id1 in lost_vital_chunks_sample
-        assert chunk_id2 in lost_vital_chunks_sample
-        assert chunk_id3 in lost_vital_chunks_sample
-
-        lost_vital_chunks_sample = get("//sys/lost_vital_chunks_sample")
-        for chunk in lost_vital_chunks_sample:
-            assert lost_vital_chunks_sample[chunk] == yson.YsonEntity()
-        assert chunk_id0 in lost_vital_chunks_sample
-        assert chunk_id1 in lost_vital_chunks_sample
-        assert chunk_id2 in lost_vital_chunks_sample
-        assert chunk_id3 in lost_vital_chunks_sample
-
-        assert get(f"//sys/lost_vital_chunks_sample/{chunk_id0}/@id") == chunk_id0
-
-        lost_vital_chunks_sample = ls("//sys/lost_vital_chunks_sample", attributes=["id"])
-        lost_vital_chunks_sample_list = []
-        for chunk in lost_vital_chunks_sample:
-            assert chunk.attributes.get("id") == str(chunk)
-            lost_vital_chunks_sample_list.append(str(chunk))
-        assert chunk_id0 in lost_vital_chunks_sample_list
-        assert chunk_id1 in lost_vital_chunks_sample_list
-        assert chunk_id2 in lost_vital_chunks_sample_list
-        assert chunk_id3 in lost_vital_chunks_sample_list
-
-        lost_vital_chunks_sample = get("//sys/lost_vital_chunks_sample", attributes=["id"])
-        for chunk in lost_vital_chunks_sample:
-            assert lost_vital_chunks_sample[chunk].attributes.get("id") == chunk
-        assert chunk_id0 in lost_vital_chunks_sample
-        assert chunk_id1 in lost_vital_chunks_sample
-        assert chunk_id2 in lost_vital_chunks_sample
-        assert chunk_id3 in lost_vital_chunks_sample
-
-        set("//sys/@config/chunk_manager/max_lost_vital_chunks_sample_size_per_cell", 1)
-
-        wait(lambda: get("//sys/lost_vital_chunks_sample/@count") == 3)
-        assert get("//sys/@lost_vital_chunk_count") == 4
-        lost_vital_chunks_sample = get("//sys/lost_vital_chunks_sample")
-        assert chunk_id0 in lost_vital_chunks_sample and chunk_id2 in lost_vital_chunks_sample
-        assert chunk_id1 in lost_vital_chunks_sample or chunk_id3 in lost_vital_chunks_sample
-
-        for node in nodes:
-            set_node_banned(node, False)
-
-        wait(lambda: get("//sys/@lost_vital_chunk_count") == 0)
-        wait(lambda: get("//sys/lost_vital_chunks_sample/@count") == 0)
-
     @authors("cherepashka")
     def test_revoke_chunk_host_role_validation(self):
         set("//sys/@config/multicell_manager/allow_master_cell_role_invariant_check", True)
@@ -1275,6 +1197,122 @@ class TestChunkServerPortal(TestChunkServerMulticell):
         "12": {"roles": ["chunk_host"]},
         "13": {"roles": ["chunk_host"]},
     }
+
+
+##################################################################
+
+
+class TestChunksSamples(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    NUM_MASTERS = 3
+    NUM_SECONDARY_MASTER_CELLS = 3
+    NUM_NODES = 9
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "store_locations": [{"disk_health_checker": {"check_period": 1000}}],
+        },
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "chunk_manager": {
+            "chunk_samples_update_period": 1000
+        }
+    }
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host", "cypress_node_host"]},
+    }
+
+    def prepare_tables(self, attributes):
+        create("table", "//tmp/t0", attributes={"external": False} | attributes)
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 11} | attributes)
+        create("table", "//tmp/t2", attributes={"external_cell_tag": 12} | attributes)
+        create("table", "//tmp/t3", attributes={"external_cell_tag": 11} | attributes)
+
+        write_table("//tmp/t0", {"a": "b"})
+        write_table("//tmp/t1", {"c": "d"})
+        write_table("//tmp/t2", {"e": "f"})
+        write_table("//tmp/t3", {"g": "h"})
+
+        chunks = [
+            get_singular_chunk_id("//tmp/t0"),
+            get_singular_chunk_id("//tmp/t1"),
+            get_singular_chunk_id("//tmp/t2"),
+            get_singular_chunk_id("//tmp/t3")
+        ]
+
+        return chunks
+
+    def check_all_chunks_in_list(self, chunks, list_name):
+        wait(lambda: get(f"//sys/@{list_name}_chunk_count") == 4)
+        wait(lambda: get(f"//sys/{list_name}_chunks_sample/@count") == 4)
+
+        chunks_sample = get(f"//sys/{list_name}_chunks_sample")
+        chunks_sample_ids = get(f"//sys/{list_name}_chunks_sample", attributes=["id"])
+
+        assert len(chunks_sample) == 4
+        assert len(chunks_sample_ids) == 4
+
+        for chunk in chunks:
+            assert chunk in chunks_sample
+            assert chunk in chunks_sample_ids
+            assert get(f"//sys/{list_name}_chunks_sample/{chunk}/@id") == chunk
+
+    def check_chunks_in_limited_list(self, chunks, list_name):
+        wait(lambda: get(f"//sys/@{list_name}_chunk_count") == 4)
+        wait(lambda: get(f"//sys/{list_name}_chunks_sample/@count") == 3)
+
+        chunks_sample = get(f"//sys/{list_name}_chunks_sample")
+
+        assert chunks[0] in chunks_sample and chunks[2] in chunks_sample
+        assert chunks[1] in chunks_sample or chunks[3] in chunks_sample
+
+    def check_no_chunks_in_list(self, list_name):
+        wait(lambda: get(f"//sys/@{list_name}_chunk_count") == 0)
+        wait(lambda: get(f"//sys/{list_name}_chunks_sample/@count") == 0)
+
+    @authors("koloshmet")
+    def test_lost_vital_chunks_sample(self):
+        chunks = self.prepare_tables({})
+
+        nodes = list(get("//sys/cluster_nodes"))
+        for node in nodes:
+            set_node_banned(node, True)
+
+        self.check_all_chunks_in_list(chunks, "lost_vital")
+
+        set("//sys/@config/chunk_manager/max_chunks_sample_size_per_cell", 1)
+
+        self.check_chunks_in_limited_list(chunks, "lost_vital")
+
+        for node in nodes:
+            set_node_banned(node, False)
+
+        self.check_no_chunks_in_list("lost_vital")
+
+    @authors("grphil")
+    def test_data_and_parity_missing_chunks_samples(self):
+        chunks = self.prepare_tables({"erasure_codec": "reed_solomon_3_3"})
+
+        nodes = list(get("//sys/cluster_nodes"))
+        for node in nodes:
+            set_node_banned(node, True)
+
+        self.check_all_chunks_in_list(chunks, "data_missing")
+        self.check_all_chunks_in_list(chunks, "parity_missing")
+
+        set("//sys/@config/chunk_manager/max_chunks_sample_size_per_cell", 1)
+
+        self.check_chunks_in_limited_list(chunks, "data_missing")
+        self.check_chunks_in_limited_list(chunks, "parity_missing")
+
+        for node in nodes:
+            set_node_banned(node, False)
+
+        self.check_no_chunks_in_list("data_missing")
+        self.check_no_chunks_in_list("parity_missing")
 
 
 ##################################################################

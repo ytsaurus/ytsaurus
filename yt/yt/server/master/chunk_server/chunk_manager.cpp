@@ -6633,36 +6633,69 @@ private:
         return channels;
     }
 
-    TFuture<i64> GetCellLostVitalChunkCount() override
+    TFuture<NCellMaster::NProto::TCellStatistics> GetCellStatistics() override
     {
         auto channels = GetChunkReplicatorChannels();
+        std::vector<TFuture<TIntrusivePtr<TObjectServiceProxy::TRspExecuteBatch>>> responsesFutures;
 
-        std::vector<TFuture<TIntrusivePtr<TObjectYPathProxy::TRspGet>>> responseFutures;
-        responseFutures.reserve(channels.size());
         for (const auto& channel : channels) {
             auto proxy = TObjectServiceProxy::FromDirectMasterChannel(channel);
-            // TODO(nadya02): Set the correct timeout here.
             proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
-            auto req = TYPathProxy::Get("//sys/local_lost_vital_chunks/@count");
-            responseFutures.push_back(proxy.Execute(req));
+            auto batchReq = proxy.ExecuteBatch();
+
+            batchReq->AddRequest(TYPathProxy::Get("//sys/local_lost_vital_chunks/@count"));
+            batchReq->AddRequest(TYPathProxy::Get("//sys/local_data_missing_chunks/@count"));
+            batchReq->AddRequest(TYPathProxy::Get("//sys/local_parity_missing_chunks/@count"));
+
+            responsesFutures.push_back(batchReq->Invoke());
         }
 
-        return AllSet(std::move(responseFutures))
-            .Apply(BIND([] (const std::vector<TErrorOr<TIntrusivePtr<TObjectYPathProxy::TRspGet>>>& rspOrErrors) {
-                i64 chunkCount = 0;
-                for (const auto& rspOrError : rspOrErrors) {
-                    if (!rspOrError.IsOK()) {
-                        YT_LOG_DEBUG(rspOrError, "Failed to get local lost vital chunk count");
-                        continue;
-                    }
+        return AllSet(std::move(responsesFutures))
+            .Apply(BIND([this, this_ = MakeStrong(this)] (const std::vector<TErrorOr<TIntrusivePtr<TObjectServiceProxy::TRspExecuteBatch>>>& rspOrErrors) {
+                NCellMaster::NProto::TCellStatistics cellStatistics;
 
-                    const auto& rsp = rspOrError.Value();
-                    auto response = ConvertTo<INodePtr>(TYsonString{rsp->value()});
-                    YT_VERIFY(response->GetType() == ENodeType::Int64);
-                    chunkCount += response->AsInt64()->GetValue();
+                cellStatistics.set_chunk_count(Chunks().GetSize());
+                cellStatistics.set_lost_vital_chunk_count(0);
+                cellStatistics.set_data_missing_chunk_count(0);
+                cellStatistics.set_parity_missing_chunk_count(0);
+
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+                if (multicellManager->IsPrimaryMaster()) {
+                    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+                    cellStatistics.set_online_node_count(nodeTracker->GetOnlineNodeCount());
                 }
 
-                return chunkCount;
+                std::array<i64, 3> responsesSum{};
+
+                auto processResponse = [&] (const TIntrusivePtr<TObjectServiceProxy::TRspExecuteBatch>& rsp, int index, TStringBuf name) {
+                    auto currentRspOrError = rsp->GetResponse<TYPathProxy::TRspGet>(index);
+                    if (!currentRspOrError.IsOK()) {
+                        YT_LOG_WARNING(currentRspOrError, "Failed to get local cell %v", name);
+                        return;
+                    }
+                    auto response = ConvertTo<INodePtr>(TYsonString{currentRspOrError.Value()->value()});
+                    if (response->GetType() != ENodeType::Int64) {
+                        YT_LOG_ALERT("Response type for local cell %v is invalid (ResponseType: %v)", name, response->GetType());
+                        return;
+                    }
+                    responsesSum[index] += response->AsInt64()->GetValue();
+                };
+
+                for (const auto& rspOrError : rspOrErrors) {
+                    if (!rspOrError.IsOK()) {
+                        YT_LOG_WARNING(rspOrError, "Failed to get local cell statistics");
+                        continue;
+                    }
+                    const auto& rsp = rspOrError.Value();
+
+                    processResponse(rsp, 0, "lost vital chunks");
+                    processResponse(rsp, 1, "data missing chunks");
+                    processResponse(rsp, 2, "parity missing chunks");
+                }
+                cellStatistics.set_lost_vital_chunk_count(responsesSum[0]);
+                cellStatistics.set_data_missing_chunk_count(responsesSum[1]);
+                cellStatistics.set_parity_missing_chunk_count(responsesSum[2]);
+                return cellStatistics;
             }));
     }
 

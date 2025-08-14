@@ -183,30 +183,13 @@ TFuture<NProto::TReqSetCellStatistics> TMulticellNodeStatistics::GetLocalCellUpd
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
 
-    auto makeReqSetCellStatistics = [this] (TErrorOr<i64>&& lostVitalChunkCountOrError) {
-        // NB: Never an error
-        auto lostVitalChunkCount = std::move(lostVitalChunkCountOrError).Value();
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-
-        NProto::TReqSetCellStatistics result;
-        result.set_cell_tag(ToProto(multicellManager->GetCellTag()));
-        auto* cellStatistics = result.mutable_statistics();
-
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        cellStatistics->set_chunk_count(chunkManager->Chunks().GetSize());
-
-        cellStatistics->set_lost_vital_chunk_count(lostVitalChunkCount);
-
-        if (multicellManager->IsPrimaryMaster()) {
-            const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-            cellStatistics->set_online_node_count(nodeTracker->GetOnlineNodeCount());
-        }
-
-        return result;
-    };
-
-    return chunkManager->GetCellLostVitalChunkCount().ApplyUnique(BIND(std::move(makeReqSetCellStatistics)));
+    return chunkManager->GetCellStatistics()
+        .Apply(BIND([cellTag = Bootstrap_->GetMulticellManager()->GetCellTag()] (const TErrorOr<NProto::TCellStatistics>& cellStatistics) {
+            NProto::TReqSetCellStatistics result;
+            result.set_cell_tag(ToProto(cellTag));
+            result.mutable_statistics()->CopyFrom(cellStatistics.ValueOrThrow());
+            return result;
+        }));
 }
 
 std::optional<TDuration> TMulticellNodeStatistics::GetUpdatePeriod()

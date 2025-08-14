@@ -361,7 +361,7 @@ struct TDynamicCellMasterConfig
 
     TDuration ExpectedMutationCommitDuration;
 
-    bool CreateLostVitalChunksSampleMap;
+    bool CreateVirtualChunksSampleMaps;
 
     TDynamicResponseKeeperConfigPtr ResponseKeeper;
 

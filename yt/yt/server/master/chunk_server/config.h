@@ -560,7 +560,7 @@ struct TDynamicChunkManagerConfig
     : public NYTree::TYsonStruct
 {
     static constexpr auto DefaultProfilingPeriod = TDuration::MilliSeconds(1000);
-    static constexpr auto DefaultMaxLostVitalChunksSampleSizePerCell = 10;
+    static constexpr auto DefaultMaxChunksSampleSizePerCell = 10;
 
     //! If set to false, disables scheduling new chunk jobs (replication, removal).
     bool EnableChunkReplicator;
@@ -628,10 +628,10 @@ struct TDynamicChunkManagerConfig
     TDuration MaxTimePerJournalChunkRequisitionUpdate;
     //! Chunk requisition update finish mutations are batched within this period.
     TDuration FinishedChunkListsRequisitionTraverseFlushPeriod;
-    //! Chunks sample are propagated to primary master within this period.
-    TDuration LostVitalChunksSampleUpdatePeriod;
+    //! Chunks samples are propagated to primary master within this period.
+    TDuration ChunkSamplesUpdatePeriod;
     //! Maximum amount of сhunks in sample.
-    int MaxLostVitalChunksSampleSizePerCell;
+    int MaxChunksSampleSizePerCell;
 
     //! Interval between consequent seal attempts.
     TDuration ChunkSealBackoffTime;

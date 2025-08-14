@@ -116,6 +116,7 @@ SRCS(
     chunk_server/chunk_view.cpp
     chunk_server/chunk_visitor.cpp
     chunk_server/chunk.cpp
+    chunk_server/chunks_samples.cpp
     chunk_server/config.cpp
     chunk_server/consistent_chunk_placement.cpp
     chunk_server/cumulative_statistics.cpp
@@ -133,7 +134,6 @@ SRCS(
     chunk_server/job_registry.cpp
     chunk_server/job_tracker_service.cpp
     chunk_server/job.cpp
-    chunk_server/lost_vital_chunks_sample.cpp
     chunk_server/master_cell_chunk_statistics_collector.cpp
     chunk_server/medium_base.cpp
     chunk_server/medium_proxy_base.cpp
@@ -144,7 +144,7 @@ SRCS(
     chunk_server/proto/chunk_merger.proto
     chunk_server/proto/chunk_reincarnator.proto
     chunk_server/proto/data_node_tracker.proto
-    chunk_server/proto/lost_vital_chunks_sample.proto
+    chunk_server/proto/chunks_samples.proto
     chunk_server/proto/master_cell_chunk_statistics_collector.proto
     chunk_server/public.cpp
     chunk_server/incumbency_epoch.cpp
