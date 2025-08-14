@@ -601,6 +601,32 @@ yt map --input-format arrow --output-format arrow  --src "//path/to/input_table"
 
 Если на вход операции в формате arrow передать несколько таблиц, то внутри операции будет получен поток так же в виде конкатенации нескольких IPC Streaming Format потоков, где каждая часть может принадлежать одной из таблиц. Индекс таблицы передается в виде [метаданных схемы](https://arrow.apache.org/docs/format/Columnar.html#schema-message) с именем `TableId`, подробнее о метаданных в arrow можно почитать [тут](https://arrow.apache.org/docs/format/Columnar.html#custom-application-metadata)
 
+## BLOB { #BLOB }
+
+BLOB формат предоставляет удобный способ доставки бинарных данных из BLOB-таблицы в джобу (см. [Бинарные данные](https://yt.yandex-team.ru/docs/user-guide/storage/blobtables)). Данные в формате BLOB представляют собой конкатенацию бинарных данных из колонки таблицы `data_column_name`. При использовании формата проверяется, что номера BLOB в колонке `part_index_column_name` последовательно возрастают начиная с какого-то числа.
+
+**Параметры:**
+
+В скобках указаны значения по умолчанию.
+- **part_index_column_name** (`part_index`) — имя колонки с номерами BLOB
+- **data_column_name** (`data`) — имя колонки с данными BLOB.
+
+### Пример
+| part_index |   data   |
+| :--------- | :------: |
+| 0          | hel      | 
+| 1          | lo       |
+| 2          | world    |
+
+Чтение в формате BLOB:
+```bash
+yt read --table "//path/to/table" --format blob
+```
+Представление в формате BLOB:
+```
+helloworld
+```
+
 ## PARQUET { #PARQUET }
 
 Поддержана работа с [parquet](https://parquet.apache.org/docs) из командной строки:
