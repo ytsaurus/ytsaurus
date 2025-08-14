@@ -5,7 +5,7 @@
 #include <contrib/ydb/core/kqp/provider/yql_kikimr_gateway.h>
 #include <contrib/ydb/core/kqp/provider/yql_kikimr_settings.h>
 #include <contrib/ydb/core/scheme/scheme_tabledefs.h>
-#include <contrib/ydb/core/sys_view/common/schema.h>
+#include <contrib/ydb/core/sys_view/common/resolver.h>
 #include <contrib/ydb/core/tx/scheme_cache/scheme_cache.h>
 
 #include <library/cpp/threading/future/core/future.h>
@@ -68,8 +68,7 @@ private:
     void OnLoadedTableMetadata(NYql::IKikimrGateway::TTableMetadataResult& loadTableMetadataResult);
 
     NThreading::TFuture<NYql::IKikimrGateway::TTableMetadataResult> LoadSysViewRewrittenMetadata(
-        const NSysView::ISystemViewResolver::TSystemViewPath& sysViewPath, const TString& cluster, const TString& table
-    );
+        const TString& cluster, const TString& table, const NSysView::ISystemViewResolver::TSystemViewPath& sysViewPath);
 
     const TString Cluster;
     TVector<NKikimrKqp::TKqpTableMetadataProto> CollectedSchemeData;

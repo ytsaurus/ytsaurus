@@ -2,6 +2,7 @@
 
 #include <contrib/ydb/core/config/protos/marker.pb.h>
 #include <contrib/ydb/core/protos/blobstorage.pb.h>
+#include <contrib/ydb/core/protos/blobstorage_base.pb.h>
 #include <contrib/ydb/core/protos/blobstorage_disk.pb.h>
 
 #include <library/cpp/protobuf/json/util.h>

@@ -1,7 +1,6 @@
 #include "tx_internal_scan.h"
 
 #include <contrib/ydb/core/formats/arrow/arrow_batch_builder.h>
-#include <contrib/ydb/core/sys_view/common/schema.h>
 #include <contrib/ydb/core/tx/columnshard/engines/reader/actor/actor.h>
 #include <contrib/ydb/core/tx/columnshard/engines/reader/plain_reader/constructor/constructor.h>
 #include <contrib/ydb/core/tx/columnshard/transactions/locks/read_start.h>

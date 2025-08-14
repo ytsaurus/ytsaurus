@@ -5,13 +5,13 @@ SRCS(
 )
 
 PEERDIR(
-    contrib/ydb/library/actors/core
     library/cpp/protobuf/json
     contrib/ydb/core/base
-    contrib/ydb/core/protos
     contrib/ydb/core/kqp/common/events
     contrib/ydb/core/kqp/executer_actor
     contrib/ydb/core/kqp/proxy_service/proto
+    contrib/ydb/core/protos
+    contrib/ydb/library/actors/core
     contrib/ydb/public/api/protos
 )
 

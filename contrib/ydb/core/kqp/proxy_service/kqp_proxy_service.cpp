@@ -31,7 +31,7 @@
 #include <contrib/ydb/core/mon/mon.h>
 #include <contrib/ydb/library/ydb_issue/issue_helpers.h>
 #include <contrib/ydb/core/protos/workload_manager_config.pb.h>
-#include <contrib/ydb/core/sys_view/common/schema.h>
+#include <contrib/ydb/core/sys_view/common/registry.h>
 
 #include <contrib/ydb/library/yql/utils/actor_log/log.h>
 #include <yql/essentials/core/services/mounts/yql_mounts.h>

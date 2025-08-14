@@ -1,10 +1,10 @@
-#include "common.h"
-#include "events.h"
-#include "keys.h"
-#include "schema.h"
-#include "scan_actor_base_impl.h"
+#pragma once
 
 #include <contrib/ydb/core/base/tablet_pipecache.h>
+#include <contrib/ydb/core/sys_view/common/common.h>
+#include <contrib/ydb/core/sys_view/common/events.h>
+#include <contrib/ydb/core/sys_view/common/keys.h>
+#include <contrib/ydb/core/sys_view/common/scan_actor_base_impl.h>
 
 #include <contrib/ydb/library/actors/core/hfunc.h>
 

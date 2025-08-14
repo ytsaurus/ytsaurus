@@ -8,6 +8,7 @@
 #include <contrib/ydb/core/blobstorage/vdisk/ingress/blobstorage_ingress.h>
 #include <contrib/ydb/core/protos/blobstorage.pb.h>
 #include <contrib/ydb/core/protos/blobstorage_disk.pb.h>
+#include <contrib/ydb/core/protos/bridge.pb.h>
 
 #include <contrib/ydb/library/actors/core/interconnect.h>
 
@@ -795,8 +796,10 @@ TIntrusivePtr<TBlobStorageGroupInfo> TBlobStorageGroupInfo::Parse(const NKikimrB
     }
 
     // parse bridge mode fields
-    for (const auto& groupId : group.GetBridgeGroupIds()) {
-        res->BridgeGroupIds.push_back(TGroupId::FromValue(groupId));
+    if (group.HasBridgeGroupState()) {
+        for (const auto& pile : group.GetBridgeGroupState().GetPile()) {
+           res->BridgeGroupIds.push_back(TGroupId::FromProto(&pile, &NKikimrBridge::TGroupState::TPile::GetGroupId));
+        }
     }
     if (group.HasBridgeProxyGroupId()) {
         res->BridgeProxyGroupId.emplace(TGroupId::FromProto(&group, &NKikimrBlobStorage::TGroupInfo::GetBridgeProxyGroupId));
