@@ -1395,8 +1395,13 @@ private:
         }
     }
 
-    std::vector<TError> DoGetAlerts()
+    std::vector<TError> GetConflictingMasterCellRolesAlerts()
     {
+        // To avoid duplication of same alerts.
+        if (!IsPrimaryMaster()) {
+            return {};
+        }
+
         std::vector<TError> alerts;
         alerts.reserve(ConflictingCellRolesAlerts_.size());
         std::transform(
@@ -1414,6 +1419,11 @@ private:
             }
         }
         return alerts;
+    }
+
+    std::vector<TError> DoGetAlerts()
+    {
+        return GetConflictingMasterCellRolesAlerts();
     }
 
     void RecomputeMasterCellRoles()
