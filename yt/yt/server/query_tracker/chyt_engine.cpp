@@ -326,9 +326,11 @@ private:
             Config_->ProgressPollPeriod);
         progressPollerExecutor->Start();
 
-        auto result = WaitFor(rsp);
+        rsp.Subscribe(BIND([](TPeriodicExecutorPtr executor, TErrorOr<TExecuteQueryResponse> /*rsp*/) {
+            YT_UNUSED_FUTURE(executor->Stop());
+        }, progressPollerExecutor));
 
-        YT_UNUSED_FUTURE(progressPollerExecutor->Stop());
+        auto result = WaitFor(rsp);
 
         return result.ValueOrThrow();
     }

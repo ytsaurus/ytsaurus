@@ -81,15 +81,22 @@ public:
             }
         });
 
-        TError error = WaitFor(completedFuture);
+        auto finalizer = Finally([&masterThread] () {
+            masterThread.join();
+        });
 
-        masterThread.join();
+        TError error = WaitFor(completedFuture);
 
         if (!error.IsOK()) {
             return error;
         }
 
         return Result_;
+    }
+
+    void Cancel(const TError& /*error*/)
+    {
+        QueryContext_->killCurrentQuery();
     }
 
 private:
@@ -283,7 +290,7 @@ public:
             ClickHouseYtLogger())
         , Host_(host)
     {
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ExecuteQuery));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ExecuteQuery).SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQueryProgress));
     }
 
@@ -303,6 +310,11 @@ private:
         ToProto(response->mutable_query_id(), queryId);
 
         TExecuteQueryCall call(request, user, queryId, Host_);
+
+        context->SubscribeCanceled(BIND([&call] (const TError& error) {
+            call.Cancel(error);
+        }).Via(GetCurrentInvoker()));
+
         auto rowsetsOrError = call.Execute();
 
         if (rowsetsOrError.IsOK()) {
