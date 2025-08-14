@@ -1798,6 +1798,13 @@ private:
 
                 YT_LOG_DEBUG("Replication card created for immigration (ReplicationCardId: %v)",
                     replicationCardId);
+            } else {
+                auto state = replicationCard->GetState();
+                YT_LOG_DEBUG("Replication card found during immigration (ReplicationCardId: %v, State: %v)",
+                    replicationCardId,
+                    state);
+
+                replicationCardCreated = state == EReplicationCardState::Migrated;
             }
 
             auto options = protoReplicationCard.has_replicated_table_options()
