@@ -1599,9 +1599,7 @@ public:
         DoAddMember(UsersGroup_, user);
         MaybeRecomputeMembershipClosure();
 
-        if (!GetDynamicConfig()->DisableUpdateUserLastSeen) {
-            user->SetLastSeenTime(GetCurrentMutationContext()->GetTimestamp());
-        }
+        user->SetLastSeenTime(GetCurrentMutationContext()->GetTimestamp());
 
         YT_LOG_DEBUG("User created (User: %v)", name);
         LogStructuredEventFluently(Logger(), ELogLevel::Info)
@@ -4337,7 +4335,7 @@ private:
 
             // Update last seen time.
             auto lastSeenTime = FromProto<TInstant>(update.last_seen_time());
-            if (lastSeenTime > user->GetLastSeenTime() && !GetDynamicConfig()->DisableUpdateUserLastSeen) {
+            if (lastSeenTime > user->GetLastSeenTime()) {
                 user->SetLastSeenTime(lastSeenTime);
             }
         }

@@ -200,7 +200,7 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Schema)
             .SetWritable(true)
             .SetReplicated(true)
-            .SetOpaque(IsSchemaAttributeOpaque()));
+            .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TreatAsQueueConsumer)
             .SetWritable(true)
             .SetPresent(hasNonEmptySchema && isSorted));
