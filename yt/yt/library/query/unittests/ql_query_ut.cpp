@@ -1047,6 +1047,17 @@ TEST_F(TQueryPrepareTest, WronglyTypedAggregate)
     }, HasSubstr("No matching function"));
 }
 
+TEST_F(TQueryPrepareTest, NotExpressionGroupBy)
+{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+            {"a", EValueType::Int64},
+            {"b", EValueType::Int64}
+        }))));
+
+    ParseAndPreparePlanFragment(&PrepareMock_, "(not(tt.a = 1 and tt.b = 2)) AS aa from [//t] as tt group by aa");
+}
+
 TEST_F(TQueryPrepareTest, OrderByWithoutLimit)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
