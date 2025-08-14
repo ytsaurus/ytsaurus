@@ -3,7 +3,7 @@
 #pragma once
 
 #define USE_CPUID 1
-#define USE_BASE64 0
+#define USE_BASE64 1
 #define USE_SSL 1
 #define USE_SSH 0
 #define USE_HDFS 0

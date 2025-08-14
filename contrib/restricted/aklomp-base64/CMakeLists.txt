@@ -12,20 +12,9 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(abseil-cpp)
-add_subdirectory(abseil-cpp-tstring)
-add_subdirectory(boost)
-add_subdirectory(cityhash-1.0.2)
-add_subdirectory(fast_float)
-add_subdirectory(dragonbox)
-add_subdirectory(thrift)
-add_subdirectory(uriparser)
-add_subdirectory(wavm)
-add_subdirectory(magic_enum)
-add_subdirectory(aws)
-add_subdirectory(aklomp-base64)
-add_subdirectory(clickhouse-deps)
-add_subdirectory(murmurhash)
-add_subdirectory(patched)
-add_subdirectory(googletest)
-add_subdirectory(google)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
+
