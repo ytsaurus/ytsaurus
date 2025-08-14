@@ -5,7 +5,6 @@
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
-#include <yt/yt/ytlib/chunk_client/chunk_scraper.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -30,35 +29,34 @@ public:
         NApi::NNative::IClientPtr client,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         TGetChunksCallback getChunksCallback,
-        NChunkClient::TChunkBatchLocatedHandler onChunkLocated,
-        const NLogging::TLogger& logger);
+        NChunkClient::TChunkBatchLocatedHandler onChunkBatchLocated,
+        NChunkClient::TChunkScraperAvailabilityPolicy availabilityPolicy,
+        NLogging::TLogger logger);
 
     void Start();
 
-    void Restart();
+    void UpdateChunkSet();
+
+    void OnChunkBecameUnavailable(NChunkClient::TChunkId chunk);
 
 private:
     const TIntermediateChunkScraperConfigPtr Config_;
     const IInvokerPtr Invoker_;
     const IInvokerPoolPtr InvokerPool_;
-    const IInvokerPtr ScraperHeavyInvoker_;
-    const NChunkClient::TThrottlerManagerPtr ThrottlerManager_;
-    const NApi::NNative::IClientPtr Client_;
-    const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
 
     const TGetChunksCallback GetChunksCallback_;
-    const NChunkClient::TChunkBatchLocatedHandler OnChunkBatchLocated_;
 
+    THashSet<NChunkClient::TChunkId> LastUpdateChunks_;
     NChunkClient::TChunkScraperPtr ChunkScraper_;
 
     bool Started_ = false;
-    bool ResetScheduled_ = false;
+    bool UpdateScheduled_ = false;
 
-    TInstant ResetInstant_;
+    TInstant UpdateInstant_;
 
     NLogging::TLogger Logger;
 
-    void ResetChunkScraper();
+    void UpdateChunkScraper();
 };
 
 DEFINE_REFCOUNTED_TYPE(TIntermediateChunkScraper)

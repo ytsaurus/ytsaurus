@@ -22,10 +22,10 @@ struct TScrapedChunkInfo
 {
     TChunkId ChunkId;
     TChunkReplicaList Replicas;
-    bool Missing = false;
+    EChunkAvailability Availability;
 };
 
-using TChunkBatchLocatedHandler = TCallback<void(std::vector<TScrapedChunkInfo>)>;
+static constexpr TChunkScraperAvailabilityPolicy MetadataAvailablePolicy = TMetadataAvailablePolicy{};
 
 //! A chunk scraper for unavailable chunks.
 /*
@@ -51,11 +51,11 @@ public:
         TThrottlerManagerPtr throttlerManager,
         NApi::NNative::IClientPtr client,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-        const THashSet<TChunkId>& chunkIds,
         TChunkBatchLocatedHandler onChunkBatchLocated,
+        TChunkScraperAvailabilityPolicy availabilityPolicy,
         NLogging::TLogger logger);
 
-    ~TChunkScraper();
+    ~TChunkScraper() override;
 
     //! Starts periodic polling.
     /*!
@@ -67,6 +67,10 @@ public:
     //! Stops periodic polling.
     void Stop();
 
+    void Add(TChunkId chunk);
+    void Remove(TChunkId chunk);
+    void OnChunkBecameUnavailable(TChunkId chunk);
+
 private:
     const TChunkScraperConfigPtr Config_;
     const IInvokerPtr SerializedInvoker_;
@@ -75,13 +79,12 @@ private:
     const NApi::NNative::IClientPtr Client_;
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     const TChunkBatchLocatedHandler OnChunkBatchLocated_;
+    const TChunkScraperAvailabilityPolicy AvailabilityPolicy_;
     const NLogging::TLogger Logger;
 
     struct TScraperTaskWrapper;
-    std::vector<TScraperTaskWrapper> ScraperTasks_;
-
-    //! Create scraper tasks for each cell.
-    void CreateTasks(const THashSet<TChunkId>& chunkIds);
+    THashMap<NObjectClient::TCellTag, TScraperTaskWrapper> ScraperTasks_;
+    bool IsStarted_ = false;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkScraper)
