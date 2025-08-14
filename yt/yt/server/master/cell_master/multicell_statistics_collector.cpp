@@ -3,7 +3,7 @@
 #include "config_manager.h"
 #include "multicell_node_statistics.h"
 
-#include <yt/yt/server/master/chunk_server/lost_vital_chunks_sample.h>
+#include <yt/yt/server/master/chunk_server/chunks_samples.h>
 
 namespace NYT::NCellMaster {
 
@@ -14,7 +14,7 @@ namespace NYT::NCellMaster {
 // noop before snapshot reign is promoted
 using TMulticellStatisticsCollectorImpl = TMulticellStatisticsCollectorCommon<
     TMulticellNodeStatistics,
-    NChunkServer::TLostVitalChunksSample
+    NChunkServer::TChunksSamples
 >;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,13 +59,13 @@ public:
         return GetValue<TMulticellNodeStatistics>();
     }
 
-    virtual const NChunkServer::TLostVitalChunksSample& GetLostVitalChunksSample() override
+    virtual const NChunkServer::TChunksSamples& GetChunksSamples() override
     {
-        return GetValue<NChunkServer::TLostVitalChunksSample>();
+        return GetValue<NChunkServer::TChunksSamples>();
     }
-    virtual NChunkServer::TLostVitalChunksSample& GetMutableLostVitalChunksSample() override
+    virtual NChunkServer::TChunksSamples& GetMutableChunksSamples() override
     {
-        return GetValue<NChunkServer::TLostVitalChunksSample>();
+        return GetValue<NChunkServer::TChunksSamples>();
     }
 };
 

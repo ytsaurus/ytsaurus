@@ -7,7 +7,7 @@
 #include "chunk_list.h"
 #include "chunk_replicator.h"
 #include "domestic_medium.h"
-#include "lost_vital_chunks_sample.h"
+#include "chunks_samples.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
@@ -117,20 +117,20 @@ INodeTypeHandlerPtr CreateChunkLocationMapTypeHandler(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVirtualLostVitalChunksSampleMap
+class TVirtualChunksSampleMap
     : public TVirtualSinglecellWithRemoteItemsMapBase
 {
 public:
-    TVirtualLostVitalChunksSampleMap(
+    TVirtualChunksSampleMap(
         TBootstrap* bootstrap,
         INodePtr owningNode,
-        std::reference_wrapper<const TLostVitalChunksSampleMap> chunksSample)
+        EObjectType type)
         : TVirtualSinglecellWithRemoteItemsMapBase(bootstrap, std::move(owningNode))
-        , LostVitalChunksSample_(chunksSample)
+        , Type_(type)
     { }
 
 private:
-    const TLostVitalChunksSampleMap& LostVitalChunksSample_;
+    const EObjectType Type_;
 
     std::vector<std::string> GetKeys(i64 limit) const override
     {
@@ -146,7 +146,7 @@ private:
     i64 GetSize() const override
     {
         i64 size = 0;
-        for (const auto& [cellTag, chunkIds] : LostVitalChunksSample_) {
+        for (const auto& [cellTag, chunkIds] : GetInitialMap()) {
             size += std::ssize(chunkIds);
         }
         return size;
@@ -176,19 +176,21 @@ private:
     TCellItemsMap GetItems(i64 limit) const override
     {
         TCellItemsMap result;
-
         std::vector<TCellTag> cellTags;
-        cellTags.resize(LostVitalChunksSample_.size());
-        std::ranges::copy(LostVitalChunksSample_ | std::views::keys, cellTags.begin());
-        std::ranges::sort(cellTags, [this] (auto lhs, auto rhs) {
-            auto lhsSize = GetOrCrash(LostVitalChunksSample_, lhs).size();
-            auto rhsSize = GetOrCrash(LostVitalChunksSample_, rhs).size();
+
+        const auto& chunksSample = GetInitialMap();
+
+        cellTags.resize(chunksSample.size());
+        std::ranges::copy(chunksSample | std::views::keys, cellTags.begin());
+        std::ranges::sort(cellTags, [&] (auto lhs, auto rhs) {
+            auto lhsSize = GetOrCrash(chunksSample, lhs).size();
+            auto rhsSize = GetOrCrash(chunksSample, rhs).size();
             return lhsSize > rhsSize;
         });
 
         i64 maxChunks = 0;
         if (!cellTags.empty()) {
-            maxChunks = std::ranges::min(std::ssize(GetOrCrash(LostVitalChunksSample_, cellTags.front())), limit);
+            maxChunks = std::ranges::min(std::ssize(GetOrCrash(chunksSample, cellTags.front())), limit);
         }
 
         for (i64 i = 0; i < maxChunks; ++i) {
@@ -197,7 +199,7 @@ private:
                     return result;
                 }
 
-                const auto& cellChunkIds = GetOrCrash(LostVitalChunksSample_, cellTag);
+                const auto& cellChunkIds = GetOrCrash(chunksSample, cellTag);
                 // Cell tags are descending sorted by the number of chunks.
                 if (std::ssize(cellChunkIds) <= i) {
                     break;
@@ -220,24 +222,36 @@ private:
     {
         return true;
     }
+
+    const TChunksSampleMap& GetInitialMap() const {
+        const auto& chunksSamples = Bootstrap_->GetMulticellStatisticsCollector()->GetChunksSamples();
+        switch (Type_) {
+            case EObjectType::LostVitalChunksSampleMap:
+                return chunksSamples.GetCellLostVitalChunks();
+            case EObjectType::DataMissingChunksSampleMap:
+                return chunksSamples.GetCellDataMissingChunks();
+            case EObjectType::ParityMissingChunksSampleMap:
+                return chunksSamples.GetCellParityMissingChunks();
+            default:
+                YT_ABORT();
+        }
+    }
 };
 
-INodeTypeHandlerPtr CreateLostVitalChunksSampleMapTypeHandler(TBootstrap* bootstrap)
+INodeTypeHandlerPtr CreateChunksSampleMapTypeHandler(TBootstrap* bootstrap, NObjectClient::EObjectType type)
 {
     YT_VERIFY(bootstrap);
 
     return CreateVirtualTypeHandler(
         bootstrap,
-        EObjectType::LostVitalChunksSampleMap,
+        type,
         BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
             YT_VERIFY(owningNode);
-            const auto& statisticsCollector = bootstrap->GetMulticellStatisticsCollector();
-            const auto& lvcSampleValue = statisticsCollector->GetLostVitalChunksSample();
 
-            return New<TVirtualLostVitalChunksSampleMap>(
+            return New<TVirtualChunksSampleMap>(
                 bootstrap,
                 owningNode,
-                lvcSampleValue.GetCellLostVitalChunks());
+                type);
         }),
         EVirtualNodeOptions::RedirectSelf);
 }

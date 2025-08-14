@@ -201,6 +201,20 @@ private:
                             .GetClusterStatistics().lost_vital_chunk_count());
                 return true;
 
+            case EInternedAttributeKey::DataMissingChunkCount:
+                BuildYsonFluently(consumer)
+                    .Value(
+                        multicellStatisticsCollector->GetMulticellNodeStatistics()
+                            .GetClusterStatistics().data_missing_chunk_count());
+                return true;
+
+            case EInternedAttributeKey::ParityMissingChunkCount:
+                BuildYsonFluently(consumer)
+                    .Value(
+                        multicellStatisticsCollector->GetMulticellNodeStatistics()
+                            .GetClusterStatistics().parity_missing_chunk_count());
+                return true;
+
             case EInternedAttributeKey::Config:
                 BuildYsonFluently(consumer)
                     .Value(configManager->GetConfig());
