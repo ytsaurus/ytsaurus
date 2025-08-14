@@ -1,7 +1,8 @@
 #include "intermediate_chunk_scraper.h"
 
 #include "config.h"
-#include "private.h"
+
+#include <yt/yt/ytlib/chunk_client/chunk_scraper.h>
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -19,23 +20,29 @@ TIntermediateChunkScraper::TIntermediateChunkScraper(
     TIntermediateChunkScraperConfigPtr config,
     IInvokerPtr invoker,
     IInvokerPoolPtr invokerPool,
-    IInvokerPtr scraperInvoker,
+    IInvokerPtr scraperHeavyInvoker,
     TThrottlerManagerPtr throttlerManager,
     NNative::IClientPtr client,
     TNodeDirectoryPtr nodeDirectory,
     TGetChunksCallback getChunksCallback,
     TChunkBatchLocatedHandler onChunkBatchLocated,
-    const NLogging::TLogger& logger)
+    TChunkScraperAvailabilityPolicy availabilityPolicy,
+    NLogging::TLogger logger)
     : Config_(std::move(config))
     , Invoker_(std::move(invoker))
     , InvokerPool_(std::move(invokerPool))
-    , ScraperHeavyInvoker_(std::move(scraperInvoker))
-    , ThrottlerManager_(std::move(throttlerManager))
-    , Client_(std::move(client))
-    , NodeDirectory_(std::move(nodeDirectory))
     , GetChunksCallback_(std::move(getChunksCallback))
-    , OnChunkBatchLocated_(std::move(onChunkBatchLocated))
-    , Logger(logger)
+    , ChunkScraper_(New<TChunkScraper>(
+        Config_,
+        Invoker_,
+        std::move(scraperHeavyInvoker),
+        std::move(throttlerManager),
+        std::move(client),
+        std::move(nodeDirectory),
+        std::move(onChunkBatchLocated),
+        availabilityPolicy,
+        logger))
+    , Logger(std::move(logger))
 { }
 
 void TIntermediateChunkScraper::Start()
@@ -44,57 +51,60 @@ void TIntermediateChunkScraper::Start()
 
     if (!Started_) {
         Started_ = true;
-        ResetChunkScraper();
+        UpdateChunkScraper();
     }
+    ChunkScraper_->Start();
 }
 
-void TIntermediateChunkScraper::Restart()
+void TIntermediateChunkScraper::UpdateChunkSet()
 {
     YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool_);
 
-    if (!Started_ || ResetScheduled_) {
+    if (!Started_ || UpdateScheduled_) {
         return;
     }
 
-    auto deadline = ResetInstant_ + Config_->RestartTimeout;
+    auto deadline = UpdateInstant_ + Config_->RestartTimeout;
     if (deadline < TInstant::Now()) {
-        ResetChunkScraper();
+        UpdateChunkScraper();
     } else {
         TDelayedExecutor::Submit(
-            BIND(&TIntermediateChunkScraper::ResetChunkScraper, MakeWeak(this))
+            BIND(&TIntermediateChunkScraper::UpdateChunkScraper, MakeWeak(this))
                 .Via(Invoker_),
             deadline + TDuration::Seconds(1)); // +1 second to be sure.
-        ResetScheduled_ = true;
+        UpdateScheduled_ = true;
     }
 }
 
-void TIntermediateChunkScraper::ResetChunkScraper()
+void TIntermediateChunkScraper::OnChunkBecameUnavailable(TChunkId chunk)
+{
+    ChunkScraper_->OnChunkBecameUnavailable(chunk);
+}
+
+void TIntermediateChunkScraper::UpdateChunkScraper()
 {
     YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool_);
 
-    ResetInstant_ = TInstant::Now();
-    ResetScheduled_ = false;
-
-    if (ChunkScraper_) {
-        ChunkScraper_->Stop();
-    }
+    UpdateInstant_ = TInstant::Now();
+    UpdateScheduled_ = false;
 
     auto intermediateChunks = GetChunksCallback_();
 
     YT_LOG_DEBUG(
-        "Reset intermediate chunk scraper (ChunkCount: %v)",
+        "Update intermediate chunk scraper (ChunkCount: %v)",
         intermediateChunks.size());
-    ChunkScraper_ = New<TChunkScraper>(
-        Config_,
-        Invoker_,
-        ScraperHeavyInvoker_,
-        ThrottlerManager_,
-        Client_,
-        NodeDirectory_,
-        std::move(intermediateChunks),
-        OnChunkBatchLocated_,
-        Logger);
-    ChunkScraper_->Start();
+
+    for (auto oldChunk : LastUpdateChunks_) {
+        if (!intermediateChunks.contains(oldChunk)) {
+            ChunkScraper_->Remove(oldChunk);
+        }
+    }
+
+    for (auto chunk : intermediateChunks) {
+        ChunkScraper_->Add(chunk);
+    }
+
+    LastUpdateChunks_ = std::move(intermediateChunks);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -175,6 +175,15 @@ DEFINE_ENUM(EChunkListContentType,
     ((Hunk)                   (1))
 );
 
+//! Chunk availability is determined by `TChunkScraperAvailabilityPolicy`.
+//! - If the policy is `TMetadataAvailable`: a chunk is unavailable when it has no replicas.
+//! - Otherwise: a chunk is unavailable when `IsUnavailable()` returns true for the given policy and erasure codec.
+DEFINE_ENUM(EChunkAvailability,
+    ((Available)        (0))
+    ((Unavailable)      (1))
+    ((Missing)          (2))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(TRemoteReaderOptions)
@@ -295,6 +304,15 @@ DECLARE_REFCOUNTED_STRUCT(IClientChunkMetaCache)
 YT_DECLARE_RECONFIGURABLE_SINGLETON(TDispatcherConfig, TDispatcherDynamicConfig);
 
 class TDataSink;
+
+struct TMetadataAvailablePolicy
+{ };
+
+using TChunkScraperAvailabilityPolicy = std::variant<EChunkAvailabilityPolicy, TMetadataAvailablePolicy>;
+
+struct TScrapedChunkInfo;
+
+using TChunkBatchLocatedHandler = TCallback<void(std::vector<TScrapedChunkInfo>)>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

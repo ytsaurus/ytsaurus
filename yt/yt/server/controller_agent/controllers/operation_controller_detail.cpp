@@ -1919,6 +1919,7 @@ void TOperationControllerBase::InitIntermediateChunkScraper()
         }),
         BIND_NO_PROPAGATE(&TThis::OnIntermediateChunkBatchLocated, MakeWeak(this))
             .Via(GetCancelableInvoker()),
+        GetChunkAvailabilityPolicy(),
         Logger);
 }
 
@@ -4066,8 +4067,10 @@ void TOperationControllerBase::OnChunkFailed(TChunkId chunkId, TJobId jobId)
         return;
     }
 
+    TForbidContextSwitchGuard guard;
     if (!InputManager_->OnInputChunkFailed(chunkId, jobId)) {
         YT_LOG_DEBUG("Intermediate chunk has failed (ChunkId: %v, JobId: %v)", chunkId, jobId);
+        IntermediateChunkScraper_->OnChunkBecameUnavailable(chunkId);
         if (!OnIntermediateChunkUnavailable(chunkId)) {
             return;
         }
@@ -4084,18 +4087,20 @@ void TOperationControllerBase::SafeOnIntermediateChunkBatchLocated(
     int availableCount = 0;
     int unavailableCount = 0;
     for (const auto& chunkInfo : chunkBatch) {
-        if (chunkInfo.Missing) {
-            // We can unstage intermediate chunks (e.g. in automerge) - just skip them.
-            continue;
-        }
+        switch (chunkInfo.Availability) {
+            case EChunkAvailability::Available:
+                ++availableCount;
+                OnIntermediateChunkAvailable(chunkInfo.ChunkId, chunkInfo.Replicas);
+                break;
 
-        // Intermediate chunks are always replicated.
-        if (IsUnavailable(chunkInfo.Replicas, NErasure::ECodec::None, GetChunkAvailabilityPolicy())) {
-            ++unavailableCount;
-            OnIntermediateChunkUnavailable(chunkInfo.ChunkId);
-        } else {
-            ++availableCount;
-            OnIntermediateChunkAvailable(chunkInfo.ChunkId, chunkInfo.Replicas);
+            case EChunkAvailability::Unavailable:
+                ++unavailableCount;
+                OnIntermediateChunkUnavailable(chunkInfo.ChunkId);
+                break;
+
+            case EChunkAvailability::Missing:
+                // We can unstage intermediate chunks (e.g. in automerge) - just skip them.
+                break;
         }
     }
 
@@ -8842,7 +8847,7 @@ void TOperationControllerBase::RegisterRecoveryInfo(
         YT_VERIFY(ChunkOriginMap_.emplace(chunkId, completedJob).second);
     }
 
-    IntermediateChunkScraper_->Restart();
+    IntermediateChunkScraper_->UpdateChunkSet();
 }
 
 TRowBufferPtr TOperationControllerBase::GetRowBuffer()
