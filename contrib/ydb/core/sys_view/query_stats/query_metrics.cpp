@@ -2,6 +2,7 @@
 
 #include <contrib/ydb/core/sys_view/common/events.h>
 #include <contrib/ydb/core/sys_view/common/processor_scan.h>
+#include <contrib/ydb/core/sys_view/common/registry.h>
 
 namespace NKikimr::NSysView {
 

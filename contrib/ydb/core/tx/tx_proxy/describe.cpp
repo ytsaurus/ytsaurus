@@ -7,7 +7,8 @@
 #include <contrib/ydb/core/base/tablet_pipecache.h>
 #include <contrib/ydb/core/base/appdata.h>
 #include <contrib/ydb/core/base/feature_flags.h>
-#include <contrib/ydb/core/sys_view/common/schema.h>
+#include <contrib/ydb/core/sys_view/common/path.h>
+#include <contrib/ydb/core/sys_view/common/resolver.h>
 #include <contrib/ydb/core/protos/table_stats.pb.h>
 
 #include <contrib/ydb/library/aclib/aclib.h>

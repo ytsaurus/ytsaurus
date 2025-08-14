@@ -12,7 +12,6 @@
 #include <contrib/ydb/core/formats/arrow/program/execution.h>
 #include <contrib/ydb/core/formats/arrow/serializer/abstract.h>
 #include <contrib/ydb/core/scheme/scheme_types_proto.h>
-#include <contrib/ydb/core/sys_view/common/schema.h>
 #include <contrib/ydb/core/tx/columnshard/common/portion.h>
 #include <contrib/ydb/core/tx/columnshard/common/scalars.h>
 #include <contrib/ydb/core/tx/columnshard/common/snapshot.h>

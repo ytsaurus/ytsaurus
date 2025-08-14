@@ -1,11 +1,10 @@
 #pragma once
 
-#include "utils.h"
-
 #include <contrib/ydb/core/kqp/compute_actor/kqp_compute_events.h>
 #include <contrib/ydb/core/kqp/runtime/kqp_compute.h>
 #include <contrib/ydb/core/tx/scheme_cache/scheme_cache.h>
 #include <contrib/ydb/core/mind/tenant_node_enumeration.h>
+#include <contrib/ydb/core/sys_view/common/utils.h>
 #include <contrib/ydb/core/sys_view/service/sysview_service.h>
 #include <contrib/ydb/core/base/appdata.h>
 

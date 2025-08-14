@@ -2,6 +2,7 @@ syntax = "proto2";
 
 import "contrib/ydb/core/config/protos/marker.proto";
 import "contrib/ydb/core/protos/blobstorage.proto";
+import "contrib/ydb/core/protos/blobstorage_base.proto";
 import "contrib/ydb/core/protos/blobstorage_config.proto";
 import "contrib/ydb/core/protos/blobstorage_disk.proto";
 import "contrib/ydb/core/protos/blobstorage_disk_color.proto";
