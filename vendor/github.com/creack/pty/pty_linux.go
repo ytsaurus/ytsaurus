@@ -49,6 +49,6 @@ func ptsname(f *os.File) (string, error) {
 
 func unlockpt(f *os.File) error {
 	var u _C_int
-	// use TIOCSPTLCK with a pointer to zero to clear the lock
+	// use TIOCSPTLCK with a pointer to zero to clear the lock.
 	return ioctl(f, syscall.TIOCSPTLCK, uintptr(unsafe.Pointer(&u))) //nolint:gosec // Expected unsafe pointer for Syscall call.
 }

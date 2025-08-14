@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
-VERSION(v1.1.20)
+VERSION(v1.1.21)
 
 SRCS(
     doc.go
@@ -12,6 +12,7 @@ SRCS(
 
 GO_TEST_SRCS(
     doc_test.go
+    helpers_test.go
     io_test.go
 )
 
@@ -34,6 +35,12 @@ IF (OS_LINUX)
         pty_linux.go
         start.go
         winsize_unix.go
+    )
+ENDIF()
+
+IF (OS_LINUX AND ARCH_ARM6 OR OS_LINUX AND ARCH_ARM7)
+    SRCS(
+        ztypes_arm.go
     )
 ENDIF()
 

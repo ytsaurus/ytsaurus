@@ -11,10 +11,10 @@ import (
 
 // Winsize describes the terminal size.
 type Winsize struct {
-	Rows uint16 // ws_row: Number of rows (in cells)
-	Cols uint16 // ws_col: Number of columns (in cells)
-	X    uint16 // ws_xpixel: Width in pixels
-	Y    uint16 // ws_ypixel: Height in pixels
+	Rows uint16 // ws_row: Number of rows (in cells).
+	Cols uint16 // ws_col: Number of columns (in cells).
+	X    uint16 // ws_xpixel: Width in pixels.
+	Y    uint16 // ws_ypixel: Height in pixels.
 }
 
 // Setsize resizes t to s.
