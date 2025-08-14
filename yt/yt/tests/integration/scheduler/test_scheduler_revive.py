@@ -9,11 +9,13 @@ from yt_env_setup import (
 
 from yt_commands import (
     authors, map_reduce, print_debug, update_op_parameters,
-    wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
-    create, ls, get, set, remove, exists, create_user, create_pool, create_pool_tree, abort_transaction, read_table,
-    write_table, start_transaction, map, vanilla, run_test_vanilla, suspend_op,
+    wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
+    events_on_fs, create, ls, get, set, remove, exists, create_user,
+    create_pool, create_pool_tree, abort_transaction, read_table, write_table,
+    start_transaction, map, vanilla, run_test_vanilla, suspend_op,
     get_operation, get_operation_cypress_path, PrepareTables, sorted_dicts,
-    update_scheduler_config, update_controller_agent_config, update_nodes_dynamic_config,
+    update_scheduler_config, update_controller_agent_config,
+    update_nodes_dynamic_config,
 )
 
 from yt_scheduler_helpers import scheduler_orchid_operation_path
@@ -1061,7 +1063,7 @@ class OperationReviveBase(YTEnvSetup):
         assert op.get_state() == "completed"
 
         if self.OP_TYPE == "map":
-            assert read_table("//tmp/t_out") == [{"foo": "bar"}]
+            assert read_table("//tmp/t_out") == [{"foo": "bar"}] * op.get_job_count("completed", from_orchid=False)
 
     @authors("ignat")
     def test_abort_during_complete(self):
