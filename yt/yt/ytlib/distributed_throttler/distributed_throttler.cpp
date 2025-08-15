@@ -85,7 +85,11 @@ public:
         , Profiler_(profiler
             .WithTag("throttler_id", ThrottlerId_))
         , HistoricUsageAggregator_(Config_.Acquire()->AdjustedEmaHalflife)
-    { }
+    {
+        if (Config_.Acquire()->InitializeThrottlersOnCreation) {
+            Underlying_->SetLimit(std::nullopt);
+        }
+    }
 
     void SetDistributedThrottlerConfig(TDistributedThrottlerConfigPtr config)
     {
@@ -262,7 +266,7 @@ public:
         };
     }
 
-    void Initialize(std::optional<double> limit = std::nullopt)
+    void Initialize()
     {
         if (Initialized_) {
             return;
@@ -276,7 +280,11 @@ public:
         }
 
         Limit_ = Profiler_.Gauge("/limit");
-        Limit_.Update(limit.value_or(ThrottlerConfig_.Acquire()->Limit.value_or(-1)));
+        if (Config_.Acquire()->InitializeThrottlersOnCreation) {
+            Limit_.Update(0);
+        } else {
+            Limit_.Update(ThrottlerConfig_.Acquire()->Limit.value_or(-1));
+        }
 
         Usage_ = Profiler_.Gauge("/usage");
         Usage_.Update(0);
@@ -1199,10 +1207,6 @@ public:
                 throttleRpcTimeout,
                 Profiler_);
             wrappedThrottler->SetLeaderChannel(leaderChannel);
-
-            if (config->InitializeThrottlersOnCreation) {
-                wrappedThrottler->Initialize(/*limit*/ 0);
-            }
 
             auto wasEmpty = Throttlers_->Throttlers.empty();
             Throttlers_->Throttlers[throttlerId] = MakeWeak(wrappedThrottler);
