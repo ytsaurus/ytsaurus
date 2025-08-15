@@ -57,6 +57,9 @@ void TFairShareTreeAllocationSchedulerAllocationState::Register(TRegistrar regis
 
     registrar.Parameter("resource_limits", &TThis::ResourceLimits)
         .Default();
+
+    registrar.Parameter("preemption_status", &TThis::PreemptionStatus)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

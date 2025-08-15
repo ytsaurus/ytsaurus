@@ -33,6 +33,7 @@ struct TFairShareTreeAllocationSchedulerAllocationState
 {
     TOperationId OperationId;
     TJobResources ResourceLimits;
+    EAllocationPreemptionStatus PreemptionStatus = EAllocationPreemptionStatus::NonPreemptible;
 
     REGISTER_YSON_STRUCT_LITE(TFairShareTreeAllocationSchedulerAllocationState);
 
