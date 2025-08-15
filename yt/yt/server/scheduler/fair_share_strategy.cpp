@@ -815,8 +815,10 @@ public:
         // Snapshot list of treeIds.
         std::vector<TString> treeIds;
         treeIds.reserve(std::size(IdToTree_));
-        for (auto [treeId, _] : IdToTree_) {
+        THashMap<std::string, TJobResourcesWithDiskConfigPtr> guaranteedJobResources;
+        for (auto [treeId, tree] : IdToTree_) {
             treeIds.push_back(treeId);
+            guaranteedJobResources.emplace(treeId, tree->GetConfig()->GuaranteedJobResources);
         }
 
         fluent
@@ -824,6 +826,7 @@ public:
             .OptionalItem("default_fair_share_tree", DefaultTreeId_)
             .OptionalItem("default_pool_tree", DefaultTreeId_)
             .Item("last_metering_statistics_update_time").Value(LastMeteringStatisticsUpdateTime_)
+            .Item("guaranteed_job_resources_per_pool_tree").Value(guaranteedJobResources)
             .Item("scheduling_info_per_pool_tree").DoMapFor(treeIds, [&] (TFluentMap fluent, const TString& treeId) {
                 auto tree = FindTree(treeId);
                 if (!tree) {

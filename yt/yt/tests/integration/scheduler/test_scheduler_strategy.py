@@ -4797,3 +4797,15 @@ class TestMinSpareResources(YTEnvSetup):
 
         update_pool_tree_config_option("other", "min_spare_allocation_resources_on_node", {"cpu": 0.1})
         wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="other") + "/resource_usage/user_slots") == 5)
+
+    @authors("renadeen")
+    def test_guaranteed_job_resources_config(self):
+        update_pool_tree_config_option("default", "guaranteed_job_resources", {"cpu": 1.0, "disk_space": 1000})
+        update_pool_tree_config_option("other", "guaranteed_job_resources", {"cpu": 2.0, "disk_space": 2000})
+
+        wait(lambda: exists(scheduler_orchid_path() + "/scheduler/guaranteed_job_resources_per_pool_tree"))
+        data = get(scheduler_orchid_path() + "/scheduler/guaranteed_job_resources_per_pool_tree")
+        assert data["default"]["cpu"] == 1.0
+        assert data["default"]["disk_space"] == 1000
+        assert data["other"]["cpu"] == 2.0
+        assert data["other"]["disk_space"] == 2000

@@ -95,6 +95,20 @@ DEFINE_REFCOUNTED_TYPE(TJobResourcesConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+ struct TJobResourcesWithDiskConfig
+    : public TJobResourcesConfig
+ {
+    i64 DiskSpace;
+
+    REGISTER_YSON_STRUCT(TJobResourcesWithDiskConfig);
+
+    static void Register(TRegistrar registrar);
+ };
+
+ DEFINE_REFCOUNTED_TYPE(TJobResourcesWithDiskConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TCommonPreemptionConfig
     : public virtual NYTree::TYsonStruct
 {
