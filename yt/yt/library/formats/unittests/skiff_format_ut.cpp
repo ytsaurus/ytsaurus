@@ -2081,6 +2081,29 @@ TEST(TSkiffWriter, TestComplexType)
     }
 }
 
+TEST(TSkiffWriter, TestRemainingRowBytesDuplicate)
+{
+    auto skiffSchema = CreateTupleSchema({
+        CreateSimpleTypeSchema(EWireType::Int32)->SetName("$remaining_row_bytes"),
+        CreateVariant8Schema({
+            CreateSimpleTypeSchema(EWireType::Nothing),
+            CreateSimpleTypeSchema(EWireType::Int64),
+        })->SetName("$row_index"),
+        CreateSimpleTypeSchema(EWireType::Int32)->SetName("$remaining_row_bytes"),
+        CreateSimpleTypeSchema(EWireType::String32)->SetName("data")
+    });
+
+    TStringStream resultStream;
+    auto nameTable = New<TNameTable>();
+    auto tableSchema = New<TTableSchema>(std::vector{
+        TColumnSchema("data", ESimpleLogicalValueType::String)
+    });
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{tableSchema}),
+        "Name \"$remaining_row_bytes\" is found multiple times");
+}
+
 TEST(TSkiffWriter, TestEmptyComplexType)
 {
     auto skiffSchema = CreateTupleSchema({
