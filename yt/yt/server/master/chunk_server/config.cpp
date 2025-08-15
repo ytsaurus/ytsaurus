@@ -505,6 +505,10 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(128);
     registrar.Parameter("max_misscheduled_merge_jobs_per_heartbeat", &TThis::MaxMisscheduledMergeJobsPerHeartbeat)
         .Default(128);
+    registrar.Parameter("max_misscheduled_offshore_replication_jobs_per_heartbeat", &TThis::MaxMisscheduledOffshoreReplicationJobsPerHeartbeat)
+        .Default(128);
+    registrar.Parameter("max_misscheduled_offshore_removal_jobs_per_heartbeat", &TThis::MaxMisscheduledOffshoreRemovalJobsPerHeartbeat)
+        .Default(128);
 
     registrar.Parameter("max_running_replication_jobs_per_target_node", &TThis::MaxRunningReplicationJobsPerTargetNode)
         .Default(128);

@@ -9,7 +9,7 @@ from yt.yson import YsonList, YsonEntity
 from yt_commands import (
     authors, extract_statistic_v2, sync_create_cells, create_user, add_member, make_ace,
     create, create_domestic_medium, create_s3_medium, set, remove, exists,
-    copy, move, get_singular_chunk_id, wait, get, concatenate, get_table_columnar_statistics,
+    copy, move, get_singular_chunk_id, wait, get, concatenate, get_table_columnar_statistics, wait_no_assert,
     get_account_disk_space_limit, set_account_disk_space_limit,
     write_table, read_table, sync_mount_table, insert_rows, sync_flush_table, attach_table,
     map, merge, select_rows, lookup_rows, print_debug, write_file, read_file,
@@ -156,6 +156,14 @@ class TestS3MediumBase(YTEnvSetup):
         assert length >= 0
         return os.urandom(length).translate(TRANSLATE_TABLE).decode("ascii")
 
+    @staticmethod
+    def assert_or_check(expression, message, do_assert):
+        if do_assert:
+            assert expression, message
+        else:
+            print_debug(message)
+            return False
+
     @classmethod
     def get_buckets(cls):
         return {medium["bucket"] for medium in cls.S3_MEDIA if "bucket" in medium} | builtins.set(cls.EXTRA_BUCKETS)
@@ -258,17 +266,21 @@ class TestS3MediumBase(YTEnvSetup):
         chunk_meta_path = cls.get_chunk_meta_path(chunk_id, s3_medium_index)
 
         if negate:
-            assert not cls.object_exists_in_s3(bucket, chunk_path)
-            assert not cls.object_exists_in_s3(bucket, chunk_meta_path)
+            assert not cls.object_exists_in_s3(bucket, chunk_path), f"File {chunk_path} should not exist in S3"
+            assert not cls.object_exists_in_s3(bucket, chunk_meta_path), f"File {chunk_meta_path} should not exist in S3"
         else:
-            assert cls.object_exists_in_s3(bucket, chunk_path)
-            assert cls.object_exists_in_s3(bucket, chunk_meta_path)
+            assert cls.object_exists_in_s3(bucket, chunk_path), f"File {chunk_path} should exist in S3"
+            assert cls.object_exists_in_s3(bucket, chunk_meta_path), f"File {chunk_meta_path} should exist in S3"
+
+    @classmethod
+    def assert_chunks_exist_in_s3(cls, chunk_ids, s3_medium_index=0, negate=False):
+        for chunk_id in chunk_ids:
+            cls.assert_chunk_exists_in_s3(chunk_id, s3_medium_index, negate)
 
     @classmethod
     def assert_table_chunks_exist_in_s3(cls, table_name, s3_medium_index=0, negate=False):
         chunk_ids = get(f"{table_name}/@chunk_ids")
-        for chunk_id in chunk_ids:
-            cls.assert_chunk_exists_in_s3(chunk_id, s3_medium_index, negate)
+        cls.assert_chunks_exist_in_s3(chunk_ids, s3_medium_index, negate)
 
     @classmethod
     def setup_class(cls, *args, **kwargs):
@@ -840,18 +852,18 @@ class TestS3Medium(TestS3MediumBase):
         requisition = get(f"#{chunk_id}/@requisition")
 
         if len(requisition) != len(conditions_per_medium):
-            print_debug(f"Requisition length {len(requisition)} does not match expected length {len(conditions_per_medium)}")
+            print_debug(f"Requisition length {len(requisition)} does not match expected length {len(conditions_per_medium)} for chunk {chunk_id}")
             return False
 
         for entry in requisition:
             medium = entry["medium"]
             if medium not in conditions_per_medium:
-                print_debug(f"Medium {medium} is not in expected requisition")
+                print_debug(f"Medium {medium} is not in expected requisition for chunk {chunk_id}")
                 return False
 
             for condition, expected_value in conditions_per_medium[entry["medium"]].items():
                 if entry[condition] != expected_value:
-                    print_debug(f"Condition {condition}={expected_value} is not satisfied for medium {medium}, equal to {entry[condition]} instead")
+                    print_debug(f"Condition {condition}={expected_value} is not satisfied for medium {medium}, equal to {entry[condition]} instead for chunk {chunk_id}")
                     return False
 
         return True
@@ -873,6 +885,15 @@ class TestS3Medium(TestS3MediumBase):
     @authors("achulkov2")
     @pytest.mark.run_with_no_offshore_data_gateways
     def test_multiple_media(self):
+        # create("table", "//tmp/t")
+        # write_table("//tmp/t", {"a": "b"}, table_writer={"upload_replication_factor": 2, "min_upload_replication_factor": 2})
+        # chunk_id = get_singular_chunk_id("//tmp/t")
+        # print_debug(f"Chunk id is {chunk_id}")
+
+        # time.sleep(30)
+
+        # return
+
         create("table", "//tmp/t", attributes={"primary_medium": self.get_s3_medium_name()})
         write_table("//tmp/t", {"a": "b"})
 
@@ -886,6 +907,8 @@ class TestS3Medium(TestS3MediumBase):
 
         chunk_ids = get("//tmp/t/@chunk_ids")
         assert len(chunk_ids) == 2
+
+        time.sleep(30)
 
         for chunk_id in chunk_ids:
             wait(lambda: self._check_requisition(chunk_id, {
@@ -908,13 +931,17 @@ class TestS3Medium(TestS3MediumBase):
                     # Everything is false.
                 },
                 "default": {
-                    "lost": True,
+                    # Everything is false.
                 },
             }))
 
         # Chunks are not considered lost, since they are present on the S3 medium.
         assert len(get("//sys/lost_vital_chunks")) == 0
         assert len(get("//sys/lost_chunks")) == 0
+
+        for chunk_id in chunk_ids:
+            assert len(get(f"#{chunk_id}/@stored_offshore_replicas")) == 1
+            assert len(get(f"#{chunk_id}/@stored_replicas")) == 3
 
         # Let's double check that the table is still readable.
         assert read_table("//tmp/t") == [{"a": "b"}, {"c": "d"}]
@@ -923,6 +950,7 @@ class TestS3Medium(TestS3MediumBase):
     @pytest.mark.run_with_no_offshore_data_gateways
     def test_medium_switch(self):
         create("table", "//tmp/t", attributes={"primary_medium": self.get_s3_medium_name()})
+
         write_table("//tmp/t", {"a": "b"})
 
         set("//tmp/t/@primary_medium", "default")
@@ -932,53 +960,79 @@ class TestS3Medium(TestS3MediumBase):
         chunk_ids = get("//tmp/t/@chunk_ids")
         assert len(chunk_ids) == 2
 
-        s3_chunk = chunk_ids[0]
-        default_chunk = chunk_ids[1]
+        s3_chunk, default_chunk = chunk_ids
 
-        def s3_chunk_move_to_default_requested():
-            requisition = get(f"#{s3_chunk}/@requisition")
-            return len(requisition) == 1 and requisition[0]["medium"] == "default"
-        wait(s3_chunk_move_to_default_requested)
-
-        wait(lambda: self._check_requisition(s3_chunk, {
-            "default": {
-                "replication_policy": {
-                    "replication_factor": 3,
-                    "data_parts_only": False,
+        # Both chunks are requisitioned (i.e. requested) by the default medium only.
+        for chunk in [s3_chunk, default_chunk]:
+            wait(lambda: self._check_requisition(chunk, {
+                "default": {
+                    "replication_policy": {
+                        "replication_factor": 3,
+                        "data_parts_only": False,
+                    },
                 },
-            },
-        }))
+            }))
 
-        wait(lambda: self._check_requisition(default_chunk, {
-            "default": {
-                "replication_policy": {
-                    "replication_factor": 3,
-                    "data_parts_only": False,
+        # Both chunks should actually move to the default medium.
+        for chunk in [s3_chunk, default_chunk]:
+            wait(lambda: self._check_replication(chunk, {
+                "default": {
+                    # Everything is false, chunk is properly replicated.
                 },
-            },
-        }))
+            }))
 
-        wait(lambda: self._check_replication(s3_chunk, {
-            self.get_s3_medium_name(): {
-                "overreplicated": True,
-                "unexpected_overreplicated": True,
-            },
-            "default": {
-                "lost": True,
-            },
-        }))
+        # Chunk files should be removed from S3.
+        # We don't wait, because we waited for replication status above.
+        self.assert_table_chunks_exist_in_s3("//tmp/t", negate=True)
 
-        wait(lambda: self._check_replication(default_chunk, {
-            "default": {
-                # Everythign is false.
-            },
-        }))
-
+        # Nothing is lost!
         assert len(get("//sys/lost_vital_chunks")) == 0
         assert len(get("//sys/lost_chunks")) == 0
 
-        # It should still be possible to read the whole table, because the first chunk still has replicas on the S3 medium.
+        # We can still read the whole table, now from default medium.
         assert read_table("//tmp/t") == [{"a": "b"}, {"c": "d"}]
+
+        # Now let's move everything back to S3.
+        set("//tmp/t/@primary_medium", self.get_s3_medium_name())
+
+        # Both chunks are requisitioned (i.e. requested) by the S3 medium only.
+        for chunk in [s3_chunk, default_chunk]:
+            wait(lambda: self._check_requisition(chunk, {
+                self.get_s3_medium_name(): {
+                    "replication_policy": {
+                        "replication_factor": 1,
+                        "data_parts_only": False,
+                    },
+                },
+            }))
+        
+        # Both chunks should actually move back to the S3 medium.
+        for chunk in [s3_chunk, default_chunk]:
+            wait(lambda: self._check_replication(chunk, {
+                self.get_s3_medium_name(): {
+                    # Everything is false, chunk is properly replicated.
+                },
+            }))
+
+        # Chunk files should be present in S3 now.
+        # Note that the default chunk never existed there in the first place, it was replicated!
+        self.assert_table_chunks_exist_in_s3("//tmp/t")
+
+        # Nothing is lost!
+        assert len(get("//sys/lost_vital_chunks")) == 0
+        assert len(get("//sys/lost_chunks")) == 0
+
+        # We can still read the whole table, now from S3 medium.
+        assert read_table("//tmp/t") == [{"a": "b"}, {"c": "d"}]
+
+        # Table goes bye-bye.
+        remove("//tmp/t")
+
+        # TODO(achulkov2): Expose destroyed replica queue sizes for offshore media and check them here.
+
+        # All data should be removed from S3 now.
+        # We have to wait, because there is no state we can check in the cluster (yet).
+        wait_no_assert(lambda: self.assert_chunks_exist_in_s3(chunk_ids, negate=True))
 
     @authors("achulkov2")
     @pytest.mark.run_with_no_offshore_data_gateways
@@ -999,10 +1053,12 @@ class TestS3Medium(TestS3MediumBase):
         chunk_ids = get("//tmp/t/@chunk_ids")
         assert len(chunk_ids) == 3
 
+        # TODO(achulkov2): Remove me in main branch?
         # time.sleep(15)
 
         test_chunk = chunk_ids[0]
 
+        # TODO(achulkov2): Remove me in main branch?
         get(f"#{test_chunk}/@local_requisition_index")
         get(f"#{test_chunk}/@local_requisition")
 

@@ -32,6 +32,7 @@ DEFINE_REFCOUNTED_TYPE(ISlot)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(achulkov2): Fix formatting.
 #define ITERATE_JOB_RESOURCE_PROTO_FIELDS(XX) \
     XX(cpu,                   Cpu) \
     XX(vcpu,                  VCpu) \
@@ -47,9 +48,12 @@ DEFINE_REFCOUNTED_TYPE(ISlot)
     XX(merge_slots,           MergeSlots) \
     XX(autotomy_slots,        AutotomySlots) \
     XX(reincarnation_slots,   ReincarnationSlots) \
+    XX(offshore_replication_slots, OffshoreReplicationSlots) \
+    XX(offshore_removal_slots, OffshoreRemovalSlots) \
     XX(replication_data_size, ReplicationDataSize) \
     XX(repair_data_size,      RepairDataSize) \
-    XX(merge_data_size,       MergeDataSize)
+    XX(merge_data_size,       MergeDataSize) \
+    XX(offshore_replication_data_size, OffshoreReplicationDataSize)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,10 +86,13 @@ struct TJobResources
     i32 MergeSlots = 0;
     i32 AutotomySlots = 0;
     i32 ReincarnationSlots = 0;
+    i32 OffshoreReplicationSlots = 0;
+    i32 OffshoreRemovalSlots = 0;
 
     i64 ReplicationDataSize = 0;
     i64 RepairDataSize = 0;
     i64 MergeDataSize = 0;
+    i64 OffshoreReplicationDataSize = 0;
 
     static TJobResources Epsilon();
 };

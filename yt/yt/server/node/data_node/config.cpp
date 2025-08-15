@@ -743,6 +743,30 @@ void TSealChunkJobDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TOffshoreReplicateChunkJobDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("reader", &TThis::Reader)
+        .DefaultNew();
+    registrar.Parameter("writer", &TThis::Writer)
+        .DefaultNew();
+
+    registrar.Preprocessor([] (TThis* config) {
+        // Disable target allocation from master.
+        config->Writer->UploadReplicationFactor = 1;
+
+        // Use proper workload descriptors.
+        // TODO(babenko): avoid passing workload descriptor in config
+        config->Writer->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemReplication);
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TOffshoreRemoveChunkJobDynamicConfig::Register(TRegistrar /*registrar*/)
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TJournalManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("multiplexed_changelog", &TThis::MultiplexedChangelog)
@@ -1068,6 +1092,10 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("reincarnate_chunk_job", &TThis::ReincarnateChunkJob)
         .DefaultNew();
     registrar.Parameter("seal_chunk_job", &TThis::SealChunkJob)
+        .DefaultNew();
+    registrar.Parameter("offshore_replicate_chunk_job", &TThis::OffshoreReplicateChunkJob)
+        .DefaultNew();
+    registrar.Parameter("offshore_remove_chunk_job", &TThis::OffshoreRemoveChunkJob)
         .DefaultNew();
 
     registrar.Parameter("store_location_config_per_medium", &TThis::StoreLocationConfigPerMedium)

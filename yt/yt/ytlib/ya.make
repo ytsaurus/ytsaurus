@@ -133,6 +133,7 @@ SRCS(
     chunk_client/chunk_reader_memory_manager.cpp
     chunk_client/chunk_reader_statistics.cpp
     chunk_client/chunk_replica_cache.cpp
+    chunk_client/chunk_replica_destroyer.cpp
     chunk_client/chunk_scraper.cpp
     chunk_client/chunk_spec_fetcher.cpp
     chunk_client/chunk_spec.cpp

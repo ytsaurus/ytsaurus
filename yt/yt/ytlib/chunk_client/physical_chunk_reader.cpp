@@ -58,6 +58,7 @@ IChunkReaderPtr CreatePhysicalChunkReader(
         auto mediumDescriptor = mediumDirectory->GetByIndexOrThrow(offshoreReplica.GetMediumIndex());
 
         if (const auto s3MediumDescriptor = mediumDescriptor->As<TS3MediumDescriptor>()) {
+            // TODO(achulkov2): Formatting.
             return CreateS3Reader(
                 s3MediumDescriptor, config, chunkId,
                 chunkFormat,

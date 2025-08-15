@@ -18,6 +18,7 @@
 #include "chunk_manager.h"
 #include "incumbency_epoch.h"
 #include "chunk_replica_fetcher.h"
+#include "s3_medium.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
@@ -335,6 +336,122 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TRepairJob)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOffshoreReplicationJob
+    : public TJob
+{
+public:
+    DEFINE_BYREF_RO_PROPERTY(TChunkReplicaWithMediumList, SourceReplicas);
+    DEFINE_BYREF_RO_PROPERTY(TChunkReplicaWithMediumList, TargetReplicas);
+    DEFINE_BYREF_RO_PROPERTY(TNodeList, TargetNodes);
+
+public:
+    TOffshoreReplicationJob(
+        TJobId jobId,
+        TJobEpoch jobEpoch,
+        TNode* node,
+        TChunkPtrWithReplicaIndex chunkWithIndex,
+        const TChunkReplicaWithMediumList& sourceReplicas,
+        const TChunkReplicaWithMediumList& targetReplicas,
+        const TNodeList& targetNodes)
+        : TJob(
+            jobId,
+            EJobType::OffshoreReplicateChunk,
+            jobEpoch,
+            node,
+            TOffshoreReplicationJob::GetResourceUsage(chunkWithIndex.GetPtr()),
+            TChunkIdWithIndexes(
+                chunkWithIndex.GetPtr()->GetId(),
+                chunkWithIndex.GetReplicaIndex(),
+                // TODO(achulkov2): Is this the proper value?
+                AllMediaIndex))
+        , SourceReplicas_(sourceReplicas)
+        , TargetReplicas_(targetReplicas)
+        , TargetNodes_(targetNodes)
+    { }
+
+    bool FillJobSpec(TBootstrap* /*bootstrap*/, TJobSpec* jobSpec) const override
+    {
+        auto* jobSpecExt = jobSpec->MutableExtension(TOffshoreReplicateChunkJobSpecExt::offshore_replicate_chunk_job_spec_ext);
+        ToProto(jobSpecExt->mutable_chunk_id(), EncodeChunkId(ChunkIdWithIndexes_));
+        
+        for (const auto& sourceReplica : SourceReplicas_) {
+            jobSpecExt->add_source_replicas(ToProto<ui64>(sourceReplica));
+        }
+
+        NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
+        for (auto replica : TargetReplicas_) {
+            jobSpecExt->add_target_replicas(ToProto<ui64>(replica));
+        }
+
+        for (auto node : TargetNodes_) {
+            builder.Add(node);
+        }
+
+        return true;
+    }
+
+private:
+    static TNodeResources GetResourceUsage(TChunk* chunk)
+    {
+        auto dataSize = chunk->GetPartDiskSpace();
+
+        TNodeResources resourceUsage;
+        resourceUsage.set_offshore_replication_slots(1);
+        resourceUsage.set_offshore_replication_data_size(dataSize);
+
+        return resourceUsage;
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TOffshoreReplicationJob)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOffshoreRemovalJob
+    : public TJob
+{
+public:
+    // TODO(achulkov2): Figure out the proper type to pass to provide offshore
+    // replica information, once we have proper extra metadata representation.
+    TOffshoreRemovalJob(
+        TJobId jobId,
+        TJobEpoch jobEpoch,
+        TNode* node,
+        TChunkIdWithIndexes chunkIdWithIndexes)
+        : TJob(
+            jobId,
+            EJobType::OffshoreRemoveChunk,
+            jobEpoch,
+            node,
+            TOffshoreRemovalJob::GetResourceUsage(),
+            chunkIdWithIndexes)
+    { }
+
+    bool FillJobSpec(TBootstrap* /*bootstrap*/, TJobSpec* jobSpec) const override
+    {
+        auto* jobSpecExt = jobSpec->MutableExtension(TOffshoreRemoveChunkJobSpecExt::offshore_remove_chunk_job_spec_ext);
+        ToProto(jobSpecExt->mutable_chunk_id(), EncodeChunkId(ChunkIdWithIndexes_));
+        TChunkReplicaWithMedium replica(
+            NNodeTrackerClient::OffshoreNodeId,
+            ChunkIdWithIndexes_.ReplicaIndex,
+            ChunkIdWithIndexes_.MediumIndex);
+        jobSpecExt->set_replica(ToProto<ui64>(replica));
+        
+        return true;
+    }
+
+private:
+    static TNodeResources GetResourceUsage()
+    {
+        TNodeResources resourceUsage;
+        resourceUsage.set_offshore_removal_slots(1);
+
+        return resourceUsage;
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1118,6 +1235,9 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
 
     for (const auto& replica : offshoreReplicas) {
         ++replicaCount[replica.GetEffectiveMediumIndex()];
+
+        hasSealedReplica.insert(replica.GetEffectiveMediumIndex());
+        hasSealedReplicas = true;
     }
 
     bool precarious = true;
@@ -1156,6 +1276,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
 
         auto maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk);
 
+        YT_LOG_DEBUG("KekKekKek Computing regular chunk statistics for medium (MediumIndex: %v)", mediumIndex);
         ComputeRegularChunkStatisticsForMedium(
             mediumStatistics,
             chunk,
@@ -1225,6 +1346,19 @@ void TChunkReplicator::ComputeRegularChunkStatisticsForMedium(
     auto minSafeAvailableReplicaCount = std::max(replicationFactor - MaxTemporarilyUnavailableReplicaCount, minRackAwareReplicaCount);
     auto totalReplicaCount = replicaCount + decommissionedReplicaCount + temporarilyUnavailableReplicaCount;
 
+    YT_LOG_DEBUG("KekKekKek Computing regular chunk statistics for medium "
+        "(ChunkId: %v, ReplicaCount: %v, DecommissionedReplicaCount: %v, "
+        "TemporarilyUnavailableReplicaCount: %v, TotalReplicaCount: %v, "
+        "ReplicationFactor: %v, MinSafeAvailableReplicaCount: %v, HasSealedReplica: %v)",
+        chunk->GetId(),
+        replicaCount,
+        decommissionedReplicaCount,
+        temporarilyUnavailableReplicaCount,
+        totalReplicaCount,
+        replicationFactor,
+        minSafeAvailableReplicaCount,
+        hasSealedReplica);
+
     result.ReplicaCount[GenericChunkReplicaIndex] = replicaCount;
     result.TemporarilyUnavailableReplicaCount[GenericChunkReplicaIndex] = temporarilyUnavailableReplicaCount;
     result.DecommissionedReplicaCount[GenericChunkReplicaIndex] = decommissionedReplicaCount;
@@ -1243,6 +1377,7 @@ void TChunkReplicator::ComputeRegularChunkStatisticsForMedium(
              replicaCount < minSafeAvailableReplicaCount) &&
              hasSealedReplica)
         {
+            YT_LOG_DEBUG("KekKekKek Considering chunk underreplicated (ChunkId: %v)", chunk->GetId());
             result.Status |= EChunkStatus::Underreplicated;
         }
 
@@ -1388,6 +1523,7 @@ void TChunkReplicator::OnChunkDestroyed(TChunk* chunk)
     GetChunkRequisitionUpdateScanner(chunk)->OnChunkDestroyed(chunk);
     ResetChunkStatus(chunk);
     RemoveFromChunkRepairQueues(chunk);
+    RemoveChunkFromOffshoreChunkReplicationQueue(chunk);
 }
 
 void TChunkReplicator::RemoveFromChunkReplicationQueues(
@@ -1421,6 +1557,21 @@ void TChunkReplicator::OnReplicaRemoved(
     }
     if (chunk->IsJournal()) {
         location->RemoveFromChunkSealQueue(chunkIdWithIndex);
+    }
+}
+
+void TChunkReplicator::OnOffshoreReplicaRemoved(
+    TOffshoreMedium* offshoreMedium,
+    TChunkPtrWithReplicaIndex replica,
+    ERemoveReplicaReason reason)
+{
+    auto* chunk = replica.GetPtr();
+    auto chunkIdWithIndex = TChunkIdWithIndex(chunk->GetId(), replica.GetReplicaIndex());
+
+    RemoveChunkFromOffshoreChunkReplicationQueue(chunk);
+
+    if (reason != ERemoveReplicaReason::ChunkDestroyed) {
+        offshoreMedium->RemoveFromChunkRemovalQueue(chunkIdWithIndex);
     }
 }
 
@@ -1770,6 +1921,190 @@ bool TChunkReplicator::TryScheduleRepairJob(
     return true;
 }
 
+// TODO(achulkov2): Judging by the amount of copy-paste, we should probably share code
+// with TryScheduleReplicationJob. There are some annoying differences though.
+bool TChunkReplicator::TryScheduleOffshoreReplicationJob(
+        IJobSchedulingContext* context,
+        TChunkPtrWithReplicaIndex chunkWithIndex,
+        TMedium* targetMedium,
+        const TChunkLocationPtrWithReplicaInfoList& replicas,
+        const TMediumPtrWithReplicaInfoList& offshoreReplicas)
+{
+    auto* chunk = chunkWithIndex.GetPtr();
+    auto replicaIndex = chunkWithIndex.GetReplicaIndex();
+        // No offshore replication for erasure chunks.
+    YT_VERIFY(replicaIndex == GenericChunkReplicaIndex);
+    auto targetMediumIndex = targetMedium->GetIndex();
+
+    if (!IsObjectAlive(chunk)) {
+        return true;
+    }
+
+    YT_LOG_DEBUG("Trying to schedule offshore replication job "
+        "(ChunkId: %v, ReplicaIndex: %v, TargetMediumIndex: %v)",
+        chunk->GetId(),
+        replicaIndex,
+        targetMediumIndex);
+
+    // TODO(achulkov2): What does this mean? Find out.
+    if (chunk->GetScanFlag(EChunkScanKind::Refresh)) {
+        return true;
+    }
+
+    YT_LOG_DEBUG("KekKekKek Part1");
+
+    if (chunk->HasJobs()) {
+        return true;
+    }
+
+    YT_LOG_DEBUG("KekKekKek Part2");
+
+    auto statistics = ComputeChunkStatistics(chunk, replicas, offshoreReplicas);
+    const auto& mediumStatistics = statistics.PerMediumStatistics[targetMediumIndex];
+    // int replicaCount = mediumStatistics.ReplicaCount[replicaIndex];
+
+    // TODO(achulkov2): Does this mean that the chunk is completely lost?
+    if (Any(statistics.Status & ECrossMediumChunkStatus::Lost)) {
+        return true;
+    }
+
+    // TODO(achulkov2): Check against replication factor.
+
+    YT_LOG_DEBUG("KekKekKek Part3");
+
+    // TODO(achulkov2): We do fan-out = 1 as POC, fix this.
+    int replicasNeeded = 1;
+
+    // TODO(achulkov2): Should we check again if we have enough replicas?
+
+    // TODO(achulkov2): What replicas should we prefer to read from if there are replicas on multiple media?
+
+    // TODO(achulkov2): There are other similar places, we can create a helper function.
+    TChunkReplicaWithMediumList sourceReplicas;
+    for (const auto& replica : replicas) {
+        sourceReplicas.emplace_back(
+            replica.GetPtr()->GetNode()->GetId(),
+            replica.GetReplicaIndex(),
+            replica.GetPtr()->GetEffectiveMediumIndex());
+    }
+    for (const auto& offshoreReplica : offshoreReplicas) {
+        sourceReplicas.emplace_back(
+            NNodeTrackerClient::OffshoreNodeId,
+            offshoreReplica.GetReplicaIndex(),
+            offshoreReplica.GetEffectiveMediumIndex());
+    }
+
+    TChunkReplicaWithMediumList targetReplicas;
+    TNodeList targetNodes;
+
+    if (targetMedium->IsDomestic()) {
+        targetNodes = ChunkPlacement_->AllocateWriteTargets(
+            targetMedium->AsDomestic(),
+            chunk,
+            replicas,
+            replicaIndex == GenericChunkReplicaIndex
+                ? TChunkReplicaIndexList()
+                : TChunkReplicaIndexList{replicaIndex},
+            replicasNeeded,
+            1,
+            std::nullopt,
+            ESessionType::Replication,
+            mediumStatistics.UnsafelyPlacedReplica);
+
+        YT_LOG_DEBUG("KekKekKek Part4");
+
+        if (targetNodes.empty()) {
+            return false;
+        }
+
+        YT_LOG_DEBUG("KekKekKek Part5");
+
+        for (auto* node : targetNodes) {
+            targetReplicas.emplace_back(node->GetId(), replicaIndex, targetMediumIndex);
+        }
+    } else {
+        targetReplicas.emplace_back(NNodeTrackerClient::OffshoreNodeId, replicaIndex, targetMediumIndex);
+    }
+
+    auto job = New<TOffshoreReplicationJob>(
+        context->GenerateJobId(),
+        GetJobEpoch(chunk),
+        context->GetNode(),
+        chunkWithIndex,
+        sourceReplicas,
+        targetReplicas,
+        targetNodes);
+    context->ScheduleJob(job);
+
+    YT_LOG_DEBUG("Offshore replication job scheduled "
+        "(JobId: %v, JobEpoch: %v, Address: %v, ChunkId: %v, SourceReplicas: %v, TargetReplicas: %v)",
+        job->GetJobId(),
+        job->GetJobEpoch(),
+        context->GetNode()->GetDefaultAddress(),
+        chunkWithIndex,
+        sourceReplicas,
+        targetReplicas);
+
+    return true;
+}
+
+bool TChunkReplicator::TryScheduleOffshoreRemovalJob(
+        IJobSchedulingContext* context,
+        const NChunkClient::TChunkIdWithIndex& chunkIdWithIndex,
+        TOffshoreMedium* medium)
+{
+    YT_VERIFY(medium);
+
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+    auto* chunk = chunkManager->FindChunk(chunkIdWithIndex.Id);
+
+    YT_LOG_DEBUG("Trying to schedule offshore replication job "
+        "(IsChunkAlive: %v, ChunkId: %v, ReplicaIndex: %v, MediumIndex: %v, MediumName: %v, MediumId: %v)",
+        IsObjectAlive(chunk),
+        chunkIdWithIndex.Id,
+        chunkIdWithIndex.ReplicaIndex,
+        medium->GetIndex(),
+        medium->GetName(),
+        medium->GetId());
+
+    // NB: Allow more than one job for dead chunks.
+    if (IsObjectAlive(chunk)) {
+        if (chunk->GetScanFlag(EChunkScanKind::Refresh)) {
+            return true;
+        }
+        if (chunk->HasJobs()) {
+            return true;
+        }
+        // TODO(achulkov2): Find out about removal lock protocol, what it
+        // does, why it is needed. We are probably fine without it.
+    }
+
+    auto shardIndex = GetChunkShardIndex(chunkIdWithIndex.Id);
+
+    TChunkIdWithIndexes chunkIdWithIndexes(chunkIdWithIndex, medium->GetIndex());
+
+    auto job = New<TOffshoreRemovalJob>(
+        context->GenerateJobId(),
+        JobEpochs_[shardIndex],
+        context->GetNode(),
+        chunkIdWithIndexes);
+
+    context->ScheduleJob(job);
+
+    YT_LOG_DEBUG(
+        "Offshore removal job scheduled "
+        "(JobId: %v, JobEpoch: %v, Address: %v, ChunkId: %v, MediumName: %v, MediumId: %v)",
+        job->GetJobId(),
+        job->GetJobEpoch(),
+        context->GetNode()->GetDefaultAddress(),
+        chunkIdWithIndexes,
+        medium->GetName(),
+        medium->GetId());
+
+    return true;
+}
+
 void TChunkReplicator::ScheduleJobs(EJobType jobType, IJobSchedulingContext* context)
 {
     YT_VERIFY(IsMasterJobType(jobType));
@@ -1787,6 +2122,12 @@ void TChunkReplicator::ScheduleJobs(EJobType jobType, IJobSchedulingContext* con
             break;
         case EJobType::RepairChunk:
             ScheduleRepairJobs(context);
+            break;
+        case EJobType::OffshoreReplicateChunk:
+            ScheduleOffshoreReplicationJobs(context);
+            break;
+        case EJobType::OffshoreRemoveChunk:
+            ScheduleOffshoreRemovalJobs(context);
             break;
         default:
             break;
@@ -2189,6 +2530,294 @@ void TChunkReplicator::ScheduleRemovalJobs(IJobSchedulingContext* context)
     MisscheduledJobs_[EJobType::RemoveChunk] += misscheduledRemovalJobs;
 }
 
+void TChunkReplicator::ScheduleOffshoreReplicationJobs(IJobSchedulingContext* context)
+{
+    YT_LOG_DEBUG(
+        "KekKekKek Scheduling offshore replication jobs (NodeId: %v, MaxMisscheduledOffshoreReplicationJobsPerHeartbeat: %v, QueueSize: %v)",
+        context->GetNode()->GetId(),
+        GetDynamicConfig()->MaxMisscheduledOffshoreReplicationJobsPerHeartbeat,
+        OffshoreChunkReplicationQueue_.size());
+
+    if (GetDynamicConfig()->MaxMisscheduledOffshoreReplicationJobsPerHeartbeat == 0) {
+        return;
+    }
+
+    const auto& resourceUsage = context->GetNodeResourceUsage();
+    const auto& resourceLimits = context->GetNodeResourceLimits();
+
+    int misscheduledOffshoreReplicationJobs = 0;
+
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
+
+    auto hasSpareOffshoreReplicationResources = [&] {
+        return
+            misscheduledOffshoreReplicationJobs < GetDynamicConfig()->MaxMisscheduledOffshoreReplicationJobsPerHeartbeat &&
+            resourceUsage.replication_slots() < resourceLimits.replication_slots() &&
+            (resourceUsage.replication_slots() == 0 || resourceUsage.replication_data_size() < resourceLimits.replication_data_size());
+    };
+
+    YT_LOG_DEBUG("KekKekKek Offshore replication job scheduling (HasSpareResources: %v)", hasSpareOffshoreReplicationResources());
+
+    while (!OffshoreChunkReplicationQueue_.empty() && hasSpareOffshoreReplicationResources()) {
+        auto chunkIt = OffshoreChunkReplicationQueue_.PickRandomChunk();
+
+        YT_LOG_DEBUG("KekKekKek Processing potential offshore replication job (ChunkId: %v, ReplicaIndex: %v)",
+            chunkIt->first.Id,
+            chunkIt->first.ReplicaIndex);
+
+        auto chunkIdWithIndex = chunkIt->first;
+        auto chunkId = chunkIdWithIndex.Id;
+        auto* chunk = Bootstrap_->GetChunkManager()->FindChunk(chunkId);
+        if (!IsObjectAlive(chunk) || !chunk->IsRefreshActual()) {
+            OffshoreChunkReplicationQueue_.Erase(chunkIt);
+            ++misscheduledOffshoreReplicationJobs;
+            continue;
+        }
+
+        // TODO(achulkov2): Get replicas for all chunks in queue at once?
+        auto chunkReplicasOrError = chunkReplicaFetcher->GetChunkReplicas(TEphemeralObjectPtr<TChunk>(chunk));
+        auto offshoreReplicas = chunkReplicaFetcher->GetOffshoreChunkReplicas(TEphemeralObjectPtr<TChunk>(chunk));
+        
+        if (!chunkReplicasOrError.IsOK()) {
+            OffshoreChunkReplicationQueue_.Erase(chunkIt);
+            ++misscheduledOffshoreReplicationJobs;
+            ScheduleChunkRefresh(chunk);
+            continue;
+        }
+
+        const auto& chunkReplicas = chunkReplicasOrError.Value();
+
+        auto mediumIndexSet = chunkIt->second;
+        std::vector<int> mediumIndexesToRemove;
+        mediumIndexesToRemove.reserve(mediumIndexSet.size());
+        for (auto mediumIndex : mediumIndexSet) {
+            YT_LOG_DEBUG(
+                "KekKekKek Scheduling offshore replication job (ChunkId: %v, DestinationMediumIndex: %v)",
+                chunkId,
+                mediumIndex);
+
+            auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+            if (!IsObjectAlive(medium)) {
+                YT_LOG_ALERT(
+                    "Attempted to schedule offshore replication job for non-existent medium, ignored "
+                    "(ChunkId: %v, MediumIndex: %v)",
+                    chunk->GetId(),
+                    mediumIndex);
+                ++misscheduledOffshoreReplicationJobs;
+                // Something bad happened, let's try to forget it.
+                mediumIndexesToRemove.push_back(mediumIndex);
+                ScheduleChunkRefresh(chunk);
+                continue;
+            }
+
+            // TODO(achulkov2): Just pass chunk pointer without replica index?
+            // We don't handle erasure chunks anyway.
+            if (TryScheduleOffshoreReplicationJob(
+                    context,
+                    {chunk, chunkIdWithIndex.ReplicaIndex},
+                    medium,
+                    chunkReplicas,
+                    offshoreReplicas))
+            {
+                mediumIndexesToRemove.push_back(mediumIndex);
+            } else {
+                ++misscheduledOffshoreReplicationJobs;
+                // TODO(achulkov2): We can simplify branches here.
+                mediumIndexesToRemove.push_back(mediumIndex);
+                // TODO(achulkov2): Do we need to schedule a refresh here?
+            }
+        }
+
+        for (int mediumIndex : mediumIndexesToRemove) {
+            mediumIndexSet.erase(mediumIndex);
+        }
+
+        if (mediumIndexSet.empty()) {
+            OffshoreChunkReplicationQueue_.Erase(chunkIt);
+        }
+    }
+
+    MisscheduledJobs_[EJobType::OffshoreReplicateChunk] += misscheduledOffshoreReplicationJobs;
+}
+
+void TChunkReplicator::ScheduleOffshoreRemovalJobs(IJobSchedulingContext* context)
+{
+    if (TInstant::Now() < LastActiveShardSetUpdateTime_ + GetDynamicConfig()->RemovalJobScheduleDelay) {
+        return;
+    }
+
+    auto* node = context->GetNode();
+    const auto& resourceUsage = context->GetNodeResourceUsage();
+    const auto& resourceLimits = context->GetNodeResourceLimits();
+
+    YT_LOG_DEBUG(
+        "KekKekKek Scheduling offshore removal jobs (NodeId: %v, MaxMisscheduledOffshoreRemovalJobsPerHeartbeat: %v, Slots: %v/%v)",
+        context->GetNode()->GetId(),
+        GetDynamicConfig()->MaxMisscheduledOffshoreRemovalJobsPerHeartbeat,
+        resourceUsage.offshore_removal_slots(),
+        resourceLimits.offshore_removal_slots());
+
+    int misscheduledRemovalJobs = 0;
+
+    auto hasSpareRemovalResources = [&] {
+        return
+            // Diff 1: config option.
+            misscheduledRemovalJobs < GetDynamicConfig()->MaxMisscheduledOffshoreRemovalJobsPerHeartbeat &&
+            // Diff 2: slot type.
+            resourceUsage.offshore_removal_slots() < resourceLimits.offshore_removal_slots();
+    };
+
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+    // Schedule removal jobs.
+    const auto& nodeJobs = JobRegistry_->GetNodeJobs(node->GetDefaultAddress());
+
+    THashSet<TChunkIdWithIndexes> chunksBeingRemoved;
+    for (const auto& job : nodeJobs) {
+        // Diff 3: job type.
+        if (job->GetType() != EJobType::OffshoreRemoveChunk) {
+            continue;
+        }
+        chunksBeingRemoved.insert(job->GetChunkIdWithIndexes());
+    }
+
+    YT_LOG_DEBUG("KekKekKek Formed list of chunks being removed (Count: %v)", chunksBeingRemoved.size());
+
+    if (GetActiveShardCount() > 0) {
+        // Diff 4: location shards -> medium shards.
+        MediumShards_.clear();
+        for (const auto& [mediumId, medium] : chunkManager->Media()) {
+            // Diff 4.1: Extra check!
+            if (!medium->IsOffshore()) {
+                continue;
+            }
+
+            auto* offshoreMedium = medium->As<TOffshoreMedium>();
+            for (auto shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
+                if (IsShardActive(shardIndex) &&
+                    !offshoreMedium->GetDestroyedReplicaSet(shardIndex).empty())
+                {
+                    MediumShards_.push_back({offshoreMedium, offshoreMedium->GetDestroyedReplicasIterator(shardIndex), shardIndex});
+                }
+            }
+        }
+        int activeMediumCount = std::ssize(MediumShards_);
+
+        YT_LOG_DEBUG("KekKekKek Formed active medium shards with destroyed replicas (ActiveMediumCount: %v)", activeMediumCount);
+
+        while (activeMediumCount > 0 && hasSpareRemovalResources()) {
+            // Diff 5: location -> medium.
+            for (auto& [medium, replicaIterator, shardId, active] : MediumShards_) {
+                if (activeMediumCount <= 0 || !hasSpareRemovalResources()) {
+                    break;
+                }
+
+                if (!active) {
+                    continue;
+                }
+
+                // Diff 6: we don't need to pass medium index.
+                auto mediumIndex = medium->GetIndex();
+                TChunkIdWithIndexes replica(*replicaIterator, mediumIndex);
+
+                YT_LOG_DEBUG("KekKekKek Advancing destroyed replica iterator (MediumIndex: %v, MediumName: %v, MediumId: %v)", mediumIndex, medium->GetName(), medium->GetId());
+                if (!replicaIterator.Advance()) {
+                    active = false;
+                    --activeMediumCount;
+                }
+
+                if (chunksBeingRemoved.contains(replica)) {
+                    continue;
+                }
+
+                // Diff 7: different invocation for offshore removal.
+                if (TryScheduleOffshoreRemovalJob(context, replica, medium)) {
+                    medium->SetDestroyedReplicasIterator(replicaIterator, shardId);
+                } else {
+                    ++misscheduledRemovalJobs;
+                }
+            }
+        }
+    }
+
+    {
+        // Diff 8: location -> medium.
+        // TODO(achulkov2): What is the proper container? Also I think there was a question about this whole setup.
+        std::vector<std::pair<TOffshoreMedium*, TChunkLocation::TChunkQueue::iterator>> media;
+        for (const auto& [mediumId, medium] : chunkManager->Media()) {
+            // Diff 8.1: Extra check!
+            if (!medium->IsOffshore()) {
+                continue;
+            }
+
+            auto offshoreMedium = medium->As<TOffshoreMedium>();
+            auto& queue = offshoreMedium->ChunkRemovalQueue();
+
+            YT_LOG_DEBUG(
+                "KekKekKek Assessing chunk removal queue (MediumId: %v, MediumName: %v, MediumIndex: %v, QueueSize: %v)",
+                offshoreMedium->GetId(),
+                offshoreMedium->GetName(),
+                offshoreMedium->GetIndex(),
+                queue.size());
+            if (!queue.empty()) {
+                media.emplace_back(offshoreMedium, queue.begin());
+            }
+        }
+        int activeMediumCount = std::ssize(media);
+
+        while (activeMediumCount > 0 && hasSpareRemovalResources()) {
+            for (auto& [medium, replicaIterator] : media) {
+                if (activeMediumCount <= 0 || !hasSpareRemovalResources()) {
+                    break;
+                }
+
+                auto& queue = medium->ChunkRemovalQueue();
+                if (replicaIterator == queue.end()) {
+                    continue;
+                }
+
+                auto replica = replicaIterator;
+                if (++replicaIterator == queue.end()) {
+                    --activeMediumCount;
+                }
+
+                YT_LOG_DEBUG(
+                    "KekKekKek Considering removed replica (Replica: %v, MediumIndex: %v, MediumName: %v, MediumId: %v)",
+                    *replica,
+                    medium->GetIndex(),
+                    medium->GetName(),
+                    medium->GetId());
+
+                auto* chunk = chunkManager->FindChunk(replica->Id);
+                // Diff 9: Different index retrieval.
+                auto mediumIndex = medium->GetIndex();
+                TChunkIdWithIndexes chunkIdWithIndexes(*replica, mediumIndex);
+                if (!ShouldProcessChunk(replica->Id) || (IsObjectAlive(chunk) && !chunk->IsRefreshActual())) {
+                    YT_LOG_DEBUG("KekKekKek Misscheduled offshore removal job (Part: 0)");
+                    queue.erase(replica);
+                    ++misscheduledRemovalJobs;
+                } else if (chunksBeingRemoved.contains(chunkIdWithIndexes)) {
+                    YT_LOG_DEBUG("KekKekKek Misscheduled offshore removal job (Part: 1)");
+                    // TODO(achulkov2): This check is far less useful for offshore removal jobs, because jobs are distributed
+                    // across all nodes, not a single node storing the replica. Probably worth killing this alert altogether.
+                    YT_LOG_ALERT(
+                        "Trying to schedule a removal job for a chunk that is already being removed (ChunkId: %v)",
+                        chunkIdWithIndexes);
+                } else if (TryScheduleOffshoreRemovalJob(context, *replica, medium)) {
+                    queue.erase(replica);
+                } else {
+                    YT_LOG_DEBUG("KekKekKek Misscheduled offshore removal job (Part: 2)");
+                    ++misscheduledRemovalJobs;
+                }
+            }
+        }
+    }
+
+    // Diff 10: different job type.
+    MisscheduledJobs_[EJobType::OffshoreRemoveChunk] += misscheduledRemovalJobs;
+}
+
 void TChunkReplicator::ScheduleRepairJobs(IJobSchedulingContext* context)
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -2345,6 +2974,8 @@ void TChunkReplicator::RefreshChunk(
 
     RemoveChunkReplicasFromReplicationQueues(chunkId, chunkReplicas);
 
+    RemoveChunkFromOffshoreChunkReplicationQueue(chunk);
+
     auto replication = GetChunkAggregatedReplication(chunk, chunkReplicas, offshoreChunkReplicas);
 
     auto allMediaStatistics = ComputeChunkStatistics(chunk, chunkReplicas, offshoreChunkReplicas);
@@ -2405,6 +3036,25 @@ void TChunkReplicator::RefreshChunk(
 
                 for (int replicaIndex : statistics.BalancingRemovalIndexes) {
                     TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes(chunk, replicaIndex, mediumIndex);
+
+                    if (medium->IsOffshore()) {
+                        auto* offshoreMedium = medium->As<TOffshoreMedium>();
+                        YT_VERIFY(offshoreMedium);
+
+                        offshoreMedium->AddToChunkRemovalQueue(TChunkIdWithIndex{chunkId, replicaIndex});
+
+                        // TODO(achulkov2): Decide on log level.
+                        YT_LOG_DEBUG(
+                            "Added chunk to offshore removal queue (ChunkId: %v, ReplicaIndex: %v, MediumIndex: %v, MediumName: %v, MediumId: %v)",
+                            chunkId,
+                            replicaIndex,
+                            mediumIndex,
+                            offshoreMedium->GetName(),
+                            offshoreMedium->GetId());
+
+                        continue;
+                    }
+
                     auto* targetLocation = ChunkPlacement_->GetRemovalTarget(chunkWithIndexes, chunkReplicas);
                     if (!targetLocation) {
                         continue;
@@ -2419,16 +3069,60 @@ void TChunkReplicator::RefreshChunk(
 
             // This check may yield true even for lost chunks when cross-medium replication is in progress.
             if (Any(statistics.Status & (EChunkStatus::Underreplicated | EChunkStatus::UnsafelyPlaced | EChunkStatus::InconsistentlyPlaced))) {
-                for (auto replicaIndex : statistics.ReplicationIndexes) {
-                    // TODO(achulkov2): [PLater] No jobs are scheduled for offshore replicas right now, even for domestic -> offshore replication,
-                    // because there is no heartbeat/confirmation mechanism for written replicas.
-                    if (medium->IsOffshore()) {
-                        continue;
-                    }
+                // Various replication cases are possible:
+                //   1. Chunk is underreplicated on regular medium, but not lost:
+                //        => regular replication jobs from all same-medium replicas.
+                //   2. Chunk is underreplicated and lost on regular medium + replicas exist on other media:
+                //        => regular cross-medium jobs from all other regular replicas and offshore replication jobs from offshore replicas.
+                // TODO(achulkov2): Are we safe from overreplication here?
+                //   3. Chunk is underreplicated on offshore medium, but not lost:
+                //        => this should not happen, offshore replication always has rf=1.
+                //   4. Chunk is underreplicated and lost on offshore medium + replicas exist on other media:
+                //        => offshore replication jobs from all other replicas, both regular and offshore.
 
+
+                // TODO(achulkov2): What about CRP chunks? Logically, it is possible to schedule cross-medium offshore
+                // replication jobs for them, but practically the current mechanism is hard and obscure: we add to pull
+                // replication queues first, then transfer to push replication queues, there is some extr ref-ing...
+                // Let's try not to schedule such jobs for now.
+
+                // TODO(achulkov2): We really need to work on forbidding this behaviour where possible.
+                // It is hard though, there are many ways to move around chunks.
+
+                YT_LOG_DEBUG("KekKekKek Entered replication loop (ChunkId: %v, MediumIndex: %v, MediumName: %v)",
+                    chunkId,
+                    mediumIndex,
+                    medium->GetName());
+                for (auto replicaIndex : statistics.ReplicationIndexes) {
                     // Cap replica count minus one against the range [0, ReplicationPriorityCount - 1].
                     int replicaCount = statistics.ReplicaCount[replicaIndex];
                     int priority = std::max(std::min(replicaCount - 1, ReplicationPriorityCount - 1), 0);
+
+                    auto tryAddOffshoreReplicationJobToQueue = [&] (auto sourceReplicaIndex) {
+                        // There should be no journal chunks on offshore media.
+                        if (chunk->IsJournal()) {
+                            return;
+                        }
+
+                        if (sourceReplicaIndex != replicaIndex) {
+                            return;
+                        }
+
+                        // There should be no erasure replicas on offshore media.
+                        if (sourceReplicaIndex != GenericChunkReplicaIndex) {
+                            return;
+                        }
+
+                        auto chunkIdWithIndex = TChunkIdWithIndex(chunkId, sourceReplicaIndex);
+                        OffshoreChunkReplicationQueue_.Add(chunkIdWithIndex, mediumIndex);
+
+                        // TODO(achulkov2): Decide on log level.
+                        YT_LOG_DEBUG("Added chunk to offshore replication queue (ChunkId: %v, ReplicaIndex: %v, MediumIndex: %v, Priority: %v)",
+                            chunkId,
+                            sourceReplicaIndex,
+                            mediumIndex,
+                            priority);
+                    };
 
                     if (UsePullReplication(chunk)) {
                         for (auto replica : statistics.MissingReplicas) {
@@ -2464,13 +3158,32 @@ void TChunkReplicator::RefreshChunk(
                                 continue;
                             }
 
+                            TChunkIdWithIndex chunkIdWithIndex(chunkId, replica.GetReplicaIndex());
+
+                            // Target medium is offshore => we need schedule an offshore replication job, if possible.
+                            if (medium->IsOffshore()) {
+                                tryAddOffshoreReplicationJobToQueue(replica.GetReplicaIndex());
+                                continue;
+                            }
+
                             auto* node = replica.GetPtr()->GetNode();
                             if (!node->ReportedDataNodeHeartbeat() || node->IsPendingRestart()) {
                                 continue;
                             }
 
-                            TChunkIdWithIndex chunkIdWithIndex(chunkId, replica.GetReplicaIndex());
+                            YT_LOG_DEBUG(
+                                "KekKekKekKek Adding chunk to push replication queue (ChunkId: %v, NodeId: %v, TargetMediumIndex: %v, Priority: %v)",
+                                chunkId,
+                                node->GetId(),
+                                mediumIndex,
+                                priority);
+
                             node->AddToChunkPushReplicationQueue(chunkIdWithIndex, mediumIndex, priority);
+                        }
+
+                        // Source medium is offshore => we need to schedule an offshore replication job, if possible.
+                        for (auto offshoreReplica : offshoreChunkReplicas) {
+                            tryAddOffshoreReplicationJobToQueue(offshoreReplica.GetReplicaIndex());
                         }
                     }
                 }
@@ -3635,6 +4348,15 @@ void TChunkReplicator::RemoveFromChunkRepairQueues(TChunk* chunk)
             chunk->SetRepairQueueIterator(mediumIndex, queue, TChunkRepairQueueIterator());
         }
     }
+}
+
+void TChunkReplicator::RemoveChunkFromOffshoreChunkReplicationQueue(TChunk* chunk)
+{
+    if (chunk->IsErasure()) {
+        return;
+    }
+
+    OffshoreChunkReplicationQueue_.Erase({chunk->GetId(), GenericChunkReplicaIndex});
 }
 
 void TChunkReplicator::TouchChunkInRepairQueues(TChunk* chunk)

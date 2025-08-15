@@ -36,6 +36,9 @@ public:
     int MergeSlots;
     int AutotomySlots;
     int ReincarnationSlots;
+    int OffshoreReplicationSlots;
+    i64 OffshoreReplicationDataSize;
+    int OffshoreRemovalSlots;
 
     REGISTER_YSON_STRUCT(TResourceLimitsConfig);
 

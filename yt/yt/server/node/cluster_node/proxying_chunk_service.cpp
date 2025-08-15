@@ -78,6 +78,8 @@ public:
         , CreateChunkListsHandler_(New<TCreateChunkListsHandler>(this))
         , UnstageChunkTreeHandler_(New<TUnstageChunkTreeHandler>(this))
         , AttachChunkTreesHandler_(New<TAttachChunkTreesHandler>(this))
+        , AddConfirmReplicasHandler_(New<TAddConfirmReplicasHandler>(this))
+        , RemoveReplicasHandler_(New<TRemoveReplicasHandler>(this))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LocateChunks));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LocateDynamicStores));
@@ -89,6 +91,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateChunkLists));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UnstageChunkTree));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AttachChunkTrees));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AddConfirmReplicas));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveReplicas));
     }
 
 private:
@@ -493,6 +497,56 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, AttachChunkTrees)
     {
         AttachChunkTreesHandler_->HandleRequest(context);
+    }
+
+    class TAddConfirmReplicasHandler
+        : public THandlerBase<TReqAddConfirmReplicas, TRspAddConfirmReplicas>
+    {
+    public:
+        explicit TAddConfirmReplicasHandler(TProxyingChunkService* owner)
+            : THandlerBase(owner)
+        { }
+
+    protected:
+        TChunkServiceProxy::TReqAddConfirmReplicasPtr CreateRequest() override
+        {
+            auto req = LeaderProxy_.AddConfirmReplicas();
+            req->SetRequestHeavy(true);
+            req->SetResponseHeavy(true);
+            return req;
+        }
+    };
+
+    const TIntrusivePtr<TAddConfirmReplicasHandler> AddConfirmReplicasHandler_;
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, AddConfirmReplicas)
+    {
+        AddConfirmReplicasHandler_->HandleRequest(context);
+    }
+
+    class TRemoveReplicasHandler
+        : public THandlerBase<TReqRemoveReplicas, TRspRemoveReplicas>
+    {
+    public:
+        explicit TRemoveReplicasHandler(TProxyingChunkService* owner)
+            : THandlerBase(owner)
+        { }
+
+    protected:
+        TChunkServiceProxy::TReqRemoveReplicasPtr CreateRequest() override
+        {
+            auto req = LeaderProxy_.RemoveReplicas();
+            req->SetRequestHeavy(true);
+            req->SetResponseHeavy(true);
+            return req;
+        }
+    };
+
+    const TIntrusivePtr<TRemoveReplicasHandler> RemoveReplicasHandler_;
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, RemoveReplicas)
+    {
+        RemoveReplicasHandler_->HandleRequest(context);
     }
 };
 
