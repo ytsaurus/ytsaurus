@@ -10,6 +10,7 @@
 #include <contrib/ydb/core/kqp/runtime/kqp_read_table.h>
 #include <contrib/ydb/core/kqp/runtime/kqp_sequencer_factory.h>
 #include <contrib/ydb/core/kqp/runtime/kqp_stream_lookup_factory.h>
+#include <contrib/ydb/core/kqp/runtime/kqp_vector_actor.h>
 #include <contrib/ydb/library/yql/providers/generic/actors/yql_generic_provider_factories.h>
 #include <contrib/ydb/library/formats/arrow/protos/ssa.pb.h>
 #include <contrib/ydb/library/yql/dq/proto/dq_tasks.pb.h>
@@ -88,6 +89,7 @@ NYql::NDq::IDqAsyncIoFactory::TPtr CreateKqpAsyncIoFactory(
     RegisterKqpReadActor(*factory, counters);
     RegisterKqpWriteActor(*factory, counters);
     RegisterSequencerActorFactory(*factory, counters);
+    RegisterKqpVectorResolveActor(*factory, counters);
 
     if (federatedQuerySetup) {
         auto s3HttpRetryPolicy = NYql::GetHTTPDefaultRetryPolicy(NYql::THttpRetryPolicyOptions{.RetriedCurlCodes = NYql::FqRetriedCurlCodes()});
