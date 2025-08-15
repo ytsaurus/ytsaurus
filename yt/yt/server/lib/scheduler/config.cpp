@@ -624,6 +624,9 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_job_resource_limits", &TThis::MaxJobResourceLimits)
         .DefaultNew();
 
+    registrar.Parameter("guaranteed_job_resources", &TThis::GuaranteedJobResources)
+        .DefaultNew();
+
     registrar.Parameter("min_node_resource_limits", &TThis::MinNodeResourceLimits)
         .DefaultNew();
 

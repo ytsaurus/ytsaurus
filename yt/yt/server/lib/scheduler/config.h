@@ -473,6 +473,7 @@ struct TFairShareStrategyTreeConfig
 
     TJobResourcesConfigPtr MinJobResourceLimits;
     TJobResourcesConfigPtr MaxJobResourceLimits;
+    TJobResourcesWithDiskConfigPtr GuaranteedJobResources;
     TJobResourcesConfigPtr MinNodeResourceLimits;
 
     TDuration MinNodeResourceLimitsCheckPeriod;

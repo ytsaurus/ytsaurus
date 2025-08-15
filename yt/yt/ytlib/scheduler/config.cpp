@@ -2430,6 +2430,14 @@ TJobResourcesConfigPtr TJobResourcesConfig::operator-()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TJobResourcesWithDiskConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("disk_space", &TThis::DiskSpace)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TCommonPreemptionConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("fair_share_starvation_timeout", &TThis::FairShareStarvationTimeout)
