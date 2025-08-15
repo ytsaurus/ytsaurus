@@ -146,6 +146,44 @@ message TSealChunkJobSpecExt
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TOffshoreReplicateChunkJobSpecExt
+{
+    extend NChunkServer.NProto.TJobSpec
+    {
+        optional TOffshoreReplicateChunkJobSpecExt offshore_replicate_chunk_job_spec_ext = 205;
+    }
+
+    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
+
+    // Encoded chunk id.
+    required NYT.NProto.TGuid chunk_id = 2;
+
+    // Seed replicas used for reading chunk to replicate.
+    // Job might request additional seeds from master.
+    repeated fixed64 source_replicas = 3;
+
+    // Targets for new replicas to be created.
+    repeated fixed64 target_replicas = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TOffshoreRemoveChunkJobSpecExt
+{
+    extend NChunkServer.NProto.TJobSpec
+    {
+        optional TOffshoreRemoveChunkJobSpecExt offshore_remove_chunk_job_spec_ext = 206;
+    }
+
+    // Encoded chunk id.
+    required NYT.NProto.TGuid chunk_id = 1;
+
+    // Replica to be removed.
+    required fixed64 replica = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TMergeChunkInfo
 {
     required NYT.NProto.TGuid id = 1;

@@ -411,6 +411,8 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraUnstageChunkTree, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraUnstageExpiredChunks, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraRedistributeConsistentReplicaPlacementTokens, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraAddConfirmReplicas, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraRemoveReplicas, Unretained(this)));
 
         RegisterLoader(
             "ChunkManager.Keys",
@@ -438,6 +440,8 @@ public:
         JobController_->RegisterJobController(EJobType::MergeChunks, ChunkMerger_);
         JobController_->RegisterJobController(EJobType::AutotomizeChunk, ChunkAutotomizer_);
         JobController_->RegisterJobController(EJobType::ReincarnateChunk, ChunkReincarnator_);
+        JobController_->RegisterJobController(EJobType::OffshoreReplicateChunk, ChunkReplicator_);
+        JobController_->RegisterJobController(EJobType::OffshoreRemoveChunk, ChunkReplicator_);
 
         const auto& hydraFacade = Bootstrap_->GetHydraFacade();
         Y_UNUSED(hydraFacade);
@@ -729,6 +733,23 @@ public:
             this);
     }
 
+    std::unique_ptr<TMutation> CreateAddConfirmReplicasMutation(TCtxAddConfirmReplicasPtr context) override
+    {
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            std::move(context),
+            &TChunkManager::HydraAddConfirmReplicas,
+            this);
+    }
+
+    std::unique_ptr<TMutation> CreateRemoveReplicasMutation(TCtxRemoveReplicasPtr context) override
+    {
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            std::move(context),
+            &TChunkManager::HydraRemoveReplicas,
+            this);
+    }
 
 
     TNodeList AllocateWriteTargets(
@@ -874,6 +895,8 @@ public:
                     replica.GetNodeId());
                 continue;
             }
+
+            // TODO(achulkov2): Do not add replica for the same offshore medium twice.
 
             TChunkPtrWithReplicaInfo replicaWithState(
                 chunk,
@@ -1259,6 +1282,10 @@ public:
             auto* location = storedReplica.GetPtr();
             auto replicaIndex = storedReplica.GetReplicaIndex();
             TChunkPtrWithReplicaIndex replica(chunk, replicaIndex);
+            // TODO(achulkov2): Figure out in what situations this can return false,
+            // and whether those situations can occur for offshore media, which don't
+            // track their replicas.
+            // Probably some form of manual removal via heartbeats?
             if (!location->RemoveReplica(replica)) {
                 continue;
             }
@@ -1278,8 +1305,23 @@ public:
             }
         }
 
-        // TODO(achulkov2): [PLater] Handle offshore replicas.
-        // For now, data is just left on the underlying storage. Very reliable :)
+        for (auto storedOffshoreReplica : chunk->StoredOffshoreReplicas()) {
+            auto* medium = storedOffshoreReplica.GetPtr();
+            auto* offshoreMedium = medium->As<TOffshoreMedium>();
+            YT_VERIFY(offshoreMedium);
+
+            // TODO(achulkov2): See comment above, figure out whether there are some
+            // scenarios in which we should not add to destroyed replicas.
+            // So far I don't think so, given that we do have network access to the medium,
+            // we can always schedule a removal job, since they are designed to be idempotent,
+            // if the file is already deleted, the job will be successful.
+            // TODO(achulkov2): We should actually write a test for that :)
+
+            TChunkIdWithIndex chunkIdWithIndexes(chunk->GetId(), storedOffshoreReplica.GetReplicaIndex());
+            if (offshoreMedium->AddDestroyedReplica(chunkIdWithIndexes)) {
+                // TODO(achulkov2): Destroyed replica count.
+            }
+        }
 
         if (canHaveSequoiaReplicas) {
             std::sort(sequoiaReplicas.begin(), sequoiaReplicas.end());
@@ -4396,6 +4438,22 @@ private:
         ExecuteAttachChunkTreesSubrequest(request, response);
     }
 
+    void HydraAddConfirmReplicas(
+        const TCtxAddConfirmReplicasPtr& /*context*/,
+        TReqAddConfirmReplicas* request,
+        TRspAddConfirmReplicas* response)
+    {
+        ExecuteAddConfirmReplicasSubrequest(request, response);
+    }
+
+    void HydraRemoveReplicas(
+        const TCtxRemoveReplicasPtr& /*context*/,
+        TReqRemoveReplicas* request,
+        TRspRemoveReplicas* response)
+    {
+        ExecuteRemoveReplicasSubrequest(request, response);
+    }
+
     void ExecuteCreateChunkSubrequest(
         TReqCreateChunk* subrequest,
         TRspCreateChunk* subresponse)
@@ -4685,6 +4743,158 @@ private:
             parentId,
             MakeFormattableView(children, TObjectIdFormatter()),
             transactionId);
+    }
+
+    // TODO(achulkov2): Think about how we guarantee that the chunk will not have duplicate replicas for the same
+    // offshore medium, or two replicas for the same location for regular media. Look at how replica addition and
+    // confirmation is done after data node heartbeats.
+    // -- Some answers: duplicate regular replicas are simply skipped on a per-location basis. We should probably
+    // do the same for offshore replicas on a per-medium basis. The only difference is that locations
+    // know about their replicas and media don't (idk if we will change that). Replica set in locations looks
+    // transient.
+    void ExecuteAddConfirmReplicasSubrequest(
+        TReqAddConfirmReplicas* subrequest,
+        TRspAddConfirmReplicas* /*subresponse*/)
+    {
+        YT_VERIFY(HasMutationContext());
+
+        auto chunkId = FromProto<TChunkId>(subrequest->chunk_id());
+        auto* chunk = GetChunkOrThrow(chunkId);
+
+        if (!chunk->IsConfirmed()) {
+            THROW_ERROR_EXCEPTION("Cannot add replicas to an unconfirmed chunk %v", chunkId);
+        }
+
+        // TODO(achulkov2): Think about this, maybe AddConfirmReplicas already does everything correctly.
+        if (chunk->IsForeign()) {
+            THROW_ERROR_EXCEPTION("Cannot add replicas to a foreign chunk %v", chunkId);
+        }
+
+        auto replicas = FromProto<TChunkReplicaWithLocationList>(subrequest->replicas());
+        
+        TChunkReplicaWithLocationList domesticReplicas;
+        TChunkReplicaWithMediumList offshoreReplicas;
+
+        for (const TChunkReplicaWithLocation& replica : replicas) {
+            if (replica.GetChunkLocationUuid() == InvalidChunkLocationUuid && replica.GetNodeId() == NNodeTrackerClient::OffshoreNodeId) {
+                offshoreReplicas.push_back(replica);
+            } else {
+                domesticReplicas.push_back(replica);
+            }
+        }
+
+        AddConfirmReplicas(chunk, replicas, offshoreReplicas);
+
+        YT_LOG_DEBUG("Chunk confirmed replicas added (ChunkId: %v, Replicas: %v)", chunk->GetId(), replicas);
+    }
+
+    void ExecuteRemoveReplicasSubrequest(
+        TReqRemoveReplicas* subrequest,
+        TRspRemoveReplicas* /*subresponse*/)
+    {
+        // NB: Chunk id should not be encoded with replica id!
+        auto chunkId = FromProto<TChunkId>(subrequest->chunk_id());
+        auto* chunk = FindChunk(chunkId);
+        
+        auto replicas = FromProto<TChunkReplicaWithMediumList>(subrequest->replicas());
+
+        // TODO(achulkov2): Should we explicitly write medium index in log messages? It can be seen in replicas.
+
+        for (auto replica : replicas) {
+            if (replica.GetNodeId() != NNodeTrackerClient::OffshoreNodeId) {
+                YT_LOG_ALERT(
+                    "Attempted to directly remove a non-offshore replica (ChunkId: %v, Replica: %v)",
+                    chunkId,
+                    replica);
+                continue;
+            }
+
+            auto* medium = FindMediumByIndex(replica.GetMediumIndex());
+            if (!medium) {
+                YT_LOG_ALERT(
+                    "Attempted to directly remove replica from a non-existent medium (ChunkId: %v, Replica: %v)",
+                    chunkId,
+                    replica);
+                continue;
+            }
+
+            auto* offshoreMedium = medium->As<TOffshoreMedium>();
+            if (!offshoreMedium) {
+                YT_LOG_ALERT(
+                    "Attempted to directly remove replica from a non-offshore medium (ChunkId: %v, Replica: %v, MediumName: %v, MediumId: %v)",
+                    chunkId,
+                    replica,
+                    medium->GetName(),
+                    medium->GetId());
+                continue;
+            }
+
+            TChunkIdWithIndex chunkIdWithIndex(chunkId, replica.GetReplicaIndex());
+
+            auto isDestroyed = offshoreMedium->RemoveDestroyedReplica(chunkIdWithIndex);
+            
+            if (isDestroyed) {
+                YT_LOG_DEBUG(
+                    "Removed destroyed replica (ChunkId: %v, Replica: %v, MediumName: %v, MediumId: %v)",
+                    chunkId,
+                    replica,
+                    offshoreMedium->GetName(),
+                    offshoreMedium->GetId());
+            }
+
+            // TODO(achulkov2): Decide on this.
+            auto replicaRemovalReason = isDestroyed
+                ? ERemoveReplicaReason::ChunkDestroyed
+                : ERemoveReplicaReason::IncrementalHeartbeat;
+
+            // TODO(achulkov2): Destroyed replica count?
+
+            // If chunk is already dead, there is no need to remove its replicas.
+            // TODO(achulkov2): !chunk vs !IsObjectAlive(chunk).
+            if (!chunk) {
+                continue;
+            }
+
+            TMediumPtrWithReplicaInfo mediumWithReplicaInfo(medium, replica.GetReplicaIndex());
+
+            // TODO(achulkov2): Figure out how we want to handle this scenario, and whether it can actually
+            // happen in routine execution. For regular replicas, we check whether the replica exists on
+            // the given location, which, I presume, is expected to correspond with actual chunk replicas.
+            // For offshore media, there doesn't seem to be a reason to store a list of replicas (yet),
+            // so the only way is to explicitly look at the offshore chunk replica list.
+            // RemoveChunkReplica for ERemoveReplicaReason::IncrementalHeartbeat just skips replicas
+            // that are not present on the specified location.
+            auto removed = chunk->RemoveOffshoreReplica(mediumWithReplicaInfo);
+            if (!removed) {
+                YT_LOG_ALERT(
+                    "Attempted to remove a non-existent offshore replica (ChunkId: %v, Replica: %v)",
+                    chunkId,
+                    replica);
+            }
+
+            // TODO(achulkov2): Do we really need to pass this replica type, or can we simplify signature?
+            ChunkReplicator_->OnOffshoreReplicaRemoved(
+                offshoreMedium,
+                TChunkPtrWithReplicaIndex(chunk, replica.GetReplicaIndex()),
+                replicaRemovalReason);
+
+            YT_LOG_DEBUG(
+                "Removed offshore chunk replica (ChunkId: %v, Replica: %v, MediumName: %v, MediumId: %v)",
+                chunkId,
+                replica,
+                offshoreMedium->GetName(),
+                offshoreMedium->GetId());
+
+            // TODO(achulkov2): Separate counter for offshore replicas?
+            // Check against counter for added replicas.
+            ++ChunkReplicasRemoved_;
+        }
+
+        // We don't need to schedule refresh for each removed replica, we can just do it once.
+        // TODO(achulkov2): chunk vs IsObjectAlive(chunk).
+        if (chunk) {
+            ScheduleChunkRefresh(chunk);
+        }
     }
 
     void SaveKeys(NCellMaster::TSaveContext& context) const
@@ -5565,6 +5775,8 @@ private:
                         locationUuid,
                         chunkId);
                 }
+
+                // TODO(achulkov2): Maybe handle offshore replicas. Not until they are supported in Sequoia, I suppose.
             }
         }
 
@@ -5702,6 +5914,8 @@ private:
 
         ++ChunkReplicasRemoved_;
     }
+
+    void RemoveOffshoreChunkReplica();
 
 
     static EChunkReplicaState GetAddedChunkReplicaState(

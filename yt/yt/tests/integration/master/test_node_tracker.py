@@ -98,6 +98,7 @@ class TestNodeTracker(YTEnvSetup):
         with pytest.raises(YtError):
             remove("//sys/cluster_nodes/{0}/@resource_limits_overrides".format(node))
 
+    // TODO(achulkov2): Add offshore replication slots.
     @authors("cherepashka")
     def test_resource_limits_overrides_via_dynconfig(self):
         expected_resource_limits = {

@@ -132,9 +132,12 @@ message TNodeResources
     optional int32 merge_slots = 13;
     optional int32 autotomy_slots = 15;
     optional int32 reincarnation_slots = 17;
+    optional int32 offshore_replication_slots = 18;
+    optional int32 offshore_removal_slots = 19;
     optional int64 replication_data_size = 9;
     optional int64 repair_data_size = 10;
     optional int64 merge_data_size = 14;
+    optional int64 offshore_replication_data_size = 20;
     optional int64 system_memory = 11;
     optional int32 gpu = 12;
     optional double vcpu = 16;
@@ -169,6 +172,9 @@ message TNodeResourceLimitsOverrides
     optional int32 merge_slots = 12;
     optional int32 autotomy_slots = 14;
     optional int32 reincarnation_slots = 15;
+    optional int32 offshore_replication_slots = 16;
+    optional int64 offshore_replication_data_size = 17;
+    optional int32 offshore_removal_slots = 18;
     optional int64 user_memory = 9;
     optional int64 system_memory = 10;
     optional int32 gpu = 11;

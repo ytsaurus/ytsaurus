@@ -128,6 +128,10 @@ public:
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AttachChunkTrees)
             .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AddConfirmReplicas)
+            .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveReplicas)
+            .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ExecuteBatch)
             .SetCancelable(true)
             .SetHeavy(true)
@@ -955,6 +959,36 @@ private:
         }
 
         auto mutation = chunkManager->CreateConfirmChunkMutation(&context->Request(), &context->Response());
+        mutation->SetCurrentTraceContext();
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, AddConfirmReplicas)
+    {
+        context->SetRequestInfo("ChunkId: %v, ReplicaCount: %v",
+            request->chunk_id(),
+            request->replicas_size());
+
+        ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::Leader);
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto mutation = chunkManager->CreateAddConfirmReplicasMutation(context);
+        mutation->SetCurrentTraceContext();
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, RemoveReplicas)
+    {
+        context->SetRequestInfo("ChunkId: %v, ReplicaCount: %v",
+            request->chunk_id(),
+            request->replicas_size());
+
+        ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::Leader);
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto mutation = chunkManager->CreateRemoveReplicasMutation(context);
         mutation->SetCurrentTraceContext();
         YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }

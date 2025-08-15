@@ -22,40 +22,42 @@ extern const TOperationId NullOperationId;
 // is used as a key of TEnumIndexedArray.
 DEFINE_ENUM(EJobType,
     // Scheduler jobs
-    ((Map)               (  1))
-    ((PartitionMap)      (  2))
-    ((SortedMerge)       (  3))
-    ((OrderedMerge)      (  4))
-    ((UnorderedMerge)    (  5))
-    ((Partition)         (  6))
-    ((SimpleSort)        (  7))
-    ((FinalSort)         (  8))
-    ((SortedReduce)      (  9))
-    ((PartitionReduce)   ( 10))
-    ((ReduceCombiner)    ( 11))
-    ((RemoteCopy)        ( 12))
-    ((IntermediateSort)  ( 13))
-    ((OrderedMap)        ( 14))
-    ((JoinReduce)        ( 15))
-    ((Vanilla)           ( 16))
-    ((ShallowMerge)      ( 17))
-    ((SchedulerUnknown)  ( 98)) // Used by node to report aborted jobs for which spec request has failed.
+    ((Map)                     (  1))
+    ((PartitionMap)            (  2))
+    ((SortedMerge)             (  3))
+    ((OrderedMerge)            (  4))
+    ((UnorderedMerge)          (  5))
+    ((Partition)               (  6))
+    ((SimpleSort)              (  7))
+    ((FinalSort)               (  8))
+    ((SortedReduce)            (  9))
+    ((PartitionReduce)         ( 10))
+    ((ReduceCombiner)          ( 11))
+    ((RemoteCopy)              ( 12))
+    ((IntermediateSort)        ( 13))
+    ((OrderedMap)              ( 14))
+    ((JoinReduce)              ( 15))
+    ((Vanilla)                 ( 16))
+    ((ShallowMerge)            ( 17))
+    ((SchedulerUnknown)        ( 98)) // Used by node to report aborted jobs for which spec request has failed.
 
     // Master jobs
-    ((ReplicateChunk)    (100))
-    ((RemoveChunk)       (101))
-    ((RepairChunk)       (102))
-    ((SealChunk)         (103))
-    ((MergeChunks)       (104))
-    ((AutotomizeChunk)   (105))
-    ((ReincarnateChunk)  (106))
+    ((ReplicateChunk)          (100))
+    ((RemoveChunk)             (101))
+    ((RepairChunk)             (102))
+    ((SealChunk)               (103))
+    ((MergeChunks)             (104))
+    ((AutotomizeChunk)         (105))
+    ((ReincarnateChunk)        (106))
+    ((OffshoreReplicateChunk)  (107))
+    ((OffshoreRemoveChunk)     (108))
 );
 
 constexpr auto FirstSchedulerJobType = EJobType::Map;
 constexpr auto LastSchedulerJobType = EJobType::SchedulerUnknown;
 
 constexpr auto FirstMasterJobType = EJobType::ReplicateChunk;
-constexpr auto LastMasterJobType = EJobType::ReincarnateChunk;
+constexpr auto LastMasterJobType = EJobType::OffshoreRemoveChunk;
 
 // NB: Please keep the range of values small as this type
 // is used as a key of TEnumIndexedArray.

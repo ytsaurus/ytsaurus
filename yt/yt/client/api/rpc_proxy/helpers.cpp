@@ -1735,6 +1735,10 @@ NProto::EJobType ConvertJobTypeToProto(
             return NProto::EJobType::JT_SHALLOW_MERGE;
         case NJobTrackerClient::EJobType::ReincarnateChunk:
             return NProto::EJobType::JT_REINCARNATE_CHUNK;
+        case NJobTrackerClient::EJobType::OffshoreReplicateChunk:
+            return NProto::EJobType::JT_OFFSHORE_REPLICATE_CHUNK;
+        case NJobTrackerClient::EJobType::OffshoreRemoveChunk:
+            return NProto::EJobType::JT_OFFSHORE_REMOVE_CHUNK;
     }
     YT_ABORT();
 }
@@ -1793,6 +1797,10 @@ NJobTrackerClient::EJobType ConvertJobTypeFromProto(
             return NJobTrackerClient::EJobType::ShallowMerge;
         case NProto::EJobType::JT_REINCARNATE_CHUNK:
             return NJobTrackerClient::EJobType::ReincarnateChunk;
+        case NProto::EJobType::JT_OFFSHORE_REPLICATE_CHUNK:
+            return NJobTrackerClient::EJobType::OffshoreReplicateChunk;
+        case NProto::EJobType::JT_OFFSHORE_REMOVE_CHUNK:
+            return NJobTrackerClient::EJobType::OffshoreRemoveChunk;
         case NProto::EJobType::JT_UNKNOWN:
             THROW_ERROR_EXCEPTION("Protobuf contains unknown value for job type");
     }

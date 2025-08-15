@@ -511,6 +511,10 @@ public:
     int MaxMisscheduledSealJobsPerHeartbeat;
     //! Controls the maximum number of unsuccessful attempts to schedule a merge job.
     int MaxMisscheduledMergeJobsPerHeartbeat;
+    //! Controls the maximum number of unsuccessful attempts to schedule an offshore replication job.
+    int MaxMisscheduledOffshoreReplicationJobsPerHeartbeat;
+    //! Controls the maximum number of unsuccessful attempts to schedule an offshore removal job.
+    int MaxMisscheduledOffshoreRemovalJobsPerHeartbeat;
 
     //! Maximum number of running replication jobs for CRP chunks per target node
     //! (where the chunk will be put).

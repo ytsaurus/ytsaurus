@@ -327,6 +327,25 @@ void TChunk::AddOffshoreReplica(
     data->StoredReplicas.push_back(replica);
 }
 
+// TODO(achulkov2): Do we want to fail if we are trying to remove a replica that does not exist?
+bool TChunk::RemoveOffshoreReplica(TMediumPtrWithReplicaInfo replica)
+{
+    YT_VERIFY(replica.GetPtr()->IsOffshore());
+
+    auto* data = MutableOffshoreReplicasData();
+    for (int replicaIndex = 0; replicaIndex < std::ssize(data->StoredReplicas); ++replicaIndex) {
+        auto existingReplica = data->StoredReplicas[replicaIndex];
+        if (existingReplica.GetPtr() == replica.GetPtr() && existingReplica.GetReplicaIndex() == replica.GetReplicaIndex()) {
+            std::swap(data->StoredReplicas[replicaIndex], data->StoredReplicas.back());
+            data->StoredReplicas.pop_back();
+            data->StoredReplicas.shrink_to_small();
+            return true;
+        }
+    }
+
+    return false;
+}
+
 // void TChunk::ClearOffshoreReplicas()
 // {
 //     MutableOffshoreReplicasData()->StoredReplicas.clear();

@@ -35,7 +35,10 @@ namespace NYT::NNodeTrackerClient {
     XX(merge_slots,           MergeSlots) \
     XX(autotomy_slots,        AutotomySlots) \
     XX(vcpu,                  VCpu) \
-    XX(reincarnation_slots,   ReincarnationSlots)
+    XX(reincarnation_slots,   ReincarnationSlots) \
+    XX(offshore_replication_slots, OffshoreReplicationSlots) \
+    XX(offshore_replication_data_size, OffshoreReplicationDataSize) \
+    XX(offshore_removal_slots, OffshoreRemovalSlots)
 
 #define ITERATE_NODE_RESOURCE_LIMITS_OVERRIDES(XX) \
     XX(cpu,                   Cpu) \
@@ -52,7 +55,10 @@ namespace NYT::NNodeTrackerClient {
     XX(system_memory,         SystemMemory) \
     XX(merge_slots,           MergeSlots) \
     XX(autotomy_slots,        AutotomySlots) \
-    XX(reincarnation_slots,   ReincarnationSlots)
+    XX(reincarnation_slots,   ReincarnationSlots) \
+    XX(offshore_replication_slots, OffshoreReplicationSlots) \
+    XX(offshore_replication_data_size, OffshoreReplicationDataSize) \
+    XX(offshore_removal_slots, OffshoreRemovalSlots)
 
 // NB(cherepashka): Removed system_memory from iterating construction described above due to the difficulties of integrating this attribute in the dynamic config.
 #define ITERATE_NODE_RESOURCE_LIMITS_DYNAMIC_CONFIG_OVERRIDES(XX) \
@@ -69,7 +75,10 @@ namespace NYT::NNodeTrackerClient {
     XX(user_memory,           UserMemory) \
     XX(merge_slots,           MergeSlots) \
     XX(autotomy_slots,        AutotomySlots) \
-    XX(reincarnation_slots,   ReincarnationSlots)
+    XX(reincarnation_slots,   ReincarnationSlots) \
+    XX(offshore_replication_slots, OffshoreReplicationSlots) \
+    XX(offshore_replication_data_size, OffshoreReplicationDataSize) \
+    XX(offshore_removal_slots, OffshoreRemovalSlots)
 
 // NB: Types must be numbered from 0 to N - 1.
 DEFINE_ENUM(EResourceType,

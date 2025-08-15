@@ -111,6 +111,16 @@ struct IChunkManager
         NChunkClient::NProto::TRspAttachChunkTrees>;
     using TCtxAttachChunkTreesPtr = TIntrusivePtr<TCtxAttachChunkTrees>;
 
+    using TCtxAddConfirmReplicas = NRpc::TTypedServiceContext<
+        NChunkClient::NProto::TReqAddConfirmReplicas,
+        NChunkClient::NProto::TRspAddConfirmReplicas>;
+    using TCtxAddConfirmReplicasPtr = TIntrusivePtr<TCtxAddConfirmReplicas>;
+
+    using TCtxRemoveReplicas = NRpc::TTypedServiceContext<
+        NChunkClient::NProto::TReqRemoveReplicas,
+        NChunkClient::NProto::TRspRemoveReplicas>;
+    using TCtxRemoveReplicasPtr = TIntrusivePtr<TCtxRemoveReplicas>;
+
     virtual std::unique_ptr<NHydra::TMutation> CreateExecuteBatchMutation(
         TCtxExecuteBatchPtr context) = 0;
 
@@ -127,6 +137,10 @@ struct IChunkManager
         TCtxUnstageChunkTreePtr context) = 0;
     virtual std::unique_ptr<NHydra::TMutation> CreateAttachChunkTreesMutation(
         TCtxAttachChunkTreesPtr context) = 0;
+    virtual std::unique_ptr<NHydra::TMutation> CreateAddConfirmReplicasMutation(
+        TCtxAddConfirmReplicasPtr context) = 0;
+    virtual std::unique_ptr<NHydra::TMutation> CreateRemoveReplicasMutation(
+        TCtxRemoveReplicasPtr context) = 0;
 
     virtual std::unique_ptr<NHydra::TMutation> CreateExecuteBatchMutation(
         NChunkClient::NProto::TReqExecuteBatch* request,

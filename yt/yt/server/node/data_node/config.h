@@ -813,6 +813,38 @@ DEFINE_REFCOUNTED_TYPE(TSealChunkJobDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TOffshoreReplicateChunkJobDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    // TODO(achulkov2): We are using multi-chunk writer config here just because it
+    // inherits from both replication writer and s3 writer configs. Will be obsolete
+    // once we move s3 writer into replication writer.
+    NChunkClient::TMultiChunkWriterConfigPtr Writer;
+    NChunkClient::TPhysicalChunkReaderConfigPtr Reader;
+
+    REGISTER_YSON_STRUCT(TOffshoreReplicateChunkJobDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TOffshoreReplicateChunkJobDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOffshoreRemoveChunkJobDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    REGISTER_YSON_STRUCT(TOffshoreRemoveChunkJobDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TOffshoreRemoveChunkJobDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJournalManagerConfig
     : public virtual NYTree::TYsonStruct
 {
@@ -1096,6 +1128,8 @@ public:
     TAutotomizeChunkJobDynamicConfigPtr AutotomizeChunkJob;
     TReincarnateChunkJobDynamicConfigPtr ReincarnateChunkJob;
     TSealChunkJobDynamicConfigPtr SealChunkJob;
+    TOffshoreReplicateChunkJobDynamicConfigPtr OffshoreReplicateChunkJob;
+    TOffshoreRemoveChunkJobDynamicConfigPtr OffshoreRemoveChunkJob;
 
     TLocationHealthCheckerDynamicConfigPtr LocationHealthChecker;
 

@@ -42,8 +42,11 @@
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
+#include <yt/yt/ytlib/chunk_client/physical_chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/replication_writer.h>
+#include <yt/yt/ytlib/chunk_client/s3_writer.h>
 #include <yt/yt/ytlib/chunk_client/striped_erasure_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_replica_destroyer.h>
 
 #include <yt/yt/ytlib/columnar_chunk_format/versioned_chunk_reader.h>
 
@@ -2932,6 +2935,387 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TOffshoreChunkReplicationJob
+    : public TMasterJobBase
+{
+public:
+    TOffshoreChunkReplicationJob(
+        NChunkServer::TJobId jobId,
+        const TJobSpec& jobSpec,
+        const std::string& jobTrackerAddress,
+        const TJobResources& resourceLimits,
+        IBootstrap* bootstrap)
+        : TMasterJobBase(
+            jobId,
+            std::move(jobSpec),
+            jobTrackerAddress,
+            resourceLimits,
+            bootstrap)
+        , JobSpecExt_(JobSpec_.GetExtension(TOffshoreReplicateChunkJobSpecExt::offshore_replicate_chunk_job_spec_ext))
+        , ChunkId_(FromProto<TChunkId>(JobSpecExt_.chunk_id()))
+        , DynamicConfig_(Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->OffshoreReplicateChunkJob)
+    {
+        Logger.AddTag("ChunkId: %v", ChunkId_);
+    }
+
+private:
+    const TOffshoreReplicateChunkJobSpecExt JobSpecExt_;
+    const TChunkId ChunkId_;
+    const TOffshoreReplicateChunkJobDynamicConfigPtr DynamicConfig_;
+
+    TFuture<void> DoRun() override
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        return BIND(&TOffshoreChunkReplicationJob::Execute, MakeStrong(this))
+            .AsyncVia(Bootstrap_->GetMasterJobInvoker())
+            .Run();
+    }
+
+    bool ContainsOffshoreReplica(const TChunkReplicaWithMediumList& replicas) const
+    {
+        return std::any_of(replicas.begin(), replicas.end(), [] (const auto& replica) {
+            return replica.GetNodeId() == NNodeTrackerClient::OffshoreNodeId;
+        });
+    }
+
+    // TODO(achulkov2): Separate some code into smaller methods, e.g. CreateReader, CreateWriter.
+    void Execute()
+    {
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
+
+        auto sourceReplicas = FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.source_replicas());
+        auto targetReplicas = FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.target_replicas());
+
+        if (!ContainsOffshoreReplica(sourceReplicas) && !ContainsOffshoreReplica(targetReplicas)) {
+            THROW_ERROR_EXCEPTION(
+                "Neither source nor target replicas contain offshore replicas, offshore chunk replication is not applicable for chunk %v",
+                ChunkId_);
+        }
+
+        NodeDirectory_->MergeFrom(JobSpecExt_.node_directory());
+
+        // Compute target medium index.
+        if (targetReplicas.empty()) {
+            THROW_ERROR_EXCEPTION("No target replicas");
+        }
+
+        int targetMediumIndex = targetReplicas[0].GetMediumIndex();
+
+        auto targetMediumDescriptor = Bootstrap_->GetClient()->GetNativeConnection()->GetMediumDirectory()->FindByIndex(targetMediumIndex);
+        if (!targetMediumDescriptor) {
+            THROW_ERROR_EXCEPTION("Cannot find medium with index %v to replicate chunk %v to", targetMediumIndex, ChunkId_);
+        }
+
+        // Chunk replicator schedules jobs to replicate to a single medium only.
+        for (const auto& targetReplica : targetReplicas) {
+            YT_VERIFY(targetReplica.GetMediumIndex() == targetMediumIndex);
+        }
+
+        auto sessionId = TSessionId(ChunkId_, targetMediumIndex);
+
+        YT_LOG_INFO("Offshore chunk replication job started (SourceReplicas: %v, TargetReplicas: %v)",
+            MakeFormattableView(sourceReplicas, TChunkReplicaAddressFormatter(NodeDirectory_)),
+            MakeFormattableView(targetReplicas, TChunkReplicaAddressFormatter(NodeDirectory_)));
+
+        TWorkloadDescriptor workloadDescriptor;
+        workloadDescriptor.Category = EWorkloadCategory::SystemReplication;
+        workloadDescriptor.Annotations.push_back(Format("Replication of chunk %v", ChunkId_));
+
+        // TODO(achulkov2): Introduce separate throttler for offshore replication?
+        auto chunkReaderHost = New<TChunkReaderHost>(
+            Bootstrap_->GetClient(),
+            Bootstrap_->GetLocalDescriptor(),
+            Bootstrap_->GetBlockCache(),
+            /*chunkMetaCache*/ nullptr,
+            /*nodeStatusDirectory*/ nullptr,
+            /*bandwidthThrottler*/ Bootstrap_->GetThrottler(EDataNodeThrottlerKind::ReplicationIn),
+            /*rpsThrottler*/ GetUnlimitedThrottler(),
+            /*mediumThrottler*/ GetUnlimitedThrottler(),
+            /*trafficMeter*/ nullptr);
+
+        auto remoteReaderOptions = New<TRemoteReaderOptions>();
+        // TODO(achulkov2): Make this configurable?
+        remoteReaderOptions->AllowFetchingSeedsFromMaster = true;
+        auto reader = CreatePhysicalChunkReader(DynamicConfig_->Reader, remoteReaderOptions, chunkReaderHost, ChunkId_, sourceReplicas);
+
+        YT_LOG_DEBUG("Fetching chunk meta");
+
+        TClientChunkReadOptions chunkReadOptions;
+        chunkReadOptions.WorkloadDescriptor = workloadDescriptor;
+        chunkReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        chunkReadOptions.MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker();
+
+        auto asyncMeta = reader->GetMeta(chunkReadOptions);
+        auto meta = WaitFor(asyncMeta)
+            .ValueOrThrow();
+
+        YT_LOG_DEBUG("Chunk meta fetched");
+
+        TChunkReplicaWithMediumList replicationWriterTargetReplicas;
+        TChunkReplicaWithMediumList s3WriterTargetReplicas;
+
+        for (const auto& targetReplica : targetReplicas) {
+            if (targetReplica.GetNodeId() != NNodeTrackerClient::OffshoreNodeId) {
+                replicationWriterTargetReplicas.push_back(targetReplica);
+            } else {
+                // TODO(achulkov2): Technically, there could be more writer types, but by that time I hope we will switch
+                // to replication writer for both types of replicas, so all of this code will go away.
+                s3WriterTargetReplicas.push_back(targetReplica);
+            }
+        }
+
+        // Since we replicate to a single medium, we should never have more than one target replica
+        // for offshore media, as they are durable on their own.
+        YT_VERIFY(std::ssize(s3WriterTargetReplicas) <= 1);
+        // Nor should we have more than one type of target replica!
+        YT_VERIFY(replicationWriterTargetReplicas.empty() || s3WriterTargetReplicas.empty());
+
+        IChunkWriterPtr writer;
+
+        if (!replicationWriterTargetReplicas.empty()) {
+            auto options = New<TRemoteWriterOptions>();
+            options->AllowAllocatingNewTargetNodes = false;
+            options->MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker();
+
+            // TODO(achulkov2): Introduce separate throttler for offshore replication?
+            writer = CreateReplicationWriter(
+                DynamicConfig_->Writer,
+                options,
+                sessionId,
+                std::move(replicationWriterTargetReplicas),
+                Bootstrap_->GetClient(),
+                Bootstrap_->GetLocalHostName(),
+                GetNullBlockCache(),
+                /*trafficMeter*/ nullptr,
+                Bootstrap_->GetThrottler(EDataNodeThrottlerKind::ReplicationOut));
+        }
+        
+        if (!s3WriterTargetReplicas.empty()) {
+            auto s3TargetMediumDescriptor = targetMediumDescriptor->As<NYT::NChunkClient::TS3MediumDescriptor>();
+            if (!s3TargetMediumDescriptor) {
+                THROW_ERROR_EXCEPTION("Offshore chunk replication target medium index %v is not S3 medium, cannot replicate chunk %v to it",
+                    targetMediumIndex,
+                    ChunkId_);
+            }
+
+            writer = CreateS3Writer(
+                s3TargetMediumDescriptor,
+                DynamicConfig_->Writer,
+                sessionId,
+                GetNullBlockCache());
+        }
+
+        {
+            YT_LOG_DEBUG("Started opening writer");
+
+            WaitFor(writer->Open())
+                .ThrowOnError();
+
+            YT_LOG_DEBUG("Writer opened");
+        }
+
+        int currentBlockIndex = 0;
+        int blockCount = GetBlockCount(ChunkId_, *meta);
+        while (currentBlockIndex < blockCount) {
+            IChunkReader::TReadBlocksOptions readBlocksOptions{
+                .ClientOptions = chunkReadOptions,
+            };
+            auto asyncReadBlocks = reader->ReadBlocks(
+                readBlocksOptions,
+                currentBlockIndex,
+                blockCount - currentBlockIndex);
+
+            auto readBlocks = WaitFor(asyncReadBlocks)
+                .ValueOrThrow();
+
+            // TODO(achulkov2): Add some tracking for this data flow passing through the node.
+
+            std::vector<TBlock> writeBlocks;
+            for (const auto& block : readBlocks) {
+                if (!block) {
+                    break;
+                }
+
+                writeBlocks.push_back(block);
+            }
+
+            YT_LOG_DEBUG("Enqueuing blocks for replication (Blocks: %v-%v)",
+                currentBlockIndex,
+                currentBlockIndex + static_cast<int>(writeBlocks.size()) - 1);
+
+            auto writeResult = writer->WriteBlocks(workloadDescriptor, writeBlocks);
+            if (!writeResult) {
+                WaitFor(writer->GetReadyEvent())
+                    .ThrowOnError();
+            }
+
+            currentBlockIndex += writeBlocks.size();
+        }
+
+        YT_LOG_DEBUG("All blocks are enqueued for replication");
+
+        YT_LOG_DEBUG("Started closing writer");
+
+        auto deferredMeta = New<TDeferredChunkMeta>();
+        deferredMeta->MergeFrom(*meta);
+
+        WaitFor(writer->Close(workloadDescriptor, deferredMeta))
+            .ThrowOnError();
+
+        YT_LOG_DEBUG("Writer closed");
+
+        if (targetMediumDescriptor->IsDomestic()) {
+            YT_LOG_DEBUG("Target replicas on domestic medium will be confirmed via data node heartbeats");
+            return;
+        }
+
+        YT_LOG_DEBUG("Started confirming offshore replicas");
+
+        const auto& client = Bootstrap_->GetClient();
+        auto cellTag = CellTagFromId(ChunkId_);
+        auto channel = client->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Leader, cellTag);
+
+        auto proxy = TChunkServiceProxy(channel);
+        auto req = proxy.AddConfirmReplicas();
+        GenerateMutationId(req);
+
+        // TODO(achulkov2): Encode-decode.
+        ToProto(req->mutable_chunk_id(), ChunkId_);
+        // TODO(achulkov2): Since we only use this method to confirm offshore replicas, we can
+        // just drop location UUID, and rename it to contain the word offshore.
+        for (const auto& replica : targetReplicas) {
+            auto* replicaInfo = req->add_replicas();
+            replicaInfo->set_replica(ToProto<ui64>(replica));
+            ToProto(replicaInfo->mutable_location_uuid(), InvalidChunkLocationUuid);
+        }
+
+        auto rspOrError = WaitFor(req->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            rspOrError,
+            "Error confirming offshore replicas %v for chunk %v",
+            targetReplicas,
+            ChunkId_);
+
+        YT_LOG_DEBUG("Confirmed offshore replicas on master (TargetReplicas: %v)", targetReplicas);
+
+        // TODO(achulkov2): Improve logging.
+    }
+
+    static int GetBlockCount(TChunkId chunkId, const TChunkMeta& meta)
+    {
+        switch (TypeFromId(DecodeChunkId(chunkId).Id)) {
+            case EObjectType::Chunk: {
+                auto blocksExt = GetProtoExtension<NChunkClient::NProto::TBlocksExt>(meta.extensions());
+                return blocksExt.blocks_size();
+            }
+
+            case EObjectType::ErasureChunk: {
+                // TODO(achulkov2): Think about how we should handle this case.
+                THROW_ERROR_EXCEPTION("Cannot replicate erasure chunk %v to offshore medium", chunkId);
+            }
+
+            case EObjectType::JournalChunk:
+            case EObjectType::ErasureJournalChunk: {
+                // TODO(achulkov2): Think about how we should handle this case.
+                THROW_ERROR_EXCEPTION("Cannot replicate journal chunk %v to offshore medium", chunkId);
+            }
+
+            default:
+                YT_ABORT();
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOffshoreChunkRemovalJob
+    : public TMasterJobBase
+{
+public:
+    TOffshoreChunkRemovalJob(
+        NChunkServer::TJobId jobId,
+        const TJobSpec& jobSpec,
+        const std::string& jobTrackerAddress,
+        const TJobResources& resourceLimits,
+        IBootstrap* bootstrap)
+        : TMasterJobBase(
+            jobId,
+            std::move(jobSpec),
+            jobTrackerAddress,
+            resourceLimits,
+            bootstrap)
+        , JobSpecExt_(JobSpec_.GetExtension(TOffshoreRemoveChunkJobSpecExt::offshore_remove_chunk_job_spec_ext))
+        , ChunkId_(FromProto<TChunkId>(JobSpecExt_.chunk_id()))
+        , DynamicConfig_(Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->OffshoreRemoveChunkJob)
+    {
+        Logger.AddTag("ChunkId: %v", ChunkId_);
+    }
+
+private:
+    const TOffshoreRemoveChunkJobSpecExt JobSpecExt_;
+
+    const TChunkId ChunkId_;
+    const TOffshoreRemoveChunkJobDynamicConfigPtr DynamicConfig_;
+
+    TFuture<void> DoRun() override
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        return BIND(&TOffshoreChunkRemovalJob::Execute, MakeStrong(this))
+            .AsyncVia(Bootstrap_->GetMasterJobInvoker())
+            .Run();
+    }
+
+    void Execute()
+    {
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
+
+        auto decodedChunkId = DecodeChunkId(ChunkId_);
+
+        auto replica = FromProto<TChunkReplicaWithMedium>(JobSpecExt_.replica());
+        auto mediumIndex = replica.GetMediumIndex();
+
+        YT_VERIFY(decodedChunkId.ReplicaIndex == replica.GetReplicaIndex());
+
+        // TODO(achulkov2): Log actually useful fields.
+        YT_LOG_INFO("Offshore chunk removal job started (MediumIndex: %v, Replica: %v)", mediumIndex, replica);
+
+        auto mediumDirectory = Bootstrap_->GetClient()->GetNativeConnection()->GetMediumDirectory();
+
+        // NB: We pass encoded chunk id here, if we ever decide to support erasure chunks on offshore media.
+        auto chunkReplicaDestroyer = CreateChunkReplicaDestroyer(ChunkId_, replica, mediumDirectory);
+
+        WaitFor(chunkReplicaDestroyer->Destroy())
+            .ThrowOnError();
+
+        YT_LOG_DEBUG("Removing offshore replica on master (Replica: %v, DecodedChunkId: %v)", replica, decodedChunkId.Id);
+
+        const auto& client = Bootstrap_->GetClient();
+        auto cellTag = CellTagFromId(ChunkId_);
+        auto channel = client->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Leader, cellTag);
+
+        auto proxy = TChunkServiceProxy(channel);
+        auto req = proxy.RemoveReplicas();
+        GenerateMutationId(req);
+
+        // NB: It makes more sense for chunk service to deal with full chunk ids.
+        ToProto(req->mutable_chunk_id(), decodedChunkId.Id);
+        ToProto(req->mutable_replicas(), TChunkReplicaWithMediumList{replica});
+
+        auto rspOrError = WaitFor(req->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            rspOrError,
+            "Error removing replica %v for chunk %v",
+            replica,
+            decodedChunkId.Id);
+
+        YT_LOG_DEBUG("Removed offshore replica on master (Replica: %v, DecodedChunkId: %v)", replica, decodedChunkId.Id);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TMasterJobBasePtr CreateJob(
     NChunkServer::TJobId jobId,
     TJobSpec&& jobSpec,
@@ -3013,6 +3397,24 @@ TMasterJobBasePtr CreateJob(
 
         case EJobType::ReincarnateChunk:
             return NewWithOffloadedDtor<TChunkReincarnationJob>(
+                bootstrap->GetJobInvoker(),
+                jobId,
+                std::move(jobSpec),
+                jobTrackerAddress,
+                resourceLimits,
+                bootstrap);
+
+        case EJobType::OffshoreReplicateChunk:
+            return NewWithOffloadedDtor<TOffshoreChunkReplicationJob>(
+                bootstrap->GetJobInvoker(),
+                jobId,
+                std::move(jobSpec),
+                jobTrackerAddress,
+                resourceLimits,
+                bootstrap);
+        
+        case EJobType::OffshoreRemoveChunk:
+            return NewWithOffloadedDtor<TOffshoreChunkRemovalJob>(
                 bootstrap->GetJobInvoker(),
                 jobId,
                 std::move(jobSpec),
