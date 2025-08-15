@@ -653,7 +653,7 @@ private:
 
         TChaosAutomatonPart::OnLeaderActive();
 
-        ReplicationCardWatcher_->Start(ConvertNodeCardsToClientCards(ReplicationCardMap_));
+        ReplicationCardWatcher_->Start(ConvertNodeCardsToClientCardsForWatcher(ReplicationCardMap_));
         ChaosCellSynchronizer_->Start();
         CommencerExecutor_->Start();
         LeftoversMigrationExecutor_->Start();
@@ -3270,12 +3270,15 @@ private:
         }
     }
 
-    static std::vector<std::pair<TReplicationCardId, TReplicationCardPtr>> ConvertNodeCardsToClientCards(
+    static std::vector<std::pair<TReplicationCardId, TReplicationCardPtr>> ConvertNodeCardsToClientCardsForWatcher(
         const TEntityMap<TReplicationCard>& replicationCardsMap)
     {
         std::vector<std::pair<TReplicationCardId, TReplicationCardPtr>> convertedCards;
-        convertedCards.reserve(replicationCardsMap.size());
         for (const auto& [cardId, card] : replicationCardsMap) {
+            if (card->GetState() == EReplicationCardState::Migrated) {
+                continue;
+            }
+
             convertedCards.emplace_back(cardId, card->ConvertToClientCard(MinimalFetchOptions));
         }
 
