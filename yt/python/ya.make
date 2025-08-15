@@ -21,6 +21,8 @@ RECURSE(
 
     yt/data/pandas
 
+    yt/mcp
+
     client
     client_lite
     client_with_rpc
