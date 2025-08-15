@@ -416,6 +416,7 @@ private:
 
         TString metadata;
         metadata.resize(metadataWeight);
+
         ringBuffer.Read(std::max(static_cast<i64>(0), FileSize_ - metadataWeight), std::min(metadataWeight, FileSize_), metadata.begin());
 
         i64 partIndex = 0;
@@ -798,6 +799,7 @@ void ImportFilesFromSource(
     const TString& proxy,
     const std::vector<TString>& fileIds,
     const TString& resultTable,
+    const std::optional<TString>& networkProject,
     const TSourceConfig& sourceConfig,
     TImportConfigPtr config)
 {
@@ -919,12 +921,18 @@ void ImportFilesFromSource(
             .AddOutput<TNode>(metadataTablePath)
             .DataSizePerJob(1);
 
+        NYT::TUserJobSpec jobSpec;
+
+        if (networkProject) {
+            jobSpec.NetworkProject(*networkProject);
+        }
+
         if (attachLibIconv) {
-            spec = spec.MapperSpec(TUserJobSpec().AddLocalFile("./libiconv.so"));
+           jobSpec.AddLocalFile("./libiconv.so");
         }
 
         ytClient->Map(
-            spec,
+            spec.MapperSpec(jobSpec),
             new TDownloadMapper(sourceConfig, config->MaxMetadataRowWeight, ConvertToYsonString(config->JobSingletons).ToString()),
             operationOptions);
     }
@@ -1020,6 +1028,7 @@ void ImportFilesFromS3(
     const TString& prefix,
     const TString& resultTable,
     EFileFormat format,
+    const std::optional<TString>& networkProject,
     TImportConfigPtr config)
 {
     TString accessKeyId = GetEnv("ACCESS_KEY_ID");
@@ -1045,6 +1054,7 @@ void ImportFilesFromS3(
         proxy,
         fileKeys,
         resultTable,
+        networkProject,
         TSourceConfig{
             .S3Config = s3Config,
             .Format = format,
@@ -1059,6 +1069,7 @@ void ImportFilesFromHuggingface(
     const TString& split,
     const TString& resultTable,
     EFileFormat format,
+    const std::optional<TString>& networkProject,
     const std::optional<TString>& urlOverride,
     TImportConfigPtr config)
 {
@@ -1080,6 +1091,7 @@ void ImportFilesFromHuggingface(
         proxy,
         fileIds,
         resultTable,
+        networkProject,
         TSourceConfig{
             .HuggingfaceConfig = THuggingfaceConfig{
                 .UrlOverride = urlOverride

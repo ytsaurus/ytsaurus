@@ -55,7 +55,9 @@ void TRingBuffer::Read(i64 offset, i64 byteCount, char* output)
 
 arrow20::Status TRingBuffer::Write(TRef data)
 {
-    auto size = static_cast<i64>(data.Size());
+    auto inputSize = static_cast<i64>(data.Size());
+    auto size = inputSize;
+
     if (size > BufferSize_) {
         data = data.Slice(size - BufferSize_, size);
         size = BufferSize_;
@@ -87,7 +89,8 @@ arrow20::Status TRingBuffer::Write(TRef data)
     }
     BufferPosition_ %= BufferSize_;
 
-    EndPosition_ += size;
+    EndPosition_ += inputSize;
+
     if (EndPosition_ - BeginPosition_ > BufferSize_) {
         BeginPosition_ = EndPosition_ - BufferSize_;
         FirstRingBufferPosition_ = BufferPosition_;

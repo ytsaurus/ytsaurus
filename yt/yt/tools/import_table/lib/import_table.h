@@ -23,6 +23,7 @@ void ImportFilesFromS3(
     const TString& prefix,
     const TString& resultTable,
     EFileFormat format,
+    const std::optional<TString>& networkProject = std::nullopt,
     TImportConfigPtr config = New<TImportConfig>());
 
 void ImportFilesFromHuggingface(
@@ -32,6 +33,7 @@ void ImportFilesFromHuggingface(
     const TString& split,
     const TString& resultTable,
     EFileFormat format,
+    const std::optional<TString>& networkProject = std::nullopt,
     // TODO(max42): introduce a derived THuggingFaceImportConfig and move next argument there.
     const std::optional<TString>& urlOverride = std::nullopt,
     TImportConfigPtr config = New<TImportConfig>());
