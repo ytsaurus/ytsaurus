@@ -8,7 +8,7 @@ types:
       - cpp_name: CellTag
         cpp_type: NObjectClient::TCellTag
         column_name: cell_tag
-        column_type: Uint32
+        column_type: Uint16
         sort_order: Ascending
 
       - cpp_name: NodeId
