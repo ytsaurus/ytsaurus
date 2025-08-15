@@ -309,10 +309,6 @@ func (d *WireDecoder) decodeValueComposite(value Value, v *any) error {
 }
 
 func (d *WireDecoder) decodeValueWithSchema(value Value, complexType schema.ComplexType, v *any) error {
-	if _, ok := complexType.(schema.Type); ok {
-		return yson.Unmarshal(value.Any(), v)
-	}
-
 	var ysonData any
 	if err := yson.Unmarshal(value.Any(), &ysonData); err != nil {
 		return err
