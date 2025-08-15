@@ -157,7 +157,14 @@ std::optional<TSemaphoreGuard> TApi::AcquireSemaphore(const std::string& user, c
 
     auto key = std::pair(user, command);
     auto counters = GetProfilingCounters(key);
-    if (counters->LocalSemaphore >= Config_->ConcurrencyLimit) {
+
+    auto userConcurrencyLimitRatio = GetOrDefault(
+        DynamicConfig_.Acquire()->UserToConcurrencyLimitRatio,
+        user,
+        DynamicConfig_.Acquire()->DefaultUserConcurrencyLimitRatio);
+
+    auto userConcurrencyLimit = static_cast<int>(static_cast<double>(Config_->ConcurrencyLimit) * userConcurrencyLimitRatio);
+    if (counters->LocalSemaphore >= userConcurrencyLimit) {
         GlobalSemaphore_.fetch_add(-1);
         return {};
     }
