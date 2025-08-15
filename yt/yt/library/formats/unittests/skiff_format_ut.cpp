@@ -2213,6 +2213,85 @@ TEST(TSkiffWriter, TestTimezoneString)
     checkedSkiffParser.ValidateFinished();
 }
 
+TEST(TSkiffWriter, TestRemainingRowBytes)
+{
+    auto skiffSchema = CreateTupleSchema({
+        CreateVariant8Schema({
+            CreateSimpleTypeSchema(EWireType::Nothing),
+            CreateSimpleTypeSchema(EWireType::Int64),
+        })->SetName("$row_index"),
+        CreateSimpleTypeSchema(EWireType::Int32)->SetName("$remaining_row_bytes"),
+        CreateSimpleTypeSchema(EWireType::String32)->SetName("data")
+    });
+
+    TStringStream resultStream;
+    auto nameTable = New<TNameTable>();
+    auto tableSchema = New<TTableSchema>(std::vector{
+        TColumnSchema("data", ESimpleLogicalValueType::String)
+    });
+
+    auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{tableSchema});
+
+    auto dataValue1 = "abcdef";
+    auto dataValue2 = "xyz";
+    Y_UNUSED(writer->Write({
+        MakeRow(nameTable, {
+            {TString(RowIndexColumnName), 0},
+            {"data", dataValue1},
+        }).Get(),
+        MakeRow(nameTable, {
+            {TString(RowIndexColumnName), 2},
+            {"data", dataValue2},
+        }).Get(),
+    }));
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    TStringInput resultInput(resultStream.Str());
+    TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
+
+
+    // Row 0.
+    ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
+    ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 1);
+    ASSERT_EQ(checkedSkiffParser.ParseInt64(), 0);
+    ASSERT_EQ(checkedSkiffParser.ParseInt32(), 10);
+    ASSERT_EQ(checkedSkiffParser.ParseString32(), dataValue1);
+    // Row 1.
+    ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
+    ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 1);
+    ASSERT_EQ(checkedSkiffParser.ParseInt64(), 2);
+    ASSERT_EQ(checkedSkiffParser.ParseInt32(), 7);
+    ASSERT_EQ(checkedSkiffParser.ParseString32(), dataValue2);
+
+    ASSERT_EQ(checkedSkiffParser.HasMoreData(), false);
+    checkedSkiffParser.ValidateFinished();
+}
+
+TEST(TSkiffWriter, TestRemainingRowBytesDuplicate)
+{
+    auto skiffSchema = CreateTupleSchema({
+        CreateSimpleTypeSchema(EWireType::Int32)->SetName("$remaining_row_bytes"),
+        CreateVariant8Schema({
+            CreateSimpleTypeSchema(EWireType::Nothing),
+            CreateSimpleTypeSchema(EWireType::Int64),
+        })->SetName("$row_index"),
+        CreateSimpleTypeSchema(EWireType::Int32)->SetName("$remaining_row_bytes"),
+        CreateSimpleTypeSchema(EWireType::String32)->SetName("data")
+    });
+
+    TStringStream resultStream;
+    auto nameTable = New<TNameTable>();
+    auto tableSchema = New<TTableSchema>(std::vector{
+        TColumnSchema("data", ESimpleLogicalValueType::String)
+    });
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{tableSchema}),
+        "Name \"$remaining_row_bytes\" is found multiple times");
+}
+
 TEST(TSkiffWriter, TestEmptyComplexType)
 {
     auto skiffSchema = CreateTupleSchema({
