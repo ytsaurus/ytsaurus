@@ -2563,13 +2563,20 @@ void TFairShareTreeAllocationScheduler::ProcessSchedulingHeartbeat(
         nodeState->ForceRunningAllocationStatisticsUpdate = false;
     }
     if (IsGpuTree(treeConfig)) {
+        auto allocationInfos = CollectRunningAllocationsWithPreemptionInfo(schedulingContext, treeSnapshot);
+
         nodeState->RunningAllocations.clear();
-        nodeState->RunningAllocations.reserve(schedulingContext->RunningAllocations().size());
-        for (const auto& allocation : schedulingContext->RunningAllocations()) {
+        nodeState->RunningAllocations.reserve(allocationInfos.size());
+        for (const auto& [allocation, preemptionStatus, operationElement] : allocationInfos) {
             TFairShareTreeAllocationSchedulerAllocationState allocationState;
-            allocationState.OperationId = allocation->GetOperationId();
+            allocationState.OperationId = operationElement->GetOperationId();
             allocationState.ResourceLimits = allocation->ResourceLimits();
-            EmplaceOrCrash(nodeState->RunningAllocations, allocation->GetId(), std::move(allocationState));
+            allocationState.PreemptionStatus = preemptionStatus;
+
+            EmplaceOrCrash(
+                nodeState->RunningAllocations,
+                allocation->GetId(),
+                allocationState);
         }
     }
 
