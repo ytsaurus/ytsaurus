@@ -184,9 +184,9 @@ private:
 
     IChannelPtr GetChannelForInstance()
     {
-        return  Settings_->Instance.has_value() ?
-                GetChannelForInstanceByJobCookie(Settings_->Instance.value()) :
-                GetChannelForRandomInstance();
+        return Settings_->Instance.has_value() ?
+            GetChannelForInstanceByJobCookie(Settings_->Instance.value()) :
+            GetChannelForRandomInstance();
     }
 
     void CheckPermission()
