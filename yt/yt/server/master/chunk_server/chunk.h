@@ -195,6 +195,9 @@ public:
         std::string sourceUri,
         NChunkClient::EChunkMetaPersistence metaPersistence);
 
+    // TODO(achulkov2): Require only WithReplicaIndex for removal?
+    bool RemoveOffshoreReplica(TMediumPtrWithReplicaInfo replica);
+
     void ApproveReplica(TChunkLocationPtrWithReplicaInfo replica);
     int GetApprovedReplicaCount() const;
 
@@ -511,6 +514,7 @@ private:
 
     struct TOffshoreReplicasData
     {
+        // TODO(achulkov2): Store TOffshoreMedium* instead of TMedium* in replicas?
         using TStoredReplicas = TCompactVector<TOffshoreReplica, 1>;
 
         TStoredReplicas StoredReplicas;

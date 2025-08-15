@@ -57,6 +57,15 @@ void TResourceLimitsConfig::Register(TRegistrar registrar)
     registrar.Parameter("reincarnation_slots", &TThis::ReincarnationSlots)
         .GreaterThanOrEqual(0)
         .Default(2);
+    registrar.Parameter("offshore_replication_slots", &TThis::OffshoreReplicationSlots)
+        .GreaterThanOrEqual(0)
+        .Default(4);
+    registrar.Parameter("offshore_replication_data_size", &TThis::OffshoreReplicationDataSize)
+        .GreaterThanOrEqual(0)
+        .Default(10_GB);
+    registrar.Parameter("offshore_removal_slots", &TThis::OffshoreRemovalSlots)
+        .GreaterThanOrEqual(0)
+        .Default(4);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

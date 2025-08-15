@@ -337,6 +337,36 @@ message TRspAttachChunkTrees
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(achullkov2): Rename AddConfirmReplicas -> AddConfirmChunkReplicas?
+message TReqAddConfirmReplicas
+{
+    required NYT.NProto.TGuid chunk_id = 1;
+    repeated TConfirmChunkReplicaInfo replicas = 2;
+}
+
+message TRspAddConfirmReplicas
+{
+    optional NYT.NProto.TError error = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(achulkov2): Rename RemoveReplicas -> RemoveChunkReplicas?
+message TReqRemoveReplicas
+{
+    // NB: This is a proper chunk id, not encoded with replica id,
+    // actual replica is identified in the second field.
+    required NYT.NProto.TGuid chunk_id = 1;
+    repeated fixed64 replicas = 2;
+}
+
+message TRspRemoveReplicas
+{
+    optional NYT.NProto.TError error = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // COMPAT(aleksandra-zh)
 message TReqExecuteBatch
 {

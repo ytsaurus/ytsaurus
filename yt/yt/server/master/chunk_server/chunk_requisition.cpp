@@ -191,6 +191,7 @@ bool TChunkReplication::IsDurable(const IChunkManagerPtr& chunkManager, bool isE
     for (auto entry : Entries_) {
         auto* medium = chunkManager->GetMediumByIndex(entry.GetMediumIndex());
         if (medium->IsOffshore()) {
+            // TODO(achulkov2): Is this actually the correct value?
             return true;
         }
 

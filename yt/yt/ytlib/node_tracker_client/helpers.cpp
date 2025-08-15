@@ -57,7 +57,9 @@ TString FormatResources(
         "RepairSlots: %v/%v, RepairDataSize: %v/%v, "
         "SealSlots: %v/%v, "
         "MergeSlots: %v/%v, MergeDataSize: %v/%v, "
-        "AutotomySlots: %v/%v, ReincarnationSlots: %v/%v",
+        "AutotomySlots: %v/%v, ReincarnationSlots: %v/%v, "
+        "OffshoreReplicationSlots: %v/%v, OffshoreReplicationDataSize: %v/%v, "
+        "OffshoreRemovalSlots: %v/%v",
         // User slots
         usage.user_slots(),
         limits.user_slots(),
@@ -105,7 +107,16 @@ TString FormatResources(
         limits.autotomy_slots(),
         // Reincarnation slots
         usage.reincarnation_slots(),
-        limits.reincarnation_slots());
+        limits.reincarnation_slots(),
+        // Offshore replication slots
+        usage.offshore_replication_slots(),
+        limits.offshore_replication_slots(),
+        // Offshore replication data size
+        usage.offshore_replication_data_size(),
+        limits.offshore_replication_data_size(),
+        // Offshore removal slots
+        usage.offshore_removal_slots(),
+        limits.offshore_removal_slots());
 }
 
 TString FormatResourceUsage(
@@ -148,7 +159,9 @@ TString FormatResources(const TNodeResources& resources)
         "SealSlots: %v, "
         "MergeSlots: %v, MergeDataSize: %v, "
         "AutotomySlots: %v, "
-        "ReincarnationSlots: %v"
+        "ReincarnationSlots: %v, "
+        "OffshoreReplicationSlots: %v, OffshoreReplicationDataSize: %v, "
+        "OffshoreRemovalSlots: %v"
         "}",
         resources.user_slots(),
         resources.cpu(),
@@ -165,7 +178,10 @@ TString FormatResources(const TNodeResources& resources)
         resources.merge_slots(),
         FormatMemoryUsage(resources.merge_data_size()),
         resources.autotomy_slots(),
-        resources.reincarnation_slots());
+        resources.reincarnation_slots(),
+        resources.offshore_replication_slots(),
+        resources.offshore_replication_data_size(),
+        resources.offshore_removal_slots());
 }
 
 void ProfileResources(ISensorWriter* writer, const NProto::TNodeResources& resources)

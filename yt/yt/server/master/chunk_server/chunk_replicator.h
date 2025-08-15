@@ -3,6 +3,8 @@
 #include "private.h"
 #include "chunk.h"
 #include "job_controller.h"
+#include "chunk_replication_queue.h"
+#include "offshore_medium_base.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -86,6 +88,10 @@ public:
     void OnReplicaRemoved(
         TChunkLocation* chunkLocation,
         TChunkPtrWithReplicaIndex chunkWithIndexes,
+        ERemoveReplicaReason reason);
+    void OnOffshoreReplicaRemoved(
+        TOffshoreMedium* offshoreMedium,
+        TChunkPtrWithReplicaIndex replica,
         ERemoveReplicaReason reason);
 
     void ScheduleChunkRefresh(TChunk* chunk, std::optional<TDuration> delay = {});
@@ -230,6 +236,9 @@ private:
     TDecayingMaxMinBalancer<int, double> MissingPartChunkRepairQueueBalancer_;
     TDecayingMaxMinBalancer<int, double> DecommissionedPartChunkRepairQueueBalancer_;
 
+    // TODO(achulkov2): Shared this queue by medium to guarantee progress for each medium.
+    TChunkReplicationQueue OffshoreChunkReplicationQueue_;
+
     NConcurrency::TPeriodicExecutorPtr EnabledCheckExecutor_;
 
     std::vector<TChunkId> ChunkIdsPendingEndorsementRegistration_;
@@ -249,9 +258,22 @@ private:
     };
     std::vector<TLocationShardInfo> LocationShards_;
 
+    // TODO(achulkov2): I don't think there is any reason to store these lists as a field within
+    // the class, intead of a local variable within Schedule[Offshore]RemovalJobs.
+    struct TMediumShardInfo
+    {
+        TOffshoreMedium* Medium;
+        TOffshoreMedium::TDestroyedReplicasIterator ReplicaIterator;
+        int ShardId;
+        bool Active = true;
+    };
+    std::vector<TMediumShardInfo> MediumShards_;
+
     void ScheduleReplicationJobs(IJobSchedulingContext* context);
     void ScheduleRemovalJobs(IJobSchedulingContext* context);
     void ScheduleRepairJobs(IJobSchedulingContext* context);
+    void ScheduleOffshoreReplicationJobs(IJobSchedulingContext* context);
+    void ScheduleOffshoreRemovalJobs(IJobSchedulingContext* context);
 
     bool TryScheduleReplicationJob(
         IJobSchedulingContext* context,
@@ -273,6 +295,16 @@ private:
         EChunkRepairQueue repairQueue,
         TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes,
         const TChunkLocationPtrWithReplicaInfoList& replicas);
+    bool TryScheduleOffshoreReplicationJob(
+        IJobSchedulingContext* context,
+        TChunkPtrWithReplicaIndex chunkWithIndex,
+        TMedium* targetMedium,
+        const TChunkLocationPtrWithReplicaInfoList& replicas,
+        const TOffshoreReplicaList& offshoreReplicas);
+    bool TryScheduleOffshoreRemovalJob(
+        IJobSchedulingContext* context,
+        const NChunkClient::TChunkIdWithIndex& chunkIdWithIndex,
+        TOffshoreMedium* medium);
 
     void OnRefresh();
     void RefreshChunk(
@@ -390,6 +422,8 @@ private:
     void AddToChunkRepairQueue(TChunkPtrWithMediumIndex chunkWithIndexes, EChunkRepairQueue queue);
     void TouchChunkInRepairQueues(TChunk* chunk);
     void RemoveFromChunkRepairQueues(TChunk* chunkWithIndexes);
+
+    void RemoveChunkFromOffshoreChunkReplicationQueue(TChunk* chunk);
 
     void FlushEndorsementQueue();
 

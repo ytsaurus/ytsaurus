@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include "medium_base.h"
+#include "offshore_medium_base.h"
 
 #include <yt/yt/ytlib/chunk_client/config.h>
 
@@ -11,7 +11,7 @@ namespace NYT::NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TS3Medium
-    : public TMedium
+    : public TOffshoreMedium
 {
 public:
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::TS3MediumConfigPtr, Config, New<NChunkClient::TS3MediumConfig>());
@@ -25,9 +25,7 @@ public:
         const NSecurityServer::ISecurityManagerPtr& securityManager);
 
 public:
-    using TMedium::TMedium;
-
-    bool IsDomestic() const override;
+    using TOffshoreMedium::TOffshoreMedium;
 
     std::string GetMediumType() const override;
 

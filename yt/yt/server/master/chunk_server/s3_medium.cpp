@@ -1,7 +1,5 @@
 #include "s3_medium.h"
 
-#include "private.h"
-
 #include <yt/yt/server/master/cell_master/serialize.h>
 #include <yt/yt/server/master/security_server/helpers.h>
 
@@ -43,11 +41,6 @@ TError TS3Medium::TryUpdateConfig(
     return TError();
 }
 
-bool TS3Medium::IsDomestic() const
-{
-    return false;
-}
-
 std::string TS3Medium::GetLowercaseObjectName() const
 {
     return "S3 medium";
@@ -73,7 +66,7 @@ void TS3Medium::FillMediumDescriptor(NChunkClient::NProto::TMediumDirectory::TMe
 
 void TS3Medium::Save(NCellMaster::TSaveContext& context) const
 {
-    TMedium::Save(context);
+    TOffshoreMedium::Save(context);
 
     using NYT::Save;
 
@@ -82,7 +75,7 @@ void TS3Medium::Save(NCellMaster::TSaveContext& context) const
 
 void TS3Medium::Load(NCellMaster::TLoadContext& context)
 {
-    TMedium::Load(context);
+    TOffshoreMedium::Load(context);
 
     using NYT::Load;
 

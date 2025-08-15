@@ -2550,6 +2550,9 @@ private:
         req->set_first_block_index(FirstBlockIndex_);
         req->set_block_count(BlockCount_);
 
+        ToProto(req->mutable_replica_spec(), peer.Replica);
+        req->set_chunk_format(::NYT::ToProto<i32>(ChunkFormat_));
+
         auto rspFuture = req->Invoke();
         SetSessionFuture(rspFuture.As<void>());
         auto rspOrError = WaitFor(rspFuture);
