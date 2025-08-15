@@ -32,6 +32,7 @@ target_link_libraries(yql-essentials-utils PUBLIC
 )
 
 target_sources(yql-essentials-utils PRIVATE
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/checkpoint_map.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/chunked_buffer.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/debug_info.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/exceptions.cpp
