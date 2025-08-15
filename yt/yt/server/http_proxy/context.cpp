@@ -882,19 +882,22 @@ void TContext::ProcessFormatsInParameters()
     }
 }
 
-void TContext::SetupUpdateCpuExecutor()
+void TContext::SetupCumulativeCpuProfiling()
 {
-    UpdateCpuExecutor_ = New<TPeriodicExecutor>(
+    // It is necessary to call this function after setup AuthenticatedUser.
+    CumulativeCpuProfilingExecutor_ = New<TPeriodicExecutor>(
         GetCurrentInvoker(),
         BIND(
-            &TContext::UpdateCumulativeCpuAndProfile,
+            &TContext::ProfileCumulativeCpu,
             MakeWeak(this),
             TTraceContextPtr(TryGetCurrentTraceContext()),
             DriverRequest_.AuthenticatedUser,
             DriverRequest_.CommandName),
         Api_->GetConfig()->CpuUpdatePeriod);
 
-    UpdateCpuExecutor_->Start();
+    CumulativeCpuProfilingExecutor_->Start();
+
+    YT_LOG_DEBUG("Cumulative CPU profiling stopped");
 }
 
 void TContext::FinishPrepare()
@@ -910,7 +913,7 @@ void TContext::FinishPrepare()
     SetupTracing();
     SetupUserMemoryLimits();
     SetupMemoryUsageTracker();
-    SetupUpdateCpuExecutor();
+    SetupCumulativeCpuProfiling();
     AddHeaders();
     PrepareFinished_ = true;
 
@@ -1047,9 +1050,9 @@ void TContext::Finalize()
         Y_UNUSED(WaitFor(SendKeepAliveExecutor_->Stop()));
     }
 
-    if (UpdateCpuExecutor_) {
-        YT_LOG_DEBUG("Stopping periodic executor that updates and profiles cumulative cpu");
-        Y_UNUSED(WaitFor(UpdateCpuExecutor_->Stop()));
+    if (CumulativeCpuProfilingExecutor_) {
+        YT_LOG_DEBUG("Cumulative CPU profiling stopped");
+        Y_UNUSED(WaitFor(CumulativeCpuProfilingExecutor_->Stop()));
     }
 
     if (EnableRequestBodyWorkaround(Request_)) {
@@ -1255,7 +1258,7 @@ IInvokerPtr TContext::GetCompressionInvoker() const
         : Api_->GetPoller()->GetInvoker();
 }
 
-void TContext::UpdateCumulativeCpuAndProfile(
+void TContext::ProfileCumulativeCpu(
     const TTraceContextPtr& traceContext,
     const std::string& authenticatedUser,
     const TString& commandName)

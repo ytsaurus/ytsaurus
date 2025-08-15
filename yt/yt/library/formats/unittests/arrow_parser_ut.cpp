@@ -128,7 +128,7 @@ std::string MakeIntAndStringArrow(const std::vector<int8_t>& data, const std::ve
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
-std::string MakeIntListArrow(const std::vector<std::optional<std::vector<int32_t>>>& data)
+std::string MakeIntListArrow(const std::vector<std::optional<std::vector<i32>>>& data)
 {
     auto* pool = arrow20::default_memory_pool();
     auto valueBuilder = std::make_shared<arrow20::Int32Builder>(pool);
@@ -157,7 +157,8 @@ std::string MakeIntListArrow(const std::vector<std::optional<std::vector<int32_t
 }
 
 std::string MakeIntListDictionaryArrow(
-    const std::vector<int32_t>& listValues, int64_t numRows)
+    const std::vector<i32>& listValues,
+    i64 numRows)
 {
     auto* pool = arrow20::default_memory_pool();
 
@@ -165,7 +166,7 @@ std::string MakeIntListDictionaryArrow(
     auto listBuilder = std::make_unique<arrow20::ListBuilder>(pool, valueBuilder);
 
     Verify(listBuilder->Append());
-    for (int32_t value : listValues) {
+    for (i32 value : listValues) {
         Verify(valueBuilder->Append(value));
     }
     std::shared_ptr<arrow20::Array> dictArray;
@@ -212,7 +213,7 @@ std::string MakeStringListArrow(const std::vector<std::vector<std::string>>& dat
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
-std::string MakeMapArrow(const std::vector<std::vector<int32_t>>& key, const std::vector<std::vector<int32_t>>& value)
+std::string MakeMapArrow(const std::vector<std::vector<i32>>& key, const std::vector<std::vector<i32>>& value)
 {
     auto* pool = arrow20::default_memory_pool();
 
@@ -245,7 +246,7 @@ std::string MakeDictionaryArrow(bool addExtraValues = false)
 
     arrow20::DictionaryBuilder<arrow20::Int32Type> dictionaryBuilder(pool);
 
-    std::vector<int32_t> values = {1, 2, 1};
+    std::vector<i32> values = {1, 2, 1};
 
     for (auto value : values) {
         Verify(dictionaryBuilder.Append(value));
@@ -272,7 +273,7 @@ std::string MakeDictionaryArrow(bool addExtraValues = false)
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
-std::string MakeStructArrow(const std::vector<std::string>& stringData, const std::vector<int64_t>& intData)
+std::string MakeStructArrow(const std::vector<std::string>& stringData, const std::vector<i64>& intData)
 {
     auto* pool = arrow20::default_memory_pool();
 
@@ -658,7 +659,7 @@ std::string MakeDecimalListArrow(std::vector<TString> values)
 
 void TestArrowParserWithDictionary(bool addExtraValues = false)
 {
-    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+    auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("integer", EValueType::Int64)
     });
 
@@ -681,7 +682,7 @@ void TestArrowParserWithDictionary(bool addExtraValues = false)
 
 TEST(TArrowParserTest, Simple)
 {
-    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+    auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("integer", EValueType::Int64)
     });
 
@@ -702,7 +703,7 @@ TEST(TArrowParserTest, Simple)
 
 TEST(TArrowParserTest, Optional)
 {
-    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+    auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("opt", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))
     });
 
@@ -729,7 +730,7 @@ TEST(TArrowParserTest, Dictionary)
 
 TEST(TArrowParserTest, Bool)
 {
-    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+    auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("bool", EValueType::Boolean),
     });
 
@@ -750,7 +751,7 @@ TEST(TArrowParserTest, Bool)
 
 TEST(TArrowParserTest, String)
 {
-    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+    auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("integer", EValueType::Any),
         TColumnSchema("string", EValueType::String),
     });
@@ -788,7 +789,7 @@ TString ConvertToYsonTextStringStable(const INodePtr& node, bool binary = false)
 
 TEST(TArrowParserTest, ListOfIntegers)
 {
-    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+    auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
     });
 
@@ -811,7 +812,7 @@ TEST(TArrowParserTest, ListOfIntegers)
 
 TEST(TArrowParserTest, DictionaryList)
 {
-    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+    auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
     });
 
@@ -831,7 +832,7 @@ TEST(TArrowParserTest, DictionaryList)
 
 TEST(TArrowParserTest, ListOfStrings)
 {
-    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+    auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))),
     });
 
@@ -852,7 +853,7 @@ TEST(TArrowParserTest, ListOfStrings)
 
 TEST(TArrowParserTest, Map)
 {
-    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+    auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema(
             "map",
             DictLogicalType(
@@ -877,7 +878,7 @@ TEST(TArrowParserTest, Map)
 
 TEST(TArrowParserTest, SeveralIntArrays)
 {
-    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+    auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("integer", EValueType::Int64),
     });
 
@@ -900,7 +901,7 @@ TEST(TArrowParserTest, SeveralIntArrays)
 
 TEST(TArrowParserTest, Struct)
 {
-    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+    auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("struct", StructLogicalType({
             {"bar", SimpleLogicalType(ESimpleLogicalValueType::String)},
             {"foo", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
@@ -923,7 +924,7 @@ TEST(TArrowParserTest, Struct)
 
 TEST(TArrowParserTest, StructError)
 {
-    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+    auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("struct", StructLogicalType({
             {"bar", SimpleLogicalType(ESimpleLogicalValueType::String)},
         })),
@@ -940,7 +941,7 @@ TEST(TArrowParserTest, StructError)
 
 TEST(TArrowParserTest, DecimalVariousPrecisions)
 {
-    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+    auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("decimal128_10_3", DecimalLogicalType(10, 3)),
         TColumnSchema("decimal128_35_3", DecimalLogicalType(35, 3)),
         TColumnSchema("decimal128_38_3", DecimalLogicalType(38, 3)),
@@ -997,7 +998,7 @@ TEST(TArrowParserTest, DecimalVariousPrecisions)
 
 TEST(TArrowParserTest, Datetime)
 {
-    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+    auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("date", ESimpleLogicalValueType::Date),
         TColumnSchema("datetime", ESimpleLogicalValueType::Datetime),
         TColumnSchema("timestamp", ESimpleLogicalValueType::Timestamp),
@@ -1019,7 +1020,7 @@ TEST(TArrowParserTest, Datetime)
 
 TEST(TArrowParserTest, Datetime64)
 {
-    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+    auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("date", ESimpleLogicalValueType::Date32),
         TColumnSchema("datetime", ESimpleLogicalValueType::Datetime64),
         TColumnSchema("timestamp", ESimpleLogicalValueType::Timestamp64),
@@ -1041,7 +1042,7 @@ TEST(TArrowParserTest, Datetime64)
 
 TEST(TArrowParserTest, TzType)
 {
-    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+    auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("tzDateColumn", ESimpleLogicalValueType::TzDate),
         TColumnSchema("tzDatetimeColumn", ESimpleLogicalValueType::TzDatetime),
         TColumnSchema("tzTimestampColumn", ESimpleLogicalValueType::TzTimestamp),
@@ -1093,7 +1094,7 @@ TEST(TArrowParserTest, TzType)
 
 TEST(TArrowParserTest, TzTypeName)
 {
-    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+    auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("tzDateColumn", ESimpleLogicalValueType::TzDate),
     });
 
@@ -1114,7 +1115,7 @@ TEST(TArrowParserTest, TzTypeName)
 
 TEST(TArrowParserTest, WrongTzIndex)
 {
-    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+    auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("tzDateColumn", ESimpleLogicalValueType::TzDate),
         TColumnSchema("tzDatetimeColumn", ESimpleLogicalValueType::TzDatetime),
         TColumnSchema("tzTimestampColumn", ESimpleLogicalValueType::TzTimestamp),
@@ -1133,7 +1134,7 @@ TEST(TArrowParserTest, WrongTzIndex)
 
 TEST(TArrowParserTest, WrongTzType)
 {
-    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+    auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("tzDateColumn", ESimpleLogicalValueType::TzDatetime),
         TColumnSchema("tzDatetimeColumn", ESimpleLogicalValueType::TzDatetime),
         TColumnSchema("tzTimestampColumn", ESimpleLogicalValueType::TzTimestamp),
@@ -1152,7 +1153,7 @@ TEST(TArrowParserTest, WrongTzType)
 
 TEST(TArrowParserTest, ListOfTzTypes)
 {
-    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+    auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("listOfTzTypes", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::TzDate))),
     });
 
@@ -1174,7 +1175,7 @@ TEST(TArrowParserTest, ListOfTzTypes)
 
 TEST(TArrowParserTest, ListOfDatetimes)
 {
-    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+    auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Datetime64))),
     });
 
@@ -1195,7 +1196,7 @@ TEST(TArrowParserTest, ListOfDatetimes)
 
 TEST(TArrowParserTest, ListOfDecimals)
 {
-    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+    auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("list", ListLogicalType(DecimalLogicalType(10, 3))),
     });
 
@@ -1218,7 +1219,7 @@ TEST(TArrowParserTest, ListOfDecimals)
 
 TEST(TArrowParserTest, BlockingInput)
 {
-    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+    auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("integer", EValueType::Int64)
     });
 
