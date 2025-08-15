@@ -30,7 +30,7 @@ func newTableReader(rows []wire.Row, d *rpc_proxy.TRowsetDescriptor) (*tableRead
 
 	r := &tableReader{
 		rows: rows,
-		d:    wire.NewDecoder(nameTable),
+		d:    wire.NewDecoder(nameTable, d.GetSchema()),
 	}
 
 	return r, nil

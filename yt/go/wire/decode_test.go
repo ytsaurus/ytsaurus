@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"go.ytsaurus.tech/library/go/ptr"
+	"go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy"
 	"go.ytsaurus.tech/yt/go/schema"
 )
 
@@ -331,90 +333,9 @@ func TestDecoder_UnmarshalRow(t *testing.T) {
 			in:       Row{Value{ID: 0, Type: TypeNull}},
 			expected: &testResponseRow{},
 		},
-		{
-			name: "composite_struct",
-			nameTable: NameTable{
-				{Name: "struct"},
-			},
-			in: Row{
-				NewComposite(0, []byte(`{id=88;name=foo;}`)),
-			},
-			expected: &testResponseRow{
-				Struct: innterStruct{
-					ID:   88,
-					Name: "foo",
-				},
-			},
-		},
-		{
-			name: "composite_map",
-			nameTable: NameTable{
-				{Name: "struct"},
-			},
-			in: Row{
-				NewComposite(0, []byte(`{id=88;name=foo;}`)),
-			},
-			expected: &map[string]any{
-				"struct": map[string]any{
-					"id":   int64(88),
-					"name": "foo",
-				},
-			},
-		},
-		{
-			name: "composite_null",
-			nameTable: NameTable{
-				{Name: "struct"},
-			},
-			in:       Row{Value{ID: 0, Type: TypeNull}},
-			expected: &testResponseRow{},
-		},
-		{
-			name: "composite_list",
-			nameTable: NameTable{
-				{Name: "list"},
-			},
-			in: Row{
-				NewComposite(0, []byte(`[1;2;3;4;5]`)),
-			},
-			expected: &map[string]any{
-				"list": []any{
-					int64(1),
-					int64(2),
-					int64(3),
-					int64(4),
-					int64(5),
-				},
-			},
-		},
-		{
-			name: "composite_list_of_structs",
-			nameTable: NameTable{
-				{Name: "list"},
-			},
-			in: Row{
-				NewComposite(0, []byte(`[{id=1;name=alice;};{id=2;name=bob;};{id=3;name=charlie;}]`)),
-			},
-			expected: &map[string]any{
-				"list": []any{
-					map[string]any{
-						"id":   int64(1),
-						"name": "alice",
-					},
-					map[string]any{
-						"id":   int64(2),
-						"name": "bob",
-					},
-					map[string]any{
-						"id":   int64(3),
-						"name": "charlie",
-					},
-				},
-			},
-		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d := NewDecoder(tc.nameTable)
+			d := NewDecoder(tc.nameTable, nil)
 
 			out := reflect.New(reflect.TypeOf(tc.expected).Elem()).Interface()
 			err := d.UnmarshalRow(tc.in, out)
@@ -429,8 +350,709 @@ func TestDecoder_UnmarshalRow(t *testing.T) {
 	}
 }
 
-func TestDecoder_nilRow(t *testing.T) {
-	d := NewDecoder(nil)
-	var out any
-	require.NoError(t, d.UnmarshalRow(nil, &out))
+func TestDecoder_CompositeTypes(t *testing.T) {
+	tests := []struct {
+		name      string
+		schema    *rpc_proxy.TTableSchema
+		nameTable NameTable
+		testData  []byte
+		expected  any
+		isErr     bool
+	}{
+		{
+			name: "struct_simple",
+			schema: &rpc_proxy.TTableSchema{
+				Columns: []*rpc_proxy.TColumnSchema{
+					{
+						Name:  ptr.String("person"),
+						TypeV3: []byte(`{type_name=struct;members=[{name=id;type=int64};{name=name;type=utf8}]}`),
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "person"}},
+			testData:  []byte(`[123;"alice"]`),
+			expected: map[string]any{
+				"person": map[string]any{
+					"id":   int64(123),
+					"name": "alice",
+				},
+			},
+		},
+		{
+			name: "list_of_structs",
+			schema: &rpc_proxy.TTableSchema{
+				Columns: []*rpc_proxy.TColumnSchema{
+					{
+						Name:  ptr.String("people"),
+						TypeV3: []byte(`{type_name=list;item={type_name=struct;members=[{name=id;type=int64};{name=name;type=utf8}]}}`),
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "people"}},
+			testData:  []byte(`[[123;"alice"];[456;"bob"]]`),
+			expected: map[string]any{
+				"people": []any{
+					map[string]any{
+						"id":   int64(123),
+						"name": "alice",
+					},
+					map[string]any{
+						"id":   int64(456),
+						"name": "bob",
+					},
+				},
+			},
+		},
+		{
+			name: "list_of_primitives",
+			schema: &rpc_proxy.TTableSchema{
+				Columns: []*rpc_proxy.TColumnSchema{
+					{
+						Name:  ptr.String("numbers"),
+						TypeV3: []byte(`{type_name=list;item=int64}`),
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "numbers"}},
+			testData:  []byte(`[1;2;3;4;5]`),
+			expected: map[string]any{
+				"numbers": []any{int64(1), int64(2), int64(3), int64(4), int64(5)},
+			},
+		},
+		{
+			name: "tuple_simple",
+			schema: &rpc_proxy.TTableSchema{
+				Columns: []*rpc_proxy.TColumnSchema{
+					{
+						Name:  ptr.String("coordinates"),
+						TypeV3: []byte(`{type_name=tuple;elements=[{type=int64};{type=double}]}`),
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "coordinates"}},
+			testData:  []byte(`[10;3.14]`),
+			expected: map[string]any{
+				"coordinates": []any{int64(10), 3.14},
+			},
+		},
+		{
+			name: "tuple_with_structs",
+			schema: &rpc_proxy.TTableSchema{
+				Columns: []*rpc_proxy.TColumnSchema{
+					{
+						Name:  ptr.String("pair"),
+						TypeV3: []byte(`{type_name=tuple;elements=[{type={type_name=struct;members=[{name=id;type=int64}]}};{type={type_name=struct;members=[{name=name;type=utf8}]}}]}`),
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "pair"}},
+			testData:  []byte(`[[42];[test]]`),
+			expected: map[string]any{
+				"pair": []any{
+					map[string]any{"id": int64(42)},
+					map[string]any{"name": "test"},
+				},
+			},
+		},
+		{
+			name: "dict_simple",
+			schema: &rpc_proxy.TTableSchema{
+				Columns: []*rpc_proxy.TColumnSchema{
+					{
+						Name:  ptr.String("config"),
+						TypeV3: []byte(`{type_name=dict;key=utf8;value=int64}`),
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "config"}},
+			testData:  []byte(`[["key1";100];["key2";200]]`),
+			expected: map[string]any{
+				"config": map[any]any{
+					"key1": int64(100),
+					"key2": int64(200),
+				},
+			},
+		},
+		{
+			name: "dict_with_complex_values",
+			schema: &rpc_proxy.TTableSchema{
+				Columns: []*rpc_proxy.TColumnSchema{
+					{
+						Name:  ptr.String("users"),
+						TypeV3: []byte(`{type_name=dict;key=utf8;value={type_name=struct;members=[{name=age;type=int64};{name=active;type=bool}]}}`),
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "users"}},
+			testData:  []byte(`[["alice";[25;%true]];["bob";[30;%false]]]`),
+			expected: map[string]any{
+				"users": map[any]any{
+					"alice": map[string]any{
+						"age":    int64(25),
+						"active": true,
+					},
+					"bob": map[string]any{
+						"age":    int64(30),
+						"active": false,
+					},
+				},
+			},
+		},
+		{
+			name: "optional_with_value",
+			schema: &rpc_proxy.TTableSchema{
+				Columns: []*rpc_proxy.TColumnSchema{
+					{
+						Name:  ptr.String("maybe_string"),
+						TypeV3: []byte(`{type_name=optional;item=utf8}`),
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "maybe_string"}},
+			testData:  []byte(`"hello"`),
+			expected: map[string]any{
+				"maybe_string": "hello",
+			},
+		},
+		{
+			name: "optional_with_null",
+			schema: &rpc_proxy.TTableSchema{
+				Columns: []*rpc_proxy.TColumnSchema{
+					{
+						Name:  ptr.String("maybe_string"),
+						TypeV3: []byte(`{type_name=optional;item=utf8}`),
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "maybe_string"}},
+			testData:  []byte(`#`),
+			expected: map[string]any{
+				"maybe_string": nil,
+			},
+		},
+		{
+			name: "optional_with_struct",
+			schema: &rpc_proxy.TTableSchema{
+				Columns: []*rpc_proxy.TColumnSchema{
+					{
+						Name:  ptr.String("maybe_person"),
+						TypeV3: []byte(`{type_name=optional;item={type_name=struct;members=[{name=id;type=int64};{name=name;type=utf8}]}}`),
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "maybe_person"}},
+			testData:  []byte(`[123;"alice"]`),
+			expected: map[string]any{
+				"maybe_person": map[string]any{
+					"id":   int64(123),
+					"name": "alice",
+				},
+			},
+		},
+		{
+			name: "tagged_simple",
+			schema: &rpc_proxy.TTableSchema{
+				Columns: []*rpc_proxy.TColumnSchema{
+					{
+						Name:  ptr.String("user_id"),
+						TypeV3: []byte(`{type_name=tagged;tag=user_id;item=int64}`),
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "user_id"}},
+			testData:  []byte(`42`),
+			expected: map[string]any{
+				"user_id": int64(42),
+			},
+		},
+		{
+			name: "tagged_with_struct",
+			schema: &rpc_proxy.TTableSchema{
+				Columns: []*rpc_proxy.TColumnSchema{
+					{
+						Name:  ptr.String("user_data"),
+						TypeV3: []byte(`{type_name=tagged;tag=user_data;item={type_name=struct;members=[{name=id;type=int64};{name=name;type=utf8}]}}`),
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "user_data"}},
+			testData:  []byte(`[123;"alice"]`),
+			expected: map[string]any{
+				"user_data": map[string]any{
+					"id":   int64(123),
+					"name": "alice",
+				},
+			},
+		},
+		{
+			name: "variant_struct",
+			schema: &rpc_proxy.TTableSchema{
+				Columns: []*rpc_proxy.TColumnSchema{
+					{
+						Name:  ptr.String("shape"),
+						TypeV3: []byte(`{type_name=variant;members=[{name=circle;type={type_name=struct;members=[{name=radius;type=double}]}};{name=rectangle;type={type_name=struct;members=[{name=width;type=double};{name=height;type=double}]}}]}`),
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "shape"}},
+			testData:  []byte(`["circle";[5.0]]`),
+			expected: map[string]any{
+				"shape": map[string]any{
+					"radius": 5.0,
+				},
+			},
+		},
+		{
+			name: "variant_tuple",
+			schema: &rpc_proxy.TTableSchema{
+				Columns: []*rpc_proxy.TColumnSchema{
+					{
+						Name:  ptr.String("value"),
+						TypeV3: []byte(`{type_name=variant;elements=[{type=int64};{type=utf8};{type=double}]}`),
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "value"}},
+			testData:  []byte(`[1;"hello"]`),
+			expected: map[string]any{
+				"value": "hello",
+			},
+		},
+		{
+			name: "nested_complex_types",
+			schema: &rpc_proxy.TTableSchema{
+				Columns: []*rpc_proxy.TColumnSchema{
+					{
+						Name:  ptr.String("complex"),
+						TypeV3: []byte(`{type_name=list;item={type_name=optional;item={type_name=dict;key=utf8;value=int64}}}`),
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "complex"}},
+			testData:  []byte(`[[["key1";100]];#;[["key2";200]]]`),
+			expected: map[string]any{
+				"complex": []any{
+					map[any]any{
+						"key1": int64(100),
+					},
+					nil,
+					map[any]any{
+						"key2": int64(200),
+					},
+				},
+			},
+		},
+		{
+			name: "decimal_type",
+			schema: &rpc_proxy.TTableSchema{
+				Columns: []*rpc_proxy.TColumnSchema{
+					{
+						Name:  ptr.String("price"),
+						TypeV3: []byte(`{type_name=decimal;precision=10;scale=2}`),
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "price"}},
+			testData:  []byte(`"123.45"`),
+			expected: map[string]any{
+				"price": "123.45",
+			},
+		},
+		{
+			name: "list_of_optional_primitives",
+			schema: &rpc_proxy.TTableSchema{
+				Columns: []*rpc_proxy.TColumnSchema{
+					{
+						Name:  ptr.String("nullable_numbers"),
+						TypeV3: []byte(`{type_name=list;item={type_name=optional;item=int64}}`),
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "nullable_numbers"}},
+			testData:  []byte(`[1;#;3;#;5]`),
+			expected: map[string]any{
+				"nullable_numbers": []any{int64(1), nil, int64(3), nil, int64(5)},
+			},
+		},
+		{
+			name: "struct_with_optional_fields",
+			schema: &rpc_proxy.TTableSchema{
+				Columns: []*rpc_proxy.TColumnSchema{
+					{
+						Name:  ptr.String("user"),
+						TypeV3: []byte(`{type_name=struct;members=[{name=id;type=int64};{name=name;type={type_name=optional;item=utf8}};{name=email;type={type_name=optional;item=utf8}}]}`),
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "user"}},
+			testData:  []byte(`[123;"john";#]`),
+			expected: map[string]any{
+				"user": map[string]any{
+					"id":    int64(123),
+					"name":  "john",
+					"email": nil,
+				},
+			},
+		},
+		{
+			name: "dict_with_list_values",
+			schema: &rpc_proxy.TTableSchema{
+				Columns: []*rpc_proxy.TColumnSchema{
+					{
+						Name:  ptr.String("categories"),
+						TypeV3: []byte(`{type_name=dict;key=utf8;value={type_name=list;item=utf8}}`),
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "categories"}},
+			testData:  []byte(`[["fruits";["apple";"banana"]];["vegetables";["carrot";"lettuce"]]]`),
+			expected: map[string]any{
+				"categories": map[any]any{
+					"fruits":     []any{"apple", "banana"},
+					"vegetables": []any{"carrot", "lettuce"},
+				},
+			},
+		},
+		{
+			name: "tuple_with_optional_elements",
+			schema: &rpc_proxy.TTableSchema{
+				Columns: []*rpc_proxy.TColumnSchema{
+					{
+						Name:  ptr.String("mixed_tuple"),
+						TypeV3: []byte(`{type_name=tuple;elements=[{type=int64};{type={type_name=optional;item=utf8}};{type=double}]}`),
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "mixed_tuple"}},
+			testData:  []byte(`[42;#;3.14]`),
+			expected: map[string]any{
+				"mixed_tuple": []any{int64(42), nil, 3.14},
+			},
+		},
+		{
+			name: "error_invalid_schema",
+			schema: &rpc_proxy.TTableSchema{
+				Columns: []*rpc_proxy.TColumnSchema{
+					{
+						Name:  ptr.String("invalid"),
+						TypeV3: []byte(`{invalid_schema}`),
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "invalid"}},
+			testData:  []byte(`"test"`),
+			expected:  map[string]any{},
+			isErr:     true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			d := NewDecoder(tc.nameTable, tc.schema)
+			
+			var result map[string]any
+			err := d.UnmarshalRow(Row{NewComposite(0, tc.testData)}, &result)
+			
+			if !tc.isErr {
+				require.NoError(t, err)
+				require.Equal(t, tc.expected, result)
+			} else {
+				require.Error(t, err)
+			}
+		})
+	}
+}
+
+func TestDecodeDecimalFromBinary(t *testing.T) {
+	tests := []struct {
+		name      string
+		data      []byte
+		precision int
+		scale     int
+		expected  string
+		expectErr bool
+	}{
+		{
+			name:      "3.1415 with precision=5, scale=4",
+			data:      []byte{0x80, 0x00, 0x7A, 0xB7},
+			precision: 5,
+			scale:     4,
+			expected:  "3.1415",
+		},
+		{
+			name:      "-2.7182 with precision=5, scale=4",
+			data:      []byte{0x7F, 0xFF, 0x95, 0xD2},
+			precision: 5,
+			scale:     4,
+			expected:  "-2.7182",
+		},
+		{
+			name:      "NaN (32-bit)",
+			data:      []byte{0xFF, 0xFF, 0xFF, 0xFF},
+			precision: 5,
+			scale:     4,
+			expected:  "nan",
+		},
+		{
+			name:      "+Inf (32-bit)",
+			data:      []byte{0xFF, 0xFF, 0xFF, 0xFE},
+			precision: 5,
+			scale:     4,
+			expected:  "+inf",
+		},
+		{
+			name:      "-Inf (32-bit)",
+			data:      []byte{0x00, 0x00, 0x00, 0x02},
+			precision: 5,
+			scale:     4,
+			expected:  "-inf",
+		},
+		{
+			name:      "Invalid length",
+			data:      []byte{0x80, 0x00, 0x7A},
+			precision: 5,
+			scale:     4,
+			expectErr: true,
+		},
+		// 64-bit tests (precision 10-18)
+		{
+			name:      "Large positive 64-bit with precision=15, scale=2",
+			data:      []byte{0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7B},
+			precision: 15,
+			scale:     2,
+			expected:  "1.23",
+		},
+		{
+			name:      "Large negative 64-bit with precision=15, scale=2",
+			data:      []byte{0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x85},
+			precision: 15,
+			scale:     2,
+			expected:  "-1.23",
+		},
+		{
+			name:      "64-bit with high precision=18, scale=10",
+			data:      []byte{0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+			precision: 18,
+			scale:     10,
+			expected:  "0.0000000001",
+		},
+		{
+			name:      "64-bit with precision=12, scale=0",
+			data:      []byte{0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x64},
+			precision: 12,
+			scale:     0,
+			expected:  "100",
+		},
+		// 128-bit tests (precision 19-38) - now working with big.Int
+		{
+			name:      "128-bit positive with precision=25, scale=5",
+			data:      []byte{0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7B},
+			precision: 25,
+			scale:     5,
+			expected:  "0.00123",
+		},
+		{
+			name:      "128-bit negative with precision=25, scale=5",
+			data:      []byte{0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x85},
+			precision: 25,
+			scale:     5,
+			expected:  "-0.00123",
+		},
+		{
+			name:      "128-bit with precision=30, scale=15",
+			data:      []byte{0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+			precision: 30,
+			scale:     15,
+			expected:  "0.000000000000001",
+		},
+		{
+			name:      "128-bit with precision=38, scale=0",
+			data:      []byte{0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x64},
+			precision: 38,
+			scale:     0,
+			expected:  "100",
+		},
+		// 256-bit tests (precision 39-76) - now working with big.Int
+		{
+			name:      "256-bit positive with precision=50, scale=10",
+			data:      []byte{0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7B},
+			precision: 50,
+			scale:     10,
+			expected:  "0.0000000123",
+		},
+		{
+			name:      "256-bit negative with precision=50, scale=10",
+			data:      []byte{0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x85},
+			precision: 50,
+			scale:     10,
+			expected:  "-0.0000000123",
+		},
+		{
+			name:      "256-bit with precision=76, scale=20",
+			data:      []byte{0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+			precision: 76,
+			scale:     20,
+			expected:  "0.00000000000000000001",
+		},
+		{
+			name:      "256-bit with precision=40, scale=0",
+			data:      []byte{0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x64},
+			precision: 40,
+			scale:     0,
+			expected:  "100",
+		},
+		// Edge cases with large scale
+		{
+			name:      "32-bit with maximum scale for precision=9, scale=9",
+			data:      []byte{0x80, 0x00, 0x00, 0x01},
+			precision: 9,
+			scale:     9,
+			expected:  "0.000000001",
+		},
+		{
+			name:      "64-bit with large scale=18, precision=18",
+			data:      []byte{0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+			precision: 18,
+			scale:     18,
+			expected:  "0.000000000000000001",
+		},
+		{
+			name:      "128-bit with large scale=38, precision=38",
+			data:      []byte{0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+			precision: 38,
+			scale:     38,
+			expected:  "0.00000000000000000000000000000000000001",
+		},
+		// Special values for larger precision
+		{
+			name:      "NaN (64-bit)",
+			data:      []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
+			precision: 15,
+			scale:     2,
+			expected:  "nan",
+		},
+		{
+			name:      "+Inf (64-bit)",
+			data:      []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE},
+			precision: 15,
+			scale:     2,
+			expected:  "+inf",
+		},
+		{
+			name:      "-Inf (64-bit)",
+			data:      []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
+			precision: 15,
+			scale:     2,
+			expected:  "-inf",
+		},
+		{
+			name:      "NaN (128-bit)",
+			data:      []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
+			precision: 25,
+			scale:     5,
+			expected:  "nan",
+		},
+		{
+			name:      "+Inf (128-bit)",
+			data:      []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE},
+			precision: 25,
+			scale:     5,
+			expected:  "+inf",
+		},
+		{
+			name:      "-Inf (128-bit)",
+			data:      []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
+			precision: 25,
+			scale:     5,
+			expected:  "-inf",
+		},
+		// Large value tests - now working with big.Int
+		{
+			name:      "128-bit large positive value",
+			data:      []byte{0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+			precision: 25,
+			scale:     5,
+			expected:  "92233720368547.75808",
+		},
+		{
+			name:      "256-bit large positive value",
+			data:      []byte{0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+			precision: 50,
+			scale:     10,
+			expected:  "922337203.6854775808",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := decodeDecimalFromBinary(tt.data, tt.precision, tt.scale)
+			
+			if tt.expectErr {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+				}
+				return
+			}
+			
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+				return
+			}
+			
+			if result != tt.expected {
+				t.Errorf("Expected %s, got %s", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestDecoder_decodeReflect(t *testing.T) {
+	nameTable := NameTable{
+		{Name: "composite_field"},
+	}
+	
+	d := NewDecoder(nameTable, nil)
+	
+	type testStruct struct {
+		CompositeField any `yson:"composite_field"`
+	}
+	
+	testData := []byte(`{id=123;name=test}`)
+	
+	var result testStruct
+	err := d.UnmarshalRow(Row{NewComposite(0, testData)}, &result)
+	
+	require.NoError(t, err)
+	require.NotNil(t, result.CompositeField)
+	
+	compositeMap, ok := result.CompositeField.(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, int64(123), compositeMap["id"])
+	require.Equal(t, "test", compositeMap["name"])
+}
+
+func TestDecoder_decodeReflectWithAnyPointer(t *testing.T) {
+	nameTable := NameTable{
+		{Name: "field"},
+	}
+	
+	d := NewDecoder(nameTable, nil)
+	
+	type testStruct struct {
+		Field *any `yson:"field"`
+	}
+	
+	testData := []byte(`[1;2;3;4;5]`)
+	
+	var result testStruct
+	err := d.UnmarshalRow(Row{NewComposite(0, testData)}, &result)
+	
+	require.NoError(t, err)
+	require.NotNil(t, result.Field)
+	
+	list, ok := (*result.Field).([]any)
+	require.True(t, ok)
+	require.Len(t, list, 5)
+	require.Equal(t, int64(1), list[0])
+	require.Equal(t, int64(5), list[4])
 }
