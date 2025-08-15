@@ -408,7 +408,6 @@ func (d *WireDecoder) decodeDecimal(data any, t schema.Decimal, v *any) error {
 		return nil
 	}
 
-	// Handle binary representation
 	if binaryData, ok := data.([]byte); ok {
 		decimalStr, err := decodeDecimalFromBinary(binaryData, t.Precision, t.Scale)
 		if err != nil {
