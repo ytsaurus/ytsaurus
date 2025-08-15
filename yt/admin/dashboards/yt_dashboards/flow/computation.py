@@ -179,7 +179,10 @@ class ComputationCellGenerator:
         )
 
     def build_partition_aggregates_rowset(self):
-        stream_alias = "{{computation_id}} - {{stream_id}}" if not self._has_computation_id_tag else "{{stream_id}}"
+        stream_alias = "{{{{computation_id}}}} - {{{{stream_id}}}}" if not self._has_computation_id_tag else "{{{{stream_id}}}}"
+
+        def transformation(alias):
+            return "let non_empty_computation_id = (\"{{{{computation_id}}}}\" == '-' ? '*' : \"{{{{computation_id}}}}\"); alias({query}" + f", \"{alias}\")"
 
         def add_cpu_cell(row, title_prefix, metric_suffix):
             description = (
@@ -191,7 +194,7 @@ class ComputationCellGenerator:
                 f"{title_prefix} partition cpu usage",
                 MultiSensor(
                     MonitoringExpr(FlowController(f"yt.flow.controller.computations.partition_cpu_usage.{metric_suffix}"))
-                        .alias("{{computation_id}}"),
+                        .query_transformation(transformation("{{{{computation_id}}}}")),
                     PlainMonitoringExpr("constant_line(1)")
                         .alias("One core - hard limit"),
                     PlainMonitoringExpr("constant_line(0.5)")
@@ -212,7 +215,7 @@ class ComputationCellGenerator:
                 f"{title_prefix} partition messages per second",
                 MonitoringExpr(FlowController(f"yt.flow.controller.computations.partition_*messages_per_second.{metric_suffix}"))
                     .all("stream_id")
-                    .alias(stream_alias)
+                    .query_transformation(transformation(stream_alias))
                     .unit("UNIT_COUNTS_PER_SECOND"),
                 description=description)
 
@@ -225,7 +228,7 @@ class ComputationCellGenerator:
                 f"{title_prefix} partition bytes per second",
                 MonitoringExpr(FlowController(f"yt.flow.controller.computations.partition_*bytes_per_second.{metric_suffix}"))
                     .all("stream_id")
-                    .alias(stream_alias)
+                    .query_transformation(transformation(stream_alias))
                     .unit("UNIT_BYTES_SI_PER_SECOND"),
                 description=description)
 
@@ -240,13 +243,13 @@ class ComputationCellGenerator:
                 f"Partition {kind} watermark difference (max - min)",
                 MonitoringExpr(FlowController(f"yt.flow.controller.computations.partition_{kind}_watermark_min_max_difference"))
                     .all("stream_id")
-                    .alias(stream_alias)
+                    .query_transformation(transformation(stream_alias))
                     .unit("UNIT_SECONDS"),
                 description=description)
 
         return (Rowset()
             .stack(False)
-            .value("computation_id", "{{computation_id}}" if self._has_computation_id_tag else "!-")
+            .value("computation_id", "{{non_empty_computation_id}}" if self._has_computation_id_tag else "*")
             .row()
                 .apply_func(lambda row: add_cpu_cell(row, "Max", "max"))
                 .apply_func(lambda row: add_cpu_cell(row, "Average", "avg"))
