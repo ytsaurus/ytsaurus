@@ -364,7 +364,7 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 			schema: &rpc_proxy.TTableSchema{
 				Columns: []*rpc_proxy.TColumnSchema{
 					{
-						Name:  ptr.String("person"),
+						Name:   ptr.String("person"),
 						TypeV3: []byte(`{type_name=struct;members=[{name=id;type=int64};{name=name;type=utf8}]}`),
 					},
 				},
@@ -383,7 +383,7 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 			schema: &rpc_proxy.TTableSchema{
 				Columns: []*rpc_proxy.TColumnSchema{
 					{
-						Name:  ptr.String("people"),
+						Name:   ptr.String("people"),
 						TypeV3: []byte(`{type_name=list;item={type_name=struct;members=[{name=id;type=int64};{name=name;type=utf8}]}}`),
 					},
 				},
@@ -408,7 +408,7 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 			schema: &rpc_proxy.TTableSchema{
 				Columns: []*rpc_proxy.TColumnSchema{
 					{
-						Name:  ptr.String("numbers"),
+						Name:   ptr.String("numbers"),
 						TypeV3: []byte(`{type_name=list;item=int64}`),
 					},
 				},
@@ -424,7 +424,7 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 			schema: &rpc_proxy.TTableSchema{
 				Columns: []*rpc_proxy.TColumnSchema{
 					{
-						Name:  ptr.String("coordinates"),
+						Name:   ptr.String("coordinates"),
 						TypeV3: []byte(`{type_name=tuple;elements=[{type=int64};{type=double}]}`),
 					},
 				},
@@ -440,7 +440,7 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 			schema: &rpc_proxy.TTableSchema{
 				Columns: []*rpc_proxy.TColumnSchema{
 					{
-						Name:  ptr.String("pair"),
+						Name:   ptr.String("pair"),
 						TypeV3: []byte(`{type_name=tuple;elements=[{type={type_name=struct;members=[{name=id;type=int64}]}};{type={type_name=struct;members=[{name=name;type=utf8}]}}]}`),
 					},
 				},
@@ -459,7 +459,7 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 			schema: &rpc_proxy.TTableSchema{
 				Columns: []*rpc_proxy.TColumnSchema{
 					{
-						Name:  ptr.String("config"),
+						Name:   ptr.String("config"),
 						TypeV3: []byte(`{type_name=dict;key=utf8;value=int64}`),
 					},
 				},
@@ -478,7 +478,7 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 			schema: &rpc_proxy.TTableSchema{
 				Columns: []*rpc_proxy.TColumnSchema{
 					{
-						Name:  ptr.String("users"),
+						Name:   ptr.String("users"),
 						TypeV3: []byte(`{type_name=dict;key=utf8;value={type_name=struct;members=[{name=age;type=int64};{name=active;type=bool}]}}`),
 					},
 				},
@@ -503,7 +503,7 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 			schema: &rpc_proxy.TTableSchema{
 				Columns: []*rpc_proxy.TColumnSchema{
 					{
-						Name:  ptr.String("maybe_string"),
+						Name:   ptr.String("maybe_string"),
 						TypeV3: []byte(`{type_name=optional;item=utf8}`),
 					},
 				},
@@ -519,7 +519,7 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 			schema: &rpc_proxy.TTableSchema{
 				Columns: []*rpc_proxy.TColumnSchema{
 					{
-						Name:  ptr.String("maybe_string"),
+						Name:   ptr.String("maybe_string"),
 						TypeV3: []byte(`{type_name=optional;item=utf8}`),
 					},
 				},
@@ -535,7 +535,7 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 			schema: &rpc_proxy.TTableSchema{
 				Columns: []*rpc_proxy.TColumnSchema{
 					{
-						Name:  ptr.String("maybe_person"),
+						Name:   ptr.String("maybe_person"),
 						TypeV3: []byte(`{type_name=optional;item={type_name=struct;members=[{name=id;type=int64};{name=name;type=utf8}]}}`),
 					},
 				},
@@ -554,7 +554,7 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 			schema: &rpc_proxy.TTableSchema{
 				Columns: []*rpc_proxy.TColumnSchema{
 					{
-						Name:  ptr.String("user_id"),
+						Name:   ptr.String("user_id"),
 						TypeV3: []byte(`{type_name=tagged;tag=user_id;item=int64}`),
 					},
 				},
@@ -570,7 +570,7 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 			schema: &rpc_proxy.TTableSchema{
 				Columns: []*rpc_proxy.TColumnSchema{
 					{
-						Name:  ptr.String("user_data"),
+						Name:   ptr.String("user_data"),
 						TypeV3: []byte(`{type_name=tagged;tag=user_data;item={type_name=struct;members=[{name=id;type=int64};{name=name;type=utf8}]}}`),
 					},
 				},
@@ -589,7 +589,7 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 			schema: &rpc_proxy.TTableSchema{
 				Columns: []*rpc_proxy.TColumnSchema{
 					{
-						Name:  ptr.String("shape"),
+						Name:   ptr.String("shape"),
 						TypeV3: []byte(`{type_name=variant;members=[{name=circle;type={type_name=struct;members=[{name=radius;type=double}]}};{name=rectangle;type={type_name=struct;members=[{name=width;type=double};{name=height;type=double}]}}]}`),
 					},
 				},
@@ -607,7 +607,7 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 			schema: &rpc_proxy.TTableSchema{
 				Columns: []*rpc_proxy.TColumnSchema{
 					{
-						Name:  ptr.String("value"),
+						Name:   ptr.String("value"),
 						TypeV3: []byte(`{type_name=variant;elements=[{type=int64};{type=utf8};{type=double}]}`),
 					},
 				},
@@ -623,7 +623,7 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 			schema: &rpc_proxy.TTableSchema{
 				Columns: []*rpc_proxy.TColumnSchema{
 					{
-						Name:  ptr.String("complex"),
+						Name:   ptr.String("complex"),
 						TypeV3: []byte(`{type_name=list;item={type_name=optional;item={type_name=dict;key=utf8;value=int64}}}`),
 					},
 				},
@@ -647,7 +647,7 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 			schema: &rpc_proxy.TTableSchema{
 				Columns: []*rpc_proxy.TColumnSchema{
 					{
-						Name:  ptr.String("price"),
+						Name:   ptr.String("price"),
 						TypeV3: []byte(`{type_name=decimal;precision=10;scale=2}`),
 					},
 				},
@@ -663,7 +663,7 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 			schema: &rpc_proxy.TTableSchema{
 				Columns: []*rpc_proxy.TColumnSchema{
 					{
-						Name:  ptr.String("nullable_numbers"),
+						Name:   ptr.String("nullable_numbers"),
 						TypeV3: []byte(`{type_name=list;item={type_name=optional;item=int64}}`),
 					},
 				},
@@ -679,7 +679,7 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 			schema: &rpc_proxy.TTableSchema{
 				Columns: []*rpc_proxy.TColumnSchema{
 					{
-						Name:  ptr.String("user"),
+						Name:   ptr.String("user"),
 						TypeV3: []byte(`{type_name=struct;members=[{name=id;type=int64};{name=name;type={type_name=optional;item=utf8}};{name=email;type={type_name=optional;item=utf8}}]}`),
 					},
 				},
@@ -699,7 +699,7 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 			schema: &rpc_proxy.TTableSchema{
 				Columns: []*rpc_proxy.TColumnSchema{
 					{
-						Name:  ptr.String("categories"),
+						Name:   ptr.String("categories"),
 						TypeV3: []byte(`{type_name=dict;key=utf8;value={type_name=list;item=utf8}}`),
 					},
 				},
@@ -718,7 +718,7 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 			schema: &rpc_proxy.TTableSchema{
 				Columns: []*rpc_proxy.TColumnSchema{
 					{
-						Name:  ptr.String("mixed_tuple"),
+						Name:   ptr.String("mixed_tuple"),
 						TypeV3: []byte(`{type_name=tuple;elements=[{type=int64};{type={type_name=optional;item=utf8}};{type=double}]}`),
 					},
 				},
@@ -734,7 +734,7 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 			schema: &rpc_proxy.TTableSchema{
 				Columns: []*rpc_proxy.TColumnSchema{
 					{
-						Name:  ptr.String("invalid"),
+						Name:   ptr.String("invalid"),
 						TypeV3: []byte(`{invalid_schema}`),
 					},
 				},
@@ -749,10 +749,10 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			d := NewDecoder(tc.nameTable, tc.schema)
-			
+
 			var result map[string]any
 			err := d.UnmarshalRow(Row{NewComposite(0, tc.testData)}, &result)
-			
+
 			if !tc.isErr {
 				require.NoError(t, err)
 				require.Equal(t, tc.expected, result)
@@ -986,19 +986,19 @@ func TestDecodeDecimalFromBinary(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := decodeDecimalFromBinary(tt.data, tt.precision, tt.scale)
-			
+
 			if tt.expectErr {
 				if err == nil {
 					t.Errorf("Expected error but got none")
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Errorf("Unexpected error: %v", err)
 				return
 			}
-			
+
 			if result != tt.expected {
 				t.Errorf("Expected %s, got %s", tt.expected, result)
 			}
@@ -1010,21 +1010,21 @@ func TestDecoder_decodeReflect(t *testing.T) {
 	nameTable := NameTable{
 		{Name: "composite_field"},
 	}
-	
+
 	d := NewDecoder(nameTable, nil)
-	
+
 	type testStruct struct {
 		CompositeField any `yson:"composite_field"`
 	}
-	
+
 	testData := []byte(`{id=123;name=test}`)
-	
+
 	var result testStruct
 	err := d.UnmarshalRow(Row{NewComposite(0, testData)}, &result)
-	
+
 	require.NoError(t, err)
 	require.NotNil(t, result.CompositeField)
-	
+
 	compositeMap, ok := result.CompositeField.(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, int64(123), compositeMap["id"])
@@ -1035,21 +1035,21 @@ func TestDecoder_decodeReflectWithAnyPointer(t *testing.T) {
 	nameTable := NameTable{
 		{Name: "field"},
 	}
-	
+
 	d := NewDecoder(nameTable, nil)
-	
+
 	type testStruct struct {
 		Field *any `yson:"field"`
 	}
-	
+
 	testData := []byte(`[1;2;3;4;5]`)
-	
+
 	var result testStruct
 	err := d.UnmarshalRow(Row{NewComposite(0, testData)}, &result)
-	
+
 	require.NoError(t, err)
 	require.NotNil(t, result.Field)
-	
+
 	list, ok := (*result.Field).([]any)
 	require.True(t, ok)
 	require.Len(t, list, 5)

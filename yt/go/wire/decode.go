@@ -8,10 +8,9 @@ import (
 	"math/big"
 	"reflect"
 	"slices"
+	"strings"
 	"sync"
 	"time"
-
-	"strings"
 
 	"go.ytsaurus.tech/library/go/core/xerrors"
 	"go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy"
@@ -1079,34 +1078,34 @@ func decodeDecimalFromBinary(data []byte, precision, scale int) (string, error) 
 		bigLo := big.NewInt(0).SetUint64(lo)
 		bigHi.Lsh(bigHi, 64)
 		bigHi.Add(bigHi, bigLo)
-		
+
 		bitInverter := big.NewInt(1)
 		bitInverter.Lsh(bitInverter, 127)
 		bigHi.Sub(bigHi, bitInverter)
-		
+
 		bigInt = bigHi
 	case 32:
 		p3 := binary.BigEndian.Uint64(data[:8])
 		p2 := binary.BigEndian.Uint64(data[8:16])
 		p1 := binary.BigEndian.Uint64(data[16:24])
 		p0 := binary.BigEndian.Uint64(data[24:32])
-		
+
 		bigInt = big.NewInt(0)
 		bigP3 := big.NewInt(0).SetUint64(p3)
 		bigP2 := big.NewInt(0).SetUint64(p2)
 		bigP1 := big.NewInt(0).SetUint64(p1)
 		bigP0 := big.NewInt(0).SetUint64(p0)
-		
+
 		// Combine the parts: p3 << 192 + p2 << 128 + p1 << 64 + p0
 		bigP3.Lsh(bigP3, 192)
 		bigP2.Lsh(bigP2, 128)
 		bigP1.Lsh(bigP1, 64)
-		
+
 		bigInt.Add(bigInt, bigP3)
 		bigInt.Add(bigInt, bigP2)
 		bigInt.Add(bigInt, bigP1)
 		bigInt.Add(bigInt, bigP0)
-		
+
 		bitInverter := big.NewInt(1)
 		bitInverter.Lsh(bitInverter, 255)
 		bigInt.Sub(bigInt, bitInverter)
@@ -1117,7 +1116,7 @@ func decodeDecimalFromBinary(data []byte, precision, scale int) (string, error) 
 	if special := checkSpecialValue(bigInt, len(data)); special != "" {
 		return special, nil
 	}
-	
+
 	// Apply scale by dividing by 10^scale
 	if scale != 0 {
 		scaleFactor := big.NewInt(10)
@@ -1126,25 +1125,25 @@ func decodeDecimalFromBinary(data []byte, precision, scale int) (string, error) 
 	}
 
 	result := bigInt.String()
-	
+
 	if scale > 0 {
 		isNegative := false
 		if len(result) > 0 && result[0] == '-' {
 			isNegative = true
 			result = result[1:] // Remove the minus sign temporarily
 		}
-		
+
 		if len(result) <= scale {
 			result = "0." + strings.Repeat("0", scale-len(result)) + result
 		} else {
 			result = result[:len(result)-scale] + "." + result[len(result)-scale:]
 		}
-		
+
 		if isNegative {
 			result = "-" + result
 		}
 	}
-	
+
 	return result, nil
 }
 
@@ -1167,10 +1166,10 @@ func checkSpecialValue(bigInt *big.Int, byteSize int) string {
 	nanValue := big.NewInt(1)
 	nanValue.Lsh(nanValue, uint(shift))
 	nanValue.Sub(nanValue, big.NewInt(1))
-	
+
 	plusInf := big.NewInt(0).Sub(nanValue, big.NewInt(1))
 	minusInf := big.NewInt(0).Add(big.NewInt(0).Neg(nanValue), big.NewInt(1))
-	
+
 	if bigInt.Cmp(nanValue) == 0 {
 		return "nan"
 	} else if bigInt.Cmp(plusInf) == 0 {
