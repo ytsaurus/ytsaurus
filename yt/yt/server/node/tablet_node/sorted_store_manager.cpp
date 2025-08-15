@@ -1117,6 +1117,10 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             rowCache->ReallocateItems(Logger);
         }
 
+        if (rowCache && storeFlushIndex > 0) {
+            rowCache->SetLastFlushedIndex(storeFlushIndex);
+        }
+
         if (storeWriter->GetRowCount() == 0) {
             YT_LOG_DEBUG("Sorted store is empty, nothing to flush (StoreId: %v)",
                 store->GetId());

@@ -36,6 +36,9 @@ public:
     ui32 GetFlushIndex() const;
     void SetFlushIndex(ui32 storeFlushIndex);
 
+    ui32 GetLastFlushedIndex() const;
+    void SetLastFlushedIndex(ui32 storeFlushIndex);
+
     TUpdateCacheStatistics UpdateItems(
         TRange<NTableClient::TVersionedRow> rows,
         NTableClient::TTimestamp retainedTimestamp,
@@ -59,6 +62,8 @@ private:
 
     // Rows with revision less than FlushIndex are considered outdated.
     std::atomic<ui32> FlushIndex_ = 0;
+
+    std::atomic<ui32> LastFlushedIndex_ = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TRowCache)
