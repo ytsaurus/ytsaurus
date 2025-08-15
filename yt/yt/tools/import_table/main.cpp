@@ -40,6 +40,9 @@ struct TOpts
         Opts.AddLongOption("config", "YSON file with configuration for fine-grained tuning")
             .Optional()
             .StoreResult(&Config);
+        Opts.AddLongOption("network-project", "Network project")
+            .Optional()
+            .StoreResult(&NetworkProject);
     }
 
     NLastGetopt::TOpts Opts;
@@ -48,6 +51,7 @@ struct TOpts
     TString ResultTable;
     TString Format;
     std::optional<TString> Config;
+    std::optional<TString> NetworkProject;
 };
 
 struct TOptsHuggingface
@@ -123,6 +127,7 @@ int ImportFilesFromS3(int argc, const char** argv)
             opts.Prefix,
             opts.ResultTable,
             EFileFormat::Parquet,
+            opts.NetworkProject,
             LoadConfig(opts.Config));
     } else if (opts.Format == "orc") {
          ImportFilesFromS3(
@@ -133,6 +138,7 @@ int ImportFilesFromS3(int argc, const char** argv)
             opts.Prefix,
             opts.ResultTable,
             EFileFormat::Orc,
+            opts.NetworkProject,
             LoadConfig(opts.Config));
     } else {
         THROW_ERROR_EXCEPTION("Unsupported format, Parquet and Orc are supported now");
@@ -153,7 +159,8 @@ int ImportFilesFromHuggingface(int argc, const char** argv)
             opts.Subset,
             opts.Split,
             opts.ResultTable,
-             EFileFormat::Parquet,
+            EFileFormat::Parquet,
+            opts.NetworkProject,
             /*urlOverride*/ std::nullopt,
             LoadConfig(opts.Config));
     } else  if (opts.Format == "orc") {
@@ -164,6 +171,7 @@ int ImportFilesFromHuggingface(int argc, const char** argv)
             opts.Split,
             opts.ResultTable,
             EFileFormat::Orc,
+            opts.NetworkProject,
             /*urlOverride*/ std::nullopt,
             LoadConfig(opts.Config));
     } else {

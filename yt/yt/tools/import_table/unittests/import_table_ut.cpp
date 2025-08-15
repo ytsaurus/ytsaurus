@@ -656,6 +656,7 @@ TEST_F(TSmallHuggingfaceServerTest, SimpleImportTableFromHuggingface)
         Split,
         resultTable,
         EFileFormat::Parquet,
+        /*networkProject*/ std::nullopt,
         TestUrl);
 
     TTableSchema schema;
@@ -695,6 +696,7 @@ TEST_F(TSmallOrcHuggingfaceServerTest, SimpleImportOrcFilesFromHuggingface)
         Split,
         resultTable,
         EFileFormat::Orc,
+        /*networkProject*/ std::nullopt,
         TestUrl);
 
     TTableSchema schema;
@@ -736,6 +738,7 @@ TEST_F(TDifferentSchemasHuggingfaceServerTest, DifferentSchemas)
         Split,
         resultTable,
         EFileFormat::Parquet,
+        /*networkProject*/ std::nullopt,
         TestUrl);
 
     Generator->VerifyAnswer(client, resultTable);
@@ -769,6 +772,7 @@ TEST_F(TBigHuggingfaceServerTest, ImportBigTableFromHuggingface)
         Split,
         resultTable,
         EFileFormat::Parquet,
+        /*networkProject*/ std::nullopt,
         TestUrl);
 
     Generator->VerifyAnswer(client, resultTable);
@@ -793,6 +797,7 @@ TEST_F(TBigHuggingfaceServerTest, SplitMetadataRow)
         Split,
         resultTable,
         EFileFormat::Parquet,
+        /*networkProject*/ std::nullopt,
         TestUrl,
         config);
 
@@ -830,7 +835,7 @@ private:
         auto poller = CreateThreadPoolPoller(1, "S3TestPoller");
         auto client = NS3::CreateClient(
             std::move(clientConfig),
-            NS3::CreateAnonymousCredentialProvider(),
+            NS3::CreateStaticCredentialProvider("key", "secret"),
             poller,
             poller->GetInvoker());
 
