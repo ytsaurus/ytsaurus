@@ -53,7 +53,7 @@ Hyperscan lets you match against multiple regular expressions in a single pass t
 
 However, if you want to match a string against any of the listed expressions (the results would be joined with "or"), it would be more efficient to combine the query parts in a single regular expression with `|` and match it with regular `Grep` or `Match`.
 
-When you call `MultiGrep`/`MultiMatch`, regular expressions are passed one per line using [multiline string literals](../../syntax/expressions.md#named-nodes):
+When you call `MultiGrep`/`MultiMatch`, regular expressions are passed one per line using [multiline string literals](../../syntax/lexer.md#multiline-string-literals):
 
 #### Example
 
