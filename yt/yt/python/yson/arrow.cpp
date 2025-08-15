@@ -21,19 +21,19 @@ Y_WEAK Py::Object UploadParquet(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_WEAK Py::Object DumpORC(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
+Y_WEAK Py::Object DumpOrc(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
 {
-    throw Py::NotImplementedError("Implementation of DumpORC was not found");
+    throw Py::NotImplementedError("Implementation of DumpOrc was not found");
 }
 
 Y_WEAK Py::Object AsyncDumpOrc(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
 {
-    throw Py::NotImplementedError("Implementation of AsyncDumpORC was not found");
+    throw Py::NotImplementedError("Implementation of AsyncDumpOrc was not found");
 }
 
-Y_WEAK Py::Object UploadORC(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
+Y_WEAK Py::Object UploadOrc(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
 {
-    throw Py::NotImplementedError("Implementation of UploadORC was not found");
+    throw Py::NotImplementedError("Implementation of UploadOrc was not found");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

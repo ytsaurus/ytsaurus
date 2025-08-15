@@ -20,7 +20,7 @@ void TImportConfig::Register(TRegistrar registrar)
         .Default(10_MB);
     registrar.Parameter("parquet_file_regex", &TThis::ParquetFileRegex)
         .DefaultNew("\\.par(quet)?");
-    registrar.Parameter("orc_file_regex", &TThis::ORCFileRegex)
+    registrar.Parameter("orc_file_regex", &TThis::OrcFileRegex)
         .DefaultNew("\\.orc");
 }
 

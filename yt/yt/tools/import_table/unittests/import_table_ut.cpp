@@ -196,7 +196,7 @@ private:
     int Length_ = 0;
 };
 
-std::string GenerateIntegerORC(const std::vector<i64>& intArray) {
+std::string GenerateIntegerOrc(const std::vector<i64>& intArray) {
     orc::WriterOptions options;
     std::unique_ptr<orc::Type> schema(orc::Type::buildTypeFromString("struct<int:int>"));
     auto outStream = std::make_unique<StringOutputStream>();
@@ -366,7 +366,7 @@ public:
                 case EFileFormat::Parquet:
                     fileNames.emplace_back(ToString(fileIndex) + ".parquet");
                     break;
-                case EFileFormat::ORC:
+                case EFileFormat::Orc:
                     fileNames.emplace_back(ToString(fileIndex) + ".orc");
                     break;
             }
@@ -387,8 +387,8 @@ public:
                 case EFileFormat::Parquet:
                     formatData.push_back(GenerateIntegerParquet(fileData, arrow20::int64()));
                     break;
-                case EFileFormat::ORC:
-                    formatData.push_back(GenerateIntegerORC(fileData));
+                case EFileFormat::Orc:
+                    formatData.push_back(GenerateIntegerOrc(fileData));
                     break;
             }
         }
@@ -674,11 +674,11 @@ class TSmallOrcHuggingfaceServerTest
 private:
     void InitializeGenerator() override
     {
-        Generator = std::make_shared<TSmallParquetGenerator>(EFileFormat::ORC);
+        Generator = std::make_shared<TSmallParquetGenerator>(EFileFormat::Orc);
     }
 };
 
-TEST_F(TSmallOrcHuggingfaceServerTest, SimpleImportORCFilesFromHuggingface)
+TEST_F(TSmallOrcHuggingfaceServerTest, SimpleImportOrcFilesFromHuggingface)
 {
     NTesting::TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -694,7 +694,7 @@ TEST_F(TSmallOrcHuggingfaceServerTest, SimpleImportORCFilesFromHuggingface)
         /*subset*/ "default",
         Split,
         resultTable,
-        EFileFormat::ORC,
+        EFileFormat::Orc,
         TestUrl);
 
     TTableSchema schema;
