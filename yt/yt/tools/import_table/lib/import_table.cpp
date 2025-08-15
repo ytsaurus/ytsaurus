@@ -212,13 +212,12 @@ public:
 
     const std::string& getName() const override
     {
-        return Name_;
+        static std::string name = "OrcInputStreamAdapter";
+        return name;
     }
 
 private:
-    const std::string Name_ = "OrcInputStreamAdapter";
-
-    TRingBuffer* Buffer_;
+    TRingBuffer* const Buffer_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -390,7 +389,7 @@ private:
                 metadataWeight = std::max(static_cast<i64>(DefaultFooterReadSize + SizeOfMagicBytes + SizeOfMetadataWeight), metadataWeight);
                 return metadataWeight;
             }
-            case EFileFormat::ORC: {
+            case EFileFormat::Orc: {
                 std::unique_ptr<orc::InputStream> stream = std::make_unique<TOrcInputStreamAdapter>(&metadataRingBuffer);
                 orc::ReaderOptions option;
                 auto reader = orc::createReader(std::move(stream), option);
@@ -541,7 +540,7 @@ std::shared_ptr<arrow20::RecordBatchReader> MakeRecordBatchReaderAdapter(
     EFileFormat fileFormat)
 {
     switch (fileFormat) {
-        case EFileFormat::ORC:
+        case EFileFormat::Orc:
             return std::make_shared<TRecordBatchReaderOrcAdapter>(stream, pool);
         case EFileFormat::Parquet:
             return std::make_shared<TRecordBatchReaderParquetAdapter>(stream, pool);
@@ -555,10 +554,10 @@ TArrowRandomAccessFilePtr MakeFormatStreamAdapter(
     EFileFormat fileFormat)
 {
     switch (fileFormat) {
-        case EFileFormat::ORC:
+        case EFileFormat::Orc:
         {
             auto maxStripeSize = NArrow::GetMaxStripeSize(metadata, startMetadataOffset);
-            return NArrow::CreateORCAdapter(metadata, startMetadataOffset, maxStripeSize, std::move(reader));
+            return NArrow::CreateOrcAdapter(metadata, startMetadataOffset, maxStripeSize, std::move(reader));
         }
         case EFileFormat::Parquet:
         {
@@ -752,9 +751,9 @@ std::vector<TTempTable> CreateOutputParserTables(
 
         TArrowSchemaPtr arrowSchema;
         switch (fileFormat) {
-            case EFileFormat::ORC:
+            case EFileFormat::Orc:
             {
-                arrowSchema = NArrow::CreateArrowSchemaFromORCMetadata(&metadata, metadataStartOffset);
+                arrowSchema = NArrow::CreateArrowSchemaFromOrcMetadata(&metadata, metadataStartOffset);
                 break;
             }
             case EFileFormat::Parquet:
@@ -825,8 +824,8 @@ void ImportFilesFromSource(
     for (const auto& fileName : fileIds) {
         NRe2::TRe2Ptr regex;
         switch (sourceConfig.Format) {
-            case EFileFormat::ORC:
-                regex = config->ORCFileRegex;
+            case EFileFormat::Orc:
+                regex = config->OrcFileRegex;
                 break;
 
             case EFileFormat::Parquet:

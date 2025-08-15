@@ -132,10 +132,10 @@ int ImportFilesFromS3(int argc, const char** argv)
             opts.Bucket,
             opts.Prefix,
             opts.ResultTable,
-            EFileFormat::ORC,
+            EFileFormat::Orc,
             LoadConfig(opts.Config));
     } else {
-        THROW_ERROR_EXCEPTION("Unsupported format, Parquet and ORC are supported now");
+        THROW_ERROR_EXCEPTION("Unsupported format, Parquet and Orc are supported now");
     }
 
     return 0;
@@ -163,11 +163,11 @@ int ImportFilesFromHuggingface(int argc, const char** argv)
             opts.Subset,
             opts.Split,
             opts.ResultTable,
-            EFileFormat::ORC,
+            EFileFormat::Orc,
             /*urlOverride*/ std::nullopt,
             LoadConfig(opts.Config));
     } else {
-        THROW_ERROR_EXCEPTION("Unsupported format, Parquet and ORC are supported now");
+        THROW_ERROR_EXCEPTION("Unsupported format, Parquet and Orc are supported now");
     }
 
     return 0;

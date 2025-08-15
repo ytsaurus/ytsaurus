@@ -59,7 +59,7 @@ TString GenerateFileName(int index, int fileNameWidth, EFileFormat format)
     switch (format) {
         case EFileFormat::Parquet:
             return Format("%v%v.parquet", zeroPrefix, stringIndex);
-        case EFileFormat::ORC:
+        case EFileFormat::Orc:
             return Format("%v%v.orc", zeroPrefix, stringIndex);
     }
 }
@@ -91,7 +91,7 @@ arrow20::Compression::type GetParquetFileCompression(const std::string& compress
     }
 }
 
-orc::CompressionKind GetORCFileCompression(const std::string& compressionCodec)
+orc::CompressionKind GetOrcFileCompression(const std::string& compressionCodec)
 {
     if (compressionCodec == "none") {
         return orc::CompressionKind::CompressionKind_NONE;
@@ -208,7 +208,7 @@ struct TFormatConfig
 
 struct IFormatWriter
 {
-    virtual arrow20::Status WriteTable(const arrow20::Table& table, int64_t chunkSize) = 0;
+    virtual arrow20::Status WriteTable(const arrow20::Table& table, i64 chunkSize) = 0;
     virtual arrow20::Status Close() = 0;
     virtual ~IFormatWriter() = default;
 };
@@ -241,7 +241,7 @@ public:
         Writer_ = std::move(writerOrError.ValueOrDie());
     }
 
-    arrow20::Status WriteTable(const arrow20::Table& table, int64_t chunkSize) override
+    arrow20::Status WriteTable(const arrow20::Table& table, i64 chunkSize) override
     {
         return Writer_->WriteTable(table, chunkSize);
     }
@@ -250,8 +250,6 @@ public:
     {
         return Writer_->Close();
     }
-
-    ~TParquetWriter() = default;
 
 private:
     const TArrowStatusCallback ArrowStatusCallback_;
@@ -279,7 +277,7 @@ public:
         Writer_ = liborc::createWriter(*OrcSchema_, OutputStream_.get(), options);
     }
 
-    arrow20::Status WriteTable(const arrow20::Table& table, int64_t chunkSize) override
+    arrow20::Status WriteTable(const arrow20::Table& table, i64 chunkSize) override
     {
         const int columnCount = table.num_columns();
         i64 rowCount = table.num_rows();
@@ -365,7 +363,7 @@ public:
     }
 
 private:
-    int64_t Position_ = 0;
+    i64 Position_ = 0;
     bool IsClosed_ = false;
     char PreviousElement_;
     IInputStream* Stream_;
@@ -469,7 +467,7 @@ private:
     const TBoundedAsyncStreamPipePtr Pipe_;
 
     TSharedRef LastBlock_;
-    int64_t Position_ = 0;
+    i64 Position_ = 0;
 
     void UpdateLastBlock()
     {
@@ -790,7 +788,7 @@ Py::Object AsyncDumpOrc(Py::Tuple& args, Py::Dict& kwargs)
 
     auto fileCompression = orc::CompressionKind::CompressionKind_SNAPPY;
     if (HasArgument(args, kwargs, "file_compression_codec")) {
-        fileCompression = GetORCFileCompression(Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "file_compression_codec")));
+        fileCompression = GetOrcFileCompression(Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "file_compression_codec")));
     }
     if (!AreArgumentsEmpty(args, kwargs)) {
         YT_LOG_WARNING("The AsyncDumpOrc function received unrecognized arguments");
@@ -799,13 +797,13 @@ Py::Object AsyncDumpOrc(Py::Tuple& args, Py::Dict& kwargs)
         .OrcConfig = TOrcConfig{
             .FileCompression = fileCompression,
         },
-        .Format = EFileFormat::ORC,
+        .Format = EFileFormat::Orc,
         .MinBatchRowCount = inputArguments.MinBatchRowCount,
     };
     return DoAsyncDumpFile(std::move(inputArguments), config);
 }
 
-Py::Object DumpORC(Py::Tuple& args, Py::Dict& kwargs)
+Py::Object DumpOrc(Py::Tuple& args, Py::Dict& kwargs)
 {
     auto outputFilePath = Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "output_file"));
 
@@ -820,18 +818,18 @@ Py::Object DumpORC(Py::Tuple& args, Py::Dict& kwargs)
 
     auto fileCompression = orc::CompressionKind::CompressionKind_SNAPPY;
     if (HasArgument(args, kwargs, "file_compression_codec")) {
-        fileCompression = GetORCFileCompression(Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "file_compression_codec")));
+        fileCompression = GetOrcFileCompression(Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "file_compression_codec")));
     }
 
     if (!AreArgumentsEmpty(args, kwargs)) {
-        YT_LOG_WARNING("The DumpORC function received unrecognized arguments");
+        YT_LOG_WARNING("The DumpOrc function received unrecognized arguments");
     }
 
     auto config = TFormatConfig{
         .OrcConfig = TOrcConfig{
             .FileCompression = fileCompression,
         },
-        .Format = EFileFormat::ORC,
+        .Format = EFileFormat::Orc,
         .MinBatchRowCount = minBatchRowCount,
     };
 
@@ -868,7 +866,7 @@ Py::Object UploadParquet(Py::Tuple& args, Py::Dict& kwargs)
     return pythonIter;
 }
 
-Py::Object UploadORC(Py::Tuple& args, Py::Dict& kwargs)
+Py::Object UploadOrc(Py::Tuple& args, Py::Dict& kwargs)
 {
     auto inputFilePath = Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "input_file"));
 
@@ -878,13 +876,13 @@ Py::Object UploadORC(Py::Tuple& args, Py::Dict& kwargs)
     }
 
     if (!AreArgumentsEmpty(args, kwargs)) {
-        YT_LOG_WARNING("The UploadORC function received unrecognized arguments");
+        YT_LOG_WARNING("The UploadOrc function received unrecognized arguments");
     }
 
     Py::Callable classType(TArrowRawIterator::type());
     Py::PythonClassObject<TArrowRawIterator> pythonIter(classType.apply(Py::Tuple(), Py::Dict()));
     auto* iter = pythonIter.getCxxObject();
-    iter->Initialize(inputFilePath, EFileFormat::ORC, arrowBatchSize);
+    iter->Initialize(inputFilePath, EFileFormat::Orc, arrowBatchSize);
 
     return pythonIter;
 }
