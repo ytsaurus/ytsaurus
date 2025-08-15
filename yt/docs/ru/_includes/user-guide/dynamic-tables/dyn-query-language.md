@@ -38,7 +38,7 @@ yt select-rows "item_id FROM [//mytable] WHERE (user_id, order_id) IN ((1, 1), (
 
 ```sql
 * | <select-expr-1> [AS <select-alias-1>], <select-expr-2> [AS <select-alias-2>], ...
-FROM [//path/to/table] [WITH INDEX [//path/to/index/table]] [JOIN [//path/to/rhs1] USING <column-1>, <column-2>, ...]
+FROM [//path/to/table] [WITH INDEX [//path/to/index/table] [AS] <index-alias>] [JOIN [//path/to/rhs1] USING <column-1>, <column-2>, ...]
 [WHERE <predicate-expr>]
 [GROUP BY <group-by-expr-1> [AS <group-by-alias-1>], <group-by-expr-2> [AS <group-by-alias-2], ... [WITH TOTALS HAVING <having-expr> | HAVING <having-expr> WITH TOTALS | WITH TOTALS | HAVING <having-expr>]]
 [ORDER BY <order-by-expr-1> [ASC|DESC], <order-by-expr-2> [ASC|DESC], ...]
@@ -58,12 +58,12 @@ FROM [//path/to/table] [WITH INDEX [//path/to/index/table]] [JOIN [//path/to/rhs
 ### Секция FROM ... JOIN { #from_join }
 Синтаксис FROM ... JOIN:
 ```sql
-FROM [//path/to/table] [[AS] <table-alias>] [WITH INDEX [//path/to/index/table]] [[LEFT] JOIN [//path/to/dict-1] [[AS] <table-alias>] (ON <expression> = <foreign-expression> | USING <column-1>, <column-2>, ...) [AND <predicate>]] ...
+FROM [//path/to/table] [[AS] <table-alias>] [WITH INDEX [//path/to/index/table] [AS] <index-alias>] [[LEFT] JOIN [//path/to/dict-1] [[AS] <table-alias>] (ON <expression> = <foreign-expression> | USING <column-1>, <column-2>, ...) [AND <predicate>]] ...
 ```
 
 Определяет источники данных для запроса. Таблица, указываемая сразу после FROM, считается основной, и она используется при координации исполнения запроса (если в запросе нет ключевого слова WITH INDEX). Также допустимо указание вспомогательных таблиц-справочников в секции JOIN. Таблицы-справочники подключаются к основной таблице при точном совпадении указанного ключа. Без указания ключевого слова LEFT будет выполнен INNER JOIN. Дополнительно можно указывать выражение для фильтрации таблицы справочника, которое будет выполняться при чтении данных до выполнения join с основной таблицей.
 
-При наличии в запросе ключевого слова WITH INDEX, индексная таблица будет использоваться для координации, а таблица, указанная после FROM, будет подключена к ней по общим колонкам. См. также [вторичные индексы](../../../user-guide/dynamic-tables/secondary-indices).
+При наличии в запросе ключевого слова WITH INDEX, индексная таблица будет использоваться для координации, а индексная таблица, указанная после FROM, будет подключена к ней по общим колонкам. См. также [вторичные индексы](../../../user-guide/dynamic-tables/secondary-indices).
 
 Для объединения таблиц по нескольким колонкам в условии ON необходимо записать кортеж.
 
