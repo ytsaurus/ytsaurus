@@ -23,15 +23,16 @@ PEERDIR(
     contrib/ydb/core/scheme
     contrib/ydb/core/tablet
     contrib/ydb/core/tablet_flat
-    contrib/ydb/core/tx/columnshard/engines/reader
-    contrib/ydb/core/tx/columnshard/engines/predicate
-    contrib/ydb/core/tx/columnshard/engines/storage
-    contrib/ydb/core/tx/columnshard/engines/changes
-    contrib/ydb/core/tx/columnshard/engines/portions
-    contrib/ydb/core/tx/columnshard/engines/protos
-    contrib/ydb/core/tx/columnshard/engines/loading
-    contrib/ydb/core/tx/program
     contrib/ydb/core/tx/columnshard/common
+    contrib/ydb/core/tx/columnshard/engines/changes
+    contrib/ydb/core/tx/columnshard/engines/loading
+    contrib/ydb/core/tx/columnshard/engines/portions
+    contrib/ydb/core/tx/columnshard/engines/predicate
+    contrib/ydb/core/tx/columnshard/engines/protos
+    contrib/ydb/core/tx/columnshard/engines/reader
+    contrib/ydb/core/tx/columnshard/engines/storage
+    contrib/ydb/core/tx/columnshard/tracing
+    contrib/ydb/core/tx/program
 
     # for NYql::NUdf alloc stuff used in binary_json
     yql/essentials/public/udf/service/exception_policy

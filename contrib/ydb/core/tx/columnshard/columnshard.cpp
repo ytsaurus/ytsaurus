@@ -13,6 +13,7 @@
 #include <contrib/ydb/core/tx/columnshard/bg_tasks/adapter/adapter.h>
 #include <contrib/ydb/core/tx/columnshard/engines/reader/tracing/probes.h>
 #include <contrib/ydb/core/tx/columnshard/tablet/write_queue.h>
+#include <contrib/ydb/core/tx/columnshard/tracing/probes.h>
 #include <contrib/ydb/core/tx/priorities/usage/service.h>
 #include <contrib/ydb/core/tx/tiering/manager.h>
 
@@ -96,6 +97,7 @@ void TColumnShard::TrySwitchToWork(const TActorContext& ctx) {
 void TColumnShard::OnActivateExecutor(const TActorContext& ctx) {
     using namespace NOlap::NReader;
     NLwTraceMonPage::ProbeRegistry().AddProbesList(LWTRACE_GET_PROBES(YDB_CS_READER));
+    NLwTraceMonPage::ProbeRegistry().AddProbesList(LWTRACE_GET_PROBES(YDB_CS));
     StartInstant = TMonotonic::Now();
     Counters.GetCSCounters().Initialization.OnActivateExecutor(TMonotonic::Now() - CreateInstant);
     const TLogContextGuard gLogging =
