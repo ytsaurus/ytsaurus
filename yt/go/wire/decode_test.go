@@ -744,6 +744,26 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 			expected:  map[string]any{},
 			isErr:     true,
 		},
+		{
+			name: "struct_with_date_types",
+			schema: &rpc_proxy.TTableSchema{
+				Columns: []*rpc_proxy.TColumnSchema{
+					{
+						Name:   ptr.String("event"),
+						TypeV3: []byte(`{type_name=struct;members=[{name=date;type=date};{name=datetime;type=datetime};{name=timestamp;type=timestamp}]}`),
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "event"}},
+			testData:  []byte(`["2022-01-02";"2022-01-02T03:04:05Z";"2022-01-02T03:04:05.123456Z"]`),
+			expected: map[string]any{
+				"event": map[string]any{
+					"date":      int64(18994),
+					"datetime":  int64(1641092645),
+					"timestamp": int64(1641092645123),
+				},
+			},
+		},
 	}
 
 	for _, tc := range tests {
