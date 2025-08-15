@@ -41,14 +41,14 @@ yt create secondary_index --attributes '{table_path="//path/to/table"; index_tab
 Вторичный индекс может быть создан, только если обе таблицы отмонтированы. После создания вторичного индекса и монтирования таблиц *последующие* записи в индексируемую таблицу автоматически отображаются в индексной (о построении индексной таблицы поверх имеющихся данных см. [далее](../../../user-guide/dynamic-tables/secondary-indices#building)). Также становится возможным выполнять эффективные select-запросы с фильтрацией по вторичному ключу, используя ключевое слово `WITH INDEX`. Запрос с индексом выполнится эффективно, если предикат позволяет [отсечь](../../../user-guide/dynamic-tables/dyn-query-language#input_data_cut) ненужные строки из индексной таблицы.
 
 ```bash
-yt select-rows "key, value FROM [//path/to/table] WITH INDEX [//path/to/index/table] where value BETWEEN 0 and 10"
+yt select-rows "key, value FROM [//path/to/table] WITH INDEX [//path/to/index/table] AS IndexTable where value BETWEEN 0 and 10"
 ```
 
 При исполнении запроса с таким синтаксисом система сначала прочитает из индексной таблицы строки, подходящие под предикат `where value BETWEEN 0 and 10`, а затем выполнит внутреннее соединение (inner join) со строками индексируемой таблицы по общим колонкам для индексов с отношением `injective` или по первичному ключу для `bijective` индексов. То есть такой запрос эквивалентен одному из следующих:
 
 ```bash
-yt select-rows "key, value FROM [//path/to/injective/index/table] AS `$IndexTable` JOIN [//path/to/table] ON (`$IndexTable.key`, `$IndexTable.value`) = (key, value) WHERE `$IndexTable.value` BETWEEN 0 and 10"
-yt select-rows "key, value FROM [//path/to/bijective/index/table] AS `$IndexTable` JOIN [//path/to/table] ON `$IndexTable.key` = key WHERE `$IndexTable.value` BETWEEN 0 and 10"
+yt select-rows "key, value FROM [//path/to/injective/index/table] AS IndexTable JOIN [//path/to/table] ON (IndexTable.key, IndexTable.value) = (key, value) WHERE IndexTable.value BETWEEN 0 and 10"
+yt select-rows "key, value FROM [//path/to/bijective/index/table] AS IndexTable JOIN [//path/to/table] ON IndexTable.key = key WHERE IndexTable.value BETWEEN 0 and 10"
 ```
 
 Актуальный список подключенных к таблице вторичных индексов указан в атрибуте `secondary_indices` таблицы. Вторичный индекс, для которого данная таблица является индексной, указан в атрибуте `index_to`.
@@ -63,7 +63,7 @@ yt select-rows "key, value FROM [//path/to/bijective/index/table] AS `$IndexTabl
 
 ### Индекс над списком { #unfolding }
 
-Индекс вида `kind=unfolding` разворачивает строки по колонке со списком значений примитивного типа. Такой индекс позволяет делать выборки строк, в которых индексируемый список содержит определённые значения. Например, строке `{id=0; child_ids=[1, 4, 7]}` в индексной таблице будут соответствовать строки `[{child_ids=1; id=0}; {child_ids=4; id=0}; {child_ids=7; id=0}]`. При создании такого индекса необходимо указать атрибут `unfolded_column` - имя колонки некоторого типа `T` в индексной таблице, также как и колонки типа `List<T>` или `Optional<List<T>>` в индексируемой таблице. В select-запросах ограничение на индексируемое значение можно задавать используя функцию `list_contains`. Пример: `id FROM [//path/to/table] WITH INDEX [//path/to/index/table] where list_contains(child_ids, 1)`.
+Индекс вида `kind=unfolding` разворачивает строки по колонке со списком значений примитивного типа. Такой индекс позволяет делать выборки строк, в которых индексируемый список содержит определённые значения. Например, строке `{id=0; child_ids=[1, 4, 7]}` в индексной таблице будут соответствовать строки `[{child_ids=1; id=0}; {child_ids=4; id=0}; {child_ids=7; id=0}]`. При создании такого индекса необходимо указать атрибут `unfolded_column` - имя колонки некоторого типа `T` в индексной таблице, также как и колонки типа `List<T>` или `Optional<List<T>>` в индексируемой таблице. В select-запросах ограничение на индексируемое значение можно задавать используя функцию `list_contains`. Пример: `id FROM [//path/to/table] WITH INDEX [//path/to/index/table] AS IndexTable where list_contains(child_ids, 1)`.
 
 {% note warning "Примечание" %}
 
