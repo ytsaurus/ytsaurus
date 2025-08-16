@@ -7,6 +7,7 @@
 #include "config.h"
 #include "connection.h"
 #include "default_type_handler.h"
+#include "helpers.h"
 #include "pipeline_type_handler.h"
 #include "private.h"
 #include "queue_consumer_type_handler.h"
@@ -362,6 +363,30 @@ void TClient::InitChannelsOrThrow(EMasterChannelKind kind, TCellTag cellTag)
         const auto& authenticateddCypressChannel = CreateAuthenticatedChannel(Connection_->GetCypressChannelOrThrow(kind, cellTag), authenticationIdentity);
         auto guard = WriterGuard(CypressChannelsLock_);
         EmplaceOrCrash(CypressChannels_[kind], cellTag, authenticateddCypressChannel);
+    }
+}
+
+TOperationId TClient::GetJobOperation(TJobId jobId)
+{
+    auto allocationId = NScheduler::AllocationIdFromJobId(jobId);
+
+    YT_LOG_DEBUG(
+        "Requesting allocation brief info (AllocationId: %v)",
+        allocationId);
+
+    try {
+        return WaitFor(NApi::NNative::GetAllocationBriefInfo(
+            TOperationServiceProxy(Connection_->GetSchedulerChannel()),
+            allocationId,
+            NScheduler::TAllocationInfoToRequest{
+                .OperationId = true,
+            }))
+            .ValueOrThrow().OperationId;
+    } catch (const std::exception& ex) {
+        if (auto operationId = TryGetOperationId(jobId)) {
+            return operationId;
+        }
+        THROW_ERROR TError(ex);
     }
 }
 
