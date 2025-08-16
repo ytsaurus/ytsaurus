@@ -212,6 +212,8 @@ def add_start_subparser(subparsers):
 
     parser.add_argument("--jobs-environment-type", type=str,
                         help="container environment for jobs: simple, porto, cri")
+    parser.add_argument("--cri-endpoint", type=str,
+                        help="CRI endpoint (default: unix:///run/containerd/containerd.sock) [$CONTAINER_RUNTIME_ENDPOINT]")
     parser.add_argument("--jobs-memory-limit", type=int,
                         help="memory limit for jobs in bytes")
     parser.add_argument("--jobs-cpu-limit", type=int,

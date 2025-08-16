@@ -1,6 +1,12 @@
 from yt.environment import YTInstance
 from yt.environment.api import LocalYtConfig
-from yt.environment.helpers import wait_for_removing_file_lock, is_file_locked, is_dead, yatest_common
+from yt.environment.helpers import (
+    wait_for_removing_file_lock,
+    is_file_locked,
+    is_dead,
+    yatest_common,
+    find_cri_endpoint,
+)
 from yt.wrapper.constants import LOCAL_MODE_URL_PATTERN
 from yt.wrapper.common import generate_uuid, GB, MB
 from yt.common import YtError, require, is_process_alive, get_fqdn
@@ -153,6 +159,7 @@ def start(master_count=1,
           path=None,
           prepare_only=False,
           jobs_environment_type=None,
+          cri_endpoint=None,
           jobs_memory_limit=None,
           jobs_cpu_limit=None,
           jobs_user_slot_count=None,
@@ -222,6 +229,9 @@ def start(master_count=1,
         },
     }
 
+    if jobs_environment_type == "cri" and cri_endpoint is None:
+        cri_endpoint = find_cri_endpoint()
+
     yt_config = LocalYtConfig(
         master_count=master_count,
         clock_count=clock_count,
@@ -268,6 +278,7 @@ def start(master_count=1,
         log_compression_method=log_compression_method,
         port_range_start=port_range_start,
         jobs_environment_type=jobs_environment_type,
+        cri_endpoint=cri_endpoint,
         use_slot_user_id=False,
         jobs_resource_limits=jobs_resource_limits,
         node_port_set_size=node_port_set_size,

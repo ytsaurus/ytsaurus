@@ -68,6 +68,7 @@ struct TJobWorkspaceBuildingResult
     IVolumePtr RootVolume;
     IVolumePtr GpuCheckVolume;
     std::optional<TString> DockerImage;
+    std::optional<TString> DockerImageId;
     std::vector<TString> TmpfsPaths;
     std::vector<NContainers::TBind> RootBinds;
     int SetupCommandCount = 0;
