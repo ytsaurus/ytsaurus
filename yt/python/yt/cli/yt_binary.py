@@ -1966,7 +1966,7 @@ def add_remove_member_parser(add_parser):
 def execute(**kwargs):
     if "output_format" not in kwargs["execute_params"]:
         kwargs["execute_params"]["output_format"] = yt.create_format(output_format)
-    data = chunk_iter_stream(sys.stdin, 16 * MB) if "input_format" in kwargs["execute_params"] else None
+    data = chunk_iter_stream(get_binary_std_stream(sys.stdin), 16 * MB) if "input_format" in kwargs["execute_params"] else None
     result = yt.driver.make_request(kwargs["command_name"], kwargs["execute_params"], data=data)
     if result is not None:
         print_to_output(result, eoln=False)
