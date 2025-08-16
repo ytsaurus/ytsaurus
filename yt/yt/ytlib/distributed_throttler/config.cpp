@@ -36,6 +36,12 @@ void TDistributedThrottlerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("mode", &TThis::Mode)
         .Default(EDistributedThrottlerMode::Adaptive);
+    registrar.Parameter("member_weight_mode", &TThis::MemberWeightMode)
+        .Default(EDistributedThrottlerMemberWeightMode::Uniform);
+    registrar.Parameter("member_weight_exponential_smoothing_factor", &TThis::MemberWeightExponentialSmoothingFactor)
+        .Default(0.5)
+        .GreaterThanOrEqual(0)
+        .LessThanOrEqual(1);
     registrar.Parameter("member_priority_generator", &TThis::MemberPriorityGenerator)
         .Default(EDistributedThrottlerMemberPriorityGenerator::StartTime);
     registrar.Parameter("member_priority", &TThis::MemberPriority)
@@ -55,7 +61,6 @@ void TDistributedThrottlerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("initialize_throttlers_on_creation", &TThis::InitializeThrottlersOnCreation)
         .Default(false);
-
     registrar.Parameter("update_limits_for_zero_rate_throttlers", &TThis::UpdateLimitsForZeroRateThrottlers)
         .Default(false);
 }
