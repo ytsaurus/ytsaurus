@@ -5199,6 +5199,42 @@ class TestChaosNativeProxy(ChaosTestBase):
         _set_and_check("//tmp/q", 1000., 2000)
         _set_and_check("//tmp/q", 2000., 1000)
 
+    @authors("osidorkin")
+    def test_card_migrate_and_return(self):
+        b_name = "test_migrate_and_return"
+        metadata_cell_id = self._sync_create_chaos_bundle_and_cell(name=b_name)
+        set(f"//sys/chaos_cell_bundles/{b_name}/@metadata_cell_id", metadata_cell_id)
+
+        custom_bundle_id = get(f"//sys/chaos_cell_bundles/{b_name}/@id")
+        a_area_id = create_area("a_area", cell_bundle_id=custom_bundle_id)
+        create_area("b_area", cell_bundle_id=custom_bundle_id)
+
+        a_cell_id = generate_chaos_cell_id()
+        sync_create_chaos_cell(b_name, a_cell_id, self.get_cluster_names(), area="a_area")
+
+        b_cell_id = generate_chaos_cell_id()
+        sync_create_chaos_cell(b_name, b_cell_id, self.get_cluster_names(), area="b_area")
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/pds"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/pqs"},
+        ]
+
+        card_id, _ = self._create_chaos_tables(a_cell_id, replicas)
+
+        # Migrate, disable cell, enable cell, migrate back
+        self._sync_migrate_replication_cards(a_cell_id, [card_id], destination_cell_id=b_cell_id)
+        with self.CellsDisabled(clusters=["primary"], area_ids=[a_area_id]):
+            pass
+        self._sync_migrate_replication_cards(b_cell_id, [card_id], destination_cell_id=a_cell_id)
+
+        self._sync_replication_era(card_id, replicas)
+
+        row1 = {"key": 0, "value": "0"}
+        row2 = {"key": 2, "value": "2"}
+
+        insert_rows("//tmp/pds", [row1, row2])
+
 
 ##################################################################
 
