@@ -7,11 +7,7 @@ import yaml
 import os
 import pathlib
 
-try:
-    from yt.record_codegen_helpers import Manifest
-except ImportError:
-    # Doing this because open-source build forced my hand.
-    from record_codegen_helpers import Manifest
+from .lib import Manifest
 
 
 def get_template(name):
@@ -54,7 +50,3 @@ def main():
             render_template("h.j2", manifest, output_file)
         with open(args.output_cpp, "w") as output_file:
             render_template("cpp.j2", manifest, output_file)
-
-
-if __name__ == "__main__":
-    main()
