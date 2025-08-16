@@ -66,15 +66,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/server/kafka_proxy/records/kafka_message.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/records/kafka_message.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/records/kafka_message.yaml
   --output-root

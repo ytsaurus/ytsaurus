@@ -6,11 +6,7 @@ from typing import List, Dict, Any
 import yaml
 import os
 
-try:
-    from yt.record_codegen_helpers import Field, Manifest
-except ImportError:
-    # Doing this because open-source build forced my hand.
-    from record_codegen_helpers import Field, Manifest
+from yt_record_codegen.lib import Field, Manifest
 
 
 ################################################################################

@@ -731,15 +731,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/acls.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/acls.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/acls.yaml
   --output-root
@@ -756,15 +759,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_replicas.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_replicas.yaml
   --output-root
@@ -785,15 +791,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.yaml
   --output-root
@@ -814,15 +823,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/unapproved_chunk_replicas.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/unapproved_chunk_replicas.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/unapproved_chunk_replicas.yaml
   --output-root
@@ -843,15 +855,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_refresh_queue.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_refresh_queue.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_refresh_queue.yaml
   --output-root
@@ -868,15 +883,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.yaml
   --output-root
@@ -893,15 +911,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/node_id_to_path.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/node_id_to_path.yaml
   --output-root
@@ -918,15 +939,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.yaml
   --output-root
@@ -943,15 +967,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transactions.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/transactions.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/transactions.yaml
   --output-root
@@ -970,15 +997,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transaction_descendants.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/transaction_descendants.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/transaction_descendants.yaml
   --output-root
@@ -995,15 +1025,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transaction_replicas.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/transaction_replicas.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/transaction_replicas.yaml
   --output-root
@@ -1020,15 +1053,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/dependent_transactions.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/dependent_transactions.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/dependent_transactions.yaml
   --output-root
@@ -1045,15 +1081,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/doomed_transactions.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/doomed_transactions.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/doomed_transactions.yaml
   --output-root
@@ -1070,15 +1109,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_forks.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/node_forks.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/node_forks.yaml
   --output-root
@@ -1095,15 +1137,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_snapshots.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/node_snapshots.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/node_snapshots.yaml
   --output-root
@@ -1120,15 +1165,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/path_forks.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/path_forks.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/path_forks.yaml
   --output-root
@@ -1145,15 +1193,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_forks.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/child_forks.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/child_forks.yaml
   --output-root
@@ -1170,15 +1221,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/response_keeper.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/response_keeper.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/response_keeper.yaml
   --output-root
@@ -1195,15 +1249,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_alias.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/operation_alias.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/operation_alias.yaml
   --output-root
@@ -1218,15 +1275,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.yaml
   --output-root
@@ -1241,15 +1301,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_id.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/operation_id.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/operation_id.yaml
   --output-root
@@ -1264,15 +1327,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_events.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/operation_events.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/operation_events.yaml
   --output-root
@@ -1287,15 +1353,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/ordered_by_start_time.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/ordered_by_start_time.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/ordered_by_start_time.yaml
   --output-root
@@ -1312,15 +1381,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job.yaml
   --output-root
@@ -1337,15 +1409,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/ordered_by_id.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/ordered_by_id.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/ordered_by_id.yaml
   --output-root
@@ -1362,15 +1437,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_trace_event.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_trace_event.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_trace_event.yaml
   --output-root
@@ -1385,15 +1463,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_profile.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_profile.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_profile.yaml
   --output-root
@@ -1408,15 +1489,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.yaml
   --output-root
@@ -1431,15 +1515,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_spec.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_spec.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_spec.yaml
   --output-root
@@ -1454,15 +1541,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/queue_producer_session.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/records/queue_producer_session.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/records/queue_producer_session.yaml
   --output-root
@@ -1483,15 +1573,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/queue_object.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/records/queue_object.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/records/queue_object.yaml
   --output-root
@@ -1512,15 +1605,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/consumer_object.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/records/consumer_object.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/records/consumer_object.yaml
   --output-root
@@ -1539,15 +1635,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/consumer_registration.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/records/consumer_registration.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/records/consumer_registration.yaml
   --output-root
@@ -1564,15 +1663,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/queue_agent_object_mapping.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/records/queue_agent_object_mapping.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/records/queue_agent_object_mapping.yaml
   --output-root
@@ -1589,15 +1691,18 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/replicated_table_mapping.record.h
   DEPENDS
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/records/replicated_table_mapping.yaml
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
   COMMAND
-  ${CMAKE_COMMAND}
-  -E
-  env
-  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  -B
+  -m
+  yt_record_codegen.bin
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/records/replicated_table_mapping.yaml
   --output-root
