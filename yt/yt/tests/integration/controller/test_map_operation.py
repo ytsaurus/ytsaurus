@@ -564,11 +564,11 @@ cat > /dev/null; echo {hello=world}
 import sys
 table_index = sys.stdin.readline().strip()
 row = sys.stdin.readline().strip()
-print row + table_index
+print(row + table_index)
 
 table_index = sys.stdin.readline().strip()
 row = sys.stdin.readline().strip()
-print row + table_index
+print(row + table_index)
 """
 
         create("file", "//tmp/mapper.py")
@@ -577,7 +577,7 @@ print row + table_index
         map(
             in_=["//tmp/t1", "//tmp/t2"],
             out="//tmp/out",
-            command="python mapper.py",
+            command="python3 mapper.py",
             file="//tmp/mapper.py",
             spec={"mapper": {"format": yson.loads(b"<enable_table_index=true>yamr")}},
         )
@@ -1400,18 +1400,19 @@ print row + table_index
 
         update_inplace(spec, spec_patch)
 
-        mapper = b"""
-#!/usr/bin/python3
-
+        mapper = b"""#!/usr/bin/env python3
 import json
+import os
+import sys
 
-input = json.loads(raw_input())
+unbuffered_stdin = os.fdopen(sys.stdin.fileno(), "rb", buffering=0)
+input = json.loads(unbuffered_stdin.readline())
+
 old_value = input["value"]
 input["value"] = "(job)"
 print(json.dumps(input))
 input["value"] = old_value
 print(json.dumps(input))
-
 """
 
         create("file", "//tmp/mapper.py")
@@ -1419,7 +1420,7 @@ print(json.dumps(input))
 
         # NB(arkady-e1ppa): we force no bufferisation because otherwise we may read something like
         # "row1End\nrow2Start" and discard row2start completely.
-        map_cmd = """python -u mapper.py ; BREAKPOINT ; cat"""
+        map_cmd = """set -e; python3 -u mapper.py; BREAKPOINT; cat"""
 
         op = map(
             ordered=ordered,
@@ -1431,11 +1432,14 @@ print(json.dumps(input))
             spec=spec,
         )
 
-        jobs = wait_breakpoint()
-        op.interrupt_job(jobs[0])
+        try:
+            jobs = wait_breakpoint()
 
-        release_breakpoint()
-        op.track()
+            op.interrupt_job(jobs[0])
+
+            release_breakpoint()
+        finally:
+            op.track()
 
         return op
 
@@ -2767,7 +2771,7 @@ class TestInputOutputFormats(YTEnvSetup):
 import sys
 input = sys.stdin.readline().strip('\\n').split('\\t')
 assert input == ['tskv', 'foo=bar']
-print '{hello=world}'
+print('{hello=world}')
 
 """
         create("file", "//tmp/mapper.py")
@@ -2777,7 +2781,7 @@ print '{hello=world}'
         map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="python mapper.py",
+            command="python3 mapper.py",
             file="//tmp/mapper.py",
             spec={"mapper": {"input_format": yson.loads(b"<line_prefix=tskv>dsv")}},
         )
@@ -2795,7 +2799,7 @@ input = sys.stdin.readline().strip('\\n')
 assert input == '<"table_index"=0;>#;'
 input = sys.stdin.readline().strip('\\n')
 assert input == '{"foo"="bar";};'
-print "tskv" + "\\t" + "hello=world"
+print("tskv" + "\\t" + "hello=world")
 """
         create("file", "//tmp/mapper.py")
         write_file("//tmp/mapper.py", mapper)
@@ -2804,7 +2808,7 @@ print "tskv" + "\\t" + "hello=world"
         map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="python mapper.py",
+            command="python3 mapper.py",
             file="//tmp/mapper.py",
             spec={
                 "mapper": {
@@ -2826,7 +2830,7 @@ print "tskv" + "\\t" + "hello=world"
 import sys
 input = sys.stdin.readline().strip('\\n')
 assert input == '{"foo"="bar";};'
-print "key\\tsubkey\\tvalue"
+print("key\\tsubkey\\tvalue")
 
 """
         create("file", "//tmp/mapper.py")
@@ -2836,7 +2840,7 @@ print "key\\tsubkey\\tvalue"
         map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="python mapper.py",
+            command="python3 mapper.py",
             file="//tmp/mapper.py",
             spec={
                 "mapper": {
@@ -2860,7 +2864,7 @@ print "key\\tsubkey\\tvalue"
 import sys
 input = sys.stdin.readline().strip('\\n').split('\\t')
 assert input == ['key', 'subkey', 'value']
-print '{hello=world}'
+print('{hello=world}')
 
 """
         create("file", "//tmp/mapper.py")
@@ -2870,7 +2874,7 @@ print '{hello=world}'
         map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="python mapper.py",
+            command="python3 mapper.py",
             file="//tmp/mapper.py",
             spec={"mapper": {"input_format": yson.loads(b"<has_subkey=true>yamr")}},
         )
@@ -2956,10 +2960,10 @@ print '{hello=world}'
 
         script = b"\n".join(
             [
-                b"#!/usr/bin/python",
+                b"#!/usr/bin/env python3",
                 b"import sys",
                 b"import base64",
-                b"print '{out=\"' + base64.standard_b64encode(sys.stdin.read()) + '\"}'",
+                b"print('{out=\"' + base64.standard_b64encode(sys.stdin.buffer.read()).decode() + '\"}')",
             ]
         )
 

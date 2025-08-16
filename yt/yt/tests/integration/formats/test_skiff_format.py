@@ -545,7 +545,7 @@ def read(n):
     bufs = []
     left = n
     while left > 0:
-        bufs.append(sys.stdin.read(left))
+        bufs.append(sys.stdin.buffer.read(left))
         left -= len(bufs[-1])
         if len(bufs[-1]) == 0:
             assert left == n or left == 0
@@ -566,8 +566,8 @@ while True:
     else:
         row["key1"] = one_key
         row["key2"] = another_key
-    sys.stderr.write(json.dumps(row) + b"\\n")
-    sys.stdout.write(json.dumps(row) + b"\\n")
+    sys.stderr.write(json.dumps(row) + "\\n")
+    sys.stdout.write(json.dumps(row) + "\\n")
 """
         create("file", "//tmp/reducer.py")
         write_file("//tmp/reducer.py", reducer)
@@ -588,7 +588,7 @@ while True:
             in_=["//tmp/in1", "//tmp/in2"],
             out="//tmp/out",
             reducer_file=["//tmp/reducer.py"],
-            reducer_command="python reducer.py",
+            reducer_command="python3 reducer.py",
             sort_by=["key1", "key2", "key3"],
             spec={
                 "reduce_job_io": {
