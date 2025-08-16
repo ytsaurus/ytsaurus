@@ -506,13 +506,14 @@ IThroughputThrottlerPtr TThrottlerManager::DoGetOrCreateThrottler(
     {
         localThrottler = GetLocalThrottler(kind, trafficType);
         distributedThrottler = GetOrCreateDistributedThrottler(kind, trafficType, clusterName);
-        if (!MasterConnected_ || !distributedThrottler) {
-            YT_LOG_DEBUG("Distributed throttler is missing; falling back to local throttler (MasterConnected: %v)",
-                MasterConnected_);
+        if (!distributedThrottler) {
+            YT_LOG_DEBUG("Distributed throttler is missing; falling back to local throttler (MasterConnected: %v, JobsDisabledByMaster: %v)",
+                MasterConnected_,
+                JobsDisabledByMaster_);
             return localThrottler;
         }
     }
-    YT_VERIFY(localThrottler && distributedThrottler && MasterConnected_);
+    YT_VERIFY(localThrottler && distributedThrottler);
 
     YT_LOG_DEBUG("Creating combined throttler");
     return CreateCombinedThrottler({std::move(localThrottler), std::move(distributedThrottler)});
