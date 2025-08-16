@@ -11,13 +11,14 @@ const (
 	typeOffset = 0x02
 
 	// Subtract 2 from all constants, such that Null is represented by zero.
-	TypeNull    ValueType = 0x02 - typeOffset
-	TypeInt64   ValueType = 0x03 - typeOffset
-	TypeUint64  ValueType = 0x04 - typeOffset
-	TypeFloat64 ValueType = 0x05 - typeOffset
-	TypeBool    ValueType = 0x06 - typeOffset
-	TypeBytes   ValueType = 0x10 - typeOffset
-	TypeAny     ValueType = 0x11 - typeOffset
+	TypeNull      ValueType = 0x02 - typeOffset
+	TypeInt64     ValueType = 0x03 - typeOffset
+	TypeUint64    ValueType = 0x04 - typeOffset
+	TypeFloat64   ValueType = 0x05 - typeOffset
+	TypeBool      ValueType = 0x06 - typeOffset
+	TypeBytes     ValueType = 0x10 - typeOffset
+	TypeAny       ValueType = 0x11 - typeOffset
+	TypeComposite ValueType = 0x12 - typeOffset
 )
 
 func (t ValueType) String() string {
@@ -36,6 +37,8 @@ func (t ValueType) String() string {
 		return "bytes"
 	case TypeAny:
 		return "any"
+	case TypeComposite:
+		return "composite"
 	default:
 		return ""
 	}
@@ -125,9 +128,16 @@ func NewAny(id uint16, b []byte) (v Value) {
 	return
 }
 
+func NewComposite(id uint16, b []byte) (v Value) {
+	v.ID = id
+	v.Type = TypeComposite
+	v.blob = b
+	return
+}
+
 func (v *Value) Validate() error {
 	switch v.Type {
-	case TypeAny, TypeBytes:
+	case TypeAny, TypeBytes, TypeComposite:
 		if len(v.blob) > maxValueLength {
 			return fmt.Errorf("value is too long: actual=%d, limit=%d", len(v.blob), maxValueLength)
 		}
@@ -141,7 +151,7 @@ func (v *Value) wireSize() int {
 	size := 8
 	switch v.Type {
 	case TypeNull:
-	case TypeAny, TypeBytes:
+	case TypeAny, TypeBytes, TypeComposite:
 		size += len(v.blob) + computePadding(len(v.blob))
 	default:
 		size += 8

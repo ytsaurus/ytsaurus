@@ -20,6 +20,7 @@ func TestValueType_String(t *testing.T) {
 		{typ: TypeBool, expected: "bool"},
 		{typ: TypeBytes, expected: "bytes"},
 		{typ: TypeAny, expected: "any"},
+		{typ: TypeComposite, expected: "composite"},
 	} {
 		t.Run(fmt.Sprintf("%d", tc.typ), func(t *testing.T) {
 			actual := tc.typ.String()
