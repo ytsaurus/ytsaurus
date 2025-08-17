@@ -87,6 +87,8 @@ public:
         , HistoricUsageAggregator_(Config_.Acquire()->AdjustedEmaHalflife)
     {
         if (Config_.Acquire()->InitializeThrottlersOnCreation) {
+            Initialize(0);
+            // The actual limit will be given by the leader on first heartbeat.
             Underlying_->SetLimit(std::nullopt);
         }
     }
@@ -266,7 +268,7 @@ public:
         };
     }
 
-    void Initialize()
+    void Initialize(std::optional<double> limit = std::nullopt)
     {
         if (Initialized_) {
             return;
@@ -280,8 +282,8 @@ public:
         }
 
         Limit_ = Profiler_.Gauge("/limit");
-        if (Config_.Acquire()->InitializeThrottlersOnCreation) {
-            Limit_.Update(0);
+        if (limit) {
+            Limit_.Update(limit.value());
         } else {
             Limit_.Update(ThrottlerConfig_.Acquire()->Limit.value_or(-1));
         }
