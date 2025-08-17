@@ -25,7 +25,7 @@ class _bsr_base(_cs_matrix, _minmax_mixin):
     _format = 'bsr'
 
     def __init__(self, arg1, shape=None, dtype=None, copy=False, blocksize=None):
-        _data_matrix.__init__(self)
+        _data_matrix.__init__(self, arg1)
 
         if issparse(arg1):
             if arg1.format == self.format and copy:
@@ -94,8 +94,10 @@ class _bsr_base(_cs_matrix, _minmax_mixin):
                     if not isshape(blocksize):
                         raise ValueError(f'invalid blocksize={blocksize}')
                     if tuple(blocksize) != self.data.shape[1:]:
-                        raise ValueError('mismatching blocksize={} vs {}'.format(
-                            blocksize, self.data.shape[1:]))
+                        raise ValueError(
+                            f'mismatching blocksize={blocksize}'
+                            f' vs {self.data.shape[1:]}'
+                        )
             else:
                 raise ValueError('unrecognized bsr_array constructor usage')
         else:
@@ -220,11 +222,10 @@ class _bsr_base(_cs_matrix, _minmax_mixin):
     def __repr__(self):
         _, fmt = _formats[self.format]
         sparse_cls = 'array' if isinstance(self, sparray) else 'matrix'
-        shape_str = 'x'.join(str(x) for x in self.shape)
-        blksz = 'x'.join(str(x) for x in self.blocksize)
+        b = 'x'.join(str(x) for x in self.blocksize)
         return (
-            f"<{shape_str} sparse {sparse_cls} of type '{self.dtype.type}'\n"
-            f"\twith {self.nnz} stored elements (blocksize = {blksz}) in {fmt} format>"
+            f"<{fmt} sparse {sparse_cls} of dtype '{self.dtype}'\n"
+            f"\twith {self.nnz} stored elements (blocksize={b}) and shape {self.shape}>"
         )
 
     def diagonal(self, k=0):

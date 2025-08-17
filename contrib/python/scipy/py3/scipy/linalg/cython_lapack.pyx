@@ -2309,7 +2309,7 @@ cdef void clacrt(int *n, c *cx, int *incx, c *cy, int *incy, c *c, c *s) noexcep
     
 
 cdef extern from "_lapack_subroutines.h":
-    void _fortran_cladiv "(cladivwrp_)"(npy_complex64 *out, npy_complex64 *x, npy_complex64 *y) nogil
+    void _fortran_cladiv "F_FUNC(cladivwrp,CLADIVWRP)"(npy_complex64 *out, npy_complex64 *x, npy_complex64 *y) nogil
 cdef c cladiv(c *x, c *y) noexcept nogil:
     cdef c out
     _fortran_cladiv(<npy_complex64*>&out, <npy_complex64*>x, <npy_complex64*>y)
@@ -9827,7 +9827,7 @@ cdef void zlacrt(int *n, z *cx, int *incx, z *cy, int *incy, z *c, z *s) noexcep
     
 
 cdef extern from "_lapack_subroutines.h":
-    void _fortran_zladiv "(zladivwrp_)"(npy_complex128 *out, npy_complex128 *x, npy_complex128 *y) nogil
+    void _fortran_zladiv "F_FUNC(zladivwrp,ZLADIVWRP)"(npy_complex128 *out, npy_complex128 *x, npy_complex128 *y) nogil
 cdef z zladiv(z *x, z *y) noexcept nogil:
     cdef z out
     _fortran_zladiv(<npy_complex128*>&out, <npy_complex128*>x, <npy_complex128*>y)

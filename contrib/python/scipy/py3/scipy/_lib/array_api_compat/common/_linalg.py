@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, NamedTuple
 if TYPE_CHECKING:
-    from typing import Literal, Optional, Sequence, Tuple, Union
+    from typing import Literal, Optional, Tuple, Union
     from ._typing import ndarray
+
+import math
 
 import numpy as np
 if np.__version__[0] == "2":
@@ -77,7 +79,7 @@ def matrix_rank(x: ndarray,
     # dimensional arrays.
     if x.ndim < 2:
         raise xp.linalg.LinAlgError("1-dimensional array given. Array must be at least two-dimensional")
-    S = xp.linalg.svd(x, compute_uv=False, **kwargs)
+    S = get_xp(xp)(svdvals)(x, **kwargs)
     if rtol is None:
         tol = S.max(axis=-1, keepdims=True) * max(x.shape[-2:]) * xp.finfo(S.dtype).eps
     else:
@@ -110,7 +112,7 @@ def vector_norm(x: ndarray, /, xp, *, axis: Optional[Union[int, Tuple[int, ...]]
     # on a single dimension.
     if axis is None:
         # Note: xp.linalg.norm() doesn't handle 0-D arrays
-        x = x.ravel()
+        _x = x.ravel()
         _axis = 0
     elif isinstance(axis, tuple):
         # Note: The axis argument supports any number of axes, whereas
@@ -118,13 +120,14 @@ def vector_norm(x: ndarray, /, xp, *, axis: Optional[Union[int, Tuple[int, ...]]
         normalized_axis = normalize_axis_tuple(axis, x.ndim)
         rest = tuple(i for i in range(x.ndim) if i not in normalized_axis)
         newshape = axis + rest
-        x = xp.transpose(x, newshape).reshape(
-            (xp.prod([x.shape[i] for i in axis], dtype=int), *[x.shape[i] for i in rest]))
+        _x = xp.transpose(x, newshape).reshape(
+            (math.prod([x.shape[i] for i in axis]), *[x.shape[i] for i in rest]))
         _axis = 0
     else:
+        _x = x
         _axis = axis
 
-    res = xp.linalg.norm(x, axis=_axis, ord=ord)
+    res = xp.linalg.norm(_x, axis=_axis, ord=ord)
 
     if keepdims:
         # We can't reuse xp.linalg.norm(keepdims) because of the reshape hacks

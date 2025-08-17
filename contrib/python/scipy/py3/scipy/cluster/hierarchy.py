@@ -134,7 +134,7 @@ from collections import deque
 import numpy as np
 from . import _hierarchy, _optimal_leaf_ordering
 import scipy.spatial.distance as distance
-from scipy._lib._array_api import array_namespace, _asarray, copy
+from scipy._lib._array_api import array_namespace, _asarray, copy, is_jax
 from scipy._lib._disjoint_set import DisjointSet
 
 
@@ -1831,13 +1831,16 @@ def from_mlab_linkage(Z):
     if Zs[0] == 0:
         return copy(Z, xp=xp)
 
-    Zpart = copy(Z, xp=xp)
-    if xp.min(Zpart[:, 0:2]) != 1.0 and xp.max(Zpart[:, 0:2]) != 2 * Zs[0]:
+    if xp.min(Z[:, 0:2]) != 1.0 and xp.max(Z[:, 0:2]) != 2 * Zs[0]:
         raise ValueError('The format of the indices is not 1..N')
 
-    Zpart[:, 0:2] -= 1.0
+    Zpart = xp.concat((Z[:, 0:2] - 1.0, Z[:, 2:]), axis=1)
     CS = np.zeros((Zs[0],), dtype=np.float64)
-    Zpart = np.asarray(Zpart)
+    if is_jax(xp):
+        # calculate_cluster_sizes doesn't accept read-only arrays
+        Zpart = np.array(Zpart, copy=True)
+    else:
+        Zpart = np.asarray(Zpart)
     _hierarchy.calculate_cluster_sizes(Zpart, CS, int(Zs[0]) + 1)
     res = np.hstack([Zpart, CS.reshape(Zs[0], 1)])
     return xp.asarray(res)
@@ -1925,10 +1928,7 @@ def to_mlab_linkage(Z):
         return copy(Z, xp=xp)
     is_valid_linkage(Z, throw=True, name='Z')
 
-    ZP = copy(Z[:, 0:3], xp=xp)
-    ZP[:, 0:2] += 1.0
-
-    return ZP
+    return xp.concat((Z[:, :2] + 1.0, Z[:, 2:3]), axis=1)
 
 
 def is_monotonic(Z):
@@ -3321,7 +3321,7 @@ def dendrogram(Z, p=30, truncate_mode=None, color_threshold=None,
 
     if color_threshold is None or (isinstance(color_threshold, str) and
                                    color_threshold == 'default'):
-        color_threshold = max(Z[:, 2]) * 0.7
+        color_threshold = xp.max(Z[:, 2]) * 0.7
 
     R = {'icoord': icoord_list, 'dcoord': dcoord_list, 'ivl': ivl,
          'leaves': lvs, 'color_list': color_list}
@@ -3355,7 +3355,7 @@ def dendrogram(Z, p=30, truncate_mode=None, color_threshold=None,
         above_threshold_color=above_threshold_color)
 
     if not no_plot:
-        mh = max(Z[:, 2])
+        mh = xp.max(Z[:, 2])
         _plot_dendrogram(icoord_list, dcoord_list, ivl, p, n, mh, orientation,
                          no_labels, color_list,
                          leaf_font_size=leaf_font_size,

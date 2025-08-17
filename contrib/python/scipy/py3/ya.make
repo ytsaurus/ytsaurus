@@ -2,9 +2,9 @@
 
 PY3_LIBRARY()
 
-VERSION(1.13.1)
+VERSION(1.14.1)
 
-ORIGINAL_SOURCE(mirror://pypi/s/scipy/scipy-1.13.1.tar.gz)
+ORIGINAL_SOURCE(mirror://pypi/s/scipy/scipy-1.14.1.tar.gz)
 
 LICENSE(BSD-3-Clause)
 
@@ -50,10 +50,10 @@ ADDINCL(
     contrib/python/scipy/py3/scipy/spatial/ckdtree/src
     contrib/python/scipy/py3/scipy/special
     contrib/python/scipy/py3/scipy/stats
-    contrib/python/scipy/py3/scipy/stats/_boost/include
     contrib/python/scipy/py3/scipy/stats/_levy_stable
     contrib/python/scipy/py3/scipy/stats/_rcont
     contrib/python/scipy/py3/scipy/stats/_unuran
+    contrib/python/scipy/py3/scipy/stats/libnpyrandom
     FOR cython contrib/python/numpy/py3
     FOR cython contrib/python/scipy/py3
 )
@@ -66,6 +66,7 @@ NO_LINT()
 
 NO_CHECK_IMPORTS(
     scipy._lib.array_api_compat.cupy.*
+    scipy._lib.array_api_compat.dask.*
     scipy._lib.array_api_compat.torch.*
     scipy.sparse.linalg._svdp
     scipy.special._mptestutils
@@ -532,8 +533,8 @@ SRCS(
     scipy/integrate/quadpack/dqwgtc.f
     scipy/integrate/quadpack/dqwgtf.f
     scipy/integrate/quadpack/dqwgts.f
-    scipy/interpolate/dfitpack-f2pywrappers.f
-    scipy/interpolate/dfitpackmodule.c
+    scipy/interpolate/_dfitpack-f2pywrappers.f
+    scipy/interpolate/_dfitpackmodule.c
     scipy/interpolate/fitpack/bispeu.f
     scipy/interpolate/fitpack/bispev.f
     scipy/interpolate/fitpack/clocur.f
@@ -1265,88 +1266,29 @@ SRCS(
     scipy/special/Faddeeva.cc
     scipy/special/_cosine.c
     scipy/special/_faddeeva.cxx
+    scipy/special/_gufuncs.cpp
+    scipy/special/_gufuncs_docs.cpp
+    scipy/special/_special_ufuncs.cpp
+    scipy/special/_special_ufuncs_docs.cpp
     scipy/special/_wright.cxx
-    scipy/special/amos_wrappers.cpp
-    scipy/special/cephes/airy.c
-    scipy/special/cephes/bdtr.c
-    scipy/special/cephes/besselpoly.c
-    scipy/special/cephes/beta.c
-    scipy/special/cephes/btdtr.c
-    scipy/special/cephes/cbrt.c
-    scipy/special/cephes/chbevl.c
-    scipy/special/cephes/chdtr.c
-    scipy/special/cephes/const.c
-    scipy/special/cephes/dawsn.c
-    scipy/special/cephes/dd_real.c
-    scipy/special/cephes/ellie.c
-    scipy/special/cephes/ellik.c
-    scipy/special/cephes/ellpe.c
-    scipy/special/cephes/ellpj.c
-    scipy/special/cephes/ellpk.c
-    scipy/special/cephes/erfinv.c
-    scipy/special/cephes/exp10.c
-    scipy/special/cephes/exp2.c
-    scipy/special/cephes/expn.c
-    scipy/special/cephes/fdtr.c
-    scipy/special/cephes/fresnl.c
-    scipy/special/cephes/gamma.c
-    scipy/special/cephes/gammasgn.c
-    scipy/special/cephes/gdtr.c
-    scipy/special/cephes/hyp2f1.c
-    scipy/special/cephes/hyperg.c
-    scipy/special/cephes/i0.c
-    scipy/special/cephes/i1.c
-    scipy/special/cephes/igam.c
-    scipy/special/cephes/igami.c
-    scipy/special/cephes/incbet.c
-    scipy/special/cephes/incbi.c
-    scipy/special/cephes/j0.c
-    scipy/special/cephes/j1.c
-    scipy/special/cephes/jv.c
-    scipy/special/cephes/k0.c
-    scipy/special/cephes/k1.c
-    scipy/special/cephes/kn.c
-    scipy/special/cephes/kolmogorov.c
-    scipy/special/cephes/lanczos.c
-    scipy/special/cephes/nbdtr.c
-    scipy/special/cephes/ndtr.c
-    scipy/special/cephes/ndtri.c
-    scipy/special/cephes/owens_t.c
-    scipy/special/cephes/pdtr.c
-    scipy/special/cephes/poch.c
-    scipy/special/cephes/psi.c
-    scipy/special/cephes/rgamma.c
-    scipy/special/cephes/round.c
-    scipy/special/cephes/scipy_iv.c
-    scipy/special/cephes/shichi.c
-    scipy/special/cephes/sici.c
-    scipy/special/cephes/sindg.c
-    scipy/special/cephes/sinpi.c
-    scipy/special/cephes/spence.c
-    scipy/special/cephes/stdtr.c
-    scipy/special/cephes/struve.c
-    scipy/special/cephes/tandg.c
-    scipy/special/cephes/tukey.c
-    scipy/special/cephes/unity.c
-    scipy/special/cephes/yn.c
-    scipy/special/cephes/yv.c
-    scipy/special/cephes/zeta.c
-    scipy/special/cephes/zetac.c
+    scipy/special/cdflib.c
+    scipy/special/dd_real_wrappers.cpp
     scipy/special/ellint_carlson_wrap.cxx
-    scipy/special/scaled_exp1.c
     scipy/special/sf_error.cc
-    scipy/special/specfun_wrappers.cpp
+    scipy/special/sf_error_state.c
+    scipy/special/special_wrappers.cpp
     scipy/special/wright.cc
     scipy/stats/_levy_stable/c_src/levyst.c
     scipy/stats/_mvn-f2pywrappers.f
     scipy/stats/_mvnmodule.c
     scipy/stats/_rcont/_rcont.c
-    scipy/stats/_rcont/logfactorial.c
     scipy/stats/biasedurn/fnchyppr.cpp
     scipy/stats/biasedurn/impls.cpp
     scipy/stats/biasedurn/stoc1.cpp
     scipy/stats/biasedurn/stoc3.cpp
     scipy/stats/biasedurn/wnchyppr.cpp
+    scipy/stats/libnpyrandom/distributions.c
+    scipy/stats/libnpyrandom/logfactorial.c
     scipy/stats/mvndst.c
 )
 
@@ -1369,9 +1311,9 @@ PY_REGISTER(
     scipy.integrate._odepack
     scipy.integrate._quadpack
     scipy.integrate._vode
+    scipy.interpolate._dfitpack
     scipy.interpolate._fitpack
     scipy.interpolate._rbfinterp_pythran
-    scipy.interpolate.dfitpack
     scipy.io._fast_matrix_market._fmm_core
     scipy.linalg._fblas
     scipy.linalg._flapack
@@ -1399,6 +1341,8 @@ PY_REGISTER(
     scipy.sparse.linalg._eigen.arpack._arpack
     scipy.spatial._distance_pybind
     scipy.spatial._distance_wrap
+    scipy.special._gufuncs
+    scipy.special._special_ufuncs
     scipy.stats._mvn
     scipy.stats._stats_pythran
 )
@@ -1431,20 +1375,41 @@ PY_SRCS(
     scipy/_lib/array_api_compat/_internal.py
     scipy/_lib/array_api_compat/common/__init__.py
     scipy/_lib/array_api_compat/common/_aliases.py
+    scipy/_lib/array_api_compat/common/_fft.py
     scipy/_lib/array_api_compat/common/_helpers.py
     scipy/_lib/array_api_compat/common/_linalg.py
     scipy/_lib/array_api_compat/common/_typing.py
     scipy/_lib/array_api_compat/cupy/__init__.py
     scipy/_lib/array_api_compat/cupy/_aliases.py
     scipy/_lib/array_api_compat/cupy/_typing.py
+    scipy/_lib/array_api_compat/cupy/fft.py
     scipy/_lib/array_api_compat/cupy/linalg.py
+    scipy/_lib/array_api_compat/dask/__init__.py
+    scipy/_lib/array_api_compat/dask/array/__init__.py
+    scipy/_lib/array_api_compat/dask/array/_aliases.py
+    scipy/_lib/array_api_compat/dask/array/linalg.py
     scipy/_lib/array_api_compat/numpy/__init__.py
     scipy/_lib/array_api_compat/numpy/_aliases.py
     scipy/_lib/array_api_compat/numpy/_typing.py
+    scipy/_lib/array_api_compat/numpy/fft.py
     scipy/_lib/array_api_compat/numpy/linalg.py
     scipy/_lib/array_api_compat/torch/__init__.py
     scipy/_lib/array_api_compat/torch/_aliases.py
+    scipy/_lib/array_api_compat/torch/fft.py
     scipy/_lib/array_api_compat/torch/linalg.py
+    scipy/_lib/cobyqa/__init__.py
+    scipy/_lib/cobyqa/framework.py
+    scipy/_lib/cobyqa/main.py
+    scipy/_lib/cobyqa/models.py
+    scipy/_lib/cobyqa/problem.py
+    scipy/_lib/cobyqa/settings.py
+    scipy/_lib/cobyqa/subsolvers/__init__.py
+    scipy/_lib/cobyqa/subsolvers/geometry.py
+    scipy/_lib/cobyqa/subsolvers/optim.py
+    scipy/_lib/cobyqa/utils/__init__.py
+    scipy/_lib/cobyqa/utils/exceptions.py
+    scipy/_lib/cobyqa/utils/math.py
+    scipy/_lib/cobyqa/utils/versions.py
     scipy/_lib/decorator.py
     scipy/_lib/deprecation.py
     scipy/_lib/doccer.py
@@ -1521,6 +1486,7 @@ PY_SRCS(
     scipy/interpolate/_rbf.py
     scipy/interpolate/_rbfinterp.py
     scipy/interpolate/_rgi.py
+    scipy/interpolate/dfitpack.py
     scipy/interpolate/fitpack.py
     scipy/interpolate/fitpack2.py
     scipy/interpolate/interpolate.py
@@ -1627,6 +1593,7 @@ PY_SRCS(
     scipy/optimize/_bracket.py
     scipy/optimize/_chandrupatla.py
     scipy/optimize/_cobyla_py.py
+    scipy/optimize/_cobyqa_py.py
     scipy/optimize/_constraints.py
     scipy/optimize/_dcsrch.py
     scipy/optimize/_differentiable_functions.py
@@ -1859,7 +1826,6 @@ PY_SRCS(
     scipy/stats/_axis_nan_policy.py
     scipy/stats/_binned_statistic.py
     scipy/stats/_binomtest.py
-    scipy/stats/_boost/__init__.py
     scipy/stats/_bws_test.py
     scipy/stats/_censored_data.py
     scipy/stats/_common.py
@@ -1877,6 +1843,7 @@ PY_SRCS(
     scipy/stats/_ksstats.py
     scipy/stats/_levy_stable/__init__.py
     scipy/stats/_mannwhitneyu.py
+    scipy/stats/_mgc.py
     scipy/stats/_morestats.py
     scipy/stats/_mstats_basic.py
     scipy/stats/_mstats_extras.py
@@ -1962,7 +1929,6 @@ PY_SRCS(
     scipy/spatial/_qhull.pyx
     scipy/spatial/_voronoi.pyx
     scipy/spatial/transform/_rotation.pyx
-    scipy/special/_cdflib.pyx
     scipy/special/_comb.pyx
     scipy/special/_ellip_harm_2.pyx
     scipy/special/_ufuncs.pyx
@@ -1980,15 +1946,6 @@ PY_SRCS(
     scipy/special/_specfun.pyx
     scipy/special/_ufuncs_cxx.pyx
     scipy/stats/_biasedurn.pyx
-    scipy/stats/_boost/beta_ufunc.pyx
-    scipy/stats/_boost/binom_ufunc.pyx
-    scipy/stats/_boost/hypergeom_ufunc.pyx
-    scipy/stats/_boost/invgauss_ufunc.pyx
-    scipy/stats/_boost/nbinom_ufunc.pyx
-    scipy/stats/_boost/ncf_ufunc.pyx
-    scipy/stats/_boost/nct_ufunc.pyx
-    scipy/stats/_boost/ncx2_ufunc.pyx
-    scipy/stats/_boost/skewnorm_ufunc.pyx
     scipy/stats/_qmc_cy.pyx
 )
 

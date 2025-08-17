@@ -1,4 +1,4 @@
-from cupy.linalg import *
+from cupy.linalg import * # noqa: F403
 # cupy.linalg doesn't have __all__. If it is added, replace this with
 #
 # from cupy.linalg import __all__ as linalg_all
@@ -10,9 +10,11 @@ del _n
 
 from ..common import _linalg
 from .._internal import get_xp
-from ._aliases import (matmul, matrix_transpose, tensordot, vecdot)
 
 import cupy as cp
+
+# These functions are in both the main and linalg namespaces
+from ._aliases import matmul, matrix_transpose, tensordot, vecdot # noqa: F401
 
 cross = get_xp(cp)(_linalg.cross)
 outer = get_xp(cp)(_linalg.outer)
