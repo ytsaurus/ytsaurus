@@ -156,6 +156,7 @@ TEST_SRCS(
     test_auth_commands.py
     test_authentication.py
     test_batch_execution.py
+    test_blob_format.py
     test_chaos_commands.py
     test_client.py
     test_command_params.py

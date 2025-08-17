@@ -843,6 +843,31 @@ class ArrowFormat(Format):
         raise YtFormatError("_dump_row is not supported in Arrow")
 
 
+class BlobFormat(Format):
+    """Blob format.
+    .. seealso:: `Blob in the docs <https://ytsaurus.tech/docs/en/user-guide/storage/formats#blob>`_
+
+    Supported only in raw mode.
+    """
+
+    def __init__(self, attributes=None, raw=None, encoding=_ENCODING_SENTINEL):
+        all_attributes = Format._make_attributes(get_value(attributes, {}), {}, {})
+        super(BlobFormat, self).__init__("blob", all_attributes, raw, encoding)
+
+    def load_row(self, stream, raw=None):
+        """Not supported."""
+        raise YtFormatError("load_row is not supported in Blob")
+
+    def load_rows(self, stream, raw=None):
+        if not self._is_raw(raw):
+            raise YtFormatError("Not a raw format is not supported in Blob")
+        return stream
+
+    def _dump_row(self, row, stream):
+        """Not supported."""
+        raise YtFormatError("_dump_row is not supported in Blob")
+
+
 class YamlFormat(Format):
     """YAML format.
     .. seealso:: `YAML in the docs <https://yaml.org>`_
@@ -1544,6 +1569,7 @@ def create_format(yson_name, attributes=None, **kwargs):
         "json": JsonFormat,
         "skiff": SkiffFormat,
         "arrow": ArrowFormat,
+        "blob": BlobFormat,
         "protobuf": ProtobufFormat,
         "yaml": YamlFormat,
     }
