@@ -15,6 +15,16 @@ Usable from Cython via::
 These wrappers do not check for alignment of arrays.
 Alignment should be checked before these wrappers are used.
 
+If using ``cdotu``, ``cdotc``, ``zdotu``, ``zdotc``, ``sladiv``, or ``dladiv``,
+the ``CYTHON_CCOMPLEX`` define must be set to 0 during compilation. For
+example, in a `meson.build` file when using Meson::
+
+    py.extension_module('ext_module'
+        'ext_module.pyx',
+        c_args: ['-DCYTHON_CCOMPLEX=0'],
+        ...
+    )
+
 Raw function pointers (Fortran-style pointer arguments):
 
 - caxpy
@@ -201,14 +211,14 @@ cdef void ccopy(int *n, c *cx, int *incx, c *cy, int *incy) noexcept nogil:
     
 
 cdef extern from "_blas_subroutines.h":
-    void _fortran_cdotc "(cdotcwrp_)"(npy_complex64 *out, int *n, npy_complex64 *cx, int *incx, npy_complex64 *cy, int *incy) nogil
+    void _fortran_cdotc "F_FUNC(cdotcwrp,CDOTCWRP)"(npy_complex64 *out, int *n, npy_complex64 *cx, int *incx, npy_complex64 *cy, int *incy) nogil
 cdef c cdotc(int *n, c *cx, int *incx, c *cy, int *incy) noexcept nogil:
     cdef c out
     _fortran_cdotc(<npy_complex64*>&out, n, <npy_complex64*>cx, incx, <npy_complex64*>cy, incy)
     return out
 
 cdef extern from "_blas_subroutines.h":
-    void _fortran_cdotu "(cdotuwrp_)"(npy_complex64 *out, int *n, npy_complex64 *cx, int *incx, npy_complex64 *cy, int *incy) nogil
+    void _fortran_cdotu "F_FUNC(cdotuwrp,CDOTUWRP)"(npy_complex64 *out, int *n, npy_complex64 *cx, int *incx, npy_complex64 *cy, int *incy) nogil
 cdef c cdotu(int *n, c *cx, int *incx, c *cy, int *incy) noexcept nogil:
     cdef c out
     _fortran_cdotu(<npy_complex64*>&out, n, <npy_complex64*>cx, incx, <npy_complex64*>cy, incy)
@@ -992,14 +1002,14 @@ cdef void zcopy(int *n, z *zx, int *incx, z *zy, int *incy) noexcept nogil:
     
 
 cdef extern from "_blas_subroutines.h":
-    void _fortran_zdotc "(zdotcwrp_)"(npy_complex128 *out, int *n, npy_complex128 *zx, int *incx, npy_complex128 *zy, int *incy) nogil
+    void _fortran_zdotc "F_FUNC(zdotcwrp,ZDOTCWRP)"(npy_complex128 *out, int *n, npy_complex128 *zx, int *incx, npy_complex128 *zy, int *incy) nogil
 cdef z zdotc(int *n, z *zx, int *incx, z *zy, int *incy) noexcept nogil:
     cdef z out
     _fortran_zdotc(<npy_complex128*>&out, n, <npy_complex128*>zx, incx, <npy_complex128*>zy, incy)
     return out
 
 cdef extern from "_blas_subroutines.h":
-    void _fortran_zdotu "(zdotuwrp_)"(npy_complex128 *out, int *n, npy_complex128 *zx, int *incx, npy_complex128 *zy, int *incy) nogil
+    void _fortran_zdotu "F_FUNC(zdotuwrp,ZDOTUWRP)"(npy_complex128 *out, int *n, npy_complex128 *zx, int *incx, npy_complex128 *zy, int *incy) nogil
 cdef z zdotu(int *n, z *zx, int *incx, z *zy, int *incy) noexcept nogil:
     cdef z out
     _fortran_zdotu(<npy_complex128*>&out, n, <npy_complex128*>zx, incx, <npy_complex128*>zy, incy)

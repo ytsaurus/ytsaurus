@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-from functools import wraps
-from builtins import all as builtin_all, any as builtin_any
+from functools import wraps as _wraps
+from builtins import all as _builtin_all, any as _builtin_any
 
-from ..common._aliases import (UniqueAllResult, UniqueCountsResult,
-                               UniqueInverseResult,
-                               matrix_transpose as _aliases_matrix_transpose,
+from ..common._aliases import (matrix_transpose as _aliases_matrix_transpose,
                                vecdot as _aliases_vecdot)
 from .._internal import get_xp
 
@@ -86,7 +84,7 @@ _promotion_table  = {
 
 
 def _two_arg(f):
-    @wraps(f)
+    @_wraps(f)
     def _f(x1, x2, /, **kwargs):
         x1, x2 = _fix_promotion(x1, x2)
         return f(x1, x2, **kwargs)
@@ -101,6 +99,8 @@ for more details.
     return _f
 
 def _fix_promotion(x1, x2, only_scalar=True):
+    if not isinstance(x1, torch.Tensor) or not isinstance(x2, torch.Tensor):
+        return x1, x2
     if x1.dtype not in _array_api_dtypes or x2.dtype not in _array_api_dtypes:
         return x1, x2
     # If an argument is 0-D pytorch downcasts the other argument
@@ -384,6 +384,8 @@ def std(x: array,
         _correction = int(correction)
         if correction != _correction:
             raise NotImplementedError("float correction in torch std() is not yet supported")
+    else:
+        _correction = correction
 
     # https://github.com/pytorch/pytorch/issues/29137
     if axis == ():
@@ -509,7 +511,7 @@ def arange(start: Union[int, float],
         start, stop = 0, start
     if step > 0 and stop <= start or step < 0 and stop >= start:
         if dtype is None:
-            if builtin_all(isinstance(i, int) for i in [start, stop, step]):
+            if _builtin_all(isinstance(i, int) for i in [start, stop, step]):
                 dtype = torch.int64
             else:
                 dtype = torch.float32
@@ -601,6 +603,11 @@ def broadcast_arrays(*arrays: array) -> List[array]:
     shape = torch.broadcast_shapes(*[a.shape for a in arrays])
     return [torch.broadcast_to(a, shape) for a in arrays]
 
+# Note that these named tuples aren't actually part of the standard namespace,
+# but I don't see any issue with exporting the names here regardless.
+from ..common._aliases import (UniqueAllResult, UniqueCountsResult,
+                               UniqueInverseResult)
+
 # https://github.com/pytorch/pytorch/issues/70920
 def unique_all(x: array) -> UniqueAllResult:
     # torch.unique doesn't support returning indices.
@@ -665,7 +672,7 @@ def isdtype(
     for more details
     """
     if isinstance(kind, tuple) and _tuple:
-        return builtin_any(isdtype(dtype, k, _tuple=False) for k in kind)
+        return _builtin_any(isdtype(dtype, k, _tuple=False) for k in kind)
     elif isinstance(kind, str):
         if kind == 'bool':
             return dtype == torch.bool
@@ -693,15 +700,19 @@ def take(x: array, indices: array, /, *, axis: Optional[int] = None, **kwargs) -
         axis = 0
     return torch.index_select(x, axis, indices, **kwargs)
 
-__all__ = ['result_type', 'can_cast', 'permute_dims', 'bitwise_invert', 'newaxis',
-           'add', 'atan2', 'bitwise_and', 'bitwise_left_shift', 'bitwise_or',
-           'bitwise_right_shift', 'bitwise_xor', 'divide', 'equal',
-           'floor_divide', 'greater', 'greater_equal', 'less', 'less_equal',
-           'logaddexp', 'multiply', 'not_equal', 'pow', 'remainder',
-           'subtract', 'max', 'min', 'sort', 'prod', 'sum', 'any', 'all',
-           'mean', 'std', 'var', 'concat', 'squeeze', 'broadcast_to', 'flip', 'roll',
-           'nonzero', 'where', 'reshape', 'arange', 'eye', 'linspace', 'full',
-           'ones', 'zeros', 'empty', 'tril', 'triu', 'expand_dims', 'astype',
-           'broadcast_arrays', 'unique_all', 'unique_counts',
-           'unique_inverse', 'unique_values', 'matmul', 'matrix_transpose',
-           'vecdot', 'tensordot', 'isdtype', 'take']
+__all__ = ['result_type', 'can_cast', 'permute_dims', 'bitwise_invert',
+           'newaxis', 'add', 'atan2', 'bitwise_and', 'bitwise_left_shift',
+           'bitwise_or', 'bitwise_right_shift', 'bitwise_xor', 'divide',
+           'equal', 'floor_divide', 'greater', 'greater_equal', 'less',
+           'less_equal', 'logaddexp', 'multiply', 'not_equal', 'pow',
+           'remainder', 'subtract', 'max', 'min', 'sort', 'prod', 'sum',
+           'any', 'all', 'mean', 'std', 'var', 'concat', 'squeeze',
+           'broadcast_to', 'flip', 'roll', 'nonzero', 'where', 'reshape',
+           'arange', 'eye', 'linspace', 'full', 'ones', 'zeros', 'empty',
+           'tril', 'triu', 'expand_dims', 'astype', 'broadcast_arrays',
+           'UniqueAllResult', 'UniqueCountsResult', 'UniqueInverseResult',
+           'unique_all', 'unique_counts', 'unique_inverse', 'unique_values',
+           'matmul', 'matrix_transpose', 'vecdot', 'tensordot', 'isdtype',
+           'take']
+
+_all_ignore = ['torch', 'get_xp']

@@ -5,7 +5,7 @@ from libc.math cimport NAN
 
 include "_ufuncs_extra_code_common.pxi"
 include "_ufuncs_extra_code.pxi"
-__all__ = ['agm', 'airy', 'airye', 'bdtr', 'bdtrc', 'bdtri', 'bdtrik', 'bdtrin', 'bei', 'beip', 'ber', 'berp', 'besselpoly', 'beta', 'betainc', 'betaincc', 'betainccinv', 'betaincinv', 'betaln', 'binom', 'boxcox', 'boxcox1p', 'btdtr', 'btdtri', 'btdtria', 'btdtrib', 'cbrt', 'chdtr', 'chdtrc', 'chdtri', 'chdtriv', 'chndtr', 'chndtridf', 'chndtrinc', 'chndtrix', 'cosdg', 'cosm1', 'cotdg', 'dawsn', 'ellipe', 'ellipeinc', 'ellipj', 'ellipk', 'ellipkinc', 'ellipkm1', 'elliprc', 'elliprd', 'elliprf', 'elliprg', 'elliprj', 'entr', 'erf', 'erfc', 'erfcinv', 'erfcx', 'erfi', 'erfinv', 'eval_chebyc', 'eval_chebys', 'eval_chebyt', 'eval_chebyu', 'eval_gegenbauer', 'eval_genlaguerre', 'eval_hermite', 'eval_hermitenorm', 'eval_jacobi', 'eval_laguerre', 'eval_legendre', 'eval_sh_chebyt', 'eval_sh_chebyu', 'eval_sh_jacobi', 'eval_sh_legendre', 'exp1', 'exp10', 'exp2', 'expi', 'expit', 'expm1', 'expn', 'exprel', 'fdtr', 'fdtrc', 'fdtri', 'fdtridfd', 'fresnel', 'gamma', 'gammainc', 'gammaincc', 'gammainccinv', 'gammaincinv', 'gammaln', 'gammasgn', 'gdtr', 'gdtrc', 'gdtria', 'gdtrib', 'gdtrix', 'hankel1', 'hankel1e', 'hankel2', 'hankel2e', 'huber', 'hyp0f1', 'hyp1f1', 'hyp2f1', 'hyperu', 'i0', 'i0e', 'i1', 'i1e', 'inv_boxcox', 'inv_boxcox1p', 'it2i0k0', 'it2j0y0', 'it2struve0', 'itairy', 'iti0k0', 'itj0y0', 'itmodstruve0', 'itstruve0', 'iv', 'ive', 'j0', 'j1', 'jv', 'jve', 'k0', 'k0e', 'k1', 'k1e', 'kei', 'keip', 'kelvin', 'ker', 'kerp', 'kl_div', 'kn', 'kolmogi', 'kolmogorov', 'kv', 'kve', 'log1p', 'log_expit', 'log_ndtr', 'loggamma', 'logit', 'lpmv', 'mathieu_a', 'mathieu_b', 'mathieu_cem', 'mathieu_modcem1', 'mathieu_modcem2', 'mathieu_modsem1', 'mathieu_modsem2', 'mathieu_sem', 'modfresnelm', 'modfresnelp', 'modstruve', 'nbdtr', 'nbdtrc', 'nbdtri', 'nbdtrik', 'nbdtrin', 'ncfdtr', 'ncfdtri', 'ncfdtridfd', 'ncfdtridfn', 'ncfdtrinc', 'nctdtr', 'nctdtridf', 'nctdtrinc', 'nctdtrit', 'ndtr', 'ndtri', 'ndtri_exp', 'nrdtrimn', 'nrdtrisd', 'obl_ang1', 'obl_ang1_cv', 'obl_cv', 'obl_rad1', 'obl_rad1_cv', 'obl_rad2', 'obl_rad2_cv', 'owens_t', 'pbdv', 'pbvv', 'pbwa', 'pdtr', 'pdtrc', 'pdtri', 'pdtrik', 'poch', 'powm1', 'pro_ang1', 'pro_ang1_cv', 'pro_cv', 'pro_rad1', 'pro_rad1_cv', 'pro_rad2', 'pro_rad2_cv', 'pseudo_huber', 'psi', 'radian', 'rel_entr', 'rgamma', 'round', 'shichi', 'sici', 'sindg', 'smirnov', 'smirnovi', 'spence', 'sph_harm', 'stdtr', 'stdtridf', 'stdtrit', 'struve', 'tandg', 'tklmbda', 'voigt_profile', 'wofz', 'wright_bessel', 'wrightomega', 'xlog1py', 'xlogy', 'y0', 'y1', 'yn', 'yv', 'yve', 'zetac', 'geterr', 'seterr', 'errstate', 'jn']
+__all__ = ['agm', 'bdtr', 'bdtrc', 'bdtri', 'bdtrik', 'bdtrin', 'besselpoly', 'beta', 'betainc', 'betaincc', 'betainccinv', 'betaincinv', 'betaln', 'boxcox', 'boxcox1p', 'btdtr', 'btdtri', 'btdtria', 'btdtrib', 'cbrt', 'chdtr', 'chdtrc', 'chdtri', 'chdtriv', 'chndtr', 'chndtridf', 'chndtrinc', 'chndtrix', 'cosdg', 'cosm1', 'cotdg', 'dawsn', 'ellipe', 'ellipeinc', 'ellipj', 'ellipk', 'ellipkinc', 'ellipkm1', 'elliprc', 'elliprd', 'elliprf', 'elliprg', 'elliprj', 'entr', 'erf', 'erfc', 'erfcinv', 'erfcx', 'erfi', 'erfinv', 'eval_chebyc', 'eval_chebys', 'eval_chebyt', 'eval_chebyu', 'eval_gegenbauer', 'eval_genlaguerre', 'eval_hermite', 'eval_hermitenorm', 'eval_jacobi', 'eval_laguerre', 'eval_legendre', 'eval_sh_chebyt', 'eval_sh_chebyu', 'eval_sh_jacobi', 'eval_sh_legendre', 'exp10', 'exp2', 'expm1', 'expn', 'fdtr', 'fdtrc', 'fdtri', 'fdtridfd', 'fresnel', 'gammainc', 'gammaincc', 'gammainccinv', 'gammaincinv', 'gammasgn', 'gdtr', 'gdtrc', 'gdtria', 'gdtrib', 'gdtrix', 'huber', 'hyp0f1', 'hyp1f1', 'hyperu', 'i0', 'i0e', 'i1', 'i1e', 'inv_boxcox', 'inv_boxcox1p', 'j0', 'j1', 'k0', 'k0e', 'k1', 'k1e', 'kl_div', 'kn', 'kolmogi', 'kolmogorov', 'log1p', 'log_ndtr', 'lpmv', 'modstruve', 'nbdtr', 'nbdtrc', 'nbdtri', 'nbdtrik', 'nbdtrin', 'ncfdtr', 'ncfdtri', 'ncfdtridfd', 'ncfdtridfn', 'ncfdtrinc', 'nctdtr', 'nctdtridf', 'nctdtrinc', 'nctdtrit', 'ndtr', 'ndtri', 'ndtri_exp', 'nrdtrimn', 'nrdtrisd', 'owens_t', 'pdtr', 'pdtrc', 'pdtri', 'pdtrik', 'poch', 'powm1', 'pseudo_huber', 'radian', 'rel_entr', 'round', 'shichi', 'sici', 'sindg', 'smirnov', 'smirnovi', 'spence', 'stdtr', 'stdtridf', 'stdtrit', 'struve', 'tandg', 'tklmbda', 'voigt_profile', 'wofz', 'wrightomega', 'xlog1py', 'xlogy', 'y0', 'y1', 'yn', 'zetac', 'geterr', 'seterr', 'errstate', 'jn', 'airy', 'airye', 'bei', 'beip', 'ber', 'berp', 'binom', 'exp1', 'expi', 'expit', 'exprel', 'gamma', 'gammaln', 'hankel1', 'hankel1e', 'hankel2', 'hankel2e', 'hyp2f1', 'it2i0k0', 'it2j0y0', 'it2struve0', 'itairy', 'iti0k0', 'itj0y0', 'itmodstruve0', 'itstruve0', 'iv', 'ive', 'jv', 'jve', 'kei', 'keip', 'kelvin', 'ker', 'kerp', 'kv', 'kve', 'log_expit', 'log_wright_bessel', 'loggamma', 'logit', 'mathieu_a', 'mathieu_b', 'mathieu_cem', 'mathieu_modcem1', 'mathieu_modcem2', 'mathieu_modsem1', 'mathieu_modsem2', 'mathieu_sem', 'modfresnelm', 'modfresnelp', 'obl_ang1', 'obl_ang1_cv', 'obl_cv', 'obl_rad1', 'obl_rad1_cv', 'obl_rad2', 'obl_rad2_cv', 'pbdv', 'pbvv', 'pbwa', 'pro_ang1', 'pro_ang1_cv', 'pro_cv', 'pro_rad1', 'pro_rad1_cv', 'pro_rad2', 'pro_rad2_cv', 'psi', 'rgamma', 'sph_harm', 'wright_bessel', 'yv', 'yve']
 cdef void loop_D_DDDD__As_DDDD_D(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
     cdef np.npy_intp i, n = dims[0]
     cdef void *func = (<void**>data)[0]
@@ -142,24 +142,6 @@ cdef void loop_D_D__As_F_F(char **args, np.npy_intp *dims, np.npy_intp *steps, v
         op0 += steps[1]
     sf_error.check_fpe(func_name)
 
-cdef void loop_D_Dld__As_Dld_D(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
-    cdef np.npy_intp i, n = dims[0]
-    cdef void *func = (<void**>data)[0]
-    cdef char *func_name = <char*>(<void**>data)[1]
-    cdef char *ip0 = args[0]
-    cdef char *ip1 = args[1]
-    cdef char *ip2 = args[2]
-    cdef char *op0 = args[3]
-    cdef double complex ov0
-    for i in range(n):
-        ov0 = (<double complex(*)(double complex, long, double) noexcept nogil>func)(<double complex>(<double complex*>ip0)[0], <long>(<long*>ip1)[0], <double>(<double*>ip2)[0])
-        (<double complex *>op0)[0] = <double complex>ov0
-        ip0 += steps[0]
-        ip1 += steps[1]
-        ip2 += steps[2]
-        op0 += steps[3]
-    sf_error.check_fpe(func_name)
-
 cdef void loop_D_dD__As_dD_D(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
     cdef np.npy_intp i, n = dims[0]
     cdef void *func = (<void**>data)[0]
@@ -266,86 +248,6 @@ cdef void loop_D_dddD__As_fffF_F(char **args, np.npy_intp *dims, np.npy_intp *st
         ip2 += steps[2]
         ip3 += steps[3]
         op0 += steps[4]
-    sf_error.check_fpe(func_name)
-
-cdef void loop_D_dddd__As_dddd_D(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
-    cdef np.npy_intp i, n = dims[0]
-    cdef void *func = (<void**>data)[0]
-    cdef char *func_name = <char*>(<void**>data)[1]
-    cdef char *ip0 = args[0]
-    cdef char *ip1 = args[1]
-    cdef char *ip2 = args[2]
-    cdef char *ip3 = args[3]
-    cdef char *op0 = args[4]
-    cdef double complex ov0
-    for i in range(n):
-        ov0 = (<double complex(*)(double, double, double, double) noexcept nogil>func)(<double>(<double*>ip0)[0], <double>(<double*>ip1)[0], <double>(<double*>ip2)[0], <double>(<double*>ip3)[0])
-        (<double complex *>op0)[0] = <double complex>ov0
-        ip0 += steps[0]
-        ip1 += steps[1]
-        ip2 += steps[2]
-        ip3 += steps[3]
-        op0 += steps[4]
-    sf_error.check_fpe(func_name)
-
-cdef void loop_D_dddd__As_ffff_F(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
-    cdef np.npy_intp i, n = dims[0]
-    cdef void *func = (<void**>data)[0]
-    cdef char *func_name = <char*>(<void**>data)[1]
-    cdef char *ip0 = args[0]
-    cdef char *ip1 = args[1]
-    cdef char *ip2 = args[2]
-    cdef char *ip3 = args[3]
-    cdef char *op0 = args[4]
-    cdef double complex ov0
-    for i in range(n):
-        ov0 = (<double complex(*)(double, double, double, double) noexcept nogil>func)(<double>(<float*>ip0)[0], <double>(<float*>ip1)[0], <double>(<float*>ip2)[0], <double>(<float*>ip3)[0])
-        (<float complex *>op0)[0] = <float complex>ov0
-        ip0 += steps[0]
-        ip1 += steps[1]
-        ip2 += steps[2]
-        ip3 += steps[3]
-        op0 += steps[4]
-    sf_error.check_fpe(func_name)
-
-cdef void loop_D_iidd__As_lldd_D(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
-    cdef np.npy_intp i, n = dims[0]
-    cdef void *func = (<void**>data)[0]
-    cdef char *func_name = <char*>(<void**>data)[1]
-    cdef char *ip0 = args[0]
-    cdef char *ip1 = args[1]
-    cdef char *ip2 = args[2]
-    cdef char *ip3 = args[3]
-    cdef char *op0 = args[4]
-    cdef double complex ov0
-    for i in range(n):
-        if <int>(<long*>ip0)[0] == (<long*>ip0)[0] and <int>(<long*>ip1)[0] == (<long*>ip1)[0]:
-            ov0 = (<double complex(*)(int, int, double, double) noexcept nogil>func)(<int>(<long*>ip0)[0], <int>(<long*>ip1)[0], <double>(<double*>ip2)[0], <double>(<double*>ip3)[0])
-        else:
-            sf_error.error(func_name, sf_error.DOMAIN, "invalid input argument")
-            ov0 = <double complex>NAN
-        (<double complex *>op0)[0] = <double complex>ov0
-        ip0 += steps[0]
-        ip1 += steps[1]
-        ip2 += steps[2]
-        ip3 += steps[3]
-        op0 += steps[4]
-    sf_error.check_fpe(func_name)
-
-cdef void loop_D_lD__As_lD_D(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
-    cdef np.npy_intp i, n = dims[0]
-    cdef void *func = (<void**>data)[0]
-    cdef char *func_name = <char*>(<void**>data)[1]
-    cdef char *ip0 = args[0]
-    cdef char *ip1 = args[1]
-    cdef char *op0 = args[2]
-    cdef double complex ov0
-    for i in range(n):
-        ov0 = (<double complex(*)(long, double complex) noexcept nogil>func)(<long>(<long*>ip0)[0], <double complex>(<double complex*>ip1)[0])
-        (<double complex *>op0)[0] = <double complex>ov0
-        ip0 += steps[0]
-        ip1 += steps[1]
-        op0 += steps[2]
     sf_error.check_fpe(func_name)
 
 cdef void loop_d_d__As_d_d(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
@@ -484,54 +386,6 @@ cdef void loop_d_dddd__As_ffff_f(char **args, np.npy_intp *dims, np.npy_intp *st
         op0 += steps[4]
     sf_error.check_fpe(func_name)
 
-cdef void loop_d_dddd_d_As_dddd_dd(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
-    cdef np.npy_intp i, n = dims[0]
-    cdef void *func = (<void**>data)[0]
-    cdef char *func_name = <char*>(<void**>data)[1]
-    cdef char *ip0 = args[0]
-    cdef char *ip1 = args[1]
-    cdef char *ip2 = args[2]
-    cdef char *ip3 = args[3]
-    cdef char *op0 = args[4]
-    cdef char *op1 = args[5]
-    cdef double ov0
-    cdef double ov1
-    for i in range(n):
-        ov0 = (<double(*)(double, double, double, double, double *) noexcept nogil>func)(<double>(<double*>ip0)[0], <double>(<double*>ip1)[0], <double>(<double*>ip2)[0], <double>(<double*>ip3)[0], &ov1)
-        (<double *>op0)[0] = <double>ov0
-        (<double *>op1)[0] = <double>ov1
-        ip0 += steps[0]
-        ip1 += steps[1]
-        ip2 += steps[2]
-        ip3 += steps[3]
-        op0 += steps[4]
-        op1 += steps[5]
-    sf_error.check_fpe(func_name)
-
-cdef void loop_d_dddd_d_As_ffff_ff(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
-    cdef np.npy_intp i, n = dims[0]
-    cdef void *func = (<void**>data)[0]
-    cdef char *func_name = <char*>(<void**>data)[1]
-    cdef char *ip0 = args[0]
-    cdef char *ip1 = args[1]
-    cdef char *ip2 = args[2]
-    cdef char *ip3 = args[3]
-    cdef char *op0 = args[4]
-    cdef char *op1 = args[5]
-    cdef double ov0
-    cdef double ov1
-    for i in range(n):
-        ov0 = (<double(*)(double, double, double, double, double *) noexcept nogil>func)(<double>(<float*>ip0)[0], <double>(<float*>ip1)[0], <double>(<float*>ip2)[0], <double>(<float*>ip3)[0], &ov1)
-        (<float *>op0)[0] = <float>ov0
-        (<float *>op1)[0] = <float>ov1
-        ip0 += steps[0]
-        ip1 += steps[1]
-        ip2 += steps[2]
-        ip3 += steps[3]
-        op0 += steps[4]
-        op1 += steps[5]
-    sf_error.check_fpe(func_name)
-
 cdef void loop_d_ddddddd__As_ddddddd_d(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
     cdef np.npy_intp i, n = dims[0]
     cdef void *func = (<void**>data)[0]
@@ -584,33 +438,6 @@ cdef void loop_d_ddddddd__As_fffffff_f(char **args, np.npy_intp *dims, np.npy_in
         op0 += steps[7]
     sf_error.check_fpe(func_name)
 
-cdef void loop_d_ddi_d_As_ddl_dd(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
-    cdef np.npy_intp i, n = dims[0]
-    cdef void *func = (<void**>data)[0]
-    cdef char *func_name = <char*>(<void**>data)[1]
-    cdef char *ip0 = args[0]
-    cdef char *ip1 = args[1]
-    cdef char *ip2 = args[2]
-    cdef char *op0 = args[3]
-    cdef char *op1 = args[4]
-    cdef double ov0
-    cdef double ov1
-    for i in range(n):
-        if <int>(<long*>ip2)[0] == (<long*>ip2)[0]:
-            ov0 = (<double(*)(double, double, int, double *) noexcept nogil>func)(<double>(<double*>ip0)[0], <double>(<double*>ip1)[0], <int>(<long*>ip2)[0], &ov1)
-        else:
-            sf_error.error(func_name, sf_error.DOMAIN, "invalid input argument")
-            ov0 = <double>NAN
-            ov1 = <double>NAN
-        (<double *>op0)[0] = <double>ov0
-        (<double *>op1)[0] = <double>ov1
-        ip0 += steps[0]
-        ip1 += steps[1]
-        ip2 += steps[2]
-        op0 += steps[3]
-        op1 += steps[4]
-    sf_error.check_fpe(func_name)
-
 cdef void loop_d_ddiiddd__As_ddllddd_d(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
     cdef np.npy_intp i, n = dims[0]
     cdef void *func = (<void**>data)[0]
@@ -641,7 +468,29 @@ cdef void loop_d_ddiiddd__As_ddllddd_d(char **args, np.npy_intp *dims, np.npy_in
         op0 += steps[7]
     sf_error.check_fpe(func_name)
 
-cdef void loop_d_did__As_dld_d(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
+cdef void loop_d_ddp_d_As_ddp_dd(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
+    cdef np.npy_intp i, n = dims[0]
+    cdef void *func = (<void**>data)[0]
+    cdef char *func_name = <char*>(<void**>data)[1]
+    cdef char *ip0 = args[0]
+    cdef char *ip1 = args[1]
+    cdef char *ip2 = args[2]
+    cdef char *op0 = args[3]
+    cdef char *op1 = args[4]
+    cdef double ov0
+    cdef double ov1
+    for i in range(n):
+        ov0 = (<double(*)(double, double, Py_ssize_t, double *) noexcept nogil>func)(<double>(<double*>ip0)[0], <double>(<double*>ip1)[0], <Py_ssize_t>(<Py_ssize_t*>ip2)[0], &ov1)
+        (<double *>op0)[0] = <double>ov0
+        (<double *>op1)[0] = <double>ov1
+        ip0 += steps[0]
+        ip1 += steps[1]
+        ip2 += steps[2]
+        op0 += steps[3]
+        op1 += steps[4]
+    sf_error.check_fpe(func_name)
+
+cdef void loop_d_dpd__As_dpd_d(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
     cdef np.npy_intp i, n = dims[0]
     cdef void *func = (<void**>data)[0]
     cdef char *func_name = <char*>(<void**>data)[1]
@@ -651,11 +500,7 @@ cdef void loop_d_did__As_dld_d(char **args, np.npy_intp *dims, np.npy_intp *step
     cdef char *op0 = args[3]
     cdef double ov0
     for i in range(n):
-        if <int>(<long*>ip1)[0] == (<long*>ip1)[0]:
-            ov0 = (<double(*)(double, int, double) noexcept nogil>func)(<double>(<double*>ip0)[0], <int>(<long*>ip1)[0], <double>(<double*>ip2)[0])
-        else:
-            sf_error.error(func_name, sf_error.DOMAIN, "invalid input argument")
-            ov0 = <double>NAN
+        ov0 = (<double(*)(double, Py_ssize_t, double) noexcept nogil>func)(<double>(<double*>ip0)[0], <Py_ssize_t>(<Py_ssize_t*>ip1)[0], <double>(<double*>ip2)[0])
         (<double *>op0)[0] = <double>ov0
         ip0 += steps[0]
         ip1 += steps[1]
@@ -663,7 +508,7 @@ cdef void loop_d_did__As_dld_d(char **args, np.npy_intp *dims, np.npy_intp *step
         op0 += steps[3]
     sf_error.check_fpe(func_name)
 
-cdef void loop_d_id__As_ld_d(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
+cdef void loop_d_pd__As_pd_d(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
     cdef np.npy_intp i, n = dims[0]
     cdef void *func = (<void**>data)[0]
     cdef char *func_name = <char*>(<void**>data)[1]
@@ -672,18 +517,14 @@ cdef void loop_d_id__As_ld_d(char **args, np.npy_intp *dims, np.npy_intp *steps,
     cdef char *op0 = args[2]
     cdef double ov0
     for i in range(n):
-        if <int>(<long*>ip0)[0] == (<long*>ip0)[0]:
-            ov0 = (<double(*)(int, double) noexcept nogil>func)(<int>(<long*>ip0)[0], <double>(<double*>ip1)[0])
-        else:
-            sf_error.error(func_name, sf_error.DOMAIN, "invalid input argument")
-            ov0 = <double>NAN
+        ov0 = (<double(*)(Py_ssize_t, double) noexcept nogil>func)(<Py_ssize_t>(<Py_ssize_t*>ip0)[0], <double>(<double*>ip1)[0])
         (<double *>op0)[0] = <double>ov0
         ip0 += steps[0]
         ip1 += steps[1]
         op0 += steps[2]
     sf_error.check_fpe(func_name)
 
-cdef void loop_d_iid__As_lld_d(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
+cdef void loop_d_pdd__As_pdd_d(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
     cdef np.npy_intp i, n = dims[0]
     cdef void *func = (<void**>data)[0]
     cdef char *func_name = <char*>(<void**>data)[1]
@@ -693,11 +534,7 @@ cdef void loop_d_iid__As_lld_d(char **args, np.npy_intp *dims, np.npy_intp *step
     cdef char *op0 = args[3]
     cdef double ov0
     for i in range(n):
-        if <int>(<long*>ip0)[0] == (<long*>ip0)[0] and <int>(<long*>ip1)[0] == (<long*>ip1)[0]:
-            ov0 = (<double(*)(int, int, double) noexcept nogil>func)(<int>(<long*>ip0)[0], <int>(<long*>ip1)[0], <double>(<double*>ip2)[0])
-        else:
-            sf_error.error(func_name, sf_error.DOMAIN, "invalid input argument")
-            ov0 = <double>NAN
+        ov0 = (<double(*)(Py_ssize_t, double, double) noexcept nogil>func)(<Py_ssize_t>(<Py_ssize_t*>ip0)[0], <double>(<double*>ip1)[0], <double>(<double*>ip2)[0])
         (<double *>op0)[0] = <double>ov0
         ip0 += steps[0]
         ip1 += steps[1]
@@ -705,41 +542,7 @@ cdef void loop_d_iid__As_lld_d(char **args, np.npy_intp *dims, np.npy_intp *step
         op0 += steps[3]
     sf_error.check_fpe(func_name)
 
-cdef void loop_d_ld__As_ld_d(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
-    cdef np.npy_intp i, n = dims[0]
-    cdef void *func = (<void**>data)[0]
-    cdef char *func_name = <char*>(<void**>data)[1]
-    cdef char *ip0 = args[0]
-    cdef char *ip1 = args[1]
-    cdef char *op0 = args[2]
-    cdef double ov0
-    for i in range(n):
-        ov0 = (<double(*)(long, double) noexcept nogil>func)(<long>(<long*>ip0)[0], <double>(<double*>ip1)[0])
-        (<double *>op0)[0] = <double>ov0
-        ip0 += steps[0]
-        ip1 += steps[1]
-        op0 += steps[2]
-    sf_error.check_fpe(func_name)
-
-cdef void loop_d_ldd__As_ldd_d(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
-    cdef np.npy_intp i, n = dims[0]
-    cdef void *func = (<void**>data)[0]
-    cdef char *func_name = <char*>(<void**>data)[1]
-    cdef char *ip0 = args[0]
-    cdef char *ip1 = args[1]
-    cdef char *ip2 = args[2]
-    cdef char *op0 = args[3]
-    cdef double ov0
-    for i in range(n):
-        ov0 = (<double(*)(long, double, double) noexcept nogil>func)(<long>(<long*>ip0)[0], <double>(<double*>ip1)[0], <double>(<double*>ip2)[0])
-        (<double *>op0)[0] = <double>ov0
-        ip0 += steps[0]
-        ip1 += steps[1]
-        ip2 += steps[2]
-        op0 += steps[3]
-    sf_error.check_fpe(func_name)
-
-cdef void loop_d_lddd__As_lddd_d(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
+cdef void loop_d_pddd__As_pddd_d(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
     cdef np.npy_intp i, n = dims[0]
     cdef void *func = (<void**>data)[0]
     cdef char *func_name = <char*>(<void**>data)[1]
@@ -750,13 +553,31 @@ cdef void loop_d_lddd__As_lddd_d(char **args, np.npy_intp *dims, np.npy_intp *st
     cdef char *op0 = args[4]
     cdef double ov0
     for i in range(n):
-        ov0 = (<double(*)(long, double, double, double) noexcept nogil>func)(<long>(<long*>ip0)[0], <double>(<double*>ip1)[0], <double>(<double*>ip2)[0], <double>(<double*>ip3)[0])
+        ov0 = (<double(*)(Py_ssize_t, double, double, double) noexcept nogil>func)(<Py_ssize_t>(<Py_ssize_t*>ip0)[0], <double>(<double*>ip1)[0], <double>(<double*>ip2)[0], <double>(<double*>ip3)[0])
         (<double *>op0)[0] = <double>ov0
         ip0 += steps[0]
         ip1 += steps[1]
         ip2 += steps[2]
         ip3 += steps[3]
         op0 += steps[4]
+    sf_error.check_fpe(func_name)
+
+cdef void loop_d_ppd__As_ppd_d(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
+    cdef np.npy_intp i, n = dims[0]
+    cdef void *func = (<void**>data)[0]
+    cdef char *func_name = <char*>(<void**>data)[1]
+    cdef char *ip0 = args[0]
+    cdef char *ip1 = args[1]
+    cdef char *ip2 = args[2]
+    cdef char *op0 = args[3]
+    cdef double ov0
+    for i in range(n):
+        ov0 = (<double(*)(Py_ssize_t, Py_ssize_t, double) noexcept nogil>func)(<Py_ssize_t>(<Py_ssize_t*>ip0)[0], <Py_ssize_t>(<Py_ssize_t*>ip1)[0], <double>(<double*>ip2)[0])
+        (<double *>op0)[0] = <double>ov0
+        ip0 += steps[0]
+        ip1 += steps[1]
+        ip2 += steps[2]
+        op0 += steps[3]
     sf_error.check_fpe(func_name)
 
 cdef void loop_f_f__As_f_f(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
@@ -807,70 +628,24 @@ cdef void loop_f_fff__As_fff_f(char **args, np.npy_intp *dims, np.npy_intp *step
         op0 += steps[3]
     sf_error.check_fpe(func_name)
 
-cdef void loop_g_g__As_g_g(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
+cdef void loop_f_ffff__As_ffff_f(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
     cdef np.npy_intp i, n = dims[0]
     cdef void *func = (<void**>data)[0]
     cdef char *func_name = <char*>(<void**>data)[1]
     cdef char *ip0 = args[0]
-    cdef char *op0 = args[1]
-    cdef long double ov0
+    cdef char *ip1 = args[1]
+    cdef char *ip2 = args[2]
+    cdef char *ip3 = args[3]
+    cdef char *op0 = args[4]
+    cdef float ov0
     for i in range(n):
-        ov0 = (<long double(*)(long double) noexcept nogil>func)(<long double>(<long double*>ip0)[0])
-        (<long double *>op0)[0] = <long double>ov0
+        ov0 = (<float(*)(float, float, float, float) noexcept nogil>func)(<float>(<float*>ip0)[0], <float>(<float*>ip1)[0], <float>(<float*>ip2)[0], <float>(<float*>ip3)[0])
+        (<float *>op0)[0] = <float>ov0
         ip0 += steps[0]
-        op0 += steps[1]
-    sf_error.check_fpe(func_name)
-
-cdef void loop_i_D_DDDD_As_D_DDDD(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
-    cdef np.npy_intp i, n = dims[0]
-    cdef void *func = (<void**>data)[0]
-    cdef char *func_name = <char*>(<void**>data)[1]
-    cdef char *ip0 = args[0]
-    cdef char *op0 = args[1]
-    cdef char *op1 = args[2]
-    cdef char *op2 = args[3]
-    cdef char *op3 = args[4]
-    cdef double complex ov0
-    cdef double complex ov1
-    cdef double complex ov2
-    cdef double complex ov3
-    for i in range(n):
-        (<int(*)(double complex, double complex *, double complex *, double complex *, double complex *) noexcept nogil>func)(<double complex>(<double complex*>ip0)[0], &ov0, &ov1, &ov2, &ov3)
-        (<double complex *>op0)[0] = <double complex>ov0
-        (<double complex *>op1)[0] = <double complex>ov1
-        (<double complex *>op2)[0] = <double complex>ov2
-        (<double complex *>op3)[0] = <double complex>ov3
-        ip0 += steps[0]
-        op0 += steps[1]
-        op1 += steps[2]
-        op2 += steps[3]
-        op3 += steps[4]
-    sf_error.check_fpe(func_name)
-
-cdef void loop_i_D_DDDD_As_F_FFFF(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
-    cdef np.npy_intp i, n = dims[0]
-    cdef void *func = (<void**>data)[0]
-    cdef char *func_name = <char*>(<void**>data)[1]
-    cdef char *ip0 = args[0]
-    cdef char *op0 = args[1]
-    cdef char *op1 = args[2]
-    cdef char *op2 = args[3]
-    cdef char *op3 = args[4]
-    cdef double complex ov0
-    cdef double complex ov1
-    cdef double complex ov2
-    cdef double complex ov3
-    for i in range(n):
-        (<int(*)(double complex, double complex *, double complex *, double complex *, double complex *) noexcept nogil>func)(<double complex>(<float complex*>ip0)[0], &ov0, &ov1, &ov2, &ov3)
-        (<float complex *>op0)[0] = <float complex>ov0
-        (<float complex *>op1)[0] = <float complex>ov1
-        (<float complex *>op2)[0] = <float complex>ov2
-        (<float complex *>op3)[0] = <float complex>ov3
-        ip0 += steps[0]
-        op0 += steps[1]
-        op1 += steps[2]
-        op2 += steps[3]
-        op3 += steps[4]
+        ip1 += steps[1]
+        ip2 += steps[2]
+        ip3 += steps[3]
+        op0 += steps[4]
     sf_error.check_fpe(func_name)
 
 cdef void loop_i_D_DD_As_D_DD(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
@@ -902,94 +677,6 @@ cdef void loop_i_D_DD_As_F_FF(char **args, np.npy_intp *dims, np.npy_intp *steps
     cdef double complex ov1
     for i in range(n):
         (<int(*)(double complex, double complex *, double complex *) noexcept nogil>func)(<double complex>(<float complex*>ip0)[0], &ov0, &ov1)
-        (<float complex *>op0)[0] = <float complex>ov0
-        (<float complex *>op1)[0] = <float complex>ov1
-        ip0 += steps[0]
-        op0 += steps[1]
-        op1 += steps[2]
-    sf_error.check_fpe(func_name)
-
-cdef void loop_i_d_DDDD_As_d_DDDD(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
-    cdef np.npy_intp i, n = dims[0]
-    cdef void *func = (<void**>data)[0]
-    cdef char *func_name = <char*>(<void**>data)[1]
-    cdef char *ip0 = args[0]
-    cdef char *op0 = args[1]
-    cdef char *op1 = args[2]
-    cdef char *op2 = args[3]
-    cdef char *op3 = args[4]
-    cdef double complex ov0
-    cdef double complex ov1
-    cdef double complex ov2
-    cdef double complex ov3
-    for i in range(n):
-        (<int(*)(double, double complex *, double complex *, double complex *, double complex *) noexcept nogil>func)(<double>(<double*>ip0)[0], &ov0, &ov1, &ov2, &ov3)
-        (<double complex *>op0)[0] = <double complex>ov0
-        (<double complex *>op1)[0] = <double complex>ov1
-        (<double complex *>op2)[0] = <double complex>ov2
-        (<double complex *>op3)[0] = <double complex>ov3
-        ip0 += steps[0]
-        op0 += steps[1]
-        op1 += steps[2]
-        op2 += steps[3]
-        op3 += steps[4]
-    sf_error.check_fpe(func_name)
-
-cdef void loop_i_d_DDDD_As_f_FFFF(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
-    cdef np.npy_intp i, n = dims[0]
-    cdef void *func = (<void**>data)[0]
-    cdef char *func_name = <char*>(<void**>data)[1]
-    cdef char *ip0 = args[0]
-    cdef char *op0 = args[1]
-    cdef char *op1 = args[2]
-    cdef char *op2 = args[3]
-    cdef char *op3 = args[4]
-    cdef double complex ov0
-    cdef double complex ov1
-    cdef double complex ov2
-    cdef double complex ov3
-    for i in range(n):
-        (<int(*)(double, double complex *, double complex *, double complex *, double complex *) noexcept nogil>func)(<double>(<float*>ip0)[0], &ov0, &ov1, &ov2, &ov3)
-        (<float complex *>op0)[0] = <float complex>ov0
-        (<float complex *>op1)[0] = <float complex>ov1
-        (<float complex *>op2)[0] = <float complex>ov2
-        (<float complex *>op3)[0] = <float complex>ov3
-        ip0 += steps[0]
-        op0 += steps[1]
-        op1 += steps[2]
-        op2 += steps[3]
-        op3 += steps[4]
-    sf_error.check_fpe(func_name)
-
-cdef void loop_i_d_DD_As_d_DD(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
-    cdef np.npy_intp i, n = dims[0]
-    cdef void *func = (<void**>data)[0]
-    cdef char *func_name = <char*>(<void**>data)[1]
-    cdef char *ip0 = args[0]
-    cdef char *op0 = args[1]
-    cdef char *op1 = args[2]
-    cdef double complex ov0
-    cdef double complex ov1
-    for i in range(n):
-        (<int(*)(double, double complex *, double complex *) noexcept nogil>func)(<double>(<double*>ip0)[0], &ov0, &ov1)
-        (<double complex *>op0)[0] = <double complex>ov0
-        (<double complex *>op1)[0] = <double complex>ov1
-        ip0 += steps[0]
-        op0 += steps[1]
-        op1 += steps[2]
-    sf_error.check_fpe(func_name)
-
-cdef void loop_i_d_DD_As_f_FF(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
-    cdef np.npy_intp i, n = dims[0]
-    cdef void *func = (<void**>data)[0]
-    cdef char *func_name = <char*>(<void**>data)[1]
-    cdef char *ip0 = args[0]
-    cdef char *op0 = args[1]
-    cdef char *op1 = args[2]
-    cdef double complex ov0
-    cdef double complex ov1
-    for i in range(n):
-        (<int(*)(double, double complex *, double complex *) noexcept nogil>func)(<double>(<float*>ip0)[0], &ov0, &ov1)
         (<float complex *>op0)[0] = <float complex>ov0
         (<float complex *>op1)[0] = <float complex>ov1
         ip0 += steps[0]
@@ -1031,98 +718,6 @@ cdef void loop_i_d_dd_As_f_ff(char **args, np.npy_intp *dims, np.npy_intp *steps
         ip0 += steps[0]
         op0 += steps[1]
         op1 += steps[2]
-    sf_error.check_fpe(func_name)
-
-cdef void loop_i_d_dddd_As_d_dddd(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
-    cdef np.npy_intp i, n = dims[0]
-    cdef void *func = (<void**>data)[0]
-    cdef char *func_name = <char*>(<void**>data)[1]
-    cdef char *ip0 = args[0]
-    cdef char *op0 = args[1]
-    cdef char *op1 = args[2]
-    cdef char *op2 = args[3]
-    cdef char *op3 = args[4]
-    cdef double ov0
-    cdef double ov1
-    cdef double ov2
-    cdef double ov3
-    for i in range(n):
-        (<int(*)(double, double *, double *, double *, double *) noexcept nogil>func)(<double>(<double*>ip0)[0], &ov0, &ov1, &ov2, &ov3)
-        (<double *>op0)[0] = <double>ov0
-        (<double *>op1)[0] = <double>ov1
-        (<double *>op2)[0] = <double>ov2
-        (<double *>op3)[0] = <double>ov3
-        ip0 += steps[0]
-        op0 += steps[1]
-        op1 += steps[2]
-        op2 += steps[3]
-        op3 += steps[4]
-    sf_error.check_fpe(func_name)
-
-cdef void loop_i_d_dddd_As_f_ffff(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
-    cdef np.npy_intp i, n = dims[0]
-    cdef void *func = (<void**>data)[0]
-    cdef char *func_name = <char*>(<void**>data)[1]
-    cdef char *ip0 = args[0]
-    cdef char *op0 = args[1]
-    cdef char *op1 = args[2]
-    cdef char *op2 = args[3]
-    cdef char *op3 = args[4]
-    cdef double ov0
-    cdef double ov1
-    cdef double ov2
-    cdef double ov3
-    for i in range(n):
-        (<int(*)(double, double *, double *, double *, double *) noexcept nogil>func)(<double>(<float*>ip0)[0], &ov0, &ov1, &ov2, &ov3)
-        (<float *>op0)[0] = <float>ov0
-        (<float *>op1)[0] = <float>ov1
-        (<float *>op2)[0] = <float>ov2
-        (<float *>op3)[0] = <float>ov3
-        ip0 += steps[0]
-        op0 += steps[1]
-        op1 += steps[2]
-        op2 += steps[3]
-        op3 += steps[4]
-    sf_error.check_fpe(func_name)
-
-cdef void loop_i_dd_dd_As_dd_dd(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
-    cdef np.npy_intp i, n = dims[0]
-    cdef void *func = (<void**>data)[0]
-    cdef char *func_name = <char*>(<void**>data)[1]
-    cdef char *ip0 = args[0]
-    cdef char *ip1 = args[1]
-    cdef char *op0 = args[2]
-    cdef char *op1 = args[3]
-    cdef double ov0
-    cdef double ov1
-    for i in range(n):
-        (<int(*)(double, double, double *, double *) noexcept nogil>func)(<double>(<double*>ip0)[0], <double>(<double*>ip1)[0], &ov0, &ov1)
-        (<double *>op0)[0] = <double>ov0
-        (<double *>op1)[0] = <double>ov1
-        ip0 += steps[0]
-        ip1 += steps[1]
-        op0 += steps[2]
-        op1 += steps[3]
-    sf_error.check_fpe(func_name)
-
-cdef void loop_i_dd_dd_As_ff_ff(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
-    cdef np.npy_intp i, n = dims[0]
-    cdef void *func = (<void**>data)[0]
-    cdef char *func_name = <char*>(<void**>data)[1]
-    cdef char *ip0 = args[0]
-    cdef char *ip1 = args[1]
-    cdef char *op0 = args[2]
-    cdef char *op1 = args[3]
-    cdef double ov0
-    cdef double ov1
-    for i in range(n):
-        (<int(*)(double, double, double *, double *) noexcept nogil>func)(<double>(<float*>ip0)[0], <double>(<float*>ip1)[0], &ov0, &ov1)
-        (<float *>op0)[0] = <float>ov0
-        (<float *>op1)[0] = <float>ov1
-        ip0 += steps[0]
-        ip1 += steps[1]
-        op0 += steps[2]
-        op1 += steps[3]
     sf_error.check_fpe(func_name)
 
 cdef void loop_i_dd_dddd_As_dd_dddd(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
@@ -1181,102 +776,6 @@ cdef void loop_i_dd_dddd_As_ff_ffff(char **args, np.npy_intp *dims, np.npy_intp 
         op3 += steps[5]
     sf_error.check_fpe(func_name)
 
-cdef void loop_i_ddd_dd_As_ddd_dd(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
-    cdef np.npy_intp i, n = dims[0]
-    cdef void *func = (<void**>data)[0]
-    cdef char *func_name = <char*>(<void**>data)[1]
-    cdef char *ip0 = args[0]
-    cdef char *ip1 = args[1]
-    cdef char *ip2 = args[2]
-    cdef char *op0 = args[3]
-    cdef char *op1 = args[4]
-    cdef double ov0
-    cdef double ov1
-    for i in range(n):
-        (<int(*)(double, double, double, double *, double *) noexcept nogil>func)(<double>(<double*>ip0)[0], <double>(<double*>ip1)[0], <double>(<double*>ip2)[0], &ov0, &ov1)
-        (<double *>op0)[0] = <double>ov0
-        (<double *>op1)[0] = <double>ov1
-        ip0 += steps[0]
-        ip1 += steps[1]
-        ip2 += steps[2]
-        op0 += steps[3]
-        op1 += steps[4]
-    sf_error.check_fpe(func_name)
-
-cdef void loop_i_ddd_dd_As_fff_ff(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
-    cdef np.npy_intp i, n = dims[0]
-    cdef void *func = (<void**>data)[0]
-    cdef char *func_name = <char*>(<void**>data)[1]
-    cdef char *ip0 = args[0]
-    cdef char *ip1 = args[1]
-    cdef char *ip2 = args[2]
-    cdef char *op0 = args[3]
-    cdef char *op1 = args[4]
-    cdef double ov0
-    cdef double ov1
-    for i in range(n):
-        (<int(*)(double, double, double, double *, double *) noexcept nogil>func)(<double>(<float*>ip0)[0], <double>(<float*>ip1)[0], <double>(<float*>ip2)[0], &ov0, &ov1)
-        (<float *>op0)[0] = <float>ov0
-        (<float *>op1)[0] = <float>ov1
-        ip0 += steps[0]
-        ip1 += steps[1]
-        ip2 += steps[2]
-        op0 += steps[3]
-        op1 += steps[4]
-    sf_error.check_fpe(func_name)
-
-cdef void loop_i_ddddd_dd_As_ddddd_dd(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
-    cdef np.npy_intp i, n = dims[0]
-    cdef void *func = (<void**>data)[0]
-    cdef char *func_name = <char*>(<void**>data)[1]
-    cdef char *ip0 = args[0]
-    cdef char *ip1 = args[1]
-    cdef char *ip2 = args[2]
-    cdef char *ip3 = args[3]
-    cdef char *ip4 = args[4]
-    cdef char *op0 = args[5]
-    cdef char *op1 = args[6]
-    cdef double ov0
-    cdef double ov1
-    for i in range(n):
-        (<int(*)(double, double, double, double, double, double *, double *) noexcept nogil>func)(<double>(<double*>ip0)[0], <double>(<double*>ip1)[0], <double>(<double*>ip2)[0], <double>(<double*>ip3)[0], <double>(<double*>ip4)[0], &ov0, &ov1)
-        (<double *>op0)[0] = <double>ov0
-        (<double *>op1)[0] = <double>ov1
-        ip0 += steps[0]
-        ip1 += steps[1]
-        ip2 += steps[2]
-        ip3 += steps[3]
-        ip4 += steps[4]
-        op0 += steps[5]
-        op1 += steps[6]
-    sf_error.check_fpe(func_name)
-
-cdef void loop_i_ddddd_dd_As_fffff_ff(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
-    cdef np.npy_intp i, n = dims[0]
-    cdef void *func = (<void**>data)[0]
-    cdef char *func_name = <char*>(<void**>data)[1]
-    cdef char *ip0 = args[0]
-    cdef char *ip1 = args[1]
-    cdef char *ip2 = args[2]
-    cdef char *ip3 = args[3]
-    cdef char *ip4 = args[4]
-    cdef char *op0 = args[5]
-    cdef char *op1 = args[6]
-    cdef double ov0
-    cdef double ov1
-    for i in range(n):
-        (<int(*)(double, double, double, double, double, double *, double *) noexcept nogil>func)(<double>(<float*>ip0)[0], <double>(<float*>ip1)[0], <double>(<float*>ip2)[0], <double>(<float*>ip3)[0], <double>(<float*>ip4)[0], &ov0, &ov1)
-        (<float *>op0)[0] = <float>ov0
-        (<float *>op1)[0] = <float>ov1
-        ip0 += steps[0]
-        ip1 += steps[1]
-        ip2 += steps[2]
-        ip3 += steps[3]
-        ip4 += steps[4]
-        op0 += steps[5]
-        op1 += steps[6]
-    sf_error.check_fpe(func_name)
-
 cdef void loop_i_i__As_l_l(char **args, np.npy_intp *dims, np.npy_intp *steps, void *data) noexcept nogil:
     cdef np.npy_intp i, n = dims[0]
     cdef void *func = (<void**>data)[0]
@@ -1299,8 +798,6 @@ cdef extern from r"_ufuncs_defs.h":
     cdef double _func_cosine_cdf "cosine_cdf"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_cosine_invcdf "cosine_invcdf"(double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cospi "cospi"(double) noexcept nogil
 from ._ellip_harm cimport ellip_harmonic as _func_ellip_harmonic
 ctypedef double _proto_ellip_harmonic_t(double, double, int, int, double, double, double) noexcept nogil
 cdef _proto_ellip_harmonic_t *_proto_ellip_harmonic_t_var = &_func_ellip_harmonic
@@ -1311,125 +808,63 @@ from ._factorial cimport _factorial as _func__factorial
 ctypedef double _proto__factorial_t(double) noexcept nogil
 cdef _proto__factorial_t *_proto__factorial_t_var = &_func__factorial
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_igam_fac "igam_fac"(double, double) noexcept nogil
+    cdef double _func_cephes_igam_fac "cephes_igam_fac"(double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_kolmogc "kolmogc"(double) noexcept nogil
+    cdef double _func_cephes_kolmogc "cephes_kolmogc"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_kolmogci "kolmogci"(double) noexcept nogil
+    cdef double _func_cephes_kolmogci "cephes_kolmogci"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_kolmogp "kolmogp"(double) noexcept nogil
+    cdef double _func_cephes_kolmogp "cephes_kolmogp"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_lanczos_sum_expg_scaled "lanczos_sum_expg_scaled"(double) noexcept nogil
+    cdef double _func_cephes_lanczos_sum_expg_scaled "cephes_lanczos_sum_expg_scaled"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_lgam1p "lgam1p"(double) noexcept nogil
+    cdef double _func_cephes_lgam1p "cephes_lgam1p"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_log1pmx "log1pmx"(double) noexcept nogil
+    cdef double _func_cephes_log1pmx "cephes_log1pmx"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_riemann_zeta "riemann_zeta"(double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_scaled_exp1 "scaled_exp1"(double) noexcept nogil
+    cdef double _func_cephes_riemann_zeta "cephes_riemann_zeta"(double) noexcept nogil
 from .sf_error cimport _sf_error_test_function as _func__sf_error_test_function
 ctypedef int _proto__sf_error_test_function_t(int) noexcept nogil
 cdef _proto__sf_error_test_function_t *_proto__sf_error_test_function_t_var = &_func__sf_error_test_function
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_sinpi "sinpi"(double) noexcept nogil
 from ._legacy cimport smirnovc_unsafe as _func_smirnovc_unsafe
 ctypedef double _proto_smirnovc_unsafe_t(double, double) noexcept nogil
 cdef _proto_smirnovc_unsafe_t *_proto_smirnovc_unsafe_t_var = &_func_smirnovc_unsafe
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_smirnovc "smirnovc"(int, double) noexcept nogil
+    cdef double _func_cephes_smirnovc_wrap "cephes_smirnovc_wrap"(Py_ssize_t, double) noexcept nogil
 from ._legacy cimport smirnovci_unsafe as _func_smirnovci_unsafe
 ctypedef double _proto_smirnovci_unsafe_t(double, double) noexcept nogil
 cdef _proto_smirnovci_unsafe_t *_proto_smirnovci_unsafe_t_var = &_func_smirnovci_unsafe
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_smirnovci "smirnovci"(int, double) noexcept nogil
+    cdef double _func_cephes_smirnovci_wrap "cephes_smirnovci_wrap"(Py_ssize_t, double) noexcept nogil
 from ._legacy cimport smirnovp_unsafe as _func_smirnovp_unsafe
 ctypedef double _proto_smirnovp_unsafe_t(double, double) noexcept nogil
 cdef _proto_smirnovp_unsafe_t *_proto_smirnovp_unsafe_t_var = &_func_smirnovp_unsafe
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_smirnovp "smirnovp"(int, double) noexcept nogil
-from ._spherical_bessel cimport spherical_in_complex as _func_spherical_in_complex
-ctypedef double complex _proto_spherical_in_complex_t(long, double complex) noexcept nogil
-cdef _proto_spherical_in_complex_t *_proto_spherical_in_complex_t_var = &_func_spherical_in_complex
-from ._spherical_bessel cimport spherical_in_real as _func_spherical_in_real
-ctypedef double _proto_spherical_in_real_t(long, double) noexcept nogil
-cdef _proto_spherical_in_real_t *_proto_spherical_in_real_t_var = &_func_spherical_in_real
-from ._spherical_bessel cimport spherical_in_d_complex as _func_spherical_in_d_complex
-ctypedef double complex _proto_spherical_in_d_complex_t(long, double complex) noexcept nogil
-cdef _proto_spherical_in_d_complex_t *_proto_spherical_in_d_complex_t_var = &_func_spherical_in_d_complex
-from ._spherical_bessel cimport spherical_in_d_real as _func_spherical_in_d_real
-ctypedef double _proto_spherical_in_d_real_t(long, double) noexcept nogil
-cdef _proto_spherical_in_d_real_t *_proto_spherical_in_d_real_t_var = &_func_spherical_in_d_real
-from ._spherical_bessel cimport spherical_jn_complex as _func_spherical_jn_complex
-ctypedef double complex _proto_spherical_jn_complex_t(long, double complex) noexcept nogil
-cdef _proto_spherical_jn_complex_t *_proto_spherical_jn_complex_t_var = &_func_spherical_jn_complex
-from ._spherical_bessel cimport spherical_jn_real as _func_spherical_jn_real
-ctypedef double _proto_spherical_jn_real_t(long, double) noexcept nogil
-cdef _proto_spherical_jn_real_t *_proto_spherical_jn_real_t_var = &_func_spherical_jn_real
-from ._spherical_bessel cimport spherical_jn_d_complex as _func_spherical_jn_d_complex
-ctypedef double complex _proto_spherical_jn_d_complex_t(long, double complex) noexcept nogil
-cdef _proto_spherical_jn_d_complex_t *_proto_spherical_jn_d_complex_t_var = &_func_spherical_jn_d_complex
-from ._spherical_bessel cimport spherical_jn_d_real as _func_spherical_jn_d_real
-ctypedef double _proto_spherical_jn_d_real_t(long, double) noexcept nogil
-cdef _proto_spherical_jn_d_real_t *_proto_spherical_jn_d_real_t_var = &_func_spherical_jn_d_real
-from ._spherical_bessel cimport spherical_kn_complex as _func_spherical_kn_complex
-ctypedef double complex _proto_spherical_kn_complex_t(long, double complex) noexcept nogil
-cdef _proto_spherical_kn_complex_t *_proto_spherical_kn_complex_t_var = &_func_spherical_kn_complex
-from ._spherical_bessel cimport spherical_kn_real as _func_spherical_kn_real
-ctypedef double _proto_spherical_kn_real_t(long, double) noexcept nogil
-cdef _proto_spherical_kn_real_t *_proto_spherical_kn_real_t_var = &_func_spherical_kn_real
-from ._spherical_bessel cimport spherical_kn_d_complex as _func_spherical_kn_d_complex
-ctypedef double complex _proto_spherical_kn_d_complex_t(long, double complex) noexcept nogil
-cdef _proto_spherical_kn_d_complex_t *_proto_spherical_kn_d_complex_t_var = &_func_spherical_kn_d_complex
-from ._spherical_bessel cimport spherical_kn_d_real as _func_spherical_kn_d_real
-ctypedef double _proto_spherical_kn_d_real_t(long, double) noexcept nogil
-cdef _proto_spherical_kn_d_real_t *_proto_spherical_kn_d_real_t_var = &_func_spherical_kn_d_real
-from ._spherical_bessel cimport spherical_yn_complex as _func_spherical_yn_complex
-ctypedef double complex _proto_spherical_yn_complex_t(long, double complex) noexcept nogil
-cdef _proto_spherical_yn_complex_t *_proto_spherical_yn_complex_t_var = &_func_spherical_yn_complex
-from ._spherical_bessel cimport spherical_yn_real as _func_spherical_yn_real
-ctypedef double _proto_spherical_yn_real_t(long, double) noexcept nogil
-cdef _proto_spherical_yn_real_t *_proto_spherical_yn_real_t_var = &_func_spherical_yn_real
-from ._spherical_bessel cimport spherical_yn_d_complex as _func_spherical_yn_d_complex
-ctypedef double complex _proto_spherical_yn_d_complex_t(long, double complex) noexcept nogil
-cdef _proto_spherical_yn_d_complex_t *_proto_spherical_yn_d_complex_t_var = &_func_spherical_yn_d_complex
-from ._spherical_bessel cimport spherical_yn_d_real as _func_spherical_yn_d_real
-ctypedef double _proto_spherical_yn_d_real_t(long, double) noexcept nogil
-cdef _proto_spherical_yn_d_real_t *_proto_spherical_yn_d_real_t_var = &_func_spherical_yn_d_real
+    cdef double _func_cephes_smirnovp_wrap "cephes_smirnovp_wrap"(Py_ssize_t, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_struve_asymp_large_z "struve_asymp_large_z"(double, double, int, double *) noexcept nogil
+    cdef double _func_cephes__struve_asymp_large_z "cephes__struve_asymp_large_z"(double, double, Py_ssize_t, double *) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_struve_bessel_series "struve_bessel_series"(double, double, int, double *) noexcept nogil
+    cdef double _func_cephes__struve_bessel_series "cephes__struve_bessel_series"(double, double, Py_ssize_t, double *) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_struve_power_series "struve_power_series"(double, double, int, double *) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_zeta "zeta"(double, double) noexcept nogil
+    cdef double _func_cephes__struve_power_series "cephes__struve_power_series"(double, double, Py_ssize_t, double *) noexcept nogil
 from ._agm cimport agm as _func_agm
 ctypedef double _proto_agm_t(double, double) noexcept nogil
 cdef _proto_agm_t *_proto_agm_t_var = &_func_agm
-cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_airy_wrap "airy_wrap"(double, double *, double *, double *, double *) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_cairy_wrap "cairy_wrap"(double complex, double complex *, double complex *, double complex *, double complex *) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_cairy_wrap_e "cairy_wrap_e"(double complex, double complex *, double complex *, double complex *, double complex *) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_cairy_wrap_e_real "cairy_wrap_e_real"(double, double *, double *, double *, double *) noexcept nogil
 from ._legacy cimport bdtr_unsafe as _func_bdtr_unsafe
 ctypedef double _proto_bdtr_unsafe_t(double, double, double) noexcept nogil
 cdef _proto_bdtr_unsafe_t *_proto_bdtr_unsafe_t_var = &_func_bdtr_unsafe
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_bdtr "bdtr"(double, int, double) noexcept nogil
+    cdef double _func_cephes_bdtr_wrap "cephes_bdtr_wrap"(double, Py_ssize_t, double) noexcept nogil
 from ._legacy cimport bdtrc_unsafe as _func_bdtrc_unsafe
 ctypedef double _proto_bdtrc_unsafe_t(double, double, double) noexcept nogil
 cdef _proto_bdtrc_unsafe_t *_proto_bdtrc_unsafe_t_var = &_func_bdtrc_unsafe
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_bdtrc "bdtrc"(double, int, double) noexcept nogil
+    cdef double _func_cephes_bdtrc_wrap "cephes_bdtrc_wrap"(double, Py_ssize_t, double) noexcept nogil
 from ._legacy cimport bdtri_unsafe as _func_bdtri_unsafe
 ctypedef double _proto_bdtri_unsafe_t(double, double, double) noexcept nogil
 cdef _proto_bdtri_unsafe_t *_proto_bdtri_unsafe_t_var = &_func_bdtri_unsafe
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_bdtri "bdtri"(double, int, double) noexcept nogil
+    cdef double _func_cephes_bdtri_wrap "cephes_bdtri_wrap"(double, Py_ssize_t, double) noexcept nogil
 from ._cdflib_wrappers cimport bdtrik as _func_bdtrik
 ctypedef double _proto_bdtrik_t(double, double, double) noexcept nogil
 cdef _proto_bdtrik_t *_proto_bdtrik_t_var = &_func_bdtrik
@@ -1437,19 +872,11 @@ from ._cdflib_wrappers cimport bdtrin as _func_bdtrin
 ctypedef double _proto_bdtrin_t(double, double, double) noexcept nogil
 cdef _proto_bdtrin_t *_proto_bdtrin_t_var = &_func_bdtrin
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_bei_wrap "bei_wrap"(double) noexcept nogil
+    cdef double _func_cephes_besselpoly "cephes_besselpoly"(double, double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_beip_wrap "beip_wrap"(double) noexcept nogil
+    cdef double _func_cephes_beta "cephes_beta"(double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_ber_wrap "ber_wrap"(double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_berp_wrap "berp_wrap"(double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_besselpoly "besselpoly"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_beta "beta"(double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_lbeta "lbeta"(double, double) noexcept nogil
+    cdef double _func_cephes_lbeta "cephes_lbeta"(double, double) noexcept nogil
 from ._boxcox cimport boxcox as _func_boxcox
 ctypedef double _proto_boxcox_t(double, double) noexcept nogil
 cdef _proto_boxcox_t *_proto_boxcox_t_var = &_func_boxcox
@@ -1457,9 +884,9 @@ from ._boxcox cimport boxcox1p as _func_boxcox1p
 ctypedef double _proto_boxcox1p_t(double, double) noexcept nogil
 cdef _proto_boxcox1p_t *_proto_boxcox1p_t_var = &_func_boxcox1p
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_btdtr "btdtr"(double, double, double) noexcept nogil
+    cdef double _func_cephes_btdtr "cephes_btdtr"(double, double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_incbi "incbi"(double, double, double) noexcept nogil
+    cdef double _func_cephes_btdtri "cephes_btdtri"(double, double, double) noexcept nogil
 from ._cdflib_wrappers cimport btdtria as _func_btdtria
 ctypedef double _proto_btdtria_t(double, double, double) noexcept nogil
 cdef _proto_btdtria_t *_proto_btdtria_t_var = &_func_btdtria
@@ -1467,13 +894,13 @@ from ._cdflib_wrappers cimport btdtrib as _func_btdtrib
 ctypedef double _proto_btdtrib_t(double, double, double) noexcept nogil
 cdef _proto_btdtrib_t *_proto_btdtrib_t_var = &_func_btdtrib
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cbrt "cbrt"(double) noexcept nogil
+    cdef double _func_cephes_cbrt "cephes_cbrt"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_chdtr "chdtr"(double, double) noexcept nogil
+    cdef double _func_cephes_chdtr "cephes_chdtr"(double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_chdtrc "chdtrc"(double, double) noexcept nogil
+    cdef double _func_cephes_chdtrc "cephes_chdtrc"(double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_chdtri "chdtri"(double, double) noexcept nogil
+    cdef double _func_cephes_chdtri "cephes_chdtri"(double, double) noexcept nogil
 from ._cdflib_wrappers cimport chdtriv as _func_chdtriv
 ctypedef double _proto_chdtriv_t(double, double) noexcept nogil
 cdef _proto_chdtriv_t *_proto_chdtriv_t_var = &_func_chdtriv
@@ -1490,33 +917,32 @@ from ._cdflib_wrappers cimport chndtrix as _func_chndtrix
 ctypedef double _proto_chndtrix_t(double, double, double) noexcept nogil
 cdef _proto_chndtrix_t *_proto_chndtrix_t_var = &_func_chndtrix
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cosdg "cosdg"(double) noexcept nogil
+    cdef double _func_cephes_cosdg "cephes_cosdg"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cosm1 "cosm1"(double) noexcept nogil
+    cdef double _func_cephes_cosm1 "cephes_cosm1"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cotdg "cotdg"(double) noexcept nogil
+    cdef double _func_cephes_cotdg "cephes_cotdg"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_ellpe "ellpe"(double) noexcept nogil
+    cdef double _func_cephes_ellpe "cephes_ellpe"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_ellie "ellie"(double, double) noexcept nogil
+    cdef double _func_cephes_ellie "cephes_ellie"(double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_ellpj "ellpj"(double, double, double *, double *, double *, double *) noexcept nogil
-from ._ellipk cimport ellipk as _func_ellipk
-ctypedef double _proto_ellipk_t(double) noexcept nogil
-cdef _proto_ellipk_t *_proto_ellipk_t_var = &_func_ellipk
+    cdef int _func_cephes_ellpj_wrap "cephes_ellpj_wrap"(double, double, double *, double *, double *, double *) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_ellik "ellik"(double, double) noexcept nogil
+    cdef double _func_special_ellipk "special_ellipk"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_ellpk "ellpk"(double) noexcept nogil
+    cdef double _func_cephes_ellik "cephes_ellik"(double, double) noexcept nogil
+cdef extern from r"_ufuncs_defs.h":
+    cdef double _func_cephes_ellpk "cephes_ellpk"(double) noexcept nogil
 from ._convex_analysis cimport entr as _func_entr
 ctypedef double _proto_entr_t(double) noexcept nogil
 cdef _proto_entr_t *_proto_entr_t_var = &_func_entr
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_erf "erf"(double) noexcept nogil
+    cdef double _func_cephes_erf "cephes_erf"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_erfc "erfc"(double) noexcept nogil
+    cdef double _func_cephes_erfc "cephes_erfc"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_erfcinv "erfcinv"(double) noexcept nogil
+    cdef double _func_cephes_erfcinv "cephes_erfcinv"(double) noexcept nogil
 from .orthogonal_eval cimport eval_chebyc as _func_eval_chebyc
 ctypedef double complex _proto_eval_chebyc_double_complex__t(double, double complex) noexcept nogil
 cdef _proto_eval_chebyc_double_complex__t *_proto_eval_chebyc_double_complex__t_var = &_func_eval_chebyc[double_complex]
@@ -1524,7 +950,7 @@ from .orthogonal_eval cimport eval_chebyc as _func_eval_chebyc
 ctypedef double _proto_eval_chebyc_double__t(double, double) noexcept nogil
 cdef _proto_eval_chebyc_double__t *_proto_eval_chebyc_double__t_var = &_func_eval_chebyc[double]
 from .orthogonal_eval cimport eval_chebyc_l as _func_eval_chebyc_l
-ctypedef double _proto_eval_chebyc_l_t(long, double) noexcept nogil
+ctypedef double _proto_eval_chebyc_l_t(Py_ssize_t, double) noexcept nogil
 cdef _proto_eval_chebyc_l_t *_proto_eval_chebyc_l_t_var = &_func_eval_chebyc_l
 from .orthogonal_eval cimport eval_chebys as _func_eval_chebys
 ctypedef double complex _proto_eval_chebys_double_complex__t(double, double complex) noexcept nogil
@@ -1533,7 +959,7 @@ from .orthogonal_eval cimport eval_chebys as _func_eval_chebys
 ctypedef double _proto_eval_chebys_double__t(double, double) noexcept nogil
 cdef _proto_eval_chebys_double__t *_proto_eval_chebys_double__t_var = &_func_eval_chebys[double]
 from .orthogonal_eval cimport eval_chebys_l as _func_eval_chebys_l
-ctypedef double _proto_eval_chebys_l_t(long, double) noexcept nogil
+ctypedef double _proto_eval_chebys_l_t(Py_ssize_t, double) noexcept nogil
 cdef _proto_eval_chebys_l_t *_proto_eval_chebys_l_t_var = &_func_eval_chebys_l
 from .orthogonal_eval cimport eval_chebyt as _func_eval_chebyt
 ctypedef double complex _proto_eval_chebyt_double_complex__t(double, double complex) noexcept nogil
@@ -1542,7 +968,7 @@ from .orthogonal_eval cimport eval_chebyt as _func_eval_chebyt
 ctypedef double _proto_eval_chebyt_double__t(double, double) noexcept nogil
 cdef _proto_eval_chebyt_double__t *_proto_eval_chebyt_double__t_var = &_func_eval_chebyt[double]
 from .orthogonal_eval cimport eval_chebyt_l as _func_eval_chebyt_l
-ctypedef double _proto_eval_chebyt_l_t(long, double) noexcept nogil
+ctypedef double _proto_eval_chebyt_l_t(Py_ssize_t, double) noexcept nogil
 cdef _proto_eval_chebyt_l_t *_proto_eval_chebyt_l_t_var = &_func_eval_chebyt_l
 from .orthogonal_eval cimport eval_chebyu as _func_eval_chebyu
 ctypedef double complex _proto_eval_chebyu_double_complex__t(double, double complex) noexcept nogil
@@ -1551,7 +977,7 @@ from .orthogonal_eval cimport eval_chebyu as _func_eval_chebyu
 ctypedef double _proto_eval_chebyu_double__t(double, double) noexcept nogil
 cdef _proto_eval_chebyu_double__t *_proto_eval_chebyu_double__t_var = &_func_eval_chebyu[double]
 from .orthogonal_eval cimport eval_chebyu_l as _func_eval_chebyu_l
-ctypedef double _proto_eval_chebyu_l_t(long, double) noexcept nogil
+ctypedef double _proto_eval_chebyu_l_t(Py_ssize_t, double) noexcept nogil
 cdef _proto_eval_chebyu_l_t *_proto_eval_chebyu_l_t_var = &_func_eval_chebyu_l
 from .orthogonal_eval cimport eval_gegenbauer as _func_eval_gegenbauer
 ctypedef double complex _proto_eval_gegenbauer_double_complex__t(double, double, double complex) noexcept nogil
@@ -1560,7 +986,7 @@ from .orthogonal_eval cimport eval_gegenbauer as _func_eval_gegenbauer
 ctypedef double _proto_eval_gegenbauer_double__t(double, double, double) noexcept nogil
 cdef _proto_eval_gegenbauer_double__t *_proto_eval_gegenbauer_double__t_var = &_func_eval_gegenbauer[double]
 from .orthogonal_eval cimport eval_gegenbauer_l as _func_eval_gegenbauer_l
-ctypedef double _proto_eval_gegenbauer_l_t(long, double, double) noexcept nogil
+ctypedef double _proto_eval_gegenbauer_l_t(Py_ssize_t, double, double) noexcept nogil
 cdef _proto_eval_gegenbauer_l_t *_proto_eval_gegenbauer_l_t_var = &_func_eval_gegenbauer_l
 from .orthogonal_eval cimport eval_genlaguerre as _func_eval_genlaguerre
 ctypedef double complex _proto_eval_genlaguerre_double_complex__t(double, double, double complex) noexcept nogil
@@ -1569,13 +995,13 @@ from .orthogonal_eval cimport eval_genlaguerre as _func_eval_genlaguerre
 ctypedef double _proto_eval_genlaguerre_double__t(double, double, double) noexcept nogil
 cdef _proto_eval_genlaguerre_double__t *_proto_eval_genlaguerre_double__t_var = &_func_eval_genlaguerre[double]
 from .orthogonal_eval cimport eval_genlaguerre_l as _func_eval_genlaguerre_l
-ctypedef double _proto_eval_genlaguerre_l_t(long, double, double) noexcept nogil
+ctypedef double _proto_eval_genlaguerre_l_t(Py_ssize_t, double, double) noexcept nogil
 cdef _proto_eval_genlaguerre_l_t *_proto_eval_genlaguerre_l_t_var = &_func_eval_genlaguerre_l
 from .orthogonal_eval cimport eval_hermite as _func_eval_hermite
-ctypedef double _proto_eval_hermite_t(long, double) noexcept nogil
+ctypedef double _proto_eval_hermite_t(Py_ssize_t, double) noexcept nogil
 cdef _proto_eval_hermite_t *_proto_eval_hermite_t_var = &_func_eval_hermite
 from .orthogonal_eval cimport eval_hermitenorm as _func_eval_hermitenorm
-ctypedef double _proto_eval_hermitenorm_t(long, double) noexcept nogil
+ctypedef double _proto_eval_hermitenorm_t(Py_ssize_t, double) noexcept nogil
 cdef _proto_eval_hermitenorm_t *_proto_eval_hermitenorm_t_var = &_func_eval_hermitenorm
 from .orthogonal_eval cimport eval_jacobi as _func_eval_jacobi
 ctypedef double complex _proto_eval_jacobi_double_complex__t(double, double, double, double complex) noexcept nogil
@@ -1584,7 +1010,7 @@ from .orthogonal_eval cimport eval_jacobi as _func_eval_jacobi
 ctypedef double _proto_eval_jacobi_double__t(double, double, double, double) noexcept nogil
 cdef _proto_eval_jacobi_double__t *_proto_eval_jacobi_double__t_var = &_func_eval_jacobi[double]
 from .orthogonal_eval cimport eval_jacobi_l as _func_eval_jacobi_l
-ctypedef double _proto_eval_jacobi_l_t(long, double, double, double) noexcept nogil
+ctypedef double _proto_eval_jacobi_l_t(Py_ssize_t, double, double, double) noexcept nogil
 cdef _proto_eval_jacobi_l_t *_proto_eval_jacobi_l_t_var = &_func_eval_jacobi_l
 from .orthogonal_eval cimport eval_laguerre as _func_eval_laguerre
 ctypedef double complex _proto_eval_laguerre_double_complex__t(double, double complex) noexcept nogil
@@ -1593,7 +1019,7 @@ from .orthogonal_eval cimport eval_laguerre as _func_eval_laguerre
 ctypedef double _proto_eval_laguerre_double__t(double, double) noexcept nogil
 cdef _proto_eval_laguerre_double__t *_proto_eval_laguerre_double__t_var = &_func_eval_laguerre[double]
 from .orthogonal_eval cimport eval_laguerre_l as _func_eval_laguerre_l
-ctypedef double _proto_eval_laguerre_l_t(long, double) noexcept nogil
+ctypedef double _proto_eval_laguerre_l_t(Py_ssize_t, double) noexcept nogil
 cdef _proto_eval_laguerre_l_t *_proto_eval_laguerre_l_t_var = &_func_eval_laguerre_l
 from .orthogonal_eval cimport eval_legendre as _func_eval_legendre
 ctypedef double complex _proto_eval_legendre_double_complex__t(double, double complex) noexcept nogil
@@ -1602,7 +1028,7 @@ from .orthogonal_eval cimport eval_legendre as _func_eval_legendre
 ctypedef double _proto_eval_legendre_double__t(double, double) noexcept nogil
 cdef _proto_eval_legendre_double__t *_proto_eval_legendre_double__t_var = &_func_eval_legendre[double]
 from .orthogonal_eval cimport eval_legendre_l as _func_eval_legendre_l
-ctypedef double _proto_eval_legendre_l_t(long, double) noexcept nogil
+ctypedef double _proto_eval_legendre_l_t(Py_ssize_t, double) noexcept nogil
 cdef _proto_eval_legendre_l_t *_proto_eval_legendre_l_t_var = &_func_eval_legendre_l
 from .orthogonal_eval cimport eval_sh_chebyt as _func_eval_sh_chebyt
 ctypedef double complex _proto_eval_sh_chebyt_double_complex__t(double, double complex) noexcept nogil
@@ -1611,7 +1037,7 @@ from .orthogonal_eval cimport eval_sh_chebyt as _func_eval_sh_chebyt
 ctypedef double _proto_eval_sh_chebyt_double__t(double, double) noexcept nogil
 cdef _proto_eval_sh_chebyt_double__t *_proto_eval_sh_chebyt_double__t_var = &_func_eval_sh_chebyt[double]
 from .orthogonal_eval cimport eval_sh_chebyt_l as _func_eval_sh_chebyt_l
-ctypedef double _proto_eval_sh_chebyt_l_t(long, double) noexcept nogil
+ctypedef double _proto_eval_sh_chebyt_l_t(Py_ssize_t, double) noexcept nogil
 cdef _proto_eval_sh_chebyt_l_t *_proto_eval_sh_chebyt_l_t_var = &_func_eval_sh_chebyt_l
 from .orthogonal_eval cimport eval_sh_chebyu as _func_eval_sh_chebyu
 ctypedef double complex _proto_eval_sh_chebyu_double_complex__t(double, double complex) noexcept nogil
@@ -1620,7 +1046,7 @@ from .orthogonal_eval cimport eval_sh_chebyu as _func_eval_sh_chebyu
 ctypedef double _proto_eval_sh_chebyu_double__t(double, double) noexcept nogil
 cdef _proto_eval_sh_chebyu_double__t *_proto_eval_sh_chebyu_double__t_var = &_func_eval_sh_chebyu[double]
 from .orthogonal_eval cimport eval_sh_chebyu_l as _func_eval_sh_chebyu_l
-ctypedef double _proto_eval_sh_chebyu_l_t(long, double) noexcept nogil
+ctypedef double _proto_eval_sh_chebyu_l_t(Py_ssize_t, double) noexcept nogil
 cdef _proto_eval_sh_chebyu_l_t *_proto_eval_sh_chebyu_l_t_var = &_func_eval_sh_chebyu_l
 from .orthogonal_eval cimport eval_sh_jacobi as _func_eval_sh_jacobi
 ctypedef double complex _proto_eval_sh_jacobi_double_complex__t(double, double, double, double complex) noexcept nogil
@@ -1629,7 +1055,7 @@ from .orthogonal_eval cimport eval_sh_jacobi as _func_eval_sh_jacobi
 ctypedef double _proto_eval_sh_jacobi_double__t(double, double, double, double) noexcept nogil
 cdef _proto_eval_sh_jacobi_double__t *_proto_eval_sh_jacobi_double__t_var = &_func_eval_sh_jacobi[double]
 from .orthogonal_eval cimport eval_sh_jacobi_l as _func_eval_sh_jacobi_l
-ctypedef double _proto_eval_sh_jacobi_l_t(long, double, double, double) noexcept nogil
+ctypedef double _proto_eval_sh_jacobi_l_t(Py_ssize_t, double, double, double) noexcept nogil
 cdef _proto_eval_sh_jacobi_l_t *_proto_eval_sh_jacobi_l_t_var = &_func_eval_sh_jacobi_l
 from .orthogonal_eval cimport eval_sh_legendre as _func_eval_sh_legendre
 ctypedef double complex _proto_eval_sh_legendre_double_complex__t(double, double complex) noexcept nogil
@@ -1638,64 +1064,49 @@ from .orthogonal_eval cimport eval_sh_legendre as _func_eval_sh_legendre
 ctypedef double _proto_eval_sh_legendre_double__t(double, double) noexcept nogil
 cdef _proto_eval_sh_legendre_double__t *_proto_eval_sh_legendre_double__t_var = &_func_eval_sh_legendre[double]
 from .orthogonal_eval cimport eval_sh_legendre_l as _func_eval_sh_legendre_l
-ctypedef double _proto_eval_sh_legendre_l_t(long, double) noexcept nogil
+ctypedef double _proto_eval_sh_legendre_l_t(Py_ssize_t, double) noexcept nogil
 cdef _proto_eval_sh_legendre_l_t *_proto_eval_sh_legendre_l_t_var = &_func_eval_sh_legendre_l
 cdef extern from r"_ufuncs_defs.h":
-    cdef double complex _func_cexp1_wrap "cexp1_wrap"(double complex) noexcept nogil
+    cdef double _func_cephes_exp10 "cephes_exp10"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_exp1_wrap "exp1_wrap"(double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_exp10 "exp10"(double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_exp2 "exp2"(double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double complex _func_cexpi_wrap "cexpi_wrap"(double complex) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_expi_wrap "expi_wrap"(double) noexcept nogil
+    cdef double _func_cephes_exp2 "cephes_exp2"(double) noexcept nogil
 from ._cunity cimport cexpm1 as _func_cexpm1
 ctypedef double complex _proto_cexpm1_t(double complex) noexcept nogil
 cdef _proto_cexpm1_t *_proto_cexpm1_t_var = &_func_cexpm1
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_expm1 "expm1"(double) noexcept nogil
+    cdef double _func_cephes_expm1 "cephes_expm1"(double) noexcept nogil
 from ._legacy cimport expn_unsafe as _func_expn_unsafe
 ctypedef double _proto_expn_unsafe_t(double, double) noexcept nogil
 cdef _proto_expn_unsafe_t *_proto_expn_unsafe_t_var = &_func_expn_unsafe
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_expn "expn"(int, double) noexcept nogil
-from ._exprel cimport exprel as _func_exprel
-ctypedef double _proto_exprel_t(double) noexcept nogil
-cdef _proto_exprel_t *_proto_exprel_t_var = &_func_exprel
+    cdef double _func_cephes_expn_wrap "cephes_expn_wrap"(Py_ssize_t, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_fdtr "fdtr"(double, double, double) noexcept nogil
+    cdef double _func_cephes_fdtr "cephes_fdtr"(double, double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_fdtrc "fdtrc"(double, double, double) noexcept nogil
+    cdef double _func_cephes_fdtrc "cephes_fdtrc"(double, double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_fdtri "fdtri"(double, double, double) noexcept nogil
+    cdef double _func_cephes_fdtri "cephes_fdtri"(double, double, double) noexcept nogil
 from ._cdflib_wrappers cimport fdtridfd as _func_fdtridfd
 ctypedef double _proto_fdtridfd_t(double, double, double) noexcept nogil
 cdef _proto_fdtridfd_t *_proto_fdtridfd_t_var = &_func_fdtridfd
 cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_fresnl "fresnl"(double, double *, double *) noexcept nogil
+    cdef int _func_cephes_fresnl_wrap "cephes_fresnl_wrap"(double, double *, double *) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
     cdef int _func_cfresnl_wrap "cfresnl_wrap"(double complex, double complex *, double complex *) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_Gamma "Gamma"(double) noexcept nogil
+    cdef double _func_cephes_igam "cephes_igam"(double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_igam "igam"(double, double) noexcept nogil
+    cdef double _func_cephes_igamc "cephes_igamc"(double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_igamc "igamc"(double, double) noexcept nogil
+    cdef double _func_cephes_igamci "cephes_igamci"(double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_igamci "igamci"(double, double) noexcept nogil
+    cdef double _func_cephes_igami "cephes_igami"(double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_igami "igami"(double, double) noexcept nogil
+    cdef double _func_cephes_gammasgn "cephes_gammasgn"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_lgam "lgam"(double) noexcept nogil
+    cdef double _func_cephes_gdtr "cephes_gdtr"(double, double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_gammasgn "gammasgn"(double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_gdtr "gdtr"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_gdtrc "gdtrc"(double, double, double) noexcept nogil
+    cdef double _func_cephes_gdtrc "cephes_gdtrc"(double, double, double) noexcept nogil
 from ._cdflib_wrappers cimport gdtria as _func_gdtria
 ctypedef double _proto_gdtria_t(double, double, double) noexcept nogil
 cdef _proto_gdtria_t *_proto_gdtria_t_var = &_func_gdtria
@@ -1705,14 +1116,6 @@ cdef _proto_gdtrib_t *_proto_gdtrib_t_var = &_func_gdtrib
 from ._cdflib_wrappers cimport gdtrix as _func_gdtrix
 ctypedef double _proto_gdtrix_t(double, double, double) noexcept nogil
 cdef _proto_gdtrix_t *_proto_gdtrix_t_var = &_func_gdtrix
-cdef extern from r"_ufuncs_defs.h":
-    cdef double complex _func_cbesh_wrap1 "cbesh_wrap1"(double, double complex) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double complex _func_cbesh_wrap1_e "cbesh_wrap1_e"(double, double complex) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double complex _func_cbesh_wrap2 "cbesh_wrap2"(double, double complex) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double complex _func_cbesh_wrap2_e "cbesh_wrap2_e"(double, double complex) noexcept nogil
 from ._convex_analysis cimport huber as _func_huber
 ctypedef double _proto_huber_t(double, double) noexcept nogil
 cdef _proto_huber_t *_proto_huber_t_var = &_func_huber
@@ -1724,22 +1127,17 @@ ctypedef double _proto__hyp0f1_real_t(double, double) noexcept nogil
 cdef _proto__hyp0f1_real_t *_proto__hyp0f1_real_t_var = &_func__hyp0f1_real
 cdef extern from r"_ufuncs_defs.h":
     cdef double complex _func_chyp1f1_wrap "chyp1f1_wrap"(double, double, double complex) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_hyp2f1 "hyp2f1"(double, double, double, double) noexcept nogil
-from ._hyp2f1 cimport hyp2f1_complex as _func_hyp2f1_complex
-ctypedef double complex _proto_hyp2f1_complex_t(double, double, double, double complex) noexcept nogil
-cdef _proto_hyp2f1_complex_t *_proto_hyp2f1_complex_t_var = &_func_hyp2f1_complex
 from ._hypergeometric cimport hyperu as _func_hyperu
 ctypedef double _proto_hyperu_t(double, double, double) noexcept nogil
 cdef _proto_hyperu_t *_proto_hyperu_t_var = &_func_hyperu
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_i0 "i0"(double) noexcept nogil
+    cdef double _func_cephes_i0 "cephes_i0"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_i0e "i0e"(double) noexcept nogil
+    cdef double _func_cephes_i0e "cephes_i0e"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_i1 "i1"(double) noexcept nogil
+    cdef double _func_cephes_i1 "cephes_i1"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_i1e "i1e"(double) noexcept nogil
+    cdef double _func_cephes_i1e "cephes_i1e"(double) noexcept nogil
 from ._boxcox cimport inv_boxcox as _func_inv_boxcox
 ctypedef double _proto_inv_boxcox_t(double, double) noexcept nogil
 cdef _proto_inv_boxcox_t *_proto_inv_boxcox_t_var = &_func_inv_boxcox
@@ -1747,59 +1145,17 @@ from ._boxcox cimport inv_boxcox1p as _func_inv_boxcox1p
 ctypedef double _proto_inv_boxcox1p_t(double, double) noexcept nogil
 cdef _proto_inv_boxcox1p_t *_proto_inv_boxcox1p_t_var = &_func_inv_boxcox1p
 cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_it2i0k0_wrap "it2i0k0_wrap"(double, double *, double *) noexcept nogil
+    cdef double _func_cephes_j0 "cephes_j0"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_it2j0y0_wrap "it2j0y0_wrap"(double, double *, double *) noexcept nogil
+    cdef double _func_cephes_j1 "cephes_j1"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_it2struve0_wrap "it2struve0_wrap"(double) noexcept nogil
+    cdef double _func_cephes_k0 "cephes_k0"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_itairy_wrap "itairy_wrap"(double, double *, double *, double *, double *) noexcept nogil
+    cdef double _func_cephes_k0e "cephes_k0e"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_it1i0k0_wrap "it1i0k0_wrap"(double, double *, double *) noexcept nogil
+    cdef double _func_cephes_k1 "cephes_k1"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_it1j0y0_wrap "it1j0y0_wrap"(double, double *, double *) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_itmodstruve0_wrap "itmodstruve0_wrap"(double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_itstruve0_wrap "itstruve0_wrap"(double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double complex _func_cbesi_wrap "cbesi_wrap"(double, double complex) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_iv "iv"(double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double complex _func_cbesi_wrap_e "cbesi_wrap_e"(double, double complex) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cbesi_wrap_e_real "cbesi_wrap_e_real"(double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_j0 "j0"(double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_j1 "j1"(double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double complex _func_cbesj_wrap "cbesj_wrap"(double, double complex) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cbesj_wrap_real "cbesj_wrap_real"(double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double complex _func_cbesj_wrap_e "cbesj_wrap_e"(double, double complex) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cbesj_wrap_e_real "cbesj_wrap_e_real"(double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_k0 "k0"(double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_k0e "k0e"(double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_k1 "k1"(double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_k1e "k1e"(double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_kei_wrap "kei_wrap"(double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_keip_wrap "keip_wrap"(double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_kelvin_wrap "kelvin_wrap"(double, double complex *, double complex *, double complex *, double complex *) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_ker_wrap "ker_wrap"(double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_kerp_wrap "kerp_wrap"(double) noexcept nogil
+    cdef double _func_cephes_k1e "cephes_k1e"(double) noexcept nogil
 from ._convex_analysis cimport kl_div as _func_kl_div
 ctypedef double _proto_kl_div_t(double, double) noexcept nogil
 cdef _proto_kl_div_t *_proto_kl_div_t_var = &_func_kl_div
@@ -1807,63 +1163,35 @@ from ._legacy cimport kn_unsafe as _func_kn_unsafe
 ctypedef double _proto_kn_unsafe_t(double, double) noexcept nogil
 cdef _proto_kn_unsafe_t *_proto_kn_unsafe_t_var = &_func_kn_unsafe
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cbesk_wrap_real_int "cbesk_wrap_real_int"(int, double) noexcept nogil
+    cdef double _func_special_cyl_bessel_k_int "special_cyl_bessel_k_int"(Py_ssize_t, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_kolmogi "kolmogi"(double) noexcept nogil
+    cdef double _func_cephes_kolmogi "cephes_kolmogi"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_kolmogorov "kolmogorov"(double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double complex _func_cbesk_wrap "cbesk_wrap"(double, double complex) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cbesk_wrap_real "cbesk_wrap_real"(double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double complex _func_cbesk_wrap_e "cbesk_wrap_e"(double, double complex) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cbesk_wrap_e_real "cbesk_wrap_e_real"(double, double) noexcept nogil
+    cdef double _func_cephes_kolmogorov "cephes_kolmogorov"(double) noexcept nogil
 from ._cunity cimport clog1p as _func_clog1p
 ctypedef double complex _proto_clog1p_t(double complex) noexcept nogil
 cdef _proto_clog1p_t *_proto_clog1p_t_var = &_func_clog1p
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_log1p "log1p"(double) noexcept nogil
+    cdef double _func_cephes_log1p "cephes_log1p"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
     cdef double _func_pmv_wrap "pmv_wrap"(double, double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cem_cva_wrap "cem_cva_wrap"(double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_sem_cva_wrap "sem_cva_wrap"(double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_cem_wrap "cem_wrap"(double, double, double, double *, double *) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_mcm1_wrap "mcm1_wrap"(double, double, double, double *, double *) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_mcm2_wrap "mcm2_wrap"(double, double, double, double *, double *) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_msm1_wrap "msm1_wrap"(double, double, double, double *, double *) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_msm2_wrap "msm2_wrap"(double, double, double, double *, double *) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_sem_wrap "sem_wrap"(double, double, double, double *, double *) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_modified_fresnel_minus_wrap "modified_fresnel_minus_wrap"(double, double complex *, double complex *) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_modified_fresnel_plus_wrap "modified_fresnel_plus_wrap"(double, double complex *, double complex *) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_struve_l "struve_l"(double, double) noexcept nogil
+    cdef double _func_cephes_struve_l "cephes_struve_l"(double, double) noexcept nogil
 from ._legacy cimport nbdtr_unsafe as _func_nbdtr_unsafe
 ctypedef double _proto_nbdtr_unsafe_t(double, double, double) noexcept nogil
 cdef _proto_nbdtr_unsafe_t *_proto_nbdtr_unsafe_t_var = &_func_nbdtr_unsafe
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_nbdtr "nbdtr"(int, int, double) noexcept nogil
+    cdef double _func_cephes_nbdtr_wrap "cephes_nbdtr_wrap"(Py_ssize_t, Py_ssize_t, double) noexcept nogil
 from ._legacy cimport nbdtrc_unsafe as _func_nbdtrc_unsafe
 ctypedef double _proto_nbdtrc_unsafe_t(double, double, double) noexcept nogil
 cdef _proto_nbdtrc_unsafe_t *_proto_nbdtrc_unsafe_t_var = &_func_nbdtrc_unsafe
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_nbdtrc "nbdtrc"(int, int, double) noexcept nogil
+    cdef double _func_cephes_nbdtrc_wrap "cephes_nbdtrc_wrap"(Py_ssize_t, Py_ssize_t, double) noexcept nogil
 from ._legacy cimport nbdtri_unsafe as _func_nbdtri_unsafe
 ctypedef double _proto_nbdtri_unsafe_t(double, double, double) noexcept nogil
 cdef _proto_nbdtri_unsafe_t *_proto_nbdtri_unsafe_t_var = &_func_nbdtri_unsafe
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_nbdtri "nbdtri"(int, int, double) noexcept nogil
+    cdef double _func_cephes_nbdtri_wrap "cephes_nbdtri_wrap"(Py_ssize_t, Py_ssize_t, double) noexcept nogil
 from ._cdflib_wrappers cimport nbdtrik as _func_nbdtrik
 ctypedef double _proto_nbdtrik_t(double, double, double) noexcept nogil
 cdef _proto_nbdtrik_t *_proto_nbdtrik_t_var = &_func_nbdtrik
@@ -1898,9 +1226,9 @@ from ._cdflib_wrappers cimport nctdtrit as _func_nctdtrit
 ctypedef double _proto_nctdtrit_t(double, double, double) noexcept nogil
 cdef _proto_nctdtrit_t *_proto_nctdtrit_t_var = &_func_nctdtrit
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_ndtr "ndtr"(double) noexcept nogil
+    cdef double _func_cephes_ndtr "cephes_ndtr"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_ndtri "ndtri"(double) noexcept nogil
+    cdef double _func_cephes_ndtri "cephes_ndtri"(double) noexcept nogil
 from ._ndtri_exp cimport ndtri_exp as _func_ndtri_exp
 ctypedef double _proto_ndtri_exp_t(double) noexcept nogil
 cdef _proto_ndtri_exp_t *_proto_ndtri_exp_t_var = &_func_ndtri_exp
@@ -1911,100 +1239,58 @@ from ._cdflib_wrappers cimport nrdtrisd as _func_nrdtrisd
 ctypedef double _proto_nrdtrisd_t(double, double, double) noexcept nogil
 cdef _proto_nrdtrisd_t *_proto_nrdtrisd_t_var = &_func_nrdtrisd
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_oblate_aswfa_nocv_wrap "oblate_aswfa_nocv_wrap"(double, double, double, double, double *) noexcept nogil
+    cdef double _func_cephes_owens_t "cephes_owens_t"(double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_oblate_aswfa_wrap "oblate_aswfa_wrap"(double, double, double, double, double, double *, double *) noexcept nogil
+    cdef double _func_cephes_pdtr "cephes_pdtr"(double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_oblate_segv_wrap "oblate_segv_wrap"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_oblate_radial1_nocv_wrap "oblate_radial1_nocv_wrap"(double, double, double, double, double *) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_oblate_radial1_wrap "oblate_radial1_wrap"(double, double, double, double, double, double *, double *) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_oblate_radial2_nocv_wrap "oblate_radial2_nocv_wrap"(double, double, double, double, double *) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_oblate_radial2_wrap "oblate_radial2_wrap"(double, double, double, double, double, double *, double *) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_owens_t "owens_t"(double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_pbdv_wrap "pbdv_wrap"(double, double, double *, double *) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_pbvv_wrap "pbvv_wrap"(double, double, double *, double *) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_pbwa_wrap "pbwa_wrap"(double, double, double *, double *) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_pdtr "pdtr"(double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_pdtrc "pdtrc"(double, double) noexcept nogil
+    cdef double _func_cephes_pdtrc "cephes_pdtrc"(double, double) noexcept nogil
 from ._legacy cimport pdtri_unsafe as _func_pdtri_unsafe
 ctypedef double _proto_pdtri_unsafe_t(double, double) noexcept nogil
 cdef _proto_pdtri_unsafe_t *_proto_pdtri_unsafe_t_var = &_func_pdtri_unsafe
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_pdtri "pdtri"(int, double) noexcept nogil
+    cdef double _func_cephes_pdtri_wrap "cephes_pdtri_wrap"(Py_ssize_t, double) noexcept nogil
 from ._cdflib_wrappers cimport pdtrik as _func_pdtrik
 ctypedef double _proto_pdtrik_t(double, double) noexcept nogil
 cdef _proto_pdtrik_t *_proto_pdtrik_t_var = &_func_pdtrik
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_poch "poch"(double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_prolate_aswfa_nocv_wrap "prolate_aswfa_nocv_wrap"(double, double, double, double, double *) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_prolate_aswfa_wrap "prolate_aswfa_wrap"(double, double, double, double, double, double *, double *) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_prolate_segv_wrap "prolate_segv_wrap"(double, double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_prolate_radial1_nocv_wrap "prolate_radial1_nocv_wrap"(double, double, double, double, double *) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_prolate_radial1_wrap "prolate_radial1_wrap"(double, double, double, double, double, double *, double *) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_prolate_radial2_nocv_wrap "prolate_radial2_nocv_wrap"(double, double, double, double, double *) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_prolate_radial2_wrap "prolate_radial2_wrap"(double, double, double, double, double, double *, double *) noexcept nogil
+    cdef double _func_cephes_poch "cephes_poch"(double, double) noexcept nogil
 from ._convex_analysis cimport pseudo_huber as _func_pseudo_huber
 ctypedef double _proto_pseudo_huber_t(double, double) noexcept nogil
 cdef _proto_pseudo_huber_t *_proto_pseudo_huber_t_var = &_func_pseudo_huber
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_radian "radian"(double, double, double) noexcept nogil
+    cdef double _func_cephes_radian "cephes_radian"(double, double, double) noexcept nogil
 from ._convex_analysis cimport rel_entr as _func_rel_entr
 ctypedef double _proto_rel_entr_t(double, double) noexcept nogil
 cdef _proto_rel_entr_t *_proto_rel_entr_t_var = &_func_rel_entr
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_rgamma "rgamma"(double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_round "round"(double) noexcept nogil
+    cdef double _func_cephes_round "cephes_round"(double) noexcept nogil
 from ._sici cimport cshichi as _func_cshichi
 ctypedef int _proto_cshichi_t(double complex, double complex *, double complex *) noexcept nogil
 cdef _proto_cshichi_t *_proto_cshichi_t_var = &_func_cshichi
 cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_shichi "shichi"(double, double *, double *) noexcept nogil
+    cdef int _func_cephes_shichi_wrap "cephes_shichi_wrap"(double, double *, double *) noexcept nogil
 from ._sici cimport csici as _func_csici
 ctypedef int _proto_csici_t(double complex, double complex *, double complex *) noexcept nogil
 cdef _proto_csici_t *_proto_csici_t_var = &_func_csici
 cdef extern from r"_ufuncs_defs.h":
-    cdef int _func_sici "sici"(double, double *, double *) noexcept nogil
+    cdef int _func_cephes_sici_wrap "cephes_sici_wrap"(double, double *, double *) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_sindg "sindg"(double) noexcept nogil
+    cdef double _func_cephes_sindg "cephes_sindg"(double) noexcept nogil
 from ._legacy cimport smirnov_unsafe as _func_smirnov_unsafe
 ctypedef double _proto_smirnov_unsafe_t(double, double) noexcept nogil
 cdef _proto_smirnov_unsafe_t *_proto_smirnov_unsafe_t_var = &_func_smirnov_unsafe
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_smirnov "smirnov"(int, double) noexcept nogil
+    cdef double _func_cephes_smirnov_wrap "cephes_smirnov_wrap"(Py_ssize_t, double) noexcept nogil
 from ._legacy cimport smirnovi_unsafe as _func_smirnovi_unsafe
 ctypedef double _proto_smirnovi_unsafe_t(double, double) noexcept nogil
 cdef _proto_smirnovi_unsafe_t *_proto_smirnovi_unsafe_t_var = &_func_smirnovi_unsafe
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_smirnovi "smirnovi"(int, double) noexcept nogil
+    cdef double _func_cephes_smirnovi_wrap "cephes_smirnovi_wrap"(Py_ssize_t, double) noexcept nogil
 from ._spence cimport cspence as _func_cspence
 ctypedef double complex _proto_cspence_t(double complex) noexcept nogil
 cdef _proto_cspence_t *_proto_cspence_t_var = &_func_cspence
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_spence "spence"(double) noexcept nogil
-from ._legacy cimport sph_harmonic_unsafe as _func_sph_harmonic_unsafe
-ctypedef double complex _proto_sph_harmonic_unsafe_t(double, double, double, double) noexcept nogil
-cdef _proto_sph_harmonic_unsafe_t *_proto_sph_harmonic_unsafe_t_var = &_func_sph_harmonic_unsafe
-from .sph_harm cimport sph_harmonic as _func_sph_harmonic
-ctypedef double complex _proto_sph_harmonic_t(int, int, double, double) noexcept nogil
-cdef _proto_sph_harmonic_t *_proto_sph_harmonic_t_var = &_func_sph_harmonic
+    cdef double _func_cephes_spence "cephes_spence"(double) noexcept nogil
 from ._cdflib_wrappers cimport stdtr as _func_stdtr
 ctypedef double _proto_stdtr_t(double, double) noexcept nogil
 cdef _proto_stdtr_t *_proto_stdtr_t_var = &_func_stdtr
@@ -2015,14 +1301,11 @@ from ._cdflib_wrappers cimport stdtrit as _func_stdtrit
 ctypedef double _proto_stdtrit_t(double, double) noexcept nogil
 cdef _proto_stdtrit_t *_proto_stdtrit_t_var = &_func_stdtrit
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_struve_h "struve_h"(double, double) noexcept nogil
+    cdef double _func_cephes_struve_h "cephes_struve_h"(double, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_tandg "tandg"(double) noexcept nogil
+    cdef double _func_cephes_tandg "cephes_tandg"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_tukeylambdacdf "tukeylambdacdf"(double, double) noexcept nogil
-from ._wright_bessel cimport wright_bessel_scalar as _func_wright_bessel_scalar
-ctypedef double _proto_wright_bessel_scalar_t(double, double, double) noexcept nogil
-cdef _proto_wright_bessel_scalar_t *_proto_wright_bessel_scalar_t_var = &_func_wright_bessel_scalar
+    cdef double _func_cephes_tukeylambdacdf "cephes_tukeylambdacdf"(double, double) noexcept nogil
 from ._xlogy cimport xlog1py as _func_xlog1py
 ctypedef double _proto_xlog1py_double__t(double, double) noexcept nogil
 cdef _proto_xlog1py_double__t *_proto_xlog1py_double__t_var = &_func_xlog1py[double]
@@ -2036,24 +1319,287 @@ from ._xlogy cimport xlogy as _func_xlogy
 ctypedef double complex _proto_xlogy_double_complex__t(double complex, double complex) noexcept nogil
 cdef _proto_xlogy_double_complex__t *_proto_xlogy_double_complex__t_var = &_func_xlogy[double_complex]
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_y0 "y0"(double) noexcept nogil
+    cdef double _func_cephes_y0 "cephes_y0"(double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_y1 "y1"(double) noexcept nogil
+    cdef double _func_cephes_y1 "cephes_y1"(double) noexcept nogil
 from ._legacy cimport yn_unsafe as _func_yn_unsafe
 ctypedef double _proto_yn_unsafe_t(double, double) noexcept nogil
 cdef _proto_yn_unsafe_t *_proto_yn_unsafe_t_var = &_func_yn_unsafe
 cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_yn "yn"(int, double) noexcept nogil
+    cdef double _func_cephes_yn_wrap "cephes_yn_wrap"(Py_ssize_t, double) noexcept nogil
 cdef extern from r"_ufuncs_defs.h":
-    cdef double complex _func_cbesy_wrap "cbesy_wrap"(double, double complex) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cbesy_wrap_real "cbesy_wrap_real"(double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double complex _func_cbesy_wrap_e "cbesy_wrap_e"(double, double complex) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_cbesy_wrap_e_real "cbesy_wrap_e_real"(double, double) noexcept nogil
-cdef extern from r"_ufuncs_defs.h":
-    cdef double _func_zetac "zetac"(double) noexcept nogil
+    cdef double _func_cephes_zetac "cephes_zetac"(double) noexcept nogil
+cdef np.PyUFuncGenericFunction ufunc__beta_pdf_loops[2]
+cdef void *ufunc__beta_pdf_ptr[4]
+cdef void *ufunc__beta_pdf_data[2]
+cdef char ufunc__beta_pdf_types[8]
+cdef char *ufunc__beta_pdf_doc = (
+    "_beta_pdf(x, a, b)\n"
+    "\n"
+    "Probability density function of beta distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Real-valued such that :math:`0 \\leq x \\leq 1`,\n"
+    "    the upper limit of integration\n"
+    "a, b : array_like\n"
+    "       Positive, real-valued parameters\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__beta_pdf_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc__beta_pdf_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc__beta_pdf_types[0] = <char>NPY_FLOAT
+ufunc__beta_pdf_types[1] = <char>NPY_FLOAT
+ufunc__beta_pdf_types[2] = <char>NPY_FLOAT
+ufunc__beta_pdf_types[3] = <char>NPY_FLOAT
+ufunc__beta_pdf_types[4] = <char>NPY_DOUBLE
+ufunc__beta_pdf_types[5] = <char>NPY_DOUBLE
+ufunc__beta_pdf_types[6] = <char>NPY_DOUBLE
+ufunc__beta_pdf_types[7] = <char>NPY_DOUBLE
+ufunc__beta_pdf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_beta_pdf_float
+ufunc__beta_pdf_ptr[2*0+1] = <void*>(<char*>"_beta_pdf")
+ufunc__beta_pdf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_beta_pdf_double
+ufunc__beta_pdf_ptr[2*1+1] = <void*>(<char*>"_beta_pdf")
+ufunc__beta_pdf_data[0] = &ufunc__beta_pdf_ptr[2*0]
+ufunc__beta_pdf_data[1] = &ufunc__beta_pdf_ptr[2*1]
+_beta_pdf = np.PyUFunc_FromFuncAndData(ufunc__beta_pdf_loops, ufunc__beta_pdf_data, ufunc__beta_pdf_types, 2, 3, 1, 0, "_beta_pdf", ufunc__beta_pdf_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__beta_ppf_loops[2]
+cdef void *ufunc__beta_ppf_ptr[4]
+cdef void *ufunc__beta_ppf_data[2]
+cdef char ufunc__beta_ppf_types[8]
+cdef char *ufunc__beta_ppf_doc = (
+    "_beta_ppf(x, a, b)\n"
+    "\n"
+    "Percent point function of beta distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Real-valued such that :math:`0 \\leq x \\leq 1`,\n"
+    "    the upper limit of integration\n"
+    "a, b : array_like\n"
+    "       Positive, real-valued parameters\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__beta_ppf_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc__beta_ppf_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc__beta_ppf_types[0] = <char>NPY_FLOAT
+ufunc__beta_ppf_types[1] = <char>NPY_FLOAT
+ufunc__beta_ppf_types[2] = <char>NPY_FLOAT
+ufunc__beta_ppf_types[3] = <char>NPY_FLOAT
+ufunc__beta_ppf_types[4] = <char>NPY_DOUBLE
+ufunc__beta_ppf_types[5] = <char>NPY_DOUBLE
+ufunc__beta_ppf_types[6] = <char>NPY_DOUBLE
+ufunc__beta_ppf_types[7] = <char>NPY_DOUBLE
+ufunc__beta_ppf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_beta_ppf_float
+ufunc__beta_ppf_ptr[2*0+1] = <void*>(<char*>"_beta_ppf")
+ufunc__beta_ppf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_beta_ppf_double
+ufunc__beta_ppf_ptr[2*1+1] = <void*>(<char*>"_beta_ppf")
+ufunc__beta_ppf_data[0] = &ufunc__beta_ppf_ptr[2*0]
+ufunc__beta_ppf_data[1] = &ufunc__beta_ppf_ptr[2*1]
+_beta_ppf = np.PyUFunc_FromFuncAndData(ufunc__beta_ppf_loops, ufunc__beta_ppf_data, ufunc__beta_ppf_types, 2, 3, 1, 0, "_beta_ppf", ufunc__beta_ppf_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__binom_cdf_loops[2]
+cdef void *ufunc__binom_cdf_ptr[4]
+cdef void *ufunc__binom_cdf_data[2]
+cdef char ufunc__binom_cdf_types[8]
+cdef char *ufunc__binom_cdf_doc = (
+    "_binom_cdf(x, n, p)\n"
+    "\n"
+    "Cumulative density function of binomial distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Real-valued\n"
+    "n : array_like\n"
+    "    Positive, integer-valued parameter\n"
+    "p : array_like\n"
+    "    Positive, real-valued parameter\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__binom_cdf_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc__binom_cdf_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc__binom_cdf_types[0] = <char>NPY_FLOAT
+ufunc__binom_cdf_types[1] = <char>NPY_FLOAT
+ufunc__binom_cdf_types[2] = <char>NPY_FLOAT
+ufunc__binom_cdf_types[3] = <char>NPY_FLOAT
+ufunc__binom_cdf_types[4] = <char>NPY_DOUBLE
+ufunc__binom_cdf_types[5] = <char>NPY_DOUBLE
+ufunc__binom_cdf_types[6] = <char>NPY_DOUBLE
+ufunc__binom_cdf_types[7] = <char>NPY_DOUBLE
+ufunc__binom_cdf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_binom_cdf_float
+ufunc__binom_cdf_ptr[2*0+1] = <void*>(<char*>"_binom_cdf")
+ufunc__binom_cdf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_binom_cdf_double
+ufunc__binom_cdf_ptr[2*1+1] = <void*>(<char*>"_binom_cdf")
+ufunc__binom_cdf_data[0] = &ufunc__binom_cdf_ptr[2*0]
+ufunc__binom_cdf_data[1] = &ufunc__binom_cdf_ptr[2*1]
+_binom_cdf = np.PyUFunc_FromFuncAndData(ufunc__binom_cdf_loops, ufunc__binom_cdf_data, ufunc__binom_cdf_types, 2, 3, 1, 0, "_binom_cdf", ufunc__binom_cdf_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__binom_isf_loops[2]
+cdef void *ufunc__binom_isf_ptr[4]
+cdef void *ufunc__binom_isf_data[2]
+cdef char ufunc__binom_isf_types[8]
+cdef char *ufunc__binom_isf_doc = (
+    "_binom_isf(x, n, p)\n"
+    "\n"
+    "Inverse survival function of binomial distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Real-valued\n"
+    "n : array_like\n"
+    "    Positive, integer-valued parameter\n"
+    "p : array_like\n"
+    "    Positive, real-valued parameter\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__binom_isf_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc__binom_isf_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc__binom_isf_types[0] = <char>NPY_FLOAT
+ufunc__binom_isf_types[1] = <char>NPY_FLOAT
+ufunc__binom_isf_types[2] = <char>NPY_FLOAT
+ufunc__binom_isf_types[3] = <char>NPY_FLOAT
+ufunc__binom_isf_types[4] = <char>NPY_DOUBLE
+ufunc__binom_isf_types[5] = <char>NPY_DOUBLE
+ufunc__binom_isf_types[6] = <char>NPY_DOUBLE
+ufunc__binom_isf_types[7] = <char>NPY_DOUBLE
+ufunc__binom_isf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_binom_isf_float
+ufunc__binom_isf_ptr[2*0+1] = <void*>(<char*>"_binom_isf")
+ufunc__binom_isf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_binom_isf_double
+ufunc__binom_isf_ptr[2*1+1] = <void*>(<char*>"_binom_isf")
+ufunc__binom_isf_data[0] = &ufunc__binom_isf_ptr[2*0]
+ufunc__binom_isf_data[1] = &ufunc__binom_isf_ptr[2*1]
+_binom_isf = np.PyUFunc_FromFuncAndData(ufunc__binom_isf_loops, ufunc__binom_isf_data, ufunc__binom_isf_types, 2, 3, 1, 0, "_binom_isf", ufunc__binom_isf_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__binom_pmf_loops[2]
+cdef void *ufunc__binom_pmf_ptr[4]
+cdef void *ufunc__binom_pmf_data[2]
+cdef char ufunc__binom_pmf_types[8]
+cdef char *ufunc__binom_pmf_doc = (
+    "_binom_pmf(x, n, p)\n"
+    "\n"
+    "Probability mass function of binomial distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Real-valued\n"
+    "n : array_like\n"
+    "    Positive, integer-valued parameter\n"
+    "p : array_like\n"
+    "    Positive, real-valued parameter\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__binom_pmf_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc__binom_pmf_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc__binom_pmf_types[0] = <char>NPY_FLOAT
+ufunc__binom_pmf_types[1] = <char>NPY_FLOAT
+ufunc__binom_pmf_types[2] = <char>NPY_FLOAT
+ufunc__binom_pmf_types[3] = <char>NPY_FLOAT
+ufunc__binom_pmf_types[4] = <char>NPY_DOUBLE
+ufunc__binom_pmf_types[5] = <char>NPY_DOUBLE
+ufunc__binom_pmf_types[6] = <char>NPY_DOUBLE
+ufunc__binom_pmf_types[7] = <char>NPY_DOUBLE
+ufunc__binom_pmf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_binom_pmf_float
+ufunc__binom_pmf_ptr[2*0+1] = <void*>(<char*>"_binom_pmf")
+ufunc__binom_pmf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_binom_pmf_double
+ufunc__binom_pmf_ptr[2*1+1] = <void*>(<char*>"_binom_pmf")
+ufunc__binom_pmf_data[0] = &ufunc__binom_pmf_ptr[2*0]
+ufunc__binom_pmf_data[1] = &ufunc__binom_pmf_ptr[2*1]
+_binom_pmf = np.PyUFunc_FromFuncAndData(ufunc__binom_pmf_loops, ufunc__binom_pmf_data, ufunc__binom_pmf_types, 2, 3, 1, 0, "_binom_pmf", ufunc__binom_pmf_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__binom_ppf_loops[2]
+cdef void *ufunc__binom_ppf_ptr[4]
+cdef void *ufunc__binom_ppf_data[2]
+cdef char ufunc__binom_ppf_types[8]
+cdef char *ufunc__binom_ppf_doc = (
+    "_binom_ppf(x, n, p)\n"
+    "\n"
+    "Percent point function of binomial distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Real-valued\n"
+    "n : array_like\n"
+    "    Positive, integer-valued parameter\n"
+    "p : array_like\n"
+    "    Positive, real-valued parameter\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__binom_ppf_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc__binom_ppf_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc__binom_ppf_types[0] = <char>NPY_FLOAT
+ufunc__binom_ppf_types[1] = <char>NPY_FLOAT
+ufunc__binom_ppf_types[2] = <char>NPY_FLOAT
+ufunc__binom_ppf_types[3] = <char>NPY_FLOAT
+ufunc__binom_ppf_types[4] = <char>NPY_DOUBLE
+ufunc__binom_ppf_types[5] = <char>NPY_DOUBLE
+ufunc__binom_ppf_types[6] = <char>NPY_DOUBLE
+ufunc__binom_ppf_types[7] = <char>NPY_DOUBLE
+ufunc__binom_ppf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_binom_ppf_float
+ufunc__binom_ppf_ptr[2*0+1] = <void*>(<char*>"_binom_ppf")
+ufunc__binom_ppf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_binom_ppf_double
+ufunc__binom_ppf_ptr[2*1+1] = <void*>(<char*>"_binom_ppf")
+ufunc__binom_ppf_data[0] = &ufunc__binom_ppf_ptr[2*0]
+ufunc__binom_ppf_data[1] = &ufunc__binom_ppf_ptr[2*1]
+_binom_ppf = np.PyUFunc_FromFuncAndData(ufunc__binom_ppf_loops, ufunc__binom_ppf_data, ufunc__binom_ppf_types, 2, 3, 1, 0, "_binom_ppf", ufunc__binom_ppf_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__binom_sf_loops[2]
+cdef void *ufunc__binom_sf_ptr[4]
+cdef void *ufunc__binom_sf_data[2]
+cdef char ufunc__binom_sf_types[8]
+cdef char *ufunc__binom_sf_doc = (
+    "_binom_sf(x, n, p)\n"
+    "\n"
+    "Survival function of binomial distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Real-valued\n"
+    "n : array_like\n"
+    "    Positive, integer-valued parameter\n"
+    "p : array_like\n"
+    "    Positive, real-valued parameter\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__binom_sf_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc__binom_sf_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc__binom_sf_types[0] = <char>NPY_FLOAT
+ufunc__binom_sf_types[1] = <char>NPY_FLOAT
+ufunc__binom_sf_types[2] = <char>NPY_FLOAT
+ufunc__binom_sf_types[3] = <char>NPY_FLOAT
+ufunc__binom_sf_types[4] = <char>NPY_DOUBLE
+ufunc__binom_sf_types[5] = <char>NPY_DOUBLE
+ufunc__binom_sf_types[6] = <char>NPY_DOUBLE
+ufunc__binom_sf_types[7] = <char>NPY_DOUBLE
+ufunc__binom_sf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_binom_sf_float
+ufunc__binom_sf_ptr[2*0+1] = <void*>(<char*>"_binom_sf")
+ufunc__binom_sf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_binom_sf_double
+ufunc__binom_sf_ptr[2*1+1] = <void*>(<char*>"_binom_sf")
+ufunc__binom_sf_data[0] = &ufunc__binom_sf_ptr[2*0]
+ufunc__binom_sf_data[1] = &ufunc__binom_sf_ptr[2*1]
+_binom_sf = np.PyUFunc_FromFuncAndData(ufunc__binom_sf_loops, ufunc__binom_sf_data, ufunc__binom_sf_types, 2, 3, 1, 0, "_binom_sf", ufunc__binom_sf_doc, 0)
+
 cdef np.PyUFuncGenericFunction ufunc__cosine_cdf_loops[2]
 cdef void *ufunc__cosine_cdf_ptr[4]
 cdef void *ufunc__cosine_cdf_data[2]
@@ -2130,38 +1676,6 @@ ufunc__cosine_invcdf_data[0] = &ufunc__cosine_invcdf_ptr[2*0]
 ufunc__cosine_invcdf_data[1] = &ufunc__cosine_invcdf_ptr[2*1]
 _cosine_invcdf = np.PyUFunc_FromFuncAndData(ufunc__cosine_invcdf_loops, ufunc__cosine_invcdf_data, ufunc__cosine_invcdf_types, 2, 1, 1, 0, "_cosine_invcdf", ufunc__cosine_invcdf_doc, 0)
 
-cdef np.PyUFuncGenericFunction ufunc__cospi_loops[4]
-cdef void *ufunc__cospi_ptr[8]
-cdef void *ufunc__cospi_data[4]
-cdef char ufunc__cospi_types[8]
-cdef char *ufunc__cospi_doc = (
-    "Internal function, do not use.")
-ufunc__cospi_loops[0] = <np.PyUFuncGenericFunction>loop_d_d__As_f_f
-ufunc__cospi_loops[1] = <np.PyUFuncGenericFunction>loop_d_d__As_d_d
-ufunc__cospi_loops[2] = <np.PyUFuncGenericFunction>loop_D_D__As_F_F
-ufunc__cospi_loops[3] = <np.PyUFuncGenericFunction>loop_D_D__As_D_D
-ufunc__cospi_types[0] = <char>NPY_FLOAT
-ufunc__cospi_types[1] = <char>NPY_FLOAT
-ufunc__cospi_types[2] = <char>NPY_DOUBLE
-ufunc__cospi_types[3] = <char>NPY_DOUBLE
-ufunc__cospi_types[4] = <char>NPY_CFLOAT
-ufunc__cospi_types[5] = <char>NPY_CFLOAT
-ufunc__cospi_types[6] = <char>NPY_CDOUBLE
-ufunc__cospi_types[7] = <char>NPY_CDOUBLE
-ufunc__cospi_ptr[2*0] = <void*>_func_cospi
-ufunc__cospi_ptr[2*0+1] = <void*>(<char*>"_cospi")
-ufunc__cospi_ptr[2*1] = <void*>_func_cospi
-ufunc__cospi_ptr[2*1+1] = <void*>(<char*>"_cospi")
-ufunc__cospi_ptr[2*2] = <void*>scipy.special._ufuncs_cxx._export_ccospi
-ufunc__cospi_ptr[2*2+1] = <void*>(<char*>"_cospi")
-ufunc__cospi_ptr[2*3] = <void*>scipy.special._ufuncs_cxx._export_ccospi
-ufunc__cospi_ptr[2*3+1] = <void*>(<char*>"_cospi")
-ufunc__cospi_data[0] = &ufunc__cospi_ptr[2*0]
-ufunc__cospi_data[1] = &ufunc__cospi_ptr[2*1]
-ufunc__cospi_data[2] = &ufunc__cospi_ptr[2*2]
-ufunc__cospi_data[3] = &ufunc__cospi_ptr[2*3]
-_cospi = np.PyUFunc_FromFuncAndData(ufunc__cospi_loops, ufunc__cospi_data, ufunc__cospi_types, 4, 1, 1, 0, "_cospi", ufunc__cospi_doc, 0)
-
 cdef np.PyUFuncGenericFunction ufunc__ellip_harm_loops[3]
 cdef void *ufunc__ellip_harm_ptr[6]
 cdef void *ufunc__ellip_harm_data[3]
@@ -2226,6 +1740,228 @@ ufunc__factorial_data[0] = &ufunc__factorial_ptr[2*0]
 ufunc__factorial_data[1] = &ufunc__factorial_ptr[2*1]
 _factorial = np.PyUFunc_FromFuncAndData(ufunc__factorial_loops, ufunc__factorial_data, ufunc__factorial_types, 2, 1, 1, 0, "_factorial", ufunc__factorial_doc, 0)
 
+cdef np.PyUFuncGenericFunction ufunc__hypergeom_cdf_loops[2]
+cdef void *ufunc__hypergeom_cdf_ptr[4]
+cdef void *ufunc__hypergeom_cdf_data[2]
+cdef char ufunc__hypergeom_cdf_types[10]
+cdef char *ufunc__hypergeom_cdf_doc = (
+    "_hypergeom_cdf(x, r, N, M)\n"
+    "\n"
+    "Cumulative density function of hypergeometric distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Real-valued\n"
+    "r, N, M : array_like\n"
+    "    Positive, integer-valued parameter\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__hypergeom_cdf_loops[0] = <np.PyUFuncGenericFunction>loop_f_ffff__As_ffff_f
+ufunc__hypergeom_cdf_loops[1] = <np.PyUFuncGenericFunction>loop_d_dddd__As_dddd_d
+ufunc__hypergeom_cdf_types[0] = <char>NPY_FLOAT
+ufunc__hypergeom_cdf_types[1] = <char>NPY_FLOAT
+ufunc__hypergeom_cdf_types[2] = <char>NPY_FLOAT
+ufunc__hypergeom_cdf_types[3] = <char>NPY_FLOAT
+ufunc__hypergeom_cdf_types[4] = <char>NPY_FLOAT
+ufunc__hypergeom_cdf_types[5] = <char>NPY_DOUBLE
+ufunc__hypergeom_cdf_types[6] = <char>NPY_DOUBLE
+ufunc__hypergeom_cdf_types[7] = <char>NPY_DOUBLE
+ufunc__hypergeom_cdf_types[8] = <char>NPY_DOUBLE
+ufunc__hypergeom_cdf_types[9] = <char>NPY_DOUBLE
+ufunc__hypergeom_cdf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_hypergeom_cdf_float
+ufunc__hypergeom_cdf_ptr[2*0+1] = <void*>(<char*>"_hypergeom_cdf")
+ufunc__hypergeom_cdf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_hypergeom_cdf_double
+ufunc__hypergeom_cdf_ptr[2*1+1] = <void*>(<char*>"_hypergeom_cdf")
+ufunc__hypergeom_cdf_data[0] = &ufunc__hypergeom_cdf_ptr[2*0]
+ufunc__hypergeom_cdf_data[1] = &ufunc__hypergeom_cdf_ptr[2*1]
+_hypergeom_cdf = np.PyUFunc_FromFuncAndData(ufunc__hypergeom_cdf_loops, ufunc__hypergeom_cdf_data, ufunc__hypergeom_cdf_types, 2, 4, 1, 0, "_hypergeom_cdf", ufunc__hypergeom_cdf_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__hypergeom_mean_loops[2]
+cdef void *ufunc__hypergeom_mean_ptr[4]
+cdef void *ufunc__hypergeom_mean_data[2]
+cdef char ufunc__hypergeom_mean_types[8]
+cdef char *ufunc__hypergeom_mean_doc = (
+    "_hypergeom_mean(r, N, M)\n"
+    "\n"
+    "Mean of hypergeometric distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "r, N, M : array_like\n"
+    "    Positive, integer-valued parameter\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__hypergeom_mean_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc__hypergeom_mean_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc__hypergeom_mean_types[0] = <char>NPY_FLOAT
+ufunc__hypergeom_mean_types[1] = <char>NPY_FLOAT
+ufunc__hypergeom_mean_types[2] = <char>NPY_FLOAT
+ufunc__hypergeom_mean_types[3] = <char>NPY_FLOAT
+ufunc__hypergeom_mean_types[4] = <char>NPY_DOUBLE
+ufunc__hypergeom_mean_types[5] = <char>NPY_DOUBLE
+ufunc__hypergeom_mean_types[6] = <char>NPY_DOUBLE
+ufunc__hypergeom_mean_types[7] = <char>NPY_DOUBLE
+ufunc__hypergeom_mean_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_hypergeom_mean_float
+ufunc__hypergeom_mean_ptr[2*0+1] = <void*>(<char*>"_hypergeom_mean")
+ufunc__hypergeom_mean_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_hypergeom_mean_double
+ufunc__hypergeom_mean_ptr[2*1+1] = <void*>(<char*>"_hypergeom_mean")
+ufunc__hypergeom_mean_data[0] = &ufunc__hypergeom_mean_ptr[2*0]
+ufunc__hypergeom_mean_data[1] = &ufunc__hypergeom_mean_ptr[2*1]
+_hypergeom_mean = np.PyUFunc_FromFuncAndData(ufunc__hypergeom_mean_loops, ufunc__hypergeom_mean_data, ufunc__hypergeom_mean_types, 2, 3, 1, 0, "_hypergeom_mean", ufunc__hypergeom_mean_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__hypergeom_pmf_loops[2]
+cdef void *ufunc__hypergeom_pmf_ptr[4]
+cdef void *ufunc__hypergeom_pmf_data[2]
+cdef char ufunc__hypergeom_pmf_types[10]
+cdef char *ufunc__hypergeom_pmf_doc = (
+    "_hypergeom_pmf(x, r, N, M)\n"
+    "\n"
+    "Probability mass function of hypergeometric distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Real-valued\n"
+    "r, N, M : array_like\n"
+    "    Positive, integer-valued parameter\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__hypergeom_pmf_loops[0] = <np.PyUFuncGenericFunction>loop_f_ffff__As_ffff_f
+ufunc__hypergeom_pmf_loops[1] = <np.PyUFuncGenericFunction>loop_d_dddd__As_dddd_d
+ufunc__hypergeom_pmf_types[0] = <char>NPY_FLOAT
+ufunc__hypergeom_pmf_types[1] = <char>NPY_FLOAT
+ufunc__hypergeom_pmf_types[2] = <char>NPY_FLOAT
+ufunc__hypergeom_pmf_types[3] = <char>NPY_FLOAT
+ufunc__hypergeom_pmf_types[4] = <char>NPY_FLOAT
+ufunc__hypergeom_pmf_types[5] = <char>NPY_DOUBLE
+ufunc__hypergeom_pmf_types[6] = <char>NPY_DOUBLE
+ufunc__hypergeom_pmf_types[7] = <char>NPY_DOUBLE
+ufunc__hypergeom_pmf_types[8] = <char>NPY_DOUBLE
+ufunc__hypergeom_pmf_types[9] = <char>NPY_DOUBLE
+ufunc__hypergeom_pmf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_hypergeom_pmf_float
+ufunc__hypergeom_pmf_ptr[2*0+1] = <void*>(<char*>"_hypergeom_pmf")
+ufunc__hypergeom_pmf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_hypergeom_pmf_double
+ufunc__hypergeom_pmf_ptr[2*1+1] = <void*>(<char*>"_hypergeom_pmf")
+ufunc__hypergeom_pmf_data[0] = &ufunc__hypergeom_pmf_ptr[2*0]
+ufunc__hypergeom_pmf_data[1] = &ufunc__hypergeom_pmf_ptr[2*1]
+_hypergeom_pmf = np.PyUFunc_FromFuncAndData(ufunc__hypergeom_pmf_loops, ufunc__hypergeom_pmf_data, ufunc__hypergeom_pmf_types, 2, 4, 1, 0, "_hypergeom_pmf", ufunc__hypergeom_pmf_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__hypergeom_sf_loops[2]
+cdef void *ufunc__hypergeom_sf_ptr[4]
+cdef void *ufunc__hypergeom_sf_data[2]
+cdef char ufunc__hypergeom_sf_types[10]
+cdef char *ufunc__hypergeom_sf_doc = (
+    "_hypergeom_sf(x, r, N, M)\n"
+    "\n"
+    "Survival function of hypergeometric distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Real-valued\n"
+    "r, N, M : array_like\n"
+    "    Positive, integer-valued parameter\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__hypergeom_sf_loops[0] = <np.PyUFuncGenericFunction>loop_f_ffff__As_ffff_f
+ufunc__hypergeom_sf_loops[1] = <np.PyUFuncGenericFunction>loop_d_dddd__As_dddd_d
+ufunc__hypergeom_sf_types[0] = <char>NPY_FLOAT
+ufunc__hypergeom_sf_types[1] = <char>NPY_FLOAT
+ufunc__hypergeom_sf_types[2] = <char>NPY_FLOAT
+ufunc__hypergeom_sf_types[3] = <char>NPY_FLOAT
+ufunc__hypergeom_sf_types[4] = <char>NPY_FLOAT
+ufunc__hypergeom_sf_types[5] = <char>NPY_DOUBLE
+ufunc__hypergeom_sf_types[6] = <char>NPY_DOUBLE
+ufunc__hypergeom_sf_types[7] = <char>NPY_DOUBLE
+ufunc__hypergeom_sf_types[8] = <char>NPY_DOUBLE
+ufunc__hypergeom_sf_types[9] = <char>NPY_DOUBLE
+ufunc__hypergeom_sf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_hypergeom_sf_float
+ufunc__hypergeom_sf_ptr[2*0+1] = <void*>(<char*>"_hypergeom_sf")
+ufunc__hypergeom_sf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_hypergeom_sf_double
+ufunc__hypergeom_sf_ptr[2*1+1] = <void*>(<char*>"_hypergeom_sf")
+ufunc__hypergeom_sf_data[0] = &ufunc__hypergeom_sf_ptr[2*0]
+ufunc__hypergeom_sf_data[1] = &ufunc__hypergeom_sf_ptr[2*1]
+_hypergeom_sf = np.PyUFunc_FromFuncAndData(ufunc__hypergeom_sf_loops, ufunc__hypergeom_sf_data, ufunc__hypergeom_sf_types, 2, 4, 1, 0, "_hypergeom_sf", ufunc__hypergeom_sf_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__hypergeom_skewness_loops[2]
+cdef void *ufunc__hypergeom_skewness_ptr[4]
+cdef void *ufunc__hypergeom_skewness_data[2]
+cdef char ufunc__hypergeom_skewness_types[8]
+cdef char *ufunc__hypergeom_skewness_doc = (
+    "_hypergeom_skewness(r, N, M)\n"
+    "\n"
+    "Skewness of hypergeometric distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "r, N, M : array_like\n"
+    "    Positive, integer-valued parameter\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__hypergeom_skewness_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc__hypergeom_skewness_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc__hypergeom_skewness_types[0] = <char>NPY_FLOAT
+ufunc__hypergeom_skewness_types[1] = <char>NPY_FLOAT
+ufunc__hypergeom_skewness_types[2] = <char>NPY_FLOAT
+ufunc__hypergeom_skewness_types[3] = <char>NPY_FLOAT
+ufunc__hypergeom_skewness_types[4] = <char>NPY_DOUBLE
+ufunc__hypergeom_skewness_types[5] = <char>NPY_DOUBLE
+ufunc__hypergeom_skewness_types[6] = <char>NPY_DOUBLE
+ufunc__hypergeom_skewness_types[7] = <char>NPY_DOUBLE
+ufunc__hypergeom_skewness_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_hypergeom_skewness_float
+ufunc__hypergeom_skewness_ptr[2*0+1] = <void*>(<char*>"_hypergeom_skewness")
+ufunc__hypergeom_skewness_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_hypergeom_skewness_double
+ufunc__hypergeom_skewness_ptr[2*1+1] = <void*>(<char*>"_hypergeom_skewness")
+ufunc__hypergeom_skewness_data[0] = &ufunc__hypergeom_skewness_ptr[2*0]
+ufunc__hypergeom_skewness_data[1] = &ufunc__hypergeom_skewness_ptr[2*1]
+_hypergeom_skewness = np.PyUFunc_FromFuncAndData(ufunc__hypergeom_skewness_loops, ufunc__hypergeom_skewness_data, ufunc__hypergeom_skewness_types, 2, 3, 1, 0, "_hypergeom_skewness", ufunc__hypergeom_skewness_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__hypergeom_variance_loops[2]
+cdef void *ufunc__hypergeom_variance_ptr[4]
+cdef void *ufunc__hypergeom_variance_data[2]
+cdef char ufunc__hypergeom_variance_types[8]
+cdef char *ufunc__hypergeom_variance_doc = (
+    "_hypergeom_variance(r, N, M)\n"
+    "\n"
+    "Mean of hypergeometric distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "r, N, M : array_like\n"
+    "    Positive, integer-valued parameter\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__hypergeom_variance_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc__hypergeom_variance_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc__hypergeom_variance_types[0] = <char>NPY_FLOAT
+ufunc__hypergeom_variance_types[1] = <char>NPY_FLOAT
+ufunc__hypergeom_variance_types[2] = <char>NPY_FLOAT
+ufunc__hypergeom_variance_types[3] = <char>NPY_FLOAT
+ufunc__hypergeom_variance_types[4] = <char>NPY_DOUBLE
+ufunc__hypergeom_variance_types[5] = <char>NPY_DOUBLE
+ufunc__hypergeom_variance_types[6] = <char>NPY_DOUBLE
+ufunc__hypergeom_variance_types[7] = <char>NPY_DOUBLE
+ufunc__hypergeom_variance_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_hypergeom_variance_float
+ufunc__hypergeom_variance_ptr[2*0+1] = <void*>(<char*>"_hypergeom_variance")
+ufunc__hypergeom_variance_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_hypergeom_variance_double
+ufunc__hypergeom_variance_ptr[2*1+1] = <void*>(<char*>"_hypergeom_variance")
+ufunc__hypergeom_variance_data[0] = &ufunc__hypergeom_variance_ptr[2*0]
+ufunc__hypergeom_variance_data[1] = &ufunc__hypergeom_variance_ptr[2*1]
+_hypergeom_variance = np.PyUFunc_FromFuncAndData(ufunc__hypergeom_variance_loops, ufunc__hypergeom_variance_data, ufunc__hypergeom_variance_types, 2, 3, 1, 0, "_hypergeom_variance", ufunc__hypergeom_variance_doc, 0)
+
 cdef np.PyUFuncGenericFunction ufunc__igam_fac_loops[2]
 cdef void *ufunc__igam_fac_ptr[4]
 cdef void *ufunc__igam_fac_data[2]
@@ -2240,13 +1976,89 @@ ufunc__igam_fac_types[2] = <char>NPY_FLOAT
 ufunc__igam_fac_types[3] = <char>NPY_DOUBLE
 ufunc__igam_fac_types[4] = <char>NPY_DOUBLE
 ufunc__igam_fac_types[5] = <char>NPY_DOUBLE
-ufunc__igam_fac_ptr[2*0] = <void*>_func_igam_fac
+ufunc__igam_fac_ptr[2*0] = <void*>_func_cephes_igam_fac
 ufunc__igam_fac_ptr[2*0+1] = <void*>(<char*>"_igam_fac")
-ufunc__igam_fac_ptr[2*1] = <void*>_func_igam_fac
+ufunc__igam_fac_ptr[2*1] = <void*>_func_cephes_igam_fac
 ufunc__igam_fac_ptr[2*1+1] = <void*>(<char*>"_igam_fac")
 ufunc__igam_fac_data[0] = &ufunc__igam_fac_ptr[2*0]
 ufunc__igam_fac_data[1] = &ufunc__igam_fac_ptr[2*1]
 _igam_fac = np.PyUFunc_FromFuncAndData(ufunc__igam_fac_loops, ufunc__igam_fac_data, ufunc__igam_fac_types, 2, 2, 1, 0, "_igam_fac", ufunc__igam_fac_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__invgauss_isf_loops[2]
+cdef void *ufunc__invgauss_isf_ptr[4]
+cdef void *ufunc__invgauss_isf_data[2]
+cdef char ufunc__invgauss_isf_types[8]
+cdef char *ufunc__invgauss_isf_doc = (
+    "_invgauss_isf(x, mu, s)\n"
+    "\n"
+    "Inverse survival function of inverse gaussian distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Positive real-valued\n"
+    "mu : array_like\n"
+    "    Positive, real-valued parameters\n"
+    "s : array_like\n"
+    "    Positive, real-valued parameters\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__invgauss_isf_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc__invgauss_isf_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc__invgauss_isf_types[0] = <char>NPY_FLOAT
+ufunc__invgauss_isf_types[1] = <char>NPY_FLOAT
+ufunc__invgauss_isf_types[2] = <char>NPY_FLOAT
+ufunc__invgauss_isf_types[3] = <char>NPY_FLOAT
+ufunc__invgauss_isf_types[4] = <char>NPY_DOUBLE
+ufunc__invgauss_isf_types[5] = <char>NPY_DOUBLE
+ufunc__invgauss_isf_types[6] = <char>NPY_DOUBLE
+ufunc__invgauss_isf_types[7] = <char>NPY_DOUBLE
+ufunc__invgauss_isf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_invgauss_isf_float
+ufunc__invgauss_isf_ptr[2*0+1] = <void*>(<char*>"_invgauss_isf")
+ufunc__invgauss_isf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_invgauss_isf_double
+ufunc__invgauss_isf_ptr[2*1+1] = <void*>(<char*>"_invgauss_isf")
+ufunc__invgauss_isf_data[0] = &ufunc__invgauss_isf_ptr[2*0]
+ufunc__invgauss_isf_data[1] = &ufunc__invgauss_isf_ptr[2*1]
+_invgauss_isf = np.PyUFunc_FromFuncAndData(ufunc__invgauss_isf_loops, ufunc__invgauss_isf_data, ufunc__invgauss_isf_types, 2, 3, 1, 0, "_invgauss_isf", ufunc__invgauss_isf_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__invgauss_ppf_loops[2]
+cdef void *ufunc__invgauss_ppf_ptr[4]
+cdef void *ufunc__invgauss_ppf_data[2]
+cdef char ufunc__invgauss_ppf_types[8]
+cdef char *ufunc__invgauss_ppf_doc = (
+    "_invgauss_ppf(x, mu)\n"
+    "\n"
+    "Percent point function of inverse gaussian distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Positive real-valued\n"
+    "mu : array_like\n"
+    "    Positive, real-valued parameters\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__invgauss_ppf_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc__invgauss_ppf_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc__invgauss_ppf_types[0] = <char>NPY_FLOAT
+ufunc__invgauss_ppf_types[1] = <char>NPY_FLOAT
+ufunc__invgauss_ppf_types[2] = <char>NPY_FLOAT
+ufunc__invgauss_ppf_types[3] = <char>NPY_FLOAT
+ufunc__invgauss_ppf_types[4] = <char>NPY_DOUBLE
+ufunc__invgauss_ppf_types[5] = <char>NPY_DOUBLE
+ufunc__invgauss_ppf_types[6] = <char>NPY_DOUBLE
+ufunc__invgauss_ppf_types[7] = <char>NPY_DOUBLE
+ufunc__invgauss_ppf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_invgauss_ppf_float
+ufunc__invgauss_ppf_ptr[2*0+1] = <void*>(<char*>"_invgauss_ppf")
+ufunc__invgauss_ppf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_invgauss_ppf_double
+ufunc__invgauss_ppf_ptr[2*1+1] = <void*>(<char*>"_invgauss_ppf")
+ufunc__invgauss_ppf_data[0] = &ufunc__invgauss_ppf_ptr[2*0]
+ufunc__invgauss_ppf_data[1] = &ufunc__invgauss_ppf_ptr[2*1]
+_invgauss_ppf = np.PyUFunc_FromFuncAndData(ufunc__invgauss_ppf_loops, ufunc__invgauss_ppf_data, ufunc__invgauss_ppf_types, 2, 3, 1, 0, "_invgauss_ppf", ufunc__invgauss_ppf_doc, 0)
 
 cdef np.PyUFuncGenericFunction ufunc__kolmogc_loops[2]
 cdef void *ufunc__kolmogc_ptr[4]
@@ -2260,9 +2072,9 @@ ufunc__kolmogc_types[0] = <char>NPY_FLOAT
 ufunc__kolmogc_types[1] = <char>NPY_FLOAT
 ufunc__kolmogc_types[2] = <char>NPY_DOUBLE
 ufunc__kolmogc_types[3] = <char>NPY_DOUBLE
-ufunc__kolmogc_ptr[2*0] = <void*>_func_kolmogc
+ufunc__kolmogc_ptr[2*0] = <void*>_func_cephes_kolmogc
 ufunc__kolmogc_ptr[2*0+1] = <void*>(<char*>"_kolmogc")
-ufunc__kolmogc_ptr[2*1] = <void*>_func_kolmogc
+ufunc__kolmogc_ptr[2*1] = <void*>_func_cephes_kolmogc
 ufunc__kolmogc_ptr[2*1+1] = <void*>(<char*>"_kolmogc")
 ufunc__kolmogc_data[0] = &ufunc__kolmogc_ptr[2*0]
 ufunc__kolmogc_data[1] = &ufunc__kolmogc_ptr[2*1]
@@ -2280,9 +2092,9 @@ ufunc__kolmogci_types[0] = <char>NPY_FLOAT
 ufunc__kolmogci_types[1] = <char>NPY_FLOAT
 ufunc__kolmogci_types[2] = <char>NPY_DOUBLE
 ufunc__kolmogci_types[3] = <char>NPY_DOUBLE
-ufunc__kolmogci_ptr[2*0] = <void*>_func_kolmogci
+ufunc__kolmogci_ptr[2*0] = <void*>_func_cephes_kolmogci
 ufunc__kolmogci_ptr[2*0+1] = <void*>(<char*>"_kolmogci")
-ufunc__kolmogci_ptr[2*1] = <void*>_func_kolmogci
+ufunc__kolmogci_ptr[2*1] = <void*>_func_cephes_kolmogci
 ufunc__kolmogci_ptr[2*1+1] = <void*>(<char*>"_kolmogci")
 ufunc__kolmogci_data[0] = &ufunc__kolmogci_ptr[2*0]
 ufunc__kolmogci_data[1] = &ufunc__kolmogci_ptr[2*1]
@@ -2300,29 +2112,13 @@ ufunc__kolmogp_types[0] = <char>NPY_FLOAT
 ufunc__kolmogp_types[1] = <char>NPY_FLOAT
 ufunc__kolmogp_types[2] = <char>NPY_DOUBLE
 ufunc__kolmogp_types[3] = <char>NPY_DOUBLE
-ufunc__kolmogp_ptr[2*0] = <void*>_func_kolmogp
+ufunc__kolmogp_ptr[2*0] = <void*>_func_cephes_kolmogp
 ufunc__kolmogp_ptr[2*0+1] = <void*>(<char*>"_kolmogp")
-ufunc__kolmogp_ptr[2*1] = <void*>_func_kolmogp
+ufunc__kolmogp_ptr[2*1] = <void*>_func_cephes_kolmogp
 ufunc__kolmogp_ptr[2*1+1] = <void*>(<char*>"_kolmogp")
 ufunc__kolmogp_data[0] = &ufunc__kolmogp_ptr[2*0]
 ufunc__kolmogp_data[1] = &ufunc__kolmogp_ptr[2*1]
 _kolmogp = np.PyUFunc_FromFuncAndData(ufunc__kolmogp_loops, ufunc__kolmogp_data, ufunc__kolmogp_types, 2, 1, 1, 0, "_kolmogp", ufunc__kolmogp_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc__lambertw_loops[1]
-cdef void *ufunc__lambertw_ptr[2]
-cdef void *ufunc__lambertw_data[1]
-cdef char ufunc__lambertw_types[4]
-cdef char *ufunc__lambertw_doc = (
-    "Internal function, use `lambertw` instead.")
-ufunc__lambertw_loops[0] = <np.PyUFuncGenericFunction>loop_D_Dld__As_Dld_D
-ufunc__lambertw_types[0] = <char>NPY_CDOUBLE
-ufunc__lambertw_types[1] = <char>NPY_LONG
-ufunc__lambertw_types[2] = <char>NPY_DOUBLE
-ufunc__lambertw_types[3] = <char>NPY_CDOUBLE
-ufunc__lambertw_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_lambertw_scalar
-ufunc__lambertw_ptr[2*0+1] = <void*>(<char*>"_lambertw")
-ufunc__lambertw_data[0] = &ufunc__lambertw_ptr[2*0]
-_lambertw = np.PyUFunc_FromFuncAndData(ufunc__lambertw_loops, ufunc__lambertw_data, ufunc__lambertw_types, 1, 3, 1, 0, "_lambertw", ufunc__lambertw_doc, 0)
 
 cdef np.PyUFuncGenericFunction ufunc__lanczos_sum_expg_scaled_loops[2]
 cdef void *ufunc__lanczos_sum_expg_scaled_ptr[4]
@@ -2336,9 +2132,9 @@ ufunc__lanczos_sum_expg_scaled_types[0] = <char>NPY_FLOAT
 ufunc__lanczos_sum_expg_scaled_types[1] = <char>NPY_FLOAT
 ufunc__lanczos_sum_expg_scaled_types[2] = <char>NPY_DOUBLE
 ufunc__lanczos_sum_expg_scaled_types[3] = <char>NPY_DOUBLE
-ufunc__lanczos_sum_expg_scaled_ptr[2*0] = <void*>_func_lanczos_sum_expg_scaled
+ufunc__lanczos_sum_expg_scaled_ptr[2*0] = <void*>_func_cephes_lanczos_sum_expg_scaled
 ufunc__lanczos_sum_expg_scaled_ptr[2*0+1] = <void*>(<char*>"_lanczos_sum_expg_scaled")
-ufunc__lanczos_sum_expg_scaled_ptr[2*1] = <void*>_func_lanczos_sum_expg_scaled
+ufunc__lanczos_sum_expg_scaled_ptr[2*1] = <void*>_func_cephes_lanczos_sum_expg_scaled
 ufunc__lanczos_sum_expg_scaled_ptr[2*1+1] = <void*>(<char*>"_lanczos_sum_expg_scaled")
 ufunc__lanczos_sum_expg_scaled_data[0] = &ufunc__lanczos_sum_expg_scaled_ptr[2*0]
 ufunc__lanczos_sum_expg_scaled_data[1] = &ufunc__lanczos_sum_expg_scaled_ptr[2*1]
@@ -2356,9 +2152,9 @@ ufunc__lgam1p_types[0] = <char>NPY_FLOAT
 ufunc__lgam1p_types[1] = <char>NPY_FLOAT
 ufunc__lgam1p_types[2] = <char>NPY_DOUBLE
 ufunc__lgam1p_types[3] = <char>NPY_DOUBLE
-ufunc__lgam1p_ptr[2*0] = <void*>_func_lgam1p
+ufunc__lgam1p_ptr[2*0] = <void*>_func_cephes_lgam1p
 ufunc__lgam1p_ptr[2*0+1] = <void*>(<char*>"_lgam1p")
-ufunc__lgam1p_ptr[2*1] = <void*>_func_lgam1p
+ufunc__lgam1p_ptr[2*1] = <void*>_func_cephes_lgam1p
 ufunc__lgam1p_ptr[2*1+1] = <void*>(<char*>"_lgam1p")
 ufunc__lgam1p_data[0] = &ufunc__lgam1p_ptr[2*0]
 ufunc__lgam1p_data[1] = &ufunc__lgam1p_ptr[2*1]
@@ -2376,13 +2172,1164 @@ ufunc__log1pmx_types[0] = <char>NPY_FLOAT
 ufunc__log1pmx_types[1] = <char>NPY_FLOAT
 ufunc__log1pmx_types[2] = <char>NPY_DOUBLE
 ufunc__log1pmx_types[3] = <char>NPY_DOUBLE
-ufunc__log1pmx_ptr[2*0] = <void*>_func_log1pmx
+ufunc__log1pmx_ptr[2*0] = <void*>_func_cephes_log1pmx
 ufunc__log1pmx_ptr[2*0+1] = <void*>(<char*>"_log1pmx")
-ufunc__log1pmx_ptr[2*1] = <void*>_func_log1pmx
+ufunc__log1pmx_ptr[2*1] = <void*>_func_cephes_log1pmx
 ufunc__log1pmx_ptr[2*1+1] = <void*>(<char*>"_log1pmx")
 ufunc__log1pmx_data[0] = &ufunc__log1pmx_ptr[2*0]
 ufunc__log1pmx_data[1] = &ufunc__log1pmx_ptr[2*1]
 _log1pmx = np.PyUFunc_FromFuncAndData(ufunc__log1pmx_loops, ufunc__log1pmx_data, ufunc__log1pmx_types, 2, 1, 1, 0, "_log1pmx", ufunc__log1pmx_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__nbinom_cdf_loops[2]
+cdef void *ufunc__nbinom_cdf_ptr[4]
+cdef void *ufunc__nbinom_cdf_data[2]
+cdef char ufunc__nbinom_cdf_types[8]
+cdef char *ufunc__nbinom_cdf_doc = (
+    "_nbinom_cdf(x, r, p)\n"
+    "\n"
+    "Cumulative density function of negative binomial distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Real-valued\n"
+    "r : array_like\n"
+    "    Positive, integer-valued parameter\n"
+    "p : array_like\n"
+    "    Positive, real-valued parameter\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__nbinom_cdf_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc__nbinom_cdf_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc__nbinom_cdf_types[0] = <char>NPY_FLOAT
+ufunc__nbinom_cdf_types[1] = <char>NPY_FLOAT
+ufunc__nbinom_cdf_types[2] = <char>NPY_FLOAT
+ufunc__nbinom_cdf_types[3] = <char>NPY_FLOAT
+ufunc__nbinom_cdf_types[4] = <char>NPY_DOUBLE
+ufunc__nbinom_cdf_types[5] = <char>NPY_DOUBLE
+ufunc__nbinom_cdf_types[6] = <char>NPY_DOUBLE
+ufunc__nbinom_cdf_types[7] = <char>NPY_DOUBLE
+ufunc__nbinom_cdf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_nbinom_cdf_float
+ufunc__nbinom_cdf_ptr[2*0+1] = <void*>(<char*>"_nbinom_cdf")
+ufunc__nbinom_cdf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_nbinom_cdf_double
+ufunc__nbinom_cdf_ptr[2*1+1] = <void*>(<char*>"_nbinom_cdf")
+ufunc__nbinom_cdf_data[0] = &ufunc__nbinom_cdf_ptr[2*0]
+ufunc__nbinom_cdf_data[1] = &ufunc__nbinom_cdf_ptr[2*1]
+_nbinom_cdf = np.PyUFunc_FromFuncAndData(ufunc__nbinom_cdf_loops, ufunc__nbinom_cdf_data, ufunc__nbinom_cdf_types, 2, 3, 1, 0, "_nbinom_cdf", ufunc__nbinom_cdf_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__nbinom_isf_loops[2]
+cdef void *ufunc__nbinom_isf_ptr[4]
+cdef void *ufunc__nbinom_isf_data[2]
+cdef char ufunc__nbinom_isf_types[8]
+cdef char *ufunc__nbinom_isf_doc = (
+    "_nbinom_isf(x, r, p)\n"
+    "\n"
+    "Inverse survival function of negative binomial distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Real-valued\n"
+    "r : array_like\n"
+    "    Positive, integer-valued parameter\n"
+    "p : array_like\n"
+    "    Positive, real-valued parameter\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__nbinom_isf_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc__nbinom_isf_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc__nbinom_isf_types[0] = <char>NPY_FLOAT
+ufunc__nbinom_isf_types[1] = <char>NPY_FLOAT
+ufunc__nbinom_isf_types[2] = <char>NPY_FLOAT
+ufunc__nbinom_isf_types[3] = <char>NPY_FLOAT
+ufunc__nbinom_isf_types[4] = <char>NPY_DOUBLE
+ufunc__nbinom_isf_types[5] = <char>NPY_DOUBLE
+ufunc__nbinom_isf_types[6] = <char>NPY_DOUBLE
+ufunc__nbinom_isf_types[7] = <char>NPY_DOUBLE
+ufunc__nbinom_isf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_nbinom_isf_float
+ufunc__nbinom_isf_ptr[2*0+1] = <void*>(<char*>"_nbinom_isf")
+ufunc__nbinom_isf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_nbinom_isf_double
+ufunc__nbinom_isf_ptr[2*1+1] = <void*>(<char*>"_nbinom_isf")
+ufunc__nbinom_isf_data[0] = &ufunc__nbinom_isf_ptr[2*0]
+ufunc__nbinom_isf_data[1] = &ufunc__nbinom_isf_ptr[2*1]
+_nbinom_isf = np.PyUFunc_FromFuncAndData(ufunc__nbinom_isf_loops, ufunc__nbinom_isf_data, ufunc__nbinom_isf_types, 2, 3, 1, 0, "_nbinom_isf", ufunc__nbinom_isf_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__nbinom_kurtosis_excess_loops[2]
+cdef void *ufunc__nbinom_kurtosis_excess_ptr[4]
+cdef void *ufunc__nbinom_kurtosis_excess_data[2]
+cdef char ufunc__nbinom_kurtosis_excess_types[6]
+cdef char *ufunc__nbinom_kurtosis_excess_doc = (
+    "_nbinom_kurtosis_excess(r, p)\n"
+    "\n"
+    "Kurtosis excess of negative binomial distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "r : array_like\n"
+    "    Positive, integer-valued parameter\n"
+    "p : array_like\n"
+    "    Positive, real-valued parameter\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__nbinom_kurtosis_excess_loops[0] = <np.PyUFuncGenericFunction>loop_f_ff__As_ff_f
+ufunc__nbinom_kurtosis_excess_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
+ufunc__nbinom_kurtosis_excess_types[0] = <char>NPY_FLOAT
+ufunc__nbinom_kurtosis_excess_types[1] = <char>NPY_FLOAT
+ufunc__nbinom_kurtosis_excess_types[2] = <char>NPY_FLOAT
+ufunc__nbinom_kurtosis_excess_types[3] = <char>NPY_DOUBLE
+ufunc__nbinom_kurtosis_excess_types[4] = <char>NPY_DOUBLE
+ufunc__nbinom_kurtosis_excess_types[5] = <char>NPY_DOUBLE
+ufunc__nbinom_kurtosis_excess_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_nbinom_kurtosis_excess_float
+ufunc__nbinom_kurtosis_excess_ptr[2*0+1] = <void*>(<char*>"_nbinom_kurtosis_excess")
+ufunc__nbinom_kurtosis_excess_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_nbinom_kurtosis_excess_double
+ufunc__nbinom_kurtosis_excess_ptr[2*1+1] = <void*>(<char*>"_nbinom_kurtosis_excess")
+ufunc__nbinom_kurtosis_excess_data[0] = &ufunc__nbinom_kurtosis_excess_ptr[2*0]
+ufunc__nbinom_kurtosis_excess_data[1] = &ufunc__nbinom_kurtosis_excess_ptr[2*1]
+_nbinom_kurtosis_excess = np.PyUFunc_FromFuncAndData(ufunc__nbinom_kurtosis_excess_loops, ufunc__nbinom_kurtosis_excess_data, ufunc__nbinom_kurtosis_excess_types, 2, 2, 1, 0, "_nbinom_kurtosis_excess", ufunc__nbinom_kurtosis_excess_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__nbinom_mean_loops[2]
+cdef void *ufunc__nbinom_mean_ptr[4]
+cdef void *ufunc__nbinom_mean_data[2]
+cdef char ufunc__nbinom_mean_types[6]
+cdef char *ufunc__nbinom_mean_doc = (
+    "_nbinom_mean(r, p)\n"
+    "\n"
+    "Mean of negative binomial distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "r : array_like\n"
+    "    Positive, integer-valued parameter\n"
+    "p : array_like\n"
+    "    Positive, real-valued parameter\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__nbinom_mean_loops[0] = <np.PyUFuncGenericFunction>loop_f_ff__As_ff_f
+ufunc__nbinom_mean_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
+ufunc__nbinom_mean_types[0] = <char>NPY_FLOAT
+ufunc__nbinom_mean_types[1] = <char>NPY_FLOAT
+ufunc__nbinom_mean_types[2] = <char>NPY_FLOAT
+ufunc__nbinom_mean_types[3] = <char>NPY_DOUBLE
+ufunc__nbinom_mean_types[4] = <char>NPY_DOUBLE
+ufunc__nbinom_mean_types[5] = <char>NPY_DOUBLE
+ufunc__nbinom_mean_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_nbinom_mean_float
+ufunc__nbinom_mean_ptr[2*0+1] = <void*>(<char*>"_nbinom_mean")
+ufunc__nbinom_mean_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_nbinom_mean_double
+ufunc__nbinom_mean_ptr[2*1+1] = <void*>(<char*>"_nbinom_mean")
+ufunc__nbinom_mean_data[0] = &ufunc__nbinom_mean_ptr[2*0]
+ufunc__nbinom_mean_data[1] = &ufunc__nbinom_mean_ptr[2*1]
+_nbinom_mean = np.PyUFunc_FromFuncAndData(ufunc__nbinom_mean_loops, ufunc__nbinom_mean_data, ufunc__nbinom_mean_types, 2, 2, 1, 0, "_nbinom_mean", ufunc__nbinom_mean_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__nbinom_pmf_loops[2]
+cdef void *ufunc__nbinom_pmf_ptr[4]
+cdef void *ufunc__nbinom_pmf_data[2]
+cdef char ufunc__nbinom_pmf_types[8]
+cdef char *ufunc__nbinom_pmf_doc = (
+    "_nbinom_pmf(x, r, p)\n"
+    "\n"
+    "Probability mass function of negative binomial distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Real-valued\n"
+    "r : array_like\n"
+    "    Positive, integer-valued parameter\n"
+    "p : array_like\n"
+    "    Positive, real-valued parameter\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__nbinom_pmf_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc__nbinom_pmf_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc__nbinom_pmf_types[0] = <char>NPY_FLOAT
+ufunc__nbinom_pmf_types[1] = <char>NPY_FLOAT
+ufunc__nbinom_pmf_types[2] = <char>NPY_FLOAT
+ufunc__nbinom_pmf_types[3] = <char>NPY_FLOAT
+ufunc__nbinom_pmf_types[4] = <char>NPY_DOUBLE
+ufunc__nbinom_pmf_types[5] = <char>NPY_DOUBLE
+ufunc__nbinom_pmf_types[6] = <char>NPY_DOUBLE
+ufunc__nbinom_pmf_types[7] = <char>NPY_DOUBLE
+ufunc__nbinom_pmf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_nbinom_pmf_float
+ufunc__nbinom_pmf_ptr[2*0+1] = <void*>(<char*>"_nbinom_pmf")
+ufunc__nbinom_pmf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_nbinom_pmf_double
+ufunc__nbinom_pmf_ptr[2*1+1] = <void*>(<char*>"_nbinom_pmf")
+ufunc__nbinom_pmf_data[0] = &ufunc__nbinom_pmf_ptr[2*0]
+ufunc__nbinom_pmf_data[1] = &ufunc__nbinom_pmf_ptr[2*1]
+_nbinom_pmf = np.PyUFunc_FromFuncAndData(ufunc__nbinom_pmf_loops, ufunc__nbinom_pmf_data, ufunc__nbinom_pmf_types, 2, 3, 1, 0, "_nbinom_pmf", ufunc__nbinom_pmf_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__nbinom_ppf_loops[2]
+cdef void *ufunc__nbinom_ppf_ptr[4]
+cdef void *ufunc__nbinom_ppf_data[2]
+cdef char ufunc__nbinom_ppf_types[8]
+cdef char *ufunc__nbinom_ppf_doc = (
+    "_nbinom_ppf(x, r, p)\n"
+    "\n"
+    "Percent point function of negative binomial distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Real-valued\n"
+    "r : array_like\n"
+    "    Positive, integer-valued parameter\n"
+    "p : array_like\n"
+    "    Positive, real-valued parameter\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__nbinom_ppf_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc__nbinom_ppf_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc__nbinom_ppf_types[0] = <char>NPY_FLOAT
+ufunc__nbinom_ppf_types[1] = <char>NPY_FLOAT
+ufunc__nbinom_ppf_types[2] = <char>NPY_FLOAT
+ufunc__nbinom_ppf_types[3] = <char>NPY_FLOAT
+ufunc__nbinom_ppf_types[4] = <char>NPY_DOUBLE
+ufunc__nbinom_ppf_types[5] = <char>NPY_DOUBLE
+ufunc__nbinom_ppf_types[6] = <char>NPY_DOUBLE
+ufunc__nbinom_ppf_types[7] = <char>NPY_DOUBLE
+ufunc__nbinom_ppf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_nbinom_ppf_float
+ufunc__nbinom_ppf_ptr[2*0+1] = <void*>(<char*>"_nbinom_ppf")
+ufunc__nbinom_ppf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_nbinom_ppf_double
+ufunc__nbinom_ppf_ptr[2*1+1] = <void*>(<char*>"_nbinom_ppf")
+ufunc__nbinom_ppf_data[0] = &ufunc__nbinom_ppf_ptr[2*0]
+ufunc__nbinom_ppf_data[1] = &ufunc__nbinom_ppf_ptr[2*1]
+_nbinom_ppf = np.PyUFunc_FromFuncAndData(ufunc__nbinom_ppf_loops, ufunc__nbinom_ppf_data, ufunc__nbinom_ppf_types, 2, 3, 1, 0, "_nbinom_ppf", ufunc__nbinom_ppf_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__nbinom_sf_loops[2]
+cdef void *ufunc__nbinom_sf_ptr[4]
+cdef void *ufunc__nbinom_sf_data[2]
+cdef char ufunc__nbinom_sf_types[8]
+cdef char *ufunc__nbinom_sf_doc = (
+    "_nbinom_sf(x, r, p)\n"
+    "\n"
+    "Survival function of negative binomial distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Real-valued\n"
+    "r : array_like\n"
+    "    Positive, integer-valued parameter\n"
+    "p : array_like\n"
+    "    Positive, real-valued parameter\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__nbinom_sf_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc__nbinom_sf_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc__nbinom_sf_types[0] = <char>NPY_FLOAT
+ufunc__nbinom_sf_types[1] = <char>NPY_FLOAT
+ufunc__nbinom_sf_types[2] = <char>NPY_FLOAT
+ufunc__nbinom_sf_types[3] = <char>NPY_FLOAT
+ufunc__nbinom_sf_types[4] = <char>NPY_DOUBLE
+ufunc__nbinom_sf_types[5] = <char>NPY_DOUBLE
+ufunc__nbinom_sf_types[6] = <char>NPY_DOUBLE
+ufunc__nbinom_sf_types[7] = <char>NPY_DOUBLE
+ufunc__nbinom_sf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_nbinom_sf_float
+ufunc__nbinom_sf_ptr[2*0+1] = <void*>(<char*>"_nbinom_sf")
+ufunc__nbinom_sf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_nbinom_sf_double
+ufunc__nbinom_sf_ptr[2*1+1] = <void*>(<char*>"_nbinom_sf")
+ufunc__nbinom_sf_data[0] = &ufunc__nbinom_sf_ptr[2*0]
+ufunc__nbinom_sf_data[1] = &ufunc__nbinom_sf_ptr[2*1]
+_nbinom_sf = np.PyUFunc_FromFuncAndData(ufunc__nbinom_sf_loops, ufunc__nbinom_sf_data, ufunc__nbinom_sf_types, 2, 3, 1, 0, "_nbinom_sf", ufunc__nbinom_sf_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__nbinom_skewness_loops[2]
+cdef void *ufunc__nbinom_skewness_ptr[4]
+cdef void *ufunc__nbinom_skewness_data[2]
+cdef char ufunc__nbinom_skewness_types[6]
+cdef char *ufunc__nbinom_skewness_doc = (
+    "_nbinom_skewness(r, p)\n"
+    "\n"
+    "Skewness of negative binomial distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "r : array_like\n"
+    "    Positive, integer-valued parameter\n"
+    "p : array_like\n"
+    "    Positive, real-valued parameter\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__nbinom_skewness_loops[0] = <np.PyUFuncGenericFunction>loop_f_ff__As_ff_f
+ufunc__nbinom_skewness_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
+ufunc__nbinom_skewness_types[0] = <char>NPY_FLOAT
+ufunc__nbinom_skewness_types[1] = <char>NPY_FLOAT
+ufunc__nbinom_skewness_types[2] = <char>NPY_FLOAT
+ufunc__nbinom_skewness_types[3] = <char>NPY_DOUBLE
+ufunc__nbinom_skewness_types[4] = <char>NPY_DOUBLE
+ufunc__nbinom_skewness_types[5] = <char>NPY_DOUBLE
+ufunc__nbinom_skewness_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_nbinom_skewness_float
+ufunc__nbinom_skewness_ptr[2*0+1] = <void*>(<char*>"_nbinom_skewness")
+ufunc__nbinom_skewness_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_nbinom_skewness_double
+ufunc__nbinom_skewness_ptr[2*1+1] = <void*>(<char*>"_nbinom_skewness")
+ufunc__nbinom_skewness_data[0] = &ufunc__nbinom_skewness_ptr[2*0]
+ufunc__nbinom_skewness_data[1] = &ufunc__nbinom_skewness_ptr[2*1]
+_nbinom_skewness = np.PyUFunc_FromFuncAndData(ufunc__nbinom_skewness_loops, ufunc__nbinom_skewness_data, ufunc__nbinom_skewness_types, 2, 2, 1, 0, "_nbinom_skewness", ufunc__nbinom_skewness_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__nbinom_variance_loops[2]
+cdef void *ufunc__nbinom_variance_ptr[4]
+cdef void *ufunc__nbinom_variance_data[2]
+cdef char ufunc__nbinom_variance_types[6]
+cdef char *ufunc__nbinom_variance_doc = (
+    "_nbinom_variance(r, p)\n"
+    "\n"
+    "Variance of negative binomial distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "r : array_like\n"
+    "    Positive, integer-valued parameter\n"
+    "p : array_like\n"
+    "    Positive, real-valued parameter\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__nbinom_variance_loops[0] = <np.PyUFuncGenericFunction>loop_f_ff__As_ff_f
+ufunc__nbinom_variance_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
+ufunc__nbinom_variance_types[0] = <char>NPY_FLOAT
+ufunc__nbinom_variance_types[1] = <char>NPY_FLOAT
+ufunc__nbinom_variance_types[2] = <char>NPY_FLOAT
+ufunc__nbinom_variance_types[3] = <char>NPY_DOUBLE
+ufunc__nbinom_variance_types[4] = <char>NPY_DOUBLE
+ufunc__nbinom_variance_types[5] = <char>NPY_DOUBLE
+ufunc__nbinom_variance_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_nbinom_variance_float
+ufunc__nbinom_variance_ptr[2*0+1] = <void*>(<char*>"_nbinom_variance")
+ufunc__nbinom_variance_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_nbinom_variance_double
+ufunc__nbinom_variance_ptr[2*1+1] = <void*>(<char*>"_nbinom_variance")
+ufunc__nbinom_variance_data[0] = &ufunc__nbinom_variance_ptr[2*0]
+ufunc__nbinom_variance_data[1] = &ufunc__nbinom_variance_ptr[2*1]
+_nbinom_variance = np.PyUFunc_FromFuncAndData(ufunc__nbinom_variance_loops, ufunc__nbinom_variance_data, ufunc__nbinom_variance_types, 2, 2, 1, 0, "_nbinom_variance", ufunc__nbinom_variance_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__ncf_cdf_loops[2]
+cdef void *ufunc__ncf_cdf_ptr[4]
+cdef void *ufunc__ncf_cdf_data[2]
+cdef char ufunc__ncf_cdf_types[10]
+cdef char *ufunc__ncf_cdf_doc = (
+    "_ncf_cdf(x, v1, v2, l)\n"
+    "\n"
+    "Cumulative density function of noncentral F-distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Positive real-valued\n"
+    "v1, v2, l : array_like\n"
+    "    Positive, real-valued parameters\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__ncf_cdf_loops[0] = <np.PyUFuncGenericFunction>loop_f_ffff__As_ffff_f
+ufunc__ncf_cdf_loops[1] = <np.PyUFuncGenericFunction>loop_d_dddd__As_dddd_d
+ufunc__ncf_cdf_types[0] = <char>NPY_FLOAT
+ufunc__ncf_cdf_types[1] = <char>NPY_FLOAT
+ufunc__ncf_cdf_types[2] = <char>NPY_FLOAT
+ufunc__ncf_cdf_types[3] = <char>NPY_FLOAT
+ufunc__ncf_cdf_types[4] = <char>NPY_FLOAT
+ufunc__ncf_cdf_types[5] = <char>NPY_DOUBLE
+ufunc__ncf_cdf_types[6] = <char>NPY_DOUBLE
+ufunc__ncf_cdf_types[7] = <char>NPY_DOUBLE
+ufunc__ncf_cdf_types[8] = <char>NPY_DOUBLE
+ufunc__ncf_cdf_types[9] = <char>NPY_DOUBLE
+ufunc__ncf_cdf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_ncf_cdf_float
+ufunc__ncf_cdf_ptr[2*0+1] = <void*>(<char*>"_ncf_cdf")
+ufunc__ncf_cdf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_ncf_cdf_double
+ufunc__ncf_cdf_ptr[2*1+1] = <void*>(<char*>"_ncf_cdf")
+ufunc__ncf_cdf_data[0] = &ufunc__ncf_cdf_ptr[2*0]
+ufunc__ncf_cdf_data[1] = &ufunc__ncf_cdf_ptr[2*1]
+_ncf_cdf = np.PyUFunc_FromFuncAndData(ufunc__ncf_cdf_loops, ufunc__ncf_cdf_data, ufunc__ncf_cdf_types, 2, 4, 1, 0, "_ncf_cdf", ufunc__ncf_cdf_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__ncf_isf_loops[2]
+cdef void *ufunc__ncf_isf_ptr[4]
+cdef void *ufunc__ncf_isf_data[2]
+cdef char ufunc__ncf_isf_types[10]
+cdef char *ufunc__ncf_isf_doc = (
+    "_ncf_isf(x, v1, v2, l)\n"
+    "\n"
+    "Inverse surivial function of noncentral F-distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Positive real-valued\n"
+    "v1, v2, l : array_like\n"
+    "    Positive, real-valued parameters\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__ncf_isf_loops[0] = <np.PyUFuncGenericFunction>loop_f_ffff__As_ffff_f
+ufunc__ncf_isf_loops[1] = <np.PyUFuncGenericFunction>loop_d_dddd__As_dddd_d
+ufunc__ncf_isf_types[0] = <char>NPY_FLOAT
+ufunc__ncf_isf_types[1] = <char>NPY_FLOAT
+ufunc__ncf_isf_types[2] = <char>NPY_FLOAT
+ufunc__ncf_isf_types[3] = <char>NPY_FLOAT
+ufunc__ncf_isf_types[4] = <char>NPY_FLOAT
+ufunc__ncf_isf_types[5] = <char>NPY_DOUBLE
+ufunc__ncf_isf_types[6] = <char>NPY_DOUBLE
+ufunc__ncf_isf_types[7] = <char>NPY_DOUBLE
+ufunc__ncf_isf_types[8] = <char>NPY_DOUBLE
+ufunc__ncf_isf_types[9] = <char>NPY_DOUBLE
+ufunc__ncf_isf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_ncf_isf_float
+ufunc__ncf_isf_ptr[2*0+1] = <void*>(<char*>"_ncf_isf")
+ufunc__ncf_isf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_ncf_isf_double
+ufunc__ncf_isf_ptr[2*1+1] = <void*>(<char*>"_ncf_isf")
+ufunc__ncf_isf_data[0] = &ufunc__ncf_isf_ptr[2*0]
+ufunc__ncf_isf_data[1] = &ufunc__ncf_isf_ptr[2*1]
+_ncf_isf = np.PyUFunc_FromFuncAndData(ufunc__ncf_isf_loops, ufunc__ncf_isf_data, ufunc__ncf_isf_types, 2, 4, 1, 0, "_ncf_isf", ufunc__ncf_isf_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__ncf_kurtosis_excess_loops[2]
+cdef void *ufunc__ncf_kurtosis_excess_ptr[4]
+cdef void *ufunc__ncf_kurtosis_excess_data[2]
+cdef char ufunc__ncf_kurtosis_excess_types[8]
+cdef char *ufunc__ncf_kurtosis_excess_doc = (
+    "_ncf_kurtosis_excess(v1, v2, l)\n"
+    "\n"
+    "Kurtosis excess of noncentral F-distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "v1, v2, l : array_like\n"
+    "    Positive, real-valued parameters\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__ncf_kurtosis_excess_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc__ncf_kurtosis_excess_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc__ncf_kurtosis_excess_types[0] = <char>NPY_FLOAT
+ufunc__ncf_kurtosis_excess_types[1] = <char>NPY_FLOAT
+ufunc__ncf_kurtosis_excess_types[2] = <char>NPY_FLOAT
+ufunc__ncf_kurtosis_excess_types[3] = <char>NPY_FLOAT
+ufunc__ncf_kurtosis_excess_types[4] = <char>NPY_DOUBLE
+ufunc__ncf_kurtosis_excess_types[5] = <char>NPY_DOUBLE
+ufunc__ncf_kurtosis_excess_types[6] = <char>NPY_DOUBLE
+ufunc__ncf_kurtosis_excess_types[7] = <char>NPY_DOUBLE
+ufunc__ncf_kurtosis_excess_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_ncf_kurtosis_excess_float
+ufunc__ncf_kurtosis_excess_ptr[2*0+1] = <void*>(<char*>"_ncf_kurtosis_excess")
+ufunc__ncf_kurtosis_excess_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_ncf_kurtosis_excess_double
+ufunc__ncf_kurtosis_excess_ptr[2*1+1] = <void*>(<char*>"_ncf_kurtosis_excess")
+ufunc__ncf_kurtosis_excess_data[0] = &ufunc__ncf_kurtosis_excess_ptr[2*0]
+ufunc__ncf_kurtosis_excess_data[1] = &ufunc__ncf_kurtosis_excess_ptr[2*1]
+_ncf_kurtosis_excess = np.PyUFunc_FromFuncAndData(ufunc__ncf_kurtosis_excess_loops, ufunc__ncf_kurtosis_excess_data, ufunc__ncf_kurtosis_excess_types, 2, 3, 1, 0, "_ncf_kurtosis_excess", ufunc__ncf_kurtosis_excess_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__ncf_mean_loops[2]
+cdef void *ufunc__ncf_mean_ptr[4]
+cdef void *ufunc__ncf_mean_data[2]
+cdef char ufunc__ncf_mean_types[8]
+cdef char *ufunc__ncf_mean_doc = (
+    "_ncf_mean(v1, v2, l)\n"
+    "\n"
+    "Mean of noncentral F-distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "v1, v2, l : array_like\n"
+    "    Positive, real-valued parameters\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__ncf_mean_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc__ncf_mean_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc__ncf_mean_types[0] = <char>NPY_FLOAT
+ufunc__ncf_mean_types[1] = <char>NPY_FLOAT
+ufunc__ncf_mean_types[2] = <char>NPY_FLOAT
+ufunc__ncf_mean_types[3] = <char>NPY_FLOAT
+ufunc__ncf_mean_types[4] = <char>NPY_DOUBLE
+ufunc__ncf_mean_types[5] = <char>NPY_DOUBLE
+ufunc__ncf_mean_types[6] = <char>NPY_DOUBLE
+ufunc__ncf_mean_types[7] = <char>NPY_DOUBLE
+ufunc__ncf_mean_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_ncf_mean_float
+ufunc__ncf_mean_ptr[2*0+1] = <void*>(<char*>"_ncf_mean")
+ufunc__ncf_mean_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_ncf_mean_double
+ufunc__ncf_mean_ptr[2*1+1] = <void*>(<char*>"_ncf_mean")
+ufunc__ncf_mean_data[0] = &ufunc__ncf_mean_ptr[2*0]
+ufunc__ncf_mean_data[1] = &ufunc__ncf_mean_ptr[2*1]
+_ncf_mean = np.PyUFunc_FromFuncAndData(ufunc__ncf_mean_loops, ufunc__ncf_mean_data, ufunc__ncf_mean_types, 2, 3, 1, 0, "_ncf_mean", ufunc__ncf_mean_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__ncf_pdf_loops[2]
+cdef void *ufunc__ncf_pdf_ptr[4]
+cdef void *ufunc__ncf_pdf_data[2]
+cdef char ufunc__ncf_pdf_types[10]
+cdef char *ufunc__ncf_pdf_doc = (
+    "_ncf_pdf(x, v1, v2, l)\n"
+    "\n"
+    "Probability density function of noncentral F-distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Positive real-valued\n"
+    "v1, v2, l : array_like\n"
+    "    Positive, real-valued parameters\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__ncf_pdf_loops[0] = <np.PyUFuncGenericFunction>loop_f_ffff__As_ffff_f
+ufunc__ncf_pdf_loops[1] = <np.PyUFuncGenericFunction>loop_d_dddd__As_dddd_d
+ufunc__ncf_pdf_types[0] = <char>NPY_FLOAT
+ufunc__ncf_pdf_types[1] = <char>NPY_FLOAT
+ufunc__ncf_pdf_types[2] = <char>NPY_FLOAT
+ufunc__ncf_pdf_types[3] = <char>NPY_FLOAT
+ufunc__ncf_pdf_types[4] = <char>NPY_FLOAT
+ufunc__ncf_pdf_types[5] = <char>NPY_DOUBLE
+ufunc__ncf_pdf_types[6] = <char>NPY_DOUBLE
+ufunc__ncf_pdf_types[7] = <char>NPY_DOUBLE
+ufunc__ncf_pdf_types[8] = <char>NPY_DOUBLE
+ufunc__ncf_pdf_types[9] = <char>NPY_DOUBLE
+ufunc__ncf_pdf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_ncf_pdf_float
+ufunc__ncf_pdf_ptr[2*0+1] = <void*>(<char*>"_ncf_pdf")
+ufunc__ncf_pdf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_ncf_pdf_double
+ufunc__ncf_pdf_ptr[2*1+1] = <void*>(<char*>"_ncf_pdf")
+ufunc__ncf_pdf_data[0] = &ufunc__ncf_pdf_ptr[2*0]
+ufunc__ncf_pdf_data[1] = &ufunc__ncf_pdf_ptr[2*1]
+_ncf_pdf = np.PyUFunc_FromFuncAndData(ufunc__ncf_pdf_loops, ufunc__ncf_pdf_data, ufunc__ncf_pdf_types, 2, 4, 1, 0, "_ncf_pdf", ufunc__ncf_pdf_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__ncf_ppf_loops[2]
+cdef void *ufunc__ncf_ppf_ptr[4]
+cdef void *ufunc__ncf_ppf_data[2]
+cdef char ufunc__ncf_ppf_types[10]
+cdef char *ufunc__ncf_ppf_doc = (
+    "_ncf_ppf(x, v1, v2, l)\n"
+    "\n"
+    "Percent point function of noncentral F-distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Positive real-valued\n"
+    "v1, v2, l : array_like\n"
+    "    Positive, real-valued parameters\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__ncf_ppf_loops[0] = <np.PyUFuncGenericFunction>loop_f_ffff__As_ffff_f
+ufunc__ncf_ppf_loops[1] = <np.PyUFuncGenericFunction>loop_d_dddd__As_dddd_d
+ufunc__ncf_ppf_types[0] = <char>NPY_FLOAT
+ufunc__ncf_ppf_types[1] = <char>NPY_FLOAT
+ufunc__ncf_ppf_types[2] = <char>NPY_FLOAT
+ufunc__ncf_ppf_types[3] = <char>NPY_FLOAT
+ufunc__ncf_ppf_types[4] = <char>NPY_FLOAT
+ufunc__ncf_ppf_types[5] = <char>NPY_DOUBLE
+ufunc__ncf_ppf_types[6] = <char>NPY_DOUBLE
+ufunc__ncf_ppf_types[7] = <char>NPY_DOUBLE
+ufunc__ncf_ppf_types[8] = <char>NPY_DOUBLE
+ufunc__ncf_ppf_types[9] = <char>NPY_DOUBLE
+ufunc__ncf_ppf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_ncf_ppf_float
+ufunc__ncf_ppf_ptr[2*0+1] = <void*>(<char*>"_ncf_ppf")
+ufunc__ncf_ppf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_ncf_ppf_double
+ufunc__ncf_ppf_ptr[2*1+1] = <void*>(<char*>"_ncf_ppf")
+ufunc__ncf_ppf_data[0] = &ufunc__ncf_ppf_ptr[2*0]
+ufunc__ncf_ppf_data[1] = &ufunc__ncf_ppf_ptr[2*1]
+_ncf_ppf = np.PyUFunc_FromFuncAndData(ufunc__ncf_ppf_loops, ufunc__ncf_ppf_data, ufunc__ncf_ppf_types, 2, 4, 1, 0, "_ncf_ppf", ufunc__ncf_ppf_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__ncf_sf_loops[2]
+cdef void *ufunc__ncf_sf_ptr[4]
+cdef void *ufunc__ncf_sf_data[2]
+cdef char ufunc__ncf_sf_types[10]
+cdef char *ufunc__ncf_sf_doc = (
+    "_ncf_sf(x, v1, v2, l)\n"
+    "\n"
+    "Survival function of noncentral F-distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Positive real-valued\n"
+    "v1, v2, l : array_like\n"
+    "    Positive, real-valued parameters\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__ncf_sf_loops[0] = <np.PyUFuncGenericFunction>loop_f_ffff__As_ffff_f
+ufunc__ncf_sf_loops[1] = <np.PyUFuncGenericFunction>loop_d_dddd__As_dddd_d
+ufunc__ncf_sf_types[0] = <char>NPY_FLOAT
+ufunc__ncf_sf_types[1] = <char>NPY_FLOAT
+ufunc__ncf_sf_types[2] = <char>NPY_FLOAT
+ufunc__ncf_sf_types[3] = <char>NPY_FLOAT
+ufunc__ncf_sf_types[4] = <char>NPY_FLOAT
+ufunc__ncf_sf_types[5] = <char>NPY_DOUBLE
+ufunc__ncf_sf_types[6] = <char>NPY_DOUBLE
+ufunc__ncf_sf_types[7] = <char>NPY_DOUBLE
+ufunc__ncf_sf_types[8] = <char>NPY_DOUBLE
+ufunc__ncf_sf_types[9] = <char>NPY_DOUBLE
+ufunc__ncf_sf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_ncf_sf_float
+ufunc__ncf_sf_ptr[2*0+1] = <void*>(<char*>"_ncf_sf")
+ufunc__ncf_sf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_ncf_sf_double
+ufunc__ncf_sf_ptr[2*1+1] = <void*>(<char*>"_ncf_sf")
+ufunc__ncf_sf_data[0] = &ufunc__ncf_sf_ptr[2*0]
+ufunc__ncf_sf_data[1] = &ufunc__ncf_sf_ptr[2*1]
+_ncf_sf = np.PyUFunc_FromFuncAndData(ufunc__ncf_sf_loops, ufunc__ncf_sf_data, ufunc__ncf_sf_types, 2, 4, 1, 0, "_ncf_sf", ufunc__ncf_sf_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__ncf_skewness_loops[2]
+cdef void *ufunc__ncf_skewness_ptr[4]
+cdef void *ufunc__ncf_skewness_data[2]
+cdef char ufunc__ncf_skewness_types[8]
+cdef char *ufunc__ncf_skewness_doc = (
+    "_ncf_skewness(v1, v2, l)\n"
+    "\n"
+    "Skewness of noncentral F-distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "v1, v2, l : array_like\n"
+    "    Positive, real-valued parameters\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__ncf_skewness_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc__ncf_skewness_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc__ncf_skewness_types[0] = <char>NPY_FLOAT
+ufunc__ncf_skewness_types[1] = <char>NPY_FLOAT
+ufunc__ncf_skewness_types[2] = <char>NPY_FLOAT
+ufunc__ncf_skewness_types[3] = <char>NPY_FLOAT
+ufunc__ncf_skewness_types[4] = <char>NPY_DOUBLE
+ufunc__ncf_skewness_types[5] = <char>NPY_DOUBLE
+ufunc__ncf_skewness_types[6] = <char>NPY_DOUBLE
+ufunc__ncf_skewness_types[7] = <char>NPY_DOUBLE
+ufunc__ncf_skewness_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_ncf_skewness_float
+ufunc__ncf_skewness_ptr[2*0+1] = <void*>(<char*>"_ncf_skewness")
+ufunc__ncf_skewness_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_ncf_skewness_double
+ufunc__ncf_skewness_ptr[2*1+1] = <void*>(<char*>"_ncf_skewness")
+ufunc__ncf_skewness_data[0] = &ufunc__ncf_skewness_ptr[2*0]
+ufunc__ncf_skewness_data[1] = &ufunc__ncf_skewness_ptr[2*1]
+_ncf_skewness = np.PyUFunc_FromFuncAndData(ufunc__ncf_skewness_loops, ufunc__ncf_skewness_data, ufunc__ncf_skewness_types, 2, 3, 1, 0, "_ncf_skewness", ufunc__ncf_skewness_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__ncf_variance_loops[2]
+cdef void *ufunc__ncf_variance_ptr[4]
+cdef void *ufunc__ncf_variance_data[2]
+cdef char ufunc__ncf_variance_types[8]
+cdef char *ufunc__ncf_variance_doc = (
+    "_ncf_variance(v1, v2, l)\n"
+    "\n"
+    "Variance of noncentral F-distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "v1, v2, l : array_like\n"
+    "    Positive, real-valued parameters\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__ncf_variance_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc__ncf_variance_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc__ncf_variance_types[0] = <char>NPY_FLOAT
+ufunc__ncf_variance_types[1] = <char>NPY_FLOAT
+ufunc__ncf_variance_types[2] = <char>NPY_FLOAT
+ufunc__ncf_variance_types[3] = <char>NPY_FLOAT
+ufunc__ncf_variance_types[4] = <char>NPY_DOUBLE
+ufunc__ncf_variance_types[5] = <char>NPY_DOUBLE
+ufunc__ncf_variance_types[6] = <char>NPY_DOUBLE
+ufunc__ncf_variance_types[7] = <char>NPY_DOUBLE
+ufunc__ncf_variance_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_ncf_variance_float
+ufunc__ncf_variance_ptr[2*0+1] = <void*>(<char*>"_ncf_variance")
+ufunc__ncf_variance_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_ncf_variance_double
+ufunc__ncf_variance_ptr[2*1+1] = <void*>(<char*>"_ncf_variance")
+ufunc__ncf_variance_data[0] = &ufunc__ncf_variance_ptr[2*0]
+ufunc__ncf_variance_data[1] = &ufunc__ncf_variance_ptr[2*1]
+_ncf_variance = np.PyUFunc_FromFuncAndData(ufunc__ncf_variance_loops, ufunc__ncf_variance_data, ufunc__ncf_variance_types, 2, 3, 1, 0, "_ncf_variance", ufunc__ncf_variance_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__nct_cdf_loops[2]
+cdef void *ufunc__nct_cdf_ptr[4]
+cdef void *ufunc__nct_cdf_data[2]
+cdef char ufunc__nct_cdf_types[8]
+cdef char *ufunc__nct_cdf_doc = (
+    "_nct_cdf(x, v, l)\n"
+    "\n"
+    "Cumulative density function of noncentral t-distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Real-valued\n"
+    "v : array_like\n"
+    "    Positive, real-valued parameters\n"
+    "l : array_like\n"
+    "    Real-valued parameters\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__nct_cdf_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc__nct_cdf_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc__nct_cdf_types[0] = <char>NPY_FLOAT
+ufunc__nct_cdf_types[1] = <char>NPY_FLOAT
+ufunc__nct_cdf_types[2] = <char>NPY_FLOAT
+ufunc__nct_cdf_types[3] = <char>NPY_FLOAT
+ufunc__nct_cdf_types[4] = <char>NPY_DOUBLE
+ufunc__nct_cdf_types[5] = <char>NPY_DOUBLE
+ufunc__nct_cdf_types[6] = <char>NPY_DOUBLE
+ufunc__nct_cdf_types[7] = <char>NPY_DOUBLE
+ufunc__nct_cdf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_nct_cdf_float
+ufunc__nct_cdf_ptr[2*0+1] = <void*>(<char*>"_nct_cdf")
+ufunc__nct_cdf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_nct_cdf_double
+ufunc__nct_cdf_ptr[2*1+1] = <void*>(<char*>"_nct_cdf")
+ufunc__nct_cdf_data[0] = &ufunc__nct_cdf_ptr[2*0]
+ufunc__nct_cdf_data[1] = &ufunc__nct_cdf_ptr[2*1]
+_nct_cdf = np.PyUFunc_FromFuncAndData(ufunc__nct_cdf_loops, ufunc__nct_cdf_data, ufunc__nct_cdf_types, 2, 3, 1, 0, "_nct_cdf", ufunc__nct_cdf_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__nct_isf_loops[2]
+cdef void *ufunc__nct_isf_ptr[4]
+cdef void *ufunc__nct_isf_data[2]
+cdef char ufunc__nct_isf_types[8]
+cdef char *ufunc__nct_isf_doc = (
+    "_nct_isf(x, v, l)\n"
+    "\n"
+    "Inverse surivial function of noncentral t-distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Real-valued\n"
+    "v : array_like\n"
+    "    Positive, real-valued parameters\n"
+    "l : array_like\n"
+    "    Real-valued parameters\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__nct_isf_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc__nct_isf_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc__nct_isf_types[0] = <char>NPY_FLOAT
+ufunc__nct_isf_types[1] = <char>NPY_FLOAT
+ufunc__nct_isf_types[2] = <char>NPY_FLOAT
+ufunc__nct_isf_types[3] = <char>NPY_FLOAT
+ufunc__nct_isf_types[4] = <char>NPY_DOUBLE
+ufunc__nct_isf_types[5] = <char>NPY_DOUBLE
+ufunc__nct_isf_types[6] = <char>NPY_DOUBLE
+ufunc__nct_isf_types[7] = <char>NPY_DOUBLE
+ufunc__nct_isf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_nct_isf_float
+ufunc__nct_isf_ptr[2*0+1] = <void*>(<char*>"_nct_isf")
+ufunc__nct_isf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_nct_isf_double
+ufunc__nct_isf_ptr[2*1+1] = <void*>(<char*>"_nct_isf")
+ufunc__nct_isf_data[0] = &ufunc__nct_isf_ptr[2*0]
+ufunc__nct_isf_data[1] = &ufunc__nct_isf_ptr[2*1]
+_nct_isf = np.PyUFunc_FromFuncAndData(ufunc__nct_isf_loops, ufunc__nct_isf_data, ufunc__nct_isf_types, 2, 3, 1, 0, "_nct_isf", ufunc__nct_isf_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__nct_kurtosis_excess_loops[2]
+cdef void *ufunc__nct_kurtosis_excess_ptr[4]
+cdef void *ufunc__nct_kurtosis_excess_data[2]
+cdef char ufunc__nct_kurtosis_excess_types[6]
+cdef char *ufunc__nct_kurtosis_excess_doc = (
+    "_nct_kurtosis_excess(v, l)\n"
+    "\n"
+    "Kurtosis excess of noncentral t-distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "v : array_like\n"
+    "    Positive, real-valued parameters\n"
+    "l : array_like\n"
+    "    Real-valued parameters\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__nct_kurtosis_excess_loops[0] = <np.PyUFuncGenericFunction>loop_f_ff__As_ff_f
+ufunc__nct_kurtosis_excess_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
+ufunc__nct_kurtosis_excess_types[0] = <char>NPY_FLOAT
+ufunc__nct_kurtosis_excess_types[1] = <char>NPY_FLOAT
+ufunc__nct_kurtosis_excess_types[2] = <char>NPY_FLOAT
+ufunc__nct_kurtosis_excess_types[3] = <char>NPY_DOUBLE
+ufunc__nct_kurtosis_excess_types[4] = <char>NPY_DOUBLE
+ufunc__nct_kurtosis_excess_types[5] = <char>NPY_DOUBLE
+ufunc__nct_kurtosis_excess_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_nct_kurtosis_excess_float
+ufunc__nct_kurtosis_excess_ptr[2*0+1] = <void*>(<char*>"_nct_kurtosis_excess")
+ufunc__nct_kurtosis_excess_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_nct_kurtosis_excess_double
+ufunc__nct_kurtosis_excess_ptr[2*1+1] = <void*>(<char*>"_nct_kurtosis_excess")
+ufunc__nct_kurtosis_excess_data[0] = &ufunc__nct_kurtosis_excess_ptr[2*0]
+ufunc__nct_kurtosis_excess_data[1] = &ufunc__nct_kurtosis_excess_ptr[2*1]
+_nct_kurtosis_excess = np.PyUFunc_FromFuncAndData(ufunc__nct_kurtosis_excess_loops, ufunc__nct_kurtosis_excess_data, ufunc__nct_kurtosis_excess_types, 2, 2, 1, 0, "_nct_kurtosis_excess", ufunc__nct_kurtosis_excess_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__nct_mean_loops[2]
+cdef void *ufunc__nct_mean_ptr[4]
+cdef void *ufunc__nct_mean_data[2]
+cdef char ufunc__nct_mean_types[6]
+cdef char *ufunc__nct_mean_doc = (
+    "_nct_mean(v, l)\n"
+    "\n"
+    "Mean of noncentral t-distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "v : array_like\n"
+    "    Positive, real-valued parameters\n"
+    "l : array_like\n"
+    "    Real-valued parameters\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__nct_mean_loops[0] = <np.PyUFuncGenericFunction>loop_f_ff__As_ff_f
+ufunc__nct_mean_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
+ufunc__nct_mean_types[0] = <char>NPY_FLOAT
+ufunc__nct_mean_types[1] = <char>NPY_FLOAT
+ufunc__nct_mean_types[2] = <char>NPY_FLOAT
+ufunc__nct_mean_types[3] = <char>NPY_DOUBLE
+ufunc__nct_mean_types[4] = <char>NPY_DOUBLE
+ufunc__nct_mean_types[5] = <char>NPY_DOUBLE
+ufunc__nct_mean_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_nct_mean_float
+ufunc__nct_mean_ptr[2*0+1] = <void*>(<char*>"_nct_mean")
+ufunc__nct_mean_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_nct_mean_double
+ufunc__nct_mean_ptr[2*1+1] = <void*>(<char*>"_nct_mean")
+ufunc__nct_mean_data[0] = &ufunc__nct_mean_ptr[2*0]
+ufunc__nct_mean_data[1] = &ufunc__nct_mean_ptr[2*1]
+_nct_mean = np.PyUFunc_FromFuncAndData(ufunc__nct_mean_loops, ufunc__nct_mean_data, ufunc__nct_mean_types, 2, 2, 1, 0, "_nct_mean", ufunc__nct_mean_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__nct_ppf_loops[2]
+cdef void *ufunc__nct_ppf_ptr[4]
+cdef void *ufunc__nct_ppf_data[2]
+cdef char ufunc__nct_ppf_types[8]
+cdef char *ufunc__nct_ppf_doc = (
+    "_nct_ppf(x, v, l)\n"
+    "\n"
+    "Percent point function of noncentral t-distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Real-valued\n"
+    "v : array_like\n"
+    "    Positive, real-valued parameters\n"
+    "l : array_like\n"
+    "    Real-valued parameters\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__nct_ppf_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc__nct_ppf_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc__nct_ppf_types[0] = <char>NPY_FLOAT
+ufunc__nct_ppf_types[1] = <char>NPY_FLOAT
+ufunc__nct_ppf_types[2] = <char>NPY_FLOAT
+ufunc__nct_ppf_types[3] = <char>NPY_FLOAT
+ufunc__nct_ppf_types[4] = <char>NPY_DOUBLE
+ufunc__nct_ppf_types[5] = <char>NPY_DOUBLE
+ufunc__nct_ppf_types[6] = <char>NPY_DOUBLE
+ufunc__nct_ppf_types[7] = <char>NPY_DOUBLE
+ufunc__nct_ppf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_nct_ppf_float
+ufunc__nct_ppf_ptr[2*0+1] = <void*>(<char*>"_nct_ppf")
+ufunc__nct_ppf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_nct_ppf_double
+ufunc__nct_ppf_ptr[2*1+1] = <void*>(<char*>"_nct_ppf")
+ufunc__nct_ppf_data[0] = &ufunc__nct_ppf_ptr[2*0]
+ufunc__nct_ppf_data[1] = &ufunc__nct_ppf_ptr[2*1]
+_nct_ppf = np.PyUFunc_FromFuncAndData(ufunc__nct_ppf_loops, ufunc__nct_ppf_data, ufunc__nct_ppf_types, 2, 3, 1, 0, "_nct_ppf", ufunc__nct_ppf_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__nct_sf_loops[2]
+cdef void *ufunc__nct_sf_ptr[4]
+cdef void *ufunc__nct_sf_data[2]
+cdef char ufunc__nct_sf_types[8]
+cdef char *ufunc__nct_sf_doc = (
+    "_nct_sf(x, v, l)\n"
+    "\n"
+    "Survival function of noncentral t-distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Real-valued\n"
+    "v : array_like\n"
+    "    Positive, real-valued parameters\n"
+    "l : array_like\n"
+    "    Real-valued parameters\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__nct_sf_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc__nct_sf_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc__nct_sf_types[0] = <char>NPY_FLOAT
+ufunc__nct_sf_types[1] = <char>NPY_FLOAT
+ufunc__nct_sf_types[2] = <char>NPY_FLOAT
+ufunc__nct_sf_types[3] = <char>NPY_FLOAT
+ufunc__nct_sf_types[4] = <char>NPY_DOUBLE
+ufunc__nct_sf_types[5] = <char>NPY_DOUBLE
+ufunc__nct_sf_types[6] = <char>NPY_DOUBLE
+ufunc__nct_sf_types[7] = <char>NPY_DOUBLE
+ufunc__nct_sf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_nct_sf_float
+ufunc__nct_sf_ptr[2*0+1] = <void*>(<char*>"_nct_sf")
+ufunc__nct_sf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_nct_sf_double
+ufunc__nct_sf_ptr[2*1+1] = <void*>(<char*>"_nct_sf")
+ufunc__nct_sf_data[0] = &ufunc__nct_sf_ptr[2*0]
+ufunc__nct_sf_data[1] = &ufunc__nct_sf_ptr[2*1]
+_nct_sf = np.PyUFunc_FromFuncAndData(ufunc__nct_sf_loops, ufunc__nct_sf_data, ufunc__nct_sf_types, 2, 3, 1, 0, "_nct_sf", ufunc__nct_sf_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__nct_skewness_loops[2]
+cdef void *ufunc__nct_skewness_ptr[4]
+cdef void *ufunc__nct_skewness_data[2]
+cdef char ufunc__nct_skewness_types[6]
+cdef char *ufunc__nct_skewness_doc = (
+    "_nct_skewness(v, l)\n"
+    "\n"
+    "Skewness of noncentral t-distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "v : array_like\n"
+    "    Positive, real-valued parameters\n"
+    "l : array_like\n"
+    "    Real-valued parameters\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__nct_skewness_loops[0] = <np.PyUFuncGenericFunction>loop_f_ff__As_ff_f
+ufunc__nct_skewness_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
+ufunc__nct_skewness_types[0] = <char>NPY_FLOAT
+ufunc__nct_skewness_types[1] = <char>NPY_FLOAT
+ufunc__nct_skewness_types[2] = <char>NPY_FLOAT
+ufunc__nct_skewness_types[3] = <char>NPY_DOUBLE
+ufunc__nct_skewness_types[4] = <char>NPY_DOUBLE
+ufunc__nct_skewness_types[5] = <char>NPY_DOUBLE
+ufunc__nct_skewness_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_nct_skewness_float
+ufunc__nct_skewness_ptr[2*0+1] = <void*>(<char*>"_nct_skewness")
+ufunc__nct_skewness_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_nct_skewness_double
+ufunc__nct_skewness_ptr[2*1+1] = <void*>(<char*>"_nct_skewness")
+ufunc__nct_skewness_data[0] = &ufunc__nct_skewness_ptr[2*0]
+ufunc__nct_skewness_data[1] = &ufunc__nct_skewness_ptr[2*1]
+_nct_skewness = np.PyUFunc_FromFuncAndData(ufunc__nct_skewness_loops, ufunc__nct_skewness_data, ufunc__nct_skewness_types, 2, 2, 1, 0, "_nct_skewness", ufunc__nct_skewness_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__nct_variance_loops[2]
+cdef void *ufunc__nct_variance_ptr[4]
+cdef void *ufunc__nct_variance_data[2]
+cdef char ufunc__nct_variance_types[6]
+cdef char *ufunc__nct_variance_doc = (
+    "_nct_variance(v, l)\n"
+    "\n"
+    "Variance of noncentral t-distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "v : array_like\n"
+    "    Positive, real-valued parameters\n"
+    "l : array_like\n"
+    "    Real-valued parameters\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__nct_variance_loops[0] = <np.PyUFuncGenericFunction>loop_f_ff__As_ff_f
+ufunc__nct_variance_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
+ufunc__nct_variance_types[0] = <char>NPY_FLOAT
+ufunc__nct_variance_types[1] = <char>NPY_FLOAT
+ufunc__nct_variance_types[2] = <char>NPY_FLOAT
+ufunc__nct_variance_types[3] = <char>NPY_DOUBLE
+ufunc__nct_variance_types[4] = <char>NPY_DOUBLE
+ufunc__nct_variance_types[5] = <char>NPY_DOUBLE
+ufunc__nct_variance_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_nct_variance_float
+ufunc__nct_variance_ptr[2*0+1] = <void*>(<char*>"_nct_variance")
+ufunc__nct_variance_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_nct_variance_double
+ufunc__nct_variance_ptr[2*1+1] = <void*>(<char*>"_nct_variance")
+ufunc__nct_variance_data[0] = &ufunc__nct_variance_ptr[2*0]
+ufunc__nct_variance_data[1] = &ufunc__nct_variance_ptr[2*1]
+_nct_variance = np.PyUFunc_FromFuncAndData(ufunc__nct_variance_loops, ufunc__nct_variance_data, ufunc__nct_variance_types, 2, 2, 1, 0, "_nct_variance", ufunc__nct_variance_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__ncx2_cdf_loops[2]
+cdef void *ufunc__ncx2_cdf_ptr[4]
+cdef void *ufunc__ncx2_cdf_data[2]
+cdef char ufunc__ncx2_cdf_types[8]
+cdef char *ufunc__ncx2_cdf_doc = (
+    "_ncx2_cdf(x, k, l)\n"
+    "\n"
+    "Cumulative density function of Non-central chi-squared distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Positive real-valued\n"
+    "k, l : array_like\n"
+    "    Positive, real-valued parameters\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__ncx2_cdf_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc__ncx2_cdf_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc__ncx2_cdf_types[0] = <char>NPY_FLOAT
+ufunc__ncx2_cdf_types[1] = <char>NPY_FLOAT
+ufunc__ncx2_cdf_types[2] = <char>NPY_FLOAT
+ufunc__ncx2_cdf_types[3] = <char>NPY_FLOAT
+ufunc__ncx2_cdf_types[4] = <char>NPY_DOUBLE
+ufunc__ncx2_cdf_types[5] = <char>NPY_DOUBLE
+ufunc__ncx2_cdf_types[6] = <char>NPY_DOUBLE
+ufunc__ncx2_cdf_types[7] = <char>NPY_DOUBLE
+ufunc__ncx2_cdf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_ncx2_cdf_float
+ufunc__ncx2_cdf_ptr[2*0+1] = <void*>(<char*>"_ncx2_cdf")
+ufunc__ncx2_cdf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_ncx2_cdf_double
+ufunc__ncx2_cdf_ptr[2*1+1] = <void*>(<char*>"_ncx2_cdf")
+ufunc__ncx2_cdf_data[0] = &ufunc__ncx2_cdf_ptr[2*0]
+ufunc__ncx2_cdf_data[1] = &ufunc__ncx2_cdf_ptr[2*1]
+_ncx2_cdf = np.PyUFunc_FromFuncAndData(ufunc__ncx2_cdf_loops, ufunc__ncx2_cdf_data, ufunc__ncx2_cdf_types, 2, 3, 1, 0, "_ncx2_cdf", ufunc__ncx2_cdf_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__ncx2_isf_loops[2]
+cdef void *ufunc__ncx2_isf_ptr[4]
+cdef void *ufunc__ncx2_isf_data[2]
+cdef char ufunc__ncx2_isf_types[8]
+cdef char *ufunc__ncx2_isf_doc = (
+    "_ncx2_isf(x, k, l)\n"
+    "\n"
+    "Inverse survival function of Non-central chi-squared distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Positive real-valued\n"
+    "k, l : array_like\n"
+    "    Positive, real-valued parameters\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__ncx2_isf_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc__ncx2_isf_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc__ncx2_isf_types[0] = <char>NPY_FLOAT
+ufunc__ncx2_isf_types[1] = <char>NPY_FLOAT
+ufunc__ncx2_isf_types[2] = <char>NPY_FLOAT
+ufunc__ncx2_isf_types[3] = <char>NPY_FLOAT
+ufunc__ncx2_isf_types[4] = <char>NPY_DOUBLE
+ufunc__ncx2_isf_types[5] = <char>NPY_DOUBLE
+ufunc__ncx2_isf_types[6] = <char>NPY_DOUBLE
+ufunc__ncx2_isf_types[7] = <char>NPY_DOUBLE
+ufunc__ncx2_isf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_ncx2_isf_float
+ufunc__ncx2_isf_ptr[2*0+1] = <void*>(<char*>"_ncx2_isf")
+ufunc__ncx2_isf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_ncx2_isf_double
+ufunc__ncx2_isf_ptr[2*1+1] = <void*>(<char*>"_ncx2_isf")
+ufunc__ncx2_isf_data[0] = &ufunc__ncx2_isf_ptr[2*0]
+ufunc__ncx2_isf_data[1] = &ufunc__ncx2_isf_ptr[2*1]
+_ncx2_isf = np.PyUFunc_FromFuncAndData(ufunc__ncx2_isf_loops, ufunc__ncx2_isf_data, ufunc__ncx2_isf_types, 2, 3, 1, 0, "_ncx2_isf", ufunc__ncx2_isf_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__ncx2_pdf_loops[2]
+cdef void *ufunc__ncx2_pdf_ptr[4]
+cdef void *ufunc__ncx2_pdf_data[2]
+cdef char ufunc__ncx2_pdf_types[8]
+cdef char *ufunc__ncx2_pdf_doc = (
+    "_ncx2_pdf(x, k, l)\n"
+    "\n"
+    "Probability density function of Non-central chi-squared distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Positive real-valued\n"
+    "k, l : array_like\n"
+    "    Positive, real-valued parameters\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__ncx2_pdf_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc__ncx2_pdf_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc__ncx2_pdf_types[0] = <char>NPY_FLOAT
+ufunc__ncx2_pdf_types[1] = <char>NPY_FLOAT
+ufunc__ncx2_pdf_types[2] = <char>NPY_FLOAT
+ufunc__ncx2_pdf_types[3] = <char>NPY_FLOAT
+ufunc__ncx2_pdf_types[4] = <char>NPY_DOUBLE
+ufunc__ncx2_pdf_types[5] = <char>NPY_DOUBLE
+ufunc__ncx2_pdf_types[6] = <char>NPY_DOUBLE
+ufunc__ncx2_pdf_types[7] = <char>NPY_DOUBLE
+ufunc__ncx2_pdf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_ncx2_pdf_float
+ufunc__ncx2_pdf_ptr[2*0+1] = <void*>(<char*>"_ncx2_pdf")
+ufunc__ncx2_pdf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_ncx2_pdf_double
+ufunc__ncx2_pdf_ptr[2*1+1] = <void*>(<char*>"_ncx2_pdf")
+ufunc__ncx2_pdf_data[0] = &ufunc__ncx2_pdf_ptr[2*0]
+ufunc__ncx2_pdf_data[1] = &ufunc__ncx2_pdf_ptr[2*1]
+_ncx2_pdf = np.PyUFunc_FromFuncAndData(ufunc__ncx2_pdf_loops, ufunc__ncx2_pdf_data, ufunc__ncx2_pdf_types, 2, 3, 1, 0, "_ncx2_pdf", ufunc__ncx2_pdf_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__ncx2_ppf_loops[2]
+cdef void *ufunc__ncx2_ppf_ptr[4]
+cdef void *ufunc__ncx2_ppf_data[2]
+cdef char ufunc__ncx2_ppf_types[8]
+cdef char *ufunc__ncx2_ppf_doc = (
+    "_ncx2_ppf(x, k, l)\n"
+    "\n"
+    "Percent point function of Non-central chi-squared distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Positive real-valued\n"
+    "k, l : array_like\n"
+    "    Positive, real-valued parameters\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__ncx2_ppf_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc__ncx2_ppf_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc__ncx2_ppf_types[0] = <char>NPY_FLOAT
+ufunc__ncx2_ppf_types[1] = <char>NPY_FLOAT
+ufunc__ncx2_ppf_types[2] = <char>NPY_FLOAT
+ufunc__ncx2_ppf_types[3] = <char>NPY_FLOAT
+ufunc__ncx2_ppf_types[4] = <char>NPY_DOUBLE
+ufunc__ncx2_ppf_types[5] = <char>NPY_DOUBLE
+ufunc__ncx2_ppf_types[6] = <char>NPY_DOUBLE
+ufunc__ncx2_ppf_types[7] = <char>NPY_DOUBLE
+ufunc__ncx2_ppf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_ncx2_ppf_float
+ufunc__ncx2_ppf_ptr[2*0+1] = <void*>(<char*>"_ncx2_ppf")
+ufunc__ncx2_ppf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_ncx2_ppf_double
+ufunc__ncx2_ppf_ptr[2*1+1] = <void*>(<char*>"_ncx2_ppf")
+ufunc__ncx2_ppf_data[0] = &ufunc__ncx2_ppf_ptr[2*0]
+ufunc__ncx2_ppf_data[1] = &ufunc__ncx2_ppf_ptr[2*1]
+_ncx2_ppf = np.PyUFunc_FromFuncAndData(ufunc__ncx2_ppf_loops, ufunc__ncx2_ppf_data, ufunc__ncx2_ppf_types, 2, 3, 1, 0, "_ncx2_ppf", ufunc__ncx2_ppf_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__ncx2_sf_loops[2]
+cdef void *ufunc__ncx2_sf_ptr[4]
+cdef void *ufunc__ncx2_sf_data[2]
+cdef char ufunc__ncx2_sf_types[8]
+cdef char *ufunc__ncx2_sf_doc = (
+    "_ncx2_sf(x, k, l)\n"
+    "\n"
+    "Survival function of Non-central chi-squared distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Positive real-valued\n"
+    "k, l : array_like\n"
+    "    Positive, real-valued parameters\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__ncx2_sf_loops[0] = <np.PyUFuncGenericFunction>loop_f_fff__As_fff_f
+ufunc__ncx2_sf_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
+ufunc__ncx2_sf_types[0] = <char>NPY_FLOAT
+ufunc__ncx2_sf_types[1] = <char>NPY_FLOAT
+ufunc__ncx2_sf_types[2] = <char>NPY_FLOAT
+ufunc__ncx2_sf_types[3] = <char>NPY_FLOAT
+ufunc__ncx2_sf_types[4] = <char>NPY_DOUBLE
+ufunc__ncx2_sf_types[5] = <char>NPY_DOUBLE
+ufunc__ncx2_sf_types[6] = <char>NPY_DOUBLE
+ufunc__ncx2_sf_types[7] = <char>NPY_DOUBLE
+ufunc__ncx2_sf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_ncx2_sf_float
+ufunc__ncx2_sf_ptr[2*0+1] = <void*>(<char*>"_ncx2_sf")
+ufunc__ncx2_sf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_ncx2_sf_double
+ufunc__ncx2_sf_ptr[2*1+1] = <void*>(<char*>"_ncx2_sf")
+ufunc__ncx2_sf_data[0] = &ufunc__ncx2_sf_ptr[2*0]
+ufunc__ncx2_sf_data[1] = &ufunc__ncx2_sf_ptr[2*1]
+_ncx2_sf = np.PyUFunc_FromFuncAndData(ufunc__ncx2_sf_loops, ufunc__ncx2_sf_data, ufunc__ncx2_sf_types, 2, 3, 1, 0, "_ncx2_sf", ufunc__ncx2_sf_doc, 0)
 
 cdef np.PyUFuncGenericFunction ufunc__riemann_zeta_loops[2]
 cdef void *ufunc__riemann_zeta_ptr[4]
@@ -2396,78 +3343,13 @@ ufunc__riemann_zeta_types[0] = <char>NPY_FLOAT
 ufunc__riemann_zeta_types[1] = <char>NPY_FLOAT
 ufunc__riemann_zeta_types[2] = <char>NPY_DOUBLE
 ufunc__riemann_zeta_types[3] = <char>NPY_DOUBLE
-ufunc__riemann_zeta_ptr[2*0] = <void*>_func_riemann_zeta
+ufunc__riemann_zeta_ptr[2*0] = <void*>_func_cephes_riemann_zeta
 ufunc__riemann_zeta_ptr[2*0+1] = <void*>(<char*>"_riemann_zeta")
-ufunc__riemann_zeta_ptr[2*1] = <void*>_func_riemann_zeta
+ufunc__riemann_zeta_ptr[2*1] = <void*>_func_cephes_riemann_zeta
 ufunc__riemann_zeta_ptr[2*1+1] = <void*>(<char*>"_riemann_zeta")
 ufunc__riemann_zeta_data[0] = &ufunc__riemann_zeta_ptr[2*0]
 ufunc__riemann_zeta_data[1] = &ufunc__riemann_zeta_ptr[2*1]
 _riemann_zeta = np.PyUFunc_FromFuncAndData(ufunc__riemann_zeta_loops, ufunc__riemann_zeta_data, ufunc__riemann_zeta_types, 2, 1, 1, 0, "_riemann_zeta", ufunc__riemann_zeta_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc__scaled_exp1_loops[2]
-cdef void *ufunc__scaled_exp1_ptr[4]
-cdef void *ufunc__scaled_exp1_data[2]
-cdef char ufunc__scaled_exp1_types[4]
-cdef char *ufunc__scaled_exp1_doc = (
-    "_scaled_exp1(x, out=None):\n"
-    "\n"
-    "Compute the scaled exponential integral.\n"
-    "\n"
-    "This is a private function, subject to change or removal with no\n"
-    "deprecation.\n"
-    "\n"
-    "This function computes F(x), where F is the factor remaining in E_1(x)\n"
-    "when exp(-x)/x is factored out.  That is,::\n"
-    "\n"
-    "    E_1(x) = exp(-x)/x * F(x)\n"
-    "\n"
-    "or\n"
-    "\n"
-    "    F(x) = x * exp(x) * E_1(x)\n"
-    "\n"
-    "The function is defined for real x >= 0.  For x < 0, nan is returned.\n"
-    "\n"
-    "F has the properties:\n"
-    "\n"
-    "* F(0) = 0\n"
-    "* F(x) is increasing on [0, inf).\n"
-    "* The limit as x goes to infinity of F(x) is 1.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "x: array_like\n"
-    "    The input values. Must be real.  The implementation is limited to\n"
-    "    double precision floating point, so other types will be cast to\n"
-    "    to double precision.\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "scalar or ndarray\n"
-    "    Values of the scaled exponential integral.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "exp1 : exponential integral E_1\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> from scipy.special import _scaled_exp1\n"
-    ">>> _scaled_exp1([0, 0.1, 1, 10, 100])")
-ufunc__scaled_exp1_loops[0] = <np.PyUFuncGenericFunction>loop_d_d__As_f_f
-ufunc__scaled_exp1_loops[1] = <np.PyUFuncGenericFunction>loop_d_d__As_d_d
-ufunc__scaled_exp1_types[0] = <char>NPY_FLOAT
-ufunc__scaled_exp1_types[1] = <char>NPY_FLOAT
-ufunc__scaled_exp1_types[2] = <char>NPY_DOUBLE
-ufunc__scaled_exp1_types[3] = <char>NPY_DOUBLE
-ufunc__scaled_exp1_ptr[2*0] = <void*>_func_scaled_exp1
-ufunc__scaled_exp1_ptr[2*0+1] = <void*>(<char*>"_scaled_exp1")
-ufunc__scaled_exp1_ptr[2*1] = <void*>_func_scaled_exp1
-ufunc__scaled_exp1_ptr[2*1+1] = <void*>(<char*>"_scaled_exp1")
-ufunc__scaled_exp1_data[0] = &ufunc__scaled_exp1_ptr[2*0]
-ufunc__scaled_exp1_data[1] = &ufunc__scaled_exp1_ptr[2*1]
-_scaled_exp1 = np.PyUFunc_FromFuncAndData(ufunc__scaled_exp1_loops, ufunc__scaled_exp1_data, ufunc__scaled_exp1_types, 2, 1, 1, 0, "_scaled_exp1", ufunc__scaled_exp1_doc, 0)
 
 cdef np.PyUFuncGenericFunction ufunc__sf_error_test_function_loops[1]
 cdef void *ufunc__sf_error_test_function_ptr[2]
@@ -2483,37 +3365,134 @@ ufunc__sf_error_test_function_ptr[2*0+1] = <void*>(<char*>"_sf_error_test_functi
 ufunc__sf_error_test_function_data[0] = &ufunc__sf_error_test_function_ptr[2*0]
 _sf_error_test_function = np.PyUFunc_FromFuncAndData(ufunc__sf_error_test_function_loops, ufunc__sf_error_test_function_data, ufunc__sf_error_test_function_types, 1, 1, 1, 0, "_sf_error_test_function", ufunc__sf_error_test_function_doc, 0)
 
-cdef np.PyUFuncGenericFunction ufunc__sinpi_loops[4]
-cdef void *ufunc__sinpi_ptr[8]
-cdef void *ufunc__sinpi_data[4]
-cdef char ufunc__sinpi_types[8]
-cdef char *ufunc__sinpi_doc = (
-    "Internal function, do not use.")
-ufunc__sinpi_loops[0] = <np.PyUFuncGenericFunction>loop_d_d__As_f_f
-ufunc__sinpi_loops[1] = <np.PyUFuncGenericFunction>loop_d_d__As_d_d
-ufunc__sinpi_loops[2] = <np.PyUFuncGenericFunction>loop_D_D__As_F_F
-ufunc__sinpi_loops[3] = <np.PyUFuncGenericFunction>loop_D_D__As_D_D
-ufunc__sinpi_types[0] = <char>NPY_FLOAT
-ufunc__sinpi_types[1] = <char>NPY_FLOAT
-ufunc__sinpi_types[2] = <char>NPY_DOUBLE
-ufunc__sinpi_types[3] = <char>NPY_DOUBLE
-ufunc__sinpi_types[4] = <char>NPY_CFLOAT
-ufunc__sinpi_types[5] = <char>NPY_CFLOAT
-ufunc__sinpi_types[6] = <char>NPY_CDOUBLE
-ufunc__sinpi_types[7] = <char>NPY_CDOUBLE
-ufunc__sinpi_ptr[2*0] = <void*>_func_sinpi
-ufunc__sinpi_ptr[2*0+1] = <void*>(<char*>"_sinpi")
-ufunc__sinpi_ptr[2*1] = <void*>_func_sinpi
-ufunc__sinpi_ptr[2*1+1] = <void*>(<char*>"_sinpi")
-ufunc__sinpi_ptr[2*2] = <void*>scipy.special._ufuncs_cxx._export_csinpi
-ufunc__sinpi_ptr[2*2+1] = <void*>(<char*>"_sinpi")
-ufunc__sinpi_ptr[2*3] = <void*>scipy.special._ufuncs_cxx._export_csinpi
-ufunc__sinpi_ptr[2*3+1] = <void*>(<char*>"_sinpi")
-ufunc__sinpi_data[0] = &ufunc__sinpi_ptr[2*0]
-ufunc__sinpi_data[1] = &ufunc__sinpi_ptr[2*1]
-ufunc__sinpi_data[2] = &ufunc__sinpi_ptr[2*2]
-ufunc__sinpi_data[3] = &ufunc__sinpi_ptr[2*3]
-_sinpi = np.PyUFunc_FromFuncAndData(ufunc__sinpi_loops, ufunc__sinpi_data, ufunc__sinpi_types, 4, 1, 1, 0, "_sinpi", ufunc__sinpi_doc, 0)
+cdef np.PyUFuncGenericFunction ufunc__skewnorm_cdf_loops[2]
+cdef void *ufunc__skewnorm_cdf_ptr[4]
+cdef void *ufunc__skewnorm_cdf_data[2]
+cdef char ufunc__skewnorm_cdf_types[10]
+cdef char *ufunc__skewnorm_cdf_doc = (
+    "_skewnorm_cdf(x, l, sc, sh)\n"
+    "\n"
+    "Cumulative density function of skewnorm distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Real-valued\n"
+    "l : array_like\n"
+    "    Real-valued parameters\n"
+    "sc : array_like\n"
+    "    Positive, Real-valued parameters\n"
+    "sh : array_like\n"
+    "    Real-valued parameters\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__skewnorm_cdf_loops[0] = <np.PyUFuncGenericFunction>loop_f_ffff__As_ffff_f
+ufunc__skewnorm_cdf_loops[1] = <np.PyUFuncGenericFunction>loop_d_dddd__As_dddd_d
+ufunc__skewnorm_cdf_types[0] = <char>NPY_FLOAT
+ufunc__skewnorm_cdf_types[1] = <char>NPY_FLOAT
+ufunc__skewnorm_cdf_types[2] = <char>NPY_FLOAT
+ufunc__skewnorm_cdf_types[3] = <char>NPY_FLOAT
+ufunc__skewnorm_cdf_types[4] = <char>NPY_FLOAT
+ufunc__skewnorm_cdf_types[5] = <char>NPY_DOUBLE
+ufunc__skewnorm_cdf_types[6] = <char>NPY_DOUBLE
+ufunc__skewnorm_cdf_types[7] = <char>NPY_DOUBLE
+ufunc__skewnorm_cdf_types[8] = <char>NPY_DOUBLE
+ufunc__skewnorm_cdf_types[9] = <char>NPY_DOUBLE
+ufunc__skewnorm_cdf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_skewnorm_cdf_float
+ufunc__skewnorm_cdf_ptr[2*0+1] = <void*>(<char*>"_skewnorm_cdf")
+ufunc__skewnorm_cdf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_skewnorm_cdf_double
+ufunc__skewnorm_cdf_ptr[2*1+1] = <void*>(<char*>"_skewnorm_cdf")
+ufunc__skewnorm_cdf_data[0] = &ufunc__skewnorm_cdf_ptr[2*0]
+ufunc__skewnorm_cdf_data[1] = &ufunc__skewnorm_cdf_ptr[2*1]
+_skewnorm_cdf = np.PyUFunc_FromFuncAndData(ufunc__skewnorm_cdf_loops, ufunc__skewnorm_cdf_data, ufunc__skewnorm_cdf_types, 2, 4, 1, 0, "_skewnorm_cdf", ufunc__skewnorm_cdf_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__skewnorm_isf_loops[2]
+cdef void *ufunc__skewnorm_isf_ptr[4]
+cdef void *ufunc__skewnorm_isf_data[2]
+cdef char ufunc__skewnorm_isf_types[10]
+cdef char *ufunc__skewnorm_isf_doc = (
+    "_skewnorm_isf(x, l, sc, sh)\n"
+    "\n"
+    "Inverse surivial function of skewnorm distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Real-valued\n"
+    "l : array_like\n"
+    "    Real-valued parameters\n"
+    "sc : array_like\n"
+    "    Positive, Real-valued parameters\n"
+    "sh : array_like\n"
+    "    Real-valued parameters\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__skewnorm_isf_loops[0] = <np.PyUFuncGenericFunction>loop_f_ffff__As_ffff_f
+ufunc__skewnorm_isf_loops[1] = <np.PyUFuncGenericFunction>loop_d_dddd__As_dddd_d
+ufunc__skewnorm_isf_types[0] = <char>NPY_FLOAT
+ufunc__skewnorm_isf_types[1] = <char>NPY_FLOAT
+ufunc__skewnorm_isf_types[2] = <char>NPY_FLOAT
+ufunc__skewnorm_isf_types[3] = <char>NPY_FLOAT
+ufunc__skewnorm_isf_types[4] = <char>NPY_FLOAT
+ufunc__skewnorm_isf_types[5] = <char>NPY_DOUBLE
+ufunc__skewnorm_isf_types[6] = <char>NPY_DOUBLE
+ufunc__skewnorm_isf_types[7] = <char>NPY_DOUBLE
+ufunc__skewnorm_isf_types[8] = <char>NPY_DOUBLE
+ufunc__skewnorm_isf_types[9] = <char>NPY_DOUBLE
+ufunc__skewnorm_isf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_skewnorm_isf_float
+ufunc__skewnorm_isf_ptr[2*0+1] = <void*>(<char*>"_skewnorm_isf")
+ufunc__skewnorm_isf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_skewnorm_isf_double
+ufunc__skewnorm_isf_ptr[2*1+1] = <void*>(<char*>"_skewnorm_isf")
+ufunc__skewnorm_isf_data[0] = &ufunc__skewnorm_isf_ptr[2*0]
+ufunc__skewnorm_isf_data[1] = &ufunc__skewnorm_isf_ptr[2*1]
+_skewnorm_isf = np.PyUFunc_FromFuncAndData(ufunc__skewnorm_isf_loops, ufunc__skewnorm_isf_data, ufunc__skewnorm_isf_types, 2, 4, 1, 0, "_skewnorm_isf", ufunc__skewnorm_isf_doc, 0)
+
+cdef np.PyUFuncGenericFunction ufunc__skewnorm_ppf_loops[2]
+cdef void *ufunc__skewnorm_ppf_ptr[4]
+cdef void *ufunc__skewnorm_ppf_data[2]
+cdef char ufunc__skewnorm_ppf_types[10]
+cdef char *ufunc__skewnorm_ppf_doc = (
+    "_skewnorm_ppf(x, l, sc, sh)\n"
+    "\n"
+    "Percent point function of skewnorm distribution.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : array_like\n"
+    "    Real-valued\n"
+    "l : array_like\n"
+    "    Real-valued parameters\n"
+    "sc : array_like\n"
+    "    Positive, Real-valued parameters\n"
+    "sh : array_like\n"
+    "    Real-valued parameters\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "scalar or ndarray")
+ufunc__skewnorm_ppf_loops[0] = <np.PyUFuncGenericFunction>loop_f_ffff__As_ffff_f
+ufunc__skewnorm_ppf_loops[1] = <np.PyUFuncGenericFunction>loop_d_dddd__As_dddd_d
+ufunc__skewnorm_ppf_types[0] = <char>NPY_FLOAT
+ufunc__skewnorm_ppf_types[1] = <char>NPY_FLOAT
+ufunc__skewnorm_ppf_types[2] = <char>NPY_FLOAT
+ufunc__skewnorm_ppf_types[3] = <char>NPY_FLOAT
+ufunc__skewnorm_ppf_types[4] = <char>NPY_FLOAT
+ufunc__skewnorm_ppf_types[5] = <char>NPY_DOUBLE
+ufunc__skewnorm_ppf_types[6] = <char>NPY_DOUBLE
+ufunc__skewnorm_ppf_types[7] = <char>NPY_DOUBLE
+ufunc__skewnorm_ppf_types[8] = <char>NPY_DOUBLE
+ufunc__skewnorm_ppf_types[9] = <char>NPY_DOUBLE
+ufunc__skewnorm_ppf_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_skewnorm_ppf_float
+ufunc__skewnorm_ppf_ptr[2*0+1] = <void*>(<char*>"_skewnorm_ppf")
+ufunc__skewnorm_ppf_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_skewnorm_ppf_double
+ufunc__skewnorm_ppf_ptr[2*1+1] = <void*>(<char*>"_skewnorm_ppf")
+ufunc__skewnorm_ppf_data[0] = &ufunc__skewnorm_ppf_ptr[2*0]
+ufunc__skewnorm_ppf_data[1] = &ufunc__skewnorm_ppf_ptr[2*1]
+_skewnorm_ppf = np.PyUFunc_FromFuncAndData(ufunc__skewnorm_ppf_loops, ufunc__skewnorm_ppf_data, ufunc__skewnorm_ppf_types, 2, 4, 1, 0, "_skewnorm_ppf", ufunc__skewnorm_ppf_doc, 0)
 
 cdef np.PyUFuncGenericFunction ufunc__smirnovc_loops[3]
 cdef void *ufunc__smirnovc_ptr[6]
@@ -2522,10 +3501,10 @@ cdef char ufunc__smirnovc_types[9]
 cdef char *ufunc__smirnovc_doc = (
     "_smirnovc(n, d)\n"
     " Internal function, do not use.")
-ufunc__smirnovc_loops[0] = <np.PyUFuncGenericFunction>loop_d_id__As_ld_d
+ufunc__smirnovc_loops[0] = <np.PyUFuncGenericFunction>loop_d_pd__As_pd_d
 ufunc__smirnovc_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
 ufunc__smirnovc_loops[2] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
-ufunc__smirnovc_types[0] = <char>NPY_LONG
+ufunc__smirnovc_types[0] = <char>NPY_INTP
 ufunc__smirnovc_types[1] = <char>NPY_DOUBLE
 ufunc__smirnovc_types[2] = <char>NPY_DOUBLE
 ufunc__smirnovc_types[3] = <char>NPY_FLOAT
@@ -2534,7 +3513,7 @@ ufunc__smirnovc_types[5] = <char>NPY_FLOAT
 ufunc__smirnovc_types[6] = <char>NPY_DOUBLE
 ufunc__smirnovc_types[7] = <char>NPY_DOUBLE
 ufunc__smirnovc_types[8] = <char>NPY_DOUBLE
-ufunc__smirnovc_ptr[2*0] = <void*>_func_smirnovc
+ufunc__smirnovc_ptr[2*0] = <void*>_func_cephes_smirnovc_wrap
 ufunc__smirnovc_ptr[2*0+1] = <void*>(<char*>"_smirnovc")
 ufunc__smirnovc_ptr[2*1] = <void*>_func_smirnovc_unsafe
 ufunc__smirnovc_ptr[2*1+1] = <void*>(<char*>"_smirnovc")
@@ -2551,10 +3530,10 @@ cdef void *ufunc__smirnovci_data[3]
 cdef char ufunc__smirnovci_types[9]
 cdef char *ufunc__smirnovci_doc = (
     "Internal function, do not use.")
-ufunc__smirnovci_loops[0] = <np.PyUFuncGenericFunction>loop_d_id__As_ld_d
+ufunc__smirnovci_loops[0] = <np.PyUFuncGenericFunction>loop_d_pd__As_pd_d
 ufunc__smirnovci_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
 ufunc__smirnovci_loops[2] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
-ufunc__smirnovci_types[0] = <char>NPY_LONG
+ufunc__smirnovci_types[0] = <char>NPY_INTP
 ufunc__smirnovci_types[1] = <char>NPY_DOUBLE
 ufunc__smirnovci_types[2] = <char>NPY_DOUBLE
 ufunc__smirnovci_types[3] = <char>NPY_FLOAT
@@ -2563,7 +3542,7 @@ ufunc__smirnovci_types[5] = <char>NPY_FLOAT
 ufunc__smirnovci_types[6] = <char>NPY_DOUBLE
 ufunc__smirnovci_types[7] = <char>NPY_DOUBLE
 ufunc__smirnovci_types[8] = <char>NPY_DOUBLE
-ufunc__smirnovci_ptr[2*0] = <void*>_func_smirnovci
+ufunc__smirnovci_ptr[2*0] = <void*>_func_cephes_smirnovci_wrap
 ufunc__smirnovci_ptr[2*0+1] = <void*>(<char*>"_smirnovci")
 ufunc__smirnovci_ptr[2*1] = <void*>_func_smirnovci_unsafe
 ufunc__smirnovci_ptr[2*1+1] = <void*>(<char*>"_smirnovci")
@@ -2581,10 +3560,10 @@ cdef char ufunc__smirnovp_types[9]
 cdef char *ufunc__smirnovp_doc = (
     "_smirnovp(n, p)\n"
     " Internal function, do not use.")
-ufunc__smirnovp_loops[0] = <np.PyUFuncGenericFunction>loop_d_id__As_ld_d
+ufunc__smirnovp_loops[0] = <np.PyUFuncGenericFunction>loop_d_pd__As_pd_d
 ufunc__smirnovp_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
 ufunc__smirnovp_loops[2] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
-ufunc__smirnovp_types[0] = <char>NPY_LONG
+ufunc__smirnovp_types[0] = <char>NPY_INTP
 ufunc__smirnovp_types[1] = <char>NPY_DOUBLE
 ufunc__smirnovp_types[2] = <char>NPY_DOUBLE
 ufunc__smirnovp_types[3] = <char>NPY_FLOAT
@@ -2593,7 +3572,7 @@ ufunc__smirnovp_types[5] = <char>NPY_FLOAT
 ufunc__smirnovp_types[6] = <char>NPY_DOUBLE
 ufunc__smirnovp_types[7] = <char>NPY_DOUBLE
 ufunc__smirnovp_types[8] = <char>NPY_DOUBLE
-ufunc__smirnovp_ptr[2*0] = <void*>_func_smirnovp
+ufunc__smirnovp_ptr[2*0] = <void*>_func_cephes_smirnovp_wrap
 ufunc__smirnovp_ptr[2*0+1] = <void*>(<char*>"_smirnovp")
 ufunc__smirnovp_ptr[2*1] = <void*>_func_smirnovp_unsafe
 ufunc__smirnovp_ptr[2*1+1] = <void*>(<char*>"_smirnovp")
@@ -2603,182 +3582,6 @@ ufunc__smirnovp_data[0] = &ufunc__smirnovp_ptr[2*0]
 ufunc__smirnovp_data[1] = &ufunc__smirnovp_ptr[2*1]
 ufunc__smirnovp_data[2] = &ufunc__smirnovp_ptr[2*2]
 _smirnovp = np.PyUFunc_FromFuncAndData(ufunc__smirnovp_loops, ufunc__smirnovp_data, ufunc__smirnovp_types, 3, 2, 1, 0, "_smirnovp", ufunc__smirnovp_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc__spherical_in_loops[2]
-cdef void *ufunc__spherical_in_ptr[4]
-cdef void *ufunc__spherical_in_data[2]
-cdef char ufunc__spherical_in_types[6]
-cdef char *ufunc__spherical_in_doc = (
-    "Internal function, use `spherical_in` instead.")
-ufunc__spherical_in_loops[0] = <np.PyUFuncGenericFunction>loop_d_ld__As_ld_d
-ufunc__spherical_in_loops[1] = <np.PyUFuncGenericFunction>loop_D_lD__As_lD_D
-ufunc__spherical_in_types[0] = <char>NPY_LONG
-ufunc__spherical_in_types[1] = <char>NPY_DOUBLE
-ufunc__spherical_in_types[2] = <char>NPY_DOUBLE
-ufunc__spherical_in_types[3] = <char>NPY_LONG
-ufunc__spherical_in_types[4] = <char>NPY_CDOUBLE
-ufunc__spherical_in_types[5] = <char>NPY_CDOUBLE
-ufunc__spherical_in_ptr[2*0] = <void*>_func_spherical_in_real
-ufunc__spherical_in_ptr[2*0+1] = <void*>(<char*>"_spherical_in")
-ufunc__spherical_in_ptr[2*1] = <void*>_func_spherical_in_complex
-ufunc__spherical_in_ptr[2*1+1] = <void*>(<char*>"_spherical_in")
-ufunc__spherical_in_data[0] = &ufunc__spherical_in_ptr[2*0]
-ufunc__spherical_in_data[1] = &ufunc__spherical_in_ptr[2*1]
-_spherical_in = np.PyUFunc_FromFuncAndData(ufunc__spherical_in_loops, ufunc__spherical_in_data, ufunc__spherical_in_types, 2, 2, 1, 0, "_spherical_in", ufunc__spherical_in_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc__spherical_in_d_loops[2]
-cdef void *ufunc__spherical_in_d_ptr[4]
-cdef void *ufunc__spherical_in_d_data[2]
-cdef char ufunc__spherical_in_d_types[6]
-cdef char *ufunc__spherical_in_d_doc = (
-    "Internal function, use `spherical_in` instead.")
-ufunc__spherical_in_d_loops[0] = <np.PyUFuncGenericFunction>loop_d_ld__As_ld_d
-ufunc__spherical_in_d_loops[1] = <np.PyUFuncGenericFunction>loop_D_lD__As_lD_D
-ufunc__spherical_in_d_types[0] = <char>NPY_LONG
-ufunc__spherical_in_d_types[1] = <char>NPY_DOUBLE
-ufunc__spherical_in_d_types[2] = <char>NPY_DOUBLE
-ufunc__spherical_in_d_types[3] = <char>NPY_LONG
-ufunc__spherical_in_d_types[4] = <char>NPY_CDOUBLE
-ufunc__spherical_in_d_types[5] = <char>NPY_CDOUBLE
-ufunc__spherical_in_d_ptr[2*0] = <void*>_func_spherical_in_d_real
-ufunc__spherical_in_d_ptr[2*0+1] = <void*>(<char*>"_spherical_in_d")
-ufunc__spherical_in_d_ptr[2*1] = <void*>_func_spherical_in_d_complex
-ufunc__spherical_in_d_ptr[2*1+1] = <void*>(<char*>"_spherical_in_d")
-ufunc__spherical_in_d_data[0] = &ufunc__spherical_in_d_ptr[2*0]
-ufunc__spherical_in_d_data[1] = &ufunc__spherical_in_d_ptr[2*1]
-_spherical_in_d = np.PyUFunc_FromFuncAndData(ufunc__spherical_in_d_loops, ufunc__spherical_in_d_data, ufunc__spherical_in_d_types, 2, 2, 1, 0, "_spherical_in_d", ufunc__spherical_in_d_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc__spherical_jn_loops[2]
-cdef void *ufunc__spherical_jn_ptr[4]
-cdef void *ufunc__spherical_jn_data[2]
-cdef char ufunc__spherical_jn_types[6]
-cdef char *ufunc__spherical_jn_doc = (
-    "Internal function, use `spherical_jn` instead.")
-ufunc__spherical_jn_loops[0] = <np.PyUFuncGenericFunction>loop_d_ld__As_ld_d
-ufunc__spherical_jn_loops[1] = <np.PyUFuncGenericFunction>loop_D_lD__As_lD_D
-ufunc__spherical_jn_types[0] = <char>NPY_LONG
-ufunc__spherical_jn_types[1] = <char>NPY_DOUBLE
-ufunc__spherical_jn_types[2] = <char>NPY_DOUBLE
-ufunc__spherical_jn_types[3] = <char>NPY_LONG
-ufunc__spherical_jn_types[4] = <char>NPY_CDOUBLE
-ufunc__spherical_jn_types[5] = <char>NPY_CDOUBLE
-ufunc__spherical_jn_ptr[2*0] = <void*>_func_spherical_jn_real
-ufunc__spherical_jn_ptr[2*0+1] = <void*>(<char*>"_spherical_jn")
-ufunc__spherical_jn_ptr[2*1] = <void*>_func_spherical_jn_complex
-ufunc__spherical_jn_ptr[2*1+1] = <void*>(<char*>"_spherical_jn")
-ufunc__spherical_jn_data[0] = &ufunc__spherical_jn_ptr[2*0]
-ufunc__spherical_jn_data[1] = &ufunc__spherical_jn_ptr[2*1]
-_spherical_jn = np.PyUFunc_FromFuncAndData(ufunc__spherical_jn_loops, ufunc__spherical_jn_data, ufunc__spherical_jn_types, 2, 2, 1, 0, "_spherical_jn", ufunc__spherical_jn_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc__spherical_jn_d_loops[2]
-cdef void *ufunc__spherical_jn_d_ptr[4]
-cdef void *ufunc__spherical_jn_d_data[2]
-cdef char ufunc__spherical_jn_d_types[6]
-cdef char *ufunc__spherical_jn_d_doc = (
-    "Internal function, use `spherical_jn` instead.")
-ufunc__spherical_jn_d_loops[0] = <np.PyUFuncGenericFunction>loop_d_ld__As_ld_d
-ufunc__spherical_jn_d_loops[1] = <np.PyUFuncGenericFunction>loop_D_lD__As_lD_D
-ufunc__spherical_jn_d_types[0] = <char>NPY_LONG
-ufunc__spherical_jn_d_types[1] = <char>NPY_DOUBLE
-ufunc__spherical_jn_d_types[2] = <char>NPY_DOUBLE
-ufunc__spherical_jn_d_types[3] = <char>NPY_LONG
-ufunc__spherical_jn_d_types[4] = <char>NPY_CDOUBLE
-ufunc__spherical_jn_d_types[5] = <char>NPY_CDOUBLE
-ufunc__spherical_jn_d_ptr[2*0] = <void*>_func_spherical_jn_d_real
-ufunc__spherical_jn_d_ptr[2*0+1] = <void*>(<char*>"_spherical_jn_d")
-ufunc__spherical_jn_d_ptr[2*1] = <void*>_func_spherical_jn_d_complex
-ufunc__spherical_jn_d_ptr[2*1+1] = <void*>(<char*>"_spherical_jn_d")
-ufunc__spherical_jn_d_data[0] = &ufunc__spherical_jn_d_ptr[2*0]
-ufunc__spherical_jn_d_data[1] = &ufunc__spherical_jn_d_ptr[2*1]
-_spherical_jn_d = np.PyUFunc_FromFuncAndData(ufunc__spherical_jn_d_loops, ufunc__spherical_jn_d_data, ufunc__spherical_jn_d_types, 2, 2, 1, 0, "_spherical_jn_d", ufunc__spherical_jn_d_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc__spherical_kn_loops[2]
-cdef void *ufunc__spherical_kn_ptr[4]
-cdef void *ufunc__spherical_kn_data[2]
-cdef char ufunc__spherical_kn_types[6]
-cdef char *ufunc__spherical_kn_doc = (
-    "Internal function, use `spherical_kn` instead.")
-ufunc__spherical_kn_loops[0] = <np.PyUFuncGenericFunction>loop_d_ld__As_ld_d
-ufunc__spherical_kn_loops[1] = <np.PyUFuncGenericFunction>loop_D_lD__As_lD_D
-ufunc__spherical_kn_types[0] = <char>NPY_LONG
-ufunc__spherical_kn_types[1] = <char>NPY_DOUBLE
-ufunc__spherical_kn_types[2] = <char>NPY_DOUBLE
-ufunc__spherical_kn_types[3] = <char>NPY_LONG
-ufunc__spherical_kn_types[4] = <char>NPY_CDOUBLE
-ufunc__spherical_kn_types[5] = <char>NPY_CDOUBLE
-ufunc__spherical_kn_ptr[2*0] = <void*>_func_spherical_kn_real
-ufunc__spherical_kn_ptr[2*0+1] = <void*>(<char*>"_spherical_kn")
-ufunc__spherical_kn_ptr[2*1] = <void*>_func_spherical_kn_complex
-ufunc__spherical_kn_ptr[2*1+1] = <void*>(<char*>"_spherical_kn")
-ufunc__spherical_kn_data[0] = &ufunc__spherical_kn_ptr[2*0]
-ufunc__spherical_kn_data[1] = &ufunc__spherical_kn_ptr[2*1]
-_spherical_kn = np.PyUFunc_FromFuncAndData(ufunc__spherical_kn_loops, ufunc__spherical_kn_data, ufunc__spherical_kn_types, 2, 2, 1, 0, "_spherical_kn", ufunc__spherical_kn_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc__spherical_kn_d_loops[2]
-cdef void *ufunc__spherical_kn_d_ptr[4]
-cdef void *ufunc__spherical_kn_d_data[2]
-cdef char ufunc__spherical_kn_d_types[6]
-cdef char *ufunc__spherical_kn_d_doc = (
-    "Internal function, use `spherical_kn` instead.")
-ufunc__spherical_kn_d_loops[0] = <np.PyUFuncGenericFunction>loop_d_ld__As_ld_d
-ufunc__spherical_kn_d_loops[1] = <np.PyUFuncGenericFunction>loop_D_lD__As_lD_D
-ufunc__spherical_kn_d_types[0] = <char>NPY_LONG
-ufunc__spherical_kn_d_types[1] = <char>NPY_DOUBLE
-ufunc__spherical_kn_d_types[2] = <char>NPY_DOUBLE
-ufunc__spherical_kn_d_types[3] = <char>NPY_LONG
-ufunc__spherical_kn_d_types[4] = <char>NPY_CDOUBLE
-ufunc__spherical_kn_d_types[5] = <char>NPY_CDOUBLE
-ufunc__spherical_kn_d_ptr[2*0] = <void*>_func_spherical_kn_d_real
-ufunc__spherical_kn_d_ptr[2*0+1] = <void*>(<char*>"_spherical_kn_d")
-ufunc__spherical_kn_d_ptr[2*1] = <void*>_func_spherical_kn_d_complex
-ufunc__spherical_kn_d_ptr[2*1+1] = <void*>(<char*>"_spherical_kn_d")
-ufunc__spherical_kn_d_data[0] = &ufunc__spherical_kn_d_ptr[2*0]
-ufunc__spherical_kn_d_data[1] = &ufunc__spherical_kn_d_ptr[2*1]
-_spherical_kn_d = np.PyUFunc_FromFuncAndData(ufunc__spherical_kn_d_loops, ufunc__spherical_kn_d_data, ufunc__spherical_kn_d_types, 2, 2, 1, 0, "_spherical_kn_d", ufunc__spherical_kn_d_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc__spherical_yn_loops[2]
-cdef void *ufunc__spherical_yn_ptr[4]
-cdef void *ufunc__spherical_yn_data[2]
-cdef char ufunc__spherical_yn_types[6]
-cdef char *ufunc__spherical_yn_doc = (
-    "Internal function, use `spherical_yn` instead.")
-ufunc__spherical_yn_loops[0] = <np.PyUFuncGenericFunction>loop_d_ld__As_ld_d
-ufunc__spherical_yn_loops[1] = <np.PyUFuncGenericFunction>loop_D_lD__As_lD_D
-ufunc__spherical_yn_types[0] = <char>NPY_LONG
-ufunc__spherical_yn_types[1] = <char>NPY_DOUBLE
-ufunc__spherical_yn_types[2] = <char>NPY_DOUBLE
-ufunc__spherical_yn_types[3] = <char>NPY_LONG
-ufunc__spherical_yn_types[4] = <char>NPY_CDOUBLE
-ufunc__spherical_yn_types[5] = <char>NPY_CDOUBLE
-ufunc__spherical_yn_ptr[2*0] = <void*>_func_spherical_yn_real
-ufunc__spherical_yn_ptr[2*0+1] = <void*>(<char*>"_spherical_yn")
-ufunc__spherical_yn_ptr[2*1] = <void*>_func_spherical_yn_complex
-ufunc__spherical_yn_ptr[2*1+1] = <void*>(<char*>"_spherical_yn")
-ufunc__spherical_yn_data[0] = &ufunc__spherical_yn_ptr[2*0]
-ufunc__spherical_yn_data[1] = &ufunc__spherical_yn_ptr[2*1]
-_spherical_yn = np.PyUFunc_FromFuncAndData(ufunc__spherical_yn_loops, ufunc__spherical_yn_data, ufunc__spherical_yn_types, 2, 2, 1, 0, "_spherical_yn", ufunc__spherical_yn_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc__spherical_yn_d_loops[2]
-cdef void *ufunc__spherical_yn_d_ptr[4]
-cdef void *ufunc__spherical_yn_d_data[2]
-cdef char ufunc__spherical_yn_d_types[6]
-cdef char *ufunc__spherical_yn_d_doc = (
-    "Internal function, use `spherical_yn` instead.")
-ufunc__spherical_yn_d_loops[0] = <np.PyUFuncGenericFunction>loop_d_ld__As_ld_d
-ufunc__spherical_yn_d_loops[1] = <np.PyUFuncGenericFunction>loop_D_lD__As_lD_D
-ufunc__spherical_yn_d_types[0] = <char>NPY_LONG
-ufunc__spherical_yn_d_types[1] = <char>NPY_DOUBLE
-ufunc__spherical_yn_d_types[2] = <char>NPY_DOUBLE
-ufunc__spherical_yn_d_types[3] = <char>NPY_LONG
-ufunc__spherical_yn_d_types[4] = <char>NPY_CDOUBLE
-ufunc__spherical_yn_d_types[5] = <char>NPY_CDOUBLE
-ufunc__spherical_yn_d_ptr[2*0] = <void*>_func_spherical_yn_d_real
-ufunc__spherical_yn_d_ptr[2*0+1] = <void*>(<char*>"_spherical_yn_d")
-ufunc__spherical_yn_d_ptr[2*1] = <void*>_func_spherical_yn_d_complex
-ufunc__spherical_yn_d_ptr[2*1+1] = <void*>(<char*>"_spherical_yn_d")
-ufunc__spherical_yn_d_data[0] = &ufunc__spherical_yn_d_ptr[2*0]
-ufunc__spherical_yn_d_data[1] = &ufunc__spherical_yn_d_ptr[2*1]
-_spherical_yn_d = np.PyUFunc_FromFuncAndData(ufunc__spherical_yn_d_loops, ufunc__spherical_yn_d_data, ufunc__spherical_yn_d_types, 2, 2, 1, 0, "_spherical_yn_d", ufunc__spherical_yn_d_doc, 0)
 
 cdef np.PyUFuncGenericFunction ufunc__stirling2_inexact_loops[2]
 cdef void *ufunc__stirling2_inexact_ptr[4]
@@ -2816,13 +3619,13 @@ cdef char *ufunc__struve_asymp_large_z_doc = (
     "Returns\n"
     "-------\n"
     "v, err")
-ufunc__struve_asymp_large_z_loops[0] = <np.PyUFuncGenericFunction>loop_d_ddi_d_As_ddl_dd
+ufunc__struve_asymp_large_z_loops[0] = <np.PyUFuncGenericFunction>loop_d_ddp_d_As_ddp_dd
 ufunc__struve_asymp_large_z_types[0] = <char>NPY_DOUBLE
 ufunc__struve_asymp_large_z_types[1] = <char>NPY_DOUBLE
-ufunc__struve_asymp_large_z_types[2] = <char>NPY_LONG
+ufunc__struve_asymp_large_z_types[2] = <char>NPY_INTP
 ufunc__struve_asymp_large_z_types[3] = <char>NPY_DOUBLE
 ufunc__struve_asymp_large_z_types[4] = <char>NPY_DOUBLE
-ufunc__struve_asymp_large_z_ptr[2*0] = <void*>_func_struve_asymp_large_z
+ufunc__struve_asymp_large_z_ptr[2*0] = <void*>_func_cephes__struve_asymp_large_z
 ufunc__struve_asymp_large_z_ptr[2*0+1] = <void*>(<char*>"_struve_asymp_large_z")
 ufunc__struve_asymp_large_z_data[0] = &ufunc__struve_asymp_large_z_ptr[2*0]
 _struve_asymp_large_z = np.PyUFunc_FromFuncAndData(ufunc__struve_asymp_large_z_loops, ufunc__struve_asymp_large_z_data, ufunc__struve_asymp_large_z_types, 1, 3, 2, 0, "_struve_asymp_large_z", ufunc__struve_asymp_large_z_doc, 0)
@@ -2841,13 +3644,13 @@ cdef char *ufunc__struve_bessel_series_doc = (
     "Returns\n"
     "-------\n"
     "v, err")
-ufunc__struve_bessel_series_loops[0] = <np.PyUFuncGenericFunction>loop_d_ddi_d_As_ddl_dd
+ufunc__struve_bessel_series_loops[0] = <np.PyUFuncGenericFunction>loop_d_ddp_d_As_ddp_dd
 ufunc__struve_bessel_series_types[0] = <char>NPY_DOUBLE
 ufunc__struve_bessel_series_types[1] = <char>NPY_DOUBLE
-ufunc__struve_bessel_series_types[2] = <char>NPY_LONG
+ufunc__struve_bessel_series_types[2] = <char>NPY_INTP
 ufunc__struve_bessel_series_types[3] = <char>NPY_DOUBLE
 ufunc__struve_bessel_series_types[4] = <char>NPY_DOUBLE
-ufunc__struve_bessel_series_ptr[2*0] = <void*>_func_struve_bessel_series
+ufunc__struve_bessel_series_ptr[2*0] = <void*>_func_cephes__struve_bessel_series
 ufunc__struve_bessel_series_ptr[2*0+1] = <void*>(<char*>"_struve_bessel_series")
 ufunc__struve_bessel_series_data[0] = &ufunc__struve_bessel_series_ptr[2*0]
 _struve_bessel_series = np.PyUFunc_FromFuncAndData(ufunc__struve_bessel_series_loops, ufunc__struve_bessel_series_data, ufunc__struve_bessel_series_types, 1, 3, 2, 0, "_struve_bessel_series", ufunc__struve_bessel_series_doc, 0)
@@ -2866,40 +3669,16 @@ cdef char *ufunc__struve_power_series_doc = (
     "Returns\n"
     "-------\n"
     "v, err")
-ufunc__struve_power_series_loops[0] = <np.PyUFuncGenericFunction>loop_d_ddi_d_As_ddl_dd
+ufunc__struve_power_series_loops[0] = <np.PyUFuncGenericFunction>loop_d_ddp_d_As_ddp_dd
 ufunc__struve_power_series_types[0] = <char>NPY_DOUBLE
 ufunc__struve_power_series_types[1] = <char>NPY_DOUBLE
-ufunc__struve_power_series_types[2] = <char>NPY_LONG
+ufunc__struve_power_series_types[2] = <char>NPY_INTP
 ufunc__struve_power_series_types[3] = <char>NPY_DOUBLE
 ufunc__struve_power_series_types[4] = <char>NPY_DOUBLE
-ufunc__struve_power_series_ptr[2*0] = <void*>_func_struve_power_series
+ufunc__struve_power_series_ptr[2*0] = <void*>_func_cephes__struve_power_series
 ufunc__struve_power_series_ptr[2*0+1] = <void*>(<char*>"_struve_power_series")
 ufunc__struve_power_series_data[0] = &ufunc__struve_power_series_ptr[2*0]
 _struve_power_series = np.PyUFunc_FromFuncAndData(ufunc__struve_power_series_loops, ufunc__struve_power_series_data, ufunc__struve_power_series_types, 1, 3, 2, 0, "_struve_power_series", ufunc__struve_power_series_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc__zeta_loops[2]
-cdef void *ufunc__zeta_ptr[4]
-cdef void *ufunc__zeta_data[2]
-cdef char ufunc__zeta_types[6]
-cdef char *ufunc__zeta_doc = (
-    "_zeta(x, q)\n"
-    "\n"
-    "Internal function, Hurwitz zeta.")
-ufunc__zeta_loops[0] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
-ufunc__zeta_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
-ufunc__zeta_types[0] = <char>NPY_FLOAT
-ufunc__zeta_types[1] = <char>NPY_FLOAT
-ufunc__zeta_types[2] = <char>NPY_FLOAT
-ufunc__zeta_types[3] = <char>NPY_DOUBLE
-ufunc__zeta_types[4] = <char>NPY_DOUBLE
-ufunc__zeta_types[5] = <char>NPY_DOUBLE
-ufunc__zeta_ptr[2*0] = <void*>_func_zeta
-ufunc__zeta_ptr[2*0+1] = <void*>(<char*>"_zeta")
-ufunc__zeta_ptr[2*1] = <void*>_func_zeta
-ufunc__zeta_ptr[2*1+1] = <void*>(<char*>"_zeta")
-ufunc__zeta_data[0] = &ufunc__zeta_ptr[2*0]
-ufunc__zeta_data[1] = &ufunc__zeta_ptr[2*1]
-_zeta = np.PyUFunc_FromFuncAndData(ufunc__zeta_loops, ufunc__zeta_data, ufunc__zeta_types, 2, 2, 1, 0, "_zeta", ufunc__zeta_doc, 0)
 
 cdef np.PyUFuncGenericFunction ufunc_agm_loops[2]
 cdef void *ufunc_agm_ptr[4]
@@ -2976,239 +3755,6 @@ ufunc_agm_data[0] = &ufunc_agm_ptr[2*0]
 ufunc_agm_data[1] = &ufunc_agm_ptr[2*1]
 agm = np.PyUFunc_FromFuncAndData(ufunc_agm_loops, ufunc_agm_data, ufunc_agm_types, 2, 2, 1, 0, "agm", ufunc_agm_doc, 0)
 
-cdef np.PyUFuncGenericFunction ufunc_airy_loops[4]
-cdef void *ufunc_airy_ptr[8]
-cdef void *ufunc_airy_data[4]
-cdef char ufunc_airy_types[20]
-cdef char *ufunc_airy_doc = (
-    "airy(z, out=None)\n"
-    "\n"
-    "Airy functions and their derivatives.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "z : array_like\n"
-    "    Real or complex argument.\n"
-    "out : tuple of ndarray, optional\n"
-    "    Optional output arrays for the function values\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "Ai, Aip, Bi, Bip : 4-tuple of scalar or ndarray\n"
-    "    Airy functions Ai and Bi, and their derivatives Aip and Bip.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "airye : exponentially scaled Airy functions.\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "The Airy functions Ai and Bi are two independent solutions of\n"
-    "\n"
-    ".. math:: y''(x) = x y(x).\n"
-    "\n"
-    "For real `z` in [-10, 10], the computation is carried out by calling\n"
-    "the Cephes [1]_ `airy` routine, which uses power series summation\n"
-    "for small `z` and rational minimax approximations for large `z`.\n"
-    "\n"
-    "Outside this range, the AMOS [2]_ `zairy` and `zbiry` routines are\n"
-    "employed.  They are computed using power series for :math:`|z| < 1` and\n"
-    "the following relations to modified Bessel functions for larger `z`\n"
-    "(where :math:`t \\equiv 2 z^{3/2}/3`):\n"
-    "\n"
-    ".. math::\n"
-    "\n"
-    "    Ai(z) = \\frac{1}{\\pi \\sqrt{3}} K_{1/3}(t)\n"
-    "\n"
-    "    Ai'(z) = -\\frac{z}{\\pi \\sqrt{3}} K_{2/3}(t)\n"
-    "\n"
-    "    Bi(z) = \\sqrt{\\frac{z}{3}} \\left(I_{-1/3}(t) + I_{1/3}(t) \\right)\n"
-    "\n"
-    "    Bi'(z) = \\frac{z}{\\sqrt{3}} \\left(I_{-2/3}(t) + I_{2/3}(t)\\right)\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] Cephes Mathematical Functions Library,\n"
-    "       http://www.netlib.org/cephes/\n"
-    ".. [2] Donald E. Amos, \"AMOS, A Portable Package for Bessel Functions\n"
-    "       of a Complex Argument and Nonnegative Order\",\n"
-    "       http://netlib.org/amos/\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "Compute the Airy functions on the interval [-15, 5].\n"
-    "\n"
-    ">>> import numpy as np\n"
-    ">>> from scipy import special\n"
-    ">>> x = np.linspace(-15, 5, 201)\n"
-    ">>> ai, aip, bi, bip = special.airy(x)\n"
-    "\n"
-    "Plot Ai(x) and Bi(x).\n"
-    "\n"
-    ">>> import matplotlib.pyplot as plt\n"
-    ">>> plt.plot(x, ai, 'r', label='Ai(x)')\n"
-    ">>> plt.plot(x, bi, 'b--', label='Bi(x)')\n"
-    ">>> plt.ylim(-0.5, 1.0)\n"
-    ">>> plt.grid()\n"
-    ">>> plt.legend(loc='upper left')\n"
-    ">>> plt.show()")
-ufunc_airy_loops[0] = <np.PyUFuncGenericFunction>loop_i_d_dddd_As_f_ffff
-ufunc_airy_loops[1] = <np.PyUFuncGenericFunction>loop_i_d_dddd_As_d_dddd
-ufunc_airy_loops[2] = <np.PyUFuncGenericFunction>loop_i_D_DDDD_As_F_FFFF
-ufunc_airy_loops[3] = <np.PyUFuncGenericFunction>loop_i_D_DDDD_As_D_DDDD
-ufunc_airy_types[0] = <char>NPY_FLOAT
-ufunc_airy_types[1] = <char>NPY_FLOAT
-ufunc_airy_types[2] = <char>NPY_FLOAT
-ufunc_airy_types[3] = <char>NPY_FLOAT
-ufunc_airy_types[4] = <char>NPY_FLOAT
-ufunc_airy_types[5] = <char>NPY_DOUBLE
-ufunc_airy_types[6] = <char>NPY_DOUBLE
-ufunc_airy_types[7] = <char>NPY_DOUBLE
-ufunc_airy_types[8] = <char>NPY_DOUBLE
-ufunc_airy_types[9] = <char>NPY_DOUBLE
-ufunc_airy_types[10] = <char>NPY_CFLOAT
-ufunc_airy_types[11] = <char>NPY_CFLOAT
-ufunc_airy_types[12] = <char>NPY_CFLOAT
-ufunc_airy_types[13] = <char>NPY_CFLOAT
-ufunc_airy_types[14] = <char>NPY_CFLOAT
-ufunc_airy_types[15] = <char>NPY_CDOUBLE
-ufunc_airy_types[16] = <char>NPY_CDOUBLE
-ufunc_airy_types[17] = <char>NPY_CDOUBLE
-ufunc_airy_types[18] = <char>NPY_CDOUBLE
-ufunc_airy_types[19] = <char>NPY_CDOUBLE
-ufunc_airy_ptr[2*0] = <void*>_func_airy_wrap
-ufunc_airy_ptr[2*0+1] = <void*>(<char*>"airy")
-ufunc_airy_ptr[2*1] = <void*>_func_airy_wrap
-ufunc_airy_ptr[2*1+1] = <void*>(<char*>"airy")
-ufunc_airy_ptr[2*2] = <void*>_func_cairy_wrap
-ufunc_airy_ptr[2*2+1] = <void*>(<char*>"airy")
-ufunc_airy_ptr[2*3] = <void*>_func_cairy_wrap
-ufunc_airy_ptr[2*3+1] = <void*>(<char*>"airy")
-ufunc_airy_data[0] = &ufunc_airy_ptr[2*0]
-ufunc_airy_data[1] = &ufunc_airy_ptr[2*1]
-ufunc_airy_data[2] = &ufunc_airy_ptr[2*2]
-ufunc_airy_data[3] = &ufunc_airy_ptr[2*3]
-airy = np.PyUFunc_FromFuncAndData(ufunc_airy_loops, ufunc_airy_data, ufunc_airy_types, 4, 1, 4, 0, "airy", ufunc_airy_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_airye_loops[4]
-cdef void *ufunc_airye_ptr[8]
-cdef void *ufunc_airye_data[4]
-cdef char ufunc_airye_types[20]
-cdef char *ufunc_airye_doc = (
-    "airye(z, out=None)\n"
-    "\n"
-    "Exponentially scaled Airy functions and their derivatives.\n"
-    "\n"
-    "Scaling::\n"
-    "\n"
-    "    eAi  = Ai  * exp(2.0/3.0*z*sqrt(z))\n"
-    "    eAip = Aip * exp(2.0/3.0*z*sqrt(z))\n"
-    "    eBi  = Bi  * exp(-abs(2.0/3.0*(z*sqrt(z)).real))\n"
-    "    eBip = Bip * exp(-abs(2.0/3.0*(z*sqrt(z)).real))\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "z : array_like\n"
-    "    Real or complex argument.\n"
-    "out : tuple of ndarray, optional\n"
-    "    Optional output arrays for the function values\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "eAi, eAip, eBi, eBip : 4-tuple of scalar or ndarray\n"
-    "    Exponentially scaled Airy functions eAi and eBi, and their derivatives\n"
-    "    eAip and eBip\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "airy\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "Wrapper for the AMOS [1]_ routines `zairy` and `zbiry`.\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] Donald E. Amos, \"AMOS, A Portable Package for Bessel Functions\n"
-    "       of a Complex Argument and Nonnegative Order\",\n"
-    "       http://netlib.org/amos/\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "We can compute exponentially scaled Airy functions and their derivatives:\n"
-    "\n"
-    ">>> import numpy as np\n"
-    ">>> from scipy.special import airye\n"
-    ">>> import matplotlib.pyplot as plt\n"
-    ">>> z = np.linspace(0, 50, 500)\n"
-    ">>> eAi, eAip, eBi, eBip = airye(z)\n"
-    ">>> f, ax = plt.subplots(2, 1, sharex=True)\n"
-    ">>> for ind, data in enumerate([[eAi, eAip, [\"eAi\", \"eAip\"]],\n"
-    "...                             [eBi, eBip, [\"eBi\", \"eBip\"]]]):\n"
-    "...     ax[ind].plot(z, data[0], \"-r\", z, data[1], \"-b\")\n"
-    "...     ax[ind].legend(data[2])\n"
-    "...     ax[ind].grid(True)\n"
-    ">>> plt.show()\n"
-    "\n"
-    "We can compute these using usual non-scaled Airy functions by:\n"
-    "\n"
-    ">>> from scipy.special import airy\n"
-    ">>> Ai, Aip, Bi, Bip = airy(z)\n"
-    ">>> np.allclose(eAi, Ai * np.exp(2.0 / 3.0 * z * np.sqrt(z)))\n"
-    "True\n"
-    ">>> np.allclose(eAip, Aip * np.exp(2.0 / 3.0 * z * np.sqrt(z)))\n"
-    "True\n"
-    ">>> np.allclose(eBi, Bi * np.exp(-abs(np.real(2.0 / 3.0 * z * np.sqrt(z)))))\n"
-    "True\n"
-    ">>> np.allclose(eBip, Bip * np.exp(-abs(np.real(2.0 / 3.0 * z * np.sqrt(z)))))\n"
-    "True\n"
-    "\n"
-    "Comparing non-scaled and exponentially scaled ones, the usual non-scaled\n"
-    "function quickly underflows for large values, whereas the exponentially\n"
-    "scaled function does not.\n"
-    "\n"
-    ">>> airy(200)\n"
-    "(0.0, 0.0, nan, nan)\n"
-    ">>> airye(200)\n"
-    "(0.07501041684381093, -1.0609012305109042, 0.15003188417418148, 2.1215836725571093)")
-ufunc_airye_loops[0] = <np.PyUFuncGenericFunction>loop_i_d_dddd_As_f_ffff
-ufunc_airye_loops[1] = <np.PyUFuncGenericFunction>loop_i_d_dddd_As_d_dddd
-ufunc_airye_loops[2] = <np.PyUFuncGenericFunction>loop_i_D_DDDD_As_F_FFFF
-ufunc_airye_loops[3] = <np.PyUFuncGenericFunction>loop_i_D_DDDD_As_D_DDDD
-ufunc_airye_types[0] = <char>NPY_FLOAT
-ufunc_airye_types[1] = <char>NPY_FLOAT
-ufunc_airye_types[2] = <char>NPY_FLOAT
-ufunc_airye_types[3] = <char>NPY_FLOAT
-ufunc_airye_types[4] = <char>NPY_FLOAT
-ufunc_airye_types[5] = <char>NPY_DOUBLE
-ufunc_airye_types[6] = <char>NPY_DOUBLE
-ufunc_airye_types[7] = <char>NPY_DOUBLE
-ufunc_airye_types[8] = <char>NPY_DOUBLE
-ufunc_airye_types[9] = <char>NPY_DOUBLE
-ufunc_airye_types[10] = <char>NPY_CFLOAT
-ufunc_airye_types[11] = <char>NPY_CFLOAT
-ufunc_airye_types[12] = <char>NPY_CFLOAT
-ufunc_airye_types[13] = <char>NPY_CFLOAT
-ufunc_airye_types[14] = <char>NPY_CFLOAT
-ufunc_airye_types[15] = <char>NPY_CDOUBLE
-ufunc_airye_types[16] = <char>NPY_CDOUBLE
-ufunc_airye_types[17] = <char>NPY_CDOUBLE
-ufunc_airye_types[18] = <char>NPY_CDOUBLE
-ufunc_airye_types[19] = <char>NPY_CDOUBLE
-ufunc_airye_ptr[2*0] = <void*>_func_cairy_wrap_e_real
-ufunc_airye_ptr[2*0+1] = <void*>(<char*>"airye")
-ufunc_airye_ptr[2*1] = <void*>_func_cairy_wrap_e_real
-ufunc_airye_ptr[2*1+1] = <void*>(<char*>"airye")
-ufunc_airye_ptr[2*2] = <void*>_func_cairy_wrap_e
-ufunc_airye_ptr[2*2+1] = <void*>(<char*>"airye")
-ufunc_airye_ptr[2*3] = <void*>_func_cairy_wrap_e
-ufunc_airye_ptr[2*3+1] = <void*>(<char*>"airye")
-ufunc_airye_data[0] = &ufunc_airye_ptr[2*0]
-ufunc_airye_data[1] = &ufunc_airye_ptr[2*1]
-ufunc_airye_data[2] = &ufunc_airye_ptr[2*2]
-ufunc_airye_data[3] = &ufunc_airye_ptr[2*3]
-airye = np.PyUFunc_FromFuncAndData(ufunc_airye_loops, ufunc_airye_data, ufunc_airye_types, 4, 1, 4, 0, "airye", ufunc_airye_doc, 0)
-
 cdef np.PyUFuncGenericFunction ufunc_bdtr_loops[3]
 cdef void *ufunc_bdtr_ptr[6]
 cdef void *ufunc_bdtr_data[3]
@@ -3257,14 +3803,14 @@ cdef char *ufunc_bdtr_doc = (
     ".. [1] Cephes Mathematical Functions Library,\n"
     "       http://www.netlib.org/cephes/")
 ufunc_bdtr_loops[0] = <np.PyUFuncGenericFunction>loop_d_ddd__As_fff_f
-ufunc_bdtr_loops[1] = <np.PyUFuncGenericFunction>loop_d_did__As_dld_d
+ufunc_bdtr_loops[1] = <np.PyUFuncGenericFunction>loop_d_dpd__As_dpd_d
 ufunc_bdtr_loops[2] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
 ufunc_bdtr_types[0] = <char>NPY_FLOAT
 ufunc_bdtr_types[1] = <char>NPY_FLOAT
 ufunc_bdtr_types[2] = <char>NPY_FLOAT
 ufunc_bdtr_types[3] = <char>NPY_FLOAT
 ufunc_bdtr_types[4] = <char>NPY_DOUBLE
-ufunc_bdtr_types[5] = <char>NPY_LONG
+ufunc_bdtr_types[5] = <char>NPY_INTP
 ufunc_bdtr_types[6] = <char>NPY_DOUBLE
 ufunc_bdtr_types[7] = <char>NPY_DOUBLE
 ufunc_bdtr_types[8] = <char>NPY_DOUBLE
@@ -3273,7 +3819,7 @@ ufunc_bdtr_types[10] = <char>NPY_DOUBLE
 ufunc_bdtr_types[11] = <char>NPY_DOUBLE
 ufunc_bdtr_ptr[2*0] = <void*>_func_bdtr_unsafe
 ufunc_bdtr_ptr[2*0+1] = <void*>(<char*>"bdtr")
-ufunc_bdtr_ptr[2*1] = <void*>_func_bdtr
+ufunc_bdtr_ptr[2*1] = <void*>_func_cephes_bdtr_wrap
 ufunc_bdtr_ptr[2*1+1] = <void*>(<char*>"bdtr")
 ufunc_bdtr_ptr[2*2] = <void*>_func_bdtr_unsafe
 ufunc_bdtr_ptr[2*2+1] = <void*>(<char*>"bdtr")
@@ -3335,14 +3881,14 @@ cdef char *ufunc_bdtrc_doc = (
     ".. [1] Cephes Mathematical Functions Library,\n"
     "       http://www.netlib.org/cephes/")
 ufunc_bdtrc_loops[0] = <np.PyUFuncGenericFunction>loop_d_ddd__As_fff_f
-ufunc_bdtrc_loops[1] = <np.PyUFuncGenericFunction>loop_d_did__As_dld_d
+ufunc_bdtrc_loops[1] = <np.PyUFuncGenericFunction>loop_d_dpd__As_dpd_d
 ufunc_bdtrc_loops[2] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
 ufunc_bdtrc_types[0] = <char>NPY_FLOAT
 ufunc_bdtrc_types[1] = <char>NPY_FLOAT
 ufunc_bdtrc_types[2] = <char>NPY_FLOAT
 ufunc_bdtrc_types[3] = <char>NPY_FLOAT
 ufunc_bdtrc_types[4] = <char>NPY_DOUBLE
-ufunc_bdtrc_types[5] = <char>NPY_LONG
+ufunc_bdtrc_types[5] = <char>NPY_INTP
 ufunc_bdtrc_types[6] = <char>NPY_DOUBLE
 ufunc_bdtrc_types[7] = <char>NPY_DOUBLE
 ufunc_bdtrc_types[8] = <char>NPY_DOUBLE
@@ -3351,7 +3897,7 @@ ufunc_bdtrc_types[10] = <char>NPY_DOUBLE
 ufunc_bdtrc_types[11] = <char>NPY_DOUBLE
 ufunc_bdtrc_ptr[2*0] = <void*>_func_bdtrc_unsafe
 ufunc_bdtrc_ptr[2*0+1] = <void*>(<char*>"bdtrc")
-ufunc_bdtrc_ptr[2*1] = <void*>_func_bdtrc
+ufunc_bdtrc_ptr[2*1] = <void*>_func_cephes_bdtrc_wrap
 ufunc_bdtrc_ptr[2*1+1] = <void*>(<char*>"bdtrc")
 ufunc_bdtrc_ptr[2*2] = <void*>_func_bdtrc_unsafe
 ufunc_bdtrc_ptr[2*2+1] = <void*>(<char*>"bdtrc")
@@ -3409,14 +3955,14 @@ cdef char *ufunc_bdtri_doc = (
     ".. [1] Cephes Mathematical Functions Library,\n"
     "       http://www.netlib.org/cephes/")
 ufunc_bdtri_loops[0] = <np.PyUFuncGenericFunction>loop_d_ddd__As_fff_f
-ufunc_bdtri_loops[1] = <np.PyUFuncGenericFunction>loop_d_did__As_dld_d
+ufunc_bdtri_loops[1] = <np.PyUFuncGenericFunction>loop_d_dpd__As_dpd_d
 ufunc_bdtri_loops[2] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
 ufunc_bdtri_types[0] = <char>NPY_FLOAT
 ufunc_bdtri_types[1] = <char>NPY_FLOAT
 ufunc_bdtri_types[2] = <char>NPY_FLOAT
 ufunc_bdtri_types[3] = <char>NPY_FLOAT
 ufunc_bdtri_types[4] = <char>NPY_DOUBLE
-ufunc_bdtri_types[5] = <char>NPY_LONG
+ufunc_bdtri_types[5] = <char>NPY_INTP
 ufunc_bdtri_types[6] = <char>NPY_DOUBLE
 ufunc_bdtri_types[7] = <char>NPY_DOUBLE
 ufunc_bdtri_types[8] = <char>NPY_DOUBLE
@@ -3425,7 +3971,7 @@ ufunc_bdtri_types[10] = <char>NPY_DOUBLE
 ufunc_bdtri_types[11] = <char>NPY_DOUBLE
 ufunc_bdtri_ptr[2*0] = <void*>_func_bdtri_unsafe
 ufunc_bdtri_ptr[2*0+1] = <void*>(<char*>"bdtri")
-ufunc_bdtri_ptr[2*1] = <void*>_func_bdtri
+ufunc_bdtri_ptr[2*1] = <void*>_func_cephes_bdtri_wrap
 ufunc_bdtri_ptr[2*1+1] = <void*>(<char*>"bdtri")
 ufunc_bdtri_ptr[2*2] = <void*>_func_bdtri_unsafe
 ufunc_bdtri_ptr[2*2+1] = <void*>(<char*>"bdtri")
@@ -3574,224 +4120,6 @@ ufunc_bdtrin_data[0] = &ufunc_bdtrin_ptr[2*0]
 ufunc_bdtrin_data[1] = &ufunc_bdtrin_ptr[2*1]
 bdtrin = np.PyUFunc_FromFuncAndData(ufunc_bdtrin_loops, ufunc_bdtrin_data, ufunc_bdtrin_types, 2, 3, 1, 0, "bdtrin", ufunc_bdtrin_doc, 0)
 
-cdef np.PyUFuncGenericFunction ufunc_bei_loops[2]
-cdef void *ufunc_bei_ptr[4]
-cdef void *ufunc_bei_data[2]
-cdef char ufunc_bei_types[4]
-cdef char *ufunc_bei_doc = (
-    "bei(x, out=None)\n"
-    "\n"
-    "Kelvin function bei.\n"
-    "\n"
-    "Defined as\n"
-    "\n"
-    ".. math::\n"
-    "\n"
-    "    \\mathrm{bei}(x) = \\Im[J_0(x e^{3 \\pi i / 4})]\n"
-    "\n"
-    "where :math:`J_0` is the Bessel function of the first kind of\n"
-    "order zero (see `jv`). See [dlmf]_ for more details.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "x : array_like\n"
-    "    Real argument.\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "scalar or ndarray\n"
-    "    Values of the Kelvin function.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "ber : the corresponding real part\n"
-    "beip : the derivative of bei\n"
-    "jv : Bessel function of the first kind\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [dlmf] NIST, Digital Library of Mathematical Functions,\n"
-    "    https://dlmf.nist.gov/10.61\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "It can be expressed using Bessel functions.\n"
-    "\n"
-    ">>> import numpy as np\n"
-    ">>> import scipy.special as sc\n"
-    ">>> x = np.array([1.0, 2.0, 3.0, 4.0])\n"
-    ">>> sc.jv(0, x * np.exp(3 * np.pi * 1j / 4)).imag\n"
-    "array([0.24956604, 0.97229163, 1.93758679, 2.29269032])\n"
-    ">>> sc.bei(x)\n"
-    "array([0.24956604, 0.97229163, 1.93758679, 2.29269032])")
-ufunc_bei_loops[0] = <np.PyUFuncGenericFunction>loop_d_d__As_f_f
-ufunc_bei_loops[1] = <np.PyUFuncGenericFunction>loop_d_d__As_d_d
-ufunc_bei_types[0] = <char>NPY_FLOAT
-ufunc_bei_types[1] = <char>NPY_FLOAT
-ufunc_bei_types[2] = <char>NPY_DOUBLE
-ufunc_bei_types[3] = <char>NPY_DOUBLE
-ufunc_bei_ptr[2*0] = <void*>_func_bei_wrap
-ufunc_bei_ptr[2*0+1] = <void*>(<char*>"bei")
-ufunc_bei_ptr[2*1] = <void*>_func_bei_wrap
-ufunc_bei_ptr[2*1+1] = <void*>(<char*>"bei")
-ufunc_bei_data[0] = &ufunc_bei_ptr[2*0]
-ufunc_bei_data[1] = &ufunc_bei_ptr[2*1]
-bei = np.PyUFunc_FromFuncAndData(ufunc_bei_loops, ufunc_bei_data, ufunc_bei_types, 2, 1, 1, 0, "bei", ufunc_bei_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_beip_loops[2]
-cdef void *ufunc_beip_ptr[4]
-cdef void *ufunc_beip_data[2]
-cdef char ufunc_beip_types[4]
-cdef char *ufunc_beip_doc = (
-    "beip(x, out=None)\n"
-    "\n"
-    "Derivative of the Kelvin function bei.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "x : array_like\n"
-    "    Real argument.\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "scalar or ndarray\n"
-    "    The values of the derivative of bei.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "bei\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [dlmf] NIST, Digital Library of Mathematical Functions,\n"
-    "    https://dlmf.nist.gov/10#PT5")
-ufunc_beip_loops[0] = <np.PyUFuncGenericFunction>loop_d_d__As_f_f
-ufunc_beip_loops[1] = <np.PyUFuncGenericFunction>loop_d_d__As_d_d
-ufunc_beip_types[0] = <char>NPY_FLOAT
-ufunc_beip_types[1] = <char>NPY_FLOAT
-ufunc_beip_types[2] = <char>NPY_DOUBLE
-ufunc_beip_types[3] = <char>NPY_DOUBLE
-ufunc_beip_ptr[2*0] = <void*>_func_beip_wrap
-ufunc_beip_ptr[2*0+1] = <void*>(<char*>"beip")
-ufunc_beip_ptr[2*1] = <void*>_func_beip_wrap
-ufunc_beip_ptr[2*1+1] = <void*>(<char*>"beip")
-ufunc_beip_data[0] = &ufunc_beip_ptr[2*0]
-ufunc_beip_data[1] = &ufunc_beip_ptr[2*1]
-beip = np.PyUFunc_FromFuncAndData(ufunc_beip_loops, ufunc_beip_data, ufunc_beip_types, 2, 1, 1, 0, "beip", ufunc_beip_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_ber_loops[2]
-cdef void *ufunc_ber_ptr[4]
-cdef void *ufunc_ber_data[2]
-cdef char ufunc_ber_types[4]
-cdef char *ufunc_ber_doc = (
-    "ber(x, out=None)\n"
-    "\n"
-    "Kelvin function ber.\n"
-    "\n"
-    "Defined as\n"
-    "\n"
-    ".. math::\n"
-    "\n"
-    "    \\mathrm{ber}(x) = \\Re[J_0(x e^{3 \\pi i / 4})]\n"
-    "\n"
-    "where :math:`J_0` is the Bessel function of the first kind of\n"
-    "order zero (see `jv`). See [dlmf]_ for more details.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "x : array_like\n"
-    "    Real argument.\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "scalar or ndarray\n"
-    "    Values of the Kelvin function.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "bei : the corresponding real part\n"
-    "berp : the derivative of bei\n"
-    "jv : Bessel function of the first kind\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [dlmf] NIST, Digital Library of Mathematical Functions,\n"
-    "    https://dlmf.nist.gov/10.61\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "It can be expressed using Bessel functions.\n"
-    "\n"
-    ">>> import numpy as np\n"
-    ">>> import scipy.special as sc\n"
-    ">>> x = np.array([1.0, 2.0, 3.0, 4.0])\n"
-    ">>> sc.jv(0, x * np.exp(3 * np.pi * 1j / 4)).real\n"
-    "array([ 0.98438178,  0.75173418, -0.22138025, -2.56341656])\n"
-    ">>> sc.ber(x)\n"
-    "array([ 0.98438178,  0.75173418, -0.22138025, -2.56341656])")
-ufunc_ber_loops[0] = <np.PyUFuncGenericFunction>loop_d_d__As_f_f
-ufunc_ber_loops[1] = <np.PyUFuncGenericFunction>loop_d_d__As_d_d
-ufunc_ber_types[0] = <char>NPY_FLOAT
-ufunc_ber_types[1] = <char>NPY_FLOAT
-ufunc_ber_types[2] = <char>NPY_DOUBLE
-ufunc_ber_types[3] = <char>NPY_DOUBLE
-ufunc_ber_ptr[2*0] = <void*>_func_ber_wrap
-ufunc_ber_ptr[2*0+1] = <void*>(<char*>"ber")
-ufunc_ber_ptr[2*1] = <void*>_func_ber_wrap
-ufunc_ber_ptr[2*1+1] = <void*>(<char*>"ber")
-ufunc_ber_data[0] = &ufunc_ber_ptr[2*0]
-ufunc_ber_data[1] = &ufunc_ber_ptr[2*1]
-ber = np.PyUFunc_FromFuncAndData(ufunc_ber_loops, ufunc_ber_data, ufunc_ber_types, 2, 1, 1, 0, "ber", ufunc_ber_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_berp_loops[2]
-cdef void *ufunc_berp_ptr[4]
-cdef void *ufunc_berp_data[2]
-cdef char ufunc_berp_types[4]
-cdef char *ufunc_berp_doc = (
-    "berp(x, out=None)\n"
-    "\n"
-    "Derivative of the Kelvin function ber.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "x : array_like\n"
-    "    Real argument.\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "scalar or ndarray\n"
-    "    The values of the derivative of ber.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "ber\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [dlmf] NIST, Digital Library of Mathematical Functions,\n"
-    "    https://dlmf.nist.gov/10#PT5")
-ufunc_berp_loops[0] = <np.PyUFuncGenericFunction>loop_d_d__As_f_f
-ufunc_berp_loops[1] = <np.PyUFuncGenericFunction>loop_d_d__As_d_d
-ufunc_berp_types[0] = <char>NPY_FLOAT
-ufunc_berp_types[1] = <char>NPY_FLOAT
-ufunc_berp_types[2] = <char>NPY_DOUBLE
-ufunc_berp_types[3] = <char>NPY_DOUBLE
-ufunc_berp_ptr[2*0] = <void*>_func_berp_wrap
-ufunc_berp_ptr[2*0+1] = <void*>(<char*>"berp")
-ufunc_berp_ptr[2*1] = <void*>_func_berp_wrap
-ufunc_berp_ptr[2*1+1] = <void*>(<char*>"berp")
-ufunc_berp_data[0] = &ufunc_berp_ptr[2*0]
-ufunc_berp_data[1] = &ufunc_berp_ptr[2*1]
-berp = np.PyUFunc_FromFuncAndData(ufunc_berp_loops, ufunc_berp_data, ufunc_berp_types, 2, 1, 1, 0, "berp", ufunc_berp_doc, 0)
-
 cdef np.PyUFuncGenericFunction ufunc_besselpoly_loops[2]
 cdef void *ufunc_besselpoly_ptr[4]
 cdef void *ufunc_besselpoly_data[2]
@@ -3872,9 +4200,9 @@ ufunc_besselpoly_types[4] = <char>NPY_DOUBLE
 ufunc_besselpoly_types[5] = <char>NPY_DOUBLE
 ufunc_besselpoly_types[6] = <char>NPY_DOUBLE
 ufunc_besselpoly_types[7] = <char>NPY_DOUBLE
-ufunc_besselpoly_ptr[2*0] = <void*>_func_besselpoly
+ufunc_besselpoly_ptr[2*0] = <void*>_func_cephes_besselpoly
 ufunc_besselpoly_ptr[2*0+1] = <void*>(<char*>"besselpoly")
-ufunc_besselpoly_ptr[2*1] = <void*>_func_besselpoly
+ufunc_besselpoly_ptr[2*1] = <void*>_func_cephes_besselpoly
 ufunc_besselpoly_ptr[2*1+1] = <void*>(<char*>"besselpoly")
 ufunc_besselpoly_data[0] = &ufunc_besselpoly_ptr[2*0]
 ufunc_besselpoly_data[1] = &ufunc_besselpoly_ptr[2*1]
@@ -3954,9 +4282,9 @@ ufunc_beta_types[2] = <char>NPY_FLOAT
 ufunc_beta_types[3] = <char>NPY_DOUBLE
 ufunc_beta_types[4] = <char>NPY_DOUBLE
 ufunc_beta_types[5] = <char>NPY_DOUBLE
-ufunc_beta_ptr[2*0] = <void*>_func_beta
+ufunc_beta_ptr[2*0] = <void*>_func_cephes_beta
 ufunc_beta_ptr[2*0+1] = <void*>(<char*>"beta")
-ufunc_beta_ptr[2*1] = <void*>_func_beta
+ufunc_beta_ptr[2*1] = <void*>_func_cephes_beta
 ufunc_beta_ptr[2*1+1] = <void*>(<char*>"beta")
 ufunc_beta_data[0] = &ufunc_beta_ptr[2*0]
 ufunc_beta_data[1] = &ufunc_beta_ptr[2*1]
@@ -4377,115 +4705,13 @@ ufunc_betaln_types[2] = <char>NPY_FLOAT
 ufunc_betaln_types[3] = <char>NPY_DOUBLE
 ufunc_betaln_types[4] = <char>NPY_DOUBLE
 ufunc_betaln_types[5] = <char>NPY_DOUBLE
-ufunc_betaln_ptr[2*0] = <void*>_func_lbeta
+ufunc_betaln_ptr[2*0] = <void*>_func_cephes_lbeta
 ufunc_betaln_ptr[2*0+1] = <void*>(<char*>"betaln")
-ufunc_betaln_ptr[2*1] = <void*>_func_lbeta
+ufunc_betaln_ptr[2*1] = <void*>_func_cephes_lbeta
 ufunc_betaln_ptr[2*1+1] = <void*>(<char*>"betaln")
 ufunc_betaln_data[0] = &ufunc_betaln_ptr[2*0]
 ufunc_betaln_data[1] = &ufunc_betaln_ptr[2*1]
 betaln = np.PyUFunc_FromFuncAndData(ufunc_betaln_loops, ufunc_betaln_data, ufunc_betaln_types, 2, 2, 1, 0, "betaln", ufunc_betaln_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_binom_loops[2]
-cdef void *ufunc_binom_ptr[4]
-cdef void *ufunc_binom_data[2]
-cdef char ufunc_binom_types[6]
-cdef char *ufunc_binom_doc = (
-    "binom(x, y, out=None)\n"
-    "\n"
-    "Binomial coefficient considered as a function of two real variables.\n"
-    "\n"
-    "For real arguments, the binomial coefficient is defined as\n"
-    "\n"
-    ".. math::\n"
-    "\n"
-    "    \\binom{x}{y} = \\frac{\\Gamma(x + 1)}{\\Gamma(y + 1)\\Gamma(x - y + 1)} =\n"
-    "        \\frac{1}{(x + 1)\\mathrm{B}(x - y + 1, y + 1)}\n"
-    "\n"
-    "Where :math:`\\Gamma` is the Gamma function (`gamma`) and :math:`\\mathrm{B}`\n"
-    "is the Beta function (`beta`) [1]_.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "x, y: array_like\n"
-    "   Real arguments to :math:`\\binom{x}{y}`.\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function values\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "scalar or ndarray\n"
-    "    Value of binomial coefficient.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "comb : The number of combinations of N things taken k at a time.\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "The Gamma function has poles at non-positive integers and tends to either\n"
-    "positive or negative infinity depending on the direction on the real line\n"
-    "from which a pole is approached. When considered as a function of two real\n"
-    "variables, :math:`\\binom{x}{y}` is thus undefined when `x` is a negative\n"
-    "integer.  `binom` returns ``nan`` when ``x`` is a negative integer. This\n"
-    "is the case even when ``x`` is a negative integer and ``y`` an integer,\n"
-    "contrary to the usual convention for defining :math:`\\binom{n}{k}` when it\n"
-    "is considered as a function of two integer variables.\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] https://en.wikipedia.org/wiki/Binomial_coefficient\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "The following examples illustrate the ways in which `binom` differs from\n"
-    "the function `comb`.\n"
-    "\n"
-    ">>> from scipy.special import binom, comb\n"
-    "\n"
-    "When ``exact=False`` and ``x`` and ``y`` are both positive, `comb` calls\n"
-    "`binom` internally.\n"
-    "\n"
-    ">>> x, y = 3, 2\n"
-    ">>> (binom(x, y), comb(x, y), comb(x, y, exact=True))\n"
-    "(3.0, 3.0, 3)\n"
-    "\n"
-    "For larger values, `comb` with ``exact=True`` no longer agrees\n"
-    "with `binom`.\n"
-    "\n"
-    ">>> x, y = 43, 23\n"
-    ">>> (binom(x, y), comb(x, y), comb(x, y, exact=True))\n"
-    "(960566918219.9999, 960566918219.9999, 960566918220)\n"
-    "\n"
-    "`binom` returns ``nan`` when ``x`` is a negative integer, but is otherwise\n"
-    "defined for negative arguments. `comb` returns 0 whenever one of ``x`` or\n"
-    "``y`` is negative or ``x`` is less than ``y``.\n"
-    "\n"
-    ">>> x, y = -3, 2\n"
-    ">>> (binom(x, y), comb(x, y), comb(x, y, exact=True))\n"
-    "(nan, 0.0, 0)\n"
-    "\n"
-    ">>> x, y = -3.1, 2.2\n"
-    ">>> (binom(x, y), comb(x, y), comb(x, y, exact=True))\n"
-    "(18.714147876804432, 0.0, 0)\n"
-    "\n"
-    ">>> x, y = 2.2, 3.1\n"
-    ">>> (binom(x, y), comb(x, y), comb(x, y, exact=True))\n"
-    "(0.037399983365134115, 0.0, 0)")
-ufunc_binom_loops[0] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
-ufunc_binom_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
-ufunc_binom_types[0] = <char>NPY_FLOAT
-ufunc_binom_types[1] = <char>NPY_FLOAT
-ufunc_binom_types[2] = <char>NPY_FLOAT
-ufunc_binom_types[3] = <char>NPY_DOUBLE
-ufunc_binom_types[4] = <char>NPY_DOUBLE
-ufunc_binom_types[5] = <char>NPY_DOUBLE
-ufunc_binom_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_binom
-ufunc_binom_ptr[2*0+1] = <void*>(<char*>"binom")
-ufunc_binom_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_binom
-ufunc_binom_ptr[2*1+1] = <void*>(<char*>"binom")
-ufunc_binom_data[0] = &ufunc_binom_ptr[2*0]
-ufunc_binom_data[1] = &ufunc_binom_ptr[2*1]
-binom = np.PyUFunc_FromFuncAndData(ufunc_binom_loops, ufunc_binom_data, ufunc_binom_types, 2, 2, 1, 0, "binom", ufunc_binom_doc, 0)
 
 cdef np.PyUFuncGenericFunction ufunc_boxcox_loops[2]
 cdef void *ufunc_boxcox_ptr[4]
@@ -4668,9 +4894,9 @@ ufunc_btdtr_types[4] = <char>NPY_DOUBLE
 ufunc_btdtr_types[5] = <char>NPY_DOUBLE
 ufunc_btdtr_types[6] = <char>NPY_DOUBLE
 ufunc_btdtr_types[7] = <char>NPY_DOUBLE
-ufunc_btdtr_ptr[2*0] = <void*>_func_btdtr
+ufunc_btdtr_ptr[2*0] = <void*>_func_cephes_btdtr
 ufunc_btdtr_ptr[2*0+1] = <void*>(<char*>"btdtr")
-ufunc_btdtr_ptr[2*1] = <void*>_func_btdtr
+ufunc_btdtr_ptr[2*1] = <void*>_func_cephes_btdtr
 ufunc_btdtr_ptr[2*1+1] = <void*>(<char*>"btdtr")
 ufunc_btdtr_data[0] = &ufunc_btdtr_ptr[2*0]
 ufunc_btdtr_data[1] = &ufunc_btdtr_ptr[2*1]
@@ -4737,9 +4963,9 @@ ufunc_btdtri_types[4] = <char>NPY_DOUBLE
 ufunc_btdtri_types[5] = <char>NPY_DOUBLE
 ufunc_btdtri_types[6] = <char>NPY_DOUBLE
 ufunc_btdtri_types[7] = <char>NPY_DOUBLE
-ufunc_btdtri_ptr[2*0] = <void*>_func_incbi
+ufunc_btdtri_ptr[2*0] = <void*>_func_cephes_btdtri
 ufunc_btdtri_ptr[2*0+1] = <void*>(<char*>"btdtri")
-ufunc_btdtri_ptr[2*1] = <void*>_func_incbi
+ufunc_btdtri_ptr[2*1] = <void*>_func_cephes_btdtri
 ufunc_btdtri_ptr[2*1+1] = <void*>(<char*>"btdtri")
 ufunc_btdtri_data[0] = &ufunc_btdtri_ptr[2*0]
 ufunc_btdtri_data[1] = &ufunc_btdtri_ptr[2*1]
@@ -4926,9 +5152,9 @@ ufunc_cbrt_types[0] = <char>NPY_FLOAT
 ufunc_cbrt_types[1] = <char>NPY_FLOAT
 ufunc_cbrt_types[2] = <char>NPY_DOUBLE
 ufunc_cbrt_types[3] = <char>NPY_DOUBLE
-ufunc_cbrt_ptr[2*0] = <void*>_func_cbrt
+ufunc_cbrt_ptr[2*0] = <void*>_func_cephes_cbrt
 ufunc_cbrt_ptr[2*0+1] = <void*>(<char*>"cbrt")
-ufunc_cbrt_ptr[2*1] = <void*>_func_cbrt
+ufunc_cbrt_ptr[2*1] = <void*>_func_cephes_cbrt
 ufunc_cbrt_ptr[2*1+1] = <void*>(<char*>"cbrt")
 ufunc_cbrt_data[0] = &ufunc_cbrt_ptr[2*0]
 ufunc_cbrt_data[1] = &ufunc_cbrt_ptr[2*1]
@@ -5000,9 +5226,9 @@ ufunc_chdtr_types[2] = <char>NPY_FLOAT
 ufunc_chdtr_types[3] = <char>NPY_DOUBLE
 ufunc_chdtr_types[4] = <char>NPY_DOUBLE
 ufunc_chdtr_types[5] = <char>NPY_DOUBLE
-ufunc_chdtr_ptr[2*0] = <void*>_func_chdtr
+ufunc_chdtr_ptr[2*0] = <void*>_func_cephes_chdtr
 ufunc_chdtr_ptr[2*0+1] = <void*>(<char*>"chdtr")
-ufunc_chdtr_ptr[2*1] = <void*>_func_chdtr
+ufunc_chdtr_ptr[2*1] = <void*>_func_cephes_chdtr
 ufunc_chdtr_ptr[2*1+1] = <void*>(<char*>"chdtr")
 ufunc_chdtr_data[0] = &ufunc_chdtr_ptr[2*0]
 ufunc_chdtr_data[1] = &ufunc_chdtr_ptr[2*1]
@@ -5075,9 +5301,9 @@ ufunc_chdtrc_types[2] = <char>NPY_FLOAT
 ufunc_chdtrc_types[3] = <char>NPY_DOUBLE
 ufunc_chdtrc_types[4] = <char>NPY_DOUBLE
 ufunc_chdtrc_types[5] = <char>NPY_DOUBLE
-ufunc_chdtrc_ptr[2*0] = <void*>_func_chdtrc
+ufunc_chdtrc_ptr[2*0] = <void*>_func_cephes_chdtrc
 ufunc_chdtrc_ptr[2*0+1] = <void*>(<char*>"chdtrc")
-ufunc_chdtrc_ptr[2*1] = <void*>_func_chdtrc
+ufunc_chdtrc_ptr[2*1] = <void*>_func_cephes_chdtrc
 ufunc_chdtrc_ptr[2*1+1] = <void*>(<char*>"chdtrc")
 ufunc_chdtrc_data[0] = &ufunc_chdtrc_ptr[2*0]
 ufunc_chdtrc_data[1] = &ufunc_chdtrc_ptr[2*1]
@@ -5138,9 +5364,9 @@ ufunc_chdtri_types[2] = <char>NPY_FLOAT
 ufunc_chdtri_types[3] = <char>NPY_DOUBLE
 ufunc_chdtri_types[4] = <char>NPY_DOUBLE
 ufunc_chdtri_types[5] = <char>NPY_DOUBLE
-ufunc_chdtri_ptr[2*0] = <void*>_func_chdtri
+ufunc_chdtri_ptr[2*0] = <void*>_func_cephes_chdtri
 ufunc_chdtri_ptr[2*0+1] = <void*>(<char*>"chdtri")
-ufunc_chdtri_ptr[2*1] = <void*>_func_chdtri
+ufunc_chdtri_ptr[2*1] = <void*>_func_cephes_chdtri
 ufunc_chdtri_ptr[2*1+1] = <void*>(<char*>"chdtri")
 ufunc_chdtri_data[0] = &ufunc_chdtri_ptr[2*0]
 ufunc_chdtri_data[1] = &ufunc_chdtri_ptr[2*1]
@@ -5458,9 +5684,9 @@ ufunc_cosdg_types[0] = <char>NPY_FLOAT
 ufunc_cosdg_types[1] = <char>NPY_FLOAT
 ufunc_cosdg_types[2] = <char>NPY_DOUBLE
 ufunc_cosdg_types[3] = <char>NPY_DOUBLE
-ufunc_cosdg_ptr[2*0] = <void*>_func_cosdg
+ufunc_cosdg_ptr[2*0] = <void*>_func_cephes_cosdg
 ufunc_cosdg_ptr[2*0+1] = <void*>(<char*>"cosdg")
-ufunc_cosdg_ptr[2*1] = <void*>_func_cosdg
+ufunc_cosdg_ptr[2*1] = <void*>_func_cephes_cosdg
 ufunc_cosdg_ptr[2*1+1] = <void*>(<char*>"cosdg")
 ufunc_cosdg_data[0] = &ufunc_cosdg_ptr[2*0]
 ufunc_cosdg_data[1] = &ufunc_cosdg_ptr[2*1]
@@ -5510,9 +5736,9 @@ ufunc_cosm1_types[0] = <char>NPY_FLOAT
 ufunc_cosm1_types[1] = <char>NPY_FLOAT
 ufunc_cosm1_types[2] = <char>NPY_DOUBLE
 ufunc_cosm1_types[3] = <char>NPY_DOUBLE
-ufunc_cosm1_ptr[2*0] = <void*>_func_cosm1
+ufunc_cosm1_ptr[2*0] = <void*>_func_cephes_cosm1
 ufunc_cosm1_ptr[2*0+1] = <void*>(<char*>"cosm1")
-ufunc_cosm1_ptr[2*1] = <void*>_func_cosm1
+ufunc_cosm1_ptr[2*1] = <void*>_func_cephes_cosm1
 ufunc_cosm1_ptr[2*1+1] = <void*>(<char*>"cosm1")
 ufunc_cosm1_data[0] = &ufunc_cosm1_ptr[2*0]
 ufunc_cosm1_data[1] = &ufunc_cosm1_ptr[2*1]
@@ -5561,9 +5787,9 @@ ufunc_cotdg_types[0] = <char>NPY_FLOAT
 ufunc_cotdg_types[1] = <char>NPY_FLOAT
 ufunc_cotdg_types[2] = <char>NPY_DOUBLE
 ufunc_cotdg_types[3] = <char>NPY_DOUBLE
-ufunc_cotdg_ptr[2*0] = <void*>_func_cotdg
+ufunc_cotdg_ptr[2*0] = <void*>_func_cephes_cotdg
 ufunc_cotdg_ptr[2*0+1] = <void*>(<char*>"cotdg")
-ufunc_cotdg_ptr[2*1] = <void*>_func_cotdg
+ufunc_cotdg_ptr[2*1] = <void*>_func_cephes_cotdg
 ufunc_cotdg_ptr[2*1+1] = <void*>(<char*>"cotdg")
 ufunc_cotdg_data[0] = &ufunc_cotdg_ptr[2*0]
 ufunc_cotdg_data[1] = &ufunc_cotdg_ptr[2*1]
@@ -5741,9 +5967,9 @@ ufunc_ellipe_types[0] = <char>NPY_FLOAT
 ufunc_ellipe_types[1] = <char>NPY_FLOAT
 ufunc_ellipe_types[2] = <char>NPY_DOUBLE
 ufunc_ellipe_types[3] = <char>NPY_DOUBLE
-ufunc_ellipe_ptr[2*0] = <void*>_func_ellpe
+ufunc_ellipe_ptr[2*0] = <void*>_func_cephes_ellpe
 ufunc_ellipe_ptr[2*0+1] = <void*>(<char*>"ellipe")
-ufunc_ellipe_ptr[2*1] = <void*>_func_ellpe
+ufunc_ellipe_ptr[2*1] = <void*>_func_cephes_ellpe
 ufunc_ellipe_ptr[2*1+1] = <void*>(<char*>"ellipe")
 ufunc_ellipe_data[0] = &ufunc_ellipe_ptr[2*0]
 ufunc_ellipe_data[1] = &ufunc_ellipe_ptr[2*1]
@@ -5824,9 +6050,9 @@ ufunc_ellipeinc_types[2] = <char>NPY_FLOAT
 ufunc_ellipeinc_types[3] = <char>NPY_DOUBLE
 ufunc_ellipeinc_types[4] = <char>NPY_DOUBLE
 ufunc_ellipeinc_types[5] = <char>NPY_DOUBLE
-ufunc_ellipeinc_ptr[2*0] = <void*>_func_ellie
+ufunc_ellipeinc_ptr[2*0] = <void*>_func_cephes_ellie
 ufunc_ellipeinc_ptr[2*0+1] = <void*>(<char*>"ellipeinc")
-ufunc_ellipeinc_ptr[2*1] = <void*>_func_ellie
+ufunc_ellipeinc_ptr[2*1] = <void*>_func_cephes_ellie
 ufunc_ellipeinc_ptr[2*1+1] = <void*>(<char*>"ellipeinc")
 ufunc_ellipeinc_data[0] = &ufunc_ellipeinc_ptr[2*0]
 ufunc_ellipeinc_data[1] = &ufunc_ellipeinc_ptr[2*1]
@@ -5901,9 +6127,9 @@ ufunc_ellipj_types[8] = <char>NPY_DOUBLE
 ufunc_ellipj_types[9] = <char>NPY_DOUBLE
 ufunc_ellipj_types[10] = <char>NPY_DOUBLE
 ufunc_ellipj_types[11] = <char>NPY_DOUBLE
-ufunc_ellipj_ptr[2*0] = <void*>_func_ellpj
+ufunc_ellipj_ptr[2*0] = <void*>_func_cephes_ellpj_wrap
 ufunc_ellipj_ptr[2*0+1] = <void*>(<char*>"ellipj")
-ufunc_ellipj_ptr[2*1] = <void*>_func_ellpj
+ufunc_ellipj_ptr[2*1] = <void*>_func_cephes_ellpj_wrap
 ufunc_ellipj_ptr[2*1+1] = <void*>(<char*>"ellipj")
 ufunc_ellipj_data[0] = &ufunc_ellipj_ptr[2*0]
 ufunc_ellipj_data[1] = &ufunc_ellipj_ptr[2*1]
@@ -5972,9 +6198,9 @@ ufunc_ellipk_types[0] = <char>NPY_FLOAT
 ufunc_ellipk_types[1] = <char>NPY_FLOAT
 ufunc_ellipk_types[2] = <char>NPY_DOUBLE
 ufunc_ellipk_types[3] = <char>NPY_DOUBLE
-ufunc_ellipk_ptr[2*0] = <void*>_func_ellipk
+ufunc_ellipk_ptr[2*0] = <void*>_func_special_ellipk
 ufunc_ellipk_ptr[2*0+1] = <void*>(<char*>"ellipk")
-ufunc_ellipk_ptr[2*1] = <void*>_func_ellipk
+ufunc_ellipk_ptr[2*1] = <void*>_func_special_ellipk
 ufunc_ellipk_ptr[2*1+1] = <void*>(<char*>"ellipk")
 ufunc_ellipk_data[0] = &ufunc_ellipk_ptr[2*0]
 ufunc_ellipk_data[1] = &ufunc_ellipk_ptr[2*1]
@@ -6052,9 +6278,9 @@ ufunc_ellipkinc_types[2] = <char>NPY_FLOAT
 ufunc_ellipkinc_types[3] = <char>NPY_DOUBLE
 ufunc_ellipkinc_types[4] = <char>NPY_DOUBLE
 ufunc_ellipkinc_types[5] = <char>NPY_DOUBLE
-ufunc_ellipkinc_ptr[2*0] = <void*>_func_ellik
+ufunc_ellipkinc_ptr[2*0] = <void*>_func_cephes_ellik
 ufunc_ellipkinc_ptr[2*0+1] = <void*>(<char*>"ellipkinc")
-ufunc_ellipkinc_ptr[2*1] = <void*>_func_ellik
+ufunc_ellipkinc_ptr[2*1] = <void*>_func_cephes_ellik
 ufunc_ellipkinc_ptr[2*1+1] = <void*>(<char*>"ellipkinc")
 ufunc_ellipkinc_data[0] = &ufunc_ellipkinc_ptr[2*0]
 ufunc_ellipkinc_data[1] = &ufunc_ellipkinc_ptr[2*1]
@@ -6122,9 +6348,9 @@ ufunc_ellipkm1_types[0] = <char>NPY_FLOAT
 ufunc_ellipkm1_types[1] = <char>NPY_FLOAT
 ufunc_ellipkm1_types[2] = <char>NPY_DOUBLE
 ufunc_ellipkm1_types[3] = <char>NPY_DOUBLE
-ufunc_ellipkm1_ptr[2*0] = <void*>_func_ellpk
+ufunc_ellipkm1_ptr[2*0] = <void*>_func_cephes_ellpk
 ufunc_ellipkm1_ptr[2*0+1] = <void*>(<char*>"ellipkm1")
-ufunc_ellipkm1_ptr[2*1] = <void*>_func_ellpk
+ufunc_ellipkm1_ptr[2*1] = <void*>_func_cephes_ellpk
 ufunc_ellipkm1_ptr[2*1+1] = <void*>(<char*>"ellipkm1")
 ufunc_ellipkm1_data[0] = &ufunc_ellipkm1_ptr[2*0]
 ufunc_ellipkm1_data[1] = &ufunc_ellipkm1_ptr[2*1]
@@ -6969,9 +7195,9 @@ ufunc_erf_types[4] = <char>NPY_CFLOAT
 ufunc_erf_types[5] = <char>NPY_CFLOAT
 ufunc_erf_types[6] = <char>NPY_CDOUBLE
 ufunc_erf_types[7] = <char>NPY_CDOUBLE
-ufunc_erf_ptr[2*0] = <void*>_func_erf
+ufunc_erf_ptr[2*0] = <void*>_func_cephes_erf
 ufunc_erf_ptr[2*0+1] = <void*>(<char*>"erf")
-ufunc_erf_ptr[2*1] = <void*>_func_erf
+ufunc_erf_ptr[2*1] = <void*>_func_cephes_erf
 ufunc_erf_ptr[2*1+1] = <void*>(<char*>"erf")
 ufunc_erf_ptr[2*2] = <void*>scipy.special._ufuncs_cxx._export_faddeeva_erf
 ufunc_erf_ptr[2*2+1] = <void*>(<char*>"erf")
@@ -7035,9 +7261,9 @@ ufunc_erfc_types[4] = <char>NPY_CFLOAT
 ufunc_erfc_types[5] = <char>NPY_CFLOAT
 ufunc_erfc_types[6] = <char>NPY_CDOUBLE
 ufunc_erfc_types[7] = <char>NPY_CDOUBLE
-ufunc_erfc_ptr[2*0] = <void*>_func_erfc
+ufunc_erfc_ptr[2*0] = <void*>_func_cephes_erfc
 ufunc_erfc_ptr[2*0+1] = <void*>(<char*>"erfc")
-ufunc_erfc_ptr[2*1] = <void*>_func_erfc
+ufunc_erfc_ptr[2*1] = <void*>_func_cephes_erfc
 ufunc_erfc_ptr[2*1+1] = <void*>(<char*>"erfc")
 ufunc_erfc_ptr[2*2] = <void*>scipy.special._ufuncs_cxx._export_faddeeva_erfc_complex
 ufunc_erfc_ptr[2*2+1] = <void*>(<char*>"erfc")
@@ -7115,9 +7341,9 @@ ufunc_erfcinv_types[0] = <char>NPY_FLOAT
 ufunc_erfcinv_types[1] = <char>NPY_FLOAT
 ufunc_erfcinv_types[2] = <char>NPY_DOUBLE
 ufunc_erfcinv_types[3] = <char>NPY_DOUBLE
-ufunc_erfcinv_ptr[2*0] = <void*>_func_erfcinv
+ufunc_erfcinv_ptr[2*0] = <void*>_func_cephes_erfcinv
 ufunc_erfcinv_ptr[2*0+1] = <void*>(<char*>"erfcinv")
-ufunc_erfcinv_ptr[2*1] = <void*>_func_erfcinv
+ufunc_erfcinv_ptr[2*1] = <void*>_func_cephes_erfcinv
 ufunc_erfcinv_ptr[2*1+1] = <void*>(<char*>"erfcinv")
 ufunc_erfcinv_data[0] = &ufunc_erfcinv_ptr[2*0]
 ufunc_erfcinv_data[1] = &ufunc_erfcinv_ptr[2*1]
@@ -7404,12 +7630,12 @@ cdef char *ufunc_eval_chebyc_doc = (
     "array([-2.   ,  1.872,  1.136, -1.136, -1.872,  2.   ])\n"
     ">>> 2 * sc.eval_chebyt(3, x / 2)\n"
     "array([-2.   ,  1.872,  1.136, -1.136, -1.872,  2.   ])")
-ufunc_eval_chebyc_loops[0] = <np.PyUFuncGenericFunction>loop_d_ld__As_ld_d
+ufunc_eval_chebyc_loops[0] = <np.PyUFuncGenericFunction>loop_d_pd__As_pd_d
 ufunc_eval_chebyc_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
 ufunc_eval_chebyc_loops[2] = <np.PyUFuncGenericFunction>loop_D_dD__As_fF_F
 ufunc_eval_chebyc_loops[3] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
 ufunc_eval_chebyc_loops[4] = <np.PyUFuncGenericFunction>loop_D_dD__As_dD_D
-ufunc_eval_chebyc_types[0] = <char>NPY_LONG
+ufunc_eval_chebyc_types[0] = <char>NPY_INTP
 ufunc_eval_chebyc_types[1] = <char>NPY_DOUBLE
 ufunc_eval_chebyc_types[2] = <char>NPY_DOUBLE
 ufunc_eval_chebyc_types[3] = <char>NPY_FLOAT
@@ -7501,12 +7727,12 @@ cdef char *ufunc_eval_chebys_doc = (
     "array([-4.   ,  0.672,  0.736, -0.736, -0.672,  4.   ])\n"
     ">>> sc.eval_chebyu(3, x / 2)\n"
     "array([-4.   ,  0.672,  0.736, -0.736, -0.672,  4.   ])")
-ufunc_eval_chebys_loops[0] = <np.PyUFuncGenericFunction>loop_d_ld__As_ld_d
+ufunc_eval_chebys_loops[0] = <np.PyUFuncGenericFunction>loop_d_pd__As_pd_d
 ufunc_eval_chebys_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
 ufunc_eval_chebys_loops[2] = <np.PyUFuncGenericFunction>loop_D_dD__As_fF_F
 ufunc_eval_chebys_loops[3] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
 ufunc_eval_chebys_loops[4] = <np.PyUFuncGenericFunction>loop_D_dD__As_dD_D
-ufunc_eval_chebys_types[0] = <char>NPY_LONG
+ufunc_eval_chebys_types[0] = <char>NPY_INTP
 ufunc_eval_chebys_types[1] = <char>NPY_DOUBLE
 ufunc_eval_chebys_types[2] = <char>NPY_DOUBLE
 ufunc_eval_chebys_types[3] = <char>NPY_FLOAT
@@ -7592,12 +7818,12 @@ cdef char *ufunc_eval_chebyt_doc = (
     ".. [AS] Milton Abramowitz and Irene A. Stegun, eds.\n"
     "    Handbook of Mathematical Functions with Formulas,\n"
     "    Graphs, and Mathematical Tables. New York: Dover, 1972.")
-ufunc_eval_chebyt_loops[0] = <np.PyUFuncGenericFunction>loop_d_ld__As_ld_d
+ufunc_eval_chebyt_loops[0] = <np.PyUFuncGenericFunction>loop_d_pd__As_pd_d
 ufunc_eval_chebyt_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
 ufunc_eval_chebyt_loops[2] = <np.PyUFuncGenericFunction>loop_D_dD__As_fF_F
 ufunc_eval_chebyt_loops[3] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
 ufunc_eval_chebyt_loops[4] = <np.PyUFuncGenericFunction>loop_D_dD__As_dD_D
-ufunc_eval_chebyt_types[0] = <char>NPY_LONG
+ufunc_eval_chebyt_types[0] = <char>NPY_INTP
 ufunc_eval_chebyt_types[1] = <char>NPY_DOUBLE
 ufunc_eval_chebyt_types[2] = <char>NPY_DOUBLE
 ufunc_eval_chebyt_types[3] = <char>NPY_FLOAT
@@ -7677,12 +7903,12 @@ cdef char *ufunc_eval_chebyu_doc = (
     ".. [AS] Milton Abramowitz and Irene A. Stegun, eds.\n"
     "    Handbook of Mathematical Functions with Formulas,\n"
     "    Graphs, and Mathematical Tables. New York: Dover, 1972.")
-ufunc_eval_chebyu_loops[0] = <np.PyUFuncGenericFunction>loop_d_ld__As_ld_d
+ufunc_eval_chebyu_loops[0] = <np.PyUFuncGenericFunction>loop_d_pd__As_pd_d
 ufunc_eval_chebyu_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
 ufunc_eval_chebyu_loops[2] = <np.PyUFuncGenericFunction>loop_D_dD__As_fF_F
 ufunc_eval_chebyu_loops[3] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
 ufunc_eval_chebyu_loops[4] = <np.PyUFuncGenericFunction>loop_D_dD__As_dD_D
-ufunc_eval_chebyu_types[0] = <char>NPY_LONG
+ufunc_eval_chebyu_types[0] = <char>NPY_INTP
 ufunc_eval_chebyu_types[1] = <char>NPY_DOUBLE
 ufunc_eval_chebyu_types[2] = <char>NPY_DOUBLE
 ufunc_eval_chebyu_types[3] = <char>NPY_FLOAT
@@ -7764,12 +7990,12 @@ cdef char *ufunc_eval_gegenbauer_doc = (
     ".. [AS] Milton Abramowitz and Irene A. Stegun, eds.\n"
     "    Handbook of Mathematical Functions with Formulas,\n"
     "    Graphs, and Mathematical Tables. New York: Dover, 1972.")
-ufunc_eval_gegenbauer_loops[0] = <np.PyUFuncGenericFunction>loop_d_ldd__As_ldd_d
+ufunc_eval_gegenbauer_loops[0] = <np.PyUFuncGenericFunction>loop_d_pdd__As_pdd_d
 ufunc_eval_gegenbauer_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_fff_f
 ufunc_eval_gegenbauer_loops[2] = <np.PyUFuncGenericFunction>loop_D_ddD__As_ffF_F
 ufunc_eval_gegenbauer_loops[3] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
 ufunc_eval_gegenbauer_loops[4] = <np.PyUFuncGenericFunction>loop_D_ddD__As_ddD_D
-ufunc_eval_gegenbauer_types[0] = <char>NPY_LONG
+ufunc_eval_gegenbauer_types[0] = <char>NPY_INTP
 ufunc_eval_gegenbauer_types[1] = <char>NPY_DOUBLE
 ufunc_eval_gegenbauer_types[2] = <char>NPY_DOUBLE
 ufunc_eval_gegenbauer_types[3] = <char>NPY_DOUBLE
@@ -7859,12 +8085,12 @@ cdef char *ufunc_eval_genlaguerre_doc = (
     ".. [AS] Milton Abramowitz and Irene A. Stegun, eds.\n"
     "    Handbook of Mathematical Functions with Formulas,\n"
     "    Graphs, and Mathematical Tables. New York: Dover, 1972.")
-ufunc_eval_genlaguerre_loops[0] = <np.PyUFuncGenericFunction>loop_d_ldd__As_ldd_d
+ufunc_eval_genlaguerre_loops[0] = <np.PyUFuncGenericFunction>loop_d_pdd__As_pdd_d
 ufunc_eval_genlaguerre_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_fff_f
 ufunc_eval_genlaguerre_loops[2] = <np.PyUFuncGenericFunction>loop_D_ddD__As_ffF_F
 ufunc_eval_genlaguerre_loops[3] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
 ufunc_eval_genlaguerre_loops[4] = <np.PyUFuncGenericFunction>loop_D_ddD__As_ddD_D
-ufunc_eval_genlaguerre_types[0] = <char>NPY_LONG
+ufunc_eval_genlaguerre_types[0] = <char>NPY_INTP
 ufunc_eval_genlaguerre_types[1] = <char>NPY_DOUBLE
 ufunc_eval_genlaguerre_types[2] = <char>NPY_DOUBLE
 ufunc_eval_genlaguerre_types[3] = <char>NPY_DOUBLE
@@ -7946,8 +8172,8 @@ cdef char *ufunc_eval_hermite_doc = (
     ".. [AS] Milton Abramowitz and Irene A. Stegun, eds.\n"
     "    Handbook of Mathematical Functions with Formulas,\n"
     "    Graphs, and Mathematical Tables. New York: Dover, 1972.")
-ufunc_eval_hermite_loops[0] = <np.PyUFuncGenericFunction>loop_d_ld__As_ld_d
-ufunc_eval_hermite_types[0] = <char>NPY_LONG
+ufunc_eval_hermite_loops[0] = <np.PyUFuncGenericFunction>loop_d_pd__As_pd_d
+ufunc_eval_hermite_types[0] = <char>NPY_INTP
 ufunc_eval_hermite_types[1] = <char>NPY_DOUBLE
 ufunc_eval_hermite_types[2] = <char>NPY_DOUBLE
 ufunc_eval_hermite_ptr[2*0] = <void*>_func_eval_hermite
@@ -8001,8 +8227,8 @@ cdef char *ufunc_eval_hermitenorm_doc = (
     ".. [AS] Milton Abramowitz and Irene A. Stegun, eds.\n"
     "    Handbook of Mathematical Functions with Formulas,\n"
     "    Graphs, and Mathematical Tables. New York: Dover, 1972.")
-ufunc_eval_hermitenorm_loops[0] = <np.PyUFuncGenericFunction>loop_d_ld__As_ld_d
-ufunc_eval_hermitenorm_types[0] = <char>NPY_LONG
+ufunc_eval_hermitenorm_loops[0] = <np.PyUFuncGenericFunction>loop_d_pd__As_pd_d
+ufunc_eval_hermitenorm_types[0] = <char>NPY_INTP
 ufunc_eval_hermitenorm_types[1] = <char>NPY_DOUBLE
 ufunc_eval_hermitenorm_types[2] = <char>NPY_DOUBLE
 ufunc_eval_hermitenorm_ptr[2*0] = <void*>_func_eval_hermitenorm
@@ -8062,12 +8288,12 @@ cdef char *ufunc_eval_jacobi_doc = (
     ".. [AS] Milton Abramowitz and Irene A. Stegun, eds.\n"
     "    Handbook of Mathematical Functions with Formulas,\n"
     "    Graphs, and Mathematical Tables. New York: Dover, 1972.")
-ufunc_eval_jacobi_loops[0] = <np.PyUFuncGenericFunction>loop_d_lddd__As_lddd_d
+ufunc_eval_jacobi_loops[0] = <np.PyUFuncGenericFunction>loop_d_pddd__As_pddd_d
 ufunc_eval_jacobi_loops[1] = <np.PyUFuncGenericFunction>loop_d_dddd__As_ffff_f
 ufunc_eval_jacobi_loops[2] = <np.PyUFuncGenericFunction>loop_D_dddD__As_fffF_F
 ufunc_eval_jacobi_loops[3] = <np.PyUFuncGenericFunction>loop_d_dddd__As_dddd_d
 ufunc_eval_jacobi_loops[4] = <np.PyUFuncGenericFunction>loop_D_dddD__As_dddD_D
-ufunc_eval_jacobi_types[0] = <char>NPY_LONG
+ufunc_eval_jacobi_types[0] = <char>NPY_INTP
 ufunc_eval_jacobi_types[1] = <char>NPY_DOUBLE
 ufunc_eval_jacobi_types[2] = <char>NPY_DOUBLE
 ufunc_eval_jacobi_types[3] = <char>NPY_DOUBLE
@@ -8157,12 +8383,12 @@ cdef char *ufunc_eval_laguerre_doc = (
     ".. [AS] Milton Abramowitz and Irene A. Stegun, eds.\n"
     "    Handbook of Mathematical Functions with Formulas,\n"
     "    Graphs, and Mathematical Tables. New York: Dover, 1972.")
-ufunc_eval_laguerre_loops[0] = <np.PyUFuncGenericFunction>loop_d_ld__As_ld_d
+ufunc_eval_laguerre_loops[0] = <np.PyUFuncGenericFunction>loop_d_pd__As_pd_d
 ufunc_eval_laguerre_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
 ufunc_eval_laguerre_loops[2] = <np.PyUFuncGenericFunction>loop_D_dD__As_fF_F
 ufunc_eval_laguerre_loops[3] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
 ufunc_eval_laguerre_loops[4] = <np.PyUFuncGenericFunction>loop_D_dD__As_dD_D
-ufunc_eval_laguerre_types[0] = <char>NPY_LONG
+ufunc_eval_laguerre_types[0] = <char>NPY_INTP
 ufunc_eval_laguerre_types[1] = <char>NPY_DOUBLE
 ufunc_eval_laguerre_types[2] = <char>NPY_DOUBLE
 ufunc_eval_laguerre_types[3] = <char>NPY_FLOAT
@@ -8279,12 +8505,12 @@ cdef char *ufunc_eval_legendre_doc = (
     ">>> plt.ylabel(r'$P_n(x)$')\n"
     ">>> plt.legend(loc='lower right')\n"
     ">>> plt.show()")
-ufunc_eval_legendre_loops[0] = <np.PyUFuncGenericFunction>loop_d_ld__As_ld_d
+ufunc_eval_legendre_loops[0] = <np.PyUFuncGenericFunction>loop_d_pd__As_pd_d
 ufunc_eval_legendre_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
 ufunc_eval_legendre_loops[2] = <np.PyUFuncGenericFunction>loop_D_dD__As_fF_F
 ufunc_eval_legendre_loops[3] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
 ufunc_eval_legendre_loops[4] = <np.PyUFuncGenericFunction>loop_D_dD__As_dD_D
-ufunc_eval_legendre_types[0] = <char>NPY_LONG
+ufunc_eval_legendre_types[0] = <char>NPY_INTP
 ufunc_eval_legendre_types[1] = <char>NPY_DOUBLE
 ufunc_eval_legendre_types[2] = <char>NPY_DOUBLE
 ufunc_eval_legendre_types[3] = <char>NPY_FLOAT
@@ -8363,12 +8589,12 @@ cdef char *ufunc_eval_sh_chebyt_doc = (
     ".. [AS] Milton Abramowitz and Irene A. Stegun, eds.\n"
     "    Handbook of Mathematical Functions with Formulas,\n"
     "    Graphs, and Mathematical Tables. New York: Dover, 1972.")
-ufunc_eval_sh_chebyt_loops[0] = <np.PyUFuncGenericFunction>loop_d_ld__As_ld_d
+ufunc_eval_sh_chebyt_loops[0] = <np.PyUFuncGenericFunction>loop_d_pd__As_pd_d
 ufunc_eval_sh_chebyt_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
 ufunc_eval_sh_chebyt_loops[2] = <np.PyUFuncGenericFunction>loop_D_dD__As_fF_F
 ufunc_eval_sh_chebyt_loops[3] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
 ufunc_eval_sh_chebyt_loops[4] = <np.PyUFuncGenericFunction>loop_D_dD__As_dD_D
-ufunc_eval_sh_chebyt_types[0] = <char>NPY_LONG
+ufunc_eval_sh_chebyt_types[0] = <char>NPY_INTP
 ufunc_eval_sh_chebyt_types[1] = <char>NPY_DOUBLE
 ufunc_eval_sh_chebyt_types[2] = <char>NPY_DOUBLE
 ufunc_eval_sh_chebyt_types[3] = <char>NPY_FLOAT
@@ -8446,12 +8672,12 @@ cdef char *ufunc_eval_sh_chebyu_doc = (
     ".. [AS] Milton Abramowitz and Irene A. Stegun, eds.\n"
     "    Handbook of Mathematical Functions with Formulas,\n"
     "    Graphs, and Mathematical Tables. New York: Dover, 1972.")
-ufunc_eval_sh_chebyu_loops[0] = <np.PyUFuncGenericFunction>loop_d_ld__As_ld_d
+ufunc_eval_sh_chebyu_loops[0] = <np.PyUFuncGenericFunction>loop_d_pd__As_pd_d
 ufunc_eval_sh_chebyu_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
 ufunc_eval_sh_chebyu_loops[2] = <np.PyUFuncGenericFunction>loop_D_dD__As_fF_F
 ufunc_eval_sh_chebyu_loops[3] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
 ufunc_eval_sh_chebyu_loops[4] = <np.PyUFuncGenericFunction>loop_D_dD__As_dD_D
-ufunc_eval_sh_chebyu_types[0] = <char>NPY_LONG
+ufunc_eval_sh_chebyu_types[0] = <char>NPY_INTP
 ufunc_eval_sh_chebyu_types[1] = <char>NPY_DOUBLE
 ufunc_eval_sh_chebyu_types[2] = <char>NPY_DOUBLE
 ufunc_eval_sh_chebyu_types[3] = <char>NPY_FLOAT
@@ -8531,12 +8757,12 @@ cdef char *ufunc_eval_sh_jacobi_doc = (
     ".. [AS] Milton Abramowitz and Irene A. Stegun, eds.\n"
     "    Handbook of Mathematical Functions with Formulas,\n"
     "    Graphs, and Mathematical Tables. New York: Dover, 1972.")
-ufunc_eval_sh_jacobi_loops[0] = <np.PyUFuncGenericFunction>loop_d_lddd__As_lddd_d
+ufunc_eval_sh_jacobi_loops[0] = <np.PyUFuncGenericFunction>loop_d_pddd__As_pddd_d
 ufunc_eval_sh_jacobi_loops[1] = <np.PyUFuncGenericFunction>loop_d_dddd__As_ffff_f
 ufunc_eval_sh_jacobi_loops[2] = <np.PyUFuncGenericFunction>loop_D_dddD__As_fffF_F
 ufunc_eval_sh_jacobi_loops[3] = <np.PyUFuncGenericFunction>loop_d_dddd__As_dddd_d
 ufunc_eval_sh_jacobi_loops[4] = <np.PyUFuncGenericFunction>loop_D_dddD__As_dddD_D
-ufunc_eval_sh_jacobi_types[0] = <char>NPY_LONG
+ufunc_eval_sh_jacobi_types[0] = <char>NPY_INTP
 ufunc_eval_sh_jacobi_types[1] = <char>NPY_DOUBLE
 ufunc_eval_sh_jacobi_types[2] = <char>NPY_DOUBLE
 ufunc_eval_sh_jacobi_types[3] = <char>NPY_DOUBLE
@@ -8624,12 +8850,12 @@ cdef char *ufunc_eval_sh_legendre_doc = (
     ".. [AS] Milton Abramowitz and Irene A. Stegun, eds.\n"
     "    Handbook of Mathematical Functions with Formulas,\n"
     "    Graphs, and Mathematical Tables. New York: Dover, 1972.")
-ufunc_eval_sh_legendre_loops[0] = <np.PyUFuncGenericFunction>loop_d_ld__As_ld_d
+ufunc_eval_sh_legendre_loops[0] = <np.PyUFuncGenericFunction>loop_d_pd__As_pd_d
 ufunc_eval_sh_legendre_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
 ufunc_eval_sh_legendre_loops[2] = <np.PyUFuncGenericFunction>loop_D_dD__As_fF_F
 ufunc_eval_sh_legendre_loops[3] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
 ufunc_eval_sh_legendre_loops[4] = <np.PyUFuncGenericFunction>loop_D_dD__As_dD_D
-ufunc_eval_sh_legendre_types[0] = <char>NPY_LONG
+ufunc_eval_sh_legendre_types[0] = <char>NPY_INTP
 ufunc_eval_sh_legendre_types[1] = <char>NPY_DOUBLE
 ufunc_eval_sh_legendre_types[2] = <char>NPY_DOUBLE
 ufunc_eval_sh_legendre_types[3] = <char>NPY_FLOAT
@@ -8660,113 +8886,6 @@ ufunc_eval_sh_legendre_data[2] = &ufunc_eval_sh_legendre_ptr[2*2]
 ufunc_eval_sh_legendre_data[3] = &ufunc_eval_sh_legendre_ptr[2*3]
 ufunc_eval_sh_legendre_data[4] = &ufunc_eval_sh_legendre_ptr[2*4]
 eval_sh_legendre = np.PyUFunc_FromFuncAndData(ufunc_eval_sh_legendre_loops, ufunc_eval_sh_legendre_data, ufunc_eval_sh_legendre_types, 5, 2, 1, 0, "eval_sh_legendre", ufunc_eval_sh_legendre_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_exp1_loops[4]
-cdef void *ufunc_exp1_ptr[8]
-cdef void *ufunc_exp1_data[4]
-cdef char ufunc_exp1_types[8]
-cdef char *ufunc_exp1_doc = (
-    "exp1(z, out=None)\n"
-    "\n"
-    "Exponential integral E1.\n"
-    "\n"
-    "For complex :math:`z \\ne 0` the exponential integral can be defined as\n"
-    "[1]_\n"
-    "\n"
-    ".. math::\n"
-    "\n"
-    "   E_1(z) = \\int_z^\\infty \\frac{e^{-t}}{t} dt,\n"
-    "\n"
-    "where the path of the integral does not cross the negative real\n"
-    "axis or pass through the origin.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "z: array_like\n"
-    "    Real or complex argument.\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "scalar or ndarray\n"
-    "    Values of the exponential integral E1\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "expi : exponential integral :math:`Ei`\n"
-    "expn : generalization of :math:`E_1`\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "For :math:`x > 0` it is related to the exponential integral\n"
-    ":math:`Ei` (see `expi`) via the relation\n"
-    "\n"
-    ".. math::\n"
-    "\n"
-    "   E_1(x) = -Ei(-x).\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] Digital Library of Mathematical Functions, 6.2.1\n"
-    "       https://dlmf.nist.gov/6.2#E1\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> import numpy as np\n"
-    ">>> import scipy.special as sc\n"
-    "\n"
-    "It has a pole at 0.\n"
-    "\n"
-    ">>> sc.exp1(0)\n"
-    "inf\n"
-    "\n"
-    "It has a branch cut on the negative real axis.\n"
-    "\n"
-    ">>> sc.exp1(-1)\n"
-    "nan\n"
-    ">>> sc.exp1(complex(-1, 0))\n"
-    "(-1.8951178163559368-3.141592653589793j)\n"
-    ">>> sc.exp1(complex(-1, -0.0))\n"
-    "(-1.8951178163559368+3.141592653589793j)\n"
-    "\n"
-    "It approaches 0 along the positive real axis.\n"
-    "\n"
-    ">>> sc.exp1([1, 10, 100, 1000])\n"
-    "array([2.19383934e-01, 4.15696893e-06, 3.68359776e-46, 0.00000000e+00])\n"
-    "\n"
-    "It is related to `expi`.\n"
-    "\n"
-    ">>> x = np.array([1, 2, 3, 4])\n"
-    ">>> sc.exp1(x)\n"
-    "array([0.21938393, 0.04890051, 0.01304838, 0.00377935])\n"
-    ">>> -sc.expi(-x)\n"
-    "array([0.21938393, 0.04890051, 0.01304838, 0.00377935])")
-ufunc_exp1_loops[0] = <np.PyUFuncGenericFunction>loop_d_d__As_f_f
-ufunc_exp1_loops[1] = <np.PyUFuncGenericFunction>loop_d_d__As_d_d
-ufunc_exp1_loops[2] = <np.PyUFuncGenericFunction>loop_D_D__As_F_F
-ufunc_exp1_loops[3] = <np.PyUFuncGenericFunction>loop_D_D__As_D_D
-ufunc_exp1_types[0] = <char>NPY_FLOAT
-ufunc_exp1_types[1] = <char>NPY_FLOAT
-ufunc_exp1_types[2] = <char>NPY_DOUBLE
-ufunc_exp1_types[3] = <char>NPY_DOUBLE
-ufunc_exp1_types[4] = <char>NPY_CFLOAT
-ufunc_exp1_types[5] = <char>NPY_CFLOAT
-ufunc_exp1_types[6] = <char>NPY_CDOUBLE
-ufunc_exp1_types[7] = <char>NPY_CDOUBLE
-ufunc_exp1_ptr[2*0] = <void*>_func_exp1_wrap
-ufunc_exp1_ptr[2*0+1] = <void*>(<char*>"exp1")
-ufunc_exp1_ptr[2*1] = <void*>_func_exp1_wrap
-ufunc_exp1_ptr[2*1+1] = <void*>(<char*>"exp1")
-ufunc_exp1_ptr[2*2] = <void*>_func_cexp1_wrap
-ufunc_exp1_ptr[2*2+1] = <void*>(<char*>"exp1")
-ufunc_exp1_ptr[2*3] = <void*>_func_cexp1_wrap
-ufunc_exp1_ptr[2*3+1] = <void*>(<char*>"exp1")
-ufunc_exp1_data[0] = &ufunc_exp1_ptr[2*0]
-ufunc_exp1_data[1] = &ufunc_exp1_ptr[2*1]
-ufunc_exp1_data[2] = &ufunc_exp1_ptr[2*2]
-ufunc_exp1_data[3] = &ufunc_exp1_ptr[2*3]
-exp1 = np.PyUFunc_FromFuncAndData(ufunc_exp1_loops, ufunc_exp1_data, ufunc_exp1_types, 4, 1, 1, 0, "exp1", ufunc_exp1_doc, 0)
 
 cdef np.PyUFuncGenericFunction ufunc_exp10_loops[2]
 cdef void *ufunc_exp10_ptr[4]
@@ -8806,9 +8925,9 @@ ufunc_exp10_types[0] = <char>NPY_FLOAT
 ufunc_exp10_types[1] = <char>NPY_FLOAT
 ufunc_exp10_types[2] = <char>NPY_DOUBLE
 ufunc_exp10_types[3] = <char>NPY_DOUBLE
-ufunc_exp10_ptr[2*0] = <void*>_func_exp10
+ufunc_exp10_ptr[2*0] = <void*>_func_cephes_exp10
 ufunc_exp10_ptr[2*0+1] = <void*>(<char*>"exp10")
-ufunc_exp10_ptr[2*1] = <void*>_func_exp10
+ufunc_exp10_ptr[2*1] = <void*>_func_cephes_exp10
 ufunc_exp10_ptr[2*1+1] = <void*>(<char*>"exp10")
 ufunc_exp10_data[0] = &ufunc_exp10_ptr[2*0]
 ufunc_exp10_data[1] = &ufunc_exp10_ptr[2*1]
@@ -8852,209 +8971,13 @@ ufunc_exp2_types[0] = <char>NPY_FLOAT
 ufunc_exp2_types[1] = <char>NPY_FLOAT
 ufunc_exp2_types[2] = <char>NPY_DOUBLE
 ufunc_exp2_types[3] = <char>NPY_DOUBLE
-ufunc_exp2_ptr[2*0] = <void*>_func_exp2
+ufunc_exp2_ptr[2*0] = <void*>_func_cephes_exp2
 ufunc_exp2_ptr[2*0+1] = <void*>(<char*>"exp2")
-ufunc_exp2_ptr[2*1] = <void*>_func_exp2
+ufunc_exp2_ptr[2*1] = <void*>_func_cephes_exp2
 ufunc_exp2_ptr[2*1+1] = <void*>(<char*>"exp2")
 ufunc_exp2_data[0] = &ufunc_exp2_ptr[2*0]
 ufunc_exp2_data[1] = &ufunc_exp2_ptr[2*1]
 exp2 = np.PyUFunc_FromFuncAndData(ufunc_exp2_loops, ufunc_exp2_data, ufunc_exp2_types, 2, 1, 1, 0, "exp2", ufunc_exp2_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_expi_loops[4]
-cdef void *ufunc_expi_ptr[8]
-cdef void *ufunc_expi_data[4]
-cdef char ufunc_expi_types[8]
-cdef char *ufunc_expi_doc = (
-    "expi(x, out=None)\n"
-    "\n"
-    "Exponential integral Ei.\n"
-    "\n"
-    "For real :math:`x`, the exponential integral is defined as [1]_\n"
-    "\n"
-    ".. math::\n"
-    "\n"
-    "    Ei(x) = \\int_{-\\infty}^x \\frac{e^t}{t} dt.\n"
-    "\n"
-    "For :math:`x > 0` the integral is understood as a Cauchy principal\n"
-    "value.\n"
-    "\n"
-    "It is extended to the complex plane by analytic continuation of\n"
-    "the function on the interval :math:`(0, \\infty)`. The complex\n"
-    "variant has a branch cut on the negative real axis.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "x : array_like\n"
-    "    Real or complex valued argument\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "scalar or ndarray\n"
-    "    Values of the exponential integral\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "exp1 : Exponential integral :math:`E_1`\n"
-    "expn : Generalized exponential integral :math:`E_n`\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "The exponential integrals :math:`E_1` and :math:`Ei` satisfy the\n"
-    "relation\n"
-    "\n"
-    ".. math::\n"
-    "\n"
-    "    E_1(x) = -Ei(-x)\n"
-    "\n"
-    "for :math:`x > 0`.\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] Digital Library of Mathematical Functions, 6.2.5\n"
-    "       https://dlmf.nist.gov/6.2#E5\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> import numpy as np\n"
-    ">>> import scipy.special as sc\n"
-    "\n"
-    "It is related to `exp1`.\n"
-    "\n"
-    ">>> x = np.array([1, 2, 3, 4])\n"
-    ">>> -sc.expi(-x)\n"
-    "array([0.21938393, 0.04890051, 0.01304838, 0.00377935])\n"
-    ">>> sc.exp1(x)\n"
-    "array([0.21938393, 0.04890051, 0.01304838, 0.00377935])\n"
-    "\n"
-    "The complex variant has a branch cut on the negative real axis.\n"
-    "\n"
-    ">>> sc.expi(-1 + 1e-12j)\n"
-    "(-0.21938393439552062+3.1415926535894254j)\n"
-    ">>> sc.expi(-1 - 1e-12j)\n"
-    "(-0.21938393439552062-3.1415926535894254j)\n"
-    "\n"
-    "As the complex variant approaches the branch cut, the real parts\n"
-    "approach the value of the real variant.\n"
-    "\n"
-    ">>> sc.expi(-1)\n"
-    "-0.21938393439552062\n"
-    "\n"
-    "The SciPy implementation returns the real variant for complex\n"
-    "values on the branch cut.\n"
-    "\n"
-    ">>> sc.expi(complex(-1, 0.0))\n"
-    "(-0.21938393439552062-0j)\n"
-    ">>> sc.expi(complex(-1, -0.0))\n"
-    "(-0.21938393439552062-0j)")
-ufunc_expi_loops[0] = <np.PyUFuncGenericFunction>loop_d_d__As_f_f
-ufunc_expi_loops[1] = <np.PyUFuncGenericFunction>loop_d_d__As_d_d
-ufunc_expi_loops[2] = <np.PyUFuncGenericFunction>loop_D_D__As_F_F
-ufunc_expi_loops[3] = <np.PyUFuncGenericFunction>loop_D_D__As_D_D
-ufunc_expi_types[0] = <char>NPY_FLOAT
-ufunc_expi_types[1] = <char>NPY_FLOAT
-ufunc_expi_types[2] = <char>NPY_DOUBLE
-ufunc_expi_types[3] = <char>NPY_DOUBLE
-ufunc_expi_types[4] = <char>NPY_CFLOAT
-ufunc_expi_types[5] = <char>NPY_CFLOAT
-ufunc_expi_types[6] = <char>NPY_CDOUBLE
-ufunc_expi_types[7] = <char>NPY_CDOUBLE
-ufunc_expi_ptr[2*0] = <void*>_func_expi_wrap
-ufunc_expi_ptr[2*0+1] = <void*>(<char*>"expi")
-ufunc_expi_ptr[2*1] = <void*>_func_expi_wrap
-ufunc_expi_ptr[2*1+1] = <void*>(<char*>"expi")
-ufunc_expi_ptr[2*2] = <void*>_func_cexpi_wrap
-ufunc_expi_ptr[2*2+1] = <void*>(<char*>"expi")
-ufunc_expi_ptr[2*3] = <void*>_func_cexpi_wrap
-ufunc_expi_ptr[2*3+1] = <void*>(<char*>"expi")
-ufunc_expi_data[0] = &ufunc_expi_ptr[2*0]
-ufunc_expi_data[1] = &ufunc_expi_ptr[2*1]
-ufunc_expi_data[2] = &ufunc_expi_ptr[2*2]
-ufunc_expi_data[3] = &ufunc_expi_ptr[2*3]
-expi = np.PyUFunc_FromFuncAndData(ufunc_expi_loops, ufunc_expi_data, ufunc_expi_types, 4, 1, 1, 0, "expi", ufunc_expi_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_expit_loops[3]
-cdef void *ufunc_expit_ptr[6]
-cdef void *ufunc_expit_data[3]
-cdef char ufunc_expit_types[6]
-cdef char *ufunc_expit_doc = (
-    "expit(x, out=None)\n"
-    "\n"
-    "Expit (a.k.a. logistic sigmoid) ufunc for ndarrays.\n"
-    "\n"
-    "The expit function, also known as the logistic sigmoid function, is\n"
-    "defined as ``expit(x) = 1/(1+exp(-x))``.  It is the inverse of the\n"
-    "logit function.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "x : ndarray\n"
-    "    The ndarray to apply expit to element-wise.\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function values\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "scalar or ndarray\n"
-    "    An ndarray of the same shape as x. Its entries\n"
-    "    are `expit` of the corresponding entry of x.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "logit\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "As a ufunc expit takes a number of optional\n"
-    "keyword arguments. For more information\n"
-    "see `ufuncs <https://docs.scipy.org/doc/numpy/reference/ufuncs.html>`_\n"
-    "\n"
-    ".. versionadded:: 0.10.0\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> import numpy as np\n"
-    ">>> from scipy.special import expit, logit\n"
-    "\n"
-    ">>> expit([-np.inf, -1.5, 0, 1.5, np.inf])\n"
-    "array([ 0.        ,  0.18242552,  0.5       ,  0.81757448,  1.        ])\n"
-    "\n"
-    "`logit` is the inverse of `expit`:\n"
-    "\n"
-    ">>> logit(expit([-2.5, 0, 3.1, 5.0]))\n"
-    "array([-2.5,  0. ,  3.1,  5. ])\n"
-    "\n"
-    "Plot expit(x) for x in [-6, 6]:\n"
-    "\n"
-    ">>> import matplotlib.pyplot as plt\n"
-    ">>> x = np.linspace(-6, 6, 121)\n"
-    ">>> y = expit(x)\n"
-    ">>> plt.plot(x, y)\n"
-    ">>> plt.grid()\n"
-    ">>> plt.xlim(-6, 6)\n"
-    ">>> plt.xlabel('x')\n"
-    ">>> plt.title('expit(x)')\n"
-    ">>> plt.show()")
-ufunc_expit_loops[0] = <np.PyUFuncGenericFunction>loop_f_f__As_f_f
-ufunc_expit_loops[1] = <np.PyUFuncGenericFunction>loop_d_d__As_d_d
-ufunc_expit_loops[2] = <np.PyUFuncGenericFunction>loop_g_g__As_g_g
-ufunc_expit_types[0] = <char>NPY_FLOAT
-ufunc_expit_types[1] = <char>NPY_FLOAT
-ufunc_expit_types[2] = <char>NPY_DOUBLE
-ufunc_expit_types[3] = <char>NPY_DOUBLE
-ufunc_expit_types[4] = <char>NPY_LONGDOUBLE
-ufunc_expit_types[5] = <char>NPY_LONGDOUBLE
-ufunc_expit_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_expitf
-ufunc_expit_ptr[2*0+1] = <void*>(<char*>"expit")
-ufunc_expit_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_expit
-ufunc_expit_ptr[2*1+1] = <void*>(<char*>"expit")
-ufunc_expit_ptr[2*2] = <void*>scipy.special._ufuncs_cxx._export_expitl
-ufunc_expit_ptr[2*2+1] = <void*>(<char*>"expit")
-ufunc_expit_data[0] = &ufunc_expit_ptr[2*0]
-ufunc_expit_data[1] = &ufunc_expit_ptr[2*1]
-ufunc_expit_data[2] = &ufunc_expit_ptr[2*2]
-expit = np.PyUFunc_FromFuncAndData(ufunc_expit_loops, ufunc_expit_data, ufunc_expit_types, 3, 1, 1, 0, "expit", ufunc_expit_doc, 0)
 
 cdef np.PyUFuncGenericFunction ufunc_expm1_loops[4]
 cdef void *ufunc_expm1_ptr[8]
@@ -9118,9 +9041,9 @@ ufunc_expm1_types[4] = <char>NPY_CFLOAT
 ufunc_expm1_types[5] = <char>NPY_CFLOAT
 ufunc_expm1_types[6] = <char>NPY_CDOUBLE
 ufunc_expm1_types[7] = <char>NPY_CDOUBLE
-ufunc_expm1_ptr[2*0] = <void*>_func_expm1
+ufunc_expm1_ptr[2*0] = <void*>_func_cephes_expm1
 ufunc_expm1_ptr[2*0+1] = <void*>(<char*>"expm1")
-ufunc_expm1_ptr[2*1] = <void*>_func_expm1
+ufunc_expm1_ptr[2*1] = <void*>_func_cephes_expm1
 ufunc_expm1_ptr[2*1+1] = <void*>(<char*>"expm1")
 ufunc_expm1_ptr[2*2] = <void*>_func_cexpm1
 ufunc_expm1_ptr[2*2+1] = <void*>(<char*>"expm1")
@@ -9202,10 +9125,10 @@ cdef char *ufunc_expn_doc = (
     "array([0.21938393, 0.04890051, 0.01304838, 0.00377935])\n"
     ">>> sc.exp1(x)\n"
     "array([0.21938393, 0.04890051, 0.01304838, 0.00377935])")
-ufunc_expn_loops[0] = <np.PyUFuncGenericFunction>loop_d_id__As_ld_d
+ufunc_expn_loops[0] = <np.PyUFuncGenericFunction>loop_d_pd__As_pd_d
 ufunc_expn_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
 ufunc_expn_loops[2] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
-ufunc_expn_types[0] = <char>NPY_LONG
+ufunc_expn_types[0] = <char>NPY_INTP
 ufunc_expn_types[1] = <char>NPY_DOUBLE
 ufunc_expn_types[2] = <char>NPY_DOUBLE
 ufunc_expn_types[3] = <char>NPY_FLOAT
@@ -9214,7 +9137,7 @@ ufunc_expn_types[5] = <char>NPY_FLOAT
 ufunc_expn_types[6] = <char>NPY_DOUBLE
 ufunc_expn_types[7] = <char>NPY_DOUBLE
 ufunc_expn_types[8] = <char>NPY_DOUBLE
-ufunc_expn_ptr[2*0] = <void*>_func_expn
+ufunc_expn_ptr[2*0] = <void*>_func_cephes_expn_wrap
 ufunc_expn_ptr[2*0+1] = <void*>(<char*>"expn")
 ufunc_expn_ptr[2*1] = <void*>_func_expn_unsafe
 ufunc_expn_ptr[2*1+1] = <void*>(<char*>"expn")
@@ -9224,72 +9147,6 @@ ufunc_expn_data[0] = &ufunc_expn_ptr[2*0]
 ufunc_expn_data[1] = &ufunc_expn_ptr[2*1]
 ufunc_expn_data[2] = &ufunc_expn_ptr[2*2]
 expn = np.PyUFunc_FromFuncAndData(ufunc_expn_loops, ufunc_expn_data, ufunc_expn_types, 3, 2, 1, 0, "expn", ufunc_expn_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_exprel_loops[2]
-cdef void *ufunc_exprel_ptr[4]
-cdef void *ufunc_exprel_data[2]
-cdef char ufunc_exprel_types[4]
-cdef char *ufunc_exprel_doc = (
-    "exprel(x, out=None)\n"
-    "\n"
-    "Relative error exponential, ``(exp(x) - 1)/x``.\n"
-    "\n"
-    "When `x` is near zero, ``exp(x)`` is near 1, so the numerical calculation\n"
-    "of ``exp(x) - 1`` can suffer from catastrophic loss of precision.\n"
-    "``exprel(x)`` is implemented to avoid the loss of precision that occurs when\n"
-    "`x` is near zero.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "x : ndarray\n"
-    "    Input array.  `x` must contain real numbers.\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function values\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "scalar or ndarray\n"
-    "    ``(exp(x) - 1)/x``, computed element-wise.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "expm1\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    ".. versionadded:: 0.17.0\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> import numpy as np\n"
-    ">>> from scipy.special import exprel\n"
-    "\n"
-    ">>> exprel(0.01)\n"
-    "1.0050167084168056\n"
-    ">>> exprel([-0.25, -0.1, 0, 0.1, 0.25])\n"
-    "array([ 0.88479687,  0.95162582,  1.        ,  1.05170918,  1.13610167])\n"
-    "\n"
-    "Compare ``exprel(5e-9)`` to the naive calculation.  The exact value\n"
-    "is ``1.00000000250000000416...``.\n"
-    "\n"
-    ">>> exprel(5e-9)\n"
-    "1.0000000025\n"
-    "\n"
-    ">>> (np.exp(5e-9) - 1)/5e-9\n"
-    "0.99999999392252903")
-ufunc_exprel_loops[0] = <np.PyUFuncGenericFunction>loop_d_d__As_f_f
-ufunc_exprel_loops[1] = <np.PyUFuncGenericFunction>loop_d_d__As_d_d
-ufunc_exprel_types[0] = <char>NPY_FLOAT
-ufunc_exprel_types[1] = <char>NPY_FLOAT
-ufunc_exprel_types[2] = <char>NPY_DOUBLE
-ufunc_exprel_types[3] = <char>NPY_DOUBLE
-ufunc_exprel_ptr[2*0] = <void*>_func_exprel
-ufunc_exprel_ptr[2*0+1] = <void*>(<char*>"exprel")
-ufunc_exprel_ptr[2*1] = <void*>_func_exprel
-ufunc_exprel_ptr[2*1+1] = <void*>(<char*>"exprel")
-ufunc_exprel_data[0] = &ufunc_exprel_ptr[2*0]
-ufunc_exprel_data[1] = &ufunc_exprel_ptr[2*1]
-exprel = np.PyUFunc_FromFuncAndData(ufunc_exprel_loops, ufunc_exprel_data, ufunc_exprel_types, 2, 1, 1, 0, "exprel", ufunc_exprel_doc, 0)
 
 cdef np.PyUFuncGenericFunction ufunc_fdtr_loops[2]
 cdef void *ufunc_fdtr_ptr[4]
@@ -9413,9 +9270,9 @@ ufunc_fdtr_types[4] = <char>NPY_DOUBLE
 ufunc_fdtr_types[5] = <char>NPY_DOUBLE
 ufunc_fdtr_types[6] = <char>NPY_DOUBLE
 ufunc_fdtr_types[7] = <char>NPY_DOUBLE
-ufunc_fdtr_ptr[2*0] = <void*>_func_fdtr
+ufunc_fdtr_ptr[2*0] = <void*>_func_cephes_fdtr
 ufunc_fdtr_ptr[2*0+1] = <void*>(<char*>"fdtr")
-ufunc_fdtr_ptr[2*1] = <void*>_func_fdtr
+ufunc_fdtr_ptr[2*1] = <void*>_func_cephes_fdtr
 ufunc_fdtr_ptr[2*1+1] = <void*>(<char*>"fdtr")
 ufunc_fdtr_data[0] = &ufunc_fdtr_ptr[2*0]
 ufunc_fdtr_data[1] = &ufunc_fdtr_ptr[2*1]
@@ -9533,9 +9390,9 @@ ufunc_fdtrc_types[4] = <char>NPY_DOUBLE
 ufunc_fdtrc_types[5] = <char>NPY_DOUBLE
 ufunc_fdtrc_types[6] = <char>NPY_DOUBLE
 ufunc_fdtrc_types[7] = <char>NPY_DOUBLE
-ufunc_fdtrc_ptr[2*0] = <void*>_func_fdtrc
+ufunc_fdtrc_ptr[2*0] = <void*>_func_cephes_fdtrc
 ufunc_fdtrc_ptr[2*0+1] = <void*>(<char*>"fdtrc")
-ufunc_fdtrc_ptr[2*1] = <void*>_func_fdtrc
+ufunc_fdtrc_ptr[2*1] = <void*>_func_cephes_fdtrc
 ufunc_fdtrc_ptr[2*1+1] = <void*>(<char*>"fdtrc")
 ufunc_fdtrc_data[0] = &ufunc_fdtrc_ptr[2*0]
 ufunc_fdtrc_data[1] = &ufunc_fdtrc_ptr[2*1]
@@ -9669,9 +9526,9 @@ ufunc_fdtri_types[4] = <char>NPY_DOUBLE
 ufunc_fdtri_types[5] = <char>NPY_DOUBLE
 ufunc_fdtri_types[6] = <char>NPY_DOUBLE
 ufunc_fdtri_types[7] = <char>NPY_DOUBLE
-ufunc_fdtri_ptr[2*0] = <void*>_func_fdtri
+ufunc_fdtri_ptr[2*0] = <void*>_func_cephes_fdtri
 ufunc_fdtri_ptr[2*0+1] = <void*>(<char*>"fdtri")
-ufunc_fdtri_ptr[2*1] = <void*>_func_fdtri
+ufunc_fdtri_ptr[2*1] = <void*>_func_cephes_fdtri
 ufunc_fdtri_ptr[2*1+1] = <void*>(<char*>"fdtri")
 ufunc_fdtri_data[0] = &ufunc_fdtri_ptr[2*0]
 ufunc_fdtri_data[1] = &ufunc_fdtri_ptr[2*1]
@@ -9823,9 +9680,9 @@ ufunc_fresnel_types[8] = <char>NPY_CFLOAT
 ufunc_fresnel_types[9] = <char>NPY_CDOUBLE
 ufunc_fresnel_types[10] = <char>NPY_CDOUBLE
 ufunc_fresnel_types[11] = <char>NPY_CDOUBLE
-ufunc_fresnel_ptr[2*0] = <void*>_func_fresnl
+ufunc_fresnel_ptr[2*0] = <void*>_func_cephes_fresnl_wrap
 ufunc_fresnel_ptr[2*0+1] = <void*>(<char*>"fresnel")
-ufunc_fresnel_ptr[2*1] = <void*>_func_fresnl
+ufunc_fresnel_ptr[2*1] = <void*>_func_cephes_fresnl_wrap
 ufunc_fresnel_ptr[2*1+1] = <void*>(<char*>"fresnel")
 ufunc_fresnel_ptr[2*2] = <void*>_func_cfresnl_wrap
 ufunc_fresnel_ptr[2*2+1] = <void*>(<char*>"fresnel")
@@ -9836,110 +9693,6 @@ ufunc_fresnel_data[1] = &ufunc_fresnel_ptr[2*1]
 ufunc_fresnel_data[2] = &ufunc_fresnel_ptr[2*2]
 ufunc_fresnel_data[3] = &ufunc_fresnel_ptr[2*3]
 fresnel = np.PyUFunc_FromFuncAndData(ufunc_fresnel_loops, ufunc_fresnel_data, ufunc_fresnel_types, 4, 1, 2, 0, "fresnel", ufunc_fresnel_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_gamma_loops[4]
-cdef void *ufunc_gamma_ptr[8]
-cdef void *ufunc_gamma_data[4]
-cdef char ufunc_gamma_types[8]
-cdef char *ufunc_gamma_doc = (
-    "gamma(z, out=None)\n"
-    "\n"
-    "gamma function.\n"
-    "\n"
-    "The gamma function is defined as\n"
-    "\n"
-    ".. math::\n"
-    "\n"
-    "   \\Gamma(z) = \\int_0^\\infty t^{z-1} e^{-t} dt\n"
-    "\n"
-    "for :math:`\\Re(z) > 0` and is extended to the rest of the complex\n"
-    "plane by analytic continuation. See [dlmf]_ for more details.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "z : array_like\n"
-    "    Real or complex valued argument\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function values\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "scalar or ndarray\n"
-    "    Values of the gamma function\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "The gamma function is often referred to as the generalized\n"
-    "factorial since :math:`\\Gamma(n + 1) = n!` for natural numbers\n"
-    ":math:`n`. More generally it satisfies the recurrence relation\n"
-    ":math:`\\Gamma(z + 1) = z \\cdot \\Gamma(z)` for complex :math:`z`,\n"
-    "which, combined with the fact that :math:`\\Gamma(1) = 1`, implies\n"
-    "the above identity for :math:`z = n`.\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [dlmf] NIST Digital Library of Mathematical Functions\n"
-    "          https://dlmf.nist.gov/5.2#E1\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> import numpy as np\n"
-    ">>> from scipy.special import gamma, factorial\n"
-    "\n"
-    ">>> gamma([0, 0.5, 1, 5])\n"
-    "array([         inf,   1.77245385,   1.        ,  24.        ])\n"
-    "\n"
-    ">>> z = 2.5 + 1j\n"
-    ">>> gamma(z)\n"
-    "(0.77476210455108352+0.70763120437959293j)\n"
-    ">>> gamma(z+1), z*gamma(z)  # Recurrence property\n"
-    "((1.2292740569981171+2.5438401155000685j),\n"
-    " (1.2292740569981158+2.5438401155000658j))\n"
-    "\n"
-    ">>> gamma(0.5)**2  # gamma(0.5) = sqrt(pi)\n"
-    "3.1415926535897927\n"
-    "\n"
-    "Plot gamma(x) for real x\n"
-    "\n"
-    ">>> x = np.linspace(-3.5, 5.5, 2251)\n"
-    ">>> y = gamma(x)\n"
-    "\n"
-    ">>> import matplotlib.pyplot as plt\n"
-    ">>> plt.plot(x, y, 'b', alpha=0.6, label='gamma(x)')\n"
-    ">>> k = np.arange(1, 7)\n"
-    ">>> plt.plot(k, factorial(k-1), 'k*', alpha=0.6,\n"
-    "...          label='(x-1)!, x = 1, 2, ...')\n"
-    ">>> plt.xlim(-3.5, 5.5)\n"
-    ">>> plt.ylim(-10, 25)\n"
-    ">>> plt.grid()\n"
-    ">>> plt.xlabel('x')\n"
-    ">>> plt.legend(loc='lower right')\n"
-    ">>> plt.show()")
-ufunc_gamma_loops[0] = <np.PyUFuncGenericFunction>loop_d_d__As_f_f
-ufunc_gamma_loops[1] = <np.PyUFuncGenericFunction>loop_d_d__As_d_d
-ufunc_gamma_loops[2] = <np.PyUFuncGenericFunction>loop_D_D__As_F_F
-ufunc_gamma_loops[3] = <np.PyUFuncGenericFunction>loop_D_D__As_D_D
-ufunc_gamma_types[0] = <char>NPY_FLOAT
-ufunc_gamma_types[1] = <char>NPY_FLOAT
-ufunc_gamma_types[2] = <char>NPY_DOUBLE
-ufunc_gamma_types[3] = <char>NPY_DOUBLE
-ufunc_gamma_types[4] = <char>NPY_CFLOAT
-ufunc_gamma_types[5] = <char>NPY_CFLOAT
-ufunc_gamma_types[6] = <char>NPY_CDOUBLE
-ufunc_gamma_types[7] = <char>NPY_CDOUBLE
-ufunc_gamma_ptr[2*0] = <void*>_func_Gamma
-ufunc_gamma_ptr[2*0+1] = <void*>(<char*>"gamma")
-ufunc_gamma_ptr[2*1] = <void*>_func_Gamma
-ufunc_gamma_ptr[2*1+1] = <void*>(<char*>"gamma")
-ufunc_gamma_ptr[2*2] = <void*>scipy.special._ufuncs_cxx._export_cgamma
-ufunc_gamma_ptr[2*2+1] = <void*>(<char*>"gamma")
-ufunc_gamma_ptr[2*3] = <void*>scipy.special._ufuncs_cxx._export_cgamma
-ufunc_gamma_ptr[2*3+1] = <void*>(<char*>"gamma")
-ufunc_gamma_data[0] = &ufunc_gamma_ptr[2*0]
-ufunc_gamma_data[1] = &ufunc_gamma_ptr[2*1]
-ufunc_gamma_data[2] = &ufunc_gamma_ptr[2*2]
-ufunc_gamma_data[3] = &ufunc_gamma_ptr[2*3]
-gamma = np.PyUFunc_FromFuncAndData(ufunc_gamma_loops, ufunc_gamma_data, ufunc_gamma_types, 4, 1, 1, 0, "gamma", ufunc_gamma_doc, 0)
 
 cdef np.PyUFuncGenericFunction ufunc_gammainc_loops[2]
 cdef void *ufunc_gammainc_ptr[4]
@@ -10018,9 +9771,9 @@ ufunc_gammainc_types[2] = <char>NPY_FLOAT
 ufunc_gammainc_types[3] = <char>NPY_DOUBLE
 ufunc_gammainc_types[4] = <char>NPY_DOUBLE
 ufunc_gammainc_types[5] = <char>NPY_DOUBLE
-ufunc_gammainc_ptr[2*0] = <void*>_func_igam
+ufunc_gammainc_ptr[2*0] = <void*>_func_cephes_igam
 ufunc_gammainc_ptr[2*0+1] = <void*>(<char*>"gammainc")
-ufunc_gammainc_ptr[2*1] = <void*>_func_igam
+ufunc_gammainc_ptr[2*1] = <void*>_func_cephes_igam
 ufunc_gammainc_ptr[2*1+1] = <void*>(<char*>"gammainc")
 ufunc_gammainc_data[0] = &ufunc_gammainc_ptr[2*0]
 ufunc_gammainc_data[1] = &ufunc_gammainc_ptr[2*1]
@@ -10104,9 +9857,9 @@ ufunc_gammaincc_types[2] = <char>NPY_FLOAT
 ufunc_gammaincc_types[3] = <char>NPY_DOUBLE
 ufunc_gammaincc_types[4] = <char>NPY_DOUBLE
 ufunc_gammaincc_types[5] = <char>NPY_DOUBLE
-ufunc_gammaincc_ptr[2*0] = <void*>_func_igamc
+ufunc_gammaincc_ptr[2*0] = <void*>_func_cephes_igamc
 ufunc_gammaincc_ptr[2*0+1] = <void*>(<char*>"gammaincc")
-ufunc_gammaincc_ptr[2*1] = <void*>_func_igamc
+ufunc_gammaincc_ptr[2*1] = <void*>_func_cephes_igamc
 ufunc_gammaincc_ptr[2*1+1] = <void*>(<char*>"gammaincc")
 ufunc_gammaincc_data[0] = &ufunc_gammaincc_ptr[2*0]
 ufunc_gammaincc_data[1] = &ufunc_gammaincc_ptr[2*1]
@@ -10178,9 +9931,9 @@ ufunc_gammainccinv_types[2] = <char>NPY_FLOAT
 ufunc_gammainccinv_types[3] = <char>NPY_DOUBLE
 ufunc_gammainccinv_types[4] = <char>NPY_DOUBLE
 ufunc_gammainccinv_types[5] = <char>NPY_DOUBLE
-ufunc_gammainccinv_ptr[2*0] = <void*>_func_igamci
+ufunc_gammainccinv_ptr[2*0] = <void*>_func_cephes_igamci
 ufunc_gammainccinv_ptr[2*0+1] = <void*>(<char*>"gammainccinv")
-ufunc_gammainccinv_ptr[2*1] = <void*>_func_igamci
+ufunc_gammainccinv_ptr[2*1] = <void*>_func_cephes_igamci
 ufunc_gammainccinv_ptr[2*1+1] = <void*>(<char*>"gammainccinv")
 ufunc_gammainccinv_data[0] = &ufunc_gammainccinv_ptr[2*0]
 ufunc_gammainccinv_data[1] = &ufunc_gammainccinv_ptr[2*1]
@@ -10252,101 +10005,13 @@ ufunc_gammaincinv_types[2] = <char>NPY_FLOAT
 ufunc_gammaincinv_types[3] = <char>NPY_DOUBLE
 ufunc_gammaincinv_types[4] = <char>NPY_DOUBLE
 ufunc_gammaincinv_types[5] = <char>NPY_DOUBLE
-ufunc_gammaincinv_ptr[2*0] = <void*>_func_igami
+ufunc_gammaincinv_ptr[2*0] = <void*>_func_cephes_igami
 ufunc_gammaincinv_ptr[2*0+1] = <void*>(<char*>"gammaincinv")
-ufunc_gammaincinv_ptr[2*1] = <void*>_func_igami
+ufunc_gammaincinv_ptr[2*1] = <void*>_func_cephes_igami
 ufunc_gammaincinv_ptr[2*1+1] = <void*>(<char*>"gammaincinv")
 ufunc_gammaincinv_data[0] = &ufunc_gammaincinv_ptr[2*0]
 ufunc_gammaincinv_data[1] = &ufunc_gammaincinv_ptr[2*1]
 gammaincinv = np.PyUFunc_FromFuncAndData(ufunc_gammaincinv_loops, ufunc_gammaincinv_data, ufunc_gammaincinv_types, 2, 2, 1, 0, "gammaincinv", ufunc_gammaincinv_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_gammaln_loops[2]
-cdef void *ufunc_gammaln_ptr[4]
-cdef void *ufunc_gammaln_data[2]
-cdef char ufunc_gammaln_types[4]
-cdef char *ufunc_gammaln_doc = (
-    "gammaln(x, out=None)\n"
-    "\n"
-    "Logarithm of the absolute value of the gamma function.\n"
-    "\n"
-    "Defined as\n"
-    "\n"
-    ".. math::\n"
-    "\n"
-    "   \\ln(\\lvert\\Gamma(x)\\rvert)\n"
-    "\n"
-    "where :math:`\\Gamma` is the gamma function. For more details on\n"
-    "the gamma function, see [dlmf]_.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "x : array_like\n"
-    "    Real argument\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "scalar or ndarray\n"
-    "    Values of the log of the absolute value of gamma\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "gammasgn : sign of the gamma function\n"
-    "loggamma : principal branch of the logarithm of the gamma function\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "It is the same function as the Python standard library function\n"
-    ":func:`math.lgamma`.\n"
-    "\n"
-    "When used in conjunction with `gammasgn`, this function is useful\n"
-    "for working in logspace on the real axis without having to deal\n"
-    "with complex numbers via the relation ``exp(gammaln(x)) =\n"
-    "gammasgn(x) * gamma(x)``.\n"
-    "\n"
-    "For complex-valued log-gamma, use `loggamma` instead of `gammaln`.\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [dlmf] NIST Digital Library of Mathematical Functions\n"
-    "          https://dlmf.nist.gov/5\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> import numpy as np\n"
-    ">>> import scipy.special as sc\n"
-    "\n"
-    "It has two positive zeros.\n"
-    "\n"
-    ">>> sc.gammaln([1, 2])\n"
-    "array([0., 0.])\n"
-    "\n"
-    "It has poles at nonpositive integers.\n"
-    "\n"
-    ">>> sc.gammaln([0, -1, -2, -3, -4])\n"
-    "array([inf, inf, inf, inf, inf])\n"
-    "\n"
-    "It asymptotically approaches ``x * log(x)`` (Stirling's formula).\n"
-    "\n"
-    ">>> x = np.array([1e10, 1e20, 1e40, 1e80])\n"
-    ">>> sc.gammaln(x)\n"
-    "array([2.20258509e+11, 4.50517019e+21, 9.11034037e+41, 1.83206807e+82])\n"
-    ">>> x * np.log(x)\n"
-    "array([2.30258509e+11, 4.60517019e+21, 9.21034037e+41, 1.84206807e+82])")
-ufunc_gammaln_loops[0] = <np.PyUFuncGenericFunction>loop_d_d__As_f_f
-ufunc_gammaln_loops[1] = <np.PyUFuncGenericFunction>loop_d_d__As_d_d
-ufunc_gammaln_types[0] = <char>NPY_FLOAT
-ufunc_gammaln_types[1] = <char>NPY_FLOAT
-ufunc_gammaln_types[2] = <char>NPY_DOUBLE
-ufunc_gammaln_types[3] = <char>NPY_DOUBLE
-ufunc_gammaln_ptr[2*0] = <void*>_func_lgam
-ufunc_gammaln_ptr[2*0+1] = <void*>(<char*>"gammaln")
-ufunc_gammaln_ptr[2*1] = <void*>_func_lgam
-ufunc_gammaln_ptr[2*1+1] = <void*>(<char*>"gammaln")
-ufunc_gammaln_data[0] = &ufunc_gammaln_ptr[2*0]
-ufunc_gammaln_data[1] = &ufunc_gammaln_ptr[2*1]
-gammaln = np.PyUFunc_FromFuncAndData(ufunc_gammaln_loops, ufunc_gammaln_data, ufunc_gammaln_types, 2, 1, 1, 0, "gammaln", ufunc_gammaln_doc, 0)
 
 cdef np.PyUFuncGenericFunction ufunc_gammasgn_loops[2]
 cdef void *ufunc_gammasgn_ptr[4]
@@ -10427,9 +10092,9 @@ ufunc_gammasgn_types[0] = <char>NPY_FLOAT
 ufunc_gammasgn_types[1] = <char>NPY_FLOAT
 ufunc_gammasgn_types[2] = <char>NPY_DOUBLE
 ufunc_gammasgn_types[3] = <char>NPY_DOUBLE
-ufunc_gammasgn_ptr[2*0] = <void*>_func_gammasgn
+ufunc_gammasgn_ptr[2*0] = <void*>_func_cephes_gammasgn
 ufunc_gammasgn_ptr[2*0+1] = <void*>(<char*>"gammasgn")
-ufunc_gammasgn_ptr[2*1] = <void*>_func_gammasgn
+ufunc_gammasgn_ptr[2*1] = <void*>_func_cephes_gammasgn
 ufunc_gammasgn_ptr[2*1+1] = <void*>(<char*>"gammasgn")
 ufunc_gammasgn_data[0] = &ufunc_gammasgn_ptr[2*0]
 ufunc_gammasgn_data[1] = &ufunc_gammasgn_ptr[2*1]
@@ -10565,9 +10230,9 @@ ufunc_gdtr_types[4] = <char>NPY_DOUBLE
 ufunc_gdtr_types[5] = <char>NPY_DOUBLE
 ufunc_gdtr_types[6] = <char>NPY_DOUBLE
 ufunc_gdtr_types[7] = <char>NPY_DOUBLE
-ufunc_gdtr_ptr[2*0] = <void*>_func_gdtr
+ufunc_gdtr_ptr[2*0] = <void*>_func_cephes_gdtr
 ufunc_gdtr_ptr[2*0+1] = <void*>(<char*>"gdtr")
-ufunc_gdtr_ptr[2*1] = <void*>_func_gdtr
+ufunc_gdtr_ptr[2*1] = <void*>_func_cephes_gdtr
 ufunc_gdtr_ptr[2*1+1] = <void*>(<char*>"gdtr")
 ufunc_gdtr_data[0] = &ufunc_gdtr_ptr[2*0]
 ufunc_gdtr_data[1] = &ufunc_gdtr_ptr[2*1]
@@ -10703,9 +10368,9 @@ ufunc_gdtrc_types[4] = <char>NPY_DOUBLE
 ufunc_gdtrc_types[5] = <char>NPY_DOUBLE
 ufunc_gdtrc_types[6] = <char>NPY_DOUBLE
 ufunc_gdtrc_types[7] = <char>NPY_DOUBLE
-ufunc_gdtrc_ptr[2*0] = <void*>_func_gdtrc
+ufunc_gdtrc_ptr[2*0] = <void*>_func_cephes_gdtrc
 ufunc_gdtrc_ptr[2*0+1] = <void*>(<char*>"gdtrc")
-ufunc_gdtrc_ptr[2*1] = <void*>_func_gdtrc
+ufunc_gdtrc_ptr[2*1] = <void*>_func_cephes_gdtrc
 ufunc_gdtrc_ptr[2*1+1] = <void*>(<char*>"gdtrc")
 ufunc_gdtrc_data[0] = &ufunc_gdtrc_ptr[2*0]
 ufunc_gdtrc_data[1] = &ufunc_gdtrc_ptr[2*1]
@@ -10975,259 +10640,6 @@ ufunc_gdtrix_ptr[2*1+1] = <void*>(<char*>"gdtrix")
 ufunc_gdtrix_data[0] = &ufunc_gdtrix_ptr[2*0]
 ufunc_gdtrix_data[1] = &ufunc_gdtrix_ptr[2*1]
 gdtrix = np.PyUFunc_FromFuncAndData(ufunc_gdtrix_loops, ufunc_gdtrix_data, ufunc_gdtrix_types, 2, 3, 1, 0, "gdtrix", ufunc_gdtrix_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_hankel1_loops[2]
-cdef void *ufunc_hankel1_ptr[4]
-cdef void *ufunc_hankel1_data[2]
-cdef char ufunc_hankel1_types[6]
-cdef char *ufunc_hankel1_doc = (
-    "hankel1(v, z, out=None)\n"
-    "\n"
-    "Hankel function of the first kind\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "v : array_like\n"
-    "    Order (float).\n"
-    "z : array_like\n"
-    "    Argument (float or complex).\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function values\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "scalar or ndarray\n"
-    "    Values of the Hankel function of the first kind.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "hankel1e : ndarray\n"
-    "    This function with leading exponential behavior stripped off.\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "A wrapper for the AMOS [1]_ routine `zbesh`, which carries out the\n"
-    "computation using the relation,\n"
-    "\n"
-    ".. math:: H^{(1)}_v(z) =\n"
-    "          \\frac{2}{\\imath\\pi} \\exp(-\\imath \\pi v/2) K_v(z \\exp(-\\imath\\pi/2))\n"
-    "\n"
-    "where :math:`K_v` is the modified Bessel function of the second kind.\n"
-    "For negative orders, the relation\n"
-    "\n"
-    ".. math:: H^{(1)}_{-v}(z) = H^{(1)}_v(z) \\exp(\\imath\\pi v)\n"
-    "\n"
-    "is used.\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] Donald E. Amos, \"AMOS, A Portable Package for Bessel Functions\n"
-    "       of a Complex Argument and Nonnegative Order\",\n"
-    "       http://netlib.org/amos/")
-ufunc_hankel1_loops[0] = <np.PyUFuncGenericFunction>loop_D_dD__As_fF_F
-ufunc_hankel1_loops[1] = <np.PyUFuncGenericFunction>loop_D_dD__As_dD_D
-ufunc_hankel1_types[0] = <char>NPY_FLOAT
-ufunc_hankel1_types[1] = <char>NPY_CFLOAT
-ufunc_hankel1_types[2] = <char>NPY_CFLOAT
-ufunc_hankel1_types[3] = <char>NPY_DOUBLE
-ufunc_hankel1_types[4] = <char>NPY_CDOUBLE
-ufunc_hankel1_types[5] = <char>NPY_CDOUBLE
-ufunc_hankel1_ptr[2*0] = <void*>_func_cbesh_wrap1
-ufunc_hankel1_ptr[2*0+1] = <void*>(<char*>"hankel1")
-ufunc_hankel1_ptr[2*1] = <void*>_func_cbesh_wrap1
-ufunc_hankel1_ptr[2*1+1] = <void*>(<char*>"hankel1")
-ufunc_hankel1_data[0] = &ufunc_hankel1_ptr[2*0]
-ufunc_hankel1_data[1] = &ufunc_hankel1_ptr[2*1]
-hankel1 = np.PyUFunc_FromFuncAndData(ufunc_hankel1_loops, ufunc_hankel1_data, ufunc_hankel1_types, 2, 2, 1, 0, "hankel1", ufunc_hankel1_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_hankel1e_loops[2]
-cdef void *ufunc_hankel1e_ptr[4]
-cdef void *ufunc_hankel1e_data[2]
-cdef char ufunc_hankel1e_types[6]
-cdef char *ufunc_hankel1e_doc = (
-    "hankel1e(v, z, out=None)\n"
-    "\n"
-    "Exponentially scaled Hankel function of the first kind\n"
-    "\n"
-    "Defined as::\n"
-    "\n"
-    "    hankel1e(v, z) = hankel1(v, z) * exp(-1j * z)\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "v : array_like\n"
-    "    Order (float).\n"
-    "z : array_like\n"
-    "    Argument (float or complex).\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function values\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "scalar or ndarray\n"
-    "    Values of the exponentially scaled Hankel function.\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "A wrapper for the AMOS [1]_ routine `zbesh`, which carries out the\n"
-    "computation using the relation,\n"
-    "\n"
-    ".. math:: H^{(1)}_v(z) =\n"
-    "          \\frac{2}{\\imath\\pi} \\exp(-\\imath \\pi v/2) K_v(z \\exp(-\\imath\\pi/2))\n"
-    "\n"
-    "where :math:`K_v` is the modified Bessel function of the second kind.\n"
-    "For negative orders, the relation\n"
-    "\n"
-    ".. math:: H^{(1)}_{-v}(z) = H^{(1)}_v(z) \\exp(\\imath\\pi v)\n"
-    "\n"
-    "is used.\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] Donald E. Amos, \"AMOS, A Portable Package for Bessel Functions\n"
-    "       of a Complex Argument and Nonnegative Order\",\n"
-    "       http://netlib.org/amos/")
-ufunc_hankel1e_loops[0] = <np.PyUFuncGenericFunction>loop_D_dD__As_fF_F
-ufunc_hankel1e_loops[1] = <np.PyUFuncGenericFunction>loop_D_dD__As_dD_D
-ufunc_hankel1e_types[0] = <char>NPY_FLOAT
-ufunc_hankel1e_types[1] = <char>NPY_CFLOAT
-ufunc_hankel1e_types[2] = <char>NPY_CFLOAT
-ufunc_hankel1e_types[3] = <char>NPY_DOUBLE
-ufunc_hankel1e_types[4] = <char>NPY_CDOUBLE
-ufunc_hankel1e_types[5] = <char>NPY_CDOUBLE
-ufunc_hankel1e_ptr[2*0] = <void*>_func_cbesh_wrap1_e
-ufunc_hankel1e_ptr[2*0+1] = <void*>(<char*>"hankel1e")
-ufunc_hankel1e_ptr[2*1] = <void*>_func_cbesh_wrap1_e
-ufunc_hankel1e_ptr[2*1+1] = <void*>(<char*>"hankel1e")
-ufunc_hankel1e_data[0] = &ufunc_hankel1e_ptr[2*0]
-ufunc_hankel1e_data[1] = &ufunc_hankel1e_ptr[2*1]
-hankel1e = np.PyUFunc_FromFuncAndData(ufunc_hankel1e_loops, ufunc_hankel1e_data, ufunc_hankel1e_types, 2, 2, 1, 0, "hankel1e", ufunc_hankel1e_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_hankel2_loops[2]
-cdef void *ufunc_hankel2_ptr[4]
-cdef void *ufunc_hankel2_data[2]
-cdef char ufunc_hankel2_types[6]
-cdef char *ufunc_hankel2_doc = (
-    "hankel2(v, z, out=None)\n"
-    "\n"
-    "Hankel function of the second kind\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "v : array_like\n"
-    "    Order (float).\n"
-    "z : array_like\n"
-    "    Argument (float or complex).\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function values\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "scalar or ndarray\n"
-    "    Values of the Hankel function of the second kind.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "hankel2e : this function with leading exponential behavior stripped off.\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "A wrapper for the AMOS [1]_ routine `zbesh`, which carries out the\n"
-    "computation using the relation,\n"
-    "\n"
-    ".. math:: H^{(2)}_v(z) =\n"
-    "          -\\frac{2}{\\imath\\pi} \\exp(\\imath \\pi v/2) K_v(z \\exp(\\imath\\pi/2))\n"
-    "\n"
-    "where :math:`K_v` is the modified Bessel function of the second kind.\n"
-    "For negative orders, the relation\n"
-    "\n"
-    ".. math:: H^{(2)}_{-v}(z) = H^{(2)}_v(z) \\exp(-\\imath\\pi v)\n"
-    "\n"
-    "is used.\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] Donald E. Amos, \"AMOS, A Portable Package for Bessel Functions\n"
-    "       of a Complex Argument and Nonnegative Order\",\n"
-    "       http://netlib.org/amos/")
-ufunc_hankel2_loops[0] = <np.PyUFuncGenericFunction>loop_D_dD__As_fF_F
-ufunc_hankel2_loops[1] = <np.PyUFuncGenericFunction>loop_D_dD__As_dD_D
-ufunc_hankel2_types[0] = <char>NPY_FLOAT
-ufunc_hankel2_types[1] = <char>NPY_CFLOAT
-ufunc_hankel2_types[2] = <char>NPY_CFLOAT
-ufunc_hankel2_types[3] = <char>NPY_DOUBLE
-ufunc_hankel2_types[4] = <char>NPY_CDOUBLE
-ufunc_hankel2_types[5] = <char>NPY_CDOUBLE
-ufunc_hankel2_ptr[2*0] = <void*>_func_cbesh_wrap2
-ufunc_hankel2_ptr[2*0+1] = <void*>(<char*>"hankel2")
-ufunc_hankel2_ptr[2*1] = <void*>_func_cbesh_wrap2
-ufunc_hankel2_ptr[2*1+1] = <void*>(<char*>"hankel2")
-ufunc_hankel2_data[0] = &ufunc_hankel2_ptr[2*0]
-ufunc_hankel2_data[1] = &ufunc_hankel2_ptr[2*1]
-hankel2 = np.PyUFunc_FromFuncAndData(ufunc_hankel2_loops, ufunc_hankel2_data, ufunc_hankel2_types, 2, 2, 1, 0, "hankel2", ufunc_hankel2_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_hankel2e_loops[2]
-cdef void *ufunc_hankel2e_ptr[4]
-cdef void *ufunc_hankel2e_data[2]
-cdef char ufunc_hankel2e_types[6]
-cdef char *ufunc_hankel2e_doc = (
-    "hankel2e(v, z, out=None)\n"
-    "\n"
-    "Exponentially scaled Hankel function of the second kind\n"
-    "\n"
-    "Defined as::\n"
-    "\n"
-    "    hankel2e(v, z) = hankel2(v, z) * exp(1j * z)\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "v : array_like\n"
-    "    Order (float).\n"
-    "z : array_like\n"
-    "    Argument (float or complex).\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function values\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "scalar or ndarray\n"
-    "    Values of the exponentially scaled Hankel function of the second kind.\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "A wrapper for the AMOS [1]_ routine `zbesh`, which carries out the\n"
-    "computation using the relation,\n"
-    "\n"
-    ".. math:: H^{(2)}_v(z) = -\\frac{2}{\\imath\\pi}\n"
-    "          \\exp(\\frac{\\imath \\pi v}{2}) K_v(z exp(\\frac{\\imath\\pi}{2}))\n"
-    "\n"
-    "where :math:`K_v` is the modified Bessel function of the second kind.\n"
-    "For negative orders, the relation\n"
-    "\n"
-    ".. math:: H^{(2)}_{-v}(z) = H^{(2)}_v(z) \\exp(-\\imath\\pi v)\n"
-    "\n"
-    "is used.\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] Donald E. Amos, \"AMOS, A Portable Package for Bessel Functions\n"
-    "       of a Complex Argument and Nonnegative Order\",\n"
-    "       http://netlib.org/amos/")
-ufunc_hankel2e_loops[0] = <np.PyUFuncGenericFunction>loop_D_dD__As_fF_F
-ufunc_hankel2e_loops[1] = <np.PyUFuncGenericFunction>loop_D_dD__As_dD_D
-ufunc_hankel2e_types[0] = <char>NPY_FLOAT
-ufunc_hankel2e_types[1] = <char>NPY_CFLOAT
-ufunc_hankel2e_types[2] = <char>NPY_CFLOAT
-ufunc_hankel2e_types[3] = <char>NPY_DOUBLE
-ufunc_hankel2e_types[4] = <char>NPY_CDOUBLE
-ufunc_hankel2e_types[5] = <char>NPY_CDOUBLE
-ufunc_hankel2e_ptr[2*0] = <void*>_func_cbesh_wrap2_e
-ufunc_hankel2e_ptr[2*0+1] = <void*>(<char*>"hankel2e")
-ufunc_hankel2e_ptr[2*1] = <void*>_func_cbesh_wrap2_e
-ufunc_hankel2e_ptr[2*1+1] = <void*>(<char*>"hankel2e")
-ufunc_hankel2e_data[0] = &ufunc_hankel2e_ptr[2*0]
-ufunc_hankel2e_data[1] = &ufunc_hankel2e_ptr[2*1]
-hankel2e = np.PyUFunc_FromFuncAndData(ufunc_hankel2e_loops, ufunc_hankel2e_data, ufunc_hankel2e_types, 2, 2, 1, 0, "hankel2e", ufunc_hankel2e_doc, 0)
 
 cdef np.PyUFuncGenericFunction ufunc_huber_loops[2]
 cdef void *ufunc_huber_ptr[4]
@@ -11557,153 +10969,6 @@ ufunc_hyp1f1_data[2] = &ufunc_hyp1f1_ptr[2*2]
 ufunc_hyp1f1_data[3] = &ufunc_hyp1f1_ptr[2*3]
 hyp1f1 = np.PyUFunc_FromFuncAndData(ufunc_hyp1f1_loops, ufunc_hyp1f1_data, ufunc_hyp1f1_types, 4, 3, 1, 0, "hyp1f1", ufunc_hyp1f1_doc, 0)
 
-cdef np.PyUFuncGenericFunction ufunc_hyp2f1_loops[4]
-cdef void *ufunc_hyp2f1_ptr[8]
-cdef void *ufunc_hyp2f1_data[4]
-cdef char ufunc_hyp2f1_types[20]
-cdef char *ufunc_hyp2f1_doc = (
-    "hyp2f1(a, b, c, z, out=None)\n"
-    "\n"
-    "Gauss hypergeometric function 2F1(a, b; c; z)\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "a, b, c : array_like\n"
-    "    Arguments, should be real-valued.\n"
-    "z : array_like\n"
-    "    Argument, real or complex.\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function values\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "hyp2f1 : scalar or ndarray\n"
-    "    The values of the gaussian hypergeometric function.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "hyp0f1 : confluent hypergeometric limit function.\n"
-    "hyp1f1 : Kummer's (confluent hypergeometric) function.\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "This function is defined for :math:`|z| < 1` as\n"
-    "\n"
-    ".. math::\n"
-    "\n"
-    "   \\mathrm{hyp2f1}(a, b, c, z) = \\sum_{n=0}^\\infty\n"
-    "   \\frac{(a)_n (b)_n}{(c)_n}\\frac{z^n}{n!},\n"
-    "\n"
-    "and defined on the rest of the complex z-plane by analytic\n"
-    "continuation [1]_.\n"
-    "Here :math:`(\\cdot)_n` is the Pochhammer symbol; see `poch`. When\n"
-    ":math:`n` is an integer the result is a polynomial of degree :math:`n`.\n"
-    "\n"
-    "The implementation for complex values of ``z`` is described in [2]_,\n"
-    "except for ``z`` in the region defined by\n"
-    "\n"
-    ".. math::\n"
-    "\n"
-    "     0.9 <= \\left|z\\right| < 1.1,\n"
-    "     \\left|1 - z\\right| >= 0.9,\n"
-    "     \\mathrm{real}(z) >= 0\n"
-    "\n"
-    "in which the implementation follows [4]_.\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] NIST Digital Library of Mathematical Functions\n"
-    "       https://dlmf.nist.gov/15.2\n"
-    ".. [2] S. Zhang and J.M. Jin, \"Computation of Special Functions\", Wiley 1996\n"
-    ".. [3] Cephes Mathematical Functions Library,\n"
-    "       http://www.netlib.org/cephes/\n"
-    ".. [4] J.L. Lopez and N.M. Temme, \"New series expansions of the Gauss\n"
-    "       hypergeometric function\", Adv Comput Math 39, 349-365 (2013).\n"
-    "       https://doi.org/10.1007/s10444-012-9283-y\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> import numpy as np\n"
-    ">>> import scipy.special as sc\n"
-    "\n"
-    "It has poles when `c` is a negative integer.\n"
-    "\n"
-    ">>> sc.hyp2f1(1, 1, -2, 1)\n"
-    "inf\n"
-    "\n"
-    "It is a polynomial when `a` or `b` is a negative integer.\n"
-    "\n"
-    ">>> a, b, c = -1, 1, 1.5\n"
-    ">>> z = np.linspace(0, 1, 5)\n"
-    ">>> sc.hyp2f1(a, b, c, z)\n"
-    "array([1.        , 0.83333333, 0.66666667, 0.5       , 0.33333333])\n"
-    ">>> 1 + a * b * z / c\n"
-    "array([1.        , 0.83333333, 0.66666667, 0.5       , 0.33333333])\n"
-    "\n"
-    "It is symmetric in `a` and `b`.\n"
-    "\n"
-    ">>> a = np.linspace(0, 1, 5)\n"
-    ">>> b = np.linspace(0, 1, 5)\n"
-    ">>> sc.hyp2f1(a, b, 1, 0.5)\n"
-    "array([1.        , 1.03997334, 1.1803406 , 1.47074441, 2.        ])\n"
-    ">>> sc.hyp2f1(b, a, 1, 0.5)\n"
-    "array([1.        , 1.03997334, 1.1803406 , 1.47074441, 2.        ])\n"
-    "\n"
-    "It contains many other functions as special cases.\n"
-    "\n"
-    ">>> z = 0.5\n"
-    ">>> sc.hyp2f1(1, 1, 2, z)\n"
-    "1.3862943611198901\n"
-    ">>> -np.log(1 - z) / z\n"
-    "1.3862943611198906\n"
-    "\n"
-    ">>> sc.hyp2f1(0.5, 1, 1.5, z**2)\n"
-    "1.098612288668109\n"
-    ">>> np.log((1 + z) / (1 - z)) / (2 * z)\n"
-    "1.0986122886681098\n"
-    "\n"
-    ">>> sc.hyp2f1(0.5, 1, 1.5, -z**2)\n"
-    "0.9272952180016117\n"
-    ">>> np.arctan(z) / z\n"
-    "0.9272952180016122")
-ufunc_hyp2f1_loops[0] = <np.PyUFuncGenericFunction>loop_d_dddd__As_ffff_f
-ufunc_hyp2f1_loops[1] = <np.PyUFuncGenericFunction>loop_D_dddD__As_fffF_F
-ufunc_hyp2f1_loops[2] = <np.PyUFuncGenericFunction>loop_d_dddd__As_dddd_d
-ufunc_hyp2f1_loops[3] = <np.PyUFuncGenericFunction>loop_D_dddD__As_dddD_D
-ufunc_hyp2f1_types[0] = <char>NPY_FLOAT
-ufunc_hyp2f1_types[1] = <char>NPY_FLOAT
-ufunc_hyp2f1_types[2] = <char>NPY_FLOAT
-ufunc_hyp2f1_types[3] = <char>NPY_FLOAT
-ufunc_hyp2f1_types[4] = <char>NPY_FLOAT
-ufunc_hyp2f1_types[5] = <char>NPY_FLOAT
-ufunc_hyp2f1_types[6] = <char>NPY_FLOAT
-ufunc_hyp2f1_types[7] = <char>NPY_FLOAT
-ufunc_hyp2f1_types[8] = <char>NPY_CFLOAT
-ufunc_hyp2f1_types[9] = <char>NPY_CFLOAT
-ufunc_hyp2f1_types[10] = <char>NPY_DOUBLE
-ufunc_hyp2f1_types[11] = <char>NPY_DOUBLE
-ufunc_hyp2f1_types[12] = <char>NPY_DOUBLE
-ufunc_hyp2f1_types[13] = <char>NPY_DOUBLE
-ufunc_hyp2f1_types[14] = <char>NPY_DOUBLE
-ufunc_hyp2f1_types[15] = <char>NPY_DOUBLE
-ufunc_hyp2f1_types[16] = <char>NPY_DOUBLE
-ufunc_hyp2f1_types[17] = <char>NPY_DOUBLE
-ufunc_hyp2f1_types[18] = <char>NPY_CDOUBLE
-ufunc_hyp2f1_types[19] = <char>NPY_CDOUBLE
-ufunc_hyp2f1_ptr[2*0] = <void*>_func_hyp2f1
-ufunc_hyp2f1_ptr[2*0+1] = <void*>(<char*>"hyp2f1")
-ufunc_hyp2f1_ptr[2*1] = <void*>_func_hyp2f1_complex
-ufunc_hyp2f1_ptr[2*1+1] = <void*>(<char*>"hyp2f1")
-ufunc_hyp2f1_ptr[2*2] = <void*>_func_hyp2f1
-ufunc_hyp2f1_ptr[2*2+1] = <void*>(<char*>"hyp2f1")
-ufunc_hyp2f1_ptr[2*3] = <void*>_func_hyp2f1_complex
-ufunc_hyp2f1_ptr[2*3+1] = <void*>(<char*>"hyp2f1")
-ufunc_hyp2f1_data[0] = &ufunc_hyp2f1_ptr[2*0]
-ufunc_hyp2f1_data[1] = &ufunc_hyp2f1_ptr[2*1]
-ufunc_hyp2f1_data[2] = &ufunc_hyp2f1_ptr[2*2]
-ufunc_hyp2f1_data[3] = &ufunc_hyp2f1_ptr[2*3]
-hyp2f1 = np.PyUFunc_FromFuncAndData(ufunc_hyp2f1_loops, ufunc_hyp2f1_data, ufunc_hyp2f1_types, 4, 4, 1, 0, "hyp2f1", ufunc_hyp2f1_doc, 0)
-
 cdef np.PyUFuncGenericFunction ufunc_hyperu_loops[2]
 cdef void *ufunc_hyperu_ptr[4]
 cdef void *ufunc_hyperu_data[2]
@@ -11861,9 +11126,9 @@ ufunc_i0_types[0] = <char>NPY_FLOAT
 ufunc_i0_types[1] = <char>NPY_FLOAT
 ufunc_i0_types[2] = <char>NPY_DOUBLE
 ufunc_i0_types[3] = <char>NPY_DOUBLE
-ufunc_i0_ptr[2*0] = <void*>_func_i0
+ufunc_i0_ptr[2*0] = <void*>_func_cephes_i0
 ufunc_i0_ptr[2*0+1] = <void*>(<char*>"i0")
-ufunc_i0_ptr[2*1] = <void*>_func_i0
+ufunc_i0_ptr[2*1] = <void*>_func_cephes_i0
 ufunc_i0_ptr[2*1+1] = <void*>(<char*>"i0")
 ufunc_i0_data[0] = &ufunc_i0_ptr[2*0]
 ufunc_i0_data[1] = &ufunc_i0_ptr[2*1]
@@ -11945,9 +11210,9 @@ ufunc_i0e_types[0] = <char>NPY_FLOAT
 ufunc_i0e_types[1] = <char>NPY_FLOAT
 ufunc_i0e_types[2] = <char>NPY_DOUBLE
 ufunc_i0e_types[3] = <char>NPY_DOUBLE
-ufunc_i0e_ptr[2*0] = <void*>_func_i0e
+ufunc_i0e_ptr[2*0] = <void*>_func_cephes_i0e
 ufunc_i0e_ptr[2*0+1] = <void*>(<char*>"i0e")
-ufunc_i0e_ptr[2*1] = <void*>_func_i0e
+ufunc_i0e_ptr[2*1] = <void*>_func_cephes_i0e
 ufunc_i0e_ptr[2*1+1] = <void*>(<char*>"i0e")
 ufunc_i0e_data[0] = &ufunc_i0e_ptr[2*0]
 ufunc_i0e_data[1] = &ufunc_i0e_ptr[2*1]
@@ -12027,9 +11292,9 @@ ufunc_i1_types[0] = <char>NPY_FLOAT
 ufunc_i1_types[1] = <char>NPY_FLOAT
 ufunc_i1_types[2] = <char>NPY_DOUBLE
 ufunc_i1_types[3] = <char>NPY_DOUBLE
-ufunc_i1_ptr[2*0] = <void*>_func_i1
+ufunc_i1_ptr[2*0] = <void*>_func_cephes_i1
 ufunc_i1_ptr[2*0+1] = <void*>(<char*>"i1")
-ufunc_i1_ptr[2*1] = <void*>_func_i1
+ufunc_i1_ptr[2*1] = <void*>_func_cephes_i1
 ufunc_i1_ptr[2*1+1] = <void*>(<char*>"i1")
 ufunc_i1_data[0] = &ufunc_i1_ptr[2*0]
 ufunc_i1_data[1] = &ufunc_i1_ptr[2*1]
@@ -12111,9 +11376,9 @@ ufunc_i1e_types[0] = <char>NPY_FLOAT
 ufunc_i1e_types[1] = <char>NPY_FLOAT
 ufunc_i1e_types[2] = <char>NPY_DOUBLE
 ufunc_i1e_types[3] = <char>NPY_DOUBLE
-ufunc_i1e_ptr[2*0] = <void*>_func_i1e
+ufunc_i1e_ptr[2*0] = <void*>_func_cephes_i1e
 ufunc_i1e_ptr[2*0+1] = <void*>(<char*>"i1e")
-ufunc_i1e_ptr[2*1] = <void*>_func_i1e
+ufunc_i1e_ptr[2*1] = <void*>_func_cephes_i1e
 ufunc_i1e_ptr[2*1+1] = <void*>(<char*>"i1e")
 ufunc_i1e_data[0] = &ufunc_i1e_ptr[2*0]
 ufunc_i1e_data[1] = &ufunc_i1e_ptr[2*1]
@@ -12229,953 +11494,6 @@ ufunc_inv_boxcox1p_data[0] = &ufunc_inv_boxcox1p_ptr[2*0]
 ufunc_inv_boxcox1p_data[1] = &ufunc_inv_boxcox1p_ptr[2*1]
 inv_boxcox1p = np.PyUFunc_FromFuncAndData(ufunc_inv_boxcox1p_loops, ufunc_inv_boxcox1p_data, ufunc_inv_boxcox1p_types, 2, 2, 1, 0, "inv_boxcox1p", ufunc_inv_boxcox1p_doc, 0)
 
-cdef np.PyUFuncGenericFunction ufunc_it2i0k0_loops[2]
-cdef void *ufunc_it2i0k0_ptr[4]
-cdef void *ufunc_it2i0k0_data[2]
-cdef char ufunc_it2i0k0_types[6]
-cdef char *ufunc_it2i0k0_doc = (
-    "it2i0k0(x, out=None)\n"
-    "\n"
-    "Integrals related to modified Bessel functions of order 0.\n"
-    "\n"
-    "Computes the integrals\n"
-    "\n"
-    ".. math::\n"
-    "\n"
-    "    \\int_0^x \\frac{I_0(t) - 1}{t} dt \\\\\n"
-    "    \\int_x^\\infty \\frac{K_0(t)}{t} dt.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "x : array_like\n"
-    "    Values at which to evaluate the integrals.\n"
-    "out : tuple of ndarrays, optional\n"
-    "    Optional output arrays for the function results.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "ii0 : scalar or ndarray\n"
-    "    The integral for `i0`\n"
-    "ik0 : scalar or ndarray\n"
-    "    The integral for `k0`\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] S. Zhang and J.M. Jin, \"Computation of Special Functions\",\n"
-    "       Wiley 1996\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "Evaluate the functions at one point.\n"
-    "\n"
-    ">>> from scipy.special import it2i0k0\n"
-    ">>> int_i, int_k = it2i0k0(1.)\n"
-    ">>> int_i, int_k\n"
-    "(0.12897944249456852, 0.2085182909001295)\n"
-    "\n"
-    "Evaluate the functions at several points.\n"
-    "\n"
-    ">>> import numpy as np\n"
-    ">>> points = np.array([0.5, 1.5, 3.])\n"
-    ">>> int_i, int_k = it2i0k0(points)\n"
-    ">>> int_i, int_k\n"
-    "(array([0.03149527, 0.30187149, 1.50012461]),\n"
-    " array([0.66575102, 0.0823715 , 0.00823631]))\n"
-    "\n"
-    "Plot the functions from 0 to 5.\n"
-    "\n"
-    ">>> import matplotlib.pyplot as plt\n"
-    ">>> fig, ax = plt.subplots()\n"
-    ">>> x = np.linspace(0., 5., 1000)\n"
-    ">>> int_i, int_k = it2i0k0(x)\n"
-    ">>> ax.plot(x, int_i, label=r\"$\\int_0^x \\frac{I_0(t)-1}{t}\\,dt$\")\n"
-    ">>> ax.plot(x, int_k, label=r\"$\\int_x^{\\infty} \\frac{K_0(t)}{t}\\,dt$\")\n"
-    ">>> ax.legend()\n"
-    ">>> ax.set_ylim(0, 10)\n"
-    ">>> plt.show()")
-ufunc_it2i0k0_loops[0] = <np.PyUFuncGenericFunction>loop_i_d_dd_As_f_ff
-ufunc_it2i0k0_loops[1] = <np.PyUFuncGenericFunction>loop_i_d_dd_As_d_dd
-ufunc_it2i0k0_types[0] = <char>NPY_FLOAT
-ufunc_it2i0k0_types[1] = <char>NPY_FLOAT
-ufunc_it2i0k0_types[2] = <char>NPY_FLOAT
-ufunc_it2i0k0_types[3] = <char>NPY_DOUBLE
-ufunc_it2i0k0_types[4] = <char>NPY_DOUBLE
-ufunc_it2i0k0_types[5] = <char>NPY_DOUBLE
-ufunc_it2i0k0_ptr[2*0] = <void*>_func_it2i0k0_wrap
-ufunc_it2i0k0_ptr[2*0+1] = <void*>(<char*>"it2i0k0")
-ufunc_it2i0k0_ptr[2*1] = <void*>_func_it2i0k0_wrap
-ufunc_it2i0k0_ptr[2*1+1] = <void*>(<char*>"it2i0k0")
-ufunc_it2i0k0_data[0] = &ufunc_it2i0k0_ptr[2*0]
-ufunc_it2i0k0_data[1] = &ufunc_it2i0k0_ptr[2*1]
-it2i0k0 = np.PyUFunc_FromFuncAndData(ufunc_it2i0k0_loops, ufunc_it2i0k0_data, ufunc_it2i0k0_types, 2, 1, 2, 0, "it2i0k0", ufunc_it2i0k0_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_it2j0y0_loops[2]
-cdef void *ufunc_it2j0y0_ptr[4]
-cdef void *ufunc_it2j0y0_data[2]
-cdef char ufunc_it2j0y0_types[6]
-cdef char *ufunc_it2j0y0_doc = (
-    "it2j0y0(x, out=None)\n"
-    "\n"
-    "Integrals related to Bessel functions of the first kind of order 0.\n"
-    "\n"
-    "Computes the integrals\n"
-    "\n"
-    ".. math::\n"
-    "\n"
-    "    \\int_0^x \\frac{1 - J_0(t)}{t} dt \\\\\n"
-    "    \\int_x^\\infty \\frac{Y_0(t)}{t} dt.\n"
-    "\n"
-    "For more on :math:`J_0` and :math:`Y_0` see `j0` and `y0`.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "x : array_like\n"
-    "    Values at which to evaluate the integrals.\n"
-    "out : tuple of ndarrays, optional\n"
-    "    Optional output arrays for the function results.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "ij0 : scalar or ndarray\n"
-    "    The integral for `j0`\n"
-    "iy0 : scalar or ndarray\n"
-    "    The integral for `y0`\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] S. Zhang and J.M. Jin, \"Computation of Special Functions\",\n"
-    "       Wiley 1996\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "Evaluate the functions at one point.\n"
-    "\n"
-    ">>> from scipy.special import it2j0y0\n"
-    ">>> int_j, int_y = it2j0y0(1.)\n"
-    ">>> int_j, int_y\n"
-    "(0.12116524699506871, 0.39527290169929336)\n"
-    "\n"
-    "Evaluate the functions at several points.\n"
-    "\n"
-    ">>> import numpy as np\n"
-    ">>> points = np.array([0.5, 1.5, 3.])\n"
-    ">>> int_j, int_y = it2j0y0(points)\n"
-    ">>> int_j, int_y\n"
-    "(array([0.03100699, 0.26227724, 0.85614669]),\n"
-    " array([ 0.26968854,  0.29769696, -0.02987272]))\n"
-    "\n"
-    "Plot the functions from 0 to 10.\n"
-    "\n"
-    ">>> import matplotlib.pyplot as plt\n"
-    ">>> fig, ax = plt.subplots()\n"
-    ">>> x = np.linspace(0., 10., 1000)\n"
-    ">>> int_j, int_y = it2j0y0(x)\n"
-    ">>> ax.plot(x, int_j, label=r\"$\\int_0^x \\frac{1-J_0(t)}{t}\\,dt$\")\n"
-    ">>> ax.plot(x, int_y, label=r\"$\\int_x^{\\infty} \\frac{Y_0(t)}{t}\\,dt$\")\n"
-    ">>> ax.legend()\n"
-    ">>> ax.set_ylim(-2.5, 2.5)\n"
-    ">>> plt.show()")
-ufunc_it2j0y0_loops[0] = <np.PyUFuncGenericFunction>loop_i_d_dd_As_f_ff
-ufunc_it2j0y0_loops[1] = <np.PyUFuncGenericFunction>loop_i_d_dd_As_d_dd
-ufunc_it2j0y0_types[0] = <char>NPY_FLOAT
-ufunc_it2j0y0_types[1] = <char>NPY_FLOAT
-ufunc_it2j0y0_types[2] = <char>NPY_FLOAT
-ufunc_it2j0y0_types[3] = <char>NPY_DOUBLE
-ufunc_it2j0y0_types[4] = <char>NPY_DOUBLE
-ufunc_it2j0y0_types[5] = <char>NPY_DOUBLE
-ufunc_it2j0y0_ptr[2*0] = <void*>_func_it2j0y0_wrap
-ufunc_it2j0y0_ptr[2*0+1] = <void*>(<char*>"it2j0y0")
-ufunc_it2j0y0_ptr[2*1] = <void*>_func_it2j0y0_wrap
-ufunc_it2j0y0_ptr[2*1+1] = <void*>(<char*>"it2j0y0")
-ufunc_it2j0y0_data[0] = &ufunc_it2j0y0_ptr[2*0]
-ufunc_it2j0y0_data[1] = &ufunc_it2j0y0_ptr[2*1]
-it2j0y0 = np.PyUFunc_FromFuncAndData(ufunc_it2j0y0_loops, ufunc_it2j0y0_data, ufunc_it2j0y0_types, 2, 1, 2, 0, "it2j0y0", ufunc_it2j0y0_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_it2struve0_loops[2]
-cdef void *ufunc_it2struve0_ptr[4]
-cdef void *ufunc_it2struve0_data[2]
-cdef char ufunc_it2struve0_types[4]
-cdef char *ufunc_it2struve0_doc = (
-    "it2struve0(x, out=None)\n"
-    "\n"
-    "Integral related to the Struve function of order 0.\n"
-    "\n"
-    "Returns the integral,\n"
-    "\n"
-    ".. math::\n"
-    "    \\int_x^\\infty \\frac{H_0(t)}{t}\\,dt\n"
-    "\n"
-    "where :math:`H_0` is the Struve function of order 0.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "x : array_like\n"
-    "    Lower limit of integration.\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function values\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "I : scalar or ndarray\n"
-    "    The value of the integral.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "struve\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "Wrapper for a Fortran routine created by Shanjie Zhang and Jianming\n"
-    "Jin [1]_.\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] Zhang, Shanjie and Jin, Jianming. \"Computation of Special\n"
-    "       Functions\", John Wiley and Sons, 1996.\n"
-    "       https://people.sc.fsu.edu/~jburkardt/f_src/special_functions/special_functions.html\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "Evaluate the function at one point.\n"
-    "\n"
-    ">>> import numpy as np\n"
-    ">>> from scipy.special import it2struve0\n"
-    ">>> it2struve0(1.)\n"
-    "0.9571973506383524\n"
-    "\n"
-    "Evaluate the function at several points by supplying\n"
-    "an array for `x`.\n"
-    "\n"
-    ">>> points = np.array([1., 2., 3.5])\n"
-    ">>> it2struve0(points)\n"
-    "array([0.95719735, 0.46909296, 0.10366042])\n"
-    "\n"
-    "Plot the function from -10 to 10.\n"
-    "\n"
-    ">>> import matplotlib.pyplot as plt\n"
-    ">>> x = np.linspace(-10., 10., 1000)\n"
-    ">>> it2struve0_values = it2struve0(x)\n"
-    ">>> fig, ax = plt.subplots()\n"
-    ">>> ax.plot(x, it2struve0_values)\n"
-    ">>> ax.set_xlabel(r'$x$')\n"
-    ">>> ax.set_ylabel(r'$\\int_x^{\\infty}\\frac{H_0(t)}{t}\\,dt$')\n"
-    ">>> plt.show()")
-ufunc_it2struve0_loops[0] = <np.PyUFuncGenericFunction>loop_d_d__As_f_f
-ufunc_it2struve0_loops[1] = <np.PyUFuncGenericFunction>loop_d_d__As_d_d
-ufunc_it2struve0_types[0] = <char>NPY_FLOAT
-ufunc_it2struve0_types[1] = <char>NPY_FLOAT
-ufunc_it2struve0_types[2] = <char>NPY_DOUBLE
-ufunc_it2struve0_types[3] = <char>NPY_DOUBLE
-ufunc_it2struve0_ptr[2*0] = <void*>_func_it2struve0_wrap
-ufunc_it2struve0_ptr[2*0+1] = <void*>(<char*>"it2struve0")
-ufunc_it2struve0_ptr[2*1] = <void*>_func_it2struve0_wrap
-ufunc_it2struve0_ptr[2*1+1] = <void*>(<char*>"it2struve0")
-ufunc_it2struve0_data[0] = &ufunc_it2struve0_ptr[2*0]
-ufunc_it2struve0_data[1] = &ufunc_it2struve0_ptr[2*1]
-it2struve0 = np.PyUFunc_FromFuncAndData(ufunc_it2struve0_loops, ufunc_it2struve0_data, ufunc_it2struve0_types, 2, 1, 1, 0, "it2struve0", ufunc_it2struve0_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_itairy_loops[2]
-cdef void *ufunc_itairy_ptr[4]
-cdef void *ufunc_itairy_data[2]
-cdef char ufunc_itairy_types[10]
-cdef char *ufunc_itairy_doc = (
-    "itairy(x, out=None)\n"
-    "\n"
-    "Integrals of Airy functions\n"
-    "\n"
-    "Calculates the integrals of Airy functions from 0 to `x`.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "\n"
-    "x : array_like\n"
-    "    Upper limit of integration (float).\n"
-    "out : tuple of ndarray, optional\n"
-    "    Optional output arrays for the function values\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "Apt : scalar or ndarray\n"
-    "    Integral of Ai(t) from 0 to x.\n"
-    "Bpt : scalar or ndarray\n"
-    "    Integral of Bi(t) from 0 to x.\n"
-    "Ant : scalar or ndarray\n"
-    "    Integral of Ai(-t) from 0 to x.\n"
-    "Bnt : scalar or ndarray\n"
-    "    Integral of Bi(-t) from 0 to x.\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "\n"
-    "Wrapper for a Fortran routine created by Shanjie Zhang and Jianming\n"
-    "Jin [1]_.\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    "\n"
-    ".. [1] Zhang, Shanjie and Jin, Jianming. \"Computation of Special\n"
-    "       Functions\", John Wiley and Sons, 1996.\n"
-    "       https://people.sc.fsu.edu/~jburkardt/f_src/special_functions/special_functions.html\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "Compute the functions at ``x=1.``.\n"
-    "\n"
-    ">>> import numpy as np\n"
-    ">>> from scipy.special import itairy\n"
-    ">>> import matplotlib.pyplot as plt\n"
-    ">>> apt, bpt, ant, bnt = itairy(1.)\n"
-    ">>> apt, bpt, ant, bnt\n"
-    "(0.23631734191710949,\n"
-    " 0.8727691167380077,\n"
-    " 0.46567398346706845,\n"
-    " 0.3730050096342943)\n"
-    "\n"
-    "Compute the functions at several points by providing a NumPy array for `x`.\n"
-    "\n"
-    ">>> x = np.array([1., 1.5, 2.5, 5])\n"
-    ">>> apt, bpt, ant, bnt = itairy(x)\n"
-    ">>> apt, bpt, ant, bnt\n"
-    "(array([0.23631734, 0.28678675, 0.324638  , 0.33328759]),\n"
-    " array([  0.87276912,   1.62470809,   5.20906691, 321.47831857]),\n"
-    " array([0.46567398, 0.72232876, 0.93187776, 0.7178822 ]),\n"
-    " array([ 0.37300501,  0.35038814, -0.02812939,  0.15873094]))\n"
-    "\n"
-    "Plot the functions from -10 to 10.\n"
-    "\n"
-    ">>> x = np.linspace(-10, 10, 500)\n"
-    ">>> apt, bpt, ant, bnt = itairy(x)\n"
-    ">>> fig, ax = plt.subplots(figsize=(6, 5))\n"
-    ">>> ax.plot(x, apt, label=r\"$\\int_0^x\\, Ai(t)\\, dt$\")\n"
-    ">>> ax.plot(x, bpt, ls=\"dashed\", label=r\"$\\int_0^x\\, Bi(t)\\, dt$\")\n"
-    ">>> ax.plot(x, ant, ls=\"dashdot\", label=r\"$\\int_0^x\\, Ai(-t)\\, dt$\")\n"
-    ">>> ax.plot(x, bnt, ls=\"dotted\", label=r\"$\\int_0^x\\, Bi(-t)\\, dt$\")\n"
-    ">>> ax.set_ylim(-2, 1.5)\n"
-    ">>> ax.legend(loc=\"lower right\")\n"
-    ">>> plt.show()")
-ufunc_itairy_loops[0] = <np.PyUFuncGenericFunction>loop_i_d_dddd_As_f_ffff
-ufunc_itairy_loops[1] = <np.PyUFuncGenericFunction>loop_i_d_dddd_As_d_dddd
-ufunc_itairy_types[0] = <char>NPY_FLOAT
-ufunc_itairy_types[1] = <char>NPY_FLOAT
-ufunc_itairy_types[2] = <char>NPY_FLOAT
-ufunc_itairy_types[3] = <char>NPY_FLOAT
-ufunc_itairy_types[4] = <char>NPY_FLOAT
-ufunc_itairy_types[5] = <char>NPY_DOUBLE
-ufunc_itairy_types[6] = <char>NPY_DOUBLE
-ufunc_itairy_types[7] = <char>NPY_DOUBLE
-ufunc_itairy_types[8] = <char>NPY_DOUBLE
-ufunc_itairy_types[9] = <char>NPY_DOUBLE
-ufunc_itairy_ptr[2*0] = <void*>_func_itairy_wrap
-ufunc_itairy_ptr[2*0+1] = <void*>(<char*>"itairy")
-ufunc_itairy_ptr[2*1] = <void*>_func_itairy_wrap
-ufunc_itairy_ptr[2*1+1] = <void*>(<char*>"itairy")
-ufunc_itairy_data[0] = &ufunc_itairy_ptr[2*0]
-ufunc_itairy_data[1] = &ufunc_itairy_ptr[2*1]
-itairy = np.PyUFunc_FromFuncAndData(ufunc_itairy_loops, ufunc_itairy_data, ufunc_itairy_types, 2, 1, 4, 0, "itairy", ufunc_itairy_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_iti0k0_loops[2]
-cdef void *ufunc_iti0k0_ptr[4]
-cdef void *ufunc_iti0k0_data[2]
-cdef char ufunc_iti0k0_types[6]
-cdef char *ufunc_iti0k0_doc = (
-    "iti0k0(x, out=None)\n"
-    "\n"
-    "Integrals of modified Bessel functions of order 0.\n"
-    "\n"
-    "Computes the integrals\n"
-    "\n"
-    ".. math::\n"
-    "\n"
-    "    \\int_0^x I_0(t) dt \\\\\n"
-    "    \\int_0^x K_0(t) dt.\n"
-    "\n"
-    "For more on :math:`I_0` and :math:`K_0` see `i0` and `k0`.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "x : array_like\n"
-    "    Values at which to evaluate the integrals.\n"
-    "out : tuple of ndarrays, optional\n"
-    "    Optional output arrays for the function results.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "ii0 : scalar or ndarray\n"
-    "    The integral for `i0`\n"
-    "ik0 : scalar or ndarray\n"
-    "    The integral for `k0`\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] S. Zhang and J.M. Jin, \"Computation of Special Functions\",\n"
-    "       Wiley 1996\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "Evaluate the functions at one point.\n"
-    "\n"
-    ">>> from scipy.special import iti0k0\n"
-    ">>> int_i, int_k = iti0k0(1.)\n"
-    ">>> int_i, int_k\n"
-    "(1.0865210970235892, 1.2425098486237771)\n"
-    "\n"
-    "Evaluate the functions at several points.\n"
-    "\n"
-    ">>> import numpy as np\n"
-    ">>> points = np.array([0., 1.5, 3.])\n"
-    ">>> int_i, int_k = iti0k0(points)\n"
-    ">>> int_i, int_k\n"
-    "(array([0.        , 1.80606937, 6.16096149]),\n"
-    " array([0.        , 1.39458246, 1.53994809]))\n"
-    "\n"
-    "Plot the functions from 0 to 5.\n"
-    "\n"
-    ">>> import matplotlib.pyplot as plt\n"
-    ">>> fig, ax = plt.subplots()\n"
-    ">>> x = np.linspace(0., 5., 1000)\n"
-    ">>> int_i, int_k = iti0k0(x)\n"
-    ">>> ax.plot(x, int_i, label=r\"$\\int_0^x I_0(t)\\,dt$\")\n"
-    ">>> ax.plot(x, int_k, label=r\"$\\int_0^x K_0(t)\\,dt$\")\n"
-    ">>> ax.legend()\n"
-    ">>> plt.show()")
-ufunc_iti0k0_loops[0] = <np.PyUFuncGenericFunction>loop_i_d_dd_As_f_ff
-ufunc_iti0k0_loops[1] = <np.PyUFuncGenericFunction>loop_i_d_dd_As_d_dd
-ufunc_iti0k0_types[0] = <char>NPY_FLOAT
-ufunc_iti0k0_types[1] = <char>NPY_FLOAT
-ufunc_iti0k0_types[2] = <char>NPY_FLOAT
-ufunc_iti0k0_types[3] = <char>NPY_DOUBLE
-ufunc_iti0k0_types[4] = <char>NPY_DOUBLE
-ufunc_iti0k0_types[5] = <char>NPY_DOUBLE
-ufunc_iti0k0_ptr[2*0] = <void*>_func_it1i0k0_wrap
-ufunc_iti0k0_ptr[2*0+1] = <void*>(<char*>"iti0k0")
-ufunc_iti0k0_ptr[2*1] = <void*>_func_it1i0k0_wrap
-ufunc_iti0k0_ptr[2*1+1] = <void*>(<char*>"iti0k0")
-ufunc_iti0k0_data[0] = &ufunc_iti0k0_ptr[2*0]
-ufunc_iti0k0_data[1] = &ufunc_iti0k0_ptr[2*1]
-iti0k0 = np.PyUFunc_FromFuncAndData(ufunc_iti0k0_loops, ufunc_iti0k0_data, ufunc_iti0k0_types, 2, 1, 2, 0, "iti0k0", ufunc_iti0k0_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_itj0y0_loops[2]
-cdef void *ufunc_itj0y0_ptr[4]
-cdef void *ufunc_itj0y0_data[2]
-cdef char ufunc_itj0y0_types[6]
-cdef char *ufunc_itj0y0_doc = (
-    "itj0y0(x, out=None)\n"
-    "\n"
-    "Integrals of Bessel functions of the first kind of order 0.\n"
-    "\n"
-    "Computes the integrals\n"
-    "\n"
-    ".. math::\n"
-    "\n"
-    "    \\int_0^x J_0(t) dt \\\\\n"
-    "    \\int_0^x Y_0(t) dt.\n"
-    "\n"
-    "For more on :math:`J_0` and :math:`Y_0` see `j0` and `y0`.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "x : array_like\n"
-    "    Values at which to evaluate the integrals.\n"
-    "out : tuple of ndarrays, optional\n"
-    "    Optional output arrays for the function results.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "ij0 : scalar or ndarray\n"
-    "    The integral of `j0`\n"
-    "iy0 : scalar or ndarray\n"
-    "    The integral of `y0`\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] S. Zhang and J.M. Jin, \"Computation of Special Functions\",\n"
-    "       Wiley 1996\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "Evaluate the functions at one point.\n"
-    "\n"
-    ">>> from scipy.special import itj0y0\n"
-    ">>> int_j, int_y = itj0y0(1.)\n"
-    ">>> int_j, int_y\n"
-    "(0.9197304100897596, -0.637069376607422)\n"
-    "\n"
-    "Evaluate the functions at several points.\n"
-    "\n"
-    ">>> import numpy as np\n"
-    ">>> points = np.array([0., 1.5, 3.])\n"
-    ">>> int_j, int_y = itj0y0(points)\n"
-    ">>> int_j, int_y\n"
-    "(array([0.        , 1.24144951, 1.38756725]),\n"
-    " array([ 0.        , -0.51175903,  0.19765826]))\n"
-    "\n"
-    "Plot the functions from 0 to 10.\n"
-    "\n"
-    ">>> import matplotlib.pyplot as plt\n"
-    ">>> fig, ax = plt.subplots()\n"
-    ">>> x = np.linspace(0., 10., 1000)\n"
-    ">>> int_j, int_y = itj0y0(x)\n"
-    ">>> ax.plot(x, int_j, label=r\"$\\int_0^x J_0(t)\\,dt$\")\n"
-    ">>> ax.plot(x, int_y, label=r\"$\\int_0^x Y_0(t)\\,dt$\")\n"
-    ">>> ax.legend()\n"
-    ">>> plt.show()")
-ufunc_itj0y0_loops[0] = <np.PyUFuncGenericFunction>loop_i_d_dd_As_f_ff
-ufunc_itj0y0_loops[1] = <np.PyUFuncGenericFunction>loop_i_d_dd_As_d_dd
-ufunc_itj0y0_types[0] = <char>NPY_FLOAT
-ufunc_itj0y0_types[1] = <char>NPY_FLOAT
-ufunc_itj0y0_types[2] = <char>NPY_FLOAT
-ufunc_itj0y0_types[3] = <char>NPY_DOUBLE
-ufunc_itj0y0_types[4] = <char>NPY_DOUBLE
-ufunc_itj0y0_types[5] = <char>NPY_DOUBLE
-ufunc_itj0y0_ptr[2*0] = <void*>_func_it1j0y0_wrap
-ufunc_itj0y0_ptr[2*0+1] = <void*>(<char*>"itj0y0")
-ufunc_itj0y0_ptr[2*1] = <void*>_func_it1j0y0_wrap
-ufunc_itj0y0_ptr[2*1+1] = <void*>(<char*>"itj0y0")
-ufunc_itj0y0_data[0] = &ufunc_itj0y0_ptr[2*0]
-ufunc_itj0y0_data[1] = &ufunc_itj0y0_ptr[2*1]
-itj0y0 = np.PyUFunc_FromFuncAndData(ufunc_itj0y0_loops, ufunc_itj0y0_data, ufunc_itj0y0_types, 2, 1, 2, 0, "itj0y0", ufunc_itj0y0_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_itmodstruve0_loops[2]
-cdef void *ufunc_itmodstruve0_ptr[4]
-cdef void *ufunc_itmodstruve0_data[2]
-cdef char ufunc_itmodstruve0_types[4]
-cdef char *ufunc_itmodstruve0_doc = (
-    "itmodstruve0(x, out=None)\n"
-    "\n"
-    "Integral of the modified Struve function of order 0.\n"
-    "\n"
-    ".. math::\n"
-    "    I = \\int_0^x L_0(t)\\,dt\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "x : array_like\n"
-    "    Upper limit of integration (float).\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function values\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "I : scalar or ndarray\n"
-    "    The integral of :math:`L_0` from 0 to `x`.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "modstruve: Modified Struve function which is integrated by this function\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "Wrapper for a Fortran routine created by Shanjie Zhang and Jianming\n"
-    "Jin [1]_.\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] Zhang, Shanjie and Jin, Jianming. \"Computation of Special\n"
-    "       Functions\", John Wiley and Sons, 1996.\n"
-    "       https://people.sc.fsu.edu/~jburkardt/f_src/special_functions/special_functions.html\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "Evaluate the function at one point.\n"
-    "\n"
-    ">>> import numpy as np\n"
-    ">>> from scipy.special import itmodstruve0\n"
-    ">>> itmodstruve0(1.)\n"
-    "0.3364726286440384\n"
-    "\n"
-    "Evaluate the function at several points by supplying\n"
-    "an array for `x`.\n"
-    "\n"
-    ">>> points = np.array([1., 2., 3.5])\n"
-    ">>> itmodstruve0(points)\n"
-    "array([0.33647263, 1.588285  , 7.60382578])\n"
-    "\n"
-    "Plot the function from -10 to 10.\n"
-    "\n"
-    ">>> import matplotlib.pyplot as plt\n"
-    ">>> x = np.linspace(-10., 10., 1000)\n"
-    ">>> itmodstruve0_values = itmodstruve0(x)\n"
-    ">>> fig, ax = plt.subplots()\n"
-    ">>> ax.plot(x, itmodstruve0_values)\n"
-    ">>> ax.set_xlabel(r'$x$')\n"
-    ">>> ax.set_ylabel(r'$\\int_0^xL_0(t)\\,dt$')\n"
-    ">>> plt.show()")
-ufunc_itmodstruve0_loops[0] = <np.PyUFuncGenericFunction>loop_d_d__As_f_f
-ufunc_itmodstruve0_loops[1] = <np.PyUFuncGenericFunction>loop_d_d__As_d_d
-ufunc_itmodstruve0_types[0] = <char>NPY_FLOAT
-ufunc_itmodstruve0_types[1] = <char>NPY_FLOAT
-ufunc_itmodstruve0_types[2] = <char>NPY_DOUBLE
-ufunc_itmodstruve0_types[3] = <char>NPY_DOUBLE
-ufunc_itmodstruve0_ptr[2*0] = <void*>_func_itmodstruve0_wrap
-ufunc_itmodstruve0_ptr[2*0+1] = <void*>(<char*>"itmodstruve0")
-ufunc_itmodstruve0_ptr[2*1] = <void*>_func_itmodstruve0_wrap
-ufunc_itmodstruve0_ptr[2*1+1] = <void*>(<char*>"itmodstruve0")
-ufunc_itmodstruve0_data[0] = &ufunc_itmodstruve0_ptr[2*0]
-ufunc_itmodstruve0_data[1] = &ufunc_itmodstruve0_ptr[2*1]
-itmodstruve0 = np.PyUFunc_FromFuncAndData(ufunc_itmodstruve0_loops, ufunc_itmodstruve0_data, ufunc_itmodstruve0_types, 2, 1, 1, 0, "itmodstruve0", ufunc_itmodstruve0_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_itstruve0_loops[2]
-cdef void *ufunc_itstruve0_ptr[4]
-cdef void *ufunc_itstruve0_data[2]
-cdef char ufunc_itstruve0_types[4]
-cdef char *ufunc_itstruve0_doc = (
-    "itstruve0(x, out=None)\n"
-    "\n"
-    "Integral of the Struve function of order 0.\n"
-    "\n"
-    ".. math::\n"
-    "    I = \\int_0^x H_0(t)\\,dt\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "x : array_like\n"
-    "    Upper limit of integration (float).\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function values\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "I : scalar or ndarray\n"
-    "    The integral of :math:`H_0` from 0 to `x`.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "struve: Function which is integrated by this function\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "Wrapper for a Fortran routine created by Shanjie Zhang and Jianming\n"
-    "Jin [1]_.\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] Zhang, Shanjie and Jin, Jianming. \"Computation of Special\n"
-    "       Functions\", John Wiley and Sons, 1996.\n"
-    "       https://people.sc.fsu.edu/~jburkardt/f_src/special_functions/special_functions.html\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "Evaluate the function at one point.\n"
-    "\n"
-    ">>> import numpy as np\n"
-    ">>> from scipy.special import itstruve0\n"
-    ">>> itstruve0(1.)\n"
-    "0.30109042670805547\n"
-    "\n"
-    "Evaluate the function at several points by supplying\n"
-    "an array for `x`.\n"
-    "\n"
-    ">>> points = np.array([1., 2., 3.5])\n"
-    ">>> itstruve0(points)\n"
-    "array([0.30109043, 1.01870116, 1.96804581])\n"
-    "\n"
-    "Plot the function from -20 to 20.\n"
-    "\n"
-    ">>> import matplotlib.pyplot as plt\n"
-    ">>> x = np.linspace(-20., 20., 1000)\n"
-    ">>> istruve0_values = itstruve0(x)\n"
-    ">>> fig, ax = plt.subplots()\n"
-    ">>> ax.plot(x, istruve0_values)\n"
-    ">>> ax.set_xlabel(r'$x$')\n"
-    ">>> ax.set_ylabel(r'$\\int_0^{x}H_0(t)\\,dt$')\n"
-    ">>> plt.show()")
-ufunc_itstruve0_loops[0] = <np.PyUFuncGenericFunction>loop_d_d__As_f_f
-ufunc_itstruve0_loops[1] = <np.PyUFuncGenericFunction>loop_d_d__As_d_d
-ufunc_itstruve0_types[0] = <char>NPY_FLOAT
-ufunc_itstruve0_types[1] = <char>NPY_FLOAT
-ufunc_itstruve0_types[2] = <char>NPY_DOUBLE
-ufunc_itstruve0_types[3] = <char>NPY_DOUBLE
-ufunc_itstruve0_ptr[2*0] = <void*>_func_itstruve0_wrap
-ufunc_itstruve0_ptr[2*0+1] = <void*>(<char*>"itstruve0")
-ufunc_itstruve0_ptr[2*1] = <void*>_func_itstruve0_wrap
-ufunc_itstruve0_ptr[2*1+1] = <void*>(<char*>"itstruve0")
-ufunc_itstruve0_data[0] = &ufunc_itstruve0_ptr[2*0]
-ufunc_itstruve0_data[1] = &ufunc_itstruve0_ptr[2*1]
-itstruve0 = np.PyUFunc_FromFuncAndData(ufunc_itstruve0_loops, ufunc_itstruve0_data, ufunc_itstruve0_types, 2, 1, 1, 0, "itstruve0", ufunc_itstruve0_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_iv_loops[4]
-cdef void *ufunc_iv_ptr[8]
-cdef void *ufunc_iv_data[4]
-cdef char ufunc_iv_types[12]
-cdef char *ufunc_iv_doc = (
-    "iv(v, z, out=None)\n"
-    "\n"
-    "Modified Bessel function of the first kind of real order.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "v : array_like\n"
-    "    Order. If `z` is of real type and negative, `v` must be integer\n"
-    "    valued.\n"
-    "z : array_like of float or complex\n"
-    "    Argument.\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function values\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "scalar or ndarray\n"
-    "    Values of the modified Bessel function.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "ive : This function with leading exponential behavior stripped off.\n"
-    "i0 : Faster version of this function for order 0.\n"
-    "i1 : Faster version of this function for order 1.\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "For real `z` and :math:`v \\in [-50, 50]`, the evaluation is carried out\n"
-    "using Temme's method [1]_.  For larger orders, uniform asymptotic\n"
-    "expansions are applied.\n"
-    "\n"
-    "For complex `z` and positive `v`, the AMOS [2]_ `zbesi` routine is\n"
-    "called. It uses a power series for small `z`, the asymptotic expansion\n"
-    "for large `abs(z)`, the Miller algorithm normalized by the Wronskian\n"
-    "and a Neumann series for intermediate magnitudes, and the uniform\n"
-    "asymptotic expansions for :math:`I_v(z)` and :math:`J_v(z)` for large\n"
-    "orders. Backward recurrence is used to generate sequences or reduce\n"
-    "orders when necessary.\n"
-    "\n"
-    "The calculations above are done in the right half plane and continued\n"
-    "into the left half plane by the formula,\n"
-    "\n"
-    ".. math:: I_v(z \\exp(\\pm\\imath\\pi)) = \\exp(\\pm\\pi v) I_v(z)\n"
-    "\n"
-    "(valid when the real part of `z` is positive).  For negative `v`, the\n"
-    "formula\n"
-    "\n"
-    ".. math:: I_{-v}(z) = I_v(z) + \\frac{2}{\\pi} \\sin(\\pi v) K_v(z)\n"
-    "\n"
-    "is used, where :math:`K_v(z)` is the modified Bessel function of the\n"
-    "second kind, evaluated using the AMOS routine `zbesk`.\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] Temme, Journal of Computational Physics, vol 21, 343 (1976)\n"
-    ".. [2] Donald E. Amos, \"AMOS, A Portable Package for Bessel Functions\n"
-    "       of a Complex Argument and Nonnegative Order\",\n"
-    "       http://netlib.org/amos/\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "Evaluate the function of order 0 at one point.\n"
-    "\n"
-    ">>> from scipy.special import iv\n"
-    ">>> iv(0, 1.)\n"
-    "1.2660658777520084\n"
-    "\n"
-    "Evaluate the function at one point for different orders.\n"
-    "\n"
-    ">>> iv(0, 1.), iv(1, 1.), iv(1.5, 1.)\n"
-    "(1.2660658777520084, 0.565159103992485, 0.2935253263474798)\n"
-    "\n"
-    "The evaluation for different orders can be carried out in one call by\n"
-    "providing a list or NumPy array as argument for the `v` parameter:\n"
-    "\n"
-    ">>> iv([0, 1, 1.5], 1.)\n"
-    "array([1.26606588, 0.5651591 , 0.29352533])\n"
-    "\n"
-    "Evaluate the function at several points for order 0 by providing an\n"
-    "array for `z`.\n"
-    "\n"
-    ">>> import numpy as np\n"
-    ">>> points = np.array([-2., 0., 3.])\n"
-    ">>> iv(0, points)\n"
-    "array([2.2795853 , 1.        , 4.88079259])\n"
-    "\n"
-    "If `z` is an array, the order parameter `v` must be broadcastable to\n"
-    "the correct shape if different orders shall be computed in one call.\n"
-    "To calculate the orders 0 and 1 for an 1D array:\n"
-    "\n"
-    ">>> orders = np.array([[0], [1]])\n"
-    ">>> orders.shape\n"
-    "(2, 1)\n"
-    "\n"
-    ">>> iv(orders, points)\n"
-    "array([[ 2.2795853 ,  1.        ,  4.88079259],\n"
-    "       [-1.59063685,  0.        ,  3.95337022]])\n"
-    "\n"
-    "Plot the functions of order 0 to 3 from -5 to 5.\n"
-    "\n"
-    ">>> import matplotlib.pyplot as plt\n"
-    ">>> fig, ax = plt.subplots()\n"
-    ">>> x = np.linspace(-5., 5., 1000)\n"
-    ">>> for i in range(4):\n"
-    "...     ax.plot(x, iv(i, x), label=f'$I_{i!r}$')\n"
-    ">>> ax.legend()\n"
-    ">>> plt.show()")
-ufunc_iv_loops[0] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
-ufunc_iv_loops[1] = <np.PyUFuncGenericFunction>loop_D_dD__As_fF_F
-ufunc_iv_loops[2] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
-ufunc_iv_loops[3] = <np.PyUFuncGenericFunction>loop_D_dD__As_dD_D
-ufunc_iv_types[0] = <char>NPY_FLOAT
-ufunc_iv_types[1] = <char>NPY_FLOAT
-ufunc_iv_types[2] = <char>NPY_FLOAT
-ufunc_iv_types[3] = <char>NPY_FLOAT
-ufunc_iv_types[4] = <char>NPY_CFLOAT
-ufunc_iv_types[5] = <char>NPY_CFLOAT
-ufunc_iv_types[6] = <char>NPY_DOUBLE
-ufunc_iv_types[7] = <char>NPY_DOUBLE
-ufunc_iv_types[8] = <char>NPY_DOUBLE
-ufunc_iv_types[9] = <char>NPY_DOUBLE
-ufunc_iv_types[10] = <char>NPY_CDOUBLE
-ufunc_iv_types[11] = <char>NPY_CDOUBLE
-ufunc_iv_ptr[2*0] = <void*>_func_iv
-ufunc_iv_ptr[2*0+1] = <void*>(<char*>"iv")
-ufunc_iv_ptr[2*1] = <void*>_func_cbesi_wrap
-ufunc_iv_ptr[2*1+1] = <void*>(<char*>"iv")
-ufunc_iv_ptr[2*2] = <void*>_func_iv
-ufunc_iv_ptr[2*2+1] = <void*>(<char*>"iv")
-ufunc_iv_ptr[2*3] = <void*>_func_cbesi_wrap
-ufunc_iv_ptr[2*3+1] = <void*>(<char*>"iv")
-ufunc_iv_data[0] = &ufunc_iv_ptr[2*0]
-ufunc_iv_data[1] = &ufunc_iv_ptr[2*1]
-ufunc_iv_data[2] = &ufunc_iv_ptr[2*2]
-ufunc_iv_data[3] = &ufunc_iv_ptr[2*3]
-iv = np.PyUFunc_FromFuncAndData(ufunc_iv_loops, ufunc_iv_data, ufunc_iv_types, 4, 2, 1, 0, "iv", ufunc_iv_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_ive_loops[4]
-cdef void *ufunc_ive_ptr[8]
-cdef void *ufunc_ive_data[4]
-cdef char ufunc_ive_types[12]
-cdef char *ufunc_ive_doc = (
-    "ive(v, z, out=None)\n"
-    "\n"
-    "Exponentially scaled modified Bessel function of the first kind.\n"
-    "\n"
-    "Defined as::\n"
-    "\n"
-    "    ive(v, z) = iv(v, z) * exp(-abs(z.real))\n"
-    "\n"
-    "For imaginary numbers without a real part, returns the unscaled\n"
-    "Bessel function of the first kind `iv`.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "v : array_like of float\n"
-    "    Order.\n"
-    "z : array_like of float or complex\n"
-    "    Argument.\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function values\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "scalar or ndarray\n"
-    "    Values of the exponentially scaled modified Bessel function.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "iv: Modified Bessel function of the first kind\n"
-    "i0e: Faster implementation of this function for order 0\n"
-    "i1e: Faster implementation of this function for order 1\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "For positive `v`, the AMOS [1]_ `zbesi` routine is called. It uses a\n"
-    "power series for small `z`, the asymptotic expansion for large\n"
-    "`abs(z)`, the Miller algorithm normalized by the Wronskian and a\n"
-    "Neumann series for intermediate magnitudes, and the uniform asymptotic\n"
-    "expansions for :math:`I_v(z)` and :math:`J_v(z)` for large orders.\n"
-    "Backward recurrence is used to generate sequences or reduce orders when\n"
-    "necessary.\n"
-    "\n"
-    "The calculations above are done in the right half plane and continued\n"
-    "into the left half plane by the formula,\n"
-    "\n"
-    ".. math:: I_v(z \\exp(\\pm\\imath\\pi)) = \\exp(\\pm\\pi v) I_v(z)\n"
-    "\n"
-    "(valid when the real part of `z` is positive).  For negative `v`, the\n"
-    "formula\n"
-    "\n"
-    ".. math:: I_{-v}(z) = I_v(z) + \\frac{2}{\\pi} \\sin(\\pi v) K_v(z)\n"
-    "\n"
-    "is used, where :math:`K_v(z)` is the modified Bessel function of the\n"
-    "second kind, evaluated using the AMOS routine `zbesk`.\n"
-    "\n"
-    "`ive` is useful for large arguments `z`: for these, `iv` easily overflows,\n"
-    "while `ive` does not due to the exponential scaling.\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] Donald E. Amos, \"AMOS, A Portable Package for Bessel Functions\n"
-    "       of a Complex Argument and Nonnegative Order\",\n"
-    "       http://netlib.org/amos/\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "In the following example `iv` returns infinity whereas `ive` still returns\n"
-    "a finite number.\n"
-    "\n"
-    ">>> from scipy.special import iv, ive\n"
-    ">>> import numpy as np\n"
-    ">>> import matplotlib.pyplot as plt\n"
-    ">>> iv(3, 1000.), ive(3, 1000.)\n"
-    "(inf, 0.01256056218254712)\n"
-    "\n"
-    "Evaluate the function at one point for different orders by\n"
-    "providing a list or NumPy array as argument for the `v` parameter:\n"
-    "\n"
-    ">>> ive([0, 1, 1.5], 1.)\n"
-    "array([0.46575961, 0.20791042, 0.10798193])\n"
-    "\n"
-    "Evaluate the function at several points for order 0 by providing an\n"
-    "array for `z`.\n"
-    "\n"
-    ">>> points = np.array([-2., 0., 3.])\n"
-    ">>> ive(0, points)\n"
-    "array([0.30850832, 1.        , 0.24300035])\n"
-    "\n"
-    "Evaluate the function at several points for different orders by\n"
-    "providing arrays for both `v` for `z`. Both arrays have to be\n"
-    "broadcastable to the correct shape. To calculate the orders 0, 1\n"
-    "and 2 for a 1D array of points:\n"
-    "\n"
-    ">>> ive([[0], [1], [2]], points)\n"
-    "array([[ 0.30850832,  1.        ,  0.24300035],\n"
-    "       [-0.21526929,  0.        ,  0.19682671],\n"
-    "       [ 0.09323903,  0.        ,  0.11178255]])\n"
-    "\n"
-    "Plot the functions of order 0 to 3 from -5 to 5.\n"
-    "\n"
-    ">>> fig, ax = plt.subplots()\n"
-    ">>> x = np.linspace(-5., 5., 1000)\n"
-    ">>> for i in range(4):\n"
-    "...     ax.plot(x, ive(i, x), label=fr'$I_{i!r}(z)\\cdot e^{{-|z|}}$')\n"
-    ">>> ax.legend()\n"
-    ">>> ax.set_xlabel(r\"$z$\")\n"
-    ">>> plt.show()")
-ufunc_ive_loops[0] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
-ufunc_ive_loops[1] = <np.PyUFuncGenericFunction>loop_D_dD__As_fF_F
-ufunc_ive_loops[2] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
-ufunc_ive_loops[3] = <np.PyUFuncGenericFunction>loop_D_dD__As_dD_D
-ufunc_ive_types[0] = <char>NPY_FLOAT
-ufunc_ive_types[1] = <char>NPY_FLOAT
-ufunc_ive_types[2] = <char>NPY_FLOAT
-ufunc_ive_types[3] = <char>NPY_FLOAT
-ufunc_ive_types[4] = <char>NPY_CFLOAT
-ufunc_ive_types[5] = <char>NPY_CFLOAT
-ufunc_ive_types[6] = <char>NPY_DOUBLE
-ufunc_ive_types[7] = <char>NPY_DOUBLE
-ufunc_ive_types[8] = <char>NPY_DOUBLE
-ufunc_ive_types[9] = <char>NPY_DOUBLE
-ufunc_ive_types[10] = <char>NPY_CDOUBLE
-ufunc_ive_types[11] = <char>NPY_CDOUBLE
-ufunc_ive_ptr[2*0] = <void*>_func_cbesi_wrap_e_real
-ufunc_ive_ptr[2*0+1] = <void*>(<char*>"ive")
-ufunc_ive_ptr[2*1] = <void*>_func_cbesi_wrap_e
-ufunc_ive_ptr[2*1+1] = <void*>(<char*>"ive")
-ufunc_ive_ptr[2*2] = <void*>_func_cbesi_wrap_e_real
-ufunc_ive_ptr[2*2+1] = <void*>(<char*>"ive")
-ufunc_ive_ptr[2*3] = <void*>_func_cbesi_wrap_e
-ufunc_ive_ptr[2*3+1] = <void*>(<char*>"ive")
-ufunc_ive_data[0] = &ufunc_ive_ptr[2*0]
-ufunc_ive_data[1] = &ufunc_ive_ptr[2*1]
-ufunc_ive_data[2] = &ufunc_ive_ptr[2*2]
-ufunc_ive_data[3] = &ufunc_ive_ptr[2*3]
-ive = np.PyUFunc_FromFuncAndData(ufunc_ive_loops, ufunc_ive_data, ufunc_ive_types, 4, 2, 1, 0, "ive", ufunc_ive_doc, 0)
-
 cdef np.PyUFuncGenericFunction ufunc_j0_loops[2]
 cdef void *ufunc_j0_ptr[4]
 cdef void *ufunc_j0_data[2]
@@ -13255,9 +11573,9 @@ ufunc_j0_types[0] = <char>NPY_FLOAT
 ufunc_j0_types[1] = <char>NPY_FLOAT
 ufunc_j0_types[2] = <char>NPY_DOUBLE
 ufunc_j0_types[3] = <char>NPY_DOUBLE
-ufunc_j0_ptr[2*0] = <void*>_func_j0
+ufunc_j0_ptr[2*0] = <void*>_func_cephes_j0
 ufunc_j0_ptr[2*0+1] = <void*>(<char*>"j0")
-ufunc_j0_ptr[2*1] = <void*>_func_j0
+ufunc_j0_ptr[2*1] = <void*>_func_cephes_j0
 ufunc_j0_ptr[2*1+1] = <void*>(<char*>"j0")
 ufunc_j0_data[0] = &ufunc_j0_ptr[2*0]
 ufunc_j0_data[1] = &ufunc_j0_ptr[2*1]
@@ -13333,287 +11651,13 @@ ufunc_j1_types[0] = <char>NPY_FLOAT
 ufunc_j1_types[1] = <char>NPY_FLOAT
 ufunc_j1_types[2] = <char>NPY_DOUBLE
 ufunc_j1_types[3] = <char>NPY_DOUBLE
-ufunc_j1_ptr[2*0] = <void*>_func_j1
+ufunc_j1_ptr[2*0] = <void*>_func_cephes_j1
 ufunc_j1_ptr[2*0+1] = <void*>(<char*>"j1")
-ufunc_j1_ptr[2*1] = <void*>_func_j1
+ufunc_j1_ptr[2*1] = <void*>_func_cephes_j1
 ufunc_j1_ptr[2*1+1] = <void*>(<char*>"j1")
 ufunc_j1_data[0] = &ufunc_j1_ptr[2*0]
 ufunc_j1_data[1] = &ufunc_j1_ptr[2*1]
 j1 = np.PyUFunc_FromFuncAndData(ufunc_j1_loops, ufunc_j1_data, ufunc_j1_types, 2, 1, 1, 0, "j1", ufunc_j1_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_jv_loops[4]
-cdef void *ufunc_jv_ptr[8]
-cdef void *ufunc_jv_data[4]
-cdef char ufunc_jv_types[12]
-cdef char *ufunc_jv_doc = (
-    "jv(v, z, out=None)\n"
-    "\n"
-    "Bessel function of the first kind of real order and complex argument.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "v : array_like\n"
-    "    Order (float).\n"
-    "z : array_like\n"
-    "    Argument (float or complex).\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function values\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "J : scalar or ndarray\n"
-    "    Value of the Bessel function, :math:`J_v(z)`.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "jve : :math:`J_v` with leading exponential behavior stripped off.\n"
-    "spherical_jn : spherical Bessel functions.\n"
-    "j0 : faster version of this function for order 0.\n"
-    "j1 : faster version of this function for order 1.\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "For positive `v` values, the computation is carried out using the AMOS\n"
-    "[1]_ `zbesj` routine, which exploits the connection to the modified\n"
-    "Bessel function :math:`I_v`,\n"
-    "\n"
-    ".. math::\n"
-    "    J_v(z) = \\exp(v\\pi\\imath/2) I_v(-\\imath z)\\qquad (\\Im z > 0)\n"
-    "\n"
-    "    J_v(z) = \\exp(-v\\pi\\imath/2) I_v(\\imath z)\\qquad (\\Im z < 0)\n"
-    "\n"
-    "For negative `v` values the formula,\n"
-    "\n"
-    ".. math:: J_{-v}(z) = J_v(z) \\cos(\\pi v) - Y_v(z) \\sin(\\pi v)\n"
-    "\n"
-    "is used, where :math:`Y_v(z)` is the Bessel function of the second\n"
-    "kind, computed using the AMOS routine `zbesy`.  Note that the second\n"
-    "term is exactly zero for integer `v`; to improve accuracy the second\n"
-    "term is explicitly omitted for `v` values such that `v = floor(v)`.\n"
-    "\n"
-    "Not to be confused with the spherical Bessel functions (see `spherical_jn`).\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] Donald E. Amos, \"AMOS, A Portable Package for Bessel Functions\n"
-    "       of a Complex Argument and Nonnegative Order\",\n"
-    "       http://netlib.org/amos/\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "Evaluate the function of order 0 at one point.\n"
-    "\n"
-    ">>> from scipy.special import jv\n"
-    ">>> jv(0, 1.)\n"
-    "0.7651976865579666\n"
-    "\n"
-    "Evaluate the function at one point for different orders.\n"
-    "\n"
-    ">>> jv(0, 1.), jv(1, 1.), jv(1.5, 1.)\n"
-    "(0.7651976865579666, 0.44005058574493355, 0.24029783912342725)\n"
-    "\n"
-    "The evaluation for different orders can be carried out in one call by\n"
-    "providing a list or NumPy array as argument for the `v` parameter:\n"
-    "\n"
-    ">>> jv([0, 1, 1.5], 1.)\n"
-    "array([0.76519769, 0.44005059, 0.24029784])\n"
-    "\n"
-    "Evaluate the function at several points for order 0 by providing an\n"
-    "array for `z`.\n"
-    "\n"
-    ">>> import numpy as np\n"
-    ">>> points = np.array([-2., 0., 3.])\n"
-    ">>> jv(0, points)\n"
-    "array([ 0.22389078,  1.        , -0.26005195])\n"
-    "\n"
-    "If `z` is an array, the order parameter `v` must be broadcastable to\n"
-    "the correct shape if different orders shall be computed in one call.\n"
-    "To calculate the orders 0 and 1 for an 1D array:\n"
-    "\n"
-    ">>> orders = np.array([[0], [1]])\n"
-    ">>> orders.shape\n"
-    "(2, 1)\n"
-    "\n"
-    ">>> jv(orders, points)\n"
-    "array([[ 0.22389078,  1.        , -0.26005195],\n"
-    "       [-0.57672481,  0.        ,  0.33905896]])\n"
-    "\n"
-    "Plot the functions of order 0 to 3 from -10 to 10.\n"
-    "\n"
-    ">>> import matplotlib.pyplot as plt\n"
-    ">>> fig, ax = plt.subplots()\n"
-    ">>> x = np.linspace(-10., 10., 1000)\n"
-    ">>> for i in range(4):\n"
-    "...     ax.plot(x, jv(i, x), label=f'$J_{i!r}$')\n"
-    ">>> ax.legend()\n"
-    ">>> plt.show()")
-ufunc_jv_loops[0] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
-ufunc_jv_loops[1] = <np.PyUFuncGenericFunction>loop_D_dD__As_fF_F
-ufunc_jv_loops[2] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
-ufunc_jv_loops[3] = <np.PyUFuncGenericFunction>loop_D_dD__As_dD_D
-ufunc_jv_types[0] = <char>NPY_FLOAT
-ufunc_jv_types[1] = <char>NPY_FLOAT
-ufunc_jv_types[2] = <char>NPY_FLOAT
-ufunc_jv_types[3] = <char>NPY_FLOAT
-ufunc_jv_types[4] = <char>NPY_CFLOAT
-ufunc_jv_types[5] = <char>NPY_CFLOAT
-ufunc_jv_types[6] = <char>NPY_DOUBLE
-ufunc_jv_types[7] = <char>NPY_DOUBLE
-ufunc_jv_types[8] = <char>NPY_DOUBLE
-ufunc_jv_types[9] = <char>NPY_DOUBLE
-ufunc_jv_types[10] = <char>NPY_CDOUBLE
-ufunc_jv_types[11] = <char>NPY_CDOUBLE
-ufunc_jv_ptr[2*0] = <void*>_func_cbesj_wrap_real
-ufunc_jv_ptr[2*0+1] = <void*>(<char*>"jv")
-ufunc_jv_ptr[2*1] = <void*>_func_cbesj_wrap
-ufunc_jv_ptr[2*1+1] = <void*>(<char*>"jv")
-ufunc_jv_ptr[2*2] = <void*>_func_cbesj_wrap_real
-ufunc_jv_ptr[2*2+1] = <void*>(<char*>"jv")
-ufunc_jv_ptr[2*3] = <void*>_func_cbesj_wrap
-ufunc_jv_ptr[2*3+1] = <void*>(<char*>"jv")
-ufunc_jv_data[0] = &ufunc_jv_ptr[2*0]
-ufunc_jv_data[1] = &ufunc_jv_ptr[2*1]
-ufunc_jv_data[2] = &ufunc_jv_ptr[2*2]
-ufunc_jv_data[3] = &ufunc_jv_ptr[2*3]
-jv = np.PyUFunc_FromFuncAndData(ufunc_jv_loops, ufunc_jv_data, ufunc_jv_types, 4, 2, 1, 0, "jv", ufunc_jv_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_jve_loops[4]
-cdef void *ufunc_jve_ptr[8]
-cdef void *ufunc_jve_data[4]
-cdef char ufunc_jve_types[12]
-cdef char *ufunc_jve_doc = (
-    "jve(v, z, out=None)\n"
-    "\n"
-    "Exponentially scaled Bessel function of the first kind of order `v`.\n"
-    "\n"
-    "Defined as::\n"
-    "\n"
-    "    jve(v, z) = jv(v, z) * exp(-abs(z.imag))\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "v : array_like\n"
-    "    Order (float).\n"
-    "z : array_like\n"
-    "    Argument (float or complex).\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function values\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "J : scalar or ndarray\n"
-    "    Value of the exponentially scaled Bessel function.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "jv: Unscaled Bessel function of the first kind\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "For positive `v` values, the computation is carried out using the AMOS\n"
-    "[1]_ `zbesj` routine, which exploits the connection to the modified\n"
-    "Bessel function :math:`I_v`,\n"
-    "\n"
-    ".. math::\n"
-    "    J_v(z) = \\exp(v\\pi\\imath/2) I_v(-\\imath z)\\qquad (\\Im z > 0)\n"
-    "\n"
-    "    J_v(z) = \\exp(-v\\pi\\imath/2) I_v(\\imath z)\\qquad (\\Im z < 0)\n"
-    "\n"
-    "For negative `v` values the formula,\n"
-    "\n"
-    ".. math:: J_{-v}(z) = J_v(z) \\cos(\\pi v) - Y_v(z) \\sin(\\pi v)\n"
-    "\n"
-    "is used, where :math:`Y_v(z)` is the Bessel function of the second\n"
-    "kind, computed using the AMOS routine `zbesy`.  Note that the second\n"
-    "term is exactly zero for integer `v`; to improve accuracy the second\n"
-    "term is explicitly omitted for `v` values such that `v = floor(v)`.\n"
-    "\n"
-    "Exponentially scaled Bessel functions are useful for large arguments `z`:\n"
-    "for these, the unscaled Bessel functions can easily under-or overflow.\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] Donald E. Amos, \"AMOS, A Portable Package for Bessel Functions\n"
-    "       of a Complex Argument and Nonnegative Order\",\n"
-    "       http://netlib.org/amos/\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "Compare the output of `jv` and `jve` for large complex arguments for `z`\n"
-    "by computing their values for order ``v=1`` at ``z=1000j``. We see that\n"
-    "`jv` overflows but `jve` returns a finite number:\n"
-    "\n"
-    ">>> import numpy as np\n"
-    ">>> from scipy.special import jv, jve\n"
-    ">>> v = 1\n"
-    ">>> z = 1000j\n"
-    ">>> jv(v, z), jve(v, z)\n"
-    "((inf+infj), (7.721967686709077e-19+0.012610930256928629j))\n"
-    "\n"
-    "For real arguments for `z`, `jve` returns the same as `jv`.\n"
-    "\n"
-    ">>> v, z = 1, 1000\n"
-    ">>> jv(v, z), jve(v, z)\n"
-    "(0.004728311907089523, 0.004728311907089523)\n"
-    "\n"
-    "The function can be evaluated for several orders at the same time by\n"
-    "providing a list or NumPy array for `v`:\n"
-    "\n"
-    ">>> jve([1, 3, 5], 1j)\n"
-    "array([1.27304208e-17+2.07910415e-01j, -4.99352086e-19-8.15530777e-03j,\n"
-    "       6.11480940e-21+9.98657141e-05j])\n"
-    "\n"
-    "In the same way, the function can be evaluated at several points in one\n"
-    "call by providing a list or NumPy array for `z`:\n"
-    "\n"
-    ">>> jve(1, np.array([1j, 2j, 3j]))\n"
-    "array([1.27308412e-17+0.20791042j, 1.31814423e-17+0.21526929j,\n"
-    "       1.20521602e-17+0.19682671j])\n"
-    "\n"
-    "It is also possible to evaluate several orders at several points\n"
-    "at the same time by providing arrays for `v` and `z` with\n"
-    "compatible shapes for broadcasting. Compute `jve` for two different orders\n"
-    "`v` and three points `z` resulting in a 2x3 array.\n"
-    "\n"
-    ">>> v = np.array([[1], [3]])\n"
-    ">>> z = np.array([1j, 2j, 3j])\n"
-    ">>> v.shape, z.shape\n"
-    "((2, 1), (3,))\n"
-    "\n"
-    ">>> jve(v, z)\n"
-    "array([[1.27304208e-17+0.20791042j,  1.31810070e-17+0.21526929j,\n"
-    "        1.20517622e-17+0.19682671j],\n"
-    "       [-4.99352086e-19-0.00815531j, -1.76289571e-18-0.02879122j,\n"
-    "        -2.92578784e-18-0.04778332j]])")
-ufunc_jve_loops[0] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
-ufunc_jve_loops[1] = <np.PyUFuncGenericFunction>loop_D_dD__As_fF_F
-ufunc_jve_loops[2] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
-ufunc_jve_loops[3] = <np.PyUFuncGenericFunction>loop_D_dD__As_dD_D
-ufunc_jve_types[0] = <char>NPY_FLOAT
-ufunc_jve_types[1] = <char>NPY_FLOAT
-ufunc_jve_types[2] = <char>NPY_FLOAT
-ufunc_jve_types[3] = <char>NPY_FLOAT
-ufunc_jve_types[4] = <char>NPY_CFLOAT
-ufunc_jve_types[5] = <char>NPY_CFLOAT
-ufunc_jve_types[6] = <char>NPY_DOUBLE
-ufunc_jve_types[7] = <char>NPY_DOUBLE
-ufunc_jve_types[8] = <char>NPY_DOUBLE
-ufunc_jve_types[9] = <char>NPY_DOUBLE
-ufunc_jve_types[10] = <char>NPY_CDOUBLE
-ufunc_jve_types[11] = <char>NPY_CDOUBLE
-ufunc_jve_ptr[2*0] = <void*>_func_cbesj_wrap_e_real
-ufunc_jve_ptr[2*0+1] = <void*>(<char*>"jve")
-ufunc_jve_ptr[2*1] = <void*>_func_cbesj_wrap_e
-ufunc_jve_ptr[2*1+1] = <void*>(<char*>"jve")
-ufunc_jve_ptr[2*2] = <void*>_func_cbesj_wrap_e_real
-ufunc_jve_ptr[2*2+1] = <void*>(<char*>"jve")
-ufunc_jve_ptr[2*3] = <void*>_func_cbesj_wrap_e
-ufunc_jve_ptr[2*3+1] = <void*>(<char*>"jve")
-ufunc_jve_data[0] = &ufunc_jve_ptr[2*0]
-ufunc_jve_data[1] = &ufunc_jve_ptr[2*1]
-ufunc_jve_data[2] = &ufunc_jve_ptr[2*2]
-ufunc_jve_data[3] = &ufunc_jve_ptr[2*3]
-jve = np.PyUFunc_FromFuncAndData(ufunc_jve_loops, ufunc_jve_data, ufunc_jve_types, 4, 2, 1, 0, "jve", ufunc_jve_doc, 0)
 
 cdef np.PyUFuncGenericFunction ufunc_k0_loops[2]
 cdef void *ufunc_k0_ptr[4]
@@ -13684,9 +11728,9 @@ ufunc_k0_types[0] = <char>NPY_FLOAT
 ufunc_k0_types[1] = <char>NPY_FLOAT
 ufunc_k0_types[2] = <char>NPY_DOUBLE
 ufunc_k0_types[3] = <char>NPY_DOUBLE
-ufunc_k0_ptr[2*0] = <void*>_func_k0
+ufunc_k0_ptr[2*0] = <void*>_func_cephes_k0
 ufunc_k0_ptr[2*0+1] = <void*>(<char*>"k0")
-ufunc_k0_ptr[2*1] = <void*>_func_k0
+ufunc_k0_ptr[2*1] = <void*>_func_cephes_k0
 ufunc_k0_ptr[2*1+1] = <void*>(<char*>"k0")
 ufunc_k0_data[0] = &ufunc_k0_ptr[2*0]
 ufunc_k0_data[1] = &ufunc_k0_ptr[2*1]
@@ -13766,9 +11810,9 @@ ufunc_k0e_types[0] = <char>NPY_FLOAT
 ufunc_k0e_types[1] = <char>NPY_FLOAT
 ufunc_k0e_types[2] = <char>NPY_DOUBLE
 ufunc_k0e_types[3] = <char>NPY_DOUBLE
-ufunc_k0e_ptr[2*0] = <void*>_func_k0e
+ufunc_k0e_ptr[2*0] = <void*>_func_cephes_k0e
 ufunc_k0e_ptr[2*0+1] = <void*>(<char*>"k0e")
-ufunc_k0e_ptr[2*1] = <void*>_func_k0e
+ufunc_k0e_ptr[2*1] = <void*>_func_cephes_k0e
 ufunc_k0e_ptr[2*1+1] = <void*>(<char*>"k0e")
 ufunc_k0e_data[0] = &ufunc_k0e_ptr[2*0]
 ufunc_k0e_data[1] = &ufunc_k0e_ptr[2*1]
@@ -13840,9 +11884,9 @@ ufunc_k1_types[0] = <char>NPY_FLOAT
 ufunc_k1_types[1] = <char>NPY_FLOAT
 ufunc_k1_types[2] = <char>NPY_DOUBLE
 ufunc_k1_types[3] = <char>NPY_DOUBLE
-ufunc_k1_ptr[2*0] = <void*>_func_k1
+ufunc_k1_ptr[2*0] = <void*>_func_cephes_k1
 ufunc_k1_ptr[2*0+1] = <void*>(<char*>"k1")
-ufunc_k1_ptr[2*1] = <void*>_func_k1
+ufunc_k1_ptr[2*1] = <void*>_func_cephes_k1
 ufunc_k1_ptr[2*1+1] = <void*>(<char*>"k1")
 ufunc_k1_data[0] = &ufunc_k1_ptr[2*0]
 ufunc_k1_data[1] = &ufunc_k1_ptr[2*1]
@@ -13921,277 +11965,13 @@ ufunc_k1e_types[0] = <char>NPY_FLOAT
 ufunc_k1e_types[1] = <char>NPY_FLOAT
 ufunc_k1e_types[2] = <char>NPY_DOUBLE
 ufunc_k1e_types[3] = <char>NPY_DOUBLE
-ufunc_k1e_ptr[2*0] = <void*>_func_k1e
+ufunc_k1e_ptr[2*0] = <void*>_func_cephes_k1e
 ufunc_k1e_ptr[2*0+1] = <void*>(<char*>"k1e")
-ufunc_k1e_ptr[2*1] = <void*>_func_k1e
+ufunc_k1e_ptr[2*1] = <void*>_func_cephes_k1e
 ufunc_k1e_ptr[2*1+1] = <void*>(<char*>"k1e")
 ufunc_k1e_data[0] = &ufunc_k1e_ptr[2*0]
 ufunc_k1e_data[1] = &ufunc_k1e_ptr[2*1]
 k1e = np.PyUFunc_FromFuncAndData(ufunc_k1e_loops, ufunc_k1e_data, ufunc_k1e_types, 2, 1, 1, 0, "k1e", ufunc_k1e_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_kei_loops[2]
-cdef void *ufunc_kei_ptr[4]
-cdef void *ufunc_kei_data[2]
-cdef char ufunc_kei_types[4]
-cdef char *ufunc_kei_doc = (
-    "kei(x, out=None)\n"
-    "\n"
-    "Kelvin function kei.\n"
-    "\n"
-    "Defined as\n"
-    "\n"
-    ".. math::\n"
-    "\n"
-    "    \\mathrm{kei}(x) = \\Im[K_0(x e^{\\pi i / 4})]\n"
-    "\n"
-    "where :math:`K_0` is the modified Bessel function of the second\n"
-    "kind (see `kv`). See [dlmf]_ for more details.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "x : array_like\n"
-    "    Real argument.\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "scalar or ndarray\n"
-    "    Values of the Kelvin function.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "ker : the corresponding real part\n"
-    "keip : the derivative of kei\n"
-    "kv : modified Bessel function of the second kind\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [dlmf] NIST, Digital Library of Mathematical Functions,\n"
-    "    https://dlmf.nist.gov/10.61\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "It can be expressed using the modified Bessel function of the\n"
-    "second kind.\n"
-    "\n"
-    ">>> import numpy as np\n"
-    ">>> import scipy.special as sc\n"
-    ">>> x = np.array([1.0, 2.0, 3.0, 4.0])\n"
-    ">>> sc.kv(0, x * np.exp(np.pi * 1j / 4)).imag\n"
-    "array([-0.49499464, -0.20240007, -0.05112188,  0.0021984 ])\n"
-    ">>> sc.kei(x)\n"
-    "array([-0.49499464, -0.20240007, -0.05112188,  0.0021984 ])")
-ufunc_kei_loops[0] = <np.PyUFuncGenericFunction>loop_d_d__As_f_f
-ufunc_kei_loops[1] = <np.PyUFuncGenericFunction>loop_d_d__As_d_d
-ufunc_kei_types[0] = <char>NPY_FLOAT
-ufunc_kei_types[1] = <char>NPY_FLOAT
-ufunc_kei_types[2] = <char>NPY_DOUBLE
-ufunc_kei_types[3] = <char>NPY_DOUBLE
-ufunc_kei_ptr[2*0] = <void*>_func_kei_wrap
-ufunc_kei_ptr[2*0+1] = <void*>(<char*>"kei")
-ufunc_kei_ptr[2*1] = <void*>_func_kei_wrap
-ufunc_kei_ptr[2*1+1] = <void*>(<char*>"kei")
-ufunc_kei_data[0] = &ufunc_kei_ptr[2*0]
-ufunc_kei_data[1] = &ufunc_kei_ptr[2*1]
-kei = np.PyUFunc_FromFuncAndData(ufunc_kei_loops, ufunc_kei_data, ufunc_kei_types, 2, 1, 1, 0, "kei", ufunc_kei_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_keip_loops[2]
-cdef void *ufunc_keip_ptr[4]
-cdef void *ufunc_keip_data[2]
-cdef char ufunc_keip_types[4]
-cdef char *ufunc_keip_doc = (
-    "keip(x, out=None)\n"
-    "\n"
-    "Derivative of the Kelvin function kei.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "x : array_like\n"
-    "    Real argument.\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "scalar or ndarray\n"
-    "    The values of the derivative of kei.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "kei\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [dlmf] NIST, Digital Library of Mathematical Functions,\n"
-    "    https://dlmf.nist.gov/10#PT5")
-ufunc_keip_loops[0] = <np.PyUFuncGenericFunction>loop_d_d__As_f_f
-ufunc_keip_loops[1] = <np.PyUFuncGenericFunction>loop_d_d__As_d_d
-ufunc_keip_types[0] = <char>NPY_FLOAT
-ufunc_keip_types[1] = <char>NPY_FLOAT
-ufunc_keip_types[2] = <char>NPY_DOUBLE
-ufunc_keip_types[3] = <char>NPY_DOUBLE
-ufunc_keip_ptr[2*0] = <void*>_func_keip_wrap
-ufunc_keip_ptr[2*0+1] = <void*>(<char*>"keip")
-ufunc_keip_ptr[2*1] = <void*>_func_keip_wrap
-ufunc_keip_ptr[2*1+1] = <void*>(<char*>"keip")
-ufunc_keip_data[0] = &ufunc_keip_ptr[2*0]
-ufunc_keip_data[1] = &ufunc_keip_ptr[2*1]
-keip = np.PyUFunc_FromFuncAndData(ufunc_keip_loops, ufunc_keip_data, ufunc_keip_types, 2, 1, 1, 0, "keip", ufunc_keip_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_kelvin_loops[2]
-cdef void *ufunc_kelvin_ptr[4]
-cdef void *ufunc_kelvin_data[2]
-cdef char ufunc_kelvin_types[10]
-cdef char *ufunc_kelvin_doc = (
-    "kelvin(x, out=None)\n"
-    "\n"
-    "Kelvin functions as complex numbers\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "x : array_like\n"
-    "    Argument\n"
-    "out : tuple of ndarray, optional\n"
-    "    Optional output arrays for the function values\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "Be, Ke, Bep, Kep : 4-tuple of scalar or ndarray\n"
-    "    The tuple (Be, Ke, Bep, Kep) contains complex numbers\n"
-    "    representing the real and imaginary Kelvin functions and their\n"
-    "    derivatives evaluated at `x`.  For example, kelvin(x)[0].real =\n"
-    "    ber x and kelvin(x)[0].imag = bei x with similar relationships\n"
-    "    for ker and kei.")
-ufunc_kelvin_loops[0] = <np.PyUFuncGenericFunction>loop_i_d_DDDD_As_f_FFFF
-ufunc_kelvin_loops[1] = <np.PyUFuncGenericFunction>loop_i_d_DDDD_As_d_DDDD
-ufunc_kelvin_types[0] = <char>NPY_FLOAT
-ufunc_kelvin_types[1] = <char>NPY_CFLOAT
-ufunc_kelvin_types[2] = <char>NPY_CFLOAT
-ufunc_kelvin_types[3] = <char>NPY_CFLOAT
-ufunc_kelvin_types[4] = <char>NPY_CFLOAT
-ufunc_kelvin_types[5] = <char>NPY_DOUBLE
-ufunc_kelvin_types[6] = <char>NPY_CDOUBLE
-ufunc_kelvin_types[7] = <char>NPY_CDOUBLE
-ufunc_kelvin_types[8] = <char>NPY_CDOUBLE
-ufunc_kelvin_types[9] = <char>NPY_CDOUBLE
-ufunc_kelvin_ptr[2*0] = <void*>_func_kelvin_wrap
-ufunc_kelvin_ptr[2*0+1] = <void*>(<char*>"kelvin")
-ufunc_kelvin_ptr[2*1] = <void*>_func_kelvin_wrap
-ufunc_kelvin_ptr[2*1+1] = <void*>(<char*>"kelvin")
-ufunc_kelvin_data[0] = &ufunc_kelvin_ptr[2*0]
-ufunc_kelvin_data[1] = &ufunc_kelvin_ptr[2*1]
-kelvin = np.PyUFunc_FromFuncAndData(ufunc_kelvin_loops, ufunc_kelvin_data, ufunc_kelvin_types, 2, 1, 4, 0, "kelvin", ufunc_kelvin_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_ker_loops[2]
-cdef void *ufunc_ker_ptr[4]
-cdef void *ufunc_ker_data[2]
-cdef char ufunc_ker_types[4]
-cdef char *ufunc_ker_doc = (
-    "ker(x, out=None)\n"
-    "\n"
-    "Kelvin function ker.\n"
-    "\n"
-    "Defined as\n"
-    "\n"
-    ".. math::\n"
-    "\n"
-    "    \\mathrm{ker}(x) = \\Re[K_0(x e^{\\pi i / 4})]\n"
-    "\n"
-    "Where :math:`K_0` is the modified Bessel function of the second\n"
-    "kind (see `kv`). See [dlmf]_ for more details.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "x : array_like\n"
-    "    Real argument.\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "scalar or ndarray\n"
-    "    Values of the Kelvin function.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "kei : the corresponding imaginary part\n"
-    "kerp : the derivative of ker\n"
-    "kv : modified Bessel function of the second kind\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [dlmf] NIST, Digital Library of Mathematical Functions,\n"
-    "    https://dlmf.nist.gov/10.61\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "It can be expressed using the modified Bessel function of the\n"
-    "second kind.\n"
-    "\n"
-    ">>> import numpy as np\n"
-    ">>> import scipy.special as sc\n"
-    ">>> x = np.array([1.0, 2.0, 3.0, 4.0])\n"
-    ">>> sc.kv(0, x * np.exp(np.pi * 1j / 4)).real\n"
-    "array([ 0.28670621, -0.04166451, -0.06702923, -0.03617885])\n"
-    ">>> sc.ker(x)\n"
-    "array([ 0.28670621, -0.04166451, -0.06702923, -0.03617885])")
-ufunc_ker_loops[0] = <np.PyUFuncGenericFunction>loop_d_d__As_f_f
-ufunc_ker_loops[1] = <np.PyUFuncGenericFunction>loop_d_d__As_d_d
-ufunc_ker_types[0] = <char>NPY_FLOAT
-ufunc_ker_types[1] = <char>NPY_FLOAT
-ufunc_ker_types[2] = <char>NPY_DOUBLE
-ufunc_ker_types[3] = <char>NPY_DOUBLE
-ufunc_ker_ptr[2*0] = <void*>_func_ker_wrap
-ufunc_ker_ptr[2*0+1] = <void*>(<char*>"ker")
-ufunc_ker_ptr[2*1] = <void*>_func_ker_wrap
-ufunc_ker_ptr[2*1+1] = <void*>(<char*>"ker")
-ufunc_ker_data[0] = &ufunc_ker_ptr[2*0]
-ufunc_ker_data[1] = &ufunc_ker_ptr[2*1]
-ker = np.PyUFunc_FromFuncAndData(ufunc_ker_loops, ufunc_ker_data, ufunc_ker_types, 2, 1, 1, 0, "ker", ufunc_ker_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_kerp_loops[2]
-cdef void *ufunc_kerp_ptr[4]
-cdef void *ufunc_kerp_data[2]
-cdef char ufunc_kerp_types[4]
-cdef char *ufunc_kerp_doc = (
-    "kerp(x, out=None)\n"
-    "\n"
-    "Derivative of the Kelvin function ker.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "x : array_like\n"
-    "    Real argument.\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "scalar or ndarray\n"
-    "    Values of the derivative of ker.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "ker\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [dlmf] NIST, Digital Library of Mathematical Functions,\n"
-    "    https://dlmf.nist.gov/10#PT5")
-ufunc_kerp_loops[0] = <np.PyUFuncGenericFunction>loop_d_d__As_f_f
-ufunc_kerp_loops[1] = <np.PyUFuncGenericFunction>loop_d_d__As_d_d
-ufunc_kerp_types[0] = <char>NPY_FLOAT
-ufunc_kerp_types[1] = <char>NPY_FLOAT
-ufunc_kerp_types[2] = <char>NPY_DOUBLE
-ufunc_kerp_types[3] = <char>NPY_DOUBLE
-ufunc_kerp_ptr[2*0] = <void*>_func_kerp_wrap
-ufunc_kerp_ptr[2*0+1] = <void*>(<char*>"kerp")
-ufunc_kerp_ptr[2*1] = <void*>_func_kerp_wrap
-ufunc_kerp_ptr[2*1+1] = <void*>(<char*>"kerp")
-ufunc_kerp_data[0] = &ufunc_kerp_ptr[2*0]
-ufunc_kerp_data[1] = &ufunc_kerp_ptr[2*1]
-kerp = np.PyUFunc_FromFuncAndData(ufunc_kerp_loops, ufunc_kerp_data, ufunc_kerp_types, 2, 1, 1, 0, "kerp", ufunc_kerp_doc, 0)
 
 cdef np.PyUFuncGenericFunction ufunc_kl_div_loops[2]
 cdef void *ufunc_kl_div_ptr[4]
@@ -14328,10 +12108,10 @@ cdef char *ufunc_kn_doc = (
     "\n"
     ">>> kn([4, 5, 6], 1)\n"
     "array([   44.23241585,   360.9605896 ,  3653.83831186])")
-ufunc_kn_loops[0] = <np.PyUFuncGenericFunction>loop_d_id__As_ld_d
+ufunc_kn_loops[0] = <np.PyUFuncGenericFunction>loop_d_pd__As_pd_d
 ufunc_kn_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
 ufunc_kn_loops[2] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
-ufunc_kn_types[0] = <char>NPY_LONG
+ufunc_kn_types[0] = <char>NPY_INTP
 ufunc_kn_types[1] = <char>NPY_DOUBLE
 ufunc_kn_types[2] = <char>NPY_DOUBLE
 ufunc_kn_types[3] = <char>NPY_FLOAT
@@ -14340,7 +12120,7 @@ ufunc_kn_types[5] = <char>NPY_FLOAT
 ufunc_kn_types[6] = <char>NPY_DOUBLE
 ufunc_kn_types[7] = <char>NPY_DOUBLE
 ufunc_kn_types[8] = <char>NPY_DOUBLE
-ufunc_kn_ptr[2*0] = <void*>_func_cbesk_wrap_real_int
+ufunc_kn_ptr[2*0] = <void*>_func_special_cyl_bessel_k_int
 ufunc_kn_ptr[2*0+1] = <void*>(<char*>"kn")
 ufunc_kn_ptr[2*1] = <void*>_func_kn_unsafe
 ufunc_kn_ptr[2*1+1] = <void*>(<char*>"kn")
@@ -14401,9 +12181,9 @@ ufunc_kolmogi_types[0] = <char>NPY_FLOAT
 ufunc_kolmogi_types[1] = <char>NPY_FLOAT
 ufunc_kolmogi_types[2] = <char>NPY_DOUBLE
 ufunc_kolmogi_types[3] = <char>NPY_DOUBLE
-ufunc_kolmogi_ptr[2*0] = <void*>_func_kolmogi
+ufunc_kolmogi_ptr[2*0] = <void*>_func_cephes_kolmogi
 ufunc_kolmogi_ptr[2*0+1] = <void*>(<char*>"kolmogi")
-ufunc_kolmogi_ptr[2*1] = <void*>_func_kolmogi
+ufunc_kolmogi_ptr[2*1] = <void*>_func_cephes_kolmogi
 ufunc_kolmogi_ptr[2*1+1] = <void*>(<char*>"kolmogi")
 ufunc_kolmogi_data[0] = &ufunc_kolmogi_ptr[2*0]
 ufunc_kolmogi_data[1] = &ufunc_kolmogi_ptr[2*1]
@@ -14512,243 +12292,13 @@ ufunc_kolmogorov_types[0] = <char>NPY_FLOAT
 ufunc_kolmogorov_types[1] = <char>NPY_FLOAT
 ufunc_kolmogorov_types[2] = <char>NPY_DOUBLE
 ufunc_kolmogorov_types[3] = <char>NPY_DOUBLE
-ufunc_kolmogorov_ptr[2*0] = <void*>_func_kolmogorov
+ufunc_kolmogorov_ptr[2*0] = <void*>_func_cephes_kolmogorov
 ufunc_kolmogorov_ptr[2*0+1] = <void*>(<char*>"kolmogorov")
-ufunc_kolmogorov_ptr[2*1] = <void*>_func_kolmogorov
+ufunc_kolmogorov_ptr[2*1] = <void*>_func_cephes_kolmogorov
 ufunc_kolmogorov_ptr[2*1+1] = <void*>(<char*>"kolmogorov")
 ufunc_kolmogorov_data[0] = &ufunc_kolmogorov_ptr[2*0]
 ufunc_kolmogorov_data[1] = &ufunc_kolmogorov_ptr[2*1]
 kolmogorov = np.PyUFunc_FromFuncAndData(ufunc_kolmogorov_loops, ufunc_kolmogorov_data, ufunc_kolmogorov_types, 2, 1, 1, 0, "kolmogorov", ufunc_kolmogorov_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_kv_loops[4]
-cdef void *ufunc_kv_ptr[8]
-cdef void *ufunc_kv_data[4]
-cdef char ufunc_kv_types[12]
-cdef char *ufunc_kv_doc = (
-    "kv(v, z, out=None)\n"
-    "\n"
-    "Modified Bessel function of the second kind of real order `v`\n"
-    "\n"
-    "Returns the modified Bessel function of the second kind for real order\n"
-    "`v` at complex `z`.\n"
-    "\n"
-    "These are also sometimes called functions of the third kind, Basset\n"
-    "functions, or Macdonald functions.  They are defined as those solutions\n"
-    "of the modified Bessel equation for which,\n"
-    "\n"
-    ".. math::\n"
-    "    K_v(x) \\sim \\sqrt{\\pi/(2x)} \\exp(-x)\n"
-    "\n"
-    "as :math:`x \\to \\infty` [3]_.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "v : array_like of float\n"
-    "    Order of Bessel functions\n"
-    "z : array_like of complex\n"
-    "    Argument at which to evaluate the Bessel functions\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "scalar or ndarray\n"
-    "    The results. Note that input must be of complex type to get complex\n"
-    "    output, e.g. ``kv(3, -2+0j)`` instead of ``kv(3, -2)``.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "kve : This function with leading exponential behavior stripped off.\n"
-    "kvp : Derivative of this function\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "Wrapper for AMOS [1]_ routine `zbesk`.  For a discussion of the\n"
-    "algorithm used, see [2]_ and the references therein.\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] Donald E. Amos, \"AMOS, A Portable Package for Bessel Functions\n"
-    "       of a Complex Argument and Nonnegative Order\",\n"
-    "       http://netlib.org/amos/\n"
-    ".. [2] Donald E. Amos, \"Algorithm 644: A portable package for Bessel\n"
-    "       functions of a complex argument and nonnegative order\", ACM\n"
-    "       TOMS Vol. 12 Issue 3, Sept. 1986, p. 265\n"
-    ".. [3] NIST Digital Library of Mathematical Functions,\n"
-    "       Eq. 10.25.E3. https://dlmf.nist.gov/10.25.E3\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "Plot the function of several orders for real input:\n"
-    "\n"
-    ">>> import numpy as np\n"
-    ">>> from scipy.special import kv\n"
-    ">>> import matplotlib.pyplot as plt\n"
-    ">>> x = np.linspace(0, 5, 1000)\n"
-    ">>> for N in np.linspace(0, 6, 5):\n"
-    "...     plt.plot(x, kv(N, x), label='$K_{{{}}}(x)$'.format(N))\n"
-    ">>> plt.ylim(0, 10)\n"
-    ">>> plt.legend()\n"
-    ">>> plt.title(r'Modified Bessel function of the second kind $K_\\nu(x)$')\n"
-    ">>> plt.show()\n"
-    "\n"
-    "Calculate for a single value at multiple orders:\n"
-    "\n"
-    ">>> kv([4, 4.5, 5], 1+2j)\n"
-    "array([ 0.1992+2.3892j,  2.3493+3.6j   ,  7.2827+3.8104j])")
-ufunc_kv_loops[0] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
-ufunc_kv_loops[1] = <np.PyUFuncGenericFunction>loop_D_dD__As_fF_F
-ufunc_kv_loops[2] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
-ufunc_kv_loops[3] = <np.PyUFuncGenericFunction>loop_D_dD__As_dD_D
-ufunc_kv_types[0] = <char>NPY_FLOAT
-ufunc_kv_types[1] = <char>NPY_FLOAT
-ufunc_kv_types[2] = <char>NPY_FLOAT
-ufunc_kv_types[3] = <char>NPY_FLOAT
-ufunc_kv_types[4] = <char>NPY_CFLOAT
-ufunc_kv_types[5] = <char>NPY_CFLOAT
-ufunc_kv_types[6] = <char>NPY_DOUBLE
-ufunc_kv_types[7] = <char>NPY_DOUBLE
-ufunc_kv_types[8] = <char>NPY_DOUBLE
-ufunc_kv_types[9] = <char>NPY_DOUBLE
-ufunc_kv_types[10] = <char>NPY_CDOUBLE
-ufunc_kv_types[11] = <char>NPY_CDOUBLE
-ufunc_kv_ptr[2*0] = <void*>_func_cbesk_wrap_real
-ufunc_kv_ptr[2*0+1] = <void*>(<char*>"kv")
-ufunc_kv_ptr[2*1] = <void*>_func_cbesk_wrap
-ufunc_kv_ptr[2*1+1] = <void*>(<char*>"kv")
-ufunc_kv_ptr[2*2] = <void*>_func_cbesk_wrap_real
-ufunc_kv_ptr[2*2+1] = <void*>(<char*>"kv")
-ufunc_kv_ptr[2*3] = <void*>_func_cbesk_wrap
-ufunc_kv_ptr[2*3+1] = <void*>(<char*>"kv")
-ufunc_kv_data[0] = &ufunc_kv_ptr[2*0]
-ufunc_kv_data[1] = &ufunc_kv_ptr[2*1]
-ufunc_kv_data[2] = &ufunc_kv_ptr[2*2]
-ufunc_kv_data[3] = &ufunc_kv_ptr[2*3]
-kv = np.PyUFunc_FromFuncAndData(ufunc_kv_loops, ufunc_kv_data, ufunc_kv_types, 4, 2, 1, 0, "kv", ufunc_kv_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_kve_loops[4]
-cdef void *ufunc_kve_ptr[8]
-cdef void *ufunc_kve_data[4]
-cdef char ufunc_kve_types[12]
-cdef char *ufunc_kve_doc = (
-    "kve(v, z, out=None)\n"
-    "\n"
-    "Exponentially scaled modified Bessel function of the second kind.\n"
-    "\n"
-    "Returns the exponentially scaled, modified Bessel function of the\n"
-    "second kind (sometimes called the third kind) for real order `v` at\n"
-    "complex `z`::\n"
-    "\n"
-    "    kve(v, z) = kv(v, z) * exp(z)\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "v : array_like of float\n"
-    "    Order of Bessel functions\n"
-    "z : array_like of complex\n"
-    "    Argument at which to evaluate the Bessel functions\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "scalar or ndarray\n"
-    "    The exponentially scaled modified Bessel function of the second kind.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "kv : This function without exponential scaling.\n"
-    "k0e : Faster version of this function for order 0.\n"
-    "k1e : Faster version of this function for order 1.\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "Wrapper for AMOS [1]_ routine `zbesk`.  For a discussion of the\n"
-    "algorithm used, see [2]_ and the references therein.\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] Donald E. Amos, \"AMOS, A Portable Package for Bessel Functions\n"
-    "       of a Complex Argument and Nonnegative Order\",\n"
-    "       http://netlib.org/amos/\n"
-    ".. [2] Donald E. Amos, \"Algorithm 644: A portable package for Bessel\n"
-    "       functions of a complex argument and nonnegative order\", ACM\n"
-    "       TOMS Vol. 12 Issue 3, Sept. 1986, p. 265\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "In the following example `kv` returns 0 whereas `kve` still returns\n"
-    "a useful finite number.\n"
-    "\n"
-    ">>> import numpy as np\n"
-    ">>> from scipy.special import kv, kve\n"
-    ">>> import matplotlib.pyplot as plt\n"
-    ">>> kv(3, 1000.), kve(3, 1000.)\n"
-    "(0.0, 0.03980696128440973)\n"
-    "\n"
-    "Evaluate the function at one point for different orders by\n"
-    "providing a list or NumPy array as argument for the `v` parameter:\n"
-    "\n"
-    ">>> kve([0, 1, 1.5], 1.)\n"
-    "array([1.14446308, 1.63615349, 2.50662827])\n"
-    "\n"
-    "Evaluate the function at several points for order 0 by providing an\n"
-    "array for `z`.\n"
-    "\n"
-    ">>> points = np.array([1., 3., 10.])\n"
-    ">>> kve(0, points)\n"
-    "array([1.14446308, 0.6977616 , 0.39163193])\n"
-    "\n"
-    "Evaluate the function at several points for different orders by\n"
-    "providing arrays for both `v` for `z`. Both arrays have to be\n"
-    "broadcastable to the correct shape. To calculate the orders 0, 1\n"
-    "and 2 for a 1D array of points:\n"
-    "\n"
-    ">>> kve([[0], [1], [2]], points)\n"
-    "array([[1.14446308, 0.6977616 , 0.39163193],\n"
-    "       [1.63615349, 0.80656348, 0.41076657],\n"
-    "       [4.41677005, 1.23547058, 0.47378525]])\n"
-    "\n"
-    "Plot the functions of order 0 to 3 from 0 to 5.\n"
-    "\n"
-    ">>> fig, ax = plt.subplots()\n"
-    ">>> x = np.linspace(0., 5., 1000)\n"
-    ">>> for i in range(4):\n"
-    "...     ax.plot(x, kve(i, x), label=fr'$K_{i!r}(z)\\cdot e^z$')\n"
-    ">>> ax.legend()\n"
-    ">>> ax.set_xlabel(r\"$z$\")\n"
-    ">>> ax.set_ylim(0, 4)\n"
-    ">>> ax.set_xlim(0, 5)\n"
-    ">>> plt.show()")
-ufunc_kve_loops[0] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
-ufunc_kve_loops[1] = <np.PyUFuncGenericFunction>loop_D_dD__As_fF_F
-ufunc_kve_loops[2] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
-ufunc_kve_loops[3] = <np.PyUFuncGenericFunction>loop_D_dD__As_dD_D
-ufunc_kve_types[0] = <char>NPY_FLOAT
-ufunc_kve_types[1] = <char>NPY_FLOAT
-ufunc_kve_types[2] = <char>NPY_FLOAT
-ufunc_kve_types[3] = <char>NPY_FLOAT
-ufunc_kve_types[4] = <char>NPY_CFLOAT
-ufunc_kve_types[5] = <char>NPY_CFLOAT
-ufunc_kve_types[6] = <char>NPY_DOUBLE
-ufunc_kve_types[7] = <char>NPY_DOUBLE
-ufunc_kve_types[8] = <char>NPY_DOUBLE
-ufunc_kve_types[9] = <char>NPY_DOUBLE
-ufunc_kve_types[10] = <char>NPY_CDOUBLE
-ufunc_kve_types[11] = <char>NPY_CDOUBLE
-ufunc_kve_ptr[2*0] = <void*>_func_cbesk_wrap_e_real
-ufunc_kve_ptr[2*0+1] = <void*>(<char*>"kve")
-ufunc_kve_ptr[2*1] = <void*>_func_cbesk_wrap_e
-ufunc_kve_ptr[2*1+1] = <void*>(<char*>"kve")
-ufunc_kve_ptr[2*2] = <void*>_func_cbesk_wrap_e_real
-ufunc_kve_ptr[2*2+1] = <void*>(<char*>"kve")
-ufunc_kve_ptr[2*3] = <void*>_func_cbesk_wrap_e
-ufunc_kve_ptr[2*3+1] = <void*>(<char*>"kve")
-ufunc_kve_data[0] = &ufunc_kve_ptr[2*0]
-ufunc_kve_data[1] = &ufunc_kve_ptr[2*1]
-ufunc_kve_data[2] = &ufunc_kve_ptr[2*2]
-ufunc_kve_data[3] = &ufunc_kve_ptr[2*3]
-kve = np.PyUFunc_FromFuncAndData(ufunc_kve_loops, ufunc_kve_data, ufunc_kve_types, 4, 2, 1, 0, "kve", ufunc_kve_doc, 0)
 
 cdef np.PyUFuncGenericFunction ufunc_log1p_loops[4]
 cdef void *ufunc_log1p_ptr[8]
@@ -14800,9 +12350,9 @@ ufunc_log1p_types[4] = <char>NPY_CFLOAT
 ufunc_log1p_types[5] = <char>NPY_CFLOAT
 ufunc_log1p_types[6] = <char>NPY_CDOUBLE
 ufunc_log1p_types[7] = <char>NPY_CDOUBLE
-ufunc_log1p_ptr[2*0] = <void*>_func_log1p
+ufunc_log1p_ptr[2*0] = <void*>_func_cephes_log1p
 ufunc_log1p_ptr[2*0+1] = <void*>(<char*>"log1p")
-ufunc_log1p_ptr[2*1] = <void*>_func_log1p
+ufunc_log1p_ptr[2*1] = <void*>_func_cephes_log1p
 ufunc_log1p_ptr[2*1+1] = <void*>(<char*>"log1p")
 ufunc_log1p_ptr[2*2] = <void*>_func_clog1p
 ufunc_log1p_ptr[2*2+1] = <void*>(<char*>"log1p")
@@ -14813,94 +12363,6 @@ ufunc_log1p_data[1] = &ufunc_log1p_ptr[2*1]
 ufunc_log1p_data[2] = &ufunc_log1p_ptr[2*2]
 ufunc_log1p_data[3] = &ufunc_log1p_ptr[2*3]
 log1p = np.PyUFunc_FromFuncAndData(ufunc_log1p_loops, ufunc_log1p_data, ufunc_log1p_types, 4, 1, 1, 0, "log1p", ufunc_log1p_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_log_expit_loops[3]
-cdef void *ufunc_log_expit_ptr[6]
-cdef void *ufunc_log_expit_data[3]
-cdef char ufunc_log_expit_types[6]
-cdef char *ufunc_log_expit_doc = (
-    "log_expit(x, out=None)\n"
-    "\n"
-    "Logarithm of the logistic sigmoid function.\n"
-    "\n"
-    "The SciPy implementation of the logistic sigmoid function is\n"
-    "`scipy.special.expit`, so this function is called ``log_expit``.\n"
-    "\n"
-    "The function is mathematically equivalent to ``log(expit(x))``, but\n"
-    "is formulated to avoid loss of precision for inputs with large\n"
-    "(positive or negative) magnitude.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "x : array_like\n"
-    "    The values to apply ``log_expit`` to element-wise.\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "out : scalar or ndarray\n"
-    "    The computed values, an ndarray of the same shape as ``x``.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "expit\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "As a ufunc, ``log_expit`` takes a number of optional keyword arguments.\n"
-    "For more information see\n"
-    "`ufuncs <https://docs.scipy.org/doc/numpy/reference/ufuncs.html>`_\n"
-    "\n"
-    ".. versionadded:: 1.8.0\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> import numpy as np\n"
-    ">>> from scipy.special import log_expit, expit\n"
-    "\n"
-    ">>> log_expit([-3.0, 0.25, 2.5, 5.0])\n"
-    "array([-3.04858735, -0.57593942, -0.07888973, -0.00671535])\n"
-    "\n"
-    "Large negative values:\n"
-    "\n"
-    ">>> log_expit([-100, -500, -1000])\n"
-    "array([ -100.,  -500., -1000.])\n"
-    "\n"
-    "Note that ``expit(-1000)`` returns 0, so the naive implementation\n"
-    "``log(expit(-1000))`` return ``-inf``.\n"
-    "\n"
-    "Large positive values:\n"
-    "\n"
-    ">>> log_expit([29, 120, 400])\n"
-    "array([-2.54366565e-013, -7.66764807e-053, -1.91516960e-174])\n"
-    "\n"
-    "Compare that to the naive implementation:\n"
-    "\n"
-    ">>> np.log(expit([29, 120, 400]))\n"
-    "array([-2.54463117e-13,  0.00000000e+00,  0.00000000e+00])\n"
-    "\n"
-    "The first value is accurate to only 3 digits, and the larger inputs\n"
-    "lose all precision and return 0.")
-ufunc_log_expit_loops[0] = <np.PyUFuncGenericFunction>loop_f_f__As_f_f
-ufunc_log_expit_loops[1] = <np.PyUFuncGenericFunction>loop_d_d__As_d_d
-ufunc_log_expit_loops[2] = <np.PyUFuncGenericFunction>loop_g_g__As_g_g
-ufunc_log_expit_types[0] = <char>NPY_FLOAT
-ufunc_log_expit_types[1] = <char>NPY_FLOAT
-ufunc_log_expit_types[2] = <char>NPY_DOUBLE
-ufunc_log_expit_types[3] = <char>NPY_DOUBLE
-ufunc_log_expit_types[4] = <char>NPY_LONGDOUBLE
-ufunc_log_expit_types[5] = <char>NPY_LONGDOUBLE
-ufunc_log_expit_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_log_expitf
-ufunc_log_expit_ptr[2*0+1] = <void*>(<char*>"log_expit")
-ufunc_log_expit_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_log_expit
-ufunc_log_expit_ptr[2*1+1] = <void*>(<char*>"log_expit")
-ufunc_log_expit_ptr[2*2] = <void*>scipy.special._ufuncs_cxx._export_log_expitl
-ufunc_log_expit_ptr[2*2+1] = <void*>(<char*>"log_expit")
-ufunc_log_expit_data[0] = &ufunc_log_expit_ptr[2*0]
-ufunc_log_expit_data[1] = &ufunc_log_expit_ptr[2*1]
-ufunc_log_expit_data[2] = &ufunc_log_expit_ptr[2*2]
-log_expit = np.PyUFunc_FromFuncAndData(ufunc_log_expit_loops, ufunc_log_expit_data, ufunc_log_expit_types, 3, 1, 1, 0, "log_expit", ufunc_log_expit_doc, 0)
 
 cdef np.PyUFuncGenericFunction ufunc_log_ndtr_loops[4]
 cdef void *ufunc_log_ndtr_ptr[8]
@@ -14982,174 +12444,6 @@ ufunc_log_ndtr_data[2] = &ufunc_log_ndtr_ptr[2*2]
 ufunc_log_ndtr_data[3] = &ufunc_log_ndtr_ptr[2*3]
 log_ndtr = np.PyUFunc_FromFuncAndData(ufunc_log_ndtr_loops, ufunc_log_ndtr_data, ufunc_log_ndtr_types, 4, 1, 1, 0, "log_ndtr", ufunc_log_ndtr_doc, 0)
 
-cdef np.PyUFuncGenericFunction ufunc_loggamma_loops[4]
-cdef void *ufunc_loggamma_ptr[8]
-cdef void *ufunc_loggamma_data[4]
-cdef char ufunc_loggamma_types[8]
-cdef char *ufunc_loggamma_doc = (
-    "loggamma(z, out=None)\n"
-    "\n"
-    "Principal branch of the logarithm of the gamma function.\n"
-    "\n"
-    "Defined to be :math:`\\log(\\Gamma(x))` for :math:`x > 0` and\n"
-    "extended to the complex plane by analytic continuation. The\n"
-    "function has a single branch cut on the negative real axis.\n"
-    "\n"
-    ".. versionadded:: 0.18.0\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "z : array_like\n"
-    "    Values in the complex plane at which to compute ``loggamma``\n"
-    "out : ndarray, optional\n"
-    "    Output array for computed values of ``loggamma``\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "loggamma : scalar or ndarray\n"
-    "    Values of ``loggamma`` at z.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "gammaln : logarithm of the absolute value of the gamma function\n"
-    "gammasgn : sign of the gamma function\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "It is not generally true that :math:`\\log\\Gamma(z) =\n"
-    "\\log(\\Gamma(z))`, though the real parts of the functions do\n"
-    "agree. The benefit of not defining `loggamma` as\n"
-    ":math:`\\log(\\Gamma(z))` is that the latter function has a\n"
-    "complicated branch cut structure whereas `loggamma` is analytic\n"
-    "except for on the negative real axis.\n"
-    "\n"
-    "The identities\n"
-    "\n"
-    ".. math::\n"
-    "  \\exp(\\log\\Gamma(z)) &= \\Gamma(z) \\\\\n"
-    "  \\log\\Gamma(z + 1) &= \\log(z) + \\log\\Gamma(z)\n"
-    "\n"
-    "make `loggamma` useful for working in complex logspace.\n"
-    "\n"
-    "On the real line `loggamma` is related to `gammaln` via\n"
-    "``exp(loggamma(x + 0j)) = gammasgn(x)*exp(gammaln(x))``, up to\n"
-    "rounding error.\n"
-    "\n"
-    "The implementation here is based on [hare1997]_.\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [hare1997] D.E.G. Hare,\n"
-    "  *Computing the Principal Branch of log-Gamma*,\n"
-    "  Journal of Algorithms, Volume 25, Issue 2, November 1997, pages 221-236.")
-ufunc_loggamma_loops[0] = <np.PyUFuncGenericFunction>loop_d_d__As_f_f
-ufunc_loggamma_loops[1] = <np.PyUFuncGenericFunction>loop_d_d__As_d_d
-ufunc_loggamma_loops[2] = <np.PyUFuncGenericFunction>loop_D_D__As_F_F
-ufunc_loggamma_loops[3] = <np.PyUFuncGenericFunction>loop_D_D__As_D_D
-ufunc_loggamma_types[0] = <char>NPY_FLOAT
-ufunc_loggamma_types[1] = <char>NPY_FLOAT
-ufunc_loggamma_types[2] = <char>NPY_DOUBLE
-ufunc_loggamma_types[3] = <char>NPY_DOUBLE
-ufunc_loggamma_types[4] = <char>NPY_CFLOAT
-ufunc_loggamma_types[5] = <char>NPY_CFLOAT
-ufunc_loggamma_types[6] = <char>NPY_CDOUBLE
-ufunc_loggamma_types[7] = <char>NPY_CDOUBLE
-ufunc_loggamma_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_loggamma_real
-ufunc_loggamma_ptr[2*0+1] = <void*>(<char*>"loggamma")
-ufunc_loggamma_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_loggamma_real
-ufunc_loggamma_ptr[2*1+1] = <void*>(<char*>"loggamma")
-ufunc_loggamma_ptr[2*2] = <void*>scipy.special._ufuncs_cxx._export_loggamma
-ufunc_loggamma_ptr[2*2+1] = <void*>(<char*>"loggamma")
-ufunc_loggamma_ptr[2*3] = <void*>scipy.special._ufuncs_cxx._export_loggamma
-ufunc_loggamma_ptr[2*3+1] = <void*>(<char*>"loggamma")
-ufunc_loggamma_data[0] = &ufunc_loggamma_ptr[2*0]
-ufunc_loggamma_data[1] = &ufunc_loggamma_ptr[2*1]
-ufunc_loggamma_data[2] = &ufunc_loggamma_ptr[2*2]
-ufunc_loggamma_data[3] = &ufunc_loggamma_ptr[2*3]
-loggamma = np.PyUFunc_FromFuncAndData(ufunc_loggamma_loops, ufunc_loggamma_data, ufunc_loggamma_types, 4, 1, 1, 0, "loggamma", ufunc_loggamma_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_logit_loops[3]
-cdef void *ufunc_logit_ptr[6]
-cdef void *ufunc_logit_data[3]
-cdef char ufunc_logit_types[6]
-cdef char *ufunc_logit_doc = (
-    "logit(x, out=None)\n"
-    "\n"
-    "Logit ufunc for ndarrays.\n"
-    "\n"
-    "The logit function is defined as logit(p) = log(p/(1-p)).\n"
-    "Note that logit(0) = -inf, logit(1) = inf, and logit(p)\n"
-    "for p<0 or p>1 yields nan.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "x : ndarray\n"
-    "    The ndarray to apply logit to element-wise.\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "scalar or ndarray\n"
-    "    An ndarray of the same shape as x. Its entries\n"
-    "    are logit of the corresponding entry of x.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "expit\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "As a ufunc logit takes a number of optional\n"
-    "keyword arguments. For more information\n"
-    "see `ufuncs <https://docs.scipy.org/doc/numpy/reference/ufuncs.html>`_\n"
-    "\n"
-    ".. versionadded:: 0.10.0\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> import numpy as np\n"
-    ">>> from scipy.special import logit, expit\n"
-    "\n"
-    ">>> logit([0, 0.25, 0.5, 0.75, 1])\n"
-    "array([       -inf, -1.09861229,  0.        ,  1.09861229,         inf])\n"
-    "\n"
-    "`expit` is the inverse of `logit`:\n"
-    "\n"
-    ">>> expit(logit([0.1, 0.75, 0.999]))\n"
-    "array([ 0.1  ,  0.75 ,  0.999])\n"
-    "\n"
-    "Plot logit(x) for x in [0, 1]:\n"
-    "\n"
-    ">>> import matplotlib.pyplot as plt\n"
-    ">>> x = np.linspace(0, 1, 501)\n"
-    ">>> y = logit(x)\n"
-    ">>> plt.plot(x, y)\n"
-    ">>> plt.grid()\n"
-    ">>> plt.ylim(-6, 6)\n"
-    ">>> plt.xlabel('x')\n"
-    ">>> plt.title('logit(x)')\n"
-    ">>> plt.show()")
-ufunc_logit_loops[0] = <np.PyUFuncGenericFunction>loop_f_f__As_f_f
-ufunc_logit_loops[1] = <np.PyUFuncGenericFunction>loop_d_d__As_d_d
-ufunc_logit_loops[2] = <np.PyUFuncGenericFunction>loop_g_g__As_g_g
-ufunc_logit_types[0] = <char>NPY_FLOAT
-ufunc_logit_types[1] = <char>NPY_FLOAT
-ufunc_logit_types[2] = <char>NPY_DOUBLE
-ufunc_logit_types[3] = <char>NPY_DOUBLE
-ufunc_logit_types[4] = <char>NPY_LONGDOUBLE
-ufunc_logit_types[5] = <char>NPY_LONGDOUBLE
-ufunc_logit_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_logitf
-ufunc_logit_ptr[2*0+1] = <void*>(<char*>"logit")
-ufunc_logit_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_logit
-ufunc_logit_ptr[2*1+1] = <void*>(<char*>"logit")
-ufunc_logit_ptr[2*2] = <void*>scipy.special._ufuncs_cxx._export_logitl
-ufunc_logit_ptr[2*2+1] = <void*>(<char*>"logit")
-ufunc_logit_data[0] = &ufunc_logit_ptr[2*0]
-ufunc_logit_data[1] = &ufunc_logit_ptr[2*1]
-ufunc_logit_data[2] = &ufunc_logit_ptr[2*2]
-logit = np.PyUFunc_FromFuncAndData(ufunc_logit_loops, ufunc_logit_data, ufunc_logit_types, 3, 1, 1, 0, "logit", ufunc_logit_doc, 0)
-
 cdef np.PyUFuncGenericFunction ufunc_lpmv_loops[2]
 cdef void *ufunc_lpmv_ptr[4]
 cdef void *ufunc_lpmv_data[2]
@@ -15224,500 +12518,6 @@ ufunc_lpmv_ptr[2*1+1] = <void*>(<char*>"lpmv")
 ufunc_lpmv_data[0] = &ufunc_lpmv_ptr[2*0]
 ufunc_lpmv_data[1] = &ufunc_lpmv_ptr[2*1]
 lpmv = np.PyUFunc_FromFuncAndData(ufunc_lpmv_loops, ufunc_lpmv_data, ufunc_lpmv_types, 2, 3, 1, 0, "lpmv", ufunc_lpmv_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_mathieu_a_loops[2]
-cdef void *ufunc_mathieu_a_ptr[4]
-cdef void *ufunc_mathieu_a_data[2]
-cdef char ufunc_mathieu_a_types[6]
-cdef char *ufunc_mathieu_a_doc = (
-    "mathieu_a(m, q, out=None)\n"
-    "\n"
-    "Characteristic value of even Mathieu functions\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "m : array_like\n"
-    "    Order of the function\n"
-    "q : array_like\n"
-    "    Parameter of the function\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "scalar or ndarray\n"
-    "    Characteristic value for the even solution, ``ce_m(z, q)``, of\n"
-    "    Mathieu's equation.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "mathieu_b, mathieu_cem, mathieu_sem")
-ufunc_mathieu_a_loops[0] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
-ufunc_mathieu_a_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
-ufunc_mathieu_a_types[0] = <char>NPY_FLOAT
-ufunc_mathieu_a_types[1] = <char>NPY_FLOAT
-ufunc_mathieu_a_types[2] = <char>NPY_FLOAT
-ufunc_mathieu_a_types[3] = <char>NPY_DOUBLE
-ufunc_mathieu_a_types[4] = <char>NPY_DOUBLE
-ufunc_mathieu_a_types[5] = <char>NPY_DOUBLE
-ufunc_mathieu_a_ptr[2*0] = <void*>_func_cem_cva_wrap
-ufunc_mathieu_a_ptr[2*0+1] = <void*>(<char*>"mathieu_a")
-ufunc_mathieu_a_ptr[2*1] = <void*>_func_cem_cva_wrap
-ufunc_mathieu_a_ptr[2*1+1] = <void*>(<char*>"mathieu_a")
-ufunc_mathieu_a_data[0] = &ufunc_mathieu_a_ptr[2*0]
-ufunc_mathieu_a_data[1] = &ufunc_mathieu_a_ptr[2*1]
-mathieu_a = np.PyUFunc_FromFuncAndData(ufunc_mathieu_a_loops, ufunc_mathieu_a_data, ufunc_mathieu_a_types, 2, 2, 1, 0, "mathieu_a", ufunc_mathieu_a_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_mathieu_b_loops[2]
-cdef void *ufunc_mathieu_b_ptr[4]
-cdef void *ufunc_mathieu_b_data[2]
-cdef char ufunc_mathieu_b_types[6]
-cdef char *ufunc_mathieu_b_doc = (
-    "mathieu_b(m, q, out=None)\n"
-    "\n"
-    "Characteristic value of odd Mathieu functions\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "m : array_like\n"
-    "    Order of the function\n"
-    "q : array_like\n"
-    "    Parameter of the function\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "scalar or ndarray\n"
-    "    Characteristic value for the odd solution, ``se_m(z, q)``, of Mathieu's\n"
-    "    equation.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "mathieu_a, mathieu_cem, mathieu_sem")
-ufunc_mathieu_b_loops[0] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
-ufunc_mathieu_b_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
-ufunc_mathieu_b_types[0] = <char>NPY_FLOAT
-ufunc_mathieu_b_types[1] = <char>NPY_FLOAT
-ufunc_mathieu_b_types[2] = <char>NPY_FLOAT
-ufunc_mathieu_b_types[3] = <char>NPY_DOUBLE
-ufunc_mathieu_b_types[4] = <char>NPY_DOUBLE
-ufunc_mathieu_b_types[5] = <char>NPY_DOUBLE
-ufunc_mathieu_b_ptr[2*0] = <void*>_func_sem_cva_wrap
-ufunc_mathieu_b_ptr[2*0+1] = <void*>(<char*>"mathieu_b")
-ufunc_mathieu_b_ptr[2*1] = <void*>_func_sem_cva_wrap
-ufunc_mathieu_b_ptr[2*1+1] = <void*>(<char*>"mathieu_b")
-ufunc_mathieu_b_data[0] = &ufunc_mathieu_b_ptr[2*0]
-ufunc_mathieu_b_data[1] = &ufunc_mathieu_b_ptr[2*1]
-mathieu_b = np.PyUFunc_FromFuncAndData(ufunc_mathieu_b_loops, ufunc_mathieu_b_data, ufunc_mathieu_b_types, 2, 2, 1, 0, "mathieu_b", ufunc_mathieu_b_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_mathieu_cem_loops[2]
-cdef void *ufunc_mathieu_cem_ptr[4]
-cdef void *ufunc_mathieu_cem_data[2]
-cdef char ufunc_mathieu_cem_types[10]
-cdef char *ufunc_mathieu_cem_doc = (
-    "mathieu_cem(m, q, x, out=None)\n"
-    "\n"
-    "Even Mathieu function and its derivative\n"
-    "\n"
-    "Returns the even Mathieu function, ``ce_m(x, q)``, of order `m` and\n"
-    "parameter `q` evaluated at `x` (given in degrees).  Also returns the\n"
-    "derivative with respect to `x` of ce_m(x, q)\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "m : array_like\n"
-    "    Order of the function\n"
-    "q : array_like\n"
-    "    Parameter of the function\n"
-    "x : array_like\n"
-    "    Argument of the function, *given in degrees, not radians*\n"
-    "out : tuple of ndarray, optional\n"
-    "    Optional output arrays for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "y : scalar or ndarray\n"
-    "    Value of the function\n"
-    "yp : scalar or ndarray\n"
-    "    Value of the derivative vs x\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "mathieu_a, mathieu_b, mathieu_sem")
-ufunc_mathieu_cem_loops[0] = <np.PyUFuncGenericFunction>loop_i_ddd_dd_As_fff_ff
-ufunc_mathieu_cem_loops[1] = <np.PyUFuncGenericFunction>loop_i_ddd_dd_As_ddd_dd
-ufunc_mathieu_cem_types[0] = <char>NPY_FLOAT
-ufunc_mathieu_cem_types[1] = <char>NPY_FLOAT
-ufunc_mathieu_cem_types[2] = <char>NPY_FLOAT
-ufunc_mathieu_cem_types[3] = <char>NPY_FLOAT
-ufunc_mathieu_cem_types[4] = <char>NPY_FLOAT
-ufunc_mathieu_cem_types[5] = <char>NPY_DOUBLE
-ufunc_mathieu_cem_types[6] = <char>NPY_DOUBLE
-ufunc_mathieu_cem_types[7] = <char>NPY_DOUBLE
-ufunc_mathieu_cem_types[8] = <char>NPY_DOUBLE
-ufunc_mathieu_cem_types[9] = <char>NPY_DOUBLE
-ufunc_mathieu_cem_ptr[2*0] = <void*>_func_cem_wrap
-ufunc_mathieu_cem_ptr[2*0+1] = <void*>(<char*>"mathieu_cem")
-ufunc_mathieu_cem_ptr[2*1] = <void*>_func_cem_wrap
-ufunc_mathieu_cem_ptr[2*1+1] = <void*>(<char*>"mathieu_cem")
-ufunc_mathieu_cem_data[0] = &ufunc_mathieu_cem_ptr[2*0]
-ufunc_mathieu_cem_data[1] = &ufunc_mathieu_cem_ptr[2*1]
-mathieu_cem = np.PyUFunc_FromFuncAndData(ufunc_mathieu_cem_loops, ufunc_mathieu_cem_data, ufunc_mathieu_cem_types, 2, 3, 2, 0, "mathieu_cem", ufunc_mathieu_cem_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_mathieu_modcem1_loops[2]
-cdef void *ufunc_mathieu_modcem1_ptr[4]
-cdef void *ufunc_mathieu_modcem1_data[2]
-cdef char ufunc_mathieu_modcem1_types[10]
-cdef char *ufunc_mathieu_modcem1_doc = (
-    "mathieu_modcem1(m, q, x, out=None)\n"
-    "\n"
-    "Even modified Mathieu function of the first kind and its derivative\n"
-    "\n"
-    "Evaluates the even modified Mathieu function of the first kind,\n"
-    "``Mc1m(x, q)``, and its derivative at `x` for order `m` and parameter\n"
-    "`q`.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "m : array_like\n"
-    "    Order of the function\n"
-    "q : array_like\n"
-    "    Parameter of the function\n"
-    "x : array_like\n"
-    "    Argument of the function, *given in degrees, not radians*\n"
-    "out : tuple of ndarray, optional\n"
-    "    Optional output arrays for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "y : scalar or ndarray\n"
-    "    Value of the function\n"
-    "yp : scalar or ndarray\n"
-    "    Value of the derivative vs x\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "mathieu_modsem1")
-ufunc_mathieu_modcem1_loops[0] = <np.PyUFuncGenericFunction>loop_i_ddd_dd_As_fff_ff
-ufunc_mathieu_modcem1_loops[1] = <np.PyUFuncGenericFunction>loop_i_ddd_dd_As_ddd_dd
-ufunc_mathieu_modcem1_types[0] = <char>NPY_FLOAT
-ufunc_mathieu_modcem1_types[1] = <char>NPY_FLOAT
-ufunc_mathieu_modcem1_types[2] = <char>NPY_FLOAT
-ufunc_mathieu_modcem1_types[3] = <char>NPY_FLOAT
-ufunc_mathieu_modcem1_types[4] = <char>NPY_FLOAT
-ufunc_mathieu_modcem1_types[5] = <char>NPY_DOUBLE
-ufunc_mathieu_modcem1_types[6] = <char>NPY_DOUBLE
-ufunc_mathieu_modcem1_types[7] = <char>NPY_DOUBLE
-ufunc_mathieu_modcem1_types[8] = <char>NPY_DOUBLE
-ufunc_mathieu_modcem1_types[9] = <char>NPY_DOUBLE
-ufunc_mathieu_modcem1_ptr[2*0] = <void*>_func_mcm1_wrap
-ufunc_mathieu_modcem1_ptr[2*0+1] = <void*>(<char*>"mathieu_modcem1")
-ufunc_mathieu_modcem1_ptr[2*1] = <void*>_func_mcm1_wrap
-ufunc_mathieu_modcem1_ptr[2*1+1] = <void*>(<char*>"mathieu_modcem1")
-ufunc_mathieu_modcem1_data[0] = &ufunc_mathieu_modcem1_ptr[2*0]
-ufunc_mathieu_modcem1_data[1] = &ufunc_mathieu_modcem1_ptr[2*1]
-mathieu_modcem1 = np.PyUFunc_FromFuncAndData(ufunc_mathieu_modcem1_loops, ufunc_mathieu_modcem1_data, ufunc_mathieu_modcem1_types, 2, 3, 2, 0, "mathieu_modcem1", ufunc_mathieu_modcem1_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_mathieu_modcem2_loops[2]
-cdef void *ufunc_mathieu_modcem2_ptr[4]
-cdef void *ufunc_mathieu_modcem2_data[2]
-cdef char ufunc_mathieu_modcem2_types[10]
-cdef char *ufunc_mathieu_modcem2_doc = (
-    "mathieu_modcem2(m, q, x, out=None)\n"
-    "\n"
-    "Even modified Mathieu function of the second kind and its derivative\n"
-    "\n"
-    "Evaluates the even modified Mathieu function of the second kind,\n"
-    "Mc2m(x, q), and its derivative at `x` (given in degrees) for order `m`\n"
-    "and parameter `q`.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "m : array_like\n"
-    "    Order of the function\n"
-    "q : array_like\n"
-    "    Parameter of the function\n"
-    "x : array_like\n"
-    "    Argument of the function, *given in degrees, not radians*\n"
-    "out : tuple of ndarray, optional\n"
-    "    Optional output arrays for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "y : scalar or ndarray\n"
-    "    Value of the function\n"
-    "yp : scalar or ndarray\n"
-    "    Value of the derivative vs x\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "mathieu_modsem2")
-ufunc_mathieu_modcem2_loops[0] = <np.PyUFuncGenericFunction>loop_i_ddd_dd_As_fff_ff
-ufunc_mathieu_modcem2_loops[1] = <np.PyUFuncGenericFunction>loop_i_ddd_dd_As_ddd_dd
-ufunc_mathieu_modcem2_types[0] = <char>NPY_FLOAT
-ufunc_mathieu_modcem2_types[1] = <char>NPY_FLOAT
-ufunc_mathieu_modcem2_types[2] = <char>NPY_FLOAT
-ufunc_mathieu_modcem2_types[3] = <char>NPY_FLOAT
-ufunc_mathieu_modcem2_types[4] = <char>NPY_FLOAT
-ufunc_mathieu_modcem2_types[5] = <char>NPY_DOUBLE
-ufunc_mathieu_modcem2_types[6] = <char>NPY_DOUBLE
-ufunc_mathieu_modcem2_types[7] = <char>NPY_DOUBLE
-ufunc_mathieu_modcem2_types[8] = <char>NPY_DOUBLE
-ufunc_mathieu_modcem2_types[9] = <char>NPY_DOUBLE
-ufunc_mathieu_modcem2_ptr[2*0] = <void*>_func_mcm2_wrap
-ufunc_mathieu_modcem2_ptr[2*0+1] = <void*>(<char*>"mathieu_modcem2")
-ufunc_mathieu_modcem2_ptr[2*1] = <void*>_func_mcm2_wrap
-ufunc_mathieu_modcem2_ptr[2*1+1] = <void*>(<char*>"mathieu_modcem2")
-ufunc_mathieu_modcem2_data[0] = &ufunc_mathieu_modcem2_ptr[2*0]
-ufunc_mathieu_modcem2_data[1] = &ufunc_mathieu_modcem2_ptr[2*1]
-mathieu_modcem2 = np.PyUFunc_FromFuncAndData(ufunc_mathieu_modcem2_loops, ufunc_mathieu_modcem2_data, ufunc_mathieu_modcem2_types, 2, 3, 2, 0, "mathieu_modcem2", ufunc_mathieu_modcem2_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_mathieu_modsem1_loops[2]
-cdef void *ufunc_mathieu_modsem1_ptr[4]
-cdef void *ufunc_mathieu_modsem1_data[2]
-cdef char ufunc_mathieu_modsem1_types[10]
-cdef char *ufunc_mathieu_modsem1_doc = (
-    "mathieu_modsem1(m, q, x, out=None)\n"
-    "\n"
-    "Odd modified Mathieu function of the first kind and its derivative\n"
-    "\n"
-    "Evaluates the odd modified Mathieu function of the first kind,\n"
-    "Ms1m(x, q), and its derivative at `x` (given in degrees) for order `m`\n"
-    "and parameter `q`.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "m : array_like\n"
-    "    Order of the function\n"
-    "q : array_like\n"
-    "    Parameter of the function\n"
-    "x : array_like\n"
-    "    Argument of the function, *given in degrees, not radians*\n"
-    "out : tuple of ndarray, optional\n"
-    "    Optional output arrays for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "y : scalar or ndarray\n"
-    "    Value of the function\n"
-    "yp : scalar or ndarray\n"
-    "    Value of the derivative vs x\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "mathieu_modcem1")
-ufunc_mathieu_modsem1_loops[0] = <np.PyUFuncGenericFunction>loop_i_ddd_dd_As_fff_ff
-ufunc_mathieu_modsem1_loops[1] = <np.PyUFuncGenericFunction>loop_i_ddd_dd_As_ddd_dd
-ufunc_mathieu_modsem1_types[0] = <char>NPY_FLOAT
-ufunc_mathieu_modsem1_types[1] = <char>NPY_FLOAT
-ufunc_mathieu_modsem1_types[2] = <char>NPY_FLOAT
-ufunc_mathieu_modsem1_types[3] = <char>NPY_FLOAT
-ufunc_mathieu_modsem1_types[4] = <char>NPY_FLOAT
-ufunc_mathieu_modsem1_types[5] = <char>NPY_DOUBLE
-ufunc_mathieu_modsem1_types[6] = <char>NPY_DOUBLE
-ufunc_mathieu_modsem1_types[7] = <char>NPY_DOUBLE
-ufunc_mathieu_modsem1_types[8] = <char>NPY_DOUBLE
-ufunc_mathieu_modsem1_types[9] = <char>NPY_DOUBLE
-ufunc_mathieu_modsem1_ptr[2*0] = <void*>_func_msm1_wrap
-ufunc_mathieu_modsem1_ptr[2*0+1] = <void*>(<char*>"mathieu_modsem1")
-ufunc_mathieu_modsem1_ptr[2*1] = <void*>_func_msm1_wrap
-ufunc_mathieu_modsem1_ptr[2*1+1] = <void*>(<char*>"mathieu_modsem1")
-ufunc_mathieu_modsem1_data[0] = &ufunc_mathieu_modsem1_ptr[2*0]
-ufunc_mathieu_modsem1_data[1] = &ufunc_mathieu_modsem1_ptr[2*1]
-mathieu_modsem1 = np.PyUFunc_FromFuncAndData(ufunc_mathieu_modsem1_loops, ufunc_mathieu_modsem1_data, ufunc_mathieu_modsem1_types, 2, 3, 2, 0, "mathieu_modsem1", ufunc_mathieu_modsem1_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_mathieu_modsem2_loops[2]
-cdef void *ufunc_mathieu_modsem2_ptr[4]
-cdef void *ufunc_mathieu_modsem2_data[2]
-cdef char ufunc_mathieu_modsem2_types[10]
-cdef char *ufunc_mathieu_modsem2_doc = (
-    "mathieu_modsem2(m, q, x, out=None)\n"
-    "\n"
-    "Odd modified Mathieu function of the second kind and its derivative\n"
-    "\n"
-    "Evaluates the odd modified Mathieu function of the second kind,\n"
-    "Ms2m(x, q), and its derivative at `x` (given in degrees) for order `m`\n"
-    "and parameter q.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "m : array_like\n"
-    "    Order of the function\n"
-    "q : array_like\n"
-    "    Parameter of the function\n"
-    "x : array_like\n"
-    "    Argument of the function, *given in degrees, not radians*\n"
-    "out : tuple of ndarray, optional\n"
-    "    Optional output arrays for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "y : scalar or ndarray\n"
-    "    Value of the function\n"
-    "yp : scalar or ndarray\n"
-    "    Value of the derivative vs x\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "mathieu_modcem2")
-ufunc_mathieu_modsem2_loops[0] = <np.PyUFuncGenericFunction>loop_i_ddd_dd_As_fff_ff
-ufunc_mathieu_modsem2_loops[1] = <np.PyUFuncGenericFunction>loop_i_ddd_dd_As_ddd_dd
-ufunc_mathieu_modsem2_types[0] = <char>NPY_FLOAT
-ufunc_mathieu_modsem2_types[1] = <char>NPY_FLOAT
-ufunc_mathieu_modsem2_types[2] = <char>NPY_FLOAT
-ufunc_mathieu_modsem2_types[3] = <char>NPY_FLOAT
-ufunc_mathieu_modsem2_types[4] = <char>NPY_FLOAT
-ufunc_mathieu_modsem2_types[5] = <char>NPY_DOUBLE
-ufunc_mathieu_modsem2_types[6] = <char>NPY_DOUBLE
-ufunc_mathieu_modsem2_types[7] = <char>NPY_DOUBLE
-ufunc_mathieu_modsem2_types[8] = <char>NPY_DOUBLE
-ufunc_mathieu_modsem2_types[9] = <char>NPY_DOUBLE
-ufunc_mathieu_modsem2_ptr[2*0] = <void*>_func_msm2_wrap
-ufunc_mathieu_modsem2_ptr[2*0+1] = <void*>(<char*>"mathieu_modsem2")
-ufunc_mathieu_modsem2_ptr[2*1] = <void*>_func_msm2_wrap
-ufunc_mathieu_modsem2_ptr[2*1+1] = <void*>(<char*>"mathieu_modsem2")
-ufunc_mathieu_modsem2_data[0] = &ufunc_mathieu_modsem2_ptr[2*0]
-ufunc_mathieu_modsem2_data[1] = &ufunc_mathieu_modsem2_ptr[2*1]
-mathieu_modsem2 = np.PyUFunc_FromFuncAndData(ufunc_mathieu_modsem2_loops, ufunc_mathieu_modsem2_data, ufunc_mathieu_modsem2_types, 2, 3, 2, 0, "mathieu_modsem2", ufunc_mathieu_modsem2_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_mathieu_sem_loops[2]
-cdef void *ufunc_mathieu_sem_ptr[4]
-cdef void *ufunc_mathieu_sem_data[2]
-cdef char ufunc_mathieu_sem_types[10]
-cdef char *ufunc_mathieu_sem_doc = (
-    "mathieu_sem(m, q, x, out=None)\n"
-    "\n"
-    "Odd Mathieu function and its derivative\n"
-    "\n"
-    "Returns the odd Mathieu function, se_m(x, q), of order `m` and\n"
-    "parameter `q` evaluated at `x` (given in degrees).  Also returns the\n"
-    "derivative with respect to `x` of se_m(x, q).\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "m : array_like\n"
-    "    Order of the function\n"
-    "q : array_like\n"
-    "    Parameter of the function\n"
-    "x : array_like\n"
-    "    Argument of the function, *given in degrees, not radians*.\n"
-    "out : tuple of ndarray, optional\n"
-    "    Optional output arrays for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "y : scalar or ndarray\n"
-    "    Value of the function\n"
-    "yp : scalar or ndarray\n"
-    "    Value of the derivative vs x\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "mathieu_a, mathieu_b, mathieu_cem")
-ufunc_mathieu_sem_loops[0] = <np.PyUFuncGenericFunction>loop_i_ddd_dd_As_fff_ff
-ufunc_mathieu_sem_loops[1] = <np.PyUFuncGenericFunction>loop_i_ddd_dd_As_ddd_dd
-ufunc_mathieu_sem_types[0] = <char>NPY_FLOAT
-ufunc_mathieu_sem_types[1] = <char>NPY_FLOAT
-ufunc_mathieu_sem_types[2] = <char>NPY_FLOAT
-ufunc_mathieu_sem_types[3] = <char>NPY_FLOAT
-ufunc_mathieu_sem_types[4] = <char>NPY_FLOAT
-ufunc_mathieu_sem_types[5] = <char>NPY_DOUBLE
-ufunc_mathieu_sem_types[6] = <char>NPY_DOUBLE
-ufunc_mathieu_sem_types[7] = <char>NPY_DOUBLE
-ufunc_mathieu_sem_types[8] = <char>NPY_DOUBLE
-ufunc_mathieu_sem_types[9] = <char>NPY_DOUBLE
-ufunc_mathieu_sem_ptr[2*0] = <void*>_func_sem_wrap
-ufunc_mathieu_sem_ptr[2*0+1] = <void*>(<char*>"mathieu_sem")
-ufunc_mathieu_sem_ptr[2*1] = <void*>_func_sem_wrap
-ufunc_mathieu_sem_ptr[2*1+1] = <void*>(<char*>"mathieu_sem")
-ufunc_mathieu_sem_data[0] = &ufunc_mathieu_sem_ptr[2*0]
-ufunc_mathieu_sem_data[1] = &ufunc_mathieu_sem_ptr[2*1]
-mathieu_sem = np.PyUFunc_FromFuncAndData(ufunc_mathieu_sem_loops, ufunc_mathieu_sem_data, ufunc_mathieu_sem_types, 2, 3, 2, 0, "mathieu_sem", ufunc_mathieu_sem_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_modfresnelm_loops[2]
-cdef void *ufunc_modfresnelm_ptr[4]
-cdef void *ufunc_modfresnelm_data[2]
-cdef char ufunc_modfresnelm_types[6]
-cdef char *ufunc_modfresnelm_doc = (
-    "modfresnelm(x, out=None)\n"
-    "\n"
-    "Modified Fresnel negative integrals\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "x : array_like\n"
-    "    Function argument\n"
-    "out : tuple of ndarray, optional\n"
-    "    Optional output arrays for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "fm : scalar or ndarray\n"
-    "    Integral ``F_-(x)``: ``integral(exp(-1j*t*t), t=x..inf)``\n"
-    "km : scalar or ndarray\n"
-    "    Integral ``K_-(x)``: ``1/sqrt(pi)*exp(1j*(x*x+pi/4))*fp``\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "modfresnelp")
-ufunc_modfresnelm_loops[0] = <np.PyUFuncGenericFunction>loop_i_d_DD_As_f_FF
-ufunc_modfresnelm_loops[1] = <np.PyUFuncGenericFunction>loop_i_d_DD_As_d_DD
-ufunc_modfresnelm_types[0] = <char>NPY_FLOAT
-ufunc_modfresnelm_types[1] = <char>NPY_CFLOAT
-ufunc_modfresnelm_types[2] = <char>NPY_CFLOAT
-ufunc_modfresnelm_types[3] = <char>NPY_DOUBLE
-ufunc_modfresnelm_types[4] = <char>NPY_CDOUBLE
-ufunc_modfresnelm_types[5] = <char>NPY_CDOUBLE
-ufunc_modfresnelm_ptr[2*0] = <void*>_func_modified_fresnel_minus_wrap
-ufunc_modfresnelm_ptr[2*0+1] = <void*>(<char*>"modfresnelm")
-ufunc_modfresnelm_ptr[2*1] = <void*>_func_modified_fresnel_minus_wrap
-ufunc_modfresnelm_ptr[2*1+1] = <void*>(<char*>"modfresnelm")
-ufunc_modfresnelm_data[0] = &ufunc_modfresnelm_ptr[2*0]
-ufunc_modfresnelm_data[1] = &ufunc_modfresnelm_ptr[2*1]
-modfresnelm = np.PyUFunc_FromFuncAndData(ufunc_modfresnelm_loops, ufunc_modfresnelm_data, ufunc_modfresnelm_types, 2, 1, 2, 0, "modfresnelm", ufunc_modfresnelm_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_modfresnelp_loops[2]
-cdef void *ufunc_modfresnelp_ptr[4]
-cdef void *ufunc_modfresnelp_data[2]
-cdef char ufunc_modfresnelp_types[6]
-cdef char *ufunc_modfresnelp_doc = (
-    "modfresnelp(x, out=None)\n"
-    "\n"
-    "Modified Fresnel positive integrals\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "x : array_like\n"
-    "    Function argument\n"
-    "out : tuple of ndarray, optional\n"
-    "    Optional output arrays for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "fp : scalar or ndarray\n"
-    "    Integral ``F_+(x)``: ``integral(exp(1j*t*t), t=x..inf)``\n"
-    "kp : scalar or ndarray\n"
-    "    Integral ``K_+(x)``: ``1/sqrt(pi)*exp(-1j*(x*x+pi/4))*fp``\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "modfresnelm")
-ufunc_modfresnelp_loops[0] = <np.PyUFuncGenericFunction>loop_i_d_DD_As_f_FF
-ufunc_modfresnelp_loops[1] = <np.PyUFuncGenericFunction>loop_i_d_DD_As_d_DD
-ufunc_modfresnelp_types[0] = <char>NPY_FLOAT
-ufunc_modfresnelp_types[1] = <char>NPY_CFLOAT
-ufunc_modfresnelp_types[2] = <char>NPY_CFLOAT
-ufunc_modfresnelp_types[3] = <char>NPY_DOUBLE
-ufunc_modfresnelp_types[4] = <char>NPY_CDOUBLE
-ufunc_modfresnelp_types[5] = <char>NPY_CDOUBLE
-ufunc_modfresnelp_ptr[2*0] = <void*>_func_modified_fresnel_plus_wrap
-ufunc_modfresnelp_ptr[2*0+1] = <void*>(<char*>"modfresnelp")
-ufunc_modfresnelp_ptr[2*1] = <void*>_func_modified_fresnel_plus_wrap
-ufunc_modfresnelp_ptr[2*1+1] = <void*>(<char*>"modfresnelp")
-ufunc_modfresnelp_data[0] = &ufunc_modfresnelp_ptr[2*0]
-ufunc_modfresnelp_data[1] = &ufunc_modfresnelp_ptr[2*1]
-modfresnelp = np.PyUFunc_FromFuncAndData(ufunc_modfresnelp_loops, ufunc_modfresnelp_data, ufunc_modfresnelp_types, 2, 1, 2, 0, "modfresnelp", ufunc_modfresnelp_doc, 0)
 
 cdef np.PyUFuncGenericFunction ufunc_modstruve_loops[2]
 cdef void *ufunc_modstruve_ptr[4]
@@ -15825,9 +12625,9 @@ ufunc_modstruve_types[2] = <char>NPY_FLOAT
 ufunc_modstruve_types[3] = <char>NPY_DOUBLE
 ufunc_modstruve_types[4] = <char>NPY_DOUBLE
 ufunc_modstruve_types[5] = <char>NPY_DOUBLE
-ufunc_modstruve_ptr[2*0] = <void*>_func_struve_l
+ufunc_modstruve_ptr[2*0] = <void*>_func_cephes_struve_l
 ufunc_modstruve_ptr[2*0+1] = <void*>(<char*>"modstruve")
-ufunc_modstruve_ptr[2*1] = <void*>_func_struve_l
+ufunc_modstruve_ptr[2*1] = <void*>_func_cephes_struve_l
 ufunc_modstruve_ptr[2*1+1] = <void*>(<char*>"modstruve")
 ufunc_modstruve_data[0] = &ufunc_modstruve_ptr[2*0]
 ufunc_modstruve_data[1] = &ufunc_modstruve_ptr[2*1]
@@ -15960,11 +12760,11 @@ cdef char *ufunc_nbdtr_doc = (
     "array([[0.15026833, 0.62304687, 0.95265101, 0.9998531 ],\n"
     "       [0.48450894, 0.94076538, 0.99932777, 0.99999999],\n"
     "       [0.76249222, 0.99409103, 0.99999445, 1.        ]])")
-ufunc_nbdtr_loops[0] = <np.PyUFuncGenericFunction>loop_d_iid__As_lld_d
+ufunc_nbdtr_loops[0] = <np.PyUFuncGenericFunction>loop_d_ppd__As_ppd_d
 ufunc_nbdtr_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_fff_f
 ufunc_nbdtr_loops[2] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
-ufunc_nbdtr_types[0] = <char>NPY_LONG
-ufunc_nbdtr_types[1] = <char>NPY_LONG
+ufunc_nbdtr_types[0] = <char>NPY_INTP
+ufunc_nbdtr_types[1] = <char>NPY_INTP
 ufunc_nbdtr_types[2] = <char>NPY_DOUBLE
 ufunc_nbdtr_types[3] = <char>NPY_DOUBLE
 ufunc_nbdtr_types[4] = <char>NPY_FLOAT
@@ -15975,7 +12775,7 @@ ufunc_nbdtr_types[8] = <char>NPY_DOUBLE
 ufunc_nbdtr_types[9] = <char>NPY_DOUBLE
 ufunc_nbdtr_types[10] = <char>NPY_DOUBLE
 ufunc_nbdtr_types[11] = <char>NPY_DOUBLE
-ufunc_nbdtr_ptr[2*0] = <void*>_func_nbdtr
+ufunc_nbdtr_ptr[2*0] = <void*>_func_cephes_nbdtr_wrap
 ufunc_nbdtr_ptr[2*0+1] = <void*>(<char*>"nbdtr")
 ufunc_nbdtr_ptr[2*1] = <void*>_func_nbdtr_unsafe
 ufunc_nbdtr_ptr[2*1+1] = <void*>(<char*>"nbdtr")
@@ -16113,11 +12913,11 @@ cdef char *ufunc_nbdtrc_doc = (
     "array([[8.49731667e-01, 3.76953125e-01, 4.73489874e-02, 1.46902600e-04],\n"
     "       [5.15491059e-01, 5.92346191e-02, 6.72234070e-04, 9.29610100e-09],\n"
     "       [2.37507779e-01, 5.90896606e-03, 5.55025308e-06, 3.26346760e-13]])")
-ufunc_nbdtrc_loops[0] = <np.PyUFuncGenericFunction>loop_d_iid__As_lld_d
+ufunc_nbdtrc_loops[0] = <np.PyUFuncGenericFunction>loop_d_ppd__As_ppd_d
 ufunc_nbdtrc_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_fff_f
 ufunc_nbdtrc_loops[2] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
-ufunc_nbdtrc_types[0] = <char>NPY_LONG
-ufunc_nbdtrc_types[1] = <char>NPY_LONG
+ufunc_nbdtrc_types[0] = <char>NPY_INTP
+ufunc_nbdtrc_types[1] = <char>NPY_INTP
 ufunc_nbdtrc_types[2] = <char>NPY_DOUBLE
 ufunc_nbdtrc_types[3] = <char>NPY_DOUBLE
 ufunc_nbdtrc_types[4] = <char>NPY_FLOAT
@@ -16128,7 +12928,7 @@ ufunc_nbdtrc_types[8] = <char>NPY_DOUBLE
 ufunc_nbdtrc_types[9] = <char>NPY_DOUBLE
 ufunc_nbdtrc_types[10] = <char>NPY_DOUBLE
 ufunc_nbdtrc_types[11] = <char>NPY_DOUBLE
-ufunc_nbdtrc_ptr[2*0] = <void*>_func_nbdtrc
+ufunc_nbdtrc_ptr[2*0] = <void*>_func_cephes_nbdtrc_wrap
 ufunc_nbdtrc_ptr[2*0+1] = <void*>(<char*>"nbdtrc")
 ufunc_nbdtrc_ptr[2*1] = <void*>_func_nbdtrc_unsafe
 ufunc_nbdtrc_ptr[2*1+1] = <void*>(<char*>"nbdtrc")
@@ -16244,11 +13044,11 @@ cdef char *ufunc_nbdtri_doc = (
     "array([[0.37258157, 0.45169416, 0.53249956, 0.64578407],\n"
     "       [0.24588501, 0.30451981, 0.36778453, 0.46397088],\n"
     "       [0.18362101, 0.22966758, 0.28054743, 0.36066188]])")
-ufunc_nbdtri_loops[0] = <np.PyUFuncGenericFunction>loop_d_iid__As_lld_d
+ufunc_nbdtri_loops[0] = <np.PyUFuncGenericFunction>loop_d_ppd__As_ppd_d
 ufunc_nbdtri_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_fff_f
 ufunc_nbdtri_loops[2] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
-ufunc_nbdtri_types[0] = <char>NPY_LONG
-ufunc_nbdtri_types[1] = <char>NPY_LONG
+ufunc_nbdtri_types[0] = <char>NPY_INTP
+ufunc_nbdtri_types[1] = <char>NPY_INTP
 ufunc_nbdtri_types[2] = <char>NPY_DOUBLE
 ufunc_nbdtri_types[3] = <char>NPY_DOUBLE
 ufunc_nbdtri_types[4] = <char>NPY_FLOAT
@@ -16259,7 +13059,7 @@ ufunc_nbdtri_types[8] = <char>NPY_DOUBLE
 ufunc_nbdtri_types[9] = <char>NPY_DOUBLE
 ufunc_nbdtri_types[10] = <char>NPY_DOUBLE
 ufunc_nbdtri_types[11] = <char>NPY_DOUBLE
-ufunc_nbdtri_ptr[2*0] = <void*>_func_nbdtri
+ufunc_nbdtri_ptr[2*0] = <void*>_func_cephes_nbdtri_wrap
 ufunc_nbdtri_ptr[2*0+1] = <void*>(<char*>"nbdtri")
 ufunc_nbdtri_ptr[2*1] = <void*>_func_nbdtri_unsafe
 ufunc_nbdtri_ptr[2*1+1] = <void*>(<char*>"nbdtri")
@@ -17248,9 +14048,9 @@ ufunc_ndtr_types[4] = <char>NPY_CFLOAT
 ufunc_ndtr_types[5] = <char>NPY_CFLOAT
 ufunc_ndtr_types[6] = <char>NPY_CDOUBLE
 ufunc_ndtr_types[7] = <char>NPY_CDOUBLE
-ufunc_ndtr_ptr[2*0] = <void*>_func_ndtr
+ufunc_ndtr_ptr[2*0] = <void*>_func_cephes_ndtr
 ufunc_ndtr_ptr[2*0+1] = <void*>(<char*>"ndtr")
-ufunc_ndtr_ptr[2*1] = <void*>_func_ndtr
+ufunc_ndtr_ptr[2*1] = <void*>_func_cephes_ndtr
 ufunc_ndtr_ptr[2*1+1] = <void*>(<char*>"ndtr")
 ufunc_ndtr_ptr[2*2] = <void*>scipy.special._ufuncs_cxx._export_faddeeva_ndtr
 ufunc_ndtr_ptr[2*2+1] = <void*>(<char*>"ndtr")
@@ -17324,9 +14124,9 @@ ufunc_ndtri_types[0] = <char>NPY_FLOAT
 ufunc_ndtri_types[1] = <char>NPY_FLOAT
 ufunc_ndtri_types[2] = <char>NPY_DOUBLE
 ufunc_ndtri_types[3] = <char>NPY_DOUBLE
-ufunc_ndtri_ptr[2*0] = <void*>_func_ndtri
+ufunc_ndtri_ptr[2*0] = <void*>_func_cephes_ndtri
 ufunc_ndtri_ptr[2*0+1] = <void*>(<char*>"ndtri")
-ufunc_ndtri_ptr[2*1] = <void*>_func_ndtri
+ufunc_ndtri_ptr[2*1] = <void*>_func_cephes_ndtri
 ufunc_ndtri_ptr[2*1+1] = <void*>(<char*>"ndtri")
 ufunc_ndtri_data[0] = &ufunc_ndtri_ptr[2*0]
 ufunc_ndtri_data[1] = &ufunc_ndtri_ptr[2*1]
@@ -17545,414 +14345,6 @@ ufunc_nrdtrisd_data[0] = &ufunc_nrdtrisd_ptr[2*0]
 ufunc_nrdtrisd_data[1] = &ufunc_nrdtrisd_ptr[2*1]
 nrdtrisd = np.PyUFunc_FromFuncAndData(ufunc_nrdtrisd_loops, ufunc_nrdtrisd_data, ufunc_nrdtrisd_types, 2, 3, 1, 0, "nrdtrisd", ufunc_nrdtrisd_doc, 0)
 
-cdef np.PyUFuncGenericFunction ufunc_obl_ang1_loops[2]
-cdef void *ufunc_obl_ang1_ptr[4]
-cdef void *ufunc_obl_ang1_data[2]
-cdef char ufunc_obl_ang1_types[12]
-cdef char *ufunc_obl_ang1_doc = (
-    "obl_ang1(m, n, c, x, out=None)\n"
-    "\n"
-    "Oblate spheroidal angular function of the first kind and its derivative\n"
-    "\n"
-    "Computes the oblate spheroidal angular function of the first kind\n"
-    "and its derivative (with respect to `x`) for mode parameters m>=0\n"
-    "and n>=m, spheroidal parameter `c` and ``|x| < 1.0``.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "m : array_like\n"
-    "    Mode parameter m (nonnegative)\n"
-    "n : array_like\n"
-    "    Mode parameter n (>= m)\n"
-    "c : array_like\n"
-    "    Spheroidal parameter\n"
-    "x : array_like\n"
-    "    Parameter x (``|x| < 1.0``)\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "s : scalar or ndarray\n"
-    "    Value of the function\n"
-    "sp : scalar or ndarray\n"
-    "    Value of the derivative vs x\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "obl_ang1_cv")
-ufunc_obl_ang1_loops[0] = <np.PyUFuncGenericFunction>loop_d_dddd_d_As_ffff_ff
-ufunc_obl_ang1_loops[1] = <np.PyUFuncGenericFunction>loop_d_dddd_d_As_dddd_dd
-ufunc_obl_ang1_types[0] = <char>NPY_FLOAT
-ufunc_obl_ang1_types[1] = <char>NPY_FLOAT
-ufunc_obl_ang1_types[2] = <char>NPY_FLOAT
-ufunc_obl_ang1_types[3] = <char>NPY_FLOAT
-ufunc_obl_ang1_types[4] = <char>NPY_FLOAT
-ufunc_obl_ang1_types[5] = <char>NPY_FLOAT
-ufunc_obl_ang1_types[6] = <char>NPY_DOUBLE
-ufunc_obl_ang1_types[7] = <char>NPY_DOUBLE
-ufunc_obl_ang1_types[8] = <char>NPY_DOUBLE
-ufunc_obl_ang1_types[9] = <char>NPY_DOUBLE
-ufunc_obl_ang1_types[10] = <char>NPY_DOUBLE
-ufunc_obl_ang1_types[11] = <char>NPY_DOUBLE
-ufunc_obl_ang1_ptr[2*0] = <void*>_func_oblate_aswfa_nocv_wrap
-ufunc_obl_ang1_ptr[2*0+1] = <void*>(<char*>"obl_ang1")
-ufunc_obl_ang1_ptr[2*1] = <void*>_func_oblate_aswfa_nocv_wrap
-ufunc_obl_ang1_ptr[2*1+1] = <void*>(<char*>"obl_ang1")
-ufunc_obl_ang1_data[0] = &ufunc_obl_ang1_ptr[2*0]
-ufunc_obl_ang1_data[1] = &ufunc_obl_ang1_ptr[2*1]
-obl_ang1 = np.PyUFunc_FromFuncAndData(ufunc_obl_ang1_loops, ufunc_obl_ang1_data, ufunc_obl_ang1_types, 2, 4, 2, 0, "obl_ang1", ufunc_obl_ang1_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_obl_ang1_cv_loops[2]
-cdef void *ufunc_obl_ang1_cv_ptr[4]
-cdef void *ufunc_obl_ang1_cv_data[2]
-cdef char ufunc_obl_ang1_cv_types[14]
-cdef char *ufunc_obl_ang1_cv_doc = (
-    "obl_ang1_cv(m, n, c, cv, x, out=None)\n"
-    "\n"
-    "Oblate spheroidal angular function obl_ang1 for precomputed characteristic value\n"
-    "\n"
-    "Computes the oblate spheroidal angular function of the first kind\n"
-    "and its derivative (with respect to `x`) for mode parameters m>=0\n"
-    "and n>=m, spheroidal parameter `c` and ``|x| < 1.0``. Requires\n"
-    "pre-computed characteristic value.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "m : array_like\n"
-    "    Mode parameter m (nonnegative)\n"
-    "n : array_like\n"
-    "    Mode parameter n (>= m)\n"
-    "c : array_like\n"
-    "    Spheroidal parameter\n"
-    "cv : array_like\n"
-    "    Characteristic value\n"
-    "x : array_like\n"
-    "    Parameter x (``|x| < 1.0``)\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "s : scalar or ndarray\n"
-    "    Value of the function\n"
-    "sp : scalar or ndarray\n"
-    "    Value of the derivative vs x\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "obl_ang1")
-ufunc_obl_ang1_cv_loops[0] = <np.PyUFuncGenericFunction>loop_i_ddddd_dd_As_fffff_ff
-ufunc_obl_ang1_cv_loops[1] = <np.PyUFuncGenericFunction>loop_i_ddddd_dd_As_ddddd_dd
-ufunc_obl_ang1_cv_types[0] = <char>NPY_FLOAT
-ufunc_obl_ang1_cv_types[1] = <char>NPY_FLOAT
-ufunc_obl_ang1_cv_types[2] = <char>NPY_FLOAT
-ufunc_obl_ang1_cv_types[3] = <char>NPY_FLOAT
-ufunc_obl_ang1_cv_types[4] = <char>NPY_FLOAT
-ufunc_obl_ang1_cv_types[5] = <char>NPY_FLOAT
-ufunc_obl_ang1_cv_types[6] = <char>NPY_FLOAT
-ufunc_obl_ang1_cv_types[7] = <char>NPY_DOUBLE
-ufunc_obl_ang1_cv_types[8] = <char>NPY_DOUBLE
-ufunc_obl_ang1_cv_types[9] = <char>NPY_DOUBLE
-ufunc_obl_ang1_cv_types[10] = <char>NPY_DOUBLE
-ufunc_obl_ang1_cv_types[11] = <char>NPY_DOUBLE
-ufunc_obl_ang1_cv_types[12] = <char>NPY_DOUBLE
-ufunc_obl_ang1_cv_types[13] = <char>NPY_DOUBLE
-ufunc_obl_ang1_cv_ptr[2*0] = <void*>_func_oblate_aswfa_wrap
-ufunc_obl_ang1_cv_ptr[2*0+1] = <void*>(<char*>"obl_ang1_cv")
-ufunc_obl_ang1_cv_ptr[2*1] = <void*>_func_oblate_aswfa_wrap
-ufunc_obl_ang1_cv_ptr[2*1+1] = <void*>(<char*>"obl_ang1_cv")
-ufunc_obl_ang1_cv_data[0] = &ufunc_obl_ang1_cv_ptr[2*0]
-ufunc_obl_ang1_cv_data[1] = &ufunc_obl_ang1_cv_ptr[2*1]
-obl_ang1_cv = np.PyUFunc_FromFuncAndData(ufunc_obl_ang1_cv_loops, ufunc_obl_ang1_cv_data, ufunc_obl_ang1_cv_types, 2, 5, 2, 0, "obl_ang1_cv", ufunc_obl_ang1_cv_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_obl_cv_loops[2]
-cdef void *ufunc_obl_cv_ptr[4]
-cdef void *ufunc_obl_cv_data[2]
-cdef char ufunc_obl_cv_types[8]
-cdef char *ufunc_obl_cv_doc = (
-    "obl_cv(m, n, c, out=None)\n"
-    "\n"
-    "Characteristic value of oblate spheroidal function\n"
-    "\n"
-    "Computes the characteristic value of oblate spheroidal wave\n"
-    "functions of order `m`, `n` (n>=m) and spheroidal parameter `c`.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "m : array_like\n"
-    "    Mode parameter m (nonnegative)\n"
-    "n : array_like\n"
-    "    Mode parameter n (>= m)\n"
-    "c : array_like\n"
-    "    Spheroidal parameter\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "cv : scalar or ndarray\n"
-    "    Characteristic value")
-ufunc_obl_cv_loops[0] = <np.PyUFuncGenericFunction>loop_d_ddd__As_fff_f
-ufunc_obl_cv_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
-ufunc_obl_cv_types[0] = <char>NPY_FLOAT
-ufunc_obl_cv_types[1] = <char>NPY_FLOAT
-ufunc_obl_cv_types[2] = <char>NPY_FLOAT
-ufunc_obl_cv_types[3] = <char>NPY_FLOAT
-ufunc_obl_cv_types[4] = <char>NPY_DOUBLE
-ufunc_obl_cv_types[5] = <char>NPY_DOUBLE
-ufunc_obl_cv_types[6] = <char>NPY_DOUBLE
-ufunc_obl_cv_types[7] = <char>NPY_DOUBLE
-ufunc_obl_cv_ptr[2*0] = <void*>_func_oblate_segv_wrap
-ufunc_obl_cv_ptr[2*0+1] = <void*>(<char*>"obl_cv")
-ufunc_obl_cv_ptr[2*1] = <void*>_func_oblate_segv_wrap
-ufunc_obl_cv_ptr[2*1+1] = <void*>(<char*>"obl_cv")
-ufunc_obl_cv_data[0] = &ufunc_obl_cv_ptr[2*0]
-ufunc_obl_cv_data[1] = &ufunc_obl_cv_ptr[2*1]
-obl_cv = np.PyUFunc_FromFuncAndData(ufunc_obl_cv_loops, ufunc_obl_cv_data, ufunc_obl_cv_types, 2, 3, 1, 0, "obl_cv", ufunc_obl_cv_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_obl_rad1_loops[2]
-cdef void *ufunc_obl_rad1_ptr[4]
-cdef void *ufunc_obl_rad1_data[2]
-cdef char ufunc_obl_rad1_types[12]
-cdef char *ufunc_obl_rad1_doc = (
-    "obl_rad1(m, n, c, x, out=None)\n"
-    "\n"
-    "Oblate spheroidal radial function of the first kind and its derivative\n"
-    "\n"
-    "Computes the oblate spheroidal radial function of the first kind\n"
-    "and its derivative (with respect to `x`) for mode parameters m>=0\n"
-    "and n>=m, spheroidal parameter `c` and ``|x| < 1.0``.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "m : array_like\n"
-    "    Mode parameter m (nonnegative)\n"
-    "n : array_like\n"
-    "    Mode parameter n (>= m)\n"
-    "c : array_like\n"
-    "    Spheroidal parameter\n"
-    "x : array_like\n"
-    "    Parameter x (``|x| < 1.0``)\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "s : scalar or ndarray\n"
-    "    Value of the function\n"
-    "sp : scalar or ndarray\n"
-    "    Value of the derivative vs x\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "obl_rad1_cv")
-ufunc_obl_rad1_loops[0] = <np.PyUFuncGenericFunction>loop_d_dddd_d_As_ffff_ff
-ufunc_obl_rad1_loops[1] = <np.PyUFuncGenericFunction>loop_d_dddd_d_As_dddd_dd
-ufunc_obl_rad1_types[0] = <char>NPY_FLOAT
-ufunc_obl_rad1_types[1] = <char>NPY_FLOAT
-ufunc_obl_rad1_types[2] = <char>NPY_FLOAT
-ufunc_obl_rad1_types[3] = <char>NPY_FLOAT
-ufunc_obl_rad1_types[4] = <char>NPY_FLOAT
-ufunc_obl_rad1_types[5] = <char>NPY_FLOAT
-ufunc_obl_rad1_types[6] = <char>NPY_DOUBLE
-ufunc_obl_rad1_types[7] = <char>NPY_DOUBLE
-ufunc_obl_rad1_types[8] = <char>NPY_DOUBLE
-ufunc_obl_rad1_types[9] = <char>NPY_DOUBLE
-ufunc_obl_rad1_types[10] = <char>NPY_DOUBLE
-ufunc_obl_rad1_types[11] = <char>NPY_DOUBLE
-ufunc_obl_rad1_ptr[2*0] = <void*>_func_oblate_radial1_nocv_wrap
-ufunc_obl_rad1_ptr[2*0+1] = <void*>(<char*>"obl_rad1")
-ufunc_obl_rad1_ptr[2*1] = <void*>_func_oblate_radial1_nocv_wrap
-ufunc_obl_rad1_ptr[2*1+1] = <void*>(<char*>"obl_rad1")
-ufunc_obl_rad1_data[0] = &ufunc_obl_rad1_ptr[2*0]
-ufunc_obl_rad1_data[1] = &ufunc_obl_rad1_ptr[2*1]
-obl_rad1 = np.PyUFunc_FromFuncAndData(ufunc_obl_rad1_loops, ufunc_obl_rad1_data, ufunc_obl_rad1_types, 2, 4, 2, 0, "obl_rad1", ufunc_obl_rad1_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_obl_rad1_cv_loops[2]
-cdef void *ufunc_obl_rad1_cv_ptr[4]
-cdef void *ufunc_obl_rad1_cv_data[2]
-cdef char ufunc_obl_rad1_cv_types[14]
-cdef char *ufunc_obl_rad1_cv_doc = (
-    "obl_rad1_cv(m, n, c, cv, x, out=None)\n"
-    "\n"
-    "Oblate spheroidal radial function obl_rad1 for precomputed characteristic value\n"
-    "\n"
-    "Computes the oblate spheroidal radial function of the first kind\n"
-    "and its derivative (with respect to `x`) for mode parameters m>=0\n"
-    "and n>=m, spheroidal parameter `c` and ``|x| < 1.0``. Requires\n"
-    "pre-computed characteristic value.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "m : array_like\n"
-    "    Mode parameter m (nonnegative)\n"
-    "n : array_like\n"
-    "    Mode parameter n (>= m)\n"
-    "c : array_like\n"
-    "    Spheroidal parameter\n"
-    "cv : array_like\n"
-    "    Characteristic value\n"
-    "x : array_like\n"
-    "    Parameter x (``|x| < 1.0``)\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "s : scalar or ndarray\n"
-    "    Value of the function\n"
-    "sp : scalar or ndarray\n"
-    "    Value of the derivative vs x\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "obl_rad1")
-ufunc_obl_rad1_cv_loops[0] = <np.PyUFuncGenericFunction>loop_i_ddddd_dd_As_fffff_ff
-ufunc_obl_rad1_cv_loops[1] = <np.PyUFuncGenericFunction>loop_i_ddddd_dd_As_ddddd_dd
-ufunc_obl_rad1_cv_types[0] = <char>NPY_FLOAT
-ufunc_obl_rad1_cv_types[1] = <char>NPY_FLOAT
-ufunc_obl_rad1_cv_types[2] = <char>NPY_FLOAT
-ufunc_obl_rad1_cv_types[3] = <char>NPY_FLOAT
-ufunc_obl_rad1_cv_types[4] = <char>NPY_FLOAT
-ufunc_obl_rad1_cv_types[5] = <char>NPY_FLOAT
-ufunc_obl_rad1_cv_types[6] = <char>NPY_FLOAT
-ufunc_obl_rad1_cv_types[7] = <char>NPY_DOUBLE
-ufunc_obl_rad1_cv_types[8] = <char>NPY_DOUBLE
-ufunc_obl_rad1_cv_types[9] = <char>NPY_DOUBLE
-ufunc_obl_rad1_cv_types[10] = <char>NPY_DOUBLE
-ufunc_obl_rad1_cv_types[11] = <char>NPY_DOUBLE
-ufunc_obl_rad1_cv_types[12] = <char>NPY_DOUBLE
-ufunc_obl_rad1_cv_types[13] = <char>NPY_DOUBLE
-ufunc_obl_rad1_cv_ptr[2*0] = <void*>_func_oblate_radial1_wrap
-ufunc_obl_rad1_cv_ptr[2*0+1] = <void*>(<char*>"obl_rad1_cv")
-ufunc_obl_rad1_cv_ptr[2*1] = <void*>_func_oblate_radial1_wrap
-ufunc_obl_rad1_cv_ptr[2*1+1] = <void*>(<char*>"obl_rad1_cv")
-ufunc_obl_rad1_cv_data[0] = &ufunc_obl_rad1_cv_ptr[2*0]
-ufunc_obl_rad1_cv_data[1] = &ufunc_obl_rad1_cv_ptr[2*1]
-obl_rad1_cv = np.PyUFunc_FromFuncAndData(ufunc_obl_rad1_cv_loops, ufunc_obl_rad1_cv_data, ufunc_obl_rad1_cv_types, 2, 5, 2, 0, "obl_rad1_cv", ufunc_obl_rad1_cv_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_obl_rad2_loops[2]
-cdef void *ufunc_obl_rad2_ptr[4]
-cdef void *ufunc_obl_rad2_data[2]
-cdef char ufunc_obl_rad2_types[12]
-cdef char *ufunc_obl_rad2_doc = (
-    "obl_rad2(m, n, c, x, out=None)\n"
-    "\n"
-    "Oblate spheroidal radial function of the second kind and its derivative.\n"
-    "\n"
-    "Computes the oblate spheroidal radial function of the second kind\n"
-    "and its derivative (with respect to `x`) for mode parameters m>=0\n"
-    "and n>=m, spheroidal parameter `c` and ``|x| < 1.0``.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "m : array_like\n"
-    "    Mode parameter m (nonnegative)\n"
-    "n : array_like\n"
-    "    Mode parameter n (>= m)\n"
-    "c : array_like\n"
-    "    Spheroidal parameter\n"
-    "x : array_like\n"
-    "    Parameter x (``|x| < 1.0``)\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "s : scalar or ndarray\n"
-    "    Value of the function\n"
-    "sp : scalar or ndarray\n"
-    "    Value of the derivative vs x\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "obl_rad2_cv")
-ufunc_obl_rad2_loops[0] = <np.PyUFuncGenericFunction>loop_d_dddd_d_As_ffff_ff
-ufunc_obl_rad2_loops[1] = <np.PyUFuncGenericFunction>loop_d_dddd_d_As_dddd_dd
-ufunc_obl_rad2_types[0] = <char>NPY_FLOAT
-ufunc_obl_rad2_types[1] = <char>NPY_FLOAT
-ufunc_obl_rad2_types[2] = <char>NPY_FLOAT
-ufunc_obl_rad2_types[3] = <char>NPY_FLOAT
-ufunc_obl_rad2_types[4] = <char>NPY_FLOAT
-ufunc_obl_rad2_types[5] = <char>NPY_FLOAT
-ufunc_obl_rad2_types[6] = <char>NPY_DOUBLE
-ufunc_obl_rad2_types[7] = <char>NPY_DOUBLE
-ufunc_obl_rad2_types[8] = <char>NPY_DOUBLE
-ufunc_obl_rad2_types[9] = <char>NPY_DOUBLE
-ufunc_obl_rad2_types[10] = <char>NPY_DOUBLE
-ufunc_obl_rad2_types[11] = <char>NPY_DOUBLE
-ufunc_obl_rad2_ptr[2*0] = <void*>_func_oblate_radial2_nocv_wrap
-ufunc_obl_rad2_ptr[2*0+1] = <void*>(<char*>"obl_rad2")
-ufunc_obl_rad2_ptr[2*1] = <void*>_func_oblate_radial2_nocv_wrap
-ufunc_obl_rad2_ptr[2*1+1] = <void*>(<char*>"obl_rad2")
-ufunc_obl_rad2_data[0] = &ufunc_obl_rad2_ptr[2*0]
-ufunc_obl_rad2_data[1] = &ufunc_obl_rad2_ptr[2*1]
-obl_rad2 = np.PyUFunc_FromFuncAndData(ufunc_obl_rad2_loops, ufunc_obl_rad2_data, ufunc_obl_rad2_types, 2, 4, 2, 0, "obl_rad2", ufunc_obl_rad2_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_obl_rad2_cv_loops[2]
-cdef void *ufunc_obl_rad2_cv_ptr[4]
-cdef void *ufunc_obl_rad2_cv_data[2]
-cdef char ufunc_obl_rad2_cv_types[14]
-cdef char *ufunc_obl_rad2_cv_doc = (
-    "obl_rad2_cv(m, n, c, cv, x, out=None)\n"
-    "\n"
-    "Oblate spheroidal radial function obl_rad2 for precomputed characteristic value\n"
-    "\n"
-    "Computes the oblate spheroidal radial function of the second kind\n"
-    "and its derivative (with respect to `x`) for mode parameters m>=0\n"
-    "and n>=m, spheroidal parameter `c` and ``|x| < 1.0``. Requires\n"
-    "pre-computed characteristic value.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "m : array_like\n"
-    "    Mode parameter m (nonnegative)\n"
-    "n : array_like\n"
-    "    Mode parameter n (>= m)\n"
-    "c : array_like\n"
-    "    Spheroidal parameter\n"
-    "cv : array_like\n"
-    "    Characteristic value\n"
-    "x : array_like\n"
-    "    Parameter x (``|x| < 1.0``)\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "s : scalar or ndarray\n"
-    "    Value of the function\n"
-    "sp : scalar or ndarray\n"
-    "    Value of the derivative vs x\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "obl_rad2")
-ufunc_obl_rad2_cv_loops[0] = <np.PyUFuncGenericFunction>loop_i_ddddd_dd_As_fffff_ff
-ufunc_obl_rad2_cv_loops[1] = <np.PyUFuncGenericFunction>loop_i_ddddd_dd_As_ddddd_dd
-ufunc_obl_rad2_cv_types[0] = <char>NPY_FLOAT
-ufunc_obl_rad2_cv_types[1] = <char>NPY_FLOAT
-ufunc_obl_rad2_cv_types[2] = <char>NPY_FLOAT
-ufunc_obl_rad2_cv_types[3] = <char>NPY_FLOAT
-ufunc_obl_rad2_cv_types[4] = <char>NPY_FLOAT
-ufunc_obl_rad2_cv_types[5] = <char>NPY_FLOAT
-ufunc_obl_rad2_cv_types[6] = <char>NPY_FLOAT
-ufunc_obl_rad2_cv_types[7] = <char>NPY_DOUBLE
-ufunc_obl_rad2_cv_types[8] = <char>NPY_DOUBLE
-ufunc_obl_rad2_cv_types[9] = <char>NPY_DOUBLE
-ufunc_obl_rad2_cv_types[10] = <char>NPY_DOUBLE
-ufunc_obl_rad2_cv_types[11] = <char>NPY_DOUBLE
-ufunc_obl_rad2_cv_types[12] = <char>NPY_DOUBLE
-ufunc_obl_rad2_cv_types[13] = <char>NPY_DOUBLE
-ufunc_obl_rad2_cv_ptr[2*0] = <void*>_func_oblate_radial2_wrap
-ufunc_obl_rad2_cv_ptr[2*0+1] = <void*>(<char*>"obl_rad2_cv")
-ufunc_obl_rad2_cv_ptr[2*1] = <void*>_func_oblate_radial2_wrap
-ufunc_obl_rad2_cv_ptr[2*1+1] = <void*>(<char*>"obl_rad2_cv")
-ufunc_obl_rad2_cv_data[0] = &ufunc_obl_rad2_cv_ptr[2*0]
-ufunc_obl_rad2_cv_data[1] = &ufunc_obl_rad2_cv_ptr[2*1]
-obl_rad2_cv = np.PyUFunc_FromFuncAndData(ufunc_obl_rad2_cv_loops, ufunc_obl_rad2_cv_data, ufunc_obl_rad2_cv_types, 2, 5, 2, 0, "obl_rad2_cv", ufunc_obl_rad2_cv_doc, 0)
-
 cdef np.PyUFuncGenericFunction ufunc_owens_t_loops[2]
 cdef void *ufunc_owens_t_ptr[4]
 cdef void *ufunc_owens_t_data[2]
@@ -18001,167 +14393,13 @@ ufunc_owens_t_types[2] = <char>NPY_FLOAT
 ufunc_owens_t_types[3] = <char>NPY_DOUBLE
 ufunc_owens_t_types[4] = <char>NPY_DOUBLE
 ufunc_owens_t_types[5] = <char>NPY_DOUBLE
-ufunc_owens_t_ptr[2*0] = <void*>_func_owens_t
+ufunc_owens_t_ptr[2*0] = <void*>_func_cephes_owens_t
 ufunc_owens_t_ptr[2*0+1] = <void*>(<char*>"owens_t")
-ufunc_owens_t_ptr[2*1] = <void*>_func_owens_t
+ufunc_owens_t_ptr[2*1] = <void*>_func_cephes_owens_t
 ufunc_owens_t_ptr[2*1+1] = <void*>(<char*>"owens_t")
 ufunc_owens_t_data[0] = &ufunc_owens_t_ptr[2*0]
 ufunc_owens_t_data[1] = &ufunc_owens_t_ptr[2*1]
 owens_t = np.PyUFunc_FromFuncAndData(ufunc_owens_t_loops, ufunc_owens_t_data, ufunc_owens_t_types, 2, 2, 1, 0, "owens_t", ufunc_owens_t_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_pbdv_loops[2]
-cdef void *ufunc_pbdv_ptr[4]
-cdef void *ufunc_pbdv_data[2]
-cdef char ufunc_pbdv_types[8]
-cdef char *ufunc_pbdv_doc = (
-    "pbdv(v, x, out=None)\n"
-    "\n"
-    "Parabolic cylinder function D\n"
-    "\n"
-    "Returns (d, dp) the parabolic cylinder function Dv(x) in d and the\n"
-    "derivative, Dv'(x) in dp.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "v : array_like\n"
-    "    Real parameter\n"
-    "x : array_like\n"
-    "    Real argument\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "d : scalar or ndarray\n"
-    "    Value of the function\n"
-    "dp : scalar or ndarray\n"
-    "    Value of the derivative vs x")
-ufunc_pbdv_loops[0] = <np.PyUFuncGenericFunction>loop_i_dd_dd_As_ff_ff
-ufunc_pbdv_loops[1] = <np.PyUFuncGenericFunction>loop_i_dd_dd_As_dd_dd
-ufunc_pbdv_types[0] = <char>NPY_FLOAT
-ufunc_pbdv_types[1] = <char>NPY_FLOAT
-ufunc_pbdv_types[2] = <char>NPY_FLOAT
-ufunc_pbdv_types[3] = <char>NPY_FLOAT
-ufunc_pbdv_types[4] = <char>NPY_DOUBLE
-ufunc_pbdv_types[5] = <char>NPY_DOUBLE
-ufunc_pbdv_types[6] = <char>NPY_DOUBLE
-ufunc_pbdv_types[7] = <char>NPY_DOUBLE
-ufunc_pbdv_ptr[2*0] = <void*>_func_pbdv_wrap
-ufunc_pbdv_ptr[2*0+1] = <void*>(<char*>"pbdv")
-ufunc_pbdv_ptr[2*1] = <void*>_func_pbdv_wrap
-ufunc_pbdv_ptr[2*1+1] = <void*>(<char*>"pbdv")
-ufunc_pbdv_data[0] = &ufunc_pbdv_ptr[2*0]
-ufunc_pbdv_data[1] = &ufunc_pbdv_ptr[2*1]
-pbdv = np.PyUFunc_FromFuncAndData(ufunc_pbdv_loops, ufunc_pbdv_data, ufunc_pbdv_types, 2, 2, 2, 0, "pbdv", ufunc_pbdv_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_pbvv_loops[2]
-cdef void *ufunc_pbvv_ptr[4]
-cdef void *ufunc_pbvv_data[2]
-cdef char ufunc_pbvv_types[8]
-cdef char *ufunc_pbvv_doc = (
-    "pbvv(v, x, out=None)\n"
-    "\n"
-    "Parabolic cylinder function V\n"
-    "\n"
-    "Returns the parabolic cylinder function Vv(x) in v and the\n"
-    "derivative, Vv'(x) in vp.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "v : array_like\n"
-    "    Real parameter\n"
-    "x : array_like\n"
-    "    Real argument\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "v : scalar or ndarray\n"
-    "    Value of the function\n"
-    "vp : scalar or ndarray\n"
-    "    Value of the derivative vs x")
-ufunc_pbvv_loops[0] = <np.PyUFuncGenericFunction>loop_i_dd_dd_As_ff_ff
-ufunc_pbvv_loops[1] = <np.PyUFuncGenericFunction>loop_i_dd_dd_As_dd_dd
-ufunc_pbvv_types[0] = <char>NPY_FLOAT
-ufunc_pbvv_types[1] = <char>NPY_FLOAT
-ufunc_pbvv_types[2] = <char>NPY_FLOAT
-ufunc_pbvv_types[3] = <char>NPY_FLOAT
-ufunc_pbvv_types[4] = <char>NPY_DOUBLE
-ufunc_pbvv_types[5] = <char>NPY_DOUBLE
-ufunc_pbvv_types[6] = <char>NPY_DOUBLE
-ufunc_pbvv_types[7] = <char>NPY_DOUBLE
-ufunc_pbvv_ptr[2*0] = <void*>_func_pbvv_wrap
-ufunc_pbvv_ptr[2*0+1] = <void*>(<char*>"pbvv")
-ufunc_pbvv_ptr[2*1] = <void*>_func_pbvv_wrap
-ufunc_pbvv_ptr[2*1+1] = <void*>(<char*>"pbvv")
-ufunc_pbvv_data[0] = &ufunc_pbvv_ptr[2*0]
-ufunc_pbvv_data[1] = &ufunc_pbvv_ptr[2*1]
-pbvv = np.PyUFunc_FromFuncAndData(ufunc_pbvv_loops, ufunc_pbvv_data, ufunc_pbvv_types, 2, 2, 2, 0, "pbvv", ufunc_pbvv_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_pbwa_loops[2]
-cdef void *ufunc_pbwa_ptr[4]
-cdef void *ufunc_pbwa_data[2]
-cdef char ufunc_pbwa_types[8]
-cdef char *ufunc_pbwa_doc = (
-    "pbwa(a, x, out=None)\n"
-    "\n"
-    "Parabolic cylinder function W.\n"
-    "\n"
-    "The function is a particular solution to the differential equation\n"
-    "\n"
-    ".. math::\n"
-    "\n"
-    "    y'' + \\left(\\frac{1}{4}x^2 - a\\right)y = 0,\n"
-    "\n"
-    "for a full definition see section 12.14 in [1]_.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "a : array_like\n"
-    "    Real parameter\n"
-    "x : array_like\n"
-    "    Real argument\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "w : scalar or ndarray\n"
-    "    Value of the function\n"
-    "wp : scalar or ndarray\n"
-    "    Value of the derivative in x\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "The function is a wrapper for a Fortran routine by Zhang and Jin\n"
-    "[2]_. The implementation is accurate only for ``|a|, |x| < 5`` and\n"
-    "returns NaN outside that range.\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] Digital Library of Mathematical Functions, 14.30.\n"
-    "       https://dlmf.nist.gov/14.30\n"
-    ".. [2] Zhang, Shanjie and Jin, Jianming. \"Computation of Special\n"
-    "       Functions\", John Wiley and Sons, 1996.\n"
-    "       https://people.sc.fsu.edu/~jburkardt/f_src/special_functions/special_functions.html")
-ufunc_pbwa_loops[0] = <np.PyUFuncGenericFunction>loop_i_dd_dd_As_ff_ff
-ufunc_pbwa_loops[1] = <np.PyUFuncGenericFunction>loop_i_dd_dd_As_dd_dd
-ufunc_pbwa_types[0] = <char>NPY_FLOAT
-ufunc_pbwa_types[1] = <char>NPY_FLOAT
-ufunc_pbwa_types[2] = <char>NPY_FLOAT
-ufunc_pbwa_types[3] = <char>NPY_FLOAT
-ufunc_pbwa_types[4] = <char>NPY_DOUBLE
-ufunc_pbwa_types[5] = <char>NPY_DOUBLE
-ufunc_pbwa_types[6] = <char>NPY_DOUBLE
-ufunc_pbwa_types[7] = <char>NPY_DOUBLE
-ufunc_pbwa_ptr[2*0] = <void*>_func_pbwa_wrap
-ufunc_pbwa_ptr[2*0+1] = <void*>(<char*>"pbwa")
-ufunc_pbwa_ptr[2*1] = <void*>_func_pbwa_wrap
-ufunc_pbwa_ptr[2*1+1] = <void*>(<char*>"pbwa")
-ufunc_pbwa_data[0] = &ufunc_pbwa_ptr[2*0]
-ufunc_pbwa_data[1] = &ufunc_pbwa_ptr[2*1]
-pbwa = np.PyUFunc_FromFuncAndData(ufunc_pbwa_loops, ufunc_pbwa_data, ufunc_pbwa_types, 2, 2, 2, 0, "pbwa", ufunc_pbwa_doc, 0)
 
 cdef np.PyUFuncGenericFunction ufunc_pdtr_loops[2]
 cdef void *ufunc_pdtr_ptr[4]
@@ -18227,9 +14465,9 @@ ufunc_pdtr_types[2] = <char>NPY_FLOAT
 ufunc_pdtr_types[3] = <char>NPY_DOUBLE
 ufunc_pdtr_types[4] = <char>NPY_DOUBLE
 ufunc_pdtr_types[5] = <char>NPY_DOUBLE
-ufunc_pdtr_ptr[2*0] = <void*>_func_pdtr
+ufunc_pdtr_ptr[2*0] = <void*>_func_cephes_pdtr
 ufunc_pdtr_ptr[2*0+1] = <void*>(<char*>"pdtr")
-ufunc_pdtr_ptr[2*1] = <void*>_func_pdtr
+ufunc_pdtr_ptr[2*1] = <void*>_func_cephes_pdtr
 ufunc_pdtr_ptr[2*1+1] = <void*>(<char*>"pdtr")
 ufunc_pdtr_data[0] = &ufunc_pdtr_ptr[2*0]
 ufunc_pdtr_data[1] = &ufunc_pdtr_ptr[2*1]
@@ -18266,7 +14504,25 @@ cdef char *ufunc_pdtrc_doc = (
     "--------\n"
     "pdtr : Poisson cumulative distribution function\n"
     "pdtrik : inverse of `pdtr` with respect to `k`\n"
-    "pdtri : inverse of `pdtr` with respect to `m`")
+    "pdtri : inverse of `pdtr` with respect to `m`\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> import scipy.special as sc\n"
+    "\n"
+    "It is a survival function, so it decreases to 0\n"
+    "monotonically as `k` goes to infinity.\n"
+    "\n"
+    ">>> k = np.array([1, 10, 100, np.inf])\n"
+    ">>> sc.pdtrc(k, 1)\n"
+    "array([2.64241118e-001, 1.00477664e-008, 3.94147589e-161, 0.00000000e+000])\n"
+    "\n"
+    "It can be expressed in terms of the lower incomplete gamma\n"
+    "function `gammainc`.\n"
+    "\n"
+    ">>> sc.gammainc(k + 1, 1)\n"
+    "array([2.64241118e-001, 1.00477664e-008, 3.94147589e-161, 0.00000000e+000])")
 ufunc_pdtrc_loops[0] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
 ufunc_pdtrc_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
 ufunc_pdtrc_types[0] = <char>NPY_FLOAT
@@ -18275,9 +14531,9 @@ ufunc_pdtrc_types[2] = <char>NPY_FLOAT
 ufunc_pdtrc_types[3] = <char>NPY_DOUBLE
 ufunc_pdtrc_types[4] = <char>NPY_DOUBLE
 ufunc_pdtrc_types[5] = <char>NPY_DOUBLE
-ufunc_pdtrc_ptr[2*0] = <void*>_func_pdtrc
+ufunc_pdtrc_ptr[2*0] = <void*>_func_cephes_pdtrc
 ufunc_pdtrc_ptr[2*0+1] = <void*>(<char*>"pdtrc")
-ufunc_pdtrc_ptr[2*1] = <void*>_func_pdtrc
+ufunc_pdtrc_ptr[2*1] = <void*>_func_cephes_pdtrc
 ufunc_pdtrc_ptr[2*1+1] = <void*>(<char*>"pdtrc")
 ufunc_pdtrc_data[0] = &ufunc_pdtrc_ptr[2*0]
 ufunc_pdtrc_data[1] = &ufunc_pdtrc_ptr[2*1]
@@ -18315,11 +14571,27 @@ cdef char *ufunc_pdtri_doc = (
     "--------\n"
     "pdtr : Poisson cumulative distribution function\n"
     "pdtrc : Poisson survival function\n"
-    "pdtrik : inverse of `pdtr` with respect to `k`")
-ufunc_pdtri_loops[0] = <np.PyUFuncGenericFunction>loop_d_id__As_ld_d
+    "pdtrik : inverse of `pdtr` with respect to `k`\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import scipy.special as sc\n"
+    "\n"
+    "Compute the CDF for several values of `m`:\n"
+    "\n"
+    ">>> m = [0.5, 1, 1.5]\n"
+    ">>> p = sc.pdtr(1, m)\n"
+    ">>> p\n"
+    "array([0.90979599, 0.73575888, 0.5578254 ])\n"
+    "\n"
+    "Compute the inverse. We recover the values of `m`, as expected:\n"
+    "\n"
+    ">>> sc.pdtri(1, p)\n"
+    "array([0.5, 1. , 1.5])")
+ufunc_pdtri_loops[0] = <np.PyUFuncGenericFunction>loop_d_pd__As_pd_d
 ufunc_pdtri_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
 ufunc_pdtri_loops[2] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
-ufunc_pdtri_types[0] = <char>NPY_LONG
+ufunc_pdtri_types[0] = <char>NPY_INTP
 ufunc_pdtri_types[1] = <char>NPY_DOUBLE
 ufunc_pdtri_types[2] = <char>NPY_DOUBLE
 ufunc_pdtri_types[3] = <char>NPY_FLOAT
@@ -18328,7 +14600,7 @@ ufunc_pdtri_types[5] = <char>NPY_FLOAT
 ufunc_pdtri_types[6] = <char>NPY_DOUBLE
 ufunc_pdtri_types[7] = <char>NPY_DOUBLE
 ufunc_pdtri_types[8] = <char>NPY_DOUBLE
-ufunc_pdtri_ptr[2*0] = <void*>_func_pdtri
+ufunc_pdtri_ptr[2*0] = <void*>_func_cephes_pdtri_wrap
 ufunc_pdtri_ptr[2*0+1] = <void*>(<char*>"pdtri")
 ufunc_pdtri_ptr[2*1] = <void*>_func_pdtri_unsafe
 ufunc_pdtri_ptr[2*1+1] = <void*>(<char*>"pdtri")
@@ -18346,14 +14618,14 @@ cdef char ufunc_pdtrik_types[6]
 cdef char *ufunc_pdtrik_doc = (
     "pdtrik(p, m, out=None)\n"
     "\n"
-    "Inverse to `pdtr` vs `m`.\n"
+    "Inverse to `pdtr` vs `k`.\n"
     "\n"
     "Parameters\n"
     "----------\n"
-    "m : array_like\n"
-    "    Shape parameter (nonnegative, real)\n"
     "p : array_like\n"
     "    Probability\n"
+    "m : array_like\n"
+    "    Shape parameter (nonnegative, real)\n"
     "out : ndarray, optional\n"
     "    Optional output array for the function results\n"
     "\n"
@@ -18366,7 +14638,23 @@ cdef char *ufunc_pdtrik_doc = (
     "--------\n"
     "pdtr : Poisson cumulative distribution function\n"
     "pdtrc : Poisson survival function\n"
-    "pdtri : inverse of `pdtr` with respect to `m`")
+    "pdtri : inverse of `pdtr` with respect to `m`\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import scipy.special as sc\n"
+    "\n"
+    "Compute the CDF for several values of `k`:\n"
+    "\n"
+    ">>> k = [1, 2, 3]\n"
+    ">>> p = sc.pdtr(k, 2)\n"
+    ">>> p\n"
+    "array([0.40600585, 0.67667642, 0.85712346])\n"
+    "\n"
+    "Compute the inverse. We recover the values of `k`, as expected:\n"
+    "\n"
+    ">>> sc.pdtrik(p, 2)\n"
+    "array([1., 2., 3.])")
 ufunc_pdtrik_loops[0] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
 ufunc_pdtrik_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
 ufunc_pdtrik_types[0] = <char>NPY_FLOAT
@@ -18454,9 +14742,9 @@ ufunc_poch_types[2] = <char>NPY_FLOAT
 ufunc_poch_types[3] = <char>NPY_DOUBLE
 ufunc_poch_types[4] = <char>NPY_DOUBLE
 ufunc_poch_types[5] = <char>NPY_DOUBLE
-ufunc_poch_ptr[2*0] = <void*>_func_poch
+ufunc_poch_ptr[2*0] = <void*>_func_cephes_poch
 ufunc_poch_ptr[2*0+1] = <void*>(<char*>"poch")
-ufunc_poch_ptr[2*1] = <void*>_func_poch
+ufunc_poch_ptr[2*1] = <void*>_func_cephes_poch
 ufunc_poch_ptr[2*1+1] = <void*>(<char*>"poch")
 ufunc_poch_data[0] = &ufunc_poch_ptr[2*0]
 ufunc_poch_data[1] = &ufunc_poch_ptr[2*1]
@@ -18537,392 +14825,6 @@ ufunc_powm1_ptr[2*1+1] = <void*>(<char*>"powm1")
 ufunc_powm1_data[0] = &ufunc_powm1_ptr[2*0]
 ufunc_powm1_data[1] = &ufunc_powm1_ptr[2*1]
 powm1 = np.PyUFunc_FromFuncAndData(ufunc_powm1_loops, ufunc_powm1_data, ufunc_powm1_types, 2, 2, 1, 0, "powm1", ufunc_powm1_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_pro_ang1_loops[2]
-cdef void *ufunc_pro_ang1_ptr[4]
-cdef void *ufunc_pro_ang1_data[2]
-cdef char ufunc_pro_ang1_types[12]
-cdef char *ufunc_pro_ang1_doc = (
-    "pro_ang1(m, n, c, x, out=None)\n"
-    "\n"
-    "Prolate spheroidal angular function of the first kind and its derivative\n"
-    "\n"
-    "Computes the prolate spheroidal angular function of the first kind\n"
-    "and its derivative (with respect to `x`) for mode parameters m>=0\n"
-    "and n>=m, spheroidal parameter `c` and ``|x| < 1.0``.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "m : array_like\n"
-    "    Nonnegative mode parameter m\n"
-    "n : array_like\n"
-    "    Mode parameter n (>= m)\n"
-    "c : array_like\n"
-    "    Spheroidal parameter\n"
-    "x : array_like\n"
-    "    Real parameter (``|x| < 1.0``)\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "s : scalar or ndarray\n"
-    "    Value of the function\n"
-    "sp : scalar or ndarray\n"
-    "    Value of the derivative vs x")
-ufunc_pro_ang1_loops[0] = <np.PyUFuncGenericFunction>loop_d_dddd_d_As_ffff_ff
-ufunc_pro_ang1_loops[1] = <np.PyUFuncGenericFunction>loop_d_dddd_d_As_dddd_dd
-ufunc_pro_ang1_types[0] = <char>NPY_FLOAT
-ufunc_pro_ang1_types[1] = <char>NPY_FLOAT
-ufunc_pro_ang1_types[2] = <char>NPY_FLOAT
-ufunc_pro_ang1_types[3] = <char>NPY_FLOAT
-ufunc_pro_ang1_types[4] = <char>NPY_FLOAT
-ufunc_pro_ang1_types[5] = <char>NPY_FLOAT
-ufunc_pro_ang1_types[6] = <char>NPY_DOUBLE
-ufunc_pro_ang1_types[7] = <char>NPY_DOUBLE
-ufunc_pro_ang1_types[8] = <char>NPY_DOUBLE
-ufunc_pro_ang1_types[9] = <char>NPY_DOUBLE
-ufunc_pro_ang1_types[10] = <char>NPY_DOUBLE
-ufunc_pro_ang1_types[11] = <char>NPY_DOUBLE
-ufunc_pro_ang1_ptr[2*0] = <void*>_func_prolate_aswfa_nocv_wrap
-ufunc_pro_ang1_ptr[2*0+1] = <void*>(<char*>"pro_ang1")
-ufunc_pro_ang1_ptr[2*1] = <void*>_func_prolate_aswfa_nocv_wrap
-ufunc_pro_ang1_ptr[2*1+1] = <void*>(<char*>"pro_ang1")
-ufunc_pro_ang1_data[0] = &ufunc_pro_ang1_ptr[2*0]
-ufunc_pro_ang1_data[1] = &ufunc_pro_ang1_ptr[2*1]
-pro_ang1 = np.PyUFunc_FromFuncAndData(ufunc_pro_ang1_loops, ufunc_pro_ang1_data, ufunc_pro_ang1_types, 2, 4, 2, 0, "pro_ang1", ufunc_pro_ang1_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_pro_ang1_cv_loops[2]
-cdef void *ufunc_pro_ang1_cv_ptr[4]
-cdef void *ufunc_pro_ang1_cv_data[2]
-cdef char ufunc_pro_ang1_cv_types[14]
-cdef char *ufunc_pro_ang1_cv_doc = (
-    "pro_ang1_cv(m, n, c, cv, x, out=None)\n"
-    "\n"
-    "Prolate spheroidal angular function pro_ang1 for precomputed characteristic value\n"
-    "\n"
-    "Computes the prolate spheroidal angular function of the first kind\n"
-    "and its derivative (with respect to `x`) for mode parameters m>=0\n"
-    "and n>=m, spheroidal parameter `c` and ``|x| < 1.0``. Requires\n"
-    "pre-computed characteristic value.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "m : array_like\n"
-    "    Nonnegative mode parameter m\n"
-    "n : array_like\n"
-    "    Mode parameter n (>= m)\n"
-    "c : array_like\n"
-    "    Spheroidal parameter\n"
-    "cv : array_like\n"
-    "    Characteristic value\n"
-    "x : array_like\n"
-    "    Real parameter (``|x| < 1.0``)\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "s : scalar or ndarray\n"
-    "    Value of the function\n"
-    "sp : scalar or ndarray\n"
-    "    Value of the derivative vs x")
-ufunc_pro_ang1_cv_loops[0] = <np.PyUFuncGenericFunction>loop_i_ddddd_dd_As_fffff_ff
-ufunc_pro_ang1_cv_loops[1] = <np.PyUFuncGenericFunction>loop_i_ddddd_dd_As_ddddd_dd
-ufunc_pro_ang1_cv_types[0] = <char>NPY_FLOAT
-ufunc_pro_ang1_cv_types[1] = <char>NPY_FLOAT
-ufunc_pro_ang1_cv_types[2] = <char>NPY_FLOAT
-ufunc_pro_ang1_cv_types[3] = <char>NPY_FLOAT
-ufunc_pro_ang1_cv_types[4] = <char>NPY_FLOAT
-ufunc_pro_ang1_cv_types[5] = <char>NPY_FLOAT
-ufunc_pro_ang1_cv_types[6] = <char>NPY_FLOAT
-ufunc_pro_ang1_cv_types[7] = <char>NPY_DOUBLE
-ufunc_pro_ang1_cv_types[8] = <char>NPY_DOUBLE
-ufunc_pro_ang1_cv_types[9] = <char>NPY_DOUBLE
-ufunc_pro_ang1_cv_types[10] = <char>NPY_DOUBLE
-ufunc_pro_ang1_cv_types[11] = <char>NPY_DOUBLE
-ufunc_pro_ang1_cv_types[12] = <char>NPY_DOUBLE
-ufunc_pro_ang1_cv_types[13] = <char>NPY_DOUBLE
-ufunc_pro_ang1_cv_ptr[2*0] = <void*>_func_prolate_aswfa_wrap
-ufunc_pro_ang1_cv_ptr[2*0+1] = <void*>(<char*>"pro_ang1_cv")
-ufunc_pro_ang1_cv_ptr[2*1] = <void*>_func_prolate_aswfa_wrap
-ufunc_pro_ang1_cv_ptr[2*1+1] = <void*>(<char*>"pro_ang1_cv")
-ufunc_pro_ang1_cv_data[0] = &ufunc_pro_ang1_cv_ptr[2*0]
-ufunc_pro_ang1_cv_data[1] = &ufunc_pro_ang1_cv_ptr[2*1]
-pro_ang1_cv = np.PyUFunc_FromFuncAndData(ufunc_pro_ang1_cv_loops, ufunc_pro_ang1_cv_data, ufunc_pro_ang1_cv_types, 2, 5, 2, 0, "pro_ang1_cv", ufunc_pro_ang1_cv_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_pro_cv_loops[2]
-cdef void *ufunc_pro_cv_ptr[4]
-cdef void *ufunc_pro_cv_data[2]
-cdef char ufunc_pro_cv_types[8]
-cdef char *ufunc_pro_cv_doc = (
-    "pro_cv(m, n, c, out=None)\n"
-    "\n"
-    "Characteristic value of prolate spheroidal function\n"
-    "\n"
-    "Computes the characteristic value of prolate spheroidal wave\n"
-    "functions of order `m`, `n` (n>=m) and spheroidal parameter `c`.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "m : array_like\n"
-    "    Nonnegative mode parameter m\n"
-    "n : array_like\n"
-    "    Mode parameter n (>= m)\n"
-    "c : array_like\n"
-    "    Spheroidal parameter\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "cv : scalar or ndarray\n"
-    "    Characteristic value")
-ufunc_pro_cv_loops[0] = <np.PyUFuncGenericFunction>loop_d_ddd__As_fff_f
-ufunc_pro_cv_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
-ufunc_pro_cv_types[0] = <char>NPY_FLOAT
-ufunc_pro_cv_types[1] = <char>NPY_FLOAT
-ufunc_pro_cv_types[2] = <char>NPY_FLOAT
-ufunc_pro_cv_types[3] = <char>NPY_FLOAT
-ufunc_pro_cv_types[4] = <char>NPY_DOUBLE
-ufunc_pro_cv_types[5] = <char>NPY_DOUBLE
-ufunc_pro_cv_types[6] = <char>NPY_DOUBLE
-ufunc_pro_cv_types[7] = <char>NPY_DOUBLE
-ufunc_pro_cv_ptr[2*0] = <void*>_func_prolate_segv_wrap
-ufunc_pro_cv_ptr[2*0+1] = <void*>(<char*>"pro_cv")
-ufunc_pro_cv_ptr[2*1] = <void*>_func_prolate_segv_wrap
-ufunc_pro_cv_ptr[2*1+1] = <void*>(<char*>"pro_cv")
-ufunc_pro_cv_data[0] = &ufunc_pro_cv_ptr[2*0]
-ufunc_pro_cv_data[1] = &ufunc_pro_cv_ptr[2*1]
-pro_cv = np.PyUFunc_FromFuncAndData(ufunc_pro_cv_loops, ufunc_pro_cv_data, ufunc_pro_cv_types, 2, 3, 1, 0, "pro_cv", ufunc_pro_cv_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_pro_rad1_loops[2]
-cdef void *ufunc_pro_rad1_ptr[4]
-cdef void *ufunc_pro_rad1_data[2]
-cdef char ufunc_pro_rad1_types[12]
-cdef char *ufunc_pro_rad1_doc = (
-    "pro_rad1(m, n, c, x, out=None)\n"
-    "\n"
-    "Prolate spheroidal radial function of the first kind and its derivative\n"
-    "\n"
-    "Computes the prolate spheroidal radial function of the first kind\n"
-    "and its derivative (with respect to `x`) for mode parameters m>=0\n"
-    "and n>=m, spheroidal parameter `c` and ``|x| < 1.0``.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "m : array_like\n"
-    "    Nonnegative mode parameter m\n"
-    "n : array_like\n"
-    "    Mode parameter n (>= m)\n"
-    "c : array_like\n"
-    "    Spheroidal parameter\n"
-    "x : array_like\n"
-    "    Real parameter (``|x| < 1.0``)\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "s : scalar or ndarray\n"
-    "    Value of the function\n"
-    "sp : scalar or ndarray\n"
-    "    Value of the derivative vs x")
-ufunc_pro_rad1_loops[0] = <np.PyUFuncGenericFunction>loop_d_dddd_d_As_ffff_ff
-ufunc_pro_rad1_loops[1] = <np.PyUFuncGenericFunction>loop_d_dddd_d_As_dddd_dd
-ufunc_pro_rad1_types[0] = <char>NPY_FLOAT
-ufunc_pro_rad1_types[1] = <char>NPY_FLOAT
-ufunc_pro_rad1_types[2] = <char>NPY_FLOAT
-ufunc_pro_rad1_types[3] = <char>NPY_FLOAT
-ufunc_pro_rad1_types[4] = <char>NPY_FLOAT
-ufunc_pro_rad1_types[5] = <char>NPY_FLOAT
-ufunc_pro_rad1_types[6] = <char>NPY_DOUBLE
-ufunc_pro_rad1_types[7] = <char>NPY_DOUBLE
-ufunc_pro_rad1_types[8] = <char>NPY_DOUBLE
-ufunc_pro_rad1_types[9] = <char>NPY_DOUBLE
-ufunc_pro_rad1_types[10] = <char>NPY_DOUBLE
-ufunc_pro_rad1_types[11] = <char>NPY_DOUBLE
-ufunc_pro_rad1_ptr[2*0] = <void*>_func_prolate_radial1_nocv_wrap
-ufunc_pro_rad1_ptr[2*0+1] = <void*>(<char*>"pro_rad1")
-ufunc_pro_rad1_ptr[2*1] = <void*>_func_prolate_radial1_nocv_wrap
-ufunc_pro_rad1_ptr[2*1+1] = <void*>(<char*>"pro_rad1")
-ufunc_pro_rad1_data[0] = &ufunc_pro_rad1_ptr[2*0]
-ufunc_pro_rad1_data[1] = &ufunc_pro_rad1_ptr[2*1]
-pro_rad1 = np.PyUFunc_FromFuncAndData(ufunc_pro_rad1_loops, ufunc_pro_rad1_data, ufunc_pro_rad1_types, 2, 4, 2, 0, "pro_rad1", ufunc_pro_rad1_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_pro_rad1_cv_loops[2]
-cdef void *ufunc_pro_rad1_cv_ptr[4]
-cdef void *ufunc_pro_rad1_cv_data[2]
-cdef char ufunc_pro_rad1_cv_types[14]
-cdef char *ufunc_pro_rad1_cv_doc = (
-    "pro_rad1_cv(m, n, c, cv, x, out=None)\n"
-    "\n"
-    "Prolate spheroidal radial function pro_rad1 for precomputed characteristic value\n"
-    "\n"
-    "Computes the prolate spheroidal radial function of the first kind\n"
-    "and its derivative (with respect to `x`) for mode parameters m>=0\n"
-    "and n>=m, spheroidal parameter `c` and ``|x| < 1.0``. Requires\n"
-    "pre-computed characteristic value.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "m : array_like\n"
-    "    Nonnegative mode parameter m\n"
-    "n : array_like\n"
-    "    Mode parameter n (>= m)\n"
-    "c : array_like\n"
-    "    Spheroidal parameter\n"
-    "cv : array_like\n"
-    "    Characteristic value\n"
-    "x : array_like\n"
-    "    Real parameter (``|x| < 1.0``)\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "s : scalar or ndarray\n"
-    "    Value of the function\n"
-    "sp : scalar or ndarray\n"
-    "    Value of the derivative vs x")
-ufunc_pro_rad1_cv_loops[0] = <np.PyUFuncGenericFunction>loop_i_ddddd_dd_As_fffff_ff
-ufunc_pro_rad1_cv_loops[1] = <np.PyUFuncGenericFunction>loop_i_ddddd_dd_As_ddddd_dd
-ufunc_pro_rad1_cv_types[0] = <char>NPY_FLOAT
-ufunc_pro_rad1_cv_types[1] = <char>NPY_FLOAT
-ufunc_pro_rad1_cv_types[2] = <char>NPY_FLOAT
-ufunc_pro_rad1_cv_types[3] = <char>NPY_FLOAT
-ufunc_pro_rad1_cv_types[4] = <char>NPY_FLOAT
-ufunc_pro_rad1_cv_types[5] = <char>NPY_FLOAT
-ufunc_pro_rad1_cv_types[6] = <char>NPY_FLOAT
-ufunc_pro_rad1_cv_types[7] = <char>NPY_DOUBLE
-ufunc_pro_rad1_cv_types[8] = <char>NPY_DOUBLE
-ufunc_pro_rad1_cv_types[9] = <char>NPY_DOUBLE
-ufunc_pro_rad1_cv_types[10] = <char>NPY_DOUBLE
-ufunc_pro_rad1_cv_types[11] = <char>NPY_DOUBLE
-ufunc_pro_rad1_cv_types[12] = <char>NPY_DOUBLE
-ufunc_pro_rad1_cv_types[13] = <char>NPY_DOUBLE
-ufunc_pro_rad1_cv_ptr[2*0] = <void*>_func_prolate_radial1_wrap
-ufunc_pro_rad1_cv_ptr[2*0+1] = <void*>(<char*>"pro_rad1_cv")
-ufunc_pro_rad1_cv_ptr[2*1] = <void*>_func_prolate_radial1_wrap
-ufunc_pro_rad1_cv_ptr[2*1+1] = <void*>(<char*>"pro_rad1_cv")
-ufunc_pro_rad1_cv_data[0] = &ufunc_pro_rad1_cv_ptr[2*0]
-ufunc_pro_rad1_cv_data[1] = &ufunc_pro_rad1_cv_ptr[2*1]
-pro_rad1_cv = np.PyUFunc_FromFuncAndData(ufunc_pro_rad1_cv_loops, ufunc_pro_rad1_cv_data, ufunc_pro_rad1_cv_types, 2, 5, 2, 0, "pro_rad1_cv", ufunc_pro_rad1_cv_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_pro_rad2_loops[2]
-cdef void *ufunc_pro_rad2_ptr[4]
-cdef void *ufunc_pro_rad2_data[2]
-cdef char ufunc_pro_rad2_types[12]
-cdef char *ufunc_pro_rad2_doc = (
-    "pro_rad2(m, n, c, x, out=None)\n"
-    "\n"
-    "Prolate spheroidal radial function of the second kind and its derivative\n"
-    "\n"
-    "Computes the prolate spheroidal radial function of the second kind\n"
-    "and its derivative (with respect to `x`) for mode parameters m>=0\n"
-    "and n>=m, spheroidal parameter `c` and ``|x| < 1.0``.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "m : array_like\n"
-    "    Nonnegative mode parameter m\n"
-    "n : array_like\n"
-    "    Mode parameter n (>= m)\n"
-    "c : array_like\n"
-    "    Spheroidal parameter\n"
-    "cv : array_like\n"
-    "    Characteristic value\n"
-    "x : array_like\n"
-    "    Real parameter (``|x| < 1.0``)\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "s : scalar or ndarray\n"
-    "    Value of the function\n"
-    "sp : scalar or ndarray\n"
-    "    Value of the derivative vs x")
-ufunc_pro_rad2_loops[0] = <np.PyUFuncGenericFunction>loop_d_dddd_d_As_ffff_ff
-ufunc_pro_rad2_loops[1] = <np.PyUFuncGenericFunction>loop_d_dddd_d_As_dddd_dd
-ufunc_pro_rad2_types[0] = <char>NPY_FLOAT
-ufunc_pro_rad2_types[1] = <char>NPY_FLOAT
-ufunc_pro_rad2_types[2] = <char>NPY_FLOAT
-ufunc_pro_rad2_types[3] = <char>NPY_FLOAT
-ufunc_pro_rad2_types[4] = <char>NPY_FLOAT
-ufunc_pro_rad2_types[5] = <char>NPY_FLOAT
-ufunc_pro_rad2_types[6] = <char>NPY_DOUBLE
-ufunc_pro_rad2_types[7] = <char>NPY_DOUBLE
-ufunc_pro_rad2_types[8] = <char>NPY_DOUBLE
-ufunc_pro_rad2_types[9] = <char>NPY_DOUBLE
-ufunc_pro_rad2_types[10] = <char>NPY_DOUBLE
-ufunc_pro_rad2_types[11] = <char>NPY_DOUBLE
-ufunc_pro_rad2_ptr[2*0] = <void*>_func_prolate_radial2_nocv_wrap
-ufunc_pro_rad2_ptr[2*0+1] = <void*>(<char*>"pro_rad2")
-ufunc_pro_rad2_ptr[2*1] = <void*>_func_prolate_radial2_nocv_wrap
-ufunc_pro_rad2_ptr[2*1+1] = <void*>(<char*>"pro_rad2")
-ufunc_pro_rad2_data[0] = &ufunc_pro_rad2_ptr[2*0]
-ufunc_pro_rad2_data[1] = &ufunc_pro_rad2_ptr[2*1]
-pro_rad2 = np.PyUFunc_FromFuncAndData(ufunc_pro_rad2_loops, ufunc_pro_rad2_data, ufunc_pro_rad2_types, 2, 4, 2, 0, "pro_rad2", ufunc_pro_rad2_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_pro_rad2_cv_loops[2]
-cdef void *ufunc_pro_rad2_cv_ptr[4]
-cdef void *ufunc_pro_rad2_cv_data[2]
-cdef char ufunc_pro_rad2_cv_types[14]
-cdef char *ufunc_pro_rad2_cv_doc = (
-    "pro_rad2_cv(m, n, c, cv, x, out=None)\n"
-    "\n"
-    "Prolate spheroidal radial function pro_rad2 for precomputed characteristic value\n"
-    "\n"
-    "Computes the prolate spheroidal radial function of the second kind\n"
-    "and its derivative (with respect to `x`) for mode parameters m>=0\n"
-    "and n>=m, spheroidal parameter `c` and ``|x| < 1.0``. Requires\n"
-    "pre-computed characteristic value.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "m : array_like\n"
-    "    Nonnegative mode parameter m\n"
-    "n : array_like\n"
-    "    Mode parameter n (>= m)\n"
-    "c : array_like\n"
-    "    Spheroidal parameter\n"
-    "cv : array_like\n"
-    "    Characteristic value\n"
-    "x : array_like\n"
-    "    Real parameter (``|x| < 1.0``)\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "s : scalar or ndarray\n"
-    "    Value of the function\n"
-    "sp : scalar or ndarray\n"
-    "    Value of the derivative vs x")
-ufunc_pro_rad2_cv_loops[0] = <np.PyUFuncGenericFunction>loop_i_ddddd_dd_As_fffff_ff
-ufunc_pro_rad2_cv_loops[1] = <np.PyUFuncGenericFunction>loop_i_ddddd_dd_As_ddddd_dd
-ufunc_pro_rad2_cv_types[0] = <char>NPY_FLOAT
-ufunc_pro_rad2_cv_types[1] = <char>NPY_FLOAT
-ufunc_pro_rad2_cv_types[2] = <char>NPY_FLOAT
-ufunc_pro_rad2_cv_types[3] = <char>NPY_FLOAT
-ufunc_pro_rad2_cv_types[4] = <char>NPY_FLOAT
-ufunc_pro_rad2_cv_types[5] = <char>NPY_FLOAT
-ufunc_pro_rad2_cv_types[6] = <char>NPY_FLOAT
-ufunc_pro_rad2_cv_types[7] = <char>NPY_DOUBLE
-ufunc_pro_rad2_cv_types[8] = <char>NPY_DOUBLE
-ufunc_pro_rad2_cv_types[9] = <char>NPY_DOUBLE
-ufunc_pro_rad2_cv_types[10] = <char>NPY_DOUBLE
-ufunc_pro_rad2_cv_types[11] = <char>NPY_DOUBLE
-ufunc_pro_rad2_cv_types[12] = <char>NPY_DOUBLE
-ufunc_pro_rad2_cv_types[13] = <char>NPY_DOUBLE
-ufunc_pro_rad2_cv_ptr[2*0] = <void*>_func_prolate_radial2_wrap
-ufunc_pro_rad2_cv_ptr[2*0+1] = <void*>(<char*>"pro_rad2_cv")
-ufunc_pro_rad2_cv_ptr[2*1] = <void*>_func_prolate_radial2_wrap
-ufunc_pro_rad2_cv_ptr[2*1+1] = <void*>(<char*>"pro_rad2_cv")
-ufunc_pro_rad2_cv_data[0] = &ufunc_pro_rad2_cv_ptr[2*0]
-ufunc_pro_rad2_cv_data[1] = &ufunc_pro_rad2_cv_ptr[2*1]
-pro_rad2_cv = np.PyUFunc_FromFuncAndData(ufunc_pro_rad2_cv_loops, ufunc_pro_rad2_cv_data, ufunc_pro_rad2_cv_types, 2, 5, 2, 0, "pro_rad2_cv", ufunc_pro_rad2_cv_doc, 0)
 
 cdef np.PyUFuncGenericFunction ufunc_pseudo_huber_loops[2]
 cdef void *ufunc_pseudo_huber_ptr[4]
@@ -19074,90 +14976,6 @@ ufunc_pseudo_huber_data[0] = &ufunc_pseudo_huber_ptr[2*0]
 ufunc_pseudo_huber_data[1] = &ufunc_pseudo_huber_ptr[2*1]
 pseudo_huber = np.PyUFunc_FromFuncAndData(ufunc_pseudo_huber_loops, ufunc_pseudo_huber_data, ufunc_pseudo_huber_types, 2, 2, 1, 0, "pseudo_huber", ufunc_pseudo_huber_doc, 0)
 
-cdef np.PyUFuncGenericFunction ufunc_psi_loops[4]
-cdef void *ufunc_psi_ptr[8]
-cdef void *ufunc_psi_data[4]
-cdef char ufunc_psi_types[8]
-cdef char *ufunc_psi_doc = (
-    "psi(z, out=None)\n"
-    "\n"
-    "The digamma function.\n"
-    "\n"
-    "The logarithmic derivative of the gamma function evaluated at ``z``.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "z : array_like\n"
-    "    Real or complex argument.\n"
-    "out : ndarray, optional\n"
-    "    Array for the computed values of ``psi``.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "digamma : scalar or ndarray\n"
-    "    Computed values of ``psi``.\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "For large values not close to the negative real axis, ``psi`` is\n"
-    "computed using the asymptotic series (5.11.2) from [1]_. For small\n"
-    "arguments not close to the negative real axis, the recurrence\n"
-    "relation (5.5.2) from [1]_ is used until the argument is large\n"
-    "enough to use the asymptotic series. For values close to the\n"
-    "negative real axis, the reflection formula (5.5.4) from [1]_ is\n"
-    "used first. Note that ``psi`` has a family of zeros on the\n"
-    "negative real axis which occur between the poles at nonpositive\n"
-    "integers. Around the zeros the reflection formula suffers from\n"
-    "cancellation and the implementation loses precision. The sole\n"
-    "positive zero and the first negative zero, however, are handled\n"
-    "separately by precomputing series expansions using [2]_, so the\n"
-    "function should maintain full accuracy around the origin.\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] NIST Digital Library of Mathematical Functions\n"
-    "       https://dlmf.nist.gov/5\n"
-    ".. [2] Fredrik Johansson and others.\n"
-    "       \"mpmath: a Python library for arbitrary-precision floating-point arithmetic\"\n"
-    "       (Version 0.19) http://mpmath.org/\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> from scipy.special import psi\n"
-    ">>> z = 3 + 4j\n"
-    ">>> psi(z)\n"
-    "(1.55035981733341+1.0105022091860445j)\n"
-    "\n"
-    "Verify psi(z) = psi(z + 1) - 1/z:\n"
-    "\n"
-    ">>> psi(z + 1) - 1/z\n"
-    "(1.55035981733341+1.0105022091860445j)")
-ufunc_psi_loops[0] = <np.PyUFuncGenericFunction>loop_d_d__As_f_f
-ufunc_psi_loops[1] = <np.PyUFuncGenericFunction>loop_d_d__As_d_d
-ufunc_psi_loops[2] = <np.PyUFuncGenericFunction>loop_D_D__As_F_F
-ufunc_psi_loops[3] = <np.PyUFuncGenericFunction>loop_D_D__As_D_D
-ufunc_psi_types[0] = <char>NPY_FLOAT
-ufunc_psi_types[1] = <char>NPY_FLOAT
-ufunc_psi_types[2] = <char>NPY_DOUBLE
-ufunc_psi_types[3] = <char>NPY_DOUBLE
-ufunc_psi_types[4] = <char>NPY_CFLOAT
-ufunc_psi_types[5] = <char>NPY_CFLOAT
-ufunc_psi_types[6] = <char>NPY_CDOUBLE
-ufunc_psi_types[7] = <char>NPY_CDOUBLE
-ufunc_psi_ptr[2*0] = <void*>scipy.special._ufuncs_cxx._export_digamma
-ufunc_psi_ptr[2*0+1] = <void*>(<char*>"psi")
-ufunc_psi_ptr[2*1] = <void*>scipy.special._ufuncs_cxx._export_digamma
-ufunc_psi_ptr[2*1+1] = <void*>(<char*>"psi")
-ufunc_psi_ptr[2*2] = <void*>scipy.special._ufuncs_cxx._export_cdigamma
-ufunc_psi_ptr[2*2+1] = <void*>(<char*>"psi")
-ufunc_psi_ptr[2*3] = <void*>scipy.special._ufuncs_cxx._export_cdigamma
-ufunc_psi_ptr[2*3+1] = <void*>(<char*>"psi")
-ufunc_psi_data[0] = &ufunc_psi_ptr[2*0]
-ufunc_psi_data[1] = &ufunc_psi_ptr[2*1]
-ufunc_psi_data[2] = &ufunc_psi_ptr[2*2]
-ufunc_psi_data[3] = &ufunc_psi_ptr[2*3]
-psi = np.PyUFunc_FromFuncAndData(ufunc_psi_loops, ufunc_psi_data, ufunc_psi_types, 4, 1, 1, 0, "psi", ufunc_psi_doc, 0)
-
 cdef np.PyUFuncGenericFunction ufunc_radian_loops[2]
 cdef void *ufunc_radian_ptr[4]
 cdef void *ufunc_radian_data[2]
@@ -19215,9 +15033,9 @@ ufunc_radian_types[4] = <char>NPY_DOUBLE
 ufunc_radian_types[5] = <char>NPY_DOUBLE
 ufunc_radian_types[6] = <char>NPY_DOUBLE
 ufunc_radian_types[7] = <char>NPY_DOUBLE
-ufunc_radian_ptr[2*0] = <void*>_func_radian
+ufunc_radian_ptr[2*0] = <void*>_func_cephes_radian
 ufunc_radian_ptr[2*0+1] = <void*>(<char*>"radian")
-ufunc_radian_ptr[2*1] = <void*>_func_radian
+ufunc_radian_ptr[2*1] = <void*>_func_cephes_radian
 ufunc_radian_ptr[2*1+1] = <void*>(<char*>"radian")
 ufunc_radian_data[0] = &ufunc_radian_ptr[2*0]
 ufunc_radian_data[1] = &ufunc_radian_ptr[2*1]
@@ -19299,92 +15117,6 @@ ufunc_rel_entr_data[0] = &ufunc_rel_entr_ptr[2*0]
 ufunc_rel_entr_data[1] = &ufunc_rel_entr_ptr[2*1]
 rel_entr = np.PyUFunc_FromFuncAndData(ufunc_rel_entr_loops, ufunc_rel_entr_data, ufunc_rel_entr_types, 2, 2, 1, 0, "rel_entr", ufunc_rel_entr_doc, 0)
 
-cdef np.PyUFuncGenericFunction ufunc_rgamma_loops[4]
-cdef void *ufunc_rgamma_ptr[8]
-cdef void *ufunc_rgamma_data[4]
-cdef char ufunc_rgamma_types[8]
-cdef char *ufunc_rgamma_doc = (
-    "rgamma(z, out=None)\n"
-    "\n"
-    "Reciprocal of the gamma function.\n"
-    "\n"
-    "Defined as :math:`1 / \\Gamma(z)`, where :math:`\\Gamma` is the\n"
-    "gamma function. For more on the gamma function see `gamma`.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "z : array_like\n"
-    "    Real or complex valued input\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "scalar or ndarray\n"
-    "    Function results\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "gamma, gammaln, loggamma\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "The gamma function has no zeros and has simple poles at\n"
-    "nonpositive integers, so `rgamma` is an entire function with zeros\n"
-    "at the nonpositive integers. See the discussion in [dlmf]_ for\n"
-    "more details.\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [dlmf] Nist, Digital Library of Mathematical functions,\n"
-    "    https://dlmf.nist.gov/5.2#i\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> import scipy.special as sc\n"
-    "\n"
-    "It is the reciprocal of the gamma function.\n"
-    "\n"
-    ">>> sc.rgamma([1, 2, 3, 4])\n"
-    "array([1.        , 1.        , 0.5       , 0.16666667])\n"
-    ">>> 1 / sc.gamma([1, 2, 3, 4])\n"
-    "array([1.        , 1.        , 0.5       , 0.16666667])\n"
-    "\n"
-    "It is zero at nonpositive integers.\n"
-    "\n"
-    ">>> sc.rgamma([0, -1, -2, -3])\n"
-    "array([0., 0., 0., 0.])\n"
-    "\n"
-    "It rapidly underflows to zero along the positive real axis.\n"
-    "\n"
-    ">>> sc.rgamma([10, 100, 179])\n"
-    "array([2.75573192e-006, 1.07151029e-156, 0.00000000e+000])")
-ufunc_rgamma_loops[0] = <np.PyUFuncGenericFunction>loop_d_d__As_f_f
-ufunc_rgamma_loops[1] = <np.PyUFuncGenericFunction>loop_d_d__As_d_d
-ufunc_rgamma_loops[2] = <np.PyUFuncGenericFunction>loop_D_D__As_F_F
-ufunc_rgamma_loops[3] = <np.PyUFuncGenericFunction>loop_D_D__As_D_D
-ufunc_rgamma_types[0] = <char>NPY_FLOAT
-ufunc_rgamma_types[1] = <char>NPY_FLOAT
-ufunc_rgamma_types[2] = <char>NPY_DOUBLE
-ufunc_rgamma_types[3] = <char>NPY_DOUBLE
-ufunc_rgamma_types[4] = <char>NPY_CFLOAT
-ufunc_rgamma_types[5] = <char>NPY_CFLOAT
-ufunc_rgamma_types[6] = <char>NPY_CDOUBLE
-ufunc_rgamma_types[7] = <char>NPY_CDOUBLE
-ufunc_rgamma_ptr[2*0] = <void*>_func_rgamma
-ufunc_rgamma_ptr[2*0+1] = <void*>(<char*>"rgamma")
-ufunc_rgamma_ptr[2*1] = <void*>_func_rgamma
-ufunc_rgamma_ptr[2*1+1] = <void*>(<char*>"rgamma")
-ufunc_rgamma_ptr[2*2] = <void*>scipy.special._ufuncs_cxx._export_crgamma
-ufunc_rgamma_ptr[2*2+1] = <void*>(<char*>"rgamma")
-ufunc_rgamma_ptr[2*3] = <void*>scipy.special._ufuncs_cxx._export_crgamma
-ufunc_rgamma_ptr[2*3+1] = <void*>(<char*>"rgamma")
-ufunc_rgamma_data[0] = &ufunc_rgamma_ptr[2*0]
-ufunc_rgamma_data[1] = &ufunc_rgamma_ptr[2*1]
-ufunc_rgamma_data[2] = &ufunc_rgamma_ptr[2*2]
-ufunc_rgamma_data[3] = &ufunc_rgamma_ptr[2*3]
-rgamma = np.PyUFunc_FromFuncAndData(ufunc_rgamma_loops, ufunc_rgamma_data, ufunc_rgamma_types, 4, 1, 1, 0, "rgamma", ufunc_rgamma_doc, 0)
-
 cdef np.PyUFuncGenericFunction ufunc_round_loops[2]
 cdef void *ufunc_round_ptr[4]
 cdef void *ufunc_round_data[2]
@@ -19424,9 +15156,9 @@ ufunc_round_types[0] = <char>NPY_FLOAT
 ufunc_round_types[1] = <char>NPY_FLOAT
 ufunc_round_types[2] = <char>NPY_DOUBLE
 ufunc_round_types[3] = <char>NPY_DOUBLE
-ufunc_round_ptr[2*0] = <void*>_func_round
+ufunc_round_ptr[2*0] = <void*>_func_cephes_round
 ufunc_round_ptr[2*0+1] = <void*>(<char*>"round")
-ufunc_round_ptr[2*1] = <void*>_func_round
+ufunc_round_ptr[2*1] = <void*>_func_cephes_round
 ufunc_round_ptr[2*1+1] = <void*>(<char*>"round")
 ufunc_round_data[0] = &ufunc_round_ptr[2*0]
 ufunc_round_data[1] = &ufunc_round_ptr[2*1]
@@ -19558,9 +15290,9 @@ ufunc_shichi_types[8] = <char>NPY_CFLOAT
 ufunc_shichi_types[9] = <char>NPY_CDOUBLE
 ufunc_shichi_types[10] = <char>NPY_CDOUBLE
 ufunc_shichi_types[11] = <char>NPY_CDOUBLE
-ufunc_shichi_ptr[2*0] = <void*>_func_shichi
+ufunc_shichi_ptr[2*0] = <void*>_func_cephes_shichi_wrap
 ufunc_shichi_ptr[2*0+1] = <void*>(<char*>"shichi")
-ufunc_shichi_ptr[2*1] = <void*>_func_shichi
+ufunc_shichi_ptr[2*1] = <void*>_func_cephes_shichi_wrap
 ufunc_shichi_ptr[2*1+1] = <void*>(<char*>"shichi")
 ufunc_shichi_ptr[2*2] = <void*>_func_cshichi
 ufunc_shichi_ptr[2*2+1] = <void*>(<char*>"shichi")
@@ -19707,9 +15439,9 @@ ufunc_sici_types[8] = <char>NPY_CFLOAT
 ufunc_sici_types[9] = <char>NPY_CDOUBLE
 ufunc_sici_types[10] = <char>NPY_CDOUBLE
 ufunc_sici_types[11] = <char>NPY_CDOUBLE
-ufunc_sici_ptr[2*0] = <void*>_func_sici
+ufunc_sici_ptr[2*0] = <void*>_func_cephes_sici_wrap
 ufunc_sici_ptr[2*0+1] = <void*>(<char*>"sici")
-ufunc_sici_ptr[2*1] = <void*>_func_sici
+ufunc_sici_ptr[2*1] = <void*>_func_cephes_sici_wrap
 ufunc_sici_ptr[2*1+1] = <void*>(<char*>"sici")
 ufunc_sici_ptr[2*2] = <void*>_func_csici
 ufunc_sici_ptr[2*2+1] = <void*>(<char*>"sici")
@@ -19764,9 +15496,9 @@ ufunc_sindg_types[0] = <char>NPY_FLOAT
 ufunc_sindg_types[1] = <char>NPY_FLOAT
 ufunc_sindg_types[2] = <char>NPY_DOUBLE
 ufunc_sindg_types[3] = <char>NPY_DOUBLE
-ufunc_sindg_ptr[2*0] = <void*>_func_sindg
+ufunc_sindg_ptr[2*0] = <void*>_func_cephes_sindg
 ufunc_sindg_ptr[2*0+1] = <void*>(<char*>"sindg")
-ufunc_sindg_ptr[2*1] = <void*>_func_sindg
+ufunc_sindg_ptr[2*1] = <void*>_func_cephes_sindg
 ufunc_sindg_ptr[2*1+1] = <void*>(<char*>"sindg")
 ufunc_sindg_data[0] = &ufunc_sindg_ptr[2*0]
 ufunc_sindg_data[1] = &ufunc_sindg_ptr[2*1]
@@ -19886,10 +15618,10 @@ cdef char *ufunc_smirnov_doc = (
     ">>> plt.grid(True)\n"
     ">>> plt.legend(framealpha=1, shadow=True)\n"
     ">>> plt.show()")
-ufunc_smirnov_loops[0] = <np.PyUFuncGenericFunction>loop_d_id__As_ld_d
+ufunc_smirnov_loops[0] = <np.PyUFuncGenericFunction>loop_d_pd__As_pd_d
 ufunc_smirnov_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
 ufunc_smirnov_loops[2] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
-ufunc_smirnov_types[0] = <char>NPY_LONG
+ufunc_smirnov_types[0] = <char>NPY_INTP
 ufunc_smirnov_types[1] = <char>NPY_DOUBLE
 ufunc_smirnov_types[2] = <char>NPY_DOUBLE
 ufunc_smirnov_types[3] = <char>NPY_FLOAT
@@ -19898,7 +15630,7 @@ ufunc_smirnov_types[5] = <char>NPY_FLOAT
 ufunc_smirnov_types[6] = <char>NPY_DOUBLE
 ufunc_smirnov_types[7] = <char>NPY_DOUBLE
 ufunc_smirnov_types[8] = <char>NPY_DOUBLE
-ufunc_smirnov_ptr[2*0] = <void*>_func_smirnov
+ufunc_smirnov_ptr[2*0] = <void*>_func_cephes_smirnov_wrap
 ufunc_smirnov_ptr[2*0+1] = <void*>(<char*>"smirnov")
 ufunc_smirnov_ptr[2*1] = <void*>_func_smirnov_unsafe
 ufunc_smirnov_ptr[2*1+1] = <void*>(<char*>"smirnov")
@@ -19968,10 +15700,10 @@ cdef char *ufunc_smirnovi_doc = (
     "\n"
     ">>> smirnovi(n, p)\n"
     "array([0.1, 0.2, 0.3])")
-ufunc_smirnovi_loops[0] = <np.PyUFuncGenericFunction>loop_d_id__As_ld_d
+ufunc_smirnovi_loops[0] = <np.PyUFuncGenericFunction>loop_d_pd__As_pd_d
 ufunc_smirnovi_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
 ufunc_smirnovi_loops[2] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
-ufunc_smirnovi_types[0] = <char>NPY_LONG
+ufunc_smirnovi_types[0] = <char>NPY_INTP
 ufunc_smirnovi_types[1] = <char>NPY_DOUBLE
 ufunc_smirnovi_types[2] = <char>NPY_DOUBLE
 ufunc_smirnovi_types[3] = <char>NPY_FLOAT
@@ -19980,7 +15712,7 @@ ufunc_smirnovi_types[5] = <char>NPY_FLOAT
 ufunc_smirnovi_types[6] = <char>NPY_DOUBLE
 ufunc_smirnovi_types[7] = <char>NPY_DOUBLE
 ufunc_smirnovi_types[8] = <char>NPY_DOUBLE
-ufunc_smirnovi_ptr[2*0] = <void*>_func_smirnovi
+ufunc_smirnovi_ptr[2*0] = <void*>_func_cephes_smirnovi_wrap
 ufunc_smirnovi_ptr[2*0+1] = <void*>(<char*>"smirnovi")
 ufunc_smirnovi_ptr[2*1] = <void*>_func_smirnovi_unsafe
 ufunc_smirnovi_ptr[2*1+1] = <void*>(<char*>"smirnovi")
@@ -20097,9 +15829,9 @@ ufunc_spence_types[4] = <char>NPY_CFLOAT
 ufunc_spence_types[5] = <char>NPY_CFLOAT
 ufunc_spence_types[6] = <char>NPY_CDOUBLE
 ufunc_spence_types[7] = <char>NPY_CDOUBLE
-ufunc_spence_ptr[2*0] = <void*>_func_spence
+ufunc_spence_ptr[2*0] = <void*>_func_cephes_spence
 ufunc_spence_ptr[2*0+1] = <void*>(<char*>"spence")
-ufunc_spence_ptr[2*1] = <void*>_func_spence
+ufunc_spence_ptr[2*1] = <void*>_func_cephes_spence
 ufunc_spence_ptr[2*1+1] = <void*>(<char*>"spence")
 ufunc_spence_ptr[2*2] = <void*>_func_cspence
 ufunc_spence_ptr[2*2+1] = <void*>(<char*>"spence")
@@ -20110,102 +15842,6 @@ ufunc_spence_data[1] = &ufunc_spence_ptr[2*1]
 ufunc_spence_data[2] = &ufunc_spence_ptr[2*2]
 ufunc_spence_data[3] = &ufunc_spence_ptr[2*3]
 spence = np.PyUFunc_FromFuncAndData(ufunc_spence_loops, ufunc_spence_data, ufunc_spence_types, 4, 1, 1, 0, "spence", ufunc_spence_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_sph_harm_loops[3]
-cdef void *ufunc_sph_harm_ptr[6]
-cdef void *ufunc_sph_harm_data[3]
-cdef char ufunc_sph_harm_types[15]
-cdef char *ufunc_sph_harm_doc = (
-    "sph_harm(m, n, theta, phi, out=None)\n"
-    "\n"
-    "Compute spherical harmonics.\n"
-    "\n"
-    "The spherical harmonics are defined as\n"
-    "\n"
-    ".. math::\n"
-    "\n"
-    "    Y^m_n(\\theta,\\phi) = \\sqrt{\\frac{2n+1}{4\\pi} \\frac{(n-m)!}{(n+m)!}}\n"
-    "      e^{i m \\theta} P^m_n(\\cos(\\phi))\n"
-    "\n"
-    "where :math:`P_n^m` are the associated Legendre functions; see `lpmv`.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "m : array_like\n"
-    "    Order of the harmonic (int); must have ``|m| <= n``.\n"
-    "n : array_like\n"
-    "   Degree of the harmonic (int); must have ``n >= 0``. This is\n"
-    "   often denoted by ``l`` (lower case L) in descriptions of\n"
-    "   spherical harmonics.\n"
-    "theta : array_like\n"
-    "   Azimuthal (longitudinal) coordinate; must be in ``[0, 2*pi]``.\n"
-    "phi : array_like\n"
-    "   Polar (colatitudinal) coordinate; must be in ``[0, pi]``.\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function values\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "y_mn : complex scalar or ndarray\n"
-    "   The harmonic :math:`Y^m_n` sampled at ``theta`` and ``phi``.\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "There are different conventions for the meanings of the input\n"
-    "arguments ``theta`` and ``phi``. In SciPy ``theta`` is the\n"
-    "azimuthal angle and ``phi`` is the polar angle. It is common to\n"
-    "see the opposite convention, that is, ``theta`` as the polar angle\n"
-    "and ``phi`` as the azimuthal angle.\n"
-    "\n"
-    "Note that SciPy's spherical harmonics include the Condon-Shortley\n"
-    "phase [2]_ because it is part of `lpmv`.\n"
-    "\n"
-    "With SciPy's conventions, the first several spherical harmonics\n"
-    "are\n"
-    "\n"
-    ".. math::\n"
-    "\n"
-    "    Y_0^0(\\theta, \\phi) &= \\frac{1}{2} \\sqrt{\\frac{1}{\\pi}} \\\\\n"
-    "    Y_1^{-1}(\\theta, \\phi) &= \\frac{1}{2} \\sqrt{\\frac{3}{2\\pi}}\n"
-    "                                e^{-i\\theta} \\sin(\\phi) \\\\\n"
-    "    Y_1^0(\\theta, \\phi) &= \\frac{1}{2} \\sqrt{\\frac{3}{\\pi}}\n"
-    "                             \\cos(\\phi) \\\\\n"
-    "    Y_1^1(\\theta, \\phi) &= -\\frac{1}{2} \\sqrt{\\frac{3}{2\\pi}}\n"
-    "                             e^{i\\theta} \\sin(\\phi).\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] Digital Library of Mathematical Functions, 14.30.\n"
-    "       https://dlmf.nist.gov/14.30\n"
-    ".. [2] https://en.wikipedia.org/wiki/Spherical_harmonics#Condon.E2.80.93Shortley_phase")
-ufunc_sph_harm_loops[0] = <np.PyUFuncGenericFunction>loop_D_iidd__As_lldd_D
-ufunc_sph_harm_loops[1] = <np.PyUFuncGenericFunction>loop_D_dddd__As_ffff_F
-ufunc_sph_harm_loops[2] = <np.PyUFuncGenericFunction>loop_D_dddd__As_dddd_D
-ufunc_sph_harm_types[0] = <char>NPY_LONG
-ufunc_sph_harm_types[1] = <char>NPY_LONG
-ufunc_sph_harm_types[2] = <char>NPY_DOUBLE
-ufunc_sph_harm_types[3] = <char>NPY_DOUBLE
-ufunc_sph_harm_types[4] = <char>NPY_CDOUBLE
-ufunc_sph_harm_types[5] = <char>NPY_FLOAT
-ufunc_sph_harm_types[6] = <char>NPY_FLOAT
-ufunc_sph_harm_types[7] = <char>NPY_FLOAT
-ufunc_sph_harm_types[8] = <char>NPY_FLOAT
-ufunc_sph_harm_types[9] = <char>NPY_CFLOAT
-ufunc_sph_harm_types[10] = <char>NPY_DOUBLE
-ufunc_sph_harm_types[11] = <char>NPY_DOUBLE
-ufunc_sph_harm_types[12] = <char>NPY_DOUBLE
-ufunc_sph_harm_types[13] = <char>NPY_DOUBLE
-ufunc_sph_harm_types[14] = <char>NPY_CDOUBLE
-ufunc_sph_harm_ptr[2*0] = <void*>_func_sph_harmonic
-ufunc_sph_harm_ptr[2*0+1] = <void*>(<char*>"sph_harm")
-ufunc_sph_harm_ptr[2*1] = <void*>_func_sph_harmonic_unsafe
-ufunc_sph_harm_ptr[2*1+1] = <void*>(<char*>"sph_harm")
-ufunc_sph_harm_ptr[2*2] = <void*>_func_sph_harmonic_unsafe
-ufunc_sph_harm_ptr[2*2+1] = <void*>(<char*>"sph_harm")
-ufunc_sph_harm_data[0] = &ufunc_sph_harm_ptr[2*0]
-ufunc_sph_harm_data[1] = &ufunc_sph_harm_ptr[2*1]
-ufunc_sph_harm_data[2] = &ufunc_sph_harm_ptr[2*2]
-sph_harm = np.PyUFunc_FromFuncAndData(ufunc_sph_harm_loops, ufunc_sph_harm_data, ufunc_sph_harm_types, 3, 4, 1, 0, "sph_harm", ufunc_sph_harm_doc, 0)
 
 cdef np.PyUFuncGenericFunction ufunc_stdtr_loops[2]
 cdef void *ufunc_stdtr_ptr[4]
@@ -20603,9 +16239,9 @@ ufunc_struve_types[2] = <char>NPY_FLOAT
 ufunc_struve_types[3] = <char>NPY_DOUBLE
 ufunc_struve_types[4] = <char>NPY_DOUBLE
 ufunc_struve_types[5] = <char>NPY_DOUBLE
-ufunc_struve_ptr[2*0] = <void*>_func_struve_h
+ufunc_struve_ptr[2*0] = <void*>_func_cephes_struve_h
 ufunc_struve_ptr[2*0+1] = <void*>(<char*>"struve")
-ufunc_struve_ptr[2*1] = <void*>_func_struve_h
+ufunc_struve_ptr[2*1] = <void*>_func_cephes_struve_h
 ufunc_struve_ptr[2*1+1] = <void*>(<char*>"struve")
 ufunc_struve_data[0] = &ufunc_struve_ptr[2*0]
 ufunc_struve_data[1] = &ufunc_struve_ptr[2*1]
@@ -20654,9 +16290,9 @@ ufunc_tandg_types[0] = <char>NPY_FLOAT
 ufunc_tandg_types[1] = <char>NPY_FLOAT
 ufunc_tandg_types[2] = <char>NPY_DOUBLE
 ufunc_tandg_types[3] = <char>NPY_DOUBLE
-ufunc_tandg_ptr[2*0] = <void*>_func_tandg
+ufunc_tandg_ptr[2*0] = <void*>_func_cephes_tandg
 ufunc_tandg_ptr[2*0+1] = <void*>(<char*>"tandg")
-ufunc_tandg_ptr[2*1] = <void*>_func_tandg
+ufunc_tandg_ptr[2*1] = <void*>_func_cephes_tandg
 ufunc_tandg_ptr[2*1+1] = <void*>(<char*>"tandg")
 ufunc_tandg_data[0] = &ufunc_tandg_ptr[2*0]
 ufunc_tandg_data[1] = &ufunc_tandg_ptr[2*1]
@@ -20788,9 +16424,9 @@ ufunc_tklmbda_types[2] = <char>NPY_FLOAT
 ufunc_tklmbda_types[3] = <char>NPY_DOUBLE
 ufunc_tklmbda_types[4] = <char>NPY_DOUBLE
 ufunc_tklmbda_types[5] = <char>NPY_DOUBLE
-ufunc_tklmbda_ptr[2*0] = <void*>_func_tukeylambdacdf
+ufunc_tklmbda_ptr[2*0] = <void*>_func_cephes_tukeylambdacdf
 ufunc_tklmbda_ptr[2*0+1] = <void*>(<char*>"tklmbda")
-ufunc_tklmbda_ptr[2*1] = <void*>_func_tukeylambdacdf
+ufunc_tklmbda_ptr[2*1] = <void*>_func_cephes_tukeylambdacdf
 ufunc_tklmbda_ptr[2*1+1] = <void*>(<char*>"tklmbda")
 ufunc_tklmbda_data[0] = &ufunc_tklmbda_ptr[2*0]
 ufunc_tklmbda_data[1] = &ufunc_tklmbda_ptr[2*1]
@@ -20982,78 +16618,6 @@ ufunc_wofz_ptr[2*1+1] = <void*>(<char*>"wofz")
 ufunc_wofz_data[0] = &ufunc_wofz_ptr[2*0]
 ufunc_wofz_data[1] = &ufunc_wofz_ptr[2*1]
 wofz = np.PyUFunc_FromFuncAndData(ufunc_wofz_loops, ufunc_wofz_data, ufunc_wofz_types, 2, 1, 1, 0, "wofz", ufunc_wofz_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_wright_bessel_loops[2]
-cdef void *ufunc_wright_bessel_ptr[4]
-cdef void *ufunc_wright_bessel_data[2]
-cdef char ufunc_wright_bessel_types[8]
-cdef char *ufunc_wright_bessel_doc = (
-    "wright_bessel(a, b, x, out=None)\n"
-    "\n"
-    "Wright's generalized Bessel function.\n"
-    "\n"
-    "Wright's generalized Bessel function is an entire function and defined as\n"
-    "\n"
-    ".. math:: \\Phi(a, b; x) = \\sum_{k=0}^\\infty \\frac{x^k}{k! \\Gamma(a k + b)}\n"
-    "\n"
-    "See Also [1].\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "a : array_like of float\n"
-    "    a >= 0\n"
-    "b : array_like of float\n"
-    "    b >= 0\n"
-    "x : array_like of float\n"
-    "    x >= 0\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "scalar or ndarray\n"
-    "    Value of the Wright's generalized Bessel function\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "Due to the complexity of the function with its three parameters, only\n"
-    "non-negative arguments are implemented.\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] Digital Library of Mathematical Functions, 10.46.\n"
-    "       https://dlmf.nist.gov/10.46.E1\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> from scipy.special import wright_bessel\n"
-    ">>> a, b, x = 1.5, 1.1, 2.5\n"
-    ">>> wright_bessel(a, b-1, x)\n"
-    "4.5314465939443025\n"
-    "\n"
-    "Now, let us verify the relation\n"
-    "\n"
-    ".. math:: \\Phi(a, b-1; x) = a x \\Phi(a, b+a; x) + (b-1) \\Phi(a, b; x)\n"
-    "\n"
-    ">>> a * x * wright_bessel(a, b+a, x) + (b-1) * wright_bessel(a, b, x)\n"
-    "4.5314465939443025")
-ufunc_wright_bessel_loops[0] = <np.PyUFuncGenericFunction>loop_d_ddd__As_fff_f
-ufunc_wright_bessel_loops[1] = <np.PyUFuncGenericFunction>loop_d_ddd__As_ddd_d
-ufunc_wright_bessel_types[0] = <char>NPY_FLOAT
-ufunc_wright_bessel_types[1] = <char>NPY_FLOAT
-ufunc_wright_bessel_types[2] = <char>NPY_FLOAT
-ufunc_wright_bessel_types[3] = <char>NPY_FLOAT
-ufunc_wright_bessel_types[4] = <char>NPY_DOUBLE
-ufunc_wright_bessel_types[5] = <char>NPY_DOUBLE
-ufunc_wright_bessel_types[6] = <char>NPY_DOUBLE
-ufunc_wright_bessel_types[7] = <char>NPY_DOUBLE
-ufunc_wright_bessel_ptr[2*0] = <void*>_func_wright_bessel_scalar
-ufunc_wright_bessel_ptr[2*0+1] = <void*>(<char*>"wright_bessel")
-ufunc_wright_bessel_ptr[2*1] = <void*>_func_wright_bessel_scalar
-ufunc_wright_bessel_ptr[2*1+1] = <void*>(<char*>"wright_bessel")
-ufunc_wright_bessel_data[0] = &ufunc_wright_bessel_ptr[2*0]
-ufunc_wright_bessel_data[1] = &ufunc_wright_bessel_ptr[2*1]
-wright_bessel = np.PyUFunc_FromFuncAndData(ufunc_wright_bessel_loops, ufunc_wright_bessel_data, ufunc_wright_bessel_types, 2, 3, 1, 0, "wright_bessel", ufunc_wright_bessel_doc, 0)
 
 cdef np.PyUFuncGenericFunction ufunc_wrightomega_loops[4]
 cdef void *ufunc_wrightomega_ptr[8]
@@ -21425,9 +16989,9 @@ ufunc_y0_types[0] = <char>NPY_FLOAT
 ufunc_y0_types[1] = <char>NPY_FLOAT
 ufunc_y0_types[2] = <char>NPY_DOUBLE
 ufunc_y0_types[3] = <char>NPY_DOUBLE
-ufunc_y0_ptr[2*0] = <void*>_func_y0
+ufunc_y0_ptr[2*0] = <void*>_func_cephes_y0
 ufunc_y0_ptr[2*0+1] = <void*>(<char*>"y0")
-ufunc_y0_ptr[2*1] = <void*>_func_y0
+ufunc_y0_ptr[2*1] = <void*>_func_cephes_y0
 ufunc_y0_ptr[2*1+1] = <void*>(<char*>"y0")
 ufunc_y0_data[0] = &ufunc_y0_ptr[2*0]
 ufunc_y0_data[1] = &ufunc_y0_ptr[2*1]
@@ -21503,9 +17067,9 @@ ufunc_y1_types[0] = <char>NPY_FLOAT
 ufunc_y1_types[1] = <char>NPY_FLOAT
 ufunc_y1_types[2] = <char>NPY_DOUBLE
 ufunc_y1_types[3] = <char>NPY_DOUBLE
-ufunc_y1_ptr[2*0] = <void*>_func_y1
+ufunc_y1_ptr[2*0] = <void*>_func_cephes_y1
 ufunc_y1_ptr[2*0+1] = <void*>(<char*>"y1")
-ufunc_y1_ptr[2*1] = <void*>_func_y1
+ufunc_y1_ptr[2*1] = <void*>_func_cephes_y1
 ufunc_y1_ptr[2*1+1] = <void*>(<char*>"y1")
 ufunc_y1_data[0] = &ufunc_y1_ptr[2*0]
 ufunc_y1_data[1] = &ufunc_y1_ptr[2*1]
@@ -21602,10 +17166,10 @@ cdef char *ufunc_yn_doc = (
     ">>> ax.set_ylim(-3, 1)\n"
     ">>> ax.legend()\n"
     ">>> plt.show()")
-ufunc_yn_loops[0] = <np.PyUFuncGenericFunction>loop_d_id__As_ld_d
+ufunc_yn_loops[0] = <np.PyUFuncGenericFunction>loop_d_pd__As_pd_d
 ufunc_yn_loops[1] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
 ufunc_yn_loops[2] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
-ufunc_yn_types[0] = <char>NPY_LONG
+ufunc_yn_types[0] = <char>NPY_INTP
 ufunc_yn_types[1] = <char>NPY_DOUBLE
 ufunc_yn_types[2] = <char>NPY_DOUBLE
 ufunc_yn_types[3] = <char>NPY_FLOAT
@@ -21614,7 +17178,7 @@ ufunc_yn_types[5] = <char>NPY_FLOAT
 ufunc_yn_types[6] = <char>NPY_DOUBLE
 ufunc_yn_types[7] = <char>NPY_DOUBLE
 ufunc_yn_types[8] = <char>NPY_DOUBLE
-ufunc_yn_ptr[2*0] = <void*>_func_yn
+ufunc_yn_ptr[2*0] = <void*>_func_cephes_yn_wrap
 ufunc_yn_ptr[2*0+1] = <void*>(<char*>"yn")
 ufunc_yn_ptr[2*1] = <void*>_func_yn_unsafe
 ufunc_yn_ptr[2*1+1] = <void*>(<char*>"yn")
@@ -21624,274 +17188,6 @@ ufunc_yn_data[0] = &ufunc_yn_ptr[2*0]
 ufunc_yn_data[1] = &ufunc_yn_ptr[2*1]
 ufunc_yn_data[2] = &ufunc_yn_ptr[2*2]
 yn = np.PyUFunc_FromFuncAndData(ufunc_yn_loops, ufunc_yn_data, ufunc_yn_types, 3, 2, 1, 0, "yn", ufunc_yn_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_yv_loops[4]
-cdef void *ufunc_yv_ptr[8]
-cdef void *ufunc_yv_data[4]
-cdef char ufunc_yv_types[12]
-cdef char *ufunc_yv_doc = (
-    "yv(v, z, out=None)\n"
-    "\n"
-    "Bessel function of the second kind of real order and complex argument.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "v : array_like\n"
-    "    Order (float).\n"
-    "z : array_like\n"
-    "    Argument (float or complex).\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "Y : scalar or ndarray\n"
-    "    Value of the Bessel function of the second kind, :math:`Y_v(x)`.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "yve : :math:`Y_v` with leading exponential behavior stripped off.\n"
-    "y0: faster implementation of this function for order 0\n"
-    "y1: faster implementation of this function for order 1\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "For positive `v` values, the computation is carried out using the\n"
-    "AMOS [1]_ `zbesy` routine, which exploits the connection to the Hankel\n"
-    "Bessel functions :math:`H_v^{(1)}` and :math:`H_v^{(2)}`,\n"
-    "\n"
-    ".. math:: Y_v(z) = \\frac{1}{2\\imath} (H_v^{(1)} - H_v^{(2)}).\n"
-    "\n"
-    "For negative `v` values the formula,\n"
-    "\n"
-    ".. math:: Y_{-v}(z) = Y_v(z) \\cos(\\pi v) + J_v(z) \\sin(\\pi v)\n"
-    "\n"
-    "is used, where :math:`J_v(z)` is the Bessel function of the first kind,\n"
-    "computed using the AMOS routine `zbesj`.  Note that the second term is\n"
-    "exactly zero for integer `v`; to improve accuracy the second term is\n"
-    "explicitly omitted for `v` values such that `v = floor(v)`.\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] Donald E. Amos, \"AMOS, A Portable Package for Bessel Functions\n"
-    "       of a Complex Argument and Nonnegative Order\",\n"
-    "       http://netlib.org/amos/\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "Evaluate the function of order 0 at one point.\n"
-    "\n"
-    ">>> from scipy.special import yv\n"
-    ">>> yv(0, 1.)\n"
-    "0.088256964215677\n"
-    "\n"
-    "Evaluate the function at one point for different orders.\n"
-    "\n"
-    ">>> yv(0, 1.), yv(1, 1.), yv(1.5, 1.)\n"
-    "(0.088256964215677, -0.7812128213002889, -1.102495575160179)\n"
-    "\n"
-    "The evaluation for different orders can be carried out in one call by\n"
-    "providing a list or NumPy array as argument for the `v` parameter:\n"
-    "\n"
-    ">>> yv([0, 1, 1.5], 1.)\n"
-    "array([ 0.08825696, -0.78121282, -1.10249558])\n"
-    "\n"
-    "Evaluate the function at several points for order 0 by providing an\n"
-    "array for `z`.\n"
-    "\n"
-    ">>> import numpy as np\n"
-    ">>> points = np.array([0.5, 3., 8.])\n"
-    ">>> yv(0, points)\n"
-    "array([-0.44451873,  0.37685001,  0.22352149])\n"
-    "\n"
-    "If `z` is an array, the order parameter `v` must be broadcastable to\n"
-    "the correct shape if different orders shall be computed in one call.\n"
-    "To calculate the orders 0 and 1 for an 1D array:\n"
-    "\n"
-    ">>> orders = np.array([[0], [1]])\n"
-    ">>> orders.shape\n"
-    "(2, 1)\n"
-    "\n"
-    ">>> yv(orders, points)\n"
-    "array([[-0.44451873,  0.37685001,  0.22352149],\n"
-    "       [-1.47147239,  0.32467442, -0.15806046]])\n"
-    "\n"
-    "Plot the functions of order 0 to 3 from 0 to 10.\n"
-    "\n"
-    ">>> import matplotlib.pyplot as plt\n"
-    ">>> fig, ax = plt.subplots()\n"
-    ">>> x = np.linspace(0., 10., 1000)\n"
-    ">>> for i in range(4):\n"
-    "...     ax.plot(x, yv(i, x), label=f'$Y_{i!r}$')\n"
-    ">>> ax.set_ylim(-3, 1)\n"
-    ">>> ax.legend()\n"
-    ">>> plt.show()")
-ufunc_yv_loops[0] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
-ufunc_yv_loops[1] = <np.PyUFuncGenericFunction>loop_D_dD__As_fF_F
-ufunc_yv_loops[2] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
-ufunc_yv_loops[3] = <np.PyUFuncGenericFunction>loop_D_dD__As_dD_D
-ufunc_yv_types[0] = <char>NPY_FLOAT
-ufunc_yv_types[1] = <char>NPY_FLOAT
-ufunc_yv_types[2] = <char>NPY_FLOAT
-ufunc_yv_types[3] = <char>NPY_FLOAT
-ufunc_yv_types[4] = <char>NPY_CFLOAT
-ufunc_yv_types[5] = <char>NPY_CFLOAT
-ufunc_yv_types[6] = <char>NPY_DOUBLE
-ufunc_yv_types[7] = <char>NPY_DOUBLE
-ufunc_yv_types[8] = <char>NPY_DOUBLE
-ufunc_yv_types[9] = <char>NPY_DOUBLE
-ufunc_yv_types[10] = <char>NPY_CDOUBLE
-ufunc_yv_types[11] = <char>NPY_CDOUBLE
-ufunc_yv_ptr[2*0] = <void*>_func_cbesy_wrap_real
-ufunc_yv_ptr[2*0+1] = <void*>(<char*>"yv")
-ufunc_yv_ptr[2*1] = <void*>_func_cbesy_wrap
-ufunc_yv_ptr[2*1+1] = <void*>(<char*>"yv")
-ufunc_yv_ptr[2*2] = <void*>_func_cbesy_wrap_real
-ufunc_yv_ptr[2*2+1] = <void*>(<char*>"yv")
-ufunc_yv_ptr[2*3] = <void*>_func_cbesy_wrap
-ufunc_yv_ptr[2*3+1] = <void*>(<char*>"yv")
-ufunc_yv_data[0] = &ufunc_yv_ptr[2*0]
-ufunc_yv_data[1] = &ufunc_yv_ptr[2*1]
-ufunc_yv_data[2] = &ufunc_yv_ptr[2*2]
-ufunc_yv_data[3] = &ufunc_yv_ptr[2*3]
-yv = np.PyUFunc_FromFuncAndData(ufunc_yv_loops, ufunc_yv_data, ufunc_yv_types, 4, 2, 1, 0, "yv", ufunc_yv_doc, 0)
-
-cdef np.PyUFuncGenericFunction ufunc_yve_loops[4]
-cdef void *ufunc_yve_ptr[8]
-cdef void *ufunc_yve_data[4]
-cdef char ufunc_yve_types[12]
-cdef char *ufunc_yve_doc = (
-    "yve(v, z, out=None)\n"
-    "\n"
-    "Exponentially scaled Bessel function of the second kind of real order.\n"
-    "\n"
-    "Returns the exponentially scaled Bessel function of the second\n"
-    "kind of real order `v` at complex `z`::\n"
-    "\n"
-    "    yve(v, z) = yv(v, z) * exp(-abs(z.imag))\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "v : array_like\n"
-    "    Order (float).\n"
-    "z : array_like\n"
-    "    Argument (float or complex).\n"
-    "out : ndarray, optional\n"
-    "    Optional output array for the function results\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "Y : scalar or ndarray\n"
-    "    Value of the exponentially scaled Bessel function.\n"
-    "\n"
-    "See Also\n"
-    "--------\n"
-    "yv: Unscaled Bessel function of the second kind of real order.\n"
-    "\n"
-    "Notes\n"
-    "-----\n"
-    "For positive `v` values, the computation is carried out using the\n"
-    "AMOS [1]_ `zbesy` routine, which exploits the connection to the Hankel\n"
-    "Bessel functions :math:`H_v^{(1)}` and :math:`H_v^{(2)}`,\n"
-    "\n"
-    ".. math:: Y_v(z) = \\frac{1}{2\\imath} (H_v^{(1)} - H_v^{(2)}).\n"
-    "\n"
-    "For negative `v` values the formula,\n"
-    "\n"
-    ".. math:: Y_{-v}(z) = Y_v(z) \\cos(\\pi v) + J_v(z) \\sin(\\pi v)\n"
-    "\n"
-    "is used, where :math:`J_v(z)` is the Bessel function of the first kind,\n"
-    "computed using the AMOS routine `zbesj`.  Note that the second term is\n"
-    "exactly zero for integer `v`; to improve accuracy the second term is\n"
-    "explicitly omitted for `v` values such that `v = floor(v)`.\n"
-    "\n"
-    "Exponentially scaled Bessel functions are useful for large `z`:\n"
-    "for these, the unscaled Bessel functions can easily under-or overflow.\n"
-    "\n"
-    "References\n"
-    "----------\n"
-    ".. [1] Donald E. Amos, \"AMOS, A Portable Package for Bessel Functions\n"
-    "       of a Complex Argument and Nonnegative Order\",\n"
-    "       http://netlib.org/amos/\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "Compare the output of `yv` and `yve` for large complex arguments for `z`\n"
-    "by computing their values for order ``v=1`` at ``z=1000j``. We see that\n"
-    "`yv` returns nan but `yve` returns a finite number:\n"
-    "\n"
-    ">>> import numpy as np\n"
-    ">>> from scipy.special import yv, yve\n"
-    ">>> v = 1\n"
-    ">>> z = 1000j\n"
-    ">>> yv(v, z), yve(v, z)\n"
-    "((nan+nanj), (-0.012610930256928629+7.721967686709076e-19j))\n"
-    "\n"
-    "For real arguments for `z`, `yve` returns the same as `yv` up to\n"
-    "floating point errors.\n"
-    "\n"
-    ">>> v, z = 1, 1000\n"
-    ">>> yv(v, z), yve(v, z)\n"
-    "(-0.02478433129235178, -0.02478433129235179)\n"
-    "\n"
-    "The function can be evaluated for several orders at the same time by\n"
-    "providing a list or NumPy array for `v`:\n"
-    "\n"
-    ">>> yve([1, 2, 3], 1j)\n"
-    "array([-0.20791042+0.14096627j,  0.38053618-0.04993878j,\n"
-    "       0.00815531-1.66311097j])\n"
-    "\n"
-    "In the same way, the function can be evaluated at several points in one\n"
-    "call by providing a list or NumPy array for `z`:\n"
-    "\n"
-    ">>> yve(1, np.array([1j, 2j, 3j]))\n"
-    "array([-0.20791042+0.14096627j, -0.21526929+0.01205044j,\n"
-    "       -0.19682671+0.00127278j])\n"
-    "\n"
-    "It is also possible to evaluate several orders at several points\n"
-    "at the same time by providing arrays for `v` and `z` with\n"
-    "broadcasting compatible shapes. Compute `yve` for two different orders\n"
-    "`v` and three points `z` resulting in a 2x3 array.\n"
-    "\n"
-    ">>> v = np.array([[1], [2]])\n"
-    ">>> z = np.array([3j, 4j, 5j])\n"
-    ">>> v.shape, z.shape\n"
-    "((2, 1), (3,))\n"
-    "\n"
-    ">>> yve(v, z)\n"
-    "array([[-1.96826713e-01+1.27277544e-03j, -1.78750840e-01+1.45558819e-04j,\n"
-    "        -1.63972267e-01+1.73494110e-05j],\n"
-    "       [1.94960056e-03-1.11782545e-01j,  2.02902325e-04-1.17626501e-01j,\n"
-    "        2.27727687e-05-1.17951906e-01j]])")
-ufunc_yve_loops[0] = <np.PyUFuncGenericFunction>loop_d_dd__As_ff_f
-ufunc_yve_loops[1] = <np.PyUFuncGenericFunction>loop_D_dD__As_fF_F
-ufunc_yve_loops[2] = <np.PyUFuncGenericFunction>loop_d_dd__As_dd_d
-ufunc_yve_loops[3] = <np.PyUFuncGenericFunction>loop_D_dD__As_dD_D
-ufunc_yve_types[0] = <char>NPY_FLOAT
-ufunc_yve_types[1] = <char>NPY_FLOAT
-ufunc_yve_types[2] = <char>NPY_FLOAT
-ufunc_yve_types[3] = <char>NPY_FLOAT
-ufunc_yve_types[4] = <char>NPY_CFLOAT
-ufunc_yve_types[5] = <char>NPY_CFLOAT
-ufunc_yve_types[6] = <char>NPY_DOUBLE
-ufunc_yve_types[7] = <char>NPY_DOUBLE
-ufunc_yve_types[8] = <char>NPY_DOUBLE
-ufunc_yve_types[9] = <char>NPY_DOUBLE
-ufunc_yve_types[10] = <char>NPY_CDOUBLE
-ufunc_yve_types[11] = <char>NPY_CDOUBLE
-ufunc_yve_ptr[2*0] = <void*>_func_cbesy_wrap_e_real
-ufunc_yve_ptr[2*0+1] = <void*>(<char*>"yve")
-ufunc_yve_ptr[2*1] = <void*>_func_cbesy_wrap_e
-ufunc_yve_ptr[2*1+1] = <void*>(<char*>"yve")
-ufunc_yve_ptr[2*2] = <void*>_func_cbesy_wrap_e_real
-ufunc_yve_ptr[2*2+1] = <void*>(<char*>"yve")
-ufunc_yve_ptr[2*3] = <void*>_func_cbesy_wrap_e
-ufunc_yve_ptr[2*3+1] = <void*>(<char*>"yve")
-ufunc_yve_data[0] = &ufunc_yve_ptr[2*0]
-ufunc_yve_data[1] = &ufunc_yve_ptr[2*1]
-ufunc_yve_data[2] = &ufunc_yve_ptr[2*2]
-ufunc_yve_data[3] = &ufunc_yve_ptr[2*3]
-yve = np.PyUFunc_FromFuncAndData(ufunc_yve_loops, ufunc_yve_data, ufunc_yve_types, 4, 2, 1, 0, "yve", ufunc_yve_doc, 0)
 
 cdef np.PyUFuncGenericFunction ufunc_zetac_loops[2]
 cdef void *ufunc_zetac_ptr[4]
@@ -21954,13 +17250,15 @@ ufunc_zetac_types[0] = <char>NPY_FLOAT
 ufunc_zetac_types[1] = <char>NPY_FLOAT
 ufunc_zetac_types[2] = <char>NPY_DOUBLE
 ufunc_zetac_types[3] = <char>NPY_DOUBLE
-ufunc_zetac_ptr[2*0] = <void*>_func_zetac
+ufunc_zetac_ptr[2*0] = <void*>_func_cephes_zetac
 ufunc_zetac_ptr[2*0+1] = <void*>(<char*>"zetac")
-ufunc_zetac_ptr[2*1] = <void*>_func_zetac
+ufunc_zetac_ptr[2*1] = <void*>_func_cephes_zetac
 ufunc_zetac_ptr[2*1+1] = <void*>(<char*>"zetac")
 ufunc_zetac_data[0] = &ufunc_zetac_ptr[2*0]
 ufunc_zetac_data[1] = &ufunc_zetac_ptr[2*1]
 zetac = np.PyUFunc_FromFuncAndData(ufunc_zetac_loops, ufunc_zetac_data, ufunc_zetac_types, 2, 1, 1, 0, "zetac", ufunc_zetac_doc, 0)
+
+from ._special_ufuncs import (_cospi, _lambertw, _scaled_exp1, _sinpi, _spherical_jn, _spherical_jn_d, _spherical_yn, _spherical_yn_d, _spherical_in, _spherical_in_d, _spherical_kn, _spherical_kn_d, airy, airye, bei, beip, ber, berp, binom, exp1, expi, expit, exprel, gamma, gammaln, hankel1, hankel1e, hankel2, hankel2e, hyp2f1, it2i0k0, it2j0y0, it2struve0, itairy, iti0k0, itj0y0, itmodstruve0, itstruve0, iv, _iv_ratio, ive, jv, jve, kei, keip, kelvin, ker, kerp, kv, kve, log_expit, log_wright_bessel, loggamma, logit, mathieu_a, mathieu_b, mathieu_cem, mathieu_modcem1, mathieu_modcem2, mathieu_modsem1, mathieu_modsem2, mathieu_sem, modfresnelm, modfresnelp, obl_ang1, obl_ang1_cv, obl_cv, obl_rad1, obl_rad1_cv, obl_rad2, obl_rad2_cv, pbdv, pbvv, pbwa, pro_ang1, pro_ang1_cv, pro_cv, pro_rad1, pro_rad1_cv, pro_rad2, pro_rad2_cv, psi, rgamma, sph_harm, wright_bessel, yv, yve, _zeta)
 
 #
 # Aliases

@@ -6,14 +6,15 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from typing import Optional, Sequence, Tuple, Union, List
+    import numpy as np
+    from typing import Optional, Sequence, Tuple, Union
     from ._typing import ndarray, Device, Dtype, NestedSequence, SupportsBufferProtocol
 
 from typing import NamedTuple
 from types import ModuleType
 import inspect
 
-from ._helpers import _check_device, _is_numpy_array, array_namespace
+from ._helpers import _check_device, is_numpy_array, array_namespace
 
 # These functions are modified from the NumPy versions.
 
@@ -145,6 +146,9 @@ def zeros_like(
 
 # The functions here return namedtuples (np.unique() returns a normal
 # tuple).
+
+# Note that these named tuples aren't actually part of the standard namespace,
+# but I don't see any issue with exporting the names here regardless.
 class UniqueAllResult(NamedTuple):
     values: ndarray
     indices: ndarray
@@ -303,11 +307,13 @@ def _asarray(
         import numpy as xp
     elif namespace == 'cupy':
         import cupy as xp
+    elif namespace == 'dask.array':
+        import dask.array as xp
     else:
         raise ValueError("Unrecognized namespace argument to asarray()")
 
     _check_device(xp, device)
-    if _is_numpy_array(obj):
+    if is_numpy_array(obj):
         import numpy as np
         if hasattr(np, '_CopyMode'):
             # Not present in older NumPys
@@ -319,15 +325,30 @@ def _asarray(
     else:
         COPY_FALSE = (False,)
         COPY_TRUE = (True,)
-    if copy in COPY_FALSE:
+    if copy in COPY_FALSE and namespace != "dask.array":
         # copy=False is not yet implemented in xp.asarray
         raise NotImplementedError("copy=False is not yet implemented")
-    if isinstance(obj, xp.ndarray):
+    if (hasattr(xp, "ndarray") and isinstance(obj, xp.ndarray)):
         if dtype is not None and obj.dtype != dtype:
             copy = True
         if copy in COPY_TRUE:
             return xp.array(obj, copy=True, dtype=dtype)
         return obj
+    elif namespace == "dask.array":
+        if copy in COPY_TRUE:
+            if dtype is None:
+                return obj.copy()
+            # Go through numpy, since dask copy is no-op by default
+            import numpy as np
+            obj = np.array(obj, dtype=dtype, copy=True)
+            return xp.array(obj, dtype=dtype)
+        else:
+            import dask.array as da
+            import numpy as np
+            if not isinstance(obj, da.Array):
+                obj = np.asarray(obj, dtype=dtype)
+                return da.from_array(obj)
+            return obj
 
     return xp.asarray(obj, dtype=dtype, **kwargs)
 
@@ -467,10 +488,7 @@ def tensordot(x1: ndarray,
     return xp.tensordot(x1, x2, axes=axes, **kwargs)
 
 def vecdot(x1: ndarray, x2: ndarray, /, xp, *, axis: int = -1) -> ndarray:
-    ndim = max(x1.ndim, x2.ndim)
-    x1_shape = (1,)*(ndim - x1.ndim) + tuple(x1.shape)
-    x2_shape = (1,)*(ndim - x2.ndim) + tuple(x2.shape)
-    if x1_shape[axis] != x2_shape[axis]:
+    if x1.shape[axis] != x2.shape[axis]:
         raise ValueError("x1 and x2 must have the same size along the given axis")
 
     if hasattr(xp, 'broadcast_tensors'):
@@ -478,9 +496,9 @@ def vecdot(x1: ndarray, x2: ndarray, /, xp, *, axis: int = -1) -> ndarray:
     else:
         _broadcast = xp.broadcast_arrays
 
-    x1_, x2_ = _broadcast(x1, x2)
-    x1_ = xp.moveaxis(x1_, axis, -1)
-    x2_ = xp.moveaxis(x2_, axis, -1)
+    x1_ = xp.moveaxis(x1, axis, -1)
+    x2_ = xp.moveaxis(x2, axis, -1)
+    x1_, x2_ = _broadcast(x1_, x2_)
 
     res = x1_[..., None, :] @ x2_[..., None]
     return res[..., 0, 0]
@@ -524,7 +542,7 @@ def isdtype(
         # This will allow things that aren't required by the spec, like
         # isdtype(np.float64, float) or isdtype(np.int64, 'l'). Should we be
         # more strict here to match the type annotation? Note that the
-        # numpy.array_api implementation will be very strict.
+        # array_api_strict implementation will be very strict.
         return dtype == kind
 
 __all__ = ['arange', 'empty', 'empty_like', 'eye', 'full', 'full_like',

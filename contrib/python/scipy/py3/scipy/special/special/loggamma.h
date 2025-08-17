@@ -22,6 +22,7 @@
 #pragma once
 
 #include "cephes/gamma.h"
+#include "cephes/rgamma.h"
 #include "config.h"
 #include "error.h"
 #include "evalpoly.h"
@@ -37,7 +38,7 @@ namespace detail {
     constexpr double loggamma_LOGPI = 1.1447298858494001741434262; // log(pi)
     constexpr double loggamma_TAYLOR_RADIUS = 0.2;
 
-    SPECFUN_HOST_DEVICE std::complex<double> loggamma_stirling(std::complex<double> z) {
+    static SPECFUN_HOST_DEVICE std::complex<double> loggamma_stirling(std::complex<double> z) {
         /* Stirling series for log-Gamma
          *
          * The coefficients are B[2*n]/(2*n*(2*n - 1)) where B[2*n] is the
@@ -52,7 +53,7 @@ namespace detail {
         return (z - 0.5) * std::log(z) - z + loggamma_HLOG2PI + rz * cevalpoly(coeffs, 7, rzz);
     }
 
-    SPECFUN_HOST_DEVICE std::complex<double> loggamma_recurrence(std::complex<double> z) {
+    static SPECFUN_HOST_DEVICE std::complex<double> loggamma_recurrence(std::complex<double> z) {
         /* Backward recurrence relation.
          *
          * See Proposition 2.2 in [1] and the Julia implementation [2].
@@ -74,7 +75,7 @@ namespace detail {
         return loggamma_stirling(z) - std::log(shiftprod) - signflips * 2 * M_PI * std::complex<double>(0, 1);
     }
 
-    SPECFUN_HOST_DEVICE std::complex<double> loggamma_taylor(std::complex<double> z) {
+    static SPECFUN_HOST_DEVICE std::complex<double> loggamma_taylor(std::complex<double> z) {
         /* Taylor series for log-Gamma around z = 1.
          *
          * It is
@@ -103,6 +104,8 @@ SPECFUN_HOST_DEVICE inline double loggamma(double x) {
     }
     return cephes::lgam(x);
 }
+
+SPECFUN_HOST_DEVICE inline float loggamma(float x) { return loggamma(static_cast<double>(x)); }
 
 SPECFUN_HOST_DEVICE inline std::complex<double> loggamma(std::complex<double> z) {
     // Compute the principal branch of log-Gamma
@@ -136,15 +139,13 @@ SPECFUN_HOST_DEVICE inline std::complex<double> loggamma(std::complex<double> z)
     return std::conj(detail::loggamma_recurrence(std::conj(z)));
 }
 
-SPECFUN_HOST_DEVICE inline std::complex<double> gamma(std::complex<double> z) {
-    // Compute Gamma(z) using loggamma.
-    if (z.real() <= 0 && z == std::floor(z.real())) {
-        // Poles
-        set_error("gamma", SF_ERROR_SINGULAR, NULL);
-        return {std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN()};
-    }
-    return std::exp(loggamma(z));
+SPECFUN_HOST_DEVICE inline std::complex<float> loggamma(std::complex<float> z) {
+    return static_cast<std::complex<float>>(loggamma(static_cast<std::complex<double>>(z)));
 }
+
+SPECFUN_HOST_DEVICE inline double rgamma(double z) { return cephes::rgamma(z); }
+
+SPECFUN_HOST_DEVICE inline float rgamma(float z) { return rgamma(static_cast<double>(z)); }
 
 SPECFUN_HOST_DEVICE inline std::complex<double> rgamma(std::complex<double> z) {
     // Compute 1/Gamma(z) using loggamma.
@@ -153,6 +154,10 @@ SPECFUN_HOST_DEVICE inline std::complex<double> rgamma(std::complex<double> z) {
         return 0.0;
     }
     return std::exp(-loggamma(z));
+}
+
+SPECFUN_HOST_DEVICE inline std::complex<float> rgamma(std::complex<float> z) {
+    return static_cast<std::complex<float>>(rgamma(static_cast<std::complex<double>>(z)));
 }
 
 } // namespace special

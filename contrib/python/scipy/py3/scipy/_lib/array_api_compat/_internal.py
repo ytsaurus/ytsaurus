@@ -21,13 +21,16 @@ def get_xp(xp):
     arguments.
 
     """
+
     def inner(f):
         @wraps(f)
         def wrapped_f(*args, **kwargs):
             return f(*args, xp=xp, **kwargs)
 
         sig = signature(f)
-        new_sig = sig.replace(parameters=[sig.parameters[i] for i in sig.parameters if i != 'xp'])
+        new_sig = sig.replace(
+            parameters=[sig.parameters[i] for i in sig.parameters if i != "xp"]
+        )
 
         if wrapped_f.__doc__ is None:
             wrapped_f.__doc__ = f"""\

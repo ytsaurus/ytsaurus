@@ -312,11 +312,11 @@ def identity(n, dtype='d', format=None):
            [ 0.,  1.,  0.],
            [ 0.,  0.,  1.]])
     >>> sp.sparse.identity(3, dtype='int8', format='dia')
-    <3x3 sparse matrix of type '<class 'numpy.int8'>'
-            with 3 stored elements (1 diagonals) in DIAgonal format>
+    <DIAgonal sparse matrix of dtype 'int8'
+        with 3 stored elements (1 diagonals) and shape (3, 3)>
     >>> sp.sparse.eye_array(3, dtype='int8', format='dia')
-    <3x3 sparse array of type '<class 'numpy.int8'>'
-            with 3 stored elements (1 diagonals) in DIAgonal format>
+    <DIAgonal sparse array of dtype 'int8'
+        with 3 stored elements (1 diagonals) and shape (3, 3)>
 
     """
     return eye(n, n, dtype=dtype, format=format)
@@ -351,8 +351,8 @@ def eye_array(m, n=None, *, k=0, dtype=float, format=None):
            [ 0.,  1.,  0.],
            [ 0.,  0.,  1.]])
     >>> sp.sparse.eye_array(3, dtype=np.int8)
-    <3x3 sparse array of type '<class 'numpy.int8'>'
-            with 3 stored elements (1 diagonals) in DIAgonal format>
+    <DIAgonal sparse array of dtype 'int8'
+        with 3 stored elements (1 diagonals) and shape (3, 3)>
 
     """
     # TODO: delete next 15 lines [combine with _eye()] once spmatrix removed
@@ -430,8 +430,8 @@ def eye(m, n=None, k=0, dtype=float, format=None):
            [ 0.,  1.,  0.],
            [ 0.,  0.,  1.]])
     >>> sp.sparse.eye(3, dtype=np.int8)
-    <3x3 sparse matrix of type '<class 'numpy.int8'>'
-        with 3 stored elements (1 diagonals) in DIAgonal format>
+    <DIAgonal sparse matrix of dtype 'int8'
+        with 3 stored elements (1 diagonals) and shape (3, 3)>
 
     """
     return _eye(m, n, k, dtype, format, False)
@@ -487,10 +487,14 @@ def kron(A, B, format=None):
         coo_sparse = coo_matrix
 
     B = coo_sparse(B)
+    if B.ndim != 2:
+        raise ValueError(f"kron requires 2D input arrays. `B` is {B.ndim}D.")
 
     # B is fairly dense, use BSR
     if (format is None or format == "bsr") and 2*B.nnz >= B.shape[0] * B.shape[1]:
         A = csr_sparse(A,copy=True)
+        if A.ndim != 2:
+            raise ValueError(f"kron requires 2D input arrays. `A` is {A.ndim}D.")
         output_shape = (A.shape[0]*B.shape[0], A.shape[1]*B.shape[1])
 
         if A.nnz == 0 or B.nnz == 0:
@@ -505,6 +509,8 @@ def kron(A, B, format=None):
     else:
         # use COO
         A = coo_sparse(A)
+        if A.ndim != 2:
+            raise ValueError(f"kron requires 2D input arrays. `A` is {A.ndim}D.")
         output_shape = (A.shape[0]*B.shape[0], A.shape[1]*B.shape[1])
 
         if A.nnz == 0 or B.nnz == 0:
@@ -570,9 +576,12 @@ def kronsum(A, B, format=None):
     A = coo_sparse(A)
     B = coo_sparse(B)
 
+    if A.ndim != 2:
+        raise ValueError(f"kronsum requires 2D inputs. `A` is {A.ndim}D.")
+    if B.ndim != 2:
+        raise ValueError(f"kronsum requires 2D inputs. `B` is {B.ndim}D.")
     if A.shape[0] != A.shape[1]:
         raise ValueError('A is not square')
-
     if B.shape[0] != B.shape[1]:
         raise ValueError('B is not square')
 
@@ -593,23 +602,23 @@ def _compressed_sparse_stack(blocks, axis, return_spmatrix):
     """
     other_axis = 1 if axis == 0 else 0
     data = np.concatenate([b.data for b in blocks])
-    constant_dim = blocks[0].shape[other_axis]
+    constant_dim = blocks[0]._shape_as_2d[other_axis]
     idx_dtype = get_index_dtype(arrays=[b.indptr for b in blocks],
                                 maxval=max(data.size, constant_dim))
     indices = np.empty(data.size, dtype=idx_dtype)
-    indptr = np.empty(sum(b.shape[axis] for b in blocks) + 1, dtype=idx_dtype)
+    indptr = np.empty(sum(b._shape_as_2d[axis] for b in blocks) + 1, dtype=idx_dtype)
     last_indptr = idx_dtype(0)
     sum_dim = 0
     sum_indices = 0
     for b in blocks:
-        if b.shape[other_axis] != constant_dim:
+        if b._shape_as_2d[other_axis] != constant_dim:
             raise ValueError(f'incompatible dimensions for axis {other_axis}')
         indices[sum_indices:sum_indices+b.indices.size] = b.indices
         sum_indices += b.indices.size
-        idxs = slice(sum_dim, sum_dim + b.shape[axis])
+        idxs = slice(sum_dim, sum_dim + b._shape_as_2d[axis])
         indptr[idxs] = b.indptr[:-1]
         indptr[idxs] += last_indptr
-        sum_dim += b.shape[axis]
+        sum_dim += b._shape_as_2d[axis]
         last_indptr += b.indptr[-1]
     indptr[-1] = last_indptr
     # TODO remove this if-structure when sparse matrices removed
@@ -643,7 +652,7 @@ def _stack_along_minor_axis(blocks, axis):
 
     # check for incompatible dimensions
     other_axis = 1 if axis == 0 else 0
-    other_axis_dims = {b.shape[other_axis] for b in blocks}
+    other_axis_dims = {b._shape_as_2d[other_axis] for b in blocks}
     if len(other_axis_dims) > 1:
         raise ValueError(f'Mismatching dimensions along axis {other_axis}: '
                          f'{other_axis_dims}')
@@ -659,10 +668,10 @@ def _stack_along_minor_axis(blocks, axis):
     # - The max value in indptr is the number of non-zero entries. This is
     #   exceedingly unlikely to require int64, but is checked out of an
     #   abundance of caution.
-    sum_dim = sum(b.shape[axis] for b in blocks)
+    sum_dim = sum(b._shape_as_2d[axis] for b in blocks)
     nnz = sum(len(b.indices) for b in blocks)
     idx_dtype = get_index_dtype(maxval=max(sum_dim - 1, nnz))
-    stack_dim_cat = np.array([b.shape[axis] for b in blocks], dtype=idx_dtype)
+    stack_dim_cat = np.array([b._shape_as_2d[axis] for b in blocks], dtype=idx_dtype)
     if data_cat.size > 0:
         indptr_cat = np.concatenate(indptr_list).astype(idx_dtype)
         indices_cat = (np.concatenate([b.indices for b in blocks])
@@ -940,19 +949,19 @@ def _block(blocks, format, dtype, return_spmatrix=False):
                 block_mask[i,j] = True
 
                 if brow_lengths[i] == 0:
-                    brow_lengths[i] = A.shape[0]
-                elif brow_lengths[i] != A.shape[0]:
+                    brow_lengths[i] = A._shape_as_2d[0]
+                elif brow_lengths[i] != A._shape_as_2d[0]:
                     msg = (f'blocks[{i},:] has incompatible row dimensions. '
-                           f'Got blocks[{i},{j}].shape[0] == {A.shape[0]}, '
+                           f'Got blocks[{i},{j}].shape[0] == {A._shape_as_2d[0]}, '
                            f'expected {brow_lengths[i]}.')
                     raise ValueError(msg)
 
                 if bcol_lengths[j] == 0:
-                    bcol_lengths[j] = A.shape[1]
-                elif bcol_lengths[j] != A.shape[1]:
+                    bcol_lengths[j] = A._shape_as_2d[1]
+                elif bcol_lengths[j] != A._shape_as_2d[1]:
                     msg = (f'blocks[:,{j}] has incompatible column '
                            f'dimensions. '
-                           f'Got blocks[{i},{j}].shape[1] == {A.shape[1]}, '
+                           f'Got blocks[{i},{j}].shape[1] == {A._shape_as_2d[1]}, '
                            f'expected {bcol_lengths[j]}.')
                     raise ValueError(msg)
 
@@ -1390,8 +1399,8 @@ def rand(m, n, density=0.01, format="coo", dtype=None, random_state=None):
     >>> from scipy.sparse import rand
     >>> matrix = rand(3, 4, density=0.25, format="csr", random_state=42)
     >>> matrix
-    <3x4 sparse matrix of type '<class 'numpy.float64'>'
-       with 3 stored elements in Compressed Sparse Row format>
+    <Compressed Sparse Row sparse matrix of dtype 'float64'
+        with 3 stored elements and shape (3, 4)>
     >>> matrix.toarray()
     array([[0.05641158, 0.        , 0.        , 0.65088847],  # random
            [0.        , 0.        , 0.        , 0.14286682],

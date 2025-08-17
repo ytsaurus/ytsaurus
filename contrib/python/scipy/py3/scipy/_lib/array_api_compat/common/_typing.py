@@ -18,3 +18,6 @@ class NestedSequence(Protocol[_T_co]):
     def __len__(self, /) -> int: ...
 
 SupportsBufferProtocol = Any
+
+Array = Any
+Device = Any

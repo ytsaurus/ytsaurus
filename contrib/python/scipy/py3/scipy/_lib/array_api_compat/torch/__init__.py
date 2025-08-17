@@ -1,4 +1,4 @@
-from torch import *
+from torch import * # noqa: F403
 
 # Several names are not included in the above import *
 import torch
@@ -12,11 +12,13 @@ for n in dir(torch):
     exec(n + ' = torch.' + n)
 
 # These imports may overwrite names from the import * above.
-from ._aliases import *
+from ._aliases import * # noqa: F403
 
 # See the comment in the numpy __init__.py
 __import__(__package__ + '.linalg')
 
-from ..common._helpers import *
+__import__(__package__ + '.fft')
+
+from ..common._helpers import * # noqa: F403
 
 __array_api_version__ = '2022.12'
