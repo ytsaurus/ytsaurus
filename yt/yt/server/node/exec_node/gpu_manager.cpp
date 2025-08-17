@@ -92,7 +92,7 @@ void FormatValue(TStringBuilderBase* builder, const TGpuStatistics& gpuStatistic
         "CumulativeUtilizationClocksSM: %v, CumulativeSMClocks: %v, CumulativeSMUtilization: %v, CumulativeSMOccupancy: %v, "
         "NvlinkRxBytes: %v, NvlinkTxBytes: %v, PcieRxBytes: %v, PcieTxBytes: %v, "
         "CumulativeTensorActivity: %v, CumulativeDramActivity: %v, "
-        "CumulativeSwThermalSlowdown: %v, CumulativeHwThermalSlowdown: %v, CumulativeHwPowerBrakeSlowdown: %v, CumulativeHwSlowdown: %v, "
+        "Slowdowns: %v, "
         "MaxStuckDuration: %v}",
         gpuStatistics.CumulativeUtilizationGpu,
         gpuStatistics.CumulativeUtilizationMemory,
@@ -112,10 +112,7 @@ void FormatValue(TStringBuilderBase* builder, const TGpuStatistics& gpuStatistic
         gpuStatistics.PcieTxBytes,
         gpuStatistics.CumulativeTensorActivity,
         gpuStatistics.CumulativeDramActivity,
-        gpuStatistics.CumulativeSwThermalSlowdown,
-        gpuStatistics.CumulativeHwThermalSlowdown,
-        gpuStatistics.CumulativeHwPowerBrakeSlowdown,
-        gpuStatistics.CumulativeHwSlowdown,
+        gpuStatistics.CumulativeSlowdowns,
         gpuStatistics.MaxStuckDuration);
 }
 
