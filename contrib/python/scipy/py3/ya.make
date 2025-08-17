@@ -129,7 +129,6 @@ CFLAGS(
     -DHAVE_STRING_H=1
     -DHAVE_STRTOL=1
     -DHAVE_STRTOUL=1
-    -D_ISOC99_SOURCE=1
     -fcommon
 )
 
