@@ -42,15 +42,17 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, Heartbeat)
     {
         ValidateClusterInitialized();
+        Bootstrap_->GetHydraFacade()->RequireLeader();
 
         // NB: static_cast is intented. Cypress proxy reign is used for two
         // purposes only: to compare with master reign and to store as
         // registered Cypress proxy info. Both of use cases works fine with
         // unknown values.
         auto sequoiaReign = static_cast<ESequoiaReign>(request->sequoia_reign());
-        context->SetRequestInfo("Address: %v, SequoiaReign: %v",
+        context->SetRequestInfo("Address: %v, SequoiaReign: %v, HeartbeatPeriod: %v",
             request->address(),
-            sequoiaReign);
+            sequoiaReign,
+            YT_APPLY_PROTO_OPTIONAL(*request, heartbeat_period, FromProto<TDuration>));
 
         if (!Bootstrap_->IsPrimaryMaster()) {
             YT_LOG_ALERT(
@@ -66,11 +68,6 @@ private:
         WaitFor(hydraManager->SyncWithLeader())
             .ThrowOnError();
 
-        // NB: currently, heartbeat is not used to deliver dynamic config to
-        // Cypress proxy to allow adding new Cypress proxies during master's
-        // read-only. It can be done via heartbeats instead, but with special
-        // handling in read-only mode.
-        // TODO(kvk1920): think about it again and probably do it.
         const auto& cypressProxyTracker = Bootstrap_->GetCypressProxyTracker();
         cypressProxyTracker->ProcessCypressProxyHeartbeat(context);
     }

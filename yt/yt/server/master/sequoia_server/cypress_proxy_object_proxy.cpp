@@ -3,6 +3,9 @@
 #include "config.h"
 #include "cypress_proxy_object.h"
 #include "cypress_proxy_tracker.h"
+#include "private.h"
+
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
 
 #include <yt/yt/server/master/object_server/object_detail.h>
 
@@ -62,8 +65,9 @@ private:
     {
         TBase::ListSystemAttributes(descriptors);
 
-        descriptors->emplace_back(EInternedAttributeKey::SequoiaReign);
         descriptors->emplace_back(EInternedAttributeKey::LastPersistentHeartbeatTime);
+        descriptors->emplace_back(EInternedAttributeKey::SequoiaReign);
+        descriptors->emplace_back(EInternedAttributeKey::State);
         descriptors->emplace_back(EInternedAttributeKey::Version);
     }
 
@@ -72,15 +76,32 @@ private:
         const auto* proxyObject = GetThisImpl();
 
         switch (key) {
+            case EInternedAttributeKey::LastPersistentHeartbeatTime:
+                BuildYsonFluently(consumer)
+                    .Value(proxyObject->GetLastPersistentHeartbeatTime());
+                return true;
+
             case EInternedAttributeKey::SequoiaReign:
                 BuildYsonFluently(consumer)
                     .Value(proxyObject->GetSequoiaReign());
                 return true;
 
-            case EInternedAttributeKey::LastPersistentHeartbeatTime:
+            case EInternedAttributeKey::State: {
+                auto state = ECypressProxyState::Unknown;
+
+                const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+                // Proxies can come and go as they please when master is in RO.
+                if (!hydraManager->GetReadOnly()) {
+                    state = GetInstant() > proxyObject->GetAliveUntil()
+                        ? ECypressProxyState::Offline
+                        : ECypressProxyState::Online;
+                }
+
                 BuildYsonFluently(consumer)
-                    .Value(proxyObject->GetLastPersistentHeartbeatTime());
+                    .Value(state);
                 return true;
+            }
+
 
             case EInternedAttributeKey::Version:
                 BuildYsonFluently(consumer)

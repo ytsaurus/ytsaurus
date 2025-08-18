@@ -166,6 +166,7 @@ DEFINE_ENUM(EMasterReign,
     ((WeakPtrInTableReplicas)                                       (3011))  // babenko
     ((ChunkLocationDisposal)                                        (3012))  // grphil
     ((MulticellChunksSamples)                                       (3013))  // grphil
+    ((CypressProxyState)                                            (3014))  // h0pless
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

@@ -9,6 +9,16 @@ using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::string TCypressProxyObject::GetLowercaseObjectName() const
+{
+    return Format("cypress proxy %Qv", Address_);
+}
+
+std::string TCypressProxyObject::GetCapitalizedObjectName() const
+{
+    return Format("Cypress Proxy %Qv", Address_);
+}
+
 void TCypressProxyObject::Save(TSaveContext& context) const
 {
     TObject::Save(context);
@@ -36,16 +46,6 @@ void TCypressProxyObject::Load(TLoadContext& context)
     } else {
         Version_ = "unknown";
     }
-}
-
-std::string TCypressProxyObject::GetLowercaseObjectName() const
-{
-    return Format("cypress proxy %Qv", Address_);
-}
-
-std::string TCypressProxyObject::GetCapitalizedObjectName() const
-{
-    return Format("Cypress Proxy %Qv", Address_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
