@@ -54,8 +54,6 @@ void ValidateAttributeType(EValueType valueType)
         case EValueType::Composite:
         case EValueType::Max:
             THROW_ERROR_EXCEPTION("Attribute type %Qlv is not supported", valueType);
-        default:
-            YT_ABORT();
     }
 }
 
