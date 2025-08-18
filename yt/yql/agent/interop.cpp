@@ -164,6 +164,7 @@ TYqlRowset BuildRowsetByRef(
 
         YT_LOG_DEBUG("Opening static table reader (Path: %v)", path);
 
+        // We must read 'Any' values as is, without change their type on 'String' or other to write the 'rowset' field correctly.
         auto reader = WaitFor(client->CreateTableReader(path, NApi::TTableReaderOptions{.EnableAnyUnpacking = false}))
             .ValueOrThrow();
 
