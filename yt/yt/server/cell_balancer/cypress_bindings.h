@@ -901,7 +901,15 @@ struct TAlert
 {
     std::string Id;
     std::optional<std::string> BundleName;
+    std::optional<std::string> DataCenter;
     std::string Description;
+
+    using TKey = std::tuple<
+        /*Id*/ std::string,
+        /*DataCenter*/ std::optional<std::string>
+    >;
+
+    TKey GetKey() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
