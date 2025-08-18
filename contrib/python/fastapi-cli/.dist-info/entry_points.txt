@@ -1,5 +1,0 @@
-[console_scripts]
-fastapi = fastapi_cli.cli:main
-
-[gui_scripts]
-
