@@ -10,6 +10,8 @@
 
 #include <library/cpp/yt/memory/new.h>
 
+#include <library/cpp/iterator/zip.h>
+
 #include <util/random/shuffle.h>
 
 namespace NYT::NCellBalancer {
@@ -1020,6 +1022,14 @@ TEST_P(TBundleSchedulerTest, AllocationProgressTrackStaledAllocation)
 
     EXPECT_EQ(GetDataCenterCount(), std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(mutations.AlertsToFire.front().Id, "stuck_instance_allocation");
+
+    THashSet<std::string> expectedDataCenters{dataCenters.begin(), dataCenters.end()};
+    THashSet<std::string> actualDataCenters;
+    for (const auto& alert : mutations.AlertsToFire) {
+        actualDataCenters.insert(*alert.DataCenter);
+    }
+
+    EXPECT_EQ(expectedDataCenters, actualDataCenters);
 }
 
 TEST_P(TBundleSchedulerTest, DisableAllocationsCausesAllocationFromSpare)

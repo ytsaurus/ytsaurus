@@ -192,6 +192,7 @@ public:
                 mutations->AlertsToFire.push_back(TAlert{
                     .Id = "zone_is_disrupted",
                     .BundleName = bundleName,
+                    .DataCenter = dataCenterName,
                     .Description = Format("Zone %Qv is disrupted. Disabling all %v allocations within %Qv.",
                         zoneName,
                         adapter->GetHumanReadableInstanceType(),
@@ -289,6 +290,7 @@ private:
             mutations->AlertsToFire.push_back(TAlert{
                 .Id = "zone_instance_limit_reached",
                 .BundleName = bundleName,
+                .DataCenter = dataCenterName,
                 .Description = Format("Cannot allocate new %v at zone %v for bundle %v.",
                     adapter->GetInstanceType(), bundleInfo->Zone, bundleName)
             });
@@ -504,6 +506,7 @@ private:
                 mutations->AlertsToFire.push_back(TAlert{
                     .Id = "instance_allocation_failed",
                     .BundleName = bundleName,
+                    .DataCenter = allocationState->DataCenter,
                     .Description = Format("Allocation request %v has failed.",
                         allocationId),
                 });
@@ -543,6 +546,7 @@ private:
                 mutations->AlertsToFire.push_back(TAlert{
                     .Id = "stuck_instance_allocation",
                     .BundleName = bundleName,
+                    .DataCenter = allocationState->DataCenter,
                     .Description = Format("Found stuck allocation %v with age %v which is more than threshold %v.",
                         allocationId,
                         allocationAge,
@@ -604,6 +608,7 @@ private:
             mutations->AlertsToFire.push_back(TAlert{
                 .Id = "no_spare_instances_available",
                 .BundleName = bundleName,
+                .DataCenter = dataCenterName,
                 .Description = Format("No spare instances of type %v are available for allocation request %v",
                     adapter->GetInstanceType(),
                     allocationId),
@@ -763,6 +768,7 @@ private:
             mutations->AlertsToFire.push_back(TAlert{
                 .Id = "instance_deallocation_failed",
                 .BundleName = bundleName,
+                .DataCenter = deallocationState->DataCenter,
                 .Description = Format("Deallocation request %v has failed.",
                     deallocationId),
             });
@@ -809,6 +815,7 @@ private:
             mutations->AlertsToFire.push_back(TAlert{
                 .Id = "stuck_instance_deallocation",
                 .BundleName = bundleName,
+                .DataCenter = deallocationState->DataCenter,
                 .Description = Format("Found stuck deallocation %v with age %v which is more than threshold %v.",
                     deallocationId,
                     deallocationAge,
@@ -1100,6 +1107,7 @@ THashMap<std::string, TDataCenterRackInfo> MapZonesToRacks(
             if (zoneInfo->RequiresMinusOneRackGuarantee && zoneInfo->SpareTargetConfig->TabletNodeCount < dataCenterIt->second.RequiredSpareNodeCount) {
                 mutations->AlertsToFire.push_back(TAlert{
                     .Id = "minus_one_rack_guarantee_violation",
+                    .DataCenter = dataCenter,
                     .Description = Format("Zone %v in data center %v has target spare nodes: %v "
                         ", where required count is at least %v.",
                         zone,
