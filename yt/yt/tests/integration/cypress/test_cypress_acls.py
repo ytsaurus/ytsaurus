@@ -1940,6 +1940,250 @@ class TestCypressAcls(CheckPermissionBase):
 
         concatenate(["//tmp/t"], "//tmp/t2", authenticated_user="u1")
 
+    @authors("coteeq")
+    def test_full_read_validation(self):
+        create_user("u")
+        create("table", "//tmp/t")
+
+        with raises_yt_error('ACE with "full_read" permission may have only "allow" action'):
+            set("//tmp/t/@acl", [make_ace("deny", "u", "full_read")])
+
+        with raises_yt_error('ACE with "full_read" permission may have only "allow" action'):
+            set("//tmp/t/@acl", [make_ace("deny", "u", ["read", "full_read"])])
+
+        with raises_yt_error('ACE specifying columns may contain only "read" permission'):
+            set("//tmp/t/@acl", [make_ace("deny", "u", "full_read", columns=["a"])])
+
+    @authors("coteeq")
+    def test_full_read_simple(self):
+        create_user("u")
+        create_user("restricted")
+
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": [
+                    {"name": "public", "type": "string"},
+                    {"name": "private", "type": "int64"},
+                ],
+                "acl": [
+                    make_ace("allow", "u", "read", columns=["private"]),
+                ],
+                "inherit_acl": False,
+            }
+        )
+
+        with raises_yt_error('Access denied for user "restricted"'):
+            copy("//tmp/t", "//tmp/t_copy", authenticated_user="restricted")
+
+        set("//tmp/t/@acl/end", make_ace("allow", "restricted", "full_read"))
+
+        # full_read should grant read.
+        get("//tmp/t/@acl", authenticated_user="restricted")
+        read_table("//tmp/t", authenticated_user="restricted")
+
+        # full_read should also grant full_read.
+        copy("//tmp/t", "//tmp/t_copy", authenticated_user="restricted")
+
+    @authors("coteeq")
+    def test_full_read_and_deny_read(self):
+        create_user("u")
+
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": [
+                    {"name": "public", "type": "string"},
+                    {"name": "private", "type": "int64"},
+                ],
+                "acl": [
+                    make_ace("allow", "u", "full_read"),
+                    make_ace("deny", "u", "read"),
+                ],
+                "inherit_acl": False,
+            }
+        )
+
+        # full_read must not override deny on read.
+        with raises_yt_error('Access denied for user "u"'):
+            get("//tmp/t/@acl", authenticated_user="u")
+        with raises_yt_error('Access denied for user "u"'):
+            copy("//tmp/t", "//tmp/t_copy", authenticated_user="u")
+
+    @authors("coteeq")
+    @pytest.mark.xfail(reason="todo(coteeq)")
+    def test_absence_of_read_does_not_mention_full_read(self):
+        # NB(coteeq): This is a test for the behaviour that is designed to
+        # decrease entropy with the access control rules.
+        # When the user tries to full_read a table, on which they do not even
+        # have a basic read, we should ask them to get basic read first and
+        # hope that basic read will be enough.
+        #
+        # Otherwise, if we mention full_read in the error, the user will
+        # immediately rush to get full_read, which they probably do not need.
+        create_user("u")
+
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "inherit_acl": False,
+            }
+        )
+
+        with raises_yt_error('"read" permission for node //tmp/t'):
+            copy("//tmp/t", "//tmp/t_copy", authenticated_user="u")
+
+
+@pytest.mark.enabled_multidaemon
+class TestRowAcls(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+
+    def _make_rlace(self, users, expression=None, mode=None, permission="read"):
+        ace = make_ace("allow", users, permission)
+        if expression is not None:
+            ace["expression"] = expression
+        if mode is not None:
+            ace["inapplicable_expression_mode"] = mode
+        return ace
+
+    @authors("coteeq")
+    def test_row_ace(self):
+        create_user("prime_manager")
+        create_user("even_manager")
+        create_user("everything_manager")
+        create_user("everything_manager_via_expression")
+        create_user("only_generic_read")
+        create_user("no_read")
+
+        acl = [
+            self._make_rlace("prime_manager", "col1 in (2, 3, 5, 7)"),
+            self._make_rlace("even_manager", "col1 % 2 = 0"),
+            make_ace("allow", "everything_manager", "full_read"),
+            self._make_rlace("everything_manager_via_expression", "true"),
+            self._make_rlace(["prime_manager", "even_manager", "only_generic_read"]),
+        ]
+
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "inherit_acl": False,
+                "acl": acl,
+                "schema": [
+                    {"name": "col1", "type": "int64"},
+                    {"name": "col2", "type": "string"},
+                ],
+            },
+        )
+
+        for user in ["prime_manager", "even_manager", "everything_manager", "only_generic_read"]:
+            get("//tmp/t/@optimize_for", authenticated_user=user)
+
+        with raises_yt_error("Access denied for user"):
+            get("//tmp/t/@optimize_for", authenticated_user="no_read")
+
+        for user in ["prime_manager", "even_manager", "only_generic_read", "no_read", "everything_manager_via_expression"]:
+            with raises_yt_error("Access denied for user"):
+                copy("//tmp/t", f"//tmp/t_copy_{user}", authenticated_user=user)
+            with raises_yt_error("Access denied for user"):
+                concatenate(["//tmp/t"], f"//tmp/t_concat_{user}", authenticated_user=user)
+
+        copy("//tmp/t", "//tmp/t2_copy", authenticated_user="everything_manager")
+        concatenate(["//tmp/t"], "//tmp/t2_copy", authenticated_user="everything_manager")
+
+    @authors("coteeq")
+    def test_row_ace_validation(self):
+        create_user("u")
+
+        def make_bad_ace(action, permissions, expression, inapplicable_expression_mode=None, columns=None):
+            ace = make_ace(action, "u", permissions, columns=columns)
+            if expression is not None:
+                ace["expression"] = expression
+            if inapplicable_expression_mode is not None:
+                ace["inapplicable_expression_mode"] = inapplicable_expression_mode
+            return ace
+
+        bad_aces = []
+        bad_aces.extend([
+            (make_bad_ace("deny", "read", "a = 2"), 'ACE specifying "expression" may have only "allow" action'),
+        ])
+        bad_aces.extend([
+            (make_bad_ace("allow", permission, "a = 2"), 'ACE specifying "expression" may contain only "read" permission')
+            for permission in ["write", "use", "administer", "create", "remove", "mount", "manage", "modify_children"]
+        ] + [
+            (make_bad_ace("allow", ["write", "modify_children"], "a = 2"), 'ACE specifying "expression" may contain only "read" permission'),
+        ])
+        bad_aces.extend([
+            (make_bad_ace("allow", "read", None, "ignore"), '"inapplicable_expression_mode" can only be specified if "expression" is specified'),
+        ])
+        bad_aces.extend([
+            (make_bad_ace("allow", "read", "a = 2", columns=["col"]), 'Single ACE must not contain both "columns" and "expression"'),
+        ])
+
+        bad_aces.extend([
+            (make_bad_ace("allow", ["read", "full_read"], "a = 2"), 'ACE with "full_read" permission may not specify "expression" or "columns"'),
+            (make_bad_ace("allow", ["full_read"], "a = 2"), 'ACE with "full_read" permission may not specify "expression" or "columns"'),
+        ])
+
+        for bad_ace, expected_error in bad_aces:
+            with raises_yt_error(expected_error):
+                create("table", "//tmp/t", attributes={"acl": [bad_ace]})
+
+    def _prepare_check_permission(self, user):
+        create_user("u0")
+        create_user("u1")
+        create_user("u2")
+        create_user("u3")
+
+        acl = [
+            self._make_rlace("u0", "a < 3"),
+            self._make_rlace(["u0", "u1"], "b == 2"),
+            self._make_rlace(["u0", "u1"], "c == \"asdf\"", "ignore"),
+            make_ace("allow", ["u2"], "full_read"),
+            self._make_rlace(["u3"]),
+        ]
+
+        create("table", "//tmp/t", attributes={"acl": acl})
+        return check_permission(user, "read", "//tmp/t")
+
+    @authors("coteeq")
+    def test_check_permission_u0(self):
+        response = self._prepare_check_permission("u0")
+        response["rlaces"].sort(key=lambda descriptor: descriptor.get("expression", ""))
+
+        assert response["rlaces"][0]["expression"] == "a < 3"
+        assert response["rlaces"][1]["expression"] == "b == 2"
+        assert response["rlaces"][2]["expression"] == "c == \"asdf\""
+
+        assert "inapplicable_expression_mode" not in response["rlaces"][0]
+        assert "inapplicable_expression_mode" not in response["rlaces"][1]
+        assert response["rlaces"][2]["inapplicable_expression_mode"] == "ignore"
+
+    @authors("coteeq")
+    def test_check_permission_u1(self):
+        response = self._prepare_check_permission("u1")
+        response["rlaces"].sort(key=lambda descriptor: descriptor["expression"])
+
+        assert response["rlaces"][0]["expression"] == "b == 2"
+        assert response["rlaces"][1]["expression"] == "c == \"asdf\""
+
+        assert "inapplicable_expression_mode" not in response["rlaces"][0]
+        assert response["rlaces"][1]["inapplicable_expression_mode"] == "ignore"
+
+    @authors("coteeq")
+    def test_check_permission_u2(self):
+        response = self._prepare_check_permission("u2")
+        assert "rlaces" not in response
+
+    @authors("coteeq")
+    def test_check_permission_u3(self):
+        response = self._prepare_check_permission("u3")
+        assert response["rlaces"] == []
+
 ##################################################################
 
 

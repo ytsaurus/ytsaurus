@@ -11,6 +11,8 @@
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
+#include <yt/yt/ytlib/security_client/acl.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/yson/string.h>
@@ -173,6 +175,9 @@ template <class T>
         for (const auto& result : *checkResponse.Columns) {
             fillResult(response->mutable_columns()->add_items(), result);
         }
+    }
+    if (checkResponse.Rlaces) {
+        ToProto(response->mutable_rlaces()->mutable_items(), *checkResponse.Rlaces);
     }
 
     context->SetResponseInfo("Action: %v", checkResponse.Action);

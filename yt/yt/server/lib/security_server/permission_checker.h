@@ -4,6 +4,10 @@
 
 #include <yt/yt/core/ytree/permission.h>
 
+#include <yt/yt/ytlib/security_client/acl.h>
+
+#include <library/cpp/yt/logging/logger.h>
+
 namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,6 +52,8 @@ struct TPermissionCheckResponse
     //! If TPermissionCheckBasicOptions::Columns are given, this array contains
     //! results for individual columns.
     std::optional<std::vector<TPermissionCheckResult>> Columns;
+    //! If there are RLACEs for the object, this array contains descriptors for reader.
+    std::optional<std::vector<NSecurityClient::TRowLevelAccessControlEntry>> Rlaces;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,8 +62,9 @@ class TPermissionChecker
 {
 public:
     TPermissionChecker(
-        NYTree::EPermission permission,
-        const TPermissionCheckBasicOptions& options);
+        NYTree::EPermissionSet permissions,
+        const TPermissionCheckBasicOptions& options,
+        NLogging::TLogger logger);
 
     bool ShouldProceed() const;
 
@@ -71,15 +78,22 @@ public:
     TPermissionCheckResponse GetResponse();
 
 protected:
-    const bool FullRead_;
-    const NYTree::EPermission Permission_;
+    const bool FullReadRequested_;
+    //! XXX(coteeq): May contain multiple permissions. In that case, the behaviour
+    //! is kind of strange and is tied to the implementation:
+    //! If we see ESecurityAction::Deny on either of specified permissions, the
+    //! check is failed. Otherwise, if we have Allow on either of permissions,
+    //! the check is successful.
+    const NYTree::EPermissionSet PermissionsMask_;
     const TPermissionCheckBasicOptions& Options_;
+    const NLogging::TLogger Logger;
 
     THashSet<TStringBuf> Columns_;
     THashMap<TStringBuf, TPermissionCheckResult> ColumnToResult_;
 
     bool Proceed_ = true;
     TPermissionCheckResponse Response_;
+    bool FullReadExplicitlyGranted_ = false;
 
     static bool CheckInheritanceMode(NSecurityClient::EAceInheritanceMode mode, int depth);
 
@@ -97,6 +111,8 @@ protected:
         NObjectClient::TObjectId objectId);
 
     void SetDeny(NSecurityClient::TSubjectId subjectId, NObjectClient::TObjectId objectId);
+
+    bool IsOnlyReadRequested() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

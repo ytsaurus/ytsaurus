@@ -392,6 +392,7 @@ SRCS(
     scheduler/proto/pool_ypath.proto
     scheduler/proto/scheduler_service.proto
 
+    security_client/acl.cpp
     security_client/config.cpp
     security_client/helpers.cpp
     security_client/permission_cache.cpp
@@ -399,6 +400,7 @@ SRCS(
     security_client/user_attribute_cache.cpp
 
     security_client/proto/account_ypath.proto
+    security_client/proto/acl.proto
     security_client/proto/group_ypath.proto
     security_client/proto/user_ypath.proto
 

@@ -2247,7 +2247,8 @@ public:
             this,
             user,
             permission,
-            options);
+            options,
+            Logger());
 
         if (!checker.ShouldProceed()) {
             return checker.GetResponse();
@@ -2330,7 +2331,8 @@ public:
             this,
             user,
             permission,
-            options);
+            options,
+            Logger());
 
         if (!checker.ShouldProceed()) {
             return checker.GetResponse();
@@ -4552,8 +4554,9 @@ private:
             TSecurityManager* impl,
             TUser* user,
             EPermission permission,
-            const TPermissionCheckOptions& options)
-            : NSecurityServer::TPermissionChecker(permission, options)
+            const TPermissionCheckOptions& options,
+            TLogger logger)
+            : NSecurityServer::TPermissionChecker(permission, options, std::move(logger))
             , SecurityManager_(impl)
             , User_(user)
         {
@@ -4588,7 +4591,7 @@ private:
         {
             // "replicator", though being superuser, can only read in safe mode.
             if (User_ == SecurityManager_->ReplicatorUser_ &&
-                Permission_ != EPermission::Read &&
+                !IsOnlyReadRequested() &&
                 SecurityManager_->IsSafeMode())
             {
                 return ESecurityAction::Deny;
@@ -4605,7 +4608,7 @@ private:
             }
 
             // Non-reads are forbidden in safe mode.
-            if (Permission_ != EPermission::Read &&
+            if (!IsOnlyReadRequested() &&
                 SecurityManager_->Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode)
             {
                 return ESecurityAction::Deny;

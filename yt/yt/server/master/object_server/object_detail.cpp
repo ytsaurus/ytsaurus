@@ -47,6 +47,8 @@
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 
+#include <yt/yt/ytlib/security_client/acl.h>
+
 #include <yt/yt/client/hydra/version.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -161,6 +163,7 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
         getBasicAttributesContext.Columns = FromProto<std::vector<std::string>>(request->columns().items());
     }
     getBasicAttributesContext.OmitInaccessibleColumns = request->omit_inaccessible_columns();
+    getBasicAttributesContext.OmitInaccessibleRows = request->omit_inaccessible_rows();
     getBasicAttributesContext.PopulateSecurityTags = request->populate_security_tags();
     getBasicAttributesContext.ExternalCellTag = CellTagFromId(GetId());
     getBasicAttributesContext.ExternalTransactionId = GetObjectId(GetTransaction());
@@ -175,6 +178,9 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
     }
     if (getBasicAttributesContext.SecurityTags) {
         ToProto(response->mutable_security_tags()->mutable_items(), getBasicAttributesContext.SecurityTags->Items);
+    }
+    if (getBasicAttributesContext.Rlaces) {
+        ToProto(response->mutable_rlaces()->mutable_items(), *getBasicAttributesContext.Rlaces);
     }
 
     ToProto(response->mutable_external_transaction_id(), getBasicAttributesContext.ExternalTransactionId);
@@ -1203,4 +1209,3 @@ TVersionedObjectId TNontemplateNonversionedObjectProxyBase::GetVersionedId() con
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NObjectServer
-

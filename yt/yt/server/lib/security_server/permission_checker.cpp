@@ -5,21 +5,43 @@
 
 namespace NYT::NSecurityServer {
 
+using namespace NLogging;
 using namespace NObjectClient;
 using namespace NSecurityClient;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+//! "Extend" permission in such way that when any read is requested (read or full_read),
+//! we pretend that user requested `EPermission::Read | EPermission::FullRead`.
+EPermissionSet ExtendReadPermission(EPermissionSet original) {
+    auto anyhowRead = EPermission::Read | EPermission::FullRead;
+    if (Any(original & anyhowRead)) {
+        original = original | anyhowRead;
+    }
+    return original;
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TPermissionChecker::TPermissionChecker(
-    NYTree::EPermission permission,
-    const TPermissionCheckBasicOptions& options)
-    : FullRead_(Any(permission & EPermission::FullRead))
-    , Permission_(FullRead_
-        ? permission & ~EPermission::FullRead | EPermission::Read
-        : permission)
+    NYTree::EPermissionSet permissions,
+    const TPermissionCheckBasicOptions& options,
+    TLogger logger)
+    : FullReadRequested_(Any(permissions & EPermission::FullRead))
+    , PermissionsMask_(ExtendReadPermission(permissions))
     , Options_(options)
+    , Logger(std::move(logger))
 {
+    YT_LOG_ALERT_IF(
+        PopCount(permissions) > 1 && FullReadRequested_,
+        "Checking \"full_read\" and some other permission (FullPermissions: %Qlv)",
+        permissions);
+
     Response_.Action = ESecurityAction::Undefined;
     if (Options_.Columns) {
         for (const auto& column : *Options_.Columns) {
@@ -51,7 +73,7 @@ TPermissionCheckResponse TPermissionChecker::GetResponse()
                 result = static_cast<const TPermissionCheckResult>(Response_);
             } else {
                 result = it->second;
-                if (result.Action == ESecurityAction::Undefined) {
+                if (result.Action == ESecurityAction::Undefined && !FullReadExplicitlyGranted_) {
                     result.Action = ESecurityAction::Deny;
                     if (!deniedColumnResult) {
                         deniedColumnResult = result;
@@ -60,9 +82,21 @@ TPermissionCheckResponse TPermissionChecker::GetResponse()
             }
         }
 
-        if (FullRead_ && deniedColumnResult) {
+        if (FullReadRequested_ && deniedColumnResult) {
             SetDeny(deniedColumnResult->SubjectId, deniedColumnResult->ObjectId);
         }
+    }
+
+    if (FullReadExplicitlyGranted_) {
+        // No need to mention RLACEs if we are allowed to FullRead.
+        Response_.Rlaces.reset();
+    }
+
+    if (Response_.Rlaces && FullReadRequested_) {
+        // NB(coteeq): Presence of RLACE alters the behaviour of non-row ACEs.
+        // When RLACEs are present, non-row allowances do not actually allow FullRead.
+        // This hack is not pretty, but it exists for RLACEs to be consistent with columnar ACEs.
+        SetDeny(NullObjectId, NullObjectId);
     }
 
     return std::move(Response_);
@@ -111,7 +145,13 @@ void TPermissionChecker::SetDeny(TSubjectId subjectId, TObjectId objectId)
             SetDeny(&result, subjectId, objectId);
         }
     }
+    Response_.Rlaces.reset();
     Proceed_ = false;
+}
+
+bool TPermissionChecker::IsOnlyReadRequested() const
+{
+    return None(PermissionsMask_ & ~(EPermission::Read | EPermission::FullRead));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
