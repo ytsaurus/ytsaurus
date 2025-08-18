@@ -5542,7 +5542,7 @@ private:
             },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                response->set_user(result->User);
+                response->set_user(result.User);
             });
     }
 

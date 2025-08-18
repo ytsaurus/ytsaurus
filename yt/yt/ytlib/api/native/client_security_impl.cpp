@@ -41,10 +41,10 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGetCurrentUserResultPtr TClient::DoGetCurrentUser(const TGetCurrentUserOptions& /*options*/)
+TGetCurrentUserResult TClient::DoGetCurrentUser(const TGetCurrentUserOptions& /*options*/)
 {
-    auto result = New<TGetCurrentUserResult>();
-    result->User = Options_.GetAuthenticatedUser();
+    TGetCurrentUserResult result;
+    result.User = Options_.GetAuthenticatedUser();
     return result;
 }
 
