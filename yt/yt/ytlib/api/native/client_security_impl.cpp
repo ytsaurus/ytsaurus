@@ -14,6 +14,7 @@
 
 #include <yt/yt/ytlib/security_client/account_ypath_proxy.h>
 #include <yt/yt/ytlib/security_client/group_ypath_proxy.h>
+#include <yt/yt/ytlib/security_client/acl.h>
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
@@ -172,6 +173,10 @@ TCheckPermissionResponse TClient::DoCheckPermission(
         for (const auto& protoResult : rsp->columns().items()) {
             fillResult(&response.Columns->emplace_back(), protoResult);
         }
+    }
+
+    if (rsp->has_rlaces()) {
+        response.Rlaces = FromProto<std::vector<TRowLevelAccessControlEntry>>(rsp->rlaces().items());
     }
 
     return response;
