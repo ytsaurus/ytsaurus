@@ -2523,6 +2523,9 @@ private:
     // COMPAT(ifsmirnov)
     bool NeedRecomputeOrderedTabletStatistics_ = false;
 
+    // COMPAT(danilalexeev)
+    bool NeedUnhealthyUnconfirmedChunkScan_ = false;
+
     TPeriodicExecutorPtr ProfilingExecutor_;
 
     TBufferedProducerPtr BufferedProducer_;
@@ -5000,6 +5003,8 @@ private:
 
         // COMPAT(ifsmirnov)
         NeedRecomputeOrderedTabletStatistics_ = context.GetVersion() < EMasterReign::RipLogicalChunkCount;
+        // COMPAT(danilalexeev)
+        NeedUnhealthyUnconfirmedChunkScan_ = context.GetVersion() < EMasterReign::WriteAclToSequoiaTable;
     }
 
     void LoadHistogramValues(
@@ -5212,7 +5217,7 @@ private:
             YT_LOG_INFO("Finished initializing chunk lists");
         }
 
-        {
+        if (NeedUnhealthyUnconfirmedChunkScan_) {
             YT_LOG_INFO("Scanning for unhealthy unconfirmed chunks");
 
             for (auto [_, chunk] : ChunkMap_) {
@@ -5229,7 +5234,7 @@ private:
 
                 if (exported || !trunkOwningNodes.empty()) {
                     YT_LOG_ALERT(
-                        "Found unhealthy unconfirmed chunk (ChunkId: %v, Exported: %v, TrunkOwningNodes: %v)",
+                        "Found unhealthy unconfirmed chunk (ChunkId: %v, Exported: %v, OwningNodes: %v)",
                         chunk->GetId(),
                         exported,
                         MakeFormattableView(
@@ -5303,6 +5308,7 @@ private:
 
         NeedRecomputeChunkWeightStatisticsHistogram_ = false;
         NeedRecomputeOrderedTabletStatistics_ = false;
+        NeedUnhealthyUnconfirmedChunkScan_ = false;
     }
 
     void SetZeroState() override
