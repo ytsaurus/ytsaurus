@@ -2682,14 +2682,35 @@ private:
         BufferedProducer_->Update(buffer);
     }
 
+    struct TOldNodeAlert {
+        std::optional<std::string> OldestNodeAddress;
+        TInstant OldestNodeChangeTime;
+        int AlertedNodeCount = 0;
+
+        void Update(const std::string& nodeAddress, TInstant nodeChangeTime)
+        {
+            ++AlertedNodeCount;
+            if (!OldestNodeAddress || nodeChangeTime < OldestNodeChangeTime) {
+                OldestNodeAddress = nodeAddress;
+                OldestNodeChangeTime = nodeChangeTime;
+            }
+        }
+    };
+
     void OnNodeAlertsCheck()
     {
         auto now = GetInstant();
+
         auto minLastDataHeartbeatTime = now - GetDynamicConfig()->NodeDataHeartbeatOutdateDuration;
         auto minLastJobHeartbeatTime = now - GetDynamicConfig()->NodeJobHeartbeatOutdateDuration;
         auto minLastIncompleteStateChangeTime = now - GetDynamicConfig()->MaxNodeIncompleteStateDuration;
 
         std::vector<TError> alerts;
+
+        TOldNodeAlert dataHeartbeatAlert;
+        TOldNodeAlert jobHeartbeatAlert;
+        THashMap<ENodeState, TOldNodeAlert> noStateChangeAlert;
+
         for (auto [nodeId, node] : NodeMap_) {
             if (!IsObjectAlive(node)) {
                 continue;
@@ -2702,35 +2723,60 @@ private:
             if (node->GetAggregatedState() == ENodeState::Online) {
                 if (node->IsDataNode()) {
                     if (node->GetLastDataHeartbeatTime() < minLastDataHeartbeatTime) {
-                        YT_LOG_ALERT("Node had no data heartbeat for too long (NodeId: %v, LastDataHeartbeatTime: %v)",
-                            nodeId,
-                            node->GetLastDataHeartbeatTime());
-                        alerts.push_back(TError("Node had no data heartbeat for too long")
-                            << TErrorAttribute("node_id", nodeId)
-                            << TErrorAttribute("last_data_heartbeat_time", node->GetLastDataHeartbeatTime()));
+                        dataHeartbeatAlert.Update(node->GetDefaultAddress(), node->GetLastDataHeartbeatTime());
                     }
 
                     if (std::max(node->GetLastJobHeartbeatTime(), node->GetLastStateChangeTime()) < minLastJobHeartbeatTime) {
-                        YT_LOG_ALERT("Node had no job heartbeat for too long (NodeId: %v, LastJobHeartbeatTime: %v)",
-                            nodeId,
-                            node->GetLastJobHeartbeatTime());
-                        alerts.push_back(TError("Node had no job heartbeat for too long")
-                            << TErrorAttribute("node_id", nodeId)
-                            << TErrorAttribute("last_data_heartbeat_time", node->GetLastDataHeartbeatTime()));
+                        jobHeartbeatAlert.Update(node->GetDefaultAddress(), node->GetLastJobHeartbeatTime());
                     }
                 }
             } else {
-                if (node->GetLastStateChangeTime() < minLastIncompleteStateChangeTime) {
-                    YT_LOG_ALERT("Node had no state change for too long (NodeId: %v, State: %v, LastStateChangeTime: %v)",
-                        nodeId,
-                        node->GetAggregatedState(), node->GetLastStateChangeTime());
-                    alerts.push_back(TError("Node had no state change for too long")
-                        << TErrorAttribute("node_id", nodeId)
-                        << TErrorAttribute("last_state_change_time", node->GetLastStateChangeTime())
-                        << TErrorAttribute("current_state", node->GetAggregatedState()));
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+                if (multicellManager->IsPrimaryMaster() && node->GetLastStateChangeTime() < minLastIncompleteStateChangeTime) {
+                    noStateChangeAlert[node->GetAggregatedState()].Update(node->GetDefaultAddress(), node->GetLastStateChangeTime());
                 }
             }
         }
+        if (dataHeartbeatAlert.AlertedNodeCount > 0) {
+            YT_LOG_ALERT(
+                "Node(s) had no data heartbeat for too long "
+                "(NodeCount: %v, OldestNoHeartbeatNodeAddress: %v, TimeSinceOldestDataHeartbeat: %v)",
+                dataHeartbeatAlert.AlertedNodeCount,
+                dataHeartbeatAlert.OldestNodeAddress,
+                now - dataHeartbeatAlert.OldestNodeChangeTime);
+            alerts.push_back(TError("Node(s) had no data heartbeat for too long")
+                << TErrorAttribute("node_count", dataHeartbeatAlert.AlertedNodeCount)
+                << TErrorAttribute("oldest_no_heartbeat_node_address", dataHeartbeatAlert.OldestNodeAddress)
+                << TErrorAttribute("time_since_oldest_data_heartbeat", now - dataHeartbeatAlert.OldestNodeChangeTime));
+        }
+        if (jobHeartbeatAlert.AlertedNodeCount > 0) {
+            YT_LOG_ALERT(
+                "Node(s) had no job heartbeat for too long "
+                "(NodeCount: %v, OldestNoHeartbeatNodeAddress: %v, TimeSinceOldestJobHeartbeat: %v)",
+                jobHeartbeatAlert.AlertedNodeCount,
+                jobHeartbeatAlert.OldestNodeAddress,
+                now - jobHeartbeatAlert.OldestNodeChangeTime);
+            alerts.push_back(TError("Node(s) had no job heartbeat for too long")
+                << TErrorAttribute("node_count", jobHeartbeatAlert.AlertedNodeCount)
+                << TErrorAttribute("oldest_no_heartbeat_node_address", jobHeartbeatAlert.OldestNodeAddress)
+                << TErrorAttribute("time_since_oldest_job_heartbeat", now - jobHeartbeatAlert.OldestNodeChangeTime));
+        }
+
+        for (const auto& [state, alert] : noStateChangeAlert) {
+            YT_LOG_ALERT(
+                "Node(s) had no state change for too long "
+                "(CurrentState: %v, NodeCount: %v, OldestNoStateChangeNodeAddress: %v, TimeSinceOldestStateChange: %v)",
+                state,
+                alert.AlertedNodeCount,
+                alert.OldestNodeAddress,
+                now - alert.OldestNodeChangeTime);
+            alerts.push_back(TError("Node(s) had no state change for too long")
+                << TErrorAttribute("current_state", state)
+                << TErrorAttribute("node_count", alert.AlertedNodeCount)
+                << TErrorAttribute("oldest_no_state_change_node_address", alert.OldestNodeAddress)
+                << TErrorAttribute("time_since_oldest_state_change", now - alert.OldestNodeChangeTime));
+        }
+
         Alerts_ = std::move(alerts);
     }
 
