@@ -12,7 +12,7 @@
 
 #include <concepts>
 
-namespace NYT::NThreading::NPrivate {
+namespace NYT::NThreading::NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,7 +43,7 @@ struct TTracelessOps
     static void Acquire(T* t) noexcept
     {
         TOps::Acquire(t);
-        NDetail::RecordSpinLockReleased();
+        RecordSpinLockReleased();
     }
 
     template <class T>
@@ -58,53 +58,51 @@ struct TTracelessOps
     static bool TryAcquire(T* t) noexcept
     {
         bool isAcquired = TOps::TryAcquire(t);
-
         if (isAcquired) {
-            NDetail::RecordSpinLockReleased();
+            RecordSpinLockReleased();
         }
-
         return isAcquired;
     }
 };
 
-template <CTrackedSpinLock T, class TOps = TCommonLockOps<T>>
+template <CTracedSpinLock T, class TOps = TCommonLockOps<T>>
 using TTracelessGuard = TGuard<T, TTracelessOps<TOps>>;
 
-template <CTrackedSpinLock T, class TOps = TCommonLockOps<T>>
+template <CTracedSpinLock T, class TOps = TCommonLockOps<T>>
 using TTracelessInverseGuard = TInverseGuard<T, TTracelessOps<TOps>>;
 
-template <CTrackedSpinLock T, class TOps = TTryLockOps<T>>
+template <CTracedSpinLock T, class TOps = TTryLockOps<T>>
 using TTracelessTryGuard = TTryGuard<T, TTracelessOps<TOps>>;
 
-template <CTrackedSpinLock T>
+template <CTracedSpinLock T>
 using TTracelessReaderGuard = TGuard<T, TTracelessOps<TReaderSpinlockTraits<T>>>;
 
-template <CTrackedSpinLock T>
+template <CTracedSpinLock T>
 using TTracelessWriterGuard = TGuard<T, TTracelessOps<TWriterSpinlockTraits<T>>>;
 
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <CTrackedSpinLock T>
+template <CTracedSpinLock T>
 TTracelessGuard<T> TracelessGuard(const T& mutex)
 {
     return {&mutex};
 }
 
-template <CTrackedSpinLock T>
+template <CTracedSpinLock T>
 TTracelessTryGuard<T> TracelessTryGuard(const T& mutex)
 {
     return {&mutex};
 }
 
-template <CTrackedSpinLock T>
+template <CTracedSpinLock T>
 TTracelessReaderGuard<T> TracelessReaderGuard(const T& mutex)
 {
     return {&mutex};
 }
 
-template <CTrackedSpinLock T>
+template <CTracedSpinLock T>
 TTracelessWriterGuard<T> TracelessWriterGuard(const T& mutex)
 {
     return {&mutex};
@@ -112,4 +110,4 @@ TTracelessWriterGuard<T> TracelessWriterGuard(const T& mutex)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NThreading::NPrivate
+} // namespace NYT::NThreading::NDetail

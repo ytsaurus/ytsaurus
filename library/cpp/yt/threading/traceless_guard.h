@@ -11,18 +11,18 @@ namespace NYT::NThreading {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NPrivate::TTracelessGuard;
-using NPrivate::TTracelessInverseGuard;
-using NPrivate::TTracelessTryGuard;
-using NPrivate::TTracelessReaderGuard;
-using NPrivate::TTracelessWriterGuard;
+using NDetail::TTracelessGuard;
+using NDetail::TTracelessInverseGuard;
+using NDetail::TTracelessTryGuard;
+using NDetail::TTracelessReaderGuard;
+using NDetail::TTracelessWriterGuard;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NPrivate::TracelessGuard;
-using NPrivate::TracelessTryGuard;
-using NPrivate::TracelessReaderGuard;
-using NPrivate::TracelessWriterGuard;
+using NDetail::TracelessGuard;
+using NDetail::TracelessTryGuard;
+using NDetail::TracelessReaderGuard;
+using NDetail::TracelessWriterGuard;
 
 ////////////////////////////////////////////////////////////////////////////////
 
