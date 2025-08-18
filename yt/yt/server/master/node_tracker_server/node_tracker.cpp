@@ -2662,7 +2662,7 @@ private:
             };
 
             {
-                TWithTagGuard tagGuard(&buffer, "flavor", "cluster");
+                TWithTagGuard tagGuard(&buffer, "flavor", ClusterNodeFalvor);
                 profileStatistics(GetAggregatedNodeStatistics());
             }
 

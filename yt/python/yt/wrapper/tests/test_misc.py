@@ -1241,6 +1241,13 @@ class TestGetSupportedFeatures(object):
         assert expected_erasure_codecs == \
             expected_erasure_codecs.intersection(set(features["erasure_codecs"]))
 
+        assert "node_flavors" in features
+        expected_node_flavors = {
+            "cluster", "data", "exec", "tablet", "chaos"
+        }
+        assert expected_node_flavors == \
+            expected_node_flavors.intersection(set(features["node_flavors"]))
+
 
 @pytest.mark.usefixtures("yt_env")
 class TestRunCommandWithLock(object):

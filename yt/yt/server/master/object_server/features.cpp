@@ -5,6 +5,8 @@
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
+#include <yt/yt/ytlib/node_tracker_client/public.h>
+
 #include <yt/yt/core/compression/codec.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -13,6 +15,7 @@
 
 namespace NYT::NObjectServer {
 
+using namespace NNodeTrackerClient;
 using namespace NTableClient;
 using namespace NYson;
 using namespace NYTree;
@@ -51,6 +54,16 @@ std::vector<NErasure::ECodec> GetErasureCodecs()
     return NErasure::GetSupportedCodecIds();
 }
 
+std::vector<std::string> GetNodeFlavors()
+{
+    std::vector<std::string> result;
+    for (auto value : TEnumTraits<ENodeFlavor>::GetDomainValues()) {
+        result.push_back(std::string(Format("%lv", value)));
+    }
+    result.push_back(ClusterNodeFalvor);
+    return result;
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -64,6 +77,7 @@ TYsonString CreateFeatureRegistryYson(
             .Item("compression_codecs").List(GetCompressionCodecs(configuredForbiddenCompressionCodecs))
             .Item("erasure_codecs").List(GetErasureCodecs())
             .Item("query_memory_limit_in_tablet_nodes").Value(true)
+            .Item("node_flavors").List(GetNodeFlavors())
         .EndMap();
 }
 
