@@ -4,10 +4,12 @@ import "yt_proto/yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqLostVitalChunksSample
+message TReqChunksSamples
 {
     required uint32 cell_tag = 1;
-    repeated NYT.NProto.TGuid chunk_ids = 2;
+    repeated NYT.NProto.TGuid lost_vital_chunk_ids = 2;
+    repeated NYT.NProto.TGuid data_missing_chunk_ids = 3;
+    repeated NYT.NProto.TGuid parity_missing_chunk_ids = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

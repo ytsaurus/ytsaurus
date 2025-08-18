@@ -1165,21 +1165,12 @@ private:
 
     NProto::TReqSetCellStatistics GetTransientLocalCellStatistics()
     {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+
         NProto::TReqSetCellStatistics result;
         result.set_cell_tag(ToProto(GetCellTag()));
-        auto* cellStatistics = result.mutable_statistics();
-
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        cellStatistics->set_chunk_count(chunkManager->Chunks().GetSize());
-
-        auto lostVitalChunkCount = WaitFor(chunkManager->GetCellLostVitalChunkCount())
-            .ValueOrThrow();
-        cellStatistics->set_lost_vital_chunk_count(lostVitalChunkCount);
-
-        if (IsPrimaryMaster()) {
-            const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-            cellStatistics->set_online_node_count(nodeTracker->GetOnlineNodeCount());
-        }
+        result.mutable_statistics()->CopyFrom(
+            WaitFor(chunkManager->GetCellStatistics()).ValueOrThrow());
 
         return result;
     }
