@@ -129,6 +129,7 @@ void TDiskHealthChecker::DoRunCheck()
         } catch (const std::exception& ex) {
             YT_LOG_INFO(ex, "Failed to extract error from location lock file");
             lockFileError <<= TError("Failed to extract error from location lock file")
+                << TErrorAttribute("path", lockFilePath)
                 << ex;
 
             THROW_ERROR(lockFileError);
@@ -144,6 +145,7 @@ void TDiskHealthChecker::DoRunCheck()
             YT_LOG_INFO(ex, "Failed to parse error from location lock file");
 
             lockFileError <<= TError("Failed to parse error from location lock file (%v)", fileContents)
+                << TErrorAttribute("path", lockFilePath)
                 << ex;
         }
 
