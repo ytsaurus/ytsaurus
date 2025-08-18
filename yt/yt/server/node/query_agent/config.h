@@ -33,7 +33,7 @@ struct TQueryAgentConfig
     bool AccountUserBackendOutTraffic;
     bool UseQueryPoolForLookups;
     bool UseQueryPoolForInMemoryLookups;
-    bool UseDedicatedPoolForPullRows;
+    bool UseQueryPoolForPullRows;
 
     i64 MaxPullQueueResponseDataWeight;
     i64 PullRowsReadDataWeightLimit;
@@ -64,7 +64,7 @@ struct TQueryAgentDynamicConfig
     std::optional<bool> AccountUserBackendOutTraffic;
     std::optional<bool> UseQueryPoolForLookups;
     std::optional<bool> UseQueryPoolForInMemoryLookups;
-    std::optional<bool> UseDedicatedPoolForPullRows;
+    std::optional<bool> UseQueryPoolForPullRows;
 
     REGISTER_YSON_STRUCT(TQueryAgentDynamicConfig);
 

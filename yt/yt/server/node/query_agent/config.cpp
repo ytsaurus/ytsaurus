@@ -56,8 +56,8 @@ void TQueryAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_query_pool_for_in_memory_lookups", &TThis::UseQueryPoolForInMemoryLookups)
         .Default(false);
 
-    registrar.Parameter("use_dedicated_pool_for_pull_rows", &TThis::UseDedicatedPoolForPullRows)
-        .Default(true);
+    registrar.Parameter("use_query_pool_pool_for_pull_rows", &TThis::UseQueryPoolForPullRows)
+        .Default(false);
 
     registrar.Parameter("pull_rows_read_data_weight_limit", &TThis::PullRowsReadDataWeightLimit)
         .GreaterThan(0)
@@ -103,7 +103,7 @@ void TQueryAgentDynamicConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("use_query_pool_for_in_memory_lookups", &TThis::UseQueryPoolForInMemoryLookups)
         .Optional();
-    registrar.Parameter("use_dedicated_pool_for_pull_rows", &TThis::UseDedicatedPoolForPullRows)
+    registrar.Parameter("use_query_pool_for_pull_rows", &TThis::UseQueryPoolForPullRows)
         .Optional();
 }
 

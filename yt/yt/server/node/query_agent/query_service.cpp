@@ -120,6 +120,8 @@ static constexpr i64 MaxRowsPerRemoteDynamicStoreRead = 1024;
 
 static const std::string DefaultQLExecutionPoolName = "default";
 static const std::string DefaultQLExecutionTag = "default";
+
+static const std::string DefaultPullRowsPoolName = "$ChaosPullRows";
 static const std::string DefaultPullRowsTag = "default";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -281,7 +283,7 @@ private:
     std::atomic<bool> AccountUserBackendOutTraffic_;
     std::atomic<bool> UseQueryPoolForLookups_;
     std::atomic<bool> UseQueryPoolForInMemoryLookups_;
-    std::atomic<bool> UseDedicatedPoolForPullRows_;
+    std::atomic<bool> UseQueryPoolForPullRows_;
 
     NProfiling::TCounter TabletErrorCountCounter_ = QueryAgentProfiler().Counter("/get_tablet_infos/errors/count");
     NProfiling::TCounter TabletErrorSizeCounter_ = QueryAgentProfiler().Counter("/get_tablet_infos/errors/byte_size");
@@ -338,22 +340,22 @@ private:
 
     IInvokerPtr GetPullRowsInvoker(const NRpc::NProto::TRequestHeader& requestHeader)
     {
-        if (UseDedicatedPoolForPullRows_.load()) {
-            std::string tag;
-            if (requestHeader.HasExtension(NQueryClient::NProto::TReqExecuteExt::req_execute_ext)) {
-                const auto& executeExt = requestHeader.GetExtension(
-                    NQueryClient::NProto::TReqExecuteExt::req_execute_ext);
+        std::string tag;
+        if (requestHeader.HasExtension(NQueryClient::NProto::TReqExecuteExt::req_execute_ext)) {
+            const auto& executeExt = requestHeader.GetExtension(
+                NQueryClient::NProto::TReqExecuteExt::req_execute_ext);
 
-                tag = executeExt.has_execution_tag()
-                    ? executeExt.execution_tag()
-                    : DefaultPullRowsTag;
-            } else {
-                tag = DefaultPullRowsTag;
-            }
-
-            return Bootstrap_->GetPullRowsInvoker(tag);
+            tag = executeExt.has_execution_tag()
+                ? executeExt.execution_tag()
+                : DefaultPullRowsTag;
         } else {
-            return Bootstrap_->GetTabletLookupPoolInvoker();
+            tag = DefaultPullRowsTag;
+        }
+
+        if (UseQueryPoolForPullRows_.load()) {
+            return Bootstrap_->GetQueryPoolInvoker(DefaultPullRowsPoolName, tag);
+        } else {
+            return Bootstrap_->GetPullRowsInvoker(tag);
         }
     }
 
@@ -1797,8 +1799,8 @@ private:
             newConfig->QueryAgent->UseQueryPoolForLookups.value_or(Config_->UseQueryPoolForLookups));
         UseQueryPoolForInMemoryLookups_.store(
             newConfig->QueryAgent->UseQueryPoolForInMemoryLookups.value_or(Config_->UseQueryPoolForInMemoryLookups));
-        UseDedicatedPoolForPullRows_.store(
-            newConfig->QueryAgent->UseDedicatedPoolForPullRows.value_or(Config_->UseDedicatedPoolForPullRows));
+        UseQueryPoolForPullRows_.store(
+            newConfig->QueryAgent->UseQueryPoolForPullRows.value_or(Config_->UseQueryPoolForPullRows));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, CreateDistributedSession)
