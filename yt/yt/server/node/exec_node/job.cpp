@@ -1818,17 +1818,11 @@ void TJob::DoInterrupt(
 
         ReportJobInterruptionInfo(now, timeout, interruptionReason, preemptionReason, preemptedFor);
     } catch (const std::exception& ex) {
-        auto error = TError("Error interrupting job on job proxy")
+        auto error = TError(NExecNode::EErrorCode::InterruptionFailed, "Error interrupting job on job proxy")
             << TErrorAttribute("interruption_reason", InterruptionReason_)
             << ex;
 
-        if (error.FindMatching(NJobProxy::EErrorCode::InterruptionFailed) ||
-            error.FindMatching(NJobProxy::EErrorCode::JobNotPrepared))
-        {
-            Abort(error);
-        } else {
-            THROW_ERROR error;
-        }
+        Abort(std::move(error));
     }
 }
 
