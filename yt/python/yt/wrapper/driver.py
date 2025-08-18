@@ -20,15 +20,15 @@ _DEFAULT_COMMAND_PARAMS = {
 }
 
 
-def get_command_list(client=None):
+def get_commands_description(client=None):
     if get_option("_client_type", client) == "batch":
-        raise YtError("Command \"get_command_list\" is not supported in batch mode")
+        raise YtError("Command \"get_commands_description\" is not supported in batch mode")
 
     backend = get_backend_type(client)
     if backend in ("native", "rpc"):
-        return list(native_driver.get_command_descriptors(client))
+        return native_driver.get_command_descriptors(client)
     else:  # backend == "http"
-        return list(get_http_api_commands(client))
+        return get_http_api_commands(client)
 
 
 def set_master_read_params(params, read_from, cache_sticky_group_size):

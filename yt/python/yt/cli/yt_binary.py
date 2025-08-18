@@ -15,6 +15,7 @@ from yt.wrapper.cli_helpers import (
     YT_STRUCTURED_DATA_FORMAT, YT_ARGUMENTS_FORMAT, OUTPUT_FORMATS)
 from yt.wrapper.constants import DOC_ROOT_URL, TUTORIAL_DOC_URL
 from yt.wrapper.default_config import get_default_config, RemotePatchableValueBase
+from yt.wrapper.driver import get_commands_description
 from yt.wrapper.admin_commands import add_switch_leader_parser
 from yt.wrapper.dirtable_commands import add_dirtable_parsers
 from yt.wrapper.flow_commands import get_controller_logs, wait_pipeline_state
@@ -1964,9 +1965,10 @@ def add_remove_member_parser(add_parser):
 
 
 def execute(**kwargs):
+    command_description = get_commands_description()[kwargs["command_name"]]
     if "output_format" not in kwargs["execute_params"]:
         kwargs["execute_params"]["output_format"] = yt.create_format(output_format)
-    data = chunk_iter_stream(sys.stdin, 16 * MB) if "input_format" in kwargs["execute_params"] else None
+    data = chunk_iter_stream(get_binary_std_stream(sys.stdin), 16 * MB) if command_description.input_type is not None else None
     result = yt.driver.make_request(kwargs["command_name"], kwargs["execute_params"], data=data)
     if result is not None:
         print_to_output(result, eoln=False)
