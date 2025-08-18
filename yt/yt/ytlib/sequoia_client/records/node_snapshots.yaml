@@ -2,7 +2,7 @@ namespace: NYT::NSequoiaClient::NRecords
 
 types:
   - table_name: node_snapshots
-    table_group: transactions
+    table_group: transaction_tables
     type_name: TNodeSnapshot
     fields:
       - cpp_name: TransactionIdHash
