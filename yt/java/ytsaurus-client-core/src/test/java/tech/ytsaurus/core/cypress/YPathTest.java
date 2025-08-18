@@ -518,4 +518,16 @@ public class YPathTest {
         Assert.assertEquals("<\"k1\"={\"list\"=[\"v1\";\"v2\";];};>//some/table", path.toString());
         Assert.assertEquals("{k1={\"list\"=[\"v1\";\"v2\";];}}", path.getAdditionalAttributes().toString());
     }
+
+    @Test
+    public void relativeYPathTest() {
+        Assert.assertEquals(new RichYPath("", Arrays.asList("tasks", "task", "job_count")),
+                YPath.relative("/tasks/task/job_count"));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void incorrectRelativeYPathTest() {
+        Assert.assertEquals(new RichYPath("", Arrays.asList("tasks", "task", "job_count")),
+                YPath.relative("//tasks/task/job_count"));
+    }
 }
