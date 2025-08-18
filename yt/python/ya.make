@@ -21,8 +21,6 @@ RECURSE(
 
     yt/data/pandas
 
-    yt/mcp
-
     client
     client_lite
     client_with_rpc
@@ -49,6 +47,8 @@ IF (NOT OPENSOURCE)
         yandex_examples
 
         yt/infra_api
+
+        yt/mcp
 
         yt/transfer_manager
         yt/transfer_manager/client/bin
