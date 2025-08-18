@@ -17,6 +17,7 @@ grpcio==1.54.2
 
 dacite==1.8.1
 pyaml==23.9.7
+Jinja2==3.1.4
 
 zstandard==0.22.0
 
