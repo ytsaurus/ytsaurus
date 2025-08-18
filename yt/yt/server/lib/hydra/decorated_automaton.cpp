@@ -304,7 +304,7 @@ public:
             meta.set_last_mutation_term(Owner_->LastMutationTerm_);
             meta.set_last_mutation_reign(Owner_->LastMutationReign_);
             meta.set_read_only(SnapshotReadOnly_);
-            meta.set_logical_time(LogicalTime_.GetValue());
+            meta.set_logical_time(LogicalTime_.Underlying());
 
             SnapshotWriter_ = Owner_->SnapshotStore_->CreateWriter(SnapshotId_, meta);
 
@@ -330,7 +330,7 @@ protected:
     const ui64 RandomSeed_;
     const ui64 StateHash_;
     const TInstant Timestamp_;
-    const TInstant LogicalTime_;
+    const TLogicalTime LogicalTime_;
     const int SelfPeerId_;
 
     ISnapshotWriterPtr SnapshotWriter_;
@@ -814,29 +814,29 @@ struct TDecoratedAutomaton::TMutationApplicationResult
 void TDecoratedAutomaton::TLogicalClock::Initialize(
     TInstant lastTickTime,
     int lastKnownTerm,
-    TInstant time)
+    TLogicalTime time)
 {
     LastTickTime_ = lastTickTime;
     LastKnownTerm_ = lastKnownTerm;
-    Time_.store(time, std::memory_order_release);
+    Time_.store(time, std::memory_order::release);
 }
 
 void TDecoratedAutomaton::TLogicalClock::AdvanceClock()
 {
-    LastKnownTerm_ = -1;
+    LastKnownTerm_ = InvalidTerm;
 }
 
-TInstant TDecoratedAutomaton::TLogicalClock::GetTime() const
+TLogicalTime TDecoratedAutomaton::TLogicalClock::GetTime() const
 {
-    return Time_.load(std::memory_order_acquire);
+    return Time_.load(std::memory_order::acquire);
 }
 
 void TDecoratedAutomaton::TLogicalClock::ProcessTick(TInstant mutationTime, int mutationTerm)
 {
     if (mutationTerm == LastKnownTerm_) {
         auto timePassed = mutationTime - LastTickTime_;
-        auto newTime = Time_.load(std::memory_order_relaxed) + timePassed;
-        Time_.store(newTime, std::memory_order_release);
+        auto newTime = Time_.load(std::memory_order::relaxed).Underlying() + timePassed.GetValue();
+        Time_.store(TLogicalTime(newTime), std::memory_order::release);
     }
 
     LastTickTime_ = mutationTime;
@@ -1008,7 +1008,7 @@ void TDecoratedAutomaton::LoadSnapshot(
     ui64 randomSeed,
     ui64 stateHash,
     TInstant timestamp,
-    TInstant logicalTime,
+    TLogicalTime logicalTime,
     IAsyncZeroCopyInputStreamPtr reader,
     bool prepareState)
 {
@@ -1728,7 +1728,7 @@ bool TDecoratedAutomaton::GetReadOnly() const
     return ReadOnly_.load();
 }
 
-TInstant TDecoratedAutomaton::GetLogicalTime() const
+TLogicalTime TDecoratedAutomaton::GetLogicalTime() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 

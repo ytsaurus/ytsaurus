@@ -313,9 +313,24 @@ Publishes as docker images.
 
 Publishes as docker images.
 
-**Current release:** 2.7.0 (`ghcr.io/ytsaurus/spyt:2.7.0`)
+**Current release:** 2.7.1 (`ghcr.io/ytsaurus/spyt:2.7.1`)
 
 **All releases:**
+
+{% cut "**2.7.1**" %}
+
+Maintenance release with minor enhancements
+
+- Optimizing the number of requests to master in bulk reading scenarios
+- Hiding sensitive information from driver command line and passing it via secure vault
+- Fix executors hostname in network project
+- Showing executor operation id in driver operation description
+- Fix java properties escaping
+- Including parsing context in parsing exceptions
+- Fix joins by uint64 columns
+- Support for setting secure vault in direct submit scenarios
+
+{% endcut %}
 
 {% cut "**2.7.0**" %}
 

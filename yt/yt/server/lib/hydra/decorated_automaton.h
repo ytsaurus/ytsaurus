@@ -239,7 +239,7 @@ public:
         ui64 randomSeed,
         ui64 stateHash,
         TInstant timestamp,
-        TInstant logicalTime,
+        TLogicalTime logicalTime,
         NConcurrency::IAsyncZeroCopyInputStreamPtr reader,
         bool prepareState = true);
 
@@ -262,7 +262,7 @@ public:
     int GetLastSuccessfulSnapshotId() const;
     bool GetLastSuccessfulSnapshotReadOnly() const;
     bool GetReadOnly() const;
-    TInstant GetLogicalTime() const;
+    TLogicalTime GetLogicalTime() const;
 
 private:
     friend class TUserLockGuard;
@@ -327,19 +327,19 @@ private:
     class TLogicalClock
     {
     public:
-        void Initialize(TInstant lastTickTime, int lastKnownTerm, TInstant time);
+        void Initialize(TInstant lastTickTime, int lastKnownTerm, TLogicalTime time);
         // Ensures that the next call to #ProcessTick does not increase the time value.
         // This is useful when some periods of time between mutations should not be accounted for.
         // A good example of said period is an active read-only mode.
         void AdvanceClock();
 
-        TInstant GetTime() const;
+        TLogicalTime GetTime() const;
         void ProcessTick(TInstant mutationTime, int mutationTerm);
 
     private:
         TInstant LastTickTime_;
-        int LastKnownTerm_ = -1;
-        std::atomic<TInstant> Time_ = {};
+        int LastKnownTerm_ = InvalidTerm;
+        std::atomic<TLogicalTime> Time_;
     };
     TLogicalClock LogicalClock_;
 

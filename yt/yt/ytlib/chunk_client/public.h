@@ -115,6 +115,8 @@ DEFINE_BIT_ENUM(EBlockType,
     ((XorFilter)                   (0x0008))
     //! Blocks used by chunk fragment reader cache.
     ((ChunkFragmentsData)          (0x0010))
+    //! Min hash row digest system block.
+    ((MinHashDigest)               (0x0020))
 );
 
 DEFINE_ENUM(EChunkType,
@@ -171,6 +173,15 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EChunkMergerMode, i8,
 DEFINE_ENUM(EChunkListContentType,
     ((Main)                   (0))
     ((Hunk)                   (1))
+);
+
+//! Chunk availability is determined by `TChunkScraperAvailabilityPolicy`.
+//! - If the policy is `TMetadataAvailable`: a chunk is unavailable when it has no replicas.
+//! - Otherwise: a chunk is unavailable when `IsUnavailable()` returns true for the given policy and erasure codec.
+DEFINE_ENUM(EChunkAvailability,
+    ((Available)        (0))
+    ((Unavailable)      (1))
+    ((Missing)          (2))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -293,6 +304,15 @@ DECLARE_REFCOUNTED_STRUCT(IClientChunkMetaCache)
 YT_DECLARE_RECONFIGURABLE_SINGLETON(TDispatcherConfig, TDispatcherDynamicConfig);
 
 class TDataSink;
+
+struct TMetadataAvailablePolicy
+{ };
+
+using TChunkScraperAvailabilityPolicy = std::variant<EChunkAvailabilityPolicy, TMetadataAvailablePolicy>;
+
+struct TScrapedChunkInfo;
+
+using TChunkBatchLocatedHandler = TCallback<void(std::vector<TScrapedChunkInfo>)>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

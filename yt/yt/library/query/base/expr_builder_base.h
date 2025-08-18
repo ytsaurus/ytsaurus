@@ -114,9 +114,6 @@ public:
         const TConstExpressionPtr& typedExpression,
         const NAst::TExpression& expressionsAst) = 0;
 
-    virtual TConstExpressionPtr DoBuildTypedExpression(
-        const NAst::TExpression* expr, TRange<EValueType> resultTypes) = 0;
-
     virtual TConstExpressionPtr BuildTypedExpression(
         const NAst::TExpression* expr,
         TRange<EValueType> resultTypes = {
@@ -128,7 +125,7 @@ public:
             EValueType::String,
             EValueType::Any,
             EValueType::Composite
-        });
+        }) = 0;
 
     virtual ~TExprBuilder() = default;
 };

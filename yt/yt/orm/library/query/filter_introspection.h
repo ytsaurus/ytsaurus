@@ -79,6 +79,14 @@ bool IntrospectFilterForDefinedReference(
     const NQueryClient::NAst::TReference& reference,
     bool allowValueRange);
 
+//! Introspects #filterExpression to count values in "IN" clauses.
+/*!
+ *  Returns the total number of values used in all "IN" expressions.
+ *
+ *  Use case: prevent query execution on cluster if the number of values in an "IN" clause exceeds a certain limit.
+ */
+int IntrospectFilterInValueCount(NQueryClient::NAst::TExpressionPtr filterExpression);
+
 //! Searches for attribute references in #filterQuery, e.g. expressions
 /*! of the form `[attributePath]`.
  *

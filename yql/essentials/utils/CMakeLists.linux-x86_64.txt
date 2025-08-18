@@ -35,6 +35,7 @@ target_link_libraries(yql-essentials-utils PUBLIC
 )
 
 target_sources(yql-essentials-utils PRIVATE
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/checkpoint_map.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/chunked_buffer.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/debug_info.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/exceptions.cpp
@@ -45,7 +46,6 @@ target_sources(yql-essentials-utils PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/md5_stream.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/mem_limit.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/method_index.cpp
-  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/multi_resource_lock.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/parse_double.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/proc_alive.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/rand_guid.cpp
@@ -67,7 +67,6 @@ target_sources(yql-essentials-utils PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/md5_stream.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/mem_limit.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/method_index.h
-  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/multi_resource_lock.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/parse_double.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/proc_alive.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/rand_guid.h

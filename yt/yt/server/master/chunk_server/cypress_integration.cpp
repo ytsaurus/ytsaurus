@@ -7,7 +7,7 @@
 #include "chunk_list.h"
 #include "chunk_replicator.h"
 #include "domestic_medium.h"
-#include "lost_vital_chunks_sample.h"
+#include "chunks_samples.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
@@ -18,6 +18,8 @@
 
 #include <yt/yt/server/master/cypress_server/virtual.h>
 
+#include <yt/yt/server/master/object_server/object_service.h>
+
 #include <yt/yt/server/lib/object_server/helpers.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -25,6 +27,8 @@
 #include <yt/yt/core/misc/collection_helpers.h>
 
 #include <yt/yt/core/yson/string.h>
+
+#include <yt/yt/core/ytree/node_detail.h>
 
 namespace NYT::NChunkServer {
 
@@ -113,20 +117,20 @@ INodeTypeHandlerPtr CreateChunkLocationMapTypeHandler(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVirtualLostVitalChunksSampleMap
+class TVirtualChunksSampleMap
     : public TVirtualSinglecellWithRemoteItemsMapBase
 {
 public:
-    TVirtualLostVitalChunksSampleMap(
+    TVirtualChunksSampleMap(
         TBootstrap* bootstrap,
         INodePtr owningNode,
-        std::reference_wrapper<const TLostVitalChunksSampleMap> chunksSample)
+        EObjectType type)
         : TVirtualSinglecellWithRemoteItemsMapBase(bootstrap, std::move(owningNode))
-        , LostVitalChunksSample_(chunksSample)
+        , Type_(type)
     { }
 
 private:
-    const TLostVitalChunksSampleMap& LostVitalChunksSample_;
+    const EObjectType Type_;
 
     std::vector<std::string> GetKeys(i64 limit) const override
     {
@@ -142,7 +146,7 @@ private:
     i64 GetSize() const override
     {
         i64 size = 0;
-        for (const auto& [cellTag, chunkIds] : LostVitalChunksSample_) {
+        for (const auto& [cellTag, chunkIds] : GetInitialMap()) {
             size += std::ssize(chunkIds);
         }
         return size;
@@ -172,19 +176,21 @@ private:
     TCellItemsMap GetItems(i64 limit) const override
     {
         TCellItemsMap result;
-
         std::vector<TCellTag> cellTags;
-        cellTags.resize(LostVitalChunksSample_.size());
-        std::ranges::copy(LostVitalChunksSample_ | std::views::keys, cellTags.begin());
-        std::ranges::sort(cellTags, [this] (auto lhs, auto rhs) {
-            auto lhsSize = GetOrCrash(LostVitalChunksSample_, lhs).size();
-            auto rhsSize = GetOrCrash(LostVitalChunksSample_, rhs).size();
+
+        const auto& chunksSample = GetInitialMap();
+
+        cellTags.resize(chunksSample.size());
+        std::ranges::copy(chunksSample | std::views::keys, cellTags.begin());
+        std::ranges::sort(cellTags, [&] (auto lhs, auto rhs) {
+            auto lhsSize = GetOrCrash(chunksSample, lhs).size();
+            auto rhsSize = GetOrCrash(chunksSample, rhs).size();
             return lhsSize > rhsSize;
         });
 
         i64 maxChunks = 0;
         if (!cellTags.empty()) {
-            maxChunks = std::ranges::min(std::ssize(GetOrCrash(LostVitalChunksSample_, cellTags.front())), limit);
+            maxChunks = std::ranges::min(std::ssize(GetOrCrash(chunksSample, cellTags.front())), limit);
         }
 
         for (i64 i = 0; i < maxChunks; ++i) {
@@ -193,7 +199,7 @@ private:
                     return result;
                 }
 
-                const auto& cellChunkIds = GetOrCrash(LostVitalChunksSample_, cellTag);
+                const auto& cellChunkIds = GetOrCrash(chunksSample, cellTag);
                 // Cell tags are descending sorted by the number of chunks.
                 if (std::ssize(cellChunkIds) <= i) {
                     break;
@@ -216,24 +222,36 @@ private:
     {
         return true;
     }
+
+    const TChunksSampleMap& GetInitialMap() const {
+        const auto& chunksSamples = Bootstrap_->GetMulticellStatisticsCollector()->GetChunksSamples();
+        switch (Type_) {
+            case EObjectType::LostVitalChunksSampleMap:
+                return chunksSamples.GetCellLostVitalChunks();
+            case EObjectType::DataMissingChunksSampleMap:
+                return chunksSamples.GetCellDataMissingChunks();
+            case EObjectType::ParityMissingChunksSampleMap:
+                return chunksSamples.GetCellParityMissingChunks();
+            default:
+                YT_ABORT();
+        }
+    }
 };
 
-INodeTypeHandlerPtr CreateLostVitalChunksSampleMapTypeHandler(TBootstrap* bootstrap)
+INodeTypeHandlerPtr CreateChunksSampleMapTypeHandler(TBootstrap* bootstrap, NObjectClient::EObjectType type)
 {
     YT_VERIFY(bootstrap);
 
     return CreateVirtualTypeHandler(
         bootstrap,
-        EObjectType::LostVitalChunksSampleMap,
+        type,
         BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
             YT_VERIFY(owningNode);
-            const auto& statisticsCollector = bootstrap->GetMulticellStatisticsCollector();
-            const auto& lvcSampleValue = statisticsCollector->GetLostVitalChunksSample();
 
-            return New<TVirtualLostVitalChunksSampleMap>(
+            return New<TVirtualChunksSampleMap>(
                 bootstrap,
                 owningNode,
-                lvcSampleValue.GetCellLostVitalChunks());
+                type);
         }),
         EVirtualNodeOptions::RedirectSelf);
 }
@@ -292,15 +310,17 @@ private:
         }
     }
 
-    bool FilteredChunksContain(TChunk* chunk) const
+    bool CheckChunkFilter(const TEphemeralObjectPtr<TChunk>& ephemeralChunk)
     {
-        if (NHydra::HasMutationContext()) {
-            THROW_ERROR_EXCEPTION("Mutating request through virtual map is forbidden");
+        if (!IsObjectAlive(ephemeralChunk)) {
+            return false;
+        }
+        auto* chunk = ephemeralChunk.Get();
+
+        if (Type_ == EObjectType::ChunkMap) {
+            return true;
         }
 
-        auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(chunk);
-
-        Bootstrap_->GetHydraFacade()->RequireLeader();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& chunkReplicator = chunkManager->GetChunkReplicator();
         const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
@@ -507,23 +527,102 @@ private:
         }
     }
 
-    bool IsValid(TObject* object) const override
+    bool IsValidItem(TObject* object) const override
     {
         auto type = object->GetType();
-        if (type != EObjectType::Chunk &&
-            type != EObjectType::ErasureChunk &&
-            type != EObjectType::JournalChunk &&
-            type != EObjectType::ErasureJournalChunk)
+        return
+            type == EObjectType::Chunk ||
+            type == EObjectType::ErasureChunk ||
+            type == EObjectType::JournalChunk ||
+            type == EObjectType::ErasureJournalChunk;
+    }
+
+    IYPathServicePtr CreateLocalItemService(TObject* object) override
+    {
+        // The reason for this layer of indirection is as follows:
+        // 1. IYPathService::Resolve must not switch fiber context
+        // 2. CheckChunkFilter involves context switches
+        class TFilteringService
+            : public TYPathServiceBase
         {
-            return false;
-        }
+        public:
+            TFilteringService(
+                TIntrusivePtr<TVirtualChunkMap> map,
+                TChunk* chunk,
+                IInvokerPtr invoker,
+                IYPathServicePtr underlying)
+                : Map_(std::move(map))
+                , ChunkId_(chunk->GetId())
+                , EphemeralChunk_(chunk)
+                , Invoker_(std::move(invoker))
+                , Underlying_(underlying)
+            { }
+
+            void Invoke(const IYPathServiceContextPtr& context) override
+            {
+                Invoker_->Invoke(BIND([=, this, this_ = MakeStrong(this)] {
+                    try {
+                        if (!Map_->CheckChunkFilter(EphemeralChunk_)) {
+                            if (context->GetMethod() == "Exists") {
+                                TNonexistingService::Get()->Invoke(context);
+                                return;
+                            }
+                            THROW_ERROR_EXCEPTION(
+                                NYTree::EErrorCode::ResolveError,
+                                "Chunk %v does not satisfy filtering criterion",
+                                ChunkId_);
+                        }
+                        Underlying_->Invoke(context);
+                    } catch (const std::exception& ex) {
+                        context->Reply(ex);
+                    }
+                }));
+            }
+
+            TResolveResult Resolve(
+                const TYPath& path,
+                const IYPathServiceContextPtr& /*context*/) override
+            {
+                return TResolveResultHere{path};
+            }
+
+        private:
+            const TIntrusivePtr<TVirtualChunkMap> Map_;
+            const TChunkId ChunkId_;
+            const TEphemeralObjectPtr<TChunk> EphemeralChunk_;
+            const IInvokerPtr Invoker_;
+            const IYPathServicePtr Underlying_;
+        };
+
+        auto underlying = TVirtualMulticellMapBase::CreateLocalItemService(object);
 
         if (Type_ == EObjectType::ChunkMap) {
-            return true;
+            return underlying;
         }
 
+        if (NHydra::HasMutationContext()) {
+            THROW_ERROR_EXCEPTION("Mutating requests through filtered virtual maps are forbidden");
+        }
+
+        Bootstrap_->GetHydraFacade()->RequireLeader();
+
+        YT_VERIFY(IsValidItem(object));
         auto* chunk = object->As<TChunk>();
-        return FilteredChunksContain(chunk);
+
+        auto readInvoker = Bootstrap_
+            ->GetObjectService()
+            ->CreateLocalReadInvoker(NRpc::GetCurrentAuthenticationIdentity().User);
+
+        // Protect from possible epoch switch rendering |RequireLeader| check above useless.
+        auto epochInvoker = Bootstrap_
+            ->GetHydraFacade()
+            ->CreateEpochInvoker(std::move(readInvoker));
+
+        return New<TFilteringService>(
+            this,
+            chunk,
+            std::move(epochInvoker),
+            std::move(underlying));
     }
 
     TFuture<i64> GetSize() const override
@@ -768,7 +867,7 @@ private:
         return MakeFuture(ToObjectIds(GetValues(chunkManager->ChunkViews(), limit)));
     }
 
-    bool IsValid(TObject* object) const override
+    bool IsValidItem(TObject* object) const override
     {
         return object->GetType() == EObjectType::ChunkView;
     }
@@ -813,7 +912,7 @@ private:
         return MakeFuture(ToObjectIds(GetValues(chunkManager->ChunkLists(), limit)));
     }
 
-    bool IsValid(TObject* object) const override
+    bool IsValidItem(TObject* object) const override
     {
         return object->GetType() == EObjectType::ChunkList;
     }

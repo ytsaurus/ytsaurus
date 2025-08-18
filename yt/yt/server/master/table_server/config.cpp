@@ -16,11 +16,6 @@ void TDynamicTableManagerConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .Default(8_KB);
 
-    registrar.Parameter("make_schema_attribute_opaque", &TThis::MakeSchemaAttributeOpaque)
-        .Default(true);
-    registrar.Parameter("non_opaque_schema_attribute_user_whitelist", &TThis::NonOpaqueSchemaAttributeUserWhitelist)
-        .Default();
-
     registrar.Parameter("table_schema_cache", &TThis::TableSchemaCache)
         .DefaultNew();
     registrar.Parameter("yson_table_schema_cache", &TThis::YsonTableSchemaCache)

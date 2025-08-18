@@ -47,14 +47,15 @@ SRCS(
 )
 
 PEERDIR(
+    contrib/libs/xxhash
     library/cpp/json
     library/cpp/openssl/crypto
     contrib/ydb/core/base
     contrib/ydb/core/blob_depot/agent
+    contrib/ydb/core/blobstorage/bridge/proxy
     contrib/ydb/core/blobstorage/bridge/syncer
     contrib/ydb/core/blobstorage/common
     contrib/ydb/core/blobstorage/crypto
-    contrib/ydb/core/blobstorage/dsproxy/bridge
     contrib/ydb/core/blobstorage/groupinfo
     contrib/ydb/core/blobstorage/pdisk
     contrib/ydb/core/control/lib

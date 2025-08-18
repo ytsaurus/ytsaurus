@@ -21,6 +21,7 @@ import re
 import sys
 import time
 import types
+import typing
 import socket
 import stat
 import weakref
@@ -40,7 +41,19 @@ try:
 except ImportError:
     yatest_common = None
 
-requests = None
+if typing.TYPE_CHECKING:
+    import yt.packages.requests as requests
+
+    def lazy_import_requests():
+        pass
+else:
+    requests = None
+
+    def lazy_import_requests():
+        global requests
+        if requests is None:
+            import yt.packages.requests
+            requests = yt.packages.requests
 
 RECEIVE_TOKEN_FROM_SSH_SESSION = \
     int(os.environ.get("RECEIVE_TOKEN_FROM_SSH_SESSION", True)) and \
@@ -102,14 +115,7 @@ class ProxyProvider(object):
         pass
 
 
-def lazy_import_requests():
-    global requests
-    if requests is None:
-        import yt.packages.requests
-        requests = yt.packages.requests
-
-
-def _setup_new_session(client):
+def _setup_new_session(client) -> "requests.Session":
     lazy_import_requests()
     session = requests.Session()
     configure_proxy(session,
@@ -131,7 +137,7 @@ def _setup_new_session(client):
     return session
 
 
-def _get_session(client=None):
+def _get_session(client=None) -> "requests.Session":
     if get_option("_requests_session", client) is None:
         session = _setup_new_session(client)
         set_option("_requests_session", session, client)
@@ -222,7 +228,7 @@ def check_response_is_decodable(response, format):
             raise YtIncorrectResponse("Response body can not be decoded from YSON", response)
 
 
-def create_response(response, request_info, request_id, error_format, client):
+def create_response(response: "requests.Response", request_info: typing.Dict[str, str], request_id: str, error_format, client) -> "requests.Response":
     if error_format is None:
         error_format = "json"
 
@@ -483,7 +489,7 @@ def make_request_with_retries(method, url=None, **kwargs):
     return RequestRetrier(method=method, url=url, **kwargs).run()
 
 
-def _get_proxy_url_parts(required=True, client=None, replace_host_proxy=None):
+def _get_proxy_url_parts(required=True, client=None, replace_host_proxy: str = None) -> typing.Tuple[typing.Literal["http", "https"], str]:
     """Get proxy url parts from config or params (try to guess scheme from config)
     """
     proxy_config = get_config(client=client)["proxy"]
@@ -530,14 +536,14 @@ def _get_proxy_url_parts(required=True, client=None, replace_host_proxy=None):
     return (scheme, hostname + (":" + str(port) if port else ""))
 
 
-def get_proxy_address_netloc(required=True, client=None, replace_host=None):
+def get_proxy_address_netloc(required=True, client=None, replace_host: str = None) -> str:
     """Get proxy "hostname:port" from config or params
     """
     scheme, netloc = _get_proxy_url_parts(required=required, client=client, replace_host_proxy=replace_host)
     return netloc
 
 
-def get_proxy_address_url(required=True, client=None, add_path=None, replace_host=None):
+def get_proxy_address_url(required=True, client=None, add_path: str = None, replace_host: str = None) -> str:
     """Get proxy "schema://hostname:port" from config or params
     """
     scheme, netloc = _get_proxy_url_parts(required=required, client=client, replace_host_proxy=replace_host)
@@ -548,7 +554,7 @@ def get_proxy_address_url(required=True, client=None, add_path=None, replace_hos
     return "{}://{}{}".format(scheme, netloc, add_path if add_path else "")
 
 
-def get_proxy_url(required=True, client=None):
+def get_proxy_url(required=True, client=None) -> str:
     """Get proxy "hostname:port" from config or params (legacy, use get_proxy_address_netloc or get_proxy_address_url)
     """
     return get_proxy_address_netloc(required=required, client=client)
@@ -564,7 +570,7 @@ def _request_api(version=None, client=None):
     ).json()
 
 
-def get_http_api_version(client=None):
+def get_http_api_version(client=None) -> typing.Union[typing.Literal["v3"], typing.Literal["v4"]]:
     api_version_option = get_option("_api_version", client)
     if api_version_option:
         return api_version_option
@@ -608,7 +614,7 @@ def get_http_api_commands(client=None):
     return commands
 
 
-def get_fqdn(client=None):
+def get_fqdn(client=None) -> str:
     if get_option("_fqdn", client):
         return get_option("_fqdn", client)
 

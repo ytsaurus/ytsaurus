@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"math"
 
-	"github.com/pierrec/lz4"
+	"github.com/pierrec/lz4/v4"
 
 	"go.ytsaurus.tech/library/go/core/xerrors"
 )
@@ -27,8 +27,8 @@ func (c *CodecLz4) GetID() CodecID {
 type CodecLz4HighCompression struct{}
 
 func (c *CodecLz4HighCompression) Compress(block []byte) ([]byte, error) {
-	return lz4BlockCompress(block, func(src, dst []byte, hashTable []int) (_ int, err error) {
-		return lz4.CompressBlockHC(src, dst, 0)
+	return lz4BlockCompress(block, func(src, dst []byte, _ []int) (_ int, err error) {
+		return lz4.CompressBlockHC(src, dst, lz4.Fast, nil, nil)
 	})
 }
 
@@ -59,7 +59,7 @@ type lz4BlockHeader struct {
 	UncompressedSize uint32
 }
 
-type lz4CompressFunc func(src, dst []byte, hashTable []int) (_ int, err error)
+type lz4CompressFunc func(src, dst []byte, _ []int) (_ int, err error)
 
 var lz4SignatureV1MaxLength = math.MaxInt32
 

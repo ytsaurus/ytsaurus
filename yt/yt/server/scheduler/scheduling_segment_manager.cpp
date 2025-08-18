@@ -183,7 +183,7 @@ TError TSchedulingSegmentManager::InitOrUpdateOperationSchedulingSegment(
             case ESegmentedSchedulingMode::LargeGpu: {
                 bool meetsGangCriterion = operationState->IsGang || !Config_->AllowOnlyGangOperationsInLargeSegment;
                 auto allocationGpuDemand = operationState->AggregatedInitialMinNeededResources->GetGpu();
-                bool meetsAllocationGpuDemandCriterion = (allocationGpuDemand == LargeGpuAllocationGpuDemand);
+                bool meetsAllocationGpuDemandCriterion = (allocationGpuDemand == FullHostGpuAllocationGpuDemand);
                 return (meetsGangCriterion || operationState->SingleAllocationVanillaOperation) && meetsAllocationGpuDemandCriterion
                     ? ESchedulingSegment::LargeGpu
                     : ESchedulingSegment::Default;

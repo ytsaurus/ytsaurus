@@ -8,6 +8,7 @@ SRCS(
     protobuf_format_ut.proto
 
     arrow_parser_ut.cpp
+    blob_writer_ut.cpp
     dsv_parser_ut.cpp
     dsv_writer_ut.cpp
     protobuf_format_ut.cpp
@@ -37,8 +38,6 @@ PEERDIR(
     yt/yt/library/formats
     yt/yt/library/named_value
     yt/yt/tests/cpp/library
-
-    contrib/libs/apache/arrow
 )
 
 RESOURCE(

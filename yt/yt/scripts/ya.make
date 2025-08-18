@@ -31,6 +31,7 @@ IF (NOT OPENSOURCE)
         python_sdk
         cmake
         cache_heater
+        collect_recent_dyntables_tickets
     )
 
     RECURSE_FOR_TESTS(

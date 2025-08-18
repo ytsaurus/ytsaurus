@@ -199,7 +199,7 @@ TResult WaitAndProcess(TFuture<TResult> future) {
         const auto& err = ex.Error();
 
         const auto ytError = ToYtError(err);
-        const auto requestId = err.Attributes().Get<TString>("request_id");
+        const auto requestId = err.Attributes().Find<TString>("request_id").value_or("0-0-0-0");
 
         YT_LOG_ERROR("RSP %v - RPC %v - %v",
             requestId,

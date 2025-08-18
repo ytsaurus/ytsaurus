@@ -11,7 +11,7 @@
 #include "master_connector.h"
 #include "medium_updater.h"
 
-#include <yt/yt/orm/library/query/expression_evaluator.h>
+#include <yt/yt/orm/library/query/heavy/expression_evaluator.h>
 
 #include <yt/yt/server/node/data_node/session.h>
 

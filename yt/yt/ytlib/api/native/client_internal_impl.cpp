@@ -286,7 +286,7 @@ std::vector<TErrorOr<i64>> TClient::DoGetOrderedTabletSafeTrimRowCount(
     const auto& cellDirectory = Connection_->GetCellDirectory();
 
     using TSubrequest = NQueryClient::NProto::TReqGetOrderedTabletSafeTrimRowCount::TSubrequest;
-    THashMap<TString, std::vector<std::pair<TSubrequest, int>>> addressToSubrequests;
+    THashMap<std::string, std::vector<std::pair<TSubrequest, int>>> addressToSubrequests;
 
     std::vector<TFuture<TTableMountInfoPtr>> asyncTableInfos;
     asyncTableInfos.reserve(requests.size());

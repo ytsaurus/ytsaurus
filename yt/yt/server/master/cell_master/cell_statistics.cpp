@@ -10,6 +10,7 @@ namespace NYT::NCellMaster {
 
 NProto::TCellStatistics& operator += (NProto::TCellStatistics& lhs, const NProto::TCellStatistics& rhs)
 {
+    // If some fields are absent, they will be set to zero.
     #define XX(name) lhs.set_##name(lhs.name() + rhs.name());
     ITERATE_CELL_STATISTICS(XX)
     #undef XX
@@ -29,10 +30,12 @@ namespace NProto {
 
 void FormatValue(TStringBuilderBase* builder, const NProto::TCellStatistics& statistics, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("ChunkCount: %v, LostVitalChunkCount: %v, OnlineNodeCount: %v",
+    builder->AppendFormat("ChunkCount: %v, LostVitalChunkCount: %v, OnlineNodeCount: %v, DataMissingChunkCount: %v, ParityMissingChunkCount: %v",
         statistics.chunk_count(),
         statistics.lost_vital_chunk_count(),
-        statistics.online_node_count());
+        statistics.online_node_count(),
+        statistics.data_missing_chunk_count(),
+        statistics.parity_missing_chunk_count());
 }
 
 } // namespace NProto

@@ -213,6 +213,7 @@ void TControllerFeatures::CalculateJobStatisticsAverage()
     static const TString CountSuffix = ".count";
     static const TString AvgSuffix = ".avg";
     static const TString JobStatisticsPrefix = "job_statistics.";
+    TVector<std::pair<TString, double>> newAvgValues;
     for (const auto& [sumFeature, sum] : Features_) {
         if (sumFeature.StartsWith(JobStatisticsPrefix) && sumFeature.EndsWith(SumSuffix)) {
             auto feature = sumFeature;
@@ -221,9 +222,13 @@ void TControllerFeatures::CalculateJobStatisticsAverage()
             auto avgFeature = feature + AvgSuffix;
             auto it = Features_.find(countFeature);
             if (it != Features_.end() && it->second != 0) {
-                Features_[avgFeature] = sum / it->second;
+                newAvgValues.emplace_back(avgFeature, sum / it->second);
             }
         }
+    }
+
+    for (auto& [avgFeature, avg] : newAvgValues) {
+        Features_.insert_or_assign(std::move(avgFeature), avg);
     }
 }
 

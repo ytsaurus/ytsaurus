@@ -1004,6 +1004,7 @@ private:
         options.BlockCache = Bootstrap_->GetBlockCache();
         options.FetchFromCache = fetchFromCache;
         options.FetchFromDisk = fetchFromDisk;
+        options.EnableSequentialIORequests = GetDynamicConfig()->EnableSequentialIORequests.value_or(Config_->EnableSequentialIORequests);
         options.ChunkReaderStatistics = chunkReaderStatistics;
         options.ReadSessionId = FromProto<TReadSessionId>(request->read_session_id());
         options.MemoryUsageTracker = Bootstrap_->GetReadBlockMemoryUsageTracker();

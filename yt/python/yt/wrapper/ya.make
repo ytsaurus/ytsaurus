@@ -84,6 +84,7 @@ ELSE()
         cypress_fuse.py
         default_config.py
         dirtable_commands.py
+        distributed_commands.py
         download_core_dump.py
         driver.py
         dynamic_table_commands.py

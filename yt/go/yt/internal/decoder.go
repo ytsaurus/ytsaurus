@@ -1,10 +1,5 @@
 package internal
 
-import (
-	"go.ytsaurus.tech/library/go/core/xerrors"
-	"go.ytsaurus.tech/yt/go/yt"
-)
-
 type resultDecoder func(res *CallResult) error
 type valueResultDecoder[T any] func(value T) resultDecoder
 type AnyValueResultDecoder = valueResultDecoder[any]
@@ -33,14 +28,6 @@ func newJSONValueResultDecoder() AnyValueResultDecoder {
 	}
 }
 
-func newJSONSingleValueResultDecoder(key string) AnyValueResultDecoder {
-	return func(value any) resultDecoder {
-		return func(res *CallResult) error {
-			return res.decodeSingleJSON(key, value)
-		}
-	}
-}
-
 func newRawValueResultDecoder() valueResultDecoder[*[]byte] {
 	return func(value *[]byte) resultDecoder {
 		return func(res *CallResult) error {
@@ -50,22 +37,12 @@ func newRawValueResultDecoder() valueResultDecoder[*[]byte] {
 	}
 }
 
-// GetNodeResultDecoder returns appropriate decoder based on GetNodeOptions.
-func GetNodeResultDecoder(options *yt.GetNodeOptions) (AnyValueResultDecoder, error) {
-	if options == nil || options.Format == nil {
-		return newSingleValueResultDecoder("value"), nil
-	}
-	if options.Format == "json" {
-		return newJSONSingleValueResultDecoder("value"), nil
-	}
-	return nil, xerrors.Errorf("unexpected output format: %+v", options.Format)
-}
-
 var (
 	noopResultDecoder         resultDecoder         = func(res *CallResult) error { return nil }
 	CreateNodeResultDecoder   AnyValueResultDecoder = newSingleValueResultDecoder("node_id")
 	CreateObjectResultDecoder AnyValueResultDecoder = newSingleValueResultDecoder("object_id")
 	NodeExistsResultDecoder   AnyValueResultDecoder = newSingleValueResultDecoder("value")
+	GetNodeResultDecoder      AnyValueResultDecoder = newSingleValueResultDecoder("value")
 	ListNodeResultDecoder     AnyValueResultDecoder = newSingleValueResultDecoder("value")
 	CopyMoveNodeResultDecoder AnyValueResultDecoder = newSingleValueResultDecoder("node_id")
 	LinkNodeResultDecoder     AnyValueResultDecoder = newSingleValueResultDecoder("node_id")

@@ -385,6 +385,102 @@ private:
     using TAstVisitor<TQueryVisitorForAttributeReferences>::Visit;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TQueryVisitorForInValueCount
+    : public TBaseAstVisitor<int, TQueryVisitorForInValueCount>
+{
+public:
+    TQueryVisitorForInValueCount()
+    { }
+
+    int Run(const TExpressionPtr expression)
+    {
+        return Visit(expression);
+    }
+
+    int OnLiteral(const TLiteralExpressionPtr /*literalExpr*/)
+    {
+        return 0;
+    }
+
+    int OnReference(const TReferenceExpressionPtr /*referenceExpr*/)
+    {
+        return 0;
+    }
+
+    int OnAlias(const TAliasExpressionPtr /*aliasExpr*/)
+    {
+        return 0;
+    }
+
+    int OnUnary(const TUnaryOpExpressionPtr unaryExpr)
+    {
+        return Visit(unaryExpr->Operand);
+    }
+
+    int OnBinary(const TBinaryOpExpressionPtr binaryExpr)
+    {
+        return Visit(binaryExpr->Lhs) + Visit(binaryExpr->Rhs);
+    }
+
+    int OnFunction(const TFunctionExpressionPtr functionExpr)
+    {
+        return Visit(functionExpr->Arguments);
+    }
+
+    int OnIn(const TInExpressionPtr inExpr)
+    {
+        return Visit(inExpr->Expr) + inExpr->Values.size();
+    }
+
+    // Sometimes BETWEEN clauses are rewritten as `a <= x AND x <= b` before visiting, and this can double the count result.
+    int OnBetween(const TBetweenExpressionPtr betweenExpr)
+    {
+        return Visit(betweenExpr->Expr);
+    }
+
+    int OnTransform(const TTransformExpressionPtr transformExpr)
+    {
+        return Visit(transformExpr->Expr) + Visit(transformExpr->DefaultExpr);
+    }
+
+    int OnCase(const TCaseExpressionPtr caseExpr)
+    {
+        int res = Visit(caseExpr->OptionalOperand) + Visit(caseExpr->DefaultExpression);
+        for (const auto& whenThenExpression : caseExpr->WhenThenExpressions) {
+            res += Visit(whenThenExpression.Condition);
+            res += Visit(whenThenExpression.Result);
+        }
+        return res;
+    }
+
+    int OnLike(const TLikeExpressionPtr likeExpr)
+    {
+        return Visit(likeExpr->Text) + Visit(likeExpr->Pattern) + Visit(likeExpr->EscapeCharacter);
+    }
+
+private:
+    using TBaseAstVisitor<int, TQueryVisitorForInValueCount>::Visit;
+
+    int Visit(const TExpressionList& expressions)
+    {
+        int result = 0;
+        for (auto expression : expressions) {
+            result += Visit(expression);
+        }
+        return result;
+    }
+
+    int Visit(const TNullableExpressionList& nullableTuple)
+    {
+        if (nullableTuple) {
+            return Visit(*nullableTuple);
+        }
+        return 0;
+    }
+};
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -414,6 +510,13 @@ bool IntrospectFilterForDefinedReference(
 {
     return TQueryVisitorForDefinedReference(reference, allowValueRange)
         .Run(filterExpression);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+int IntrospectFilterInValueCount(TExpressionPtr filterExpression)
+{
+    return TQueryVisitorForInValueCount().Run(filterExpression);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

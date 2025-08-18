@@ -65,6 +65,7 @@ TServerProgramBase::TServerProgramBase()
     , MemoryLockedUnsuccessfully_(NProfiling::TProfiler("/memory").Gauge("/mlock_failed_bytes"))
 {
     ConfigureCoverageOutput();
+    ForbidContextSwitchInFutureHandler();
 }
 
 void TServerProgramBase::SetMainThreadName(const std::string& name)

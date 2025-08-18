@@ -59,6 +59,10 @@ YT_PREFIX_BINARIES = [
     "yt/tools/bin/set_account.py",
 ]
 
+YT_TEST_DEPENDENCIES = [
+    "yt/yt/tools/record_codegen/yt_record_codegen",
+]
+
 
 def cp_r_755(src, dst):
     cp_r(src, dst, permissions=0o755, ignore=ignore_patterns("*.pyc"))
@@ -142,6 +146,10 @@ def prepare_python_modules(
     yt_data_path = os.path.join(python_root, "yt", "data")
     if os.path.exists(yt_data_path):
         rm_rf(yt_data_path)
+
+    # Dependencies for tests only.
+    for dependency in YT_TEST_DEPENDENCIES:
+        cp_r_755(os.path.join(source_root, dependency), output_path)
 
     packages_dir = os.path.join(output_path, "yt", "packages")
 

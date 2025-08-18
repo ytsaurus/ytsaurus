@@ -39,15 +39,14 @@
 
 #include <util/system/env.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/api.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/ipc/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/ipc/api.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/io/api.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/io/memory.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/io/memory.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/reader.h>
-#include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/writer.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/parquet/arrow/reader.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/parquet/arrow/writer.h>
 
 #include <contrib/libs/apache/orc/c++/include/orc/OrcFile.hh>
 
@@ -129,31 +128,31 @@ std::vector<std::string> ReadStringFromTable(const NYT::IClientPtr& client, cons
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-TString GenerateIntegerParquet(const std::vector<T>& data, const std::shared_ptr<arrow::DataType>& dataType)
+TString GenerateIntegerParquet(const std::vector<T>& data, const std::shared_ptr<arrow20::DataType>& dataType)
 {
-    auto* pool = arrow::default_memory_pool();
-    std::shared_ptr<arrow::Array> intArray;
+    auto* pool = arrow20::default_memory_pool();
+    std::shared_ptr<arrow20::Array> intArray;
     if constexpr (std::is_same<T, int16_t>::value) {
-        arrow::Int16Builder intBuilder(pool);
+        arrow20::Int16Builder intBuilder(pool);
         NArrow::ThrowOnError(intBuilder.AppendValues(data));
         NArrow::ThrowOnError(intBuilder.Finish(&intArray));
     } else if constexpr (std::is_same<T, int32_t>::value) {
-        arrow::Int32Builder intBuilder(pool);
+        arrow20::Int32Builder intBuilder(pool);
         NArrow::ThrowOnError(intBuilder.AppendValues(data));
         NArrow::ThrowOnError(intBuilder.Finish(&intArray));
     } else if constexpr (std::is_same<T, int64_t>::value) {
-        arrow::Int64Builder intBuilder(pool);
+        arrow20::Int64Builder intBuilder(pool);
         NArrow::ThrowOnError(intBuilder.AppendValues(data));
         NArrow::ThrowOnError(intBuilder.Finish(&intArray));
     } else {
         YT_ABORT();
     }
 
-    auto schema = arrow::schema({arrow::field("int", dataType, false)});
-    auto table = arrow::Table::Make(schema, {intArray});
+    auto schema = arrow20::schema({arrow20::field("int", dataType, false)});
+    auto table = arrow20::Table::Make(schema, {intArray});
 
-    auto outputStream = arrow::io::BufferOutputStream::Create().ValueOrDie();
-    NArrow::ThrowOnError(parquet::arrow::WriteTable(*table, pool, outputStream, ChunkSize));
+    auto outputStream = arrow20::io::BufferOutputStream::Create().ValueOrDie();
+    NArrow::ThrowOnError(parquet20::arrow20::WriteTable(*table, pool, outputStream, ChunkSize));
     auto buffer = outputStream->Finish().ValueOrDie();
     return TString(buffer->ToString());
 }
@@ -197,7 +196,7 @@ private:
     int Length_ = 0;
 };
 
-std::string GenerateIntegerORC(const std::vector<i64>& intArray) {
+std::string GenerateIntegerOrc(const std::vector<i64>& intArray) {
     orc::WriterOptions options;
     std::unique_ptr<orc::Type> schema(orc::Type::buildTypeFromString("struct<int:int>"));
     auto outStream = std::make_unique<StringOutputStream>();
@@ -230,42 +229,42 @@ struct MultiTypeData
 
 TString GenerateMultiTypesParquet(const MultiTypeData& data)
 {
-    auto* pool = arrow::default_memory_pool();
+    auto* pool = arrow20::default_memory_pool();
 
     // Build integer data.
-    arrow::Int64Builder intBuilder(pool);
+    arrow20::Int64Builder intBuilder(pool);
     NArrow::ThrowOnError(intBuilder.AppendValues(data.IntegerData));
-    std::shared_ptr<arrow::Array> intArray;
+    std::shared_ptr<arrow20::Array> intArray;
     NArrow::ThrowOnError(intBuilder.Finish(&intArray));
 
     // Build double data.
-    arrow::DoubleBuilder doubleBuilder(pool);
+    arrow20::DoubleBuilder doubleBuilder(pool);
     NArrow::ThrowOnError(doubleBuilder.AppendValues(data.FloatData));
-    std::shared_ptr<arrow::Array> doubleArray;
+    std::shared_ptr<arrow20::Array> doubleArray;
     NArrow::ThrowOnError(doubleBuilder.Finish(&doubleArray));
 
     // Build boolean data.
-    arrow::BooleanBuilder booleanBuilder(pool);
+    arrow20::BooleanBuilder booleanBuilder(pool);
     NArrow::ThrowOnError(booleanBuilder.AppendValues(data.BooleanData));
-    std::shared_ptr<arrow::Array> booleanArray;
+    std::shared_ptr<arrow20::Array> booleanArray;
     NArrow::ThrowOnError(booleanBuilder.Finish(&booleanArray));
 
     // Build string data.
-    arrow::BinaryBuilder binaryBuilder(pool);
+    arrow20::BinaryBuilder binaryBuilder(pool);
     NArrow::ThrowOnError(binaryBuilder.AppendValues(data.StringData));
-    std::shared_ptr<arrow::Array> binaryArray;
+    std::shared_ptr<arrow20::Array> binaryArray;
     NArrow::ThrowOnError(binaryBuilder.Finish(&binaryArray));
 
-    auto schema = arrow::schema({
-        arrow::field("int", arrow::int64()),
-        arrow::field("double", arrow::float64()),
-        arrow::field("bool", arrow::boolean()),
-        arrow::field("string", arrow::binary())
+    auto schema = arrow20::schema({
+        arrow20::field("int", arrow20::int64()),
+        arrow20::field("double", arrow20::float64()),
+        arrow20::field("bool", arrow20::boolean()),
+        arrow20::field("string", arrow20::binary())
     });
 
-    auto table = arrow::Table::Make(schema, {intArray, doubleArray, booleanArray, binaryArray});
-    auto outputStream = arrow::io::BufferOutputStream::Create().ValueOrDie();
-    NArrow::ThrowOnError(parquet::arrow::WriteTable(*table, pool, outputStream, ChunkSize));
+    auto table = arrow20::Table::Make(schema, {intArray, doubleArray, booleanArray, binaryArray});
+    auto outputStream = arrow20::io::BufferOutputStream::Create().ValueOrDie();
+    NArrow::ThrowOnError(parquet20::arrow20::WriteTable(*table, pool, outputStream, ChunkSize));
     auto buffer = outputStream->Finish().ValueOrDie();
     return TString(buffer->ToString());
 }
@@ -317,9 +316,9 @@ public:
             thirdFileData.push_back(rand());
         }
 
-        formatData.push_back(GenerateIntegerParquet(firstFileData, arrow::int16()));
-        formatData.push_back(GenerateIntegerParquet(secondFileData, arrow::int32()));
-        formatData.push_back(GenerateIntegerParquet(thirdFileData, arrow::int64()));
+        formatData.push_back(GenerateIntegerParquet(firstFileData, arrow20::int16()));
+        formatData.push_back(GenerateIntegerParquet(secondFileData, arrow20::int32()));
+        formatData.push_back(GenerateIntegerParquet(thirdFileData, arrow20::int64()));
 
         AddData(firstFileData);
         AddData(secondFileData);
@@ -367,7 +366,7 @@ public:
                 case EFileFormat::Parquet:
                     fileNames.emplace_back(ToString(fileIndex) + ".parquet");
                     break;
-                case EFileFormat::ORC:
+                case EFileFormat::Orc:
                     fileNames.emplace_back(ToString(fileIndex) + ".orc");
                     break;
             }
@@ -386,10 +385,10 @@ public:
             AddData(fileData);
             switch (Format_) {
                 case EFileFormat::Parquet:
-                    formatData.push_back(GenerateIntegerParquet(fileData, arrow::int64()));
+                    formatData.push_back(GenerateIntegerParquet(fileData, arrow20::int64()));
                     break;
-                case EFileFormat::ORC:
-                    formatData.push_back(GenerateIntegerORC(fileData));
+                case EFileFormat::Orc:
+                    formatData.push_back(GenerateIntegerOrc(fileData));
                     break;
             }
         }
@@ -657,6 +656,7 @@ TEST_F(TSmallHuggingfaceServerTest, SimpleImportTableFromHuggingface)
         Split,
         resultTable,
         EFileFormat::Parquet,
+        /*networkProject*/ std::nullopt,
         TestUrl);
 
     TTableSchema schema;
@@ -675,11 +675,11 @@ class TSmallOrcHuggingfaceServerTest
 private:
     void InitializeGenerator() override
     {
-        Generator = std::make_shared<TSmallParquetGenerator>(EFileFormat::ORC);
+        Generator = std::make_shared<TSmallParquetGenerator>(EFileFormat::Orc);
     }
 };
 
-TEST_F(TSmallOrcHuggingfaceServerTest, SimpleImportORCFilesFromHuggingface)
+TEST_F(TSmallOrcHuggingfaceServerTest, SimpleImportOrcFilesFromHuggingface)
 {
     NTesting::TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -695,7 +695,8 @@ TEST_F(TSmallOrcHuggingfaceServerTest, SimpleImportORCFilesFromHuggingface)
         /*subset*/ "default",
         Split,
         resultTable,
-        EFileFormat::ORC,
+        EFileFormat::Orc,
+        /*networkProject*/ std::nullopt,
         TestUrl);
 
     TTableSchema schema;
@@ -737,6 +738,7 @@ TEST_F(TDifferentSchemasHuggingfaceServerTest, DifferentSchemas)
         Split,
         resultTable,
         EFileFormat::Parquet,
+        /*networkProject*/ std::nullopt,
         TestUrl);
 
     Generator->VerifyAnswer(client, resultTable);
@@ -770,7 +772,34 @@ TEST_F(TBigHuggingfaceServerTest, ImportBigTableFromHuggingface)
         Split,
         resultTable,
         EFileFormat::Parquet,
+        /*networkProject*/ std::nullopt,
         TestUrl);
+
+    Generator->VerifyAnswer(client, resultTable);
+}
+
+TEST_F(TBigHuggingfaceServerTest, SplitMetadataRow)
+{
+    NTesting::TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    TString resultTable = workingDir + "/result_table";
+    TConfig::Get()->RemoteTempTablesDirectory = workingDir + "/table_storage";
+
+    TString proxy = GetEnv("YT_PROXY");
+    auto config = New<TImportConfig>();
+    config->MaxMetadataRowWeight = 100;
+
+    NTools::NImporter::ImportFilesFromHuggingface(
+        proxy,
+        Dataset,
+        /*subset*/ "default",
+        Split,
+        resultTable,
+        EFileFormat::Parquet,
+        /*networkProject*/ std::nullopt,
+        TestUrl,
+        config);
 
     Generator->VerifyAnswer(client, resultTable);
 }
@@ -806,7 +835,7 @@ private:
         auto poller = CreateThreadPoolPoller(1, "S3TestPoller");
         auto client = NS3::CreateClient(
             std::move(clientConfig),
-            NS3::CreateAnonymousCredentialProvider(),
+            NS3::CreateStaticCredentialProvider("key", "secret"),
             poller,
             poller->GetInvoker());
 

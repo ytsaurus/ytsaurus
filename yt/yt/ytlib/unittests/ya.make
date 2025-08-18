@@ -3,8 +3,6 @@ GTEST(unittester-ytlib)
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
-    misc/test_connection.cpp
-
     arrow_writer_ut.cpp
     absolute_limit_ut.cpp
     chunk_client_fetcher_ut.cpp
@@ -51,6 +49,7 @@ PEERDIR(
     yt/yt/core/test_framework
 
     yt/yt/ytlib
+    yt/yt/ytlib/test_framework
 
     contrib/libs/sparsehash
 

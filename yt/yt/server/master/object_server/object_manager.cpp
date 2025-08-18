@@ -1067,7 +1067,7 @@ int TObjectManager::RefObject(TObject* object)
         object->GetObjectWeakRefCounter());
 
     if (object->GetLifeStage() >= EObjectLifeStage::RemovalPreCommitted) {
-        YT_LOG_DEBUG("Object referenced after its removal has been pre-committed (ObjectId: %v, LifeStage: %v)",
+        YT_LOG_ALERT("Object referenced after its removal has been pre-committed (ObjectId: %v, LifeStage: %v)",
             object->GetId(),
             object->GetLifeStage());
     }

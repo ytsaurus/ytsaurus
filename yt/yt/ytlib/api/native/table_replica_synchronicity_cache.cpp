@@ -64,10 +64,13 @@ TFuture<TReplicaSynchronicityList> FetchChaosTableReplicaSynchronicities(
                 tableReplicaInfo->ReplicaPath = replica.ReplicaPath;
                 tableReplicaInfo->Mode = replica.Mode;
 
+                auto minReplicationTimestamp = GetReplicationProgressMinTimestamp(replica.ReplicationProgress);
+
                 replicas.push_back(TReplicaSynchronicity{
                     .ReplicaInfo = std::move(tableReplicaInfo),
-                    .MinReplicationTimestamp = GetReplicationProgressMinTimestamp(replica.ReplicationProgress),
-                    .IsInSync = IsReplicaReallySync(replica.Mode, replica.State, replica.History),
+                    .MinReplicationTimestamp = minReplicationTimestamp,
+                    .IsInSync = IsReplicaReallySync(replica.Mode, replica.State, replica.History) &&
+                        minReplicationTimestamp >= replica.History.back().Timestamp,
                 });
             }
 

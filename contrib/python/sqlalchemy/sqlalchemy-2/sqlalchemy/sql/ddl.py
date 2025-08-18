@@ -432,12 +432,14 @@ class _CreateDropBase(ExecutableDDLElement, Generic[_SI]):
 
     """
 
+    element: _SI
+
     def __init__(self, element: _SI) -> None:
         self.element = self.target = element
         self._ddl_if = getattr(element, "_ddl_if", None)
 
     @property
-    def stringify_dialect(self):
+    def stringify_dialect(self):  # type: ignore[override]
         assert not isinstance(self.element, str)
         return self.element.create_drop_stringify_dialect
 

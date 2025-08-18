@@ -23,6 +23,11 @@ DEFINE_ENUM(EDistributedThrottlerMemberPriorityGenerator,
     (Random)
 );
 
+DEFINE_ENUM(EDistributedThrottlerMemberWeightMode,
+    (Uniform)
+    (QueueBased)
+);
+
 struct TDistributedThrottlerConfig
     : public NYTree::TYsonStruct
 {
@@ -42,6 +47,8 @@ struct TDistributedThrottlerConfig
     TDuration AdjustedEmaHalflife;
 
     EDistributedThrottlerMode Mode;
+    EDistributedThrottlerMemberWeightMode MemberWeightMode;
+    double MemberWeightExponentialSmoothingFactor;
     EDistributedThrottlerMemberPriorityGenerator MemberPriorityGenerator;
     double ExtraLimitRatio;
 

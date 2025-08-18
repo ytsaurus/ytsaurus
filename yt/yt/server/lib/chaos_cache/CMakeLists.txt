@@ -30,9 +30,12 @@ target_link_libraries(server-lib-chaos_cache PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt_proto-yt-client
+  yt-yt-ytlib
 )
 
 target_sources(server-lib-chaos_cache PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chaos_cache/chaos_cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chaos_cache/chaos_cache_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chaos_cache/config.cpp
 )
 

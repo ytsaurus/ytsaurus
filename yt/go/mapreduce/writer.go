@@ -3,6 +3,7 @@ package mapreduce
 import (
 	"io"
 
+	"go.ytsaurus.tech/yt/go/skiff"
 	"go.ytsaurus.tech/yt/go/yson"
 )
 
@@ -21,12 +22,49 @@ type Writer interface {
 	Close() error
 }
 
-type writer struct {
-	out    io.WriteCloser
-	writer *yson.Writer
-	ctx    *jobContext
+type encoder interface {
+	encode(value any) error
+	finish() error
+}
 
-	err error
+type ysonEncoder struct {
+	writer *yson.Writer
+}
+
+func (e *ysonEncoder) encode(value any) error {
+	e.writer.Any(value)
+	return e.writer.Err()
+}
+
+func (e *ysonEncoder) finish() error {
+	return e.writer.Finish()
+}
+
+type skiffEncoder struct {
+	encoder *skiff.Encoder
+}
+
+func (e *skiffEncoder) encode(value any) error {
+	return e.encoder.Write(value)
+}
+
+func (e *skiffEncoder) finish() error {
+	return e.encoder.Flush()
+}
+
+type writer struct {
+	encoder encoder
+	out     io.WriteCloser
+	ctx     *jobContext
+	err     error
+}
+
+func newWriter(enc encoder, ctx *jobContext, out io.WriteCloser) Writer {
+	return &writer{
+		encoder: enc,
+		out:     out,
+		ctx:     ctx,
+	}
 }
 
 func (w *writer) Write(value any) error {
@@ -34,13 +72,12 @@ func (w *writer) Write(value any) error {
 		return w.err
 	}
 
-	w.writer.Any(value)
-	return w.writer.Err()
+	w.err = w.encoder.encode(value)
+	return w.err
 }
 
 func (w *writer) MustWrite(value any) {
-	err := w.Write(value)
-	if err != nil {
+	if err := w.Write(value); err != nil {
 		w.ctx.onError(err)
 	}
 }
@@ -50,6 +87,11 @@ func (w *writer) Close() error {
 		return w.err
 	}
 
-	w.err = w.writer.Finish()
+	if err := w.encoder.finish(); err != nil {
+		w.err = err
+		return w.err
+	}
+
+	w.err = w.out.Close()
 	return w.err
 }

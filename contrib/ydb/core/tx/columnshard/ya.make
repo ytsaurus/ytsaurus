@@ -6,6 +6,7 @@ SRCS(
     blob_cache.cpp
     columnshard__init.cpp
     columnshard__notify_tx_completion.cpp
+    columnshard__overload.cpp
     columnshard__plan_step.cpp
     columnshard__progress_tx.cpp
     columnshard__propose_cancel.cpp
@@ -55,11 +56,13 @@ PEERDIR(
     contrib/ydb/core/tx/columnshard/export
     contrib/ydb/core/tx/columnshard/loading
     contrib/ydb/core/tx/columnshard/normalizer
+    contrib/ydb/core/tx/columnshard/overload
     contrib/ydb/core/tx/columnshard/operations
     contrib/ydb/core/tx/columnshard/resource_subscriber
     contrib/ydb/core/tx/columnshard/splitter
     contrib/ydb/core/tx/columnshard/subscriber
     contrib/ydb/core/tx/columnshard/tablet
+    contrib/ydb/core/tx/columnshard/tracing
     contrib/ydb/core/tx/columnshard/transactions
     contrib/ydb/core/tx/columnshard/transactions/operators
     contrib/ydb/core/tx/columnshard/tx_reader

@@ -82,9 +82,7 @@ private:
         };
 
         IInvokerPtr Invoker;
-        std::optional<NProfiling::TWallTimer> ReadTimer;
         std::unique_ptr<TBlockEntry[]> Entries;
-        int CurrentEntryIndex = 0;
         int EntryCount = 0;
         std::vector<TFuture<void>> Futures;
         TPromise<std::vector<NChunkClient::TBlock>> SessionPromise = NewPromise<std::vector<NChunkClient::TBlock>>();
@@ -93,6 +91,15 @@ private:
         NThreading::TAtomicObject<TLocationMemoryGuard> LocationMemoryGuard;
         std::atomic<bool> Finished = false;
         TLocationFairShareSlotPtr FairShareSlot = nullptr;
+    };
+
+    struct TReadBlocksRequest
+    {
+        int FirstBlockIndex = -1;
+        int BlocksToRead = -1;
+        int BeginEntryIndex = -1;
+        int EndEntryIndex = -1;
+        THashMap<int, TReadBlockSetSession::TBlockEntry> BlockIndexToEntry;
     };
 
     using TReadBlockSetSessionPtr = TIntrusivePtr<TReadBlockSetSession>;
@@ -124,10 +131,36 @@ private:
     void DoReadSession(
         const TReadBlockSetSessionPtr& session,
         i64 pendingDataSize);
+    int FindLastEntryWithinReadGap(
+        const TReadBlockSetSessionPtr& session,
+        int beginEntryIndex);
+
     void DoReadBlockSet(
         const TReadBlockSetSessionPtr& session);
+
+    void DoReadBlockSetSequentially(
+        const TReadBlockSetSessionPtr& session,
+        std::vector<TReadBlocksRequest> requests,
+        int currentRequestIndex);
+    void DoReadBlockSetInParallel(
+        const TReadBlockSetSessionPtr& session,
+        std::vector<TReadBlocksRequest> requests);
+
+    TFuture<void> ReadBlocks(
+        const TReadBlockSetSessionPtr& session,
+        TReadBlocksRequest readBlocksRequest);
+
+    std::vector<TReadBlocksRequest> CalculateReadBlocksRequests(
+        const TReadBlockSetSessionPtr& session);
+
+    std::optional<TReadBlocksRequest> NextReadBlocksRequest(
+        const TReadBlockSetSessionPtr& session,
+        int startEntryIndex);
+
+    // Can be called concurrently, because the state is only changed for those entries, which are passed in arguments.
     void OnBlocksRead(
         const TReadBlockSetSessionPtr& session,
+        NProfiling::TWallTimer readTimer,
         int firstBlockIndex,
         int blocksToRead,
         int beginEntryIndex,

@@ -237,6 +237,9 @@ struct TApiDynamicConfig
 {
     TFramingConfigPtr Framing;
 
+    double DefaultUserConcurrencyLimitRatio;
+    THashMap<std::string, double> UserToConcurrencyLimitRatio;
+
     THashMap<NFormats::EFormatType, NServer::TFormatConfigPtr> Formats;
 
     bool EnableAllocationTags;

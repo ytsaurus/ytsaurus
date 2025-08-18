@@ -80,8 +80,8 @@ public:
     void StoreScheduleAllocationExecDurationEstimate(TDuration duration) override;
     TDuration ExtractScheduleAllocationExecDurationEstimate() override;
 
-    ESchedulingStopReason GetSchedulingStopReason() const override;
-    void SetSchedulingStopReason(ESchedulingStopReason result) override;
+    bool IsHeartbeatTimeoutExpired() const override;
+    void SetHeartbeatTimeoutExpired() override;
 
 private:
     const int NodeShardId_;
@@ -118,7 +118,7 @@ private:
 
     std::optional<TDuration> ScheduleAllocationExecDurationEstimate_;
 
-    ESchedulingStopReason SchedulingStopReason_ = ESchedulingStopReason::FullyScheduled;
+    bool HeartbeatTimeoutExpired_ = false;
 
     // NB(omgronny): Don't collect unsatisfied resources info if unsatisfiedResources is nullptr.
     bool CanSatisfyResourceRequest(

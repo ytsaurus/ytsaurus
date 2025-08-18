@@ -36,7 +36,7 @@ protected:
         const std::vector<std::pair<i64, i64>>& simpleRows);
 
 private:
-    static TString MakeRowString(i64 key, i64 value);
+    static std::string MakeRowString(i64 key, i64 value);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

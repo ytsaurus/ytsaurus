@@ -4537,6 +4537,7 @@ class TestChaos(ChaosTestBase):
                 {"cluster_name": "remote_0", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": f"{prefix}.data"},
                 {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": f"{prefix}.queue_incompatible", "catchup": False},
                 {"cluster_name": "remote_1", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": f"{prefix}.data_incompatible", "catchup": False},
+                {"cluster_name": "primary", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": f"{prefix}.aqueue"},
             ]
             replica_ids = self._create_chaos_table_replicas(replicas, table_path=f"{prefix}.crt")
 
@@ -4544,8 +4545,23 @@ class TestChaos(ChaosTestBase):
             self._create_replica_tables(replicas[2:], replica_ids[2:], schema=hash_schema)
             self._sync_replication_era(card_id, replicas)
 
-        _create("//tmp/t1", ["sorted_simple", "sorted_hash"])
-        _create("//tmp/t2", ["sorted_value1", "sorted_hash_value1"])
+            return (card_id, replicas, replica_ids)
+
+        t1_card_id, t1_replicas, t1_replica_ids = _create("//tmp/t1", ["sorted_simple", "sorted_hash"])
+        t2_card_id, t2_replicas, t2_replica_ids = _create("//tmp/t2", ["sorted_value1", "sorted_hash_value1"])
+
+        # wait until replication card is updated on chaos nodes
+        timestamp = generate_timestamp()
+        wait(lambda: get(f"//tmp/t1.crt/@replicas/{t1_replica_ids[1]}/replication_lag_timestamp") > timestamp)
+        wait(lambda: get(f"//tmp/t1.crt/@replicas/{t1_replica_ids[3]}/replication_lag_timestamp") > timestamp)
+        wait(lambda: get(f"//tmp/t2.crt/@replicas/{t2_replica_ids[1]}/replication_lag_timestamp") > timestamp)
+        wait(lambda: get(f"//tmp/t2.crt/@replicas/{t2_replica_ids[3]}/replication_lag_timestamp") > timestamp)
+
+        # Trigger era change and wait this exact replication card to reach all nodes
+        alter_table_replica(t1_replica_ids[4], enabled=False)
+        alter_table_replica(t2_replica_ids[4], enabled=False)
+        self._sync_alter_replica(t1_card_id, t1_replicas, t1_replica_ids, 4, enabled=True)
+        self._sync_alter_replica(t2_card_id, t2_replicas, t2_replica_ids, 4, enabled=True)
 
         insert_rows("//tmp/t1.crt", [{"key": 0, "value": str(0)}])
         insert_rows("//tmp/t2.crt", [{"key": 0, "value1": str(1)}])
@@ -4716,11 +4732,16 @@ class TestChaos(ChaosTestBase):
 
         # Prevent trimmig errors due to replication lag
         self._sync_alter_replica(card_id, replicas, replica_ids, 0, mode="sync")
+        ts = get(f"#{card_id}/@current_timestamp")
+
         sync_flush_table("//tmp/q0")
         sync_flush_table("//tmp/q1")
         sync_flush_table("//tmp/q2")
 
-        # TODO(osidorkin) Uss safe trim row count
+        for replica in replicas:
+            self._wait_for_table_card_timestamp(replica["replica_path"], ts)
+
+        # TODO(osidorkin) Use safe trim row count
         trim_rows("//tmp/q0", 0, 1)
         trim_rows("//tmp/q1", 0, 1)
         trim_rows("//tmp/q2", 0, 1)
@@ -5259,6 +5280,42 @@ class TestChaosNativeProxy(ChaosTestBase):
 
         _set_and_check("//tmp/q", 1000., 2000)
         _set_and_check("//tmp/q", 2000., 1000)
+
+    @authors("osidorkin")
+    def test_card_migrate_and_return(self):
+        b_name = "test_migrate_and_return"
+        metadata_cell_id = self._sync_create_chaos_bundle_and_cell(name=b_name)
+        set(f"//sys/chaos_cell_bundles/{b_name}/@metadata_cell_id", metadata_cell_id)
+
+        custom_bundle_id = get(f"//sys/chaos_cell_bundles/{b_name}/@id")
+        a_area_id = create_area("a_area", cell_bundle_id=custom_bundle_id)
+        create_area("b_area", cell_bundle_id=custom_bundle_id)
+
+        a_cell_id = generate_chaos_cell_id()
+        sync_create_chaos_cell(b_name, a_cell_id, self.get_cluster_names(), area="a_area")
+
+        b_cell_id = generate_chaos_cell_id()
+        sync_create_chaos_cell(b_name, b_cell_id, self.get_cluster_names(), area="b_area")
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/pds"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/pqs"},
+        ]
+
+        card_id, _ = self._create_chaos_tables(a_cell_id, replicas)
+
+        # Migrate, disable cell, enable cell, migrate back
+        self._sync_migrate_replication_cards(a_cell_id, [card_id], destination_cell_id=b_cell_id)
+        with self.CellsDisabled(clusters=["primary"], area_ids=[a_area_id]):
+            pass
+        self._sync_migrate_replication_cards(b_cell_id, [card_id], destination_cell_id=a_cell_id)
+
+        self._sync_replication_era(card_id, replicas)
+
+        row1 = {"key": 0, "value": "0"}
+        row2 = {"key": 2, "value": "2"}
+
+        insert_rows("//tmp/pds", [row1, row2])
 
 
 ##################################################################

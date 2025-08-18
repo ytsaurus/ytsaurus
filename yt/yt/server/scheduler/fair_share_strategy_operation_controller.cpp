@@ -188,7 +188,7 @@ bool TFairShareStrategyOperationController::IsMaxConcurrentScheduleAllocationCal
 
 bool TFairShareStrategyOperationController::IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const
 {
-    if (!EnableConcurrentScheduleAllocationExecDurationThrottling_.load(std::memory_order_acquire)) {
+    if (!EnableConcurrentScheduleAllocationExecDurationThrottling_.load(std::memory_order::acquire)) {
         return false;
     }
 
@@ -375,7 +375,7 @@ void TFairShareStrategyOperationController::UpdateConfig(const TFairShareStrateg
 
     EnableConcurrentScheduleAllocationExecDurationThrottling_.store(
         config->EnableConcurrentScheduleAllocationExecDurationThrottling,
-        std::memory_order_release);
+        std::memory_order::release);
     UpdateConcurrentScheduleAllocationThrottlingLimits(config);
 }
 

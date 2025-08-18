@@ -17,13 +17,8 @@
 
 #include <library/cpp/yt/memory/blob.h>
 
-#include <util/string/split.h>
-
 #include <random>
 
-#ifdef _linux_
-    #include <sys/utsname.h>
-#endif // _linux_
 
 namespace NYT::NPipes {
 
@@ -405,23 +400,18 @@ protected:
     {
         static const NLogging::TLogger Logger("TNewDeliveryFencedWriteTestFixture");
 
-        utsname versionDescription{};
-        if (uname(&versionDescription) == -1) {
-            GTEST_FAIL() << "Failed to call uname, error: " << strerror(errno);
-        }
+        auto version = ParseLinuxKernelVersion();
+        YT_VERIFY(!version.empty());
 
-        std::vector<int> version;
-        StringSplitter(std::string_view{versionDescription.release}).Split('.').Take(2).ParseInto(&version);
+        YT_LOG_DEBUG("Parsed kernel version: (Release: %v, versionTuple: %v)", version[0], version);
 
-        YT_LOG_DEBUG("Parsed kernel version: (Release: %v, versionPair: %v)", versionDescription.release, version);
-
-        if (version < std::vector<int>{5, 15}) {
+        if (version < std::vector{5, 15}) {
             GTEST_SKIP()
-                << "Kernell version is too old. Version: "
-                << versionDescription.release
+                << "Kernel version is too old. Version: "
+                << version[0]
                 << ", parsed_version: "
                 << ToString(version)
-                << ", it shpuld be at least 5.15";
+                << ", it should be at least 5.15";
         }
 
         auto readerFirst = GetParam();

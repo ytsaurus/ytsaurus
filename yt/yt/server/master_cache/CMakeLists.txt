@@ -47,9 +47,7 @@ target_link_libraries(yt-server-master_cache PUBLIC
 target_sources(yt-server-master_cache PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master_cache/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master_cache/part_bootstrap_detail.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master_cache/chaos_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master_cache/chaos_cache_part_bootstrap.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master_cache/chaos_cache_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master_cache/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master_cache/dynamic_config_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master_cache/master_cache_part_bootstrap.cpp

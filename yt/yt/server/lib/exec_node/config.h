@@ -63,7 +63,7 @@ struct TNumaNodeConfig
 {
     i64 NumaNodeId;
     i64 CpuCount;
-    TString CpuSet;
+    std::string CpuSet;
 
     REGISTER_YSON_STRUCT(TNumaNodeConfig);
 

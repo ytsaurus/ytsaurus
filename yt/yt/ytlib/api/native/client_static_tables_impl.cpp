@@ -96,7 +96,7 @@ TFuture<ITableWriterPtr> TClient::CreateTableWriter(
         path,
         nameTable,
         this,
-        /*localHostName*/ TString(), // Locality is not important during table upload.
+        /*localHostName*/ std::string(), // Locality is not important during table upload.
         transaction,
         /*writeBlocksOptions*/ {});
 

@@ -7,6 +7,9 @@ message TCellStatistics
     required int64 chunk_count = 1;
     required int64 lost_vital_chunk_count = 2;
     optional int32 online_node_count = 3;
+
+    optional int64 data_missing_chunk_count = 4;
+    optional int64 parity_missing_chunk_count = 5;
 }
 
 message TReqSetCellStatistics

@@ -9,20 +9,20 @@ pragma config.flags(
     "OptimizerFlags",
     "EmitPruneKeys",
     "FilterPushdownEnableMultiusage",
-    "EarlyExpandSkipNull",
     "PushdownComplexFiltersOverAggregate",
     "ExtractCommonPredicatesFromLogicalOps",
     "PullUpExtendOverEquiJoin",
     "DisableEmitSkipNullOnPushDown",
     "DropAnyOverEquiJoinInputs",
-    "PredicatePushdownOverEquiJoinBothSides"
+    "PredicatePushdownOverEquiJoinBothSides",
+    "FuseEquiJoinsInputMultiLabels"
 );
 pragma yt.AutoMerge = "disabled";
 pragma yt.DataSizePerPartition = "64M";
 pragma yt.DataSizePerJob = "64M";
 pragma yt.DataSizePerMapJob = "64M";
-pragma yt.HybridDqExecution = "false";
-pragma dq.AnalyzeQuery = "false";
+pragma yt.HybridDqExecution = "true";
+pragma dq.AnalyzeQuery = "true";
 pragma yt.MapJoinLimit = "4G";
 pragma yt.MaxReplicationFactorToFuseOperations="100";
 pragma yt.PartitionByConstantKeysViaMap;

@@ -154,7 +154,7 @@ TClient::TClient(
         CreateTabletActionTypeHandler(this),
         CreateDefaultTypeHandler(this)
     }
-    , HeavyRequestMemoryUsageTracker_(WithCategory(memoryTracker, EMemoryCategory::HeavyRequest, TString(Options_.GetAuthenticatedUser())))
+    , HeavyRequestMemoryUsageTracker_(WithCategory(memoryTracker, EMemoryCategory::HeavyRequest, Options_.GetAuthenticatedUser()))
     , FunctionImplCache_(BIND(CreateFunctionImplCache,
         Connection_->GetConfig()->FunctionImplCache,
         MakeWeak(this)))

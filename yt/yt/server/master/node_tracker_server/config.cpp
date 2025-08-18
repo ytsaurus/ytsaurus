@@ -48,8 +48,8 @@ void TNodeGroupConfig::Register(TRegistrar registrar)
 
 void TDynamicNodeTrackerTestingConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("disable_disposal_finishing", &TThis::DisableDisposalFinishing)
-        .Default(false);
+    Y_UNUSED(registrar);
+    // Testing parameters should be placed here.
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -107,9 +107,6 @@ void TDynamicNodeTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("forbid_maintenance_attribute_writes", &TThis::ForbidMaintenanceAttributeWrites)
         .Default(false);
 
-    registrar.Parameter("enable_per_location_node_disposal", &TThis::EnablePerLocationNodeDisposal)
-        .Default(true);
-
     registrar.Parameter("node_disposal_tick_period", &TThis::NodeDisposalTickPeriod)
         .Default(TDuration::Seconds(5));
 
@@ -119,7 +116,7 @@ void TDynamicNodeTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("reset_node_pending_restart_maintenance_period", &TThis::ResetNodePendingRestartMaintenancePeriod)
         .Default(TDuration::Seconds(2));
 
-    registrar.Parameter("max_nodes_being_disposed", &TThis::MaxNodesBeingDisposed)
+    registrar.Parameter("max_locations_being_disposed", &TThis::MaxLocationsBeingDisposed)
         .Default(10);
 
     registrar.Parameter("immediatety_dispose_nondata_nodes", &TThis::ImmediatelyDisposeNondataNodes)

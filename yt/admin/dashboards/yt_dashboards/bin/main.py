@@ -8,6 +8,7 @@ from yt_dashboards.artemis import (
 from yt_dashboards.scheduler_internal import build_scheduler_internal
 from yt_dashboards.scheduler_pool import build_scheduler_pool
 from yt_dashboards.scheduler_operation import build_scheduler_operation
+from yt_dashboards.jobs_monitor import build_jobs_monitor
 from yt_dashboards.cluster_resources import build_cluster_resources
 from yt_dashboards.cache import build_cache_with_ghosts
 from yt_dashboards.chyt import build_chyt_monitoring
@@ -68,6 +69,10 @@ dashboards = {
     },
     "scheduler-operation": {
         "func": build_scheduler_operation,
+        "monitoring": {},
+    },
+    "jobs-monitor": {
+        "func": build_jobs_monitor,
         "monitoring": {},
     },
     "http-proxies": {

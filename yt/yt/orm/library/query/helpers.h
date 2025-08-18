@@ -8,7 +8,7 @@ namespace NYT::NOrm::NQuery {
 
 const ITypeResolver* GetTypeResolver(NTableClient::EValueType type);
 
-const TString& GetYsonExtractFunction(NTableClient::EValueType type);
+const std::string& GetYsonExtractFunction(NTableClient::EValueType type);
 
 ////////////////////////////////////////////////////////////////////////////////
 

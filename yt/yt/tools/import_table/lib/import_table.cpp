@@ -46,12 +46,12 @@
 #include <util/system/env.h>
 #include <util/system/execpath.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/ipc/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/ipc/api.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/reader.h>
-#include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/writer.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/parquet/arrow/reader.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/parquet/arrow/writer.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/adapters/orc/adapter.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/adapters/orc/adapter.h>
 
 #include <contrib/libs/apache/orc/c++/include/orc/OrcFile.hh>
 
@@ -70,9 +70,9 @@ static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Importer");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr int BufferSize = 4_MB;
+constexpr int DefaultRingBufferMetadataWeight = 4_MB;
 constexpr int DefaultFooterReadSize = 64_KB;
-constexpr int SizeOfMetadataSize = 4;
+constexpr int SizeOfMetadataWeight = 4;
 constexpr int SizeOfMagicBytes = 4;
 
 const std::string MetadataColumnName = "metadata";
@@ -212,13 +212,12 @@ public:
 
     const std::string& getName() const override
     {
-        return Name_;
+        static std::string name = "OrcInputStreamAdapter";
+        return name;
     }
 
 private:
-    const std::string Name_ = "OrcInputStreamAdapter";
-
-    TRingBuffer* Buffer_;
+    TRingBuffer* const Buffer_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -304,14 +303,12 @@ class TDownloadMapper
     : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
 public:
-    TDownloadMapper()
-        : RingBuffer_(BufferSize)
-    { }
+    TDownloadMapper() = default;
 
-    explicit TDownloadMapper(TSourceConfig sourceConfig, TString serializedSingletonsConfig)
+    explicit TDownloadMapper(TSourceConfig sourceConfig, i64 maxMetadataRowWeight, TString serializedSingletonsConfig)
         : SourceConfig_(std::move(sourceConfig))
+        , MaxMetadataRowWeight_(maxMetadataRowWeight)
         , SerializedSingletonsConfig_(std::move(serializedSingletonsConfig))
-        , RingBuffer_(BufferSize)
     { }
 
     void Start(TWriter* /*writer*/) override
@@ -337,63 +334,66 @@ public:
             TNode keyNode = TNode::CreateMap();
             keyNode[FileIndexColumnName] = fileIndex;
 
+            FileSize_ = 0;
+
+            auto metadataWeight = GetMetadataWeight(fileId);
+            auto firstDataPartIndex = (metadataWeight / MaxMetadataRowWeight_) + 2;
+            auto stream = Downloader_->GetFile(fileId);
+            // A ring buffer in which we save the current end of the file.
+            TRingBuffer ringBuffer(metadataWeight);
+
             BlobTableWriter_ = CreateBlobTableWriter(
                 writer,
                 keyNode,
                 blobTableSchema,
-                /*firstPartIndex*/ 2,
+                /*firstPartIndex*/ firstDataPartIndex,
                 /*autoFinishOfWriter*/ false);
 
-            FileSize_ = 0;
-
-            auto stream = Downloader_->GetFile(fileId);
             while (auto data = WaitFor(stream->Read()).ValueOrThrow()) {
-                DownloadFilePart(data);
+                DownloadFilePart(data, ringBuffer);
             }
 
             BlobTableWriter_->Finish();
 
-            writer->AddRow(MakeOutputMetadataRow(fileIndex), /*tableIndex*/ 1);
+            MakeOutputMetadataRow(fileIndex, metadataWeight, writer, ringBuffer);
         }
     }
 
-    Y_SAVELOAD_JOB(SourceConfig_, SerializedSingletonsConfig_);
+    Y_SAVELOAD_JOB(SourceConfig_, SerializedSingletonsConfig_, MaxMetadataRowWeight_);
 
 private:
-    int FileSize_;
+    i64 FileSize_;
     IFileWriterPtr BlobTableWriter_;
     TSourceConfig SourceConfig_;
+    i64 MaxMetadataRowWeight_;
     TString SerializedSingletonsConfig_;
     IDownloaderPtr Downloader_;
 
-    // A ring buffer in which we save the current end of the file.
-    TRingBuffer RingBuffer_;
     int BufferPosition_;
 
-    void DownloadFilePart(TSharedRef data)
+    i64 GetMetadataWeight(const TString& fileId)
     {
-        auto size = std::ssize(data);
-        BlobTableWriter_->Write(data.Begin(), size);
-        FileSize_ += size;
+        auto stream = Downloader_->GetFile(fileId);
+        i64 fileSize = 0;
+        TRingBuffer metadataRingBuffer(DefaultRingBufferMetadataWeight);
+        while (auto data = WaitFor(stream->Read()).ValueOrThrow()) {
+            fileSize += std::ssize(data);
+            NArrow::ThrowOnError(metadataRingBuffer.Write(data));
+        }
 
-        NArrow::ThrowOnError(RingBuffer_.Write(data));
-    }
-
-    int GetMetadataSize()
-    {
         switch (SourceConfig_.Format) {
             case EFileFormat::Parquet: {
-                char metadataSizeData[SizeOfMetadataSize];
-                RingBuffer_.Read(FileSize_ - (SizeOfMagicBytes + SizeOfMetadataSize), SizeOfMetadataSize, metadataSizeData);
-                int metadataSize = *(reinterpret_cast<int*>(metadataSizeData)) + (SizeOfMagicBytes + SizeOfMetadataSize);
-                metadataSize = std::max(DefaultFooterReadSize + SizeOfMagicBytes + SizeOfMetadataSize, metadataSize);
-                return metadataSize;
+                char metadataWeightData[SizeOfMetadataWeight];
+                metadataRingBuffer.Read(fileSize - (SizeOfMagicBytes + SizeOfMetadataWeight), SizeOfMetadataWeight, metadataWeightData);
+                i64 metadataWeight = *(reinterpret_cast<int*>(metadataWeightData)) + (SizeOfMagicBytes + SizeOfMetadataWeight);
+                metadataWeight = std::max(static_cast<i64>(DefaultFooterReadSize + SizeOfMagicBytes + SizeOfMetadataWeight), metadataWeight);
+                return metadataWeight;
             }
-            case EFileFormat::ORC: {
-                std::unique_ptr<orc::InputStream> stream = std::make_unique<TOrcInputStreamAdapter>(&RingBuffer_);
+            case EFileFormat::Orc: {
+                std::unique_ptr<orc::InputStream> stream = std::make_unique<TOrcInputStreamAdapter>(&metadataRingBuffer);
                 orc::ReaderOptions option;
                 auto reader = orc::createReader(std::move(stream), option);
-                return std::max(static_cast<ui64>(DefaultFooterReadSize), FileSize_ - reader->getContentLength());
+                return std::max(static_cast<ui64>(DefaultFooterReadSize), fileSize - reader->getContentLength());
             }
             default: {
                 YT_ABORT();
@@ -401,25 +401,42 @@ private:
         }
     }
 
-    TNode MakeOutputMetadataRow(int fileIndex)
+    void DownloadFilePart(TSharedRef data, TRingBuffer& ringBuffer)
     {
-        int metadataSize = std::min(FileSize_, GetMetadataSize());
+        auto size = std::ssize(data);
+        BlobTableWriter_->Write(data.Begin(), size);
+        FileSize_ += size;
 
-        if (metadataSize > BufferSize) {
-            THROW_ERROR_EXCEPTION("Metadata size of Parquet file is too big");
-        }
+        NArrow::ThrowOnError(ringBuffer.Write(data));
+    }
+
+    void MakeOutputMetadataRow(int fileIndex, i64 metadataWeight, TWriter* writer, TRingBuffer& ringBuffer)
+    {
+        metadataWeight = std::min(FileSize_, metadataWeight);
 
         TString metadata;
-        metadata.resize(metadataSize);
-        RingBuffer_.Read(std::max(0, FileSize_ - metadataSize), std::min(metadataSize, FileSize_), metadata.begin());
+        metadata.resize(metadataWeight);
 
-        TNode outMetadataRow;
-        outMetadataRow[FileIndexColumnName] = fileIndex;
-        outMetadataRow[MetadataColumnName] = metadata;
-        outMetadataRow[StartMetadataOffsetColumnName] = FileSize_ - metadataSize;
-        outMetadataRow[PartIndexColumnName] = 0;
+        ringBuffer.Read(std::max(static_cast<i64>(0), FileSize_ - metadataWeight), std::min(metadataWeight, FileSize_), metadata.begin());
 
-        return outMetadataRow;
+        i64 partIndex = 0;
+        i64 currentSize = metadataWeight;
+        i64 metadataOffset = 0;
+        while (currentSize > 0) {
+            i64 partSize = std::min(static_cast<i64>(MaxMetadataRowWeight_), currentSize);
+            TNode outMetadataRow;
+
+            outMetadataRow[FileIndexColumnName] = fileIndex;
+            outMetadataRow[MetadataColumnName] = metadata.substr(metadataOffset, partSize);
+            outMetadataRow[StartMetadataOffsetColumnName] = FileSize_ - metadataWeight;
+            outMetadataRow[PartIndexColumnName] = partIndex;
+
+            writer->AddRow(outMetadataRow, /*tableIndex*/ 1);
+
+            currentSize -= partSize;
+            metadataOffset += partSize;
+            ++partIndex;
+        }
     }
 };
 
@@ -428,52 +445,55 @@ REGISTER_MAPPER(TDownloadMapper);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRecordBatchReaderOrcAdapter
-    : public arrow::RecordBatchReader
+    : public arrow20::RecordBatchReader
 {
 public:
-    TRecordBatchReaderOrcAdapter(const TArrowRandomAccessFilePtr& stream, arrow::MemoryPool* pool)
+    TRecordBatchReaderOrcAdapter(const TArrowRandomAccessFilePtr& stream, arrow20::MemoryPool* pool)
     {
-        ThrowOnError(arrow::adapters::orc::ORCFileReader::Open(
+        auto readerOrError = arrow20::adapters::orc::ORCFileReader::Open(
             stream,
-            pool,
-            &Reader_));
+            pool);
+        ThrowOnError(readerOrError.status());
+        Reader_ = std::move(readerOrError.ValueOrDie());
         StripeCount_ = Reader_->NumberOfStripes();
     }
 
     TArrowSchemaPtr schema() const override
     {
-        TArrowSchemaPtr resultSchema;
-        NArrow::ThrowOnError(Reader_->ReadSchema(&resultSchema));
-        return resultSchema;
+        auto resultSchemaOrError = Reader_->ReadSchema();
+        ThrowOnError(resultSchemaOrError.status());
+        return resultSchemaOrError.ValueOrDie();
     }
 
-    arrow::Status ReadNext(std::shared_ptr<arrow::RecordBatch>* batch) override
+    arrow20::Status ReadNext(std::shared_ptr<arrow20::RecordBatch>* batch) override
     {
         if (CurrentStripeIndex_ < StripeCount_) {
-            NArrow::ThrowOnError(Reader_->ReadStripe(CurrentStripeIndex_, batch));
+            auto batchOrError = Reader_->ReadStripe(CurrentStripeIndex_);
+            ThrowOnError(batchOrError.status());
+            *batch = batchOrError.ValueOrDie();
             ++CurrentStripeIndex_;
         } else {
             *batch = nullptr;
         }
-        return arrow::Status::OK();
+        return arrow20::Status::OK();
     }
 
 private:
-    std::unique_ptr<arrow::adapters::orc::ORCFileReader> Reader_;
+    std::unique_ptr<arrow20::adapters::orc::ORCFileReader> Reader_;
     int StripeCount_ = 0;
     int CurrentStripeIndex_ = 0;
 };
 
 class TRecordBatchReaderParquetAdapter
-    : public arrow::RecordBatchReader
+    : public arrow20::RecordBatchReader
 {
 public:
-    TRecordBatchReaderParquetAdapter(const TArrowRandomAccessFilePtr& stream, arrow::MemoryPool* pool)
+    TRecordBatchReaderParquetAdapter(const TArrowRandomAccessFilePtr& stream, arrow20::MemoryPool* pool)
     {
-        NArrow::ThrowOnError(parquet::arrow::FileReader::Make(
+        NArrow::ThrowOnError(parquet20::arrow20::FileReader::Make(
             pool,
-            parquet::ParquetFileReader::Open(stream),
-            parquet::ArrowReaderProperties{},
+            parquet20::ParquetFileReader::Open(stream),
+            parquet20::ArrowReaderProperties{},
             &ArrowFileReader_));
 
         NArrow::ThrowOnError(ArrowFileReader_->GetSchema(&ArrowSchema_));
@@ -481,7 +501,7 @@ public:
         if (RowGroupCount_ > 0) {
             std::vector<int> rowGroup = {CurrentRowGroupIndex_};
             NArrow::ThrowOnError(ArrowFileReader_->ReadRowGroups(rowGroup, &Table_));
-            TableBatchReader_ = std::make_shared<arrow::TableBatchReader>(*Table_);
+            TableBatchReader_ = std::make_shared<arrow20::TableBatchReader>(*Table_);
             ++CurrentRowGroupIndex_;
         }
     }
@@ -491,37 +511,37 @@ public:
         return ArrowSchema_;
     }
 
-    arrow::Status ReadNext(std::shared_ptr<arrow::RecordBatch>* batch) override
+    arrow20::Status ReadNext(std::shared_ptr<arrow20::RecordBatch>* batch) override
     {
         if (RowGroupCount_ > 0) {
             NArrow::ThrowOnError(TableBatchReader_->ReadNext(batch));
             if (!(*batch) && CurrentRowGroupIndex_ < RowGroupCount_) {
                 std::vector<int> rowGroup = {CurrentRowGroupIndex_};
                 NArrow::ThrowOnError(ArrowFileReader_->ReadRowGroups(rowGroup, &Table_));
-                TableBatchReader_ = std::make_shared<arrow::TableBatchReader>(*Table_);
+                TableBatchReader_ = std::make_shared<arrow20::TableBatchReader>(*Table_);
                 NArrow::ThrowOnError(TableBatchReader_->ReadNext(batch));
                 ++CurrentRowGroupIndex_;
             }
         }
-        return arrow::Status::OK();
+        return arrow20::Status::OK();
     }
 
 private:
-    std::unique_ptr<parquet::arrow::FileReader> ArrowFileReader_;
+    std::unique_ptr<parquet20::arrow20::FileReader> ArrowFileReader_;
     TArrowSchemaPtr ArrowSchema_;
-    std::shared_ptr<arrow::TableBatchReader> TableBatchReader_;
-    std::shared_ptr<arrow::Table> Table_;
+    std::shared_ptr<arrow20::TableBatchReader> TableBatchReader_;
+    std::shared_ptr<arrow20::Table> Table_;
     int RowGroupCount_;
     int CurrentRowGroupIndex_ = 0;
 };
 
-std::shared_ptr<arrow::RecordBatchReader> MakeRecordBatchReaderAdapter(
+std::shared_ptr<arrow20::RecordBatchReader> MakeRecordBatchReaderAdapter(
     const TArrowRandomAccessFilePtr& stream,
-    arrow::MemoryPool* pool,
+    arrow20::MemoryPool* pool,
     EFileFormat fileFormat)
 {
     switch (fileFormat) {
-        case EFileFormat::ORC:
+        case EFileFormat::Orc:
             return std::make_shared<TRecordBatchReaderOrcAdapter>(stream, pool);
         case EFileFormat::Parquet:
             return std::make_shared<TRecordBatchReaderParquetAdapter>(stream, pool);
@@ -535,10 +555,10 @@ TArrowRandomAccessFilePtr MakeFormatStreamAdapter(
     EFileFormat fileFormat)
 {
     switch (fileFormat) {
-        case EFileFormat::ORC:
+        case EFileFormat::Orc:
         {
             auto maxStripeSize = NArrow::GetMaxStripeSize(metadata, startMetadataOffset);
-            return NArrow::CreateORCAdapter(metadata, startMetadataOffset, maxStripeSize, std::move(reader));
+            return NArrow::CreateOrcAdapter(metadata, startMetadataOffset, maxStripeSize, std::move(reader));
         }
         case EFileFormat::Parquet:
         {
@@ -567,11 +587,16 @@ public:
         while (reader.IsValid()) {
             const auto& row = reader.GetRow();
             YT_VERIFY(reader.GetTableIndex() == 0);
-
-            TString metadata = row[MetadataColumnName].AsString();
+            TString metadata;
             auto startIndex = row[StartMetadataOffsetColumnName].AsInt64();
 
-            reader.Next();
+            while (reader.GetTableIndex() == 0) {
+                const auto& currentRow = reader.GetRow();
+                metadata += currentRow[MetadataColumnName].AsString();
+
+                reader.Next();
+            }
+
             const auto& outputTableInformationRow = reader.GetRow();
             YT_VERIFY(reader.GetTableIndex() == 1);
             auto outputTableIndex = outputTableInformationRow[OutputTableIndexColumnName].AsInt64();
@@ -581,17 +606,17 @@ public:
 
             auto stream = std::make_shared<TFileReader>(&reader);
             auto formatAdapter = MakeFormatStreamAdapter(&metadata, startIndex, stream, SourceConfig_.Format);
-            auto* pool = arrow::default_memory_pool();
+            auto* pool = arrow20::default_memory_pool();
 
             auto batchReader = MakeRecordBatchReaderAdapter(formatAdapter, pool, SourceConfig_.Format);
 
             TArrowOutputStream outputStream(&output);
 
-            auto recordBatchWriterOrError = arrow::ipc::MakeStreamWriter(&outputStream, batchReader->schema());
+            auto recordBatchWriterOrError = arrow20::ipc::MakeStreamWriter(&outputStream, batchReader->schema());
             NArrow::ThrowOnError(recordBatchWriterOrError.status());
             auto recordBatchWriter = recordBatchWriterOrError.ValueOrDie();
 
-            std::shared_ptr<arrow::RecordBatch> batch;
+            std::shared_ptr<arrow20::RecordBatch> batch;
             NArrow::ThrowOnError(batchReader->ReadNext(&batch));
 
             while (batch) {
@@ -648,34 +673,34 @@ private:
     };
 
     class TArrowOutputStream
-        : public arrow::io::OutputStream
+        : public arrow20::io::OutputStream
     {
     public:
         TArrowOutputStream(IOutputStream* outputStream)
             : OutputStream_(outputStream)
         { }
 
-        arrow::Status Write(const void* data, int64_t nbytes) override
+        arrow20::Status Write(const void* data, int64_t nbytes) override
         {
             Position_ += nbytes;
             OutputStream_->Write(data, nbytes);
-            return arrow::Status::OK();
+            return arrow20::Status::OK();
         }
 
-        arrow::Status Flush() override
+        arrow20::Status Flush() override
         {
             OutputStream_->Flush();
             Position_ = 0;
-            return arrow::Status::OK();
+            return arrow20::Status::OK();
         }
 
-        arrow::Status Close() override
+        arrow20::Status Close() override
         {
             IsClosed_ = true;
-            return arrow::Status::OK();
+            return arrow20::Status::OK();
         }
 
-        arrow::Result<int64_t> Tell() const override
+        arrow20::Result<int64_t> Tell() const override
         {
             return Position_;
         }
@@ -712,15 +737,24 @@ std::vector<TTempTable> CreateOutputParserTables(
     auto outputInformationTableWriter = ytClient->CreateTableWriter<TNode>(outputInformationTablePath);
     int currentOutputTableIndexColumnName;
 
-    for (; reader->IsValid(); reader->Next()) {
+    while (reader->IsValid()) {
         const auto& row = reader->GetRow();
-        auto metadata = row[MetadataColumnName].AsString();
+        TString metadata;
+        auto currentFileIndex = row[FileIndexColumnName].AsInt64();
         auto metadataStartOffset = row[StartMetadataOffsetColumnName].AsInt64();
+        i64 lastDataPartIndex = 0;
+        while (reader->IsValid() && currentFileIndex == (reader->GetRow())[FileIndexColumnName].AsInt64()) {
+            const auto& currentRow = reader->GetRow();
+            metadata += currentRow[MetadataColumnName].AsString();
+            lastDataPartIndex = currentRow[PartIndexColumnName].AsInt64();
+            reader->Next();
+        }
+
         TArrowSchemaPtr arrowSchema;
         switch (fileFormat) {
-            case EFileFormat::ORC:
+            case EFileFormat::Orc:
             {
-                arrowSchema = NArrow::CreateArrowSchemaFromORCMetadata(&metadata, metadataStartOffset);
+                arrowSchema = NArrow::CreateArrowSchemaFromOrcMetadata(&metadata, metadataStartOffset);
                 break;
             }
             case EFileFormat::Parquet:
@@ -741,8 +775,8 @@ std::vector<TTempTable> CreateOutputParserTables(
             outputParserTables.push_back(std::move(outputTable));
         }
         TNode outputRow;
-        outputRow[FileIndexColumnName] = row[FileIndexColumnName].AsInt64();
-        outputRow[PartIndexColumnName] = 1;
+        outputRow[FileIndexColumnName] = currentFileIndex;
+        outputRow[PartIndexColumnName] = lastDataPartIndex + 1;
         outputRow[OutputTableIndexColumnName] = currentOutputTableIndexColumnName;
 
         outputInformationTableWriter->AddRow(std::move(outputRow));
@@ -765,6 +799,7 @@ void ImportFilesFromSource(
     const TString& proxy,
     const std::vector<TString>& fileIds,
     const TString& resultTable,
+    const std::optional<TString>& networkProject,
     const TSourceConfig& sourceConfig,
     TImportConfigPtr config)
 {
@@ -791,8 +826,8 @@ void ImportFilesFromSource(
     for (const auto& fileName : fileIds) {
         NRe2::TRe2Ptr regex;
         switch (sourceConfig.Format) {
-            case EFileFormat::ORC:
-                regex = config->ORCFileRegex;
+            case EFileFormat::Orc:
+                regex = config->OrcFileRegex;
                 break;
 
             case EFileFormat::Parquet:
@@ -814,7 +849,9 @@ void ImportFilesFromSource(
 
     TBlobTableSchema blobTableSchema;
     // TODO(babenko): migrate to std::string
-    blobTableSchema.BlobIdColumns({TColumnSchema().Name(TString(FileIndexColumnName)).Type(VT_INT64)});
+    blobTableSchema.BlobIdColumns({
+        TColumnSchema().Name(TString(FileIndexColumnName)).Type(VT_INT64),
+    });
 
     auto createOptions = TCreateOptions().Attributes(
         TNode()("schema", blobTableSchema.CreateYtSchema().ToNode()));
@@ -884,13 +921,19 @@ void ImportFilesFromSource(
             .AddOutput<TNode>(metadataTablePath)
             .DataSizePerJob(1);
 
+        NYT::TUserJobSpec jobSpec;
+
+        if (networkProject) {
+            jobSpec.NetworkProject(*networkProject);
+        }
+
         if (attachLibIconv) {
-            spec = spec.MapperSpec(TUserJobSpec().AddLocalFile("./libiconv.so"));
+           jobSpec.AddLocalFile("./libiconv.so");
         }
 
         ytClient->Map(
-            spec,
-            new TDownloadMapper(sourceConfig, ConvertToYsonString(config->JobSingletons).ToString()),
+            spec.MapperSpec(jobSpec),
+            new TDownloadMapper(sourceConfig, config->MaxMetadataRowWeight, ConvertToYsonString(config->JobSingletons).ToString()),
             operationOptions);
     }
 
@@ -985,6 +1028,7 @@ void ImportFilesFromS3(
     const TString& prefix,
     const TString& resultTable,
     EFileFormat format,
+    const std::optional<TString>& networkProject,
     TImportConfigPtr config)
 {
     TString accessKeyId = GetEnv("ACCESS_KEY_ID");
@@ -1010,6 +1054,7 @@ void ImportFilesFromS3(
         proxy,
         fileKeys,
         resultTable,
+        networkProject,
         TSourceConfig{
             .S3Config = s3Config,
             .Format = format,
@@ -1024,6 +1069,7 @@ void ImportFilesFromHuggingface(
     const TString& split,
     const TString& resultTable,
     EFileFormat format,
+    const std::optional<TString>& networkProject,
     const std::optional<TString>& urlOverride,
     TImportConfigPtr config)
 {
@@ -1045,6 +1091,7 @@ void ImportFilesFromHuggingface(
         proxy,
         fileIds,
         resultTable,
+        networkProject,
         TSourceConfig{
             .HuggingfaceConfig = THuggingfaceConfig{
                 .UrlOverride = urlOverride

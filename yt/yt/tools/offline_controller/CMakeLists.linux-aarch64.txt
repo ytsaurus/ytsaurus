@@ -35,6 +35,7 @@ target_link_libraries(offline_controller PUBLIC
   yt-yt-ytlib
   cpp-getopt-small
   yt-library-coredumper
+  yt-library-signals
 )
 
 target_allocator(offline_controller

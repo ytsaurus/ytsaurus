@@ -154,7 +154,7 @@ void TMemoryLimitRatiosConfig::Register(TRegistrar registrar)
     registrar.Postprocessor([&] (TMemoryLimitRatiosConfig* config) {
         for (const auto& [name, value] : config->UserToMemoryLimitRatio) {
             if (value > 1 || value < 0) {
-                THROW_ERROR_EXCEPTION("User ratio must be less than 1 and greater than 0")
+                THROW_ERROR_EXCEPTION("User ratio must be in range [0, 1]")
                     << TErrorAttribute("user_name", name)
                     << TErrorAttribute("user_ratio", value);
             }
@@ -197,6 +197,13 @@ void TApiDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("formats", &TThis::Formats)
         .Default();
 
+    registrar.Parameter("default_user_concurrency_limit_ratio", &TThis::DefaultUserConcurrencyLimitRatio)
+        .Default(1)
+        .InRange(0.0, 1.0);
+
+    registrar.Parameter("user_to_concurrency_limit_ratio", &TThis::UserToConcurrencyLimitRatio)
+        .Default();
+
     registrar.Parameter("enable_allocation_tags", &TThis::EnableAllocationTags)
         .Default(false);
 
@@ -211,6 +218,16 @@ void TApiDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("role_to_memory_limit_ratios", &TThis::RoleToMemoryLimitRatios)
         .Default();
+
+    registrar.Postprocessor([&] (TApiDynamicConfig* config) {
+        for (const auto& [name, value] : config->UserToConcurrencyLimitRatio) {
+            if (value > 1 || value < 0) {
+                THROW_ERROR_EXCEPTION("User ratio must be less than 1 and greater than 0")
+                    << TErrorAttribute("user_name", name)
+                    << TErrorAttribute("user_ratio", value);
+            }
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

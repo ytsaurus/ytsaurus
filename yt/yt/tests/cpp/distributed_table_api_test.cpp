@@ -49,8 +49,8 @@ void TDistributedTableApiTest::CreateStaticTable(
 }
 
 void TDistributedTableApiTest::WriteTable(
-    std::vector<TString> columnNames,
-    std::vector<TString> rowStrings,
+    std::vector<std::string> columnNames,
+    std::vector<std::string> rowStrings,
     bool append)
 {
     DoWriteTable(
@@ -59,7 +59,7 @@ void TDistributedTableApiTest::WriteTable(
         append);
 }
 
-std::vector<TString> TDistributedTableApiTest::ReadTable()
+std::vector<std::string> TDistributedTableApiTest::ReadTable()
 {
     return DoReadTable();
 }
@@ -85,8 +85,8 @@ TDistributedWriteSessionWithCookies TDistributedTableApiTest::StartDistributedWr
 
 TSignedWriteFragmentResultPtr TDistributedTableApiTest::DistributedWriteTable(
     const TSignedWriteFragmentCookiePtr& cookie,
-    std::vector<TString> columnNames,
-    std::vector<TString> rowStrings)
+    std::vector<std::string> columnNames,
+    std::vector<std::string> rowStrings)
 {
     return DoDistributedWriteTable(
         cookie,
@@ -127,7 +127,7 @@ NYPath::TRichYPath TDistributedTableApiTest::MakeRichPath(bool append)
 }
 
 TSharedRange<TUnversionedRow> TDistributedTableApiTest::YsonRowsToUnversionedRows(
-    std::vector<TString> rowStrings)
+    std::vector<std::string> rowStrings)
 {
     auto rowBuffer = New<TRowBuffer>();
     std::vector<TUnversionedRow> rows;
@@ -139,7 +139,7 @@ TSharedRange<TUnversionedRow> TDistributedTableApiTest::YsonRowsToUnversionedRow
 }
 
 void TDistributedTableApiTest::DoWriteTable(
-    std::vector<TString> columnNames,
+    std::vector<std::string> columnNames,
     TSharedRange<TUnversionedRow> rows,
     bool append)
 {
@@ -161,12 +161,12 @@ void TDistributedTableApiTest::DoWriteTable(
         .ThrowOnError();
 }
 
-std::vector<TString> TDistributedTableApiTest::DoReadTable()
+std::vector<std::string> TDistributedTableApiTest::DoReadTable()
 {
     auto reader = WaitFor(Client_->CreateTableReader(NYPath::TRichYPath(Table_)))
         .ValueOrThrow();
 
-    std::vector<TString> rowStrings;
+    std::vector<std::string> rowStrings;
 
     while (auto batch = reader->Read()) {
         if (batch->IsEmpty()) {
@@ -188,7 +188,7 @@ std::vector<TString> TDistributedTableApiTest::DoReadTable()
 
 TSignedWriteFragmentResultPtr TDistributedTableApiTest::DoDistributedWriteTable(
     const TSignedWriteFragmentCookiePtr& cookie,
-    std::vector<TString> columnNames,
+    std::vector<std::string> columnNames,
     TSharedRange<TUnversionedRow> rows)
 {
     auto writer = WaitFor(Client_->CreateTableFragmentWriter(cookie))
@@ -302,14 +302,14 @@ TEST_F(TDistributedTableApiTest, StartWriteFinish)
         "{name=v1;type=string};"
         "]");
 
-    std::vector<TString> rowStrings = {
+    std::vector<std::string> rowStrings = {
         "Foo",
         "Bar",
         "Baz",
     };
 
-    std::vector<TString> inputRows;
-    std::vector<TString> expectedRows;
+    std::vector<std::string> inputRows;
+    std::vector<std::string> expectedRows;
 
     for (auto row : rowStrings) {
         inputRows.push_back("<id=0> " + row + ";");
@@ -346,14 +346,14 @@ TEST_F(TDistributedTableApiTest, StartWriteFinishNoTimeout)
         "{name=v1;type=string};"
         "]");
 
-    std::vector<TString> rowStrings = {
+    std::vector<std::string> rowStrings = {
         "Foo",
         "Bar",
         "Baz",
     };
 
-    std::vector<TString> inputRows;
-    std::vector<TString> expectedRows;
+    std::vector<std::string> inputRows;
+    std::vector<std::string> expectedRows;
 
     for (auto row : rowStrings) {
         inputRows.push_back("<id=0> " + row + ";");
@@ -383,13 +383,13 @@ TEST_F(TDistributedTableApiTest, StartWriteFinishTimeout)
         "{name=v1;type=string};"
         "]");
 
-    std::vector<TString> rowStrings = {
+    std::vector<std::string> rowStrings = {
         "Foo",
         "Bar",
         "Baz",
     };
 
-    std::vector<TString> inputRows;
+    std::vector<std::string> inputRows;
     for (auto row : rowStrings) {
         inputRows.push_back("<id=0> " + row + ";");
     }
@@ -415,14 +415,14 @@ TEST_F(TDistributedTableApiTest, StartWriteFinishAbort)
         "{name=v1;type=string};"
         "]");
 
-    std::vector<TString> rowStrings = {
+    std::vector<std::string> rowStrings = {
         "Foo",
         "Bar",
         "Baz",
     };
 
-    std::vector<TString> inputRows;
-    std::vector<TString> expectedRows;
+    std::vector<std::string> inputRows;
+    std::vector<std::string> expectedRows;
 
     for (auto row : rowStrings) {
         inputRows.push_back("<id=0> " + row + ";");
@@ -470,14 +470,14 @@ TEST_F(TDistributedTableApiTest, StartWriteAbortFinish)
         "{name=v1;type=string};"
         "]");
 
-    std::vector<TString> rowStrings = {
+    std::vector<std::string> rowStrings = {
         "Foo",
         "Bar",
         "Baz",
     };
 
-    std::vector<TString> inputRows;
-    std::vector<TString> expectedRows;
+    std::vector<std::string> inputRows;
+    std::vector<std::string> expectedRows;
 
     for (auto row : rowStrings) {
         inputRows.push_back("<id=0> " + row + ";");
@@ -525,14 +525,14 @@ TEST_F(TDistributedTableApiTest, StartWriteTwiceFinishSameCookie)
         "{name=v1;type=string};"
         "]");
 
-    std::vector<TString> rowStrings = {
+    std::vector<std::string> rowStrings = {
         "Foo",
         "Bar",
         "Baz",
     };
 
-    std::vector<TString> inputRows;
-    std::vector<TString> expectedRows;
+    std::vector<std::string> inputRows;
+    std::vector<std::string> expectedRows;
 
     for (const auto& row : rowStrings) {
         inputRows.push_back("<id=0> " + row + ";");
@@ -587,14 +587,14 @@ TEST_F(TDistributedTableApiTest, StartWriteTwiceFinishDifferentCookies)
         "{name=v1;type=string};"
         "]");
 
-    std::vector<TString> rowStrings = {
+    std::vector<std::string> rowStrings = {
         "Foo",
         "Bar",
         "Baz",
     };
 
-    std::vector<TString> inputRows;
-    std::vector<TString> expectedRows;
+    std::vector<std::string> inputRows;
+    std::vector<std::string> expectedRows;
 
     for (const auto& row : rowStrings) {
         inputRows.push_back("<id=0> " + row + ";");
@@ -650,14 +650,14 @@ TEST_F(TDistributedTableApiTest, StartWriteFailWriteSuccessFinish)
         "{name=v1;type=string};"
         "]");
 
-    std::vector<TString> rowStrings = {
+    std::vector<std::string> rowStrings = {
         "Foo",
         "Bar",
         "Baz",
     };
 
-    std::vector<TString> inputRows;
-    std::vector<TString> expectedRows;
+    std::vector<std::string> inputRows;
+    std::vector<std::string> expectedRows;
 
     for (const auto& row : rowStrings) {
         inputRows.push_back("<id=0> " + row + ";");
@@ -714,14 +714,14 @@ TEST_F(TDistributedTableApiTest, ManyChunksToAttach)
         "{name=v1;type=string};"
         "]");
 
-    std::vector<TString> rowStrings = {
+    std::vector<std::string> rowStrings = {
         "Foo",
         "Bar",
         "Baz",
     };
 
-    std::vector<TString> inputRows;
-    std::vector<TString> expectedRows;
+    std::vector<std::string> inputRows;
+    std::vector<std::string> expectedRows;
 
     for (const auto& row : rowStrings) {
         inputRows.push_back("<id=0> " + row + ";");
@@ -768,14 +768,14 @@ TEST_F(TDistributedTableApiTest, SortedTableSimpleDistributedWrite)
         "{name=v1;type=string;sort_order=ascending};"
         "]");
 
-    std::vector<TString> rowStrings{
+    std::vector<std::string> rowStrings{
         "aa",
         "bb",
         "cc",
     };
 
-    std::vector<TString> inputRows;
-    std::vector<TString> expectedRows;
+    std::vector<std::string> inputRows;
+    std::vector<std::string> expectedRows;
 
     for (auto row : rowStrings) {
         inputRows.push_back("<id=0> " + row + ";");
@@ -815,14 +815,14 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesOneCookie)
         "{name=v1;type=string;sort_order=ascending};"
         "]");
 
-    std::vector<TString> rowStrings{
+    std::vector<std::string> rowStrings{
         "aa",
         "bb",
         "cc",
     };
 
-    std::vector<TString> inputRows;
-    std::vector<TString> expectedRows;
+    std::vector<std::string> inputRows;
+    std::vector<std::string> expectedRows;
 
     for (auto row : rowStrings) {
         inputRows.push_back("<id=0> " + row + ";");
@@ -874,14 +874,14 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesOneCookieInverte
         "{name=v1;type=string;sort_order=ascending};"
         "]");
 
-    std::vector<TString> rowStrings{
+    std::vector<std::string> rowStrings{
         "aa",
         "bb",
         "cc",
     };
 
-    std::vector<TString> inputRows;
-    std::vector<TString> expectedRows;
+    std::vector<std::string> inputRows;
+    std::vector<std::string> expectedRows;
 
     for (auto row : rowStrings) {
         inputRows.push_back("<id=0> " + row + ";");
@@ -933,14 +933,14 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesTwoCookies)
         "{name=v1;type=string;sort_order=ascending};"
         "]");
 
-    std::vector<TString> rowStrings{
+    std::vector<std::string> rowStrings{
         "aa",
         "bb",
         "cc",
     };
 
-    std::vector<TString> inputRows;
-    std::vector<TString> expectedRows;
+    std::vector<std::string> inputRows;
+    std::vector<std::string> expectedRows;
 
     for (auto row : rowStrings) {
         inputRows.push_back("<id=0> " + row + ";");
@@ -994,14 +994,14 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesTwoCookiesInvert
         "{name=v1;type=string;sort_order=ascending};"
         "]");
 
-    std::vector<TString> rowStrings{
+    std::vector<std::string> rowStrings{
         "aa",
         "bb",
         "cc",
     };
 
-    std::vector<TString> inputRows;
-    std::vector<TString> expectedRows;
+    std::vector<std::string> inputRows;
+    std::vector<std::string> expectedRows;
 
     for (auto row : rowStrings) {
         inputRows.push_back("<id=0> " + row + ";");
@@ -1056,14 +1056,14 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesViolateUniquenes
         "{name=v1;type=string;sort_order=ascending};"
         "]");
 
-    std::vector<TString> rowStrings{
+    std::vector<std::string> rowStrings{
         "aa",
         "bb",
         "cc",
     };
 
-    std::vector<TString> inputRows;
-    std::vector<TString> expectedRows;
+    std::vector<std::string> inputRows;
+    std::vector<std::string> expectedRows;
 
     for (auto row : rowStrings) {
         inputRows.push_back("<id=0> " + row + ";");
@@ -1119,15 +1119,15 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesOverlapKeyRanges
         "{name=v1;type=string;sort_order=ascending};"
         "]");
 
-    std::vector<TString> rowStrings{
+    std::vector<std::string> rowStrings{
         "aa",
         "ba",
         "bb",
         "cc",
     };
 
-    std::vector<TString> inputRows;
-    std::vector<TString> expectedRows;
+    std::vector<std::string> inputRows;
+    std::vector<std::string> expectedRows;
 
     for (auto row : rowStrings) {
         inputRows.push_back("<id=0> " + row + ";");
@@ -1183,14 +1183,14 @@ TEST_F(TDistributedTableApiTest, StartWriteCookieDuplicateResult)
         "{name=v1;type=string};"
         "]");
 
-    std::vector<TString> rowStrings = {
+    std::vector<std::string> rowStrings = {
         "Foo",
         "Bar",
         "Baz",
     };
 
-    std::vector<TString> inputRows;
-    std::vector<TString> expectedRows;
+    std::vector<std::string> inputRows;
+    std::vector<std::string> expectedRows;
 
     for (const auto& row : rowStrings) {
         inputRows.push_back("<id=0> " + row + ";");

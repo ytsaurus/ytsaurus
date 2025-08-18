@@ -464,6 +464,7 @@ SRCS(
     table_client/indexed_versioned_chunk_reader.cpp
     table_client/key_filter.cpp
     table_client/key_set.cpp
+    table_client/min_hash_digest_builder.cpp
     table_client/nested_row_merger.cpp
     table_client/overlapping_reader.cpp
     table_client/partition_chunk_reader.cpp
@@ -779,6 +780,7 @@ PEERDIR(
     yt/yt/library/quantile_digest
     yt/yt/library/tvm/service
     yt/yt/library/xor_filter
+    yt/yt/library/min_hash_digest
     yt/yt/client
     yt/yt/client/logging
     yt/yt/library/formats

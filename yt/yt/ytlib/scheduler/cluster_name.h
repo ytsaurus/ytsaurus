@@ -8,7 +8,7 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_STRONG_TYPEDEF(TClusterName, std::optional<std::string>)
+YT_DEFINE_STRONG_TYPEDEF(TClusterName, std::optional<std::string>);
 
 const TClusterName LocalClusterName{};
 

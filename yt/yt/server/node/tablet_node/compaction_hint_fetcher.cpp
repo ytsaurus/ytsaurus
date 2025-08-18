@@ -189,6 +189,11 @@ void TCompactionHintFetcher::OnRequestFailed(
     FailedRequestCount_.Increment();
 }
 
+bool TCompactionHintFetcher::ShouldConsumeRequestResultForStore(const IStorePtr& store, int requestStep)
+{
+    return IsValidStoreState(store) && GetFetchStatus(store).ShouldConsumeRequestResult(requestStep);
+}
+
 bool TCompactionHintFetcher::IsValidStoreState(const IStorePtr& store)
 {
     return store->GetStoreState() == EStoreState::Persistent;

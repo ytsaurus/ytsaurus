@@ -159,7 +159,7 @@ private:
 
     IChannelPtr CreateChannelByInstance(IAttributeDictionaryPtr attributes)
     {
-        auto host = attributes->Get<TString>("host");
+        auto host = attributes->Get<std::string>("host");
         auto rpcPort = attributes->Get<ui64>("rpc_port");
         return ChannelFactory_->CreateChannel(Format("%v:%v", host, rpcPort));
     }
@@ -184,9 +184,9 @@ private:
 
     IChannelPtr GetChannelForInstance()
     {
-        return  Settings_->Instance.has_value() ?
-                GetChannelForInstanceByJobCookie(Settings_->Instance.value()) :
-                GetChannelForRandomInstance();
+        return Settings_->Instance.has_value() ?
+            GetChannelForInstanceByJobCookie(Settings_->Instance.value()) :
+            GetChannelForRandomInstance();
     }
 
     void CheckPermission()
@@ -326,9 +326,11 @@ private:
             Config_->ProgressPollPeriod);
         progressPollerExecutor->Start();
 
-        auto result = WaitFor(rsp);
+        rsp.Subscribe(BIND([](TPeriodicExecutorPtr executor, TErrorOr<TExecuteQueryResponse> /*rsp*/) {
+            YT_UNUSED_FUTURE(executor->Stop());
+        }, progressPollerExecutor));
 
-        YT_UNUSED_FUTURE(progressPollerExecutor->Stop());
+        auto result = WaitFor(rsp);
 
         return result.ValueOrThrow();
     }

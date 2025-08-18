@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/orm/library/query/public.h>
+#include <yt/yt/orm/library/query/heavy/public.h>
 
 #include <yt/yt/core/misc/error.h>
 

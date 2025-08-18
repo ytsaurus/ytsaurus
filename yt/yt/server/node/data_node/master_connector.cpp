@@ -1290,7 +1290,7 @@ private:
                 result.FinalizeResponse = WaitFor(finalizeRequest->Invoke())
                     .ValueOrThrow();
                 return result;
-            }));
+            }).AsyncVia(Bootstrap_->GetControlInvoker()));
     }
 
     TFuture<TDataNodeRspIncrementalHeartbeat> InvokeIncrementalHeartbeatRequest(

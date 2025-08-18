@@ -11,6 +11,6 @@ func (c *jobContext) createReader(state *jobState) (Reader, error) {
 	panic("this should never be called on windows")
 }
 
-func (c *jobContext) createWriters() []Writer {
+func (c *jobContext) createWriters(state *jobState) ([]Writer, error) {
 	panic("this should never be called on windows")
 }

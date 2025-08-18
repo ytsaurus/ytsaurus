@@ -12,7 +12,7 @@
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
-#include <yt/yt/ytlib/unittests/misc/test_connection.h>
+#include <yt/yt/ytlib/test_framework/test_connection.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 #include <yt/yt/core/test_framework/test_proxy_service.h>
@@ -389,12 +389,23 @@ TEST_P(TReplicationReaderTest, ReadTest)
     options->AllowFetchingSeedsFromMaster = false;
 
     auto channelFactory = CreateTestChannelFactory(addressToService, THashMap<std::string, IServicePtr>());
-    auto connection = NApi::NNative::CreateConnection(
+    auto connection = CreateConnection(
         std::move(channelFactory),
         {"default"},
         std::move(nodeDirectory),
         invoker,
         memoryTracker);
+
+    EXPECT_CALL(*connection, CreateNativeClient).WillRepeatedly([&connection, &memoryTracker] (const NApi::TClientOptions& options) -> NApi::NNative::IClientPtr
+        {
+            return New<NApi::NNative::TClient>(connection, options, memoryTracker);
+        });
+    EXPECT_CALL(*connection, GetPrimaryMasterCellId).Times(testing::AtLeast(1));
+    EXPECT_CALL(*connection, GetClusterDirectory).Times(testing::AtLeast(1));
+    EXPECT_CALL(*connection, SubscribeReconfigured).Times(testing::AtLeast(1));
+    EXPECT_CALL(*connection, UnsubscribeReconfigured).Times(testing::AtLeast(1));
+    EXPECT_CALL(*connection, GetPrimaryMasterCellTag).Times(testing::AtLeast(1));
+    EXPECT_CALL(*connection, GetSecondaryMasterCellTags).Times(testing::AtLeast(1));
 
     auto readerHost = GetChunkReaderHost(connection);
 
@@ -497,7 +508,7 @@ INSTANTIATE_TEST_SUITE_P(
             .BlockCount = 1024,
             .RequestInBatch = 32,
             .BlockInRequest = 16,
-            .Sequentially = false,
+            .Sequentially = true,
             .EnableChunkProber = false,
         },
         TTestCase{
@@ -506,7 +517,6 @@ INSTANTIATE_TEST_SUITE_P(
             .BlockCount = 1024,
             .RequestInBatch = 32,
             .BlockInRequest = 16,
-            .Sequentially = false,
             .EnableChunkProber = true,
         },
         TTestCase{

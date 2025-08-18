@@ -509,7 +509,7 @@ public:
     TUntypedExpression OnExpression(
         const NAst::TExpression* expr);
 
-    TConstExpressionPtr DoBuildTypedExpression(const NAst::TExpression* expr, TRange<EValueType> resultTypes) override;
+    TConstExpressionPtr BuildTypedExpression(const NAst::TExpression* expr, TRange<EValueType> resultTypes) override;
 
     void AddTable(TNameSource nameSource) override
     {
@@ -706,7 +706,7 @@ TUntypedExpression TExprBuilderV1::OnExpression(
     YT_ABORT();
 }
 
-TConstExpressionPtr TExprBuilderV1::DoBuildTypedExpression(
+TConstExpressionPtr TExprBuilderV1::BuildTypedExpression(
     const NAst::TExpression* expr,
     TRange<EValueType> resultTypes)
 {

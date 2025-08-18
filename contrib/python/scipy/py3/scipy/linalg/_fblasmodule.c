@@ -118,42 +118,6 @@ typedef struct {float r,i;} complex_float;
         /*goto capi_fail;*/\
     } else 
 
-#if defined(PREPEND_FORTRAN)
-#if defined(NO_APPEND_FORTRAN)
-#if defined(UPPERCASE_FORTRAN)
-#define F_WRAPPEDFUNC(f,F) _F2PYWRAP##F
-#else
-#define F_WRAPPEDFUNC(f,F) _f2pywrap##f
-#endif
-#else
-#if defined(UPPERCASE_FORTRAN)
-#define F_WRAPPEDFUNC(f,F) _F2PYWRAP##F##_
-#else
-#define F_WRAPPEDFUNC(f,F) _f2pywrap##f##_
-#endif
-#endif
-#else
-#if defined(NO_APPEND_FORTRAN)
-#if defined(UPPERCASE_FORTRAN)
-#define F_WRAPPEDFUNC(f,F) F2PYWRAP##F
-#else
-#define F_WRAPPEDFUNC(f,F) f2pywrap##f
-#endif
-#else
-#if defined(UPPERCASE_FORTRAN)
-#define F_WRAPPEDFUNC(f,F) F2PYWRAP##F##_
-#else
-#define F_WRAPPEDFUNC(f,F) f2pywrap##f##_
-#endif
-#endif
-#endif
-#if defined(UNDERSCORE_G77)
-#define F_WRAPPEDFUNC_US(f,F) F_WRAPPEDFUNC(f##_,F##_)
-#else
-#define F_WRAPPEDFUNC_US(f,F) F_WRAPPEDFUNC(f,F)
-#endif
-
-
 #define CHECKARRAY(check,tcheck,name) \
     if (!(check)) {\
         PyErr_SetString(_fblas_error,"("tcheck") failed for "name);\
@@ -430,20 +394,20 @@ extern void F_FUNC(saxpy,SAXPY)(F_INT*,float*,float*,F_INT*,float*,F_INT* );
 extern void F_FUNC(daxpy,DAXPY)(F_INT*,double*,double*,F_INT*,double*,F_INT* );
 extern void F_FUNC(caxpy,CAXPY)(F_INT*,complex_float*,complex_float*,F_INT*,complex_float*,F_INT* );
 extern void F_FUNC(zaxpy,ZAXPY)(F_INT*,complex_double*,complex_double*,F_INT*,complex_double*,F_INT* );
-extern void F_WRAPPEDFUNC(sdot,SDOT)(float*,F_INT*,float*,F_INT*,float*,F_INT* );
-extern void F_WRAPPEDFUNC(ddot,DDOT)(double*,F_INT*,double*,F_INT*,double*,F_INT* );
-extern void F_WRAPPEDFUNC(cdotu,CDOTU)(complex_float*,F_INT*,complex_float*,F_INT*,complex_float*,F_INT* );
-extern void F_WRAPPEDFUNC(zdotu,ZDOTU)(complex_double*,F_INT*,complex_double*,F_INT*,complex_double*,F_INT* );
-extern void F_WRAPPEDFUNC(cdotc,CDOTC)(complex_float*,F_INT*,complex_float*,F_INT*,complex_float*,F_INT* );
-extern void F_WRAPPEDFUNC(zdotc,ZDOTC)(complex_double*,F_INT*,complex_double*,F_INT*,complex_double*,F_INT* );
-extern void F_WRAPPEDFUNC(snrm2,SNRM2)(float*,F_INT*,float*,F_INT* );
-extern void F_WRAPPEDFUNC(scnrm2,SCNRM2)(float*,F_INT*,complex_float*,F_INT* );
-extern void F_WRAPPEDFUNC(dnrm2,DNRM2)(double*,F_INT*,double*,F_INT* );
-extern void F_WRAPPEDFUNC(dznrm2,DZNRM2)(double*,F_INT*,complex_double*,F_INT* );
-extern void F_WRAPPEDFUNC(sasum,SASUM)(float*,F_INT*,float*,F_INT* );
-extern void F_WRAPPEDFUNC(scasum,SCASUM)(float*,F_INT*,complex_float*,F_INT* );
-extern void F_WRAPPEDFUNC(dasum,DASUM)(double*,F_INT*,double*,F_INT* );
-extern void F_WRAPPEDFUNC(dzasum,DZASUM)(double*,F_INT*,complex_double*,F_INT* );
+extern float F_FUNC(sdot,SDOT) (F_INT*,float*,F_INT*,float*,F_INT* );
+extern double F_FUNC(ddot,DDOT) (F_INT*,double*,F_INT*,double*,F_INT* );
+extern void F_FUNC(cdotuwrp ,CDOTUWRP )(complex_float*,F_INT*,complex_float*,F_INT*,complex_float*,F_INT* );
+extern void F_FUNC(zdotuwrp ,ZDOTUWRP )(complex_double*,F_INT*,complex_double*,F_INT*,complex_double*,F_INT* );
+extern void F_FUNC(cdotcwrp ,CDOTCWRP )(complex_float*,F_INT*,complex_float*,F_INT*,complex_float*,F_INT* );
+extern void F_FUNC(zdotcwrp ,ZDOTCWRP )(complex_double*,F_INT*,complex_double*,F_INT*,complex_double*,F_INT* );
+extern float F_FUNC(snrm2,SNRM2) (F_INT*,float*,F_INT* );
+extern float F_FUNC(scnrm2,SCNRM2) (F_INT*,complex_float*,F_INT* );
+extern double F_FUNC(dnrm2,DNRM2) (F_INT*,double*,F_INT* );
+extern double F_FUNC(dznrm2,DZNRM2) (F_INT*,complex_double*,F_INT* );
+extern float F_FUNC(sasum,SASUM) (F_INT*,float*,F_INT* );
+extern float F_FUNC(scasum,SCASUM) (F_INT*,complex_float*,F_INT* );
+extern double F_FUNC(dasum,DASUM) (F_INT*,double*,F_INT* );
+extern double F_FUNC(dzasum,DZASUM) (F_INT*,complex_double*,F_INT* );
 extern int F_FUNC(isamax,ISAMAX) (F_INT*,float*,F_INT* );
 extern int F_FUNC(idamax,IDAMAX) (F_INT*,double*,F_INT* );
 extern int F_FUNC(icamax,ICAMAX) (F_INT*,complex_float*,F_INT* );
@@ -5146,16 +5110,16 @@ xy = sdot(x,y,[n,offx,incx,offy,incy])\n\nWrapper for ``sdot``.\
 "incy : input int, optional\n    Default: 1\n"
 "\nReturns\n-------\n"
 "xy : float";
-/* extern void F_WRAPPEDFUNC(sdot,SDOT)(float*,F_INT*,float*,F_INT*,float*,F_INT* ); */
+/* extern float F_FUNC(sdot,SDOT) (F_INT*,float*,F_INT*,float*,F_INT* ); */
 static PyObject *f2py_rout__fblas_sdot(const PyObject *capi_self,
                            PyObject *capi_args,
                            PyObject *capi_keywds,
-                           void (*f2py_func)(float*,F_INT*,float*,F_INT*,float*,F_INT* )) {
+                           float (*f2py_func)(F_INT*,float*,F_INT*,float*,F_INT* )) {
     PyObject * volatile capi_buildvalue = NULL;
     volatile int f2py_success = 1;
 /*decl*/
 
-    float sdot = 0;
+    float sdot_return_value=0;
     int n = 0;
     PyObject *n_capi = Py_None;
     float *x = NULL;
@@ -5243,14 +5207,14 @@ f2py_start_clock();
     if (f2py_success) {
     CHECKSCALAR(len(y)-offy>(n-1)*abs(incy),"len(y)-offy>(n-1)*abs(incy)","1st keyword n","sdot:n=%d",n) {
     CHECKSCALAR(len(x)-offx>(n-1)*abs(incx),"len(x)-offx>(n-1)*abs(incx)","1st keyword n","sdot:n=%d",n) {
-    /* Processing variable sdot */
 /*end of frompyobj*/
 #ifdef F2PY_REPORT_ATEXIT
 f2py_start_call_clock();
 #endif
 /*callfortranroutine*/
-    (*f2py_func)(&sdot,&n,x+offx,&incx,y+offy,&incy) ;
-    /*(*f2py_func)(&sdot,&n,x,&offx,&incx,y,&offy,&incy);*/
+    sdot_return_value = (*f2py_func)(&n,x+offx,&incx,y+offy,&incy) ;
+/*    sdot_return_value = (*f2py_func)(&n,x,&offx,&incx,y,&offy,&incy);*/
+
 if (PyErr_Occurred())
   f2py_success = 0;
 #ifdef F2PY_REPORT_ATEXIT
@@ -5261,12 +5225,11 @@ f2py_stop_call_clock();
 /*pyobjfrom*/
 /*end of pyobjfrom*/
         CFUNCSMESS("Building return value.\n");
-        capi_buildvalue = Py_BuildValue("f",sdot);
+        capi_buildvalue = Py_BuildValue("f",sdot_return_value);
 /*closepyobjfrom*/
 /*end of closepyobjfrom*/
         } /*if (f2py_success) after callfortranroutine*/
 /*cleanupfrompyobj*/
-    /* End of cleaning variable sdot */
     } /*CHECKSCALAR(len(x)-offx>(n-1)*abs(incx))*/
     } /*CHECKSCALAR(len(y)-offy>(n-1)*abs(incy))*/
     } /*if (f2py_success) of n*/
@@ -5320,16 +5283,16 @@ xy = ddot(x,y,[n,offx,incx,offy,incy])\n\nWrapper for ``ddot``.\
 "incy : input int, optional\n    Default: 1\n"
 "\nReturns\n-------\n"
 "xy : float";
-/* extern void F_WRAPPEDFUNC(ddot,DDOT)(double*,F_INT*,double*,F_INT*,double*,F_INT* ); */
+/* extern double F_FUNC(ddot,DDOT) (F_INT*,double*,F_INT*,double*,F_INT* ); */
 static PyObject *f2py_rout__fblas_ddot(const PyObject *capi_self,
                            PyObject *capi_args,
                            PyObject *capi_keywds,
-                           void (*f2py_func)(double*,F_INT*,double*,F_INT*,double*,F_INT* )) {
+                           double (*f2py_func)(F_INT*,double*,F_INT*,double*,F_INT* )) {
     PyObject * volatile capi_buildvalue = NULL;
     volatile int f2py_success = 1;
 /*decl*/
 
-    double ddot = 0;
+    double ddot_return_value=0;
     int n = 0;
     PyObject *n_capi = Py_None;
     double *x = NULL;
@@ -5417,14 +5380,14 @@ f2py_start_clock();
     if (f2py_success) {
     CHECKSCALAR(len(y)-offy>(n-1)*abs(incy),"len(y)-offy>(n-1)*abs(incy)","1st keyword n","ddot:n=%d",n) {
     CHECKSCALAR(len(x)-offx>(n-1)*abs(incx),"len(x)-offx>(n-1)*abs(incx)","1st keyword n","ddot:n=%d",n) {
-    /* Processing variable ddot */
 /*end of frompyobj*/
 #ifdef F2PY_REPORT_ATEXIT
 f2py_start_call_clock();
 #endif
 /*callfortranroutine*/
-    (*f2py_func)(&ddot,&n,x+offx,&incx,y+offy,&incy) ;
-    /*(*f2py_func)(&ddot,&n,x,&offx,&incx,y,&offy,&incy);*/
+    ddot_return_value = (*f2py_func)(&n,x+offx,&incx,y+offy,&incy) ;
+/*    ddot_return_value = (*f2py_func)(&n,x,&offx,&incx,y,&offy,&incy);*/
+
 if (PyErr_Occurred())
   f2py_success = 0;
 #ifdef F2PY_REPORT_ATEXIT
@@ -5435,12 +5398,11 @@ f2py_stop_call_clock();
 /*pyobjfrom*/
 /*end of pyobjfrom*/
         CFUNCSMESS("Building return value.\n");
-        capi_buildvalue = Py_BuildValue("d",ddot);
+        capi_buildvalue = Py_BuildValue("d",ddot_return_value);
 /*closepyobjfrom*/
 /*end of closepyobjfrom*/
         } /*if (f2py_success) after callfortranroutine*/
 /*cleanupfrompyobj*/
-    /* End of cleaning variable ddot */
     } /*CHECKSCALAR(len(x)-offx>(n-1)*abs(incx))*/
     } /*CHECKSCALAR(len(y)-offy>(n-1)*abs(incy))*/
     } /*if (f2py_success) of n*/
@@ -5494,7 +5456,7 @@ xy = cdotu(x,y,[n,offx,incx,offy,incy])\n\nWrapper for ``cdotu``.\
 "incy : input int, optional\n    Default: 1\n"
 "\nReturns\n-------\n"
 "xy : complex";
-/* extern void F_WRAPPEDFUNC(cdotu,CDOTU)(complex_float*,F_INT*,complex_float*,F_INT*,complex_float*,F_INT* ); */
+/* extern void F_FUNC(cdotuwrp ,CDOTUWRP )(complex_float*,F_INT*,complex_float*,F_INT*,complex_float*,F_INT* ); */
 static PyObject *f2py_rout__fblas_cdotu(const PyObject *capi_self,
                            PyObject *capi_args,
                            PyObject *capi_keywds,
@@ -5503,8 +5465,6 @@ static PyObject *f2py_rout__fblas_cdotu(const PyObject *capi_self,
     volatile int f2py_success = 1;
 /*decl*/
 
-    complex_float cdotu;
-    PyObject *cdotu_capi = Py_None;
     int n = 0;
     PyObject *n_capi = Py_None;
     complex_float *x = NULL;
@@ -5527,6 +5487,8 @@ static PyObject *f2py_rout__fblas_cdotu(const PyObject *capi_self,
     PyObject *offy_capi = Py_None;
     int incy = 0;
     PyObject *incy_capi = Py_None;
+    complex_float xy;
+    PyObject *xy_capi = Py_None;
     static char *capi_kwlist[] = {"x","y","n","offx","incx","offy","incy",NULL};
 
 /*routdebugenter*/
@@ -5538,6 +5500,7 @@ f2py_start_clock();
         capi_kwlist,&x_capi,&y_capi,&n_capi,&offx_capi,&incx_capi,&offy_capi,&incy_capi))
         return NULL;
 /*frompyobj*/
+    /* Processing variable xy */
     /* Processing variable x */
     ;
     capi_x_intent |= F2PY_INTENT_IN;
@@ -5592,14 +5555,13 @@ f2py_start_clock();
     if (f2py_success) {
     CHECKSCALAR(len(y)-offy>(n-1)*abs(incy),"len(y)-offy>(n-1)*abs(incy)","1st keyword n","cdotu:n=%d",n) {
     CHECKSCALAR(len(x)-offx>(n-1)*abs(incx),"len(x)-offx>(n-1)*abs(incx)","1st keyword n","cdotu:n=%d",n) {
-    /* Processing variable cdotu */
 /*end of frompyobj*/
 #ifdef F2PY_REPORT_ATEXIT
 f2py_start_call_clock();
 #endif
 /*callfortranroutine*/
-    (*f2py_func)(&cdotu,&n,x+offx,&incx,y+offy,&incy) ;
-    /*(*f2py_func)(&cdotu,&n,x,&offx,&incx,y,&offy,&incy);*/
+                (*f2py_func)(&xy,&n,x+offx,&incx,y+offy,&incy) ;
+                /*(*f2py_func)(&n,x,&offx,&incx,y,&offy,&incy,&xy);*/
 if (PyErr_Occurred())
   f2py_success = 0;
 #ifdef F2PY_REPORT_ATEXIT
@@ -5608,15 +5570,14 @@ f2py_stop_call_clock();
 /*end of callfortranroutine*/
         if (f2py_success) {
 /*pyobjfrom*/
-    cdotu_capi = pyobj_from_complex_float1(cdotu);
+    xy_capi = pyobj_from_complex_float1(xy);
 /*end of pyobjfrom*/
         CFUNCSMESS("Building return value.\n");
-        capi_buildvalue = Py_BuildValue("N",cdotu_capi);
+        capi_buildvalue = Py_BuildValue("N",xy_capi);
 /*closepyobjfrom*/
 /*end of closepyobjfrom*/
         } /*if (f2py_success) after callfortranroutine*/
 /*cleanupfrompyobj*/
-    /* End of cleaning variable cdotu */
     } /*CHECKSCALAR(len(x)-offx>(n-1)*abs(incx))*/
     } /*CHECKSCALAR(len(y)-offy>(n-1)*abs(incy))*/
     } /*if (f2py_success) of n*/
@@ -5641,6 +5602,7 @@ f2py_stop_call_clock();
         Py_XDECREF(capi_x_as_array); }
     }  /* if (capi_x_as_array == NULL) ... else of x */
     /* End of cleaning variable x */
+    /* End of cleaning variable xy */
 /*end of cleanupfrompyobj*/
     if (capi_buildvalue == NULL) {
 /*routdebugfailure*/
@@ -5670,7 +5632,7 @@ xy = zdotu(x,y,[n,offx,incx,offy,incy])\n\nWrapper for ``zdotu``.\
 "incy : input int, optional\n    Default: 1\n"
 "\nReturns\n-------\n"
 "xy : complex";
-/* extern void F_WRAPPEDFUNC(zdotu,ZDOTU)(complex_double*,F_INT*,complex_double*,F_INT*,complex_double*,F_INT* ); */
+/* extern void F_FUNC(zdotuwrp ,ZDOTUWRP )(complex_double*,F_INT*,complex_double*,F_INT*,complex_double*,F_INT* ); */
 static PyObject *f2py_rout__fblas_zdotu(const PyObject *capi_self,
                            PyObject *capi_args,
                            PyObject *capi_keywds,
@@ -5679,8 +5641,6 @@ static PyObject *f2py_rout__fblas_zdotu(const PyObject *capi_self,
     volatile int f2py_success = 1;
 /*decl*/
 
-    complex_double zdotu;
-    PyObject *zdotu_capi = Py_None;
     int n = 0;
     PyObject *n_capi = Py_None;
     complex_double *x = NULL;
@@ -5703,6 +5663,8 @@ static PyObject *f2py_rout__fblas_zdotu(const PyObject *capi_self,
     PyObject *offy_capi = Py_None;
     int incy = 0;
     PyObject *incy_capi = Py_None;
+    complex_double xy;
+    PyObject *xy_capi = Py_None;
     static char *capi_kwlist[] = {"x","y","n","offx","incx","offy","incy",NULL};
 
 /*routdebugenter*/
@@ -5714,6 +5676,7 @@ f2py_start_clock();
         capi_kwlist,&x_capi,&y_capi,&n_capi,&offx_capi,&incx_capi,&offy_capi,&incy_capi))
         return NULL;
 /*frompyobj*/
+    /* Processing variable xy */
     /* Processing variable x */
     ;
     capi_x_intent |= F2PY_INTENT_IN;
@@ -5768,14 +5731,13 @@ f2py_start_clock();
     if (f2py_success) {
     CHECKSCALAR(len(y)-offy>(n-1)*abs(incy),"len(y)-offy>(n-1)*abs(incy)","1st keyword n","zdotu:n=%d",n) {
     CHECKSCALAR(len(x)-offx>(n-1)*abs(incx),"len(x)-offx>(n-1)*abs(incx)","1st keyword n","zdotu:n=%d",n) {
-    /* Processing variable zdotu */
 /*end of frompyobj*/
 #ifdef F2PY_REPORT_ATEXIT
 f2py_start_call_clock();
 #endif
 /*callfortranroutine*/
-    (*f2py_func)(&zdotu,&n,x+offx,&incx,y+offy,&incy) ;
-    /*(*f2py_func)(&zdotu,&n,x,&offx,&incx,y,&offy,&incy);*/
+                (*f2py_func)(&xy,&n,x+offx,&incx,y+offy,&incy) ;
+                /*(*f2py_func)(&n,x,&offx,&incx,y,&offy,&incy,&xy);*/
 if (PyErr_Occurred())
   f2py_success = 0;
 #ifdef F2PY_REPORT_ATEXIT
@@ -5784,15 +5746,14 @@ f2py_stop_call_clock();
 /*end of callfortranroutine*/
         if (f2py_success) {
 /*pyobjfrom*/
-    zdotu_capi = pyobj_from_complex_double1(zdotu);
+    xy_capi = pyobj_from_complex_double1(xy);
 /*end of pyobjfrom*/
         CFUNCSMESS("Building return value.\n");
-        capi_buildvalue = Py_BuildValue("N",zdotu_capi);
+        capi_buildvalue = Py_BuildValue("N",xy_capi);
 /*closepyobjfrom*/
 /*end of closepyobjfrom*/
         } /*if (f2py_success) after callfortranroutine*/
 /*cleanupfrompyobj*/
-    /* End of cleaning variable zdotu */
     } /*CHECKSCALAR(len(x)-offx>(n-1)*abs(incx))*/
     } /*CHECKSCALAR(len(y)-offy>(n-1)*abs(incy))*/
     } /*if (f2py_success) of n*/
@@ -5817,6 +5778,7 @@ f2py_stop_call_clock();
         Py_XDECREF(capi_x_as_array); }
     }  /* if (capi_x_as_array == NULL) ... else of x */
     /* End of cleaning variable x */
+    /* End of cleaning variable xy */
 /*end of cleanupfrompyobj*/
     if (capi_buildvalue == NULL) {
 /*routdebugfailure*/
@@ -5846,7 +5808,7 @@ xy = cdotc(x,y,[n,offx,incx,offy,incy])\n\nWrapper for ``cdotc``.\
 "incy : input int, optional\n    Default: 1\n"
 "\nReturns\n-------\n"
 "xy : complex";
-/* extern void F_WRAPPEDFUNC(cdotc,CDOTC)(complex_float*,F_INT*,complex_float*,F_INT*,complex_float*,F_INT* ); */
+/* extern void F_FUNC(cdotcwrp ,CDOTCWRP )(complex_float*,F_INT*,complex_float*,F_INT*,complex_float*,F_INT* ); */
 static PyObject *f2py_rout__fblas_cdotc(const PyObject *capi_self,
                            PyObject *capi_args,
                            PyObject *capi_keywds,
@@ -5855,8 +5817,6 @@ static PyObject *f2py_rout__fblas_cdotc(const PyObject *capi_self,
     volatile int f2py_success = 1;
 /*decl*/
 
-    complex_float cdotc;
-    PyObject *cdotc_capi = Py_None;
     int n = 0;
     PyObject *n_capi = Py_None;
     complex_float *x = NULL;
@@ -5879,6 +5839,8 @@ static PyObject *f2py_rout__fblas_cdotc(const PyObject *capi_self,
     PyObject *offy_capi = Py_None;
     int incy = 0;
     PyObject *incy_capi = Py_None;
+    complex_float xy;
+    PyObject *xy_capi = Py_None;
     static char *capi_kwlist[] = {"x","y","n","offx","incx","offy","incy",NULL};
 
 /*routdebugenter*/
@@ -5890,6 +5852,7 @@ f2py_start_clock();
         capi_kwlist,&x_capi,&y_capi,&n_capi,&offx_capi,&incx_capi,&offy_capi,&incy_capi))
         return NULL;
 /*frompyobj*/
+    /* Processing variable xy */
     /* Processing variable x */
     ;
     capi_x_intent |= F2PY_INTENT_IN;
@@ -5944,14 +5907,13 @@ f2py_start_clock();
     if (f2py_success) {
     CHECKSCALAR(len(y)-offy>(n-1)*abs(incy),"len(y)-offy>(n-1)*abs(incy)","1st keyword n","cdotc:n=%d",n) {
     CHECKSCALAR(len(x)-offx>(n-1)*abs(incx),"len(x)-offx>(n-1)*abs(incx)","1st keyword n","cdotc:n=%d",n) {
-    /* Processing variable cdotc */
 /*end of frompyobj*/
 #ifdef F2PY_REPORT_ATEXIT
 f2py_start_call_clock();
 #endif
 /*callfortranroutine*/
-    (*f2py_func)(&cdotc,&n,x+offx,&incx,y+offy,&incy) ;
-    /*(*f2py_func)(&cdotc,&n,x,&offx,&incx,y,&offy,&incy);*/
+                (*f2py_func)(&xy,&n,x+offx,&incx,y+offy,&incy) ;
+                /*(*f2py_func)(&n,x,&offx,&incx,y,&offy,&incy,&xy);*/
 if (PyErr_Occurred())
   f2py_success = 0;
 #ifdef F2PY_REPORT_ATEXIT
@@ -5960,15 +5922,14 @@ f2py_stop_call_clock();
 /*end of callfortranroutine*/
         if (f2py_success) {
 /*pyobjfrom*/
-    cdotc_capi = pyobj_from_complex_float1(cdotc);
+    xy_capi = pyobj_from_complex_float1(xy);
 /*end of pyobjfrom*/
         CFUNCSMESS("Building return value.\n");
-        capi_buildvalue = Py_BuildValue("N",cdotc_capi);
+        capi_buildvalue = Py_BuildValue("N",xy_capi);
 /*closepyobjfrom*/
 /*end of closepyobjfrom*/
         } /*if (f2py_success) after callfortranroutine*/
 /*cleanupfrompyobj*/
-    /* End of cleaning variable cdotc */
     } /*CHECKSCALAR(len(x)-offx>(n-1)*abs(incx))*/
     } /*CHECKSCALAR(len(y)-offy>(n-1)*abs(incy))*/
     } /*if (f2py_success) of n*/
@@ -5993,6 +5954,7 @@ f2py_stop_call_clock();
         Py_XDECREF(capi_x_as_array); }
     }  /* if (capi_x_as_array == NULL) ... else of x */
     /* End of cleaning variable x */
+    /* End of cleaning variable xy */
 /*end of cleanupfrompyobj*/
     if (capi_buildvalue == NULL) {
 /*routdebugfailure*/
@@ -6022,7 +5984,7 @@ xy = zdotc(x,y,[n,offx,incx,offy,incy])\n\nWrapper for ``zdotc``.\
 "incy : input int, optional\n    Default: 1\n"
 "\nReturns\n-------\n"
 "xy : complex";
-/* extern void F_WRAPPEDFUNC(zdotc,ZDOTC)(complex_double*,F_INT*,complex_double*,F_INT*,complex_double*,F_INT* ); */
+/* extern void F_FUNC(zdotcwrp ,ZDOTCWRP )(complex_double*,F_INT*,complex_double*,F_INT*,complex_double*,F_INT* ); */
 static PyObject *f2py_rout__fblas_zdotc(const PyObject *capi_self,
                            PyObject *capi_args,
                            PyObject *capi_keywds,
@@ -6031,8 +5993,6 @@ static PyObject *f2py_rout__fblas_zdotc(const PyObject *capi_self,
     volatile int f2py_success = 1;
 /*decl*/
 
-    complex_double zdotc;
-    PyObject *zdotc_capi = Py_None;
     int n = 0;
     PyObject *n_capi = Py_None;
     complex_double *x = NULL;
@@ -6055,6 +6015,8 @@ static PyObject *f2py_rout__fblas_zdotc(const PyObject *capi_self,
     PyObject *offy_capi = Py_None;
     int incy = 0;
     PyObject *incy_capi = Py_None;
+    complex_double xy;
+    PyObject *xy_capi = Py_None;
     static char *capi_kwlist[] = {"x","y","n","offx","incx","offy","incy",NULL};
 
 /*routdebugenter*/
@@ -6066,6 +6028,7 @@ f2py_start_clock();
         capi_kwlist,&x_capi,&y_capi,&n_capi,&offx_capi,&incx_capi,&offy_capi,&incy_capi))
         return NULL;
 /*frompyobj*/
+    /* Processing variable xy */
     /* Processing variable x */
     ;
     capi_x_intent |= F2PY_INTENT_IN;
@@ -6120,14 +6083,13 @@ f2py_start_clock();
     if (f2py_success) {
     CHECKSCALAR(len(y)-offy>(n-1)*abs(incy),"len(y)-offy>(n-1)*abs(incy)","1st keyword n","zdotc:n=%d",n) {
     CHECKSCALAR(len(x)-offx>(n-1)*abs(incx),"len(x)-offx>(n-1)*abs(incx)","1st keyword n","zdotc:n=%d",n) {
-    /* Processing variable zdotc */
 /*end of frompyobj*/
 #ifdef F2PY_REPORT_ATEXIT
 f2py_start_call_clock();
 #endif
 /*callfortranroutine*/
-    (*f2py_func)(&zdotc,&n,x+offx,&incx,y+offy,&incy) ;
-    /*(*f2py_func)(&zdotc,&n,x,&offx,&incx,y,&offy,&incy);*/
+                (*f2py_func)(&xy,&n,x+offx,&incx,y+offy,&incy) ;
+                /*(*f2py_func)(&n,x,&offx,&incx,y,&offy,&incy,&xy);*/
 if (PyErr_Occurred())
   f2py_success = 0;
 #ifdef F2PY_REPORT_ATEXIT
@@ -6136,15 +6098,14 @@ f2py_stop_call_clock();
 /*end of callfortranroutine*/
         if (f2py_success) {
 /*pyobjfrom*/
-    zdotc_capi = pyobj_from_complex_double1(zdotc);
+    xy_capi = pyobj_from_complex_double1(xy);
 /*end of pyobjfrom*/
         CFUNCSMESS("Building return value.\n");
-        capi_buildvalue = Py_BuildValue("N",zdotc_capi);
+        capi_buildvalue = Py_BuildValue("N",xy_capi);
 /*closepyobjfrom*/
 /*end of closepyobjfrom*/
         } /*if (f2py_success) after callfortranroutine*/
 /*cleanupfrompyobj*/
-    /* End of cleaning variable zdotc */
     } /*CHECKSCALAR(len(x)-offx>(n-1)*abs(incx))*/
     } /*CHECKSCALAR(len(y)-offy>(n-1)*abs(incy))*/
     } /*if (f2py_success) of n*/
@@ -6169,6 +6130,7 @@ f2py_stop_call_clock();
         Py_XDECREF(capi_x_as_array); }
     }  /* if (capi_x_as_array == NULL) ... else of x */
     /* End of cleaning variable x */
+    /* End of cleaning variable xy */
 /*end of cleanupfrompyobj*/
     if (capi_buildvalue == NULL) {
 /*routdebugfailure*/
@@ -6195,16 +6157,16 @@ n2 = snrm2(x,[n,offx,incx])\n\nWrapper for ``snrm2``.\
 "incx : input int, optional\n    Default: 1\n"
 "\nReturns\n-------\n"
 "n2 : float";
-/* extern void F_WRAPPEDFUNC(snrm2,SNRM2)(float*,F_INT*,float*,F_INT* ); */
+/* extern float F_FUNC(snrm2,SNRM2) (F_INT*,float*,F_INT* ); */
 static PyObject *f2py_rout__fblas_snrm2(const PyObject *capi_self,
                            PyObject *capi_args,
                            PyObject *capi_keywds,
-                           void (*f2py_func)(float*,F_INT*,float*,F_INT* )) {
+                           float (*f2py_func)(F_INT*,float*,F_INT* )) {
     PyObject * volatile capi_buildvalue = NULL;
     volatile int f2py_success = 1;
 /*decl*/
 
-    float snrm2 = 0;
+    float snrm2_return_value=0;
     int n = 0;
     PyObject *n_capi = Py_None;
     float *x = NULL;
@@ -6246,7 +6208,7 @@ f2py_start_clock();
     if (incx_capi == Py_None) incx = 1; else
         f2py_success = int_from_pyobj(&incx,incx_capi,"_fblas.snrm2() 3rd keyword (incx) can't be converted to int");
     if (f2py_success) {
-    CHECKSCALAR(incx>0||incx<0,"incx>0||incx<0","3rd keyword incx","snrm2:incx=%d",incx) {
+    CHECKSCALAR(incx>0,"incx>0","3rd keyword incx","snrm2:incx=%d",incx) {
     /* Processing variable offx */
     if (offx_capi == Py_None) offx = 0; else
         f2py_success = int_from_pyobj(&offx,offx_capi,"_fblas.snrm2() 2nd keyword (offx) can't be converted to int");
@@ -6257,14 +6219,14 @@ f2py_start_clock();
         f2py_success = int_from_pyobj(&n,n_capi,"_fblas.snrm2() 1st keyword (n) can't be converted to int");
     if (f2py_success) {
     CHECKSCALAR(len(x)-offx>(n-1)*abs(incx),"len(x)-offx>(n-1)*abs(incx)","1st keyword n","snrm2:n=%d",n) {
-    /* Processing variable snrm2 */
 /*end of frompyobj*/
 #ifdef F2PY_REPORT_ATEXIT
 f2py_start_call_clock();
 #endif
 /*callfortranroutine*/
-    (*f2py_func)(&snrm2, &n,x+offx,&incx) ;
-    /*(*f2py_func)(&snrm2,&n,x,&offx,&incx);*/
+    snrm2_return_value = (*f2py_func)(&n,x+offx,&incx) ;
+/*    snrm2_return_value = (*f2py_func)(&n,x,&offx,&incx);*/
+
 if (PyErr_Occurred())
   f2py_success = 0;
 #ifdef F2PY_REPORT_ATEXIT
@@ -6275,19 +6237,18 @@ f2py_stop_call_clock();
 /*pyobjfrom*/
 /*end of pyobjfrom*/
         CFUNCSMESS("Building return value.\n");
-        capi_buildvalue = Py_BuildValue("f",snrm2);
+        capi_buildvalue = Py_BuildValue("f",snrm2_return_value);
 /*closepyobjfrom*/
 /*end of closepyobjfrom*/
         } /*if (f2py_success) after callfortranroutine*/
 /*cleanupfrompyobj*/
-    /* End of cleaning variable snrm2 */
     } /*CHECKSCALAR(len(x)-offx>(n-1)*abs(incx))*/
     } /*if (f2py_success) of n*/
     /* End of cleaning variable n */
     } /*CHECKSCALAR(offx>=0 && offx<len(x))*/
     } /*if (f2py_success) of offx*/
     /* End of cleaning variable offx */
-    } /*CHECKSCALAR(incx>0||incx<0)*/
+    } /*CHECKSCALAR(incx>0)*/
     } /*if (f2py_success) of incx*/
     /* End of cleaning variable incx */
     if((PyObject *)capi_x_as_array!=x_capi) {
@@ -6320,16 +6281,16 @@ n2 = scnrm2(x,[n,offx,incx])\n\nWrapper for ``scnrm2``.\
 "incx : input int, optional\n    Default: 1\n"
 "\nReturns\n-------\n"
 "n2 : float";
-/* extern void F_WRAPPEDFUNC(scnrm2,SCNRM2)(float*,F_INT*,complex_float*,F_INT* ); */
+/* extern float F_FUNC(scnrm2,SCNRM2) (F_INT*,complex_float*,F_INT* ); */
 static PyObject *f2py_rout__fblas_scnrm2(const PyObject *capi_self,
                            PyObject *capi_args,
                            PyObject *capi_keywds,
-                           void (*f2py_func)(float*,F_INT*,complex_float*,F_INT* )) {
+                           float (*f2py_func)(F_INT*,complex_float*,F_INT* )) {
     PyObject * volatile capi_buildvalue = NULL;
     volatile int f2py_success = 1;
 /*decl*/
 
-    float scnrm2 = 0;
+    float scnrm2_return_value=0;
     int n = 0;
     PyObject *n_capi = Py_None;
     complex_float *x = NULL;
@@ -6371,7 +6332,7 @@ f2py_start_clock();
     if (incx_capi == Py_None) incx = 1; else
         f2py_success = int_from_pyobj(&incx,incx_capi,"_fblas.scnrm2() 3rd keyword (incx) can't be converted to int");
     if (f2py_success) {
-    CHECKSCALAR(incx>0||incx<0,"incx>0||incx<0","3rd keyword incx","scnrm2:incx=%d",incx) {
+    CHECKSCALAR(incx>0,"incx>0","3rd keyword incx","scnrm2:incx=%d",incx) {
     /* Processing variable offx */
     if (offx_capi == Py_None) offx = 0; else
         f2py_success = int_from_pyobj(&offx,offx_capi,"_fblas.scnrm2() 2nd keyword (offx) can't be converted to int");
@@ -6382,14 +6343,14 @@ f2py_start_clock();
         f2py_success = int_from_pyobj(&n,n_capi,"_fblas.scnrm2() 1st keyword (n) can't be converted to int");
     if (f2py_success) {
     CHECKSCALAR(len(x)-offx>(n-1)*abs(incx),"len(x)-offx>(n-1)*abs(incx)","1st keyword n","scnrm2:n=%d",n) {
-    /* Processing variable scnrm2 */
 /*end of frompyobj*/
 #ifdef F2PY_REPORT_ATEXIT
 f2py_start_call_clock();
 #endif
 /*callfortranroutine*/
-    (*f2py_func)(&scnrm2, &n,x+offx,&incx) ;
-    /*(*f2py_func)(&scnrm2,&n,x,&offx,&incx);*/
+    scnrm2_return_value = (*f2py_func)(&n,x+offx,&incx) ;
+/*    scnrm2_return_value = (*f2py_func)(&n,x,&offx,&incx);*/
+
 if (PyErr_Occurred())
   f2py_success = 0;
 #ifdef F2PY_REPORT_ATEXIT
@@ -6400,19 +6361,18 @@ f2py_stop_call_clock();
 /*pyobjfrom*/
 /*end of pyobjfrom*/
         CFUNCSMESS("Building return value.\n");
-        capi_buildvalue = Py_BuildValue("f",scnrm2);
+        capi_buildvalue = Py_BuildValue("f",scnrm2_return_value);
 /*closepyobjfrom*/
 /*end of closepyobjfrom*/
         } /*if (f2py_success) after callfortranroutine*/
 /*cleanupfrompyobj*/
-    /* End of cleaning variable scnrm2 */
     } /*CHECKSCALAR(len(x)-offx>(n-1)*abs(incx))*/
     } /*if (f2py_success) of n*/
     /* End of cleaning variable n */
     } /*CHECKSCALAR(offx>=0 && offx<len(x))*/
     } /*if (f2py_success) of offx*/
     /* End of cleaning variable offx */
-    } /*CHECKSCALAR(incx>0||incx<0)*/
+    } /*CHECKSCALAR(incx>0)*/
     } /*if (f2py_success) of incx*/
     /* End of cleaning variable incx */
     if((PyObject *)capi_x_as_array!=x_capi) {
@@ -6445,16 +6405,16 @@ n2 = dnrm2(x,[n,offx,incx])\n\nWrapper for ``dnrm2``.\
 "incx : input int, optional\n    Default: 1\n"
 "\nReturns\n-------\n"
 "n2 : float";
-/* extern void F_WRAPPEDFUNC(dnrm2,DNRM2)(double*,F_INT*,double*,F_INT* ); */
+/* extern double F_FUNC(dnrm2,DNRM2) (F_INT*,double*,F_INT* ); */
 static PyObject *f2py_rout__fblas_dnrm2(const PyObject *capi_self,
                            PyObject *capi_args,
                            PyObject *capi_keywds,
-                           void (*f2py_func)(double*,F_INT*,double*,F_INT* )) {
+                           double (*f2py_func)(F_INT*,double*,F_INT* )) {
     PyObject * volatile capi_buildvalue = NULL;
     volatile int f2py_success = 1;
 /*decl*/
 
-    double dnrm2 = 0;
+    double dnrm2_return_value=0;
     int n = 0;
     PyObject *n_capi = Py_None;
     double *x = NULL;
@@ -6496,7 +6456,7 @@ f2py_start_clock();
     if (incx_capi == Py_None) incx = 1; else
         f2py_success = int_from_pyobj(&incx,incx_capi,"_fblas.dnrm2() 3rd keyword (incx) can't be converted to int");
     if (f2py_success) {
-    CHECKSCALAR(incx>0||incx<0,"incx>0||incx<0","3rd keyword incx","dnrm2:incx=%d",incx) {
+    CHECKSCALAR(incx>0,"incx>0","3rd keyword incx","dnrm2:incx=%d",incx) {
     /* Processing variable offx */
     if (offx_capi == Py_None) offx = 0; else
         f2py_success = int_from_pyobj(&offx,offx_capi,"_fblas.dnrm2() 2nd keyword (offx) can't be converted to int");
@@ -6507,14 +6467,14 @@ f2py_start_clock();
         f2py_success = int_from_pyobj(&n,n_capi,"_fblas.dnrm2() 1st keyword (n) can't be converted to int");
     if (f2py_success) {
     CHECKSCALAR(len(x)-offx>(n-1)*abs(incx),"len(x)-offx>(n-1)*abs(incx)","1st keyword n","dnrm2:n=%d",n) {
-    /* Processing variable dnrm2 */
 /*end of frompyobj*/
 #ifdef F2PY_REPORT_ATEXIT
 f2py_start_call_clock();
 #endif
 /*callfortranroutine*/
-    (*f2py_func)(&dnrm2, &n,x+offx,&incx) ;
-    /*(*f2py_func)(&dnrm2,&n,x,&offx,&incx);*/
+    dnrm2_return_value = (*f2py_func)(&n,x+offx,&incx) ;
+/*    dnrm2_return_value = (*f2py_func)(&n,x,&offx,&incx);*/
+
 if (PyErr_Occurred())
   f2py_success = 0;
 #ifdef F2PY_REPORT_ATEXIT
@@ -6525,19 +6485,18 @@ f2py_stop_call_clock();
 /*pyobjfrom*/
 /*end of pyobjfrom*/
         CFUNCSMESS("Building return value.\n");
-        capi_buildvalue = Py_BuildValue("d",dnrm2);
+        capi_buildvalue = Py_BuildValue("d",dnrm2_return_value);
 /*closepyobjfrom*/
 /*end of closepyobjfrom*/
         } /*if (f2py_success) after callfortranroutine*/
 /*cleanupfrompyobj*/
-    /* End of cleaning variable dnrm2 */
     } /*CHECKSCALAR(len(x)-offx>(n-1)*abs(incx))*/
     } /*if (f2py_success) of n*/
     /* End of cleaning variable n */
     } /*CHECKSCALAR(offx>=0 && offx<len(x))*/
     } /*if (f2py_success) of offx*/
     /* End of cleaning variable offx */
-    } /*CHECKSCALAR(incx>0||incx<0)*/
+    } /*CHECKSCALAR(incx>0)*/
     } /*if (f2py_success) of incx*/
     /* End of cleaning variable incx */
     if((PyObject *)capi_x_as_array!=x_capi) {
@@ -6570,16 +6529,16 @@ n2 = dznrm2(x,[n,offx,incx])\n\nWrapper for ``dznrm2``.\
 "incx : input int, optional\n    Default: 1\n"
 "\nReturns\n-------\n"
 "n2 : float";
-/* extern void F_WRAPPEDFUNC(dznrm2,DZNRM2)(double*,F_INT*,complex_double*,F_INT* ); */
+/* extern double F_FUNC(dznrm2,DZNRM2) (F_INT*,complex_double*,F_INT* ); */
 static PyObject *f2py_rout__fblas_dznrm2(const PyObject *capi_self,
                            PyObject *capi_args,
                            PyObject *capi_keywds,
-                           void (*f2py_func)(double*,F_INT*,complex_double*,F_INT* )) {
+                           double (*f2py_func)(F_INT*,complex_double*,F_INT* )) {
     PyObject * volatile capi_buildvalue = NULL;
     volatile int f2py_success = 1;
 /*decl*/
 
-    double dznrm2 = 0;
+    double dznrm2_return_value=0;
     int n = 0;
     PyObject *n_capi = Py_None;
     complex_double *x = NULL;
@@ -6621,7 +6580,7 @@ f2py_start_clock();
     if (incx_capi == Py_None) incx = 1; else
         f2py_success = int_from_pyobj(&incx,incx_capi,"_fblas.dznrm2() 3rd keyword (incx) can't be converted to int");
     if (f2py_success) {
-    CHECKSCALAR(incx>0||incx<0,"incx>0||incx<0","3rd keyword incx","dznrm2:incx=%d",incx) {
+    CHECKSCALAR(incx>0,"incx>0","3rd keyword incx","dznrm2:incx=%d",incx) {
     /* Processing variable offx */
     if (offx_capi == Py_None) offx = 0; else
         f2py_success = int_from_pyobj(&offx,offx_capi,"_fblas.dznrm2() 2nd keyword (offx) can't be converted to int");
@@ -6632,14 +6591,14 @@ f2py_start_clock();
         f2py_success = int_from_pyobj(&n,n_capi,"_fblas.dznrm2() 1st keyword (n) can't be converted to int");
     if (f2py_success) {
     CHECKSCALAR(len(x)-offx>(n-1)*abs(incx),"len(x)-offx>(n-1)*abs(incx)","1st keyword n","dznrm2:n=%d",n) {
-    /* Processing variable dznrm2 */
 /*end of frompyobj*/
 #ifdef F2PY_REPORT_ATEXIT
 f2py_start_call_clock();
 #endif
 /*callfortranroutine*/
-    (*f2py_func)(&dznrm2, &n,x+offx,&incx) ;
-    /*(*f2py_func)(&dznrm2,&n,x,&offx,&incx);*/
+    dznrm2_return_value = (*f2py_func)(&n,x+offx,&incx) ;
+/*    dznrm2_return_value = (*f2py_func)(&n,x,&offx,&incx);*/
+
 if (PyErr_Occurred())
   f2py_success = 0;
 #ifdef F2PY_REPORT_ATEXIT
@@ -6650,19 +6609,18 @@ f2py_stop_call_clock();
 /*pyobjfrom*/
 /*end of pyobjfrom*/
         CFUNCSMESS("Building return value.\n");
-        capi_buildvalue = Py_BuildValue("d",dznrm2);
+        capi_buildvalue = Py_BuildValue("d",dznrm2_return_value);
 /*closepyobjfrom*/
 /*end of closepyobjfrom*/
         } /*if (f2py_success) after callfortranroutine*/
 /*cleanupfrompyobj*/
-    /* End of cleaning variable dznrm2 */
     } /*CHECKSCALAR(len(x)-offx>(n-1)*abs(incx))*/
     } /*if (f2py_success) of n*/
     /* End of cleaning variable n */
     } /*CHECKSCALAR(offx>=0 && offx<len(x))*/
     } /*if (f2py_success) of offx*/
     /* End of cleaning variable offx */
-    } /*CHECKSCALAR(incx>0||incx<0)*/
+    } /*CHECKSCALAR(incx>0)*/
     } /*if (f2py_success) of incx*/
     /* End of cleaning variable incx */
     if((PyObject *)capi_x_as_array!=x_capi) {
@@ -6695,16 +6653,16 @@ s = sasum(x,[n,offx,incx])\n\nWrapper for ``sasum``.\
 "incx : input int, optional\n    Default: 1\n"
 "\nReturns\n-------\n"
 "s : float";
-/* extern void F_WRAPPEDFUNC(sasum,SASUM)(float*,F_INT*,float*,F_INT* ); */
+/* extern float F_FUNC(sasum,SASUM) (F_INT*,float*,F_INT* ); */
 static PyObject *f2py_rout__fblas_sasum(const PyObject *capi_self,
                            PyObject *capi_args,
                            PyObject *capi_keywds,
-                           void (*f2py_func)(float*,F_INT*,float*,F_INT* )) {
+                           float (*f2py_func)(F_INT*,float*,F_INT* )) {
     PyObject * volatile capi_buildvalue = NULL;
     volatile int f2py_success = 1;
 /*decl*/
 
-    float sasum = 0;
+    float sasum_return_value=0;
     int n = 0;
     PyObject *n_capi = Py_None;
     float *x = NULL;
@@ -6757,14 +6715,14 @@ f2py_start_clock();
         f2py_success = int_from_pyobj(&n,n_capi,"_fblas.sasum() 1st keyword (n) can't be converted to int");
     if (f2py_success) {
     CHECKSCALAR(len(x)-offx>(n-1)*abs(incx),"len(x)-offx>(n-1)*abs(incx)","1st keyword n","sasum:n=%d",n) {
-    /* Processing variable sasum */
 /*end of frompyobj*/
 #ifdef F2PY_REPORT_ATEXIT
 f2py_start_call_clock();
 #endif
 /*callfortranroutine*/
-    (*f2py_func)(&sasum,&n,x+offx,&incx) ;
-    /*(*f2py_func)(&sasum,&n,x,&offx,&incx);*/
+    sasum_return_value = (*f2py_func)(&n,x+offx,&incx) ;
+/*    sasum_return_value = (*f2py_func)(&n,x,&offx,&incx);*/
+
 if (PyErr_Occurred())
   f2py_success = 0;
 #ifdef F2PY_REPORT_ATEXIT
@@ -6775,12 +6733,11 @@ f2py_stop_call_clock();
 /*pyobjfrom*/
 /*end of pyobjfrom*/
         CFUNCSMESS("Building return value.\n");
-        capi_buildvalue = Py_BuildValue("f",sasum);
+        capi_buildvalue = Py_BuildValue("f",sasum_return_value);
 /*closepyobjfrom*/
 /*end of closepyobjfrom*/
         } /*if (f2py_success) after callfortranroutine*/
 /*cleanupfrompyobj*/
-    /* End of cleaning variable sasum */
     } /*CHECKSCALAR(len(x)-offx>(n-1)*abs(incx))*/
     } /*if (f2py_success) of n*/
     /* End of cleaning variable n */
@@ -6820,16 +6777,16 @@ s = scasum(x,[n,offx,incx])\n\nWrapper for ``scasum``.\
 "incx : input int, optional\n    Default: 1\n"
 "\nReturns\n-------\n"
 "s : float";
-/* extern void F_WRAPPEDFUNC(scasum,SCASUM)(float*,F_INT*,complex_float*,F_INT* ); */
+/* extern float F_FUNC(scasum,SCASUM) (F_INT*,complex_float*,F_INT* ); */
 static PyObject *f2py_rout__fblas_scasum(const PyObject *capi_self,
                            PyObject *capi_args,
                            PyObject *capi_keywds,
-                           void (*f2py_func)(float*,F_INT*,complex_float*,F_INT* )) {
+                           float (*f2py_func)(F_INT*,complex_float*,F_INT* )) {
     PyObject * volatile capi_buildvalue = NULL;
     volatile int f2py_success = 1;
 /*decl*/
 
-    float scasum = 0;
+    float scasum_return_value=0;
     int n = 0;
     PyObject *n_capi = Py_None;
     complex_float *x = NULL;
@@ -6882,14 +6839,14 @@ f2py_start_clock();
         f2py_success = int_from_pyobj(&n,n_capi,"_fblas.scasum() 1st keyword (n) can't be converted to int");
     if (f2py_success) {
     CHECKSCALAR(len(x)-offx>(n-1)*abs(incx),"len(x)-offx>(n-1)*abs(incx)","1st keyword n","scasum:n=%d",n) {
-    /* Processing variable scasum */
 /*end of frompyobj*/
 #ifdef F2PY_REPORT_ATEXIT
 f2py_start_call_clock();
 #endif
 /*callfortranroutine*/
-    (*f2py_func)(&scasum,&n,x+offx,&incx) ;
-    /*(*f2py_func)(&scasum,&n,x,&offx,&incx);*/
+    scasum_return_value = (*f2py_func)(&n,x+offx,&incx) ;
+/*    scasum_return_value = (*f2py_func)(&n,x,&offx,&incx);*/
+
 if (PyErr_Occurred())
   f2py_success = 0;
 #ifdef F2PY_REPORT_ATEXIT
@@ -6900,12 +6857,11 @@ f2py_stop_call_clock();
 /*pyobjfrom*/
 /*end of pyobjfrom*/
         CFUNCSMESS("Building return value.\n");
-        capi_buildvalue = Py_BuildValue("f",scasum);
+        capi_buildvalue = Py_BuildValue("f",scasum_return_value);
 /*closepyobjfrom*/
 /*end of closepyobjfrom*/
         } /*if (f2py_success) after callfortranroutine*/
 /*cleanupfrompyobj*/
-    /* End of cleaning variable scasum */
     } /*CHECKSCALAR(len(x)-offx>(n-1)*abs(incx))*/
     } /*if (f2py_success) of n*/
     /* End of cleaning variable n */
@@ -6945,16 +6901,16 @@ s = dasum(x,[n,offx,incx])\n\nWrapper for ``dasum``.\
 "incx : input int, optional\n    Default: 1\n"
 "\nReturns\n-------\n"
 "s : float";
-/* extern void F_WRAPPEDFUNC(dasum,DASUM)(double*,F_INT*,double*,F_INT* ); */
+/* extern double F_FUNC(dasum,DASUM) (F_INT*,double*,F_INT* ); */
 static PyObject *f2py_rout__fblas_dasum(const PyObject *capi_self,
                            PyObject *capi_args,
                            PyObject *capi_keywds,
-                           void (*f2py_func)(double*,F_INT*,double*,F_INT* )) {
+                           double (*f2py_func)(F_INT*,double*,F_INT* )) {
     PyObject * volatile capi_buildvalue = NULL;
     volatile int f2py_success = 1;
 /*decl*/
 
-    double dasum = 0;
+    double dasum_return_value=0;
     int n = 0;
     PyObject *n_capi = Py_None;
     double *x = NULL;
@@ -7007,14 +6963,14 @@ f2py_start_clock();
         f2py_success = int_from_pyobj(&n,n_capi,"_fblas.dasum() 1st keyword (n) can't be converted to int");
     if (f2py_success) {
     CHECKSCALAR(len(x)-offx>(n-1)*abs(incx),"len(x)-offx>(n-1)*abs(incx)","1st keyword n","dasum:n=%d",n) {
-    /* Processing variable dasum */
 /*end of frompyobj*/
 #ifdef F2PY_REPORT_ATEXIT
 f2py_start_call_clock();
 #endif
 /*callfortranroutine*/
-    (*f2py_func)(&dasum,&n,x+offx,&incx) ;
-    /*(*f2py_func)(&dasum,&n,x,&offx,&incx);*/
+    dasum_return_value = (*f2py_func)(&n,x+offx,&incx) ;
+/*    dasum_return_value = (*f2py_func)(&n,x,&offx,&incx);*/
+
 if (PyErr_Occurred())
   f2py_success = 0;
 #ifdef F2PY_REPORT_ATEXIT
@@ -7025,12 +6981,11 @@ f2py_stop_call_clock();
 /*pyobjfrom*/
 /*end of pyobjfrom*/
         CFUNCSMESS("Building return value.\n");
-        capi_buildvalue = Py_BuildValue("d",dasum);
+        capi_buildvalue = Py_BuildValue("d",dasum_return_value);
 /*closepyobjfrom*/
 /*end of closepyobjfrom*/
         } /*if (f2py_success) after callfortranroutine*/
 /*cleanupfrompyobj*/
-    /* End of cleaning variable dasum */
     } /*CHECKSCALAR(len(x)-offx>(n-1)*abs(incx))*/
     } /*if (f2py_success) of n*/
     /* End of cleaning variable n */
@@ -7070,16 +7025,16 @@ s = dzasum(x,[n,offx,incx])\n\nWrapper for ``dzasum``.\
 "incx : input int, optional\n    Default: 1\n"
 "\nReturns\n-------\n"
 "s : float";
-/* extern void F_WRAPPEDFUNC(dzasum,DZASUM)(double*,F_INT*,complex_double*,F_INT* ); */
+/* extern double F_FUNC(dzasum,DZASUM) (F_INT*,complex_double*,F_INT* ); */
 static PyObject *f2py_rout__fblas_dzasum(const PyObject *capi_self,
                            PyObject *capi_args,
                            PyObject *capi_keywds,
-                           void (*f2py_func)(double*,F_INT*,complex_double*,F_INT* )) {
+                           double (*f2py_func)(F_INT*,complex_double*,F_INT* )) {
     PyObject * volatile capi_buildvalue = NULL;
     volatile int f2py_success = 1;
 /*decl*/
 
-    double dzasum = 0;
+    double dzasum_return_value=0;
     int n = 0;
     PyObject *n_capi = Py_None;
     complex_double *x = NULL;
@@ -7132,14 +7087,14 @@ f2py_start_clock();
         f2py_success = int_from_pyobj(&n,n_capi,"_fblas.dzasum() 1st keyword (n) can't be converted to int");
     if (f2py_success) {
     CHECKSCALAR(len(x)-offx>(n-1)*abs(incx),"len(x)-offx>(n-1)*abs(incx)","1st keyword n","dzasum:n=%d",n) {
-    /* Processing variable dzasum */
 /*end of frompyobj*/
 #ifdef F2PY_REPORT_ATEXIT
 f2py_start_call_clock();
 #endif
 /*callfortranroutine*/
-    (*f2py_func)(&dzasum,&n,x+offx,&incx) ;
-    /*(*f2py_func)(&dzasum,&n,x,&offx,&incx);*/
+    dzasum_return_value = (*f2py_func)(&n,x+offx,&incx) ;
+/*    dzasum_return_value = (*f2py_func)(&n,x,&offx,&incx);*/
+
 if (PyErr_Occurred())
   f2py_success = 0;
 #ifdef F2PY_REPORT_ATEXIT
@@ -7150,12 +7105,11 @@ f2py_stop_call_clock();
 /*pyobjfrom*/
 /*end of pyobjfrom*/
         CFUNCSMESS("Building return value.\n");
-        capi_buildvalue = Py_BuildValue("d",dzasum);
+        capi_buildvalue = Py_BuildValue("d",dzasum_return_value);
 /*closepyobjfrom*/
 /*end of closepyobjfrom*/
         } /*if (f2py_success) after callfortranroutine*/
 /*cleanupfrompyobj*/
-    /* End of cleaning variable dzasum */
     } /*CHECKSCALAR(len(x)-offx>(n-1)*abs(incx))*/
     } /*if (f2py_success) of n*/
     /* End of cleaning variable n */
@@ -28323,20 +28277,20 @@ static FortranDataDef f2py_routine_defs[] = {
     {"daxpy",-1,{{-1}},0,0,(char *)  F_FUNC(daxpy,DAXPY),  (f2py_init_func)f2py_rout__fblas_daxpy,doc_f2py_rout__fblas_daxpy},
     {"caxpy",-1,{{-1}},0,0,(char *)  F_FUNC(caxpy,CAXPY),  (f2py_init_func)f2py_rout__fblas_caxpy,doc_f2py_rout__fblas_caxpy},
     {"zaxpy",-1,{{-1}},0,0,(char *)  F_FUNC(zaxpy,ZAXPY),  (f2py_init_func)f2py_rout__fblas_zaxpy,doc_f2py_rout__fblas_zaxpy},
-    {"sdot",-1,{{-1}},0,0,(char *)  F_WRAPPEDFUNC(sdot,SDOT),  (f2py_init_func)f2py_rout__fblas_sdot,doc_f2py_rout__fblas_sdot},
-    {"ddot",-1,{{-1}},0,0,(char *)  F_WRAPPEDFUNC(ddot,DDOT),  (f2py_init_func)f2py_rout__fblas_ddot,doc_f2py_rout__fblas_ddot},
-    {"cdotu",-1,{{-1}},0,0,(char *)  F_WRAPPEDFUNC(cdotu,CDOTU),  (f2py_init_func)f2py_rout__fblas_cdotu,doc_f2py_rout__fblas_cdotu},
-    {"zdotu",-1,{{-1}},0,0,(char *)  F_WRAPPEDFUNC(zdotu,ZDOTU),  (f2py_init_func)f2py_rout__fblas_zdotu,doc_f2py_rout__fblas_zdotu},
-    {"cdotc",-1,{{-1}},0,0,(char *)  F_WRAPPEDFUNC(cdotc,CDOTC),  (f2py_init_func)f2py_rout__fblas_cdotc,doc_f2py_rout__fblas_cdotc},
-    {"zdotc",-1,{{-1}},0,0,(char *)  F_WRAPPEDFUNC(zdotc,ZDOTC),  (f2py_init_func)f2py_rout__fblas_zdotc,doc_f2py_rout__fblas_zdotc},
-    {"snrm2",-1,{{-1}},0,0,(char *)  F_WRAPPEDFUNC(snrm2,SNRM2),  (f2py_init_func)f2py_rout__fblas_snrm2,doc_f2py_rout__fblas_snrm2},
-    {"scnrm2",-1,{{-1}},0,0,(char *)  F_WRAPPEDFUNC(scnrm2,SCNRM2),  (f2py_init_func)f2py_rout__fblas_scnrm2,doc_f2py_rout__fblas_scnrm2},
-    {"dnrm2",-1,{{-1}},0,0,(char *)  F_WRAPPEDFUNC(dnrm2,DNRM2),  (f2py_init_func)f2py_rout__fblas_dnrm2,doc_f2py_rout__fblas_dnrm2},
-    {"dznrm2",-1,{{-1}},0,0,(char *)  F_WRAPPEDFUNC(dznrm2,DZNRM2),  (f2py_init_func)f2py_rout__fblas_dznrm2,doc_f2py_rout__fblas_dznrm2},
-    {"sasum",-1,{{-1}},0,0,(char *)  F_WRAPPEDFUNC(sasum,SASUM),  (f2py_init_func)f2py_rout__fblas_sasum,doc_f2py_rout__fblas_sasum},
-    {"scasum",-1,{{-1}},0,0,(char *)  F_WRAPPEDFUNC(scasum,SCASUM),  (f2py_init_func)f2py_rout__fblas_scasum,doc_f2py_rout__fblas_scasum},
-    {"dasum",-1,{{-1}},0,0,(char *)  F_WRAPPEDFUNC(dasum,DASUM),  (f2py_init_func)f2py_rout__fblas_dasum,doc_f2py_rout__fblas_dasum},
-    {"dzasum",-1,{{-1}},0,0,(char *)  F_WRAPPEDFUNC(dzasum,DZASUM),  (f2py_init_func)f2py_rout__fblas_dzasum,doc_f2py_rout__fblas_dzasum},
+    {"sdot",-1,{{-1}},0,0,(char *)F_FUNC(sdot,SDOT) ,  (f2py_init_func)f2py_rout__fblas_sdot,doc_f2py_rout__fblas_sdot},
+    {"ddot",-1,{{-1}},0,0,(char *)F_FUNC(ddot,DDOT) ,  (f2py_init_func)f2py_rout__fblas_ddot,doc_f2py_rout__fblas_ddot},
+    {"cdotu",-1,{{-1}},0,0,(char *)  F_FUNC(cdotuwrp ,CDOTUWRP ),  (f2py_init_func)f2py_rout__fblas_cdotu,doc_f2py_rout__fblas_cdotu},
+    {"zdotu",-1,{{-1}},0,0,(char *)  F_FUNC(zdotuwrp ,ZDOTUWRP ),  (f2py_init_func)f2py_rout__fblas_zdotu,doc_f2py_rout__fblas_zdotu},
+    {"cdotc",-1,{{-1}},0,0,(char *)  F_FUNC(cdotcwrp ,CDOTCWRP ),  (f2py_init_func)f2py_rout__fblas_cdotc,doc_f2py_rout__fblas_cdotc},
+    {"zdotc",-1,{{-1}},0,0,(char *)  F_FUNC(zdotcwrp ,ZDOTCWRP ),  (f2py_init_func)f2py_rout__fblas_zdotc,doc_f2py_rout__fblas_zdotc},
+    {"snrm2",-1,{{-1}},0,0,(char *)F_FUNC(snrm2,SNRM2) ,  (f2py_init_func)f2py_rout__fblas_snrm2,doc_f2py_rout__fblas_snrm2},
+    {"scnrm2",-1,{{-1}},0,0,(char *)F_FUNC(scnrm2,SCNRM2) ,  (f2py_init_func)f2py_rout__fblas_scnrm2,doc_f2py_rout__fblas_scnrm2},
+    {"dnrm2",-1,{{-1}},0,0,(char *)F_FUNC(dnrm2,DNRM2) ,  (f2py_init_func)f2py_rout__fblas_dnrm2,doc_f2py_rout__fblas_dnrm2},
+    {"dznrm2",-1,{{-1}},0,0,(char *)F_FUNC(dznrm2,DZNRM2) ,  (f2py_init_func)f2py_rout__fblas_dznrm2,doc_f2py_rout__fblas_dznrm2},
+    {"sasum",-1,{{-1}},0,0,(char *)F_FUNC(sasum,SASUM) ,  (f2py_init_func)f2py_rout__fblas_sasum,doc_f2py_rout__fblas_sasum},
+    {"scasum",-1,{{-1}},0,0,(char *)F_FUNC(scasum,SCASUM) ,  (f2py_init_func)f2py_rout__fblas_scasum,doc_f2py_rout__fblas_scasum},
+    {"dasum",-1,{{-1}},0,0,(char *)F_FUNC(dasum,DASUM) ,  (f2py_init_func)f2py_rout__fblas_dasum,doc_f2py_rout__fblas_dasum},
+    {"dzasum",-1,{{-1}},0,0,(char *)F_FUNC(dzasum,DZASUM) ,  (f2py_init_func)f2py_rout__fblas_dzasum,doc_f2py_rout__fblas_dzasum},
     {"isamax",-1,{{-1}},0,0,(char *)F_FUNC(isamax,ISAMAX) ,  (f2py_init_func)f2py_rout__fblas_isamax,doc_f2py_rout__fblas_isamax},
     {"idamax",-1,{{-1}},0,0,(char *)F_FUNC(idamax,IDAMAX) ,  (f2py_init_func)f2py_rout__fblas_idamax,doc_f2py_rout__fblas_idamax},
     {"icamax",-1,{{-1}},0,0,(char *)F_FUNC(icamax,ICAMAX) ,  (f2py_init_func)f2py_rout__fblas_icamax,doc_f2py_rout__fblas_icamax},
@@ -28678,173 +28632,19 @@ PyMODINIT_FUNC PyInit__fblas(void) {
 
 
 
-    {
-      extern float F_FUNC(sdot,SDOT)(void);
-      PyObject* o = PyDict_GetItemString(d,"sdot");
-      tmp = F2PyCapsule_FromVoidPtr((void*)F_FUNC(sdot,SDOT),NULL);
-      PyObject_SetAttrString(o,"_cpointer", tmp);
-      Py_DECREF(tmp);
-      s = PyUnicode_FromString("sdot");
-      PyObject_SetAttrString(o,"__name__", s);
-      Py_DECREF(s);
-    }
-    
 
-    {
-      extern double F_FUNC(ddot,DDOT)(void);
-      PyObject* o = PyDict_GetItemString(d,"ddot");
-      tmp = F2PyCapsule_FromVoidPtr((void*)F_FUNC(ddot,DDOT),NULL);
-      PyObject_SetAttrString(o,"_cpointer", tmp);
-      Py_DECREF(tmp);
-      s = PyUnicode_FromString("ddot");
-      PyObject_SetAttrString(o,"__name__", s);
-      Py_DECREF(s);
-    }
-    
 
-    {
-      extern complex_float F_FUNC(cdotu,CDOTU)(void);
-      PyObject* o = PyDict_GetItemString(d,"cdotu");
-      tmp = F2PyCapsule_FromVoidPtr((void*)F_FUNC(cdotu,CDOTU),NULL);
-      PyObject_SetAttrString(o,"_cpointer", tmp);
-      Py_DECREF(tmp);
-      s = PyUnicode_FromString("cdotu");
-      PyObject_SetAttrString(o,"__name__", s);
-      Py_DECREF(s);
-    }
-    
 
-    {
-      extern complex_double F_FUNC(zdotu,ZDOTU)(void);
-      PyObject* o = PyDict_GetItemString(d,"zdotu");
-      tmp = F2PyCapsule_FromVoidPtr((void*)F_FUNC(zdotu,ZDOTU),NULL);
-      PyObject_SetAttrString(o,"_cpointer", tmp);
-      Py_DECREF(tmp);
-      s = PyUnicode_FromString("zdotu");
-      PyObject_SetAttrString(o,"__name__", s);
-      Py_DECREF(s);
-    }
-    
 
-    {
-      extern complex_float F_FUNC(cdotc,CDOTC)(void);
-      PyObject* o = PyDict_GetItemString(d,"cdotc");
-      tmp = F2PyCapsule_FromVoidPtr((void*)F_FUNC(cdotc,CDOTC),NULL);
-      PyObject_SetAttrString(o,"_cpointer", tmp);
-      Py_DECREF(tmp);
-      s = PyUnicode_FromString("cdotc");
-      PyObject_SetAttrString(o,"__name__", s);
-      Py_DECREF(s);
-    }
-    
 
-    {
-      extern complex_double F_FUNC(zdotc,ZDOTC)(void);
-      PyObject* o = PyDict_GetItemString(d,"zdotc");
-      tmp = F2PyCapsule_FromVoidPtr((void*)F_FUNC(zdotc,ZDOTC),NULL);
-      PyObject_SetAttrString(o,"_cpointer", tmp);
-      Py_DECREF(tmp);
-      s = PyUnicode_FromString("zdotc");
-      PyObject_SetAttrString(o,"__name__", s);
-      Py_DECREF(s);
-    }
-    
 
-    {
-      extern float F_FUNC(snrm2,SNRM2)(void);
-      PyObject* o = PyDict_GetItemString(d,"snrm2");
-      tmp = F2PyCapsule_FromVoidPtr((void*)F_FUNC(snrm2,SNRM2),NULL);
-      PyObject_SetAttrString(o,"_cpointer", tmp);
-      Py_DECREF(tmp);
-      s = PyUnicode_FromString("snrm2");
-      PyObject_SetAttrString(o,"__name__", s);
-      Py_DECREF(s);
-    }
-    
 
-    {
-      extern float F_FUNC(scnrm2,SCNRM2)(void);
-      PyObject* o = PyDict_GetItemString(d,"scnrm2");
-      tmp = F2PyCapsule_FromVoidPtr((void*)F_FUNC(scnrm2,SCNRM2),NULL);
-      PyObject_SetAttrString(o,"_cpointer", tmp);
-      Py_DECREF(tmp);
-      s = PyUnicode_FromString("scnrm2");
-      PyObject_SetAttrString(o,"__name__", s);
-      Py_DECREF(s);
-    }
-    
 
-    {
-      extern double F_FUNC(dnrm2,DNRM2)(void);
-      PyObject* o = PyDict_GetItemString(d,"dnrm2");
-      tmp = F2PyCapsule_FromVoidPtr((void*)F_FUNC(dnrm2,DNRM2),NULL);
-      PyObject_SetAttrString(o,"_cpointer", tmp);
-      Py_DECREF(tmp);
-      s = PyUnicode_FromString("dnrm2");
-      PyObject_SetAttrString(o,"__name__", s);
-      Py_DECREF(s);
-    }
-    
 
-    {
-      extern double F_FUNC(dznrm2,DZNRM2)(void);
-      PyObject* o = PyDict_GetItemString(d,"dznrm2");
-      tmp = F2PyCapsule_FromVoidPtr((void*)F_FUNC(dznrm2,DZNRM2),NULL);
-      PyObject_SetAttrString(o,"_cpointer", tmp);
-      Py_DECREF(tmp);
-      s = PyUnicode_FromString("dznrm2");
-      PyObject_SetAttrString(o,"__name__", s);
-      Py_DECREF(s);
-    }
-    
 
-    {
-      extern float F_FUNC(sasum,SASUM)(void);
-      PyObject* o = PyDict_GetItemString(d,"sasum");
-      tmp = F2PyCapsule_FromVoidPtr((void*)F_FUNC(sasum,SASUM),NULL);
-      PyObject_SetAttrString(o,"_cpointer", tmp);
-      Py_DECREF(tmp);
-      s = PyUnicode_FromString("sasum");
-      PyObject_SetAttrString(o,"__name__", s);
-      Py_DECREF(s);
-    }
-    
 
-    {
-      extern float F_FUNC(scasum,SCASUM)(void);
-      PyObject* o = PyDict_GetItemString(d,"scasum");
-      tmp = F2PyCapsule_FromVoidPtr((void*)F_FUNC(scasum,SCASUM),NULL);
-      PyObject_SetAttrString(o,"_cpointer", tmp);
-      Py_DECREF(tmp);
-      s = PyUnicode_FromString("scasum");
-      PyObject_SetAttrString(o,"__name__", s);
-      Py_DECREF(s);
-    }
-    
 
-    {
-      extern double F_FUNC(dasum,DASUM)(void);
-      PyObject* o = PyDict_GetItemString(d,"dasum");
-      tmp = F2PyCapsule_FromVoidPtr((void*)F_FUNC(dasum,DASUM),NULL);
-      PyObject_SetAttrString(o,"_cpointer", tmp);
-      Py_DECREF(tmp);
-      s = PyUnicode_FromString("dasum");
-      PyObject_SetAttrString(o,"__name__", s);
-      Py_DECREF(s);
-    }
-    
 
-    {
-      extern double F_FUNC(dzasum,DZASUM)(void);
-      PyObject* o = PyDict_GetItemString(d,"dzasum");
-      tmp = F2PyCapsule_FromVoidPtr((void*)F_FUNC(dzasum,DZASUM),NULL);
-      PyObject_SetAttrString(o,"_cpointer", tmp);
-      Py_DECREF(tmp);
-      s = PyUnicode_FromString("dzasum");
-      PyObject_SetAttrString(o,"__name__", s);
-      Py_DECREF(s);
-    }
-    
 
 
 

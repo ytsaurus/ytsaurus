@@ -71,6 +71,7 @@ TBlockFetcher::TBlockFetcher(
     , Logger(ChunkClientLogger())
     , Chunks_(chunkReaders.size())
 {
+    YT_VERIFY(SessionInvoker_ != GetSyncInvoker());
     YT_VERIFY(!chunkReaders.empty());
     YT_VERIFY(BlockCache_);
     YT_VERIFY(!BlockInfos_.empty());
@@ -461,9 +462,9 @@ void TBlockFetcher::DecompressBlocks(
                 compressedBlock.Size(),
                 uncompressedBlock.Size(),
                 Codec_->GetId());
-        }
 
-        periodicYielder.TryYield();
+            periodicYielder.TryYield();
+        }
 
         UncompressedDataSize_ += uncompressedBlock.Size();
         CompressedDataSize_ += compressedBlockSize;

@@ -31,6 +31,7 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/ytlib/chunk_client/chunk_scraper.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/public.h>
 
@@ -264,6 +265,8 @@ public:
     TCompositePendingJobCount GetPendingJobCount() const override;
     i64 GetFailedJobCount() const override;
     NScheduler::TCompositeNeededResources GetNeededResources() const override;
+
+    NScheduler::TControllerEpoch GetControllerEpoch() const override;
 
     bool ShouldUpdateLightOperationAttributes() const override;
     void SetLightOperationAttributesUpdated() override;
@@ -516,7 +519,7 @@ protected:
     std::optional<std::string> AcoName_;
 
     // Intentionally transient.
-    NScheduler::TControllerEpoch ControllerEpoch_;
+    const NScheduler::TControllerEpoch ControllerEpoch_;
 
     THashMap<TAllocationId, TAllocation> AllocationMap_;
     int RunningJobCount_ = 0;

@@ -41,6 +41,8 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 
+#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
+
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
@@ -82,6 +84,8 @@ using namespace NScheduler;
 using namespace NServer;
 using namespace NSignature;
 using namespace NThreading;
+using namespace NObjectClient;
+using namespace NCellMasterClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -106,6 +110,8 @@ public:
         // Cycles are fine for bootstrap.
         GetDynamicConfigManager()
             ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
+        SubscribeSecondaryMasterCellListChanged(
+            BIND_NO_PROPAGATE(&TBootstrap::OnSecondaryMasterCellListChanged, MakeStrong(this)));
 
         SlotManager_ = New<TSlotManager>(this);
 
@@ -134,7 +140,7 @@ public:
 
         ControllerAgentConnectorPool_ = New<TControllerAgentConnectorPool>(this);
 
-        BuildJobProxyConfigTemplate();
+        BuildJobProxyConfigTemplate(/*secondaryMasterConfigsOverrides*/ std::nullopt);
 
         ChunkCache_ = New<TChunkCache>(GetConfig()->DataNode, this);
 
@@ -319,9 +325,9 @@ public:
         return JobReporter_;
     }
 
-    const TJobProxyInternalConfigPtr& GetJobProxyConfigTemplate() const override
+    TJobProxyInternalConfigPtr GetJobProxyConfigTemplate() const override
     {
-        return JobProxyConfigTemplate_;
+        return JobProxyConfigTemplate_.Acquire();
     }
 
     const TChunkCachePtr& GetChunkCache() const override
@@ -437,7 +443,7 @@ private:
 
     TJobReporterPtr JobReporter_;
 
-    TJobProxyInternalConfigPtr JobProxyConfigTemplate_;
+    TAtomicIntrusivePtr<TJobProxyInternalConfig> JobProxyConfigTemplate_;
 
     TChunkCachePtr ChunkCache_;
 
@@ -467,68 +473,94 @@ private:
 
     TSignatureComponentsPtr SignatureComponents_;
 
-    void BuildJobProxyConfigTemplate()
+    void BuildJobProxyConfigTemplate(const std::optional<TSecondaryMasterConnectionConfigs>& optionalNewSecondaryMasterConfigs)
     {
         auto localAddress = NNet::BuildServiceAddress(NNet::GetLoopbackAddress(), GetConfig()->RpcPort);
 
-        JobProxyConfigTemplate_ = New<NJobProxy::TJobProxyInternalConfig>();
+        auto oldJobProxyConfigTemplate = GetJobProxyConfigTemplate();
+        auto newJobProxyConfigTemplate = New<NJobProxy::TJobProxyInternalConfig>();
 
         auto singletonsConfig = TSingletonManager::GetConfig();
-        JobProxyConfigTemplate_->SetSingletonConfig(singletonsConfig->GetSingletonConfig<TFiberManagerConfig>());
+        newJobProxyConfigTemplate->SetSingletonConfig(singletonsConfig->GetSingletonConfig<TFiberManagerConfig>());
 
         {
             auto config = CloneYsonStruct(singletonsConfig->GetSingletonConfig<NNet::TAddressResolverConfig>());
             config->LocalHostNameOverride = NNet::GetLocalHostName();
-            JobProxyConfigTemplate_->SetSingletonConfig(std::move(config));
+            newJobProxyConfigTemplate->SetSingletonConfig(std::move(config));
         }
 
-        JobProxyConfigTemplate_->SetSingletonConfig(singletonsConfig->GetSingletonConfig<NRpc::TDispatcherConfig>());
-        JobProxyConfigTemplate_->SetSingletonConfig(singletonsConfig->GetSingletonConfig<NBus::TTcpDispatcherConfig>());
-        JobProxyConfigTemplate_->SetSingletonConfig(singletonsConfig->TryGetSingletonConfig<NServiceDiscovery::NYP::TServiceDiscoveryConfig>());
-        JobProxyConfigTemplate_->SetSingletonConfig(singletonsConfig->GetSingletonConfig<NChunkClient::TDispatcherConfig>());
-        JobProxyConfigTemplate_->SetSingletonConfig(GetConfig()->ExecNode->JobProxy->JobProxyLogging->LogManagerTemplate);
-        JobProxyConfigTemplate_->SetSingletonConfig(GetConfig()->ExecNode->JobProxy->JobProxyJaeger);
+        newJobProxyConfigTemplate->SetSingletonConfig(singletonsConfig->GetSingletonConfig<NRpc::TDispatcherConfig>());
+        newJobProxyConfigTemplate->SetSingletonConfig(singletonsConfig->GetSingletonConfig<NBus::TTcpDispatcherConfig>());
+        newJobProxyConfigTemplate->SetSingletonConfig(singletonsConfig->TryGetSingletonConfig<NServiceDiscovery::NYP::TServiceDiscoveryConfig>());
+        newJobProxyConfigTemplate->SetSingletonConfig(singletonsConfig->GetSingletonConfig<NChunkClient::TDispatcherConfig>());
+        newJobProxyConfigTemplate->SetSingletonConfig(GetConfig()->ExecNode->JobProxy->JobProxyLogging->LogManagerTemplate);
+        newJobProxyConfigTemplate->SetSingletonConfig(GetConfig()->ExecNode->JobProxy->JobProxyJaeger);
 
-        JobProxyConfigTemplate_->OriginalClusterConnection = GetConfig()->ClusterConnection->Clone();
+        newJobProxyConfigTemplate->OriginalClusterConnection = GetConfig()->ClusterConnection->Clone();
 
-        JobProxyConfigTemplate_->ClusterConnection = GetConfig()->ClusterConnection->Clone();
-        JobProxyConfigTemplate_->ClusterConnection->Static->OverrideMasterAddresses({localAddress});
+        // We could probably replace addresses for known cells here as well, but
+        // changing addresses of a known cell is cursed anyway, so I'm not
+        // doing that now.
+        if (optionalNewSecondaryMasterConfigs) {
+            auto newSecondaryMasterConfigs = *optionalNewSecondaryMasterConfigs;
+            for (const auto& secondaryMasterConfig : newJobProxyConfigTemplate->OriginalClusterConnection->Static->SecondaryMasters) {
+                auto cellTag = CellTagFromId(secondaryMasterConfig->CellId);
+                if (newSecondaryMasterConfigs.erase(cellTag)) {
+                    YT_LOG_ALERT("Config contains a cell that was reported as new (CellTag: %v)", cellTag);
+                }
+            }
 
-        JobProxyConfigTemplate_->AuthenticationManager = GetConfig()->ExecNode->JobProxy->JobProxyAuthenticationManager;
+            newJobProxyConfigTemplate->OriginalClusterConnection->Static->SecondaryMasters = oldJobProxyConfigTemplate->OriginalClusterConnection->Static->SecondaryMasters;
+            for (const auto& [cellTag, config] : newSecondaryMasterConfigs) {
+                newJobProxyConfigTemplate->OriginalClusterConnection->Static->SecondaryMasters.push_back(config);
+            }
+        }
+        newJobProxyConfigTemplate->ClusterConnection = newJobProxyConfigTemplate->OriginalClusterConnection->Clone();
+        newJobProxyConfigTemplate->ClusterConnection->Static->OverrideMasterAddresses({localAddress});
 
-        JobProxyConfigTemplate_->SupervisorConnection = New<NYT::NBus::TBusClientConfig>();
-        JobProxyConfigTemplate_->SupervisorConnection->Address = localAddress;
+        newJobProxyConfigTemplate->AuthenticationManager = GetConfig()->ExecNode->JobProxy->JobProxyAuthenticationManager;
 
-        JobProxyConfigTemplate_->SupervisorRpcTimeout = GetConfig()->ExecNode->JobProxy->SupervisorRpcTimeout;
+        newJobProxyConfigTemplate->SupervisorConnection = New<NYT::NBus::TBusClientConfig>();
+        newJobProxyConfigTemplate->SupervisorConnection->Address = localAddress;
 
-        JobProxyConfigTemplate_->HeartbeatPeriod = GetConfig()->ExecNode->JobProxy->JobProxyHeartbeatPeriod;
+        newJobProxyConfigTemplate->SupervisorRpcTimeout = GetConfig()->ExecNode->JobProxy->SupervisorRpcTimeout;
 
-        JobProxyConfigTemplate_->SendHeartbeatBeforeAbort = GetConfig()->ExecNode->JobProxy->JobProxySendHeartbeatBeforeAbort;
+        newJobProxyConfigTemplate->HeartbeatPeriod = GetConfig()->ExecNode->JobProxy->JobProxyHeartbeatPeriod;
 
-        JobProxyConfigTemplate_->JobEnvironment = SlotManager_->GetJobEnvironmentConfig();
+        newJobProxyConfigTemplate->SendHeartbeatBeforeAbort = GetConfig()->ExecNode->JobProxy->JobProxySendHeartbeatBeforeAbort;
 
-        JobProxyConfigTemplate_->StderrPath = GetConfig()->ExecNode->JobProxy->JobProxyLogging->JobProxyStderrPath;
-        JobProxyConfigTemplate_->ExecutorStderrPath = GetConfig()->ExecNode->JobProxy->JobProxyLogging->ExecutorStderrPath;
-        JobProxyConfigTemplate_->TestRootFS = GetConfig()->ExecNode->JobProxy->TestRootFS;
-        JobProxyConfigTemplate_->AlwaysAbortOnMemoryReserveOverdraft = GetConfig()->ExecNode->JobProxy->AlwaysAbortOnMemoryReserveOverdraft;
+        newJobProxyConfigTemplate->JobEnvironment = SlotManager_->GetJobEnvironmentConfig();
 
-        JobProxyConfigTemplate_->CoreWatcher = GetConfig()->ExecNode->JobProxy->CoreWatcher;
+        newJobProxyConfigTemplate->StderrPath = GetConfig()->ExecNode->JobProxy->JobProxyLogging->JobProxyStderrPath;
+        newJobProxyConfigTemplate->ExecutorStderrPath = GetConfig()->ExecNode->JobProxy->JobProxyLogging->ExecutorStderrPath;
+        newJobProxyConfigTemplate->TestRootFS = GetConfig()->ExecNode->JobProxy->TestRootFS;
+        newJobProxyConfigTemplate->AlwaysAbortOnMemoryReserveOverdraft = GetConfig()->ExecNode->JobProxy->AlwaysAbortOnMemoryReserveOverdraft;
 
-        JobProxyConfigTemplate_->TestPollJobShell = GetConfig()->ExecNode->JobProxy->TestPollJobShell;
+        newJobProxyConfigTemplate->CoreWatcher = GetConfig()->ExecNode->JobProxy->CoreWatcher;
 
-        JobProxyConfigTemplate_->DoNotSetUserId = !SlotManager_->ShouldSetUserId();
-        JobProxyConfigTemplate_->CheckUserJobMemoryLimit = GetConfig()->ExecNode->JobProxy->CheckUserJobMemoryLimit;
-        JobProxyConfigTemplate_->ForwardAllEnvironmentVariables = GetConfig()->ExecNode->JobProxy->ForwardAllEnvironmentVariables;
+        newJobProxyConfigTemplate->TestPollJobShell = GetConfig()->ExecNode->JobProxy->TestPollJobShell;
+
+        newJobProxyConfigTemplate->DoNotSetUserId = !SlotManager_->ShouldSetUserId();
+        newJobProxyConfigTemplate->CheckUserJobMemoryLimit = GetConfig()->ExecNode->JobProxy->CheckUserJobMemoryLimit;
+        newJobProxyConfigTemplate->ForwardAllEnvironmentVariables = GetConfig()->ExecNode->JobProxy->ForwardAllEnvironmentVariables;
 
         if (auto tvmService = NAuth::TNativeAuthenticationManager::Get()->GetTvmService()) {
-            JobProxyConfigTemplate_->TvmBridgeConnection = New<NYT::NBus::TBusClientConfig>();
-            JobProxyConfigTemplate_->TvmBridgeConnection->Address = localAddress;
+            newJobProxyConfigTemplate->TvmBridgeConnection = New<NYT::NBus::TBusClientConfig>();
+            newJobProxyConfigTemplate->TvmBridgeConnection->Address = localAddress;
 
-            JobProxyConfigTemplate_->TvmBridge = New<NAuth::TTvmBridgeConfig>();
-            JobProxyConfigTemplate_->TvmBridge->SelfTvmId = tvmService->GetSelfTvmId();
+            newJobProxyConfigTemplate->TvmBridge = New<NAuth::TTvmBridgeConfig>();
+            newJobProxyConfigTemplate->TvmBridge->SelfTvmId = tvmService->GetSelfTvmId();
         }
 
-        JobProxyConfigTemplate_->DnsOverRpcResolver = GetConfig()->ExecNode->JobProxy->JobProxyDnsOverRpcResolver;
+        newJobProxyConfigTemplate->DnsOverRpcResolver = GetConfig()->ExecNode->JobProxy->JobProxyDnsOverRpcResolver;
+
+        JobProxyConfigTemplate_.Store(std::move(newJobProxyConfigTemplate));
+    }
+
+    void OnSecondaryMasterCellListChanged(
+        const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs)
+    {
+        BuildJobProxyConfigTemplate(newSecondaryMasterConfigs);
     }
 
     void OnDynamicConfigChanged(

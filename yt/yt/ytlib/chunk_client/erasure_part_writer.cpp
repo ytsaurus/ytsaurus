@@ -90,7 +90,7 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
             partSessionId,
             TChunkReplicaWithMediumList(1, targetReplicas[index]),
             client,
-            /*localHostName*/ TString(), // Locality is not important here.
+            /*localHostName*/ std::string(), // Locality is not important here.
             blockCache,
             trafficMeter,
             throttler));

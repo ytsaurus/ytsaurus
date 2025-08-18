@@ -8,18 +8,18 @@
 
 #include <util/stream/input.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/io/interfaces.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/io/interfaces.h>
 
 namespace NYT::NArrow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TArrowSchemaPtr = std::shared_ptr<arrow::Schema>;
-using TArrowRandomAccessFilePtr = std::shared_ptr<arrow::io::RandomAccessFile>;
+using TArrowSchemaPtr = std::shared_ptr<arrow20::Schema>;
+using TArrowRandomAccessFilePtr = std::shared_ptr<arrow20::io::RandomAccessFile>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ThrowOnError(const arrow::Status& status);
+void ThrowOnError(const arrow20::Status& status);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,9 +28,9 @@ class TRingBuffer
 public:
     explicit TRingBuffer(i64 bufferSize);
 
-    void Read(i64 offset, i64 nBytes, char* out);
+    void Read(i64 offset, i64 byteCount, char* output);
 
-    arrow::Status Write(TSharedRef data);
+    arrow20::Status Write(TRef data);
 
     i64 GetBeginPosition() const;
 
@@ -39,7 +39,7 @@ public:
 private:
     const i64 BufferSize_;
 
-    TSharedMutableRef Buffer_;
+    const TSharedMutableRef Buffer_;
     i64 BufferPosition_ = 0;
     i64 BeginPosition_ = 0;
     i64 FirstRingBufferPosition_ = 0;
@@ -55,7 +55,7 @@ TArrowRandomAccessFilePtr CreateParquetAdapter(
     i64 startMetadataOffset,
     std::shared_ptr<IInputStream> reader = nullptr);
 
-TArrowRandomAccessFilePtr CreateORCAdapter(
+TArrowRandomAccessFilePtr CreateOrcAdapter(
     const TString* metadata,
     i64 startMetadataOffset,
     i64 maxStripeSize = 1,
@@ -65,7 +65,7 @@ i64 GetMaxStripeSize(const TString* metadata, i64 startMetadataOffset);
 
 TArrowSchemaPtr CreateArrowSchemaFromParquetMetadata(const TString* metadata, i64 startIndex);
 
-TArrowSchemaPtr CreateArrowSchemaFromORCMetadata(const TString* metadata, i64 startIndex);
+TArrowSchemaPtr CreateArrowSchemaFromOrcMetadata(const TString* metadata, i64 startIndex);
 
 ////////////////////////////////////////////////////////////////////////////////
 

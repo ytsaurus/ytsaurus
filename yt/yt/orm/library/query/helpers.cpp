@@ -75,14 +75,14 @@ const ITypeResolver* GetTypeResolver(NTableClient::EValueType type)
     }
 }
 
-const TString& GetYsonExtractFunction(EValueType type)
+const std::string& GetYsonExtractFunction(EValueType type)
 {
-    const static TString TryGetAny("try_get_any");
-    const static TString TryGetDouble("try_get_double");
-    const static TString TryGetInt64("try_get_int64");
-    const static TString TryGetUint64("try_get_uint64");
-    const static TString TryGetBoolean("try_get_boolean");
-    const static TString TryGetString("try_get_string");
+    const static std::string TryGetAny("try_get_any");
+    const static std::string TryGetDouble("try_get_double");
+    const static std::string TryGetInt64("try_get_int64");
+    const static std::string TryGetUint64("try_get_uint64");
+    const static std::string TryGetBoolean("try_get_boolean");
+    const static std::string TryGetString("try_get_string");
 
     switch (type) {
         case EValueType::Double:

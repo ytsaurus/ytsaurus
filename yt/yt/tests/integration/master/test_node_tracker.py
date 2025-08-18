@@ -724,14 +724,12 @@ class TestNodeTrackerPeriodicAlertChecks(YTEnvSetup):
         set("//sys/@config/node_tracker/max_node_incomplete_state_duration", 1)
         set("//sys/@config/node_tracker/node_alerts_check_period", 100)
 
-        set("//sys/@config/node_tracker/max_nodes_being_disposed", 0)
-        set("//sys/@config/node_tracker/testing/disable_disposal_finishing", True)
+        set("//sys/@config/node_tracker/max_locations_being_disposed", 0)
 
         with Restarter(self.Env, NODES_SERVICE, wait_offline=False):
             wait(lambda: self._has_alert("Node had no state change for too long"))
 
-            set("//sys/@config/node_tracker/testing/disable_disposal_finishing", False)
-            set("//sys/@config/node_tracker/max_nodes_being_disposed", 10)
+            set("//sys/@config/node_tracker/max_locations_being_disposed", 10)
 
             for node in ls("//sys/cluster_nodes"):
                 wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")

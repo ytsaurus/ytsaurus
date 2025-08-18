@@ -1,7 +1,7 @@
 #include "dsproxy_impl.h"
 #include "dsproxy_monactor.h"
 
-#include <contrib/ydb/core/blobstorage/dsproxy/bridge/bridge.h>
+#include <contrib/ydb/core/blobstorage/bridge/proxy/bridge_proxy.h>
 
 namespace NKikimr {
 

@@ -33,7 +33,7 @@ target_link_libraries(yt-client-arrow PUBLIC
   yutil
   yt-yt-client
   yt-library-formats
-  libs-apache-arrow
+  libs-apache-arrow_next
 )
 
 target_sources(yt-client-arrow PRIVATE

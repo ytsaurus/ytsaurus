@@ -14,12 +14,15 @@
 
 find_package(linux-headers-generic REQUIRED)
 
+add_subdirectory(crypto)
+
 add_library(contrib-libs-ngtcp2)
 
 
 target_compile_options(contrib-libs-ngtcp2 PRIVATE
   -DBUILDING_NGTCP2
   -DHAVE_CONFIG_H
+  -DNGTCP2_STATICLIB
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 
@@ -29,24 +32,19 @@ target_include_directories(contrib-libs-ngtcp2 PUBLIC
 
 target_include_directories(contrib-libs-ngtcp2 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2
-  ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/crypto
-  ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/crypto/includes
-  ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib
 )
 
 target_link_libraries(contrib-libs-ngtcp2 PUBLIC
   linux-headers-generic::linux-headers-generic
-  contrib-libs-openssl
 )
 
 target_sources(contrib-libs-ngtcp2 PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/crypto/quictls/quictls.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/crypto/shared.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_acktr.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_addr.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_balloc.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_bbr.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_buf.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_callbacks.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_cc.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_cid.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_conn.c

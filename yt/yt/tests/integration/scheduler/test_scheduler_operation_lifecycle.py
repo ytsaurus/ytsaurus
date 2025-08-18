@@ -385,16 +385,9 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             if job["state"] == "aborted":
                 assert len(get_job_fail_context(op.id, job["id"])) > 0
 
-    # Test is flaky by the next reason: schedule job may fail by some reason (chunk list demand is not met, et.c)
-    # and in this case we can successfully schedule job for the next operation in queue.
     @authors("ignat")
-    @flaky(max_runs=3)
     def test_fifo_default(self):
-        self._create_table("//tmp/in")
-        self._create_table("//tmp/out1")
-        self._create_table("//tmp/out2")
-        self._create_table("//tmp/out3")
-        write_table("//tmp/in", [{"foo": i} for i in range(5)])
+        node = ls("//sys/cluster_nodes")[0]
 
         create_pool("fifo_pool", ignore_existing=True)
         set("//sys/pools/fifo_pool/@mode", "fifo")
@@ -403,17 +396,20 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         wait(lambda: exists(pools_orchid + "/fifo_pool"))
         wait(lambda: get(pools_orchid + "/fifo_pool/mode") == "fifo")
 
+        set("//sys/cluster_nodes/{}/@resource_limits_overrides/cpu".format(node), 0.1)
+        wait(lambda: get(scheduler_orchid_default_pool_tree_path() + "/pools/<Root>/resource_limits/cpu") == 0.1)
+
         ops = []
-        for i in range(1, 4):
+        for i in range(3):
             ops.append(
-                map(
-                    track=False,
-                    command="sleep 3; cat >/dev/null",
-                    in_=["//tmp/in"],
-                    out="//tmp/out" + str(i),
+                run_test_vanilla(
+                    command="sleep 3",
                     spec={"pool": "fifo_pool"},
                 )
             )
+
+        remove("//sys/cluster_nodes/{}/@resource_limits_overrides/cpu".format(node))
+        wait(lambda: get(scheduler_orchid_default_pool_tree_path() + "/pools/<Root>/resource_limits/cpu") >= 1.0)
 
         for op in ops:
             op.track()
@@ -426,27 +422,29 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
     # and in this case we can successfully schedule job for the next operation in queue.
     @pytest.mark.timeout(120)
     @authors("ignat")
-    @flaky(max_runs=3)
+    # @flaky(max_runs=3)
     def test_fifo_by_pending_job_count(self):
         op_count = 3
+        node = ls("//sys/cluster_nodes")[0]
+        pools_orchid = scheduler_orchid_default_pool_tree_path() + "/pools"
 
-        for i in range(1, op_count + 1):
+        for i in range(op_count):
             self._create_table("//tmp/in" + str(i))
             self._create_table("//tmp/out" + str(i))
             write_table(
                 "//tmp/in" + str(i),
-                [{"foo": j} for j in range(op_count * (op_count + 1 - i))],
+                [{"foo": j} for j in range(op_count * (op_count - i))],
             )
 
-        create_pool("fifo_pool", ignore_existing=True)
-        set("//sys/pools/fifo_pool/@mode", "fifo")
-        set("//sys/pools/fifo_pool/@fifo_sort_parameters", ["pending_job_count"])
+        create_pool("fifo_pool", ignore_existing=True, attributes=dict(mode="fifo", fifo_sort_parameters=["pending_job_count"]))
+        wait(lambda: exists(pools_orchid + "/fifo_pool"))
+        wait(lambda: get(pools_orchid + "/fifo_pool/mode") == "fifo")
 
-        # Wait until pools tree would be updated
-        time.sleep(0.6)
+        set("//sys/cluster_nodes/{}/@resource_limits_overrides/cpu".format(node), 0.1)
+        wait(lambda: get(scheduler_orchid_default_pool_tree_path() + "/pools/<Root>/resource_limits/cpu") == 0.1)
 
         ops = []
-        for i in range(1, op_count + 1):
+        for i in range(op_count):
             ops.append(
                 map(
                     track=False,
@@ -457,9 +455,16 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
                 )
             )
 
-        time.sleep(1.0)
-        for index, op in enumerate(ops):
-            assert op.get_runtime_progress("scheduling_info_per_pool_tree/default/fifo_index", default=-1) == 2 - index
+        for op in ops:
+            wait(lambda: op.get_state() == "running")
+
+        @wait_no_assert
+        def check_fifo_index():
+            for index, op in enumerate(ops):
+                assert op.get_runtime_progress("scheduling_info_per_pool_tree/default/fifo_index", default=-1) == op_count - 1 - index
+
+        remove("//sys/cluster_nodes/{}/@resource_limits_overrides/cpu".format(node))
+        wait(lambda: get(scheduler_orchid_default_pool_tree_path() + "/pools/<Root>/resource_limits/cpu") >= 1.0)
 
         for op in reversed(ops):
             op.track()

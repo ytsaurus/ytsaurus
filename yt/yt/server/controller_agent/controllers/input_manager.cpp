@@ -1007,14 +1007,6 @@ void TInputManager::AdjustSchemas(const TTableSchema::TSystemColumnOptions& syst
 
 void TInputManager::InitInputChunkScrapers()
 {
-    THashMap<TInputClusterPtr, THashSet<TChunkId>> clusterToChunkIds;
-    for (const auto& [chunkId, chunkDescriptor] : InputChunkMap_) {
-        if (!IsDynamicTabletStoreType(TypeFromId(chunkId))) {
-            auto cluster = GetClusterOrCrash(chunkDescriptor);
-            clusterToChunkIds[cluster].insert(chunkId);
-        }
-    }
-
     for (const auto& [clusterName, cluster] : Clusters_) {
         YT_VERIFY(!cluster->ChunkScraper());
         cluster->ChunkScraper() = New<TChunkScraper>(
@@ -1024,11 +1016,24 @@ void TInputManager::InitInputChunkScrapers()
             Host_->GetChunkLocationThrottlerManager(),
             cluster->Client(),
             cluster->NodeDirectory(),
-            std::move(clusterToChunkIds[cluster]),
             MakeSafe(
                 MakeWeak(Host_),
                 BIND(&TInputManager::OnInputChunkBatchLocated, MakeWeak(this))),
-            Logger);
+            Host_->GetChunkAvailabilityPolicy(),
+            Logger.WithTag("Cluster", clusterName));
+    }
+
+    for (const auto& [chunkId, chunkDescriptor] : InputChunkMap_) {
+        if (!IsDynamicTabletStoreType(TypeFromId(chunkId))) {
+            auto cluster = GetClusterOrCrash(chunkDescriptor);
+            cluster->ChunkScraper()->Add(chunkId);
+        }
+    }
+
+    for (const auto& [clusterName, cluster] : Clusters_) {
+        for (auto chunkId : cluster->UnavailableInputChunkIds()) {
+            cluster->ChunkScraper()->OnChunkBecameUnavailable(chunkId);
+        }
         if (!cluster->UnavailableInputChunkIds().empty()) {
             YT_LOG_INFO(
                 "Waiting for unavailable input chunks (Cluster: %v, Count: %v, SampleIds: %v)",
@@ -1110,7 +1115,7 @@ void TInputManager::OnInputChunkBatchLocated(
     YT_ASSERT_INVOKER_AFFINITY(Host_->GetCancelableInvoker());
 
     for (const auto& chunkInfo : chunkBatch) {
-        if (chunkInfo.Missing) {
+        if (chunkInfo.Availability == EChunkAvailability::Missing) {
             // We must have locked all the relevant input chunks, but when user transaction is aborted
             // there can be a race between operation completion and chunk scraper.
             Host_->OnOperationFailed(TError("Input chunk %v is missing", chunkInfo.ChunkId));
@@ -1120,10 +1125,7 @@ void TInputManager::OnInputChunkBatchLocated(
         auto& descriptor = GetOrCrash(InputChunkMap_, chunkInfo.ChunkId);
         YT_VERIFY(!descriptor.InputChunks.empty());
 
-        const auto& chunkSpec = descriptor.InputChunks.front();
-        auto codecId = chunkSpec->GetErasureCodec();
-
-        if (IsUnavailable(chunkInfo.Replicas, codecId, Host_->GetChunkAvailabilityPolicy())) {
+        if (chunkInfo.Availability == EChunkAvailability::Unavailable) {
             OnInputChunkUnavailable(chunkInfo.ChunkId, &descriptor);
         } else {
             OnInputChunkAvailable(chunkInfo.ChunkId, chunkInfo.Replicas, &descriptor);
@@ -1219,7 +1221,6 @@ void TInputManager::OnInputChunkUnavailable(TChunkId chunkId, TInputChunkDescrip
 
                 Host_->UpdateTask(inputStripe.Task.Get());
             }
-            GetClusterOrCrash(*descriptor)->ChunkScraper()->Start();
             break;
         }
 
@@ -1231,7 +1232,6 @@ void TInputManager::OnInputChunkUnavailable(TChunkId chunkId, TInputChunkDescrip
                 }
                 ++inputStripe.Stripe->WaitingChunkCount;
             }
-            GetClusterOrCrash(*descriptor)->ChunkScraper()->Start();
             break;
         }
 
@@ -1318,12 +1318,16 @@ bool TInputManager::OnInputChunkFailed(TChunkId chunkId, TJobId jobId)
     auto it = InputChunkMap_.find(chunkId);
     if (it != InputChunkMap_.end()) {
         YT_LOG_DEBUG("Input chunk has failed (ChunkId: %v, JobId: %v)", chunkId, jobId);
-        OnInputChunkUnavailable(chunkId, &it->second);
+        auto* descriptor = &it->second;
+        auto scraper = GetClusterOrCrash(*descriptor)->ChunkScraper();
+        YT_VERIFY(scraper);
+        scraper->OnChunkBecameUnavailable(chunkId);
+        scraper->Start();
+        OnInputChunkUnavailable(chunkId, descriptor);
         return true;
-    } else {
-        // This is an intermediate chunk.
-        return false;
     }
+    // This is an intermediate chunk.
+    return false;
 }
 
 void TInputManager::RegisterInputChunk(const TInputChunkPtr& inputChunk)

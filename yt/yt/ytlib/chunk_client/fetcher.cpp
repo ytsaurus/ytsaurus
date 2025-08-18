@@ -92,16 +92,6 @@ private:
     {
         YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(Invoker_);
 
-        THashSet<TChunkId> chunkIds;
-        ChunkMap_.clear();
-        chunkIds.reserve(size(chunkSpecs));
-        for (const auto& chunkSpec : chunkSpecs) {
-            auto chunkId = chunkSpec->GetChunkId();
-            chunkIds.insert(chunkId);
-            ChunkMap_[chunkId].ChunkSpecs.push_back(chunkSpec);
-        }
-        UnavailableFetcherChunkCount_.store(chunkIds.size());
-
         if (Scraper_) {
             Scraper_->Stop();
         }
@@ -112,11 +102,6 @@ private:
         // from race between current and previous scraper incarnations.
         ++Epoch_;
 
-        YT_LOG_DEBUG(
-            "Starting to scrape chunks (ChunkCount: %v, Epoch: %v)",
-            size(chunkSpecs),
-            Epoch_);
-
         Scraper_ = New<TChunkScraper>(
             Config_,
             Invoker_,
@@ -124,9 +109,26 @@ private:
             ThrottlerManager_,
             Client_,
             NodeDirectory_,
-            std::move(chunkIds),
             BIND(&TFetcherChunkScraper::OnChunkBatchLocated, MakeWeak(this), Epoch_),
+            MetadataAvailablePolicy,
             Logger);
+
+        THashSet<TChunkId> chunkIds;
+        ChunkMap_.clear();
+        chunkIds.reserve(size(chunkSpecs));
+        for (const auto& chunkSpec : chunkSpecs) {
+            auto chunkId = chunkSpec->GetChunkId();
+            chunkIds.insert(chunkId);
+            Scraper_->Add(chunkId);
+            ChunkMap_[chunkId].ChunkSpecs.push_back(chunkSpec);
+        }
+        UnavailableFetcherChunkCount_.store(chunkIds.size());
+
+        YT_LOG_DEBUG(
+            "Starting to scrape chunks (ChunkCount: %v, Epoch: %v)",
+            size(chunkSpecs),
+            Epoch_);
+
         Scraper_->Start();
 
         BatchLocatedPromise_ = NewPromise<void>();
@@ -179,12 +181,12 @@ private:
 
         for (const auto& chunkInfo : chunkInfos) {
             YT_LOG_TRACE(
-                "Fetcher chunk is located (ChunkId: %v, Replicas: %v, Missing: %v)",
+                "Fetcher chunk is located (ChunkId: %v, Replicas: %v, Availability: %v)",
                 chunkInfo.ChunkId,
                 chunkInfo.Replicas,
-                chunkInfo.Missing);
+                chunkInfo.Availability);
 
-            if (chunkInfo.Missing) {
+            if (chunkInfo.Availability == EChunkAvailability::Missing) {
                 YT_LOG_DEBUG("Chunk being scraped is missing; scraper terminated (ChunkId: %v)", chunkInfo.ChunkId);
 
                 BatchLocatedPromise_.TrySet(TError("Chunk scraper failed: chunk %v is missing", chunkInfo.ChunkId));

@@ -72,7 +72,7 @@ DEFINE_REFCOUNTED_TYPE(TNodeGroupConfig)
 struct TDynamicNodeTrackerTestingConfig
     : public NYTree::TYsonStruct
 {
-    bool DisableDisposalFinishing;
+    // Testing parameters come and go. They should be placed here.
 
     REGISTER_YSON_STRUCT(TDynamicNodeTrackerTestingConfig);
 
@@ -120,16 +120,13 @@ struct TDynamicNodeTrackerConfig
     // COMPAT(kvk1920)
     bool ForbidMaintenanceAttributeWrites;
 
-    // COMPAT(aleksandra-zh)
-    bool EnablePerLocationNodeDisposal;
-
     TDuration NodeDisposalTickPeriod;
 
     TDuration PendingRestartLeaseTimeout;
 
     TDuration ResetNodePendingRestartMaintenancePeriod;
 
-    int MaxNodesBeingDisposed;
+    int MaxLocationsBeingDisposed;
 
     bool ImmediatelyDisposeNondataNodes;
 

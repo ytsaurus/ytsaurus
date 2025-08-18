@@ -53,7 +53,7 @@ public:
 
     TDuration GetWaitTime() const override
     {
-        return TDuration::MicroSeconds(TotalWaitTime_.load(std::memory_order_relaxed));
+        return TDuration::MicroSeconds(TotalWaitTime_.load(std::memory_order::relaxed));
     }
 
 private:

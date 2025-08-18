@@ -17,11 +17,11 @@ Py::Object UploadParquet(Py::Tuple& args, Py::Dict& kwargs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Py::Object DumpORC(Py::Tuple& args, Py::Dict& kwargs);
+Py::Object DumpOrc(Py::Tuple& args, Py::Dict& kwargs);
 
 Py::Object AsyncDumpOrc(Py::Tuple& args, Py::Dict& kwargs);
 
-Py::Object UploadORC(Py::Tuple& args, Py::Dict& kwargs);
+Py::Object UploadOrc(Py::Tuple& args, Py::Dict& kwargs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

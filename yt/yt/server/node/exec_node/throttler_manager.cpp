@@ -1,5 +1,6 @@
 #include "throttler_manager.h"
 #include "bootstrap.h"
+#include "job_controller.h"
 #include "master_connector.h"
 #include "public.h"
 
@@ -77,11 +78,13 @@ private:
     const TPeriodicExecutorPtr ClusterThrottlersConfigUpdater_;
     const TPromise<void> ClusterThrottlersConfigInitializedPromise_ = NewPromise<void>();
 
+    const TCallback<void(bool)> JobsDisabledByMasterUpdatedCallback_;
     const TCallback<void()> MasterConnectedCallback_;
     const TCallback<void()> MasterDisconnectedCallback_;
 
     // The following members are protected by Lock_.
     bool MasterConnected_ = false;
+    bool JobsDisabledByMaster_ = false;
     TClusterThrottlersConfigPtr ClusterThrottlersConfig_;
     IDistributedThrottlerFactoryPtr DistributedThrottlerFactory_;
     struct TThroughputThrottlerData
@@ -103,6 +106,8 @@ private:
 
     void OnMasterConnected();
     void OnMasterDisconnected();
+
+    void UpdateJobsDisabledByMaster(bool jobsDisabledByMaster);
 
     void TryUpdateClusterThrottlersConfig();
     //! Lock_ has to be taken prior to calling this method.
@@ -187,6 +192,29 @@ void TThrottlerManager::OnMasterDisconnected()
         ClusterThrottlersConfig_.Reset();
         DistributedThrottlersHolder_.clear();
         DistributedThrottlerFactory_.Reset();
+    }
+}
+
+void TThrottlerManager::UpdateJobsDisabledByMaster(bool jobsDisabledByMaster)
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    {
+        auto guard = Guard(Lock_);
+
+        YT_LOG_DEBUG("Update JobsDisabledByMaster (OldJobsDisabledByMaster: %v, NewJobsDisabledByMaster: %v)",
+            JobsDisabledByMaster_,
+            jobsDisabledByMaster);
+
+        if (!JobsDisabledByMaster_ && jobsDisabledByMaster) {
+            YT_LOG_INFO("Disable cluster throttlers on jobs disabled by master");
+
+            ClusterThrottlersConfig_.Reset();
+            DistributedThrottlersHolder_.clear();
+            DistributedThrottlerFactory_.Reset();
+        }
+
+        JobsDisabledByMaster_ = jobsDisabledByMaster;
     }
 }
 
@@ -294,6 +322,11 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
 
     {
         auto guard = Guard(Lock_);
+
+        if (JobsDisabledByMaster_) {
+            YT_LOG_DEBUG("Skip updating cluster throttlers config since jobs are disabled by master");
+            return;
+        }
 
         if (!MasterConnected_) {
             YT_LOG_DEBUG("Skip updating cluster throttlers config since master is diconnected");
@@ -473,13 +506,14 @@ IThroughputThrottlerPtr TThrottlerManager::DoGetOrCreateThrottler(
     {
         localThrottler = GetLocalThrottler(kind, trafficType);
         distributedThrottler = GetOrCreateDistributedThrottler(kind, trafficType, clusterName);
-        if (!MasterConnected_ || !distributedThrottler) {
-            YT_LOG_DEBUG("Distributed throttler is missing; falling back to local throttler (MasterConnected: %v)",
-                MasterConnected_);
+        if (!distributedThrottler) {
+            YT_LOG_DEBUG("Distributed throttler is missing; falling back to local throttler (MasterConnected: %v, JobsDisabledByMaster: %v)",
+                MasterConnected_,
+                JobsDisabledByMaster_);
             return localThrottler;
         }
     }
-    YT_VERIFY(localThrottler && distributedThrottler && MasterConnected_);
+    YT_VERIFY(localThrottler && distributedThrottler);
 
     YT_LOG_DEBUG("Creating combined throttler");
     return CreateCombinedThrottler({std::move(localThrottler), std::move(distributedThrottler)});
@@ -506,6 +540,7 @@ TThrottlerManager::TThrottlerManager(
         BIND(&TThrottlerManager::TryUpdateClusterThrottlersConfig, MakeWeak(this)),
         // Default period will be updated once config has been retrieved.
         TDuration::Seconds(10)))
+    , JobsDisabledByMasterUpdatedCallback_(BIND_NO_PROPAGATE(&TThrottlerManager::UpdateJobsDisabledByMaster, MakeWeak(this)))
     , MasterConnectedCallback_(BIND_NO_PROPAGATE(&TThrottlerManager::OnMasterConnected, MakeWeak(this)))
     , MasterDisconnectedCallback_(BIND_NO_PROPAGATE(&TThrottlerManager::OnMasterDisconnected, MakeWeak(this)))
 {
@@ -537,6 +572,8 @@ TThrottlerManager::TThrottlerManager(
     }
 
     const auto& masterConnector = Bootstrap_->GetExecNodeBootstrap()->GetMasterConnector();
+    masterConnector->SubscribeJobsDisabledByMasterUpdated(JobsDisabledByMasterUpdatedCallback_);
+
     masterConnector->SubscribeMasterConnected(MasterConnectedCallback_);
     masterConnector->SubscribeMasterDisconnected(MasterDisconnectedCallback_);
 }
@@ -546,6 +583,8 @@ TThrottlerManager::~TThrottlerManager()
     YT_LOG_INFO("Destructing throttler manager");
 
     const auto& masterConnector = Bootstrap_->GetExecNodeBootstrap()->GetMasterConnector();
+    masterConnector->UnsubscribeJobsDisabledByMasterUpdated(JobsDisabledByMasterUpdatedCallback_);
+
     masterConnector->UnsubscribeMasterConnected(MasterConnectedCallback_);
     masterConnector->UnsubscribeMasterDisconnected(MasterDisconnectedCallback_);
 }

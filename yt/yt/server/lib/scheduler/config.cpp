@@ -211,7 +211,7 @@ void TFairShareStrategySchedulingSegmentsConfig::Register(TRegistrar registrar)
             ValidateDataCenterName(schedulingSegmentModule);
         }
         for (const auto& schedulingSegmentModule : config->InfinibandClusters) {
-            ValidateInfinibandClusterName(schedulingSegmentModule);
+            ValidateGpuSchedulingModuleName(schedulingSegmentModule);
         }
 
         double previousModuleShare = 0.0;
@@ -280,54 +280,27 @@ const THashSet<std::string>& TFairShareStrategySchedulingSegmentsConfig::GetModu
 
 void TGpuAllocationSchedulerConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("initialization_timeout", &TThis::InitializationTimeout)
-        .Default(TDuration::Minutes(5));
-
     registrar.Parameter("module_reconsideration_timeout", &TThis::ModuleReconsiderationTimeout)
         .Default(TDuration::Minutes(20));
 
-    registrar.Parameter("preempt_for_large_operation_timeout", &TThis::PreemptForLargeOperationTimeout)
-        .Default(TDuration::Minutes(5));
-
-    registrar.Parameter("data_centers", &TThis::DataCenters)
+    registrar.Parameter("modules", &TThis::Modules)
         .Default();
 
-    registrar.Parameter("infiniband_clusters", &TThis::InfinibandClusters)
-        .Default();
-
-    registrar.Parameter("module_assignment_heuristic", &TThis::ModuleAssignmentHeuristic)
-        .Default(ESchedulingSegmentModuleAssignmentHeuristic::MinRemainingFeasibleCapacity);
-
-    registrar.Parameter("module_preemption_heuristic", &TThis::ModulePreemptionHeuristic)
-        .Default(ESchedulingSegmentModulePreemptionHeuristic::Greedy);
-
-    registrar.Parameter("module_type", &TThis::ModuleType)
-        .Default(ESchedulingSegmentModuleType::DataCenter);
-
-    registrar.Parameter("enable_detailed_logs", &TThis::EnableDetailedLogs)
-        .Default(false);
-
-    registrar.Parameter("priority_module_assignment_timeout", &TThis::PriorityModuleAssignmentTimeout)
+    registrar.Parameter("priority_module_binding_timeout", &TThis::PriorityModuleBindingTimeout)
         .Default(TDuration::Minutes(15));
 
+    registrar.Parameter("full_host_aggressive_preemption_timeout", &TThis::FullHostAggressivePreemptionTimeout)
+        .Default(TDuration::Minutes(5));
+
+    registrar.Parameter("min_assignment_preemptible_duration", &TThis::MinAssignmentPreemptibleDuration)
+        .Default(TDuration::Seconds(1))
+        .GreaterThanOrEqual(TDuration::Seconds(1));
+
     registrar.Postprocessor([&] (TGpuAllocationSchedulerConfig* config) {
-        for (const auto& schedulingSegmentModule : config->DataCenters) {
-            ValidateDataCenterName(schedulingSegmentModule);
-        }
-        for (const auto& schedulingSegmentModule : config->InfinibandClusters) {
-            ValidateInfinibandClusterName(schedulingSegmentModule);
+        for (const auto& module : config->Modules) {
+            ValidateGpuSchedulingModuleName(module);
         }
     });
-}
-
-const THashSet<std::string>& TGpuAllocationSchedulerConfig::GetModules() const
-{
-    switch (ModuleType) {
-        case ESchedulingSegmentModuleType::DataCenter:
-            return DataCenters;
-        case ESchedulingSegmentModuleType::InfinibandCluster:
-            return InfinibandClusters;
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -649,6 +622,9 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("max_job_resource_limits", &TThis::MaxJobResourceLimits)
+        .DefaultNew();
+
+    registrar.Parameter("guaranteed_job_resources", &TThis::GuaranteedJobResources)
         .DefaultNew();
 
     registrar.Parameter("min_node_resource_limits", &TThis::MinNodeResourceLimits)

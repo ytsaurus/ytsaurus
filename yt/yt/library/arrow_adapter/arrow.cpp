@@ -4,15 +4,16 @@
 
 #include <library/cpp/yt/assert/assert.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/api.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/io/api.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/io/memory.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/ipc/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/api.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/adapters/orc/adapter.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/adapters/orc/adapter.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/reader.h>
-#include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/writer.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/io/memory.h>
+
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/ipc/api.h>
+
+#include <contrib/libs/apache/arrow_next/cpp/src/parquet/arrow/reader.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/parquet/arrow/writer.h>
 
 #include <contrib/libs/apache/orc/c++/include/orc/OrcFile.hh>
 
@@ -30,38 +31,40 @@ TRingBuffer::TRingBuffer(i64 bufferSize)
     , Buffer_(TSharedMutableRef::Allocate<TRingBufferAdapterTag>(bufferSize, {.InitializeStorage = false}))
 { }
 
-void TRingBuffer::Read(i64 offset, i64 nBytes, char* out)
+void TRingBuffer::Read(i64 offset, i64 byteCount, char* output)
 {
-    YT_VERIFY(offset + nBytes <= EndPosition_);
+    YT_VERIFY(offset + byteCount <= EndPosition_);
     YT_VERIFY(offset >= BeginPosition_);
 
     auto startReadPosition = (FirstRingBufferPosition_ + (offset - BeginPosition_)) % BufferSize_;
-    auto restSize = BufferSize_ - startReadPosition;
+    auto remainingSize = BufferSize_ - startReadPosition;
 
-    if (nBytes <= restSize) {
+    if (byteCount <= remainingSize) {
         // One copy is enough.
         // In the case when there is more space between the current read position and the end of the buffer
         // than the size of the data we want to read.
-        std::memcpy(out, Buffer_.Begin() + startReadPosition, nBytes);
+        std::memcpy(output, Buffer_.Begin() + startReadPosition, byteCount);
     } else {
         // Two copies are needed.
         // In the case when there is less space between the current read position and the end of the buffer
         // than the size of the data we want to read.
-        std::memcpy(out, Buffer_.Begin() + startReadPosition, restSize);
-        std::memcpy(out + restSize, Buffer_.Begin(), nBytes - restSize);
+        std::memcpy(output, Buffer_.Begin() + startReadPosition, remainingSize);
+        std::memcpy(output + remainingSize, Buffer_.Begin(), byteCount - remainingSize);
     }
 }
 
-arrow::Status TRingBuffer::Write(TSharedRef data)
+arrow20::Status TRingBuffer::Write(TRef data)
 {
-    auto size = static_cast<i64>(data.Size());
+    auto inputSize = static_cast<i64>(data.Size());
+    auto size = inputSize;
+
     if (size > BufferSize_) {
         data = data.Slice(size - BufferSize_, size);
         size = BufferSize_;
     }
 
-    auto restSize = BufferSize_ - BufferPosition_;
-    if (size <= restSize) {
+    auto remainingSize = BufferSize_ - BufferPosition_;
+    if (size <= remainingSize) {
         // One copy is enough.
         // In the case when there is more space between the current write position and the end of the buffer
         // than the size of the data we want to write.
@@ -80,18 +83,19 @@ arrow::Status TRingBuffer::Write(TSharedRef data)
         // ..............
         //             ^ - current write position
         //             ..... - data we want to write
-        memcpy(Buffer_.Begin() + BufferPosition_, data.Begin(), restSize);
-        memcpy(Buffer_.Begin(), data.Begin() + restSize, size - restSize);
+        memcpy(Buffer_.Begin() + BufferPosition_, data.Begin(), remainingSize);
+        memcpy(Buffer_.Begin(), data.Begin() + remainingSize, size - remainingSize);
         BufferPosition_ += size;
     }
     BufferPosition_ %= BufferSize_;
 
-    EndPosition_ += size;
+    EndPosition_ += inputSize;
+
     if (EndPosition_ - BeginPosition_ > BufferSize_) {
         BeginPosition_ = EndPosition_ - BufferSize_;
         FirstRingBufferPosition_ = BufferPosition_;
     }
-    return arrow::Status::OK();
+    return arrow20::Status::OK();
 }
 
 i64 TRingBuffer::GetBeginPosition() const
@@ -108,23 +112,23 @@ i64 TRingBuffer::GetEndPosition() const
 
 namespace {
 
-class TORCAdapter
-    : public arrow::io::RandomAccessFile
+class TOrcAdapter
+    : public arrow20::io::RandomAccessFile
 {
 public:
-    TORCAdapter(const TString* metadata, i64 startMetadataOffset, i64 maxStripeSize, std::shared_ptr<IInputStream> reader)
+    TOrcAdapter(const TString* metadata, i64 startMetadataOffset, i64 maxStripeSize, std::shared_ptr<IInputStream> reader)
         : Metadata_(metadata)
         , StartMetadataOffset_(startMetadataOffset)
         , Reader_(std::move(reader))
         , RingBuffer_(maxStripeSize)
     { }
 
-    arrow::Result<int64_t> GetSize() override
+    arrow20::Result<int64_t> GetSize() override
     {
         return Metadata_->size() + StartMetadataOffset_;
     }
 
-    arrow::Result<int64_t> Read(int64_t nbytes, void* out) override
+    arrow20::Result<int64_t> Read(int64_t nbytes, void* out) override
     {
         if (FilePosition_ < StartMetadataOffset_) {
             if (FilePosition_ + nbytes >= RingBuffer_.GetEndPosition()) {
@@ -137,7 +141,7 @@ public:
                 }
             }
             if (FilePosition_ < RingBuffer_.GetBeginPosition()) {
-                return arrow::Status::Invalid("Position %v is less than first record position %v", FilePosition_, RingBuffer_.GetBeginPosition());
+                return arrow20::Status::Invalid("Position %v is less than first record position %v", FilePosition_, RingBuffer_.GetBeginPosition());
             }
             RingBuffer_.Read(FilePosition_, nbytes, static_cast<char*>(out));
             FilePosition_ += nbytes;
@@ -150,9 +154,9 @@ public:
         return nbytes;
     }
 
-    arrow::Result<std::shared_ptr<arrow::Buffer>> Read(int64_t nbytes) override
+    arrow20::Result<std::shared_ptr<arrow20::Buffer>> Read(int64_t nbytes) override
     {
-        auto bufferResult = arrow::AllocateResizableBuffer(nbytes);
+        auto bufferResult = arrow20::AllocateResizableBuffer(nbytes);
         ThrowOnError(bufferResult.status());
         auto buffer = std::move(*bufferResult);
 
@@ -166,27 +170,27 @@ public:
         return buffer;
     }
 
-    arrow::Status Seek(int64_t position) override
+    arrow20::Status Seek(int64_t position) override
     {
        if (position < StartMetadataOffset_) {
             if (position < RingBuffer_.GetBeginPosition()) {
-                return arrow::Status::Invalid("Position %v is less than first record position %v", position, RingBuffer_.GetBeginPosition());
+                return arrow20::Status::Invalid("Position %v is less than first record position %v", position, RingBuffer_.GetBeginPosition());
             }
         }
         FilePosition_ = position;
 
-        return arrow::Status::OK();
+        return arrow20::Status::OK();
     }
 
-    arrow::Result<int64_t> Tell() const override
+    arrow20::Result<int64_t> Tell() const override
     {
         return FilePosition_;
     }
 
-    arrow::Status Close() override
+    arrow20::Status Close() override
     {
         Closed_ = true;
-        return arrow::Status::OK();
+        return arrow20::Status::OK();
     }
 
     bool closed() const override
@@ -205,7 +209,7 @@ private:
 };
 
 class TParquetAdapter
-    : public arrow::io::RandomAccessFile
+    : public arrow20::io::RandomAccessFile
 {
 public:
     TParquetAdapter(const TString* metadata, i64 startMetadataOffset, std::shared_ptr<IInputStream> reader)
@@ -214,12 +218,12 @@ public:
         , Reader_(std::move(reader))
     { }
 
-    arrow::Result<int64_t> GetSize() override
+    arrow20::Result<int64_t> GetSize() override
     {
         return Metadata_->size() + StartMetadataOffset_;
     }
 
-    arrow::Result<int64_t> Read(int64_t nbytes, void* out) override
+    arrow20::Result<int64_t> Read(int64_t nbytes, void* out) override
     {
         if (FilePosition_ < StartMetadataOffset_) {
             auto bytesRead = Reader_->Load(out, nbytes);
@@ -234,9 +238,9 @@ public:
         return nbytes;
     }
 
-    arrow::Result<std::shared_ptr<arrow::Buffer>> Read(int64_t nbytes) override
+    arrow20::Result<std::shared_ptr<arrow20::Buffer>> Read(int64_t nbytes) override
     {
-        auto bufferResult = arrow::AllocateResizableBuffer(nbytes);
+        auto bufferResult = arrow20::AllocateResizableBuffer(nbytes);
         ThrowOnError(bufferResult.status());
         auto buffer = std::move(*bufferResult);
 
@@ -250,13 +254,13 @@ public:
         return buffer;
     }
 
-    arrow::Status Seek(int64_t position) override
+    arrow20::Status Seek(int64_t position) override
     {
         if (position >= StartMetadataOffset_) {
             FilePosition_ = position;
         } else {
             if (position < ReaderPosition_) {
-                return arrow::Status::Invalid(Format("Position %v is less than current reader position %v", position, ReaderPosition_));
+                return arrow20::Status::Invalid(Format("Position %v is less than current reader position %v", position, ReaderPosition_));
             }
             if (position > ReaderPosition_) {
                 auto lenSkip = position - ReaderPosition_;
@@ -264,7 +268,7 @@ public:
                     auto res = Reader_->Skip(lenSkip);
                     lenSkip -= res;
                     if (res == 0) {
-                        return arrow::Status::Invalid("Unexpected end of input stream");
+                        return arrow20::Status::Invalid("Unexpected end of input stream");
                     }
                 }
             }
@@ -272,18 +276,18 @@ public:
             FilePosition_ = position;
         }
 
-        return arrow::Status::OK();
+        return arrow20::Status::OK();
     }
 
-    arrow::Result<int64_t> Tell() const override
+    arrow20::Result<int64_t> Tell() const override
     {
         return FilePosition_;
     }
 
-    arrow::Status Close() override
+    arrow20::Status Close() override
     {
         Closed_ = true;
-        return arrow::Status::OK();
+        return arrow20::Status::OK();
     }
 
     bool closed() const override
@@ -301,11 +305,11 @@ private:
     bool Closed_ = false;
 };
 
-class TORCMetadataStream
+class TOrcMetadataStream
     : public orc::InputStream
 {
 public:
-    TORCMetadataStream(const TString* metadata, i64 startMetadataOffset)
+    TOrcMetadataStream(const TString* metadata, i64 startMetadataOffset)
         : Metadata_(metadata)
         , StartMetadataOffset_(startMetadataOffset)
     { }
@@ -323,7 +327,7 @@ public:
     void read(void* buf, uint64_t length, uint64_t offset) override
     {
         if (static_cast<i64>(offset) < StartMetadataOffset_) {
-            THROW_ERROR_EXCEPTION("Metadata size of ORC file is too big");
+            THROW_ERROR_EXCEPTION("Metadata size of Orc file is too big");
         }
         std::memcpy(buf, Metadata_->data() + offset - StartMetadataOffset_, length);
     }
@@ -337,7 +341,7 @@ private:
     // The number of bytes that should be read at once.
     static constexpr int NaturalReadSize_ = 1;
 
-    const std::string Name_ = "ORCMetadataStream";
+    const std::string Name_ = "OrcMetadataStream";
     const TString* Metadata_;
     const i64 StartMetadataOffset_;
 };
@@ -350,7 +354,7 @@ i64 GetMaxStripeSize(const TString* metadata, i64 startMetadataOffset)
 {
     orc::ReaderOptions readOpts;
     std::unique_ptr<orc::Reader> reader = orc::createReader(
-        std::make_unique<TORCMetadataStream>(metadata, startMetadataOffset),
+        std::make_unique<TOrcMetadataStream>(metadata, startMetadataOffset),
         readOpts);
 
     uint64_t stripeCount = reader->getNumberOfStripes();
@@ -365,7 +369,7 @@ i64 GetMaxStripeSize(const TString* metadata, i64 startMetadataOffset)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ThrowOnError(const arrow::Status& status)
+void ThrowOnError(const arrow20::Status& status)
 {
     if (!status.ok()) {
         THROW_ERROR_EXCEPTION("Arrow error occurred: %Qv", status.message());
@@ -382,27 +386,27 @@ TArrowRandomAccessFilePtr CreateParquetAdapter(
     return std::make_shared<TParquetAdapter>(metadata, startMetadataOffset, std::move(reader));
 }
 
-TArrowRandomAccessFilePtr CreateORCAdapter(
+TArrowRandomAccessFilePtr CreateOrcAdapter(
     const TString* metadata,
     i64 startMetadataOffset,
     i64 maxStripeSize,
     std::shared_ptr<IInputStream> reader)
 {
-    return std::make_shared<TORCAdapter>(metadata, startMetadataOffset, maxStripeSize, std::move(reader));
+    return std::make_shared<TOrcAdapter>(metadata, startMetadataOffset, maxStripeSize, std::move(reader));
 }
 
 TArrowSchemaPtr CreateArrowSchemaFromParquetMetadata(const TString* metadata, i64 startIndex)
 {
     auto inputStream = CreateParquetAdapter(metadata, startIndex);
-    auto pool = arrow::default_memory_pool();
+    auto pool = arrow20::default_memory_pool();
 
-    auto parquetFileReader = parquet::ParquetFileReader::Open(inputStream);
+    auto parquetFileReader = parquet20::ParquetFileReader::Open(inputStream);
 
-    std::unique_ptr<parquet::arrow::FileReader> arrowFileReader;
-    ThrowOnError(parquet::arrow::FileReader::Make(
+    std::unique_ptr<parquet20::arrow20::FileReader> arrowFileReader;
+    ThrowOnError(parquet20::arrow20::FileReader::Make(
             pool,
             std::move(parquetFileReader),
-            parquet::ArrowReaderProperties(),
+            parquet20::ArrowReaderProperties(),
             &arrowFileReader));
 
     TArrowSchemaPtr arrowSchema;
@@ -410,18 +414,19 @@ TArrowSchemaPtr CreateArrowSchemaFromParquetMetadata(const TString* metadata, i6
     return arrowSchema;
 }
 
-TArrowSchemaPtr CreateArrowSchemaFromORCMetadata(const TString* metadata, i64 startIndex)
+TArrowSchemaPtr CreateArrowSchemaFromOrcMetadata(const TString* metadata, i64 startIndex)
 {
-    auto inputStream = CreateORCAdapter(metadata, startIndex);
-    auto pool = arrow::default_memory_pool();
-    std::unique_ptr<arrow::adapters::orc::ORCFileReader> reader;
-    ThrowOnError(arrow::adapters::orc::ORCFileReader::Open(
+    auto inputStream = CreateOrcAdapter(metadata, startIndex);
+    auto pool = arrow20::default_memory_pool();
+    auto readerOrError = arrow20::adapters::orc::ORCFileReader::Open(
         inputStream,
-        pool,
-        &reader));
-    TArrowSchemaPtr arrowSchema;
-    ThrowOnError(reader->ReadSchema(&arrowSchema));
-    return arrowSchema;
+        pool);
+    ThrowOnError(readerOrError.status());
+    auto reader = std::move(readerOrError.ValueOrDie());
+
+    auto arrowSchemaOrError = reader->ReadSchema();
+    ThrowOnError(arrowSchemaOrError.status());
+    return arrowSchemaOrError.ValueOrDie();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

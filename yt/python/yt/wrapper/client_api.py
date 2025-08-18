@@ -8,6 +8,7 @@ from .table_commands import (  # noqa
     write_table_structured, read_table_structured, partition_tables, dump_parquet, upload_parquet, dump_orc, upload_orc)
 from .download_core_dump import download_core_dump  # noqa
 from .dynamic_table_commands import select_rows, insert_rows, delete_rows, lookup_rows, lock_rows, explain_query  # noqa
+from .distributed_commands import start_distributed_write_session, finish_distributed_write_session, write_table_fragment, ping_distributed_write_session  # noqa
 from .flow_commands import (  # noqa
     start_pipeline, stop_pipeline, pause_pipeline, get_pipeline_spec, set_pipeline_spec, remove_pipeline_spec,
     get_pipeline_dynamic_spec, set_pipeline_dynamic_spec, remove_pipeline_dynamic_spec, get_pipeline_state, get_flow_view, flow_execute)

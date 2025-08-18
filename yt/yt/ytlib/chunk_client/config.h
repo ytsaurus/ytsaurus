@@ -175,6 +175,7 @@ struct TBlockCacheConfig
     TSlruCacheConfigPtr HashTableChunkIndex;
     TSlruCacheConfigPtr XorFilter;
     TSlruCacheConfigPtr ChunkFragmentsData;
+    TSlruCacheConfigPtr MinHashDigest;
 
     REGISTER_YSON_STRUCT(TBlockCacheConfig);
 
@@ -206,6 +207,7 @@ struct TBlockCacheDynamicConfig
     TSlruCacheDynamicConfigPtr HashTableChunkIndex;
     TSlruCacheDynamicConfigPtr XorFilter;
     TSlruCacheDynamicConfigPtr ChunkFragmentsData;
+    TSlruCacheDynamicConfigPtr MinHashDigest;
 
     REGISTER_YSON_STRUCT(TBlockCacheDynamicConfig);
 

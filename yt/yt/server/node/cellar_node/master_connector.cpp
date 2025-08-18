@@ -146,8 +146,8 @@ public:
         }
 
         if (singleCellarType) {
-            static const TString tabletCellBundleTagName("tablet_cell_bundle");
-            static const TString cellBundleTagName("cell_bundle");
+            static const std::string tabletCellBundleTagName("tablet_cell_bundle");
+            static const std::string cellBundleTagName("cell_bundle");
             auto cellarType = *singleCellarType;
 
             SolomonTagAlert_ = UpdateSolomonTags(

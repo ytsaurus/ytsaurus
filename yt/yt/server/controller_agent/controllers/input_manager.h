@@ -3,7 +3,6 @@
 #include "private.h"
 #include "task_host.h"
 
-#include <yt/yt/ytlib/chunk_client/chunk_scraper.h>
 #include <yt/yt/ytlib/scheduler/config.h>
 
 #include <yt/yt/ytlib/chunk_pools/chunk_pool.h>

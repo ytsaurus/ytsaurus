@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: scipy
-Version: 1.12.0
+Version: 1.14.1
 Summary: Fundamental algorithms for scientific computing in Python
 Home-page: https://scipy.org/
 Maintainer-Email: SciPy Developers <scipy-dev@python.org>
@@ -944,7 +944,6 @@ Classifier: License :: OSI Approved :: BSD License
 Classifier: Programming Language :: C
 Classifier: Programming Language :: Python
 Classifier: Programming Language :: Python :: 3
-Classifier: Programming Language :: Python :: 3.9
 Classifier: Programming Language :: Python :: 3.10
 Classifier: Programming Language :: Python :: 3.11
 Classifier: Programming Language :: Python :: 3.12
@@ -960,8 +959,8 @@ Project-URL: Documentation, https://docs.scipy.org/doc/scipy/
 Project-URL: Source, https://github.com/scipy/scipy
 Project-URL: Download, https://github.com/scipy/scipy/releases
 Project-URL: Tracker, https://github.com/scipy/scipy/issues
-Requires-Python: >=3.9
-Requires-Dist: numpy<1.29.0,>=1.22.4
+Requires-Python: >=3.10
+Requires-Dist: numpy<2.3,>=1.23.5
 Requires-Dist: pytest; extra == "test"
 Requires-Dist: pytest-cov; extra == "test"
 Requires-Dist: pytest-timeout; extra == "test"
@@ -972,23 +971,28 @@ Requires-Dist: gmpy2; extra == "test"
 Requires-Dist: threadpoolctl; extra == "test"
 Requires-Dist: scikit-umfpack; extra == "test"
 Requires-Dist: pooch; extra == "test"
-Requires-Dist: hypothesis; extra == "test"
-Requires-Dist: sphinx!=4.1.0; extra == "doc"
-Requires-Dist: pydata-sphinx-theme==0.9.0; extra == "doc"
-Requires-Dist: sphinx-design>=0.2.0; extra == "doc"
-Requires-Dist: matplotlib>2; extra == "doc"
+Requires-Dist: hypothesis>=6.30; extra == "test"
+Requires-Dist: array-api-strict>=2.0; extra == "test"
+Requires-Dist: Cython; extra == "test"
+Requires-Dist: meson; extra == "test"
+Requires-Dist: ninja; sys_platform != "emscripten" and extra == "test"
+Requires-Dist: sphinx<=7.3.7,>=5.0.0; extra == "doc"
+Requires-Dist: pydata-sphinx-theme>=0.15.2; extra == "doc"
+Requires-Dist: sphinx-design>=0.4.0; extra == "doc"
+Requires-Dist: matplotlib>=3.5; extra == "doc"
 Requires-Dist: numpydoc; extra == "doc"
 Requires-Dist: jupytext; extra == "doc"
 Requires-Dist: myst-nb; extra == "doc"
 Requires-Dist: pooch; extra == "doc"
-Requires-Dist: mypy; extra == "dev"
+Requires-Dist: jupyterlite-sphinx>=0.13.1; extra == "doc"
+Requires-Dist: jupyterlite-pyodide-kernel; extra == "doc"
+Requires-Dist: mypy==1.10.0; extra == "dev"
 Requires-Dist: typing_extensions; extra == "dev"
 Requires-Dist: types-psutil; extra == "dev"
 Requires-Dist: pycodestyle; extra == "dev"
-Requires-Dist: ruff; extra == "dev"
+Requires-Dist: ruff>=0.0.292; extra == "dev"
 Requires-Dist: cython-lint>=0.12.2; extra == "dev"
 Requires-Dist: rich-click; extra == "dev"
-Requires-Dist: click; extra == "dev"
 Requires-Dist: doit>=0.36.0; extra == "dev"
 Requires-Dist: pydevtool; extra == "dev"
 Provides-Extra: test
@@ -1014,7 +1018,7 @@ Description-Content-Type: text/x-rst
 .. image:: https://img.shields.io/badge/stackoverflow-Ask%20questions-blue.svg
   :target: https://stackoverflow.com/questions/tagged/scipy
 
-.. image:: https://img.shields.io/badge/DOI-10.1038%2Fs41592--019--0686--2-blue
+.. image:: https://img.shields.io/badge/DOI-10.1038%2Fs41592--019--0686--2-blue.svg
   :target: https://www.nature.com/articles/s41592-019-0686-2
 
 SciPy (pronounced "Sigh Pie") is an open-source software for mathematics,
@@ -1025,7 +1029,7 @@ ODE solvers, and more.
 - **Website:** https://scipy.org
 - **Documentation:** https://docs.scipy.org/doc/scipy/
 - **Development version of the documentation:** https://scipy.github.io/devdocs
-- **Mailing list:** https://mail.python.org/mailman3/lists/scipy-dev.python.org/
+- **SciPy development forum:** https://discuss.scientific-python.org/c/contributor/scipy 
 - **Source code:** https://github.com/scipy/scipy
 - **Contributing:** https://scipy.github.io/devdocs/dev/index.html
 - **Bug reports:** https://github.com/scipy/scipy/issues
@@ -1064,8 +1068,9 @@ Writing code isn’t the only way to contribute to SciPy. You can also:
 - write grant proposals and help with other fundraising efforts
 
 If you’re unsure where to start or how your skills fit in, reach out! You can
-ask on the mailing list or here, on GitHub, by leaving a
-comment on a relevant issue that is already open.
+ask on the `forum <https://discuss.scientific-python.org/c/contributor/scipy>`__
+or here, on GitHub, by leaving a comment on a relevant issue that is already
+open.
 
 If you are new to contributing to open source, `this
 guide <https://opensource.guide/how-to-contribute/>`__ helps explain why, what,

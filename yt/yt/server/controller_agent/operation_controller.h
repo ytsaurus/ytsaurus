@@ -668,6 +668,12 @@ struct IOperationController
      *  \note Invoker affinity: any.
      */
     virtual int GetMonitoredUserJobCount() const = 0;
+
+    //! Return current controller epoch.
+    /*!
+     *  \note Invoker affinity: any.
+     */
+    virtual NScheduler::TControllerEpoch GetControllerEpoch() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

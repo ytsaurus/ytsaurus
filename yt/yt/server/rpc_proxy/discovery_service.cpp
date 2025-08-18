@@ -61,11 +61,10 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString ExpirationTimeAttributeName = "expiration_time";
-static const TString VersionAttributeName = "version";
-static const TString StartTimeAttributeName = "start_time";
-static const TString AnnotationsAttributeName = "annotations";
-static const TString AddressesAttributeName = "addresses";
+static const std::string VersionAttributeName = "version";
+static const std::string StartTimeAttributeName = "start_time";
+static const std::string AnnotationsAttributeName = "annotations";
+static const std::string AddressesAttributeName = "addresses";
 
 ////////////////////////////////////////////////////////////////////////////////
 

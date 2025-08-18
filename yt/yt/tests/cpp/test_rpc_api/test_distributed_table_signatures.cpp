@@ -78,7 +78,7 @@ TEST_F(TDistributedTableSignaturesTest, WriteFragmentWithFakeCookie)
         "{name=v1;type=string};"
         "]");
 
-    std::vector<TString> rowStrings = {
+    std::vector<std::string> rowStrings = {
         "<id=0>Foo;",
     };
 

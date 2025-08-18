@@ -39,10 +39,14 @@ void TRowDigestCompactionConfig::Register(TRegistrar registrar)
         .Default(8'192);
 }
 
-bool operator==(const TRowDigestCompactionConfig& lhs, const TRowDigestCompactionConfig& rhs)
+////////////////////////////////////////////////////////////////////////////////
+
+void TMinHashDigestCompactionConfig::Register(TRegistrar registrar)
 {
-    return lhs.MaxObsoleteTimestampRatio == rhs.MaxObsoleteTimestampRatio &&
-        lhs.MaxTimestampsPerValue == rhs.MaxTimestampsPerValue;
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+    registrar.Parameter("chunk_writer", &TThis::ChunkWriter)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -250,6 +254,8 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("periodic_compaction_mode", &TThis::PeriodicCompactionMode)
         .Default(EPeriodicCompactionMode::Store);
     registrar.Parameter("row_digest_compaction", &TThis::RowDigestCompaction)
+        .DefaultNew();
+    registrar.Parameter("min_hash_digest_compaction", &TThis::MinHashDigestCompaction)
         .DefaultNew();
 
     registrar.Parameter("enable_lookup_hash_table", &TThis::EnableLookupHashTable)

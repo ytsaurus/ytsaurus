@@ -53,6 +53,7 @@ PEERDIR(
     contrib/libs/xxhash
     contrib/libs/zstd
     contrib/restricted/abseil-cpp
+    contrib/restricted/aklomp-base64
     contrib/restricted/aws/aws-c-auth
     contrib/restricted/aws/aws-c-common
     contrib/restricted/aws/aws-c-io
@@ -89,7 +90,7 @@ ENDIF()
 
 ADDINCL(
     GLOBAL contrib/clickhouse/src
-    GLOBAL contrib/libs/croaring/cpp
+    GLOBAL contrib/libs/croaring/include/roaring
     GLOBAL contrib/libs/wyhash
     GLOBAL contrib/libs/xxhash
     GLOBAL contrib/restricted/murmurhash
@@ -109,7 +110,6 @@ ADDINCL(
     contrib/clickhouse/contrib/pdqsort
     contrib/clickhouse/includes/configs
     contrib/libs/apache/avro/include/avro
-    contrib/libs/croaring/include/roaring
     contrib/libs/double-conversion
     contrib/libs/fastops
     contrib/libs/libc_compat/include
@@ -122,6 +122,7 @@ ADDINCL(
     contrib/libs/simdjson/include
     contrib/libs/sparsehash/src
     contrib/libs/zstd/include
+    contrib/restricted/aklomp-base64
     contrib/restricted/cityhash-1.0.2
     contrib/restricted/fast_float/include
     library/cpp/clickhouse_deps/h3_compat

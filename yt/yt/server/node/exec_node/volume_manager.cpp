@@ -803,18 +803,19 @@ private:
         auto fileNames = NFS::EnumerateFiles(LayersMetaPath_);
         THashSet<TGuid> fileIds;
         for (const auto& fileName : fileNames) {
+            auto filePath = NFS::CombinePaths(LayersMetaPath_, fileName);
             if (fileName.EndsWith(NFS::TempFileSuffix)) {
                 YT_LOG_DEBUG("Remove temporary file (Path: %v)",
-                    fileName);
-                NFS::Remove(fileName);
+                    filePath);
+                NFS::Remove(filePath);
                 continue;
             }
 
             auto nameWithoutExtension = NFS::GetFileNameWithoutExtension(fileName);
             TGuid id;
             if (!TGuid::FromString(nameWithoutExtension, &id)) {
-                YT_LOG_ERROR("Unrecognized file in layer location directory (Path: %v)",
-                    fileName);
+                YT_LOG_WARNING("Unrecognized file in layer location directory (Path: %v)",
+                    filePath);
                 continue;
             }
 
@@ -1433,11 +1434,13 @@ private:
         // NB: Root volume quota is independent from sandbox quota but enforces the same limits.
         if (options.EnableRootVolumeDiskQuota) {
             if (options.DiskSpaceLimit) {
-                volumeProperties["space_limit"] = ToString(*options.DiskSpaceLimit);
+                // TODO(yuryalekseev): Do not set "space_limit" for now, see RTCSUPPORT-43697.
+                // volumeProperties["space_limit"] = ToString(*options.DiskSpaceLimit);
             }
 
             if (options.InodeLimit) {
-                volumeProperties["inode_limit"] = ToString(*options.InodeLimit);
+                // TODO(yuryalekseev): Do not set "inode_limit" for now, see RTCSUPPORT-43697.
+                // volumeProperties["inode_limit"] = ToString(*options.InodeLimit);
             }
         }
 

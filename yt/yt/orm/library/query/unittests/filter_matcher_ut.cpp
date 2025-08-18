@@ -1,4 +1,4 @@
-#include <yt/yt/orm/library/query/filter_matcher.h>
+#include <yt/yt/orm/library/query/heavy/filter_matcher.h>
 #include <yt/yt/orm/library/query/helpers.h>
 
 #include <yt/yt/client/table_client/row_base.h>

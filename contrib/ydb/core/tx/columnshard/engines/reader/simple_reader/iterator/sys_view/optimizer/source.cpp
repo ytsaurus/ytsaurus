@@ -1,6 +1,7 @@
 #include "source.h"
 
 #include <contrib/ydb/core/formats/arrow/accessor/plain/accessor.h>
+#include <contrib/ydb/core/sys_view/common/registry.h>
 #include <contrib/ydb/core/tx/columnshard/engines/storage/granule/granule.h>
 #include <contrib/ydb/core/tx/conveyor_composite/usage/service.h>
 

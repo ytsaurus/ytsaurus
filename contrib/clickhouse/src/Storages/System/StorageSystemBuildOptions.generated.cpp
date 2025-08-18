@@ -27,7 +27,7 @@ const char * auto_config_build[]
     "USE_MYSQL", "",
     "USE_RDKAFKA", "",
     "USE_CAPNP", "",
-    "USE_BASE64", "",
+    "USE_BASE64", "1",
     "USE_HDFS", "",
     "USE_SNAPPY", "1",
     "USE_PARQUET", "",

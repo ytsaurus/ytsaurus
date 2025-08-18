@@ -43,11 +43,11 @@ struct TDynamicTabletCellOptions
     double ForcedRotationMemoryRatio;
     int DynamicMemoryPoolWeight;
     bool EnableTabletDynamicMemoryLimit;
-    std::optional<TString> SolomonTag;
+    std::optional<std::string> SolomonTag;
     std::optional<double> MaxBackingStoreMemoryRatio;
     // COMPAT(akozhikhov): YT-14187
     bool IncreaseUploadReplicationFactor;
-    std::optional<TString> BanMessage;
+    std::optional<std::string> BanMessage;
 
     REGISTER_YSON_STRUCT(TDynamicTabletCellOptions);
 

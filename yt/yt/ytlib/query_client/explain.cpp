@@ -108,7 +108,7 @@ void GetReadRangesInfo(
             groupsByAddress[address].push_back(split.first);
         }
 
-        std::vector<std::pair<std::vector<TDataSource>, TString>> groupedSplits;
+        std::vector<std::pair<std::vector<TDataSource>, std::string>> groupedSplits;
         for (const auto& group : groupsByAddress) {
             groupedSplits.emplace_back(group.second, group.first);
         }

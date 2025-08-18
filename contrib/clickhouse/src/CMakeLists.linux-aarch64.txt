@@ -49,7 +49,7 @@ target_compile_options(contrib-clickhouse-src PRIVATE
 
 target_include_directories(contrib-clickhouse-src PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src
-  ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/include/roaring
   ${PROJECT_SOURCE_DIR}/contrib/libs/wyhash
   ${PROJECT_SOURCE_DIR}/contrib/libs/xxhash
   ${PROJECT_SOURCE_DIR}/contrib/restricted/murmurhash
@@ -72,7 +72,6 @@ target_include_directories(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/contrib/pdqsort
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/includes/configs
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/avro/include/avro
-  ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/include/roaring
   ${PROJECT_SOURCE_DIR}/contrib/libs/double-conversion
   ${PROJECT_SOURCE_DIR}/contrib/libs/fastops
   ${PROJECT_SOURCE_DIR}/contrib/libs/libc_compat/include
@@ -85,6 +84,7 @@ target_include_directories(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/simdjson/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
   ${PROJECT_SOURCE_DIR}/contrib/libs/zstd/include
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aklomp-base64
   ${PROJECT_SOURCE_DIR}/contrib/restricted/cityhash-1.0.2
   ${PROJECT_SOURCE_DIR}/contrib/restricted/fast_float/include
   ${PROJECT_SOURCE_DIR}/library/cpp/clickhouse_deps/h3_compat
@@ -133,6 +133,7 @@ target_link_libraries(contrib-clickhouse-src PUBLIC
   contrib-libs-xxhash
   contrib-libs-zstd
   contrib-restricted-abseil-cpp
+  contrib-restricted-aklomp-base64
   restricted-aws-aws-c-auth
   restricted-aws-aws-c-common
   restricted-aws-aws-c-io
@@ -1946,7 +1947,7 @@ target_compile_options(contrib-clickhouse-src.global PRIVATE
 
 target_include_directories(contrib-clickhouse-src.global PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src
-  ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/include/roaring
   ${PROJECT_SOURCE_DIR}/contrib/libs/wyhash
   ${PROJECT_SOURCE_DIR}/contrib/libs/xxhash
   ${PROJECT_SOURCE_DIR}/contrib/restricted/murmurhash
@@ -1969,7 +1970,6 @@ target_include_directories(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/contrib/pdqsort
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/includes/configs
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/avro/include/avro
-  ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/include/roaring
   ${PROJECT_SOURCE_DIR}/contrib/libs/double-conversion
   ${PROJECT_SOURCE_DIR}/contrib/libs/fastops
   ${PROJECT_SOURCE_DIR}/contrib/libs/libc_compat/include
@@ -1982,6 +1982,7 @@ target_include_directories(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/simdjson/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
   ${PROJECT_SOURCE_DIR}/contrib/libs/zstd/include
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aklomp-base64
   ${PROJECT_SOURCE_DIR}/contrib/restricted/cityhash-1.0.2
   ${PROJECT_SOURCE_DIR}/contrib/restricted/fast_float/include
   ${PROJECT_SOURCE_DIR}/library/cpp/clickhouse_deps/h3_compat
@@ -2030,6 +2031,7 @@ target_link_libraries(contrib-clickhouse-src.global PUBLIC
   contrib-libs-xxhash
   contrib-libs-zstd
   contrib-restricted-abseil-cpp
+  contrib-restricted-aklomp-base64
   restricted-aws-aws-c-auth
   restricted-aws-aws-c-common
   restricted-aws-aws-c-io

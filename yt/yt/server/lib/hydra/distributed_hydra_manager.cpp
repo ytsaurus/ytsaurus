@@ -597,7 +597,7 @@ public:
         return false;
     }
 
-    TInstant GetLogicalTime() const override
+    TLogicalTime GetLogicalTime() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 

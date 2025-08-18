@@ -398,7 +398,7 @@ int_from_pyobj(int* v, PyObject *obj, const char *errmess)
 
 
 /* See f2py2e/rules.py */
-extern void F_FUNC(lsoda,LSODA)();
+extern void F_FUNC(lsoda,LSODA)(void*,int*,double*,double*,double*,int*,double*,double*,int*,int*,int*,double*,int*,int*,int*,void*,int* );
 /*eof externroutines*/
 
 /******************** See f2py2e/capi_rules.py: usercode1 ********************/
@@ -835,11 +835,11 @@ y,t,istate = lsoda(f,y,t,tout,rtol,atol,itask,istate,rwork,iwork,jac,jt,[f_extra
 "        y : input rank-1 array('d') with bounds (n)\n"
 "    Return objects:\n"
 "        jac : rank-2 array('d') with bounds (nrowpd,n)";
-/* extern void F_FUNC(lsoda,LSODA)(); */
+/* extern void F_FUNC(lsoda,LSODA)(void*,int*,double*,double*,double*,int*,double*,double*,int*,int*,int*,double*,int*,int*,int*,void*,int* ); */
 static PyObject *f2py_rout__lsoda_lsoda(const PyObject *capi_self,
                            PyObject *capi_args,
                            PyObject *capi_keywds,
-                           void (*f2py_func)()) {
+                           void (*f2py_func)(void*,int*,double*,double*,double*,int*,double*,double*,int*,int*,int*,double*,int*,int*,int*,void*,int* )) {
     PyObject * volatile capi_buildvalue = NULL;
     volatile int f2py_success = 1;
 /*decl*/

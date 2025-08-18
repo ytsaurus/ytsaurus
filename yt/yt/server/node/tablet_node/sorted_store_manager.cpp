@@ -846,6 +846,11 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         storeWriterConfig->WorkloadDescriptor = workloadDescriptor;
         storeWriterConfig->MinUploadReplicationFactor = storeWriterConfig->UploadReplicationFactor;
         storeWriterConfig->EnableLocalThrottling = enableCollocatedDatNodeThrottling;
+
+        if (mountConfig->MinHashDigestCompaction->Enable) {
+            storeWriterConfig->MinHashDigest = mountConfig->MinHashDigestCompaction->ChunkWriter;
+        }
+
         storeWriterConfig->Postprocess();
 
         auto storeWriterOptions = CloneYsonStruct(tabletSnapshot->Settings.StoreWriterOptions);
@@ -1110,6 +1115,10 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
         if (rowCache) {
             rowCache->ReallocateItems(Logger);
+        }
+
+        if (rowCache && storeFlushIndex > 0) {
+            rowCache->SetLastFlushedIndex(storeFlushIndex);
         }
 
         if (storeWriter->GetRowCount() == 0) {

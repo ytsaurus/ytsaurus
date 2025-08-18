@@ -125,6 +125,15 @@ class ChaosTestBase(DynamicTablesBase):
             return True
         wait(_check)
 
+    def _wait_for_table_card_timestamp(self, path, timestamp, driver=None):
+        def _check():
+            nonlocal timestamp
+            for orchid in self._get_table_orchids(path, driver=driver):
+                if not orchid["replication_card"] or orchid["replication_card"]["current_timestamp"] < timestamp:
+                    return False
+            return True
+        wait(_check)
+
     def _sync_replication_card(self, card_id):
         def _check():
             card = get("#{0}/@".format(card_id))

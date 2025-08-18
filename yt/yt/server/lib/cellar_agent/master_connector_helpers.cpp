@@ -164,20 +164,20 @@ void UpdateCellarFromHeartbeatResponse(
 TError UpdateSolomonTags(
     const ICellarManagerPtr& cellarManager,
     ECellarType cellarType,
-    const TString& tagName)
+    const std::string& tagName)
 {
     auto cellar = cellarManager->FindCellar(cellarType);
     if (!cellar) {
         return {};
     }
 
-    THashSet<TString> seenTags;
+    THashSet<std::string> seenTags;
     for (const auto& occupant : cellar->Occupants()) {
         if (!occupant) {
             continue;
         }
 
-        std::optional<TString> tag;
+        std::optional<std::string> tag;
 
         auto dynamicConfig = occupant->GetDynamicOptions();
         if (dynamicConfig) {

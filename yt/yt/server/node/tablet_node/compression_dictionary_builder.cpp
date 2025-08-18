@@ -118,7 +118,7 @@ public:
             .WorkloadDescriptor = TWorkloadDescriptor(WorkloadCategory_),
             .ReadSessionId = TReadSessionId::Create(),
             .MemoryUsageTracker = Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(
-                EMemoryCategory::TabletBackground)
+                EMemoryCategory::TabletBackground),
         };
 
         Logger.AddTag("ReadSessionId: %v",

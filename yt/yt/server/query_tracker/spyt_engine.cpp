@@ -411,7 +411,7 @@ private:
 
     TSpytQueryResult ExtractTableBytes(const TString& queryResult) const
     {
-        auto encodedChunks = StringSplitter(queryResult).Split('\n').ToList<TString>();
+        auto encodedChunks = StringSplitter(queryResult).Split('\n').ToList<std::string>();
         YT_LOG_DEBUG("Raw result received (LineCount: %v)", encodedChunks.size());
 
         bool IsTruncated = encodedChunks[0] == "T";

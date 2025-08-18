@@ -2314,10 +2314,7 @@ class SQLCompiler(Compiled):
     @util.memoized_property
     @util.preload_module("sqlalchemy.engine.result")
     def _inserted_primary_key_from_returning_getter(self):
-        if typing.TYPE_CHECKING:
-            from ..engine import result
-        else:
-            result = util.preloaded.engine_result
+        result = util.preloaded.engine_result
 
         assert self.compile_state is not None
         statement = self.compile_state.statement
@@ -4161,7 +4158,7 @@ class SQLCompiler(Compiled):
                 if cte.recursive:
                     self.ctes_recursive = True
                 text = self.preparer.format_alias(cte, cte_name)
-                if cte.recursive:
+                if cte.recursive or cte.element.name_cte_columns:
                     col_source = cte.element
 
                     # TODO: can we get at the .columns_plus_names collection
@@ -4230,7 +4227,7 @@ class SQLCompiler(Compiled):
                 if self.preparer._requires_quotes(cte_name):
                     cte_name = self.preparer.quote(cte_name)
                 text += self.get_render_as_alias_suffix(cte_name)
-                return text
+                return text  # type: ignore[no-any-return]
             else:
                 return self.preparer.format_alias(cte, cte_name)
 
@@ -4382,7 +4379,13 @@ class SQLCompiler(Compiled):
         )
         return f"VALUES {tuples}"
 
-    def visit_values(self, element, asfrom=False, from_linter=None, **kw):
+    def visit_values(
+        self, element, asfrom=False, from_linter=None, visiting_cte=None, **kw
+    ):
+
+        if element._independent_ctes:
+            self._dispatch_independent_ctes(element, kw)
+
         v = self._render_values(element, **kw)
 
         if element._unnamed:
@@ -4403,7 +4406,12 @@ class SQLCompiler(Compiled):
                     name if name is not None else "(unnamed VALUES element)"
                 )
 
-            if name:
+            if visiting_cte is not None and visiting_cte.element is element:
+                if element._is_lateral:
+                    raise exc.CompileError(
+                        "Can't use a LATERAL VALUES expression inside of a CTE"
+                    )
+            elif name:
                 kw["include_table"] = False
                 v = "%s(%s)%s (%s)" % (
                     lateral,
@@ -4587,7 +4595,52 @@ class SQLCompiler(Compiled):
             elif isinstance(column, elements.TextClause):
                 render_with_label = False
             elif isinstance(column, elements.UnaryExpression):
-                render_with_label = column.wraps_column_expression or asfrom
+                # unary expression.  notes added as of #12681
+                #
+                # By convention, the visit_unary() method
+                # itself does not add an entry to the result map, and relies
+                # upon either the inner expression creating a result map
+                # entry, or if not, by creating a label here that produces
+                # the result map entry.  Where that happens is based on whether
+                # or not the element immediately inside the unary is a
+                # NamedColumn subclass or not.
+                #
+                # Now, this also impacts how the SELECT is written; if
+                # we decide to generate a label here, we get the usual
+                # "~(x+y) AS anon_1" thing in the columns clause.   If we
+                # don't, we don't get an AS at all, we get like
+                # "~table.column".
+                #
+                # But here is the important thing as of modernish (like 1.4)
+                # versions of SQLAlchemy - **whether or not the AS <label>
+                # is present in the statement is not actually important**.
+                # We target result columns **positionally** for a fully
+                # compiled ``Select()`` object; before 1.4 we needed those
+                # labels to match in cursor.description etc etc but now it
+                # really doesn't matter.
+                # So really, we could set render_with_label True in all cases.
+                # Or we could just have visit_unary() populate the result map
+                # in all cases.
+                #
+                # What we're doing here is strictly trying to not rock the
+                # boat too much with when we do/don't render "AS label";
+                # labels being present helps in the edge cases that we
+                # "fall back" to named cursor.description matching, labels
+                # not being present for columns keeps us from having awkward
+                # phrases like "SELECT DISTINCT table.x AS x".
+                render_with_label = (
+                    (
+                        # exception case to detect if we render "not boolean"
+                        # as "not <col>" for native boolean or "<col> = 1"
+                        # for non-native boolean.   this is controlled by
+                        # visit_is_<true|false>_unary_operator
+                        column.operator
+                        in (operators.is_false, operators.is_true)
+                        and not self.dialect.supports_native_boolean
+                    )
+                    or column._wraps_unnamed_column()
+                    or asfrom
+                )
             elif (
                 # general class of expressions that don't have a SQL-column
                 # addressible name.  includes scalar selects, bind parameters,
@@ -6201,8 +6254,8 @@ class SQLCompiler(Compiled):
         visiting_cte: Optional[CTE] = None,
         **kw: Any,
     ) -> str:
-        compile_state = update_stmt._compile_state_factory(  # type: ignore[call-arg] # noqa: E501
-            update_stmt, self, **kw  # type: ignore[arg-type]
+        compile_state = update_stmt._compile_state_factory(
+            update_stmt, self, **kw
         )
         if TYPE_CHECKING:
             assert isinstance(compile_state, UpdateDMLState)
@@ -6341,7 +6394,7 @@ class SQLCompiler(Compiled):
 
         self.stack.pop(-1)
 
-        return text
+        return text  # type: ignore[no-any-return]
 
     def delete_extra_from_clause(
         self, delete_stmt, from_table, extra_froms, from_hints, **kw
@@ -6862,7 +6915,7 @@ class DDLCompiler(Compiled):
         else:
             schema_name = None
 
-        index_name = self.preparer.format_index(index)
+        index_name: str = self.preparer.format_index(index)
 
         if schema_name:
             index_name = schema_name + "." + index_name

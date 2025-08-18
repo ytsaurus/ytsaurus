@@ -668,7 +668,7 @@ class TestSequoiaObjects(YTEnvSetup):
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "transaction_manager": {
-            "enable_prerequisite_transaction_validation_via_leases": True,
+            "enable_cypress_mirrorred_to_sequoia_prerequisite_transaction_validation_via_leases": True,
         },
     }
 

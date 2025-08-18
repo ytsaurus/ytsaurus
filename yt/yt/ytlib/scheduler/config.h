@@ -95,6 +95,20 @@ DEFINE_REFCOUNTED_TYPE(TJobResourcesConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+ struct TJobResourcesWithDiskConfig
+    : public TJobResourcesConfig
+ {
+    i64 DiskSpace;
+
+    REGISTER_YSON_STRUCT(TJobResourcesWithDiskConfig);
+
+    static void Register(TRegistrar registrar);
+ };
+
+ DEFINE_REFCOUNTED_TYPE(TJobResourcesWithDiskConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TCommonPreemptionConfig
     : public virtual NYTree::TYsonStruct
 {
@@ -1319,6 +1333,42 @@ DEFINE_REFCOUNTED_TYPE(TTaskOutputStreamConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! +-------------------+---------------------+---------------------+
+//! | Value / Behaviour | Success             | Failure             |
+//! +-------------------+---------------------+---------------------+
+//! | Always            | Restart the sidecar | Restart the sidecar |
+//! | OnFailure         | Do nothing          | Restart the sidecar |
+//! | FailOnError       | Do nothing          | Fail the job        |
+//! +-------------------+---------------------+---------------------+
+DEFINE_ENUM(ESidecarRestartPolicy,
+    (Always)
+    (OnFailure)
+    (FailOnError)
+);
+
+struct TSidecarJobSpec
+    : public NYTree::TYsonStruct
+{
+    TString Command;
+
+    std::optional<double> CpuLimit;
+    std::optional<i64> MemoryLimit;
+
+    //! If this field is unset, the system will try to use the DockerImage of
+    //! the main job.
+    std::optional<TString> DockerImage;
+
+    ESidecarRestartPolicy RestartPolicy;
+
+    REGISTER_YSON_STRUCT(TSidecarJobSpec);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSidecarJobSpec)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TUserJobSpec
     : public NYTree::TYsonStruct
     , public virtual NPhoenix::TPolymorphicBase
@@ -1460,6 +1510,11 @@ struct TUserJobSpec
     THashSet<EExtraEnvironment> ExtraEnvironment;
 
     std::optional<TDuration> ArchiveTtl;
+
+    bool EnableFixedUserId;
+
+    //! Map consisting of pairs <sidecar_name, sidecar_spec>.
+    THashMap<TString, TSidecarJobSpecPtr> Sidecars;
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);
 

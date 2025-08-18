@@ -18,11 +18,15 @@ import (
 
 type opCache map[reflect.Type][]fieldOp
 
-type decoderOption func(s *Decoder)
+type decoderOption func(s *decoderOptions)
+
+type decoderOptions struct {
+	tableSchemas []*schema.Schema
+}
 
 // WithDecoderTableSchemas sets the table schemas for the Decoder.
 func WithDecoderTableSchemas(schemas ...*schema.Schema) decoderOption {
-	return func(s *Decoder) {
+	return func(s *decoderOptions) {
 		s.tableSchemas = schemas
 	}
 }
@@ -31,17 +35,22 @@ func WithDecoderTableSchemas(schemas ...*schema.Schema) decoderOption {
 //
 // Streaming format is specific for YT job input.
 type Decoder struct {
-	opCaches []opCache
-	schemas  []*Schema
-	r        *reader
+	tables []tableInfo
+	r      *reader
 
-	hasValue, valueRead    bool
-	tableIndex, rangeIndex int
-	rowIndex               int64
-	keySwitch              bool
-	systemColumns          []Schema
+	hasValue, valueRead bool
+	tableIndex          int
+}
 
-	tableSchemas []*schema.Schema
+type tableInfo struct {
+	opCache       opCache
+	schema        *Schema
+	systemColumns []Schema
+	tableSchema   *schema.Schema
+
+	rangeIndex int
+	rowIndex   int64
+	keySwitch  bool
 }
 
 // NewDecoder creates decoder for reading rows from input stream formatted by format.
@@ -49,12 +58,17 @@ type Decoder struct {
 // Each table schema in format must start with three system columns.
 func NewDecoder(r io.Reader, format Format, opts ...decoderOption) (*Decoder, error) {
 	d := &Decoder{
-		opCaches: make([]opCache, len(format.TableSchemas)),
-		schemas:  make([]*Schema, len(format.TableSchemas)),
-		r:        newReader(r),
+		tables: make([]tableInfo, len(format.TableSchemas)),
+		r:      newReader(r),
 	}
+	var decoderOpts decoderOptions
 	for _, opt := range opts {
-		opt(d)
+		opt(&decoderOpts)
+	}
+
+	if len(decoderOpts.tableSchemas) > 0 && len(decoderOpts.tableSchemas) != len(d.tables) {
+		return nil, xerrors.Errorf(
+			"skiff: number of table schemas (%d) does not match number of tables (%d)", len(decoderOpts.tableSchemas), len(d.tables))
 	}
 
 	schemaCaches := map[string]map[reflect.Type][]fieldOp{}
@@ -66,36 +80,36 @@ func NewDecoder(r io.Reader, format Format, opts ...decoderOption) (*Decoder, er
 				return nil, xerrors.Errorf("skiff: invalid schema key %q", v)
 			}
 
-			d.schemas[i] = format.SchemaRegistry[v[1:]]
+			d.tables[i].schema = format.SchemaRegistry[v[1:]]
 			if schemaCaches[v] == nil {
 				schemaCaches[v] = make(opCache)
 			}
-			d.opCaches[i] = schemaCaches[v]
+			d.tables[i].opCache = schemaCaches[v]
 
 		case *Schema:
-			d.schemas[i] = v
-			d.opCaches[i] = make(opCache)
+			d.tables[i].schema = v
+			d.tables[i].opCache = make(opCache)
 		}
 
 		// System columns are decoded by hand.
-		s := *d.schemas[i]
+		s := *d.tables[i].schema
+		var systemColumns []Schema
 		for i, col := range s.Children {
 			if col.IsSystem() {
-				if len(d.systemColumns) != i {
+				if len(systemColumns) != i {
 					return nil, xerrors.Errorf(
-						"skiff: system column %q goes after nonsystem", col.Name,
+						"skiff: system column %q goes after nonsystem (index: %d)", col.Name, i,
 					)
 				}
-				d.systemColumns = append(d.systemColumns, col)
+				systemColumns = append(systemColumns, col)
 			}
 		}
-		s.Children = s.Children[len(d.systemColumns):]
-		d.schemas[i] = &s
-	}
-
-	if len(d.tableSchemas) > 0 && len(d.tableSchemas) != len(d.schemas) {
-		return nil, xerrors.Errorf(
-			"skiff: number of table schemas (%d) does not match number of tables (%d)", len(d.tableSchemas), len(d.schemas))
+		s.Children = s.Children[len(systemColumns):]
+		d.tables[i].schema = &s
+		d.tables[i].systemColumns = systemColumns
+		if len(decoderOpts.tableSchemas) > 0 {
+			d.tables[i].tableSchema = decoderOpts.tableSchemas[i]
+		}
 	}
 
 	return d, nil
@@ -116,29 +130,30 @@ func (d *Decoder) Next() bool {
 		return false
 	}
 
-	if d.tableIndex >= len(d.schemas) {
-		d.r.err = xerrors.Errorf("skiff: table index %d >= %d", d.tableIndex, len(d.schemas))
+	if d.tableIndex >= len(d.tables) {
+		d.r.err = xerrors.Errorf("skiff: table index %d >= %d", d.tableIndex, len(d.tables))
 		return false
 	}
 
-	for _, col := range d.systemColumns {
+	systemColumns := d.tables[d.tableIndex].systemColumns
+	for _, col := range systemColumns {
 		switch col.Name {
 		case "$key_switch":
-			d.keySwitch = d.r.readUint8() != 0
+			d.tables[d.tableIndex].keySwitch = d.r.readUint8() != 0
 		case "$row_index":
 			if d.r.readUint8() == 1 {
-				d.rowIndex = d.r.readInt64()
+				d.tables[d.tableIndex].rowIndex = d.r.readInt64()
 			} else {
-				d.rowIndex++
+				d.tables[d.tableIndex].rowIndex++
 			}
 		case "$range_index":
 			if d.r.readUint8() == 1 {
-				d.rangeIndex = int(d.r.readInt64())
+				d.tables[d.tableIndex].rangeIndex = int(d.r.readInt64())
 			}
 		}
 	}
-	if len(d.systemColumns) == 0 {
-		d.rowIndex++
+	if len(systemColumns) == 0 {
+		d.tables[d.tableIndex].rowIndex++
 	}
 
 	if d.Err() != nil {
@@ -160,7 +175,7 @@ func (d *Decoder) KeySwitch() bool {
 		panic("KeySwitch() called out of sequence")
 	}
 
-	return d.keySwitch
+	return d.tables[d.tableIndex].keySwitch
 }
 
 func (d *Decoder) RowIndex() int64 {
@@ -168,7 +183,7 @@ func (d *Decoder) RowIndex() int64 {
 		panic("RowIndex() called out of sequence")
 	}
 
-	return d.rowIndex
+	return d.tables[d.tableIndex].rowIndex
 }
 
 func (d *Decoder) RangeIndex() int {
@@ -176,7 +191,7 @@ func (d *Decoder) RangeIndex() int {
 		panic("RangeIndex() called out of sequence")
 	}
 
-	return d.rangeIndex
+	return d.tables[d.tableIndex].rangeIndex
 }
 
 func (d *Decoder) TableIndex() int {
@@ -624,14 +639,10 @@ func (d *Decoder) decodeMap(ops []fieldOp, value any) error {
 }
 
 func (d *Decoder) getTranscoder(typ reflect.Type) (ops []fieldOp, err error) {
-	cache := d.opCaches[d.tableIndex]
+	cache := d.tables[d.tableIndex].opCache
 	ops, ok := cache[typ]
 	if !ok {
-		var tableSchema *schema.Schema
-		if len(d.tableSchemas) > 0 {
-			tableSchema = d.tableSchemas[d.tableIndex]
-		}
-		ops, err = newTranscoder(d.schemas[d.tableIndex], tableSchema, typ)
+		ops, err = newTranscoder(d.tables[d.tableIndex].schema, d.tables[d.tableIndex].tableSchema, typ)
 		if err != nil {
 			return
 		}

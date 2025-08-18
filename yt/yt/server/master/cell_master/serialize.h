@@ -164,6 +164,8 @@ DEFINE_ENUM(EMasterReign,
     ((ValidateClockCellTagOnChaosMount)                             (3009))  // ponasneko-rs
     ((WriteAclToSequoiaTable)                                       (3010))  // danilalexeev
     ((WeakPtrInTableReplicas)                                       (3011))  // babenko
+    ((ChunkLocationDisposal)                                        (3012))  // grphil
+    ((MulticellChunksSamples)                                       (3013))  // grphil
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

@@ -56,6 +56,8 @@ target_sources(yt-server-scheduler PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_scheduling_snapshot.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_snapshot.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/fields_filter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/gpu_allocation_assignment_plan_update.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/gpu_allocation_scheduler_structs.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/job_resources_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/master_connector.cpp

@@ -1308,8 +1308,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
                 chunkState->BlockCache,
                 chunkReadOptions,
                 chunkState->ChunkMeta,
-                // Enable current invoker for range reads.
-                GetCurrentInvoker(),
+                NChunkClient::TDispatcher::Get()->GetReaderInvoker(),
                 chunkState->DataSource);
 
             auto reader = NColumnarChunkFormat::CreateVersionedChunkReader(

@@ -518,7 +518,7 @@ bool IsSchedulerTreeAlertType(ESchedulerAlertType alertType)
 
 bool IsFullHostGpuAllocation(const TJobResources& allocationResources)
 {
-    return allocationResources.GetGpu() == LargeGpuAllocationGpuDemand;
+    return allocationResources.GetGpu() == FullHostGpuAllocationGpuDemand;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

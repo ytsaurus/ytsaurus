@@ -80,12 +80,12 @@ TProgressValues TQueryProgress::LoadTotalValues() const
 {
     TProgressValues values;
 
-    values.Finished = Finished_.load(std::memory_order_relaxed);
+    values.Finished = Finished_.load(std::memory_order::relaxed);
 
-    values.ReadRows = ReadRows_.load(std::memory_order_relaxed);
-    values.ReadBytes = ReadBytes_.load(std::memory_order_relaxed);
-    values.TotalRowsToRead = TotalRowsToRead_.load(std::memory_order_relaxed);
-    values.TotalBytesToRead = TotalBytesToRead_.load(std::memory_order_relaxed);
+    values.ReadRows = ReadRows_.load(std::memory_order::relaxed);
+    values.ReadBytes = ReadBytes_.load(std::memory_order::relaxed);
+    values.TotalRowsToRead = TotalRowsToRead_.load(std::memory_order::relaxed);
+    values.TotalBytesToRead = TotalBytesToRead_.load(std::memory_order::relaxed);
 
     return values;
 }

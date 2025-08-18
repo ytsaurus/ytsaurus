@@ -175,8 +175,8 @@ void TRecovery::DoRun()
         auto snapshotLastMutationReign = YT_OPTIONAL_FROM_PROTO(snapshotMeta, last_mutation_reign)
             .value_or(InvalidReign);
         auto snapshotReadOnly = snapshotMeta.read_only();
-        auto logicalTime = YT_APPLY_PROTO_OPTIONAL(snapshotMeta, logical_time, FromProto<TInstant>)
-            .value_or(TInstant());
+        auto logicalTime = YT_OPTIONAL_FROM_PROTO(snapshotMeta, logical_time, TLogicalTime)
+            .value_or(TLogicalTime(0));
 
         YT_VERIFY(snapshotSegmentId >= currentState.SegmentId);
         YT_VERIFY(snapshotSequenceNumber >= currentState.SequenceNumber);

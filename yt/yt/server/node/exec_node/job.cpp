@@ -1507,34 +1507,24 @@ TBriefJobInfo TJob::GetBriefInfo() const
         JobResendBackoffStartTime_);
 }
 
-NYTree::IYPathServicePtr TJob::CreateStaticOrchidService()
+IYPathServicePtr TJob::CreateStaticOrchidService()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    auto producer = BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
-        auto jobInfoOrError = WaitFor(BIND_NO_PROPAGATE(
-            &TJob::GetBriefInfo,
-            MakeStrong(this))
-                .AsyncVia(Invoker_)
-                .Run());
-
-        YT_LOG_FATAL_UNLESS(
-            jobInfoOrError.IsOK(),
-            jobInfoOrError,
-            "Failed to get brief job info for static orchid");
-
-        BuildYsonFluently(consumer).BeginMap()
-            .Do(std::bind(
-                &TBriefJobInfo::BuildOrchid,
-                std::move(jobInfoOrError).Value(),
-                std::placeholders::_1))
-        .EndMap();
-    });
-
-    return NYTree::IYPathService::FromProducer(std::move(producer));
+    return IYPathService::FromProducer(
+        BIND([this, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
+            try {
+                auto briefInfo = GetBriefInfo();
+                Serialize(briefInfo, consumer);
+            } catch (const std::exception& ex) {
+                YT_LOG_FATAL(
+                    ex,
+                    "Failed to get brief job info for static orchid");
+            }
+        }))->Via(Invoker_);
 }
 
-NYTree::IYPathServicePtr TJob::CreateJobProxyOrchidService()
+IYPathServicePtr TJob::CreateJobProxyOrchidService()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -1556,11 +1546,11 @@ NYTree::IYPathServicePtr TJob::CreateJobProxyOrchidService()
     });
 }
 
-NYTree::IYPathServicePtr TJob::CreateDynamicOrchidService()
+IYPathServicePtr TJob::CreateDynamicOrchidService()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    return New<NYTree::TCompositeMapService>()
+    return New<TCompositeMapService>()
         ->AddChild("job_proxy", CreateJobProxyOrchidService());
 }
 
@@ -1568,8 +1558,8 @@ IYPathServicePtr TJob::GetOrchidService()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    return New<TServiceCombiner>(
-        std::vector{
+    return CreateServiceCombiner(
+        {
             CreateStaticOrchidService(),
             CreateDynamicOrchidService()
         });

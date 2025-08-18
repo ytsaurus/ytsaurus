@@ -8,6 +8,7 @@ PY_SRCS(
 TEST_SRCS(
     protobuf_format.py
     test_arrow_format.py
+    test_blob_format.py
     test_dsv_format.py
     test_protobuf_format.py
     test_skiff_format.py
