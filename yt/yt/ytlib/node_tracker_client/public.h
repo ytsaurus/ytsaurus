@@ -82,6 +82,9 @@ DEFINE_ENUM(ENodeFlavor,
     ((Chaos)        (4))
 );
 
+// All nodes are cluster nodes.
+const std::string ClusterNodeFalvor("cluster");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NNodeTrackerClient
