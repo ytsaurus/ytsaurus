@@ -21,7 +21,7 @@ PEERDIR(
 ALL_RESOURCE_FILES(
     PREFIX yt/benchmarks/run/
     sql
-    queries queries_optimized
+    queries
 )
 
 ALL_RESOURCE_FILES(
