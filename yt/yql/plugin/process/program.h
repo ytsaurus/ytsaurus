@@ -72,17 +72,20 @@ protected:
             config->PluginConfig,
             NYson::ConvertToYsonString(ConvertTo<TSingletonsConfigPtr>(config)),
             NLogging::CreateArcadiaLogBackend(NLogging::TLogger("YqlPlugin")), 
-            config->MaxSupportedYqlVersion
+            config->MaxSupportedYqlVersion,
+            false
         );
 
-        auto YqlPlugin = CreateBridgeYqlPlugin(std::move(options));
-        auto YqlPluginService = CreateYqlPluginService(ControlInvoker_, std::move(YqlPlugin));
-        auto RpcServer = NRpc::NBus::CreateBusServer(NBus::CreateBusServer(config->BusServer));
+        auto yqlPlugin = CreateBridgeYqlPlugin(std::move(options));
+        // yqlPlugin->Start();
 
-        RpcServer->RegisterService(YqlPluginService);
+        auto yqlPluginService = CreateYqlPluginService(ControlInvoker_, std::move(yqlPlugin));
+        auto rpcServer = NRpc::NBus::CreateBusServer(NBus::CreateBusServer(config->BusServer));
 
-        RpcServer->Configure(config->RpcServer);
-        RpcServer->Start();
+        rpcServer->RegisterService(yqlPluginService);
+
+        rpcServer->Configure(config->RpcServer);
+        rpcServer->Start();
 
         Sleep(TDuration::Max());
     }

@@ -20,7 +20,7 @@ PEERDIR(
     yql/essentials/minikql
     yql/essentials/minikql/invoke_builtins/llvm16
     yql/essentials/minikql/comp_nodes/llvm16
-    yql/essentials/public/udf/service/terminate_policy
+    yql/essentials/public/udf/service/exception_policy
     yql/essentials/parser/pg_wrapper
 
     yt/yql/providers/yt/codec

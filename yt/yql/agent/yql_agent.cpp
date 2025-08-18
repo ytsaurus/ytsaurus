@@ -301,7 +301,6 @@ public:
                     ? NYqlPlugin::NProcess::CreateProcessYqlPlugin(
                         bootstrap, 
                         Config_, 
-                        Config_->ProcessPluginConfig, 
                         YqlAgentProfiler().WithPrefix("/yql_plugin"),
                         TString(maxVersionStringBuf))
                     : NYqlPlugin::CreateBridgeYqlPlugin(std::move(options));
