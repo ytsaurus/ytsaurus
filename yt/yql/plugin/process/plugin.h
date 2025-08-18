@@ -11,8 +11,7 @@ namespace NYT::NYqlPlugin::NProcess {
 
 std::unique_ptr<IYqlPlugin> CreateProcessYqlPlugin(
     NYqlAgent::TBootstrap* bootstrap,
-    TYqlPluginConfigPtr pluginConfig,
-    TYqlProcessPluginConfigPtr config,
+    TYqlPluginConfigPtr config,
     const NProfiling::TProfiler& profiler,
     TString maxSupportedYqlVersion);
 
