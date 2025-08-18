@@ -39,6 +39,10 @@ void TPermissionChecker::ProcessAce(
         }
     }
 
+    if (ace.Expression && !Response_.Rlaces) {
+        Response_.Rlaces.emplace();
+    }
+
     if (!CheckInheritanceMode(ace.InheritanceMode, depth)) {
         return;
     }
@@ -88,6 +92,11 @@ void TPermissionChecker::ProcessAce(
                     break;
                 }
             }
+        } else if (ace.Expression) {
+            Response_.Rlaces->emplace_back(
+                *ace.Expression,
+                ace.InapplicableExpressionMode
+                    .value_or(NSecurityClient::EInapplicableExpressionMode::Deny));
         } else {
             ProcessMatchingAceAction(
                 &Response_,

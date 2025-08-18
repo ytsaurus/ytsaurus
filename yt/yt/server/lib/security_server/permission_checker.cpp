@@ -87,6 +87,18 @@ TPermissionCheckResponse TPermissionChecker::GetResponse()
         }
     }
 
+    if (FullReadExplicitlyGranted_) {
+        // No need to mention RLACEs if we are allowed to FullRead.
+        Response_.Rlaces.reset();
+    }
+
+    if (Response_.Rlaces && FullReadRequested_) {
+        // NB(coteeq): Presence of RLACE alters the behaviour of non-row ACEs.
+        // When RLACEs are present, non-row allowances do not actually allow FullRead.
+        // This hack is not pretty, but it exists for RLACEs to be consistent with columnar ACEs.
+        SetDeny(NullObjectId, NullObjectId);
+    }
+
     return std::move(Response_);
 }
 
@@ -133,6 +145,7 @@ void TPermissionChecker::SetDeny(TSubjectId subjectId, TObjectId objectId)
             SetDeny(&result, subjectId, objectId);
         }
     }
+    Response_.Rlaces.reset();
     Proceed_ = false;
 }
 

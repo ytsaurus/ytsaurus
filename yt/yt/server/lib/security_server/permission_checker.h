@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/ytree/permission.h>
 
+#include <yt/yt/ytlib/security_client/acl.h>
+
 #include <library/cpp/yt/logging/logger.h>
 
 namespace NYT::NSecurityServer {
@@ -50,6 +52,8 @@ struct TPermissionCheckResponse
     //! If TPermissionCheckBasicOptions::Columns are given, this array contains
     //! results for individual columns.
     std::optional<std::vector<TPermissionCheckResult>> Columns;
+    //! If there are RLACEs for the object, this array contains descriptors for reader.
+    std::optional<std::vector<NSecurityClient::TRowLevelAccessControlEntry>> Rlaces;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
