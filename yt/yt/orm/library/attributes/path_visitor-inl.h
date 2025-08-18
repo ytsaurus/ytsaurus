@@ -172,8 +172,6 @@ void TPathVisitor<TSelf>::VisitVector(
                     indexParseResult.Index,
                     EVisitReason::Path);
                 break;
-            default:
-                YT_ABORT();
         }
     }
 }

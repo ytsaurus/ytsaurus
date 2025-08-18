@@ -8,12 +8,11 @@ namespace NYT::NOrm::NClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-enum EOptionalBoolean : char
-{
-    OB_UNKNOWN = 'u',
-    OB_TRUE = 't',
-    OB_FALSE = 'f',
-};
+DEFINE_ENUM_WITH_UNDERLYING_TYPE(EOptionalBoolean, char,
+    ((OB_UNKNOWN) ('u'))
+    ((OB_TRUE) ('t'))
+    ((OB_FALSE) ('f'))
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 
