@@ -1940,6 +1940,103 @@ class TestCypressAcls(CheckPermissionBase):
 
         concatenate(["//tmp/t"], "//tmp/t2", authenticated_user="u1")
 
+    @authors("coteeq")
+    def test_full_read_validation(self):
+        create_user("u")
+        create("table", "//tmp/t")
+
+        with raises_yt_error('ACE with "full_read" permission may have only "allow" action'):
+            set("//tmp/t/@acl", [make_ace("deny", "u", "full_read")])
+
+        with raises_yt_error('ACE with "full_read" permission may have only "allow" action'):
+            set("//tmp/t/@acl", [make_ace("deny", "u", ["read", "full_read"])])
+
+        with raises_yt_error('ACE specifying columns may contain only "read" permission'):
+            set("//tmp/t/@acl", [make_ace("deny", "u", "full_read", columns=["a"])])
+
+    @authors("coteeq")
+    def test_full_read_simple(self):
+        create_user("u")
+        create_user("restricted")
+
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": [
+                    {"name": "public", "type": "string"},
+                    {"name": "private", "type": "int64"},
+                ],
+                "acl": [
+                    make_ace("allow", "u", "read", columns=["private"]),
+                ],
+                "inherit_acl": False,
+            }
+        )
+
+        with raises_yt_error('Access denied for user "restricted"'):
+            copy("//tmp/t", "//tmp/t_copy", authenticated_user="restricted")
+
+        set("//tmp/t/@acl/end", make_ace("allow", "restricted", "full_read"))
+
+        # full_read should grant read.
+        get("//tmp/t/@acl", authenticated_user="restricted")
+        read_table("//tmp/t", authenticated_user="restricted")
+
+        # full_read should also grant full_read.
+        copy("//tmp/t", "//tmp/t_copy", authenticated_user="restricted")
+
+    @authors("coteeq")
+    def test_full_read_and_deny_read(self):
+        create_user("u")
+
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": [
+                    {"name": "public", "type": "string"},
+                    {"name": "private", "type": "int64"},
+                ],
+                "acl": [
+                    make_ace("allow", "u", "full_read"),
+                    make_ace("deny", "u", "read"),
+                ],
+                "inherit_acl": False,
+            }
+        )
+
+        # full_read must not override deny on read.
+        with raises_yt_error('Access denied for user "u"'):
+            get("//tmp/t/@acl", authenticated_user="u")
+        with raises_yt_error('Access denied for user "u"'):
+            copy("//tmp/t", "//tmp/t_copy", authenticated_user="u")
+
+    @authors("coteeq")
+    @pytest.mark.xfail(reason="todo(coteeq)")
+    def test_absence_of_read_does_not_mention_full_read(self):
+        # NB(coteeq): This is a test for the behaviour that is designed to
+        # decrease entropy with the access control rules.
+        # When the user tries to full_read a table, on which they do not even
+        # have a basic read, we should ask them to get basic read first and
+        # hope that basic read will be enough.
+        #
+        # Otherwise, if we mention full_read in the error, the user will
+        # immediately rush to get full_read, which they probably do not need.
+        create_user("u")
+
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "inherit_acl": False,
+            }
+        )
+
+        with raises_yt_error('"read" permission for node //tmp/t'):
+            copy("//tmp/t", "//tmp/t_copy", authenticated_user="u")
+
+
 ##################################################################
 
 
