@@ -7,6 +7,14 @@
 #include <yt/yql/plugin/config.h>
 #include <yt/yql/plugin/dq_manager.h>
 
+#include <yt/yql/providers/yt/lib/yt_download/yt_download.h>
+
+#include <yql/essentials/core/file_storage/file_storage.h>
+#include <yql/essentials/core/file_storage/proto/file_storage.pb.h>
+#include <yql/essentials/minikql/mkql_function_registry.h>
+#include <yql/essentials/minikql/invoke_builtins/mkql_builtins.h>
+#include <yql/essentials/utils/backtrace/backtrace.h>
+
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/yql_plugin/yql_plugin_proxy.h>
 
@@ -25,6 +33,7 @@
 #include <yt/yt/core/rpc/client.h>
 #include <yt/yt/core/ytree/convert.h>
 
+#include <library/cpp/digest/md5/md5.h>
 #include <library/cpp/retry/retry.h>
 #include <library/cpp/yson/node/node_io.h>
 #include <library/cpp/yson/parser.h>
@@ -86,41 +95,46 @@ class TYqlProcessPlugin
 public:
     explicit TYqlProcessPlugin(
         NYqlAgent::TBootstrap* bootstrap,
-        TYqlPluginConfigPtr pluginConfig,
-        TYqlProcessPluginConfigPtr config,
+        TYqlPluginConfigPtr config,
         const NProfiling::TProfiler& profiler,
         TString maxSupportedYqlVersion)
         : Config_(std::move(config))
         , Queue_(New<TActionQueue>("YqlProcessPlugin"))
         , Invoker_(Queue_->GetInvoker())
-        , YqlProcesses_(Config_->SlotsCount)
-        , ConfigTemplate_(BuildPluginConfigTemplate(Config_, std::move(pluginConfig), bootstrap, std::move(maxSupportedYqlVersion)))
+        , YqlProcesses_(Config_->ProcessPluginConfig->SlotsCount)
+        , ConfigTemplate_(BuildPluginConfigTemplate(Config_, bootstrap, std::move(maxSupportedYqlVersion)))
         , StandbyProcessesGauge_(profiler.Gauge("/standby_processes"))
         , ActiveProcessesGauge_(profiler.Gauge("/active_processes"))
         , ProcessesLimitGauge_(profiler.Gauge("/processes_limit"))
     {
-        if (pluginConfig->EnableDQ) {
-            DqManager_ = New<TDqManager>(ConvertTo<TDqManagerConfigPtr>(ConvertToYsonString(pluginConfig->DQManagerConfig)));
+        if (Config_->EnableDQ) {
+            YT_LOG_INFO("Dq manager config (Config: %v)", ConvertToYsonString(Config_->DQManagerConfig, EYsonFormat::Text));
+            auto dqManagerConfig = ConvertTo<TDqManagerConfigPtr>(ConvertToYsonString(Config_->DQManagerConfig));
+            InitDqManager(Config_, dqManagerConfig);
+            YT_LOG_INFO("Dq manager yt coordinator config (Config: %v)", ConvertToYsonString(dqManagerConfig->YtCoordinator, EYsonFormat::Text));
+            DqManager_ = New<TDqManager>(dqManagerConfig);
         }
-        ProcessesLimitGauge_.Update(Config_->SlotsCount);
+        ProcessesLimitGauge_.Update(Config_->ProcessPluginConfig->SlotsCount);
         InitializeProcessPool();
     }
 
     void Start() override
     {
+        if (DqManager_) {
+            YT_LOG_INFO("Starting DqManager");
+            DqManager_->Start();
+            YT_LOG_INFO("DqManager started");
+        }
+
         std::vector<TFuture<void>> futures;
         auto guard = NThreading::ReaderGuard(ProcessesLock_);
-        for (int slotIndex = 0; slotIndex < Config_->SlotsCount; ++slotIndex) {
+        for (int slotIndex = 0; slotIndex < Config_->ProcessPluginConfig->SlotsCount; ++slotIndex) {
             futures.push_back(
                 BIND(&TYqlProcessPlugin::StartPluginInProcess, this, YqlProcesses_[slotIndex])
                     .AsyncVia(Invoker_)
                     .Run());
         }
         guard.Release();
-
-        if (DqManager_) {
-            DqManager_->Start();
-        }
 
         WaitFor(AllSucceeded(futures)).ThrowOnError();
     }
@@ -306,7 +320,7 @@ public:
         std::vector<TFuture<void>> futures;
         TString gatewaysConfig = config.GatewaysConfig.ToString();
 
-        for (int i = 0; i < Config_->SlotsCount; ++i) {
+        for (int i = 0; i < Config_->ProcessPluginConfig->SlotsCount; ++i) {
             futures.push_back(BIND([gatewaysConfig, process = YqlProcesses_[i]] {
                 // process is not initialized yet, it will start with updated config.
                 if (!process) {
@@ -337,19 +351,20 @@ public:
         auto yqlPluginNode = NYTree::GetEphemeralNodeFactory()->CreateMap();
         yqlPluginNode->AddChild("active_processes", NYTree::BuildYsonNodeFluently().Value(RunningYqlQueries_.size()));
         yqlPluginNode->AddChild("standby_processes", NYTree::BuildYsonNodeFluently().Value(StandbyProcessesQueue_.size()));
-        yqlPluginNode->AddChild("total_processes", NYTree::BuildYsonNodeFluently().Value(Config_->SlotsCount));
+        yqlPluginNode->AddChild("total_processes", NYTree::BuildYsonNodeFluently().Value(Config_->ProcessPluginConfig->SlotsCount));
         return yqlPluginNode;
     }
 
 private:
     static TString SocketName;
 
-    TYqlProcessPluginConfigPtr Config_;
+    TYqlPluginConfigPtr Config_;
 
     TActionQueuePtr Queue_;
     IInvokerPtr Invoker_;
 
     TDqManagerPtr DqManager_;
+    ::TIntrusivePtr<NKikimr::NMiniKQL::IMutableFunctionRegistry> FuncRegistry_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ProcessesLock_);
     THashMap<TQueryId, int> RunningYqlQueries_;
@@ -400,7 +415,7 @@ private:
         // we need to restart process, because otherwise it will be stuck forever.
         NConcurrency::TDelayedExecutor::Submit(
             BIND(&TYqlProcessPlugin::CheckProcessIsActive, this, acquiredProcess, queryId),
-            Config_->CheckProcessActiveDelay,
+            Config_->ProcessPluginConfig->CheckProcessActiveDelay,
             Invoker_);
 
         return acquiredProcess;
@@ -519,7 +534,7 @@ private:
     void InitializeProcessPool()
     {
         YT_LOG_INFO("Initializing process pool");
-        for (int i = 0; i < Config_->SlotsCount; ++i) {
+        for (int i = 0; i < Config_->ProcessPluginConfig->SlotsCount; ++i) {
             Invoker_->Invoke(BIND_NO_PROPAGATE([this, i]() {
                 StartProcess(i);
             }));
@@ -555,7 +570,7 @@ private:
 
     TString GetSlotPath(int slotIndex) const
     {
-        return NFS::CombinePaths({Config_->SlotsRootPath, Format("%v", slotIndex)});
+        return NFS::CombinePaths({Config_->ProcessPluginConfig->SlotsRootPath, Format("%v", slotIndex)});
     }
 
     TString GetUnixDomainSocketPath(int slotIndex) const
@@ -656,17 +671,16 @@ private:
     }
 
     static TYqlPluginProcessInternalConfigPtr BuildPluginConfigTemplate(
-        TYqlProcessPluginConfigPtr config,
-        TYqlPluginConfigPtr pluginConfig,
+        TYqlPluginConfigPtr config,
         NYqlAgent::TBootstrap* bootstrap,
         TString maxSupportedYqlVersion)
     {
         TYqlPluginProcessInternalConfigPtr result = New<TYqlPluginProcessInternalConfig>();
 
-        result->SetSingletonConfig(config->LogManagerTemplate);
+        result->SetSingletonConfig(config->ProcessPluginConfig->LogManagerTemplate);
         result->ClusterConnection = bootstrap->GetNativeServerBootstrapConfig()->ClusterConnection->Clone();
 
-        result->PluginConfig = pluginConfig;
+        result->PluginConfig = config;
         result->MaxSupportedYqlVersion = maxSupportedYqlVersion;
 
         return result;
@@ -696,6 +710,29 @@ private:
             queryResultField = fieldValue(&response);
         }
     }
+
+    void InitDqManager(TYqlPluginConfigPtr pluginConfig, TDqManagerConfigPtr dqManagerConfig) {
+        NYson::TProtobufWriterOptions protobufWriterOptions;
+        protobufWriterOptions.ConvertSnakeToCamelCase = true;
+        NYql::TFileStorageConfig fileStorageConfig;
+        fileStorageConfig.ParseFromStringOrThrow(NYson::YsonStringToProto(
+            ConvertToYsonString(pluginConfig->FileStorageConfig),
+            NYson::ReflectProtobufMessageType<NYql::TFileStorageConfig>(),
+            protobufWriterOptions));
+
+        auto fileStorage = WithAsync(CreateFileStorage(fileStorageConfig, {MakeYtDownloader(fileStorageConfig)}));
+
+        TVector<TString> udfPaths;
+        NKikimr::NMiniKQL::FindUdfsInDir("/usr/local/lib/yql", &udfPaths);
+        for (const auto& path : udfPaths) {
+            // Skip YQL plugin shared library itself, it is not a UDF.
+            if (path.EndsWith("libyqlplugin.so")) {
+                continue;
+            }
+            dqManagerConfig->UdfsWithMd5.emplace(path, MD5::File(path));
+        }
+        dqManagerConfig->FileStorage = fileStorage;
+    }
 };
 
 TString TYqlProcessPlugin::SocketName = "yql-plugin.sock";
@@ -705,11 +742,10 @@ TString TYqlProcessPlugin::SocketName = "yql-plugin.sock";
 std::unique_ptr<IYqlPlugin> CreateProcessYqlPlugin(
     NYqlAgent::TBootstrap* bootstrap,
     TYqlPluginConfigPtr pluginConfig,
-    TYqlProcessPluginConfigPtr config,
     const NProfiling::TProfiler& profiler,
     TString maxSupportedYqlVersion)
 {
-    return std::make_unique<TYqlProcessPlugin>(bootstrap, std::move(pluginConfig), std::move(config), profiler, maxSupportedYqlVersion);
+    return std::make_unique<TYqlProcessPlugin>(bootstrap, std::move(pluginConfig), profiler, maxSupportedYqlVersion);
 }
 
 } // namespace NProcess
