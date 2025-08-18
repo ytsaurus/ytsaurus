@@ -434,6 +434,10 @@ class TestSchedulingSegments(YTEnvSetup):
         # But the job from default segment is considered preemptible just for running in the wrong segment.
         wait(lambda: get(scheduler_orchid_node_path(shared_node) + "/running_job_statistics/preemptible_gpu_time") > 0)
 
+        # NB: We need to disable rebalancing temporarily, because after blocking_large_op's jobs are aborted
+        # there may be a moment when new demand has not been received from the controller yet
+        # and large segment doesn't have enough fair share.
+        update_pool_tree_config_option("default", "scheduling_segments/unsatisfied_segments_rebalancing_timeout", 1000000000)
         blocking_jobs = blocking_large_op.get_running_jobs()
         assert len(blocking_jobs) == 5
         for job in blocking_jobs.keys():
@@ -442,7 +446,6 @@ class TestSchedulingSegments(YTEnvSetup):
         time.sleep(1.0)
         wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_large_op.id), 0.5))
 
-        update_pool_tree_config_option("default", "scheduling_segments/unsatisfied_segments_rebalancing_timeout", 1000000000)
         sharing_large_op.abort()
 
         def check():
