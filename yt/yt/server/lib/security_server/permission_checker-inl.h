@@ -4,6 +4,8 @@
 #include "permission_checker.h"
 #endif
 
+#include <yt/yt/client/security_client/acl.h>
+
 namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -16,6 +18,13 @@ void TPermissionChecker::ProcessAce(
     int depth)
 {
     if (!Proceed_) {
+        return;
+    }
+
+    if (auto error = NSecurityClient::CheckAceCorrect(ace); !error.IsOK()) {
+        YT_LOG_ALERT(
+            error,
+            "Got invalid ACE; skipping");
         return;
     }
 
@@ -34,11 +43,11 @@ void TPermissionChecker::ProcessAce(
         return;
     }
 
-    if (None(ace.Permissions & Permission_)) {
+    if (None(ace.Permissions & PermissionsMask_)) {
         return;
     }
 
-    if (Permission_ == NYTree::EPermission::RegisterQueueConsumer) {
+    if (PermissionsMask_ == NYTree::EPermission::RegisterQueueConsumer) {
         // RegisterQueueConsumer may only be present in ACE as a single permission;
         // in this case it is ensured that vitality is specified.
         YT_VERIFY(ace.Vital);
@@ -53,7 +62,16 @@ void TPermissionChecker::ProcessAce(
             continue;
         }
 
+        if (Any(ace.Permissions & NYTree::EPermission::FullRead)) {
+            YT_VERIFY(ace.Action == NSecurityClient::ESecurityAction::Allow);
+            FullReadExplicitlyGranted_ = true;
+        }
+
         if (ace.Columns) {
+            // XXX(coteeq): Maybe we should ban ACEs with columns and action=deny?
+            // They do not seem to be helpful, but their absence may simplify
+            // logic a bit.
+
             for (const auto& column : *ace.Columns) {
                 auto it = ColumnToResult_.find(column);
                 if (it == ColumnToResult_.end()) {
@@ -65,7 +83,7 @@ void TPermissionChecker::ProcessAce(
                     ace.Action,
                     adjustedSubject,
                     objectId);
-                if (FullRead_ && columnResult.Action == NSecurityClient::ESecurityAction::Deny) {
+                if (FullReadRequested_ && columnResult.Action == NSecurityClient::ESecurityAction::Deny) {
                     SetDeny(adjustedSubject, objectId);
                     break;
                 }
