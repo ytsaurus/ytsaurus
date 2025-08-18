@@ -554,6 +554,38 @@ class TestHttpProxyUserMemoryDrop(HttpProxyTestBase):
 
     @authors("nadya02")
     @pytest.mark.timeout(120)
+    def test_concurrency_limit(self):
+        create_user("nadya")
+
+        create("table", "//tmp/test")
+
+        proxy_name = ls("//sys/http_proxies")[0]
+        # No limits.
+        self._execute_command("GET", "read_table", {"path": "//tmp/test"}, user="nadya")
+
+        set("//sys/http_proxies/@config", {
+            "api": {
+                "user_to_concurrency_limit_ratio" : {
+                    "nadya": 0.0,
+                },
+            }
+        })
+
+        def role_config_updated(expected):
+            config = get("//sys/http_proxies/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
+            return config.get("api", {}).get("user_to_concurrency_limit_ratio") == expected
+
+        wait(lambda: role_config_updated({
+            "nadya": 0.0,
+        }))
+
+        self._execute_command("GET", "read_table", {"path": "//tmp/test"})
+
+        with raises_yt_error("Received response with error"):
+            self._execute_command("GET", "read_table", {"path": "//tmp/test"}, user="nadya")
+
+    @authors("nadya02")
+    @pytest.mark.timeout(120)
     def test_specific_user_drop(self):
         create_user("nadya")
 
