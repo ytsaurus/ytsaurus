@@ -15,6 +15,7 @@ class TCypressProxyObject
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(std::string, Address);
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, AliveUntil);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastPersistentHeartbeatTime);
     DEFINE_BYVAL_RW_PROPERTY(NSequoiaClient::ESequoiaReign, SequoiaReign);
     DEFINE_BYVAL_RW_PROPERTY(std::string, Version);

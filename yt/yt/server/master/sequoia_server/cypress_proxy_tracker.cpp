@@ -72,34 +72,6 @@ public:
         configManager->SubscribeConfigChanged(BIND(&TCypressProxyTracker::OnDynamicConfigChanged, Unretained(this)));
     }
 
-    void MaybePersistCypressProxyRegistration(const NProto::TReqHeartbeat& request)
-    {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        if (hydraManager->GetReadOnly()) {
-            return;
-        }
-
-        auto mutationRequired = RegistrationCache_.Read([&] (const TRegistrationCache& cache) {
-            auto it = cache.find(request.address());
-            return
-                it == cache.end() ||
-                it->second.Reign != static_cast<ESequoiaReign>(request.sequoia_reign()) ||
-                it->second.Version != request.version() ||
-                NProfiling::GetInstant() > it->second.LastPersistentHeartbeatTime + PersistentHeartbeatPeriod_.load();
-        });
-
-        if (!mutationRequired) {
-            return;
-        }
-
-        auto mutation = CreateMutation(hydraManager, request);
-        mutation->SetCurrentTraceContext();
-        mutation->SetAllowLeaderForwarding(true);
-        YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger()));
-    }
-
     void ProcessCypressProxyHeartbeat(const TCtxHeartbeatPtr& context) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -118,7 +90,14 @@ public:
         }
         context->Reply(error);
 
-        MaybePersistCypressProxyRegistration(request);
+        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        if (hydraManager->GetReadOnly()) {
+            return;
+        }
+
+        auto mutation = CreateMutation(hydraManager, request);
+        mutation->SetCurrentTraceContext();
+        YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger()));
     }
 
     void Initialize() override
@@ -153,17 +132,7 @@ public:
 private:
     const IChannelFactoryPtr ChannelFactory_;
 
-    struct TCypressProxyRegistrationInfo
-    {
-        ESequoiaReign Reign;
-        std::string Version;
-        TInstant LastPersistentHeartbeatTime;
-    };
-    using TRegistrationCache = THashMap<std::string, TCypressProxyRegistrationInfo>;
-    TAtomicObject<TRegistrationCache> RegistrationCache_;
-
     // Part of dynamic config to read it from non-automaton thread.
-    std::atomic<TDuration> PersistentHeartbeatPeriod_;
     std::atomic<int> MaxCopiableSubtreeSize_;
 
     // Persistent.
@@ -174,7 +143,6 @@ private:
     {
         CypressProxyByAddress_ = {};
         CypressProxyMap_.Clear();
-        RegistrationCache_.Store(TRegistrationCache{});
     }
 
     void SaveKeys(NCellMaster::TSaveContext& context) const
@@ -209,12 +177,6 @@ private:
     void RegisterCypressProxy(TCypressProxyObject* proxyObject)
     {
         EmplaceOrCrash(CypressProxyByAddress_, proxyObject->GetAddress(), proxyObject);
-        RegistrationCache_.Transform([&] (TRegistrationCache& cache) {
-            cache[proxyObject->GetAddress()] = {
-                .Reign = proxyObject->GetSequoiaReign(),
-                .Version = proxyObject->GetVersion(),
-            };
-        });
         YT_LOG_DEBUG("Cypress proxy registered (Address: %v, SequoiaReign: %v, Version: %v)",
             proxyObject->GetAddress(),
             proxyObject->GetSequoiaReign(),
@@ -224,9 +186,6 @@ private:
     void UnregisterCypressProxy(TCypressProxyObject* proxyObject)
     {
         EraseOrCrash(CypressProxyByAddress_, proxyObject->GetAddress());
-        RegistrationCache_.Transform([&] (TRegistrationCache& cache) {
-            cache.erase(proxyObject->GetAddress());
-        });
         YT_LOG_DEBUG("Cypress proxy unregistered (Address: %v)", proxyObject->GetAddress());
     }
 
@@ -255,9 +214,10 @@ private:
         YT_VERIFY(Bootstrap_->IsPrimaryMaster());
 
         // NB: static_cast is intended. We do nothing with this value but
-        // comparing with current reign.
+        // compare it with the current reign.
         auto sequoiaReign = static_cast<ESequoiaReign>(request->sequoia_reign());
         const auto& address = request->address();
+        auto heartbeatPeriod = FromProto<TDuration>(request->heartbeat_period());
 
         auto* proxy = FindCypressProxyByAddress(address);
         if (!proxy) {
@@ -265,7 +225,10 @@ private:
         }
         YT_VERIFY(proxy->GetAddress() == address);
 
-        proxy->SetLastPersistentHeartbeatTime(GetCurrentMutationContext()->GetTimestamp());
+        auto mutationTimestamp = GetCurrentMutationContext()->GetTimestamp();
+        auto aliveUntil = mutationTimestamp + 2 * heartbeatPeriod;
+        proxy->SetAliveUntil(aliveUntil);
+        proxy->SetLastPersistentHeartbeatTime(mutationTimestamp);
         proxy->SetSequoiaReign(sequoiaReign);
         proxy->SetVersion(request->version());
     }
@@ -278,7 +241,6 @@ private:
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
         const auto& config = Bootstrap_->GetDynamicConfig();
-        PersistentHeartbeatPeriod_.store(config->CypressProxyTracker->PersistentHeartbeatPeriod);
         MaxCopiableSubtreeSize_.store(config->CypressManager->CrossCellCopyMaxSubtreeSize);
     }
 };

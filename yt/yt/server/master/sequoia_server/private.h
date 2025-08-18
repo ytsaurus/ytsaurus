@@ -15,4 +15,12 @@ YT_DEFINE_GLOBAL(const NProfiling::TProfiler, SequoiaServerProfiler, "/sequoia_s
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM_WITH_UNDERLYING_TYPE(ECypressProxyState, i8,
+    ((Offline)   (0))
+    ((Unknown)   (1))
+    ((Online)    (2))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NSequoiaServer
