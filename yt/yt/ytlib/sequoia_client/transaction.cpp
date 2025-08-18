@@ -968,8 +968,8 @@ TFuture<ISequoiaTransactionPtr> StartSequoiaTransaction(
     YT_VERIFY(!sequoiaTransactionOptions.AuthenticationIdentity.User.empty());
 
     if (!transactionStartOptions.Timeout.has_value()) {
-        const auto& connectionConfig = localConnection->GetConfig();
-        transactionStartOptions.Timeout = connectionConfig->SequoiaTransactionTypeToTimeout[type];
+        auto connectionConfig = localConnection->GetConfig();
+        transactionStartOptions.Timeout = GetOrDefault(connectionConfig->SequoiaTransactionTypeToTimeout, type, std::nullopt);
     }
 
     auto transaction = New<TSequoiaTransaction>(
