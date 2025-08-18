@@ -87,9 +87,11 @@ public:
         , HistoricUsageAggregator_(Config_.Acquire()->AdjustedEmaHalflife)
     {
         if (Config_.Acquire()->InitializeThrottlersOnCreation) {
-            Initialize(0);
-            // The actual limit will be given by the leader on first heartbeat.
-            Underlying_->SetLimit(std::nullopt);
+            // Set limit to zero for now. The actual limit will be given by the
+            // leader on the first heartbeat. This makes monitoring graphs nice.
+            double limit = 0;
+            Initialize(limit);
+            Underlying_->SetLimit(limit);
         }
     }
 
