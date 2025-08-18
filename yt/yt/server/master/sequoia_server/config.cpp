@@ -40,8 +40,6 @@ void TDynamicCypressProxyTrackerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("cypress_proxy_orchid_timeout", &TThis::CypressProxyOrchidTimeout)
         .Default(TDuration::Seconds(60));
-    registrar.Parameter("persistent_heartbeat_period", &TThis::PersistentHeartbeatPeriod)
-        .Default(TDuration::Minutes(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
