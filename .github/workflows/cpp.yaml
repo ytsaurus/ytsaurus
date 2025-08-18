@@ -101,9 +101,8 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: cmake
-      build-ytsaurus: true
-      build-chyt: true
-      build-python: true
+      build-ytsaurus: false
+      build-python: false
       update-remote-cache: true
     secrets:
       BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
@@ -137,11 +136,12 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
-      build-ytsaurus: true
-      build-ytsaurus-tests: true
-      build-query-tracker: ${{ github.ref_name == 'main' }}
+      build-ytsaurus: false
+      build-ytsaurus-tests: false
+      build-query-tracker: false
       build-python: true
       update-remote-cache: true
+      build-chyt: true
     secrets:
       BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
@@ -156,9 +156,9 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
-      publish-query-tracker: ${{ github.ref_name == 'main' }}
-      publish-local: true
-      publish-chyt: ${{ github.ref_name == 'main' }}
+      publish-query-tracker: false
+      publish-local: false
+      publish-chyt: true
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
     secrets:
