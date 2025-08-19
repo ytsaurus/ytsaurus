@@ -490,6 +490,15 @@ class TestArrowFormat(YTEnvSetup):
         read_result = parse_arrow_stream(read_table("//tmp/table{doubled_num}", output_format=ARROW_FORMAT)).to_pydict()
         assert read_result["doubled_num"] == [2 * row["num"] for row in rows]
 
+    @authors("nadya02")
+    def test_tz_null_types(self, optimize_for):
+        create("table", "//tmp/tt", attributes={
+            "optimize_for": optimize_for,
+            "schema": [{"name": "a", "type": "tz_date"}]
+        })
+        write_table("//tmp/tt", [{"a": None}] * 10)
+        read_table("//tmp/tt", output_format=ARROW_FORMAT)
+
 
 @authors("nadya02")
 @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])

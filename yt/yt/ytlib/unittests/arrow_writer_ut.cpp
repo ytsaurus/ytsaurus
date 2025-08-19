@@ -34,8 +34,12 @@
 #include <util/string/hex.h>
 
 #include <contrib/libs/apache/arrow/cpp/src/arrow/api.h>
+
+#include <contrib/libs/apache/arrow/cpp/src/arrow/compute/cast.h>
+
 #include <contrib/libs/apache/arrow/cpp/src/arrow/io/api.h>
 #include <contrib/libs/apache/arrow/cpp/src/arrow/io/memory.h>
+
 #include <contrib/libs/apache/arrow/cpp/src/arrow/ipc/api.h>
 
 #include <limits>
@@ -49,6 +53,7 @@ using namespace NChunkClient;
 using namespace NFormats;
 using namespace NNamedValue;
 using namespace NTableClient;
+using namespace NTzTypes;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -123,14 +128,16 @@ IUnversionedRowBatchPtr MakeColumnarRowBatch(
 
 ISchemalessFormatWriterPtr CreateArrowWriter(TNameTablePtr nameTable,
     IOutputStream* outputStream,
-    const std::vector<NTableClient::TTableSchemaPtr>& schemas)
+    const std::vector<NTableClient::TTableSchemaPtr>& schemas,
+    TArrowFormatConfigPtr arrowConfig = New<TArrowFormatConfig>())
 {
-    auto controlAttributes = NYT::New<TControlAttributesConfig>();
+    TControlAttributesConfigPtr controlAttributes = New<TControlAttributesConfig>();
     controlAttributes->EnableTableIndex = false;
     controlAttributes->EnableRowIndex = false;
     controlAttributes->EnableRangeIndex = false;
     controlAttributes->EnableTabletIndex = false;
     return CreateWriterForArrow(
+        std::move(arrowConfig),
         nameTable,
         schemas,
         /*columns*/ {},
@@ -150,6 +157,7 @@ ISchemalessFormatWriterPtr CreateArrowWriteWithSystemColumns(TNameTablePtr nameT
     controlAttributes->EnableRangeIndex = true;
     controlAttributes->EnableTabletIndex = true;
     return CreateWriterForArrow(
+        New<TArrowFormatConfig>(),
         nameTable,
         schemas,
         /*columns*/ {},
@@ -531,7 +539,7 @@ TEST(TArrowWriterTest, SimpleInteger)
     EXPECT_EQ(ReadInteger64Array(batch->column(0)), column);
 }
 
-TEST(TArrowWriterTest2, Json)
+TEST(TArrowWriterTest, Json)
 {
     std::vector<TTableSchemaPtr> tableSchemas;
     std::vector<std::string> columnNames = {"json"};
@@ -1065,6 +1073,269 @@ TEST(TArrowWriterTest, SimpleString)
 
     CheckColumnNames(batch, columnNames);
     EXPECT_EQ(ReadAnyStringArray(batch->column(0)), column);
+}
+
+TEST(TArrowWriterTest, TzTypeIndex)
+{
+    std::vector<std::string> columnNames = {"tzDate", "tzDatetime", "tzTimestamp", "tzDate32", "tzDatetime64", "tzTimestamp64"};
+    std::vector<TTableSchemaPtr> tableSchemas;
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(columnNames[0], ESimpleLogicalValueType::TzDate),
+        TColumnSchema(columnNames[1], ESimpleLogicalValueType::TzDatetime),
+        TColumnSchema(columnNames[2], ESimpleLogicalValueType::TzTimestamp),
+        TColumnSchema(columnNames[3], ESimpleLogicalValueType::TzDate32),
+        TColumnSchema(columnNames[4], ESimpleLogicalValueType::TzDatetime64),
+        TColumnSchema(columnNames[5], ESimpleLogicalValueType::TzTimestamp64),
+    }));
+
+    TStringStream outputStream;
+
+    auto dateValue = MakeTzString<ui16>(42, "Europe/Moscow");
+    auto datetimeValue = MakeTzString<ui32>(42, "Europe/Moscow");
+    auto timestampValue = MakeTzString<ui64>(42, "Europe/Moscow");
+    auto date32Value = MakeTzString<i32>(42, "Europe/Moscow");
+    auto datetime64Value = MakeTzString<i64>(42, "Europe/Moscow");
+    auto timestamp64Value = MakeTzString<i64>(42, "Europe/Moscow");
+
+    auto rows = MakeUnversionedStringRows({
+        {dateValue},
+        {datetimeValue},
+        {timestampValue},
+        {date32Value},
+        {datetime64Value},
+        {timestamp64Value}},
+        columnNames);
+
+    TArrowFormatConfigPtr arrowConfig = New<TArrowFormatConfig>();
+    arrowConfig->EnableTzIndex = true;
+    auto writer = CreateArrowWriter(rows.NameTable, &outputStream, tableSchemas, arrowConfig);
+
+    EXPECT_TRUE(writer->Write(rows.Rows));
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    auto batch = MakeBatch(outputStream);
+
+    CheckColumnNames(batch, columnNames);
+
+    {
+        auto structArrowArray = std::dynamic_pointer_cast<arrow::StructArray>(batch->column(0));
+        auto timestampArray = std::dynamic_pointer_cast<arrow::UInt16Array>(structArrowArray->field(0));
+        auto tzNameArray = std::dynamic_pointer_cast<arrow::UInt16Array>(structArrowArray->field(1));
+        EXPECT_EQ(timestampArray->Value(0), 42);
+        EXPECT_EQ(tzNameArray->Value(0), 1);
+    }
+
+    {
+        auto structArrowArray = std::dynamic_pointer_cast<arrow::StructArray>(batch->column(1));
+        auto timestampArray = std::dynamic_pointer_cast<arrow::UInt32Array>(structArrowArray->field(0));
+        auto tzNameArray = std::dynamic_pointer_cast<arrow::UInt16Array>(structArrowArray->field(1));
+        EXPECT_EQ(timestampArray->Value(0), static_cast<ui32>(42));
+        EXPECT_EQ(tzNameArray->Value(0), 1);
+    }
+
+    {
+        auto structArrowArray = std::dynamic_pointer_cast<arrow::StructArray>(batch->column(2));
+        auto timestampArray = std::dynamic_pointer_cast<arrow::UInt64Array>(structArrowArray->field(0));
+        auto tzNameArray = std::dynamic_pointer_cast<arrow::UInt16Array>(structArrowArray->field(1));
+        EXPECT_EQ(timestampArray->Value(0), static_cast<ui64>(42));
+        EXPECT_EQ(tzNameArray->Value(0), 1);
+    }
+
+    {
+        auto structArrowArray = std::dynamic_pointer_cast<arrow::StructArray>(batch->column(3));
+        auto timestampArray = std::dynamic_pointer_cast<arrow::Int32Array>(structArrowArray->field(0));
+        auto tzNameArray = std::dynamic_pointer_cast<arrow::UInt16Array>(structArrowArray->field(1));
+        EXPECT_EQ(timestampArray->Value(0), static_cast<i32>(42));
+        EXPECT_EQ(tzNameArray->Value(0), 1);
+    }
+
+    {
+        auto structArrowArray = std::dynamic_pointer_cast<arrow::StructArray>(batch->column(4));
+        auto timestampArray = std::dynamic_pointer_cast<arrow::Int64Array>(structArrowArray->field(0));
+        auto tzNameArray = std::dynamic_pointer_cast<arrow::UInt16Array>(structArrowArray->field(1));
+        EXPECT_EQ(timestampArray->Value(0), 42);
+        EXPECT_EQ(tzNameArray->Value(0), 1);
+    }
+
+    {
+        auto structArrowArray = std::dynamic_pointer_cast<arrow::StructArray>(batch->column(5));
+        auto timestampArray = std::dynamic_pointer_cast<arrow::Int64Array>(structArrowArray->field(0));
+        auto tzNameArray = std::dynamic_pointer_cast<arrow::UInt16Array>(structArrowArray->field(1));
+        EXPECT_EQ(timestampArray->Value(0), 42);
+        EXPECT_EQ(tzNameArray->Value(0), 1);
+    }
+
+}
+
+TEST(TArrowWriterTest, TzTypeName)
+{
+    std::vector<std::string> columnNames = {"tzDate", "tzDatetime", "tzTimestamp", "tzDate32", "tzDatetime64", "tzTimestamp64"};
+    std::vector<TTableSchemaPtr> tableSchemas;
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(columnNames[0], ESimpleLogicalValueType::TzDate),
+        TColumnSchema(columnNames[1], ESimpleLogicalValueType::TzDatetime),
+        TColumnSchema(columnNames[2], ESimpleLogicalValueType::TzTimestamp),
+        TColumnSchema(columnNames[3], ESimpleLogicalValueType::TzDate32),
+        TColumnSchema(columnNames[4], ESimpleLogicalValueType::TzDatetime64),
+        TColumnSchema(columnNames[5], ESimpleLogicalValueType::TzTimestamp64),
+    }));
+
+    TStringStream outputStream;
+
+    auto dateValue = MakeTzString<ui16>(42, "Europe/Moscow");
+    auto datetimeValue = MakeTzString<ui32>(42, "Europe/Moscow");
+    auto timestampValue = MakeTzString<ui64>(42, "Europe/Moscow");
+    auto date32Value = MakeTzString<i32>(42, "Europe/Moscow");
+    auto datetime64Value = MakeTzString<i64>(42, "Europe/Moscow");
+    auto timestamp64Value = MakeTzString<i64>(42, "Europe/Moscow");
+
+    auto rows = MakeUnversionedStringRows({
+        {dateValue},
+        {datetimeValue},
+        {timestampValue},
+        {date32Value},
+        {datetime64Value},
+        {timestamp64Value}},
+        columnNames);
+
+    auto writer = CreateArrowWriter(rows.NameTable, &outputStream, tableSchemas);
+
+    EXPECT_TRUE(writer->Write(rows.Rows));
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    auto batch = MakeBatch(outputStream);
+
+    CheckColumnNames(batch, columnNames);
+
+    {
+        auto structArrowArray = std::dynamic_pointer_cast<arrow::StructArray>(batch->column(0));
+        auto timestampArray = std::dynamic_pointer_cast<arrow::UInt16Array>(structArrowArray->field(0));
+        auto tzNameArray = std::dynamic_pointer_cast<arrow::BinaryArray>(structArrowArray->field(1));
+        EXPECT_EQ(timestampArray->Value(0), 42);
+        EXPECT_EQ(tzNameArray->Value(0), "Europe/Moscow");
+    }
+
+    {
+        auto structArrowArray = std::dynamic_pointer_cast<arrow::StructArray>(batch->column(1));
+        auto timestampArray = std::dynamic_pointer_cast<arrow::UInt32Array>(structArrowArray->field(0));
+        auto tzNameArray = std::dynamic_pointer_cast<arrow::BinaryArray>(structArrowArray->field(1));
+        EXPECT_EQ(timestampArray->Value(0), static_cast<ui32>(42));
+        EXPECT_EQ(tzNameArray->Value(0), "Europe/Moscow");
+    }
+
+    {
+        auto structArrowArray = std::dynamic_pointer_cast<arrow::StructArray>(batch->column(2));
+        auto timestampArray = std::dynamic_pointer_cast<arrow::UInt64Array>(structArrowArray->field(0));
+        auto tzNameArray = std::dynamic_pointer_cast<arrow::BinaryArray>(structArrowArray->field(1));
+        EXPECT_EQ(timestampArray->Value(0), static_cast<ui64>(42));
+        EXPECT_EQ(tzNameArray->Value(0), "Europe/Moscow");
+    }
+
+    {
+        auto structArrowArray = std::dynamic_pointer_cast<arrow::StructArray>(batch->column(3));
+        auto timestampArray = std::dynamic_pointer_cast<arrow::Int32Array>(structArrowArray->field(0));
+        auto tzNameArray = std::dynamic_pointer_cast<arrow::BinaryArray>(structArrowArray->field(1));
+        EXPECT_EQ(timestampArray->Value(0), static_cast<i32>(42));
+        EXPECT_EQ(tzNameArray->Value(0), "Europe/Moscow");
+    }
+
+    {
+        auto structArrowArray = std::dynamic_pointer_cast<arrow::StructArray>(batch->column(4));
+        auto timestampArray = std::dynamic_pointer_cast<arrow::Int64Array>(structArrowArray->field(0));
+        auto tzNameArray = std::dynamic_pointer_cast<arrow::BinaryArray>(structArrowArray->field(1));
+        EXPECT_EQ(timestampArray->Value(0), 42);
+        EXPECT_EQ(tzNameArray->Value(0), "Europe/Moscow");
+    }
+
+    {
+        auto structArrowArray = std::dynamic_pointer_cast<arrow::StructArray>(batch->column(5));
+        auto timestampArray = std::dynamic_pointer_cast<arrow::Int64Array>(structArrowArray->field(0));
+        auto tzNameArray = std::dynamic_pointer_cast<arrow::BinaryArray>(structArrowArray->field(1));
+        EXPECT_EQ(timestampArray->Value(0), 42);
+        EXPECT_EQ(tzNameArray->Value(0), "Europe/Moscow");
+    }
+
+}
+
+TEST(TArrowWriterTest, TzRle)
+{
+    std::vector<std::string> columnNames = {"tzDate"};
+    std::vector<TTableSchemaPtr> tableSchemas;
+
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(columnNames[0], ESimpleLogicalValueType::TzDate),
+    }));
+
+    TStringStream outputStream;
+
+    auto dateValue = MakeTzString<ui16>(42, "Europe/Moscow");
+    std::vector<std::string> tzValues;
+    for (int i = 0; i < 100; ++i) {
+        tzValues.push_back(dateValue);
+    }
+    auto rows = MakeUnversionedStringRows({tzValues}, columnNames);
+
+    auto writer = CreateArrowWriter(rows.NameTable, &outputStream, tableSchemas);
+
+    EXPECT_TRUE(writer->Write(rows.Rows));
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    auto batch = MakeBatch(outputStream);
+
+    CheckColumnNames(batch, columnNames);
+
+    {
+        EXPECT_TRUE(IsDictColumn(batch->column(0)));
+        auto dictArray = std::dynamic_pointer_cast<arrow::DictionaryArray>(batch->column(0));
+
+        auto structArrowArray = std::dynamic_pointer_cast<arrow::StructArray>(dictArray->dictionary());
+        auto timestampArray = std::dynamic_pointer_cast<arrow::UInt16Array>(structArrowArray->field(0));
+        auto tzNameArray = std::dynamic_pointer_cast<arrow::BinaryArray>(structArrowArray->field(1));
+        EXPECT_EQ(timestampArray->Value(0), 42);
+        EXPECT_EQ(tzNameArray->Value(0), "Europe/Moscow");
+    }
+
+}
+
+TEST(TArrowWriterTest, NullTz)
+{
+    std::vector<std::string> columnNames = {"tzDate"};
+    std::vector<TTableSchemaPtr> tableSchemas;
+
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(columnNames[0], ESimpleLogicalValueType::TzDate),
+    }));
+
+    TStringStream outputStream;
+
+    std::vector<std::optional<std::string>> tzValues;
+    for (int i = 0; i < 10; ++i) {
+        tzValues.push_back(std::nullopt);
+    }
+
+    auto rows = MakeUnversionedNullableStringRows({tzValues}, columnNames);
+
+    auto writer = CreateArrowWriter(rows.NameTable, &outputStream, tableSchemas);
+
+    EXPECT_TRUE(writer->Write(rows.Rows));
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    auto batch = MakeBatch(outputStream);
+
+    CheckColumnNames(batch, columnNames);
+
 }
 
 TEST(TArrowWriterTest, DictionaryString)
