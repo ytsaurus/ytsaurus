@@ -196,7 +196,7 @@ NS3::IClientPtr TS3MediumDescriptor::CreateClient(const TS3MediumConfigPtr& medi
 
     return NS3::CreateClient(
         std::move(clientConfig),
-        NS3::CreateStaticCredentialProvider(std::move(mediumConfig->AccessKeyId), std::move(mediumConfig->SecretAccessKey)),
+        NS3::CreateStaticCredentialProvider(mediumConfig->AccessKeyId, mediumConfig->SecretAccessKey),
         NYT::NBus::TTcpDispatcher::Get()->GetXferPoller(),
         // TODO(achulkov2): [PLater] Figure out proper invoker to use.
         TDispatcher::Get()->GetWriterInvoker());
