@@ -1313,6 +1313,10 @@ private:
     // Used for testing purposes.
     bool CommitSleepStarted_ = false;
 
+    // Upload to debug tables should not be performed if the operation has failed
+    // in materialization, so we explicitly mark debug tables as ready when they are so.
+    bool DebugTablesReady_ = false;
+
     //! Schedule job failures that happened outside of controller.
     //! These values are added to corresponding values in ScheduleAllocationStatistics_
     //! on each access in thread-safe manner.
@@ -1513,7 +1517,7 @@ private:
 
     void RemoveRemainingJobsOnOperationFinished();
 
-    void OnOperationReady() const;
+    void OnOperationReady();
 
     bool ShouldProcessJobEvents() const;
 

@@ -644,6 +644,36 @@ class TestStderrTable(YTEnvSetup):
 
         op.abort()
 
+    @authors("ifsmirnov")
+    def test_job_table_cannot_be_output_table(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output", attributes={"schema": [{"name": "a", "type": "string"}]})
+        write_table("//tmp/t_output", {"a": "b"})
+
+        def _validate_output_table_left_intact():
+            assert read_table("//tmp/t_output") == [{"a": "b"}]
+            schema = get("//tmp/t_output/@schema")
+            assert len(schema) == 1
+            assert schema[0]["name"] == "a"
+
+        with raises_yt_error("specified multiple times"):
+            map(
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                command="cat",
+                spec={"stderr_table_path": "//tmp/t_output"},
+            )
+        _validate_output_table_left_intact()
+
+        with raises_yt_error("specified multiple times"):
+            map(
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                command="cat",
+                spec={"core_table_path": "//tmp/t_output"},
+            )
+        _validate_output_table_left_intact()
+
 
 ##################################################################
 
