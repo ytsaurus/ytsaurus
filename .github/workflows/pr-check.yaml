@@ -92,8 +92,8 @@ jobs:
       - name: Checkout ytsaurus
         uses: actions/checkout@v3
         with:
-          ref: ${{ inputs.commit-sha }}
-          fetch-depth: 2
+#          ref: ${{ inputs.commit-sha }}
+#          fetch-depth: 2
           path: ytsaurus
 
   build-strawberry:
