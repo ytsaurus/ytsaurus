@@ -241,6 +241,29 @@ TEST(TExpressionEvaluatorTest, TableName)
         "contains conflicting table names:");
 }
 
+TEST(TExpressionEvaluatorTest, NullValue)
+{
+    NQueryClient::TSchemaColumns columns = {
+        {
+            "value.x", EValueType::Int64
+        },
+        {
+            "value.y", EValueType::Int64
+        }
+    };
+
+    auto rowBuffer = New<NTableClient::TRowBuffer>();
+    auto evaluator = CreateExpressionEvaluator("is_null([value.x]) and not is_null([value.y])", columns);
+    auto value = evaluator->Evaluate({
+            BuildYsonStringFluently().Entity(),
+            BuildYsonStringFluently().Value(10)
+        },
+        rowBuffer)
+        .ValueOrThrow();
+    EXPECT_EQ(value.Type, EValueType::Boolean);
+    EXPECT_EQ(value.Data.Boolean, true);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
