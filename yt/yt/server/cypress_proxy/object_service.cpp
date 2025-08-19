@@ -1081,7 +1081,7 @@ private:
 
         auto syncWithCell = [&] (TCellTag cellTag) {
             auto nakedMasterChannel = masterCellDirectory->GetNakedMasterChannelOrThrow(
-                EMasterChannelKind::Follower,
+                EMasterChannelKind::Leader,
                 cellTag);
             auto proxy = TSequoiaTransactionServiceProxy(std::move(nakedMasterChannel));
             proxy.SetDefaultTimeout(config->GroundUpdateQueuesSyncRequestTimeout);
