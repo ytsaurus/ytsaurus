@@ -69,6 +69,7 @@ private:
     {
         // TODO(danilalexeev): Give the SequoiaTransactionService a more generic name.
         ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::Leader);
 
         context->SetRequestInfo();
 
