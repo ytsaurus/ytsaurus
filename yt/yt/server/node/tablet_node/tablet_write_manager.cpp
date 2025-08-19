@@ -499,7 +499,13 @@ public:
         // TODO: Some keys may be both prelocked and referenced in write log
         // in different generations, so this code is incorrect if tablet write
         // retries are enabled.
-        AbortPrelockedRows(transaction);
+        // NB: AbortPrelockedRows may create transient write state even if it not exists.
+        // This is undesired for transactions that are finished in this tablet but await
+        // serialization in other tables. Calling OnTransactionTransientReset for such
+        // transaction would othrewise resurrect transient write state for this tablet.
+        if (FindTransactionTransientWriteState(transaction->GetId())) {
+            AbortPrelockedRows(transaction);
+        }
 
         // If transaction is transient, it is going to be removed, so we drop its write states.
         if (transaction->GetTransient()) {
