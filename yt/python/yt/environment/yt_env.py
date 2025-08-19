@@ -1263,7 +1263,9 @@ class YTInstance(object):
             if num is not None:
                 number_suffix = "-" + str(num)
 
-            stderr = open(path).read()
+            with open(path) as stderr_file:
+                stderr = stderr_file.read()
+
             if stderr:
                 sys.stderr.write("{0}{1} stderr:\n{2}"
                                  .format(name.capitalize(), number_suffix, stderr))
