@@ -4,7 +4,7 @@
 #include "permission_validator.h"
 #endif
 
-#include <yt/yt/core/ytree/attributes.h>
+#include "helpers.h"
 
 namespace NYT::NObjectServer {
 
@@ -60,8 +60,7 @@ void THierarchicPermissionValidator<TObject, TObjectBase>::ValidateCreatePermiss
     bool replace,
     const NYTree::IAttributeDictionary* attributes)
 {
-    bool validateAdminister = attributes && (attributes->Contains("acl") || attributes->Contains("inherit_acl"));
-    ValidateAddChildPermissions(object, replace, validateAdminister);
+    ValidateAddChildPermissions(object, replace, IsAdministerValidationNeeded(attributes));
 }
 
 template <class TObject, class TObjectBase>

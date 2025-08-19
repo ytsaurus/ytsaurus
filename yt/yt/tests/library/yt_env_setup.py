@@ -1540,11 +1540,6 @@ class YTEnvSetup(object):
                             "permissions": ["read", "write", "remove"],
                             "subjects": ["users"],
                         },
-                        {
-                            "action": "allow",
-                            "permissions": ["read"],
-                            "subjects": ["everyone"],
-                        },
                     ],
                 },
                 force=True,
@@ -1684,16 +1679,23 @@ class YTEnvSetup(object):
 
                 wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.doomed_transactions.get_default_path()}]", driver=driver) == [])
 
-                mangled_sys_operations = yt_sequoia_helpers.mangle_sequoia_path("//sys/operations")
+                paths_to_ignore = ["//sys/operations", "//sys/pools"]
 
                 non_empty_tables = list(DESCRIPTORS.get_group("resolve_tables"))
 
                 def sequoia_tables_empty():
                     def condition(descriptor):
                         if descriptor is DESCRIPTORS.node_id_to_path:
-                            return " where path != '//sys/operations'"
+                            return (
+                                " where " +
+                                " and ".join([f"path != '{p}'" for p in paths_to_ignore]))
                         if descriptor is DESCRIPTORS.path_to_node_id:
-                            return f" where path != '{mangled_sys_operations}'"
+                            return (
+                                " where " +
+                                " and ".join([
+                                    f"path != '{yt_sequoia_helpers.mangle_sequoia_path(p)}'"
+                                    for p in paths_to_ignore
+                                ]))
                         return ""
 
                     nonlocal non_empty_tables

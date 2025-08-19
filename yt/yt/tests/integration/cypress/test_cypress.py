@@ -3807,6 +3807,7 @@ class TestCypress(YTEnvSetup):
         assert get("//test/@annotation") == get("//test/child/@annotation") == "test"
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_recursive_copy_sets_parent_on_branched_node(self):
         create_user("u")
 

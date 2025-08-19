@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/yt/core/ytree/attributes.h>
+
 #include <util/datetime/base.h>
 
 #include <util/generic/string.h>
@@ -25,6 +27,10 @@ TDuration ComputeForwardingTimeout(
     TDuration suggestedTimeout,
     TDuration forwardedRequestTimeoutReserve,
     bool* reserved = nullptr);
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsAdministerValidationNeeded(const NYTree::IAttributeDictionary* attributes);
 
 ////////////////////////////////////////////////////////////////////////////////
 

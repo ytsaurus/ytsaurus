@@ -3,6 +3,8 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
+    access_control.cpp
+    acd_fetcher.cpp
     actions.cpp
     action_helpers.cpp
     bootstrap.cpp

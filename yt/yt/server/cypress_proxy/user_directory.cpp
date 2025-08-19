@@ -57,37 +57,34 @@ TUserDescriptorPtr TUserDirectory::FindUserByName(const std::string& name) const
     return result && result->Name == name ? result : nullptr;
 }
 
-TUserDescriptorPtr TUserDirectory::FindUserByNameOrAlias(const std::string& name) const
+TUserDescriptorPtr TUserDirectory::FindUserByNameOrAlias(const std::string& nameOrAlias) const
 {
     auto guard = ReaderGuard(SpinLock_);
-    auto it = NameOrAliasToUserDescriptor_.find(name);
-    return it != NameOrAliasToUserDescriptor_.end() ? it->second : nullptr;
+    return GetOrDefault(NameOrAliasToUserDescriptor_, nameOrAlias);
 }
 
-TUserDescriptorPtr TUserDirectory::GetUserByNameOrAliasOrThrow(const std::string& name) const
+TUserDescriptorPtr TUserDirectory::GetUserByNameOrAliasOrThrow(const std::string& nameOrAlias) const
 {
-    auto result = FindUserByNameOrAlias(name);
+    auto result = FindUserByNameOrAlias(nameOrAlias);
     if (!result) {
         THROW_ERROR_EXCEPTION(
             NSecurityClient::EErrorCode::AuthenticationError,
             "No such user %Qv",
-            name);
+            nameOrAlias);
     }
     return result;
 }
 
-TGroupDescriptorPtr TUserDirectory::FindGroupByNameOrAlias(const std::string& name) const
+TGroupDescriptorPtr TUserDirectory::FindGroupByNameOrAlias(const std::string& nameOrAlias) const
 {
     auto guard = ReaderGuard(SpinLock_);
-    auto it = NameOrAliasToGroupDescriptor_.find(name);
-    return it != NameOrAliasToGroupDescriptor_.end() ? it->second : nullptr;
+    return GetOrDefault(NameOrAliasToGroupDescriptor_, nameOrAlias);
 }
 
 TSubjectDescriptorPtr TUserDirectory::FindSubjectByIdOrThrow(NSecurityClient::TSubjectId subjectId) const
 {
     auto guard = ReaderGuard(SpinLock_);
-    auto it = SubjectIdToDescriptor_.find(subjectId);
-    return it != SubjectIdToDescriptor_.end() ? it->second : nullptr;
+    return GetOrDefault(SubjectIdToDescriptor_, subjectId);
 }
 
 TSubjectDescriptorPtr TUserDirectory::GetSubjectByIdOrThrow(NSecurityClient::TSubjectId subjectId) const

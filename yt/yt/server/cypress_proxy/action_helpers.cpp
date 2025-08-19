@@ -8,9 +8,12 @@
 #include <yt/yt/ytlib/sequoia_client/client.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 
+#include <yt/yt/ytlib/sequoia_client/records/acls.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
 
 #include <yt/yt/client/object_client/helpers.h>
+
+#include <library/cpp/iterator/zip.h>
 
 namespace NYT::NCypressProxy {
 
@@ -19,6 +22,7 @@ using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NRpc;
+using namespace NSecurityClient;
 using namespace NSequoiaClient;
 using namespace NYPath;
 
@@ -260,6 +264,36 @@ void RemoveSelectedSubtree(
         progenitorTransactionCache,
         transaction);
 }
+
+std::vector<std::optional<TAccessControlDescriptor>> FetchAcds(
+    TRange<TNodeId> nodeIds,
+    const ISequoiaTransactionPtr& transaction)
+{
+    auto keys = std::vector<NRecords::TAclsKey>(nodeIds.begin(), nodeIds.end());
+    auto rows = WaitFor(transaction->LookupRows(keys))
+        .ValueOrThrow();
+
+    std::vector<std::optional<TAccessControlDescriptor>> result;
+    result.reserve(rows.size());
+
+    for (const auto& [key, row] : Zip(keys, rows)) {
+        if (!row.has_value()) {
+            result.emplace_back();
+            continue;
+        }
+
+        result.push_back(TAccessControlDescriptor{
+            .NodeId = row->Key.NodeId,
+            .Acl = ConvertTo<TSerializableAccessControlList>(row->Acl),
+            .Inherit = row->Inherit,
+        });
+    }
+
+    YT_VERIFY(ssize(keys) == ssize(result));
+
+    return result;
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

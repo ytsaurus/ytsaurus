@@ -43,4 +43,11 @@ TDuration ComputeForwardingTimeout(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsAdministerValidationNeeded(const NYTree::IAttributeDictionary* attributes)
+{
+    return attributes && (attributes->Contains("acl") || attributes->Contains("inherit_acl"));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NObjectServer
