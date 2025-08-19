@@ -695,9 +695,9 @@ class TestNodeTrackerPeriodicAlertChecks(YTEnvSetup):
 
         sleep(5)
 
-        assert not self._has_alert("Node had no data heartbeat for too long")
-        assert not self._has_alert("Node had no job heartbeat for too long")
-        assert not self._has_alert("Node had no state change for too long")
+        assert not self._has_alert("Node(s) had no data heartbeat for too long")
+        assert not self._has_alert("Node(s) had no job heartbeat for too long")
+        assert not self._has_alert("Node(s) had no state change for too long")
 
     @authors("grphil")
     def test_outdated_data_heartbeat_alert(self):
@@ -707,7 +707,7 @@ class TestNodeTrackerPeriodicAlertChecks(YTEnvSetup):
         with Restarter(self.Env, NODES_SERVICE):
             pass
 
-        wait(lambda: self._has_alert("Node had no data heartbeat for too long"))
+        wait(lambda: self._has_alert("Node(s) had no data heartbeat for too long"))
 
     @authors("grphil")
     def test_outdated_job_heartbeat_alert(self):
@@ -717,7 +717,7 @@ class TestNodeTrackerPeriodicAlertChecks(YTEnvSetup):
         with Restarter(self.Env, NODES_SERVICE):
             pass
 
-        wait(lambda: self._has_alert("Node had no job heartbeat for too long"))
+        wait(lambda: self._has_alert("Node(s) had no job heartbeat for too long"))
 
     @authors("grphil")
     def test_incomplete_state_alert(self):
@@ -727,7 +727,7 @@ class TestNodeTrackerPeriodicAlertChecks(YTEnvSetup):
         set("//sys/@config/node_tracker/max_locations_being_disposed", 0)
 
         with Restarter(self.Env, NODES_SERVICE, wait_offline=False):
-            wait(lambda: self._has_alert("Node had no state change for too long"))
+            wait(lambda: self._has_alert("Node(s) had no state change for too long"))
 
             set("//sys/@config/node_tracker/max_locations_being_disposed", 10)
 
