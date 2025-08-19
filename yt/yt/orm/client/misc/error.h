@@ -48,4 +48,4 @@ DEFINE_ENUM(EErrorCode,
     ((MigrationConflict) (100037))
 );
 
-} // NYT::NOrm::NClient
+} // namespace NYT::NOrm::NClient
