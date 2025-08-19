@@ -407,7 +407,7 @@ private:
             }
 
             if (dynamicStore->IsFlushed()) {
-                if (auto chunk = dynamicStore->GetFlushedChunk()) {
+                if (const auto& chunk = dynamicStore->FlushedChunk()) {
                     auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(chunk);
 
                     auto* spec = subresponse->mutable_chunk_spec();
@@ -425,7 +425,7 @@ private:
 
                     BuildChunkSpec(
                         Bootstrap_,
-                        chunk,
+                        chunk.Get(),
                         replicas,
                         rowIndex,
                         /*tabletIndex*/ {},

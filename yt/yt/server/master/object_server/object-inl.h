@@ -426,6 +426,12 @@ TObjectPtr<T, C>::TObjectPtr(TObjectPtr&& other) noexcept
 }
 
 template <class T, class C>
+template <class TOtherC>
+TObjectPtr<T, C>::TObjectPtr(const TObjectPtr<T, TOtherC>& other) noexcept
+    : TObjectPtr(other.Get())
+{ }
+
+template <class T, class C>
 TObjectPtr<T, C>::TObjectPtr(T* ptr) noexcept
     : Ptr_(ptr)
     , Context_(C::Capture())

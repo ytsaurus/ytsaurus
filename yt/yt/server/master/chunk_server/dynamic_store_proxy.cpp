@@ -60,7 +60,7 @@ private:
                     break;
                 }
                 BuildYsonFluently(consumer)
-                    .Value(GetObjectId(dynamicStore->GetFlushedChunk()));
+                    .Value(GetObjectId(dynamicStore->FlushedChunk()));
                 return true;
 
             case EInternedAttributeKey::ParentIds:
