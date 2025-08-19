@@ -82,10 +82,10 @@ jobs:
           public-ip: false
           ttl: PT24H
           runner-home-dir: /actions-runner
-
+  
   checkout:
     name: Checkout sources
-    needs:
+    needs: 
       - start-vm
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
@@ -109,26 +109,12 @@ jobs:
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/build-jobs.yaml
 
-  build-gpuagent:
-    name: Build GPU Agent
-    needs:
-      - start-vm
-      - checkout
-    with:
-      runs-on-value: ${{ needs.start-vm.outputs.label }}
-      build-gpuagent: true
-    secrets:
-      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
-      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
-    uses: ./.github/workflows/build-jobs.yaml
-
   build-cmake:
     name: Build with cmake
     needs:
       - start-vm
       - checkout
       - build-strawberry
-      - build-gpuagent
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: cmake
@@ -145,7 +131,6 @@ jobs:
     needs:
       - start-vm
       - checkout
-      - build-gpuagent
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
@@ -153,7 +138,6 @@ jobs:
       build-ytsaurus-tests: true
       build-query-tracker: ${{ github.ref_name == 'main' }}
       build-python: true
-      build-gpuagent: true
     secrets:
       BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
@@ -164,7 +148,6 @@ jobs:
     needs:
       - start-vm
       - build-strawberry
-      - build-gpuagent
       - build-ya-make
       - notify-start
       - checkout
@@ -187,7 +170,6 @@ jobs:
       - build-ya-make
       - build-cmake
       - build-strawberry
-      - build-gpuagent
     runs-on: trampoline
     if: ${{ always() }}
     steps:
@@ -198,7 +180,6 @@ jobs:
             const current_time = new Date().toLocaleString("ru-RU");
             const message = 'PR autocheck finished.\nStatuses:\n'
             const strawberry_status = 'Strawberry controller: ' + '${{ needs.build-strawberry.result }}' + '\n';
-            const gpuagent_status = 'GPU Agent: ' + '${{ needs.build-gpuagent.result }}' + '\n';
             const cmake_status = 'CMake build: ' + '${{ needs.build-cmake.result }}' + '\n';
             const ya_make_status = 'Ya-make build: ' + '${{ needs.build-ya-make.result }}' + '\n';
             const tests_status = 'Tests: ' + '${{ needs.run-tests.result }}' + '\n';
@@ -208,7 +189,7 @@ jobs:
               comment_id: ${{ needs.notify-start.outputs.comment-id }}
             });
             const comment_body = comment.data.body;
-            const new_comment_body = comment_body + '\n' + '`' + current_time + '`' + ' ' + message + strawberry_status + gpuagent_status + cmake_status + ya_make_status + tests_status;
+            const new_comment_body = comment_body + '\n' + '`' + current_time + '`' + ' ' + message + strawberry_status + cmake_status + ya_make_status + tests_status;
             await github.rest.issues.updateComment({
               owner: context.repo.owner,
               repo: context.repo.repo,

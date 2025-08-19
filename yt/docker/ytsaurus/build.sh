@@ -86,12 +86,15 @@ if [[ "${component}" == "ytsaurus" ]]; then
     init_queue_agent_state="${ytsaurus_build_path}/yt/python/yt/environment/bin/init_queue_agent_state/init_queue_agent_state"
     init_operations_archive="${ytsaurus_build_path}/yt/python/yt/environment/bin/init_operations_archive/init-operations-archive"
     credits="${ytsaurus_source_path}/yt/docker/ytsaurus/credits/ytsaurus"
+    gpuagent="${ytsaurus_source_path}/yt/yt/go/gpuagent/cmd/gpuagent"
 
     cp ${ytserver_all} ${output_path}
     cp ${init_queue_agent_state} ${output_path}
     cp ${init_operations_archive} ${output_path}
 
     cp -r ${ytsaurus_build_path}/ytsaurus_python ${output_path}
+
+    cp ${gpuagent} ${output_path}
 
     cp -r ${credits}/*.CREDITS ${output_path}/credits
 
@@ -180,9 +183,6 @@ elif [[ "${component}" == "local" ]]; then
     mkdir -p ${output_path}/credits
     cp -r ${ytserver_all_credits}/*.CREDITS ${output_path}/credits
     cp -r ${qt_credits}/*.CREDITS ${output_path}/credits
-
-    # GPU Agent
-    cp ${ytsaurus_source_path}/yt/yt/go/gpuagent/cmd/agent/gpuagent ${output_path}
 
 elif [[ "${component}" == "job-environment" ]]; then
 
