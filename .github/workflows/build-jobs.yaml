@@ -15,7 +15,7 @@ on:
         required: false
         type: boolean
       build-gpuagent:
-        default: false
+        default: true
         required: false
         type: boolean
       build-ytsaurus:
