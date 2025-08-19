@@ -201,7 +201,14 @@ TYqlRowset BuildRowsetByRef(
 TTableSchemaPtr BuildSchema(const TLogicalType& type)
 {
     std::vector<TColumnSchema> columns;
-    for (const auto& member : type.AsListTypeRef().GetElement()->AsStructTypeRef().GetFields()) {
+
+    if (type.GetMetatype() != ELogicalMetatype::List || type.AsListTypeRef().GetElement()->GetMetatype() != ELogicalMetatype::Struct) {
+        THROW_ERROR_EXCEPTION("Non-table results are not supported in Query Tracker. Expected List<Struct<…>> but found %Qv",
+            ToString(type));
+    }
+
+    auto rowType = type.AsListTypeRef().GetElement();
+    for (const auto& member : rowType->AsStructTypeRef().GetFields()) {
         columns.emplace_back(member.Name, member.Type);
     }
     return New<TTableSchema>(columns);
