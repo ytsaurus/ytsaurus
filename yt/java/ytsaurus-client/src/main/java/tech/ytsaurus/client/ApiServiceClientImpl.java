@@ -90,6 +90,7 @@ import tech.ytsaurus.client.request.MultiTablePartition;
 import tech.ytsaurus.client.request.MutateNode;
 import tech.ytsaurus.client.request.MutatingOptions;
 import tech.ytsaurus.client.request.PartitionTables;
+import tech.ytsaurus.client.request.PatchOperationSpec;
 import tech.ytsaurus.client.request.PingTransaction;
 import tech.ytsaurus.client.request.PullConsumer;
 import tech.ytsaurus.client.request.PutFileToCache;
@@ -1221,6 +1222,14 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     public CompletableFuture<Void> updateOperationParameters(UpdateOperationParameters req) {
         return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.UPDATE_OPERATION_PARAMETERS.createRequestBuilder(rpcOptions)),
+                response -> null
+        ));
+    }
+
+    @Override
+    public CompletableFuture<Void> patchOperationSpec(PatchOperationSpec req) {
+        return onStarted(req, RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.PATCH_OPERATION_SPEC.createRequestBuilder(rpcOptions)),
                 response -> null
         ));
     }
