@@ -367,6 +367,8 @@ class TObjectPtr
 public:
     TObjectPtr() noexcept = default;
     TObjectPtr(TObjectPtr&& other) noexcept;
+    template <class TOtherC>
+    explicit TObjectPtr(const TObjectPtr<T, TOtherC>& other) noexcept;
     explicit TObjectPtr(T* ptr) noexcept;
     TObjectPtr(T* ptr, TObjectPtrLoadTag) noexcept;
 

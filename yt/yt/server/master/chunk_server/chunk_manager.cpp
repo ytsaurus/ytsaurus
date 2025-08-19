@@ -1485,11 +1485,6 @@ public:
     void DestroyDynamicStore(TDynamicStore* dynamicStore) override
     {
         YT_VERIFY(!dynamicStore->GetStagingTransaction());
-
-        if (auto chunk = dynamicStore->GetFlushedChunk()) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->UnrefObject(chunk);
-        }
     }
 
 

@@ -546,7 +546,7 @@ private:
         YT_VERIFY(ContentType_ != EChunkListContentType::Hunk);
 
         if (dynamicStore->IsFlushed()) {
-            if (auto chunk = dynamicStore->GetFlushedChunk()) {
+            if (const auto& chunk = dynamicStore->FlushedChunk()) {
                 auto relativeLowerLimit = lowerLimit;
                 auto relativeUpperLimit = upperLimit;
 
@@ -569,7 +569,7 @@ private:
                 }
 
                 return OnChunk(
-                    chunk,
+                    chunk.Get(),
                     /*parent*/ nullptr,
                     dynamicStore->GetTableRowIndex(),
                     tabletIndex,

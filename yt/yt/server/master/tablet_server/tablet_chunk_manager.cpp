@@ -1212,21 +1212,20 @@ public:
 
                 auto* dynamicStore = underlyingTree->AsDynamicStore();
                 YT_VERIFY(dynamicStore->IsFlushed());
-                auto chunk = dynamicStore->GetFlushedChunk();
 
-                if (chunk) {
+                if (const auto& chunk = dynamicStore->FlushedChunk()) {
                     // FIXME(ifsmirnov): chunk view is not always needed, check
                     // chunk min/max timestaps.
                     auto* wrappedStore = chunkManager->CreateChunkView(
-                        chunk,
+                        chunk.Get(),
                         chunkView->Modifier());
                     storesToAttach.push_back(wrappedStore);
                 }
             } else if (IsDynamicTabletStoreType(store->GetType())) {
                 auto* dynamicStore = store->AsDynamicStore();
                 YT_VERIFY(dynamicStore->IsFlushed());
-                if (auto chunk = dynamicStore->GetFlushedChunk()) {
-                    storesToAttach.push_back(chunk);
+                if (const auto& chunk = dynamicStore->FlushedChunk()) {
+                    storesToAttach.push_back(chunk.Get());
                 }
                 storesToDetach.push_back(dynamicStore);
             }

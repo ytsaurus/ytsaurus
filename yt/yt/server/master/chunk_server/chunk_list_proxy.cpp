@@ -106,7 +106,7 @@ private:
                         .Item("tablet_id").Value(GetObjectId(dynamicStore->GetTablet()))
                         .DoIf(dynamicStore->IsFlushed(), [&] (TFluentMap fluent) {
                             fluent
-                                .Item("chunk_id").Value(GetObjectId(dynamicStore->GetFlushedChunk()));
+                                .Item("chunk_id").Value(GetObjectId(dynamicStore->FlushedChunk()));
                         })
                     .EndAttributes()
                     .Value(dynamicStore->GetId());

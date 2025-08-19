@@ -112,11 +112,8 @@ void TDynamicStore::SetFlushedChunk(TChunk* chunk)
 {
     YT_VERIFY(!IsFlushed());
     Flushed_ = true;
-    FlushedChunk_ = chunk;
+    FlushedChunk_.Assign(chunk);
     SetTablet(nullptr);
-    if (chunk) {
-        chunk->RefObject();
-    }
 }
 
 bool TDynamicStore::IsFlushed() const
