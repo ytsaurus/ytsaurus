@@ -77,6 +77,7 @@ DECLARE_REFCOUNTED_STRUCT(ITabletService)
 DECLARE_REFCOUNTED_STRUCT(ITabletBalancer)
 DECLARE_REFCOUNTED_STRUCT(ITabletCellDecommissioner)
 DECLARE_REFCOUNTED_STRUCT(ITabletActionManager)
+DECLARE_REFCOUNTED_STRUCT(ITabletActionManagerHost)
 DECLARE_REFCOUNTED_STRUCT(IMasterReplicatedTableTracker)
 DECLARE_REFCOUNTED_STRUCT(IReplicatedTableTrackerStateProvider)
 DECLARE_REFCOUNTED_STRUCT(ITabletCellBalancerProvider)
@@ -123,6 +124,21 @@ DECLARE_MASTER_OBJECT_TYPE(THunkStorageNode)
 struct TTabletStatistics;
 
 class TTabletResources;
+
+struct TTableSettings;
+struct THunkStorageSettings;
+struct TSerializedTableSettings;
+struct TSerializedHunkStorageSettings;
+
+using TTabletOwnerSettings = std::variant<
+    TTableSettings,
+    THunkStorageSettings
+>;
+
+using TSerializedTabletOwnerSettings = std::variant<
+    TSerializedTableSettings,
+    TSerializedHunkStorageSettings
+>;
 
 extern const std::string DefaultTabletCellBundleName;
 extern const std::string SequoiaTabletCellBundleName;

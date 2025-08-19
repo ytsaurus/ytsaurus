@@ -35,6 +35,7 @@ struct ITabletManager
     virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 
     virtual const ITabletChunkManagerPtr& GetTabletChunkManager() const = 0;
+    virtual const ITabletActionManagerPtr& GetTabletActionManager() const = 0;
 
     virtual void PrepareMount(
         TTabletOwnerBase* table,
@@ -178,7 +179,6 @@ struct ITabletManager
     virtual TTabletBase* GetTabletOrThrow(TTabletId id) = 0;
 
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(TableReplica, TTableReplica);
-    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(TabletAction, TTabletAction);
 
     virtual void RecomputeTabletCellStatistics(NCellServer::TCellBase* cellBase) = 0;
 
@@ -201,8 +201,6 @@ private:
     friend class TTabletCellTypeHandler;
     friend class TTabletCellBundleTypeHandler;
     friend class TTableReplicaTypeHandler;
-    friend class TTabletActionTypeHandler;
-    friend class TTabletBalancer;
 
     virtual TTableReplica* CreateTableReplica(
         NTableServer::TReplicatedTableNode* table,
@@ -216,19 +214,6 @@ private:
         const std::optional<std::vector<i64>>& startReplicationRowIndexes,
         bool enableReplicatedTableTracker) = 0;
     virtual void ZombifyTableReplica(TTableReplica* replica) = 0;
-
-    virtual TTabletAction* CreateTabletAction(
-        NObjectClient::TObjectId hintId,
-        ETabletActionKind kind,
-        const std::vector<TTabletBaseRawPtr>& tablets,
-        const std::vector<TTabletCellRawPtr>& cells,
-        const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
-        const std::optional<int>& tabletCount,
-        bool skipFreezing,
-        TGuid correlationId,
-        TInstant expirationTime,
-        std::optional<TDuration> expirationTimeout) = 0;
-    virtual void ZombifyTabletAction(TTabletAction* action) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITabletManager)
