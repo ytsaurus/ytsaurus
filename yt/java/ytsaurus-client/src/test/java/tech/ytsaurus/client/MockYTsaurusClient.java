@@ -66,6 +66,7 @@ import tech.ytsaurus.client.request.MoveNode;
 import tech.ytsaurus.client.request.MultiLookupRowsRequest;
 import tech.ytsaurus.client.request.MultiTablePartition;
 import tech.ytsaurus.client.request.PartitionTables;
+import tech.ytsaurus.client.request.PatchOperationSpec;
 import tech.ytsaurus.client.request.PingTransaction;
 import tech.ytsaurus.client.request.PullConsumer;
 import tech.ytsaurus.client.request.PutFileToCache;
@@ -518,6 +519,11 @@ public class MockYTsaurusClient implements BaseYTsaurusClient {
 
     @Override
     public CompletableFuture<Void> updateOperationParameters(UpdateOperationParameters req) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Void> patchOperationSpec(PatchOperationSpec req) {
         return null;
     }
 

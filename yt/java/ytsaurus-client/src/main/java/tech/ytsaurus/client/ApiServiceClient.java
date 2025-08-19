@@ -42,6 +42,7 @@ import tech.ytsaurus.client.request.ListQueueConsumerRegistrations;
 import tech.ytsaurus.client.request.ListQueueConsumerRegistrationsResult;
 import tech.ytsaurus.client.request.LookupRowsRequest;
 import tech.ytsaurus.client.request.MountTable;
+import tech.ytsaurus.client.request.PatchOperationSpec;
 import tech.ytsaurus.client.request.PingTransaction;
 import tech.ytsaurus.client.request.PullConsumer;
 import tech.ytsaurus.client.request.Query;
@@ -482,6 +483,12 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<GetJobStderrResult> getJobStderr(GetJobStderr req);
 
     CompletableFuture<Void> updateOperationParameters(UpdateOperationParameters req);
+
+    /**
+     * Patches operation specification for running operation.
+     *
+     */
+    CompletableFuture<Void> patchOperationSpec(PatchOperationSpec req);
 
     /**
      * @deprecated prefer to use {@link #updateOperationParameters(UpdateOperationParameters)}

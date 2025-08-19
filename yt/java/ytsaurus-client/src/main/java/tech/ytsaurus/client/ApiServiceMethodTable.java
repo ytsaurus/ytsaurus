@@ -51,6 +51,7 @@ import tech.ytsaurus.rpcproxy.TReqMountTable;
 import tech.ytsaurus.rpcproxy.TReqMoveNode;
 import tech.ytsaurus.rpcproxy.TReqMultiLookup;
 import tech.ytsaurus.rpcproxy.TReqPartitionTables;
+import tech.ytsaurus.rpcproxy.TReqPatchOperationSpec;
 import tech.ytsaurus.rpcproxy.TReqPingTransaction;
 import tech.ytsaurus.rpcproxy.TReqPullQueueConsumer;
 import tech.ytsaurus.rpcproxy.TReqPutFileToCache;
@@ -121,6 +122,7 @@ import tech.ytsaurus.rpcproxy.TRspMountTable;
 import tech.ytsaurus.rpcproxy.TRspMoveNode;
 import tech.ytsaurus.rpcproxy.TRspMultiLookup;
 import tech.ytsaurus.rpcproxy.TRspPartitionTables;
+import tech.ytsaurus.rpcproxy.TRspPatchOperationSpec;
 import tech.ytsaurus.rpcproxy.TRspPingTransaction;
 import tech.ytsaurus.rpcproxy.TRspPullQueueConsumer;
 import tech.ytsaurus.rpcproxy.TRspPutFileToCache;
@@ -288,6 +290,10 @@ public class ApiServiceMethodTable {
     public static final RpcMethodDescriptor<TReqUpdateOperationParameters.Builder, TRspUpdateOperationParameters>
             UPDATE_OPERATION_PARAMETERS = apiServiceMethod("UpdateOperationParameters",
             TReqUpdateOperationParameters::newBuilder, TRspUpdateOperationParameters.parser());
+
+    public static final RpcMethodDescriptor<TReqPatchOperationSpec.Builder, TRspPatchOperationSpec>
+            PATCH_OPERATION_SPEC = apiServiceMethod("PatchOperationSpec",
+            TReqPatchOperationSpec::newBuilder, TRspPatchOperationSpec.parser());
 
     public static final RpcMethodDescriptor<TReqGetJob.Builder, TRspGetJob> GET_JOB =
             apiServiceMethod("GetJob", TReqGetJob::newBuilder, TRspGetJob.parser());
