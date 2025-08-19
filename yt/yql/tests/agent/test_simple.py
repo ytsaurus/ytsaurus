@@ -67,6 +67,27 @@ class TestQueriesYqlBase(YTEnvSetup):
         return False
 
 
+class TestNotTableResult(TestQueriesYqlBase):
+    @authors("mpereskokova")
+    def test_not_table_result(self, query_tracker, yql_agent):
+        error = "Non-table results are not supported in Query Tracker. Expected List<Struct<…>> but found \"List<List<Struct<'a':Int32,'id':Uint32>>>"
+        with raises_yt_error(error):
+            self._run_simple_query("""
+                $data = select * FROM AS_TABLE([
+                    <|id: 1u, val: "a"|>,
+                    <|id: 2u, val: "b"|>
+                ]);
+
+                $udf = ($key, $values) -> (
+                    Just([<|id: $key, a: 1|>])
+                );
+
+                REDUCE $data
+                on id
+                using $udf(TableRow())
+            """)
+
+
 class TestGetOperationLink(TestQueriesYqlBase):
     @authors("mpereskokova")
     @pytest.mark.timeout(180)
