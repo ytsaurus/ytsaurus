@@ -4348,11 +4348,14 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
         }
 
         std::vector<TOutputTablePtr> tables;
-        if (StderrTable_ && StderrTable_->IsPrepared()) {
-            tables.push_back(StderrTable_);
-        }
-        if (CoreTable_ && CoreTable_->IsPrepared()) {
-            tables.push_back(CoreTable_);
+
+        if (DebugTablesReady_) {
+            if (StderrTable_ && StderrTable_->IsPrepared()) {
+                tables.push_back(StderrTable_);
+            }
+            if (CoreTable_ && CoreTable_->IsPrepared()) {
+                tables.push_back(CoreTable_);
+            }
         }
 
         if (!tables.empty()) {
@@ -6703,6 +6706,10 @@ void TOperationControllerBase::GetOutputTablesSchema()
         if (StderrTable_->TableUploadOptions.UpdateMode == EUpdateMode::Append) {
             THROW_ERROR_EXCEPTION("Cannot write stderr table in append mode");
         }
+        if (StderrTable_->Dynamic) {
+            THROW_ERROR_EXCEPTION("Stderr table cannot be dynamic")
+                << TErrorAttribute("table_path", StderrTable_->Path);
+        }
     }
 
     if (CoreTable_) {
@@ -6710,6 +6717,10 @@ void TOperationControllerBase::GetOutputTablesSchema()
         CoreTable_->TableUploadOptions.SchemaMode = ETableSchemaMode::Strong;
         if (CoreTable_->TableUploadOptions.UpdateMode == EUpdateMode::Append) {
             THROW_ERROR_EXCEPTION("Cannot write core table in append mode");
+        }
+        if (CoreTable_->Dynamic) {
+            THROW_ERROR_EXCEPTION("Core table cannot be dynamic")
+                << TErrorAttribute("table_path", CoreTable_->Path);
         }
     }
 }
@@ -11723,9 +11734,11 @@ void TOperationControllerBase::RemoveRemainingJobsOnOperationFinished()
     ReleaseJobs(jobIdsToRelease);
 }
 
-void TOperationControllerBase::OnOperationReady() const
+void TOperationControllerBase::OnOperationReady()
 {
     YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool_);
+
+    DebugTablesReady_ = true;
 
     std::vector<TStartedAllocationInfo> revivedAllocations;
     revivedAllocations.reserve(size(AllocationMap_));

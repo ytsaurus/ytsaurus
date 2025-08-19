@@ -918,6 +918,36 @@ class TestMapOnDynamicTables(YTEnvSetup):
 
         assert read_table(table_read_path) == select_rows(f"* from [{table}]", with_timestamps=True)
 
+    @authors("ifsmirnov")
+    def test_stderr_table_cannot_be_dynamic(self):
+        sync_create_cells(1)
+        self._create_simple_dynamic_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        create("table", "//tmp/p")
+
+        with raises_yt_error("Stderr table cannot be dynamic"):
+            map(
+                in_="//tmp/p",
+                out="//tmp/p",
+                command="cat",
+                spec={
+                    "stderr_table_path": "//tmp/t",
+                })
+
+        with raises_yt_error("Core table cannot be dynamic"):
+            map(
+                in_="//tmp/p",
+                out="//tmp/p",
+                command="cat",
+                spec={
+                    "core_table_path": "//tmp/t",
+                })
+
+        schema = get("//tmp/t/@schema")
+        assert len(schema) == 2
+        assert schema[0]["name"] == "key"
+        assert schema[1]["name"] == "value"
+
 
 ##################################################################
 
