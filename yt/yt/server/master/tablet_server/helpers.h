@@ -19,6 +19,17 @@ bool IsDynamicStoreReadEnabled(
 void ParseTabletRange(TTabletOwnerBase* owner, int* first, int* last);
 void ParseTabletRangeOrThrow(const TTabletOwnerBase* table, int* first, int* last);
 
+bool IsCellActive(TTabletCell* cell);
+
+bool CheckHasHealthyCells(TTabletCellBundle* bundle);
+void ValidateHasHealthyCells(TTabletCellBundle* bundle);
+
+std::vector<std::pair<TTabletBase*, TTabletCell*>> ComputeTabletAssignment(
+    TTabletOwnerBase* table,
+    TTabletCell* hintCell,
+    std::vector<TTabletBaseRawPtr> tabletsToMount,
+    i64 tabletDataSizeFootprint);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletServer
