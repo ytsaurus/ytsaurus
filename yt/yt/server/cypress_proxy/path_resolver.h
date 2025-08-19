@@ -23,6 +23,11 @@ struct TSequoiaResolveResult
     NYPath::TYPath UnresolvedSuffix;
     //! May be null for resolved scion or snapshot branch.
     NCypressClient::TNodeId ParentId;
+    //! A sequence representing the full resolution path. In most cases,
+    //! it starts from the scion and ends with the resolved node itself.
+    //! For snapshot branches, the path may be trivial (e.g., contain
+    //! only the resolved node).
+    std::vector<TCypressNodeDescriptor> NodeAncestry;
 
     bool IsSnapshot() const noexcept;
 };

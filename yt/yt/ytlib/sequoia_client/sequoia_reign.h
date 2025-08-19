@@ -11,6 +11,7 @@ DEFINE_ENUM(ESequoiaReign,
     ((TransientCypressProxyRegistration)    (2))
     ((PrerequisiteRevisions)                (3))
     ((UserDirectoryGroups)                  (4))
+    ((PermissionValidation)                 (5))
 );
 
 static_assert(TEnumTraits<ESequoiaReign>::IsMonotonic, "Sequoia reign enum is not monotonic");

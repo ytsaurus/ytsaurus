@@ -42,6 +42,8 @@ target_link_libraries(yt-server-cypress_proxy PUBLIC
 )
 
 target_sources(yt-server-cypress_proxy PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/access_control.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/acd_fetcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/actions.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/action_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/bootstrap.cpp

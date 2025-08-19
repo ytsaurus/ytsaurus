@@ -1,10 +1,12 @@
 #include "sequoia_session.h"
 
+#include "acd_fetcher.h"
 #include "actions.h"
 #include "action_helpers.h"
 #include "bootstrap.h"
 #include "dynamic_config_manager.h"
 #include "helpers.h"
+#include "user_directory.h"
 
 #include <yt/yt/server/lib/sequoia/cypress_transaction.h>
 
@@ -436,6 +438,11 @@ TSequoiaSessionPtr TSequoiaSession::Start(
         ValidatePrerequisiteTransactions(sequoiaClient, cypressPrerequisiteTransactionIds);
     }
 
+    // TODO(danilalexeev): YT-24575. Get authentication identity from sequoia client
+    // once it's made authenticated in the context of the YT-25826 changes.
+    const auto& userDirectory = bootstrap->GetUserDirectory();
+    auto authenticatedUser = userDirectory->GetUserByNameOrAliasOrThrow(authenticationIdentity.User);
+
     auto sequoiaTransaction = WaitFor(
         StartCypressProxyTransaction(
             sequoiaClient,
@@ -481,7 +488,8 @@ TSequoiaSessionPtr TSequoiaSession::Start(
     return New<TSequoiaSession>(
         bootstrap,
         std::move(sequoiaTransaction),
-        std::move(cypressTransactions));
+        std::move(cypressTransactions),
+        std::move(authenticatedUser));
 }
 
 void TSequoiaSession::MaybeLockAndReplicateCypressTransaction()
@@ -725,6 +733,16 @@ void TSequoiaSession::ValidateTransactionPresence()
     if (!CypressTransactionAncestry_.back()) {
         THROW_ERROR_EXCEPTION("Operation cannot be performed outside of a transaction");
     }
+}
+
+const TAcdFetcherPtr& TSequoiaSession::GetAcdFetcher() const
+{
+    return AcdFetcher_;
+}
+
+const TUserDescriptorPtr& TSequoiaSession::GetCurrentAuthenticatedUser() const
+{
+    return AuthenticatedUser_;
 }
 
 void TSequoiaSession::AcquireCypressLockInSequoia(
@@ -982,37 +1000,21 @@ TNodeId TSequoiaSession::CopySubtree(
 }
 
 void TSequoiaSession::ClearSubtree(
-    TAbsolutePathBuf path,
+    const TSubtree& subtree,
     const TSuppressableAccessTrackingOptions& options)
 {
-    auto records = WaitFor(SelectSubtree(SequoiaTransaction_, path, CypressTransactionAncestry_))
-        .ValueOrThrow();
-
-    auto targetNodeId = records.front().NodeId;
+    auto targetNodeId = subtree.Nodes.front().Id;
     RequireLatePrepareOnNativeCellFor(targetNodeId);
     AcquireCypressLockInSequoia(targetNodeId, ELockMode::Exclusive);
 
-    TProgenitorTransactionCacheFiller cacheFiller(
-        &ProgenitorTransactionCache_,
-        CypressTransactionDepths_);
-    TPathForkResolver forkResolver;
-
-    TraverseSelectedSubtree(
-        std::move(records),
-        CypressTransactionDepths_,
-        &cacheFiller,
-        &forkResolver);
-
-    auto subtreeNodes = std::move(forkResolver).GetResult();
-
     RemoveSelectedSubtree(
-            subtreeNodes,
-            SequoiaTransaction_,
-            GetCurrentCypressTransactionId(),
-            ProgenitorTransactionCache_,
-            /*removeRoot*/ false,
-            /*subtreeParentId*/ NullObjectId,
-            /*options*/ options);
+        subtree.Nodes,
+        SequoiaTransaction_,
+        GetCurrentCypressTransactionId(),
+        ProgenitorTransactionCache_,
+        /*removeRoot*/ false,
+        /*subtreeParentId*/ NullObjectId,
+        /*options*/ options);
 }
 
 std::optional<TSequoiaSession::TResolvedNodeId> TSequoiaSession::FindNodePath(TNodeId id)
@@ -1404,11 +1406,14 @@ void TSequoiaSession::DoSetNode(
 TSequoiaSession::TSequoiaSession(
     IBootstrap* bootstrap,
     ISequoiaTransactionPtr sequoiaTransaction,
-    std::vector<TTransactionId> cypressTransactionIds)
-    : SequoiaTransaction_(std::move(sequoiaTransaction))
+    std::vector<TTransactionId> cypressTransactionIds,
+    TUserDescriptorPtr authenticatedUser)
+    : SequoiaTransaction_(sequoiaTransaction)
     , Bootstrap_(bootstrap)
     , CypressTransactionAncestry_(std::move(cypressTransactionIds))
     , CypressTransactionDepths_(EnumerateCypressTransactionAncestry(CypressTransactionAncestry_))
+    , AuthenticatedUser_(std::move(authenticatedUser))
+    , AcdFetcher_(New<TAcdFetcher>(std::move(sequoiaTransaction)))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

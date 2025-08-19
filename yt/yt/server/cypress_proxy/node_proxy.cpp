@@ -1,5 +1,6 @@
 #include "node_proxy.h"
 
+#include "access_control.h"
 #include "bootstrap.h"
 #include "helpers.h"
 #include "master_connector.h"
@@ -10,6 +11,8 @@
 #include "sequoia_tree_visitor.h"
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
+
+#include <yt/yt/server/lib/object_server/helpers.h>
 
 #include <yt/yt/server/lib/sequoia/cypress_transaction.h>
 #include <yt/yt/server/lib/sequoia/helpers.h>
@@ -178,6 +181,7 @@ public:
             nodeType == EObjectType::Scion ||
             nodeType == EObjectType::Link ||
             IsSnapshot());
+        YT_VERIFY(!ResolveResult_.NodeAncestry.empty());
     }
 
 protected:
@@ -255,6 +259,100 @@ protected:
         DISPATCH_YPATH_SERVICE_METHOD(BeginCopy);
 
         return false;
+    }
+
+    TVersionedNodeId MakeVersionedNodeId(TNodeId id) const
+    {
+        return {id, SequoiaSession_->GetCurrentCypressTransactionId()};
+    }
+
+    void ValidatePermissionForThis(EPermission permission)
+    {
+        ValidatePermissionForNode(
+            SequoiaSession_,
+            ResolveResult_.NodeAncestry,
+            permission,
+            Bootstrap_->GetUserDirectory());
+    }
+
+    void ValidatePermissionForParent(
+        TNodeAncestry nodeAncestry,
+        EPermission permission)
+    {
+        if (TypeFromId(nodeAncestry.Back().Id) == EObjectType::Scion) {
+            return;
+        }
+
+        auto parentAncestry = TRange(nodeAncestry).Slice(0, std::ssize(nodeAncestry) - 1);
+
+        if (parentAncestry.empty()) {
+            YT_LOG_ALERT(
+                "Missing parent for node during permission validation (NodeId: %v)",
+                MakeVersionedNodeId(Id_));
+            THROW_ERROR_EXCEPTION(
+                "Permission validation failed: missing parent for node %v",
+                MakeVersionedNodeId(Id_));
+        }
+
+        ValidatePermissionForNode(
+            SequoiaSession_,
+            parentAncestry,
+            permission,
+            Bootstrap_->GetUserDirectory());
+    }
+
+    void ValidatePermissionForSubtree(
+        TNodeAncestry nodeAncestry,
+        const TSequoiaSession::TSubtree& nodeSubtree,
+        EPermission permission,
+        bool descendantsOnly = false)
+    {
+        NCypressProxy::ValidatePermissionForSubtree(
+            SequoiaSession_,
+            nodeAncestry,
+            nodeSubtree,
+            permission,
+            descendantsOnly,
+            Bootstrap_->GetUserDirectory());
+    }
+
+    void ValidateCopyFromSourcePermissions(
+        TNodeAncestry sourceAncestry,
+        const TSequoiaSession::TSubtree& sourceSubtree,
+        ENodeCloneMode mode)
+    {
+        ValidatePermissionForSubtree(
+            sourceAncestry,
+            sourceSubtree,
+            EPermission::FullRead);
+        if (mode == ENodeCloneMode::Move) {
+            ValidatePermissionForSubtree(
+                sourceAncestry,
+                sourceSubtree,
+                EPermission::Remove);
+            ValidatePermissionForParent(
+                sourceAncestry,
+                EPermission::Write | EPermission::ModifyChildren);
+        }
+    }
+
+    void ValidateAddChildPermissions(bool replace, bool validateAdminister)
+    {
+        if (replace) {
+            ValidatePermissionForParent(
+                ResolveResult_.NodeAncestry,
+                NYTree::EPermission::Write | NYTree::EPermission::ModifyChildren);
+            if (validateAdminister) {
+                ValidatePermissionForParent(
+                    ResolveResult_.NodeAncestry,
+                    NYTree::EPermission::Administer);
+            }
+        } else {
+            ValidatePermissionForThis(NYTree::EPermission::Write | NYTree::EPermission::ModifyChildren);
+            if (validateAdminister) {
+                ValidatePermissionForThis(NYTree::EPermission::Administer);
+            }
+        }
     }
 
     TObjectServiceProxy CreateReadProxyForObject(TObjectId id)
@@ -382,6 +480,11 @@ protected:
 
             auto subtreeToRemove = SequoiaSession_->FetchSubtree(Path_);
 
+            ValidatePermissionForSubtree(
+                ResolveResult_.NodeAncestry,
+                subtreeToRemove,
+                EPermission::Remove);
+
             // Acquires shared lock on row in Sequoia table.
             SequoiaSession_->DetachAndRemoveSubtree(
                 subtreeToRemove,
@@ -426,6 +529,8 @@ protected:
             limit,
             attributeFilter);
 
+        ValidatePermissionForThis(EPermission::Read);
+
         AbortSequoiaSessionForLaterForwardingToMaster();
     }
 
@@ -436,6 +541,8 @@ protected:
         context->SetRequestInfo("Recursive: %v, Force: %v",
             request->recursive(),
             force);
+
+        ValidatePermissionForThis(EPermission::Write);
 
         SequoiaSession_->SetNode(Id_, NYson::TYsonString(request->value()), AccessTrackingOptions_);
 
@@ -454,6 +561,10 @@ protected:
             recursive,
             force);
 
+        ValidatePermissionForParent(
+            ResolveResult_.NodeAncestry,
+            EPermission::Write | EPermission::ModifyChildren);
+
         TCellTag subtreeRootCell;
         if (TypeFromId(Id_) == EObjectType::Scion) {
             subtreeRootCell = RemoveRootstock();
@@ -466,6 +577,12 @@ protected:
             auto subtree = SequoiaSession_->FetchSubtree(Path_);
             // Subtree must consist of at least its root.
             YT_VERIFY(!subtree.Nodes.empty());
+
+            ValidatePermissionForSubtree(
+                ResolveResult_.NodeAncestry,
+                subtree,
+                EPermission::Remove);
+
             SequoiaSession_->DetachAndRemoveSubtree(
                 subtree,
                 ParentId_,
@@ -475,6 +592,7 @@ protected:
                 NYTree::EErrorCode::CannotRemoveNonemptyCompositeNode,
                 "Cannot remove non-empty composite node");
         } else {
+            ValidatePermissionForThis(EPermission::Remove);
             SequoiaSession_->DetachAndRemoveSingleNode(Id_, Path_, ParentId_);
         }
 
@@ -488,6 +606,7 @@ protected:
         const TCtxExistsPtr& context) override
     {
         context->SetRequestInfo("TargetObjectId: %v", Id_);
+        // Permission validation is intentionally skipped here.
         AbortSequoiaSessionForLaterForwardingToMaster();
     }
 
@@ -498,6 +617,9 @@ protected:
         const TCtxExistsPtr& context) override
     {
         context->SetRequestInfo("TargetObjectId: %v", Id_);
+
+        ValidatePermissionForThis(EPermission::Read);
+
         AbortSequoiaSessionForLaterForwardingToMaster();
     }
 
@@ -508,6 +630,9 @@ protected:
         const TCtxGetPtr& context) override
     {
         context->SetRequestInfo("TargetObjectId: %v", Id_);
+
+        ValidatePermissionForThis(EPermission::Read);
+
         AbortSequoiaSessionForLaterForwardingToMaster();
     }
 
@@ -523,6 +648,7 @@ protected:
             request->recursive(),
             force);
 
+        // Permission validation is handled by master.
         SequoiaSession_->SetNodeAttribute(
             Id_,
             TYPathBuf("/@" + path),
@@ -545,6 +671,7 @@ protected:
             request->recursive(),
             force);
 
+        // Permission validation is handled by master.
         SequoiaSession_->RemoveNodeAttribute(Id_, TYPathBuf("/@" + path), force);
 
         FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ true);
@@ -565,6 +692,8 @@ protected:
         context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
             limit,
             attributeFilter);
+
+        ValidatePermissionForThis(EPermission::Read);
 
         AbortSequoiaSessionForLaterForwardingToMaster();
     }
@@ -588,6 +717,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, MultisetAttributes)
     }
 
     auto subrequests = FromProto<std::vector<TMultisetAttributesSubrequest>>(request->subrequests());
+
+    // Permission validation is handled by master.
     SequoiaSession_->MultisetNodeAttributes(
         Id_,
         targetPath,
@@ -600,13 +731,20 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, MultisetAttributes)
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetBasicAttributes)
 {
-    context->SetRequestInfo("TargetObjectId: %v", Id_);
-
     auto unresolvedSuffix = TYPath(GetRequestTargetYPath(context->GetRequestHeader()));
     auto unresolvedSuffixTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
+    auto permission = YT_OPTIONAL_FROM_PROTO(*request, permission, EPermission);
+
+    context->SetRequestInfo("TargetObjectId: %v, Permission: %v",
+        Id_,
+        permission);
 
     if (!unresolvedSuffixTokens.empty()) {
         ThrowNoSuchChild(Path_, unresolvedSuffixTokens.front());
+    }
+
+    if (permission) {
+        ValidatePermissionForThis(*permission);
     }
 
     AbortSequoiaSessionForLaterForwardingToMaster();
@@ -721,7 +859,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Create)
 
     auto unresolvedSuffix = GetRequestTargetYPath(context->GetRequestHeader());
     auto unresolvedSuffixTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
-    if (unresolvedSuffixTokens.empty() && !force) {
+    auto replace = unresolvedSuffixTokens.empty();
+    if (replace && !force) {
         if (!ignoreExisting) {
             ThrowAlreadyExists(Path_);
         }
@@ -761,6 +900,10 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Create)
     if (!recursive && unresolvedSuffixTokens.size() > 1) {
         ThrowNoSuchChild(Path_, unresolvedSuffixTokens[0]);
     }
+
+    ValidateAddChildPermissions(
+        replace,
+        NObjectServer::IsAdministerValidationNeeded(explicitAttributes.Get()));
 
     auto [targetParentNodeId, attachmentPointNodeId, targetKey] = ReplaceSubtreeWithMapNodeChain(
         unresolvedSuffixTokens,
@@ -893,7 +1036,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
     // Validate there are no duplicate or missing destination nodes.
     auto unresolvedDestinationSuffix = GetRequestTargetYPath(context->GetRequestHeader());
     auto destinationSuffixDirectoryTokens = TokenizeUnresolvedSuffix(unresolvedDestinationSuffix);
-    if (destinationSuffixDirectoryTokens.empty() && !force) {
+    auto replace = destinationSuffixDirectoryTokens.empty();
+    if (replace && !force) {
         if (!ignoreExisting) {
             ThrowAlreadyExists(Path_);
         }
@@ -918,6 +1062,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
         ThrowNoSuchChild(Path_, destinationSuffixDirectoryTokens[0]);
     }
 
+    ValidateAddChildPermissions(replace, options.PreserveAcl);
+
     std::vector<TCypressNodeDescriptor> removedNodes;
     auto [destinationParentId, attachmentPointNodeId, targetKey] = ReplaceSubtreeWithMapNodeChain(
         destinationSuffixDirectoryTokens,
@@ -925,6 +1071,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
         &removedNodes);
 
     auto nodesToCopy = SequoiaSession_->FetchSubtree(sourceRootPath);
+
+    ValidateCopyFromSourcePermissions(
+        resolvedSource->NodeAncestry,
+        nodesToCopy,
+        options.Mode);
 
     // Select returns sorted entries and destination subtree cannot include source subtree.
     // Thus to check that subtrees don't overlap it's enough to check source root with
@@ -978,6 +1129,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Unlock)
         }
     }
 
+    ValidatePermissionForThis(EPermission::Read);
+
     SequoiaSession_->UnlockNode(Id_, IsSnapshot());
 
     context->SetResponseInfo();
@@ -1000,6 +1153,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Alter)
         YT_OPTIONAL_FROM_PROTO(*request, replication_progress, NChaosClient::TReplicationProgress),
         YT_OPTIONAL_FROM_PROTO(*request, schema_id, TObjectId));
 
+    // Permission validation is handled by master.
     AbortSequoiaSessionForLaterForwardingToMaster();
 }
 
@@ -1044,6 +1198,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
         THROW_ERROR_EXCEPTION("Operation cannot be performed outside of a transaction");
     }
 
+    ValidatePermissionForThis(
+        mode == ELockMode::Snapshot ? EPermission::Read : EPermission::Write);
+
     CheckLockRequest(mode, childKey, attributeKey)
         .ThrowOnError();
 
@@ -1070,7 +1227,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
 
     auto asyncNode = FetchSingleObject(
         client,
-        {Id_, SequoiaSession_->GetCurrentCypressTransactionId()},
+        MakeVersionedNodeId(Id_),
         TAttributeFilter({externalCellTagAttribute, revisionAttribute}));
 
     auto nodeLocked = WaitForFast(asyncLockAcquired)
@@ -1189,7 +1346,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, LockCopyDestination)
             /*attributeKey*/ std::nullopt);
     }
 
-    // TODO(h0pless): Add ACL validation here. See LockCopyDestination in master.
+    ValidateAddChildPermissions(replace && !inplace, preserveAcl);
 
     // TODO(h0pless): Fetch accounts and inheritable attributes from Sequoia tables once those are replicated.
     // For now Get request to master is good enough. Please note, that it's technically racy.
@@ -1199,7 +1356,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, LockCopyDestination)
     const auto& effectiveInheritableAttributes = EInternedAttributeKey::EffectiveInheritableAttributes.Unintern();
     auto asyncNode = FetchSingleObject(
         client,
-        {parentNodeId, SequoiaSession_->GetCurrentCypressTransactionId()},
+        MakeVersionedNodeId(parentNodeId),
         TAttributeFilter({accountIdAttribute, effectiveInheritableAttributes}));
 
     auto node = WaitFor(asyncNode)
@@ -1240,8 +1397,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, LockCopySource)
         mode,
         SequoiaSession_->GetCurrentCypressTransactionId());
 
-    // TODO(h0pless): Add ACL validation here. See LockCopySource in master.
-
     const auto& connector = Bootstrap_->GetMasterConnector();
     auto maxSubtreeSize = connector->GetMaxCopiableSubtreeSize();
 
@@ -1252,6 +1407,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, LockCopySource)
             << TErrorAttribute("subtree_size", subtreeSize)
             << TErrorAttribute("max_subtree_size", maxSubtreeSize);
     }
+
+    ValidateCopyFromSourcePermissions(
+        ResolveResult_.NodeAncestry,
+        nodesToCopy,
+        mode);
 
     auto lockMode = mode == ENodeCloneMode::Copy ? ELockMode::Snapshot : ELockMode::Exclusive;
     std::vector<TFuture<std::vector<TCypressChildDescriptor>>> asyncNodesInfo;
@@ -1332,7 +1492,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, AssembleTreeCopy)
     auto preserveAcl = request->preserve_acl();
     context->SetIncrementalRequestInfo(
         "RootNodeId: %v, Force: %v, Inplace: %v, PreserveModificationTime: %v, PreserveAcl: %v",
-        TVersionedNodeId{Id_, SequoiaSession_->GetCurrentCypressTransactionId()},
+        MakeVersionedNodeId(Id_),
         force,
         inplace,
         preserveModificationTime,
@@ -1420,7 +1580,7 @@ private:
         context->SetRequestInfo("Path: %v%v, TargetObjectId: %v",
             Path_,
             GetRequestTargetYPath(context->RequestHeader()),
-            TVersionedNodeId{Id_, SequoiaSession_->GetCurrentCypressTransactionId()});
+            MakeVersionedNodeId(Id_));
         AbortSequoiaSessionForLaterForwardingToMaster();
         return true;
     }
@@ -1435,6 +1595,7 @@ private:
             Id_,
             path,
             request->force());
+        ValidatePermissionForThis(EPermission::Write);
         AbortSequoiaSessionForLaterForwardingToMaster();
     }
 
@@ -1449,7 +1610,7 @@ private:
             path,
             request->force(),
             request->recursive());
-
+        ValidatePermissionForThis(EPermission::Write);
         AbortSequoiaSessionForLaterForwardingToMaster();
     }
 };
@@ -1694,8 +1855,18 @@ private:
             THROW_ERROR_EXCEPTION("\"set\" command without \"force\" flag is forbidden; use \"create\" instead");
         }
 
+        ValidatePermissionForThis(EPermission::Write);
+
+        auto subtree = SequoiaSession_->FetchSubtree(Path_);
+
+        ValidatePermissionForSubtree(
+            ResolveResult_.NodeAncestry,
+            subtree,
+            EPermission::Remove,
+            /*descendantsOnly*/ true);
+
         // NB: locks |Id_|.
-        SequoiaSession_->ClearSubtree(Path_, AccessTrackingOptions_);
+        SequoiaSession_->ClearSubtree(subtree, AccessTrackingOptions_);
 
         auto setter = TMapNodeSetter(SequoiaSession_.Get(), Path_, Id_, AccessTrackingOptions_);
         auto producer = ConvertToProducer(NYson::TYsonString(request->value()));
@@ -1724,6 +1895,10 @@ private:
             THROW_ERROR_EXCEPTION("Limit is negative")
                 << TErrorAttribute("limit", limit);
         }
+
+        ValidatePermissionForThis(EPermission::Read);
+
+        // TODO(danilalexeev): YT-24566. Support permission validation.
 
         // Fetch nodes from child nodes table.
         std::queue<TNodeId> childrenLookupQueue;
@@ -1896,6 +2071,8 @@ private:
             recursive,
             request->force());
 
+        ValidatePermissionForThis(EPermission::Write);
+
         auto unresolvedSuffixTokens = TokenizeUnresolvedSuffix("/" + path);
         auto destinationPath = JoinNestedNodesToPath(Path_, unresolvedSuffixTokens);
         auto targetName = unresolvedSuffixTokens.back();
@@ -1938,7 +2115,17 @@ private:
         if (tokenizer.GetType() == NYPath::ETokenType::Asterisk) {
             tokenizer.Advance();
             tokenizer.Expect(NYPath::ETokenType::EndOfStream);
-            SequoiaSession_->ClearSubtree(Path_, AccessTrackingOptions_);
+
+            auto subtree = SequoiaSession_->FetchSubtree(Path_);
+            ValidatePermissionForThis(EPermission::Write | EPermission::ModifyChildren);
+            ValidatePermissionForSubtree(
+                ResolveResult_.NodeAncestry,
+                subtree,
+                EPermission::Remove,
+                /*descendantsOnly*/ true);
+
+            SequoiaSession_->ClearSubtree(subtree, AccessTrackingOptions_);
+
             FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ true);
             return;
         }
@@ -1971,6 +2158,10 @@ private:
             THROW_ERROR_EXCEPTION("Limit is negative")
                 << TErrorAttribute("limit", limit);
         }
+
+        ValidatePermissionForThis(EPermission::Read);
+
+        // TODO(danilalexeev): YT-24566. Support the permission validation.
 
         TAsyncYsonWriter writer;
 

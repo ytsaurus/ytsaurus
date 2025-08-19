@@ -2,11 +2,9 @@
 
 #include "public.h"
 
+#include <yt/yt/client/security_client/acl.h>
+
 #include <yt/yt/core/ytree/permission.h>
-
-#include <yt/yt/ytlib/security_client/acl.h>
-
-#include <library/cpp/yt/logging/logger.h>
 
 namespace NYT::NSecurityServer {
 
@@ -56,26 +54,45 @@ struct TPermissionCheckResponse
     std::optional<std::vector<NSecurityClient::TRowLevelAccessControlEntry>> Rlaces;
 };
 
+TPermissionCheckResponse MakeFastCheckPermissionResponse(
+    NSecurityClient::ESecurityAction action,
+    const TPermissionCheckBasicOptions& options);
+
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+NYTree::EPermissionSet ExtendReadPermission(NYTree::EPermissionSet original);
+
+// Checks if the given subject matches the user or any of it's associated groups.
+// The subject can be a user name, user alias, group name, or group alias.
+// Returns the matched subject id, or |NullObjectId| otherwise.
+template <class T, class TAccessControlEntry>
+concept CSubjectMatchCallback = CInvocable<
+    T,
+    NSecurityClient::TSubjectId(const decltype(std::declval<TAccessControlEntry>().Subjects[0])&)>;
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TAccessControlEntry, NDetail::CSubjectMatchCallback<TAccessControlEntry> TCallback>
 class TPermissionChecker
 {
 public:
     TPermissionChecker(
         NYTree::EPermissionSet permissions,
-        const TPermissionCheckBasicOptions& options,
-        NLogging::TLogger logger);
+        TCallback matchAceSubjectCallback,
+        const TPermissionCheckBasicOptions* options);
 
     bool ShouldProceed() const;
 
-    template <class TAccessControlEntry, class TCallback>
     void ProcessAce(
         const TAccessControlEntry& ace,
-        const TCallback& matchAceSubjectCallback,
         NObjectClient::TObjectId objectId,
         int depth);
 
-    TPermissionCheckResponse GetResponse();
+    TPermissionCheckResponse GetResponse() &&;
 
 protected:
     const bool FullReadRequested_;
@@ -85,13 +102,14 @@ protected:
     //! check is failed. Otherwise, if we have Allow on either of permissions,
     //! the check is successful.
     const NYTree::EPermissionSet PermissionsMask_;
-    const TPermissionCheckBasicOptions& Options_;
-    const NLogging::TLogger Logger;
+    const TPermissionCheckBasicOptions* Options_;
+
+    TCallback MatchAceSubjectCallback_;
 
     THashSet<TStringBuf> Columns_;
     THashMap<TStringBuf, TPermissionCheckResult> ColumnToResult_;
 
-    bool Proceed_ = true;
+    bool ShouldProceed_ = true;
     TPermissionCheckResponse Response_;
     bool FullReadExplicitlyGranted_ = false;
 
@@ -111,8 +129,54 @@ protected:
         NObjectClient::TObjectId objectId);
 
     void SetDeny(NSecurityClient::TSubjectId subjectId, NObjectClient::TObjectId objectId);
+};
 
-    bool IsOnlyReadRequested() const;
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TAccessControlEntry, NDetail::CSubjectMatchCallback<TAccessControlEntry> TCallback>
+class TSubtreePermissionChecker
+{
+public:
+    TSubtreePermissionChecker(
+        NYTree::EPermission permission,
+        TCallback matchAceSubjectCallback);
+
+    template <std::ranges::input_range TAccessControlEntryRange>
+        requires std::same_as<std::ranges::range_value_t<TAccessControlEntryRange>, TAccessControlEntry>
+    void Put(
+        TAccessControlEntryRange&& acl,
+        NObjectClient::TObjectId objectId,
+        bool inheritAcl);
+
+    void Pop();
+
+    TPermissionCheckResult CheckPermission() const;
+
+protected:
+    const NYTree::EPermission Permission_;
+
+    TCallback MatchAceSubjectCallback_;
+    int CurrentDepth_ = 0;
+
+    struct TBreakpoint
+    { };
+
+    struct TMatchingAce
+    {
+        const TAccessControlEntry* Ace;
+        NObjectClient::TObjectId ObjectId;
+    };
+
+    struct TEntry
+    {
+        std::variant<TBreakpoint, TMatchingAce> Entry;
+        int Depth;
+    };
+    std::vector<TEntry> MatchingAceTrace_;
+
+    void TrackAce(
+        const TAccessControlEntry* ace,
+        NObjectClient::TObjectId objectId);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

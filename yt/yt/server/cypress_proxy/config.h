@@ -26,7 +26,7 @@ struct TTestConfig
     //! Synchronization with components for testing purposes.
     bool EnableGroundUpdateQueuesSync;
 
-    bool EnableUserDirectorySync;
+    bool EnableUserDirectoryPerRequestSync;
 
     TDuration GroundUpdateQueuesSyncRequestTimeout;
 
