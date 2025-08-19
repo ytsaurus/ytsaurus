@@ -58,6 +58,7 @@ jobs:
       cpp-build-system: ya-make
       build-python: true
       build-strawberry: true
+      build-gpuagent: true
       build-ytsaurus: true
     secrets:
       BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
