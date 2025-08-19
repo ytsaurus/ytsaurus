@@ -339,6 +339,10 @@ private:
 
     void AnalyzeIntermediateJobsStatistics()
     {
+        if (Host_->GetOperationType() == EOperationType::Vanilla) {
+            return;
+        }
+
         TError error;
         if (Host_->GetTotalJobCounter()->GetLost() > 0) {
             error = TError(
