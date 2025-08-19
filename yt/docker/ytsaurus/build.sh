@@ -181,6 +181,9 @@ elif [[ "${component}" == "local" ]]; then
     cp -r ${ytserver_all_credits}/*.CREDITS ${output_path}/credits
     cp -r ${qt_credits}/*.CREDITS ${output_path}/credits
 
+    # GPU Agent
+    cp ${ytsaurus_source_path}/yt/yt/go/gpuagent/cmd/agent/gpuagent ${output_path}
+
 elif [[ "${component}" == "job-environment" ]]; then
 
     echo "Do nothing" > /dev/null

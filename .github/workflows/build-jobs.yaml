@@ -14,6 +14,10 @@ on:
         default: false
         required: false
         type: boolean
+      build-gpuagent:
+        default: false
+        required: false
+        type: boolean
       build-ytsaurus:
         default: false
         required: false
@@ -73,6 +77,18 @@ jobs:
           cd ../ytsaurus/ytsaurus/yt/chyt/controller/cmd/chyt-controller
           export HOME=${RUNNER_WORKSPACE}
           /opt/go/bin/go build
+
+  gpuagent:
+    needs: venv
+    runs-on: ${{ inputs.runs-on-value }}
+    if: ${{ inputs.build-gpuagent }}
+    timeout-minutes: 480
+    steps:
+      - name: Build GPU Agent
+        run: |
+          cd ../ytsaurus/ytsaurus/yt/yt/go/gpuagent
+          export HOME=${RUNNER_WORKSPACE}
+          /opt/go/bin/go build -o gpuagent ./cmd/agent
 
   cmake_build:
     needs: venv
