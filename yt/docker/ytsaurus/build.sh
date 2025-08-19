@@ -86,7 +86,7 @@ if [[ "${component}" == "ytsaurus" ]]; then
     init_queue_agent_state="${ytsaurus_build_path}/yt/python/yt/environment/bin/init_queue_agent_state/init_queue_agent_state"
     init_operations_archive="${ytsaurus_build_path}/yt/python/yt/environment/bin/init_operations_archive/init-operations-archive"
     credits="${ytsaurus_source_path}/yt/docker/ytsaurus/credits/ytsaurus"
-    gpuagent="${ytsaurus_source_path}/yt/yt/go/gpuagent/cmd/gpuagent"
+    gpuagent="${ytsaurus_source_path}/yt/yt/go/gpuagent/gpuagent"
 
     cp ${ytserver_all} ${output_path}
     cp ${init_queue_agent_state} ${output_path}
