@@ -176,6 +176,17 @@ def build_global_rowset():
         .all(MonitoringTag("host"))
         .all("cell_tag"))
 
+    # COMPAT(grphil)
+    data_nodes_being_disposed = (Master("yt.node_tracker.data_nodes_being_disposed")
+        .stack(False)
+        .all(MonitoringTag("host"))
+        .all("cell_tag"))
+
+    data_nodes_awaiting_for_being_disposed = (Master("yt.node_tracker.data_nodes_awaiting_for_being_disposed")
+        .stack(False)
+        .all(MonitoringTag("host"))
+        .all("cell_tag"))
+
     rowset = Rowset()
 
     def by_cell_roles(title, sensor):
@@ -206,6 +217,8 @@ def build_global_rowset():
         .row()
             .cell("Chunk Locations Being Disposed", chunk_locations_being_disposed)
             .cell("Chunk Locations Awaiting Disposal", chunk_locations_awaiting_disposal)
+            .cell("Data Nodes Being Disposed", data_nodes_being_disposed)
+            .cell("Data Nodes Awaiting For Being Disposed", data_nodes_awaiting_for_being_disposed)
             .cell("Full Node Count", full_node_count)
         .row()
             .cell("With Alerts Node Count", with_alerts_node_count)
@@ -342,6 +355,10 @@ def build_node_tracker_rowsets():
     locations_being_disposed = Master("yt.node_tracker.chunk_locations_being_disposed")
     locations_awaiting_disposal = Master("yt.node_tracker.chunk_locations_awaiting_disposal")
 
+    # COMPAT(grphil)
+    data_nodes_being_disposed = Master("yt.node_tracker.data_nodes_being_disposed")
+    data_nodes_awaiting_for_being_disposed = Master("yt.node_tracker.data_nodes_awaiting_for_being_disposed")
+
     throttled_node_registrations = (Master("yt.node_tracker.throttled_register_node_count")
         .value("flavor", "{{flavor}}")
         .aggr("container")
@@ -363,7 +380,9 @@ def build_node_tracker_rowsets():
                 .cell("Banned node count", banned_node_count)
             .row()
                 .cell("Chunk locations being disposed", locations_being_disposed)
-                .cell("Chunk locations disposal queue", locations_awaiting_disposal),
+                .cell("Chunk locations disposal queue", locations_awaiting_disposal)
+                .cell("Data nodes being disposed", data_nodes_being_disposed)
+                .cell("Data node disposal queue", data_nodes_awaiting_for_being_disposed),
         Rowset()
             .row()
                 .cell("Throttled node registrations", throttled_node_registrations)
