@@ -1378,10 +1378,13 @@ private:
         tablet->GetStoreManager()->LoadReplicatedContent(request);
 
         // Settings.
-        auto rawSettings = DeserializeTableSettings(&request->replicatable_content(), tabletId);
-        auto descriptor = GetTableConfigExperimentDescriptor(tablet);
-        rawSettings.DropIrrelevantExperiments(descriptor);
-        ReconfigureTablet(tablet, std::move(rawSettings));
+        // COMPAT(ifsmirnov): remove conditional when everything is 25.3.
+        if (request->replicatable_content().has_table_settings()) {
+            auto rawSettings = DeserializeTableSettings(&request->replicatable_content(), tabletId);
+            auto descriptor = GetTableConfigExperimentDescriptor(tablet);
+            rawSettings.DropIrrelevantExperiments(descriptor);
+            ReconfigureTablet(tablet, std::move(rawSettings));
+        }
 
         StartTabletEpoch(tablet);
 
