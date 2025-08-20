@@ -43,6 +43,8 @@ type (
 		level zapcore.Level
 	}
 
+	minFreeSpace float64
+
 	Option interface {
 		isOption()
 	}
@@ -52,6 +54,12 @@ func (logLevel) isOption() {}
 
 func WithLogLevel(level zapcore.Level) Option {
 	return logLevel{level: level}
+}
+
+func (minFreeSpace) isOption() {}
+
+func WithMinFreeSpace(space float64) Option {
+	return minFreeSpace(space)
 }
 
 // NewSelfrotate returns logger configured with YT defaults.
@@ -72,6 +80,8 @@ func NewSelfrotate(logPath string, options ...Option) (l *logzap.Logger, stop fu
 		switch v := opt.(type) {
 		case logLevel:
 			level = v.level
+		case minFreeSpace:
+			rotateOptions.MinFreeSpace = float64(opt.(minFreeSpace))
 		}
 	}
 
