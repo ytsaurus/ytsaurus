@@ -25,7 +25,12 @@ ARG SERVER_IMAGE_BASE="base-server"
 
 ##########################################################################################
 
-FROM ubuntu:focal AS ubuntu-base
+FROM ubuntu:noble AS ubuntu-base
+
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
+      software-properties-common && \
+      add-apt-repository ppa:deadsnakes/ppa
 
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
