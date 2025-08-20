@@ -860,6 +860,7 @@ public:
 
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(StartDistributedWriteSession)
             .SetCancelable(true));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PingDistributedWriteSession));
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(FinishDistributedWriteSession));
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(WriteTableFragment)
             .SetStreamingEnabled(true)
@@ -6396,6 +6397,26 @@ private:
                 for (const auto& cookie : result.Cookies) {
                     context->Response().add_signed_cookies(ConvertToYsonString(cookie).ToString());
                 }
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PingDistributedWriteSession)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        TSignedDistributedWriteSessionPtr session;
+        TDistributedWriteSessionPingOptions options;
+        ParseRequest(&session, &options, *request);
+
+        auto concreteSession = ConvertTo<TDistributedWriteSession>(TYsonStringBuf(session.Underlying()->Payload()));
+        context->SetRequestInfo(
+            "TableId: %v",
+            concreteSession.PatchInfo.ObjectId);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->PingDistributedWriteSession(std::move(session), options);
             });
     }
 

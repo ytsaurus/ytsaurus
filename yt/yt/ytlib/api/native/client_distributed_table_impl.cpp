@@ -347,6 +347,21 @@ TDistributedWriteSessionWithCookies TClient::DoStartDistributedWriteSession(
     return result;
 }
 
+void TClient::DoPingDistributedWriteSession(
+    TSignedDistributedWriteSessionPtr session,
+    const TDistributedWriteSessionPingOptions& options)
+{
+    Y_UNUSED(options);
+    YT_VERIFY(session);
+    auto concreteSession = ConvertTo<TDistributedWriteSession>(TYsonStringBuf(session.Underlying()->Payload()));
+
+    // NB(arkady-e1ppa): AutoAbort = false by default.
+    auto mainTransaction = static_cast<IClient*>(this)->AttachTransaction(concreteSession.MainTransactionId);
+
+    WaitFor(mainTransaction->Ping())
+        .ThrowOnError();
+}
+
 void TClient::DoFinishDistributedWriteSession(
     const TDistributedWriteSessionWithResults& sessionWithResults,
     const TDistributedWriteSessionFinishOptions& options)
