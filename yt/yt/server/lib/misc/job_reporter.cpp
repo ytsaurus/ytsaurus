@@ -461,7 +461,7 @@ public:
         TJobReporterConfigPtr reporterConfig,
         const NApi::NNative::IConnectionPtr& connection)
         : Client_(connection->CreateNativeClient(
-            TClientOptions::FromUser(reporterConfig->User)))
+            NApi::NNative::TClientOptions::FromUser(reporterConfig->User)))
         , Config_(std::move(reporterConfig))
         , JobHandler_(
             CreateArchiveReporter(

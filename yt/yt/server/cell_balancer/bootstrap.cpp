@@ -189,7 +189,7 @@ private:
         Connection_->GetClusterDirectorySynchronizer()->Start();
         Connection_->GetMasterCellDirectorySynchronizer()->Start();
 
-        auto clientOptions = TClientOptions::FromUser(NSecurityClient::RootUserName);
+        auto clientOptions = NNative::TClientOptions::FromUser(NSecurityClient::RootUserName);
         Client_ = Connection_->CreateNativeClient(clientOptions);
 
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(Client_);

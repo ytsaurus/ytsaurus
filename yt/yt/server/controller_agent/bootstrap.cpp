@@ -154,7 +154,7 @@ void TBootstrap::DoInitialize()
 
     Connection_->GetMasterCellDirectorySynchronizer()->Start();
 
-    auto clientOptions = TClientOptions::FromUser(NSecurityClient::SchedulerUserName);
+    auto clientOptions = NNative::TClientOptions::FromUser(NSecurityClient::SchedulerUserName);
     Client_ = Connection_->CreateNativeClient(clientOptions);
 
     NLogging::GetDynamicTableLogWriterFactory()->SetClient(Client_);

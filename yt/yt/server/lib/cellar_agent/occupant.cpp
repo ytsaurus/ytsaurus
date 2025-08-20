@@ -365,7 +365,7 @@ public:
 
     void ConfigureSnapshotStore(NNative::IConnectionPtr connection)
     {
-        auto snapshotClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::TabletCellSnapshotterUserName));
+        auto snapshotClient = connection->CreateNativeClient(NNative::TClientOptions::FromUser(NSecurityClient::TabletCellSnapshotterUserName));
         auto primaryStoresPath = GetStoresPath(/*primary*/ true);
         auto secondaryStoresPath = GetStoresPath(/*primary*/ false);
 
@@ -468,7 +468,7 @@ public:
 
         ConfigureSnapshotStore(connection);
 
-        auto changelogClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::TabletCellChangeloggerUserName));
+        auto changelogClient = connection->CreateNativeClient(NNative::TClientOptions::FromUser(NSecurityClient::TabletCellChangeloggerUserName));
         auto primaryStoresPath = GetStoresPath(/*primary*/ true);
         auto secondaryStoresPath = GetStoresPath(/*primary*/ false);
 

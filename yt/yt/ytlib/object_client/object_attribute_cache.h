@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/options.h>
 
 #include <yt/yt/client/api/client.h>
 

@@ -37,7 +37,7 @@ public:
         : TAsyncExpiringCache(std::move(config), logger.WithTag("Cache: UserBan"))
         , Connection_(std::move(connection))
         , Logger(std::move(logger))
-        , Client_(Connection_->CreateNativeClient(TClientOptions::Root()))
+        , Client_(Connection_->CreateNativeClient(NNative::TClientOptions::Root()))
     { }
 
 private:
@@ -72,7 +72,7 @@ private:
             const auto& [it, inserted] = RemoteClientMap_.emplace(*cluster, nullptr);
             if (inserted) {
                 auto remoteClusterConnection = Connection_->GetClusterDirectory()->GetConnectionOrThrow(*cluster);
-                it->second = remoteClusterConnection->CreateNativeClient(TClientOptions::Root());
+                it->second = remoteClusterConnection->CreateNativeClient(NNative::TClientOptions::Root());
             }
             remoteClient = it->second;
         } catch (const std::exception& ex) {

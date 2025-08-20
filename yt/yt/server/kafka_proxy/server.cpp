@@ -693,7 +693,7 @@ private:
 
             if (userName && request.AllowAutoTopicCreation) {
                 // TODO(nadya73): Add flag in config to allow it.
-                auto client = NativeConnection_->CreateNativeClient(TClientOptions::FromUser(*userName));
+                auto client = NativeConnection_->CreateNativeClient(NNative::TClientOptions::FromUser(*userName));
                 auto exists = WaitFor(client->NodeExists(path.GetPath()))
                     .ValueOrThrow();
                 if (!exists) {
@@ -800,7 +800,7 @@ private:
             request.ProtocolType);
 
         auto userName = GetUserName(connectionId);
-        auto client = NativeConnection_->CreateNativeClient(TClientOptions::FromUser(userName));
+        auto client = NativeConnection_->CreateNativeClient(NNative::TClientOptions::FromUser(userName));
 
         // TODO(nadya73): check permissions and return GROUP_AUTHORIZATION_FAILED.
 
@@ -828,7 +828,7 @@ private:
             request.MemberId);
 
         auto userName = GetUserName(connectionId);
-        auto client = NativeConnection_->CreateNativeClient(TClientOptions::FromUser(userName));
+        auto client = NativeConnection_->CreateNativeClient(NNative::TClientOptions::FromUser(userName));
 
         // TODO(nadya73): check permissions and return GROUP_AUTHORIZATION_FAILED.
 
@@ -898,7 +898,7 @@ private:
         TRspOffsetCommit response;
         response.Topics.reserve(request.Topics.size());
 
-        auto client = NativeConnection_->CreateNativeClient(TClientOptions::FromUser(userName));
+        auto client = NativeConnection_->CreateNativeClient(NNative::TClientOptions::FromUser(userName));
         YT_VERIFY(NativeConnection_->GetClusterName());
 
         auto fillResponse = [&](NKafka::EErrorCode errorCode = NKafka::EErrorCode::UnknownServerError) {
@@ -976,7 +976,7 @@ private:
         response.Topics.reserve(request.Topics.size());
 
         auto userName = GetUserName(connectionId);
-        auto client = NativeConnection_->CreateNativeClient(TClientOptions::FromUser(userName));
+        auto client = NativeConnection_->CreateNativeClient(NNative::TClientOptions::FromUser(userName));
         YT_VERIFY(NativeConnection_->GetClusterName());
 
         auto path = TRichYPath::Parse(TYPath(request.GroupId));
@@ -1028,7 +1028,7 @@ private:
         response.Responses.reserve(request.Topics.size());
 
         auto userName = GetUserName(connectionId);
-        auto client = NativeConnection_->CreateNativeClient(TClientOptions::FromUser(userName));
+        auto client = NativeConnection_->CreateNativeClient(NNative::TClientOptions::FromUser(userName));
 
         for (const auto& topic : request.Topics) {
             auto& topicResponse = response.Responses.emplace_back();
@@ -1082,7 +1082,7 @@ private:
         response.Responses.reserve(request.TopicData.size());
 
         auto userName = GetUserName(connectionId);
-        auto client = NativeConnection_->CreateNativeClient(TClientOptions::FromUser(userName));
+        auto client = NativeConnection_->CreateNativeClient(NNative::TClientOptions::FromUser(userName));
 
         for (const auto& topic : request.TopicData) {
             auto& topicResponse = response.Responses.emplace_back();
@@ -1164,7 +1164,7 @@ private:
         auto connectionState = GetConnectionState(connectionId);
 
         auto userName = GetUserName(connectionId);
-        auto client = NativeConnection_->CreateNativeClient(TClientOptions::FromUser(userName));
+        auto client = NativeConnection_->CreateNativeClient(NNative::TClientOptions::FromUser(userName));
 
         TRspListOffsets response;
         response.Topics.reserve(request.Topics.size());
@@ -1214,7 +1214,7 @@ private:
         auto connectionState = GetConnectionState(connectionId);
 
         auto userName = GetUserName(connectionId);
-        auto client = NativeConnection_->CreateNativeClient(TClientOptions::FromUser(userName));
+        auto client = NativeConnection_->CreateNativeClient(NNative::TClientOptions::FromUser(userName));
 
         TRspCreateTopics response;
         response.Topics.reserve(request.Topics.size());

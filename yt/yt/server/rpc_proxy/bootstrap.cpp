@@ -181,7 +181,7 @@ void TBootstrap::DoInitialize()
 
     NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);
 
-    RootClient_ = Connection_->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
+    RootClient_ = Connection_->CreateNativeClient(NNative::TClientOptions::FromUser(NSecurityClient::RootUserName));
 
     NLogging::GetDynamicTableLogWriterFactory()->SetClient(RootClient_);
 

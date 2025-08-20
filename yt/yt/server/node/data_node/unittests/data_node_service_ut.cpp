@@ -458,7 +458,7 @@ public:
             ActionQueue_->GetInvoker(),
             MemoryTracker_);
 
-        EXPECT_CALL(*TestConnection_, CreateNativeClient).WillRepeatedly([this] (const NApi::TClientOptions& options) -> NApi::NNative::IClientPtr
+        EXPECT_CALL(*TestConnection_, CreateNativeClient).WillRepeatedly([this] (const NApi::NNative::TClientOptions& options) -> NApi::NNative::IClientPtr
             {
                 return New<TClient>(TestConnection_, options, MemoryTracker_);
             });

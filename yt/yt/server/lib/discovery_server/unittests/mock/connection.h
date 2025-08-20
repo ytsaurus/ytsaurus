@@ -2,6 +2,7 @@
 #include <yt/yt/ytlib/discovery_client/helpers.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/options.h>
 
 namespace NYT::NDiscoveryServer {
 
@@ -278,7 +279,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    NApi::NNative::IClientPtr CreateNativeClient(const NApi::TClientOptions& /*options*/) override
+    NApi::NNative::IClientPtr CreateNativeClient(const NApi::NNative::TClientOptions& /*options*/) override
     {
         YT_UNIMPLEMENTED();
     }

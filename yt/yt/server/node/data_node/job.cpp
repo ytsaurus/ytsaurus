@@ -3004,7 +3004,7 @@ private:
         return Bootstrap_
             ->GetClient()
             ->GetNativeConnection()
-            ->CreateNativeClient(NApi::TClientOptions::Root())
+            ->CreateNativeClient(NApi::NNative::TClientOptions::Root())
             ->GetChannelFactory();
     }
 };

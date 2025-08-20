@@ -527,7 +527,7 @@ TThrottlerManager::TThrottlerManager(
     : Bootstrap_(bootstrap)
     , Authenticator_(std::move(Bootstrap_->GetNativeAuthenticator()))
     , Connection_(Bootstrap_->GetConnection())
-    , Client_(Connection_->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName)))
+    , Client_(Connection_->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(NSecurityClient::RootUserName)))
     , ChannelFactory_(Bootstrap_->GetConnection()->GetChannelFactory())
     , ClusterNodeConfig_(Bootstrap_->GetConfig())
     , Invoker_(Bootstrap_->GetControlInvoker())

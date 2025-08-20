@@ -30,7 +30,7 @@ NNative::IClientPtr TMulticonnectionClientCache::Get(
     const std::optional<std::string>& targetCluster,
     const NRpc::TAuthenticationIdentity& identity,
     const NNative::IConnectionPtr& connection,
-    const NApi::TClientOptions& options)
+    const NApi::NNative::TClientOptions& options)
 {
     auto key = TMultiConnectionClientCacheKey{targetCluster, identity};
     auto cachedClient = Find(key);

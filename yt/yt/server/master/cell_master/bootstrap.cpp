@@ -801,7 +801,7 @@ void TBootstrap::DoInitialize()
 
     ClusterConnection_ = NNative::CreateConnection(Config_->ClusterConnection);
 
-    RootClient_ = ClusterConnection_->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName));
+    RootClient_ = ClusterConnection_->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(NSecurityClient::RootUserName));
 
     NLogging::GetDynamicTableLogWriterFactory()->SetClient(RootClient_);
 

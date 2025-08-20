@@ -694,7 +694,7 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
         : NSignature::CreateAlwaysThrowingSignatureGenerator();
     connection->SetSignatureGenerator(std::move(signatureGenerator));
 
-    auto rootClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
+    auto rootClient = connection->CreateNativeClient(NNative::TClientOptions::FromUser(NSecurityClient::RootUserName));
 
     if (enableShuffleService) {
         YT_VERIFY(!PublicRpcServer_);
@@ -848,7 +848,7 @@ TJobResult TJobProxy::RunJob()
         RetrieveJobSpec();
 
         auto clusterConnection = CreateNativeConnection(Config_->ClusterConnection);
-        Client_ = clusterConnection->CreateNativeClient(TClientOptions::FromUser(GetAuthenticatedUser()));
+        Client_ = clusterConnection->CreateNativeClient(NNative::TClientOptions::FromUser(GetAuthenticatedUser()));
 
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(Client_);
 

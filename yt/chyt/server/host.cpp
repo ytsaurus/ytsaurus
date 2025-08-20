@@ -553,7 +553,7 @@ public:
     NApi::NNative::IClientPtr CreateClient(const TString& user) const
     {
         auto identity = NRpc::TAuthenticationIdentity(user);
-        auto options = NApi::TClientOptions::FromAuthenticationIdentity(identity);
+        auto options = NApi::NNative::TClientOptions::FromAuthenticationIdentity(identity);
         return ClientCache_->Get(identity, options);
     }
 
@@ -746,7 +746,7 @@ private:
 
         auto getClientForUser = [&] (const TString& user) {
             auto identity = NRpc::TAuthenticationIdentity(user);
-            auto options = NApi::TClientOptions::FromAuthenticationIdentity(identity);
+            auto options = NApi::NNative::TClientOptions::FromAuthenticationIdentity(identity);
             return ClientCache_->Get(identity, options);
         };
         RootClient_ = getClientForUser(Config_->User);
