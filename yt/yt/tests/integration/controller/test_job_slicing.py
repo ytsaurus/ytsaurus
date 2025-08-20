@@ -279,7 +279,7 @@ class TestCompressedDataSizePerJob(TestJobSlicingBase):
         for _ in range(4):
             write_table("<append=%true>//tmp/t_in", {
                 "col1": "a",
-                "col2": make_random_string(1000),
+                "col2": make_random_string(960),
             })
 
         assert get("//tmp/t_in/@compressed_data_size") > 5000
