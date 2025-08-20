@@ -129,8 +129,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   libpython3.8 \
   libpython3.9 \
   libpython3.10 \
-  libpython3.11 \
-  libpython3.12
+  libpython3.11
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
   openjdk-11-jdk \
@@ -309,8 +308,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   libpython3.8 \
   libpython3.9 \
   libpython3.10 \
-  libpython3.11 \
-  libpython3.12
+  libpython3.11
 
 ##########################################################################################
 
