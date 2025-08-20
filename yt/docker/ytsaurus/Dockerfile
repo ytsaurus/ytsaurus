@@ -185,7 +185,7 @@ RUN for package in client yson local native_driver; \
   do \
     dist_dir="/tmp/ytsaurus_python/ytsaurus_${package}_dist"; \
     wheel_path="${dist_dir}/$(ls ${dist_dir} | grep "^ytsaurus_$package.*whl$")"; \
-    python3.12 -m pip install ${wheel_path}; \
+    python3.12 -m pip install ${wheel_path} --break-system-packages; \
   done
 
 RUN python3.12 -m pip install packaging==24.1
