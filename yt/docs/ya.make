@@ -83,10 +83,6 @@ DOCS_INCLUDE_SOURCES(
 
 END()
 
-RECURSE(
-    ytsaurus
-)
-
 IF (NOT OPENSOURCE)
     RECURSE(
         yandex-specific
