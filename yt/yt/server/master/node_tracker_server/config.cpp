@@ -119,9 +119,6 @@ void TDynamicNodeTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_locations_being_disposed", &TThis::MaxLocationsBeingDisposed)
         .Default(10);
 
-    registrar.Parameter("immediatety_dispose_nondata_nodes", &TThis::ImmediatelyDisposeNondataNodes)
-        .Default(true);
-
     registrar.Parameter("throttled_node_registration_expiration_time", &TThis::ThrottledNodeRegistrationExpirationTime)
         .Default(TDuration::Minutes(1));
 

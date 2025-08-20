@@ -128,8 +128,6 @@ struct TDynamicNodeTrackerConfig
 
     int MaxLocationsBeingDisposed;
 
-    bool ImmediatelyDisposeNondataNodes;
-
     TDuration ThrottledNodeRegistrationExpirationTime;
 
     TDuration NodeAlertsCheckPeriod;
