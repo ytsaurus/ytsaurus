@@ -520,6 +520,19 @@ class TestHunkStorage(YTEnvSetup):
         with raises_yt_error("dynamic table"):
             set("//tmp/s/@hunk_storage_id", table_id)
 
+    @authors("akozhikhov")
+    def test_multiple_hunk_tablets(self):
+        sync_create_cells(1)
+        self._create_hunk_storage("//tmp/h", tablet_count=2)
+        sync_mount_table("//tmp/h")
+
+        assert len(get("//tmp/h/@tablets")) == 2
+
+        hunk1 = write_hunks("//tmp/h", ["a"], tablet_index=0)[0]
+        hunk2 = write_hunks("//tmp/h", ["b"], tablet_index=1)[0]
+
+        assert hunk1["chunk_id"] != hunk2["chunk_id"]
+
 
 @pytest.mark.enabled_multidaemon
 class TestHunkStorageMulticell(TestHunkStorage):
