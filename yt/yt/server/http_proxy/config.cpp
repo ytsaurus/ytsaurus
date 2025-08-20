@@ -205,7 +205,7 @@ void TApiDynamicConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("enable_allocation_tags", &TThis::EnableAllocationTags)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("user_access_validator", &TThis::UserAccessValidator)
         .DefaultNew();
