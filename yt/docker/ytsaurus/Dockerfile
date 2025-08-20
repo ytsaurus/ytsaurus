@@ -308,7 +308,8 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   libpython3.8 \
   libpython3.9 \
   libpython3.10 \
-  libpython3.11
+  libpython3.11 \
+  libpython3.12
 
 ##########################################################################################
 
