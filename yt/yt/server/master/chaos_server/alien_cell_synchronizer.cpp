@@ -227,7 +227,7 @@ private:
             return {};
         }
 
-        return connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::AlienCellSynchronizerUserName));
+        return connection->CreateNativeClient(NNative::TClientOptions::FromUser(NSecurityClient::AlienCellSynchronizerUserName));
     }
 
     const TAlienClusterRegistryPtr& GetAlienClusterRegistry()

@@ -496,14 +496,14 @@ void TOperationControllerBase::InitializeClients()
     Client_ = Host_
         ->GetClient()
         ->GetNativeConnection()
-        ->CreateNativeClient(TClientOptions::FromUser(AuthenticatedUser_));
+        ->CreateNativeClient(NNative::TClientOptions::FromUser(AuthenticatedUser_));
     InputClient_ = Client_;
     OutputClient_ = Client_;
 
     SchedulerClient_ = Host_
         ->GetClient()
         ->GetNativeConnection()
-        ->CreateNativeClient(TClientOptions::FromUser(SchedulerUserName));
+        ->CreateNativeClient(NNative::TClientOptions::FromUser(SchedulerUserName));
 
     // TODO(coteeq): SchedulerInputClient may seem unexpected since we now can have
     //               client from another cluster (or even many different clusters).

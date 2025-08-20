@@ -99,7 +99,7 @@ public:
         , Config_(std::move(config))
         , ProxyCoordinator_(std::move(proxyCoordinator))
         , Connection_(std::move(connection))
-        , RootClient_(Connection_->CreateNativeClient(TClientOptions::FromUser(RootUserName)))
+        , RootClient_(Connection_->CreateNativeClient(NNative::TClientOptions::FromUser(RootUserName)))
         , ProxyPath_(RpcProxiesPath + "/" + BuildServiceAddress(
             GetLocalHostName(),
             Config_->RpcPort))

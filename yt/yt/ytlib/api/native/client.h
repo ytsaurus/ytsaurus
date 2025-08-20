@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "options.h"
 
 #include <yt/yt/client/api/client.h>
 

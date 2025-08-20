@@ -203,7 +203,7 @@ private:
 
         NativeAuthenticator_ = NNative::CreateNativeAuthenticator(Connection_);
 
-        auto clientOptions = TClientOptions::FromUser(Config_->ClusterUser);
+        auto clientOptions = NNative::TClientOptions::FromUser(Config_->ClusterUser);
         Client_ = Connection_->CreateNativeClient(clientOptions);
 
         ClientDirectory_ = New<TClientDirectory>(Connection_->GetClusterDirectory(), clientOptions);

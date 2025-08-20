@@ -354,7 +354,7 @@ std::vector<TTabletInfo> GetChaosTabletInfosImpl(
     auto replicationCard = WaitForFast(futureReplicationCard).ValueOrThrow();
 
     const auto& clusterDirectory = client.GetNativeConnection()->GetClusterDirectory();
-    auto clientOptions = TClientOptions::FromUser(NSecurityClient::ReplicatorUserName);
+    auto clientOptions = NNative::TClientOptions::FromUser(NSecurityClient::ReplicatorUserName);
 
     std::vector<TFuture<std::vector<TTabletInfo>>> tabletInfoFutures;
     std::vector<IClientPtr> clients;
@@ -2846,7 +2846,7 @@ IQueueRowsetPtr TClient::DoPullQueueConsumer(
                 queuePath);
         }
 
-        auto queueClientOptions = TClientOptions::FromUser(Options_.GetAuthenticatedUser());
+        auto queueClientOptions = NNative::TClientOptions::FromUser(Options_.GetAuthenticatedUser());
 
         queueClusterClient = queueClusterConnection->CreateNativeClient(queueClientOptions);
         YT_VERIFY(queueClusterClient);

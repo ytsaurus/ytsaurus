@@ -130,7 +130,7 @@ void TBootstrap::DoRun()
 
     NativeAuthenticator_ = NNative::CreateNativeAuthenticator(NativeConnection_);
 
-    auto clientOptions = TClientOptions::FromUser(Config_->User);
+    auto clientOptions = NNative::TClientOptions::FromUser(Config_->User);
     NativeClient_ = NativeConnection_->CreateNativeClient(clientOptions);
 
     NLogging::GetDynamicTableLogWriterFactory()->SetClient(NativeClient_);

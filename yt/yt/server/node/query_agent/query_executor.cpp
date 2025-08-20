@@ -827,7 +827,7 @@ private:
 
     TExecutePlan GetExecutePlanCallback()
     {
-        auto clientOptions = NApi::TClientOptions::FromAuthenticationIdentity(Identity_);
+        auto clientOptions = NApi::NNative::TClientOptions::FromAuthenticationIdentity(Identity_);
         auto client = Bootstrap_
             ->GetClient()
             ->GetNativeConnection()

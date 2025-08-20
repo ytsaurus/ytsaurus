@@ -34,7 +34,7 @@ public:
                 .ConfigIsTagged = true
             },
             config->DynamicConfigManager,
-            connection->CreateNativeClient(NApi::TClientOptions::FromUser(NRpc::RootUserName)),
+            connection->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(NRpc::RootUserName)),
             controlInvoker)
         , Config_(std::move(config))
         , ProxyCoordinator_(std::move(proxyCoordinator))

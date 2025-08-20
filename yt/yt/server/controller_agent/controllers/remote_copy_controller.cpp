@@ -517,8 +517,8 @@ private:
     {
         TOperationControllerBase::InitializeClients();
 
-        InputClient_ = GetRemoteConnection()->CreateNativeClient(TClientOptions::FromUser(AuthenticatedUser_));
-        SchedulerInputClient_ = GetRemoteConnection()->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::SchedulerUserName));
+        InputClient_ = GetRemoteConnection()->CreateNativeClient(NNative::TClientOptions::FromUser(AuthenticatedUser_));
+        SchedulerInputClient_ = GetRemoteConnection()->CreateNativeClient(NNative::TClientOptions::FromUser(NSecurityClient::SchedulerUserName));
         InputManager_->InitializeClients(InputClient_);
     }
 

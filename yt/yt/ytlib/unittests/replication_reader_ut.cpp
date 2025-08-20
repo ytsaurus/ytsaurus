@@ -301,7 +301,7 @@ TChunkReaderHostPtr GetChunkReaderHost(const NApi::NNative::IConnectionPtr conne
         /*rack*/ {},
         /*dc*/ {});
     return New<TChunkReaderHost>(
-        connection->CreateNativeClient(NApi::TClientOptions::FromUser("user")),
+        connection->CreateNativeClient(NApi::NNative::TClientOptions::FromUser("user")),
         std::move(localDescriptor),
         CreateClientBlockCache(
             New<TBlockCacheConfig>(),
@@ -396,7 +396,7 @@ TEST_P(TReplicationReaderTest, ReadTest)
         invoker,
         memoryTracker);
 
-    EXPECT_CALL(*connection, CreateNativeClient).WillRepeatedly([&connection, &memoryTracker] (const NApi::TClientOptions& options) -> NApi::NNative::IClientPtr
+    EXPECT_CALL(*connection, CreateNativeClient).WillRepeatedly([&connection, &memoryTracker] (const NApi::NNative::TClientOptions& options) -> NApi::NNative::IClientPtr
         {
             return New<NApi::NNative::TClient>(connection, options, memoryTracker);
         });

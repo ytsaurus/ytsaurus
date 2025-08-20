@@ -1012,7 +1012,7 @@ TObjectServiceProxy::TReqExecuteBatchPtr
 TObjectServiceProxy::ExecuteBatch(int subbatchSize)
 {
     static const auto NeedRetry = BIND_NO_PROPAGATE([] (int, const TError& error) {
-            return error.GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError;
+        return error.GetNonTrivialCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError;
     });
 
     return ExecuteBatchWithRetries(

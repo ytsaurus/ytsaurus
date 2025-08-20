@@ -876,7 +876,7 @@ private:
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);
 
         Client_ = Connection_->CreateNativeClient(
-            TClientOptions::FromUser(NSecurityClient::RootUserName));
+            NNative::TClientOptions::FromUser(NSecurityClient::RootUserName));
 
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(Client_);
 

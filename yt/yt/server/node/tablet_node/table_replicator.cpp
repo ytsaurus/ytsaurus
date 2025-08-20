@@ -340,7 +340,7 @@ private:
 
                 YT_LOG_DEBUG("Starting replication transactions");
 
-                auto localClient = LocalConnection_->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
+                auto localClient = LocalConnection_->CreateNativeClient(NNative::TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
                 localTransaction = WaitFor(localClient->StartNativeTransaction(ETransactionType::Tablet))
                     .ValueOrThrow();
 
@@ -349,7 +349,7 @@ private:
                     return;
                 }
 
-                auto alienClient = alienConnection->CreateClient(TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
+                auto alienClient = alienConnection->CreateClient(NNative::TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
 
                 auto alienTableMountCache = alienClient->GetTableMountCache();
                 auto replicaTableInfo = WaitFor(alienTableMountCache->GetTableInfo(ReplicaPath_))

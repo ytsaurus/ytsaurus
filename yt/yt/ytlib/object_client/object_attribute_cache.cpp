@@ -1,6 +1,7 @@
 #include "object_attribute_cache.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/options.h>
 
 #include <yt/yt/ytlib/cypress_client/batch_attribute_fetcher.h>
 
