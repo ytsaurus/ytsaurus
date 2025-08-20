@@ -59,6 +59,7 @@ import tech.ytsaurus.rpcproxy.TReqReadFile;
 import tech.ytsaurus.rpcproxy.TReqReadQueryResult;
 import tech.ytsaurus.rpcproxy.TReqReadShuffleData;
 import tech.ytsaurus.rpcproxy.TReqReadTable;
+import tech.ytsaurus.rpcproxy.TReqReadTablePartition;
 import tech.ytsaurus.rpcproxy.TReqRegisterQueueConsumer;
 import tech.ytsaurus.rpcproxy.TReqRemountTable;
 import tech.ytsaurus.rpcproxy.TReqRemoveNode;
@@ -130,6 +131,7 @@ import tech.ytsaurus.rpcproxy.TRspReadFile;
 import tech.ytsaurus.rpcproxy.TRspReadQueryResult;
 import tech.ytsaurus.rpcproxy.TRspReadShuffleData;
 import tech.ytsaurus.rpcproxy.TRspReadTable;
+import tech.ytsaurus.rpcproxy.TRspReadTablePartition;
 import tech.ytsaurus.rpcproxy.TRspRegisterQueueConsumer;
 import tech.ytsaurus.rpcproxy.TRspRemountTable;
 import tech.ytsaurus.rpcproxy.TRspRemoveNode;
@@ -150,6 +152,7 @@ import tech.ytsaurus.rpcproxy.TRspVersionedLookupRows;
 import tech.ytsaurus.rpcproxy.TRspWriteFile;
 import tech.ytsaurus.rpcproxy.TRspWriteShuffleData;
 import tech.ytsaurus.rpcproxy.TRspWriteTable;
+
 
 public class ApiServiceMethodTable {
     public static final RpcMethodDescriptor<TReqStartTransaction.Builder, TRspStartTransaction> START_TRANSACTION =
@@ -360,6 +363,11 @@ public class ApiServiceMethodTable {
 
     public static final RpcMethodDescriptor<TReqWriteTable.Builder, TRspWriteTable> WRITE_TABLE =
             apiServiceMethod("WriteTable", TReqWriteTable::newBuilder, TRspWriteTable.parser());
+
+    public static final RpcMethodDescriptor<TReqReadTablePartition.Builder, TRspReadTablePartition>
+            READ_TABLE_PARTITION = apiServiceMethod(
+                    "ReadTablePartition", TReqReadTablePartition::newBuilder, TRspReadTablePartition.parser()
+    );
 
     public static final RpcMethodDescriptor<TReqReadFile.Builder, TRspReadFile> READ_FILE =
             apiServiceMethod("ReadFile", TReqReadFile::newBuilder, TRspReadFile.parser());

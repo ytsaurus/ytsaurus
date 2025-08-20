@@ -1,5 +1,6 @@
 package tech.ytsaurus.client.request;
 
+import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nullable;
@@ -47,18 +48,22 @@ public class SerializationContext<T> {
     }
 
     public SerializationContext(Class<T> objectClass) {
+        this(objectClass, null);
+    }
+
+    public SerializationContext(Class<T> objectClass, @Nullable TableAttachmentReader<T> attachmentReader) {
         this.objectClass = objectClass;
         if (isEntityAnnotationPresent(objectClass)) {
             this.skiffSerializer = new EntitySkiffSerializer<>(objectClass);
             this.rowsetFormat = ERowsetFormat.RF_FORMAT;
-            this.attachmentReader = TableAttachmentReader.skiff(skiffSerializer);
-            return;
-        }
-        if (Message.class.isAssignableFrom(objectClass)) {
+            this.attachmentReader = Objects.requireNonNullElseGet(attachmentReader,
+                    () -> TableAttachmentReader.skiff(skiffSerializer));
+        } else if (Message.class.isAssignableFrom(objectClass)) {
             Message.Builder messageBuilder = ProtoUtils.newBuilder(castToType(objectClass));
             this.rowsetFormat = ERowsetFormat.RF_FORMAT;
             this.format = Format.protobuf(messageBuilder);
-            this.attachmentReader = castToType(TableAttachmentReader.protobuf(messageBuilder));
+            this.attachmentReader = Objects.requireNonNullElseGet(attachmentReader,
+                    () -> castToType(TableAttachmentReader.protobuf(messageBuilder)));
         }
     }
 
