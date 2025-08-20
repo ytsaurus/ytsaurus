@@ -497,6 +497,7 @@ private:
 
             auto& replicas = it->second.Value();
             replicas.insert(replicas.end(), masterReplicas.begin(), masterReplicas.end());
+            RemoveDeadReplicas(replicas);
 
             SortUniqueBy(replicas, [] (const auto& replica) {
                 auto location = replica.GetPtr();
