@@ -22,6 +22,7 @@ import tech.ytsaurus.client.request.CompleteOperation;
 import tech.ytsaurus.client.request.CreateObject;
 import tech.ytsaurus.client.request.CreateShuffleReader;
 import tech.ytsaurus.client.request.CreateShuffleWriter;
+import tech.ytsaurus.client.request.CreateTablePartitionReader;
 import tech.ytsaurus.client.request.FreezeTable;
 import tech.ytsaurus.client.request.GcCollect;
 import tech.ytsaurus.client.request.GenerateTimestamps;
@@ -447,6 +448,15 @@ public interface ApiServiceClient extends TransactionalClient {
      * @return ShuffleDataReader that can be used to read shuffle rows.
      */
     CompletableFuture<AsyncReader<UnversionedRow>> createShuffleReader(CreateShuffleReader req);
+
+    /**
+     * Creates TablePartitionReader for reading partition rows.
+     *
+     * @param req A request to create Partition reader containing cookie and additional reading configs.
+     * @return TablePartitionReader that can be used to read partition rows.
+     */
+    <T> CompletableFuture<AsyncReader<T>> createTablePartitionReader(CreateTablePartitionReader<T> req);
+
 
     /**
      * @deprecated prefer to use {@link #resumeOperation(ResumeOperation)}

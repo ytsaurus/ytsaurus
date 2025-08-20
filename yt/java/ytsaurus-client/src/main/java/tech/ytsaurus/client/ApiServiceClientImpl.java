@@ -53,6 +53,7 @@ import tech.ytsaurus.client.request.CreateNode;
 import tech.ytsaurus.client.request.CreateObject;
 import tech.ytsaurus.client.request.CreateShuffleReader;
 import tech.ytsaurus.client.request.CreateShuffleWriter;
+import tech.ytsaurus.client.request.CreateTablePartitionReader;
 import tech.ytsaurus.client.request.ExistsNode;
 import tech.ytsaurus.client.request.FreezeTable;
 import tech.ytsaurus.client.request.GcCollect;
@@ -166,6 +167,7 @@ import tech.ytsaurus.rpcproxy.TReqGetInSyncReplicas;
 import tech.ytsaurus.rpcproxy.TReqModifyRows;
 import tech.ytsaurus.rpcproxy.TReqReadFile;
 import tech.ytsaurus.rpcproxy.TReqReadShuffleData;
+import tech.ytsaurus.rpcproxy.TReqReadTablePartition;
 import tech.ytsaurus.rpcproxy.TReqStartTransaction;
 import tech.ytsaurus.rpcproxy.TReqWriteFile;
 import tech.ytsaurus.rpcproxy.TReqWriteShuffleData;
@@ -174,6 +176,7 @@ import tech.ytsaurus.rpcproxy.TRspLookupRows;
 import tech.ytsaurus.rpcproxy.TRspMultiLookup;
 import tech.ytsaurus.rpcproxy.TRspReadFile;
 import tech.ytsaurus.rpcproxy.TRspReadShuffleData;
+import tech.ytsaurus.rpcproxy.TRspReadTablePartition;
 import tech.ytsaurus.rpcproxy.TRspSelectRows;
 import tech.ytsaurus.rpcproxy.TRspStartTransaction;
 import tech.ytsaurus.rpcproxy.TRspVersionedLookupRows;
@@ -597,6 +600,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
                 sendRequest(req, ApiServiceMethodTable.PARTITION_TABLES.createRequestBuilder(rpcOptions)),
                 response -> response.body().getPartitionsList().stream()
                         .map(p -> {
+                            TablePartitionCookie cookie = new TablePartitionCookie(p.getCookie());
                             List<YPath> tableRanges = p.getTableRangesList().stream()
                                     .map(ByteString::toStringUtf8)
                                     .map(RichYPathParser::parse)
@@ -605,7 +609,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
                                     p.getAggregateStatistics().getChunkCount(),
                                     p.getAggregateStatistics().getDataWeight(),
                                     p.getAggregateStatistics().getRowCount());
-                            return new MultiTablePartition(tableRanges, statistics);
+                            return new MultiTablePartition(tableRanges, cookie, statistics);
                         })
                         .collect(Collectors.toList())));
     }
@@ -1029,6 +1033,31 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         return result;
     }
 
+    @Override
+    public <T> CompletableFuture<AsyncReader<T>> createTablePartitionReader(CreateTablePartitionReader<T> req) {
+        TableAttachmentReader<T> attachmentReader = req.getSerializationContext().getAttachmentReader()
+                .orElseGet(() -> {
+                    YTreeSerializer<T> serializer = req.getSerializationContext().getYtreeSerializer()
+                            .orElseThrow(() -> new IllegalArgumentException("CreateTablePartitionReader: " +
+                                    "SerializationContext must have either attachmentReader or ytreeSerializer"));
+                    return new TablePartitionRowsetReader<>(
+                            serializationResolver.createWireRowDeserializer(serializer));
+                });
+
+        TablePartitionReaderImpl<T> partitionReader = new TablePartitionReaderImpl<>(attachmentReader);
+
+        RpcClientRequestBuilder<TReqReadTablePartition.Builder, TRspReadTablePartition> builder =
+                ApiServiceMethodTable.READ_TABLE_PARTITION.createRequestBuilder(rpcOptions);
+
+        req.writeHeaderTo(builder.header());
+        req.writeTo(builder.body());
+        CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, partitionReader);
+        CompletableFuture<AsyncReader<T>> result =
+                streamControlFuture.thenCompose(control -> partitionReader.waitMetadata());
+        RpcUtil.relayCancel(result, streamControlFuture);
+        return result;
+    }
+
     YTreeMapNode patchSpec(YTreeMapNode spec) {
         YTreeMapNode resultingSpec = spec;
 
@@ -1379,7 +1408,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
             if (req.getSerializationContext().getObjectClass().isEmpty()) {
                 throw new IllegalArgumentException("No object clazz");
             }
-            tableReader = new TableReaderImpl<>(req, req.getSerializationContext().getObjectClass().get());
+            tableReader = new TableReaderImpl<>(req.getSerializationContext().getObjectClass().get());
         }
 
         return setTableSchemaInSerializer(req)
@@ -1418,8 +1447,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
             if (req.getSerializationContext().getObjectClass().isEmpty()) {
                 throw new IllegalArgumentException("No object clazz");
             }
-            tableReader = new AsyncTableReaderImpl<>(req,
-                    req.getSerializationContext().getObjectClass().get());
+            tableReader = new AsyncTableReaderImpl<>(req.getSerializationContext().getObjectClass().get());
         }
 
         return setTableSchemaInSerializer(req)

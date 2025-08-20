@@ -3,19 +3,26 @@ package tech.ytsaurus.client.request;
 import java.util.ArrayList;
 import java.util.List;
 
+import tech.ytsaurus.client.TablePartitionCookie;
 import tech.ytsaurus.core.cypress.YPath;
 
 public class MultiTablePartition {
     private final List<YPath> tableRanges;
+    private final TablePartitionCookie cookie;
     private final AggregateStatistics statistics;
 
-    public MultiTablePartition(List<YPath> tableRanges, AggregateStatistics statistics) {
+    public MultiTablePartition(List<YPath> tableRanges, TablePartitionCookie cookie, AggregateStatistics statistics) {
         this.tableRanges = new ArrayList<>(tableRanges);
+        this.cookie = cookie;
         this.statistics = statistics;
     }
 
     public List<YPath> getTableRanges() {
         return tableRanges;
+    }
+
+    public TablePartitionCookie getCookie() {
+        return cookie;
     }
 
     public AggregateStatistics getStatistics() {

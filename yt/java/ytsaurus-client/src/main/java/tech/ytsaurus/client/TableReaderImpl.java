@@ -10,7 +10,6 @@ import javax.annotation.Nullable;
 
 import NYT.NChunkClient.NProto.DataStatistics;
 import com.google.protobuf.Parser;
-import tech.ytsaurus.client.request.ReadTable;
 import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.rows.YTreeRowSerializer;
@@ -83,7 +82,7 @@ class TableReaderBaseImpl<T> extends StreamReaderImpl<TRspReadTable> {
 }
 
 class TableReaderImpl<T> extends TableReaderBaseImpl<T> implements TableReader<T> {
-    TableReaderImpl(ReadTable<T> req, Class<T> objectClazz) {
+    TableReaderImpl(Class<T> objectClazz) {
         super(objectClazz);
     }
 
@@ -153,7 +152,7 @@ class TableReaderImpl<T> extends TableReaderBaseImpl<T> implements TableReader<T
 
 class AsyncTableReaderImpl<T> extends TableReaderBaseImpl<T> implements AsyncReader<T> {
 
-    AsyncTableReaderImpl(ReadTable<T> req, Class<T> objectClazz) {
+    AsyncTableReaderImpl(Class<T> objectClazz) {
         super(objectClazz);
     }
 

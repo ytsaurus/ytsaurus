@@ -32,6 +32,7 @@ import tech.ytsaurus.client.request.CreateNode;
 import tech.ytsaurus.client.request.CreateObject;
 import tech.ytsaurus.client.request.CreateShuffleReader;
 import tech.ytsaurus.client.request.CreateShuffleWriter;
+import tech.ytsaurus.client.request.CreateTablePartitionReader;
 import tech.ytsaurus.client.request.ExistsNode;
 import tech.ytsaurus.client.request.FreezeTable;
 import tech.ytsaurus.client.request.GcCollect;
@@ -630,6 +631,11 @@ public class MockYTsaurusClient implements BaseYTsaurusClient {
     @Override
     public CompletableFuture<AsyncReader<UnversionedRow>> createShuffleReader(CreateShuffleReader req) {
         return (CompletableFuture<AsyncReader<UnversionedRow>>) callMethod("createShuffleReader");
+    }
+
+    @Override
+    public CompletableFuture<AsyncReader<UnversionedRow>> createTablePartitionReader(CreateTablePartitionReader req) {
+        return (CompletableFuture<AsyncReader<UnversionedRow>>) callMethod("createTablePartitionReader");
     }
 
     private CompletableFuture<?> callMethod(String methodName) {
