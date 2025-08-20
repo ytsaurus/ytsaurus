@@ -3129,29 +3129,31 @@ TEST_F(TQueryEvaluateTest, GroupByBool)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, GroupByString)
+TEST_F(TQueryEvaluateTest, GroupByKeyTypes)
 {
     auto split = MakeSplit({
-        {"a", EValueType::Int64, ESortOrder::Ascending},
-        {"s", EValueType::String}
+        {"i", EValueType::Int64, ESortOrder::Ascending},
+        {"s", EValueType::String},
+        {"l", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
+        {"a", EValueType::Any},
     });
 
     auto source = TSource{
-        R"(a=42;s="d")",
+        R"(i=42;s="d";l=[4;];a="d")",
 
-        R"(a=1;s="a")",
-        R"(a=2;s="b")",
-        R"(a=3;s="c")",
+        R"(i=1;s="a";l=[1;];a="a")",
+        R"(i=2;s="b";l=[2;];a="b")",
+        R"(i=3;s="c";l=[3;];a="c")",
 
-        R"(a=42;s="d")",
+        R"(i=42;s="d";l=[4;];a="d")",
 
-        R"(a=4;s="a")",
-        R"(a=5;s="b")",
-        R"(a=6;s="c")",
+        R"(i=4;s="a";l=[1;];a="a")",
+        R"(i=5;s="b";l=[2;];a="b")",
+        R"(i=6;s="c";l=[3;];a="c")",
 
-        R"(a=7;s="a")",
-        R"(a=8;s="b")",
-        R"(a=9;s="c")",
+        R"(i=7;s="a";l=[1;];a="a")",
+        R"(i=8;s="b";l=[2;];a="b")",
+        R"(i=9;s="c";l=[3;];a="c")",
     };
 
     auto resultSplit = MakeSplit({
@@ -3166,7 +3168,7 @@ TEST_F(TQueryEvaluateTest, GroupByString)
     }, resultSplit);
 
     Evaluate(
-        "sum(a) as t, s FROM [//t] group by s order by s limit 3",
+        "sum(i) as t, s FROM [//t] group by s, l, a order by s, l, a limit 3",
         split,
         source,
         ResultMatcher(result));

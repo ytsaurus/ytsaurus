@@ -42,6 +42,7 @@ EValueType ComparableTypes[] = {
     EValueType::Double,
     EValueType::String,
     EValueType::Any,
+    EValueType::Composite,
 };
 
 ////////////////////////////////////////////////////////////////////////////////

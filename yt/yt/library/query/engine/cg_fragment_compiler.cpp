@@ -836,18 +836,17 @@ llvm::GlobalVariable* TComparerManager::GetLabelsArray(
                 labels.push_back(valueTypeLabels.OnDouble);
                 break;
 
-            case EValueType::String: {
+            case EValueType::String:
                 labels.push_back(valueTypeLabels.OnString);
                 break;
-            }
 
-            case EValueType::Any: {
+            case EValueType::Composite:
+            case EValueType::Any:
                 labels.push_back(valueTypeLabels.OnAny);
                 break;
-            }
 
             default:
-                YT_ABORT();
+                THROW_ERROR_EXCEPTION("Unexpected type %Qlv encountered in comparer manager", type);
         }
         id.AddPointer(labels.back());
     }
