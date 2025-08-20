@@ -188,7 +188,7 @@ RUN for package in client yson local native_driver; \
     python3.12 -m pip install ${wheel_path} --break-system-packages; \
   done
 
-RUN python3.12 -m pip install packaging==24.1
+RUN python3.12 -m pip install packaging==24.1 --break-system-packages
 
 RUN ln -s /usr/local/bin/yt /usr/bin/yt -f
 
