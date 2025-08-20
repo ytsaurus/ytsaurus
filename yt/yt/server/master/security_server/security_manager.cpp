@@ -2247,11 +2247,10 @@ public:
             this,
             user,
             permission,
-            options,
-            Logger());
+            &options);
 
         if (!checker.ShouldProceed()) {
-            return checker.GetResponse();
+            return std::move(checker).GetResponse();
         }
 
         auto* owner = GetObjectOwner(object, options.FirstObjectAcdOverride.Owner());
@@ -2302,7 +2301,7 @@ public:
         }
 
         CheckPermissionTimeCounter_.Add(checkPermissionTimer.GetElapsedTime());
-        return checker.GetResponse();
+        return std::move(checker).GetResponse();
     }
 
     TSubject* GetObjectOwner(
@@ -2331,11 +2330,10 @@ public:
             this,
             user,
             permission,
-            options,
-            Logger());
+            &options);
 
         if (!checker.ShouldProceed()) {
-            return checker.GetResponse();
+            return std::move(checker).GetResponse();
         }
 
         for (const auto& ace : acl.Entries) {
@@ -2345,7 +2343,7 @@ public:
             }
         }
 
-        return checker.GetResponse();
+        return std::move(checker).GetResponse();
     }
 
     bool IsSuperuser(const TUser* user) const override
@@ -2827,14 +2825,15 @@ public:
         }
 
         const auto& queueManager = Bootstrap_->GetGroundUpdateQueueManager();
-        if (IsObjectAlive(object)) {
+        // TODO(danilalexeev): YT-24575. Check 'IsObjectAlive(object)' here.
+        if (acd->GetOwner()) {
             queueManager->EnqueueWrite(NRecords::TAcls{
                 .Key = {.NodeId = object->GetId()},
                 .Acl = ConvertToYsonString(acd->Acl()),
                 .Inherit = acd->Inherit(),
             });
         } else {
-            // Object is being removed.
+            // A missing owner indicates that an object is being removed.
             queueManager->EnqueueDelete(NRecords::TAclsKey{
                 .NodeId = object->GetId(),
             });
@@ -4544,27 +4543,31 @@ private:
     }
 
     class TPermissionChecker
-        : public NSecurityServer::TPermissionChecker
     {
-    private:
-        using TBase = NSecurityServer::TPermissionChecker;
-
     public:
         TPermissionChecker(
             TSecurityManager* impl,
             TUser* user,
             EPermission permission,
-            const TPermissionCheckOptions& options,
-            TLogger logger)
-            : NSecurityServer::TPermissionChecker(permission, options, std::move(logger))
-            , SecurityManager_(impl)
-            , User_(user)
+            const TPermissionCheckOptions* options)
+            : MatchAceSubjectCallback_(user, impl->GetOwnerUser())
+            , Underlying_(permission, MatchAceSubjectCallback_, options)
         {
-            if (auto fastAction = FastCheckPermission(); fastAction != ESecurityAction::Undefined) {
-                Response_ = MakeFastCheckPermissionResponse(fastAction, options);
-                Proceed_ = false;
-                return;
+            YT_LOG_ALERT_IF(
+                PopCount(permission) > 1 && Any(permission & EPermission::FullRead),
+                "Checking \"full_read\" and some other permission (FullPermissions: %Qlv)",
+                permission);
+
+            if (auto fastAction = FastCheckPermission(user, permission, impl);
+                fastAction != ESecurityAction::Undefined)
+            {
+                FastCheckResponse_ = MakeFastCheckPermissionResponse(fastAction, *options);
             }
+        }
+
+        bool ShouldProceed() const
+        {
+            return !FastCheckResponse_.has_value() && Underlying_.ShouldProceed();
         }
 
         void ProcessAce(
@@ -4573,93 +4576,113 @@ private:
             TObject* object,
             int depth)
         {
-            auto matchAceSubjectCallback = BIND(
-                &TPermissionChecker::AdjustAndMatchAceSubject, this, owner);
+            if (auto error = NSecurityClient::CheckAceCorrect(ace); !error.IsOK()) {
+                YT_LOG_ALERT(
+                    error,
+                    "Got invalid ACE; skipping");
+                return;
+            }
 
-            return TBase::ProcessAce(
-                ace,
-                matchAceSubjectCallback,
-                GetObjectId(object),
-                depth);
+            MatchAceSubjectCallback_.SetOwnerSubjectOverride(owner);
+            return Underlying_.ProcessAce(ace, GetObjectId(object), depth);
+        }
+
+        TPermissionCheckResponse GetResponse() &&
+        {
+            if (FastCheckResponse_.has_value()) {
+                return std::move(*FastCheckResponse_);
+            }
+            return std::move(Underlying_).GetResponse();
         }
 
     private:
-        TSecurityManager* const SecurityManager_;
-        TUser* const User_;
+        class TAdjustAndMatchAceSubjectCallback
+        {
+        public:
+            DEFINE_BYVAL_RW_PROPERTY(TSubject*, OwnerSubjectOverride);
 
-        ESecurityAction FastCheckPermission()
+        public:
+            TAdjustAndMatchAceSubjectCallback(TUser* user, TSubject* builtinOwnerSubject)
+                : User_(user)
+                , BuiltinOwnerSubject_(builtinOwnerSubject)
+            { }
+
+            TSubjectId operator()(TRawObjectPtr<TSubject> subject) const
+            {
+                auto* adjustedSubject = subject == BuiltinOwnerSubject_ && OwnerSubjectOverride_
+                    ? OwnerSubjectOverride_
+                    : subject.Get();
+                if (!adjustedSubject) {
+                    return NullObjectId;
+                }
+
+                if (!CheckSubjectMatch(adjustedSubject, User_)) {
+                    return NullObjectId;
+                }
+
+                return adjustedSubject->GetId();
+            }
+
+        private:
+            TUser* const User_;
+            TSubject* const BuiltinOwnerSubject_;
+
+            static bool CheckSubjectMatch(TSubject* subject, TUser* user)
+            {
+                switch (subject->GetType()) {
+                    case EObjectType::User:
+                        return subject == user;
+
+                    case EObjectType::Group: {
+                        auto* subjectGroup = subject->AsGroup();
+                        return user->RecursiveMemberOf().find(subjectGroup) != user->RecursiveMemberOf().end();
+                    }
+
+                    default:
+                        YT_ABORT();
+                }
+            }
+        };
+        TAdjustAndMatchAceSubjectCallback MatchAceSubjectCallback_;
+
+        using TChecker = NSecurityServer::TPermissionChecker<
+            TAccessControlEntry,
+            const TAdjustAndMatchAceSubjectCallback&>;
+        TChecker Underlying_;
+
+        std::optional<TPermissionCheckResponse> FastCheckResponse_;
+
+        static ESecurityAction FastCheckPermission(
+            TUser* user,
+            EPermission permission,
+            TSecurityManager* securityManager)
         {
             // "replicator", though being superuser, can only read in safe mode.
-            if (User_ == SecurityManager_->ReplicatorUser_ &&
-                !IsOnlyReadRequested() &&
-                SecurityManager_->IsSafeMode())
+            if (user == securityManager->ReplicatorUser_ &&
+                !IsOnlyReadPermissionSet(permission) &&
+                securityManager->IsSafeMode())
             {
                 return ESecurityAction::Deny;
             }
 
             // Banned users are denied any permission.
-            if (User_->GetBanned()) {
+            if (user->GetBanned()) {
                 return ESecurityAction::Deny;
             }
 
             // "root" and "superusers" need no authorization.
-            if (SecurityManager_->IsSuperuser(User_)) {
+            if (securityManager->IsSuperuser(user)) {
                 return ESecurityAction::Allow;
             }
 
             // Non-reads are forbidden in safe mode.
-            if (!IsOnlyReadRequested() &&
-                SecurityManager_->Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode)
+            if (!IsOnlyReadPermissionSet(permission) &&
+                securityManager->IsSafeMode())
             {
                 return ESecurityAction::Deny;
             }
 
             return ESecurityAction::Undefined;
-        }
-
-        TSubjectId AdjustAndMatchAceSubject(TSubject* owner, TRawObjectPtr<TSubject> subject)
-        {
-            auto* adjustedSubject = subject == SecurityManager_->GetOwnerUser() && owner
-                ? owner
-                : subject.Get();
-            if (!adjustedSubject) {
-                return NullObjectId;
-            }
-
-            if (!CheckSubjectMatch(adjustedSubject, User_)) {
-                return NullObjectId;
-            }
-
-            return adjustedSubject->GetId();
-        }
-
-        static TPermissionCheckResponse MakeFastCheckPermissionResponse(ESecurityAction action, const TPermissionCheckOptions& options)
-        {
-            TPermissionCheckResponse response;
-            response.Action = action;
-            if (options.Columns) {
-                response.Columns = std::vector<TPermissionCheckResult>(options.Columns->size());
-                for (size_t index = 0; index < options.Columns->size(); ++index) {
-                    (*response.Columns)[index].Action = action;
-                }
-            }
-            return response;
-        }
-
-        static bool CheckSubjectMatch(TSubject* subject, TUser* user)
-        {
-            switch (subject->GetType()) {
-                case EObjectType::User:
-                    return subject == user;
-
-                case EObjectType::Group: {
-                    auto* subjectGroup = subject->AsGroup();
-                    return user->RecursiveMemberOf().find(subjectGroup) != user->RecursiveMemberOf().end();
-                }
-
-                default:
-                    YT_ABORT();
-            }
         }
     };
 

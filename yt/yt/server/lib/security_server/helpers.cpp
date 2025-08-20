@@ -125,6 +125,16 @@ std::optional<EAceInheritanceMode> GetInheritedInheritanceMode(EAceInheritanceMo
     }
 }
 
+std::string FormatCypressNodeName(const std::string& name)
+{
+    return Format("node %v", name);
+}
+
+bool IsOnlyReadPermissionSet(EPermissionSet permissionMask)
+{
+    return None(permissionMask & ~(EPermission::Read | EPermission::FullRead));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSequoiaServer

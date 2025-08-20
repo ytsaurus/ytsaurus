@@ -13,6 +13,35 @@ namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TNode>
+class INodeVisitor
+{
+public:
+    virtual ~INodeVisitor() = default;
+
+    virtual void OnNodeEntered(const TNode& /*node*/) = 0;
+
+    virtual void OnNodeExited(const TNode& /*node*/) = 0;
+
+    //! Determines if the traversal should continue or termintate early.
+    //! Called on each node visit (after #OnNodeEntered).
+    virtual bool ShouldContinue() = 0;
+};
+
+// Simulates an in-order tree traversal using a precomputed sequence of nodes.
+template <std::ranges::input_range TNodeRange, class TCallback>
+    requires CInvocable<
+        TCallback,
+        bool(
+            const std::ranges::range_value_t<TNodeRange>&,
+            const std::ranges::range_value_t<TNodeRange>&)>
+void TraverseSequoiaTree(
+    TNodeRange&& treeTraversal,
+    INodeVisitor<std::ranges::range_value_t<TNodeRange>>* visitor,
+    TCallback isParent);
+
+////////////////////////////////////////////////////////////////////////////////
+
 void VisitSequoiaTree(
     NCypressClient::TNodeId rootId,
     int maxDepth,
@@ -33,3 +62,7 @@ void VisitSequoiaTree(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressProxy
+
+#define SEQUOIA_TREE_VISITOR_H
+#include "sequoia_tree_visitor-inl.h"
+#undef SEQUOIA_TREE_VISITOR_H

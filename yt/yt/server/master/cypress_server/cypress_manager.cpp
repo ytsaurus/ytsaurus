@@ -4844,7 +4844,7 @@ void TNodeTypeHandler::DoRecreateObjectAsGhost(TCypressNode* node) noexcept
 
 std::string TNodeTypeHandler::DoGetName(const TCypressNode* node)
 {
-    return Format("node %v", DoGetPath(node));
+    return FormatCypressNodeName(DoGetPath(node));
 }
 
 NYPath::TYPath TNodeTypeHandler::DoGetPath(const TCypressNode* node)

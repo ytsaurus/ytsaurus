@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
 
+#include <yt/yt/client/security_client/acl.h>
+
 #include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NCypressProxy {
@@ -31,6 +33,8 @@ DECLARE_REFCOUNTED_CLASS(TUserDirectory)
 DECLARE_REFCOUNTED_CLASS(TPerUserAndWorkloadRequestQueueProvider);
 
 DECLARE_REFCOUNTED_STRUCT(IMasterConnector)
+
+DECLARE_REFCOUNTED_CLASS(TAcdFetcher);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -116,6 +120,13 @@ struct TCypressChildDescriptor
     std::string ChildKey;
 };
 
+struct TAccessControlDescriptor
+{
+    NCypressClient::TNodeId NodeId;
+    NSecurityClient::TSerializableAccessControlList Acl;
+    bool Inherit = false;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 /*!
@@ -138,6 +149,17 @@ struct TProgenitorTransactionCache
     // Key: (parent ID, child key).
     THashMap<std::pair<NCypressClient::TNodeId, std::string>, NCypressClient::TTransactionId> Child;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSubjectDescriptor;
+using TSubjectDescriptorPtr = std::shared_ptr<const TSubjectDescriptor>;
+
+using TGroupDescriptor = TSubjectDescriptor;
+using TGroupDescriptorPtr = TSubjectDescriptorPtr;
+
+struct TUserDescriptor;
+using TUserDescriptorPtr = std::shared_ptr<const TUserDescriptor>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

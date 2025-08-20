@@ -212,6 +212,7 @@ private:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto& rootService = objectManager->GetRootService();
+        // TODO(danilalexeev): YT-24358. Support permission validation.
         auto rsp = SyncExecuteVerb(rootService, req);
         auto rootstockNodeId = FromProto<TNodeId>(rsp->node_id());
 

@@ -1043,7 +1043,7 @@ private:
     void MaybeSyncWithMaster() const
     {
         const auto& config = Owner_->Bootstrap_->GetConfig()->Testing;
-        if (!config->EnableUserDirectorySync &&
+        if (!config->EnableUserDirectoryPerRequestSync &&
             !config->EnableGroundUpdateQueuesSync)
         {
             return;
@@ -1051,12 +1051,12 @@ private:
 
         YT_LOG_DEBUG(
             "Synchronizing with master before Sequoia request invocation "
-            "(UserDirectorySync: %v, GroundUpdateQueuesSync: %v)",
-            config->EnableUserDirectorySync,
+            "(UserDirectoryPerRequestSync: %v, GroundUpdateQueuesSync: %v)",
+            config->EnableUserDirectoryPerRequestSync,
             config->EnableGroundUpdateQueuesSync);
 
         std::vector<TFuture<void>> futures;
-        if (config->EnableUserDirectorySync) {
+        if (config->EnableUserDirectoryPerRequestSync) {
             const auto& userDirectorySynchronizer = Owner_->Bootstrap_->GetUserDirectorySynchronizer();
             futures.push_back(userDirectorySynchronizer->NextSync(true));
         }
@@ -1074,8 +1074,16 @@ private:
     {
         const auto& connection = Owner_->Bootstrap_->GetNativeConnection();
         const auto& masterCellDirectory = connection->GetMasterCellDirectory();
-        auto cellTagsToSyncWith = masterCellDirectory->GetMasterCellTagsWithRole(
+        auto cypressNodeHostCellTags = masterCellDirectory->GetMasterCellTagsWithRole(
             NCellMasterClient::EMasterCellRole::CypressNodeHost);
+        auto sequoiaNodeHostCellTags = masterCellDirectory->GetMasterCellTagsWithRole(
+            NCellMasterClient::EMasterCellRole::SequoiaNodeHost);
+        // TODO(danilalexeev): Ensure sets are disjoint.
+        auto cellTagsToSyncWith = std::ranges::join_view(
+            std::array{
+                cypressNodeHostCellTags | std::views::all,
+                sequoiaNodeHostCellTags | std::views::all,
+            });
 
         const auto& config = Owner_->Bootstrap_->GetConfig()->Testing;
 

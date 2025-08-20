@@ -39,6 +39,10 @@ std::optional<NSecurityClient::EAceInheritanceMode> GetInheritedInheritanceMode(
     NSecurityClient::EAceInheritanceMode mode,
     int depth);
 
+std::string FormatCypressNodeName(const std::string& name);
+
+bool IsOnlyReadPermissionSet(NYTree::EPermissionSet permissionMask);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityServer

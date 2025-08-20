@@ -27,11 +27,6 @@ struct TSubjectDescriptor
     bool operator==(const TSubjectDescriptor& other) const = default;
 };
 
-using TSubjectDescriptorPtr = std::shared_ptr<const TSubjectDescriptor>;
-
-using TGroupDescriptor = TSubjectDescriptor;
-using TGroupDescriptorPtr = TSubjectDescriptorPtr;
-
 struct TUserDescriptor
     : public TSubjectDescriptor
 {
@@ -42,8 +37,6 @@ struct TUserDescriptor
 
     bool operator==(const TUserDescriptor& other) const = default;
 };
-
-using TUserDescriptorPtr = std::shared_ptr<const TUserDescriptor>;
 
 void FromProto(TSubjectDescriptor* subjectDescriptor, const NObjectClient::NProto::TSubjectDescriptor& proto);
 void FromProto(TUserDescriptor* userDescriptor, const NObjectClient::NProto::TUserDescriptor& proto);

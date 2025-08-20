@@ -3354,6 +3354,19 @@ class TestTablesSequoia(TestTablesMirroredTx):
         "15": {"roles": ["sequoia_node_host"]},
     }
 
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "sequoia_manager": {
+            "enable_ground_update_queues": True
+        },
+    }
+
+    DELTA_CYPRESS_PROXY_CONFIG = {
+        "testing": {
+            "enable_ground_update_queues_sync": True,
+            "enable_user_directory_per_request_sync": True,
+        },
+    }
+
     @authors("kvk1920")
     def test_read_table_in_sequoia(self):
         content = [{"a": i * 2 - 1, "b": i * 2} for i in range(50)]

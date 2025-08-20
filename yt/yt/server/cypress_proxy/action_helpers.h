@@ -89,6 +89,11 @@ void RemoveSelectedSubtree(
     NCypressClient::TNodeId subtreeParentId = {},
     const NApi::TSuppressableAccessTrackingOptions& options = {});
 
+//! Lookup ACDs in Sequoia table. Returns std::nullopt for missing records.
+std::vector<std::optional<TAccessControlDescriptor>> FetchAcds(
+    TRange<NCypressClient::TNodeId> nodeIds,
+    const NSequoiaClient::ISequoiaTransactionPtr& transaction);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressProxy
