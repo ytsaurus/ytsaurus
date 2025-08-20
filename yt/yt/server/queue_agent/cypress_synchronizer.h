@@ -33,7 +33,7 @@ ICypressSynchronizerPtr CreateCypressSynchronizer(
     IInvokerPtr controlInvoker,
     NQueueClient::TDynamicStatePtr dynamicState,
     NHiveClient::TClientDirectoryPtr clientDirectory,
-    NAlertManager::IAlertCollectorPtr alertCollector);
+    TCallback<NAlertManager::IAlertCollectorPtr()> createAlertCollectorCallback);
 
 ////////////////////////////////////////////////////////////////////////////////
 
