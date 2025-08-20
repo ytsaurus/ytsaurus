@@ -1017,7 +1017,9 @@ private:
                 }
 
                 return chunkReplicaFetcher->GetChunkReplicasAsync({TEphemeralObjectPtr<TChunk>(chunk)})
-                    .Apply(BIND([=, this_ = MakeStrong(this)] (const TChunkLocationPtrWithReplicaInfoList& replicas) {
+                    .Apply(BIND([=, this_ = MakeStrong(this)] (TChunkLocationPtrWithReplicaInfoList replicas) {
+                        RemoveDeadReplicas(replicas);
+
                         auto statuses = chunkReplicator->ComputeChunkStatuses(chunk, replicas);
 
                         return BuildYsonStringFluently().DoMapFor(
