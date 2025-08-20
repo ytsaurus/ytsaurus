@@ -162,7 +162,7 @@ void TApiServiceDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("formats", &TThis::Formats)
         .Default();
     registrar.Parameter("enable_allocation_tags", &TThis::EnableAllocationTags)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("multiproxy", &TThis::Multiproxy)
         .DefaultNew();
     registrar.Parameter("query_feature_toggles", &TThis::QueryFeatureToggles)
