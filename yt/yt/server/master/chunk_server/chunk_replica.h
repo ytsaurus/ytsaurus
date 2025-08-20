@@ -214,6 +214,10 @@ NChunkClient::TChunkIdWithIndexes ToChunkIdWithIndexes(TChunkPtrWithReplicaAndMe
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void RemoveDeadReplicas(TChunkLocationPtrWithReplicaInfoList& replicas);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TSequoiaChunkReplica
 {
     NChunkClient::TChunkId ChunkId = NObjectClient::NullObjectId;
