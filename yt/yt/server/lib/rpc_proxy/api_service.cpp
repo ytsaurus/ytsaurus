@@ -1139,7 +1139,7 @@ private:
             multiproxyTargetCluster,
             identity,
             connection,
-            TClientOptions::FromAuthenticationIdentity(identity));
+            NNative::TClientOptions::FromAuthenticationIdentity(identity));
 
         if (!client) {
             THROW_ERROR_EXCEPTION("No client found for identity %Qv", identity);

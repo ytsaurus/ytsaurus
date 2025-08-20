@@ -175,7 +175,7 @@ public:
             WriterConfig_->UploadReplicationFactor,
             WriterOptionsTemplate_->ReplicationFactor);
 
-        RemoteClient_ = RemoteConnection_->CreateNativeClient(TClientOptions::FromUser(Host_->GetAuthenticatedUser()));
+        RemoteClient_ = RemoteConnection_->CreateNativeClient(NNative::TClientOptions::FromUser(Host_->GetAuthenticatedUser()));
 
         for (const auto& dataSliceDescriptor : DataSliceDescriptors_) {
             TotalChunkCount_ += dataSliceDescriptor.ChunkSpecs.size();

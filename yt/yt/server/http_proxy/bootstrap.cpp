@@ -385,7 +385,7 @@ bool TBootstrap::IsChytApiServerAddress(const NNet::TNetworkAddress& address) co
 
 void TBootstrap::SetupClients()
 {
-    auto options = TClientOptions::FromUser(NSecurityClient::RootUserName);
+    auto options = NApi::TClientOptions::FromUser(NSecurityClient::RootUserName);
     RootClient_ = Connection_->CreateClient(options);
 
     NLogging::GetDynamicTableLogWriterFactory()->SetClient(RootClient_);

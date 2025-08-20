@@ -480,7 +480,7 @@ private:
 
             THashMap<TString, NApi::NNative::IClientPtr> queryClients;
             for (const auto& clusterName : clustersResult.Clusters) {
-                queryClients[clusterName] = ClusterDirectory_->GetConnectionOrThrow(clusterName)->CreateNativeClient(NApi::TClientOptions::FromUser(user));
+                queryClients[clusterName] = ClusterDirectory_->GetConnectionOrThrow(clusterName)->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(user));
             }
 
             auto token = IssueToken(queryId, user, clustersResult.Clusters, queryClients, Config_->TokenExpirationTimeout, Config_->IssueTokenAttempts);

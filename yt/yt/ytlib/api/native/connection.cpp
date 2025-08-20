@@ -82,6 +82,7 @@
 #include <yt/yt/ytlib/transaction_client/clock_manager.h>
 
 #include <yt/yt/ytlib/sequoia_client/client.h>
+#include <yt/yt/ytlib/sequoia_client/ground_channel_wrapper.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
@@ -546,9 +547,9 @@ public:
         return Options_.ConnectionInvoker;
     }
 
-    NApi::IClientPtr CreateClient(const TClientOptions& options) override
+    NApi::IClientPtr CreateClient(const NApi::TClientOptions& options) override
     {
-        return NNative::CreateClient(this, options, MemoryTracker_);
+        return NNative::CreateClient(this, TClientOptions(options), MemoryTracker_);
     }
 
     void ClearMetadataCaches() override
@@ -984,12 +985,15 @@ public:
 
         // Slow path: create a new client.
         auto config = Config_.Acquire()->SequoiaConnection;
-        auto localClient = config ? CreateNativeClient(TClientOptions::Root()) : IClientPtr();
+        auto localClient = config ? CreateNativeClient(NNative::TClientOptions::Root()) : IClientPtr();
         auto groundClientFuture = [&] () -> TFuture<IClientPtr> {
             if (config) {
                 return InsistentGetRemoteConnection(this, config->GroundClusterName)
                     .Apply(BIND([] (const IConnectionPtr& groundConnection) {
-                        return groundConnection->CreateNativeClient(TClientOptions::Root());
+                        auto options = NNative::TClientOptions::Root();
+                        options.ChannelWrapper = BIND_NO_PROPAGATE(NSequoiaClient::WrapGroundChannel);
+                        options.ChannelFactoryWrapper = BIND_NO_PROPAGATE(NSequoiaClient::WrapGroundChannelFactory);
+                        return groundConnection->CreateNativeClient(options);
                     }));
             } else {
                 return MakeFuture<IClientPtr>(TError("Sequoia is not configured"));
@@ -1339,7 +1343,7 @@ private:
             const auto& stages = config->QueryTracker->Stages;
             if (auto iter = stages.find(stage); iter != stages.end()) {
                 const auto& stage = iter->second;
-                auto client = NNative::CreateClient(clusterConnection, TClientOptions::FromUser(stage->User));
+                auto client = NNative::CreateClient(clusterConnection, NNative::TClientOptions::FromUser(stage->User));
                 return {client, stage};
             }
 

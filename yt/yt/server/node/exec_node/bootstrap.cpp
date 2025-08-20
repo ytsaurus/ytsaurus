@@ -234,7 +234,7 @@ public:
             connection->GetNodeDirectorySynchronizer()->Start();
             connection->GetClusterDirectorySynchronizer()->Start();
 
-            auto clientOptions = NYT::NApi::TClientOptions::FromUser(NSecurityClient::RootUserName);
+            auto clientOptions = NYT::NApi::NNative::TClientOptions::FromUser(NSecurityClient::RootUserName);
             auto client = connection->CreateNativeClient(clientOptions);
 
             auto blockCacheConfig = New<TBlockCacheConfig>();

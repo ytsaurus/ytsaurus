@@ -213,7 +213,7 @@ public:
     MOCK_METHOD(void, RegisterShuffleService, (const std::string&), (override));
     MOCK_METHOD(NSignature::ISignatureGeneratorPtr, GetSignatureGenerator, (), (const, override));
     MOCK_METHOD(void, SetSignatureGenerator, (NSignature::ISignatureGeneratorPtr), (override));
-    MOCK_METHOD(NApi::NNative::IClientPtr, CreateNativeClient, (const NApi::TClientOptions& options), (override));
+    MOCK_METHOD(NApi::NNative::IClientPtr, CreateNativeClient, (const NApi::NNative::TClientOptions& options), (override));
 
     const NApi::NNative::TConnectionStaticConfigPtr& GetStaticConfig() const override;
     const NNodeTrackerClient::TNetworkPreferenceList& GetNetworks() const override;

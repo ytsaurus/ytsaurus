@@ -603,7 +603,7 @@ public:
             TBatchSizeLimiter(Config_->ArchiveBatchSize),
             Config_->ArchiveBatchTimeout))
         , Client_(Bootstrap_->GetClient()->GetNativeConnection()
-            ->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::OperationsCleanerUserName)))
+            ->CreateNativeClient(NNative::TClientOptions::FromUser(NSecurityClient::OperationsCleanerUserName)))
     {
         SetupSensors();
     }

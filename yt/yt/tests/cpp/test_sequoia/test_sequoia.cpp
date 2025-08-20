@@ -814,9 +814,9 @@ TEST_F(TSequoiaTest, TestResponseKeeper)
         const auto& error = responses[i].Get();
         if (error.IsOK()) {
             ++(i < RequestCount / 2 ? okWithoutRetries : okWithRetries);
-        } else if (error.GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError && i < RequestCount / 2) {
+        } else if (error.GetNonTrivialCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError && i < RequestCount / 2) {
             ++sequoiaRetriableErrors;
-        } else if (error.GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError) {
+        } else if (error.GetNonTrivialCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError) {
             YT_LOG_FATAL(error, "Unexpected retriable error when retries were enabled");
         } else {
             YT_LOG_FATAL(error, "Unexpected error");
@@ -845,7 +845,7 @@ TEST_F(TSequoiaTest, TestNodeReplacementAtomicity)
         WaitFor(Client_->CreateNode("//sequoia/a", EObjectType::MapNode))
             .ThrowOnError();
 
-        YT_LOG_DEBUG("Node \"//sequoia/a\" craeted");
+        YT_LOG_DEBUG("Node \"//sequoia/a\" created");
 
         auto barrier = NewPromise<void>();
         auto conncurrentReplaceFuture = BIND([client = Client_, barrier = barrier.ToFuture()] () {

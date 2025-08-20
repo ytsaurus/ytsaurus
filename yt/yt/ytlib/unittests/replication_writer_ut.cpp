@@ -475,7 +475,7 @@ public:
             Invoker,
             MemoryTracker);
 
-        EXPECT_CALL(*Connection, CreateNativeClient).WillRepeatedly([this] (const NApi::TClientOptions& options) -> NApi::NNative::IClientPtr
+        EXPECT_CALL(*Connection, CreateNativeClient).WillRepeatedly([this] (const NApi::NNative::TClientOptions& options) -> NApi::NNative::IClientPtr
             {
                 return New<NApi::NNative::TClient>(Connection, options, MemoryTracker);
             });
@@ -486,7 +486,7 @@ public:
         EXPECT_CALL(*Connection, GetPrimaryMasterCellTag).Times(testing::AtLeast(1));
         EXPECT_CALL(*Connection, GetSecondaryMasterCellTags).Times(testing::AtLeast(1));
 
-        auto client = Connection->CreateNativeClient(NApi::TClientOptions::FromUser("test_user"));
+        auto client = Connection->CreateNativeClient(NApi::NNative::TClientOptions::FromUser("test_user"));
 
         auto config = New<TReplicationWriterConfig>();
         config->NodePingPeriod = TDuration::Seconds(1);

@@ -4,6 +4,7 @@
 #include "log_tailer.h"
 
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/options.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
@@ -54,7 +55,7 @@ void TBootstrap::Run()
 
     Connection_ = CreateConnection(Config_->ClusterConnection);
 
-    auto clientOptions = NApi::TClientOptions::FromUser(Config_->ClusterUser);
+    auto clientOptions = NApi::NNative::TClientOptions::FromUser(Config_->ClusterUser);
     Client_ = Connection_->CreateNativeClient(clientOptions);
 
     LogTailer_->Run();

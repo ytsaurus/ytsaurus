@@ -31,7 +31,7 @@ public:
         const std::optional<std::string>& targetCluster,
         const NRpc::TAuthenticationIdentity& identity,
         const NApi::NNative::IConnectionPtr& connection,
-        const NApi::TClientOptions& options);
+        const NApi::NNative::TClientOptions& options);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMulticonnectionClientCache)

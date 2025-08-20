@@ -1,6 +1,7 @@
 #pragma once
 
 #include "client.h"
+#include "options.h"
 #include "private.h"
 
 #include <yt/yt/ytlib/chaos_client/alien_cell.h>
@@ -1057,6 +1058,9 @@ private:
 
     //! NB: Could throw in case of non-existing cell tag.
     void InitChannelsOrThrow(EMasterChannelKind kind, NObjectClient::TCellTag cellTag);
+
+    NRpc::IChannelPtr WrapChannel(NRpc::IChannelPtr channel) const;
+    NRpc::IChannelFactoryPtr WrapChannelFactory(NRpc::IChannelFactoryPtr factory) const;
 
     const IClientPtr& GetOperationsArchiveClient();
 

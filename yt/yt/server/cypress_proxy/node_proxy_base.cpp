@@ -45,7 +45,7 @@ TNodeProxyBase::TNodeProxyBase(
     , SequoiaSession_(std::move(sequoiaSession))
     , NativeAuthenticatedClient_(
             Bootstrap_->GetNativeConnection()->CreateNativeClient(
-                TClientOptions::FromAuthenticationIdentity(authenticationIdentity)))
+                NNative::TClientOptions::FromAuthenticationIdentity(authenticationIdentity)))
 { }
 
 void TNodeProxyBase::BeforeInvoke(const ISequoiaServiceContextPtr& /*context*/)

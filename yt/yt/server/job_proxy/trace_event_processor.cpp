@@ -5,6 +5,7 @@
 #include <yt/yt/server/lib/misc/estimate_size_helpers.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/options.h>
 
 #include <yt/yt/library/formats/format.h>
 
@@ -88,7 +89,7 @@ TJobTraceEventProcessor::TJobTraceEventProcessor(
             NScheduler::NRecords::TJobTraceEventDescriptor::Get()->GetNameTable(),
             "job_trace_events",
             connection->CreateNativeClient(
-                NApi::TClientOptions::FromUser(Config_->Reporter->User)),
+                NApi::NNative::TClientOptions::FromUser(Config_->Reporter->User)),
             JobTraceReporterActionQueue_->GetInvoker(),
             ReporterProfiler.WithTag("reporter_type", "job_trace_events")))
 {

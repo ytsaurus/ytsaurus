@@ -3,6 +3,7 @@
 #include <yt/yt/server/lib/misc/estimate_size_helpers.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/options.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
@@ -86,7 +87,7 @@ TOperationEventReporter::TOperationEventReporter(
             NRecords::TOperationEventDescriptor::Get()->GetNameTable(),
             "operation_events",
             connection->CreateNativeClient(
-                NApi::TClientOptions::FromUser(Config_->User)),
+                NApi::NNative::TClientOptions::FromUser(Config_->User)),
             OperationEventsReporterActionQueue_->GetInvoker(),
             ReporterProfiler.WithTag("reporter_type", "operation_events")))
 { }

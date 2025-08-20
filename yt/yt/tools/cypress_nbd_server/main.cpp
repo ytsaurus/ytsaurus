@@ -265,7 +265,7 @@ protected:
             poller,
             threadPool->GetInvoker());
 
-        auto clientOptions = NYT::NApi::TClientOptions::FromUser(config->ClusterUser);
+        auto clientOptions = NYT::NApi::NNative::TClientOptions::FromUser(config->ClusterUser);
         auto client = connection->CreateNativeClient(clientOptions);
 
         for (const auto& [exportId, exportConfig] : config->FileSystemBlockDevices) {

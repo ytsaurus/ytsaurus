@@ -167,7 +167,7 @@ public:
         , Type_(type)
         , AuthenticatedLocalClient_(
             localConnection->CreateNativeClient(
-                TClientOptions::FromAuthenticationIdentity(sequoiaTransactionOptions.AuthenticationIdentity)))
+                NNative::TClientOptions::FromAuthenticationIdentity(sequoiaTransactionOptions.AuthenticationIdentity)))
         , GroundClient_(std::move(groundClient))
         , SerializedInvoker_(CreateSerializedInvoker(localConnection->GetInvoker()))
         , SequoiaTransactionOptions_(sequoiaTransactionOptions)

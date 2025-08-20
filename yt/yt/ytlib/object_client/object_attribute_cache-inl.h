@@ -55,7 +55,7 @@ TFuture<std::vector<TErrorOr<TValue>>> TObjectAttributeCacheBase<TKey, TValue>::
 
     return GetFromClient(
         keys,
-        connection->CreateNativeClient(NApi::TClientOptions::FromUser(Config_->UserName)));
+        connection->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(Config_->UserName)));
 }
 
 template <class TKey, class TValue>

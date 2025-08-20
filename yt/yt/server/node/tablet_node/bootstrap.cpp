@@ -342,7 +342,7 @@ public:
 
         ReplicatorClientCache_ = CreateAlienClusterClientCache(
             GetConnection(),
-            NApi::TClientOptions::FromUser(NSecurityClient::ReplicatorUserName),
+            NApi::NNative::TClientOptions::FromUser(NSecurityClient::ReplicatorUserName),
             GetConfig()->TabletNode->AlienClusterClientCacheEvictionPeriod);
         ReplicationCardUpdatesBatcher_ = CreateClientReplicationCardUpdatesBatcher(
             GetConfig()->TabletNode->ChaosReplicationCardUpdatesBatcher,
