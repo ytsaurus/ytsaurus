@@ -9,7 +9,7 @@ on:
         required: false
         # cmake or ya-make
         type: string
-        default: ""
+        default: ''
       build-strawberry:
         default: false
         required: false
