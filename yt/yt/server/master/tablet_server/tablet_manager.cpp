@@ -1627,10 +1627,20 @@ public:
             }
 
             if (updateMode == EUpdateMode::Overwrite &&
-                tablet->GetState() == ETabletState::Mounted &&
                 IsDynamicStoreReadEnabled(originatingNode, GetDynamicConfig()))
             {
-                CreateAndAttachDynamicStores(tablet, &req);
+                switch (tablet->GetState()) {
+                    case ETabletState::Mounted:
+                    case ETabletState::Mounting:
+                    case ETabletState::Freezing:
+                    case ETabletState::Unfreezing:
+                    case ETabletState::Unmounting:
+                        CreateAndAttachDynamicStores(tablet, &req);
+                        break;
+
+                    default:
+                        break;
+                }
             }
 
             auto mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
