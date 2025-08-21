@@ -829,7 +829,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
     auto storeFlushIndex = sortedDynamicStore->GetFlushIndex();
 
-    return BIND([=, this, this_ = MakeStrong(this)] (
+    return BIND_NO_PROPAGATE([=, this, this_ = MakeStrong(this)] (
         const ITransactionPtr& transaction,
         const IThroughputThrottlerPtr& throttler,
         TTimestamp currentTimestamp,

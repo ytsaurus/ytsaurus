@@ -261,7 +261,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
     auto reader = orderedDynamicStore->CreateFlushReader();
     auto inMemoryMode = isUnmountWorkflow ? EInMemoryMode::None : GetInMemoryMode();
 
-    return BIND([=, this, this_ = MakeStrong(this)] (
+    return BIND_NO_PROPAGATE([=, this, this_ = MakeStrong(this)] (
         const ITransactionPtr& transaction,
         const IThroughputThrottlerPtr& throttler,
         TTimestamp /*currentTimestamp*/,
