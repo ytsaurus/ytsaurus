@@ -163,6 +163,7 @@ struct TDynamicConfig
 {
     NYql::TGatewaysConfig GatewaysConfig;
     THashMap<TString, TString> Clusters;
+    THashMap<TString, TString> ClusterAddresses;
     std::optional<TString> DefaultCluster;
     NYql::TExprContext ExprContext;
     NYql::IModuleResolver::TPtr ModuleResolver;
@@ -527,16 +528,24 @@ public:
             };
         }
 
-        std::vector<TString> clustersList;
+        std::vector<std::pair<TString, TString>> clustersList;
         clustersList.reserve(usedClusters->size());
+
+        THashMap<TString, TString> clusters;
+        {
+            auto dynamicConfig = DynamicConfig_.Acquire();
+            clusters = dynamicConfig->ClusterAddresses;
+        }
 
         if (defaultQueryCluster) {
             // Default cluster must be first in list.
             usedClusters->erase(*defaultQueryCluster);
-            clustersList.emplace_back(std::move(*defaultQueryCluster));
+            clustersList.emplace_back(std::pair<TString, TString>{std::move(*defaultQueryCluster), clusters[*defaultQueryCluster]});
         }
 
-        clustersList.insert(clustersList.cend(), usedClusters->begin(), usedClusters->end());
+        for (const auto& cluster : *usedClusters) {
+            clustersList.emplace_back(std::pair<TString, TString>{cluster, clusters[cluster]});
+        }
 
         return TClustersResult{
             .Clusters = std::move(clustersList),
@@ -917,6 +926,7 @@ private:
 
         for (const auto& mapping : gatewayYtConfig->GetClusterMapping()) {
             dynamicConfig->Clusters.insert({mapping.name(), TString(NYql::YtProviderName)});
+            dynamicConfig->ClusterAddresses.insert({mapping.name(), mapping.cluster()});
             if (mapping.GetDefault()) {
                 dynamicConfig->DefaultCluster = mapping.name();
             }

@@ -106,7 +106,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static std::optional<TString> TryIssueToken(const TQueryId queryId, const TString& user, const std::vector<TString>& clusters, THashMap<TString, NApi::NNative::IClientPtr>& queryClients, const TDuration& expirationTimeout)
+static std::optional<TString> TryIssueToken(const TQueryId queryId, const TString& user, const std::vector<std::pair<TString, TString>>& clusters, THashMap<TString, NApi::NNative::IClientPtr>& queryClients, const TDuration& expirationTimeout)
 {
     TString token;
     if (clusters.empty()) {
@@ -121,13 +121,13 @@ static std::optional<TString> TryIssueToken(const TQueryId queryId, const TStrin
     for (auto& cluster : clusters) {
         YT_LOG_DEBUG("Requesting token (User: %v, Cluster: %v)", user, cluster);
         auto rspOrError = token.empty()
-            ? WaitFor(queryClients[cluster]->IssueTemporaryToken(user, attributes, options))
-            : WaitFor(queryClients[cluster]->IssueSpecificTemporaryToken(user, token, attributes, options));
+            ? WaitFor(queryClients[cluster.first]->IssueTemporaryToken(user, attributes, options))
+            : WaitFor(queryClients[cluster.first]->IssueSpecificTemporaryToken(user, token, attributes, options));
 
         if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING("Token request failed (User: %v, Cluster: %v)", user, cluster);
+            YT_LOG_WARNING("Token request failed (User: %v, Cluster: %v)", user, cluster.first);
             if (rspOrError.FindMatching(NYTree::EErrorCode::AlreadyExists)) {
-                YT_LOG_WARNING("Requested token already exists in the cluster (User: %v, Cluster: %v)", user, cluster);
+                YT_LOG_WARNING("Requested token already exists in the cluster (User: %v, Cluster: %v)", user, cluster.first);
                 return std::nullopt;
             }
             rspOrError.ThrowOnError();
@@ -142,7 +142,7 @@ static std::optional<TString> TryIssueToken(const TQueryId queryId, const TStrin
     return token;
 }
 
-static TString IssueToken(const TQueryId queryId, const TString& user, const std::vector<TString>& clusters, THashMap<TString, NApi::NNative::IClientPtr>& queryClients, const TDuration& expirationTimeout, const int attempts)
+static TString IssueToken(const TQueryId queryId, const TString& user, const std::vector<std::pair<TString, TString>>& clusters, THashMap<TString, NApi::NNative::IClientPtr>& queryClients, const TDuration& expirationTimeout, const int attempts)
 {
     for (int attempt = 0; attempt < attempts; attempt++) {
         auto tokenOrErr = TryIssueToken(queryId, user, clusters, queryClients, expirationTimeout);
@@ -480,7 +480,7 @@ private:
 
             THashMap<TString, NApi::NNative::IClientPtr> queryClients;
             for (const auto& clusterName : clustersResult.Clusters) {
-                queryClients[clusterName] = ClusterDirectory_->GetConnectionOrThrow(clusterName)->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(user));
+                queryClients[clusterName.first] = ClusterDirectory_->GetConnectionOrThrow(clusterName.first)->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(user));
             }
 
             auto token = IssueToken(queryId, user, clustersResult.Clusters, queryClients, Config_->TokenExpirationTimeout, Config_->IssueTokenAttempts);
@@ -489,7 +489,7 @@ private:
             auto refreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, user, token, queryClients), Config_->RefreshTokenPeriod);
             refreshTokenExecutor->Start();
 
-            const auto defaultCluster = clustersResult.Clusters.front();
+            const auto defaultCluster = clustersResult.Clusters.front().first;
             // TODO(ngc224): revise after proper auth support in UI
             THashMap<TString, THashMap<TString, TString>> credentials = {
                 {"default_yt", {{"category", "yt"}, {"content", token}}},
@@ -509,7 +509,9 @@ private:
 
             // This is a long blocking call.
             const auto result = YqlPlugin_->Run(queryId, user, ConvertToYsonString(credentials), query, settings, files, yqlRequest.mode());
-            WaitFor(refreshTokenExecutor->Stop()).ThrowOnError();
+            auto finally = Finally([&refreshTokenExecutor] {
+                WaitFor(refreshTokenExecutor->Stop()).ThrowOnError();
+            });
 
             if (result.YsonError) {
                 auto error = ConvertTo<TError>(TYsonString(*result.YsonError));
@@ -517,6 +519,10 @@ private:
             }
 
             YT_LOG_INFO("YQL plugin call completed");
+
+            auto clientOptions = NApi::TClientOptions();
+            clientOptions.User = user;
+            clientOptions.Token = token;
 
             TYqlResponse yqlResponse;
             ValidateAndFillYqlResponseField(yqlResponse, result.YsonResult, &TYqlResponse::mutable_result);
@@ -526,7 +532,7 @@ private:
             ValidateAndFillYqlResponseField(yqlResponse, result.TaskInfo, &TYqlResponse::mutable_task_info);
             ValidateAndFillYqlResponseField(yqlResponse, result.Ast, &TYqlResponse::mutable_ast);
             if (request.build_rowsets() && result.YsonResult) {
-                auto rowsets = BuildRowsets(ClientDirectory_, *result.YsonResult, request.row_count_limit());
+                auto rowsets = BuildRowsets(clustersResult.Clusters, clientOptions, *result.YsonResult, request.row_count_limit());
 
                 for (const auto& rowset : rowsets) {
                     if (rowset.Error.IsOK()) {

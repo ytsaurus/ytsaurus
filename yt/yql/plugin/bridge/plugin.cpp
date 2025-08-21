@@ -215,9 +215,12 @@ public:
             filesData.data(),
             filesData.size());
 
-        std::vector<TString> clusters(bridgeClustersResult->ClusterCount);
+        std::vector<std::pair<TString, TString>> clusters(bridgeClustersResult->ClusterCount);
         for (ssize_t i = 0; i < bridgeClustersResult->ClusterCount; i++) {
-            clusters[i] = TString(bridgeClustersResult->Clusters[i]);
+            clusters[i] = {
+                TString(bridgeClustersResult->Clusters[i]),
+                TString(bridgeClustersResult->ClusterAddresses[i])
+            };
         }
         TClustersResult queryResult{
             .Clusters = clusters,

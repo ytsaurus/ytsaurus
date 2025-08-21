@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/hive/public.h>
 
+#include <yt/yt/client/api/options.h>
+
 #include <yt/yt/client/table_client/public.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
@@ -45,12 +47,6 @@ struct TYqlRowset
     TYqlRefPtr References;
 };
 
-TYqlRowset BuildRowsetFromSkiff(
-    const NHiveClient::TClientDirectoryPtr& clientDirectory,
-    const NYTree::INodePtr& resultNode,
-    int resultIndex,
-    i64 rowCountLimit);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TWireYqlRowset
@@ -62,7 +58,8 @@ struct TWireYqlRowset
 };
 
 std::vector<TWireYqlRowset> BuildRowsets(
-    const NHiveClient::TClientDirectoryPtr& clientDirectory,
+    const std::vector<std::pair<TString, TString>>& clusters,
+    const NApi::TClientOptions& clientOptions,
     const TString& yqlYsonResults,
     i64 rowCountLimit);
 
