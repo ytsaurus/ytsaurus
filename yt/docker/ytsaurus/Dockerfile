@@ -152,10 +152,10 @@ RUN for package in client yson local native_driver; \
   do \
     dist_dir="/tmp/ytsaurus_python/ytsaurus_${package}_dist"; \
     wheel_path="${dist_dir}/$(ls ${dist_dir} | grep "^ytsaurus_$package.*whl$")"; \
-    python3.8 -m pip install ${wheel_path}; \
+    python3.12 -m pip install ${wheel_path} --break-system-packages; \
   done
 
-RUN python3.8 -m pip install packaging==24.1
+RUN python3.12 -m pip install packaging==24.1 --break-system-packages
 
 RUN ln -s /usr/local/bin/yt /usr/bin/yt -f
 
@@ -177,9 +177,9 @@ RUN HOST_ARCH=$(dpkg --print-architecture) \
   && update-java-alternatives --set java-1.11.0-openjdk-${HOST_ARCH}
 
 # Default python to be used by python3 jobs, for compatibility with jupyter tutorial.
-RUN ln -s /usr/bin/python3.8 /usr/bin/python3 -f
+RUN ln -s /usr/bin/python3.12 /usr/bin/python3 -f
 # Force lsb_release to use python it was born to use.
-RUN sed -i 's/python3/python3.8/' /usr/bin/lsb_release
+RUN sed -i 's/python3/python3.12/' /usr/bin/lsb_release
 
 ##########################################################################################
 
@@ -258,7 +258,7 @@ COPY ./ytserver-clickhouse /usr/bin/ytserver-clickhouse
 COPY ./credits/ytserver-clickhouse.CREDITS /usr/bin/ytserver-clickhouse.CREDITS
 
 # Install YT client for setup script.
-RUN python3.8 -m pip install ytsaurus-client
+RUN python3.12 -m pip install ytsaurus-client --break-system-packages
 RUN ln -s /usr/local/bin/yt /usr/bin/yt -f
 
 # Setup script.
