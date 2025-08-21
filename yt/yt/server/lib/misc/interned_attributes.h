@@ -262,6 +262,7 @@
     XX(ImportedObjectCount, imported_object_count) \
     XX(ImportedObjectIds, imported_object_ids) \
     XX(InMemoryMode, in_memory_mode) \
+    XX(InconsistentlyPlacedChunksCount, inconsistently_placed_chunk_count) \
     XX(Index, index) \
     XX(IndexTableId, index_table_id) \
     XX(IndexTablePath, index_table_path) \
@@ -368,6 +369,7 @@
     XX(Offline, offline) \
     XX(OfflineNodeCount, offline_node_count) \
     XX(OffloadingSettings, offloading_settings) \
+    XX(OldestPartMissingChunkCount, oldest_part_missing_chunk_count) \
     XX(Online, online) \
     XX(OnlineNodeCount, online_node_count) \
     XX(Opaque, opaque) \
@@ -428,6 +430,7 @@
     XX(QueueProducerStatus, queue_producer_status) \
     XX(QueueStatus, queue_status) \
     XX(QuorumInfo, quorum_info) \
+    XX(QuorumMissingChunkCount, quorum_missing_chunk_count) \
     XX(QuorumRowCount, quorum_row_count) \
     XX(Rack, rack) \
     XX(Racks, racks) \
