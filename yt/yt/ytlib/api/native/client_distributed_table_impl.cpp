@@ -347,6 +347,20 @@ TFuture<TDistributedWriteSessionWithCookies> TClient::StartDistributedWriteSessi
     return MakeFuture(std::move(result));
 }
 
+TFuture<void> TClient::PingDistributedWriteSession(
+    TSignedDistributedWriteSessionPtr session,
+    const TDistributedWriteSessionPingOptions& options)
+{
+    Y_UNUSED(options);
+    YT_VERIFY(session);
+    auto concreteSession = ConvertTo<TDistributedWriteSession>(TYsonStringBuf(session.Underlying()->Payload()));
+
+    // NB(arkady-e1ppa): AutoAbort = false by default.
+    auto mainTransaction = static_cast<IClient*>(this)->AttachTransaction(concreteSession.MainTransactionId);
+
+    return mainTransaction->Ping();
+}
+
 TFuture<void> TClient::FinishDistributedWriteSession(
     const TDistributedWriteSessionWithResults& sessionWithResults,
     const TDistributedWriteSessionFinishOptions& options)
