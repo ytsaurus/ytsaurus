@@ -38,7 +38,7 @@ yt select-rows "item_id FROM [//mytable] WHERE (user_id, order_id) IN ((1, 1), (
 
 ```sql
 * | <select-expr-1> [AS <select-alias-1>], <select-expr-2> [AS <select-alias-2>], ...
-FROM [//path/to/table] [WITH INDEX [//path/to/index/table]] [JOIN [//path/to/rhs1] USING <column-1>, <column-2>, ...]
+FROM [//path/to/table] [WITH INDEX [//path/to/index/table] [AS] <index-alias>] [JOIN [//path/to/rhs1] USING <column-1>, <column-2>, ...]
 [WHERE <predicate-expr>]
 [GROUP BY <group-by-expr-1> [AS <group-by-alias-1>], <group-by-expr-2> [AS <group-by-alias-2], ... [WITH TOTALS HAVING <having-expr> | HAVING <having-expr> WITH TOTALS | WITH TOTALS | HAVING <having-expr>]]
 [ORDER BY <order-by-expr-1> [ASC|DESC], <order-by-expr-2> [ASC|DESC], ...]
@@ -58,12 +58,12 @@ Defines the query output columns. If there's an asterisk (`*`), all input column
 ### FROM section ... JOIN { #from_join }
 FROM syntax ... JOIN:
 ```sql
-FROM [//path/to/table] [[AS] <table-alias>] [WITH INDEX [//path/to/index/table]] [[LEFT] JOIN [//path/to/dict-1] [[AS] <table-alias>] (ON <expression> = <foreign-expression> | USING <column-1>, <column-2>, ...) [AND <predicate>]] ...
+FROM [//path/to/table] [[AS] <table-alias>] [WITH INDEX [//path/to/index/table] [AS] <index-alias>] [[LEFT] JOIN [//path/to/dict-1] [[AS] <table-alias>] (ON <expression> = <foreign-expression> | USING <column-1>, <column-2>, ...) [AND <predicate>]] ...
 ```
 
 Defines the query data sources. The table immediately following FROM is considered the primary table and is used when coordinating query execution (provided the query does not contain the WITH INDEX keyword). It is also allowable to specify auxiliary reference tables in the JOIN section. The reference tables are connected to the main table if the specified key matches exactly. Without specifying the LEFT keyword, INNER JOIN will be executed. You can additionally specify an expression for reference table filtering which will be executed when reading data before join with the main table is executed.
 
-When the query contains the WITH INDEX keyword, the index table will be used for coordination, and the table following FROM will be connected to it by common columns. See also [secondary indexes](../../../user-guide/dynamic-tables/secondary-indices).
+When the query contains the WITH INDEX keyword, the index table will be used for coordination, and the index table following FROM will be connected to it by common columns. See also [secondary indexes](../../../user-guide/dynamic-tables/secondary-indices).
 
 To combine tables across multiple columns, a tuple must be written in the ON condition.
 
@@ -821,3 +821,4 @@ llvm-opt-3.7 -O2 -internalize -internalize-public-api-list=<список экс�
 {% endnote %}
 
 -->
+
