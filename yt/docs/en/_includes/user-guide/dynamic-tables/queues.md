@@ -50,7 +50,7 @@ If you plan to configure a large number of queues and consumers in your processe
 
 Creating a queue is no different from creating a regular ordered dynamic table.
 
-To ensure that your graphs and statistics are comprehensive, we recommend adding the [$timestamp](../../../user-guide/dynamic-tables/ordered-dynamic-tables.md#timestamp_column) and [$cumulative_data_weight](../../../user-guide/dynamic-tables/ordered-dynamic-tables.md#cumulative_data_weight_column) columns to the table schema.
+To ensure that your graphs and statistics are comprehensive, we recommend adding the [timestamp](../../../user-guide/dynamic-tables/ordered-dynamic-tables.md#timestamp_column) and [cumulative_data_weight](../../../user-guide/dynamic-tables/ordered-dynamic-tables.md#cumulative_data_weight_column) columns to the table schema.
 
 You can verify that the system has recognized the queue by checking if the **Queue** tab has appeared on the page of the dynamic table object.
 
