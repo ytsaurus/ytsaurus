@@ -257,6 +257,7 @@ public:
     virtual ESchedulableStatus GetStatus() const;
 
     virtual TJobResources GetSpecifiedStrongGuaranteeResources() const;
+    // COMPAT(eshcherbin, YT-24083): Deprecate old *_ratio and *_share terms.
     virtual TResourceVector GetMaxShare() const = 0;
 
     virtual TJobResources GetSpecifiedResourceFlow() const;
