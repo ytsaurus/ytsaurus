@@ -1512,8 +1512,8 @@ void TRootElement::ValidatePoolConfigs(TFairShareUpdateContext* context)
         auto poolIds = collectPoolIds(context->NestedPromisedGuaranteeFairSharePools);
         context->Errors.push_back(
             TError(NVectorHdrf::EErrorCode::NestedPromisedGuaranteeFairSharePools,
-                "Found pools with enabled promised fair share computation which are nested inside other such pools")
-            << TErrorAttribute("nested_promised_fair_share_pools", poolIds));
+                "Found pools with enabled promised guarantee fair share computation which are nested inside other such pools")
+            << TErrorAttribute("nested_promised_guarantee_fair_share_pools", poolIds));
     }
 
     if (!context->PriorityStrongGuaranteeAdjustmentPoolsWithoutDonor.empty()) {
