@@ -954,18 +954,19 @@ public:
         IInvokerPtr controlInvoker,
         TDynamicStatePtr dynamicState,
         TClientDirectoryPtr clientDirectory,
-        IAlertCollectorPtr alertCollector)
+        TCallback<IAlertCollectorPtr()> createAlertCollectorCallback)
         : Config_(std::move(config))
         , DynamicConfig_(New<TCypressSynchronizerDynamicConfig>())
         , ControlInvoker_(std::move(controlInvoker))
         , DynamicState_(std::move(dynamicState))
         , ClientDirectory_(std::move(clientDirectory))
-        , AlertCollector_(std::move(alertCollector))
+        , CreateAlertCollectorCallback_(std::move(createAlertCollectorCallback))
         , PassExecutor_(New<TPeriodicExecutor>(
             ControlInvoker_,
             BIND(&TCypressSynchronizer::Pass, MakeWeak(this)),
             DynamicConfig_->PassPeriod))
         , OrchidService_(IYPathService::FromProducer(BIND(&TCypressSynchronizer::BuildOrchid, MakeWeak(this)))->Via(ControlInvoker_))
+        , AlertCollector_(CreateAlertCollectorCallback_())
     { }
 
     IYPathServicePtr GetOrchidService() const override
@@ -977,6 +978,10 @@ public:
     {
         Active_ = true;
 
+        {
+            auto guard = Guard(AlertCollectorLock_);
+            AlertCollector_ = CreateAlertCollectorCallback_();
+        }
         PassExecutor_->Start();
     }
 
@@ -985,6 +990,10 @@ public:
         // NB: We can't have context switches happen in this callback, so sync operations could potentially be performed
         // after a call to CypressSynchronizer::Stop().
         YT_UNUSED_FUTURE(PassExecutor_->Stop());
+        {
+            auto guard = Guard(AlertCollectorLock_);
+            AlertCollector_->Stop();
+        }
 
         Active_ = false;
     }
@@ -997,8 +1006,14 @@ public:
 
         auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("CypressSynchronizer"));
 
+        IAlertCollectorPtr alertCollector;
+        {
+            auto guard = Guard(AlertCollectorLock_);
+            alertCollector = AlertCollector_;
+        }
+
         auto finalizePass = Finally([&] {
-            AlertCollector_->PublishAlerts();
+            alertCollector->PublishAlerts();
         });
 
         if (!DynamicConfig_->Enable) {
@@ -1018,13 +1033,13 @@ public:
                 dynamicConfigSnapshot,
                 DynamicState_,
                 ClientDirectory_,
-                AlertCollector_,
+                alertCollector,
                 Logger().WithTag("PassIndex: %v", PassIndex_))
                 .Build();
             PassError_ = TError();
         } catch (const std::exception& ex) {
             PassError_ = TError(ex);
-            AlertCollector_->StageAlert(CreateAlert(
+            alertCollector->StageAlert(CreateAlert(
                 NAlerts::EErrorCode::CypressSynchronizerPassFailed,
                 "Error performing Cypress synchronizer pass",
                 /*tags*/ {},
@@ -1056,9 +1071,12 @@ private:
     const IInvokerPtr ControlInvoker_;
     const TDynamicStatePtr DynamicState_;
     const TClientDirectoryPtr ClientDirectory_;
-    const IAlertCollectorPtr AlertCollector_;
+    const TCallback<IAlertCollectorPtr()> CreateAlertCollectorCallback_;
     const TPeriodicExecutorPtr PassExecutor_;
     const IYPathServicePtr OrchidService_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, AlertCollectorLock_);
+    IAlertCollectorPtr AlertCollector_;
 
     //! Whether this instance is actively performing passes.
     std::atomic<bool> Active_ = false;
@@ -1089,14 +1107,14 @@ ICypressSynchronizerPtr CreateCypressSynchronizer(
     IInvokerPtr controlInvoker,
     TDynamicStatePtr dynamicState,
     TClientDirectoryPtr clientDirectory,
-    IAlertCollectorPtr alertCollector)
+    TCallback<IAlertCollectorPtr()> createAlertCollectorCallback)
 {
     return New<TCypressSynchronizer>(
         std::move(config),
         std::move(controlInvoker),
         std::move(dynamicState),
         std::move(clientDirectory),
-        std::move(alertCollector));
+        std::move(createAlertCollectorCallback));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
