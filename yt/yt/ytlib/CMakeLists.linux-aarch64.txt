@@ -127,6 +127,7 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/data_sink.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/data_source.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/heartbeat.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/location_indexes.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/medium_directory.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/session_id.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/controller_agent_descriptor.proto
@@ -665,6 +666,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/data_sink.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/data_source.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/heartbeat.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/location_indexes.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/medium_directory.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/session_id.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/controller_agent/proto/controller_agent_descriptor.pb.h

@@ -132,8 +132,6 @@ public:
 
         TMasterHeartbeatReporterBase::Initialize();
 
-        LocationUuidsRequired_ = true;
-
         const auto& controlInvoker = Bootstrap_->GetControlInvoker();
         const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
         for (auto cellTag : clusterNodeMasterConnector->GetMasterCellTags()) {
@@ -617,15 +615,6 @@ public:
         return OnlineCellCount_.load() == std::ssize(clusterNodeMasterConnector->GetMasterCellTags());
     }
 
-    void SetLocationUuidsRequired(bool value) override
-    {
-        YT_ASSERT_THREAD_AFFINITY(ControlThread);
-
-        LocationUuidsRequired_ = value;
-        YT_LOG_INFO("Location uuids in data node heartbeats are %v",
-            value ? "enabled" : "disabled");
-    }
-
     // COMPAT(danilalexeev): YT-23781.
     void SetPerLocationFullHeartbeatsEnabled(bool value) override
     {
@@ -633,6 +622,15 @@ public:
 
         PerLocationFullHeartbeatsEnabled_ = value;
         YT_LOG_INFO("Per-location full data node heartbeats are %v",
+            value ? "enabled" : "disabled");
+    }
+
+    void SetLocationIndexesInHeartbeatsEnabled(bool value) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        LocationIndexesInHeartbeatsEnabled_ = value;
+        YT_LOG_INFO("Location indexes in data node heartbeats are %v",
             value ? "enabled" : "disabled");
     }
 
@@ -872,11 +870,10 @@ private:
 
     THashMap<TCellTag, TIncrementalHeartbeatCounters> IncrementalHeartbeatCounters_;
 
-    // COMPAT(kvk1920)
-    bool LocationUuidsRequired_ = true;
-
     // COMPAT(danilalexeev): YT-23781.
     bool PerLocationFullHeartbeatsEnabled_ = false;
+
+    bool LocationIndexesInHeartbeatsEnabled_ = false;
 
     template <typename TResponse>
     void HandleReplicaAnnouncements(
@@ -1439,6 +1436,35 @@ private:
         return true;
     }
 
+    void FillChunkInfo(
+        auto& chunkInfo,
+        const IChunkPtr& chunk,
+        TChunkLocationDirectory* locationDirectory,
+        bool onMediumChange = false)
+    {
+        ToProto(chunkInfo.mutable_chunk_id(), chunk->GetId());
+        chunkInfo.set_medium_index(chunk->GetLocation()->GetMediumDescriptor().Index);
+
+        auto locationIndex = chunk->GetLocation()->GetIndex();
+        auto locationUuid = chunk->GetLocation()->GetUuid();
+
+        if (LocationIndexesInHeartbeatsEnabled_) {
+            if (locationIndex != NNodeTrackerClient::InvalidChunkLocationIndex) {
+                chunkInfo.set_location_index(ToProto(chunk->GetLocation()->GetIndex()));
+            } else {
+                YT_LOG_ALERT(
+                    "Location index is not set, using location directory for data node heartbeat (LocationUuid: %v, chunkId: %v)",
+                    locationUuid,
+                    chunk->GetId());
+                chunkInfo.set_location_directory_index(locationDirectory->GetOrCreateIndex(locationUuid));
+            }
+        } else {
+            chunkInfo.set_location_directory_index(locationDirectory->GetOrCreateIndex(locationUuid));
+        }
+
+        chunkInfo.set_caused_by_medium_change(onMediumChange);
+    }
+
     TChunkAddInfo BuildAddChunkInfo(
         const IChunkPtr& chunk,
         TChunkLocationDirectory* locationDirectory,
@@ -1448,19 +1474,9 @@ private:
 
         TChunkAddInfo chunkAddInfo;
 
-        ToProto(chunkAddInfo.mutable_chunk_id(), chunk->GetId());
-        chunkAddInfo.set_medium_index(chunk->GetLocation()->GetMediumDescriptor().Index);
+        FillChunkInfo(chunkAddInfo, chunk, locationDirectory, onMediumChange);
         chunkAddInfo.set_active(chunk->IsActive());
         chunkAddInfo.set_sealed(chunk->GetInfo().sealed());
-
-        auto locationUuid = chunk->GetLocation()->GetUuid();
-        chunkAddInfo.set_location_directory_index(locationDirectory->GetOrCreateIndex(locationUuid));
-        // COMPAT(kvk1920): Remove after 23.2.
-        if (LocationUuidsRequired_) {
-            ToProto(chunkAddInfo.mutable_location_uuid(), locationUuid);
-        }
-
-        chunkAddInfo.set_caused_by_medium_change(onMediumChange);
 
         return chunkAddInfo;
     }
@@ -1474,16 +1490,7 @@ private:
 
         TChunkRemoveInfo chunkRemoveInfo;
 
-        ToProto(chunkRemoveInfo.mutable_chunk_id(), chunk->GetId());
-        chunkRemoveInfo.set_medium_index(chunk->GetLocation()->GetMediumDescriptor().Index);
-
-        auto locationUuid = chunk->GetLocation()->GetUuid();
-        chunkRemoveInfo.set_location_directory_index(locationDirectory->GetOrCreateIndex(locationUuid));
-        if (LocationUuidsRequired_) {
-            ToProto(chunkRemoveInfo.mutable_location_uuid(), locationUuid);
-        }
-
-        chunkRemoveInfo.set_caused_by_medium_change(onMediumChange);
+        FillChunkInfo(chunkRemoveInfo, chunk, locationDirectory, onMediumChange);
 
         return chunkRemoveInfo;
     }

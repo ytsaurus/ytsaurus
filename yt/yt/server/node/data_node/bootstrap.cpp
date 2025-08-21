@@ -424,14 +424,14 @@ public:
         return LocationHealthChecker_;
     }
 
-    void SetLocationUuidsRequired(bool value) override
-    {
-        MasterConnector_->SetLocationUuidsRequired(value);
-    }
-
     void SetPerLocationFullHeartbeatsEnabled(bool value) override
     {
         MasterConnector_->SetPerLocationFullHeartbeatsEnabled(value);
+    }
+
+    void SetLocationIndexesInHeartbeatsEnabled(bool value) override
+    {
+        MasterConnector_->SetLocationIndexesInHeartbeatsEnabled(value);
     }
 
 private:

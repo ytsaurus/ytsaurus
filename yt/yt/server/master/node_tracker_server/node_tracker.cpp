@@ -2423,8 +2423,7 @@ private:
 
         request.set_chunk_locations_supported(originalRequest->chunk_locations_supported());
 
-        // COMPAT(kvk1920)
-        request.set_location_directory_supported(originalRequest->location_directory_supported());
+        request.set_location_indexes_in_heartbeats_supported(originalRequest->location_indexes_in_heartbeats_supported());
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToSecondaryMasters(request);
