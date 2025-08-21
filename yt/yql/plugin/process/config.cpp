@@ -34,6 +34,8 @@ void TYqlPluginProcessInternalConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("max_supported_yql_version", &TThis::MaxSupportedYqlVersion);
+
+    registrar.Parameter("start_dq_manager", &TThis::StartDqManager);
 }
 
 } // namespace NProcess

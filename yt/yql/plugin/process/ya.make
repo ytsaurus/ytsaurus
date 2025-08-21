@@ -12,10 +12,7 @@ PEERDIR(
     yt/yt/ytlib
     yt/cpp/mapreduce/common
     yt/yql/plugin/bridge
-    yt/yql/plugin   
-    yt/yql/providers/yt/lib/yt_download
+    yt/yql/plugin
 )
-
-YQL_LAST_ABI_VERSION()
 
 END()

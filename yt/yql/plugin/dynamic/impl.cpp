@@ -47,6 +47,7 @@ TBridgeYqlPlugin* BridgeCreateYqlPlugin(const TBridgeYqlPluginOptions* bridgeOpt
         .UIOrigin = TString(bridgeOptions->UIOrigin),
         .LogBackend = std::move(*reinterpret_cast<THolder<TLogBackend>*>(bridgeOptions->LogBackend)),
         .MaxYqlLangVersion = bridgeOptions->MaxYqlLangVersion,
+        .StartDqManager = bridgeOptions->StartDqManager,
     };
     auto nativePlugin = CreateYqlPlugin(std::move(options));
     return nativePlugin.release();

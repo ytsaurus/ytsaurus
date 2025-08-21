@@ -133,6 +133,7 @@ public:
             .Libraries = options.Libraries.AsStringBuf().data(),
             .LibrariesLength = options.Libraries.AsStringBuf().size(),
             .MaxYqlLangVersion = options.MaxYqlLangVersion.data(),
+            .StartDqManager = options.StartDqManager
         };
 
         BridgePlugin_ = BridgeCreateYqlPlugin(&bridgeOptions);
