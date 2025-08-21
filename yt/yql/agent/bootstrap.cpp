@@ -19,6 +19,7 @@
 
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
+#include <yt/yt/library/server_program/config.h>
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
@@ -317,6 +318,11 @@ void TBootstrap::OnDynamicConfigChanged(
 }
 
 const NServer::TNativeServerBootstrapConfigPtr TBootstrap::GetNativeServerBootstrapConfig() const 
+{
+    return Config_;
+}
+
+const TServerProgramConfigPtr TBootstrap::GetServerProgramConfig() const
 {
     return Config_;
 }

@@ -73,7 +73,7 @@ protected:
             NYson::ConvertToYsonString(ConvertTo<TSingletonsConfigPtr>(config)),
             NLogging::CreateArcadiaLogBackend(NLogging::TLogger("YqlPlugin")), 
             config->MaxSupportedYqlVersion,
-            false
+            config->StartDqManager
         );
 
         auto yqlPlugin = CreateBridgeYqlPlugin(std::move(options));

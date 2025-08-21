@@ -35,7 +35,7 @@ TYqlPluginOptions ConvertToOptions(
         .LogBackend = std::move(logBackend),
         .YqlPluginSharedLibrary = config->YqlPluginSharedLibrary,
         .MaxYqlLangVersion = maxSupportedYqlVersion,
-        .StartDqManager = startDqManager
+        .StartDqManager = startDqManager,
     };
 }
 

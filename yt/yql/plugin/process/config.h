@@ -41,10 +41,9 @@ struct TYqlPluginProcessInternalConfig
     , public TServerProgramConfig
 {
     int SlotIndex;
-
     TYqlPluginConfigPtr PluginConfig;
-
     TString MaxSupportedYqlVersion;
+    bool StartDqManager;
 
     REGISTER_YSON_STRUCT(TYqlPluginProcessInternalConfig);
 

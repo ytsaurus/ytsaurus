@@ -51,6 +51,8 @@ struct TBridgeYqlPluginOptions
     size_t LibrariesLength = 0;
 
     const char* MaxYqlLangVersion = nullptr;
+
+    bool StartDqManager = false;
 };
 
 // Opaque type representing a YQL plugin.
