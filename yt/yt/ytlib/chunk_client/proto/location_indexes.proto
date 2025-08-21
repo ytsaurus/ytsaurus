@@ -1,0 +1,17 @@
+package NYT.NChunkClient.NProto;
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TLocationIndexes
+{
+    message TLocation
+    {
+        required NYT.NProto.TGuid uuid = 1;
+        required uint32 index = 2;
+    }
+
+    repeated TLocation locations = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

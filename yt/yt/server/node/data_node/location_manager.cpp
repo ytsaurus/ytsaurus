@@ -42,6 +42,8 @@ TLocationManager::TLocationManager(
     : DiskInfoProvider_(std::move(diskInfoProvider))
     , ChunkStore_(std::move(chunkStore))
     , ControlInvoker_(std::move(controlInvoker))
+    , Bootstrap_(bootstrap)
+    , OrchidService_(CreateOrchidService())
 {
     bootstrap->SubscribePopulateAlerts(
         BIND(&TLocationManager::PopulateAlerts, MakeWeak(this)));
@@ -270,6 +272,39 @@ TFuture<void> TLocationManager::RecoverDisk(const std::string& diskId)
         return MakeFuture<void>(TError("Cannot recover disk: hotswap dispatcher is not configured"));
     }
     return DiskInfoProvider_->RecoverDisk(diskId);
+}
+
+NYTree::IYPathServicePtr TLocationManager::GetOrchidService()
+{
+    return OrchidService_;
+}
+
+NYTree::IYPathServicePtr TLocationManager::CreateOrchidService()
+{
+    return IYPathService::FromProducer(BIND(&TLocationManager::BuildOrchid, MakeStrong(this)))
+        ->Via(Bootstrap_->GetControlInvoker());
+}
+
+void TLocationManager::BuildOrchid(NYson::IYsonConsumer* consumer)
+{
+    const auto& locations = ChunkStore_->Locations();
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("store_locations")
+            .DoMapFor(locations, [&] (TFluentMap fluent, const auto& location) {
+                fluent
+                    .Item(ToString(location->GetUuid()))
+                    .BeginMap()
+                        // Maybe display more information
+                        .Item("index").Value(location->GetIndex())
+                        .Item("path").Value(location->GetPath())
+                        .Item("disk_family").Value(location->GetDiskFamily())
+                        .Item("medium").Value(location->GetMediumName())
+                        .Item("chunk_count").Value(location->GetChunkCount())
+                    .EndMap();
+            })
+            .Item("locations_count").Value(locations.size())
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

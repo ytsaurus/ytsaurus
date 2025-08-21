@@ -209,6 +209,7 @@ SRCS(
     chunk_client/proto/data_sink.proto
     chunk_client/proto/data_source.proto
     chunk_client/proto/heartbeat.proto
+    chunk_client/proto/location_indexes.proto
     chunk_client/proto/medium_directory.proto
     chunk_client/proto/session_id.proto
 

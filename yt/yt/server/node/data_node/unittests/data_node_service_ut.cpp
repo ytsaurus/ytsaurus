@@ -228,9 +228,9 @@ public:
         return Bootstrap_->GetLocationHealthChecker();
     }
 
-    void SetLocationUuidsRequired(bool value) override
+    void SetLocationIndexesInHeartbeatsEnabled(bool value) override
     {
-        MasterConnector_->SetLocationUuidsRequired(value);
+        MasterConnector_->SetLocationIndexesInHeartbeatsEnabled(value);
     }
 
     void SetPerLocationFullHeartbeatsEnabled(bool value) override
@@ -256,7 +256,7 @@ struct TMasterConnectorMock
 
     MOCK_METHOD(bool, IsOnline, (), (const, override));
 
-    MOCK_METHOD(void, SetLocationUuidsRequired, (bool value), (override));
+    MOCK_METHOD(void, SetLocationIndexesInHeartbeatsEnabled, (bool value), (override));
 
     MOCK_METHOD(void, SetPerLocationFullHeartbeatsEnabled, (bool value), (override));
 };

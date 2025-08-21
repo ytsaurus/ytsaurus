@@ -16,6 +16,8 @@
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
+#include <yt/yt/ytlib/chunk_client/proto/location_indexes.pb.h>
+
 #include <yt/yt/client/object_client/public.h>
 
 #include <yt/yt/client/table_client/comparator.h>
@@ -147,6 +149,11 @@ void SerializeMediumDirectory(
 void SerializeMediumOverrides(
     TNode* node,
     NDataNodeTrackerClient::NProto::TMediumOverrides* protoMediumOverrides);
+
+void SerializeLocationIndexes(
+    const IDataNodeTrackerPtr& dataNodeTracker,
+    const std::vector<TChunkLocationUuid>& locationUuids,
+    NChunkClient::NProto::TLocationIndexes* protoLocationIndexes);
 
 int GetChunkShardIndex(TChunkId chunkId);
 
