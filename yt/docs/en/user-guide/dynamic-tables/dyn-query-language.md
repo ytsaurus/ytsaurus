@@ -1,1 +1,1 @@
-{% include [Query Language](../../_includes/user-guide/dynamic-tables/dyn-query-language.md) %}
+{% include [Query language](../../_includes/user-guide/dynamic-tables/dyn-query-language.md) %}
