@@ -85,6 +85,7 @@ target_proto_messages(unittester-formats PRIVATE
 
 target_sources(unittester-formats PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/arrow_parser_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/blob_writer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/dsv_parser_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/dsv_writer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/protobuf_format_ut.cpp
