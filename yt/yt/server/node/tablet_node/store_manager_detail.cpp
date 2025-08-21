@@ -800,12 +800,41 @@ IOrderedStoreManagerPtr TStoreManagerBase::AsOrdered()
 
 TDynamicStoreId TStoreManagerBase::GenerateDynamicStoreId()
 {
-    if (Tablet_->GetSettings().MountConfig->EnableDynamicStoreRead) {
-        return Tablet_->PopDynamicStoreIdFromPool();
-    } else {
+    auto doGenerateId = [this] {
         return Tablet_->GenerateId(Tablet_->IsPhysicallySorted()
             ? EObjectType::SortedDynamicTabletStore
             : EObjectType::OrderedDynamicTabletStore);
+    };
+
+    if (Tablet_->GetSettings().MountConfig->EnableDynamicStoreRead) {
+        if (Tablet_->DynamicStoreIdPool().empty()) {
+            // This is an attempt to make the (disaster) scenario when master
+            // has not sent dynamic store ids more fail-safe. Ordered tablets
+            // require one-to-one correspondence between dynamic stores and
+            // their flushed chunks, so we cannot do much: introducing
+            // discrepancy here will result in the inconsistent state at master
+            // (see CommitUpdateTabletStores). Sorted tables do not have such
+            // strict invariants, so we sacrifice the correctness of map-reduce
+            // reads and generate the dynamic store that will be not known to
+            // the master.
+
+            if (Tablet_->IsPhysicallyOrdered()) {
+                YT_LOG_FATAL("Dynamic store id pool is empty, cannot fall back to "
+                    "local dynamic store id generation for an ordered tablet");
+            }
+
+            auto storeId = doGenerateId();
+            YT_LOG_ALERT("Dynamic store id pool is empty, falling back to local "
+                "dynamic store id generation. Reads from map-reduce may not see "
+                "some recent data (NewStoreId: %v)",
+                storeId);
+
+            return storeId;
+        }
+
+        return Tablet_->PopDynamicStoreIdFromPool();
+    } else {
+        return doGenerateId();
     }
 }
 
