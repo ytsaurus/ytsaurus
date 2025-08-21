@@ -18,7 +18,7 @@ from yt_operations_archive_helpers import (
 
 import yt.environment.init_operations_archive as init_operations_archive
 
-from yt.common import date_string_to_datetime, uuid_to_parts, parts_to_uuid, update, date_string_to_timestamp_mcs, YtError
+from yt.common import date_string_to_datetime, uuid_to_parts, parts_to_uuid, update, date_string_to_timestamp_mcs
 
 from flaky import flaky
 

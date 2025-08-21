@@ -17,7 +17,7 @@ from yt_commands import (
     raises_yt_error, update_scheduler_config, update_controller_agent_config,
     assert_statistics, sorted_dicts,
     set_node_banned, disable_scheduler_jobs_on_node, enable_scheduler_jobs_on_node,
-    update_nodes_dynamic_config)
+    sync_create_cells, update_nodes_dynamic_config)
 
 import yt_error_codes
 
@@ -79,14 +79,6 @@ class TestSchedulerCommon(YTEnvSetup):
         }
     }
     USE_PORTO = False
-
-    def setup_method(self, method):
-        super(TestSchedulerCommon, self).setup_method(method)
-        sync_create_cells(1)
-        init_operations_archive.create_tables_latest_version(
-            self.Env.create_native_client(),
-            override_tablet_cell_bundle="default",
-        )
 
     @authors("ignat")
     def test_failed_jobs_twice(self):
@@ -199,6 +191,12 @@ class TestSchedulerCommon(YTEnvSetup):
 
     @authors("ignat")
     def test_fail_context(self):
+        sync_create_cells(1)
+        init_operations_archive.create_tables_latest_version(
+            self.Env.create_native_client(),
+            override_tablet_cell_bundle="default",
+        )
+
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"foo": "bar"})
