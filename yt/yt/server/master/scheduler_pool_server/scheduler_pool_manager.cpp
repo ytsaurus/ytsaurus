@@ -236,6 +236,7 @@ public:
             case EInternedAttributeKey::Weight:
             case EInternedAttributeKey::MaxOperationCount:
             case EInternedAttributeKey::MaxRunningOperationCount:
+            // COMPAT(eshcherbin, YT-24083): Deprecate old *_ratio and *_share terms.
             case EInternedAttributeKey::MinShareResources:
             case EInternedAttributeKey::StrongGuaranteeResources:
             case EInternedAttributeKey::ForbidImmediateOperations:

@@ -1059,7 +1059,7 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, DontSuggestMoreResourcesThanOperat
     EXPECT_TRUE(AllSucceeded(futures).WithTimeout(TDuration::Seconds(2)).Get().IsOK());
 }
 
-TEST_F(TFairShareTreeAllocationSchedulerTest, DoNotPreemptAllocationsIfFairShareRatioEqualToDemandRatio)
+TEST_F(TFairShareTreeAllocationSchedulerTest, DoNotPreemptAllocationsIfFairShareEqualsDemandShare)
 {
     TJobResourcesWithQuota nodeResources;
     nodeResources.SetUserSlots(100);

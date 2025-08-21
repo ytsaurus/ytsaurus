@@ -399,7 +399,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
 
         def get_fair_share(tree, op_id):
             try:
-                return get(scheduler_orchid_operation_path(op_id, tree) + "/fair_share_ratio")
+                return get(scheduler_orchid_operation_path(op_id, tree) + "/detailed_dominant_fair_share/total")
             except YtError:
                 return 0.0
 

@@ -117,11 +117,11 @@ class TestSchedulingSegments(YTEnvSetup):
     DATA_CENTER = "SAS"
     RACK = "SAS1"
 
-    def _get_usage_ratio(self, op, tree="default"):
-        return get(scheduler_orchid_operation_path(op, tree) + "/usage_ratio", default=0.0)
+    def _get_dominant_usage_share(self, op, tree="default"):
+        return get(scheduler_orchid_operation_path(op, tree) + "/dominant_usage_share", default=0.0)
 
-    def _get_fair_share_ratio(self, op, tree="default"):
-        return get(scheduler_orchid_operation_path(op, tree) + "/fair_share_ratio", default=0.0)
+    def _get_dominant_fair_share(self, op, tree="default"):
+        return get(scheduler_orchid_operation_path(op, tree) + "/detailed_dominant_fair_share/total", default=0.0)
 
     # NB(eshcherbin): This method always returns NO nodes for the default segment.
     def _get_nodes_for_segment_in_tree(self, segment, tree="default"):
@@ -188,13 +188,13 @@ class TestSchedulingSegments(YTEnvSetup):
             spec={"pool": "small_gpu"},
             task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(blocking_op.id), 1.0))
 
         op = run_sleeping_vanilla(
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.1))
 
     @authors("eshcherbin")
     def test_default_segment_extended_gpu(self):
@@ -203,14 +203,14 @@ class TestSchedulingSegments(YTEnvSetup):
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(blocking_op.id), 1.0))
 
         op = run_sleeping_vanilla(
             job_count=8,
             spec={"pool": "small_gpu"},
             task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.1))
 
     @pytest.mark.skip("There is no logic that reduces oversatisfied segments yet, "
                       "and operations with zero GPU demand do not change the default segment's fair resource amount")
@@ -221,10 +221,10 @@ class TestSchedulingSegments(YTEnvSetup):
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(blocking_op.id), 1.0))
 
         op = run_sleeping_vanilla(job_count=10, spec={"pool": "cpu"}, task_patch={"cpu_limit": 1})
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.1))
 
     @pytest.mark.skip("There is no logic that reduces oversatisfied segments yet, "
                       "and operations with zero GPU demand do not change the default segment's fair resource amount")
@@ -235,7 +235,7 @@ class TestSchedulingSegments(YTEnvSetup):
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(blocking_op.id), 1.0))
 
         op1 = run_sleeping_vanilla(job_count=10, spec={"pool": "cpu"}, task_patch={"cpu_limit": 1})
         op2 = run_sleeping_vanilla(
@@ -244,8 +244,8 @@ class TestSchedulingSegments(YTEnvSetup):
             task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
         )
 
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op1.id), 0.1))
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op2.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op1.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op2.id), 0.1))
 
     @authors("eshcherbin")
     def test_reserve_fair_resource_amount(self):
@@ -263,7 +263,7 @@ class TestSchedulingSegments(YTEnvSetup):
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(filling_op.id), 0.9))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(filling_op.id), 0.9))
 
         run_test_vanilla(
             """(trap "sleep 40; exit 0" SIGINT; sleep 1000)""",
@@ -292,7 +292,7 @@ class TestSchedulingSegments(YTEnvSetup):
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op1.id), 0.9))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(blocking_op1.id), 0.9))
 
         # Need to spend some time to ensure the nodes where blocking_op1's jobs are running won't be moved.
         time.sleep(1.0)
@@ -301,7 +301,7 @@ class TestSchedulingSegments(YTEnvSetup):
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op2.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(blocking_op2.id), 0.1))
 
         expected_node = get_first_job_node(blocking_op2)
         wait(lambda: get(scheduler_orchid_node_path(expected_node) + "/scheduling_segment", default=None) == "large_gpu")
@@ -311,9 +311,9 @@ class TestSchedulingSegments(YTEnvSetup):
             spec={"pool": "small_gpu"},
             task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(new_op.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(new_op.id), 0.1))
 
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op2.id), 0.0))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(blocking_op2.id), 0.0))
         actual_node = get_first_job_node(new_op)
         assert actual_node == expected_node
         wait(lambda: get(scheduler_orchid_node_path(expected_node) + "/scheduling_segment", default=None) == "default")
@@ -337,7 +337,7 @@ class TestSchedulingSegments(YTEnvSetup):
             spec={"pool": "research_large"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op1.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(blocking_op1.id), 0.1))
 
         # Need to spend some time to ensure the nodes where blocking_op1's jobs are running won't be moved.
         time.sleep(3.0)
@@ -347,7 +347,7 @@ class TestSchedulingSegments(YTEnvSetup):
             spec={"pool": "guaranteed_large"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op2.id), 0.9))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(blocking_op2.id), 0.9))
 
         def get_first_job_node(op):
             wait(lambda: len(op.get_running_jobs()) >= 1)
@@ -376,9 +376,9 @@ class TestSchedulingSegments(YTEnvSetup):
         )
         set("//sys/pool_trees/default/@config" + timeout_attribute_path, 1000)
 
-        wait(lambda: are_almost_equal(self._get_usage_ratio(new_op.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(new_op.id), 0.1))
 
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op1.id), 0.0))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(blocking_op1.id), 0.0))
         actual_node = get_first_job_node(new_op)
         assert actual_node == expected_node
         wait(lambda: get(scheduler_orchid_node_path(expected_node) + "/scheduling_segment", default=None) == "default")
@@ -394,14 +394,14 @@ class TestSchedulingSegments(YTEnvSetup):
             spec={"pool": "large_gpu", "scheduling_segment": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_large_op.id), 0.5))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(blocking_large_op.id), 0.5))
 
         blocking_small_op = run_sleeping_vanilla(
             job_count=4,
             spec={"pool": "small_gpu", "scheduling_segment": "default"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_small_op.id), 0.4))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(blocking_small_op.id), 0.4))
 
         time.sleep(2.0)
 
@@ -409,16 +409,16 @@ class TestSchedulingSegments(YTEnvSetup):
             spec={"pool": "small_gpu", "scheduling_segment": "default"},
             task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(sharing_small_op.id), 0.05))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(sharing_small_op.id), 0.05))
 
         sharing_large_op = run_sleeping_vanilla(
             spec={"pool": "large_gpu", "scheduling_segment": "large_gpu"},
             task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(sharing_large_op.id), 0.05))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(sharing_large_op.id), 0.05))
 
         time.sleep(2.0)
-        wait(lambda: are_almost_equal(self._get_usage_ratio(sharing_small_op.id), 0.05))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(sharing_small_op.id), 0.05))
 
         def get_first_job_node(op):
             wait(lambda: len(op.get_running_jobs()) >= 1)
@@ -444,7 +444,7 @@ class TestSchedulingSegments(YTEnvSetup):
             abort_job(job)
 
         time.sleep(1.0)
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_large_op.id), 0.5))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(blocking_large_op.id), 0.5))
 
         sharing_large_op.abort()
 
@@ -531,25 +531,25 @@ class TestSchedulingSegments(YTEnvSetup):
             spec={"pool": "small_gpu"},
             task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(blocking_op.id), 1.0))
 
         op = run_sleeping_vanilla(
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_fair_share_ratio(op.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(op.id), 0.1))
 
         op_slot_index_path = scheduler_orchid_path() + "/scheduler/operations/{}/slot_index_per_pool_tree/default".format(op.id)
         wait(lambda: exists(op_slot_index_path))
         op_slot_index = get(op_slot_index_path)
 
-        op_usage_ratio_sensor = profiler_factory()\
+        op_dominant_usage_share_sensor = profiler_factory()\
             .at_scheduler(fixed_tags={"tree": "default", "pool": "large_gpu", "slot_index": str(op_slot_index)})\
             .gauge("scheduler/operations_by_slot/dominant_usage_share")
 
         for _ in range(30):
             time.sleep(0.1)
-            assert op_usage_ratio_sensor.get(default=0, verbose=False) == 0
+            assert op_dominant_usage_share_sensor.get(default=0, verbose=False) == 0
 
     @authors("eshcherbin")
     def test_rebalancing_timeout_changed(self):
@@ -562,28 +562,28 @@ class TestSchedulingSegments(YTEnvSetup):
             spec={"pool": "small_gpu"},
             task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(blocking_op.id), 1.0))
 
         op = run_sleeping_vanilla(
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_fair_share_ratio(op.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(op.id), 0.1))
 
         op_slot_index_path = scheduler_orchid_path() + "/scheduler/operations/{}/slot_index_per_pool_tree/default".format(op.id)
         wait(lambda: exists(op_slot_index_path))
         op_slot_index = get(op_slot_index_path)
 
-        op_usage_ratio_sensor = profiler_factory()\
+        op_dominant_usage_share_sensor = profiler_factory()\
             .at_scheduler(fixed_tags={"tree": "default", "pool": "large_gpu", "slot_index": str(op_slot_index)}) \
             .gauge("scheduler/operations_by_slot/dominant_usage_share")
 
         for _ in range(30):
             time.sleep(0.1)
-            assert op_usage_ratio_sensor.get(default=0, verbose=False) == 0
+            assert op_dominant_usage_share_sensor.get(default=0, verbose=False) == 0
 
         set("//sys/pool_trees/default/@config" + timeout_attribute_path, 1000)
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.1))
 
     @authors("eshcherbin")
     def test_orchid(self):
@@ -615,13 +615,13 @@ class TestSchedulingSegments(YTEnvSetup):
             spec={"pool": "small_gpu"},
             task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(blocking_op.id), 1.0))
 
         op = run_sleeping_vanilla(
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_fair_share_ratio(op.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(op.id), 0.1))
         wait(
             lambda: get(
                 scheduler_orchid_operation_path(op.id) + "/scheduling_segment",
@@ -633,14 +633,14 @@ class TestSchedulingSegments(YTEnvSetup):
         set("//sys/pool_trees/default/@config/scheduling_segments/mode", "large_gpu")
         wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/scheduling_segment", default="") == "large_gpu")
         wait(lambda: get(scheduler_orchid_operation_path(blocking_op.id) + "/scheduling_segment", default="") == "default")
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.1))
 
         set("//sys/pool_trees/default/@config/scheduling_segments/mode", "disabled")
         wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/scheduling_segment", default="") == "default")
         wait(lambda: get(scheduler_orchid_operation_path(blocking_op.id) + "/scheduling_segment", default="") == "default")
 
         time.sleep(3.0)
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.1))
 
     @authors("eshcherbin")
     def test_profiling(self):
@@ -663,7 +663,7 @@ class TestSchedulingSegments(YTEnvSetup):
             spec={"pool": "small_gpu"},
             task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(blocking_op.id), 1.0))
 
         wait(lambda: fair_resource_amount_default_sensor.get() == 80)
         wait(lambda: fair_resource_amount_large_sensor.get() == 0)
@@ -674,7 +674,7 @@ class TestSchedulingSegments(YTEnvSetup):
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_fair_share_ratio(op.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(op.id), 0.1))
 
         time.sleep(3.0)
 
@@ -708,8 +708,8 @@ class TestSchedulingSegments(YTEnvSetup):
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(small_op.id), 0.9))
-        wait(lambda: are_almost_equal(self._get_usage_ratio(large_op.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(small_op.id), 0.9))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(large_op.id), 0.1))
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
@@ -729,8 +729,8 @@ class TestSchedulingSegments(YTEnvSetup):
             == "large_gpu"
         )
 
-        wait(lambda: are_almost_equal(self._get_usage_ratio(small_op.id), 0.9))
-        wait(lambda: are_almost_equal(self._get_usage_ratio(large_op.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(small_op.id), 0.9))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(large_op.id), 0.1))
 
     @authors("eshcherbin")
     @pytest.mark.parametrize("service_to_restart", [SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE])
@@ -746,8 +746,8 @@ class TestSchedulingSegments(YTEnvSetup):
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(small_op.id), 0.9))
-        wait(lambda: are_almost_equal(self._get_usage_ratio(large_op.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(small_op.id), 0.9))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(large_op.id), 0.1))
 
         small_op.wait_for_fresh_snapshot()
         large_op.wait_for_fresh_snapshot()
@@ -773,13 +773,13 @@ class TestSchedulingSegments(YTEnvSetup):
             == "default"
         )
 
-        wait(lambda: are_almost_equal(self._get_usage_ratio(small_op.id), 0.9))
-        wait(lambda: are_almost_equal(self._get_usage_ratio(large_op.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(small_op.id), 0.9))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(large_op.id), 0.1))
 
     @authors("eshcherbin")
     def test_persistent_segments_state(self):
         blocking_op = run_sleeping_vanilla(job_count=20, spec={"pool": "small_gpu"}, task_patch={"gpu_limit": 4, "enable_gpu_layers": False})
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(blocking_op.id), 1.0))
         run_sleeping_vanilla(spec={"pool": "large_gpu"}, task_patch={"gpu_limit": 8, "enable_gpu_layers": False})
 
         wait(lambda: len(self._get_nodes_for_segment_in_tree("large_gpu")) == 1)
@@ -799,7 +799,7 @@ class TestSchedulingSegments(YTEnvSetup):
         update_controller_agent_config("snapshot_period", 300)
 
         blocking_op = run_sleeping_vanilla(job_count=20, spec={"pool": "small_gpu"}, task_patch={"gpu_limit": 4, "enable_gpu_layers": False})
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(blocking_op.id), 1.0))
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT; sleep 1000"),
             spec={"pool": "large_gpu"},
@@ -882,7 +882,7 @@ class TestSchedulingSegments(YTEnvSetup):
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(blocking_op.id), 1.0))
 
         op = run_sleeping_vanilla(
             job_count=8,
@@ -890,7 +890,7 @@ class TestSchedulingSegments(YTEnvSetup):
             task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
         )
         time.sleep(3.0)
-        assert are_almost_equal(self._get_usage_ratio(op.id), 0.0)
+        assert are_almost_equal(self._get_dominant_usage_share(op.id), 0.0)
 
         node = list(ls("//sys/cluster_nodes"))[0]
         wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), default="") == "large_gpu")
@@ -898,16 +898,16 @@ class TestSchedulingSegments(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), default="") == "default")
 
         set("//sys/pools/large_gpu/@strong_guarantee_resources", {"gpu": 72})
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.1))
 
         op.complete()
         time.sleep(3.0)
         wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), default="") == "default")
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 0.9))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(blocking_op.id), 0.9))
 
         remove("//sys/cluster_nodes/{}/@scheduling_options/scheduling_segment".format(node))
         wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), default="") == "large_gpu")
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(blocking_op.id), 1.0))
 
     @authors("eshcherbin")
     def test_invalid_config(self):
@@ -953,10 +953,10 @@ class TestSchedulingSegments(YTEnvSetup):
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.0))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.0))
 
         time.sleep(5.0)
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.0))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.0))
 
     @authors("omgronny")
     def test_gpu_event_log(self):
@@ -1060,10 +1060,10 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
     RACKS = ["SAS1", "VLA1"]
     INFINIBAND_CLUSTERS = ["IBC1", "IBC2"]
 
-    def _get_usage_ratio(self, op, tree="default"):
+    def _get_dominant_usage_share(self, op, tree="default"):
         return get(scheduler_orchid_operation_path(op, tree) + "/dominant_usage_share", default=0.0)
 
-    def _get_fair_share_ratio(self, op, tree="default"):
+    def _get_dominant_fair_share(self, op, tree="default"):
         return get(scheduler_orchid_operation_path(op, tree) + "/detailed_dominant_fair_share/total", default=0.0)
 
     def _get_operation_module(self, op, tree="default"):
@@ -1201,7 +1201,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
                 spec={"pool": "large_gpu"},
                 task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
             )
-            wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1 * job_count))
+            wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.1 * job_count))
             operations.append(op)
 
         return operations
@@ -1229,7 +1229,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             spec={"pool": "small_gpu"},
             task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 48.0 / 80.0))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 48.0 / 80.0))
 
     @authors("eshcherbin")
     def test_uniform_distribution_of_large_operations_to_modules_1(self):
@@ -1240,7 +1240,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
                 task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
             )
             ops.append(op)
-            wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
+            wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.1))
 
         modules = [self._get_operation_module(op_) for op_ in ops]
         assert modules[0] != modules[1]
@@ -1256,14 +1256,14 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             spec={"pool": "small_gpu"},
             task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 0.2))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(blocking_op.id), 0.2))
 
         big_op = run_sleeping_vanilla(
             job_count=4,
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(big_op.id), 0.4))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(big_op.id), 0.4))
         big_module = self._get_operation_module(big_op)
 
         for i in range(4):
@@ -1271,10 +1271,10 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
                 spec={"pool": "large_gpu"},
                 task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
             )
-            wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
+            wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.1))
             wait(lambda: big_module != self._get_operation_module(op))
 
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 0.2))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(blocking_op.id), 0.2))
 
     @authors("eshcherbin")
     def test_specified_module(self):
@@ -1283,14 +1283,14 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(big_op.id), 0.4))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(big_op.id), 0.4))
         big_module = self._get_operation_module(big_op)
 
         op = run_sleeping_vanilla(
             spec={"pool": "large_gpu", "scheduling_segment_modules": [big_module]},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.1))
         wait(lambda: big_module == self._get_operation_module(op))
 
     @authors("ignat")
@@ -1319,7 +1319,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             spec={"pool": "large_gpu", "scheduling_segment_modules": [module]},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(big_op.id), 0.4))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(big_op.id), 0.4))
         wait(lambda: self._get_operation_module(big_op) == module)
 
         wait(lambda: are_almost_equal(fair_resource_amount_default_sensor.get(), 40.0))
@@ -1328,7 +1328,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op1.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op1.id), 0.1))
         wait(lambda: self._get_operation_module(op1) != module)
 
         update_pool_tree_config_option("default", "scheduling_segments/reserve_fair_resource_amount", {"large_gpu": {module: 0.0}})
@@ -1337,7 +1337,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             spec={"pool": "large_gpu", "scheduling_segment_modules": [module]},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op2.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op2.id), 0.1))
         wait(lambda: self._get_operation_module(op2) == module)
 
         update_pool_tree_config_option("default", "scheduling_segments/reserve_fair_resource_amount", {"large_gpu": {module: 8.0}})
@@ -1362,7 +1362,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             spec={"pool": "priority_large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(priority_op.id), 0.2))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(priority_op.id), 0.2))
 
         wait(lambda: self._get_operation_module(priority_op) == module1)
         wait(lambda: len([op.id for op in ops_in_module1 if self._get_operation_module(op) == module1]) == 1)
@@ -1385,7 +1385,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             spec={"pool": "priority_large_gpu", "scheduling_segment_modules": [module2]},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(priority_op.id), 0.2))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(priority_op.id), 0.2))
 
         wait(lambda: self._get_operation_module(priority_op) == module2)
         wait(lambda: len([op.id for op in ops_in_module1 if self._get_operation_module(op) == module1]) == 2)
@@ -1402,7 +1402,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             spec={"pool": "priority_large_gpu", "scheduling_segment_modules": [self._get_all_modules()[0]]},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op_in_small_module.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op_in_small_module.id), 0.1))
         wait(lambda: self._get_operation_module(op_in_small_module) == self._get_all_modules()[0])
 
         large_module = self._get_all_modules()[1]
@@ -1413,7 +1413,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
                 spec={"pool": "large_gpu", "scheduling_segment_modules": [large_module]},
                 task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
             )
-            wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1 * job_count))
+            wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.1 * job_count))
             ops_in_large_module.append(op)
 
         priority_op = run_sleeping_vanilla(
@@ -1421,7 +1421,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             spec={"pool": "priority_large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(priority_op.id), 0.3))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(priority_op.id), 0.3))
         wait(lambda: self._get_operation_module(priority_op) == large_module)
 
         wait(lambda: self._get_operation_module(ops_in_large_module[0]) == large_module)
@@ -1436,7 +1436,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.1))
         op_module = self._get_operation_module(op)
 
         op.suspend(abort_running_jobs=True)
@@ -1446,11 +1446,11 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             spec={"pool": "large_gpu", "scheduling_segment_modules": [op_module]},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(big_op.id), 0.5))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(big_op.id), 0.5))
         wait(lambda: self._get_operation_module(big_op) == op_module)
 
         op.resume()
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.1))
         wait(lambda: self._get_operation_module(op) != op_module)
 
     @authors("eshcherbin")
@@ -1470,7 +1470,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(big_op.id), 0.3))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(big_op.id), 0.3))
         big_module = self._get_operation_module(big_op)
 
         opportunistic_op = run_sleeping_vanilla(
@@ -1478,19 +1478,19 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             spec={"pool": "large_gpu_other", "scheduling_segment_modules": [big_module]},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(opportunistic_op.id), 0.2))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(opportunistic_op.id), 0.2))
 
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 0.5))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(blocking_op.id), 0.5))
 
         op = run_sleeping_vanilla(
             job_count=2,
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.2))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.2))
         wait(lambda: big_module != self._get_operation_module(op))
 
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 0.5))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(blocking_op.id), 0.5))
 
     @authors("eshcherbin")
     def test_revive_operation_module(self):
@@ -1545,7 +1545,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             spec={"pool": "small_gpu"},
             task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(blocking_op.id), 1.0))
 
         wait(lambda: fair_resource_amount_default_sensor.get() == 80)
         wait(lambda: current_resource_amount_default_sensor.get() == 80)
@@ -1557,7 +1557,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_fair_share_ratio(op1.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(op1.id), 0.1))
         wait(lambda: self._get_operation_module(op1) in self._get_all_modules())
         op1_module = self._get_operation_module(op1)
 
@@ -1580,7 +1580,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_fair_share_ratio(op2.id), 0.2))
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(op2.id), 0.2))
         wait(lambda: self._get_operation_module(op2) in self._get_all_modules())
         op2_module = self._get_operation_module(op2)
         assert op1_module != op2_module
@@ -1644,7 +1644,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 0.5))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(blocking_op.id), 0.5))
         wait(lambda: self._get_operation_module(blocking_op) in self._get_all_modules())
         module = self._get_operation_module(blocking_op)
         other_module = [module_ for module_ in self._get_all_modules() if module_ != module][0]
@@ -1659,7 +1659,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             spec={"pool": "large_gpu", "scheduling_tag_filter": self._get_node_tag_from_module(other_module)},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op2.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op2.id), 0.1))
 
         op3 = run_sleeping_vanilla(
             spec={
@@ -1671,19 +1671,19 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             },
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_fair_share_ratio(op3.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(op3.id), 0.1))
         time.sleep(1.0)
         op3.wait_for_state("running")
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op3.id), 0.0))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op3.id), 0.0))
 
         op4 = run_sleeping_vanilla(
             spec={"pool": "large_gpu", "scheduling_tag_filter": self._get_node_tag_from_module(module)},
             task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_fair_share_ratio(op4.id), 0.05))
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(op4.id), 0.05))
         time.sleep(1.0)
         op4.wait_for_state("running")
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op4.id), 0.0))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op4.id), 0.0))
 
     @authors("eshcherbin")
     def test_min_remaining_feasible_capacity_assignment_heuristic(self):
@@ -1732,7 +1732,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.3))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.3))
 
         op_module = self._get_operation_module(op)
 
@@ -1753,7 +1753,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             set("//sys/cluster_nodes/{}/@user_tags/end".format(node), "other")
 
         if remove_all_module_nodes:
-            wait(lambda: self._get_usage_ratio(op.id) == 0.0)
+            wait(lambda: self._get_dominant_usage_share(op.id) == 0.0)
 
         update_pool_tree_config_option("default", "scheduling_segments/module_reconsideration_timeout", 3000)
         wait(lambda: self._get_operation_module(op) != op_module)
@@ -1766,7 +1766,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             for _, job in jobs.items():
                 assert self._get_node_module(job["address"]) != op_module
 
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 3.0 / (10.0 - len(nodes_to_move))))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 3.0 / (10.0 - len(nodes_to_move))))
 
     @authors("eshcherbin")
     def test_module_reset_with_fail_on_job_restart(self):
@@ -1780,14 +1780,14 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 0.5))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(blocking_op.id), 0.5))
 
         other_op = run_sleeping_vanilla(
             job_count=4,
             spec={"pool": "large_gpu_other"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(other_op.id), 0.4))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(other_op.id), 0.4))
 
         op = run_sleeping_vanilla(
             job_count=2,
@@ -1797,8 +1797,8 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             },
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_fair_share_ratio(op.id), 0.2))
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(op.id), 0.2))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.1))
 
         update_pool_tree_config_option("default", "scheduling_segments/module_reconsideration_timeout", 3000)
         blocking_op.abort()
@@ -1829,10 +1829,10 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             spec={"pool": "large_gpu", "is_gang": True},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_fair_share_ratio(large_op1.id), 0.5))
-        wait(lambda: are_almost_equal(self._get_usage_ratio(large_op1.id), 0.5))
-        wait(lambda: are_almost_equal(self._get_fair_share_ratio(large_op2.id), 0.5))
-        wait(lambda: are_almost_equal(self._get_usage_ratio(large_op2.id), 0.5))
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(large_op1.id), 0.5))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(large_op1.id), 0.5))
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(large_op2.id), 0.5))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(large_op2.id), 0.5))
 
         op = run_sleeping_vanilla(
             job_count=6,
@@ -1842,27 +1842,27 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
         )
 
-        wait(lambda: are_almost_equal(self._get_fair_share_ratio(op.id), 0.1))
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
-        wait(lambda: are_almost_equal(self._get_fair_share_ratio(large_op2.id), 0.0))
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(op.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(large_op2.id), 0.0))
 
         time.sleep(5.0)
 
-        wait(lambda: are_almost_equal(self._get_fair_share_ratio(op.id), 0.1))
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
-        wait(lambda: are_almost_equal(self._get_fair_share_ratio(large_op2.id), 0.0))
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(op.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(large_op2.id), 0.0))
 
         update_pool_tree_config_option("default", "scheduling_segments/module_oversatisfaction_threshold", 24.0)
 
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.2))
-        wait(lambda: are_almost_equal(self._get_fair_share_ratio(op.id), 0.1))
-        wait(lambda: are_almost_equal(self._get_fair_share_ratio(large_op2.id), 0.0))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.2))
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(op.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(large_op2.id), 0.0))
 
         update_pool_tree_config_option("default", "scheduling_segments/module_oversatisfaction_threshold", 16.0)
 
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.3))
-        wait(lambda: are_almost_equal(self._get_fair_share_ratio(op.id), 0.1))
-        wait(lambda: are_almost_equal(self._get_fair_share_ratio(large_op2.id), 0.0))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.3))
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(op.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(large_op2.id), 0.0))
 
 
 class TestSchedulingSegmentsMultiDataCenter(BaseTestSchedulingSegmentsMultiModule):
@@ -2107,7 +2107,7 @@ class TestRunningJobStatistics(YTEnvSetup):
     DATA_CENTER = "SAS"
     RACK = "SAS1"
 
-    def _get_usage_ratio(self, op, tree="default"):
+    def _get_dominant_usage_share(self, op, tree="default"):
         return get(scheduler_orchid_operation_path(op, tree) + "/dominant_usage_share", default=0.0)
 
     # TODO(eshcherbin): Do something with copy-paste in this long setup method.
@@ -2189,7 +2189,7 @@ class TestRunningJobStatistics(YTEnvSetup):
             spec={"pool": "small_gpu"},
             task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(bad_op.id), 0.25))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(bad_op.id), 0.25))
         assert get(scheduler_orchid_node_path(good_node) + "/scheduling_segment") == "large_gpu"
 
 
