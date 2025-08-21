@@ -6647,6 +6647,9 @@ private:
             batchReq->AddRequest(TYPathProxy::Get("//sys/local_lost_vital_chunks/@count"));
             batchReq->AddRequest(TYPathProxy::Get("//sys/local_data_missing_chunks/@count"));
             batchReq->AddRequest(TYPathProxy::Get("//sys/local_parity_missing_chunks/@count"));
+            batchReq->AddRequest(TYPathProxy::Get("//sys/local_oldest_part_missing_chunks/@count"));
+            batchReq->AddRequest(TYPathProxy::Get("//sys/local_quorum_missing_chunks/@count"));
+            batchReq->AddRequest(TYPathProxy::Get("//sys/local_inconsistently_placed_chunks/@count"));
 
             responsesFutures.push_back(batchReq->Invoke());
         }
@@ -6659,6 +6662,9 @@ private:
                 cellStatistics.set_lost_vital_chunk_count(0);
                 cellStatistics.set_data_missing_chunk_count(0);
                 cellStatistics.set_parity_missing_chunk_count(0);
+                cellStatistics.set_oldest_part_missing_chunk_count(0);
+                cellStatistics.set_quorum_missing_chunk_count(0);
+                cellStatistics.set_inconsistently_placed_chunk_count(0);
 
                 const auto& multicellManager = Bootstrap_->GetMulticellManager();
                 if (multicellManager->IsPrimaryMaster()) {
@@ -6666,7 +6672,7 @@ private:
                     cellStatistics.set_online_node_count(nodeTracker->GetOnlineNodeCount());
                 }
 
-                std::array<i64, 3> responsesSum{};
+                std::array<i64, 6> responsesSum{};
 
                 auto processResponse = [&] (const TIntrusivePtr<TObjectServiceProxy::TRspExecuteBatch>& rsp, int index, TStringBuf name) {
                     auto currentRspOrError = rsp->GetResponse<TYPathProxy::TRspGet>(index);
@@ -6692,10 +6698,16 @@ private:
                     processResponse(rsp, 0, "lost vital chunks");
                     processResponse(rsp, 1, "data missing chunks");
                     processResponse(rsp, 2, "parity missing chunks");
+                    processResponse(rsp, 3, "oldest part missing chunks");
+                    processResponse(rsp, 4, "quorum missing chunks");
+                    processResponse(rsp, 5, "inconsistently placed chunks");
                 }
                 cellStatistics.set_lost_vital_chunk_count(responsesSum[0]);
                 cellStatistics.set_data_missing_chunk_count(responsesSum[1]);
                 cellStatistics.set_parity_missing_chunk_count(responsesSum[2]);
+                cellStatistics.set_oldest_part_missing_chunk_count(responsesSum[3]);
+                cellStatistics.set_quorum_missing_chunk_count(responsesSum[4]);
+                cellStatistics.set_inconsistently_placed_chunk_count(responsesSum[5]);
                 return cellStatistics;
             }));
     }
