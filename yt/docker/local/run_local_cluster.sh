@@ -208,6 +208,10 @@ while [[ $# -gt 0 ]]; do
         publish_ports=true
         shift
         ;;
+    --prometheus-port)
+        prometheus_port="$2"
+        shift 2
+        ;;
     --fqdn)
         yt_fqdn="$2"
         shift 2
@@ -372,24 +376,44 @@ else
 fi
 
 if [ "${run_prometheus}" == true ]; then
-    targets="['yt.backend:${port_range_start}'"
-    min_port=$(($port_range_start + 1))
-    max_port=$(($port_range_start + 100))
-    for port in $(seq $min_port $max_port); do
-        targets+=", 'yt.backend:${port}'"
-    done
-    targets+="]"
-
-    cat <<EOF >prometheus.yml.tmp
+    cat <<EOF > prometheus.yml.tmp
 global:
- scrape_interval: 15s
+    scrape_interval: 15s
 
 scrape_configs:
- - job_name: 'ytsaurus_prometheus_container'
-   static_configs:
-     - targets: $targets
-   metrics_path: '/solomon/all'
 EOF
+    config_path="/tmp/${cluster_name}/configs/"
+    docker exec $yt_container_name grep -R "monitoring_port" ${config_path} | while IFS= read -r line; do
+        if [[ "$line" == *"multi.yson"* ]]; then
+            continue
+        fi
+
+        filename=$(echo "$line" | cut -d':' -f1 | xargs basename)
+        port=$(echo "$line" | grep -oE '[0-9]+' | tail -n 1)
+
+        if [ -z "$filename" ] || [ -z "$port" ]; then
+            continue
+        fi
+
+        servicename=$(echo "$filename" | sed -E 's/(-[0-9]+(-[0-9]+)?)?\.yson//' | sed -E 's/_/-/g')
+        servicelabel="yt-${servicename}"
+
+        cat <<EOF >> prometheus.yml.tmp
+  - job_name: '$servicelabel'
+    metrics_path: '/solomon/all'
+    static_configs:
+      - targets: ['yt.backend:$port']
+    relabel_configs:
+      - target_label: service
+        replacement: '$servicelabel'
+      - target_label: cluster
+        replacement: '$cluster_name'
+EOF
+    done
+
+    if [ ! -s prometheus.yml.tmp ]; then
+        die "Failed to generate prometheus config from the container. Check if 'monitoring_port' is defined in configs at ${config_path}"
+    fi
 
     prometheus_container=$(
         docker run -itd \
