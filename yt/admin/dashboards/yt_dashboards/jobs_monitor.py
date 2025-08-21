@@ -15,6 +15,10 @@ from yt_dashboard_generator.backends.monitoring import MonitoringLabelDashboardP
 ##################################################################
 
 
+FRACTION_LABEL = "Sum of device fractions"
+MEMORY_LABEL = "Bytes"
+
+
 def _add_series_sum(subquery):
     return f'series_sum("job_descriptor", {subquery})'
 
@@ -56,9 +60,9 @@ def _build_cpu_metrics(d):
                         legend="RSS"),
                     _build_user_job_sensor(
                         "yt.user_job.current_memory.mapped_file",
-                        legend="Mmapped")
+                        legend="Mapped")
                 ),
-                yaxis_label="Memory in bytes",
+                yaxis_label=MEMORY_LABEL,
                 display_legend=False,
             )
     )
@@ -91,7 +95,7 @@ def _build_cpu_metrics(d):
 
 
 def _build_memory_and_disk_metrics(d):
-    d.add(Rowset().row(height=2).cell("", Title("Storage Metrics", size="TITLE_SIZE_L")))
+    d.add(Rowset().row(height=2).cell("", Title("Storage", size="TITLE_SIZE_L")))
     d.add(Rowset()
         .nan_as_zero()
         .row()
@@ -117,9 +121,10 @@ def _build_memory_and_disk_metrics(d):
 
 
 def _build_network_metrics(d):
-    d.add(Rowset().row(height=2).cell("", Title("Network Metrics", size="TITLE_SIZE_L")))
+    d.add(Rowset().row(height=2).cell("", Title("Network", size="TITLE_SIZE_L")))
     d.add(Rowset()
         .nan_as_zero()
+        .unit("UNIT_BYTES_SI_PER_SECOND")
         .row()
             .stack(False)
             .min(0)
@@ -147,7 +152,7 @@ def _build_network_metrics(d):
 
 
 def _build_gpu_metrics(d):
-    d.add(Rowset().row(height=2).cell("", Title("GPU Metrics", size="TITLE_SIZE_L")))
+    d.add(Rowset().row(height=2).cell("", Title("GPU Common", size="TITLE_SIZE_L")))
     d.add(Rowset()
         .value("gpu_slot", "-")
         .nan_as_zero()
@@ -155,9 +160,9 @@ def _build_gpu_metrics(d):
             .stack(False)
             .min(0)
             .cell("GPU Utilization", _build_user_job_sensor("yt.user_job.gpu.utilization_gpu", legend="Utilization"),
-                  yaxis_label="Sum of GPU shares", display_legend=False)
+                  yaxis_label=FRACTION_LABEL, display_legend=False)
             .cell("GPU Memory", _build_user_job_sensor("yt.user_job.gpu.memory", legend="Memory"),
-                  yaxis_label="Memory in bytes", display_legend=False)
+                  yaxis_label=MEMORY_LABEL, display_legend=False)
     )
     d.add(Rowset()
         .value("gpu_slot", "-")
@@ -166,9 +171,9 @@ def _build_gpu_metrics(d):
             .stack(False)
             .min(0)
             .cell("GPU SM utilization", _build_user_job_sensor("yt.user_job.gpu.sm_utilization", legend="Utilization"),
-                  yaxis_label="Fraction", display_legend=False)
+                  yaxis_label=FRACTION_LABEL, display_legend=False)
             .cell("GPU SM occupancy", _build_user_job_sensor("yt.user_job.gpu.sm_occupancy", legend="SM occupancy"),
-                  yaxis_label="Fraction", display_legend=False)
+                  yaxis_label=FRACTION_LABEL, display_legend=False)
     )
     d.add(Rowset()
         .value("gpu_slot", "-")
@@ -178,13 +183,14 @@ def _build_gpu_metrics(d):
             .min(0)
             .cell("GPU Power", _build_user_job_sensor("yt.user_job.gpu.power", legend="Power"),
                   yaxis_label="Watts", display_legend=False)
+            # TODO(renadeen): migrate to slowdown_type.
             .cell("GPU Slowdown", UserJobSensors("yt.user_job.gpu.*slowdown"),
                   yaxis_label="Indicator", display_legend=False)
     )
 
 
 def _build_interconnect_metrics(d):
-    d.add(Rowset().row(height=2).cell("", Title("Interconnect Metrics", size="TITLE_SIZE_L")))
+    d.add(Rowset().row(height=2).cell("", Title("GPU Interconnect", size="TITLE_SIZE_L")))
     d.add(Rowset()
         .value("gpu_slot", "-")
         .nan_as_zero()
@@ -224,7 +230,7 @@ def _build_interconnect_metrics(d):
 
 
 def _build_advanced_gpu_metrics(d):
-    d.add(Rowset().row(height=2).cell("", Title("Advanced GPU Metrics", size="TITLE_SIZE_L")))
+    d.add(Rowset().row(height=2).cell("", Title("GPU Activity", size="TITLE_SIZE_L")))
     d.add(Rowset()
         .value("gpu_slot", "-")
         .nan_as_zero()
@@ -232,9 +238,9 @@ def _build_advanced_gpu_metrics(d):
             .stack(False)
             .min(0)
             .cell("Tensor Activity", _build_user_job_sensor("yt.user_job.gpu.tensor_activity", legend="Tensor activity"),
-                  yaxis_label="Fraction", display_legend=False)
+                  yaxis_label=FRACTION_LABEL, display_legend=False)
             .cell("DRAM Activity", _build_user_job_sensor("yt.user_job.gpu.dram_activity", legend="DRAM activity"),
-                  yaxis_label="Fraction", display_legend=False)
+                  yaxis_label=FRACTION_LABEL, display_legend=False)
     )
 
 
@@ -264,7 +270,6 @@ def build_jobs_monitor():
             "yt",
             "job_descriptor",
             "*",
-            hidden=True,
         ))
 
     d.set_monitoring_serializer_options(dict(default_row_height=9))
