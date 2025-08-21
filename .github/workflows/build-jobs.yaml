@@ -9,12 +9,8 @@ on:
         required: false
         # cmake or ya-make
         type: string
-        default: ''
+        default: ""
       build-strawberry:
-        default: false
-        required: false
-        type: boolean
-      build-gpuagent:
         default: false
         required: false
         type: boolean
@@ -81,7 +77,7 @@ jobs:
   gpuagent:
     needs: venv
     runs-on: ${{ inputs.runs-on-value }}
-    if: ${{ inputs.build-gpuagent }}
+    if: ${{ inputs.build-ytsaurus }}
     timeout-minutes: 480
     steps:
       - name: Build GPU Agent
