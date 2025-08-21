@@ -8,6 +8,25 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 
 **Releases:**
 
+{% cut "**0.13.35**" %}
+
+**Release date:** 2025-08-12
+
+
+#### Features
+  * Add compression codec option for parquet.
+  * Add methods for distributed write API.
+  * Add typing for config and for spec builders.
+
+#### Fixes
+  * Add details to import error of pickling encryption.
+  * Fix wording of write_table description.
+  * Fix YSON convert for bytes object.
+  * Remove old *_ratio and *_share terms from YT CLI.
+
+{% endcut %}
+
+
 {% cut "**0.13.34**" %}
 
 **Release date:** 2025-07-27
