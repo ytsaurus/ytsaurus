@@ -27,6 +27,8 @@ class TestQueriesYqlBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_QUERY_TRACKER = 1
     ENABLE_HTTP_PROXY = True
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
     USE_DYNAMIC_TABLES = True
     NUM_SCHEDULERS = 1
     CLASS_TEST_LIMIT = 960
@@ -1514,8 +1516,6 @@ class TestGetQueryTrackerInfoWithInvalidMaxYqlVersion(TestGetQueryTrackerInfoBas
 @pytest.mark.enabled_multidaemon
 class TestGetQueryTrackerInfoWithMaxYqlVersionRpcProxy(TestGetQueryTrackerInfoWithMaxYqlVersion):
     DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-    NUM_RPC_PROXIES = 1
     ENABLE_MULTIDAEMON = True
 
 
@@ -1523,8 +1523,6 @@ class TestGetQueryTrackerInfoWithMaxYqlVersionRpcProxy(TestGetQueryTrackerInfoWi
 @pytest.mark.enabled_multidaemon
 class TestGetQueryTrackerInfoWithoutMaxYqlVersionRpcProxy(TestGetQueryTrackerInfoWithoutMaxYqlVersion):
     DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-    NUM_RPC_PROXIES = 1
     ENABLE_MULTIDAEMON = True
 
 
@@ -1532,6 +1530,4 @@ class TestGetQueryTrackerInfoWithoutMaxYqlVersionRpcProxy(TestGetQueryTrackerInf
 @pytest.mark.enabled_multidaemon
 class TestGetQueryTrackerInfoWithInvalidMaxYqlVersionRpcProxy(TestGetQueryTrackerInfoWithInvalidMaxYqlVersion):
     DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-    NUM_RPC_PROXIES = 1
     ENABLE_MULTIDAEMON = True
