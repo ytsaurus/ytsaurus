@@ -1,6 +1,7 @@
 GO_LIBRARY()
 
 SRCS(
+    dummy.go
     model.go
     service.go
 )

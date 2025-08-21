@@ -23,21 +23,30 @@ import (
 )
 
 type args struct {
-	socket   string
-	logfile  string
-	loglevel zapcore.Level
+	unixSocket string
+	tcpPort    int
+	logfile    string
+	loglevel   zapcore.Level
+	debug      bool
 }
 
 func parseArgs() (*args, error) {
-	socketVar := flag.String("socket", "unix:///var/run/yt-gpu-agent.sock", "Unix socket to listen on")
+	unixSocketVar := flag.String("socket", "", "Unix socket to listen on")
+	tcpPortVar := flag.Int("tcp", 0, "TCP port to listen on")
 	logfileVar := flag.String("logfile", "gpuagent.log", "Log file")
 	loglevelVar := flag.String("loglevel", "info", "Log level")
+	debugVar := flag.Bool("debug", false, "")
 
 	flag.Parse()
 
-	socket, ok := strings.CutPrefix(*socketVar, "unix://")
-	if !ok {
-		return nil, fmt.Errorf("Invalid unix socket path")
+	hasUnixSocket := unixSocketVar != nil && *unixSocketVar != ""
+	hasTcpPort := tcpPortVar != nil && *tcpPortVar != 0
+
+	if hasUnixSocket && hasTcpPort {
+		return nil, fmt.Errorf("Either unix socket or tcp port must be specified")
+	}
+	if !hasUnixSocket && !hasTcpPort {
+		return nil, fmt.Errorf("Either unix socket or tcp port must be specified")
 	}
 
 	loglevel, err := zapcore.ParseLevel(*loglevelVar)
@@ -45,7 +54,15 @@ func parseArgs() (*args, error) {
 		return nil, fmt.Errorf("Invalid log level")
 	}
 
-	return &args{socket: socket, logfile: *logfileVar, loglevel: loglevel}, nil
+	if hasUnixSocket {
+		socket, ok := strings.CutPrefix(*unixSocketVar, "unix://")
+		if !ok {
+			return nil, fmt.Errorf("Invalid unix socket path, should be `unix:///path/to/socket`")
+		}
+		return &args{unixSocket: socket, logfile: *logfileVar, loglevel: loglevel, debug: *debugVar}, nil
+	}
+
+	return &args{tcpPort: *tcpPortVar, logfile: *logfileVar, loglevel: loglevel, debug: *debugVar}, nil
 }
 
 func createLogger(a *args) (l *logzap.Logger, stop func(), err error) {
@@ -77,6 +94,13 @@ func createLogger(a *args) (l *logzap.Logger, stop func(), err error) {
 	return &logzap.Logger{L: zl}, stop, err
 }
 
+func createGPUProvider(args *args, l *logzap.Logger) (agent.GPUProvider, error) {
+	if args.debug {
+		return agent.NewDummyGPUProvider(l)
+	}
+	return nv.New(l)
+}
+
 func main() {
 	args, err := parseArgs()
 	if err != nil {
@@ -91,14 +115,7 @@ func main() {
 	}
 	defer stopl()
 
-	if _, err := os.Stat(args.socket); !os.IsNotExist(err) {
-		if err := os.RemoveAll(args.socket); err != nil {
-			l.Fatalf("Fail to remove existing socket: %v", err)
-			return
-		}
-	}
-
-	gpuProvider, err := nv.New(l)
+	gpuProvider, err := createGPUProvider(args, l)
 	if err != nil {
 		l.Fatalf("Fail to create GPU provider: %v", err)
 		return
@@ -111,10 +128,27 @@ func main() {
 	}
 	defer gpuProvider.Shutdown()
 
-	listener, err := net.Listen("unix", args.socket)
-	if err != nil {
-		l.Fatalf("Fail to listen socket: %v", err)
-		return
+	var listener net.Listener = nil
+
+	if args.unixSocket != "" {
+		if _, err := os.Stat(args.unixSocket); !os.IsNotExist(err) {
+			if err := os.RemoveAll(args.unixSocket); err != nil {
+				l.Fatalf("Fail to remove existing socket: %v", err)
+				return
+			}
+		}
+
+		listener, err = net.Listen("unix", args.unixSocket)
+		if err != nil {
+			l.Fatalf("Fail to listen socket: %v", err)
+			return
+		}
+	} else {
+		listener, err = net.Listen("tcp", fmt.Sprintf("localhost:%d", args.tcpPort))
+		if err != nil {
+			l.Fatalf("Fail to listen port: %v", err)
+			return
+		}
 	}
 	defer listener.Close()
 
