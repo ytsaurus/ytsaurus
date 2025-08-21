@@ -40,6 +40,17 @@ struct TPermissionCheckResult
 
     //! Subject to which the decision applies.
     NSecurityClient::TSubjectId SubjectId = NObjectClient::NullObjectId;
+
+    //! If this flag is true and "full_read" is requested, pretend that only
+    //! a regular read was requested.
+    //!
+    //! This flag is expected to decrease entropy with the access control rules.
+    //! When the user tries to full_read a table, on which they do not even
+    //! have a basic read, we should ask them to get basic read first and
+    //! hope that basic read will be enough.
+    //! Otherwise, if we mention full_read in the error, the user will
+    //! immediately rush to get full_read, which they probably do not need.
+    bool RequestedFullReadButReadIsDenied = false;
 };
 
 //! Describes the complete response of a permission check.
@@ -112,6 +123,7 @@ protected:
     bool ShouldProceed_ = true;
     TPermissionCheckResponse Response_;
     bool FullReadExplicitlyGranted_ = false;
+    bool RequestedFullReadButReadIsDenied_ = true;
 
     static bool CheckInheritanceMode(NSecurityClient::EAceInheritanceMode mode, int depth);
 

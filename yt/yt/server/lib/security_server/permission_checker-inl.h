@@ -105,6 +105,7 @@ void TPermissionChecker<TAccessControlEntry, TCallback>::ProcessAce(
                     adjustedSubject,
                     objectId);
                 if (FullReadRequested_ && columnResult.Action == NSecurityClient::ESecurityAction::Deny) {
+                    RequestedFullReadButReadIsDenied_ = false;
                     SetDeny(adjustedSubject, objectId);
                     break;
                 }
@@ -160,6 +161,7 @@ TPermissionCheckResponse TPermissionChecker<TAccessControlEntry, TCallback>::Get
         }
 
         if (FullReadRequested_ && deniedColumnResult) {
+            RequestedFullReadButReadIsDenied_ = false;
             SetDeny(deniedColumnResult->SubjectId, deniedColumnResult->ObjectId);
         }
     }
@@ -175,6 +177,8 @@ TPermissionCheckResponse TPermissionChecker<TAccessControlEntry, TCallback>::Get
         // This hack is not pretty, but it exists for RLACEs to be consistent with columnar ACEs.
         SetDeny(NObjectClient::NullObjectId, NObjectClient::NullObjectId);
     }
+
+    Response_.RequestedFullReadButReadIsDenied = RequestedFullReadButReadIsDenied_;
 
     return std::move(Response_);
 }

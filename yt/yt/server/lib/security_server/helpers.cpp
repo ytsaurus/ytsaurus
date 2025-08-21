@@ -73,11 +73,16 @@ void LogAndThrowAuthorizationError(
             .Item("denied_for").Value(resultSubjectName)
             .Item("denied_by").Value(resultObjectName);
     } else {
+        auto adjustedPermission = permission;
+        if (adjustedPermission == EPermission::FullRead && result.RequestedFullReadButReadIsDenied) {
+            adjustedPermission = EPermission::Read;
+        }
+
         error = TError(
             NSecurityClient::EErrorCode::AuthorizationError,
             "Access denied for user %Qv: %Qlv permission for %v is not allowed by any matching ACE",
             userName,
-            permission,
+            adjustedPermission,
             targetObjectName);
 
         event
