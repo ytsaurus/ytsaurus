@@ -235,15 +235,10 @@ class TestPerLocationNodeDisposal(YTEnvSetup):
     def _no_locations_being_disposed(self):
         return self._get_locations_being_disposed_count() == 0
 
-    def _get_immediatety_dispose_nondata_nodes(self):
-        config = get("//sys/@config/node_tracker")
-        return config.get("immediatety_dispose_nondata_nodes", False)
-
     def _check_data_nodes_are_being_disposed(self):
-        dispose_nondata_immediately = self._get_immediatety_dispose_nondata_nodes()
         for node in ls("//sys/cluster_nodes"):
             state = get("//sys/cluster_nodes/{}/@state".format(node))
-            if "data" in get("//sys/cluster_nodes/{}/@flavors".format(node)) or not dispose_nondata_immediately:
+            if "data" in get("//sys/cluster_nodes/{}/@flavors".format(node)):
                 if state != "being_disposed":
                     return False
             else:
@@ -281,11 +276,10 @@ class TestPerLocationNodeDisposal(YTEnvSetup):
         self._wait_for_profiler_ready()
 
         set("//sys/@config/node_tracker/max_locations_being_disposed", 0)
-        dispose_nondata_immediately = self._get_immediatety_dispose_nondata_nodes()
 
         node_count = 0
         for node in ls("//sys/cluster_nodes"):
-            if "data" in get("//sys/cluster_nodes/{}/@flavors".format(node)) or not dispose_nondata_immediately:
+            if "data" in get("//sys/cluster_nodes/{}/@flavors".format(node)):
                 node_count += 1
 
         with Restarter(self.Env, NODES_SERVICE, wait_offline=False):
