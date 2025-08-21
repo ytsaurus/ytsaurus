@@ -265,7 +265,9 @@ private:
             ControlInvoker_,
             DynamicState_,
             ClientDirectory_,
-            CreateAlertCollector(AlertManager_));
+            /*createAlertCollectorCallback*/ BIND_NO_PROPAGATE([alertManager = AlertManager_] {
+                return CreateAlertCollector(alertManager);
+            }));
 
         DynamicConfigManager_->Start();
 
