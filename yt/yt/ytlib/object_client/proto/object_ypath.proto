@@ -18,6 +18,7 @@ message TPrerequisiteRevision
     required string path = 1;
     reserved 2;
     required uint64 revision = 3;
+    optional NYT.NProto.TGuid resolved_node_id_hint = 4;
 }
 
 message TPrerequisitesExt
