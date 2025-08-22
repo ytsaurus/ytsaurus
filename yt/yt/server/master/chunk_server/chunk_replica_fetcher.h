@@ -49,7 +49,8 @@ struct IChunkReplicaFetcher
         const std::vector<TChunkId>& chunkIds) const = 0;
     virtual TFuture<THashMap<TChunkId, TChunkLocationPtrWithReplicaInfoList>> GetOnlySequoiaChunkReplicas(
         const std::vector<TChunkId>& chunkIds,
-        bool includeUnapproved = false) const = 0;
+        bool includeUnapproved = false,
+        bool force = false) const = 0;
 
     virtual TFuture<std::vector<TSequoiaChunkReplica>> GetUnapprovedSequoiaChunkReplicas(
         const std::vector<TChunkId>& chunkIds) const = 0;
