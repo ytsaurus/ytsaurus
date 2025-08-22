@@ -77,7 +77,7 @@ protected:
         );
 
         auto yqlPlugin = CreateBridgeYqlPlugin(std::move(options));
-        // yqlPlugin->Start();
+        yqlPlugin->Start();
 
         auto yqlPluginService = CreateYqlPluginService(ControlInvoker_, std::move(yqlPlugin));
         auto rpcServer = NRpc::NBus::CreateBusServer(NBus::CreateBusServer(config->BusServer));

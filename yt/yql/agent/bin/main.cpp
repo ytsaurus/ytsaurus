@@ -6,7 +6,7 @@
 
 int main(int argc, const char** argv)
 {
-    if (TStringBuf(argv[1]).StartsWith(NYT::NYqlPlugin::NProcess::YqlPluginSubcommandName)) {
+    if (TStringBuf(argv[1]) == NYT::NYqlPlugin::NProcess::YqlPluginSubcommandName) {
         return NYT::NYqlPlugin::NProcess::TYqlPluginProgram().Run(argc - 1, argv + 1);
     }
 
