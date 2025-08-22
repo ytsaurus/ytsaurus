@@ -47,6 +47,8 @@ jobs:
       - name: Upload index to Algolia
         env:
           ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }} # Это Write Key
+          ALGOLIA_APP_ID: WW7EWG7Y6T
+          ALGOLIA_INDEX_NAME: "ytsaurus-docs"
         run: |
          npm install -g @diplodoc/cli @diplodoc/algolia-extension
          yfm index -i ./_docs-build --extensions "$(npm root -g)/@diplodoc/algolia-extension"
