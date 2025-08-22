@@ -42,7 +42,7 @@ jobs:
           path: ./_docs-build
       - name: Debug input folder
         run: |
-          ls -la ./_docs-build || echo "Warning: ./_docs-build not found!"
+          cat ./yt/docs/.yfm
 
       - name: Upload index to Algolia
         env:
