@@ -43,12 +43,11 @@ jobs:
       - name: Debug input folder
         run: |
           ls -la ./_docs-build || echo "Warning: ./_docs-build not found!"
-      - name: Install Diplodoc CLI and Algolia Extension  # Фикс: Локальная установка обоих пакетов
-        run: npm install @diplodoc/cli @diplodoc/algolia-extension
 
       - name: Upload index to Algolia
         env:
           ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }} # Это Write Key
         run: |
+         npm install -g @diplodoc/cli @diplodoc/algolia-extension \
          yfm index -i ./_docs-build --extensions "$(npm root -g)/@diplodoc/algolia-extension"
 
