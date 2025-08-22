@@ -394,6 +394,19 @@ TClusterScoreMap TPickReplicaSession::PickViableClusters(
         THROW_ERROR error;
     }
 
+    if (!config->PreferredInSyncReplicaClusters.empty()) {
+        TClusterScoreMap preferredClusters;
+        for (const auto& clusterAndScore : viableClusters) {
+            if (config->PreferredInSyncReplicaClusters.contains(clusterAndScore.first)) {
+                preferredClusters.insert(clusterAndScore);
+            }
+        }
+
+        if (!preferredClusters.empty()) {
+            viableClusters = std::move(preferredClusters);
+        }
+    }
+
     YT_LOG_DEBUG("Picked viable clusters (Clusters: %v)", viableClusters);
 
     return viableClusters;
