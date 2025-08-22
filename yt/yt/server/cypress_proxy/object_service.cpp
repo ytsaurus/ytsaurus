@@ -787,7 +787,8 @@ private:
      */
     static void PatchRequestAfterResolve(
         TSubrequest* subrequest,
-        const TResolveResult& resolveResult)
+        const TResolveResult& resolveResult,
+        const std::vector<TResolvedPrerequisiteRevision>& resolvedPrerequisiteRevisions)
     {
         TStringBuf newPath;
 
@@ -814,6 +815,21 @@ private:
             }
 
             ypathExt->set_target_path(ToProto<TProtobufString>(newPath));
+        }
+
+        // Otherwise there either were no prerequisite revisions,
+        // or they were not parsed (because request will be forwarded to master).
+        // In both scenarios no reason to patch prerequisite revisions.
+        if (!resolvedPrerequisiteRevisions.empty()) {
+            auto* prerequisitesExt = header.MutableExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
+            auto* revisions = prerequisitesExt->mutable_revisions();
+            revisions->Clear();
+            for (const auto& resolvedRevision : resolvedPrerequisiteRevisions) {
+                auto* element = revisions->Add();
+                ToProto(element->mutable_path(), resolvedRevision.NodePath);
+                ToProto(element->mutable_resolved_node_id_hint(), resolvedRevision.NodeId);
+                element->set_revision(ToProto(resolvedRevision.Revision));
+            }
         }
 
         subrequest->RequestMessage = SetRequestHeader(
@@ -862,18 +878,10 @@ private:
         auto prerequisiteTransactionIds = GetPrerequisiteTransactionIds(header);
         auto prerequisiteRevisions = GetPrerequisiteRevisions(header);
 
-        auto error = ValidatePrerequisiteRevisionsPaths(header, originalTargetPath, prerequisiteRevisions);
+        auto error = CheckPrerequisiteRevisionsPaths(header, originalTargetPath, prerequisiteRevisions);
         if (!error.IsOK()) {
             return CreateErrorResponseMessage(error);
         }
-
-        // TODO(cherepashka): YT-25409.
-        auto isMutating = IsRequestMutating(header);
-        YT_LOG_ALERT_IF(
-            !isMutating && !prerequisiteRevisions.empty(),
-            "Received read requests with prerequisite revisions in Sequoia (TargetPath: %v, PrerequisiteRevisions: %v)",
-            originalTargetPath,
-            prerequisiteRevisions);
 
         if (cypressTransactionId && !IsCypressTransactionType(TypeFromId(cypressTransactionId))) {
             // Requests with system transactions cannot be handled in Sequoia.
@@ -914,7 +922,7 @@ private:
             resolvedPrerequisiteRevisions = resolvedPrerequisiteRevisionsOrError.Value();
             AddValidatePrerequisiteRevisionsTransactionActions(resolvedPrerequisiteRevisions, session->SequoiaTransaction());
         }
-        PatchRequestAfterResolve(subrequest, resolveResult);
+        PatchRequestAfterResolve(subrequest, resolveResult, resolvedPrerequisiteRevisions);
 
         // NB: This can crash on invalid request header but it has been already
         // parsed before in order to predict if subrequest should be handled by
@@ -929,11 +937,20 @@ private:
 
         auto invokeResult = CreateSequoiaService(Owner_->Bootstrap_, AuthenticationIdentity_)
             ->TryInvoke(context, session, resolveResult, resolvedPrerequisiteRevisions);
-        // TODO(kvk1920): check prerequisite transaction liveness after read
-        // request.
         switch (invokeResult) {
-            case EInvokeResult::Executed:
+            case EInvokeResult::Executed: {
+                auto error = CheckPrerequisitesAfterRequestInvocation(
+                    header,
+                    session,
+                    Owner_->Bootstrap_->GetSequoiaClient(),
+                    originalTargetPath,
+                    prerequisiteRevisions,
+                    prerequisiteTransactionIds);
+                if (!error.IsOK()) {
+                    return CreateErrorResponseMessage(error);
+                }
                 return context->GetResponseMessage();
+            }
 
             case EInvokeResult::ForwardToMaster:
                 RewriteRequestForForwardingToMaster(subrequest, resolveResult);

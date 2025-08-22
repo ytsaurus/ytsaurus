@@ -152,12 +152,42 @@ std::vector<TPrerequisiteRevision> GetPrerequisiteRevisions(const NRpc::NProto::
     return FromProto<std::vector<TPrerequisiteRevision>>(prerequisites.revisions());
 }
 
+TError CheckPrerequisitesAfterRequestInvocation(
+    const NRpc::NProto::TRequestHeader& header,
+    const TSequoiaSessionPtr& session,
+    const NSequoiaClient::ISequoiaClientPtr& sequoiaClient,
+    const NYPath::TYPath& originalTargetPath,
+    const std::vector<NSequoiaClient::TPrerequisiteRevision>& prerequisiteRevisions,
+    const std::vector<NObjectClient::TTransactionId>& prerequisiteTransactionIds)
+{
+    // Check prerequisites only after read requests invocation.
+    if (IsRequestMutating(header)) {
+        return TError();
+    }
+
+    auto resolvedPrerequisiteRevisionsOrError = ResolvePrerequisiteRevisions(header, session, originalTargetPath, prerequisiteRevisions);
+    if (!resolvedPrerequisiteRevisionsOrError.IsOK()) {
+        return resolvedPrerequisiteRevisionsOrError;
+    }
+    auto prerequisiteTransactionsCheckError = CheckPrerequisiteTransactions(sequoiaClient, prerequisiteTransactionIds);
+    if (!prerequisiteTransactionsCheckError.IsOK()) {
+        return prerequisiteTransactionsCheckError;
+    }
+
+    return TError();
+}
+
 TErrorOr<std::vector<TResolvedPrerequisiteRevision>> ResolvePrerequisiteRevisions(
     const NRpc::NProto::TRequestHeader& header,
     const TSequoiaSessionPtr& session,
     const TYPath& originalTargetPath,
     const std::vector<TPrerequisiteRevision>& prerequisiteRevisions)
 {
+    // Fast path.
+    if (prerequisiteRevisions.empty()) {
+        return std::vector<TResolvedPrerequisiteRevision>{};
+    }
+
     std::vector<TResolvedPrerequisiteRevision> resolvedPrerequisiteRevisions;
     resolvedPrerequisiteRevisions.reserve(prerequisiteRevisions.size());
     for (const auto& revision : prerequisiteRevisions) {
@@ -191,11 +221,12 @@ TErrorOr<std::vector<TResolvedPrerequisiteRevision>> ResolvePrerequisiteRevision
     return resolvedPrerequisiteRevisions;
 }
 
-TError ValidatePrerequisiteRevisionsPaths(
+TError CheckPrerequisiteRevisionsPaths(
     const NRpc::NProto::TRequestHeader& header,
     const NYPath::TYPath& originalTargetPath,
     const std::vector<TPrerequisiteRevision>& prerequisiteRevisions)
 {
+    // Fast path.
     if (prerequisiteRevisions.empty()) {
         return TError();
     }
@@ -215,23 +246,22 @@ TError ValidatePrerequisiteRevisionsPaths(
 
         return TError(
             NObjectClient::EErrorCode::PrerequisitePathDifferFromExecutionPaths,
-            "Requests with prerequisite paths different from target paths are prohibited in Cypress "
-            "(PrerequisitePath: %v, TargetPath: %v, AdditionalPath: %v)",
-            revision.Path,
-            originalTargetPath,
-            originalSourcePath);
+            "Requests with prerequisite paths different from target paths are prohibited in Cypress ")
+            << TErrorAttribute("prerequisite_path", revision.Path)
+            << TErrorAttribute("target_path", originalTargetPath)
+            << TErrorAttribute("additional_path", originalSourcePath);
     }
 
     return TError();
 }
 
-void ValidatePrerequisiteTransactions(
+TError CheckPrerequisiteTransactions(
     const ISequoiaClientPtr& sequoiaClient,
     const std::vector<TTransactionId>& prerequisiteTransactionIds)
 {
     // Fast path.
     if (prerequisiteTransactionIds.empty()) {
-        return;
+        return TError();
     }
 
     std::vector<NRecords::TTransactionKey> transactionKeys;
@@ -240,7 +270,7 @@ void ValidatePrerequisiteTransactions(
     doomedTransactionKeys.reserve(prerequisiteTransactionIds.size());
     for (auto transactionId : prerequisiteTransactionIds) {
         if (!IsCypressTransactionMirroredToSequoia(transactionId)) {
-            THROW_ERROR_EXCEPTION("Non-mirrored transaction %v found in prerequisites", transactionId);
+            return TError("Non-mirrored transaction %v found in prerequisites", transactionId);
         }
 
         transactionKeys.push_back({.TransactionId = transactionId});
@@ -248,7 +278,9 @@ void ValidatePrerequisiteTransactions(
     }
 
     auto transactionRowsOrError = WaitFor(sequoiaClient->LookupRows(transactionKeys));
-    THROW_ERROR_EXCEPTION_IF_FAILED(transactionRowsOrError, "Failed to check prerequisite transactions");
+    if (!transactionRowsOrError.IsOK()) {
+        return TError("Failed to check prerequisite transactions") << transactionRowsOrError;
+    }
 
     auto doomedTransactionRowsOrError = WaitFor(sequoiaClient->LookupRows(doomedTransactionKeys));
     THROW_ERROR_EXCEPTION_IF_FAILED(doomedTransactionRowsOrError, "Failed to check prerequisite transactions");
@@ -262,12 +294,14 @@ void ValidatePrerequisiteTransactions(
     auto transactionRows = transactionRowsOrError.Value();
     for (const auto& [key, row] : Zip(transactionKeys, transactionRows)) {
         if (!row.has_value()) {
-            THROW_ERROR_EXCEPTION(
+            return TError(
                 NObjectClient::EErrorCode::PrerequisiteCheckFailed,
                 "Prerequisite check failed: transaction %v is missing in Sequoia",
                 key.TransactionId);
         }
     }
+
+    return TError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

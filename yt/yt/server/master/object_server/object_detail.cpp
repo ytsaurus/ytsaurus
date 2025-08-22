@@ -343,6 +343,34 @@ void TObjectProxyBase::BeforeInvoke(const IYPathServiceContextPtr& context)
     YT_VERIFY(!ypathExt.mutating() || NHydra::HasHydraContext());
 
     const auto& objectManager = Bootstrap_->GetObjectManager();
+
+    std::vector<TObjectId> additionalObjectIds;
+    for (const auto& additionalPath : ypathExt.additional_paths()) {
+        TPathResolver resolver(
+            Bootstrap_,
+            context->GetService(),
+            context->GetMethod(),
+            additionalPath,
+            GetTransactionId(context));
+        auto additionalPathResolveResult = resolver.Resolve();
+        auto additionalObjectId = Visit(
+            additionalPathResolveResult.Payload,
+            [] (const TPathResolver::TLocalObjectPayload& payload) {
+                return payload.Object->GetId();
+            },
+            [&] (const TPathResolver::TMissingObjectPayload&) -> TObjectId {
+                THROW_ERROR_EXCEPTION("Failed to resolve path %v, object is missing", ypathExt.original_target_path());
+            },
+            [&] (const auto&) -> TObjectId {
+                THROW_ERROR_EXCEPTION(
+                    NObjectClient::EErrorCode::CrossCellAdditionalPath,
+                    "Request is cross-cell since it involves target path %v and additional path %v",
+                    ypathExt.original_target_path(),
+                    additionalPath);
+            });
+        additionalObjectIds.push_back(additionalObjectId);
+    }
+
     if (requestHeader.HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
         const auto& prerequisitesExt = requestHeader.GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
 
@@ -357,27 +385,7 @@ void TObjectProxyBase::BeforeInvoke(const IYPathServiceContextPtr& context)
             GetOriginalRequestAdditionalPaths(requestHeader),
             prerequisitesExt.revisions());
 
-        objectManager->ValidatePrerequisites(requestHeader, context->GetMethod(), GetId(), prerequisitesExt);
-    }
-
-    // TODO(cherepashka): move this resolve above after 25.1 and remove resolve from ValidatePrerequisites.
-    for (const auto& additionalPath : ypathExt.additional_paths()) {
-        TPathResolver resolver(
-            Bootstrap_,
-            context->GetService(),
-            context->GetMethod(),
-            additionalPath,
-            GetTransactionId(context));
-        auto result = resolver.Resolve();
-        if (std::holds_alternative<TPathResolver::TSequoiaRedirectPayload>(result.Payload) ||
-            std::holds_alternative<TPathResolver::TRemoteObjectRedirectPayload>(result.Payload))
-        {
-            THROW_ERROR_EXCEPTION(
-                NObjectClient::EErrorCode::CrossCellAdditionalPath,
-                "Request is cross-cell since it involves target path %v and additional path %v",
-                ypathExt.original_target_path(),
-                additionalPath);
-        }
+        objectManager->ValidatePrerequisites(requestHeader, GetId(), additionalObjectIds, prerequisitesExt);
     }
 
     const auto& prerequisitesExt = requestHeader.GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);

@@ -234,8 +234,8 @@ struct IObjectManager
     //! Validates prerequisites, throws on failure.
     virtual void ValidatePrerequisites(
         const NRpc::NProto::TRequestHeader& requestHeader,
-        const std::string& method,
         TObjectId targetObjectId,
+        const std::vector<TObjectId>& additionalObjectIds,
         const NObjectClient::NProto::TPrerequisitesExt& prerequisites) = 0;
 
     //! Forwards an object request to a given cell.
