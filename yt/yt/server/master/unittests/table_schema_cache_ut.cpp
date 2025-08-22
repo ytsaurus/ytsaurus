@@ -63,11 +63,19 @@ TEST_F(TTableSchemaCacheTest, DontCacheCorruptedSchema)
     Cerr << Format(
         "Put compact table schema into cache (CompactTableSchema: %v, ParsedResult: %v)",
         corruptedSchema,
-        schemaOrError);
+        schemaOrError)
+        << Endl;
     EXPECT_FALSE(schemaOrError.IsOK());
     EXPECT_EQ(schemaOrError.GetCode(), NCellServer::EErrorCode::CompactSchemaParseError);
     // Schema shouldn't be cached.
-    EXPECT_EQ(tableSchemaCache->Find(corruptedSchema), std::nullopt);
+    auto foundSchema = tableSchemaCache->Find(corruptedSchema);
+    if (foundSchema != std::nullopt) {
+        Cerr << Format(
+            "Found schema in cache (TableSchema: %v)",
+            *foundSchema)
+            << Endl;
+    }
+    EXPECT_EQ(foundSchema, std::nullopt);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

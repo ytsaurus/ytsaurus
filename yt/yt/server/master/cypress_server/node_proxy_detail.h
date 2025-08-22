@@ -256,9 +256,6 @@ protected:
         const NYTree::INodePtr& child,
         bool recursive) override;
 
-    // COMPAT(babenko)
-    bool IsSchemaAttributeOpaque() const;
-
 private:
     TCypressNode* DoGetThisImpl();
     TCypressNode* DoLockThisImpl(

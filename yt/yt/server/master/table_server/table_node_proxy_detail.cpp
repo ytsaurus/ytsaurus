@@ -229,7 +229,7 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetReplicated(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Schema)
         .SetReplicated(true)
-        .SetOpaque(IsSchemaAttributeOpaque()));
+        .SetOpaque(true));
     descriptors->push_back(EInternedAttributeKey::SchemaId);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SchemaDuplicateCount));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SortedBy)

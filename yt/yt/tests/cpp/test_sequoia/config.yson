@@ -9,7 +9,7 @@
     };
     DELTA_DYNAMIC_MASTER_CONFIG = {
         transaction_manager = {
-            enable_prerequisite_transaction_validation_via_leases = %true;
+            enable_cypress_mirrorred_to_sequoia_prerequisite_transaction_validation_via_leases = %true;
         };
     };
 
