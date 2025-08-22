@@ -69,6 +69,21 @@ struct ITabletManager
         std::optional<TLockManagerEpoch> epoch = std::nullopt) = 0;
 
     virtual bool AllocateDynamicStoreIfNeeded(TTablet* tablet) = 0;
+
+    //! Commits externalization mutation if transaction should be forwarded
+    //! to the sibling servant.
+    //! Thread affinity: automaton.
+    virtual void ExternalizeTransactionIfNeeded(
+        TTablet* tablet,
+        NApi::ITransactionPtr transaction,
+        TStringBuf transactionKind) = 0;
+
+    //! Same as above but with any thread affinity.
+    //! Throws if tablet with certain mount revision is not found.
+    virtual void ExternalizeTransactionIfNeeded(
+        const TTabletSnapshotPtr& tabletSnapshot,
+        NApi::ITransactionPtr transaction,
+        TStringBuf transactionKind) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITabletManager)

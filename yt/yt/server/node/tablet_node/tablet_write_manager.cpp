@@ -369,7 +369,7 @@ public:
 
                 auto partCountBefore = transaction->GetPartsLeftToPerRowSerialize();
 
-                StartSerializingLockedRows(transaction, /*onAfterSnapshotLoaded=*/false);
+                StartSerializingLockedRows(transaction, /*onAfterSnapshotLoaded*/ false);
 
                 auto partsAddedInTablet = transaction->GetPartsLeftToPerRowSerialize() - partCountBefore;
                 YT_ASSERT(partsAddedInTablet >= 0);
@@ -623,6 +623,12 @@ public:
             result.insert(transactionId);
         }
         return result;
+    }
+
+    bool HasWriteState(TTransaction* transaction) const override
+    {
+        return TransactionIdToPersistentWriteState_.contains(transaction->GetId()) ||
+            TransactionIdToTransientWriteState_.contains(transaction->GetId());
     }
 
     void StartEpoch() override
@@ -923,6 +929,10 @@ private:
 
         // Transaction is already inserted into the barrier.
         if (writeState->PreparedBarrierCookie != InvalidAsyncBarrierCookie) {
+            return;
+        }
+
+        if (transaction->IsExternalizedToThisCell()) {
             return;
         }
 

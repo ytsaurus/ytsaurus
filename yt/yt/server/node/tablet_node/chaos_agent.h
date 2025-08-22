@@ -44,9 +44,10 @@ IChaosAgentPtr CreateChaosAgent(
 bool AdvanceTabletReplicationProgress(
     const NApi::NNative::IClientPtr& localClient,
     const NLogging::TLogger& Logger,
+    const ITabletManagerPtr& tabletManager,
     TTabletCellId tabletCellId,
     NApi::TClusterTag clockClusterTag,
-    TTabletId tabletId,
+    std::variant<TTabletSnapshotPtr, TTablet*> tablet,
     const NChaosClient::TReplicationProgress& progress,
     bool validateStrictAdvance = false,
     std::optional<ui64> replicationRound = std::nullopt);

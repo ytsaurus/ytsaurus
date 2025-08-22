@@ -276,7 +276,7 @@ public:
         RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraOnDynamicStoreAllocated, Unretained(this)));
         RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraSetCustomRuntimeData, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUnregisterMasterAvenueEndpoint, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraAdvanceReplicationEra, Unretained(this)));
+        RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraAdvanceReplicationEra, Unretained(this)));
     }
 
     void Initialize() override
@@ -354,6 +354,82 @@ public:
         }
 
         return false;
+    }
+
+    void ExternalizeTransactionIfNeeded(
+        TTablet* tablet,
+        ITransactionPtr transaction,
+        TStringBuf transactionKind) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        const auto& movementData = tablet->SmoothMovementData();
+        if (!movementData.ShouldForwardMutation()) {
+            return;
+        }
+
+        auto token = movementData.GetSiblingAvenueEndpointId();
+
+        YT_LOG_DEBUG("Externalizing transaction "
+            "(%v, TransactionId: %v, ExternalizationToken: %v, Kind: %v)",
+            tablet->GetLoggingTag(),
+            transaction->GetId(),
+            token,
+            transactionKind);
+
+        NProto::TReqExternalizeTransaction req;
+        ToProto(req.mutable_transaction_id(), transaction->GetId());
+        req.set_transaction_start_timestamp(transaction->GetStartTimestamp());
+        req.set_transaction_timeout(ToProto(transaction->GetTimeout()));
+        ToProto(req.mutable_externalizer_tablet_id(), tablet->GetId());
+        ToProto(req.mutable_externalization_token(), token);
+
+        NRpc::WriteAuthenticationIdentityToProto(
+            &req,
+            NRpc::GetCurrentAuthenticationIdentity());
+
+        WaitFor(CreateMutation(Slot_->GetHydraManager(), req)
+            ->CommitAndLog(Logger))
+            .ThrowOnError();
+
+        YT_LOG_DEBUG("Transaction externalized "
+            "(%v, TransactionId: %v, ExternalizationToken: %v, Kind: %v)",
+            tablet->GetLoggingTag(),
+            transaction->GetId(),
+            token,
+            transactionKind);
+    }
+
+    void ExternalizeTransactionIfNeeded(
+        const TTabletSnapshotPtr& tabletSnapshot,
+        ITransactionPtr transaction,
+        TStringBuf transactionKind) override
+    {
+        // Optimistic check to avoid unnecessary calls in automaton invoker.
+        if (tabletSnapshot->TabletRuntimeData->SmoothMovementData.Role.load() != ESmoothMovementRole::Source) {
+            return;
+        }
+
+        auto callback = [=, transaction = std::move(transaction), this, this_ = MakeStrong(this)] {
+            auto* tablet = FindTablet(tabletSnapshot->TabletId);
+            if (!tablet) {
+                THROW_ERROR_EXCEPTION("Tablet %v does not exist, cannot externalize transaction",
+                    tabletSnapshot->TabletId);
+            }
+            if (tablet->GetMountRevision() != tabletSnapshot->MountRevision) {
+                THROW_ERROR_EXCEPTION("Tablet %v has invalid mount revision, cannot externalize transaction",
+                    tabletSnapshot->TabletId)
+                    << TErrorAttribute("expected_mount_revision", tabletSnapshot->MountRevision)
+                    << TErrorAttribute("actual_mount_revision", tablet->GetMountRevision());
+            }
+
+            ExternalizeTransactionIfNeeded(tablet, std::move(transaction), transactionKind);
+        };
+
+        WaitFor(BIND(callback)
+            .AsyncVia(Slot_->GetAutomatonInvoker())
+            .Run())
+            .ThrowOnError();
     }
 
     TTablet* GetTabletOrThrow(TTabletId id) override
@@ -1055,7 +1131,17 @@ private:
     void StartEpoch()
     {
         for (auto [tabletId, tablet] : TabletMap_) {
-            StartTabletEpoch(tablet);
+            const auto& movementData = tablet->SmoothMovementData();
+            auto role = movementData.GetRole();
+            auto stage = movementData.GetStage();
+
+            if (role == ESmoothMovementRole::None ||
+                role == ESmoothMovementRole::Source ||
+                (role == ESmoothMovementRole::Target &&
+                    stage >= ESmoothMovementStage::TargetActivated))
+            {
+                StartTabletEpoch(tablet);
+            }
         }
 
         EpochStarted_.Fire();
@@ -1380,10 +1466,18 @@ private:
         // Settings.
         // COMPAT(ifsmirnov): remove conditional when everything is 25.3.
         if (request->replicatable_content().has_table_settings()) {
+            // NB: We cannot call ReconfigureTablet because epoch is not started yet.
             auto rawSettings = DeserializeTableSettings(&request->replicatable_content(), tabletId);
             auto descriptor = GetTableConfigExperimentDescriptor(tablet);
             rawSettings.DropIrrelevantExperiments(descriptor);
-            ReconfigureTablet(tablet, std::move(rawSettings));
+
+            std::vector<TError> configErrors;
+            auto settings = rawSettings.BuildEffectiveSettings(&configErrors, nullptr);
+
+            tablet->SetSettings(std::move(settings));
+            tablet->RawSettings() = std::move(rawSettings);
+
+            tablet->Reconfigure(Slot_);
         }
 
         StartTabletEpoch(tablet);
@@ -2083,22 +2177,7 @@ private:
         auto* tablet = GetTabletOrThrow(tabletId);
         const auto& structuredLogger = tablet->GetStructuredLogger();
 
-        if (!tablet->IsActiveServant() && !transaction->IsExternalizedToThisCell()) {
-            THROW_ERROR_EXCEPTION("Cannot prepare tablet stores update of a non-active servant "
-                "with non-externalized transaction %v, transaction may be stale",
-                transaction->GetId())
-                << TErrorAttribute("tablet_id", tabletId);
-        }
-
-        if (tablet->IsActiveServant() &&
-            tablet->SmoothMovementData().ShouldForwardMutation() &&
-            !transaction->IsExternalizedFromThisCell())
-        {
-            THROW_ERROR_EXCEPTION("Transaction %v is not externalized but must be forwarded, "
-                "transaction may be stale",
-                transaction->GetId())
-                << TErrorAttribute("tablet_id", tabletId);
-        }
+        ValidatePreparingTransactionIsProperlyExternalized(tablet, transaction, "tablet stores update");
 
         YT_VERIFY(tablet->IsActiveServant() == !transaction->IsExternalizedToThisCell());
 
@@ -3094,6 +3173,15 @@ private:
         ui64 round = request->replication_round();
         auto* tablet = GetTabletOrThrow(tabletId);
 
+        if (transaction->IsExternalizedToThisCell()) {
+            YT_LOG_DEBUG("Preparing pull rows update under externalized transaction "
+                "(TransactionId: %v, TabletId: %v)",
+                transaction->GetId(),
+                tabletId);
+        }
+
+        ValidatePreparingTransactionIsProperlyExternalized(tablet, transaction, "pull rows");
+
         const auto& chaosData = tablet->ChaosData();
         auto replicationRound = chaosData->ReplicationRound.load();
         if (replicationRound != round) {
@@ -3139,6 +3227,10 @@ private:
             THROW_ERROR_EXCEPTION("Replication progress boundaries differ from tablet pivot keys")
                 << TErrorAttribute("tablet_upper_key", tablet->GetNextPivotKey())
                 << TErrorAttribute("progress_upper_key", newProgress.UpperKey.Get());
+        }
+
+        if (tablet->IsActiveServant()) {
+            tablet->SmoothMovementData().ValidateWriteToTablet();
         }
 
         chaosData->PreparedWritePulledRowsTransactionId.Store(transaction->GetId());
@@ -3284,6 +3376,15 @@ private:
         auto* tablet = GetTabletOrThrow(tabletId);
         auto newProgress = FromProto<NChaosClient::TReplicationProgress>(request->new_replication_progress());
 
+        if (transaction->IsExternalizedToThisCell()) {
+            YT_LOG_DEBUG("Preparing replication progress advance update under externalized transaction "
+                "(TransactionId: %v, TabletId: %v)",
+                transaction->GetId(),
+                tabletId);
+        }
+
+        ValidatePreparingTransactionIsProperlyExternalized(tablet, transaction, "replication progress advance");
+
         const auto& chaosData = tablet->ChaosData();
         auto replicationRound = chaosData->ReplicationRound.load();
         // COMPAT(savrus)
@@ -3321,6 +3422,10 @@ private:
                     << TErrorAttribute("transaction_id", transaction->GetId())
                     << TErrorAttribute("write_pull_rows_transaction_id", chaosData->PreparedWritePulledRowsTransactionId.Load());
             }
+        }
+
+        if (tablet->IsActiveServant()) {
+            tablet->SmoothMovementData().ValidateWriteToTablet();
         }
 
         chaosData->PreparedAdvanceReplicationProgressTransactionId.Store(transaction->GetId());
@@ -4427,8 +4532,13 @@ private:
             return;
         }
 
-        tablet->GetChaosAgent()->Disable();
-        tablet->GetTablePuller()->Disable();
+        if (tablet->GetChaosAgent()) {
+            tablet->GetChaosAgent()->Disable();
+        }
+
+        if (tablet->GetTablePuller()) {
+            tablet->GetTablePuller()->Disable();
+        }
     }
 
     void SetBackingStore(TTablet* tablet, const IChunkStorePtr& store, const IDynamicStorePtr& backingStore)
@@ -5010,40 +5120,10 @@ private:
                 tablet->GetLoggingTag(),
                 transaction->GetId());
 
-            const auto& movementData = tablet->SmoothMovementData();
-            if (movementData.ShouldForwardMutation()) {
-                auto token = movementData.GetSiblingAvenueEndpointId();
-
-                YT_LOG_DEBUG("Externalizing tablet stores update transaction "
-                    "(%v, TransactionId: %v, ExternalizationToken: %v)",
-                    tablet->GetLoggingTag(),
-                    transaction->GetId(),
-                    token);
-
-                NProto::TReqExternalizeTransaction req;
-                ToProto(req.mutable_transaction_id(), transaction->GetId());
-                req.set_transaction_start_timestamp(transaction->GetStartTimestamp());
-                req.set_transaction_timeout(ToProto(transaction->GetTimeout()));
-                ToProto(req.mutable_externalizer_tablet_id(), tablet->GetId());
-                ToProto(req.mutable_externalization_token(), token);
-
-                NRpc::WriteAuthenticationIdentityToProto(
-                    &req,
-                    NRpc::GetCurrentAuthenticationIdentity());
-
-                WaitFor(CreateMutation(Slot_->GetHydraManager(), req)
-                    ->CommitAndLog(Logger))
-                    .ThrowOnError();
-
-                YT_LOG_DEBUG("Tablet stores update transaction externalized "
-                    "(%v, TransactionId: %v, ExternalizationToken: %v)",
-                    tablet->GetLoggingTag(),
-                    transaction->GetId(),
-                    token);
-            }
+            ExternalizeTransactionIfNeeded(tablet, transaction, "tablet stores update");
 
             NApi::TTransactionCommitOptions commitOptions{
-                .GeneratePrepareTimestamp = false
+                .GeneratePrepareTimestamp = false,
             };
             WaitFor(transaction->Commit(commitOptions))
                 .ThrowOnError();
@@ -5414,6 +5494,32 @@ private:
     {
         for (const auto& compactionHintFetcher : CompactionHintFetchers_) {
             compactionHintFetcher->ResetCompactionHints(tablet);
+        }
+    }
+
+    void ValidatePreparingTransactionIsProperlyExternalized(
+        TTablet* tablet,
+        TTransaction* transaction,
+        TStringBuf actionKind) const
+    {
+        if (!tablet->IsActiveServant() && !transaction->IsExternalizedToThisCell()) {
+            THROW_ERROR_EXCEPTION("Cannot prepare %v at the non-active servant "
+                "with non-externalized transaction %v, transaction may be stale",
+                actionKind,
+                transaction->GetId())
+                << TErrorAttribute("tablet_id", tablet->GetId());
+        }
+
+        if (tablet->IsActiveServant() &&
+            tablet->SmoothMovementData().ShouldForwardMutation() &&
+            !transaction->IsExternalizedFromThisCell())
+        {
+            THROW_ERROR_EXCEPTION("Cannot prepare %v at the active servant because "
+                "transaction %v is not externalized but must be forwarded, "
+                "transaction may be stale",
+                actionKind,
+                transaction->GetId())
+                << TErrorAttribute("tablet_id", tablet->GetId());
         }
     }
 };

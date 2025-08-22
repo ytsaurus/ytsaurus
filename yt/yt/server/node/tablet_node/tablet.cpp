@@ -693,7 +693,7 @@ void TSmoothMovementData::ValidateWriteToTablet() const
     }
 
     THROW_ERROR_EXCEPTION("Cannot write into tablet since it is a "
-        "smooth movement %Qlv in stage %Qlv",
+        "smooth movement %lv in stage %Qlv",
         Role_,
         Stage_);
 }
@@ -2605,6 +2605,41 @@ void TTablet::PopulateReplicateTabletContentRequest(NProto::TReqReplicateTabletC
 
     request->set_last_commit_timestamp(GetLastCommitTimestamp());
     request->set_last_write_timestamp(GetLastWriteTimestamp());
+
+    if (auto replicationProgress = RuntimeData()->ReplicationProgress.Acquire()) {
+        ToProto(
+            replicatableContent->mutable_replication_progress(),
+            *replicationProgress);
+    }
+
+    auto* chaosData = request->mutable_chaos_data();
+    chaosData->set_replication_era(RuntimeData()->ReplicationEra.load());
+    chaosData->set_replication_round(ChaosData()->ReplicationRound.load());
+    for (const auto& [tabletId, rowIndex] : ChaosData()->CurrentReplicationRowIndexes.Load()) {
+        auto* entry = chaosData->add_current_replication_row_indexes();
+        ToProto(entry->mutable_tablet_id(), tabletId);
+        entry->set_row_index(rowIndex);
+    }
+
+    if (auto transactionId = ChaosData()->PreparedAdvanceReplicationProgressTransactionId.Load()) {
+        TError error("Tablet %v cannot be smoothy moved becase it has "
+            "replication progress advance prepared by transaction %v",
+            GetId(),
+            transactionId);
+        YT_LOG_ALERT(error, "Unexpected replication progress transaction encountered "
+            "during smooth movement");
+        THROW_ERROR error;
+    }
+
+    if (auto transactionId = ChaosData()->PreparedWritePulledRowsTransactionId.Load()) {
+        TError error("Tablet %v cannot be smoothy moved becase it has "
+            "pulled rows write prepared by transaction %v",
+            GetId(),
+            transactionId);
+        YT_LOG_ALERT(error, "Unexpected pull rows transaction encountered "
+            "during smooth movement");
+        THROW_ERROR error;
+    }
 }
 
 void TTablet::LoadReplicatedContent(const NProto::TReqReplicateTabletContent* request)
@@ -2660,6 +2695,30 @@ void TTablet::LoadReplicatedContent(const NProto::TReqReplicateTabletContent* re
 
     RuntimeData_->LastCommitTimestamp = request->last_commit_timestamp();
     RuntimeData_->LastWriteTimestamp = request->last_write_timestamp();
+
+    if (replicatableContent.has_replication_progress()) {
+        auto progress = FromProto<TReplicationProgress>(replicatableContent.replication_progress());
+        auto replicationCardId = GetReplicationCardId();
+
+        YT_LOG_DEBUG("Tablet bound for chaos replication (%v, ReplicationCardId: %v, ReplicationProgress: %v)",
+            GetLoggingTag(),
+            replicationCardId,
+            progress);
+
+        RuntimeData()->ReplicationProgress.Store(New<TRefCountedReplicationProgress>(std::move(progress)));
+    }
+
+    const auto& chaosData = request->chaos_data();
+    RuntimeData()->ReplicationEra.store(chaosData.replication_era());
+    ChaosData()->ReplicationRound.store(chaosData.replication_round());
+    THashMap<TTabletId, i64> currentReplicationRowIndexes;
+    for (const auto& entry : chaosData.current_replication_row_indexes()) {
+        EmplaceOrCrash(
+            currentReplicationRowIndexes,
+            FromProto<TTabletId>(entry.tablet_id()),
+            entry.row_index());
+    }
+    ChaosData()->CurrentReplicationRowIndexes.Store(std::move(currentReplicationRowIndexes));
 }
 
 i64 TTablet::Lock(ETabletLockType lockType)
