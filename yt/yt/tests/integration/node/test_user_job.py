@@ -4225,6 +4225,11 @@ class TestJobInputCache(YTEnvSetup):
                     "use_remote_master_caches": True,
                 },
             },
+            "remote_operations": {
+                "remote_0": {
+                    "allowed_for_everyone": True,
+                }
+            }
         },
     }
 
@@ -4421,6 +4426,47 @@ class TestJobInputCache(YTEnvSetup):
 
         wait(lambda: block_compressed_cache_size.get() == 0)
         wait(lambda: meta_cache_size.get() == 0)
+
+    @authors("coteeq")
+    def test_disable_for_remote_jobs(self):
+        self._set_config()
+
+        remote_driver = get_driver(cluster=self.REMOTE_CLUSTER_NAME)
+
+        node = self.find_node_with_flavors(["exec"])
+
+        create("table", "//tmp/t1", driver=remote_driver)
+        create("table", "//tmp/t_local")
+        write_table("//tmp/t1", {"a": "b"}, driver=remote_driver)
+        write_table("//tmp/t_local", {"a": "b"})
+
+        create("table", "//tmp/t2")
+
+        map(
+            in_=[
+                f"<cluster={self.REMOTE_CLUSTER_NAME}>//tmp/t1",
+                "//tmp/t_local",
+            ],
+            out="//tmp/t2",
+            command="cat",
+            spec={
+                "cluster_name": self.REMOTE_CLUSTER_NAME,
+                "read_via_exec_node": True,
+                # "data_size_per_job": 1,
+                "scheduling_tag_filter": node,
+                "mapper": {
+                    "format": yson.loads(b"<line_prefix=tskv; enable_table_index=false>dsv"),
+                },
+                "job_io": {
+                    "table_reader": {
+                        # Forbid from fetching new seeds from remote master.
+                        "retry_count": 1,
+                    }
+                },
+            },
+        )
+
+        assert read_table("//tmp/t2") == [{"a": "b"}] * 2
 
 
 class TestJobStatistics(YTEnvSetup):

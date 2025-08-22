@@ -189,8 +189,10 @@ std::shared_ptr<TNodeDirectoryBuilder> TNodeDirectoryBuilderFactory::GetNodeDire
     }
 
     if (!Builders_.contains(clusterName)) {
-        auto* protoNodeDirectory = JobSpecExt_->mutable_input_node_directory();
-        if (!IsLocal(clusterName)) {
+        NNodeTrackerClient::NProto::TNodeDirectory* protoNodeDirectory;
+        if (IsLocal(clusterName)) {
+            protoNodeDirectory = JobSpecExt_->mutable_input_node_directory();
+        } else {
             auto* remoteClusterProto = &((*JobSpecExt_->mutable_remote_input_clusters())[*clusterName.Underlying()]);
             protoNodeDirectory = remoteClusterProto->mutable_node_directory();
         }
