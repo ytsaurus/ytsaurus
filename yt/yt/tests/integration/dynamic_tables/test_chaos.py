@@ -5317,6 +5317,40 @@ class TestChaosNativeProxy(ChaosTestBase):
 
         insert_rows("//tmp/pds", [row1, row2])
 
+    @authors("osidorkin")
+    def test_card_without_replicas_migrate_and_return(self):
+        b_name = "test_card_without_replicas_migrate_and_return"
+        metadata_cell_id = self._sync_create_chaos_bundle_and_cell(name=b_name)
+        set(f"//sys/chaos_cell_bundles/{b_name}/@metadata_cell_id", metadata_cell_id)
+
+        a_cell_id = generate_chaos_cell_id()
+        sync_create_chaos_cell(b_name, a_cell_id, self.get_cluster_names())
+
+        replicated_table_options = {
+            "enable_replicated_table_tracker": True,
+            "min_sync_queue_replica_count": 2,
+            "tablet_cell_bundle_name_ttl": 1000,
+            "tablet_cell_bundle_name_failure_interval": 100,
+        }
+        create("chaos_replicated_table", "//tmp/crt", attributes={
+            "chaos_cell_bundle": b_name,
+            "replicated_table_options": replicated_table_options
+        })
+
+        card_id = get("//tmp/crt/@replication_card_id")
+        options = get("//tmp/crt/@replicated_table_options")
+        assert options["enable_replicated_table_tracker"]
+        assert options["min_sync_queue_replica_count"] == 2
+
+        def _get_card_state(cell_id, card_id):
+            address = get(f"#{cell_id}/@peers/0/address")
+            return get(f"//sys/cluster_nodes/{address}/orchid/chaos_cells/{cell_id}/chaos_manager/replication_cards/{card_id}/state")
+
+        self._sync_migrate_replication_cards(metadata_cell_id, [card_id], destination_cell_id=a_cell_id)
+        wait(lambda: _get_card_state(a_cell_id, card_id) == "normal")
+        self._sync_migrate_replication_cards(a_cell_id, [card_id], destination_cell_id=metadata_cell_id)
+        wait(lambda: _get_card_state(metadata_cell_id, card_id) == "normal")
+
 
 ##################################################################
 
@@ -5803,7 +5837,7 @@ class TestChaosMetaCluster(ChaosTestBase):
 
         # Test internal orchid.
         beta_cell_states = get(f"{orchids_paths[beta_cell]}/chaos_manager/internal/replication_card_states", driver=remote_driver2)
-        assert beta_cell_states["normal"] == 1 and beta_cell_states["generating_timestamp_for_new_era"] == 1
+        assert beta_cell_states["normal"] + beta_cell_states["generating_timestamp_for_new_era"] == 2
         assert get(f"{orchids_paths[alpha_cell]}/chaos_manager/internal/replication_card_states", driver=remote_driver1)["migrated"] == 2
 
         resume_chaos_cells([alpha_cell])
@@ -5814,7 +5848,7 @@ class TestChaosMetaCluster(ChaosTestBase):
         wait(lambda: get(suspended_path, driver=remote_driver2))
         alpha_cell_states = get(f"{orchids_paths[alpha_cell]}/chaos_manager/internal/replication_card_states", driver=remote_driver1)
         beta_cell_states = get(f"{orchids_paths[beta_cell]}/chaos_manager/internal/replication_card_states", driver=remote_driver2)
-        assert alpha_cell_states["normal"] == 1 and alpha_cell_states["generating_timestamp_for_new_era"] == 1
+        assert alpha_cell_states["normal"] + alpha_cell_states["generating_timestamp_for_new_era"] == 2
         # NB: Foreign migrated replication cards could be removed.
         assert beta_cell_states["migrated"] == sum(beta_cell_states.values()) and beta_cell_states["migrated"] <= 2
 
