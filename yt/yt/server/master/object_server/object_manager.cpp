@@ -174,11 +174,10 @@ static TError ValidatePrerequisiteRevisionPaths(
     }
     return TError(
         NObjectClient::EErrorCode::PrerequisitePathDifferFromExecutionPaths,
-        "Requests with prerequisite paths different from target paths are prohibited in Cypress "
-        "(PrerequisiteObjectId: %v, TargetPath: %v, AdditionalPaths: %v)",
-        prerequisiteObjectId,
-        GetOriginalRequestTargetYPath(requestHeader),
-        GetOriginalRequestAdditionalPaths(requestHeader));
+        "Requests with prerequisite paths different from target paths are prohibited in Cypress ")
+        << TErrorAttribute("prerequisite_object_id", prerequisiteObjectId)
+        << TErrorAttribute("target_path", GetOriginalRequestTargetYPath(requestHeader))
+        << TErrorAttribute("additional_paths", GetOriginalRequestAdditionalPaths(requestHeader));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -289,14 +288,14 @@ public:
 
     void ValidatePrerequisites(
         const NRpc::NProto::TRequestHeader& requestHeader,
-        const std::string& method,
         TObjectId targetObjectId,
+        const std::vector<TObjectId>& additionalObjectIds,
         const NObjectClient::NProto::TPrerequisitesExt& prerequisites) override;
 
     TFuture<TSharedRefArray> ForwardObjectRequest(
         const TSharedRefArray& requestMessage,
         TCellTag cellTag,
-        NHydra::EPeerKind peerKind,
+        EPeerKind peerKind,
         bool* timeoutReserved) override;
 
     void ReplicateObjectCreationToSecondaryMaster(
@@ -544,7 +543,8 @@ public:
                         });
 
                     if (optionalPrerequisiteObjectId) {
-                        THROW_ERROR_EXCEPTION_IF_FAILED(ValidatePrerequisiteRevisionPaths(forwardedRequestHeader, ObjectId_, additionalObjectIds, *optionalPrerequisiteObjectId));
+                        ValidatePrerequisiteRevisionPaths(forwardedRequestHeader, ObjectId_, additionalObjectIds, *optionalPrerequisiteObjectId)
+                            .ThrowOnError();
                     }
                 }
                 if (!prerequisitePayload || CellTagFromId(prerequisitePayload->ObjectId) != ForwardedCellTag_) {
@@ -587,7 +587,7 @@ public:
 
         auto forwardedMessage = SetRequestHeader(requestMessage, forwardedRequestHeader);
 
-        auto peerKind = isMutating ? NHydra::EPeerKind::Leader : NHydra::EPeerKind::Follower;
+        auto peerKind = isMutating ? EPeerKind::Leader : EPeerKind::Follower;
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
             multicellManager->GetMasterChannelOrThrow(ForwardedCellTag_, peerKind));
@@ -1929,8 +1929,8 @@ auto TObjectManager::ResolveObjectIdsToPaths(const std::vector<TVersionedObjectI
 
 void TObjectManager::ValidatePrerequisites(
     const NRpc::NProto::TRequestHeader& requestHeader,
-    const std::string& method,
     TObjectId targetObjectId,
+    const std::vector<TObjectId>& additionalObjectIds,
     const NObjectClient::NProto::TPrerequisitesExt& prerequisites)
 {
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -1956,11 +1956,16 @@ void TObjectManager::ValidatePrerequisites(
 
     for (const auto& prerequisite : prerequisites.revisions()) {
         const auto& path = prerequisite.path();
-        auto revision = FromProto<NHydra::TRevision>(prerequisite.revision());
+        auto revision = FromProto<TRevision>(prerequisite.revision());
 
         TCypressNode* trunkNode;
         try {
-            trunkNode = cypressManager->ResolvePathToTrunkNode(path);
+            if (prerequisite.has_resolved_node_id_hint()) {
+                auto nodeId = FromProto<TObjectId>(prerequisite.resolved_node_id_hint());
+                trunkNode = cypressManager->GetNodeOrThrow(TVersionedNodeId(nodeId));
+            } else {
+                trunkNode = cypressManager->ResolvePathToTrunkNode(path);
+            }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(
                 NObjectClient::EErrorCode::PrerequisiteCheckFailed,
@@ -1969,12 +1974,8 @@ void TObjectManager::ValidatePrerequisites(
                 << ex;
         }
         if (GetDynamicConfig()->ProhibitPrerequisiteRevisionsDifferFromExecutionPaths) {
-            std::vector<TObjectId> additionalObjectIds;
-            for (const auto& additionalPath : GetRequestAdditionalPaths(requestHeader)) {
-                auto additionalObjectId = ResolvePathToObjectId(additionalPath, method, /*transaction*/ nullptr, /*options*/ {});
-                additionalObjectIds.push_back(additionalObjectId);
-            }
-            THROW_ERROR_EXCEPTION_IF_FAILED(ValidatePrerequisiteRevisionPaths(requestHeader, targetObjectId, additionalObjectIds, trunkNode->GetId()));
+            ValidatePrerequisiteRevisionPaths(requestHeader, targetObjectId, additionalObjectIds, trunkNode->GetId())
+                .ThrowOnError();
         }
 
         if (trunkNode->GetRevision() != revision) {
@@ -1991,7 +1992,7 @@ void TObjectManager::ValidatePrerequisites(
 TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
     const TSharedRefArray& requestMessage,
     TCellTag cellTag,
-    NHydra::EPeerKind peerKind,
+    EPeerKind peerKind,
     bool* timeoutReserved)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();

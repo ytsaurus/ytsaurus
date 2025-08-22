@@ -2765,7 +2765,7 @@ class TestCypress(YTEnvSetup):
         remove("//tmp/test_node", prerequisite_transaction_ids=[tx])
 
     @authors("ignat", "cherepashka")
-    def test_prerequisite_revisions(self):
+    def test_write_with_prerequisite_revisions(self):
         set("//tmp/test_node/inner_node", "value", recursive=True)
         revision = get("//tmp/test_node/inner_node/@revision")
 
@@ -2806,6 +2806,33 @@ class TestCypress(YTEnvSetup):
 
         assert get("//tmp/test_node/inner_node") == "another value 3"
         assert revision < get("//tmp/test_node/inner_node/@revision")
+
+    @authors("cherepashka")
+    def test_read_with_prerequisite_revisions(self):
+        set("//tmp/test_node/inner_node", "value", recursive=True)
+        revision = get("//tmp/test_node/inner_node/@revision")
+
+        assert get(
+            "//tmp/test_node/inner_node",
+            prerequisite_revisions=[
+                {
+                    "path": "//tmp/test_node/inner_node",
+                    "revision": revision,
+                }
+            ]) == "value"
+
+        set("//tmp/test_node/inner_node", "another value 3")
+
+        with raises_yt_error("revision mismatch"):
+            get(
+                "//tmp/test_node/inner_node",
+                prerequisite_revisions=[
+                    {
+                        "path": "//tmp/test_node/inner_node",
+                        "revision": revision,
+                    }
+                ],
+            )
 
     @authors("cherepashka")
     @pytest.mark.parametrize("make_link", [False, True])

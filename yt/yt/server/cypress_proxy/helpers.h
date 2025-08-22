@@ -32,18 +32,27 @@ void ValidateLinkNodeCreation(
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<NSequoiaClient::TPrerequisiteRevision> GetPrerequisiteRevisions(const NRpc::NProto::TRequestHeader& header);
-TErrorOr<std::vector<NSequoiaClient::TResolvedPrerequisiteRevision>> ResolvePrerequisiteRevisions(
+
+[[nodiscard]] TError CheckPrerequisitesAfterRequestInvocation(
+    const NRpc::NProto::TRequestHeader& header,
+    const TSequoiaSessionPtr& session,
+    const NSequoiaClient::ISequoiaClientPtr& sequoiaClient,
+    const NYPath::TYPath& originalTargetPath,
+    const std::vector<NSequoiaClient::TPrerequisiteRevision>& prerequisiteRevisions,
+    const std::vector<NObjectClient::TTransactionId>& prerequisiteTransactionIds);
+
+[[nodiscard]] TErrorOr<std::vector<NSequoiaClient::TResolvedPrerequisiteRevision>> ResolvePrerequisiteRevisions(
     const NRpc::NProto::TRequestHeader& header,
     const TSequoiaSessionPtr& session,
     const NYPath::TYPath& originalTargetPath,
     const std::vector<NSequoiaClient::TPrerequisiteRevision>& prerequisiteRevisions);
 
-TError ValidatePrerequisiteRevisionsPaths(
+[[nodiscard]] TError CheckPrerequisiteRevisionsPaths(
     const NRpc::NProto::TRequestHeader& header,
     const NYPath::TYPath& originalTargetPath,
     const std::vector<NSequoiaClient::TPrerequisiteRevision>& prerequisiteRevisions);
 
-void ValidatePrerequisiteTransactions(
+[[nodiscard]] TError CheckPrerequisiteTransactions(
     const NSequoiaClient::ISequoiaClientPtr& sequoiaClient,
     const std::vector<NObjectClient::TTransactionId>& prerequisiteTransactionIds);
 

@@ -435,7 +435,8 @@ TSequoiaSessionPtr TSequoiaSession::Start(
     // Best effort pre-check for mutating requests before starting execution of master commit sessions,
     // doesn't guarantee that prerequisite transactions will be alive during execution on master.
     if (dynamicConfig->ObjectService->EnableFastPathPrerequisiteTransactionCheck) {
-        ValidatePrerequisiteTransactions(sequoiaClient, cypressPrerequisiteTransactionIds);
+        CheckPrerequisiteTransactions(sequoiaClient, cypressPrerequisiteTransactionIds)
+            .ThrowOnError();
     }
 
     // TODO(danilalexeev): YT-24575. Get authentication identity from sequoia client
