@@ -102,6 +102,8 @@ struct ITabletWriteManager
     //! Returns all transactions that affect the tablet, both transient and persistent.
     virtual THashSet<TTransactionId> GetAffectingTransactionIds() const = 0;
 
+    virtual bool HasWriteState(TTransaction* transaction) const = 0;
+
     virtual void StartEpoch() = 0;
     virtual void StopEpoch() = 0;
 

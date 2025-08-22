@@ -187,6 +187,22 @@ message TReqReplicateTabletContent
 
     required uint64 last_commit_timestamp = 10;
     required uint64 last_write_timestamp = 11;
+
+    message TChaosData
+    {
+        optional uint64 replication_era = 1;
+        optional uint64 replication_round = 2;
+
+        message TCurrentReplicationRowIndexEntry
+        {
+            required NYT.NProto.TGuid tablet_id = 1;
+            required int64 row_index = 2;
+        }
+
+        repeated TCurrentReplicationRowIndexEntry current_replication_row_indexes = 3;
+    }
+
+    required TChaosData chaos_data = 14;
 }
 
 message TReqUnmountTablet

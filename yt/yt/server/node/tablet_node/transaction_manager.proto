@@ -48,3 +48,9 @@ message TReqAbortExternalizedTransaction
     optional string user_tag = 4;
     required NYT.NProto.TGuid externalization_token = 5;
 }
+
+message TReqSerializeExternalizedTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required NYT.NProto.TGuid externalization_token = 2;
+}

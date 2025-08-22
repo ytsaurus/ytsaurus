@@ -998,9 +998,25 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
+#ifndef NDEBUG
+        auto affectedTablets = GetAffectedTablets(transaction);
+#endif
+
         UnlockLockedTablets(transaction);
         ClearTransientLeases(transaction);
         ClearPersistentLeases(transaction);
+
+#ifndef NDEBUG
+        for (auto* tablet : affectedTablets) {
+            const auto& tabletWriteManager = tablet->GetTabletWriteManager();
+            if (tabletWriteManager->HasWriteState(transaction)) {
+                YT_LOG_ALERT("Tablet still has transation write state on transaction finish "
+                    "(%v, TransactionId: %v)",
+                    tablet->GetLoggingTag(),
+                    transaction->GetId());
+            }
+        }
+#endif
     }
 
     //! This method promotes transaction transient generation and also resets its transient state.

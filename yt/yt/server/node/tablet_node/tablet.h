@@ -640,7 +640,6 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(IChaosAgentPtr, ChaosAgent);
     DEFINE_BYVAL_RW_PROPERTY(ITablePullerPtr, TablePuller);
-    DEFINE_BYREF_RW_PROPERTY(NChaosClient::TReplicationProgress, ReplicationProgress);
     DEFINE_BYREF_RO_PROPERTY(TChaosTabletDataPtr, ChaosData, New<TChaosTabletData>());
 
     DEFINE_BYREF_RW_PROPERTY(TBackupMetadata, BackupMetadata);
