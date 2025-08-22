@@ -391,6 +391,9 @@ private:
         }
 
         SanitizeScionExplicitAttributes(explicitAttributes.Get());
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        objectManager->RefObject(scionNode);
+
         try {
             typeHandler->FillAttributes(scionNode, inheritedAttributes.Get(), explicitAttributes.Get());
         } catch (const std::exception& ex) {
@@ -412,6 +415,14 @@ private:
         EmplaceOrCrash(ScionNodes_, scionNodeId, scionNode);
 
         typeHandler->SetReachable(scionNode);
+
+        YT_LOG_DEBUG("Creating scion (ScionId: %v, RefCounter: %v)",
+            scionNode->GetId(),
+            scionNode->GetObjectRefCounter());
+
+        YT_VERIFY(scionNode->GetObjectRefCounter() > 1);
+
+        objectManager->UnrefObject(scionNode);
 
         YT_LOG_DEBUG("Scion created "
             "(RootstockNodeId: %v, ScionNodeId: %v)",
