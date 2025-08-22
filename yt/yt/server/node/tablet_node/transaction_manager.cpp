@@ -146,6 +146,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraPrepareExternalizedTransaction, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraCommitExternalizedTransaction, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraAbortExternalizedTransaction, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraSerializeExternalizedTransaction, Unretained(this)));
 
         OrchidService_ = IYPathService::FromProducer(BIND(&TTransactionManager::BuildOrchidYson, MakeWeak(this)), TDuration::Seconds(1))
             ->Via(Host_->GetGuardedAutomatonInvoker());
@@ -162,7 +163,7 @@ public:
             transaction->GetId(),
             commitTimestamp);
 
-        if (transaction->CoarseSerializingTabletIds().empty()){
+        if (transaction->CoarseSerializingTabletIds().empty()) {
             // NB: Either they are already serialized and action below is noop
             // or there were no coarsely serialized tablets and transition to serialized is ok.
             YT_ASSERT(transaction->GetPersistentState() == ETransactionState::Committed ||
@@ -598,6 +599,10 @@ public:
             YT_ABORT();
         }
 
+        if (transaction->IsExternalizedFromThisCell()) {
+            YT_VERIFY(transaction->CommitSignature() == FinalTransactionSignature);
+        }
+
         if (transaction->IsExternalizedToThisCell() || transaction->CommitSignature() == FinalTransactionSignature) {
             DoCommitTransaction(transaction, options);
         } else {
@@ -679,11 +684,13 @@ public:
             options);
 
         if (transaction->IsCoarseSerializationNeeded()) {
-            auto heapTag = GetSerializingTransactionHeapTag(transaction);
-            auto& heap = SerializingTransactionHeaps_[heapTag];
-            heap.push_back(transaction);
-            AdjustHeapBack(heap.begin(), heap.end(), SerializingTransactionHeapComparer);
-            UpdateMinCommitTimestamp(heap);
+            if (!transaction->IsExternalizedToThisCell()) {
+                auto heapTag = GetSerializingTransactionHeapTag(transaction);
+                auto& heap = SerializingTransactionHeaps_[heapTag];
+                heap.push_back(transaction);
+                AdjustHeapBack(heap.begin(), heap.end(), SerializingTransactionHeapComparer);
+                UpdateMinCommitTimestamp(heap);
+            }
         } else if (!transaction->IsPerRowSerializationNeeded()) {
             YT_LOG_DEBUG("Transaction removed without serialization (TransactionId: %v)",
                 transactionId);
@@ -1259,9 +1266,11 @@ private:
             ToProto(request.mutable_options(), options);
         }
 
-        WriteAuthenticationIdentityToProto(
-            &request,
-            GetCurrentAuthenticationIdentity());
+        if constexpr (requires { request->user(); }) {
+            WriteAuthenticationIdentityToProto(
+                &request,
+                GetCurrentAuthenticationIdentity());
+        }
 
         MutationForwarder_->MaybeForwardMutationToSiblingServant(
             tabletId,
@@ -1323,6 +1332,8 @@ private:
         for (auto& [_, heap]: SerializingTransactionHeaps_) {
             while (!heap.empty()) {
                 auto* transaction = heap.front();
+                YT_VERIFY(!transaction->IsExternalizedToThisCell());
+
                 auto commitTimestamp = transaction->GetCommitTimestamp();
                 if (commitTimestamp > barrierTimestamp) {
                     break;
@@ -1341,6 +1352,11 @@ private:
 
                 // NB: Update replication progress after all rows are serialized and available for pulling.
                 RunSerializeTransactionActions(transaction);
+
+                ForwardTransactionIfExternalized(
+                    transaction,
+                    NProto::TReqSerializeExternalizedTransaction{},
+                    /*options*/ {});
 
                 if (transaction->CoarseSerializingTabletIds().empty() && transaction->PerRowSerializingTabletIds().empty()) {
                     transaction->SetFinished();
@@ -1468,6 +1484,31 @@ private:
             FormatTransactionId(transactionId, externalizationToken));
 
         AbortTransaction(transactionId, externalizationToken, options);
+    }
+
+    void HydraSerializeExternalizedTransaction(NProto::TReqSerializeExternalizedTransaction* request)
+    {
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto externalizationToken = FromProto<TTransactionExternalizationToken>(request->externalization_token());
+
+        YT_LOG_DEBUG("Serializing externalized transaction (TransactionId: %v)",
+            FormatTransactionId(transactionId, externalizationToken));
+
+        auto* transaction = GetPersistentTransaction(transactionId, externalizationToken);
+
+        // NB: We do not want to interact with barrier timestamp because externalized
+        // transactions are serialized with respect to the barrier of the
+        // externalizer's cell.
+
+        transaction->SetPersistentState(ETransactionState::Serialized);
+        BeforeTransactionCoarselySerialized_.Fire(transaction);
+        TransactionCoarselySerialized_.Fire(transaction);
+
+        // NB: Update replication progress after all rows are serialized and available for pulling.
+        RunSerializeTransactionActions(transaction);
+
+        transaction->SetFinished();
+        RemoveExternalizedTransaction(transaction);
     }
 
     TDuration ComputeTransactionSerializationLag() const

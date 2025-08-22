@@ -318,10 +318,6 @@ public:
                 THROW_ERROR_EXCEPTION("Replicated table tablet cannot be moved");
             }
 
-            if (table->GetReplicationCardId()) {
-                THROW_ERROR_EXCEPTION("Chaos table tablet cannot be moved");
-            }
-
             if (!table->IsPhysicallySorted()) {
                 THROW_ERROR_EXCEPTION("Ordered table tablet cannot be moved");
             }
