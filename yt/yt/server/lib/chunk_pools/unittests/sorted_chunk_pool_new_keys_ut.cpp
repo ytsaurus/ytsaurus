@@ -1040,9 +1040,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeTeleports1)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false, false, false} /*isForeign*/,
-        {true, true, true, true} /*isTeleportable*/,
-        {false, false, false, false} /*isVersioned*/);
+        /*isForeign*/ {false, false, false, false},
+        /*isTeleportable*/ {true, true, true, true},
+        /*isVersioned*/ {false, false, false, false});
     InitPrimaryComparator(1);
     Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
@@ -1077,9 +1077,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeTeleports2)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false, false, false} /*isForeign*/,
-        {false, true, true, true} /*isTeleportable*/,
-        {false, false, false, false} /*isVersioned*/);
+        /*isForeign*/ {false, false, false, false},
+        /*isTeleportable*/ {false, true, true, true},
+        /*isVersioned*/ {false, false, false, false});
     InitPrimaryComparator(1);
     Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
@@ -1115,9 +1115,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeTeleports3)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false, false} /*isForeign*/,
-        {true, true, true} /*isTeleportable*/,
-        {false, false, false} /*isVersioned*/);
+        /*isForeign*/ {false, false, false},
+        /*isTeleportable*/ {true, true, true},
+        /*isVersioned*/ {false, false, false});
     InitPrimaryComparator(1);
     Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
@@ -1148,9 +1148,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeTeleports4)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false, false} /*isForeign*/,
-        {true, true, true} /*isTeleportable*/,
-        {false, false, false} /*isVersioned*/);
+        /*isForeign*/ {false, false, false},
+        /*isTeleportable*/ {true, true, true},
+        /*isVersioned*/ {false, false, false});
     InitPrimaryComparator(2);
     Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
@@ -1190,9 +1190,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeAllKindsOfTeleports)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false} /*isForeign*/,
-        {true, true} /*isTeleportable*/,
-        {false, false} /*isVersioned*/);
+        /*isForeign*/ {false, false},
+        /*isTeleportable*/ {true, true},
+        /*isVersioned*/ {false, false});
     InitPrimaryComparator(3);
     Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
@@ -1453,9 +1453,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeSimple)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false, false} /*isForeign*/,
-        {true, true, true} /*isTeleportable*/,
-        {false, false, false} /*isVersioned*/);
+        /*isForeign*/ {false, false, false},
+        /*isTeleportable*/ {true, true, true},
+        /*isVersioned*/ {false, false, false});
     InitPrimaryComparator(1);
     InitJobConstraints();
     PrepareNewMock();
@@ -1492,9 +1492,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeWithPersistBeforeFinish)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false, false} /*isForeign*/,
-        {true, true, true} /*isTeleportable*/,
-        {false, false, false} /*isVersioned*/);
+        /*isForeign*/ {false, false, false},
+        /*isTeleportable*/ {true, true, true},
+        /*isVersioned*/ {false, false, false});
     InitPrimaryComparator(1);
     InitJobConstraints();
 
@@ -1524,9 +1524,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeSimpleWithGenericInputStreamDirec
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false, false} /*isForeign*/,
-        {true, true, true} /*isTeleportable*/,
-        {false, false, false} /*isVersioned*/);
+        /*isForeign*/ {false, false, false},
+        /*isTeleportable*/ {true, true, true},
+        /*isVersioned*/ {false, false, false});
     InitPrimaryComparator(1);
     InitJobConstraints();
     PrepareNewMock();
@@ -1563,9 +1563,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, SlicingManiacs1)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false} /*isForeign*/,
-        {true, true} /*isTeleportable*/,
-        {false, false} /*isVersioned*/);
+        /*isForeign*/ {false, false},
+        /*isTeleportable*/ {true, true},
+        /*isVersioned*/ {false, false});
     InitPrimaryComparator(1);
     MaxDataSlicesPerJob_ = 3;
     InitJobConstraints();
@@ -1609,9 +1609,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, SlicingManiacs2)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false} /*isForeign*/,
-        {true, true} /*isTeleportable*/,
-        {false, false} /*isVersioned*/);
+        /*isForeign*/ {false, false},
+        /*isTeleportable*/ {true, true},
+        /*isVersioned*/ {false, false});
     InitPrimaryComparator(1);
     MaxDataSlicesPerJob_ = 3;
     InitJobConstraints();
@@ -1660,9 +1660,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedReduceSimple)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
-        {false, false} /*isForeign*/,
-        {true, true} /*isTeleportable*/,
-        {false, false} /*isVersioned*/);
+        /*isForeign*/ {false, false},
+        /*isTeleportable*/ {true, true},
+        /*isVersioned*/ {false, false});
     InitPrimaryComparator(1);
     Options_.MinTeleportChunkSize = 0;
     MaxDataSlicesPerJob_ = 1;
@@ -1704,9 +1704,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedReduceManiacs)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
-        {false, false} /*isForeign*/,
-        {true, true} /*isTeleportable*/,
-        {false, false} /*isVersioned*/);
+        /*isForeign*/ {false, false},
+        /*isTeleportable*/ {true, true},
+        /*isVersioned*/ {false, false});
     InitPrimaryComparator(1);
     Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
@@ -1738,9 +1738,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedReduceAllKindsOfTeleports)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
-        {false, false, true} /*isForeign*/,
-        {true, true, false} /*isTeleportable*/,
-        {false, false, false} /*isVersioned*/);
+        /*isForeign*/ {false, false, true},
+        /*isTeleportable*/ {true, true, false},
+        /*isVersioned*/ {false, false, false});
     InitPrimaryComparator(3);
     InitForeignComparator(3);
     Options_.MinTeleportChunkSize = 0;
@@ -2036,9 +2036,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedReduceWithJoin)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
-        {true, true, false, false} /*isForeign*/,
-        {false, false, false, false} /*isTeleportable*/,
-        {false, false, false, false} /*isVersioned*/);
+        /*isForeign*/ {true, true, false, false},
+        /*isTeleportable*/ {false, false, false, false},
+        /*isVersioned*/ {false, false, false, false});
     InitPrimaryComparator(3);
     InitForeignComparator(2);
     Options_.MinTeleportChunkSize = 0;
@@ -2079,9 +2079,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, JoinReduce)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {true, true, false, false} /*isForeign*/,
-        {false, false, false, false} /*isTeleportable*/,
-        {false, false, false, false} /*isVersioned*/);
+        /*isForeign*/ {true, true, false, false},
+        /*isTeleportable*/ {false, false, false, false},
+        /*isVersioned*/ {false, false, false, false});
     InitPrimaryComparator(3);
     InitForeignComparator(2);
     Options_.MinTeleportChunkSize = 0;
@@ -2122,9 +2122,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, ManiacIsSliced)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false} /*isForeign*/,
-        {false} /*isTeleportable*/,
-        {false} /*isVersioned*/);
+        /*isForeign*/ {false},
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
     InitPrimaryComparator(1);
     DataWeightPerJob_ = 100_MB;
     InputSliceDataWeight_ = 16_MB;
@@ -2153,9 +2153,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, MaxTotalSliceCountExceeded)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false, false} /*isForeign*/,
-        {false, false, false} /*isTeleportable*/,
-        {false, false, false} /*isVersioned*/);
+        /*isForeign*/ {false, false, false},
+        /*isTeleportable*/ {false, false, false},
+        /*isVersioned*/ {false, false, false});
     InitPrimaryComparator(1);
     Options_.SortedJobOptions.MaxTotalSliceCount = 6;
     DataWeightPerJob_ = 1000;
@@ -2182,9 +2182,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, MaxTotalSliceCountRetries)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false, false} /*isForeign*/,
-        {false, false, false} /*isTeleportable*/,
-        {false, false, false} /*isVersioned*/);
+        /*isForeign*/ {false, false, false},
+        /*isTeleportable*/ {false, false, false},
+        /*isVersioned*/ {false, false, false});
     InitPrimaryComparator(1);
     Options_.SortedJobOptions.MaxTotalSliceCount = 6;
     MaxBuildRetryCount_ = 5;
@@ -2216,9 +2216,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobInterruption)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false, false, true} /*isForeign*/,
-        {false, false, false, false} /*isTeleportable*/,
-        {false, false, false, false} /*isVersioned*/);
+        /*isForeign*/ {false, false, false, true},
+        /*isTeleportable*/ {false, false, false, false},
+        /*isVersioned*/ {false, false, false, false});
     InitPrimaryComparator(1);
     InitForeignComparator(1);
     InitJobConstraints();
@@ -2278,9 +2278,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCriteria1)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false} /*isForeign*/,
-        {false, false} /*isTeleportable*/,
-        {false, false} /*isVersioned*/);
+        /*isForeign*/ {false, false},
+        /*isTeleportable*/ {false, false},
+        /*isVersioned*/ {false, false});
     InitPrimaryComparator(1);
     DataWeightPerJob_ = 10_KB;
     InputSliceDataWeight_ = 1;
@@ -2323,9 +2323,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCriteria2)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false} /*isForeign*/,
-        {false, false} /*isTeleportable*/,
-        {false, false} /*isVersioned*/);
+        /*isForeign*/ {false, false},
+        /*isTeleportable*/ {false, false},
+        /*isVersioned*/ {false, false});
     InitPrimaryComparator(1);
     DataWeightPerJob_ = 10_KB;
     InputSliceDataWeight_ = 1;
@@ -2356,8 +2356,8 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCriteria2Dynamic)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false} /*isForeign*/,
-        {false, false} /*isTeleportable*/,
+        /*isForeign*/ {false, false},
+        /*isTeleportable*/ {false, false},
         {false, true}  /*isVersioned*/);
     InitPrimaryComparator(1);
     DataWeightPerJob_ = 10_KB;
@@ -2388,9 +2388,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCriteria3)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false, false} /*isForeign*/,
-        {false, false, false} /*isTeleportable*/,
-        {false, false, false} /*isVersioned*/);
+        /*isForeign*/ {false, false, false},
+        /*isTeleportable*/ {false, false, false},
+        /*isVersioned*/ {false, false, false});
     InitPrimaryComparator(1);
     DataWeightPerJob_ = 10_KB;
     InputSliceDataWeight_ = 1;
@@ -2426,9 +2426,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingWithForeigns)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, true} /*isForeign*/,
-        {false, false} /*isTeleportable*/,
-        {false, false} /*isVersioned*/);
+        /*isForeign*/ {false, true},
+        /*isTeleportable*/ {false, false},
+        /*isVersioned*/ {false, false});
     InitPrimaryComparator(1);
     InitForeignComparator(1);
     DataWeightPerJob_ = 10_KB;
@@ -2464,9 +2464,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitSimple)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false} /*isForeign*/,
-        {false} /*isTeleportable*/,
-        {false} /*isVersioned*/);
+        /*isForeign*/ {false},
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
     InitPrimaryComparator(1);
     DataWeightPerJob_ = Inf64;
     InitJobConstraints();
@@ -2510,9 +2510,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitWithForeign)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, true} /*isForeign*/,
-        {false, false} /*isTeleportable*/,
-        {false, false} /*isVersioned*/);
+        /*isForeign*/ {false, true},
+        /*isTeleportable*/ {false, false},
+        /*isVersioned*/ {false, false});
     InitPrimaryComparator(1);
     InitForeignComparator(1);
     DataWeightPerJob_ = Inf64;
@@ -2577,9 +2577,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, SuchForeignMuchData)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, true} /*isForeign*/,
-        {false, false} /*isTeleportable*/,
-        {false, false} /*isVersioned*/);
+        /*isForeign*/ {false, true},
+        /*isTeleportable*/ {false, false},
+        /*isVersioned*/ {false, false});
     InitPrimaryComparator(1);
     InitForeignComparator(1);
     DataWeightPerJob_ = 10_KB;
@@ -2618,9 +2618,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitStripeSuspension)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, true} /*isForeign*/,
-        {false, false} /*isTeleportable*/,
-        {false, false} /*isVersioned*/);
+        /*isForeign*/ {false, true},
+        /*isTeleportable*/ {false, false},
+        /*isVersioned*/ {false, false});
     InitPrimaryComparator(1);
     InitForeignComparator(1);
     DataWeightPerJob_ = Inf64;
@@ -2689,9 +2689,9 @@ protected:
         Options_.SortedJobOptions.EnableKeyGuarantee = false;
         Options_.JobSizeAdjusterConfig = New<TJobSizeAdjusterConfig>();
         InitTables(
-            {false} /*isForeign*/,
-            {false} /*isTeleportable*/,
-            {false} /*isVersioned*/);
+            /*isForeign*/ {false},
+            /*isTeleportable*/ {false},
+            /*isVersioned*/ {false});
         InitPrimaryComparator(1);
         DataWeightPerJob_ = 1_KB;
         PrimaryDataWeightPerJob_ = 1_KB;
@@ -2833,9 +2833,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, DoNotEnlargeJobsWithForeignData)
     Options_.SortedJobOptions.ConsiderOnlyPrimarySize = true;
     Options_.JobSizeAdjusterConfig = New<TJobSizeAdjusterConfig>();
     InitTables(
-        {false, true} /*isForeign*/,
-        {false, false} /*isTeleportable*/,
-        {false, false} /*isVersioned*/);
+        /*isForeign*/ {false, true},
+        /*isTeleportable*/ {false, false},
+        /*isVersioned*/ {false, false});
     InitPrimaryComparator(1);
     InitForeignComparator(1);
     DataWeightPerJob_ = 1_KB;
@@ -2905,9 +2905,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, DISABLED_TestCorrectOrderInsideStripe)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false} /*isForeign*/,
-        {false} /*isTeleportable*/,
-        {false} /*isVersioned*/);
+        /*isForeign*/ {false},
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
     InitPrimaryComparator(1);
     DataWeightPerJob_ = Inf64;
     InitJobConstraints();
@@ -3114,9 +3114,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestNoChunkSliceFetcher)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false, false} /*isForeign*/,
-        {true, true, true} /*isTeleportable*/,
-        {false, false, false} /*isVersioned*/);
+        /*isForeign*/ {false, false, false},
+        /*isTeleportable*/ {true, true, true},
+        /*isVersioned*/ {false, false, false});
     InitPrimaryComparator(1);
     InitJobConstraints();
 
@@ -3145,9 +3145,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestStripeListStatisticsAreSet)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false, false} /*isForeign*/,
-        {true, true, true} /*isTeleportable*/,
-        {false, false, false} /*isVersioned*/);
+        /*isForeign*/ {false, false, false},
+        /*isTeleportable*/ {true, true, true},
+        /*isVersioned*/ {false, false, false});
     InitPrimaryComparator(1);
     InitJobConstraints();
 
@@ -3178,9 +3178,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestSeveralSlicesInInputStripe)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false} /*isForeign*/,
-        {false, false} /*isTeleportable*/,
-        {false, false} /*isVersioned*/);
+        /*isForeign*/ {false, false},
+        /*isTeleportable*/ {false, false},
+        /*isVersioned*/ {false, false});
     InitPrimaryComparator(1);
     InitJobConstraints();
 
@@ -3210,9 +3210,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestPivotKeys1)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
-        {false, false} /*isForeign*/,
-        {false, false} /*isTeleportable*/,
-        {false, false} /*isVersioned*/);
+        /*isForeign*/ {false, false},
+        /*isTeleportable*/ {false, false},
+        /*isVersioned*/ {false, false});
     InitPrimaryComparator(1);
     InitJobConstraints();
 
@@ -3254,9 +3254,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestPivotKeys2)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
-        {false} /*isForeign*/,
-        {false} /*isTeleportable*/,
-        {false} /*isVersioned*/);
+        /*isForeign*/ {false},
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
     InitPrimaryComparator(1);
     InitJobConstraints();
 
@@ -3289,9 +3289,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, SuspendFinishResumeTest)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false} /*isForeign*/,
-        {false} /*isTeleportable*/,
-        {false} /*isVersioned*/);
+        /*isForeign*/ {false},
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
     InitPrimaryComparator(1);
     InitJobConstraints();
 
@@ -3326,9 +3326,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, SliceByPrimaryDataSize)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {true, false} /*isForeign*/,
-        {false, false} /*isTeleportable*/,
-        {false, false} /*isVersioned*/);
+        /*isForeign*/ {true, false},
+        /*isTeleportable*/ {false, false},
+        /*isVersioned*/ {false, false});
     DataWeightPerJob_ = 10_KB;
     PrimaryDataWeightPerJob_ = 1_KB;
     InitPrimaryComparator(1);
@@ -3365,9 +3365,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, ExtractByDataSize)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
-        {false} /*isForeign*/,
-        {false} /*isTeleportable*/,
-        {false} /*isVersioned*/);
+        /*isForeign*/ {false},
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
     InitPrimaryComparator(1);
     DataWeightPerJob_ = 1;
     auto chunkA1 = CreateChunk(BuildRow({0}), BuildRow({5}), 0, 10_KB);
@@ -3404,9 +3404,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, MaximumDataWeightPerJobViolation)
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     MaxDataWeightPerJob_ = 10_KB;
     InitTables(
-        {false, false} /*isForeign*/,
-        {false, false} /*isTeleportable*/,
-        {false, false} /*isVersioned*/);
+        /*isForeign*/ {false, false},
+        /*isTeleportable*/ {false, false},
+        /*isVersioned*/ {false, false});
     InitPrimaryComparator(1);
     DataWeightPerJob_ = 5_KB;
     auto chunkA1 = CreateChunk(BuildRow({0}), BuildRow({5}), 0, 7_KB);
@@ -3426,9 +3426,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, SingletonTeleportSingleton)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false} /*isForeign*/,
-        {false, true} /*isTeleportable*/,
-        {false, false} /*isVersioned*/);
+        /*isForeign*/ {false, false},
+        /*isTeleportable*/ {false, true},
+        /*isVersioned*/ {false, false});
     InitPrimaryComparator(1);
     DataWeightPerJob_ = 100_KB;
     Options_.MinTeleportChunkSize = 0;
@@ -3466,9 +3466,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, CartesianProductViaJoinReduce)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, true} /*isForeign*/,
-        {false, false} /*isTeleportable*/,
-        {false, false} /*isVersioned*/);
+        /*isForeign*/ {false, true},
+        /*isTeleportable*/ {false, false},
+        /*isVersioned*/ {false, false});
     InitPrimaryComparator(1);
     InitForeignComparator(1);
     DataWeightPerJob_ = Inf64;
@@ -3504,9 +3504,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, ResetBeforeFinish)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false, false} /*isForeign*/,
-        {true, true, true} /*isTeleportable*/,
-        {false, false, false} /*isVersioned*/);
+        /*isForeign*/ {false, false, false},
+        /*isTeleportable*/ {true, true, true},
+        /*isVersioned*/ {false, false, false});
     InitPrimaryComparator(1);
     Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
@@ -3540,9 +3540,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, DoNotReuseChunkSlicesAfterReset)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false} /*isForeign*/,
-        {false, false} /*isTeleportable*/,
-        {false, false} /*isVersioned*/);
+        /*isForeign*/ {false, false},
+        /*isTeleportable*/ {false, false},
+        /*isVersioned*/ {false, false});
     InitPrimaryComparator(1);
     DataWeightPerJob_ = 10_KB;
     InitJobConstraints();
@@ -3600,9 +3600,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, TeleportChunkAndShortReadLimits)
     // YT-8836.
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false} /*isForeign*/,
-        {true, true} /*isTeleportable*/,
-        {false, false} /*isVersioned*/);
+        /*isForeign*/ {false, false},
+        /*isTeleportable*/ {true, true},
+        /*isVersioned*/ {false, false});
     InitPrimaryComparator(2);
     Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
@@ -3635,9 +3635,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, TwoTablesWithoutKeyGuarantee)
     // This test is similar to test_reduce_skewed_key_distribution_two_tables.
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false} /*isForeign*/,
-        {false, false} /*isTeleportable*/,
-        {false, false} /*isVersioned*/);
+        /*isForeign*/ {false, false},
+        /*isTeleportable*/ {false, false},
+        /*isVersioned*/ {false, false});
     InitPrimaryComparator(1);
     DataWeightPerJob_ = 1_KB;
     InitJobConstraints();
@@ -3665,9 +3665,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, Sampling)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
-        {false} /*isForeign*/,
-        {false} /*isTeleportable*/,
-        {false} /*isVersioned*/);
+        /*isForeign*/ {false},
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
     InitPrimaryComparator(1);
     DataWeightPerJob_ = 1;
     SamplingRate_ = 0.5;
@@ -3703,9 +3703,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, SamplingWithEnlarging)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false} /*isForeign*/,
-        {false} /*isTeleportable*/,
-        {false} /*isVersioned*/);
+        /*isForeign*/ {false},
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
     InitPrimaryComparator(1);
     DataWeightPerJob_ = 10_KB;
     SamplingRate_ = 0.5;
@@ -3741,9 +3741,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, EnlargingWithTeleportation)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false} /*isForeign*/,
-        {true, false} /*isTeleportable*/,
-        {false, false} /*isVersioned*/);
+        /*isForeign*/ {false, false},
+        /*isTeleportable*/ {true, false},
+        /*isVersioned*/ {false, false});
     InitPrimaryComparator(1);
     Options_.MinTeleportChunkSize = 0;
     DataWeightPerJob_ = 10_KB;
@@ -3768,9 +3768,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, TrickySliceSortOrder)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false} /*isForeign*/,
-        {false} /*isTeleportable*/,
-        {false} /*isVersioned*/);
+        /*isForeign*/ {false},
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
     InitPrimaryComparator(1);
     DataWeightPerJob_ = 10_KB;
     InitJobConstraints();
@@ -3830,9 +3830,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, TrickySliceSortOrder2)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false} /*isForeign*/,
-        {false} /*isTeleportable*/,
-        {false} /*isVersioned*/);
+        /*isForeign*/ {false},
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
     InitPrimaryComparator(1);
     DataWeightPerJob_ = 10_KB;
     InitJobConstraints();
@@ -3893,9 +3893,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, JoinReduceForeignChunkSlicing)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {true, false, false} /*isForeign*/,
-        {false, false, false} /*isTeleportable*/,
-        {false, false, false} /*isVersioned*/);
+        /*isForeign*/ {true, false, false},
+        /*isTeleportable*/ {false, false, false},
+        /*isVersioned*/ {false, false, false});
     InitPrimaryComparator(3);
     InitForeignComparator(2);
     Options_.MinTeleportChunkSize = 0;
@@ -3934,9 +3934,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, DynamicStores)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, false} /*isForeign*/,
-        {false, false} /*isTeleportable*/,
-        {true, true} /*isVersioned*/);
+        /*isForeign*/ {false, false},
+        /*isTeleportable*/ {false, false},
+        /*isVersioned*/ {true, true});
     InitPrimaryComparator(1);
     InitJobConstraints();
 
@@ -3972,9 +3972,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCorrectnessCustom)
         }
 
         InitTables(
-            {false, false} /*isForeign*/,
-            {false, false} /*isTeleportable*/,
-            {false, false} /*isVersioned*/);
+            /*isForeign*/ {false, false},
+            /*isTeleportable*/ {false, false},
+            /*isVersioned*/ {false, false});
         InitPrimaryComparator(1);
 
         const int contiguousChunkCount = 123;
@@ -4119,9 +4119,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, ResetJobSizeAtJobFlush)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false} /*isForeign*/,
-        {false} /*isTeleportable*/,
-        {true} /*isVersioned*/);
+        /*isForeign*/ {false},
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {true});
     InitPrimaryComparator(1);
 
     DataWeightPerJob_ = 10_KB;
@@ -4150,9 +4150,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, AttachForeignSlicesAfterUpperBoundPromotion)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
-        {false, true} /*isForeign*/,
-        {false, false} /*isTeleportable*/,
-        {true, false} /*isVersioned*/);
+        /*isForeign*/ {false, true},
+        /*isTeleportable*/ {false, false},
+        /*isVersioned*/ {true, false});
     InitPrimaryComparator(1);
     InitForeignComparator(1);
 
@@ -4179,6 +4179,171 @@ TEST_F(TSortedChunkPoolNewKeysTest, AttachForeignSlicesAfterUpperBoundPromotion)
     ExtractOutputCookiesWhilePossible();
     CheckForeignStripesAreMarkedAsForeign();
     CheckForeignStripesAreAttachedCorrectly();
+}
+
+TEST_F(TSortedChunkPoolNewKeysTest, BrokenSizeTracking)
+{
+    // Job size tracking is probably broken in new sorted chunk pool.
+    // Consider the following scenario:
+    /**
+     *  KEYS:  -inf | 0 | 1 | 2 | 3 | +inf
+     * ================================================
+     *  S1:           [X]  <- Heavy!        DW = 1000
+     *  S2:               [X]               DW = 30
+     *  S3:                   [X]           DW = 30
+     *  S4:                       [X]       DW = 30
+     * ================================================
+     *  P0:  <---)
+     *  P1:  <--------)
+     *  P2:  <------------)
+     *  P3:  <----------------)
+     *  P4:  <-------------------)
+     * ================================================
+     *  Step 1: Initialization
+     * ================================================
+     *
+     *  P0:  <---)  Initial (empty)
+     *
+     *  +----------------------------+
+     *  | JOB SIZE TRACKER STATE     |
+     *  +----------------------------+
+     *  | Dominant Resource: DW      |
+     *  | Vector format: [DW][PDW]   |
+     *  | Usage:                     |
+     *  | - Local:      [0, 0]       |
+     *  | - Cumulative: [0, 0]       |
+     *  | Limits:                    |
+     *  | - Cumulative: [100][100]   |
+     *  | - HystLocal:  [inf][150]   |
+     *  | - Local:      [100][100]   |
+     *  +----------------------------+
+     *
+     * ================================================
+     *  Step 2: Promoting to S1
+     * ================================================
+     *
+     *  P1:  <--------)
+     *
+     *  Account slice S1 (DW=1000)
+     *  +----------------------------+
+     *  | JOB SIZE TRACKER STATE     |
+     *  +----------------------------+
+     *  | Dominant Resource: DW      |
+     *  | Vector format: [DW][PDW]   |
+     *  | Usage:                     |
+     *  | - Local:      [1000, 1000] |
+     *  | - Cumulative: [1000, 1000] |
+     *  | Limits:                    |
+     *  | - Cumulative: [100][100]   |
+     *  | - HystLocal:  [inf][150]   |
+     *  | - Local:      [100][100]   |
+     *  +----------------------------+
+     *
+     *  Overflow detected!
+     *  Flush called!
+     *  BUT S1 IS NOT FLUSHED INTO SEPARATE JOB!
+     *  This is because TSortedStagingArea flushes slices BEFORE P1.
+     *
+     *  Moreover, TJobSizeTracker will be also flushed with dominant resource switch.
+     *  The state after flush will be:
+     *  +----------------------------+
+     *  | JOB SIZE TRACKER STATE     |
+     *  +----------------------------+
+     *  | Dominant Resource: PDW     |
+     *  | Vector format: [DW][PDW]   |
+     *  | Usage:                     |
+     *  | - Local:      [0, 0]       |
+     *  | - Cumulative: [0, 0]       |
+     *  | Limits:                    |
+     *  | - Cumulative: [100][100]   |
+     *  | - HystLocal:  [150][inf]   |
+     *  | - Local:      [100][100]   |
+     *  +----------------------------+
+     *
+     *  We end up in the situation when heavy slice S1 is not considered
+     *  in job size at all. Its size is invisible for job size tracker now.
+     *
+     * ================================================
+     *  Step 3: Adding S2, S3, S4
+     * ================================================
+     *
+     *  P4:  <-------------------)
+     *
+     *  Account slices S2, S3, S4 (DW=30 each, total=90)
+     *  +----------------------------+
+     *  | JOB SIZE TRACKER STATE     |
+     *  +----------------------------+
+     *  | Dominant Resource: PDW     |
+     *  | Vector format: [DW][PDW]   |
+     *  | Usage:                     |
+     *  | - Local:      [90, 90]     |
+     *  | - Cumulative: [90, 90]     |
+     *  | Limits:                    |
+     *  | - Cumulative: [100][100]   |
+     *  | - HystLocal:  [150][inf]   |
+     *  | - Local:      [100][100]   |
+     *  +----------------------------+
+     *
+     *  No overflow detected!
+     *  Job continues normally despite containing:
+     *  - S1: DW=1000 (unaccounted!)
+     *  - S2: DW=30
+     *  - S3: DW=30
+     *  - S4: DW=30
+     *  Total actual: DW=1090 >> Limit of 100!
+     *
+     *  BUG: Heavy slice S1 remains invisible to the job size tracker,
+     *  allowing the job to exceed resource limits significantly.
+     *
+     * ================================================
+     */
+
+    Options_.SortedJobOptions.EnableKeyGuarantee = true;
+    InitTables(
+        /*isForeign*/ {false},
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+    InitPrimaryComparator(1);
+
+    DataWeightPerJob_ = 100;
+    PrimaryDataWeightPerJob_ = 100;
+
+    InitJobConstraints();
+    PrepareNewMock();
+
+    CurrentMock()
+        .RegisterTriviallySliceableUnversionedDataSlice(
+            CreateDataSlice(
+                CreateChunk(BuildRow({0}), BuildRow({0}), /*tableIndex*/ 0, /*size*/ 1000, /*rowCount*/ 1)));
+
+    CurrentMock()
+        .RegisterTriviallySliceableUnversionedDataSlice(
+            CreateDataSlice(
+                CreateChunk(BuildRow({1}), BuildRow({1}), /*tableIndex*/ 0, /*size*/ 30, /*rowCount*/ 1)));
+
+    CurrentMock()
+        .RegisterTriviallySliceableUnversionedDataSlice(
+            CreateDataSlice(
+                CreateChunk(BuildRow({2}), BuildRow({2}), /*tableIndex*/ 0, /*size*/ 30, /*rowCount*/ 1)));
+
+    CurrentMock()
+        .RegisterTriviallySliceableUnversionedDataSlice(
+            CreateDataSlice(
+                CreateChunk(BuildRow({3}), BuildRow({3}), /*tableIndex*/ 0, /*size*/ 30, /*rowCount*/ 1)));
+
+    CreateChunkPool();
+
+    for (const auto& dataSlice : CreatedUnversionedDataSlices_) {
+        AddDataSlice(dataSlice);
+    }
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    EXPECT_EQ(std::ssize(stripeLists), 1u);
+
+    CheckEverything(stripeLists);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -4273,9 +4438,9 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, VariousOperationsWithPoolTest)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
-        {false} /*isForeign*/,
-        {false} /*isTeleportable*/,
-        {false} /*isVersioned*/);
+        /*isForeign*/ {false},
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
     InitPrimaryComparator(1);
     DataWeightPerJob_ = 1;
     InitJobConstraints();
