@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - ogorbacheva-test-algola
     paths: 'yt/docs/**'
 
 jobs:
@@ -35,6 +36,21 @@ jobs:
           storage-access-key-id: ${{ secrets.DIPLODOC_ACCESS_KEY_ID }}
           storage-secret-access-key: ${{ secrets.DIPLODOC_SECRET_ACCESS_KEY }}
           src-root: "./yt/docs"
+
+  algolia-index:
+    needs: upload
+    runs-on: ubuntu-latest
+    permissions: write-all
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js  # Установить Node.js для npm/npx
+        uses: actions/setup-node@v4
+      - name: Upload index to Algolia
+        env:
+          ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }} # Это Write Key
+        run: |
+          npx -y @diplodoc/cli index -i ./_docs-build --extensions @diplodoc/algolia-extension
   release:
     needs: upload
     runs-on: ubuntu-latest
