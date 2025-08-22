@@ -34,10 +34,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Set up Node.js  # Установить Node.js для npm/npx
         uses: actions/setup-node@v4
-      - name: Install Algolia Extension  # Новый шаг: Установка расширения (фиксит "unable to resolve")
-        run: npm install @diplodoc/cli @diplodoc/algolia-extension
+
       - name: Download built docs artifact
         uses: actions/download-artifact@v4
         with:
@@ -46,15 +46,10 @@ jobs:
       - name: Debug input folder
         run: |
           ls -la ./_docs-build || echo "Warning: ./_docs-build not found!"
-      - name: Debug extension installation  # Улучшенная отладка: Проверяем resolution
-        run: |
-          ls -la node_modules/@diplodoc/algolia-extension || echo "Warning: Extension folder not found!"
-          npm ls @diplodoc/algolia-extension  # Должен вывести версию и дерево зависимостей
-          echo "NODE_PATH: $NODE_PATH"  # Пути поиска модулей
-          ./node_modules/.bin/diplodoc --help  # Тест: Запуск CLI для проверки установки
+
       - name: Upload index to Algolia
         env:
           ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }} # Это Write Key
         run: |
-          ./node_modules/.bin/diplodoc index -i ./_docs-build --extensions ./node_modules/@diplodoc/algolia-extension
+          npx -y @diplodoc/cli index -i ./_docs-build --extensions @diplodoc/algolia-extension
 
