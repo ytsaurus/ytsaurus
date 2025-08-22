@@ -16,7 +16,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Build
-        uses: diplodoc-platform/docs-build-action@v3
+        uses: diplodoc-platform/docs-build-action
         with:
           revision: "${{ github.sha }}"
           src-root: "./yt/docs"
