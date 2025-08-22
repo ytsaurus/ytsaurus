@@ -866,7 +866,7 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
             continue;
         }
 
-        if (options.PlacementId) {
+        if (options.PlacementId || ShouldChooseLocationBasedOnIOWeight()) {
             candidateIndices.push_back(index);
         } else {
             int count = location->GetSessionCount();
@@ -915,13 +915,24 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
             location->GetId());
     } else if (ShouldChooseLocationBasedOnIOWeight()) {
         std::vector<double> weights;
+        std::vector<int> sessionCounts;
         weights.reserve(candidateIndices.size());
+        sessionCounts.reserve(candidateIndices.size());
         for (int index : candidateIndices) {
-            weights.push_back(Locations_[index]->GetIOWeight());
+            auto ioWeight = Locations_[index]->GetIOWeight();
+            auto sessionCount = Locations_[index]->GetSessionCount();
+            auto sessionCountLimit = Locations_[index]->GetSessionCountLimit();
+            weights.push_back(ioWeight * (sessionCountLimit - sessionCount) * 1. / sessionCountLimit);
+            sessionCounts.push_back(Locations_[index]->GetSessionCount());
         }
 
+        YT_LOG_DEBUG("Choosing random location based on IO weights (CandidateIndices: %v, Weights: %v, SessionCounts: %v)",
+            candidateIndices,
+            weights,
+            sessionCounts);
+
         location = Locations_[candidateIndices[DiscreteDistribution(std::move(weights))]];
-        YT_LOG_DEBUG("Random location is chosen for chunk (ChunkId: %v, LocationId: %v)",
+        YT_LOG_DEBUG("Random location is chosen for chunk based on IO weights (ChunkId: %v, LocationId: %v)",
             sessionId,
             location->GetId());
     } else {
