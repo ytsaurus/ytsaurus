@@ -34,17 +34,27 @@ import tech.ytsaurus.client.request.CreateShuffleReader;
 import tech.ytsaurus.client.request.CreateShuffleWriter;
 import tech.ytsaurus.client.request.CreateTablePartitionReader;
 import tech.ytsaurus.client.request.ExistsNode;
+import tech.ytsaurus.client.request.FlowExecute;
+import tech.ytsaurus.client.request.FlowExecuteResult;
 import tech.ytsaurus.client.request.FreezeTable;
 import tech.ytsaurus.client.request.GcCollect;
 import tech.ytsaurus.client.request.GenerateTimestamps;
 import tech.ytsaurus.client.request.GetFileFromCache;
 import tech.ytsaurus.client.request.GetFileFromCacheResult;
+import tech.ytsaurus.client.request.GetFlowView;
+import tech.ytsaurus.client.request.GetFlowViewResult;
 import tech.ytsaurus.client.request.GetInSyncReplicas;
 import tech.ytsaurus.client.request.GetJob;
 import tech.ytsaurus.client.request.GetJobStderr;
 import tech.ytsaurus.client.request.GetJobStderrResult;
 import tech.ytsaurus.client.request.GetNode;
 import tech.ytsaurus.client.request.GetOperation;
+import tech.ytsaurus.client.request.GetPipelineDynamicSpec;
+import tech.ytsaurus.client.request.GetPipelineDynamicSpecResult;
+import tech.ytsaurus.client.request.GetPipelineSpec;
+import tech.ytsaurus.client.request.GetPipelineSpecResult;
+import tech.ytsaurus.client.request.GetPipelineState;
+import tech.ytsaurus.client.request.GetPipelineStateResult;
 import tech.ytsaurus.client.request.GetQuery;
 import tech.ytsaurus.client.request.GetQueryResult;
 import tech.ytsaurus.client.request.GetTablePivotKeys;
@@ -68,6 +78,7 @@ import tech.ytsaurus.client.request.MultiLookupRowsRequest;
 import tech.ytsaurus.client.request.MultiTablePartition;
 import tech.ytsaurus.client.request.PartitionTables;
 import tech.ytsaurus.client.request.PatchOperationSpec;
+import tech.ytsaurus.client.request.PausePipeline;
 import tech.ytsaurus.client.request.PingTransaction;
 import tech.ytsaurus.client.request.PullConsumer;
 import tech.ytsaurus.client.request.PutFileToCache;
@@ -86,12 +97,18 @@ import tech.ytsaurus.client.request.ReshardTable;
 import tech.ytsaurus.client.request.ResumeOperation;
 import tech.ytsaurus.client.request.SelectRowsRequest;
 import tech.ytsaurus.client.request.SetNode;
+import tech.ytsaurus.client.request.SetPipelineDynamicSpec;
+import tech.ytsaurus.client.request.SetPipelineDynamicSpecResult;
+import tech.ytsaurus.client.request.SetPipelineSpec;
+import tech.ytsaurus.client.request.SetPipelineSpecResult;
 import tech.ytsaurus.client.request.ShuffleHandle;
 import tech.ytsaurus.client.request.SortOperation;
 import tech.ytsaurus.client.request.StartOperation;
+import tech.ytsaurus.client.request.StartPipeline;
 import tech.ytsaurus.client.request.StartQuery;
 import tech.ytsaurus.client.request.StartShuffle;
 import tech.ytsaurus.client.request.StartTransaction;
+import tech.ytsaurus.client.request.StopPipeline;
 import tech.ytsaurus.client.request.SuspendOperation;
 import tech.ytsaurus.client.request.TabletInfo;
 import tech.ytsaurus.client.request.TrimTable;
@@ -526,6 +543,56 @@ public class MockYTsaurusClient implements BaseYTsaurusClient {
     @Override
     public CompletableFuture<Void> patchOperationSpec(PatchOperationSpec req) {
         return null;
+    }
+
+    @Override
+    public CompletableFuture<GetPipelineSpecResult> getPipelineSpec(GetPipelineSpec req) {
+        return (CompletableFuture<GetPipelineSpecResult>) callMethod("getPipelineSpec");
+    }
+
+    @Override
+    public CompletableFuture<SetPipelineSpecResult> setPipelineSpec(SetPipelineSpec req) {
+        return (CompletableFuture<SetPipelineSpecResult>) callMethod("setPipelineSpec");
+    }
+
+    @Override
+    public CompletableFuture<GetPipelineDynamicSpecResult> getPipelineDynamicSpec(GetPipelineDynamicSpec req) {
+        return (CompletableFuture<GetPipelineDynamicSpecResult>) callMethod("getPipelineDynamicSpec");
+    }
+
+    @Override
+    public CompletableFuture<SetPipelineDynamicSpecResult> setPipelineDynamicSpec(SetPipelineDynamicSpec req) {
+        return (CompletableFuture<SetPipelineDynamicSpecResult>) callMethod("setPipelineDynamicSpec");
+    }
+
+    @Override
+    public CompletableFuture<Void> startPipeline(StartPipeline req) {
+        return (CompletableFuture<Void>) callMethod("startPipeline");
+    }
+
+    @Override
+    public CompletableFuture<Void> stopPipeline(StopPipeline req) {
+        return (CompletableFuture<Void>) callMethod("stopPipeline");
+    }
+
+    @Override
+    public CompletableFuture<Void> pausePipeline(PausePipeline req) {
+        return (CompletableFuture<Void>) callMethod("pausePipeline");
+    }
+
+    @Override
+    public CompletableFuture<GetPipelineStateResult> getPipelineState(GetPipelineState req) {
+        return (CompletableFuture<GetPipelineStateResult>) callMethod("getPipelineState");
+    }
+
+    @Override
+    public CompletableFuture<GetFlowViewResult> getFlowView(GetFlowView req) {
+        return (CompletableFuture<GetFlowViewResult>) callMethod("getFlowView");
+    }
+
+    @Override
+    public CompletableFuture<FlowExecuteResult> flowExecute(FlowExecute req) {
+        return (CompletableFuture<FlowExecuteResult>) callMethod("flowExecute");
     }
 
     @Override

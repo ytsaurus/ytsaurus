@@ -55,17 +55,27 @@ import tech.ytsaurus.client.request.CreateShuffleReader;
 import tech.ytsaurus.client.request.CreateShuffleWriter;
 import tech.ytsaurus.client.request.CreateTablePartitionReader;
 import tech.ytsaurus.client.request.ExistsNode;
+import tech.ytsaurus.client.request.FlowExecute;
+import tech.ytsaurus.client.request.FlowExecuteResult;
 import tech.ytsaurus.client.request.FreezeTable;
 import tech.ytsaurus.client.request.GcCollect;
 import tech.ytsaurus.client.request.GenerateTimestamps;
 import tech.ytsaurus.client.request.GetFileFromCache;
 import tech.ytsaurus.client.request.GetFileFromCacheResult;
+import tech.ytsaurus.client.request.GetFlowView;
+import tech.ytsaurus.client.request.GetFlowViewResult;
 import tech.ytsaurus.client.request.GetInSyncReplicas;
 import tech.ytsaurus.client.request.GetJob;
 import tech.ytsaurus.client.request.GetJobStderr;
 import tech.ytsaurus.client.request.GetJobStderrResult;
 import tech.ytsaurus.client.request.GetNode;
 import tech.ytsaurus.client.request.GetOperation;
+import tech.ytsaurus.client.request.GetPipelineDynamicSpec;
+import tech.ytsaurus.client.request.GetPipelineDynamicSpecResult;
+import tech.ytsaurus.client.request.GetPipelineSpec;
+import tech.ytsaurus.client.request.GetPipelineSpecResult;
+import tech.ytsaurus.client.request.GetPipelineState;
+import tech.ytsaurus.client.request.GetPipelineStateResult;
 import tech.ytsaurus.client.request.GetQuery;
 import tech.ytsaurus.client.request.GetQueryResult;
 import tech.ytsaurus.client.request.GetTablePivotKeys;
@@ -92,6 +102,7 @@ import tech.ytsaurus.client.request.MutateNode;
 import tech.ytsaurus.client.request.MutatingOptions;
 import tech.ytsaurus.client.request.PartitionTables;
 import tech.ytsaurus.client.request.PatchOperationSpec;
+import tech.ytsaurus.client.request.PausePipeline;
 import tech.ytsaurus.client.request.PingTransaction;
 import tech.ytsaurus.client.request.PullConsumer;
 import tech.ytsaurus.client.request.PutFileToCache;
@@ -111,12 +122,18 @@ import tech.ytsaurus.client.request.ReshardTable;
 import tech.ytsaurus.client.request.ResumeOperation;
 import tech.ytsaurus.client.request.SelectRowsRequest;
 import tech.ytsaurus.client.request.SetNode;
+import tech.ytsaurus.client.request.SetPipelineDynamicSpec;
+import tech.ytsaurus.client.request.SetPipelineDynamicSpecResult;
+import tech.ytsaurus.client.request.SetPipelineSpec;
+import tech.ytsaurus.client.request.SetPipelineSpecResult;
 import tech.ytsaurus.client.request.ShuffleHandle;
 import tech.ytsaurus.client.request.SortOperation;
 import tech.ytsaurus.client.request.StartOperation;
+import tech.ytsaurus.client.request.StartPipeline;
 import tech.ytsaurus.client.request.StartQuery;
 import tech.ytsaurus.client.request.StartShuffle;
 import tech.ytsaurus.client.request.StartTransaction;
+import tech.ytsaurus.client.request.StopPipeline;
 import tech.ytsaurus.client.request.SuspendOperation;
 import tech.ytsaurus.client.request.TableReplicaMode;
 import tech.ytsaurus.client.request.TableReq;
@@ -1549,6 +1566,86 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         CompletableFuture<FileWriter> result = streamControlFuture.thenCompose(control -> fileWriter.startUpload());
         RpcUtil.relayCancel(result, streamControlFuture);
         return result;
+    }
+
+    @Override
+    public CompletableFuture<GetPipelineSpecResult> getPipelineSpec(GetPipelineSpec req) {
+        return onStarted(req, RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.GET_PIPELINE_SPEC.createRequestBuilder(rpcOptions)),
+                response -> new GetPipelineSpecResult(response.body())
+        ));
+    }
+
+    @Override
+    public CompletableFuture<SetPipelineSpecResult> setPipelineSpec(SetPipelineSpec req) {
+        return onStarted(req, RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.SET_PIPELINE_SPEC.createRequestBuilder(rpcOptions)),
+                response -> new SetPipelineSpecResult(response.body())
+        ));
+    }
+
+    @Override
+    public CompletableFuture<GetPipelineDynamicSpecResult> getPipelineDynamicSpec(GetPipelineDynamicSpec req) {
+        return onStarted(req, RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.GET_PIPELINE_DYNAMIC_SPEC.createRequestBuilder(rpcOptions)),
+                response -> new GetPipelineDynamicSpecResult(response.body())
+        ));
+    }
+
+    @Override
+    public CompletableFuture<SetPipelineDynamicSpecResult> setPipelineDynamicSpec(SetPipelineDynamicSpec req) {
+        return onStarted(req, RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.SET_PIPELINE_DYNAMIC_SPEC.createRequestBuilder(rpcOptions)),
+                response -> new SetPipelineDynamicSpecResult(response.body())
+        ));
+    }
+
+    @Override
+    public CompletableFuture<Void> startPipeline(StartPipeline req) {
+        return onStarted(req, RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.START_PIPELINE.createRequestBuilder(rpcOptions)),
+                response -> null
+        ));
+    }
+
+    @Override
+    public CompletableFuture<Void> stopPipeline(StopPipeline req) {
+        return onStarted(req, RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.STOP_PIPELINE.createRequestBuilder(rpcOptions)),
+                response -> null
+        ));
+    }
+
+    @Override
+    public CompletableFuture<Void> pausePipeline(PausePipeline req) {
+        return onStarted(req, RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.PAUSE_PIPELINE.createRequestBuilder(rpcOptions)),
+                response -> null
+        ));
+    }
+
+    @Override
+    public CompletableFuture<GetPipelineStateResult> getPipelineState(GetPipelineState req) {
+        return onStarted(req, RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.GET_PIPELINE_STATE.createRequestBuilder(rpcOptions)),
+                response -> new GetPipelineStateResult(response.body())
+        ));
+    }
+
+    @Override
+    public CompletableFuture<GetFlowViewResult> getFlowView(GetFlowView req) {
+        return onStarted(req, RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.GET_FLOW_VIEW.createRequestBuilder(rpcOptions)),
+                response -> new GetFlowViewResult(response.body())
+        ));
+    }
+
+    @Override
+    public CompletableFuture<FlowExecuteResult> flowExecute(FlowExecute req) {
+        return onStarted(req, RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.FLOW_EXECUTE.createRequestBuilder(rpcOptions)),
+                response -> new FlowExecuteResult(response.body())
+        ));
     }
 
     private <T> CompletableFuture<T> onStarted(RequestBase<?, ?> request, CompletableFuture<T> response) {

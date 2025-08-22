@@ -26,15 +26,20 @@ import tech.ytsaurus.rpcproxy.TReqCopyNode;
 import tech.ytsaurus.rpcproxy.TReqCreateNode;
 import tech.ytsaurus.rpcproxy.TReqCreateObject;
 import tech.ytsaurus.rpcproxy.TReqExistsNode;
+import tech.ytsaurus.rpcproxy.TReqFlowExecute;
 import tech.ytsaurus.rpcproxy.TReqFreezeTable;
 import tech.ytsaurus.rpcproxy.TReqGCCollect;
 import tech.ytsaurus.rpcproxy.TReqGenerateTimestamps;
 import tech.ytsaurus.rpcproxy.TReqGetFileFromCache;
+import tech.ytsaurus.rpcproxy.TReqGetFlowView;
 import tech.ytsaurus.rpcproxy.TReqGetInSyncReplicas;
 import tech.ytsaurus.rpcproxy.TReqGetJob;
 import tech.ytsaurus.rpcproxy.TReqGetJobStderr;
 import tech.ytsaurus.rpcproxy.TReqGetNode;
 import tech.ytsaurus.rpcproxy.TReqGetOperation;
+import tech.ytsaurus.rpcproxy.TReqGetPipelineDynamicSpec;
+import tech.ytsaurus.rpcproxy.TReqGetPipelineSpec;
+import tech.ytsaurus.rpcproxy.TReqGetPipelineState;
 import tech.ytsaurus.rpcproxy.TReqGetQuery;
 import tech.ytsaurus.rpcproxy.TReqGetQueryResult;
 import tech.ytsaurus.rpcproxy.TReqGetTablePivotKeys;
@@ -52,6 +57,7 @@ import tech.ytsaurus.rpcproxy.TReqMoveNode;
 import tech.ytsaurus.rpcproxy.TReqMultiLookup;
 import tech.ytsaurus.rpcproxy.TReqPartitionTables;
 import tech.ytsaurus.rpcproxy.TReqPatchOperationSpec;
+import tech.ytsaurus.rpcproxy.TReqPausePipeline;
 import tech.ytsaurus.rpcproxy.TReqPingTransaction;
 import tech.ytsaurus.rpcproxy.TReqPullQueueConsumer;
 import tech.ytsaurus.rpcproxy.TReqPutFileToCache;
@@ -67,10 +73,14 @@ import tech.ytsaurus.rpcproxy.TReqReshardTable;
 import tech.ytsaurus.rpcproxy.TReqResumeOperation;
 import tech.ytsaurus.rpcproxy.TReqSelectRows;
 import tech.ytsaurus.rpcproxy.TReqSetNode;
+import tech.ytsaurus.rpcproxy.TReqSetPipelineDynamicSpec;
+import tech.ytsaurus.rpcproxy.TReqSetPipelineSpec;
 import tech.ytsaurus.rpcproxy.TReqStartOperation;
+import tech.ytsaurus.rpcproxy.TReqStartPipeline;
 import tech.ytsaurus.rpcproxy.TReqStartQuery;
 import tech.ytsaurus.rpcproxy.TReqStartShuffle;
 import tech.ytsaurus.rpcproxy.TReqStartTransaction;
+import tech.ytsaurus.rpcproxy.TReqStopPipeline;
 import tech.ytsaurus.rpcproxy.TReqSuspendOperation;
 import tech.ytsaurus.rpcproxy.TReqTrimTable;
 import tech.ytsaurus.rpcproxy.TReqUnfreezeTable;
@@ -98,15 +108,20 @@ import tech.ytsaurus.rpcproxy.TRspCopyNode;
 import tech.ytsaurus.rpcproxy.TRspCreateNode;
 import tech.ytsaurus.rpcproxy.TRspCreateObject;
 import tech.ytsaurus.rpcproxy.TRspExistsNode;
+import tech.ytsaurus.rpcproxy.TRspFlowExecute;
 import tech.ytsaurus.rpcproxy.TRspFreezeTable;
 import tech.ytsaurus.rpcproxy.TRspGCCollect;
 import tech.ytsaurus.rpcproxy.TRspGenerateTimestamps;
 import tech.ytsaurus.rpcproxy.TRspGetFileFromCache;
+import tech.ytsaurus.rpcproxy.TRspGetFlowView;
 import tech.ytsaurus.rpcproxy.TRspGetInSyncReplicas;
 import tech.ytsaurus.rpcproxy.TRspGetJob;
 import tech.ytsaurus.rpcproxy.TRspGetJobStderr;
 import tech.ytsaurus.rpcproxy.TRspGetNode;
 import tech.ytsaurus.rpcproxy.TRspGetOperation;
+import tech.ytsaurus.rpcproxy.TRspGetPipelineDynamicSpec;
+import tech.ytsaurus.rpcproxy.TRspGetPipelineSpec;
+import tech.ytsaurus.rpcproxy.TRspGetPipelineState;
 import tech.ytsaurus.rpcproxy.TRspGetQuery;
 import tech.ytsaurus.rpcproxy.TRspGetQueryResult;
 import tech.ytsaurus.rpcproxy.TRspGetTablePivotKeys;
@@ -124,6 +139,7 @@ import tech.ytsaurus.rpcproxy.TRspMoveNode;
 import tech.ytsaurus.rpcproxy.TRspMultiLookup;
 import tech.ytsaurus.rpcproxy.TRspPartitionTables;
 import tech.ytsaurus.rpcproxy.TRspPatchOperationSpec;
+import tech.ytsaurus.rpcproxy.TRspPausePipeline;
 import tech.ytsaurus.rpcproxy.TRspPingTransaction;
 import tech.ytsaurus.rpcproxy.TRspPullQueueConsumer;
 import tech.ytsaurus.rpcproxy.TRspPutFileToCache;
@@ -139,10 +155,14 @@ import tech.ytsaurus.rpcproxy.TRspReshardTable;
 import tech.ytsaurus.rpcproxy.TRspResumeOperation;
 import tech.ytsaurus.rpcproxy.TRspSelectRows;
 import tech.ytsaurus.rpcproxy.TRspSetNode;
+import tech.ytsaurus.rpcproxy.TRspSetPipelineDynamicSpec;
+import tech.ytsaurus.rpcproxy.TRspSetPipelineSpec;
 import tech.ytsaurus.rpcproxy.TRspStartOperation;
+import tech.ytsaurus.rpcproxy.TRspStartPipeline;
 import tech.ytsaurus.rpcproxy.TRspStartQuery;
 import tech.ytsaurus.rpcproxy.TRspStartShuffle;
 import tech.ytsaurus.rpcproxy.TRspStartTransaction;
+import tech.ytsaurus.rpcproxy.TRspStopPipeline;
 import tech.ytsaurus.rpcproxy.TRspSuspendOperation;
 import tech.ytsaurus.rpcproxy.TRspTrimTable;
 import tech.ytsaurus.rpcproxy.TRspUnfreezeTable;
@@ -395,6 +415,39 @@ public class ApiServiceMethodTable {
 
     public static final RpcMethodDescriptor<TReqDiscoverProxies.Builder, TRspDiscoverProxies> DISCOVER_PROXIES =
             discoveryServiceMethod("DiscoverProxies", TReqDiscoverProxies::newBuilder, TRspDiscoverProxies.parser());
+
+    // Flow
+    public static final RpcMethodDescriptor<TReqGetPipelineSpec.Builder, TRspGetPipelineSpec> GET_PIPELINE_SPEC =
+            apiServiceMethod("GetPipelineSpec", TReqGetPipelineSpec::newBuilder, TRspGetPipelineSpec.parser());
+
+    public static final RpcMethodDescriptor<TReqSetPipelineSpec.Builder, TRspSetPipelineSpec> SET_PIPELINE_SPEC =
+            apiServiceMethod("SetPipelineSpec", TReqSetPipelineSpec::newBuilder, TRspSetPipelineSpec.parser());
+
+    public static final RpcMethodDescriptor<TReqGetPipelineDynamicSpec.Builder, TRspGetPipelineDynamicSpec>
+            GET_PIPELINE_DYNAMIC_SPEC = apiServiceMethod("GetPipelineDynamicSpec",
+            TReqGetPipelineDynamicSpec::newBuilder, TRspGetPipelineDynamicSpec.parser());
+
+    public static final RpcMethodDescriptor<TReqSetPipelineDynamicSpec.Builder, TRspSetPipelineDynamicSpec>
+            SET_PIPELINE_DYNAMIC_SPEC = apiServiceMethod("SetPipelineDynamicSpec",
+            TReqSetPipelineDynamicSpec::newBuilder, TRspSetPipelineDynamicSpec.parser());
+
+    public static final RpcMethodDescriptor<TReqStartPipeline.Builder, TRspStartPipeline> START_PIPELINE =
+            apiServiceMethod("StartPipeline", TReqStartPipeline::newBuilder, TRspStartPipeline.parser());
+
+    public static final RpcMethodDescriptor<TReqStopPipeline.Builder, TRspStopPipeline> STOP_PIPELINE =
+            apiServiceMethod("StopPipeline", TReqStopPipeline::newBuilder, TRspStopPipeline.parser());
+
+    public static final RpcMethodDescriptor<TReqPausePipeline.Builder, TRspPausePipeline> PAUSE_PIPELINE =
+            apiServiceMethod("PausePipeline", TReqPausePipeline::newBuilder, TRspPausePipeline.parser());
+
+    public static final RpcMethodDescriptor<TReqGetPipelineState.Builder, TRspGetPipelineState> GET_PIPELINE_STATE =
+            apiServiceMethod("GetPipelineState", TReqGetPipelineState::newBuilder, TRspGetPipelineState.parser());
+
+    public static final RpcMethodDescriptor<TReqGetFlowView.Builder, TRspGetFlowView> GET_FLOW_VIEW =
+            apiServiceMethod("GetFlowView", TReqGetFlowView::newBuilder, TRspGetFlowView.parser());
+
+    public static final RpcMethodDescriptor<TReqFlowExecute.Builder, TRspFlowExecute> FLOW_EXECUTE =
+            apiServiceMethod("FlowExecute", TReqFlowExecute::newBuilder, TRspFlowExecute.parser());
 
     private ApiServiceMethodTable() {
     }
