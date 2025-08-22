@@ -20,6 +20,9 @@ jobs:
         with:
           revision: "${{ github.sha }}"
           src-root: "./yt/docs"
+          api-key: ${{ secrets.ALGOLIA_API_KEY }} # Это Write Key
+          app-id: WW7EWG7Y6T
+          index-name: "test_ytsaurus-doc"
       - name: Upload built docs as artifact
         uses: actions/upload-artifact@v4
         with:
