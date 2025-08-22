@@ -3382,11 +3382,28 @@ void MiscBundleChecks(const TSchedulerInputState& input, TSchedulerMutations* mu
             YT_LOG_WARNING("Hotfix mode is enabled for bundle (BundleName: %v)",
                 bundleName);
 
-            mutations->AlertsToFire.push_back(TAlert{
+            mutations->AlertsToFire.push_back({
                 .Id = "hotfix_mode_is_enabled",
                 .BundleName = bundleName,
                 .Description = "Hotfix mode is enabled for the bundle",
             });
+        }
+    }
+
+    for (const auto& [zoneName, zoneInfo] : input.Zones) {
+        for (const auto& [dataCenterName, dataCenter] : zoneInfo->DataCenters) {
+            if (dataCenter->Forbidden) {
+                YT_LOG_WARNING("Data center is forbidden (Zone: %v, DataCenter: %v)",
+                    zoneName,
+                    dataCenterName);
+
+                mutations->AlertsToFire.push_back({
+                    .Id = "dc_is_forbidden",
+                    .DataCenter = dataCenterName,
+                    .Description = Format("Data center %Qv is forbidden",
+                        dataCenterName),
+                });
+            }
         }
     }
 }
