@@ -5,7 +5,13 @@ from yt_commands import (authors, raises_yt_error, create_dynamic_table,
 
 from yt_queries import start_query
 
-from yt_type_helpers import decimal_type
+from yt_type_helpers import (
+    decimal_type,
+    make_column,
+    make_sorted_column,
+    optional_type,
+    list_type,
+)
 
 from yt.test_helpers import assert_items_equal
 
@@ -29,14 +35,10 @@ class TestQueriesQL(YTEnvSetup):
     def _create_simple_dynamic_table(path, sort_order="ascending", **attributes):
         attributes["dynamic_store_auto_flush_period"] = yson.YsonEntity()
         if "schema" not in attributes:
-            attributes.update(
-                {
-                    "schema": [
-                        {"name": "key", "type": "int64", "sort_order": sort_order},
-                        {"name": "value", "type": "string"},
-                    ]
-                }
-            )
+            attributes["schema"] = [
+                make_sorted_column("key", optional_type("int64")),
+                make_column("value", optional_type("string")),
+            ]
         create_dynamic_table(path, **attributes)
 
     @staticmethod
@@ -47,7 +49,7 @@ class TestQueriesQL(YTEnvSetup):
         assert_items_equal(q.read_result(0), rows)
         assert q.get_result(0)["is_truncated"] == yson.YsonBoolean(is_truncated)
 
-    @authors("gudqeit")
+    @authors("gudqeit", "sabdenovch")
     def test_simple_query(self, query_tracker):
         self._create_simple_dynamic_table("//tmp/t", enable_dynamic_store_read=True)
         sync_mount_table("//tmp/t")
@@ -61,6 +63,11 @@ class TestQueriesQL(YTEnvSetup):
         info = q.get()
         assert info["result_count"] == 1
         assert_items_equal(q.read_result(0), rows)
+
+        settings["allow_full_scan"] = False
+        q = start_query("ql", "* from [//tmp/t]", settings=settings)
+        with raises_yt_error():
+            q.track()
 
     @authors("gudqeit")
     def test_query_error(self, query_tracker):
@@ -148,6 +155,22 @@ class TestQueriesQL(YTEnvSetup):
         insert_rows("//tmp/t", new_rows)
         rows += new_rows
         self._assert_select_result("//tmp/t", settings, rows[:15], True)
+
+    @authors("sabdenovch")
+    def test_supports_syntax_and_expression_builder_versions(self, query_tracker):
+        self._create_simple_dynamic_table("//tmp/t", enable_dynamic_store_read=True, schema=[
+            make_sorted_column("key", optional_type("int64")),
+            make_column("list_v", list_type("int64"))
+
+        ])
+        sync_mount_table("//tmp/t")
+        rows = [{"key": i, "list_v": [i * j for j in range(3)]} for i in range(2)]
+        insert_rows("//tmp/t", rows)
+
+        settings = {"cluster": "primary", "syntax_version": 2, "expression_builder_version": 2}
+        q = start_query("ql", "select (T.list_v[1] + 2u) as p from `//tmp/t` as T", settings=settings)
+        q.track()
+        assert_items_equal(q.read_result(0), [{"p": p + 2} for p in range(2)])
 
 
 ##################################################################
