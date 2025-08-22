@@ -51,6 +51,7 @@ bool CanJobUseProxyingDataNodeService(EJobType jobType)
 }
 
 void AppendProxiableChunkSpecs(
+    const TDataSourceDirectoryPtr& maybeDataSourceDirectory,
     const std::vector<TTableSchemaPtr>& schemas,
     const TTableInputSpec& tableSpec,
     EJobType jobType,
@@ -64,9 +65,14 @@ void AppendProxiableChunkSpecs(
         const auto& schema = schemas[tableIndex];
         auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
 
+        bool isLocalCluster = maybeDataSourceDirectory
+            ? IsLocal(maybeDataSourceDirectory->DataSources()[tableIndex].GetClusterName())
+            : true;
+
         if (!schema->HasHunkColumns() &&
             IsBlobChunkId(chunkId) &&
-            CanJobUseProxyingDataNodeService(jobType))
+            CanJobUseProxyingDataNodeService(jobType) &&
+            isLocalCluster)
         {
             auto proxiedChunkId = MakeProxiedChunkId(chunkId);
             auto spec = New<TRefCountedChunkSpec>(chunkSpec);
@@ -84,15 +90,16 @@ THashMap<TChunkId, TRefCountedChunkSpecPtr> GetProxiableChunkSpecs(
     EJobType jobType)
 {
     auto dataSourceDirectoryExt = FindProtoExtension<TDataSourceDirectoryExt>(jobSpecExt.extensions());
+    auto maybeDataSourceDirectory = dataSourceDirectoryExt ? FromProto<TDataSourceDirectoryPtr>(*dataSourceDirectoryExt) : nullptr;
     std::vector<TTableSchemaPtr> schemas = GetJobInputTableSchemas(
         jobSpecExt,
-        dataSourceDirectoryExt ? FromProto<TDataSourceDirectoryPtr>(*dataSourceDirectoryExt) : nullptr);
+        maybeDataSourceDirectory);
 
     THashMap<TChunkId, TRefCountedChunkSpecPtr> chunkSpecs;
 
     auto scanTableSpecs = [&] (const auto& tableSpecs) {
         for (auto& tableSpec : tableSpecs) {
-            AppendProxiableChunkSpecs(schemas, tableSpec, jobType, &chunkSpecs);
+            AppendProxiableChunkSpecs(maybeDataSourceDirectory, schemas, tableSpec, jobType, &chunkSpecs);
         }
     };
 
