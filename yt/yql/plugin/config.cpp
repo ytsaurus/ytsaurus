@@ -147,6 +147,11 @@ IListNodePtr MergeDefaultSettings(const IListNodePtr& settings, const auto& defa
     return result;
 }
 
+IListNodePtr MergeClusterDefaultSettings(const IListNodePtr& clusterConfigSettings)
+{
+    return MergeDefaultSettings(clusterConfigSettings, DefaultClusterSettings);
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -248,12 +253,6 @@ void TDQManagerConfig::Register(TRegistrar registrar)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-IListNodePtr TYqlPluginConfig::MergeClusterDefaultSettings(const IListNodePtr& clusterConfigSettings)
-{
-    return MergeDefaultSettings(clusterConfigSettings, DefaultClusterSettings);
-}
-
 void TAdditionalSystemLib::Register(TRegistrar registrar)
 {
     registrar.Parameter("file", &TThis::File)
@@ -265,7 +264,7 @@ void TYqlProcessPluginConfig::Register(TRegistrar registrar)
     registrar.Parameter("enabled", &TThis::Enabled)
         .Default(false);
 
-    registrar.Parameter("slots_count", &TThis::SlotsCount)
+    registrar.Parameter("slot_count", &TThis::SlotsCount)
         .Default(32);
 
     registrar.Parameter("slots_root_path", &TThis::SlotsRootPath)

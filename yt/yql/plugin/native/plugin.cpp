@@ -327,6 +327,7 @@ class TYqlPlugin
 public:
     TYqlPlugin(TYqlPluginOptions options)
         : DqManagerConfig_(options.DqManagerConfig ? NYTree::ConvertTo<TDqManagerConfigPtr>(options.DqManagerConfig) : nullptr)
+        , StartDqManager_(options.StartDqManager)
     {
         try {
             auto singletonsConfig = NYTree::ConvertTo<TSingletonsConfigPtr>(options.SingletonsConfig);
@@ -410,7 +411,7 @@ public:
             }
             FuncRegistry_->SetSystemModulePaths(systemModules);
 
-            if (DqManagerConfig_ && options.StartDqManager) {
+            if (DqManagerConfig_) {
                 DqManagerConfig_->FileStorage = FileStorage_;
                 DqManager_ = New<TDqManager>(DqManagerConfig_);
             }
@@ -468,7 +469,7 @@ public:
 
     void Start() override
     {
-        if (DqManager_) {
+        if (DqManager_ && StartDqManager_) {
             DqManager_->Start();
         }
     }
@@ -856,6 +857,8 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ProgressSpinLock_);
     THashMap<TQueryId, TActiveQuery> ActiveQueriesProgress_;
     TUserDataTable UserDataTable_;
+
+    bool StartDqManager_;
 
     std::optional<TActiveQuery> ExtractQuery(TQueryId queryId, bool force = false) {
         // NB: TProgram destructor must be called without locking.

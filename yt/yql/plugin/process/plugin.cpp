@@ -84,7 +84,7 @@ class TYqlProcessPlugin
     : public IYqlPlugin
 {
 public:
-    explicit TYqlProcessPlugin(
+    TYqlProcessPlugin(
         NYqlAgent::TBootstrap* bootstrap,
         TYqlPluginConfigPtr config,
         const NProfiling::TProfiler& profiler,
@@ -244,7 +244,7 @@ public:
         return ToQueryResult(response.Value()->response());
     }
 
-    virtual TQueryResult GetProgress(TQueryId queryId) override
+    TQueryResult GetProgress(TQueryId queryId) override
     {
         auto pluginProcessOrError = GetYqlPluginByQueryId(queryId);
         if (!pluginProcessOrError.IsOK()) {
@@ -272,7 +272,7 @@ public:
         return ToQueryResult(response.Value()->response());
     }
 
-    virtual TAbortResult Abort(TQueryId queryId) override
+    TAbortResult Abort(TQueryId queryId) override
     {
         auto pluginProcessOrError = GetYqlPluginByQueryId(queryId);
         if (!pluginProcessOrError.IsOK()) {
@@ -305,7 +305,7 @@ public:
         return abortResult;
     }
 
-    virtual void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) override
+    void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) override
     {
         YT_LOG_INFO("Updating dynamic config");
 
@@ -339,14 +339,15 @@ public:
         YT_LOG_INFO("Dynamic config updated");
     }
 
-    virtual NYTree::IMapNodePtr GetOrchidNode() const override
+    NYTree::IMapNodePtr GetOrchidNode() const override
     {
         auto guard = NThreading::ReaderGuard(ProcessesLock_);
-        auto yqlPluginNode = NYTree::GetEphemeralNodeFactory()->CreateMap();
-        yqlPluginNode->AddChild("active_processes", NYTree::BuildYsonNodeFluently().Value(RunningYqlQueries_.size()));
-        yqlPluginNode->AddChild("standby_processes", NYTree::BuildYsonNodeFluently().Value(StandbyProcessesQueue_.size()));
-        yqlPluginNode->AddChild("total_processes", NYTree::BuildYsonNodeFluently().Value(Config_->ProcessPluginConfig->SlotsCount));
-        return yqlPluginNode;
+        return BuildYsonNodeFluently()
+            .BeginMap()
+                .Item("active_processes").Value(RunningYqlQueries_.size())
+                .Item("standby_processes").Value(StandbyProcessesQueue_.size())
+                .Item("total_processes").Value(Config_->ProcessPluginConfig->SlotsCount)
+            .EndMap()->AsMap();
     }
 
 private:
@@ -502,7 +503,6 @@ private:
         Y_ENSURE(
             NFS::Exists(GetUnixDomainSocketPath(process->SlotIndex)),
             "Unix socket in slot must exist before calling Start method");
-        WaitFor(process->PluginProxy.Start()->Invoke()).ThrowOnError();
     }
 
     void OnQueryFinish(TQueryId queryId, TYqlPluginRunningProcessPtr process)
