@@ -108,6 +108,8 @@ void TCypressProxyDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("thread_pool_size", &TThis::ThreadPoolSize)
         .Default(DefaultThreadPoolSize);
+    registrar.Parameter("default_get_response_size_limit", &TThis::DefaultGetResponseSizeLimit)
+        .Default(1'000);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

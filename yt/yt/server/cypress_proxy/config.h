@@ -146,6 +146,8 @@ struct TCypressProxyDynamicConfig
 
     int ThreadPoolSize;
 
+    int DefaultGetResponseSizeLimit;
+
     constexpr static int DefaultThreadPoolSize = 2;
 
     REGISTER_YSON_STRUCT(TCypressProxyDynamicConfig);
