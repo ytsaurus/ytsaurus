@@ -397,8 +397,8 @@ protected:
 TEST_F(TUnorderedChunkPoolTest, UnorderedMergeSimple)
 {
     InitTables(
-        {true, true, true} /*isTeleportable*/,
-        {false, false, false} /*isVersioned*/);
+        /*isTeleportable*/ {true, true, true},
+        /*isVersioned*/ {false, false, false});
 
     DataWeightPerJob_ = 2_KB;
     Options_.MinTeleportChunkDataWeight = 3_KB;
@@ -522,8 +522,8 @@ TEST_F(TUnorderedChunkPoolTest, OneStripe3)
 TEST_F(TUnorderedChunkPoolTest, InputChunksAreSliced)
 {
     InitTables(
-        {false} /*isTeleportable*/,
-        {false} /*isVersioned*/);
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
 
     DataWeightPerJob_ = 2_KB / 5;
     IsExplicitJobCount_ = true; // TODO(max42): consider what happens with false here.
@@ -559,8 +559,8 @@ TEST_F(TUnorderedChunkPoolTest, InputChunksAreSliced)
 TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks1)
 {
     InitTables(
-        {false} /*isTeleportable*/,
-        {false} /*isVersioned*/);
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
 
     DataWeightPerJob_ = 5_KB;
     IsExplicitJobCount_ = true;
@@ -599,8 +599,8 @@ TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks1)
 TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks2)
 {
     InitTables(
-        {false} /*isTeleportable*/,
-        {false} /*isVersioned*/);
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
 
     DataWeightPerJob_ = 5_KB;
     IsExplicitJobCount_ = true;
@@ -638,8 +638,8 @@ TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks2)
 TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks3)
 {
     InitTables(
-        {false} /*isTeleportable*/,
-        {false} /*isVersioned*/);
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
 
     InputSliceRowCount_ = 500;
     IsExplicitJobCount_ = true;
@@ -1436,8 +1436,8 @@ public:
 TEST_P(TUnorderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
 {
     InitTables(
-        {false} /*isTeleportable*/,
-        {false} /*isVersioned*/);
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
 
     auto generateSize = [&] () -> i64 {
         auto baseSizes = std::to_array({1_KB, 1_MB, 100_MB, 1_GB, 512_GB, 1_TB, 10_TB});
