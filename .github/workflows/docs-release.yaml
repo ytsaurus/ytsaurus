@@ -40,16 +40,20 @@ jobs:
         with:
           name: built-docs  # Должно совпадать с именем в upload
           path: ./_docs-build
-      - name: Debug input folder
+
+      - name: List output docs
         run: |
-          cat ./yt/docs/.yfm
+          ls ./_docs-build/ru/
 
       - name: Upload index to Algolia
         env:
           ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }} # Это Write Key
           ALGOLIA_APP_ID: WW7EWG7Y6T
-          ALGOLIA_INDEX_NAME: "ytsaurus-docs"
+          ALGOLIA_INDEX_NAME: "test_ytsaurus-doc"
         run: |
          npm install -g @diplodoc/cli @diplodoc/algolia-extension
          yfm index -i ./_docs-build --extensions "$(npm root -g)/@diplodoc/algolia-extension"
+         ls -la ./_docs-build/_search
+
+
 
