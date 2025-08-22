@@ -5611,7 +5611,9 @@ TEST(TDataCentersPriority, Forbidden)
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
 
-    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(mutations.AlertsToFire.front().Id, "dc_is_forbidden");
+
     EXPECT_EQ(6, std::ssize(mutations.ChangedStates.at("bigd")->BundleNodeAssignments));
 
     THashSet<std::string> assigningDC;
@@ -5786,7 +5788,9 @@ TEST(TDataCentersPriority, ChangeForbiddenSeveralTimes)
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
 
-    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(mutations.AlertsToFire.front().Id, "dc_is_forbidden");
+
     EXPECT_EQ(3, std::ssize(mutations.ChangedStates.at("bigd")->BundleNodeReleasements));
 
     for (const auto& [nodeName, _] : mutations.ChangedStates.at("bigd")->BundleNodeReleasements) {
@@ -5937,7 +5941,9 @@ TEST(TDataCentersProxyPriority, Forbidden)
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
 
-    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(mutations.AlertsToFire.front().Id, "dc_is_forbidden");
+
     const auto& assignments = mutations.ChangedProxyRole;
 
     THashSet<std::string> assigningDC;
