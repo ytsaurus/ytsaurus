@@ -3504,6 +3504,7 @@ private:
                 filter,
                 "detailed_dominant_fair_share",
                 std::bind(&SerializeDominant, std::cref(attributes.FairShare), std::placeholders::_1))
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "fair_resources", element->GetTotalResourceLimits() * attributes.FairShare.Total)
 
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "detailed_promised_guarantee_fair_share", attributes.PromisedGuaranteeFairShare)
             .ITEM_DO_IF_SUITABLE_FOR_FILTER(
