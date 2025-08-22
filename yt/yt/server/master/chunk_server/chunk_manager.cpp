@@ -3390,7 +3390,6 @@ private:
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
         std::vector<TChunkReplicaWithLocationIndex> sequoiaReplicas;
-        std::vector<TConfirmChunkReplicaInfo> nonSequoiaReplicas;
         for (const auto& protoReplica : request->replicas()) {
             auto replica = FromProto<TChunkReplicaWithLocation>(protoReplica);
             auto nodeId = replica.GetNodeId();
@@ -3408,12 +3407,7 @@ private:
                 nodeId,
                 replica.GetReplicaIndex(),
                 location->GetIndex());
-
-            if (!ChunkReplicaFetcher_->CanHaveSequoiaReplicas(chunkId)) {
-                nonSequoiaReplicas.push_back(protoReplica);
-            } else {
-                sequoiaReplicas.push_back(replicaWithLocationIndex);
-            }
+            sequoiaReplicas.push_back(replicaWithLocationIndex);
         }
 
         return Bootstrap_
@@ -3422,7 +3416,7 @@ private:
                 ESequoiaTransactionType::ChunkConfirmation,
                 {.CellTag = Bootstrap_->GetCellTag()},
                 {.AuthenticationIdentity = GetRootAuthenticationIdentity()})
-            .Apply(BIND([=, request = std::move(request), sequoiaReplicas = std::move(sequoiaReplicas), nonSequoiaReplicas = std::move(nonSequoiaReplicas), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
+            .Apply(BIND([=, request = std::move(request), sequoiaReplicas = std::move(sequoiaReplicas), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
                 NRecords::TUnapprovedChunkReplicas chunkReplicas{
@@ -3439,9 +3433,6 @@ private:
 
                 if (!storeSequoiaReplicasOnMaster) {
                     request->mutable_replicas()->Clear();
-                    for (const auto& protoReplica : nonSequoiaReplicas) {
-                        *request->add_replicas() = protoReplica;
-                    }
                 }
                 transaction->AddTransactionAction(
                     Bootstrap_->GetCellTag(),
