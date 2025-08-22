@@ -1137,6 +1137,9 @@ TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutati
         SanitizedLocalHostName_);
 
     TFiberMinLogLevelGuard minLogLevelGuard(Config_->Get()->RecoveryMinLogLevel);
+    TFiberMessageTagGuard messageTagGuard(Format("MutationVersion: %v, Recovery: %v",
+        mutationVersion,
+        true));
 
     TMutationApplicationResult result;
     DoApplyMutation(&mutationContext, mutationVersion, &result);
@@ -1320,6 +1323,7 @@ TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutati
         SanitizedLocalHostName_);
 
     TMutationApplicationResult result;
+    TFiberMessageTagGuard messageTagGuard(Format("MutationVersion: %v", mutation->Version));
 
     {
         NTracing::TTraceContextGuard traceContextGuard(mutation->Request.TraceContext);
