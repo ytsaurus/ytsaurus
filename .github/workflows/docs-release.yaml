@@ -31,6 +31,11 @@ jobs:
         uses: actions/checkout@v4
       - name: Set up Node.js  # Установить Node.js для npm/npx
         uses: actions/setup-node@v4
+      - name: Install Algolia Extension  # Новый шаг: Установка расширения (фиксит "unable to resolve")
+        run: npm install @diplodoc/algolia-extension
+      - name: Debug input folder
+        run: |
+          ls -la ./_docs-build || echo "Warning: ./_docs-build not found!"
       - name: Upload index to Algolia
         env:
           ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }} # Это Write Key
