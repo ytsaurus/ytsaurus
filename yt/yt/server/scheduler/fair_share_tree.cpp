@@ -3413,8 +3413,6 @@ private:
         const auto& attributes = element->Attributes();
         const auto& persistentAttributes = element->PersistentAttributes();
 
-        auto promisedFairShareResources = element->GetTotalResourceLimits() * attributes.PromisedFairShare;
-
         // TODO(eshcherbin): Rethink which fields should be here and which should be in |TSchedulerElement::BuildYson|.
         // Also rethink which scalar fields should be exported to Orchid.
         fluent
@@ -3511,10 +3509,6 @@ private:
                 filter,
                 "detailed_dominant_promised_guarantee_fair_share",
                 std::bind(&SerializeDominant, std::cref(attributes.PromisedGuaranteeFairShare), std::placeholders::_1))
-
-            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "promised_fair_share", attributes.PromisedFairShare)
-            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "promised_dominant_fair_share", MaxComponent(attributes.PromisedFairShare))
-            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "promised_fair_share_resources", promisedFairShareResources)
 
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "estimated_guarantee_share", attributes.EstimatedGuaranteeShare)
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "dominant_estimated_guarantee_share", MaxComponent(attributes.EstimatedGuaranteeShare))

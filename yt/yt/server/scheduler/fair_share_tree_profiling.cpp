@@ -380,12 +380,6 @@ void TFairShareTreeProfileManager::ProfileElement(
         ProfileResourceVector(
             writer,
             profiledResources,
-            attributes.PromisedFairShare,
-            "/promised_fair_share");
-
-        ProfileResourceVector(
-            writer,
-            profiledResources,
             attributes.EstimatedGuaranteeShare,
             "/estimated_guarantee_share");
     }
