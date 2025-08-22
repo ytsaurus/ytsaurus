@@ -181,8 +181,8 @@ private: \
         public,
         void,
         OnIntermediateChunkBatchLocated,
-        (std::vector<NChunkClient::TScrapedChunkInfo> chunkBatch),
-        (std::move(chunkBatch)),
+        (const std::vector<NChunkClient::TScrapedChunkInfo>& chunkBatch),
+        (chunkBatch),
         false)
 
     //! Called by `TSnapshotBuilder` when snapshot is built.
@@ -407,7 +407,7 @@ public:
     void UpdateRuntimeParameters(const NScheduler::TOperationRuntimeParametersUpdatePtr& update) override;
 
     TOperationSpecBaseSealedConfigurator ConfigureUpdate();
-    void PatchSpec(NYTree::INodePtr newSpec, bool dryRun) override;
+    void PatchSpec(NYTree::INodePtr newCumulativeSpecPatch, bool dryRun) override;
     std::any CreateSafeAssertionGuard() const final;
 
     //! Returns the aggregated delta of job metrics and resets it to zero.
@@ -674,7 +674,7 @@ protected:
         TAllocation& allocation,
         const TAllocationSchedulingContext& context,
         const TString& treeId,
-        NScheduler::TControllerScheduleAllocationResult* scheduleJobResult);
+        NScheduler::TControllerScheduleAllocationResult* scheduleAllocationResult);
 
     void TryScheduleFirstJob(
         TAllocation& allocation,
@@ -784,7 +784,7 @@ protected:
         const THashMap<NObjectClient::TCellTag, std::vector<NTableClient::TTableId>>& lockableOutputDynamicTables);
     void CommitTransactions();
     virtual void CustomCommit();
-    void VerifySortedOutput(TOutputTablePtr table);
+    void VerifySortedOutput(const TOutputTablePtr& table);
 
     void StartOutputCompletionTransaction();
     void CommitOutputCompletionTransaction();
@@ -819,7 +819,7 @@ protected:
 
     //! Called to extract output table paths from the spec.
     virtual std::vector<NYPath::TRichYPath> GetOutputTablePaths() const = 0;
-    void ForEachLockableDynamicTable(std::function<void(const TOutputTablePtr&)> handler);
+    void ForEachLockableDynamicTable(const std::function<void(const TOutputTablePtr&)>& handler);
 
     const TProgressCounterPtr& GetTotalJobCounter() const override;
 
@@ -945,7 +945,7 @@ protected:
 
     NTableClient::TSortColumns CheckInputTablesSorted(
         const NTableClient::TSortColumns& sortColumns,
-        TInputTableFilter inputTableFilter = [](const TInputTablePtr& /*table*/) { return true; });
+        const TInputTableFilter& inputTableFilter = [] (const TInputTablePtr& /*table*/) { return true; });
 
     static bool CheckKeyColumnsCompatible(
         const NTableClient::TKeyColumns& fullColumns,
@@ -960,7 +960,7 @@ protected:
         const NApi::NNative::IClientPtr& client,
         bool ping = false);
 
-    const NApi::ITransactionPtr GetTransactionForOutputTable(const TOutputTablePtr& table) const;
+    NApi::ITransactionPtr GetTransactionForOutputTable(const TOutputTablePtr& table) const;
 
     void RegisterLivePreviewTable(TString name, const TOutputTablePtr& table);
 
@@ -994,28 +994,28 @@ protected:
     std::vector<std::deque<NChunkClient::TLegacyDataSlicePtr>> CollectForeignInputDataSlices(int foreignKeyColumnCount) const;
 
     virtual void InitUserJobSpec(
-        NControllerAgent::NProto::TUserJobSpec* proto,
+        NControllerAgent::NProto::TUserJobSpec* jobSpec,
         const TJobletPtr& joblet) const;
 
     void AddStderrOutputSpecs(
         NControllerAgent::NProto::TUserJobSpec* jobSpec,
-        TJobletPtr joblet) const;
+        const TJobletPtr& joblet) const;
 
     void AddCoreOutputSpecs(
         NControllerAgent::NProto::TUserJobSpec* jobSpec,
-        TJobletPtr joblet) const;
+        const TJobletPtr& joblet) const;
 
     // Amount of memory reserved for output table writers in job proxy.
     i64 GetFinalOutputIOMemorySize(
-        NScheduler::TJobIOConfigPtr ioConfig,
+        const NScheduler::TJobIOConfigPtr& ioConfig,
         bool useEstimatedBufferSize) const;
 
     i64 GetFinalIOMemorySize(
-        NScheduler::TJobIOConfigPtr ioConfig,
+        const NScheduler::TJobIOConfigPtr& ioConfig,
         bool useEstimatedBufferSize,
         const NTableClient::TChunkStripeStatisticsVector& stripeStatistics) const;
 
-    void ValidateUserFileCount(NScheduler::TUserJobSpecPtr spec, const TString& operation);
+    void ValidateUserFileCount(const NScheduler::TUserJobSpecPtr& spec, const TString& operation);
 
     const TExecNodeDescriptorMap& GetExecNodeDescriptors();
     const TExecNodeDescriptorMap& GetOnlineExecNodeDescriptors();
@@ -1392,7 +1392,7 @@ private:
 
     virtual void OnExecNodesUpdated();
 
-    int GetAvailableExecNodeCount();
+    int GetAvailableExecNodeCount() const;
 
     void UpdateAggregatedFinishedJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary);
     void UpdateJobMetrics(const TJobletPtr& joblet, const TJobSummary& jobSummary, bool isJobFinished);
@@ -1403,13 +1403,13 @@ private:
 
     void IncreaseNeededResources(const NScheduler::TCompositeNeededResources& resourcesDelta);
 
-    void IncreaseAccountResourceUsageLease(const std::optional<std::string>& account, const NScheduler::TDiskQuota& quota);
+    void IncreaseAccountResourceUsageLease(const std::optional<std::string>& account, const NScheduler::TDiskQuota& delta);
 
     void UpdateAccountResourceUsageLeases();
 
     void InitializeStandardStreamDescriptors();
 
-    void AddChunksToUnstageList(std::vector<NChunkClient::TInputChunkPtr> chunks);
+    void AddChunksToUnstageList(const std::vector<NChunkClient::TInputChunkPtr>& chunks);
 
     NScheduler::TControllerTransactionIds GetTransactionIds();
 
@@ -1438,7 +1438,7 @@ private:
 
     void BuildTestingState(NYTree::TFluentAny fluent) const;
 
-    void OnJobFinished(std::unique_ptr<TJobSummary> summary, bool suggestCreateJobNodeByStatus);
+    void OnJobFinished(std::unique_ptr<TJobSummary> summary, bool retainJob);
 
     void ProcessJobFinishedResult(const TJobFinishedResult& result);
 
@@ -1525,8 +1525,8 @@ private:
 
     void ClearEmptyAllocationsInRevive();
 
-    bool IsJobIdEarlier(TJobId lhs, TJobId rhs) const noexcept;
-    TJobId GetLaterJobId(TJobId lhs, TJobId rhs) const noexcept;
+    static bool IsJobIdEarlier(TJobId lhs, TJobId rhs) noexcept;
+    static TJobId GetLaterJobId(TJobId lhs, TJobId rhs) noexcept;
 
     template <class TAllocationEvent>
     void ProcessAllocationEvent(TAllocationEvent&& eventSummary, TStringBuf eventType);
