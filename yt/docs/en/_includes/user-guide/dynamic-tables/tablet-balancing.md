@@ -34,7 +34,7 @@ A list of available production clusters with a standalone balancer: {{clusters-w
 If the bundle doesn't have parameterized balancing enabled and dedicated balancing groups set up, all you need to do is create a group with the desired settings and put the tables into that group.
 
 1. To verify whether these instructions apply to you, make sure that the bundle config doesn't contain a list of groups (the `//sys/tablet_cell_bundles/<bundle_name>/@tablet_balancer_config` map doesn't include the `groups` field).
-2. Select a metric for balancing the tables. For the meta cluster, if writes to replicated tables are evenly distributed across their tablets, we recommend balancing the load based on the number of tablets `(metric = "1")`. The list of available metrics is provided in the [section on parameterized balancing configuration](#parameterized). You can add metrics using the + operator in the formula. If the bundle contains groups of tables with varying types of load, you may want to balance them using different metrics. To do that, create multiple groups with custom settings. For more information, see the [section on table groups](#group).
+2. Select a metric for balancing the tables. For the meta cluster, if writes to replicated tables are evenly distributed across their tablets, we recommend balancing the load based on the number of tablets (`metric = "1"`). The list of available metrics is provided in the [section on parameterized balancing configuration](#parameterized). You can add metrics using the + operator in the formula. If the bundle contains groups of tables with varying types of load, you may want to balance them using different metrics. To do that, create multiple groups with custom settings. For more information, see the [section on table groups](#group).
 3. For large balancing groups with more than 50,000 tablets, you may need to adjust the `max_action_count` parameter, which specifies the number of movements per balancing iteration. For more information, see the section on [parameterized balancing configuration](#parameterized). If you enable parameterized balancing for the entire bundle, you can view the total number of tablets across all tables on the bundle page.
 4. Create a `default` [group](#system-groups) with the desired config for parameterized balancing and enter the desired metric in the creation command. If needed, use a similar approach to set the `max_action_count` parameter.
     ```(bash)
@@ -241,10 +241,14 @@ The metric for parameterized balancing is set by an arithmetic formula using per
 Below you will find per-table metrics that can prove useful.
 
 - Write data weight
-  `double([/performance_counters/dynamic_row_write_data_weight_10m_rate])`
-- Amount of data read by lookup requests
+  `write_10m`
+- Amount of data read by lookup requests, including reads from hunk chunks
+  `lookup_10m`
+- Amount of data read by select requests, including reads from hunk chunks
+  `read_10m`
+- Amount of data read by lookup requests, excluding reads from hunk chunks
   `double([/performance_counters/dynamic_row_lookup_data_weight_10m_rate]) + double([/performance_counters/static_chunk_row_lookup_data_weight_10m_rate])`
-- Amount of data read by select requests
+- Amount of data read by select requests, excluding reads from hunk chunks
   `double([/performance_counters/dynamic_row_read_data_weight_10m_rate]) + double([/performance_counters/static_chunk_row_read_data_weight_10m_rate])`
 - Uncompressed size
   `double([/statistics/uncompressed_data_size])`
@@ -253,7 +257,9 @@ Below you will find per-table metrics that can prove useful.
 - Memory size (the amount of data occupied by an in-memory table, equal to either compressed or uncompressed size depending on `in_memory_mode`)
   `double([/statistics/memory_size])`
 - CPU time consumed by lookup requests
-  `double([/performance_counters/lookup_cpu_time_10m_rate])` |
+  `lookup_cpu_10m`
+- CPU time consumed by select requests
+  `select_cpu_10m`
 - Number of tablets (can be used if tablets need to be distributed equally across nodes without taking the load into account)
   `1`
 
@@ -265,6 +271,16 @@ You may need to set the `max_action_count` parameter, which represents the numbe
 - For groups of up to 50,000 tablets: 250.
 - For groups of up to 100,000 tablets: 500.
 If all the bundle tables use parameterized balancing and there is only one parameterized balancing group, then the total number of tablets across all tables is displayed on the bundle page.
+
+{% cut "Full list of balancing metric aliases" %}
+
+- `write_10m`, `write_1h`
+- `lookup_10m`, `lookup_1h`
+- `read_10m`, `read_1h`
+- `lookup_cpu_10m`, `lookup_cpu_1h`
+- `select_cpu_10m`, `select_cpu_1h`
+
+{% endcut %}
 
 ### Resharding configuration
 
