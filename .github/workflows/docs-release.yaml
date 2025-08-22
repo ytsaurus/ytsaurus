@@ -56,7 +56,8 @@ jobs:
         run: |
          npm install -g @diplodoc/cli @diplodoc/algolia-extension
          yfm index -i ./_docs-build --extensions "$(npm root -g)/@diplodoc/algolia-extension"
-         ls -la ./_docs-build/_search
+         ls -la ./_docs-build/
+
 
 
 
