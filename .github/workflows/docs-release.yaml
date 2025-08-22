@@ -35,9 +35,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Node.js  # Установить Node.js для npm/npx
-        uses: actions/setup-node@v4
-
       - name: Download built docs artifact
         uses: actions/download-artifact@v4
         with:
