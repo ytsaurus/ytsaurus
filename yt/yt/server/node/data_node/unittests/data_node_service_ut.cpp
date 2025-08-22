@@ -4,6 +4,7 @@
 #include <yt/yt/server/node/data_node/bootstrap.h>
 #include <yt/yt/server/node/data_node/config.h>
 #include <yt/yt/server/node/data_node/data_node_service.h>
+#include <yt/yt/server/node/data_node/chunk_store.h>
 #include <yt/yt/server/node/data_node/master_connector.h>
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
@@ -33,6 +34,8 @@
 #include <yt/yt/core/misc/random.h>
 
 #include <yt/yt/library/fusion/service_directory.h>
+
+#include <library/cpp/iterator/zip.h>
 
 namespace NYT::NDataNode {
 
@@ -364,13 +367,40 @@ public:
         i64 WriteMemoryLimit = 128_GB;
         i64 ReadMemoryLimit = 128_GB;
         i64 LegacyWriteMemoryLimit = 128_GB;
+        bool ChooseLocationBasedOnIOWeight = false;
+        std::vector<double> IoWeights = {1.};
+        std::vector<int> SessionCountLimits = {1024};
     };
 
     explicit TDataNodeTest(const TDataNodeTestParams& testParams)
         : TestParams_(testParams)
     { }
 
-    TClusterNodeBootstrapConfigPtr GenerateClusterBootstrapConfig() const
+    TStoreLocationConfigPtr GenerateStoreLocationConfig(double ioWeight, int sessionCountLimit) {
+        auto storeLocationConfig = New<TStoreLocationConfig>();
+        storeLocationConfig->Path = Format("/tmp/locations/%v/chunk_store", GenerateRandomString(5, Generator_));
+        storeLocationConfig->IOEngineType = NIO::EIOEngineType::ThreadPool;
+        auto threadPoolConfig = New<TThreadPoolConfig>();
+        threadPoolConfig->ReadThreadCount = TestParams_.ReadThreadCount;
+        threadPoolConfig->WriteThreadCount = TestParams_.WriteThreadCount;
+        storeLocationConfig->IOConfig = NYTree::ConvertToNode(threadPoolConfig);
+        storeLocationConfig->IOWeight = ioWeight;
+        storeLocationConfig->SessionCountLimit = sessionCountLimit;
+        storeLocationConfig->Throttlers = {};
+        storeLocationConfig->WriteMemoryLimit = TestParams_.WriteMemoryLimit;
+        storeLocationConfig->ReadMemoryLimit = TestParams_.ReadMemoryLimit;
+        storeLocationConfig->LegacyWriteMemoryLimit = TestParams_.LegacyWriteMemoryLimit;
+        storeLocationConfig->CoalescedReadMaxGapSize = TestParams_.CoalescedReadMaxGapSize;
+
+        for (auto kind : TEnumTraits<EChunkLocationThrottlerKind>::GetDomainValues()) {
+            if (!storeLocationConfig->Throttlers[kind]) {
+                storeLocationConfig->Throttlers[kind] = New<NConcurrency::TRelativeThroughputThrottlerConfig>();
+            }
+        }
+        return storeLocationConfig;
+    }
+
+    TClusterNodeBootstrapConfigPtr GenerateClusterBootstrapConfig()
     {
         auto bootstrapConfig = New<TClusterNodeBootstrapConfig>();
         bootstrapConfig->Flavors = {NNodeTrackerClient::ENodeFlavor::Data};
@@ -394,6 +424,7 @@ public:
         cacheConfig->Capacity = 0;
         bootstrapConfig->DataNode->BlockCache->CompressedData = cacheConfig;
         bootstrapConfig->DataNode->BlockCache->UncompressedData = cacheConfig;
+        bootstrapConfig->DataNode->ChooseLocationBasedOnIOWeight = TestParams_.ChooseLocationBasedOnIOWeight;
 
         for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
             if (!bootstrapConfig->DataNode->Throttlers[kind]) {
@@ -401,26 +432,9 @@ public:
             }
         }
 
-        auto storeLocationConfig = New<TStoreLocationConfig>();
-        storeLocationConfig->Path = StoreLocationPath_;
-        storeLocationConfig->IOEngineType = NIO::EIOEngineType::ThreadPool;
-        auto threadPoolConfig = New<TThreadPoolConfig>();
-        threadPoolConfig->ReadThreadCount = TestParams_.ReadThreadCount;
-        threadPoolConfig->WriteThreadCount = TestParams_.WriteThreadCount;
-        storeLocationConfig->IOConfig = NYTree::ConvertToNode(threadPoolConfig);
-        storeLocationConfig->Throttlers = {};
-        storeLocationConfig->WriteMemoryLimit = TestParams_.WriteMemoryLimit;
-        storeLocationConfig->ReadMemoryLimit = TestParams_.ReadMemoryLimit;
-        storeLocationConfig->LegacyWriteMemoryLimit = TestParams_.LegacyWriteMemoryLimit;
-        storeLocationConfig->CoalescedReadMaxGapSize = TestParams_.CoalescedReadMaxGapSize;
-
-        for (auto kind : TEnumTraits<EChunkLocationThrottlerKind>::GetDomainValues()) {
-            if (!storeLocationConfig->Throttlers[kind]) {
-                storeLocationConfig->Throttlers[kind] = New<NConcurrency::TRelativeThroughputThrottlerConfig>();
-            }
+        for (const auto& [ioWeight, sessionCountLimit] : Zip(TestParams_.IoWeights, TestParams_.SessionCountLimits)) {
+            bootstrapConfig->DataNode->StoreLocations.push_back(GenerateStoreLocationConfig(ioWeight, sessionCountLimit));
         }
-
-        bootstrapConfig->DataNode->StoreLocations.push_back(storeLocationConfig);
 
         bootstrapConfig->ResourceLimits->TotalMemory = 256_GB;
         for (auto kind : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
@@ -433,8 +447,6 @@ public:
 
     void SetUp() override
     {
-        TRandomGenerator generator(TInstant::Now().MicroSeconds());
-        StoreLocationPath_ = Format("/tmp/%v/chunk_store", GenerateRandomString(5, generator));
         ActionQueue_ = New<NConcurrency::TActionQueue>();
         auto nodeTrackerService = New<TTestNodeTrackerService>(ActionQueue_->GetInvoker());
 
@@ -527,6 +539,8 @@ public:
         CellDirectoryMock_.Reset();
         MasterConnectorMock_.Reset();
         TestConnection_.Reset();
+
+        NFS::RemoveRecursive("/tmp/locations");
     }
 
     const NDataNode::IBootstrapPtr& GetDataNodeBootstrap() const {
@@ -668,7 +682,6 @@ private:
     std::atomic<int> Counter_ = 0;
 
     INodeMemoryTrackerPtr MemoryTracker_;
-    TString StoreLocationPath_;
     NConcurrency::TActionQueuePtr ActionQueue_;
     NClusterNode::IBootstrapPtr ClusterNodeBootstrap_;
     NDataNode::IBootstrapPtr DataNodeBootstrap_;
@@ -742,12 +755,100 @@ public:
     { }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct TIoWeightTestCase
+{
+    std::vector<double> IoWeights = {1., 1.};
+    std::vector<int> SessionCountLimits = {128, 128};
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TIoWeightTest
+    : public TDataNodeTest
+    , public ::testing::WithParamInterface<TIoWeightTestCase>
+{
+public:
+    TIoWeightTest()
+        : TDataNodeTest(
+            TDataNodeTest::TDataNodeTestParams {
+                .ReadThreadCount = 4,
+                .WriteThreadCount = 4,
+                .ChooseLocationBasedOnIOWeight = true,
+                .IoWeights = GetParam().IoWeights,
+                .SessionCountLimits = GetParam().SessionCountLimits,
+            })
+    { }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_P(TIoWeightTest, GetBlocksByOneDiskIORequestTest)
+{
+    auto& ioWeights = GetParam().IoWeights;
+    auto& locations = GetDataNodeBootstrap()->GetChunkStore()->Locations();
+
+    YT_VERIFY(std::ssize(ioWeights) == std::ssize(locations));
+
+    std::vector<TFuture<void>> futures;
+    futures.resize(256);
+
+    for (auto& future: futures) {
+        TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
+        future = BIND(&TDataNodeTest::FillWithRandomBlocks, this, sessionId, 1, 1_KB)
+            .AsyncVia(GetActionQueue()->GetInvoker())
+            .Run()
+            .AsVoid();
+    }
+
+    for (auto& future : futures) {
+        future.Wait();
+    }
+
+    std::vector<double> usedSpaces;
+    usedSpaces.reserve(std::ssize(locations));
+
+    for (auto& location : locations) {
+        usedSpaces.push_back(location->GetUsedSpace());
+    }
+
+    auto sortedUsedSpaces = usedSpaces;
+
+    std::sort(sortedUsedSpaces.begin(), sortedUsedSpaces.end());
+
+    EXPECT_EQ(sortedUsedSpaces, usedSpaces);
+}
+
+
+INSTANTIATE_TEST_SUITE_P(
+    TIoWeightTest,
+    TIoWeightTest,
+    ::testing::Values(
+        TIoWeightTestCase{
+            .IoWeights = {0.0001, 0.001, 0.01, 0.1, 1.},
+            .SessionCountLimits = {1024, 1024, 1024, 1024, 1024},
+        },
+        TIoWeightTestCase{
+            .IoWeights = {0.2, 0.5},
+            .SessionCountLimits = {256, 256},
+        },
+        TIoWeightTestCase{
+            .IoWeights = {0.2, 0.6, 1.5},
+            .SessionCountLimits = {128, 128, 128},
+        },
+        TIoWeightTestCase{
+            .IoWeights = {1., 1.},
+            .SessionCountLimits = {16, 256},
+        }
+    )
+);
+
 TEST_P(TGetBlockSetGapTest, GetBlocksByOneDiskIORequestTest)
 {
     auto testCase = GetParam();
 
     TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
-    TRandomGenerator generator(42);
     int blockCount = testCase.BlockCount;
     int blockSize = testCase.BlockSize;
     auto blocks = FillWithRandomBlocks(sessionId, blockCount, blockSize);
