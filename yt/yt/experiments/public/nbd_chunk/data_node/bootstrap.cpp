@@ -518,12 +518,12 @@ public:
         return LocationHealthChecker_;
     }
 
-    void SetLocationUuidsRequired(bool) override
+    void SetPerLocationFullHeartbeatsEnabled(bool) override
     {
         return;
     }
 
-    void SetPerLocationFullHeartbeatsEnabled(bool) override
+    void SetLocationIndexesInHeartbeatsEnabled(bool) override
     {
         return;
     }

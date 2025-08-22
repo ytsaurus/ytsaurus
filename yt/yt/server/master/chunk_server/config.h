@@ -320,6 +320,8 @@ struct TDynamicDataNodeTrackerConfig
     // COMPAT(cherepashka)
     bool EnableChunkReplicasThrottlingInHeartbeats;
 
+    bool EnableLocationIndexesInDataNodeHeartbeats;
+
     REGISTER_YSON_STRUCT(TDynamicDataNodeTrackerConfig);
 
     static void Register(TRegistrar registrar);

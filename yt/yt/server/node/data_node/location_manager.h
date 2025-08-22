@@ -73,6 +73,8 @@ private:
     const NDiskManager::IDiskInfoProviderPtr DiskInfoProvider_;
     const TChunkStorePtr ChunkStore_;
     const IInvokerPtr ControlInvoker_;
+    IBootstrap* const Bootstrap_;
+    const NYTree::IYPathServicePtr OrchidService_;
 
     NThreading::TAtomicObject<std::vector<TError>> DiskFailedAlerts_;
     NThreading::TAtomicObject<std::vector<TError>> DiskWaitingReplacementAlerts_;

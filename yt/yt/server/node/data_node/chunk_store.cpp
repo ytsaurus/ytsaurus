@@ -632,6 +632,29 @@ TStoreLocationPtr TChunkStore::GetChunkLocationByUuid(TChunkLocationUuid locatio
     return nullptr;
 }
 
+void TChunkStore::SetChunkLocationIndexes(const NChunkClient::NProto::TLocationIndexes& locationIndexes) {
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    for (const auto& locationIndex : locationIndexes.locations()) {
+        auto uuid = FromProto<TChunkLocationUuid>(locationIndex.uuid());
+        auto index = FromProto<TChunkLocationIndex>(locationIndex.index());
+        auto location = GetChunkLocationByUuid(uuid);
+
+        if (location) {
+            location->SetIndex(index);
+            YT_LOG_INFO("Setting index for location (LocationUuid: %v, Index: %v)", uuid, index);
+        } else {
+            YT_LOG_ALERT("Trying to set index for unknown location (LocationUuid: %v, Index: %v)", uuid, index);
+        }
+    }
+
+    for (const auto& location : Locations_) {
+        if (location->GetIndex() == NNodeTrackerClient::InvalidChunkLocationIndex) {
+            YT_LOG_ALERT("Location has no index set (LocationUuid: %v)", location->GetUuid());
+        }
+    }
+}
+
 void TChunkStore::RemoveNonexistentChunk(TChunkId chunkId, TChunkLocationUuid locationUuid)
 {
     auto location = GetChunkLocationByUuid(locationUuid);

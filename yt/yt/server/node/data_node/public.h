@@ -15,6 +15,7 @@ using NChunkClient::TSessionId;
 using NChunkClient::ESessionType;
 using NChunkClient::TBlockId;
 using NChunkClient::TChunkLocationUuid;
+using NNodeTrackerClient::TChunkLocationIndex;
 
 using NNodeTrackerClient::TNodeId;
 
