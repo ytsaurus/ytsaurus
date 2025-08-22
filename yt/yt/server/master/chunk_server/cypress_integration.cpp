@@ -232,6 +232,12 @@ private:
                 return chunksSamples.GetCellDataMissingChunks();
             case EObjectType::ParityMissingChunksSampleMap:
                 return chunksSamples.GetCellParityMissingChunks();
+            case EObjectType::OldestPartMissingChunksSampleMap:
+                return chunksSamples.GetCellOldestPartMissingChunks();
+            case EObjectType::QuorumMissingChunksSampleMap:
+                return chunksSamples.GetCellQuorumMissingChunks();
+            case EObjectType::InconsistentlyPlacedChunksSampleMap:
+                return chunksSamples.GetCellInconsistentlyPlacedChunks();
             default:
                 YT_ABORT();
         }

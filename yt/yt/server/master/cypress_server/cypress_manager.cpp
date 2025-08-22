@@ -1078,6 +1078,9 @@ public:
         RegisterHandler(CreateChunksSampleMapTypeHandler(Bootstrap_, EObjectType::LostVitalChunksSampleMap));
         RegisterHandler(CreateChunksSampleMapTypeHandler(Bootstrap_, EObjectType::DataMissingChunksSampleMap));
         RegisterHandler(CreateChunksSampleMapTypeHandler(Bootstrap_, EObjectType::ParityMissingChunksSampleMap));
+        RegisterHandler(CreateChunksSampleMapTypeHandler(Bootstrap_, EObjectType::OldestPartMissingChunksSampleMap));
+        RegisterHandler(CreateChunksSampleMapTypeHandler(Bootstrap_, EObjectType::QuorumMissingChunksSampleMap));
+        RegisterHandler(CreateChunksSampleMapTypeHandler(Bootstrap_, EObjectType::InconsistentlyPlacedChunksSampleMap));
         RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::ChunkMap));
         RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::LostChunkMap));
         RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::LostVitalChunkMap));

@@ -215,6 +215,27 @@ private:
                             .GetClusterStatistics().parity_missing_chunk_count());
                 return true;
 
+            case EInternedAttributeKey::OldestPartMissingChunkCount:
+                BuildYsonFluently(consumer)
+                    .Value(
+                        multicellStatisticsCollector->GetMulticellNodeStatistics()
+                            .GetClusterStatistics().oldest_part_missing_chunk_count());
+                return true;
+
+            case EInternedAttributeKey::QuorumMissingChunkCount:
+                BuildYsonFluently(consumer)
+                    .Value(
+                        multicellStatisticsCollector->GetMulticellNodeStatistics()
+                            .GetClusterStatistics().quorum_missing_chunk_count());
+                return true;
+
+            case EInternedAttributeKey::InconsistentlyPlacedChunksCount:
+                BuildYsonFluently(consumer)
+                    .Value(
+                        multicellStatisticsCollector->GetMulticellNodeStatistics()
+                            .GetClusterStatistics().inconsistently_placed_chunk_count());
+                return true;
+
             case EInternedAttributeKey::Config:
                 BuildYsonFluently(consumer)
                     .Value(configManager->GetConfig());

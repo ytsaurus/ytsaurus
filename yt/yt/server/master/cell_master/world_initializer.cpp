@@ -591,6 +591,18 @@ private:
                     "//sys/parity_missing_chunks_sample",
                     transactionId,
                     EObjectType::ParityMissingChunksSampleMap);
+                ScheduleCreateNode(
+                    "//sys/oldest_part_missing_chunks_sample",
+                    transactionId,
+                    EObjectType::OldestPartMissingChunksSampleMap);
+                ScheduleCreateNode(
+                    "//sys/quorum_missing_chunks_sample",
+                    transactionId,
+                    EObjectType::QuorumMissingChunksSampleMap);
+                ScheduleCreateNode(
+                    "//sys/inconsistently_placed_chunks_sample",
+                    transactionId,
+                    EObjectType::InconsistentlyPlacedChunksSampleMap);
             }
 
             ScheduleCreateNode(

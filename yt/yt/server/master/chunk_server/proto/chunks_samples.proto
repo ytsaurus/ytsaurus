@@ -10,6 +10,9 @@ message TReqChunksSamples
     repeated NYT.NProto.TGuid lost_vital_chunk_ids = 2;
     repeated NYT.NProto.TGuid data_missing_chunk_ids = 3;
     repeated NYT.NProto.TGuid parity_missing_chunk_ids = 4;
+    repeated NYT.NProto.TGuid oldest_part_missing_chunk_ids = 5;
+    repeated NYT.NProto.TGuid quorum_missing_chunk_ids = 6;
+    repeated NYT.NProto.TGuid inconsistently_placed_chunk_ids = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

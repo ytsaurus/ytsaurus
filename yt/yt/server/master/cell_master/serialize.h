@@ -170,7 +170,7 @@ DEFINE_ENUM(EMasterReign,
     ((FirstClassFullReadSupport)                                    (3015))  // coteeq
     ((RowLevelSecurity)                                             (3016))  // coteeq
     ((TabletActionManager)                                          (3017))  // ifsmirnov
-
+    ((AdditionalMulticellChunksSamples)                             (3018))  // grphil
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
