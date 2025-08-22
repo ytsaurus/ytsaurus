@@ -146,8 +146,13 @@ public:
 
         DynamicConfig_.Store(New<TClusterNodeDynamicConfig>());
 
+        // Host and InstanceTags are passed to job proxy and processed separately.
+        auto jobProxySolomonExporterConfig = CloneYsonStruct(GetConfig()->ExecNode->JobProxySolomonExporter);
+        jobProxySolomonExporterConfig->Host = std::nullopt;
+        jobProxySolomonExporterConfig->InstanceTags = {};
+
         JobProxySolomonExporter_ = New<TSolomonExporter>(
-            GetConfig()->ExecNode->JobProxySolomonExporter,
+            jobProxySolomonExporterConfig,
             New<TSolomonRegistry>());
 
         ThrottlerManager_ = CreateThrottlerManager(
@@ -553,6 +558,9 @@ private:
         }
 
         newJobProxyConfigTemplate->DnsOverRpcResolver = GetConfig()->ExecNode->JobProxy->JobProxyDnsOverRpcResolver;
+
+        newJobProxyConfigTemplate->SolomonExporter->Host = GetConfig()->ExecNode->JobProxySolomonExporter->Host;
+        newJobProxyConfigTemplate->SolomonExporter->InstanceTags = GetConfig()->ExecNode->JobProxySolomonExporter->InstanceTags;
 
         JobProxyConfigTemplate_.Store(std::move(newJobProxyConfigTemplate));
     }

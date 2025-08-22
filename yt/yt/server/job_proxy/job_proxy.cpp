@@ -262,7 +262,34 @@ void TJobProxy::Fail(TError error)
 
 TSharedRef TJobProxy::DumpSensors()
 {
-    return SolomonExporter_->DumpSensors();
+    auto tags = TTagSet();
+    const auto& host = Config_->SolomonExporter->Host;
+
+    if (host) {
+        tags = tags
+            .WithTag(NProfiling::TTag{"host", ToString(*host)})
+            .WithTag(NProfiling::TTag{"slot_index", ToString(Config_->SlotIndex)}, /*parent*/ -1);
+    }
+
+    const auto& jobSpecExt = GetJobSpecHelper()->GetJobSpecExt();
+    if (jobSpecExt.has_user_job_spec() && jobSpecExt.user_job_spec().has_monitoring_config()) {
+        std::string jobProxyDescriptor = jobSpecExt.user_job_spec().monitoring_config().job_descriptor();
+        if (host) {
+            tags = tags
+                // Alternative to host tag.
+                .WithAlternativeTag(NProfiling::TTag{"job_descriptor", jobProxyDescriptor}, /*alternativeTo*/ -2);
+        } else {
+            tags = tags
+                .WithTag(NProfiling::TTag{"job_descriptor", jobProxyDescriptor});
+        }
+    }
+
+    for (const auto& [key, value] : Config_->SolomonExporter->InstanceTags) {
+        tags = tags
+            .WithRequiredTag(NProfiling::TTag{key, value});
+    }
+
+    return SolomonExporter_->DumpSensors(/*customTagSet*/ tags);
 }
 
 IServerPtr TJobProxy::GetRpcServer() const
@@ -894,12 +921,6 @@ TJobResult TJobProxy::RunJob()
         const auto& jobSpecExt = GetJobSpecHelper()->GetJobSpecExt();
         if (jobSpecExt.is_traced()) {
             RootSpan_->SetSampled();
-        }
-        if (jobSpecExt.has_user_job_spec() && jobSpecExt.user_job_spec().has_monitoring_config()) {
-            TString jobProxyDescriptor = jobSpecExt.user_job_spec().monitoring_config().job_descriptor();
-            NProfiling::TSolomonRegistry::Get()->SetDynamicTags({
-                NProfiling::TTag{"job_descriptor", jobProxyDescriptor},
-            });
         }
         if (jobSpecExt.has_user_job_spec()) {
             const auto& userJobSpec = jobSpecExt.user_job_spec();
