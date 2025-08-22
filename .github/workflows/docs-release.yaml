@@ -20,6 +20,11 @@ jobs:
         with:
           revision: "${{ github.sha }}"
           src-root: "./yt/docs"
+      - name: Upload built docs as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: built-docs  # Имя артефакта (можно изменить; если в docs указано иное — используйте то)
+          path: ./_docs-build  # Дефолтный путь из документации
 
 
   algolia-index:
@@ -33,6 +38,11 @@ jobs:
         uses: actions/setup-node@v4
       - name: Install Algolia Extension  # Новый шаг: Установка расширения (фиксит "unable to resolve")
         run: npm install @diplodoc/algolia-extension
+      - name: Download built docs artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: built-docs  # Должно совпадать с именем в upload
+          path: ./_docs-build
       - name: Debug input folder
         run: |
           ls -la ./_docs-build || echo "Warning: ./_docs-build not found!"
@@ -41,17 +51,4 @@ jobs:
           ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }} # Это Write Key
         run: |
           npx -y @diplodoc/cli index -i ./_docs-build --extensions @diplodoc/algolia-extension
-  release:
-    needs: algolia-index
-    runs-on: ubuntu-latest
-    steps:
-      - name: Release
-        uses: diplodoc-platform/docs-release-action@v2
-        with:
-          revision: "${{ github.sha }}"
-          storage-bucket: ${{ vars.DIPLODOC_STORAGE_BUCKET }}
-          storage-access-key-id: ${{ secrets.DIPLODOC_ACCESS_KEY_ID }}
-          storage-secret-access-key: ${{ secrets.DIPLODOC_SECRET_ACCESS_KEY }}
-          src-root: "./yt/docs"
-          server: "https://viewer.ydocs.io"
 
