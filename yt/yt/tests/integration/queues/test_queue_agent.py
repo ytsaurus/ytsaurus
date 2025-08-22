@@ -1555,26 +1555,26 @@ class TestMultipleAgents(TestQueueAgentBase):
         assert mapping[0]["object"] == f"primary:{consumer_path}"
         original_host = mapping[0]["host"]
 
-        set(f"//sys/queue_agents/instances/{original_host}/@banned_queue_agent_instance", True)
+        set(f"//sys/queue_agents/instances/{original_host}/@banned", True)
         wait(lambda: list(get_mapping())[0]["host"] != original_host)
 
         print_debug("mapping after ban: ", get_mapping())
 
-        set(f"//sys/queue_agents/instances/{original_host}/@banned_queue_agent_instance", False)
+        set(f"//sys/queue_agents/instances/{original_host}/@banned", False)
         wait(lambda: list(get_mapping())[0]["host"] == original_host)
 
-        set(f"//sys/queue_agents/instances/{original_host}/@banned_queue_agent_instance", True)
+        set(f"//sys/queue_agents/instances/{original_host}/@banned", True)
         wait(lambda: list(get_mapping())[0]["host"] != original_host)
 
         # Any value except True should be treated as False.
-        set(f"//sys/queue_agents/instances/{original_host}/@banned_queue_agent_instance", "anime")
+        set(f"//sys/queue_agents/instances/{original_host}/@banned", "anime")
         wait(lambda: list(get_mapping())[0]["host"] == original_host)
 
-        set(f"//sys/queue_agents/instances/{original_host}/@banned_queue_agent_instance", True)
+        set(f"//sys/queue_agents/instances/{original_host}/@banned", True)
         wait(lambda: list(get_mapping())[0]["host"] != original_host)
 
         # Absence of the value should also be treated as False.
-        remove(f"//sys/queue_agents/instances/{original_host}/@banned_queue_agent_instance")
+        remove(f"//sys/queue_agents/instances/{original_host}/@banned")
         wait(lambda: list(get_mapping())[0]["host"] == original_host)
 
         print_debug("final mapping: ", get_mapping())
