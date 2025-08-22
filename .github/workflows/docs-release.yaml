@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - members/nadya73/algolia
     paths: 'yt/docs/**'
 
 jobs:
@@ -19,6 +20,7 @@ jobs:
         with:
           revision: "${{ github.sha }}"
           src-root: "./yt/docs"
+
   upload:
     needs: build
     runs-on: ubuntu-latest
@@ -35,8 +37,27 @@ jobs:
           storage-access-key-id: ${{ secrets.DIPLODOC_ACCESS_KEY_ID }}
           storage-secret-access-key: ${{ secrets.DIPLODOC_SECRET_ACCESS_KEY }}
           src-root: "./yt/docs"
-  release:
+
+  algolia-index:
     needs: upload
+    runs-on: ubuntu-latest
+    permissions: write-all
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js  # Установить Node.js для npm/npx
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Upload index to Algolia
+        env:
+          ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }} # Это Write Key
+        run: |
+          npx -y @diplodoc/cli index -i ./_docs-build --extensions @diplodoc/algolia-extension
+
+  release:
+    needs: algolia-index
     runs-on: ubuntu-latest
     steps:
       - name: Release
@@ -48,4 +69,5 @@ jobs:
           storage-secret-access-key: ${{ secrets.DIPLODOC_SECRET_ACCESS_KEY }}
           src-root: "./yt/docs"
           server: "https://viewer.ydocs.io"
+
 
