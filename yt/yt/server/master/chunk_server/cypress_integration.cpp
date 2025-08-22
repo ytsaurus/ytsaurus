@@ -331,14 +331,13 @@ private:
         const auto& chunkReplicator = chunkManager->GetChunkReplicator();
         const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
-        // This is context switch, chunk may die.
-        auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk);
-        // TODO(aleksandra-zh): maybe do smth else.
-        if (!replicasOrError.IsOK()) {
+        auto chunkReplicas = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk)
+            .ValueOrThrow();
+
+        // The above call is involves context switch, chunk may have died.
+        if (!IsObjectAlive(ephemeralChunk)) {
             return false;
         }
-
-        const auto& chunkReplicas = replicasOrError.Value();
 
         auto checkReplicatorCrossMediumStatus = [&] (
             ECrossMediumChunkStatus status,
