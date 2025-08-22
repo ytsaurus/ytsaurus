@@ -52,7 +52,7 @@ jobs:
         run: |
           npx -y @diplodoc/cli index -i ./_docs-build --extensions @diplodoc/algolia-extension
   release:
-    needs: upload
+    needs: algolia-index
     runs-on: ubuntu-latest
     steps:
       - name: Release
