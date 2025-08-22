@@ -506,6 +506,7 @@ The following aggregation functions are supported in the query language:
 - `cardinality(expr) :: int64 | uint64 | double | boolean | string -> uint64`: Calculates the number of different elements using the [HyperLogLog](https://en.wikipedia.org/wiki/HyperLogLog) algorithm.
 - `argmin/argmax(arg, expr) :: A -> int64 | uint64 | double | string | boolean -> A`: Calculates the argument value at which the expression reaches the corresponding extreme value.
 - `first(expr) :: A -> A`: Returns the first value of the group. During a sequential scan (when sorting by primary key), the function calculates the value of the first row in the group. If all aggregate functions in the query are `first`, the engine stops the sequential scan as soon as it reaches the `LIMIT` on unique group keys. For queries without a sequential scan, `first` returns the value of any matching row.
+- `xdelta(expr) :: string -> string`: Calculates the target value saved as a sequence of patches obtained through delta encoding using the [xdelta3](https://github.com/xorgy/xdelta3/blob/master/README) algorithm.
 
 ## Executing a query { #query_execution }
 
@@ -821,4 +822,3 @@ llvm-opt-3.7 -O2 -internalize -internalize-public-api-list=<список экс�
 {% endnote %}
 
 -->
-
