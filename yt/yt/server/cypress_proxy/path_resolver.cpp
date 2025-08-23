@@ -301,10 +301,21 @@ TResolveIterationResult ResolveByObjectId(
         }
 
         if (resolvedNode->IsSnapshot) {
-            auto descriptor = TCypressNodeDescriptor{
-                .Id = rootDesignator,
-                .Path = resolvedNode->Path,
-            };
+            auto resolvedPath = ResolveByPath(
+                session,
+                method,
+                resolvedNode->Path.Underlying(),
+                pathIsAdditional);
+
+            auto* resolveHere = std::get_if<TResolveHere>(&resolvedPath);
+            auto nodeAncestry = resolveHere && resolveHere->Result.Id == rootDesignator
+                ? std::move(resolveHere->Result.NodeAncestry)
+                : std::vector{
+                    TCypressNodeDescriptor{
+                        .Id = rootDesignator,
+                        .Path = resolvedNode->Path,
+                    }
+                };
 
             return TResolveHere{{
                 .Id = rootDesignator,
@@ -313,7 +324,7 @@ TResolveIterationResult ResolveByObjectId(
                 // Snapshot locks of scions are forbidden so to use null parent
                 // ID is sufficient to distinguish snapshot from regular node.
                 .ParentId = NullObjectId,
-                .NodeAncestry = {std::move(descriptor)},
+                .NodeAncestry = std::move(nodeAncestry),
             }};
         }
 
