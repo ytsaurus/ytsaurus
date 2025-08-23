@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.31.0
 // 	protoc        v4.22.5
-// source: yt/yt_proto/yt/core/misc/proto/hyperloglog.proto
+// source: yt_proto/yt/core/misc/proto/hyperloglog.proto
 
 package misc
 
@@ -31,7 +31,7 @@ type THyperLogLogDigest struct {
 func (x *THyperLogLogDigest) Reset() {
 	*x = THyperLogLogDigest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_core_misc_proto_hyperloglog_proto_msgTypes[0]
+		mi := &file_yt_proto_yt_core_misc_proto_hyperloglog_proto_msgTypes[0]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -44,7 +44,7 @@ func (x *THyperLogLogDigest) String() string {
 func (*THyperLogLogDigest) ProtoMessage() {}
 
 func (x *THyperLogLogDigest) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_core_misc_proto_hyperloglog_proto_msgTypes[0]
+	mi := &file_yt_proto_yt_core_misc_proto_hyperloglog_proto_msgTypes[0]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57,7 +57,7 @@ func (x *THyperLogLogDigest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use THyperLogLogDigest.ProtoReflect.Descriptor instead.
 func (*THyperLogLogDigest) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_core_misc_proto_hyperloglog_proto_rawDescGZIP(), []int{0}
+	return file_yt_proto_yt_core_misc_proto_hyperloglog_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *THyperLogLogDigest) GetData() []byte {
@@ -67,39 +67,38 @@ func (x *THyperLogLogDigest) GetData() []byte {
 	return nil
 }
 
-var File_yt_yt_proto_yt_core_misc_proto_hyperloglog_proto protoreflect.FileDescriptor
+var File_yt_proto_yt_core_misc_proto_hyperloglog_proto protoreflect.FileDescriptor
 
-var file_yt_yt_proto_yt_core_misc_proto_hyperloglog_proto_rawDesc = []byte{
-	0x0a, 0x30, 0x79, 0x74, 0x2f, 0x79, 0x74, 0x5f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x79, 0x74,
-	0x2f, 0x63, 0x6f, 0x72, 0x65, 0x2f, 0x6d, 0x69, 0x73, 0x63, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f,
-	0x2f, 0x68, 0x79, 0x70, 0x65, 0x72, 0x6c, 0x6f, 0x67, 0x6c, 0x6f, 0x67, 0x2e, 0x70, 0x72, 0x6f,
-	0x74, 0x6f, 0x12, 0x0a, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0x28,
-	0x0a, 0x12, 0x54, 0x48, 0x79, 0x70, 0x65, 0x72, 0x4c, 0x6f, 0x67, 0x4c, 0x6f, 0x67, 0x44, 0x69,
-	0x67, 0x65, 0x73, 0x74, 0x12, 0x12, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x01, 0x20, 0x02,
-	0x28, 0x0c, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x42, 0x39, 0x0a, 0x0d, 0x74, 0x65, 0x63, 0x68,
-	0x2e, 0x79, 0x74, 0x73, 0x61, 0x75, 0x72, 0x75, 0x73, 0x50, 0x01, 0x5a, 0x26, 0x61, 0x2e, 0x79,
-	0x61, 0x6e, 0x64, 0x65, 0x78, 0x2d, 0x74, 0x65, 0x61, 0x6d, 0x2e, 0x72, 0x75, 0x2f, 0x79, 0x74,
-	0x2f, 0x67, 0x6f, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x63, 0x6f, 0x72, 0x65, 0x2f, 0x6d,
-	0x69, 0x73, 0x63,
+var file_yt_proto_yt_core_misc_proto_hyperloglog_proto_rawDesc = []byte{
+	0x0a, 0x2d, 0x79, 0x74, 0x5f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x79, 0x74, 0x2f, 0x63, 0x6f,
+	0x72, 0x65, 0x2f, 0x6d, 0x69, 0x73, 0x63, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x68, 0x79,
+	0x70, 0x65, 0x72, 0x6c, 0x6f, 0x67, 0x6c, 0x6f, 0x67, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x12,
+	0x0a, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0x28, 0x0a, 0x12, 0x54,
+	0x48, 0x79, 0x70, 0x65, 0x72, 0x4c, 0x6f, 0x67, 0x4c, 0x6f, 0x67, 0x44, 0x69, 0x67, 0x65, 0x73,
+	0x74, 0x12, 0x12, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x01, 0x20, 0x02, 0x28, 0x0c, 0x52,
+	0x04, 0x64, 0x61, 0x74, 0x61, 0x42, 0x39, 0x0a, 0x0d, 0x74, 0x65, 0x63, 0x68, 0x2e, 0x79, 0x74,
+	0x73, 0x61, 0x75, 0x72, 0x75, 0x73, 0x50, 0x01, 0x5a, 0x26, 0x61, 0x2e, 0x79, 0x61, 0x6e, 0x64,
+	0x65, 0x78, 0x2d, 0x74, 0x65, 0x61, 0x6d, 0x2e, 0x72, 0x75, 0x2f, 0x79, 0x74, 0x2f, 0x67, 0x6f,
+	0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x63, 0x6f, 0x72, 0x65, 0x2f, 0x6d, 0x69, 0x73, 0x63,
 }
 
 var (
-	file_yt_yt_proto_yt_core_misc_proto_hyperloglog_proto_rawDescOnce sync.Once
-	file_yt_yt_proto_yt_core_misc_proto_hyperloglog_proto_rawDescData = file_yt_yt_proto_yt_core_misc_proto_hyperloglog_proto_rawDesc
+	file_yt_proto_yt_core_misc_proto_hyperloglog_proto_rawDescOnce sync.Once
+	file_yt_proto_yt_core_misc_proto_hyperloglog_proto_rawDescData = file_yt_proto_yt_core_misc_proto_hyperloglog_proto_rawDesc
 )
 
-func file_yt_yt_proto_yt_core_misc_proto_hyperloglog_proto_rawDescGZIP() []byte {
-	file_yt_yt_proto_yt_core_misc_proto_hyperloglog_proto_rawDescOnce.Do(func() {
-		file_yt_yt_proto_yt_core_misc_proto_hyperloglog_proto_rawDescData = protoimpl.X.CompressGZIP(file_yt_yt_proto_yt_core_misc_proto_hyperloglog_proto_rawDescData)
+func file_yt_proto_yt_core_misc_proto_hyperloglog_proto_rawDescGZIP() []byte {
+	file_yt_proto_yt_core_misc_proto_hyperloglog_proto_rawDescOnce.Do(func() {
+		file_yt_proto_yt_core_misc_proto_hyperloglog_proto_rawDescData = protoimpl.X.CompressGZIP(file_yt_proto_yt_core_misc_proto_hyperloglog_proto_rawDescData)
 	})
-	return file_yt_yt_proto_yt_core_misc_proto_hyperloglog_proto_rawDescData
+	return file_yt_proto_yt_core_misc_proto_hyperloglog_proto_rawDescData
 }
 
-var file_yt_yt_proto_yt_core_misc_proto_hyperloglog_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
-var file_yt_yt_proto_yt_core_misc_proto_hyperloglog_proto_goTypes = []interface{}{
+var file_yt_proto_yt_core_misc_proto_hyperloglog_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_yt_proto_yt_core_misc_proto_hyperloglog_proto_goTypes = []interface{}{
 	(*THyperLogLogDigest)(nil), // 0: NYT.NProto.THyperLogLogDigest
 }
-var file_yt_yt_proto_yt_core_misc_proto_hyperloglog_proto_depIdxs = []int32{
+var file_yt_proto_yt_core_misc_proto_hyperloglog_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
 	0, // [0:0] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
@@ -107,13 +106,13 @@ var file_yt_yt_proto_yt_core_misc_proto_hyperloglog_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for field type_name
 }
 
-func init() { file_yt_yt_proto_yt_core_misc_proto_hyperloglog_proto_init() }
-func file_yt_yt_proto_yt_core_misc_proto_hyperloglog_proto_init() {
-	if File_yt_yt_proto_yt_core_misc_proto_hyperloglog_proto != nil {
+func init() { file_yt_proto_yt_core_misc_proto_hyperloglog_proto_init() }
+func file_yt_proto_yt_core_misc_proto_hyperloglog_proto_init() {
+	if File_yt_proto_yt_core_misc_proto_hyperloglog_proto != nil {
 		return
 	}
 	if !protoimpl.UnsafeEnabled {
-		file_yt_yt_proto_yt_core_misc_proto_hyperloglog_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_proto_yt_core_misc_proto_hyperloglog_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*THyperLogLogDigest); i {
 			case 0:
 				return &v.state
@@ -130,18 +129,18 @@ func file_yt_yt_proto_yt_core_misc_proto_hyperloglog_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: file_yt_yt_proto_yt_core_misc_proto_hyperloglog_proto_rawDesc,
+			RawDescriptor: file_yt_proto_yt_core_misc_proto_hyperloglog_proto_rawDesc,
 			NumEnums:      0,
 			NumMessages:   1,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_yt_yt_proto_yt_core_misc_proto_hyperloglog_proto_goTypes,
-		DependencyIndexes: file_yt_yt_proto_yt_core_misc_proto_hyperloglog_proto_depIdxs,
-		MessageInfos:      file_yt_yt_proto_yt_core_misc_proto_hyperloglog_proto_msgTypes,
+		GoTypes:           file_yt_proto_yt_core_misc_proto_hyperloglog_proto_goTypes,
+		DependencyIndexes: file_yt_proto_yt_core_misc_proto_hyperloglog_proto_depIdxs,
+		MessageInfos:      file_yt_proto_yt_core_misc_proto_hyperloglog_proto_msgTypes,
 	}.Build()
-	File_yt_yt_proto_yt_core_misc_proto_hyperloglog_proto = out.File
-	file_yt_yt_proto_yt_core_misc_proto_hyperloglog_proto_rawDesc = nil
-	file_yt_yt_proto_yt_core_misc_proto_hyperloglog_proto_goTypes = nil
-	file_yt_yt_proto_yt_core_misc_proto_hyperloglog_proto_depIdxs = nil
+	File_yt_proto_yt_core_misc_proto_hyperloglog_proto = out.File
+	file_yt_proto_yt_core_misc_proto_hyperloglog_proto_rawDesc = nil
+	file_yt_proto_yt_core_misc_proto_hyperloglog_proto_goTypes = nil
+	file_yt_proto_yt_core_misc_proto_hyperloglog_proto_depIdxs = nil
 }
