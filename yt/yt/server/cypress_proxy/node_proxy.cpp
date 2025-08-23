@@ -268,6 +268,11 @@ protected:
 
     void ValidatePermissionForThis(EPermission permission)
     {
+        // TODO(danilalexeev): YT-25988. Maintain effective ACL for unreachable nodes.
+        if (IsSnapshot() && std::ssize(ResolveResult_.NodeAncestry) == 1) {
+            return;
+        }
+
         ValidatePermissionForNode(
             SequoiaSession_,
             ResolveResult_.NodeAncestry,
@@ -307,6 +312,11 @@ protected:
         EPermission permission,
         bool descendantsOnly = false)
     {
+        // TODO(danilalexeev): YT-25988. Maintain effective ACL for unreachable nodes.
+        if (IsSnapshot() && std::ssize(ResolveResult_.NodeAncestry) == 1) {
+            return;
+        }
+
         NCypressProxy::ValidatePermissionForSubtree(
             SequoiaSession_,
             nodeAncestry,
