@@ -4,10 +4,7 @@ ONLY_TAGS(GO_PROTO)
 
 PEERDIR(yt/go/proto/core/ytree)
 
-PROTO_ADDINCL(
-    GLOBAL
-    yt
-)
+PROTO_NAMESPACE(yt)
 
 SRCS(
     convert.go

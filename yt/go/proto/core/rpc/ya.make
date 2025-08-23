@@ -7,10 +7,7 @@ PEERDIR(
     yt/go/proto/core/tracing
 )
 
-PROTO_ADDINCL(
-    GLOBAL
-    yt
-)
+PROTO_NAMESPACE(yt)
 
 SRCS(${ARCADIA_ROOT}/yt/yt_proto/yt/core/rpc/proto/rpc.proto)
 
