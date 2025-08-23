@@ -280,16 +280,12 @@ public:
         TComparator primaryComparator,
         TComparator foreignComparator,
         TRowBufferPtr rowBuffer,
-        i64 initialTotalDataSliceCount,
-        i64 maxTotalDataSliceCount,
         const TLogger& logger)
         : EnableKeyGuarantee_(enableKeyGuarantee)
         , PrimaryComparator_(std::move(primaryComparator))
         , ForeignComparator_(std::move(foreignComparator))
-        , MaxTotalDataSliceCount_(maxTotalDataSliceCount)
         , RowBuffer_(std::move(rowBuffer))
         , Logger(logger)
-        , TotalDataSliceCount_(initialTotalDataSliceCount)
         , MainDomain_("Main", logger, PrimaryComparator_)
         , BufferDomain_("Buffer", logger, PrimaryComparator_)
         , ForeignDomain_(ForeignComparator_)
@@ -345,13 +341,13 @@ public:
         job.SetIsBarrier(true);
     }
 
-    void Flush() override
+    TCurrentJobsStatistics Flush() override
     {
         // If we have no Main nor Solid slices, we have nothing to do.
         if (IsExhausted()) {
             YT_LOG_TRACE("Nothing to flush in staging area");
             // Nothing to flush.
-            return;
+            return JobsStatistics_;
         }
 
         YT_LOG_TRACE(
@@ -372,9 +368,11 @@ public:
 
         // Make a sanity check that Main domain is empty.
         YT_VERIFY(MainDomain_.IsEmpty());
+
+        return JobsStatistics_;
     }
 
-    std::vector<TNewJobStub> Finish() && override
+    std::pair<std::vector<TNewJobStub>, TCurrentJobsStatistics> Finish() && override
     {
         YT_LOG_TRACE("Finishing work in staging area");
 
@@ -385,14 +383,7 @@ public:
             YT_VERIFY(domain.IsEmpty());
         }
         YT_VERIFY(!SolidDomain_.has_value() || SolidDomain_->IsEmpty());
-        return std::move(PreparedJobs_);
-    }
-
-    //! Total number of data slices in all created jobs.
-    //! Used for internal bookkeeping by the outer code.
-    i64 GetTotalDataSliceCount() const override
-    {
-        return TotalDataSliceCount_;
+        return {std::move(PreparedJobs_), JobsStatistics_};
     }
 
     TKeyBound GetPrimaryUpperBound() const override
@@ -420,7 +411,6 @@ private:
     const bool EnableKeyGuarantee_;
     const TComparator PrimaryComparator_;
     const TComparator ForeignComparator_;
-    const i64 MaxTotalDataSliceCount_;
     const TRowBufferPtr RowBuffer_;
     TLogger Logger;
 
@@ -431,7 +421,7 @@ private:
     //! (i.e. exclusive instead of inclusive).
     TKeyBound UpperBound_ = TKeyBound::MakeEmpty(/*isUpper*/ true);
 
-    i64 TotalDataSliceCount_;
+    TCurrentJobsStatistics JobsStatistics_;
     std::vector<TNewJobStub> PreparedJobs_;
 
     //! These flags are used only for internal sanity check.
@@ -633,7 +623,6 @@ private:
             YT_LOG_TRACE("Dropping empty job (DataSlices: %v)", job.GetDebugString());
             return;
         }
-
         job.SetPrimaryLowerBound(actualLowerBound);
         job.SetPrimaryUpperBound(actualUpperBound);
 
@@ -676,19 +665,9 @@ private:
 
         YT_LOG_TRACE("Job prepared (DataSlices: %v)", job.GetDebugString());
 
-        TotalDataSliceCount_ += job.GetSliceCount();
+        ++JobsStatistics_.JobCount;
+        JobsStatistics_.DataSliceCount += job.GetSliceCount();
 
-        ValidateTotalSliceCountLimit();
-    }
-
-    void ValidateTotalSliceCountLimit() const
-    {
-        if (TotalDataSliceCount_ > MaxTotalDataSliceCount_) {
-            THROW_ERROR_EXCEPTION(NChunkPools::EErrorCode::DataSliceLimitExceeded, "Total number of data slices in sorted pool is too large")
-                << TErrorAttribute("total_data_slice_count", TotalDataSliceCount_)
-                << TErrorAttribute("max_total_data_slice_count", MaxTotalDataSliceCount_)
-                << TErrorAttribute("current_job_count", PreparedJobs_.size());
-        }
     }
 };
 
@@ -701,8 +680,6 @@ std::unique_ptr<ISortedStagingArea> CreateSortedStagingArea(
     TComparator primaryComparator,
     TComparator foreignComparator,
     TRowBufferPtr rowBuffer,
-    i64 initialTotalDataSliceCount,
-    i64 maxTotalDataSliceCount,
     const TLogger& logger)
 {
     return std::make_unique<TSortedStagingArea>(
@@ -710,8 +687,6 @@ std::unique_ptr<ISortedStagingArea> CreateSortedStagingArea(
         std::move(primaryComparator),
         std::move(foreignComparator),
         std::move(rowBuffer),
-        initialTotalDataSliceCount,
-        maxTotalDataSliceCount,
         logger);
 }
 
