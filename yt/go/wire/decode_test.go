@@ -1147,13 +1147,20 @@ func TestDecoder_decodeReflect(t *testing.T) {
 		{Name: "composite_field"},
 	}
 
-	d := NewDecoder(nameTable, nil)
+	d := NewDecoder(nameTable, &schema.Schema{Columns: []schema.Column{
+		{Name: "composite_field", ComplexType: schema.Struct{
+			Members: []schema.StructMember{
+				{Name: "id", Type: schema.TypeInt64},
+				{Name: "name", Type: schema.TypeString},
+			},
+		}},
+	}})
 
 	type testStruct struct {
 		CompositeField any `yson:"composite_field"`
 	}
 
-	testData := []byte(`{id=123;name=test}`)
+	testData := []byte(`[123;"test"]`)
 
 	var result testStruct
 	err := d.UnmarshalRow(Row{NewComposite(0, testData)}, &result)
@@ -1172,7 +1179,11 @@ func TestDecoder_decodeReflectWithAnyPointer(t *testing.T) {
 		{Name: "field"},
 	}
 
-	d := NewDecoder(nameTable, nil)
+	d := NewDecoder(nameTable, &schema.Schema{Columns: []schema.Column{
+		{Name: "field", ComplexType: schema.List{
+			Item: schema.TypeInt64,
+		}},
+	}})
 
 	type testStruct struct {
 		Field *any `yson:"field"`
