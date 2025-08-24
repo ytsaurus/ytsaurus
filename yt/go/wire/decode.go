@@ -346,6 +346,8 @@ func (d *WireDecoder) decodePrimitiveType(data any, t schema.Type, v *any) error
 		return d.decodeDatetime(data, v)
 	case schema.TypeTimestamp:
 		return d.decodeTimestamp(data, v)
+	case schema.TypeInterval:
+		return d.decodeInterval(data, v)
 	default:
 		*v = data
 		return nil
@@ -383,6 +385,14 @@ func (d *WireDecoder) decodeDatetime(data any, v *any) error {
 		return nil
 	}
 	return fmt.Errorf("expected uint64 or string for datetime, got %T", data)
+}
+
+func (d *WireDecoder) decodeInterval(data any, v *any) error {
+	if interval, ok := data.(int64); ok {
+		*v = interval
+		return nil
+	}
+	return fmt.Errorf("expected int64 for interval, got %T", data)
 }
 
 func (d *WireDecoder) decodeTimestamp(data any, v *any) error {
