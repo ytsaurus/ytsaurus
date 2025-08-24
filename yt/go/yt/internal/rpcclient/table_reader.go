@@ -5,6 +5,7 @@ import (
 
 	"go.ytsaurus.tech/library/go/core/xerrors"
 	"go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy"
+	"go.ytsaurus.tech/yt/go/schema"
 	"go.ytsaurus.tech/yt/go/wire"
 	"go.ytsaurus.tech/yt/go/yt"
 )
@@ -28,9 +29,14 @@ func newTableReader(rows []wire.Row, d *rpc_proxy.TRowsetDescriptor) (*tableRead
 		return nil, err
 	}
 
+	schema, err := schema.ConvertFromRPCProxy(d.GetSchema())
+	if err != nil {
+		return nil, err
+	}
+
 	r := &tableReader{
 		rows: rows,
-		d:    wire.NewDecoder(nameTable, d.GetSchema()),
+		d:    wire.NewDecoder(nameTable, &schema),
 	}
 
 	return r, nil

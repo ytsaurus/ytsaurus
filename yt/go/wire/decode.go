@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"go.ytsaurus.tech/library/go/core/xerrors"
-	"go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy"
 	"go.ytsaurus.tech/yt/go/schema"
 	"go.ytsaurus.tech/yt/go/yson"
 )
@@ -188,10 +187,10 @@ func (e *ReflectTypeError) Error() string {
 
 type WireDecoder struct {
 	NameTable NameTable
-	Schema    *rpc_proxy.TTableSchema
+	Schema    *schema.Schema
 }
 
-func NewDecoder(table NameTable, schema *rpc_proxy.TTableSchema) *WireDecoder {
+func NewDecoder(table NameTable, schema *schema.Schema) *WireDecoder {
 	return &WireDecoder{NameTable: table, Schema: schema}
 }
 
@@ -286,23 +285,18 @@ func (d *WireDecoder) decodeValueComposite(value Value, v *any) error {
 		return err
 	}
 
-	var columnSchema *rpc_proxy.TColumnSchema
+	var columnSchema *schema.Column
 	if d.Schema != nil {
-		for _, col := range d.Schema.GetColumns() {
-			if col.GetName() == entry.Name {
-				columnSchema = col
+		for _, col := range d.Schema.Columns {
+			if col.Name == entry.Name {
+				columnSchema = &col
 				break
 			}
 		}
 	}
 
-	if columnSchema == nil || len(columnSchema.GetTypeV3()) == 0 {
+	if columnSchema == nil || columnSchema.ComplexType == nil {
 		return yson.Unmarshal(value.Any(), v)
-	}
-
-	var complexType schema.ComplexType
-	if err := yson.Unmarshal(columnSchema.GetTypeV3(), &complexType); err != nil {
-		return err
 	}
 
 	var ysonData any
@@ -310,7 +304,7 @@ func (d *WireDecoder) decodeValueComposite(value Value, v *any) error {
 		return err
 	}
 
-	return d.decodeSchemaType(ysonData, complexType, v)
+	return d.decodeSchemaType(ysonData, columnSchema.ComplexType, v)
 }
 
 func (d *WireDecoder) decodeSchemaType(data any, complexType schema.ComplexType, v *any) error {

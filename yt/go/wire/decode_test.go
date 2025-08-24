@@ -7,8 +7,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"go.ytsaurus.tech/library/go/ptr"
-	"go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy"
 	"go.ytsaurus.tech/yt/go/schema"
 )
 
@@ -353,7 +351,7 @@ func TestDecoder_UnmarshalRow(t *testing.T) {
 func TestDecoder_CompositeTypes(t *testing.T) {
 	tests := []struct {
 		name      string
-		schema    *rpc_proxy.TTableSchema
+		schema    *schema.Schema
 		nameTable NameTable
 		testData  []byte
 		expected  any
@@ -361,11 +359,16 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 	}{
 		{
 			name: "struct_simple",
-			schema: &rpc_proxy.TTableSchema{
-				Columns: []*rpc_proxy.TColumnSchema{
+			schema: &schema.Schema{
+				Columns: []schema.Column{
 					{
-						Name:   ptr.String("person"),
-						TypeV3: []byte(`{type_name=struct;members=[{name=id;type=int64};{name=name;type=utf8}]}`),
+						Name: "person",
+						ComplexType: schema.Struct{
+							Members: []schema.StructMember{
+								{Name: "id", Type: schema.TypeInt64},
+								{Name: "name", Type: schema.TypeString},
+							},
+						},
 					},
 				},
 			},
@@ -380,11 +383,18 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 		},
 		{
 			name: "list_of_structs",
-			schema: &rpc_proxy.TTableSchema{
-				Columns: []*rpc_proxy.TColumnSchema{
+			schema: &schema.Schema{
+				Columns: []schema.Column{
 					{
-						Name:   ptr.String("people"),
-						TypeV3: []byte(`{type_name=list;item={type_name=struct;members=[{name=id;type=int64};{name=name;type=utf8}]}}`),
+						Name: "people",
+						ComplexType: schema.List{
+							Item: schema.Struct{
+								Members: []schema.StructMember{
+									{Name: "id", Type: schema.TypeInt64},
+									{Name: "name", Type: schema.TypeString},
+								},
+							},
+						},
 					},
 				},
 			},
@@ -405,11 +415,13 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 		},
 		{
 			name: "list_of_primitives",
-			schema: &rpc_proxy.TTableSchema{
-				Columns: []*rpc_proxy.TColumnSchema{
+			schema: &schema.Schema{
+				Columns: []schema.Column{
 					{
-						Name:   ptr.String("numbers"),
-						TypeV3: []byte(`{type_name=list;item=int64}`),
+						Name: "numbers",
+						ComplexType: schema.List{
+							Item: schema.TypeInt64,
+						},
 					},
 				},
 			},
@@ -421,11 +433,16 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 		},
 		{
 			name: "tuple_simple",
-			schema: &rpc_proxy.TTableSchema{
-				Columns: []*rpc_proxy.TColumnSchema{
+			schema: &schema.Schema{
+				Columns: []schema.Column{
 					{
-						Name:   ptr.String("coordinates"),
-						TypeV3: []byte(`{type_name=tuple;elements=[{type=int64};{type=double}]}`),
+						Name: "coordinates",
+						ComplexType: schema.Tuple{
+							Elements: []schema.TupleElement{
+								{Type: schema.TypeInt64},
+								{Type: schema.TypeFloat64},
+							},
+						},
 					},
 				},
 			},
@@ -437,11 +454,24 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 		},
 		{
 			name: "tuple_with_structs",
-			schema: &rpc_proxy.TTableSchema{
-				Columns: []*rpc_proxy.TColumnSchema{
+			schema: &schema.Schema{
+				Columns: []schema.Column{
 					{
-						Name:   ptr.String("pair"),
-						TypeV3: []byte(`{type_name=tuple;elements=[{type={type_name=struct;members=[{name=id;type=int64}]}};{type={type_name=struct;members=[{name=name;type=utf8}]}}]}`),
+						Name: "pair",
+						ComplexType: schema.Tuple{
+							Elements: []schema.TupleElement{
+								{Type: schema.Struct{
+									Members: []schema.StructMember{
+										{Name: "id", Type: schema.TypeInt64},
+									},
+								}},
+								{Type: schema.Struct{
+									Members: []schema.StructMember{
+										{Name: "name", Type: schema.TypeString},
+									},
+								}},
+							},
+						},
 					},
 				},
 			},
@@ -456,30 +486,41 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 		},
 		{
 			name: "dict_simple",
-			schema: &rpc_proxy.TTableSchema{
-				Columns: []*rpc_proxy.TColumnSchema{
+			schema: &schema.Schema{
+				Columns: []schema.Column{
 					{
-						Name:   ptr.String("config"),
-						TypeV3: []byte(`{type_name=dict;key=utf8;value=int64}`),
+						Name: "config",
+						ComplexType: schema.Dict{
+							Key:   schema.TypeString,
+							Value: schema.TypeInt64,
+						},
 					},
 				},
 			},
 			nameTable: NameTable{{Name: "config"}},
-			testData:  []byte(`[["key1";100];["key2";200]]`),
+			testData:  []byte(`[["key1";1];["key2";2]]`),
 			expected: map[string]any{
 				"config": map[any]any{
-					"key1": int64(100),
-					"key2": int64(200),
+					"key1": int64(1),
+					"key2": int64(2),
 				},
 			},
 		},
 		{
 			name: "dict_with_complex_values",
-			schema: &rpc_proxy.TTableSchema{
-				Columns: []*rpc_proxy.TColumnSchema{
+			schema: &schema.Schema{
+				Columns: []schema.Column{
 					{
-						Name:   ptr.String("users"),
-						TypeV3: []byte(`{type_name=dict;key=utf8;value={type_name=struct;members=[{name=age;type=int64};{name=active;type=bool}]}}`),
+						Name: "users",
+						ComplexType: schema.Dict{
+							Key: schema.TypeString,
+							Value: schema.Struct{
+								Members: []schema.StructMember{
+									{Name: "age", Type: schema.TypeInt64},
+									{Name: "active", Type: schema.TypeBoolean},
+								},
+							},
+						},
 					},
 				},
 			},
@@ -487,24 +528,20 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 			testData:  []byte(`[["alice";[25;%true]];["bob";[30;%false]]]`),
 			expected: map[string]any{
 				"users": map[any]any{
-					"alice": map[string]any{
-						"age":    int64(25),
-						"active": true,
-					},
-					"bob": map[string]any{
-						"age":    int64(30),
-						"active": false,
-					},
+					"alice": map[string]any{"age": int64(25), "active": true},
+					"bob":   map[string]any{"age": int64(30), "active": false},
 				},
 			},
 		},
 		{
 			name: "optional_with_value",
-			schema: &rpc_proxy.TTableSchema{
-				Columns: []*rpc_proxy.TColumnSchema{
+			schema: &schema.Schema{
+				Columns: []schema.Column{
 					{
-						Name:   ptr.String("maybe_string"),
-						TypeV3: []byte(`{type_name=optional;item=utf8}`),
+						Name: "maybe_string",
+						ComplexType: schema.Optional{
+							Item: schema.TypeString,
+						},
 					},
 				},
 			},
@@ -516,11 +553,13 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 		},
 		{
 			name: "optional_with_null",
-			schema: &rpc_proxy.TTableSchema{
-				Columns: []*rpc_proxy.TColumnSchema{
+			schema: &schema.Schema{
+				Columns: []schema.Column{
 					{
-						Name:   ptr.String("maybe_string"),
-						TypeV3: []byte(`{type_name=optional;item=utf8}`),
+						Name: "maybe_string",
+						ComplexType: schema.Optional{
+							Item: schema.TypeString,
+						},
 					},
 				},
 			},
@@ -532,11 +571,18 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 		},
 		{
 			name: "optional_with_struct",
-			schema: &rpc_proxy.TTableSchema{
-				Columns: []*rpc_proxy.TColumnSchema{
+			schema: &schema.Schema{
+				Columns: []schema.Column{
 					{
-						Name:   ptr.String("maybe_person"),
-						TypeV3: []byte(`{type_name=optional;item={type_name=struct;members=[{name=id;type=int64};{name=name;type=utf8}]}}`),
+						Name: "maybe_person",
+						ComplexType: schema.Optional{
+							Item: schema.Struct{
+								Members: []schema.StructMember{
+									{Name: "id", Type: schema.TypeInt64},
+									{Name: "name", Type: schema.TypeString},
+								},
+							},
+						},
 					},
 				},
 			},
@@ -551,27 +597,38 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 		},
 		{
 			name: "tagged_simple",
-			schema: &rpc_proxy.TTableSchema{
-				Columns: []*rpc_proxy.TColumnSchema{
+			schema: &schema.Schema{
+				Columns: []schema.Column{
 					{
-						Name:   ptr.String("user_id"),
-						TypeV3: []byte(`{type_name=tagged;tag=user_id;item=int64}`),
+						Name: "user_id",
+						ComplexType: schema.Tagged{
+							Tag:  "user_id",
+							Item: schema.TypeInt64,
+						},
 					},
 				},
 			},
 			nameTable: NameTable{{Name: "user_id"}},
-			testData:  []byte(`42`),
+			testData:  []byte(`123`),
 			expected: map[string]any{
-				"user_id": int64(42),
+				"user_id": int64(123),
 			},
 		},
 		{
 			name: "tagged_with_struct",
-			schema: &rpc_proxy.TTableSchema{
-				Columns: []*rpc_proxy.TColumnSchema{
+			schema: &schema.Schema{
+				Columns: []schema.Column{
 					{
-						Name:   ptr.String("user_data"),
-						TypeV3: []byte(`{type_name=tagged;tag=user_data;item={type_name=struct;members=[{name=id;type=int64};{name=name;type=utf8}]}}`),
+						Name: "user_data",
+						ComplexType: schema.Tagged{
+							Tag: "user_data",
+							Item: schema.Struct{
+								Members: []schema.StructMember{
+									{Name: "id", Type: schema.TypeInt64},
+									{Name: "name", Type: schema.TypeString},
+								},
+							},
+						},
 					},
 				},
 			},
@@ -586,29 +643,47 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 		},
 		{
 			name: "variant_struct",
-			schema: &rpc_proxy.TTableSchema{
-				Columns: []*rpc_proxy.TColumnSchema{
+			schema: &schema.Schema{
+				Columns: []schema.Column{
 					{
-						Name:   ptr.String("shape"),
-						TypeV3: []byte(`{type_name=variant;members=[{name=circle;type={type_name=struct;members=[{name=radius;type=double}]}};{name=rectangle;type={type_name=struct;members=[{name=width;type=double};{name=height;type=double}]}}]}`),
+						Name: "shape",
+						ComplexType: schema.Variant{
+							Members: []schema.StructMember{
+								{Name: "circle", Type: schema.Struct{
+									Members: []schema.StructMember{
+										{Name: "radius", Type: schema.TypeFloat64},
+									},
+								}},
+								{Name: "rectangle", Type: schema.Struct{
+									Members: []schema.StructMember{
+										{Name: "width", Type: schema.TypeFloat64},
+										{Name: "height", Type: schema.TypeFloat64},
+									},
+								}},
+							},
+						},
 					},
 				},
 			},
 			nameTable: NameTable{{Name: "shape"}},
 			testData:  []byte(`["circle";[5.0]]`),
 			expected: map[string]any{
-				"shape": []any{"circle", map[string]any{
-					"radius": 5.0,
-				}},
+				"shape": []any{"circle", map[string]any{"radius": 5.0}},
 			},
 		},
 		{
 			name: "variant_tuple",
-			schema: &rpc_proxy.TTableSchema{
-				Columns: []*rpc_proxy.TColumnSchema{
+			schema: &schema.Schema{
+				Columns: []schema.Column{
 					{
-						Name:   ptr.String("value"),
-						TypeV3: []byte(`{type_name=variant;elements=[{type=int64};{type=utf8};{type=double}]}`),
+						Name: "value",
+						ComplexType: schema.Variant{
+							Elements: []schema.TupleElement{
+								{Type: schema.TypeInt64},
+								{Type: schema.TypeString},
+								{Type: schema.TypeFloat64},
+							},
+						},
 					},
 				},
 			},
@@ -620,35 +695,41 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 		},
 		{
 			name: "nested_complex_types",
-			schema: &rpc_proxy.TTableSchema{
-				Columns: []*rpc_proxy.TColumnSchema{
+			schema: &schema.Schema{
+				Columns: []schema.Column{
 					{
-						Name:   ptr.String("complex"),
-						TypeV3: []byte(`{type_name=list;item={type_name=optional;item={type_name=dict;key=utf8;value=int64}}}`),
+						Name: "complex",
+						ComplexType: schema.List{
+							Item: schema.Optional{
+								Item: schema.Dict{
+									Key:   schema.TypeString,
+									Value: schema.TypeInt64,
+								},
+							},
+						},
 					},
 				},
 			},
 			nameTable: NameTable{{Name: "complex"}},
-			testData:  []byte(`[[["key1";100]];#;[["key2";200]]]`),
+			testData:  []byte(`[[["key1";1]];#;[["key2";2]]]`),
 			expected: map[string]any{
 				"complex": []any{
-					map[any]any{
-						"key1": int64(100),
-					},
+					map[any]any{"key1": int64(1)},
 					nil,
-					map[any]any{
-						"key2": int64(200),
-					},
+					map[any]any{"key2": int64(2)},
 				},
 			},
 		},
 		{
 			name: "decimal_type",
-			schema: &rpc_proxy.TTableSchema{
-				Columns: []*rpc_proxy.TColumnSchema{
+			schema: &schema.Schema{
+				Columns: []schema.Column{
 					{
-						Name:   ptr.String("price"),
-						TypeV3: []byte(`{type_name=decimal;precision=10;scale=2}`),
+						Name: "price",
+						ComplexType: schema.Decimal{
+							Precision: 10,
+							Scale:     2,
+						},
 					},
 				},
 			},
@@ -660,11 +741,15 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 		},
 		{
 			name: "list_of_optional_primitives",
-			schema: &rpc_proxy.TTableSchema{
-				Columns: []*rpc_proxy.TColumnSchema{
+			schema: &schema.Schema{
+				Columns: []schema.Column{
 					{
-						Name:   ptr.String("nullable_numbers"),
-						TypeV3: []byte(`{type_name=list;item={type_name=optional;item=int64}}`),
+						Name: "nullable_numbers",
+						ComplexType: schema.List{
+							Item: schema.Optional{
+								Item: schema.TypeInt64,
+							},
+						},
 					},
 				},
 			},
@@ -676,31 +761,46 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 		},
 		{
 			name: "struct_with_optional_fields",
-			schema: &rpc_proxy.TTableSchema{
-				Columns: []*rpc_proxy.TColumnSchema{
+			schema: &schema.Schema{
+				Columns: []schema.Column{
 					{
-						Name:   ptr.String("user"),
-						TypeV3: []byte(`{type_name=struct;members=[{name=id;type=int64};{name=name;type={type_name=optional;item=utf8}};{name=email;type={type_name=optional;item=utf8}}]}`),
+						Name: "user",
+						ComplexType: schema.Struct{
+							Members: []schema.StructMember{
+								{Name: "id", Type: schema.TypeInt64},
+								{Name: "name", Type: schema.Optional{
+									Item: schema.TypeString,
+								}},
+								{Name: "email", Type: schema.Optional{
+									Item: schema.TypeString,
+								}},
+							},
+						},
 					},
 				},
 			},
 			nameTable: NameTable{{Name: "user"}},
-			testData:  []byte(`[123;"john";#]`),
+			testData:  []byte(`[123;"alice";#]`),
 			expected: map[string]any{
 				"user": map[string]any{
 					"id":    int64(123),
-					"name":  "john",
+					"name":  "alice",
 					"email": nil,
 				},
 			},
 		},
 		{
 			name: "dict_with_list_values",
-			schema: &rpc_proxy.TTableSchema{
-				Columns: []*rpc_proxy.TColumnSchema{
+			schema: &schema.Schema{
+				Columns: []schema.Column{
 					{
-						Name:   ptr.String("categories"),
-						TypeV3: []byte(`{type_name=dict;key=utf8;value={type_name=list;item=utf8}}`),
+						Name: "categories",
+						ComplexType: schema.Dict{
+							Key: schema.TypeString,
+							Value: schema.List{
+								Item: schema.TypeString,
+							},
+						},
 					},
 				},
 			},
@@ -715,52 +815,68 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 		},
 		{
 			name: "tuple_with_optional_elements",
-			schema: &rpc_proxy.TTableSchema{
-				Columns: []*rpc_proxy.TColumnSchema{
+			schema: &schema.Schema{
+				Columns: []schema.Column{
 					{
-						Name:   ptr.String("mixed_tuple"),
-						TypeV3: []byte(`{type_name=tuple;elements=[{type=int64};{type={type_name=optional;item=utf8}};{type=double}]}`),
+						Name: "mixed_tuple",
+						ComplexType: schema.Tuple{
+							Elements: []schema.TupleElement{
+								{Type: schema.TypeInt64},
+								{Type: schema.Optional{
+									Item: schema.TypeString,
+								}},
+								{Type: schema.TypeFloat64},
+							},
+						},
 					},
 				},
 			},
 			nameTable: NameTable{{Name: "mixed_tuple"}},
-			testData:  []byte(`[42;#;3.14]`),
+			testData:  []byte(`[10;"hello";3.14]`),
 			expected: map[string]any{
-				"mixed_tuple": []any{int64(42), nil, 3.14},
+				"mixed_tuple": []any{int64(10), "hello", 3.14},
 			},
 		},
 		{
 			name: "error_invalid_schema",
-			schema: &rpc_proxy.TTableSchema{
-				Columns: []*rpc_proxy.TColumnSchema{
+			schema: &schema.Schema{
+				Columns: []schema.Column{
 					{
-						Name:   ptr.String("invalid"),
-						TypeV3: []byte(`{invalid_schema}`),
+						Name:        "invalid",
+						ComplexType: nil, // This should cause the decoder to fall back to YSON unmarshaling
 					},
 				},
 			},
 			nameTable: NameTable{{Name: "invalid"}},
 			testData:  []byte(`"test"`),
-			expected:  map[string]any{},
-			isErr:     true,
+			isErr:     false, // This should not be an error, it should fall back to YSON unmarshaling
+			expected: map[string]any{
+				"invalid": "test",
+			},
 		},
 		{
 			name: "struct_with_date_types",
-			schema: &rpc_proxy.TTableSchema{
-				Columns: []*rpc_proxy.TColumnSchema{
+			schema: &schema.Schema{
+				Columns: []schema.Column{
 					{
-						Name:   ptr.String("event"),
-						TypeV3: []byte(`{type_name=struct;members=[{name=date;type=date};{name=datetime;type=datetime};{name=timestamp;type=timestamp}]}`),
+						Name: "event",
+						ComplexType: schema.Struct{
+							Members: []schema.StructMember{
+								{Name: "date", Type: schema.TypeDate},
+								{Name: "datetime", Type: schema.TypeDatetime},
+								{Name: "timestamp", Type: schema.TypeTimestamp},
+							},
+						},
 					},
 				},
 			},
 			nameTable: NameTable{{Name: "event"}},
-			testData:  []byte(`["2022-01-02";"2022-01-02T03:04:05Z";"2022-01-02T03:04:05.123456Z"]`),
+			testData:  []byte(`[12345u;1234567890u;1234567890123u]`),
 			expected: map[string]any{
 				"event": map[string]any{
-					"date":      int64(18994),
-					"datetime":  int64(1641092645),
-					"timestamp": int64(1641092645123),
+					"date":      uint64(12345),
+					"datetime":  uint64(1234567890),
+					"timestamp": uint64(1234567890123),
 				},
 			},
 		},
