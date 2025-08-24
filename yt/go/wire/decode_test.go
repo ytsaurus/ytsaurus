@@ -597,9 +597,9 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 			nameTable: NameTable{{Name: "shape"}},
 			testData:  []byte(`["circle";[5.0]]`),
 			expected: map[string]any{
-				"shape": map[string]any{
+				"shape": []any{"circle", map[string]any{
 					"radius": 5.0,
-				},
+				}},
 			},
 		},
 		{
@@ -615,7 +615,7 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 			nameTable: NameTable{{Name: "value"}},
 			testData:  []byte(`[1;"hello"]`),
 			expected: map[string]any{
-				"value": "hello",
+				"value": []any{int64(1), "hello"},
 			},
 		},
 		{

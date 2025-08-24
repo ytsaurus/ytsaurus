@@ -595,7 +595,7 @@ func (d *WireDecoder) decodeVariant(data any, t schema.Variant, v *any) error {
 				if err := d.decodeSchemaType(value, member.Type, &decodedValue); err != nil {
 					return err
 				}
-				*v = decodedValue
+				*v = []any{altName, decodedValue}
 				return nil
 			}
 		}
@@ -608,7 +608,7 @@ func (d *WireDecoder) decodeVariant(data any, t schema.Variant, v *any) error {
 			if err := d.decodeSchemaType(value, t.Elements[altIndex].Type, &decodedValue); err != nil {
 				return err
 			}
-			*v = decodedValue
+			*v = []any{altIndex, decodedValue}
 			return nil
 		}
 	}
