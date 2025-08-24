@@ -255,7 +255,7 @@ def collect_cores(pids, working_directory, binaries, logger=None):
     for pid in pids:
         core_file = yatest_common.cores.recover_core_dump_file(
             # Temporarily collect all cores since problem with core file names.
-            # yatest_common.binary_path("yp/server/master/bin/ypserver-master"),
+            # yatest_common.binary_path("yp/server/master/bin/yp-master"),
             "*",
             # Process working directory.
             working_directory,
