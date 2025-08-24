@@ -1145,6 +1145,8 @@ func TestDecodeDecimalFromBinary(t *testing.T) {
 func TestDecoder_decodeReflect(t *testing.T) {
 	nameTable := NameTable{
 		{Name: "composite_field"},
+		{Name: "list_field"},
+		{Name: "timestamp_field"},
 	}
 
 	d := NewDecoder(nameTable, &schema.Schema{Columns: []schema.Column{
@@ -1154,52 +1156,35 @@ func TestDecoder_decodeReflect(t *testing.T) {
 				{Name: "name", Type: schema.TypeString},
 			},
 		}},
+		{Name: "list_field", ComplexType: schema.List{
+			Item: schema.TypeInt64,
+		}},
+		{Name: "timestamp_field", ComplexType: schema.TypeTimestamp},
 	}})
 
 	type testStruct struct {
-		CompositeField any `yson:"composite_field"`
+		CompositeField map[string]any   `yson:"composite_field"`
+		ListField      []any            `yson:"list_field"`
+		TimestampField schema.Timestamp `yson:"timestamp_field"`
 	}
 
-	testData := []byte(`[123;"test"]`)
-
 	var result testStruct
-	err := d.UnmarshalRow(Row{NewComposite(0, testData)}, &result)
+	err := d.UnmarshalRow(Row{
+		NewComposite(0, []byte(`[123;"test"]`)),
+		NewComposite(1, []byte(`[1;2;3;4;5]`)),
+		NewUint64(2, 1234567890123),
+	}, &result)
 
 	require.NoError(t, err)
 	require.NotNil(t, result.CompositeField)
+	require.NotNil(t, result.ListField)
 
-	compositeMap, ok := result.CompositeField.(map[string]any)
-	require.True(t, ok)
-	require.Equal(t, int64(123), compositeMap["id"])
-	require.Equal(t, "test", compositeMap["name"])
-}
+	require.Equal(t, int64(123), result.CompositeField["id"])
+	require.Equal(t, "test", result.CompositeField["name"])
 
-func TestDecoder_decodeReflectWithAnyPointer(t *testing.T) {
-	nameTable := NameTable{
-		{Name: "field"},
-	}
+	require.Len(t, result.ListField, 5)
+	require.Equal(t, int64(1), result.ListField[0])
+	require.Equal(t, int64(5), result.ListField[4])
 
-	d := NewDecoder(nameTable, &schema.Schema{Columns: []schema.Column{
-		{Name: "field", ComplexType: schema.List{
-			Item: schema.TypeInt64,
-		}},
-	}})
-
-	type testStruct struct {
-		Field *any `yson:"field"`
-	}
-
-	testData := []byte(`[1;2;3;4;5]`)
-
-	var result testStruct
-	err := d.UnmarshalRow(Row{NewComposite(0, testData)}, &result)
-
-	require.NoError(t, err)
-	require.NotNil(t, result.Field)
-
-	list, ok := (*result.Field).([]any)
-	require.True(t, ok)
-	require.Len(t, list, 5)
-	require.Equal(t, int64(1), list[0])
-	require.Equal(t, int64(5), list[4])
+	require.Equal(t, schema.Timestamp(1234567890123), result.TimestampField)
 }

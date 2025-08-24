@@ -892,7 +892,7 @@ func (d *WireDecoder) decodeReflect(value Value, v reflect.Value) error {
 		if err := d.decodeValueComposite(value, &res); err != nil {
 			return err
 		}
-		v.Elem().Set(reflect.ValueOf(&res))
+		v.Elem().Set(reflect.ValueOf(res))
 		return nil
 	}
 }
