@@ -466,13 +466,15 @@ func (d *WireDecoder) decodeStruct(data any, t schema.Struct, v *any) error {
 				}
 			}
 
-			if memberType != nil {
-				var decodedVal any
-				if err := d.decodeSchemaType(val, memberType, &decodedVal); err != nil {
-					return err
-				}
-				result[keyStr] = decodedVal
+			if memberType == nil {
+				continue
 			}
+
+			var decodedVal any
+			if err := d.decodeSchemaType(val, memberType, &decodedVal); err != nil {
+				return err
+			}
+			result[keyStr] = decodedVal
 		}
 		*v = result
 		return nil
@@ -511,10 +513,11 @@ func (d *WireDecoder) decodeTuple(data any, t schema.Tuple, v *any) error {
 
 	result := make([]any, len(t.Elements))
 	for i, elem := range t.Elements {
-		if i < len(ysonList) {
-			if err := d.decodeSchemaType(ysonList[i], elem.Type, &result[i]); err != nil {
-				return err
-			}
+		if i >= len(ysonList) {
+			break
+		}
+		if err := d.decodeSchemaType(ysonList[i], elem.Type, &result[i]); err != nil {
+			return err
 		}
 	}
 	*v = result
@@ -526,18 +529,18 @@ func (d *WireDecoder) decodeDict(data any, t schema.Dict, v *any) error {
 	if ysonList, ok := data.([]any); ok {
 		result := make(map[any]any)
 		for _, item := range ysonList {
-			if kvList, ok := item.([]any); ok && len(kvList) == 2 {
-				var decodedKey, decodedVal any
-				if err := d.decodeSchemaType(kvList[0], t.Key, &decodedKey); err != nil {
-					return err
-				}
-				if err := d.decodeSchemaType(kvList[1], t.Value, &decodedVal); err != nil {
-					return err
-				}
-				result[decodedKey] = decodedVal
-			} else {
+			kvList, ok := item.([]any)
+			if !ok || len(kvList) != 2 {
 				return fmt.Errorf("expected key-value pair list for dict item, got %T", item)
 			}
+			var decodedKey, decodedVal any
+			if err := d.decodeSchemaType(kvList[0], t.Key, &decodedKey); err != nil {
+				return err
+			}
+			if err := d.decodeSchemaType(kvList[1], t.Value, &decodedVal); err != nil {
+				return err
+			}
+			result[decodedKey] = decodedVal
 		}
 		*v = result
 		return nil
@@ -566,40 +569,41 @@ func (d *WireDecoder) decodeDict(data any, t schema.Dict, v *any) error {
 
 func (d *WireDecoder) decodeVariant(data any, t schema.Variant, v *any) error {
 	// Variant is represented as a YSON list of length 2: [alternative, value]
-	if ysonList, ok := data.([]any); ok && len(ysonList) == 2 {
-		alternative := ysonList[0]
-		value := ysonList[1]
+	ysonList, ok := data.([]any)
+	if !ok || len(ysonList) != 2 {
+		return fmt.Errorf("expected list of length 2 for variant, got %T", data)
+	}
 
-		// named variants
-		if altName, ok := alternative.(string); ok {
-			for _, member := range t.Members {
-				if member.Name == altName {
-					var decodedValue any
-					if err := d.decodeSchemaType(value, member.Type, &decodedValue); err != nil {
-						return err
-					}
-					*v = decodedValue
-					return nil
-				}
-			}
-		}
+	alternative := ysonList[0]
+	value := ysonList[1]
 
-		// unnamed variants (index)
-		if altIndex, ok := alternative.(int64); ok {
-			if int(altIndex) < len(t.Elements) {
+	// named variants
+	if altName, ok := alternative.(string); ok {
+		for _, member := range t.Members {
+			if member.Name == altName {
 				var decodedValue any
-				if err := d.decodeSchemaType(value, t.Elements[altIndex].Type, &decodedValue); err != nil {
+				if err := d.decodeSchemaType(value, member.Type, &decodedValue); err != nil {
 					return err
 				}
 				*v = decodedValue
 				return nil
 			}
 		}
-
-		return fmt.Errorf("expected alternative to be either string or int64, got %T", alternative)
 	}
 
-	return fmt.Errorf("expected list of length 2 for variant, got %T", data)
+	// unnamed variants (index)
+	if altIndex, ok := alternative.(int64); ok {
+		if int(altIndex) < len(t.Elements) {
+			var decodedValue any
+			if err := d.decodeSchemaType(value, t.Elements[altIndex].Type, &decodedValue); err != nil {
+				return err
+			}
+			*v = decodedValue
+			return nil
+		}
+	}
+
+	return fmt.Errorf("expected alternative to be either string or int64, got %T", alternative)
 }
 
 func (d *WireDecoder) decodeRowReflect(row Row, v reflect.Value) error {
