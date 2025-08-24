@@ -4721,8 +4721,8 @@ class TestChaos(ChaosTestBase):
         primary_commit_timestamp = commit_res["primary_commit_timestamp"]
 
         # Waitng for transaction serialization so total row count is updated
-        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[1]}/replication_lag_timestamp") >= primary_commit_timestamp)
-        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[2]}/replication_lag_timestamp") >= primary_commit_timestamp)
+        for replica_id in replica_ids:
+            wait(lambda: get(f"//tmp/crt/@replicas/{replica_id}/replication_lag_timestamp") >= primary_commit_timestamp)
 
         tablet_infos = get_tablet_infos("//tmp/crt", [0])["tablets"]
         assert len(tablet_infos) == 1
