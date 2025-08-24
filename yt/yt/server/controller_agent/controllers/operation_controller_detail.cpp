@@ -7783,7 +7783,7 @@ void TOperationControllerBase::ParseInputQuery(
         std::ranges::copy_if(
             names,
             std::back_inserter(externalNames),
-            [&] (const auto& name) { return typeInferrers->contains(name); });
+            [&] (const auto& name) { return !typeInferrers->contains(name); });
 
         if (externalNames.empty()) {
             return;
