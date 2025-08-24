@@ -2738,6 +2738,9 @@ private:
     // COMPAT(ifsmirnov)
     bool InternalizeBundleResourceQuotaAttribute_ = false;
 
+    // COMPAT(babenko)
+    bool WeakRefTableReplicas_ = false;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     TCounter& GetUserChunkConstraintValidationErrorCounter(const std::string& userName)
@@ -4127,6 +4130,9 @@ private:
 
         // COMPAT(ifsmirnov)
         InternalizeBundleResourceQuotaAttribute_ = context.GetVersion() < EMasterReign::ResourceQuotaAttributeForBundles;
+
+        // COMPAT(babenko)
+        WeakRefTableReplicas_ = context.GetVersion() < EMasterReign::WeakPtrInTableReplicas;
     }
 
     void RecomputeHunkResourceUsage()
@@ -4184,6 +4190,7 @@ private:
         RecomputeHunkResourceUsage_ = false;
         ForbidAvenuesDuringMigration_ = false;
         InternalizeBundleResourceQuotaAttribute_ = false;
+        WeakRefTableReplicas_ = false;
     }
 
     void OnAfterSnapshotLoaded() override
@@ -4205,12 +4212,19 @@ private:
         InitBuiltins();
 
         const auto& avenueDirectory = Bootstrap_->GetAvenueDirectory();
-        for (auto [id, tablet] : Tablets()) {
-            if (tablet->IsMountedWithAvenue()) {
-                YT_VERIFY(tablet->Servant().GetCell());
+        for (auto [id, tabletBase] : Tablets()) {
+            if (tabletBase->IsMountedWithAvenue()) {
+                YT_VERIFY(tabletBase->Servant().GetCell());
                 avenueDirectory->UpdateEndpoint(
-                    tablet->GetNodeEndpointId(),
-                    tablet->Servant().GetCell()->GetId());
+                    tabletBase->GetNodeEndpointId(),
+                    tabletBase->Servant().GetCell()->GetId());
+            }
+
+            if (WeakRefTableReplicas_ && tabletBase->GetType() == EObjectType::Tablet) {
+                auto* tablet = tabletBase->As<TTablet>();
+                for (const auto& [replica, _] : tablet->Replicas()) {
+                    Bootstrap_->GetObjectManager()->WeakRefObject(replica.Get());
+                }
             }
         }
 
@@ -4322,6 +4336,38 @@ private:
     void SetZeroState() override
     {
         InitBuiltins();
+    }
+
+    void CheckInvariants() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        TMasterAutomatonPart::CheckInvariants();
+
+        YT_LOG_INFO("Started validating table replica weak ref counters");
+
+        THashMap<TTableReplica*, int> replicaToExpectedWeakRefCounter;
+        for (auto [id, tabletBase] : Tablets()) {
+            if (tabletBase->GetType() == EObjectType::Tablet) {
+                auto* tablet = tabletBase->As<TTablet>();
+                for (const auto& [replica, _] : tablet->Replicas()) {
+                    ++replicaToExpectedWeakRefCounter[replica.Get()];
+                }
+            }
+        }
+
+        for (const auto& [_, replica] : TableReplicaMap_) {
+            auto expectedWeakRefCount = GetOrDefault(replicaToExpectedWeakRefCounter, replica);
+            auto actualWeakRefCount = replica->GetObjectWeakRefCounter();
+            YT_LOG_FATAL_UNLESS(
+                actualWeakRefCount == expectedWeakRefCount,
+                "Table replica has wrong weak ref counter (ReplicaId: %v, ExpectedWeakRefCount: %v, ActualWeakRefCount: %v)",
+                replica->GetId(),
+                expectedWeakRefCount,
+                actualWeakRefCount);
+        }
+
+        YT_LOG_INFO("Finished validating table replica weak ref counters");
     }
 
     template <class T>
