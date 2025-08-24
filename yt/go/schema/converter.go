@@ -1,4 +1,3 @@
-// Package schema defines schema of YT tables.
 package schema
 
 import (
@@ -65,44 +64,43 @@ func convertType(valueType *int32) Type {
 	switch *valueType {
 	case 0x02: // Null
 		return TypeAny // No direct null type in schema, use Any
-	case 0x03: // Int64
+	case 0x03:
 		return TypeInt64
-	case 0x04: // Uint64
+	case 0x04:
 		return TypeUint64
-	case 0x05: // Double
+	case 0x05:
 		return TypeFloat64
-	case 0x06: // Boolean
+	case 0x06:
 		return TypeBoolean
-	case 0x10: // String
+	case 0x10:
 		return TypeBytes
-	case 0x11: // Any
+	case 0x11:
 		return TypeAny
-	case 0x1000: // Int8
+	case 0x1000:
 		return TypeInt8
-	case 0x1001: // Uint8
+	case 0x1001:
 		return TypeUint8
-	case 0x1003: // Int16
+	case 0x1003:
 		return TypeInt16
-	case 0x1004: // Uint16
+	case 0x1004:
 		return TypeUint16
-	case 0x1005: // Int32
+	case 0x1005:
 		return TypeInt32
-	case 0x1006: // Uint32
+	case 0x1006:
 		return TypeUint32
-	case 0x1007: // Utf8
+	case 0x1007:
 		return TypeString
-	case 0x1008: // Date
+	case 0x1008:
 		return TypeDate
-	case 0x1009: // Datetime
+	case 0x1009:
 		return TypeDatetime
-	case 0x100a: // Timestamp
+	case 0x100a:
 		return TypeTimestamp
-	case 0x100b: // Interval
+	case 0x100b:
 		return TypeInterval
-	case 0x100d: // Float
+	case 0x100d:
 		return TypeFloat32
 	default:
-		// Unknown type, return Any as fallback
 		return TypeAny
 	}
 }

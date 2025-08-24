@@ -29,7 +29,6 @@ func TestConvertFromRPCProxy_SimpleColumn(t *testing.T) {
 	result, err := ConvertFromRPCProxy(rpcSchema)
 	require.NoError(t, err)
 
-	// Check the basic structure
 	require.NotNil(t, result.Strict)
 	require.True(t, *result.Strict)
 	require.False(t, result.UniqueKeys)
@@ -37,7 +36,7 @@ func TestConvertFromRPCProxy_SimpleColumn(t *testing.T) {
 
 	col := result.Columns[0]
 	require.Equal(t, "test_column", col.Name)
-	require.Equal(t, TypeBytes, col.Type) // Type 0x10 (16) maps to VT_String -> "string" (TypeBytes)
+	require.Equal(t, TypeBytes, col.Type)
 	require.True(t, col.Required)
 	require.Equal(t, "group1", col.Group)
 	require.Equal(t, "expr1", col.Expression)
@@ -86,7 +85,6 @@ func TestConvertFromRPCProxy_WithComplexType(t *testing.T) {
 }
 
 func TestConvertFromRPCProxy_EmptyTypeV3(t *testing.T) {
-	// Test with empty TypeV3 - should not set ComplexType
 	rpcSchema := &rpc_proxy.TTableSchema{
 		Strict:     ptr.Bool(true),
 		UniqueKeys: ptr.Bool(false),
@@ -94,7 +92,7 @@ func TestConvertFromRPCProxy_EmptyTypeV3(t *testing.T) {
 			{
 				Name:       ptr.String("simple_column"),
 				Type:       ptr.Int32(0x03), // VT_Int64
-				TypeV3:     []byte{},        // Empty
+				TypeV3:     []byte{},
 				Required:   ptr.Bool(true),
 				Group:      ptr.String(""),
 				Expression: ptr.String(""),
@@ -120,8 +118,8 @@ func TestConvertFromRPCProxy_InvalidYSON(t *testing.T) {
 		Columns: []*rpc_proxy.TColumnSchema{
 			{
 				Name:       ptr.String("invalid_column"),
-				Type:       ptr.Int32(0x03),         // VT_Int64
-				TypeV3:     []byte(`{invalid_yson`), // Invalid YSON
+				Type:       ptr.Int32(0x03),
+				TypeV3:     []byte(`{invalid_yson`),
 				Required:   ptr.Bool(true),
 				Group:      ptr.String(""),
 				Expression: ptr.String(""),
