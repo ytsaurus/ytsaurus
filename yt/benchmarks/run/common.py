@@ -138,7 +138,11 @@ def make_query(
 
 
 def list_all_queries(query_prefix: str, query_source: QuerySource) -> list[int]:
-    path = root_path(query_source) / query_prefix
+    try:
+        path = root_path(query_source) / query_prefix
+    except FileNotFoundError:
+        # Traversable will throw exception in '/' operator if query_prefix doesn't exist, Path won't.
+        return []
     if not path.is_dir():
         return []
     return [int(query.name.removesuffix(".sql"))
