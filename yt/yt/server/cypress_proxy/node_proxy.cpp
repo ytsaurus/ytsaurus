@@ -2,11 +2,11 @@
 
 #include "access_control.h"
 #include "bootstrap.h"
+#include "dynamic_config_manager.h"
 #include "helpers.h"
 #include "master_connector.h"
 #include "node_proxy_base.h"
 #include "path_resolver.h"
-#include "sequoia_tree_visitor.h"
 #include "sequoia_session.h"
 #include "sequoia_tree_visitor.h"
 
@@ -1893,9 +1893,9 @@ private:
 
         auto limit = YT_OPTIONAL_FROM_PROTO(*request, limit);
 
-        // NB: This is an arbitrary value, it can be freely changed.
-        // TODO(h0pless): Think about moving global limit to dynamic config.
-        i64 responseSizeLimit = limit.value_or(100'000);
+        const auto& dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig();
+        auto defaultResponseSizeLimit = dynamicConfig->DefaultGetResponseSizeLimit;
+        i64 responseSizeLimit = limit.value_or(defaultResponseSizeLimit);
 
         context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
             limit,
@@ -1917,6 +1917,7 @@ private:
         THashMap<TNodeId, std::vector<TCypressChildDescriptor>> nodeIdToChildren;
         nodeIdToChildren[Id_] = {};
 
+        // TODO(h0pless): Ensure that the root node of the requested subtree cannot appear as opaque.
         int maxRetrievedDepth = 0;
 
         // NB: 1 node is root node and it should not count towards the limit.
