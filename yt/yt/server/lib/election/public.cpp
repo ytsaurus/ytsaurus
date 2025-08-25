@@ -20,5 +20,5 @@ void FromProto(NElection::TPeerPriority* peerPriority, const TPeerPriority& prot
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NElection
+} // namespace NYT::NElection::NProto
 

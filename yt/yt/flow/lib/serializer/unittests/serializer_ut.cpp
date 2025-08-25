@@ -360,4 +360,4 @@ TEST(TYsonSerialize, ProtoSerialize)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NFlow
+} // namespace NYT::NFlow::NYsonSerializer

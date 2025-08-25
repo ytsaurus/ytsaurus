@@ -69,4 +69,4 @@ DEFINE_REFCOUNTED_TYPE(TBundleDynamicConfigManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NClusterNode
+} // namespace NYT::NCellarNode

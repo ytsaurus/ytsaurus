@@ -365,4 +365,4 @@ ISlotManagerPtr CreateSlotManager(IBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode::NYT
+} // namespace NYT::NTabletNode

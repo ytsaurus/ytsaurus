@@ -142,4 +142,4 @@ void TEncodingChunkWriter::VerifyBlockType(EBlockType blockType) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTableClient
+} // namespace NYT::NChunkClient

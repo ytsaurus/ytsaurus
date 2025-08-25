@@ -83,4 +83,4 @@ int TChaosAutomatonPart::GetCurrentSnapshotVersion()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChaosNode::NYT
+} // namespace NYT::NChaosNode

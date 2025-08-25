@@ -1079,4 +1079,4 @@ THashMap<TGroupId, TGroupPtr> TGroupTree::GetOrCreateGroups(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NDiscoveryClient
+} // namespace NYT::NDiscoveryServer

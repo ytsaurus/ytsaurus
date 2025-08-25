@@ -182,4 +182,4 @@ IQueryCorpusReporterPtr MakeQueryCorpusReporter(NApi::NNative::IClientPtr client
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTabletNode
+} // namespace NYT::NRpcProxy

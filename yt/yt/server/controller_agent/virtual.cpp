@@ -341,5 +341,5 @@ void TVirtualStaticTable::DoWriteAttributesFragment(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTableServer
+} // namespace NYT::NControllerAgent
 

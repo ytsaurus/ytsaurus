@@ -75,4 +75,4 @@ INodeTypeHandlerPtr CreateCellMapTypeHandler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NServer
+} // namespace NYT::NCellServer

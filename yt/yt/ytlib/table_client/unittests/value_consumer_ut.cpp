@@ -151,5 +151,5 @@ INSTANTIATE_TEST_SUITE_P(AllCombinations,
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NVersionedTableClient
+} // namespace NYT::NTableClient
 

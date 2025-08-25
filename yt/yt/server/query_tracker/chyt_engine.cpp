@@ -466,4 +466,4 @@ IQueryEnginePtr CreateChytEngine(const NNative::IClientPtr& stateClient, const T
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NQueryClient
+} // namespace NYT::NQueryTracker

@@ -272,4 +272,4 @@ void TSelfCGroupsStatisticsFetcher::DetectSelfCGroup()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NContainers::NCgroups
+} // namespace NYT::NContainers::NCGroups

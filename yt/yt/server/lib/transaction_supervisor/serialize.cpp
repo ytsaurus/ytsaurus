@@ -24,4 +24,4 @@ bool ValidateSnapshotReign(NHydra::TReign reign)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCellMaster
+} // namespace NYT::NTransactionSupervisor

@@ -241,7 +241,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHydra::NTools::NRecodeTableChunk
+} // namespace NYT::NTools::NRecodeTableChunk
 
 int main(int argc, const char** argv)
 {

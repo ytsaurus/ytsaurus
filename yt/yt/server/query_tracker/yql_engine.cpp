@@ -436,4 +436,4 @@ IQueryEngineInfoProviderPtr CreateYqlEngineInfoProvider(const IClientPtr& stateC
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NQueryClient
+} // namespace NYT::NQueryTracker

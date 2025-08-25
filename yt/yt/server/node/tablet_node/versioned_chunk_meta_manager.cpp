@@ -169,4 +169,4 @@ IVersionedChunkMetaManagerPtr CreateVersionedChunkMetaManager(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NDataNode
+} // namespace NYT::NTabletNode

@@ -71,4 +71,4 @@ NApi::IPrerequisitePtr CreateChaosLease(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NApi::NRpcProxy
+} // namespace NYT::NApi::NNative

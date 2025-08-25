@@ -697,4 +697,4 @@ IQueryEnginePtr CreateSpytEngine(IClientPtr stateClient, TYPath stateRoot)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NQueryClient
+} // namespace NYT::NQueryTracker
