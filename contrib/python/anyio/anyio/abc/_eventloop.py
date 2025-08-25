@@ -28,7 +28,7 @@ else:
     from typing_extensions import TypeAlias
 
 if TYPE_CHECKING:
-    from _typeshed import HasFileno
+    from _typeshed import FileDescriptorLike
 
     from .._core._synchronization import CapacityLimiter, Event, Lock, Semaphore
     from .._core._tasks import CancelScope
@@ -335,12 +335,54 @@ class AsyncBackend(metaclass=ABCMeta):
 
     @classmethod
     @abstractmethod
-    async def wait_readable(cls, obj: HasFileno | int) -> None:
+    async def wait_readable(cls, obj: FileDescriptorLike) -> None:
         pass
 
     @classmethod
     @abstractmethod
-    async def wait_writable(cls, obj: HasFileno | int) -> None:
+    async def wait_writable(cls, obj: FileDescriptorLike) -> None:
+        pass
+
+    @classmethod
+    @abstractmethod
+    def notify_closing(cls, obj: FileDescriptorLike) -> None:
+        pass
+
+    @classmethod
+    @abstractmethod
+    async def wrap_listener_socket(cls, sock: socket) -> SocketListener:
+        pass
+
+    @classmethod
+    @abstractmethod
+    async def wrap_stream_socket(cls, sock: socket) -> SocketStream:
+        pass
+
+    @classmethod
+    @abstractmethod
+    async def wrap_unix_stream_socket(cls, sock: socket) -> UNIXSocketStream:
+        pass
+
+    @classmethod
+    @abstractmethod
+    async def wrap_udp_socket(cls, sock: socket) -> UDPSocket:
+        pass
+
+    @classmethod
+    @abstractmethod
+    async def wrap_connected_udp_socket(cls, sock: socket) -> ConnectedUDPSocket:
+        pass
+
+    @classmethod
+    @abstractmethod
+    async def wrap_unix_datagram_socket(cls, sock: socket) -> UNIXDatagramSocket:
+        pass
+
+    @classmethod
+    @abstractmethod
+    async def wrap_connected_unix_datagram_socket(
+        cls, sock: socket
+    ) -> ConnectedUNIXDatagramSocket:
         pass
 
     @classmethod
