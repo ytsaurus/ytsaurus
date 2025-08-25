@@ -142,4 +142,4 @@ bool IsOnlyReadPermissionSet(EPermissionSet permissionMask)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NSequoiaServer
+} // namespace NYT::NSecurityServer

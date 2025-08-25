@@ -1667,4 +1667,4 @@ DELEGATE_BYREF_RO_PROPERTY(TChunkCache, std::vector<TCacheLocationPtr>, Location
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NDataNode
+} // namespace NYT::NExecNode

@@ -170,4 +170,4 @@ IAlienCellPeerChannelFactoryPtr CreateAlienCellPeerChannelFactory(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::Election
+} // namespace NYT::NElection

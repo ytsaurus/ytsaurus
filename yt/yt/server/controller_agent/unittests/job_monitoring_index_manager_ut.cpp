@@ -101,4 +101,4 @@ TEST(TJobMonitoringIndexManager, Large)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NJobProxy
+} // namespace NYT::NControllerAgent

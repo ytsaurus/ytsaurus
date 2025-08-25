@@ -315,4 +315,4 @@ PyObjectPtr TPullObjectBuilder::ParseMapLazy(EYsonItemType endType)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NYTree
+} // namespace NYT::NPython

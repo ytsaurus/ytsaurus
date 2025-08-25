@@ -46,4 +46,4 @@ ICellarOccupierProviderPtr CreateTabletSlotOccupierProvider(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode::NYT
+} // namespace NYT::NTabletNode

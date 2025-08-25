@@ -94,6 +94,6 @@ INSTANTIATE_TEST_SUITE_P(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NChunkServer
+} // namespace NTabletNode
 } // namespace NYT
 

@@ -283,4 +283,4 @@ TEST(TJobSplitterTest, EverythingIsDisabled)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NControllers
+} // namespace NYT::NControllerAgent::NControllers

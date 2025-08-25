@@ -81,4 +81,4 @@ int TTabletAutomatonPart::GetCurrentSnapshotVersion()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode::NYT
+} // namespace NYT::NTabletNode

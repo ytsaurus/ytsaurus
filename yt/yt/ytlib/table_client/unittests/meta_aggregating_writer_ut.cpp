@@ -273,4 +273,4 @@ INSTANTIATE_TEST_SUITE_P(Test,
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NChunkClient
+} // namespace NYT::NTableClient

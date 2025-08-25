@@ -149,4 +149,4 @@ INodeTypeHandlerPtr CreateEstimatedCreationTimeMapTypeHandler(TBootstrap* bootst
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NYT::NObjectServer

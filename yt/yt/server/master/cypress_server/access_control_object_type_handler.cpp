@@ -126,4 +126,4 @@ IObjectTypeHandlerPtr CreateAccessControlObjectTypeHandler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT:NObjectServer
+} // namespace NYT::NCypressServer

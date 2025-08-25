@@ -80,4 +80,4 @@ void TExtendedYsonWriter::OnStringScalar(TStringBuf value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NYT::NClickHouseServer

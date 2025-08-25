@@ -683,4 +683,4 @@ IMultiReaderMemoryManagerPtr CreateParallelReaderMemoryManager(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NChuckClient
+} // namespace NYT::NChunkClient

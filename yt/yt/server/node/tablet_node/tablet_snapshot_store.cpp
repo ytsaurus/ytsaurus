@@ -671,4 +671,4 @@ ITabletSnapshotStorePtr CreateDummyTabletSnapshotStore(TTabletSnapshotPtr tablet
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode::NYT
+} // namespace NYT::NTabletNode

@@ -45,4 +45,4 @@ ICellarOccupierProviderPtr CreateChaosCellarOccupierProvider(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChaosNode::NYT
+} // namespace NYT::NChaosNode

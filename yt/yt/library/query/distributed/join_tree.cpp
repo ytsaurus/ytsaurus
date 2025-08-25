@@ -55,7 +55,7 @@ TConstGroupClausePtr ResetCommonPrefixInGroupClause(const TConstGroupClausePtr& 
     return modifiedGroup;
 }
 
-}
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 

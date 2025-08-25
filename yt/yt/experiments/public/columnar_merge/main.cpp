@@ -58,7 +58,7 @@ namespace NColumnarChunkFormat {
 
 void FormatValue(TStringBuilderBase* builder, const TReaderStatistics& statistics, TStringBuf spec);
 
-} // namespace TReaderStatistics
+} // namespace NColumnarChunkFormat
 
 ////////////////////////////////////////////////////////////////////////////////
 

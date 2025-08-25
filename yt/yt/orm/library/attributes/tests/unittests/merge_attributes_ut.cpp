@@ -366,4 +366,4 @@ TEST(TConsumingMergeTest, MultipleWithEtc)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NOrm::NClient::NObjects::NTests
+} // namespace NYT::NOrm::NAttributes::NTests
