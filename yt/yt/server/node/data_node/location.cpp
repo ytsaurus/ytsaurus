@@ -955,17 +955,17 @@ void TChunkLocation::DoCheckProbePutBlocksRequests()
 
     while (!ProbePutBlocksRequests_.empty()) {
         auto supplierIt = ProbePutBlocksRequests_.begin();
-        auto& supplier = *supplierIt;
+        const auto& supplier = *supplierIt;
         if (supplier->IsCanceled()) {
-            ProbePutBlocksRequests_.erase(supplierIt);
             EraseOrCrash(ProbePutBlocksSessionIds_, supplier->GetSessionId());
+            ProbePutBlocksRequests_.erase(supplierIt);
             continue;
         }
 
         auto request = supplier->TryGetMinRequest();
         if (!request.has_value()) {
-            ProbePutBlocksRequests_.erase(supplierIt);
             EraseOrCrash(ProbePutBlocksSessionIds_, supplier->GetSessionId());
+            ProbePutBlocksRequests_.erase(supplierIt);
             continue;
         }
 
