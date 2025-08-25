@@ -17,9 +17,10 @@ type RestartRequiredOptions struct {
 
 type Speclet struct {
 	RestartRequiredOptions
-	Active                 *bool   `yson:"active"`
-	Family                 *string `yson:"family"`
-	RestartOnSpecletChange *bool   `yson:"restart_on_speclet_change"`
+	Active                    *bool   `yson:"active"`
+	Family                    *string `yson:"family"`
+	RestartOnControllerChange *bool   `yson:"restart_on_controller_change"`
+	RestartOnSpecletChange    *bool   `yson:"restart_on_speclet_change"`
 	// MinSpecletRevision is a minimum speclet revision with which an operation does not require a force restart.
 	// If the speclet revision of the running yt operation is less than that,
 	// it will be restarted despite the RestartOnSpecletChange option.
@@ -39,12 +40,13 @@ type Speclet struct {
 }
 
 const (
-	DefaultActive                 = false
-	DefaultFamily                 = "none"
-	DefaultStage                  = "production"
-	DefaultRestartOnSpecletChange = true
-	DefaultMinIncarnationIndex    = -1
-	DefaultEnableCPUReclaim       = false
+	DefaultActive                    = false
+	DefaultFamily                    = "none"
+	DefaultStage                     = "production"
+	DefaultRestartOnControllerChange = true
+	DefaultRestartOnSpecletChange    = true
+	DefaultMinIncarnationIndex       = -1
+	DefaultEnableCPUReclaim          = false
 )
 
 func (speclet *Speclet) ActiveOrDefault() bool {
@@ -66,6 +68,13 @@ func (speclet *Speclet) StageOrDefault() string {
 		return *speclet.Stage
 	}
 	return DefaultStage
+}
+
+func (speclet *Speclet) RestartOnControllerChangeOrDefault() bool {
+	if speclet.RestartOnControllerChange != nil {
+		return *speclet.RestartOnControllerChange
+	}
+	return DefaultRestartOnControllerChange
 }
 
 func (speclet *Speclet) RestartOnSpecletChangeOrDefault() bool {
