@@ -372,6 +372,8 @@ public:
         std::vector<int> SessionCountLimits = {1024};
     };
 
+    TDataNodeTest() = default;
+
     explicit TDataNodeTest(const TDataNodeTestParams& testParams)
         : TestParams_(testParams)
     { }
@@ -476,7 +478,7 @@ public:
             });
         EXPECT_CALL(*TestConnection_, GetClusterDirectory).WillRepeatedly(testing::DoDefault());
         EXPECT_CALL(*TestConnection_, SubscribeReconfigured).WillRepeatedly(testing::DoDefault());
-        EXPECT_CALL(*TestConnection_, GetPrimaryMasterCellTag()).WillRepeatedly([] () -> TCellTag {
+        EXPECT_CALL(*TestConnection_, GetPrimaryMasterCellTag).WillRepeatedly([] () -> TCellTag {
             return TCellTag(0xf003);
         });
         EXPECT_CALL(*TestConnection_, GetMasterCellId).WillRepeatedly([] () -> TCellId {
@@ -488,10 +490,10 @@ public:
         EXPECT_CALL(*TestConnection_, GetPrimaryMasterCellId).WillRepeatedly([] () -> TCellId {
             return CellId;
         });
-        EXPECT_CALL(*TestConnection_, GetMasterCellDirectory()).WillRepeatedly([this] () -> ICellDirectoryPtr {
+        EXPECT_CALL(*TestConnection_, GetMasterCellDirectory).WillRepeatedly([this] () -> ICellDirectoryPtr {
             return CellDirectoryMock_;
         });
-        EXPECT_CALL(*TestConnection_, GetSecondaryMasterCellTags()).WillRepeatedly([] () -> TCellTagList {
+        EXPECT_CALL(*TestConnection_, GetSecondaryMasterCellTags).WillRepeatedly([] () -> TCellTagList {
             return {};
         });
 
@@ -503,12 +505,12 @@ public:
         ClusterNodeBootstrap_->Initialize();
 
         MasterConnectorMock_ = New<TMasterConnectorMock>();
-        EXPECT_CALL(*MasterConnectorMock_, IsOnline()).WillRepeatedly(testing::Return(true));
+        EXPECT_CALL(*MasterConnectorMock_, IsOnline).WillRepeatedly(testing::Return(true));
         DataNodeBootstrap_ = New<TDataNodeBootstrapMock>(ClusterNodeBootstrap_->GetDataNodeBootstrap(), MasterConnectorMock_);
 
-        if (CellDirectoryMock_) {
-            testing::Mock::AllowLeak(CellDirectoryMock_.Get());
-        }
+        // if (CellDirectoryMock_) {
+        //     testing::Mock::AllowLeak(CellDirectoryMock_.Get());
+        // }
 
         if (MasterConnectorMock_) {
             testing::Mock::AllowLeak(MasterConnectorMock_.Get());
@@ -562,6 +564,17 @@ public:
         ToProto(req->mutable_session_id(), sessionId);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
 
+        return req->Invoke();
+    }
+
+    auto ProbePutBlocks(const TSessionId& sessionId, i64 cumulativeBlockSize)
+    {
+        auto channel = ChannelFactory_->CreateChannel(DataNodeServiceAddress);
+        TDataNodeServiceProxy proxy(channel);
+
+        auto req = proxy.ProbePutBlocks();
+        req->set_cumulative_block_size(cumulativeBlockSize);
+        ToProto(req->mutable_session_id(), sessionId);
         return req->Invoke();
     }
 
@@ -658,11 +671,18 @@ public:
         return req->Invoke();
     }
 
-    std::vector<TBlock> FillWithRandomBlocks(TSessionId sessionId, int blockCount, int blockSize)
+    std::vector<TBlock> FillWithRandomBlocks(TSessionId sessionId, int blockCount, int blockSize, bool useProbePutBlocks = false)
     {
         auto blocks = CreateBlocks(blockCount, blockSize, Generator_);
         auto cummulativeBlockSize = CalculateCummulativeBlockSize(blocks);
-        WaitFor(StartChunk(sessionId, false)).ThrowOnError();
+        WaitFor(StartChunk(sessionId, useProbePutBlocks)).ThrowOnError();
+        if (useProbePutBlocks) {
+            int approvedCumulativeBlockSize = 0;
+            do {
+                auto resp = WaitFor(ProbePutBlocks(sessionId, cummulativeBlockSize));
+                approvedCumulativeBlockSize = resp.Value()->probe_put_blocks_state().approved_cumulative_block_size();
+            } while (approvedCumulativeBlockSize < cummulativeBlockSize);
+        }
         WaitFor(PutBlocks(sessionId, blocks, 0, cummulativeBlockSize)).ThrowOnError();
         WaitFor(FlushBlocks(sessionId, blockCount - 1)).ThrowOnError();
         WaitFor(FinishChunk(sessionId, blockCount)).ThrowOnError();
@@ -705,6 +725,7 @@ struct TGetBlockSetTestCase
     bool FetchFromCache = true;
     bool FetchFromDisk = true;
     bool EnableSequentialIORequests = true;
+    bool UseProbePutBlocks = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -796,7 +817,7 @@ TEST_P(TIoWeightTest, GetBlocksByOneDiskIORequestTest)
 
     for (auto& future: futures) {
         TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
-        future = BIND(&TDataNodeTest::FillWithRandomBlocks, this, sessionId, 1, 1_KB)
+        future = BIND(&TDataNodeTest::FillWithRandomBlocks, this, sessionId, 1, 1_KB, false)
             .AsyncVia(GetActionQueue()->GetInvoker())
             .Run()
             .AsVoid();
@@ -921,7 +942,7 @@ TEST_P(TGetBlockSetTest, GetBlockSetTest)
     TRandomGenerator generator(42);
     int blockCount = testCase.BlockCount;
     int blkSize = testCase.BlockSize;
-    auto blocks = FillWithRandomBlocks(sessionId, blockCount, blkSize);
+    auto blocks = FillWithRandomBlocks(sessionId, blockCount, blkSize, testCase.UseProbePutBlocks);
 
     int getBlockSetCount = testCase.ParallelGetBlockSetCount;
     std::vector<TFuture<void>> getBlockSetFutures;
@@ -1021,10 +1042,82 @@ INSTANTIATE_TEST_SUITE_P(
             .PopulateCache = false,
             .FetchFromCache = false,
             .FetchFromDisk = true,
+            .UseProbePutBlocks = true
+        },
+        TGetBlockSetTestCase{
+            .BlockCount = 1000,
+            .BlockSize = 1_MB,
+            .ParallelGetBlockSetCount = 100,
+            .BlocksInRequest = 40,
+            .PopulateCache = false,
+            .FetchFromCache = false,
+            .FetchFromDisk = true,
             .EnableSequentialIORequests = false
         }
     )
 );
+
+TEST_F(TDataNodeTest, ProbePutBlocksCancelChunk)
+{
+    std::vector<TSessionId> sessionIds;
+
+    for (int i = 0; i < 100; ++i) {
+        TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
+        sessionIds.push_back(sessionId);
+        WaitFor(StartChunk(sessionId, true)).ThrowOnError();
+    }
+
+    for (const auto& sessionId: sessionIds) {
+        for (int i = 0; i < 100; ++i) {
+            YT_UNUSED_FUTURE(ProbePutBlocks(sessionId, 5_GB + RandomNumber<unsigned>() % 1000 * 100_MB));
+        }
+    }
+
+    for (int i = 0; i < std::ssize(sessionIds) / 2; ++i) {
+        WaitFor(CancelChunk(sessionIds[i])).ThrowOnError();
+    }
+
+    for (int i = std::ssize(sessionIds) / 2; i < std::ssize(sessionIds); ++i) {
+        for (int j = 0; j < 100; ++j) {
+            YT_UNUSED_FUTURE(ProbePutBlocks(sessionIds[i],  5_GB + RandomNumber<unsigned>() % 1000 * 100_MB));
+        }
+    }
+
+    for (int i = std::ssize(sessionIds) / 2; i < std::ssize(sessionIds); ++i) {
+        WaitFor(CancelChunk(sessionIds[i])).ThrowOnError();
+    }
+}
+
+TEST_F(TDataNodeTest, ProbePutBlocksFinishChunk)
+{
+    std::vector<TSessionId> sessionIds;
+
+    for (int i = 0; i < 100; ++i) {
+        TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
+        sessionIds.push_back(sessionId);
+        WaitFor(StartChunk(sessionId, true)).ThrowOnError();
+    }
+
+    for (const auto& sessionId: sessionIds) {
+        for (int i = 0; i < 100; ++i) {
+            YT_UNUSED_FUTURE(ProbePutBlocks(sessionId, 5_GB + RandomNumber<unsigned>() % 1000 * 100_MB));
+        }
+    }
+
+    for (int i = 0; i < std::ssize(sessionIds) / 2; ++i) {
+        WaitFor(FinishChunk(sessionIds[i], 0)).ThrowOnError();
+    }
+
+    for (int i = std::ssize(sessionIds) / 2; i < std::ssize(sessionIds); ++i) {
+        for (int j = 0; j < 100; ++j) {
+            YT_UNUSED_FUTURE(ProbePutBlocks(sessionIds[i], 5_GB + RandomNumber<unsigned>() % 1000 * 100_MB));
+        }
+    }
+
+    for (int i = std::ssize(sessionIds) / 2; i < std::ssize(sessionIds); ++i) {
+        WaitFor(FinishChunk(sessionIds[i], 0)).ThrowOnError();
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
