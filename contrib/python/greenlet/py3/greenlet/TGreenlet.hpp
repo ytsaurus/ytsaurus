@@ -116,6 +116,12 @@ namespace greenlet
 #endif
 #if GREENLET_PY314
         int py_recursion_depth;
+        // I think this is only used by the JIT. At least,
+        // we only got errors not switching it when the JIT was enabled.
+        //    Python/generated_cases.c.h:12469: _PyEval_EvalFrameDefault:
+        //      Assertion `tstate->current_executor == NULL' failed.
+        // see https://github.com/python-greenlet/greenlet/issues/460
+        PyObject* current_executor;
 #elif GREENLET_PY312
         int py_recursion_depth;
         int c_recursion_depth;

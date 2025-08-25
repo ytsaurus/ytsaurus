@@ -56,8 +56,15 @@ green_new(PyTypeObject* type, PyObject* UNUSED(args), PyObject* UNUSED(kwds))
     PyGreenlet* o =
         (PyGreenlet*)PyBaseObject_Type.tp_new(type, mod_globs->empty_tuple, mod_globs->empty_dict);
     if (o) {
-        new UserGreenlet(o, GET_THREAD_STATE().state().borrow_current());
+        // Recall: borrowing or getting the current greenlet
+        // causes the "deleteme list" to get cleared. So constructing a greenlet
+        // can do things like cause other greenlets to get finalized.
+        UserGreenlet* c = new UserGreenlet(o, GET_THREAD_STATE().state().borrow_current());
         assert(Py_REFCNT(o) == 1);
+        // Also: This looks like a memory leak, but isn't. Constructing the
+        // C++ object assigns it to the pimpl pointer of the Python object (o);
+        // we'll need that later.
+        assert(c == o->pimpl);
     }
     return o;
 }
@@ -236,20 +243,26 @@ _green_dealloc_kill_started_non_main_greenlet(BorrowedGreenlet self)
          * and call ``PyObject_CallFinalizerFromDealloc``,
          * but that's only supported in Python 3.4+; see
          * Modules/_io/iobase.c for an example.
+         * TODO: We no longer run on anything that old, switch to finalizers.
          *
          * The following approach is copied from iobase.c in CPython 2.7.
          * (along with much of this function in general). Here's their
          * comment:
          *
          * When called from a heap type's dealloc, the type will be
-         * decref'ed on return (see e.g. subtype_dealloc in typeobject.c). */
+         * decref'ed on return (see e.g. subtype_dealloc in typeobject.c).
+         *
+         * On free-threaded builds of CPython, the type is meant to be immortal
+         * so we probably shouldn't mess with this? See
+         * test_issue_245_reference_counting_subclass_no_threads
+         */
         if (PyType_HasFeature(self.TYPE(), Py_TPFLAGS_HEAPTYPE)) {
             Py_INCREF(self.TYPE());
         }
 
         PyObject_GC_Track((PyObject*)self);
 
-        _Py_DEC_REFTOTAL;
+        GREENLET_Py_DEC_REFTOTAL;
 #ifdef COUNT_ALLOCS
         --Py_TYPE(self)->tp_frees;
         --Py_TYPE(self)->tp_allocs;
