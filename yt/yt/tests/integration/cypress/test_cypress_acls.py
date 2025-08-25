@@ -2076,7 +2076,6 @@ class TestCypressAcls(CheckPermissionBase):
             copy("//tmp/t", "//tmp/t_copy", authenticated_user="u")
 
     @authors("coteeq")
-    @pytest.mark.xfail(reason="todo(coteeq)")
     @not_implemented_in_sequoia
     def test_absence_of_read_does_not_mention_full_read(self):
         # NB(coteeq): This is a test for the behaviour that is designed to
