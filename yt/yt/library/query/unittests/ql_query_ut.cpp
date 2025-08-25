@@ -4497,6 +4497,82 @@ TEST_F(TQueryEvaluateTest, GroupByAlias)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, GroupByConstantWithTotals)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    auto source = TSource{
+        "a=1;b=10",
+        "a=2;b=20",
+        "a=3;b=30",
+        "a=4;b=40",
+        "a=5;b=50",
+        "a=6;b=60",
+        "a=7;b=70",
+        "a=8;b=80",
+        "a=9;b=90"
+    };
+
+    // Group by constant expression with totals.
+    {
+        auto resultSplit = MakeSplit({
+            {"x", EValueType::Boolean},
+            {"q", EValueType::Int64},
+            {"t", EValueType::Int64}
+        });
+
+        auto resultWithTotals = YsonToRows({
+            "x=%false;q=1;t=200",
+            "x=%true;q=1;t=240",
+            "t=440"
+        }, resultSplit);
+
+        Evaluate("x, q, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x, 1 as q with totals", split,
+            source, ResultMatcher(resultWithTotals));
+    }
+}
+
+TEST_F(TQueryEvaluateTest, GroupByExprAndSubexpWithTotals)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    auto source = TSource{
+        "a=1;b=10",
+        "a=2;b=20",
+        "a=3;b=30",
+        "a=4;b=40",
+        "a=5;b=50",
+        "a=6;b=60",
+        "a=7;b=70",
+        "a=8;b=80",
+        "a=9;b=90"
+    };
+
+    // Group by expression and its subexpression.
+    {
+        auto resultSplit = MakeSplit({
+            {"x", EValueType::Int64},
+            {"q", EValueType::Int64},
+            {"t", EValueType::Int64}
+        });
+
+        auto resultWithTotals = YsonToRows({
+            "x=0;q=1;t=200",
+            "x=1;q=2;t=240",
+            "t=440"
+        }, resultSplit);
+
+        Evaluate("a % 2 as x, x + 1 as q, sum(b) as t FROM [//t] where a > 1 group by x, q with totals", split,
+            source, ResultMatcher(resultWithTotals));
+    }
+}
+
 TEST_F(TQueryEvaluateTest, GroupByWithTotals)
 {
     auto split = MakeSplit({
