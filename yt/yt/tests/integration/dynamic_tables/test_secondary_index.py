@@ -606,12 +606,12 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
         insert_rows("//tmp/table", table_rows)
         insert_rows("//tmp/index_table", table_rows)
 
-        rows = select_rows("keyA, keyB, valueA, valueB from [//tmp/table] with index [//tmp/index_table]")
+        rows = select_rows("keyA, keyB, valueA, valueB from [//tmp/table] with index [//tmp/index_table] I")
         assert_items_equal(sorted_dicts(rows), sorted_dicts(table_rows))
 
         filtered = [{"keyA": 1, "keyB": "alpha", "valueA": 200, "valueB": True}]
         rows = select_rows("keyA, keyB, valueA, valueB from [//tmp/table] "
-                           "with index [//tmp/index_table] where valueA = 200")
+                           "with index [//tmp/index_table] I where valueA = 200")
         assert_items_equal(rows, filtered)
 
     @authors("sabdenovch")
@@ -632,7 +632,7 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
             "Alias.valueB": False,
         }]
         rows = select_rows("Alias.keyA, Alias.keyB, Alias.valueA, Alias.valueB "
-                           "from [//tmp/table] Alias with index [//tmp/index_table]")
+                           "from [//tmp/table] Alias with index [//tmp/index_table] I")
         assert_items_equal(sorted_dicts(rows), sorted_dicts(aliased_table_rows))
 
     @authors("sabdenovch")
@@ -647,10 +647,10 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
         insert_rows("//tmp/index_table", table_rows + [{"keyA": 0, "keyB": "alpha", "valueA": 200}])
 
         expected = select_rows("keyA, keyB, valueA from [//tmp/table]")
-        actual = select_rows("keyA, keyB, valueA from [//tmp/table] with index [//tmp/index_table]")
+        actual = select_rows("keyA, keyB, valueA from [//tmp/table] with index [//tmp/index_table] I")
         assert actual == expected
 
-        plan = explain_query("keyA, keyB, valueA from [//tmp/table] with index [//tmp/index_table] where valueA = 100")
+        plan = explain_query("keyA, keyB, valueA from [//tmp/table] with index [//tmp/index_table] I where valueA = 100")
         assert plan["query"]["constraints"] == "Constraints:\n100: <universe>"
 
     @pytest.mark.parametrize("strong_typing", [False, True])
@@ -685,7 +685,7 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
         ], input_format=format)
 
         query = """
-            key, value from [//tmp/table] with index [//tmp/index_table]
+            key, value from [//tmp/table] with index [//tmp/index_table] I
             where list_contains(value, 12)
         """
         rows = select_rows(query)
@@ -694,7 +694,7 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
         assert explain_query(query)["query"]["constraints"] != "Constraints: <universe>"
 
         query = """
-            key, first(to_any(value)) as value from [//tmp/table] with index [//tmp/index_table]
+            key, first(to_any(value)) as value from [//tmp/table] with index [//tmp/index_table] I
             where list_contains(value, 12) or list_contains(value, 13)
             group by key
         """
@@ -707,7 +707,7 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
         assert explain_query(query)["query"]["constraints"] != "Constraints: <universe>"
 
         query = """
-            key, first(to_any(value)) as value from [//tmp/table] with index [//tmp/index_table]
+            key, first(to_any(value)) as value from [//tmp/table] with index [//tmp/index_table] I
             where value in (#, 11, 14)
             group by key
         """
@@ -734,7 +734,7 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
 
         assert_items_equal(
             sorted_dicts(select_rows("keyA, keyB from [//tmp/table]")),
-            sorted_dicts(select_rows("keyA, keyB from [//tmp/table] with index [//tmp/index_table]")),
+            sorted_dicts(select_rows("keyA, keyB from [//tmp/table] with index [//tmp/index_table] I")),
         )
 
     @authors("sabdenovch")
@@ -752,21 +752,21 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
         insert_rows("//tmp/index_table", [{"keyA": 0, "keyB": "alpha", "valueA": 200}])
 
         with raises_yt_error("Cannot use index"):
-            select_rows("* from [//tmp/table] WITH INDEX [//tmp/index_table]")
+            select_rows("* from [//tmp/table] WITH INDEX [//tmp/index_table] I")
 
         sync_unmount_table("//tmp/table")
         set(f"#{index_id}/@table_to_index_correspondence", "bijective")
         sync_mount_table("//tmp/table")
         insert_rows("//tmp/table", table_rows)
-        assert len(select_rows("* from [//tmp/table] WITH INDEX [//tmp/index_table]")) == 2
-        plan = explain_query("* from [//tmp/table] WITH INDEX [//tmp/index_table] where valueA = 100")
+        assert len(select_rows("* from [//tmp/table] WITH INDEX [//tmp/index_table] I")) == 2
+        plan = explain_query("* from [//tmp/table] WITH INDEX [//tmp/index_table] I where valueA = 100")
         assert plan["query"]["constraints"] == "Constraints:\n100: <universe>"
 
         sync_unmount_table("//tmp/table")
         set(f"#{index_id}/@table_to_index_correspondence", "injective")
         sync_mount_table("//tmp/table")
-        assert len(select_rows("* from [//tmp/table] WITH INDEX [//tmp/index_table]")) == 1
-        plan = explain_query("* from [//tmp/table] WITH INDEX [//tmp/index_table] where valueA = 100")
+        assert len(select_rows("* from [//tmp/table] WITH INDEX [//tmp/index_table] I")) == 1
+        plan = explain_query("* from [//tmp/table] WITH INDEX [//tmp/index_table] I where valueA = 100")
         assert plan["query"]["constraints"] == "Constraints:\n100: <universe>"
 
     @authors("sabdenovch")
@@ -813,7 +813,7 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
 
         # lines with token eu
         query = """
-            key from [//tmp/table] with index [//tmp/index_table]
+            key from [//tmp/table] with index [//tmp/index_table] I
             where tokens in ("eu") group by key
         """
         rows = select_rows(query)
@@ -1476,7 +1476,7 @@ class TestSecondaryIndexReplicatedSelect(TestSecondaryIndexReplicatedBase, TestS
         ])
 
         assert_items_equal(
-            sorted_dicts(select_rows(f"keyA, keyB, valueA, valueB FROM [{table_path}] WITH INDEX [{index_table_path}] where valueA < 5")),
+            sorted_dicts(select_rows(f"keyA, keyB, valueA, valueB FROM [{table_path}] WITH INDEX [{index_table_path}] I where valueA < 5")),
             sorted_dicts([{"keyA": i, "keyB": f"key{i}", "valueA": i, "valueB": i % 2 == 0} for i in range(5)])
         )
 

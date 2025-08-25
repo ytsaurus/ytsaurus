@@ -492,7 +492,7 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("allow_unaliased_secondary_index", &TThis::AllowUnaliasedSecondaryIndex)
-        .Default(true);
+        .Default(false);
 
     registrar.Parameter("flow_pipeline_controller_rpc_timeout", &TThis::FlowPipelineControllerRpcTimeout)
         .Default(TDuration::Seconds(10));
